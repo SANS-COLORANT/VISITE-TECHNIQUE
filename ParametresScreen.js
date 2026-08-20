@@ -6,6 +6,7 @@ import { COLORS, styles } from './styles.js';
 import {
   listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio,
 } from './db.js';
+import { CategorieCritereSelector } from './GenericFields.js';
 
 function ParametresScreen() {
   const [reserves, setReserves] = useState([]);
@@ -97,6 +98,18 @@ function ParametresScreen() {
           <View style={styles.modalSheet}>
             <ScrollView>
               <Text style={styles.modalTitle}>{editId ? 'Modifier la réserve' : 'Nouvelle réserve'}</Text>
+              {!editId && (
+                <View style={{ marginBottom: 14, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+                  <CategorieCritereSelector
+                    onRempli={(r) => {
+                      setNom(r.nom); setDescription(r.description);
+                      setPoste(r.poste || ''); setDelai(r.delai ? String(r.delai) : '');
+                      setPrix(r.prix ? String(Math.round(r.prix)) : '');
+                    }}
+                  />
+                  <Text style={styles.emptySub}>Choisis une catégorie et une cause pour pré-remplir, ou saisis librement ci-dessous.</Text>
+                </View>
+              )}
               <TextInput style={styles.input} placeholder="Nom" value={nom} onChangeText={setNom} />
               <TextInput
                 style={[styles.input, { marginTop: 10, height: 70, textAlignVertical: 'top' }]}

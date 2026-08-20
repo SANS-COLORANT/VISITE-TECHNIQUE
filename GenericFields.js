@@ -408,4 +408,65 @@ const TypeAheadInput = React.memo(function TypeAheadInput({ valeur, options, pla
   );
 });
 
-export { extractUnit, cleanLabel, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, ChampGenerique, ControleGenerique, AVIS_OPTIONS };
+/**
+ * Sélecteur "Catégorie + Critère" pour créer une réserve : on choisit d'abord
+ * un point de la trame (ex: "Adoucisseur - Filtre / Bypass") via
+ * autocomplétion, puis un critère (Dégradé, Absent...) via chips — ce qui
+ * pré-remplit nom/description/poste/délai/prix automatiquement, comme sur
+ * un contrôle N.S. Tout reste éditable ensuite.
+ */
+const CategorieCritereSelector = React.memo(function CategorieCritereSelector({ onRempli }) {
+  const [categorie, setCategorie] = useState('');
+  const [critereIdx, setCritereIdx] = useState(null);
+  const categories = Object.keys(PRESCRIPTIONS).sort((a, b) => a.localeCompare(b));
+  const options = PRESCRIPTIONS[categorie];
+
+  const choisirCategorie = (val) => {
+    setCategorie(val);
+    setCritereIdx(null);
+  };
+
+  const choisirCritere = (idx) => {
+    setCritereIdx(idx);
+    const opt = options[idx];
+    onRempli({
+      nom: categorie + (opt.critere ? ' — ' + opt.critere : ''),
+      description: opt.prestation,
+      poste: opt.poste,
+      delai: opt.delai,
+      prix: opt.estimatif,
+    });
+  };
+
+  return (
+    <View>
+      <Text style={styles.fieldLabel}>Catégorie</Text>
+      <TypeAheadInput
+        valeur={categorie}
+        options={categories}
+        placeholder="Ex: Adoucisseur - Filtre / Bypass..."
+        onChange={choisirCategorie}
+      />
+      {options && options.length > 0 && (
+        <View style={{ marginTop: 10 }}>
+          <Text style={styles.fieldLabel}>Cause / critère</Text>
+          <View style={styles.chipSelectRow}>
+            {options.map((opt, idx) => (
+              <TouchableOpacity
+                key={idx}
+                style={[styles.chipOpt, critereIdx === idx && styles.chipOptPicked]}
+                onPress={() => choisirCritere(idx)}
+              >
+                <Text style={[styles.chipOptText, critereIdx === idx && styles.chipOptTextPicked]}>
+                  {opt.critere || 'Non conforme'}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </View>
+      )}
+    </View>
+  );
+});
+
+export { extractUnit, cleanLabel, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, ChampGenerique, ControleGenerique, AVIS_OPTIONS, CategorieCritereSelector };

@@ -68,6 +68,8 @@ export const styles = StyleSheet.create({
   simpleHeaderBackText: { fontSize: 20, color: COLORS.ink },
   simpleHeaderTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '600', color: COLORS.ink },
   noteBtnText: { fontSize: 12, color: COLORS.inkSoft, fontWeight: '600' },
+  exportBtn: { backgroundColor: COLORS.ink, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, marginLeft: 8 },
+  exportBtnText: { fontSize: 12, color: COLORS.white, fontWeight: '600' },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   progressBarBg: { flex: 1, height: 6, backgroundColor: COLORS.line, borderRadius: 3, overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: COLORS.orange },

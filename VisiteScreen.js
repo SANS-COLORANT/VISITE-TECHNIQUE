@@ -1,9 +1,10 @@
 /** Écran Visite — conteneur avec onglets horizontaux. */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { getVisite, getNote, upsertNote } from './db.js';
+import { exporterEtPartager } from './excelExport.js';
 import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques, PanelPhotos } from './VisitePanels.js';
 
 // ============================================================================
@@ -53,6 +54,17 @@ function VisiteScreen({ route, onBack }) {
     setNoteVisible(false);
   };
 
+  const [exporting, setExporting] = useState(false);
+  const exporter = async () => {
+    setExporting(true);
+    try {
+      await exporterEtPartager(visiteId);
+    } catch (e) {
+      Alert.alert('Erreur export', String(e.message || e));
+    }
+    setExporting(false);
+  };
+
   if (!visite) {
     return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.orange} /></View>;
   }
@@ -70,6 +82,9 @@ function VisiteScreen({ route, onBack }) {
           </View>
           <TouchableOpacity style={styles.noteBtn} onPress={ouvrirNote}>
             <Text style={styles.noteBtnText}>Note libre</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.exportBtn} onPress={exporter} disabled={exporting}>
+            <Text style={styles.exportBtnText}>{exporting ? '...' : 'Exporter'}</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.progressRow}>
