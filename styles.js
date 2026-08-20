@@ -58,6 +58,7 @@ export const styles = StyleSheet.create({
     borderTopWidth: 1,
     borderTopColor: COLORS.line,
   },
+  fabButton: { flex: 0, minHeight: 48, justifyContent: 'center' },
   paramTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line, paddingHorizontal: 20 },
   paramTab: { paddingVertical: 12, paddingHorizontal: 4, marginRight: 24, borderBottomWidth: 2.5, borderBottomColor: 'transparent' },
   paramTabActive: { borderBottomColor: COLORS.orange },
