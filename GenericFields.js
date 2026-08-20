@@ -1,7 +1,7 @@
 /** Champs génériques : molette numérique, chips de sélection, contrôle Avis. */
 
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, PanResponder } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PRESCRIPTIONS } from './data.js';
 import { upsertChamp, upsertControle, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle } from './db.js';
@@ -134,29 +134,16 @@ const ChipSelector = React.memo(function ChipSelector({ valeur, options, onChang
   const [texteLibre, setTexteLibre] = useState(valeur && !options.includes(valeur) ? valeur : '');
   const estValeurLibre = valeur && !options.includes(valeur);
 
-  const panResponder = React.useRef(
-    PanResponder.create({
-      // "Capture" plutôt que la version simple : sinon les boutons (chips)
-      // en dessous interceptent le toucher avant que le swipe soit détecté.
-      onMoveShouldSetPanResponderCapture: (evt, gestureState) =>
-        Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.5,
-      onPanResponderRelease: (evt, gestureState) => {
-        const idxActuel = options.indexOf(valeur);
-        if (gestureState.dx < -20) {
-          // glissement vers la gauche → option suivante
-          const next = idxActuel < options.length - 1 ? idxActuel + 1 : 0;
-          onChange(options[next]);
-        } else if (gestureState.dx > 20) {
-          // glissement vers la droite → option précédente
-          const prev = idxActuel > 0 ? idxActuel - 1 : options.length - 1;
-          onChange(options[prev]);
-        }
-      },
-    })
-  ).current;
-
   const choisir = (opt) => {
     onChange(valeur === opt ? '' : opt); // toggle : recliquer désélectionne
+  };
+
+  const naviguer = (direction) => {
+    const idxActuel = options.indexOf(valeur);
+    let next;
+    if (idxActuel === -1) next = direction > 0 ? 0 : options.length - 1;
+    else next = (idxActuel + direction + options.length) % options.length;
+    onChange(options[next]);
   };
 
   if (modeLibre || estValeurLibre) {
@@ -172,18 +159,26 @@ const ChipSelector = React.memo(function ChipSelector({ valeur, options, onChang
     );
   }
   return (
-    <View style={styles.chipSelectRow} {...panResponder.panHandlers}>
-      {options.map((opt) => (
-        <TouchableOpacity
-          key={opt}
-          style={[styles.chipOpt, valeur === opt && styles.chipOptPicked]}
-          onPress={() => choisir(opt)}
-        >
-          <Text style={[styles.chipOptText, valeur === opt && styles.chipOptTextPicked]}>{opt}</Text>
+    <View style={styles.chipRowWithArrows}>
+      <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(-1)}>
+        <Text style={styles.chipArrowBtnText}>‹</Text>
+      </TouchableOpacity>
+      <View style={styles.chipSelectRow}>
+        {options.map((opt) => (
+          <TouchableOpacity
+            key={opt}
+            style={[styles.chipOpt, valeur === opt && styles.chipOptPicked]}
+            onPress={() => choisir(opt)}
+          >
+            <Text style={[styles.chipOptText, valeur === opt && styles.chipOptTextPicked]}>{opt}</Text>
+          </TouchableOpacity>
+        ))}
+        <TouchableOpacity style={[styles.chipOpt, styles.chipOptAddNew]} onPress={() => setModeLibre(true)}>
+          <Text style={styles.chipOptAddNewText}>+ Autre</Text>
         </TouchableOpacity>
-      ))}
-      <TouchableOpacity style={[styles.chipOpt, styles.chipOptAddNew]} onPress={() => setModeLibre(true)}>
-        <Text style={styles.chipOptAddNewText}>+ Autre</Text>
+      </View>
+      <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(1)}>
+        <Text style={styles.chipArrowBtnText}>›</Text>
       </TouchableOpacity>
     </View>
   );
@@ -399,29 +394,36 @@ const TypeAheadInput = React.memo(function TypeAheadInput({ valeur, options, pla
     blurTimer.current = setTimeout(() => setFocus(false), 200);
   };
 
-  // Glisser horizontalement pour naviguer dans la liste complète des
-  // options sans avoir à taper sur chacune (même logique que ChipSelector).
-  const panResponder = React.useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponderCapture: (evt, g) => Math.abs(g.dx) > 15 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
-      onPanResponderRelease: (evt, g) => {
-        const idx = options.indexOf(texte);
-        if (g.dx < -20) choisir(options[idx < options.length - 1 ? idx + 1 : 0]);
-        else if (g.dx > 20) choisir(options[idx > 0 ? idx - 1 : options.length - 1]);
-      },
-    })
-  ).current;
+  // Flèches ‹ › pour naviguer dans la liste complète des options sans avoir
+  // à taper sur chacune (le geste de glissement s'est avéré peu fiable ici
+  // à cause des boutons de suggestion en dessous — les flèches marchent à
+  // coup sûr).
+  const naviguer = (direction) => {
+    const idx = options.indexOf(texte);
+    let next;
+    if (idx === -1) next = direction > 0 ? 0 : options.length - 1;
+    else next = (idx + direction + options.length) % options.length;
+    choisir(options[next]);
+  };
 
   return (
-    <View {...panResponder.panHandlers}>
-      <TextInput
-        style={styles.input}
-        value={texte}
-        onChangeText={setTexte}
-        onFocus={() => setFocus(true)}
-        onBlur={surBlur}
-        placeholder={placeholder}
-      />
+    <View>
+      <View style={styles.typeaheadRow}>
+        <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(-1)}>
+          <Text style={styles.chipArrowBtnText}>‹</Text>
+        </TouchableOpacity>
+        <TextInput
+          style={[styles.input, { flex: 1 }]}
+          value={texte}
+          onChangeText={setTexte}
+          onFocus={() => setFocus(true)}
+          onBlur={surBlur}
+          placeholder={placeholder}
+        />
+        <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(1)}>
+          <Text style={styles.chipArrowBtnText}>›</Text>
+        </TouchableOpacity>
+      </View>
       {focus && suggestions.length > 0 && (
         <View style={styles.typeaheadSuggestions}>
           {suggestions.map((s) => (

@@ -144,6 +144,10 @@ export const styles = StyleSheet.create({
   chipOptTextPicked: { color: COLORS.white, fontWeight: '600' },
   chipOptAddNew: { borderStyle: 'dashed', borderColor: COLORS.orange, backgroundColor: COLORS.orangeLight },
   chipOptAddNewText: { fontSize: 12, color: COLORS.orangeDark, fontWeight: '600' },
+  chipRowWithArrows: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
+  chipArrowBtn: { width: 34, height: 34, borderRadius: 8, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  chipArrowBtnText: { fontSize: 18, color: COLORS.orangeDark, fontWeight: '700' },
+  typeaheadRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 
   compteurRow: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, padding: 12, marginBottom: 10 },
   compteurRowTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
