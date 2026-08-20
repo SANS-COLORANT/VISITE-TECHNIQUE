@@ -93,7 +93,7 @@ function VisiteScreen({ route, onBack }) {
           </View>
           <Text style={styles.progressPct}>{visite.progression_pct}%</Text>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.tabStrip}>
+        <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.tabStrip}>
           {TAB_ORDER.map((pid, i) =>
             pid === 'SEP' ? (
               <View key={`sep-${i}`} style={styles.tabSep} />

@@ -45,7 +45,7 @@ function PanelGenerique({ visiteId, panelId, refreshKey, onSaved }) {
   if (!sections) return null;
 
   return (
-    <ScrollView contentContainerStyle={styles.panelContent}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
       {Object.entries(sections).map(([sub, fields]) => {
         const sectionCode = panelId.replace('p-', '') + '.' + sub.toLowerCase().replace(/[^a-z0-9]+/g, '_');
         const champs = fields.filter((f) => f.type === 'champ');
@@ -100,7 +100,7 @@ function PanelRegulation({ visiteId, refreshKey, onSaved }) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.panelContent}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
       <Text style={styles.sectionTitle}>Cascade chaudières</Text>
       <View style={styles.formCard}>
         {TRAME_DATA['p-regulation']['Cascade chaudières'].map((f) => (
@@ -225,7 +225,7 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
   }, []);
 
   return (
-    <ScrollView contentContainerStyle={styles.panelContent}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
       <Text style={styles.sectionTitle}>Pressions</Text>
       <View style={styles.formCard}>
         {champsPression.map((f) => (
@@ -317,7 +317,7 @@ function PanelEquipements({ visiteId }) {
   const onAjouter = async () => { await ajouterMateriel(visiteId); charger(); };
 
   return (
-    <ScrollView contentContainerStyle={styles.panelContent}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
       <Text style={styles.sectionTitle}>Équipements — feuille MATERIEL</Text>
       {materiel.map((m) => (
         <MaterielCard key={m.id} item={m} visiteId={visiteId} onChange={charger} />
@@ -408,7 +408,7 @@ function MaterielCard({ item, visiteId, onChange }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Choisir un équipement</Text>
-            <ScrollView style={{ maxHeight: 300 }}>
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 300 }}>
               {biblio.length === 0 ? (
                 <Text style={styles.emptySub}>Bibliothèque vide. Ajoutes-en depuis Paramètres → Équipements.</Text>
               ) : (
@@ -460,7 +460,7 @@ function PanelRemarques({ visiteId, refreshKey }) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.panelContent}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
       <View style={styles.totalsBar}>
         <View style={styles.totalsCard}><Text style={styles.totalsNum}>{total}</Text><Text style={styles.totalsLabel}>Réserves</Text></View>
         <View style={styles.totalsCard}><Text style={styles.totalsNum}>{Math.round(sumEstim)} €</Text><Text style={styles.totalsLabel}>Estimatif</Text></View>
@@ -495,7 +495,7 @@ function PanelRemarques({ visiteId, refreshKey }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Choisir une réserve</Text>
-            <ScrollView style={{ maxHeight: 300 }}>
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 300 }}>
               {biblio.length === 0 ? (
                 <Text style={styles.emptySub}>Aucune réserve dans ta bibliothèque. Ajoutes-en depuis Paramètres, ou pars d'une réserve vierge.</Text>
               ) : (
@@ -540,7 +540,7 @@ function PanelPhotos({ visiteId, refreshKey }) {
   };
 
   return (
-    <ScrollView contentContainerStyle={styles.panelContent}>
+    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
       <Text style={styles.sectionTitle}>Toutes les photos de la visite · {photos.length}</Text>
       <View style={styles.photoGrid}>
         {photos.map((p) => (

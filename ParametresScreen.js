@@ -118,7 +118,7 @@ function BibliothequeReserves() {
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
-            <ScrollView>
+            <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={styles.modalTitle}>{editId ? 'Modifier la réserve' : 'Nouvelle réserve'}</Text>
               {!editId && (
                 <View style={{ marginBottom: 14, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
@@ -215,7 +215,7 @@ function BibliothequeEquipements() {
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
-            <ScrollView>
+            <ScrollView keyboardShouldPersistTaps="handled">
               <Text style={styles.modalTitle}>{editId ? "Modifier l'équipement" : 'Nouvel équipement'}</Text>
               <Text style={styles.fieldLabel}>Catégorie</Text>
               <TypeAheadInput valeur={categorie} options={CATEGORIES_EQUIPEMENT} placeholder="Ex: Chaudière..." onChange={setCategorie} />
