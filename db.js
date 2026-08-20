@@ -357,16 +357,115 @@ async function supprimerCompteur(compteurId) {
 
 // ---------------- Repository : équipements ----------------
 
+async function getInstallationPrincipale(db, visiteId) {
+  const visite = await db.getFirstAsync('SELECT site_id FROM visites WHERE id = ?', [visiteId]);
+  if (!visite) throw new Error('Visite introuvable');
+  let installation = await db.getFirstAsync(
+    `SELECT * FROM installations WHERE site_id = ? AND actif = 1 ORDER BY cree_le LIMIT 1`,
+    [visite.site_id]
+  );
+  if (!installation) {
+    const id = uuidv4();
+    await db.runAsync(
+      `INSERT INTO installations (id, site_id, type_code, nom) VALUES (?, ?, 'chaufferie', 'Installation principale')`,
+      [id, visite.site_id]
+    );
+    installation = { id, site_id: visite.site_id };
+  }
+  return installation;
+}
+
+async function trouverOuCreerEquipementDepuisSnapshot(db, installationId, snapshot) {
+  let equipement = await db.getFirstAsync(
+    `SELECT * FROM equipements
+     WHERE installation_id = ? AND statut = 'actif'
+       AND COALESCE(type_code, '') = COALESCE(?, '') COLLATE NOCASE
+       AND COALESCE(designation, '') = COALESCE(?, '') COLLATE NOCASE
+       AND COALESCE(marque, '') = COALESCE(?, '') COLLATE NOCASE
+       AND COALESCE(modele, '') = COALESCE(?, '') COLLATE NOCASE
+     ORDER BY cree_le LIMIT 1`,
+    [installationId, snapshot.categorie || 'non_classe', snapshot.designation || '', snapshot.marque || '', snapshot.modele || '']
+  );
+  if (equipement) return equipement.id;
+  const id = uuidv4();
+  await db.runAsync(
+    `INSERT INTO equipements
+      (id, installation_id, type_code, designation, marque, modele, annee, statut)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'actif')`,
+    [id, installationId, snapshot.categorie || 'non_classe', snapshot.designation || null,
+      snapshot.marque || null, snapshot.modele || null, snapshot.annee || null]
+  );
+  return id;
+}
+
+/**
+ * Relie les anciens snapshots au référentiel permanent puis projette dans la
+ * visite courante tous les équipements actifs du site. L'opération est
+ * idempotente : elle peut être rejouée à chaque ouverture sans doublon.
+ */
+async function initialiserEquipementsVisite(db, visiteId) {
+  const installation = await getInstallationPrincipale(db, visiteId);
+  const snapshotsSansLien = await db.getAllAsync(
+    'SELECT * FROM materiel WHERE visite_id = ? AND equipement_id IS NULL', [visiteId]
+  );
+  for (const snapshot of snapshotsSansLien) {
+    const equipementId = await trouverOuCreerEquipementDepuisSnapshot(db, installation.id, snapshot);
+    await db.runAsync('UPDATE materiel SET equipement_id = ? WHERE id = ?', [equipementId, snapshot.id]);
+    await db.runAsync(
+      `INSERT OR IGNORE INTO observations_equipement (id, equipement_id, visite_id, etat)
+       VALUES (?, ?, ?, ?)`,
+      [uuidv4(), equipementId, visiteId, snapshot.etat || null]
+    );
+  }
+
+  const equipements = await db.getAllAsync(
+    `SELECT * FROM equipements WHERE installation_id = ? AND statut = 'actif' ORDER BY cree_le`,
+    [installation.id]
+  );
+  for (const equipement of equipements) {
+    const existe = await db.getFirstAsync(
+      'SELECT id FROM materiel WHERE visite_id = ? AND equipement_id = ?', [visiteId, equipement.id]
+    );
+    if (existe) continue;
+    await db.runAsync(
+      `INSERT INTO materiel
+        (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+      [uuidv4(), visiteId, equipement.id, equipement.type_code, equipement.designation,
+        equipement.marque, equipement.modele, equipement.annee]
+    );
+  }
+}
+
 async function listerMateriel(visiteId) {
   const db = await getDb();
-  return db.getAllAsync(`SELECT * FROM materiel WHERE visite_id = ? ORDER BY cree_le`, [visiteId]);
+  await initialiserEquipementsVisite(db, visiteId);
+  return db.getAllAsync(
+    `SELECT m.*,
+      (SELECT COUNT(*) FROM observations_equipement o WHERE o.equipement_id = m.equipement_id) AS nb_observations
+     FROM materiel m WHERE m.visite_id = ? ORDER BY m.cree_le`,
+    [visiteId]
+  );
 }
 async function ajouterMateriel(visiteId) {
   const db = await getDb();
+  const installation = await getInstallationPrincipale(db, visiteId);
+  const equipementId = uuidv4();
   const id = uuidv4();
   await db.runAsync(
-    `INSERT INTO materiel (id, visite_id, categorie, designation, etat) VALUES (?, ?, '', '', 'bon')`,
-    [id, visiteId]
+    `INSERT INTO equipements (id, installation_id, type_code, statut)
+     VALUES (?, ?, 'non_classe', 'actif')`,
+    [equipementId, installation.id]
+  );
+  await db.runAsync(
+    `INSERT INTO materiel (id, visite_id, equipement_id, categorie, designation, etat)
+     VALUES (?, ?, ?, '', '', 'Bon')`,
+    [id, visiteId, equipementId]
+  );
+  await db.runAsync(
+    `INSERT INTO observations_equipement (id, equipement_id, visite_id, etat)
+     VALUES (?, ?, ?, 'Bon')`,
+    [uuidv4(), equipementId, visiteId]
   );
   return id;
 }
@@ -374,9 +473,40 @@ async function upsertMaterielChamp(materielId, champ, valeur) {
   if (!['categorie', 'designation', 'marque', 'modele', 'annee', 'etat'].includes(champ)) return;
   const db = await getDb();
   await db.runAsync(`UPDATE materiel SET ${champ} = ? WHERE id = ?`, [valeur, materielId]);
+  const snapshot = await db.getFirstAsync('SELECT * FROM materiel WHERE id = ?', [materielId]);
+  if (!snapshot?.equipement_id) return;
+  if (champ === 'etat') {
+    await db.runAsync(
+      `INSERT INTO observations_equipement (id, equipement_id, visite_id, etat)
+       VALUES (?, ?, ?, ?)
+       ON CONFLICT(equipement_id, visite_id) DO UPDATE SET
+         etat = excluded.etat, observe_le = datetime('now')`,
+      [uuidv4(), snapshot.equipement_id, snapshot.visite_id, valeur]
+    );
+  } else {
+    const colonne = champ === 'categorie' ? 'type_code' : champ;
+    await db.runAsync(
+      `UPDATE equipements SET ${colonne} = ?, modifie_le = datetime('now') WHERE id = ?`,
+      [valeur || null, snapshot.equipement_id]
+    );
+  }
 }
 async function supprimerMateriel(materielId) {
   const db = await getDb();
+  const snapshot = await db.getFirstAsync('SELECT * FROM materiel WHERE id = ?', [materielId]);
+  if (snapshot?.equipement_id) {
+    await db.runAsync(
+      `UPDATE equipements SET statut = 'retire', modifie_le = datetime('now') WHERE id = ?`,
+      [snapshot.equipement_id]
+    );
+    await db.runAsync(
+      `INSERT INTO observations_equipement (id, equipement_id, visite_id, etat, present)
+       VALUES (?, ?, ?, ?, 0)
+       ON CONFLICT(equipement_id, visite_id) DO UPDATE SET
+         present = 0, observe_le = datetime('now')`,
+      [uuidv4(), snapshot.equipement_id, snapshot.visite_id, snapshot.etat || null]
+    );
+  }
   await db.runAsync(`DELETE FROM materiel WHERE id = ?`, [materielId]);
 }
 

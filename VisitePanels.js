@@ -353,6 +353,7 @@ import { CATEGORIES_EQUIPEMENT, MARQUES_EQUIPEMENT } from './ParametresScreen.js
 function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarques }) {
   const [categorie, setCategorie] = useState(item.categorie || '');
   const [marque, setMarque] = useState(item.marque || '');
+  const [etat, setEtat] = useState(item.etat || '');
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
 
@@ -368,6 +369,7 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
 
   const sauverCategorie = async (val) => { setCategorie(val); await upsertMaterielChamp(item.id, 'categorie', val); };
   const sauverMarque = async (val) => { setMarque(val); await upsertMaterielChamp(item.id, 'marque', val); };
+  const sauverEtat = async (val) => { setEtat(val); await upsertMaterielChamp(item.id, 'etat', val); };
 
   const ouvrirBiblio = async () => {
     setBiblio(await listerBibliothequeEquipements());
@@ -395,8 +397,19 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
             onChange={sauverCategorie}
           />
         </View>
-        <PhotoButton visiteId={visiteId} entiteKey={`materiel||${item.id}`} label={designation || categorie} />
+        <PhotoButton
+          visiteId={visiteId}
+          entiteKey={item.equipement_id ? `equipement||${item.equipement_id}` : `materiel||${item.id}`}
+          label={designation || categorie}
+        />
       </View>
+      {item.equipement_id && (
+        <View style={styles.persistentEquipmentBadge}>
+          <Text style={styles.persistentEquipmentBadgeText}>
+            ↻ Équipement permanent · {item.nb_observations || 0} visite{item.nb_observations > 1 ? 's' : ''}
+          </Text>
+        </View>
+      )}
       <View style={{ height: 8 }} />
       <TextInput
         style={styles.input}
@@ -425,8 +438,16 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
           keyboardType="numeric"
         />
       </View>
+      <View style={{ height: 10 }} />
+      <Text style={styles.fieldLabel}>État constaté pendant cette visite</Text>
+      <View style={{ height: 6 }} />
+      <ChipSelector
+        valeur={etat}
+        options={['Bon', 'À surveiller', 'Dégradé', 'Hors service']}
+        onChange={sauverEtat}
+      />
       <TouchableOpacity style={{ marginTop: 10 }} onPress={async () => { await supprimerMateriel(item.id); onChange(); }}>
-        <Text style={styles.removeLink}>Supprimer cet équipement</Text>
+        <Text style={styles.removeLink}>Déclarer cet équipement retiré</Text>
       </TouchableOpacity>
 
       <Modal visible={biblioVisible} transparent animationType="fade">

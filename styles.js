@@ -223,6 +223,8 @@ export const styles = StyleSheet.create({
   biblioShortcutBtnText: { fontSize: 12.5, color: COLORS.orangeDark, fontWeight: '600' },
 
   materielTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  persistentEquipmentBadge: { alignSelf: 'flex-start', marginTop: 7, marginBottom: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 14, backgroundColor: COLORS.greenBg },
+  persistentEquipmentBadgeText: { fontSize: 10.5, fontWeight: '700', color: COLORS.green },
 
   totalsBar: { flexDirection: 'row', gap: 10, marginBottom: 14 },
   totalsCard: { flex: 1, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, padding: 12, alignItems: 'center' },
