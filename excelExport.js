@@ -9,7 +9,11 @@
  */
 
 import * as XLSX from 'xlsx';
-import * as FileSystem from 'expo-file-system';
+// Sur les versions récentes du SDK Expo, l'API classique de expo-file-system
+// (writeAsStringAsync, cacheDirectory...) a été déplacée vers ce chemin de
+// compatibilité — l'import par défaut pointe maintenant vers une nouvelle
+// API différente (classes File/Directory).
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
 import { EXCEL_ROWS, TRAME_DATA, RESEAU_TEMPLATE } from './data.js';
