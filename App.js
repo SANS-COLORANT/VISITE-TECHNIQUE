@@ -7,14 +7,14 @@
  *
  * Dépendances npm nécessaires :
  *   expo-sqlite, expo-image-picker,
- *   @react-navigation/native, @react-navigation/native-stack,
+ *   @react-navigation/native, @react-navigation/stack,
  *   react-native-safe-area-context, react-native-screens
  */
 
 import React, { useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
-import { createNativeStackNavigator } from '@react-navigation/native-stack';
+import { createStackNavigator } from '@react-navigation/stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
 import { getDb } from './db.js';
@@ -23,7 +23,7 @@ import { HomeScreen } from './HomeScreen.js';
 import { ClientSitesScreen } from './ClientSitesScreen.js';
 import { VisiteScreen } from './VisiteScreen.js';
 
-const Stack = createNativeStackNavigator();
+const Stack = createStackNavigator();
 
 export default function App() {
   const [dbReady, setDbReady] = useState(false);
@@ -58,6 +58,7 @@ export default function App() {
             headerStyle: { backgroundColor: COLORS.white },
             headerTitleStyle: { fontWeight: '600', color: COLORS.ink },
             contentStyle: { backgroundColor: COLORS.bg },
+            cardStyle: { backgroundColor: COLORS.bg },
           }}
         >
           <Stack.Screen name="Home" component={HomeScreen} options={{ title: 'Visite Technique' }} />
