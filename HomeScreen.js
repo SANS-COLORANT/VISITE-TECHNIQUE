@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert } from 'react-native';
 import { COLORS, styles } from './styles.js';
-import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
+import { listerClients, creerClient, listerVisitesEnCours, compterVisites, supprimerVisite } from './db.js';
 
 // ============================================================================
 // 7. ÉCRAN ACCUEIL
@@ -26,6 +26,17 @@ function HomeScreen({ navigation }) {
   useEffect(useCallback(() => { charger(); }, [charger]));
 
   const onRefresh = async () => { setRefreshing(true); await charger(); setRefreshing(false); };
+
+  const confirmerSuppression = (visite) => {
+    Alert.alert(
+      'Supprimer cette visite ?',
+      `"${visite.nom_client} — ${visite.nom_site}" et toutes ses données (photos, réserves, relevés...) seront définitivement supprimées. Es-tu sûr ?`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Supprimer', style: 'destructive', onPress: async () => { await supprimerVisite(visite.id); charger(); } },
+      ]
+    );
+  };
 
   const ajouterClient = async () => {
     if (!nouveauNom.trim()) { Alert.alert('Nom requis', 'Merci de saisir le nom du client.'); return; }
@@ -60,6 +71,9 @@ function HomeScreen({ navigation }) {
                       <Text style={styles.cardSub}>{v.nom_site}</Text>
                     </View>
                     <View style={styles.badge}><Text style={styles.badgeText}>{v.progression_pct}%</Text></View>
+                    <TouchableOpacity style={styles.deleteVisiteBtn} onPress={() => confirmerSuppression(v)}>
+                      <Text style={styles.deleteVisiteBtnText}>✕</Text>
+                    </TouchableOpacity>
                   </TouchableOpacity>
                 ))}
               </>

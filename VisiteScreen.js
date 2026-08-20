@@ -1,7 +1,7 @@
 /** Écran Visite — conteneur avec onglets horizontaux. */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { getVisite, getNote, upsertNote } from './db.js';
 import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques, PanelPhotos } from './VisitePanels.js';
@@ -26,6 +26,23 @@ function VisiteScreen({ route, onBack }) {
   useEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
 
   const onSaved = () => setRefreshKey((k) => k + 1);
+
+  // Liste des vrais onglets (sans les séparateurs), pour naviguer au swipe.
+  const tabsReels = TAB_ORDER.filter((t) => t !== 'SEP');
+  const allerVoisin = (direction) => {
+    const idx = tabsReels.indexOf(activeTab);
+    const suivant = idx + direction;
+    if (suivant >= 0 && suivant < tabsReels.length) setActiveTab(tabsReels[suivant]);
+  };
+  const swipeHandlers = React.useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, g) => Math.abs(g.dx) > 30 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
+      onPanResponderRelease: (evt, g) => {
+        if (g.dx < -30) allerVoisin(1);       // glisse vers la gauche → onglet suivant
+        else if (g.dx > 30) allerVoisin(-1);  // glisse vers la droite → onglet précédent
+      },
+    })
+  ).current;
 
   const ouvrirNote = async () => {
     setNoteTxt(await getNote(visiteId));
@@ -77,7 +94,7 @@ function VisiteScreen({ route, onBack }) {
         </ScrollView>
       </View>
 
-      <View style={{ flex: 1 }}>
+      <View style={{ flex: 1 }} {...swipeHandlers.panHandlers}>
         {activeTab === 'p-regulation' && <PanelRegulation visiteId={visiteId} refreshKey={refreshKey} onSaved={onSaved} />}
         {activeTab === 'p-releves' && <PanelReleves visiteId={visiteId} refreshKey={refreshKey} onSaved={onSaved} />}
         {activeTab === 'p-equip' && <PanelEquipements visiteId={visiteId} />}

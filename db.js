@@ -1,7 +1,7 @@
 /** Base de données SQLite locale + repository (clients/sites/visites/champs...). */
 
 import * as SQLite from 'expo-sqlite';
-import { TRAME_DATA } from './data.js';
+import { TRAME_DATA, PRESCRIPTIONS } from './data.js';
 
 export function uuidv4() {
   return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
@@ -92,6 +92,7 @@ async function getDb() {
   await dbInstance.execAsync('PRAGMA foreign_keys = ON;');
   await dbInstance.execAsync(SCHEMA_SQL);
   await seedDemoSiNecessaire(dbInstance);
+  await seedBibliothequeSiNecessaire(dbInstance);
   return dbInstance;
 }
 
@@ -107,6 +108,28 @@ async function seedDemoSiNecessaire(db) {
   await db.runAsync(`INSERT INTO clients (id, nom, code_exploitant, adresse) VALUES (?, ?, ?, ?)`,
     [uuidv4(), 'Office HLM Colombes', 'OHC08', '5 avenue de la République']);
   await db.runAsync(`INSERT INTO _meta (key, value) VALUES ('demo_seeded', '1')`);
+}
+
+/**
+ * Pré-remplit la bibliothèque de réserves avec les 142 préconisations
+ * réelles extraites de la trame ICPE (mêmes données que PRESCRIPTIONS,
+ * utilisées aussi pour les suggestions automatiques sur N.S). Ça donne un
+ * point de départ tout de suite exploitable, sans repartir de zéro — tout
+ * reste ensuite modifiable/supprimable depuis l'écran Paramètres.
+ */
+async function seedBibliothequeSiNecessaire(db) {
+  const deja = await db.getFirstAsync(`SELECT value FROM _meta WHERE key = 'biblio_seeded'`);
+  if (deja) return;
+  for (const [cle, options] of Object.entries(PRESCRIPTIONS)) {
+    for (const opt of options) {
+      const nom = cle + (opt.critere ? ' — ' + opt.critere : '');
+      await db.runAsync(
+        `INSERT INTO reserves_bibliotheque (id, nom, description, prix, poste, delai) VALUES (?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), nom, opt.prestation, opt.estimatif ?? null, opt.poste ?? null, opt.delai ?? null]
+      );
+    }
+  }
+  await db.runAsync(`INSERT INTO _meta (key, value) VALUES ('biblio_seeded', '1')`);
 }
 
 // ---------------- Repository : clients / sites / visites ----------------
@@ -206,6 +229,20 @@ async function creerVisite({ siteId, technicien }) {
   await preremplirValeursClassiques(id);
   await recalculerProgression(id);
   return id;
+}
+/**
+ * Supprime une visite et toutes ses données associées. Ces tables n'ont pas
+ * de contrainte FOREIGN KEY ... ON DELETE CASCADE déclarée sur visite_id,
+ * donc on supprime explicitement dans chaque table plutôt que de compter
+ * sur SQLite pour le faire automatiquement.
+ */
+async function supprimerVisite(visiteId) {
+  const db = await getDb();
+  const tables = ['champs_visite', 'controles_visite', 'reseaux', 'compteurs', 'materiel', 'remarques', 'notes', 'photos'];
+  for (const table of tables) {
+    await db.runAsync(`DELETE FROM ${table} WHERE visite_id = ?`, [visiteId]);
+  }
+  await db.runAsync(`DELETE FROM visites WHERE id = ?`, [visiteId]);
 }
 async function getVisite(visiteId) {
   const db = await getDb();
@@ -469,7 +506,7 @@ async function ajouterRemarqueDepuisBiblio(visiteId, biblioItem) {
 export {
   getDb,
   listerClients, creerClient, listerSitesClient, creerSite,
-  listerVisitesEnCours, compterVisites, creerVisite, getVisite, toucherVisite,
+  listerVisitesEnCours, compterVisites, creerVisite, supprimerVisite, getVisite, toucherVisite,
   getChampsVisite, upsertChamp, getControlesVisite, upsertControle, recalculerProgression,
   listerReseaux, ajouterReseau, upsertReseauChamp, supprimerReseau,
   listerCompteurs, ajouterCompteur, upsertCompteurChamp, supprimerCompteur,

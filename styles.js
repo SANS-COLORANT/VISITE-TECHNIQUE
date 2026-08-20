@@ -28,6 +28,8 @@ export const styles = StyleSheet.create({
   addLink: { fontSize: 12.5, fontWeight: '700', color: COLORS.orangeDark },
 
   card: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, padding: 14, marginBottom: 9, gap: 10 },
+  deleteVisiteBtn: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.redBg, marginLeft: 4 },
+  deleteVisiteBtnText: { color: COLORS.red, fontSize: 13, fontWeight: '700' },
   cardTitle: { fontSize: 14.5, fontWeight: '600', color: COLORS.ink },
   cardSub: { fontSize: 12, color: COLORS.inkSoft, marginTop: 2 },
   chevron: { color: COLORS.inkFaint, fontSize: 20 },
