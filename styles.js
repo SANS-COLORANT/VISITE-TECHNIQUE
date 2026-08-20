@@ -211,9 +211,18 @@ export const styles = StyleSheet.create({
   typeaheadSuggestionText: { fontSize: 13, color: COLORS.ink },
 
   // ---- Accueil : bouton Paramètres ----
-  homeTopRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 20, paddingTop: 50, paddingBottom: 6, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line },
+  homeTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 50, paddingBottom: 6, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line },
+  importExcelBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: COLORS.orangeLight },
+  importExcelBtnText: { fontSize: 12.5, color: COLORS.orangeDark, fontWeight: '700' },
   parametresBtn: { paddingHorizontal: 12, paddingVertical: 6 },
   parametresBtnText: { fontSize: 13, color: COLORS.inkSoft, fontWeight: '600' },
+  importFileName: { fontSize: 11, color: COLORS.inkFaint, marginBottom: 5 },
+  importSiteTitle: { fontSize: 15, fontWeight: '700', color: COLORS.ink },
+  importStatsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
+  importStat: { width: '31%', backgroundColor: COLORS.bg, borderRadius: 9, paddingVertical: 10, alignItems: 'center' },
+  importStatNumber: { fontSize: 17, fontWeight: '700', color: COLORS.orangeDark },
+  importStatLabel: { fontSize: 9.5, color: COLORS.inkSoft, marginTop: 2 },
+  importHint: { fontSize: 10.5, lineHeight: 15, color: COLORS.inkFaint, marginTop: 14 },
 
   // ---- Bibliothèque de réserves (choix rapide) ----
   biblioRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.line },
@@ -237,6 +246,13 @@ export const styles = StyleSheet.create({
   remarqueTxt: { fontSize: 12.5, color: COLORS.ink, lineHeight: 18, marginBottom: 8 },
   remarqueMeta: { flexDirection: 'row', gap: 14, flexWrap: 'wrap' },
   remarqueMetaTxt: { fontSize: 11, color: COLORS.inkSoft },
+  remarqueLinkBtn: { marginTop: 11, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: COLORS.orangeLight, alignSelf: 'flex-start' },
+  remarqueLinkBtnText: { fontSize: 11, color: COLORS.orangeDark, fontWeight: '700' },
+  remarqueTabsScroll: { marginVertical: 12, flexGrow: 0 },
+  remarqueTabChoice: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: COLORS.line, marginRight: 7, backgroundColor: COLORS.white },
+  remarqueTabChoiceActive: { borderColor: COLORS.orange, backgroundColor: COLORS.orangeLight },
+  remarqueTabChoiceText: { fontSize: 11, color: COLORS.inkSoft },
+  remarqueTabChoiceTextActive: { color: COLORS.orangeDark, fontWeight: '700' },
 
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   photoThumb: { width: '18%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', backgroundColor: COLORS.line },

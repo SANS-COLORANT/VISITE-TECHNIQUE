@@ -669,20 +669,27 @@ async function listerRemarques(visiteId) {
 }
 async function upsertRemarqueDepuisPrescription(visiteId, controleKey, opt, origine) {
   const db = await getDb();
+  const sectionCode = String(controleKey || '').split('||')[0];
+  const referenceOnglet = sectionCode ? `p-${sectionCode.split('.')[0]}` : null;
   const existing = await db.getFirstAsync(
     `SELECT * FROM remarques WHERE visite_id = ? AND controle_key = ?`,
     [visiteId, controleKey]
   );
   if (existing) {
     await db.runAsync(
-      `UPDATE remarques SET poste = ?, prestation = ?, delai = ?, estimatif = ?, origine = ? WHERE id = ?`,
-      [opt.poste, opt.prestation, opt.delai, opt.estimatif, origine, existing.id]
+      `UPDATE remarques SET poste = ?, prestation = ?, delai = ?, estimatif = ?, origine = ?,
+       reference_onglet = COALESCE(reference_onglet, ?), reference_type = COALESCE(reference_type, 'controle'),
+       reference_id = COALESCE(reference_id, ?), reference_libelle = COALESCE(reference_libelle, ?)
+       WHERE id = ?`,
+      [opt.poste, opt.prestation, opt.delai, opt.estimatif, origine, referenceOnglet, controleKey, origine, existing.id]
     );
   } else {
     await db.runAsync(
-      `INSERT INTO remarques (id, visite_id, controle_key, poste, prestation, delai, estimatif, origine)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-      [uuidv4(), visiteId, controleKey, opt.poste, opt.prestation, opt.delai, opt.estimatif, origine]
+      `INSERT INTO remarques (id, visite_id, controle_key, poste, prestation, delai, estimatif, origine,
+       reference_onglet, reference_type, reference_id, reference_libelle)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'controle', ?, ?)`,
+      [uuidv4(), visiteId, controleKey, opt.poste, opt.prestation, opt.delai, opt.estimatif, origine,
+        referenceOnglet, controleKey, origine]
     );
   }
 }
@@ -697,6 +704,15 @@ async function ajouterRemarqueManuelle(visiteId) {
     `INSERT INTO remarques (id, visite_id, controle_key, poste, prestation, origine)
      VALUES (?, ?, NULL, 'Observation', 'Nouvelle réserve — à préciser', 'Ajout manuel')`,
     [id, visiteId]
+  );
+}
+async function rattacherRemarque(remarqueId, reference) {
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE remarques
+     SET reference_onglet = ?, reference_type = ?, reference_id = ?, reference_libelle = ?
+     WHERE id = ?`,
+    [reference.onglet || null, reference.type || null, reference.id || null, reference.libelle || null, remarqueId]
   );
 }
 
@@ -903,7 +919,7 @@ export {
   listerReseaux, ajouterReseau, upsertReseauChamp, supprimerReseau,
   listerCompteurs, ajouterCompteur, upsertCompteurChamp, supprimerCompteur,
   listerMateriel, ajouterMateriel, upsertMaterielChamp, supprimerMateriel,
-  listerRemarques, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle, ajouterRemarqueManuelle,
+  listerRemarques, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle, ajouterRemarqueManuelle, rattacherRemarque,
   getNote, upsertNote, listerPhotos, ajouterPhoto, remplacerPhoto,
   listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio, ajouterRemarqueDepuisBiblio,
   listerBibliothequeEquipements, ajouterEquipementBiblio, modifierEquipementBiblio, supprimerEquipementBiblio,

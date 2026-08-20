@@ -9,7 +9,7 @@ import {
   listerReseaux, ajouterReseau, upsertReseauChamp, supprimerReseau,
   listerCompteurs, ajouterCompteur, upsertCompteurChamp, supprimerCompteur,
   listerMateriel, ajouterMateriel, upsertMaterielChamp, supprimerMateriel, listerBibliothequeEquipements,
-  listerRemarques, ajouterRemarqueManuelle, listerBibliothequeReserves, ajouterRemarqueDepuisBiblio,
+  listerRemarques, ajouterRemarqueManuelle, listerBibliothequeReserves, ajouterRemarqueDepuisBiblio, rattacherRemarque,
   listerPhotos, ajouterPhoto,
 } from './db.js';
 import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, useSaisieAvecAutoSave } from './GenericFields.js';
@@ -500,6 +500,9 @@ function PanelRemarques({ visiteId, refreshKey }) {
   const [remarques, setRemarques] = useState([]);
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
+  const [remarqueARattacher, setRemarqueARattacher] = useState(null);
+  const [ongletChoisi, setOngletChoisi] = useState(null);
+  const [cibles, setCibles] = useState([]);
 
   useEffect(useCallback(() => {
     listerRemarques(visiteId).then(setRemarques);
@@ -522,6 +525,46 @@ function PanelRemarques({ visiteId, refreshKey }) {
     await ajouterRemarqueManuelle(visiteId);
     setBiblioVisible(false);
     listerRemarques(visiteId).then(setRemarques);
+  };
+
+  const ongletsRattachables = TAB_ORDER.filter((id) => id !== 'SEP' && id !== 'p-remarques' && id !== 'p-photos');
+  const choisirOnglet = async (panelId) => {
+    setOngletChoisi(panelId);
+    if (panelId === 'p-equip') {
+      const items = await listerMateriel(visiteId);
+      setCibles(items.map((m) => ({ id: m.equipement_id || m.id, type: 'equipement', libelle: [m.designation, m.marque, m.modele].filter(Boolean).join(' · ') || 'Équipement sans nom' })));
+    } else if (panelId === 'p-regulation') {
+      const items = await listerReseaux(visiteId);
+      setCibles(items.map((r) => ({ id: r.reseau_site_id || r.id, type: 'reseau', libelle: r.nom_reseau || `Réseau ${r.ordre}` })));
+    } else if (panelId === 'p-releves') {
+      const items = await listerCompteurs(visiteId);
+      setCibles(items.map((c) => ({ id: c.compteur_site_id || c.id, type: 'compteur', libelle: c.label || 'Compteur sans nom' })));
+    } else {
+      const sections = TRAME_DATA[panelId] || {};
+      setCibles(Object.entries(sections).flatMap(([section, fields]) => [
+        { id: `${panelId}:${section}`, type: 'section', libelle: section },
+        ...fields.map((f) => ({ id: `${panelId}:${section}:${f.cle}`, type: f.type || 'champ', libelle: `${section} · ${cleanLabel(f.cle)}` })),
+      ]));
+    }
+  };
+  const enregistrerRattachement = async (cible) => {
+    await rattacherRemarque(remarqueARattacher.id, {
+      onglet: ongletChoisi,
+      type: cible.type,
+      id: cible.id,
+      libelle: cible.libelle,
+    });
+    setRemarqueARattacher(null);
+    setOngletChoisi(null);
+    setCibles([]);
+    setRemarques(await listerRemarques(visiteId));
+  };
+  const retirerRattachement = async () => {
+    await rattacherRemarque(remarqueARattacher.id, {});
+    setRemarqueARattacher(null);
+    setOngletChoisi(null);
+    setCibles([]);
+    setRemarques(await listerRemarques(visiteId));
   };
 
   return (
@@ -549,6 +592,16 @@ function PanelRemarques({ visiteId, refreshKey }) {
               <Text style={styles.remarqueMetaTxt}>Délai : <Text style={styles.bold}>{r.delai ? r.delai + ' mois' : '—'}</Text></Text>
               <Text style={styles.remarqueMetaTxt}>Origine : <Text style={styles.bold}>{r.origine}</Text></Text>
             </View>
+            <TouchableOpacity
+              style={styles.remarqueLinkBtn}
+              onPress={() => { setRemarqueARattacher(r); setOngletChoisi(null); setCibles([]); }}
+            >
+              <Text style={styles.remarqueLinkBtnText}>
+                {r.reference_onglet
+                  ? `↗ ${PANEL_LABELS[r.reference_onglet] || r.reference_onglet} · ${r.reference_libelle}`
+                  : '+ Rattacher à un onglet ou un élément'}
+              </Text>
+            </TouchableOpacity>
           </View>
         ))
       )}
@@ -579,6 +632,36 @@ function PanelRemarques({ visiteId, refreshKey }) {
               <TouchableOpacity style={styles.btnPrimary} onPress={ajouterVierge}>
                 <Text style={styles.btnPrimaryText}>Réserve vierge</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={!!remarqueARattacher} transparent animationType="fade" onRequestClose={() => setRemarqueARattacher(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>À quoi cette réserve fait-elle référence ?</Text>
+            <Text style={styles.importHint}>Choisis d’abord l’onglet, puis l’élément précis concerné.</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.remarqueTabsScroll}>
+              {ongletsRattachables.map((id) => (
+                <TouchableOpacity key={id} style={[styles.remarqueTabChoice, ongletChoisi === id && styles.remarqueTabChoiceActive]} onPress={() => choisirOnglet(id)}>
+                  <Text style={[styles.remarqueTabChoiceText, ongletChoisi === id && styles.remarqueTabChoiceTextActive]}>{PANEL_LABELS[id]}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 280 }}>
+              {ongletChoisi && cibles.length === 0 ? <Text style={styles.emptySub}>Aucun élément disponible dans cet onglet.</Text> : null}
+              {cibles.map((cible) => (
+                <TouchableOpacity key={`${cible.type}:${cible.id}`} style={styles.biblioRow} onPress={() => enregistrerRattachement(cible)}>
+                  <Text style={styles.biblioRowTitle}>{cible.libelle}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              {remarqueARattacher?.reference_onglet ? (
+                <TouchableOpacity style={styles.btnSecondary} onPress={retirerRattachement}><Text style={styles.btnSecondaryText}>Détacher</Text></TouchableOpacity>
+              ) : null}
+              <TouchableOpacity style={styles.btnPrimary} onPress={() => setRemarqueARattacher(null)}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
             </View>
           </View>
         </View>

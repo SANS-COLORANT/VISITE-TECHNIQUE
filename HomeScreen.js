@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites, supprimerVisite } from './db.js';
+import { choisirEtAnalyserExcel, importerAnalyseExcel } from './excelImport.js';
 
 // ============================================================================
 // 7. ÉCRAN ACCUEIL
@@ -17,6 +18,8 @@ function HomeScreen({ navigation }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [nouveauNom, setNouveauNom] = useState('');
   const [nouveauCode, setNouveauCode] = useState('');
+  const [importPreview, setImportPreview] = useState(null);
+  const [importEnCours, setImportEnCours] = useState(false);
 
   const charger = useCallback(async () => {
     const [c, v, s] = await Promise.all([listerClients(), listerVisitesEnCours(), compterVisites()]);
@@ -44,9 +47,37 @@ function HomeScreen({ navigation }) {
     setNouveauNom(''); setNouveauCode(''); setModalVisible(false); charger();
   };
 
+  const choisirExcel = async () => {
+    try {
+      const analyse = await choisirEtAnalyserExcel();
+      if (analyse) setImportPreview(analyse);
+    } catch (e) {
+      Alert.alert('Import impossible', String(e.message || e));
+    }
+  };
+
+  const confirmerImport = async () => {
+    if (!importPreview || importEnCours) return;
+    setImportEnCours(true);
+    try {
+      const resultat = await importerAnalyseExcel(importPreview);
+      setImportPreview(null);
+      await charger();
+      if (resultat.dejaImporte) Alert.alert('Déjà importé', 'Ce fichier a déjà été intégré dans l’application.');
+      else navigation.navigate('Visite', { visiteId: resultat.visiteId });
+    } catch (e) {
+      Alert.alert('Erreur pendant l’import', String(e.message || e));
+    } finally {
+      setImportEnCours(false);
+    }
+  };
+
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <View style={styles.homeTopRow}>
+        <TouchableOpacity style={styles.importExcelBtn} onPress={choisirExcel}>
+          <Text style={styles.importExcelBtnText}>⇧ Importer Excel</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={styles.parametresBtn} onPress={() => navigation.navigate('Parametres')}>
           <Text style={styles.parametresBtnText}>⚙ Paramètres</Text>
         </TouchableOpacity>
@@ -117,8 +148,43 @@ function HomeScreen({ navigation }) {
           </View>
         </View>
       </Modal>
+      <Modal visible={!!importPreview} transparent animationType="fade" onRequestClose={() => setImportPreview(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Aperçu de l’import Excel</Text>
+            {importPreview && (
+              <>
+                <Text style={styles.importFileName}>{importPreview.nomFichier}</Text>
+                <Text style={styles.importSiteTitle}>{importPreview.client} · {importPreview.site}</Text>
+                <Text style={styles.cardSub}>{importPreview.adresse || 'Adresse non renseignée'} · {importPreview.dateVisite}</Text>
+                <View style={styles.importStatsGrid}>
+                  <ImportStat nombre={importPreview.champs.length} label="Champs" />
+                  <ImportStat nombre={importPreview.controles.length} label="Contrôles" />
+                  <ImportStat nombre={importPreview.materiel.length} label="Équipements" />
+                  <ImportStat nombre={importPreview.reseaux.length} label="Réseaux" />
+                  <ImportStat nombre={importPreview.compteurs.length} label="Compteurs" />
+                  <ImportStat nombre={importPreview.remarques.length} label="Réserves" />
+                </View>
+                <Text style={styles.importHint}>Vérifie ces informations avant de créer la visite. Le fichier original ne sera pas modifié.</Text>
+              </>
+            )}
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.btnSecondary} onPress={() => setImportPreview(null)} disabled={importEnCours}>
+                <Text style={styles.btnSecondaryText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btnPrimary} onPress={confirmerImport} disabled={importEnCours}>
+                <Text style={styles.btnPrimaryText}>{importEnCours ? 'Import…' : 'Intégrer'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
+}
+
+function ImportStat({ nombre, label }) {
+  return <View style={styles.importStat}><Text style={styles.importStatNumber}>{nombre}</Text><Text style={styles.importStatLabel}>{label}</Text></View>;
 }
 
 function StatCard({ num, label }) {
