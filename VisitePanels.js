@@ -311,7 +311,21 @@ function CompteurCard({ compteur, unites, onChange }) {
 /** Onglet Équipements : liste éditable avec ajout dynamique. */
 function PanelEquipements({ visiteId }) {
   const [materiel, setMateriel] = useState([]);
-  const charger = useCallback(() => { listerMateriel(visiteId).then(setMateriel); }, [visiteId]);
+  const [optionsCategories, setOptionsCategories] = useState(CATEGORIES_EQUIPEMENT);
+  const [optionsMarques, setOptionsMarques] = useState(MARQUES_EQUIPEMENT);
+
+  const charger = useCallback(async () => {
+    const [m, biblio] = await Promise.all([listerMateriel(visiteId), listerBibliothequeEquipements()]);
+    setMateriel(m);
+    // Fusionne les listes fixes avec ce qui a été ajouté dans la bibliothèque
+    // Paramètres → Équipements, pour que tout ajout y soit immédiatement
+    // proposé en suggestion ici aussi (pas seulement via le sélecteur dédié).
+    const categoriesBiblio = [...new Set(biblio.map((b) => b.categorie).filter(Boolean))];
+    const marquesBiblio = [...new Set(biblio.map((b) => b.marque).filter(Boolean))];
+    setOptionsCategories([...new Set([...CATEGORIES_EQUIPEMENT, ...categoriesBiblio])].sort((a, b) => a.localeCompare(b)));
+    setOptionsMarques([...new Set([...MARQUES_EQUIPEMENT, ...marquesBiblio])].sort((a, b) => a.localeCompare(b)));
+  }, [visiteId]);
+
   useEffect(useCallback(() => { charger(); }, [charger]));
 
   const onAjouter = async () => { await ajouterMateriel(visiteId); charger(); };
@@ -320,7 +334,10 @@ function PanelEquipements({ visiteId }) {
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
       <Text style={styles.sectionTitle}>Équipements — feuille MATERIEL</Text>
       {materiel.map((m) => (
-        <MaterielCard key={m.id} item={m} visiteId={visiteId} onChange={charger} />
+        <MaterielCard
+          key={m.id} item={m} visiteId={visiteId} onChange={charger}
+          optionsCategories={optionsCategories} optionsMarques={optionsMarques}
+        />
       ))}
       <TouchableOpacity style={styles.addBtn} onPress={onAjouter}>
         <Text style={styles.addBtnText}>+ Ajouter un équipement</Text>
@@ -331,7 +348,7 @@ function PanelEquipements({ visiteId }) {
 
 import { CATEGORIES_EQUIPEMENT, MARQUES_EQUIPEMENT } from './ParametresScreen.js';
 
-function MaterielCard({ item, visiteId, onChange }) {
+function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarques }) {
   const [vals, setVals] = useState({
     categorie: item.categorie || '', designation: item.designation || '',
     marque: item.marque || '', modele: item.modele || '', annee: item.annee || '',
@@ -365,7 +382,7 @@ function MaterielCard({ item, visiteId, onChange }) {
         <View style={{ flex: 1 }}>
           <TypeAheadInput
             valeur={vals.categorie}
-            options={CATEGORIES_EQUIPEMENT}
+            options={optionsCategories}
             placeholder="Catégorie (ex: Chaudière, Pompe, Adoucisseur...)"
             onChange={(t) => sauverChamp('categorie', t)}
           />
@@ -385,7 +402,7 @@ function MaterielCard({ item, visiteId, onChange }) {
         <View style={{ flex: 1 }}>
           <TypeAheadInput
             valeur={vals.marque}
-            options={MARQUES_EQUIPEMENT}
+            options={optionsMarques}
             placeholder="Marque"
             onChange={(t) => sauverChamp('marque', t)}
           />

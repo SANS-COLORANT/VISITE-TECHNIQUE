@@ -451,16 +451,21 @@ const TypeAheadInput = React.memo(function TypeAheadInput({ valeur, options, pla
 const CategorieCritereSelector = React.memo(function CategorieCritereSelector({ onRempli }) {
   const [categorie, setCategorie] = useState('');
   const [critereIdx, setCritereIdx] = useState(null);
+  const [modeNouveauCritere, setModeNouveauCritere] = useState(false);
+  const [nouveauCritere, setNouveauCritere] = useState('');
   const categories = Object.keys(PRESCRIPTIONS).sort((a, b) => a.localeCompare(b));
   const options = PRESCRIPTIONS[categorie];
 
   const choisirCategorie = (val) => {
     setCategorie(val);
     setCritereIdx(null);
+    setModeNouveauCritere(false);
+    setNouveauCritere('');
   };
 
   const choisirCritere = (idx) => {
     setCritereIdx(idx);
+    setModeNouveauCritere(false);
     const opt = options[idx];
     onRempli({
       nom: categorie + (opt.critere ? ' — ' + opt.critere : ''),
@@ -468,6 +473,17 @@ const CategorieCritereSelector = React.memo(function CategorieCritereSelector({ 
       poste: opt.poste,
       delai: opt.delai,
       prix: opt.estimatif,
+    });
+  };
+
+  const validerNouveauCritere = () => {
+    setCritereIdx(null);
+    onRempli({
+      nom: categorie + (nouveauCritere.trim() ? ' — ' + nouveauCritere.trim() : ''),
+      description: '',
+      poste: null,
+      delai: null,
+      prix: null,
     });
   };
 
@@ -480,11 +496,11 @@ const CategorieCritereSelector = React.memo(function CategorieCritereSelector({ 
         placeholder="Ex: Adoucisseur - Filtre / Bypass..."
         onChange={choisirCategorie}
       />
-      {options && options.length > 0 && (
+      {!!categorie && (
         <View style={{ marginTop: 10 }}>
           <Text style={styles.fieldLabel}>Cause / critère</Text>
           <View style={styles.chipSelectRow}>
-            {options.map((opt, idx) => (
+            {(options || []).map((opt, idx) => (
               <TouchableOpacity
                 key={idx}
                 style={[styles.chipOpt, critereIdx === idx && styles.chipOptPicked]}
@@ -495,7 +511,24 @@ const CategorieCritereSelector = React.memo(function CategorieCritereSelector({ 
                 </Text>
               </TouchableOpacity>
             ))}
+            <TouchableOpacity
+              style={[styles.chipOpt, styles.chipOptAddNew, modeNouveauCritere && styles.chipOptPicked]}
+              onPress={() => setModeNouveauCritere(true)}
+            >
+              <Text style={[styles.chipOptAddNewText, modeNouveauCritere && styles.chipOptTextPicked]}>+ Nouveau critère</Text>
+            </TouchableOpacity>
           </View>
+          {modeNouveauCritere && (
+            <TextInput
+              style={[styles.input, { marginTop: 8 }]}
+              placeholder="Ex: Dégradé, Bouché, Non conforme..."
+              value={nouveauCritere}
+              onChangeText={setNouveauCritere}
+              onBlur={validerNouveauCritere}
+              onSubmitEditing={validerNouveauCritere}
+              autoFocus
+            />
+          )}
         </View>
       )}
     </View>
