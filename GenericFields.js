@@ -242,6 +242,27 @@ function avisChipColor(opt) {
  * (bibliothèque de 142 préconisations) qui remplissent automatiquement une
  * réserve. Sinon, commentaire libre.
  */
+/**
+ * Certains champs de la trame existent deux fois avec le même nom exact,
+ * une fois sous "Conformité Chauffage" et une fois sous "Conformité Partie
+ * ECS" (ex: "Type de disconnection", "Compteur d'eau: Présence"...). La
+ * bibliothèque de préconisations les distingue avec un préfixe
+ * ("Chauffage - Type de disconnection" / "ECS - Type de disconnection"),
+ * mais le champ réel dans l'écran de visite s'appelle juste "Type de
+ * disconnection", sans préfixe. Cette fonction retente avec le bon préfixe
+ * selon la section quand la clé exacte n'existe pas.
+ */
+function resoudrePrescriptions(cle, sectionCode) {
+  if (PRESCRIPTIONS[cle]) return PRESCRIPTIONS[cle];
+  if (sectionCode && sectionCode.includes('chauffage') && PRESCRIPTIONS['Chauffage - ' + cle]) {
+    return PRESCRIPTIONS['Chauffage - ' + cle];
+  }
+  if (sectionCode && sectionCode.includes('ecs') && PRESCRIPTIONS['ECS - ' + cle]) {
+    return PRESCRIPTIONS['ECS - ' + cle];
+  }
+  return null;
+}
+
 const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved }) {
   const controleKey = `${sectionCode}||${field.cle}`;
   const [avis, setAvis] = useState(etatInitial?.avis || null);
@@ -249,7 +270,7 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
   const [critereChoisi, setCritereChoisi] = useState(null);
   const [modeLibre, setModeLibre] = useState(false);
 
-  const options = PRESCRIPTIONS[field.cle];
+  const options = resoudrePrescriptions(field.cle, sectionCode);
 
   const choisirAvis = async (val) => {
     setAvis(val);
