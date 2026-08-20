@@ -153,11 +153,20 @@ function ReseauCard({ reseau, visiteId, onChange }) {
     <View style={styles.formCard}>
       <View style={styles.reseauHeaderRow}>
         <TextInput style={styles.reseauNomInput} value={nom} onChangeText={setNom} onBlur={sauverNom} />
-        <PhotoButton visiteId={visiteId} entiteKey={`reseau||${reseau.id}`} label={nom} />
+        <PhotoButton
+          visiteId={visiteId}
+          entiteKey={reseau.reseau_site_id ? `reseau_site||${reseau.reseau_site_id}` : `reseau||${reseau.id}`}
+          label={nom}
+        />
         <TouchableOpacity onPress={async () => { await supprimerReseau(reseau.id); onChange(); }}>
-          <Text style={styles.removeLink}>Supprimer</Text>
+          <Text style={styles.removeLink}>Retirer</Text>
         </TouchableOpacity>
       </View>
+      {reseau.reseau_site_id && (
+        <View style={styles.persistentEquipmentBadge}>
+          <Text style={styles.persistentEquipmentBadgeText}>↻ Réseau permanent · {reseau.nb_observations || 0} visite{reseau.nb_observations > 1 ? 's' : ''}</Text>
+        </View>
+      )}
       {champsAffiches.map((f) => {
         const numericConfig = getNumericConfig(f.cle);
         return (
@@ -238,7 +247,7 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
 
       <Text style={styles.sectionTitle}>Compteurs relevés</Text>
       {compteurs.map((c) => (
-        <CompteurCard key={c.id} compteur={c} unites={UNITES} onChange={charger} />
+        <CompteurCard key={c.id} compteur={c} visiteId={visiteId} unites={UNITES} onChange={charger} />
       ))}
       <TouchableOpacity style={styles.addBtn} onPress={onAjouterCompteur}>
         <Text style={styles.addBtnText}>+ Ajouter un compteur — chauffage, appoint, ECS, énergie...</Text>
@@ -263,7 +272,7 @@ const COMPTEUR_TYPES = [
   'Manomètre chauffage', 'Manomètre ECS',
 ];
 
-function CompteurCard({ compteur, unites, onChange }) {
+function CompteurCard({ compteur, visiteId, unites, onChange }) {
   const [label, setLabel] = useState(compteur.label || '');
   const [unite, setUnite] = useState(compteur.unite || 'm³');
 
@@ -281,10 +290,20 @@ function CompteurCard({ compteur, unites, onChange }) {
         <View style={{ flex: 1 }}>
           <ChipSelector valeur={label} options={COMPTEUR_TYPES} onChange={sauverLabel} />
         </View>
+        <PhotoButton
+          visiteId={visiteId}
+          entiteKey={compteur.compteur_site_id ? `compteur_site||${compteur.compteur_site_id}` : `compteur||${compteur.id}`}
+          label={label || 'Compteur'}
+        />
         <TouchableOpacity onPress={async () => { await supprimerCompteur(compteur.id); onChange(); }}>
-          <Text style={styles.removeLink}>Suppr.</Text>
+          <Text style={styles.removeLink}>Retirer</Text>
         </TouchableOpacity>
       </View>
+      {compteur.compteur_site_id && (
+        <View style={styles.persistentEquipmentBadge}>
+          <Text style={styles.persistentEquipmentBadgeText}>↻ Compteur permanent · {compteur.nb_releves || 0} relevé{compteur.nb_releves > 1 ? 's' : ''}</Text>
+        </View>
+      )}
       <View style={styles.compteurRowBody}>
         <TextInput
           style={styles.compteurValInput}

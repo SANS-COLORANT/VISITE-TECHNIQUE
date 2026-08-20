@@ -307,17 +307,74 @@ async function recalculerProgression(visiteId) {
 
 // ---------------- Repository : réseaux dynamiques ----------------
 
+async function initialiserReseauxVisite(db, visiteId) {
+  const installation = await getInstallationPrincipale(db, visiteId);
+  const anciens = await db.getAllAsync('SELECT * FROM reseaux WHERE visite_id = ? AND reseau_site_id IS NULL', [visiteId]);
+  for (const snapshot of anciens) {
+    let permanent = await db.getFirstAsync(
+      `SELECT id FROM reseaux_site WHERE installation_id = ? AND nom = ? COLLATE NOCASE`,
+      [installation.id, snapshot.nom_reseau || `Réseau ${snapshot.ordre}`]
+    );
+    if (!permanent) {
+      permanent = { id: uuidv4() };
+      await db.runAsync(
+        `INSERT INTO reseaux_site (id, installation_id, type_code, nom, ordre)
+         VALUES (?, ?, 'chauffage', ?, ?)`,
+        [permanent.id, installation.id, snapshot.nom_reseau || `Réseau ${snapshot.ordre}`, snapshot.ordre]
+      );
+    }
+    await db.runAsync('UPDATE reseaux SET reseau_site_id = ? WHERE id = ?', [permanent.id, snapshot.id]);
+    await db.runAsync(
+      `INSERT OR IGNORE INTO observations_reseau
+       (id, reseau_site_id, visite_id, t_ext_c, t_dep_c, courbe_de_chauffe, tnc, consigne_programme_horaire)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      [uuidv4(), permanent.id, visiteId, snapshot.t_ext_c, snapshot.t_dep_c,
+        snapshot.courbe_de_chauffe, snapshot.tnc, snapshot.consigne_programme_horaire]
+    );
+  }
+  const permanents = await db.getAllAsync(
+    `SELECT * FROM reseaux_site WHERE installation_id = ? AND actif = 1 ORDER BY ordre`, [installation.id]
+  );
+  for (const permanent of permanents) {
+    const existe = await db.getFirstAsync(
+      'SELECT id FROM reseaux WHERE visite_id = ? AND reseau_site_id = ?', [visiteId, permanent.id]
+    );
+    if (!existe) {
+      await db.runAsync(
+        `INSERT INTO reseaux (id, visite_id, reseau_site_id, ordre, nom_reseau)
+         VALUES (?, ?, ?, ?, ?)`,
+        [uuidv4(), visiteId, permanent.id, permanent.ordre, permanent.nom]
+      );
+    }
+  }
+}
+
 async function listerReseaux(visiteId) {
   const db = await getDb();
-  return db.getAllAsync(`SELECT * FROM reseaux WHERE visite_id = ? ORDER BY ordre`, [visiteId]);
+  await initialiserReseauxVisite(db, visiteId);
+  return db.getAllAsync(
+    `SELECT r.*, (SELECT COUNT(*) FROM observations_reseau o WHERE o.reseau_site_id = r.reseau_site_id) AS nb_observations
+     FROM reseaux r WHERE r.visite_id = ? ORDER BY r.ordre`, [visiteId]
+  );
 }
 async function ajouterReseau(visiteId, nom) {
   const db = await getDb();
+  const installation = await getInstallationPrincipale(db, visiteId);
   const { n } = await db.getFirstAsync(`SELECT COUNT(*) as n FROM reseaux WHERE visite_id = ?`, [visiteId]);
+  const permanentId = uuidv4();
   const id = uuidv4();
+  const nomFinal = nom || `Réseau ${n + 1}`;
   await db.runAsync(
-    `INSERT INTO reseaux (id, visite_id, ordre, nom_reseau) VALUES (?, ?, ?, ?)`,
-    [id, visiteId, n + 1, nom || `Réseau ${n + 1}`]
+    `INSERT INTO reseaux_site (id, installation_id, type_code, nom, ordre)
+     VALUES (?, ?, 'chauffage', ?, ?)`, [permanentId, installation.id, nomFinal, n + 1]
+  );
+  await db.runAsync(
+    `INSERT INTO reseaux (id, visite_id, reseau_site_id, ordre, nom_reseau) VALUES (?, ?, ?, ?, ?)`,
+    [id, visiteId, permanentId, n + 1, nomFinal]
+  );
+  await db.runAsync(
+    'INSERT INTO observations_reseau (id, reseau_site_id, visite_id) VALUES (?, ?, ?)',
+    [uuidv4(), permanentId, visiteId]
   );
   return id;
 }
@@ -326,32 +383,126 @@ async function upsertReseauChamp(reseauId, champ, valeur) {
   if (!CHAMPS.includes(champ)) return;
   const db = await getDb();
   await db.runAsync(`UPDATE reseaux SET ${champ} = ? WHERE id = ?`, [valeur, reseauId]);
+  const snapshot = await db.getFirstAsync('SELECT * FROM reseaux WHERE id = ?', [reseauId]);
+  if (!snapshot?.reseau_site_id) return;
+  if (champ === 'nom_reseau') {
+    await db.runAsync('UPDATE reseaux_site SET nom = ?, modifie_le = datetime(\'now\') WHERE id = ?', [valeur, snapshot.reseau_site_id]);
+  } else {
+    await db.runAsync(
+      `INSERT INTO observations_reseau (id, reseau_site_id, visite_id, ${champ}) VALUES (?, ?, ?, ?)
+       ON CONFLICT(reseau_site_id, visite_id) DO UPDATE SET ${champ} = excluded.${champ}, observe_le = datetime('now')`,
+      [uuidv4(), snapshot.reseau_site_id, snapshot.visite_id, valeur]
+    );
+  }
 }
 async function supprimerReseau(reseauId) {
   const db = await getDb();
+  const snapshot = await db.getFirstAsync('SELECT * FROM reseaux WHERE id = ?', [reseauId]);
+  if (snapshot?.reseau_site_id) {
+    await db.runAsync('UPDATE reseaux_site SET actif = 0, modifie_le = datetime(\'now\') WHERE id = ?', [snapshot.reseau_site_id]);
+    await db.runAsync(
+      `INSERT INTO observations_reseau (id, reseau_site_id, visite_id, present) VALUES (?, ?, ?, 0)
+       ON CONFLICT(reseau_site_id, visite_id) DO UPDATE SET present = 0, observe_le = datetime('now')`,
+      [uuidv4(), snapshot.reseau_site_id, snapshot.visite_id]
+    );
+  }
   await db.runAsync(`DELETE FROM reseaux WHERE id = ?`, [reseauId]);
 }
 
 // ---------------- Repository : compteurs dynamiques ----------------
 
+async function initialiserCompteursVisite(db, visiteId) {
+  const installation = await getInstallationPrincipale(db, visiteId);
+  const anciens = await db.getAllAsync('SELECT * FROM compteurs WHERE visite_id = ? AND compteur_site_id IS NULL', [visiteId]);
+  for (const snapshot of anciens) {
+    let permanent = await db.getFirstAsync(
+      `SELECT id FROM compteurs_site WHERE installation_id = ? AND libelle = ? COLLATE NOCASE AND actif = 1`,
+      [installation.id, snapshot.label || 'Compteur']
+    );
+    if (!permanent) {
+      permanent = { id: uuidv4() };
+      await db.runAsync(
+        `INSERT INTO compteurs_site (id, installation_id, type_code, libelle, unite)
+         VALUES (?, ?, ?, ?, ?)`,
+        [permanent.id, installation.id, snapshot.label || 'compteur', snapshot.label || 'Compteur', snapshot.unite]
+      );
+    }
+    await db.runAsync('UPDATE compteurs SET compteur_site_id = ? WHERE id = ?', [permanent.id, snapshot.id]);
+    if (snapshot.valeur) {
+      const nombre = Number(String(snapshot.valeur).replace(',', '.'));
+      await db.runAsync(
+        `INSERT OR IGNORE INTO releves_compteur
+         (id, compteur_site_id, visite_id, valeur_texte, valeur_nombre, unite) VALUES (?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), permanent.id, visiteId, snapshot.valeur, Number.isFinite(nombre) ? nombre : null, snapshot.unite]
+      );
+    }
+  }
+  const permanents = await db.getAllAsync(
+    `SELECT * FROM compteurs_site WHERE installation_id = ? AND actif = 1 ORDER BY cree_le`, [installation.id]
+  );
+  for (const permanent of permanents) {
+    const existe = await db.getFirstAsync(
+      'SELECT id FROM compteurs WHERE visite_id = ? AND compteur_site_id = ?', [visiteId, permanent.id]
+    );
+    if (!existe) {
+      await db.runAsync(
+        `INSERT INTO compteurs (id, visite_id, compteur_site_id, label, unite) VALUES (?, ?, ?, ?, ?)`,
+        [uuidv4(), visiteId, permanent.id, permanent.libelle, permanent.unite]
+      );
+    }
+  }
+}
+
 async function listerCompteurs(visiteId) {
   const db = await getDb();
-  return db.getAllAsync(`SELECT * FROM compteurs WHERE visite_id = ?`, [visiteId]);
+  await initialiserCompteursVisite(db, visiteId);
+  return db.getAllAsync(
+    `SELECT c.*, (SELECT COUNT(*) FROM releves_compteur r WHERE r.compteur_site_id = c.compteur_site_id) AS nb_releves
+     FROM compteurs c WHERE c.visite_id = ? ORDER BY c.rowid`, [visiteId]
+  );
 }
 async function ajouterCompteur(visiteId, label) {
   const db = await getDb();
+  const installation = await getInstallationPrincipale(db, visiteId);
+  const permanentId = uuidv4();
   const id = uuidv4();
-  await db.runAsync(`INSERT INTO compteurs (id, visite_id, label, unite) VALUES (?, ?, ?, ?)`,
-    [id, visiteId, label || '', 'm³']);
+  await db.runAsync(
+    `INSERT INTO compteurs_site (id, installation_id, type_code, libelle, unite)
+     VALUES (?, ?, ?, ?, 'm³')`, [permanentId, installation.id, label || 'compteur', label || 'Compteur']
+  );
+  await db.runAsync(`INSERT INTO compteurs (id, visite_id, compteur_site_id, label, unite) VALUES (?, ?, ?, ?, ?)`,
+    [id, visiteId, permanentId, label || '', 'm³']);
   return id;
 }
 async function upsertCompteurChamp(compteurId, champ, valeur) {
   if (!['label', 'valeur', 'unite'].includes(champ)) return;
   const db = await getDb();
   await db.runAsync(`UPDATE compteurs SET ${champ} = ? WHERE id = ?`, [valeur, compteurId]);
+  const snapshot = await db.getFirstAsync('SELECT * FROM compteurs WHERE id = ?', [compteurId]);
+  if (!snapshot?.compteur_site_id) return;
+  if (champ === 'label' || champ === 'unite') {
+    const colonne = champ === 'label' ? 'libelle' : 'unite';
+    await db.runAsync(`UPDATE compteurs_site SET ${colonne} = ?, modifie_le = datetime('now') WHERE id = ?`, [valeur, snapshot.compteur_site_id]);
+  }
+  if (champ === 'valeur') {
+    const nombre = Number(String(valeur).replace(',', '.'));
+    await db.runAsync(
+      `INSERT INTO releves_compteur (id, compteur_site_id, visite_id, valeur_texte, valeur_nombre, unite)
+       VALUES (?, ?, ?, ?, ?, ?)
+       ON CONFLICT(compteur_site_id, visite_id) DO UPDATE SET
+         valeur_texte = excluded.valeur_texte, valeur_nombre = excluded.valeur_nombre,
+         unite = excluded.unite, releve_le = datetime('now')`,
+      [uuidv4(), snapshot.compteur_site_id, snapshot.visite_id, valeur,
+        Number.isFinite(nombre) ? nombre : null, snapshot.unite]
+    );
+  }
 }
 async function supprimerCompteur(compteurId) {
   const db = await getDb();
+  const snapshot = await db.getFirstAsync('SELECT * FROM compteurs WHERE id = ?', [compteurId]);
+  if (snapshot?.compteur_site_id) {
+    await db.runAsync('UPDATE compteurs_site SET actif = 0, modifie_le = datetime(\'now\') WHERE id = ?', [snapshot.compteur_site_id]);
+  }
   await db.runAsync(`DELETE FROM compteurs WHERE id = ?`, [compteurId]);
 }
 
