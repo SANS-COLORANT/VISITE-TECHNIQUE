@@ -128,7 +128,9 @@ export async function importerAnalyseExcel(analyse) {
   if (deja) return { visiteId: deja.entite_id, dejaImporte: true };
 
   let visiteId;
+  let etape = 'initialisation';
   await db.withTransactionAsync(async () => {
+    etape = 'client et site';
     let client = await db.getFirstAsync('SELECT id FROM clients WHERE nom = ? COLLATE NOCASE', [analyse.client]);
     if (!client) {
       client = { id: uuidv4() };
@@ -159,6 +161,7 @@ export async function importerAnalyseExcel(analyse) {
       installation = { id: uuidv4() };
       await db.runAsync(`INSERT INTO installations (id, site_id, type_code, nom) VALUES (?, ?, 'chaufferie', 'Installation principale')`, [installation.id, site.id]);
     }
+    etape = 'réseaux';
     for (const r of analyse.reseaux) {
       let permanent = await db.getFirstAsync('SELECT id FROM reseaux_site WHERE installation_id = ? AND nom = ? COLLATE NOCASE', [installation.id, r.nom || `Réseau ${r.ordre}`]);
       if (!permanent) {
@@ -168,25 +171,33 @@ export async function importerAnalyseExcel(analyse) {
       await db.runAsync(`INSERT INTO reseaux (id, visite_id, reseau_site_id, ordre, nom_reseau, t_ext_c, t_dep_c, courbe_de_chauffe, tnc, consigne_programme_horaire) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [uuidv4(), visiteId, permanent.id, r.ordre, r.nom, r.tExt, r.tDep, r.courbe, r.tnc, r.programme]);
       await db.runAsync(`INSERT OR REPLACE INTO observations_reseau (id, reseau_site_id, visite_id, t_ext_c, t_dep_c, courbe_de_chauffe, tnc, consigne_programme_horaire) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [uuidv4(), permanent.id, visiteId, r.tExt, r.tDep, r.courbe, r.tnc, r.programme]);
     }
+    etape = 'équipements';
+    const equipementsUtilises = new Set();
     for (const m of analyse.materiel) {
-      let equipement = await db.getFirstAsync(
+      const equipementsCompatibles = await db.getAllAsync(
         `SELECT id FROM equipements
          WHERE installation_id = ? AND statut = 'actif'
            AND COALESCE(type_code, '') = COALESCE(?, '') COLLATE NOCASE
            AND COALESCE(designation, '') = COALESCE(?, '') COLLATE NOCASE
            AND COALESCE(marque, '') = COALESCE(?, '') COLLATE NOCASE
            AND COALESCE(modele, '') = COALESCE(?, '') COLLATE NOCASE
-         ORDER BY cree_le LIMIT 1`,
-        [installation.id, m.categorie || 'non_classe', m.designation || '', m.marque || '', m.modele || '']
+           AND (? = '' OR COALESCE(numero_serie, '') = ? COLLATE NOCASE)
+         ORDER BY cree_le`,
+        [installation.id, m.categorie || 'non_classe', m.designation || '', m.marque || '', m.modele || '', m.numero || '', m.numero || '']
       );
+      // Deux lignes identiques dans la même feuille représentent deux appareils.
+      // Lors d'une visite suivante, chacune retrouve le bon appareil disponible.
+      let equipement = equipementsCompatibles.find((item) => !equipementsUtilises.has(item.id)) || null;
       if (!equipement) {
         equipement = { id: uuidv4() };
         await db.runAsync(`INSERT INTO equipements (id, installation_id, type_code, designation, marque, modele, numero_serie, annee, statut) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'actif')`, [equipement.id, installation.id, m.categorie || 'non_classe', m.designation || null, m.marque || null, m.modele || null, m.numero || null, m.annee || null]);
       }
       const equipementId = equipement.id;
+      equipementsUtilises.add(equipementId);
       await db.runAsync(`INSERT INTO materiel (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [uuidv4(), visiteId, equipementId, m.categorie, m.designation, m.marque, m.modele, m.annee, m.etat]);
-      await db.runAsync(`INSERT INTO observations_equipement (id, equipement_id, visite_id, etat) VALUES (?, ?, ?, ?)`, [uuidv4(), equipementId, visiteId, m.etat]);
+      await db.runAsync(`INSERT OR REPLACE INTO observations_equipement (id, equipement_id, visite_id, etat) VALUES (?, ?, ?, ?)`, [uuidv4(), equipementId, visiteId, m.etat]);
     }
+    etape = 'compteurs';
     for (const c of analyse.compteurs) {
       let permanent = await db.getFirstAsync('SELECT id FROM compteurs_site WHERE installation_id = ? AND libelle = ? COLLATE NOCASE AND actif = 1', [installation.id, c.label]);
       if (!permanent) {
@@ -197,14 +208,18 @@ export async function importerAnalyseExcel(analyse) {
       await db.runAsync(`INSERT INTO compteurs (id, visite_id, compteur_site_id, label, valeur, unite) VALUES (?, ?, ?, ?, ?, ?)`, [uuidv4(), visiteId, permanent.id, c.label, c.valeur, c.unite]);
       await db.runAsync(`INSERT OR REPLACE INTO releves_compteur (id, compteur_site_id, visite_id, valeur_texte, valeur_nombre, unite) VALUES (?, ?, ?, ?, ?, ?)`, [uuidv4(), permanent.id, visiteId, c.valeur, Number.isFinite(nombre) ? nombre : null, c.unite]);
     }
+    etape = 'réserves';
     for (const r of analyse.remarques) await db.runAsync(
       `INSERT INTO remarques (id, visite_id, poste, prestation, delai, estimatif, origine) VALUES (?, ?, ?, ?, ?, ?, 'Import Excel')`,
       [uuidv4(), visiteId, r.poste, r.prestation, Number(r.delai) || null, Number(String(r.estimatif).replace(',', '.')) || null]
     );
+    etape = 'finalisation';
     await db.runAsync(
       `INSERT INTO provenances (id, entite_type, entite_id, origine, reference_externe, details_json) VALUES (?, 'visite', ?, 'import_excel', ?, ?)`,
       [uuidv4(), visiteId, analyse.sourceId || analyse.nomFichier, JSON.stringify({ fichier: analyse.nomFichier, client: analyse.client, site: analyse.site, dateVisite: analyse.dateVisite })]
     );
+  }).catch((error) => {
+    throw new Error(`Import interrompu pendant l’étape « ${etape} » : ${error.message || error}`);
   });
   return { visiteId, dejaImporte: false };
 }
