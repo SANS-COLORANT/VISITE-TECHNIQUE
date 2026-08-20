@@ -1,6 +1,6 @@
 /** Couleurs partagées + StyleSheet complet de l'application. */
 
-import { StyleSheet } from 'react-native';
+import { Platform, StyleSheet } from 'react-native';
 
 export const COLORS = {
   orange: '#F26426', orangeDark: '#D9531A', orangeLight: '#FFF1EA',
@@ -50,7 +50,14 @@ export const styles = StyleSheet.create({
   modalTitle: { fontSize: 16, fontWeight: '600', color: COLORS.ink, marginBottom: 14 },
   input: { borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: COLORS.ink },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
-  fabBar: { padding: 16, backgroundColor: COLORS.white, borderTopWidth: 1, borderTopColor: COLORS.line },
+  fabBar: {
+    paddingTop: 12,
+    paddingHorizontal: 16,
+    paddingBottom: Platform.OS === 'android' ? 32 : 16,
+    backgroundColor: COLORS.white,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.line,
+  },
   paramTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line, paddingHorizontal: 20 },
   paramTab: { paddingVertical: 12, paddingHorizontal: 4, marginRight: 24, borderBottomWidth: 2.5, borderBottomColor: 'transparent' },
   paramTabActive: { borderBottomColor: COLORS.orange },
