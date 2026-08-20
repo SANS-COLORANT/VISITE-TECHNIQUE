@@ -136,8 +136,10 @@ const ChipSelector = React.memo(function ChipSelector({ valeur, options, onChang
 
   const panResponder = React.useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (evt, gestureState) =>
-        Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+      // "Capture" plutôt que la version simple : sinon les boutons (chips)
+      // en dessous interceptent le toucher avant que le swipe soit détecté.
+      onMoveShouldSetPanResponderCapture: (evt, gestureState) =>
+        Math.abs(gestureState.dx) > 15 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy) * 1.5,
       onPanResponderRelease: (evt, gestureState) => {
         const idxActuel = options.indexOf(valeur);
         if (gestureState.dx < -20) {
@@ -401,7 +403,7 @@ const TypeAheadInput = React.memo(function TypeAheadInput({ valeur, options, pla
   // options sans avoir à taper sur chacune (même logique que ChipSelector).
   const panResponder = React.useRef(
     PanResponder.create({
-      onMoveShouldSetPanResponder: (evt, g) => Math.abs(g.dx) > 20 && Math.abs(g.dx) > Math.abs(g.dy),
+      onMoveShouldSetPanResponderCapture: (evt, g) => Math.abs(g.dx) > 15 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
       onPanResponderRelease: (evt, g) => {
         const idx = options.indexOf(texte);
         if (g.dx < -20) choisir(options[idx < options.length - 1 ? idx + 1 : 0]);
