@@ -20,6 +20,7 @@ import { COLORS, styles } from './styles.js';
 import { HomeScreen } from './HomeScreen.js';
 import { ClientSitesScreen } from './ClientSitesScreen.js';
 import { VisiteScreen } from './VisiteScreen.js';
+import { ParametresScreen } from './ParametresScreen.js';
 
 /** Petite barre de titre réutilisable, avec bouton retour optionnel. */
 function SimpleHeader({ title, onBack }) {
@@ -92,6 +93,12 @@ export default function App() {
       )}
       {current.name === 'Visite' && (
         <VisiteScreen navigation={navigation} route={route} onBack={goBack} />
+      )}
+      {current.name === 'Parametres' && (
+        <>
+          <SimpleHeader title="Paramètres" onBack={goBack} />
+          <ParametresScreen />
+        </>
       )}
     </View>
   );

@@ -9,10 +9,10 @@ import {
   listerReseaux, ajouterReseau, upsertReseauChamp, supprimerReseau,
   listerCompteurs, ajouterCompteur, upsertCompteurChamp, supprimerCompteur,
   listerMateriel, ajouterMateriel, upsertMaterielChamp, supprimerMateriel,
-  listerRemarques, ajouterRemarqueManuelle,
+  listerRemarques, ajouterRemarqueManuelle, listerBibliothequeReserves, ajouterRemarqueDepuisBiblio,
   listerPhotos, ajouterPhoto,
 } from './db.js';
-import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique } from './GenericFields.js';
+import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput } from './GenericFields.js';
 import { PhotoButton, prendrePhoto } from './PhotoButton.js';
 
 // ============================================================================
@@ -257,21 +257,28 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
   );
 }
 
+const COMPTEUR_TYPES = [
+  'Compteur gaz', 'Compteur eau froide ECS', 'Compteur eau froide générale',
+  'Compteur énergie', 'Compteur fioul', 'Compteur électrique',
+  'Manomètre chauffage', 'Manomètre ECS',
+];
+
 function CompteurCard({ compteur, unites, onChange }) {
   const [label, setLabel] = useState(compteur.label || '');
   const [valeur, setValeur] = useState(compteur.valeur || '');
   const [unite, setUnite] = useState(compteur.unite || 'm³');
 
+  const sauverLabel = async (val) => {
+    setLabel(val);
+    await upsertCompteurChamp(compteur.id, 'label', val);
+  };
+
   return (
     <View style={styles.compteurRow}>
       <View style={styles.compteurRowTop}>
-        <TextInput
-          style={styles.compteurCatInput}
-          value={label}
-          onChangeText={setLabel}
-          onBlur={() => upsertCompteurChamp(compteur.id, 'label', label)}
-          placeholder="Type de compteur..."
-        />
+        <View style={{ flex: 1 }}>
+          <ChipSelector valeur={label} options={COMPTEUR_TYPES} onChange={sauverLabel} />
+        </View>
         <TouchableOpacity onPress={async () => { await supprimerCompteur(compteur.id); onChange(); }}>
           <Text style={styles.removeLink}>Suppr.</Text>
         </TouchableOpacity>
@@ -322,23 +329,39 @@ function PanelEquipements({ visiteId }) {
   );
 }
 
+const CATEGORIES_EQUIPEMENT = [
+  'Adoucisseur', 'Armoire électrique', 'Ballon ECS', 'Chaudière', 'Circulateur',
+  'Coffret gaz', 'Compteur', 'Désemboueur', 'Détendeur', 'Échangeur',
+  'Extincteur', 'Filtre', 'Manomètre', 'Pompe', 'Robinetterie', 'Soupape',
+  'Vanne', "Vase d'expansion",
+];
+const MARQUES_EQUIPEMENT = [
+  'De Dietrich', 'Viessmann', 'Grundfos', 'Wilo', 'Saunier Duval',
+  'Atlantic', 'Frisquet', 'Chappée', 'Chaffoteaux', 'Elm Leblanc',
+  'Bosch', 'Vaillant', 'Fernox', 'Alfa Laval',
+];
+
 function MaterielCard({ item, visiteId, onChange }) {
   const [vals, setVals] = useState({
     categorie: item.categorie || '', designation: item.designation || '',
     marque: item.marque || '', modele: item.modele || '', annee: item.annee || '',
   });
-  const sauver = (champ) => upsertMaterielChamp(item.id, champ, vals[champ]);
+  const sauverChamp = async (champ, val) => {
+    setVals((v) => ({ ...v, [champ]: val }));
+    await upsertMaterielChamp(item.id, champ, val);
+  };
 
   return (
     <View style={styles.formCard}>
       <View style={styles.materielTopRow}>
-        <TextInput
-          style={[styles.input, { flex: 1 }]}
-          placeholder="Catégorie (ex: Chaudière, Pompe, Adoucisseur...)"
-          value={vals.categorie}
-          onChangeText={(t) => setVals((v) => ({ ...v, categorie: t }))}
-          onBlur={() => sauver('categorie')}
-        />
+        <View style={{ flex: 1 }}>
+          <TypeAheadInput
+            valeur={vals.categorie}
+            options={CATEGORIES_EQUIPEMENT}
+            placeholder="Catégorie (ex: Chaudière, Pompe, Adoucisseur...)"
+            onChange={(t) => sauverChamp('categorie', t)}
+          />
+        </View>
         <PhotoButton visiteId={visiteId} entiteKey={`materiel||${item.id}`} label={vals.designation || vals.categorie} />
       </View>
       <View style={{ height: 8 }} />
@@ -347,21 +370,25 @@ function MaterielCard({ item, visiteId, onChange }) {
         placeholder="Désignation"
         value={vals.designation}
         onChangeText={(t) => setVals((v) => ({ ...v, designation: t }))}
-        onBlur={() => sauver('designation')}
+        onBlur={() => sauverChamp('designation', vals.designation)}
       />
       <View style={{ height: 8 }} />
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <TextInput
-          style={[styles.input, { flex: 1 }]} placeholder="Marque" value={vals.marque}
-          onChangeText={(t) => setVals((v) => ({ ...v, marque: t }))} onBlur={() => sauver('marque')}
-        />
+        <View style={{ flex: 1 }}>
+          <TypeAheadInput
+            valeur={vals.marque}
+            options={MARQUES_EQUIPEMENT}
+            placeholder="Marque"
+            onChange={(t) => sauverChamp('marque', t)}
+          />
+        </View>
         <TextInput
           style={[styles.input, { flex: 1 }]} placeholder="Modèle" value={vals.modele}
-          onChangeText={(t) => setVals((v) => ({ ...v, modele: t }))} onBlur={() => sauver('modele')}
+          onChangeText={(t) => setVals((v) => ({ ...v, modele: t }))} onBlur={() => sauverChamp('modele', vals.modele)}
         />
         <TextInput
           style={[styles.input, { width: 70 }]} placeholder="Année" value={vals.annee}
-          onChangeText={(t) => setVals((v) => ({ ...v, annee: t }))} onBlur={() => sauver('annee')}
+          onChangeText={(t) => setVals((v) => ({ ...v, annee: t }))} onBlur={() => sauverChamp('annee', vals.annee)}
           keyboardType="numeric"
         />
       </View>
@@ -375,6 +402,9 @@ function MaterielCard({ item, visiteId, onChange }) {
 /** Onglet Réserves : 100% dynamique, lit ce que les contrôles ont généré. */
 function PanelRemarques({ visiteId, refreshKey }) {
   const [remarques, setRemarques] = useState([]);
+  const [biblioVisible, setBiblioVisible] = useState(false);
+  const [biblio, setBiblio] = useState([]);
+
   useEffect(useCallback(() => {
     listerRemarques(visiteId).then(setRemarques);
   }, [visiteId, refreshKey]));
@@ -382,6 +412,21 @@ function PanelRemarques({ visiteId, refreshKey }) {
   const total = remarques.length;
   const sumEstim = remarques.reduce((s, r) => s + (r.estimatif || 0), 0);
   const urgent = remarques.filter((r) => r.delai && r.delai <= 3).length;
+
+  const ouvrirBiblio = async () => {
+    setBiblio(await listerBibliothequeReserves());
+    setBiblioVisible(true);
+  };
+  const choisirDepuisBiblio = async (item) => {
+    await ajouterRemarqueDepuisBiblio(visiteId, item);
+    setBiblioVisible(false);
+    listerRemarques(visiteId).then(setRemarques);
+  };
+  const ajouterVierge = async () => {
+    await ajouterRemarqueManuelle(visiteId);
+    setBiblioVisible(false);
+    listerRemarques(visiteId).then(setRemarques);
+  };
 
   return (
     <ScrollView contentContainerStyle={styles.panelContent}>
@@ -411,9 +456,37 @@ function PanelRemarques({ visiteId, refreshKey }) {
           </View>
         ))
       )}
-      <TouchableOpacity style={styles.addBtn} onPress={async () => { await ajouterRemarqueManuelle(visiteId); listerRemarques(visiteId).then(setRemarques); }}>
+      <TouchableOpacity style={styles.addBtn} onPress={ouvrirBiblio}>
         <Text style={styles.addBtnText}>+ Ajouter une réserve manuelle</Text>
       </TouchableOpacity>
+
+      <Modal visible={biblioVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Choisir une réserve</Text>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {biblio.length === 0 ? (
+                <Text style={styles.emptySub}>Aucune réserve dans ta bibliothèque. Ajoutes-en depuis Paramètres, ou pars d'une réserve vierge.</Text>
+              ) : (
+                biblio.map((item) => (
+                  <TouchableOpacity key={item.id} style={styles.biblioRow} onPress={() => choisirDepuisBiblio(item)}>
+                    <Text style={styles.biblioRowTitle}>{item.nom}</Text>
+                    {item.description ? <Text style={styles.biblioRowSub} numberOfLines={1}>{item.description}</Text> : null}
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.btnSecondary} onPress={() => setBiblioVisible(false)}>
+                <Text style={styles.btnSecondaryText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btnPrimary} onPress={ajouterVierge}>
+                <Text style={styles.btnPrimaryText}>Réserve vierge</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }

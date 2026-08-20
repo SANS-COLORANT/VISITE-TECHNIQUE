@@ -69,6 +69,14 @@ CREATE TABLE IF NOT EXISTS photos (
   uri TEXT NOT NULL, label TEXT, cree_le TEXT NOT NULL DEFAULT (datetime('now'))
 );
 CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+-- Bibliothèque de réserves personnalisées — indépendante des visites,
+-- gérée depuis l'écran Paramètres. Sert de raccourci quand on ajoute une
+-- réserve manuelle dans une visite.
+CREATE TABLE IF NOT EXISTS reserves_bibliotheque (
+  id TEXT PRIMARY KEY, nom TEXT NOT NULL, description TEXT,
+  prix REAL, poste TEXT, delai INTEGER,
+  cree_le TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 let dbInstance = null;
@@ -417,6 +425,41 @@ async function ajouterPhoto(visiteId, entiteKey, uri, label) {
   );
 }
 
+// ---------------- Repository : bibliothèque de réserves (Paramètres) ----------------
+
+async function listerBibliothequeReserves() {
+  const db = await getDb();
+  return db.getAllAsync(`SELECT * FROM reserves_bibliotheque ORDER BY nom`);
+}
+async function ajouterReserveBiblio({ nom, description, prix, poste, delai }) {
+  const db = await getDb();
+  const id = uuidv4();
+  await db.runAsync(
+    `INSERT INTO reserves_bibliotheque (id, nom, description, prix, poste, delai) VALUES (?, ?, ?, ?, ?, ?)`,
+    [id, nom, description || null, prix ?? null, poste || null, delai ?? null]
+  );
+  return id;
+}
+async function modifierReserveBiblio(id, { nom, description, prix, poste, delai }) {
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE reserves_bibliotheque SET nom = ?, description = ?, prix = ?, poste = ?, delai = ? WHERE id = ?`,
+    [nom, description || null, prix ?? null, poste || null, delai ?? null, id]
+  );
+}
+async function supprimerReserveBiblio(id) {
+  const db = await getDb();
+  await db.runAsync(`DELETE FROM reserves_bibliotheque WHERE id = ?`, [id]);
+}
+/** Ajoute une réserve à une visite en copiant un modèle de la bibliothèque. */
+async function ajouterRemarqueDepuisBiblio(visiteId, biblioItem) {
+  const db = await getDb();
+  await db.runAsync(
+    `INSERT INTO remarques (id, visite_id, controle_key, poste, prestation, delai, estimatif, origine)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, 'Bibliothèque personnalisée')`,
+    [uuidv4(), visiteId, biblioItem.poste || 'Observation', biblioItem.description || biblioItem.nom, biblioItem.delai, biblioItem.prix]
+  );
+}
 
 export {
   getDb,
@@ -428,4 +471,5 @@ export {
   listerMateriel, ajouterMateriel, upsertMaterielChamp, supprimerMateriel,
   listerRemarques, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle, ajouterRemarqueManuelle,
   getNote, upsertNote, listerPhotos, ajouterPhoto,
+  listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio, ajouterRemarqueDepuisBiblio,
 };

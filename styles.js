@@ -146,6 +146,24 @@ export const styles = StyleSheet.create({
   uniteChipText: { fontSize: 11, color: COLORS.inkSoft, fontWeight: '600' },
   uniteChipTextSelected: { color: COLORS.white },
 
+  // ---- Molette numérique : saisie clavier directe ----
+  stepperInputLibre: { flex: 1, textAlign: 'center', fontSize: 14, fontWeight: '700', color: COLORS.ink, borderWidth: 1, borderColor: COLORS.orange, borderRadius: 9, paddingVertical: 8 },
+
+  // ---- Autocomplétion (TypeAheadInput) ----
+  typeaheadSuggestions: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, marginTop: 4, overflow: 'hidden' },
+  typeaheadSuggestionRow: { paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: COLORS.line },
+  typeaheadSuggestionText: { fontSize: 13, color: COLORS.ink },
+
+  // ---- Accueil : bouton Paramètres ----
+  homeTopRow: { flexDirection: 'row', justifyContent: 'flex-end', paddingHorizontal: 20, paddingTop: 50, paddingBottom: 6, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line },
+  parametresBtn: { paddingHorizontal: 12, paddingVertical: 6 },
+  parametresBtnText: { fontSize: 13, color: COLORS.inkSoft, fontWeight: '600' },
+
+  // ---- Bibliothèque de réserves (choix rapide) ----
+  biblioRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.line },
+  biblioRowTitle: { fontSize: 13.5, fontWeight: '600', color: COLORS.ink },
+  biblioRowSub: { fontSize: 11.5, color: COLORS.inkSoft, marginTop: 2 },
+
   materielTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
   totalsBar: { flexDirection: 'row', gap: 10, marginBottom: 14 },

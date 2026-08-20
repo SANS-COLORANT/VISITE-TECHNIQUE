@@ -35,6 +35,11 @@ function HomeScreen({ navigation }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+      <View style={styles.homeTopRow}>
+        <TouchableOpacity style={styles.parametresBtn} onPress={() => navigation.navigate('Parametres')}>
+          <Text style={styles.parametresBtnText}>⚙ Paramètres</Text>
+        </TouchableOpacity>
+      </View>
       <FlatList
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.orange} />}

@@ -1,7 +1,7 @@
 /** Champs génériques : molette numérique, chips de sélection, contrôle Avis. */
 
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, PanResponder } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PRESCRIPTIONS } from './data.js';
 import { upsertChamp, upsertControle, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle } from './db.js';
@@ -61,23 +61,61 @@ function getNumericConfig(cle) {
 }
 
 /** Sélecteur numérique +/-, avec appui long pour avancer plus vite. */
+/** Arrondit proprement selon le nombre de décimales du pas, sans dérive flottante. */
+function arrondirSelonPas(valeur, step) {
+  const decimales = (String(step).split('.')[1] || '').length;
+  return parseFloat(valeur.toFixed(decimales));
+}
+
+/**
+ * Molette numérique : boutons +/- pour aller vite, et tap sur la valeur
+ * pour la taper directement au clavier (les deux méthodes cohabitent).
+ */
 const StepperNumerique = React.memo(function StepperNumerique({ valeur, config, onChange }) {
+  const [modeLibre, setModeLibre] = useState(false);
+  const [texteLibre, setTexteLibre] = useState(valeur || '');
   const num = parseFloat(valeur);
   const val = isNaN(num) ? 0 : num;
 
-  const arrondir = (n) => Math.round(n / config.step) * config.step * 10 / 10;
+  const dec = () => onChange(String(Math.max(config.min, arrondirSelonPas(val - config.step, config.step))));
+  const inc = () => onChange(String(Math.min(config.max, arrondirSelonPas(val + config.step, config.step))));
 
-  const dec = () => onChange(String(Math.max(config.min, arrondir(val - config.step))));
-  const inc = () => onChange(String(Math.min(config.max, arrondir(val + config.step))));
+  const validerLibre = () => {
+    let n = parseFloat(texteLibre.replace(',', '.'));
+    if (!isNaN(n)) {
+      n = Math.min(config.max, Math.max(config.min, n));
+      onChange(String(arrondirSelonPas(n, config.step)));
+    }
+    setModeLibre(false);
+  };
+
+  if (modeLibre) {
+    return (
+      <View style={styles.stepperRow}>
+        <TextInput
+          style={styles.stepperInputLibre}
+          value={texteLibre}
+          onChangeText={setTexteLibre}
+          onBlur={validerLibre}
+          onSubmitEditing={validerLibre}
+          keyboardType="numeric"
+          autoFocus
+        />
+      </View>
+    );
+  }
 
   return (
     <View style={styles.stepperRow}>
       <TouchableOpacity style={styles.stepperBtn} onPress={dec}>
         <Text style={styles.stepperBtnText}>−</Text>
       </TouchableOpacity>
-      <View style={styles.stepperValBox}>
+      <TouchableOpacity
+        style={styles.stepperValBox}
+        onPress={() => { setTexteLibre(valeur || ''); setModeLibre(true); }}
+      >
         <Text style={styles.stepperValText}>{valeur || '—'}{config.unit ? ` ${config.unit}` : ''}</Text>
-      </View>
+      </TouchableOpacity>
       <TouchableOpacity style={styles.stepperBtn} onPress={inc}>
         <Text style={styles.stepperBtnText}>+</Text>
       </TouchableOpacity>
@@ -85,11 +123,39 @@ const StepperNumerique = React.memo(function StepperNumerique({ valeur, config, 
   );
 });
 
-/** Sélecteur par chips, avec "+ Autre" pour taper une valeur non prévue. */
+/**
+ * Sélecteur par chips : tap pour choisir, tap sur la chip déjà choisie pour
+ * la désélectionner (retour à "aucun choix"), glissement horizontal (swipe)
+ * pour naviguer d'une option à l'autre sans avoir à taper sur chacune, et
+ * "+ Autre" pour une valeur non prévue.
+ */
 const ChipSelector = React.memo(function ChipSelector({ valeur, options, onChange }) {
   const [modeLibre, setModeLibre] = useState(false);
   const [texteLibre, setTexteLibre] = useState(valeur && !options.includes(valeur) ? valeur : '');
   const estValeurLibre = valeur && !options.includes(valeur);
+
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, gestureState) =>
+        Math.abs(gestureState.dx) > 20 && Math.abs(gestureState.dx) > Math.abs(gestureState.dy),
+      onPanResponderRelease: (evt, gestureState) => {
+        const idxActuel = options.indexOf(valeur);
+        if (gestureState.dx < -20) {
+          // glissement vers la gauche → option suivante
+          const next = idxActuel < options.length - 1 ? idxActuel + 1 : 0;
+          onChange(options[next]);
+        } else if (gestureState.dx > 20) {
+          // glissement vers la droite → option précédente
+          const prev = idxActuel > 0 ? idxActuel - 1 : options.length - 1;
+          onChange(options[prev]);
+        }
+      },
+    })
+  ).current;
+
+  const choisir = (opt) => {
+    onChange(valeur === opt ? '' : opt); // toggle : recliquer désélectionne
+  };
 
   if (modeLibre || estValeurLibre) {
     return (
@@ -104,12 +170,12 @@ const ChipSelector = React.memo(function ChipSelector({ valeur, options, onChang
     );
   }
   return (
-    <View style={styles.chipSelectRow}>
+    <View style={styles.chipSelectRow} {...panResponder.panHandlers}>
       {options.map((opt) => (
         <TouchableOpacity
           key={opt}
           style={[styles.chipOpt, valeur === opt && styles.chipOptPicked]}
-          onPress={() => onChange(opt)}
+          onPress={() => choisir(opt)}
         >
           <Text style={[styles.chipOptText, valeur === opt && styles.chipOptTextPicked]}>{opt}</Text>
         </TouchableOpacity>
@@ -130,6 +196,10 @@ const ChampGenerique = React.memo(function ChampGenerique({ visiteId, sectionCod
 
   const numericConfig = getNumericConfig(field.cle);
   const chipOptions = FIELD_OPTIONS[field.cle];
+  // Pas de photo sur l'en-tête (Nom client/site/local, date) ni sur les
+  // informations générales basiques (adresse, nb bât...) — rien à
+  // photographier de pertinent sur ces champs purement administratifs.
+  const sansPhoto = sectionCode === 'infos.g_n_ral' || sectionCode === 'infos.informations_g_n_rales';
 
   const sauvegarder = async (nouvelleValeur) => {
     setValeur(nouvelleValeur);
@@ -141,7 +211,7 @@ const ChampGenerique = React.memo(function ChampGenerique({ visiteId, sectionCod
     <View style={styles.fieldBlock}>
       <View style={styles.fieldTop}>
         <Text style={styles.fieldLabel}>{label}{unit && !numericConfig ? ` (${unit})` : ''}</Text>
-        <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={label} />
+        {!sansPhoto && <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={label} />}
       </View>
 
       {numericConfig ? (
@@ -298,4 +368,44 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
 });
 
 
-export { extractUnit, cleanLabel, getNumericConfig, StepperNumerique, ChipSelector, ChampGenerique, ControleGenerique, AVIS_OPTIONS };
+/**
+ * Champ avec autocomplétion : tape et des suggestions filtrées apparaissent
+ * en dessous ; on peut cliquer une suggestion ou continuer à taper librement
+ * (aucune sélection n'est obligatoire, contrairement à ChipSelector).
+ */
+const TypeAheadInput = React.memo(function TypeAheadInput({ valeur, options, placeholder, onChange }) {
+  const [texte, setTexte] = useState(valeur || '');
+  const [focus, setFocus] = useState(false);
+
+  const suggestions = texte.trim()
+    ? options.filter((o) => o.toLowerCase().includes(texte.trim().toLowerCase())).slice(0, 6)
+    : options.slice(0, 6);
+
+  return (
+    <View>
+      <TextInput
+        style={styles.input}
+        value={texte}
+        onChangeText={setTexte}
+        onFocus={() => setFocus(true)}
+        onBlur={() => { setFocus(false); onChange(texte); }}
+        placeholder={placeholder}
+      />
+      {focus && suggestions.length > 0 && (
+        <View style={styles.typeaheadSuggestions}>
+          {suggestions.map((s) => (
+            <TouchableOpacity
+              key={s}
+              style={styles.typeaheadSuggestionRow}
+              onPressIn={() => { setTexte(s); onChange(s); setFocus(false); }}
+            >
+              <Text style={styles.typeaheadSuggestionText}>{s}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+});
+
+export { extractUnit, cleanLabel, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, ChampGenerique, ControleGenerique, AVIS_OPTIONS };
