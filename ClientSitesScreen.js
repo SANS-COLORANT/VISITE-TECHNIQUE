@@ -3,8 +3,8 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { COLORS, styles } from './styles';
-import { listerSitesClient, creerSite, creerVisite } from './db';
+import { COLORS, styles } from './styles.js';
+import { listerSitesClient, creerSite, creerVisite } from './db.js';
 
 // ============================================================================
 // 8. ÉCRAN SITES D'UN CLIENT

@@ -4,8 +4,8 @@ import React, { useState, useCallback } from 'react';
 import { TouchableOpacity, Text, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
-import { listerPhotos, ajouterPhoto } from './db';
-import { styles } from './styles';
+import { listerPhotos, ajouterPhoto } from './db.js';
+import { styles } from './styles.js';
 
 // ============================================================================
 // 3. CAPTURE PHOTO RÉELLE — via expo-image-picker, compression intégrée

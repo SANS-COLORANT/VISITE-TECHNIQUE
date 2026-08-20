@@ -1,7 +1,7 @@
 /** Base de données SQLite locale + repository (clients/sites/visites/champs...). */
 
 import * as SQLite from 'expo-sqlite';
-import { TRAME_DATA } from './data';
+import { TRAME_DATA } from './data.js';
 
 export function uuidv4() {
   return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);

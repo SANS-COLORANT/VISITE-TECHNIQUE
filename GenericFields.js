@@ -2,10 +2,10 @@
 
 import React, { useState } from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
-import { COLORS, styles } from './styles';
-import { PRESCRIPTIONS } from './data';
-import { upsertChamp, upsertControle, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle } from './db';
-import { PhotoButton } from './PhotoButton';
+import { COLORS, styles } from './styles.js';
+import { PRESCRIPTIONS } from './data.js';
+import { upsertChamp, upsertControle, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle } from './db.js';
+import { PhotoButton } from './PhotoButton.js';
 
 // ============================================================================
 // 4. COMPOSANTS GÉNÉRIQUES — champ texte / contrôle de conformité

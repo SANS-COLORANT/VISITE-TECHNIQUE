@@ -3,8 +3,8 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { COLORS, styles } from './styles';
-import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db';
+import { COLORS, styles } from './styles.js';
+import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
 
 // ============================================================================
 // 7. ÉCRAN ACCUEIL

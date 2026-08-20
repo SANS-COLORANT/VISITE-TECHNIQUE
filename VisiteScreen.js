@@ -3,9 +3,9 @@
 import React, { useState, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { COLORS, styles } from './styles';
-import { getVisite, getNote, upsertNote } from './db';
-import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques, PanelPhotos } from './VisitePanels';
+import { COLORS, styles } from './styles.js';
+import { getVisite, getNote, upsertNote } from './db.js';
+import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques, PanelPhotos } from './VisitePanels.js';
 
 // ============================================================================
 // 6. ÉCRAN VISITE — conteneur avec onglets horizontaux

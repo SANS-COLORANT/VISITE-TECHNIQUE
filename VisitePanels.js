@@ -3,8 +3,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, Image } from 'react-native';
 import { useFocusEffect } from '@react-navigation/native';
-import { COLORS, styles } from './styles';
-import { TRAME_DATA, RESEAU_TEMPLATE } from './data';
+import { COLORS, styles } from './styles.js';
+import { TRAME_DATA, RESEAU_TEMPLATE } from './data.js';
 import {
   getChampsVisite, getControlesVisite, getDb,
   listerReseaux, ajouterReseau, upsertReseauChamp, supprimerReseau,
@@ -12,9 +12,9 @@ import {
   listerMateriel, ajouterMateriel, upsertMaterielChamp, supprimerMateriel,
   listerRemarques, ajouterRemarqueManuelle,
   listerPhotos, ajouterPhoto,
-} from './db';
-import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique } from './GenericFields';
-import { PhotoButton, prendrePhoto } from './PhotoButton';
+} from './db.js';
+import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique } from './GenericFields.js';
+import { PhotoButton, prendrePhoto } from './PhotoButton.js';
 
 // ============================================================================
 // 5. PANNEAUX DE L'ÉCRAN VISITE
