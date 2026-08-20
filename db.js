@@ -489,7 +489,27 @@ async function ajouterRemarqueDepuisBiblio(visiteId, biblioItem) {
 
 async function listerBibliothequeEquipements() {
   const db = await getDb();
-  return db.getAllAsync(`SELECT * FROM equipements_bibliotheque ORDER BY categorie, marque`);
+  return db.getAllAsync(`
+    SELECT m.id, c.nom AS categorie, b.nom AS marque, m.nom AS modele,
+           c.icone, b.logo_uri, m.caracteristiques
+    FROM modeles_equipement m
+    JOIN categories_equipement c ON c.id = m.categorie_id
+    JOIN marques_equipement b ON b.id = m.marque_id
+    WHERE m.actif = 1 AND c.actif = 1 AND b.actif = 1
+    UNION ALL
+    SELECT e.id, e.categorie, e.marque, e.modele, '⚙️' AS icone,
+           NULL AS logo_uri, NULL AS caracteristiques
+    FROM equipements_bibliotheque e
+    WHERE NOT EXISTS (
+      SELECT 1 FROM modeles_equipement m2
+      JOIN categories_equipement c2 ON c2.id = m2.categorie_id
+      JOIN marques_equipement b2 ON b2.id = m2.marque_id
+      WHERE c2.nom = e.categorie COLLATE NOCASE
+        AND COALESCE(b2.nom, '') = COALESCE(e.marque, '') COLLATE NOCASE
+        AND m2.nom = COALESCE(e.modele, '') COLLATE NOCASE
+    )
+    ORDER BY categorie, marque, modele
+  `);
 }
 async function ajouterEquipementBiblio({ categorie, marque, modele }) {
   const db = await getDb();
@@ -509,7 +529,85 @@ async function modifierEquipementBiblio(id, { categorie, marque, modele }) {
 }
 async function supprimerEquipementBiblio(id) {
   const db = await getDb();
-  await db.runAsync(`DELETE FROM equipements_bibliotheque WHERE id = ?`, [id]);
+  const catalogue = await db.getFirstAsync('SELECT id FROM modeles_equipement WHERE id = ?', [id]);
+  if (catalogue) await db.runAsync('UPDATE modeles_equipement SET actif = 0 WHERE id = ?', [id]);
+  else await db.runAsync(`DELETE FROM equipements_bibliotheque WHERE id = ?`, [id]);
+}
+
+async function listerCategoriesEquipement() {
+  const db = await getDb();
+  return db.getAllAsync(`
+    SELECT c.*, COUNT(m.id) AS nb_modeles
+    FROM categories_equipement c
+    LEFT JOIN modeles_equipement m ON m.categorie_id = c.id AND m.actif = 1
+    WHERE c.actif = 1
+    GROUP BY c.id ORDER BY c.ordre, c.nom
+  `);
+}
+
+async function listerMarquesEquipement() {
+  const db = await getDb();
+  return db.getAllAsync(`
+    SELECT b.*, COUNT(m.id) AS nb_modeles
+    FROM marques_equipement b
+    LEFT JOIN modeles_equipement m ON m.marque_id = b.id AND m.actif = 1
+    WHERE b.actif = 1
+    GROUP BY b.id ORDER BY b.nom
+  `);
+}
+
+async function rechercherModelesEquipement({ recherche = '', categorieId = null, marqueId = null } = {}) {
+  const db = await getDb();
+  const motif = `%${recherche.trim()}%`;
+  return db.getAllAsync(`
+    SELECT m.*, c.nom AS categorie, c.icone, b.nom AS marque, b.logo_uri, b.couleur
+    FROM modeles_equipement m
+    JOIN categories_equipement c ON c.id = m.categorie_id
+    JOIN marques_equipement b ON b.id = m.marque_id
+    WHERE m.actif = 1 AND c.actif = 1 AND b.actif = 1
+      AND (? IS NULL OR m.categorie_id = ?)
+      AND (? IS NULL OR m.marque_id = ?)
+      AND (? = '' OR c.nom LIKE ? COLLATE NOCASE OR b.nom LIKE ? COLLATE NOCASE
+           OR m.nom LIKE ? COLLATE NOCASE OR COALESCE(m.reference, '') LIKE ? COLLATE NOCASE
+           OR COALESCE(m.mots_cles, '') LIKE ? COLLATE NOCASE)
+    ORDER BY c.ordre, b.nom, m.nom
+  `, [categorieId, categorieId, marqueId, marqueId, recherche.trim(), motif, motif, motif, motif, motif]);
+}
+
+async function ajouterCategorieEquipement({ nom, icone }) {
+  const db = await getDb();
+  const id = uuidv4();
+  await db.runAsync('INSERT INTO categories_equipement (id, nom, icone) VALUES (?, ?, ?)', [id, nom, icone || '⚙️']);
+  return id;
+}
+
+async function ajouterMarqueEquipement({ nom, logoUri, couleur }) {
+  const db = await getDb();
+  const id = uuidv4();
+  await db.runAsync('INSERT INTO marques_equipement (id, nom, logo_uri, couleur) VALUES (?, ?, ?, ?)', [id, nom, logoUri || null, couleur || null]);
+  return id;
+}
+
+async function ajouterModeleEquipement({ categorieId, marqueId, nom, reference, caracteristiques, motsCles }) {
+  const db = await getDb();
+  const id = uuidv4();
+  await db.runAsync(
+    `INSERT INTO modeles_equipement
+     (id, categorie_id, marque_id, nom, reference, caracteristiques, mots_cles)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [id, categorieId, marqueId, nom, reference || null, caracteristiques || null, motsCles || null]
+  );
+  return id;
+}
+
+async function desactiverCategorieEquipement(id) {
+  const db = await getDb();
+  await db.runAsync('UPDATE categories_equipement SET actif = 0 WHERE id = ?', [id]);
+}
+
+async function desactiverMarqueEquipement(id) {
+  const db = await getDb();
+  await db.runAsync('UPDATE marques_equipement SET actif = 0 WHERE id = ?', [id]);
 }
 
 export {
@@ -524,5 +622,8 @@ export {
   getNote, upsertNote, listerPhotos, ajouterPhoto,
   listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio, ajouterRemarqueDepuisBiblio,
   listerBibliothequeEquipements, ajouterEquipementBiblio, modifierEquipementBiblio, supprimerEquipementBiblio,
+  listerCategoriesEquipement, listerMarquesEquipement, rechercherModelesEquipement,
+  ajouterCategorieEquipement, ajouterMarqueEquipement, ajouterModeleEquipement,
+  desactiverCategorieEquipement, desactiverMarqueEquipement,
   listerVisitesSite,
 };

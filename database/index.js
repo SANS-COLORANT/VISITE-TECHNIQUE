@@ -2,6 +2,7 @@ import * as SQLite from 'expo-sqlite';
 import { DATABASE_NAME } from './constants.js';
 import { migrateDatabase, verifyDatabaseIntegrity } from './migrate.js';
 import { syncReferenceCatalog } from './referenceCatalog.js';
+import { seedEquipmentCatalog } from './equipmentCatalogSeed.js';
 
 let databasePromise = null;
 
@@ -14,6 +15,7 @@ export function openAppDatabase() {
       await db.execAsync('PRAGMA foreign_keys = ON;');
       await migrateDatabase(db);
       await syncReferenceCatalog(db);
+      await seedEquipmentCatalog(db);
       return db;
     })().catch((error) => {
       databasePromise = null;

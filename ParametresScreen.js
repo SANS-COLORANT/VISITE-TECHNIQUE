@@ -1,11 +1,14 @@
 /** Écran Paramètres — deux bibliothèques distinctes : réserves et équipements. */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, ScrollView } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, ScrollView, Image } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import {
   listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio,
   listerBibliothequeEquipements, ajouterEquipementBiblio, modifierEquipementBiblio, supprimerEquipementBiblio,
+  listerCategoriesEquipement, listerMarquesEquipement, rechercherModelesEquipement,
+  ajouterCategorieEquipement, ajouterMarqueEquipement, ajouterModeleEquipement,
+  desactiverCategorieEquipement, desactiverMarqueEquipement,
 } from './db.js';
 import { CategorieCritereSelector, TypeAheadInput } from './GenericFields.js';
 
@@ -164,61 +167,127 @@ function BibliothequeReserves() {
 // ----------------------------------------------------------------------------
 
 function BibliothequeEquipements() {
-  const [items, setItems] = useState([]);
+  const [vue, setVue] = useState('modeles');
+  const [modeles, setModeles] = useState([]);
+  const [categories, setCategories] = useState([]);
+  const [marques, setMarques] = useState([]);
+  const [recherche, setRecherche] = useState('');
+  const [categorieFiltre, setCategorieFiltre] = useState(null);
   const [modalVisible, setModalVisible] = useState(false);
-  const [editId, setEditId] = useState(null);
-  const [categorie, setCategorie] = useState('');
-  const [marque, setMarque] = useState('');
-  const [modele, setModele] = useState('');
+  const [nom, setNom] = useState('');
+  const [icone, setIcone] = useState('⚙️');
+  const [logoUri, setLogoUri] = useState('');
+  const [categorieId, setCategorieId] = useState(null);
+  const [marqueId, setMarqueId] = useState(null);
+  const [reference, setReference] = useState('');
+  const [caracteristiques, setCaracteristiques] = useState('');
 
-  const charger = useCallback(() => { listerBibliothequeEquipements().then(setItems); }, []);
-  useEffect(() => { charger(); }, [charger]);
+  const chargerReferentiels = useCallback(async () => {
+    const [cats, brands] = await Promise.all([listerCategoriesEquipement(), listerMarquesEquipement()]);
+    setCategories(cats); setMarques(brands);
+  }, []);
+  const chargerModeles = useCallback(async () => {
+    setModeles(await rechercherModelesEquipement({ recherche, categorieId: categorieFiltre }));
+  }, [recherche, categorieFiltre]);
 
-  const ouvrirNouveau = () => { setEditId(null); setCategorie(''); setMarque(''); setModele(''); setModalVisible(true); };
-  const ouvrirEdition = (e) => { setEditId(e.id); setCategorie(e.categorie); setMarque(e.marque || ''); setModele(e.modele || ''); setModalVisible(true); };
+  useEffect(() => { chargerReferentiels(); }, [chargerReferentiels]);
+  useEffect(() => { chargerModeles(); }, [chargerModeles]);
+
+  const ouvrirNouveau = () => {
+    setNom(''); setIcone('⚙️'); setLogoUri(''); setCategorieId(null); setMarqueId(null);
+    setReference(''); setCaracteristiques(''); setModalVisible(true);
+  };
   const enregistrer = async () => {
-    if (!categorie.trim()) { Alert.alert('Catégorie requise', 'Merci de choisir ou saisir une catégorie.'); return; }
-    const data = { categorie: categorie.trim(), marque: marque.trim() || null, modele: modele.trim() || null };
+    if (!nom.trim()) { Alert.alert('Nom requis', 'Merci de saisir un nom.'); return; }
     try {
-      if (editId) await modifierEquipementBiblio(editId, data); else await ajouterEquipementBiblio(data);
+      if (vue === 'categories') {
+        await ajouterCategorieEquipement({ nom: nom.trim(), icone });
+      } else if (vue === 'marques') {
+        await ajouterMarqueEquipement({ nom: nom.trim(), logoUri: logoUri.trim() || null });
+      } else {
+        if (!categorieId || !marqueId) { Alert.alert('Informations requises', 'Choisis une catégorie et une marque.'); return; }
+        await ajouterModeleEquipement({
+          categorieId, marqueId, nom: nom.trim(), reference: reference.trim(),
+          caracteristiques: caracteristiques.trim(), motsCles: `${nom} ${reference} ${caracteristiques}`,
+        });
+      }
       setModalVisible(false);
-      await charger();
+      await Promise.all([chargerReferentiels(), chargerModeles()]);
     } catch (e) {
       Alert.alert('Erreur d\'enregistrement', String(e.message || e));
     }
   };
-  const supprimer = (e) => {
-    Alert.alert('Supprimer', `Supprimer "${e.categorie}${e.marque ? ' — ' + e.marque : ''}" ?`, [
+
+  const retirer = (item) => {
+    Alert.alert('Retirer du catalogue', `Retirer « ${item.nom} » ? Les équipements déjà utilisés dans les visites seront conservés.`, [
       { text: 'Annuler', style: 'cancel' },
-      { text: 'Supprimer', style: 'destructive', onPress: async () => { await supprimerEquipementBiblio(e.id); charger(); } },
+      { text: 'Retirer', style: 'destructive', onPress: async () => {
+        if (vue === 'categories') await desactiverCategorieEquipement(item.id);
+        else if (vue === 'marques') await desactiverMarqueEquipement(item.id);
+        else await supprimerEquipementBiblio(item.id);
+        await Promise.all([chargerReferentiels(), chargerModeles()]);
+      } },
     ]);
   };
 
+  const donnees = vue === 'categories' ? categories : vue === 'marques' ? marques : modeles;
+  const titreAjout = vue === 'categories' ? 'Nouvelle catégorie' : vue === 'marques' ? 'Nouvelle marque' : 'Nouveau modèle';
+
   return (
     <View style={{ flex: 1 }}>
+      <View style={styles.catalogueSearchBox}>
+        <TextInput
+          style={styles.catalogueSearchInput}
+          placeholder="Rechercher une marque, catégorie ou modèle…"
+          value={recherche} onChangeText={setRecherche}
+        />
+      </View>
+      <View style={styles.catalogueTabs}>
+        {[['modeles', 'Modèles'], ['marques', 'Marques'], ['categories', 'Catégories']].map(([id, label]) => (
+          <TouchableOpacity key={id} style={[styles.catalogueTab, vue === id && styles.catalogueTabActive]} onPress={() => setVue(id)}>
+            <Text style={[styles.catalogueTabText, vue === id && styles.catalogueTabTextActive]}>{label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {vue === 'modeles' && (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catalogueFilters}>
+          <TouchableOpacity style={[styles.catalogueFilter, !categorieFiltre && styles.catalogueFilterActive]} onPress={() => setCategorieFiltre(null)}>
+            <Text style={[styles.catalogueFilterText, !categorieFiltre && styles.catalogueFilterTextActive]}>Tout</Text>
+          </TouchableOpacity>
+          {categories.map((c) => (
+            <TouchableOpacity key={c.id} style={[styles.catalogueFilter, categorieFiltre === c.id && styles.catalogueFilterActive]} onPress={() => setCategorieFiltre(c.id)}>
+              <Text style={[styles.catalogueFilterText, categorieFiltre === c.id && styles.catalogueFilterTextActive]}>{c.icone} {c.nom}</Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      )}
       <FlatList
         contentContainerStyle={styles.content}
-        data={items}
+        data={donnees.filter((item) => vue === 'modeles' || !recherche.trim() || item.nom.toLowerCase().includes(recherche.trim().toLowerCase()))}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={
           <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionLabel}>Bibliothèque d'équipements</Text>
+            <Text style={styles.sectionLabel}>{modeles.length} modèles · {marques.length} marques · {categories.length} catégories</Text>
             <TouchableOpacity onPress={ouvrirNouveau}><Text style={styles.addLink}>+ Ajouter</Text></TouchableOpacity>
           </View>
         }
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => ouvrirEdition(item)}>
+          <View style={styles.catalogueCard}>
+            {vue === 'modeles' ? <Text style={styles.equipmentIcon}>{item.icone || '⚙️'}</Text> : vue === 'marques' ? <BrandMark marque={item} /> : <Text style={styles.equipmentIcon}>{item.icone || '⚙️'}</Text>}
             <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{item.categorie}</Text>
-              <Text style={styles.cardSub}>{[item.marque, item.modele].filter(Boolean).join(' — ') || 'Sans marque/modèle'}</Text>
+              <Text style={styles.cardTitle}>{vue === 'modeles' ? item.nom : item.nom}</Text>
+              <Text style={styles.cardSub}>
+                {vue === 'modeles' ? `${item.marque} · ${item.categorie}${item.reference ? ' · ' + item.reference : ''}` : `${item.nb_modeles} modèle${item.nb_modeles > 1 ? 's' : ''}`}
+              </Text>
+              {vue === 'modeles' && item.caracteristiques ? <Text style={styles.catalogueDescription}>{item.caracteristiques}</Text> : null}
             </View>
-            <TouchableOpacity onPress={() => supprimer(item)}><Text style={styles.removeLink}>Suppr.</Text></TouchableOpacity>
-          </TouchableOpacity>
+            <TouchableOpacity onPress={() => retirer(item)}><Text style={styles.removeLink}>Retirer</Text></TouchableOpacity>
+          </View>
         )}
         ListEmptyComponent={
           <View style={styles.empty}>
-            <Text style={styles.emptyText}>Aucun équipement dans la bibliothèque.</Text>
-            <Text style={styles.emptySub}>Ajoutes-en pour les sélectionner d'un coup pendant les visites.</Text>
+            <Text style={styles.emptyText}>Aucun résultat.</Text>
+            <Text style={styles.emptySub}>Modifie la recherche ou ajoute une nouvelle référence.</Text>
           </View>
         }
       />
@@ -226,14 +295,22 @@ function BibliothequeEquipements() {
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <ScrollView keyboardShouldPersistTaps="handled">
-              <Text style={styles.modalTitle}>{editId ? "Modifier l'équipement" : 'Nouvel équipement'}</Text>
-              <Text style={styles.fieldLabel}>Catégorie</Text>
-              <TypeAheadInput valeur={categorie} options={CATEGORIES_EQUIPEMENT} placeholder="Ex: Chaudière..." onChange={setCategorie} />
-              <View style={{ height: 10 }} />
-              <Text style={styles.fieldLabel}>Marque</Text>
-              <TypeAheadInput valeur={marque} options={MARQUES_EQUIPEMENT} placeholder="Ex: De Dietrich..." onChange={setMarque} />
-              <View style={{ height: 10 }} />
-              <TextInput style={styles.input} placeholder="Modèle" value={modele} onChangeText={setModele} />
+              <Text style={styles.modalTitle}>{titreAjout}</Text>
+              {vue === 'modeles' && (
+                <>
+                  <Text style={styles.fieldLabel}>Catégorie</Text>
+                  <View style={styles.catalogueChoiceGrid}>{categories.map((c) => <TouchableOpacity key={c.id} style={[styles.catalogueChoice, categorieId === c.id && styles.catalogueChoiceActive]} onPress={() => setCategorieId(c.id)}><Text>{c.icone} {c.nom}</Text></TouchableOpacity>)}</View>
+                  <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Marque</Text>
+                  <View style={styles.catalogueChoiceGrid}>{marques.map((b) => <TouchableOpacity key={b.id} style={[styles.catalogueChoice, marqueId === b.id && styles.catalogueChoiceActive]} onPress={() => setMarqueId(b.id)}><Text>{b.nom}</Text></TouchableOpacity>)}</View>
+                </>
+              )}
+              {vue === 'categories' && <TextInput style={styles.input} placeholder="Symbole (ex : 💧)" value={icone} onChangeText={setIcone} maxLength={3} />}
+              <TextInput style={[styles.input, { marginTop: 10 }]} placeholder={vue === 'modeles' ? 'Nom du modèle' : 'Nom'} value={nom} onChangeText={setNom} />
+              {vue === 'marques' && <TextInput style={[styles.input, { marginTop: 10 }]} placeholder="Adresse du logo (facultatif)" value={logoUri} onChangeText={setLogoUri} autoCapitalize="none" />}
+              {vue === 'modeles' && <>
+                <TextInput style={[styles.input, { marginTop: 10 }]} placeholder="Référence (facultatif)" value={reference} onChangeText={setReference} />
+                <TextInput style={[styles.input, { marginTop: 10, minHeight: 70, textAlignVertical: 'top' }]} placeholder="Caractéristiques" value={caracteristiques} onChangeText={setCaracteristiques} multiline />
+              </>}
               <View style={styles.modalActions}>
                 <TouchableOpacity style={styles.btnSecondary} onPress={() => setModalVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
                 <TouchableOpacity style={styles.btnPrimary} onPress={enregistrer}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity>
@@ -244,6 +321,12 @@ function BibliothequeEquipements() {
       </Modal>
     </View>
   );
+}
+
+function BrandMark({ marque }) {
+  if (marque.logo_uri) return <Image source={{ uri: marque.logo_uri }} style={styles.brandLogo} resizeMode="contain" />;
+  const initiales = marque.nom.split(/\s+/).map((mot) => mot[0]).join('').slice(0, 2).toUpperCase();
+  return <View style={styles.brandFallback}><Text style={styles.brandFallbackText}>{initiales}</Text></View>;
 }
 
 export { ParametresScreen, CATEGORIES_EQUIPEMENT, MARQUES_EQUIPEMENT };
