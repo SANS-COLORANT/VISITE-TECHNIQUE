@@ -1,10 +1,10 @@
 /** Champs génériques : molette numérique, chips de sélection, contrôle Avis. */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PRESCRIPTIONS } from './data.js';
-import { upsertChamp, upsertControle, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle } from './db.js';
+import { upsertChamp, upsertControle, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle, listerBibliothequeReserves } from './db.js';
 import { PhotoButton } from './PhotoButton.js';
 
 // ============================================================================
@@ -263,14 +263,53 @@ function resoudrePrescriptions(cle, sectionCode) {
   return null;
 }
 
+/**
+ * Cherche dans la bibliothèque personnalisée (Paramètres → Réserves) les
+ * entrées créées pour cette catégorie précise — reconnues au format de nom
+ * "Catégorie — Critère" utilisé par CategorieCritereSelector. Permet aux
+ * réserves personnalisées d'apparaître comme chips sur le vrai contrôle,
+ * exactement comme les préconisations intégrées.
+ */
+async function chargerCriteresPersonnalises(categorieKey) {
+  const biblio = await listerBibliothequeReserves();
+  return biblio
+    .filter((item) => item.nom === categorieKey || item.nom.startsWith(categorieKey + ' — '))
+    .map((item) => ({
+      critere: item.nom.startsWith(categorieKey + ' — ') ? item.nom.slice(categorieKey.length + 3) : null,
+      poste: item.poste, prestation: item.description, delai: item.delai, estimatif: item.prix,
+    }));
+}
+
+/** Détermine la clé de catégorie utilisée dans la bibliothèque pour ce champ
+ * (avec le même préfixe Chauffage-/ECS- que resoudrePrescriptions, pour que
+ * les réserves personnalisées se rattachent au bon contrôle même sur les
+ * champs en double Chauffage/ECS). */
+function getCategorieKey(cle, sectionCode) {
+  if (PRESCRIPTIONS[cle]) return cle;
+  if (sectionCode && sectionCode.includes('chauffage')) return 'Chauffage - ' + cle;
+  if (sectionCode && sectionCode.includes('ecs')) return 'ECS - ' + cle;
+  return cle;
+}
+
 const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved }) {
   const controleKey = `${sectionCode}||${field.cle}`;
   const [avis, setAvis] = useState(etatInitial?.avis || null);
   const [commentaire, setCommentaire] = useState(etatInitial?.commentaire || '');
   const [critereChoisi, setCritereChoisi] = useState(null);
   const [modeLibre, setModeLibre] = useState(false);
+  const [options, setOptions] = useState(() => resoudrePrescriptions(field.cle, sectionCode) || []);
 
-  const options = resoudrePrescriptions(field.cle, sectionCode);
+  const categorieKey = getCategorieKey(field.cle, sectionCode);
+
+  useEffect(() => {
+    let actif = true;
+    chargerCriteresPersonnalises(categorieKey).then((perso) => {
+      if (!actif || perso.length === 0) return;
+      const base = resoudrePrescriptions(field.cle, sectionCode) || [];
+      setOptions([...base, ...perso]);
+    });
+    return () => { actif = false; };
+  }, [categorieKey]);
 
   const choisirAvis = async (val) => {
     setAvis(val);
@@ -327,7 +366,7 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
 
       {avis === 'N.S' && (
         <View style={styles.criterePanel}>
-          {options && options.length > 0 ? (
+          {options.length > 0 ? (
             <>
               <Text style={styles.criterePanelLabel}>Cause</Text>
               <View style={styles.critereChips}>
@@ -362,7 +401,7 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
             </>
           ) : null}
 
-          {(modeLibre || !options || options.length === 0) && (
+          {(modeLibre || options.length === 0) && (
             <TextInput
               style={[styles.input, { marginTop: 8, height: 60 }]}
               placeholder="Décrivez le problème constaté..."
