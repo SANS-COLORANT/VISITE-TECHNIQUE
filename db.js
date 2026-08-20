@@ -84,6 +84,11 @@ let dbInstance = null;
 async function getDb() {
   if (dbInstance) return dbInstance;
   dbInstance = await SQLite.openDatabaseAsync('visite_technique.db');
+  // Mode WAL : évite la quasi-totalité des erreurs "database is locked",
+  // notamment celles causées par le rechargement à chaud dans Snack qui
+  // peut laisser une ancienne connexion active en parallèle de la nouvelle.
+  await dbInstance.execAsync('PRAGMA journal_mode = WAL;');
+  await dbInstance.execAsync('PRAGMA busy_timeout = 3000;');
   await dbInstance.execAsync('PRAGMA foreign_keys = ON;');
   await dbInstance.execAsync(SCHEMA_SQL);
   await seedDemoSiNecessaire(dbInstance);
