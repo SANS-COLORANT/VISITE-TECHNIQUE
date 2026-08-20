@@ -21,6 +21,12 @@ function useSaisieAvecAutoSave(valeurInitiale, sauvegarderFn, delai = 700) {
   const [valeur, setValeurBrut] = useState(valeurInitiale || '');
   const timerRef = useRef(null);
 
+  // Les données SQLite arrivent après le premier rendu : resynchronise le
+  // composant dès que la valeur réellement enregistrée devient disponible.
+  useEffect(() => {
+    setValeurBrut(valeurInitiale || '');
+  }, [valeurInitiale]);
+
   const setValeur = (t) => {
     setValeurBrut(t);
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -31,9 +37,18 @@ function useSaisieAvecAutoSave(valeurInitiale, sauvegarderFn, delai = 700) {
     sauvegarderFn(valeur);
   };
 
+  // Pour les boutons/chips : retour visuel immédiat et écriture immédiate.
+  // Contrairement à un champ texte, il n'y a pas d'événement blur fiable qui
+  // garantirait l'enregistrement avant un changement d'onglet.
+  const setValeurImmediate = (t) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setValeurBrut(t);
+    sauvegarderFn(t);
+  };
+
   useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
 
-  return [valeur, setValeur, surBlurFinal];
+  return [valeur, setValeur, surBlurFinal, setValeurImmediate];
 }
 
 function extractUnit(cle) {
@@ -226,7 +241,7 @@ const ChampGenerique = React.memo(function ChampGenerique({ visiteId, sectionCod
     await upsertChamp(visiteId, sectionCode, field.cle, nouvelleValeur);
     onSaved && onSaved();
   };
-  const [valeur, setValeur, surBlur] = useSaisieAvecAutoSave(valeurInitiale, sauvegarderEnBase);
+  const [valeur, setValeur, surBlur, setValeurImmediate] = useSaisieAvecAutoSave(valeurInitiale, sauvegarderEnBase);
 
   return (
     <View style={styles.fieldBlock}>
@@ -236,9 +251,9 @@ const ChampGenerique = React.memo(function ChampGenerique({ visiteId, sectionCod
       </View>
 
       {numericConfig ? (
-        <StepperNumerique valeur={valeur} config={numericConfig} onChange={sauvegarderEnBase} />
+        <StepperNumerique valeur={valeur} config={numericConfig} onChange={setValeurImmediate} />
       ) : chipOptions ? (
-        <ChipSelector valeur={valeur} options={chipOptions} onChange={sauvegarderEnBase} />
+        <ChipSelector valeur={valeur} options={chipOptions} onChange={setValeurImmediate} />
       ) : (
         <TextInput
           style={styles.input}

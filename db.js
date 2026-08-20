@@ -448,6 +448,10 @@ async function ajouterPhoto(visiteId, entiteKey, uri, label) {
     [uuidv4(), visiteId, entiteKey || null, uri, label || null]
   );
 }
+async function remplacerPhoto(photoId, uri) {
+  const db = await getDb();
+  await db.runAsync(`UPDATE photos SET uri = ?, cree_le = datetime('now') WHERE id = ?`, [uri, photoId]);
+}
 
 // ---------------- Repository : bibliothèque de réserves (Paramètres) ----------------
 
@@ -619,7 +623,7 @@ export {
   listerCompteurs, ajouterCompteur, upsertCompteurChamp, supprimerCompteur,
   listerMateriel, ajouterMateriel, upsertMaterielChamp, supprimerMateriel,
   listerRemarques, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle, ajouterRemarqueManuelle,
-  getNote, upsertNote, listerPhotos, ajouterPhoto,
+  getNote, upsertNote, listerPhotos, ajouterPhoto, remplacerPhoto,
   listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio, ajouterRemarqueDepuisBiblio,
   listerBibliothequeEquipements, ajouterEquipementBiblio, modifierEquipementBiblio, supprimerEquipementBiblio,
   listerCategoriesEquipement, listerMarquesEquipement, rechercherModelesEquipement,
