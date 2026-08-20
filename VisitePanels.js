@@ -2,7 +2,6 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, Image } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, styles } from './styles.js';
 import { TRAME_DATA, RESEAU_TEMPLATE } from './data.js';
 import {
@@ -38,7 +37,7 @@ function PanelGenerique({ visiteId, panelId, refreshKey, onSaved }) {
   const [controlesMap, setControlesMap] = useState({});
   const sections = TRAME_DATA[panelId];
 
-  useFocusEffect(useCallback(() => {
+  useEffect(useCallback(() => {
     getChampsVisite(visiteId).then(setChampsMap);
     getControlesVisite(visiteId).then(setControlesMap);
   }, [visiteId, refreshKey]));
@@ -93,7 +92,7 @@ function PanelRegulation({ visiteId, refreshKey, onSaved }) {
     setReseaux(await listerReseaux(visiteId));
   }, [visiteId]);
 
-  useFocusEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
+  useEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
 
   const onAjouterReseau = async () => {
     await ajouterReseau(visiteId, `Réseau ${reseaux.length + 1}`);
@@ -196,7 +195,7 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
     setCompteurs(await listerCompteurs(visiteId));
   }, [visiteId]);
 
-  useFocusEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
+  useEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
 
   const onAjouterCompteur = async () => {
     await ajouterCompteur(visiteId, '');
@@ -306,7 +305,7 @@ function CompteurCard({ compteur, unites, onChange }) {
 function PanelEquipements({ visiteId }) {
   const [materiel, setMateriel] = useState([]);
   const charger = useCallback(() => { listerMateriel(visiteId).then(setMateriel); }, [visiteId]);
-  useFocusEffect(useCallback(() => { charger(); }, [charger]));
+  useEffect(useCallback(() => { charger(); }, [charger]));
 
   const onAjouter = async () => { await ajouterMateriel(visiteId); charger(); };
 
@@ -376,7 +375,7 @@ function MaterielCard({ item, visiteId, onChange }) {
 /** Onglet Réserves : 100% dynamique, lit ce que les contrôles ont généré. */
 function PanelRemarques({ visiteId, refreshKey }) {
   const [remarques, setRemarques] = useState([]);
-  useFocusEffect(useCallback(() => {
+  useEffect(useCallback(() => {
     listerRemarques(visiteId).then(setRemarques);
   }, [visiteId, refreshKey]));
 
@@ -424,7 +423,7 @@ function PanelPhotos({ visiteId, refreshKey }) {
   const [photos, setPhotos] = useState([]);
   const [viewerUri, setViewerUri] = useState(null);
 
-  useFocusEffect(useCallback(() => {
+  useEffect(useCallback(() => {
     listerPhotos(visiteId).then(setPhotos);
   }, [visiteId, refreshKey]));
 

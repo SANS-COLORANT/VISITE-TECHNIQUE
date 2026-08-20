@@ -57,6 +57,14 @@ export const styles = StyleSheet.create({
   visiteTopbar: { backgroundColor: COLORS.white, paddingTop: 50, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: COLORS.line },
   visiteHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   noteBtn: { borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
+  visiteBackBtn: { width: 32, height: 32, borderRadius: 9, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  visiteBackBtnText: { fontSize: 16, color: COLORS.ink },
+
+  // ---- Header simple (navigation maison, sans @react-navigation) ----
+  simpleHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, paddingTop: 50, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: COLORS.line },
+  simpleHeaderBack: { width: 36, alignItems: 'flex-start', justifyContent: 'center' },
+  simpleHeaderBackText: { fontSize: 20, color: COLORS.ink },
+  simpleHeaderTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '600', color: COLORS.ink },
   noteBtnText: { fontSize: 12, color: COLORS.inkSoft, fontWeight: '600' },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   progressBarBg: { flex: 1, height: 6, backgroundColor: COLORS.line, borderRadius: 3, overflow: 'hidden' },

@@ -1,8 +1,7 @@
 /** Écran Accueil. */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
 
@@ -24,7 +23,7 @@ function HomeScreen({ navigation }) {
     setClients(c); setVisitesEnCours(v); setStats(s);
   }, []);
 
-  useFocusEffect(useCallback(() => { charger(); }, [charger]));
+  useEffect(useCallback(() => { charger(); }, [charger]));
 
   const onRefresh = async () => { setRefreshing(true); await charger(); setRefreshing(false); };
 

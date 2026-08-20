@@ -1,8 +1,7 @@
 /** Écran Visite — conteneur avec onglets horizontaux. */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, styles } from './styles.js';
 import { getVisite, getNote, upsertNote } from './db.js';
 import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques, PanelPhotos } from './VisitePanels.js';
@@ -11,7 +10,7 @@ import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves,
 // 6. ÉCRAN VISITE — conteneur avec onglets horizontaux
 // ============================================================================
 
-function VisiteScreen({ route }) {
+function VisiteScreen({ route, onBack }) {
   const { visiteId } = route.params;
   const [visite, setVisite] = useState(null);
   const [activeTab, setActiveTab] = useState('p-infos');
@@ -24,7 +23,7 @@ function VisiteScreen({ route }) {
     setVisite(v);
   }, [visiteId]);
 
-  useFocusEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
+  useEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
 
   const onSaved = () => setRefreshKey((k) => k + 1);
 
@@ -45,6 +44,9 @@ function VisiteScreen({ route }) {
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <View style={styles.visiteTopbar}>
         <View style={styles.visiteHeaderRow}>
+          <TouchableOpacity style={styles.visiteBackBtn} onPress={onBack}>
+            <Text style={styles.visiteBackBtnText}>←</Text>
+          </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>{visite.nom_site}</Text>
             <Text style={styles.cardSub}>{visite.nom_client} · {visite.date_visite}</Text>

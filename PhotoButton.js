@@ -1,8 +1,7 @@
 /** Capture photo réelle (expo-image-picker) + bouton photo réutilisable. */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { TouchableOpacity, Text, Alert } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import * as ImagePicker from 'expo-image-picker';
 import { listerPhotos, ajouterPhoto } from './db.js';
 import { styles } from './styles.js';
@@ -30,7 +29,7 @@ async function prendrePhoto() {
 function PhotoButton({ visiteId, entiteKey, label, style }) {
   const [count, setCount] = useState(0);
 
-  useFocusEffect(useCallback(() => {
+  useEffect(useCallback(() => {
     listerPhotos(visiteId, entiteKey).then((p) => setCount(p.length));
   }, [visiteId, entiteKey]));
 

@@ -1,8 +1,7 @@
 /** Écran Sites d'un client. */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
-import { useFocusEffect } from '@react-navigation/native';
 import { COLORS, styles } from './styles.js';
 import { listerSitesClient, creerSite, creerVisite } from './db.js';
 
@@ -18,7 +17,7 @@ function ClientSitesScreen({ route, navigation }) {
   const [nouvelleAdresse, setNouvelleAdresse] = useState('');
 
   const charger = useCallback(() => { listerSitesClient(clientId).then(setSites); }, [clientId]);
-  useFocusEffect(useCallback(() => { charger(); }, [charger]));
+  useEffect(useCallback(() => { charger(); }, [charger]));
 
   const ajouterSiteFn = async () => {
     if (!nouveauNom.trim()) { Alert.alert('Nom requis', 'Merci de saisir le nom du site.'); return; }
