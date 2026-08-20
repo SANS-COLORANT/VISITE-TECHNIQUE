@@ -157,5 +157,3 @@ async function exporterEtPartager(visiteId) {
 }
 
 export { construireClasseur, exporterEtPartager };
-EXPOREOF
-wc -l /home/claude/github_repo/src/excelExport.js
