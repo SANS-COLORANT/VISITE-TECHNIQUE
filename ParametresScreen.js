@@ -72,8 +72,13 @@ function BibliothequeReserves() {
       prix: prix ? parseFloat(prix.replace(',', '.')) : null,
       poste: poste.trim() || null, delai: delai ? parseInt(delai, 10) : null,
     };
-    if (editId) await modifierReserveBiblio(editId, data); else await ajouterReserveBiblio(data);
-    setModalVisible(false); charger();
+    try {
+      if (editId) await modifierReserveBiblio(editId, data); else await ajouterReserveBiblio(data);
+      setModalVisible(false);
+      await charger();
+    } catch (e) {
+      Alert.alert('Erreur d\'enregistrement', String(e.message || e));
+    }
   };
   const supprimer = (r) => {
     Alert.alert('Supprimer', `Supprimer "${r.nom}" de la bibliothèque ?`, [
@@ -174,8 +179,13 @@ function BibliothequeEquipements() {
   const enregistrer = async () => {
     if (!categorie.trim()) { Alert.alert('Catégorie requise', 'Merci de choisir ou saisir une catégorie.'); return; }
     const data = { categorie: categorie.trim(), marque: marque.trim() || null, modele: modele.trim() || null };
-    if (editId) await modifierEquipementBiblio(editId, data); else await ajouterEquipementBiblio(data);
-    setModalVisible(false); charger();
+    try {
+      if (editId) await modifierEquipementBiblio(editId, data); else await ajouterEquipementBiblio(data);
+      setModalVisible(false);
+      await charger();
+    } catch (e) {
+      Alert.alert('Erreur d\'enregistrement', String(e.message || e));
+    }
   };
   const supprimer = (e) => {
     Alert.alert('Supprimer', `Supprimer "${e.categorie}${e.marque ? ' — ' + e.marque : ''}" ?`, [

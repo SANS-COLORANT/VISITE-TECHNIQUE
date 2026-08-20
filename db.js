@@ -100,6 +100,7 @@ async function getDb() {
   await dbInstance.execAsync(SCHEMA_SQL);
   await seedDemoSiNecessaire(dbInstance);
   await seedBibliothequeSiNecessaire(dbInstance);
+  await seedEquipementsBibliothequeSiNecessaire(dbInstance);
   return dbInstance;
 }
 
@@ -137,6 +138,53 @@ async function seedBibliothequeSiNecessaire(db) {
     }
   }
   await db.runAsync(`INSERT INTO _meta (key, value) VALUES ('biblio_seeded', '1')`);
+}
+
+/** Combinaisons catégorie/marque/modèle courantes en chauffage/plomberie,
+ * pour que la bibliothèque équipements ne parte pas vide au premier lancement. */
+const EQUIPEMENTS_SEED = [
+  { categorie: 'Chaudière', marque: 'De Dietrich', modele: 'C310 ECO' },
+  { categorie: 'Chaudière', marque: 'De Dietrich', modele: 'Naneo' },
+  { categorie: 'Chaudière', marque: 'Viessmann', modele: 'Vitodens 200-W' },
+  { categorie: 'Chaudière', marque: 'Viessmann', modele: 'Vitodens 100-W' },
+  { categorie: 'Chaudière', marque: 'Saunier Duval', modele: 'ThemaPlus Condens' },
+  { categorie: 'Chaudière', marque: 'Frisquet', modele: 'Prestige Condensation' },
+  { categorie: 'Chaudière', marque: 'Chappée', modele: 'Roseo' },
+  { categorie: 'Chaudière', marque: 'Elm Leblanc', modele: 'Megalis' },
+  { categorie: 'Chaudière', marque: 'Atlantic', modele: 'Alfea Excellia' },
+  { categorie: 'Pompe', marque: 'Grundfos', modele: 'Alpha2' },
+  { categorie: 'Pompe', marque: 'Grundfos', modele: 'Magna3' },
+  { categorie: 'Pompe', marque: 'Wilo', modele: 'Stratos PICO' },
+  { categorie: 'Pompe', marque: 'Wilo', modele: 'Yonos PICO' },
+  { categorie: 'Circulateur', marque: 'Grundfos', modele: 'UPS2' },
+  { categorie: 'Circulateur', marque: 'Wilo', modele: 'Stratos' },
+  { categorie: 'Ballon ECS', marque: 'Atlantic', modele: 'Héliomax' },
+  { categorie: 'Ballon ECS', marque: 'De Dietrich', modele: 'Corhydro' },
+  { categorie: 'Échangeur', marque: 'Alfa Laval', modele: 'M6' },
+  { categorie: 'Échangeur', marque: 'Alfa Laval', modele: 'M10' },
+  { categorie: 'Adoucisseur', marque: 'Culligan', modele: 'HE' },
+  { categorie: 'Adoucisseur', marque: 'BWT', modele: 'AQA perla' },
+  { categorie: 'Désemboueur', marque: 'Fernox', modele: 'TF1 Omega' },
+  { categorie: 'Désemboueur', marque: 'Spirotech', modele: 'SpiroTrap' },
+  { categorie: 'Vase d\'expansion', marque: 'Zilmet', modele: 'Hydro-Pro' },
+  { categorie: 'Vase d\'expansion', marque: 'Reflex', modele: 'N' },
+  { categorie: 'Filtre', marque: 'Honeywell', modele: 'FF06' },
+  { categorie: 'Détendeur', marque: 'Honeywell', modele: 'D06F' },
+  { categorie: 'Manomètre', marque: 'Wika', modele: '111.10' },
+  { categorie: 'Extincteur', marque: 'Desautel', modele: 'Poudre ABC 6kg' },
+  { categorie: 'Armoire électrique', marque: 'Schneider Electric', modele: 'Prisma' },
+];
+
+async function seedEquipementsBibliothequeSiNecessaire(db) {
+  const deja = await db.getFirstAsync(`SELECT value FROM _meta WHERE key = 'equip_biblio_seeded'`);
+  if (deja) return;
+  for (const e of EQUIPEMENTS_SEED) {
+    await db.runAsync(
+      `INSERT INTO equipements_bibliotheque (id, categorie, marque, modele) VALUES (?, ?, ?, ?)`,
+      [uuidv4(), e.categorie, e.marque, e.modele]
+    );
+  }
+  await db.runAsync(`INSERT INTO _meta (key, value) VALUES ('equip_biblio_seeded', '1')`);
 }
 
 // ---------------- Repository : clients / sites / visites ----------------
