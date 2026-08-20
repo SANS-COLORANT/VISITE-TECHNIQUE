@@ -1,6 +1,6 @@
 /** Champs génériques : molette numérique, chips de sélection, contrôle Avis. */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PRESCRIPTIONS } from './data.js';
@@ -10,6 +10,31 @@ import { PhotoButton } from './PhotoButton.js';
 // ============================================================================
 // 4. COMPOSANTS GÉNÉRIQUES — champ texte / contrôle de conformité
 // ============================================================================
+
+/**
+ * Sauvegarde "en continu" pendant la frappe (avec un léger différé pour ne
+ * pas écrire à chaque caractère), en plus de la sauvegarde classique au
+ * blur. Corrige la perte de données quand on navigue rapidement entre les
+ * onglets/écrans avant que le champ n'ait perdu le focus normalement.
+ */
+function useSaisieAvecAutoSave(valeurInitiale, sauvegarderFn, delai = 700) {
+  const [valeur, setValeurBrut] = useState(valeurInitiale || '');
+  const timerRef = useRef(null);
+
+  const setValeur = (t) => {
+    setValeurBrut(t);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    timerRef.current = setTimeout(() => sauvegarderFn(t), delai);
+  };
+  const surBlurFinal = () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    sauvegarderFn(valeur);
+  };
+
+  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+
+  return [valeur, setValeur, surBlurFinal];
+}
 
 function extractUnit(cle) {
   const m = cle.match(/\(([^)]+)\)\s*$/);
@@ -186,7 +211,6 @@ const ChipSelector = React.memo(function ChipSelector({ valeur, options, onChang
 
 /** Un champ générique : molette si numérique, chips si liste connue, sinon texte libre. */
 const ChampGenerique = React.memo(function ChampGenerique({ visiteId, sectionCode, field, valeurInitiale, onSaved }) {
-  const [valeur, setValeur] = useState(valeurInitiale || '');
   const unit = extractUnit(field.cle);
   const label = cleanLabel(field.cle);
   const entiteKey = `${sectionCode}||${field.cle}`;
@@ -198,11 +222,11 @@ const ChampGenerique = React.memo(function ChampGenerique({ visiteId, sectionCod
   // photographier de pertinent sur ces champs purement administratifs.
   const sansPhoto = sectionCode === 'infos.g_n_ral' || sectionCode === 'infos.informations_g_n_rales';
 
-  const sauvegarder = async (nouvelleValeur) => {
-    setValeur(nouvelleValeur);
+  const sauvegarderEnBase = async (nouvelleValeur) => {
     await upsertChamp(visiteId, sectionCode, field.cle, nouvelleValeur);
     onSaved && onSaved();
   };
+  const [valeur, setValeur, surBlur] = useSaisieAvecAutoSave(valeurInitiale, sauvegarderEnBase);
 
   return (
     <View style={styles.fieldBlock}>
@@ -212,15 +236,15 @@ const ChampGenerique = React.memo(function ChampGenerique({ visiteId, sectionCod
       </View>
 
       {numericConfig ? (
-        <StepperNumerique valeur={valeur} config={numericConfig} onChange={sauvegarder} />
+        <StepperNumerique valeur={valeur} config={numericConfig} onChange={sauvegarderEnBase} />
       ) : chipOptions ? (
-        <ChipSelector valeur={valeur} options={chipOptions} onChange={sauvegarder} />
+        <ChipSelector valeur={valeur} options={chipOptions} onChange={sauvegarderEnBase} />
       ) : (
         <TextInput
           style={styles.input}
           value={valeur}
           onChangeText={setValeur}
-          onBlur={() => sauvegarder(valeur)}
+          onBlur={surBlur}
           placeholder="Saisir..."
         />
       )}
@@ -603,4 +627,4 @@ const CategorieCritereSelector = React.memo(function CategorieCritereSelector({ 
   );
 });
 
-export { extractUnit, cleanLabel, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, ChampGenerique, ControleGenerique, AVIS_OPTIONS, CategorieCritereSelector };
+export { extractUnit, cleanLabel, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, ChampGenerique, ControleGenerique, AVIS_OPTIONS, CategorieCritereSelector, useSaisieAvecAutoSave };

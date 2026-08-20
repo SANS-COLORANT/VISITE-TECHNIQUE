@@ -1,6 +1,6 @@
 /** Écran Visite — conteneur avec onglets horizontaux. */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { getVisite, getNote, upsertNote } from './db.js';
@@ -50,8 +50,18 @@ function VisiteScreen({ route, onBack }) {
     setNoteVisible(true);
   };
   const fermerNote = async () => {
+    if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
     await upsertNote(visiteId, noteTxt);
     setNoteVisible(false);
+  };
+
+  // Sauvegarde différée pendant la frappe — pas seulement au clic "Fermer",
+  // pour ne rien perdre si on navigue ailleurs sans fermer explicitement.
+  const noteTimerRef = useRef(null);
+  const onChangeNoteTxt = (t) => {
+    setNoteTxt(t);
+    if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
+    noteTimerRef.current = setTimeout(() => upsertNote(visiteId, t), 700);
   };
 
   const [exporting, setExporting] = useState(false);
@@ -128,7 +138,7 @@ function VisiteScreen({ route, onBack }) {
               style={[styles.input, { height: 160, textAlignVertical: 'top' }]}
               multiline
               value={noteTxt}
-              onChangeText={setNoteTxt}
+              onChangeText={onChangeNoteTxt}
               placeholder="Notes générales sur la visite..."
             />
             <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}>

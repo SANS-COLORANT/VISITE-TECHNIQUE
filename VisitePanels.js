@@ -12,7 +12,7 @@ import {
   listerRemarques, ajouterRemarqueManuelle, listerBibliothequeReserves, ajouterRemarqueDepuisBiblio,
   listerPhotos, ajouterPhoto,
 } from './db.js';
-import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput } from './GenericFields.js';
+import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, useSaisieAvecAutoSave } from './GenericFields.js';
 import { PhotoButton, prendrePhoto } from './PhotoButton.js';
 
 // ============================================================================
@@ -265,13 +265,15 @@ const COMPTEUR_TYPES = [
 
 function CompteurCard({ compteur, unites, onChange }) {
   const [label, setLabel] = useState(compteur.label || '');
-  const [valeur, setValeur] = useState(compteur.valeur || '');
   const [unite, setUnite] = useState(compteur.unite || 'm³');
 
   const sauverLabel = async (val) => {
     setLabel(val);
     await upsertCompteurChamp(compteur.id, 'label', val);
   };
+  const [valeur, setValeur, surBlurValeur] = useSaisieAvecAutoSave(
+    compteur.valeur, (v) => upsertCompteurChamp(compteur.id, 'valeur', v)
+  );
 
   return (
     <View style={styles.compteurRow}>
@@ -288,7 +290,7 @@ function CompteurCard({ compteur, unites, onChange }) {
           style={styles.compteurValInput}
           value={valeur}
           onChangeText={setValeur}
-          onBlur={() => upsertCompteurChamp(compteur.id, 'valeur', valeur)}
+          onBlur={surBlurValeur}
           placeholder="Valeur relevée"
           keyboardType="numeric"
         />
@@ -349,24 +351,30 @@ function PanelEquipements({ visiteId }) {
 import { CATEGORIES_EQUIPEMENT, MARQUES_EQUIPEMENT } from './ParametresScreen.js';
 
 function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarques }) {
-  const [vals, setVals] = useState({
-    categorie: item.categorie || '', designation: item.designation || '',
-    marque: item.marque || '', modele: item.modele || '', annee: item.annee || '',
-  });
+  const [categorie, setCategorie] = useState(item.categorie || '');
+  const [marque, setMarque] = useState(item.marque || '');
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
 
-  const sauverChamp = async (champ, val) => {
-    setVals((v) => ({ ...v, [champ]: val }));
-    await upsertMaterielChamp(item.id, champ, val);
-  };
+  const [designation, setDesignation, surBlurDesignation] = useSaisieAvecAutoSave(
+    item.designation, (v) => upsertMaterielChamp(item.id, 'designation', v)
+  );
+  const [modele, setModele, surBlurModele] = useSaisieAvecAutoSave(
+    item.modele, (v) => upsertMaterielChamp(item.id, 'modele', v)
+  );
+  const [annee, setAnnee, surBlurAnnee] = useSaisieAvecAutoSave(
+    item.annee, (v) => upsertMaterielChamp(item.id, 'annee', v)
+  );
+
+  const sauverCategorie = async (val) => { setCategorie(val); await upsertMaterielChamp(item.id, 'categorie', val); };
+  const sauverMarque = async (val) => { setMarque(val); await upsertMaterielChamp(item.id, 'marque', val); };
 
   const ouvrirBiblio = async () => {
     setBiblio(await listerBibliothequeEquipements());
     setBiblioVisible(true);
   };
   const choisirDepuisBiblio = async (e) => {
-    setVals((v) => ({ ...v, categorie: e.categorie, marque: e.marque || '', modele: e.modele || '' }));
+    setCategorie(e.categorie); setMarque(e.marque || '');
     await upsertMaterielChamp(item.id, 'categorie', e.categorie);
     await upsertMaterielChamp(item.id, 'marque', e.marque || '');
     await upsertMaterielChamp(item.id, 'modele', e.modele || '');
@@ -381,39 +389,39 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
       <View style={styles.materielTopRow}>
         <View style={{ flex: 1 }}>
           <TypeAheadInput
-            valeur={vals.categorie}
+            valeur={categorie}
             options={optionsCategories}
             placeholder="Catégorie (ex: Chaudière, Pompe, Adoucisseur...)"
-            onChange={(t) => sauverChamp('categorie', t)}
+            onChange={sauverCategorie}
           />
         </View>
-        <PhotoButton visiteId={visiteId} entiteKey={`materiel||${item.id}`} label={vals.designation || vals.categorie} />
+        <PhotoButton visiteId={visiteId} entiteKey={`materiel||${item.id}`} label={designation || categorie} />
       </View>
       <View style={{ height: 8 }} />
       <TextInput
         style={styles.input}
         placeholder="Désignation"
-        value={vals.designation}
-        onChangeText={(t) => setVals((v) => ({ ...v, designation: t }))}
-        onBlur={() => sauverChamp('designation', vals.designation)}
+        value={designation}
+        onChangeText={setDesignation}
+        onBlur={surBlurDesignation}
       />
       <View style={{ height: 8 }} />
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <View style={{ flex: 1 }}>
           <TypeAheadInput
-            valeur={vals.marque}
+            valeur={marque}
             options={optionsMarques}
             placeholder="Marque"
-            onChange={(t) => sauverChamp('marque', t)}
+            onChange={sauverMarque}
           />
         </View>
         <TextInput
-          style={[styles.input, { flex: 1 }]} placeholder="Modèle" value={vals.modele}
-          onChangeText={(t) => setVals((v) => ({ ...v, modele: t }))} onBlur={() => sauverChamp('modele', vals.modele)}
+          style={[styles.input, { flex: 1 }]} placeholder="Modèle" value={modele}
+          onChangeText={setModele} onBlur={surBlurModele}
         />
         <TextInput
-          style={[styles.input, { width: 70 }]} placeholder="Année" value={vals.annee}
-          onChangeText={(t) => setVals((v) => ({ ...v, annee: t }))} onBlur={() => sauverChamp('annee', vals.annee)}
+          style={[styles.input, { width: 70 }]} placeholder="Année" value={annee}
+          onChangeText={setAnnee} onBlur={surBlurAnnee}
           keyboardType="numeric"
         />
       </View>
