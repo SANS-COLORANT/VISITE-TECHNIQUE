@@ -21,6 +21,7 @@ import { HomeScreen } from './HomeScreen.js';
 import { ClientSitesScreen } from './ClientSitesScreen.js';
 import { VisiteScreen } from './VisiteScreen.js';
 import { ParametresScreen } from './ParametresScreen.js';
+import { SiteVisitesScreen } from './SiteVisitesScreen.js';
 
 /** Petite barre de titre réutilisable, avec bouton retour optionnel. */
 function SimpleHeader({ title, onBack }) {
@@ -89,6 +90,12 @@ export default function App() {
         <>
           <SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} />
           <ClientSitesScreen navigation={navigation} route={route} />
+        </>
+      )}
+      {current.name === 'SiteVisites' && (
+        <>
+          <SimpleHeader title={current.params?.nomSite || 'Visites'} onBack={goBack} />
+          <SiteVisitesScreen navigation={navigation} route={route} />
         </>
       )}
       {current.name === 'Visite' && (

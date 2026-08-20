@@ -8,7 +8,7 @@ import {
   getChampsVisite, getControlesVisite, getDb,
   listerReseaux, ajouterReseau, upsertReseauChamp, supprimerReseau,
   listerCompteurs, ajouterCompteur, upsertCompteurChamp, supprimerCompteur,
-  listerMateriel, ajouterMateriel, upsertMaterielChamp, supprimerMateriel,
+  listerMateriel, ajouterMateriel, upsertMaterielChamp, supprimerMateriel, listerBibliothequeEquipements,
   listerRemarques, ajouterRemarqueManuelle, listerBibliothequeReserves, ajouterRemarqueDepuisBiblio,
   listerPhotos, ajouterPhoto,
 } from './db.js';
@@ -329,30 +329,38 @@ function PanelEquipements({ visiteId }) {
   );
 }
 
-const CATEGORIES_EQUIPEMENT = [
-  'Adoucisseur', 'Armoire électrique', 'Ballon ECS', 'Chaudière', 'Circulateur',
-  'Coffret gaz', 'Compteur', 'Désemboueur', 'Détendeur', 'Échangeur',
-  'Extincteur', 'Filtre', 'Manomètre', 'Pompe', 'Robinetterie', 'Soupape',
-  'Vanne', "Vase d'expansion",
-];
-const MARQUES_EQUIPEMENT = [
-  'De Dietrich', 'Viessmann', 'Grundfos', 'Wilo', 'Saunier Duval',
-  'Atlantic', 'Frisquet', 'Chappée', 'Chaffoteaux', 'Elm Leblanc',
-  'Bosch', 'Vaillant', 'Fernox', 'Alfa Laval',
-];
+import { CATEGORIES_EQUIPEMENT, MARQUES_EQUIPEMENT } from './ParametresScreen.js';
 
 function MaterielCard({ item, visiteId, onChange }) {
   const [vals, setVals] = useState({
     categorie: item.categorie || '', designation: item.designation || '',
     marque: item.marque || '', modele: item.modele || '', annee: item.annee || '',
   });
+  const [biblioVisible, setBiblioVisible] = useState(false);
+  const [biblio, setBiblio] = useState([]);
+
   const sauverChamp = async (champ, val) => {
     setVals((v) => ({ ...v, [champ]: val }));
     await upsertMaterielChamp(item.id, champ, val);
   };
 
+  const ouvrirBiblio = async () => {
+    setBiblio(await listerBibliothequeEquipements());
+    setBiblioVisible(true);
+  };
+  const choisirDepuisBiblio = async (e) => {
+    setVals((v) => ({ ...v, categorie: e.categorie, marque: e.marque || '', modele: e.modele || '' }));
+    await upsertMaterielChamp(item.id, 'categorie', e.categorie);
+    await upsertMaterielChamp(item.id, 'marque', e.marque || '');
+    await upsertMaterielChamp(item.id, 'modele', e.modele || '');
+    setBiblioVisible(false);
+  };
+
   return (
     <View style={styles.formCard}>
+      <TouchableOpacity style={styles.biblioShortcutBtn} onPress={ouvrirBiblio}>
+        <Text style={styles.biblioShortcutBtnText}>📚 Choisir dans la bibliothèque</Text>
+      </TouchableOpacity>
       <View style={styles.materielTopRow}>
         <View style={{ flex: 1 }}>
           <TypeAheadInput
@@ -395,6 +403,29 @@ function MaterielCard({ item, visiteId, onChange }) {
       <TouchableOpacity style={{ marginTop: 10 }} onPress={async () => { await supprimerMateriel(item.id); onChange(); }}>
         <Text style={styles.removeLink}>Supprimer cet équipement</Text>
       </TouchableOpacity>
+
+      <Modal visible={biblioVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Choisir un équipement</Text>
+            <ScrollView style={{ maxHeight: 300 }}>
+              {biblio.length === 0 ? (
+                <Text style={styles.emptySub}>Bibliothèque vide. Ajoutes-en depuis Paramètres → Équipements.</Text>
+              ) : (
+                biblio.map((e) => (
+                  <TouchableOpacity key={e.id} style={styles.biblioRow} onPress={() => choisirDepuisBiblio(e)}>
+                    <Text style={styles.biblioRowTitle}>{e.categorie}</Text>
+                    <Text style={styles.biblioRowSub}>{[e.marque, e.modele].filter(Boolean).join(' — ') || '—'}</Text>
+                  </TouchableOpacity>
+                ))
+              )}
+            </ScrollView>
+            <TouchableOpacity style={[styles.btnSecondary, { marginTop: 14 }]} onPress={() => setBiblioVisible(false)}>
+              <Text style={styles.btnSecondaryText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

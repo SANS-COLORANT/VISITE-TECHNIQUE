@@ -376,19 +376,48 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
 const TypeAheadInput = React.memo(function TypeAheadInput({ valeur, options, placeholder, onChange }) {
   const [texte, setTexte] = useState(valeur || '');
   const [focus, setFocus] = useState(false);
+  const blurTimer = React.useRef(null);
 
   const suggestions = texte.trim()
     ? options.filter((o) => o.toLowerCase().includes(texte.trim().toLowerCase())).slice(0, 6)
     : options.slice(0, 6);
 
+  const choisir = (s) => {
+    if (blurTimer.current) clearTimeout(blurTimer.current);
+    setTexte(s);
+    onChange(s);
+    setFocus(false);
+  };
+
+  // Le onBlur du champ se déclenche AVANT le tap sur une suggestion (bug
+  // classique React Native). On retarde donc la fermeture de la liste de
+  // 200ms, le temps que le tap sur la suggestion ait le temps d'arriver.
+  const surBlur = () => {
+    onChange(texte);
+    blurTimer.current = setTimeout(() => setFocus(false), 200);
+  };
+
+  // Glisser horizontalement pour naviguer dans la liste complète des
+  // options sans avoir à taper sur chacune (même logique que ChipSelector).
+  const panResponder = React.useRef(
+    PanResponder.create({
+      onMoveShouldSetPanResponder: (evt, g) => Math.abs(g.dx) > 20 && Math.abs(g.dx) > Math.abs(g.dy),
+      onPanResponderRelease: (evt, g) => {
+        const idx = options.indexOf(texte);
+        if (g.dx < -20) choisir(options[idx < options.length - 1 ? idx + 1 : 0]);
+        else if (g.dx > 20) choisir(options[idx > 0 ? idx - 1 : options.length - 1]);
+      },
+    })
+  ).current;
+
   return (
-    <View>
+    <View {...panResponder.panHandlers}>
       <TextInput
         style={styles.input}
         value={texte}
         onChangeText={setTexte}
         onFocus={() => setFocus(true)}
-        onBlur={() => { setFocus(false); onChange(texte); }}
+        onBlur={surBlur}
         placeholder={placeholder}
       />
       {focus && suggestions.length > 0 && (
@@ -397,7 +426,7 @@ const TypeAheadInput = React.memo(function TypeAheadInput({ valeur, options, pla
             <TouchableOpacity
               key={s}
               style={styles.typeaheadSuggestionRow}
-              onPressIn={() => { setTexte(s); onChange(s); setFocus(false); }}
+              onPress={() => choisir(s)}
             >
               <Text style={styles.typeaheadSuggestionText}>{s}</Text>
             </TouchableOpacity>

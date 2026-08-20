@@ -49,7 +49,12 @@ async function construireClasseur(visiteId) {
   const note = await getNote(visiteId);
 
   // Charge le vrai modèle — libellés, styles, listes déroulantes, tout y est déjà.
-  const wb = XLSX.read(TEMPLATE_EXCEL_BASE64, { type: 'base64' });
+  const wb = XLSX.read(TEMPLATE_EXCEL_BASE64, {
+    type: 'base64',
+    cellStyles: true,   // conserve les couleurs/polices des cellules
+    cellNF: true,       // conserve les formats numériques
+    bookVBA: true,       // conserve la structure interne du classeur
+  });
   const sheetTrame = wb.Sheets['TRAME ICPE'];
   const sheetMateriel = wb.Sheets['MATERIEL'];
   const sheetRemarques = wb.Sheets['REMARQUES'];

@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { COLORS, styles } from './styles.js';
-import { listerSitesClient, creerSite, creerVisite } from './db.js';
+import { listerSitesClient, creerSite } from './db.js';
 
 // ============================================================================
 // 8. ÉCRAN SITES D'UN CLIENT
@@ -25,9 +25,8 @@ function ClientSitesScreen({ route, navigation }) {
     setNouveauNom(''); setNouvelleAdresse(''); setModalVisible(false); charger();
   };
 
-  const demarrerVisite = async (site) => {
-    const visiteId = await creerVisite({ siteId: site.id, technicien: 'Moi' });
-    navigation.navigate('Visite', { visiteId });
+  const ouvrirSite = (site) => {
+    navigation.navigate('SiteVisites', { siteId: site.id, nomSite: site.nom_site });
   };
 
   return (
@@ -45,7 +44,7 @@ function ClientSitesScreen({ route, navigation }) {
           </View>
         }
         renderItem={({ item }) => (
-          <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => demarrerVisite(item)}>
+          <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => ouvrirSite(item)}>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{item.nom_site}</Text>
               {item.adresse ? <Text style={styles.cardSub}>{item.adresse}</Text> : null}

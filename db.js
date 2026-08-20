@@ -77,6 +77,13 @@ CREATE TABLE IF NOT EXISTS reserves_bibliotheque (
   prix REAL, poste TEXT, delai INTEGER,
   cree_le TEXT NOT NULL DEFAULT (datetime('now'))
 );
+-- Bibliothèque d'équipements personnalisée — combinaisons catégorie/marque/
+-- modèle prêtes à sélectionner d'un coup dans l'onglet Équipements, distincte
+-- de la bibliothèque de réserves.
+CREATE TABLE IF NOT EXISTS equipements_bibliotheque (
+  id TEXT PRIMARY KEY, categorie TEXT NOT NULL, marque TEXT, modele TEXT,
+  cree_le TEXT NOT NULL DEFAULT (datetime('now'))
+);
 `;
 
 let dbInstance = null;
@@ -162,6 +169,14 @@ async function listerVisitesEnCours() {
     `SELECT v.id, v.date_visite, v.progression_pct, s.nom_site, c.nom AS nom_client
      FROM visites v JOIN sites s ON s.id = v.site_id JOIN clients c ON c.id = s.client_id
      WHERE v.statut = 'en_cours' ORDER BY v.modifie_le DESC`
+  );
+}
+/** Historique complet des visites d'un site (toutes, quel que soit le statut). */
+async function listerVisitesSite(siteId) {
+  const db = await getDb();
+  return db.getAllAsync(
+    `SELECT * FROM visites WHERE site_id = ? ORDER BY date_visite DESC, modifie_le DESC`,
+    [siteId]
   );
 }
 async function compterVisites() {
@@ -503,6 +518,33 @@ async function ajouterRemarqueDepuisBiblio(visiteId, biblioItem) {
   );
 }
 
+// ---------------- Repository : bibliothèque d'équipements (Paramètres) ----------------
+
+async function listerBibliothequeEquipements() {
+  const db = await getDb();
+  return db.getAllAsync(`SELECT * FROM equipements_bibliotheque ORDER BY categorie, marque`);
+}
+async function ajouterEquipementBiblio({ categorie, marque, modele }) {
+  const db = await getDb();
+  const id = uuidv4();
+  await db.runAsync(
+    `INSERT INTO equipements_bibliotheque (id, categorie, marque, modele) VALUES (?, ?, ?, ?)`,
+    [id, categorie, marque || null, modele || null]
+  );
+  return id;
+}
+async function modifierEquipementBiblio(id, { categorie, marque, modele }) {
+  const db = await getDb();
+  await db.runAsync(
+    `UPDATE equipements_bibliotheque SET categorie = ?, marque = ?, modele = ? WHERE id = ?`,
+    [categorie, marque || null, modele || null, id]
+  );
+}
+async function supprimerEquipementBiblio(id) {
+  const db = await getDb();
+  await db.runAsync(`DELETE FROM equipements_bibliotheque WHERE id = ?`, [id]);
+}
+
 export {
   getDb,
   listerClients, creerClient, listerSitesClient, creerSite,
@@ -514,4 +556,6 @@ export {
   listerRemarques, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle, ajouterRemarqueManuelle,
   getNote, upsertNote, listerPhotos, ajouterPhoto,
   listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio, ajouterRemarqueDepuisBiblio,
+  listerBibliothequeEquipements, ajouterEquipementBiblio, modifierEquipementBiblio, supprimerEquipementBiblio,
+  listerVisitesSite,
 };

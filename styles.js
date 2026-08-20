@@ -50,6 +50,12 @@ export const styles = StyleSheet.create({
   modalTitle: { fontSize: 16, fontWeight: '600', color: COLORS.ink, marginBottom: 14 },
   input: { borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: COLORS.ink },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
+  fabBar: { padding: 16, backgroundColor: COLORS.white, borderTopWidth: 1, borderTopColor: COLORS.line },
+  paramTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line, paddingHorizontal: 20 },
+  paramTab: { paddingVertical: 12, paddingHorizontal: 4, marginRight: 24, borderBottomWidth: 2.5, borderBottomColor: 'transparent' },
+  paramTabActive: { borderBottomColor: COLORS.orange },
+  paramTabText: { fontSize: 13.5, color: COLORS.inkSoft, fontWeight: '600' },
+  paramTabTextActive: { color: COLORS.orangeDark },
   btnPrimary: { flex: 1, backgroundColor: COLORS.orange, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   btnPrimaryText: { color: COLORS.white, fontWeight: '600', fontSize: 13.5 },
   btnSecondary: { flex: 1, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
@@ -167,6 +173,8 @@ export const styles = StyleSheet.create({
   biblioRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.line },
   biblioRowTitle: { fontSize: 13.5, fontWeight: '600', color: COLORS.ink },
   biblioRowSub: { fontSize: 11.5, color: COLORS.inkSoft, marginTop: 2 },
+  biblioShortcutBtn: { backgroundColor: COLORS.orangeLight, borderRadius: 9, paddingVertical: 9, alignItems: 'center', marginBottom: 12 },
+  biblioShortcutBtnText: { fontSize: 12.5, color: COLORS.orangeDark, fontWeight: '600' },
 
   materielTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
 
