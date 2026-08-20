@@ -58,7 +58,7 @@ function SiteVisitesScreen({ route, navigation }) {
         }
       />
       <View style={styles.fabBar}>
-        <TouchableOpacity style={styles.btnPrimary} onPress={nouvelleVisite}>
+        <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={nouvelleVisite}>
           <Text style={styles.btnPrimaryText}>+ Nouvelle visite</Text>
         </TouchableOpacity>
       </View>

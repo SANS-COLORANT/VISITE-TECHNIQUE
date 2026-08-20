@@ -1,103 +1,22 @@
 /** Base de données SQLite locale + repository (clients/sites/visites/champs...). */
 
-import * as SQLite from 'expo-sqlite';
 import { TRAME_DATA, PRESCRIPTIONS } from './data.js';
+import { openAppDatabase } from './database/index.js';
+import { createId } from './database/ids.js';
 
 export function uuidv4() {
-  return 'id-' + Date.now().toString(36) + '-' + Math.random().toString(36).slice(2, 10);
+  return createId();
 }
 
 // ============================================================================
 // 2. BASE DE DONNÉES — schéma générique (champs/contrôles en clé-valeur)
 // ============================================================================
 
-const SCHEMA_SQL = `
-CREATE TABLE IF NOT EXISTS clients (
-  id TEXT PRIMARY KEY, nom TEXT NOT NULL, code_exploitant TEXT, adresse TEXT,
-  cree_le TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS sites (
-  id TEXT PRIMARY KEY, client_id TEXT NOT NULL, nom_site TEXT NOT NULL,
-  adresse TEXT, statut TEXT DEFAULT 'Actif',
-  cree_le TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS visites (
-  id TEXT PRIMARY KEY, site_id TEXT NOT NULL, date_visite TEXT, technicien TEXT,
-  statut TEXT NOT NULL DEFAULT 'en_cours', progression_pct INTEGER NOT NULL DEFAULT 0,
-  modifie_le TEXT NOT NULL DEFAULT (datetime('now')),
-  cree_le TEXT NOT NULL DEFAULT (datetime('now'))
-);
--- Champs "libres" (texte) : un enregistrement par (visite, section, cle)
-CREATE TABLE IF NOT EXISTS champs_visite (
-  visite_id TEXT NOT NULL, section_code TEXT NOT NULL, cle TEXT NOT NULL,
-  valeur TEXT, PRIMARY KEY (visite_id, section_code, cle)
-);
--- Contrôles de conformité (Avis + Commentaire)
-CREATE TABLE IF NOT EXISTS controles_visite (
-  visite_id TEXT NOT NULL, section_code TEXT NOT NULL, cle TEXT NOT NULL,
-  avis TEXT, commentaire TEXT, PRIMARY KEY (visite_id, section_code, cle)
-);
--- Réseaux de régulation — dynamiques (0..N par visite)
-CREATE TABLE IF NOT EXISTS reseaux (
-  id TEXT PRIMARY KEY, visite_id TEXT NOT NULL, ordre INTEGER NOT NULL,
-  nom_reseau TEXT, t_ext_c TEXT, t_dep_c TEXT, courbe_de_chauffe TEXT,
-  tnc TEXT, consigne_programme_horaire TEXT
-);
--- Compteurs relevés — dynamiques (feuille Relevés)
-CREATE TABLE IF NOT EXISTS compteurs (
-  id TEXT PRIMARY KEY, visite_id TEXT NOT NULL, label TEXT, valeur TEXT, unite TEXT
-);
--- Équipements (feuille MATERIEL)
-CREATE TABLE IF NOT EXISTS materiel (
-  id TEXT PRIMARY KEY, visite_id TEXT NOT NULL, categorie TEXT, designation TEXT,
-  marque TEXT, modele TEXT, annee TEXT, etat TEXT DEFAULT 'bon',
-  cree_le TEXT NOT NULL DEFAULT (datetime('now'))
-);
--- Réserves (feuille REMARQUES) — générées automatiquement depuis les
--- préconisations choisies, ou ajoutées manuellement
-CREATE TABLE IF NOT EXISTS remarques (
-  id TEXT PRIMARY KEY, visite_id TEXT NOT NULL, controle_key TEXT,
-  poste TEXT, prestation TEXT, delai INTEGER, estimatif REAL, origine TEXT,
-  cree_le TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS notes (
-  visite_id TEXT PRIMARY KEY, contenu TEXT
-);
--- Photos, rattachables à n'importe quelle entité
-CREATE TABLE IF NOT EXISTS photos (
-  id TEXT PRIMARY KEY, visite_id TEXT NOT NULL, entite_key TEXT,
-  uri TEXT NOT NULL, label TEXT, cree_le TEXT NOT NULL DEFAULT (datetime('now'))
-);
-CREATE TABLE IF NOT EXISTS _meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
--- Bibliothèque de réserves personnalisées — indépendante des visites,
--- gérée depuis l'écran Paramètres. Sert de raccourci quand on ajoute une
--- réserve manuelle dans une visite.
-CREATE TABLE IF NOT EXISTS reserves_bibliotheque (
-  id TEXT PRIMARY KEY, nom TEXT NOT NULL, description TEXT,
-  prix REAL, poste TEXT, delai INTEGER,
-  cree_le TEXT NOT NULL DEFAULT (datetime('now'))
-);
--- Bibliothèque d'équipements personnalisée — combinaisons catégorie/marque/
--- modèle prêtes à sélectionner d'un coup dans l'onglet Équipements, distincte
--- de la bibliothèque de réserves.
-CREATE TABLE IF NOT EXISTS equipements_bibliotheque (
-  id TEXT PRIMARY KEY, categorie TEXT NOT NULL, marque TEXT, modele TEXT,
-  cree_le TEXT NOT NULL DEFAULT (datetime('now'))
-);
-`;
-
 let dbInstance = null;
 
 async function getDb() {
   if (dbInstance) return dbInstance;
-  dbInstance = await SQLite.openDatabaseAsync('visite_technique.db');
-  // Mode WAL : évite la quasi-totalité des erreurs "database is locked",
-  // notamment celles causées par le rechargement à chaud dans Snack qui
-  // peut laisser une ancienne connexion active en parallèle de la nouvelle.
-  await dbInstance.execAsync('PRAGMA journal_mode = WAL;');
-  await dbInstance.execAsync('PRAGMA busy_timeout = 3000;');
-  await dbInstance.execAsync('PRAGMA foreign_keys = ON;');
-  await dbInstance.execAsync(SCHEMA_SQL);
+  dbInstance = await openAppDatabase();
   await seedDemoSiNecessaire(dbInstance);
   await seedBibliothequeSiNecessaire(dbInstance);
   await seedEquipementsBibliothequeSiNecessaire(dbInstance);
@@ -529,6 +448,10 @@ async function ajouterPhoto(visiteId, entiteKey, uri, label) {
     [uuidv4(), visiteId, entiteKey || null, uri, label || null]
   );
 }
+async function remplacerPhoto(photoId, uri) {
+  const db = await getDb();
+  await db.runAsync(`UPDATE photos SET uri = ?, cree_le = datetime('now') WHERE id = ?`, [uri, photoId]);
+}
 
 // ---------------- Repository : bibliothèque de réserves (Paramètres) ----------------
 
@@ -570,7 +493,27 @@ async function ajouterRemarqueDepuisBiblio(visiteId, biblioItem) {
 
 async function listerBibliothequeEquipements() {
   const db = await getDb();
-  return db.getAllAsync(`SELECT * FROM equipements_bibliotheque ORDER BY categorie, marque`);
+  return db.getAllAsync(`
+    SELECT m.id, c.nom AS categorie, b.nom AS marque, m.nom AS modele,
+           c.icone, b.logo_uri, m.caracteristiques
+    FROM modeles_equipement m
+    JOIN categories_equipement c ON c.id = m.categorie_id
+    JOIN marques_equipement b ON b.id = m.marque_id
+    WHERE m.actif = 1 AND c.actif = 1 AND b.actif = 1
+    UNION ALL
+    SELECT e.id, e.categorie, e.marque, e.modele, '⚙️' AS icone,
+           NULL AS logo_uri, NULL AS caracteristiques
+    FROM equipements_bibliotheque e
+    WHERE NOT EXISTS (
+      SELECT 1 FROM modeles_equipement m2
+      JOIN categories_equipement c2 ON c2.id = m2.categorie_id
+      JOIN marques_equipement b2 ON b2.id = m2.marque_id
+      WHERE c2.nom = e.categorie COLLATE NOCASE
+        AND COALESCE(b2.nom, '') = COALESCE(e.marque, '') COLLATE NOCASE
+        AND m2.nom = COALESCE(e.modele, '') COLLATE NOCASE
+    )
+    ORDER BY categorie, marque, modele
+  `);
 }
 async function ajouterEquipementBiblio({ categorie, marque, modele }) {
   const db = await getDb();
@@ -590,7 +533,85 @@ async function modifierEquipementBiblio(id, { categorie, marque, modele }) {
 }
 async function supprimerEquipementBiblio(id) {
   const db = await getDb();
-  await db.runAsync(`DELETE FROM equipements_bibliotheque WHERE id = ?`, [id]);
+  const catalogue = await db.getFirstAsync('SELECT id FROM modeles_equipement WHERE id = ?', [id]);
+  if (catalogue) await db.runAsync('UPDATE modeles_equipement SET actif = 0 WHERE id = ?', [id]);
+  else await db.runAsync(`DELETE FROM equipements_bibliotheque WHERE id = ?`, [id]);
+}
+
+async function listerCategoriesEquipement() {
+  const db = await getDb();
+  return db.getAllAsync(`
+    SELECT c.*, COUNT(m.id) AS nb_modeles
+    FROM categories_equipement c
+    LEFT JOIN modeles_equipement m ON m.categorie_id = c.id AND m.actif = 1
+    WHERE c.actif = 1
+    GROUP BY c.id ORDER BY c.ordre, c.nom
+  `);
+}
+
+async function listerMarquesEquipement() {
+  const db = await getDb();
+  return db.getAllAsync(`
+    SELECT b.*, COUNT(m.id) AS nb_modeles
+    FROM marques_equipement b
+    LEFT JOIN modeles_equipement m ON m.marque_id = b.id AND m.actif = 1
+    WHERE b.actif = 1
+    GROUP BY b.id ORDER BY b.nom
+  `);
+}
+
+async function rechercherModelesEquipement({ recherche = '', categorieId = null, marqueId = null } = {}) {
+  const db = await getDb();
+  const motif = `%${recherche.trim()}%`;
+  return db.getAllAsync(`
+    SELECT m.*, c.nom AS categorie, c.icone, b.nom AS marque, b.logo_uri, b.couleur
+    FROM modeles_equipement m
+    JOIN categories_equipement c ON c.id = m.categorie_id
+    JOIN marques_equipement b ON b.id = m.marque_id
+    WHERE m.actif = 1 AND c.actif = 1 AND b.actif = 1
+      AND (? IS NULL OR m.categorie_id = ?)
+      AND (? IS NULL OR m.marque_id = ?)
+      AND (? = '' OR c.nom LIKE ? COLLATE NOCASE OR b.nom LIKE ? COLLATE NOCASE
+           OR m.nom LIKE ? COLLATE NOCASE OR COALESCE(m.reference, '') LIKE ? COLLATE NOCASE
+           OR COALESCE(m.mots_cles, '') LIKE ? COLLATE NOCASE)
+    ORDER BY c.ordre, b.nom, m.nom
+  `, [categorieId, categorieId, marqueId, marqueId, recherche.trim(), motif, motif, motif, motif, motif]);
+}
+
+async function ajouterCategorieEquipement({ nom, icone }) {
+  const db = await getDb();
+  const id = uuidv4();
+  await db.runAsync('INSERT INTO categories_equipement (id, nom, icone) VALUES (?, ?, ?)', [id, nom, icone || '⚙️']);
+  return id;
+}
+
+async function ajouterMarqueEquipement({ nom, logoUri, couleur }) {
+  const db = await getDb();
+  const id = uuidv4();
+  await db.runAsync('INSERT INTO marques_equipement (id, nom, logo_uri, couleur) VALUES (?, ?, ?, ?)', [id, nom, logoUri || null, couleur || null]);
+  return id;
+}
+
+async function ajouterModeleEquipement({ categorieId, marqueId, nom, reference, caracteristiques, motsCles }) {
+  const db = await getDb();
+  const id = uuidv4();
+  await db.runAsync(
+    `INSERT INTO modeles_equipement
+     (id, categorie_id, marque_id, nom, reference, caracteristiques, mots_cles)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [id, categorieId, marqueId, nom, reference || null, caracteristiques || null, motsCles || null]
+  );
+  return id;
+}
+
+async function desactiverCategorieEquipement(id) {
+  const db = await getDb();
+  await db.runAsync('UPDATE categories_equipement SET actif = 0 WHERE id = ?', [id]);
+}
+
+async function desactiverMarqueEquipement(id) {
+  const db = await getDb();
+  await db.runAsync('UPDATE marques_equipement SET actif = 0 WHERE id = ?', [id]);
 }
 
 export {
@@ -602,8 +623,11 @@ export {
   listerCompteurs, ajouterCompteur, upsertCompteurChamp, supprimerCompteur,
   listerMateriel, ajouterMateriel, upsertMaterielChamp, supprimerMateriel,
   listerRemarques, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle, ajouterRemarqueManuelle,
-  getNote, upsertNote, listerPhotos, ajouterPhoto,
+  getNote, upsertNote, listerPhotos, ajouterPhoto, remplacerPhoto,
   listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio, ajouterRemarqueDepuisBiblio,
   listerBibliothequeEquipements, ajouterEquipementBiblio, modifierEquipementBiblio, supprimerEquipementBiblio,
+  listerCategoriesEquipement, listerMarquesEquipement, rechercherModelesEquipement,
+  ajouterCategorieEquipement, ajouterMarqueEquipement, ajouterModeleEquipement,
+  desactiverCategorieEquipement, desactiverMarqueEquipement,
   listerVisitesSite,
 };
