@@ -306,7 +306,15 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
     chargerCriteresPersonnalises(categorieKey).then((perso) => {
       if (!actif || perso.length === 0) return;
       const base = resoudrePrescriptions(field.cle, sectionCode) || [];
-      setOptions([...base, ...perso]);
+      // La bibliothèque contient déjà une copie des 142 préconisations
+      // intégrées (pré-remplie au premier lancement) — on ne garde donc que
+      // les entrées de la bibliothèque qui apportent un VRAI critère
+      // supplémentaire, absent des préconisations de base, pour éviter
+      // d'afficher deux fois la même chip.
+      const critieresBase = new Set(base.map((o) => (o.critere || '').trim().toLowerCase()));
+      const persoInedits = perso.filter((o) => !critieresBase.has((o.critere || '').trim().toLowerCase()));
+      if (persoInedits.length === 0) return;
+      setOptions([...base, ...persoInedits]);
     });
     return () => { actif = false; };
   }, [categorieKey]);
