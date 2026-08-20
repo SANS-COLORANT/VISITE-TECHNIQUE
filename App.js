@@ -17,11 +17,11 @@ import { NavigationContainer } from '@react-navigation/native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 
-import { getDb } from './src/db.js';
-import { COLORS, styles } from './src/styles.js';
-import { HomeScreen } from './src/HomeScreen.js';
-import { ClientSitesScreen } from './src/ClientSitesScreen.js';
-import { VisiteScreen } from './src/VisiteScreen.js';
+import { getDb } from './db.js';
+import { COLORS, styles } from './styles.js';
+import { HomeScreen } from './HomeScreen.js';
+import { ClientSitesScreen } from './ClientSitesScreen.js';
+import { VisiteScreen } from './VisiteScreen.js';
 
 const Stack = createNativeStackNavigator();
 
