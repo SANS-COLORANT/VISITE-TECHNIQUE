@@ -250,7 +250,7 @@ function BibliothequeEquipements() {
         ))}
       </View>
       {vue === 'modeles' && (
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.catalogueFilters}>
+        <View style={styles.catalogueFilters}>
           <TouchableOpacity style={[styles.catalogueFilter, !categorieFiltre && styles.catalogueFilterActive]} onPress={() => setCategorieFiltre(null)}>
             <Text style={[styles.catalogueFilterText, !categorieFiltre && styles.catalogueFilterTextActive]}>Tout</Text>
           </TouchableOpacity>
@@ -259,7 +259,7 @@ function BibliothequeEquipements() {
               <Text style={[styles.catalogueFilterText, categorieFiltre === c.id && styles.catalogueFilterTextActive]}>{c.icone} {c.nom}</Text>
             </TouchableOpacity>
           ))}
-        </ScrollView>
+        </View>
       )}
       <FlatList
         contentContainerStyle={styles.content}
