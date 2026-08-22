@@ -14,6 +14,7 @@ import {
 } from './db.js';
 import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, useSaisieAvecAutoSave } from './GenericFields.js';
 import { PhotoButton, prendrePhoto } from './PhotoButton.js';
+import { BrandMark } from './BrandLogo.js';
 
 // ============================================================================
 // 5. PANNEAUX DE L'ÉCRAN VISITE
@@ -404,9 +405,12 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
 
   return (
     <View style={styles.formCard}>
-      <TouchableOpacity style={styles.biblioShortcutBtn} onPress={ouvrirBiblio}>
-        <Text style={styles.biblioShortcutBtnText}>📚 Choisir dans la bibliothèque</Text>
-      </TouchableOpacity>
+      <View style={styles.equipmentBrandHeader}>
+        <BrandMark marque={marque} compact />
+        <TouchableOpacity style={[styles.biblioShortcutBtn, { flex: 1 }]} onPress={ouvrirBiblio}>
+          <Text style={styles.biblioShortcutBtnText}>📚 Choisir dans la bibliothèque</Text>
+        </TouchableOpacity>
+      </View>
       <View style={styles.materielTopRow}>
         <View style={{ flex: 1 }}>
           <TypeAheadInput
@@ -479,8 +483,13 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
               ) : (
                 biblio.map((e) => (
                   <TouchableOpacity key={e.id} style={styles.biblioRow} onPress={() => choisirDepuisBiblio(e)}>
-                    <Text style={styles.biblioRowTitle}>{e.categorie}</Text>
-                    <Text style={styles.biblioRowSub}>{[e.marque, e.modele].filter(Boolean).join(' — ') || '—'}</Text>
+                    <View style={styles.equipmentLibraryRow}>
+                      <BrandMark marque={e} compact />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.biblioRowTitle}>{e.categorie}</Text>
+                        <Text style={styles.biblioRowSub}>{[e.marque, e.modele].filter(Boolean).join(' — ') || '—'}</Text>
+                      </View>
+                    </View>
                   </TouchableOpacity>
                 ))
               )}

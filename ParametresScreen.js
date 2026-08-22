@@ -1,8 +1,9 @@
 /** Écran Paramètres — deux bibliothèques distinctes : réserves et équipements. */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, ScrollView, Image } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, ScrollView } from 'react-native';
 import { COLORS, styles } from './styles.js';
+import { BrandMark } from './BrandLogo.js';
 import {
   listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio,
   listerBibliothequeEquipements, ajouterEquipementBiblio, modifierEquipementBiblio, supprimerEquipementBiblio,
@@ -273,7 +274,7 @@ function BibliothequeEquipements() {
         }
         renderItem={({ item }) => (
           <View style={styles.catalogueCard}>
-            {vue === 'modeles' ? <Text style={styles.equipmentIcon}>{item.icone || '⚙️'}</Text> : vue === 'marques' ? <BrandMark marque={item} /> : <Text style={styles.equipmentIcon}>{item.icone || '⚙️'}</Text>}
+            {vue === 'modeles' ? <BrandMark marque={item} /> : vue === 'marques' ? <BrandMark marque={item} /> : <Text style={styles.equipmentIcon}>{item.icone || '⚙️'}</Text>}
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{vue === 'modeles' ? item.nom : item.nom}</Text>
               <Text style={styles.cardSub}>
@@ -321,12 +322,6 @@ function BibliothequeEquipements() {
       </Modal>
     </View>
   );
-}
-
-function BrandMark({ marque }) {
-  if (marque.logo_uri) return <Image source={{ uri: marque.logo_uri }} style={styles.brandLogo} resizeMode="contain" />;
-  const initiales = marque.nom.split(/\s+/).map((mot) => mot[0]).join('').slice(0, 2).toUpperCase();
-  return <View style={styles.brandFallback}><Text style={styles.brandFallbackText}>{initiales}</Text></View>;
 }
 
 export { ParametresScreen, CATEGORIES_EQUIPEMENT, MARQUES_EQUIPEMENT };
