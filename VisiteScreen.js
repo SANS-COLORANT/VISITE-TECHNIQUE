@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert } from 'react-native';
 import { COLORS, styles } from './styles.js';
-import { getVisite, getNote, upsertNote } from './db.js';
+import { getVisite, getNote, upsertNote, ajouterAnomalieRapide } from './db.js';
 import { exporterEtPartager } from './excelExport.js';
 import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques, PanelPhotos } from './VisitePanels.js';
 
@@ -18,6 +18,8 @@ function VisiteScreen({ route, onBack }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [noteVisible, setNoteVisible] = useState(false);
   const [noteTxt, setNoteTxt] = useState('');
+  const [anomalieVisible, setAnomalieVisible] = useState(false);
+  const [anomalieTxt, setAnomalieTxt] = useState('');
 
   const charger = useCallback(async () => {
     const v = await getVisite(visiteId);
@@ -74,6 +76,14 @@ function VisiteScreen({ route, onBack }) {
     }
     setExporting(false);
   };
+  const enregistrerAnomalie = async () => {
+    if (!anomalieTxt.trim()) return;
+    await ajouterAnomalieRapide(visiteId, anomalieTxt);
+    setAnomalieTxt('');
+    setAnomalieVisible(false);
+    setActiveTab('p-remarques');
+    onSaved();
+  };
 
   if (!visite) {
     return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.orange} /></View>;
@@ -88,7 +98,7 @@ function VisiteScreen({ route, onBack }) {
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>{visite.nom_site}</Text>
-            <Text style={styles.cardSub}>{visite.nom_client} · {visite.date_visite}</Text>
+            <Text style={styles.cardSub}>{visite.nom_client} · {visite.date_visite} · {visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'}</Text>
           </View>
           <TouchableOpacity style={styles.noteBtn} onPress={ouvrirNote}>
             <Text style={styles.noteBtnText}>Note libre</Text>
@@ -103,6 +113,12 @@ function VisiteScreen({ route, onBack }) {
           </View>
           <Text style={styles.progressPct}>{visite.progression_pct}%</Text>
         </View>
+        <TouchableOpacity style={styles.anomalyBtn} onPress={() => setAnomalieVisible(true)}>
+          <Text style={styles.anomalyBtnText}>⚠ Ajouter une anomalie, une remarque ou une réserve</Text>
+        </TouchableOpacity>
+        {visite.mode_visite === 'express' && (
+          <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>
+        )}
         <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.tabStrip}>
           {TAB_ORDER.map((pid, i) =>
             pid === 'SEP' ? (
@@ -144,6 +160,19 @@ function VisiteScreen({ route, onBack }) {
             <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}>
               <Text style={styles.btnPrimaryText}>Fermer</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+      <Modal visible={anomalieVisible} transparent animationType="fade" onRequestClose={() => setAnomalieVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Ajouter une anomalie</Text>
+            <Text style={styles.importHint}>Décris rapidement le constat. Tu pourras ensuite le rattacher à la pompe, au réseau, au compteur ou au contrôle concerné et ajouter une photo.</Text>
+            <TextInput style={[styles.input, { minHeight: 100, marginTop: 12, textAlignVertical: 'top' }]} multiline autoFocus value={anomalieTxt} onChangeText={setAnomalieTxt} placeholder="Ex. Pompe défaillante, température de départ trop basse…" />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.btnSecondary} onPress={() => setAnomalieVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.btnPrimary} onPress={enregistrerAnomalie}><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>

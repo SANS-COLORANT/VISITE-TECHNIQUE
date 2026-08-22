@@ -12,6 +12,7 @@ export const EQUIPMENT_BRANDS = [
   'Atlantic', 'Chappée', 'Bosch', 'Vaillant', 'Alfa Laval', 'SWEP', 'Reflex',
   'Zilmet', 'BWT', 'Culligan', 'Fernox', 'Spirotech', 'Siemens',
   'Schneider Electric', 'WIT', 'SOFREL', 'Kamstrup', 'Itron',
+  'Danfoss', 'Sauter', 'Weishaupt',
 ];
 
 export const EQUIPMENT_MODELS = [

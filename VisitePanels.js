@@ -9,11 +9,12 @@ import {
   listerReseaux, ajouterReseau, upsertReseauChamp, supprimerReseau,
   listerCompteurs, ajouterCompteur, upsertCompteurChamp, supprimerCompteur,
   listerMateriel, ajouterMateriel, upsertMaterielChamp, supprimerMateriel, listerBibliothequeEquipements,
-  listerRemarques, ajouterRemarqueManuelle, listerBibliothequeReserves, ajouterRemarqueDepuisBiblio,
+  listerRemarques, ajouterRemarqueManuelle, listerBibliothequeReserves, ajouterRemarqueDepuisBiblio, rattacherRemarque,
   listerPhotos, ajouterPhoto,
 } from './db.js';
 import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, useSaisieAvecAutoSave } from './GenericFields.js';
 import { PhotoButton, prendrePhoto } from './PhotoButton.js';
+import { BrandMark } from './BrandLogo.js';
 
 // ============================================================================
 // 5. PANNEAUX DE L'ÉCRAN VISITE
@@ -153,11 +154,20 @@ function ReseauCard({ reseau, visiteId, onChange }) {
     <View style={styles.formCard}>
       <View style={styles.reseauHeaderRow}>
         <TextInput style={styles.reseauNomInput} value={nom} onChangeText={setNom} onBlur={sauverNom} />
-        <PhotoButton visiteId={visiteId} entiteKey={`reseau||${reseau.id}`} label={nom} />
+        <PhotoButton
+          visiteId={visiteId}
+          entiteKey={reseau.reseau_site_id ? `reseau_site||${reseau.reseau_site_id}` : `reseau||${reseau.id}`}
+          label={nom}
+        />
         <TouchableOpacity onPress={async () => { await supprimerReseau(reseau.id); onChange(); }}>
-          <Text style={styles.removeLink}>Supprimer</Text>
+          <Text style={styles.removeLink}>Retirer</Text>
         </TouchableOpacity>
       </View>
+      {reseau.reseau_site_id && (
+        <View style={styles.persistentEquipmentBadge}>
+          <Text style={styles.persistentEquipmentBadgeText}>↻ Réseau permanent · {reseau.nb_observations || 0} visite{reseau.nb_observations > 1 ? 's' : ''}</Text>
+        </View>
+      )}
       {champsAffiches.map((f) => {
         const numericConfig = getNumericConfig(f.cle);
         return (
@@ -238,7 +248,7 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
 
       <Text style={styles.sectionTitle}>Compteurs relevés</Text>
       {compteurs.map((c) => (
-        <CompteurCard key={c.id} compteur={c} unites={UNITES} onChange={charger} />
+        <CompteurCard key={c.id} compteur={c} visiteId={visiteId} unites={UNITES} onChange={charger} />
       ))}
       <TouchableOpacity style={styles.addBtn} onPress={onAjouterCompteur}>
         <Text style={styles.addBtnText}>+ Ajouter un compteur — chauffage, appoint, ECS, énergie...</Text>
@@ -263,7 +273,7 @@ const COMPTEUR_TYPES = [
   'Manomètre chauffage', 'Manomètre ECS',
 ];
 
-function CompteurCard({ compteur, unites, onChange }) {
+function CompteurCard({ compteur, visiteId, unites, onChange }) {
   const [label, setLabel] = useState(compteur.label || '');
   const [unite, setUnite] = useState(compteur.unite || 'm³');
 
@@ -281,10 +291,20 @@ function CompteurCard({ compteur, unites, onChange }) {
         <View style={{ flex: 1 }}>
           <ChipSelector valeur={label} options={COMPTEUR_TYPES} onChange={sauverLabel} />
         </View>
+        <PhotoButton
+          visiteId={visiteId}
+          entiteKey={compteur.compteur_site_id ? `compteur_site||${compteur.compteur_site_id}` : `compteur||${compteur.id}`}
+          label={label || 'Compteur'}
+        />
         <TouchableOpacity onPress={async () => { await supprimerCompteur(compteur.id); onChange(); }}>
-          <Text style={styles.removeLink}>Suppr.</Text>
+          <Text style={styles.removeLink}>Retirer</Text>
         </TouchableOpacity>
       </View>
+      {compteur.compteur_site_id && (
+        <View style={styles.persistentEquipmentBadge}>
+          <Text style={styles.persistentEquipmentBadgeText}>↻ Compteur permanent · {compteur.nb_releves || 0} relevé{compteur.nb_releves > 1 ? 's' : ''}</Text>
+        </View>
+      )}
       <View style={styles.compteurRowBody}>
         <TextInput
           style={styles.compteurValInput}
@@ -353,6 +373,7 @@ import { CATEGORIES_EQUIPEMENT, MARQUES_EQUIPEMENT } from './ParametresScreen.js
 function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarques }) {
   const [categorie, setCategorie] = useState(item.categorie || '');
   const [marque, setMarque] = useState(item.marque || '');
+  const [etat, setEtat] = useState(item.etat || '');
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
 
@@ -368,6 +389,7 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
 
   const sauverCategorie = async (val) => { setCategorie(val); await upsertMaterielChamp(item.id, 'categorie', val); };
   const sauverMarque = async (val) => { setMarque(val); await upsertMaterielChamp(item.id, 'marque', val); };
+  const sauverEtat = async (val) => { setEtat(val); await upsertMaterielChamp(item.id, 'etat', val); };
 
   const ouvrirBiblio = async () => {
     setBiblio(await listerBibliothequeEquipements());
@@ -383,9 +405,12 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
 
   return (
     <View style={styles.formCard}>
-      <TouchableOpacity style={styles.biblioShortcutBtn} onPress={ouvrirBiblio}>
-        <Text style={styles.biblioShortcutBtnText}>📚 Choisir dans la bibliothèque</Text>
-      </TouchableOpacity>
+      <View style={styles.equipmentBrandHeader}>
+        <BrandMark marque={marque} compact />
+        <TouchableOpacity style={[styles.biblioShortcutBtn, { flex: 1 }]} onPress={ouvrirBiblio}>
+          <Text style={styles.biblioShortcutBtnText}>📚 Choisir dans la bibliothèque</Text>
+        </TouchableOpacity>
+      </View>
       <View style={styles.materielTopRow}>
         <View style={{ flex: 1 }}>
           <TypeAheadInput
@@ -395,8 +420,19 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
             onChange={sauverCategorie}
           />
         </View>
-        <PhotoButton visiteId={visiteId} entiteKey={`materiel||${item.id}`} label={designation || categorie} />
+        <PhotoButton
+          visiteId={visiteId}
+          entiteKey={item.equipement_id ? `equipement||${item.equipement_id}` : `materiel||${item.id}`}
+          label={designation || categorie}
+        />
       </View>
+      {item.equipement_id && (
+        <View style={styles.persistentEquipmentBadge}>
+          <Text style={styles.persistentEquipmentBadgeText}>
+            ↻ Équipement permanent · {item.nb_observations || 0} visite{item.nb_observations > 1 ? 's' : ''}
+          </Text>
+        </View>
+      )}
       <View style={{ height: 8 }} />
       <TextInput
         style={styles.input}
@@ -425,8 +461,16 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
           keyboardType="numeric"
         />
       </View>
+      <View style={{ height: 10 }} />
+      <Text style={styles.fieldLabel}>État constaté pendant cette visite</Text>
+      <View style={{ height: 6 }} />
+      <ChipSelector
+        valeur={etat}
+        options={['Bon', 'À surveiller', 'Dégradé', 'Hors service']}
+        onChange={sauverEtat}
+      />
       <TouchableOpacity style={{ marginTop: 10 }} onPress={async () => { await supprimerMateriel(item.id); onChange(); }}>
-        <Text style={styles.removeLink}>Supprimer cet équipement</Text>
+        <Text style={styles.removeLink}>Déclarer cet équipement retiré</Text>
       </TouchableOpacity>
 
       <Modal visible={biblioVisible} transparent animationType="fade">
@@ -439,8 +483,13 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
               ) : (
                 biblio.map((e) => (
                   <TouchableOpacity key={e.id} style={styles.biblioRow} onPress={() => choisirDepuisBiblio(e)}>
-                    <Text style={styles.biblioRowTitle}>{e.categorie}</Text>
-                    <Text style={styles.biblioRowSub}>{[e.marque, e.modele].filter(Boolean).join(' — ') || '—'}</Text>
+                    <View style={styles.equipmentLibraryRow}>
+                      <BrandMark marque={e} compact />
+                      <View style={{ flex: 1 }}>
+                        <Text style={styles.biblioRowTitle}>{e.categorie}</Text>
+                        <Text style={styles.biblioRowSub}>{[e.marque, e.modele].filter(Boolean).join(' — ') || '—'}</Text>
+                      </View>
+                    </View>
                   </TouchableOpacity>
                 ))
               )}
@@ -460,6 +509,9 @@ function PanelRemarques({ visiteId, refreshKey }) {
   const [remarques, setRemarques] = useState([]);
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
+  const [remarqueARattacher, setRemarqueARattacher] = useState(null);
+  const [ongletChoisi, setOngletChoisi] = useState(null);
+  const [cibles, setCibles] = useState([]);
 
   useEffect(useCallback(() => {
     listerRemarques(visiteId).then(setRemarques);
@@ -484,6 +536,46 @@ function PanelRemarques({ visiteId, refreshKey }) {
     listerRemarques(visiteId).then(setRemarques);
   };
 
+  const ongletsRattachables = TAB_ORDER.filter((id) => id !== 'SEP' && id !== 'p-remarques' && id !== 'p-photos');
+  const choisirOnglet = async (panelId) => {
+    setOngletChoisi(panelId);
+    if (panelId === 'p-equip') {
+      const items = await listerMateriel(visiteId);
+      setCibles(items.map((m) => ({ id: m.equipement_id || m.id, type: 'equipement', libelle: [m.designation, m.marque, m.modele].filter(Boolean).join(' · ') || 'Équipement sans nom' })));
+    } else if (panelId === 'p-regulation') {
+      const items = await listerReseaux(visiteId);
+      setCibles(items.map((r) => ({ id: r.reseau_site_id || r.id, type: 'reseau', libelle: r.nom_reseau || `Réseau ${r.ordre}` })));
+    } else if (panelId === 'p-releves') {
+      const items = await listerCompteurs(visiteId);
+      setCibles(items.map((c) => ({ id: c.compteur_site_id || c.id, type: 'compteur', libelle: c.label || 'Compteur sans nom' })));
+    } else {
+      const sections = TRAME_DATA[panelId] || {};
+      setCibles(Object.entries(sections).flatMap(([section, fields]) => [
+        { id: `${panelId}:${section}`, type: 'section', libelle: section },
+        ...fields.map((f) => ({ id: `${panelId}:${section}:${f.cle}`, type: f.type || 'champ', libelle: `${section} · ${cleanLabel(f.cle)}` })),
+      ]));
+    }
+  };
+  const enregistrerRattachement = async (cible) => {
+    await rattacherRemarque(remarqueARattacher.id, {
+      onglet: ongletChoisi,
+      type: cible.type,
+      id: cible.id,
+      libelle: cible.libelle,
+    });
+    setRemarqueARattacher(null);
+    setOngletChoisi(null);
+    setCibles([]);
+    setRemarques(await listerRemarques(visiteId));
+  };
+  const retirerRattachement = async () => {
+    await rattacherRemarque(remarqueARattacher.id, {});
+    setRemarqueARattacher(null);
+    setOngletChoisi(null);
+    setCibles([]);
+    setRemarques(await listerRemarques(visiteId));
+  };
+
   return (
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
       <View style={styles.totalsBar}>
@@ -502,13 +594,26 @@ function PanelRemarques({ visiteId, refreshKey }) {
           <View key={r.id} style={styles.remarqueCard}>
             <View style={styles.remarqueTop}>
               <Text style={styles.remarquePoste}>{r.poste}</Text>
-              <Text style={styles.remarqueEstim}>{r.estimatif ? Math.round(r.estimatif) + ' €' : '—'}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <PhotoButton visiteId={visiteId} entiteKey={`remarque||${r.id}`} label={r.prestation || 'Anomalie'} />
+                <Text style={styles.remarqueEstim}>{r.estimatif ? Math.round(r.estimatif) + ' €' : '—'}</Text>
+              </View>
             </View>
             <Text style={styles.remarqueTxt}>{r.prestation}</Text>
             <View style={styles.remarqueMeta}>
               <Text style={styles.remarqueMetaTxt}>Délai : <Text style={styles.bold}>{r.delai ? r.delai + ' mois' : '—'}</Text></Text>
               <Text style={styles.remarqueMetaTxt}>Origine : <Text style={styles.bold}>{r.origine}</Text></Text>
             </View>
+            <TouchableOpacity
+              style={styles.remarqueLinkBtn}
+              onPress={() => { setRemarqueARattacher(r); setOngletChoisi(null); setCibles([]); }}
+            >
+              <Text style={styles.remarqueLinkBtnText}>
+                {r.reference_onglet
+                  ? `↗ ${PANEL_LABELS[r.reference_onglet] || r.reference_onglet} · ${r.reference_libelle}`
+                  : '+ Rattacher à un onglet ou un élément'}
+              </Text>
+            </TouchableOpacity>
           </View>
         ))
       )}
@@ -539,6 +644,36 @@ function PanelRemarques({ visiteId, refreshKey }) {
               <TouchableOpacity style={styles.btnPrimary} onPress={ajouterVierge}>
                 <Text style={styles.btnPrimaryText}>Réserve vierge</Text>
               </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+
+      <Modal visible={!!remarqueARattacher} transparent animationType="fade" onRequestClose={() => setRemarqueARattacher(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>À quoi cette réserve fait-elle référence ?</Text>
+            <Text style={styles.importHint}>Choisis d’abord l’onglet, puis l’élément précis concerné.</Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.remarqueTabsScroll}>
+              {ongletsRattachables.map((id) => (
+                <TouchableOpacity key={id} style={[styles.remarqueTabChoice, ongletChoisi === id && styles.remarqueTabChoiceActive]} onPress={() => choisirOnglet(id)}>
+                  <Text style={[styles.remarqueTabChoiceText, ongletChoisi === id && styles.remarqueTabChoiceTextActive]}>{PANEL_LABELS[id]}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 280 }}>
+              {ongletChoisi && cibles.length === 0 ? <Text style={styles.emptySub}>Aucun élément disponible dans cet onglet.</Text> : null}
+              {cibles.map((cible) => (
+                <TouchableOpacity key={`${cible.type}:${cible.id}`} style={styles.biblioRow} onPress={() => enregistrerRattachement(cible)}>
+                  <Text style={styles.biblioRowTitle}>{cible.libelle}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              {remarqueARattacher?.reference_onglet ? (
+                <TouchableOpacity style={styles.btnSecondary} onPress={retirerRattachement}><Text style={styles.btnSecondaryText}>Détacher</Text></TouchableOpacity>
+              ) : null}
+              <TouchableOpacity style={styles.btnPrimary} onPress={() => setRemarqueARattacher(null)}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
             </View>
           </View>
         </View>
