@@ -199,16 +199,73 @@ async function preremplirValeursClassiques(visiteId) {
   }
 }
 
-async function creerVisite({ siteId, technicien }) {
+async function creerVisite({ siteId, technicien, mode = 'complete' }) {
   const db = await getDb();
   const id = uuidv4();
+  const precedente = mode === 'express' ? await db.getFirstAsync(
+    `SELECT id FROM visites WHERE site_id = ? ORDER BY date_visite DESC, modifie_le DESC LIMIT 1`, [siteId]
+  ) : null;
   await db.runAsync(
-    `INSERT INTO visites (id, site_id, date_visite, technicien, statut, progression_pct)
-     VALUES (?, ?, date('now'), ?, 'en_cours', 0)`,
-    [id, siteId, technicien || null]
+    `INSERT INTO visites (id, site_id, date_visite, technicien, statut, progression_pct, mode_visite, source_visite_id)
+     VALUES (?, ?, date('now'), ?, 'en_cours', 0, ?, ?)`,
+    [id, siteId, technicien || null, mode, precedente?.id || null]
   );
   await db.runAsync(`INSERT OR IGNORE INTO notes (visite_id, contenu) VALUES (?, '')`, [id]);
-  await preremplirValeursClassiques(id);
+  if (precedente) {
+    await db.runAsync(
+      `INSERT INTO champs_visite (visite_id, section_code, cle, valeur)
+       SELECT ?, section_code, cle, valeur FROM champs_visite WHERE visite_id = ?`, [id, precedente.id]
+    );
+    await db.runAsync(
+      `INSERT INTO controles_visite (visite_id, section_code, cle, avis, commentaire)
+       SELECT ?, section_code, cle, avis, commentaire FROM controles_visite WHERE visite_id = ?`, [id, precedente.id]
+    );
+    const anciensReseaux = await db.getAllAsync('SELECT * FROM reseaux WHERE visite_id = ?', [precedente.id]);
+    for (const r of anciensReseaux) {
+      await db.runAsync(
+        `INSERT INTO reseaux (id, visite_id, reseau_site_id, ordre, nom_reseau, t_ext_c, t_dep_c,
+         courbe_de_chauffe, tnc, consigne_programme_horaire)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), id, r.reseau_site_id, r.ordre, r.nom_reseau, r.t_ext_c, r.t_dep_c,
+          r.courbe_de_chauffe, r.tnc, r.consigne_programme_horaire]
+      );
+      if (r.reseau_site_id) await db.runAsync(
+        `INSERT OR IGNORE INTO observations_reseau
+         (id, reseau_site_id, visite_id, t_ext_c, t_dep_c, courbe_de_chauffe, tnc, consigne_programme_horaire)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), r.reseau_site_id, id, r.t_ext_c, r.t_dep_c, r.courbe_de_chauffe, r.tnc, r.consigne_programme_horaire]
+      );
+    }
+    const anciensEquipements = await db.getAllAsync('SELECT * FROM materiel WHERE visite_id = ?', [precedente.id]);
+    for (const m of anciensEquipements) {
+      await db.runAsync(
+        `INSERT INTO materiel (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), id, m.equipement_id, m.categorie, m.designation, m.marque, m.modele, m.annee, m.etat]
+      );
+      if (m.equipement_id) await db.runAsync(
+        `INSERT OR IGNORE INTO observations_equipement (id, equipement_id, visite_id, etat)
+         VALUES (?, ?, ?, ?)`, [uuidv4(), m.equipement_id, id, m.etat]
+      );
+    }
+    const anciensCompteurs = await db.getAllAsync('SELECT * FROM compteurs WHERE visite_id = ?', [precedente.id]);
+    for (const c of anciensCompteurs) await db.runAsync(
+      `INSERT INTO compteurs (id, visite_id, compteur_site_id, label, valeur, unite)
+       VALUES (?, ?, ?, ?, NULL, ?)`, [uuidv4(), id, c.compteur_site_id, c.label, c.unite]
+    );
+    const anciennesReserves = await db.getAllAsync('SELECT * FROM remarques WHERE visite_id = ?', [precedente.id]);
+    for (const r of anciennesReserves) {
+      await db.runAsync(
+        `INSERT INTO remarques (id, visite_id, controle_key, poste, prestation, delai, estimatif, origine,
+         reference_onglet, reference_type, reference_id, reference_libelle)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Report visite Express', ?, ?, ?, ?)`,
+        [uuidv4(), id, r.controle_key, r.poste, r.prestation, r.delai, r.estimatif,
+          r.reference_onglet, r.reference_type, r.reference_id, r.reference_libelle]
+      );
+    }
+  } else {
+    await preremplirValeursClassiques(id);
+  }
   await recalculerProgression(id);
   return id;
 }
@@ -706,6 +763,17 @@ async function ajouterRemarqueManuelle(visiteId) {
     [id, visiteId]
   );
 }
+async function ajouterAnomalieRapide(visiteId, prestation) {
+  const db = await getDb();
+  const id = uuidv4();
+  await db.runAsync(
+    `INSERT INTO remarques (id, visite_id, poste, prestation, origine)
+     VALUES (?, ?, 'Anomalie', ?, 'Ajout rapide')`,
+    [id, visiteId, prestation.trim()]
+  );
+  await toucherVisite(visiteId);
+  return id;
+}
 async function rattacherRemarque(remarqueId, reference) {
   const db = await getDb();
   await db.runAsync(
@@ -919,7 +987,7 @@ export {
   listerReseaux, ajouterReseau, upsertReseauChamp, supprimerReseau,
   listerCompteurs, ajouterCompteur, upsertCompteurChamp, supprimerCompteur,
   listerMateriel, ajouterMateriel, upsertMaterielChamp, supprimerMateriel,
-  listerRemarques, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle, ajouterRemarqueManuelle, rattacherRemarque,
+  listerRemarques, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle, ajouterRemarqueManuelle, ajouterAnomalieRapide, rattacherRemarque,
   getNote, upsertNote, listerPhotos, ajouterPhoto, remplacerPhoto,
   listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio, ajouterRemarqueDepuisBiblio,
   listerBibliothequeEquipements, ajouterEquipementBiblio, modifierEquipementBiblio, supprimerEquipementBiblio,

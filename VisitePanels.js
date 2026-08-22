@@ -594,7 +594,10 @@ function PanelRemarques({ visiteId, refreshKey }) {
           <View key={r.id} style={styles.remarqueCard}>
             <View style={styles.remarqueTop}>
               <Text style={styles.remarquePoste}>{r.poste}</Text>
-              <Text style={styles.remarqueEstim}>{r.estimatif ? Math.round(r.estimatif) + ' €' : '—'}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <PhotoButton visiteId={visiteId} entiteKey={`remarque||${r.id}`} label={r.prestation || 'Anomalie'} />
+                <Text style={styles.remarqueEstim}>{r.estimatif ? Math.round(r.estimatif) + ' €' : '—'}</Text>
+              </View>
             </View>
             <Text style={styles.remarqueTxt}>{r.prestation}</Text>
             <View style={styles.remarqueMeta}>
