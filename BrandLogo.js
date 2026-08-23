@@ -13,136 +13,102 @@ const BRAND_LOGOS = {
 };
 
 const BRAND_DOMAINS = {
-  'alfa laval': 'alfalaval.com', ariston: 'ariston.com', belimo: 'belimo.com', bwt: 'bwt.com', caleffi: 'caleffi.com',
-  carrier: 'carrier.com', ciat: 'ciat.com', trane: 'trane.com', systemair: 'systemair.com',
-  chaffoteaux: 'chaffoteaux.fr', chappee: 'chappee.com', culligan: 'culligan.fr', dab: 'dabpumps.com', daikin: 'daikin.com',
-  desautel: 'desautel.fr', ebara: 'ebara.com', 'elm leblanc': 'elmleblanc.fr', fernox: 'fernox.com', frisquet: 'frisquet.com',
-  giacomini: 'giacomini.com', hitachi: 'hitachi.com', honeywell: 'honeywell.com', 'imi hydronic': 'imi-hydronic.com',
-  'johnson controls': 'johnsoncontrols.com', pedrollo: 'pedrollo.com', salmson: 'salmson.com', 'saunier duval': 'saunierduval.fr',
-  sfa: 'sfa.fr', sofrel: 'sofrel.com', spirotech: 'spirotech.com', swep: 'swep.net', toshiba: 'toshiba.com', vaillant: 'vaillant.fr',
-  wika: 'wika.com', zilmet: 'zilmet.it', itron: 'itron.com', acv: 'acv.com', samson: 'samsongroup.com',
+  'alfa laval':'alfalaval.com', bwt:'bwt.com', caleffi:'caleffi.com', carrier:'carrier.com', ciat:'ciat.com',
+  culligan:'culligan.fr', daikin:'daikin.com', fernox:'fernox.com', honeywell:'honeywell.com', itron:'itron.com',
+  belimo:'belimo.com', salmson:'salmson.com', sofrel:'sofrel.com', spirotech:'spirotech.com', swep:'swep.net',
+  systemair:'systemair.com', trane:'trane.com', vaillant:'vaillant.fr', wika:'wika.com', zilmet:'zilmet.it',
+  chappee:'chappee.com', 'saunier duval':'saunierduval.fr', wit:'wit.fr',
 };
 
-export const BRAND_COLORS = {
-  danfoss: '#E30613', grundfos: '#005696', wilo: '#009B67', ksb: '#00549F', siemens: '#009999', viessmann: '#F26A21',
-  atlantic: '#6840A8', 'schneider electric': '#2E9C42', ariston: '#D71920', 'imi hydronic': '#009AA6', belimo: '#0057A6',
-  sfa: '#298FCE', toshiba: '#F59C00', daikin: '#0085CA', hitachi: '#D71920', caleffi: '#009A44', honeywell: '#A95A17',
-  'johnson controls': '#31566B', ebara: '#F5A623', lowara: '#4A5560', pedrollo: '#006EB6', dab: '#2B7A3D', reflex: '#2D9997',
-  acv: '#666A70', giacomini: '#B51230', spirotech: '#F2A900', bwt: '#175BA7', bosch: '#D71920', 'de dietrich': '#E30613',
-  kamstrup: '#E30613', sauter: '#147DB0', weishaupt: '#D71920', 'alfa laval': '#1B365D', vaillant: '#007C83',
-  'saunier duval': '#D71920', frisquet: '#315B50', 'elm leblanc': '#0073A8', chappee: '#D71920', chaffoteaux: '#E30613',
-  fernox: '#34323A', culligan: '#0066B3', zilmet: '#275EB2', wika: '#184DA0', desautel: '#D71920', salmson: '#B4205A',
-  sofrel: '#3565B0', swep: '#D32A20', itron: '#9A5A8A', samson: '#A94168',
-  ciat: '#005AA9', trane: '#00549E', carrier: '#00529B', systemair: '#D71920',
+export function normaliserMarque(nom='') {
+  return String(nom).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[®™]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+}
+function getNomMarque(marque){ return typeof marque==='string' ? marque : (marque?.marque || marque?.nom || ''); }
+
+const BRAND_PROFILES = {
+  grundfos:{color:'#005696',display:'GRUNDFOS',mode:'logo',size:96,style:{fontWeight:'900',letterSpacing:-.45}},
+  wilo:{color:'#009B67',display:'wilo',mode:'wordmark',size:24,style:{fontWeight:'900',fontStyle:'italic',letterSpacing:-.55}},
+  lowara:{color:'#4A5560',display:'Lowara',mode:'wordmark',size:22,style:{fontWeight:'800',fontStyle:'italic',letterSpacing:.05}},
+  ksb:{color:'#00549F',display:'KSB',mode:'logo',size:92,style:{fontWeight:'900',letterSpacing:.8}},
+  salmson:{color:'#B4205A',display:'Salmson',mode:'wordmark',size:21,style:{fontWeight:'800',fontStyle:'italic',letterSpacing:-.15}},
+  'de dietrich':{color:'#E30613',display:'De Dietrich',mode:'logo',size:96,style:{fontWeight:'800',letterSpacing:-.15}},
+  viessmann:{color:'#F26A21',display:'VIESSMANN',mode:'wordmark',size:18,style:{fontWeight:'900',letterSpacing:-.4}},
+  atlantic:{color:'#6840A8',display:'ATLANTIC',mode:'wordmark',size:21,style:{fontWeight:'900',letterSpacing:.35}},
+  chappee:{color:'#D71920',display:'CHAPPÉE',mode:'wordmark',size:19,style:{fontWeight:'900',letterSpacing:.35}},
+  bosch:{color:'#D71920',display:'BOSCH',mode:'wordmark',size:20,style:{fontWeight:'900',letterSpacing:.55}},
+  vaillant:{color:'#007C83',display:'Vaillant',mode:'wordmark',size:20,style:{fontWeight:'800',letterSpacing:-.25}},
+  weishaupt:{color:'#D71920',display:'weishaupt',mode:'wordmark',size:18,style:{fontWeight:'800',letterSpacing:.15}},
+  'alfa laval':{color:'#1B365D',display:'ALFA LAVAL',mode:'wordmark',size:16,style:{fontWeight:'900',letterSpacing:.9}},
+  swep:{color:'#D32A20',display:'SWEP',mode:'wordmark',size:22,style:{fontWeight:'900',fontStyle:'italic',letterSpacing:.15}},
+  reflex:{color:'#2D9997',display:'reflex',mode:'wordmark',size:22,style:{fontWeight:'800',letterSpacing:-.35}},
+  zilmet:{color:'#275EB2',display:'ZILMET',mode:'wordmark',size:18,style:{fontWeight:'900',letterSpacing:.8}},
+  bwt:{color:'#175BA7',display:'BWT',mode:'wordmark',size:22,style:{fontWeight:'900',letterSpacing:1}},
+  culligan:{color:'#0066B3',display:'Culligan',mode:'wordmark',size:19,style:{fontWeight:'800',fontStyle:'italic',letterSpacing:-.2}},
+  fernox:{color:'#34323A',display:'FERNOX',mode:'wordmark',size:19,style:{fontWeight:'900',letterSpacing:.8}},
+  spirotech:{color:'#F2A900',display:'Spirotech',mode:'wordmark',size:18,style:{fontWeight:'800',letterSpacing:-.2}},
+  caleffi:{color:'#009A44',display:'CALEFFI',mode:'wordmark',size:18,style:{fontWeight:'900',letterSpacing:.8}},
+  siemens:{color:'#009999',display:'SIEMENS',mode:'wordmark',size:19,style:{fontWeight:'900',letterSpacing:1}},
+  'schneider electric':{color:'#2E9C42',display:'Schneider Electric',mode:'logo',size:98,style:{fontWeight:'800',letterSpacing:-.15}},
+  wit:{color:'#ED6B23',display:'WIT',mode:'wordmark',size:23,style:{fontWeight:'900',letterSpacing:1.2}},
+  sofrel:{color:'#3565B0',display:'SOFREL',mode:'wordmark',size:20,style:{fontWeight:'900',letterSpacing:.7}},
+  kamstrup:{color:'#E30613',display:'Kamstrup',mode:'wordmark',size:19,style:{fontWeight:'800',letterSpacing:-.4}},
+  itron:{color:'#9A5A8A',display:'Itron',mode:'wordmark',size:21,style:{fontWeight:'800',letterSpacing:-.25}},
+  danfoss:{color:'#E30613',display:'DANFOSS',mode:'logo',size:96,style:{fontWeight:'900',fontStyle:'italic'}},
+  sauter:{color:'#147DB0',display:'SAUTER',mode:'wordmark',size:19,style:{fontWeight:'900',letterSpacing:.75}},
+  belimo:{color:'#0057A6',display:'BELIMO',mode:'wordmark',size:20,style:{fontWeight:'900',letterSpacing:.9}},
+  wika:{color:'#184DA0',display:'WIKA',mode:'wordmark',size:21,style:{fontWeight:'900',letterSpacing:1}},
+  honeywell:{color:'#A95A17',display:'Honeywell',mode:'wordmark',size:18,style:{fontWeight:'800',letterSpacing:-.3}},
+  daikin:{color:'#0085CA',display:'DAIKIN',mode:'wordmark',size:20,style:{fontWeight:'900',fontStyle:'italic',letterSpacing:.5}},
+  systemair:{color:'#D71920',display:'Systemair',mode:'wordmark',size:18,style:{fontWeight:'900',letterSpacing:-.25}},
+  ciat:{color:'#005AA9',display:'CIAT',mode:'wordmark',size:23,style:{fontWeight:'900',letterSpacing:1.5}},
+  trane:{color:'#00549E',display:'TRANE',mode:'wordmark',size:20,style:{fontWeight:'900',letterSpacing:.65}},
+  carrier:{color:'#00529B',display:'Carrier',mode:'wordmark',size:20,style:{fontWeight:'800',fontStyle:'italic',letterSpacing:-.1}},
 };
 
-export function normaliserMarque(nom = '') {
-  return String(nom).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[®™]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+export const BRAND_COLORS = Object.fromEntries(Object.entries(BRAND_PROFILES).map(([k,v])=>[k,v.color]));
+
+export function getBrandColor(marque){
+  const key=normaliserMarque(getNomMarque(marque));
+  if(BRAND_PROFILES[key]) return BRAND_PROFILES[key].color;
+  const palette=['#315B7D','#2A7A72','#8A4F7D','#9A6A32','#526AA3','#6A7B35','#A34E4E'];
+  let hash=0; for(let i=0;i<key.length;i++) hash=((hash<<5)-hash+key.charCodeAt(i))|0;
+  return palette[Math.abs(hash)%palette.length];
 }
 
-function getNomMarque(marque) {
-  if (typeof marque === 'string') return marque;
-  return marque?.marque || marque?.nom || '';
-}
-
-export function getBrandColor(marque) {
-  const key = normaliserMarque(getNomMarque(marque));
-  if (BRAND_COLORS[key]) return BRAND_COLORS[key];
-  const palette = ['#315B7D', '#2A7A72', '#8A4F7D', '#9A6A32', '#526AA3', '#6A7B35', '#A34E4E'];
-  let hash = 0;
-  for (let i = 0; i < key.length; i++) hash = ((hash << 5) - hash + key.charCodeAt(i)) | 0;
-  return palette[Math.abs(hash) % palette.length];
-}
-
-export function mixWithWhite(hex, ratio) {
-  const clean = hex.replace('#', '');
-  const value = parseInt(clean.length === 3 ? clean.split('').map((c) => c + c).join('') : clean, 16);
-  const r = (value >> 16) & 255, g = (value >> 8) & 255, b = value & 255;
-  const mix = (c) => Math.round(c + (255 - c) * ratio);
+export function mixWithWhite(hex,ratio){
+  const clean=hex.replace('#',''); const value=parseInt(clean.length===3?clean.split('').map(c=>c+c).join(''):clean,16);
+  const r=(value>>16)&255,g=(value>>8)&255,b=value&255; const mix=c=>Math.round(c+(255-c)*ratio);
   return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
 }
 
-function sourceLogoPourMarque(marque) {
-  const key = normaliserMarque(getNomMarque(marque));
-  if (BRAND_LOGOS[key]) return { uri: BRAND_LOGOS[key] };
-  const custom = typeof marque === 'object' ? marque?.logo_uri : null;
-  if (custom) return { uri: custom };
-  if (BRAND_DOMAINS[key]) return { uri: `https://img.logokit.com/${BRAND_DOMAINS[key]}` };
+function sourceLogoPourMarque(marque){
+  const key=normaliserMarque(getNomMarque(marque));
+  if(BRAND_LOGOS[key]) return {uri:BRAND_LOGOS[key]};
+  const custom=typeof marque==='object'?marque?.logo_uri:null; if(custom) return {uri:custom};
+  if(BRAND_DOMAINS[key]) return {uri:`https://img.logokit.com/${BRAND_DOMAINS[key]}`};
   return null;
 }
+export function getBrandLogoSource(marque){ return sourceLogoPourMarque(marque); }
 
-export function getBrandLogoSource(marque) { return sourceLogoPourMarque(marque); }
-
-const FORCE_WORDMARK_ON_COLOR = new Set([
-  'atlantic', 'wilo', 'siemens', 'viessmann', 'bosch', 'kamstrup', 'sauter', 'weishaupt',
-  'lowara', 'reflex', 'fernox', 'honeywell', 'swep', 'itron', 'salmson', 'sofrel', 'spirotech', 'alfa laval',
-  'bwt', 'culligan', 'chappee', 'chaffoteaux', 'frisquet', 'elm leblanc', 'saunier duval',
-  'ciat', 'trane', 'carrier', 'systemair', 'daikin',
-]);
-
-const LOGO_SIZE = {
-  grundfos: { w: 96, h: 42 },
-  ksb: { w: 86, h: 42 },
-  danfoss: { w: 94, h: 42 },
-  'schneider electric': { w: 96, h: 40 },
-  'de dietrich': { w: 94, h: 38 },
-};
-
-function Wordmark({ nom, compact }) {
-  const key = normaliserMarque(nom);
-  const custom = {
-    grundfos: { fontWeight: '900', letterSpacing: -0.45, fontSize: compact ? 16 : 19, textTransform: 'uppercase' },
-    danfoss: { fontStyle: 'italic', fontWeight: '900' },
-    wilo: { fontStyle: 'italic', fontWeight: '900', fontSize: compact ? 20 : 24 },
-    siemens: { fontWeight: '900', letterSpacing: 0.8 },
-    atlantic: { fontWeight: '800', fontSize: compact ? 18 : 22, letterSpacing: 0.2 },
-    viessmann: { fontWeight: '900', fontSize: compact ? 15 : 18 },
-    bosch: { fontWeight: '900', letterSpacing: 0.3 },
-    fernox: { fontWeight: '900', letterSpacing: 0.6 },
-    honeywell: { fontWeight: '800' },
-    swep: { fontWeight: '900', fontStyle: 'italic', fontSize: compact ? 18 : 21 },
-    sofrel: { fontWeight: '900', letterSpacing: 0.4 },
-    salmson: { fontWeight: '800', fontStyle: 'italic' },
-    lowara: { fontWeight: '800', fontStyle: 'italic', fontSize: compact ? 18 : 22 },
-    reflex: { fontWeight: '800', fontSize: compact ? 18 : 22 },
-    sauter: { fontWeight: '800' },
-    ciat: { fontWeight: '900', letterSpacing: 1.4, fontSize: compact ? 18 : 22 },
-    trane: { fontWeight: '900', letterSpacing: 0.5, fontSize: compact ? 17 : 21 },
-    carrier: { fontWeight: '800', fontStyle: 'italic', fontSize: compact ? 17 : 21 },
-    systemair: { fontWeight: '900', fontSize: compact ? 16 : 20 },
-    daikin: { fontWeight: '900', fontStyle: 'italic' },
-  }[key] || {};
-  const display = key === 'grundfos' ? 'GRUNDFOS' : nom;
-  return <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.58} style={{color:'#FFFFFF',fontSize:compact?16:19,fontWeight:'800',maxWidth:compact?80:104,textAlign:'center',...custom}}>{display}</Text>;
+function Wordmark({nom,compact=false}){
+  const key=normaliserMarque(nom); const p=BRAND_PROFILES[key]||{};
+  const display=p.display||nom; const fontSize=compact?Math.max(14,(p.size||19)-3):(p.size||19);
+  return <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={.56} style={{color:'#fff',fontSize,fontWeight:'800',maxWidth:compact?82:108,textAlign:'center',...(p.style||{})}}>{display}</Text>;
 }
 
-export function BrandMark({ marque, compact = false, onColor = false }) {
-  const nom = getNomMarque(marque);
-  const key = normaliserMarque(nom);
-  const source = useMemo(() => sourceLogoPourMarque(marque), [marque, nom]);
-  const [imageFailed, setImageFailed] = useState(false);
-  useEffect(() => setImageFailed(false), [source?.uri]);
+export function BrandMark({marque,compact=false,onColor=false}){
+  const nom=getNomMarque(marque); const key=normaliserMarque(nom); const p=BRAND_PROFILES[key]||{};
+  const source=useMemo(()=>sourceLogoPourMarque(marque),[marque,nom]); const[imageFailed,setImageFailed]=useState(false);
+  useEffect(()=>setImageFailed(false),[source?.uri]);
+  const width=compact?82:110,height=compact?42:56;
 
-  const width = compact ? 80 : 108;
-  const height = compact ? 42 : 56;
-
-  if (!onColor) {
-    if (source && !imageFailed) return <Image source={source} style={[styles.brandLogo, compact && styles.brandLogoCompact, {width,height}]} resizeMode="contain" onError={() => setImageFailed(true)} />;
-    return <View style={[styles.brandFallback, compact && styles.brandFallbackCompact, {width,height,borderRadius:10}]}><Text style={styles.brandFallbackText}>{nom.slice(0,2).toUpperCase()||'?'}</Text></View>;
+  if(!onColor){
+    if(source&&!imageFailed) return <Image source={source} style={[styles.brandLogo,compact&&styles.brandLogoCompact,{width,height}]} resizeMode="contain" onError={()=>setImageFailed(true)}/>;
+    return <View style={[styles.brandFallback,compact&&styles.brandFallbackCompact,{width,height,borderRadius:10}]}><Text style={styles.brandFallbackText}>{(p.display||nom).slice(0,2).toUpperCase()||'?'}</Text></View>;
   }
 
-  const forceWordmark = FORCE_WORDMARK_ON_COLOR.has(key);
-  const size = LOGO_SIZE[key] || {w:compact?74:100,h:compact?36:48};
-  const imgW = compact ? Math.min(size.w,76) : size.w;
-  const imgH = compact ? Math.min(size.h,38) : size.h;
-
-  if (key === 'grundfos') {
-    return <View style={{width,height,alignItems:'center',justifyContent:'center'}}>
-      <Wordmark nom={nom} compact={compact}/>
-    </View>;
+  if(p.mode==='logo'&&source&&!imageFailed){
+    return <View style={{width,height,alignItems:'center',justifyContent:'center'}}><Image source={source} style={{width:compact?78:Math.min(102,p.size||100),height:compact?38:46,tintColor:'#FFFFFF'}} resizeMode="contain" onError={()=>setImageFailed(true)}/></View>;
   }
-
-  return <View style={{width,height,alignItems:'center',justifyContent:'center',overflow:'visible'}}>
-    {source && !imageFailed && !forceWordmark ? <Image source={source} style={{width:imgW,height:imgH,tintColor:'#FFFFFF'}} resizeMode="contain" onError={()=>setImageFailed(true)}/> : <Wordmark nom={nom} compact={compact}/>} 
-  </View>;
+  return <View style={{width,height,alignItems:'center',justifyContent:'center'}}><Wordmark nom={nom} compact={compact}/></View>;
 }
