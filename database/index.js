@@ -4,6 +4,7 @@ import { migrateDatabase, verifyDatabaseIntegrity } from './migrate.js';
 import { syncReferenceCatalog } from './referenceCatalog.js';
 import { seedEquipmentCatalog } from './equipmentCatalogSeed.js';
 import { seedEquipmentCatalogExtra } from './equipmentCatalogExtraSeed.js';
+import { seedExtraEquipmentCatalog } from './equipmentCatalogSeedExtra.js';
 import { seedEquipmentCatalogImages } from './equipmentCatalogImageSeed.js';
 
 let databasePromise = null;
@@ -19,6 +20,7 @@ export function openAppDatabase() {
       await syncReferenceCatalog(db);
       await seedEquipmentCatalog(db);
       await seedEquipmentCatalogExtra(db);
+      await seedExtraEquipmentCatalog(db);
       await seedEquipmentCatalogImages(db);
       return db;
     })().catch((error) => {
