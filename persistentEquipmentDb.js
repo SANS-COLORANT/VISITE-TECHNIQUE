@@ -1,4 +1,12 @@
-import { getDb, uuidv4 } from './db.js';
+import { openAppDatabase } from './database/index.js';
+import { createId } from './database/ids.js';
+
+let dbInstance = null;
+async function getDb() {
+  if (!dbInstance) dbInstance = await openAppDatabase();
+  return dbInstance;
+}
+const uuidv4 = () => createId();
 
 async function getVisiteSite(db, visiteId) {
   const visite = await db.getFirstAsync(`SELECT id, site_id FROM visites WHERE id=?`, [visiteId]);
@@ -53,7 +61,7 @@ async function injecterEquipementsActifsDuSite(db, visiteId, siteId) {
     `SELECT e.*,
       (SELECT o.etat FROM observations_equipement o JOIN visites v2 ON v2.id=o.visite_id
        WHERE o.equipement_id=e.id AND o.present=1 AND v2.id<>?
-       ORDER BY COALESCE(v2.date_visite,'' ) DESC,o.observe_le DESC LIMIT 1) dernier_etat
+       ORDER BY COALESCE(v2.date_visite,'') DESC,o.observe_le DESC LIMIT 1) dernier_etat
      FROM equipements e
      JOIN installations i ON i.id=e.installation_id
      WHERE i.site_id=? AND i.actif=1 AND e.statut='actif'
@@ -115,17 +123,15 @@ export async function ajouterMaterielPersistant(visiteId) {
 }
 
 const CHAMP_EQUIPEMENT = {
-  categorie: 'type_code',
-  designation: 'designation',
-  marque: 'marque',
-  modele: 'modele',
-  annee: 'annee',
+  categorie: 'type_code', designation: 'designation', marque: 'marque', modele: 'modele', annee: 'annee',
 };
 
 export async function upsertMaterielPersistant(materielId, cle, valeur) {
   const db = await getDb();
   const m = await db.getFirstAsync(`SELECT * FROM materiel WHERE id=?`, [materielId]);
   if (!m) return;
+  const champsAutorises = new Set(['categorie','designation','marque','modele','annee','etat']);
+  if (!champsAutorises.has(cle)) throw new Error(`Champ matériel non autorisé: ${cle}`);
   await db.runAsync(`UPDATE materiel SET ${cle}=? WHERE id=?`, [valeur, materielId]);
   if (!m.equipement_id) return;
   if (cle === 'etat') {
@@ -133,7 +139,6 @@ export async function upsertMaterielPersistant(materielId, cle, valeur) {
     return;
   }
   const colonne = CHAMP_EQUIPEMENT[cle];
-  if (!colonne) return;
   const persist = cle === 'annee' ? (valeur ? Number(valeur) || null : null) : (valeur || null);
   await db.runAsync(`UPDATE equipements SET ${colonne}=?,modifie_le=datetime('now') WHERE id=?`, [persist, m.equipement_id]);
 }
@@ -145,9 +150,7 @@ export async function retirerMaterielPersistant(materielId) {
   if (m.equipement_id) {
     await db.runAsync(`UPDATE equipements SET statut='retire',modifie_le=datetime('now') WHERE id=?`, [m.equipement_id]);
     await upsertObservation(db, m.equipement_id, m.visite_id, {
-      etat: m.etat || 'Hors service',
-      commentaire: 'Équipement déclaré retiré pendant cette visite',
-      present: 0,
+      etat: m.etat || 'Hors service', commentaire: 'Équipement déclaré retiré pendant cette visite', present: 0,
     });
   }
   await db.runAsync(`DELETE FROM materiel WHERE id=?`, [materielId]);
@@ -158,12 +161,10 @@ export async function listerHistoriqueEquipement(equipementId) {
   const db = await getDb();
   return db.getAllAsync(
     `SELECT o.id,o.etat,o.commentaire,o.present,o.observe_le,
-            v.id AS visite_id,v.date_visite,v.statut AS statut_visite,
-            s.nom_site,
+            v.id AS visite_id,v.date_visite,v.statut AS statut_visite,s.nom_site,
             (SELECT COUNT(*) FROM remarques r
              WHERE r.visite_id=v.id AND r.reference_type='equipement' AND r.reference_id=o.equipement_id) AS nb_remarques,
-            (SELECT COUNT(*) FROM photos p
-             WHERE p.entite_key='equipement||' || o.equipement_id) AS nb_photos
+            (SELECT COUNT(*) FROM photos p WHERE p.entite_key='equipement||' || o.equipement_id) AS nb_photos
      FROM observations_equipement o
      JOIN visites v ON v.id=o.visite_id
      JOIN sites s ON s.id=v.site_id
