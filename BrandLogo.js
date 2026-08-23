@@ -34,14 +34,21 @@ function normaliserMarque(nom = '') {
     .toLowerCase();
 }
 
+function getNomMarque(marque) {
+  if (typeof marque === 'string') return marque;
+  // Un objet équipement/modèle peut avoir à la fois `nom` (nom du modèle)
+  // et `marque` (fabricant). Il faut toujours privilégier `marque`.
+  return marque?.marque || marque?.nom || '';
+}
+
 export function getBrandLogoSource(marque) {
-  const nom = typeof marque === 'string' ? marque : marque?.nom || marque?.marque || '';
+  const nom = getNomMarque(marque);
   const uri = BRAND_LOGOS[normaliserMarque(nom)] || null;
   return uri ? { uri } : null;
 }
 
 export function BrandMark({ marque, compact = false }) {
-  const nom = typeof marque === 'string' ? marque : marque?.nom || marque?.marque || '';
+  const nom = getNomMarque(marque);
   const remoteSource = getBrandLogoSource(marque);
   const customRemoteUri = typeof marque === 'object' ? marque?.logo_uri : null;
   const source = customRemoteUri ? { uri: customRemoteUri } : remoteSource;
