@@ -1,0 +1,39 @@
+{
+  "expo": {
+    "name": "Visite Technique",
+    "slug": "visite-technique",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "jsEngine": "hermes",
+    "newArchEnabled": false,
+    "android": {
+      "package": "com.visitetechnique.tablet",
+      "versionCode": 1,
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "CAMERA",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_COARSE_LOCATION"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Autoriser Visite Technique à utiliser l'appareil photo pour documenter les visites techniques.",
+          "photosPermission": "Autoriser Visite Technique à accéder aux photos nécessaires aux visites techniques."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "Autoriser Visite Technique à utiliser la position pour localiser les sites lors des visites."
+        }
+      ]
+    ],
+    "extra": {
+      "appMode": "native-tablet"
+    }
+  }
+}
