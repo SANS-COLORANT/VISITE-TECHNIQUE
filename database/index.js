@@ -5,6 +5,7 @@ import { syncReferenceCatalog } from './referenceCatalog.js';
 import { seedEquipmentCatalog } from './equipmentCatalogSeed.js';
 import { seedEquipmentCatalogExtra } from './equipmentCatalogExtraSeed.js';
 import { seedEquipmentCatalogBreadth } from './equipmentCatalogBreadthSeed.js';
+import { seedEquipmentCatalogDeep } from './equipmentCatalogDeepSeed.js';
 import { seedEquipmentCatalogImages } from './equipmentCatalogImageSeed.js';
 
 let databasePromise = null;
@@ -21,6 +22,7 @@ export function openAppDatabase() {
       await seedEquipmentCatalog(db);
       await seedEquipmentCatalogExtra(db);
       await seedEquipmentCatalogBreadth(db);
+      await seedEquipmentCatalogDeep(db);
       await seedEquipmentCatalogImages(db);
       return db;
     })().catch((error) => {
