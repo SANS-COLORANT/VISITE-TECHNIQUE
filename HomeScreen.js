@@ -3,12 +3,9 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert } from 'react-native';
 import { COLORS, styles } from './styles.js';
-import { listerClients, creerClient, listerVisitesEnCours, compterVisites, supprimerVisite } from './db.js';
+import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
+import { supprimerVisiteComplete, getResumeSuppressionClient, supprimerClientComplet } from './entityManagementDb.js';
 import { choisirEtAnalyserExcel, importerAnalyseExcel } from './excelImport.js';
-
-// ============================================================================
-// 7. ÉCRAN ACCUEIL
-// ============================================================================
 
 function HomeScreen({ navigation }) {
   const [clients, setClients] = useState([]);
@@ -30,15 +27,33 @@ function HomeScreen({ navigation }) {
 
   const onRefresh = async () => { setRefreshing(true); await charger(); setRefreshing(false); };
 
-  const confirmerSuppression = (visite) => {
+  const confirmerSuppressionVisite = (visite) => {
     Alert.alert(
       'Supprimer cette visite ?',
-      `"${visite.nom_client} — ${visite.nom_site}" et toutes ses données (photos, réserves, relevés...) seront définitivement supprimées. Es-tu sûr ?`,
+      `« ${visite.nom_client} — ${visite.nom_site} » et toutes les données propres à cette visite seront définitivement supprimées.`,
       [
         { text: 'Annuler', style: 'cancel' },
-        { text: 'Supprimer', style: 'destructive', onPress: async () => { await supprimerVisite(visite.id); charger(); } },
+        { text: 'Supprimer', style: 'destructive', onPress: async () => { await supprimerVisiteComplete(visite.id); await charger(); } },
       ]
     );
+  };
+
+  const confirmerSuppressionClient = async (client) => {
+    try {
+      const resume = await getResumeSuppressionClient(client.id);
+      if (!resume) return;
+      Alert.alert(
+        'Supprimer ce client ?',
+        `« ${resume.nom} » contient ${resume.sites} site${resume.sites > 1 ? 's' : ''} et ${resume.visites} visite${resume.visites > 1 ? 's' : ''}. Tout le contenu associé sera définitivement supprimé.`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Supprimer tout', style: 'destructive', onPress: async () => {
+            try { await supprimerClientComplet(client.id); await charger(); }
+            catch (e) { Alert.alert('Suppression impossible', String(e.message || e)); }
+          } },
+        ]
+      );
+    } catch (e) { Alert.alert('Suppression impossible', String(e.message || e)); }
   };
 
   const ajouterClient = async () => {
@@ -102,7 +117,7 @@ function HomeScreen({ navigation }) {
                       <Text style={styles.cardSub}>{v.nom_site}</Text>
                     </View>
                     <View style={styles.badge}><Text style={styles.badgeText}>{v.progression_pct}%</Text></View>
-                    <TouchableOpacity style={styles.deleteVisiteBtn} onPress={() => confirmerSuppression(v)}>
+                    <TouchableOpacity style={styles.deleteVisiteBtn} onPress={() => confirmerSuppressionVisite(v)}>
                       <Text style={styles.deleteVisiteBtnText}>✕</Text>
                     </TouchableOpacity>
                   </TouchableOpacity>
@@ -126,6 +141,13 @@ function HomeScreen({ navigation }) {
               <Text style={styles.cardTitle}>{item.nom}</Text>
               {item.code_exploitant ? <Text style={styles.cardSub}>{item.code_exploitant}</Text> : null}
             </View>
+            <TouchableOpacity
+              onPress={() => confirmerSuppressionClient(item)}
+              style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginRight: 2 }}
+              accessibilityLabel={`Supprimer ${item.nom}`}
+            >
+              <Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text>
+            </TouchableOpacity>
             <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
         )}
@@ -190,6 +212,5 @@ function ImportStat({ nombre, label }) {
 function StatCard({ num, label }) {
   return <View style={styles.statCard}><Text style={styles.statNum}>{num}</Text><Text style={styles.statLabel}>{label}</Text></View>;
 }
-
 
 export { HomeScreen };
