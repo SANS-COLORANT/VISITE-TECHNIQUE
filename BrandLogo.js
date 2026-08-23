@@ -4,24 +4,12 @@ import { styles } from './styles.js';
 
 const RAW_BASE = 'https://raw.githubusercontent.com/SANS-COLORANT/VISITE-TECHNIQUE/3af148f5a3793e64634629d56f7fac1dd466e6c9/assets/brands';
 
-// Logos validés dans le dépôt : on les privilégie TOUJOURS à une URL enregistrée en base.
-// Cela évite qu'un ancien logo_uri cassé masque notamment Grundfos/KSB/Danfoss/etc.
 const BRAND_LOGOS = {
-  atlantic: `${RAW_BASE}/atlantic.png`,
-  bosch: `${RAW_BASE}/bosch.png`,
-  danfoss: `${RAW_BASE}/danfoss.png`,
-  'de dietrich': `${RAW_BASE}/de-dietrich.png`,
-  grundfos: `${RAW_BASE}/grundfos.png`,
-  kamstrup: `${RAW_BASE}/kamstrup.png`,
-  ksb: `${RAW_BASE}/ksb.png`,
-  lowara: `${RAW_BASE}/lowara.png`,
-  reflex: `${RAW_BASE}/reflex.png`,
-  sauter: `${RAW_BASE}/sauter.png`,
-  'schneider electric': `${RAW_BASE}/schneider-electric.png`,
-  siemens: `${RAW_BASE}/siemens.png`,
-  viessmann: `${RAW_BASE}/viessmann.png`,
-  weishaupt: `${RAW_BASE}/weishaupt.png`,
-  wilo: `${RAW_BASE}/wilo.png`,
+  atlantic: `${RAW_BASE}/atlantic.png`, bosch: `${RAW_BASE}/bosch.png`, danfoss: `${RAW_BASE}/danfoss.png`,
+  'de dietrich': `${RAW_BASE}/de-dietrich.png`, grundfos: `${RAW_BASE}/grundfos.png`, kamstrup: `${RAW_BASE}/kamstrup.png`,
+  ksb: `${RAW_BASE}/ksb.png`, lowara: `${RAW_BASE}/lowara.png`, reflex: `${RAW_BASE}/reflex.png`, sauter: `${RAW_BASE}/sauter.png`,
+  'schneider electric': `${RAW_BASE}/schneider-electric.png`, siemens: `${RAW_BASE}/siemens.png`, viessmann: `${RAW_BASE}/viessmann.png`,
+  weishaupt: `${RAW_BASE}/weishaupt.png`, wilo: `${RAW_BASE}/wilo.png`,
 };
 
 const BRAND_DOMAINS = {
@@ -35,7 +23,6 @@ const BRAND_DOMAINS = {
   wika: 'wika.com', zilmet: 'zilmet.it', itron: 'itron.com', acv: 'acv.com', samson: 'samsongroup.com',
 };
 
-// Couleurs de marque fixes : pas de couleur aléatoire pour les fabricants connus.
 export const BRAND_COLORS = {
   danfoss: '#E30613', grundfos: '#005696', wilo: '#009B67', ksb: '#00549F', siemens: '#009999', viessmann: '#F26A21',
   atlantic: '#6840A8', 'schneider electric': '#2E9C42', ariston: '#D71920', 'imi hydronic': '#009AA6', belimo: '#0057A6',
@@ -77,7 +64,6 @@ export function mixWithWhite(hex, ratio) {
 
 function sourceLogoPourMarque(marque) {
   const key = normaliserMarque(getNomMarque(marque));
-  // Priorité aux assets connus : corrige les anciens logo_uri erronés stockés dans SQLite.
   if (BRAND_LOGOS[key]) return { uri: BRAND_LOGOS[key] };
   const custom = typeof marque === 'object' ? marque?.logo_uri : null;
   if (custom) return { uri: custom };
@@ -87,8 +73,6 @@ function sourceLogoPourMarque(marque) {
 
 export function getBrandLogoSource(marque) { return sourceLogoPourMarque(marque); }
 
-// Les PNG ci-dessous ont un fond ou des marges qui supportent mal tintColor.
-// Sur les cartes colorées, on utilise le wordmark blanc dédié.
 const FORCE_WORDMARK_ON_COLOR = new Set([
   'atlantic', 'wilo', 'siemens', 'viessmann', 'bosch', 'kamstrup', 'sauter', 'weishaupt',
   'lowara', 'reflex', 'fernox', 'honeywell', 'swep', 'itron', 'salmson', 'sofrel', 'spirotech', 'alfa laval',
@@ -97,53 +81,39 @@ const FORCE_WORDMARK_ON_COLOR = new Set([
 ]);
 
 const LOGO_SIZE = {
-  grundfos: { w: 100, h: 46 },
-  ksb: { w: 92, h: 44 },
-  danfoss: { w: 98, h: 44 },
-  'schneider electric': { w: 98, h: 42 },
-  'de dietrich': { w: 96, h: 40 },
-};
-
-const WORDMARK_STYLE = {
-  atlantic: { fontWeight: '800', letterSpacing: 0.1 },
-  bosch: { fontWeight: '900', letterSpacing: 0.25 },
-  carrier: { fontWeight: '800', fontStyle: 'italic', letterSpacing: 0.15 },
-  ciat: { fontWeight: '900', letterSpacing: 1.35 },
-  daikin: { fontWeight: '900', fontStyle: 'italic', letterSpacing: 0.25 },
-  danfoss: { fontWeight: '900', fontStyle: 'italic' },
-  fernox: { fontWeight: '900', letterSpacing: 0.55 },
-  kamstrup: { fontWeight: '800', letterSpacing: -0.35 },
-  lowara: { fontWeight: '800', fontStyle: 'italic', letterSpacing: 0.15 },
-  reflex: { fontWeight: '800', letterSpacing: -0.2 },
-  salmson: { fontWeight: '800', fontStyle: 'italic', letterSpacing: -0.15 },
-  sauter: { fontWeight: '800', letterSpacing: -0.35 },
-  siemens: { fontWeight: '900', letterSpacing: 0.75 },
-  sofrel: { fontWeight: '900', letterSpacing: 0.4 },
-  swep: { fontWeight: '900', fontStyle: 'italic', letterSpacing: 0.1 },
-  systemair: { fontWeight: '900', letterSpacing: -0.15 },
-  trane: { fontWeight: '900', letterSpacing: 0.35 },
-  viessmann: { fontWeight: '900', letterSpacing: -0.35 },
-  wilo: { fontWeight: '900', fontStyle: 'italic', letterSpacing: -0.45 },
+  grundfos: { w: 96, h: 42 },
+  ksb: { w: 86, h: 42 },
+  danfoss: { w: 94, h: 42 },
+  'schneider electric': { w: 96, h: 40 },
+  'de dietrich': { w: 94, h: 38 },
 };
 
 function Wordmark({ nom, compact }) {
   const key = normaliserMarque(nom);
-  const custom = WORDMARK_STYLE[key] || {};
-  const specialSize = {
-    wilo: compact ? 20 : 24,
-    ciat: compact ? 18 : 22,
-    viessmann: compact ? 15 : 18,
-    systemair: compact ? 15 : 19,
-    kamstrup: compact ? 16 : 20,
-    lowara: compact ? 18 : 22,
-    reflex: compact ? 18 : 22,
-  }[key];
-  return (
-    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.58}
-      style={{ color:'#FFFFFF', fontSize:specialSize || (compact ? 16 : 19), fontWeight:'800', maxWidth:compact ? 80 : 106, textAlign:'center', ...custom }}>
-      {nom}
-    </Text>
-  );
+  const custom = {
+    grundfos: { fontWeight: '900', letterSpacing: -0.45, fontSize: compact ? 16 : 19, textTransform: 'uppercase' },
+    danfoss: { fontStyle: 'italic', fontWeight: '900' },
+    wilo: { fontStyle: 'italic', fontWeight: '900', fontSize: compact ? 20 : 24 },
+    siemens: { fontWeight: '900', letterSpacing: 0.8 },
+    atlantic: { fontWeight: '800', fontSize: compact ? 18 : 22, letterSpacing: 0.2 },
+    viessmann: { fontWeight: '900', fontSize: compact ? 15 : 18 },
+    bosch: { fontWeight: '900', letterSpacing: 0.3 },
+    fernox: { fontWeight: '900', letterSpacing: 0.6 },
+    honeywell: { fontWeight: '800' },
+    swep: { fontWeight: '900', fontStyle: 'italic', fontSize: compact ? 18 : 21 },
+    sofrel: { fontWeight: '900', letterSpacing: 0.4 },
+    salmson: { fontWeight: '800', fontStyle: 'italic' },
+    lowara: { fontWeight: '800', fontStyle: 'italic', fontSize: compact ? 18 : 22 },
+    reflex: { fontWeight: '800', fontSize: compact ? 18 : 22 },
+    sauter: { fontWeight: '800' },
+    ciat: { fontWeight: '900', letterSpacing: 1.4, fontSize: compact ? 18 : 22 },
+    trane: { fontWeight: '900', letterSpacing: 0.5, fontSize: compact ? 17 : 21 },
+    carrier: { fontWeight: '800', fontStyle: 'italic', fontSize: compact ? 17 : 21 },
+    systemair: { fontWeight: '900', fontSize: compact ? 16 : 20 },
+    daikin: { fontWeight: '900', fontStyle: 'italic' },
+  }[key] || {};
+  const display = key === 'grundfos' ? 'GRUNDFOS' : nom;
+  return <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.58} style={{color:'#FFFFFF',fontSize:compact?16:19,fontWeight:'800',maxWidth:compact?80:104,textAlign:'center',...custom}}>{display}</Text>;
 }
 
 export function BrandMark({ marque, compact = false, onColor = false }) {
@@ -157,24 +127,22 @@ export function BrandMark({ marque, compact = false, onColor = false }) {
   const height = compact ? 42 : 56;
 
   if (!onColor) {
-    if (source && !imageFailed) {
-      return <Image source={source} style={[styles.brandLogo, compact && styles.brandLogoCompact, { width, height }]} resizeMode="contain" onError={() => setImageFailed(true)} />;
-    }
-    return <View style={[styles.brandFallback, compact && styles.brandFallbackCompact, { width, height, borderRadius:10 }]}><Text style={styles.brandFallbackText}>{nom.slice(0,2).toUpperCase() || '?'}</Text></View>;
+    if (source && !imageFailed) return <Image source={source} style={[styles.brandLogo, compact && styles.brandLogoCompact, {width,height}]} resizeMode="contain" onError={() => setImageFailed(true)} />;
+    return <View style={[styles.brandFallback, compact && styles.brandFallbackCompact, {width,height,borderRadius:10}]}><Text style={styles.brandFallbackText}>{nom.slice(0,2).toUpperCase()||'?'}</Text></View>;
   }
 
   const forceWordmark = FORCE_WORDMARK_ON_COLOR.has(key);
-  const size = LOGO_SIZE[key] || { w: compact ? 76 : 102, h: compact ? 38 : 48 };
-  const imgW = compact ? Math.min(size.w, 78) : size.w;
-  const imgH = compact ? Math.min(size.h, 40) : size.h;
+  const size = LOGO_SIZE[key] || {w:compact?74:100,h:compact?36:48};
+  const imgW = compact ? Math.min(size.w,76) : size.w;
+  const imgH = compact ? Math.min(size.h,38) : size.h;
 
-  return (
-    <View style={{ width, height, alignItems:'center', justifyContent:'center', overflow:'visible' }}>
-      {source && !imageFailed && !forceWordmark ? (
-        <Image source={source} style={{ width:imgW, height:imgH, tintColor:'#FFFFFF' }} resizeMode="contain" onError={() => setImageFailed(true)} />
-      ) : (
-        <Wordmark nom={nom} compact={compact}/>
-      )}
-    </View>
-  );
+  if (key === 'grundfos') {
+    return <View style={{width,height,alignItems:'center',justifyContent:'center'}}>
+      <Wordmark nom={nom} compact={compact}/>
+    </View>;
+  }
+
+  return <View style={{width,height,alignItems:'center',justifyContent:'center',overflow:'visible'}}>
+    {source && !imageFailed && !forceWordmark ? <Image source={source} style={{width:imgW,height:imgH,tintColor:'#FFFFFF'}} resizeMode="contain" onError={()=>setImageFailed(true)}/> : <Wordmark nom={nom} compact={compact}/>} 
+  </View>;
 }
