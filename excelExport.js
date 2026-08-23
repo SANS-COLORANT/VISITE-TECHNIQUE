@@ -9,11 +9,10 @@
  */
 
 import * as XLSX from 'xlsx';
-// Sur les versions récentes du SDK Expo, l'API classique de expo-file-system
-// (writeAsStringAsync, cacheDirectory...) a été déplacée vers ce chemin de
-// compatibilité — l'import par défaut pointe vers une nouvelle API différente
-// (classes File/Directory).
-import * as FileSystem from 'expo-file-system/legacy';
+// Branche Snack : le projet est encore sur Expo SDK 51, où l'API classique
+// (writeAsStringAsync, cacheDirectory...) est exposée directement par
+// expo-file-system. Le sous-chemin /legacy n'existe pas dans cette version.
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import { TEMPLATE_EXCEL_BASE64 } from './templateExcel.js';
