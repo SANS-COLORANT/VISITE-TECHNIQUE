@@ -7,7 +7,8 @@ async function insertIfEmpty(db, visiteId, panelId, section, cle, valeur) {
   await db.runAsync(
     `INSERT INTO champs_visite(visite_id,section_code,cle,valeur)
      VALUES(?,?,?,?)
-     ON CONFLICT(visite_id,section_code,cle) DO NOTHING`,
+     ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur
+     WHERE champs_visite.valeur IS NULL OR trim(champs_visite.valeur)=''`,
     [visiteId, sectionCode(panelId, section), cle, String(valeur)]
   );
 }
