@@ -1,15 +1,62 @@
-import React from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Text, View, useWindowDimensions } from 'react-native';
 import { styles } from './styles.js';
 
 const RAW_BASE = 'https://raw.githubusercontent.com/SANS-COLORANT/VISITE-TECHNIQUE/3af148f5a3793e64634629d56f7fac1dd466e6c9/assets/brands';
 
+// Logos déjà présents dans le dépôt : ils restent prioritaires.
 const BRAND_LOGOS = {
-  atlantic: `${RAW_BASE}/atlantic.png`, bosch: `${RAW_BASE}/bosch.png`, danfoss: `${RAW_BASE}/danfoss.png`,
-  'de dietrich': `${RAW_BASE}/de-dietrich.png`, grundfos: `${RAW_BASE}/grundfos.png`, kamstrup: `${RAW_BASE}/kamstrup.png`,
-  ksb: `${RAW_BASE}/ksb.png`, lowara: `${RAW_BASE}/lowara.png`, reflex: `${RAW_BASE}/reflex.png`,
-  sauter: `${RAW_BASE}/sauter.png`, 'schneider electric': `${RAW_BASE}/schneider-electric.png`, siemens: `${RAW_BASE}/siemens.png`,
-  viessmann: `${RAW_BASE}/viessmann.png`, weishaupt: `${RAW_BASE}/weishaupt.png`, wilo: `${RAW_BASE}/wilo.png`,
+  atlantic: `${RAW_BASE}/atlantic.png`,
+  bosch: `${RAW_BASE}/bosch.png`,
+  danfoss: `${RAW_BASE}/danfoss.png`,
+  'de dietrich': `${RAW_BASE}/de-dietrich.png`,
+  grundfos: `${RAW_BASE}/grundfos.png`,
+  kamstrup: `${RAW_BASE}/kamstrup.png`,
+  ksb: `${RAW_BASE}/ksb.png`,
+  lowara: `${RAW_BASE}/lowara.png`,
+  reflex: `${RAW_BASE}/reflex.png`,
+  sauter: `${RAW_BASE}/sauter.png`,
+  'schneider electric': `${RAW_BASE}/schneider-electric.png`,
+  siemens: `${RAW_BASE}/siemens.png`,
+  viessmann: `${RAW_BASE}/viessmann.png`,
+  weishaupt: `${RAW_BASE}/weishaupt.png`,
+  wilo: `${RAW_BASE}/wilo.png`,
+};
+
+// Pour les marques sans PNG local, Snack charge un logo distant par domaine.
+// L'endpoint renvoie une image adaptée au web sans ajouter d'asset binaire au dépôt.
+const BRAND_DOMAINS = {
+  'alfa laval': 'alfalaval.com',
+  ariston: 'ariston.com',
+  belimo: 'belimo.com',
+  bwt: 'bwt.com',
+  caleffi: 'caleffi.com',
+  chaffoteaux: 'chaffoteaux.fr',
+  chappee: 'chappee.com',
+  culligan: 'culligan.fr',
+  dab: 'dabpumps.com',
+  daikin: 'daikin.com',
+  desautel: 'desautel.fr',
+  ebara: 'ebara.com',
+  'elm leblanc': 'elmleblanc.fr',
+  fernox: 'fernox.com',
+  frisquet: 'frisquet.com',
+  giacomini: 'giacomini.com',
+  hitachi: 'hitachi.com',
+  honeywell: 'honeywell.com',
+  'imi hydronic': 'imi-hydronic.com',
+  'johnson controls': 'johnsoncontrols.com',
+  pedrollo: 'pedrollo.com',
+  salmson: 'salmson.com',
+  'saunier duval': 'saunierduval.fr',
+  sfa: 'sfa.fr',
+  sofrel: 'sofrel.com',
+  spirotech: 'spirotech.com',
+  swep: 'swep.net',
+  toshiba: 'toshiba.com',
+  vaillant: 'vaillant.fr',
+  wika: 'wika.com',
+  zilmet: 'zilmet.it',
 };
 
 const BRAND_COLORS = {
@@ -22,10 +69,17 @@ const BRAND_COLORS = {
   sauter: '#005A9C', weishaupt: '#D71920', 'alfa laval': '#1B365D', vaillant: '#007C83', 'saunier duval': '#E30613',
   frisquet: '#315B50', 'elm leblanc': '#0073A8', chappee: '#D71920', chaffoteaux: '#E30613', fernox: '#242424',
   culligan: '#0066B3', zilmet: '#D71920', wika: '#005AA9', desautel: '#D71920',
+  salmson: '#B4205A', sofrel: '#5A4A86', swep: '#BE4C3A',
 };
 
 function normaliserMarque(nom = '') {
-  return String(nom).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[®™]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
+  return String(nom)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[®™]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 function getNomMarque(marque) {
@@ -50,28 +104,37 @@ function mixWithWhite(hex, ratio) {
   return `rgb(${mix(r)}, ${mix(g)}, ${mix(b)})`;
 }
 
+function sourceLogoPourMarque(marque) {
+  const key = normaliserMarque(getNomMarque(marque));
+  const custom = typeof marque === 'object' ? marque?.logo_uri : null;
+  if (custom) return { uri: custom };
+  if (BRAND_LOGOS[key]) return { uri: BRAND_LOGOS[key] };
+  if (BRAND_DOMAINS[key]) return { uri: `https://img.logokit.com/${BRAND_DOMAINS[key]}` };
+  return null;
+}
+
 export function getBrandLogoSource(marque) {
-  const uri = BRAND_LOGOS[normaliserMarque(getNomMarque(marque))] || null;
-  return uri ? { uri } : null;
+  return sourceLogoPourMarque(marque);
 }
 
 function GradientBackdrop({ nom }) {
   const { width } = useWindowDimensions();
   const base = couleurDepuisNom(nom);
   const backdropWidth = Math.max(340, width - 36);
-  const steps = 36;
+  const steps = 48;
   return (
     <View
       pointerEvents="none"
       style={{
-        position: 'absolute', left: -13, top: -13, width: backdropWidth,
-        height: 86, borderRadius: 13, overflow: 'hidden', flexDirection: 'row',
+        position: 'absolute', left: -14, top: -9, width: backdropWidth,
+        height: 72, borderRadius: 13, overflow: 'hidden', flexDirection: 'row',
       }}
     >
       {Array.from({ length: steps }, (_, i) => {
         const t = i / (steps - 1);
-        const eased = Math.pow(t, 1.12);
-        return <View key={i} style={{ flex: 1, backgroundColor: mixWithWhite(base, eased * 0.98) }} />;
+        // Couleur franche sur le premier quart, puis éclaircissement progressif.
+        const eased = Math.pow(Math.max(0, (t - 0.05) / 0.95), 1.08);
+        return <View key={i} style={{ flex: 1, backgroundColor: mixWithWhite(base, eased * 0.99) }} />;
       })}
     </View>
   );
@@ -79,36 +142,49 @@ function GradientBackdrop({ nom }) {
 
 export function BrandMark({ marque, compact = false }) {
   const nom = getNomMarque(marque);
-  const remoteSource = getBrandLogoSource(marque);
-  const customRemoteUri = typeof marque === 'object' ? marque?.logo_uri : null;
-  const source = customRemoteUri ? { uri: customRemoteUri } : remoteSource;
+  const source = useMemo(() => sourceLogoPourMarque(marque), [marque, nom]);
+  const [imageFailed, setImageFailed] = useState(false);
+  useEffect(() => setImageFailed(false), [source?.uri]);
 
   const isCatalogueBrand = typeof marque === 'object' && marque?.nb_modeles !== undefined;
   const isCatalogueModel = typeof marque === 'object' && !!marque?.marque && !marque?.nom && !marque?.categorie && !marque?.modele;
   const fullGradient = isCatalogueBrand || isCatalogueModel;
   const initiales = nom.split(/\s+/).filter(Boolean).map((mot) => mot[0]).join('').slice(0, 2).toUpperCase() || '?';
 
+  const panelWidth = compact ? 68 : (fullGradient ? 94 : 74);
+  const panelHeight = compact ? 38 : (fullGradient ? 56 : 46);
+  const imageWidth = compact ? 60 : (fullGradient ? 84 : 66);
+  const imageHeight = compact ? 30 : (fullGradient ? 44 : 36);
+
   return (
-    <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center', minWidth: compact ? 52 : 62 }}>
+    <View style={{ position: 'relative', alignItems: 'center', justifyContent: 'center', minWidth: panelWidth }}>
       {fullGradient ? <GradientBackdrop nom={nom} /> : null}
-      {source ? (
+      {source && !imageFailed ? (
         <View style={fullGradient ? {
-          minWidth: compact ? 54 : 66, minHeight: compact ? 34 : 44,
-          paddingHorizontal: 6, paddingVertical: 4, borderRadius: 9,
-          backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center',
+          width: panelWidth, height: panelHeight,
+          paddingHorizontal: 5, paddingVertical: 4, borderRadius: 10,
+          backgroundColor: 'rgba(255,255,255,0.94)',
+          borderWidth: 1, borderColor: 'rgba(255,255,255,0.70)',
+          alignItems: 'center', justifyContent: 'center',
         } : null}>
           <Image
             source={source}
-            style={[styles.brandLogo, compact && styles.brandLogoCompact, fullGradient && { width: compact ? 48 : 58, height: compact ? 26 : 34 }]}
+            style={[styles.brandLogo, compact && styles.brandLogoCompact, { width: imageWidth, height: imageHeight }]}
             resizeMode="contain"
+            onError={() => setImageFailed(true)}
           />
         </View>
       ) : (
         <View style={[
-          styles.brandFallback, compact && styles.brandFallbackCompact,
-          fullGradient && { backgroundColor: 'rgba(255,255,255,0.20)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.50)' },
+          styles.brandFallback,
+          compact && styles.brandFallbackCompact,
+          fullGradient && {
+            width: panelWidth, height: panelHeight,
+            backgroundColor: 'rgba(255,255,255,0.18)',
+            borderWidth: 1, borderColor: 'rgba(255,255,255,0.50)', borderRadius: 10,
+          },
         ]}>
-          <Text style={[styles.brandFallbackText, fullGradient && { color: '#FFFFFF' }]}>{initiales}</Text>
+          <Text style={[styles.brandFallbackText, fullGradient && { color: '#FFFFFF', fontSize: compact ? 13 : 15 }]}>{initiales}</Text>
         </View>
       )}
     </View>
