@@ -5,6 +5,7 @@ import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityInd
 import { COLORS, styles } from './styles.js';
 import { getVisite, getNote, upsertNote, ajouterAnomalieRapide, getDb } from './db.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
+import { recalculerProgressionVisite } from './visitProgressDb.js';
 import { exporterEtPartager } from './excelExport.js';
 import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques, PanelPhotos } from './VisitePanels.js';
 
@@ -23,6 +24,9 @@ function VisiteScreen({ route, onBack }) {
     // l'ajout du préremplissage, sans écraser une valeur déjà saisie par l'utilisateur.
     const db = await getDb();
     await preremplirVisiteDepuisContexte(db, visiteId);
+    // Le pourcentage est recalculé à chaque rafraîchissement de la visite :
+    // ouverture initiale + chaque sauvegarde de champ/contrôle via onSaved().
+    await recalculerProgressionVisite(db, visiteId);
     const v = await getVisite(visiteId);
     setVisite(v);
   }, [visiteId]);
