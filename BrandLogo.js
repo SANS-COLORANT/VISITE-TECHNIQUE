@@ -14,6 +14,7 @@ const BRAND_LOGOS = {
 
 const BRAND_DOMAINS = {
   'alfa laval': 'alfalaval.com', ariston: 'ariston.com', belimo: 'belimo.com', bwt: 'bwt.com', caleffi: 'caleffi.com',
+  carrier: 'carrier.com', ciat: 'ciat.com', trane: 'trane.com', systemair: 'systemair.com',
   chaffoteaux: 'chaffoteaux.fr', chappee: 'chappee.com', culligan: 'culligan.fr', dab: 'dabpumps.com', daikin: 'daikin.com',
   desautel: 'desautel.fr', ebara: 'ebara.com', 'elm leblanc': 'elmleblanc.fr', fernox: 'fernox.com', frisquet: 'frisquet.com',
   giacomini: 'giacomini.com', hitachi: 'hitachi.com', honeywell: 'honeywell.com', 'imi hydronic': 'imi-hydronic.com',
@@ -32,6 +33,7 @@ export const BRAND_COLORS = {
   'saunier duval': '#D71920', frisquet: '#315B50', 'elm leblanc': '#0073A8', chappee: '#D71920', chaffoteaux: '#E30613',
   fernox: '#34323A', culligan: '#0066B3', zilmet: '#275EB2', wika: '#184DA0', desautel: '#D71920', salmson: '#B4205A',
   sofrel: '#3565B0', swep: '#D32A20', itron: '#9A5A8A', samson: '#A94168',
+  ciat: '#005AA9', trane: '#00549E', carrier: '#00529B', systemair: '#E30613',
 };
 
 export function normaliserMarque(nom = '') {
@@ -71,8 +73,6 @@ function sourceLogoPourMarque(marque) {
 
 export function getBrandLogoSource(marque) { return sourceLogoPourMarque(marque); }
 
-// Ces marques ont des PNG avec fonds/espaces internes qui rendent mal lorsqu'on les teinte.
-// Sur fond coloré, un wordmark blanc est plus propre et plus proche du design cible.
 const FORCE_WORDMARK_ON_COLOR = new Set([
   'atlantic', 'wilo', 'siemens', 'viessmann', 'bosch', 'kamstrup', 'sauter', 'weishaupt',
   'fernox', 'honeywell', 'swep', 'itron', 'salmson', 'sofrel', 'spirotech', 'alfa laval',
@@ -80,13 +80,9 @@ const FORCE_WORDMARK_ON_COLOR = new Set([
 ]);
 
 const LOGO_SIZE = {
-  grundfos: { w: 92, h: 42 },
-  ksb: { w: 86, h: 42 },
-  danfoss: { w: 94, h: 42 },
-  lowara: { w: 90, h: 38 },
-  reflex: { w: 82, h: 38 },
-  'schneider electric': { w: 96, h: 40 },
-  'de dietrich': { w: 94, h: 38 },
+  grundfos: { w: 92, h: 42 }, ksb: { w: 86, h: 42 }, danfoss: { w: 94, h: 42 }, lowara: { w: 90, h: 38 },
+  reflex: { w: 82, h: 38 }, 'schneider electric': { w: 96, h: 40 }, 'de dietrich': { w: 94, h: 38 },
+  ciat: { w: 88, h: 40 }, trane: { w: 92, h: 42 }, carrier: { w: 92, h: 42 }, systemair: { w: 94, h: 40 },
 };
 
 function Wordmark({ nom, compact }) {
@@ -98,18 +94,16 @@ function Wordmark({ nom, compact }) {
     atlantic: { fontWeight: '800', fontSize: compact ? 18 : 22, letterSpacing: 0.2 },
     viessmann: { fontWeight: '900', fontSize: compact ? 15 : 18 },
     bosch: { fontWeight: '900', letterSpacing: 0.3 },
-    fernox: { fontWeight: '900', letterSpacing: 0.6 },
-    honeywell: { fontWeight: '800' },
+    fernox: { fontWeight: '900', letterSpacing: 0.6 }, honeywell: { fontWeight: '800' },
     swep: { fontWeight: '900', fontStyle: 'italic', fontSize: compact ? 18 : 21 },
-    sofrel: { fontWeight: '900', letterSpacing: 0.4 },
-    salmson: { fontWeight: '800', fontStyle: 'italic' },
+    sofrel: { fontWeight: '900', letterSpacing: 0.4 }, salmson: { fontWeight: '800', fontStyle: 'italic' },
+    ciat: { fontWeight: '900', letterSpacing: 1.4, fontSize: compact ? 18 : 22 },
+    trane: { fontWeight: '900', letterSpacing: 0.5, fontSize: compact ? 17 : 21 },
+    carrier: { fontWeight: '800', fontStyle: 'italic', letterSpacing: 0.2, fontSize: compact ? 17 : 21 },
+    systemair: { fontWeight: '900', letterSpacing: 0.2, fontSize: compact ? 16 : 20 },
+    daikin: { fontWeight: '900', fontStyle: 'italic', letterSpacing: 0.3 },
   }[key] || {};
-  return (
-    <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.58}
-      style={{ color: '#FFFFFF', fontSize: compact ? 16 : 19, fontWeight: '800', maxWidth: compact ? 78 : 104, textAlign: 'center', ...custom }}>
-      {nom}
-    </Text>
-  );
+  return <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.58} style={{color:'#FFFFFF',fontSize:compact?16:19,fontWeight:'800',maxWidth:compact?78:104,textAlign:'center',...custom}}>{nom}</Text>;
 }
 
 export function BrandMark({ marque, compact = false, onColor = false }) {
@@ -118,15 +112,12 @@ export function BrandMark({ marque, compact = false, onColor = false }) {
   const source = useMemo(() => sourceLogoPourMarque(marque), [marque, nom]);
   const [imageFailed, setImageFailed] = useState(false);
   useEffect(() => setImageFailed(false), [source?.uri]);
-
   const width = compact ? 80 : 108;
   const height = compact ? 42 : 56;
 
   if (!onColor) {
-    if (source && !imageFailed) {
-      return <Image source={source} style={[styles.brandLogo, compact && styles.brandLogoCompact, { width, height }]} resizeMode="contain" onError={() => setImageFailed(true)} />;
-    }
-    return <View style={[styles.brandFallback, compact && styles.brandFallbackCompact, { width, height, borderRadius: 10 }]}><Text style={styles.brandFallbackText}>{nom.slice(0, 2).toUpperCase() || '?'}</Text></View>;
+    if (source && !imageFailed) return <Image source={source} style={[styles.brandLogo, compact && styles.brandLogoCompact, {width,height}]} resizeMode="contain" onError={() => setImageFailed(true)} />;
+    return <View style={[styles.brandFallback, compact && styles.brandFallbackCompact, {width,height,borderRadius:10}]}><Text style={styles.brandFallbackText}>{nom.slice(0,2).toUpperCase()||'?'}</Text></View>;
   }
 
   const forceWordmark = FORCE_WORDMARK_ON_COLOR.has(key);
@@ -134,13 +125,7 @@ export function BrandMark({ marque, compact = false, onColor = false }) {
   const imgW = compact ? Math.min(size.w, 76) : size.w;
   const imgH = compact ? Math.min(size.h, 38) : size.h;
 
-  return (
-    <View style={{ width, height, alignItems: 'center', justifyContent: 'center', overflow: 'visible' }}>
-      {source && !imageFailed && !forceWordmark ? (
-        <Image source={source} style={{ width: imgW, height: imgH, tintColor: '#FFFFFF' }} resizeMode="contain" onError={() => setImageFailed(true)} />
-      ) : (
-        <Wordmark nom={nom} compact={compact} />
-      )}
-    </View>
-  );
+  return <View style={{width,height,alignItems:'center',justifyContent:'center',overflow:'visible'}}>
+    {source && !imageFailed && !forceWordmark ? <Image source={source} style={{width:imgW,height:imgH,tintColor:'#FFFFFF'}} resizeMode="contain" onError={() => setImageFailed(true)} /> : <Wordmark nom={nom} compact={compact}/>} 
+  </View>;
 }
