@@ -1,13 +1,10 @@
-/** Capture photo réelle + nommage/persistance des fichiers de visite. */
+/** Capture photo réelle compatible Snack + nommage logique des photos de visite. */
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { TouchableOpacity, Text, Alert, View, Image, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
 import { listerPhotos, ajouterPhoto, remplacerPhoto, getVisite } from './db.js';
 import { styles } from './styles.js';
-
-const PHOTO_DIR = FileSystem.documentDirectory ? `${FileSystem.documentDirectory}visite-technique-photos/` : null;
 
 function nettoyerNomFichier(valeur = '', fallback = 'Photo') {
   const propre = String(valeur || fallback)
@@ -42,48 +39,30 @@ function suffixeCourt() {
   return Math.random().toString(36).slice(2, 6).toUpperCase();
 }
 
-async function assurerDossierPhotos() {
-  if (!PHOTO_DIR) return false;
-  try {
-    const info = await FileSystem.getInfoAsync(PHOTO_DIR);
-    if (!info.exists) await FileSystem.makeDirectoryAsync(PHOTO_DIR, { intermediates: true });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 /**
- * Copie la photo compressée générée par ImagePicker vers le stockage de l'app
- * avec un nom lisible : Site__Type__Libelle__date_heure__XXXX.jpg.
- * Si le stockage fichier n'est pas disponible (ex. environnement Snack limité),
- * on conserve l'URI d'origine afin de ne jamais bloquer la prise de photo.
+ * Snack ne garantit pas l'accès à expo-file-system sur l'appareil.
+ * On conserve donc l'URI native retournée par ImagePicker et on génère
+ * un nom logique stable, utilisable pour l'affichage et les futurs exports.
  */
-async function enregistrerPhotoNommee({ visiteId, entiteKey = null, label = 'Photo', uri, ancienneUri = null }) {
-  if (!uri) return null;
+async function preparerPhotoNommee({ visiteId, entiteKey = null, label = 'Photo', uri }) {
+  if (!uri) return { uri: null, nom: null };
+  let nomSite = 'Site';
   try {
-    if (!(await assurerDossierPhotos())) return uri;
     const visite = await getVisite(visiteId);
-    const site = nettoyerNomFichier(visite?.nom_site || 'Site');
-    const type = typePhotoDepuisEntite(entiteKey);
-    const libelle = nettoyerNomFichier(label || type);
-    const nom = `${site}__${type}__${libelle}__${horodatagePhoto()}__${suffixeCourt()}.jpg`;
-    const destination = `${PHOTO_DIR}${nom}`;
-    await FileSystem.copyAsync({ from: uri, to: destination });
-
-    // Lors d'une reprise, on supprime l'ancien fichier géré par l'app après succès.
-    if (ancienneUri && PHOTO_DIR && String(ancienneUri).startsWith(PHOTO_DIR) && ancienneUri !== destination) {
-      try { await FileSystem.deleteAsync(ancienneUri, { idempotent: true }); } catch {}
-    }
-    return destination;
-  } catch {
-    return uri;
-  }
+    nomSite = visite?.nom_site || 'Site';
+  } catch {}
+  const site = nettoyerNomFichier(nomSite, 'Site');
+  const type = typePhotoDepuisEntite(entiteKey);
+  const libelle = nettoyerNomFichier(label || type, type);
+  const nom = `${site}__${type}__${libelle}__${horodatagePhoto()}__${suffixeCourt()}.jpg`;
+  return { uri, nom };
 }
 
-// ============================================================================
-// CAPTURE PHOTO RÉELLE — compression JPEG intégrée
-// ============================================================================
+// Compatibilité avec le nom de fonction précédemment exporté.
+async function enregistrerPhotoNommee(args) {
+  const photo = await preparerPhotoNommee(args);
+  return photo.uri;
+}
 
 async function prendrePhoto() {
   const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -120,8 +99,10 @@ function PhotoButton({ visiteId, entiteKey, label, style }) {
   const ajouter = async () => {
     const captureUri = await prendrePhoto();
     if (!captureUri) return;
-    const uri = await enregistrerPhotoNommee({ visiteId, entiteKey, label, uri: captureUri });
-    await ajouterPhoto(visiteId, entiteKey, uri, label);
+    const photo = await preparerPhotoNommee({ visiteId, entiteKey, label, uri: captureUri });
+    // Le nom logique est conservé dans le label DB sans modifier l'URI native Snack.
+    const labelDb = photo.nom ? `${label || typePhotoDepuisEntite(entiteKey)}||${photo.nom}` : (label || null);
+    await ajouterPhoto(visiteId, entiteKey, photo.uri, labelDb);
     const items = await charger();
     setIndex(Math.max(0, items.length - 1));
   };
@@ -138,8 +119,8 @@ function PhotoButton({ visiteId, entiteKey, label, style }) {
     if (!photo) return;
     const captureUri = await prendrePhoto();
     if (!captureUri) return;
-    const uri = await enregistrerPhotoNommee({ visiteId, entiteKey, label, uri: captureUri, ancienneUri: photo.uri });
-    await remplacerPhoto(photo.id, uri);
+    // Reprendre remplace uniquement l'URI de la photo sélectionnée.
+    await remplacerPhoto(photo.id, captureUri);
     await charger();
   };
 
@@ -177,4 +158,4 @@ function PhotoButton({ visiteId, entiteKey, label, style }) {
   );
 }
 
-export { prendrePhoto, enregistrerPhotoNommee, PhotoButton };
+export { prendrePhoto, preparerPhotoNommee, enregistrerPhotoNommee, PhotoButton };
