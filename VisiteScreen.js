@@ -3,13 +3,10 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert } from 'react-native';
 import { COLORS, styles } from './styles.js';
-import { getVisite, getNote, upsertNote, ajouterAnomalieRapide } from './db.js';
+import { getVisite, getNote, upsertNote, ajouterAnomalieRapide, getDb } from './db.js';
+import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { exporterEtPartager } from './excelExport.js';
 import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques, PanelPhotos } from './VisitePanels.js';
-
-// ============================================================================
-// 6. ÉCRAN VISITE — conteneur avec onglets horizontaux
-// ============================================================================
 
 function VisiteScreen({ route, onBack }) {
   const { visiteId } = route.params;
@@ -22,6 +19,10 @@ function VisiteScreen({ route, onBack }) {
   const [anomalieTxt, setAnomalieTxt] = useState('');
 
   const charger = useCallback(async () => {
+    // Backfill non destructif : complète aussi les anciennes visites créées avant
+    // l'ajout du préremplissage, sans écraser une valeur déjà saisie par l'utilisateur.
+    const db = await getDb();
+    await preremplirVisiteDepuisContexte(db, visiteId);
     const v = await getVisite(visiteId);
     setVisite(v);
   }, [visiteId]);
@@ -29,8 +30,6 @@ function VisiteScreen({ route, onBack }) {
   useEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
 
   const onSaved = () => setRefreshKey((k) => k + 1);
-
-  // Liste des vrais onglets (sans les séparateurs), pour naviguer au swipe.
   const tabsReels = TAB_ORDER.filter((t) => t !== 'SEP');
   const allerVoisin = (direction) => {
     const idx = tabsReels.indexOf(activeTab);
@@ -41,14 +40,15 @@ function VisiteScreen({ route, onBack }) {
     PanResponder.create({
       onMoveShouldSetPanResponder: (evt, g) => Math.abs(g.dx) > 30 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
       onPanResponderRelease: (evt, g) => {
-        if (g.dx < -30) allerVoisin(1);       // glisse vers la gauche → onglet suivant
-        else if (g.dx > 30) allerVoisin(-1);  // glisse vers la droite → onglet précédent
+        if (g.dx < -30) allerVoisin(1);
+        else if (g.dx > 30) allerVoisin(-1);
       },
     })
   ).current;
 
   const ouvrirNote = async () => {
-    setNoteTxt(await getNote(visiteId));
+    const note = await getNote(visiteId);
+    setNoteTxt(note?.contenu || '');
     setNoteVisible(true);
   };
   const fermerNote = async () => {
@@ -57,8 +57,6 @@ function VisiteScreen({ route, onBack }) {
     setNoteVisible(false);
   };
 
-  // Sauvegarde différée pendant la frappe — pas seulement au clic "Fermer",
-  // pour ne rien perdre si on navigue ailleurs sans fermer explicitement.
   const noteTimerRef = useRef(null);
   const onChangeNoteTxt = (t) => {
     setNoteTxt(t);
@@ -179,6 +177,5 @@ function VisiteScreen({ route, onBack }) {
     </View>
   );
 }
-
 
 export { VisiteScreen };
