@@ -3,7 +3,8 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert } from 'react-native';
 import { COLORS, styles } from './styles.js';
-import { getVisite, getNote, upsertNote, ajouterAnomalieRapide, getDb } from './db.js';
+import { getVisite, getNote, upsertNote, getDb } from './db.js';
+import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { recalculerProgressionVisite } from './visitProgressDb.js';
 import { exporterEtPartager } from './excelExport.js';
@@ -20,12 +21,8 @@ function VisiteScreen({ route, onBack }) {
   const [anomalieTxt, setAnomalieTxt] = useState('');
 
   const charger = useCallback(async () => {
-    // Backfill non destructif : complète aussi les anciennes visites créées avant
-    // l'ajout du préremplissage, sans écraser une valeur déjà saisie par l'utilisateur.
     const db = await getDb();
     await preremplirVisiteDepuisContexte(db, visiteId);
-    // Le pourcentage est recalculé à chaque rafraîchissement de la visite :
-    // ouverture initiale + chaque sauvegarde de champ/contrôle via onSaved().
     await recalculerProgressionVisite(db, visiteId);
     const v = await getVisite(visiteId);
     setVisite(v);
@@ -79,8 +76,13 @@ function VisiteScreen({ route, onBack }) {
     setExporting(false);
   };
   const enregistrerAnomalie = async () => {
-    if (!anomalieTxt.trim()) return;
-    await ajouterAnomalieRapide(visiteId, anomalieTxt);
+    const texte = anomalieTxt.trim();
+    if (!texte) return;
+    await ajouterRemarqueVisite(visiteId, {
+      poste: 'Observation',
+      prestation: texte,
+      origine: 'Anomalie rapide',
+    });
     setAnomalieTxt('');
     setAnomalieVisible(false);
     setActiveTab('p-remarques');
@@ -127,9 +129,7 @@ function VisiteScreen({ route, onBack }) {
               <View key={`sep-${i}`} style={styles.tabSep} />
             ) : (
               <TouchableOpacity key={pid} style={styles.tabItem} onPress={() => setActiveTab(pid)}>
-                <Text style={[styles.tabItemText, activeTab === pid && styles.tabItemTextActive]}>
-                  {PANEL_LABELS[pid]}
-                </Text>
+                <Text style={[styles.tabItemText, activeTab === pid && styles.tabItemTextActive]}>{PANEL_LABELS[pid]}</Text>
                 {activeTab === pid && <View style={styles.tabUnderline} />}
               </TouchableOpacity>
             )
@@ -152,16 +152,8 @@ function VisiteScreen({ route, onBack }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Note libre — feuille NOTE</Text>
-            <TextInput
-              style={[styles.input, { height: 160, textAlignVertical: 'top' }]}
-              multiline
-              value={noteTxt}
-              onChangeText={onChangeNoteTxt}
-              placeholder="Notes générales sur la visite..."
-            />
-            <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}>
-              <Text style={styles.btnPrimaryText}>Fermer</Text>
-            </TouchableOpacity>
+            <TextInput style={[styles.input, { height: 160, textAlignVertical: 'top' }]} multiline value={noteTxt} onChangeText={onChangeNoteTxt} placeholder="Notes générales sur la visite..." />
+            <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
           </View>
         </View>
       </Modal>
@@ -169,7 +161,7 @@ function VisiteScreen({ route, onBack }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Ajouter une anomalie</Text>
-            <Text style={styles.importHint}>Décris rapidement le constat. Tu pourras ensuite le rattacher à la pompe, au réseau, au compteur ou au contrôle concerné et ajouter une photo.</Text>
+            <Text style={styles.importHint}>Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.</Text>
             <TextInput style={[styles.input, { minHeight: 100, marginTop: 12, textAlignVertical: 'top' }]} multiline autoFocus value={anomalieTxt} onChangeText={setAnomalieTxt} placeholder="Ex. Pompe défaillante, température de départ trop basse…" />
             <View style={styles.modalActions}>
               <TouchableOpacity style={styles.btnSecondary} onPress={() => setAnomalieVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
