@@ -1,5 +1,3 @@
-import { getDb } from './db.js';
-
 function sectionCode(panelId, section) {
   return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
 }
@@ -19,8 +17,7 @@ function formatHeure(date = new Date()) {
   return `${p(date.getHours())}:${p(date.getMinutes())}`;
 }
 
-export async function preremplirVisiteDepuisContexte(visiteId) {
-  const db = await getDb();
+export async function preremplirVisiteDepuisContexte(db, visiteId) {
   const contexte = await db.getFirstAsync(
     `SELECT v.id,v.date_visite,v.technicien,v.mode_visite,
             s.id site_id,s.nom_site,s.adresse,s.localisation_note,
@@ -52,7 +49,6 @@ export async function preremplirVisiteDepuisContexte(visiteId) {
     await insertIfEmpty(db, visiteId, panel, section, cle, valeur);
   }
 
-  // Synthèse fiable à partir des équipements permanents actifs du site.
   const equipements = await db.getAllAsync(
     `SELECT e.* FROM equipements e
      JOIN installations i ON i.id=e.installation_id
@@ -61,15 +57,12 @@ export async function preremplirVisiteDepuisContexte(visiteId) {
   );
   if (equipements.length) {
     await insertIfEmpty(db, visiteId, 'p-infos', 'Description des principaux équipements', "Nb d'équipements", equipements.length);
-
     const types = [...new Set(equipements.map((e) => String(e.type_code || '').trim()).filter(Boolean))];
     if (types.length === 1) {
       await insertIfEmpty(db, visiteId, 'p-infos', 'Description des principaux équipements', 'Production primaire', types[0]);
     }
   }
 
-  // Réutilise seulement certaines informations descriptives de la dernière visite,
-  // jamais les index, températures, pressions, pH ni états de conformité.
   const precedente = await db.getFirstAsync(
     `SELECT id FROM visites
      WHERE site_id=? AND id<>?
