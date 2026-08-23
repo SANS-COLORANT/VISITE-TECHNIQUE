@@ -5,6 +5,7 @@ import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linkin
 import * as Location from 'expo-location';
 import { COLORS, styles } from './styles.js';
 import { listerVisitesSite, creerVisite, getDb } from './db.js';
+import { supprimerVisiteComplete } from './entityManagementDb.js';
 import { getSiteLocalisation, enregistrerSiteLocalisation, coordonneeValide } from './siteGeoDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
@@ -44,6 +45,20 @@ function SiteVisitesScreen({ route, navigation }) {
     const db = await getDb();
     await preremplirVisiteDepuisContexte(db, visiteId);
     navigation.navigate('Visite', { visiteId });
+  };
+
+  const confirmerSuppressionVisite = (visite) => {
+    Alert.alert(
+      'Supprimer cette visite ?',
+      `La visite du ${visite.date_visite || 'date non renseignée'} et toutes ses photos, réserves, relevés et observations propres seront définitivement supprimées.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Supprimer', style: 'destructive', onPress: async () => {
+          try { await supprimerVisiteComplete(visite.id); await charger(); }
+          catch (e) { Alert.alert('Suppression impossible', String(e.message || e)); }
+        } },
+      ]
+    );
   };
 
   const utiliserMaPosition = async () => {
@@ -175,6 +190,13 @@ function SiteVisitesScreen({ route, navigation }) {
               <Text style={styles.cardSub}>{item.technicien || ''}</Text>
             </View>
             <View style={styles.badge}><Text style={styles.badgeText}>{STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%</Text></View>
+            <TouchableOpacity
+              onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(item); }}
+              style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}
+              accessibilityLabel={`Supprimer la visite du ${item.date_visite || ''}`}
+            >
+              <Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text>
+            </TouchableOpacity>
           </TouchableOpacity>
         )}
         ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>Lance la première avec le bouton ci-dessous.</Text></View>}
