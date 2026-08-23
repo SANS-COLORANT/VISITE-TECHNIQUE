@@ -194,10 +194,29 @@ function ReseauCard({ reseau, visiteId, onChange }) {
   );
 }
 
+const COMPTEUR_TYPES = [
+  'Compteur gaz',
+  'Compteur énergie chauffage',
+  'Compteur énergie ECS',
+  'Compteur eau appoint chauffage',
+  'Compteur eau froide ECS',
+  'Compteur eau froide générale',
+  'Compteur électrique',
+  'Compteur fioul',
+  'Compteur calories',
+  'Compteur volumétrique',
+  'Manomètre chauffage',
+  'Manomètre ECS',
+];
+
 /** Onglet Relevés : Températures/pH génériques + compteurs dynamiques avec unité. */
 function PanelReleves({ visiteId, refreshKey, onSaved }) {
   const [champsMap, setChampsMap] = useState({});
   const [compteurs, setCompteurs] = useState([]);
+  const [ajoutCompteurVisible, setAjoutCompteurVisible] = useState(false);
+  const [nomCompteurChoisi, setNomCompteurChoisi] = useState('');
+  const [nomCompteurLibre, setNomCompteurLibre] = useState('');
+  const [modeNomLibre, setModeNomLibre] = useState(false);
   const UNITES = ['m³', 'L', 'MWh', 'kWh', 'bar', '%'];
 
   const charger = useCallback(async () => {
@@ -207,9 +226,28 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
 
   useEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
 
-  const onAjouterCompteur = async () => {
-    await ajouterCompteur(visiteId, '');
-    charger();
+  const ouvrirAjoutCompteur = () => {
+    setNomCompteurChoisi('');
+    setNomCompteurLibre('');
+    setModeNomLibre(false);
+    setAjoutCompteurVisible(true);
+  };
+
+  const choisirNomCompteur = (nom) => {
+    setNomCompteurChoisi(nom);
+    setModeNomLibre(false);
+    setNomCompteurLibre('');
+  };
+
+  const creerCompteurChoisi = async () => {
+    const label = modeNomLibre ? nomCompteurLibre.trim() : nomCompteurChoisi.trim();
+    if (!label) return;
+    await ajouterCompteur(visiteId, label);
+    setAjoutCompteurVisible(false);
+    setNomCompteurChoisi('');
+    setNomCompteurLibre('');
+    setModeNomLibre(false);
+    await charger();
   };
 
   const sections = TRAME_DATA['p-releves'];
@@ -217,7 +255,7 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
   const champsCompteursIndex = (sections['Relevés des compteurs et manomètres'] || []).filter((f) => /^Index/i.test(f.cle));
   const champsPression = (sections['Relevés des compteurs et manomètres'] || []).filter((f) => !/^Index/i.test(f.cle));
 
-  // seed initial (une seule fois) des compteurs officiels si aucun compteur encore créé
+  // Seed initial des compteurs prévus par la trame. Le libellé reste ensuite modifiable.
   useEffect(() => {
     (async () => {
       if (compteurs.length === 0 && champsCompteursIndex.length > 0) {
@@ -250,8 +288,8 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
       {compteurs.map((c) => (
         <CompteurCard key={c.id} compteur={c} visiteId={visiteId} unites={UNITES} onChange={charger} />
       ))}
-      <TouchableOpacity style={styles.addBtn} onPress={onAjouterCompteur}>
-        <Text style={styles.addBtnText}>+ Ajouter un compteur — chauffage, appoint, ECS, énergie...</Text>
+      <TouchableOpacity style={styles.addBtn} onPress={ouvrirAjoutCompteur}>
+        <Text style={styles.addBtnText}>+ Ajouter un compteur</Text>
       </TouchableOpacity>
 
       <Text style={styles.sectionTitle}>Températures et pH</Text>
@@ -263,19 +301,63 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
           />
         ))}
       </View>
+
+      <Modal visible={ajoutCompteurVisible} transparent animationType="fade" onRequestClose={() => setAjoutCompteurVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Ajouter un compteur</Text>
+            <Text style={styles.importHint}>Choisis le type de compteur. Son nom pourra être modifié ensuite directement dans la visite.</Text>
+            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 320, marginTop: 10 }}>
+              {COMPTEUR_TYPES.map((nom) => (
+                <TouchableOpacity
+                  key={nom}
+                  style={[styles.biblioRow, nomCompteurChoisi === nom && { borderColor: COLORS.primary, borderWidth: 1 }]}
+                  onPress={() => choisirNomCompteur(nom)}
+                >
+                  <Text style={styles.biblioRowTitle}>{nom}</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity
+                style={[styles.biblioRow, modeNomLibre && { borderColor: COLORS.primary, borderWidth: 1 }]}
+                onPress={() => { setModeNomLibre(true); setNomCompteurChoisi(''); }}
+              >
+                <Text style={styles.biblioRowTitle}>+ Autre / nom personnalisé</Text>
+              </TouchableOpacity>
+              {modeNomLibre ? (
+                <TextInput
+                  style={[styles.input, { marginTop: 10 }]}
+                  value={nomCompteurLibre}
+                  onChangeText={setNomCompteurLibre}
+                  placeholder="Ex. Compteur primaire RCU bâtiment A"
+                  autoFocus
+                />
+              ) : null}
+            </ScrollView>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.btnSecondary} onPress={() => setAjoutCompteurVisible(false)}>
+                <Text style={styles.btnSecondaryText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnPrimary, ((!nomCompteurChoisi && !nomCompteurLibre.trim()) ? { opacity: 0.45 } : null)]}
+                disabled={!nomCompteurChoisi && !nomCompteurLibre.trim()}
+                onPress={creerCompteurChoisi}
+              >
+                <Text style={styles.btnPrimaryText}>Ajouter</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </ScrollView>
   );
 }
 
-const COMPTEUR_TYPES = [
-  'Compteur gaz', 'Compteur eau froide ECS', 'Compteur eau froide générale',
-  'Compteur énergie', 'Compteur fioul', 'Compteur électrique',
-  'Manomètre chauffage', 'Manomètre ECS',
-];
-
 function CompteurCard({ compteur, visiteId, unites, onChange }) {
   const [label, setLabel] = useState(compteur.label || '');
   const [unite, setUnite] = useState(compteur.unite || 'm³');
+
+  useEffect(() => { setLabel(compteur.label || ''); }, [compteur.label]);
+  useEffect(() => { setUnite(compteur.unite || 'm³'); }, [compteur.unite]);
 
   const sauverLabel = async (val) => {
     setLabel(val);
@@ -339,9 +421,6 @@ function PanelEquipements({ visiteId }) {
   const charger = useCallback(async () => {
     const [m, biblio] = await Promise.all([listerMateriel(visiteId), listerBibliothequeEquipements()]);
     setMateriel(m);
-    // Fusionne les listes fixes avec ce qui a été ajouté dans la bibliothèque
-    // Paramètres → Équipements, pour que tout ajout y soit immédiatement
-    // proposé en suggestion ici aussi (pas seulement via le sélecteur dédié).
     const categoriesBiblio = [...new Set(biblio.map((b) => b.categorie).filter(Boolean))];
     const marquesBiblio = [...new Set(biblio.map((b) => b.marque).filter(Boolean))];
     setOptionsCategories([...new Set([...CATEGORIES_EQUIPEMENT, ...categoriesBiblio])].sort((a, b) => a.localeCompare(b)));
@@ -721,6 +800,5 @@ function PanelPhotos({ visiteId, refreshKey }) {
     </ScrollView>
   );
 }
-
 
 export { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques, PanelPhotos };
