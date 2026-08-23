@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { listerSitesClient, creerSite } from './db.js';
+import { getResumeSuppressionSite, supprimerSiteComplet } from './entityManagementDb.js';
 import { sitesAvecGps } from './siteGeoDb.js';
 import { SiteAddressManager } from './SiteAddressManager.js';
 
@@ -33,6 +34,24 @@ function ClientSitesScreen({ route, navigation }) {
   };
 
   const ouvrirSite = (site) => navigation.navigate('SiteVisites', { siteId: site.id, nomSite: site.nom_site });
+
+  const confirmerSuppressionSite = async (site) => {
+    try {
+      const resume = await getResumeSuppressionSite(site.id);
+      if (!resume) return;
+      Alert.alert(
+        'Supprimer ce site ?',
+        `« ${resume.nom_site} » contient ${resume.visites} visite${resume.visites > 1 ? 's' : ''} et ${resume.equipements} équipement${resume.equipements > 1 ? 's' : ''} permanent${resume.equipements > 1 ? 's' : ''}. Tout sera définitivement supprimé.`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Supprimer tout', style: 'destructive', onPress: async () => {
+            try { await supprimerSiteComplet(site.id); await charger(); }
+            catch (e) { Alert.alert('Suppression impossible', String(e.message || e)); }
+          } },
+        ]
+      );
+    } catch (e) { Alert.alert('Suppression impossible', String(e.message || e)); }
+  };
 
   const ouvrirGoogleMaps = async (site) => {
     const lat = Number(site.latitude);
@@ -120,6 +139,13 @@ function ClientSitesScreen({ route, navigation }) {
               <View style={[styles.badge, item.statut === 'Actif' ? styles.badgeActif : styles.badgeInactif]}>
                 <Text style={[styles.badgeText, item.statut === 'Actif' ? styles.badgeTextActif : styles.badgeTextInactif]}>{item.statut || 'Actif'}</Text>
               </View>
+              <TouchableOpacity
+                onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionSite(item); }}
+                style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}
+                accessibilityLabel={`Supprimer ${item.nom_site}`}
+              >
+                <Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
             </TouchableOpacity>
           );
         }}
