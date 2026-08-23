@@ -5,9 +5,10 @@ import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linkin
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { COLORS, styles } from './styles.js';
-import { listerVisitesSite, creerVisite } from './db.js';
+import { listerVisitesSite, creerVisite, getDb } from './db.js';
 import { getSiteLocalisation, enregistrerSiteLocalisation, coordonneeValide } from './siteGeoDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
+import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 
 const STATUT_LABELS = { en_cours: 'En cours', terminee: 'Terminée', a_completer: 'À compléter', exportee: 'Exportée' };
 
@@ -41,6 +42,8 @@ function SiteVisitesScreen({ route, navigation }) {
     if (mode === 'express' && visites.length === 0) return;
     setChoixModeVisible(false);
     const visiteId = await creerVisite({ siteId, technicien: 'Moi', mode });
+    const db = await getDb();
+    await preremplirVisiteDepuisContexte(db, visiteId);
     navigation.navigate('Visite', { visiteId });
   };
 
