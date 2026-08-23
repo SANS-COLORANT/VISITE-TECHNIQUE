@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
-import { BrandMark, getBrandColor, mixWithWhite } from './BrandLogo.js';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BrandMark, getBrandColor } from './BrandLogo.js';
 import { COLORS, styles } from './styles.js';
 import {
   listerMarquesEquipement, listerCategoriesEquipement,
@@ -12,9 +13,14 @@ import { rechercherCatalogueIntelligent, enregistrerOuvertureModele, getFamilyPr
 
 function Gradient({ marque }) {
   const base = getBrandColor(marque);
-  return <View pointerEvents="none" style={{ position:'absolute', inset:0, flexDirection:'row', borderRadius:14, overflow:'hidden' }}>
-    {Array.from({ length:46 },(_,i)=>{const t=i/45;const e=Math.pow(Math.max(0,(t-.04)/.96),1.04);return <View key={i} style={{flex:1,backgroundColor:mixWithWhite(base,Math.min(.99,e))}}/>;})}
-  </View>;
+  return <LinearGradient
+    pointerEvents="none"
+    colors={[base, base, `${base}E8`, `${base}A8`, `${base}62`, '#FFFFFF']}
+    locations={[0, 0.18, 0.34, 0.56, 0.78, 1]}
+    start={{x:0,y:0.5}}
+    end={{x:1,y:0.5}}
+    style={{position:'absolute',left:0,right:0,top:0,bottom:0,borderRadius:14}}
+  />;
 }
 
 function Header({ title, subtitle, onBack, action, onAction }) {
@@ -46,7 +52,7 @@ function QualityBadge({ quality, verifiedAt }) {
 }
 
 function BrandCard({ brand, onPress, tablet }) {
-  return <TouchableOpacity onPress={onPress} activeOpacity={.82} style={{flex:tablet?1:undefined,minHeight:92,borderRadius:14,overflow:'hidden',marginBottom:12,borderWidth:1,borderColor:'rgba(0,0,0,.06)'}}>
+  return <TouchableOpacity onPress={onPress} activeOpacity={.82} style={{flex:tablet?1:undefined,minHeight:92,borderRadius:14,overflow:'hidden',marginBottom:12,borderWidth:1,borderColor:'rgba(0,0,0,.06)',backgroundColor:'#fff'}}>
     <Gradient marque={brand.nom}/>
     <View style={{minHeight:92,flexDirection:'row',alignItems:'center',paddingHorizontal:16,gap:14}}>
       <View style={{width:108,alignItems:'center'}}><BrandMark marque={brand} onColor/></View>
