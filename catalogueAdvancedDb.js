@@ -54,7 +54,7 @@ export async function rechercherCatalogueIntelligent({recherche='',categorieId=n
 
 export async function enregistrerOuvertureModele(modeleId){const db=await getDb();await db.runAsync(`INSERT INTO catalogue_usage(modele_id,favori,ouvertures,dernier_acces) VALUES(?,0,1,datetime('now')) ON CONFLICT(modele_id) DO UPDATE SET ouvertures=ouvertures+1,dernier_acces=datetime('now')`,[modeleId]);}
 export async function basculerFavoriModele(modeleId){const db=await getDb();await db.runAsync(`INSERT INTO catalogue_usage(modele_id,favori,ouvertures,dernier_acces) VALUES(?,1,0,datetime('now')) ON CONFLICT(modele_id) DO UPDATE SET favori=CASE WHEN favori=1 THEN 0 ELSE 1 END,dernier_acces=datetime('now')`,[modeleId]);return db.getFirstAsync('SELECT favori FROM catalogue_usage WHERE modele_id=?',[modeleId]);}
-export async function listerModelesRecents(limit=12){const db=await getDb();return db.getAllAsync(`SELECT m.*,c.nom categorie,b.nom marque,b.logo_uri,b.couleur,u.favori,u.dernier_acces,u.ouvertures,(SELECT COUNT(*) FROM variantes_equipement v WHERE v.modele_id=m.id AND v.actif=1) nb_variantes FROM catalogue_usage u JOIN modeles_equipement m ON m.id=u.modele_id JOIN categories_equipement c ON c.id=m.categorie_id JOIN marques_equipement b ON b.id=m.marque_id WHERE m.actif=1 ORDER BY u.dernier_acces DESC LIMIT ?`,[limit]);}
+export async function listerModelesRecents(limit=12){const db=await getDb();return db.getAllAsync(`SELECT m.*,c.nom categorie,b.nom marque,b.logo_uri,b.couleur,u.favori,u.dernier_acces,u.ouvertures,(SELECT COUNT(*) FROM variantes_equipement v WHERE v.modele_id=m.id AND v.actif=1) nb_variantes,(SELECT COUNT(*) FROM variantes_equipement v JOIN documents_equipement d ON d.variante_id=v.id WHERE v.modele_id=m.id) nb_documents,(SELECT COUNT(*) FROM variantes_equipement v JOIN courbes_equipement q ON q.variante_id=v.id WHERE v.modele_id=m.id) nb_courbes FROM catalogue_usage u JOIN modeles_equipement m ON m.id=u.modele_id JOIN categories_equipement c ON c.id=m.categorie_id JOIN marques_equipement b ON b.id=m.marque_id WHERE m.actif=1 ORDER BY u.dernier_acces DESC LIMIT ?`,[limit]);}
 
 export function getFamilyPriorityKeys(category=''){
   const c=category.toLowerCase();
@@ -64,4 +64,20 @@ export function getFamilyPriorityKeys(category=''){
   if(c.includes('chaudi'))return ['Puissance','Rendement','Pression','Température','Combustible','NOx'];
   if(c.includes('échangeur'))return ['Puissance','Débit','Nombre de plaques','Pression','Température','Matériau'];
   return [];
+}
+
+export function scoreCompletudeModele(model={}){
+  let score=0;
+  if(model.image_uri)score+=20;
+  if((model.nb_variantes||0)>0)score+=20;
+  if((model.nb_documents||0)>0)score+=20;
+  if((model.nb_courbes||0)>0)score+=15;
+  if(String(model.data_quality||'').startsWith('verified'))score+=15;
+  if(model.caracteristiques)score+=10;
+  return Math.min(100,score);
+}
+
+export async function obtenirAuditCompletudeCatalogue(limit=50){
+  const rows=await rechercherCatalogueIntelligent({limit:1000});
+  return rows.map(r=>({...r,completude:scoreCompletudeModele(r)})).sort((a,b)=>a.completude-b.completude||String(a.marque).localeCompare(String(b.marque))).slice(0,limit);
 }
