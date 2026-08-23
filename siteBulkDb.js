@@ -38,6 +38,12 @@ export async function preparerImportSites(clientId, lignes = []) {
     parNom.get(k).push(s);
   }
 
+  const occurrencesImport = new Map();
+  for (const l of lignes) {
+    const k = cleNom(l?.nomSite);
+    if (k) occurrencesImport.set(k, (occurrencesImport.get(k) || 0) + 1);
+  }
+
   const apercu = [];
   for (let i = 0; i < lignes.length; i += 1) {
     const l = lignes[i] || {};
@@ -46,7 +52,12 @@ export async function preparerImportSites(clientId, lignes = []) {
       apercu.push({ index: i, action: 'erreur', erreur: 'Nom du site manquant', ...l });
       continue;
     }
-    const candidats = parNom.get(cleNom(nomSite)) || [];
+    const nomKey = cleNom(nomSite);
+    if ((occurrencesImport.get(nomKey) || 0) > 1) {
+      apercu.push({ index: i, action: 'erreur', erreur: 'Site présent plusieurs fois dans le fichier', ...l, nomSite });
+      continue;
+    }
+    const candidats = parNom.get(nomKey) || [];
     if (candidats.length > 1) {
       apercu.push({ index: i, action: 'erreur', erreur: 'Plusieurs sites existants portent ce nom', ...l, nomSite });
       continue;
