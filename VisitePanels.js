@@ -9,9 +9,17 @@ import {
   listerReseaux, ajouterReseau, upsertReseauChamp, supprimerReseau,
   listerCompteurs, ajouterCompteur, upsertCompteurChamp, supprimerCompteur,
   listerMateriel, ajouterMateriel, upsertMaterielChamp, supprimerMateriel, listerBibliothequeEquipements,
-  listerRemarques, ajouterRemarqueManuelle, listerBibliothequeReserves, ajouterRemarqueDepuisBiblio, rattacherRemarque,
+  listerBibliothequeReserves,
   listerPhotos, ajouterPhoto,
 } from './db.js';
+import {
+  listerRemarquesVisite,
+  ajouterRemarqueVisite,
+  ajouterRemarqueDepuisBibliotheque,
+  modifierRemarqueVisite,
+  supprimerRemarqueVisite,
+  rattacherRemarqueVisite,
+} from './remarkDb.js';
 import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, useSaisieAvecAutoSave } from './GenericFields.js';
 import { PhotoButton, prendrePhoto } from './PhotoButton.js';
 import { BrandMark } from './BrandLogo.js';
@@ -32,7 +40,6 @@ const TAB_ORDER = [
   'p-equip', 'p-remarques', 'p-photos',
 ];
 
-/** Panneau générique : rend toutes les sections d'un onglet depuis TRAME_DATA. */
 function PanelGenerique({ visiteId, panelId, refreshKey, onSaved }) {
   const [champsMap, setChampsMap] = useState({});
   const [controlesMap, setControlesMap] = useState({});
@@ -83,7 +90,6 @@ function PanelGenerique({ visiteId, panelId, refreshKey, onSaved }) {
   );
 }
 
-/** Onglet Régulation : cascade fixe + réseaux dynamiques + réseau ECS. */
 function PanelRegulation({ visiteId, refreshKey, onSaved }) {
   const [champsMap, setChampsMap] = useState({});
   const [reseaux, setReseaux] = useState([]);
@@ -105,28 +111,18 @@ function PanelRegulation({ visiteId, refreshKey, onSaved }) {
       <Text style={styles.sectionTitle}>Cascade chaudières</Text>
       <View style={styles.formCard}>
         {TRAME_DATA['p-regulation']['Cascade chaudières'].map((f) => (
-          <ChampGenerique
-            key={f.cle} visiteId={visiteId} sectionCode="regulation.cascade"
-            field={f} valeurInitiale={champsMap[`regulation.cascade||${f.cle}`]} onSaved={onSaved}
-          />
+          <ChampGenerique key={f.cle} visiteId={visiteId} sectionCode="regulation.cascade" field={f} valeurInitiale={champsMap[`regulation.cascade||${f.cle}`]} onSaved={onSaved} />
         ))}
       </View>
 
       <Text style={styles.sectionTitle}>Réseaux · {reseaux.length} ajouté{reseaux.length > 1 ? 's' : ''}</Text>
-      {reseaux.map((r) => (
-        <ReseauCard key={r.id} reseau={r} visiteId={visiteId} onChange={charger} />
-      ))}
-      <TouchableOpacity style={styles.addBtn} onPress={onAjouterReseau}>
-        <Text style={styles.addBtnText}>+ Ajouter un réseau — nom et photo modifiables</Text>
-      </TouchableOpacity>
+      {reseaux.map((r) => <ReseauCard key={r.id} reseau={r} visiteId={visiteId} onChange={charger} />)}
+      <TouchableOpacity style={styles.addBtn} onPress={onAjouterReseau}><Text style={styles.addBtnText}>+ Ajouter un réseau — nom et photo modifiables</Text></TouchableOpacity>
 
       <Text style={styles.sectionTitle}>Réseau ECS</Text>
       <View style={styles.formCard}>
         {TRAME_DATA['p-regulation']['Réseau ECS'].map((f) => (
-          <ChampGenerique
-            key={f.cle} visiteId={visiteId} sectionCode="regulation.reseau_ecs"
-            field={f} valeurInitiale={champsMap[`regulation.reseau_ecs||${f.cle}`]} onSaved={onSaved}
-          />
+          <ChampGenerique key={f.cle} visiteId={visiteId} sectionCode="regulation.reseau_ecs" field={f} valeurInitiale={champsMap[`regulation.reseau_ecs||${f.cle}`]} onSaved={onSaved} />
         ))}
       </View>
     </ScrollView>
@@ -144,9 +140,7 @@ function ReseauCard({ reseau, visiteId, onChange }) {
     });
     return v;
   });
-
   const CLE_TO_COL = { 'T°ext(°C)': 't_ext_c', 'T°dép(°C)': 't_dep_c', 'Courbe de chauffe': 'courbe_de_chauffe', 'TNC': 'tnc', 'Consigne et Programme horaire': 'consigne_programme_horaire' };
-
   const sauverNom = async () => { await upsertReseauChamp(reseau.id, 'nom_reseau', nom); onChange(); };
   const sauverChamp = async (cle, val) => { await upsertReseauChamp(reseau.id, CLE_TO_COL[cle], val); };
 
@@ -154,38 +148,19 @@ function ReseauCard({ reseau, visiteId, onChange }) {
     <View style={styles.formCard}>
       <View style={styles.reseauHeaderRow}>
         <TextInput style={styles.reseauNomInput} value={nom} onChangeText={setNom} onBlur={sauverNom} />
-        <PhotoButton
-          visiteId={visiteId}
-          entiteKey={reseau.reseau_site_id ? `reseau_site||${reseau.reseau_site_id}` : `reseau||${reseau.id}`}
-          label={nom}
-        />
-        <TouchableOpacity onPress={async () => { await supprimerReseau(reseau.id); onChange(); }}>
-          <Text style={styles.removeLink}>Retirer</Text>
-        </TouchableOpacity>
+        <PhotoButton visiteId={visiteId} entiteKey={reseau.reseau_site_id ? `reseau_site||${reseau.reseau_site_id}` : `reseau||${reseau.id}`} label={nom} />
+        <TouchableOpacity onPress={async () => { await supprimerReseau(reseau.id); onChange(); }}><Text style={styles.removeLink}>Retirer</Text></TouchableOpacity>
       </View>
-      {reseau.reseau_site_id && (
-        <View style={styles.persistentEquipmentBadge}>
-          <Text style={styles.persistentEquipmentBadgeText}>↻ Réseau permanent · {reseau.nb_observations || 0} visite{reseau.nb_observations > 1 ? 's' : ''}</Text>
-        </View>
-      )}
+      {reseau.reseau_site_id && <View style={styles.persistentEquipmentBadge}><Text style={styles.persistentEquipmentBadgeText}>↻ Réseau permanent · {reseau.nb_observations || 0} visite{reseau.nb_observations > 1 ? 's' : ''}</Text></View>}
       {champsAffiches.map((f) => {
         const numericConfig = getNumericConfig(f.cle);
         return (
           <View key={f.cle} style={styles.fieldBlock}>
             <Text style={styles.fieldLabel}>{cleanLabel(f.cle)}{extractUnit(f.cle) && !numericConfig ? ` (${extractUnit(f.cle)})` : ''}</Text>
             {numericConfig ? (
-              <StepperNumerique
-                valeur={valeurs[f.cle]}
-                config={numericConfig}
-                onChange={(val) => { setValeurs((v) => ({ ...v, [f.cle]: val })); sauverChamp(f.cle, val); }}
-              />
+              <StepperNumerique valeur={valeurs[f.cle]} config={numericConfig} onChange={(val) => { setValeurs((v) => ({ ...v, [f.cle]: val })); sauverChamp(f.cle, val); }} />
             ) : (
-              <TextInput
-                style={styles.input}
-                value={valeurs[f.cle]}
-                onChangeText={(t) => setValeurs((v) => ({ ...v, [f.cle]: t }))}
-                onBlur={() => sauverChamp(f.cle, valeurs[f.cle])}
-              />
+              <TextInput style={styles.input} value={valeurs[f.cle]} onChangeText={(t) => setValeurs((v) => ({ ...v, [f.cle]: t }))} onBlur={() => sauverChamp(f.cle, valeurs[f.cle])} />
             )}
           </View>
         );
@@ -195,21 +170,11 @@ function ReseauCard({ reseau, visiteId, onChange }) {
 }
 
 const COMPTEUR_TYPES = [
-  'Compteur gaz',
-  'Compteur énergie chauffage',
-  'Compteur énergie ECS',
-  'Compteur eau appoint chauffage',
-  'Compteur eau froide ECS',
-  'Compteur eau froide générale',
-  'Compteur électrique',
-  'Compteur fioul',
-  'Compteur calories',
-  'Compteur volumétrique',
-  'Manomètre chauffage',
-  'Manomètre ECS',
+  'Compteur gaz', 'Compteur énergie chauffage', 'Compteur énergie ECS', 'Compteur eau appoint chauffage',
+  'Compteur eau froide ECS', 'Compteur eau froide générale', 'Compteur électrique', 'Compteur fioul',
+  'Compteur calories', 'Compteur volumétrique', 'Manomètre chauffage', 'Manomètre ECS',
 ];
 
-/** Onglet Relevés : Températures/pH génériques + compteurs dynamiques avec unité. */
 function PanelReleves({ visiteId, refreshKey, onSaved }) {
   const [champsMap, setChampsMap] = useState({});
   const [compteurs, setCompteurs] = useState([]);
@@ -223,30 +188,15 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
     setChampsMap(await getChampsVisite(visiteId));
     setCompteurs(await listerCompteurs(visiteId));
   }, [visiteId]);
-
   useEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
 
-  const ouvrirAjoutCompteur = () => {
-    setNomCompteurChoisi('');
-    setNomCompteurLibre('');
-    setModeNomLibre(false);
-    setAjoutCompteurVisible(true);
-  };
-
-  const choisirNomCompteur = (nom) => {
-    setNomCompteurChoisi(nom);
-    setModeNomLibre(false);
-    setNomCompteurLibre('');
-  };
-
+  const ouvrirAjoutCompteur = () => { setNomCompteurChoisi(''); setNomCompteurLibre(''); setModeNomLibre(false); setAjoutCompteurVisible(true); };
+  const choisirNomCompteur = (nom) => { setNomCompteurChoisi(nom); setModeNomLibre(false); setNomCompteurLibre(''); };
   const creerCompteurChoisi = async () => {
     const label = modeNomLibre ? nomCompteurLibre.trim() : nomCompteurChoisi.trim();
     if (!label) return;
     await ajouterCompteur(visiteId, label);
-    setAjoutCompteurVisible(false);
-    setNomCompteurChoisi('');
-    setNomCompteurLibre('');
-    setModeNomLibre(false);
+    setAjoutCompteurVisible(false); setNomCompteurChoisi(''); setNomCompteurLibre(''); setModeNomLibre(false);
     await charger();
   };
 
@@ -255,16 +205,13 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
   const champsCompteursIndex = (sections['Relevés des compteurs et manomètres'] || []).filter((f) => /^Index/i.test(f.cle));
   const champsPression = (sections['Relevés des compteurs et manomètres'] || []).filter((f) => !/^Index/i.test(f.cle));
 
-  // Seed initial des compteurs prévus par la trame. Le libellé reste ensuite modifiable.
   useEffect(() => {
     (async () => {
       if (compteurs.length === 0 && champsCompteursIndex.length > 0) {
         const db = await getDb();
         const existing = await db.getFirstAsync(`SELECT COUNT(*) as n FROM compteurs WHERE visite_id = ?`, [visiteId]);
         if (existing.n === 0) {
-          for (const f of champsCompteursIndex) {
-            await ajouterCompteur(visiteId, cleanLabel(f.cle));
-          }
+          for (const f of champsCompteursIndex) await ajouterCompteur(visiteId, cleanLabel(f.cle));
           charger();
         }
       }
@@ -276,137 +223,58 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
       <Text style={styles.sectionTitle}>Pressions</Text>
       <View style={styles.formCard}>
-        {champsPression.map((f) => (
-          <ChampGenerique
-            key={f.cle} visiteId={visiteId} sectionCode="releves.compteurs"
-            field={f} valeurInitiale={champsMap[`releves.compteurs||${f.cle}`]} onSaved={onSaved}
-          />
-        ))}
+        {champsPression.map((f) => <ChampGenerique key={f.cle} visiteId={visiteId} sectionCode="releves.compteurs" field={f} valeurInitiale={champsMap[`releves.compteurs||${f.cle}`]} onSaved={onSaved} />)}
       </View>
 
       <Text style={styles.sectionTitle}>Compteurs relevés</Text>
-      {compteurs.map((c) => (
-        <CompteurCard key={c.id} compteur={c} visiteId={visiteId} unites={UNITES} onChange={charger} />
-      ))}
-      <TouchableOpacity style={styles.addBtn} onPress={ouvrirAjoutCompteur}>
-        <Text style={styles.addBtnText}>+ Ajouter un compteur</Text>
-      </TouchableOpacity>
+      {compteurs.map((c) => <CompteurCard key={c.id} compteur={c} visiteId={visiteId} unites={UNITES} onChange={charger} />)}
+      <TouchableOpacity style={styles.addBtn} onPress={ouvrirAjoutCompteur}><Text style={styles.addBtnText}>+ Ajouter un compteur</Text></TouchableOpacity>
 
       <Text style={styles.sectionTitle}>Températures et pH</Text>
       <View style={styles.formCard}>
-        {champsTemp.map((f) => (
-          <ChampGenerique
-            key={f.cle} visiteId={visiteId} sectionCode="releves.temperatures"
-            field={f} valeurInitiale={champsMap[`releves.temperatures||${f.cle}`]} onSaved={onSaved}
-          />
-        ))}
+        {champsTemp.map((f) => <ChampGenerique key={f.cle} visiteId={visiteId} sectionCode="releves.temperatures" field={f} valeurInitiale={champsMap[`releves.temperatures||${f.cle}`]} onSaved={onSaved} />)}
       </View>
 
       <Modal visible={ajoutCompteurVisible} transparent animationType="fade" onRequestClose={() => setAjoutCompteurVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Ajouter un compteur</Text>
-            <Text style={styles.importHint}>Choisis le type de compteur. Son nom pourra être modifié ensuite directement dans la visite.</Text>
-            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 320, marginTop: 10 }}>
-              {COMPTEUR_TYPES.map((nom) => (
-                <TouchableOpacity
-                  key={nom}
-                  style={[styles.biblioRow, nomCompteurChoisi === nom && { borderColor: COLORS.primary, borderWidth: 1 }]}
-                  onPress={() => choisirNomCompteur(nom)}
-                >
-                  <Text style={styles.biblioRowTitle}>{nom}</Text>
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity
-                style={[styles.biblioRow, modeNomLibre && { borderColor: COLORS.primary, borderWidth: 1 }]}
-                onPress={() => { setModeNomLibre(true); setNomCompteurChoisi(''); }}
-              >
-                <Text style={styles.biblioRowTitle}>+ Autre / nom personnalisé</Text>
-              </TouchableOpacity>
-              {modeNomLibre ? (
-                <TextInput
-                  style={[styles.input, { marginTop: 10 }]}
-                  value={nomCompteurLibre}
-                  onChangeText={setNomCompteurLibre}
-                  placeholder="Ex. Compteur primaire RCU bâtiment A"
-                  autoFocus
-                />
-              ) : null}
-            </ScrollView>
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.btnSecondary} onPress={() => setAjoutCompteurVisible(false)}>
-                <Text style={styles.btnSecondaryText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.btnPrimary, ((!nomCompteurChoisi && !nomCompteurLibre.trim()) ? { opacity: 0.45 } : null)]}
-                disabled={!nomCompteurChoisi && !nomCompteurLibre.trim()}
-                onPress={creerCompteurChoisi}
-              >
-                <Text style={styles.btnPrimaryText}>Ajouter</Text>
-              </TouchableOpacity>
-            </View>
+        <View style={styles.modalOverlay}><View style={styles.modalSheet}>
+          <Text style={styles.modalTitle}>Ajouter un compteur</Text>
+          <Text style={styles.importHint}>Choisis le type de compteur. Son nom pourra être modifié ensuite directement dans la visite.</Text>
+          <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 320, marginTop: 10 }}>
+            {COMPTEUR_TYPES.map((nom) => (
+              <TouchableOpacity key={nom} style={[styles.biblioRow, nomCompteurChoisi === nom && { borderColor: COLORS.primary, borderWidth: 1 }]} onPress={() => choisirNomCompteur(nom)}><Text style={styles.biblioRowTitle}>{nom}</Text></TouchableOpacity>
+            ))}
+            <TouchableOpacity style={[styles.biblioRow, modeNomLibre && { borderColor: COLORS.primary, borderWidth: 1 }]} onPress={() => { setModeNomLibre(true); setNomCompteurChoisi(''); }}><Text style={styles.biblioRowTitle}>+ Autre / nom personnalisé</Text></TouchableOpacity>
+            {modeNomLibre && <TextInput style={[styles.input, { marginTop: 10 }]} value={nomCompteurLibre} onChangeText={setNomCompteurLibre} placeholder="Ex. Compteur primaire RCU bâtiment A" autoFocus />}
+          </ScrollView>
+          <View style={styles.modalActions}>
+            <TouchableOpacity style={styles.btnSecondary} onPress={() => setAjoutCompteurVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.btnPrimary, ((!nomCompteurChoisi && !nomCompteurLibre.trim()) ? { opacity: 0.45 } : null)]} disabled={!nomCompteurChoisi && !nomCompteurLibre.trim()} onPress={creerCompteurChoisi}><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity>
           </View>
-        </View>
+        </View></View>
       </Modal>
     </ScrollView>
   );
 }
 
 function CompteurCard({ compteur, visiteId, unites, onChange }) {
-  const [label, setLabel, surBlurLabel] = useSaisieAvecAutoSave(
-    compteur.label,
-    (v) => upsertCompteurChamp(compteur.id, 'label', v)
-  );
+  const [label, setLabel, surBlurLabel] = useSaisieAvecAutoSave(compteur.label, (v) => upsertCompteurChamp(compteur.id, 'label', v));
   const [unite, setUnite] = useState(compteur.unite || 'm³');
-
   useEffect(() => { setUnite(compteur.unite || 'm³'); }, [compteur.unite]);
-
-  const [valeur, setValeur, surBlurValeur] = useSaisieAvecAutoSave(
-    compteur.valeur, (v) => upsertCompteurChamp(compteur.id, 'valeur', v)
-  );
+  const [valeur, setValeur, surBlurValeur] = useSaisieAvecAutoSave(compteur.valeur, (v) => upsertCompteurChamp(compteur.id, 'valeur', v));
 
   return (
     <View style={styles.compteurRow}>
       <View style={styles.compteurRowTop}>
-        <View style={{ flex: 1 }}>
-          <TextInput
-            style={styles.input}
-            value={label}
-            onChangeText={setLabel}
-            onBlur={surBlurLabel}
-            placeholder="Nom du compteur"
-          />
-        </View>
-        <PhotoButton
-          visiteId={visiteId}
-          entiteKey={compteur.compteur_site_id ? `compteur_site||${compteur.compteur_site_id}` : `compteur||${compteur.id}`}
-          label={label || 'Compteur'}
-        />
-        <TouchableOpacity onPress={async () => { await supprimerCompteur(compteur.id); onChange(); }}>
-          <Text style={styles.removeLink}>Retirer</Text>
-        </TouchableOpacity>
+        <View style={{ flex: 1 }}><TextInput style={styles.input} value={label} onChangeText={setLabel} onBlur={surBlurLabel} placeholder="Nom du compteur" /></View>
+        <PhotoButton visiteId={visiteId} entiteKey={compteur.compteur_site_id ? `compteur_site||${compteur.compteur_site_id}` : `compteur||${compteur.id}`} label={label || 'Compteur'} />
+        <TouchableOpacity onPress={async () => { await supprimerCompteur(compteur.id); onChange(); }}><Text style={styles.removeLink}>Retirer</Text></TouchableOpacity>
       </View>
-      {compteur.compteur_site_id && (
-        <View style={styles.persistentEquipmentBadge}>
-          <Text style={styles.persistentEquipmentBadgeText}>↻ Compteur permanent · {compteur.nb_releves || 0} relevé{compteur.nb_releves > 1 ? 's' : ''}</Text>
-        </View>
-      )}
+      {compteur.compteur_site_id && <View style={styles.persistentEquipmentBadge}><Text style={styles.persistentEquipmentBadgeText}>↻ Compteur permanent · {compteur.nb_releves || 0} relevé{compteur.nb_releves > 1 ? 's' : ''}</Text></View>}
       <View style={styles.compteurRowBody}>
-        <TextInput
-          style={styles.compteurValInput}
-          value={valeur}
-          onChangeText={setValeur}
-          onBlur={surBlurValeur}
-          placeholder="Valeur relevée"
-          keyboardType="numeric"
-        />
+        <TextInput style={styles.compteurValInput} value={valeur} onChangeText={setValeur} onBlur={surBlurValeur} placeholder="Valeur relevée" keyboardType="numeric" />
         <View style={styles.uniteRow}>
           {unites.map((u) => (
-            <TouchableOpacity
-              key={u}
-              style={[styles.uniteChip, unite === u && styles.uniteChipSelected]}
-              onPress={() => { setUnite(u); upsertCompteurChamp(compteur.id, 'unite', u); }}
-            >
+            <TouchableOpacity key={u} style={[styles.uniteChip, unite === u && styles.uniteChipSelected]} onPress={() => { setUnite(u); upsertCompteurChamp(compteur.id, 'unite', u); }}>
               <Text style={[styles.uniteChipText, unite === u && styles.uniteChipTextSelected]}>{u}</Text>
             </TouchableOpacity>
           ))}
@@ -416,7 +284,6 @@ function CompteurCard({ compteur, visiteId, unites, onChange }) {
   );
 }
 
-/** Onglet Équipements : liste éditable avec ajout dynamique. */
 function PanelEquipements({ visiteId }) {
   const [materiel, setMateriel] = useState([]);
   const [optionsCategories, setOptionsCategories] = useState(CATEGORIES_EQUIPEMENT);
@@ -430,23 +297,14 @@ function PanelEquipements({ visiteId }) {
     setOptionsCategories([...new Set([...CATEGORIES_EQUIPEMENT, ...categoriesBiblio])].sort((a, b) => a.localeCompare(b)));
     setOptionsMarques([...new Set([...MARQUES_EQUIPEMENT, ...marquesBiblio])].sort((a, b) => a.localeCompare(b)));
   }, [visiteId]);
-
   useEffect(useCallback(() => { charger(); }, [charger]));
-
   const onAjouter = async () => { await ajouterMateriel(visiteId); charger(); };
 
   return (
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
       <Text style={styles.sectionTitle}>Équipements — feuille MATERIEL</Text>
-      {materiel.map((m) => (
-        <MaterielCard
-          key={m.id} item={m} visiteId={visiteId} onChange={charger}
-          optionsCategories={optionsCategories} optionsMarques={optionsMarques}
-        />
-      ))}
-      <TouchableOpacity style={styles.addBtn} onPress={onAjouter}>
-        <Text style={styles.addBtnText}>+ Ajouter un équipement</Text>
-      </TouchableOpacity>
+      {materiel.map((m) => <MaterielCard key={m.id} item={m} visiteId={visiteId} onChange={charger} optionsCategories={optionsCategories} optionsMarques={optionsMarques} />)}
+      <TouchableOpacity style={styles.addBtn} onPress={onAjouter}><Text style={styles.addBtnText}>+ Ajouter un équipement</Text></TouchableOpacity>
     </ScrollView>
   );
 }
@@ -459,25 +317,14 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
   const [etat, setEtat] = useState(item.etat || '');
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
-
-  const [designation, setDesignation, surBlurDesignation] = useSaisieAvecAutoSave(
-    item.designation, (v) => upsertMaterielChamp(item.id, 'designation', v)
-  );
-  const [modele, setModele, surBlurModele] = useSaisieAvecAutoSave(
-    item.modele, (v) => upsertMaterielChamp(item.id, 'modele', v)
-  );
-  const [annee, setAnnee, surBlurAnnee] = useSaisieAvecAutoSave(
-    item.annee, (v) => upsertMaterielChamp(item.id, 'annee', v)
-  );
+  const [designation, setDesignation, surBlurDesignation] = useSaisieAvecAutoSave(item.designation, (v) => upsertMaterielChamp(item.id, 'designation', v));
+  const [modele, setModele, surBlurModele] = useSaisieAvecAutoSave(item.modele, (v) => upsertMaterielChamp(item.id, 'modele', v));
+  const [annee, setAnnee, surBlurAnnee] = useSaisieAvecAutoSave(item.annee, (v) => upsertMaterielChamp(item.id, 'annee', v));
 
   const sauverCategorie = async (val) => { setCategorie(val); await upsertMaterielChamp(item.id, 'categorie', val); };
   const sauverMarque = async (val) => { setMarque(val); await upsertMaterielChamp(item.id, 'marque', val); };
   const sauverEtat = async (val) => { setEtat(val); await upsertMaterielChamp(item.id, 'etat', val); };
-
-  const ouvrirBiblio = async () => {
-    setBiblio(await listerBibliothequeEquipements());
-    setBiblioVisible(true);
-  };
+  const ouvrirBiblio = async () => { setBiblio(await listerBibliothequeEquipements()); setBiblioVisible(true); };
   const choisirDepuisBiblio = async (e) => {
     setCategorie(e.categorie); setMarque(e.marque || '');
     await upsertMaterielChamp(item.id, 'categorie', e.categorie);
@@ -490,104 +337,92 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
     <View style={styles.formCard}>
       <View style={styles.equipmentBrandHeader}>
         <BrandMark marque={marque} compact />
-        <TouchableOpacity style={[styles.biblioShortcutBtn, { flex: 1 }]} onPress={ouvrirBiblio}>
-          <Text style={styles.biblioShortcutBtnText}>📚 Choisir dans la bibliothèque</Text>
-        </TouchableOpacity>
+        <TouchableOpacity style={[styles.biblioShortcutBtn, { flex: 1 }]} onPress={ouvrirBiblio}><Text style={styles.biblioShortcutBtnText}>📚 Choisir dans la bibliothèque</Text></TouchableOpacity>
       </View>
       <View style={styles.materielTopRow}>
-        <View style={{ flex: 1 }}>
-          <TypeAheadInput
-            valeur={categorie}
-            options={optionsCategories}
-            placeholder="Catégorie (ex: Chaudière, Pompe, Adoucisseur...)"
-            onChange={sauverCategorie}
-          />
-        </View>
-        <PhotoButton
-          visiteId={visiteId}
-          entiteKey={item.equipement_id ? `equipement||${item.equipement_id}` : `materiel||${item.id}`}
-          label={designation || categorie}
-        />
+        <View style={{ flex: 1 }}><TypeAheadInput valeur={categorie} options={optionsCategories} placeholder="Catégorie (ex: Chaudière, Pompe, Adoucisseur...)" onChange={sauverCategorie} /></View>
+        <PhotoButton visiteId={visiteId} entiteKey={item.equipement_id ? `equipement||${item.equipement_id}` : `materiel||${item.id}`} label={designation || categorie} />
       </View>
-      {item.equipement_id && (
-        <View style={styles.persistentEquipmentBadge}>
-          <Text style={styles.persistentEquipmentBadgeText}>
-            ↻ Équipement permanent · {item.nb_observations || 0} visite{item.nb_observations > 1 ? 's' : ''}
-          </Text>
-        </View>
-      )}
+      {item.equipement_id && <View style={styles.persistentEquipmentBadge}><Text style={styles.persistentEquipmentBadgeText}>↻ Équipement permanent · {item.nb_observations || 0} visite{item.nb_observations > 1 ? 's' : ''}</Text></View>}
       <View style={{ height: 8 }} />
-      <TextInput
-        style={styles.input}
-        placeholder="Désignation"
-        value={designation}
-        onChangeText={setDesignation}
-        onBlur={surBlurDesignation}
-      />
+      <TextInput style={styles.input} placeholder="Désignation" value={designation} onChangeText={setDesignation} onBlur={surBlurDesignation} />
       <View style={{ height: 8 }} />
       <View style={{ flexDirection: 'row', gap: 8 }}>
-        <View style={{ flex: 1 }}>
-          <TypeAheadInput
-            valeur={marque}
-            options={optionsMarques}
-            placeholder="Marque"
-            onChange={sauverMarque}
-          />
-        </View>
-        <TextInput
-          style={[styles.input, { flex: 1 }]} placeholder="Modèle" value={modele}
-          onChangeText={setModele} onBlur={surBlurModele}
-        />
-        <TextInput
-          style={[styles.input, { width: 70 }]} placeholder="Année" value={annee}
-          onChangeText={setAnnee} onBlur={surBlurAnnee}
-          keyboardType="numeric"
-        />
+        <View style={{ flex: 1 }}><TypeAheadInput valeur={marque} options={optionsMarques} placeholder="Marque" onChange={sauverMarque} /></View>
+        <TextInput style={[styles.input, { flex: 1 }]} placeholder="Modèle" value={modele} onChangeText={setModele} onBlur={surBlurModele} />
+        <TextInput style={[styles.input, { width: 70 }]} placeholder="Année" value={annee} onChangeText={setAnnee} onBlur={surBlurAnnee} keyboardType="numeric" />
       </View>
       <View style={{ height: 10 }} />
-      <Text style={styles.fieldLabel}>État constaté pendant cette visite</Text>
-      <View style={{ height: 6 }} />
-      <ChipSelector
-        valeur={etat}
-        options={['Bon', 'À surveiller', 'Dégradé', 'Hors service']}
-        onChange={sauverEtat}
-      />
-      <TouchableOpacity style={{ marginTop: 10 }} onPress={async () => { await supprimerMateriel(item.id); onChange(); }}>
-        <Text style={styles.removeLink}>Déclarer cet équipement retiré</Text>
-      </TouchableOpacity>
+      <Text style={styles.fieldLabel}>État constaté pendant cette visite</Text><View style={{ height: 6 }} />
+      <ChipSelector valeur={etat} options={['Bon', 'À surveiller', 'Dégradé', 'Hors service']} onChange={sauverEtat} />
+      <TouchableOpacity style={{ marginTop: 10 }} onPress={async () => { await supprimerMateriel(item.id); onChange(); }}><Text style={styles.removeLink}>Déclarer cet équipement retiré</Text></TouchableOpacity>
 
       <Modal visible={biblioVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Choisir un équipement</Text>
-            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 300 }}>
-              {biblio.length === 0 ? (
-                <Text style={styles.emptySub}>Bibliothèque vide. Ajoutes-en depuis Paramètres → Équipements.</Text>
-              ) : (
-                biblio.map((e) => (
-                  <TouchableOpacity key={e.id} style={styles.biblioRow} onPress={() => choisirDepuisBiblio(e)}>
-                    <View style={styles.equipmentLibraryRow}>
-                      <BrandMark marque={e} compact />
-                      <View style={{ flex: 1 }}>
-                        <Text style={styles.biblioRowTitle}>{e.categorie}</Text>
-                        <Text style={styles.biblioRowSub}>{[e.marque, e.modele].filter(Boolean).join(' — ') || '—'}</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))
-              )}
-            </ScrollView>
-            <TouchableOpacity style={[styles.btnSecondary, { marginTop: 14 }]} onPress={() => setBiblioVisible(false)}>
-              <Text style={styles.btnSecondaryText}>Fermer</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
+        <View style={styles.modalOverlay}><View style={styles.modalSheet}>
+          <Text style={styles.modalTitle}>Choisir un équipement</Text>
+          <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 300 }}>
+            {biblio.length === 0 ? <Text style={styles.emptySub}>Bibliothèque vide. Ajoutes-en depuis Paramètres → Équipements.</Text> : biblio.map((e) => (
+              <TouchableOpacity key={e.id} style={styles.biblioRow} onPress={() => choisirDepuisBiblio(e)}>
+                <View style={styles.equipmentLibraryRow}><BrandMark marque={e} compact /><View style={{ flex: 1 }}><Text style={styles.biblioRowTitle}>{e.categorie}</Text><Text style={styles.biblioRowSub}>{[e.marque, e.modele].filter(Boolean).join(' — ') || '—'}</Text></View></View>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+          <TouchableOpacity style={[styles.btnSecondary, { marginTop: 14 }]} onPress={() => setBiblioVisible(false)}><Text style={styles.btnSecondaryText}>Fermer</Text></TouchableOpacity>
+        </View></View>
       </Modal>
     </View>
   );
 }
 
-/** Onglet Réserves : 100% dynamique, lit ce que les contrôles ont généré. */
+function RemarqueEditableCard({ remarque, visiteId, onChange, onRattacher }) {
+  const [prestation, setPrestation, blurPrestation] = useSaisieAvecAutoSave(remarque.prestation, async (v) => { await modifierRemarqueVisite(remarque.id, { prestation: v }); onChange(); });
+  const [poste, setPoste, blurPoste] = useSaisieAvecAutoSave(remarque.poste, async (v) => { await modifierRemarqueVisite(remarque.id, { poste: v }); onChange(); });
+  const [prix, setPrix, blurPrix] = useSaisieAvecAutoSave(remarque.estimatif == null ? '' : String(remarque.estimatif), async (v) => { await modifierRemarqueVisite(remarque.id, { estimatif: v }); onChange(); });
+  const [delai, setDelai, blurDelai] = useSaisieAvecAutoSave(remarque.delai == null ? '' : String(remarque.delai), async (v) => { await modifierRemarqueVisite(remarque.id, { delai: v }); onChange(); });
+
+  return (
+    <View style={styles.remarqueCard}>
+      <View style={styles.remarqueTop}>
+        <Text style={styles.remarquePoste}>Réserve de la visite</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+          <PhotoButton visiteId={visiteId} entiteKey={`remarque||${remarque.id}`} label={prestation || 'Anomalie'} />
+          <TouchableOpacity onPress={async () => { await supprimerRemarqueVisite(remarque.id); onChange(); }}><Text style={styles.removeLink}>Supprimer</Text></TouchableOpacity>
+        </View>
+      </View>
+
+      <Text style={styles.fieldLabel}>Prestation / réserve</Text>
+      <TextInput style={[styles.input, { minHeight: 76, textAlignVertical: 'top' }]} multiline value={prestation} onChangeText={setPrestation} onBlur={blurPrestation} placeholder="Décrire la réserve..." />
+
+      <View style={{ height: 8 }} />
+      <Text style={styles.fieldLabel}>Poste</Text>
+      <TextInput style={styles.input} value={poste} onChangeText={setPoste} onBlur={blurPoste} placeholder="Ex. Entretien P2, Travaux de conformité..." />
+
+      <View style={{ height: 8 }} />
+      <View style={{ flexDirection: 'row', gap: 8 }}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.fieldLabel}>Prix estimatif HT</Text>
+          <TextInput style={styles.input} value={prix} onChangeText={setPrix} onBlur={blurPrix} placeholder="€ HT" keyboardType="numeric" />
+        </View>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.fieldLabel}>Délai</Text>
+          <TextInput style={styles.input} value={delai} onChangeText={setDelai} onBlur={blurDelai} placeholder="Mois" keyboardType="numeric" />
+        </View>
+      </View>
+
+      <View style={styles.remarqueMeta}>
+        <Text style={styles.remarqueMetaTxt}>Origine : <Text style={styles.bold}>{remarque.origine || 'Manuelle'}</Text></Text>
+      </View>
+      <Text style={styles.importHint}>Modification locale à cette visite — la bibliothèque reste inchangée.</Text>
+
+      <TouchableOpacity style={styles.remarqueLinkBtn} onPress={onRattacher}>
+        <Text style={styles.remarqueLinkBtnText}>
+          {remarque.reference_onglet ? `↗ ${PANEL_LABELS[remarque.reference_onglet] || remarque.reference_onglet} · ${remarque.reference_libelle}` : '+ Rattacher à un onglet ou un élément'}
+        </Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 function PanelRemarques({ visiteId, refreshKey }) {
   const [remarques, setRemarques] = useState([]);
   const [biblioVisible, setBiblioVisible] = useState(false);
@@ -596,28 +431,16 @@ function PanelRemarques({ visiteId, refreshKey }) {
   const [ongletChoisi, setOngletChoisi] = useState(null);
   const [cibles, setCibles] = useState([]);
 
-  useEffect(useCallback(() => {
-    listerRemarques(visiteId).then(setRemarques);
-  }, [visiteId, refreshKey]));
+  const chargerRemarques = useCallback(async () => setRemarques(await listerRemarquesVisite(visiteId)), [visiteId]);
+  useEffect(useCallback(() => { chargerRemarques(); }, [chargerRemarques, refreshKey]));
 
   const total = remarques.length;
-  const sumEstim = remarques.reduce((s, r) => s + (r.estimatif || 0), 0);
-  const urgent = remarques.filter((r) => r.delai && r.delai <= 3).length;
+  const sumEstim = remarques.reduce((s, r) => s + (Number(r.estimatif) || 0), 0);
+  const urgent = remarques.filter((r) => Number(r.delai) > 0 && Number(r.delai) <= 3).length;
 
-  const ouvrirBiblio = async () => {
-    setBiblio(await listerBibliothequeReserves());
-    setBiblioVisible(true);
-  };
-  const choisirDepuisBiblio = async (item) => {
-    await ajouterRemarqueDepuisBiblio(visiteId, item);
-    setBiblioVisible(false);
-    listerRemarques(visiteId).then(setRemarques);
-  };
-  const ajouterVierge = async () => {
-    await ajouterRemarqueManuelle(visiteId);
-    setBiblioVisible(false);
-    listerRemarques(visiteId).then(setRemarques);
-  };
+  const ouvrirBiblio = async () => { setBiblio(await listerBibliothequeReserves()); setBiblioVisible(true); };
+  const choisirDepuisBiblio = async (item) => { await ajouterRemarqueDepuisBibliotheque(visiteId, item); setBiblioVisible(false); await chargerRemarques(); };
+  const ajouterVierge = async () => { await ajouterRemarqueVisite(visiteId); setBiblioVisible(false); await chargerRemarques(); };
 
   const ongletsRattachables = TAB_ORDER.filter((id) => id !== 'SEP' && id !== 'p-remarques' && id !== 'p-photos');
   const choisirOnglet = async (panelId) => {
@@ -640,167 +463,87 @@ function PanelRemarques({ visiteId, refreshKey }) {
     }
   };
   const enregistrerRattachement = async (cible) => {
-    await rattacherRemarque(remarqueARattacher.id, {
-      onglet: ongletChoisi,
-      type: cible.type,
-      id: cible.id,
-      libelle: cible.libelle,
-    });
-    setRemarqueARattacher(null);
-    setOngletChoisi(null);
-    setCibles([]);
-    setRemarques(await listerRemarques(visiteId));
+    await rattacherRemarqueVisite(remarqueARattacher.id, { onglet: ongletChoisi, type: cible.type, id: cible.id, libelle: cible.libelle });
+    setRemarqueARattacher(null); setOngletChoisi(null); setCibles([]); await chargerRemarques();
   };
   const retirerRattachement = async () => {
-    await rattacherRemarque(remarqueARattacher.id, {});
-    setRemarqueARattacher(null);
-    setOngletChoisi(null);
-    setCibles([]);
-    setRemarques(await listerRemarques(visiteId));
+    await rattacherRemarqueVisite(remarqueARattacher.id, {});
+    setRemarqueARattacher(null); setOngletChoisi(null); setCibles([]); await chargerRemarques();
   };
 
   return (
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
       <View style={styles.totalsBar}>
         <View style={styles.totalsCard}><Text style={styles.totalsNum}>{total}</Text><Text style={styles.totalsLabel}>Réserves</Text></View>
-        <View style={styles.totalsCard}><Text style={styles.totalsNum}>{Math.round(sumEstim)} €</Text><Text style={styles.totalsLabel}>Estimatif</Text></View>
+        <View style={styles.totalsCard}><Text style={styles.totalsNum}>{Math.round(sumEstim)} €</Text><Text style={styles.totalsLabel}>Estimatif HT</Text></View>
         <View style={styles.totalsCard}><Text style={styles.totalsNum}>{urgent}</Text><Text style={styles.totalsLabel}>≤ 3 mois</Text></View>
       </View>
-      <Text style={styles.sectionTitle}>Réserves — générées automatiquement</Text>
+      <Text style={styles.sectionTitle}>Synthèse des réserves — valeurs de cette visite</Text>
       {total === 0 ? (
-        <View style={styles.empty}>
-          <Text style={styles.emptyText}>Aucune réserve pour l'instant.</Text>
-          <Text style={styles.emptySub}>Passez un point de contrôle en N.S pour en générer une.</Text>
-        </View>
-      ) : (
-        remarques.map((r) => (
-          <View key={r.id} style={styles.remarqueCard}>
-            <View style={styles.remarqueTop}>
-              <Text style={styles.remarquePoste}>{r.poste}</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-                <PhotoButton visiteId={visiteId} entiteKey={`remarque||${r.id}`} label={r.prestation || 'Anomalie'} />
-                <Text style={styles.remarqueEstim}>{r.estimatif ? Math.round(r.estimatif) + ' €' : '—'}</Text>
-              </View>
-            </View>
-            <Text style={styles.remarqueTxt}>{r.prestation}</Text>
-            <View style={styles.remarqueMeta}>
-              <Text style={styles.remarqueMetaTxt}>Délai : <Text style={styles.bold}>{r.delai ? r.delai + ' mois' : '—'}</Text></Text>
-              <Text style={styles.remarqueMetaTxt}>Origine : <Text style={styles.bold}>{r.origine}</Text></Text>
-            </View>
-            <TouchableOpacity
-              style={styles.remarqueLinkBtn}
-              onPress={() => { setRemarqueARattacher(r); setOngletChoisi(null); setCibles([]); }}
-            >
-              <Text style={styles.remarqueLinkBtnText}>
-                {r.reference_onglet
-                  ? `↗ ${PANEL_LABELS[r.reference_onglet] || r.reference_onglet} · ${r.reference_libelle}`
-                  : '+ Rattacher à un onglet ou un élément'}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        ))
-      )}
-      <TouchableOpacity style={styles.addBtn} onPress={ouvrirBiblio}>
-        <Text style={styles.addBtnText}>+ Ajouter une réserve manuelle</Text>
-      </TouchableOpacity>
+        <View style={styles.empty}><Text style={styles.emptyText}>Aucune réserve pour l'instant.</Text><Text style={styles.emptySub}>Passez un point de contrôle en N.S pour en générer une.</Text></View>
+      ) : remarques.map((r) => (
+        <RemarqueEditableCard key={r.id} remarque={r} visiteId={visiteId} onChange={chargerRemarques} onRattacher={() => { setRemarqueARattacher(r); setOngletChoisi(null); setCibles([]); }} />
+      ))}
+      <TouchableOpacity style={styles.addBtn} onPress={ouvrirBiblio}><Text style={styles.addBtnText}>+ Ajouter une réserve manuelle</Text></TouchableOpacity>
 
       <Modal visible={biblioVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Choisir une réserve</Text>
-            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 300 }}>
-              {biblio.length === 0 ? (
-                <Text style={styles.emptySub}>Aucune réserve dans ta bibliothèque. Ajoutes-en depuis Paramètres, ou pars d'une réserve vierge.</Text>
-              ) : (
-                biblio.map((item) => (
-                  <TouchableOpacity key={item.id} style={styles.biblioRow} onPress={() => choisirDepuisBiblio(item)}>
-                    <Text style={styles.biblioRowTitle}>{item.nom}</Text>
-                    {item.description ? <Text style={styles.biblioRowSub} numberOfLines={1}>{item.description}</Text> : null}
-                  </TouchableOpacity>
-                ))
-              )}
-            </ScrollView>
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.btnSecondary} onPress={() => setBiblioVisible(false)}>
-                <Text style={styles.btnSecondaryText}>Annuler</Text>
+        <View style={styles.modalOverlay}><View style={styles.modalSheet}>
+          <Text style={styles.modalTitle}>Choisir une réserve</Text>
+          <Text style={styles.importHint}>La réserve choisie sera copiée dans cette visite. Tu pourras ensuite modifier texte, prix, délai et poste sans modifier la bibliothèque.</Text>
+          <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 300 }}>
+            {biblio.length === 0 ? <Text style={styles.emptySub}>Aucune réserve dans la bibliothèque.</Text> : biblio.map((item) => (
+              <TouchableOpacity key={item.id} style={styles.biblioRow} onPress={() => choisirDepuisBiblio(item)}>
+                <Text style={styles.biblioRowTitle}>{item.nom}</Text>
+                {item.description ? <Text style={styles.biblioRowSub} numberOfLines={2}>{item.description}</Text> : null}
+                <Text style={styles.biblioRowSub}>{item.prix != null ? `${item.prix} €HT` : 'Prix libre'} · {item.delai != null ? `${item.delai} mois` : 'Délai libre'}</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.btnPrimary} onPress={ajouterVierge}>
-                <Text style={styles.btnPrimaryText}>Réserve vierge</Text>
-              </TouchableOpacity>
-            </View>
+            ))}
+          </ScrollView>
+          <View style={styles.modalActions}>
+            <TouchableOpacity style={styles.btnSecondary} onPress={() => setBiblioVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.btnPrimary} onPress={ajouterVierge}><Text style={styles.btnPrimaryText}>Réserve vierge</Text></TouchableOpacity>
           </View>
-        </View>
+        </View></View>
       </Modal>
 
       <Modal visible={!!remarqueARattacher} transparent animationType="fade" onRequestClose={() => setRemarqueARattacher(null)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>À quoi cette réserve fait-elle référence ?</Text>
-            <Text style={styles.importHint}>Choisis d’abord l’onglet, puis l’élément précis concerné.</Text>
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.remarqueTabsScroll}>
-              {ongletsRattachables.map((id) => (
-                <TouchableOpacity key={id} style={[styles.remarqueTabChoice, ongletChoisi === id && styles.remarqueTabChoiceActive]} onPress={() => choisirOnglet(id)}>
-                  <Text style={[styles.remarqueTabChoiceText, ongletChoisi === id && styles.remarqueTabChoiceTextActive]}>{PANEL_LABELS[id]}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 280 }}>
-              {ongletChoisi && cibles.length === 0 ? <Text style={styles.emptySub}>Aucun élément disponible dans cet onglet.</Text> : null}
-              {cibles.map((cible) => (
-                <TouchableOpacity key={`${cible.type}:${cible.id}`} style={styles.biblioRow} onPress={() => enregistrerRattachement(cible)}>
-                  <Text style={styles.biblioRowTitle}>{cible.libelle}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <View style={styles.modalActions}>
-              {remarqueARattacher?.reference_onglet ? (
-                <TouchableOpacity style={styles.btnSecondary} onPress={retirerRattachement}><Text style={styles.btnSecondaryText}>Détacher</Text></TouchableOpacity>
-              ) : null}
-              <TouchableOpacity style={styles.btnPrimary} onPress={() => setRemarqueARattacher(null)}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
-            </View>
+        <View style={styles.modalOverlay}><View style={styles.modalSheet}>
+          <Text style={styles.modalTitle}>À quoi cette réserve fait-elle référence ?</Text>
+          <Text style={styles.importHint}>Choisis d’abord l’onglet, puis l’élément précis concerné.</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.remarqueTabsScroll}>
+            {ongletsRattachables.map((id) => <TouchableOpacity key={id} style={[styles.remarqueTabChoice, ongletChoisi === id && styles.remarqueTabChoiceActive]} onPress={() => choisirOnglet(id)}><Text style={[styles.remarqueTabChoiceText, ongletChoisi === id && styles.remarqueTabChoiceTextActive]}>{PANEL_LABELS[id]}</Text></TouchableOpacity>)}
+          </ScrollView>
+          <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 280 }}>
+            {ongletChoisi && cibles.length === 0 ? <Text style={styles.emptySub}>Aucun élément disponible dans cet onglet.</Text> : null}
+            {cibles.map((cible) => <TouchableOpacity key={`${cible.type}:${cible.id}`} style={styles.biblioRow} onPress={() => enregistrerRattachement(cible)}><Text style={styles.biblioRowTitle}>{cible.libelle}</Text></TouchableOpacity>)}
+          </ScrollView>
+          <View style={styles.modalActions}>
+            {remarqueARattacher?.reference_onglet ? <TouchableOpacity style={styles.btnSecondary} onPress={retirerRattachement}><Text style={styles.btnSecondaryText}>Détacher</Text></TouchableOpacity> : null}
+            <TouchableOpacity style={styles.btnPrimary} onPress={() => setRemarqueARattacher(null)}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
           </View>
-        </View>
+        </View></View>
       </Modal>
     </ScrollView>
   );
 }
 
-/** Onglet Photos : galerie complète de la visite, avec visionneuse. */
 function PanelPhotos({ visiteId, refreshKey }) {
   const [photos, setPhotos] = useState([]);
   const [viewerUri, setViewerUri] = useState(null);
-
-  useEffect(useCallback(() => {
-    listerPhotos(visiteId).then(setPhotos);
-  }, [visiteId, refreshKey]));
-
+  useEffect(useCallback(() => { listerPhotos(visiteId).then(setPhotos); }, [visiteId, refreshKey]));
   const onAjouter = async () => {
     const uri = await prendrePhoto();
-    if (uri) {
-      await ajouterPhoto(visiteId, null, uri, 'Photo générale');
-      listerPhotos(visiteId).then(setPhotos);
-    }
+    if (uri) { await ajouterPhoto(visiteId, null, uri, 'Photo générale'); listerPhotos(visiteId).then(setPhotos); }
   };
 
   return (
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
       <Text style={styles.sectionTitle}>Toutes les photos de la visite · {photos.length}</Text>
       <View style={styles.photoGrid}>
-        {photos.map((p) => (
-          <TouchableOpacity key={p.id} style={styles.photoThumb} onPress={() => setViewerUri(p.uri)}>
-            <Image source={{ uri: p.uri }} style={styles.photoThumbImg} />
-          </TouchableOpacity>
-        ))}
-        <TouchableOpacity style={styles.photoAddTile} onPress={onAjouter}>
-          <Text style={styles.photoAddTileText}>+</Text>
-        </TouchableOpacity>
+        {photos.map((p) => <TouchableOpacity key={p.id} style={styles.photoThumb} onPress={() => setViewerUri(p.uri)}><Image source={{ uri: p.uri }} style={styles.photoThumbImg} /></TouchableOpacity>)}
+        <TouchableOpacity style={styles.photoAddTile} onPress={onAjouter}><Text style={styles.photoAddTileText}>+</Text></TouchableOpacity>
       </View>
-
-      <Modal visible={!!viewerUri} transparent animationType="fade">
-        <TouchableOpacity style={styles.viewerOverlay} onPress={() => setViewerUri(null)} activeOpacity={1}>
-          {viewerUri && <Image source={{ uri: viewerUri }} style={styles.viewerImg} resizeMode="contain" />}
-        </TouchableOpacity>
-      </Modal>
+      <Modal visible={!!viewerUri} transparent animationType="fade"><TouchableOpacity style={styles.viewerOverlay} onPress={() => setViewerUri(null)} activeOpacity={1}>{viewerUri && <Image source={{ uri: viewerUri }} style={styles.viewerImg} resizeMode="contain" />}</TouchableOpacity></Modal>
     </ScrollView>
   );
 }
