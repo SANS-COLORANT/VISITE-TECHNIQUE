@@ -2,9 +2,9 @@ import React from 'react';
 import { Image, Text, View } from 'react-native';
 import { styles } from './styles.js';
 
-// Référence explicite vers la branche de développement. Le préfixe refs/heads
-// évite l'ambiguïté des noms de branche contenant des slashs dans raw.githubusercontent.com.
-const RAW_BASE = 'https://raw.githubusercontent.com/SANS-COLORANT/VISITE-TECHNIQUE/refs/heads/feat/phase-2-persistent-equipment/assets/brands';
+// Commit figé contenant les logos. Utiliser un SHA évite toute ambiguïté liée
+// au nom de branche avec des slashs et garantit des URL raw stables dans Snack.
+const RAW_BASE = 'https://raw.githubusercontent.com/SANS-COLORANT/VISITE-TECHNIQUE/3af148f5a3793e64634629d56f7fac1dd466e6c9/assets/brands';
 
 const BRAND_LOGOS = {
   atlantic: `${RAW_BASE}/atlantic.png`,
