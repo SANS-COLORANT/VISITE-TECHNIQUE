@@ -2,7 +2,9 @@ import React from 'react';
 import { Image, Text, View } from 'react-native';
 import { styles } from './styles.js';
 
-const RAW_BASE = 'https://raw.githubusercontent.com/SANS-COLORANT/VISITE-TECHNIQUE/feat/phase-2-persistent-equipment/assets/brands';
+// Référence explicite vers la branche de développement. Le préfixe refs/heads
+// évite l'ambiguïté des noms de branche contenant des slashs dans raw.githubusercontent.com.
+const RAW_BASE = 'https://raw.githubusercontent.com/SANS-COLORANT/VISITE-TECHNIQUE/refs/heads/feat/phase-2-persistent-equipment/assets/brands';
 
 const BRAND_LOGOS = {
   atlantic: `${RAW_BASE}/atlantic.png`,
@@ -23,7 +25,13 @@ const BRAND_LOGOS = {
 };
 
 function normaliserMarque(nom = '') {
-  return nom.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+  return String(nom)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[®™]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 export function getBrandLogoSource(marque) {
