@@ -2,25 +2,46 @@ import React from 'react';
 import { Image, Text, View } from 'react-native';
 import { styles } from './styles.js';
 
-/**
- * Version compatible Expo Snack.
- * Les logos PNG locaux sont volontairement désactivés sur cette branche :
- * l'import Git de Snack échoue actuellement pendant l'upload des assets binaires.
- * Les marques gardent un affichage propre via leurs initiales, et un logo distant
- * reste pris en charge lorsqu'un logo_uri est fourni.
- */
-export function getBrandLogoSource() {
-  return null;
+const RAW_BASE = 'https://raw.githubusercontent.com/SANS-COLORANT/VISITE-TECHNIQUE/feat/phase-2-persistent-equipment/assets/brands';
+
+const BRAND_LOGOS = {
+  atlantic: `${RAW_BASE}/atlantic.png`,
+  bosch: `${RAW_BASE}/bosch.png`,
+  danfoss: `${RAW_BASE}/danfoss.png`,
+  'de dietrich': `${RAW_BASE}/de-dietrich.png`,
+  grundfos: `${RAW_BASE}/grundfos.png`,
+  kamstrup: `${RAW_BASE}/kamstrup.png`,
+  ksb: `${RAW_BASE}/ksb.png`,
+  lowara: `${RAW_BASE}/lowara.png`,
+  reflex: `${RAW_BASE}/reflex.png`,
+  sauter: `${RAW_BASE}/sauter.png`,
+  'schneider electric': `${RAW_BASE}/schneider-electric.png`,
+  siemens: `${RAW_BASE}/siemens.png`,
+  viessmann: `${RAW_BASE}/viessmann.png`,
+  weishaupt: `${RAW_BASE}/weishaupt.png`,
+  wilo: `${RAW_BASE}/wilo.png`,
+};
+
+function normaliserMarque(nom = '') {
+  return nom.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase();
+}
+
+export function getBrandLogoSource(marque) {
+  const nom = typeof marque === 'string' ? marque : marque?.nom || marque?.marque || '';
+  const uri = BRAND_LOGOS[normaliserMarque(nom)] || null;
+  return uri ? { uri } : null;
 }
 
 export function BrandMark({ marque, compact = false }) {
   const nom = typeof marque === 'string' ? marque : marque?.nom || marque?.marque || '';
-  const remoteUri = typeof marque === 'object' ? marque?.logo_uri : null;
+  const remoteSource = getBrandLogoSource(marque);
+  const customRemoteUri = typeof marque === 'object' ? marque?.logo_uri : null;
+  const source = customRemoteUri ? { uri: customRemoteUri } : remoteSource;
 
-  if (remoteUri) {
+  if (source) {
     return (
       <Image
-        source={{ uri: remoteUri }}
+        source={source}
         style={[styles.brandLogo, compact && styles.brandLogoCompact]}
         resizeMode="contain"
       />
