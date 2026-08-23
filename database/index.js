@@ -10,6 +10,7 @@ import { seedEquipmentCatalogDeep2 } from './equipmentCatalogDeepSeed2.js';
 import { seedEquipmentCatalogDeep3 } from './equipmentCatalogDeepSeed3.js';
 import { seedEquipmentCatalogDeep4 } from './equipmentCatalogDeepSeed4.js';
 import { seedEquipmentCatalogAir } from './equipmentCatalogAirSeed.js';
+import { seedEquipmentCatalogHydronics } from './equipmentCatalogHydronicsSeed.js';
 import { seedEquipmentCatalogImages } from './equipmentCatalogImageSeed.js';
 
 let databasePromise = null;
@@ -31,6 +32,7 @@ export function openAppDatabase() {
       await seedEquipmentCatalogDeep3(db);
       await seedEquipmentCatalogDeep4(db);
       await seedEquipmentCatalogAir(db);
+      await seedEquipmentCatalogHydronics(db);
       await seedEquipmentCatalogImages(db);
       return db;
     })().catch((error) => {
