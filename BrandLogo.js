@@ -73,37 +73,67 @@ function sourceLogoPourMarque(marque) {
 
 export function getBrandLogoSource(marque) { return sourceLogoPourMarque(marque); }
 
+// Certains PNG embarquent un fond blanc ou des marges opaques : sur les cartes colorées
+// on utilise alors un wordmark dédié pour éviter tout rectangle parasite.
 const FORCE_WORDMARK_ON_COLOR = new Set([
   'atlantic', 'wilo', 'siemens', 'viessmann', 'bosch', 'kamstrup', 'sauter', 'weishaupt',
   'fernox', 'honeywell', 'swep', 'itron', 'salmson', 'sofrel', 'spirotech', 'alfa laval',
   'bwt', 'culligan', 'chappee', 'chaffoteaux', 'frisquet', 'elm leblanc', 'saunier duval',
+  'lowara', 'reflex', 'ciat', 'trane', 'carrier', 'systemair', 'daikin',
 ]);
 
 const LOGO_SIZE = {
-  grundfos: { w: 92, h: 42 }, ksb: { w: 86, h: 42 }, danfoss: { w: 94, h: 42 }, lowara: { w: 90, h: 38 },
-  reflex: { w: 82, h: 38 }, 'schneider electric': { w: 96, h: 40 }, 'de dietrich': { w: 94, h: 38 },
-  ciat: { w: 88, h: 40 }, trane: { w: 92, h: 42 }, carrier: { w: 92, h: 42 }, systemair: { w: 94, h: 40 },
+  grundfos: { w: 92, h: 42 }, ksb: { w: 86, h: 42 }, danfoss: { w: 94, h: 42 },
+  'schneider electric': { w: 96, h: 40 }, 'de dietrich': { w: 94, h: 38 },
+};
+
+const WORDMARK_LABELS = {
+  kamstrup: 'kamstrup',
+  lowara: 'LOWARA',
+  reflex: 'Reflex',
+  sauter: 'SAUTER',
+  salmson: 'Salmson',
+  ciat: 'CIAT',
+  trane: 'TRANE',
+  carrier: 'Carrier',
+  systemair: 'Systemair',
+  daikin: 'DAIKIN',
+  wilo: 'Wilo',
+  siemens: 'SIEMENS',
+  viessmann: 'VIESSMANN',
+  bosch: 'BOSCH',
+  atlantic: 'Atlantic',
+  sofrel: 'SOFREL',
+  swep: 'SWEP',
+  fernox: 'FERNOX',
 };
 
 function Wordmark({ nom, compact }) {
   const key = normaliserMarque(nom);
+  const label = WORDMARK_LABELS[key] || nom;
   const custom = {
-    danfoss: { fontStyle: 'italic', fontWeight: '900' },
-    wilo: { fontStyle: 'italic', fontWeight: '900', fontSize: compact ? 20 : 24 },
-    siemens: { fontWeight: '900', letterSpacing: 0.8 },
-    atlantic: { fontWeight: '800', fontSize: compact ? 18 : 22, letterSpacing: 0.2 },
-    viessmann: { fontWeight: '900', fontSize: compact ? 15 : 18 },
-    bosch: { fontWeight: '900', letterSpacing: 0.3 },
-    fernox: { fontWeight: '900', letterSpacing: 0.6 }, honeywell: { fontWeight: '800' },
-    swep: { fontWeight: '900', fontStyle: 'italic', fontSize: compact ? 18 : 21 },
-    sofrel: { fontWeight: '900', letterSpacing: 0.4 }, salmson: { fontWeight: '800', fontStyle: 'italic' },
-    ciat: { fontWeight: '900', letterSpacing: 1.4, fontSize: compact ? 18 : 22 },
-    trane: { fontWeight: '900', letterSpacing: 0.5, fontSize: compact ? 17 : 21 },
-    carrier: { fontWeight: '800', fontStyle: 'italic', letterSpacing: 0.2, fontSize: compact ? 17 : 21 },
-    systemair: { fontWeight: '900', letterSpacing: 0.2, fontSize: compact ? 16 : 20 },
-    daikin: { fontWeight: '900', fontStyle: 'italic', letterSpacing: 0.3 },
+    danfoss: { fontStyle: 'italic', fontWeight: '900', letterSpacing: -0.4 },
+    wilo: { fontStyle: 'italic', fontWeight: '900', fontSize: compact ? 20 : 24, letterSpacing: -0.5 },
+    siemens: { fontWeight: '900', letterSpacing: 1.1, fontSize: compact ? 15 : 18 },
+    atlantic: { fontWeight: '800', fontSize: compact ? 18 : 22, letterSpacing: -0.2 },
+    viessmann: { fontWeight: '900', fontSize: compact ? 14 : 17, letterSpacing: 0.4 },
+    bosch: { fontWeight: '900', letterSpacing: 0.4 },
+    kamstrup: { fontWeight: '900', fontSize: compact ? 16 : 20, letterSpacing: -0.7 },
+    lowara: { fontWeight: '900', fontStyle: 'italic', fontSize: compact ? 16 : 20, letterSpacing: 0.7 },
+    reflex: { fontWeight: '800', fontStyle: 'italic', fontSize: compact ? 18 : 22, letterSpacing: -0.5 },
+    sauter: { fontWeight: '900', fontSize: compact ? 16 : 20, letterSpacing: 0.8 },
+    salmson: { fontWeight: '800', fontStyle: 'italic', fontSize: compact ? 18 : 22, letterSpacing: -0.4 },
+    fernox: { fontWeight: '900', letterSpacing: 0.7 },
+    honeywell: { fontWeight: '800' },
+    swep: { fontWeight: '900', fontStyle: 'italic', fontSize: compact ? 18 : 21, letterSpacing: -0.4 },
+    sofrel: { fontWeight: '900', letterSpacing: 0.7 },
+    ciat: { fontWeight: '900', letterSpacing: 1.8, fontSize: compact ? 18 : 22 },
+    trane: { fontWeight: '900', letterSpacing: 0.8, fontSize: compact ? 17 : 21 },
+    carrier: { fontWeight: '800', fontStyle: 'italic', letterSpacing: -0.2, fontSize: compact ? 17 : 21 },
+    systemair: { fontWeight: '900', letterSpacing: -0.2, fontSize: compact ? 16 : 20 },
+    daikin: { fontWeight: '900', fontStyle: 'italic', letterSpacing: 0.5, fontSize: compact ? 17 : 21 },
   }[key] || {};
-  return <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.58} style={{color:'#FFFFFF',fontSize:compact?16:19,fontWeight:'800',maxWidth:compact?78:104,textAlign:'center',...custom}}>{nom}</Text>;
+  return <Text numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.55} style={{color:'#FFFFFF',fontSize:compact?16:19,fontWeight:'800',maxWidth:compact?78:104,textAlign:'center',...custom}}>{label}</Text>;
 }
 
 export function BrandMark({ marque, compact = false, onColor = false }) {
