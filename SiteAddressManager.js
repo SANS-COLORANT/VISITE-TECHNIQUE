@@ -2,7 +2,6 @@
 import React, { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, Modal, TextInput, Alert, ActivityIndicator } from 'react-native';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
 import * as Location from 'expo-location';
 import * as XLSX from 'xlsx';
 import { COLORS, styles } from './styles.js';
@@ -49,6 +48,16 @@ async function geocoderAdresse(adresse) {
   return { latitude: p.latitude, longitude: p.longitude };
 }
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** Lecture compatible Snack/Expo Go : évite expo-file-system. */
+async function lireFichierTableur(uri) {
+  if (!uri) throw new Error('Fichier inaccessible');
+  const response = await fetch(uri);
+  if (!response.ok) throw new Error('Impossible de lire le fichier sélectionné');
+  const buffer = await response.arrayBuffer();
+  if (!buffer || buffer.byteLength === 0) throw new Error('Le fichier sélectionné est vide');
+  return XLSX.read(buffer, { type: 'array' });
+}
 
 function SiteAddressManager({ visible, clientId, sites = [], onClose, onChanged }) {
   const [edits, setEdits] = useState({});
@@ -127,9 +136,7 @@ function SiteAddressManager({ visible, clientId, sites = [], onClose, onChanged 
       if (pick.canceled) return;
       setBusy(true); setMessage('Lecture du fichier…');
       const uri = pick.assets?.[0]?.uri;
-      if (!uri) throw new Error('Fichier inaccessible');
-      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-      const wb = XLSX.read(base64, { type: 'base64' });
+      const wb = await lireFichierTableur(uri);
       const nomFeuille = wb.SheetNames?.[0];
       if (!nomFeuille) throw new Error('Aucune feuille trouvée');
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[nomFeuille], { defval: '', raw: false });
