@@ -7,6 +7,7 @@ import * as Location from 'expo-location';
 import { COLORS, styles } from './styles.js';
 import { listerVisitesSite, creerVisite } from './db.js';
 import { getSiteLocalisation, enregistrerSiteLocalisation, coordonneeValide } from './siteGeoDb.js';
+import { modifierSiteRapide } from './siteBulkDb.js';
 
 const STATUT_LABELS = { en_cours: 'En cours', terminee: 'Terminée', a_completer: 'À compléter', exportee: 'Exportée' };
 
@@ -16,6 +17,7 @@ function SiteVisitesScreen({ route, navigation }) {
   const [site, setSite] = useState(null);
   const [choixModeVisible, setChoixModeVisible] = useState(false);
   const [gpsVisible, setGpsVisible] = useState(false);
+  const [adresse, setAdresse] = useState('');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [note, setNote] = useState('');
@@ -26,6 +28,7 @@ function SiteVisitesScreen({ route, navigation }) {
     setVisites(v);
     setSite(s);
     if (s) {
+      setAdresse(s.adresse || '');
       setLatitude(s.latitude === null || s.latitude === undefined ? '' : String(s.latitude));
       setLongitude(s.longitude === null || s.longitude === undefined ? '' : String(s.longitude));
       setNote(s.localisation_note || '');
@@ -54,6 +57,7 @@ function SiteVisitesScreen({ route, navigation }) {
       const lng = pos.coords.longitude;
       setLatitude(String(lat));
       setLongitude(String(lng));
+      await modifierSiteRapide(siteId, { adresse, note });
       await enregistrerSiteLocalisation(siteId, {
         latitude: lat,
         longitude: lng,
@@ -69,6 +73,28 @@ function SiteVisitesScreen({ route, navigation }) {
     }
   };
 
+  const localiserDepuisAdresse = async () => {
+    if (!adresse.trim()) { Alert.alert('Adresse requise', "Saisis d'abord l'adresse du site."); return; }
+    try {
+      setLocalisationEnCours(true);
+      const permission = await Location.requestForegroundPermissionsAsync();
+      if (permission.status !== 'granted') throw new Error('Autorisation de localisation refusée');
+      const resultats = await Location.geocodeAsync(adresse.trim());
+      const p = resultats?.[0];
+      if (!p || !coordonneeValide(p.latitude, p.longitude)) throw new Error('Adresse non localisée');
+      setLatitude(String(p.latitude));
+      setLongitude(String(p.longitude));
+      await modifierSiteRapide(siteId, { adresse, note });
+      await enregistrerSiteLocalisation(siteId, { latitude: p.latitude, longitude: p.longitude, note });
+      await charger();
+      setGpsVisible(false);
+    } catch (e) {
+      Alert.alert('Géocodage impossible', String(e.message || e));
+    } finally {
+      setLocalisationEnCours(false);
+    }
+  };
+
   const enregistrerGpsManuel = async () => {
     const lat = Number(String(latitude).replace(',', '.'));
     const lng = Number(String(longitude).replace(',', '.'));
@@ -77,6 +103,7 @@ function SiteVisitesScreen({ route, navigation }) {
       return;
     }
     try {
+      await modifierSiteRapide(siteId, { adresse, note });
       await enregistrerSiteLocalisation(siteId, { latitude: lat, longitude: lng, note });
       setGpsVisible(false);
       await charger();
@@ -100,10 +127,10 @@ function SiteVisitesScreen({ route, navigation }) {
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
         <View style={{ flex: 1 }}>
           <Text style={styles.sectionLabel}>Localisation technique</Text>
-          <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 2 }}>{site?.adresse || nomSite}</Text>
+          <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 2 }}>{site?.adresse || 'Adresse à renseigner'}</Text>
         </View>
         <TouchableOpacity onPress={() => setGpsVisible(true)} style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
-          <Text style={{ color: COLORS.primary, fontWeight: '700' }}>{aGps ? 'Modifier' : '+ Positionner'}</Text>
+          <Text style={{ color: COLORS.primary, fontWeight: '700' }}>{aGps || site?.adresse ? 'Modifier' : '+ Positionner'}</Text>
         </TouchableOpacity>
       </View>
 
@@ -139,7 +166,7 @@ function SiteVisitesScreen({ route, navigation }) {
       ) : (
         <TouchableOpacity onPress={() => setGpsVisible(true)} style={{ padding: 18, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E3E5E8' }}>
           <Text style={{ fontWeight: '700' }}>📍 Aucun point GPS</Text>
-          <Text style={{ color: COLORS.muted, marginTop: 5, fontSize: 12 }}>Enregistre le point exact de la chaufferie, sous-station ou accès technique.</Text>
+          <Text style={{ color: COLORS.muted, marginTop: 5, fontSize: 12 }}>{site?.adresse ? "L'adresse est renseignée : utilise « Localiser depuis l'adresse »." : 'Ajoute une adresse ou enregistre le point exact du local technique.'}</Text>
         </TouchableOpacity>
       )}
     </View>
@@ -190,9 +217,13 @@ function SiteVisitesScreen({ route, navigation }) {
       <Modal visible={gpsVisible} transparent animationType="fade" onRequestClose={() => setGpsVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Position GPS du site</Text>
-            <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 10 }}>Place le point sur l'accès technique réel, pas seulement sur l'adresse postale.</Text>
-            <View style={{ flexDirection: 'row', gap: 8 }}>
+            <Text style={styles.modalTitle}>Adresse et position du site</Text>
+            <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 10 }}>L'adresse sert au géocodage. Le point GPS peut ensuite être remplacé par la position exacte de l'accès technique.</Text>
+            <TextInput style={styles.input} placeholder="Adresse complète" value={adresse} onChangeText={setAdresse} />
+            <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10 }]} disabled={localisationEnCours || !adresse.trim()} onPress={localiserDepuisAdresse}>
+              <Text style={styles.btnSecondaryText}>{localisationEnCours ? 'Localisation…' : "🗺️ Localiser depuis l'adresse"}</Text>
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
               <TextInput style={[styles.input, { flex: 1 }]} placeholder="Latitude" keyboardType="decimal-pad" value={latitude} onChangeText={setLatitude} />
               <TextInput style={[styles.input, { flex: 1 }]} placeholder="Longitude" keyboardType="decimal-pad" value={longitude} onChangeText={setLongitude} />
             </View>
