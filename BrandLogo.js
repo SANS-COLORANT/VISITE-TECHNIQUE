@@ -1,6 +1,5 @@
 import React from 'react';
 import { Image, Text, View, useWindowDimensions } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
 import { styles } from './styles.js';
 
 const RAW_BASE = 'https://raw.githubusercontent.com/SANS-COLORANT/VISITE-TECHNIQUE/3af148f5a3793e64634629d56f7fac1dd466e6c9/assets/brands';
@@ -60,18 +59,21 @@ function GradientBackdrop({ nom }) {
   const { width } = useWindowDimensions();
   const base = couleurDepuisNom(nom);
   const backdropWidth = Math.max(340, width - 36);
+  const steps = 36;
   return (
-    <LinearGradient
+    <View
       pointerEvents="none"
-      colors={[base, mixWithWhite(base, 0.38), mixWithWhite(base, 0.78), '#FFFFFF']}
-      locations={[0, 0.28, 0.62, 1]}
-      start={{ x: 0, y: 0.5 }}
-      end={{ x: 1, y: 0.5 }}
       style={{
         position: 'absolute', left: -13, top: -13, width: backdropWidth,
-        height: 86, borderRadius: 13,
+        height: 86, borderRadius: 13, overflow: 'hidden', flexDirection: 'row',
       }}
-    />
+    >
+      {Array.from({ length: steps }, (_, i) => {
+        const t = i / (steps - 1);
+        const eased = Math.pow(t, 1.12);
+        return <View key={i} style={{ flex: 1, backgroundColor: mixWithWhite(base, eased * 0.98) }} />;
+      })}
+    </View>
   );
 }
 
@@ -84,7 +86,6 @@ export function BrandMark({ marque, compact = false }) {
   const isCatalogueBrand = typeof marque === 'object' && marque?.nb_modeles !== undefined;
   const isCatalogueModel = typeof marque === 'object' && !!marque?.marque && !marque?.nom && !marque?.categorie && !marque?.modele;
   const fullGradient = isCatalogueBrand || isCatalogueModel;
-
   const initiales = nom.split(/\s+/).filter(Boolean).map((mot) => mot[0]).join('').slice(0, 2).toUpperCase() || '?';
 
   return (
@@ -94,7 +95,7 @@ export function BrandMark({ marque, compact = false }) {
         <View style={fullGradient ? {
           minWidth: compact ? 54 : 66, minHeight: compact ? 34 : 44,
           paddingHorizontal: 6, paddingVertical: 4, borderRadius: 9,
-          backgroundColor: 'rgba(255,255,255,0.90)', alignItems: 'center', justifyContent: 'center',
+          backgroundColor: 'rgba(255,255,255,0.92)', alignItems: 'center', justifyContent: 'center',
         } : null}>
           <Image
             source={source}
@@ -105,7 +106,7 @@ export function BrandMark({ marque, compact = false }) {
       ) : (
         <View style={[
           styles.brandFallback, compact && styles.brandFallbackCompact,
-          fullGradient && { backgroundColor: 'rgba(255,255,255,0.18)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.45)' },
+          fullGradient && { backgroundColor: 'rgba(255,255,255,0.20)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.50)' },
         ]}>
           <Text style={[styles.brandFallbackText, fullGradient && { color: '#FFFFFF' }]}>{initiales}</Text>
         </View>
