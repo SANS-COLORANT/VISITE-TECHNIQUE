@@ -14,7 +14,6 @@ function VisiteScreen({ route, onBack }) {
   const { visiteId } = route.params;
   const [visite, setVisite] = useState(null);
   const [activeTab, setActiveTab] = useState('p-infos');
-  const [refreshKey, setRefreshKey] = useState(0);
   const [noteVisible, setNoteVisible] = useState(false);
   const [noteTxt, setNoteTxt] = useState('');
   const [anomalieVisible, setAnomalieVisible] = useState(false);
@@ -28,9 +27,17 @@ function VisiteScreen({ route, onBack }) {
     setVisite(v);
   }, [visiteId]);
 
-  useEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
+  useEffect(() => { charger(); }, [charger]);
 
-  const onSaved = () => setRefreshKey((k) => k + 1);
+  // Une saisie ne recharge plus tout l'écran ni le panneau courant.
+  // Les composants gardent leur état local et SQLite est mis à jour en arrière-plan.
+  // On ne recalcule que le pourcentage affiché dans l'en-tête.
+  const onSaved = useCallback(async () => {
+    const db = await getDb();
+    const progression = await recalculerProgressionVisite(db, visiteId);
+    setVisite((actuelle) => actuelle ? { ...actuelle, progression_pct: progression } : actuelle);
+  }, [visiteId]);
+
   const tabsReels = TAB_ORDER.filter((t) => t !== 'SEP');
   const allerVoisin = (direction) => {
     const idx = tabsReels.indexOf(activeTab);
@@ -75,6 +82,7 @@ function VisiteScreen({ route, onBack }) {
     }
     setExporting(false);
   };
+
   const enregistrerAnomalie = async () => {
     const texte = anomalieTxt.trim();
     if (!texte) return;
@@ -86,7 +94,6 @@ function VisiteScreen({ route, onBack }) {
     setAnomalieTxt('');
     setAnomalieVisible(false);
     setActiveTab('p-remarques');
-    onSaved();
   };
 
   if (!visite) {
@@ -138,13 +145,13 @@ function VisiteScreen({ route, onBack }) {
       </View>
 
       <View style={{ flex: 1 }} {...swipeHandlers.panHandlers}>
-        {activeTab === 'p-regulation' && <PanelRegulation visiteId={visiteId} refreshKey={refreshKey} onSaved={onSaved} />}
-        {activeTab === 'p-releves' && <PanelReleves visiteId={visiteId} refreshKey={refreshKey} onSaved={onSaved} />}
+        {activeTab === 'p-regulation' && <PanelRegulation visiteId={visiteId} onSaved={onSaved} />}
+        {activeTab === 'p-releves' && <PanelReleves visiteId={visiteId} onSaved={onSaved} />}
         {activeTab === 'p-equip' && <PanelEquipements visiteId={visiteId} />}
-        {activeTab === 'p-remarques' && <PanelRemarques visiteId={visiteId} refreshKey={refreshKey} />}
-        {activeTab === 'p-photos' && <PanelPhotos visiteId={visiteId} refreshKey={refreshKey} />}
+        {activeTab === 'p-remarques' && <PanelRemarques visiteId={visiteId} />}
+        {activeTab === 'p-photos' && <PanelPhotos visiteId={visiteId} />}
         {!['p-regulation', 'p-releves', 'p-equip', 'p-remarques', 'p-photos'].includes(activeTab) && (
-          <PanelGenerique visiteId={visiteId} panelId={activeTab} refreshKey={refreshKey} onSaved={onSaved} />
+          <PanelGenerique visiteId={visiteId} panelId={activeTab} onSaved={onSaved} />
         )}
       </View>
 
