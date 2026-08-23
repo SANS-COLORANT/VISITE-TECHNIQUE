@@ -353,16 +353,14 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
 }
 
 function CompteurCard({ compteur, visiteId, unites, onChange }) {
-  const [label, setLabel] = useState(compteur.label || '');
+  const [label, setLabel, surBlurLabel] = useSaisieAvecAutoSave(
+    compteur.label,
+    (v) => upsertCompteurChamp(compteur.id, 'label', v)
+  );
   const [unite, setUnite] = useState(compteur.unite || 'm³');
 
-  useEffect(() => { setLabel(compteur.label || ''); }, [compteur.label]);
   useEffect(() => { setUnite(compteur.unite || 'm³'); }, [compteur.unite]);
 
-  const sauverLabel = async (val) => {
-    setLabel(val);
-    await upsertCompteurChamp(compteur.id, 'label', val);
-  };
   const [valeur, setValeur, surBlurValeur] = useSaisieAvecAutoSave(
     compteur.valeur, (v) => upsertCompteurChamp(compteur.id, 'valeur', v)
   );
@@ -371,7 +369,13 @@ function CompteurCard({ compteur, visiteId, unites, onChange }) {
     <View style={styles.compteurRow}>
       <View style={styles.compteurRowTop}>
         <View style={{ flex: 1 }}>
-          <ChipSelector valeur={label} options={COMPTEUR_TYPES} onChange={sauverLabel} />
+          <TextInput
+            style={styles.input}
+            value={label}
+            onChangeText={setLabel}
+            onBlur={surBlurLabel}
+            placeholder="Nom du compteur"
+          />
         </View>
         <PhotoButton
           visiteId={visiteId}
