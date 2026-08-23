@@ -1,8 +1,7 @@
-/** Écran Historique des visites d'un site + localisation GPS. */
+/** Écran Historique des visites d'un site + localisation GPS sans carte native. */
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking } from 'react-native';
-import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { COLORS, styles } from './styles.js';
 import { listerVisitesSite, creerVisite, getDb } from './db.js';
@@ -61,12 +60,7 @@ function SiteVisitesScreen({ route, navigation }) {
       setLatitude(String(lat));
       setLongitude(String(lng));
       await modifierSiteRapide(siteId, { adresse, note });
-      await enregistrerSiteLocalisation(siteId, {
-        latitude: lat,
-        longitude: lng,
-        precisionGps: pos.coords.accuracy,
-        note,
-      });
+      await enregistrerSiteLocalisation(siteId, { latitude: lat, longitude: lng, precisionGps: pos.coords.accuracy, note });
       await charger();
       setGpsVisible(false);
     } catch (e) {
@@ -116,11 +110,16 @@ function SiteVisitesScreen({ route, navigation }) {
   };
 
   const ouvrirGoogleMaps = async () => {
-    if (!site || !coordonneeValide(site.latitude, site.longitude)) return;
-    const lat = Number(site.latitude);
-    const lng = Number(site.longitude);
-    const url = `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
-    try { await Linking.openURL(url); } catch { Alert.alert('Google Maps', "Impossible d'ouvrir Google Maps."); }
+    if (!site) return;
+    const query = coordonneeValide(site.latitude, site.longitude)
+      ? `${Number(site.latitude)},${Number(site.longitude)}`
+      : String(site.adresse || '').trim();
+    if (!query) return;
+    try {
+      await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`);
+    } catch {
+      Alert.alert('Google Maps', "Impossible d'ouvrir Google Maps.");
+    }
   };
 
   const aGps = !!site && coordonneeValide(site.latitude, site.longitude);
@@ -137,41 +136,28 @@ function SiteVisitesScreen({ route, navigation }) {
         </TouchableOpacity>
       </View>
 
-      {aGps ? (
-        <>
-          <View style={{ height: 210, borderRadius: 16, overflow: 'hidden', borderWidth: 1, borderColor: '#E3E5E8' }}>
-            <MapView
-              provider={PROVIDER_GOOGLE}
-              style={{ flex: 1 }}
-              initialRegion={{
-                latitude: Number(site.latitude),
-                longitude: Number(site.longitude),
-                latitudeDelta: 0.008,
-                longitudeDelta: 0.008,
-              }}
-            >
-              <Marker
-                coordinate={{ latitude: Number(site.latitude), longitude: Number(site.longitude) }}
-                title={site.nom_site}
-                description={site.localisation_note || site.adresse || 'Local technique'}
-              />
-            </MapView>
-          </View>
-          <View style={{ marginTop: 10, padding: 12, borderRadius: 12, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E7E7EB' }}>
-            <Text style={{ fontWeight: '700' }}>📍 {Number(site.latitude).toFixed(6)}, {Number(site.longitude).toFixed(6)}</Text>
+      <View style={{ padding: 14, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E3E5E8' }}>
+        {aGps ? (
+          <>
+            <Text style={{ fontWeight: '800' }}>📍 {Number(site.latitude).toFixed(6)}, {Number(site.longitude).toFixed(6)}</Text>
             {site.precision_gps ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 3 }}>Précision GPS ≈ {Math.round(site.precision_gps)} m</Text> : null}
             {site.localisation_note ? <Text style={{ marginTop: 7, color: '#555' }}>{site.localisation_note}</Text> : null}
             <TouchableOpacity onPress={ouvrirGoogleMaps} style={{ marginTop: 10, paddingVertical: 8 }}>
-              <Text style={{ color: COLORS.primary, fontWeight: '800' }}>Google Maps ↗</Text>
+              <Text style={{ color: COLORS.primary, fontWeight: '800' }}>Ouvrir dans Google Maps ↗</Text>
             </TouchableOpacity>
-          </View>
-        </>
-      ) : (
-        <TouchableOpacity onPress={() => setGpsVisible(true)} style={{ padding: 18, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E3E5E8' }}>
-          <Text style={{ fontWeight: '700' }}>📍 Aucun point GPS</Text>
-          <Text style={{ color: COLORS.muted, marginTop: 5, fontSize: 12 }}>{site?.adresse ? "L'adresse est renseignée : utilise « Localiser depuis l'adresse »." : 'Ajoute une adresse ou enregistre le point exact du local technique.'}</Text>
-        </TouchableOpacity>
-      )}
+          </>
+        ) : (
+          <>
+            <Text style={{ fontWeight: '700' }}>📍 Aucun point GPS</Text>
+            <Text style={{ color: COLORS.muted, marginTop: 5, fontSize: 12 }}>{site?.adresse ? "L'adresse est renseignée : utilise « Localiser depuis l'adresse »." : 'Ajoute une adresse ou enregistre le point exact du local technique.'}</Text>
+            {site?.adresse ? (
+              <TouchableOpacity onPress={ouvrirGoogleMaps} style={{ marginTop: 8, paddingVertical: 6 }}>
+                <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Rechercher l'adresse dans Google Maps ↗</Text>
+              </TouchableOpacity>
+            ) : null}
+          </>
+        )}
+      </View>
     </View>
   );
 
@@ -181,40 +167,20 @@ function SiteVisitesScreen({ route, navigation }) {
         contentContainerStyle={styles.content}
         data={visites}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={
-          <View>
-            <LocalisationHeader />
-            <Text style={styles.sectionLabel}>Historique des visites — {nomSite}</Text>
-          </View>
-        }
+        ListHeaderComponent={<View><LocalisationHeader /><Text style={styles.sectionLabel}>Historique des visites — {nomSite}</Text></View>}
         renderItem={({ item }) => (
-          <TouchableOpacity
-            style={styles.card}
-            activeOpacity={0.7}
-            onPress={() => navigation.navigate('Visite', { visiteId: item.id })}
-          >
+          <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => navigation.navigate('Visite', { visiteId: item.id })}>
             <View style={{ flex: 1 }}>
               <Text style={styles.cardTitle}>{item.date_visite || 'Sans date'}</Text>
               <Text style={styles.cardSub}>{item.technicien || ''}</Text>
             </View>
-            <View style={styles.badge}>
-              <Text style={styles.badgeText}>
-                {STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%
-              </Text>
-            </View>
+            <View style={styles.badge}><Text style={styles.badgeText}>{STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%</Text></View>
           </TouchableOpacity>
         )}
-        ListEmptyComponent={
-          <View style={styles.empty}>
-            <Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text>
-            <Text style={styles.emptySub}>Lance la première avec le bouton ci-dessous.</Text>
-          </View>
-        }
+        ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>Lance la première avec le bouton ci-dessous.</Text></View>}
       />
       <View style={styles.fabBar}>
-        <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={() => setChoixModeVisible(true)}>
-          <Text style={styles.btnPrimaryText}>+ Nouvelle visite</Text>
-        </TouchableOpacity>
+        <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={() => setChoixModeVisible(true)}><Text style={styles.btnPrimaryText}>+ Nouvelle visite</Text></TouchableOpacity>
       </View>
 
       <Modal visible={gpsVisible} transparent animationType="fade" onRequestClose={() => setGpsVisible(false)}>
@@ -230,13 +196,7 @@ function SiteVisitesScreen({ route, navigation }) {
               <TextInput style={[styles.input, { flex: 1 }]} placeholder="Latitude" keyboardType="decimal-pad" value={latitude} onChangeText={setLatitude} />
               <TextInput style={[styles.input, { flex: 1 }]} placeholder="Longitude" keyboardType="decimal-pad" value={longitude} onChangeText={setLongitude} />
             </View>
-            <TextInput
-              style={[styles.input, { marginTop: 10, minHeight: 70, textAlignVertical: 'top' }]}
-              placeholder="Note d'accès : parking P2, porte chaufferie, sous-sol…"
-              multiline
-              value={note}
-              onChangeText={setNote}
-            />
+            <TextInput style={[styles.input, { marginTop: 10, minHeight: 70, textAlignVertical: 'top' }]} placeholder="Note d'accès : parking P2, porte chaufferie, sous-sol…" multiline value={note} onChangeText={setNote} />
             <TouchableOpacity style={[styles.btnSecondary, { marginTop: 12 }]} disabled={localisationEnCours} onPress={utiliserMaPosition}>
               <Text style={styles.btnSecondaryText}>{localisationEnCours ? 'Localisation…' : '📍 Utiliser ma position actuelle'}</Text>
             </TouchableOpacity>
