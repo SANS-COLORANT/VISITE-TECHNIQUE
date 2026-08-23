@@ -3,6 +3,7 @@ import { DATABASE_NAME } from './constants.js';
 import { migrateDatabase, verifyDatabaseIntegrity } from './migrate.js';
 import { syncReferenceCatalog } from './referenceCatalog.js';
 import { seedEquipmentCatalog } from './equipmentCatalogSeed.js';
+import { seedEquipmentCatalogExtra } from './equipmentCatalogExtraSeed.js';
 
 let databasePromise = null;
 
@@ -16,6 +17,7 @@ export function openAppDatabase() {
       await migrateDatabase(db);
       await syncReferenceCatalog(db);
       await seedEquipmentCatalog(db);
+      await seedEquipmentCatalogExtra(db);
       return db;
     })().catch((error) => {
       databasePromise = null;
