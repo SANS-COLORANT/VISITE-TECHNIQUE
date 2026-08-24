@@ -21,13 +21,13 @@ function construireClesTrame() {
 }
 
 const CLES_TRAME = construireClesTrame();
+const recalculsEnCours = new Map();
 
-export async function recalculerProgressionVisite(db, visiteId) {
-  if (!db || !visiteId) return 0;
-
-  const [champsRows, controlesRows] = await Promise.all([
+async function calculerProgression(db, visiteId) {
+  const [champsRows, controlesRows, visite] = await Promise.all([
     db.getAllAsync(`SELECT section_code,cle,valeur FROM champs_visite WHERE visite_id=?`, [visiteId]),
     db.getAllAsync(`SELECT section_code,cle,avis FROM controles_visite WHERE visite_id=?`, [visiteId]),
+    db.getFirstAsync(`SELECT progression_pct FROM visites WHERE id=?`, [visiteId]),
   ]);
 
   let total = CLES_TRAME.champs.size + CLES_TRAME.controles.size;
@@ -45,6 +45,46 @@ export async function recalculerProgressionVisite(db, visiteId) {
 
   if (total <= 0) total = 1;
   const pct = Math.max(0, Math.min(100, Math.round((remplis / total) * 100)));
-  await db.runAsync(`UPDATE visites SET progression_pct=?, modifie_le=datetime('now') WHERE id=?`, [pct, visiteId]);
+  const ancienPct = Number(visite?.progression_pct ?? -1);
+
+  // Une simple consultation/re-sauvegarde ne doit pas faire paraître la visite
+  // plus récente si sa progression n'a réellement pas changé.
+  if (pct !== ancienPct) {
+    await db.runAsync(
+      `UPDATE visites SET progression_pct=?, modifie_le=datetime('now') WHERE id=?`,
+      [pct, visiteId]
+    );
+  }
   return pct;
+}
+
+/**
+ * Coalesce les appels rapprochés : si plusieurs champs se sauvegardent pendant
+ * qu'un calcul est déjà en cours, on évite les lectures SQLite concurrentes et
+ * on effectue au maximum un passage final supplémentaire avec les données les
+ * plus récentes.
+ */
+export async function recalculerProgressionVisite(db, visiteId) {
+  if (!db || !visiteId) return 0;
+
+  const existant = recalculsEnCours.get(visiteId);
+  if (existant) {
+    existant.dirty = true;
+    return existant.promise;
+  }
+
+  const etat = { dirty: false, promise: null };
+  etat.promise = (async () => {
+    let pct = 0;
+    do {
+      etat.dirty = false;
+      pct = await calculerProgression(db, visiteId);
+    } while (etat.dirty);
+    return pct;
+  })().finally(() => {
+    if (recalculsEnCours.get(visiteId) === etat) recalculsEnCours.delete(visiteId);
+  });
+
+  recalculsEnCours.set(visiteId, etat);
+  return etat.promise;
 }
