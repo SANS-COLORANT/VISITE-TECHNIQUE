@@ -13,7 +13,7 @@ import { SiteVisitesScreen } from './SiteVisitesScreen.js';
 import { AppErrorBoundary } from './AppErrorBoundary.js';
 import { MetraLoadingScreen } from './MetraLoadingScreen.js';
 
-const LOADING_ANIMATION_MS = 1900;
+const LOADING_ANIMATION_MS = 2300;
 
 function SimpleHeader({ title, onBack }) {
   return (

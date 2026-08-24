@@ -3,12 +3,17 @@
     "name": "METRA",
     "slug": "visite-technique",
     "version": "1.0.0",
+    "icon": "./assets/metra/app-icon.png",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "jsEngine": "hermes",
     "android": {
       "package": "com.visitetechnique.tablet",
       "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/metra/adaptive-icon.png",
+        "backgroundColor": "#FBF0E1"
+      },
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
         "CAMERA",

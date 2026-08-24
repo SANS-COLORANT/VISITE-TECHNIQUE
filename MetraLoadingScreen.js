@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
-import { Animated, Easing, Image, StyleSheet, Text, View } from 'react-native';
+import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 
-const CYCLE_MS = 1900;
+const CYCLE_MS = 2300;
 const ORANGE = '#D8552A';
 const CREAM = '#FBF0E1';
 
@@ -21,15 +21,14 @@ export function MetraLoadingScreen() {
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const animation = Animated.loop(
-      Animated.timing(progress, {
-        toValue: 1,
-        duration: CYCLE_MS,
-        easing: Easing.bezier(0.2, 0.9, 0.25, 1),
-        useNativeDriver: true,
-      }),
-      { resetBeforeIteration: true }
-    );
+    // Une seule lecture : si SQLite charge plus longtemps, la dernière image
+    // reste affichée au lieu de relancer l'assemblage du logo.
+    const animation = Animated.timing(progress, {
+      toValue: 1,
+      duration: CYCLE_MS,
+      easing: Easing.bezier(0.2, 0.9, 0.25, 1),
+      useNativeDriver: true,
+    });
     animation.start();
     return () => animation.stop();
   }, [progress]);
