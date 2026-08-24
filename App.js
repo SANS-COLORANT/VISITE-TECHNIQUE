@@ -1,19 +1,7 @@
-/**
- * VISITE TECHNIQUE — Point d'entrée.
- *
- * Navigation "maison" (un simple useState qui garde l'écran actif), sans
- * aucune dépendance à @react-navigation : ces librairies posaient des
- * problèmes de compatibilité récurrents avec l'environnement Snack
- * (modules natifs manquants, versions incompatibles). Une pile de 2-3
- * écrans ne justifie pas une vraie librairie de navigation.
- *
- * Dépendances npm nécessaires :
- *   expo-sqlite, expo-image-picker
- *   (plus aucune dépendance de navigation)
- */
+/** VISITE TECHNIQUE — point d'entrée natif Android. */
 
-import React, { useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
+import React, { useCallback, useEffect, useState } from 'react';
+import { View, Text, ActivityIndicator, TouchableOpacity, BackHandler } from 'react-native';
 
 import { getDb } from './db.js';
 import { COLORS, styles } from './styles.js';
@@ -23,7 +11,6 @@ import { VisiteScreen } from './VisiteScreen.js';
 import { ParametresScreen } from './ParametresScreen.js';
 import { SiteVisitesScreen } from './SiteVisitesScreen.js';
 
-/** Petite barre de titre réutilisable, avec bouton retour optionnel. */
 function SimpleHeader({ title, onBack }) {
   return (
     <View style={styles.simpleHeader}>
@@ -43,33 +30,62 @@ function SimpleHeader({ title, onBack }) {
 export default function App() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(null);
-
-  // Pile de navigation minimale : un tableau d'écrans empilés.
   const [stack, setStack] = useState([{ name: 'Home', params: {} }]);
 
-  useEffect(() => {
-    getDb().then(() => setDbReady(true)).catch((err) => setDbError(err));
+  const initialiser = useCallback(async () => {
+    setDbReady(false);
+    setDbError(null);
+    try {
+      await getDb();
+      setDbReady(true);
+    } catch (err) {
+      setDbError(err);
+    }
   }, []);
 
-  const navigate = (name, params = {}) => {
-    setStack((s) => [...s, { name, params }]);
-  };
-  const goBack = () => {
+  useEffect(() => { initialiser(); }, [initialiser]);
+
+  const navigate = useCallback((name, params = {}) => {
+    // Évite d'empiler deux fois le même écran lors d'un double tap rapide.
+    setStack((s) => {
+      const current = s[s.length - 1];
+      if (current?.name === name && JSON.stringify(current.params || {}) === JSON.stringify(params || {})) return s;
+      return [...s, { name, params }];
+    });
+  }, []);
+
+  const goBack = useCallback(() => {
     setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
-  };
+  }, []);
+
+  // La navigation interne étant volontairement légère, on raccorde
+  // explicitement le bouton Retour Android à notre pile d'écrans.
+  useEffect(() => {
+    const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (stack.length <= 1) return false; // laisse Android quitter depuis l'accueil
+      goBack();
+      return true;
+    });
+    return () => subscription.remove();
+  }, [stack.length, goBack]);
 
   if (dbError) {
     return (
       <View style={styles.center}>
         <Text style={styles.errorTitle}>Erreur de démarrage</Text>
         <Text style={styles.errorText}>{String(dbError.message || dbError)}</Text>
+        <TouchableOpacity style={[styles.btnPrimary, { marginTop: 18 }]} onPress={initialiser}>
+          <Text style={styles.btnPrimaryText}>Réessayer</Text>
+        </TouchableOpacity>
       </View>
     );
   }
+
   if (!dbReady) {
     return (
       <View style={styles.center}>
         <ActivityIndicator size="large" color={COLORS.orange} />
+        <Text style={[styles.cardSub, { marginTop: 12 }]}>Préparation des données locales…</Text>
       </View>
     );
   }
