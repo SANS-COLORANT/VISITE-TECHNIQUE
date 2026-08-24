@@ -244,8 +244,15 @@ export async function importerAnalyseExcel(analyse) {
       const equipementId = equipement.id;
       equipementsUtilises.add(equipementId);
       await db.runAsync(
-        `INSERT INTO materiel (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuidv4(), visiteId, equipementId, m.categorie, m.designation, m.marque, m.modele, m.annee, m.etat]
+        `INSERT INTO materiel (
+          id, visite_id, equipement_id, categorie, nombre, designation, numero_materiel,
+          reseau_desservi, marque, modele, caracteristiques, annee, etat
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [
+          uuidv4(), visiteId, equipementId, m.categorie || null, m.nombre || null,
+          m.designation || null, m.numero || null, m.reseau || null, m.marque || null,
+          m.modele || null, m.caracteristiques || null, m.annee || null, m.etat || 'Bon',
+        ]
       );
       await db.runAsync(
         `INSERT OR REPLACE INTO observations_equipement (id, equipement_id, visite_id, etat) VALUES (?, ?, ?, ?)`,
