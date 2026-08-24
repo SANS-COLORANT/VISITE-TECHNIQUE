@@ -12,6 +12,7 @@
  */
 import { TEMPLATE_EXCEL_BASE64 } from './templateExcel.js';
 import { EXCEL_ROWS, TRAME_DATA } from './data.js';
+import { exigerDefinitionTrameValide } from './trameValidation.js';
 
 export const DEFAULT_TRAME_ID = 'icpe_v1';
 
@@ -141,9 +142,12 @@ const ICPE = Object.freeze({
   },
 });
 
-const REGISTRY = Object.freeze({
-  [ICPE.id]: ICPE,
-});
+const DEFINITIONS = [ICPE];
+for (const definition of DEFINITIONS) exigerDefinitionTrameValide(definition);
+
+const REGISTRY = Object.freeze(
+  Object.fromEntries(DEFINITIONS.map((definition) => [definition.id, definition]))
+);
 
 export function listerTramesDisponibles() {
   return Object.values(REGISTRY).filter((t) => t.actif !== false);
