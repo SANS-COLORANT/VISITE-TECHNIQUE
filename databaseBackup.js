@@ -36,20 +36,25 @@ async function nettoyerDossier(uri) {
   await FileSystem.makeDirectoryAsync(uri, { intermediates: true });
 }
 
+async function nettoyerJournauxSQLite(baseUri = cheminBaseSQLite()) {
+  await Promise.all([
+    FileSystem.deleteAsync(`${baseUri}-wal`, { idempotent: true }).catch(()=>{}),
+    FileSystem.deleteAsync(`${baseUri}-shm`, { idempotent: true }).catch(()=>{}),
+    FileSystem.deleteAsync(`${baseUri}-journal`, { idempotent: true }).catch(()=>{}),
+  ]);
+}
+
 async function partagerFichier(uri, titre, mimeType = 'application/octet-stream') {
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(uri, { mimeType, dialogTitle: titre });
   }
 }
 
-/** Sauvegarde légère de la base seule. */
 export async function exporterSauvegardeBase() {
   const db = await getDb();
   await db.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
-
   const source = cheminBaseSQLite();
   if (!(await existe(source))) throw new Error('Fichier de base SQLite introuvable');
-
   const dossier = `${FileSystem.documentDirectory}backups/`;
   await FileSystem.makeDirectoryAsync(dossier, { intermediates: true });
   const destination = `${dossier}Visite_Technique_${horodatageSauvegarde()}.db`;
@@ -58,15 +63,10 @@ export async function exporterSauvegardeBase() {
   return destination;
 }
 
-/**
- * Sauvegarde complète : SQLite + photos + manifeste dans une archive native.
- * Le zip est réalisé côté natif afin de ne jamais charger les photos en Base64
- * dans le thread JavaScript.
- */
+/** Archive complète, générée nativement sans charger les JPEG en mémoire JS. */
 export async function exporterSauvegardeComplete() {
   const db = await getDb();
   await db.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
-
   const sourceDb = cheminBaseSQLite();
   if (!(await existe(sourceDb))) throw new Error('Fichier de base SQLite introuvable');
 
@@ -79,8 +79,7 @@ export async function exporterSauvegardeComplete() {
   await FileSystem.copyAsync({ from: sourceDb, to: `${dossierDb}${DATABASE_NAME}` });
 
   const photosSource = cheminPhotos();
-  const photosPresentes = await existe(photosSource);
-  if (photosPresentes) await FileSystem.copyAsync({ from: photosSource, to: dossierPhotos });
+  if (await existe(photosSource)) await FileSystem.copyAsync({ from: photosSource, to: dossierPhotos });
   else await FileSystem.makeDirectoryAsync(dossierPhotos, { intermediates: true });
 
   const comptePhotos = await db.getFirstAsync('SELECT COUNT(*) AS n FROM photos');
@@ -92,10 +91,7 @@ export async function exporterSauvegardeComplete() {
     createdAt: new Date().toISOString(),
     database: `database/${DATABASE_NAME}`,
     photosRoot: 'photos/',
-    counts: {
-      visites: Number(compteVisites?.n || 0),
-      photos: Number(comptePhotos?.n || 0),
-    },
+    counts: { visites: Number(compteVisites?.n || 0), photos: Number(comptePhotos?.n || 0) },
   };
   await FileSystem.writeAsStringAsync(`${travail}manifest.json`, JSON.stringify(manifeste, null, 2));
 
@@ -103,7 +99,6 @@ export async function exporterSauvegardeComplete() {
   await FileSystem.makeDirectoryAsync(dossierSortie, { intermediates: true });
   const archiveUri = `${dossierSortie}Visite_Technique_Complet_${stamp}.zip`;
   if (await existe(archiveUri)) await FileSystem.deleteAsync(archiveUri, { idempotent: true });
-
   await zip(cheminNatif(travail), cheminNatif(archiveUri));
   await FileSystem.deleteAsync(travail, { idempotent: true });
   await partagerFichier(archiveUri, 'Sauvegarde complète Visite Technique', 'application/zip');
@@ -114,14 +109,10 @@ async function lireEtVerifierManifeste(dossier) {
   const uri = `${dossier}manifest.json`;
   if (!(await existe(uri))) throw new Error('Cette archive ne contient pas de manifeste Visite Technique.');
   const manifeste = JSON.parse(await FileSystem.readAsStringAsync(uri));
-  if (manifeste?.format !== BACKUP_FORMAT || Number(manifeste?.formatVersion) !== BACKUP_FORMAT_VERSION) {
-    throw new Error('Format de sauvegarde non reconnu.');
-  }
+  if (manifeste?.format !== BACKUP_FORMAT || Number(manifeste?.formatVersion) !== BACKUP_FORMAT_VERSION) throw new Error('Format de sauvegarde non reconnu.');
   const version = Number(manifeste.schemaVersion || 0);
   if (!Number.isFinite(version) || version < 1) throw new Error('Version de base absente ou invalide.');
-  if (version > DATABASE_SCHEMA_VERSION) {
-    throw new Error(`Cette sauvegarde utilise une base plus récente (v${version}) que l’application (v${DATABASE_SCHEMA_VERSION}).`);
-  }
+  if (version > DATABASE_SCHEMA_VERSION) throw new Error(`Cette sauvegarde utilise une base plus récente (v${version}) que l’application (v${DATABASE_SCHEMA_VERSION}).`);
   const dbBackup = `${dossier}${manifeste.database || `database/${DATABASE_NAME}`}`;
   if (!(await existe(dbBackup))) throw new Error('Base SQLite absente de la sauvegarde.');
   return { manifeste, dbBackup, photosBackup: `${dossier}${manifeste.photosRoot || 'photos/'}` };
@@ -140,12 +131,6 @@ async function rebaserUrisPhotos(db) {
   }
 }
 
-/**
- * Restaure une archive complète sélectionnée par l’utilisateur.
- * Une copie de sécurité de l’état courant est créée avant tout remplacement.
- * Après succès, l’interface doit fermer l’application afin que tous les écrans
- * repartent avec des repositories propres au prochain lancement.
- */
 export async function choisirEtRestaurerSauvegardeComplete() {
   const selection = await DocumentPicker.getDocumentAsync({
     type: ['application/zip', 'application/octet-stream'],
@@ -174,6 +159,7 @@ export async function choisirEtRestaurerSauvegardeComplete() {
   try {
     await closeAppDatabase();
     remplacementCommence = true;
+    await nettoyerJournauxSQLite(sourceActuelle);
 
     await FileSystem.copyAsync({ from: dbBackup, to: sourceActuelle });
     await FileSystem.deleteAsync(photosActuelles, { idempotent: true });
@@ -186,6 +172,7 @@ export async function choisirEtRestaurerSauvegardeComplete() {
     if (!controle.integrityOk || !controle.foreignKeysOk) throw new Error('La base restaurée n’a pas passé le contrôle d’intégrité.');
     await dbRestauree.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
     await closeAppDatabase();
+    await nettoyerJournauxSQLite(sourceActuelle);
 
     await FileSystem.deleteAsync(restauration, { idempotent: true });
     await FileSystem.deleteAsync(securite, { idempotent: true });
@@ -194,6 +181,7 @@ export async function choisirEtRestaurerSauvegardeComplete() {
     if (remplacementCommence) {
       try {
         await closeAppDatabase();
+        await nettoyerJournauxSQLite(sourceActuelle);
         await FileSystem.copyAsync({ from: `${securite}${DATABASE_NAME}`, to: sourceActuelle });
         await FileSystem.deleteAsync(photosActuelles, { idempotent: true });
         if (await existe(`${securite}photos/`)) await FileSystem.copyAsync({ from: `${securite}photos/`, to: photosActuelles });
