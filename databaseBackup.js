@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 import { getDb } from './db.js';
 import { DATABASE_NAME } from './database/constants.js';
@@ -14,8 +14,6 @@ function cheminBaseSQLite() {
 
 export async function exporterSauvegardeBase() {
   const db = await getDb();
-  // Rabat le WAL dans le fichier principal avant la copie afin que le backup
-  // soit autonome et puisse être conservé hors de l'application.
   await db.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
 
   const source = cheminBaseSQLite();
