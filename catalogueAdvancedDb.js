@@ -1,4 +1,5 @@
 import { getDb } from './db.js';
+import { ensureEquipmentCatalogReady } from './database/index.js';
 
 const SYNONYMS={
   'geg':['groupe eau glacée','groupe froid','chiller'],
@@ -21,19 +22,20 @@ function expandSearch(value=''){
   return [...out];
 }
 
+async function getCatalogueDb(){
+  await ensureEquipmentCatalogReady();
+  return getDb();
+}
+
 /**
  * Recherche catalogue optimisée pour l'usage tablette.
- *
- * Les cartes de navigation n'ont besoin que du nombre de variantes. Les
- * compteurs documents/courbes impliquent deux sous-requêtes corrélées par
- * modèle et ne sont donc calculés que lorsqu'un appelant les demande
- * explicitement avec includeStats=true (audit/diagnostic catalogue).
+ * Les statistiques lourdes ne sont calculées que sur demande explicite.
  */
 export async function rechercherCatalogueIntelligent({
   recherche='',categorieId=null,marqueId=null,favoris=false,lifecycle=null,
   limit=250,includeStats=false,
 }={}){
-  const db=await getDb();
+  const db=await getCatalogueDb();
   const terms=expandSearch(recherche);
   const params=[];
   const filters=['m.actif=1','c.actif=1','b.actif=1'];
@@ -73,9 +75,9 @@ export async function rechercherCatalogueIntelligent({
     ORDER BY COALESCE(u.favori,0) DESC, COALESCE(u.dernier_acces,'') DESC, c.ordre,b.nom,m.nom LIMIT ?`,params);
 }
 
-export async function enregistrerOuvertureModele(modeleId){const db=await getDb();await db.runAsync(`INSERT INTO catalogue_usage(modele_id,favori,ouvertures,dernier_acces) VALUES(?,0,1,datetime('now')) ON CONFLICT(modele_id) DO UPDATE SET ouvertures=ouvertures+1,dernier_acces=datetime('now')`,[modeleId]);}
-export async function basculerFavoriModele(modeleId){const db=await getDb();await db.runAsync(`INSERT INTO catalogue_usage(modele_id,favori,ouvertures,dernier_acces) VALUES(?,1,0,datetime('now')) ON CONFLICT(modele_id) DO UPDATE SET favori=CASE WHEN favori=1 THEN 0 ELSE 1 END,dernier_acces=datetime('now')`,[modeleId]);return db.getFirstAsync('SELECT favori FROM catalogue_usage WHERE modele_id=?',[modeleId]);}
-export async function listerModelesRecents(limit=12){const db=await getDb();return db.getAllAsync(`SELECT m.*,c.nom categorie,b.nom marque,b.logo_uri,b.couleur,u.favori,u.dernier_acces,u.ouvertures,(SELECT COUNT(*) FROM variantes_equipement v WHERE v.modele_id=m.id AND v.actif=1) nb_variantes,(SELECT COUNT(*) FROM variantes_equipement v JOIN documents_equipement d ON d.variante_id=v.id WHERE v.modele_id=m.id) nb_documents,(SELECT COUNT(*) FROM variantes_equipement v JOIN courbes_equipement q ON q.variante_id=v.id WHERE v.modele_id=m.id) nb_courbes FROM catalogue_usage u JOIN modeles_equipement m ON m.id=u.modele_id JOIN categories_equipement c ON c.id=m.categorie_id JOIN marques_equipement b ON b.id=m.marque_id WHERE m.actif=1 ORDER BY u.dernier_acces DESC LIMIT ?`,[limit]);}
+export async function enregistrerOuvertureModele(modeleId){const db=await getCatalogueDb();await db.runAsync(`INSERT INTO catalogue_usage(modele_id,favori,ouvertures,dernier_acces) VALUES(?,0,1,datetime('now')) ON CONFLICT(modele_id) DO UPDATE SET ouvertures=ouvertures+1,dernier_acces=datetime('now')`,[modeleId]);}
+export async function basculerFavoriModele(modeleId){const db=await getCatalogueDb();await db.runAsync(`INSERT INTO catalogue_usage(modele_id,favori,ouvertures,dernier_acces) VALUES(?,1,0,datetime('now')) ON CONFLICT(modele_id) DO UPDATE SET favori=CASE WHEN favori=1 THEN 0 ELSE 1 END,dernier_acces=datetime('now')`,[modeleId]);return db.getFirstAsync('SELECT favori FROM catalogue_usage WHERE modele_id=?',[modeleId]);}
+export async function listerModelesRecents(limit=12){const db=await getCatalogueDb();return db.getAllAsync(`SELECT m.*,c.nom categorie,b.nom marque,b.logo_uri,b.couleur,u.favori,u.dernier_acces,u.ouvertures,(SELECT COUNT(*) FROM variantes_equipement v WHERE v.modele_id=m.id AND v.actif=1) nb_variantes,(SELECT COUNT(*) FROM variantes_equipement v JOIN documents_equipement d ON d.variante_id=v.id WHERE v.modele_id=m.id) nb_documents,(SELECT COUNT(*) FROM variantes_equipement v JOIN courbes_equipement q ON q.variante_id=v.id WHERE v.modele_id=m.id) nb_courbes FROM catalogue_usage u JOIN modeles_equipement m ON m.id=u.modele_id JOIN categories_equipement c ON c.id=m.categorie_id JOIN marques_equipement b ON b.id=m.marque_id WHERE m.actif=1 ORDER BY u.dernier_acces DESC LIMIT ?`,[limit]);}
 
 export function getFamilyPriorityKeys(category=''){
   const c=category.toLowerCase();
