@@ -52,6 +52,17 @@ const ICPE = Object.freeze({
   actif: true,
   ui: {
     panels: TRAME_DATA,
+    tabOrder: [
+      'p-infos', 'p-distrib', 'p-regulation', 'p-releves', 'SEP',
+      'p-conf-local', 'p-conf-energie', 'p-conf-chauffage', 'p-conf-ecs', 'p-conf-adouc', 'SEP',
+      'p-equip', 'p-remarques', 'p-photos',
+    ],
+    labels: {
+      'p-infos': 'Informations', 'p-distrib': 'Distribution', 'p-regulation': 'Régulation',
+      'p-releves': 'Relevés', 'p-conf-local': 'Conf. Local', 'p-conf-energie': 'Conf. Énergie',
+      'p-conf-chauffage': 'Conf. Chauffage', 'p-conf-ecs': 'Conf. ECS', 'p-conf-adouc': 'Conf. Adoucisseur',
+      'p-equip': 'Équipements', 'p-remarques': 'Réserves', 'p-photos': 'Photos',
+    },
   },
   excel: {
     templateBase64: TEMPLATE_EXCEL_BASE64,
@@ -142,7 +153,6 @@ export function detecterTrameDepuisClasseur(wb, lireCellule) {
     if (ok) return trame;
   }
 
-  // Compatibilité avec les anciens fichiers ICPE où B4 pouvait être vide.
   if (wb.Sheets['TRAME ICPE']) return ICPE;
   return null;
 }
