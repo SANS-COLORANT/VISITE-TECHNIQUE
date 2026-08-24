@@ -6,13 +6,15 @@ on:
     branches:
       - native-android
     paths:
+      - '**/*.js'
       - package.json
       - app.json
       - eas.json
-      - databaseBackup.js
-      - PhotoButton.js
-      - database/**
       - .github/workflows/native-android-apk.yml
+
+concurrency:
+  group: native-android-apk-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build-apk:
@@ -33,6 +35,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
