@@ -6,6 +6,12 @@ on:
     branches:
       - native-android
     paths:
+      - package.json
+      - app.json
+      - eas.json
+      - databaseBackup.js
+      - PhotoButton.js
+      - database/**
       - .github/workflows/native-android-apk.yml
 
 jobs:
