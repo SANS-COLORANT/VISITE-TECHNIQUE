@@ -117,7 +117,11 @@ function HomeScreen({ navigation }) {
                       <Text style={styles.cardSub}>{v.nom_site}</Text>
                     </View>
                     <View style={styles.badge}><Text style={styles.badgeText}>{v.progression_pct}%</Text></View>
-                    <TouchableOpacity style={styles.deleteVisiteBtn} onPress={() => confirmerSuppressionVisite(v)}>
+                    <TouchableOpacity
+                      style={styles.deleteVisiteBtn}
+                      onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(v); }}
+                      accessibilityLabel={`Supprimer la visite ${v.nom_client} ${v.nom_site}`}
+                    >
                       <Text style={styles.deleteVisiteBtnText}>✕</Text>
                     </TouchableOpacity>
                   </TouchableOpacity>
@@ -142,7 +146,7 @@ function HomeScreen({ navigation }) {
               {item.code_exploitant ? <Text style={styles.cardSub}>{item.code_exploitant}</Text> : null}
             </View>
             <TouchableOpacity
-              onPress={() => confirmerSuppressionClient(item)}
+              onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionClient(item); }}
               style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginRight: 2 }}
               accessibilityLabel={`Supprimer ${item.nom}`}
             >
@@ -151,7 +155,16 @@ function HomeScreen({ navigation }) {
             <Text style={styles.chevron}>›</Text>
           </TouchableOpacity>
         )}
-        ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucun client pour l'instant.</Text></View>}
+        ListEmptyComponent={
+          <View style={[styles.empty,{paddingVertical:36}]}>
+            <Text style={styles.emptyText}>Aucun client</Text>
+            <Text style={[styles.emptySub,{marginTop:6,textAlign:'center'}]}>Crée ton premier client ou importe directement une trame Excel existante.</Text>
+            <View style={{flexDirection:'row',gap:10,marginTop:18,flexWrap:'wrap',justifyContent:'center'}}>
+              <TouchableOpacity style={styles.btnPrimary} onPress={() => setModalVisible(true)}><Text style={styles.btnPrimaryText}>+ Créer un client</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.btnSecondary} onPress={choisirExcel}><Text style={styles.btnSecondaryText}>⇧ Importer Excel</Text></TouchableOpacity>
+            </View>
+          </View>
+        }
       />
       <Modal visible={modalVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
