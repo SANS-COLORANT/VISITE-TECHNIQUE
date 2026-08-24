@@ -8,9 +8,10 @@ import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { recalculerProgressionVisite } from './visitProgressDb.js';
 import { exporterEtPartager } from './excelExport.js';
-import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves, PanelRemarques } from './VisitePanels.js';
+import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves } from './VisitePanels.js';
 import { OptimizedPhotoPanel } from './OptimizedPhotoPanel.js';
 import { OptimizedEquipmentPanel } from './OptimizedEquipmentPanel.js';
+import { OptimizedRemarksPanel } from './OptimizedRemarksPanel.js';
 
 const TABS_REELS = TAB_ORDER.filter((t) => t !== 'SEP');
 
@@ -104,7 +105,7 @@ function VisiteScreen({ route, onBack }) {
     if (activeTab === 'p-regulation') return <PanelRegulation visiteId={visiteId} onSaved={onSaved} />;
     if (activeTab === 'p-releves') return <PanelReleves visiteId={visiteId} onSaved={onSaved} />;
     if (activeTab === 'p-equip') return <OptimizedEquipmentPanel visiteId={visiteId} />;
-    if (activeTab === 'p-remarques') return <PanelRemarques visiteId={visiteId} />;
+    if (activeTab === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} />;
     if (activeTab === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
     return <PanelGenerique visiteId={visiteId} panelId={activeTab} onSaved={onSaved} />;
   };
