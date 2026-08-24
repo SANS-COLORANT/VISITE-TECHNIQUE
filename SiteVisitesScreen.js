@@ -4,7 +4,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking } from 'react-native';
 import * as Location from 'expo-location';
 import { COLORS, styles } from './styles.js';
-import { listerVisitesSite, creerVisite, getDb } from './db.js';
+import { listerVisitesSite, getDb } from './db.js';
+import { creerVisiteProduction } from './visitCreationDb.js';
 import { supprimerVisiteComplete } from './entityManagementDb.js';
 import { getSiteLocalisation, enregistrerSiteLocalisation, coordonneeValide } from './siteGeoDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
@@ -41,7 +42,7 @@ function SiteVisitesScreen({ route, navigation }) {
   const nouvelleVisite = async (mode) => {
     if (mode === 'express' && visites.length === 0) return;
     setChoixModeVisible(false);
-    const visiteId = await creerVisite({ siteId, technicien: 'Moi', mode });
+    const visiteId = await creerVisiteProduction({ siteId, mode });
     const db = await getDb();
     await preremplirVisiteDepuisContexte(db, visiteId);
     navigation.navigate('Visite', { visiteId });
