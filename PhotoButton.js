@@ -1,6 +1,6 @@
 /** Capture photo native Android + stockage durable et nommage métier. */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { TouchableOpacity, Text, Alert, View, Image, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
@@ -81,15 +81,17 @@ async function prendrePhoto() {
 
 function PhotoButton({ visiteId, entiteKey, label, style }) {
   const [photos, setPhotos] = useState([]);
+  const [photosChargees, setPhotosChargees] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [index, setIndex] = useState(0);
+
   const charger = useCallback(async () => {
     const items = await listerPhotos(visiteId, entiteKey);
     setPhotos(items);
+    setPhotosChargees(true);
     setIndex((actuel) => Math.min(actuel, Math.max(0, items.length - 1)));
     return items;
   }, [visiteId, entiteKey]);
-  useEffect(() => { charger(); }, [charger]);
 
   const ajouter = async () => {
     try {
@@ -102,7 +104,8 @@ function PhotoButton({ visiteId, entiteKey, label, style }) {
   };
 
   const onPress = async () => {
-    if (photos.length > 0) { setIndex(0); setViewerVisible(true); }
+    const items = photosChargees ? photos : await charger();
+    if (items.length > 0) { setIndex(0); setViewerVisible(true); }
     else await ajouter();
   };
 
@@ -144,8 +147,8 @@ function PhotoButton({ visiteId, entiteKey, label, style }) {
   };
 
   return <>
-    <TouchableOpacity style={[styles.photoBtn, photos.length > 0 && styles.photoBtnTaken, style]} onPress={onPress}>
-      <Text style={[styles.photoBtnText, photos.length > 0 && styles.photoBtnTextTaken]}>{photos.length > 0 ? `👁 ${photos.length} photo${photos.length > 1 ? 's' : ''}` : '📷 Photo'}</Text>
+    <TouchableOpacity style={[styles.photoBtn, photosChargees && photos.length > 0 && styles.photoBtnTaken, style]} onPress={onPress}>
+      <Text style={[styles.photoBtnText, photosChargees && photos.length > 0 && styles.photoBtnTextTaken]}>{photosChargees && photos.length > 0 ? `👁 ${photos.length} photo${photos.length > 1 ? 's' : ''}` : '📷 Photo'}</Text>
     </TouchableOpacity>
     <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
       <View style={styles.photoViewerOverlay}>
