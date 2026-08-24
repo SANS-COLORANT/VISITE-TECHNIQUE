@@ -2,8 +2,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { SectionList, Text, View } from 'react-native';
 import { getChampsVisite, getControlesVisite } from './db.js';
-import { ControleGenerique } from './GenericFields.js';
 import { DurableChampGenerique } from './DurableChampGenerique.js';
+import { PersistentControleGenerique } from './PersistentControleGenerique.js';
 import { styles } from './styles.js';
 
 const visiteDataCache = new Map();
@@ -70,6 +70,22 @@ export function mettreAJourCacheChamp(visiteId, key, valeur) {
   });
 }
 
+export function mettreAJourCacheControle(visiteId, key, patch) {
+  const courant = visiteDataCache.get(visiteId);
+  if (!courant?.data) return;
+  const ancien = courant.data.controlesMap?.[key] || {};
+  visiteDataCache.set(visiteId, {
+    data: {
+      ...courant.data,
+      controlesMap: {
+        ...courant.data.controlesMap,
+        [key]: { ...ancien, ...patch },
+      },
+    },
+    promise: courant.promise || null,
+  });
+}
+
 export function TrameGenericPanel({ visiteId, panelId, sections, onSaved }) {
   const cacheInitial = visiteDataCache.get(visiteId)?.data;
   const [champsMap, setChampsMap] = useState(cacheInitial?.champsMap || {});
@@ -125,11 +141,18 @@ export function TrameGenericPanel({ visiteId, panelId, sections, onSaved }) {
               }}
             />
           ) : (
-            <ControleGenerique
+            <PersistentControleGenerique
               visiteId={visiteId}
               sectionCode={item.sectionCode}
               field={item.field}
               etatInitial={controlesMap[item.key]}
+              onEtatChange={(patch) => {
+                setControlesMap((courant) => ({
+                  ...courant,
+                  [item.key]: { ...(courant[item.key] || {}), ...patch },
+                }));
+                mettreAJourCacheControle(visiteId, item.key, patch);
+              }}
               onSaved={onSaved}
             />
           )}
