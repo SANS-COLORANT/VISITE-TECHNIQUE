@@ -1,7 +1,7 @@
 /** Liste équipements virtualisée et catalogue chargé uniquement à la demande. */
 
 import React, { memo, useCallback, useEffect, useState } from 'react';
-import { FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import {
   listerMateriel,
   ajouterMateriel,
@@ -110,11 +110,17 @@ const EquipmentCard = memo(function EquipmentCard({ item, visiteId, onChange, ca
       <Modal visible={biblioVisible} transparent animationType="fade" onRequestClose={() => setBiblioVisible(false)}>
         <View style={styles.modalOverlay}><View style={styles.modalSheet}>
           <Text style={styles.modalTitle}>Choisir un équipement</Text>
-          <ScrollView keyboardShouldPersistTaps="handled" style={{ maxHeight: 380 }}>
-            {!biblioChargee ? <Text style={styles.emptySub}>Chargement…</Text> : biblio.length === 0 ? (
-              <Text style={styles.emptySub}>Bibliothèque vide.</Text>
-            ) : biblio.map((e) => (
-              <TouchableOpacity key={e.id} style={styles.biblioRow} onPress={() => choisir(e)}>
+          <FlatList
+            data={biblioChargee ? biblio : []}
+            keyExtractor={(e) => e.id}
+            style={{ maxHeight: 380 }}
+            keyboardShouldPersistTaps="handled"
+            initialNumToRender={10}
+            maxToRenderPerBatch={8}
+            windowSize={5}
+            removeClippedSubviews
+            renderItem={({ item: e }) => (
+              <TouchableOpacity style={styles.biblioRow} onPress={() => choisir(e)}>
                 <View style={styles.equipmentLibraryRow}>
                   <BrandMark marque={e} compact />
                   <View style={{ flex: 1 }}>
@@ -123,8 +129,9 @@ const EquipmentCard = memo(function EquipmentCard({ item, visiteId, onChange, ca
                   </View>
                 </View>
               </TouchableOpacity>
-            ))}
-          </ScrollView>
+            )}
+            ListEmptyComponent={<Text style={styles.emptySub}>{biblioChargee ? 'Bibliothèque vide.' : 'Chargement…'}</Text>}
+          />
           <TouchableOpacity style={[styles.btnSecondary, { marginTop: 14 }]} onPress={() => setBiblioVisible(false)}>
             <Text style={styles.btnSecondaryText}>Fermer</Text>
           </TouchableOpacity>
