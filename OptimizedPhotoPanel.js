@@ -136,7 +136,7 @@ function OptimizedPhotoPanel({ visiteId }) {
 
       <Modal visible={!!viewerPhoto} transparent animationType="fade" onRequestClose={() => setViewerPhoto(null)}>
         <View style={styles.viewerOverlay}>
-          <TouchableOpacity style={{ position: 'absolute', inset: 0 }} onPress={() => setViewerPhoto(null)} activeOpacity={1} />
+          <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={() => setViewerPhoto(null)} activeOpacity={1} />
           {viewerPhoto ? <Image source={{ uri: viewerPhoto.uri }} style={styles.viewerImg} resizeMode="contain" /> : null}
           <View style={{ position: 'absolute', bottom: 26, left: 24, right: 24, flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
             <TouchableOpacity style={styles.photoViewerSecondary} onPress={supprimerSelection}>
