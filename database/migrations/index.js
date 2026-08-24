@@ -10,5 +10,20 @@ import { migration009 } from './009_catalog_provenance_media.js';
 import { migration010 } from './010_catalog_search_indexes.js';
 import { migration011 } from './011_catalog_experience.js';
 import { migration012 } from './012_site_geolocation.js';
+import { migration013 } from './013_material_excel_fields.js';
 
-export const MIGRATIONS = Object.freeze([migration001, migration002, migration003, migration004, migration005, migration006, migration007, migration008, migration009, migration010, migration011, migration012]);
+export const MIGRATIONS = Object.freeze([
+  migration001,
+  migration002,
+  migration003,
+  migration004,
+  migration005,
+  migration006,
+  migration007,
+  migration008,
+  migration009,
+  migration010,
+  migration011,
+  migration012,
+  migration013,
+]);
