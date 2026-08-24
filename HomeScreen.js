@@ -15,6 +15,7 @@ function HomeScreen({ navigation }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [nouveauNom, setNouveauNom] = useState('');
   const [nouveauCode, setNouveauCode] = useState('');
+  const [creationClient, setCreationClient] = useState(false);
   const [importPreview, setImportPreview] = useState(null);
   const [importEnCours, setImportEnCours] = useState(false);
 
@@ -23,7 +24,9 @@ function HomeScreen({ navigation }) {
     setClients(c); setVisitesEnCours(v); setStats(s);
   }, []);
 
-  useEffect(useCallback(() => { charger(); }, [charger]));
+  useEffect(() => {
+    charger().catch((e) => console.warn('Chargement accueil impossible', e));
+  }, [charger]);
 
   const onRefresh = async () => { setRefreshing(true); await charger(); setRefreshing(false); };
 
@@ -57,9 +60,24 @@ function HomeScreen({ navigation }) {
   };
 
   const ajouterClient = async () => {
-    if (!nouveauNom.trim()) { Alert.alert('Nom requis', 'Merci de saisir le nom du client.'); return; }
-    await creerClient({ nom: nouveauNom.trim(), codeExploitant: nouveauCode.trim() || null });
-    setNouveauNom(''); setNouveauCode(''); setModalVisible(false); charger();
+    const nom = nouveauNom.trim();
+    const codeExploitant = nouveauCode.trim() || null;
+    if (!nom) { Alert.alert('Nom requis', 'Merci de saisir le nom du client.'); return; }
+    if (creationClient) return;
+
+    setCreationClient(true);
+    try {
+      const id = await creerClient({ nom, codeExploitant });
+      setClients((courants) => [...courants, { id, nom, code_exploitant: codeExploitant, adresse: null }]
+        .sort((a, b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr', { sensitivity: 'base' })));
+      setNouveauNom('');
+      setNouveauCode('');
+      setModalVisible(false);
+    } catch (e) {
+      Alert.alert('Création impossible', String(e.message || e));
+    } finally {
+      setCreationClient(false);
+    }
   };
 
   const choisirExcel = async () => {
@@ -170,14 +188,14 @@ function HomeScreen({ navigation }) {
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
             <Text style={styles.modalTitle}>Nouveau client</Text>
-            <TextInput style={styles.input} placeholder="Nom du client" value={nouveauNom} onChangeText={setNouveauNom} />
-            <TextInput style={[styles.input, { marginTop: 10 }]} placeholder="Code exploitant (optionnel)" value={nouveauCode} onChangeText={setNouveauCode} />
+            <TextInput style={styles.input} placeholder="Nom du client" value={nouveauNom} onChangeText={setNouveauNom} editable={!creationClient} />
+            <TextInput style={[styles.input, { marginTop: 10 }]} placeholder="Code exploitant (optionnel)" value={nouveauCode} onChangeText={setNouveauCode} editable={!creationClient} />
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.btnSecondary} onPress={() => setModalVisible(false)}>
+              <TouchableOpacity style={styles.btnSecondary} onPress={() => setModalVisible(false)} disabled={creationClient}>
                 <Text style={styles.btnSecondaryText}>Annuler</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.btnPrimary} onPress={ajouterClient}>
-                <Text style={styles.btnPrimaryText}>Créer</Text>
+              <TouchableOpacity style={styles.btnPrimary} onPress={ajouterClient} disabled={creationClient}>
+                <Text style={styles.btnPrimaryText}>{creationClient ? 'Création…' : 'Créer'}</Text>
               </TouchableOpacity>
             </View>
           </View>
