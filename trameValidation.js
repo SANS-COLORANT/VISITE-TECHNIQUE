@@ -10,7 +10,8 @@ function erreur(trame, message) {
 
 export function validerDefinitionTrame(trame) {
   const erreurs = [];
-  if (!trame || typeof trame !== 'object') return { ok: false, erreurs: ['Définition de trame absente'] };
+  const avertissements = [];
+  if (!trame || typeof trame !== 'object') return { ok: false, erreurs: ['Définition de trame absente'], avertissements };
   if (!String(trame.id || '').trim()) erreurs.push(erreur(trame, 'id requis'));
   if (!String(trame.nom || '').trim()) erreurs.push(erreur(trame, 'nom requis'));
   if (!Number.isInteger(Number(trame.version)) || Number(trame.version) < 1) erreurs.push(erreur(trame, 'version entière >= 1 requise'));
@@ -36,7 +37,7 @@ export function validerDefinitionTrame(trame) {
   }
 
   const identites = new Set();
-  const cellules = new Set();
+  const cellules = new Map();
   for (const mapping of cfg.fieldMappings || []) {
     const identite = `${mapping.sectionCode || ''}||${mapping.cle || ''}`;
     if (!mapping.sectionCode || !mapping.cle) erreurs.push(erreur(trame, 'mapping de champ sans sectionCode/cle'));
@@ -45,8 +46,8 @@ export function validerDefinitionTrame(trame) {
     if (!['champ', 'controle'].includes(mapping.type)) erreurs.push(erreur(trame, `type invalide pour « ${identite} »`));
     if (!estCelluleExcel(mapping.valueCell)) erreurs.push(erreur(trame, `valueCell invalide pour « ${identite} »`));
     const cellKey = `${cfg.mainSheet}!${mapping.valueCell}`;
-    if (cellules.has(cellKey)) erreurs.push(erreur(trame, `cellule Excel utilisée plusieurs fois « ${cellKey} »`));
-    cellules.add(cellKey);
+    if (cellules.has(cellKey)) avertissements.push(erreur(trame, `cellule Excel partagée « ${cellKey} » entre « ${cellules.get(cellKey)} » et « ${identite} »`));
+    else cellules.set(cellKey, identite);
     if (mapping.type === 'controle' && !estCelluleExcel(mapping.commentCell)) erreurs.push(erreur(trame, `commentCell invalide pour le contrôle « ${identite} »`));
   }
 
@@ -65,7 +66,7 @@ export function validerDefinitionTrame(trame) {
     }
   }
 
-  return { ok: erreurs.length === 0, erreurs };
+  return { ok: erreurs.length === 0, erreurs, avertissements };
 }
 
 export function exigerDefinitionTrameValide(trame) {
