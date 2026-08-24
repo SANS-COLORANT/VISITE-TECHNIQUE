@@ -6,9 +6,6 @@
  * - le modèle Excel à utiliser ;
  * - le mapping import/export des champs et contrôles ;
  * - les blocs répétables et feuilles tabulaires.
- *
- * Pour ajouter une nouvelle trame, on ajoute une définition ici (ou dans un
- * fichier dédié) sans modifier le moteur d'import/export.
  */
 import { TEMPLATE_EXCEL_BASE64 } from './templateExcel.js';
 import { EXCEL_ROWS, TRAME_DATA } from './data.js';
@@ -28,14 +25,16 @@ function construireMappingsChamps(uiData, excelRows) {
       for (const field of fields || []) {
         const row = excelRows[`${section}||${field.cle}`];
         if (!row) continue;
+        const estControle = field.type === 'controle';
         mappings.push({
           panelId,
           section,
           sectionCode,
           cle: field.cle,
           type: field.type,
-          valueCell: `B${row}`,
-          commentCell: field.type === 'controle' ? `C${row}` : null,
+          // Dans la trame ICPE : B = Avis, C = Valeur / commentaire.
+          valueCell: `${estControle ? 'B' : 'C'}${row}`,
+          commentCell: estControle ? `C${row}` : null,
         });
       }
     }
@@ -71,15 +70,15 @@ const ICPE = Object.freeze({
     requiredSheets: ['TRAME ICPE'],
     mainSheet: 'TRAME ICPE',
     metadata: {
-      client: 'B1',
-      site: 'B2',
-      adresse: 'B3',
-      type: 'B4',
-      dateVisite: 'B5',
+      client: 'C1',
+      site: 'C2',
+      adresse: 'C3',
+      type: 'C4',
+      dateVisite: 'C5',
     },
     signature: {
       sheet: 'TRAME ICPE',
-      cells: [{ ref: 'B4', values: ['ICPE'] }],
+      cells: [{ ref: 'C4', values: ['ICPE'] }],
     },
     fieldMappings: ICPE_FIELD_MAPPINGS,
     networks: {
@@ -101,6 +100,8 @@ const ICPE = Object.freeze({
         tnc: 4,
         consigne_programme_horaire: 5,
       },
+      // Les paramètres de réseau sont des valeurs, pas des avis de conformité.
+      exportColumn: 'C',
       overflow: {
         sheet: 'RESEAUX COMPLEMENTAIRES',
         startRow: 3,
