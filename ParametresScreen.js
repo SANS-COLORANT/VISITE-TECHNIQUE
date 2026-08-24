@@ -1,24 +1,54 @@
 /** Écran Paramètres — réserves + catalogue matériel + sauvegarde des données. */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { CategorieCritereSelector } from './GenericFields.js';
 import { EquipmentCatalogueBrowser } from './EquipmentCatalogueBrowser.js';
 import { listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio } from './db.js';
 import { exporterSauvegardeBase } from './databaseBackup.js';
+import { ensureEquipmentCatalogReady } from './database/index.js';
 
 const CATEGORIES_EQUIPEMENT=['Adoucisseur','Armoire électrique','Ballon ECS','Chaudière','Circulateur','Coffret gaz','Compteur','Désemboueur','Détendeur','Échangeur','Extincteur','Filtre','Manomètre','Pompe','Robinetterie','Soupape','Vanne',"Vase d'expansion"];
 const MARQUES_EQUIPEMENT=['De Dietrich','Viessmann','Grundfos','Wilo','Saunier Duval','Atlantic','Frisquet','Chappée','Chaffoteaux','Elm Leblanc','Bosch','Vaillant','Fernox','Alfa Laval'];
 
 function ParametresScreen(){
   const[onglet,setOnglet]=useState('reserves');
+  const[cataloguePret,setCataloguePret]=useState(false);
+  const[catalogueErreur,setCatalogueErreur]=useState(null);
+
+  useEffect(()=>{
+    if(onglet!=='equipements'||cataloguePret)return;
+    let actif=true;
+    setCatalogueErreur(null);
+    ensureEquipmentCatalogReady()
+      .then(()=>{if(actif)setCataloguePret(true);})
+      .catch((e)=>{if(actif)setCatalogueErreur(String(e.message||e));});
+    return()=>{actif=false;};
+  },[onglet,cataloguePret]);
+
+  const contenuEquipements=cataloguePret
+    ?<EquipmentCatalogueBrowser/>
+    :<View style={{flex:1,alignItems:'center',justifyContent:'center',padding:28}}>
+      {catalogueErreur?
+        <>
+          <Text style={{fontSize:16,fontWeight:'800',color:COLORS.text}}>Catalogue indisponible</Text>
+          <Text style={{marginTop:8,color:COLORS.muted,textAlign:'center'}}>{catalogueErreur}</Text>
+          <TouchableOpacity style={[styles.btnPrimary,{marginTop:16}]} onPress={()=>{setCatalogueErreur(null);setCataloguePret(false);setOnglet('reserves');setTimeout(()=>setOnglet('equipements'),0);}}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity>
+        </>
+        :<>
+          <ActivityIndicator size="large" color={COLORS.orange}/>
+          <Text style={{marginTop:12,fontWeight:'800',color:COLORS.text}}>Préparation du catalogue…</Text>
+          <Text style={{marginTop:5,color:COLORS.muted,textAlign:'center'}}>Cette étape est surtout visible au premier lancement. Les ouvertures suivantes utilisent la base déjà enrichie.</Text>
+        </>}
+    </View>;
+
   return <View style={{flex:1,backgroundColor:COLORS.bg}}>
     <View style={styles.paramTabs}>
       <TouchableOpacity style={[styles.paramTab,onglet==='reserves'&&styles.paramTabActive]} onPress={()=>setOnglet('reserves')}><Text style={[styles.paramTabText,onglet==='reserves'&&styles.paramTabTextActive]}>Réserves</Text></TouchableOpacity>
       <TouchableOpacity style={[styles.paramTab,onglet==='equipements'&&styles.paramTabActive]} onPress={()=>setOnglet('equipements')}><Text style={[styles.paramTabText,onglet==='equipements'&&styles.paramTabTextActive]}>Équipements</Text></TouchableOpacity>
       <TouchableOpacity style={[styles.paramTab,onglet==='donnees'&&styles.paramTabActive]} onPress={()=>setOnglet('donnees')}><Text style={[styles.paramTabText,onglet==='donnees'&&styles.paramTabTextActive]}>Données</Text></TouchableOpacity>
     </View>
-    {onglet==='reserves'?<BibliothequeReserves/>:onglet==='equipements'?<EquipmentCatalogueBrowser/>:<GestionDonnees/>}
+    {onglet==='reserves'?<BibliothequeReserves/>:onglet==='equipements'?contenuEquipements:<GestionDonnees/>}
   </View>;
 }
 
