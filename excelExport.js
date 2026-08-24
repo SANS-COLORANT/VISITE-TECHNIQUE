@@ -7,15 +7,6 @@ import * as Sharing from 'expo-sharing';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { getDb, getVisite, listerReseaux, listerMateriel, listerRemarques, getNote } from './db.js';
 
-const RESEAU_EXPORT_COLS = [
-  ['nom_reseau', 'Nom réseau'],
-  ['t_ext_c', 'T° extérieure (°C)'],
-  ['t_dep_c', 'T° départ (°C)'],
-  ['courbe_de_chauffe', 'Courbe de chauffe'],
-  ['tnc', 'TNC'],
-  ['consigne_programme_horaire', 'Consigne / programme horaire'],
-];
-
 function setCell(sheet, ref, valeur) {
   if (!sheet || !ref || valeur === null || valeur === undefined || valeur === '') return;
   const existante = sheet[ref] || {};
@@ -33,41 +24,34 @@ function indexerParCle(rows = []) {
   return map;
 }
 
-function colIndexVersLettre(index) {
-  let n = index + 1;
-  let s = '';
-  while (n > 0) {
-    const mod = (n - 1) % 26;
-    s = String.fromCharCode(65 + mod) + s;
-    n = Math.floor((n - 1) / 26);
-  }
-  return s;
-}
-
 function ajouterReseauxComplementaires(wb, reseaux, config) {
   const starts = config?.starts || [];
-  if (reseaux.length <= starts.length) return 0;
+  const overflow = config?.overflow;
+  if (!overflow || reseaux.length <= starts.length) return 0;
+
   const supplementaires = reseaux.slice(starts.length);
-  const nomFeuille = config?.overflowSheet || 'RESEAUX COMPLEMENTAIRES';
+  const colonnes = overflow.columns || [];
   const aoa = [
     [`Réseaux complémentaires — non prévus dans les ${starts.length} blocs de la trame`],
-    RESEAU_EXPORT_COLS.map(([, label]) => label),
-    ...supplementaires.map((reseau) => RESEAU_EXPORT_COLS.map(([cle]) => reseau[cle] ?? '')),
+    colonnes.map((c) => c.label || c.exportKey),
+    ...supplementaires.map((reseau) => colonnes.map((c) => reseau[c.exportKey] ?? '')),
   ];
   const sheet = XLSX.utils.aoa_to_sheet(aoa);
-  sheet['!cols'] = [{ wch: 28 }, { wch: 20 }, { wch: 18 }, { wch: 22 }, { wch: 16 }, { wch: 45 }];
-  if (wb.Sheets[nomFeuille]) wb.Sheets[nomFeuille] = sheet;
-  else XLSX.utils.book_append_sheet(wb, sheet, nomFeuille);
+  sheet['!cols'] = colonnes.map((c) => ({ wch: Math.max(16, Math.min(45, String(c.label || '').length + 6)) }));
+  if (wb.Sheets[overflow.sheet]) wb.Sheets[overflow.sheet] = sheet;
+  else XLSX.utils.book_append_sheet(wb, sheet, overflow.sheet);
   return supplementaires.length;
 }
 
-function remplirTable(sheet, rows, tableConfig, mapper = (r) => r) {
+function remplirTable(sheet, rows, tableConfig) {
   if (!sheet || !tableConfig) return;
   const startRow = Number(tableConfig.startRow || 1);
-  const exportColumns = tableConfig.exportColumns || (tableConfig.columns || []).map(([, cle]) => cle);
+  const colonnes = tableConfig.exportColumns || tableConfig.columns || [];
   rows.forEach((row, index) => {
-    const mapped = mapper(row);
-    exportColumns.forEach((cle, ci) => setCell(sheet, `${colIndexVersLettre(ci)}${startRow + index}`, mapped[cle]));
+    colonnes.forEach((definition, ci) => {
+      const [col, cle] = Array.isArray(definition) ? definition : [String.fromCharCode(65 + ci), definition];
+      setCell(sheet, `${col}${startRow + index}`, row[cle]);
+    });
   });
 }
 
@@ -124,18 +108,8 @@ async function construireClasseur(visiteId) {
   const reseauxSupplementaires = reseauxCfg ? ajouterReseauxComplementaires(wb, reseaux, reseauxCfg) : 0;
 
   const tables = cfg.tables || {};
-  const materielCfg = tables.materiel;
-  if (materielCfg) remplirTable(wb.Sheets[materielCfg.sheet], materiel, materielCfg);
-
-  const remarquesCfg = tables.remarques;
-  if (remarquesCfg) {
-    const cols = remarquesCfg.columns || [];
-    const start = Number(remarquesCfg.startRow || 1);
-    const sheet = wb.Sheets[remarquesCfg.sheet];
-    remarques.forEach((r, i) => {
-      cols.forEach(([col, cle]) => setCell(sheet, `${col}${start + i}`, r[cle]));
-    });
-  }
+  if (tables.materiel) remplirTable(wb.Sheets[tables.materiel.sheet], materiel, tables.materiel);
+  if (tables.remarques) remplirTable(wb.Sheets[tables.remarques.sheet], remarques, tables.remarques);
 
   const noteCfg = tables.note;
   if (noteCfg) setCell(wb.Sheets[noteCfg.sheet], noteCfg.cell, note?.contenu || '');
