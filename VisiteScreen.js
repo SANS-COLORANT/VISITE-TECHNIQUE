@@ -14,6 +14,7 @@ import { OptimizedEquipmentPanel } from './OptimizedEquipmentPanel.js';
 import { OptimizedRemarksPanel } from './OptimizedRemarksPanel.js';
 
 const TABS_REELS = TAB_ORDER.filter((t) => t !== 'SEP');
+const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function VisiteScreen({ route, onBack }) {
   const { visiteId } = route.params;
@@ -33,8 +34,6 @@ function VisiteScreen({ route, onBack }) {
 
   const changerOnglet = useCallback((prochain) => {
     if (!prochain || prochain === activeTabRef.current) return;
-    // Déclenche les onBlur des champs historiques avant de démonter le panneau.
-    // Le tick suivant laisse à React Native le temps de propager le blur/sauvegarde.
     Keyboard.dismiss();
     if (changementTimerRef.current) clearTimeout(changementTimerRef.current);
     changementTimerRef.current = setTimeout(() => {
@@ -59,9 +58,6 @@ function VisiteScreen({ route, onBack }) {
 
   useEffect(() => { charger(); }, [charger]);
 
-  // Une saisie ne recharge plus tout l'écran ni le panneau courant.
-  // Les composants gardent leur état local et SQLite est mis à jour en arrière-plan.
-  // On ne recalcule que le pourcentage affiché dans l'en-tête.
   const onSaved = useCallback(async () => {
     const db = await getDb();
     const progression = await recalculerProgressionVisite(db, visiteId);
@@ -99,13 +95,25 @@ function VisiteScreen({ route, onBack }) {
 
   const [exporting, setExporting] = useState(false);
   const exporter = async () => {
+    if (exporting) return;
     setExporting(true);
     try {
-      await exporterEtPartager(visiteId);
+      // Ferme le champ actif puis laisse les sauvegardes onBlur atteindre SQLite
+      // avant de construire le classeur à partir de la base.
+      Keyboard.dismiss();
+      await attendre(180);
+      const resultat = await exporterEtPartager(visiteId);
+      if (resultat?.stats?.reseauxSupplementaires > 0) {
+        Alert.alert(
+          'Export complet',
+          `${resultat.stats.reseauxSupplementaires} réseau(x) supplémentaire(s) ont été placés dans la feuille « RESEAUX COMPLEMENTAIRES » afin de ne perdre aucune donnée.`
+        );
+      }
     } catch (e) {
       Alert.alert('Erreur export', String(e.message || e));
+    } finally {
+      setExporting(false);
     }
-    setExporting(false);
   };
 
   const enregistrerAnomalie = async () => {
