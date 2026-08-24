@@ -12,6 +12,7 @@ const MARQUES=['De Dietrich','Viessmann','Grundfos','Wilo','Saunier Duval','Atla
 const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
 const eq=(a,b)=>norm(a)===norm(b);
 const uniq=a=>[...new Set((a||[]).filter(Boolean).map(v=>String(v).trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr',{sensitivity:'base'}));
+const nomModele=e=>String(e?.nom||e?.modele||'').trim();
 
 function typeCompatible(typeChoisi,typeCatalogue){
  const a=norm(typeChoisi),b=norm(typeCatalogue);
@@ -78,7 +79,7 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
  const refsType=useMemo(()=>catalogue.filter(e=>typeCompatible(categorie,e.categorie)),[catalogue,categorie]);
  const marquesType=useMemo(()=>uniq(refsType.map(e=>e.marque)),[refsType]);
  const refsMarque=useMemo(()=>refsType.filter(e=>!marque||eq(e.marque,marque)),[refsType,marque]);
- const modeles=useMemo(()=>uniq(refsMarque.map(e=>e.modele)),[refsMarque]);
+ const modeles=useMemo(()=>uniq(refsMarque.map(nomModele)),[refsMarque]);
 
  const choisirType=async v=>{
   const ancien=categorie;
@@ -88,13 +89,13 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
   if(!designation||eq(designation,'Équipement')||eq(designation,ancien))await setDesignationNow(t||'Équipement');
   const refsNouveau=catalogue.filter(e=>typeCompatible(t,e.categorie));
   if(marque&&!refsNouveau.some(e=>eq(e.marque,marque))){setMarque('');await upsertMaterielChamp(item.id,'marque','');await setModeleNow('')}
-  else if(modele&&!refsNouveau.some(e=>eq(e.marque,marque)&&eq(e.modele,modele)))await setModeleNow('');
+  else if(modele&&!refsNouveau.some(e=>eq(e.marque,marque)&&eq(nomModele(e),modele)))await setModeleNow('');
  };
  const choisirMarque=async v=>{
   const m=String(v||'').trim();
   setMarque(m);
   await upsertMaterielChamp(item.id,'marque',m);
-  if(modele&&!refsType.some(e=>eq(e.marque,m)&&eq(e.modele,modele)))await setModeleNow('');
+  if(modele&&!refsType.some(e=>eq(e.marque,m)&&eq(nomModele(e),modele)))await setModeleNow('');
  };
  const choisirModele=async v=>{await setModeleNow(String(v||'').trim())};
  const sauverEtat=async v=>{setEtat(v);await upsertMaterielChamp(item.id,'etat',v)};
@@ -107,14 +108,10 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
   </View>
 
   <PickerField label="1. Type d’équipement" valeur={categorie} placeholder="Choisir : Pompe, Chaudière, Échangeur…" onPress={()=>setPicker('type')}/>
-
   <View style={{marginTop:10}}><Text style={styles.fieldLabel}>2. Désignation</Text><TextInput style={styles.input} value={designation} onChangeText={setDesignation} onBlur={blurDesignation} placeholder={categorie?`Ex. ${categorie} double`:'Désignation'}/><Text style={[styles.importHint,{marginTop:4}]}>Préremplie avec le type, mais entièrement modifiable selon l’équipement réel.</Text></View>
-
   <PickerField label="3. Marque" valeur={marque} placeholder={categorie?'Choisir une marque':'Choisir d’abord le type'} disabled={!categorie} onPress={()=>setPicker('marque')} sub={categorie&&marquesType.length?`${marquesType.length} marque(s) compatibles dans le catalogue`:null}/>
-
   <PickerField label="4. Modèle" valeur={modele} placeholder={!categorie?'Choisir d’abord le type':!marque?'Choisir d’abord la marque':'Choisir un modèle'} disabled={!categorie||!marque} onPress={()=>setPicker('modele')} sub={categorie&&marque?(modeles.length?`${modeles.length} modèle(s) ${marque} correspondant à ${categorie}`:`Aucun modèle ${marque} / ${categorie} dans la base — saisie manuelle possible ci-dessous`):null}/>
   {categorie&&marque?<TextInput style={[styles.input,{marginTop:7}]} value={modele} onChangeText={setModele} onBlur={blurModele} placeholder="Ou saisir / corriger la référence exacte du modèle"/>:null}
-
   <View style={{marginTop:10}}><Text style={styles.fieldLabel}>Année</Text><TextInput style={[styles.input,{width:130}]} value={annee} onChangeText={setAnnee} onBlur={blurAnnee} keyboardType="numeric" placeholder="Année"/></View>
   <View style={{height:10}}/><Text style={styles.fieldLabel}>5. État constaté</Text><View style={{height:6}}/><ChipSelector valeur={etat} options={['Bon','À surveiller','Dégradé','Hors service']} onChange={sauverEtat}/>
 
