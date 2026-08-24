@@ -1,0 +1,21 @@
+node_modules/
+.expo/
+.expo-shared/
+dist/
+web-build/
+coverage/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+
+# Expo managed/CNG: dossiers natifs générés lors du build
+android/
+ios/
+
+# Fichiers locaux de build / sauvegardes
+*.apk
+*.aab
+*.db
+backups/
