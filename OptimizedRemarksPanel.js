@@ -1,8 +1,7 @@
 /** Synthèse des réserves optimisée pour les longues visites tablette. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
-import { TRAME_DATA } from './data.js';
+import { styles } from './styles.js';
 import {
   listerBibliothequeReserves,
   listerMateriel,
@@ -20,11 +19,8 @@ import {
 import { cleanLabel } from './GenericFields.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
-import { PANEL_LABELS, TAB_ORDER } from './VisitePanels.js';
 
-const ONGLET_RATTACHABLES = TAB_ORDER.filter((id) => id !== 'SEP' && id !== 'p-remarques' && id !== 'p-photos');
-
-function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher }) {
+function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panelLabels }) {
   const [prestation, setPrestation, blurPrestation] = useDurableAutosave(remarque.prestation, async (v) => {
     await modifierRemarqueVisite(remarque.id, { prestation: v });
     onPatch(remarque.id, { prestation: v });
@@ -76,20 +72,25 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher }) {
       <Text style={styles.importHint}>Modification locale à cette visite — la bibliothèque reste inchangée.</Text>
       <TouchableOpacity style={styles.remarqueLinkBtn} onPress={() => onRattacher(remarque)}>
         <Text style={styles.remarqueLinkBtnText}>
-          {remarque.reference_onglet ? `↗ ${PANEL_LABELS[remarque.reference_onglet] || remarque.reference_onglet} · ${remarque.reference_libelle || ''}` : '+ Rattacher à un onglet ou un élément'}
+          {remarque.reference_onglet ? `↗ ${panelLabels[remarque.reference_onglet] || remarque.reference_onglet} · ${remarque.reference_libelle || ''}` : '+ Rattacher à un onglet ou un élément'}
         </Text>
       </TouchableOpacity>
     </View>
   );
 }
 
-function OptimizedRemarksPanel({ visiteId }) {
+function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, panels = {} }) {
   const [remarques, setRemarques] = useState([]);
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
   const [remarqueARattacher, setRemarqueARattacher] = useState(null);
   const [ongletChoisi, setOngletChoisi] = useState(null);
   const [cibles, setCibles] = useState([]);
+
+  const ongletsRattachables = useMemo(
+    () => tabOrder.filter((id) => id !== 'SEP' && id !== 'p-remarques' && id !== 'p-photos'),
+    [tabOrder.join('|')]
+  );
 
   const charger = useCallback(async () => setRemarques(await listerRemarquesVisite(visiteId)), [visiteId]);
   useEffect(() => { charger(); }, [charger]);
@@ -138,10 +139,10 @@ function OptimizedRemarksPanel({ visiteId }) {
       const items = await listerCompteurs(visiteId);
       setCibles(items.map((c) => ({ id: c.compteur_site_id || c.id, type: 'compteur', libelle: c.label || 'Compteur sans nom' })));
     } else {
-      const sections = TRAME_DATA[panelId] || {};
+      const sections = panels[panelId] || {};
       setCibles(Object.entries(sections).flatMap(([section, fields]) => [
         { id: `${panelId}:${section}`, type: 'section', libelle: section },
-        ...fields.map((f) => ({ id: `${panelId}:${section}:${f.cle}`, type: f.type || 'champ', libelle: `${section} · ${cleanLabel(f.cle)}` })),
+        ...(fields || []).map((f) => ({ id: `${panelId}:${section}:${f.cle}`, type: f.type || 'champ', libelle: `${section} · ${cleanLabel(f.cle)}` })),
       ]));
     }
   };
@@ -175,7 +176,7 @@ function OptimizedRemarksPanel({ visiteId }) {
       <FlatList
         data={remarques}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <ReserveCard remarque={item} visiteId={visiteId} onPatch={patchLocal} onDelete={deleteLocal} onRattacher={ouvrirRattachement} />}
+        renderItem={({ item }) => <ReserveCard remarque={item} visiteId={visiteId} onPatch={patchLocal} onDelete={deleteLocal} onRattacher={ouvrirRattachement} panelLabels={panelLabels} />}
         ListHeaderComponent={header}
         ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucune réserve pour l'instant.</Text><Text style={styles.emptySub}>Passe un point de contrôle en N.S pour en générer une.</Text></View>}
         ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ouvrirBiblio}><Text style={styles.addBtnText}>+ Ajouter une réserve manuelle</Text></TouchableOpacity>}
@@ -220,7 +221,7 @@ function OptimizedRemarksPanel({ visiteId }) {
           <Text style={styles.modalTitle}>À quoi cette réserve fait-elle référence ?</Text>
           <Text style={styles.importHint}>Choisis d’abord l’onglet, puis l’élément précis concerné.</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.remarqueTabsScroll}>
-            {ONGLET_RATTACHABLES.map((id) => <TouchableOpacity key={id} style={[styles.remarqueTabChoice, ongletChoisi === id && styles.remarqueTabChoiceActive]} onPress={() => choisirOnglet(id)}><Text style={[styles.remarqueTabChoiceText, ongletChoisi === id && styles.remarqueTabChoiceTextActive]}>{PANEL_LABELS[id]}</Text></TouchableOpacity>)}
+            {ongletsRattachables.map((id) => <TouchableOpacity key={id} style={[styles.remarqueTabChoice, ongletChoisi === id && styles.remarqueTabChoiceActive]} onPress={() => choisirOnglet(id)}><Text style={[styles.remarqueTabChoiceText, ongletChoisi === id && styles.remarqueTabChoiceTextActive]}>{panelLabels[id] || id}</Text></TouchableOpacity>)}
           </ScrollView>
           <FlatList
             data={cibles}
