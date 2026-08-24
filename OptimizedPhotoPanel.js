@@ -1,8 +1,9 @@
 /** Galerie photo virtualisée pour limiter la mémoire sur tablette. */
 
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Image, Modal, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Alert, FlatList, Image, Modal, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { listerPhotos, ajouterPhoto } from './db.js';
+import { supprimerPhotoComplete } from './photoDb.js';
 import { prendrePhoto, preparerPhotoNommee } from './PhotoButton.js';
 import { COLORS, styles } from './styles.js';
 
@@ -10,7 +11,7 @@ const PhotoTile = memo(function PhotoTile({ photo, taille, onPress }) {
   return (
     <TouchableOpacity
       style={[styles.photoThumb, { width: taille, height: taille }]}
-      onPress={() => onPress(photo.uri)}
+      onPress={() => onPress(photo)}
       activeOpacity={0.82}
       accessibilityRole="button"
       accessibilityLabel={photo.label ? `Ouvrir ${photo.label}` : 'Ouvrir la photo'}
@@ -29,7 +30,7 @@ const PhotoTile = memo(function PhotoTile({ photo, taille, onPress }) {
 function OptimizedPhotoPanel({ visiteId }) {
   const { width } = useWindowDimensions();
   const [photos, setPhotos] = useState([]);
-  const [viewerUri, setViewerUri] = useState(null);
+  const [viewerPhoto, setViewerPhoto] = useState(null);
   const [ajoutEnCours, setAjoutEnCours] = useState(false);
 
   const charger = useCallback(async () => {
@@ -62,10 +63,36 @@ function OptimizedPhotoPanel({ visiteId }) {
       const labelDb = photo.nom ? `Photo générale||${photo.nom}` : 'Photo générale';
       await ajouterPhoto(visiteId, null, photo.uri, labelDb);
       await charger();
+    } catch (e) {
+      Alert.alert('Erreur photo', String(e?.message || e));
     } finally {
       setAjoutEnCours(false);
     }
   }, [ajoutEnCours, charger, visiteId]);
+
+  const supprimerSelection = useCallback(() => {
+    if (!viewerPhoto?.id) return;
+    Alert.alert(
+      'Supprimer cette photo ?',
+      'La photo sera retirée de la visite et supprimée du stockage local de la tablette.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await supprimerPhotoComplete(viewerPhoto.id);
+              setViewerPhoto(null);
+              await charger();
+            } catch (e) {
+              Alert.alert('Suppression impossible', String(e?.message || e));
+            }
+          },
+        },
+      ]
+    );
+  }, [charger, viewerPhoto]);
 
   const header = useMemo(() => (
     <View>
@@ -93,7 +120,7 @@ function OptimizedPhotoPanel({ visiteId }) {
         key={`photos-${colonnes}`}
         numColumns={colonnes}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <PhotoTile photo={item} taille={taille} onPress={setViewerUri} />}
+        renderItem={({ item }) => <PhotoTile photo={item} taille={taille} onPress={setViewerPhoto} />}
         columnWrapperStyle={colonnes > 1 ? { gap: espace } : undefined}
         contentContainerStyle={styles.panelContent}
         ListHeaderComponent={header}
@@ -107,10 +134,19 @@ function OptimizedPhotoPanel({ visiteId }) {
         keyboardShouldPersistTaps="handled"
       />
 
-      <Modal visible={!!viewerUri} transparent animationType="fade" onRequestClose={() => setViewerUri(null)}>
-        <TouchableOpacity style={styles.viewerOverlay} onPress={() => setViewerUri(null)} activeOpacity={1}>
-          {viewerUri ? <Image source={{ uri: viewerUri }} style={styles.viewerImg} resizeMode="contain" /> : null}
-        </TouchableOpacity>
+      <Modal visible={!!viewerPhoto} transparent animationType="fade" onRequestClose={() => setViewerPhoto(null)}>
+        <View style={styles.viewerOverlay}>
+          <TouchableOpacity style={{ position: 'absolute', inset: 0 }} onPress={() => setViewerPhoto(null)} activeOpacity={1} />
+          {viewerPhoto ? <Image source={{ uri: viewerPhoto.uri }} style={styles.viewerImg} resizeMode="contain" /> : null}
+          <View style={{ position: 'absolute', bottom: 26, left: 24, right: 24, flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
+            <TouchableOpacity style={styles.photoViewerSecondary} onPress={supprimerSelection}>
+              <Text style={styles.photoViewerSecondaryText}>Supprimer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.photoViewerPrimary} onPress={() => setViewerPhoto(null)}>
+              <Text style={styles.photoViewerPrimaryText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </View>
   );
