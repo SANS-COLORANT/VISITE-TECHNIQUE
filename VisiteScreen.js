@@ -1,7 +1,7 @@
 /** Écran Visite — navigation responsive téléphone/tablette. */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { getVisite, getNote, upsertNote, getDb } from './db.js';
 import { ajouterRemarqueVisite } from './remarkDb.js';
@@ -22,12 +22,32 @@ function VisiteScreen({ route, onBack }) {
   const [visite, setVisite] = useState(null);
   const [activeTab, setActiveTab] = useState('p-infos');
   const activeTabRef = useRef('p-infos');
+  const changementTimerRef = useRef(null);
   const [noteVisible, setNoteVisible] = useState(false);
   const [noteTxt, setNoteTxt] = useState('');
   const [anomalieVisible, setAnomalieVisible] = useState(false);
   const [anomalieTxt, setAnomalieTxt] = useState('');
 
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+  useEffect(() => () => { if (changementTimerRef.current) clearTimeout(changementTimerRef.current); }, []);
+
+  const changerOnglet = useCallback((prochain) => {
+    if (!prochain || prochain === activeTabRef.current) return;
+    // Déclenche les onBlur des champs historiques avant de démonter le panneau.
+    // Le tick suivant laisse à React Native le temps de propager le blur/sauvegarde.
+    Keyboard.dismiss();
+    if (changementTimerRef.current) clearTimeout(changementTimerRef.current);
+    changementTimerRef.current = setTimeout(() => {
+      activeTabRef.current = prochain;
+      setActiveTab(prochain);
+      changementTimerRef.current = null;
+    }, 0);
+  }, []);
+
+  const retourSecurise = useCallback(() => {
+    Keyboard.dismiss();
+    setTimeout(() => onBack?.(), 0);
+  }, [onBack]);
 
   const charger = useCallback(async () => {
     const db = await getDb();
@@ -53,8 +73,8 @@ function VisiteScreen({ route, onBack }) {
       onMoveShouldSetPanResponder: (evt, g) => Math.abs(g.dx) > 35 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6,
       onPanResponderRelease: (evt, g) => {
         const idx = TABS_REELS.indexOf(activeTabRef.current);
-        if (g.dx < -35 && idx < TABS_REELS.length - 1) setActiveTab(TABS_REELS[idx + 1]);
-        else if (g.dx > 35 && idx > 0) setActiveTab(TABS_REELS[idx - 1]);
+        if (g.dx < -35 && idx < TABS_REELS.length - 1) changerOnglet(TABS_REELS[idx + 1]);
+        else if (g.dx > 35 && idx > 0) changerOnglet(TABS_REELS[idx - 1]);
       },
     })
   ).current;
@@ -98,7 +118,7 @@ function VisiteScreen({ route, onBack }) {
     });
     setAnomalieTxt('');
     setAnomalieVisible(false);
-    setActiveTab('p-remarques');
+    changerOnglet('p-remarques');
   };
 
   const contenuActif = () => {
@@ -118,7 +138,7 @@ function VisiteScreen({ route, onBack }) {
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <View style={styles.visiteTopbar}>
         <View style={styles.visiteHeaderRow}>
-          <TouchableOpacity style={styles.visiteBackBtn} onPress={onBack}>
+          <TouchableOpacity style={styles.visiteBackBtn} onPress={retourSecurise}>
             <Text style={styles.visiteBackBtnText}>←</Text>
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
@@ -150,7 +170,7 @@ function VisiteScreen({ route, onBack }) {
               pid === 'SEP' ? (
                 <View key={`sep-${i}`} style={styles.tabSep} />
               ) : (
-                <TouchableOpacity key={pid} style={styles.tabItem} onPress={() => setActiveTab(pid)}>
+                <TouchableOpacity key={pid} style={styles.tabItem} onPress={() => changerOnglet(pid)}>
                   <Text style={[styles.tabItemText, activeTab === pid && styles.tabItemTextActive]}>{PANEL_LABELS[pid]}</Text>
                   {activeTab === pid && <View style={styles.tabUnderline} />}
                 </TouchableOpacity>
@@ -169,7 +189,7 @@ function VisiteScreen({ route, onBack }) {
               ) : (
                 <TouchableOpacity
                   key={pid}
-                  onPress={() => setActiveTab(pid)}
+                  onPress={() => changerOnglet(pid)}
                   style={{
                     minHeight: 43,
                     paddingHorizontal: 11,
