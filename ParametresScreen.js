@@ -1,12 +1,13 @@
-/** Écran Paramètres — réserves + catalogue matériel + sauvegarde des données. */
+/** Écran Paramètres — réserves + catalogue matériel + sécurité des données. */
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, BackHandler, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { CategorieCritereSelector } from './GenericFields.js';
 import { EquipmentCatalogueBrowser } from './EquipmentCatalogueBrowser.js';
 import { listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio } from './db.js';
-import { exporterSauvegardeBase } from './databaseBackup.js';
+import { exporterSauvegardeBase, exporterSauvegardeComplete, choisirEtRestaurerSauvegardeComplete } from './databaseBackup.js';
 import { ensureEquipmentCatalogReady } from './database/index.js';
+import { diagnostiquerStockageLocal } from './storageHealth.js';
 
 const CATEGORIES_EQUIPEMENT=['Adoucisseur','Armoire électrique','Ballon ECS','Chaudière','Circulateur','Coffret gaz','Compteur','Désemboueur','Détendeur','Échangeur','Extincteur','Filtre','Manomètre','Pompe','Robinetterie','Soupape','Vanne',"Vase d'expansion"];
 const MARQUES_EQUIPEMENT=['De Dietrich','Viessmann','Grundfos','Wilo','Saunier Duval','Atlantic','Frisquet','Chappée','Chaffoteaux','Elm Leblanc','Bosch','Vaillant','Fernox','Alfa Laval'];
@@ -52,30 +53,111 @@ function ParametresScreen(){
   </View>;
 }
 
+function BoutonDonnees({label,onPress,disabled=false,secondaire=false,danger=false}){
+  const base=secondaire?styles.btnSecondary:styles.btnPrimary;
+  return <TouchableOpacity
+    style={[base,{marginTop:10,alignSelf:'stretch',alignItems:'center'},disabled&&{opacity:.5},danger&&{backgroundColor:'#FFF1F0',borderWidth:1,borderColor:'#F5B7B1'}]}
+    disabled={disabled}
+    onPress={onPress}
+  >
+    <Text style={danger?{color:'#A61B1B',fontWeight:'800'}:(secondaire?styles.btnSecondaryText:styles.btnPrimaryText)}>{label}</Text>
+  </TouchableOpacity>;
+}
+
 function GestionDonnees(){
-  const[enCours,setEnCours]=useState(false);
-  const sauvegarder=async()=>{
-    if(enCours)return;
-    setEnCours(true);
-    try{
-      await exporterSauvegardeBase();
-    }catch(e){
-      Alert.alert('Sauvegarde impossible',String(e.message||e));
-    }finally{
-      setEnCours(false);
-    }
+  const[action,setAction]=useState(null);
+  const[diagnostic,setDiagnostic]=useState(null);
+
+  const executer=async(nom,fn)=>{
+    if(action)return;
+    setAction(nom);
+    try{return await fn();}
+    finally{setAction(null);}
   };
+
+  const sauvegarderBase=()=>executer('base',async()=>{
+    try{await exporterSauvegardeBase();}
+    catch(e){Alert.alert('Sauvegarde impossible',String(e.message||e));}
+  });
+
+  const sauvegarderComplet=()=>executer('complete',async()=>{
+    try{
+      const r=await exporterSauvegardeComplete();
+      if(r) Alert.alert('Sauvegarde créée',`Archive complète créée avec ${r.manifeste?.counts?.visites||0} visite(s) et ${r.manifeste?.counts?.photos||0} photo(s).`);
+    }catch(e){Alert.alert('Sauvegarde complète impossible',String(e.message||e));}
+  });
+
+  const lancerRestauration=()=>executer('restore',async()=>{
+    try{
+      const resultat=await choisirEtRestaurerSauvegardeComplete();
+      if(!resultat)return;
+      Alert.alert(
+        'Restauration terminée',
+        `La sauvegarde a été restaurée et contrôlée. L’application va se fermer pour recharger proprement les données au prochain lancement.`,
+        [{text:'Fermer l’application',onPress:()=>BackHandler.exitApp()}],
+        {cancelable:false}
+      );
+    }catch(e){
+      Alert.alert(
+        'Restauration impossible',
+        `${String(e.message||e)}\n\nPour garantir une connexion SQLite propre, ferme puis relance l’application avant de poursuivre.`,
+        [{text:'Fermer l’application',onPress:()=>BackHandler.exitApp()}],
+        {cancelable:false}
+      );
+    }
+  });
+
+  const demanderRestauration=()=>Alert.alert(
+    'Restaurer une sauvegarde complète ?',
+    'Les données actuellement présentes sur cette tablette seront remplacées par le contenu de l’archive sélectionnée. Une copie de sécurité temporaire est créée automatiquement pendant l’opération.',
+    [
+      {text:'Annuler',style:'cancel'},
+      {text:'Choisir une sauvegarde',style:'destructive',onPress:lancerRestauration},
+    ]
+  );
+
+  const diagnostiquer=()=>executer('diagnostic',async()=>{
+    try{
+      const d=await diagnostiquerStockageLocal();
+      setDiagnostic(d);
+    }catch(e){Alert.alert('Diagnostic impossible',String(e.message||e));}
+  });
+
+  const occupe=!!action;
   return <ScrollView contentContainerStyle={styles.content}>
-    <Text style={styles.sectionLabel}>Sauvegarde locale</Text>
+    <Text style={styles.sectionLabel}>Sauvegardes</Text>
     <View style={[styles.card,{alignItems:'flex-start'}]}>
       <View style={{flex:1}}>
-        <Text style={styles.cardTitle}>Sauvegarder toutes les données</Text>
-        <Text style={[styles.cardSub,{marginTop:5}]}>Crée une copie autonome de la base SQLite contenant clients, sites, visites, contrôles, équipements, compteurs et réserves. Le fichier peut ensuite être enregistré dans Drive, OneDrive, un dossier réseau ou envoyé par mail.</Text>
-        <Text style={[styles.cardSub,{marginTop:8}]}>Les photos restent stockées séparément dans l'application ; leur archivage complet sera ajouté dans une sauvegarde ZIP dédiée.</Text>
+        <Text style={styles.cardTitle}>Sauvegarde complète</Text>
+        <Text style={[styles.cardSub,{marginTop:5}]}>Archive ZIP recommandée pour le terrain : base SQLite, toutes les visites et photos gérées par l’application, plus un manifeste de version.</Text>
+        <Text style={[styles.cardSub,{marginTop:6}]}>L’archive peut être enregistrée dans Drive, OneDrive, un dossier réseau ou envoyée par mail.</Text>
       </View>
-      <TouchableOpacity style={[styles.btnPrimary,{marginTop:14,alignSelf:'stretch',alignItems:'center'},enCours&&{opacity:.55}]} disabled={enCours} onPress={sauvegarder}>
-        <Text style={styles.btnPrimaryText}>{enCours?'Sauvegarde…':'Exporter la sauvegarde'}</Text>
-      </TouchableOpacity>
+      <BoutonDonnees label={action==='complete'?'Création de l’archive…':'Exporter base + photos'} disabled={occupe} onPress={sauvegarderComplet}/>
+      <BoutonDonnees label={action==='base'?'Export…':'Exporter la base seule (.db)'} disabled={occupe} secondaire onPress={sauvegarderBase}/>
+    </View>
+
+    <Text style={[styles.sectionLabel,{marginTop:18}]}>Restauration</Text>
+    <View style={[styles.card,{alignItems:'flex-start'}]}>
+      <View style={{flex:1}}>
+        <Text style={styles.cardTitle}>Restaurer une tablette</Text>
+        <Text style={[styles.cardSub,{marginTop:5}]}>Restaure une archive complète créée par l’application. La version est vérifiée avant remplacement, les chemins des photos sont automatiquement adaptés à la nouvelle tablette et l’intégrité SQLite est contrôlée après restauration.</Text>
+      </View>
+      <BoutonDonnees label={action==='restore'?'Restauration…':'Restaurer une sauvegarde ZIP'} disabled={occupe} danger onPress={demanderRestauration}/>
+    </View>
+
+    <Text style={[styles.sectionLabel,{marginTop:18}]}>Santé des données</Text>
+    <View style={[styles.card,{alignItems:'flex-start'}]}>
+      <View style={{flex:1}}>
+        <Text style={styles.cardTitle}>Diagnostic local</Text>
+        <Text style={[styles.cardSub,{marginTop:5}]}>Vérifie l’intégrité SQLite, les relations de base, la version du schéma et la présence physique des photos.</Text>
+        {diagnostic&&<View style={{marginTop:12,padding:12,borderRadius:10,backgroundColor:diagnostic.ok?'#EDF8F0':'#FFF4E5',alignSelf:'stretch'}}>
+          <Text style={{fontWeight:'900',color:diagnostic.ok?'#246B38':'#8A5400'}}>{diagnostic.ok?'✓ Données saines':'⚠ Vérification nécessaire'}</Text>
+          <Text style={[styles.cardSub,{marginTop:6}]}>SQLite : {diagnostic.integrityOk?'OK':'Erreur'} · Relations : {diagnostic.foreignKeysOk?'OK':'Erreur'} · Schéma : v{diagnostic.versionSchema}/{diagnostic.versionAttendue}</Text>
+          <Text style={[styles.cardSub,{marginTop:3}]}>{diagnostic.clients} clients · {diagnostic.sites} sites · {diagnostic.visites} visites · {diagnostic.remarques} réserves</Text>
+          <Text style={[styles.cardSub,{marginTop:3}]}>Photos : {diagnostic.photosTotal} référencées · {diagnostic.photosManquantes} manquante(s)</Text>
+        </View>}
+      </View>
+      <BoutonDonnees label={action==='diagnostic'?'Diagnostic…':'Lancer le diagnostic'} disabled={occupe} secondaire onPress={diagnostiquer}/>
     </View>
   </ScrollView>;
 }
