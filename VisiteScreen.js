@@ -8,11 +8,12 @@ import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { recalculerProgressionVisite } from './visitProgressDb.js';
 import { exporterEtPartager } from './excelExport.js';
-import { PanelRegulation, PanelReleves } from './VisitePanels.js';
+import { PanelRegulation } from './VisitePanels.js';
+import { OptimizedRelevesPanel } from './OptimizedRelevesPanel.js';
 import { OptimizedPhotoPanel } from './OptimizedPhotoPanel.js';
 import { OptimizedEquipmentPanel } from './OptimizedEquipmentPanel.js';
 import { OptimizedRemarksPanel } from './OptimizedRemarksPanel.js';
-import { TrameGenericPanel } from './TrameGenericPanel.js';
+import { TrameGenericPanel, prechargerDonneesTrameGenerique, invaliderCacheTrameGenerique } from './TrameGenericPanel.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -24,9 +25,10 @@ function VisiteScreen({ route, onBack }) {
   const modeTablette = width >= 900;
   const [visite, setVisite] = useState(null);
   const [activeTab, setActiveTab] = useState('p-infos');
+  const [ongletsMontes, setOngletsMontes] = useState(() => new Set(['p-infos']));
   const activeTabRef = useRef('p-infos');
   const tabOrderRef = useRef([]);
-  const changementTimerRef = useRef(null);
+  const progressionTimerRef = useRef(null);
   const [noteVisible, setNoteVisible] = useState(false);
   const [noteTxt, setNoteTxt] = useState('');
   const [anomalieVisible, setAnomalieVisible] = useState(false);
@@ -41,25 +43,31 @@ function VisiteScreen({ route, onBack }) {
 
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
   useEffect(() => { tabOrderRef.current = tabsReels; }, [trame.id, tabOrder.join('|')]);
-  useEffect(() => () => { if (changementTimerRef.current) clearTimeout(changementTimerRef.current); }, []);
+  useEffect(() => () => {
+    if (progressionTimerRef.current) clearTimeout(progressionTimerRef.current);
+    invaliderCacheTrameGenerique(visiteId);
+  }, [visiteId]);
 
   useEffect(() => {
     if (!visite || tabsReels.length === 0) return;
     if (!tabsReels.includes(activeTabRef.current)) {
       activeTabRef.current = tabsReels[0];
+      setOngletsMontes(new Set([tabsReels[0]]));
       setActiveTab(tabsReels[0]);
     }
   }, [visite?.trame_id, tabsReels.join('|')]);
 
   const changerOnglet = useCallback((prochain) => {
     if (!prochain || prochain === activeTabRef.current) return;
-    Keyboard.dismiss();
-    if (changementTimerRef.current) clearTimeout(changementTimerRef.current);
-    changementTimerRef.current = setTimeout(() => {
-      activeTabRef.current = prochain;
-      setActiveTab(prochain);
-      changementTimerRef.current = null;
-    }, 0);
+    activeTabRef.current = prochain;
+    setOngletsMontes((courants) => {
+      if (courants.has(prochain)) return courants;
+      const suivants = new Set(courants);
+      suivants.add(prochain);
+      return suivants;
+    });
+    setActiveTab(prochain);
+    setTimeout(() => Keyboard.dismiss(), 0);
   }, []);
 
   const retourSecurise = useCallback(() => {
@@ -71,16 +79,29 @@ function VisiteScreen({ route, onBack }) {
     const db = await getDb();
     await preremplirVisiteDepuisContexte(db, visiteId);
     await recalculerProgressionVisite(db, visiteId);
-    const v = await getVisite(visiteId);
+    invaliderCacheTrameGenerique(visiteId);
+    const [v] = await Promise.all([
+      getVisite(visiteId),
+      prechargerDonneesTrameGenerique(visiteId, true),
+    ]);
     setVisite(v);
   }, [visiteId]);
 
   useEffect(() => { charger(); }, [charger]);
 
-  const onSaved = useCallback(async () => {
-    const db = await getDb();
-    const progression = await recalculerProgressionVisite(db, visiteId);
-    setVisite((actuelle) => actuelle ? { ...actuelle, progression_pct: progression } : actuelle);
+  const onSaved = useCallback(() => {
+    if (progressionTimerRef.current) clearTimeout(progressionTimerRef.current);
+    progressionTimerRef.current = setTimeout(async () => {
+      try {
+        const db = await getDb();
+        const progression = await recalculerProgressionVisite(db, visiteId);
+        setVisite((actuelle) => actuelle ? { ...actuelle, progression_pct: progression } : actuelle);
+      } catch (e) {
+        console.warn('Progression visite non recalculée', e);
+      } finally {
+        progressionTimerRef.current = null;
+      }
+    }, 350);
   }, [visiteId]);
 
   const swipeHandlers = useRef(
@@ -147,16 +168,26 @@ function VisiteScreen({ route, onBack }) {
     if (tabsReels.includes('p-remarques')) changerOnglet('p-remarques');
   };
 
-  const contenuActif = () => {
-    if (specialPanels.has(activeTab)) {
-      if (activeTab === 'p-regulation') return <PanelRegulation visiteId={visiteId} onSaved={onSaved} />;
-      if (activeTab === 'p-releves') return <PanelReleves visiteId={visiteId} onSaved={onSaved} />;
-      if (activeTab === 'p-equip') return <OptimizedEquipmentPanel visiteId={visiteId} />;
-      if (activeTab === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} />;
-      if (activeTab === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
+  const contenuPourOnglet = (pid) => {
+    if (specialPanels.has(pid)) {
+      if (pid === 'p-regulation') return <PanelRegulation visiteId={visiteId} onSaved={onSaved} />;
+      if (pid === 'p-releves') return <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} />;
+      if (pid === 'p-equip') return <OptimizedEquipmentPanel visiteId={visiteId} />;
+      if (pid === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} />;
+      if (pid === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
     }
-    return <TrameGenericPanel visiteId={visiteId} panelId={activeTab} sections={panels[activeTab]} onSaved={onSaved} />;
+    return <TrameGenericPanel visiteId={visiteId} panelId={pid} sections={panels[pid]} onSaved={onSaved} />;
   };
+
+  const contenuMonte = (
+    <View style={{ flex: 1 }}>
+      {tabsReels.filter((pid) => ongletsMontes.has(pid)).map((pid) => (
+        <View key={pid} style={pid === activeTab ? { flex: 1 } : { display: 'none' }}>
+          {contenuPourOnglet(pid)}
+        </View>
+      ))}
+    </View>
+  );
 
   if (!visite) {
     return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.orange} /></View>;
@@ -238,12 +269,12 @@ function VisiteScreen({ route, onBack }) {
             </ScrollView>
           </View>
           <View style={{ flex: 1, minWidth: 0 }}>
-            {contenuActif()}
+            {contenuMonte}
           </View>
         </View>
       ) : (
         <View style={{ flex: 1 }} {...swipeHandlers.panHandlers}>
-          {contenuActif()}
+          {contenuMonte}
         </View>
       )}
 
