@@ -7,6 +7,8 @@ import * as Sharing from 'expo-sharing';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { getDb, getVisite, listerReseaux, listerMateriel, listerRemarques, getNote } from './db.js';
 
+const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+
 function setCell(sheet, ref, valeur) {
   if (!sheet || !ref || valeur === null || valeur === undefined || valeur === '') return;
   const existante = sheet[ref] || {};
@@ -129,28 +131,90 @@ async function construireClasseur(visiteId) {
   };
 }
 
-async function exporterEtPartager(visiteId) {
+async function preparerExport(visiteId) {
   const { wb, visite, trame, stats } = await construireClasseur(visiteId);
-  const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+  let base64;
+  try {
+    base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx', compression: true });
+  } catch (e) {
+    throw new Error(`Impossible de générer le classeur Excel : ${e?.message || e}`);
+  }
+  if (!base64 || base64.length < 100) throw new Error('Le fichier Excel généré est vide ou invalide.');
+
   const nomFichier = `Visite_${slugFichier(trame.nom)}_${slugFichier(visite.nom_site)}_${visite.date_visite || 'sans_date'}.xlsx`;
+  return { base64, nomFichier, trame, stats };
+}
+
+/**
+ * Enregistre réellement le fichier dans un dossier choisi par l'utilisateur.
+ * Sur Android, StorageAccessFramework permet notamment de choisir Téléchargements,
+ * Documents, une carte SD ou une clé USB sans demander de permission globale.
+ */
+async function enregistrerExcelSurAppareil(visiteId) {
+  const { base64, nomFichier, trame, stats } = await preparerExport(visiteId);
+  const SAF = FileSystem.StorageAccessFramework;
+
+  if (!SAF?.requestDirectoryPermissionsAsync || !SAF?.createFileAsync) {
+    throw new Error('Le sélecteur de dossier Android n’est pas disponible sur cet appareil.');
+  }
+
+  const permission = await SAF.requestDirectoryPermissionsAsync();
+  if (!permission?.granted || !permission?.directoryUri) {
+    return { annule: true, nomFichier, trameId: trame.id, trameNom: trame.nom, stats };
+  }
+
+  let uri;
+  try {
+    uri = await SAF.createFileAsync(permission.directoryUri, nomFichier, XLSX_MIME);
+    await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
+  } catch (e) {
+    throw new Error(`Impossible d’enregistrer l’Excel dans le dossier choisi : ${e?.message || e}`);
+  }
+
+  return {
+    annule: false,
+    enregistre: true,
+    uri,
+    nomFichier,
+    trameId: trame.id,
+    trameNom: trame.nom,
+    stats,
+  };
+}
+
+/** Partage explicite via la feuille Android, sans supprimer le fichier avant la fin du partage. */
+async function partagerExcel(visiteId) {
+  const { base64, nomFichier, trame, stats } = await preparerExport(visiteId);
   const dossier = FileSystem.cacheDirectory || FileSystem.documentDirectory;
   if (!dossier) throw new Error('Stockage local Android indisponible');
   const chemin = dossier + nomFichier;
+
   await FileSystem.writeAsStringAsync(chemin, base64, { encoding: FileSystem.EncodingType.Base64 });
+  if (!(await Sharing.isAvailableAsync())) throw new Error('Le partage de fichiers n’est pas disponible sur cet appareil.');
+
+  await Sharing.shareAsync(chemin, {
+    mimeType: XLSX_MIME,
+    dialogTitle: `Partager la visite — ${trame.nom}`,
+    UTI: 'org.openxmlformats.spreadsheetml.sheet',
+  });
+
+  return { nomFichier, trameId: trame.id, trameNom: trame.nom, stats, chemin };
+}
+
+/**
+ * Compatibilité avec l'écran actuel : le bouton Exporter privilégie désormais
+ * un vrai enregistrement sur la tablette. Si le SAF n'est pas disponible,
+ * on retombe sur le partage Android.
+ */
+async function exporterEtPartager(visiteId) {
   try {
-    if (await Sharing.isAvailableAsync()) {
-      await Sharing.shareAsync(chemin, {
-        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        dialogTitle: `Exporter la visite — ${trame.nom}`,
-        UTI: 'org.openxmlformats.spreadsheetml.sheet',
-      });
+    return await enregistrerExcelSurAppareil(visiteId);
+  } catch (e) {
+    if (/sélecteur de dossier Android n’est pas disponible/i.test(String(e?.message || e))) {
+      return partagerExcel(visiteId);
     }
-    return { nomFichier, trameId: trame.id, trameNom: trame.nom, stats };
-  } finally {
-    if (FileSystem.cacheDirectory && chemin.startsWith(FileSystem.cacheDirectory)) {
-      try { await FileSystem.deleteAsync(chemin, { idempotent: true }); } catch {}
-    }
+    throw e;
   }
 }
 
-export { construireClasseur, exporterEtPartager };
+export { construireClasseur, preparerExport, enregistrerExcelSurAppareil, partagerExcel, exporterEtPartager };
