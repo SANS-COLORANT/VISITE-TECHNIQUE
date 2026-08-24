@@ -5,6 +5,7 @@ import { TouchableOpacity, Text, Alert, View, Image, Modal } from 'react-native'
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { listerPhotos, ajouterPhoto, remplacerPhoto, getVisite } from './db.js';
+import { supprimerPhotoComplete } from './photoDb.js';
 import { styles } from './styles.js';
 
 function nettoyerNomFichier(valeur = '', fallback = 'Photo') {
@@ -99,7 +100,12 @@ function PhotoButton({ visiteId, entiteKey, label, style }) {
       const items = await charger(); setIndex(Math.max(0, items.length - 1));
     } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
   };
-  const onPress = async () => { if (photos.length > 0) { setIndex(0); setViewerVisible(true); } else await ajouter(); };
+
+  const onPress = async () => {
+    if (photos.length > 0) { setIndex(0); setViewerVisible(true); }
+    else await ajouter();
+  };
+
   const reprendre = async () => {
     const photoExistante = photos[index]; if (!photoExistante) return;
     try {
@@ -111,16 +117,54 @@ function PhotoButton({ visiteId, entiteKey, label, style }) {
     } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
   };
 
+  const demanderSuppression = () => {
+    const photo = photos[index];
+    if (!photo) return;
+    Alert.alert(
+      'Supprimer cette photo ?',
+      'La photo sera retirée de la visite et supprimée du stockage local de la tablette.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await supprimerPhotoComplete(photo.id);
+              const items = await charger();
+              if (items.length === 0) setViewerVisible(false);
+              else setIndex((actuel) => Math.min(actuel, items.length - 1));
+            } catch (e) {
+              Alert.alert('Suppression impossible', String(e?.message || e));
+            }
+          },
+        },
+      ]
+    );
+  };
+
   return <>
     <TouchableOpacity style={[styles.photoBtn, photos.length > 0 && styles.photoBtnTaken, style]} onPress={onPress}>
       <Text style={[styles.photoBtnText, photos.length > 0 && styles.photoBtnTextTaken]}>{photos.length > 0 ? `👁 ${photos.length} photo${photos.length > 1 ? 's' : ''}` : '📷 Photo'}</Text>
     </TouchableOpacity>
     <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
       <View style={styles.photoViewerOverlay}>
-        <View style={styles.photoViewerHeader}><Text style={styles.photoViewerTitle}>{label || 'Photo'} · {index + 1}/{photos.length}</Text><TouchableOpacity onPress={() => setViewerVisible(false)}><Text style={styles.photoViewerClose}>✕</Text></TouchableOpacity></View>
+        <View style={styles.photoViewerHeader}>
+          <Text style={styles.photoViewerTitle}>{label || 'Photo'} · {index + 1}/{photos.length}</Text>
+          <TouchableOpacity onPress={() => setViewerVisible(false)}><Text style={styles.photoViewerClose}>✕</Text></TouchableOpacity>
+        </View>
         {photos[index] && <Image source={{ uri: photos[index].uri }} style={styles.photoViewerImage} resizeMode="contain" />}
-        {photos.length > 1 && <View style={styles.photoViewerNav}><TouchableOpacity style={styles.photoViewerNavBtn} onPress={() => setIndex((index - 1 + photos.length) % photos.length)}><Text style={styles.photoViewerNavText}>‹ Précédente</Text></TouchableOpacity><TouchableOpacity style={styles.photoViewerNavBtn} onPress={() => setIndex((index + 1) % photos.length)}><Text style={styles.photoViewerNavText}>Suivante ›</Text></TouchableOpacity></View>}
-        <View style={styles.photoViewerActions}><TouchableOpacity style={styles.photoViewerSecondary} onPress={ajouter}><Text style={styles.photoViewerSecondaryText}>+ Ajouter</Text></TouchableOpacity><TouchableOpacity style={styles.photoViewerPrimary} onPress={reprendre}><Text style={styles.photoViewerPrimaryText}>📷 Reprendre</Text></TouchableOpacity></View>
+        {photos.length > 1 && (
+          <View style={styles.photoViewerNav}>
+            <TouchableOpacity style={styles.photoViewerNavBtn} onPress={() => setIndex((index - 1 + photos.length) % photos.length)}><Text style={styles.photoViewerNavText}>‹ Précédente</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.photoViewerNavBtn} onPress={() => setIndex((index + 1) % photos.length)}><Text style={styles.photoViewerNavText}>Suivante ›</Text></TouchableOpacity>
+          </View>
+        )}
+        <View style={styles.photoViewerActions}>
+          <TouchableOpacity style={styles.photoViewerSecondary} onPress={demanderSuppression}><Text style={styles.photoViewerSecondaryText}>Supprimer</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.photoViewerSecondary} onPress={ajouter}><Text style={styles.photoViewerSecondaryText}>+ Ajouter</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.photoViewerPrimary} onPress={reprendre}><Text style={styles.photoViewerPrimaryText}>📷 Reprendre</Text></TouchableOpacity>
+        </View>
       </View>
     </Modal>
   </>;
