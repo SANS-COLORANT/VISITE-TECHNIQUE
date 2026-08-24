@@ -13,6 +13,7 @@ import { migration012 } from './012_site_geolocation.js';
 import { migration013 } from './013_material_excel_fields.js';
 import { migration014 } from './014_native_production_cleanup.js';
 import { migration015 } from './015_visit_runtime_indexes.js';
+import { migration016 } from './016_visit_template_id.js';
 
 export const MIGRATIONS = Object.freeze([
   migration001,
@@ -30,4 +31,5 @@ export const MIGRATIONS = Object.freeze([
   migration013,
   migration014,
   migration015,
+  migration016,
 ]);
