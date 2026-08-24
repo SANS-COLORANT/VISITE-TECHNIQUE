@@ -1,3 +1,5 @@
+import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
+
 function sectionCode(panelId, section) {
   return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
 }
@@ -20,7 +22,7 @@ function formatHeure(date = new Date()) {
 
 export async function preremplirVisiteDepuisContexte(db, visiteId) {
   const contexte = await db.getFirstAsync(
-    `SELECT v.id,v.date_visite,v.technicien,v.mode_visite,
+    `SELECT v.id,v.date_visite,v.technicien,v.mode_visite,v.trame_id,
             s.id site_id,s.nom_site,s.adresse,s.localisation_note,
             c.id client_id,c.nom nom_client,c.code_exploitant
      FROM visites v
@@ -31,6 +33,7 @@ export async function preremplirVisiteDepuisContexte(db, visiteId) {
   );
   if (!contexte) return;
 
+  const trame = obtenirTrame(contexte.trame_id || DEFAULT_TRAME_ID);
   const maintenant = new Date();
   const dateVisite = contexte.date_visite || maintenant.toISOString().slice(0, 10);
   const nomLocal = contexte.localisation_note || null;
@@ -39,7 +42,7 @@ export async function preremplirVisiteDepuisContexte(db, visiteId) {
     ['p-infos', 'Général', 'Nom du client', contexte.nom_client],
     ['p-infos', 'Général', 'Nom du site', contexte.nom_site],
     ['p-infos', 'Général', 'Nom du local', nomLocal],
-    ['p-infos', 'Général', 'Trame utilisée', 'Trame ICPE'],
+    ['p-infos', 'Général', 'Trame utilisée', trame.nom],
     ['p-infos', 'Général', 'Date de la visite', dateVisite],
     ['p-infos', 'Informations générales', 'Date de visite', dateVisite],
     ['p-infos', 'Informations générales', 'Heure de visite', formatHeure(maintenant)],
@@ -64,11 +67,13 @@ export async function preremplirVisiteDepuisContexte(db, visiteId) {
     }
   }
 
+  // Les champs stables sont repris uniquement depuis la même famille de trame.
+  // Une visite Chaufferie ne doit jamais hériter implicitement d'un mapping ICPE.
   const precedente = await db.getFirstAsync(
     `SELECT id FROM visites
-     WHERE site_id=? AND id<>?
+     WHERE site_id=? AND id<>? AND COALESCE(trame_id, ?) = ?
      ORDER BY COALESCE(date_visite,'') DESC, modifie_le DESC LIMIT 1`,
-    [contexte.site_id, visiteId]
+    [contexte.site_id, visiteId, DEFAULT_TRAME_ID, trame.id]
   );
   if (precedente) {
     const clesStables = [
