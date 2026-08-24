@@ -38,13 +38,25 @@ function installerCompatibiliteVisite(db) {
   Object.defineProperty(db, '__visiteMapCompatInstalled', { value: true, enumerable: false });
 }
 
+async function configurerSQLitePourTablette(db) {
+  // WAL permet aux lectures de continuer pendant les écritures de saisie.
+  await db.execAsync('PRAGMA journal_mode = WAL;');
+  // NORMAL évite un fsync complet à chaque petite sauvegarde tout en gardant
+  // un niveau de durabilité adapté à une base locale WAL.
+  await db.execAsync('PRAGMA synchronous = NORMAL;');
+  // Cache SQLite d'environ 16 Mo : petit face à la RAM d'une tablette, mais
+  // suffisant pour conserver les pages chaudes (visite/catalogue) en mémoire.
+  await db.execAsync('PRAGMA cache_size = -16384;');
+  await db.execAsync('PRAGMA temp_store = MEMORY;');
+  await db.execAsync('PRAGMA busy_timeout = 3000;');
+  await db.execAsync('PRAGMA foreign_keys = ON;');
+}
+
 export function openAppDatabase() {
   if (!databasePromise) {
     databasePromise = (async () => {
       const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
-      await db.execAsync('PRAGMA journal_mode = WAL;');
-      await db.execAsync('PRAGMA busy_timeout = 3000;');
-      await db.execAsync('PRAGMA foreign_keys = ON;');
+      await configurerSQLitePourTablette(db);
       installerCompatibiliteVisite(db);
       await migrateDatabase(db);
       await syncReferenceCatalog(db);
