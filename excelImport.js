@@ -40,6 +40,26 @@ function lireTable(sheet, config) {
   return resultats;
 }
 
+function lireReseauxComplementaires(wb, config, ordreDepart) {
+  const overflow = config?.overflow;
+  const sheet = overflow ? wb.Sheets[overflow.sheet] : null;
+  if (!overflow || !sheet) return [];
+  const resultats = [];
+  const debut = Number(overflow.startRow || 3);
+  const fin = Number(overflow.maxImportRow || 500);
+  for (let row = debut; row <= fin; row++) {
+    const reseau = { ordre: ordreDepart + resultats.length };
+    let nonVide = false;
+    for (const colonne of overflow.columns || []) {
+      const valeur = valeurCellule(sheet, `${colonne.col}${row}`);
+      reseau[colonne.importKey] = valeur;
+      if (valeur !== '') nonVide = true;
+    }
+    if (nonVide) resultats.push(reseau);
+  }
+  return resultats;
+}
+
 export async function choisirEtAnalyserExcel() {
   const result = await DocumentPicker.getDocumentAsync({
     type: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'],
@@ -98,13 +118,17 @@ export function analyserClasseur(wb, nomFichier) {
 
   const reseauxCfg = cfg.networks;
   const reseauxSheet = reseauxCfg ? (wb.Sheets[reseauxCfg.mainSheet || cfg.mainSheet] || principale) : null;
-  const reseaux = reseauxCfg ? (reseauxCfg.starts || []).map((row, index) => {
+  const reseauxPrincipaux = reseauxCfg ? (reseauxCfg.starts || []).map((row, index) => {
     const r = { ordre: index + 1 };
     for (const [cle, offset] of Object.entries(reseauxCfg.importOffsets || {})) {
       r[cle] = valeurCellule(reseauxSheet, `B${row + offset}`);
     }
     return r;
   }).filter((r) => Object.entries(r).some(([k, v]) => k !== 'ordre' && !!v)) : [];
+  const reseauxComplementaires = reseauxCfg
+    ? lireReseauxComplementaires(wb, reseauxCfg, reseauxPrincipaux.length + 1)
+    : [];
+  const reseaux = [...reseauxPrincipaux, ...reseauxComplementaires].map((r, index) => ({ ...r, ordre: index + 1 }));
 
   const tables = cfg.tables || {};
   const materielCfg = tables.materiel;
