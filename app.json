@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "Visite Technique",
+    "name": "METRA",
     "slug": "visite-technique",
     "version": "1.0.0",
     "orientation": "default",
@@ -20,7 +20,7 @@
       [
         "expo-splash-screen",
         {
-          "backgroundColor": "#FFFFFF"
+          "backgroundColor": "#FBF0E1"
         }
       ],
       [

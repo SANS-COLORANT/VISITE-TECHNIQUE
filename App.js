@@ -1,7 +1,7 @@
 /** VISITE TECHNIQUE — point d'entrée natif Android. */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, TouchableOpacity, BackHandler, Keyboard } from 'react-native';
+import { View, Text, TouchableOpacity, BackHandler, Keyboard } from 'react-native';
 
 import { getDb } from './db.js';
 import { COLORS, styles } from './styles.js';
@@ -11,6 +11,9 @@ import { VisiteScreen } from './VisiteScreen.js';
 import { ParametresScreen } from './ParametresScreen.js';
 import { SiteVisitesScreen } from './SiteVisitesScreen.js';
 import { AppErrorBoundary } from './AppErrorBoundary.js';
+import { MetraLoadingScreen } from './MetraLoadingScreen.js';
+
+const LOADING_ANIMATION_MS = 1900;
 
 function SimpleHeader({ title, onBack }) {
   return (
@@ -37,7 +40,10 @@ function AppContent() {
     setDbReady(false);
     setDbError(null);
     try {
-      await getDb();
+      await Promise.all([
+        getDb(),
+        new Promise((resolve) => setTimeout(resolve, LOADING_ANIMATION_MS)),
+      ]);
       setDbReady(true);
     } catch (err) {
       setDbError(err);
@@ -84,12 +90,7 @@ function AppContent() {
   }
 
   if (!dbReady) {
-    return (
-      <View style={styles.center}>
-        <ActivityIndicator size="large" color={COLORS.orange} />
-        <Text style={[styles.cardSub, { marginTop: 12 }]}>Préparation des données locales…</Text>
-      </View>
-    );
+    return <MetraLoadingScreen />;
   }
 
   const current = stack[stack.length - 1];
