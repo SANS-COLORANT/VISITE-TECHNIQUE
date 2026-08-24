@@ -17,26 +17,27 @@ import {
   supprimerRemarqueVisite,
   rattacherRemarqueVisite,
 } from './remarkDb.js';
-import { cleanLabel, useSaisieAvecAutoSave } from './GenericFields.js';
+import { cleanLabel } from './GenericFields.js';
+import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 import { PANEL_LABELS, TAB_ORDER } from './VisitePanels.js';
 
 const ONGLET_RATTACHABLES = TAB_ORDER.filter((id) => id !== 'SEP' && id !== 'p-remarques' && id !== 'p-photos');
 
 function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher }) {
-  const [prestation, setPrestation, blurPrestation] = useSaisieAvecAutoSave(remarque.prestation, async (v) => {
+  const [prestation, setPrestation, blurPrestation] = useDurableAutosave(remarque.prestation, async (v) => {
     await modifierRemarqueVisite(remarque.id, { prestation: v });
     onPatch(remarque.id, { prestation: v });
   });
-  const [poste, setPoste, blurPoste] = useSaisieAvecAutoSave(remarque.poste, async (v) => {
+  const [poste, setPoste, blurPoste] = useDurableAutosave(remarque.poste, async (v) => {
     await modifierRemarqueVisite(remarque.id, { poste: v });
     onPatch(remarque.id, { poste: v });
   });
-  const [prix, setPrix, blurPrix] = useSaisieAvecAutoSave(remarque.estimatif == null ? '' : String(remarque.estimatif), async (v) => {
+  const [prix, setPrix, blurPrix] = useDurableAutosave(remarque.estimatif == null ? '' : String(remarque.estimatif), async (v) => {
     await modifierRemarqueVisite(remarque.id, { estimatif: v });
     onPatch(remarque.id, { estimatif: v === '' ? null : Number(String(v).replace(',', '.')) });
   });
-  const [delai, setDelai, blurDelai] = useSaisieAvecAutoSave(remarque.delai == null ? '' : String(remarque.delai), async (v) => {
+  const [delai, setDelai, blurDelai] = useDurableAutosave(remarque.delai == null ? '' : String(remarque.delai), async (v) => {
     await modifierRemarqueVisite(remarque.id, { delai: v });
     onPatch(remarque.id, { delai: v === '' ? null : Number(String(v).replace(',', '.')) });
   });
