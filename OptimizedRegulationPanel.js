@@ -3,8 +3,10 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { TRAME_DATA, RESEAU_TEMPLATE } from './data.js';
 import { listerReseaux, ajouterReseau, upsertReseauChamp, supprimerReseau } from './db.js';
-import { prechargerDonneesTrameGenerique } from './TrameGenericPanel.js';
-import { ChampGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique } from './GenericFields.js';
+import { prechargerDonneesTrameGenerique, mettreAJourCacheChamp } from './TrameGenericPanel.js';
+import { DurableChampGenerique } from './DurableChampGenerique.js';
+import { cleanLabel, extractUnit, getNumericConfig, StepperNumerique } from './GenericFields.js';
+import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 import { styles } from './styles.js';
 
@@ -37,14 +39,10 @@ export function invaliderCacheRegulation(visiteId) { cacheRegulation.delete(visi
 
 const ReseauCard = memo(function ReseauCard({ reseau, visiteId, onRemove }) {
   const fields = useMemo(() => RESEAU_TEMPLATE.filter((f) => f.cle !== 'Nom réseau'), []);
-  const [nom, setNom] = useState(reseau.nom_reseau || '');
+  const [nom, setNom, flushNom] = useDurableAutosave(reseau.nom_reseau || '', async (v) => {
+    await upsertReseauChamp(reseau.id, 'nom_reseau', v.trim() || 'Réseau');
+  }, 450);
   const [values, setValues] = useState(() => Object.fromEntries(fields.map((f) => [f.cle, reseau[CLE_TO_COL[f.cle]] ?? ''])));
-
-  const saveNom = useCallback(() => {
-    const v = nom.trim() || 'Réseau';
-    if (v !== nom) setNom(v);
-    if (v !== (reseau.nom_reseau || '')) upsertReseauChamp(reseau.id, 'nom_reseau', v).catch(console.warn);
-  }, [nom, reseau.id, reseau.nom_reseau]);
 
   const saveField = useCallback((cle, value) => {
     setValues((old) => ({ ...old, [cle]: value }));
@@ -54,7 +52,7 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, onRemove }) {
 
   return <View style={styles.formCard}>
     <View style={styles.reseauHeaderRow}>
-      <TextInput style={styles.reseauNomInput} value={nom} onChangeText={setNom} onBlur={saveNom} />
+      <TextInput style={styles.reseauNomInput} value={nom} onChangeText={setNom} onBlur={() => { flushNom().catch(() => {}); }} />
       <PhotoButton visiteId={visiteId} entiteKey={reseau.reseau_site_id ? `reseau_site||${reseau.reseau_site_id}` : `reseau||${reseau.id}`} label={nom} />
       <TouchableOpacity onPress={() => onRemove(reseau.id)}><Text style={styles.removeLink}>Retirer</Text></TouchableOpacity>
     </View>
@@ -86,6 +84,14 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
     if (c) cacheRegulation.set(visiteId, { data: { ...c, reseaux: next }, promise: null });
   }, [visiteId]);
 
+  const saveTrameField = useCallback((key, valeur) => {
+    setChampsMap((old) => ({ ...old, [key]: valeur }));
+    mettreAJourCacheChamp(visiteId, key, valeur);
+    const c = cacheRegulation.get(visiteId)?.data;
+    if (c) cacheRegulation.set(visiteId, { data: { ...c, champsMap: { ...c.champsMap, [key]: valeur } }, promise: null });
+    onSaved?.();
+  }, [onSaved, visiteId]);
+
   const add = useCallback(async () => {
     if (adding) return;
     setAdding(true);
@@ -102,10 +108,15 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
     setReseaux((old) => { const next = old.filter((r) => r.id !== id); patchCache(next); return next; });
   }, [patchCache]);
 
+  const renderTrameField = (f, sectionCode) => {
+    const key = `${sectionCode}||${f.cle}`;
+    return <DurableChampGenerique key={f.cle} visiteId={visiteId} sectionCode={sectionCode} field={f} valeurInitiale={champsMap[key]} onSaved={(v) => saveTrameField(key, v)} />;
+  };
+
   const header = <>
     <Text style={styles.sectionTitle}>Cascade chaudières</Text>
     <View style={styles.formCard}>
-      {(TRAME_DATA['p-regulation']?.['Cascade chaudières'] || []).map((f) => <ChampGenerique key={f.cle} visiteId={visiteId} sectionCode="regulation.cascade" field={f} valeurInitiale={champsMap[`regulation.cascade||${f.cle}`]} onSaved={onSaved} />)}
+      {(TRAME_DATA['p-regulation']?.['Cascade chaudières'] || []).map((f) => renderTrameField(f, 'regulation.cascade'))}
     </View>
     <Text style={styles.sectionTitle}>Réseaux · {reseaux.length}</Text>
   </>;
@@ -114,7 +125,7 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
     <TouchableOpacity style={styles.addBtn} onPress={add} disabled={adding}><Text style={styles.addBtnText}>{adding ? 'Ajout…' : '+ Ajouter un réseau'}</Text></TouchableOpacity>
     <Text style={styles.sectionTitle}>Réseau ECS</Text>
     <View style={styles.formCard}>
-      {(TRAME_DATA['p-regulation']?.['Réseau ECS'] || []).map((f) => <ChampGenerique key={f.cle} visiteId={visiteId} sectionCode="regulation.reseau_ecs" field={f} valeurInitiale={champsMap[`regulation.reseau_ecs||${f.cle}`]} onSaved={onSaved} />)}
+      {(TRAME_DATA['p-regulation']?.['Réseau ECS'] || []).map((f) => renderTrameField(f, 'regulation.reseau_ecs'))}
     </View>
   </>;
 
