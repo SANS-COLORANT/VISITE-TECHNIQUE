@@ -19,6 +19,7 @@ const PhotoTile = memo(function PhotoTile({ photo, taille, onPress }) {
         source={{ uri: photo.uri }}
         style={[styles.photoThumbImg, { width: '100%', height: '100%' }]}
         resizeMode="cover"
+        resizeMethod="resize"
         fadeDuration={0}
       />
     </TouchableOpacity>
