@@ -8,7 +8,8 @@ import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { recalculerProgressionVisite } from './visitProgressDb.js';
 import { exporterEtPartager } from './excelExport.js';
-import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques, PanelPhotos } from './VisitePanels.js';
+import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques } from './VisitePanels.js';
+import { OptimizedPhotoPanel } from './OptimizedPhotoPanel.js';
 
 const TABS_REELS = TAB_ORDER.filter((t) => t !== 'SEP');
 
@@ -103,7 +104,7 @@ function VisiteScreen({ route, onBack }) {
     if (activeTab === 'p-releves') return <PanelReleves visiteId={visiteId} onSaved={onSaved} />;
     if (activeTab === 'p-equip') return <PanelEquipements visiteId={visiteId} />;
     if (activeTab === 'p-remarques') return <PanelRemarques visiteId={visiteId} />;
-    if (activeTab === 'p-photos') return <PanelPhotos visiteId={visiteId} />;
+    if (activeTab === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
     return <PanelGenerique visiteId={visiteId} panelId={activeTab} onSaved={onSaved} />;
   };
 
