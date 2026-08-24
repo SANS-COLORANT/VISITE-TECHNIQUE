@@ -1,7 +1,7 @@
 /** VISITE TECHNIQUE — point d'entrée natif Android. */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, ActivityIndicator, TouchableOpacity, BackHandler } from 'react-native';
+import { View, Text, ActivityIndicator, TouchableOpacity, BackHandler, Keyboard } from 'react-native';
 
 import { getDb } from './db.js';
 import { COLORS, styles } from './styles.js';
@@ -55,7 +55,11 @@ function AppContent() {
   }, []);
 
   const goBack = useCallback(() => {
-    setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
+    // Fermer le clavier déclenche les onBlur/autosaves avant de démonter l'écran.
+    Keyboard.dismiss();
+    setTimeout(() => {
+      setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
+    }, 0);
   }, []);
 
   useEffect(() => {
