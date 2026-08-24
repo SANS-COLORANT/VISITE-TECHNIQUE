@@ -1,6 +1,6 @@
-/** Panneau de saisie générique piloté par la définition de la trame. */
-import React, { useEffect, useState } from 'react';
-import { ScrollView, Text, View } from 'react-native';
+/** Panneau de saisie générique virtualisé piloté par la définition de la trame. */
+import React, { useEffect, useMemo, useState } from 'react';
+import { SectionList, Text, View } from 'react-native';
 import { getChampsVisite, getControlesVisite } from './db.js';
 import { ChampGenerique, ControleGenerique } from './GenericFields.js';
 import { styles } from './styles.js';
@@ -70,7 +70,6 @@ export function TrameGenericPanel({ visiteId, panelId, sections, onSaved }) {
       setControlesMap(cache.controlesMap);
       return () => { actif = false; };
     }
-
     chargerDonneesVisite(visiteId).then((data) => {
       if (!actif) return;
       setChampsMap(data.champsMap);
@@ -79,42 +78,54 @@ export function TrameGenericPanel({ visiteId, panelId, sections, onSaved }) {
     return () => { actif = false; };
   }, [visiteId]);
 
+  const listeSections = useMemo(() => {
+    if (!sections) return [];
+    return Object.entries(sections).map(([sub, fields]) => {
+      const sectionCode = codeSection(panelId, sub);
+      return {
+        title: sub,
+        sectionCode,
+        data: (fields || []).map((field) => ({ field, sectionCode, key: `${sectionCode}||${field.cle}` })),
+      };
+    });
+  }, [panelId, sections]);
+
   if (!sections) return null;
 
   return (
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
-      {Object.entries(sections).map(([sub, fields]) => {
-        const sectionCode = codeSection(panelId, sub);
-        const champs = (fields || []).filter((f) => f.type === 'champ');
-        const controles = (fields || []).filter((f) => f.type === 'controle');
-        return (
-          <View key={sub}>
-            <Text style={styles.sectionTitle}>{sub}</Text>
-            <View style={styles.formCard}>
-              {champs.map((f) => (
-                <ChampGenerique
-                  key={f.cle}
-                  visiteId={visiteId}
-                  sectionCode={sectionCode}
-                  field={f}
-                  valeurInitiale={champsMap[`${sectionCode}||${f.cle}`]}
-                  onSaved={onSaved}
-                />
-              ))}
-              {controles.map((f) => (
-                <ControleGenerique
-                  key={f.cle}
-                  visiteId={visiteId}
-                  sectionCode={sectionCode}
-                  field={f}
-                  etatInitial={controlesMap[`${sectionCode}||${f.cle}`]}
-                  onSaved={onSaved}
-                />
-              ))}
-            </View>
-          </View>
-        );
-      })}
-    </ScrollView>
+    <SectionList
+      sections={listeSections}
+      keyExtractor={(item) => item.key}
+      renderSectionHeader={({ section }) => <Text style={styles.sectionTitle}>{section.title}</Text>}
+      renderItem={({ item }) => (
+        <View style={styles.formCard}>
+          {item.field.type === 'champ' ? (
+            <ChampGenerique
+              visiteId={visiteId}
+              sectionCode={item.sectionCode}
+              field={item.field}
+              valeurInitiale={champsMap[item.key]}
+              onSaved={onSaved}
+            />
+          ) : (
+            <ControleGenerique
+              visiteId={visiteId}
+              sectionCode={item.sectionCode}
+              field={item.field}
+              etatInitial={controlesMap[item.key]}
+              onSaved={onSaved}
+            />
+          )}
+        </View>
+      )}
+      contentContainerStyle={styles.panelContent}
+      keyboardShouldPersistTaps="handled"
+      stickySectionHeadersEnabled={false}
+      initialNumToRender={8}
+      maxToRenderPerBatch={8}
+      windowSize={5}
+      updateCellsBatchingPeriod={50}
+      removeClippedSubviews
+    />
   );
 }
