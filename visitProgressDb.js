@@ -1,15 +1,17 @@
-import { TRAME_DATA } from './data.js';
+import { obtenirTrame, DEFAULT_TRAME_ID, normaliserSectionCode } from './trameRegistry.js';
 
-function sectionCode(panelId, section) {
-  return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
-}
+const cacheClesTrame = new Map();
+const recalculsEnCours = new Map();
 
-function construireClesTrame() {
+function construireClesTrame(trame) {
+  const cachee = cacheClesTrame.get(trame.id);
+  if (cachee) return cachee;
+
   const champs = new Set();
   const controles = new Set();
-  for (const [panelId, sections] of Object.entries(TRAME_DATA || {})) {
+  for (const [panelId, sections] of Object.entries(trame.ui?.panels || {})) {
     for (const [section, fields] of Object.entries(sections || {})) {
-      const code = sectionCode(panelId, section);
+      const code = normaliserSectionCode(panelId, section);
       for (const field of fields || []) {
         const cle = `${code}||${field.cle}`;
         if (field.type === 'champ') champs.add(cle);
@@ -17,38 +19,37 @@ function construireClesTrame() {
       }
     }
   }
-  return { champs, controles };
+  const resultat = { champs, controles };
+  cacheClesTrame.set(trame.id, resultat);
+  return resultat;
 }
-
-const CLES_TRAME = construireClesTrame();
-const recalculsEnCours = new Map();
 
 async function calculerProgression(db, visiteId) {
   const [champsRows, controlesRows, visite] = await Promise.all([
     db.getAllAsync(`SELECT section_code,cle,valeur FROM champs_visite WHERE visite_id=?`, [visiteId]),
     db.getAllAsync(`SELECT section_code,cle,avis FROM controles_visite WHERE visite_id=?`, [visiteId]),
-    db.getFirstAsync(`SELECT progression_pct FROM visites WHERE id=?`, [visiteId]),
+    db.getFirstAsync(`SELECT progression_pct,trame_id FROM visites WHERE id=?`, [visiteId]),
   ]);
 
-  let total = CLES_TRAME.champs.size + CLES_TRAME.controles.size;
+  const trame = obtenirTrame(visite?.trame_id || DEFAULT_TRAME_ID);
+  const clesTrame = construireClesTrame(trame);
+  let total = clesTrame.champs.size + clesTrame.controles.size;
   let remplis = 0;
 
   for (const row of champsRows || []) {
     const cle = `${row.section_code}||${row.cle}`;
-    if (CLES_TRAME.champs.has(cle) && String(row.valeur ?? '').trim() !== '') remplis += 1;
+    if (clesTrame.champs.has(cle) && String(row.valeur ?? '').trim() !== '') remplis += 1;
   }
 
   for (const row of controlesRows || []) {
     const cle = `${row.section_code}||${row.cle}`;
-    if (CLES_TRAME.controles.has(cle) && String(row.avis ?? '').trim() !== '') remplis += 1;
+    if (clesTrame.controles.has(cle) && String(row.avis ?? '').trim() !== '') remplis += 1;
   }
 
   if (total <= 0) total = 1;
   const pct = Math.max(0, Math.min(100, Math.round((remplis / total) * 100)));
   const ancienPct = Number(visite?.progression_pct ?? -1);
 
-  // Une simple consultation/re-sauvegarde ne doit pas faire paraître la visite
-  // plus récente si sa progression n'a réellement pas changé.
   if (pct !== ancienPct) {
     await db.runAsync(
       `UPDATE visites SET progression_pct=?, modifie_le=datetime('now') WHERE id=?`,
@@ -58,12 +59,7 @@ async function calculerProgression(db, visiteId) {
   return pct;
 }
 
-/**
- * Coalesce les appels rapprochés : si plusieurs champs se sauvegardent pendant
- * qu'un calcul est déjà en cours, on évite les lectures SQLite concurrentes et
- * on effectue au maximum un passage final supplémentaire avec les données les
- * plus récentes.
- */
+/** Coalesce les appels rapprochés pour éviter les lectures SQLite concurrentes. */
 export async function recalculerProgressionVisite(db, visiteId) {
   if (!db || !visiteId) return 0;
 
