@@ -20,23 +20,47 @@ import { cleanLabel } from './GenericFields.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 
+// Garde la dernière version saisie en mémoire entre deux montages de l'onglet.
+// SQLite reste la source durable ; ce cache évite qu'un retour instantané sur
+// l'onglet réaffiche une valeur ancienne pendant qu'un flush est encore en cours.
+const remarksCache = new Map();
+
+function nombreOuNull(v) {
+  if (v == null || String(v).trim() === '') return null;
+  const n = Number(String(v).replace(',', '.'));
+  return Number.isFinite(n) ? n : null;
+}
+
 function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panelLabels }) {
   const [prestation, setPrestation, blurPrestation] = useDurableAutosave(remarque.prestation, async (v) => {
     await modifierRemarqueVisite(remarque.id, { prestation: v });
-    onPatch(remarque.id, { prestation: v });
   });
   const [poste, setPoste, blurPoste] = useDurableAutosave(remarque.poste, async (v) => {
     await modifierRemarqueVisite(remarque.id, { poste: v });
-    onPatch(remarque.id, { poste: v });
   });
   const [prix, setPrix, blurPrix] = useDurableAutosave(remarque.estimatif == null ? '' : String(remarque.estimatif), async (v) => {
     await modifierRemarqueVisite(remarque.id, { estimatif: v });
-    onPatch(remarque.id, { estimatif: v === '' ? null : Number(String(v).replace(',', '.')) });
   });
   const [delai, setDelai, blurDelai] = useDurableAutosave(remarque.delai == null ? '' : String(remarque.delai), async (v) => {
     await modifierRemarqueVisite(remarque.id, { delai: v });
-    onPatch(remarque.id, { delai: v === '' ? null : Number(String(v).replace(',', '.')) });
   });
+
+  const changerPrestation = useCallback((v) => {
+    setPrestation(v);
+    onPatch(remarque.id, { prestation: v });
+  }, [onPatch, remarque.id, setPrestation]);
+  const changerPoste = useCallback((v) => {
+    setPoste(v);
+    onPatch(remarque.id, { poste: v });
+  }, [onPatch, remarque.id, setPoste]);
+  const changerPrix = useCallback((v) => {
+    setPrix(v);
+    onPatch(remarque.id, { estimatif: nombreOuNull(v) });
+  }, [onPatch, remarque.id, setPrix]);
+  const changerDelai = useCallback((v) => {
+    setDelai(v);
+    onPatch(remarque.id, { delai: nombreOuNull(v) });
+  }, [onPatch, remarque.id, setDelai]);
 
   return (
     <View style={styles.remarqueCard}>
@@ -51,19 +75,19 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
       </View>
 
       <Text style={styles.fieldLabel}>Prestation / réserve</Text>
-      <TextInput style={[styles.input, { minHeight: 76, textAlignVertical: 'top' }]} multiline value={prestation} onChangeText={setPrestation} onBlur={blurPrestation} placeholder="Décrire la réserve..." />
+      <TextInput style={[styles.input, { minHeight: 76, textAlignVertical: 'top' }]} multiline value={prestation} onChangeText={changerPrestation} onBlur={() => { blurPrestation().catch(() => {}); }} placeholder="Décrire la réserve..." />
       <View style={{ height: 8 }} />
       <Text style={styles.fieldLabel}>Poste</Text>
-      <TextInput style={styles.input} value={poste} onChangeText={setPoste} onBlur={blurPoste} placeholder="Ex. Entretien P2, Travaux de conformité..." />
+      <TextInput style={styles.input} value={poste} onChangeText={changerPoste} onBlur={() => { blurPoste().catch(() => {}); }} placeholder="Ex. Entretien P2, Travaux de conformité..." />
       <View style={{ height: 8 }} />
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <View style={{ flex: 1 }}>
           <Text style={styles.fieldLabel}>Prix estimatif HT</Text>
-          <TextInput style={styles.input} value={prix} onChangeText={setPrix} onBlur={blurPrix} placeholder="€ HT" keyboardType="numeric" />
+          <TextInput style={styles.input} value={prix} onChangeText={changerPrix} onBlur={() => { blurPrix().catch(() => {}); }} placeholder="€ HT" keyboardType="numeric" />
         </View>
         <View style={{ flex: 1 }}>
           <Text style={styles.fieldLabel}>Délai</Text>
-          <TextInput style={styles.input} value={delai} onChangeText={setDelai} onBlur={blurDelai} placeholder="Mois" keyboardType="numeric" />
+          <TextInput style={styles.input} value={delai} onChangeText={changerDelai} onBlur={() => { blurDelai().catch(() => {}); }} placeholder="Mois" keyboardType="numeric" />
         </View>
       </View>
       <View style={styles.remarqueMeta}>
@@ -80,7 +104,7 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
 }
 
 function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, panels = {} }) {
-  const [remarques, setRemarques] = useState([]);
+  const [remarques, setRemarques] = useState(() => remarksCache.get(visiteId) || []);
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
   const [remarqueARattacher, setRemarqueARattacher] = useState(null);
@@ -92,8 +116,18 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
     [tabOrder.join('|')]
   );
 
-  const charger = useCallback(async () => setRemarques(await listerRemarquesVisite(visiteId)), [visiteId]);
-  useEffect(() => { charger(); }, [charger]);
+  const charger = useCallback(async () => {
+    const rows = await listerRemarquesVisite(visiteId);
+    const cached = remarksCache.get(visiteId) || [];
+    const cachedById = new Map(cached.map((r) => [r.id, r]));
+    // Les nouvelles réserves provenant d'un contrôle N.S sont ajoutées depuis la DB,
+    // tandis que les valeurs saisies localement gagnent en cas d'écriture encore en cours.
+    const fusionnees = rows.map((r) => cachedById.has(r.id) ? { ...r, ...cachedById.get(r.id) } : r);
+    remarksCache.set(visiteId, fusionnees);
+    setRemarques(fusionnees);
+    return fusionnees;
+  }, [visiteId]);
+  useEffect(() => { charger().catch((e) => console.warn('Chargement réserves impossible', e)); }, [charger]);
 
   const stats = useMemo(() => ({
     total: remarques.length,
@@ -102,9 +136,19 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
   }), [remarques]);
 
   const patchLocal = useCallback((id, patch) => {
-    setRemarques((actuelles) => actuelles.map((r) => r.id === id ? { ...r, ...patch } : r));
-  }, []);
-  const deleteLocal = useCallback((id) => setRemarques((actuelles) => actuelles.filter((r) => r.id !== id)), []);
+    setRemarques((actuelles) => {
+      const suivantes = actuelles.map((r) => r.id === id ? { ...r, ...patch } : r);
+      remarksCache.set(visiteId, suivantes);
+      return suivantes;
+    });
+  }, [visiteId]);
+  const deleteLocal = useCallback((id) => {
+    setRemarques((actuelles) => {
+      const suivantes = actuelles.filter((r) => r.id !== id);
+      remarksCache.set(visiteId, suivantes);
+      return suivantes;
+    });
+  }, [visiteId]);
 
   const ouvrirBiblio = async () => {
     setBiblio(await listerBibliothequeReserves());
@@ -113,11 +157,14 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
   const choisirDepuisBiblio = async (item) => {
     await ajouterRemarqueDepuisBibliotheque(visiteId, item);
     setBiblioVisible(false);
+    // Nouvelle ligne créée côté DB : on repart d'un cache vide pour la récupérer.
+    remarksCache.delete(visiteId);
     await charger();
   };
   const ajouterVierge = async () => {
     await ajouterRemarqueVisite(visiteId);
     setBiblioVisible(false);
+    remarksCache.delete(visiteId);
     await charger();
   };
 
