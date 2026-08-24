@@ -18,6 +18,12 @@
     },
     "plugins": [
       [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FFFFFF"
+        }
+      ],
+      [
         "expo-image-picker",
         {
           "cameraPermission": "Autoriser Visite Technique à utiliser l'appareil photo pour documenter les visites techniques.",
