@@ -52,6 +52,7 @@ const ICPE = Object.freeze({
   actif: true,
   ui: {
     panels: TRAME_DATA,
+    specialPanels: ['p-regulation', 'p-releves', 'p-equip', 'p-remarques', 'p-photos'],
     tabOrder: [
       'p-infos', 'p-distrib', 'p-regulation', 'p-releves', 'SEP',
       'p-conf-local', 'p-conf-energie', 'p-conf-chauffage', 'p-conf-ecs', 'p-conf-adouc', 'SEP',
@@ -99,7 +100,18 @@ const ICPE = Object.freeze({
         tnc: 4,
         consigne_programme_horaire: 5,
       },
-      overflowSheet: 'RESEAUX COMPLEMENTAIRES',
+      overflow: {
+        sheet: 'RESEAUX COMPLEMENTAIRES',
+        startRow: 3,
+        columns: [
+          { col: 'A', label: 'Nom réseau', importKey: 'nom', exportKey: 'nom_reseau' },
+          { col: 'B', label: 'T° extérieure (°C)', importKey: 'tExt', exportKey: 't_ext_c' },
+          { col: 'C', label: 'T° départ (°C)', importKey: 'tDep', exportKey: 't_dep_c' },
+          { col: 'D', label: 'Courbe de chauffe', importKey: 'courbe', exportKey: 'courbe_de_chauffe' },
+          { col: 'E', label: 'TNC', importKey: 'tnc', exportKey: 'tnc' },
+          { col: 'F', label: 'Consigne / programme horaire', importKey: 'programme', exportKey: 'consigne_programme_horaire' },
+        ],
+      },
     },
     tables: {
       materiel: {
@@ -111,13 +123,18 @@ const ICPE = Object.freeze({
           ['E', 'reseau'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'],
           ['I', 'annee'], ['J', 'etat'],
         ],
-        exportColumns: ['categorie', 'nombre', 'designation', 'numero_materiel', 'reseau_desservi', 'marque', 'modele', 'caracteristiques', 'annee', 'etat'],
+        exportColumns: [
+          ['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero_materiel'],
+          ['E', 'reseau_desservi'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'],
+          ['I', 'annee'], ['J', 'etat'],
+        ],
       },
       remarques: {
         sheet: 'REMARQUES',
         startRow: 4,
         maxImportRow: 500,
         columns: [['A', 'poste'], ['B', 'prestation'], ['D', 'delai'], ['F', 'estimatif']],
+        exportColumns: [['A', 'poste'], ['B', 'prestation'], ['D', 'delai'], ['F', 'estimatif']],
       },
       note: { sheet: 'NOTE', cell: 'A2' },
     },
