@@ -10,6 +10,14 @@ import { getDb, getVisite, listerReseaux, listerMateriel, listerRemarques, getNo
 
 const RESEAU_BLOCS_DEBUT = [66, 76, 86, 96, 106, 116];
 const RESEAU_OFFSETS = { t_ext_c: 0, t_dep_c: 1, nom_reseau: 2, courbe_de_chauffe: 3, tnc: 4, consigne_programme_horaire: 5 };
+const RESEAU_EXPORT_COLS = [
+  ['nom_reseau', 'Nom réseau'],
+  ['t_ext_c', 'T° extérieure (°C)'],
+  ['t_dep_c', 'T° départ (°C)'],
+  ['courbe_de_chauffe', 'Courbe de chauffe'],
+  ['tnc', 'TNC'],
+  ['consigne_programme_horaire', 'Consigne / programme horaire'],
+];
 
 function setCell(sheet, ref, valeur) {
   if (!sheet || valeur === null || valeur === undefined || valeur === '') return;
@@ -20,6 +28,30 @@ function setCell(sheet, ref, valeur) {
 
 function slugFichier(valeur) {
   return String(valeur || 'site').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'site';
+}
+
+function indexerParCle(rows = []) {
+  const map = new Map();
+  for (const row of rows) map.set(`${row.section_code}||${row.cle}`, row);
+  return map;
+}
+
+function ajouterReseauxComplementaires(wb, reseaux) {
+  if (reseaux.length <= RESEAU_BLOCS_DEBUT.length) return 0;
+  const supplementaires = reseaux.slice(RESEAU_BLOCS_DEBUT.length);
+  const aoa = [
+    ['Réseaux complémentaires — non prévus dans les 6 blocs de la TRAME ICPE'],
+    RESEAU_EXPORT_COLS.map(([, label]) => label),
+    ...supplementaires.map((reseau) => RESEAU_EXPORT_COLS.map(([cle]) => reseau[cle] ?? '')),
+  ];
+  const sheet = XLSX.utils.aoa_to_sheet(aoa);
+  sheet['!cols'] = [{ wch: 28 }, { wch: 20 }, { wch: 18 }, { wch: 22 }, { wch: 16 }, { wch: 45 }];
+  if (wb.Sheets['RESEAUX COMPLEMENTAIRES']) {
+    wb.Sheets['RESEAUX COMPLEMENTAIRES'] = sheet;
+  } else {
+    XLSX.utils.book_append_sheet(wb, sheet, 'RESEAUX COMPLEMENTAIRES');
+  }
+  return supplementaires.length;
 }
 
 async function construireClasseur(visiteId) {
@@ -33,6 +65,8 @@ async function construireClasseur(visiteId) {
     listerReseaux(visiteId), listerMateriel(visiteId), listerRemarques(visiteId), getNote(visiteId),
   ]);
 
+  const champsMap = indexerParCle(champs);
+  const controlesMap = indexerParCle(controles);
   const wb = XLSX.read(TEMPLATE_EXCEL_BASE64, { type: 'base64', cellStyles: true, cellNF: true, bookVBA: true });
   const sheetTrame = wb.Sheets['TRAME ICPE'];
   const sheetMateriel = wb.Sheets['MATERIEL'];
@@ -52,26 +86,33 @@ async function construireClasseur(visiteId) {
       for (const f of fields || []) {
         const ligne = EXCEL_ROWS[`${sub}||${f.cle}`];
         if (!ligne) continue;
+        const lookup = `${sectionCode}||${f.cle}`;
         if (f.type === 'champ') {
-          const row = champs.find((c) => c.section_code === sectionCode && c.cle === f.cle);
+          const row = champsMap.get(lookup);
           if (row) setCell(sheetTrame, `B${ligne}`, row.valeur);
         } else if (f.type === 'controle') {
-          const row = controles.find((c) => c.section_code === sectionCode && c.cle === f.cle);
-          if (row) { setCell(sheetTrame, `B${ligne}`, row.avis); setCell(sheetTrame, `C${ligne}`, row.commentaire); }
+          const row = controlesMap.get(lookup);
+          if (row) {
+            setCell(sheetTrame, `B${ligne}`, row.avis);
+            setCell(sheetTrame, `C${ligne}`, row.commentaire);
+          }
         }
       }
     }
   }
 
-  reseaux.forEach((r, i) => {
-    if (i >= RESEAU_BLOCS_DEBUT.length) return;
+  reseaux.slice(0, RESEAU_BLOCS_DEBUT.length).forEach((r, i) => {
     const debut = RESEAU_BLOCS_DEBUT[i];
     Object.entries(RESEAU_OFFSETS).forEach(([champ, offset]) => setCell(sheetTrame, `B${debut + offset}`, r[champ]));
   });
+  const reseauxSupplementaires = ajouterReseauxComplementaires(wb, reseaux);
 
   if (sheetMateriel) {
     const materielCols = ['categorie', 'nombre', 'designation', 'numero_materiel', 'reseau_desservi', 'marque', 'modele', 'caracteristiques', 'annee', 'etat'];
-    materiel.forEach((m, i) => { const ligne = 4 + i; materielCols.forEach((col, ci) => setCell(sheetMateriel, `${String.fromCharCode(65 + ci)}${ligne}`, m[col])); });
+    materiel.forEach((m, i) => {
+      const ligne = 4 + i;
+      materielCols.forEach((col, ci) => setCell(sheetMateriel, `${String.fromCharCode(65 + ci)}${ligne}`, m[col]));
+    });
   }
 
   if (sheetRemarques) {
@@ -85,25 +126,43 @@ async function construireClasseur(visiteId) {
   }
 
   if (sheetNote) setCell(sheetNote, 'A2', note?.contenu || '');
-  return { wb, visite };
+
+  return {
+    wb,
+    visite,
+    stats: {
+      champs: champs.length,
+      controles: controles.length,
+      reseaux: reseaux.length,
+      reseauxSupplementaires,
+      materiel: materiel.length,
+      remarques: remarques.length,
+    },
+  };
 }
 
 async function exporterEtPartager(visiteId) {
-  const { wb, visite } = await construireClasseur(visiteId);
+  const { wb, visite, stats } = await construireClasseur(visiteId);
   const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
   const nomFichier = `Visite_${slugFichier(visite.nom_site)}_${visite.date_visite || 'sans_date'}.xlsx`;
   const dossier = FileSystem.cacheDirectory || FileSystem.documentDirectory;
   if (!dossier) throw new Error('Stockage local Android indisponible');
   const chemin = dossier + nomFichier;
   await FileSystem.writeAsStringAsync(chemin, base64, { encoding: FileSystem.EncodingType.Base64 });
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(chemin, {
-      mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      dialogTitle: 'Exporter la visite',
-      UTI: 'org.openxmlformats.spreadsheetml.sheet',
-    });
+  try {
+    if (await Sharing.isAvailableAsync()) {
+      await Sharing.shareAsync(chemin, {
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        dialogTitle: 'Exporter la visite',
+        UTI: 'org.openxmlformats.spreadsheetml.sheet',
+      });
+    }
+    return { nomFichier, stats };
+  } finally {
+    if (FileSystem.cacheDirectory && chemin.startsWith(FileSystem.cacheDirectory)) {
+      try { await FileSystem.deleteAsync(chemin, { idempotent: true }); } catch {}
+    }
   }
-  return chemin;
 }
 
 export { construireClasseur, exporterEtPartager };
