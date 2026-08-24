@@ -11,6 +11,7 @@ import { migration010 } from './010_catalog_search_indexes.js';
 import { migration011 } from './011_catalog_experience.js';
 import { migration012 } from './012_site_geolocation.js';
 import { migration013 } from './013_material_excel_fields.js';
+import { migration014 } from './014_native_production_cleanup.js';
 
 export const MIGRATIONS = Object.freeze([
   migration001,
@@ -26,4 +27,5 @@ export const MIGRATIONS = Object.freeze([
   migration011,
   migration012,
   migration013,
+  migration014,
 ]);
