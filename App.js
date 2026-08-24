@@ -12,7 +12,7 @@
  *   (plus aucune dépendance de navigation)
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, ActivityIndicator, TouchableOpacity } from 'react-native';
 
 import { getDb } from './db.js';
@@ -22,9 +22,10 @@ import { ClientSitesScreen } from './ClientSitesScreen.js';
 import { VisiteScreen } from './VisiteScreen.js';
 import { ParametresScreen } from './ParametresScreen.js';
 import { SiteVisitesScreen } from './SiteVisitesScreen.js';
+import { R1EasterEgg } from './R1EasterEgg.js';
 
 /** Petite barre de titre réutilisable, avec bouton retour optionnel. */
-function SimpleHeader({ title, onBack }) {
+function SimpleHeader({ title, onBack, onTitleLongPress }) {
   return (
     <View style={styles.simpleHeader}>
       {onBack ? (
@@ -34,7 +35,14 @@ function SimpleHeader({ title, onBack }) {
       ) : (
         <View style={styles.simpleHeaderBack} />
       )}
-      <Text style={styles.simpleHeaderTitle}>{title}</Text>
+      <TouchableOpacity
+        activeOpacity={1}
+        delayLongPress={4000}
+        onLongPress={onTitleLongPress}
+        disabled={!onTitleLongPress}
+      >
+        <Text style={styles.simpleHeaderTitle}>{title}</Text>
+      </TouchableOpacity>
       <View style={styles.simpleHeaderBack} />
     </View>
   );
@@ -43,6 +51,7 @@ function SimpleHeader({ title, onBack }) {
 export default function App() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(null);
+  const [r1Visible, setR1Visible] = useState(false);
 
   // Pile de navigation minimale : un tableau d'écrans empilés.
   const [stack, setStack] = useState([{ name: 'Home', params: {} }]);
@@ -57,6 +66,9 @@ export default function App() {
   const goBack = () => {
     setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
   };
+
+  const openR1 = useCallback(() => setR1Visible(true), []);
+  const closeR1 = useCallback(() => setR1Visible(false), []);
 
   if (dbError) {
     return (
@@ -82,7 +94,7 @@ export default function App() {
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       {current.name === 'Home' && (
         <>
-          <SimpleHeader title="Visite Technique" />
+          <SimpleHeader title="Visite Technique" onTitleLongPress={openR1} />
           <HomeScreen navigation={navigation} route={route} />
         </>
       )}
@@ -107,6 +119,8 @@ export default function App() {
           <ParametresScreen />
         </>
       )}
+
+      <R1EasterEgg visible={r1Visible} onFinish={closeR1} />
     </View>
   );
 }
