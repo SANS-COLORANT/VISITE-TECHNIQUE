@@ -1,14 +1,13 @@
-/** Écran Visite — navigation responsive pilotée par la trame active. */
-
+/** Écran Visite — navigation fluide, swipe interactif et panneaux virtualisés. */
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions, Animated, Easing } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { getVisite, getNote, upsertNote, getDb } from './db.js';
 import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { recalculerProgressionVisite } from './visitProgressDb.js';
 import { exporterEtPartager } from './excelExport.js';
-import { PanelRegulation } from './VisitePanels.js';
+import { OptimizedRegulationPanel, prechargerRegulation, invaliderCacheRegulation } from './OptimizedRegulationPanel.js';
 import { OptimizedRelevesPanel } from './OptimizedRelevesPanel.js';
 import { OptimizedPhotoPanel } from './OptimizedPhotoPanel.js';
 import { OptimizedEquipmentPanel } from './OptimizedEquipmentPanel.js';
@@ -28,6 +27,8 @@ function VisiteScreen({ route, onBack }) {
   const activeTabRef = useRef('p-infos');
   const tabOrderRef = useRef([]);
   const progressionTimerRef = useRef(null);
+  const transitionRef = useRef(false);
+  const translateX = useRef(new Animated.Value(0)).current;
   const [noteVisible, setNoteVisible] = useState(false);
   const [noteTxt, setNoteTxt] = useState('');
   const [anomalieVisible, setAnomalieVisible] = useState(false);
@@ -45,6 +46,7 @@ function VisiteScreen({ route, onBack }) {
   useEffect(() => () => {
     if (progressionTimerRef.current) clearTimeout(progressionTimerRef.current);
     invaliderCacheTrameGenerique(visiteId);
+    invaliderCacheRegulation(visiteId);
   }, [visiteId]);
 
   useEffect(() => {
@@ -55,12 +57,41 @@ function VisiteScreen({ route, onBack }) {
     }
   }, [visite?.trame_id, tabsReels.join('|')]);
 
-  const changerOnglet = useCallback((prochain) => {
-    if (!prochain || prochain === activeTabRef.current) return;
+  const basculerApresSortie = useCallback((prochain, direction) => {
     activeTabRef.current = prochain;
     setActiveTab(prochain);
-    setTimeout(() => Keyboard.dismiss(), 0);
-  }, []);
+    translateX.setValue(direction > 0 ? width : -width);
+    requestAnimationFrame(() => {
+      Animated.timing(translateX, {
+        toValue: 0,
+        duration: 190,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }).start(() => { transitionRef.current = false; });
+    });
+  }, [translateX, width]);
+
+  const changerOnglet = useCallback((prochain, anime = true) => {
+    if (!prochain || prochain === activeTabRef.current || transitionRef.current) return;
+    Keyboard.dismiss();
+    const tabs = tabOrderRef.current;
+    const from = tabs.indexOf(activeTabRef.current);
+    const to = tabs.indexOf(prochain);
+    if (!anime || from < 0 || to < 0 || width <= 0) {
+      activeTabRef.current = prochain;
+      setActiveTab(prochain);
+      translateX.setValue(0);
+      return;
+    }
+    const direction = to > from ? 1 : -1;
+    transitionRef.current = true;
+    Animated.timing(translateX, {
+      toValue: direction > 0 ? -width : width,
+      duration: 150,
+      easing: Easing.in(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => basculerApresSortie(prochain, direction));
+  }, [basculerApresSortie, translateX, width]);
 
   const retourSecurise = useCallback(() => {
     Keyboard.dismiss();
@@ -72,9 +103,11 @@ function VisiteScreen({ route, onBack }) {
     await preremplirVisiteDepuisContexte(db, visiteId);
     await recalculerProgressionVisite(db, visiteId);
     invaliderCacheTrameGenerique(visiteId);
+    invaliderCacheRegulation(visiteId);
     const [v] = await Promise.all([
       getVisite(visiteId),
       prechargerDonneesTrameGenerique(visiteId, true),
+      prechargerRegulation(visiteId, true),
     ]);
     setVisite(v);
   }, [visiteId]);
@@ -93,20 +126,46 @@ function VisiteScreen({ route, onBack }) {
       } finally {
         progressionTimerRef.current = null;
       }
-    }, 900);
+    }, 1200);
   }, [visiteId]);
 
-  const swipeHandlers = useRef(
-    PanResponder.create({
-      onMoveShouldSetPanResponder: (evt, g) => Math.abs(g.dx) > 35 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6,
-      onPanResponderRelease: (evt, g) => {
-        const tabs = tabOrderRef.current;
-        const idx = tabs.indexOf(activeTabRef.current);
-        if (g.dx < -35 && idx >= 0 && idx < tabs.length - 1) changerOnglet(tabs[idx + 1]);
-        else if (g.dx > 35 && idx > 0) changerOnglet(tabs[idx - 1]);
-      },
-    })
-  ).current;
+  const terminerSwipe = useCallback((g) => {
+    const tabs = tabOrderRef.current;
+    const idx = tabs.indexOf(activeTabRef.current);
+    const threshold = Math.max(70, width * 0.16);
+    const versSuivant = g.dx < -threshold || g.vx < -0.55;
+    const versPrecedent = g.dx > threshold || g.vx > 0.55;
+    const prochain = versSuivant && idx < tabs.length - 1 ? tabs[idx + 1] : versPrecedent && idx > 0 ? tabs[idx - 1] : null;
+
+    if (!prochain) {
+      Animated.spring(translateX, { toValue: 0, speed: 24, bounciness: 0, useNativeDriver: true }).start();
+      return;
+    }
+
+    const direction = versSuivant ? 1 : -1;
+    transitionRef.current = true;
+    Animated.timing(translateX, {
+      toValue: direction > 0 ? -width : width,
+      duration: 130,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(() => basculerApresSortie(prochain, direction));
+  }, [basculerApresSortie, translateX, width]);
+
+  const swipeHandlers = useRef(null);
+  swipeHandlers.current = PanResponder.create({
+    onMoveShouldSetPanResponder: (_evt, g) => !transitionRef.current && Math.abs(g.dx) > 10 && Math.abs(g.dx) > Math.abs(g.dy) * 1.45,
+    onPanResponderGrant: () => { Keyboard.dismiss(); translateX.stopAnimation(); },
+    onPanResponderMove: (_evt, g) => {
+      const tabs = tabOrderRef.current;
+      const idx = tabs.indexOf(activeTabRef.current);
+      let dx = g.dx;
+      if ((idx === 0 && dx > 0) || (idx === tabs.length - 1 && dx < 0)) dx *= 0.28;
+      translateX.setValue(dx);
+    },
+    onPanResponderRelease: (_evt, g) => terminerSwipe(g),
+    onPanResponderTerminate: () => Animated.spring(translateX, { toValue: 0, speed: 24, bounciness: 0, useNativeDriver: true }).start(),
+  });
 
   const ouvrirNote = async () => {
     const note = await getNote(visiteId);
@@ -135,26 +194,17 @@ function VisiteScreen({ route, onBack }) {
       await attendre(180);
       const resultat = await exporterEtPartager(visiteId);
       if (resultat?.stats?.reseauxSupplementaires > 0) {
-        Alert.alert(
-          'Export complet',
-          `${resultat.stats.reseauxSupplementaires} réseau(x) supplémentaire(s) ont été placés dans la feuille « RESEAUX COMPLEMENTAIRES » afin de ne perdre aucune donnée.`
-        );
+        Alert.alert('Export complet', `${resultat.stats.reseauxSupplementaires} réseau(x) supplémentaire(s) ont été placés dans la feuille « RESEAUX COMPLEMENTAIRES » afin de ne perdre aucune donnée.`);
       }
     } catch (e) {
       Alert.alert('Erreur export', String(e.message || e));
-    } finally {
-      setExporting(false);
-    }
+    } finally { setExporting(false); }
   };
 
   const enregistrerAnomalie = async () => {
     const texte = anomalieTxt.trim();
     if (!texte) return;
-    await ajouterRemarqueVisite(visiteId, {
-      poste: 'Observation',
-      prestation: texte,
-      origine: 'Anomalie rapide',
-    });
+    await ajouterRemarqueVisite(visiteId, { poste: 'Observation', prestation: texte, origine: 'Anomalie rapide' });
     setAnomalieTxt('');
     setAnomalieVisible(false);
     if (tabsReels.includes('p-remarques')) changerOnglet('p-remarques');
@@ -163,7 +213,7 @@ function VisiteScreen({ route, onBack }) {
   const contenuActif = () => {
     const pid = activeTab;
     if (specialPanels.has(pid)) {
-      if (pid === 'p-regulation') return <PanelRegulation visiteId={visiteId} onSaved={onSaved} />;
+      if (pid === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
       if (pid === 'p-releves') return <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} />;
       if (pid === 'p-equip') return <OptimizedEquipmentPanel visiteId={visiteId} />;
       if (pid === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} />;
@@ -172,117 +222,55 @@ function VisiteScreen({ route, onBack }) {
     return <TrameGenericPanel visiteId={visiteId} panelId={pid} sections={panels[pid]} onSaved={onSaved} />;
   };
 
-  if (!visite) {
-    return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.orange} /></View>;
-  }
+  if (!visite) return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.orange} /></View>;
+
+  const animatedContent = (
+    <View style={{ flex: 1, overflow: 'hidden' }} {...swipeHandlers.current.panHandlers}>
+      <Animated.View style={{ flex: 1, transform: [{ translateX }] }}>
+        {contenuActif()}
+      </Animated.View>
+    </View>
+  );
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <View style={styles.visiteTopbar}>
         <View style={styles.visiteHeaderRow}>
-          <TouchableOpacity style={styles.visiteBackBtn} onPress={retourSecurise}>
-            <Text style={styles.visiteBackBtnText}>←</Text>
-          </TouchableOpacity>
+          <TouchableOpacity style={styles.visiteBackBtn} onPress={retourSecurise}><Text style={styles.visiteBackBtnText}>←</Text></TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>{visite.nom_site}</Text>
             <Text style={styles.cardSub}>{visite.nom_client} · {visite.date_visite} · {trame.nom} · {visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'}</Text>
           </View>
-          <TouchableOpacity style={styles.noteBtn} onPress={ouvrirNote}>
-            <Text style={styles.noteBtnText}>Note libre</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.exportBtn} onPress={exporter} disabled={exporting}>
-            <Text style={styles.exportBtnText}>{exporting ? '...' : `Exporter ${trame.nom}`}</Text>
-          </TouchableOpacity>
+          <TouchableOpacity style={styles.noteBtn} onPress={ouvrirNote}><Text style={styles.noteBtnText}>Note libre</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.exportBtn} onPress={exporter} disabled={exporting}><Text style={styles.exportBtnText}>{exporting ? '...' : `Exporter ${trame.nom}`}</Text></TouchableOpacity>
         </View>
-        <View style={styles.progressRow}>
-          <View style={styles.progressBarBg}>
-            <View style={[styles.progressBarFill, { width: `${visite.progression_pct}%` }]} />
-          </View>
-          <Text style={styles.progressPct}>{visite.progression_pct}%</Text>
-        </View>
-        <TouchableOpacity style={styles.anomalyBtn} onPress={() => setAnomalieVisible(true)}>
-          <Text style={styles.anomalyBtnText}>⚠ Ajouter une anomalie, une remarque ou une réserve</Text>
-        </TouchableOpacity>
-        {visite.mode_visite === 'express' && (
-          <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>
-        )}
-        {!modeTablette && (
-          <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.tabStrip}>
-            {tabOrder.map((pid, i) =>
-              pid === 'SEP' ? (
-                <View key={`sep-${i}`} style={styles.tabSep} />
-              ) : (
-                <TouchableOpacity key={pid} style={styles.tabItem} onPress={() => changerOnglet(pid)}>
-                  <Text style={[styles.tabItemText, activeTab === pid && styles.tabItemTextActive]}>{panelLabels[pid] || pid}</Text>
-                  {activeTab === pid && <View style={styles.tabUnderline} />}
-                </TouchableOpacity>
-              )
-            )}
-          </ScrollView>
-        )}
+        <View style={styles.progressRow}><View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${visite.progression_pct}%` }]} /></View><Text style={styles.progressPct}>{visite.progression_pct}%</Text></View>
+        <TouchableOpacity style={styles.anomalyBtn} onPress={() => setAnomalieVisible(true)}><Text style={styles.anomalyBtnText}>⚠ Ajouter une anomalie, une remarque ou une réserve</Text></TouchableOpacity>
+        {visite.mode_visite === 'express' && <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>}
+        {!modeTablette && <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.tabStrip}>
+          {tabOrder.map((pid, i) => pid === 'SEP' ? <View key={`sep-${i}`} style={styles.tabSep} /> : <TouchableOpacity key={pid} style={styles.tabItem} onPress={() => changerOnglet(pid)}><Text style={[styles.tabItemText, activeTab === pid && styles.tabItemTextActive]}>{panelLabels[pid] || pid}</Text>{activeTab === pid && <View style={styles.tabUnderline} />}</TouchableOpacity>)}
+        </ScrollView>}
       </View>
 
-      {modeTablette ? (
-        <View style={{ flex: 1, flexDirection: 'row' }}>
-          <View style={{ width: 205, backgroundColor: '#FFFFFF', borderRightWidth: 1, borderRightColor: COLORS.line }}>
-            <ScrollView contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: 9 }} showsVerticalScrollIndicator={false}>
-              {tabOrder.map((pid, i) => pid === 'SEP' ? (
-                <View key={`side-sep-${i}`} style={{ height: 1, backgroundColor: COLORS.line, marginVertical: 8 }} />
-              ) : (
-                <TouchableOpacity
-                  key={pid}
-                  onPress={() => changerOnglet(pid)}
-                  style={{
-                    minHeight: 43,
-                    paddingHorizontal: 11,
-                    paddingVertical: 10,
-                    borderRadius: 10,
-                    marginVertical: 2,
-                    justifyContent: 'center',
-                    backgroundColor: activeTab === pid ? '#FFF3E8' : 'transparent',
-                    borderWidth: activeTab === pid ? 1 : 0,
-                    borderColor: activeTab === pid ? '#F3C89B' : 'transparent',
-                  }}
-                >
-                  <Text style={{ fontSize: 13, fontWeight: activeTab === pid ? '800' : '600', color: activeTab === pid ? COLORS.primary : COLORS.text }}>
-                    {panelLabels[pid] || pid}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-          </View>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            {contenuActif()}
-          </View>
+      {modeTablette ? <View style={{ flex: 1, flexDirection: 'row' }}>
+        <View style={{ width: 205, backgroundColor: '#FFFFFF', borderRightWidth: 1, borderRightColor: COLORS.line }}>
+          <ScrollView contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: 9 }} showsVerticalScrollIndicator={false}>
+            {tabOrder.map((pid, i) => pid === 'SEP' ? <View key={`side-sep-${i}`} style={{ height: 1, backgroundColor: COLORS.line, marginVertical: 8 }} /> : <TouchableOpacity key={pid} onPress={() => changerOnglet(pid)} style={{ minHeight: 43, paddingHorizontal: 11, paddingVertical: 10, borderRadius: 10, marginVertical: 2, justifyContent: 'center', backgroundColor: activeTab === pid ? '#FFF3E8' : 'transparent', borderWidth: activeTab === pid ? 1 : 0, borderColor: activeTab === pid ? '#F3C89B' : 'transparent' }}><Text style={{ fontSize: 13, fontWeight: activeTab === pid ? '800' : '600', color: activeTab === pid ? COLORS.primary : COLORS.text }}>{panelLabels[pid] || pid}</Text></TouchableOpacity>)}
+          </ScrollView>
         </View>
-      ) : (
-        <View style={{ flex: 1 }} {...swipeHandlers.panHandlers}>
-          {contenuActif()}
-        </View>
-      )}
+        <View style={{ flex: 1, minWidth: 0 }}>{animatedContent}</View>
+      </View> : animatedContent}
 
-      <Modal visible={noteVisible} transparent animationType="fade">
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Note libre — {trame.nom}</Text>
-            <TextInput style={[styles.input, { height: 160, textAlignVertical: 'top' }]} multiline value={noteTxt} onChangeText={onChangeNoteTxt} placeholder="Notes générales sur la visite..." />
-            <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
-      <Modal visible={anomalieVisible} transparent animationType="fade" onRequestClose={() => setAnomalieVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Ajouter une anomalie</Text>
-            <Text style={styles.importHint}>Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.</Text>
-            <TextInput style={[styles.input, { minHeight: 100, marginTop: 12, textAlignVertical: 'top' }]} multiline autoFocus value={anomalieTxt} onChangeText={setAnomalieTxt} placeholder="Ex. Pompe défaillante, température de départ trop basse…" />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.btnSecondary} onPress={() => setAnomalieVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.btnPrimary} onPress={enregistrerAnomalie}><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <Modal visible={noteVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}>
+        <Text style={styles.modalTitle}>Note libre — {trame.nom}</Text>
+        <TextInput style={[styles.input, { height: 160, textAlignVertical: 'top' }]} multiline value={noteTxt} onChangeText={onChangeNoteTxt} placeholder="Notes générales sur la visite..." />
+        <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
+      </View></View></Modal>
+      <Modal visible={anomalieVisible} transparent animationType="fade" onRequestClose={() => setAnomalieVisible(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}>
+        <Text style={styles.modalTitle}>Ajouter une anomalie</Text><Text style={styles.importHint}>Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.</Text>
+        <TextInput style={[styles.input, { minHeight: 100, marginTop: 12, textAlignVertical: 'top' }]} multiline autoFocus value={anomalieTxt} onChangeText={setAnomalieTxt} placeholder="Ex. Pompe défaillante, température de départ trop basse…" />
+        <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setAnomalieVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerAnomalie}><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity></View>
+      </View></View></Modal>
     </View>
   );
 }
