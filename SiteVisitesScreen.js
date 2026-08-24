@@ -12,6 +12,7 @@ import { modifierSiteRapide } from './siteBulkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { listerTramesDisponibles, obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { SiteOverviewPanel } from './SiteOverviewPanel.js';
+import { exporterVisitesExcelEnLot } from './batchExcel.js';
 
 const STATUT_LABELS = { en_cours: 'En cours', terminee: 'Terminée', a_completer: 'À compléter', exportee: 'Exportée' };
 const SITE_TABS = [
@@ -33,6 +34,9 @@ function SiteVisitesScreen({ route, navigation }) {
   const [longitude, setLongitude] = useState('');
   const [note, setNote] = useState('');
   const [localisationEnCours, setLocalisationEnCours] = useState(false);
+  const [selectionExport, setSelectionExport] = useState(false);
+  const [visitesSelectionnees, setVisitesSelectionnees] = useState(() => new Set());
+  const [exportLotEnCours, setExportLotEnCours] = useState(false);
   const tramesDisponibles = listerTramesDisponibles();
 
   const charger = useCallback(async () => {
@@ -79,6 +83,49 @@ function SiteVisitesScreen({ route, navigation }) {
         } },
       ]
     );
+  };
+
+  const basculerSelection = useCallback((id) => {
+    setVisitesSelectionnees((actuelles) => {
+      const next = new Set(actuelles);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const ouvrirSelectionExport = () => {
+    setVisitesSelectionnees(new Set());
+    setSelectionExport(true);
+  };
+
+  const annulerSelectionExport = () => {
+    if (exportLotEnCours) return;
+    setSelectionExport(false);
+    setVisitesSelectionnees(new Set());
+  };
+
+  const toutSelectionner = () => {
+    setVisitesSelectionnees((actuelles) => actuelles.size === visites.length ? new Set() : new Set(visites.map((v) => v.id)));
+  };
+
+  const exporterSelection = async () => {
+    if (!visitesSelectionnees.size || exportLotEnCours) return;
+    setExportLotEnCours(true);
+    try {
+      const resultat = await exporterVisitesExcelEnLot([...visitesSelectionnees]);
+      if (resultat.annule) return;
+      const lignes = [`${resultat.enregistres.length} fichier(s) Excel enregistré(s).`];
+      if (resultat.erreurs.length) lignes.push(`${resultat.erreurs.length} export(s) en échec.`);
+      Alert.alert('Export multiple terminé', lignes.join('\n'));
+      if (resultat.enregistres.length) {
+        setSelectionExport(false);
+        setVisitesSelectionnees(new Set());
+      }
+    } catch (e) {
+      Alert.alert('Export multiple impossible', String(e?.message || e));
+    } finally {
+      setExportLotEnCours(false);
+    }
   };
 
   const utiliserMaPosition = async () => {
@@ -201,7 +248,7 @@ function SiteVisitesScreen({ route, navigation }) {
       {SITE_TABS.map((tab) => {
         const actif = siteTab === tab.id;
         return (
-          <TouchableOpacity key={tab.id} onPress={() => setSiteTab(tab.id)} style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: actif ? COLORS.orange : COLORS.line, backgroundColor: actif ? COLORS.orangeLight : COLORS.white }}>
+          <TouchableOpacity key={tab.id} onPress={() => { setSiteTab(tab.id); if (tab.id !== 'visites') annulerSelectionExport(); }} style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: actif ? COLORS.orange : COLORS.line, backgroundColor: actif ? COLORS.orangeLight : COLORS.white }}>
             <Text style={{ color: actif ? COLORS.orangeDark : COLORS.inkSoft, fontWeight: actif ? '800' : '600', fontSize: 12.5 }}>{tab.label}</Text>
           </TouchableOpacity>
         );
@@ -209,26 +256,39 @@ function SiteVisitesScreen({ route, navigation }) {
     </View>
   );
 
+  const VisitesHeader = () => (
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+      <Text style={[styles.sectionLabel, { flex: 1, marginBottom: 0 }]}>Historique des visites — {nomSite}</Text>
+      {visites.length > 0 && !selectionExport ? <TouchableOpacity onPress={ouvrirSelectionExport} style={{ paddingHorizontal: 10, paddingVertical: 8 }}><Text style={{ color: COLORS.primary, fontWeight: '800' }}>Exporter plusieurs</Text></TouchableOpacity> : null}
+    </View>
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <FlatList
-        key={siteTab}
+        key={`${siteTab}-${selectionExport ? 'selection' : 'normal'}`}
         contentContainerStyle={styles.content}
         data={siteTab === 'visites' ? visites : []}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={<View><LocalisationHeader /><SiteTabs />{siteTab === 'visites' ? <Text style={styles.sectionLabel}>Historique des visites — {nomSite}</Text> : null}</View>}
+        ListHeaderComponent={<View><LocalisationHeader /><SiteTabs />{siteTab === 'visites' ? <VisitesHeader /> : null}</View>}
         renderItem={({ item }) => {
           const trame = obtenirTrame(item.trame_id || DEFAULT_TRAME_ID);
+          const selectionnee = visitesSelectionnees.has(item.id);
           return (
-            <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => navigation.navigate('Visite', { visiteId: item.id })}>
+            <TouchableOpacity
+              style={[styles.card, selectionExport && selectionnee ? { borderWidth: 2, borderColor: COLORS.primary } : null]}
+              activeOpacity={0.7}
+              onPress={() => selectionExport ? basculerSelection(item.id) : navigation.navigate('Visite', { visiteId: item.id })}
+            >
+              {selectionExport ? <View style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: selectionnee ? COLORS.primary : COLORS.line, backgroundColor: selectionnee ? COLORS.primary : '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}><Text style={{ color: '#fff', fontWeight: '900' }}>{selectionnee ? '✓' : ''}</Text></View> : null}
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{item.date_visite || 'Sans date'}</Text>
                 <Text style={styles.cardSub}>{trame.nom}{item.technicien ? ` · ${item.technicien}` : ''}</Text>
               </View>
               <View style={styles.badge}><Text style={styles.badgeText}>{STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%</Text></View>
-              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }} accessibilityLabel={`Supprimer la visite du ${item.date_visite || ''}`}>
+              {!selectionExport ? <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }} accessibilityLabel={`Supprimer la visite du ${item.date_visite || ''}`}>
                 <Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text>
-              </TouchableOpacity>
+              </TouchableOpacity> : null}
             </TouchableOpacity>
           );
         }}
@@ -236,7 +296,12 @@ function SiteVisitesScreen({ route, navigation }) {
           ? <View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>Lance la première avec le bouton ci-dessous.</Text></View>
           : <SiteOverviewPanel siteId={siteId} mode={siteTab} />}
       />
-      {siteTab === 'visites' ? <View style={styles.fabBar}>
+
+      {siteTab === 'visites' && selectionExport ? <View style={[styles.fabBar, { flexDirection: 'row', gap: 8 }]}>
+        <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={annulerSelectionExport} disabled={exportLotEnCours}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={toutSelectionner} disabled={exportLotEnCours}><Text style={styles.btnSecondaryText}>{visitesSelectionnees.size === visites.length ? 'Tout désélectionner' : 'Tout sélectionner'}</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnPrimary, { flex: 1.2 }]} onPress={exporterSelection} disabled={!visitesSelectionnees.size || exportLotEnCours}><Text style={styles.btnPrimaryText}>{exportLotEnCours ? 'Export…' : `Exporter ${visitesSelectionnees.size}`}</Text></TouchableOpacity>
+      </View> : siteTab === 'visites' ? <View style={styles.fabBar}>
         <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={ouvrirNouvelleVisite}><Text style={styles.btnPrimaryText}>+ Nouvelle visite</Text></TouchableOpacity>
       </View> : null}
 
