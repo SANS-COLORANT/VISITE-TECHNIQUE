@@ -1,4 +1,4 @@
-/** Écran Historique des visites d'un site + localisation GPS sans carte native. */
+/** Écran d'un site : visites, équipements, remarques + localisation GPS. */
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView } from 'react-native';
@@ -11,13 +11,20 @@ import { getSiteLocalisation, enregistrerSiteLocalisation, coordonneeValide } fr
 import { modifierSiteRapide } from './siteBulkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { listerTramesDisponibles, obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
+import { SiteOverviewPanel } from './SiteOverviewPanel.js';
 
 const STATUT_LABELS = { en_cours: 'En cours', terminee: 'Terminée', a_completer: 'À compléter', exportee: 'Exportée' };
+const SITE_TABS = [
+  { id: 'visites', label: 'Visites' },
+  { id: 'equipements', label: 'Équipements' },
+  { id: 'remarques', label: 'Remarques' },
+];
 
 function SiteVisitesScreen({ route, navigation }) {
   const { siteId, nomSite } = route.params;
   const [visites, setVisites] = useState([]);
   const [site, setSite] = useState(null);
+  const [siteTab, setSiteTab] = useState('visites');
   const [choixModeVisible, setChoixModeVisible] = useState(false);
   const [trameChoisie, setTrameChoisie] = useState(DEFAULT_TRAME_ID);
   const [gpsVisible, setGpsVisible] = useState(false);
@@ -189,13 +196,27 @@ function SiteVisitesScreen({ route, navigation }) {
     </View>
   );
 
+  const SiteTabs = () => (
+    <View style={{ flexDirection: 'row', gap: 7, marginBottom: 16 }}>
+      {SITE_TABS.map((tab) => {
+        const actif = siteTab === tab.id;
+        return (
+          <TouchableOpacity key={tab.id} onPress={() => setSiteTab(tab.id)} style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: actif ? COLORS.orange : COLORS.line, backgroundColor: actif ? COLORS.orangeLight : COLORS.white }}>
+            <Text style={{ color: actif ? COLORS.orangeDark : COLORS.inkSoft, fontWeight: actif ? '800' : '600', fontSize: 12.5 }}>{tab.label}</Text>
+          </TouchableOpacity>
+        );
+      })}
+    </View>
+  );
+
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <FlatList
+        key={siteTab}
         contentContainerStyle={styles.content}
-        data={visites}
+        data={siteTab === 'visites' ? visites : []}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={<View><LocalisationHeader /><Text style={styles.sectionLabel}>Historique des visites — {nomSite}</Text></View>}
+        ListHeaderComponent={<View><LocalisationHeader /><SiteTabs />{siteTab === 'visites' ? <Text style={styles.sectionLabel}>Historique des visites — {nomSite}</Text> : null}</View>}
         renderItem={({ item }) => {
           const trame = obtenirTrame(item.trame_id || DEFAULT_TRAME_ID);
           return (
@@ -205,83 +226,46 @@ function SiteVisitesScreen({ route, navigation }) {
                 <Text style={styles.cardSub}>{trame.nom}{item.technicien ? ` · ${item.technicien}` : ''}</Text>
               </View>
               <View style={styles.badge}><Text style={styles.badgeText}>{STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%</Text></View>
-              <TouchableOpacity
-                onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(item); }}
-                style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}
-                accessibilityLabel={`Supprimer la visite du ${item.date_visite || ''}`}
-              >
+              <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }} accessibilityLabel={`Supprimer la visite du ${item.date_visite || ''}`}>
                 <Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text>
               </TouchableOpacity>
             </TouchableOpacity>
           );
         }}
-        ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>Lance la première avec le bouton ci-dessous.</Text></View>}
+        ListEmptyComponent={siteTab === 'visites'
+          ? <View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>Lance la première avec le bouton ci-dessous.</Text></View>
+          : <SiteOverviewPanel siteId={siteId} mode={siteTab} />}
       />
-      <View style={styles.fabBar}>
+      {siteTab === 'visites' ? <View style={styles.fabBar}>
         <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={ouvrirNouvelleVisite}><Text style={styles.btnPrimaryText}>+ Nouvelle visite</Text></TouchableOpacity>
-      </View>
+      </View> : null}
 
       <Modal visible={gpsVisible} transparent animationType="fade" onRequestClose={() => setGpsVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Adresse et position du site</Text>
-            <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 10 }}>L'adresse sert au géocodage. Le point GPS peut ensuite être remplacé par la position exacte de l'accès technique.</Text>
-            <TextInput style={styles.input} placeholder="Adresse complète" value={adresse} onChangeText={setAdresse} />
-            <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10 }]} disabled={localisationEnCours || !adresse.trim()} onPress={localiserDepuisAdresse}>
-              <Text style={styles.btnSecondaryText}>{localisationEnCours ? 'Localisation…' : "🗺️ Localiser depuis l'adresse"}</Text>
-            </TouchableOpacity>
-            <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Latitude" keyboardType="decimal-pad" value={latitude} onChangeText={setLatitude} />
-              <TextInput style={[styles.input, { flex: 1 }]} placeholder="Longitude" keyboardType="decimal-pad" value={longitude} onChangeText={setLongitude} />
-            </View>
-            <TextInput style={[styles.input, { marginTop: 10, minHeight: 70, textAlignVertical: 'top' }]} placeholder="Note d'accès : parking P2, porte chaufferie, sous-sol…" multiline value={note} onChangeText={setNote} />
-            <TouchableOpacity style={[styles.btnSecondary, { marginTop: 12 }]} disabled={localisationEnCours} onPress={utiliserMaPosition}>
-              <Text style={styles.btnSecondaryText}>{localisationEnCours ? 'Localisation…' : '📍 Utiliser ma position actuelle'}</Text>
-            </TouchableOpacity>
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.btnSecondary} onPress={() => setGpsVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-              <TouchableOpacity style={styles.btnPrimary} onPress={enregistrerGpsManuel}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity>
-            </View>
-          </View>
-        </View>
+        <View style={styles.modalOverlay}><View style={styles.modalSheet}>
+          <Text style={styles.modalTitle}>Adresse et position du site</Text>
+          <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 10 }}>L'adresse sert au géocodage. Le point GPS peut ensuite être remplacé par la position exacte de l'accès technique.</Text>
+          <TextInput style={styles.input} placeholder="Adresse complète" value={adresse} onChangeText={setAdresse} />
+          <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10 }]} disabled={localisationEnCours || !adresse.trim()} onPress={localiserDepuisAdresse}><Text style={styles.btnSecondaryText}>{localisationEnCours ? 'Localisation…' : "🗺️ Localiser depuis l'adresse"}</Text></TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}><TextInput style={[styles.input, { flex: 1 }]} placeholder="Latitude" keyboardType="decimal-pad" value={latitude} onChangeText={setLatitude} /><TextInput style={[styles.input, { flex: 1 }]} placeholder="Longitude" keyboardType="decimal-pad" value={longitude} onChangeText={setLongitude} /></View>
+          <TextInput style={[styles.input, { marginTop: 10, minHeight: 70, textAlignVertical: 'top' }]} placeholder="Note d'accès : parking P2, porte chaufferie, sous-sol…" multiline value={note} onChangeText={setNote} />
+          <TouchableOpacity style={[styles.btnSecondary, { marginTop: 12 }]} disabled={localisationEnCours} onPress={utiliserMaPosition}><Text style={styles.btnSecondaryText}>{localisationEnCours ? 'Localisation…' : '📍 Utiliser ma position actuelle'}</Text></TouchableOpacity>
+          <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setGpsVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerGpsManuel}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View>
+        </View></View>
       </Modal>
 
       <Modal visible={choixModeVisible} transparent animationType="fade" onRequestClose={() => setChoixModeVisible(false)}>
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
-            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-              <Text style={styles.modalTitle}>Nouvelle visite</Text>
-              <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>Trame de visite</Text>
-              {tramesDisponibles.map((trame) => {
-                const selected = trameChoisie === trame.id;
-                return (
-                  <TouchableOpacity
-                    key={trame.id}
-                    style={[styles.visitModeCard, selected && { borderColor: COLORS.primary, backgroundColor: '#FFF7EF' }]}
-                    onPress={() => setTrameChoisie(trame.id)}
-                  >
-                    <Text style={styles.visitModeIcon}>{selected ? '✓' : '📄'}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.visitModeTitle}>{trame.nom}</Text>
-                      <Text style={styles.visitModeText}>{trame.description || `Trame ${trame.nom}`}</Text>
-                    </View>
-                  </TouchableOpacity>
-                );
-              })}
-
-              <Text style={[styles.fieldLabel, { marginTop: 14, marginBottom: 8 }]}>Mode</Text>
-              <TouchableOpacity style={[styles.visitModeCard, visites.length === 0 && { opacity: 0.45 }]} disabled={visites.length === 0} onPress={() => nouvelleVisite('express')}>
-                <Text style={styles.visitModeIcon}>⚡</Text>
-                <View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite Express</Text><Text style={styles.visitModeText}>{visites.length === 0 ? 'Disponible après une première visite complète.' : 'Reprend automatiquement la trame de la dernière visite et les informations stables.'}</Text></View>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.visitModeCard} onPress={() => nouvelleVisite('complete')}>
-                <Text style={styles.visitModeIcon}>📋</Text>
-                <View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite complète</Text><Text style={styles.visitModeText}>Parcourt toute la trame sélectionnée pour une première visite ou un audit détaillé.</Text></View>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10 }]} onPress={() => setChoixModeVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-            </ScrollView>
-          </View>
-        </View>
+        <View style={styles.modalOverlay}><View style={styles.modalSheet}><ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+          <Text style={styles.modalTitle}>Nouvelle visite</Text>
+          <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>Trame de visite</Text>
+          {tramesDisponibles.map((trame) => {
+            const selected = trameChoisie === trame.id;
+            return <TouchableOpacity key={trame.id} style={[styles.visitModeCard, selected && { borderColor: COLORS.primary, backgroundColor: '#FFF7EF' }]} onPress={() => setTrameChoisie(trame.id)}><Text style={styles.visitModeIcon}>{selected ? '✓' : '📄'}</Text><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{trame.nom}</Text><Text style={styles.visitModeText}>{trame.description || `Trame ${trame.nom}`}</Text></View></TouchableOpacity>;
+          })}
+          <Text style={[styles.fieldLabel, { marginTop: 14, marginBottom: 8 }]}>Mode</Text>
+          <TouchableOpacity style={[styles.visitModeCard, visites.length === 0 && { opacity: 0.45 }]} disabled={visites.length === 0} onPress={() => nouvelleVisite('express')}><Text style={styles.visitModeIcon}>⚡</Text><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite Express</Text><Text style={styles.visitModeText}>{visites.length === 0 ? 'Disponible après une première visite complète.' : 'Reprend automatiquement la trame de la dernière visite et les informations stables.'}</Text></View></TouchableOpacity>
+          <TouchableOpacity style={styles.visitModeCard} onPress={() => nouvelleVisite('complete')}><Text style={styles.visitModeIcon}>📋</Text><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite complète</Text><Text style={styles.visitModeText}>Parcourt toute la trame sélectionnée pour une première visite ou un audit détaillé.</Text></View></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10 }]} onPress={() => setChoixModeVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
+        </ScrollView></View></View>
       </Modal>
     </View>
   );
