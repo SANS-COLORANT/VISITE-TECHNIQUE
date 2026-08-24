@@ -45,22 +45,33 @@ async function nettoyerJournauxSQLite(baseUri = cheminBaseSQLite()) {
 }
 
 async function partagerFichier(uri, titre, mimeType = 'application/octet-stream') {
-  if (await Sharing.isAvailableAsync()) {
-    await Sharing.shareAsync(uri, { mimeType, dialogTitle: titre });
+  if (!(await Sharing.isAvailableAsync())) {
+    throw new Error('Le partage de fichiers est indisponible sur cet appareil.');
   }
+  await Sharing.shareAsync(uri, { mimeType, dialogTitle: titre });
 }
 
+/**
+ * Exporte la base seule dans le cache Android, ouvre la feuille de partage puis
+ * détruit la copie temporaire. La sauvegarde durable est celle choisie par
+ * l'utilisateur dans Drive, OneDrive, mail ou stockage externe.
+ */
 export async function exporterSauvegardeBase() {
   const db = await getDb();
   await db.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
   const source = cheminBaseSQLite();
   if (!(await existe(source))) throw new Error('Fichier de base SQLite introuvable');
-  const dossier = `${FileSystem.documentDirectory}backups/`;
+
+  const dossier = `${FileSystem.cacheDirectory}vt-share/`;
   await FileSystem.makeDirectoryAsync(dossier, { intermediates: true });
   const destination = `${dossier}Visite_Technique_${horodatageSauvegarde()}.db`;
-  await FileSystem.copyAsync({ from: source, to: destination });
-  await partagerFichier(destination, 'Sauvegarder les données Visite Technique');
-  return destination;
+  try {
+    await FileSystem.copyAsync({ from: source, to: destination });
+    await partagerFichier(destination, 'Sauvegarder les données Visite Technique');
+    return { nom: destination.split('/').pop(), partage: true };
+  } finally {
+    await FileSystem.deleteAsync(destination, { idempotent: true }).catch(()=>{});
+  }
 }
 
 /** Archive complète, générée nativement sans charger les JPEG en mémoire JS. */
@@ -74,35 +85,38 @@ export async function exporterSauvegardeComplete() {
   const travail = `${FileSystem.cacheDirectory}vt-backup-${stamp}/`;
   const dossierDb = `${travail}database/`;
   const dossierPhotos = `${travail}photos/`;
+  const archiveUri = `${FileSystem.cacheDirectory}Visite_Technique_Complet_${stamp}.zip`;
+
   await nettoyerDossier(travail);
-  await FileSystem.makeDirectoryAsync(dossierDb, { intermediates: true });
-  await FileSystem.copyAsync({ from: sourceDb, to: `${dossierDb}${DATABASE_NAME}` });
+  try {
+    await FileSystem.makeDirectoryAsync(dossierDb, { intermediates: true });
+    await FileSystem.copyAsync({ from: sourceDb, to: `${dossierDb}${DATABASE_NAME}` });
 
-  const photosSource = cheminPhotos();
-  if (await existe(photosSource)) await FileSystem.copyAsync({ from: photosSource, to: dossierPhotos });
-  else await FileSystem.makeDirectoryAsync(dossierPhotos, { intermediates: true });
+    const photosSource = cheminPhotos();
+    if (await existe(photosSource)) await FileSystem.copyAsync({ from: photosSource, to: dossierPhotos });
+    else await FileSystem.makeDirectoryAsync(dossierPhotos, { intermediates: true });
 
-  const comptePhotos = await db.getFirstAsync('SELECT COUNT(*) AS n FROM photos');
-  const compteVisites = await db.getFirstAsync('SELECT COUNT(*) AS n FROM visites');
-  const manifeste = {
-    format: BACKUP_FORMAT,
-    formatVersion: BACKUP_FORMAT_VERSION,
-    schemaVersion: DATABASE_SCHEMA_VERSION,
-    createdAt: new Date().toISOString(),
-    database: `database/${DATABASE_NAME}`,
-    photosRoot: 'photos/',
-    counts: { visites: Number(compteVisites?.n || 0), photos: Number(comptePhotos?.n || 0) },
-  };
-  await FileSystem.writeAsStringAsync(`${travail}manifest.json`, JSON.stringify(manifeste, null, 2));
+    const comptePhotos = await db.getFirstAsync('SELECT COUNT(*) AS n FROM photos');
+    const compteVisites = await db.getFirstAsync('SELECT COUNT(*) AS n FROM visites');
+    const manifeste = {
+      format: BACKUP_FORMAT,
+      formatVersion: BACKUP_FORMAT_VERSION,
+      schemaVersion: DATABASE_SCHEMA_VERSION,
+      createdAt: new Date().toISOString(),
+      database: `database/${DATABASE_NAME}`,
+      photosRoot: 'photos/',
+      counts: { visites: Number(compteVisites?.n || 0), photos: Number(comptePhotos?.n || 0) },
+    };
+    await FileSystem.writeAsStringAsync(`${travail}manifest.json`, JSON.stringify(manifeste, null, 2));
 
-  const dossierSortie = `${FileSystem.documentDirectory}backups/`;
-  await FileSystem.makeDirectoryAsync(dossierSortie, { intermediates: true });
-  const archiveUri = `${dossierSortie}Visite_Technique_Complet_${stamp}.zip`;
-  if (await existe(archiveUri)) await FileSystem.deleteAsync(archiveUri, { idempotent: true });
-  await zip(cheminNatif(travail), cheminNatif(archiveUri));
-  await FileSystem.deleteAsync(travail, { idempotent: true });
-  await partagerFichier(archiveUri, 'Sauvegarde complète Visite Technique', 'application/zip');
-  return { uri: archiveUri, manifeste };
+    if (await existe(archiveUri)) await FileSystem.deleteAsync(archiveUri, { idempotent: true });
+    await zip(cheminNatif(travail), cheminNatif(archiveUri));
+    await partagerFichier(archiveUri, 'Sauvegarde complète Visite Technique', 'application/zip');
+    return { uri: null, nom: archiveUri.split('/').pop(), manifeste, partage: true };
+  } finally {
+    await FileSystem.deleteAsync(travail, { idempotent: true }).catch(()=>{});
+    await FileSystem.deleteAsync(archiveUri, { idempotent: true }).catch(()=>{});
+  }
 }
 
 async function lireEtVerifierManifeste(dossier) {
