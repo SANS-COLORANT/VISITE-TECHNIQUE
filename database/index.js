@@ -17,12 +17,6 @@ import { seedEquipmentCatalogImages } from './equipmentCatalogImageSeed.js';
 let databasePromise = null;
 let catalogueEnrichmentPromise = null;
 
-/**
- * L'ancien écran Visite utilise les résultats de champs_visite/controles_visite
- * à la fois comme tableau ET comme dictionnaire "section||clé". Expo SQLite
- * renvoie uniquement un tableau. On enrichit donc le tableau avec des propriétés
- * indexées, sans casser les autres consommateurs qui continuent à itérer dessus.
- */
 function installerCompatibiliteVisite(db) {
   if (db.__visiteMapCompatInstalled) return;
   const getAllAsyncNatif = db.getAllAsync.bind(db);
@@ -48,13 +42,6 @@ async function configurerSQLitePourTablette(db) {
   await db.execAsync('PRAGMA foreign_keys = ON;');
 }
 
-/**
- * Enrichissement catalogue volontairement différé.
- * Le démarrage de l'app ne doit pas attendre les milliers d'INSERT/UPDATE du
- * catalogue étendu. Le socle catalogue est créé dans openAppDatabase(); les
- * jeux de données lourds sont appliqués une seule fois au premier écran qui
- * en a réellement besoin.
- */
 export async function ensureEquipmentCatalogReady() {
   if (!catalogueEnrichmentPromise) {
     catalogueEnrichmentPromise = (async () => {
@@ -86,7 +73,6 @@ export function openAppDatabase() {
       installerCompatibiliteVisite(db);
       await migrateDatabase(db);
       await syncReferenceCatalog(db);
-      // Petit socle indispensable uniquement. Le reste est chargé à la demande.
       await seedEquipmentCatalog(db);
       return db;
     })().catch((error) => {
@@ -95,6 +81,20 @@ export function openAppDatabase() {
     });
   }
   return databasePromise;
+}
+
+/** Ferme la connexion native afin de pouvoir remplacer la base pendant une restauration. */
+export async function closeAppDatabase() {
+  const promise = databasePromise;
+  databasePromise = null;
+  catalogueEnrichmentPromise = null;
+  if (!promise) return;
+  try {
+    const db = await promise;
+    await db.closeAsync();
+  } catch {
+    // La promesse peut déjà être en échec ; les références sont malgré tout remises à zéro.
+  }
 }
 
 export { verifyDatabaseIntegrity };
