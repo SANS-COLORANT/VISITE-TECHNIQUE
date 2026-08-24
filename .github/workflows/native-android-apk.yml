@@ -19,7 +19,7 @@ concurrency:
 jobs:
   build-apk:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 35
 
     steps:
       - name: Checkout
@@ -47,17 +47,32 @@ jobs:
           npx expo install --check
           npx expo-doctor
 
+      - name: Validate JavaScript bundle
+        run: npx expo export --platform android --output-dir dist-ci
+
       - name: Generate Android project
         run: npx expo prebuild --clean --platform android --no-install
 
-      - name: Build debug APK
+      - name: Build diagnostic debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon
 
-      - name: Upload APK
+      - name: Build standalone release APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon
+
+      - name: Upload standalone tablet APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: visite-technique-tablet-release
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
           name: visite-technique-android-debug
-          path: android/app/build/outputs/apk/debug/app-debug.apk
+          path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
-          retention-days: 14
+          retention-days: 7
