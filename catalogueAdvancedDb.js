@@ -21,7 +21,18 @@ function expandSearch(value=''){
   return [...out];
 }
 
-export async function rechercherCatalogueIntelligent({recherche='',categorieId=null,marqueId=null,favoris=false,lifecycle=null,limit=250}={}){
+/**
+ * Recherche catalogue optimisée pour l'usage tablette.
+ *
+ * Les cartes de navigation n'ont besoin que du nombre de variantes. Les
+ * compteurs documents/courbes impliquent deux sous-requêtes corrélées par
+ * modèle et ne sont donc calculés que lorsqu'un appelant les demande
+ * explicitement avec includeStats=true (audit/diagnostic catalogue).
+ */
+export async function rechercherCatalogueIntelligent({
+  recherche='',categorieId=null,marqueId=null,favoris=false,lifecycle=null,
+  limit=250,includeStats=false,
+}={}){
   const db=await getDb();
   const terms=expandSearch(recherche);
   const params=[];
@@ -32,20 +43,30 @@ export async function rechercherCatalogueIntelligent({recherche='',categorieId=n
   if(favoris)filters.push('COALESCE(u.favori,0)=1');
   if(terms.length){
     const chunks=[];
-    for(const term of terms){const like=`%${term}%`;chunks.push(`(
-      lower(c.nom) LIKE ? OR lower(b.nom) LIKE ? OR lower(m.nom) LIKE ? OR lower(COALESCE(m.reference,'')) LIKE ? OR
-      lower(COALESCE(m.caracteristiques,'')) LIKE ? OR lower(COALESCE(m.mots_cles,'')) LIKE ? OR lower(COALESCE(m.aliases,'')) LIKE ? OR
-      EXISTS(SELECT 1 FROM variantes_equipement v WHERE v.modele_id=m.id AND v.actif=1 AND (lower(v.nom) LIKE ? OR lower(COALESCE(v.reference,'')) LIKE ? OR lower(COALESCE(v.description,'')) LIKE ?)) OR
-      EXISTS(SELECT 1 FROM variantes_equipement v JOIN caracteristiques_equipement s ON s.variante_id=v.id WHERE v.modele_id=m.id AND v.actif=1 AND (lower(s.cle) LIKE ? OR lower(COALESCE(s.valeur,'')) LIKE ? OR lower(COALESCE(s.unite,'')) LIKE ?))
-    )`);for(let i=0;i<13;i++)params.push(like);}
+    for(const term of terms){
+      const like=`%${term}%`;
+      chunks.push(`(
+        lower(c.nom) LIKE ? OR lower(b.nom) LIKE ? OR lower(m.nom) LIKE ? OR lower(COALESCE(m.reference,'')) LIKE ? OR
+        lower(COALESCE(m.caracteristiques,'')) LIKE ? OR lower(COALESCE(m.mots_cles,'')) LIKE ? OR lower(COALESCE(m.aliases,'')) LIKE ? OR
+        EXISTS(SELECT 1 FROM variantes_equipement v WHERE v.modele_id=m.id AND v.actif=1 AND (lower(v.nom) LIKE ? OR lower(COALESCE(v.reference,'')) LIKE ? OR lower(COALESCE(v.description,'')) LIKE ?)) OR
+        EXISTS(SELECT 1 FROM variantes_equipement v JOIN caracteristiques_equipement s ON s.variante_id=v.id WHERE v.modele_id=m.id AND v.actif=1 AND (lower(s.cle) LIKE ? OR lower(COALESCE(s.valeur,'')) LIKE ? OR lower(COALESCE(s.unite,'')) LIKE ?))
+      )`);
+      for(let i=0;i<13;i++)params.push(like);
+    }
     filters.push(`(${chunks.join(' OR ')})`);
   }
+
+  const statsSql=includeStats?`,
+    (SELECT COUNT(*) FROM variantes_equipement v JOIN documents_equipement d ON d.variante_id=v.id WHERE v.modele_id=m.id) nb_documents,
+    (SELECT COUNT(*) FROM variantes_equipement v JOIN courbes_equipement q ON q.variante_id=v.id WHERE v.modele_id=m.id) nb_courbes`:`,
+    0 nb_documents,
+    0 nb_courbes`;
+
   params.push(limit);
   return db.getAllAsync(`SELECT m.*,c.nom categorie,c.icone,b.nom marque,b.logo_uri,b.couleur,
     COALESCE(u.favori,0) favori,u.dernier_acces,u.ouvertures,
-    (SELECT COUNT(*) FROM variantes_equipement v WHERE v.modele_id=m.id AND v.actif=1) nb_variantes,
-    (SELECT COUNT(*) FROM variantes_equipement v JOIN documents_equipement d ON d.variante_id=v.id WHERE v.modele_id=m.id) nb_documents,
-    (SELECT COUNT(*) FROM variantes_equipement v JOIN courbes_equipement q ON q.variante_id=v.id WHERE v.modele_id=m.id) nb_courbes
+    (SELECT COUNT(*) FROM variantes_equipement v WHERE v.modele_id=m.id AND v.actif=1) nb_variantes
+    ${statsSql}
     FROM modeles_equipement m JOIN categories_equipement c ON c.id=m.categorie_id JOIN marques_equipement b ON b.id=m.marque_id
     LEFT JOIN catalogue_usage u ON u.modele_id=m.id
     WHERE ${filters.join(' AND ')}
@@ -78,6 +99,6 @@ export function scoreCompletudeModele(model={}){
 }
 
 export async function obtenirAuditCompletudeCatalogue(limit=50){
-  const rows=await rechercherCatalogueIntelligent({limit:1000});
+  const rows=await rechercherCatalogueIntelligent({limit:1000,includeStats:true});
   return rows.map(r=>({...r,completude:scoreCompletudeModele(r)})).sort((a,b)=>a.completude-b.completude||String(a.marque).localeCompare(String(b.marque))).slice(0,limit);
 }
