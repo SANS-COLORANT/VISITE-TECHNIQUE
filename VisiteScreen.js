@@ -152,7 +152,7 @@ function VisiteScreen({ route, onBack }) {
       if (activeTab === 'p-regulation') return <PanelRegulation visiteId={visiteId} onSaved={onSaved} />;
       if (activeTab === 'p-releves') return <PanelReleves visiteId={visiteId} onSaved={onSaved} />;
       if (activeTab === 'p-equip') return <OptimizedEquipmentPanel visiteId={visiteId} />;
-      if (activeTab === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} />;
+      if (activeTab === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} />;
       if (activeTab === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
     }
     return <TrameGenericPanel visiteId={visiteId} panelId={activeTab} sections={panels[activeTab]} onSaved={onSaved} />;
