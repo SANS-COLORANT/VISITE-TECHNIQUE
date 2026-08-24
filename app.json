@@ -22,7 +22,8 @@
         "expo-image-picker",
         {
           "cameraPermission": "Autoriser Visite Technique à utiliser l'appareil photo pour documenter les visites techniques.",
-          "photosPermission": "Autoriser Visite Technique à accéder aux photos nécessaires aux visites techniques."
+          "photosPermission": "Autoriser Visite Technique à accéder aux photos nécessaires aux visites techniques.",
+          "microphonePermission": false
         }
       ],
       [
