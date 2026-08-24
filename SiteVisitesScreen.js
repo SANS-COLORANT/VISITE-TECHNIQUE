@@ -1,7 +1,7 @@
 /** Écran Historique des visites d'un site + localisation GPS sans carte native. */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView } from 'react-native';
 import * as Location from 'expo-location';
 import { COLORS, styles } from './styles.js';
 import { listerVisitesSite, getDb } from './db.js';
@@ -10,6 +10,7 @@ import { supprimerVisiteComplete } from './entityManagementDb.js';
 import { getSiteLocalisation, enregistrerSiteLocalisation, coordonneeValide } from './siteGeoDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
+import { listerTramesDisponibles, obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 
 const STATUT_LABELS = { en_cours: 'En cours', terminee: 'Terminée', a_completer: 'À compléter', exportee: 'Exportée' };
 
@@ -18,12 +19,14 @@ function SiteVisitesScreen({ route, navigation }) {
   const [visites, setVisites] = useState([]);
   const [site, setSite] = useState(null);
   const [choixModeVisible, setChoixModeVisible] = useState(false);
+  const [trameChoisie, setTrameChoisie] = useState(DEFAULT_TRAME_ID);
   const [gpsVisible, setGpsVisible] = useState(false);
   const [adresse, setAdresse] = useState('');
   const [latitude, setLatitude] = useState('');
   const [longitude, setLongitude] = useState('');
   const [note, setNote] = useState('');
   const [localisationEnCours, setLocalisationEnCours] = useState(false);
+  const tramesDisponibles = listerTramesDisponibles();
 
   const charger = useCallback(async () => {
     const [v, s] = await Promise.all([listerVisitesSite(siteId), getSiteLocalisation(siteId)]);
@@ -39,10 +42,19 @@ function SiteVisitesScreen({ route, navigation }) {
 
   useEffect(() => { charger(); }, [charger]);
 
+  const ouvrirNouvelleVisite = () => {
+    const derniereTrame = visites[0]?.trame_id;
+    setTrameChoisie(derniereTrame || DEFAULT_TRAME_ID);
+    setChoixModeVisible(true);
+  };
+
   const nouvelleVisite = async (mode) => {
     if (mode === 'express' && visites.length === 0) return;
+    const trameId = mode === 'express'
+      ? (visites[0]?.trame_id || trameChoisie || DEFAULT_TRAME_ID)
+      : (trameChoisie || DEFAULT_TRAME_ID);
     setChoixModeVisible(false);
-    const visiteId = await creerVisiteProduction({ siteId, mode });
+    const visiteId = await creerVisiteProduction({ siteId, mode, trameId });
     const db = await getDb();
     await preremplirVisiteDepuisContexte(db, visiteId);
     navigation.navigate('Visite', { visiteId });
@@ -184,26 +196,29 @@ function SiteVisitesScreen({ route, navigation }) {
         data={visites}
         keyExtractor={(item) => item.id}
         ListHeaderComponent={<View><LocalisationHeader /><Text style={styles.sectionLabel}>Historique des visites — {nomSite}</Text></View>}
-        renderItem={({ item }) => (
-          <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => navigation.navigate('Visite', { visiteId: item.id })}>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.cardTitle}>{item.date_visite || 'Sans date'}</Text>
-              <Text style={styles.cardSub}>{item.technicien || ''}</Text>
-            </View>
-            <View style={styles.badge}><Text style={styles.badgeText}>{STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%</Text></View>
-            <TouchableOpacity
-              onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(item); }}
-              style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}
-              accessibilityLabel={`Supprimer la visite du ${item.date_visite || ''}`}
-            >
-              <Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text>
+        renderItem={({ item }) => {
+          const trame = obtenirTrame(item.trame_id || DEFAULT_TRAME_ID);
+          return (
+            <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => navigation.navigate('Visite', { visiteId: item.id })}>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>{item.date_visite || 'Sans date'}</Text>
+                <Text style={styles.cardSub}>{trame.nom}{item.technicien ? ` · ${item.technicien}` : ''}</Text>
+              </View>
+              <View style={styles.badge}><Text style={styles.badgeText}>{STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%</Text></View>
+              <TouchableOpacity
+                onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(item); }}
+                style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}
+                accessibilityLabel={`Supprimer la visite du ${item.date_visite || ''}`}
+              >
+                <Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text>
+              </TouchableOpacity>
             </TouchableOpacity>
-          </TouchableOpacity>
-        )}
+          );
+        }}
         ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>Lance la première avec le bouton ci-dessous.</Text></View>}
       />
       <View style={styles.fabBar}>
-        <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={() => setChoixModeVisible(true)}><Text style={styles.btnPrimaryText}>+ Nouvelle visite</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={ouvrirNouvelleVisite}><Text style={styles.btnPrimaryText}>+ Nouvelle visite</Text></TouchableOpacity>
       </View>
 
       <Modal visible={gpsVisible} transparent animationType="fade" onRequestClose={() => setGpsVisible(false)}>
@@ -234,16 +249,37 @@ function SiteVisitesScreen({ route, navigation }) {
       <Modal visible={choixModeVisible} transparent animationType="fade" onRequestClose={() => setChoixModeVisible(false)}>
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Choisir le type de visite</Text>
-            <TouchableOpacity style={[styles.visitModeCard, visites.length === 0 && { opacity: 0.45 }]} disabled={visites.length === 0} onPress={() => nouvelleVisite('express')}>
-              <Text style={styles.visitModeIcon}>⚡</Text>
-              <View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite Express</Text><Text style={styles.visitModeText}>{visites.length === 0 ? 'Disponible après une première visite complète.' : 'Reprend la dernière trame. Confirme les éléments inchangés et relève les nouvelles anomalies.'}</Text></View>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.visitModeCard} onPress={() => nouvelleVisite('complete')}>
-              <Text style={styles.visitModeIcon}>📋</Text>
-              <View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite complète</Text><Text style={styles.visitModeText}>Parcourt toute la trame pour une première visite ou un audit détaillé.</Text></View>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10 }]} onPress={() => setChoixModeVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>Nouvelle visite</Text>
+              <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>Trame de visite</Text>
+              {tramesDisponibles.map((trame) => {
+                const selected = trameChoisie === trame.id;
+                return (
+                  <TouchableOpacity
+                    key={trame.id}
+                    style={[styles.visitModeCard, selected && { borderColor: COLORS.primary, backgroundColor: '#FFF7EF' }]}
+                    onPress={() => setTrameChoisie(trame.id)}
+                  >
+                    <Text style={styles.visitModeIcon}>{selected ? '✓' : '📄'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.visitModeTitle}>{trame.nom}</Text>
+                      <Text style={styles.visitModeText}>{trame.description || `Trame ${trame.nom}`}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+
+              <Text style={[styles.fieldLabel, { marginTop: 14, marginBottom: 8 }]}>Mode</Text>
+              <TouchableOpacity style={[styles.visitModeCard, visites.length === 0 && { opacity: 0.45 }]} disabled={visites.length === 0} onPress={() => nouvelleVisite('express')}>
+                <Text style={styles.visitModeIcon}>⚡</Text>
+                <View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite Express</Text><Text style={styles.visitModeText}>{visites.length === 0 ? 'Disponible après une première visite complète.' : 'Reprend automatiquement la trame de la dernière visite et les informations stables.'}</Text></View>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.visitModeCard} onPress={() => nouvelleVisite('complete')}>
+                <Text style={styles.visitModeIcon}>📋</Text>
+                <View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite complète</Text><Text style={styles.visitModeText}>Parcourt toute la trame sélectionnée pour une première visite ou un audit détaillé.</Text></View>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10 }]} onPress={() => setChoixModeVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
+            </ScrollView>
           </View>
         </View>
       </Modal>
