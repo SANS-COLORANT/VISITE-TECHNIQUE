@@ -85,7 +85,7 @@ export function R1EasterEgg({ visible, onFinish }) {
   });
 
   return (
-    <Modal visible transparent animationType="none" statusBarTranslucent>
+    <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={() => {}}>
       <Pressable style={styles.backdrop} onPress={() => {}}>
         <Animated.View style={[styles.stage, { opacity, transform: [{ scale }] }]}> 
           {showBoot && (
@@ -142,19 +142,8 @@ export function R1EasterEgg({ visible, onFinish }) {
 }
 
 const styles = StyleSheet.create({
-  backdrop: {
-    flex: 1,
-    backgroundColor: '#070707',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  stage: {
-    width: '100%',
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 28,
-  },
+  backdrop: { flex: 1, backgroundColor: '#070707', alignItems: 'center', justifyContent: 'center' },
+  stage: { width: '100%', flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
   centered: { alignItems: 'center', justifyContent: 'center' },
   symbol: { color: '#E7E7E7', fontSize: 38, letterSpacing: 2, marginBottom: 18 },
   kicker: { color: '#A5A5A5', fontSize: 11, letterSpacing: 4, fontWeight: '600' },
