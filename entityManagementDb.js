@@ -1,6 +1,27 @@
+import * as FileSystem from 'expo-file-system';
 import { getDb } from './db.js';
 
+function estPhotoGereeParApplication(uri) {
+  return !!uri && !!FileSystem.documentDirectory && String(uri).startsWith(`${FileSystem.documentDirectory}visite-technique/photos/`);
+}
+
+async function supprimerFichiersPhotos(uris = []) {
+  const uniques = [...new Set((uris || []).filter(estPhotoGereeParApplication))];
+  for (const uri of uniques) {
+    try {
+      await FileSystem.deleteAsync(uri, { idempotent: true });
+    } catch {
+      // La suppression en base ne doit jamais échouer parce qu'un ancien fichier
+      // photo a déjà disparu du stockage local.
+    }
+  }
+}
+
 async function supprimerDonneesVisite(db, visiteId) {
+  // Les URI doivent être mémorisées avant le DELETE SQL afin de pouvoir
+  // nettoyer le stockage natif une fois la transaction validée.
+  const photos = await db.getAllAsync(`SELECT uri FROM photos WHERE visite_id=?`, [visiteId]);
+
   // Tables historiques/legacy sans FK explicites : nettoyage manuel pour ne laisser aucun orphelin.
   const tables = [
     'photos', 'remarques', 'notes', 'controles_visite', 'champs_visite',
@@ -12,13 +33,16 @@ async function supprimerDonneesVisite(db, visiteId) {
   }
   await db.runAsync(`UPDATE journal_modifications SET visite_id=NULL WHERE visite_id=?`, [visiteId]);
   await db.runAsync(`DELETE FROM visites WHERE id=?`, [visiteId]);
+  return photos.map((p) => p.uri).filter(Boolean);
 }
 
 export async function supprimerVisiteComplete(visiteId) {
   const db = await getDb();
+  let photosASupprimer = [];
   await db.withTransactionAsync(async () => {
-    await supprimerDonneesVisite(db, visiteId);
+    photosASupprimer = await supprimerDonneesVisite(db, visiteId);
   });
+  await supprimerFichiersPhotos(photosASupprimer);
 }
 
 export async function getResumeSuppressionSite(siteId) {
@@ -35,9 +59,13 @@ export async function getResumeSuppressionSite(siteId) {
 
 export async function supprimerSiteComplet(siteId) {
   const db = await getDb();
+  const photosASupprimer = [];
   await db.withTransactionAsync(async () => {
     const visites = await db.getAllAsync(`SELECT id FROM visites WHERE site_id=?`, [siteId]);
-    for (const visite of visites) await supprimerDonneesVisite(db, visite.id);
+    for (const visite of visites) {
+      const uris = await supprimerDonneesVisite(db, visite.id);
+      photosASupprimer.push(...uris);
+    }
 
     const installations = await db.getAllAsync(`SELECT id FROM installations WHERE site_id=?`, [siteId]);
     for (const installation of installations) {
@@ -71,6 +99,7 @@ export async function supprimerSiteComplet(siteId) {
     await db.runAsync(`DELETE FROM journal_modifications WHERE entite_type='site' AND entite_id=?`, [siteId]);
     await db.runAsync(`DELETE FROM sites WHERE id=?`, [siteId]);
   });
+  await supprimerFichiersPhotos(photosASupprimer);
 }
 
 export async function getResumeSuppressionClient(clientId) {
