@@ -10,6 +10,7 @@ import { ClientSitesScreen } from './ClientSitesScreen.js';
 import { VisiteScreen } from './VisiteScreen.js';
 import { ParametresScreen } from './ParametresScreen.js';
 import { SiteVisitesScreen } from './SiteVisitesScreen.js';
+import { AppErrorBoundary } from './AppErrorBoundary.js';
 
 function SimpleHeader({ title, onBack }) {
   return (
@@ -27,7 +28,7 @@ function SimpleHeader({ title, onBack }) {
   );
 }
 
-export default function App() {
+function AppContent() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(null);
   const [stack, setStack] = useState([{ name: 'Home', params: {} }]);
@@ -46,7 +47,6 @@ export default function App() {
   useEffect(() => { initialiser(); }, [initialiser]);
 
   const navigate = useCallback((name, params = {}) => {
-    // Évite d'empiler deux fois le même écran lors d'un double tap rapide.
     setStack((s) => {
       const current = s[s.length - 1];
       if (current?.name === name && JSON.stringify(current.params || {}) === JSON.stringify(params || {})) return s;
@@ -58,11 +58,9 @@ export default function App() {
     setStack((s) => (s.length > 1 ? s.slice(0, -1) : s));
   }, []);
 
-  // La navigation interne étant volontairement légère, on raccorde
-  // explicitement le bouton Retour Android à notre pile d'écrans.
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (stack.length <= 1) return false; // laisse Android quitter depuis l'accueil
+      if (stack.length <= 1) return false;
       goBack();
       return true;
     });
@@ -124,5 +122,13 @@ export default function App() {
         </>
       )}
     </View>
+  );
+}
+
+export default function App() {
+  return (
+    <AppErrorBoundary>
+      <AppContent />
+    </AppErrorBoundary>
   );
 }
