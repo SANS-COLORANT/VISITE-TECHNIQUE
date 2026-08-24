@@ -1,6 +1,10 @@
 import { getDb } from './db.js';
 
 export function coordonneeValide(latitude, longitude) {
+  if (
+    latitude === null || latitude === undefined || latitude === '' ||
+    longitude === null || longitude === undefined || longitude === ''
+  ) return false;
   const lat = Number(latitude);
   const lng = Number(longitude);
   return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
