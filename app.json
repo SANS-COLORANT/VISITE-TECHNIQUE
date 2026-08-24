@@ -6,7 +6,6 @@
     "orientation": "default",
     "userInterfaceStyle": "automatic",
     "jsEngine": "hermes",
-    "newArchEnabled": false,
     "android": {
       "package": "com.visitetechnique.tablet",
       "versionCode": 1,
