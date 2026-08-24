@@ -11,7 +11,8 @@ import {
   listerCategoriesEquipement,
   listerMarquesEquipement,
 } from './db.js';
-import { TypeAheadInput, ChipSelector, useSaisieAvecAutoSave } from './GenericFields.js';
+import { TypeAheadInput, ChipSelector } from './GenericFields.js';
+import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 import { BrandMark } from './BrandLogo.js';
 import { COLORS, styles } from './styles.js';
@@ -30,9 +31,9 @@ const EquipmentCard = memo(function EquipmentCard({ item, visiteId, onChange, ca
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
   const [biblioChargee, setBiblioChargee] = useState(false);
-  const [designation, setDesignation, blurDesignation] = useSaisieAvecAutoSave(item.designation, (v) => upsertMaterielChamp(item.id, 'designation', v));
-  const [modele, setModele, blurModele] = useSaisieAvecAutoSave(item.modele, (v) => upsertMaterielChamp(item.id, 'modele', v));
-  const [annee, setAnnee, blurAnnee] = useSaisieAvecAutoSave(item.annee, (v) => upsertMaterielChamp(item.id, 'annee', v));
+  const [designation, setDesignation, blurDesignation] = useDurableAutosave(item.designation, (v) => upsertMaterielChamp(item.id, 'designation', v));
+  const [modele, setModele, blurModele] = useDurableAutosave(item.modele, (v) => upsertMaterielChamp(item.id, 'modele', v));
+  const [annee, setAnnee, blurAnnee] = useDurableAutosave(item.annee, (v) => upsertMaterielChamp(item.id, 'annee', v));
 
   useEffect(() => {
     setCategorie(item.categorie || '');
