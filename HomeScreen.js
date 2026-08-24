@@ -190,6 +190,7 @@ function HomeScreen({ navigation }) {
             {importPreview && (
               <>
                 <Text style={styles.importFileName}>{importPreview.nomFichier}</Text>
+                <View style={[styles.badge, { alignSelf: 'flex-start', marginBottom: 8 }]}><Text style={styles.badgeText}>Trame détectée : {importPreview.trameNom || importPreview.trameId}</Text></View>
                 <Text style={styles.importSiteTitle}>{importPreview.client} · {importPreview.site}</Text>
                 <Text style={styles.cardSub}>{importPreview.adresse || 'Adresse non renseignée'} · {importPreview.dateVisite}</Text>
                 <View style={styles.importStatsGrid}>
@@ -200,7 +201,7 @@ function HomeScreen({ navigation }) {
                   <ImportStat nombre={importPreview.compteurs.length} label="Compteurs" />
                   <ImportStat nombre={importPreview.remarques.length} label="Réserves" />
                 </View>
-                <Text style={styles.importHint}>Vérifie ces informations avant de créer la visite. Le fichier original ne sera pas modifié.</Text>
+                <Text style={styles.importHint}>Vérifie la trame détectée et ces informations avant de créer la visite. Le fichier original ne sera pas modifié.</Text>
               </>
             )}
             <View style={styles.modalActions}>
