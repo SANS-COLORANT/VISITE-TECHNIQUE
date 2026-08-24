@@ -1,12 +1,10 @@
-/** Import d'une TRAME ICPE Excel existante avec aperçu puis intégration SQLite. */
+/** Import Excel générique : détecte la trame, analyse via son mapping puis intègre SQLite. */
 
 import * as XLSX from 'xlsx';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
-import { TRAME_DATA, EXCEL_ROWS } from './data.js';
+import { detecterTrameDepuisClasseur } from './trameRegistry.js';
 import { getDb, uuidv4 } from './db.js';
-
-const RESEAU_BLOCS_DEBUT = [66, 76, 86, 96, 106, 116];
 
 function valeurCellule(sheet, ref) {
   const cell = sheet?.[ref];
@@ -19,12 +17,27 @@ function valeurCellule(sheet, ref) {
   return String(cell.v).trim();
 }
 
-function sectionCode(panelId, section) {
-  return panelId.replace('p-', '') + '.' + section.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-}
-
 function nettoyerLabel(cle) {
   return cle.replace(/^Index\s*/i, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
+function lireTable(sheet, config) {
+  if (!sheet || !config) return [];
+  const resultats = [];
+  const debut = Number(config.startRow || 1);
+  const fin = Number(config.maxImportRow || 500);
+  const columns = config.columns || [];
+  for (let row = debut; row <= fin; row++) {
+    const objet = {};
+    let nonVide = false;
+    for (const [col, cle] of columns) {
+      const valeur = valeurCellule(sheet, `${col}${row}`);
+      objet[cle] = valeur;
+      if (valeur !== '') nonVide = true;
+    }
+    if (nonVide) resultats.push(objet);
+  }
+  return resultats;
 }
 
 export async function choisirEtAnalyserExcel() {
@@ -38,7 +51,7 @@ export async function choisirEtAnalyserExcel() {
   const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
   const wb = XLSX.read(base64, { type: 'base64', cellDates: true });
   const analyse = analyserClasseur(wb, asset.name || 'import.xlsx');
-  analyse.sourceId = `${analyse.nomFichier}:${empreinteLegere(base64)}`;
+  analyse.sourceId = `${analyse.trameId}:${analyse.nomFichier}:${empreinteLegere(base64)}`;
   return analyse;
 }
 
@@ -52,88 +65,71 @@ function empreinteLegere(texte) {
 }
 
 export function analyserClasseur(wb, nomFichier) {
-  const trame = wb.Sheets['TRAME ICPE'] || wb.Sheets[wb.SheetNames[0]];
-  if (!trame) throw new Error('Aucune feuille exploitable dans ce fichier.');
+  const definition = detecterTrameDepuisClasseur(wb, valeurCellule);
+  if (!definition) {
+    throw new Error('Le format de ce fichier n’est associé à aucune trame connue de l’application.');
+  }
+  const cfg = definition.excel;
+  const principale = wb.Sheets[cfg.mainSheet];
+  if (!principale) throw new Error(`Feuille principale « ${cfg.mainSheet} » absente du fichier.`);
+
   const champs = [];
   const controles = [];
   const compteurs = [];
 
-  Object.entries(TRAME_DATA).forEach(([panelId, sections]) => {
-    Object.entries(sections).forEach(([section, fields]) => {
-      fields.forEach((field) => {
-        const row = EXCEL_ROWS[`${section}||${field.cle}`];
-        if (!row) return;
-        const valeur = valeurCellule(trame, `B${row}`);
-        const commentaire = valeurCellule(trame, `C${row}`);
-        if (!valeur && !commentaire) return;
-        const item = { sectionCode: sectionCode(panelId, section), cle: field.cle, valeur };
-        if (field.type === 'controle') controles.push({ ...item, avis: valeur, commentaire });
-        else {
-          champs.push(item);
-          if (/^Index/i.test(field.cle) && valeur) {
-            compteurs.push({
-              label: nettoyerLabel(field.cle),
-              valeur,
-              unite: (field.cle.match(/\(([^)]+)\)/) || [])[1] || '',
-            });
-          }
-        }
-      });
-    });
-  });
-
-  const reseaux = RESEAU_BLOCS_DEBUT.map((row, index) => ({
-    ordre: index + 1,
-    tExt: valeurCellule(trame, `B${row}`),
-    tDep: valeurCellule(trame, `B${row + 1}`),
-    nom: valeurCellule(trame, `B${row + 2}`),
-    courbe: valeurCellule(trame, `B${row + 3}`),
-    tnc: valeurCellule(trame, `B${row + 4}`),
-    programme: valeurCellule(trame, `B${row + 5}`),
-  })).filter((r) => r.nom || r.tExt || r.tDep || r.courbe || r.tnc || r.programme);
-
-  const materielSheet = wb.Sheets['MATERIEL'];
-  const materiel = [];
-  if (materielSheet) {
-    for (let row = 4; row <= 500; row++) {
-      const values = 'ABCDEFGHIJ'.split('').map((col) => valeurCellule(materielSheet, `${col}${row}`));
-      if (!values.some(Boolean)) continue;
-      materiel.push({
-        categorie: values[0], nombre: values[1], designation: values[2], numero: values[3],
-        reseau: values[4], marque: values[5], modele: values[6], caracteristiques: values[7],
-        annee: values[8], etat: values[9] || 'Bon',
-      });
+  for (const mapping of cfg.fieldMappings || []) {
+    const valeur = valeurCellule(principale, mapping.valueCell);
+    const commentaire = mapping.commentCell ? valeurCellule(principale, mapping.commentCell) : '';
+    if (!valeur && !commentaire) continue;
+    const item = { sectionCode: mapping.sectionCode, cle: mapping.cle, valeur };
+    if (mapping.type === 'controle') {
+      controles.push({ ...item, avis: valeur, commentaire });
+    } else {
+      champs.push(item);
+      if (/^Index/i.test(mapping.cle) && valeur) {
+        compteurs.push({
+          label: nettoyerLabel(mapping.cle),
+          valeur,
+          unite: (mapping.cle.match(/\(([^)]+)\)/) || [])[1] || '',
+        });
+      }
     }
   }
 
-  const remarquesSheet = wb.Sheets['REMARQUES'];
-  const remarques = [];
-  if (remarquesSheet) {
-    for (let row = 4; row <= 500; row++) {
-      const poste = valeurCellule(remarquesSheet, `A${row}`);
-      const prestation = valeurCellule(remarquesSheet, `B${row}`);
-      if (!poste && !prestation) continue;
-      remarques.push({
-        poste,
-        prestation,
-        delai: valeurCellule(remarquesSheet, `D${row}`),
-        estimatif: valeurCellule(remarquesSheet, `F${row}`),
-      });
+  const reseauxCfg = cfg.networks;
+  const reseauxSheet = reseauxCfg ? (wb.Sheets[reseauxCfg.mainSheet || cfg.mainSheet] || principale) : null;
+  const reseaux = reseauxCfg ? (reseauxCfg.starts || []).map((row, index) => {
+    const r = { ordre: index + 1 };
+    for (const [cle, offset] of Object.entries(reseauxCfg.importOffsets || {})) {
+      r[cle] = valeurCellule(reseauxSheet, `B${row + offset}`);
     }
-  }
+    return r;
+  }).filter((r) => Object.entries(r).some(([k, v]) => k !== 'ordre' && !!v)) : [];
+
+  const tables = cfg.tables || {};
+  const materielCfg = tables.materiel;
+  const materiel = materielCfg ? lireTable(wb.Sheets[materielCfg.sheet], materielCfg).map((m) => ({ ...m, etat: m.etat || 'Bon' })) : [];
+
+  const remarquesCfg = tables.remarques;
+  const remarques = remarquesCfg ? lireTable(wb.Sheets[remarquesCfg.sheet], remarquesCfg) : [];
+
+  const noteCfg = tables.note;
+  const note = noteCfg ? valeurCellule(wb.Sheets[noteCfg.sheet], noteCfg.cell) : '';
 
   if (!champs.length && !controles.length && !reseaux.length && !compteurs.length && !materiel.length && !remarques.length) {
-    throw new Error('Le format de ce fichier n’est pas reconnu. Utilise une trame exportée par l’application.');
+    throw new Error(`La trame ${definition.nom} a été reconnue, mais aucune donnée exploitable n’a été trouvée.`);
   }
 
+  const meta = cfg.metadata || {};
   return {
+    trameId: definition.id,
+    trameNom: definition.nom,
     nomFichier,
-    client: valeurCellule(trame, 'B1') || 'Client importé',
-    site: valeurCellule(trame, 'B2') || 'Site importé',
-    adresse: valeurCellule(trame, 'B3'),
-    dateVisite: valeurCellule(trame, 'B5') || new Date().toISOString().slice(0, 10),
-    champs, controles, reseaux, compteurs, materiel, remarques,
-    note: valeurCellule(wb.Sheets['NOTE'], 'A2'),
+    client: valeurCellule(principale, meta.client) || 'Client importé',
+    site: valeurCellule(principale, meta.site) || 'Site importé',
+    adresse: valeurCellule(principale, meta.adresse),
+    dateVisite: valeurCellule(principale, meta.dateVisite) || new Date().toISOString().slice(0, 10),
+    champs, controles, reseaux, compteurs, materiel, remarques, note,
   };
 }
 
@@ -141,7 +137,7 @@ export async function importerAnalyseExcel(analyse) {
   const db = await getDb();
   const deja = await db.getFirstAsync(
     `SELECT entite_id FROM provenances WHERE origine = 'import_excel' AND reference_externe = ?`,
-    [analyse.sourceId || analyse.nomFichier]
+    [analyse.sourceId || `${analyse.trameId}:${analyse.nomFichier}`]
   );
   if (deja) return { visiteId: deja.entite_id, dejaImporte: true };
 
@@ -169,8 +165,9 @@ export async function importerAnalyseExcel(analyse) {
 
     visiteId = uuidv4();
     await db.runAsync(
-      `INSERT INTO visites (id, site_id, date_visite, technicien, statut) VALUES (?, ?, ?, 'Import Excel', 'a_completer')`,
-      [visiteId, site.id, analyse.dateVisite]
+      `INSERT INTO visites (id, site_id, date_visite, technicien, statut, trame_id)
+       VALUES (?, ?, ?, 'Import Excel', 'a_completer', ?)`,
+      [visiteId, site.id, analyse.dateVisite, analyse.trameId || 'icpe_v1']
     );
 
     for (const item of analyse.champs) {
@@ -296,13 +293,20 @@ export async function importerAnalyseExcel(analyse) {
     await db.runAsync(
       `INSERT INTO provenances (id, entite_type, entite_id, origine, reference_externe, details_json) VALUES (?, 'visite', ?, 'import_excel', ?, ?)`,
       [
-        uuidv4(), visiteId, analyse.sourceId || analyse.nomFichier,
-        JSON.stringify({ fichier: analyse.nomFichier, client: analyse.client, site: analyse.site, dateVisite: analyse.dateVisite }),
+        uuidv4(), visiteId, analyse.sourceId || `${analyse.trameId}:${analyse.nomFichier}`,
+        JSON.stringify({
+          fichier: analyse.nomFichier,
+          trameId: analyse.trameId,
+          trameNom: analyse.trameNom,
+          client: analyse.client,
+          site: analyse.site,
+          dateVisite: analyse.dateVisite,
+        }),
       ]
     );
   }).catch((error) => {
     throw new Error(`Import interrompu pendant l’étape « ${etape} » : ${error.message || error}`);
   });
 
-  return { visiteId, dejaImporte: false };
+  return { visiteId, dejaImporte: false, trameId: analyse.trameId, trameNom: analyse.trameNom };
 }
