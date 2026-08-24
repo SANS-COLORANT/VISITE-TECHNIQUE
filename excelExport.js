@@ -1,7 +1,7 @@
 /** Export Excel natif Android — conserve le modèle original et ouvre le partage système. */
 
 import * as XLSX from 'xlsx';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import { TEMPLATE_EXCEL_BASE64 } from './templateExcel.js';
@@ -9,14 +9,7 @@ import { EXCEL_ROWS, TRAME_DATA } from './data.js';
 import { getDb, getVisite, listerReseaux, listerMateriel, listerRemarques, getNote } from './db.js';
 
 const RESEAU_BLOCS_DEBUT = [66, 76, 86, 96, 106, 116];
-const RESEAU_OFFSETS = {
-  t_ext_c: 0,
-  t_dep_c: 1,
-  nom_reseau: 2,
-  courbe_de_chauffe: 3,
-  tnc: 4,
-  consigne_programme_horaire: 5,
-};
+const RESEAU_OFFSETS = { t_ext_c: 0, t_dep_c: 1, nom_reseau: 2, courbe_de_chauffe: 3, tnc: 4, consigne_programme_horaire: 5 };
 
 function setCell(sheet, ref, valeur) {
   if (!sheet || valeur === null || valeur === undefined || valeur === '') return;
@@ -26,11 +19,7 @@ function setCell(sheet, ref, valeur) {
 }
 
 function slugFichier(valeur) {
-  return String(valeur || 'site')
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '') || 'site';
+  return String(valeur || 'site').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'site';
 }
 
 async function construireClasseur(visiteId) {
@@ -41,19 +30,10 @@ async function construireClasseur(visiteId) {
   const [champs, controles, reseaux, materiel, remarques, note] = await Promise.all([
     db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id = ?`, [visiteId]),
     db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id = ?`, [visiteId]),
-    listerReseaux(visiteId),
-    listerMateriel(visiteId),
-    listerRemarques(visiteId),
-    getNote(visiteId),
+    listerReseaux(visiteId), listerMateriel(visiteId), listerRemarques(visiteId), getNote(visiteId),
   ]);
 
-  const wb = XLSX.read(TEMPLATE_EXCEL_BASE64, {
-    type: 'base64',
-    cellStyles: true,
-    cellNF: true,
-    bookVBA: true,
-  });
-
+  const wb = XLSX.read(TEMPLATE_EXCEL_BASE64, { type: 'base64', cellStyles: true, cellNF: true, bookVBA: true });
   const sheetTrame = wb.Sheets['TRAME ICPE'];
   const sheetMateriel = wb.Sheets['MATERIEL'];
   const sheetRemarques = wb.Sheets['REMARQUES'];
@@ -77,10 +57,7 @@ async function construireClasseur(visiteId) {
           if (row) setCell(sheetTrame, `B${ligne}`, row.valeur);
         } else if (f.type === 'controle') {
           const row = controles.find((c) => c.section_code === sectionCode && c.cle === f.cle);
-          if (row) {
-            setCell(sheetTrame, `B${ligne}`, row.avis);
-            setCell(sheetTrame, `C${ligne}`, row.commentaire);
-          }
+          if (row) { setCell(sheetTrame, `B${ligne}`, row.avis); setCell(sheetTrame, `C${ligne}`, row.commentaire); }
         }
       }
     }
@@ -89,17 +66,12 @@ async function construireClasseur(visiteId) {
   reseaux.forEach((r, i) => {
     if (i >= RESEAU_BLOCS_DEBUT.length) return;
     const debut = RESEAU_BLOCS_DEBUT[i];
-    Object.entries(RESEAU_OFFSETS).forEach(([champ, offset]) => {
-      setCell(sheetTrame, `B${debut + offset}`, r[champ]);
-    });
+    Object.entries(RESEAU_OFFSETS).forEach(([champ, offset]) => setCell(sheetTrame, `B${debut + offset}`, r[champ]));
   });
 
   if (sheetMateriel) {
     const materielCols = ['categorie', 'nombre', 'designation', 'numero_materiel', 'reseau_desservi', 'marque', 'modele', 'caracteristiques', 'annee', 'etat'];
-    materiel.forEach((m, i) => {
-      const ligne = 4 + i;
-      materielCols.forEach((col, ci) => setCell(sheetMateriel, `${String.fromCharCode(65 + ci)}${ligne}`, m[col]));
-    });
+    materiel.forEach((m, i) => { const ligne = 4 + i; materielCols.forEach((col, ci) => setCell(sheetMateriel, `${String.fromCharCode(65 + ci)}${ligne}`, m[col])); });
   }
 
   if (sheetRemarques) {
@@ -113,7 +85,6 @@ async function construireClasseur(visiteId) {
   }
 
   if (sheetNote) setCell(sheetNote, 'A2', note?.contenu || '');
-
   return { wb, visite };
 }
 
@@ -124,11 +95,7 @@ async function exporterEtPartager(visiteId) {
   const dossier = FileSystem.cacheDirectory || FileSystem.documentDirectory;
   if (!dossier) throw new Error('Stockage local Android indisponible');
   const chemin = dossier + nomFichier;
-
-  await FileSystem.writeAsStringAsync(chemin, base64, {
-    encoding: FileSystem.EncodingType.Base64,
-  });
-
+  await FileSystem.writeAsStringAsync(chemin, base64, { encoding: FileSystem.EncodingType.Base64 });
   if (await Sharing.isAvailableAsync()) {
     await Sharing.shareAsync(chemin, {
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
