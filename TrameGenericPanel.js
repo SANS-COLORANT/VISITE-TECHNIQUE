@@ -2,7 +2,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { SectionList, Text, View } from 'react-native';
 import { getChampsVisite, getControlesVisite } from './db.js';
-import { ChampGenerique, ControleGenerique } from './GenericFields.js';
+import { ControleGenerique } from './GenericFields.js';
+import { DurableChampGenerique } from './DurableChampGenerique.js';
 import { styles } from './styles.js';
 
 const visiteDataCache = new Map();
@@ -57,6 +58,18 @@ export function invaliderCacheTrameGenerique(visiteId) {
   visiteDataCache.delete(visiteId);
 }
 
+export function mettreAJourCacheChamp(visiteId, key, valeur) {
+  const courant = visiteDataCache.get(visiteId);
+  if (!courant?.data) return;
+  visiteDataCache.set(visiteId, {
+    data: {
+      ...courant.data,
+      champsMap: { ...courant.data.champsMap, [key]: valeur },
+    },
+    promise: courant.promise || null,
+  });
+}
+
 export function TrameGenericPanel({ visiteId, panelId, sections, onSaved }) {
   const cacheInitial = visiteDataCache.get(visiteId)?.data;
   const [champsMap, setChampsMap] = useState(cacheInitial?.champsMap || {});
@@ -100,12 +113,16 @@ export function TrameGenericPanel({ visiteId, panelId, sections, onSaved }) {
       renderItem={({ item }) => (
         <View style={styles.formCard}>
           {item.field.type === 'champ' ? (
-            <ChampGenerique
+            <DurableChampGenerique
               visiteId={visiteId}
               sectionCode={item.sectionCode}
               field={item.field}
               valeurInitiale={champsMap[item.key]}
-              onSaved={onSaved}
+              onSaved={(valeur) => {
+                setChampsMap((courant) => ({ ...courant, [item.key]: valeur }));
+                mettreAJourCacheChamp(visiteId, item.key, valeur);
+                onSaved?.();
+              }}
             />
           ) : (
             <ControleGenerique
