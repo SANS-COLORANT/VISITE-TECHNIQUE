@@ -7,6 +7,7 @@ import { listerSitesClient, creerSite } from './db.js';
 import { getResumeSuppressionSite, supprimerSiteComplet } from './entityManagementDb.js';
 import { sitesAvecGps } from './siteGeoDb.js';
 import { SiteAddressManager } from './SiteAddressManager.js';
+import { exporterDernieresVisitesClient } from './clientBatchExport.js';
 
 function ClientSitesScreen({ route, navigation }) {
   const { clientId } = route.params;
@@ -15,6 +16,7 @@ function ClientSitesScreen({ route, navigation }) {
   const [gestionVisible, setGestionVisible] = useState(false);
   const [nouveauNom, setNouveauNom] = useState('');
   const [nouvelleAdresse, setNouvelleAdresse] = useState('');
+  const [exportClientEnCours, setExportClientEnCours] = useState(false);
 
   const charger = useCallback(async () => {
     const liste = await listerSitesClient(clientId);
@@ -31,6 +33,25 @@ function ClientSitesScreen({ route, navigation }) {
     if (!nouveauNom.trim()) { Alert.alert('Nom requis', 'Merci de saisir le nom du site.'); return; }
     await creerSite({ clientId, nomSite: nouveauNom.trim(), adresse: nouvelleAdresse.trim() || null });
     setNouveauNom(''); setNouvelleAdresse(''); setModalVisible(false); await charger();
+  };
+
+  const exporterDernieresVisites = async () => {
+    if (exportClientEnCours) return;
+    setExportClientEnCours(true);
+    try {
+      const resultat = await exporterDernieresVisitesClient(clientId);
+      if (resultat.annule) return;
+      const ok = resultat.enregistres?.length || 0;
+      const erreurs = resultat.erreurs?.length || 0;
+      Alert.alert(
+        'Export client terminé',
+        `${ok} dernière${ok > 1 ? 's' : ''} visite${ok > 1 ? 's' : ''} exportée${ok > 1 ? 's' : ''}${erreurs ? ` · ${erreurs} erreur${erreurs > 1 ? 's' : ''}` : ''}.`
+      );
+    } catch (e) {
+      Alert.alert('Export impossible', String(e?.message || e));
+    } finally {
+      setExportClientEnCours(false);
+    }
   };
 
   const ouvrirSite = (site) => navigation.navigate('SiteVisites', { siteId: site.id, nomSite: site.nom_site });
@@ -97,7 +118,7 @@ function ClientSitesScreen({ route, navigation }) {
         ListHeaderComponent={
           <View>
             <ResumeLocalisation />
-            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
+            <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
               <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => setGestionVisible(true)}>
                 <Text style={styles.btnSecondaryText}>⚙️ Gérer les sites</Text>
               </TouchableOpacity>
@@ -105,6 +126,13 @@ function ClientSitesScreen({ route, navigation }) {
                 <Text style={styles.btnPrimaryText}>+ Ajouter un site</Text>
               </TouchableOpacity>
             </View>
+            <TouchableOpacity
+              style={[styles.btnSecondary, { marginBottom: 14 }]}
+              onPress={exporterDernieresVisites}
+              disabled={exportClientEnCours || sites.length === 0}
+            >
+              <Text style={styles.btnSecondaryText}>{exportClientEnCours ? 'Export en cours…' : '⇩ Exporter les dernières visites du client'}</Text>
+            </TouchableOpacity>
             {(sansAdresse > 0 || sansGps > 0) ? (
               <View style={{ backgroundColor: '#FFF8E7', borderWidth: 1, borderColor: '#F0D99B', borderRadius: 12, padding: 10, marginBottom: 14 }}>
                 <Text style={{ color: '#7A5700', fontSize: 12, fontWeight: '700' }}>
