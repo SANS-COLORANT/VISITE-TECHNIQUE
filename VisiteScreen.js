@@ -10,7 +10,7 @@ import { exporterEtPartager } from './excelExport.js';
 import { OptimizedRegulationPanel, prechargerRegulation, invaliderCacheRegulation } from './OptimizedRegulationPanel.js';
 import { OptimizedRelevesPanel } from './OptimizedRelevesPanel.js';
 import { OptimizedPhotoPanel } from './OptimizedPhotoPanel.js';
-import { OptimizedEquipmentPanel } from './OptimizedEquipmentPanel.js';
+import { GuidedEquipmentPanel } from './GuidedEquipmentPanel.js';
 import { OptimizedRemarksPanel } from './OptimizedRemarksPanel.js';
 import { TrameGenericPanel, prechargerDonneesTrameGenerique, invaliderCacheTrameGenerique } from './TrameGenericPanel.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
@@ -215,7 +215,7 @@ function VisiteScreen({ route, onBack }) {
     if (specialPanels.has(pid)) {
       if (pid === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
       if (pid === 'p-releves') return <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} />;
-      if (pid === 'p-equip') return <OptimizedEquipmentPanel visiteId={visiteId} />;
+      if (pid === 'p-equip') return <GuidedEquipmentPanel visiteId={visiteId} />;
       if (pid === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} />;
       if (pid === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
     }
