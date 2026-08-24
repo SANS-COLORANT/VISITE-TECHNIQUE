@@ -1,4 +1,4 @@
-/** Écran Visite — navigation responsive téléphone/tablette. */
+/** Écran Visite — navigation responsive pilotée par la trame active. */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions } from 'react-native';
@@ -8,13 +8,15 @@ import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { recalculerProgressionVisite } from './visitProgressDb.js';
 import { exporterEtPartager } from './excelExport.js';
-import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves } from './VisitePanels.js';
+import { PanelRegulation, PanelReleves } from './VisitePanels.js';
 import { OptimizedPhotoPanel } from './OptimizedPhotoPanel.js';
 import { OptimizedEquipmentPanel } from './OptimizedEquipmentPanel.js';
 import { OptimizedRemarksPanel } from './OptimizedRemarksPanel.js';
+import { TrameGenericPanel } from './TrameGenericPanel.js';
+import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 
-const TABS_REELS = TAB_ORDER.filter((t) => t !== 'SEP');
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+const SPECIAL_PANEL_DEFAULTS = ['p-regulation', 'p-releves', 'p-equip', 'p-remarques', 'p-photos'];
 
 function VisiteScreen({ route, onBack }) {
   const { visiteId } = route.params;
@@ -23,14 +25,31 @@ function VisiteScreen({ route, onBack }) {
   const [visite, setVisite] = useState(null);
   const [activeTab, setActiveTab] = useState('p-infos');
   const activeTabRef = useRef('p-infos');
+  const tabOrderRef = useRef([]);
   const changementTimerRef = useRef(null);
   const [noteVisible, setNoteVisible] = useState(false);
   const [noteTxt, setNoteTxt] = useState('');
   const [anomalieVisible, setAnomalieVisible] = useState(false);
   const [anomalieTxt, setAnomalieTxt] = useState('');
 
+  const trame = obtenirTrame(visite?.trame_id || DEFAULT_TRAME_ID);
+  const tabOrder = trame.ui?.tabOrder || [];
+  const panelLabels = trame.ui?.labels || {};
+  const panels = trame.ui?.panels || {};
+  const specialPanels = new Set(trame.ui?.specialPanels || SPECIAL_PANEL_DEFAULTS);
+  const tabsReels = tabOrder.filter((t) => t !== 'SEP');
+
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
+  useEffect(() => { tabOrderRef.current = tabsReels; }, [trame.id, tabOrder.join('|')]);
   useEffect(() => () => { if (changementTimerRef.current) clearTimeout(changementTimerRef.current); }, []);
+
+  useEffect(() => {
+    if (!visite || tabsReels.length === 0) return;
+    if (!tabsReels.includes(activeTabRef.current)) {
+      activeTabRef.current = tabsReels[0];
+      setActiveTab(tabsReels[0]);
+    }
+  }, [visite?.trame_id, tabsReels.join('|')]);
 
   const changerOnglet = useCallback((prochain) => {
     if (!prochain || prochain === activeTabRef.current) return;
@@ -68,9 +87,10 @@ function VisiteScreen({ route, onBack }) {
     PanResponder.create({
       onMoveShouldSetPanResponder: (evt, g) => Math.abs(g.dx) > 35 && Math.abs(g.dx) > Math.abs(g.dy) * 1.6,
       onPanResponderRelease: (evt, g) => {
-        const idx = TABS_REELS.indexOf(activeTabRef.current);
-        if (g.dx < -35 && idx < TABS_REELS.length - 1) changerOnglet(TABS_REELS[idx + 1]);
-        else if (g.dx > 35 && idx > 0) changerOnglet(TABS_REELS[idx - 1]);
+        const tabs = tabOrderRef.current;
+        const idx = tabs.indexOf(activeTabRef.current);
+        if (g.dx < -35 && idx >= 0 && idx < tabs.length - 1) changerOnglet(tabs[idx + 1]);
+        else if (g.dx > 35 && idx > 0) changerOnglet(tabs[idx - 1]);
       },
     })
   ).current;
@@ -98,8 +118,6 @@ function VisiteScreen({ route, onBack }) {
     if (exporting) return;
     setExporting(true);
     try {
-      // Ferme le champ actif puis laisse les sauvegardes onBlur atteindre SQLite
-      // avant de construire le classeur à partir de la base.
       Keyboard.dismiss();
       await attendre(180);
       const resultat = await exporterEtPartager(visiteId);
@@ -126,16 +144,18 @@ function VisiteScreen({ route, onBack }) {
     });
     setAnomalieTxt('');
     setAnomalieVisible(false);
-    changerOnglet('p-remarques');
+    if (tabsReels.includes('p-remarques')) changerOnglet('p-remarques');
   };
 
   const contenuActif = () => {
-    if (activeTab === 'p-regulation') return <PanelRegulation visiteId={visiteId} onSaved={onSaved} />;
-    if (activeTab === 'p-releves') return <PanelReleves visiteId={visiteId} onSaved={onSaved} />;
-    if (activeTab === 'p-equip') return <OptimizedEquipmentPanel visiteId={visiteId} />;
-    if (activeTab === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} />;
-    if (activeTab === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
-    return <PanelGenerique visiteId={visiteId} panelId={activeTab} onSaved={onSaved} />;
+    if (specialPanels.has(activeTab)) {
+      if (activeTab === 'p-regulation') return <PanelRegulation visiteId={visiteId} onSaved={onSaved} />;
+      if (activeTab === 'p-releves') return <PanelReleves visiteId={visiteId} onSaved={onSaved} />;
+      if (activeTab === 'p-equip') return <OptimizedEquipmentPanel visiteId={visiteId} />;
+      if (activeTab === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} />;
+      if (activeTab === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
+    }
+    return <TrameGenericPanel visiteId={visiteId} panelId={activeTab} sections={panels[activeTab]} onSaved={onSaved} />;
   };
 
   if (!visite) {
@@ -151,13 +171,13 @@ function VisiteScreen({ route, onBack }) {
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>{visite.nom_site}</Text>
-            <Text style={styles.cardSub}>{visite.nom_client} · {visite.date_visite} · {visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'}</Text>
+            <Text style={styles.cardSub}>{visite.nom_client} · {visite.date_visite} · {trame.nom} · {visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'}</Text>
           </View>
           <TouchableOpacity style={styles.noteBtn} onPress={ouvrirNote}>
             <Text style={styles.noteBtnText}>Note libre</Text>
           </TouchableOpacity>
           <TouchableOpacity style={styles.exportBtn} onPress={exporter} disabled={exporting}>
-            <Text style={styles.exportBtnText}>{exporting ? '...' : 'Exporter'}</Text>
+            <Text style={styles.exportBtnText}>{exporting ? '...' : `Exporter ${trame.nom}`}</Text>
           </TouchableOpacity>
         </View>
         <View style={styles.progressRow}>
@@ -174,12 +194,12 @@ function VisiteScreen({ route, onBack }) {
         )}
         {!modeTablette && (
           <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.tabStrip}>
-            {TAB_ORDER.map((pid, i) =>
+            {tabOrder.map((pid, i) =>
               pid === 'SEP' ? (
                 <View key={`sep-${i}`} style={styles.tabSep} />
               ) : (
                 <TouchableOpacity key={pid} style={styles.tabItem} onPress={() => changerOnglet(pid)}>
-                  <Text style={[styles.tabItemText, activeTab === pid && styles.tabItemTextActive]}>{PANEL_LABELS[pid]}</Text>
+                  <Text style={[styles.tabItemText, activeTab === pid && styles.tabItemTextActive]}>{panelLabels[pid] || pid}</Text>
                   {activeTab === pid && <View style={styles.tabUnderline} />}
                 </TouchableOpacity>
               )
@@ -192,7 +212,7 @@ function VisiteScreen({ route, onBack }) {
         <View style={{ flex: 1, flexDirection: 'row' }}>
           <View style={{ width: 205, backgroundColor: '#FFFFFF', borderRightWidth: 1, borderRightColor: COLORS.line }}>
             <ScrollView contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: 9 }} showsVerticalScrollIndicator={false}>
-              {TAB_ORDER.map((pid, i) => pid === 'SEP' ? (
+              {tabOrder.map((pid, i) => pid === 'SEP' ? (
                 <View key={`side-sep-${i}`} style={{ height: 1, backgroundColor: COLORS.line, marginVertical: 8 }} />
               ) : (
                 <TouchableOpacity
@@ -211,7 +231,7 @@ function VisiteScreen({ route, onBack }) {
                   }}
                 >
                   <Text style={{ fontSize: 13, fontWeight: activeTab === pid ? '800' : '600', color: activeTab === pid ? COLORS.primary : COLORS.text }}>
-                    {PANEL_LABELS[pid]}
+                    {panelLabels[pid] || pid}
                   </Text>
                 </TouchableOpacity>
               ))}
@@ -230,7 +250,7 @@ function VisiteScreen({ route, onBack }) {
       <Modal visible={noteVisible} transparent animationType="fade">
         <View style={styles.modalOverlay}>
           <View style={styles.modalSheet}>
-            <Text style={styles.modalTitle}>Note libre — feuille NOTE</Text>
+            <Text style={styles.modalTitle}>Note libre — {trame.nom}</Text>
             <TextInput style={[styles.input, { height: 160, textAlignVertical: 'top' }]} multiline value={noteTxt} onChangeText={onChangeNoteTxt} placeholder="Notes générales sur la visite..." />
             <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
           </View>
