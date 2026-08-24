@@ -86,3 +86,5 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 7
+
+# Build trigger: 2026-08-24
