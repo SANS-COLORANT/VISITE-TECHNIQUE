@@ -33,8 +33,10 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
   const sansPhoto = sectionCode === 'infos.g_n_ral' || sectionCode === 'infos.informations_g_n_rales';
 
   const sauvegarder = async (nouvelleValeur) => {
-    await upsertChamp(visiteId, sectionCode, field.cle, nouvelleValeur);
+    // Le cache UI est corrigé synchroniquement avant l'I/O SQLite : un retour
+    // instantané sur l'onglet ne peut donc jamais réafficher l'ancienne valeur.
     onSaved?.(nouvelleValeur);
+    await upsertChamp(visiteId, sectionCode, field.cle, nouvelleValeur);
   };
 
   const [valeur, setValeur, flush, setImmediate] = useDurableAutosave(valeurInitiale, sauvegarder, 450);
