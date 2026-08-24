@@ -15,6 +15,7 @@ import { seedEquipmentCatalogPeripheral } from './equipmentCatalogPeripheralSeed
 import { seedEquipmentCatalogImages } from './equipmentCatalogImageSeed.js';
 
 let databasePromise = null;
+let catalogueEnrichmentPromise = null;
 
 /**
  * L'ancien écran Visite utilise les résultats de champs_visite/controles_visite
@@ -39,28 +40,25 @@ function installerCompatibiliteVisite(db) {
 }
 
 async function configurerSQLitePourTablette(db) {
-  // WAL permet aux lectures de continuer pendant les écritures de saisie.
   await db.execAsync('PRAGMA journal_mode = WAL;');
-  // NORMAL évite un fsync complet à chaque petite sauvegarde tout en gardant
-  // un niveau de durabilité adapté à une base locale WAL.
   await db.execAsync('PRAGMA synchronous = NORMAL;');
-  // Cache SQLite d'environ 16 Mo : petit face à la RAM d'une tablette, mais
-  // suffisant pour conserver les pages chaudes (visite/catalogue) en mémoire.
   await db.execAsync('PRAGMA cache_size = -16384;');
   await db.execAsync('PRAGMA temp_store = MEMORY;');
   await db.execAsync('PRAGMA busy_timeout = 3000;');
   await db.execAsync('PRAGMA foreign_keys = ON;');
 }
 
-export function openAppDatabase() {
-  if (!databasePromise) {
-    databasePromise = (async () => {
-      const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
-      await configurerSQLitePourTablette(db);
-      installerCompatibiliteVisite(db);
-      await migrateDatabase(db);
-      await syncReferenceCatalog(db);
-      await seedEquipmentCatalog(db);
+/**
+ * Enrichissement catalogue volontairement différé.
+ * Le démarrage de l'app ne doit pas attendre les milliers d'INSERT/UPDATE du
+ * catalogue étendu. Le socle catalogue est créé dans openAppDatabase(); les
+ * jeux de données lourds sont appliqués une seule fois au premier écran qui
+ * en a réellement besoin.
+ */
+export async function ensureEquipmentCatalogReady() {
+  if (!catalogueEnrichmentPromise) {
+    catalogueEnrichmentPromise = (async () => {
+      const db = await openAppDatabase();
       await seedEquipmentCatalogExtra(db);
       await seedEquipmentCatalogBreadth(db);
       await seedEquipmentCatalogDeep(db);
@@ -71,6 +69,25 @@ export function openAppDatabase() {
       await seedEquipmentCatalogHydronics(db);
       await seedEquipmentCatalogPeripheral(db);
       await seedEquipmentCatalogImages(db);
+      return db;
+    })().catch((error) => {
+      catalogueEnrichmentPromise = null;
+      throw error;
+    });
+  }
+  return catalogueEnrichmentPromise;
+}
+
+export function openAppDatabase() {
+  if (!databasePromise) {
+    databasePromise = (async () => {
+      const db = await SQLite.openDatabaseAsync(DATABASE_NAME);
+      await configurerSQLitePourTablette(db);
+      installerCompatibiliteVisite(db);
+      await migrateDatabase(db);
+      await syncReferenceCatalog(db);
+      // Petit socle indispensable uniquement. Le reste est chargé à la demande.
+      await seedEquipmentCatalog(db);
       return db;
     })().catch((error) => {
       databasePromise = null;
