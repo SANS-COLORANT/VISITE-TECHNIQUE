@@ -9,6 +9,35 @@ const MIGRATIONS_TABLE_SQL = `
   );
 `;
 
+async function ensureLegacyTimestampColumn(db, tableName) {
+  const columns = await db.getAllAsync(`PRAGMA table_info(${tableName});`);
+  if (!columns.some((column) => column.name === 'cree_le')) {
+    // Certaines bases installées avant le système de migrations possèdent déjà
+    // la table, mais pas la colonne ajoutée par le schéma actuel. CREATE TABLE
+    // IF NOT EXISTS ne peut pas réparer ce cas.
+    await db.execAsync(`ALTER TABLE ${tableName} ADD COLUMN cree_le TEXT;`);
+  }
+
+  // ALTER TABLE n'accepte pas CURRENT_TIMESTAMP comme DEFAULT sur toutes les
+  // versions SQLite Android. Un trigger garantit donc la date pour les futurs
+  // enregistrements sans inventer de date pour l'historique existant.
+  await db.execAsync(`
+    CREATE TRIGGER IF NOT EXISTS ${tableName}_set_cree_le
+    AFTER INSERT ON ${tableName}
+    WHEN NEW.cree_le IS NULL
+    BEGIN
+      UPDATE ${tableName}
+      SET cree_le = datetime('now')
+      WHERE rowid = NEW.rowid;
+    END;
+  `);
+}
+
+async function repairLegacyReportSchema(db) {
+  await ensureLegacyTimestampColumn(db, 'remarques');
+  await ensureLegacyTimestampColumn(db, 'photos');
+}
+
 export async function migrateDatabase(db) {
   await db.execAsync(MIGRATIONS_TABLE_SQL);
   const applied = await db.getAllAsync('SELECT version FROM schema_migrations ORDER BY version');
@@ -25,6 +54,8 @@ export async function migrateDatabase(db) {
       );
     });
   }
+
+  await repairLegacyReportSchema(db);
 
   const current = await db.getFirstAsync('SELECT MAX(version) AS version FROM schema_migrations');
   if ((current?.version ?? 0) !== DATABASE_SCHEMA_VERSION) {
