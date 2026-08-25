@@ -1,0 +1,65 @@
+name: Excel Roundtrip Android Build
+
+on:
+  pull_request:
+    branches:
+      - native-android
+    paths:
+      - 'excel*.js'
+      - 'trameRegistry.js'
+      - 'OptimizedRelevesPanel.js'
+      - 'persistentEquipmentDb.js'
+      - 'controlDb.js'
+      - 'tests/**'
+      - 'package.json'
+      - '.github/workflows/excel-roundtrip-android.yml'
+  workflow_dispatch:
+
+jobs:
+  android-debug:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NODE_ENV: production
+      GRADLE_OPTS: >-
+        -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+        -Dorg.gradle.workers.max=2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Excel OOXML tests
+        run: npm run test:excel
+
+      - name: Generate Android project
+        run: npx expo prebuild --clean --platform android --no-install
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --max-workers=2
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: excel-roundtrip-android-debug
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 7
