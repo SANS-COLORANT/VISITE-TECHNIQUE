@@ -11,6 +11,7 @@
     "android": "expo start --android",
     "doctor": "npx expo-doctor",
     "check:native": "npx expo install --check && npx expo-doctor",
+    "test:excel": "node --test tests/excelOoxmlCore.test.cjs",
     "prebuild:android": "npx expo prebuild --clean --platform android",
     "build:apk": "npx eas-cli build -p android --profile preview",
     "build:aab": "npx eas-cli build -p android --profile production"
