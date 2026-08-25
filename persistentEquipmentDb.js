@@ -52,7 +52,7 @@ async function convertirMaterielLegacy(db, visiteId, installationId) {
       [equipementId, installationId, m.categorie || 'equipement', m.designation || 'Équipement', m.marque || null, m.modele || null, m.annee ? Number(m.annee) || null : null]
     );
     await db.runAsync(`UPDATE materiel SET equipement_id=? WHERE id=?`, [equipementId, m.id]);
-    await upsertObservation(db, equipementId, visiteId, { etat: m.etat || 'Bon', present: 1 });
+    await upsertObservation(db, equipementId, visiteId, { etat: m.etat || null, present: 1 });
   }
 }
 
@@ -71,7 +71,7 @@ async function injecterEquipementsActifsDuSite(db, visiteId, siteId) {
   );
   for (const e of actifs) {
     const materielId = uuidv4();
-    const etat = e.dernier_etat || 'Bon';
+    const etat = e.dernier_etat || null;
     await db.runAsync(
       `INSERT INTO materiel(id,visite_id,categorie,designation,marque,modele,annee,etat,equipement_id)
        VALUES(?,?,?,?,?,?,?,?,?)`,
@@ -116,9 +116,9 @@ export async function ajouterMaterielPersistant(visiteId) {
   );
   await db.runAsync(
     `INSERT INTO materiel(id,visite_id,categorie,designation,etat,equipement_id) VALUES(?,?,?,?,?,?)`,
-    [materielId, visiteId, 'Équipement', 'Équipement', 'Bon', equipementId]
+    [materielId, visiteId, 'Équipement', 'Équipement', null, equipementId]
   );
-  await upsertObservation(db, equipementId, visiteId, { etat: 'Bon', present: 1 });
+  await upsertObservation(db, equipementId, visiteId, { etat: null, present: 1 });
   return materielId;
 }
 
@@ -135,7 +135,7 @@ export async function upsertMaterielPersistant(materielId, cle, valeur) {
   await db.runAsync(`UPDATE materiel SET ${cle}=? WHERE id=?`, [valeur, materielId]);
   if (!m.equipement_id) return;
   if (cle === 'etat') {
-    await upsertObservation(db, m.equipement_id, m.visite_id, { etat: valeur || 'Bon', present: 1 });
+    await upsertObservation(db, m.equipement_id, m.visite_id, { etat: valeur || null, present: 1 });
     return;
   }
   const colonne = CHAMP_EQUIPEMENT[cle];
