@@ -20,67 +20,18 @@ jobs:
           ref: fix/pdf-report-word-layout
           fetch-depth: 0
 
-      - name: Re-encode Word JPEG assets as safe JS chunks
+      - name: Restore last known-good report assets
         run: |
-          python <<'PY'
-          from pathlib import Path
-          import base64
-          import re
-          import textwrap
-
-          path = Path('reportBrandAssets.js')
-          source = path.read_text(encoding='utf-8')
-          names = ['REPORT_LOGO', 'REPORT_MARK', 'REPORT_COVER', 'REPORT_OPQIBI']
-          assets = {}
-
-          for name in names:
-              pattern = rf"export const {name}\s*=\s*'data:image/jpeg;base64,(.*?)';"
-              match = re.search(pattern, source, flags=re.S)
-              if not match:
-                  raise SystemExit(f'{name}: data URI not found')
-
-              encoded = re.sub(r'\s+', '', match.group(1))
-              try:
-                  raw = base64.b64decode(encoded, validate=True)
-              except Exception as exc:
-                  raise SystemExit(f'{name}: invalid base64: {exc}')
-
-              if not (raw.startswith(b'\xff\xd8\xff') and raw.endswith(b'\xff\xd9')):
-                  raise SystemExit(f'{name}: decoded data is not a complete JPEG')
-
-              assets[name] = base64.b64encode(raw).decode('ascii')
-              print(f'{name}: {len(raw)} bytes OK')
-
-          lines = [
-              '// Visuels originaux issus de la trame Word Energie & Service.',
-              '// Les Base64 sont segmentes volontairement pour eviter les lignes JS geantes.',
-              '',
-          ]
-          for name in names:
-              lines.append(f'const {name}_B64 = [')
-              for chunk in textwrap.wrap(assets[name], 120):
-                  lines.append(f"  '{chunk}',")
-              lines.append("] .join('');")
-              lines.append(f"export const {name} = 'data:image/jpeg;base64,' + {name}_B64;")
-              lines.append('')
-
-          output = '\n'.join(lines).replace("] .join", "].join")
-          path.write_text(output, encoding='utf-8')
-          PY
-
-      - name: Validate JavaScript syntax
-        run: |
+          git show 7a3d91859070810b3d1edf72c2f012b08f070f6e:reportBrandAssets.js > reportBrandAssets.js
           cp reportBrandAssets.js /tmp/reportBrandAssets.mjs
           node --check /tmp/reportBrandAssets.mjs
+          rm -f assets/report/report_logo.jpg
 
-      - name: Remove accidental placeholder
-        run: rm -f assets/report/report_logo.jpg
-
-      - name: Commit repaired assets and remove one-time workflow
+      - name: Commit restored assets and remove one-time workflow
         run: |
           rm .github/workflows/repair-report-assets.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add -A
-          git commit -m "fix: make Word report assets Metro-safe"
+          git commit -m "fix: restore valid Word report assets for Metro"
           git push origin HEAD:fix/pdf-report-word-layout
