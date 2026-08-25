@@ -5,6 +5,8 @@ import { TouchableOpacity, Text, Alert, View, Image, Modal } from 'react-native'
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { listerPhotos, ajouterPhoto, remplacerPhoto, getVisite } from './db.js';
+import { upsertRemarquePrescription } from './remarkDb.js';
+import { openAppDatabase } from './database/index.js';
 import { supprimerPhotoComplete } from './photoDb.js';
 import { styles } from './styles.js';
 
@@ -25,6 +27,13 @@ function typePhotoDepuisEntite(entiteKey) {
     remarque: 'Reserve', materiel: 'Equipement', equipement: 'Equipement',
     reseau: 'Reseau', reseau_site: 'Reseau', compteur: 'Compteur', compteur_site: 'Compteur',
   })[type] || 'Photo';
+}
+
+function estCleControle(entiteKey) {
+  const cle = String(entiteKey || '');
+  if (!cle.includes('||')) return false;
+  const prefixe = cle.split('||')[0];
+  return !['remarque','materiel','equipement','reseau','reseau_site','compteur','compteur_site','photo'].includes(prefixe);
 }
 
 function horodatagePhoto(date = new Date()) {
@@ -85,6 +94,25 @@ async function prendrePhoto() {
   return result.assets[0].uri;
 }
 
+async function resoudreReserveDepuisControle(visiteId, controleKey, label) {
+  if (!estCleControle(controleKey)) return null;
+  const db = await openAppDatabase();
+  let remarque = await db.getFirstAsync(
+    `SELECT * FROM remarques WHERE visite_id=? AND controle_key=? LIMIT 1`,
+    [visiteId, controleKey]
+  );
+  if (!remarque?.id) {
+    const id = await upsertRemarquePrescription(
+      visiteId,
+      controleKey,
+      { poste: 'Observation', prestation: String(label || 'Non conformité'), delai: null, estimatif: null },
+      String(label || 'Non conformité')
+    );
+    remarque = { id, prestation: String(label || 'Non conformité') };
+  }
+  return { entiteKey: `remarque||${remarque.id}`, label: remarque.prestation || label || 'Réserve' };
+}
+
 function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhotoSaved }) {
   const [photos, setPhotos] = useState([]);
   const [photosChargees, setPhotosChargees] = useState(false);
@@ -107,24 +135,22 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
   }, [visiteId, entiteKey]);
 
   const resoudreCible = useCallback(async () => {
-    if (!beforeCapture) return { entiteKey, label };
-    const cible = await beforeCapture();
-    if (!cible) return { entiteKey, label };
-    if (typeof cible === 'string') return { entiteKey: cible, label };
-    return { entiteKey: cible.entiteKey || entiteKey, label: cible.label || label };
-  }, [beforeCapture, entiteKey, label]);
+    if (beforeCapture) {
+      const cible = await beforeCapture();
+      if (typeof cible === 'string') return { entiteKey: cible, label };
+      if (cible) return { entiteKey: cible.entiteKey || entiteKey, label: cible.label || label };
+    }
+    const reserve = await resoudreReserveDepuisControle(visiteId, entiteKey, label);
+    return reserve || { entiteKey, label };
+  }, [beforeCapture, visiteId, entiteKey, label]);
 
   const ajouter = async () => {
     try {
       const captureUri = await prendrePhoto(); if (!captureUri) return;
-      // La cible est résolue après la capture afin de ne pas créer une réserve si
-      // l'utilisateur annule simplement l'appareil photo.
       const cible = await resoudreCible();
       const photo = await preparerPhotoNommee({ visiteId, entiteKey: cible.entiteKey, label: cible.label, uri: captureUri });
       const labelDb = photo.nom ? `${cible.label || typePhotoDepuisEntite(cible.entiteKey)}||${photo.nom}` : (cible.label || null);
       const photoId = await ajouterPhoto(visiteId, cible.entiteKey, photo.uri, labelDb);
-      // L'insertion SQLite est attendue avant de rendre la main : la photo est donc
-      // durable même si l'utilisateur swipe immédiatement après la prise de vue.
       const items = await charger(cible.entiteKey);
       setIndex(Math.max(0, items.length - 1));
       onPhotoSaved?.({ id: photoId, entiteKey: cible.entiteKey, uri: photo.uri, label: cible.label });
@@ -132,9 +158,12 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
   };
 
   const onPress = async () => {
-    const items = photosChargees ? photos : await charger();
-    if (items.length > 0) { setIndex(0); setViewerVisible(true); }
-    else await ajouter();
+    try {
+      const cible = await resoudreCible();
+      const items = photosChargees ? photos : await charger(cible.entiteKey);
+      if (items.length > 0) { setIndex(0); setViewerVisible(true); }
+      else await ajouter();
+    } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
   };
 
   const reprendre = async () => {
