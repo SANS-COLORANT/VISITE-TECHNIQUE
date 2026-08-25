@@ -10,6 +10,7 @@ import {
   supprimerCompteur,
   upsertCompteurChamp,
 } from './db.js';
+import { normaliserSectionCode } from './trameRegistry.js';
 import { cleanLabel, useSaisieAvecAutoSave } from './GenericFields.js';
 import { DurableChampGenerique } from './DurableChampGenerique.js';
 import { PhotoButton } from './PhotoButton.js';
@@ -20,6 +21,8 @@ const COMPTEUR_TYPES = [
   'Compteur calories', 'Compteur volumétrique', 'Manomètre chauffage', 'Manomètre ECS',
 ];
 const UNITES = ['m³', 'L', 'MWh', 'kWh', 'bar', '%'];
+const SECTION_COMPTEURS = normaliserSectionCode('p-releves', 'Relevés des compteurs et manomètres');
+const SECTION_TEMPERATURES = normaliserSectionCode('p-releves', 'Températures et pH');
 
 function mapperChamps(rows = []) {
   const map = {};
@@ -137,12 +140,12 @@ export function OptimizedRelevesPanel({ visiteId, onSaved }) {
 
   const rows = useMemo(() => {
     const result = [];
-    champsPression.forEach((f) => result.push({ type: 'champ', id: `pression-${f.cle}`, section: 'releves.compteurs', field: f }));
+    champsPression.forEach((f) => result.push({ type: 'champ', id: `pression-${f.cle}`, section: SECTION_COMPTEURS, field: f }));
     result.push({ type: 'titre', id: 'titre-compteurs', label: 'Compteurs relevés' });
     compteurs.forEach((c) => result.push({ type: 'compteur', id: `compteur-${c.id}`, compteur: c }));
     result.push({ type: 'ajout', id: 'ajout-compteur' });
     result.push({ type: 'titre', id: 'titre-temperatures', label: 'Températures et pH' });
-    champsTemp.forEach((f) => result.push({ type: 'champ', id: `temp-${f.cle}`, section: 'releves.temperatures', field: f }));
+    champsTemp.forEach((f) => result.push({ type: 'champ', id: `temp-${f.cle}`, section: SECTION_TEMPERATURES, field: f }));
     return result;
   }, [champsPression, champsTemp, compteurs]);
 
