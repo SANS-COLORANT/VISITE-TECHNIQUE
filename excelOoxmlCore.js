@@ -37,7 +37,6 @@ function obtenirCheminsFeuilles(workbookXml, relsXml) {
     const target = attrValue(match[1], 'Target');
     if (id && target) relations.set(id, normaliserTarget(target));
   }
-
   const feuilles = new Map();
   for (const match of String(workbookXml || '').matchAll(/<sheet\b([^>]*)\/?>(?:<\/sheet>)?/g)) {
     const nom = attrValue(match[1], 'name');
@@ -49,12 +48,7 @@ function obtenirCheminsFeuilles(workbookXml, relsXml) {
 }
 
 function sansAttributType(attrs) {
-  // Pour une cellule OOXML auto-fermante (<c .../>), le groupe regex peut
-  // capturer le slash final dans les attributs. Il faut l'enlever avant de
-  // reconstruire une balise ouvrante, sinon on produit <c .../ t="...">.
-  return String(attrs || '')
-    .replace(/\s+t="[^"]*"/g, '')
-    .replace(/\s*\/\s*$/, '');
+  return String(attrs || '').replace(/\s+t="[^"]*"/g, '').replace(/\s*\/\s*$/, '');
 }
 
 function construireValeurXml(value, valueType) {
@@ -76,11 +70,9 @@ function insererLigneManquante(xml, numeroLigne, celluleXml) {
   const source = String(xml || '');
   const sheetData = source.match(/<sheetData\b[^>]*>[\s\S]*?<\/sheetData>/);
   if (!sheetData) throw new Error('Structure Excel invalide : sheetData introuvable.');
-
   const ligneXml = `<row r="${numeroLigne}">${celluleXml}</row>`;
   const lignes = [...sheetData[0].matchAll(/<row\b([^>]*)\br="([0-9]+)"[^>]*(?:\/>|>[\s\S]*?<\/row>)/g)];
   const suivante = lignes.find((match) => Number(match[2]) > Number(numeroLigne));
-
   let sheetDataModifie;
   if (suivante) {
     const index = suivante.index;
@@ -88,48 +80,44 @@ function insererLigneManquante(xml, numeroLigne, celluleXml) {
   } else {
     sheetDataModifie = sheetData[0].replace(/<\/sheetData>$/, `${ligneXml}</sheetData>`);
   }
-
   return source.replace(sheetData[0], sheetDataModifie);
 }
 
 function patcherCelluleXml(xml, patch) {
   const adresse = String(patch?.address || '').toUpperCase();
   if (!/^[A-Z]+[1-9][0-9]*$/.test(adresse)) throw new Error(`Adresse Excel invalide : ${patch?.address}`);
-
+  const source = String(xml || '');
   const valeur = construireValeurXml(patch.value, patch.valueType || 'text');
-  const celluleRegex = new RegExp(`<c\\b([^>]*\\br="${adresse}"[^>]*)>([\\s\\S]*?)<\\/c>|<c\\b([^>]*\\br="${adresse}"[^>]*)\\/>`);
-  const cellule = String(xml || '').match(celluleRegex);
 
+  // Tester d'abord la forme auto-fermante. L'ancienne expression pouvait traiter
+  // <c .../> comme une balise ouvrante et consommer tout le XML jusqu'au prochain </c>.
+  const adresseRegex = adresse.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const celluleVideRegex = new RegExp(`<c\\b([^>]*\\br="${adresseRegex}"[^>]*)\\/>`);
+  const celluleVide = source.match(celluleVideRegex);
+  if (celluleVide) {
+    const attrsFinaux = `${sansAttributType(celluleVide[1])}${valeur.type ? ` t="${valeur.type}"` : ''}`;
+    return source.replace(celluleVideRegex, `<c${attrsFinaux}>${valeur.xml}</c>`);
+  }
+
+  const cellulePleineRegex = new RegExp(`<c\\b([^>]*\\br="${adresseRegex}"[^>/]*)>([\\s\\S]*?)<\\/c>`);
+  const cellule = source.match(cellulePleineRegex);
   if (cellule) {
-    const attrs = cellule[1] || cellule[3] || '';
+    const attrs = cellule[1] || '';
     const contenu = cellule[2] || '';
     if (/<f\b/.test(contenu) && patch.allowFormulaOverwrite !== true) {
       throw new Error(`La cellule ${adresse} contient une formule et ne peut pas être remplacée.`);
     }
-    const attrsSansType = sansAttributType(attrs);
-    const attrsFinaux = `${attrsSansType}${valeur.type ? ` t="${valeur.type}"` : ''}`;
-    return String(xml).replace(celluleRegex, `<c${attrsFinaux}>${valeur.xml}</c>`);
+    const attrsFinaux = `${sansAttributType(attrs)}${valeur.type ? ` t="${valeur.type}"` : ''}`;
+    return source.replace(cellulePleineRegex, `<c${attrsFinaux}>${valeur.xml}</c>`);
   }
 
-  if (patch.value === null || patch.value === undefined || patch.value === '') return String(xml || '');
-
+  if (patch.value === null || patch.value === undefined || patch.value === '') return source;
   const ligne = adresse.match(/[0-9]+$/)[0];
   const ligneRegex = new RegExp(`(<row\\b[^>]*\\br="${ligne}"[^>]*>)([\\s\\S]*?)(<\\/row>)`);
-  const matchLigne = String(xml || '').match(ligneRegex);
+  const matchLigne = source.match(ligneRegex);
   const nouvelle = creerCelluleXml(adresse, valeur);
-
-  if (!matchLigne) {
-    // OOXML omet normalement les lignes entièrement vides. Matérialiser la ligne
-    // portant son numéro absolu ne décale aucune ligne et ne recrée pas la feuille.
-    return insererLigneManquante(xml, ligne, nouvelle);
-  }
-
-  return String(xml).replace(ligneRegex, `${matchLigne[1]}${matchLigne[2]}${nouvelle}${matchLigne[3]}`);
+  if (!matchLigne) return insererLigneManquante(source, ligne, nouvelle);
+  return source.replace(ligneRegex, `${matchLigne[1]}${matchLigne[2]}${nouvelle}${matchLigne[3]}`);
 }
 
-module.exports = {
-  obtenirCheminsFeuilles,
-  patcherCelluleXml,
-  xmlEscape,
-  xmlUnescape,
-};
+module.exports = { obtenirCheminsFeuilles, patcherCelluleXml, xmlEscape, xmlUnescape };
