@@ -1,5 +1,6 @@
 import { openAppDatabase } from './database/index.js';
 import { createId } from './database/ids.js';
+import { supprimerPhotosEntiteComplete } from './photoDb.js';
 
 const normaliserNombreNullable = (valeur) => {
   if (valeur === null || valeur === undefined || valeur === '') return null;
@@ -51,6 +52,13 @@ export async function upsertRemarquePrescription(visiteId, controleKey, prescrip
 
 export async function supprimerRemarqueControle(visiteId, controleKey) {
   const db = await openAppDatabase();
+  const remarques = await db.getAllAsync(
+    `SELECT id FROM remarques WHERE visite_id=? AND controle_key=?`,
+    [visiteId, controleKey]
+  );
+  for (const remarque of remarques || []) {
+    await supprimerPhotosEntiteComplete(visiteId, `remarque||${remarque.id}`);
+  }
   await db.runAsync(
     `DELETE FROM remarques WHERE visite_id=? AND controle_key=?`,
     [visiteId, controleKey]
@@ -100,6 +108,9 @@ export async function modifierRemarqueVisite(id, patch = {}) {
 
 export async function supprimerRemarqueVisite(id) {
   const db = await openAppDatabase();
+  const remarque = await db.getFirstAsync(`SELECT id, visite_id FROM remarques WHERE id=?`, [id]);
+  if (!remarque) return;
+  await supprimerPhotosEntiteComplete(remarque.visite_id, `remarque||${id}`);
   await db.runAsync(`DELETE FROM remarques WHERE id=?`, [id]);
 }
 
