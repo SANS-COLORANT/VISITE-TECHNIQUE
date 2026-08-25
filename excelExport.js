@@ -8,8 +8,8 @@ import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { getDb, getVisite, listerReseaux, listerCompteurs, getNote } from './db.js';
 import { patcherClasseurXlsx, nettoyerClasseurTemp } from './excelOoxml.js';
 
+const { formatMeterValue } = require('./excelValueCore.js');
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-const SPECIALES = new Set(['sans objet', 's.o', 'so', 'non releve', 'n.r', 'nr', 'n.v', 'nv', '/']);
 
 function normaliserTexte(v) {
   return String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -115,23 +115,6 @@ function celluleCompteurDepuisLabel(compteur) {
   return null;
 }
 
-function texteCompteur(compteur, original = '') {
-  const brut = String(compteur?.valeur ?? '').trim();
-  if (!brut) return '';
-  if (SPECIALES.has(normaliserTexte(brut))) return brut;
-
-  // Compatibilité avec les visites importées avant le correctif : si la valeur contient
-  // déjà son libellé ou son unité, on ne concatène rien une seconde fois.
-  if (brut.includes(':') || /\s(m3|m³|MWh|kWh|bar|L|%)\s*$/i.test(brut)) return brut;
-  if (/[a-zA-ZÀ-ÿ]/.test(brut) && !/^[-+]?\d+(?:[.,]\d+)?$/.test(brut)) return brut;
-
-  const originalTexte = String(original || '').trim();
-  const prefixeOriginal = originalTexte.includes(':') ? originalTexte.slice(0, originalTexte.indexOf(':')).trim() : '';
-  const prefixe = prefixeOriginal || String(compteur?.label || 'Compteur').trim();
-  const unite = String(compteur?.unite || '').trim();
-  return `${prefixe} : ${brut}${unite ? ` ${unite}` : ''}`;
-}
-
 function prochaineLigneLibre(sheet, tableConfig, reservees = new Set()) {
   const colonnes = tableConfig.columns || tableConfig.exportColumns || [];
   for (let row = Number(tableConfig.startRow || 1); row <= Number(tableConfig.maxImportRow || 500); row++) {
@@ -193,7 +176,8 @@ async function construireExport(visiteId) {
   // Métadonnées de la vraie trame ICPE : B1/B2/B3 et aucune date forcée en B5.
   ajouterPatchSiChange(patches, main, principale, 'B1', visite.nom_client || '', 'client');
   ajouterPatchSiChange(patches, main, principale, 'B2', visite.nom_site || '', 'site');
-  ajouterPatchSiChange(patches, main, principale, 'B3', nomLocalDepuisChamps(champs), 'local');
+  const localCible = nomLocalDepuisChamps(champs) || String(valeurSource(principale, 'B3') || '');
+  ajouterPatchSiChange(patches, main, principale, 'B3', localCible, 'local');
   if (String(valeurSource(principale, 'B5') ?? '').trim() !== '') ajouterPatchSiChange(patches, main, principale, 'B5', '', 'date');
 
   const compteurBindings = new Map((source.details?.excelBindings?.compteurs || []).map((b) => [b.id, b.cell]));
@@ -228,7 +212,7 @@ async function construireExport(visiteId) {
     const cell = compteurBindings.get(compteur.id) || celluleCompteurDepuisLabel(compteur);
     if (!cell) continue;
     const original = valeurSource(principale, cell);
-    ajouterPatchSiChange(patches, main, principale, cell, texteCompteur(compteur, original), 'compteur', { valueType: 'text' });
+    ajouterPatchSiChange(patches, main, principale, cell, formatMeterValue(compteur, original), 'compteur', { valueType: 'text' });
   }
 
   const tables = cfg.tables || {};
@@ -291,4 +275,4 @@ async function exporterEtPartager(visiteId) {
   }
 }
 
-export { construireExport as construireClasseur, preparerExport, enregistrerExcelSurAppareil, partagerExcel, exporterEtPartager, texteCompteur, equivalents };
+export { construireExport as construireClasseur, preparerExport, enregistrerExcelSurAppareil, partagerExcel, exporterEtPartager, formatMeterValue as texteCompteur, equivalents };
