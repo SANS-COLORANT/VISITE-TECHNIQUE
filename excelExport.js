@@ -33,6 +33,20 @@ function setCell(sheet, ref, valeur) {
   etendrePlage(sheet, ref);
 }
 
+function viderCellule(sheet, ref) {
+  if (!sheet || !ref) return;
+  const existante = sheet[ref] || {};
+  sheet[ref] = { ...existante, v: '', t: 's' };
+  delete sheet[ref].w;
+  delete sheet[ref].f;
+  etendrePlage(sheet, ref);
+}
+
+function nomLocalDepuisChamps(champs = []) {
+  const lire = (cle) => String((champs.find((row) => row.cle === cle)?.valeur) || '').trim();
+  return lire('Nom du local') || lire('Type de LT') || '';
+}
+
 function slugFichier(valeur) {
   return String(valeur || 'site').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'site';
 }
@@ -142,11 +156,18 @@ async function construireClasseur(visiteId) {
   if (!sheetPrincipale) throw new Error(`Feuille principale « ${cfg.mainSheet} » absente du modèle ${trame.nom}.`);
 
   const meta = cfg.metadata || {};
-  setCell(sheetPrincipale, meta.client, visite.nom_client);
-  setCell(sheetPrincipale, meta.site, visite.nom_site);
-  setCell(sheetPrincipale, meta.adresse, visite.adresse || '');
+  const nomLocal = nomLocalDepuisChamps(champs);
+
+  // En-tête terrain demandé : Client B1, Site B2, Local B3. Pas de date en B5.
+  // On vide aussi les anciennes cellules d'export afin d'éviter les doublons.
+  [meta.client, meta.site, meta.adresse, meta.dateVisite, 'C1', 'C2', 'C3', 'C5']
+    .filter((ref, index, refs) => ref && !['B1', 'B2', 'B3'].includes(ref) && refs.indexOf(ref) === index)
+    .forEach((ref) => viderCellule(sheetPrincipale, ref));
+  viderCellule(sheetPrincipale, 'B5');
+  setCell(sheetPrincipale, 'B1', visite.nom_client || '');
+  setCell(sheetPrincipale, 'B2', visite.nom_site || '');
+  setCell(sheetPrincipale, 'B3', nomLocal);
   setCell(sheetPrincipale, meta.type, trame.nom);
-  setCell(sheetPrincipale, meta.dateVisite, visite.date_visite);
 
   for (const mapping of cfg.fieldMappings || []) {
     const lookup = `${mapping.sectionCode}||${mapping.cle}`;
