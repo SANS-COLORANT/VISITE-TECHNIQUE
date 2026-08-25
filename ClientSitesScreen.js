@@ -10,7 +10,7 @@ import { SiteAddressManager } from './SiteAddressManager.js';
 import { exporterDernieresVisitesClient } from './clientBatchExport.js';
 
 function ClientSitesScreen({ route, navigation }) {
-  const { clientId } = route.params;
+  const { clientId, nomClient } = route.params;
   const [sites, setSites] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
   const [gestionVisible, setGestionVisible] = useState(false);
@@ -118,6 +118,13 @@ function ClientSitesScreen({ route, navigation }) {
         ListHeaderComponent={
           <View>
             <ResumeLocalisation />
+            <TouchableOpacity
+              style={[styles.btnSecondary, { marginBottom: 8 }]}
+              onPress={() => navigation.navigate('ClientPatrimoine', { clientId, nomClient })}
+              disabled={sites.length === 0}
+            >
+              <Text style={styles.btnSecondaryText}>📊 Synthèse patrimoine</Text>
+            </TouchableOpacity>
             <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
               <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => setGestionVisible(true)}>
                 <Text style={styles.btnSecondaryText}>⚙️ Gérer les sites</Text>
