@@ -33,7 +33,7 @@ function estCleControle(entiteKey) {
   const cle = String(entiteKey || '');
   if (!cle.includes('||')) return false;
   const prefixe = cle.split('||')[0];
-  return !['remarque','materiel','equipement','reseau','reseau_site','compteur','compteur_site','photo'].includes(prefixe);
+  return prefixe.startsWith('conf-');
 }
 
 function horodatagePhoto(date = new Date()) {
@@ -133,6 +133,14 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     setIndex((actuel) => Math.min(actuel, Math.max(0, items.length - 1)));
     return items;
   }, [visiteId, entiteKey]);
+
+  // Dans la synthèse des réserves on veut voir immédiatement qu'une photo existe,
+  // sans réintroduire les dizaines de requêtes qui ralentissaient les panneaux génériques.
+  useEffect(() => {
+    if (String(entiteKey || '').startsWith('remarque||')) {
+      charger(entiteKey).catch(() => {});
+    }
+  }, [entiteKey, charger]);
 
   const resoudreCible = useCallback(async () => {
     if (beforeCapture) {
