@@ -6,6 +6,7 @@ on:
     branches:
       - native-android
       - fix/excel-roundtrip-preservation
+      - fix/pdf-report-word-layout
     paths:
       - '**/*.js'
       - package.json
@@ -88,4 +89,4 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-# Build trigger: 2026-08-25 excel round-trip fix
+# Build trigger: 2026-08-25 pdf layout + legacy sqlite fix
