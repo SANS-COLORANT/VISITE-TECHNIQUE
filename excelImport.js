@@ -7,6 +7,7 @@ import { TRAME_DATA, EXCEL_ROWS } from './data.js';
 import { getDb, uuidv4 } from './db.js';
 
 const RESEAU_BLOCS_DEBUT = [66, 76, 86, 96, 106, 116];
+const SOURCE_DIR = `${FileSystem.documentDirectory}excel-sources/`;
 
 function valeurCellule(sheet, ref) {
   const cell = sheet?.[ref];
@@ -38,7 +39,17 @@ export async function choisirEtAnalyserExcel() {
   const base64 = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.Base64 });
   const wb = XLSX.read(base64, { type: 'base64', cellDates: true });
   const analyse = analyserClasseur(wb, asset.name || 'import.xlsx');
-  analyse.sourceId = `${analyse.nomFichier}:${empreinteLegere(base64)}`;
+  const sourceHash = empreinteLegere(base64);
+  analyse.sourceId = `${analyse.nomFichier}:${sourceHash}`;
+
+  // Conserve une copie byte-for-byte du fichier choisi dans le stockage
+  // persistant de l'application. L'export repartira de cette copie, jamais
+  // d'un classeur reconstruit par la bibliotheque XLSX.
+  await FileSystem.makeDirectoryAsync(SOURCE_DIR, { intermediates: true });
+  await FileSystem.writeAsStringAsync(`${SOURCE_DIR}${sourceHash}.xlsx`, base64, {
+    encoding: FileSystem.EncodingType.Base64,
+  });
+
   return analyse;
 }
 
