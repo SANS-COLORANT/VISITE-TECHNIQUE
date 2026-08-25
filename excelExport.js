@@ -1,54 +1,27 @@
-/** Export Excel natif Android piloté par le registre générique de trames. */
+/** Export Excel natif : repart du classeur source et ne modifie que les cellules métier changées. */
 
 import * as XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
-import { getDb, getVisite, listerReseaux, listerMateriel, listerRemarques, listerCompteurs, getNote } from './db.js';
+import { getDb, getVisite, listerReseaux, listerCompteurs, getNote } from './db.js';
+import { patcherClasseurXlsx, nettoyerClasseurTemp } from './excelOoxml.js';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+const SPECIALES = new Set(['sans objet', 's.o', 'so', 'non releve', 'n.r', 'nr', 'n.v', 'nv', '/']);
 
-function etendrePlage(sheet, ref) {
-  if (!sheet || !ref) return;
-  const cellule = XLSX.utils.decode_cell(ref);
-  if (!sheet['!ref']) {
-    sheet['!ref'] = XLSX.utils.encode_range({ s: cellule, e: cellule });
-    return;
-  }
-  const plage = XLSX.utils.decode_range(sheet['!ref']);
-  plage.s.r = Math.min(plage.s.r, cellule.r);
-  plage.s.c = Math.min(plage.s.c, cellule.c);
-  plage.e.r = Math.max(plage.e.r, cellule.r);
-  plage.e.c = Math.max(plage.e.c, cellule.c);
-  sheet['!ref'] = XLSX.utils.encode_range(plage);
-}
-
-function setCell(sheet, ref, valeur) {
-  if (!sheet || !ref || valeur === null || valeur === undefined || valeur === '') return;
-  const existante = sheet[ref] || {};
-  const numerique = typeof valeur === 'number' && Number.isFinite(valeur);
-  sheet[ref] = { ...existante, v: valeur, t: numerique ? 'n' : 's' };
-  delete sheet[ref].w;
-  etendrePlage(sheet, ref);
-}
-
-function viderCellule(sheet, ref) {
-  if (!sheet || !ref) return;
-  const existante = sheet[ref] || {};
-  sheet[ref] = { ...existante, v: '', t: 's' };
-  delete sheet[ref].w;
-  delete sheet[ref].f;
-  etendrePlage(sheet, ref);
-}
-
-function nomLocalDepuisChamps(champs = []) {
-  const lire = (cle) => String((champs.find((row) => row.cle === cle)?.valeur) || '').trim();
-  return lire('Nom du local') || lire('Type de LT') || '';
+function normaliserTexte(v) {
+  return String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
 function slugFichier(valeur) {
   return String(valeur || 'site').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'site';
+}
+
+function nomLocalDepuisChamps(champs = []) {
+  const lire = (cle) => String(champs.find((row) => row.cle === cle)?.valeur || '').trim();
+  return lire('Nom du local') || lire('Type de LT') || '';
 }
 
 function indexerParCle(rows = []) {
@@ -57,239 +30,253 @@ function indexerParCle(rows = []) {
   return map;
 }
 
-function ajouterReseauxComplementaires(wb, reseaux, config) {
-  const starts = config?.starts || [];
-  const overflow = config?.overflow;
-  if (!overflow || reseaux.length <= starts.length) return 0;
-
-  const supplementaires = reseaux.slice(starts.length);
-  const colonnes = overflow.columns || [];
-  const aoa = [
-    [`Réseaux complémentaires — non prévus dans les ${starts.length} blocs de la trame`],
-    colonnes.map((c) => c.label || c.exportKey),
-    ...supplementaires.map((reseau) => colonnes.map((c) => reseau[c.exportKey] ?? '')),
-  ];
-  const sheet = XLSX.utils.aoa_to_sheet(aoa);
-  sheet['!cols'] = colonnes.map((c) => ({ wch: Math.max(16, Math.min(45, String(c.label || '').length + 6)) }));
-  if (wb.Sheets[overflow.sheet]) wb.Sheets[overflow.sheet] = sheet;
-  else XLSX.utils.book_append_sheet(wb, sheet, overflow.sheet);
-  return supplementaires.length;
+function celluleSource(sheet, ref) {
+  return sheet?.[ref] || null;
 }
 
-function remplirTable(sheet, rows, tableConfig) {
-  if (!sheet || !tableConfig) return;
-  const startRow = Number(tableConfig.startRow || 1);
-  const colonnes = tableConfig.exportColumns || tableConfig.columns || [];
-  rows.forEach((row, index) => {
-    colonnes.forEach((definition, ci) => {
-      const [col, cle] = Array.isArray(definition) ? definition : [String.fromCharCode(65 + ci), definition];
-      setCell(sheet, `${col}${startRow + index}`, row[cle]);
-    });
-  });
+function valeurSource(sheet, ref) {
+  const cell = celluleSource(sheet, ref);
+  if (!cell || cell.v === null || cell.v === undefined) return '';
+  if (cell.t === 'd' && cell.v instanceof Date) return cell.v.toISOString().slice(0, 10);
+  return cell.v;
 }
 
-function texteCompteur(compteur) {
-  if (compteur?.valeur === null || compteur?.valeur === undefined || compteur?.valeur === '') return '';
-  return `${compteur.label || 'Compteur'} : ${compteur.valeur}${compteur.unite ? ` ${compteur.unite}` : ''}`;
+function typePourEcriture(sheet, ref, valeur, cle = '') {
+  const source = celluleSource(sheet, ref);
+  if (source && typeof source.v === 'number') return 'number';
+  if (source && typeof source.v === 'boolean') return 'boolean';
+  if (/^(nombre|nb|annee|année|delai|délai|estimatif)$/i.test(String(cle || '')) && String(valeur ?? '').trim() !== '' && Number.isFinite(Number(String(valeur).replace(',', '.')))) return 'number';
+  return 'text';
 }
 
-function ligneCompteur(compteur) {
+function equivalents(source, courant, type) {
+  const a = source === null || source === undefined ? '' : source;
+  const b = courant === null || courant === undefined ? '' : courant;
+  if (type === 'number') {
+    const na = Number(String(a).replace(',', '.'));
+    const nb = Number(String(b).replace(',', '.'));
+    if (Number.isFinite(na) && Number.isFinite(nb)) return na === nb;
+  }
+  return normaliserTexte(a) === normaliserTexte(b);
+}
+
+function ajouterPatchSiChange(patches, sheetName, sheet, address, value, cle = '', options = {}) {
+  if (!address) return;
+  const valueType = options.valueType || typePourEcriture(sheet, address, value, cle);
+  const original = valeurSource(sheet, address);
+  if (equivalents(original, value, valueType)) return;
+  patches.push({ sheetName, address, value: value ?? '', valueType, allowFormulaOverwrite: false });
+}
+
+function parseDetails(json) {
+  try { return JSON.parse(json || '{}') || {}; }
+  catch { return {}; }
+}
+
+async function provenanceExcel(db, visiteId) {
+  const row = await db.getFirstAsync(`SELECT details_json FROM provenances WHERE entite_type='visite' AND entite_id=? AND origine='import_excel' ORDER BY cree_le DESC LIMIT 1`, [visiteId]);
+  return parseDetails(row?.details_json);
+}
+
+async function chargerSourceExcel(db, visiteId, cfg) {
+  const details = await provenanceExcel(db, visiteId);
+  const uri = details.sourceUri || null;
+  if (uri) {
+    const info = await FileSystem.getInfoAsync(uri).catch(() => null);
+    if (info?.exists) {
+      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+      return { sourceUri: uri, sourceBase64: base64, details, sourcePreservee: true };
+    }
+  }
+  if (!cfg?.templateBase64) throw new Error('Aucune trame Excel source disponible pour cette visite.');
+  return { sourceUri: null, sourceBase64: cfg.templateBase64, details, sourcePreservee: false };
+}
+
+function celluleCompteurDepuisLabel(compteur) {
   const txt = `${compteur?.label || ''} ${compteur?.unite || ''}`.toLowerCase();
-  if (/gaz|fioul|cuve/.test(txt)) return 134;
-  if (/énergie|energie|calorie|mwh|kwh|élect|elect/.test(txt)) return 135;
-  if (/appoint/.test(txt) && /chauff/.test(txt)) return 136;
-  if (/(eau froide|ef)/.test(txt) && /(ecs|sanitaire)/.test(txt)) return 137;
-  if (/manom|pression/.test(txt) && /chauff/.test(txt)) return 138;
-  if (/manom|pression/.test(txt) && /(ecs|sanitaire)/.test(txt)) return 139;
-  if (/eau|volum/.test(txt)) return 137;
+  if (/gaz|fioul|cuve/.test(txt)) return 'C134';
+  if (/énergie|energie|calorie|mwh|kwh|élect|elect/.test(txt)) return 'C135';
+  if (/appoint/.test(txt) && /chauff/.test(txt)) return 'C136';
+  if (/(eau froide|ef)/.test(txt) && /(ecs|sanitaire)/.test(txt)) return 'C137';
+  if (/manom|pression/.test(txt) && /chauff/.test(txt)) return 'C138';
+  if (/manom|pression/.test(txt) && /(ecs|sanitaire)/.test(txt)) return 'C139';
   return null;
 }
 
-function exporterCompteurs(sheet, compteurs = []) {
-  const groupes = new Map();
-  for (const compteur of compteurs) {
-    const ligne = ligneCompteur(compteur);
-    const texte = texteCompteur(compteur);
-    if (!ligne || !texte) continue;
-    if (!groupes.has(ligne)) groupes.set(ligne, []);
-    groupes.get(ligne).push(texte);
+function texteCompteur(compteur, original = '') {
+  const brut = String(compteur?.valeur ?? '').trim();
+  if (!brut) return '';
+  if (SPECIALES.has(normaliserTexte(brut))) return brut;
+
+  // Compatibilité avec les visites importées avant le correctif : si la valeur contient
+  // déjà son libellé ou son unité, on ne concatène rien une seconde fois.
+  if (brut.includes(':') || /\s(m3|m³|MWh|kWh|bar|L|%)\s*$/i.test(brut)) return brut;
+  if (/[a-zA-ZÀ-ÿ]/.test(brut) && !/^[-+]?\d+(?:[.,]\d+)?$/.test(brut)) return brut;
+
+  const originalTexte = String(original || '').trim();
+  const prefixeOriginal = originalTexte.includes(':') ? originalTexte.slice(0, originalTexte.indexOf(':')).trim() : '';
+  const prefixe = prefixeOriginal || String(compteur?.label || 'Compteur').trim();
+  const unite = String(compteur?.unite || '').trim();
+  return `${prefixe} : ${brut}${unite ? ` ${unite}` : ''}`;
+}
+
+function prochaineLigneLibre(sheet, tableConfig, reservees = new Set()) {
+  const colonnes = tableConfig.columns || tableConfig.exportColumns || [];
+  for (let row = Number(tableConfig.startRow || 1); row <= Number(tableConfig.maxImportRow || 500); row++) {
+    if (reservees.has(row)) continue;
+    const occupee = colonnes.some(([col]) => String(valeurSource(sheet, `${col}${row}`) ?? '').trim() !== '');
+    if (!occupee) return row;
   }
-  for (const [ligne, valeurs] of groupes.entries()) setCell(sheet, `C${ligne}`, valeurs.join(' | '));
+  throw new Error(`Aucune ligne libre disponible dans l'onglet ${tableConfig.sheet}.`);
 }
 
-function normaliserMaterielPourExport(materiel = []) {
-  return materiel.map((m) => ({
-    ...m,
-    nombre: m.nombre ?? m.nb ?? 1,
-    numero_materiel: m.numero_materiel ?? m.numero ?? '',
-    reseau_desservi: m.reseau_desservi ?? m.reseau ?? '',
-    caracteristiques: m.caracteristiques ?? '',
-    categorie: m.categorie || m.type_code || 'Équipement',
-    designation: m.designation || m.categorie || 'Équipement',
-  }));
+function patchesTable({ patches, wb, tableConfig, rows, bindings }) {
+  if (!tableConfig) return;
+  const sheet = wb.Sheets[tableConfig.sheet];
+  if (!sheet) return;
+  const bindingMap = new Map((bindings || []).map((b) => [b.id, Number(b.row)]));
+  const reservees = new Set([...bindingMap.values()].filter(Boolean));
+
+  for (const row of rows || []) {
+    let excelRow = bindingMap.get(row.id) || null;
+    if (!excelRow) {
+      excelRow = prochaineLigneLibre(sheet, tableConfig, reservees);
+      reservees.add(excelRow);
+    }
+    for (const [col, cle] of tableConfig.exportColumns || tableConfig.columns || []) {
+      const valeur = row[cle];
+      // Une absence en SQLite ne doit jamais vider une cellule historique du fichier source.
+      if (valeur === undefined) continue;
+      ajouterPatchSiChange(patches, tableConfig.sheet, sheet, `${col}${excelRow}`, valeur ?? '', cle);
+    }
+  }
 }
 
-async function construireClasseur(visiteId) {
+async function construireExport(visiteId) {
   const db = await getDb();
   const visite = await getVisite(visiteId);
   if (!visite) throw new Error('Visite introuvable');
-
   const trame = obtenirTrame(visite.trame_id || DEFAULT_TRAME_ID);
   const cfg = trame.excel;
-  if (!cfg?.templateBase64) throw new Error(`Aucun modèle Excel configuré pour la trame ${trame.nom}.`);
+  const source = await chargerSourceExcel(db, visiteId, cfg);
+  const wbSource = XLSX.read(source.sourceBase64, { type: 'base64', cellDates: true, cellNF: true, cellStyles: true, bookVBA: true });
+  const principale = wbSource.Sheets[cfg.mainSheet];
+  if (!principale) throw new Error(`Feuille principale « ${cfg.mainSheet} » absente du fichier source.`);
 
-  const [champs, controles, reseaux, compteurs, materielBrut, remarques, note] = await Promise.all([
-    db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id = ?`, [visiteId]),
-    db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id = ?`, [visiteId]),
+  const [champs, controles, reseaux, compteurs, materiel, remarques, note] = await Promise.all([
+    db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id=?`, [visiteId]),
+    db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id=?`, [visiteId]),
     listerReseaux(visiteId),
     listerCompteurs(visiteId),
-    listerMateriel(visiteId),
-    listerRemarques(visiteId),
+    db.getAllAsync(`SELECT * FROM materiel WHERE visite_id=? ORDER BY cree_le,id`, [visiteId]),
+    db.getAllAsync(`SELECT * FROM remarques WHERE visite_id=? ORDER BY cree_le,id`, [visiteId]),
     getNote(visiteId),
   ]);
 
-  const materiel = normaliserMaterielPourExport(materielBrut);
   const champsMap = indexerParCle(champs);
   const controlesMap = indexerParCle(controles);
-  const wb = XLSX.read(cfg.templateBase64, { type: 'base64', cellStyles: true, cellNF: true, bookVBA: true });
-  const sheetPrincipale = wb.Sheets[cfg.mainSheet];
-  if (!sheetPrincipale) throw new Error(`Feuille principale « ${cfg.mainSheet} » absente du modèle ${trame.nom}.`);
+  const patches = [];
+  const main = cfg.mainSheet;
 
-  const meta = cfg.metadata || {};
-  const nomLocal = nomLocalDepuisChamps(champs);
+  // Métadonnées de la vraie trame ICPE : B1/B2/B3 et aucune date forcée en B5.
+  ajouterPatchSiChange(patches, main, principale, 'B1', visite.nom_client || '', 'client');
+  ajouterPatchSiChange(patches, main, principale, 'B2', visite.nom_site || '', 'site');
+  ajouterPatchSiChange(patches, main, principale, 'B3', nomLocalDepuisChamps(champs), 'local');
+  if (String(valeurSource(principale, 'B5') ?? '').trim() !== '') ajouterPatchSiChange(patches, main, principale, 'B5', '', 'date');
 
-  // En-tête terrain demandé : Client B1, Site B2, Local B3. Pas de date en B5.
-  // On vide aussi les anciennes cellules d'export afin d'éviter les doublons.
-  [meta.client, meta.site, meta.adresse, meta.dateVisite, 'C1', 'C2', 'C3', 'C5']
-    .filter((ref, index, refs) => ref && !['B1', 'B2', 'B3'].includes(ref) && refs.indexOf(ref) === index)
-    .forEach((ref) => viderCellule(sheetPrincipale, ref));
-  viderCellule(sheetPrincipale, 'B5');
-  setCell(sheetPrincipale, 'B1', visite.nom_client || '');
-  setCell(sheetPrincipale, 'B2', visite.nom_site || '');
-  setCell(sheetPrincipale, 'B3', nomLocal);
-  setCell(sheetPrincipale, meta.type, trame.nom);
+  const compteurBindings = new Map((source.details?.excelBindings?.compteurs || []).map((b) => [b.id, b.cell]));
+  const cellulesCompteurs = new Set(compteurs.map((c) => compteurBindings.get(c.id) || celluleCompteurDepuisLabel(c)).filter(Boolean));
 
   for (const mapping of cfg.fieldMappings || []) {
-    const lookup = `${mapping.sectionCode}||${mapping.cle}`;
-    const champ = champsMap.get(lookup);
-    const controle = controlesMap.get(lookup);
-
+    const key = `${mapping.sectionCode}||${mapping.cle}`;
+    if (cellulesCompteurs.has(mapping.valueCell) && /^Index/i.test(mapping.cle)) continue;
     if (mapping.type === 'champ') {
-      if (champ) setCell(sheetPrincipale, mapping.valueCell, champ.valeur);
-      continue;
-    }
-
-    if (controle) {
-      setCell(sheetPrincipale, mapping.valueCell, controle.avis);
-      setCell(sheetPrincipale, mapping.commentCell, controle.commentaire);
-    }
-
-    // Température / pH : l'interface Relevés les saisit comme mesures dans champs_visite
-    // même si la trame historique les décrit comme contrôles.
-    if (mapping.panelId === 'p-releves' && champ) {
-      setCell(sheetPrincipale, mapping.commentCell || mapping.valueCell, champ.valeur);
+      const champ = champsMap.get(key);
+      if (champ) ajouterPatchSiChange(patches, main, principale, mapping.valueCell, champ.valeur ?? '', mapping.cle);
+    } else {
+      const controle = controlesMap.get(key);
+      if (!controle) continue;
+      ajouterPatchSiChange(patches, main, principale, mapping.valueCell, controle.avis ?? '', `${mapping.cle}:avis`);
+      if (mapping.commentCell) ajouterPatchSiChange(patches, main, principale, mapping.commentCell, controle.commentaire ?? '', `${mapping.cle}:commentaire`);
     }
   }
 
   const reseauxCfg = cfg.networks;
   if (reseauxCfg) {
-    const sheetReseaux = wb.Sheets[reseauxCfg.mainSheet || cfg.mainSheet] || sheetPrincipale;
-    const colonne = reseauxCfg.exportColumn || 'C';
-    reseaux.slice(0, (reseauxCfg.starts || []).length).forEach((r, i) => {
-      const debut = reseauxCfg.starts[i];
-      Object.entries(reseauxCfg.exportOffsets || {}).forEach(([champ, offset]) => setCell(sheetReseaux, `${colonne}${debut + offset}`, r[champ]));
+    const sheetNom = reseauxCfg.mainSheet || main;
+    const sheet = wbSource.Sheets[sheetNom] || principale;
+    const col = reseauxCfg.exportColumn || 'C';
+    reseaux.slice(0, (reseauxCfg.starts || []).length).forEach((reseau, index) => {
+      const debut = reseauxCfg.starts[index];
+      Object.entries(reseauxCfg.exportOffsets || {}).forEach(([cle, offset]) => ajouterPatchSiChange(patches, sheetNom, sheet, `${col}${debut + offset}`, reseau[cle] ?? '', cle));
     });
   }
-  const reseauxSupplementaires = reseauxCfg ? ajouterReseauxComplementaires(wb, reseaux, reseauxCfg) : 0;
 
-  exporterCompteurs(sheetPrincipale, compteurs);
+  for (const compteur of compteurs) {
+    const cell = compteurBindings.get(compteur.id) || celluleCompteurDepuisLabel(compteur);
+    if (!cell) continue;
+    const original = valeurSource(principale, cell);
+    ajouterPatchSiChange(patches, main, principale, cell, texteCompteur(compteur, original), 'compteur', { valueType: 'text' });
+  }
 
   const tables = cfg.tables || {};
-  if (tables.materiel) remplirTable(wb.Sheets[tables.materiel.sheet], materiel, tables.materiel);
-  if (tables.remarques) remplirTable(wb.Sheets[tables.remarques.sheet], remarques, tables.remarques);
+  patchesTable({ patches, wb: wbSource, tableConfig: tables.materiel, rows: materiel, bindings: source.details?.excelBindings?.materiel });
+  patchesTable({ patches, wb: wbSource, tableConfig: tables.remarques, rows: remarques, bindings: source.details?.excelBindings?.remarques });
+  if (tables.note && note) ajouterPatchSiChange(patches, tables.note.sheet, wbSource.Sheets[tables.note.sheet], tables.note.cell, note.contenu ?? '', 'note');
 
-  const noteCfg = tables.note;
-  if (noteCfg) setCell(wb.Sheets[noteCfg.sheet], noteCfg.cell, note?.contenu || '');
-
+  const resultat = await patcherClasseurXlsx({ sourceUri: source.sourceUri, sourceBase64: source.sourceUri ? null : source.sourceBase64, patches });
   return {
-    wb,
+    resultat,
     visite,
     trame,
-    stats: {
-      champs: champs.length,
-      controles: controles.length,
-      reseaux: reseaux.length,
-      compteurs: compteurs.length,
-      reseauxSupplementaires,
-      materiel: materiel.length,
-      remarques: remarques.length,
-    },
+    patches,
+    sourcePreservee: source.sourcePreservee,
+    stats: { champs: champs.length, controles: controles.length, reseaux: reseaux.length, compteurs: compteurs.length, materiel: materiel.length, remarques: remarques.length, cellulesModifiees: patches.length },
   };
 }
 
 async function preparerExport(visiteId) {
-  const { wb, visite, trame, stats } = await construireClasseur(visiteId);
-  let base64;
-  try {
-    base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx', compression: true });
-  } catch (e) {
-    throw new Error(`Impossible de générer le classeur Excel : ${e?.message || e}`);
-  }
-  if (!base64 || base64.length < 100) throw new Error('Le fichier Excel généré est vide ou invalide.');
-
-  const nomFichier = `Visite_${slugFichier(trame.nom)}_${slugFichier(visite.nom_site)}_${visite.date_visite || 'sans_date'}.xlsx`;
-  return { base64, nomFichier, trame, stats };
+  const construit = await construireExport(visiteId);
+  const nomFichier = `Visite_${slugFichier(construit.trame.nom)}_${slugFichier(construit.visite.nom_site)}_${construit.visite.date_visite || 'sans_date'}.xlsx`;
+  return { ...construit, base64: construit.resultat.base64, nomFichier };
 }
 
 async function enregistrerExcelSurAppareil(visiteId) {
-  const { base64, nomFichier, trame, stats } = await preparerExport(visiteId);
+  const exporte = await preparerExport(visiteId);
   const SAF = FileSystem.StorageAccessFramework;
-
-  if (!SAF?.requestDirectoryPermissionsAsync || !SAF?.createFileAsync) {
-    throw new Error('Le sélecteur de dossier Android n’est pas disponible sur cet appareil.');
-  }
-
-  const permission = await SAF.requestDirectoryPermissionsAsync();
-  if (!permission?.granted || !permission?.directoryUri) {
-    return { annule: true, nomFichier, trameId: trame.id, trameNom: trame.nom, stats };
-  }
-
-  let uri;
   try {
-    uri = await SAF.createFileAsync(permission.directoryUri, nomFichier, XLSX_MIME);
-    await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
-  } catch (e) {
-    throw new Error(`Impossible d’enregistrer l’Excel dans le dossier choisi : ${e?.message || e}`);
+    if (!SAF?.requestDirectoryPermissionsAsync || !SAF?.createFileAsync) throw new Error('Le sélecteur de dossier Android n’est pas disponible sur cet appareil.');
+    const permission = await SAF.requestDirectoryPermissionsAsync();
+    if (!permission?.granted || !permission?.directoryUri) return { annule: true, nomFichier: exporte.nomFichier, trameId: exporte.trame.id, trameNom: exporte.trame.nom, stats: exporte.stats };
+    const uri = await SAF.createFileAsync(permission.directoryUri, exporte.nomFichier, XLSX_MIME);
+    await FileSystem.writeAsStringAsync(uri, exporte.base64, { encoding: FileSystem.EncodingType.Base64 });
+    return { annule: false, enregistre: true, uri, nomFichier: exporte.nomFichier, trameId: exporte.trame.id, trameNom: exporte.trame.nom, stats: exporte.stats, sourcePreservee: exporte.sourcePreservee };
+  } finally {
+    await nettoyerClasseurTemp(exporte.resultat);
   }
-
-  return { annule: false, enregistre: true, uri, nomFichier, trameId: trame.id, trameNom: trame.nom, stats };
 }
 
 async function partagerExcel(visiteId) {
-  const { base64, nomFichier, trame, stats } = await preparerExport(visiteId);
+  const exporte = await preparerExport(visiteId);
   const dossier = FileSystem.cacheDirectory || FileSystem.documentDirectory;
   if (!dossier) throw new Error('Stockage local Android indisponible');
-  const chemin = dossier + nomFichier;
-
-  await FileSystem.writeAsStringAsync(chemin, base64, { encoding: FileSystem.EncodingType.Base64 });
-  if (!(await Sharing.isAvailableAsync())) throw new Error('Le partage de fichiers n’est pas disponible sur cet appareil.');
-
-  await Sharing.shareAsync(chemin, {
-    mimeType: XLSX_MIME,
-    dialogTitle: `Partager la visite — ${trame.nom}`,
-    UTI: 'org.openxmlformats.spreadsheetml.sheet',
-  });
-
-  return { nomFichier, trameId: trame.id, trameNom: trame.nom, stats, chemin };
+  const chemin = dossier + exporte.nomFichier;
+  try {
+    await FileSystem.writeAsStringAsync(chemin, exporte.base64, { encoding: FileSystem.EncodingType.Base64 });
+    if (!(await Sharing.isAvailableAsync())) throw new Error('Le partage de fichiers n’est pas disponible sur cet appareil.');
+    await Sharing.shareAsync(chemin, { mimeType: XLSX_MIME, dialogTitle: `Partager la visite — ${exporte.trame.nom}`, UTI: 'org.openxmlformats.spreadsheetml.sheet' });
+    return { nomFichier: exporte.nomFichier, trameId: exporte.trame.id, trameNom: exporte.trame.nom, stats: exporte.stats, chemin, sourcePreservee: exporte.sourcePreservee };
+  } finally {
+    await nettoyerClasseurTemp(exporte.resultat);
+  }
 }
 
 async function exporterEtPartager(visiteId) {
-  try {
-    return await enregistrerExcelSurAppareil(visiteId);
-  } catch (e) {
+  try { return await enregistrerExcelSurAppareil(visiteId); }
+  catch (e) {
     if (/sélecteur de dossier Android n’est pas disponible/i.test(String(e?.message || e))) return partagerExcel(visiteId);
     throw e;
   }
 }
 
-export { construireClasseur, preparerExport, enregistrerExcelSurAppareil, partagerExcel, exporterEtPartager };
+export { construireExport as construireClasseur, preparerExport, enregistrerExcelSurAppareil, partagerExcel, exporterEtPartager, texteCompteur, equivalents };
