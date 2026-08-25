@@ -118,6 +118,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
   const [photosChargees, setPhotosChargees] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [index, setIndex] = useState(0);
+  const estReserve = String(entiteKey || '').startsWith('remarque||');
 
   useEffect(() => {
     setPhotos([]);
@@ -134,13 +135,9 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     return items;
   }, [visiteId, entiteKey]);
 
-  // Dans la synthèse des réserves on veut voir immédiatement qu'une photo existe,
-  // sans réintroduire les dizaines de requêtes qui ralentissaient les panneaux génériques.
   useEffect(() => {
-    if (String(entiteKey || '').startsWith('remarque||')) {
-      charger(entiteKey).catch(() => {});
-    }
-  }, [entiteKey, charger]);
+    if (estReserve) charger(entiteKey).catch(() => {});
+  }, [estReserve, entiteKey, charger]);
 
   const resoudreCible = useCallback(async () => {
     if (beforeCapture) {
@@ -214,7 +211,11 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
   };
 
   return <>
-    <TouchableOpacity style={[styles.photoBtn, photosChargees && photos.length > 0 && styles.photoBtnTaken, style]} onPress={onPress}>
+    <TouchableOpacity
+      style={[styles.photoBtn, photosChargees && photos.length > 0 && styles.photoBtnTaken, estReserve && photos.length > 0 && { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8 }, style]}
+      onPress={onPress}
+    >
+      {estReserve && photosChargees && photos[0]?.uri ? <Image source={{ uri: photos[0].uri }} style={{ width: 44, height: 44, borderRadius: 7 }} resizeMode="cover" /> : null}
       <Text style={[styles.photoBtnText, photosChargees && photos.length > 0 && styles.photoBtnTextTaken]}>{photosChargees && photos.length > 0 ? `👁 ${photos.length} photo${photos.length > 1 ? 's' : ''}` : '📷 Photo'}</Text>
     </TouchableOpacity>
     <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
