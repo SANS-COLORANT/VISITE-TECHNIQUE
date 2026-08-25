@@ -17,6 +17,9 @@ function construireMappingsChamps(uiData, excelRows) {
   const mappings = [];
   for (const [panelId, sections] of Object.entries(uiData || {})) {
     for (const [section, fields] of Object.entries(sections || {})) {
+      // Les cinq premières lignes sont un en-tête A=libellé / B=valeur. Elles sont
+      // gérées explicitement via excel.metadata et ne doivent jamais être mappées en C.
+      if (panelId === 'p-infos' && section === 'Général') continue;
       const sectionCode = normaliserSectionCode(panelId, section);
       for (const field of fields || []) {
         const row = excelRows[`${section}||${field.cle}`];
