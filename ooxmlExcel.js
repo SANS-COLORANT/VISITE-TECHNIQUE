@@ -106,9 +106,7 @@ function updateSharedStringsXml(xml, value) {
   const preserve = /^\s|\s$/.test(text) ? ' xml:space="preserve"' : '';
   const si = `<si><t${preserve}>${escapeXml(text)}</t></si>`;
   let updated = xml.replace(/<\/sst>\s*$/, `${si}</sst>`);
-  const countMatch = updated.match(/\bcount="(\d+)"/);
   const uniqueMatch = updated.match(/\buniqueCount="(\d+)"/);
-  if (countMatch) updated = updated.replace(/\bcount="\d+"/, `count="${Number(countMatch[1]) + 1}"`);
   if (uniqueMatch) updated = updated.replace(/\buniqueCount="\d+"/, `uniqueCount="${Number(uniqueMatch[1]) + 1}"`);
   return { xml: updated, index };
 }
@@ -116,6 +114,7 @@ function updateSharedStringsXml(xml, value) {
 function buildPayload(type, value, context) {
   if (type === 'b') return { type: 'b', payload: `<v>${boolValue(value)}</v>` };
   if (type === 'd') return { type: 'd', payload: `<v>${escapeXml(value)}</v>` };
+  if (type === 'str') return { type: 'str', payload: `<v>${escapeXml(value)}</v>` };
 
   if (type === 'n' || type === null) {
     const dateSerial = context.hadNumericValue ? excelSerialFromIsoDate(value, context.date1904) : null;
