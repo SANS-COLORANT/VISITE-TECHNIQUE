@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - native-android
+      - fix/excel-roundtrip-preservation
     paths:
       - '**/*.js'
       - package.json
@@ -87,4 +88,4 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-# Build trigger: 2026-08-24
+# Build trigger: 2026-08-25 excel round-trip fix
