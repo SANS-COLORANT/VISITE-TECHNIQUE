@@ -24,6 +24,7 @@ function normaliserTexte(v) {
 const META_LABELS = {
   client: ['client', 'nom client', 'nom du client', 'maitre d ouvrage', "maitre d'ouvrage"],
   site: ['site', 'nom site', 'nom du site', 'residence', 'nom residence', 'nom de la residence', 'etablissement'],
+  local: ['local', 'nom du local', 'nom local'],
   adresse: ['adresse', 'adresse du site', 'adresse site', 'localisation'],
   dateVisite: ['date de visite', 'date visite', 'date du controle', 'date du contrôle', 'date'],
 };
@@ -229,6 +230,7 @@ export function analyserClasseur(wb, nomFichier) {
     nomFichier,
     client: lireMetadonnee(principale, meta.client, 'client') || 'Client importé',
     site: lireMetadonnee(principale, meta.site, 'site') || 'Site importé',
+    local: lireMetadonnee(principale, meta.local, 'local'),
     adresse: lireMetadonnee(principale, meta.adresse, 'adresse'),
     dateVisite: lireMetadonnee(principale, meta.dateVisite, 'dateVisite') || new Date().toISOString().slice(0, 10),
     champs, controles, reseaux, compteurs, materiel, remarques, note,
@@ -275,7 +277,9 @@ export async function importerAnalyseExcel(analyse) {
     let site = await trouverSiteEquivalent(db, client.id, analyse.site);
     if (!site) {
       site = { id: uuidv4() };
-      await db.runAsync('INSERT INTO sites(id,client_id,nom_site,adresse) VALUES(?,?,?,?)', [site.id, client.id, String(analyse.site || 'Site importé').trim(), analyse.adresse || null]);
+      await db.runAsync('INSERT INTO sites(id,client_id,nom_site,adresse,localisation_note) VALUES(?,?,?,?,?)', [site.id, client.id, String(analyse.site || 'Site importé').trim(), analyse.adresse || null, analyse.local || null]);
+    } else if (analyse.local) {
+      await db.runAsync(`UPDATE sites SET localisation_note=? WHERE id=? AND (localisation_note IS NULL OR trim(localisation_note)='')`, [analyse.local, site.id]);
     }
 
     visiteId = uuidv4();
@@ -344,7 +348,7 @@ export async function importerAnalyseExcel(analyse) {
     etape = 'finalisation';
     await db.runAsync(`INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json) VALUES(?,'visite',?,'import_excel',?,?)`, [
       uuidv4(), visiteId, analyse.sourceId || `${analyse.trameId}:${analyse.nomFichier}`,
-      JSON.stringify({ fichier: analyse.nomFichier, trameId: analyse.trameId, trameNom: analyse.trameNom, client: analyse.client, site: analyse.site, dateVisite: analyse.dateVisite, sourceUri: analyse.sourceUri || null, excelBindings: bindings }),
+      JSON.stringify({ fichier: analyse.nomFichier, trameId: analyse.trameId, trameNom: analyse.trameNom, client: analyse.client, site: analyse.site, local: analyse.local || null, dateVisite: analyse.dateVisite, sourceUri: analyse.sourceUri || null, excelBindings: bindings }),
     ]);
   }).catch((error) => { throw new Error(`Import interrompu pendant l’étape « ${etape} » : ${error.message || error}`); });
 
