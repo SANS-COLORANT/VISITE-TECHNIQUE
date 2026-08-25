@@ -10,6 +10,7 @@ import { ClientSitesScreen } from './ClientSitesScreen.js';
 import { VisiteScreen } from './VisiteScreen.js';
 import { ParametresScreen } from './ParametresScreen.js';
 import { SiteVisitesScreen } from './SiteVisitesScreen.js';
+import { ReportScreen } from './ReportScreen.js';
 import { AppErrorBoundary } from './AppErrorBoundary.js';
 import { MetraLoadingScreen } from './MetraLoadingScreen.js';
 import { R1EasterEgg } from './R1EasterEgg.js';
@@ -83,6 +84,7 @@ function AppContent() {
       {current.name === 'ClientSites' && <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} /><ClientSitesScreen navigation={navigation} route={route} /></>}
       {current.name === 'SiteVisites' && <><SimpleHeader title={current.params?.nomSite || 'Visites'} onBack={goBack} /><SiteVisitesScreen navigation={navigation} route={route} /></>}
       {current.name === 'Visite' && <VisiteScreen navigation={navigation} route={route} onBack={goBack} />}
+      {current.name === 'Report' && <ReportScreen route={route} onBack={goBack} />}
       {current.name === 'Parametres' && <><SimpleHeader title="Paramètres" onBack={goBack} /><ParametresScreen /></>}
       <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
     </View>
