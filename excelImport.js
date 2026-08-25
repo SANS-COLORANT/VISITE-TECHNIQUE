@@ -188,10 +188,17 @@ export function analyserClasseur(wb, nomFichier) {
 
   const reseauxCfg = cfg.networks;
   const reseauxSheet = reseauxCfg ? (wb.Sheets[reseauxCfg.mainSheet || cfg.mainSheet] || principale) : null;
+  const colonneReseau = reseauxCfg?.importColumn || reseauxCfg?.exportColumn || 'C';
+  const colonnesCompatibles = [...new Set([colonneReseau, ...(reseauxCfg?.legacyImportColumns || ['B'])])];
   const reseauxPrincipaux = reseauxCfg ? (reseauxCfg.starts || []).map((row, index) => {
     const r = { ordre: index + 1 };
     for (const [cle, offset] of Object.entries(reseauxCfg.importOffsets || {})) {
-      r[cle] = valeurCellule(reseauxSheet, `B${row + offset}`);
+      let valeur = '';
+      for (const colonne of colonnesCompatibles) {
+        valeur = valeurCellule(reseauxSheet, `${colonne}${row + offset}`);
+        if (valeur !== '') break;
+      }
+      r[cle] = valeur;
     }
     return r;
   }).filter((r) => Object.entries(r).some(([k, v]) => k !== 'ordre' && !!v)) : [];
