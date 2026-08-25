@@ -49,7 +49,12 @@ function obtenirCheminsFeuilles(workbookXml, relsXml) {
 }
 
 function sansAttributType(attrs) {
-  return String(attrs || '').replace(/\s+t="[^"]*"/g, '');
+  // Pour une cellule OOXML auto-fermante (<c .../>), le groupe regex peut
+  // capturer le slash final dans les attributs. Il faut l'enlever avant de
+  // reconstruire une balise ouvrante, sinon on produit <c .../ t="...">.
+  return String(attrs || '')
+    .replace(/\s+t="[^"]*"/g, '')
+    .replace(/\s*\/\s*$/, '');
 }
 
 function construireValeurXml(value, valueType) {
