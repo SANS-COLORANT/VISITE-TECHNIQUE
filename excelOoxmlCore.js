@@ -63,6 +63,30 @@ function construireValeurXml(value, valueType) {
   return { type: 'inlineStr', xml: `<is><t xml:space="preserve">${xmlEscape(value)}</t></is>` };
 }
 
+function creerCelluleXml(adresse, valeur) {
+  return `<c r="${adresse}"${valeur.type ? ` t="${valeur.type}"` : ''}>${valeur.xml}</c>`;
+}
+
+function insererLigneManquante(xml, numeroLigne, celluleXml) {
+  const source = String(xml || '');
+  const sheetData = source.match(/<sheetData\b[^>]*>[\s\S]*?<\/sheetData>/);
+  if (!sheetData) throw new Error('Structure Excel invalide : sheetData introuvable.');
+
+  const ligneXml = `<row r="${numeroLigne}">${celluleXml}</row>`;
+  const lignes = [...sheetData[0].matchAll(/<row\b([^>]*)\br="([0-9]+)"[^>]*(?:\/>|>[\s\S]*?<\/row>)/g)];
+  const suivante = lignes.find((match) => Number(match[2]) > Number(numeroLigne));
+
+  let sheetDataModifie;
+  if (suivante) {
+    const index = suivante.index;
+    sheetDataModifie = `${sheetData[0].slice(0, index)}${ligneXml}${sheetData[0].slice(index)}`;
+  } else {
+    sheetDataModifie = sheetData[0].replace(/<\/sheetData>$/, `${ligneXml}</sheetData>`);
+  }
+
+  return source.replace(sheetData[0], sheetDataModifie);
+}
+
 function patcherCelluleXml(xml, patch) {
   const adresse = String(patch?.address || '').toUpperCase();
   if (!/^[A-Z]+[1-9][0-9]*$/.test(adresse)) throw new Error(`Adresse Excel invalide : ${patch?.address}`);
@@ -87,9 +111,14 @@ function patcherCelluleXml(xml, patch) {
   const ligne = adresse.match(/[0-9]+$/)[0];
   const ligneRegex = new RegExp(`(<row\\b[^>]*\\br="${ligne}"[^>]*>)([\\s\\S]*?)(<\\/row>)`);
   const matchLigne = String(xml || '').match(ligneRegex);
-  if (!matchLigne) throw new Error(`Ligne Excel ${ligne} absente : impossible de créer ${adresse} sans modifier la structure.`);
+  const nouvelle = creerCelluleXml(adresse, valeur);
 
-  const nouvelle = `<c r="${adresse}"${valeur.type ? ` t="${valeur.type}"` : ''}>${valeur.xml}</c>`;
+  if (!matchLigne) {
+    // OOXML omet normalement les lignes entièrement vides. Matérialiser la ligne
+    // portant son numéro absolu ne décale aucune ligne et ne recrée pas la feuille.
+    return insererLigneManquante(xml, ligne, nouvelle);
+  }
+
   return String(xml).replace(ligneRegex, `${matchLigne[1]}${matchLigne[2]}${nouvelle}${matchLigne[3]}`);
 }
 
