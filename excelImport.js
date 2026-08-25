@@ -17,6 +17,76 @@ function valeurCellule(sheet, ref) {
   return String(cell.v).trim();
 }
 
+function normaliserTexte(v) {
+  return String(v || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
+}
+
+const META_LABELS = {
+  client: ['client', 'nom client', 'nom du client', 'maitre d ouvrage', "maitre d'ouvrage"],
+  site: ['site', 'nom site', 'nom du site', 'residence', 'nom residence', 'nom de la residence', 'etablissement'],
+  adresse: ['adresse', 'adresse du site', 'adresse site', 'localisation'],
+  dateVisite: ['date de visite', 'date visite', 'date du controle', 'date du contrôle', 'date'],
+};
+
+function estLibelleMeta(v) {
+  const n = normaliserTexte(v).replace(/\s*[:\-–—]\s*$/, '');
+  return Object.values(META_LABELS).some((labels) => labels.some((label) => normaliserTexte(label) === n));
+}
+
+function valeurApresLibelleInline(texte, labels) {
+  const brut = String(texte || '').trim();
+  const n = normaliserTexte(brut);
+  for (const label of labels) {
+    const nl = normaliserTexte(label);
+    if (!n.startsWith(nl)) continue;
+    const reste = brut.slice(label.length).replace(/^\s*[:\-–—]\s*/, '').trim();
+    if (reste && normaliserTexte(reste) !== nl) return reste;
+  }
+  return '';
+}
+
+function lireMetaParLibelle(sheet, type) {
+  const labels = (META_LABELS[type] || []).map(normaliserTexte);
+  if (!sheet || !labels.length) return '';
+  const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1:L40');
+  const maxRow = Math.min(range.e.r, 39);
+  const maxCol = Math.min(range.e.c, 14);
+
+  for (let r = 0; r <= maxRow; r++) {
+    for (let c = 0; c <= maxCol; c++) {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      const brut = valeurCellule(sheet, ref);
+      if (!brut) continue;
+      const inline = valeurApresLibelleInline(brut, META_LABELS[type] || []);
+      if (inline) return inline;
+      const labelCell = normaliserTexte(brut).replace(/\s*[:\-–—]\s*$/, '');
+      if (!labels.includes(labelCell)) continue;
+
+      for (let dc = 1; dc <= 5; dc++) {
+        const candidat = valeurCellule(sheet, XLSX.utils.encode_cell({ r, c: c + dc }));
+        if (candidat && !estLibelleMeta(candidat)) return candidat;
+      }
+      for (let dr = 1; dr <= 2; dr++) {
+        const candidat = valeurCellule(sheet, XLSX.utils.encode_cell({ r: r + dr, c }));
+        if (candidat && !estLibelleMeta(candidat)) return candidat;
+      }
+    }
+  }
+  return '';
+}
+
+function lireMetadonnee(sheet, refConfiguree, type) {
+  const directe = refConfiguree ? valeurCellule(sheet, refConfiguree) : '';
+  const n = normaliserTexte(directe);
+  if (directe && !estLibelleMeta(directe) && !(type !== 'dateVisite' && n === 'icpe')) return directe;
+  return lireMetaParLibelle(sheet, type);
+}
+
 function nettoyerLabel(cle) {
   return cle.replace(/^Index\s*/i, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
 }
@@ -145,16 +215,33 @@ export function analyserClasseur(wb, nomFichier) {
   }
 
   const meta = cfg.metadata || {};
+  const clientDetecte = lireMetadonnee(principale, meta.client, 'client');
+  const siteDetecte = lireMetadonnee(principale, meta.site, 'site');
+  const adresseDetectee = lireMetadonnee(principale, meta.adresse, 'adresse');
+  const dateDetectee = lireMetadonnee(principale, meta.dateVisite, 'dateVisite');
+
   return {
     trameId: definition.id,
     trameNom: definition.nom,
     nomFichier,
-    client: valeurCellule(principale, meta.client) || 'Client importé',
-    site: valeurCellule(principale, meta.site) || 'Site importé',
-    adresse: valeurCellule(principale, meta.adresse),
-    dateVisite: valeurCellule(principale, meta.dateVisite) || new Date().toISOString().slice(0, 10),
+    client: clientDetecte || 'Client importé',
+    site: siteDetecte || 'Site importé',
+    adresse: adresseDetectee,
+    dateVisite: dateDetectee || new Date().toISOString().slice(0, 10),
     champs, controles, reseaux, compteurs, materiel, remarques, note,
   };
+}
+
+async function trouverClientEquivalent(db, nom) {
+  const cible = normaliserTexte(nom);
+  const clients = await db.getAllAsync('SELECT id, nom FROM clients');
+  return clients.find((c) => normaliserTexte(c.nom) === cible) || null;
+}
+
+async function trouverSiteEquivalent(db, clientId, nom) {
+  const cible = normaliserTexte(nom);
+  const sites = await db.getAllAsync('SELECT id, nom_site FROM sites WHERE client_id = ?', [clientId]);
+  return sites.find((s) => normaliserTexte(s.nom_site) === cible) || null;
 }
 
 export async function importerAnalyseExcel(analyse) {
@@ -169,21 +256,18 @@ export async function importerAnalyseExcel(analyse) {
   let etape = 'initialisation';
   await db.withTransactionAsync(async () => {
     etape = 'client et site';
-    let client = await db.getFirstAsync('SELECT id FROM clients WHERE nom = ? COLLATE NOCASE', [analyse.client]);
+    let client = await trouverClientEquivalent(db, analyse.client);
     if (!client) {
       client = { id: uuidv4() };
-      await db.runAsync('INSERT INTO clients (id, nom) VALUES (?, ?)', [client.id, analyse.client]);
+      await db.runAsync('INSERT INTO clients (id, nom) VALUES (?, ?)', [client.id, String(analyse.client || 'Client importé').trim()]);
     }
 
-    let site = await db.getFirstAsync(
-      'SELECT id FROM sites WHERE client_id = ? AND nom_site = ? COLLATE NOCASE',
-      [client.id, analyse.site]
-    );
+    let site = await trouverSiteEquivalent(db, client.id, analyse.site);
     if (!site) {
       site = { id: uuidv4() };
       await db.runAsync(
         'INSERT INTO sites (id, client_id, nom_site, adresse) VALUES (?, ?, ?, ?)',
-        [site.id, client.id, analyse.site, analyse.adresse || null]
+        [site.id, client.id, String(analyse.site || 'Site importé').trim(), analyse.adresse || null]
       );
     }
 
