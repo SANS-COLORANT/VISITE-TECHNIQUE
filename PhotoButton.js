@@ -1,6 +1,6 @@
 /** Capture photo native Android + stockage durable et nommage métier. */
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { TouchableOpacity, Text, Alert, View, Image, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
@@ -33,14 +33,20 @@ function horodatagePhoto(date = new Date()) {
 }
 function suffixeCourt() { return Math.random().toString(36).slice(2, 6).toUpperCase(); }
 
-function dossierPhotosVisite(visiteId) {
+async function dossierPhotosVisite(visiteId) {
   const racine = FileSystem.documentDirectory;
   if (!racine) throw new Error('Stockage local Android indisponible');
-  return `${racine}visite-technique/photos/${nettoyerNomFichier(visiteId, 'visite')}/`;
+  let visite = null;
+  try { visite = await getVisite(visiteId); } catch {}
+  const client = nettoyerNomFichier(visite?.nom_client, 'Client');
+  const site = nettoyerNomFichier(visite?.nom_site, 'Site');
+  const date = nettoyerNomFichier(visite?.date_visite, 'Sans_date');
+  const visiteDossier = `${date}__${nettoyerNomFichier(visiteId, 'visite')}`;
+  return `${racine}visite-technique/photos/${client}/${site}/${visiteDossier}/`;
 }
 
 async function copierPhotoDurable(uriSource, visiteId, nom) {
-  const dossier = dossierPhotosVisite(visiteId);
+  const dossier = await dossierPhotosVisite(visiteId);
   await FileSystem.makeDirectoryAsync(dossier, { intermediates: true });
   const destination = dossier + nom;
   const existante = await FileSystem.getInfoAsync(destination);
@@ -79,27 +85,49 @@ async function prendrePhoto() {
   return result.assets[0].uri;
 }
 
-function PhotoButton({ visiteId, entiteKey, label, style }) {
+function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhotoSaved }) {
   const [photos, setPhotos] = useState([]);
   const [photosChargees, setPhotosChargees] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
   const [index, setIndex] = useState(0);
 
-  const charger = useCallback(async () => {
-    const items = await listerPhotos(visiteId, entiteKey);
+  useEffect(() => {
+    setPhotos([]);
+    setPhotosChargees(false);
+    setViewerVisible(false);
+    setIndex(0);
+  }, [visiteId, entiteKey]);
+
+  const charger = useCallback(async (cle = entiteKey) => {
+    const items = await listerPhotos(visiteId, cle);
     setPhotos(items);
     setPhotosChargees(true);
     setIndex((actuel) => Math.min(actuel, Math.max(0, items.length - 1)));
     return items;
   }, [visiteId, entiteKey]);
 
+  const resoudreCible = useCallback(async () => {
+    if (!beforeCapture) return { entiteKey, label };
+    const cible = await beforeCapture();
+    if (!cible) return { entiteKey, label };
+    if (typeof cible === 'string') return { entiteKey: cible, label };
+    return { entiteKey: cible.entiteKey || entiteKey, label: cible.label || label };
+  }, [beforeCapture, entiteKey, label]);
+
   const ajouter = async () => {
     try {
       const captureUri = await prendrePhoto(); if (!captureUri) return;
-      const photo = await preparerPhotoNommee({ visiteId, entiteKey, label, uri: captureUri });
-      const labelDb = photo.nom ? `${label || typePhotoDepuisEntite(entiteKey)}||${photo.nom}` : (label || null);
-      await ajouterPhoto(visiteId, entiteKey, photo.uri, labelDb);
-      const items = await charger(); setIndex(Math.max(0, items.length - 1));
+      // La cible est résolue après la capture afin de ne pas créer une réserve si
+      // l'utilisateur annule simplement l'appareil photo.
+      const cible = await resoudreCible();
+      const photo = await preparerPhotoNommee({ visiteId, entiteKey: cible.entiteKey, label: cible.label, uri: captureUri });
+      const labelDb = photo.nom ? `${cible.label || typePhotoDepuisEntite(cible.entiteKey)}||${photo.nom}` : (cible.label || null);
+      const photoId = await ajouterPhoto(visiteId, cible.entiteKey, photo.uri, labelDb);
+      // L'insertion SQLite est attendue avant de rendre la main : la photo est donc
+      // durable même si l'utilisateur swipe immédiatement après la prise de vue.
+      const items = await charger(cible.entiteKey);
+      setIndex(Math.max(0, items.length - 1));
+      onPhotoSaved?.({ id: photoId, entiteKey: cible.entiteKey, uri: photo.uri, label: cible.label });
     } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
   };
 
@@ -113,10 +141,12 @@ function PhotoButton({ visiteId, entiteKey, label, style }) {
     const photoExistante = photos[index]; if (!photoExistante) return;
     try {
       const captureUri = await prendrePhoto(); if (!captureUri) return;
-      const nouvelle = await preparerPhotoNommee({ visiteId, entiteKey, label, uri: captureUri });
+      const cibleKey = photoExistante.entite_key || entiteKey;
+      const nouvelle = await preparerPhotoNommee({ visiteId, entiteKey: cibleKey, label, uri: captureUri });
       await remplacerPhoto(photoExistante.id, nouvelle.uri);
       await supprimerPhotoGeree(photoExistante.uri);
-      await charger();
+      await charger(cibleKey);
+      onPhotoSaved?.({ id: photoExistante.id, entiteKey: cibleKey, uri: nouvelle.uri, label });
     } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
   };
 
@@ -134,7 +164,7 @@ function PhotoButton({ visiteId, entiteKey, label, style }) {
           onPress: async () => {
             try {
               await supprimerPhotoComplete(photo.id);
-              const items = await charger();
+              const items = await charger(photo.entite_key || entiteKey);
               if (items.length === 0) setViewerVisible(false);
               else setIndex((actuel) => Math.min(actuel, items.length - 1));
             } catch (e) {
