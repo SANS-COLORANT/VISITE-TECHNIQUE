@@ -1,11 +1,7 @@
 /**
  * Registre générique des trames de visite.
- *
- * Une trame décrit à la fois :
- * - l'interface métier à afficher ;
- * - le modèle Excel à utiliser ;
- * - le mapping import/export des champs et contrôles ;
- * - les blocs répétables et feuilles tabulaires.
+ * Le mapping Excel décrit uniquement les cellules métier modifiables ;
+ * les libellés et la structure du classeur restent la propriété du fichier source.
  */
 import { TEMPLATE_EXCEL_BASE64 } from './templateExcel.js';
 import { EXCEL_ROWS, TRAME_DATA } from './data.js';
@@ -27,14 +23,17 @@ function construireMappingsChamps(uiData, excelRows) {
         if (!row) continue;
         const estControle = field.type === 'controle';
         mappings.push({
+          fieldId: `${sectionCode}||${field.cle}`,
           panelId,
           section,
           sectionCode,
           cle: field.cle,
           type: field.type,
-          // Dans la trame ICPE : B = Avis, C = Valeur / commentaire.
+          sheetName: 'TRAME ICPE',
           valueCell: `${estControle ? 'B' : 'C'}${row}`,
           commentCell: estControle ? `C${row}` : null,
+          preserveExistingStyle: true,
+          direction: 'import_export',
         });
       }
     }
@@ -67,40 +66,26 @@ const ICPE = Object.freeze({
   },
   excel: {
     templateBase64: TEMPLATE_EXCEL_BASE64,
-    requiredSheets: ['TRAME ICPE'],
+    requiredSheets: ['TRAME ICPE', 'REMARQUES', 'MATERIEL', 'NOTE'],
     mainSheet: 'TRAME ICPE',
     metadata: {
-      client: 'C1',
-      site: 'C2',
-      adresse: 'C3',
-      type: 'C4',
-      dateVisite: 'C5',
+      client: 'B1',
+      site: 'B2',
+      local: 'B3',
+      type: 'B4',
+      dateVisite: 'B5',
+      adresse: null,
     },
     signature: {
       sheet: 'TRAME ICPE',
-      cells: [{ ref: 'C4', values: ['ICPE'] }],
+      cells: [{ ref: 'B4', values: ['ICPE'] }],
     },
     fieldMappings: ICPE_FIELD_MAPPINGS,
     networks: {
       mainSheet: 'TRAME ICPE',
       starts: [66, 76, 86, 96, 106, 116],
-      importOffsets: {
-        tExt: 0,
-        tDep: 1,
-        nom: 2,
-        courbe: 3,
-        tnc: 4,
-        programme: 5,
-      },
-      exportOffsets: {
-        t_ext_c: 0,
-        t_dep_c: 1,
-        nom_reseau: 2,
-        courbe_de_chauffe: 3,
-        tnc: 4,
-        consigne_programme_horaire: 5,
-      },
-      // Les paramètres de réseau sont des valeurs, pas des avis de conformité.
+      importOffsets: { tExt: 0, tDep: 1, nom: 2, courbe: 3, tnc: 4, programme: 5 },
+      exportOffsets: { t_ext_c: 0, t_dep_c: 1, nom_reseau: 2, courbe_de_chauffe: 3, tnc: 4, consigne_programme_horaire: 5 },
       exportColumn: 'C',
       overflow: {
         sheet: 'RESEAUX COMPLEMENTAIRES',
@@ -117,24 +102,12 @@ const ICPE = Object.freeze({
     },
     tables: {
       materiel: {
-        sheet: 'MATERIEL',
-        startRow: 4,
-        maxImportRow: 500,
-        columns: [
-          ['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero'],
-          ['E', 'reseau'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'],
-          ['I', 'annee'], ['J', 'etat'],
-        ],
-        exportColumns: [
-          ['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero_materiel'],
-          ['E', 'reseau_desservi'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'],
-          ['I', 'annee'], ['J', 'etat'],
-        ],
+        sheet: 'MATERIEL', startRow: 4, maxImportRow: 500,
+        columns: [['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero'], ['E', 'reseau'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'], ['I', 'annee'], ['J', 'etat']],
+        exportColumns: [['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero_materiel'], ['E', 'reseau_desservi'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'], ['I', 'annee'], ['J', 'etat']],
       },
       remarques: {
-        sheet: 'REMARQUES',
-        startRow: 4,
-        maxImportRow: 500,
+        sheet: 'REMARQUES', startRow: 4, maxImportRow: 500,
         columns: [['A', 'poste'], ['B', 'prestation'], ['D', 'delai'], ['F', 'estimatif']],
         exportColumns: [['A', 'poste'], ['B', 'prestation'], ['D', 'delai'], ['F', 'estimatif']],
       },
@@ -145,24 +118,16 @@ const ICPE = Object.freeze({
 
 const DEFINITIONS = [ICPE];
 for (const definition of DEFINITIONS) exigerDefinitionTrameValide(definition);
+const REGISTRY = Object.freeze(Object.fromEntries(DEFINITIONS.map((definition) => [definition.id, definition])));
 
-const REGISTRY = Object.freeze(
-  Object.fromEntries(DEFINITIONS.map((definition) => [definition.id, definition]))
-);
-
-export function listerTramesDisponibles() {
-  return Object.values(REGISTRY).filter((t) => t.actif !== false);
-}
-
+export function listerTramesDisponibles() { return Object.values(REGISTRY).filter((t) => t.actif !== false); }
 export function obtenirTrame(trameId = DEFAULT_TRAME_ID) {
   const trame = REGISTRY[trameId] || REGISTRY[DEFAULT_TRAME_ID];
   if (!trame) throw new Error(`Trame inconnue : ${trameId}`);
   return trame;
 }
-
 export function detecterTrameDepuisClasseur(wb, lireCellule) {
-  const disponibles = listerTramesDisponibles();
-  for (const trame of disponibles) {
+  for (const trame of listerTramesDisponibles()) {
     const cfg = trame.excel;
     if (!cfg?.requiredSheets?.every((nom) => !!wb.Sheets[nom])) continue;
     const signature = cfg.signature;
@@ -174,9 +139,7 @@ export function detecterTrameDepuisClasseur(wb, lireCellule) {
     });
     if (ok) return trame;
   }
-
   if (wb.Sheets['TRAME ICPE']) return ICPE;
   return null;
 }
-
 export { normaliserSectionCode };
