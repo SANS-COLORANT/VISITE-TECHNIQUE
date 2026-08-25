@@ -86,7 +86,7 @@ function parseDetails(json) {
 }
 
 async function provenanceExcel(db, visiteId) {
-  const row = await db.getFirstAsync(`SELECT details_json FROM provenances WHERE entite_type='visite' AND entite_id=? AND origine='import_excel' ORDER BY cree_le DESC LIMIT 1`, [visiteId]);
+  const row = await db.getFirstAsync(`SELECT details_json FROM provenances WHERE entite_type='visite' AND entite_id=? AND origine='import_excel' ORDER BY importe_le DESC LIMIT 1`, [visiteId]);
   return parseDetails(row?.details_json);
 }
 
