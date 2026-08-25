@@ -7,6 +7,7 @@ import { getDb } from './db.js';
 import { COLORS, styles } from './styles.js';
 import { HomeScreen } from './HomeScreen.js';
 import { ClientSitesScreen } from './ClientSitesScreen.js';
+import { ClientPatrimoineScreen } from './ClientPatrimoineScreen.js';
 import { VisiteScreen } from './VisiteScreen.js';
 import { ParametresScreen } from './ParametresScreen.js';
 import { SiteVisitesScreen } from './SiteVisitesScreen.js';
@@ -82,6 +83,7 @@ function AppContent() {
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       {current.name === 'Home' && <><SimpleHeader title="Visite Technique" /><HomeScreen navigation={navigation} route={route} onR1LongPress={() => setR1Visible(true)} /></>}
       {current.name === 'ClientSites' && <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} /><ClientSitesScreen navigation={navigation} route={route} /></>}
+      {current.name === 'ClientPatrimoine' && <><SimpleHeader title="Synthèse patrimoine" onBack={goBack} /><ClientPatrimoineScreen navigation={navigation} route={route} /></>}
       {current.name === 'SiteVisites' && <><SimpleHeader title={current.params?.nomSite || 'Visites'} onBack={goBack} /><SiteVisitesScreen navigation={navigation} route={route} /></>}
       {current.name === 'Visite' && <VisiteScreen navigation={navigation} route={route} onBack={goBack} />}
       {current.name === 'Report' && <ReportScreen route={route} onBack={goBack} />}
