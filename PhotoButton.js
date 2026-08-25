@@ -8,6 +8,7 @@ import { listerPhotos, ajouterPhoto, remplacerPhoto, getVisite } from './db.js';
 import { upsertRemarquePrescription } from './remarkDb.js';
 import { openAppDatabase } from './database/index.js';
 import { supprimerPhotoComplete } from './photoDb.js';
+import { copierPhotoDansDocuments, supprimerCopiePhotoDocuments } from './photoDocumentsStorage.js';
 import { styles } from './styles.js';
 
 function nettoyerNomFichier(valeur = '', fallback = 'Photo') {
@@ -78,6 +79,9 @@ async function preparerPhotoNommee({ visiteId, entiteKey = null, label = 'Photo'
   const libelle = nettoyerNomFichier(label || type, type);
   const nom = `${site}__${type}__${libelle}__${horodatagePhoto()}__${suffixeCourt()}.jpg`;
   const uriDurable = await copierPhotoDurable(uri, visiteId, nom);
+  // La copie interne reste la source canonique pour le backup. Une seconde copie
+  // est déposée dans Documents afin d'être directement visible par l'utilisateur.
+  await copierPhotoDansDocuments(uriDurable, nom).catch(() => null);
   return { uri: uriDurable, nom };
 }
 
@@ -178,6 +182,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       const cibleKey = photoExistante.entite_key || entiteKey;
       const nouvelle = await preparerPhotoNommee({ visiteId, entiteKey: cibleKey, label, uri: captureUri });
       await remplacerPhoto(photoExistante.id, nouvelle.uri);
+      await supprimerCopiePhotoDocuments(photoExistante.uri).catch(() => {});
       await supprimerPhotoGeree(photoExistante.uri);
       await charger(cibleKey);
       onPhotoSaved?.({ id: photoExistante.id, entiteKey: cibleKey, uri: nouvelle.uri, label });
