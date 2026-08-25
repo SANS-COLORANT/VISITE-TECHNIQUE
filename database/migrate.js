@@ -34,6 +34,7 @@ async function ensureLegacyTimestampColumn(db, tableName) {
 }
 
 async function repairLegacyReportSchema(db) {
+  await ensureLegacyTimestampColumn(db, 'materiel');
   await ensureLegacyTimestampColumn(db, 'remarques');
   await ensureLegacyTimestampColumn(db, 'photos');
 }
