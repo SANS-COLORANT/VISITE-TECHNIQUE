@@ -32,3 +32,6 @@ jobs:
 
       - name: Expo Doctor
         run: npx expo-doctor
+
+      - name: Validate JavaScript bundle
+        run: npx expo export --platform android --output-dir dist-ci
