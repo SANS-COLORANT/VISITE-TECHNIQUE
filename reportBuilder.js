@@ -513,7 +513,11 @@ async function habillerPdf(uriSource, config, siteFooter) {
     const x = width - arrowW - numW;
     page.drawRectangle({ x, y: footerY - 1, width: arrowW, height: boxH, color: grey });
     page.drawRectangle({ x: x + arrowW, y: footerY - 1, width: numW, height: boxH, color: orange });
-    page.drawText('→', { x: x + 7.5, y: footerY + 4, size: 6.8, font: bold, color: rgb(1, 1, 1) });
+    const arrowColor = rgb(1, 1, 1);
+    const arrowY = footerY + 7.5;
+    page.drawLine({ start: { x: x + 6, y: arrowY }, end: { x: x + 16, y: arrowY }, thickness: 1.2, color: arrowColor });
+    page.drawLine({ start: { x: x + 12.5, y: arrowY + 3.2 }, end: { x: x + 16, y: arrowY }, thickness: 1.2, color: arrowColor });
+    page.drawLine({ start: { x: x + 12.5, y: arrowY - 3.2 }, end: { x: x + 16, y: arrowY }, thickness: 1.2, color: arrowColor });
     const tW = bold.widthOfTextAtSize(pageText, 6.6);
     page.drawText(pageText, { x: x + arrowW + (numW - tW) / 2, y: footerY + 4, size: 6.6, font: bold, color: rgb(1, 1, 1) });
   });
