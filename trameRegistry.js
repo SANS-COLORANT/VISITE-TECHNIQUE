@@ -21,14 +21,19 @@ function construireMappingsChamps(uiData, excelRows) {
       for (const field of fields || []) {
         const row = excelRows[`${section}||${field.cle}`];
         if (!row) continue;
-        const estControle = field.type === 'controle';
+        // Dans l'écran Relevés, les températures et le pH sont des mesures saisies
+        // directement. Dans le fichier historique elles vivent en colonne C, même si
+        // l'ancien référentiel UI les avait classées comme "controle".
+        const estMesureReleve = panelId === 'p-releves' && section === 'Températures et pH';
+        const estControle = field.type === 'controle' && !estMesureReleve;
+        const typeMapping = estControle ? 'controle' : 'champ';
         mappings.push({
           fieldId: `${sectionCode}||${field.cle}`,
           panelId,
           section,
           sectionCode,
           cle: field.cle,
-          type: field.type,
+          type: typeMapping,
           sheetName: 'TRAME ICPE',
           valueCell: `${estControle ? 'B' : 'C'}${row}`,
           commentCell: estControle ? `C${row}` : null,
