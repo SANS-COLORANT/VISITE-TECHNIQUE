@@ -1,42 +1,58 @@
 /**
- * Export Excel — charge le modèle Excel original (Trame_ICPE.xlsx, embarqué
- * dans templateExcel.js) et n'écrit QUE les valeurs de la visite dedans.
- * Toute la mise en forme d'origine est donc conservée : couleurs, largeurs
- * de colonnes, listes déroulantes, fusions de cellules, libellés déjà
- * présents en colonne A. On ne fait jamais table rase du fichier.
+ * Export Excel fidele au fichier importe.
  *
- * Ce module ne connaît que la base (via db.js) — jamais l'état React.
+ * Le classeur n'est jamais reconstruit avec SheetJS : on repart des octets
+ * OOXML du fichier source et on ne modifie que les cellules ciblees. Pour une
+ * visite qui ne provient pas d'un import Excel, la trame embarquee sert de
+ * source, avec exactement la meme methode d'ecriture OOXML.
  */
 
-import * as XLSX from 'xlsx';
-// Sur les versions récentes du SDK Expo, l'API classique de expo-file-system
-// (writeAsStringAsync, cacheDirectory...) a été déplacée vers ce chemin de
-// compatibilité — l'import par défaut pointe vers une nouvelle API différente
-// (classes File/Directory).
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 
 import { TEMPLATE_EXCEL_BASE64 } from './templateExcel.js';
 import { EXCEL_ROWS, TRAME_DATA } from './data.js';
 import { getDb, getVisite, listerReseaux, listerMateriel, listerRemarques, getNote } from './db.js';
+import { patchWorkbookBase64 } from './ooxmlExcel.js';
 
 const RESEAU_BLOCS_DEBUT = [66, 76, 86, 96, 106, 116];
 const RESEAU_OFFSETS = { t_ext_c: 0, t_dep_c: 1, nom_reseau: 2, courbe_de_chauffe: 3, tnc: 4, consigne_programme_horaire: 5 };
+const SOURCE_DIR = `${FileSystem.documentDirectory}excel-sources/`;
 
-/**
- * Met à jour la valeur d'une cellule EXISTANTE sans toucher à ses propriétés
- * de mise en forme (`.s` = style, format numérique, etc.) — c'est la
- * différence clé avec un `sheet[ref] = {...}` qui écraserait tout.
- */
-function setCell(sheet, ref, valeur) {
-  if (valeur === null || valeur === undefined || valeur === '') return;
-  const existante = sheet[ref] || {};
-  sheet[ref] = { ...existante, v: valeur, t: typeof valeur === 'number' ? 'n' : 's' };
-  delete sheet[ref].w; // texte formaté mis en cache par Excel, à recalculer
+function ajouterMiseAJour(updates, sheet, ref, value) {
+  if (value === null || value === undefined || value === '') return;
+  updates.push({ sheet, ref, value });
 }
 
-/** Construit le classeur pour une visite donnée, à partir du vrai modèle. */
-async function construireClasseur(visiteId) {
+function hashDepuisReference(reference) {
+  if (!reference) return null;
+  const parts = String(reference).split(':');
+  return parts.length > 1 ? parts[parts.length - 1] : null;
+}
+
+async function chargerSourceOriginale(db, visiteId) {
+  const provenance = await db.getFirstAsync(
+    `SELECT reference_externe
+     FROM provenances
+     WHERE entite_type = 'visite' AND entite_id = ? AND origine = 'import_excel'
+     ORDER BY importe_le DESC
+     LIMIT 1`,
+    [visiteId]
+  );
+
+  const hash = hashDepuisReference(provenance?.reference_externe);
+  if (hash) {
+    const chemin = `${SOURCE_DIR}${hash}.xlsx`;
+    const info = await FileSystem.getInfoAsync(chemin);
+    if (info.exists) {
+      return FileSystem.readAsStringAsync(chemin, { encoding: FileSystem.EncodingType.Base64 });
+    }
+  }
+
+  return TEMPLATE_EXCEL_BASE64;
+}
+
+async function construireExport(visiteId) {
   const db = await getDb();
   const visite = await getVisite(visiteId);
   if (!visite) throw new Error('Visite introuvable');
@@ -47,88 +63,71 @@ async function construireClasseur(visiteId) {
   const materiel = await listerMateriel(visiteId);
   const remarques = await listerRemarques(visiteId);
   const note = await getNote(visiteId);
+  const updates = [];
 
-  // Charge le vrai modèle — libellés, styles, listes déroulantes, tout y est déjà.
-  const wb = XLSX.read(TEMPLATE_EXCEL_BASE64, {
-    type: 'base64',
-    cellStyles: true,   // conserve les couleurs/polices des cellules
-    cellNF: true,       // conserve les formats numériques
-    bookVBA: true,       // conserve la structure interne du classeur
-  });
-  const sheetTrame = wb.Sheets['TRAME ICPE'];
-  const sheetMateriel = wb.Sheets['MATERIEL'];
-  const sheetRemarques = wb.Sheets['REMARQUES'];
-  const sheetNote = wb.Sheets['NOTE'];
+  ajouterMiseAJour(updates, 'TRAME ICPE', 'B1', visite.nom_client);
+  ajouterMiseAJour(updates, 'TRAME ICPE', 'B2', visite.nom_site);
+  ajouterMiseAJour(updates, 'TRAME ICPE', 'B3', visite.site_adresse);
+  ajouterMiseAJour(updates, 'TRAME ICPE', 'B4', 'ICPE');
+  ajouterMiseAJour(updates, 'TRAME ICPE', 'B5', visite.date_visite);
 
-  // ---- En-tête ----
-  setCell(sheetTrame, 'B1', visite.nom_client);
-  setCell(sheetTrame, 'B2', visite.nom_site);
-  setCell(sheetTrame, 'B3', visite.site_adresse || '');
-  setCell(sheetTrame, 'B4', 'ICPE');
-  setCell(sheetTrame, 'B5', visite.date_visite);
-
-  // ---- Champs et contrôles génériques (uniquement les valeurs) ----
   Object.entries(TRAME_DATA).forEach(([panelId, sections]) => {
     Object.entries(sections).forEach(([sub, fields]) => {
       const sectionCode = panelId.replace('p-', '') + '.' + sub.toLowerCase().replace(/[^a-z0-9]+/g, '_');
-      fields.forEach((f) => {
-        const ligne = EXCEL_ROWS[`${sub}||${f.cle}`];
+      fields.forEach((field) => {
+        const ligne = EXCEL_ROWS[`${sub}||${field.cle}`];
         if (!ligne) return;
-        if (f.type === 'champ') {
-          const row = champs.find((c) => c.section_code === sectionCode && c.cle === f.cle);
-          if (row) setCell(sheetTrame, `B${ligne}`, row.valeur);
-        } else {
-          const row = controles.find((c) => c.section_code === sectionCode && c.cle === f.cle);
-          if (row) {
-            setCell(sheetTrame, `B${ligne}`, row.avis);
-            setCell(sheetTrame, `C${ligne}`, row.commentaire);
-          }
+        if (field.type === 'champ') {
+          const row = champs.find((item) => item.section_code === sectionCode && item.cle === field.cle);
+          if (row) ajouterMiseAJour(updates, 'TRAME ICPE', `B${ligne}`, row.valeur);
+          return;
+        }
+        const row = controles.find((item) => item.section_code === sectionCode && item.cle === field.cle);
+        if (row) {
+          ajouterMiseAJour(updates, 'TRAME ICPE', `B${ligne}`, row.avis);
+          ajouterMiseAJour(updates, 'TRAME ICPE', `C${ligne}`, row.commentaire);
         }
       });
     });
   });
 
-  // ---- Réseaux dynamiques → 6 blocs fixes déjà présents dans le modèle ----
-  reseaux.forEach((r, i) => {
-    if (i >= RESEAU_BLOCS_DEBUT.length) return; // au-delà de 6, non couvert par le modèle papier
-    const debut = RESEAU_BLOCS_DEBUT[i];
+  reseaux.forEach((reseau, index) => {
+    if (index >= RESEAU_BLOCS_DEBUT.length) return;
+    const debut = RESEAU_BLOCS_DEBUT[index];
     Object.entries(RESEAU_OFFSETS).forEach(([champ, offset]) => {
-      setCell(sheetTrame, `B${debut + offset}`, r[champ]);
+      ajouterMiseAJour(updates, 'TRAME ICPE', `B${debut + offset}`, reseau[champ]);
     });
   });
 
-  // ---- Feuille MATERIEL (en-têtes déjà dans le modèle, ligne 4+) ----
   const materielCols = ['categorie', 'nombre', 'designation', 'numero_materiel', 'reseau_desservi', 'marque', 'modele', 'caracteristiques', 'annee', 'etat'];
-  materiel.forEach((m, i) => {
-    const ligne = 4 + i;
-    materielCols.forEach((col, ci) => setCell(sheetMateriel, `${String.fromCharCode(65 + ci)}${ligne}`, m[col]));
+  materiel.forEach((item, index) => {
+    const ligne = 4 + index;
+    materielCols.forEach((col, colIndex) => {
+      ajouterMiseAJour(updates, 'MATERIEL', `${String.fromCharCode(65 + colIndex)}${ligne}`, item[col]);
+    });
   });
 
-  // ---- Feuille REMARQUES (en-têtes déjà dans le modèle, ligne 4+) ----
-  remarques.forEach((r, i) => {
-    const ligne = 4 + i;
-    setCell(sheetRemarques, `A${ligne}`, r.poste);
-    setCell(sheetRemarques, `B${ligne}`, r.prestation);
-    setCell(sheetRemarques, `D${ligne}`, r.delai);
-    setCell(sheetRemarques, `F${ligne}`, r.estimatif);
+  remarques.forEach((item, index) => {
+    const ligne = 4 + index;
+    ajouterMiseAJour(updates, 'REMARQUES', `A${ligne}`, item.poste);
+    ajouterMiseAJour(updates, 'REMARQUES', `B${ligne}`, item.prestation);
+    ajouterMiseAJour(updates, 'REMARQUES', `D${ligne}`, item.delai);
+    ajouterMiseAJour(updates, 'REMARQUES', `F${ligne}`, item.estimatif);
   });
 
-  // ---- Feuille NOTE ----
-  setCell(sheetNote, 'A2', note || '');
+  ajouterMiseAJour(updates, 'NOTE', 'A2', note);
 
-  return { wb, visite };
+  const sourceBase64 = await chargerSourceOriginale(db, visiteId);
+  const base64 = await patchWorkbookBase64(sourceBase64, updates);
+  return { base64, visite };
 }
 
-/**
- * Génère le fichier et ouvre le menu de partage natif (enregistrer, envoyer
- * par mail, etc.) — c'est la seule façon standard de "télécharger" un
- * fichier depuis une app Expo, il n'y a pas de dossier Téléchargements
- * accessible directement comme sur ordinateur.
- */
-async function exporterEtPartager(visiteId) {
-  const { wb, visite } = await construireClasseur(visiteId);
-  const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
+async function construireClasseur(visiteId) {
+  return construireExport(visiteId);
+}
 
+async function exporterEtPartager(visiteId) {
+  const { base64, visite } = await construireExport(visiteId);
   const nomFichier = `Visite_${(visite.nom_site || 'site').replace(/[^a-zA-Z0-9]+/g, '')}_${visite.date_visite || ''}.xlsx`;
   const chemin = FileSystem.cacheDirectory + nomFichier;
 
