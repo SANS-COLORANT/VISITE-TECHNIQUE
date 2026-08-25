@@ -61,11 +61,23 @@ function equivalents(source, courant, type) {
 }
 
 function ajouterPatchSiChange(patches, sheetName, sheet, address, value, cle = '', options = {}) {
-  if (!address) return;
+  if (!address) return false;
   const valueType = options.valueType || typePourEcriture(sheet, address, value, cle);
   const original = valeurSource(sheet, address);
-  if (equivalents(original, value, valueType)) return;
+  if (equivalents(original, value, valueType)) return false;
+
+  // Une cellule numérique du classeur source ne doit jamais devenir du texte à cause
+  // d'une donnée SQLite incohérente (ex. C183 = 2 remplacé autrefois par une réserve).
+  if (valueType === 'number' && String(value ?? '').trim() !== '') {
+    const nombre = Number(String(value).replace(',', '.'));
+    if (!Number.isFinite(nombre)) {
+      console.warn(`Export Excel: ${sheetName}!${address} conservée (${original}) car la valeur applicative n'est pas numérique: ${value}`);
+      return false;
+    }
+  }
+
   patches.push({ sheetName, address, value: value ?? '', valueType, allowFormulaOverwrite: false });
+  return true;
 }
 
 function parseDetails(json) {
