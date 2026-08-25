@@ -127,6 +127,13 @@ function ClientSitesScreen({ route, navigation }) {
               </TouchableOpacity>
             </View>
             <TouchableOpacity
+              style={[styles.btnPrimary, { marginBottom: 8 }]}
+              onPress={() => navigation.navigate('Report', { clientId })}
+              disabled={sites.length === 0}
+            >
+              <Text style={styles.btnPrimaryText}>📄 Générer un rapport PDF / Word</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
               style={[styles.btnSecondary, { marginBottom: 14 }]}
               onPress={exporterDernieresVisites}
               disabled={exportClientEnCours || sites.length === 0}
