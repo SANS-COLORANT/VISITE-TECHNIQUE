@@ -140,14 +140,19 @@ function buildPayload(type, value, context) {
   return { type: 'inlineStr', payload: `<is><t${preserve}>${escapeXml(text)}</t></is>` };
 }
 
+function findCellMatch(xml, escapedRef) {
+  const selfClosing = new RegExp(`<c\\b(?=[^>]*\\br="${escapedRef}"(?:\\s|\\/?>))[^>]*\\/>`);
+  const regular = new RegExp(`<c\\b(?=[^>]*\\br="${escapedRef}"(?:\\s|>))[^>]*>[\\s\\S]*?<\\/c>`);
+  return xml.match(selfClosing) || xml.match(regular);
+}
+
 function replaceCell(xml, ref, value, context) {
   const escapedRef = ref.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const re = new RegExp(`<c\\b[^>]*\\br="${escapedRef}"[^>]*(?:\\/>|>[\\s\\S]*?<\\/c>)`);
-  const match = xml.match(re);
+  const match = findCellMatch(xml, escapedRef);
 
   if (match) {
     const original = match[0];
-    const openMatch = original.match(/^<c\b[^>]*>/) || original.match(/^<c\b[^>]*\/>/);
+    const openMatch = original.match(/^<c\b[^>]*>/);
     let open = openMatch ? openMatch[0] : `<c r="${ref}">`;
     const selfClosing = /\/>$/.test(open);
     const inner = selfClosing ? '' : original.slice(open.length, -4);
@@ -159,7 +164,7 @@ function replaceCell(xml, ref, value, context) {
     else open = removeAttr(open, 't');
     open = open.replace(/\/>$/, '>');
     const replacement = `${open}${appendCellPayload(inner, built.payload)}</c>`;
-    return xml.replace(re, replacement);
+    return xml.slice(0, match.index) + replacement + xml.slice(match.index + original.length);
   }
 
   const rowNumber = Number((ref.match(/\d+$/) || [])[0]);
