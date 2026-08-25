@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { obtenirCheminsFeuilles, patcherCelluleXml } = require('../excelOoxmlCore.js');
+const { formatMeterValue } = require('../excelValueCore.js');
 
 test('résout les noms de feuilles sans modifier le workbook', () => {
   const workbook = '<workbook><sheets><sheet name="TRAME ICPE" sheetId="1" r:id="rId1"/></sheets></workbook>';
@@ -37,4 +38,28 @@ test('échappe correctement accents, esperluettes, apostrophes et retours à la 
   const before = '<worksheet><sheetData><row r="4"><c r="B4" s="2" t="s"><v>1</v></c></row></sheetData></worksheet>';
   const after = patcherCelluleXml(before, { address: 'B4', value: 'Énergie & Service\nL\'installation "A"', valueType: 'text' });
   assert.match(after, /Énergie &amp; Service\nL&apos;installation &quot;A&quot;/);
+});
+
+test('ne double jamais l’unité d’un compteur déjà formaté', () => {
+  assert.equal(
+    formatMeterValue({ label: "Compteur d'énergie", valeur: "Compteur d'énergie : 9196.69 MWh", unite: 'MWh' }),
+    "Compteur d'énergie : 9196.69 MWh"
+  );
+});
+
+test('reconstruit un index brut avec une seule unité', () => {
+  assert.equal(
+    formatMeterValue({ label: "Compteur d'énergie", valeur: '9196.69', unite: 'MWh' }, "Compteur d'énergie : 9196.69 MWh"),
+    "Compteur d'énergie : 9196.69 MWh"
+  );
+  assert.equal(
+    formatMeterValue({ label: "Compteur d'appoint eau de chauffage", valeur: '0,116', unite: 'm3' }, "Compteur d'appoint eau de chauffage : 0,116 m3"),
+    "Compteur d'appoint eau de chauffage : 0,116 m3"
+  );
+});
+
+test('n’ajoute aucune unité aux valeurs spéciales', () => {
+  assert.equal(formatMeterValue({ label: 'Compteur alimentation EF ECS', valeur: 'Sans Objet', unite: 'm³' }), 'Sans Objet');
+  assert.equal(formatMeterValue({ label: 'Compteur', valeur: 'N.V', unite: 'm³' }), 'N.V');
+  assert.equal(formatMeterValue({ label: 'Compteur', valeur: '/', unite: 'MWh' }), '/');
 });
