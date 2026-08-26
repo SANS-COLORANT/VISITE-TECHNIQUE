@@ -23,7 +23,7 @@ const REPORT_ASSET_MODULES = Object.freeze({
     require('./assets/report/spiral-red-orange.jpg'),
     require('./assets/report/spiral-yellow-green.jpg'),
     require('./assets/report/spiral-green-red.jpg'),
-    require('./assets/report/spiral-multicolor.jpg'),
+    require('./assets/report/spiral-multicolor-alt.jpg'),
   ],
   pageMark: require('./assets/report/spiral-multicolor.png'),
 });
