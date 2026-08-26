@@ -45,6 +45,46 @@ function celluleExistante(sheet, ref) {
   return sheet?.[ref] || {};
 }
 
+/**
+ * SheetJS ne met pas automatiquement !ref à jour lorsqu'on affecte une cellule
+ * directement. Sans ceci, une deuxième ligne écrite en A5/B5/... peut exister
+ * en mémoire mais être absente du XLSX final si la feuille s'arrêtait à la ligne 4.
+ */
+function etendrePlage(sheet, ref) {
+  if (!sheet || !ref) return;
+  const cible = XLSX.utils.decode_cell(ref);
+  let range;
+  try {
+    range = XLSX.utils.decode_range(sheet['!ref'] || ref);
+  } catch {
+    range = { s: { ...cible }, e: { ...cible } };
+  }
+  range.s.r = Math.min(range.s.r, cible.r);
+  range.s.c = Math.min(range.s.c, cible.c);
+  range.e.r = Math.max(range.e.r, cible.r);
+  range.e.c = Math.max(range.e.c, cible.c);
+  sheet['!ref'] = XLSX.utils.encode_range(range);
+}
+
+function styleDeReference(sheet, ref) {
+  const src = ref ? sheet?.[ref] : null;
+  if (!src) return {};
+  const copie = {};
+  if (src.s !== undefined) copie.s = typeof src.s === 'object' && src.s !== null ? { ...src.s } : src.s;
+  if (src.z !== undefined) copie.z = src.z;
+  return copie;
+}
+
+function recopierHauteurLigne(sheet, ligneSource, ligneCible) {
+  if (!sheet || !ligneSource || !ligneCible || ligneSource === ligneCible) return;
+  const rows = sheet['!rows'];
+  if (!Array.isArray(rows)) return;
+  const src = rows[ligneSource - 1];
+  if (!src) return;
+  if (!sheet['!rows']) sheet['!rows'] = [];
+  if (!sheet['!rows'][ligneCible - 1]) sheet['!rows'][ligneCible - 1] = { ...src };
+}
+
 function forcerFormatGeneral(cell) {
   cell.z = 'General';
   if (cell.s && typeof cell.s === 'object') {
@@ -53,15 +93,14 @@ function forcerFormatGeneral(cell) {
 }
 
 /**
- * Ecrit une valeur en conservant les propriétés visuelles existantes mais en
- * imposant le format Excel « Standard / General » au lieu de « Texte / @ ».
- * Une chaîne vide est volontairement écrite afin de supprimer les éventuelles
- * anciennes valeurs présentes dans la trame embarquée.
+ * Ecrit une valeur en conservant le style visuel de la cellule (ou d'une cellule
+ * de référence) et impose le format Excel « Standard / General ».
  */
-function setCellStandard(sheet, ref, valeur) {
+function setCellStandard(sheet, ref, valeur, styleRef = null) {
   if (!sheet || !ref) return;
+  const baseStyle = styleDeReference(sheet, styleRef);
   const existante = celluleExistante(sheet, ref);
-  const cell = { ...existante };
+  const cell = { ...baseStyle, ...existante };
   const v = valeur === null || valeur === undefined ? '' : valeur;
 
   if (typeof v === 'number' && Number.isFinite(v)) {
@@ -78,6 +117,7 @@ function setCellStandard(sheet, ref, valeur) {
   forcerFormatGeneral(cell);
   delete cell.w;
   sheet[ref] = cell;
+  etendrePlage(sheet, ref);
 }
 
 function parseIsoDate(value) {
@@ -96,15 +136,16 @@ function dateFr(value) {
 }
 
 /** Date Excel réelle, sans dépendance au fuseau horaire Android. */
-function setCellDate(sheet, ref, value) {
+function setCellDate(sheet, ref, value, styleRef = null) {
   if (!sheet || !ref) return;
   const d = parseIsoDate(value);
   if (!d) {
-    setCellStandard(sheet, ref, value || '');
+    setCellStandard(sheet, ref, value || '', styleRef);
     return;
   }
+  const baseStyle = styleDeReference(sheet, styleRef);
   const existante = celluleExistante(sheet, ref);
-  const cell = { ...existante };
+  const cell = { ...baseStyle, ...existante };
   const excelEpoch = Date.UTC(1899, 11, 30);
   const serial = (Date.UTC(d.y, d.m - 1, d.d) - excelEpoch) / 86400000;
   cell.v = serial;
@@ -113,6 +154,7 @@ function setCellDate(sheet, ref, value) {
   if (cell.s && typeof cell.s === 'object') cell.s = { ...cell.s, numFmt: 'dd/mm/yyyy' };
   delete cell.w;
   sheet[ref] = cell;
+  etendrePlage(sheet, ref);
 }
 
 function maxLigneUtilisee(sheet, fallback = 1) {
@@ -133,7 +175,7 @@ function viderTable(sheet, tableConfig, colonnesSupplementaires = []) {
   const start = Number(tableConfig.startRow || 1);
   const fin = Math.min(Number(tableConfig.maxImportRow || 500), Math.max(start, maxLigneUtilisee(sheet, start)));
   for (let row = start; row <= fin; row++) {
-    for (const col of cols) setCellStandard(sheet, `${col}${row}`, '');
+    for (const col of cols) setCellStandard(sheet, `${col}${row}`, '', `${col}${start}`);
   }
 }
 
@@ -151,9 +193,11 @@ function celluleCompteurDepuisLabel(compteur) {
 function renseignerTable(sheet, tableConfig, rows = []) {
   if (!sheet || !tableConfig) return;
   const cols = tableConfig.exportColumns || tableConfig.columns || [];
+  const start = Number(tableConfig.startRow || 1);
   rows.forEach((row, index) => {
-    const excelRow = Number(tableConfig.startRow || 1) + index;
-    cols.forEach(([col, cle]) => setCellStandard(sheet, `${col}${excelRow}`, row?.[cle] ?? ''));
+    const excelRow = start + index;
+    recopierHauteurLigne(sheet, start, excelRow);
+    cols.forEach(([col, cle]) => setCellStandard(sheet, `${col}${excelRow}`, row?.[cle] ?? '', `${col}${start}`));
   });
 }
 
@@ -246,18 +290,18 @@ async function construireExport(visiteId) {
     renseignerTable(sheet, tables.materiel, materiel);
   }
 
-  // REMARQUES : même logique que l'ancienne version, avec en plus la date de visite
-  // en colonne C sur chaque ligne. C'est volontairement la date de la visite et non
-  // la date technique de création de la ligne dans SQLite.
+  // REMARQUES : réécriture complète + date de visite en colonne C sur chaque ligne.
   if (tables.remarques) {
     const sheet = wb.Sheets[tables.remarques.sheet];
+    const start = Number(tables.remarques.startRow || 4);
     viderTable(sheet, tables.remarques, ['C', 'E']);
     remarques.forEach((r, index) => {
-      const excelRow = Number(tables.remarques.startRow || 4) + index;
+      const excelRow = start + index;
+      recopierHauteurLigne(sheet, start, excelRow);
       for (const [col, cle] of tables.remarques.exportColumns || tables.remarques.columns || []) {
-        setCellStandard(sheet, `${col}${excelRow}`, r?.[cle] ?? '');
+        setCellStandard(sheet, `${col}${excelRow}`, r?.[cle] ?? '', `${col}${start}`);
       }
-      setCellDate(sheet, `C${excelRow}`, visite.date_visite);
+      setCellDate(sheet, `C${excelRow}`, visite.date_visite, `C${start}`);
     });
   }
 
