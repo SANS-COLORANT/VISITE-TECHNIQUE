@@ -18,48 +18,17 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: fix/pdf-report-word-layout
+          fetch-depth: 0
 
-      - name: Restore exporterUnFormat
+      - name: Restore exporterUnFormat from known-good revision
         run: |
-          python <<'PY'
-          from pathlib import Path
+          git show 3130529c509dfc096514cce16c2d8ca40d03a7ef:reportBuilder.js > /tmp/reportBuilder-good.js
+          python -c "from pathlib import Path; import re; p=Path('reportBuilder.js'); s=p.read_text(encoding='utf-8'); old=Path('/tmp/reportBuilder-good.js').read_text(encoding='utf-8'); m=re.search(r'async function exporterUnFormat\([\s\S]*?\n}\n\nexport async function exporterRapport\(', old); assert m, 'exporterUnFormat introuvable dans la revision de reference'; fn=m.group(0).rsplit('export async function exporterRapport(',1)[0]; marker='export async function exporterRapport('; assert marker in s, 'exporterRapport introuvable'; p.write_text(s if 'async function exporterUnFormat(' in s else s.replace(marker, fn+marker, 1), encoding='utf-8')"
 
-          path = Path('reportBuilder.js')
-          source = path.read_text(encoding='utf-8')
-          if 'async function exporterUnFormat(' in source:
-              print('exporterUnFormat already present')
-          else:
-              marker = 'export async function exporterRapport('
-              if marker not in source:
-                  raise SystemExit('exporterRapport marker not found')
-              fn = '''async function exporterUnFormat({ datas, config, photosConfig, format, dossier }) {
-  const base = propre(`${config.chrono || 'Rapport'}_${datas.length === 1 ? datas[0].visite.nom_site : datas[0].visite.nom_client}_${config.objet || 'CRV'}`);
-  const sites = [...new Set(datas.map((d) => d.visite.nom_site).filter(Boolean))];
-  const siteFooter = sites.length === 1 ? sites[0] : `${sites.length} sites sélectionnés`;
-
-  if (format === 'word') {
-    const html = await construireHtmlRapport(datas, config, photosConfig, 'word');
-    const nom = `${base}.doc`;
-    return { format, uri: await ecrireWordHtml(dossier, nom, html), nom };
-  }
-
-  const html = await construireHtmlRapport(datas, config, photosConfig, 'pdf');
-  const printed = await Print.printToFileAsync({ html, base64: false });
-  let habille = null;
-  const nom = `${base}.pdf`;
-  try {
-    habille = await habillerPdf(printed.uri, config, siteFooter);
-    return { format: 'pdf', uri: await copierPdfVersDossier(habille, dossier, nom), nom };
-  } finally {
-    await FileSystem.deleteAsync(printed.uri, { idempotent: true }).catch(() => {});
-    if (habille) await FileSystem.deleteAsync(habille, { idempotent: true }).catch(() => {});
-  }
-}
-
-'''
-              source = source.replace(marker, fn + marker, 1)
-              path.write_text(source, encoding='utf-8')
-          PY
+      - name: Verify restored function
+        run: |
+          grep -n "async function exporterUnFormat" reportBuilder.js
+          grep -n "export async function exporterRapport" reportBuilder.js
 
       - name: Validate JavaScript bundle
         run: |
@@ -68,9 +37,8 @@ jobs:
 
       - name: Commit fix
         run: |
-          rm .github/workflows/restore-pdf-export-function.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add reportBuilder.js .github/workflows/restore-pdf-export-function.yml
-          git commit -m "fix: restore PDF export execution path"
+          git add reportBuilder.js
+          git commit -m "fix: restore PDF export execution path" || exit 0
           git push origin HEAD:fix/pdf-report-word-layout
