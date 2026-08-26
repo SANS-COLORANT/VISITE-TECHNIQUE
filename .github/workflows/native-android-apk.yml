@@ -53,14 +53,16 @@ jobs:
           npx expo install --check
           npx expo-doctor
 
-      - name: Force reliable PDF cover fallback
+      - name: Generate exact PDF assets from untouched files
         run: python .github/scripts/patch_pdf_cover_fallback_build.py
 
-      - name: Validate PDF cover patch
+      - name: Validate exact PDF cover patch
         run: |
           node --check reportBuilder.js
-          grep -q "coverVisualImage = await embedJpgSafe(dataUriBase64(REPORT_COVER))" reportBuilder.js
-          grep -q "coverLogoImage = await embedJpgSafe(dataUriBase64(REPORT_LOGO))" reportBuilder.js
+          test -s reportExactAssets.generated.js
+          grep -q "embedExactSafe(EXACT_COVER, 'png')" reportBuilder.js
+          grep -q "embedExactSafe(EXACT_LOGO, 'png')" reportBuilder.js
+          grep -q "EXACT_SPIRAL_4" reportBuilder.js
 
       - name: Validate JavaScript bundle
         run: npx expo export --platform android --output-dir dist-ci
