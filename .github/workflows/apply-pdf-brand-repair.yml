@@ -1,0 +1,113 @@
+name: Apply validated PDF branding repair
+
+on:
+  push:
+    branches:
+      - fix/pdf-report-word-layout
+    paths:
+      - .github/workflows/apply-pdf-brand-repair.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  repair-pdf-branding:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout complete history
+        uses: actions/checkout@v4
+        with:
+          ref: fix/pdf-report-word-layout
+          fetch-depth: 0
+
+      - name: Restore validated Word visuals
+        run: git checkout 4ebf7d9e6966324fffde185455a609bec2c7ad2f -- reportBrandAssets.js
+
+      - name: Remove double cover and use exact standalone mark
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('reportBuilder.js')
+          s = p.read_text(encoding='utf-8')
+
+          old_import = "import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';"
+          new_import = "import { REPORT_COVER, REPORT_LOGO, REPORT_MARK, REPORT_OPQIBI } from './reportBrandAssets.js';"
+          if old_import in s:
+              s = s.replace(old_import, new_import, 1)
+          elif new_import not in s:
+              raise SystemExit('report asset import not found')
+
+          bad_css = ".coverClient{position:absolute;left:12mm;right:12mm;top:49mm;height:20mm;background:${ORANGE};color:#fff;border-radius:5mm;text-align:center;padding:0;font-size:18pt;font-weight:700;z-index:3;display:flex;align-items:center;justify-content:center};color:#fff;border-radius:6mm;text-align:center;padding:8mm 6mm;font-size:23pt;font-weight:700;z-index:3}"
+          good_css = ".coverClient{position:absolute;left:12mm;right:12mm;top:49mm;height:20mm;background:${ORANGE};color:#fff;border-radius:5mm;text-align:center;padding:0;font-size:18pt;font-weight:700;z-index:3;display:flex;align-items:center;justify-content:center}"
+          if bad_css in s:
+              s = s.replace(bad_css, good_css, 1)
+
+          old_embeds = """  let logo = null;
+          let cover = null;
+          let opqibi = null;
+          try { logo = await pdf.embedJpg(dataUriBase64(REPORT_LOGO)); } catch {}
+          try { cover = await pdf.embedJpg(dataUriBase64(REPORT_COVER)); } catch {}
+          try { opqibi = await pdf.embedJpg(dataUriBase64(REPORT_OPQIBI)); } catch {}
+          """
+          new_embeds = """  let mark = null;
+          try { mark = await pdf.embedJpg(dataUriBase64(REPORT_MARK)); } catch {}
+          """
+          if old_embeds in s:
+              s = s.replace(old_embeds, new_embeds, 1)
+          elif new_embeds not in s:
+              raise SystemExit('PDF image embed block not found')
+
+          # The HTML already draws the complete first page with the official assets.
+          # pdf-lib must never erase and repaint it a second time.
+          s, n = re.subn(
+              r"    if \(index === 0\) \{.*?      return;\n    \}\n\n    const left = 50;",
+              "    if (index === 0) return;\n\n    const left = 50;",
+              s,
+              count=1,
+              flags=re.S,
+          )
+          if n != 1 and "if (index === 0) return;" not in s:
+              raise SystemExit('first-page repaint block not found')
+
+          exact_mark = """    // Exact standalone multicolour spiral from the validated Word artwork.
+              // Never crop or mask the full company logo to simulate this mark.
+              if (mark) {
+                const box = fit(mark, mm(9), mm(9));
+                page.drawImage(mark, {
+                  x: left,
+                  y: height - mm(16),
+                  width: box.width,
+                  height: box.height,
+                });
+              }
+          """
+          pattern = r"    // Use the exact spiral from the original full logo:.*?    \}\n\n    const running ="
+          repl = exact_mark + "\n    const running ="
+          s, n = re.subn(pattern, repl, s, count=1, flags=re.S)
+          if n != 1 and "Exact standalone multicolour spiral" not in s:
+              raise SystemExit('interior logo crop block not found')
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Verify exact asset declarations and syntax
+        run: |
+          grep -q "export const REPORT_LOGO" reportBrandAssets.js
+          grep -q "export const REPORT_MARK" reportBrandAssets.js
+          grep -q "export const REPORT_COVER" reportBrandAssets.js
+          grep -q "export const REPORT_OPQIBI" reportBrandAssets.js
+          node --check reportBuilder.js
+          node --check reportBrandAssets.js
+
+      - name: Remove one-shot workflow and commit repair
+        run: |
+          git rm .github/workflows/apply-pdf-brand-repair.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reportBuilder.js reportBrandAssets.js
+          git commit -m "fix: restore validated Word PDF branding"
+          git push origin HEAD:fix/pdf-report-word-layout
