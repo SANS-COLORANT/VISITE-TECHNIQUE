@@ -5,6 +5,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { getDb, listerMateriel } from './db.js';
 import { obtenirTrame, DEFAULT_TRAME_ID, normaliserSectionCode } from './trameRegistry.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
+import REPORT_MARK_B64 from './reportAssetsExact/mark.js';
 
 const MIME_PDF = 'application/pdf';
 const MIME_WORD = 'application/msword';
@@ -480,23 +481,83 @@ async function habillerPdf(uriSource, config, siteFooter) {
   const pages = pdf.getPages();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  let logo = null;
-  try { logo = await pdf.embedJpg(dataUriBase64(REPORT_LOGO)); } catch {}
+  const mm = (value) => value * 72 / 25.4;
+  const embedJpgSafe = async (base64) => {
+    try { return base64 ? await pdf.embedJpg(base64) : null; } catch { return null; }
+  };
+  const coverLogoImage = await embedJpgSafe(dataUriBase64(REPORT_LOGO));
+  const coverVisualImage = await embedJpgSafe(dataUriBase64(REPORT_COVER));
+  const coverOpqibiImage = await embedJpgSafe(dataUriBase64(REPORT_OPQIBI));
+  const pageMarkImage = await embedJpgSafe(REPORT_MARK_B64);
+  const logo = coverLogoImage;
+
+  const fit = (image, maxWidth, maxHeight) => {
+    if (!image) return { width: 0, height: 0 };
+    const ratio = image.width / image.height;
+    let width = maxWidth;
+    let height = width / ratio;
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = height * ratio;
+    }
+    return { width, height };
+  };
 
   const total = pages.length;
   pages.forEach((page, index) => {
-    if (index === 0) return;
     const { width, height } = page.getSize();
+
+    if (index === 0) {
+      // Android's HTML print engine can crop or drop large data-URI images.
+      // Repaint the Word-template images directly into the generated PDF.
+      page.drawRectangle({ x: mm(5), y: height - mm(31), width: mm(82), height: mm(26), color: rgb(1, 1, 1) });
+      page.drawRectangle({ x: mm(23), y: height - mm(184), width: mm(164), height: mm(94), color: rgb(1, 1, 1) });
+      page.drawRectangle({ x: mm(16), y: mm(7), width: mm(20), height: mm(12), color: rgb(1, 1, 1) });
+
+      if (coverLogoImage) {
+        const s = fit(coverLogoImage, mm(72), mm(20));
+        page.drawImage(coverLogoImage, {
+          x: mm(7),
+          y: height - mm(6) - s.height,
+          width: s.width,
+          height: s.height,
+        });
+      }
+
+      if (coverVisualImage) {
+        const s = fit(coverVisualImage, mm(140), mm(89));
+        page.drawImage(coverVisualImage, {
+          x: mm(25),
+          y: height - mm(94) - s.height,
+          width: s.width,
+          height: s.height,
+        });
+      }
+
+      if (coverOpqibiImage) {
+        const s = fit(coverOpqibiImage, mm(18), mm(9));
+        page.drawImage(coverOpqibiImage, {
+          x: mm(18),
+          y: mm(9),
+          width: s.width,
+          height: s.height,
+        });
+      }
+      return;
+    }
     const left = 50;
     const footerY = 20;
     const grey = rgb(0.35, 0.35, 0.35);
     const orange = rgb(0.94, 0.45, 0.05);
 
-    if (logo) {
-      const ratio = logo.width / logo.height;
-      const logoH = 19;
-      const logoW = logoH * ratio;
-      page.drawImage(logo, { x: left, y: height - 31, width: logoW, height: logoH });
+    if (pageMarkImage) {
+      const s = fit(pageMarkImage, mm(6), mm(6));
+      page.drawImage(pageMarkImage, {
+        x: mm(4.5),
+        y: height - mm(4.5) - s.height,
+        width: s.width,
+        height: s.height,
+      });
     }
     const running = String(config.objet || 'Compte rendu de visite technique').toUpperCase();
     const runSize = 7.2;
