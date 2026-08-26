@@ -1,0 +1,36 @@
+name: Apply Excel fidelity fix
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apply-fix:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/pdf-report-word-layout
+
+      - name: Apply targeted Excel fixes
+        run: python .github/scripts/apply_excel_fidelity_fix.py
+
+      - name: Validate JavaScript syntax
+        run: |
+          node --check excelOoxmlCore.js
+          node --check excelValueCore.js
+
+      - name: Commit repaired sources
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add excelImport.js excelExport.js trameRegistry.js
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+          else
+            git commit -m "fix: preserve imported Excel fidelity"
+            git push origin HEAD:fix/pdf-report-word-layout
+          fi
