@@ -36,12 +36,15 @@ function estLibelleMeta(v) {
 
 function valeurApresLibelleInline(texte, labels) {
   const brut = String(texte || '').trim();
-  const n = normaliserTexte(brut);
   for (const label of labels) {
-    const nl = normaliserTexte(label);
-    if (!n.startsWith(nl)) continue;
-    const reste = brut.slice(label.length).replace(/^\s*[:\-–—]\s*/, '').trim();
-    if (reste && normaliserTexte(reste) !== nl) return reste;
+    // Une valeur inline n'est admise qu'avec un séparateur explicite.
+    // Ainsi "Date de la visite" reste un libellé complet et ne devient jamais
+    // la fausse date "de la visite" à cause du libellé court "date".
+    const escaped = String(label).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const match = brut.match(new RegExp(`^\\s*${escaped}\\s*[:\\-–—]\\s*(.+?)\\s*$`, 'i'));
+    if (!match) continue;
+    const reste = String(match[1] || '').trim();
+    if (reste && normaliserTexte(reste) !== normaliserTexte(label)) return reste;
   }
   return '';
 }

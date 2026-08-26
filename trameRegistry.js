@@ -13,6 +13,15 @@ function normaliserSectionCode(panelId, section) {
   return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
 }
 
+const ICPE_ROW_OVERRIDES = Object.freeze({
+  'p-conf-chauffage||Disconnection et alimentation eau froide||Type de disconnection': 289,
+  "p-conf-chauffage||Disconnection et alimentation eau froide||Compteur d'eau: Présence": 290,
+  "p-conf-chauffage||Disconnection et alimentation eau froide||Compteur d'eau: Emplacement": 291,
+  'p-conf-ecs||Disconnection et alimentation eau froide||Type de disconnection': 321,
+  "p-conf-ecs||Disconnection et alimentation eau froide||Compteur d'eau: Présence": 322,
+  "p-conf-ecs||Disconnection et alimentation eau froide||Compteur d'eau: Emplacement": 323,
+});
+
 function construireMappingsChamps(uiData, excelRows) {
   const mappings = [];
   for (const [panelId, sections] of Object.entries(uiData || {})) {
@@ -22,7 +31,8 @@ function construireMappingsChamps(uiData, excelRows) {
       if (panelId === 'p-infos' && section === 'Général') continue;
       const sectionCode = normaliserSectionCode(panelId, section);
       for (const field of fields || []) {
-        const row = excelRows[`${section}||${field.cle}`];
+        const overrideKey = `${panelId}||${section}||${field.cle}`;
+        const row = ICPE_ROW_OVERRIDES[overrideKey] || excelRows[`${section}||${field.cle}`];
         if (!row) continue;
         // Dans l'écran Relevés, les températures et le pH sont des mesures saisies
         // directement. Dans le fichier historique elles vivent en colonne C, même si

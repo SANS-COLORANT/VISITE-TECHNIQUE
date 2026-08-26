@@ -62,6 +62,9 @@ function equivalents(source, courant, type) {
 
 function ajouterPatchSiChange(patches, sheetName, sheet, address, value, cle = '', options = {}) {
   if (!address) return false;
+  // Une absence de donnée côté application ne doit jamais effacer une valeur historique
+  // présente dans le classeur importé. Les suppressions implicites sont interdites.
+  if (options.allowEmpty !== true && String(value ?? '').trim() === '') return false;
   const valueType = options.valueType || typePourEcriture(sheet, address, value, cle);
   const original = valeurSource(sheet, address);
   if (equivalents(original, value, valueType)) return false;
@@ -99,6 +102,11 @@ async function chargerSourceExcel(db, visiteId, cfg) {
       const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
       return { sourceUri: uri, sourceBase64: base64, details, sourcePreservee: true };
     }
+  }
+  // Une visite issue d'un import Excel doit toujours repartir de SON fichier original.
+  // On ne reconstruit jamais silencieusement une trame neuve si cette copie a disparu.
+  if (details?.fichier || details?.sourceUri) {
+    throw new Error('Le fichier Excel original importé est introuvable. Réimporte ce fichier pour garantir un export strictement fidèle.');
   }
   if (!cfg?.templateBase64) throw new Error('Aucune trame Excel source disponible pour cette visite.');
   return { sourceUri: null, sourceBase64: cfg.templateBase64, details, sourcePreservee: false };
@@ -140,9 +148,9 @@ function patchesTable({ patches, wb, tableConfig, rows, bindings }) {
     }
     for (const [col, cle] of tableConfig.exportColumns || tableConfig.columns || []) {
       const valeur = row[cle];
-      // Une absence en SQLite ne doit jamais vider une cellule historique du fichier source.
-      if (valeur === undefined) continue;
-      ajouterPatchSiChange(patches, tableConfig.sheet, sheet, `${col}${excelRow}`, valeur ?? '', cle);
+      // Une absence / valeur vide en SQLite ne doit jamais vider une cellule historique.
+      if (valeur === undefined || valeur === null || String(valeur).trim() === '') continue;
+      ajouterPatchSiChange(patches, tableConfig.sheet, sheet, `${col}${excelRow}`, valeur, cle);
     }
   }
 }
@@ -173,12 +181,12 @@ async function construireExport(visiteId) {
   const patches = [];
   const main = cfg.mainSheet;
 
-  // Métadonnées de la vraie trame ICPE : B1/B2/B3 et aucune date forcée en B5.
+  // Métadonnées : conserver la date et toute valeur historique du fichier importé.
   ajouterPatchSiChange(patches, main, principale, 'B1', visite.nom_client || '', 'client');
   ajouterPatchSiChange(patches, main, principale, 'B2', visite.nom_site || '', 'site');
   const localCible = nomLocalDepuisChamps(champs) || String(valeurSource(principale, 'B3') || '');
   ajouterPatchSiChange(patches, main, principale, 'B3', localCible, 'local');
-  if (String(valeurSource(principale, 'B5') ?? '').trim() !== '') ajouterPatchSiChange(patches, main, principale, 'B5', '', 'date');
+  // B5 n'est volontairement pas réécrite : la date du classeur source reste intacte.
 
   const compteurBindings = new Map((source.details?.excelBindings?.compteurs || []).map((b) => [b.id, b.cell]));
   const cellulesCompteurs = new Set(compteurs.map((c) => compteurBindings.get(c.id) || celluleCompteurDepuisLabel(c)).filter(Boolean));
@@ -192,8 +200,8 @@ async function construireExport(visiteId) {
     } else {
       const controle = controlesMap.get(key);
       if (!controle) continue;
-      ajouterPatchSiChange(patches, main, principale, mapping.valueCell, controle.avis ?? '', `${mapping.cle}:avis`);
-      if (mapping.commentCell) ajouterPatchSiChange(patches, main, principale, mapping.commentCell, controle.commentaire ?? '', `${mapping.cle}:commentaire`);
+      ajouterPatchSiChange(patches, main, principale, mapping.valueCell, controle.avis, `${mapping.cle}:avis`);
+      if (mapping.commentCell) ajouterPatchSiChange(patches, main, principale, mapping.commentCell, controle.commentaire, `${mapping.cle}:commentaire`);
     }
   }
 
@@ -227,13 +235,19 @@ async function construireExport(visiteId) {
     trame,
     patches,
     sourcePreservee: source.sourcePreservee,
+    sourceDetails: source.details || {},
     stats: { champs: champs.length, controles: controles.length, reseaux: reseaux.length, compteurs: compteurs.length, materiel: materiel.length, remarques: remarques.length, cellulesModifiees: patches.length },
   };
 }
 
 async function preparerExport(visiteId) {
   const construit = await construireExport(visiteId);
-  const nomFichier = `Visite_${slugFichier(construit.trame.nom)}_${slugFichier(construit.visite.nom_site)}_${construit.visite.date_visite || 'sans_date'}.xlsx`;
+  const nomOriginal = String(construit.sourceDetails?.fichier || '').trim();
+  // Pour une visite importée, conserver le nom du fichier d'origine au lieu de le
+  // reconstruire depuis la trame / le site / la date.
+  const nomFichier = /\.xlsx$/i.test(nomOriginal)
+    ? nomOriginal
+    : `Visite_${slugFichier(construit.trame.nom)}_${slugFichier(construit.visite.nom_site)}_${construit.visite.date_visite || 'sans_date'}.xlsx`;
   return { ...construit, base64: construit.resultat.base64, nomFichier };
 }
 
