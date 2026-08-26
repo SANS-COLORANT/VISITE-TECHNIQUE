@@ -1,0 +1,76 @@
+name: Restore PDF export function
+
+on:
+  push:
+    branches:
+      - fix/pdf-report-word-layout
+    paths:
+      - .github/workflows/restore-pdf-export-function.yml
+
+permissions:
+  contents: write
+
+jobs:
+  restore:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: fix/pdf-report-word-layout
+
+      - name: Restore exporterUnFormat
+        run: |
+          python <<'PY'
+          from pathlib import Path
+
+          path = Path('reportBuilder.js')
+          source = path.read_text(encoding='utf-8')
+          if 'async function exporterUnFormat(' in source:
+              print('exporterUnFormat already present')
+          else:
+              marker = 'export async function exporterRapport('
+              if marker not in source:
+                  raise SystemExit('exporterRapport marker not found')
+              fn = '''async function exporterUnFormat({ datas, config, photosConfig, format, dossier }) {
+  const base = propre(`${config.chrono || 'Rapport'}_${datas.length === 1 ? datas[0].visite.nom_site : datas[0].visite.nom_client}_${config.objet || 'CRV'}`);
+  const sites = [...new Set(datas.map((d) => d.visite.nom_site).filter(Boolean))];
+  const siteFooter = sites.length === 1 ? sites[0] : `${sites.length} sites sélectionnés`;
+
+  if (format === 'word') {
+    const html = await construireHtmlRapport(datas, config, photosConfig, 'word');
+    const nom = `${base}.doc`;
+    return { format, uri: await ecrireWordHtml(dossier, nom, html), nom };
+  }
+
+  const html = await construireHtmlRapport(datas, config, photosConfig, 'pdf');
+  const printed = await Print.printToFileAsync({ html, base64: false });
+  let habille = null;
+  const nom = `${base}.pdf`;
+  try {
+    habille = await habillerPdf(printed.uri, config, siteFooter);
+    return { format: 'pdf', uri: await copierPdfVersDossier(habille, dossier, nom), nom };
+  } finally {
+    await FileSystem.deleteAsync(printed.uri, { idempotent: true }).catch(() => {});
+    if (habille) await FileSystem.deleteAsync(habille, { idempotent: true }).catch(() => {});
+  }
+}
+
+'''
+              source = source.replace(marker, fn + marker, 1)
+              path.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Validate JavaScript bundle
+        run: |
+          npm install --no-audit --no-fund
+          npx expo export --platform android --output-dir dist-ci
+
+      - name: Commit fix
+        run: |
+          rm .github/workflows/restore-pdf-export-function.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reportBuilder.js .github/workflows/restore-pdf-export-function.yml
+          git commit -m "fix: restore PDF export execution path"
+          git push origin HEAD:fix/pdf-report-word-layout
