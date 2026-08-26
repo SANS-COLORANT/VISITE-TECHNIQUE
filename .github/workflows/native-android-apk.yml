@@ -87,4 +87,4 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-# Build trigger: 2026-08-24
+# Build trigger: 2026-08-26 PDF cover corrected
