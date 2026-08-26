@@ -11,7 +11,12 @@ on:
 jobs:
   expo-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 35
+    env:
+      NODE_ENV: production
+      GRADLE_OPTS: >-
+        -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+        -Dorg.gradle.workers.max=2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -21,11 +26,33 @@ jobs:
         with:
           node-version: 20
 
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+
+      - name: Excel OOXML regression tests
+        run: npm run test:excel
 
       - name: Check Expo dependency versions
         run: npx expo install --check
 
       - name: Expo Doctor
         run: npx expo-doctor
+
+      - name: Validate JavaScript bundle
+        run: npx expo export --platform android --output-dir dist-ci
+
+      - name: Generate Android project
+        run: npx expo prebuild --clean --platform android --no-install
+
+      - name: Build debug APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --max-workers=2
