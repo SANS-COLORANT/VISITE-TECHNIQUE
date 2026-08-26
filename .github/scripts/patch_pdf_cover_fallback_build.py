@@ -36,7 +36,6 @@ if import_line not in s:
 start = s.find('  const embedBundledSafe = async (moduleId, format) => {')
 end = s.find('\n\n  const [coverVisualImage', start)
 if start < 0 or end < 0:
-    # Allow re-running if a previous build already patched the source tree.
     start = s.find('  const embedExactSafe = async (base64Value, format) => {')
     end = s.find('\n\n  const [coverVisualImage', start)
     if start < 0 or end < 0:
@@ -49,7 +48,7 @@ embed_block = """  const embedExactSafe = async (base64Value, format) => {
         ? await pdf.embedPng(base64Value)
         : await pdf.embedJpg(base64Value);
     } catch (error) {
-      console.warn('Impossible d\'integrer un visuel PDF exact', error);
+      console.warn("Impossible d'integrer un visuel PDF exact", error);
       return null;
     }
   };"""
@@ -77,7 +76,6 @@ s = s[:cover_start] + cover_block + s[cover_end:]
 
 p.write_text(s, encoding='utf-8')
 
-# Sanity checks: originals are still there and generated payloads are non-empty.
 for name, (path, _) in assets.items():
     if not Path(path).is_file() or Path(path).stat().st_size == 0:
         raise SystemExit(f'Missing original asset: {path}')
