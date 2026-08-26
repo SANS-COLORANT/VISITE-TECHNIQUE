@@ -733,6 +733,7 @@ async function exporterUnFormat({ datas, config, photosConfig, format, dossier }
   const base = propre(`${config.chrono || 'Rapport'}_${datas.length === 1 ? datas[0].visite.nom_site : datas[0].visite.nom_client}_${config.objet || 'CRV'}`);
   const sites = [...new Set(datas.map((d) => d.visite.nom_site).filter(Boolean))];
   const siteFooter = sites.length === 1 ? sites[0] : `${sites.length} sites sélectionnés`;
+  const clientCover = datas[0]?.visite?.nom_client || 'Rapport';
 
   if (format === 'word') {
     const html = await construireHtmlRapport(datas, config, photosConfig, 'word');
