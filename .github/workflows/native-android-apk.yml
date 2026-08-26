@@ -87,4 +87,4 @@ jobs:
           if-no-files-found: error
           retention-days: 7
 
-# Build trigger: 2026-08-26 PDF client cover scope fixed
+# Build trigger: 2026-08-26 PDF bundled image loading fixed
