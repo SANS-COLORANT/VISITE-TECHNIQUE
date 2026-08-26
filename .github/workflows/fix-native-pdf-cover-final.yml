@@ -1,0 +1,295 @@
+name: Finalize deterministic Native PDF cover
+
+on:
+  push:
+    branches:
+      - native-android
+    paths:
+      - .github/workflows/fix-native-pdf-cover-final.yml
+
+permissions:
+  contents: write
+
+jobs:
+  fix-native-pdf-cover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout native Android
+        uses: actions/checkout@v4
+        with:
+          ref: native-android
+          fetch-depth: 0
+
+      - name: Fetch verified reference asset slices
+        shell: bash
+        run: |
+          git fetch origin fix/pdf-report-word-layout
+          mkdir -p /tmp/report-assets-v2 /tmp/report-assets-exact
+          for f in cover0.js cover1.js cover2.js logo0.js logo1.js logo2.js; do
+            git show origin/fix/pdf-report-word-layout:reportAssetsExactV2/$f > /tmp/report-assets-v2/$f
+          done
+          for f in mark.js opqibi.js; do
+            git show origin/fix/pdf-report-word-layout:reportAssetsExact/$f > /tmp/report-assets-exact/$f
+          done
+
+      - name: Rebuild exact images byte-for-byte
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import base64, hashlib, re
+
+          expected = {
+              'logo': '60cea6a784218ca021fda4669976a6a82e23615f11066c55dae4ea04829a52dd',
+              'cover': 'd03c6bd7ee55c4195d8910a1942d88ec90b0f399a860969f29c1500813329929',
+              'mark': '9b30f9ec2a370da11acd97111fc1da15f521c2bcc37c5268a99c90c9bc8c3567',
+              'opqibi': '135f71e5a2b4b85001e2ae51b0164de59271a3ef6a74d02e2c45be7576bb7d1b',
+          }
+
+          def payload(path):
+              text = Path(path).read_text(encoding='utf-8')
+              m = re.search(r"export default ['\"]([^'\"]+)['\"]", text, re.S)
+              if not m:
+                  raise SystemExit(f'No payload in {path}')
+              raw = re.sub(r'[^A-Za-z0-9+/=]', '', m.group(1))
+              raw += '=' * ((4 - len(raw) % 4) % 4)
+              return base64.b64decode(raw, validate=True)
+
+          def rebuild(paths):
+              # IMPORTANT: every source JS file is a standalone Base64 encoding
+              # of a consecutive BINARY slice. Decode first, concatenate bytes second.
+              data = b''.join(payload(p) for p in paths)
+              if not (data.startswith(b'\xff\xd8') and data.endswith(b'\xff\xd9')):
+                  raise SystemExit(f'Invalid JPEG framing for {paths}: {len(data)} bytes')
+              return data
+
+          assets = {
+              'logo': rebuild(['/tmp/report-assets-v2/logo0.js','/tmp/report-assets-v2/logo1.js','/tmp/report-assets-v2/logo2.js']),
+              'cover': rebuild(['/tmp/report-assets-v2/cover0.js','/tmp/report-assets-v2/cover1.js','/tmp/report-assets-v2/cover2.js']),
+              'mark': rebuild(['/tmp/report-assets-exact/mark.js']),
+              'opqibi': rebuild(['/tmp/report-assets-exact/opqibi.js']),
+          }
+
+          for name, data in assets.items():
+              digest = hashlib.sha256(data).hexdigest()
+              print(f'{name}: bytes={len(data)} sha256={digest}')
+              if digest != expected[name]:
+                  raise SystemExit(f'{name}: unexpected SHA-256 {digest}')
+
+          prefix = 'data:image/jpeg;base64,'
+          def uri(name): return prefix + base64.b64encode(assets[name]).decode('ascii')
+          content = """// Exact report visuals reconstructed from verified binary slices.
+          // Never concatenate the source Base64 chunks directly: decode each slice,
+          // concatenate the binary bytes, then Base64-encode the complete JPEG.
+          export const REPORT_LOGO = '__LOGO__';
+          export const REPORT_COVER = '__COVER__';
+          export const REPORT_MARK = '__MARK__';
+          export const REPORT_OPQIBI = '__OPQIBI__';
+          """.replace('__LOGO__', uri('logo')).replace('__COVER__', uri('cover')).replace('__MARK__', uri('mark')).replace('__OPQIBI__', uri('opqibi'))
+          Path('reportBrandAssets.js').write_text(content, encoding='utf-8')
+          PY
+
+      - name: Make PDF cover fully deterministic
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import re
+
+          p = Path('reportBuilder.js')
+          s = p.read_text(encoding='utf-8')
+
+          old_sig = 'async function habillerPdf(uriSource, config, siteFooter) {'
+          new_sig = 'async function habillerPdf(uriSource, config, siteFooter, clientName) {'
+          if old_sig in s:
+              s = s.replace(old_sig, new_sig, 1)
+          elif new_sig not in s:
+              raise SystemExit('habillerPdf signature not found')
+
+          old_call = 'habille = await habillerPdf(printed.uri, config, siteFooter);'
+          new_call = "habille = await habillerPdf(printed.uri, config, siteFooter, datas[0]?.visite?.nom_client || 'Rapport');"
+          if old_call in s:
+              s = s.replace(old_call, new_call, 1)
+          elif new_call not in s:
+              raise SystemExit('habillerPdf call not found')
+
+          marker = "  const logo = coverLogoImage;\n"
+          if marker in s:
+              s = s.replace(marker, '', 1)
+
+          pattern = re.compile(r"    if \(index === 0\) \{\n      // Android's HTML print engine can crop or drop large data-URI images\..*?      return;\n    \}", re.S)
+          replacement = r'''    if (index === 0) {
+      // Page 1 is painted from scratch. This deliberately hides the complete HTML
+      // cover so Android/Chromium cannot leave broken-image placeholders or clipped
+      // footer fragments behind the deterministic PDF layer.
+      page.drawRectangle({ x: 0, y: 0, width, height, color: rgb(1, 1, 1) });
+
+      const black = rgb(0.08, 0.08, 0.08);
+      const coverGrey = rgb(0.36, 0.36, 0.36);
+      const coverOrange = rgb(0.94, 0.45, 0.05);
+      const orangeDark = rgb(0.93, 0.38, 0.02);
+      const dateText = `VERSAILLES, LE ${dateFr(config.dateRapport || new Date().toISOString().slice(0, 10))}`;
+      const refText = `Nos réf. : ${config.chrono || ''}`;
+      const clientText = String(clientName || 'Rapport');
+      const objectText = String(config.objet || 'Compte rendu de visite technique');
+
+      const fitFont = (text, targetWidth, preferred, min, useFont = bold) => {
+        let size = preferred;
+        while (size > min && useFont.widthOfTextAtSize(String(text), size) > targetWidth) size -= 0.25;
+        return size;
+      };
+      const centeredX = (text, size, useFont = bold) => (width - useFont.widthOfTextAtSize(String(text), size)) / 2;
+      const rightX = (text, size, right, useFont = font) => right - useFont.widthOfTextAtSize(String(text), size);
+
+      // Full official Energie & Service logo.
+      if (coverLogoImage) {
+        const box = fit(coverLogoImage, mm(96), mm(26));
+        page.drawImage(coverLogoImage, {
+          x: mm(6),
+          y: height - mm(6) - box.height,
+          width: box.width,
+          height: box.height,
+        });
+      }
+
+      const dateSize = fitFont(dateText, mm(78), 9.2, 7.5, font);
+      page.drawText(dateText, {
+        x: rightX(dateText, dateSize, width - mm(10), font),
+        y: height - mm(29),
+        size: dateSize,
+        font,
+        color: black,
+      });
+
+      const refSize = 8.4;
+      page.drawText(refText, { x: mm(18), y: height - mm(45), size: refSize, font: bold, color: black });
+      page.drawLine({
+        start: { x: mm(18), y: height - mm(45.8) },
+        end: { x: mm(18) + bold.widthOfTextAtSize(refText, refSize), y: height - mm(45.8) },
+        thickness: 0.5,
+        color: black,
+      });
+
+      // Client banner. Kept entirely inside the A4 crop box.
+      const bannerX = mm(24);
+      const bannerY = height - mm(78);
+      const bannerW = width - mm(48);
+      const bannerH = mm(18);
+      page.drawRectangle({ x: bannerX, y: bannerY, width: bannerW, height: bannerH, color: coverOrange });
+      const clientSize = fitFont(clientText, bannerW - mm(12), 14, 9.5, bold);
+      page.drawText(clientText, {
+        x: centeredX(clientText, clientSize, bold),
+        y: bannerY + (bannerH - clientSize) / 2 + 1.5,
+        size: clientSize,
+        font: bold,
+        color: rgb(1, 1, 1),
+      });
+
+      // Main reference cover visual. Preserve the original aspect ratio and center it.
+      if (coverVisualImage) {
+        const box = fit(coverVisualImage, mm(140), mm(89));
+        page.drawImage(coverVisualImage, {
+          x: (width - box.width) / 2,
+          y: height - mm(87) - box.height,
+          width: box.width,
+          height: box.height,
+        });
+      }
+
+      const objectSize = fitFont(objectText, width - mm(38), 13, 9, bold);
+      page.drawText(objectText, {
+        x: centeredX(objectText, objectSize, bold),
+        y: height - mm(184),
+        size: objectSize,
+        font: bold,
+        color: black,
+      });
+
+      const businessText = 'COPROPRIÉTÉS   •   BAILLEURS SOCIAUX   •   COLLECTIVITÉS   •   TERTIAIRE';
+      const businessSize = fitFont(businessText, width - mm(28), 7.4, 5.8, bold);
+      page.drawText(businessText, {
+        x: centeredX(businessText, businessSize, bold),
+        y: height - mm(202),
+        size: businessSize,
+        font: bold,
+        color: coverGrey,
+      });
+
+      // Corporate footer rebuilt as PDF primitives, never as HTML.
+      const citiesText = 'VERSAILLES     NANTES     TOURS     RENNES     LYON     BORDEAUX';
+      const citiesSize = fitFont(citiesText, width - mm(24), 6.2, 5.0, bold);
+      page.drawText(citiesText, {
+        x: centeredX(citiesText, citiesSize, bold),
+        y: mm(25.8),
+        size: citiesSize,
+        font: bold,
+        color: coverGrey,
+      });
+
+      const barY = mm(15.6);
+      const barH = mm(7.2);
+      const websiteW = mm(50);
+      page.drawRectangle({ x: 0, y: barY, width: width - websiteW, height: barH, color: orangeDark });
+      page.drawRectangle({ x: width - websiteW, y: barY, width: websiteW, height: barH, color: coverGrey });
+
+      const contact = 'Tél. 01 39 55 17 20 - 21 avenue Georges Pompidou - 69486 LYON CEDEX 3 - contact@energieetservice.fr';
+      const contactSize = fitFont(contact, width - websiteW - mm(7), 5.2, 4.2, font);
+      page.drawText(contact, {
+        x: mm(3.5),
+        y: barY + mm(2.35),
+        size: contactSize,
+        font,
+        color: rgb(1, 1, 1),
+      });
+
+      const website = 'energieetservice.fr';
+      const websiteSize = fitFont(website, websiteW - mm(5), 9.3, 7.0, bold);
+      page.drawText(website, {
+        x: width - websiteW + (websiteW - bold.widthOfTextAtSize(website, websiteSize)) / 2,
+        y: barY + mm(1.85),
+        size: websiteSize,
+        font: bold,
+        color: rgb(1, 1, 1),
+      });
+
+      if (coverOpqibiImage) {
+        const box = fit(coverOpqibiImage, mm(18), mm(9));
+        page.drawImage(coverOpqibiImage, { x: mm(5), y: mm(4.2), width: box.width, height: box.height });
+      }
+
+      const legal = 'SAS au capital de 292 500 € - Siège social : 64 avenue de Paris - 78000 Versailles - RCS Versailles B 338 335 201 / NAF 7112B';
+      const legalX = mm(27);
+      const legalMax = width - legalX - mm(4);
+      const legalSize = fitFont(legal, legalMax, 5.0, 3.9, font);
+      page.drawText(legal, { x: legalX, y: mm(6.4), size: legalSize, font, color: coverGrey });
+      return;
+    }'''
+          s2, n = pattern.subn(replacement, s, count=1)
+          if n != 1:
+              raise SystemExit(f'cover block replacement count={n}')
+          s = s2
+
+          p.write_text(s, encoding='utf-8')
+          PY
+
+      - name: Verify assets and JavaScript
+        shell: bash
+        run: |
+          node --check reportBuilder.js
+          node --check reportBrandAssets.js
+          grep -q "Page 1 is painted from scratch" reportBuilder.js
+          grep -q "datas\[0\]?.visite?.nom_client" reportBuilder.js
+          grep -q "REPORT_COVER" reportBrandAssets.js
+          grep -q "energieetservice.fr" reportBuilder.js
+          ! grep -q "const logo = coverLogoImage" reportBuilder.js
+
+      - name: Commit final native PDF cover
+        shell: bash
+        run: |
+          rm -rf .tmp_pdf_assets
+          rm .github/workflows/fix-native-pdf-cover-final.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: rebuild native PDF cover from verified images"
+          git push origin HEAD:native-android
