@@ -75,8 +75,6 @@ cover_block = """  const [coverVisualImage, coverLogoImage, pageMarkImage, ...bu
 s = s[:cover_start] + cover_block + s[cover_end:]
 
 # Page 1 layout corrections only. Keep every source image untouched.
-# The goal is to match the shared Word cover more closely and, in particular,
-# keep the report title completely below the central building image.
 layout_replacements = {
     "fit(coverLogoImage, mm(93), mm(22))": "fit(coverLogoImage, mm(86), mm(21))",
     "x: mm(15),\n          y: height - mm(11) - sLogo.height,": "x: mm(16.5),\n          y: height - mm(12) - sLogo.height,",
@@ -97,9 +95,55 @@ for old, new in layout_replacements.items():
         raise SystemExit(f'Page 1 layout target not found: {old}')
     s = s.replace(old, new, 1)
 
+# Regulation pages: do not print placeholder networks that contain only blanks
+# or '/' values. These empty records were creating the stray '/' section titles
+# and whole blank tables visible on pages 4 and 5 of exported reports.
+old_regulation = """    if (panelId === 'p-regulation') {
+      reseaux.forEach((r, i) => groups.push({
+        title: r.nom_reseau || `Réseau n°${i + 1}`,
+        rows: [
+          { label: 'T°ext(°C)', type: 'champ', avis: '', comment: r.t_ext_c || '' },
+          { label: 'T°dép(°C)', type: 'champ', avis: '', comment: r.t_dep_c || '' },
+          { label: 'Nom réseau', type: 'champ', avis: '', comment: r.nom_reseau || '' },
+          { label: 'Courbe de chauffe', type: 'champ', avis: '', comment: r.courbe_de_chauffe || '' },
+          { label: 'TNC', type: 'champ', avis: '', comment: r.tnc || '' },
+          { label: 'Consigne et Programme horaire', type: 'champ', avis: '', comment: r.consigne_programme_horaire || '' },
+        ],
+      }));
+    }"""
+new_regulation = """    if (panelId === 'p-regulation') {
+      const valeurReseauUtile = (value) => {
+        const text = String(value ?? '').trim();
+        return text !== '' && text !== '/';
+      };
+      const reseauxUtiles = reseaux.filter((r) => [
+        r.nom_reseau,
+        r.t_ext_c,
+        r.t_dep_c,
+        r.courbe_de_chauffe,
+        r.tnc,
+        r.consigne_programme_horaire,
+      ].some(valeurReseauUtile));
+
+      reseauxUtiles.forEach((r, i) => groups.push({
+        title: valeurReseauUtile(r.nom_reseau) ? r.nom_reseau : `Réseau n°${i + 1}`,
+        rows: [
+          { label: 'T°ext(°C)', type: 'champ', avis: '', comment: valeurReseauUtile(r.t_ext_c) ? r.t_ext_c : '' },
+          { label: 'T°dép(°C)', type: 'champ', avis: '', comment: valeurReseauUtile(r.t_dep_c) ? r.t_dep_c : '' },
+          { label: 'Nom réseau', type: 'champ', avis: '', comment: valeurReseauUtile(r.nom_reseau) ? r.nom_reseau : '' },
+          { label: 'Courbe de chauffe', type: 'champ', avis: '', comment: valeurReseauUtile(r.courbe_de_chauffe) ? r.courbe_de_chauffe : '' },
+          { label: 'TNC', type: 'champ', avis: '', comment: valeurReseauUtile(r.tnc) ? r.tnc : '' },
+          { label: 'Consigne et Programme horaire', type: 'champ', avis: '', comment: valeurReseauUtile(r.consigne_programme_horaire) ? r.consigne_programme_horaire : '' },
+        ],
+      }));
+    }"""
+if old_regulation not in s:
+    raise SystemExit('Regulation network block not found')
+s = s.replace(old_regulation, new_regulation, 1)
+
 p.write_text(s, encoding='utf-8')
 
 for name, (path, _) in assets.items():
     if not Path(path).is_file() or Path(path).stat().st_size == 0:
         raise SystemExit(f'Missing original asset: {path}')
-print('Exact PDF assets generated and page 1 layout adjusted from untouched assets/report files.')
+print('Exact PDF assets generated, page 1 adjusted, and empty regulation networks removed.')
