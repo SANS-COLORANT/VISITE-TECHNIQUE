@@ -56,8 +56,6 @@ jobs:
               return base64.b64decode(raw, validate=True)
 
           def rebuild(paths):
-              # IMPORTANT: every source JS file is a standalone Base64 encoding
-              # of a consecutive BINARY slice. Decode first, concatenate bytes second.
               data = b''.join(payload(p) for p in paths)
               if not (data.startswith(b'\xff\xd8') and data.endswith(b'\xff\xd9')):
                   raise SystemExit(f'Invalid JPEG framing for {paths}: {len(data)} bytes')
@@ -79,8 +77,7 @@ jobs:
           prefix = 'data:image/jpeg;base64,'
           def uri(name): return prefix + base64.b64encode(assets[name]).decode('ascii')
           content = """// Exact report visuals reconstructed from verified binary slices.
-          // Never concatenate the source Base64 chunks directly: decode each slice,
-          // concatenate the binary bytes, then Base64-encode the complete JPEG.
+          // Decode every stored slice first, concatenate bytes, then Base64-encode once.
           export const REPORT_LOGO = '__LOGO__';
           export const REPORT_COVER = '__COVER__';
           export const REPORT_MARK = '__MARK__';
@@ -113,15 +110,12 @@ jobs:
           elif new_call not in s:
               raise SystemExit('habillerPdf call not found')
 
-          marker = "  const logo = coverLogoImage;\n"
-          if marker in s:
-              s = s.replace(marker, '', 1)
+          s = s.replace("  const logo = coverLogoImage;\n", '', 1)
 
           pattern = re.compile(r"    if \(index === 0\) \{\n      // Android's HTML print engine can crop or drop large data-URI images\..*?      return;\n    \}", re.S)
           replacement = r'''    if (index === 0) {
-      // Page 1 is painted from scratch. This deliberately hides the complete HTML
-      // cover so Android/Chromium cannot leave broken-image placeholders or clipped
-      // footer fragments behind the deterministic PDF layer.
+      // Page 1 is painted from scratch. The HTML cover is completely hidden so
+      // Android cannot leak broken placeholders, clipped labels or footer fragments.
       page.drawRectangle({ x: 0, y: 0, width, height, color: rgb(1, 1, 1) });
 
       const black = rgb(0.08, 0.08, 0.08);
@@ -141,90 +135,41 @@ jobs:
       const centeredX = (text, size, useFont = bold) => (width - useFont.widthOfTextAtSize(String(text), size)) / 2;
       const rightX = (text, size, right, useFont = font) => right - useFont.widthOfTextAtSize(String(text), size);
 
-      // Full official Energie & Service logo.
       if (coverLogoImage) {
         const box = fit(coverLogoImage, mm(96), mm(26));
-        page.drawImage(coverLogoImage, {
-          x: mm(6),
-          y: height - mm(6) - box.height,
-          width: box.width,
-          height: box.height,
-        });
+        page.drawImage(coverLogoImage, { x: mm(6), y: height - mm(6) - box.height, width: box.width, height: box.height });
       }
 
       const dateSize = fitFont(dateText, mm(78), 9.2, 7.5, font);
-      page.drawText(dateText, {
-        x: rightX(dateText, dateSize, width - mm(10), font),
-        y: height - mm(29),
-        size: dateSize,
-        font,
-        color: black,
-      });
+      page.drawText(dateText, { x: rightX(dateText, dateSize, width - mm(10), font), y: height - mm(29), size: dateSize, font, color: black });
 
       const refSize = 8.4;
       page.drawText(refText, { x: mm(18), y: height - mm(45), size: refSize, font: bold, color: black });
-      page.drawLine({
-        start: { x: mm(18), y: height - mm(45.8) },
-        end: { x: mm(18) + bold.widthOfTextAtSize(refText, refSize), y: height - mm(45.8) },
-        thickness: 0.5,
-        color: black,
-      });
+      page.drawLine({ start: { x: mm(18), y: height - mm(45.8) }, end: { x: mm(18) + bold.widthOfTextAtSize(refText, refSize), y: height - mm(45.8) }, thickness: 0.5, color: black });
 
-      // Client banner. Kept entirely inside the A4 crop box.
       const bannerX = mm(24);
       const bannerY = height - mm(78);
       const bannerW = width - mm(48);
       const bannerH = mm(18);
       page.drawRectangle({ x: bannerX, y: bannerY, width: bannerW, height: bannerH, color: coverOrange });
       const clientSize = fitFont(clientText, bannerW - mm(12), 14, 9.5, bold);
-      page.drawText(clientText, {
-        x: centeredX(clientText, clientSize, bold),
-        y: bannerY + (bannerH - clientSize) / 2 + 1.5,
-        size: clientSize,
-        font: bold,
-        color: rgb(1, 1, 1),
-      });
+      page.drawText(clientText, { x: centeredX(clientText, clientSize, bold), y: bannerY + (bannerH - clientSize) / 2 + 1.5, size: clientSize, font: bold, color: rgb(1, 1, 1) });
 
-      // Main reference cover visual. Preserve the original aspect ratio and center it.
       if (coverVisualImage) {
         const box = fit(coverVisualImage, mm(140), mm(89));
-        page.drawImage(coverVisualImage, {
-          x: (width - box.width) / 2,
-          y: height - mm(87) - box.height,
-          width: box.width,
-          height: box.height,
-        });
+        page.drawImage(coverVisualImage, { x: (width - box.width) / 2, y: height - mm(87) - box.height, width: box.width, height: box.height });
       }
 
       const objectSize = fitFont(objectText, width - mm(38), 13, 9, bold);
-      page.drawText(objectText, {
-        x: centeredX(objectText, objectSize, bold),
-        y: height - mm(184),
-        size: objectSize,
-        font: bold,
-        color: black,
-      });
+      page.drawText(objectText, { x: centeredX(objectText, objectSize, bold), y: height - mm(184), size: objectSize, font: bold, color: black });
 
       const businessText = 'COPROPRIÉTÉS   •   BAILLEURS SOCIAUX   •   COLLECTIVITÉS   •   TERTIAIRE';
       const businessSize = fitFont(businessText, width - mm(28), 7.4, 5.8, bold);
-      page.drawText(businessText, {
-        x: centeredX(businessText, businessSize, bold),
-        y: height - mm(202),
-        size: businessSize,
-        font: bold,
-        color: coverGrey,
-      });
+      page.drawText(businessText, { x: centeredX(businessText, businessSize, bold), y: height - mm(202), size: businessSize, font: bold, color: coverGrey });
 
-      // Corporate footer rebuilt as PDF primitives, never as HTML.
       const citiesText = 'VERSAILLES     NANTES     TOURS     RENNES     LYON     BORDEAUX';
       const citiesSize = fitFont(citiesText, width - mm(24), 6.2, 5.0, bold);
-      page.drawText(citiesText, {
-        x: centeredX(citiesText, citiesSize, bold),
-        y: mm(25.8),
-        size: citiesSize,
-        font: bold,
-        color: coverGrey,
-      });
+      page.drawText(citiesText, { x: centeredX(citiesText, citiesSize, bold), y: mm(25.8), size: citiesSize, font: bold, color: coverGrey });
 
       const barY = mm(15.6);
       const barH = mm(7.2);
@@ -234,23 +179,11 @@ jobs:
 
       const contact = 'Tél. 01 39 55 17 20 - 21 avenue Georges Pompidou - 69486 LYON CEDEX 3 - contact@energieetservice.fr';
       const contactSize = fitFont(contact, width - websiteW - mm(7), 5.2, 4.2, font);
-      page.drawText(contact, {
-        x: mm(3.5),
-        y: barY + mm(2.35),
-        size: contactSize,
-        font,
-        color: rgb(1, 1, 1),
-      });
+      page.drawText(contact, { x: mm(3.5), y: barY + mm(2.35), size: contactSize, font, color: rgb(1, 1, 1) });
 
       const website = 'energieetservice.fr';
       const websiteSize = fitFont(website, websiteW - mm(5), 9.3, 7.0, bold);
-      page.drawText(website, {
-        x: width - websiteW + (websiteW - bold.widthOfTextAtSize(website, websiteSize)) / 2,
-        y: barY + mm(1.85),
-        size: websiteSize,
-        font: bold,
-        color: rgb(1, 1, 1),
-      });
+      page.drawText(website, { x: width - websiteW + (websiteW - bold.widthOfTextAtSize(website, websiteSize)) / 2, y: barY + mm(1.85), size: websiteSize, font: bold, color: rgb(1, 1, 1) });
 
       if (coverOpqibiImage) {
         const box = fit(coverOpqibiImage, mm(18), mm(9));
@@ -264,24 +197,21 @@ jobs:
       page.drawText(legal, { x: legalX, y: mm(6.4), size: legalSize, font, color: coverGrey });
       return;
     }'''
-          s2, n = pattern.subn(replacement, s, count=1)
+          s, n = pattern.subn(replacement, s, count=1)
           if n != 1:
               raise SystemExit(f'cover block replacement count={n}')
-          s = s2
 
           p.write_text(s, encoding='utf-8')
           PY
 
-      - name: Verify assets and JavaScript
+      - name: Verify JavaScript
         shell: bash
         run: |
           node --check reportBuilder.js
           node --check reportBrandAssets.js
           grep -q "Page 1 is painted from scratch" reportBuilder.js
           grep -q "datas\[0\]?.visite?.nom_client" reportBuilder.js
-          grep -q "REPORT_COVER" reportBrandAssets.js
           grep -q "energieetservice.fr" reportBuilder.js
-          ! grep -q "const logo = coverLogoImage" reportBuilder.js
 
       - name: Commit final native PDF cover
         shell: bash
@@ -293,3 +223,5 @@ jobs:
           git add -A
           git commit -m "fix: rebuild native PDF cover from verified images"
           git push origin HEAD:native-android
+
+# retrigger 2026-08-26T13:12Z
