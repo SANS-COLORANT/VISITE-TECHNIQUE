@@ -492,51 +492,54 @@ function dataUriBase64(dataUri) {
 
 async function lireAssetBinaire(moduleId) {
   const asset = Asset.fromModule(moduleId);
-  let charge = asset;
 
-  // Sur Android release, l'URI Metro peut pointer vers une ressource APK
-  // qui n'est pas directement lisible par fetch(). downloadAsync() force
-  // Expo Asset a materialiser le PNG/JPG dans le cache local de l'app.
+  // Ne rematerialise pas un asset deja disponible localement : sur le
+  // build 171, downloadAsync() systematique pouvait laisser l'export PDF
+  // en attente indefiniment sur Android release.
+  if (asset.localUri) {
+    return FileSystem.readAsStringAsync(asset.localUri, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+  }
+
+  // Si l'asset n'est pas encore local, on autorise une materialisation
+  // courte. Un asset de garde ne doit jamais pouvoir bloquer tout le PDF.
   try {
-    charge = await asset.downloadAsync();
-  } catch (error) {
-    console.warn('Materialisation asset PDF impossible, tentative URI directe', error);
-  }
-
-  const candidats = [
-    charge?.localUri,
-    asset.localUri,
-    charge?.uri,
-    asset.uri,
-  ].filter((uri, index, all) => uri && all.indexOf(uri) === index);
-
-  let derniereErreur = null;
-  for (const uri of candidats) {
-    const value = String(uri);
-    try {
-      // Priorite au fichier local materialise par expo-asset. C'est la voie
-      // la plus fiable dans un APK installe et elle conserve les PNG assets
-      // tels quels (logo et image centrale compris).
-      if (value.startsWith('file:') || value.startsWith('content:')) {
-        const base64 = await FileSystem.readAsStringAsync(value, {
-          encoding: FileSystem.EncodingType.Base64,
-        });
-        if (base64) return base64;
-      }
-
-      // Fallback utile en mode developpement / Metro (http, asset URI, etc.).
-      const response = await fetch(value);
-      if (!response.ok) throw new Error(`HTTP ${response.status}`);
-      const buffer = await response.arrayBuffer();
-      if (buffer.byteLength > 0) return new Uint8Array(buffer);
-    } catch (error) {
-      derniereErreur = error;
+    const charge = await Promise.race([
+      asset.downloadAsync(),
+      new Promise((_, reject) => setTimeout(
+        () => reject(new Error('Timeout de materialisation asset PDF')),
+        5000
+      )),
+    ]);
+    const localUri = charge?.localUri || asset.localUri;
+    if (localUri) {
+      return FileSystem.readAsStringAsync(localUri, {
+        encoding: FileSystem.EncodingType.Base64,
+      });
     }
+  } catch (error) {
+    console.warn('Materialisation asset PDF impossible', error);
   }
 
-  throw new Error(`Asset de rapport illisible dans le bundle Android${derniereErreur ? ` : ${derniereErreur.message}` : '.'}`);
-}
+  // Fallback Metro/developpement uniquement. On evite les fetch sur URI
+  // APK/file/content, qui sont non fiables dans l'APK Android installe.
+  const uri = String(asset.uri || '');
+  if (/^https?:/i.test(uri)) {
+    const response = await Promise.race([
+      fetch(uri),
+      new Promise((_, reject) => setTimeout(
+        () => reject(new Error('Timeout de lecture asset PDF')),
+        5000
+      )),
+    ]);
+    if (!response.ok) throw new Error(`Lecture asset PDF impossible (${response.status}).`);
+    const buffer = await response.arrayBuffer();
+    if (buffer.byteLength > 0) return new Uint8Array(buffer);
+  }
 
+  throw new Error('Asset de rapport introuvable ou illisible dans le bundle Android.');
+}
 async function habillerPdf(uriSource, config, siteFooter, clientCover) {
   const sourceBase64 = await FileSystem.readAsStringAsync(uriSource, { encoding: FileSystem.EncodingType.Base64 });
   const pdf = await PDFDocument.load(sourceBase64);
@@ -591,10 +594,10 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
       page.drawRectangle({ x: 0, y: 0, width, height, color: white });
 
       if (coverLogoImage) {
-        const sLogo = fit(coverLogoImage, mm(63), mm(18));
+        const sLogo = fit(coverLogoImage, mm(93), mm(22));
         page.drawImage(coverLogoImage, {
-          x: mm(20),
-          y: height - mm(14) - sLogo.height,
+          x: mm(15),
+          y: height - mm(11) - sLogo.height,
           width: sLogo.width,
           height: sLogo.height,
         });
@@ -646,7 +649,7 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
       });
 
       if (coverVisualImage) {
-        const sCover = fit(coverVisualImage, mm(140), mm(89));
+        const sCover = fit(coverVisualImage, mm(159), mm(99));
         page.drawImage(coverVisualImage, {
           x: (width - sCover.width) / 2,
           y: height - mm(94) - sCover.height,
@@ -670,7 +673,7 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
       const business = ['COPROPRIÉTÉS', 'BAILLEURS SOCIAUX', 'COLLECTIVITÉS', 'TERTIAIRE'];
       const businessY = height - mm(205);
       const businessSize = 5.2;
-      const iconSize = mm(3.2);
+      const iconSize = mm(6);
       const gap = mm(1.1);
       const itemGap = mm(3.4);
       const widths = business.map((label) => iconSize + gap + bold.widthOfTextAtSize(label, businessSize));
