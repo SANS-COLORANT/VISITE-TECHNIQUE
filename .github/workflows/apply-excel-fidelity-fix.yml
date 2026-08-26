@@ -2,6 +2,11 @@ name: Apply Excel fidelity fix
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - fix/pdf-report-word-layout
+    paths:
+      - .github/workflows/apply-excel-fidelity-fix.yml
 
 permissions:
   contents: write
