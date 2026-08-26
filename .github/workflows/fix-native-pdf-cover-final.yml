@@ -1,4 +1,4 @@
-name: Finalize Native PDF Cover
+name: Fix Native PDF Asset Loading
 
 on:
   push:
@@ -20,30 +20,96 @@ jobs:
           ref: native-android
           fetch-depth: 0
 
-      - name: Fetch reference assets
-        run: git fetch origin fix/pdf-report-word-layout
+      - name: Patch bundled asset loading
+        run: |
+          python - <<'PY'
+          from pathlib import Path
 
-      - name: Fix asset reconstruction
-        run: python .github/scripts/patch_asset_stream.py
+          p = Path('reportBuilder.js')
+          s = p.read_text(encoding='utf-8')
+          old = '''async function lireAssetBinaire(moduleId) {
+            const asset = Asset.fromModule(moduleId);
+            if (!asset.localUri) await asset.downloadAsync();
+            const uri = asset.localUri || asset.uri;
+            if (!uri) throw new Error('Asset de rapport introuvable dans le bundle Android.');
 
-      - name: Apply deterministic cover
-        run: python .github/scripts/fix_native_pdf_cover.py
+            // Dans un APK Android release, fetch(file://...) n'est pas fiable.
+            // On lit donc directement le fichier local empaquete avec expo-file-system.
+            // Le Base64 n'est jamais stocke dans le code ni reconstruit en morceaux :
+            // il sert uniquement de representation memoire transitoire pour pdf-lib.
+            if (asset.localUri || String(uri).startsWith('file:')) {
+              return FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+            }
 
-      - name: Validate JavaScript
+            const response = await fetch(uri);
+            if (!response.ok) throw new Error(`Lecture asset PDF impossible (${response.status}).`);
+            const buffer = await response.arrayBuffer();
+            return new Uint8Array(buffer);
+          }'''
+          new = '''async function lireAssetBinaire(moduleId) {
+            const asset = Asset.fromModule(moduleId);
+            let charge = asset;
+
+            // Sur Android release, l'URI Metro peut pointer vers une ressource APK
+            // qui n'est pas directement lisible par fetch(). downloadAsync() force
+            // Expo Asset a materialiser le PNG/JPG dans le cache local de l'app.
+            try {
+              charge = await asset.downloadAsync();
+            } catch (error) {
+              console.warn('Materialisation asset PDF impossible, tentative URI directe', error);
+            }
+
+            const candidats = [
+              charge?.localUri,
+              asset.localUri,
+              charge?.uri,
+              asset.uri,
+            ].filter((uri, index, all) => uri && all.indexOf(uri) === index);
+
+            let derniereErreur = null;
+            for (const uri of candidats) {
+              const value = String(uri);
+              try {
+                // Priorite au fichier local materialise par expo-asset. C'est la voie
+                // la plus fiable dans un APK installe et elle conserve les PNG assets
+                // tels quels (logo et image centrale compris).
+                if (value.startsWith('file:') || value.startsWith('content:')) {
+                  const base64 = await FileSystem.readAsStringAsync(value, {
+                    encoding: FileSystem.EncodingType.Base64,
+                  });
+                  if (base64) return base64;
+                }
+
+                // Fallback utile en mode developpement / Metro (http, asset URI, etc.).
+                const response = await fetch(value);
+                if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                const buffer = await response.arrayBuffer();
+                if (buffer.byteLength > 0) return new Uint8Array(buffer);
+              } catch (error) {
+                derniereErreur = error;
+              }
+            }
+
+            throw new Error(`Asset de rapport illisible dans le bundle Android${derniereErreur ? ` : ${derniereErreur.message}` : '.'}`);
+          }'''
+
+          if old not in s:
+              raise SystemExit('Bloc lireAssetBinaire attendu introuvable; aucun fichier modifie.')
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Validate JavaScript and asset references
         run: |
           node --check reportBuilder.js
-          node --check reportBrandAssets.js
-          grep -q "Page 1 is painted from scratch" reportBuilder.js
-          grep -q "energieetservice.fr" reportBuilder.js
+          grep -q "require('./assets/report/cover-building.png')" reportBuilder.js
+          grep -q "require('./assets/report/brand-logo.png')" reportBuilder.js
+          grep -q "charge = await asset.downloadAsync()" reportBuilder.js
 
-      - name: Commit repair
+      - name: Commit correction
         run: |
-          rm -rf .tmp_pdf_assets
-          rm -f .github/scripts/fix_native_pdf_cover.py
-          rm -f .github/scripts/patch_asset_stream.py
           rm -f .github/workflows/fix-native-pdf-cover-final.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "fix: rebuild native PDF cover from verified images"
+          git add reportBuilder.js .github/workflows/fix-native-pdf-cover-final.yml
+          git commit -m "fix: load bundled PDF PNG assets reliably on Android"
           git push origin HEAD:native-android
