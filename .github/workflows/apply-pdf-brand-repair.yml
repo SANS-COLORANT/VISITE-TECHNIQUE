@@ -1,4 +1,4 @@
-name: Apply PDF structural repair
+name: Remove corrupt PDF image embedding
 
 on:
   push:
@@ -12,7 +12,7 @@ permissions:
   contents: write
 
 jobs:
-  repair-pdf-structure:
+  remove-corrupt-embedding:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -20,7 +20,7 @@ jobs:
         with:
           ref: fix/pdf-report-word-layout
 
-      - name: Remove duplicate cover painter and broken CSS
+      - name: Remove damaged image streams from pdf-lib layer
         shell: bash
         run: |
           python - <<'PY'
@@ -30,50 +30,54 @@ jobs:
           p = Path('reportBuilder.js')
           s = p.read_text(encoding='utf-8')
 
-          bad_css = ".coverClient{position:absolute;left:12mm;right:12mm;top:49mm;height:20mm;background:${ORANGE};color:#fff;border-radius:5mm;text-align:center;padding:0;font-size:18pt;font-weight:700;z-index:3;display:flex;align-items:center;justify-content:center};color:#fff;border-radius:6mm;text-align:center;padding:8mm 6mm;font-size:23pt;font-weight:700;z-index:3}"
-          good_css = ".coverClient{position:absolute;left:12mm;right:12mm;top:49mm;height:20mm;background:${ORANGE};color:#fff;border-radius:5mm;text-align:center;padding:0;font-size:18pt;font-weight:700;z-index:3;display:flex;align-items:center;justify-content:center}"
-          if bad_css in s:
-              s = s.replace(bad_css, good_css, 1)
-          if '};color:#fff;border-radius:6mm;text-align:center;padding:8mm 6mm' in s:
-              raise SystemExit('broken coverClient CSS still present')
-
-          # Page 1 is already fully rendered by Expo Print from HTML.
-          # Never erase and repaint it with pdf-lib: that created the duplicate/corrupt cover.
-          cover_pattern = re.compile(
-              r"    if \(index === 0\) \{.*?\n      return;\n    \}\n\n    const left = 50;",
-              re.S,
-          )
-          s, count = cover_pattern.subn(
-              "    // The HTML renderer owns the complete cover. Do not repaint page 1.\n    if (index === 0) return;\n\n    const left = 50;",
+          # The cover is rendered by HTML. The pdf-lib pass must only add textual
+          # running header/footer until the exact standalone assets are installed.
+          s, n = re.subn(
+              r"\n  let logo = null;\n  let cover = null;\n  let opqibi = null;\n  try \{ logo = await pdf\.embedJpg\(dataUriBase64\(REPORT_LOGO\)\); \} catch \{\}\n  try \{ cover = await pdf\.embedJpg\(dataUriBase64\(REPORT_COVER\)\); \} catch \{\}\n  try \{ opqibi = await pdf\.embedJpg\(dataUriBase64\(REPORT_OPQIBI\)\); \} catch \{\}\n",
+              "\n",
               s,
               count=1,
           )
-          if count != 1 and 'if (index === 0) return;' not in s:
-              raise SystemExit('duplicate cover painter block not found')
+          if n != 1 and 'embedJpg(dataUriBase64(REPORT_' in s:
+              raise SystemExit('corrupt pdf-lib image embed block not removed')
+
+          s, n = re.subn(
+              r"\n    // Use the exact spiral from the original full logo:.*?\n    \}\n\n    const running =",
+              "\n    // Branding image intentionally omitted here until the exact standalone mark is installed.\n\n    const running =",
+              s,
+              count=1,
+              flags=re.S,
+          )
+          if n != 1 and 'mask its wordmark' in s:
+              raise SystemExit('masked full-logo workaround not removed')
+
+          # Remove helper if it became unused.
+          if 'dataUriBase64(' not in s[s.find('function dataUriBase64') + 1:]:
+              s = re.sub(r"\nfunction dataUriBase64\(dataUri\) \{\n  return String\(dataUri \|\| ''\)\.split\(','\)\[1\] \|\| '';\n\}\n", "\n", s, count=1)
 
           forbidden = [
-              'const bannerBottom = height - mm(82)',
-              'page.drawRectangle({ x: 0, y: 0, width, height: bannerBottom',
-              "const dateText = `VERSAILLES, LE",
+              'embedJpg(dataUriBase64(REPORT_',
+              'mask its wordmark',
+              'page.drawImage(logo',
           ]
           for token in forbidden:
               if token in s:
-                  raise SystemExit(f'duplicate cover code still present: {token}')
+                  raise SystemExit(f'forbidden damaged-image path remains: {token}')
 
           p.write_text(s, encoding='utf-8')
           PY
 
-      - name: Validate JavaScript
+      - name: Validate
         run: |
           node --check reportBuilder.js
-          node --check reportBrandAssets.js
           grep -q "if (index === 0) return;" reportBuilder.js
-          ! grep -q "bannerBottom" reportBuilder.js
+          ! grep -q "embedJpg(dataUriBase64(REPORT_" reportBuilder.js
+          ! grep -q "mask its wordmark" reportBuilder.js
 
-      - name: Commit structural repair
+      - name: Commit
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git add reportBuilder.js
-          git commit -m "fix: stop repainting PDF cover"
+          git commit -m "fix: remove corrupt PDF image streams"
           git push origin HEAD:fix/pdf-report-word-layout
