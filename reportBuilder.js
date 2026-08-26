@@ -432,6 +432,7 @@ export async function construireHtmlRapport(datas, config, photosConfig = [], ou
   const dateRapport = dateFr(config.dateRapport || new Date().toISOString().slice(0, 10));
   const sites = [...new Set(datas.map((d) => d.visite.nom_site).filter(Boolean))];
   const siteFooter = sites.length === 1 ? sites[0] : `${sites.length} sites sélectionnés`;
+  const clientCover = datas[0]?.visite?.nom_client || 'Rapport';
   const toc = construireToc(datas, config);
 
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${cssRapport(output)}</style></head><body>
@@ -499,7 +500,7 @@ async function lireAssetBinaire(moduleId) {
   return new Uint8Array(buffer);
 }
 
-async function habillerPdf(uriSource, config, siteFooter) {
+async function habillerPdf(uriSource, config, siteFooter, clientCover) {
   const sourceBase64 = await FileSystem.readAsStringAsync(uriSource, { encoding: FileSystem.EncodingType.Base64 });
   const pdf = await PDFDocument.load(sourceBase64);
   const pages = pdf.getPages();
@@ -587,9 +588,7 @@ async function habillerPdf(uriSource, config, siteFooter) {
         color: dark,
       });
 
-      const client = String(config.client || config.nomClient || config.clientNom || '').trim();
-      const coverClient = client || String(config.titreClient || '').trim();
-      const clientLabel = coverClient || String(config.site || '').trim() || 'Rapport de visite technique';
+      const clientLabel = String(clientCover || '').trim() || 'Rapport de visite technique';
       const boxX = mm(28);
       const boxY = height - mm(82);
       const boxW = mm(153);
@@ -746,7 +745,7 @@ async function exporterUnFormat({ datas, config, photosConfig, format, dossier }
   let habille = null;
   const nom = `${base}.pdf`;
   try {
-    habille = await habillerPdf(printed.uri, config, siteFooter);
+    habille = await habillerPdf(printed.uri, config, siteFooter, clientCover);
     return { format: 'pdf', uri: await copierPdfVersDossier(habille, dossier, nom), nom };
   } finally {
     await FileSystem.deleteAsync(printed.uri, { idempotent: true }).catch(() => {});
