@@ -1,0 +1,77 @@
+name: Fix PDF Bundled Image Read
+
+on:
+  push:
+    branches:
+      - native-android
+    paths:
+      - .github/workflows/fix-pdf-bundled-image-read.yml
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: native-android
+
+      - name: Fix local bundled image reading
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('reportBuilder.js')
+          text = p.read_text(encoding='utf-8')
+          old = """async function lireAssetBinaire(moduleId) {
+            const asset = Asset.fromModule(moduleId);
+            if (!asset.localUri) await asset.downloadAsync();
+            const uri = asset.localUri || asset.uri;
+            if (!uri) throw new Error('Asset de rapport introuvable dans le bundle Android.');
+            const response = await fetch(uri);
+            const buffer = await response.arrayBuffer();
+            return new Uint8Array(buffer);
+          }
+          """
+          new = """async function lireAssetBinaire(moduleId) {
+            const asset = Asset.fromModule(moduleId);
+            if (!asset.localUri) await asset.downloadAsync();
+            const uri = asset.localUri || asset.uri;
+            if (!uri) throw new Error('Asset de rapport introuvable dans le bundle Android.');
+
+            // Dans un APK Android release, fetch(file://...) n'est pas fiable.
+            // On lit donc directement le fichier local empaquete avec expo-file-system.
+            // Le Base64 n'est jamais stocke dans le code ni reconstruit en morceaux :
+            // il sert uniquement de representation memoire transitoire pour pdf-lib.
+            if (asset.localUri || String(uri).startsWith('file:')) {
+              return FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+            }
+
+            const response = await fetch(uri);
+            if (!response.ok) throw new Error(`Lecture asset PDF impossible (${response.status}).`);
+            const buffer = await response.arrayBuffer();
+            return new Uint8Array(buffer);
+          }
+          """
+          if old not in text:
+              raise SystemExit('Bloc lireAssetBinaire attendu introuvable')
+          p.write_text(text.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Validate targeted change
+        shell: bash
+        run: |
+          grep -q "FileSystem.readAsStringAsync(uri" reportBuilder.js
+          grep -q "fetch(file://...)" reportBuilder.js
+          git diff --check
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          rm .github/workflows/fix-pdf-bundled-image-read.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reportBuilder.js .github/workflows/fix-pdf-bundled-image-read.yml
+          git commit -m "fix: read bundled PDF images from Android files"
+          git push origin native-android
