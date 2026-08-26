@@ -492,22 +492,49 @@ function dataUriBase64(dataUri) {
 
 async function lireAssetBinaire(moduleId) {
   const asset = Asset.fromModule(moduleId);
-  if (!asset.localUri) await asset.downloadAsync();
-  const uri = asset.localUri || asset.uri;
-  if (!uri) throw new Error('Asset de rapport introuvable dans le bundle Android.');
+  let charge = asset;
 
-  // Dans un APK Android release, fetch(file://...) n'est pas fiable.
-  // On lit donc directement le fichier local empaquete avec expo-file-system.
-  // Le Base64 n'est jamais stocke dans le code ni reconstruit en morceaux :
-  // il sert uniquement de representation memoire transitoire pour pdf-lib.
-  if (asset.localUri || String(uri).startsWith('file:')) {
-    return FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+  // Sur Android release, l'URI Metro peut pointer vers une ressource APK
+  // qui n'est pas directement lisible par fetch(). downloadAsync() force
+  // Expo Asset a materialiser le PNG/JPG dans le cache local de l'app.
+  try {
+    charge = await asset.downloadAsync();
+  } catch (error) {
+    console.warn('Materialisation asset PDF impossible, tentative URI directe', error);
   }
 
-  const response = await fetch(uri);
-  if (!response.ok) throw new Error(`Lecture asset PDF impossible (${response.status}).`);
-  const buffer = await response.arrayBuffer();
-  return new Uint8Array(buffer);
+  const candidats = [
+    charge?.localUri,
+    asset.localUri,
+    charge?.uri,
+    asset.uri,
+  ].filter((uri, index, all) => uri && all.indexOf(uri) === index);
+
+  let derniereErreur = null;
+  for (const uri of candidats) {
+    const value = String(uri);
+    try {
+      // Priorite au fichier local materialise par expo-asset. C'est la voie
+      // la plus fiable dans un APK installe et elle conserve les PNG assets
+      // tels quels (logo et image centrale compris).
+      if (value.startsWith('file:') || value.startsWith('content:')) {
+        const base64 = await FileSystem.readAsStringAsync(value, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        if (base64) return base64;
+      }
+
+      // Fallback utile en mode developpement / Metro (http, asset URI, etc.).
+      const response = await fetch(value);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      const buffer = await response.arrayBuffer();
+      if (buffer.byteLength > 0) return new Uint8Array(buffer);
+    } catch (error) {
+      derniereErreur = error;
+    }
+  }
+
+  throw new Error(`Asset de rapport illisible dans le bundle Android${derniereErreur ? ` : ${derniereErreur.message}` : '.'}`);
 }
 
 async function habillerPdf(uriSource, config, siteFooter, clientCover) {
