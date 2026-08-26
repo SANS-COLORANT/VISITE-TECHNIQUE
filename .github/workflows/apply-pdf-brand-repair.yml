@@ -1,4 +1,4 @@
-name: Remove corrupt PDF image embedding
+name: Finalize exact PDF branding
 
 on:
   push:
@@ -12,72 +12,203 @@ permissions:
   contents: write
 
 jobs:
-  remove-corrupt-embedding:
+  finalize-pdf-branding:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout complete history
         uses: actions/checkout@v4
         with:
           ref: fix/pdf-report-word-layout
+          fetch-depth: 0
 
-      - name: Remove damaged image streams from pdf-lib layer
+      - name: Verify exact shared image payloads
         shell: bash
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
+          import base64, hashlib, re
+
+          def payload(path):
+              text = Path(path).read_text(encoding='utf-8')
+              m = re.search(r"export default ['\"]([^'\"]+)['\"]", text, re.S)
+              if not m:
+                  raise SystemExit(f'No payload in {path}')
+              return m.group(1)
+
+          def decode_parts(paths):
+              raw = ''.join(payload(p) for p in paths)
+              data = base64.b64decode(raw, validate=True)
+              if not (data.startswith(b'\xff\xd8') and data.endswith(b'\xff\xd9')):
+                  raise SystemExit(f'Invalid JPEG framing for {paths}')
+              return raw, data
+
+          expected = {
+              'logo': '60cea6a784218ca021fda4669976a6a82e23615f11066c55dae4ea04829a52dd',
+              'cover': 'd03c6bd7ee55c4195d8910a1942d88ec90b0f399a860969f29c1500813329929',
+              'mark': '9b30f9ec2a370da11acd97111fc1da15f521c2bcc37c5268a99c90c9bc8c3567',
+          }
+
+          assets = {
+              'logo': decode_parts(['reportAssetsExactV2/logo0.js', 'reportAssetsExactV2/logo1.js', 'reportAssetsExactV2/logo2.js']),
+              'cover': decode_parts(['reportAssetsExactV2/cover0.js', 'reportAssetsExactV2/cover1.js', 'reportAssetsExactV2/cover2.js']),
+              'mark': decode_parts(['reportAssetsExact/mark.js']),
+              'opqibi': decode_parts(['reportAssetsExact/opqibi.js']),
+          }
+
+          for name, (_, data) in assets.items():
+              digest = hashlib.sha256(data).hexdigest()
+              print(f'{name}: bytes={len(data)} sha256={digest}')
+              if name in expected and digest != expected[name]:
+                  raise SystemExit(f'{name} does not match the shared reference image')
+
+          Path('/tmp/logo.jpg').write_bytes(assets['logo'][1])
+          Path('/tmp/cover.jpg').write_bytes(assets['cover'][1])
+          Path('/tmp/mark.jpg').write_bytes(assets['mark'][1])
+          Path('/tmp/opqibi.jpg').write_bytes(assets['opqibi'][1])
+          PY
+          file /tmp/logo.jpg /tmp/cover.jpg /tmp/mark.jpg /tmp/opqibi.jpg
+
+      - name: Use exact assets without recompression
+        shell: bash
+        run: |
+          cat > reportBrandAssets.js <<'EOF'
+          // Report visuals are assembled from the exact JPEG payloads extracted from
+          // the user's reference documents. Do not resize, redraw or recompress them.
+          import cover0 from './reportAssetsExactV2/cover0.js';
+          import cover1 from './reportAssetsExactV2/cover1.js';
+          import cover2 from './reportAssetsExactV2/cover2.js';
+          import logo0 from './reportAssetsExactV2/logo0.js';
+          import logo1 from './reportAssetsExactV2/logo1.js';
+          import logo2 from './reportAssetsExactV2/logo2.js';
+          import mark from './reportAssetsExact/mark.js';
+          import opqibi from './reportAssetsExact/opqibi.js';
+
+          const JPEG_DATA_URI = 'data:image/jpeg;base64,';
+
+          export const REPORT_LOGO = JPEG_DATA_URI + logo0 + logo1 + logo2;
+          export const REPORT_COVER = JPEG_DATA_URI + cover0 + cover1 + cover2;
+          export const REPORT_MARK = JPEG_DATA_URI + mark;
+          export const REPORT_OPQIBI = JPEG_DATA_URI + opqibi;
+          EOF
+
+      - name: Enforce one PDF header and the exact spiral
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
 
           p = Path('reportBuilder.js')
           s = p.read_text(encoding='utf-8')
 
-          # The cover is rendered by HTML. The pdf-lib pass must only add textual
-          # running header/footer until the exact standalone assets are installed.
-          s, n = re.subn(
-              r"\n  let logo = null;\n  let cover = null;\n  let opqibi = null;\n  try \{ logo = await pdf\.embedJpg\(dataUriBase64\(REPORT_LOGO\)\); \} catch \{\}\n  try \{ cover = await pdf\.embedJpg\(dataUriBase64\(REPORT_COVER\)\); \} catch \{\}\n  try \{ opqibi = await pdf\.embedJpg\(dataUriBase64\(REPORT_OPQIBI\)\); \} catch \{\}\n",
-              "\n",
-              s,
-              count=1,
-          )
-          if n != 1 and 'embedJpg(dataUriBase64(REPORT_' in s:
-              raise SystemExit('corrupt pdf-lib image embed block not removed')
+          old_import = "import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';"
+          new_import = "import { REPORT_COVER, REPORT_LOGO, REPORT_MARK, REPORT_OPQIBI } from './reportBrandAssets.js';"
+          if old_import in s:
+              s = s.replace(old_import, new_import, 1)
+          elif new_import not in s:
+              raise SystemExit('report asset import not found')
 
-          s, n = re.subn(
-              r"\n    // Use the exact spiral from the original full logo:.*?\n    \}\n\n    const running =",
-              "\n    // Branding image intentionally omitted here until the exact standalone mark is installed.\n\n    const running =",
-              s,
-              count=1,
-              flags=re.S,
-          )
-          if n != 1 and 'mask its wordmark' in s:
-              raise SystemExit('masked full-logo workaround not removed')
+          logo_fn = """function logoHtml(classe = 'reportLogo') {
+            return `<img class=\"${classe}\" src=\"${REPORT_LOGO}\" alt=\"Energie & Service\"/>`;
+          }
+          """
+          mark_fn = """function logoHtml(classe = 'reportLogo') {
+            return `<img class=\"${classe}\" src=\"${REPORT_LOGO}\" alt=\"Energie & Service\"/>`;
+          }
 
-          # Remove helper if it became unused.
-          if 'dataUriBase64(' not in s[s.find('function dataUriBase64') + 1:]:
-              s = re.sub(r"\nfunction dataUriBase64\(dataUri\) \{\n  return String\(dataUri \|\| ''\)\.split\(','\)\[1\] \|\| '';\n\}\n", "\n", s, count=1)
+          function markHtml(classe = 'reportMark') {
+            return `<img class=\"${classe}\" src=\"${REPORT_MARK}\" alt=\"Energie & Service\"/>`;
+          }
+          """
+          if logo_fn in s:
+              s = s.replace(logo_fn, mark_fn, 1)
+          elif "function markHtml(classe = 'reportMark')" not in s:
+              raise SystemExit('logoHtml block not found')
+
+          # Word and TOC use the standalone mark too. For PDF the HTML TOC header is
+          # hidden, because pdf-lib supplies the only running header on pages 2+.
+          s = s.replace("${logoHtml('tocLogo')}", "${markHtml('tocMark')}")
+          s = s.replace("${logoHtml('interiorLogo')}", "${markHtml('interiorMark')}")
+
+          old_word = ".interiorHeader{display:block}.interiorFooter{display:flex}"
+          new_word = ".interiorHeader{display:block}.interiorFooter{display:flex}.tocBrand{display:flex}"
+          if old_word in s:
+              s = s.replace(old_word, new_word, 1)
+
+          old_pdf = ".interiorHeader,.interiorFooter{display:none}"
+          new_pdf = ".interiorHeader,.interiorFooter,.tocBrand{display:none}"
+          if old_pdf in s:
+              s = s.replace(old_pdf, new_pdf, 1)
+          elif new_pdf not in s:
+              raise SystemExit('PDF fixed UI rule not found')
+
+          marker = "  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);\n"
+          embed = """  const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+          let reportMark = null;
+          try {
+            reportMark = await pdf.embedJpg(dataUriBase64(REPORT_MARK));
+          } catch (error) {
+            throw new Error(`Impossible d'intégrer la spirale officielle au PDF: ${error?.message || error}`);
+          }
+          """
+          if marker in s and 'let reportMark = null;' not in s:
+              s = s.replace(marker, embed, 1)
+
+          old_omitted = "    // Branding image intentionally omitted here until the exact standalone mark is installed.\n"
+          draw_mark = """    // Exact standalone spiral from the reference Word document.
+            const markBox = fit(reportMark, mm(9), mm(9));
+            page.drawImage(reportMark, {
+              x: mm(5.5),
+              y: height - mm(14.5),
+              width: markBox.width,
+              height: markBox.height,
+            });
+          """
+          if old_omitted in s:
+              s = s.replace(old_omitted, draw_mark, 1)
+          elif 'const markBox = fit(reportMark' not in s:
+              raise SystemExit('interior branding insertion point not found')
+
+          # Structural guardrails: cover is owned by HTML, pages 2+ by one pdf-lib header.
+          required = [
+              'if (index === 0) return;',
+              'let reportMark = null;',
+              'page.drawImage(reportMark',
+              '.interiorHeader,.interiorFooter,.tocBrand{display:none}',
+          ]
+          for token in required:
+              if token not in s:
+                  raise SystemExit(f'missing PDF guardrail: {token}')
 
           forbidden = [
-              'embedJpg(dataUriBase64(REPORT_',
-              'mask its wordmark',
               'page.drawImage(logo',
+              'mask its wordmark',
+              'Branding image intentionally omitted',
           ]
           for token in forbidden:
               if token in s:
-                  raise SystemExit(f'forbidden damaged-image path remains: {token}')
+                  raise SystemExit(f'old branding workaround remains: {token}')
 
           p.write_text(s, encoding='utf-8')
           PY
 
-      - name: Validate
+      - name: Validate JavaScript and final asset wiring
+        shell: bash
         run: |
           node --check reportBuilder.js
+          node --check reportBrandAssets.js
+          grep -q "REPORT_MARK" reportBuilder.js
           grep -q "if (index === 0) return;" reportBuilder.js
-          ! grep -q "embedJpg(dataUriBase64(REPORT_" reportBuilder.js
+          grep -q "page.drawImage(reportMark" reportBuilder.js
+          grep -q "interiorFooter,.tocBrand{display:none}" reportBuilder.js
+          ! grep -q "page.drawImage(logo" reportBuilder.js
           ! grep -q "mask its wordmark" reportBuilder.js
 
-      - name: Commit
+      - name: Commit repair and remove one-shot workflow
+        shell: bash
         run: |
+          git rm .github/workflows/apply-pdf-brand-repair.yml
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add reportBuilder.js
-          git commit -m "fix: remove corrupt PDF image streams"
+          git add reportBuilder.js reportBrandAssets.js
+          git commit -m "fix: use exact report images and single PDF header"
           git push origin HEAD:fix/pdf-report-word-layout
