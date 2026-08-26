@@ -33,13 +33,24 @@ jobs:
               m = re.search(r"export default ['\"]([^'\"]+)['\"]", text, re.S)
               if not m:
                   raise SystemExit(f'No payload in {path}')
-              return m.group(1)
+              # Historical staging chunks can contain harmless whitespace/control
+              # characters introduced while splitting very long strings. Keep only
+              # the Base64 alphabet; the image bytes themselves remain untouched.
+              return re.sub(r'[^A-Za-z0-9+/=]', '', m.group(1))
 
           def decode_parts(paths):
-              raw = ''.join(payload(p) for p in paths)
-              data = base64.b64decode(raw, validate=True)
+              parts = [payload(p) for p in paths]
+              # Chunks are pieces of one Base64 stream, not independently encoded
+              # files. Padding is valid only at the very end of the assembled stream.
+              raw = ''.join(part.rstrip('=') if i < len(parts) - 1 else part
+                            for i, part in enumerate(parts))
+              raw += '=' * ((4 - len(raw) % 4) % 4)
+              try:
+                  data = base64.b64decode(raw, validate=True)
+              except Exception as exc:
+                  raise SystemExit(f'Invalid Base64 in {paths}: {exc}')
               if not (data.startswith(b'\xff\xd8') and data.endswith(b'\xff\xd9')):
-                  raise SystemExit(f'Invalid JPEG framing for {paths}')
+                  raise SystemExit(f'Invalid JPEG framing for {paths}: bytes={len(data)}')
               return raw, data
 
           expected = {
@@ -59,37 +70,36 @@ jobs:
               digest = hashlib.sha256(data).hexdigest()
               print(f'{name}: bytes={len(data)} sha256={digest}')
               if name in expected and digest != expected[name]:
-                  raise SystemExit(f'{name} does not match the shared reference image')
+                  raise SystemExit(f'{name} does not match the shared reference image: {digest}')
 
-          Path('/tmp/logo.jpg').write_bytes(assets['logo'][1])
-          Path('/tmp/cover.jpg').write_bytes(assets['cover'][1])
-          Path('/tmp/mark.jpg').write_bytes(assets['mark'][1])
-          Path('/tmp/opqibi.jpg').write_bytes(assets['opqibi'][1])
+          # Persist normalized streams for the next step so the app never imports
+          # malformed historical chunk text.
+          out = Path('/tmp/pdf-assets')
+          out.mkdir(exist_ok=True)
+          for name, (raw, data) in assets.items():
+              (out / f'{name}.b64').write_text(raw, encoding='ascii')
+              (out / f'{name}.jpg').write_bytes(data)
           PY
-          file /tmp/logo.jpg /tmp/cover.jpg /tmp/mark.jpg /tmp/opqibi.jpg
+          file /tmp/pdf-assets/*.jpg
 
-      - name: Use exact assets without recompression
+      - name: Use verified assets without recompression
         shell: bash
         run: |
-          cat > reportBrandAssets.js <<'EOF'
-          // Report visuals are assembled from the exact JPEG payloads extracted from
-          // the user's reference documents. Do not resize, redraw or recompress them.
-          import cover0 from './reportAssetsExactV2/cover0.js';
-          import cover1 from './reportAssetsExactV2/cover1.js';
-          import cover2 from './reportAssetsExactV2/cover2.js';
-          import logo0 from './reportAssetsExactV2/logo0.js';
-          import logo1 from './reportAssetsExactV2/logo1.js';
-          import logo2 from './reportAssetsExactV2/logo2.js';
-          import mark from './reportAssetsExact/mark.js';
-          import opqibi from './reportAssetsExact/opqibi.js';
-
+          python - <<'PY'
+          from pathlib import Path
+          def b64(name):
+              return Path(f'/tmp/pdf-assets/{name}.b64').read_text(encoding='ascii')
+          content = """// Report visuals verified against the user's reference documents.
+          // They are embedded without resizing, redrawing or recompression.
           const JPEG_DATA_URI = 'data:image/jpeg;base64,';
 
-          export const REPORT_LOGO = JPEG_DATA_URI + logo0 + logo1 + logo2;
-          export const REPORT_COVER = JPEG_DATA_URI + cover0 + cover1 + cover2;
-          export const REPORT_MARK = JPEG_DATA_URI + mark;
-          export const REPORT_OPQIBI = JPEG_DATA_URI + opqibi;
-          EOF
+          export const REPORT_LOGO = JPEG_DATA_URI + '__LOGO__';
+          export const REPORT_COVER = JPEG_DATA_URI + '__COVER__';
+          export const REPORT_MARK = JPEG_DATA_URI + '__MARK__';
+          export const REPORT_OPQIBI = JPEG_DATA_URI + '__OPQIBI__';
+          """.replace('__LOGO__', b64('logo')).replace('__COVER__', b64('cover')).replace('__MARK__', b64('mark')).replace('__OPQIBI__', b64('opqibi'))
+          Path('reportBrandAssets.js').write_text(content, encoding='utf-8')
+          PY
 
       - name: Enforce one PDF header and the exact spiral
         shell: bash
@@ -124,8 +134,6 @@ jobs:
           elif "function markHtml(classe = 'reportMark')" not in s:
               raise SystemExit('logoHtml block not found')
 
-          # Word and TOC use the standalone mark too. For PDF the HTML TOC header is
-          # hidden, because pdf-lib supplies the only running header on pages 2+.
           s = s.replace("${logoHtml('tocLogo')}", "${markHtml('tocMark')}")
           s = s.replace("${logoHtml('interiorLogo')}", "${markHtml('interiorMark')}")
 
@@ -168,7 +176,6 @@ jobs:
           elif 'const markBox = fit(reportMark' not in s:
               raise SystemExit('interior branding insertion point not found')
 
-          # Structural guardrails: cover is owned by HTML, pages 2+ by one pdf-lib header.
           required = [
               'if (index === 0) return;',
               'let reportMark = null;',
@@ -179,11 +186,7 @@ jobs:
               if token not in s:
                   raise SystemExit(f'missing PDF guardrail: {token}')
 
-          forbidden = [
-              'page.drawImage(logo',
-              'mask its wordmark',
-              'Branding image intentionally omitted',
-          ]
+          forbidden = ['page.drawImage(logo', 'mask its wordmark', 'Branding image intentionally omitted']
           for token in forbidden:
               if token in s:
                   raise SystemExit(f'old branding workaround remains: {token}')
