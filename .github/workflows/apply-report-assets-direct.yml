@@ -1,0 +1,45 @@
+name: Apply Direct Report Assets
+
+on:
+  push:
+    branches:
+      - tmp/report-assets-direct
+    paths:
+      - .github/workflows/apply-report-assets-direct.yml
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: tmp/report-assets-direct
+          fetch-depth: 0
+
+      - name: Apply report asset patch
+        run: python .github/scripts/apply_report_assets_direct.py
+
+      - name: Validate JavaScript
+        run: |
+          cp reportBuilder.js /tmp/reportBuilder.mjs
+          node --check /tmp/reportBuilder.mjs
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Validate Android bundle
+        run: npx expo export --platform android --output-dir dist-report-assets
+
+      - name: Commit patched implementation
+        run: |
+          rm .github/workflows/apply-report-assets-direct.yml
+          rm .github/scripts/apply_report_assets_direct.py
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: use bundled report images directly in PDF"
+          git push origin HEAD:tmp/report-assets-direct
