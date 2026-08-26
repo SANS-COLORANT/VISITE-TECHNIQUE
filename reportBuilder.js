@@ -671,6 +671,30 @@ async function habillerPdf(uriSource, config, siteFooter) {
   return sortie;
 }
 
+async function exporterUnFormat({ datas, config, photosConfig, format, dossier }) {
+  const base = propre(`${config.chrono || 'Rapport'}_${datas.length === 1 ? datas[0].visite.nom_site : datas[0].visite.nom_client}_${config.objet || 'CRV'}`);
+  const sites = [...new Set(datas.map((d) => d.visite.nom_site).filter(Boolean))];
+  const siteFooter = sites.length === 1 ? sites[0] : `${sites.length} sites sélectionnés`;
+
+  if (format === 'word') {
+    const html = await construireHtmlRapport(datas, config, photosConfig, 'word');
+    const nom = `${base}.doc`;
+    return { format, uri: await ecrireWordHtml(dossier, nom, html), nom };
+  }
+
+  const html = await construireHtmlRapport(datas, config, photosConfig, 'pdf');
+  const printed = await Print.printToFileAsync({ html, base64: false });
+  let habille = null;
+  const nom = `${base}.pdf`;
+  try {
+    habille = await habillerPdf(printed.uri, config, siteFooter);
+    return { format: 'pdf', uri: await copierPdfVersDossier(habille, dossier, nom), nom };
+  } finally {
+    await FileSystem.deleteAsync(printed.uri, { idempotent: true }).catch(() => {});
+    if (habille) await FileSystem.deleteAsync(habille, { idempotent: true }).catch(() => {});
+  }
+}
+
 export async function exporterRapport({ datas, config, photosConfig, format = 'pdf', dossierUri = null }) {
   const dossier = dossierUri || await choisirDossier();
   if (!dossier) return { annule: true };
