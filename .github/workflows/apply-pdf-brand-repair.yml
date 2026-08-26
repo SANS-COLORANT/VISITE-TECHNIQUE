@@ -1,4 +1,4 @@
-name: Scan Git history for exact PDF assets
+name: Apply PDF structural repair
 
 on:
   push:
@@ -9,60 +9,71 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  scan-assets:
+  repair-pdf-structure:
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout all refs
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           ref: fix/pdf-report-word-layout
-          fetch-depth: 0
-          fetch-tags: true
 
-      - name: Fetch every branch and scan every blob
+      - name: Remove duplicate cover painter and broken CSS
         shell: bash
         run: |
-          git fetch origin '+refs/heads/*:refs/remotes/origin/*' --force
           python - <<'PY'
-          import hashlib
-          import subprocess
+          from pathlib import Path
+          import re
 
-          expected = {
-              'REPORT_LOGO.jpg': '60cea6a784218ca021fda4669976a6a82e23615f11066c55dae4ea04829a52dd',
-              'REPORT_COVER.jpg': 'd03c6bd7ee55c4195d8910a1942d88ec90b0f399a860969f29c1500813329929',
-              'REPORT_MARK_FULL.jpg': '9b30f9ec2a370da11acd97111fc1da15f521c2bcc37c5268a99c90c9bc8c3567',
-              'REPORT_OPQIBI.jpg': '135f71e5a2b4b85001e2ae51b0164de59271a3ef6a74d02e2c45be7576bb7d1b',
-          }
-          wanted = {v:k for k,v in expected.items()}
-          found = {}
-          listing = subprocess.check_output(['git','rev-list','--objects','--all'], text=True, errors='replace')
-          seen = set()
-          for line in listing.splitlines():
-              if not line.strip():
-                  continue
-              parts = line.split(' ', 1)
-              oid = parts[0]
-              if oid in seen:
-                  continue
-              seen.add(oid)
-              typ = subprocess.check_output(['git','cat-file','-t',oid], text=True).strip()
-              if typ != 'blob':
-                  continue
-              size = int(subprocess.check_output(['git','cat-file','-s',oid], text=True).strip())
-              if size < 1000 or size > 400000:
-                  continue
-              data = subprocess.check_output(['git','cat-file','blob',oid])
-              digest = hashlib.sha256(data).hexdigest()
-              if digest in wanted:
-                  name = wanted[digest]
-                  path = parts[1] if len(parts) > 1 else '(no path)'
-                  found[name] = (oid, path, size)
-                  print(f'FOUND {name} blob={oid} size={size} path={path} sha256={digest}')
-          for name, digest in expected.items():
-              if name not in found:
-                  print(f'MISSING {name} sha256={digest}')
-          print(f'FOUND_COUNT={len(found)}/{len(expected)}')
+          p = Path('reportBuilder.js')
+          s = p.read_text(encoding='utf-8')
+
+          bad_css = ".coverClient{position:absolute;left:12mm;right:12mm;top:49mm;height:20mm;background:${ORANGE};color:#fff;border-radius:5mm;text-align:center;padding:0;font-size:18pt;font-weight:700;z-index:3;display:flex;align-items:center;justify-content:center};color:#fff;border-radius:6mm;text-align:center;padding:8mm 6mm;font-size:23pt;font-weight:700;z-index:3}"
+          good_css = ".coverClient{position:absolute;left:12mm;right:12mm;top:49mm;height:20mm;background:${ORANGE};color:#fff;border-radius:5mm;text-align:center;padding:0;font-size:18pt;font-weight:700;z-index:3;display:flex;align-items:center;justify-content:center}"
+          if bad_css in s:
+              s = s.replace(bad_css, good_css, 1)
+          if '};color:#fff;border-radius:6mm;text-align:center;padding:8mm 6mm' in s:
+              raise SystemExit('broken coverClient CSS still present')
+
+          # Page 1 is already fully rendered by Expo Print from HTML.
+          # Never erase and repaint it with pdf-lib: that created the duplicate/corrupt cover.
+          cover_pattern = re.compile(
+              r"    if \(index === 0\) \{.*?\n      return;\n    \}\n\n    const left = 50;",
+              re.S,
+          )
+          s, count = cover_pattern.subn(
+              "    // The HTML renderer owns the complete cover. Do not repaint page 1.\n    if (index === 0) return;\n\n    const left = 50;",
+              s,
+              count=1,
+          )
+          if count != 1 and 'if (index === 0) return;' not in s:
+              raise SystemExit('duplicate cover painter block not found')
+
+          forbidden = [
+              'const bannerBottom = height - mm(82)',
+              'page.drawRectangle({ x: 0, y: 0, width, height: bannerBottom',
+              "const dateText = `VERSAILLES, LE",
+          ]
+          for token in forbidden:
+              if token in s:
+                  raise SystemExit(f'duplicate cover code still present: {token}')
+
+          p.write_text(s, encoding='utf-8')
           PY
+
+      - name: Validate JavaScript
+        run: |
+          node --check reportBuilder.js
+          node --check reportBrandAssets.js
+          grep -q "if (index === 0) return;" reportBuilder.js
+          ! grep -q "bannerBottom" reportBuilder.js
+
+      - name: Commit structural repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reportBuilder.js
+          git commit -m "fix: stop repainting PDF cover"
+          git push origin HEAD:fix/pdf-report-word-layout
