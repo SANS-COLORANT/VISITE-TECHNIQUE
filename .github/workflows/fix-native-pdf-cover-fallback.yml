@@ -1,0 +1,82 @@
+name: Fix Native PDF Cover Fallback
+
+on:
+  push:
+    branches:
+      - native-android
+    paths:
+      - .github/workflows/fix-native-pdf-cover-fallback.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout native Android
+        uses: actions/checkout@v4
+        with:
+          ref: native-android
+          fetch-depth: 0
+
+      - name: Add cover image fallbacks
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('reportBuilder.js')
+          s = p.read_text(encoding='utf-8')
+
+          old = '''  const [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([
+    embedBundledSafe(REPORT_ASSET_MODULES.cover, 'png'),
+    embedBundledSafe(REPORT_ASSET_MODULES.logo, 'png'),
+    embedBundledSafe(REPORT_ASSET_MODULES.pageMark, 'png'),
+    ...REPORT_ASSET_MODULES.businessSpirals.map((moduleId) => embedBundledSafe(moduleId, 'jpg')),
+  ]);
+  const coverOpqibiImage = await embedJpgSafe(dataUriBase64(REPORT_OPQIBI));'''
+
+          new = '''  let [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([
+    embedBundledSafe(REPORT_ASSET_MODULES.cover, 'png'),
+    embedBundledSafe(REPORT_ASSET_MODULES.logo, 'png'),
+    embedBundledSafe(REPORT_ASSET_MODULES.pageMark, 'png'),
+    ...REPORT_ASSET_MODULES.businessSpirals.map((moduleId) => embedBundledSafe(moduleId, 'jpg')),
+  ]);
+
+  // Dans certains APK Android standalone, expo-asset peut fournir une URI que
+  // pdf-lib ne parvient pas a relire. Les fichiers assets restent la source
+  // prioritaire; ces versions deja embarquees dans reportBrandAssets garantissent
+  // simplement que le logo et l'image centrale de la garde ne disparaissent pas.
+  if (!coverVisualImage) {
+    coverVisualImage = await embedJpgSafe(dataUriBase64(REPORT_COVER));
+  }
+  if (!coverLogoImage) {
+    coverLogoImage = await embedJpgSafe(dataUriBase64(REPORT_LOGO));
+  }
+
+  const coverOpqibiImage = await embedJpgSafe(dataUriBase64(REPORT_OPQIBI));'''
+
+          if old not in s:
+              raise SystemExit('Bloc de chargement des assets de couverture introuvable.')
+
+          p.write_text(s.replace(old, new, 1), encoding='utf-8')
+          PY
+
+      - name: Validate fallback and Word cover sizing
+        run: |
+          node --check reportBuilder.js
+          grep -q "coverVisualImage = await embedJpgSafe(dataUriBase64(REPORT_COVER))" reportBuilder.js
+          grep -q "coverLogoImage = await embedJpgSafe(dataUriBase64(REPORT_LOGO))" reportBuilder.js
+          grep -q "fit(coverLogoImage, mm(93), mm(22))" reportBuilder.js
+          grep -q "fit(coverVisualImage, mm(159), mm(99))" reportBuilder.js
+          test -f assets/report/cover-building.png
+          test -f assets/report/brand-logo.png
+
+      - name: Commit correction
+        run: |
+          rm -f .github/workflows/fix-native-pdf-cover-fallback.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add reportBuilder.js .github/workflows/fix-native-pdf-cover-fallback.yml
+          git commit -m "fix: guarantee native PDF cover images in standalone APK"
+          git push origin HEAD:native-android
