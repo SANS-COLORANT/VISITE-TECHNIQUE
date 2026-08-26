@@ -1,0 +1,82 @@
+name: Apply PDF cover fix to Native Android
+
+on:
+  push:
+    branches:
+      - native-android
+    paths:
+      - .github/workflows/apply-native-pdf-cover.yml
+
+permissions:
+  contents: write
+
+jobs:
+  apply-native-pdf-cover:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout native Android branch
+        uses: actions/checkout@v4
+        with:
+          ref: native-android
+          fetch-depth: 0
+
+      - name: Copy exact Word spiral asset
+        shell: bash
+        run: |
+          git fetch origin fix/pdf-report-word-layout
+          mkdir -p reportAssetsExact
+          git show origin/fix/pdf-report-word-layout:reportAssetsExact/mark.js > reportAssetsExact/mark.js
+
+      - name: Patch native PDF renderer
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          path = Path('reportBuilder.js')
+          source = path.read_text(encoding='utf-8')
+
+          old_import = "import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';"
+          new_import = old_import + "\nimport REPORT_MARK_B64 from './reportAssetsExact/mark.js';"
+          if "REPORT_MARK_B64" not in source:
+              if old_import not in source:
+                  raise SystemExit('reportBuilder import marker not found')
+              source = source.replace(old_import, new_import, 1)
+
+          old_embed = """  let logo = null;\n  try { logo = await pdf.embedJpg(dataUriBase64(REPORT_LOGO)); } catch {}\n\n  const total = pages.length;"""
+          new_embed = """  const mm = (value) => value * 72 / 25.4;\n  const embedJpgSafe = async (base64) => {\n    try { return base64 ? await pdf.embedJpg(base64) : null; } catch { return null; }\n  };\n  const coverLogoImage = await embedJpgSafe(dataUriBase64(REPORT_LOGO));\n  const coverVisualImage = await embedJpgSafe(dataUriBase64(REPORT_COVER));\n  const coverOpqibiImage = await embedJpgSafe(dataUriBase64(REPORT_OPQIBI));\n  const pageMarkImage = await embedJpgSafe(REPORT_MARK_B64);\n  const logo = coverLogoImage;\n\n  const fit = (image, maxWidth, maxHeight) => {\n    if (!image) return { width: 0, height: 0 };\n    const ratio = image.width / image.height;\n    let width = maxWidth;\n    let height = width / ratio;\n    if (height > maxHeight) {\n      height = maxHeight;\n      width = height * ratio;\n    }\n    return { width, height };\n  };\n\n  const total = pages.length;"""
+          if old_embed in source:
+              source = source.replace(old_embed, new_embed, 1)
+          elif 'const coverVisualImage = await embedJpgSafe' not in source:
+              raise SystemExit('PDF embed marker not found')
+
+          old_loop = """  pages.forEach((page, index) => {\n    if (index === 0) return;\n    const { width, height } = page.getSize();"""
+          new_loop = """  pages.forEach((page, index) => {\n    const { width, height } = page.getSize();\n\n    if (index === 0) {\n      // Android's HTML print engine can crop or drop large data-URI images.\n      // Repaint the Word-template images directly into the generated PDF.\n      page.drawRectangle({ x: mm(5), y: height - mm(31), width: mm(82), height: mm(26), color: rgb(1, 1, 1) });\n      page.drawRectangle({ x: mm(23), y: height - mm(184), width: mm(164), height: mm(94), color: rgb(1, 1, 1) });\n      page.drawRectangle({ x: mm(16), y: mm(7), width: mm(20), height: mm(12), color: rgb(1, 1, 1) });\n\n      if (coverLogoImage) {\n        const s = fit(coverLogoImage, mm(72), mm(20));\n        page.drawImage(coverLogoImage, {\n          x: mm(7),\n          y: height - mm(6) - s.height,\n          width: s.width,\n          height: s.height,\n        });\n      }\n\n      if (coverVisualImage) {\n        const s = fit(coverVisualImage, mm(140), mm(89));\n        page.drawImage(coverVisualImage, {\n          x: mm(25),\n          y: height - mm(94) - s.height,\n          width: s.width,\n          height: s.height,\n        });\n      }\n\n      if (coverOpqibiImage) {\n        const s = fit(coverOpqibiImage, mm(18), mm(9));\n        page.drawImage(coverOpqibiImage, {\n          x: mm(18),\n          y: mm(9),\n          width: s.width,\n          height: s.height,\n        });\n      }\n      return;\n    }"""
+          if old_loop in source:
+              source = source.replace(old_loop, new_loop, 1)
+          elif 'if (coverVisualImage)' not in source:
+              raise SystemExit('PDF cover page marker not found')
+
+          old_logo = """    if (logo) {\n      const ratio = logo.width / logo.height;\n      const logoH = 19;\n      const logoW = logoH * ratio;\n      page.drawImage(logo, { x: left, y: height - 31, width: logoW, height: logoH });\n    }"""
+          new_logo = """    if (pageMarkImage) {\n      const s = fit(pageMarkImage, mm(6), mm(6));\n      page.drawImage(pageMarkImage, {\n        x: mm(4.5),\n        y: height - mm(4.5) - s.height,\n        width: s.width,\n        height: s.height,\n      });\n    }"""
+          if old_logo in source:
+              source = source.replace(old_logo, new_logo, 1)
+
+          path.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Validate native JavaScript
+        run: |
+          node --check reportBuilder.js
+          grep -q "coverVisualImage" reportBuilder.js
+          grep -q "REPORT_MARK_B64" reportBuilder.js
+
+      - name: Commit native PDF fix
+        shell: bash
+        run: |
+          rm .github/workflows/apply-native-pdf-cover.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "fix: render Word images directly in native Android PDF"
+          git push origin HEAD:native-android
