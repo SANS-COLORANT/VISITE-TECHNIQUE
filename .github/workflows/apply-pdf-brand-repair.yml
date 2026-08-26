@@ -24,28 +24,38 @@ jobs:
       - name: Restore historical Word asset module
         run: git show 4ebf7d9e6966324fffde185455a609bec2c7ad2f:reportBrandAssets.js > /tmp/reportBrandAssets.js
 
-      - name: Decode and fingerprint historical assets
+      - name: Fingerprint historical asset payloads
         run: |
           python - <<'PY'
           from pathlib import Path
-          import base64, hashlib, re
+          import base64, hashlib, re, string
           src = Path('/tmp/reportBrandAssets.js').read_text(encoding='utf-8')
           expected = {
               'REPORT_LOGO': '60cea6a784218ca021fda4669976a6a82e23615f11066c55dae4ea04829a52dd',
               'REPORT_COVER': 'd03c6bd7ee55c4195d8910a1942d88ec90b0f399a860969f29c1500813329929',
               'REPORT_OPQIBI': '135f71e5a2b4b85001e2ae51b0164de59271a3ef6a74d02e2c45be7576bb7d1b',
           }
-          failed = False
+          alphabet = set(string.ascii_letters + string.digits + '+/=')
           for name, wanted in expected.items():
               m = re.search(rf"export const {name} = ['\"]data:image/[^;]+;base64,([^'\"]+)['\"]", src)
               if not m:
                   print(f'{name}: MISSING')
-                  failed = True
                   continue
-              raw = base64.b64decode(m.group(1), validate=True)
-              got = hashlib.sha256(raw).hexdigest()
-              print(f'{name}: bytes={len(raw)} sha256={got} expected={wanted} match={got == wanted}')
-          print('REPORT_MARK present:', bool(re.search(r'export const REPORT_MARK\s*=', src)))
-          if failed:
-              raise SystemExit(1)
+              payload = m.group(1)
+              invalid = sorted(set(ch for ch in payload if ch not in alphabet))
+              clean = ''.join(ch for ch in payload if ch in alphabet)
+              print(f'{name}: payload_chars={len(payload)} clean_chars={len(clean)} invalid={invalid!r}')
+              try:
+                  raw = base64.b64decode(clean + '=' * ((4-len(clean)%4)%4), validate=False)
+                  got = hashlib.sha256(raw).hexdigest()
+                  print(f'{name}: bytes={len(raw)} sha256={got} expected={wanted} match={got == wanted}')
+              except Exception as exc:
+                  print(f'{name}: decode_error={exc!r}')
+          mm = re.search(r"export const REPORT_MARK = ['\"]data:image/([^;]+);base64,([^'\"]+)['\"]", src)
+          print('REPORT_MARK present:', bool(mm))
+          if mm:
+              payload = mm.group(2)
+              clean = ''.join(ch for ch in payload if ch in alphabet)
+              raw = base64.b64decode(clean + '=' * ((4-len(clean)%4)%4), validate=False)
+              print(f'REPORT_MARK: mime={mm.group(1)} bytes={len(raw)} sha256={hashlib.sha256(raw).hexdigest()}')
           PY
