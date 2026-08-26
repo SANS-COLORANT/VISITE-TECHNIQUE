@@ -1,4 +1,4 @@
-name: Apply validated PDF branding repair
+name: Diagnose validated PDF assets
 
 on:
   push:
@@ -9,10 +9,10 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  repair-pdf-branding:
+  diagnose-assets:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout complete history
@@ -21,101 +21,31 @@ jobs:
           ref: fix/pdf-report-word-layout
           fetch-depth: 0
 
-      - name: Restore validated Word visuals
-        run: git checkout 4ebf7d9e6966324fffde185455a609bec2c7ad2f -- reportBrandAssets.js
+      - name: Restore historical Word asset module
+        run: git show 4ebf7d9e6966324fffde185455a609bec2c7ad2f:reportBrandAssets.js > /tmp/reportBrandAssets.js
 
-      - name: Remove double cover and use exact standalone mark
-        shell: bash
+      - name: Decode and fingerprint historical assets
         run: |
           python - <<'PY'
           from pathlib import Path
-          import re
-
-          p = Path('reportBuilder.js')
-          s = p.read_text(encoding='utf-8')
-
-          old_import = "import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';"
-          new_import = "import { REPORT_COVER, REPORT_LOGO, REPORT_MARK, REPORT_OPQIBI } from './reportBrandAssets.js';"
-          if old_import in s:
-              s = s.replace(old_import, new_import, 1)
-          elif new_import not in s:
-              raise SystemExit('report asset import not found')
-
-          s = s.replace(
-              ".coverClient{position:absolute;left:12mm;right:12mm;top:49mm;height:20mm;background:${ORANGE};color:#fff;border-radius:5mm;text-align:center;padding:0;font-size:18pt;font-weight:700;z-index:3;display:flex;align-items:center;justify-content:center};color:#fff;border-radius:6mm;text-align:center;padding:8mm 6mm;font-size:23pt;font-weight:700;z-index:3}",
-              ".coverClient{position:absolute;left:12mm;right:12mm;top:49mm;height:20mm;background:${ORANGE};color:#fff;border-radius:5mm;text-align:center;padding:0;font-size:18pt;font-weight:700;z-index:3;display:flex;align-items:center;justify-content:center}",
-              1,
-          )
-
-          # Replace all cover/logo/opqibi pdf-lib embeds with the exact standalone mark.
-          embed_pattern = re.compile(
-              r"\s*let logo = null;\s*let cover = null;\s*let opqibi = null;\s*"
-              r"try \{ logo = await pdf\.embedJpg\(dataUriBase64\(REPORT_LOGO\)\); \} catch \{\}\s*"
-              r"try \{ cover = await pdf\.embedJpg\(dataUriBase64\(REPORT_COVER\)\); \} catch \{\}\s*"
-              r"try \{ opqibi = await pdf\.embedJpg\(dataUriBase64\(REPORT_OPQIBI\)\); \} catch \{\}",
-              re.S,
-          )
-          s, n = embed_pattern.subn(
-              "\n  let mark = null;\n  try { mark = await pdf.embedJpg(dataUriBase64(REPORT_MARK)); } catch {}",
-              s,
-              count=1,
-          )
-          if n != 1 and "let mark = null;" not in s:
-              raise SystemExit('PDF image embed block not found')
-
-          # HTML owns page 1 completely; never erase and repaint it with pdf-lib.
-          cover_pattern = re.compile(
-              r"    if \(index === 0\) \{.*?\n    \}\n\n    const left = 50;",
-              re.S,
-          )
-          s, n = cover_pattern.subn("    if (index === 0) return;\n\n    const left = 50;", s, count=1)
-          if n != 1 and "if (index === 0) return;" not in s:
-              raise SystemExit('first-page repaint block not found')
-
-          # Interior pages use the real standalone spiral, never a masked full logo.
-          interior_pattern = re.compile(
-              r"    // Use the exact spiral from the original full logo:.*?\n\s*const running =",
-              re.S,
-          )
-          exact_mark = """    // Exact standalone multicolour spiral from the validated Word artwork.
-              if (mark) {
-                const box = fit(mark, mm(9), mm(9));
-                page.drawImage(mark, {
-                  x: left,
-                  y: height - mm(16),
-                  width: box.width,
-                  height: box.height,
-                });
-              }
-
-              const running ="""
-          s, n = interior_pattern.subn(exact_mark, s, count=1)
-          if n != 1 and "Exact standalone multicolour spiral" not in s:
-              raise SystemExit('interior logo crop block not found')
-
-          # Guardrails: no duplicate cover painter and no logo masking remains.
-          if 'page.drawRectangle({ x: 0, y: 0, width, height: bannerBottom' in s:
-              raise SystemExit('duplicate cover painter still present')
-          if 'mask its wordmark' in s:
-              raise SystemExit('masked-logo workaround still present')
-
-          p.write_text(s, encoding='utf-8')
+          import base64, hashlib, re
+          src = Path('/tmp/reportBrandAssets.js').read_text(encoding='utf-8')
+          expected = {
+              'REPORT_LOGO': '60cea6a784218ca021fda4669976a6a82e23615f11066c55dae4ea04829a52dd',
+              'REPORT_COVER': 'd03c6bd7ee55c4195d8910a1942d88ec90b0f399a860969f29c1500813329929',
+              'REPORT_OPQIBI': '135f71e5a2b4b85001e2ae51b0164de59271a3ef6a74d02e2c45be7576bb7d1b',
+          }
+          failed = False
+          for name, wanted in expected.items():
+              m = re.search(rf"export const {name} = ['\"]data:image/[^;]+;base64,([^'\"]+)['\"]", src)
+              if not m:
+                  print(f'{name}: MISSING')
+                  failed = True
+                  continue
+              raw = base64.b64decode(m.group(1), validate=True)
+              got = hashlib.sha256(raw).hexdigest()
+              print(f'{name}: bytes={len(raw)} sha256={got} expected={wanted} match={got == wanted}')
+          print('REPORT_MARK present:', bool(re.search(r'export const REPORT_MARK\s*=', src)))
+          if failed:
+              raise SystemExit(1)
           PY
-
-      - name: Verify exact asset declarations and syntax
-        run: |
-          grep -q "export const REPORT_LOGO" reportBrandAssets.js
-          grep -q "export const REPORT_MARK" reportBrandAssets.js
-          grep -q "export const REPORT_COVER" reportBrandAssets.js
-          grep -q "export const REPORT_OPQIBI" reportBrandAssets.js
-          node --check reportBuilder.js
-          node --check reportBrandAssets.js
-
-      - name: Remove one-shot workflow and commit repair
-        run: |
-          git rm .github/workflows/apply-pdf-brand-repair.yml
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add reportBuilder.js reportBrandAssets.js
-          git commit -m "fix: restore validated Word PDF branding"
-          git push origin HEAD:fix/pdf-report-word-layout
