@@ -480,12 +480,6 @@ async function habillerPdf(uriSource, config, siteFooter) {
   const pages = pdf.getPages();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  let logo = null;
-  let cover = null;
-  let opqibi = null;
-  try { logo = await pdf.embedJpg(dataUriBase64(REPORT_LOGO)); } catch {}
-  try { cover = await pdf.embedJpg(dataUriBase64(REPORT_COVER)); } catch {}
-  try { opqibi = await pdf.embedJpg(dataUriBase64(REPORT_OPQIBI)); } catch {}
 
   const total = pages.length;
   const mm = (value) => value * 72 / 25.4;
@@ -515,17 +509,7 @@ async function habillerPdf(uriSource, config, siteFooter) {
     const left = 50;
     const footerY = 20;
 
-    // Use the exact spiral from the original full logo: draw the real JPEG,
-    // then mask its wordmark, leaving only the left pictogram visible.
-    if (logo) {
-      const logoH = 28;
-      const ratio = logo.width / logo.height;
-      const logoW = logoH * ratio;
-      const logoY = height - 36;
-      page.drawRectangle({ x: left - 3, y: logoY - 2, width: 36, height: logoH + 5, color: white });
-      page.drawImage(logo, { x: left, y: logoY, width: logoW, height: logoH });
-      page.drawRectangle({ x: left + 29, y: logoY - 1, width: Math.max(0, logoW - 27), height: logoH + 3, color: white });
-    }
+    // Branding image intentionally omitted here until the exact standalone mark is installed.
 
     const running = String(config.objet || 'Compte rendu de visite technique').toUpperCase();
     const runSize = 7.2;
