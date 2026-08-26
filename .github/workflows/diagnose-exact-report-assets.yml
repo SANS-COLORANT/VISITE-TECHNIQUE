@@ -1,0 +1,83 @@
+name: Locate exact report image blobs
+
+on:
+  push:
+    branches:
+      - fix/pdf-report-word-layout
+    paths:
+      - .github/workflows/diagnose-exact-report-assets.yml
+  workflow_dispatch:
+
+jobs:
+  locate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/pdf-report-word-layout
+          fetch-depth: 0
+
+      - name: Find matching exact assets in repository history
+        shell: bash
+        run: |
+          python - <<'PY'
+          import base64, hashlib, re, subprocess
+          from pathlib import Path
+
+          expected = {
+              'logo': '60cea6a784218ca021fda4669976a6a82e23615f11066c55dae4ea04829a52dd',
+              'cover': 'd03c6bd7ee55c4195d8910a1942d88ec90b0f399a860969f29c1500813329929',
+              'mark': '9b30f9ec2a370da11acd97111fc1da15f521c2bcc37c5268a99c90c9bc8c3567',
+              'opqibi': '135f71e5a2b4b85001e2ae51b0164de59271a3ef6a74d02e2c45be7576bb7d1b',
+          }
+
+          def sha(b): return hashlib.sha256(b).hexdigest()
+          def show(label, b, source):
+              h = sha(b)
+              matches = [k for k,v in expected.items() if v == h]
+              print(f'{source}: {label} bytes={len(b)} sha256={h} MATCH={matches or "-"}')
+
+          # Current exact staging files.
+          for path in sorted(Path('reportAssetsExact').glob('*.js')) if Path('reportAssetsExact').exists() else []:
+              text = path.read_text(errors='ignore')
+              m = re.search(r"export default ['\"]([^'\"]+)['\"]", text, re.S)
+              if m:
+                  try: show(path.stem, base64.b64decode(m.group(1)), str(path))
+                  except Exception as e: print(path, e)
+
+          # Historical reportBrandAssets.js versions.
+          commits = subprocess.check_output(['git','log','--all','--format=%H','--','reportBrandAssets.js'], text=True).split()
+          seen = set()
+          for c in commits:
+              try:
+                  text = subprocess.check_output(['git','show',f'{c}:reportBrandAssets.js'], text=True, stderr=subprocess.DEVNULL)
+              except subprocess.CalledProcessError:
+                  continue
+              for name in ('REPORT_LOGO','REPORT_COVER','REPORT_MARK','REPORT_OPQIBI'):
+                  m = re.search(rf"export const {name}\s*=\s*['\"]data:image/[^;]+;base64,([^'\"]+)['\"]", text, re.S)
+                  if not m: continue
+                  try: b = base64.b64decode(m.group(1))
+                  except Exception: continue
+                  h = sha(b)
+                  key=(name,h)
+                  if key in seen: continue
+                  seen.add(key)
+                  matches=[k for k,v in expected.items() if v==h]
+                  print(f'commit={c} {name} bytes={len(b)} sha256={h} MATCH={matches or "-"}')
+
+          # Search any historical JS file whose basename suggests exact report assets.
+          candidates = subprocess.check_output(['git','log','--all','--name-only','--pretty=format:'], text=True).splitlines()
+          paths = sorted({p.strip() for p in candidates if p.strip() and ('reportAsset' in p or 'reportBrandAsset' in p) and p.endswith('.js')})
+          for path in paths:
+              cs = subprocess.check_output(['git','log','--all','--format=%H','--',path], text=True).split()
+              for c in cs:
+                  try: text=subprocess.check_output(['git','show',f'{c}:{path}'], text=True, stderr=subprocess.DEVNULL)
+                  except subprocess.CalledProcessError: continue
+                  for payload in re.findall(r"(?:export default|=)\s*['\"](?:data:image/[^;]+;base64,)?([A-Za-z0-9+/=]{100,})['\"]", text, re.S):
+                      try: b=base64.b64decode(payload)
+                      except Exception: continue
+                      h=sha(b)
+                      matches=[k for k,v in expected.items() if v==h]
+                      if matches:
+                          print(f'HISTORICAL MATCH commit={c} path={path} bytes={len(b)} sha256={h} MATCH={matches}')
+          PY
