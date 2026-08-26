@@ -193,16 +193,22 @@ async function construireClasseur(visiteId) {
 
   const meta = cfg.metadata || {};
   const nomLocal = nomLocalDepuisChamps(champs);
+  const dateGenerale = String(
+    champs.find((row) => row.cle === 'Date de la visite')?.valeur ||
+    champs.find((row) => row.cle === 'Date de visite')?.valeur ||
+    visite.date_visite ||
+    ''
+  ).trim();
 
-  // En-tête terrain demandé : Client B1, Site B2, Local B3. Pas de date en B5.
+  // En-tête terrain demandé : Client B1, Site B2, Local B3, date de visite B5.
   // On vide aussi les anciennes cellules d'export afin d'éviter les doublons.
   [meta.client, meta.site, meta.adresse, meta.dateVisite, 'C1', 'C2', 'C3', 'C5']
-    .filter((ref, index, refs) => ref && !['B1', 'B2', 'B3'].includes(ref) && refs.indexOf(ref) === index)
+    .filter((ref, index, refs) => ref && !['B1', 'B2', 'B3', 'B5'].includes(ref) && refs.indexOf(ref) === index)
     .forEach((ref) => viderCellule(sheetPrincipale, ref));
-  viderCellule(sheetPrincipale, 'B5');
   setCell(sheetPrincipale, 'B1', visite.nom_client || '');
   setCell(sheetPrincipale, 'B2', visite.nom_site || '');
   setCell(sheetPrincipale, 'B3', nomLocal);
+  setCell(sheetPrincipale, 'B5', dateGenerale);
   setCell(sheetPrincipale, meta.type, trame.nom);
 
   for (const mapping of cfg.fieldMappings || []) {
