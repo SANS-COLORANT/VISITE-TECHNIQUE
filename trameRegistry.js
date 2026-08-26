@@ -136,7 +136,8 @@ const ICPE = Object.freeze({
         startRow: 4,
         maxImportRow: 500,
         columns: [['A', 'poste'], ['B', 'prestation'], ['D', 'delai'], ['F', 'estimatif']],
-        exportColumns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['D', 'delai'], ['F', 'estimatif']],
+        // Le délai reste un champ de l'application/import, mais ne doit pas être injecté à l'export.
+        exportColumns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['F', 'estimatif']],
       },
       note: { sheet: 'NOTE', cell: 'A2' },
     },
