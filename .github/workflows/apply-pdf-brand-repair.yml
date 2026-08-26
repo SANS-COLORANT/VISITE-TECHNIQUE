@@ -21,7 +21,7 @@ jobs:
           ref: fix/pdf-report-word-layout
           fetch-depth: 0
 
-      - name: Verify exact shared image payloads
+      - name: Rebuild and verify exact shared images
         shell: bash
         run: |
           python - <<'PY'
@@ -33,25 +33,24 @@ jobs:
               m = re.search(r"export default ['\"]([^'\"]+)['\"]", text, re.S)
               if not m:
                   raise SystemExit(f'No payload in {path}')
-              # Historical staging chunks can contain harmless whitespace/control
-              # characters introduced while splitting very long strings. Keep only
-              # the Base64 alphabet; the image bytes themselves remain untouched.
               return re.sub(r'[^A-Za-z0-9+/=]', '', m.group(1))
 
-          def decode_parts(paths):
-              parts = [payload(p) for p in paths]
-              # Chunks are pieces of one Base64 stream, not independently encoded
-              # files. Padding is valid only at the very end of the assembled stream.
-              raw = ''.join(part.rstrip('=') if i < len(parts) - 1 else part
-                            for i, part in enumerate(parts))
+          def decode_piece(path):
+              raw = payload(path)
               raw += '=' * ((4 - len(raw) % 4) % 4)
               try:
-                  data = base64.b64decode(raw, validate=True)
+                  return base64.b64decode(raw, validate=True)
               except Exception as exc:
-                  raise SystemExit(f'Invalid Base64 in {paths}: {exc}')
+                  raise SystemExit(f'Invalid Base64 piece {path}: {exc}')
+
+          def rebuild(paths):
+              # These staging files are independent Base64 encodings of consecutive
+              # binary slices from ONE JPEG. Decode each slice first, then concatenate
+              # the bytes. Concatenating the Base64 strings corrupts the image.
+              data = b''.join(decode_piece(p) for p in paths)
               if not (data.startswith(b'\xff\xd8') and data.endswith(b'\xff\xd9')):
-                  raise SystemExit(f'Invalid JPEG framing for {paths}: bytes={len(data)}')
-              return raw, data
+                  raise SystemExit(f'Invalid rebuilt JPEG framing for {paths}: bytes={len(data)}')
+              return base64.b64encode(data).decode('ascii'), data
 
           expected = {
               'logo': '60cea6a784218ca021fda4669976a6a82e23615f11066c55dae4ea04829a52dd',
@@ -60,23 +59,19 @@ jobs:
           }
 
           assets = {
-              'logo': decode_parts(['reportAssetsExactV2/logo0.js', 'reportAssetsExactV2/logo1.js', 'reportAssetsExactV2/logo2.js']),
-              'cover': decode_parts(['reportAssetsExactV2/cover0.js', 'reportAssetsExactV2/cover1.js', 'reportAssetsExactV2/cover2.js']),
-              'mark': decode_parts(['reportAssetsExact/mark.js']),
-              'opqibi': decode_parts(['reportAssetsExact/opqibi.js']),
+              'logo': rebuild(['reportAssetsExactV2/logo0.js', 'reportAssetsExactV2/logo1.js', 'reportAssetsExactV2/logo2.js']),
+              'cover': rebuild(['reportAssetsExactV2/cover0.js', 'reportAssetsExactV2/cover1.js', 'reportAssetsExactV2/cover2.js']),
+              'mark': rebuild(['reportAssetsExact/mark.js']),
+              'opqibi': rebuild(['reportAssetsExact/opqibi.js']),
           }
 
-          for name, (_, data) in assets.items():
-              digest = hashlib.sha256(data).hexdigest()
-              print(f'{name}: bytes={len(data)} sha256={digest}')
-              if name in expected and digest != expected[name]:
-                  raise SystemExit(f'{name} does not match the shared reference image: {digest}')
-
-          # Persist normalized streams for the next step so the app never imports
-          # malformed historical chunk text.
           out = Path('/tmp/pdf-assets')
           out.mkdir(exist_ok=True)
           for name, (raw, data) in assets.items():
+              digest = hashlib.sha256(data).hexdigest()
+              print(f'{name}: bytes={len(data)} sha256={digest}')
+              if name in expected and digest != expected[name]:
+                  raise SystemExit(f'{name} does not match shared reference image: {digest}')
               (out / f'{name}.b64').write_text(raw, encoding='ascii')
               (out / f'{name}.jpg').write_bytes(data)
           PY
@@ -101,7 +96,7 @@ jobs:
           Path('reportBrandAssets.js').write_text(content, encoding='utf-8')
           PY
 
-      - name: Enforce one PDF header and the exact spiral
+      - name: Enforce one PDF header and exact standalone spiral
         shell: bash
         run: |
           python - <<'PY'
