@@ -1,4 +1,8 @@
-/** Export Excel natif : repart du classeur source et ne modifie que les cellules métier changées. */
+/**
+ * Export Excel : reprend la mécanique simple de l'ancienne version qui fonctionnait.
+ * On repart de la trame officielle embarquée puis on y réinjecte l'état courant
+ * de la visite. L'export ne dépend donc plus de la présence du fichier importé.
+ */
 
 import * as XLSX from 'xlsx';
 import * as FileSystem from 'expo-file-system';
@@ -6,22 +10,24 @@ import * as Sharing from 'expo-sharing';
 
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { getDb, getVisite, listerReseaux, listerCompteurs, getNote } from './db.js';
-import { patcherClasseurXlsx, nettoyerClasseurTemp } from './excelOoxml.js';
-
 const { formatMeterValue } = require('./excelValueCore.js');
+
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 function normaliserTexte(v) {
   return String(v ?? '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, ' ').trim().toLowerCase();
 }
 
-function slugFichier(valeur) {
-  return String(valeur || 'site').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'site';
+function equivalents(a, b) {
+  return normaliserTexte(a) === normaliserTexte(b);
 }
 
-function nomLocalDepuisChamps(champs = []) {
-  const lire = (cle) => String(champs.find((row) => row.cle === cle)?.valeur || '').trim();
-  return lire('Nom du local') || lire('Type de LT') || '';
+function slugFichier(valeur) {
+  return String(valeur || 'site')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '') || 'site';
 }
 
 function indexerParCle(rows = []) {
@@ -30,86 +36,105 @@ function indexerParCle(rows = []) {
   return map;
 }
 
-function celluleSource(sheet, ref) {
-  return sheet?.[ref] || null;
+function nomLocalDepuisChamps(champs = []) {
+  const lire = (cle) => String(champs.find((row) => row.cle === cle)?.valeur || '').trim();
+  return lire('Nom du local') || lire('Type de LT') || '';
 }
 
-function valeurSource(sheet, ref) {
-  const cell = celluleSource(sheet, ref);
-  if (!cell || cell.v === null || cell.v === undefined) return '';
-  if (cell.t === 'd' && cell.v instanceof Date) return cell.v.toISOString().slice(0, 10);
-  return cell.v;
+function celluleExistante(sheet, ref) {
+  return sheet?.[ref] || {};
 }
 
-function typePourEcriture(sheet, ref, valeur, cle = '') {
-  const source = celluleSource(sheet, ref);
-  if (source && typeof source.v === 'number') return 'number';
-  if (source && typeof source.v === 'boolean') return 'boolean';
-  if (/^(nombre|nb|annee|année|delai|délai|estimatif)$/i.test(String(cle || '')) && String(valeur ?? '').trim() !== '' && Number.isFinite(Number(String(valeur).replace(',', '.')))) return 'number';
-  return 'text';
-}
-
-function equivalents(source, courant, type) {
-  const a = source === null || source === undefined ? '' : source;
-  const b = courant === null || courant === undefined ? '' : courant;
-  if (type === 'number') {
-    const na = Number(String(a).replace(',', '.'));
-    const nb = Number(String(b).replace(',', '.'));
-    if (Number.isFinite(na) && Number.isFinite(nb)) return na === nb;
+function forcerFormatGeneral(cell) {
+  cell.z = 'General';
+  if (cell.s && typeof cell.s === 'object') {
+    cell.s = { ...cell.s, numFmt: 'General' };
   }
-  return normaliserTexte(a) === normaliserTexte(b);
 }
 
-function ajouterPatchSiChange(patches, sheetName, sheet, address, value, cle = '', options = {}) {
-  if (!address) return false;
-  // Une absence de donnée côté application ne doit jamais effacer une valeur historique
-  // présente dans le classeur importé. Les suppressions implicites sont interdites.
-  if (options.allowEmpty !== true && String(value ?? '').trim() === '') return false;
-  const valueType = options.valueType || typePourEcriture(sheet, address, value, cle);
-  const original = valeurSource(sheet, address);
-  if (equivalents(original, value, valueType)) return false;
+/**
+ * Ecrit une valeur en conservant les propriétés visuelles existantes mais en
+ * imposant le format Excel « Standard / General » au lieu de « Texte / @ ».
+ * Une chaîne vide est volontairement écrite afin de supprimer les éventuelles
+ * anciennes valeurs présentes dans la trame embarquée.
+ */
+function setCellStandard(sheet, ref, valeur) {
+  if (!sheet || !ref) return;
+  const existante = celluleExistante(sheet, ref);
+  const cell = { ...existante };
+  const v = valeur === null || valeur === undefined ? '' : valeur;
 
-  // Une cellule numérique du classeur source ne doit jamais devenir du texte à cause
-  // d'une donnée SQLite incohérente (ex. C183 = 2 remplacé autrefois par une réserve).
-  if (valueType === 'number' && String(value ?? '').trim() !== '') {
-    const nombre = Number(String(value).replace(',', '.'));
-    if (!Number.isFinite(nombre)) {
-      console.warn(`Export Excel: ${sheetName}!${address} conservée (${original}) car la valeur applicative n'est pas numérique: ${value}`);
-      return false;
-    }
+  if (typeof v === 'number' && Number.isFinite(v)) {
+    cell.v = v;
+    cell.t = 'n';
+  } else if (typeof v === 'boolean') {
+    cell.v = v;
+    cell.t = 'b';
+  } else {
+    cell.v = String(v);
+    cell.t = 's';
   }
 
-  patches.push({ sheetName, address, value: value ?? '', valueType, allowFormulaOverwrite: false });
-  return true;
+  forcerFormatGeneral(cell);
+  delete cell.w;
+  sheet[ref] = cell;
 }
 
-function parseDetails(json) {
-  try { return JSON.parse(json || '{}') || {}; }
-  catch { return {}; }
+function parseIsoDate(value) {
+  const s = String(value || '').trim();
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (m) return { y: Number(m[1]), m: Number(m[2]), d: Number(m[3]) };
+  m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (m) return { y: Number(m[3]), m: Number(m[2]), d: Number(m[1]) };
+  return null;
 }
 
-async function provenanceExcel(db, visiteId) {
-  const row = await db.getFirstAsync(`SELECT details_json FROM provenances WHERE entite_type='visite' AND entite_id=? AND origine='import_excel' ORDER BY importe_le DESC LIMIT 1`, [visiteId]);
-  return parseDetails(row?.details_json);
+function dateFr(value) {
+  const d = parseIsoDate(value);
+  if (!d) return String(value || '');
+  return `${String(d.d).padStart(2, '0')}/${String(d.m).padStart(2, '0')}/${d.y}`;
 }
 
-async function chargerSourceExcel(db, visiteId, cfg) {
-  const details = await provenanceExcel(db, visiteId);
-  const uri = details.sourceUri || null;
-  if (uri) {
-    const info = await FileSystem.getInfoAsync(uri).catch(() => null);
-    if (info?.exists) {
-      const base64 = await FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
-      return { sourceUri: uri, sourceBase64: base64, details, sourcePreservee: true };
-    }
+/** Date Excel réelle, sans dépendance au fuseau horaire Android. */
+function setCellDate(sheet, ref, value) {
+  if (!sheet || !ref) return;
+  const d = parseIsoDate(value);
+  if (!d) {
+    setCellStandard(sheet, ref, value || '');
+    return;
   }
-  // Une visite issue d'un import Excel doit toujours repartir de SON fichier original.
-  // On ne reconstruit jamais silencieusement une trame neuve si cette copie a disparu.
-  if (details?.fichier || details?.sourceUri) {
-    throw new Error('Le fichier Excel original importé est introuvable. Réimporte ce fichier pour garantir un export strictement fidèle.');
+  const existante = celluleExistante(sheet, ref);
+  const cell = { ...existante };
+  const excelEpoch = Date.UTC(1899, 11, 30);
+  const serial = (Date.UTC(d.y, d.m - 1, d.d) - excelEpoch) / 86400000;
+  cell.v = serial;
+  cell.t = 'n';
+  cell.z = 'dd/mm/yyyy';
+  if (cell.s && typeof cell.s === 'object') cell.s = { ...cell.s, numFmt: 'dd/mm/yyyy' };
+  delete cell.w;
+  sheet[ref] = cell;
+}
+
+function maxLigneUtilisee(sheet, fallback = 1) {
+  try {
+    if (!sheet?.['!ref']) return fallback;
+    return XLSX.utils.decode_range(sheet['!ref']).e.r + 1;
+  } catch {
+    return fallback;
   }
-  if (!cfg?.templateBase64) throw new Error('Aucune trame Excel source disponible pour cette visite.');
-  return { sourceUri: null, sourceBase64: cfg.templateBase64, details, sourcePreservee: false };
+}
+
+function viderTable(sheet, tableConfig, colonnesSupplementaires = []) {
+  if (!sheet || !tableConfig) return;
+  const cols = [...new Set([
+    ...(tableConfig.exportColumns || tableConfig.columns || []).map(([col]) => col),
+    ...colonnesSupplementaires,
+  ])];
+  const start = Number(tableConfig.startRow || 1);
+  const fin = Math.min(Number(tableConfig.maxImportRow || 500), Math.max(start, maxLigneUtilisee(sheet, start)));
+  for (let row = start; row <= fin; row++) {
+    for (const col of cols) setCellStandard(sheet, `${col}${row}`, '');
+  }
 }
 
 function celluleCompteurDepuisLabel(compteur) {
@@ -123,147 +148,179 @@ function celluleCompteurDepuisLabel(compteur) {
   return null;
 }
 
-function prochaineLigneLibre(sheet, tableConfig, reservees = new Set()) {
-  const colonnes = tableConfig.columns || tableConfig.exportColumns || [];
-  for (let row = Number(tableConfig.startRow || 1); row <= Number(tableConfig.maxImportRow || 500); row++) {
-    if (reservees.has(row)) continue;
-    const occupee = colonnes.some(([col]) => String(valeurSource(sheet, `${col}${row}`) ?? '').trim() !== '');
-    if (!occupee) return row;
-  }
-  throw new Error(`Aucune ligne libre disponible dans l'onglet ${tableConfig.sheet}.`);
-}
-
-function patchesTable({ patches, wb, tableConfig, rows, bindings }) {
-  if (!tableConfig) return;
-  const sheet = wb.Sheets[tableConfig.sheet];
-  if (!sheet) return;
-  const bindingMap = new Map((bindings || []).map((b) => [b.id, Number(b.row)]));
-  const reservees = new Set([...bindingMap.values()].filter(Boolean));
-
-  for (const row of rows || []) {
-    let excelRow = bindingMap.get(row.id) || null;
-    if (!excelRow) {
-      excelRow = prochaineLigneLibre(sheet, tableConfig, reservees);
-      reservees.add(excelRow);
-    }
-    for (const [col, cle] of tableConfig.exportColumns || tableConfig.columns || []) {
-      const valeur = row[cle];
-      // Une absence / valeur vide en SQLite ne doit jamais vider une cellule historique.
-      if (valeur === undefined || valeur === null || String(valeur).trim() === '') continue;
-      ajouterPatchSiChange(patches, tableConfig.sheet, sheet, `${col}${excelRow}`, valeur, cle);
-    }
-  }
+function renseignerTable(sheet, tableConfig, rows = []) {
+  if (!sheet || !tableConfig) return;
+  const cols = tableConfig.exportColumns || tableConfig.columns || [];
+  rows.forEach((row, index) => {
+    const excelRow = Number(tableConfig.startRow || 1) + index;
+    cols.forEach(([col, cle]) => setCellStandard(sheet, `${col}${excelRow}`, row?.[cle] ?? ''));
+  });
 }
 
 async function construireExport(visiteId) {
   const db = await getDb();
   const visite = await getVisite(visiteId);
   if (!visite) throw new Error('Visite introuvable');
+
   const trame = obtenirTrame(visite.trame_id || DEFAULT_TRAME_ID);
   const cfg = trame.excel;
-  const source = await chargerSourceExcel(db, visiteId, cfg);
-  const wbSource = XLSX.read(source.sourceBase64, { type: 'base64', cellDates: true, cellNF: true, cellStyles: true, bookVBA: true });
-  const principale = wbSource.Sheets[cfg.mainSheet];
-  if (!principale) throw new Error(`Feuille principale « ${cfg.mainSheet} » absente du fichier source.`);
+  if (!cfg?.templateBase64) throw new Error(`La trame Excel « ${trame.nom} » n'est pas disponible dans l'application.`);
 
   const [champs, controles, reseaux, compteurs, materiel, remarques, note] = await Promise.all([
-    db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id=?`, [visiteId]),
-    db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id=?`, [visiteId]),
+    db.getAllAsync('SELECT * FROM champs_visite WHERE visite_id=?', [visiteId]),
+    db.getAllAsync('SELECT * FROM controles_visite WHERE visite_id=?', [visiteId]),
     listerReseaux(visiteId),
     listerCompteurs(visiteId),
-    db.getAllAsync(`SELECT * FROM materiel WHERE visite_id=? ORDER BY cree_le,id`, [visiteId]),
-    db.getAllAsync(`SELECT * FROM remarques WHERE visite_id=? ORDER BY cree_le,id`, [visiteId]),
+    db.getAllAsync('SELECT * FROM materiel WHERE visite_id=? ORDER BY cree_le,id', [visiteId]),
+    db.getAllAsync('SELECT * FROM remarques WHERE visite_id=? ORDER BY cree_le,id', [visiteId]),
     getNote(visiteId),
   ]);
 
+  const wb = XLSX.read(cfg.templateBase64, {
+    type: 'base64',
+    cellStyles: true,
+    cellNF: true,
+    cellDates: true,
+    bookVBA: true,
+  });
+
+  const principale = wb.Sheets[cfg.mainSheet];
+  if (!principale) throw new Error(`Feuille principale « ${cfg.mainSheet} » absente de la trame.`);
+
   const champsMap = indexerParCle(champs);
   const controlesMap = indexerParCle(controles);
-  const patches = [];
-  const main = cfg.mainSheet;
 
-  // Métadonnées : conserver la date et toute valeur historique du fichier importé.
-  ajouterPatchSiChange(patches, main, principale, 'B1', visite.nom_client || '', 'client');
-  ajouterPatchSiChange(patches, main, principale, 'B2', visite.nom_site || '', 'site');
-  const localCible = nomLocalDepuisChamps(champs) || String(valeurSource(principale, 'B3') || '');
-  ajouterPatchSiChange(patches, main, principale, 'B3', localCible, 'local');
-  // B5 n'est volontairement pas réécrite : la date du classeur source reste intacte.
+  // Métadonnées de visite.
+  if (cfg.metadata?.client) setCellStandard(principale, cfg.metadata.client, visite.nom_client || '');
+  if (cfg.metadata?.site) setCellStandard(principale, cfg.metadata.site, visite.nom_site || '');
+  if (cfg.metadata?.local) setCellStandard(principale, cfg.metadata.local, nomLocalDepuisChamps(champs));
+  if (cfg.metadata?.type) setCellStandard(principale, cfg.metadata.type, trame.nom || '');
+  if (cfg.metadata?.dateVisite) setCellStandard(principale, cfg.metadata.dateVisite, dateFr(visite.date_visite));
+  if (cfg.metadata?.adresse) setCellStandard(principale, cfg.metadata.adresse, visite.site_adresse || '');
 
-  const compteurBindings = new Map((source.details?.excelBindings?.compteurs || []).map((b) => [b.id, b.cell]));
-  const cellulesCompteurs = new Set(compteurs.map((c) => compteurBindings.get(c.id) || celluleCompteurDepuisLabel(c)).filter(Boolean));
-
+  // Champs et contrôles : état courant complet de l'application.
   for (const mapping of cfg.fieldMappings || []) {
     const key = `${mapping.sectionCode}||${mapping.cle}`;
-    if (cellulesCompteurs.has(mapping.valueCell) && /^Index/i.test(mapping.cle)) continue;
     if (mapping.type === 'champ') {
       const champ = champsMap.get(key);
-      if (champ) ajouterPatchSiChange(patches, main, principale, mapping.valueCell, champ.valeur ?? '', mapping.cle);
+      setCellStandard(principale, mapping.valueCell, champ?.valeur ?? '');
     } else {
       const controle = controlesMap.get(key);
-      if (!controle) continue;
-      ajouterPatchSiChange(patches, main, principale, mapping.valueCell, controle.avis, `${mapping.cle}:avis`);
-      if (mapping.commentCell) ajouterPatchSiChange(patches, main, principale, mapping.commentCell, controle.commentaire, `${mapping.cle}:commentaire`);
+      setCellStandard(principale, mapping.valueCell, controle?.avis ?? '');
+      if (mapping.commentCell) setCellStandard(principale, mapping.commentCell, controle?.commentaire ?? '');
     }
   }
 
+  // Réseaux : on vide d'abord les blocs de la trame afin qu'aucune ancienne valeur
+  // du modèle ne reste lorsqu'un réseau n'existe pas dans la visite courante.
   const reseauxCfg = cfg.networks;
   if (reseauxCfg) {
-    const sheetNom = reseauxCfg.mainSheet || main;
-    const sheet = wbSource.Sheets[sheetNom] || principale;
+    const sheet = wb.Sheets[reseauxCfg.mainSheet || cfg.mainSheet] || principale;
     const col = reseauxCfg.exportColumn || 'C';
+    for (const debut of reseauxCfg.starts || []) {
+      for (const offset of Object.values(reseauxCfg.exportOffsets || {})) setCellStandard(sheet, `${col}${debut + offset}`, '');
+    }
     reseaux.slice(0, (reseauxCfg.starts || []).length).forEach((reseau, index) => {
       const debut = reseauxCfg.starts[index];
-      Object.entries(reseauxCfg.exportOffsets || {}).forEach(([cle, offset]) => ajouterPatchSiChange(patches, sheetNom, sheet, `${col}${debut + offset}`, reseau[cle] ?? '', cle));
+      for (const [cle, offset] of Object.entries(reseauxCfg.exportOffsets || {})) {
+        setCellStandard(sheet, `${col}${debut + offset}`, reseau?.[cle] ?? '');
+      }
     });
   }
 
-  for (const compteur of compteurs) {
-    const cell = compteurBindings.get(compteur.id) || celluleCompteurDepuisLabel(compteur);
-    if (!cell) continue;
-    const original = valeurSource(principale, cell);
-    ajouterPatchSiChange(patches, main, principale, cell, formatMeterValue(compteur, original), 'compteur', { valueType: 'text' });
+  // Les compteurs spécialisés sont stockés dans leur table dédiée ; ils doivent donc
+  // écraser la valeur générique issue des champs lorsque l'utilisateur les modifie.
+  for (const compteur of compteurs || []) {
+    const ref = celluleCompteurDepuisLabel(compteur);
+    if (!ref) continue;
+    const original = principale?.[ref]?.v ?? '';
+    setCellStandard(principale, ref, formatMeterValue(compteur, original));
   }
 
   const tables = cfg.tables || {};
-  patchesTable({ patches, wb: wbSource, tableConfig: tables.materiel, rows: materiel, bindings: source.details?.excelBindings?.materiel });
-  patchesTable({ patches, wb: wbSource, tableConfig: tables.remarques, rows: remarques, bindings: source.details?.excelBindings?.remarques });
-  if (tables.note && note) ajouterPatchSiChange(patches, tables.note.sheet, wbSource.Sheets[tables.note.sheet], tables.note.cell, note.contenu ?? '', 'note');
 
-  const resultat = await patcherClasseurXlsx({ sourceUri: source.sourceUri, sourceBase64: source.sourceUri ? null : source.sourceBase64, patches });
+  // MATERIEL : réécriture complète des lignes de la visite.
+  if (tables.materiel) {
+    const sheet = wb.Sheets[tables.materiel.sheet];
+    viderTable(sheet, tables.materiel);
+    renseignerTable(sheet, tables.materiel, materiel);
+  }
+
+  // REMARQUES : même logique que l'ancienne version, avec en plus la date de visite
+  // en colonne C sur chaque ligne. C'est volontairement la date de la visite et non
+  // la date technique de création de la ligne dans SQLite.
+  if (tables.remarques) {
+    const sheet = wb.Sheets[tables.remarques.sheet];
+    viderTable(sheet, tables.remarques, ['C', 'E']);
+    remarques.forEach((r, index) => {
+      const excelRow = Number(tables.remarques.startRow || 4) + index;
+      for (const [col, cle] of tables.remarques.exportColumns || tables.remarques.columns || []) {
+        setCellStandard(sheet, `${col}${excelRow}`, r?.[cle] ?? '');
+      }
+      setCellDate(sheet, `C${excelRow}`, visite.date_visite);
+    });
+  }
+
+  if (tables.note) {
+    const sheet = wb.Sheets[tables.note.sheet];
+    setCellStandard(sheet, tables.note.cell, note?.contenu ?? note ?? '');
+  }
+
+  const base64 = XLSX.write(wb, {
+    type: 'base64',
+    bookType: 'xlsx',
+    cellStyles: true,
+    compression: true,
+  });
+
   return {
-    resultat,
+    wb,
+    base64,
     visite,
     trame,
-    patches,
-    sourcePreservee: source.sourcePreservee,
-    sourceDetails: source.details || {},
-    stats: { champs: champs.length, controles: controles.length, reseaux: reseaux.length, compteurs: compteurs.length, materiel: materiel.length, remarques: remarques.length, cellulesModifiees: patches.length },
+    sourcePreservee: false,
+    stats: {
+      champs: champs.length,
+      controles: controles.length,
+      reseaux: reseaux.length,
+      compteurs: compteurs.length,
+      materiel: materiel.length,
+      remarques: remarques.length,
+    },
   };
 }
 
 async function preparerExport(visiteId) {
   const construit = await construireExport(visiteId);
-  const nomOriginal = String(construit.sourceDetails?.fichier || '').trim();
-  // Pour une visite importée, conserver le nom du fichier d'origine au lieu de le
-  // reconstruire depuis la trame / le site / la date.
-  const nomFichier = /\.xlsx$/i.test(nomOriginal)
-    ? nomOriginal
-    : `Visite_${slugFichier(construit.trame.nom)}_${slugFichier(construit.visite.nom_site)}_${construit.visite.date_visite || 'sans_date'}.xlsx`;
-  return { ...construit, base64: construit.resultat.base64, nomFichier };
+  const dateValide = /^\d{4}-\d{2}-\d{2}$/.test(String(construit.visite.date_visite || ''))
+    ? construit.visite.date_visite
+    : 'sans_date';
+  const nomFichier = `Visite_${slugFichier(construit.trame.nom)}_${slugFichier(construit.visite.nom_site)}_${dateValide}.xlsx`;
+  return { ...construit, nomFichier };
 }
 
 async function enregistrerExcelSurAppareil(visiteId) {
   const exporte = await preparerExport(visiteId);
   const SAF = FileSystem.StorageAccessFramework;
-  try {
-    if (!SAF?.requestDirectoryPermissionsAsync || !SAF?.createFileAsync) throw new Error('Le sélecteur de dossier Android n’est pas disponible sur cet appareil.');
-    const permission = await SAF.requestDirectoryPermissionsAsync();
-    if (!permission?.granted || !permission?.directoryUri) return { annule: true, nomFichier: exporte.nomFichier, trameId: exporte.trame.id, trameNom: exporte.trame.nom, stats: exporte.stats };
-    const uri = await SAF.createFileAsync(permission.directoryUri, exporte.nomFichier, XLSX_MIME);
-    await FileSystem.writeAsStringAsync(uri, exporte.base64, { encoding: FileSystem.EncodingType.Base64 });
-    return { annule: false, enregistre: true, uri, nomFichier: exporte.nomFichier, trameId: exporte.trame.id, trameNom: exporte.trame.nom, stats: exporte.stats, sourcePreservee: exporte.sourcePreservee };
-  } finally {
-    await nettoyerClasseurTemp(exporte.resultat);
+  if (!SAF?.requestDirectoryPermissionsAsync || !SAF?.createFileAsync) {
+    throw new Error('Le sélecteur de dossier Android n’est pas disponible sur cet appareil.');
   }
+  const permission = await SAF.requestDirectoryPermissionsAsync();
+  if (!permission?.granted || !permission?.directoryUri) {
+    return { annule: true, nomFichier: exporte.nomFichier, trameId: exporte.trame.id, trameNom: exporte.trame.nom, stats: exporte.stats };
+  }
+  const uri = await SAF.createFileAsync(permission.directoryUri, exporte.nomFichier, XLSX_MIME);
+  await FileSystem.writeAsStringAsync(uri, exporte.base64, { encoding: FileSystem.EncodingType.Base64 });
+  return {
+    annule: false,
+    enregistre: true,
+    uri,
+    nomFichier: exporte.nomFichier,
+    trameId: exporte.trame.id,
+    trameNom: exporte.trame.nom,
+    stats: exporte.stats,
+    sourcePreservee: false,
+  };
 }
 
 async function partagerExcel(visiteId) {
@@ -271,22 +328,38 @@ async function partagerExcel(visiteId) {
   const dossier = FileSystem.cacheDirectory || FileSystem.documentDirectory;
   if (!dossier) throw new Error('Stockage local Android indisponible');
   const chemin = dossier + exporte.nomFichier;
-  try {
-    await FileSystem.writeAsStringAsync(chemin, exporte.base64, { encoding: FileSystem.EncodingType.Base64 });
-    if (!(await Sharing.isAvailableAsync())) throw new Error('Le partage de fichiers n’est pas disponible sur cet appareil.');
-    await Sharing.shareAsync(chemin, { mimeType: XLSX_MIME, dialogTitle: `Partager la visite — ${exporte.trame.nom}`, UTI: 'org.openxmlformats.spreadsheetml.sheet' });
-    return { nomFichier: exporte.nomFichier, trameId: exporte.trame.id, trameNom: exporte.trame.nom, stats: exporte.stats, chemin, sourcePreservee: exporte.sourcePreservee };
-  } finally {
-    await nettoyerClasseurTemp(exporte.resultat);
-  }
+  await FileSystem.writeAsStringAsync(chemin, exporte.base64, { encoding: FileSystem.EncodingType.Base64 });
+  if (!(await Sharing.isAvailableAsync())) throw new Error('Le partage de fichiers n’est pas disponible sur cet appareil.');
+  await Sharing.shareAsync(chemin, {
+    mimeType: XLSX_MIME,
+    dialogTitle: `Partager la visite — ${exporte.trame.nom}`,
+    UTI: 'org.openxmlformats.spreadsheetml.sheet',
+  });
+  return {
+    nomFichier: exporte.nomFichier,
+    trameId: exporte.trame.id,
+    trameNom: exporte.trame.nom,
+    stats: exporte.stats,
+    chemin,
+    sourcePreservee: false,
+  };
 }
 
 async function exporterEtPartager(visiteId) {
-  try { return await enregistrerExcelSurAppareil(visiteId); }
-  catch (e) {
+  try {
+    return await enregistrerExcelSurAppareil(visiteId);
+  } catch (e) {
     if (/sélecteur de dossier Android n’est pas disponible/i.test(String(e?.message || e))) return partagerExcel(visiteId);
     throw e;
   }
 }
 
-export { construireExport as construireClasseur, preparerExport, enregistrerExcelSurAppareil, partagerExcel, exporterEtPartager, formatMeterValue as texteCompteur, equivalents };
+export {
+  construireExport as construireClasseur,
+  preparerExport,
+  enregistrerExcelSurAppareil,
+  partagerExcel,
+  exporterEtPartager,
+  formatMeterValue as texteCompteur,
+  equivalents,
+};
