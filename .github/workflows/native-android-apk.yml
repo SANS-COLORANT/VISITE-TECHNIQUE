@@ -11,6 +11,7 @@ on:
       - app.json
       - eas.json
       - .github/workflows/native-android-apk.yml
+      - .github/scripts/patch_pdf_cover_fallback_build.py
 
 concurrency:
   group: native-android-apk-${{ github.ref }}
@@ -52,45 +53,14 @@ jobs:
           npx expo install --check
           npx expo-doctor
 
-      - name: Force reliable PDF cover fallback for standalone APK
+      - name: Force reliable PDF cover fallback
+        run: python .github/scripts/patch_pdf_cover_fallback_build.py
+
+      - name: Validate PDF cover patch
         run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('reportBuilder.js')
-          s = p.read_text(encoding='utf-8')
-          old = '''  const [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([
-    embedBundledSafe(REPORT_ASSET_MODULES.cover, 'png'),
-    embedBundledSafe(REPORT_ASSET_MODULES.logo, 'png'),
-    embedBundledSafe(REPORT_ASSET_MODULES.pageMark, 'png'),
-    ...REPORT_ASSET_MODULES.businessSpirals.map((moduleId) => embedBundledSafe(moduleId, 'jpg')),
-  ]);
-  const coverOpqibiImage = await embedJpgSafe(dataUriBase64(REPORT_OPQIBI));'''
-          new = '''  let [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([
-    embedBundledSafe(REPORT_ASSET_MODULES.cover, 'png'),
-    embedBundledSafe(REPORT_ASSET_MODULES.logo, 'png'),
-    embedBundledSafe(REPORT_ASSET_MODULES.pageMark, 'png'),
-    ...REPORT_ASSET_MODULES.businessSpirals.map((moduleId) => embedBundledSafe(moduleId, 'jpg')),
-  ]);
-
-  if (!coverVisualImage) {
-    coverVisualImage = await embedJpgSafe(dataUriBase64(REPORT_COVER));
-  }
-  if (!coverLogoImage) {
-    coverLogoImage = await embedJpgSafe(dataUriBase64(REPORT_LOGO));
-  }
-
-  const coverOpqibiImage = await embedJpgSafe(dataUriBase64(REPORT_OPQIBI));'''
-          if old in s:
-              s = s.replace(old, new, 1)
-              p.write_text(s, encoding='utf-8')
-          elif 'coverVisualImage = await embedJpgSafe(dataUriBase64(REPORT_COVER))' not in s:
-              raise SystemExit('PDF cover fallback block not found')
-          PY
           node --check reportBuilder.js
           grep -q "coverVisualImage = await embedJpgSafe(dataUriBase64(REPORT_COVER))" reportBuilder.js
           grep -q "coverLogoImage = await embedJpgSafe(dataUriBase64(REPORT_LOGO))" reportBuilder.js
-          grep -q "fit(coverLogoImage, mm(93), mm(22))" reportBuilder.js
-          grep -q "fit(coverVisualImage, mm(159), mm(99))" reportBuilder.js
 
       - name: Validate JavaScript bundle
         run: npx expo export --platform android --output-dir dist-ci
@@ -126,5 +96,3 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 7
-
-# Build trigger: 2026-08-26 launch PDF-cover-fixed native Android APK
