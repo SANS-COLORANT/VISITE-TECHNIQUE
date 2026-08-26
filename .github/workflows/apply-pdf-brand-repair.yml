@@ -41,40 +41,43 @@ jobs:
           elif new_import not in s:
               raise SystemExit('report asset import not found')
 
-          bad_css = ".coverClient{position:absolute;left:12mm;right:12mm;top:49mm;height:20mm;background:${ORANGE};color:#fff;border-radius:5mm;text-align:center;padding:0;font-size:18pt;font-weight:700;z-index:3;display:flex;align-items:center;justify-content:center};color:#fff;border-radius:6mm;text-align:center;padding:8mm 6mm;font-size:23pt;font-weight:700;z-index:3}"
-          good_css = ".coverClient{position:absolute;left:12mm;right:12mm;top:49mm;height:20mm;background:${ORANGE};color:#fff;border-radius:5mm;text-align:center;padding:0;font-size:18pt;font-weight:700;z-index:3;display:flex;align-items:center;justify-content:center}"
-          if bad_css in s:
-              s = s.replace(bad_css, good_css, 1)
+          s = s.replace(
+              ".coverClient{position:absolute;left:12mm;right:12mm;top:49mm;height:20mm;background:${ORANGE};color:#fff;border-radius:5mm;text-align:center;padding:0;font-size:18pt;font-weight:700;z-index:3;display:flex;align-items:center;justify-content:center};color:#fff;border-radius:6mm;text-align:center;padding:8mm 6mm;font-size:23pt;font-weight:700;z-index:3}",
+              ".coverClient{position:absolute;left:12mm;right:12mm;top:49mm;height:20mm;background:${ORANGE};color:#fff;border-radius:5mm;text-align:center;padding:0;font-size:18pt;font-weight:700;z-index:3;display:flex;align-items:center;justify-content:center}",
+              1,
+          )
 
-          old_embeds = """  let logo = null;
-          let cover = null;
-          let opqibi = null;
-          try { logo = await pdf.embedJpg(dataUriBase64(REPORT_LOGO)); } catch {}
-          try { cover = await pdf.embedJpg(dataUriBase64(REPORT_COVER)); } catch {}
-          try { opqibi = await pdf.embedJpg(dataUriBase64(REPORT_OPQIBI)); } catch {}
-          """
-          new_embeds = """  let mark = null;
-          try { mark = await pdf.embedJpg(dataUriBase64(REPORT_MARK)); } catch {}
-          """
-          if old_embeds in s:
-              s = s.replace(old_embeds, new_embeds, 1)
-          elif new_embeds not in s:
-              raise SystemExit('PDF image embed block not found')
-
-          # The HTML already draws the complete first page with the official assets.
-          # pdf-lib must never erase and repaint it a second time.
-          s, n = re.subn(
-              r"    if \(index === 0\) \{.*?      return;\n    \}\n\n    const left = 50;",
-              "    if (index === 0) return;\n\n    const left = 50;",
+          # Replace all cover/logo/opqibi pdf-lib embeds with the exact standalone mark.
+          embed_pattern = re.compile(
+              r"\s*let logo = null;\s*let cover = null;\s*let opqibi = null;\s*"
+              r"try \{ logo = await pdf\.embedJpg\(dataUriBase64\(REPORT_LOGO\)\); \} catch \{\}\s*"
+              r"try \{ cover = await pdf\.embedJpg\(dataUriBase64\(REPORT_COVER\)\); \} catch \{\}\s*"
+              r"try \{ opqibi = await pdf\.embedJpg\(dataUriBase64\(REPORT_OPQIBI\)\); \} catch \{\}",
+              re.S,
+          )
+          s, n = embed_pattern.subn(
+              "\n  let mark = null;\n  try { mark = await pdf.embedJpg(dataUriBase64(REPORT_MARK)); } catch {}",
               s,
               count=1,
-              flags=re.S,
           )
+          if n != 1 and "let mark = null;" not in s:
+              raise SystemExit('PDF image embed block not found')
+
+          # HTML owns page 1 completely; never erase and repaint it with pdf-lib.
+          cover_pattern = re.compile(
+              r"    if \(index === 0\) \{.*?\n    \}\n\n    const left = 50;",
+              re.S,
+          )
+          s, n = cover_pattern.subn("    if (index === 0) return;\n\n    const left = 50;", s, count=1)
           if n != 1 and "if (index === 0) return;" not in s:
               raise SystemExit('first-page repaint block not found')
 
+          # Interior pages use the real standalone spiral, never a masked full logo.
+          interior_pattern = re.compile(
+              r"    // Use the exact spiral from the original full logo:.*?\n\s*const running =",
+              re.S,
+          )
           exact_mark = """    // Exact standalone multicolour spiral from the validated Word artwork.
-              // Never crop or mask the full company logo to simulate this mark.
               if (mark) {
                 const box = fit(mark, mm(9), mm(9));
                 page.drawImage(mark, {
@@ -84,12 +87,17 @@ jobs:
                   height: box.height,
                 });
               }
-          """
-          pattern = r"    // Use the exact spiral from the original full logo:.*?    \}\n\n    const running ="
-          repl = exact_mark + "\n    const running ="
-          s, n = re.subn(pattern, repl, s, count=1, flags=re.S)
+
+              const running ="""
+          s, n = interior_pattern.subn(exact_mark, s, count=1)
           if n != 1 and "Exact standalone multicolour spiral" not in s:
               raise SystemExit('interior logo crop block not found')
+
+          # Guardrails: no duplicate cover painter and no logo masking remains.
+          if 'page.drawRectangle({ x: 0, y: 0, width, height: bannerBottom' in s:
+              raise SystemExit('duplicate cover painter still present')
+          if 'mask its wordmark' in s:
+              raise SystemExit('masked-logo workaround still present')
 
           p.write_text(s, encoding='utf-8')
           PY
