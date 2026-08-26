@@ -80,3 +80,5 @@ jobs:
           git add reportBuilder.js .github/workflows/fix-native-pdf-cover-fallback.yml
           git commit -m "fix: guarantee native PDF cover images in standalone APK"
           git push origin HEAD:native-android
+
+# trigger retry 2026-08-26
