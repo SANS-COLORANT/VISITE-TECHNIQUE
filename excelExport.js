@@ -42,6 +42,19 @@ function viderCellule(sheet, ref) {
   etendrePlage(sheet, ref);
 }
 
+function supprimerDoublonsAvisCommentaire(sheet) {
+  if (!sheet?.['!ref']) return;
+  const plage = XLSX.utils.decode_range(sheet['!ref']);
+  for (let r = plage.s.r; r <= plage.e.r; r += 1) {
+    const refD = XLSX.utils.encode_cell({ r, c: 3 });
+    const refE = XLSX.utils.encode_cell({ r, c: 4 });
+    const d = String(sheet[refD]?.v ?? '').trim().toLowerCase();
+    const e = String(sheet[refE]?.v ?? '').trim().toLowerCase();
+    if (d === 'avis') viderCellule(sheet, refD);
+    if (e === 'commentaire') viderCellule(sheet, refE);
+  }
+}
+
 function nomLocalDepuisChamps(champs = []) {
   const lire = (cle) => String((champs.find((row) => row.cle === cle)?.valeur) || '').trim();
   return lire('Nom du local') || lire('Type de LT') || '';
@@ -49,6 +62,17 @@ function nomLocalDepuisChamps(champs = []) {
 
 function slugFichier(valeur) {
   return String(valeur || 'site').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'site';
+}
+
+function formaterDateReserve(valeur) {
+  if (!valeur) return '';
+  const brut = String(valeur).trim();
+  const match = brut.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (match) return `${match[3]}/${match[2]}/${match[1]}`;
+  const date = new Date(brut);
+  if (Number.isNaN(date.getTime())) return brut;
+  const p = (n) => String(n).padStart(2, '0');
+  return `${p(date.getDate())}/${p(date.getMonth() + 1)}/${date.getFullYear()}`;
 }
 
 function indexerParCle(rows = []) {
@@ -129,6 +153,13 @@ function normaliserMaterielPourExport(materiel = []) {
   }));
 }
 
+function normaliserRemarquesPourExport(remarques = []) {
+  return remarques.map((r) => ({
+    ...r,
+    date_reserve: formaterDateReserve(r.cree_le),
+  }));
+}
+
 async function construireClasseur(visiteId) {
   const db = await getDb();
   const visite = await getVisite(visiteId);
@@ -138,7 +169,7 @@ async function construireClasseur(visiteId) {
   const cfg = trame.excel;
   if (!cfg?.templateBase64) throw new Error(`Aucun modèle Excel configuré pour la trame ${trame.nom}.`);
 
-  const [champs, controles, reseaux, compteurs, materielBrut, remarques, note] = await Promise.all([
+  const [champs, controles, reseaux, compteurs, materielBrut, remarquesBrutes, note] = await Promise.all([
     db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id = ?`, [visiteId]),
     db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id = ?`, [visiteId]),
     listerReseaux(visiteId),
@@ -149,11 +180,16 @@ async function construireClasseur(visiteId) {
   ]);
 
   const materiel = normaliserMaterielPourExport(materielBrut);
+  const remarques = normaliserRemarquesPourExport(remarquesBrutes);
   const champsMap = indexerParCle(champs);
   const controlesMap = indexerParCle(controles);
   const wb = XLSX.read(cfg.templateBase64, { type: 'base64', cellStyles: true, cellNF: true, bookVBA: true });
   const sheetPrincipale = wb.Sheets[cfg.mainSheet];
   if (!sheetPrincipale) throw new Error(`Feuille principale « ${cfg.mainSheet} » absente du modèle ${trame.nom}.`);
+
+  // La trame source a parfois conservé un second jeu de titres Avis / Commentaire en D/E.
+  // L'export final doit rester strictement sur A:C.
+  supprimerDoublonsAvisCommentaire(sheetPrincipale);
 
   const meta = cfg.metadata || {};
   const nomLocal = nomLocalDepuisChamps(champs);
@@ -237,7 +273,12 @@ async function preparerExport(visiteId) {
   }
   if (!base64 || base64.length < 100) throw new Error('Le fichier Excel généré est vide ou invalide.');
 
-  const nomFichier = `Visite_${slugFichier(trame.nom)}_${slugFichier(visite.nom_site)}_${visite.date_visite || 'sans_date'}.xlsx`;
+  const nomLocal = nomLocalDepuisChamps(
+    (await getDb()).getAllAsync ? await (await getDb()).getAllAsync(`SELECT * FROM champs_visite WHERE visite_id = ?`, [visiteId]) : []
+  );
+  const morceauxNom = ['Visite', slugFichier(visite.nom_site)];
+  if (nomLocal) morceauxNom.push(slugFichier(nomLocal));
+  const nomFichier = `${morceauxNom.join('_')}.xlsx`;
   return { base64, nomFichier, trame, stats };
 }
 
