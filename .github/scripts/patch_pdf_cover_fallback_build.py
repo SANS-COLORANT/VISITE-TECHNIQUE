@@ -1,27 +1,84 @@
 from pathlib import Path
+import base64
+
+# Never alter files in assets/report. We read their exact bytes at build time
+# and generate a temporary JS module that Metro bundles into the standalone APK.
+assets = {
+    'COVER': ('assets/report/cover-building.png', 'png'),
+    'LOGO': ('assets/report/brand-logo.png', 'png'),
+    'MARK': ('assets/report/spiral-multicolor.png', 'png'),
+    'SPIRAL_1': ('assets/report/spiral-red-orange.jpg', 'jpg'),
+    'SPIRAL_2': ('assets/report/spiral-yellow-green.jpg', 'jpg'),
+    'SPIRAL_3': ('assets/report/spiral-green-red.jpg', 'jpg'),
+    'SPIRAL_4': ('assets/report/spiral-multicolor-alt.jpg', 'jpg'),
+}
+
+lines = [
+    '// Generated during Android build from the exact files in assets/report.',
+    '// Do not edit manually.',
+]
+for name, (path, fmt) in assets.items():
+    raw = Path(path).read_bytes()
+    b64 = base64.b64encode(raw).decode('ascii')
+    lines.append(f"export const EXACT_{name} = '{b64}';")
+Path('reportExactAssets.generated.js').write_text('\n'.join(lines) + '\n', encoding='utf-8')
 
 p = Path('reportBuilder.js')
 s = p.read_text(encoding='utf-8')
 
-# 1) Keep the original files in assets/report untouched, but normalize the
-# Android-decoded image into a temporary PNG/JPEG before giving it to pdf-lib.
-# This avoids the corrupted/black rendering seen in standalone APK PDFs.
-old_embed = """  const embedBundledSafe = async (moduleId, format) => {\n    try {\n      const bytes = await lireAssetBinaire(moduleId);\n      return format === 'png' ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);\n    } catch (error) {\n      console.warn('Impossible de charger un asset PDF embarque', error);\n      return null;\n    }\n  };"""
-new_embed = """  const embedBundledSafe = async (moduleId, format) => {\n    try {\n      const asset = Asset.fromModule(moduleId);\n      let uri = asset.localUri || null;\n\n      if (!uri) {\n        try {\n          const loaded = await Promise.race([\n            asset.downloadAsync(),\n            new Promise((_, reject) => setTimeout(\n              () => reject(new Error('Timeout de materialisation asset PDF')),\n              5000\n            )),\n          ]);\n          uri = loaded?.localUri || asset.localUri || null;\n        } catch (error) {\n          console.warn('Materialisation asset PDF impossible', error);\n        }\n      }\n\n      if (!uri) throw new Error('URI locale asset PDF indisponible');\n\n      // Important : on ne modifie jamais le fichier source dans assets/report.\n      // ImageManipulator produit uniquement une copie temporaire normalisee,\n      // lisible de facon fiable par pdf-lib dans un APK Android standalone.\n      const normalized = await ImageManipulator.manipulateAsync(\n        uri,\n        [],\n        {\n          compress: 1,\n          format: format === 'png'\n            ? ImageManipulator.SaveFormat.PNG\n            : ImageManipulator.SaveFormat.JPEG,\n          base64: true,\n        }\n      );\n\n      if (!normalized.base64) throw new Error('Normalisation asset PDF sans Base64');\n      return format === 'png'\n        ? await pdf.embedPng(normalized.base64)\n        : await pdf.embedJpg(normalized.base64);\n    } catch (error) {\n      console.warn('Impossible de charger un asset PDF embarque', error);\n      return null;\n    }\n  };"""
+import_line = "import { EXACT_COVER, EXACT_LOGO, EXACT_MARK, EXACT_SPIRAL_1, EXACT_SPIRAL_2, EXACT_SPIRAL_3, EXACT_SPIRAL_4 } from './reportExactAssets.generated.js';\n"
+if import_line not in s:
+    marker = "import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';\n"
+    if marker not in s:
+        raise SystemExit('reportBrandAssets import not found')
+    s = s.replace(marker, marker + import_line, 1)
 
-if old_embed in s:
-    s = s.replace(old_embed, new_embed, 1)
-elif 'ImageManipulator.SaveFormat.PNG' not in s:
-    raise SystemExit('embedBundledSafe block not found')
+start = s.find('  const embedBundledSafe = async (moduleId, format) => {')
+end = s.find('\n\n  const [coverVisualImage', start)
+if start < 0 or end < 0:
+    # Allow re-running if a previous build already patched the source tree.
+    start = s.find('  const embedExactSafe = async (base64Value, format) => {')
+    end = s.find('\n\n  const [coverVisualImage', start)
+    if start < 0 or end < 0:
+        raise SystemExit('PDF image embedding block not found')
 
-# 2) Add a fallback for the two main cover visuals. Assets/report remains the
-# primary source; fallback is used only if Android still cannot decode one.
-old_cover = """  const [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([\n    embedBundledSafe(REPORT_ASSET_MODULES.cover, 'png'),\n    embedBundledSafe(REPORT_ASSET_MODULES.logo, 'png'),\n    embedBundledSafe(REPORT_ASSET_MODULES.pageMark, 'png'),\n    ...REPORT_ASSET_MODULES.businessSpirals.map((moduleId) => embedBundledSafe(moduleId, 'jpg')),\n  ]);\n  const coverOpqibiImage = await embedJpgSafe(dataUriBase64(REPORT_OPQIBI));"""
-new_cover = """  let [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([\n    embedBundledSafe(REPORT_ASSET_MODULES.cover, 'png'),\n    embedBundledSafe(REPORT_ASSET_MODULES.logo, 'png'),\n    embedBundledSafe(REPORT_ASSET_MODULES.pageMark, 'png'),\n    ...REPORT_ASSET_MODULES.businessSpirals.map((moduleId) => embedBundledSafe(moduleId, 'jpg')),\n  ]);\n\n  if (!coverVisualImage) {\n    coverVisualImage = await embedJpgSafe(dataUriBase64(REPORT_COVER));\n  }\n  if (!coverLogoImage) {\n    coverLogoImage = await embedJpgSafe(dataUriBase64(REPORT_LOGO));\n  }\n\n  const coverOpqibiImage = await embedJpgSafe(dataUriBase64(REPORT_OPQIBI));"""
+embed_block = """  const embedExactSafe = async (base64Value, format) => {
+    try {
+      if (!base64Value) return null;
+      return format === 'png'
+        ? await pdf.embedPng(base64Value)
+        : await pdf.embedJpg(base64Value);
+    } catch (error) {
+      console.warn('Impossible d\'integrer un visuel PDF exact', error);
+      return null;
+    }
+  };"""
+s = s[:start] + embed_block + s[end:]
 
-if old_cover in s:
-    s = s.replace(old_cover, new_cover, 1)
-elif 'coverVisualImage = await embedJpgSafe(dataUriBase64(REPORT_COVER))' not in s:
-    raise SystemExit('PDF cover fallback block not found')
+cover_start = s.find('  const [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([')
+if cover_start < 0:
+    cover_start = s.find('  let [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([')
+cover_end = s.find('  const coverOpqibiImage = await embedJpgSafe(dataUriBase64(REPORT_OPQIBI));', cover_start)
+if cover_start < 0 or cover_end < 0:
+    raise SystemExit('Cover image loading block not found')
+cover_end += len('  const coverOpqibiImage = await embedJpgSafe(dataUriBase64(REPORT_OPQIBI));')
+
+cover_block = """  const [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([
+    embedExactSafe(EXACT_COVER, 'png'),
+    embedExactSafe(EXACT_LOGO, 'png'),
+    embedExactSafe(EXACT_MARK, 'png'),
+    embedExactSafe(EXACT_SPIRAL_1, 'jpg'),
+    embedExactSafe(EXACT_SPIRAL_2, 'jpg'),
+    embedExactSafe(EXACT_SPIRAL_3, 'jpg'),
+    embedExactSafe(EXACT_SPIRAL_4, 'jpg'),
+  ]);
+  const coverOpqibiImage = await embedJpgSafe(dataUriBase64(REPORT_OPQIBI));"""
+s = s[:cover_start] + cover_block + s[cover_end:]
 
 p.write_text(s, encoding='utf-8')
+
+# Sanity checks: originals are still there and generated payloads are non-empty.
+for name, (path, _) in assets.items():
+    if not Path(path).is_file() or Path(path).stat().st_size == 0:
+        raise SystemExit(f'Missing original asset: {path}')
+print('Exact PDF assets generated from untouched assets/report files.')
