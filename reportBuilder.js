@@ -495,7 +495,17 @@ async function lireAssetBinaire(moduleId) {
   if (!asset.localUri) await asset.downloadAsync();
   const uri = asset.localUri || asset.uri;
   if (!uri) throw new Error('Asset de rapport introuvable dans le bundle Android.');
+
+  // Dans un APK Android release, fetch(file://...) n'est pas fiable.
+  // On lit donc directement le fichier local empaquete avec expo-file-system.
+  // Le Base64 n'est jamais stocke dans le code ni reconstruit en morceaux :
+  // il sert uniquement de representation memoire transitoire pour pdf-lib.
+  if (asset.localUri || String(uri).startsWith('file:')) {
+    return FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+  }
+
   const response = await fetch(uri);
+  if (!response.ok) throw new Error(`Lecture asset PDF impossible (${response.status}).`);
   const buffer = await response.arrayBuffer();
   return new Uint8Array(buffer);
 }
