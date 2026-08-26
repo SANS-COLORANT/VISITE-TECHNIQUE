@@ -74,9 +74,32 @@ cover_block = """  const [coverVisualImage, coverLogoImage, pageMarkImage, ...bu
   const coverOpqibiImage = await embedJpgSafe(dataUriBase64(REPORT_OPQIBI));"""
 s = s[:cover_start] + cover_block + s[cover_end:]
 
+# Page 1 layout corrections only. Keep every source image untouched.
+# The goal is to match the shared Word cover more closely and, in particular,
+# keep the report title completely below the central building image.
+layout_replacements = {
+    "fit(coverLogoImage, mm(93), mm(22))": "fit(coverLogoImage, mm(86), mm(21))",
+    "x: mm(15),\n          y: height - mm(11) - sLogo.height,": "x: mm(16.5),\n          y: height - mm(12) - sLogo.height,",
+    "const boxX = mm(28);": "const boxX = mm(30);",
+    "const boxY = height - mm(82);": "const boxY = height - mm(80);",
+    "const boxW = mm(153);": "const boxW = mm(150);",
+    "const boxH = mm(20);": "const boxH = mm(18);",
+    "fit(coverVisualImage, mm(159), mm(99))": "fit(coverVisualImage, mm(148), mm(92))",
+    "y: height - mm(94) - sCover.height,": "y: height - mm(96) - sCover.height,",
+    "y: height - mm(190),": "y: height - mm(194),",
+    "const businessY = height - mm(205);": "const businessY = height - mm(207);",
+    "const iconSize = mm(6);": "const iconSize = mm(5.2);",
+    "const gap = mm(1.1);": "const gap = mm(0.9);",
+    "const itemGap = mm(3.4);": "const itemGap = mm(3.0);",
+}
+for old, new in layout_replacements.items():
+    if old not in s:
+        raise SystemExit(f'Page 1 layout target not found: {old}')
+    s = s.replace(old, new, 1)
+
 p.write_text(s, encoding='utf-8')
 
 for name, (path, _) in assets.items():
     if not Path(path).is_file() or Path(path).stat().st_size == 0:
         raise SystemExit(f'Missing original asset: {path}')
-print('Exact PDF assets generated from untouched assets/report files.')
+print('Exact PDF assets generated and page 1 layout adjusted from untouched assets/report files.')
