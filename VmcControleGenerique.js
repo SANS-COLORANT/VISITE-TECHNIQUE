@@ -65,16 +65,33 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
   }, [onEtatChange, onSaved]);
 
   const choisirAvis = useCallback(async (val) => {
+    if (val === avis) return;
     setAvis(val);
     setPresetChoisi(null);
     setCommentaire('');
-    if (val !== 'N.S') {
+
+    if (val === 'N.S') {
+      // Un N.S doit toujours exister dans la synthèse Réserves, même avant
+      // que le technicien ne choisisse une bulle ou ne rédige le détail.
+      // Le texte provisoire est ensuite remplacé par la prescription choisie
+      // ou par le commentaire libre au moment de la saisie.
+      const prescription = {
+        poste: field.poste || 'VMC',
+        prestation: `Anomalie constatée sur ${field.cle} — à préciser.`,
+        delai: null,
+        estimatif: null,
+      };
+      const origine = `VMC — ${field.cle} — À préciser`;
+      const id = await upsertRemarquePrescription(visiteId, controleKey, prescription, origine);
+      setRemarque({ id, visite_id: visiteId, controle_key: controleKey, origine, ...prescription });
+    } else {
       await supprimerRemarqueControle(visiteId, controleKey);
       setRemarque(null);
     }
+
     await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: '' });
     notifier({ avis: val, commentaire: '' });
-  }, [visiteId, sectionCode, field.cle, controleKey, notifier]);
+  }, [avis, visiteId, sectionCode, field, controleKey, notifier]);
 
   const choisirPreset = useCallback(async (opt, idx) => {
     const texte = opt.commentaire || '';
@@ -102,11 +119,18 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
   const sauverLibre = useCallback(async () => {
     const texte = String(commentaire || '').trim();
     await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis, commentaire: texte });
-    if (avis === 'N.S' && texte && !remarque) {
-      const prescription = { poste: field.poste || 'VMC', prestation: texte, delai: null, estimatif: null };
+    if (avis === 'N.S' && texte) {
+      // Toujours mettre à jour la réserve existante : auparavant, un N.S déjà
+      // matérialisé pouvait conserver son ancien texte au lieu du commentaire libre.
+      const prescription = {
+        poste: remarque?.poste || field.poste || 'VMC',
+        prestation: texte,
+        delai: remarque?.delai ?? null,
+        estimatif: remarque?.estimatif ?? null,
+      };
       const origine = `VMC — ${field.cle} — Autre`;
       const id = await upsertRemarquePrescription(visiteId, controleKey, prescription, origine);
-      setRemarque({ id, visite_id: visiteId, controle_key: controleKey, origine, ...prescription });
+      setRemarque({ ...(remarque || {}), id, visite_id: visiteId, controle_key: controleKey, origine, ...prescription });
     }
     notifier({ avis, commentaire: texte });
   }, [visiteId, sectionCode, field, controleKey, avis, commentaire, remarque, notifier]);
