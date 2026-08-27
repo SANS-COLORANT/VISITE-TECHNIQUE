@@ -45,33 +45,6 @@ function construireMappingsChamps(uiData, excelRows) {
 
 const ICPE_FIELD_MAPPINGS = construireMappingsChamps(TRAME_DATA, EXCEL_ROWS);
 
-const TABLES_COMMUNES = Object.freeze({
-  materiel: {
-    sheet: 'MATERIEL',
-    startRow: 4,
-    maxImportRow: 500,
-    columns: [
-      ['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero'],
-      ['E', 'reseau'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'],
-      ['I', 'annee'], ['J', 'etat'],
-    ],
-    exportColumns: [
-      ['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero_materiel'],
-      ['E', 'reseau_desservi'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'],
-      ['I', 'annee'], ['J', 'etat'],
-    ],
-  },
-  remarques: {
-    sheet: 'REMARQUES',
-    startRow: 4,
-    maxImportRow: 500,
-    columns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['D', 'delai'], ['F', 'estimatif']],
-    // Le délai reste un champ de l'application/import, mais ne doit pas être injecté à l'export.
-    exportColumns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['F', 'estimatif']],
-  },
-  note: { sheet: 'NOTE', cell: 'A2' },
-});
-
 const ICPE = Object.freeze({
   id: DEFAULT_TRAME_ID,
   version: 1,
@@ -128,6 +101,7 @@ const ICPE = Object.freeze({
         tnc: 4,
         consigne_programme_horaire: 5,
       },
+      // Les paramètres de réseau sont des valeurs, pas des avis de conformité.
       exportColumn: 'C',
       overflow: {
         sheet: 'RESEAUX COMPLEMENTAIRES',
@@ -142,7 +116,32 @@ const ICPE = Object.freeze({
         ],
       },
     },
-    tables: TABLES_COMMUNES,
+    tables: {
+      materiel: {
+        sheet: 'MATERIEL',
+        startRow: 4,
+        maxImportRow: 500,
+        columns: [
+          ['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero'],
+          ['E', 'reseau'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'],
+          ['I', 'annee'], ['J', 'etat'],
+        ],
+        exportColumns: [
+          ['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero_materiel'],
+          ['E', 'reseau_desservi'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'],
+          ['I', 'annee'], ['J', 'etat'],
+        ],
+      },
+      remarques: {
+        sheet: 'REMARQUES',
+        startRow: 4,
+        maxImportRow: 500,
+        columns: [['A', 'poste'], ['B', 'prestation'], ['D', 'delai'], ['F', 'estimatif']],
+        // Le délai reste un champ de l'application/import, mais ne doit pas être injecté à l'export.
+        exportColumns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['F', 'estimatif']],
+      },
+      note: { sheet: 'NOTE', cell: 'A2' },
+    },
   },
 });
 
@@ -170,7 +169,19 @@ const VMC = Object.freeze({
     metadata: { client: 'B1', site: 'B2', type: 'B4', dateVisite: 'B5' },
     signature: { sheet: 'TRAME VMC v2', cells: [{ ref: 'B4', values: ['VMC v2', 'VMC', 'TRAME VMC'] }] },
     fieldMappings: VMC_FIELD_MAPPINGS,
-    tables: TABLES_COMMUNES,
+    tables: {
+      materiel: {
+        sheet: 'MATERIEL', startRow: 4, maxImportRow: 500,
+        columns: [['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero'], ['E', 'reseau'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'], ['I', 'annee'], ['J', 'etat']],
+        exportColumns: [['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero_materiel'], ['E', 'reseau_desservi'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'], ['I', 'annee'], ['J', 'etat']],
+      },
+      remarques: {
+        sheet: 'REMARQUES', startRow: 4, maxImportRow: 500,
+        columns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['D', 'delai'], ['F', 'estimatif']],
+        exportColumns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['F', 'estimatif']],
+      },
+      note: { sheet: 'NOTE', cell: 'A2' },
+    },
   },
 });
 
