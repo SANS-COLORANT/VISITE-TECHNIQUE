@@ -13,6 +13,7 @@ on:
       - .github/workflows/native-android-apk.yml
       - .github/scripts/patch_pdf_cover_fallback_build.py
       - .github/scripts/patch_excel_import_date.py
+      - .github/scripts/patch_report_mode_defaults.py
 
 concurrency:
   group: native-android-apk-${{ github.ref }}
@@ -45,6 +46,13 @@ jobs:
 
       - name: Apply targeted Excel import date cleanup
         run: python .github/scripts/patch_excel_import_date.py
+
+      - name: Apply report selection mode defaults
+        run: |
+          python .github/scripts/patch_report_mode_defaults.py
+          node --check ReportScreen.js
+          grep -q "const groupeInterdit=selected.size<=1" ReportScreen.js
+          grep -q "const modeEffectif=datas.length<=1?'site':mode" ReportScreen.js
 
       - name: Setup Node
         uses: actions/setup-node@v4
