@@ -11,6 +11,7 @@ assets = {
     'SPIRAL_2': ('assets/report/spiral-yellow-green.jpg', 'jpg'),
     'SPIRAL_3': ('assets/report/spiral-green-red.jpg', 'jpg'),
     'SPIRAL_4': ('assets/report/spiral-multicolor-alt.jpg', 'jpg'),
+    'FOOTER_CERT': ('assets/report/Image21.png', 'png'),
 }
 
 lines = [
@@ -26,8 +27,11 @@ Path('reportExactAssets.generated.js').write_text('\n'.join(lines) + '\n', encod
 p = Path('reportBuilder.js')
 s = p.read_text(encoding='utf-8')
 
-import_line = "import { EXACT_COVER, EXACT_LOGO, EXACT_MARK, EXACT_SPIRAL_1, EXACT_SPIRAL_2, EXACT_SPIRAL_3, EXACT_SPIRAL_4 } from './reportExactAssets.generated.js';\n"
-if import_line not in s:
+import_line = "import { EXACT_COVER, EXACT_LOGO, EXACT_MARK, EXACT_SPIRAL_1, EXACT_SPIRAL_2, EXACT_SPIRAL_3, EXACT_SPIRAL_4, EXACT_FOOTER_CERT } from './reportExactAssets.generated.js';\n"
+old_import_line = "import { EXACT_COVER, EXACT_LOGO, EXACT_MARK, EXACT_SPIRAL_1, EXACT_SPIRAL_2, EXACT_SPIRAL_3, EXACT_SPIRAL_4 } from './reportExactAssets.generated.js';\n"
+if old_import_line in s:
+    s = s.replace(old_import_line, import_line, 1)
+elif import_line not in s:
     marker = "import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';\n"
     if marker not in s:
         raise SystemExit('reportBrandAssets import not found')
@@ -71,7 +75,7 @@ cover_block = """  const [coverVisualImage, coverLogoImage, pageMarkImage, ...bu
     embedExactSafe(EXACT_SPIRAL_3, 'jpg'),
     embedExactSafe(EXACT_SPIRAL_4, 'jpg'),
   ]);
-  const coverOpqibiImage = await embedJpgSafe(dataUriBase64(REPORT_OPQIBI));"""
+  const coverOpqibiImage = await embedExactSafe(EXACT_FOOTER_CERT, 'png');"""
 s = s[:cover_start] + cover_block + s[cover_end:]
 
 # Page 1 layout corrections only. Keep every source image untouched.
@@ -93,6 +97,27 @@ layout_replacements = {
 for old, new in layout_replacements.items():
     if old not in s:
         raise SystemExit(f'Page 1 layout target not found: {old}')
+    s = s.replace(old, new, 1)
+
+# Footer only: reproduce the Versailles Word template without touching the
+# cover image/logo mechanism or the rest of the PDF report.
+footer_replacements = {
+    '<div class=\"cities\"><b>VERSAILLES</b><span>NANTES</span><span>TOURS</span><span>RENNES</span><span>LYON</span><span>BORDEAUX</span></div>': '<div class=\"cities\"><b>PARIS</b><span>NANTES</span><span>TOURS</span><span>RENNES</span><span>BORDEAUX</span><span>LYON</span><span>CHERBOURG</span><span>NÎMES</span></div>',
+    'Tél. 01 39 55 17 20 - 21 avenue Georges Pompidou - 69486 LYON CEDEX 3 - contact@energieetservice.fr': 'Tél. 01 39 55 17 20 - 143 rue Yves Le Coz - 78000 VERSAILLES - contact.versailles@energieetservice.fr',
+    '<div class=\"legalRow\"><img src=\"${REPORT_OPQIBI}\" alt=\"OPQIBI\"/><div>SAS au capital de 292 500 € - Siège social : 64 avenue de Paris - 78000 Versailles - RCS Versailles B 338 335 201 / NAF 7112B</div></div>': '<div class=\"legalRow\"><img src=\"data:image/png;base64,${EXACT_FOOTER_CERT}\" alt=\"AFAC et OPQIBI\"/><div>SAS au capital de 292 500€ - Siège social : 143 rue Yves Le Coz - 78000 Versailles - RCS Versailles B 338 335 201 / NAF 7112B</div></div>',
+    "['VERSAILLES', true], ['NANTES', false], ['TOURS', false],\n        ['RENNES', false], ['LYON', false], ['BORDEAUX', false],": "['PARIS', true], ['NANTES', false], ['TOURS', false], ['RENNES', false],\n        ['BORDEAUX', false], ['LYON', false], ['CHERBOURG', false], ['NÎMES', false],",
+    "const citySize = 5.2;": "const citySize = 4.65;",
+    "const cityGap = mm(4.1);": "const cityGap = mm(3.0);",
+    "const contact = 'Tél. 01 39 55 17 20 - 21 avenue Georges Pompidou - 69486 LYON CEDEX 3 - contact@energieetservice.fr';": "const contact = 'Tél. 01 39 55 17 20 - 143 rue Yves Le Coz - 78000 VERSAILLES - contact.versailles@energieetservice.fr';",
+    "const sOpqibi = fit(coverOpqibiImage, mm(17), mm(7.5));": "const sOpqibi = fit(coverOpqibiImage, mm(23), mm(8.5));",
+    "page.drawImage(coverOpqibiImage, { x: mm(5), y: mm(4.5), width: sOpqibi.width, height: sOpqibi.height });": "page.drawImage(coverOpqibiImage, { x: mm(4.5), y: mm(3.9), width: sOpqibi.width, height: sOpqibi.height });",
+    "const legal = 'SAS au capital de 292 500 € - Siège social : 64 avenue de Paris - 78000 Versailles - RCS Versailles B 338 335 201 / NAF 7112B';": "const legal = 'SAS au capital de 292 500€ - Siège social : 143 rue Yves Le Coz - 78000 Versailles - RCS Versailles B 338 335 201 / NAF 7112B';",
+    "while (legalSize > 3.7 && font.widthOfTextAtSize(legal, legalSize) > width - mm(28)) legalSize -= 0.15;": "while (legalSize > 3.5 && font.widthOfTextAtSize(legal, legalSize) > width - mm(35)) legalSize -= 0.15;",
+    "page.drawText(legal, { x: mm(25), y: mm(6.3), size: legalSize, font, color: grey });": "page.drawText(legal, { x: mm(31), y: mm(6.0), size: legalSize, font, color: grey });",
+}
+for old, new in footer_replacements.items():
+    if old not in s:
+        raise SystemExit(f'Footer target not found: {old}')
     s = s.replace(old, new, 1)
 
 # Regulation pages: do not print placeholder networks that contain only blanks
@@ -146,4 +171,4 @@ p.write_text(s, encoding='utf-8')
 for name, (path, _) in assets.items():
     if not Path(path).is_file() or Path(path).stat().st_size == 0:
         raise SystemExit(f'Missing original asset: {path}')
-print('Exact PDF assets generated, page 1 adjusted, and empty regulation networks removed.')
+print('Exact PDF assets generated, page 1 preserved, Versailles footer aligned, and empty regulation networks removed.')
