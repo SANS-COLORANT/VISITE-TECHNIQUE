@@ -14,6 +14,20 @@ function avisChipColor(opt) {
   return { bg: COLORS.line, border: COLORS.inkFaint, text: COLORS.inkSoft };
 }
 
+function palettePanel(avis) {
+  if (avis === 'S') return { bg: COLORS.greenBg, border: COLORS.green, text: COLORS.green, picked: COLORS.green };
+  if (avis === 'N.S') return { bg: COLORS.redBg, border: '#F4C7C7', text: COLORS.red, picked: COLORS.red };
+  return { bg: COLORS.bg, border: COLORS.line, text: COLORS.inkSoft, picked: COLORS.inkSoft };
+}
+
+function libelleEtat(avis) {
+  if (avis === 'S') return 'Correct / présent';
+  if (avis === 'S.O') return 'Sans objet';
+  if (avis === 'N.R') return 'Non relevé';
+  if (avis === 'N.V') return 'Non visible';
+  return null;
+}
+
 export const VmcControleGenerique = React.memo(function VmcControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, onEtatChange }) {
   const controleKey = `${sectionCode}||${field.cle}`;
   const [avis, setAvis] = useState(etatInitial?.avis || null);
@@ -22,6 +36,8 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
   const [presetChoisi, setPresetChoisi] = useState(null);
   const presets = useMemo(() => field?.presets || {}, [field]);
   const options = avis ? (presets[avis] || []) : [];
+  const palette = palettePanel(avis);
+  const etatApplication = libelleEtat(avis);
 
   useEffect(() => {
     setAvis(etatInitial?.avis || null);
@@ -48,30 +64,17 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
     onSaved?.();
   }, [onEtatChange, onSaved]);
 
-  const sauvegarderCommentaire = useCallback(async (texte) => {
-    const valeur = String(texte || '');
-    setCommentaire(valeur);
-    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis, commentaire: valeur });
-    notifier({ avis, commentaire: valeur });
-  }, [visiteId, sectionCode, field.cle, avis, notifier]);
-
   const choisirAvis = useCallback(async (val) => {
     setAvis(val);
     setPresetChoisi(null);
-    let nextComment = '';
-    const valPresets = presets[val] || [];
+    setCommentaire('');
     if (val !== 'N.S') {
       await supprimerRemarqueControle(visiteId, controleKey);
       setRemarque(null);
     }
-    if (valPresets.length === 1 && ['N.R', 'S.O', 'N.V'].includes(val)) {
-      nextComment = valPresets[0].commentaire || '';
-      setPresetChoisi(0);
-    }
-    setCommentaire(nextComment);
-    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: nextComment });
-    notifier({ avis: val, commentaire: nextComment });
-  }, [visiteId, sectionCode, field.cle, controleKey, presets, notifier]);
+    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: '' });
+    notifier({ avis: val, commentaire: '' });
+  }, [visiteId, sectionCode, field.cle, controleKey, notifier]);
 
   const choisirPreset = useCallback(async (opt, idx) => {
     const texte = opt.commentaire || '';
@@ -121,17 +124,20 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
       </View>
     </View>
 
-    {avis && <View style={styles.criterePanel}>
+    {avis && <View style={[styles.criterePanel, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+      {etatApplication ? <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: palette.text, backgroundColor: palette.bg, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8 }}>
+        <Text style={{ color: palette.text, fontWeight: '800', fontSize: 11 }}>{etatApplication}</Text>
+      </View> : null}
       {options.length > 0 && <>
-        <Text style={styles.criterePanelLabel}>{avis === 'N.S' ? 'Anomalie constatée' : 'Commentaire rapide'}</Text>
+        <Text style={[styles.criterePanelLabel, { color: palette.text }]}>{avis === 'N.S' ? 'Anomalie constatée' : 'Commentaire rapide'}</Text>
         <View style={styles.critereChips}>
-          {options.map((opt, idx) => <TouchableOpacity key={`${field.cle}-${avis}-${idx}`} style={[styles.critereChip, presetChoisi === idx && styles.critereChipPicked]} onPress={() => choisirPreset(opt, idx)}>
-            <Text style={[styles.critereChipText, presetChoisi === idx && styles.critereChipTextPicked]}>{opt.label}</Text>
+          {options.map((opt, idx) => <TouchableOpacity key={`${field.cle}-${avis}-${idx}`} style={[styles.critereChip, { borderColor: palette.text }, presetChoisi === idx && { backgroundColor: palette.picked, borderColor: palette.picked }]} onPress={() => choisirPreset(opt, idx)}>
+            <Text style={[styles.critereChipText, { color: presetChoisi === idx ? COLORS.white : palette.text }]}>{opt.label}</Text>
           </TouchableOpacity>)}
         </View>
       </>}
       <TextInput
-        style={[styles.input, { marginTop: 8, minHeight: 64, textAlignVertical: 'top' }]}
+        style={[styles.input, { marginTop: 8, minHeight: 64, textAlignVertical: 'top', backgroundColor: '#fff' }]}
         multiline
         value={commentaire}
         onChangeText={(v) => { setCommentaire(v); setPresetChoisi(null); }}

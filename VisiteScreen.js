@@ -13,6 +13,7 @@ import { OptimizedPhotoPanel } from './OptimizedPhotoPanel.js';
 import { GuidedEquipmentPanel } from './GuidedEquipmentPanel.js';
 import { OptimizedRemarksPanel } from './OptimizedRemarksPanel.js';
 import { TrameGenericPanel, prechargerDonneesTrameGenerique, invaliderCacheTrameGenerique } from './TrameGenericPanel.js';
+import { VmcCaissonManager, chargerCaissonsVmc } from './VmcCaissonManager.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -23,6 +24,7 @@ function VisiteScreen({ route, onBack }) {
   const { width } = useWindowDimensions();
   const modeTablette = width >= 900;
   const [visite, setVisite] = useState(null);
+  const [vmcCaissons, setVmcCaissons] = useState([]);
   const [activeTab, setActiveTab] = useState('p-infos');
   const activeTabRef = useRef('p-infos');
   const tabOrderRef = useRef([]);
@@ -35,10 +37,24 @@ function VisiteScreen({ route, onBack }) {
   const [anomalieTxt, setAnomalieTxt] = useState('');
 
   const trame = obtenirTrame(visite?.trame_id || DEFAULT_TRAME_ID);
-  const tabOrder = trame.ui?.tabOrder || [];
-  const panelLabels = trame.ui?.labels || {};
+  const tabOrderBase = trame.ui?.tabOrder || [];
+  const panelLabelsBase = trame.ui?.labels || {};
   const panels = trame.ui?.panels || {};
   const specialPanels = new Set(trame.ui?.specialPanels || SPECIAL_PANEL_DEFAULTS);
+  const vmcActifs = new Set(
+    trame.id === 'vmc'
+      ? (vmcCaissons.length ? vmcCaissons.filter((c) => c.actif).map((c) => c.panelId) : ['p-vmc-c1'])
+      : []
+  );
+  const tabOrder = trame.id === 'vmc'
+    ? tabOrderBase.filter((pid) => !/^p-vmc-c[1-6]$/.test(pid) || vmcActifs.has(pid))
+    : tabOrderBase;
+  const panelLabels = trame.id === 'vmc'
+    ? {
+        ...panelLabelsBase,
+        ...Object.fromEntries(vmcCaissons.filter((c) => c.actif).map((c) => [c.panelId, `N°${c.index} · ${c.nom}`])),
+      }
+    : panelLabelsBase;
   const tabsReels = tabOrder.filter((t) => t !== 'SEP');
 
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
@@ -101,15 +117,18 @@ function VisiteScreen({ route, onBack }) {
   const charger = useCallback(async () => {
     const db = await getDb();
     await preremplirVisiteDepuisContexte(db, visiteId);
-    await recalculerProgressionVisite(db, visiteId);
+    const v = await getVisite(visiteId);
+    const estVmc = (v?.trame_id || DEFAULT_TRAME_ID) === 'vmc';
+    const caissons = estVmc ? await chargerCaissonsVmc(visiteId) : [];
+    const progression = await recalculerProgressionVisite(db, visiteId);
     invaliderCacheTrameGenerique(visiteId);
     invaliderCacheRegulation(visiteId);
-    const [v] = await Promise.all([
-      getVisite(visiteId),
+    await Promise.all([
       prechargerDonneesTrameGenerique(visiteId, true),
       prechargerRegulation(visiteId, true),
     ]);
-    setVisite(v);
+    setVmcCaissons(caissons);
+    setVisite(v ? { ...v, progression_pct: progression } : v);
   }, [visiteId]);
 
   useEffect(() => { charger(); }, [charger]);
@@ -128,6 +147,12 @@ function VisiteScreen({ route, onBack }) {
       }
     }, 1200);
   }, [visiteId]);
+
+  const onCaissonsChange = useCallback((next) => {
+    setVmcCaissons(next || []);
+    invaliderCacheTrameGenerique(visiteId);
+    onSaved();
+  }, [visiteId, onSaved]);
 
   const terminerSwipe = useCallback((g) => {
     const tabs = tabOrderRef.current;
@@ -247,6 +272,7 @@ function VisiteScreen({ route, onBack }) {
         <View style={styles.progressRow}><View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${visite.progression_pct}%` }]} /></View><Text style={styles.progressPct}>{visite.progression_pct}%</Text></View>
         <TouchableOpacity style={styles.anomalyBtn} onPress={() => setAnomalieVisible(true)}><Text style={styles.anomalyBtnText}>⚠ Ajouter une anomalie, une remarque ou une réserve</Text></TouchableOpacity>
         {visite.mode_visite === 'express' && <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>}
+        {trame.id === 'vmc' && vmcCaissons.length > 0 ? <VmcCaissonManager visiteId={visiteId} caissons={vmcCaissons} onChange={onCaissonsChange} onNavigate={changerOnglet} /> : null}
         {!modeTablette && <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.tabStrip}>
           {tabOrder.map((pid, i) => pid === 'SEP' ? <View key={`sep-${i}`} style={styles.tabSep} /> : <TouchableOpacity key={pid} style={styles.tabItem} onPress={() => changerOnglet(pid)}><Text style={[styles.tabItemText, activeTab === pid && styles.tabItemTextActive]}>{panelLabels[pid] || pid}</Text>{activeTab === pid && <View style={styles.tabUnderline} />}</TouchableOpacity>)}
         </ScrollView>}

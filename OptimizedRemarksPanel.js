@@ -31,6 +31,12 @@ function nombreOuNull(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+function libellePhotoRemarque(remarque, prestation) {
+  if (String(remarque?.reference_libelle || '').trim()) return String(remarque.reference_libelle).trim();
+  if (String(remarque?.controle_key || '').includes('||')) return String(remarque.controle_key).split('||').pop() || 'Anomalie';
+  return prestation || 'Anomalie';
+}
+
 function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panelLabels }) {
   const [prestation, setPrestation, blurPrestation] = useDurableAutosave(remarque.prestation, async (v) => {
     await modifierRemarqueVisite(remarque.id, { prestation: v });
@@ -67,7 +73,7 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
       <View style={styles.remarqueTop}>
         <Text style={styles.remarquePoste}>Réserve de la visite</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-          <PhotoButton visiteId={visiteId} entiteKey={`remarque||${remarque.id}`} label={prestation || 'Anomalie'} />
+          <PhotoButton visiteId={visiteId} entiteKey={`remarque||${remarque.id}`} label={libellePhotoRemarque(remarque, prestation)} />
           <TouchableOpacity onPress={async () => { await supprimerRemarqueVisite(remarque.id); onDelete(remarque.id); }}>
             <Text style={styles.removeLink}>Supprimer</Text>
           </TouchableOpacity>
@@ -189,7 +195,7 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
       const sections = panels[panelId] || {};
       setCibles(Object.entries(sections).flatMap(([section, fields]) => [
         { id: `${panelId}:${section}`, type: 'section', libelle: section },
-        ...(fields || []).map((f) => ({ id: `${panelId}:${section}:${f.cle}`, type: f.type || 'champ', libelle: `${section} · ${cleanLabel(f.cle)}` })),
+        ...(fields || []).filter((f) => f?.hiddenInApp !== true).map((f) => ({ id: `${panelId}:${section}:${f.cle}`, type: f.type || 'champ', libelle: `${section} · ${cleanLabel(f.cle)}` })),
       ]));
     }
   };

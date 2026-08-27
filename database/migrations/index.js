@@ -15,6 +15,7 @@ import { migration014 } from './014_native_production_cleanup.js';
 import { migration015 } from './015_visit_runtime_indexes.js';
 import { migration016 } from './016_visit_template_id.js';
 import { migration017 } from './017_patrimoine_history.js';
+import { migration018 } from './018_remark_element_labels.js';
 
 export const MIGRATIONS = Object.freeze([
   migration001,
@@ -34,4 +35,5 @@ export const MIGRATIONS = Object.freeze([
   migration015,
   migration016,
   migration017,
+  migration018,
 ]);

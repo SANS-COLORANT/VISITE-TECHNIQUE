@@ -16,7 +16,7 @@ import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 
 const PRESCRIPTIONS_COMPLETES = fusionnerPrescriptions(PRESCRIPTIONS);
-const AVIS_OPTIONS = ['S', 'N.S', 'S.O', 'N.V'];
+const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
 const remarquesCache = new Map();
 let biblioReservePromise = null;
 let biblioReserveCache = null;
@@ -62,6 +62,22 @@ function avisChipColor(opt) {
   if (opt === 'S') return { bg: COLORS.greenBg, border: COLORS.green, text: COLORS.green };
   if (opt === 'N.S') return { bg: COLORS.redBg, border: COLORS.red, text: COLORS.red };
   return { bg: COLORS.line, border: COLORS.inkFaint, text: COLORS.inkSoft };
+}
+
+function libelleApplicationAvis(cle, avis) {
+  if (avis === 'S') {
+    const presence = /présence|present|présent|existe|disponible|signalétique|signalisation|coupure|extincteur|détection|detection|alarme|baes|prise|éclairage|eclairage|robinet|soupape|thermomètre|thermometre/i.test(String(cle || ''));
+    return presence ? 'Présent' : 'Correct';
+  }
+  if (avis === 'S.O') return 'Sans objet';
+  if (avis === 'N.R') return 'Non relevé';
+  if (avis === 'N.V') return 'Non visible';
+  return null;
+}
+
+function palettePanel(avis) {
+  if (avis === 'S') return { bg: COLORS.greenBg, border: COLORS.green, text: COLORS.green };
+  return { bg: COLORS.bg, border: COLORS.line, text: COLORS.inkSoft };
 }
 
 async function chargerBiblioReserve() {
@@ -183,17 +199,19 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
   }, [onEtatChange, onSaved]);
 
   const choisirAvis = useCallback(async (val) => {
+    if (val === avis) return;
     setAvis(val);
-    onEtatChange?.({ avis: val });
-    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val });
+    setCommentaire('');
+    setCritereChoisi(null);
+    setModeLibre(false);
     if (val !== 'N.S') {
       await supprimerRemarqueControle(visiteId, controleKey);
       patchRemarqueCache(visiteId, controleKey, null);
-      setRemarque(null); setCritereChoisi(null); setModeLibre(false); setCommentaire('');
-      onEtatChange?.({ avis: val, commentaire: '' });
+      setRemarque(null);
     }
-    onSaved?.();
-  }, [visiteId, sectionCode, field.cle, controleKey, onEtatChange, onSaved]);
+    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: '' });
+    notifierEtat({ avis: val, commentaire: '' });
+  }, [avis, visiteId, sectionCode, field.cle, controleKey, notifierEtat]);
 
   const choisirCritere = useCallback(async (opt, idx) => {
     setCritereChoisi(idx); setModeLibre(false); setCommentaire(opt.prestation || '');
@@ -222,8 +240,17 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
     onSaved?.();
   }, [visiteId, sectionCode, field.cle, controleKey, remarque, onEtatChange, onSaved]);
 
+  const sauverCommentaireSimple = useCallback(async (texte) => {
+    const v = String(texte || '');
+    setCommentaire(v);
+    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis, commentaire: v });
+    notifierEtat({ avis, commentaire: v });
+  }, [visiteId, sectionCode, field.cle, avis, notifierEtat]);
+
   const [libre, setLibre, flushLibre] = useDurableAutosave(commentaire, sauverLibre, 450);
-  useEffect(() => { if (modeLibre) setLibre(commentaire || remarque?.prestation || ''); }, [modeLibre, commentaire, remarque?.prestation]);
+  const [commentaireSimple, setCommentaireSimple, flushCommentaireSimple] = useDurableAutosave(commentaire, sauverCommentaireSimple, 450);
+  useEffect(() => { if (modeLibre) setLibre(commentaire || remarque?.prestation || ''); }, [modeLibre, commentaire, remarque?.prestation, setLibre]);
+  useEffect(() => { if (avis && avis !== 'N.S') setCommentaireSimple(commentaire || ''); }, [avis, commentaire, setCommentaireSimple]);
 
   const patchReserve = useCallback((patch) => {
     setRemarque((r) => {
@@ -233,6 +260,9 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
       return next;
     });
   }, [visiteId, controleKey]);
+
+  const libelleEtat = libelleApplicationAvis(field.cle, avis);
+  const palette = palettePanel(avis);
 
   return <View style={styles.controlRow}>
     <View style={styles.controlTop}>
@@ -246,6 +276,22 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
         })}
       </View>
     </View>
+
+    {avis && avis !== 'N.S' && <View style={[styles.criterePanel, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+      {libelleEtat ? <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: palette.text, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8 }}>
+        <Text style={{ color: palette.text, fontSize: 11, fontWeight: '800' }}>{libelleEtat}</Text>
+      </View> : null}
+      <Text style={[styles.criterePanelLabel, { color: palette.text }]}>Commentaire facultatif</Text>
+      <TextInput
+        style={[styles.input, { minHeight: 60, textAlignVertical: 'top', backgroundColor: '#fff' }]}
+        multiline
+        value={commentaireSimple}
+        onChangeText={setCommentaireSimple}
+        onBlur={() => flushCommentaireSimple().catch(() => {})}
+        placeholder="Ajouter un commentaire si nécessaire…"
+      />
+    </View>}
+
     {avis === 'N.S' && <View style={styles.criterePanel}>
       {options.length > 0 && <>
         <Text style={styles.criterePanelLabel}>Cause</Text>

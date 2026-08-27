@@ -8,6 +8,21 @@ const normaliserNombreNullable = (valeur) => {
   return Number.isFinite(n) ? n : null;
 };
 
+async function libelleElementControle(db, visiteId, controleKey) {
+  const [sectionCode, cleBrute] = String(controleKey || '').split('||');
+  const cle = String(cleBrute || '').trim() || 'Élément technique';
+  const matchVmc = String(sectionCode || '').match(/^vmc-c([1-6])\./);
+  if (!matchVmc) return cle;
+
+  const index = Number(matchVmc[1]);
+  const row = await db.getFirstAsync(
+    `SELECT valeur FROM champs_visite WHERE visite_id=? AND section_code='vmc.config' AND cle=?`,
+    [visiteId, `caisson_${index}_nom`]
+  );
+  const nom = String(row?.valeur || `Caisson ${index}`).trim() || `Caisson ${index}`;
+  return `${nom} · ${cle}`;
+}
+
 export async function listerRemarquesVisite(visiteId) {
   const db = await openAppDatabase();
   return db.getAllAsync(
@@ -30,22 +45,31 @@ export async function upsertRemarquePrescription(visiteId, controleKey, prescrip
   const prestation = prescription.prestation || '';
   const delai = normaliserNombreNullable(prescription.delai);
   const estimatif = normaliserNombreNullable(prescription.estimatif);
+  const referenceLibelle = await libelleElementControle(db, visiteId, controleKey);
 
   if (existante?.id) {
     await db.runAsync(
       `UPDATE remarques
-       SET poste=?, prestation=?, delai=?, estimatif=?, origine=?
+       SET poste=?, prestation=?, delai=?, estimatif=?, origine=?,
+           reference_type=COALESCE(reference_type,'controle'),
+           reference_id=COALESCE(reference_id,?),
+           reference_libelle=CASE
+             WHEN reference_libelle IS NULL OR TRIM(reference_libelle)='' THEN ?
+             ELSE reference_libelle
+           END
        WHERE id=?`,
-      [poste, prestation, delai, estimatif, origine || null, existante.id]
+      [poste, prestation, delai, estimatif, origine || null, controleKey, referenceLibelle, existante.id]
     );
     return existante.id;
   }
 
   const id = createId();
   await db.runAsync(
-    `INSERT INTO remarques(id,visite_id,controle_key,poste,prestation,delai,estimatif,origine)
-     VALUES(?,?,?,?,?,?,?,?)`,
-    [id, visiteId, controleKey, poste, prestation, delai, estimatif, origine || null]
+    `INSERT INTO remarques(
+       id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,
+       reference_type,reference_id,reference_libelle
+     ) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, visiteId, controleKey, poste, prestation, delai, estimatif, origine || null, 'controle', controleKey, referenceLibelle]
   );
   return id;
 }

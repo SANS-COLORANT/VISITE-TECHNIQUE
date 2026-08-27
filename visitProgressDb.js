@@ -3,16 +3,20 @@ import { obtenirTrame, DEFAULT_TRAME_ID, normaliserSectionCode } from './trameRe
 const cacheClesTrame = new Map();
 const recalculsEnCours = new Map();
 
-function construireClesTrame(trame) {
-  const cachee = cacheClesTrame.get(trame.id);
+function construireClesTrame(trame, panelsActifs = null) {
+  const suffixe = panelsActifs ? [...panelsActifs].sort().join(',') : '*';
+  const cacheKey = `${trame.id}|${suffixe}`;
+  const cachee = cacheClesTrame.get(cacheKey);
   if (cachee) return cachee;
 
   const champs = new Set();
   const controles = new Set();
   for (const [panelId, sections] of Object.entries(trame.ui?.panels || {})) {
+    if (panelsActifs && /^p-vmc-c[1-6]$/.test(panelId) && !panelsActifs.has(panelId)) continue;
     for (const [section, fields] of Object.entries(sections || {})) {
       const code = normaliserSectionCode(panelId, section);
       for (const field of fields || []) {
+        if (field?.hiddenInApp === true) continue;
         const cle = `${code}||${field.cle}`;
         if (field.type === 'champ') champs.add(cle);
         else if (field.type === 'controle') controles.add(cle);
@@ -20,8 +24,32 @@ function construireClesTrame(trame) {
     }
   }
   const resultat = { champs, controles };
-  cacheClesTrame.set(trame.id, resultat);
+  cacheClesTrame.set(cacheKey, resultat);
   return resultat;
+}
+
+function panelsVmcActifs(champsRows = [], controlesRows = []) {
+  const config = new Map(
+    (champsRows || [])
+      .filter((r) => r.section_code === 'vmc.config' && /^caisson_[1-6]_actif$/.test(String(r.cle || '')))
+      .map((r) => [r.cle, String(r.valeur ?? '')])
+  );
+  const explicite = config.size > 0;
+  const actifs = new Set();
+
+  if (explicite) {
+    for (let i = 1; i <= 6; i += 1) {
+      if (config.get(`caisson_${i}_actif`) === '1') actifs.add(`p-vmc-c${i}`);
+    }
+  } else {
+    for (const row of [...(champsRows || []), ...(controlesRows || [])]) {
+      const match = String(row.section_code || '').match(/^vmc-c([1-6])\./);
+      if (match) actifs.add(`p-vmc-c${match[1]}`);
+    }
+  }
+
+  if (!actifs.size) actifs.add('p-vmc-c1');
+  return actifs;
 }
 
 async function calculerProgression(db, visiteId) {
@@ -32,7 +60,8 @@ async function calculerProgression(db, visiteId) {
   ]);
 
   const trame = obtenirTrame(visite?.trame_id || DEFAULT_TRAME_ID);
-  const clesTrame = construireClesTrame(trame);
+  const actifs = trame.id === 'vmc' ? panelsVmcActifs(champsRows, controlesRows) : null;
+  const clesTrame = construireClesTrame(trame, actifs);
   let total = clesTrame.champs.size + clesTrame.controles.size;
   let remplis = 0;
 
