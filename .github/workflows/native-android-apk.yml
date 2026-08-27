@@ -14,6 +14,7 @@ on:
       - .github/scripts/patch_pdf_cover_fallback_build.py
       - .github/scripts/patch_excel_import_date.py
       - .github/scripts/patch_report_mode_defaults.py
+      - .github/scripts/patch_word_cover_layout.py
 
 concurrency:
   group: native-android-apk-${{ github.ref }}
@@ -78,6 +79,14 @@ jobs:
 
       - name: Generate exact PDF assets from untouched files
         run: python .github/scripts/patch_pdf_cover_fallback_build.py
+
+      - name: Apply Word-only stable cover
+        run: |
+          python .github/scripts/patch_word_cover_layout.py
+          node --check reportBuilder.js
+          grep -q "function wordCoverHtml" reportBuilder.js
+          grep -q "const coverHtml = output === 'word'" reportBuilder.js
+          grep -q "EXACT_FOOTER_CERT" reportBuilder.js
 
       - name: Validate exact PDF cover patch
         run: |
