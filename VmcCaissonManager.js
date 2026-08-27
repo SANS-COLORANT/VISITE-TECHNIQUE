@@ -38,6 +38,23 @@ async function synchroniserNombreCaissons(db, visiteId, nombre) {
   );
 }
 
+async function synchroniserLibellesRemarquesCaisson(db, visiteId, index, nom) {
+  await db.runAsync(
+    `UPDATE remarques
+     SET reference_type=COALESCE(reference_type,'controle'),
+         reference_id=COALESCE(reference_id,controle_key),
+         reference_libelle=? || ' · ' || CASE
+           WHEN instr(controle_key,'||')>0 THEN substr(controle_key,instr(controle_key,'||')+2)
+           ELSE controle_key
+         END
+     WHERE visite_id=?
+       AND controle_key LIKE ?
+       AND (reference_type IS NULL OR reference_type='controle')
+       AND (reference_id IS NULL OR reference_id=controle_key)`,
+    [nom, visiteId, `vmc-c${index}.%`]
+  );
+}
+
 function indexDepuisSection(sectionCode) {
   const match = String(sectionCode || '').match(/^vmc-c([1-6])\./);
   return match ? Number(match[1]) : null;
@@ -76,7 +93,10 @@ export async function chargerCaissonsVmc(visiteId) {
     caissons.push({ index: i, panelId: panelId(i), nom, actif });
     if (!explicite) await upsertConfig(db, visiteId, cleActif(i), actif ? '1' : '0');
     if (!config.has(cleNom(i))) await upsertConfig(db, visiteId, cleNom(i), nom);
-    if (actif) await upsertIdentification(db, visiteId, i, nom);
+    if (actif) {
+      await upsertIdentification(db, visiteId, i, nom);
+      await synchroniserLibellesRemarquesCaisson(db, visiteId, i, nom);
+    }
   }
   await synchroniserNombreCaissons(db, visiteId, caissons.filter((c) => c.actif).length);
   return caissons;
@@ -100,6 +120,7 @@ export async function renommerCaissonVmc(visiteId, index, valeur) {
   const nom = String(valeur || '').trim() || `Caisson ${index}`;
   await upsertConfig(db, visiteId, cleNom(index), nom);
   await upsertIdentification(db, visiteId, index, nom);
+  await synchroniserLibellesRemarquesCaisson(db, visiteId, index, nom);
   return nom;
 }
 
@@ -178,7 +199,7 @@ export function VmcCaissonManager({ visiteId, caissons = [], onChange, onNavigat
       <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" style={{ flex: 1 }}>
         {actifs.map((c) => <View key={c.index} style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 16, backgroundColor: '#fff', marginRight: 6 }}>
           <TouchableOpacity onPress={() => onNavigate?.(c.panelId)} style={{ paddingLeft: 10, paddingVertical: 6 }}>
-            <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.ink }}>{c.index}. {c.nom}</Text>
+            <Text style={{ fontSize: 11, fontWeight: '700', color: COLORS.ink }}>N°{c.index} · {c.nom}</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setEdition(c.index)} style={{ paddingHorizontal: 8, paddingVertical: 6 }}><Text style={{ color: COLORS.orangeDark, fontWeight: '800' }}>✎</Text></TouchableOpacity>
           <TouchableOpacity onPress={() => demanderRetrait(c)} style={{ paddingRight: 9, paddingVertical: 6 }}><Text style={{ color: COLORS.inkFaint, fontWeight: '800' }}>×</Text></TouchableOpacity>
