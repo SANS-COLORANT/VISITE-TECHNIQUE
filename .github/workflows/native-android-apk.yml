@@ -12,6 +12,7 @@ on:
       - eas.json
       - .github/workflows/native-android-apk.yml
       - .github/scripts/patch_pdf_cover_fallback_build.py
+      - .github/scripts/patch_excel_import_date.py
 
 concurrency:
   group: native-android-apk-${{ github.ref }}
@@ -41,6 +42,9 @@ jobs:
           p.write_text(s, encoding='utf-8')
           PY
           grep -q "APK_BUILD = '${{ github.run_number }}'" appVersion.js
+
+      - name: Apply targeted Excel import date cleanup
+        run: python .github/scripts/patch_excel_import_date.py
 
       - name: Setup Node
         uses: actions/setup-node@v4
