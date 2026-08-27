@@ -117,7 +117,7 @@ export function TrameGenericPanel({ visiteId, panelId, sections, onSaved }) {
         sectionCode,
         data: (fields || []).filter((field) => field?.hiddenInApp !== true).map((field) => ({ field, sectionCode, key: `${sectionCode}||${field.cle}` })),
       };
-    });
+    }).filter((section) => section.data.length > 0);
   }, [panelId, sections]);
 
   if (!sections) return null;
