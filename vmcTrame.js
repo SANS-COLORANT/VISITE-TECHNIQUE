@@ -73,9 +73,12 @@ const LIB = {
     [p('Absent', "Aucun pressostat n'est présent sur le caisson. La mise en place d'un dispositif permettant de contrôler le fonctionnement de l'extraction est à prévoir.", "Mettre en place un pressostat ou un dispositif adapté permettant de contrôler le fonctionnement de l'extraction."), p('En défaut', 'Le pressostat est présent mais son fonctionnement est défaillant. Son contrôle et sa remise en état sont à prévoir.', 'Contrôler et remettre en état ou remplacer le pressostat défaillant.'), p('Débranché', 'Le pressostat est présent mais débranché.', 'Rebrancher le pressostat et vérifier son bon fonctionnement ainsi que le report éventuel de défaut.')], 'Gestion VMC'),
 };
 
-function panelCaisson() {
+function panelCaisson(numero) {
   return {
-    Situation: [LIB.situation, LIB.acces, LIB.gardeCorps],
+    Situation: [
+      { cle: `Identification du caisson n°${numero}`, type: 'champ', hiddenInApp: true },
+      LIB.situation, LIB.acces, LIB.gardeCorps,
+    ],
     Caisson: [LIB.etatCaisson, LIB.fonctionnement, LIB.nettoyageCaisson, LIB.courroie, LIB.coupure],
     Distribution: [LIB.manchette, LIB.etatTrainasse, LIB.etancheiteTrainasse, LIB.nettoyageTrainasse, LIB.pied, LIB.registre, LIB.trappe, LIB.chapeau, LIB.nettoyageColonne],
     Gestion: [LIB.telegestion, LIB.pressostat],
@@ -88,8 +91,8 @@ export const VMC_PANELS = {
     { cle: 'Exploitant', type: 'champ' }, { cle: 'Nombre de bâtiments / entrées', type: 'champ' }, { cle: 'Nombre de logements', type: 'champ' },
     { cle: "Nombre d'étages", type: 'champ' }, { cle: 'Type de ventilation', type: 'champ' }, { cle: 'Nombre de caissons', type: 'champ' }, { cle: 'Type de bouche', type: 'champ' },
   ] },
-  'p-vmc-c1': panelCaisson(), 'p-vmc-c2': panelCaisson(), 'p-vmc-c3': panelCaisson(),
-  'p-vmc-c4': panelCaisson(), 'p-vmc-c5': panelCaisson(), 'p-vmc-c6': panelCaisson(),
+  'p-vmc-c1': panelCaisson(1), 'p-vmc-c2': panelCaisson(2), 'p-vmc-c3': panelCaisson(3),
+  'p-vmc-c4': panelCaisson(4), 'p-vmc-c5': panelCaisson(5), 'p-vmc-c6': panelCaisson(6),
 };
 
 const caissonRows = [
@@ -108,7 +111,7 @@ export const VMC_FIELD_MAPPINGS = [
     .map((cle, i) => ({ panelId: 'p-vmc-infos', section: 'Informations générales', sectionCode: normaliser('p-vmc-infos', 'Informations générales'), cle, type: 'champ', valueCell: `C${12 + i}`, commentCell: null })),
   ...caissonRows.flatMap((rows, idx) => {
     const panelId = `p-vmc-c${idx + 1}`;
-    return Object.entries(panelCaisson()).flatMap(([section, fields]) => fields.map((field, fi) => ({
+    return Object.entries(panelCaisson(idx + 1)).flatMap(([section, fields]) => fields.filter((field) => field.type === 'controle').map((field, fi) => ({
       panelId, section, sectionCode: normaliser(panelId, section), cle: field.cle, type: 'controle', valueCell: `B${rows[section][fi]}`, commentCell: `C${rows[section][fi]}`,
     })));
   }),
