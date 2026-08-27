@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
 import { appVersionLabel } from './appVersion.js';
+import { DoomMaskVector } from './DoomMaskVector.js';
 
 export const DOOM_ANIMATION_MS = 2600;
 
@@ -13,12 +14,7 @@ const ASSETS = {
   wingRight: require('./assets/metra/wing-right-trim.png'),
   head: require('./assets/metra/head-trim.png'),
   body: require('./assets/metra/body-trim.png'),
-  doomFigure: require('./assets/metra/doom-figure.png'),
 };
-
-function layerStyle(base, animated) {
-  return [styles.layer, base, animated];
-}
 
 function TintedLayer({ source, baseStyle, animatedStyle, tintColor, opacityStyle }) {
   return (
@@ -80,7 +76,9 @@ export function DoomLoadingScreen() {
         <TintedLayer source={ASSETS.head} baseStyle={styles.head} animatedStyle={a.center} tintColor={GREEN} opacityStyle={a.greenOpacity} />
         <TintedLayer source={ASSETS.body} baseStyle={styles.body} animatedStyle={a.center} tintColor={GREEN} opacityStyle={a.greenOpacity} />
 
-        <Animated.Image source={ASSETS.doomFigure} resizeMode="contain" style={layerStyle(styles.doomFigure, a.doom)} />
+        <Animated.View pointerEvents="none" style={[styles.layer, styles.doomFigure, a.doom]}>
+          <DoomMaskVector />
+        </Animated.View>
 
         <Animated.View style={[styles.wordmarkWrap, a.word]}>
           <Animated.Text style={[styles.wordmark, { color: ORANGE }, a.orangeOpacity]}>METRA</Animated.Text>
