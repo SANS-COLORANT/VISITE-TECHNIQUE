@@ -10,6 +10,7 @@
 import { TEMPLATE_EXCEL_BASE64 } from './templateExcel.js';
 import { EXCEL_ROWS, TRAME_DATA } from './data.js';
 import { exigerDefinitionTrameValide } from './trameValidation.js';
+import { VMC_PANELS, VMC_FIELD_MAPPINGS, VMC_TEMPLATE_BASE64 } from './vmcTrame.js';
 
 export const DEFAULT_TRAME_ID = 'icpe_v1';
 
@@ -144,7 +145,47 @@ const ICPE = Object.freeze({
   },
 });
 
-const DEFINITIONS = [ICPE];
+const VMC = Object.freeze({
+  id: 'vmc',
+  version: 1,
+  nom: 'VMC',
+  description: 'TRAME VMC',
+  actif: true,
+  ui: {
+    panels: VMC_PANELS,
+    specialPanels: ['p-equip', 'p-remarques', 'p-photos'],
+    tabOrder: ['p-vmc-infos', 'p-vmc-c1', 'p-vmc-c2', 'p-vmc-c3', 'p-vmc-c4', 'p-vmc-c5', 'p-vmc-c6', 'SEP', 'p-equip', 'p-remarques', 'p-photos'],
+    labels: {
+      'p-vmc-infos': 'Informations',
+      'p-vmc-c1': 'Caisson 1', 'p-vmc-c2': 'Caisson 2', 'p-vmc-c3': 'Caisson 3',
+      'p-vmc-c4': 'Caisson 4', 'p-vmc-c5': 'Caisson 5', 'p-vmc-c6': 'Caisson 6',
+      'p-equip': 'Équipements', 'p-remarques': 'Réserves', 'p-photos': 'Photos',
+    },
+  },
+  excel: {
+    templateBase64: VMC_TEMPLATE_BASE64,
+    requiredSheets: ['TRAME VMC v2'],
+    mainSheet: 'TRAME VMC v2',
+    metadata: { client: 'B1', site: 'B2', type: 'B4', dateVisite: 'B5' },
+    signature: { sheet: 'TRAME VMC v2', cells: [{ ref: 'B4', values: ['VMC v2', 'VMC', 'TRAME VMC'] }] },
+    fieldMappings: VMC_FIELD_MAPPINGS,
+    tables: {
+      materiel: {
+        sheet: 'MATERIEL', startRow: 4, maxImportRow: 500,
+        columns: [['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero'], ['E', 'reseau'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'], ['I', 'annee'], ['J', 'etat']],
+        exportColumns: [['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero_materiel'], ['E', 'reseau_desservi'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'], ['I', 'annee'], ['J', 'etat']],
+      },
+      remarques: {
+        sheet: 'REMARQUES', startRow: 4, maxImportRow: 500,
+        columns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['D', 'delai'], ['F', 'estimatif']],
+        exportColumns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['F', 'estimatif']],
+      },
+      note: { sheet: 'NOTE', cell: 'A2' },
+    },
+  },
+});
+
+const DEFINITIONS = [ICPE, VMC];
 for (const definition of DEFINITIONS) exigerDefinitionTrameValide(definition);
 
 const REGISTRY = Object.freeze(
@@ -177,6 +218,7 @@ export function detecterTrameDepuisClasseur(wb, lireCellule) {
   }
 
   if (wb.Sheets['TRAME ICPE']) return ICPE;
+  if (wb.Sheets['TRAME VMC v2']) return VMC;
   return null;
 }
 

@@ -4,6 +4,7 @@ import { SectionList, Text, View } from 'react-native';
 import { getChampsVisite, getControlesVisite } from './db.js';
 import { DurableChampGenerique } from './DurableChampGenerique.js';
 import { PersistentControleGenerique } from './PersistentControleGenerique.js';
+import { VmcControleGenerique } from './VmcControleGenerique.js';
 import { styles } from './styles.js';
 
 const visiteDataCache = new Map();
@@ -139,6 +140,21 @@ export function TrameGenericPanel({ visiteId, panelId, sections, onSaved }) {
                 mettreAJourCacheChamp(visiteId, item.key, valeur);
                 onSaved?.();
               }}
+            />
+          ) : item.field.vmc === true ? (
+            <VmcControleGenerique
+              visiteId={visiteId}
+              sectionCode={item.sectionCode}
+              field={item.field}
+              etatInitial={controlesMap[item.key]}
+              onEtatChange={(patch) => {
+                setControlesMap((courant) => ({
+                  ...courant,
+                  [item.key]: { ...(courant[item.key] || {}), ...patch },
+                }));
+                mettreAJourCacheControle(visiteId, item.key, patch);
+              }}
+              onSaved={onSaved}
             />
           ) : (
             <PersistentControleGenerique
