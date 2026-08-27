@@ -5,6 +5,7 @@ import { COLORS, styles } from './styles.js';
 import { getDb } from './db.js';
 
 const CONFIG_SECTION = 'vmc.config';
+const INFOS_SECTION = 'vmc-infos.informations_g_n_rales';
 const MAX_CAISSONS = 6;
 
 function panelId(index) { return `p-vmc-c${index}`; }
@@ -26,6 +27,14 @@ async function upsertIdentification(db, visiteId, index, nom) {
     `INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)
      ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur`,
     [visiteId, sectionSituation(index), cleIdentification(index), nom]
+  );
+}
+
+async function synchroniserNombreCaissons(db, visiteId, nombre) {
+  await db.runAsync(
+    `INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)
+     ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur`,
+    [visiteId, INFOS_SECTION, 'Nombre de caissons', String(nombre)]
   );
 }
 
@@ -69,6 +78,7 @@ export async function chargerCaissonsVmc(visiteId) {
     if (!config.has(cleNom(i))) await upsertConfig(db, visiteId, cleNom(i), nom);
     if (actif) await upsertIdentification(db, visiteId, i, nom);
   }
+  await synchroniserNombreCaissons(db, visiteId, caissons.filter((c) => c.actif).length);
   return caissons;
 }
 
@@ -81,6 +91,7 @@ export async function ajouterCaissonVmc(visiteId) {
   await upsertConfig(db, visiteId, cleActif(libre.index), '1');
   await upsertConfig(db, visiteId, cleNom(libre.index), nom);
   await upsertIdentification(db, visiteId, libre.index, nom);
+  await synchroniserNombreCaissons(db, visiteId, caissons.filter((c) => c.actif).length + 1);
   return { ...(libre || {}), actif: true, nom };
 }
 
@@ -95,7 +106,8 @@ export async function renommerCaissonVmc(visiteId, index, valeur) {
 export async function retirerCaissonVmc(visiteId, index) {
   const db = await getDb();
   const caissons = await chargerCaissonsVmc(visiteId);
-  if (caissons.filter((c) => c.actif).length <= 1) throw new Error('Une visite VMC doit conserver au moins un caisson.');
+  const actifs = caissons.filter((c) => c.actif);
+  if (actifs.length <= 1) throw new Error('Une visite VMC doit conserver au moins un caisson.');
 
   const prefixSection = `vmc-c${index}.%`;
   const prefixControle = `vmc-c${index}.%`;
@@ -108,6 +120,7 @@ export async function retirerCaissonVmc(visiteId, index) {
   await db.runAsync(`DELETE FROM controles_visite WHERE visite_id=? AND section_code LIKE ?`, [visiteId, prefixSection]);
   await db.runAsync(`DELETE FROM champs_visite WHERE visite_id=? AND section_code LIKE ?`, [visiteId, prefixSection]);
   await upsertConfig(db, visiteId, cleActif(index), '0');
+  await synchroniserNombreCaissons(db, visiteId, actifs.length - 1);
 }
 
 export function VmcCaissonManager({ visiteId, caissons = [], onChange, onNavigate }) {
