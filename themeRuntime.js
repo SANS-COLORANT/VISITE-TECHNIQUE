@@ -1,4 +1,4 @@
-import { StyleSheet } from 'react-native';
+import { StyleSheet, processColor } from 'react-native';
 import { THEME_ANIMATED } from './themePreference.js';
 
 const CLASSIC = {
@@ -37,6 +37,10 @@ function transformOrange(value) {
   return value;
 }
 
+function processThemeColor(value) {
+  return processColor(transformOrange(value));
+}
+
 export function installThemeColorPreprocessors() {
   if (installed || typeof StyleSheet.setStyleAttributePreprocessor !== 'function') return;
   installed = true;
@@ -50,8 +54,9 @@ export function installThemeColorPreprocessors() {
     'borderLeftColor',
     'shadowColor',
     'textDecorationColor',
+    'tintColor',
   ].forEach((property) => {
-    StyleSheet.setStyleAttributePreprocessor(property, transformOrange);
+    StyleSheet.setStyleAttributePreprocessor(property, processThemeColor);
   });
 }
 
