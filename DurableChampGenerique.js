@@ -1,5 +1,5 @@
 /** Champ générique durable pour les listes virtualisées et changements d'onglet rapides. */
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 import { upsertChamp } from './db.js';
 import { useDurableAutosave } from './durableAutosave.js';
@@ -24,6 +24,37 @@ const FIELD_OPTIONS = {
   'Type de LT': ['Chaufferie gaz', 'Chaufferie fioul', 'Sous-station', 'Chaufferie bois'],
 };
 
+function dateAujourdhuiFr() {
+  const d = new Date();
+  const jj = String(d.getDate()).padStart(2, '0');
+  const mm = String(d.getMonth() + 1).padStart(2, '0');
+  return `${jj}/${mm}/${d.getFullYear()}`;
+}
+
+function normaliserDateInitiale(value) {
+  const texte = String(value || '').trim();
+  const iso = texte.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return `${iso[3]}/${iso[2]}/${iso[1]}`;
+  return texte;
+}
+
+function masquerDate(value) {
+  const chiffres = String(value || '').replace(/\D/g, '').slice(0, 8);
+  if (chiffres.length <= 2) return chiffres.length === 2 ? `${chiffres}/` : chiffres;
+  if (chiffres.length <= 4) return `${chiffres.slice(0, 2)}/${chiffres.slice(2)}${chiffres.length === 4 ? '/' : ''}`;
+  return `${chiffres.slice(0, 2)}/${chiffres.slice(2, 4)}/${chiffres.slice(4)}`;
+}
+
+function dateFrValide(value) {
+  const m = String(value || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return false;
+  const jour = Number(m[1]);
+  const mois = Number(m[2]);
+  const annee = Number(m[3]);
+  const d = new Date(annee, mois - 1, jour);
+  return d.getFullYear() === annee && d.getMonth() === mois - 1 && d.getDate() === jour;
+}
+
 export const DurableChampGenerique = React.memo(function DurableChampGenerique({ visiteId, sectionCode, field, valeurInitiale, onSaved }) {
   const unit = extractUnit(field.cle);
   const label = cleanLabel(field.cle);
@@ -31,15 +62,41 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
   const numericConfig = getNumericConfig(field.cle);
   const chipOptions = FIELD_OPTIONS[field.cle];
   const sansPhoto = sectionCode === 'infos.g_n_ral' || sectionCode === 'infos.informations_g_n_rales';
+  const estDateVisite = sansPhoto && /date\s*(de\s*)?(la\s*)?visite/i.test(String(field.cle || ''));
 
   const sauvegarder = async (nouvelleValeur) => {
-    // Le cache UI est corrigé synchroniquement avant l'I/O SQLite : un retour
-    // instantané sur l'onglet ne peut donc jamais réafficher l'ancienne valeur.
     onSaved?.(nouvelleValeur);
     await upsertChamp(visiteId, sectionCode, field.cle, nouvelleValeur);
   };
 
   const [valeur, setValeur, flush, setImmediate] = useDurableAutosave(valeurInitiale, sauvegarder, 450);
+  const [dateTexte, setDateTexte] = useState(() => normaliserDateInitiale(valeurInitiale) || dateAujourdhuiFr());
+  const [dateErreur, setDateErreur] = useState(false);
+
+  useEffect(() => {
+    if (!estDateVisite) return;
+    const initiale = normaliserDateInitiale(valeurInitiale);
+    const cible = initiale || dateAujourdhuiFr();
+    setDateTexte(cible);
+    setDateErreur(false);
+    if (!initiale) sauvegarder(cible).catch(() => {});
+  }, [visiteId, sectionCode, field.cle, estDateVisite]);
+
+  const changerDate = (texte) => {
+    const masquee = masquerDate(texte);
+    setDateTexte(masquee);
+    setDateErreur(false);
+    if (masquee.length === 10 && dateFrValide(masquee)) sauvegarder(masquee).catch(() => {});
+  };
+
+  const validerDate = () => {
+    if (dateFrValide(dateTexte)) {
+      setDateErreur(false);
+      sauvegarder(dateTexte).catch(() => {});
+      return;
+    }
+    setDateErreur(true);
+  };
 
   return (
     <View style={styles.fieldBlock}>
@@ -47,7 +104,20 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
         <Text style={styles.fieldLabel}>{label}{unit && !numericConfig ? ` (${unit})` : ''}</Text>
         {!sansPhoto && <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={label} />}
       </View>
-      {numericConfig ? (
+      {estDateVisite ? (
+        <>
+          <TextInput
+            style={[styles.input, dateErreur && { borderColor: '#B42318' }]}
+            value={dateTexte}
+            onChangeText={changerDate}
+            onBlur={validerDate}
+            keyboardType="number-pad"
+            maxLength={10}
+            placeholder="JJ/MM/AAAA"
+          />
+          {dateErreur ? <Text style={{ color: '#B42318', fontSize: 11, marginTop: 5 }}>Date obligatoire au format JJ/MM/AAAA.</Text> : null}
+        </>
+      ) : numericConfig ? (
         <StepperNumerique valeur={valeur} config={numericConfig} onChange={(v) => { setImmediate(v).catch(() => {}); }} />
       ) : chipOptions ? (
         <ChipSelector valeur={valeur} options={chipOptions} onChange={(v) => { setImmediate(v).catch(() => {}); }} />
