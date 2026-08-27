@@ -31,6 +31,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Stamp visible APK build number
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('appVersion.js')
+          s = p.read_text(encoding='utf-8')
+          s = s.replace("export const APK_BUILD = 'DEV';", "export const APK_BUILD = '${{ github.run_number }}';")
+          p.write_text(s, encoding='utf-8')
+          PY
+          grep -q "APK_BUILD = '${{ github.run_number }}'" appVersion.js
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
@@ -98,5 +109,3 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 7
-
-# Build trigger: 2026-08-26 page 1 Word layout corrections
