@@ -11,6 +11,7 @@ on:
       - app.json
       - eas.json
       - .github/workflows/native-android-apk.yml
+      - .github/scripts/patch_theme_system.py
       - .github/scripts/patch_pdf_cover_fallback_build.py
       - .github/scripts/patch_excel_import_date.py
       - .github/scripts/patch_report_mode_defaults.py
@@ -44,6 +45,13 @@ jobs:
           p.write_text(s, encoding='utf-8')
           PY
           grep -q "APK_BUILD = '${{ github.run_number }}'" appVersion.js
+
+      - name: Apply animated app theme system
+        run: |
+          python .github/scripts/patch_theme_system.py
+          grep -q "DoomLoadingScreen" App.js
+          grep -q "GestionTheme" ParametresScreen.js
+          grep -q "DOOM_ACCENT" styles.js
 
       - name: Apply targeted Excel import date cleanup
         run: python .github/scripts/patch_excel_import_date.py
