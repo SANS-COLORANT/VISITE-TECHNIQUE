@@ -1,13 +1,12 @@
-/** Écran d'un site : visites, équipements, remarques + localisation GPS. */
+/** Écran d'un site : visites, équipements, remarques + localisation par adresse. */
 
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView } from 'react-native';
-import * as Location from 'expo-location';
 import { COLORS, styles } from './styles.js';
 import { listerVisitesSite, getDb } from './db.js';
 import { creerVisiteProduction } from './visitCreationDb.js';
 import { supprimerVisiteComplete } from './entityManagementDb.js';
-import { getSiteLocalisation, enregistrerSiteLocalisation, coordonneeValide } from './siteGeoDb.js';
+import { getSiteLocalisation } from './siteGeoDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { listerTramesDisponibles, obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
@@ -21,6 +20,21 @@ const SITE_TABS = [
   { id: 'remarques', label: 'Remarques' },
 ];
 
+function decomposerAdresse(adresseComplete) {
+  const lignes = String(adresseComplete || '').split(/\r?\n/).map((v) => v.trim()).filter(Boolean);
+  if (lignes.length >= 3) return { rue: lignes[0], ville: lignes[1], codePostal: lignes[2] };
+  if (lignes.length === 2) {
+    const cpVille = lignes[1].match(/^(\d{5})\s+(.+)$/);
+    if (cpVille) return { rue: lignes[0], ville: cpVille[2], codePostal: cpVille[1] };
+    return { rue: lignes[0], ville: lignes[1], codePostal: '' };
+  }
+  return { rue: lignes[0] || '', ville: '', codePostal: '' };
+}
+
+function composerAdresse(rue, ville, codePostal) {
+  return [String(rue || '').trim(), String(ville || '').trim(), String(codePostal || '').trim()].filter(Boolean).join('\n');
+}
+
 function SiteVisitesScreen({ route, navigation }) {
   const { siteId, nomSite } = route.params;
   const [visites, setVisites] = useState([]);
@@ -29,9 +43,9 @@ function SiteVisitesScreen({ route, navigation }) {
   const [choixModeVisible, setChoixModeVisible] = useState(false);
   const [trameChoisie, setTrameChoisie] = useState(DEFAULT_TRAME_ID);
   const [gpsVisible, setGpsVisible] = useState(false);
-  const [adresse, setAdresse] = useState('');
-  const [latitude, setLatitude] = useState('');
-  const [longitude, setLongitude] = useState('');
+  const [adresseRue, setAdresseRue] = useState('');
+  const [ville, setVille] = useState('');
+  const [codePostal, setCodePostal] = useState('');
   const [note, setNote] = useState('');
   const [localisationEnCours, setLocalisationEnCours] = useState(false);
   const [selectionExport, setSelectionExport] = useState(false);
@@ -44,9 +58,10 @@ function SiteVisitesScreen({ route, navigation }) {
     setVisites(v);
     setSite(s);
     if (s) {
-      setAdresse(s.adresse || '');
-      setLatitude(s.latitude === null || s.latitude === undefined ? '' : String(s.latitude));
-      setLongitude(s.longitude === null || s.longitude === undefined ? '' : String(s.longitude));
+      const morceaux = decomposerAdresse(s.adresse || '');
+      setAdresseRue(morceaux.rue);
+      setVille(morceaux.ville);
+      setCodePostal(morceaux.codePostal);
       setNote(s.localisation_note || '');
     }
   }, [siteId]);
@@ -128,23 +143,49 @@ function SiteVisitesScreen({ route, navigation }) {
     }
   };
 
-  const utiliserMaPosition = async () => {
+  const adresseSaisie = composerAdresse(adresseRue, ville, codePostal);
+
+  const enregistrerAdresse = async () => {
+    if (!adresseRue.trim() || !ville.trim() || !/^\d{5}$/.test(codePostal.trim())) {
+      Alert.alert('Adresse incomplète', 'Renseigne le numéro et la rue, la ville et un code postal à 5 chiffres.');
+      return;
+    }
     try {
       setLocalisationEnCours(true);
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') {
-        Alert.alert('Permission requise', "L'accès à la position est nécessaire pour enregistrer le point GPS du site.");
-        return;
-      }
-      const pos = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.High });
-      const lat = pos.coords.latitude;
-      const lng = pos.coords.longitude;
-      setLatitude(String(lat));
-      setLongitude(String(lng));
-      await modifierSiteRapide(siteId, { adresse, note });
-      await enregistrerSiteLocalisation(siteId, { latitude: lat, longitude: lng, precisionGps: pos.coords.accuracy, note });
+      await modifierSiteRapide(siteId, { adresse: adresseSaisie, note });
+      setGpsVisible(false);
+      await charger();
+    } catch (e) {
+      Alert.alert('Enregistrement impossible', String(e.message || e));
+    } finally {
+      setLocalisationEnCours(false);
+    }
+  };
+
+  const ouvrirGoogleMaps = async (adresseForcee = null) => {
+    const query = String(adresseForcee || site?.adresse || '').trim();
+    if (!query) {
+      Alert.alert('Google Maps', "Renseigne d'abord l'adresse du site.");
+      return;
+    }
+    try {
+      await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`);
+    } catch {
+      Alert.alert('Google Maps', "Impossible d'ouvrir Google Maps. Vérifie la connexion Internet.");
+    }
+  };
+
+  const enregistrerEtOuvrirMaps = async () => {
+    if (!adresseRue.trim() || !ville.trim() || !/^\d{5}$/.test(codePostal.trim())) {
+      Alert.alert('Adresse incomplète', 'Renseigne le numéro et la rue, la ville et un code postal à 5 chiffres.');
+      return;
+    }
+    try {
+      setLocalisationEnCours(true);
+      await modifierSiteRapide(siteId, { adresse: adresseSaisie, note });
       await charger();
       setGpsVisible(false);
+      await ouvrirGoogleMaps(adresseSaisie);
     } catch (e) {
       Alert.alert('Localisation impossible', String(e.message || e));
     } finally {
@@ -152,91 +193,31 @@ function SiteVisitesScreen({ route, navigation }) {
     }
   };
 
-  const localiserDepuisAdresse = async () => {
-    if (!adresse.trim()) { Alert.alert('Adresse requise', "Saisis d'abord l'adresse du site."); return; }
-    try {
-      setLocalisationEnCours(true);
-      const permission = await Location.requestForegroundPermissionsAsync();
-      if (permission.status !== 'granted') throw new Error('Autorisation de localisation refusée');
-      const resultats = await Location.geocodeAsync(adresse.trim());
-      const p = resultats?.[0];
-      if (!p || !coordonneeValide(p.latitude, p.longitude)) throw new Error('Adresse non localisée');
-      setLatitude(String(p.latitude));
-      setLongitude(String(p.longitude));
-      await modifierSiteRapide(siteId, { adresse, note });
-      await enregistrerSiteLocalisation(siteId, { latitude: p.latitude, longitude: p.longitude, note });
-      await charger();
-      setGpsVisible(false);
-    } catch (e) {
-      Alert.alert('Géocodage impossible', String(e.message || e));
-    } finally {
-      setLocalisationEnCours(false);
-    }
-  };
-
-  const enregistrerGpsManuel = async () => {
-    const lat = Number(String(latitude).replace(',', '.'));
-    const lng = Number(String(longitude).replace(',', '.'));
-    if (!coordonneeValide(lat, lng)) {
-      Alert.alert('Coordonnées invalides', 'Vérifie la latitude et la longitude.');
-      return;
-    }
-    try {
-      await modifierSiteRapide(siteId, { adresse, note });
-      await enregistrerSiteLocalisation(siteId, { latitude: lat, longitude: lng, note });
-      setGpsVisible(false);
-      await charger();
-    } catch (e) {
-      Alert.alert('Erreur', String(e.message || e));
-    }
-  };
-
-  const ouvrirGoogleMaps = async () => {
-    if (!site) return;
-    const query = coordonneeValide(site.latitude, site.longitude)
-      ? `${Number(site.latitude)},${Number(site.longitude)}`
-      : String(site.adresse || '').trim();
-    if (!query) return;
-    try {
-      await Linking.openURL(`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(query)}`);
-    } catch {
-      Alert.alert('Google Maps', "Impossible d'ouvrir Google Maps.");
-    }
-  };
-
-  const aGps = !!site && coordonneeValide(site.latitude, site.longitude);
-
   const LocalisationHeader = () => (
     <View style={{ marginBottom: 18 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
         <View style={{ flex: 1 }}>
-          <Text style={styles.sectionLabel}>Localisation technique</Text>
+          <Text style={styles.sectionLabel}>Localisation du site</Text>
           <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 2 }}>{site?.adresse || 'Adresse à renseigner'}</Text>
         </View>
         <TouchableOpacity onPress={() => setGpsVisible(true)} style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
-          <Text style={{ color: COLORS.primary, fontWeight: '700' }}>{aGps || site?.adresse ? 'Modifier' : '+ Positionner'}</Text>
+          <Text style={{ color: COLORS.primary, fontWeight: '700' }}>{site?.adresse ? 'Modifier' : '+ Adresse'}</Text>
         </TouchableOpacity>
       </View>
 
       <View style={{ padding: 14, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E3E5E8' }}>
-        {aGps ? (
+        {site?.adresse ? (
           <>
-            <Text style={{ fontWeight: '800' }}>📍 {Number(site.latitude).toFixed(6)}, {Number(site.longitude).toFixed(6)}</Text>
-            {site.precision_gps ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 3 }}>Précision GPS ≈ {Math.round(site.precision_gps)} m</Text> : null}
+            <Text style={{ fontWeight: '800' }}>📍 {site.adresse}</Text>
             {site.localisation_note ? <Text style={{ marginTop: 7, color: '#555' }}>{site.localisation_note}</Text> : null}
-            <TouchableOpacity onPress={ouvrirGoogleMaps} style={{ marginTop: 10, paddingVertical: 8 }}>
+            <TouchableOpacity onPress={() => ouvrirGoogleMaps()} style={{ marginTop: 10, paddingVertical: 8 }}>
               <Text style={{ color: COLORS.primary, fontWeight: '800' }}>Ouvrir dans Google Maps ↗</Text>
             </TouchableOpacity>
           </>
         ) : (
           <>
-            <Text style={{ fontWeight: '700' }}>📍 Aucun point GPS</Text>
-            <Text style={{ color: COLORS.muted, marginTop: 5, fontSize: 12 }}>{site?.adresse ? "L'adresse est renseignée : utilise « Localiser depuis l'adresse »." : 'Ajoute une adresse ou enregistre le point exact du local technique.'}</Text>
-            {site?.adresse ? (
-              <TouchableOpacity onPress={ouvrirGoogleMaps} style={{ marginTop: 8, paddingVertical: 6 }}>
-                <Text style={{ color: COLORS.primary, fontWeight: '700' }}>Rechercher l'adresse dans Google Maps ↗</Text>
-              </TouchableOpacity>
-            ) : null}
+            <Text style={{ fontWeight: '700' }}>📍 Adresse non renseignée</Text>
+            <Text style={{ color: COLORS.muted, marginTop: 5, fontSize: 12 }}>Ajoute le numéro et la rue, la ville et le code postal. L'adresse reste disponible hors connexion.</Text>
           </>
         )}
       </View>
@@ -307,14 +288,14 @@ function SiteVisitesScreen({ route, navigation }) {
 
       <Modal visible={gpsVisible} transparent animationType="fade" onRequestClose={() => setGpsVisible(false)}>
         <View style={styles.modalOverlay}><View style={styles.modalSheet}>
-          <Text style={styles.modalTitle}>Adresse et position du site</Text>
-          <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 10 }}>L'adresse sert au géocodage. Le point GPS peut ensuite être remplacé par la position exacte de l'accès technique.</Text>
-          <TextInput style={styles.input} placeholder="Adresse complète" value={adresse} onChangeText={setAdresse} />
-          <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10 }]} disabled={localisationEnCours || !adresse.trim()} onPress={localiserDepuisAdresse}><Text style={styles.btnSecondaryText}>{localisationEnCours ? 'Localisation…' : "🗺️ Localiser depuis l'adresse"}</Text></TouchableOpacity>
-          <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}><TextInput style={[styles.input, { flex: 1 }]} placeholder="Latitude" keyboardType="decimal-pad" value={latitude} onChangeText={setLatitude} /><TextInput style={[styles.input, { flex: 1 }]} placeholder="Longitude" keyboardType="decimal-pad" value={longitude} onChangeText={setLongitude} /></View>
+          <Text style={styles.modalTitle}>Adresse du site</Text>
+          <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 10 }}>L'adresse est enregistrée dans l'application et reste disponible hors connexion. Avec Internet, Google Maps peut la rechercher directement.</Text>
+          <TextInput style={styles.input} placeholder="Numéro + rue" value={adresseRue} onChangeText={setAdresseRue} autoCapitalize="words" />
+          <TextInput style={[styles.input, { marginTop: 10 }]} placeholder="Ville" value={ville} onChangeText={setVille} autoCapitalize="words" />
+          <TextInput style={[styles.input, { marginTop: 10 }]} placeholder="Code postal" value={codePostal} onChangeText={(v) => setCodePostal(v.replace(/\D/g, '').slice(0, 5))} keyboardType="number-pad" maxLength={5} />
           <TextInput style={[styles.input, { marginTop: 10, minHeight: 70, textAlignVertical: 'top' }]} placeholder="Note d'accès : parking P2, porte chaufferie, sous-sol…" multiline value={note} onChangeText={setNote} />
-          <TouchableOpacity style={[styles.btnSecondary, { marginTop: 12 }]} disabled={localisationEnCours} onPress={utiliserMaPosition}><Text style={styles.btnSecondaryText}>{localisationEnCours ? 'Localisation…' : '📍 Utiliser ma position actuelle'}</Text></TouchableOpacity>
-          <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setGpsVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerGpsManuel}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View>
+          <TouchableOpacity style={[styles.btnSecondary, { marginTop: 12 }]} disabled={localisationEnCours || !adresseRue.trim() || !ville.trim() || codePostal.length !== 5} onPress={enregistrerEtOuvrirMaps}><Text style={styles.btnSecondaryText}>{localisationEnCours ? 'Ouverture…' : '🗺️ Enregistrer et ouvrir dans Google Maps'}</Text></TouchableOpacity>
+          <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setGpsVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} disabled={localisationEnCours} onPress={enregistrerAdresse}><Text style={styles.btnPrimaryText}>{localisationEnCours ? 'Enregistrement…' : 'Enregistrer'}</Text></TouchableOpacity></View>
         </View></View>
       </Modal>
 
