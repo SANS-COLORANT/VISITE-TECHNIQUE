@@ -23,8 +23,52 @@ async function libelleElementControle(db, visiteId, controleKey) {
   return `${nom} · ${cle}`;
 }
 
+/**
+ * Répare automatiquement les visites VMC saisies avec une version antérieure :
+ * tout contrôle N.S doit avoir une ligne correspondante dans REMARQUES.
+ * Cela garantit que la synthèse, l'Excel et le rapport ne perdent aucun N.S,
+ * même si la réserve n'avait pas encore été matérialisée au moment de la saisie.
+ */
+async function materialiserReservesVmcManquantes(db, visiteId) {
+  const visite = await db.getFirstAsync(`SELECT trame_id FROM visites WHERE id=?`, [visiteId]);
+  if (visite?.trame_id !== 'vmc') return;
+
+  const manquants = await db.getAllAsync(
+    `SELECT c.section_code, c.cle, c.commentaire
+     FROM controles_visite c
+     WHERE c.visite_id=?
+       AND c.avis='N.S'
+       AND c.section_code LIKE 'vmc-c%.%'
+       AND NOT EXISTS (
+         SELECT 1 FROM remarques r
+         WHERE r.visite_id=c.visite_id
+           AND r.controle_key=(c.section_code || '||' || c.cle)
+       )`,
+    [visiteId]
+  );
+
+  for (const controle of manquants || []) {
+    const controleKey = `${controle.section_code}||${controle.cle}`;
+    const referenceLibelle = await libelleElementControle(db, visiteId, controleKey);
+    const commentaire = String(controle.commentaire || '').trim();
+    const prestation = commentaire || `Anomalie constatée sur ${controle.cle} — à préciser.`;
+    await db.runAsync(
+      `INSERT INTO remarques(
+         id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,
+         reference_type,reference_id,reference_libelle
+       ) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        createId(), visiteId, controleKey, 'VMC', prestation, null, null,
+        `VMC — ${controle.cle} — Synchronisation N.S`,
+        'controle', controleKey, referenceLibelle,
+      ]
+    );
+  }
+}
+
 export async function listerRemarquesVisite(visiteId) {
   const db = await openAppDatabase();
+  await materialiserReservesVmcManquantes(db, visiteId);
   return db.getAllAsync(
     `SELECT * FROM remarques WHERE visite_id=? ORDER BY cree_le, id`,
     [visiteId]
