@@ -3,15 +3,14 @@
   "id": "doom",
   "name": "Doom",
   "description": "Animation Doom et accent vert METRA.",
-  "version": 1,
-  "legacyTheme": "animated",
+  "version": 2,
   "colors": {
     "main": "#106836",
     "dark": "#0A522A",
     "light": "#E7F2EB"
   },
   "startup": {
-    "base": "doom",
+    "preset": "metra-doom",
     "durationMs": 2600
   },
   "interface": {}

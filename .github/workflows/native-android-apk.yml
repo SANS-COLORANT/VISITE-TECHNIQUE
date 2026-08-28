@@ -8,6 +8,7 @@ on:
     paths:
       - '**/*.js'
       - 'assets/metra/**'
+      - 'visual-packs/**'
       - package.json
       - app.json
       - eas.json

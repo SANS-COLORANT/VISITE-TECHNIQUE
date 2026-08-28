@@ -1,24 +1,27 @@
 import React from 'react';
 import { StyleSheet, View } from 'react-native';
-import { DoomLoadingScreen } from './DoomLoadingScreen.js';
-import { MetraLoadingScreen } from './MetraLoadingScreen.js';
-import { THEME_ANIMATED } from './themePreference.js';
+import { ClassicStartupAnimation } from '../classic/StartupAnimation.js';
+import { DoomStartupAnimation } from '../doom/StartupAnimation.js';
 import { VisualEffectLayer } from './VisualEffectLayer.js';
 import { VisualPackAsset } from './VisualPackAsset.js';
 import { VisualPackAnimatedLayer } from './VisualPackAnimatedLayer.js';
 import { resolveVisualPackAssetUri } from './visualPackManager.js';
 
-export function VisualPackLoadingScreen({ pack, themeMode }) {
-  const base = pack?.startup?.base || (themeMode === THEME_ANIMATED ? 'doom' : 'classic');
+function BuiltinStartup({ preset }) {
+  if (preset === 'metra-doom') return <DoomStartupAnimation />;
+  if (preset === 'none') return null;
+  return <ClassicStartupAnimation />;
+}
+
+export function VisualPackLoadingScreen({ pack }) {
+  const preset = pack?.startup?.preset || 'metra-classic';
   const logoUri = resolveVisualPackAssetUri(pack, pack?.startup?.logo);
   const layers = Array.isArray(pack?.startup?.layers) ? pack.startup.layers : [];
   const backgroundColor = pack?.startup?.backgroundColor || '#FBF0E1';
 
   return (
     <View style={[styles.root, { backgroundColor }]}>
-      {base === 'doom' ? <DoomLoadingScreen /> : null}
-      {base === 'classic' ? <MetraLoadingScreen /> : null}
-      {base === 'none' ? <View style={[StyleSheet.absoluteFill, { backgroundColor }]} /> : null}
+      <BuiltinStartup preset={preset} />
 
       {logoUri && layers.length === 0 ? (
         <View pointerEvents="none" style={styles.customLogoWrap}>
@@ -42,8 +45,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  customLogo: {
-    width: 240,
-    height: 180,
-  },
+  customLogo: { width: 240, height: 180 },
 });

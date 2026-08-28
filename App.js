@@ -9,20 +9,19 @@ import { HomeScreen } from './HomeScreen.js';
 import { ClientSitesScreen } from './ClientSitesScreen.js';
 import { ClientPatrimoineScreen } from './ClientPatrimoineScreen.js';
 import { VisiteScreen } from './VisiteScreen.js';
-import { ParametresWithThemeScreen } from './ParametresWithThemeScreen.js';
 import { SiteVisitesScreen } from './SiteVisitesScreen.js';
 import { ReportScreen } from './ReportScreen.js';
 import { AppErrorBoundary } from './AppErrorBoundary.js';
-import { VisualPackLoadingScreen } from './VisualPackLoadingScreen.js';
-import { VisualPackAsset } from './VisualPackAsset.js';
 import { R1EasterEgg } from './R1EasterEgg.js';
-import { getAppThemeMode } from './themePreference.js';
-import { setRuntimeThemeMode, setRuntimeVisualPalette } from './themeRuntime.js';
+import { VisualPackLoadingScreen } from './visual-packs/runtime/VisualPackLoadingScreen.js';
+import { VisualPackAsset } from './visual-packs/runtime/VisualPackAsset.js';
+import { VisualPacksSettingsScreen } from './visual-packs/runtime/VisualPacksSettingsScreen.js';
+import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 import {
   getActiveVisualPack,
   getVisualPackStartupDuration,
   resolveVisualPackAssetUri,
-} from './visualPackManager.js';
+} from './visual-packs/runtime/visualPackManager.js';
 
 const SPLASH_BG = '#FBF0E1';
 
@@ -48,27 +47,21 @@ function SimpleHeader({ title, onBack, visualPack }) {
 function AppContent() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(null);
-  const [themeMode, setThemeMode] = useState(null);
   const [visualPack, setVisualPack] = useState(null);
-  const [themeRevision, setThemeRevision] = useState(0);
+  const [visualRevision, setVisualRevision] = useState(0);
   const [stack, setStack] = useState([{ name: 'Home', params: {} }]);
   const [r1Visible, setR1Visible] = useState(false);
 
   const initialiser = useCallback(async () => {
     setDbReady(false);
     setDbError(null);
-    setThemeMode(null);
     setVisualPack(null);
     try {
       await getDb();
-      const mode = await getAppThemeMode();
-      const pack = await getActiveVisualPack(mode);
-      setRuntimeThemeMode(mode);
+      const pack = await getActiveVisualPack();
       setRuntimeVisualPalette(pack?.colors);
-      setThemeMode(mode);
       setVisualPack(pack);
-      const animationMs = getVisualPackStartupDuration(pack, mode);
-      await new Promise((resolve) => setTimeout(resolve, animationMs));
+      await new Promise((resolve) => setTimeout(resolve, getVisualPackStartupDuration(pack)));
       setDbReady(true);
     } catch (err) {
       setDbError(err);
@@ -90,43 +83,44 @@ function AppContent() {
     setTimeout(() => { setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)); }, 0);
   }, []);
 
-  const handleThemeChanged = useCallback((mode, pack) => {
-    setRuntimeThemeMode(mode);
+  const handleVisualPackChanged = useCallback((pack) => {
     setRuntimeVisualPalette(pack?.colors);
-    setThemeMode(mode);
     setVisualPack(pack);
-    setThemeRevision((v) => v + 1);
+    setVisualRevision((value) => value + 1);
   }, []);
 
   useEffect(() => {
     const subscription = BackHandler.addEventListener('hardwareBackPress', () => {
       if (r1Visible) return true;
       if (stack.length <= 1) return false;
-      goBack(); return true;
+      goBack();
+      return true;
     });
     return () => subscription.remove();
   }, [stack.length, goBack, r1Visible]);
 
   if (dbError) return <View style={styles.center}><Text style={styles.errorTitle}>Erreur de démarrage</Text><Text style={styles.errorText}>{String(dbError.message || dbError)}</Text><TouchableOpacity style={[styles.btnPrimary, { marginTop: 18 }]} onPress={initialiser}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity></View>;
-  if (!themeMode || !visualPack) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
-  if (!dbReady) return <VisualPackLoadingScreen pack={visualPack} themeMode={themeMode} />;
+  if (!visualPack) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
+  if (!dbReady) return <VisualPackLoadingScreen pack={visualPack} />;
 
   const current = stack[stack.length - 1];
   const navigation = { navigate, goBack };
   const route = { params: current.params };
 
   return (
-    <View key={`theme-${themeRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: COLORS.bg }}>
+    <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: COLORS.bg }}>
       {current.name === 'Home' && <><SimpleHeader title="Visite Technique" visualPack={visualPack} /><HomeScreen navigation={navigation} route={route} onR1LongPress={() => setR1Visible(true)} /></>}
       {current.name === 'ClientSites' && <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} visualPack={visualPack} /><ClientSitesScreen navigation={navigation} route={route} /></>}
       {current.name === 'ClientPatrimoine' && <><SimpleHeader title="Synthèse patrimoine" onBack={goBack} visualPack={visualPack} /><ClientPatrimoineScreen navigation={navigation} route={route} /></>}
       {current.name === 'SiteVisites' && <><SimpleHeader title={current.params?.nomSite || 'Visites'} onBack={goBack} visualPack={visualPack} /><SiteVisitesScreen navigation={navigation} route={route} /></>}
       {current.name === 'Visite' && <VisiteScreen navigation={navigation} route={route} onBack={goBack} />}
       {current.name === 'Report' && <ReportScreen route={route} onBack={goBack} />}
-      {current.name === 'Parametres' && <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack} /><ParametresWithThemeScreen themeMode={themeMode} visualPack={visualPack} onThemeChanged={handleThemeChanged} /></>}
+      {current.name === 'Parametres' && <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack} /><VisualPacksSettingsScreen visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged} /></>}
       <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
     </View>
   );
 }
 
-export default function App() { return <AppErrorBoundary><AppContent /></AppErrorBoundary>; }
+export default function App() {
+  return <AppErrorBoundary><AppContent /></AppErrorBoundary>;
+}

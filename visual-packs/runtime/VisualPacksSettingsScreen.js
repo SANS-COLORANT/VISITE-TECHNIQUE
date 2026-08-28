@@ -1,15 +1,15 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
-import { ParametresScreen } from './ParametresScreen.js';
-import { setRuntimeThemeMode, setRuntimeVisualPalette } from './themeRuntime.js';
+import { COLORS, styles } from '../../styles.js';
+import { ParametresScreen } from '../../ParametresScreen.js';
+import { setRuntimeVisualPalette } from './visualPaletteRuntime.js';
 import {
   activateVisualPack,
   importVisualPackZip,
   listVisualPacks,
 } from './visualPackManager.js';
 
-function ThemeChoice({ active, pack, onPress }) {
+function PackChoice({ active, pack, onPress }) {
   const accent = pack?.colors?.main || '#F26426';
   const light = pack?.colors?.light || '#FFF1EA';
   return (
@@ -41,7 +41,7 @@ function ThemeChoice({ active, pack, onPress }) {
   );
 }
 
-export function ParametresWithThemeScreen({ themeMode, visualPack, onThemeChanged }) {
+export function VisualPacksSettingsScreen({ visualPack, onVisualPackChanged }) {
   const [saving, setSaving] = useState(false);
   const [packs, setPacks] = useState([]);
   const [loadingPacks, setLoadingPacks] = useState(true);
@@ -63,13 +63,12 @@ export function ParametresWithThemeScreen({ themeMode, visualPack, onThemeChange
     if (saving || !pack || pack.id === visualPack?.id) return;
     setSaving(true);
     try {
-      const result = await activateVisualPack(pack.id);
-      setRuntimeThemeMode(result.themeMode);
-      setRuntimeVisualPalette(result.pack.colors);
-      onThemeChanged?.(result.themeMode, result.pack);
+      const selected = await activateVisualPack(pack.id);
+      setRuntimeVisualPalette(selected.colors);
+      onVisualPackChanged?.(selected);
       Alert.alert(
         'Pack visuel appliqué',
-        `${result.pack.name} est maintenant actif. Les couleurs de l’interface sont appliquées immédiatement. Les animations de démarrage seront visibles au prochain lancement. Les PDF, Word et Excel restent inchangés.`
+        `${selected.name} est maintenant actif. Les couleurs de l’interface sont appliquées immédiatement. Les animations de démarrage seront visibles au prochain lancement. Les PDF, Word et Excel restent inchangés.`
       );
     } catch (e) {
       Alert.alert('Pack non modifié', String(e.message || e));
@@ -101,7 +100,7 @@ export function ParametresWithThemeScreen({ themeMode, visualPack, onThemeChange
       <View style={{ paddingHorizontal: 20, paddingTop: 14, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
         <Text style={styles.sectionLabel}>Apparence et packs visuels</Text>
         <Text style={[styles.cardSub, { marginTop: 5, marginBottom: 10 }]}>
-          Les packs peuvent contenir couleurs, logos et petites animations. Ils ne modifient jamais les PDF, Word ou Excel. Le thème classique reste toujours disponible comme secours.
+          Les packs peuvent contenir couleurs, logos et petites animations. Ils ne modifient jamais les PDF, Word ou Excel. Le pack Classique reste toujours disponible comme secours.
         </Text>
 
         {loadingPacks ? (
@@ -109,7 +108,7 @@ export function ParametresWithThemeScreen({ themeMode, visualPack, onThemeChange
         ) : (
           <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 10 }}>
             {packs.map((pack) => (
-              <ThemeChoice
+              <PackChoice
                 key={pack.id}
                 active={pack.id === visualPack?.id}
                 pack={pack}
