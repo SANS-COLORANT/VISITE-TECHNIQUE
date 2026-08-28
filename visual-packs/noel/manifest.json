@@ -1,0 +1,30 @@
+{
+  "schemaVersion": 1,
+  "id": "noel",
+  "name": "Noël",
+  "description": "Animation METRA avec neige au démarrage.",
+  "version": 1,
+  "legacyTheme": "classic",
+  "colors": {
+    "main": "#F26426",
+    "dark": "#D9531A",
+    "light": "#FFF1EA"
+  },
+  "startup": {
+    "base": "classic",
+    "durationMs": 3400,
+    "effect": {
+      "type": "snow",
+      "count": 34,
+      "durationMinMs": 2200,
+      "durationMaxMs": 3600,
+      "sizeMin": 10,
+      "sizeMax": 22,
+      "opacityMin": 0.35,
+      "opacityMax": 0.9,
+      "wind": 28,
+      "symbols": ["❄", "❅", "❆"]
+    }
+  },
+  "interface": {}
+}

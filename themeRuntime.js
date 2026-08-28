@@ -14,10 +14,30 @@ const DOOM = {
 };
 
 let currentMode = 'classic';
+let currentPalette = { ...CLASSIC };
 let installed = false;
+
+function normalizePalette(colors) {
+  const source = colors || {};
+  const value = {
+    main: String(source.main || CLASSIC.main).toUpperCase(),
+    dark: String(source.dark || CLASSIC.dark).toUpperCase(),
+    light: String(source.light || CLASSIC.light).toUpperCase(),
+  };
+  return {
+    main: /^#[0-9A-F]{6}$/.test(value.main) ? value.main : CLASSIC.main,
+    dark: /^#[0-9A-F]{6}$/.test(value.dark) ? value.dark : CLASSIC.dark,
+    light: /^#[0-9A-F]{6}$/.test(value.light) ? value.light : CLASSIC.light,
+  };
+}
 
 export function setRuntimeThemeMode(mode) {
   currentMode = mode === THEME_ANIMATED ? THEME_ANIMATED : 'classic';
+  currentPalette = currentMode === THEME_ANIMATED ? { ...DOOM } : { ...CLASSIC };
+}
+
+export function setRuntimeVisualPalette(colors) {
+  currentPalette = normalizePalette(colors);
 }
 
 export function getRuntimeThemeMode() {
@@ -25,15 +45,19 @@ export function getRuntimeThemeMode() {
 }
 
 export function getRuntimeAccent() {
-  return currentMode === THEME_ANIMATED ? DOOM.main : CLASSIC.main;
+  return currentPalette.main;
+}
+
+export function getRuntimePalette() {
+  return { ...currentPalette };
 }
 
 function transformOrange(value) {
-  if (currentMode !== THEME_ANIMATED || typeof value !== 'string') return value;
+  if (typeof value !== 'string') return value;
   const upper = value.toUpperCase();
-  if (upper === CLASSIC.main) return DOOM.main;
-  if (upper === CLASSIC.dark) return DOOM.dark;
-  if (upper === CLASSIC.light) return DOOM.light;
+  if (upper === CLASSIC.main) return currentPalette.main;
+  if (upper === CLASSIC.dark) return currentPalette.dark;
+  if (upper === CLASSIC.light) return currentPalette.light;
   return value;
 }
 
