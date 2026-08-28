@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "classic",
+  "name": "Classique",
+  "description": "Animation METRA et orange d'origine.",
+  "version": 1,
+  "legacyTheme": "classic",
+  "colors": {
+    "main": "#F26426",
+    "dark": "#D9531A",
+    "light": "#FFF1EA"
+  },
+  "startup": {
+    "base": "classic",
+    "durationMs": 2300
+  },
+  "interface": {}
+}

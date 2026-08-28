@@ -13,16 +13,21 @@ import { ParametresWithThemeScreen } from './ParametresWithThemeScreen.js';
 import { SiteVisitesScreen } from './SiteVisitesScreen.js';
 import { ReportScreen } from './ReportScreen.js';
 import { AppErrorBoundary } from './AppErrorBoundary.js';
-import { MetraLoadingScreen } from './MetraLoadingScreen.js';
-import { DoomLoadingScreen, DOOM_ANIMATION_MS } from './DoomLoadingScreen.js';
+import { VisualPackLoadingScreen } from './VisualPackLoadingScreen.js';
+import { VisualPackAsset } from './VisualPackAsset.js';
 import { R1EasterEgg } from './R1EasterEgg.js';
-import { getAppThemeMode, THEME_ANIMATED } from './themePreference.js';
-import { setRuntimeThemeMode } from './themeRuntime.js';
+import { getAppThemeMode } from './themePreference.js';
+import { setRuntimeThemeMode, setRuntimeVisualPalette } from './themeRuntime.js';
+import {
+  getActiveVisualPack,
+  getVisualPackStartupDuration,
+  resolveVisualPackAssetUri,
+} from './visualPackManager.js';
 
-const CLASSIC_LOADING_ANIMATION_MS = 2300;
 const SPLASH_BG = '#FBF0E1';
 
-function SimpleHeader({ title, onBack }) {
+function SimpleHeader({ title, onBack, visualPack }) {
+  const headerLogoUri = resolveVisualPackAssetUri(visualPack, visualPack?.interface?.headerLogo);
   return (
     <View style={styles.simpleHeader}>
       {onBack ? (
@@ -33,7 +38,9 @@ function SimpleHeader({ title, onBack }) {
         <View style={styles.simpleHeaderBack} />
       )}
       <Text style={styles.simpleHeaderTitle}>{title}</Text>
-      <View style={styles.simpleHeaderBack} />
+      <View style={styles.simpleHeaderBack}>
+        {headerLogoUri ? <VisualPackAsset uri={headerLogoUri} style={{ width: 34, height: 26 }} /> : null}
+      </View>
     </View>
   );
 }
@@ -42,6 +49,7 @@ function AppContent() {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(null);
   const [themeMode, setThemeMode] = useState(null);
+  const [visualPack, setVisualPack] = useState(null);
   const [themeRevision, setThemeRevision] = useState(0);
   const [stack, setStack] = useState([{ name: 'Home', params: {} }]);
   const [r1Visible, setR1Visible] = useState(false);
@@ -50,12 +58,16 @@ function AppContent() {
     setDbReady(false);
     setDbError(null);
     setThemeMode(null);
+    setVisualPack(null);
     try {
       await getDb();
       const mode = await getAppThemeMode();
+      const pack = await getActiveVisualPack(mode);
       setRuntimeThemeMode(mode);
+      setRuntimeVisualPalette(pack?.colors);
       setThemeMode(mode);
-      const animationMs = mode === THEME_ANIMATED ? DOOM_ANIMATION_MS : CLASSIC_LOADING_ANIMATION_MS;
+      setVisualPack(pack);
+      const animationMs = getVisualPackStartupDuration(pack, mode);
       await new Promise((resolve) => setTimeout(resolve, animationMs));
       setDbReady(true);
     } catch (err) {
@@ -78,9 +90,11 @@ function AppContent() {
     setTimeout(() => { setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)); }, 0);
   }, []);
 
-  const handleThemeChanged = useCallback((mode) => {
+  const handleThemeChanged = useCallback((mode, pack) => {
     setRuntimeThemeMode(mode);
+    setRuntimeVisualPalette(pack?.colors);
     setThemeMode(mode);
+    setVisualPack(pack);
     setThemeRevision((v) => v + 1);
   }, []);
 
@@ -94,22 +108,22 @@ function AppContent() {
   }, [stack.length, goBack, r1Visible]);
 
   if (dbError) return <View style={styles.center}><Text style={styles.errorTitle}>Erreur de démarrage</Text><Text style={styles.errorText}>{String(dbError.message || dbError)}</Text><TouchableOpacity style={[styles.btnPrimary, { marginTop: 18 }]} onPress={initialiser}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity></View>;
-  if (!themeMode) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
-  if (!dbReady) return themeMode === THEME_ANIMATED ? <DoomLoadingScreen /> : <MetraLoadingScreen />;
+  if (!themeMode || !visualPack) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
+  if (!dbReady) return <VisualPackLoadingScreen pack={visualPack} themeMode={themeMode} />;
 
   const current = stack[stack.length - 1];
   const navigation = { navigate, goBack };
   const route = { params: current.params };
 
   return (
-    <View key={`theme-${themeRevision}`} style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      {current.name === 'Home' && <><SimpleHeader title="Visite Technique" /><HomeScreen navigation={navigation} route={route} onR1LongPress={() => setR1Visible(true)} /></>}
-      {current.name === 'ClientSites' && <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} /><ClientSitesScreen navigation={navigation} route={route} /></>}
-      {current.name === 'ClientPatrimoine' && <><SimpleHeader title="Synthèse patrimoine" onBack={goBack} /><ClientPatrimoineScreen navigation={navigation} route={route} /></>}
-      {current.name === 'SiteVisites' && <><SimpleHeader title={current.params?.nomSite || 'Visites'} onBack={goBack} /><SiteVisitesScreen navigation={navigation} route={route} /></>}
+    <View key={`theme-${themeRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: COLORS.bg }}>
+      {current.name === 'Home' && <><SimpleHeader title="Visite Technique" visualPack={visualPack} /><HomeScreen navigation={navigation} route={route} onR1LongPress={() => setR1Visible(true)} /></>}
+      {current.name === 'ClientSites' && <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} visualPack={visualPack} /><ClientSitesScreen navigation={navigation} route={route} /></>}
+      {current.name === 'ClientPatrimoine' && <><SimpleHeader title="Synthèse patrimoine" onBack={goBack} visualPack={visualPack} /><ClientPatrimoineScreen navigation={navigation} route={route} /></>}
+      {current.name === 'SiteVisites' && <><SimpleHeader title={current.params?.nomSite || 'Visites'} onBack={goBack} visualPack={visualPack} /><SiteVisitesScreen navigation={navigation} route={route} /></>}
       {current.name === 'Visite' && <VisiteScreen navigation={navigation} route={route} onBack={goBack} />}
       {current.name === 'Report' && <ReportScreen route={route} onBack={goBack} />}
-      {current.name === 'Parametres' && <><SimpleHeader title="Paramètres" onBack={goBack} /><ParametresWithThemeScreen themeMode={themeMode} onThemeChanged={handleThemeChanged} /></>}
+      {current.name === 'Parametres' && <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack} /><ParametresWithThemeScreen themeMode={themeMode} visualPack={visualPack} onThemeChanged={handleThemeChanged} /></>}
       <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
     </View>
   );
