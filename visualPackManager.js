@@ -69,6 +69,15 @@ export function validateVisualPackManifest(rawManifest) {
   if (manifest.startup.logo) cleanRelativePath(manifest.startup.logo);
   if (manifest.interface.headerLogo) cleanRelativePath(manifest.interface.headerLogo);
   if (manifest.interface.homeBackground) cleanRelativePath(manifest.interface.homeBackground);
+  if (manifest.startup.layers !== undefined && !Array.isArray(manifest.startup.layers)) {
+    throw new Error('startup.layers doit etre une liste.');
+  }
+  (manifest.startup.layers || []).forEach((layer, index) => {
+    if (!layer?.asset) throw new Error(`Asset manquant pour startup.layers[${index}].`);
+    cleanRelativePath(layer.asset);
+    if (layer.startMs !== undefined && !Number.isFinite(Number(layer.startMs))) throw new Error(`startMs invalide pour startup.layers[${index}].`);
+    if (layer.durationMs !== undefined && !Number.isFinite(Number(layer.durationMs))) throw new Error(`durationMs invalide pour startup.layers[${index}].`);
+  });
 
   const effect = manifest.startup.effect;
   if (effect?.type && !EFFECT_TYPES.has(effect.type)) {
@@ -170,7 +179,11 @@ export function resolveVisualPackAssetUri(pack, relativePath) {
 
 export function getVisualPackStartupDuration(pack, themeMode = THEME_CLASSIC) {
   const baseDuration = pack?.startup?.base === 'doom' || themeMode === THEME_ANIMATED ? 2600 : 2300;
-  return Math.max(baseDuration, Number(pack?.startup?.durationMs || 0));
+  const layerDuration = (Array.isArray(pack?.startup?.layers) ? pack.startup.layers : []).reduce((max, layer) => {
+    const end = Math.max(0, Number(layer?.startMs || 0)) + Math.max(0, Number(layer?.durationMs || 0));
+    return Math.max(max, end);
+  }, 0);
+  return Math.max(baseDuration, Number(pack?.startup?.durationMs || 0), layerDuration);
 }
 
 async function findImportedPackDirectory(tempRootUri) {
@@ -193,6 +206,7 @@ async function assertDeclaredAssetsExist(pack, directoryUri) {
     pack.startup?.logo,
     pack.interface?.headerLogo,
     pack.interface?.homeBackground,
+    ...(Array.isArray(pack.startup?.layers) ? pack.startup.layers.map((layer) => layer?.asset) : []),
   ].filter(Boolean);
   for (const relativePath of paths) {
     const clean = cleanRelativePath(relativePath);
