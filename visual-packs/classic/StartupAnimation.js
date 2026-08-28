@@ -1,30 +1,29 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import { appVersionLabel } from './appVersion.js';
+import { appVersionLabel } from '../../appVersion.js';
 
-const CYCLE_MS = 2300;
+export const CLASSIC_STARTUP_DURATION_MS = 2300;
 const ORANGE = '#D8552A';
 const CREAM = '#FBF0E1';
 
 const ASSETS = {
-  wingLeft: require('./assets/metra/wing-left-trim.png'),
-  wingRight: require('./assets/metra/wing-right-trim.png'),
-  head: require('./assets/metra/head-trim.png'),
-  body: require('./assets/metra/body-trim.png'),
+  wingLeft: require('../shared/assets/wing-left-trim.png'),
+  wingRight: require('../shared/assets/wing-right-trim.png'),
+  head: require('../shared/assets/head-trim.png'),
+  body: require('../shared/assets/body-trim.png'),
 };
 
 function layerStyle(base, animated) {
   return [styles.layer, base, animated];
 }
 
-/** Reproduction native de logo_loading_animation_v6.html. */
-export function MetraLoadingScreen() {
+export function ClassicStartupAnimation() {
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const animation = Animated.timing(progress, {
       toValue: 1,
-      duration: CYCLE_MS,
+      duration: CLASSIC_STARTUP_DURATION_MS,
       easing: Easing.bezier(0.2, 0.9, 0.25, 1),
       useNativeDriver: true,
     });

@@ -1,1 +1,0 @@
-Doom figure asset regenerated from the original animated SVG group e4CysntlHm012 with opacity forced to 1. The PNG at assets/metra/doom-figure.png is the runtime raster used by DoomLoadingScreen.js.

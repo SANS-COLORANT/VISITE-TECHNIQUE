@@ -1,19 +1,18 @@
 import React, { useEffect, useMemo, useRef } from 'react';
 import { Animated, Easing, StyleSheet, Text, View } from 'react-native';
-import { appVersionLabel } from './appVersion.js';
-import { DoomMaskVector } from './DoomMaskVector.js';
+import { appVersionLabel } from '../../appVersion.js';
+import { DoomMaskVector } from './vector/DoomMaskVector.js';
 
-export const DOOM_ANIMATION_MS = 2600;
-
+export const DOOM_STARTUP_DURATION_MS = 2600;
 const ORANGE = '#D8552A';
 const GREEN = '#106836';
 const CREAM = '#FBF0E1';
 
 const ASSETS = {
-  wingLeft: require('./assets/metra/wing-left-trim.png'),
-  wingRight: require('./assets/metra/wing-right-trim.png'),
-  head: require('./assets/metra/head-trim.png'),
-  body: require('./assets/metra/body-trim.png'),
+  wingLeft: require('../shared/assets/wing-left-trim.png'),
+  wingRight: require('../shared/assets/wing-right-trim.png'),
+  head: require('../shared/assets/head-trim.png'),
+  body: require('../shared/assets/body-trim.png'),
 };
 
 function TintedLayer({ source, baseStyle, animatedStyle, tintColor, opacityStyle }) {
@@ -26,13 +25,13 @@ function TintedLayer({ source, baseStyle, animatedStyle, tintColor, opacityStyle
   );
 }
 
-export function DoomLoadingScreen() {
+export function DoomStartupAnimation() {
   const progress = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     const animation = Animated.timing(progress, {
       toValue: 1,
-      duration: DOOM_ANIMATION_MS,
+      duration: DOOM_STARTUP_DURATION_MS,
       easing: Easing.linear,
       useNativeDriver: true,
     });
@@ -64,7 +63,7 @@ export function DoomLoadingScreen() {
   }, [progress]);
 
   return (
-    <View style={styles.screen} accessibilityLabel={`Chargement de METRA ${appVersionLabel()} - theme anime`}>
+    <View style={styles.screen} accessibilityLabel={`Chargement de METRA ${appVersionLabel()} - pack Doom`}>
       <View style={styles.canvas}>
         <TintedLayer source={ASSETS.wingLeft} baseStyle={styles.wingLeft} animatedStyle={a.wingLeft} tintColor={ORANGE} opacityStyle={a.orangeOpacity} />
         <TintedLayer source={ASSETS.wingRight} baseStyle={styles.wingRight} animatedStyle={a.wingRight} tintColor={ORANGE} opacityStyle={a.orangeOpacity} />
