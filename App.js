@@ -9,13 +9,13 @@ import { HomeScreen } from './HomeScreen.js';
 import { ClientSitesScreen } from './ClientSitesScreen.js';
 import { ClientPatrimoineScreen } from './ClientPatrimoineScreen.js';
 import { VisiteScreen } from './VisiteScreen.js';
-import { ParametresVisualPacksScreen } from './ParametresVisualPacksScreen.js';
 import { SiteVisitesScreen } from './SiteVisitesScreen.js';
 import { ReportScreen } from './ReportScreen.js';
 import { AppErrorBoundary } from './AppErrorBoundary.js';
 import { R1EasterEgg } from './R1EasterEgg.js';
 import { VisualPackLoadingScreen } from './visual-packs/runtime/VisualPackLoadingScreen.js';
 import { VisualPackAsset } from './visual-packs/runtime/VisualPackAsset.js';
+import { VisualPacksSettingsScreen } from './visual-packs/runtime/VisualPacksSettingsScreen.js';
 import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 import {
   getActiveVisualPack,
@@ -115,7 +115,7 @@ function AppContent() {
       {current.name === 'SiteVisites' && <><SimpleHeader title={current.params?.nomSite || 'Visites'} onBack={goBack} visualPack={visualPack} /><SiteVisitesScreen navigation={navigation} route={route} /></>}
       {current.name === 'Visite' && <VisiteScreen navigation={navigation} route={route} onBack={goBack} />}
       {current.name === 'Report' && <ReportScreen route={route} onBack={goBack} />}
-      {current.name === 'Parametres' && <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack} /><ParametresVisualPacksScreen visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged} /></>}
+      {current.name === 'Parametres' && <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack} /><VisualPacksSettingsScreen visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged} /></>}
       <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
     </View>
   );
