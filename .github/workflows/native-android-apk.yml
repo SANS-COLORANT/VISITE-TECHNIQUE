@@ -14,6 +14,7 @@ on:
       - eas.json
       - .github/workflows/native-android-apk.yml
       - .github/scripts/patch_pdf_cover_fallback_build.py
+      - .github/scripts/patch_preallumage_pdf_cover_build.py
       - .github/scripts/patch_excel_import_date.py
       - .github/scripts/patch_report_mode_defaults.py
       - .github/scripts/patch_word_cover_layout.py
@@ -81,6 +82,14 @@ jobs:
 
       - name: Generate exact PDF assets from untouched files
         run: python .github/scripts/patch_pdf_cover_fallback_build.py
+
+      - name: Apply exact Pre-allumage PDF cover
+        run: |
+          python .github/scripts/patch_preallumage_pdf_cover_build.py
+          node --check preAllumageReportExporter.js
+          grep -q "pdf.embedPng(EXACT_COVER)" preAllumageReportExporter.js
+          grep -q "pdf.embedPng(EXACT_LOGO)" preAllumageReportExporter.js
+          grep -q "pdf.embedPng(EXACT_FOOTER_CERT)" preAllumageReportExporter.js
 
       - name: Apply Word-only stable cover
         run: |
