@@ -9,6 +9,7 @@ import { PresetControleGenerique } from './PresetControleGenerique.js';
 import { PreAllumagePlanCard } from './PreAllumagePlanCard.js';
 import { styles } from './styles.js';
 import { enregistrerAliasPreAllumage, fieldAliasKey, libelleChamp, listerAliasesPreAllumage, sectionAliasDescriptor } from './preAllumageAliases.js';
+import { PreAllumageModularPanel } from './PreAllumageModularPanel.js';
 
 const visiteDataCache = new Map();
 
@@ -60,7 +61,12 @@ export function mettreAJourCacheControle(visiteId, key, patch) {
   visiteDataCache.set(visiteId, { data: { ...courant.data, controlesMap: { ...courant.data.controlesMap, [key]: { ...ancien, ...patch } } }, promise: courant.promise || null });
 }
 
-export function TrameGenericPanel({ visiteId, panelId, sections, onSaved }) {
+export function TrameGenericPanel(props) {
+  if (props.panelId.startsWith('p-pa-')) return <PreAllumageModularPanel {...props} />;
+  return <TrameGenericStaticPanel {...props} />;
+}
+
+function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved }) {
   const cacheInitial = visiteDataCache.get(visiteId)?.data;
   const [champsMap, setChampsMap] = useState(cacheInitial?.champsMap || {});
   const [controlesMap, setControlesMap] = useState(cacheInitial?.controlesMap || {});
