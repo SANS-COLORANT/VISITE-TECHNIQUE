@@ -7,6 +7,7 @@ import { getDb, listerMateriel } from './db.js';
 import { obtenirTrame, DEFAULT_TRAME_ID, normaliserSectionCode } from './trameRegistry.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
 import { listerAliasesPreAllumage } from './preAllumageAliases.js';
+import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
 
 const MIME_PDF = 'application/pdf';
 const MIME_WORD = 'application/msword';
@@ -136,6 +137,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
   if (!visite) throw new Error('Visite introuvable');
 
   const trame = obtenirTrame(visite.trame_id || DEFAULT_TRAME_ID);
+  const modelePreAllumage = trame.id === 'pre_allumage' ? await chargerPreAllumageModulaire(visiteId) : null;
   const [champs, controles, reseaux, compteurs, remarques, photos, materiel, note, aliases] = await Promise.all([
     db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id=?`, [visiteId]),
     db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id=?`, [visiteId]),
@@ -155,6 +157,34 @@ export async function chargerDonneesVisiteRapport(visiteId) {
   for (const panelId of trame.ui?.tabOrder || []) {
     if (panelId === 'SEP' || ['p-equip', 'p-remarques', 'p-photos'].includes(panelId)) continue;
     const groups = [];
+
+    if (modelePreAllumage && panelId.startsWith('p-pa-')) {
+      for (const rubrique of modelePreAllumage.rubriques.filter((r) => r.panel_id === panelId)) {
+        groups.push({
+          title: rubrique.nom,
+          sectionCode: rubrique.section_code,
+          localId: rubrique.local_id,
+          rows: rubrique.champs.map((c) => {
+            const controle = ctrlMap.get(`${rubrique.section_code}||${c.cle_stockage}`);
+            return {
+              label: c.libelle,
+              storageKey: c.cle_stockage,
+              type: c.type_code,
+              avis: c.type_code === 'controle' ? (controle?.avis || '') : '',
+              comment: c.type_code === 'controle' ? (controle?.commentaire || '') : (champMap.get(`${rubrique.section_code}||${c.cle_stockage}`) || ''),
+            };
+          }),
+        });
+      }
+      sections.push({
+        panelId,
+        title: titreSectionRapport(panelId, trame.ui.labels?.[panelId]),
+        banner: false,
+        breakBefore: false,
+        groups,
+      });
+      continue;
+    }
 
     for (const [section, fields] of Object.entries(trame.ui?.panels?.[panelId] || {})) {
       if (panelId === 'p-infos' && section === 'Général') continue;
