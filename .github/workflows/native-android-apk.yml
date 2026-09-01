@@ -21,6 +21,7 @@ on:
       - .github/scripts/patch_word_cover_layout.py
       - .github/scripts/patch_word_docx_build.py
       - .github/scripts/patch_hydraulic_feature_build.py
+      - .github/scripts/patch_lab_health_build.py
 
 concurrency:
   group: native-android-apk-${{ github.ref }}
@@ -121,11 +122,24 @@ jobs:
           grep -q "datas: rendered.preparedDatas" reportEditorExporter.js
           grep -q "Rapport Pré-allumage" preAllumageReportExporter.js
 
-      - name: Apply hydraulic feature gate
+      - name: Apply hydraulic LAB feature gate
         run: |
           python .github/scripts/patch_hydraulic_feature_build.py
-          grep -q "HydraulicFeatureSettingRow" App.js
+          grep -q "subscribeLabFeatureChanges" App.js
           grep -q "hydraulicVisible ?" App.js
+          ! grep -q "HydraulicFeatureSettingRow" App.js
+
+      - name: Apply METRA LAB health dashboard
+        run: |
+          python .github/scripts/patch_lab_health_build.py
+          node --check siteHealth.js
+          node --check reportBuilder.js
+          node --check wordDocxExporter.js
+          grep -q "LAB METRA" ParametresScreen.js
+          grep -q "SiteHealthPanel" SiteVisitesScreen.js
+          grep -q "Santé du patrimoine (LAB)" ReportScreen.js
+          grep -q "construireSanteMultiHtml" reportBuilder.js
+          grep -q "multiHealthXml" wordDocxExporter.js
 
       - name: Validate exact PDF cover patch
         run: |
