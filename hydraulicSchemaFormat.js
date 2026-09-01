@@ -14,12 +14,19 @@ function ensureObject(value, label) {
 
 function normalizeEndpoint(endpoint, nodeId, portId) {
   if (endpoint && typeof endpoint === 'object') {
+    const free = endpoint.free === true || (!endpoint.equipmentId && !endpoint.nodeId && Number.isFinite(Number(endpoint.x)) && Number.isFinite(Number(endpoint.y)));
+    if (free) return { free: true, x: asNumber(endpoint.x, 0), y: asNumber(endpoint.y, 0) };
     return {
       equipmentId: asText(endpoint.equipmentId || endpoint.nodeId || endpoint.id),
       portId: asText(endpoint.portId || endpoint.port || endpoint.connector),
     };
   }
   return { equipmentId: asText(nodeId), portId: asText(portId) };
+}
+
+function endpointValid(endpoint) {
+  if (endpoint?.free) return Number.isFinite(Number(endpoint.x)) && Number.isFinite(Number(endpoint.y));
+  return Boolean(endpoint?.equipmentId && endpoint?.portId);
 }
 
 function normalizeEquipment(raw, index) {
@@ -39,7 +46,9 @@ function normalizeEquipment(raw, index) {
     status: asText(raw?.status) || 'ok',
     valvePosition: asNumber(raw?.valvePosition, 50),
     equipmentId: raw?.equipmentId ?? raw?.metraEquipmentId ?? null,
+    materialId: raw?.materialId ?? null,
     networkId: raw?.networkId ?? null,
+    source: raw?.source || null,
     metadata: raw?.metadata && typeof raw.metadata === 'object' ? raw.metadata : {},
   };
 }
@@ -47,12 +56,14 @@ function normalizeEquipment(raw, index) {
 function normalizeConnection(raw, index) {
   const from = normalizeEndpoint(raw?.from, raw?.fromNodeId, raw?.fromPort);
   const to = normalizeEndpoint(raw?.to, raw?.toNodeId, raw?.toPort);
-  if (!from.equipmentId || !to.equipmentId) throw new Error(`Liaison ${index + 1} : équipement de départ ou d'arrivée manquant.`);
-  if (!from.portId || !to.portId) throw new Error(`Liaison ${index + 1} : borne de départ ou d'arrivée manquante.`);
+  if (!endpointValid(from) || !endpointValid(to)) throw new Error(`Liaison ${index + 1} : extrémité de départ ou d'arrivée invalide.`);
   const mediumRaw = asText(raw?.medium || raw?.flowType || raw?.fluidType).toLowerCase();
   const medium = mediumRaw === 'cold' || mediumRaw === 'retour' || mediumRaw === 'return' ? 'cold'
     : mediumRaw === 'air' || mediumRaw === 'vmc' ? 'air'
       : 'hot';
+  const via = raw?.via && typeof raw.via === 'object'
+    ? { x: asNumber(raw.via.x, 0), y: asNumber(raw.via.y, 0) }
+    : undefined;
   return {
     ...raw,
     id: asText(raw?.id) || `co_import_${index + 1}`,
@@ -60,6 +71,7 @@ function normalizeConnection(raw, index) {
     to,
     medium,
     direction: Number(raw?.direction) === -1 ? -1 : 1,
+    ...(via ? { via } : {}),
     networkId: raw?.networkId ?? null,
     metadata: raw?.metadata && typeof raw.metadata === 'object' ? raw.metadata : {},
   };
@@ -82,8 +94,8 @@ export function normalizeHydraulicSchema(input) {
 
   const connections = rawConnections.map(normalizeConnection);
   connections.forEach((connection, index) => {
-    if (!idSet.has(connection.from.equipmentId) || !idSet.has(connection.to.equipmentId)) {
-      throw new Error(`Liaison ${index + 1} : elle référence un équipement absent du fichier.`);
+    for (const endpoint of [connection.from, connection.to]) {
+      if (!endpoint.free && !idSet.has(endpoint.equipmentId)) throw new Error(`Liaison ${index + 1} : elle référence un équipement absent du fichier.`);
     }
   });
 
@@ -106,6 +118,11 @@ function uniqueId(base, used) {
   return next;
 }
 
+function shiftedEndpoint(endpoint, idMap) {
+  if (endpoint?.free) return { ...endpoint, x: asNumber(endpoint.x, 0) + 32, y: asNumber(endpoint.y, 0) + 32 };
+  return { ...endpoint, equipmentId: idMap.get(endpoint.equipmentId) || endpoint.equipmentId };
+}
+
 export function mergeHydraulicSchemas(currentInput, incomingInput) {
   const current = normalizeHydraulicSchema(currentInput);
   const incoming = normalizeHydraulicSchema(incomingInput);
@@ -121,8 +138,9 @@ export function mergeHydraulicSchemas(currentInput, incomingInput) {
   const importedConnections = incoming.connections.map((connection) => ({
     ...connection,
     id: uniqueId(connection.id, usedConnections),
-    from: { ...connection.from, equipmentId: idMap.get(connection.from.equipmentId) || connection.from.equipmentId },
-    to: { ...connection.to, equipmentId: idMap.get(connection.to.equipmentId) || connection.to.equipmentId },
+    from: shiftedEndpoint(connection.from, idMap),
+    to: shiftedEndpoint(connection.to, idMap),
+    ...(connection.via ? { via: { x: asNumber(connection.via.x, 0) + 32, y: asNumber(connection.via.y, 0) + 32 } } : {}),
   }));
 
   const networksById = new Map();
@@ -157,6 +175,7 @@ export function summarizeHydraulicSchema(schemaInput) {
   return {
     equipment: schema.equipment.length,
     connections: schema.connections.length,
+    freeEndpoints: schema.connections.reduce((count, connection) => count + Number(Boolean(connection.from?.free)) + Number(Boolean(connection.to?.free)), 0),
     networks: schema.networks.length,
     annotations: schema.annotations.length,
   };
