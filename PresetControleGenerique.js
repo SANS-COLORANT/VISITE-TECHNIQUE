@@ -29,8 +29,9 @@ function libelleEtat(avis) {
   return null;
 }
 
-export const PresetControleGenerique = React.memo(function PresetControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, onEtatChange }) {
+export const PresetControleGenerique = React.memo(function PresetControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, onEtatChange, displayLabel }) {
   const controleKey = `${sectionCode}||${field.cle}`;
+  const label = displayLabel || field.cle;
   const trameLabel = field.trameLabel || (field.preAllumage ? 'Pré-allumage' : 'Visite');
   const [avis, setAvis] = useState(etatInitial?.avis || null);
   const [commentaire, setCommentaire] = useState(etatInitial?.commentaire || '');
@@ -73,11 +74,11 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
     if (val === 'N.S') {
       const prescription = {
         poste: opt?.poste || field.poste || trameLabel,
-        prestation: opt?.reserve || texte || `Anomalie constatée sur ${field.cle} — à préciser.`,
+        prestation: opt?.reserve || texte || `Anomalie constatée sur ${label} — à préciser.`,
         delai: opt?.delai ?? null,
         estimatif: opt?.estimatif ?? null,
       };
-      const origine = `${trameLabel} — ${field.cle}${opt?.label ? ` — ${opt.label}` : ''}`;
+      const origine = `${trameLabel} — ${label}${opt?.label ? ` — ${opt.label}` : ''}`;
       const id = await upsertRemarquePrescription(visiteId, controleKey, prescription, origine);
       setRemarque({ id, visite_id: visiteId, controle_key: controleKey, origine, ...prescription });
     } else {
@@ -85,7 +86,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
       setRemarque(null);
     }
     notifier({ avis: val, commentaire: texte });
-  }, [visiteId, sectionCode, field, trameLabel, controleKey, notifier]);
+  }, [visiteId, sectionCode, field, label, trameLabel, controleKey, notifier]);
 
   const choisirAvis = useCallback(async (val) => {
     if (val === avis) return;
@@ -99,8 +100,8 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
     setCommentaire('');
     await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: '' });
     if (val === 'N.S') {
-      const prescription = { poste: field.poste || trameLabel, prestation: `Anomalie constatée sur ${field.cle} — à préciser.`, delai: null, estimatif: null };
-      const origine = `${trameLabel} — ${field.cle} — À préciser`;
+      const prescription = { poste: field.poste || trameLabel, prestation: `Anomalie constatée sur ${label} — à préciser.`, delai: null, estimatif: null };
+      const origine = `${trameLabel} — ${label} — À préciser`;
       const id = await upsertRemarquePrescription(visiteId, controleKey, prescription, origine);
       setRemarque({ id, visite_id: visiteId, controle_key: controleKey, origine, ...prescription });
     } else {
@@ -108,7 +109,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
       setRemarque(null);
     }
     notifier({ avis: val, commentaire: '' });
-  }, [avis, presets, appliquerPreset, visiteId, sectionCode, field, trameLabel, controleKey, notifier]);
+  }, [avis, presets, appliquerPreset, visiteId, sectionCode, field, label, trameLabel, controleKey, notifier]);
 
   const choisirPreset = useCallback(async (opt, idx) => appliquerPreset(avis, opt, idx), [avis, appliquerPreset]);
 
@@ -116,8 +117,8 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
     const texte = String(commentaire || '').trim();
     await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis, commentaire: texte });
     if (avis === 'N.S') {
-      const prescription = { poste: remarque?.poste || field.poste || trameLabel, prestation: texte || `Anomalie constatée sur ${field.cle} — à préciser.`, delai: remarque?.delai ?? null, estimatif: remarque?.estimatif ?? null };
-      const origine = `${trameLabel} — ${field.cle} — Autre`;
+      const prescription = { poste: remarque?.poste || field.poste || trameLabel, prestation: texte || `Anomalie constatée sur ${label} — à préciser.`, delai: remarque?.delai ?? null, estimatif: remarque?.estimatif ?? null };
+      const origine = `${trameLabel} — ${label} — Autre`;
       const id = await upsertRemarquePrescription(visiteId, controleKey, prescription, origine);
       setRemarque({ ...(remarque || {}), id, visite_id: visiteId, controle_key: controleKey, origine, ...prescription });
     } else {
@@ -125,11 +126,11 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
       setRemarque(null);
     }
     notifier({ avis, commentaire: texte });
-  }, [visiteId, sectionCode, field, trameLabel, controleKey, avis, commentaire, remarque, notifier]);
+  }, [visiteId, sectionCode, field, label, trameLabel, controleKey, avis, commentaire, remarque, notifier]);
 
   return <View style={styles.controlRow}>
     <View style={styles.controlTop}>
-      <Text style={styles.controlLabel}>{field.cle}</Text>
+      <Text style={styles.controlLabel}>{label}</Text>
       <View style={styles.avisGroup}>
         {AVIS_OPTIONS.map((opt) => {
           const c = avisChipColor(opt); const selected = avis === opt;
@@ -153,7 +154,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
       </>}
       <TextInput style={[styles.input, { marginTop: 8, minHeight: 64, textAlignVertical: 'top', backgroundColor: '#fff' }]} multiline value={commentaire} onChangeText={(v) => { setCommentaire(v); setPresetChoisi(null); }} onBlur={() => sauverLibre().catch(console.warn)} placeholder="Commentaire technique…" />
       {avis === 'N.S' && remarque ? <View style={styles.prestationResult}><Text style={styles.criterePanelLabel}>Réserve de cette visite</Text><Text style={styles.prestationText}>{remarque.prestation}</Text></View> : null}
-      {avis === 'N.S' ? <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={field.cle} style={styles.photoRequiredBox} /> : null}
+      {avis === 'N.S' ? <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={label} style={styles.photoRequiredBox} /> : null}
     </View>}
   </View>;
 });
