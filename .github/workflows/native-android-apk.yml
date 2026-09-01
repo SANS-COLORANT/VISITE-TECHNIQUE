@@ -21,6 +21,7 @@ on:
       - .github/scripts/patch_word_cover_layout.py
       - .github/scripts/patch_word_docx_build.py
       - .github/scripts/patch_word_base64_android_build.py
+      - .github/scripts/patch_report_preview_toolbar_build.py
       - .github/scripts/patch_hydraulic_feature_build.py
       - .github/scripts/patch_lab_health_build.py
 
@@ -129,6 +130,15 @@ jobs:
           node --check wordDocxExporter.js
           grep -q "function writeBase64Async" wordDocxExporter.js
           grep -q "fichier DOCX final" wordDocxExporter.js
+
+      - name: Apply improved report preview toolbar
+        run: |
+          python .github/scripts/patch_report_preview_toolbar_build.py
+          node --check ReportLayoutEditor.js
+          grep -q "Prévisualisation du rapport" ReportLayoutEditor.js
+          grep -q "Prévisualisation A4" ReportLayoutEditor.js
+          grep -q "maxWidth: 520" ReportLayoutEditor.js
+          grep -q "minWidth: 205" ReportLayoutEditor.js
 
       - name: Apply hydraulic LAB feature gate
         run: |
