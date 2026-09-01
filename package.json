@@ -18,7 +18,7 @@
   "dependencies": {
     "expo": "~51.0.0",
     "expo-sqlite": "~14.0.0",
-    "expo-image-picker": "~15.0.7",
+    "expo-image-picker": "~15.1.0",
     "expo-image-manipulator": "~12.0.5",
     "expo-print": "~13.0.1",
     "expo-file-system": "~17.0.0",
