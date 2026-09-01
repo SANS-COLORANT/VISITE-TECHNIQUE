@@ -7,6 +7,7 @@ import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { recalculerProgressionVisite } from './visitProgressDb.js';
 import { exporterEtPartager } from './excelExport.js';
+import { exporterRapportPreAllumage } from './preAllumageReportExporter.js';
 import { OptimizedRegulationPanel, prechargerRegulation, invaliderCacheRegulation } from './OptimizedRegulationPanel.js';
 import { OptimizedRelevesPanel } from './OptimizedRelevesPanel.js';
 import { OptimizedPhotoPanel } from './OptimizedPhotoPanel.js';
@@ -211,6 +212,7 @@ function VisiteScreen({ route, onBack }) {
   };
 
   const [exporting, setExporting] = useState(false);
+  const [reportExporting, setReportExporting] = useState(false);
   const exporter = async () => {
     if (exporting) return;
     setExporting(true);
@@ -224,6 +226,28 @@ function VisiteScreen({ route, onBack }) {
     } catch (e) {
       Alert.alert('Erreur export', String(e.message || e));
     } finally { setExporting(false); }
+  };
+
+  const genererRapportPreAllumage = async (format) => {
+    if (reportExporting) return;
+    setReportExporting(true);
+    try {
+      Keyboard.dismiss();
+      await attendre(120);
+      const resultat = await exporterRapportPreAllumage(visiteId, format);
+      if (!resultat?.annule) Alert.alert('Rapport Pré-allumage généré', `${resultat.nom} a été enregistré dans le dossier choisi.`);
+    } catch (e) {
+      Alert.alert('Génération impossible', String(e?.message || e));
+    } finally { setReportExporting(false); }
+  };
+
+  const choisirFormatRapportPreAllumage = () => {
+    if (reportExporting) return;
+    Alert.alert('Rapport Pré-allumage', 'Choisis le format à générer.', [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Word', onPress: () => genererRapportPreAllumage('word') },
+      { text: 'PDF', onPress: () => genererRapportPreAllumage('pdf') },
+    ]);
   };
 
   const enregistrerAnomalie = async () => {
@@ -267,7 +291,8 @@ function VisiteScreen({ route, onBack }) {
             <Text style={styles.cardSub}>{visite.nom_client} · {visite.date_visite} · {trame.nom} · {visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'}</Text>
           </View>
           <TouchableOpacity style={styles.noteBtn} onPress={ouvrirNote}><Text style={styles.noteBtnText}>Note libre</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.exportBtn} onPress={exporter} disabled={exporting}><Text style={styles.exportBtnText}>{exporting ? '...' : `Exporter ${trame.nom}`}</Text></TouchableOpacity>
+          {trame.id === 'pre_allumage' ? <TouchableOpacity style={styles.noteBtn} onPress={choisirFormatRapportPreAllumage} disabled={reportExporting}><Text style={styles.noteBtnText}>{reportExporting ? 'Rapport…' : 'PDF / Word'}</Text></TouchableOpacity> : null}
+          <TouchableOpacity style={styles.exportBtn} onPress={exporter} disabled={exporting}><Text style={styles.exportBtnText}>{exporting ? '...' : `Excel ${trame.nom}`}</Text></TouchableOpacity>
         </View>
         <View style={styles.progressRow}><View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${visite.progression_pct}%` }]} /></View><Text style={styles.progressPct}>{visite.progression_pct}%</Text></View>
         <TouchableOpacity style={styles.anomalyBtn} onPress={() => setAnomalieVisible(true)}><Text style={styles.anomalyBtnText}>⚠ Ajouter une anomalie, une remarque ou une réserve</Text></TouchableOpacity>
