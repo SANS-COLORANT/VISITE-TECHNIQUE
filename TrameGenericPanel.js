@@ -6,6 +6,7 @@ import { DurableChampGenerique } from './DurableChampGenerique.js';
 import { PersistentControleGenerique } from './PersistentControleGenerique.js';
 import { VmcControleGenerique } from './VmcControleGenerique.js';
 import { PresetControleGenerique } from './PresetControleGenerique.js';
+import { PreAllumagePlanCard } from './PreAllumagePlanCard.js';
 import { styles } from './styles.js';
 
 const visiteDataCache = new Map();
@@ -79,6 +80,7 @@ export function TrameGenericPanel({ visiteId, panelId, sections, onSaved }) {
   return <SectionList
     sections={listeSections}
     keyExtractor={(item) => item.key}
+    ListHeaderComponent={panelId === 'p-pa-batiments' ? <PreAllumagePlanCard visiteId={visiteId} onSaved={onSaved} /> : null}
     renderSectionHeader={({ section }) => <Text style={styles.sectionTitle}>{section.title}</Text>}
     renderItem={({ item }) => <View style={styles.formCard}>
       {item.field.type === 'champ' ? <DurableChampGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} valeurInitiale={champsMap[item.key]} onSaved={(valeur) => {
