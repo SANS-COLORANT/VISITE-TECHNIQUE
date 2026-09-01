@@ -4,11 +4,11 @@ p = Path('App.js')
 s = p.read_text(encoding='utf-8')
 
 workspace_import = "import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';\n"
-extra_imports = "import { HydraulicFeatureSettingRow } from './HydraulicFeatureSettingRow.js';\nimport { getHydraulicSchemaVisible, setHydraulicSchemaVisible } from './featureSettings.js';\n"
-if extra_imports not in s:
+settings_import = "import { getHydraulicSchemaVisible, subscribeLabFeatureChanges } from './featureSettings.js';\n"
+if settings_import not in s:
     if workspace_import not in s:
         raise SystemExit('Hydraulic workspace import marker not found')
-    s = s.replace(workspace_import, workspace_import + extra_imports, 1)
+    s = s.replace(workspace_import, workspace_import + settings_import, 1)
 
 state_marker = "  const [r1Visible, setR1Visible] = useState(false);\n"
 state_line = "  const [hydraulicVisible, setHydraulicVisible] = useState(false);\n"
@@ -24,23 +24,21 @@ if init_old in s:
 elif "getHydraulicSchemaVisible()" not in s:
     raise SystemExit('App initialization marker not found')
 
-callback_marker = """  const handleVisualPackChanged = useCallback((pack) => {
+visual_callback = """  const handleVisualPackChanged = useCallback((pack) => {
     setRuntimeVisualPalette(pack?.colors);
     setVisualPack(pack);
     setVisualRevision((value) => value + 1);
   }, []);
 """
-callback = """
-  const handleHydraulicVisibilityChanged = useCallback(async (enabled) => {
-    setHydraulicVisible(enabled);
-    try { await setHydraulicSchemaVisible(enabled); }
-    catch (error) { console.warn('Paramètre schéma technique non enregistré', error); }
-  }, []);
+subscription = """
+  useEffect(() => subscribeLabFeatureChanges((key, enabled) => {
+    if (key === 'hydraulic_schema') setHydraulicVisible(enabled);
+  }), []);
 """
-if callback not in s:
-    if callback_marker not in s:
+if subscription not in s:
+    if visual_callback not in s:
         raise SystemExit('Visual callback marker not found')
-    s = s.replace(callback_marker, callback_marker + callback, 1)
+    s = s.replace(visual_callback, visual_callback + subscription, 1)
 
 visit_old = """      {current.name === 'Visite' && <><VisiteScreen navigation={navigation} route={route} onBack={goBack} /><TouchableOpacity onPress={() => navigate('HydraulicSchema', { visiteId: current.params?.visiteId })} style={{ position: 'absolute', right: 18, bottom: 20, minHeight: 48, paddingHorizontal: 17, borderRadius: 24, backgroundColor: COLORS.orange, borderWidth: 2, borderColor: COLORS.white, alignItems: 'center', justifyContent: 'center', elevation: 8, zIndex: 200 }}><Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 12.5 }}>⌁ Schéma technique</Text></TouchableOpacity></>}
 """
@@ -51,14 +49,10 @@ if visit_old in s:
 elif "hydraulicVisible ? <TouchableOpacity" not in s:
     raise SystemExit('Visit hydraulic button marker not found')
 
-params_old = """      {current.name === 'Parametres' && <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack} /><VisualPacksSettingsScreen visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged} /></>}
-"""
-params_new = """      {current.name === 'Parametres' && <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack} /><HydraulicFeatureSettingRow enabled={hydraulicVisible} onChange={handleHydraulicVisibilityChanged} /><VisualPacksSettingsScreen visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged} /></>}
-"""
-if params_old in s:
-    s = s.replace(params_old, params_new, 1)
-elif "<HydraulicFeatureSettingRow" not in s:
-    raise SystemExit('Parameters screen marker not found')
+# Remove the old standalone Parameters row when applying over an older patched source.
+s = s.replace("import { HydraulicFeatureSettingRow } from './HydraulicFeatureSettingRow.js';\n", '')
+s = s.replace("import { getHydraulicSchemaVisible, setHydraulicSchemaVisible } from './featureSettings.js';\n", '')
+s = s.replace("<HydraulicFeatureSettingRow enabled={hydraulicVisible} onChange={handleHydraulicVisibilityChanged} />", '')
 
 p.write_text(s, encoding='utf-8')
-print('Hydraulic schema is hidden by default and can be enabled from Parameters.')
+print('Hydraulic schema is controlled exclusively from METRA LAB.')
