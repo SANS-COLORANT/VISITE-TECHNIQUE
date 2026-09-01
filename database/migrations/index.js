@@ -16,24 +16,11 @@ import { migration015 } from './015_visit_runtime_indexes.js';
 import { migration016 } from './016_visit_template_id.js';
 import { migration017 } from './017_patrimoine_history.js';
 import { migration018 } from './018_remark_element_labels.js';
+import { migration019 } from './019_equipment_trame_usage.js';
 
 export const MIGRATIONS = Object.freeze([
-  migration001,
-  migration002,
-  migration003,
-  migration004,
-  migration005,
-  migration006,
-  migration007,
-  migration008,
-  migration009,
-  migration010,
-  migration011,
-  migration012,
-  migration013,
-  migration014,
-  migration015,
-  migration016,
-  migration017,
-  migration018,
+  migration001, migration002, migration003, migration004, migration005,
+  migration006, migration007, migration008, migration009, migration010,
+  migration011, migration012, migration013, migration014, migration015,
+  migration016, migration017, migration018, migration019,
 ]);
