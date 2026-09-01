@@ -3,13 +3,6 @@ import { FlatList, Image, Text, TextInput, TouchableOpacity, View } from 'react-
 import { COLORS, styles } from './styles.js';
 const DEFAULT_COVER = require('./assets/report/cover-building.png');
 
-const SIZE_LABELS = {
-  small: 'Petit',
-  medium: 'Moyen',
-  large: 'Grand',
-  full: 'Pleine largeur',
-};
-const CAPTION_LABELS = { small: 'Petit', normal: 'Normal', large: 'Grand' };
 const TEXT_LABELS = { compact: 'Petit', normal: 'Normal', large: 'Grand' };
 
 function Chip({ label, active, onPress }) {
@@ -154,6 +147,7 @@ function SectionPage({ item, layout, onPatchSection, onMoveSection }) {
   const ov = layout?.sections?.[key] || {};
   const visible = ov.visible !== false;
   const title = ov.title ?? s.title ?? '';
+  const showBanner = s.banner || Boolean(ov.title);
   const titleSize = ov.titleSize || 'normal';
   const font = titleSize === 'small' ? 11 : titleSize === 'large' ? 17 : 14;
   const bodyScale = layout?.textScale || 'normal';
@@ -161,7 +155,7 @@ function SectionPage({ item, layout, onPatchSection, onMoveSection }) {
   const previewRows = (s.groups || []).flatMap((g) => (g.rows || []).slice(0, 3).map((r) => ({ group: g.title, ...r }))).slice(0, 12);
   return <>
     <Page muted={!visible}>
-      {s.banner || title ? <View style={{ backgroundColor: COLORS.orange, paddingVertical: 8, paddingHorizontal: 8, marginBottom: 12 }}><Text style={{ color: '#fff', textAlign: 'center', fontWeight: '900', fontSize: font }}>{title || s.panelId}</Text></View> : null}
+      {showBanner ? <View style={{ backgroundColor: COLORS.orange, paddingVertical: 8, paddingHorizontal: 8, marginBottom: 12 }}><Text style={{ color: '#fff', textAlign: 'center', fontWeight: '900', fontSize: font }}>{title || s.panelId}</Text></View> : null}
       {previewRows.length ? previewRows.map((r, i) => <View key={`${r.group}-${r.label}-${i}`} style={{ flexDirection: 'row', borderWidth: 0.5, borderColor: '#777', minHeight: 24 }}>
         <Text style={{ width: '36%', padding: 4, backgroundColor: '#F8CBAD', fontSize: rowFont, fontWeight: '700' }}>{r.label}</Text>
         <Text style={{ width: '12%', padding: 4, textAlign: 'center', fontSize: rowFont, color: String(r.avis).toUpperCase().includes('N.S') ? '#B42318' : '#087A2E' }}>{r.avis || ''}</Text>
@@ -169,7 +163,7 @@ function SectionPage({ item, layout, onPatchSection, onMoveSection }) {
       </View>) : <Text style={{ color: COLORS.inkSoft, textAlign: 'center', marginTop: 30 }}>Section sans donnée visible dans l’aperçu.</Text>}
       {!visible ? <View style={{ position: 'absolute', left: 20, right: 20, top: '45%', padding: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.line }}><Text style={{ textAlign: 'center', fontWeight: '900' }}>SECTION MASQUÉE DU RAPPORT</Text></View> : null}
     </Page>
-    <View style={[styles.card, { marginBottom: 20, maxWidth: 720, alignSelf: 'center', width: '100%' }]}>
+    <View style={[styles.card, { marginBottom: 20, maxWidth: 720, alignSelf: 'center', width: '100%', flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start' }]}>
       <Text style={styles.fieldLabel}>Titre dans le rapport</Text>
       <TextInput style={styles.input} value={title} onChangeText={(v) => onPatchSection(d.visite.id, s.panelId, { title: v })} placeholder={s.title || 'Titre de section'} />
       <Text style={[styles.fieldLabel, { marginTop: 10 }]}>Taille du titre</Text>
@@ -273,7 +267,7 @@ export function ReportLayoutEditor({
     ListHeaderComponent={<View>
       <Text style={styles.sectionTitle}>Aperçu PDF dynamique</Text>
       <Text style={styles.importHint}>L’aperçu est volontairement léger : il simule le rendu A4 sans régénérer le PDF à chaque changement. Le PDF final est calculé uniquement à la fin.</Text>
-      <View style={[styles.card, { marginTop: 12 }]}>
+      <View style={[styles.card, { marginTop: 12, flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start' }]}>
         <Text style={styles.cardTitle}>Contrôle avant génération</Text>
         <Text style={styles.cardSub}>{datas.length} site(s) · {selectedPhotos} photo(s) · {totalReserves} réserve(s) · couverture : {config.coverLabel || 'standard METRA'}</Text>
         <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Taille générale du texte</Text>
