@@ -20,10 +20,10 @@ function Chip({ label, active, onPress }) {
       paddingVertical: 7,
       borderRadius: 10,
       borderWidth: 1,
-      borderColor: active ? COLORS.primary : COLORS.line,
+      borderColor: active ? COLORS.orange : COLORS.line,
       backgroundColor: active ? '#FFF3E8' : '#fff',
     }}
-  ><Text style={{ color: active ? COLORS.primary : COLORS.text, fontWeight: '800', fontSize: 12 }}>{label}</Text></TouchableOpacity>;
+  ><Text style={{ color: active ? COLORS.orange : COLORS.ink, fontWeight: '800', fontSize: 12 }}>{label}</Text></TouchableOpacity>;
 }
 
 function MiniButton({ label, onPress, disabled, danger = false }) {
@@ -39,7 +39,7 @@ function MiniButton({ label, onPress, disabled, danger = false }) {
       backgroundColor: danger ? '#FFF1EF' : '#fff',
       opacity: disabled ? 0.35 : 1,
     }}
-  ><Text style={{ fontSize: 12, fontWeight: '800', color: danger ? '#B42318' : COLORS.text }}>{label}</Text></TouchableOpacity>;
+  ><Text style={{ fontSize: 12, fontWeight: '800', color: danger ? '#B42318' : COLORS.ink }}>{label}</Text></TouchableOpacity>;
 }
 
 function sectionKey(visiteId, panelId) { return `${visiteId}||${panelId}`; }
@@ -120,14 +120,14 @@ function Page({ children, muted = false }) {
 function CoverPage({ config }) {
   const cover = config.coverUri || null;
   return <Page>
-    <Text style={{ fontWeight: '900', fontSize: 17, color: COLORS.primary }}>ÉNERGIE & SERVICE</Text>
+    <Text style={{ fontWeight: '900', fontSize: 17, color: COLORS.orange }}>ÉNERGIE & SERVICE</Text>
     <Text style={{ alignSelf: 'flex-end', marginTop: 12, fontSize: 8 }}>VERSAILLES, le {config.dateRapport || ''}</Text>
     <Text style={{ marginTop: 16, fontWeight: '700', fontSize: 8 }}>Nos réf. : {config.chrono || ''}</Text>
-    <View style={{ marginTop: 16, backgroundColor: COLORS.primary, padding: 10, borderRadius: 18 }}><Text style={{ color: '#fff', textAlign: 'center', fontSize: 16, fontWeight: '900' }}>{config.clientLabel || 'Rapport de visite'}</Text></View>
+    <View style={{ marginTop: 16, backgroundColor: COLORS.orange, padding: 10, borderRadius: 18 }}><Text style={{ color: '#fff', textAlign: 'center', fontSize: 16, fontWeight: '900' }}>{config.clientLabel || 'Rapport de visite'}</Text></View>
     <Image source={cover ? { uri: cover } : DEFAULT_COVER} style={{ width: '100%', height: 145, marginTop: 12, backgroundColor: '#eee' }} resizeMode="cover" />
     <Text style={{ marginTop: 18, textAlign: 'center', fontWeight: '900', fontSize: 14 }}>{config.objet || 'Compte rendu de visite technique'}</Text>
     <View style={{ flex: 1 }} />
-    <View style={{ height: 13, backgroundColor: COLORS.primary, marginHorizontal: -18, marginBottom: -18 }} />
+    <View style={{ height: 13, backgroundColor: COLORS.orange, marginHorizontal: -18, marginBottom: -18 }} />
   </Page>;
 }
 
@@ -138,7 +138,7 @@ function SitePage({ item, onMoveSite, total }) {
       <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
         <Text style={{ fontSize: 23, fontWeight: '900', textDecorationLine: 'underline', textAlign: 'center' }}>{d.visite.nom_site || 'Site'}</Text>
         <Text style={{ fontSize: 17, fontWeight: '800', textDecorationLine: 'underline', marginTop: 18, textAlign: 'center' }}>{d.visite.nom_local || d.visite.type_local || 'Installation technique'}</Text>
-        <Text style={{ marginTop: 18, color: COLORS.muted, textAlign: 'center' }}>{d.trame?.nom || d.visite.trame_id || 'Visite technique'} · {d.visite.date_visite || ''}</Text>
+        <Text style={{ marginTop: 18, color: COLORS.inkSoft, textAlign: 'center' }}>{d.trame?.nom || d.visite.trame_id || 'Visite technique'} · {d.visite.date_visite || ''}</Text>
       </View>
     </Page>
     <View style={{ flexDirection: 'row', justifyContent: 'center', gap: 8, marginBottom: 20 }}>
@@ -161,12 +161,12 @@ function SectionPage({ item, layout, onPatchSection, onMoveSection }) {
   const previewRows = (s.groups || []).flatMap((g) => (g.rows || []).slice(0, 3).map((r) => ({ group: g.title, ...r }))).slice(0, 12);
   return <>
     <Page muted={!visible}>
-      {s.banner || title ? <View style={{ backgroundColor: COLORS.primary, paddingVertical: 8, paddingHorizontal: 8, marginBottom: 12 }}><Text style={{ color: '#fff', textAlign: 'center', fontWeight: '900', fontSize: font }}>{title || s.panelId}</Text></View> : null}
+      {s.banner || title ? <View style={{ backgroundColor: COLORS.orange, paddingVertical: 8, paddingHorizontal: 8, marginBottom: 12 }}><Text style={{ color: '#fff', textAlign: 'center', fontWeight: '900', fontSize: font }}>{title || s.panelId}</Text></View> : null}
       {previewRows.length ? previewRows.map((r, i) => <View key={`${r.group}-${r.label}-${i}`} style={{ flexDirection: 'row', borderWidth: 0.5, borderColor: '#777', minHeight: 24 }}>
         <Text style={{ width: '36%', padding: 4, backgroundColor: '#F8CBAD', fontSize: rowFont, fontWeight: '700' }}>{r.label}</Text>
         <Text style={{ width: '12%', padding: 4, textAlign: 'center', fontSize: rowFont, color: String(r.avis).toUpperCase().includes('N.S') ? '#B42318' : '#087A2E' }}>{r.avis || ''}</Text>
         <Text numberOfLines={2} style={{ flex: 1, padding: 4, fontSize: rowFont }}>{r.comment || '/'}</Text>
-      </View>) : <Text style={{ color: COLORS.muted, textAlign: 'center', marginTop: 30 }}>Section sans donnée visible dans l’aperçu.</Text>}
+      </View>) : <Text style={{ color: COLORS.inkSoft, textAlign: 'center', marginTop: 30 }}>Section sans donnée visible dans l’aperçu.</Text>}
       {!visible ? <View style={{ position: 'absolute', left: 20, right: 20, top: '45%', padding: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.line }}><Text style={{ textAlign: 'center', fontWeight: '900' }}>SECTION MASQUÉE DU RAPPORT</Text></View> : null}
     </Page>
     <View style={[styles.card, { marginBottom: 20, maxWidth: 720, alignSelf: 'center', width: '100%' }]}>
@@ -187,7 +187,7 @@ function SectionPage({ item, layout, onPatchSection, onMoveSection }) {
 }
 
 function StaticPage({ title, lines = [] }) {
-  return <Page><View style={{ backgroundColor: COLORS.primary, padding: 8, marginBottom: 12 }}><Text style={{ color: '#fff', fontWeight: '900', textAlign: 'center', fontSize: 14 }}>{title}</Text></View>{lines.slice(0, 10).map((line, i) => <View key={i} style={{ borderBottomWidth: 0.5, borderColor: COLORS.line, paddingVertical: 6 }}><Text numberOfLines={2} style={{ fontSize: 8 }}>{line}</Text></View>)}</Page>;
+  return <Page><View style={{ backgroundColor: COLORS.orange, padding: 8, marginBottom: 12 }}><Text style={{ color: '#fff', fontWeight: '900', textAlign: 'center', fontSize: 14 }}>{title}</Text></View>{lines.slice(0, 10).map((line, i) => <View key={i} style={{ borderBottomWidth: 0.5, borderColor: COLORS.line, paddingVertical: 6 }}><Text numberOfLines={2} style={{ fontSize: 8 }}>{line}</Text></View>)}</Page>;
 }
 
 function PhotoPreviewPage({ item, onPatchPhoto }) {
@@ -203,7 +203,7 @@ function PhotoPreviewPage({ item, onPatchPhoto }) {
     }
   };
   return <Page>
-    <View style={{ backgroundColor: COLORS.primary, padding: 7, marginBottom: 10 }}><Text style={{ color: '#fff', textAlign: 'center', fontWeight: '900' }}>PHOTOGRAPHIES</Text></View>
+    <View style={{ backgroundColor: COLORS.orange, padding: 7, marginBottom: 10 }}><Text style={{ color: '#fff', textAlign: 'center', fontWeight: '900' }}>PHOTOGRAPHIES</Text></View>
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, alignItems: 'flex-start' }}>
       {item.photos.map((p) => {
         const size = p.size || 'medium';
@@ -216,7 +216,7 @@ function PhotoPreviewPage({ item, onPatchPhoto }) {
         </View>;
       })}
     </View>
-    <Text style={{ position: 'absolute', bottom: 8, left: 18, right: 18, textAlign: 'center', color: COLORS.muted, fontSize: 7 }}>Touchez une image pour changer sa taille, ou son libellé pour changer la taille du texte.</Text>
+    <Text style={{ position: 'absolute', bottom: 8, left: 18, right: 18, textAlign: 'center', color: COLORS.inkSoft, fontSize: 7 }}>Touchez une image pour changer sa taille, ou son libellé pour changer la taille du texte.</Text>
   </Page>;
 }
 
@@ -285,8 +285,8 @@ export function ReportLayoutEditor({
     </View>}
     ListFooterComponent={<View style={{ marginTop: 6 }}>
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-        <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }, format === 'pdf' && { borderColor: COLORS.primary, backgroundColor: '#FFF3E8' }]} onPress={() => onFormatChange('pdf')}><Text style={styles.btnSecondaryText}>PDF</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }, format === 'word' && { borderColor: COLORS.primary, backgroundColor: '#FFF3E8' }]} onPress={() => onFormatChange('word')}><Text style={styles.btnSecondaryText}>Word</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }, format === 'pdf' && { borderColor: COLORS.orange, backgroundColor: '#FFF3E8' }]} onPress={() => onFormatChange('pdf')}><Text style={styles.btnSecondaryText}>PDF</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }, format === 'word' && { borderColor: COLORS.orange, backgroundColor: '#FFF3E8' }]} onPress={() => onFormatChange('word')}><Text style={styles.btnSecondaryText}>Word</Text></TouchableOpacity>
       </View>
       <TouchableOpacity style={[styles.btnPrimary, { opacity: busy ? 0.55 : 1 }]} disabled={busy} onPress={onGenerate}><Text style={styles.btnPrimaryText}>{busy ? 'Génération…' : `Générer ${format === 'pdf' ? 'le PDF' : 'le Word'}`}</Text></TouchableOpacity>
     </View>}
