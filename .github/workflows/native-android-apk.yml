@@ -15,6 +15,7 @@ on:
       - .github/workflows/native-android-apk.yml
       - .github/scripts/patch_pdf_cover_fallback_build.py
       - .github/scripts/patch_preallumage_pdf_cover_build.py
+      - .github/scripts/patch_report_editor_assets_build.py
       - .github/scripts/patch_excel_import_date.py
       - .github/scripts/patch_report_mode_defaults.py
       - .github/scripts/patch_word_cover_layout.py
@@ -82,6 +83,14 @@ jobs:
 
       - name: Generate exact PDF assets from untouched files
         run: python .github/scripts/patch_pdf_cover_fallback_build.py
+
+      - name: Apply exact assets to editable PDF reports
+        run: |
+          python .github/scripts/patch_report_editor_assets_build.py
+          node --check reportEditorExporter.js
+          grep -q "embedExactSafe(EXACT_COVER, 'png')" reportEditorExporter.js
+          grep -q "embedExactSafe(EXACT_LOGO, 'png')" reportEditorExporter.js
+          grep -q "embedExactSafe(EXACT_FOOTER_CERT, 'png')" reportEditorExporter.js
 
       - name: Apply exact Pre-allumage PDF cover
         run: |
