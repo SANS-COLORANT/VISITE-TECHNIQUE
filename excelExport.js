@@ -7,6 +7,7 @@ import * as Sharing from 'expo-sharing';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { getDb, getVisite, listerReseaux, listerMateriel, listerRemarques, listerCompteurs, getNote } from './db.js';
 import { libelleChamp, libelleSection, listerAliasesPreAllumage } from './preAllumageAliases.js';
+import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -161,6 +162,30 @@ function normaliserRemarquesPourExport(remarques = []) {
   }));
 }
 
+function ajouterFeuillePreAllumageModulaire(wb, modele, champsMap, controlesMap) {
+  if (!modele) return;
+  const lignes = [['Panneau', 'Local / rubrique', 'Champ / contrôle', 'Avis', 'Valeur / commentaire']];
+  for (const rubrique of modele.rubriques || []) {
+    for (const champ of rubrique.champs || []) {
+      const key = `${rubrique.section_code}||${champ.cle_stockage}`;
+      const saisie = champsMap.get(key);
+      const controle = controlesMap.get(key);
+      lignes.push([
+        rubrique.panel_id,
+        rubrique.nom,
+        champ.libelle,
+        champ.type_code === 'controle' ? (controle?.avis || '') : '',
+        champ.type_code === 'controle' ? (controle?.commentaire || '') : (saisie?.valeur || ''),
+      ]);
+    }
+  }
+  const feuille = XLSX.utils.aoa_to_sheet(lignes);
+  feuille['!cols'] = [{ wch: 24 }, { wch: 34 }, { wch: 58 }, { wch: 12 }, { wch: 72 }];
+  const nom = 'PRE-ALLUMAGE MODULAIRE';
+  if (wb.Sheets[nom]) wb.Sheets[nom] = feuille;
+  else XLSX.utils.book_append_sheet(wb, feuille, nom);
+}
+
 async function construireClasseur(visiteId) {
   const db = await getDb();
   const visite = await getVisite(visiteId);
@@ -170,7 +195,7 @@ async function construireClasseur(visiteId) {
   const cfg = trame.excel;
   if (!cfg?.templateBase64) throw new Error(`Aucun modèle Excel configuré pour la trame ${trame.nom}.`);
 
-  const [champs, controles, reseaux, compteurs, materielBrut, remarquesBrutes, note, aliases] = await Promise.all([
+  const [champs, controles, reseaux, compteurs, materielBrut, remarquesBrutes, note, aliases, modelePreAllumage] = await Promise.all([
     db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id = ?`, [visiteId]),
     db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id = ?`, [visiteId]),
     listerReseaux(visiteId),
@@ -179,6 +204,7 @@ async function construireClasseur(visiteId) {
     listerRemarques(visiteId),
     getNote(visiteId),
     trame.id === 'pre_allumage' ? listerAliasesPreAllumage(visiteId) : Promise.resolve({}),
+    trame.id === 'pre_allumage' ? chargerPreAllumageModulaire(visiteId) : Promise.resolve(null),
   ]);
 
   const materiel = normaliserMaterielPourExport(materielBrut);
@@ -214,18 +240,24 @@ async function construireClasseur(visiteId) {
   setCell(sheetPrincipale, meta.type, trame.nom);
 
   if (trame.id === 'pre_allumage') {
+    const rubriquesParCode = new Map((modelePreAllumage?.rubriques || []).map((r) => [r.section_code, r]));
     const premieresLignes = new Map();
     for (const mapping of cfg.fieldMappings || []) {
       const ligne = XLSX.utils.decode_cell(mapping.valueCell).r + 1;
-      setCell(sheetPrincipale, `A${ligne}`, libelleChamp(mapping.sectionCode, mapping.cle, aliases));
+      const rubrique = rubriquesParCode.get(mapping.sectionCode);
+      const champModulaire = rubrique?.champs?.find((c) => c.cle_stockage === mapping.cle);
+      setCell(sheetPrincipale, `A${ligne}`, champModulaire?.libelle || libelleChamp(mapping.sectionCode, mapping.cle, aliases));
       if (!premieresLignes.has(mapping.sectionCode) || ligne < premieresLignes.get(mapping.sectionCode).ligne) {
         premieresLignes.set(mapping.sectionCode, { ligne, mapping });
       }
     }
     for (const { ligne, mapping } of premieresLignes.values()) {
-      if (ligne > 3) setCell(sheetPrincipale, `A${ligne - 3}`, libelleSection(mapping.panelId, mapping.section, aliases));
+      const rubrique = rubriquesParCode.get(mapping.sectionCode);
+      if (ligne > 3) setCell(sheetPrincipale, `A${ligne - 3}`, rubrique?.nom || libelleSection(mapping.panelId, mapping.section, aliases));
     }
   }
+
+  ajouterFeuillePreAllumageModulaire(wb, modelePreAllumage, champsMap, controlesMap);
 
   for (const mapping of cfg.fieldMappings || []) {
     const lookup = `${mapping.sectionCode}||${mapping.cle}`;
