@@ -18,8 +18,6 @@ const GREY = '#595959';
 // Fichiers binaires embarques directement dans l'APK. Aucun visuel de rapport
 // n'est stocke en Base64 dans le code JavaScript.
 const REPORT_ASSET_MODULES = Object.freeze({
-  cover: require('./assets/report/cover-building.png'),
-  logo: require('./assets/report/brand-logo.png'),
   businessSpirals: [
     require('./assets/report/spiral-red-orange.jpg'),
     require('./assets/report/spiral-yellow-green.jpg'),
@@ -496,11 +494,12 @@ function dataUriBase64(dataUri) {
 
 async function lireAssetBinaire(moduleId) {
   const asset = Asset.fromModule(moduleId);
+  const estUriFichierLisible = (uri) => /^(file|content):\/\//i.test(String(uri || ''));
 
   // Ne rematerialise pas un asset deja disponible localement : sur le
   // build 171, downloadAsync() systematique pouvait laisser l'export PDF
   // en attente indefiniment sur Android release.
-  if (asset.localUri) {
+  if (estUriFichierLisible(asset.localUri)) {
     return FileSystem.readAsStringAsync(asset.localUri, {
       encoding: FileSystem.EncodingType.Base64,
     });
@@ -517,7 +516,7 @@ async function lireAssetBinaire(moduleId) {
       )),
     ]);
     const localUri = charge?.localUri || asset.localUri;
-    if (localUri) {
+    if (estUriFichierLisible(localUri)) {
       return FileSystem.readAsStringAsync(localUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
@@ -564,9 +563,11 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
     }
   };
 
+  // Le logo et la couverture utilisent la méthode Base64 historique, qui ne
+  // dépend d'aucune URI de ressource Android dans l'APK release.
   const [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([
-    embedBundledSafe(REPORT_ASSET_MODULES.cover, 'png'),
-    embedBundledSafe(REPORT_ASSET_MODULES.logo, 'png'),
+    embedJpgSafe(dataUriBase64(REPORT_COVER)),
+    embedJpgSafe(dataUriBase64(REPORT_LOGO)),
     embedBundledSafe(REPORT_ASSET_MODULES.pageMark, 'png'),
     ...REPORT_ASSET_MODULES.businessSpirals.map((moduleId) => embedBundledSafe(moduleId, 'jpg')),
   ]);

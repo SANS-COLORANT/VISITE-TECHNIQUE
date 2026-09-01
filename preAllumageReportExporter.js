@@ -1,7 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Print from 'expo-print';
-import { Asset } from 'expo-asset';
 import { PDFDocument, clip, endPath, popGraphicsState, pushGraphicsState, rectangle } from 'pdf-lib';
 import { chargerDonneesVisiteRapport } from './reportBuilder.js';
 import { getPlanSitePourVisite } from './sitePlanDb.js';
@@ -12,12 +11,6 @@ const MIME_PDF = 'application/pdf';
 const MIME_WORD = 'application/msword';
 const ORANGE = '#F07E31';
 const GREY = '#595959';
-
-const COVER_ASSETS = Object.freeze({
-  logo: require('./assets/report/brand-logo.png'),
-  visual: require('./assets/report/cover-building.png'),
-  opqibi: require('./assets/report/Image21.png'),
-});
 
 function esc(v = '') {
   return String(v ?? '')
@@ -136,18 +129,8 @@ async function choisirDossier() {
   return p?.granted ? p.directoryUri : null;
 }
 
-async function lireAssetBinaire(moduleId) {
-  const asset = Asset.fromModule(moduleId);
-  if (asset.localUri) {
-    return FileSystem.readAsStringAsync(asset.localUri, { encoding: FileSystem.EncodingType.Base64 });
-  }
-  const charge = await Promise.race([
-    asset.downloadAsync(),
-    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout de matérialisation asset PDF')), 5000)),
-  ]);
-  const uri = charge?.localUri || asset.localUri;
-  if (!uri) throw new Error('Asset de couverture introuvable dans le bundle Android.');
-  return FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+function base64DepuisDataUri(dataUri) {
+  return String(dataUri || '').split(',')[1] || '';
 }
 
 function dimensionsContenues(image, maxWidth, maxHeight) {
@@ -181,15 +164,13 @@ async function integrerImagesPageGarde(uriSource) {
   const page = pdf.getPages()[0];
   if (!page) throw new Error('La page de garde du PDF est introuvable.');
 
-  const [logoBytes, visualBytes, opqibiBytes] = await Promise.all([
-    lireAssetBinaire(COVER_ASSETS.logo),
-    lireAssetBinaire(COVER_ASSETS.visual),
-    lireAssetBinaire(COVER_ASSETS.opqibi),
-  ]);
+  // Méthode historique stable : les trois visuels sont déjà embarqués en
+  // Base64 et sont injectés directement avec pdf-lib. Aucun chemin de ressource
+  // Android n'est confié à expo-file-system.
   const [logo, visual, opqibi] = await Promise.all([
-    pdf.embedPng(logoBytes),
-    pdf.embedPng(visualBytes),
-    pdf.embedPng(opqibiBytes),
+    pdf.embedJpg(base64DepuisDataUri(REPORT_LOGO)),
+    pdf.embedJpg(base64DepuisDataUri(REPORT_COVER)),
+    pdf.embedJpg(base64DepuisDataUri(REPORT_OPQIBI)),
   ]);
   const { width: pageWidth, height: pageHeight } = page.getSize();
   const mm = (value) => value * 72 / 25.4;
