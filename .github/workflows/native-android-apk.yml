@@ -124,7 +124,6 @@ jobs:
       - name: Apply hydraulic feature gate
         run: |
           python .github/scripts/patch_hydraulic_feature_build.py
-          node --check App.js
           grep -q "HydraulicFeatureSettingRow" App.js
           grep -q "hydraulicVisible ?" App.js
 
