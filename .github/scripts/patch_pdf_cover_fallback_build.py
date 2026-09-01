@@ -38,10 +38,14 @@ elif import_line not in s:
     s = s.replace(marker, marker + import_line, 1)
 
 start = s.find('  const embedBundledSafe = async (moduleId, format) => {')
-end = s.find('\n\n  const [coverVisualImage', start)
+end = s.find('  const [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([', start)
+if end < 0:
+    end = s.find('  let [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([', start)
 if start < 0 or end < 0:
     start = s.find('  const embedExactSafe = async (base64Value, format) => {')
-    end = s.find('\n\n  const [coverVisualImage', start)
+    end = s.find('  const [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([', start)
+    if end < 0:
+        end = s.find('  let [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([', start)
     if start < 0 or end < 0:
         raise SystemExit('PDF image embedding block not found')
 
@@ -56,7 +60,7 @@ embed_block = """  const embedExactSafe = async (base64Value, format) => {
       return null;
     }
   };"""
-s = s[:start] + embed_block + s[end:]
+s = s[:start] + embed_block + '\n\n' + s[end:]
 
 cover_start = s.find('  const [coverVisualImage, coverLogoImage, pageMarkImage, ...businessSpiralImages] = await Promise.all([')
 if cover_start < 0:
