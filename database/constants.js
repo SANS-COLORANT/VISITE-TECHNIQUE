@@ -1,6 +1,6 @@
 export const DATABASE_NAME = 'visite_technique.db';
 
-export const DATABASE_SCHEMA_VERSION = 20;
+export const DATABASE_SCHEMA_VERSION = 21;
 
 export const ENTITY_TYPES = Object.freeze({
   CLIENT: 'client',
