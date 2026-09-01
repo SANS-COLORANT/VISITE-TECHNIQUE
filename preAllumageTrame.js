@@ -13,7 +13,7 @@ const NR = [
 const SO = [p('Non présent', "Cet équipement ou ce contrôle n'est pas présent sur l'installation concernée.")];
 const NV = [p('Non visible / inaccessible', "Cet équipement n'a pas pu être contrôlé visuellement dans les conditions de la visite.")];
 
-function presetsPour(cle) {
+export function presetsPour(cle) {
   const k = String(cle || '').toLowerCase();
   let s = [p('Satisfaisant', `Le contrôle « ${cle} » est satisfaisant lors de la visite et ne présente pas d’anomalie apparente.`)];
   let ns = [p('Non fonctionnel', `Le contrôle « ${cle} » n’est pas satisfaisant lors de la visite.`, `Diagnostiquer l’anomalie constatée sur « ${cle} » et procéder à la remise en état nécessaire.`)];
