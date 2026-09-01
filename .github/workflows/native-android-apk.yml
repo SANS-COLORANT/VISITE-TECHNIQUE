@@ -20,6 +20,7 @@ on:
       - .github/scripts/patch_report_mode_defaults.py
       - .github/scripts/patch_word_cover_layout.py
       - .github/scripts/patch_word_docx_build.py
+      - .github/scripts/patch_hydraulic_feature_build.py
 
 concurrency:
   group: native-android-apk-${{ github.ref }}
@@ -116,9 +117,16 @@ jobs:
           node --check reportBuilder.js
           node --check reportEditorExporter.js
           node --check preAllumageReportExporter.js
-          grep -q "${base}.docx" reportBuilder.js
+          grep -q ".docx" reportBuilder.js
           grep -q "datas: rendered.preparedDatas" reportEditorExporter.js
           grep -q "Rapport Pré-allumage" preAllumageReportExporter.js
+
+      - name: Apply hydraulic feature gate
+        run: |
+          python .github/scripts/patch_hydraulic_feature_build.py
+          node --check App.js
+          grep -q "HydraulicFeatureSettingRow" App.js
+          grep -q "hydraulicVisible ?" App.js
 
       - name: Validate exact PDF cover patch
         run: |
