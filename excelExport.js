@@ -6,6 +6,7 @@ import * as Sharing from 'expo-sharing';
 
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { getDb, getVisite, listerReseaux, listerMateriel, listerRemarques, listerCompteurs, getNote } from './db.js';
+import { libelleChamp, libelleSection, listerAliasesPreAllumage } from './preAllumageAliases.js';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -169,7 +170,7 @@ async function construireClasseur(visiteId) {
   const cfg = trame.excel;
   if (!cfg?.templateBase64) throw new Error(`Aucun modèle Excel configuré pour la trame ${trame.nom}.`);
 
-  const [champs, controles, reseaux, compteurs, materielBrut, remarquesBrutes, note] = await Promise.all([
+  const [champs, controles, reseaux, compteurs, materielBrut, remarquesBrutes, note, aliases] = await Promise.all([
     db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id = ?`, [visiteId]),
     db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id = ?`, [visiteId]),
     listerReseaux(visiteId),
@@ -177,6 +178,7 @@ async function construireClasseur(visiteId) {
     listerMateriel(visiteId),
     listerRemarques(visiteId),
     getNote(visiteId),
+    trame.id === 'pre_allumage' ? listerAliasesPreAllumage(visiteId) : Promise.resolve({}),
   ]);
 
   const materiel = normaliserMaterielPourExport(materielBrut);
@@ -210,6 +212,20 @@ async function construireClasseur(visiteId) {
   setCell(sheetPrincipale, 'B3', nomLocal);
   setCell(sheetPrincipale, 'B5', dateGenerale);
   setCell(sheetPrincipale, meta.type, trame.nom);
+
+  if (trame.id === 'pre_allumage') {
+    const premieresLignes = new Map();
+    for (const mapping of cfg.fieldMappings || []) {
+      const ligne = XLSX.utils.decode_cell(mapping.valueCell).r + 1;
+      setCell(sheetPrincipale, `A${ligne}`, libelleChamp(mapping.sectionCode, mapping.cle, aliases));
+      if (!premieresLignes.has(mapping.sectionCode) || ligne < premieresLignes.get(mapping.sectionCode).ligne) {
+        premieresLignes.set(mapping.sectionCode, { ligne, mapping });
+      }
+    }
+    for (const { ligne, mapping } of premieresLignes.values()) {
+      if (ligne > 3) setCell(sheetPrincipale, `A${ligne - 3}`, libelleSection(mapping.panelId, mapping.section, aliases));
+    }
+  }
 
   for (const mapping of cfg.fieldMappings || []) {
     const lookup = `${mapping.sectionCode}||${mapping.cle}`;

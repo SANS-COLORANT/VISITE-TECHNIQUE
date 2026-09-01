@@ -1,6 +1,8 @@
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Print from 'expo-print';
+import { Asset } from 'expo-asset';
+import { PDFDocument, clip, endPath, popGraphicsState, pushGraphicsState, rectangle } from 'pdf-lib';
 import { chargerDonneesVisiteRapport } from './reportBuilder.js';
 import { getPlanSitePourVisite } from './sitePlanDb.js';
 import { construireSitePreAllumageHtml, PREALLUMAGE_REPORT_CSS } from './preAllumageReportHtml.js';
@@ -10,6 +12,12 @@ const MIME_PDF = 'application/pdf';
 const MIME_WORD = 'application/msword';
 const ORANGE = '#F07E31';
 const GREY = '#595959';
+
+const COVER_ASSETS = Object.freeze({
+  logo: require('./assets/report/brand-logo.png'),
+  visual: require('./assets/report/cover-building.png'),
+  opqibi: require('./assets/report/Image21.png'),
+});
 
 function esc(v = '') {
   return String(v ?? '')
@@ -128,15 +136,111 @@ async function choisirDossier() {
   return p?.granted ? p.directoryUri : null;
 }
 
+async function lireAssetBinaire(moduleId) {
+  const asset = Asset.fromModule(moduleId);
+  if (asset.localUri) {
+    return FileSystem.readAsStringAsync(asset.localUri, { encoding: FileSystem.EncodingType.Base64 });
+  }
+  const charge = await Promise.race([
+    asset.downloadAsync(),
+    new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout de matérialisation asset PDF')), 5000)),
+  ]);
+  const uri = charge?.localUri || asset.localUri;
+  if (!uri) throw new Error('Asset de couverture introuvable dans le bundle Android.');
+  return FileSystem.readAsStringAsync(uri, { encoding: FileSystem.EncodingType.Base64 });
+}
+
+function dimensionsContenues(image, maxWidth, maxHeight) {
+  const ratio = image.width / image.height;
+  let width = maxWidth;
+  let height = width / ratio;
+  if (height > maxHeight) {
+    height = maxHeight;
+    width = height * ratio;
+  }
+  return { width, height };
+}
+
+function dessinerImageCouverte(page, image, x, y, width, height) {
+  const scale = Math.max(width / image.width, height / image.height);
+  const imageWidth = image.width * scale;
+  const imageHeight = image.height * scale;
+  page.pushOperators(pushGraphicsState(), rectangle(x, y, width, height), clip(), endPath());
+  page.drawImage(image, {
+    x: x + (width - imageWidth) / 2,
+    y: y + (height - imageHeight) / 2,
+    width: imageWidth,
+    height: imageHeight,
+  });
+  page.pushOperators(popGraphicsState());
+}
+
+async function integrerImagesPageGarde(uriSource) {
+  const sourceBase64 = await FileSystem.readAsStringAsync(uriSource, { encoding: FileSystem.EncodingType.Base64 });
+  const pdf = await PDFDocument.load(sourceBase64);
+  const page = pdf.getPages()[0];
+  if (!page) throw new Error('La page de garde du PDF est introuvable.');
+
+  const [logoBytes, visualBytes, opqibiBytes] = await Promise.all([
+    lireAssetBinaire(COVER_ASSETS.logo),
+    lireAssetBinaire(COVER_ASSETS.visual),
+    lireAssetBinaire(COVER_ASSETS.opqibi),
+  ]);
+  const [logo, visual, opqibi] = await Promise.all([
+    pdf.embedPng(logoBytes),
+    pdf.embedPng(visualBytes),
+    pdf.embedPng(opqibiBytes),
+  ]);
+  const { width: pageWidth, height: pageHeight } = page.getSize();
+  const mm = (value) => value * 72 / 25.4;
+
+  const logoSize = dimensionsContenues(logo, mm(72), mm(20));
+  page.drawImage(logo, {
+    x: mm(15),
+    y: pageHeight - mm(13) - logoSize.height,
+    width: logoSize.width,
+    height: logoSize.height,
+  });
+
+  const visualWidth = mm(174);
+  const visualHeight = mm(88);
+  dessinerImageCouverte(
+    page,
+    visual,
+    (pageWidth - visualWidth) / 2,
+    pageHeight - mm(79) - visualHeight,
+    visualWidth,
+    visualHeight
+  );
+
+  const opqibiSize = dimensionsContenues(opqibi, mm(18), mm(7));
+  page.drawImage(opqibi, {
+    x: mm(5),
+    y: mm(1),
+    width: opqibiSize.width,
+    height: opqibiSize.height,
+  });
+
+  const uri = `${FileSystem.cacheDirectory}pre_allumage_couverture_${Date.now()}.pdf`;
+  const base64 = await pdf.saveAsBase64({ dataUri: false });
+  await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
+  return uri;
+}
+
 async function ecrirePdf(dossier, nom, html) {
   const temp = await Print.printToFileAsync({ html, base64: false });
+  let habille = null;
   try {
-    const b64 = await FileSystem.readAsStringAsync(temp.uri, { encoding: FileSystem.EncodingType.Base64 });
+    // Sur un APK Android, expo-print peut ignorer les images HTML de la garde.
+    // On les réinjecte depuis les vrais assets du bundle dans le PDF final.
+    habille = await integrerImagesPageGarde(temp.uri);
+    const b64 = await FileSystem.readAsStringAsync(habille, { encoding: FileSystem.EncodingType.Base64 });
     const uri = await FileSystem.StorageAccessFramework.createFileAsync(dossier, nom, MIME_PDF);
     await FileSystem.writeAsStringAsync(uri, b64, { encoding: FileSystem.EncodingType.Base64 });
     return uri;
   } finally {
     await FileSystem.deleteAsync(temp.uri, { idempotent: true }).catch(() => {});
+    if (habille) await FileSystem.deleteAsync(habille, { idempotent: true }).catch(() => {});
   }
 }
 

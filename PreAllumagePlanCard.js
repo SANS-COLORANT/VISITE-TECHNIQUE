@@ -1,13 +1,11 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Image, Text, TouchableOpacity, View } from 'react-native';
 import { choisirEtSauverPlanSite, getPlanSitePourVisite, supprimerPlanSitePourVisite } from './sitePlanDb.js';
-import { exporterRapportPreAllumage } from './preAllumageReportExporter.js';
 import { COLORS, styles } from './styles.js';
 
 export function PreAllumagePlanCard({ visiteId, onSaved }) {
   const [plan, setPlan] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [exportBusy, setExportBusy] = useState(null);
 
   const charger = useCallback(async () => {
     try { setPlan(await getPlanSitePourVisite(visiteId)); }
@@ -46,17 +44,6 @@ export function PreAllumagePlanCard({ visiteId, onSaved }) {
     ]);
   };
 
-  const exporter = async (format) => {
-    if (exportBusy) return;
-    setExportBusy(format);
-    try {
-      const r = await exporterRapportPreAllumage(visiteId, format);
-      if (!r?.annule) Alert.alert('Rapport Pré-allumage généré', `${r.nom} a été enregistré dans le dossier choisi.`);
-    } catch (e) {
-      Alert.alert('Export impossible', String(e?.message || e));
-    } finally { setExportBusy(null); }
-  };
-
   return <View style={[styles.formCard, { marginBottom: 12 }]}>
     <Text style={styles.cardTitle}>Plan du site</Text>
     <Text style={[styles.importHint, { marginTop: 4, marginBottom: 10 }]}>Ce plan est enregistré au niveau du site. Il sera réutilisé lors des prochaines visites Pré-allumage et placé sur la page « Plan et informations bâtiments » des exports PDF et Word.</Text>
@@ -70,18 +57,6 @@ export function PreAllumagePlanCard({ visiteId, onSaved }) {
         <Text style={styles.btnPrimaryText}>{busy ? 'Traitement…' : (plan?.uri ? 'Remplacer le plan' : 'Sélectionner le plan')}</Text>
       </TouchableOpacity>
       {plan?.uri ? <TouchableOpacity style={[styles.btnSecondary, { minWidth: 110 }]} disabled={busy} onPress={supprimer}><Text style={styles.btnSecondaryText}>Supprimer</Text></TouchableOpacity> : null}
-    </View>
-
-    <View style={{ height: 1, backgroundColor: COLORS.line, marginVertical: 16 }} />
-    <Text style={styles.cardTitle}>Rapport Pré-allumage</Text>
-    <Text style={[styles.importHint, { marginTop: 4, marginBottom: 10 }]}>Génère directement la mise en page dédiée inspirée du compte-rendu Word/PDF : couverture, intervenants, plan, bâtiments, compteurs, régulation, essais chaufferie et sous-stations, puis conclusion.</Text>
-    <View style={{ flexDirection: 'row', gap: 8 }}>
-      <TouchableOpacity style={[styles.btnPrimary, { flex: 1, opacity: exportBusy ? 0.55 : 1 }]} disabled={!!exportBusy} onPress={() => exporter('pdf')}>
-        <Text style={styles.btnPrimaryText}>{exportBusy === 'pdf' ? 'PDF…' : 'Exporter PDF'}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity style={[styles.btnSecondary, { flex: 1, opacity: exportBusy ? 0.55 : 1 }]} disabled={!!exportBusy} onPress={() => exporter('word')}>
-        <Text style={styles.btnSecondaryText}>{exportBusy === 'word' ? 'Word…' : 'Exporter Word'}</Text>
-      </TouchableOpacity>
     </View>
   </View>;
 }

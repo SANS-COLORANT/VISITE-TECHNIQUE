@@ -55,7 +55,13 @@ function dateFrValide(value) {
   return d.getFullYear() === annee && d.getMonth() === mois - 1 && d.getDate() === jour;
 }
 
-export const DurableChampGenerique = React.memo(function DurableChampGenerique({ visiteId, sectionCode, field, valeurInitiale, onSaved }) {
+function normaliserIndex(value) {
+  const brut = String(value || '').replace(/\./g, ',').replace(/[^0-9,]/g, '');
+  const [entier, ...decimales] = brut.split(',');
+  return decimales.length ? `${entier},${decimales.join('')}` : entier;
+}
+
+export const DurableChampGenerique = React.memo(function DurableChampGenerique({ visiteId, sectionCode, field, valeurInitiale, onSaved, displayLabel, onRename }) {
   const unit = extractUnit(field.cle);
   const label = cleanLabel(field.cle);
   const entiteKey = `${sectionCode}||${field.cle}`;
@@ -72,6 +78,9 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
   const [valeur, setValeur, flush, setImmediate] = useDurableAutosave(valeurInitiale, sauvegarder, 450);
   const [dateTexte, setDateTexte] = useState(() => normaliserDateInitiale(valeurInitiale) || dateAujourdhuiFr());
   const [dateErreur, setDateErreur] = useState(false);
+  const [nomAffiche, setNomAffiche] = useState(displayLabel || field.cle);
+
+  useEffect(() => { setNomAffiche(displayLabel || field.cle); }, [displayLabel, field.cle]);
 
   useEffect(() => {
     if (!estDateVisite) return;
@@ -101,8 +110,8 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
   return (
     <View style={styles.fieldBlock}>
       <View style={styles.fieldTop}>
-        <Text style={styles.fieldLabel}>{label}{unit && !numericConfig ? ` (${unit})` : ''}</Text>
-        {!sansPhoto && <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={label} />}
+        {field.renamable && onRename ? <TextInput style={[styles.fieldLabel, { flex: 1, paddingVertical: 2, borderBottomWidth: 1, borderBottomColor: '#D0D5DD' }]} value={nomAffiche} onChangeText={setNomAffiche} onBlur={() => onRename(nomAffiche)} /> : <Text style={styles.fieldLabel}>{label}{unit && !numericConfig ? ` (${unit})` : ''}</Text>}
+        {!sansPhoto && <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={field.renamable ? nomAffiche : label} />}
       </View>
       {estDateVisite ? (
         <>
@@ -117,6 +126,17 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
           />
           {dateErreur ? <Text style={{ color: '#B42318', fontSize: 11, marginTop: 5 }}>Date obligatoire au format JJ/MM/AAAA.</Text> : null}
         </>
+      ) : field.numericIndex ? (
+        <TextInput
+          style={styles.input}
+          value={valeur}
+          onChangeText={(texte) => setValeur(normaliserIndex(texte))}
+          onBlur={() => { flush().catch(() => {}); }}
+          keyboardType="decimal-pad"
+          inputMode="decimal"
+          maxLength={32}
+          placeholder="0,00"
+        />
       ) : numericConfig ? (
         <StepperNumerique valeur={valeur} config={numericConfig} onChange={(v) => { setImmediate(v).catch(() => {}); }} />
       ) : chipOptions ? (

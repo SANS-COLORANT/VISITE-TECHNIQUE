@@ -1,3 +1,5 @@
+import { libelleChamp, libelleSection } from './preAllumageAliases.js';
+
 const ORANGE = '#F07E31';
 const BLUE = '#5B9BD5';
 const PEACH = '#F8CBAD';
@@ -28,6 +30,14 @@ function group(data, panelId, title) {
 function rowValue(g, label) {
   const row = (g?.rows || []).find((r) => r.label === label);
   return String(row?.comment || '').trim();
+}
+
+function titreGroupe(data, panelId, g) {
+  return libelleSection(panelId, g?.title || '', data.aliases || {});
+}
+
+function titreChamp(data, g, label) {
+  return libelleChamp(g?.sectionCode || '', label, data.aliases || {});
 }
 
 function infoValue(data, label) {
@@ -104,10 +114,9 @@ function tableBatiments(data, config) {
     const bat = rowValue(g, 'Bâtiments desservis');
     const sit = rowValue(g, 'Situation / localisation');
     if (!config.afficherLignesVides && !nb && !bat && !sit) return '';
-    const no = /^SST\s+(\d+)/i.exec(g.title)?.[1] || (g.title === 'Centre commercial' ? '11' : g.title === 'Église' ? '12' : String(i + 1));
-    return `<tr><td>${esc(no)}</td><td>${esc(nb || '-')}</td><td>${esc(bat || '')}</td><td>${esc(sit || '')}</td></tr>`;
+    return `<tr><td>${esc(titreGroupe(data, 'p-pa-batiments', g))}</td><td>${esc(nb || '-')}</td><td>${esc(bat || '')}</td><td>${esc(sit || '')}</td></tr>`;
   }).join('');
-  return `<table class="paBuildingTable"><thead><tr><th>SST N°</th><th>Nombre de logements desservis</th><th>Bâtiments desservis</th><th>Situation</th></tr></thead><tbody>${rows}</tbody></table>`;
+  return `<table class="paBuildingTable"><thead><tr><th>Local / SST</th><th>Nombre de logements desservis</th><th>Bâtiments desservis</th><th>Situation</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function tableCompteurs(data, config) {
@@ -118,9 +127,14 @@ function tableCompteurs(data, config) {
   const rows = (s.groups || []).filter((g) => g.title !== 'Compteurs généraux').map((g) => {
     const values = (g.rows || []).map((r) => String(r.comment || '').trim());
     if (!config.afficherLignesVides && !values.some(Boolean)) return '';
-    return `<tr><td>${esc(g.title.replace(' / ', '/'))}</td><td>${esc(values[0] || '')}</td><td>${esc(values[1] || '')}</td></tr>`;
+    const cellules = (g.rows || []).map((r, i) => {
+      const personnalise = titreChamp(data, g, r.label);
+      const prefixe = personnalise !== r.label ? `<small>${esc(personnalise)}</small><br/>` : '';
+      return `${prefixe}${esc(values[i] || '')}`;
+    });
+    return `<tr><td>${esc(titreGroupe(data, 'p-pa-compteurs', g).replace(' / ', '/'))}</td><td>${cellules[0] || ''}</td><td>${cellules[1] || ''}</td></tr>`;
   }).join('');
-  return `<table class="paMeterTable"><tbody><tr><td class="paLabel">Date de la visite</td><td colspan="2">${esc(dateFr(data.visite.date_visite))}</td></tr><tr><td class="paLabel">Index compteur gaz général (m³)</td><td colspan="2">${esc(gaz)}</td></tr><tr><td class="paLabel">Index compteur énergie (MWh)</td><td colspan="2">${esc(energie)}</td></tr><tr><th>Compteur</th><th>Energie (MWh)</th><th>ECS (m³)</th></tr>${rows}</tbody></table>`;
+  return `<table class="paMeterTable"><tbody><tr><td class="paLabel">Date de la visite</td><td colspan="2">${esc(dateFr(data.visite.date_visite))}</td></tr><tr><td class="paLabel">${esc(titreChamp(data, general, 'Index compteur gaz général (m³)'))}</td><td colspan="2">${esc(gaz)}</td></tr><tr><td class="paLabel">${esc(titreChamp(data, general, 'Index compteur énergie général (MWh)'))}</td><td colspan="2">${esc(energie)}</td></tr><tr><th>Compteur</th><th>Energie (MWh)</th><th>ECS (m³)</th></tr>${rows}</tbody></table>`;
 }
 
 const REG_ROWS = [
@@ -137,7 +151,7 @@ function tableRegulation(data) {
   const groups = section(data, 'p-pa-regulation').groups || [];
   const wanted = ['SST 1','SST 2','SST 3','SST 4','SST 5','SST 6','SST 7','SST 8','SST 9','SST 10','Commerces','Bureaux','Église'];
   const byName = new Map(groups.map((g) => [g.title, g]));
-  return `<table class="paRegTable"><thead><tr><th>Sous-station</th>${wanted.map((n) => `<th>${esc(n.replace('SST ',''))}</th>`).join('')}</tr></thead><tbody>${REG_ROWS.map((label, idx) => `<tr><td class="paRegLabel">${esc(courtReg(label))}</td>${wanted.map((n) => {
+  return `<table class="paRegTable"><thead><tr><th>Sous-station</th>${wanted.map((n) => `<th>${esc(libelleSection('p-pa-regulation', n, data.aliases || {}))}</th>`).join('')}</tr></thead><tbody>${REG_ROWS.map((label, idx) => `<tr><td class="paRegLabel">${esc(courtReg(label))}</td>${wanted.map((n) => {
     const v = rowValue(byName.get(n), label);
     const cls = idx >= 9 && idx <= 11 && v ? ' paTempValue' : '';
     return `<td class="${cls.trim()}">${esc(v)}</td>`;
@@ -185,12 +199,12 @@ export function construireSitePreAllumageHtml(data, config, planSrc = null) {
   const regulationPage = tableRegulation(data);
 
   const chaufferie = section(data, 'p-pa-chaufferie').groups || [];
-  const chaufferieMain = chaufferie.slice(0, 6).map((g) => tableEssaisGroup(g.title, g.rows, config, 'chaufferie')).join('');
-  const chaufferieSuite = chaufferie.slice(6).map((g) => tableEssaisGroup(g.title, g.rows, config, 'chaufferie')).join('');
+  const chaufferieMain = chaufferie.slice(0, 6).map((g) => tableEssaisGroup(titreGroupe(data, 'p-pa-chaufferie', g), g.rows, config, 'chaufferie')).join('');
+  const chaufferieSuite = chaufferie.slice(6).map((g) => tableEssaisGroup(titreGroupe(data, 'p-pa-chaufferie', g), g.rows, config, 'chaufferie')).join('');
   const preambule = `<div class="paPreamble"><b>Préambule</b><br/>Dans le cadre de sa mission, ENERGIE ET SERVICE s’est rendu sur site le ${esc(dateFr(data.visite.date_visite))} afin de réaliser des tests de pré-allumage des différents équipements présents en chaufferie et en sous-station. L’objectif est de statuer sur les capacités de l’installation à débuter la saison de chauffe${saison ? ` ${esc(saison)}` : ''}.</div>`;
 
   const sst = section(data, 'p-pa-sst').groups || [];
-  const bySst = (name) => sst.filter((g) => g.title.startsWith(`${name} —`)).map((g) => tableEssaisGroup(g.title.replace(` — `, ' — '), g.rows, config, 'sst')).join('');
+  const bySst = (name) => sst.filter((g) => g.title.startsWith(`${name} —`)).map((g) => tableEssaisGroup(titreGroupe(data, 'p-pa-sst', g), g.rows, config, 'sst')).join('');
   const pageSst = (a, b) => `${bySst(a)}${b ? bySst(b) : ''}`;
 
   return `<article class="paReport">

@@ -89,7 +89,7 @@ addTitle(20,'PLAN ET INFORMATIONS BÂTIMENTS');
 
 addTitle(106,'RELEVÉ DES COMPTEURS');
 const counterGroups=[['Compteurs généraux',108,['Index compteur gaz général (m³)','Index compteur énergie général (MWh)']],...Array.from({length:10},(_,i)=>[`SST ${i+1}`,114+i*6,[`SST ${i+1} — Énergie (MWh)`,`SST ${i+1} — ECS (m³)`]]),['Commerces / bureaux',174,['Commerces / bureaux — Énergie (MWh)','Commerces / bureaux — ECS (m³)']],['Église',180,['Église — Énergie (MWh)','Église — ECS (m³)']],['Piscine',186,['Piscine — Énergie (MWh)']]];
-counterGroups.forEach(([name,h,labels])=>{addTitle(h,name);addBlock('p-pa-compteurs',name,h+3,labels);});
+counterGroups.forEach(([name,h,labels])=>{addTitle(h,name);addBlock('p-pa-compteurs',name,h+3,labels,'champ',{numericIndex:true,renamable:true});});
 
 addTitle(191,'PARAMÈTRES DE RÉGULATION ET TEMPÉRATURES');
 const regLabels=['Courbe de chauffe — Pour -7°C (°C)','Courbe de chauffe — Pour 12°C (°C)','Courbe de chauffe — Pour 19°C (°C)','Température de non chauffe (°C)','Réduit de jour (°C d’eau)','Horaires','Température extérieure (°C)','Départ chauffage (°C)','Retour chauffage (°C)','Départ ECS (°C)','Retour ECS (°C)','Arrivée primaire ECS (°C)','Retour primaire ECS (°C)'];

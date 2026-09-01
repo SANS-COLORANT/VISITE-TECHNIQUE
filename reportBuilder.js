@@ -6,6 +6,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { getDb, listerMateriel } from './db.js';
 import { obtenirTrame, DEFAULT_TRAME_ID, normaliserSectionCode } from './trameRegistry.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
+import { listerAliasesPreAllumage } from './preAllumageAliases.js';
 
 const MIME_PDF = 'application/pdf';
 const MIME_WORD = 'application/msword';
@@ -137,7 +138,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
   if (!visite) throw new Error('Visite introuvable');
 
   const trame = obtenirTrame(visite.trame_id || DEFAULT_TRAME_ID);
-  const [champs, controles, reseaux, compteurs, remarques, photos, materiel, note] = await Promise.all([
+  const [champs, controles, reseaux, compteurs, remarques, photos, materiel, note, aliases] = await Promise.all([
     db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id=?`, [visiteId]),
     db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id=?`, [visiteId]),
     db.getAllAsync(`SELECT * FROM reseaux WHERE visite_id=? ORDER BY ordre,id`, [visiteId]),
@@ -146,6 +147,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     db.getAllAsync(`SELECT * FROM photos WHERE visite_id=? ORDER BY cree_le,id`, [visiteId]),
     listerMateriel(visiteId),
     db.getFirstAsync(`SELECT contenu FROM notes WHERE visite_id=?`, [visiteId]),
+    trame.id === 'pre_allumage' ? listerAliasesPreAllumage(visiteId) : Promise.resolve({}),
   ]);
 
   const champMap = new Map(champs.map((r) => [`${r.section_code}||${r.cle}`, r.valeur || '']));
@@ -161,6 +163,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
       const code = normaliserSectionCode(panelId, section);
       groups.push({
         title: section,
+        sectionCode: code,
         rows: (fields || []).map((f) => {
           const controle = ctrlMap.get(`${code}||${f.cle}`);
           return {
@@ -220,6 +223,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     reseaux,
     compteurs,
     note: note?.contenu || '',
+    aliases,
   };
 }
 
