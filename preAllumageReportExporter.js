@@ -39,7 +39,7 @@ function infoValue(data, label) {
   for (const s of data.sections || []) {
     if (s.panelId !== 'p-pa-infos') continue;
     for (const g of s.groups || []) {
-      const r = (g.rows || []).find((x) => x.label === label);
+      const r = (g.rows || []).find((x) => x.label === label || x.storageKey === label);
       const v = String(r?.comment || '').trim();
       if (v) return v;
     }
