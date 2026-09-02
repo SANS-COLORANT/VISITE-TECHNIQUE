@@ -22,6 +22,8 @@ const FIELD_OPTIONS = {
   'Production primaire': ['Chaudière gaz', 'Chaudière fioul', 'Chaudière bois', 'PAC', 'Réseau de chaleur'],
   'Production ECS': ['Ballon', 'Échangeur à plaques', 'Instantané', 'Semi-instantané'],
   'Type de LT': ['Chaufferie gaz', 'Chaufferie fioul', 'Sous-station', 'Chaufferie bois'],
+  'Type de ventilation': ['VMC simple flux autoréglable', 'VMC simple flux hygroréglable', 'VMC double flux', 'VMC gaz', 'Ventilation naturelle', 'Ventilation hybride', 'Extraction mécanique'],
+  'Type de bouche': ['Autoréglable', 'Hygroréglable', 'Extraction gaz', 'Extraction sanitaire', 'Insufflation', 'Mixte'],
 };
 
 function dateAujourdhuiFr() {
@@ -61,13 +63,29 @@ function normaliserIndex(value) {
   return decimales.length ? `${entier},${decimales.join('')}` : entier;
 }
 
+function getDurableNumericConfig(cle) {
+  const standard = getNumericConfig(cle);
+  if (standard) return standard;
+  if (['Nombre de logements', 'Nombre de bâtiments / entrées', "Nombre d'étages", 'Nombre de caissons'].includes(cle)) {
+    return {
+      min: 0,
+      max: cle === 'Nombre de logements' ? 5000 : cle === 'Nombre de caissons' ? 12 : 200,
+      step: 1,
+      unit: '',
+    };
+  }
+  return null;
+}
+
 export const DurableChampGenerique = React.memo(function DurableChampGenerique({ visiteId, sectionCode, field, valeurInitiale, onSaved, displayLabel, onRename }) {
   const unit = extractUnit(field.cle);
   const label = cleanLabel(field.cle);
   const entiteKey = `${sectionCode}||${field.cle}`;
-  const numericConfig = getNumericConfig(field.cle);
+  const numericConfig = getDurableNumericConfig(field.cle);
   const chipOptions = FIELD_OPTIONS[field.cle];
-  const sansPhoto = sectionCode === 'infos.g_n_ral' || sectionCode === 'infos.informations_g_n_rales';
+  const sansPhoto = sectionCode === 'infos.g_n_ral'
+    || sectionCode === 'infos.informations_g_n_rales'
+    || sectionCode === 'vmc-infos.informations_g_n_rales';
   const estDateVisite = sansPhoto && /date\s*(de\s*)?(la\s*)?visite/i.test(String(field.cle || ''));
 
   const sauvegarder = async (nouvelleValeur) => {
