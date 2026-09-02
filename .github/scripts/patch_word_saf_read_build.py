@@ -1,4 +1,5 @@
 from pathlib import Path
+import runpy
 
 p = Path('wordDocxExporter.js')
 s = p.read_text(encoding='utf-8')
@@ -13,3 +14,8 @@ if new not in s:
 
 p.write_text(s, encoding='utf-8')
 print('Word Android SAF read-back fixed: use FileSystem.readAsStringAsync for content:// URI.')
+
+layout_patch = Path('.github/scripts/patch_word_layout_polish_build.py')
+if not layout_patch.is_file():
+    raise SystemExit('Word layout polish patch is missing')
+runpy.run_path(str(layout_patch), run_name='__main__')
