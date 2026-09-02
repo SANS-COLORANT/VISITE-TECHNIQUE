@@ -25,6 +25,7 @@ on:
       - .github/scripts/generate_word_docx_template_build.py
       - .github/scripts/patch_word_office_compat_build.py
       - .github/scripts/patch_word_template_document_build.py
+      - .github/scripts/patch_word_saf_read_build.py
       - .github/scripts/patch_report_preview_toolbar_build.py
       - .github/scripts/patch_report_preview_cover_assets_build.py
       - .github/scripts/patch_hydraulic_feature_build.py
@@ -207,6 +208,13 @@ jobs:
           grep -q "baseDocumentXml" wordDocxExporter.js
           grep -q "propriétés de section absentes" wordDocxExporter.js
           grep -q "relation image" wordDocxExporter.js
+
+      - name: Fix Android Word SAF read-back
+        run: |
+          python .github/scripts/patch_word_saf_read_build.py
+          node --check wordDocxExporter.js
+          grep -q "FileSystem.readAsStringAsync(destination" wordDocxExporter.js
+          ! grep -q "SAF.readAsStringAsync(destination" wordDocxExporter.js
 
       - name: Validate exact PDF cover patch
         run: |
