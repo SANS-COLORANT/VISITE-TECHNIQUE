@@ -1,4 +1,5 @@
 from pathlib import Path
+import runpy
 
 p = Path('ReportScreen.js')
 s = p.read_text(encoding='utf-8')
@@ -38,3 +39,7 @@ elif "modeEffectif==='site'?`${r.resultats" not in s:
 
 p.write_text(s, encoding='utf-8')
 print('Report mode defaults patched safely.')
+
+# Apply the consolidated VMC/LAB report patch in the same build pass. Keeping
+# this hook here avoids changing the mature Android workflow sequence.
+runpy.run_path(str(Path(__file__).with_name('patch_vmc_ux_reports_build.py')), run_name='__main__')
