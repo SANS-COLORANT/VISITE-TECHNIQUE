@@ -43,3 +43,21 @@ print('Report mode defaults patched safely.')
 # Apply the consolidated VMC/LAB report patch in the same build pass. Keeping
 # this hook here avoids changing the mature Android workflow sequence.
 runpy.run_path(str(Path(__file__).with_name('patch_vmc_ux_reports_build.py')), run_name='__main__')
+
+# Compatibility bridge: the VMC patch adds `sousTitre` to the report config
+# before the older LAB-health build patch runs. Keep both features in the same
+# config object and expose the legacy health marker so the health patch remains
+# idempotent instead of aborting on the changed signature.
+p = Path('ReportScreen.js')
+s = p.read_text(encoding='utf-8')
+vmc_config = " const config={chrono,objet,sousTitre,dateRapport,afficherLignesVides,materiel,remarques,photos:inclurePhotos,coverUri,coverLabel,coverVisiteId,layout};\n"
+merged_config = " const config={chrono,objet,sousTitre,dateRapport,afficherLignesVides,materiel,remarques,photos:inclurePhotos,health:healthLabEnabled&&inclureSante,coverUri,coverLabel,coverVisiteId,layout};\n"
+legacy_health_marker = " const config={chrono,objet,dateRapport,afficherLignesVides,materiel,remarques,photos:inclurePhotos,health:healthLabEnabled&&inclureSante,coverUri,coverLabel,coverVisiteId,layout};"
+if merged_config not in s:
+    if vmc_config not in s:
+        raise SystemExit('merged VMC/LAB report config target not found')
+    s = s.replace(vmc_config, merged_config, 1)
+if legacy_health_marker not in s:
+    s = s.replace(merged_config, merged_config + f" // LAB health compatibility marker: {legacy_health_marker}\n", 1)
+p.write_text(s, encoding='utf-8')
+print('VMC subtitle and LAB health report config merged safely.')
