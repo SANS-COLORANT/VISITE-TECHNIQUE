@@ -1,14 +1,33 @@
 from pathlib import Path
+import re
 
 p = Path('App.js')
 s = p.read_text(encoding='utf-8')
 
 workspace_import = "import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';\n"
-settings_import = "import { getHydraulicSchemaVisible, subscribeLabFeatureChanges } from './featureSettings.js';\n"
-if settings_import not in s:
-    if workspace_import not in s:
-        raise SystemExit('Hydraulic workspace import marker not found')
-    s = s.replace(workspace_import, workspace_import + settings_import, 1)
+if workspace_import not in s:
+    raise SystemExit('Hydraulic workspace import marker not found')
+
+# Consolidate every named import coming from featureSettings.js into a single
+# import. LAB 3D and the hydraulic feature gate both use the same module, so
+# appending a second import would redeclare getHydraulicSchemaVisible and break
+# the Metro bundle.
+feature_pattern = re.compile(r"^import\s*\{\s*([^}]*)\s*\}\s*from\s*'\./featureSettings\.js';\s*$", re.MULTILINE)
+imports = feature_pattern.findall(s)
+names = []
+for group in imports:
+    for raw in group.split(','):
+        name = raw.strip()
+        if name and name not in names:
+            names.append(name)
+for required in ('getHydraulicSchemaVisible', 'subscribeLabFeatureChanges'):
+    if required not in names:
+        names.append(required)
+preferred = ['getHydraulicSchemaVisible', 'getLab3DVisible', 'subscribeLabFeatureChanges']
+ordered = [name for name in preferred if name in names] + [name for name in names if name not in preferred]
+s = feature_pattern.sub('', s)
+settings_import = "import { " + ", ".join(ordered) + " } from './featureSettings.js';\n"
+s = s.replace(workspace_import, workspace_import + settings_import, 1)
 
 state_marker = "  const [r1Visible, setR1Visible] = useState(false);\n"
 state_line = "  const [hydraulicVisible, setHydraulicVisible] = useState(false);\n"
@@ -35,7 +54,7 @@ subscription = """
     if (key === 'hydraulic_schema') setHydraulicVisible(enabled);
   }), []);
 """
-if subscription not in s:
+if "key === 'hydraulic_schema'" not in s:
     if visual_callback not in s:
         raise SystemExit('Visual callback marker not found')
     s = s.replace(visual_callback, visual_callback + subscription, 1)
@@ -51,8 +70,12 @@ elif "hydraulicVisible ? <TouchableOpacity" not in s:
 
 # Remove the old standalone Parameters row when applying over an older patched source.
 s = s.replace("import { HydraulicFeatureSettingRow } from './HydraulicFeatureSettingRow.js';\n", '')
-s = s.replace("import { getHydraulicSchemaVisible, setHydraulicSchemaVisible } from './featureSettings.js';\n", '')
 s = s.replace("<HydraulicFeatureSettingRow enabled={hydraulicVisible} onChange={handleHydraulicVisibilityChanged} />", '')
 
+# Safety: the build patch itself must never leave duplicate featureSettings
+# imports behind.
+if len(feature_pattern.findall(s)) != 1:
+    raise SystemExit('featureSettings imports were not consolidated')
+
 p.write_text(s, encoding='utf-8')
-print('Hydraulic schema is controlled exclusively from METRA LAB.')
+print('Hydraulic schema and LAB 3D feature imports consolidated safely.')
