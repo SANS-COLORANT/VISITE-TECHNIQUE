@@ -43,6 +43,7 @@ print('Report mode defaults patched safely.')
 # Apply the consolidated VMC/LAB report patch in the same build pass. Keeping
 # this hook here avoids changing the mature Android workflow sequence.
 runpy.run_path(str(Path(__file__).with_name('patch_vmc_ux_reports_build.py')), run_name='__main__')
+runpy.run_path(str(Path(__file__).with_name('patch_vmc_report_layout_build.py')), run_name='__main__')
 
 # Compatibility bridge: the VMC patch adds `sousTitre` to the report config
 # before the older LAB-health build patch runs. Keep both features in the same
