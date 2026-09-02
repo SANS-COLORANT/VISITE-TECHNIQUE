@@ -17,6 +17,12 @@ export const LAB_FEATURES = Object.freeze([
     description: 'Éditeur expérimental de schémas techniques hydrauliques. Masqué partout quand il est désactivé.',
     icon: '⌁',
   },
+  {
+    key: 'lab_3d',
+    title: 'LAB 3D',
+    description: 'Maquette 3D des sites et équipements. Peut être totalement masquée sans supprimer les maquettes déjà enregistrées.',
+    icon: '⬡',
+  },
 ]);
 
 function featureKey(key) {
@@ -26,7 +32,8 @@ function featureKey(key) {
 export async function getLabFeatureEnabled(key) {
   const db = await getDb();
   const row = await db.getFirstAsync(`SELECT value FROM _meta WHERE key=?`, [featureKey(key)]);
-  return String(row?.value || '') === '1';
+  if (!row) return key === 'lab_3d';
+  return String(row.value || '') === '1';
 }
 
 export async function setLabFeatureEnabled(key, enabled) {
@@ -60,6 +67,14 @@ export async function getHydraulicSchemaVisible() {
 
 export async function setHydraulicSchemaVisible(enabled) {
   return setLabFeatureEnabled('hydraulic_schema', enabled);
+}
+
+export async function getLab3DVisible() {
+  return getLabFeatureEnabled('lab_3d');
+}
+
+export async function setLab3DVisible(enabled) {
+  return setLabFeatureEnabled('lab_3d', enabled);
 }
 
 export async function getSiteHealthManualSettings(siteId) {
