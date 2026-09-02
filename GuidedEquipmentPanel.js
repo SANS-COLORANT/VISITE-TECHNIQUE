@@ -1,14 +1,15 @@
 import React,{memo,useCallback,useEffect,useMemo,useState}from'react';
 import{FlatList,Modal,Text,TextInput,TouchableOpacity,View}from'react-native';
 import{listerMateriel,ajouterMateriel,upsertMaterielChamp,supprimerMateriel,listerBibliothequeEquipements,listerCategoriesEquipement,listerMarquesEquipement}from'./db.js';
+import{ensureEquipmentCatalogReady}from'./database/index.js';
 import{ChipSelector}from'./GenericFields.js';
 import{useDurableAutosave}from'./durableAutosave.js';
 import{PhotoButton}from'./PhotoButton.js';
 import{BrandMark}from'./BrandLogo.js';
 import{COLORS,styles}from'./styles.js';
 
-const TYPES=['Adoucisseur','Armoire électrique','Ballon ECS','Chaudière','Circulateur','Compteur','Désemboueur','Détendeur','Échangeur','Filtre','Manomètre','Pompe','Soupape','Vanne',"Vase d'expansion"];
-const MARQUES=['De Dietrich','Viessmann','Grundfos','Wilo','Saunier Duval','Atlantic','Frisquet','Chappée','Chaffoteaux','Elm Leblanc','Bosch','Vaillant','Alfa Laval'];
+const TYPES=['VMC','CTA','Ventilateur','Tourelle','Adoucisseur','Armoire électrique','Ballon ECS','Chaudière','Circulateur','Compteur','Désemboueur','Détendeur','Échangeur','Filtre','Manomètre','Pompe','Soupape','Vanne',"Vase d'expansion"];
+const MARQUES=['Aldes','Atlantic','S&P Unelvent','VIM','France Air','Systemair','Swegon','FläktGroup','CIAT','Daikin','WOLF','TROX','Helios','Vortice','Komfovent','Salda','Zehnder','Nilan','Rosenberg','Nicotra Gebhardt','De Dietrich','Viessmann','Grundfos','Wilo','Saunier Duval','Frisquet','Chappée','Chaffoteaux','Elm Leblanc','Bosch','Vaillant','Alfa Laval'];
 const norm=v=>String(v||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').trim().toLowerCase();
 const eq=(a,b)=>norm(a)===norm(b);
 const uniq=a=>[...new Set((a||[]).filter(Boolean).map(v=>String(v).trim()).filter(Boolean))].sort((a,b)=>a.localeCompare(b,'fr',{sensitivity:'base'}));
@@ -23,6 +24,10 @@ function typeCompatible(typeChoisi,typeCatalogue){
  if(a==='chaudiere'&&b.includes('chaudiere'))return true;
  if(a==='echangeur'&&b.includes('echangeur'))return true;
  if(a==='ballon ecs'&&(b.includes('ballon')||b.includes('ecs')))return true;
+ if(a==='vmc'&&(b==='vmc'||b.includes('ventilation')))return true;
+ if(a==='cta'&&(b==='cta'||b.includes('traitement air')))return true;
+ if(a==='ventilateur'&&(b.includes('ventilateur')||b.includes('extracteur')))return true;
+ if(a==='tourelle'&&b.includes('tourelle'))return true;
  return false;
 }
 
@@ -107,7 +112,7 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
    <PhotoButton visiteId={visiteId} entiteKey={item.equipement_id?`equipement||${item.equipement_id}`:`materiel||${item.id}`} label={designation||categorie||'Équipement'}/>
   </View>
 
-  <PickerField label="1. Type d’équipement" valeur={categorie} placeholder="Choisir : Pompe, Chaudière, Échangeur…" onPress={()=>setPicker('type')}/>
+  <PickerField label="1. Type d’équipement" valeur={categorie} placeholder="Choisir : VMC, CTA, Ventilateur, Pompe, Chaudière…" onPress={()=>setPicker('type')}/>
   <View style={{marginTop:10}}><Text style={styles.fieldLabel}>2. Désignation</Text><TextInput style={styles.input} value={designation} onChangeText={setDesignation} onBlur={blurDesignation} placeholder={categorie?`Ex. ${categorie} double`:'Désignation'}/><Text style={[styles.importHint,{marginTop:4}]}>Préremplie avec le type, mais entièrement modifiable selon l’équipement réel.</Text></View>
   <PickerField label="3. Marque" valeur={marque} placeholder={categorie?'Choisir une marque':'Choisir d’abord le type'} disabled={!categorie} onPress={()=>setPicker('marque')} sub={categorie&&marquesType.length?`${marquesType.length} marque(s) compatibles dans le catalogue`:null}/>
   <PickerField label="4. Modèle" valeur={modele} placeholder={!categorie?'Choisir d’abord le type':!marque?'Choisir d’abord la marque':'Choisir un modèle'} disabled={!categorie||!marque} onPress={()=>setPicker('modele')} sub={categorie&&marque?(modeles.length?`${modeles.length} modèle(s) ${marque} correspondant à ${categorie}`:`Aucun modèle ${marque} / ${categorie} dans la base — saisie manuelle possible ci-dessous`):null}/>
@@ -128,7 +133,18 @@ export function GuidedEquipmentPanel({visiteId}){
  const[materiel,setMateriel]=useState([]),[types,setTypes]=useState(TYPES),[marques,setMarques]=useState(MARQUES),[catalogue,setCatalogue]=useState([]);
  const charger=useCallback(async()=>setMateriel(await listerMateriel(visiteId)),[visiteId]);
  useEffect(()=>{charger()},[charger]);
- useEffect(()=>{let actif=true;Promise.all([listerCategoriesEquipement(),listerMarquesEquipement(),listerBibliothequeEquipements()]).then(([c,m,r])=>{if(!actif)return;setTypes(uniq([...TYPES,...c.map(x=>x.nom)]));setMarques(uniq([...MARQUES,...m.map(x=>x.nom)]));setCatalogue(r||[])}).catch(e=>console.warn('Catalogue équipements non chargé',e));return()=>{actif=false}},[]);
+ useEffect(()=>{let actif=true;(async()=>{
+  try{
+   // Le gros catalogue VMC/CTA est enrichi à la demande pour rester offline-first
+   // sans ralentir l'ouverture de toute l'application.
+   await ensureEquipmentCatalogReady();
+   const[c,m,r]=await Promise.all([listerCategoriesEquipement(),listerMarquesEquipement(),listerBibliothequeEquipements()]);
+   if(!actif)return;
+   setTypes(uniq([...TYPES,...c.map(x=>x.nom)]));
+   setMarques(uniq([...MARQUES,...m.map(x=>x.nom)]));
+   setCatalogue(r||[]);
+  }catch(e){console.warn('Catalogue équipements non chargé',e)}
+ })();return()=>{actif=false}},[]);
  const ajouter=useCallback(async()=>{await ajouterMateriel(visiteId);await charger()},[visiteId,charger]);
- return <FlatList data={materiel} keyExtractor={i=>i.id} renderItem={({item})=><EquipmentCard item={item} visiteId={visiteId} onChange={charger} types={types} marques={marques} catalogue={catalogue}/>} contentContainerStyle={styles.panelContent} ListHeaderComponent={<View><Text style={styles.sectionTitle}>Équipements · {materiel.length}</Text><Text style={styles.importHint}>Touchez Type, Marque ou Modèle : un volet tactile s’ouvre et filtre automatiquement le catalogue.</Text></View>} ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ajouter}><Text style={styles.addBtnText}>+ Ajouter un équipement</Text></TouchableOpacity>} initialNumToRender={4} maxToRenderPerBatch={4} windowSize={5} removeClippedSubviews keyboardShouldPersistTaps="handled"/>;
+ return <FlatList data={materiel} keyExtractor={i=>i.id} renderItem={({item})=><EquipmentCard item={item} visiteId={visiteId} onChange={charger} types={types} marques={marques} catalogue={catalogue}/>} contentContainerStyle={styles.panelContent} ListHeaderComponent={<View><Text style={styles.sectionTitle}>Équipements · {materiel.length}</Text><Text style={styles.importHint}>VMC, CTA, ventilateurs et tourelles sont inclus. Touchez Type, Marque ou Modèle : un volet tactile s’ouvre et filtre automatiquement le catalogue.</Text></View>} ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ajouter}><Text style={styles.addBtnText}>+ Ajouter un équipement</Text></TouchableOpacity>} initialNumToRender={4} maxToRenderPerBatch={4} windowSize={5} removeClippedSubviews keyboardShouldPersistTaps="handled"/>;
 }
