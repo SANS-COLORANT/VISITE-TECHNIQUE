@@ -50,6 +50,26 @@ function libelleCaissonVmc(index, nom) {
   return `${base} - ${brut}`;
 }
 
+async function clePhotoCanoniqueVmc(visiteId, entiteKey) {
+  const cle = String(entiteKey || '').trim();
+  if (!cle.startsWith('remarque||')) return cle;
+  const remarqueId = cle.slice('remarque||'.length);
+  if (!remarqueId) return cle;
+  try {
+    const db = await openAppDatabase();
+    const remarque = await db.getFirstAsync(
+      `SELECT controle_key FROM remarques WHERE visite_id=? AND id=? LIMIT 1`,
+      [visiteId, remarqueId]
+    );
+    const controleKey = String(remarque?.controle_key || '').trim();
+    // Une réserve VMC et son contrôle partagent la même preuve photo. On garde
+    // le contrôle comme rattachement canonique pour que l'image ne disparaisse
+    // jamais si l'avis repasse ensuite de N.S à S.
+    if (/^vmc-c\d+\./.test(controleKey)) return controleKey;
+  } catch {}
+  return cle;
+}
+
 async function libellePhotoMetier(visiteId, entiteKey, label) {
   const libelleInitial = String(label || typePhotoDepuisEntite(entiteKey) || 'Photo').trim() || 'Photo';
   const sectionCode = String(entiteKey || '').split('||')[0];
@@ -103,18 +123,19 @@ async function supprimerPhotoGeree(uri) {
 
 async function preparerPhotoNommee({ visiteId, entiteKey = null, label = 'Photo', uri }) {
   if (!uri) return { uri: null, nom: null, label: null };
+  const entiteCanonique = await clePhotoCanoniqueVmc(visiteId, entiteKey);
   let nomSite = 'Site';
   try { const visite = await getVisite(visiteId); nomSite = visite?.nom_site || 'Site'; } catch {}
   const site = nettoyerNomFichier(nomSite, 'Site');
-  const type = typePhotoDepuisEntite(entiteKey);
-  const labelMetier = await libellePhotoMetier(visiteId, entiteKey, label);
+  const type = typePhotoDepuisEntite(entiteCanonique);
+  const labelMetier = await libellePhotoMetier(visiteId, entiteCanonique, label);
   const libelle = nettoyerNomFichier(labelMetier || type, type);
   const nom = `${site}__${type}__${libelle}__${horodatagePhoto()}__${suffixeCourt()}.jpg`;
   const uriDurable = await copierPhotoDurable(uri, visiteId, nom);
   // La copie interne reste la source canonique pour le backup. Une seconde copie
   // est déposée dans Documents afin d'être directement visible par l'utilisateur.
   await copierPhotoDansDocuments(uriDurable, nom).catch(() => null);
-  return { uri: uriDurable, nom, label: labelMetier };
+  return { uri: uriDurable, nom, label: labelMetier, entiteKey: entiteCanonique };
 }
 
 async function enregistrerPhotoNommee(args) { const photo = await preparerPhotoNommee(args); return photo.uri; }
@@ -164,7 +185,8 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
   }, [visiteId, entiteKey]);
 
   const charger = useCallback(async (cle = entiteKey) => {
-    const items = await listerPhotos(visiteId, cle);
+    const canonique = await clePhotoCanoniqueVmc(visiteId, cle);
+    const items = await listerPhotos(visiteId, canonique);
     setPhotos(items);
     setPhotosChargees(true);
     setIndex((actuel) => Math.min(actuel, Math.max(0, items.length - 1)));
@@ -180,13 +202,18 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
   }, [entiteKey, charger]);
 
   const resoudreCible = useCallback(async () => {
+    let cible = null;
     if (beforeCapture) {
-      const cible = await beforeCapture();
-      if (typeof cible === 'string') return { entiteKey: cible, label };
-      if (cible) return { entiteKey: cible.entiteKey || entiteKey, label: cible.label || label };
+      const cibleAvant = await beforeCapture();
+      if (typeof cibleAvant === 'string') cible = { entiteKey: cibleAvant, label };
+      else if (cibleAvant) cible = { entiteKey: cibleAvant.entiteKey || entiteKey, label: cibleAvant.label || label };
     }
-    const reserve = await resoudreReserveDepuisControle(visiteId, entiteKey, label);
-    return reserve || { entiteKey, label };
+    if (!cible) {
+      const reserve = await resoudreReserveDepuisControle(visiteId, entiteKey, label);
+      cible = reserve || { entiteKey, label };
+    }
+    const canonique = await clePhotoCanoniqueVmc(visiteId, cible.entiteKey);
+    return { ...cible, entiteKey: canonique };
   }, [beforeCapture, visiteId, entiteKey, label]);
 
   const ajouter = async () => {
@@ -196,10 +223,11 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       const photo = await preparerPhotoNommee({ visiteId, entiteKey: cible.entiteKey, label: cible.label, uri: captureUri });
       const labelFinal = photo.label || cible.label || typePhotoDepuisEntite(cible.entiteKey);
       const labelDb = photo.nom ? `${labelFinal}||${photo.nom}` : (labelFinal || null);
-      const photoId = await ajouterPhoto(visiteId, cible.entiteKey, photo.uri, labelDb);
-      const items = await charger(cible.entiteKey);
+      const cibleKey = photo.entiteKey || cible.entiteKey;
+      const photoId = await ajouterPhoto(visiteId, cibleKey, photo.uri, labelDb);
+      const items = await charger(cibleKey);
       setIndex(Math.max(0, items.length - 1));
-      onPhotoSaved?.({ id: photoId, entiteKey: cible.entiteKey, uri: photo.uri, label: labelFinal });
+      onPhotoSaved?.({ id: photoId, entiteKey: cibleKey, uri: photo.uri, label: labelFinal });
     } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
   };
 
@@ -216,17 +244,17 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     const photoExistante = photos[index]; if (!photoExistante) return;
     try {
       const captureUri = await prendrePhoto(); if (!captureUri) return;
-      const cibleKey = photoExistante.entite_key || entiteKey;
+      const cibleKey = photoExistante.entite_key || await clePhotoCanoniqueVmc(visiteId, entiteKey);
       const nouvelle = await preparerPhotoNommee({ visiteId, entiteKey: cibleKey, label, uri: captureUri });
       await remplacerPhoto(photoExistante.id, nouvelle.uri);
       if (nouvelle.label) {
         const db = await openAppDatabase();
-        await db.runAsync(`UPDATE photos SET label=? WHERE id=?`, [nouvelle.nom ? `${nouvelle.label}||${nouvelle.nom}` : nouvelle.label, photoExistante.id]);
+        await db.runAsync(`UPDATE photos SET label=?, entite_key=? WHERE id=?`, [nouvelle.nom ? `${nouvelle.label}||${nouvelle.nom}` : nouvelle.label, nouvelle.entiteKey || cibleKey, photoExistante.id]);
       }
       await supprimerCopiePhotoDocuments(photoExistante.uri).catch(() => {});
       await supprimerPhotoGeree(photoExistante.uri);
-      await charger(cibleKey);
-      onPhotoSaved?.({ id: photoExistante.id, entiteKey: cibleKey, uri: nouvelle.uri, label: nouvelle.label || label });
+      await charger(nouvelle.entiteKey || cibleKey);
+      onPhotoSaved?.({ id: photoExistante.id, entiteKey: nouvelle.entiteKey || cibleKey, uri: nouvelle.uri, label: nouvelle.label || label });
     } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
   };
 
