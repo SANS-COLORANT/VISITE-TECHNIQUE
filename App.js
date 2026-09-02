@@ -12,6 +12,7 @@ import { VisiteScreen } from './VisiteScreen.js';
 import { SiteVisitesScreen } from './SiteVisitesScreen.js';
 import { ReportScreen } from './ReportScreen.js';
 import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';
+import { Lab3DScreen } from './Lab3DScreen.js';
 import { AppErrorBoundary } from './AppErrorBoundary.js';
 import { R1EasterEgg } from './R1EasterEgg.js';
 import { VisualPackLoadingScreen } from './visual-packs/runtime/VisualPackLoadingScreen.js';
@@ -42,6 +43,21 @@ function SimpleHeader({ title, onBack, visualPack }) {
         {headerLogoUri ? <VisualPackAsset uri={headerLogoUri} style={{ width: 34, height: 26 }} /> : null}
       </View>
     </View>
+  );
+}
+
+function Lab3DFab({ onPress, bottom = 82, label = '⬡ LAB 3D' }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={{
+        position: 'absolute', right: 18, bottom, minHeight: 48, paddingHorizontal: 17,
+        borderRadius: 24, backgroundColor: '#10384B', borderWidth: 2, borderColor: '#5DD8FF',
+        alignItems: 'center', justifyContent: 'center', elevation: 9, zIndex: 205,
+      }}
+    >
+      <Text style={{ color: '#F5FBFF', fontWeight: '900', fontSize: 12.5 }}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
@@ -113,9 +129,10 @@ function AppContent() {
       {current.name === 'Home' && <><SimpleHeader title="Visite Technique" visualPack={visualPack} /><HomeScreen navigation={navigation} route={route} onR1LongPress={() => setR1Visible(true)} /></>}
       {current.name === 'ClientSites' && <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} visualPack={visualPack} /><ClientSitesScreen navigation={navigation} route={route} /></>}
       {current.name === 'ClientPatrimoine' && <><SimpleHeader title="Synthèse patrimoine" onBack={goBack} visualPack={visualPack} /><ClientPatrimoineScreen navigation={navigation} route={route} /></>}
-      {current.name === 'SiteVisites' && <><SimpleHeader title={current.params?.nomSite || 'Visites'} onBack={goBack} visualPack={visualPack} /><SiteVisitesScreen navigation={navigation} route={route} /></>}
-      {current.name === 'Visite' && <><VisiteScreen navigation={navigation} route={route} onBack={goBack} /><TouchableOpacity onPress={() => navigate('HydraulicSchema', { visiteId: current.params?.visiteId })} style={{ position: 'absolute', right: 18, bottom: 20, minHeight: 48, paddingHorizontal: 17, borderRadius: 24, backgroundColor: COLORS.orange, borderWidth: 2, borderColor: COLORS.white, alignItems: 'center', justifyContent: 'center', elevation: 8, zIndex: 200 }}><Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 12.5 }}>⌁ Schéma technique</Text></TouchableOpacity></>}
+      {current.name === 'SiteVisites' && <><SimpleHeader title={current.params?.nomSite || 'Visites'} onBack={goBack} visualPack={visualPack} /><SiteVisitesScreen navigation={navigation} route={route} /><Lab3DFab onPress={() => navigate('Lab3D', { siteId: current.params?.siteId, nomSite: current.params?.nomSite })} bottom={82} label="⬡ LAB 3D du site" /></>}
+      {current.name === 'Visite' && <><VisiteScreen navigation={navigation} route={route} onBack={goBack} /><Lab3DFab onPress={() => navigate('Lab3D', { visiteId: current.params?.visiteId })} bottom={78} label="⬡ LAB 3D du site" /><TouchableOpacity onPress={() => navigate('HydraulicSchema', { visiteId: current.params?.visiteId })} style={{ position: 'absolute', right: 18, bottom: 20, minHeight: 48, paddingHorizontal: 17, borderRadius: 24, backgroundColor: COLORS.orange, borderWidth: 2, borderColor: COLORS.white, alignItems: 'center', justifyContent: 'center', elevation: 8, zIndex: 200 }}><Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 12.5 }}>⌁ Schéma technique</Text></TouchableOpacity></>}
       {current.name === 'HydraulicSchema' && <><SimpleHeader title="Schéma technique animé" onBack={goBack} visualPack={visualPack} /><HydraulicSchemaWorkspace route={route} /></>}
+      {current.name === 'Lab3D' && <><SimpleHeader title="LAB 3D · Maquette du site" onBack={goBack} visualPack={visualPack} /><Lab3DScreen navigation={navigation} route={route} /></>}
       {current.name === 'Report' && <ReportScreen route={route} onBack={goBack} />}
       {current.name === 'Parametres' && <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack} /><VisualPacksSettingsScreen visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged} /></>}
       <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
