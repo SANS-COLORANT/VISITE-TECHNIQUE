@@ -12,7 +12,7 @@ import { VisiteScreen } from './VisiteScreen.js';
 import { SiteVisitesScreen } from './SiteVisitesScreen.js';
 import { ReportScreen } from './ReportScreen.js';
 import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';
-import { getHydraulicSchemaVisible, subscribeLabFeatureChanges } from './featureSettings.js';
+import { getHydraulicSchemaVisible, getLab3DVisible, subscribeLabFeatureChanges } from './featureSettings.js';
 import { Lab3DScreen } from './Lab3DScreen.js';
 import { AppErrorBoundary } from './AppErrorBoundary.js';
 import { R1EasterEgg } from './R1EasterEgg.js';
@@ -70,6 +70,7 @@ function AppContent() {
   const [stack, setStack] = useState([{ name: 'Home', params: {} }]);
   const [r1Visible, setR1Visible] = useState(false);
   const [hydraulicVisible, setHydraulicVisible] = useState(false);
+  const [lab3dVisible, setLab3dVisible] = useState(true);
 
   const initialiser = useCallback(async () => {
     setDbReady(false);
@@ -77,8 +78,13 @@ function AppContent() {
     setVisualPack(null);
     try {
       await getDb();
-      const [pack, schemaVisible] = await Promise.all([getActiveVisualPack(), getHydraulicSchemaVisible()]);
+      const [pack, schemaVisible, lab3dEnabled] = await Promise.all([
+        getActiveVisualPack(),
+        getHydraulicSchemaVisible(),
+        getLab3DVisible(),
+      ]);
       setHydraulicVisible(schemaVisible);
+      setLab3dVisible(lab3dEnabled);
       setRuntimeVisualPalette(pack?.colors);
       setVisualPack(pack);
       await new Promise((resolve) => setTimeout(resolve, getVisualPackStartupDuration(pack)));
@@ -111,6 +117,10 @@ function AppContent() {
 
   useEffect(() => subscribeLabFeatureChanges((key, enabled) => {
     if (key === 'hydraulic_schema') setHydraulicVisible(enabled);
+    if (key === 'lab_3d') {
+      setLab3dVisible(enabled);
+      if (!enabled) setStack((s) => s.filter((entry, index) => entry.name !== 'Lab3D' || index === 0));
+    }
   }), []);
 
   useEffect(() => {
@@ -136,10 +146,10 @@ function AppContent() {
       {current.name === 'Home' && <><SimpleHeader title="Visite Technique" visualPack={visualPack} /><HomeScreen navigation={navigation} route={route} onR1LongPress={() => setR1Visible(true)} /></>}
       {current.name === 'ClientSites' && <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} visualPack={visualPack} /><ClientSitesScreen navigation={navigation} route={route} /></>}
       {current.name === 'ClientPatrimoine' && <><SimpleHeader title="Synthèse patrimoine" onBack={goBack} visualPack={visualPack} /><ClientPatrimoineScreen navigation={navigation} route={route} /></>}
-      {current.name === 'SiteVisites' && <><SimpleHeader title={current.params?.nomSite || 'Visites'} onBack={goBack} visualPack={visualPack} /><SiteVisitesScreen navigation={navigation} route={route} /><Lab3DFab onPress={() => navigate('Lab3D', { siteId: current.params?.siteId, nomSite: current.params?.nomSite })} bottom={82} label="⬡ LAB 3D du site" /></>}
-      {current.name === 'Visite' && <><VisiteScreen navigation={navigation} route={route} onBack={goBack} /><Lab3DFab onPress={() => navigate('Lab3D', { visiteId: current.params?.visiteId })} bottom={hydraulicVisible ? 72 : 20} label="⬡ LAB 3D du site" />{hydraulicVisible ? <TouchableOpacity onPress={() => navigate('HydraulicSchema', { visiteId: current.params?.visiteId })} style={{ position: 'absolute', right: 18, bottom: 20, minHeight: 42, paddingHorizontal: 13, borderRadius: 21, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', elevation: 4, zIndex: 200 }}><Text style={{ color: COLORS.inkSoft, fontWeight: '800', fontSize: 10.5 }}>⌁ Schéma technique</Text></TouchableOpacity> : null}</>}
+      {current.name === 'SiteVisites' && <><SimpleHeader title={current.params?.nomSite || 'Visites'} onBack={goBack} visualPack={visualPack} /><SiteVisitesScreen navigation={navigation} route={route} />{lab3dVisible ? <Lab3DFab onPress={() => navigate('Lab3D', { siteId: current.params?.siteId, nomSite: current.params?.nomSite })} bottom={82} label="⬡ LAB 3D du site" /> : null}</>}
+      {current.name === 'Visite' && <><VisiteScreen navigation={navigation} route={route} onBack={goBack} />{lab3dVisible ? <Lab3DFab onPress={() => navigate('Lab3D', { visiteId: current.params?.visiteId })} bottom={hydraulicVisible ? 72 : 20} label="⬡ LAB 3D du site" /> : null}{hydraulicVisible ? <TouchableOpacity onPress={() => navigate('HydraulicSchema', { visiteId: current.params?.visiteId })} style={{ position: 'absolute', right: 18, bottom: 20, minHeight: 42, paddingHorizontal: 13, borderRadius: 21, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', elevation: 4, zIndex: 200 }}><Text style={{ color: COLORS.inkSoft, fontWeight: '800', fontSize: 10.5 }}>⌁ Schéma technique</Text></TouchableOpacity> : null}</>}
       {current.name === 'HydraulicSchema' && <><SimpleHeader title="Schéma technique animé" onBack={goBack} visualPack={visualPack} /><HydraulicSchemaWorkspace route={route} /></>}
-      {current.name === 'Lab3D' && <><SimpleHeader title="LAB 3D · Maquette du site" onBack={goBack} visualPack={visualPack} /><Lab3DScreen navigation={navigation} route={route} /></>}
+      {current.name === 'Lab3D' && lab3dVisible && <><SimpleHeader title="LAB 3D · Maquette du site" onBack={goBack} visualPack={visualPack} /><Lab3DScreen navigation={navigation} route={route} /></>}
       {current.name === 'Report' && <ReportScreen route={route} onBack={goBack} />}
       {current.name === 'Parametres' && <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack} /><VisualPacksSettingsScreen visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged} /></>}
       <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
