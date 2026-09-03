@@ -1,5 +1,4 @@
 import { getDb, uuidv4 } from './db.js';
-import { coordonneeValide } from './siteGeoDb.js';
 
 function normaliserTexte(v = '') {
   return String(v ?? '').trim().replace(/\s+/g, ' ');
@@ -15,13 +14,19 @@ export async function modifierSiteRapide(siteId, data = {}) {
   const db = await getDb();
   const champs = [];
   const params = [];
-  if (Object.prototype.hasOwnProperty.call(data, 'nomSite')) { champs.push('nom_site=?'); params.push(normaliserTexte(data.nomSite)); }
-  if (Object.prototype.hasOwnProperty.call(data, 'adresse')) { champs.push('adresse=?'); params.push(normaliserTexte(data.adresse) || null); }
-  if (Object.prototype.hasOwnProperty.call(data, 'note')) { champs.push('localisation_note=?'); params.push(normaliserTexte(data.note) || null); }
-  if (Object.prototype.hasOwnProperty.call(data, 'latitude') || Object.prototype.hasOwnProperty.call(data, 'longitude')) {
-    if (!coordonneeValide(data.latitude, data.longitude)) throw new Error('Coordonnées GPS invalides');
-    champs.push('latitude=?', 'longitude=?', "gps_modifie_le=datetime('now')");
-    params.push(Number(data.latitude), Number(data.longitude));
+  if (Object.prototype.hasOwnProperty.call(data, 'nomSite')) {
+    champs.push('nom_site=?');
+    params.push(normaliserTexte(data.nomSite));
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'adresse')) {
+    // Dès qu'une adresse change, l'ancienne position calculée est invalidée.
+    // Le géocodage silencieux la recalculera quand Internet sera disponible.
+    champs.push('adresse=?', 'latitude=NULL', 'longitude=NULL', 'precision_gps=NULL', 'gps_modifie_le=NULL');
+    params.push(normaliserTexte(data.adresse) || null);
+  }
+  if (Object.prototype.hasOwnProperty.call(data, 'note')) {
+    champs.push('localisation_note=?');
+    params.push(normaliserTexte(data.note) || null);
   }
   if (!champs.length) return;
   params.push(siteId);
@@ -63,33 +68,23 @@ export async function preparerImportSites(clientId, lignes = []) {
       continue;
     }
 
-    const latitude = l.latitude === '' || l.latitude === null || l.latitude === undefined ? null : Number(l.latitude);
-    const longitude = l.longitude === '' || l.longitude === null || l.longitude === undefined ? null : Number(l.longitude);
-    if ((latitude !== null || longitude !== null) && !coordonneeValide(latitude, longitude)) {
-      apercu.push({ index: i, action: 'erreur', erreur: 'Latitude/longitude invalides', ...l, nomSite });
-      continue;
-    }
-
     const adresse = normaliserTexte(l.adresse) || null;
     const note = normaliserTexte(l.note) || null;
     const existant = candidats[0] || null;
     if (!existant) {
-      apercu.push({ index: i, action: 'creer', nomSite, adresse, latitude, longitude, note });
+      apercu.push({ index: i, action: 'creer', nomSite, adresse, note });
       continue;
     }
 
     const changements = [];
     if (adresse !== null && adresse !== (existant.adresse || null)) changements.push('adresse');
     if (note !== null && note !== (existant.localisation_note || null)) changements.push('note');
-    if (latitude !== null && longitude !== null && (Number(existant.latitude) !== latitude || Number(existant.longitude) !== longitude)) changements.push('gps');
     apercu.push({
       index: i,
       action: changements.length ? 'modifier' : 'identique',
       siteId: existant.id,
       nomSite,
       adresse,
-      latitude,
-      longitude,
       note,
       changements,
     });
@@ -100,33 +95,38 @@ export async function preparerImportSites(clientId, lignes = []) {
 export async function appliquerImportSites(clientId, apercu = []) {
   const db = await getDb();
   let crees = 0, modifies = 0, ignores = 0;
+  const siteIds = [];
   for (const item of apercu) {
     if (item.action === 'erreur' || item.action === 'identique') { ignores += 1; continue; }
     if (item.action === 'creer') {
       const id = uuidv4();
       await db.runAsync(
-        `INSERT INTO sites(id,client_id,nom_site,adresse,statut,latitude,longitude,localisation_note,gps_modifie_le)
-         VALUES(?,?,?,?, 'Actif', ?,?,?, CASE WHEN ? IS NOT NULL AND ? IS NOT NULL THEN datetime('now') ELSE NULL END)`,
-        [id, clientId, item.nomSite, item.adresse || null, item.latitude, item.longitude, item.note || null, item.latitude, item.longitude]
+        `INSERT INTO sites(id,client_id,nom_site,adresse,statut,localisation_note)
+         VALUES(?,?,?,?, 'Actif', ?)`,
+        [id, clientId, item.nomSite, item.adresse || null, item.note || null]
       );
+      siteIds.push(id);
       crees += 1;
       continue;
     }
     if (item.action === 'modifier' && item.siteId) {
       const champs = [];
       const params = [];
-      if (item.adresse !== null) { champs.push('adresse=?'); params.push(item.adresse); }
-      if (item.note !== null) { champs.push('localisation_note=?'); params.push(item.note); }
-      if (item.latitude !== null && item.longitude !== null) {
-        champs.push('latitude=?', 'longitude=?', "gps_modifie_le=datetime('now')");
-        params.push(item.latitude, item.longitude);
+      if (item.adresse !== null) {
+        champs.push('adresse=?', 'latitude=NULL', 'longitude=NULL', 'precision_gps=NULL', 'gps_modifie_le=NULL');
+        params.push(item.adresse);
+      }
+      if (item.note !== null) {
+        champs.push('localisation_note=?');
+        params.push(item.note);
       }
       if (champs.length) {
         params.push(item.siteId);
         await db.runAsync(`UPDATE sites SET ${champs.join(', ')} WHERE id=?`, params);
+        siteIds.push(item.siteId);
         modifies += 1;
       } else ignores += 1;
     }
   }
-  return { crees, modifies, ignores };
+  return { crees, modifies, ignores, siteIds };
 }

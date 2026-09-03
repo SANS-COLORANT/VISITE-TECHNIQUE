@@ -7,6 +7,7 @@ import { getDb } from './db.js';
 import { COLORS, styles } from './styles.js';
 import { HomeScreen } from './HomeScreen.js';
 import { ClientSitesScreen } from './ClientSitesScreen.js';
+import { ClientMapScreen } from './ClientMapScreen.js';
 import { ClientPatrimoineScreen } from './ClientPatrimoineScreen.js';
 import { ClientTechnicalMatrixScreen } from './ClientTechnicalMatrixScreen.js';
 import { VisiteScreen } from './VisiteScreen.js';
@@ -182,6 +183,13 @@ function AppContent() {
         <>
           <SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} visualPack={visualPack} />
           <ClientSitesScreen navigation={navigation} route={route} />
+        </>
+      ) : null}
+
+      {current.name === 'ClientMap' ? (
+        <>
+          <SimpleHeader title="Carte METRA des sites" onBack={goBack} visualPack={visualPack} />
+          <ClientMapScreen navigation={navigation} route={route} />
         </>
       ) : null}
 
