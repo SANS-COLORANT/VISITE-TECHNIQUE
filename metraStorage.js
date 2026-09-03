@@ -40,9 +40,7 @@ function uriSeTerminePar(uri, nom) {
   try {
     const decoded = decodeURIComponent(String(uri || ''));
     return decoded.endsWith(`/${nom}`) || decoded.endsWith(`:${nom}`);
-  } catch {
-    return false;
-  }
+  } catch { return false; }
 }
 
 async function trouverOuCreerSousDossier(parentUri, nom) {
@@ -57,13 +55,8 @@ async function trouverOuCreerSousDossier(parentUri, nom) {
   return SAF.makeDirectoryAsync(parentUri, safeName);
 }
 
-export async function obtenirRacineMetra() {
-  return lireMeta(ROOT_META_KEY);
-}
-
-export async function oublierRacineMetra() {
-  await supprimerMeta(ROOT_META_KEY);
-}
+export async function obtenirRacineMetra() { return lireMeta(ROOT_META_KEY); }
+export async function oublierRacineMetra() { await supprimerMeta(ROOT_META_KEY); }
 
 export async function garantirRacineMetra() {
   const existante = await obtenirRacineMetra();
@@ -71,9 +64,7 @@ export async function garantirRacineMetra() {
     try {
       await FileSystem.StorageAccessFramework.readDirectoryAsync(existante);
       return existante;
-    } catch {
-      await oublierRacineMetra().catch(() => {});
-    }
+    } catch { await oublierRacineMetra().catch(() => {}); }
   }
 
   const SAF = FileSystem.StorageAccessFramework;
@@ -131,6 +122,20 @@ export async function dossierVisiteMetra(visiteId, sousDossier = null) {
     'Visites', libelleVisite(ctx),
     sousDossier,
   ]);
+}
+
+export async function initialiserArborescenceClient(clientId) {
+  const db = await getDb();
+  const client = await db.getFirstAsync(`SELECT id,nom FROM clients WHERE id=?`, [clientId]);
+  if (!client) throw new Error('Client introuvable.');
+  await dossierClientMetra(client.nom);
+  const sites = await db.getAllAsync(`SELECT id,nom_site FROM sites WHERE client_id=? ORDER BY nom_site COLLATE NOCASE`, [clientId]);
+  for (const site of sites) {
+    await dossierSiteMetra({ clientNom: client.nom, siteNom: site.nom_site });
+    const visites = await db.getAllAsync(`SELECT id FROM visites WHERE site_id=? ORDER BY COALESCE(date_visite,''),cree_le`, [site.id]);
+    for (const visite of visites) await dossierVisiteMetra(visite.id);
+  }
+  return { client: client.nom, sites: sites.length };
 }
 
 export async function dossierRapportMetra(datas = []) {
