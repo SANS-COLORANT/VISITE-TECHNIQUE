@@ -42,6 +42,7 @@ jobs:
     timeout-minutes: 35
     env:
       NODE_ENV: production
+      GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
       GRADLE_OPTS: >-
         -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
         -Dorg.gradle.workers.max=2
@@ -49,6 +50,14 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Check Google Maps build configuration
+        run: |
+          if [ -n "$GOOGLE_MAPS_API_KEY" ]; then
+            echo "Google Maps Android key available for this build."
+          else
+            echo "Google Maps Android key not configured; METRA offline fallback will remain active."
+          fi
 
       - name: Stamp visible APK build number
         run: |
