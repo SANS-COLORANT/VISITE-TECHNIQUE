@@ -31,7 +31,22 @@ function nomFichierDepuisUri(uri) {
   return decodeURIComponent(morceaux[morceaux.length - 1] || '');
 }
 
-export async function copierPhotoDansDocuments(uriSource, visiteId, nomFichier) {
+function visiteIdDepuisUriInterne(uri) {
+  try {
+    const morceaux = decodeURIComponent(String(uri || '')).split('/').filter(Boolean);
+    const dossierVisite = morceaux[morceaux.length - 2] || '';
+    const sep = dossierVisite.indexOf('__');
+    return sep >= 0 ? dossierVisite.slice(sep + 2) : null;
+  } catch {
+    return null;
+  }
+}
+
+// Compatible avec l'ancien appel (uriSource, nomFichier) et le nouvel appel
+// explicite (uriSource, visiteId, nomFichier).
+export async function copierPhotoDansDocuments(uriSource, visiteIdOuNom, nomEventuel = null) {
+  const nomFichier = nomEventuel || visiteIdOuNom;
+  const visiteId = nomEventuel ? visiteIdOuNom : visiteIdDepuisUriInterne(uriSource);
   if (!uriSource || !visiteId || !nomFichier) return null;
   try {
     const dossier = await dossierVisiteMetra(visiteId, 'Photos');
