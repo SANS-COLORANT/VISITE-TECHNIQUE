@@ -27,7 +27,7 @@ s = feature_pattern.sub('', s)
 settings_import = "import { " + ", ".join(ordered) + " } from './featureSettings.js';\n"
 s = s.replace(workspace_import, workspace_import + settings_import, 1)
 
-# State: support both the older multi-line source and the current compact App.js.
+# State: support both the older multi-line source and the compact App.js.
 has_hydraulic_state = bool(re.search(r"\[\s*hydraulicVisible\s*,\s*setHydraulicVisible\s*\]\s*=\s*useState\(false\)", s))
 if not has_hydraulic_state:
     state_marker = "  const [r1Visible, setR1Visible] = useState(false);\n"
@@ -40,7 +40,7 @@ if not has_hydraulic_state:
             raise SystemExit('App state marker not found')
         s = s.replace(compact_marker, compact_marker + ",[hydraulicVisible,setHydraulicVisible]=useState(false)", 1)
 
-# Initialization: only patch legacy code. Current compact source already loads
+# Initialization: only patch legacy code. Current source already loads
 # getHydraulicSchemaVisible() alongside the visual pack and LAB 3D setting.
 if 'getHydraulicSchemaVisible()' not in s:
     init_old = "      await getDb();\n      const pack = await getActiveVisualPack();\n"
@@ -66,12 +66,16 @@ if not re.search(r"key\s*===\s*['\"]hydraulic_schema['\"]", s):
         raise SystemExit('Visual callback marker not found')
     s = s.replace(visual_callback, visual_callback + subscription, 1)
 
-# Visit button: legacy source can still be upgraded here. Current source
-# already contains the gated button; normalize ternary spacing so the workflow
-# verification remains stable and readable.
-if re.search(r"hydraulicVisible\s*\?\s*<TouchableOpacity", s):
-    s = re.sub(r"hydraulicVisible\s*\?\s*<TouchableOpacity", "hydraulicVisible ? <TouchableOpacity", s, count=1)
-else:
+# Visit button: detect the actual behavior instead of depending on one exact
+# JSX formatting. Both of these are valid and equivalent:
+#   hydraulicVisible ? <TouchableOpacity ...
+#   hydraulicVisible ? (\n  <TouchableOpacity ...
+visit_gate_pattern = re.compile(
+    r"hydraulicVisible\s*\?\s*(?:\(\s*)?<TouchableOpacity\b",
+    re.DOTALL,
+)
+
+if not visit_gate_pattern.search(s):
     visit_old = """      {current.name === 'Visite' && <><VisiteScreen navigation={navigation} route={route} onBack={goBack} /><TouchableOpacity onPress={() => navigate('HydraulicSchema', { visiteId: current.params?.visiteId })} style={{ position: 'absolute', right: 18, bottom: 20, minHeight: 48, paddingHorizontal: 17, borderRadius: 24, backgroundColor: COLORS.orange, borderWidth: 2, borderColor: COLORS.white, alignItems: 'center', justifyContent: 'center', elevation: 8, zIndex: 200 }}><Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 12.5 }}>⌁ Schéma technique</Text></TouchableOpacity></>}
 """
     visit_new = """      {current.name === 'Visite' && <><VisiteScreen navigation={navigation} route={route} onBack={goBack} />{hydraulicVisible ? <TouchableOpacity onPress={() => navigate('HydraulicSchema', { visiteId: current.params?.visiteId })} style={{ position: 'absolute', right: 18, bottom: 20, minHeight: 42, paddingHorizontal: 13, borderRadius: 21, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', elevation: 4, zIndex: 200 }}><Text style={{ color: COLORS.inkSoft, fontWeight: '800', fontSize: 10.5 }}>⌁ Schéma technique</Text></TouchableOpacity> : null}</>}
@@ -84,7 +88,7 @@ else:
 s = s.replace("import { HydraulicFeatureSettingRow } from './HydraulicFeatureSettingRow.js';\n", '')
 s = s.replace("<HydraulicFeatureSettingRow enabled={hydraulicVisible} onChange={handleHydraulicVisibilityChanged} />", '')
 
-# Final assertions should validate behavior, not a particular formatting style.
+# Final assertions validate behavior, not a particular formatting style.
 if len(feature_pattern.findall(s)) != 1:
     raise SystemExit('featureSettings imports were not consolidated')
 if not re.search(r"\[\s*hydraulicVisible\s*,\s*setHydraulicVisible\s*\]", s):
@@ -93,7 +97,7 @@ if 'getHydraulicSchemaVisible()' not in s:
     raise SystemExit('hydraulic initialization missing')
 if not re.search(r"key\s*===\s*['\"]hydraulic_schema['\"]", s):
     raise SystemExit('hydraulic subscription missing')
-if 'hydraulicVisible ? <TouchableOpacity' not in s:
+if not visit_gate_pattern.search(s):
     raise SystemExit('hydraulic visit gate missing')
 
 p.write_text(s, encoding='utf-8')
