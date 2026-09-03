@@ -62,3 +62,9 @@ if legacy_health_marker not in s:
     s = s.replace(merged_config, merged_config + f" // LAB health compatibility marker: {legacy_health_marker}\n", 1)
 p.write_text(s, encoding='utf-8')
 print('VMC subtitle and LAB health report config merged safely.')
+
+# Finally apply the automatic Documents/METRA hierarchy after the report
+# generators have received all legacy VMC/LAB transformations. This keeps the
+# storage patch independent from the report layout patches and lets the PR
+# preflight validate the exact same sequence as the APK build.
+runpy.run_path(str(Path(__file__).with_name('patch_metra_storage_build.py')), run_name='__main__')
