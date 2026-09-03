@@ -5,11 +5,11 @@ import Svg, { Circle, G, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { COLORS, styles } from './styles.js';
 import { listerSitesClient } from './db.js';
 import { coordonneeValide, synchroniserCoordonneesClient } from './siteGeoDb.js';
+import { GOOGLE_MAPS_BUILD_ENABLED } from './googleMapsRuntime.generated.js';
 
 const MAP_W = 960;
 const MAP_H = 560;
 const PAD = 54;
-const GOOGLE_MAPS_BUILD_ENABLED = process.env.EXPO_PUBLIC_GOOGLE_MAPS_AVAILABLE === '1';
 
 function sitesPositionnes(sites = []) {
   return sites.filter((s) => coordonneeValide(s.latitude, s.longitude));
