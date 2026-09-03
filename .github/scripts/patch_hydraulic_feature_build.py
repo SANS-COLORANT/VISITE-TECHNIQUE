@@ -8,10 +8,8 @@ workspace_import = "import { HydraulicSchemaWorkspace } from './HydraulicSchemaW
 if workspace_import not in s:
     raise SystemExit('Hydraulic workspace import marker not found')
 
-# Consolidate every named import coming from featureSettings.js into a single
-# import. LAB 3D and the hydraulic feature gate both use the same module, so
-# appending a second import would redeclare getHydraulicSchemaVisible and break
-# the Metro bundle.
+# Consolidate named imports from featureSettings.js. This remains safe when
+# LAB 3D / hydraulic visibility have already been integrated in App.js.
 feature_pattern = re.compile(r"^import\s*\{\s*([^}]*)\s*\}\s*from\s*'\./featureSettings\.js';\s*$", re.MULTILINE)
 imports = feature_pattern.findall(s)
 names = []
@@ -29,53 +27,74 @@ s = feature_pattern.sub('', s)
 settings_import = "import { " + ", ".join(ordered) + " } from './featureSettings.js';\n"
 s = s.replace(workspace_import, workspace_import + settings_import, 1)
 
-state_marker = "  const [r1Visible, setR1Visible] = useState(false);\n"
-state_line = "  const [hydraulicVisible, setHydraulicVisible] = useState(false);\n"
-if state_line not in s:
-    if state_marker not in s:
-        raise SystemExit('App state marker not found')
-    s = s.replace(state_marker, state_marker + state_line, 1)
+# State: support both the older multi-line source and the current compact App.js.
+has_hydraulic_state = bool(re.search(r"\[\s*hydraulicVisible\s*,\s*setHydraulicVisible\s*\]\s*=\s*useState\(false\)", s))
+if not has_hydraulic_state:
+    state_marker = "  const [r1Visible, setR1Visible] = useState(false);\n"
+    state_line = "  const [hydraulicVisible, setHydraulicVisible] = useState(false);\n"
+    if state_marker in s:
+        s = s.replace(state_marker, state_marker + state_line, 1)
+    else:
+        compact_marker = "[r1Visible,setR1Visible]=useState(false)"
+        if compact_marker not in s:
+            raise SystemExit('App state marker not found')
+        s = s.replace(compact_marker, compact_marker + ",[hydraulicVisible,setHydraulicVisible]=useState(false)", 1)
 
-init_old = "      await getDb();\n      const pack = await getActiveVisualPack();\n"
-init_new = "      await getDb();\n      const [pack, schemaVisible] = await Promise.all([getActiveVisualPack(), getHydraulicSchemaVisible()]);\n      setHydraulicVisible(schemaVisible);\n"
-if init_old in s:
+# Initialization: only patch legacy code. Current compact source already loads
+# getHydraulicSchemaVisible() alongside the visual pack and LAB 3D setting.
+if 'getHydraulicSchemaVisible()' not in s:
+    init_old = "      await getDb();\n      const pack = await getActiveVisualPack();\n"
+    init_new = "      await getDb();\n      const [pack, schemaVisible] = await Promise.all([getActiveVisualPack(), getHydraulicSchemaVisible()]);\n      setHydraulicVisible(schemaVisible);\n"
+    if init_old not in s:
+        raise SystemExit('App initialization marker not found')
     s = s.replace(init_old, init_new, 1)
-elif "getHydraulicSchemaVisible()" not in s:
-    raise SystemExit('App initialization marker not found')
 
-visual_callback = """  const handleVisualPackChanged = useCallback((pack) => {
+# Subscription: accept compact and expanded callback styles.
+if not re.search(r"key\s*===\s*['\"]hydraulic_schema['\"]", s):
+    visual_callback = """  const handleVisualPackChanged = useCallback((pack) => {
     setRuntimeVisualPalette(pack?.colors);
     setVisualPack(pack);
     setVisualRevision((value) => value + 1);
   }, []);
 """
-subscription = """
+    subscription = """
   useEffect(() => subscribeLabFeatureChanges((key, enabled) => {
     if (key === 'hydraulic_schema') setHydraulicVisible(enabled);
   }), []);
 """
-if "key === 'hydraulic_schema'" not in s:
     if visual_callback not in s:
         raise SystemExit('Visual callback marker not found')
     s = s.replace(visual_callback, visual_callback + subscription, 1)
 
-visit_old = """      {current.name === 'Visite' && <><VisiteScreen navigation={navigation} route={route} onBack={goBack} /><TouchableOpacity onPress={() => navigate('HydraulicSchema', { visiteId: current.params?.visiteId })} style={{ position: 'absolute', right: 18, bottom: 20, minHeight: 48, paddingHorizontal: 17, borderRadius: 24, backgroundColor: COLORS.orange, borderWidth: 2, borderColor: COLORS.white, alignItems: 'center', justifyContent: 'center', elevation: 8, zIndex: 200 }}><Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 12.5 }}>⌁ Schéma technique</Text></TouchableOpacity></>}
+# Visit button: legacy source can still be upgraded here. Current source
+# already contains the gated button; normalize ternary spacing so the workflow
+# verification remains stable and readable.
+if re.search(r"hydraulicVisible\s*\?\s*<TouchableOpacity", s):
+    s = re.sub(r"hydraulicVisible\s*\?\s*<TouchableOpacity", "hydraulicVisible ? <TouchableOpacity", s, count=1)
+else:
+    visit_old = """      {current.name === 'Visite' && <><VisiteScreen navigation={navigation} route={route} onBack={goBack} /><TouchableOpacity onPress={() => navigate('HydraulicSchema', { visiteId: current.params?.visiteId })} style={{ position: 'absolute', right: 18, bottom: 20, minHeight: 48, paddingHorizontal: 17, borderRadius: 24, backgroundColor: COLORS.orange, borderWidth: 2, borderColor: COLORS.white, alignItems: 'center', justifyContent: 'center', elevation: 8, zIndex: 200 }}><Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 12.5 }}>⌁ Schéma technique</Text></TouchableOpacity></>}
 """
-visit_new = """      {current.name === 'Visite' && <><VisiteScreen navigation={navigation} route={route} onBack={goBack} />{hydraulicVisible ? <TouchableOpacity onPress={() => navigate('HydraulicSchema', { visiteId: current.params?.visiteId })} style={{ position: 'absolute', right: 18, bottom: 20, minHeight: 42, paddingHorizontal: 13, borderRadius: 21, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', elevation: 4, zIndex: 200 }}><Text style={{ color: COLORS.inkSoft, fontWeight: '800', fontSize: 10.5 }}>⌁ Schéma technique</Text></TouchableOpacity> : null}</>}
+    visit_new = """      {current.name === 'Visite' && <><VisiteScreen navigation={navigation} route={route} onBack={goBack} />{hydraulicVisible ? <TouchableOpacity onPress={() => navigate('HydraulicSchema', { visiteId: current.params?.visiteId })} style={{ position: 'absolute', right: 18, bottom: 20, minHeight: 42, paddingHorizontal: 13, borderRadius: 21, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', elevation: 4, zIndex: 200 }}><Text style={{ color: COLORS.inkSoft, fontWeight: '800', fontSize: 10.5 }}>⌁ Schéma technique</Text></TouchableOpacity> : null}</>}
 """
-if visit_old in s:
+    if visit_old not in s:
+        raise SystemExit('Visit hydraulic button marker not found')
     s = s.replace(visit_old, visit_new, 1)
-elif "hydraulicVisible ? <TouchableOpacity" not in s:
-    raise SystemExit('Visit hydraulic button marker not found')
 
-# Remove the old standalone Parameters row when applying over an older patched source.
+# Remove the obsolete standalone Parameters row when applying over an older source.
 s = s.replace("import { HydraulicFeatureSettingRow } from './HydraulicFeatureSettingRow.js';\n", '')
 s = s.replace("<HydraulicFeatureSettingRow enabled={hydraulicVisible} onChange={handleHydraulicVisibilityChanged} />", '')
 
-# Safety: the build patch itself must never leave duplicate featureSettings
-# imports behind.
+# Final assertions should validate behavior, not a particular formatting style.
 if len(feature_pattern.findall(s)) != 1:
     raise SystemExit('featureSettings imports were not consolidated')
+if not re.search(r"\[\s*hydraulicVisible\s*,\s*setHydraulicVisible\s*\]", s):
+    raise SystemExit('hydraulic visibility state missing')
+if 'getHydraulicSchemaVisible()' not in s:
+    raise SystemExit('hydraulic initialization missing')
+if not re.search(r"key\s*===\s*['\"]hydraulic_schema['\"]", s):
+    raise SystemExit('hydraulic subscription missing')
+if 'hydraulicVisible ? <TouchableOpacity' not in s:
+    raise SystemExit('hydraulic visit gate missing')
 
 p.write_text(s, encoding='utf-8')
-print('Hydraulic schema and LAB 3D feature imports consolidated safely.')
+print('Hydraulic schema feature gate verified and normalized safely.')
