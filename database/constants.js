@@ -1,8 +1,8 @@
 export const DATABASE_NAME = 'visite_technique.db';
 
 // Keep this value aligned with the highest migration registered in
-// database/migrations/index.js. Migration 023 adds reserve severity fields.
-export const DATABASE_SCHEMA_VERSION = 23;
+// database/migrations/index.js. Migration 024 adds client site groups.
+export const DATABASE_SCHEMA_VERSION = 24;
 
 export const ENTITY_TYPES = Object.freeze({
   CLIENT: 'client',

@@ -1,6 +1,7 @@
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
+import { dossierVisiteMetra, obtenirRacineMetra } from './metraStorage.js';
 
 /**
  * Création d'une visite native de production.
@@ -25,6 +26,13 @@ export async function creerVisiteProduction({ siteId, technicien = null, mode = 
     );
     await db.runAsync(`INSERT OR IGNORE INTO notes (visite_id, contenu) VALUES (?, '')`, [id]);
   });
+
+  // Si l'utilisateur a déjà accordé une fois l'accès Documents/METRA, la
+  // structure Client/Site/Visite est créée immédiatement sans nouvelle boîte
+  // de dialogue. Le refus ou l'absence d'autorisation ne bloque jamais la visite.
+  try {
+    if (await obtenirRacineMetra()) await dossierVisiteMetra(id);
+  } catch {}
 
   return id;
 }

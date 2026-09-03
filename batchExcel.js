@@ -4,12 +4,13 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { analyserClasseur, importerAnalyseExcel } from './excelImport.js';
 import { preparerExport } from './excelExport.js';
+import { creerFichierSaf, dossierVisiteMetra } from './metraStorage.js';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 function empreinteLegere(texte) {
   let hash = 2166136261;
-  for (let i = 0; i < texte.length; i++) {
+  for (let i = 0; i < texte.length; i += 1) {
     hash ^= texte.charCodeAt(i);
     hash = Math.imul(hash, 16777619);
   }
@@ -66,14 +67,6 @@ export async function exporterVisitesExcelEnLot(visiteIds = []) {
   const ids = [...new Set((visiteIds || []).filter(Boolean))];
   if (!ids.length) throw new Error('Aucune visite sélectionnée.');
 
-  const SAF = FileSystem.StorageAccessFramework;
-  if (!SAF?.requestDirectoryPermissionsAsync || !SAF?.createFileAsync) {
-    throw new Error("L'enregistrement multiple n'est pas disponible sur cet appareil Android.");
-  }
-
-  const permission = await SAF.requestDirectoryPermissionsAsync();
-  if (!permission?.granted || !permission?.directoryUri) return { annule: true, enregistres: [], erreurs: [] };
-
   const enregistres = [];
   const erreurs = [];
   const occurrences = new Map();
@@ -81,8 +74,9 @@ export async function exporterVisitesExcelEnLot(visiteIds = []) {
     try {
       const { base64, nomFichier, trame, stats } = await preparerExport(visiteId);
       const nomUnique = rendreNomUnique(nomFichier, occurrences);
-      const uri = await SAF.createFileAsync(permission.directoryUri, nomUnique, XLSX_MIME);
-      await FileSystem.writeAsStringAsync(uri, base64, { encoding: FileSystem.EncodingType.Base64 });
+      const dossier = await dossierVisiteMetra(visiteId, 'Exports');
+      if (!dossier) return { annule: true, enregistres, erreurs };
+      const uri = await creerFichierSaf(dossier, nomUnique, XLSX_MIME, base64);
       enregistres.push({ visiteId, nomFichier: nomUnique, uri, trameNom: trame?.nom, stats });
     } catch (e) {
       erreurs.push({ visiteId, message: String(e?.message || e) });

@@ -1,9 +1,8 @@
 import * as FileSystem from 'expo-file-system';
 import { openAppDatabase } from './database/index.js';
+import { creerFichierSaf, dossierVisiteMetra } from './metraStorage.js';
 
-const DOSSIER_META_KEY = 'photo_documents_folder_uri';
 const PHOTO_META_PREFIX = 'photo_documents_uri::';
-const DOSSIER_NOM = 'Visite Technique - Photos';
 const JPEG_MIME = 'image/jpeg';
 
 async function lireMeta(key) {
@@ -32,84 +31,34 @@ function nomFichierDepuisUri(uri) {
   return decodeURIComponent(morceaux[morceaux.length - 1] || '');
 }
 
-function estSousDossier(uri, nom) {
+function visiteIdDepuisUriInterne(uri) {
   try {
-    const decode = decodeURIComponent(String(uri || ''));
-    return decode.endsWith(`/${nom}`) || decode.endsWith(`:${nom}`);
+    const morceaux = decodeURIComponent(String(uri || '')).split('/').filter(Boolean);
+    const dossierVisite = morceaux[morceaux.length - 2] || '';
+    const sep = dossierVisite.indexOf('__');
+    return sep >= 0 ? dossierVisite.slice(sep + 2) : null;
   } catch {
-    return false;
+    return null;
   }
 }
 
-async function trouverOuCreerSousDossier(baseUri) {
-  const SAF = FileSystem.StorageAccessFramework;
-  if (!SAF) return baseUri;
-
+// Compatible avec l'ancien appel (uriSource, nomFichier) et le nouvel appel
+// explicite (uriSource, visiteId, nomFichier).
+export async function copierPhotoDansDocuments(uriSource, visiteIdOuNom, nomEventuel = null) {
+  const nomFichier = nomEventuel || visiteIdOuNom;
+  const visiteId = nomEventuel ? visiteIdOuNom : visiteIdDepuisUriInterne(uriSource);
+  if (!uriSource || !visiteId || !nomFichier) return null;
   try {
-    const enfants = await SAF.readDirectoryAsync(baseUri);
-    const existant = (enfants || []).find((uri) => estSousDossier(uri, DOSSIER_NOM));
-    if (existant) return existant;
-  } catch {}
-
-  if (typeof SAF.makeDirectoryAsync === 'function') {
-    try {
-      return await SAF.makeDirectoryAsync(baseUri, DOSSIER_NOM);
-    } catch {}
-  }
-
-  // Repli : le dossier choisi par l'utilisateur reste un emplacement Documents valide.
-  return baseUri;
-}
-
-export async function obtenirDossierPhotosDocuments() {
-  return lireMeta(DOSSIER_META_KEY);
-}
-
-export async function garantirDossierPhotosDocuments() {
-  const deja = await obtenirDossierPhotosDocuments();
-  if (deja) return deja;
-
-  const SAF = FileSystem.StorageAccessFramework;
-  if (!SAF?.requestDirectoryPermissionsAsync || !SAF?.createFileAsync) return null;
-
-  let initialUri;
-  try {
-    initialUri = SAF.getUriForDirectoryInRoot?.('Documents');
-  } catch {
-    initialUri = undefined;
-  }
-
-  const permission = await SAF.requestDirectoryPermissionsAsync(initialUri);
-  if (!permission?.granted || !permission?.directoryUri) return null;
-
-  const dossier = await trouverOuCreerSousDossier(permission.directoryUri);
-  await ecrireMeta(DOSSIER_META_KEY, dossier);
-  return dossier;
-}
-
-export async function copierPhotoDansDocuments(uriSource, nomFichier) {
-  if (!uriSource || !nomFichier) return null;
-  const SAF = FileSystem.StorageAccessFramework;
-  if (!SAF?.createFileAsync) return null;
-
-  const dossier = await garantirDossierPhotosDocuments();
-  if (!dossier) return null;
-
-  try {
-    const base64 = await FileSystem.readAsStringAsync(uriSource, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
-    const destination = await SAF.createFileAsync(dossier, nomFichier, JPEG_MIME);
-    await FileSystem.writeAsStringAsync(destination, base64, {
-      encoding: FileSystem.EncodingType.Base64,
-    });
+    const dossier = await dossierVisiteMetra(visiteId, 'Photos');
+    if (!dossier) return null;
+    const base64 = await FileSystem.readAsStringAsync(uriSource, { encoding: FileSystem.EncodingType.Base64 });
+    const destination = await creerFichierSaf(dossier, nomFichier, JPEG_MIME, base64);
     await ecrireMeta(`${PHOTO_META_PREFIX}${nomFichier}`, destination);
     return destination;
   } catch (error) {
-    // Une autorisation SAF peut être révoquée par Android. On force alors une
-    // nouvelle sélection au prochain cliché sans compromettre la copie interne.
-    await supprimerMeta(DOSSIER_META_KEY).catch(() => {});
-    console.warn('Copie photo vers Documents impossible', error);
+    // La copie interne de la photo reste canonique. Une autorisation Documents
+    // refusée ou révoquée ne doit jamais faire perdre la photo terrain.
+    console.warn('Copie photo vers Documents/METRA impossible', error);
     return null;
   }
 }
@@ -124,11 +73,8 @@ export async function supprimerCopiePhotoDocuments(uriInterneOuNom) {
   const uriExterne = await lireMeta(key);
   if (!uriExterne) return false;
 
-  try {
-    await FileSystem.deleteAsync(uriExterne, { idempotent: true });
-  } catch (error) {
-    console.warn('Suppression copie Documents impossible', error);
-  }
+  try { await FileSystem.deleteAsync(uriExterne, { idempotent: true }); }
+  catch (error) { console.warn('Suppression copie Documents impossible', error); }
   await supprimerMeta(key).catch(() => {});
   return true;
 }
