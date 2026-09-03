@@ -16,9 +16,12 @@
       },
       "softwareKeyboardLayoutMode": "resize",
       "permissions": [
-        "CAMERA",
-        "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "CAMERA"
+      ],
+      "blockedPermissions": [
+        "android.permission.ACCESS_FINE_LOCATION",
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_BACKGROUND_LOCATION"
       ]
     },
     "plugins": [
@@ -34,12 +37,6 @@
           "cameraPermission": "Autoriser Visite Technique à utiliser l'appareil photo pour documenter les visites techniques.",
           "photosPermission": "Autoriser Visite Technique à accéder aux photos nécessaires aux visites techniques.",
           "microphonePermission": false
-        }
-      ],
-      [
-        "expo-location",
-        {
-          "locationWhenInUsePermission": "Autoriser Visite Technique à utiliser la position pour localiser les sites lors des visites."
         }
       ]
     ],
