@@ -17,8 +17,8 @@ async function libelleElementControle(db, visiteId, controleKey) {
   const index = Number(matchVmc[1]);
   const row = await db.getFirstAsync(`SELECT valeur FROM champs_visite WHERE visite_id=? AND section_code='vmc.config' AND cle=?`, [visiteId, `caisson_${index}_nom`]);
   const brut = String(row?.valeur || '').trim();
-  const base = `Caisson n°${index}`;
-  const nom = !brut || new RegExp(`^Caisson(?: n°)? ${index}$`, 'i').test(brut) ? base : `${base} - ${brut}`;
+  const defaut = `Caisson n°${index}`;
+  const nom = !brut || new RegExp(`^Caisson(?: n°)? ${index}$`, 'i').test(brut) ? defaut : `${defaut} - ${brut}`;
   return `${nom} · ${cle}`;
 }
 
