@@ -16,6 +16,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Validate SQLite schema version
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          constants = Path('database/constants.js').read_text(encoding='utf-8')
+          migrations = Path('database/migrations/index.js').read_text(encoding='utf-8')
+          match = re.search(r'DATABASE_SCHEMA_VERSION\s*=\s*(\d+)', constants)
+          if not match:
+              raise SystemExit('DATABASE_SCHEMA_VERSION introuvable')
+          declared = int(match.group(1))
+          versions = [int(v) for v in re.findall(r'migration(\d+)', migrations)]
+          latest = max(versions) if versions else 0
+          if declared != latest:
+              raise SystemExit(f'Version SQLite incoherente: constante={declared}, derniere migration={latest}')
+          print(f'Version SQLite coherente: {declared}')
+          PY
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
