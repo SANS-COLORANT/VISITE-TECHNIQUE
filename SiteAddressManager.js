@@ -93,12 +93,16 @@ function SiteAddressManager({ visible, clientId, sites = [], onClose, onChanged 
       setBusy(true);
       const d = draft(site);
       const adresse = composerAdresse(d);
-      await modifierSiteRapide(site.id, { adresse, note: d.note });
+      const adresseChangee = adresse !== texte(site.adresse);
+      const patch = { note: d.note };
+      if (adresseChangee) patch.adresse = adresse;
+      await modifierSiteRapide(site.id, patch);
       setEdits((prev) => { const n = { ...prev }; delete n[site.id]; return n; });
       await onChanged?.();
       setMessage(`${site.nom_site} enregistré`);
       // Best effort : ne bloque jamais la saisie terrain si la tablette est hors connexion.
-      synchroniserCoordonneesSite(site.id, adresse).then(() => onChanged?.()).catch(() => {});
+      // Si seule la note change, on conserve la position déjà mise en cache.
+      if (adresseChangee && adresse) synchroniserCoordonneesSite(site.id, adresse).then(() => onChanged?.()).catch(() => {});
     } catch (e) {
       Alert.alert('Erreur', e.message || 'Impossible de modifier le site.');
     } finally {
