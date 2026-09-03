@@ -143,8 +143,12 @@ function normaliserMaterielPourExport(materiel = []) {
   return materiel.map((m) => ({ ...m, nombre: m.nombre ?? m.nb ?? 1, numero_materiel: m.numero_materiel ?? m.numero ?? '', reseau_desservi: m.reseau_desservi ?? m.reseau ?? '', caracteristiques: m.caracteristiques ?? '', categorie: m.categorie || m.type_code || 'Équipement', designation: m.designation || m.categorie || 'Équipement' }));
 }
 
-function normaliserRemarquesPourExport(remarques = []) {
-  return remarques.map((r) => ({ ...r, date_reserve: formaterDateReserve(r.cree_le) }));
+function normaliserRemarquesPourExport(remarques = [], trameId = '') {
+  return remarques.map((r) => ({
+    ...r,
+    poste: trameId === 'vmc' && String(r.reference_libelle || '').trim() ? String(r.reference_libelle).trim() : r.poste,
+    date_reserve: formaterDateReserve(r.cree_le),
+  }));
 }
 
 function ajouterFeuillePreAllumageModulaire(wb, modele, champsMap, controlesMap) {
@@ -182,7 +186,7 @@ async function construireClasseur(visiteId) {
   ]);
 
   const materiel = normaliserMaterielPourExport(materielBrut);
-  const remarques = normaliserRemarquesPourExport(remarquesBrutes);
+  const remarques = normaliserRemarquesPourExport(remarquesBrutes, trame.id);
   const champsMap = indexerParCle(champs);
   const controlesMap = indexerParCle(controles);
   const wb = XLSX.read(cfg.templateBase64, { type: 'base64', cellStyles: true, cellNF: true, bookVBA: true });
