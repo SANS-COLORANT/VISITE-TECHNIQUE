@@ -36,13 +36,23 @@ jobs:
           PY
 
       # Rejoue dans la PR les patchs qui ont déjà fait échouer les builds APK
-      # 292/293/294/297. Ainsi une incompatibilité de marqueur ou de formatage
-      # est détectée avant fusion dans native-android, pas après.
+      # 292/293/294/297, puis la couche de mise en page PDF finale. Ainsi les
+      # incompatibilités de marqueur sont détectées avant fusion.
       - name: Validate build patch compatibility
         run: |
           python .github/scripts/patch_report_mode_defaults.py
           python .github/scripts/patch_hydraulic_feature_build.py
           python .github/scripts/patch_lab_health_build.py
+          python .github/scripts/patch_report_professional_layout_build.py
+          node --check reportBuilder.js
+          node --check reportEditorExporter.js
+          node --check preAllumageReportExporter.js
+          node --check preAllumageReportHtml.js
+          grep -q "PROFESSIONAL_REPORT_LAYOUT_V1" reportBuilder.js
+          grep -q "Criticité" reportBuilder.js
+          grep -q "photoCount-6" reportBuilder.js
+          grep -q "photoCount-6" reportEditorExporter.js
+          grep -q "Périmètre :" reportBuilder.js
 
       - name: Setup Node
         uses: actions/setup-node@v4
