@@ -36,11 +36,13 @@ jobs:
           PY
 
       # Rejoue dans la PR les patchs qui ont déjà fait échouer les builds APK
-      # 292/293/294/297, puis la couche de mise en page PDF finale. Ainsi les
-      # incompatibilités de marqueur sont détectées avant fusion.
+      # 292/293/294/297, la restitution Pré-allumage puis la couche de mise en
+      # page PDF finale. Les incompatibilités de marqueur sont donc détectées
+      # avant fusion et non après génération de l'APK.
       - name: Validate build patch compatibility
         run: |
           python .github/scripts/patch_report_mode_defaults.py
+          python .github/scripts/patch_preallumage_report_regressions.py
           python .github/scripts/patch_hydraulic_feature_build.py
           python .github/scripts/patch_lab_health_build.py
           python .github/scripts/patch_report_professional_layout_build.py
@@ -48,6 +50,11 @@ jobs:
           node --check reportEditorExporter.js
           node --check preAllumageReportExporter.js
           node --check preAllumageReportHtml.js
+          node --check wordDocxExporter.js
+          grep -q "PREALLUMAGE_REPORT_PANEL_ORDER" reportBuilder.js
+          grep -q "construireSitePreAllumageHtml" reportBuilder.js
+          grep -q "preAllumageBuildingRows" wordDocxExporter.js
+          grep -q "preAllumagePlanImages" wordDocxExporter.js
           grep -q "PROFESSIONAL_REPORT_LAYOUT_V1" reportBuilder.js
           grep -q "Criticité" reportBuilder.js
           grep -q "photoCount-6" reportBuilder.js
