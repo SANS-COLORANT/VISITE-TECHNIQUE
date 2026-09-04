@@ -10,6 +10,7 @@ import { PreAllumagePlanCard } from './PreAllumagePlanCard.js';
 import { styles } from './styles.js';
 import { enregistrerAliasPreAllumage, fieldAliasKey, libelleChamp, listerAliasesPreAllumage, sectionAliasDescriptor } from './preAllumageAliases.js';
 import { PreAllumageModularPanel } from './PreAllumageModularPanel.js';
+import { PreAllumageInstallationPanel } from './PreAllumageInstallationPanel.js';
 
 const visiteDataCache = new Map();
 
@@ -62,6 +63,9 @@ export function mettreAJourCacheControle(visiteId, key, patch) {
 }
 
 export function TrameGenericPanel(props) {
+  // L'écran « Installations » devient le point d'entrée terrain du Pré-allumage :
+  // une chaufferie/SST regroupe ses informations, relevés et conformités.
+  if (props.panelId === 'p-pa-batiments') return <PreAllumageInstallationPanel {...props} />;
   if (props.panelId.startsWith('p-pa-')) return <PreAllumageModularPanel {...props} />;
   return <TrameGenericStaticPanel {...props} />;
 }
