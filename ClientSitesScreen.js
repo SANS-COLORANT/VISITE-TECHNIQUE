@@ -7,7 +7,8 @@ import { getResumeSuppressionSite, supprimerSiteComplet } from './entityManageme
 import { synchroniserCoordonneesSite } from './siteGeoDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
 import { dupliquerSite } from './siteOrganizationDb.js';
-import { SiteAddressManager, composerAdresse } from './SiteAddressManager.js';
+import { composerAdresse } from './SiteAddressManager.js';
+import { SiteGroupsManager } from './SiteGroupsManager.js';
 import { SiteRadialActionMenu } from './SiteRadialActionMenu.js';
 
 const adresseVide = () => ({ numero: '', voie: '', complement: '', codePostal: '', ville: '' });
@@ -139,7 +140,7 @@ function ClientSitesScreen({ route, navigation }) {
 
     <Modal visible={!!renameSite} transparent animationType="fade" onRequestClose={() => setRenameSite(null)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Renommer le site</Text><TextInput autoFocus style={styles.input} value={renameValue} onChangeText={setRenameValue} selectTextOnFocus/><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setRenameSite(null)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerRenommage}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></View></View></Modal>
 
-    <SiteAddressManager visible={groupesVisible} mode="groups" clientId={clientId} sites={sites} onClose={() => setGroupesVisible(false)} onChanged={charger}/>
+    <SiteGroupsManager visible={groupesVisible} clientId={clientId} sites={sites} onClose={() => setGroupesVisible(false)} onChanged={charger}/>
     <SiteRadialActionMenu menu={radialMenu} onClose={() => setRadialMenu(null)} onAction={actionMenuSite}/>
   </View>;
 }
