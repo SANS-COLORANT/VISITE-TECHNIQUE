@@ -2,10 +2,11 @@ import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { PREALLUMAGE_PANELS, presetsPour } from './preAllumageTrame.js';
 import { libelleChamp, libelleSection, listerAliasesPreAllumage } from './preAllumageAliases.js';
-import { remapperLocalVersRubriquesOfficielles } from './preAllumageStructureDb.js';
+import { preparerStructurePreAllumage, remapperLocalVersRubriquesOfficielles } from './preAllumageStructureDb.js';
 
 const CHAUFFERIE = 'chaufferie';
 const SST = 'sous_station';
+const PANELS_GLOBAUX = new Set(['p-pa-infos', 'p-pa-conclusion']);
 
 // La clé historique Excel s'appelle encore « Nombre de sous-stations », mais
 // METRA y stocke désormais le nombre réel de locaux, tous types confondus.
@@ -87,8 +88,12 @@ export async function initialiserPreAllumageModulaire(visiteId) {
 
 export async function chargerPreAllumageModulaire(visiteId) {
   await initialiserPreAllumageModulaire(visiteId);
+  // Cette préparation est idempotente et s'exécute aussi avant rapports/exports :
+  // les anciennes structures automatiques sont converties sans qu'il soit
+  // nécessaire d'ouvrir d'abord l'écran Installations.
+  await preparerStructurePreAllumage(visiteId);
   const db = await getDb();
-  const [locaux, rubriques, champs] = await Promise.all([
+  const [locaux, rubriquesBrutes, champs] = await Promise.all([
     db.getAllAsync(`SELECT * FROM pre_allumage_locaux WHERE visite_id=? ORDER BY ordre,cree_le`, [visiteId]),
     db.getAllAsync(`SELECT * FROM pre_allumage_rubriques WHERE visite_id=? ORDER BY ordre,cree_le`, [visiteId]),
     db.getAllAsync(
@@ -97,8 +102,14 @@ export async function chargerPreAllumageModulaire(visiteId) {
       [visiteId]
     ),
   ]);
+  // Les rubriques officielles orphelines restent en base uniquement comme
+  // cibles de mapping Excel. Elles ne doivent jamais créer de faux locaux ou
+  // de pages vides dans l'application, le PDF, le Word ou la feuille modulaire.
+  const rubriques = rubriquesBrutes.filter((r) => r.local_id || PANELS_GLOBAUX.has(r.panel_id));
+  const visibles = new Set(rubriques.map((r) => r.id));
   const champsParRubrique = new Map();
   champs.forEach((row) => {
+    if (!visibles.has(row.rubrique_id)) return;
     if (!champsParRubrique.has(row.rubrique_id)) champsParRubrique.set(row.rubrique_id, []);
     champsParRubrique.get(row.rubrique_id).push({ ...row, field: champDepuisLigne(row) });
   });
