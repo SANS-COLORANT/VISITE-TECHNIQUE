@@ -35,17 +35,16 @@ jobs:
           print(f'Version SQLite coherente: {declared}')
           PY
 
-      # Rejoue dans la PR les patchs qui ont déjà fait échouer les builds APK
-      # 292/293/294/297, la restitution Pré-allumage puis la couche de mise en
-      # page PDF finale. Les incompatibilités de marqueur sont donc détectées
-      # avant fusion et non après génération de l'APK.
+      # Rejoue dans la PR les patchs qui ont déjà fait échouer les builds APK.
+      # La restauration Pré-allumage s'applique volontairement après les couches
+      # LAB et mise en page professionnelle afin de valider le code réellement livré.
       - name: Validate build patch compatibility
         run: |
           python .github/scripts/patch_report_mode_defaults.py
-          python .github/scripts/patch_preallumage_report_regressions.py
           python .github/scripts/patch_hydraulic_feature_build.py
           python .github/scripts/patch_lab_health_build.py
           python .github/scripts/patch_report_professional_layout_build.py
+          python .github/scripts/patch_preallumage_report_regressions.py
           node --check reportBuilder.js
           node --check reportEditorExporter.js
           node --check preAllumageReportExporter.js
