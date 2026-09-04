@@ -121,9 +121,11 @@ const PRE_ALLUMAGE = Object.freeze({
   ui: {
     panels: PREALLUMAGE_PANELS,
     specialPanels: ['p-equip', 'p-remarques', 'p-photos'],
-    tabOrder: ['p-pa-infos', 'p-pa-batiments', 'p-pa-compteurs', 'p-pa-regulation', 'SEP', 'p-pa-chaufferie', 'p-pa-sst', 'p-pa-conclusion', 'SEP', 'p-equip', 'p-remarques', 'p-photos'],
+    // L'interface terrain est volontairement plus simple que la structure Excel :
+    // toutes les rubriques techniques sont accessibles depuis « Installations ».
+    tabOrder: ['p-pa-infos', 'p-pa-batiments', 'p-pa-conclusion', 'SEP', 'p-equip', 'p-remarques', 'p-photos'],
     labels: {
-      'p-pa-infos': 'Informations', 'p-pa-batiments': 'Locaux / SST', 'p-pa-compteurs': 'Compteurs',
+      'p-pa-infos': 'Informations', 'p-pa-batiments': 'Installations', 'p-pa-compteurs': 'Compteurs',
       'p-pa-regulation': 'Régulation', 'p-pa-chaufferie': 'Chaufferie', 'p-pa-sst': 'Sous-stations',
       'p-pa-conclusion': 'Conclusion', 'p-equip': 'Équipements', 'p-remarques': 'Réserves', 'p-photos': 'Photos',
     },
