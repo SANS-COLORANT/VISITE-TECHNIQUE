@@ -9,7 +9,9 @@ const BASE_KEYS = Object.freeze([
 const BASE_OUTDOOR = Object.freeze([-7, 12, 19]);
 
 function nombre(v) {
-  const n = Number(String(v ?? '').replace(',', '.'));
+  const texte = String(v ?? '').trim();
+  if (!texte) return null;
+  const n = Number(texte.replace(',', '.'));
   return Number.isFinite(n) ? n : null;
 }
 
