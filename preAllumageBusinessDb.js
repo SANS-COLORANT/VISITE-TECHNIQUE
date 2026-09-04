@@ -62,7 +62,10 @@ export async function synchroniserNombreLocauxPreAllumage(visiteId) {
 export async function normaliserLocauxPreAllumage(visiteId) {
   const db = await getDb();
   const locaux = await db.getAllAsync(`SELECT * FROM pre_allumage_locaux WHERE visite_id=? ORDER BY ordre,cree_le`, [visiteId]);
-  if (locaux.length && locaux.every((l) => DEFAULT_LOCAL_NAMES.has(String(l.nom || '').trim()))) {
+  // Les anciennes versions créaient automatiquement 10 SST + Centre commercial + Église.
+  // On ne nettoie que cette structure automatique complète et totalement vide :
+  // un technicien qui ajoute volontairement « SST 1 » ne perd donc jamais son local.
+  if (locaux.length >= 10 && locaux.every((l) => DEFAULT_LOCAL_NAMES.has(String(l.nom || '').trim()))) {
     let contientDonnees = false;
     for (const local of locaux) {
       if (await localContientDonnees(db, visiteId, local.id)) { contientDonnees = true; break; }
