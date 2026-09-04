@@ -1,8 +1,8 @@
 export const DATABASE_NAME = 'visite_technique.db';
 
 // Keep this value aligned with the highest migration registered in
-// database/migrations/index.js. Migration 025 adds Pré-allumage business referentials.
-export const DATABASE_SCHEMA_VERSION = 25;
+// database/migrations/index.js. Migration 026 adds the Pré-allumage primary usage flag.
+export const DATABASE_SCHEMA_VERSION = 26;
 
 export const ENTITY_TYPES = Object.freeze({
   CLIENT: 'client',
