@@ -15,10 +15,14 @@ export const migration025 = {
     );
 
     CREATE INDEX IF NOT EXISTS idx_pa_referentiels_categorie
-      ON pre_allumage_referentiels(categorie, actif, ordre, code);
+      ON pre_allumage_referentiels(categorie, actif,ordre,code);
 
     INSERT OR IGNORE INTO pre_allumage_referentiels(id,categorie,code,libelle,ordre) VALUES
       ('pa-ref-exploitant-dalkia','exploitant','DALKIA','DALKIA',10),
+      ('pa-ref-exploitant-engie','exploitant','ENGIE SOLUTIONS','ENGIE Solutions',20),
+      ('pa-ref-exploitant-idex','exploitant','IDEX','IDEX',30),
+      ('pa-ref-exploitant-coriance','exploitant','CORIANCE','Coriance',40),
+      ('pa-ref-exploitant-veolia','exploitant','VEOLIA ENERGIE FRANCE','Veolia Énergie France',50),
       ('pa-ref-ca-tca','charge_affaires','TCA','TCA',10),
       ('pa-ref-ca-bdi','charge_affaires','BDI','BDI',20),
       ('pa-ref-ca-sbo','charge_affaires','SBO','SBO',30),
