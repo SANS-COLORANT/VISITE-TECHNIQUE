@@ -3,7 +3,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { upsertControlePartiel } from './controlDb.js';
 import { listerRemarquesVisite, supprimerRemarqueControle, upsertRemarquePrescription } from './remarkDb.js';
-import { PhotoButton } from './PhotoButton.js';
+import { PreAllumagePhotoButton } from './PreAllumagePhotoButton.js';
 import { COLORS, styles } from './styles.js';
 
 const AVIS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
@@ -141,7 +141,7 @@ export const PreAllumageCompactControl = React.memo(function PreAllumageCompactC
           <Text style={{ color: COLORS.red, fontWeight: '900', fontSize: 10 }}>Réserve créée automatiquement</Text>
           {remarque?.prestation ? <Text numberOfLines={2} style={{ color: COLORS.inkSoft, fontSize: 10, marginTop: 2 }}>{remarque.prestation}</Text> : null}
         </View>
-        <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={`${localName || ''} · ${label}`} style={{ minHeight: 38, paddingHorizontal: 9 }} />
+        <PreAllumagePhotoButton visiteId={visiteId} entiteKey={controleKey} label={`${localName || ''} · ${label}`} style={{ minHeight: 38, paddingHorizontal: 9 }} />
       </View> : null}
     </View> : null}
 
