@@ -72,8 +72,8 @@ export async function dupliquerLocalPreAllumage(localId) {
   const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),-1) n FROM pre_allumage_locaux WHERE visite_id=?`, [local.visite_id]);
   const nouveauId = createId('pa-local');
   await db.runAsync(
-    `INSERT INTO pre_allumage_locaux(id,visite_id,nom,type_code,ordre,chauffage,ecs) VALUES(?,?,?,?,?,?,?)`,
-    [nouveauId, local.visite_id, nouveauNom, local.type_code, Number(max?.n || -1) + 1, local.chauffage, local.ecs]
+    `INSERT INTO pre_allumage_locaux(id,visite_id,nom,type_code,ordre,chauffage,ecs,primaire) VALUES(?,?,?,?,?,?,?,?)`,
+    [nouveauId, local.visite_id, nouveauNom, local.type_code, Number(max?.n || -1) + 1, local.chauffage, local.ecs, Number(local.primaire) || 0]
   );
 
   const rubriques = await db.getAllAsync(`SELECT * FROM pre_allumage_rubriques WHERE local_id=? ORDER BY ordre,cree_le`, [localId]);
@@ -156,22 +156,25 @@ async function assurerSectionControle(db, local, nature) {
   });
 }
 
-export async function mettreAJourConfigurationLocalPreAllumage(localId, { chauffage, ecs }) {
+export async function mettreAJourConfigurationLocalPreAllumage(localId, { chauffage, ecs, primaire = false }) {
   const db = await getDb();
   const local = await db.getFirstAsync(`SELECT * FROM pre_allumage_locaux WHERE id=?`, [localId]);
   if (!local) throw new Error('Installation introuvable.');
   const nextChauffage = chauffage ? 1 : 0;
   const nextEcs = ecs ? 1 : 0;
+  const nextPrimaire = local.type_code === 'chaufferie' && primaire ? 1 : 0;
   await db.runAsync(
-    `UPDATE pre_allumage_locaux SET chauffage=?,ecs=?,modifie_le=datetime('now') WHERE id=?`,
-    [nextChauffage, nextEcs, localId]
+    `UPDATE pre_allumage_locaux SET chauffage=?,ecs=?,primaire=?,modifie_le=datetime('now') WHERE id=?`,
+    [nextChauffage, nextEcs, nextPrimaire, localId]
   );
-  const maj = { ...local, chauffage: nextChauffage, ecs: nextEcs };
-  if (nextEcs) {
-    await assurerChampCompteurEcs(db, maj);
-    await assurerSectionControle(db, maj, 'ecs');
+  const maj = { ...local, chauffage: nextChauffage, ecs: nextEcs, primaire: nextPrimaire };
+  if (local.type_code !== 'chaufferie') {
+    if (nextEcs) {
+      await assurerChampCompteurEcs(db, maj);
+      await assurerSectionControle(db, maj, 'ecs');
+    }
+    if (nextChauffage) await assurerSectionControle(db, maj, 'chauffage');
   }
-  if (nextChauffage) await assurerSectionControle(db, maj, 'chauffage');
   return maj;
 }
 
