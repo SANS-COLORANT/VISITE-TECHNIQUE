@@ -14,6 +14,7 @@ import { seedEquipmentCatalogVentilation } from './equipmentCatalogVentilationSe
 import { seedEquipmentCatalogHydronics } from './equipmentCatalogHydronicsSeed.js';
 import { seedEquipmentCatalogPeripheral } from './equipmentCatalogPeripheralSeed.js';
 import { seedEquipmentCatalogImages } from './equipmentCatalogImageSeed.js';
+import { seedEquipmentCatalogVisuals } from './equipmentCatalogVisualSeed.js';
 
 let databasePromise = null;
 let catalogueEnrichmentPromise = null;
@@ -58,6 +59,7 @@ export async function ensureEquipmentCatalogReady() {
       await seedEquipmentCatalogHydronics(db);
       await seedEquipmentCatalogPeripheral(db);
       await seedEquipmentCatalogImages(db);
+      await seedEquipmentCatalogVisuals(db);
       return db;
     })().catch((error) => {
       catalogueEnrichmentPromise = null;
