@@ -2,6 +2,7 @@ import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { PREALLUMAGE_PANELS, presetsPour } from './preAllumageTrame.js';
 import { libelleChamp, libelleSection, listerAliasesPreAllumage } from './preAllumageAliases.js';
+import { remapperLocalVersRubriquesOfficielles } from './preAllumageStructureDb.js';
 
 const CHAUFFERIE = 'chaufferie';
 const SST = 'sous_station';
@@ -171,6 +172,11 @@ export async function ajouterLocalPreAllumage(visiteId, { nom, typeCode = SST, c
   } else {
     if (defs.heat.length) await insererRubrique(db, { visiteId, localId: id, panelId: 'p-pa-sst', code: `pa.local.${id}.chauffage`, nom: `${propre} — Chauffage`, ordre: baseOrdre + 3, fields: defs.heat });
     if (defs.water.length) await insererRubrique(db, { visiteId, localId: id, panelId: 'p-pa-sst', code: `pa.local.${id}.ecs`, nom: `${propre} — ECS / traitement d’eau`, ordre: baseOrdre + 4, fields: defs.water });
+    // Si le nom correspond à une zone officielle de la trame (SST 1..10,
+    // Centre commercial, Église, Piscine), on rattache immédiatement le local
+    // aux rubriques statiques conservées. L'écran reste dynamique, mais le
+    // classeur Excel officiel continue donc de recevoir ses cellules historiques.
+    await remapperLocalVersRubriquesOfficielles(visiteId, id);
   }
   await synchroniserNombreSst(db, visiteId);
   return id;
