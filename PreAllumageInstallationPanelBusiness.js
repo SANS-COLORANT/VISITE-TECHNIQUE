@@ -4,6 +4,7 @@ import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
 import { preparerStructurePreAllumage } from './preAllumageStructureDb.js';
 import { assurerStructureSitePreAllumage } from './preAllumageSiteBootstrap.js';
 import { PreAllumageInstallationPanelV3 } from './PreAllumageInstallationPanelV3.js';
+import { PreAllumagePlanCard } from './PreAllumagePlanCard.js';
 import { COLORS } from './styles.js';
 
 export function PreAllumageInstallationPanelBusiness(props) {
@@ -23,5 +24,8 @@ export function PreAllumageInstallationPanelBusiness(props) {
     return () => { alive = false; };
   }, [props.visiteId]);
   if (!ready) return <View style={{ padding: 30 }}><ActivityIndicator color={COLORS.orange} /></View>;
-  return <PreAllumageInstallationPanelV3 {...props} />;
+  return <View style={{ flex: 1 }}>
+    <PreAllumagePlanCard visiteId={props.visiteId} onSaved={props.onSaved} />
+    <PreAllumageInstallationPanelV3 {...props} />
+  </View>;
 }
