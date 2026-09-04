@@ -17,7 +17,26 @@ function palette(opt, selected) {
   return { bg: '#F2F4F7', border: COLORS.inkFaint, text: COLORS.inkSoft };
 }
 
-export const PreAllumageCompactControl = React.memo(function PreAllumageCompactControl({ visiteId, sectionCode, field, etatInitial, localName, onEtatChange, onSaved }) {
+function typeLocalLabel(type) {
+  if (type === 'chaufferie') return 'Chaufferie';
+  if (type === 'sous_station') return 'Sous-station';
+  return 'Local technique';
+}
+
+function contextualiserCommentaire(texte, localName, localType, contextLabel) {
+  const base = String(texte || '').trim();
+  if (!base) return '';
+  const contexte = [typeLocalLabel(localType), localName, contextLabel].filter(Boolean).join(' · ');
+  return contexte ? `${contexte} — ${base}` : base;
+}
+
+function correspondPreset(commentaire, textePreset) {
+  const c = String(commentaire || '').trim();
+  const p = String(textePreset || '').trim();
+  return Boolean(p && (c === p || c.endsWith(`— ${p}`)));
+}
+
+export const PreAllumageCompactControl = React.memo(function PreAllumageCompactControl({ visiteId, sectionCode, field, etatInitial, localName, localType, contextLabel, onEtatChange, onSaved }) {
   const controleKey = `${sectionCode}||${field.cle}`;
   const label = field.displayLabel || field.libelle || field.cle;
   const presets = useMemo(() => field.presets || {}, [field.presets]);
@@ -44,14 +63,17 @@ export const PreAllumageCompactControl = React.memo(function PreAllumageCompactC
 
   useEffect(() => {
     if (!avis || !commentaire) { setPresetChoisi(null); return; }
-    const idx = (presets[avis] || []).findIndex((p) => p.commentaire === commentaire);
+    const idx = (presets[avis] || []).findIndex((p) => correspondPreset(commentaire, p.commentaire));
     setPresetChoisi(idx >= 0 ? idx : null);
   }, [avis, commentaire, presets]);
 
   const notifier = useCallback((patch) => { onEtatChange?.(patch); onSaved?.(); }, [onEtatChange, onSaved]);
 
   const appliquer = useCallback(async (nextAvis, preset = null, idx = null) => {
-    const texte = preset?.commentaire || '';
+    const texteBrut = preset?.commentaire || '';
+    const texte = nextAvis === 'S' && texteBrut
+      ? contextualiserCommentaire(texteBrut, localName, localType, contextLabel)
+      : texteBrut;
     setAvis(nextAvis); setCommentaire(texte); setPresetChoisi(idx);
     await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: nextAvis, commentaire: texte });
     if (nextAvis === 'N.S') {
@@ -71,10 +93,10 @@ export const PreAllumageCompactControl = React.memo(function PreAllumageCompactC
       await supprimerRemarqueControle(visiteId, controleKey); setRemarque(null); setDetailOuvert(false);
     }
     notifier({ avis: nextAvis, commentaire: texte });
-  }, [visiteId, sectionCode, field, label, localName, controleKey, notifier, rechargerRemarque]);
+  }, [visiteId, sectionCode, field, label, localName, localType, contextLabel, controleKey, notifier, rechargerRemarque]);
 
   const choisirAvis = async (nextAvis) => {
-    if (nextAvis === avis) { if (nextAvis === 'N.S') setDetailOuvert((v) => !v); return; }
+    if (nextAvis === avis) { setDetailOuvert((v) => !v); return; }
     const options = presets[nextAvis] || [];
     if (nextAvis === 'S' && options[0]) return appliquer(nextAvis, options[0], 0);
     if (nextAvis !== 'N.S' && options.length === 1) return appliquer(nextAvis, options[0], 0);
@@ -103,19 +125,21 @@ export const PreAllumageCompactControl = React.memo(function PreAllumageCompactC
 
   const options = avis ? (presets[avis] || []) : [];
   const commentaireCourt = commentaire && avis !== 'N.S' ? commentaire : '';
+  const afficherDetail = Boolean(avis && (avis === 'N.S' || detailOuvert || (avis !== 'S' && options.length > 1 && !commentaire)));
 
   return <View style={{ paddingVertical: 7 }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Text style={{ flex: 1, minWidth: 120, color: COLORS.ink, fontWeight: '800', fontSize: 12 }}>{label}</Text><View style={{ flexDirection: 'row', gap: 4 }}>{AVIS.map((opt) => { const c = palette(opt, avis === opt); return <TouchableOpacity key={opt} onPress={() => choisirAvis(opt).catch(console.warn)} style={{ minWidth: opt.length > 2 ? 37 : 31, minHeight: 31, alignItems: 'center', justifyContent: 'center', borderRadius: 8, borderWidth: 1, borderColor: c.border, backgroundColor: c.bg, paddingHorizontal: 6 }}><Text style={{ color: c.text, fontSize: 10, fontWeight: '900' }}>{opt}</Text></TouchableOpacity>; })}</View></View>
 
-    {commentaireCourt ? <TouchableOpacity onPress={() => setDetailOuvert((v) => !v)} style={{ marginTop: 5 }}><Text numberOfLines={detailOuvert ? undefined : 1} style={{ color: COLORS.inkSoft, fontSize: 10 }}>{commentaireCourt}</Text></TouchableOpacity> : null}
+    {commentaireCourt ? <TouchableOpacity onPress={() => setDetailOuvert((v) => !v)} style={{ marginTop: 5 }}><Text numberOfLines={detailOuvert ? undefined : 2} style={{ color: avis === 'S' ? COLORS.green : COLORS.inkSoft, fontSize: 10 }}>{commentaireCourt}</Text></TouchableOpacity> : null}
 
-    {avis && avis !== 'S' && (detailOuvert || avis === 'N.S' || (options.length > 1 && !commentaire)) ? <View style={{ marginTop: 8, padding: 9, borderRadius: 10, borderWidth: 1, borderColor: avis === 'N.S' ? '#F4C7C7' : COLORS.line, backgroundColor: avis === 'N.S' ? COLORS.redBg : '#F9FAFB' }}>
-      {options.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>{options.map((p, idx) => <TouchableOpacity key={`${avis}-${idx}`} onPress={() => choisirPreset(p, idx).catch(console.warn)} style={{ minHeight: 30, justifyContent: 'center', borderWidth: 1, borderColor: presetChoisi === idx ? (avis === 'N.S' ? COLORS.red : COLORS.orange) : COLORS.line, backgroundColor: presetChoisi === idx ? (avis === 'N.S' ? '#FEE4E2' : COLORS.orangeLight) : COLORS.white, borderRadius: 15, paddingHorizontal: 9 }}><Text style={{ fontSize: 10, fontWeight: '800', color: presetChoisi === idx ? (avis === 'N.S' ? COLORS.red : COLORS.orangeDark) : COLORS.inkSoft }}>{p.label}</Text></TouchableOpacity>)}</View> : null}
-      <TextInput style={[styles.input, { minHeight: 52, textAlignVertical: 'top', marginTop: 7, fontSize: 12 }]} multiline value={commentaire} onChangeText={(v) => { setCommentaire(v); setPresetChoisi(null); }} onBlur={() => sauverLibre().catch(console.warn)} placeholder="Commentaire technique…" />
+    {afficherDetail ? <View style={{ marginTop: 8, padding: 9, borderRadius: 10, borderWidth: 1, borderColor: avis === 'N.S' ? '#F4C7C7' : avis === 'S' ? '#B7E2C0' : COLORS.line, backgroundColor: avis === 'N.S' ? COLORS.redBg : avis === 'S' ? COLORS.greenBg : '#F9FAFB' }}>
+      {avis === 'S' ? <Text style={{ color: COLORS.green, fontSize: 9, fontWeight: '900', marginBottom: 6 }}>Commentaire de conformité — présélectionnable et modifiable</Text> : null}
+      {options.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>{options.map((p, idx) => <TouchableOpacity key={`${avis}-${idx}`} onPress={() => choisirPreset(p, idx).catch(console.warn)} style={{ minHeight: 30, justifyContent: 'center', borderWidth: 1, borderColor: presetChoisi === idx ? (avis === 'N.S' ? COLORS.red : avis === 'S' ? COLORS.green : COLORS.orange) : COLORS.line, backgroundColor: presetChoisi === idx ? (avis === 'N.S' ? '#FEE4E2' : avis === 'S' ? COLORS.greenBg : COLORS.orangeLight) : COLORS.white, borderRadius: 15, paddingHorizontal: 9 }}><Text style={{ fontSize: 10, fontWeight: '800', color: presetChoisi === idx ? (avis === 'N.S' ? COLORS.red : avis === 'S' ? COLORS.green : COLORS.orangeDark) : COLORS.inkSoft }}>{p.label}</Text></TouchableOpacity>)}</View> : null}
+      <TextInput style={[styles.input, { minHeight: 52, textAlignVertical: 'top', marginTop: 7, fontSize: 12 }]} multiline value={commentaire} onChangeText={(v) => { setCommentaire(v); setPresetChoisi(null); }} onBlur={() => sauverLibre().catch(console.warn)} placeholder={avis === 'S' ? 'Commentaire de conformité…' : 'Commentaire technique…'} />
       {avis === 'N.S' && remarque ? <ReserveSeveritySlider value={remarque.criticite ?? 2} defaultValue={remarque.criticite_defaut ?? 2} onChange={(v) => reglerCriticite(v).catch(console.warn)} compact /> : null}
       {avis === 'N.S' ? <View style={{ marginTop: 7, flexDirection: 'row', alignItems: 'center', gap: 8 }}><View style={{ flex: 1 }}><Text style={{ color: COLORS.red, fontWeight: '900', fontSize: 10 }}>Réserve créée automatiquement</Text>{remarque?.prestation ? <Text numberOfLines={2} style={{ color: COLORS.inkSoft, fontSize: 10, marginTop: 2 }}>{remarque.prestation}</Text> : null}</View><PreAllumagePhotoButton visiteId={visiteId} entiteKey={controleKey} label={`${localName || ''} · ${label}`} style={{ minHeight: 38, paddingHorizontal: 9 }} /></View> : null}
     </View> : null}
 
-    {avis && avis !== 'N.S' && !detailOuvert && options.length > 1 ? <TouchableOpacity onPress={() => setDetailOuvert(true)} style={{ alignSelf: 'flex-start', marginTop: 5 }}><Text style={{ color: COLORS.orangeDark, fontSize: 10, fontWeight: '800' }}>Modifier le motif</Text></TouchableOpacity> : null}
+    {avis && avis !== 'N.S' && !detailOuvert ? <TouchableOpacity onPress={() => setDetailOuvert(true)} style={{ alignSelf: 'flex-start', marginTop: 5 }}><Text style={{ color: avis === 'S' ? COLORS.green : COLORS.orangeDark, fontSize: 10, fontWeight: '800' }}>{avis === 'S' ? 'Modifier le commentaire S' : 'Modifier le motif'}</Text></TouchableOpacity> : null}
   </View>;
 });
