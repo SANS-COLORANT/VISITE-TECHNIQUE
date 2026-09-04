@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Image, Text, View } from 'react-native';
 import { styles } from './styles.js';
+import { EQUIPMENT_BRAND_DOMAINS, normaliserMarqueVisuelle } from '../../equipmentVisuals.js';
 
 const RAW_BASE = 'https://raw.githubusercontent.com/SANS-COLORANT/VISITE-TECHNIQUE/3af148f5a3793e64634629d56f7fac1dd466e6c9/assets/brands';
 
@@ -23,18 +24,8 @@ const BRAND_LOGOS = {
   wilo: `${RAW_BASE}/wilo.png`,
 };
 
-// Service de secours uniquement pour les marques qui n'ont pas encore d'asset
-// validé dans le dépôt. Le wordmark reste le dernier recours si le réseau échoue.
-const BRAND_DOMAINS = {
-  'alfa laval':'alfalaval.com', bwt:'bwt.com', caleffi:'caleffi.com', carrier:'carrier.com', ciat:'ciat.com',
-  culligan:'culligan.fr', daikin:'daikin.com', fernox:'fernox.com', honeywell:'honeywell.com', itron:'itron.com',
-  belimo:'belimo.com', lowara:'xylem.com', reflex:'reflex-winkelmann.com', salmson:'salmson.com', sofrel:'sofrel.com',
-  spirotech:'spirotech.com', swep:'swep.net', systemair:'systemair.com', trane:'trane.com', vaillant:'vaillant.fr',
-  wika:'wika.com', zilmet:'zilmet.it', chappee:'chappee.com', 'saunier duval':'saunierduval.fr', wit:'wit.fr',
-};
-
 export function normaliserMarque(nom='') {
-  return String(nom).normalize('NFD').replace(/[\u0300-\u036f]/g,'').replace(/[®™]/g,'').replace(/\s+/g,' ').trim().toLowerCase();
+  return normaliserMarqueVisuelle(nom);
 }
 
 function getNomMarque(marque){
@@ -79,6 +70,28 @@ const BRAND_PROFILES = {
   ciat:{color:'#005AA9',display:'CIAT',size:23,style:{fontWeight:'900',letterSpacing:1.5}},
   trane:{color:'#00549E',display:'TRANE',size:20,style:{fontWeight:'900',letterSpacing:.65}},
   carrier:{color:'#00529B',display:'Carrier',size:20,style:{fontWeight:'800',fontStyle:'italic'}},
+  aldes:{color:'#005AA9',display:'ALDES',size:21,style:{fontWeight:'900',letterSpacing:.7}},
+  's&p unelvent':{color:'#D71920',display:'S&P UNELVENT',size:16,style:{fontWeight:'900'}},
+  vim:{color:'#1F6E9C',display:'VIM',size:23,style:{fontWeight:'900',letterSpacing:1}},
+  'france air':{color:'#0068A9',display:'FRANCE AIR',size:17,style:{fontWeight:'900'}},
+  swegon:{color:'#111827',display:'Swegon',size:20,style:{fontWeight:'900'}},
+  flaktgroup:{color:'#E1251B',display:'FläktGroup',size:18,style:{fontWeight:'900'}},
+  'flakt woods':{color:'#E1251B',display:'Fläkt Woods',size:17,style:{fontWeight:'900'}},
+  wolf:{color:'#D71920',display:'WOLF',size:23,style:{fontWeight:'900',letterSpacing:1}},
+  trox:{color:'#00529B',display:'TROX',size:23,style:{fontWeight:'900',letterSpacing:1}},
+  helios:{color:'#E30613',display:'HELIOS',size:20,style:{fontWeight:'900'}},
+  vortice:{color:'#0066A4',display:'VORTICE',size:19,style:{fontWeight:'900'}},
+  komfovent:{color:'#1E6C52',display:'KOMFOVENT',size:16,style:{fontWeight:'900'}},
+  salda:{color:'#005C95',display:'SALDA',size:21,style:{fontWeight:'900'}},
+  zehnder:{color:'#D71920',display:'ZEHNDER',size:19,style:{fontWeight:'900'}},
+  nilan:{color:'#3D7B40',display:'NILAN',size:21,style:{fontWeight:'900'}},
+  rosenberg:{color:'#005A9C',display:'ROSENBERG',size:17,style:{fontWeight:'900'}},
+  'nicotra gebhardt':{color:'#D71920',display:'NICOTRA GEBHARDT',size:14,style:{fontWeight:'900'}},
+  aircalo:{color:'#1F5D8D',display:'AIRCALO',size:20,style:{fontWeight:'900'}},
+  lennox:{color:'#D71920',display:'LENNOX',size:20,style:{fontWeight:'900'}},
+  schako:{color:'#005B91',display:'SCHAKO',size:20,style:{fontWeight:'900'}},
+  novenco:{color:'#005B91',display:'NOVENCO',size:19,style:{fontWeight:'900'}},
+  halton:{color:'#005A9C',display:'HALTON',size:20,style:{fontWeight:'900'}},
 };
 
 export const BRAND_COLORS = Object.fromEntries(Object.entries(BRAND_PROFILES).map(([k,v])=>[k,v.color]));
@@ -106,7 +119,7 @@ function sourceLogoPourMarque(marque){
   if(BRAND_LOGOS[key]) return {uri:BRAND_LOGOS[key]};
   const custom=typeof marque==='object'?marque?.logo_uri:null;
   if(custom) return {uri:custom};
-  if(BRAND_DOMAINS[key]) return {uri:`https://img.logokit.com/${BRAND_DOMAINS[key]}`};
+  if(EQUIPMENT_BRAND_DOMAINS[key]) return {uri:`https://img.logokit.com/${EQUIPMENT_BRAND_DOMAINS[key]}`};
   return null;
 }
 
