@@ -1,10 +1,9 @@
 /** Conclusion Pré-allumage proposée automatiquement depuis les remarques de la visite. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getChampsVisite, upsertChamp } from './db.js';
 import { listerRemarquesVisite } from './remarkDb.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
-import { PreAllumageCompactField } from './PreAllumageCompactField.js';
 import { reserveSeverityLabel } from './reserveSeverity.js';
 import { COLORS, styles } from './styles.js';
 
@@ -29,6 +28,13 @@ function ligneSynthese(g) {
   const contexts = [...g.contexts];
   const suffix = g.count > 1 ? ` — ${g.count} constats regroupés${contexts.length ? ` : ${contexts.join(', ')}` : ''}` : (contexts[0] && contexts[0] !== 'Visite' ? ` — ${contexts[0]}` : '');
   return `• ${g.prestation}${suffix}`;
+}
+
+function LongField({ visiteId, sectionCode, label, storageKey, value, onSaved }) {
+  const [text, setText] = useState(String(value || ''));
+  useEffect(() => { setText(String(value || '')); }, [value]);
+  const save = async () => { await upsertChamp(visiteId, sectionCode, storageKey, text); onSaved(text); };
+  return <View style={{ backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 10, padding: 10, marginBottom: 7 }}><Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '900', marginBottom: 6 }}>{label}</Text><TextInput multiline value={text} onChangeText={setText} onBlur={() => save().catch(console.warn)} placeholder="Saisir ou compléter…" style={[styles.input, { minHeight: /Conclusion libre/i.test(label) ? 130 : 82, textAlignVertical: 'top', fontSize: 12 }]} /></View>;
 }
 
 export function PreAllumageConclusionPanel({ visiteId, onSaved }) {
@@ -62,6 +68,6 @@ export function PreAllumageConclusionPanel({ visiteId, onSaved }) {
       {groupes.length ? <TouchableOpacity onPress={() => inserer().catch(console.warn)} style={{ alignSelf: 'flex-start', marginTop: 12, minHeight: 40, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 10, backgroundColor: COLORS.orange }}><Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 11 }}>Insérer cette synthèse dans la conclusion</Text></TouchableOpacity> : null}
     </View>
 
-    {rubriques.map((r) => <View key={r.id} style={{ marginBottom: 10 }}><Text style={{ color: COLORS.ink, fontSize: 14, fontWeight: '900', marginBottom: 5 }}>{r.nom}</Text>{(r.champs || []).map((c) => { const key = `${r.section_code}||${c.field.cle}`; return <View key={c.id} style={{ backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 10, paddingHorizontal: 10, paddingVertical: 4, marginBottom: 6 }}><PreAllumageCompactField visiteId={visiteId} sectionCode={r.section_code} field={{ ...c.field, displayLabel: c.libelle }} valeurInitiale={champs[key]} localName="Conclusion" onSaved={(value) => { setChamps((m) => ({ ...m, [key]: value })); onSaved?.(); }} /></View>; })}</View>)}
+    {rubriques.map((r) => <View key={r.id} style={{ marginBottom: 10 }}><Text style={{ color: COLORS.ink, fontSize: 14, fontWeight: '900', marginBottom: 5 }}>{r.nom}</Text>{(r.champs || []).map((c) => { const key = `${r.section_code}||${c.field.cle}`; return <LongField key={c.id} visiteId={visiteId} sectionCode={r.section_code} label={c.libelle || c.field.cle} storageKey={c.field.cle} value={champs[key]} onSaved={(value) => { setChamps((m) => ({ ...m, [key]: value })); onSaved?.(); }} />; })}</View>)}
   </ScrollView>;
 }
