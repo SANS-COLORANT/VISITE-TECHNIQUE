@@ -32,7 +32,10 @@ function featureKey(key) {
 export async function getLabFeatureEnabled(key) {
   const db = await getDb();
   const row = await db.getFirstAsync(`SELECT value FROM _meta WHERE key=?`, [featureKey(key)]);
-  if (!row) return key === 'lab_3d';
+  // Toutes les fonctionnalités LAB sont opt-in : une installation neuve ne doit
+  // jamais afficher LAB 3D (ni une autre fonction expérimentale) sans activation
+  // explicite dans les paramètres METRA.
+  if (!row) return false;
   return String(row.value || '') === '1';
 }
 
