@@ -70,7 +70,7 @@ async function materialiserLocauxImportes(db, visiteId) {
 
   const existants = await db.getAllAsync(`SELECT id,nom FROM pre_allumage_locaux WHERE visite_id=?`, [visiteId]);
   const nomsExistants = new Set((existants || []).map((x) => canonicalName(x.nom)));
-  let maxRow = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),-1) n FROM pre_allumage_locaux WHERE visite_id=?`, [visiteId]);
+  const maxRow = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),-1) n FROM pre_allumage_locaux WHERE visite_id=?`, [visiteId]);
   let ordre = Number(maxRow?.n ?? -1) + 1;
   for (const name of candidates) {
     if (nomsExistants.has(name)) continue;
@@ -90,15 +90,13 @@ export async function preparerStructurePreAllumage(visiteId) {
   const db = await getDb();
   const locaux = await db.getAllAsync(`SELECT * FROM pre_allumage_locaux WHERE visite_id=? ORDER BY ordre,cree_le`, [visiteId]);
   if (locaux.length >= 10 && locaux.every((l) => DEFAULTS.has(String(l.nom || '').trim()))) {
-    let used = false;
-    for (const l of locaux) { if (await localHasData(db, visiteId, l.id)) { used = true; break; } }
-    if (!used) {
-      // Ancienne version : on enlève les 10 SST + locaux automatiques mais on
-      // conserve leurs rubriques comme cibles du classeur Excel officiel.
-      for (const l of locaux) {
-        await db.runAsync(`UPDATE pre_allumage_rubriques SET local_id=NULL WHERE local_id=?`, [l.id]);
-        await db.runAsync(`DELETE FROM pre_allumage_locaux WHERE id=?`, [l.id]);
-      }
+    // Build 305/306 : les locaux étaient créés automatiquement. On conserve
+    // uniquement ceux qui ont réellement reçu une saisie ; tous les autres
+    // disparaissent de l'interface sans perdre leurs rubriques Excel officielles.
+    for (const l of locaux) {
+      if (await localHasData(db, visiteId, l.id)) continue;
+      await db.runAsync(`UPDATE pre_allumage_rubriques SET local_id=NULL WHERE local_id=?`, [l.id]);
+      await db.runAsync(`DELETE FROM pre_allumage_locaux WHERE id=?`, [l.id]);
     }
   }
 
