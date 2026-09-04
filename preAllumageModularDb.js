@@ -57,47 +57,22 @@ async function insererRubrique(db, { visiteId, localId = null, panelId, code, no
   return id;
 }
 
-function nomLocalDepuisSection(panelId, nom) {
-  if (panelId === 'p-pa-sst') return String(nom).split(' — ')[0];
-  if (panelId === 'p-pa-batiments') return nom;
-  if (panelId === 'p-pa-compteurs') {
-    if (/^SST \d+$/i.test(nom) || nom === 'Église') return nom;
-    if (nom === 'Commerces / bureaux') return 'Centre commercial';
-  }
-  if (panelId === 'p-pa-regulation') {
-    if (/^SST \d+$/i.test(nom) || nom === 'Église') return nom;
-    if (nom === 'Commerces' || nom === 'Bureaux') return 'Centre commercial';
-  }
-  return null;
-}
-
 export async function initialiserPreAllumageModulaire(visiteId) {
   const db = await getDb();
   const deja = await db.getFirstAsync(`SELECT id FROM pre_allumage_rubriques WHERE visite_id=? LIMIT 1`, [visiteId]);
   if (deja) return;
 
   const aliases = await listerAliasesPreAllumage(visiteId);
-  const locaux = new Map();
-  const batiments = PREALLUMAGE_PANELS['p-pa-batiments'] || {};
-  let ordreLocal = 0;
-  for (const nom of Object.keys(batiments)) {
-    const id = createId('pa-local');
-    const type = /^SST\s+\d+$/i.test(nom) ? SST : (/chaufferie/i.test(nom) ? CHAUFFERIE : 'autre');
-    await db.runAsync(
-      `INSERT INTO pre_allumage_locaux(id,visite_id,nom,type_code,ordre,chauffage,ecs) VALUES(?,?,?,?,?,?,?)`,
-      [id, visiteId, libelleSection('p-pa-batiments', nom, aliases), type, ordreLocal++, 1, 1]
-    );
-    locaux.set(nom, id);
-  }
-
+  // La trame Excel conserve toutes ses rubriques officielles, mais aucune zone
+  // physique n'est créée dans l'application. Le technicien ajoute ensuite chaque
+  // Chaufferie ou Sous-station réellement rencontrée et les rubriques compatibles
+  // lui sont rattachées à ce moment-là.
   let ordreRubrique = 0;
   for (const [panelId, sections] of Object.entries(PREALLUMAGE_PANELS)) {
     for (const [nom, fields] of Object.entries(sections || {})) {
-      const nomLocal = nomLocalDepuisSection(panelId, nom);
-      const localId = nomLocal ? locaux.get(nomLocal) || null : null;
       await insererRubrique(db, {
         visiteId,
-        localId,
+        localId: null,
         panelId,
         code: sectionCode(panelId, nom),
         nom: libelleSection(panelId, nom, aliases),
@@ -203,9 +178,6 @@ export async function supprimerLocalPreAllumage(localId) {
     const code = rubrique.section_code;
     await db.runAsync(`DELETE FROM champs_visite WHERE visite_id=? AND section_code=?`, [local.visite_id, code]);
     await db.runAsync(`DELETE FROM controles_visite WHERE visite_id=? AND section_code=?`, [local.visite_id, code]);
-    // Les rubriques de la trame officielle n'appartiennent pas au local : elles
-    // sont simplement réutilisées pour garder la compatibilité Excel. On les
-    // détache avant suppression du local afin de pouvoir les remapper plus tard.
     if (!String(code || '').startsWith('pa.local.')) {
       await db.runAsync(`UPDATE pre_allumage_rubriques SET local_id=NULL,modifie_le=datetime('now') WHERE id=?`, [rubrique.id]);
     }
