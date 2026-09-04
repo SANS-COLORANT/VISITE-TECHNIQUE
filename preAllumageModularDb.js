@@ -130,7 +130,7 @@ function champsLocal(nom, typeCode, chauffage, ecs) {
   return { compteurs: ecs ? compteurs : compteurs.slice(0, 1), regulation, heat: chauffage ? heat : [], water: ecs ? water : [], typeCode };
 }
 
-export async function ajouterLocalPreAllumage(visiteId, { nom, typeCode = SST, chauffage = true, ecs = true }) {
+export async function ajouterLocalPreAllumage(visiteId, { nom, typeCode = SST, chauffage = true, ecs = true, primaire = false }) {
   await initialiserPreAllumageModulaire(visiteId);
   const db = await getDb();
   const propre = String(nom || '').trim();
@@ -139,9 +139,10 @@ export async function ajouterLocalPreAllumage(visiteId, { nom, typeCode = SST, c
   if (existe) throw new Error('Un local porte déjà ce nom.');
   const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),-1) n FROM pre_allumage_locaux WHERE visite_id=?`, [visiteId]);
   const id = createId('pa-local');
+  const primaireStocke = typeCode === CHAUFFERIE && primaire ? 1 : 0;
   await db.runAsync(
-    `INSERT INTO pre_allumage_locaux(id,visite_id,nom,type_code,ordre,chauffage,ecs) VALUES(?,?,?,?,?,?,?)`,
-    [id, visiteId, propre, typeCode, Number(max?.n || -1) + 1, chauffage ? 1 : 0, ecs ? 1 : 0]
+    `INSERT INTO pre_allumage_locaux(id,visite_id,nom,type_code,ordre,chauffage,ecs,primaire) VALUES(?,?,?,?,?,?,?,?)`,
+    [id, visiteId, propre, typeCode, Number(max?.n || -1) + 1, chauffage ? 1 : 0, ecs ? 1 : 0, primaireStocke]
   );
   const defs = champsLocal(propre, typeCode, chauffage, ecs);
   const baseOrdre = Date.now();
@@ -260,6 +261,6 @@ export function rubriquesVersSections(rubriques, panelId) {
 }
 
 export const PREALLUMAGE_TYPES_LOCAUX = Object.freeze([
-  { code: SST, label: 'Sous-station / SST' },
+  { code: SST, label: 'Sous-station' },
   { code: CHAUFFERIE, label: 'Chaufferie' },
 ]);
