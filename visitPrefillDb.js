@@ -48,6 +48,8 @@ export async function preremplirVisiteDepuisContexte(db, visiteId) {
       ['p-pa-infos','Général','Date de la visite',dateVisite],
       ['p-pa-infos','Informations générales','Date de visite',dateVisite],
       ['p-pa-infos','Informations générales','Saison de chauffe',saisonDeChauffe(dateVisite)],
+      ['p-pa-infos','Informations générales','Exploitant',contexte.code_exploitant],
+      ['p-pa-infos','Informations générales','Chargé d’affaires / rédacteur',contexte.technicien],
     ];
     for (const [p,s,c,v] of fixesPa) await insertIfEmpty(db, visiteId, p, s, c, v);
   } else {
