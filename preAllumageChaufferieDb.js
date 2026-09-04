@@ -1,13 +1,9 @@
-import { getDb } from './db.js';
 import { rattacherDonneesGeneralesChaufferie } from './preAllumageBusinessDb.js';
 
 export async function preparerChaufferieDynamiquePreAllumage(visiteId, localId) {
-  const db = await getDb();
-  // L'ancien ajout créait un mini-bloc de deux tests. Désormais les essais
-  // appartiennent aux chaudières, brûleurs, pompes, etc. ajoutés explicitement.
-  await db.runAsync(
-    `DELETE FROM pre_allumage_rubriques WHERE visite_id=? AND local_id=? AND section_code=?`,
-    [visiteId, localId, `pa.local.${localId}.tests`]
-  );
+  // Le bloc de contrôles généraux créé avec la chaufferie reste présent tant
+  // qu'il n'est pas remplacé par une structure d'équipements héritée du site.
+  // Cela garantit que les avis S / N.S / N.R / S.O / N.V sont immédiatement
+  // disponibles, même avant l'ajout d'une chaudière, pompe, V3V, etc.
   await rattacherDonneesGeneralesChaufferie(visiteId, localId);
 }
