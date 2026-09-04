@@ -15,6 +15,7 @@ on:
       - .github/workflows/native-android-apk.yml
       - .github/scripts/patch_pdf_cover_fallback_build.py
       - .github/scripts/patch_preallumage_pdf_cover_build.py
+      - .github/scripts/patch_preallumage_report_regressions.py
       - .github/scripts/patch_report_editor_assets_build.py
       - .github/scripts/patch_excel_import_date.py
       - .github/scripts/patch_report_mode_defaults.py
@@ -202,6 +203,19 @@ jobs:
           grep -q "photoCount-6" reportBuilder.js
           grep -q "photoCount-6" reportEditorExporter.js
           grep -q "Périmètre :" reportBuilder.js
+
+      - name: Restore complete Pre-allumage reports
+        run: |
+          python .github/scripts/patch_preallumage_report_regressions.py
+          node --check reportBuilder.js
+          node --check preAllumageReportHtml.js
+          node --check preAllumageReportExporter.js
+          node --check wordDocxExporter.js
+          grep -q "PREALLUMAGE_REPORT_PANEL_ORDER" reportBuilder.js
+          grep -q "construireSitePreAllumageHtml" reportBuilder.js
+          grep -q "preAllumageBuildingRows" wordDocxExporter.js
+          grep -q "preAllumagePlanImages" wordDocxExporter.js
+          grep -q "preparerPhotosRapport(data)" preAllumageReportExporter.js
 
       - name: Validate final Word DOCX integrity and cover
         run: |
