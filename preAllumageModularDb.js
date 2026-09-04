@@ -2,12 +2,16 @@ import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { PREALLUMAGE_PANELS, presetsPour } from './preAllumageTrame.js';
 import { libelleChamp, libelleSection, listerAliasesPreAllumage } from './preAllumageAliases.js';
+import { preparerStructurePreAllumage, remapperLocalVersRubriquesOfficielles } from './preAllumageStructureDb.js';
 
 const CHAUFFERIE = 'chaufferie';
 const SST = 'sous_station';
+const PANELS_GLOBAUX = new Set(['p-pa-infos', 'p-pa-conclusion']);
 
+// La clé historique Excel s'appelle encore « Nombre de sous-stations », mais
+// METRA y stocke désormais le nombre réel de locaux, tous types confondus.
 async function synchroniserNombreSst(db, visiteId) {
-  const row = await db.getFirstAsync(`SELECT COUNT(*) n FROM pre_allumage_locaux WHERE visite_id=? AND type_code=?`, [visiteId, SST]);
+  const row = await db.getFirstAsync(`SELECT COUNT(*) n FROM pre_allumage_locaux WHERE visite_id=?`, [visiteId]);
   await db.runAsync(
     `INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)
      ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur`,
@@ -54,47 +58,22 @@ async function insererRubrique(db, { visiteId, localId = null, panelId, code, no
   return id;
 }
 
-function nomLocalDepuisSection(panelId, nom) {
-  if (panelId === 'p-pa-sst') return String(nom).split(' — ')[0];
-  if (panelId === 'p-pa-batiments') return nom;
-  if (panelId === 'p-pa-compteurs') {
-    if (/^SST \d+$/i.test(nom) || nom === 'Église') return nom;
-    if (nom === 'Commerces / bureaux') return 'Centre commercial';
-  }
-  if (panelId === 'p-pa-regulation') {
-    if (/^SST \d+$/i.test(nom) || nom === 'Église') return nom;
-    if (nom === 'Commerces' || nom === 'Bureaux') return 'Centre commercial';
-  }
-  return null;
-}
-
 export async function initialiserPreAllumageModulaire(visiteId) {
   const db = await getDb();
   const deja = await db.getFirstAsync(`SELECT id FROM pre_allumage_rubriques WHERE visite_id=? LIMIT 1`, [visiteId]);
   if (deja) return;
 
   const aliases = await listerAliasesPreAllumage(visiteId);
-  const locaux = new Map();
-  const batiments = PREALLUMAGE_PANELS['p-pa-batiments'] || {};
-  let ordreLocal = 0;
-  for (const nom of Object.keys(batiments)) {
-    const id = createId('pa-local');
-    const type = /^SST\s+\d+$/i.test(nom) ? SST : (/chaufferie/i.test(nom) ? CHAUFFERIE : 'autre');
-    await db.runAsync(
-      `INSERT INTO pre_allumage_locaux(id,visite_id,nom,type_code,ordre,chauffage,ecs) VALUES(?,?,?,?,?,?,?)`,
-      [id, visiteId, libelleSection('p-pa-batiments', nom, aliases), type, ordreLocal++, 1, 1]
-    );
-    locaux.set(nom, id);
-  }
-
+  // La trame Excel conserve toutes ses rubriques officielles, mais aucune zone
+  // physique n'est créée dans l'application. Le technicien ajoute ensuite chaque
+  // Chaufferie ou Sous-station réellement rencontrée et les rubriques compatibles
+  // lui sont rattachées à ce moment-là.
   let ordreRubrique = 0;
   for (const [panelId, sections] of Object.entries(PREALLUMAGE_PANELS)) {
     for (const [nom, fields] of Object.entries(sections || {})) {
-      const nomLocal = nomLocalDepuisSection(panelId, nom);
-      const localId = nomLocal ? locaux.get(nomLocal) || null : null;
       await insererRubrique(db, {
         visiteId,
-        localId,
+        localId: null,
         panelId,
         code: sectionCode(panelId, nom),
         nom: libelleSection(panelId, nom, aliases),
@@ -109,8 +88,12 @@ export async function initialiserPreAllumageModulaire(visiteId) {
 
 export async function chargerPreAllumageModulaire(visiteId) {
   await initialiserPreAllumageModulaire(visiteId);
+  // Cette préparation est idempotente et s'exécute aussi avant rapports/exports :
+  // les anciennes structures automatiques sont converties sans qu'il soit
+  // nécessaire d'ouvrir d'abord l'écran Installations.
+  await preparerStructurePreAllumage(visiteId);
   const db = await getDb();
-  const [locaux, rubriques, champs] = await Promise.all([
+  const [locaux, rubriquesBrutes, champs] = await Promise.all([
     db.getAllAsync(`SELECT * FROM pre_allumage_locaux WHERE visite_id=? ORDER BY ordre,cree_le`, [visiteId]),
     db.getAllAsync(`SELECT * FROM pre_allumage_rubriques WHERE visite_id=? ORDER BY ordre,cree_le`, [visiteId]),
     db.getAllAsync(
@@ -119,8 +102,14 @@ export async function chargerPreAllumageModulaire(visiteId) {
       [visiteId]
     ),
   ]);
+  // Les rubriques officielles orphelines restent en base uniquement comme
+  // cibles de mapping Excel. Elles ne doivent jamais créer de faux locaux ou
+  // de pages vides dans l'application, le PDF, le Word ou la feuille modulaire.
+  const rubriques = rubriquesBrutes.filter((r) => r.local_id || PANELS_GLOBAUX.has(r.panel_id));
+  const visibles = new Set(rubriques.map((r) => r.id));
   const champsParRubrique = new Map();
   champs.forEach((row) => {
+    if (!visibles.has(row.rubrique_id)) return;
     if (!champsParRubrique.has(row.rubrique_id)) champsParRubrique.set(row.rubrique_id, []);
     champsParRubrique.get(row.rubrique_id).push({ ...row, field: champDepuisLigne(row) });
   });
@@ -171,6 +160,7 @@ export async function ajouterLocalPreAllumage(visiteId, { nom, typeCode = SST, c
   } else {
     if (defs.heat.length) await insererRubrique(db, { visiteId, localId: id, panelId: 'p-pa-sst', code: `pa.local.${id}.chauffage`, nom: `${propre} — Chauffage`, ordre: baseOrdre + 3, fields: defs.heat });
     if (defs.water.length) await insererRubrique(db, { visiteId, localId: id, panelId: 'p-pa-sst', code: `pa.local.${id}.ecs`, nom: `${propre} — ECS / traitement d’eau`, ordre: baseOrdre + 4, fields: defs.water });
+    await remapperLocalVersRubriquesOfficielles(visiteId, id);
   }
   await synchroniserNombreSst(db, visiteId);
   return id;
@@ -194,10 +184,14 @@ export async function supprimerLocalPreAllumage(localId) {
   const db = await getDb();
   const local = await db.getFirstAsync(`SELECT visite_id FROM pre_allumage_locaux WHERE id=?`, [localId]);
   if (!local) return;
-  const rubriques = await db.getAllAsync(`SELECT section_code FROM pre_allumage_rubriques WHERE local_id=?`, [localId]);
-  for (const { section_code: code } of rubriques) {
+  const rubriques = await db.getAllAsync(`SELECT id,section_code FROM pre_allumage_rubriques WHERE local_id=?`, [localId]);
+  for (const rubrique of rubriques) {
+    const code = rubrique.section_code;
     await db.runAsync(`DELETE FROM champs_visite WHERE visite_id=? AND section_code=?`, [local.visite_id, code]);
     await db.runAsync(`DELETE FROM controles_visite WHERE visite_id=? AND section_code=?`, [local.visite_id, code]);
+    if (!String(code || '').startsWith('pa.local.')) {
+      await db.runAsync(`UPDATE pre_allumage_rubriques SET local_id=NULL,modifie_le=datetime('now') WHERE id=?`, [rubrique.id]);
+    }
   }
   await db.runAsync(`DELETE FROM pre_allumage_locaux WHERE id=?`, [localId]);
   await synchroniserNombreSst(db, local.visite_id);
@@ -268,5 +262,4 @@ export function rubriquesVersSections(rubriques, panelId) {
 export const PREALLUMAGE_TYPES_LOCAUX = Object.freeze([
   { code: SST, label: 'Sous-station / SST' },
   { code: CHAUFFERIE, label: 'Chaufferie' },
-  { code: 'autre', label: 'Autre local / installation' },
 ]);

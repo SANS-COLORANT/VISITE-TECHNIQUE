@@ -10,8 +10,9 @@ import { PreAllumagePlanCard } from './PreAllumagePlanCard.js';
 import { styles } from './styles.js';
 import { enregistrerAliasPreAllumage, fieldAliasKey, libelleChamp, listerAliasesPreAllumage, sectionAliasDescriptor } from './preAllumageAliases.js';
 import { PreAllumageModularPanel } from './PreAllumageModularPanel.js';
-import { PreAllumageInstallationPanel } from './PreAllumageInstallationPanel.js';
-import { PreAllumageInfoPanel } from './PreAllumageInfoPanel.js';
+import { PreAllumageInfoPanelBusiness } from './PreAllumageInfoPanelBusiness.js';
+import { PreAllumageInstallationPanelBusiness } from './PreAllumageInstallationPanelBusiness.js';
+import { PreAllumageConclusionPanel } from './PreAllumageConclusionPanel.js';
 
 const visiteDataCache = new Map();
 
@@ -64,8 +65,9 @@ export function mettreAJourCacheControle(visiteId, key, patch) {
 }
 
 export function TrameGenericPanel(props) {
-  if (props.panelId === 'p-pa-infos') return <PreAllumageInfoPanel {...props} />;
-  if (props.panelId === 'p-pa-batiments') return <PreAllumageInstallationPanel {...props} />;
+  if (props.panelId === 'p-pa-infos') return <PreAllumageInfoPanelBusiness {...props} />;
+  if (props.panelId === 'p-pa-batiments') return <PreAllumageInstallationPanelBusiness {...props} />;
+  if (props.panelId === 'p-pa-conclusion') return <PreAllumageConclusionPanel {...props} />;
   if (props.panelId.startsWith('p-pa-')) return <PreAllumageModularPanel {...props} />;
   return <TrameGenericStaticPanel {...props} />;
 }

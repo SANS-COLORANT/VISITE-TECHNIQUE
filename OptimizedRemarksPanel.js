@@ -13,12 +13,14 @@ import {
   ajouterRemarqueVisite,
   ajouterRemarqueDepuisBibliotheque,
   modifierRemarqueVisite,
+  modifierCriticiteRemarque,
   supprimerRemarqueVisite,
   rattacherRemarqueVisite,
 } from './remarkDb.js';
 import { cleanLabel } from './GenericFields.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
+import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
 
 // Garde la dernière version saisie en mémoire entre deux montages de l'onglet.
 // SQLite reste la source durable ; ce cache évite qu'un retour instantané sur
@@ -67,6 +69,13 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
     setDelai(v);
     onPatch(remarque.id, { delai: nombreOuNull(v) });
   }, [onPatch, remarque.id, setDelai]);
+  const changerCriticite = useCallback(async (value) => {
+    await modifierCriticiteRemarque(remarque.id, value);
+    onPatch(remarque.id, {
+      criticite: value,
+      criticite_modifiee: Number(value) === Number(remarque.criticite_defaut ?? 2) ? 0 : 1,
+    });
+  }, [onPatch, remarque.id, remarque.criticite_defaut]);
 
   return (
     <View style={styles.remarqueCard}>
@@ -85,6 +94,13 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
       <View style={{ height: 8 }} />
       <Text style={styles.fieldLabel}>Poste</Text>
       <TextInput style={styles.input} value={poste} onChangeText={changerPoste} onBlur={() => { blurPoste().catch(() => {}); }} placeholder="Ex. Entretien P2, Travaux de conformité..." />
+
+      <ReserveSeveritySlider
+        value={remarque.criticite ?? remarque.criticite_defaut ?? 2}
+        defaultValue={remarque.criticite_defaut ?? 2}
+        onChange={(v) => changerCriticite(v).catch(console.warn)}
+      />
+
       <View style={{ height: 8 }} />
       <View style={{ flexDirection: 'row', gap: 8 }}>
         <View style={{ flex: 1 }}>
@@ -126,8 +142,6 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
     const rows = await listerRemarquesVisite(visiteId);
     const cached = remarksCache.get(visiteId) || [];
     const cachedById = new Map(cached.map((r) => [r.id, r]));
-    // Les nouvelles réserves provenant d'un contrôle N.S sont ajoutées depuis la DB,
-    // tandis que les valeurs saisies localement gagnent en cas d'écriture encore en cours.
     const fusionnees = rows.map((r) => cachedById.has(r.id) ? { ...r, ...cachedById.get(r.id) } : r);
     remarksCache.set(visiteId, fusionnees);
     setRemarques(fusionnees);
@@ -163,7 +177,6 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
   const choisirDepuisBiblio = async (item) => {
     await ajouterRemarqueDepuisBibliotheque(visiteId, item);
     setBiblioVisible(false);
-    // Nouvelle ligne créée côté DB : on repart d'un cache vide pour la récupérer.
     remarksCache.delete(visiteId);
     await charger();
   };

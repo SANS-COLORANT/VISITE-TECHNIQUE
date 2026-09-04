@@ -5,7 +5,8 @@ import { COLORS, styles } from './styles.js';
 import { upsertControlePartiel } from './controlDb.js';
 import { listerRemarquesVisite, upsertRemarquePrescription, supprimerRemarqueControle, modifierCriticiteRemarque } from './remarkDb.js';
 import { PhotoButton } from './PhotoButton.js';
-import { defaultSeverityForControl, reserveSeverityLabel, RESERVE_SEVERITY_LEVELS } from './reserveSeverity.js';
+import { defaultSeverityForControl } from './reserveSeverity.js';
+import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
 
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
 function avisChipColor(opt) { if (opt === 'S') return { bg: COLORS.greenBg, border: COLORS.green, text: COLORS.green }; if (opt === 'N.S') return { bg: COLORS.redBg, border: COLORS.red, text: COLORS.red }; return { bg: COLORS.line, border: COLORS.inkFaint, text: COLORS.inkSoft }; }
@@ -27,7 +28,6 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
   useEffect(() => { let alive = true; listerRemarquesVisite(visiteId).then((rows) => { if (alive) setRemarque((rows || []).find((r) => r.controle_key === controleKey) || null); }).catch(console.warn); return () => { alive = false; }; }, [visiteId, controleKey]);
   useEffect(() => { if (!avis || !commentaire) { setPresetChoisi(null); return; } const idx = (presets[avis] || []).findIndex((p) => p.commentaire === commentaire); setPresetChoisi(idx >= 0 ? idx : null); }, [avis, commentaire, presets]);
   const notifier = useCallback((patch) => { onEtatChange?.(patch); onSaved?.(); }, [onEtatChange, onSaved]);
-
   const rechargerRemarque = useCallback(async () => { const rows = await listerRemarquesVisite(visiteId); const row = (rows || []).find((r) => r.controle_key === controleKey) || null; setRemarque(row); return row; }, [visiteId, controleKey]);
 
   const choisirAvis = useCallback(async (val) => {
@@ -63,7 +63,7 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
       {etatApplication ? <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: palette.text, backgroundColor: palette.bg, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8 }}><Text style={{ color: palette.text, fontWeight: '800', fontSize: 11 }}>{etatApplication}</Text></View> : null}
       {options.length > 0 && <><Text style={[styles.criterePanelLabel, { color: palette.text }]}>{avis === 'N.S' ? 'Anomalie constatée' : 'Commentaire rapide'}</Text><View style={styles.critereChips}>{options.map((opt, idx) => <TouchableOpacity key={`${field.cle}-${avis}-${idx}`} style={[styles.critereChip, { borderColor: palette.text }, presetChoisi === idx && { backgroundColor: palette.picked, borderColor: palette.picked }]} onPress={() => choisirPreset(opt, idx)}><Text style={[styles.critereChipText, { color: presetChoisi === idx ? COLORS.white : palette.text }]}>{opt.label}</Text></TouchableOpacity>)}</View></>}
       <TextInput style={[styles.input, { marginTop: 8, minHeight: 64, textAlignVertical: 'top', backgroundColor: '#fff' }]} multiline value={commentaire} onChangeText={(v) => { setCommentaire(v); setPresetChoisi(null); }} onBlur={() => sauverLibre().catch(console.warn)} placeholder="Commentaire technique…" />
-      {avis === 'N.S' && remarque ? <View style={styles.prestationResult}><Text style={styles.criterePanelLabel}>Réserve proposée</Text><Text style={styles.prestationText}>{remarque.prestation}</Text><Text style={[styles.criterePanelLabel, { marginTop: 10 }]}>Criticité · {reserveSeverityLabel(remarque.criticite)}{remarque.criticite_modifiee ? ' · ajustée' : ' · proposée'}</Text><View style={{ flexDirection: 'row', gap: 6, marginTop: 7 }}>{RESERVE_SEVERITY_LEVELS.map((level) => <TouchableOpacity key={level.value} onPress={() => reglerCriticite(level.value)} style={{ flex: 1, minHeight: 42, borderRadius: 9, borderWidth: 1.5, borderColor: remarque.criticite === level.value ? COLORS.red : COLORS.line, backgroundColor: remarque.criticite === level.value ? COLORS.redBg : '#fff', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}><Text style={{ fontSize: 10, textAlign: 'center', fontWeight: '800', color: remarque.criticite === level.value ? COLORS.red : COLORS.inkSoft }}>{level.value} · {level.short}</Text></TouchableOpacity>)}</View></View> : null}
+      {avis === 'N.S' && remarque ? <View style={styles.prestationResult}><Text style={styles.criterePanelLabel}>Réserve proposée</Text><Text style={styles.prestationText}>{remarque.prestation}</Text><ReserveSeveritySlider value={remarque.criticite ?? 2} defaultValue={remarque.criticite_defaut ?? 2} onChange={(v) => reglerCriticite(v).catch(console.warn)} /></View> : null}
       <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={field.cle} style={avis === 'N.S' ? styles.photoRequiredBox : undefined} />
     </View>}
   </View>;
