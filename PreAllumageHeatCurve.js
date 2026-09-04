@@ -141,8 +141,12 @@ export function PreAllumageHeatCurve({ visiteId, sectionCode, fields = [], champ
   };
 
   const responder = useMemo(() => PanResponder.create({
+    // Le graphe capture explicitement le geste avant le PanResponder de navigation
+    // de la visite. Un drag horizontal d'un point ne peut donc plus changer d'onglet.
+    onStartShouldSetPanResponderCapture: (evt) => Boolean(nearestPoint(evt.nativeEvent.locationX, evt.nativeEvent.locationY)),
+    onMoveShouldSetPanResponderCapture: () => Boolean(selectedIdRef.current),
     onStartShouldSetPanResponder: (evt) => Boolean(nearestPoint(evt.nativeEvent.locationX, evt.nativeEvent.locationY)),
-    onMoveShouldSetPanResponder: (evt) => Boolean(nearestPoint(evt.nativeEvent.locationX, evt.nativeEvent.locationY)),
+    onMoveShouldSetPanResponder: (evt) => Boolean(selectedIdRef.current || nearestPoint(evt.nativeEvent.locationX, evt.nativeEvent.locationY)),
     onPanResponderGrant: (evt) => {
       const id = nearestPoint(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
       selectedIdRef.current = id;
@@ -150,6 +154,7 @@ export function PreAllumageHeatCurve({ visiteId, sectionCode, fields = [], champ
       if (id) updateFromTouch(evt.nativeEvent.locationX, evt.nativeEvent.locationY);
     },
     onPanResponderMove: (evt) => updateFromTouch(evt.nativeEvent.locationX, evt.nativeEvent.locationY),
+    onPanResponderTerminationRequest: () => false,
     onPanResponderRelease: () => persistSelected().catch((e) => Alert.alert('Courbe de chauffe', e.message)),
     onPanResponderTerminate: () => persistSelected().catch((e) => Alert.alert('Courbe de chauffe', e.message)),
   }), [width, points.length, visiteId, sectionCode]);

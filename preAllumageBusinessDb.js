@@ -8,7 +8,10 @@ const DEFAULT_LOCAL_NAMES = new Set([
   'Église',
 ]);
 
-export const PREALLUMAGE_CHAUFFERIE_EQUIPMENT_TYPES = Object.freeze([
+// Bibliothèque commune aux chaufferies, SST et autres locaux techniques. Les
+// libellés des contrôles sont volontairement explicites : presetsPour() s'en sert
+// ensuite pour proposer automatiquement les commentaires S / N.S adaptés.
+export const PREALLUMAGE_CONTROL_EQUIPMENT_TYPES = Object.freeze([
   {
     code: 'chaudiere', label: 'Chaudière',
     controls: ['Test allumage', 'Présence des flammes', 'Augmentation de la température de l’eau en sortie de chaudière'],
@@ -17,14 +20,28 @@ export const PREALLUMAGE_CHAUFFERIE_EQUIPMENT_TYPES = Object.freeze([
     code: 'bruleur', label: 'Brûleur',
     controls: ['Test allumage', 'Ouverture de l’électrovanne gaz / alimentation gaz', 'Fonctionnement de l’électrode d’allumage'],
   },
+  { code: 'pompe_chauffage', label: 'Pompe chauffage', controls: ['Fonctionnement de la pompe chauffage'] },
+  { code: 'pompe_bouclage_ecs', label: 'Pompe bouclage ECS', controls: ['Fonctionnement de la pompe bouclage ECS'] },
+  { code: 'pompe_primaire_ecs', label: 'Pompe primaire ECS', controls: ['Fonctionnement de la pompe primaire ECS'] },
   { code: 'pompe', label: 'Pompe', controls: ['Fonctionnement de la pompe'] },
   { code: 'circulateur', label: 'Circulateur', controls: ['Fonctionnement du circulateur'] },
+  { code: 'vanne_3_voies_chauffage', label: 'Vanne 3 voies chauffage', controls: ['Vanne trois voies chauffage — ouverture / fermeture'] },
+  { code: 'vanne_3_voies_ecs', label: 'Vanne 3 voies ECS', controls: ['Vanne trois voies ECS — ouverture / fermeture'] },
   { code: 'vanne_3_voies', label: 'Vanne trois voies', controls: ['Ouverture / fermeture vanne trois voies'] },
   { code: 'servomoteur', label: 'Servomoteur', controls: ['Fonctionnement du servomoteur'] },
+  { code: 'regulation_chauffage', label: 'Régulation chauffage', controls: ['Fonctionnement de la régulation chauffage'] },
+  { code: 'regulation_ecs', label: 'Régulation ECS', controls: ['Fonctionnement de la régulation ECS'] },
   { code: 'regulation', label: 'Régulation', controls: ['Fonctionnement de la régulation'] },
   { code: 'echangeur', label: 'Échangeur', controls: ['État et fonctionnement de l’échangeur'] },
+  { code: 'ballon_ecs', label: 'Ballon ECS', controls: ['État et fonctionnement du ballon ECS'] },
+  { code: 'adoucisseur', label: 'Adoucisseur', controls: ['État et fonctionnement de l’adoucisseur'] },
+  { code: 'traitement_eau', label: 'Traitement d’eau', controls: ['Traitement d’eau / pompe(s) doseuse(s)'] },
+  { code: 'pompe_doseuse', label: 'Pompe doseuse', controls: ['Fonctionnement de la pompe doseuse'] },
   { code: 'autre', label: 'Autre équipement', controls: ['État / fonctionnement'] },
 ]);
+
+// Compatibilité avec le code existant : l'ancien nom d'export reste valide.
+export const PREALLUMAGE_CHAUFFERIE_EQUIPMENT_TYPES = PREALLUMAGE_CONTROL_EQUIPMENT_TYPES;
 
 async function sectionContientDonnees(db, visiteId, sectionCode) {
   const champ = await db.getFirstAsync(
@@ -111,14 +128,14 @@ export async function rattacherDonneesGeneralesChaufferie(visiteId, localId) {
 }
 
 function definitionEquipement(typeCode) {
-  return PREALLUMAGE_CHAUFFERIE_EQUIPMENT_TYPES.find((x) => x.code === typeCode)
-    || PREALLUMAGE_CHAUFFERIE_EQUIPMENT_TYPES[PREALLUMAGE_CHAUFFERIE_EQUIPMENT_TYPES.length - 1];
+  return PREALLUMAGE_CONTROL_EQUIPMENT_TYPES.find((x) => x.code === typeCode)
+    || PREALLUMAGE_CONTROL_EQUIPMENT_TYPES[PREALLUMAGE_CONTROL_EQUIPMENT_TYPES.length - 1];
 }
 
-export async function ajouterEquipementChaufferiePreAllumage(visiteId, localId, typeCode, nomPersonnalise = null) {
+export async function ajouterEquipementControlePreAllumage(visiteId, localId, typeCode, nomPersonnalise = null, controlePersonnalise = null) {
   const db = await getDb();
   const local = await db.getFirstAsync(`SELECT * FROM pre_allumage_locaux WHERE id=? AND visite_id=?`, [localId, visiteId]);
-  if (!local || local.type_code !== 'chaufferie') throw new Error('Sélectionnez une chaufferie.');
+  if (!local) throw new Error('Sélectionnez un local de la visite.');
   const def = definitionEquipement(typeCode);
   const rubriques = await db.getAllAsync(
     `SELECT nom,section_code FROM pre_allumage_rubriques WHERE local_id=? AND section_code LIKE ?`,
@@ -126,16 +143,19 @@ export async function ajouterEquipementChaufferiePreAllumage(visiteId, localId, 
   );
   const numero = (rubriques?.length || 0) + 1;
   const nom = String(nomPersonnalise || '').trim() || `${def.label} n°${numero}`;
+  const controleLibre = String(controlePersonnalise || '').trim();
+  const controles = controleLibre ? [controleLibre] : def.controls;
   const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),0) n FROM pre_allumage_rubriques WHERE visite_id=?`, [visiteId]);
   const rubriqueId = createId('pa-rubrique');
   const sectionCode = `pa.local.${localId}.equip.${def.code}.${createId('eq').replace(/[^a-zA-Z0-9]/g, '').slice(-10)}`;
+  const panelId = local.type_code === 'chaufferie' ? 'p-pa-chaufferie' : 'p-pa-sst';
   await db.runAsync(
     `INSERT INTO pre_allumage_rubriques(id,visite_id,local_id,panel_id,section_code,nom,ordre,supprimable)
      VALUES(?,?,?,?,?,?,?,1)`,
-    [rubriqueId, visiteId, localId, 'p-pa-chaufferie', sectionCode, nom, Number(max?.n || 0) + 1]
+    [rubriqueId, visiteId, localId, panelId, sectionCode, nom, Number(max?.n || 0) + 1]
   );
-  for (let i = 0; i < def.controls.length; i += 1) {
-    const cle = def.controls[i];
+  for (let i = 0; i < controles.length; i += 1) {
+    const cle = controles[i];
     await db.runAsync(
       `INSERT INTO pre_allumage_champs(id,rubrique_id,cle_stockage,libelle,type_code,ordre,options_json)
        VALUES(?,?,?,?,?,?,?)`,
@@ -145,11 +165,47 @@ export async function ajouterEquipementChaufferiePreAllumage(visiteId, localId, 
   return { rubriqueId, sectionCode, nom, typeCode: def.code };
 }
 
-export function estRubriqueEquipementChaufferie(rubrique) {
-  return Boolean(rubrique?.panel_id === 'p-pa-chaufferie' && /\.equip\./.test(String(rubrique?.section_code || '')));
+// Ancienne API conservée pour les appels existants.
+export async function ajouterEquipementChaufferiePreAllumage(visiteId, localId, typeCode, nomPersonnalise = null) {
+  return ajouterEquipementControlePreAllumage(visiteId, localId, typeCode, nomPersonnalise, null);
 }
 
-export async function supprimerEquipementChaufferiePreAllumage(rubriqueId) {
+export function estRubriqueEquipementPreAllumage(rubrique) {
+  return Boolean(/\.equip\./.test(String(rubrique?.section_code || '')));
+}
+
+export function estRubriqueEquipementChaufferie(rubrique) {
+  return estRubriqueEquipementPreAllumage(rubrique);
+}
+
+export async function dupliquerEquipementPreAllumage(rubriqueId) {
+  const db = await getDb();
+  const source = await db.getFirstAsync(`SELECT * FROM pre_allumage_rubriques WHERE id=?`, [rubriqueId]);
+  if (!source || !estRubriqueEquipementPreAllumage(source)) throw new Error('Équipement à dupliquer introuvable.');
+  const champs = await db.getAllAsync(`SELECT * FROM pre_allumage_champs WHERE rubrique_id=? ORDER BY ordre,cree_le`, [rubriqueId]);
+  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),0) n FROM pre_allumage_rubriques WHERE visite_id=?`, [source.visite_id]);
+  const copies = await db.getFirstAsync(`SELECT COUNT(*) n FROM pre_allumage_rubriques WHERE local_id=? AND nom LIKE ?`, [source.local_id, `${source.nom} (copie%`]);
+  const suffixe = Number(copies?.n || 0) ? ` (copie ${Number(copies.n) + 1})` : ' (copie)';
+  const id = createId('pa-rubrique');
+  const code = `${String(source.section_code).replace(/\.[^.]+$/, '')}.${createId('eq').replace(/[^a-zA-Z0-9]/g, '').slice(-10)}`;
+  await db.runAsync(
+    `INSERT INTO pre_allumage_rubriques(id,visite_id,local_id,panel_id,section_code,nom,ordre,supprimable)
+     VALUES(?,?,?,?,?,?,?,1)`,
+    [id, source.visite_id, source.local_id, source.panel_id, code, `${source.nom}${suffixe}`, Number(max?.n || 0) + 1]
+  );
+  for (const champ of champs || []) {
+    await db.runAsync(
+      `INSERT INTO pre_allumage_champs(id,rubrique_id,cle_stockage,libelle,type_code,ordre,options_json)
+       VALUES(?,?,?,?,?,?,?)`,
+      [createId('pa-champ'), id, champ.cle_stockage, champ.libelle, champ.type_code, champ.ordre, champ.options_json]
+    );
+  }
+  // On duplique uniquement la structure : aucun avis/commentaire du jour n'est
+  // copié, ce qui évite de valider par erreur un nouvel équipement.
+  return { rubriqueId: id, sectionCode: code, nom: `${source.nom}${suffixe}` };
+}
+
+export async function supprimerEquipementPreAllumage(rubriqueId) {
   const db = await getDb();
   const r = await db.getFirstAsync(`SELECT visite_id,section_code FROM pre_allumage_rubriques WHERE id=?`, [rubriqueId]);
   if (!r) return;
@@ -158,4 +214,8 @@ export async function supprimerEquipementChaufferiePreAllumage(rubriqueId) {
   await db.runAsync(`DELETE FROM champs_visite WHERE visite_id=? AND section_code=?`, [r.visite_id, r.section_code]);
   await db.runAsync(`DELETE FROM controles_visite WHERE visite_id=? AND section_code=?`, [r.visite_id, r.section_code]);
   await db.runAsync(`DELETE FROM pre_allumage_rubriques WHERE id=?`, [rubriqueId]);
+}
+
+export async function supprimerEquipementChaufferiePreAllumage(rubriqueId) {
+  return supprimerEquipementPreAllumage(rubriqueId);
 }

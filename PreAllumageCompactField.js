@@ -35,6 +35,14 @@ function typeChamp(field, label) {
   if (/(°C|nombre de logements|nombre de bâtiments|réduit de jour|courbe de chauffe)/i.test(texte)) return 'numeric';
   return 'text';
 }
+function groupeTemperature(field, label) {
+  const texte = `${field?.cle || ''} ${label || ''}`;
+  if (/courbe de chauffe/i.test(texte)) return { hidden: true };
+  if (/départ ECS|retour ECS|arrivée primaire ECS|retour primaire ECS/i.test(texte)) return { icon: '💧', label: 'ECS / primaire' };
+  if (/départ chauffage|retour chauffage|réduit de jour|température de non chauffe|horaires?/i.test(texte)) return { icon: '♨', label: 'Chauffage' };
+  if (/température extérieure/i.test(texte)) return { icon: '◎', label: 'Extérieur' };
+  return null;
+}
 function normaliserNombre(texte) {
   const t = String(texte || '').replace(/\./g, ',').replace(/[^0-9,\-]/g, '');
   const signe = t.startsWith('-') ? '-' : '';
@@ -43,7 +51,9 @@ function normaliserNombre(texte) {
   return `${signe}${entier}${dec.length ? `,${dec.join('')}` : ''}`;
 }
 function nombre(v) {
-  const n = Number(String(v || '').replace(',', '.'));
+  const texte = String(v ?? '').trim();
+  if (!texte) return null;
+  const n = Number(texte.replace(',', '.'));
   return Number.isFinite(n) ? n : null;
 }
 function arrondi(v) { return Math.round(v * 10) / 10; }
@@ -62,6 +72,7 @@ export const PreAllumageCompactField = React.memo(function PreAllumageCompactFie
   localName,
   onSaved,
   showPhoto = false,
+  showThermalBadge = true,
 }) {
   const libelleBrut = field?.displayLabel || field?.libelle || field?.cle || 'Champ';
   const libelleLocal = sansPrefixeLocal(libelleBrut, localName);
@@ -70,6 +81,7 @@ export const PreAllumageCompactField = React.memo(function PreAllumageCompactFie
   const kind = typeChamp(field, libelleLocal);
   const numeric = kind !== 'text';
   const entiteKey = `${sectionCode}||${field.cle}`;
+  const groupe = groupeTemperature(field, libelleLocal);
 
   const sauvegarder = async (v) => {
     onSaved?.(v);
@@ -116,7 +128,12 @@ export const PreAllumageCompactField = React.memo(function PreAllumageCompactFie
     setValeur(next);
   };
 
+  // Les points de courbe sont déjà éditables dans le composant graphique juste
+  // au-dessus (T° extérieure → T° eau). Ne pas les afficher une deuxième fois.
+  if (groupe?.hidden) return null;
+
   return <View style={{ flex: 1, minWidth: 0, paddingVertical: 4 }}>
+    {showThermalBadge && groupe ? <View style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4, paddingHorizontal: 7, minHeight: 22, borderRadius: 11, backgroundColor: groupe.label === 'Chauffage' ? '#FFF4E8' : groupe.label === 'ECS / primaire' ? '#EEF7FF' : '#F2F4F7' }}><Text style={{ fontSize: 11 }}>{groupe.icon}</Text><Text style={{ color: COLORS.inkSoft, fontSize: 9, fontWeight: '900' }}>{groupe.label}</Text></View> : null}
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
       <Text numberOfLines={2} style={{ flex: 1, color: COLORS.ink, fontWeight: '800', fontSize: 12 }}>{label}</Text>
       {showPhoto ? <PreAllumagePhotoButton visiteId={visiteId} entiteKey={entiteKey} label={`${localName || ''} · ${label}`} style={{ minHeight: 32, paddingHorizontal: 8, paddingVertical: 5 }} /> : null}
