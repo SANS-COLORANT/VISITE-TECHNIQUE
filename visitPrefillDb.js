@@ -1,4 +1,5 @@
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
+import { assurerStructureSitePreAllumage } from './preAllumageSiteBootstrap.js';
 
 function sectionCode(panelId, section) {
   return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
@@ -78,5 +79,9 @@ export async function preremplirVisiteDepuisContexte(db, visiteId) {
         if (ancien?.valeur) await insertIfEmpty(db, visiteId, p, s, c, ancien.valeur);
       }
     }
+  }
+
+  if (trame.id === 'pre_allumage') {
+    await assurerStructureSitePreAllumage(visiteId);
   }
 }

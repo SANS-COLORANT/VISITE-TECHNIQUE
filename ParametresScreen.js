@@ -1,5 +1,5 @@
 /** Écran Paramètres — réserves + catalogue matériel + sécurité des données. */
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, BackHandler, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { CategorieCritereSelector } from './GenericFields.js';
@@ -163,13 +163,66 @@ function GestionDonnees(){
 }
 
 function BibliothequeReserves(){
-  const[reserves,setReserves]=useState([]),[modalVisible,setModalVisible]=useState(false),[editId,setEditId]=useState(null),[nom,setNom]=useState(''),[description,setDescription]=useState(''),[prix,setPrix]=useState(''),[poste,setPoste]=useState(''),[delai,setDelai]=useState('');
+  const[reserves,setReserves]=useState([]),[modalVisible,setModalVisible]=useState(false),[editId,setEditId]=useState(null),[nom,setNom]=useState(''),[description,setDescription]=useState(''),[prix,setPrix]=useState(''),[poste,setPoste]=useState(''),[delai,setDelai]=useState(''),[recherche,setRecherche]=useState('');
   const charger=useCallback(()=>{listerBibliothequeReserves().then(setReserves);},[]);useEffect(()=>{charger();},[charger]);
   const ouvrirNouveau=()=>{setEditId(null);setNom('');setDescription('');setPrix('');setPoste('');setDelai('');setModalVisible(true);};
   const ouvrirEdition=r=>{setEditId(r.id);setNom(r.nom);setDescription(r.description||'');setPrix(r.prix?String(r.prix):'');setPoste(r.poste||'');setDelai(r.delai?String(r.delai):'');setModalVisible(true);};
   const enregistrer=async()=>{if(!nom.trim()){Alert.alert('Nom requis','Merci de donner un nom à cette réserve.');return;}const data={nom:nom.trim(),description:description.trim()||null,prix:prix?parseFloat(prix.replace(',','.')):null,poste:poste.trim()||null,delai:delai?parseInt(delai,10):null};try{if(editId)await modifierReserveBiblio(editId,data);else await ajouterReserveBiblio(data);setModalVisible(false);await charger();}catch(e){Alert.alert('Erreur d’enregistrement',String(e.message||e));}};
   const supprimer=r=>Alert.alert('Supprimer',`Supprimer « ${r.nom} » de la bibliothèque ?`,[{text:'Annuler',style:'cancel'},{text:'Supprimer',style:'destructive',onPress:async()=>{await supprimerReserveBiblio(r.id);charger();}}]);
-  return <View style={{flex:1}}><FlatList contentContainerStyle={styles.content} data={reserves} keyExtractor={i=>i.id} initialNumToRender={12} maxToRenderPerBatch={10} windowSize={7} removeClippedSubviews ListHeaderComponent={<View style={styles.sectionHeaderRow}><Text style={styles.sectionLabel}>Bibliothèque de réserves</Text><TouchableOpacity onPress={ouvrirNouveau}><Text style={styles.addLink}>+ Ajouter</Text></TouchableOpacity></View>} renderItem={({item})=><TouchableOpacity style={styles.card} activeOpacity={.7} onPress={()=>ouvrirEdition(item)}><View style={{flex:1}}><Text style={styles.cardTitle}>{item.nom}</Text>{item.description?<Text style={styles.cardSub} numberOfLines={2}>{item.description}</Text>:null}</View><TouchableOpacity onPress={()=>supprimer(item)}><Text style={styles.removeLink}>Suppr.</Text></TouchableOpacity></TouchableOpacity>}/><Modal visible={modalVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}><ScrollView keyboardShouldPersistTaps="handled"><Text style={styles.modalTitle}>{editId?'Modifier la réserve':'Nouvelle réserve'}</Text>{!editId?<View style={{marginBottom:14,paddingBottom:14,borderBottomWidth:1,borderBottomColor:COLORS.line}}><CategorieCritereSelector onRempli={r=>{setNom(r.nom);setDescription(r.description);setPoste(r.poste||'');setDelai(r.delai?String(r.delai):'');setPrix(r.prix?String(Math.round(r.prix)):'');}}/></View>:null}<TextInput style={styles.input} placeholder="Nom" value={nom} onChangeText={setNom}/><TextInput style={[styles.input,{marginTop:10,height:70,textAlignVertical:'top'}]} placeholder="Description / prestation" value={description} onChangeText={setDescription} multiline/><TextInput style={[styles.input,{marginTop:10}]} placeholder="Poste" value={poste} onChangeText={setPoste}/><View style={{flexDirection:'row',gap:10,marginTop:10}}><TextInput style={[styles.input,{flex:1}]} placeholder="Prix (€HT)" value={prix} onChangeText={setPrix} keyboardType="numeric"/><TextInput style={[styles.input,{flex:1}]} placeholder="Délai (mois)" value={delai} onChangeText={setDelai} keyboardType="numeric"/></View><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={()=>setModalVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrer}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></ScrollView></View></View></Modal></View>;
+  const visibles=useMemo(()=>{const q=recherche.trim().toLocaleLowerCase('fr');if(!q)return reserves;return reserves.filter(r=>`${r.nom||''} ${r.description||''} ${r.poste||''}`.toLocaleLowerCase('fr').includes(q));},[reserves,recherche]);
+  const fermerModal=()=>setModalVisible(false);
+
+  return <View style={{flex:1,minHeight:0}}>
+    <FlatList
+      style={{flex:1}}
+      contentContainerStyle={[styles.content,{paddingBottom:96,flexGrow:1}]}
+      data={visibles}
+      keyExtractor={i=>i.id}
+      initialNumToRender={18}
+      maxToRenderPerBatch={18}
+      windowSize={9}
+      removeClippedSubviews={false}
+      keyboardShouldPersistTaps="handled"
+      ListHeaderComponent={<View>
+        <View style={styles.sectionHeaderRow}><View style={{flex:1,paddingRight:12}}><Text style={styles.sectionLabel}>Bibliothèque de réserves</Text><Text style={[styles.cardSub,{marginTop:4}]}>{reserves.length} réserve(s) disponible(s) · toucher une ligne pour l’ouvrir entièrement</Text></View><TouchableOpacity onPress={ouvrirNouveau}><Text style={styles.addLink}>+ Ajouter</Text></TouchableOpacity></View>
+        <TextInput style={[styles.input,{marginBottom:12,backgroundColor:COLORS.white}]} value={recherche} onChangeText={setRecherche} placeholder="Rechercher une réserve, un poste, une prestation…" returnKeyType="search" />
+      </View>}
+      ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>{recherche?'Aucune réserve trouvée':'Aucune réserve enregistrée'}</Text><Text style={styles.emptySub}>{recherche?'Essaie un autre mot-clé.':'Ajoute une réserve pour la retrouver ensuite pendant les visites.'}</Text></View>}
+      renderItem={({item})=>{
+        const meta=[item.poste,item.delai?`${item.delai} mois`:null,item.prix!=null?`${item.prix} € HT`:null].filter(Boolean).join(' · ');
+        return <TouchableOpacity style={[styles.card,{alignItems:'flex-start'}]} activeOpacity={.7} onPress={()=>ouvrirEdition(item)}>
+          <View style={{flex:1,minWidth:0}}>
+            <Text style={styles.cardTitle}>{item.nom}</Text>
+            {item.description?<Text style={[styles.cardSub,{marginTop:4,lineHeight:17}]}>{item.description}</Text>:null}
+            {meta?<Text style={{fontSize:10.5,color:COLORS.inkFaint,marginTop:6,fontWeight:'700'}}>{meta}</Text>:null}
+            <Text style={{fontSize:9.5,color:COLORS.orangeDark,marginTop:6,fontWeight:'800'}}>Ouvrir / modifier</Text>
+          </View>
+          <TouchableOpacity onPress={()=>supprimer(item)} hitSlop={{top:10,bottom:10,left:10,right:10}}><Text style={styles.removeLink}>Suppr.</Text></TouchableOpacity>
+        </TouchableOpacity>;
+      }}
+    />
+    <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={fermerModal}>
+      <View style={[styles.modalOverlay,{paddingVertical:24,paddingHorizontal:18}]}>
+        <View style={[styles.modalSheet,{width:'94%',maxWidth:760,maxHeight:'92%',paddingBottom:12,overflow:'hidden'}]}>
+          <ScrollView
+            style={{flexGrow:0}}
+            contentContainerStyle={{paddingBottom:12}}
+            keyboardShouldPersistTaps="handled"
+            nestedScrollEnabled
+            showsVerticalScrollIndicator
+          >
+            <Text style={styles.modalTitle}>{editId?'Modifier la réserve':'Nouvelle réserve'}</Text>
+            {!editId?<View style={{marginBottom:14,paddingBottom:14,borderBottomWidth:1,borderBottomColor:COLORS.line}}><CategorieCritereSelector onRempli={r=>{setNom(r.nom);setDescription(r.description);setPoste(r.poste||'');setDelai(r.delai?String(r.delai):'');setPrix(r.prix?String(Math.round(r.prix)):'');}}/></View>:null}
+            <TextInput style={styles.input} placeholder="Nom" value={nom} onChangeText={setNom}/>
+            <TextInput style={[styles.input,{marginTop:10,minHeight:90,textAlignVertical:'top'}]} placeholder="Description / prestation" value={description} onChangeText={setDescription} multiline/>
+            <TextInput style={[styles.input,{marginTop:10}]} placeholder="Poste" value={poste} onChangeText={setPoste}/>
+            <View style={{flexDirection:'row',gap:10,marginTop:10}}><TextInput style={[styles.input,{flex:1}]} placeholder="Prix (€HT)" value={prix} onChangeText={setPrix} keyboardType="numeric"/><TextInput style={[styles.input,{flex:1}]} placeholder="Délai (mois)" value={delai} onChangeText={setDelai} keyboardType="numeric"/></View>
+          </ScrollView>
+          <View style={[styles.modalActions,{paddingTop:10,borderTopWidth:1,borderTopColor:COLORS.line}]}><TouchableOpacity style={styles.btnSecondary} onPress={fermerModal}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrer}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View>
+        </View>
+      </View>
+    </Modal>
+  </View>;
 }
 
 export { ParametresScreen, CATEGORIES_EQUIPEMENT, MARQUES_EQUIPEMENT };
