@@ -14,6 +14,7 @@ export function PreAllumageInstallationPanelBusiness(props) {
       await chargerPreAllumageModulaire(props.visiteId);
       await assurerStructureSitePreAllumage(props.visiteId);
       await preparerStructurePreAllumage(props.visiteId);
+      await chargerPreAllumageModulaire(props.visiteId);
       if (alive) setReady(true);
     })().catch((e) => {
       console.warn('Préparation des locaux Pré-allumage impossible', e);
