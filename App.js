@@ -37,6 +37,25 @@ function SimpleHeader({ title, onBack, visualPack }) {
   </View>;
 }
 
+function GlobalHomeButton({ onPress }) {
+  return <TouchableOpacity
+    accessibilityRole="button"
+    accessibilityLabel="Retour au menu principal"
+    activeOpacity={0.82}
+    onPress={onPress}
+    style={{
+      position: 'absolute', left: 18, bottom: 20, minHeight: 46,
+      paddingHorizontal: 15, borderRadius: 23, backgroundColor: COLORS.white,
+      borderWidth: 1.5, borderColor: COLORS.orange, flexDirection: 'row',
+      alignItems: 'center', justifyContent: 'center', gap: 7,
+      elevation: 9, zIndex: 260,
+    }}
+  >
+    <Text style={{ color: COLORS.orange, fontSize: 20, fontWeight: '900', lineHeight: 22 }}>⌂</Text>
+    <Text style={{ color: COLORS.ink, fontSize: 11.5, fontWeight: '900' }}>Accueil</Text>
+  </TouchableOpacity>;
+}
+
 function Lab3DFab({ onPress, bottom = 82, label = '⬡ LAB 3D' }) {
   return <TouchableOpacity onPress={onPress} style={{ position: 'absolute', right: 18, bottom, minHeight: 48, paddingHorizontal: 17, borderRadius: 24, backgroundColor: '#10384B', borderWidth: 2, borderColor: '#5DD8FF', alignItems: 'center', justifyContent: 'center', elevation: 9, zIndex: 205 }}><Text style={{ color: '#F5FBFF', fontWeight: '900', fontSize: 12.5 }}>{label}</Text></TouchableOpacity>;
 }
@@ -77,6 +96,12 @@ function AppContent() {
     setTimeout(() => setStack((s) => (s.length > 1 ? s.slice(0, -1) : s)), 0);
   }, []);
 
+  const goHome = useCallback(() => {
+    Keyboard.dismiss();
+    setR1Visible(false);
+    setTimeout(() => setStack([{ name: 'Home', params: {} }]), 0);
+  }, []);
+
   const handleVisualPackChanged = useCallback((pack) => {
     setRuntimeVisualPalette(pack?.colors); setVisualPack(pack); setVisualRevision((value) => value + 1);
   }, []);
@@ -103,7 +128,7 @@ function AppContent() {
   if (!dbReady) return <VisualPackLoadingScreen pack={visualPack} />;
 
   const current = stack[stack.length - 1];
-  const navigation = { navigate, goBack };
+  const navigation = { navigate, goBack, goHome };
   const route = { params: current.params };
 
   return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: COLORS.bg }}>
@@ -123,6 +148,7 @@ function AppContent() {
     {current.name === 'Lab3D' && lab3dVisible ? <><SimpleHeader title="LAB 3D · Maquette du site" onBack={goBack} visualPack={visualPack} /><Lab3DScreen navigation={navigation} route={route} /></> : null}
     {current.name === 'Report' ? <ReportScreen route={route} onBack={goBack} /> : null}
     {current.name === 'Parametres' ? <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack} /><VisualPacksSettingsScreen visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged} /></> : null}
+    {current.name !== 'Home' ? <GlobalHomeButton onPress={goHome} /> : null}
     <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
   </View>;
 }
