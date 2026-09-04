@@ -17,9 +17,13 @@ def insert_after(text: str, marker: str, addition: str, label: str) -> str:
     return text.replace(marker, marker + addition, 1)
 
 
+# This patch deliberately runs after the LAB-health and professional-layout
+# patches. It repairs the Pré-allumage data path without undoing those shared
+# report layers.
+
 # ---------------------------------------------------------------------------
-# 1. Report data: the terrain UI hides technical Pré-allumage panels behind
-#    "Installations", but reports must still load every métier panel.
+# 1. Report data: the simplified terrain navigation must never define what is
+#    exported. Pré-allumage reports need every technical métier panel.
 # ---------------------------------------------------------------------------
 report = Path('reportBuilder.js')
 s = report.read_text(encoding='utf-8')
@@ -80,34 +84,24 @@ s = replace_once(
     'report preallumage metadata',
 )
 
-old_site_html = """async function siteHtml(data, config, photosConfig) {
-  const sections = (data.sections || []).map((s) => sectionHtml(s, config)).join('');
-  const reserves = reservesHtml(data, config);
-  const photos = await photosHtml(data, config, photosConfig);
-  const materiel = materielHtml(data, config);
-  const local = data.visite.nom_local || data.visite.type_local || 'Installation technique';
-  return `<article class=\"siteReport\"><div class=\"siteStart\"><h1>${esc(data.visite.nom_site || 'Site')}</h1><h4>${esc(local)}</h4></div>${sections}${reserves}${photos}${materiel}</article>`;
+# Client/Documents reports pass through the generic report engine. At this
+# point the LAB patch has already added reserves/material/health/photos to the
+# site renderer; keep those annexes but use the real Pré-allumage métier pages
+# for the main body instead of the generic ICPE-like table flow.
+old_site_tail = """  const local = data.visite.nom_local || data.visite.type_local || 'Installation technique';
+  return `<article class=\"siteReport\"><div class=\"siteStart\"><h1>${esc(data.visite.nom_site || 'Site')}</h1><h4>${esc(local)}</h4></div>${sections}${reserves}${materiel}${healthHtml}${photos}</article>`;
 }
 """
-new_site_html = """async function siteHtml(data, config, photosConfig) {
-  const reserves = reservesHtml(data, config);
-  const photos = await photosHtml(data, config, photosConfig);
-  const materiel = materielHtml(data, config);
-
-  // Le rapport depuis l'onglet Client doit utiliser la vraie présentation
-  // Pré-allumage, et non la présentation générique historiquement issue d'ICPE.
+new_site_tail = """  const local = data.visite.nom_local || data.visite.type_local || 'Installation technique';
   if (data.trame?.id === 'pre_allumage') {
     const planSrc = data.preAllumage?.plan?.uri ? await imageRapportBase64(data.preAllumage.plan.uri) : null;
     const metier = construireSitePreAllumageHtml(data, config, planSrc);
-    return `${metier}${reserves}${photos}${materiel}`;
+    return `${metier}${reserves}${materiel}${healthHtml}${photos}`;
   }
-
-  const sections = (data.sections || []).map((s) => sectionHtml(s, config)).join('');
-  const local = data.visite.nom_local || data.visite.type_local || 'Installation technique';
-  return `<article class=\"siteReport\"><div class=\"siteStart\"><h1>${esc(data.visite.nom_site || 'Site')}</h1><h4>${esc(local)}</h4></div>${sections}${reserves}${photos}${materiel}</article>`;
+  return `<article class=\"siteReport\"><div class=\"siteStart\"><h1>${esc(data.visite.nom_site || 'Site')}</h1><h4>${esc(local)}</h4></div>${sections}${reserves}${materiel}${healthHtml}${photos}</article>`;
 }
 """
-s = replace_once(s, old_site_html, new_site_html, 'trame-aware site report')
+s = replace_once(s, old_site_tail, new_site_tail, 'trame-aware client report')
 
 s = insert_after(
     s,
@@ -182,8 +176,9 @@ pa_html.write_text(s, encoding='utf-8')
 
 
 # ---------------------------------------------------------------------------
-# 3. Real DOCX: add the site plan and the cross-local housing table, then keep
-#    every other Pré-allumage section (counters, regulation, tests, conclusion).
+# 3. Real DOCX: add the site plan and the cross-local housing table. The LAB
+#    patch has already extended siteDocumentXml with health arguments, so this
+#    patch appends the plan argument instead of replacing LAB behavior.
 # ---------------------------------------------------------------------------
 word = Path('wordDocxExporter.js')
 s = word.read_text(encoding='utf-8')
@@ -218,10 +213,14 @@ function preAllumageBuildingRows(data) {
 
 '''
 if 'function preAllumageBuildingRows' not in s:
-    marker = 'function siteDocumentXml(data, config, imageByPhotoId) {\n'
-    if marker not in s:
+    health_signature = "function siteDocumentXml(data, config, imageByPhotoId, health = null, multi = false) {\n"
+    plain_signature = "function siteDocumentXml(data, config, imageByPhotoId) {\n"
+    if health_signature in s:
+        s = s.replace(health_signature, word_helpers + "function siteDocumentXml(data, config, imageByPhotoId, health = null, multi = false, preAllumagePlanImage = null) {\n", 1)
+    elif plain_signature in s:
+        s = s.replace(plain_signature, word_helpers + "function siteDocumentXml(data, config, imageByPhotoId, preAllumagePlanImage = null) {\n", 1)
+    else:
         raise SystemExit('Word siteDocumentXml marker not found')
-    s = s.replace(marker, word_helpers + 'function siteDocumentXml(data, config, imageByPhotoId, preAllumagePlanImage = null) {\n', 1)
 
 s = replace_once(
     s,
@@ -292,21 +291,26 @@ s = replace_once(
     'Word plan/photo separation',
 )
 
-s = replace_once(
-    s,
-    "    body.push(siteDocumentXml(data, config, siteImages));\n",
-    "    body.push(siteDocumentXml(data, config, siteImages, preAllumagePlanImages.get(data.visite.id) || null));\n",
-    'Word site plan argument',
-)
+health_call = "    body.push(siteDocumentXml(data, config, siteImages, healthByVisit.get(data.visite.id) || null, multi));\n"
+health_call_new = "    body.push(siteDocumentXml(data, config, siteImages, healthByVisit.get(data.visite.id) || null, multi, preAllumagePlanImages.get(data.visite.id) || null));\n"
+plain_call = "    body.push(siteDocumentXml(data, config, siteImages));\n"
+plain_call_new = "    body.push(siteDocumentXml(data, config, siteImages, preAllumagePlanImages.get(data.visite.id) || null));\n"
+if health_call_new not in s and plain_call_new not in s:
+    if health_call in s:
+        s = s.replace(health_call, health_call_new, 1)
+    elif plain_call in s:
+        s = s.replace(plain_call, plain_call_new, 1)
+    else:
+        raise SystemExit('Word site document call marker not found')
 
 word.write_text(s, encoding='utf-8')
 
 
 # ---------------------------------------------------------------------------
 # 4. APK-only DOCX hook: patch_word_docx_build.py turns the dedicated Word
-#    button into exporterRapportDocx. Feed it the visit photos as well instead
-#    of an empty array. This block is optional during Native Android Check,
-#    because that earlier CI phase has not yet applied the DOCX hook.
+#    button into exporterRapportDocx. Feed it the visit photos instead of an
+#    empty array. This part is intentionally optional during the earlier CI
+#    compatibility pass where the DOCX hook is not present yet.
 # ---------------------------------------------------------------------------
 pre_exporter = Path('preAllumageReportExporter.js')
 s = pre_exporter.read_text(encoding='utf-8')
@@ -320,4 +324,4 @@ if "photosConfig: []" in s and "title: 'Rapport Pré-allumage'" in s:
     s = s.replace('photosConfig: []', 'photosConfig: preparerPhotosRapport(data)', 1)
 pre_exporter.write_text(s, encoding='utf-8')
 
-print('Pré-allumage report regressions patched: full data, plan, housing summary and trame-aware client reports.')
+print('Pré-allumage reports repaired: full data, plans, housing summary, real DOCX and Client/Documents dispatch.')
