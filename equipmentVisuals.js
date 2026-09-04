@@ -40,6 +40,7 @@ export const EQUIPMENT_BRAND_DOMAINS = {
   'salda': 'salda.lt',
   'salmson': 'salmson.com',
   's&p unelvent': 'solerpalau.com',
+  'saunier duval': 'saunierduval.fr',
   'sauter': 'sauter-controls.com',
   'schako': 'schako.com',
   'schneider electric': 'se.com',
