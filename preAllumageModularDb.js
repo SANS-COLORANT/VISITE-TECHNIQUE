@@ -7,8 +7,10 @@ import { remapperLocalVersRubriquesOfficielles } from './preAllumageStructureDb.
 const CHAUFFERIE = 'chaufferie';
 const SST = 'sous_station';
 
+// La clé historique Excel s'appelle encore « Nombre de sous-stations », mais
+// METRA y stocke désormais le nombre réel de locaux, tous types confondus.
 async function synchroniserNombreSst(db, visiteId) {
-  const row = await db.getFirstAsync(`SELECT COUNT(*) n FROM pre_allumage_locaux WHERE visite_id=? AND type_code=?`, [visiteId, SST]);
+  const row = await db.getFirstAsync(`SELECT COUNT(*) n FROM pre_allumage_locaux WHERE visite_id=?`, [visiteId]);
   await db.runAsync(
     `INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)
      ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur`,
@@ -172,10 +174,6 @@ export async function ajouterLocalPreAllumage(visiteId, { nom, typeCode = SST, c
   } else {
     if (defs.heat.length) await insererRubrique(db, { visiteId, localId: id, panelId: 'p-pa-sst', code: `pa.local.${id}.chauffage`, nom: `${propre} — Chauffage`, ordre: baseOrdre + 3, fields: defs.heat });
     if (defs.water.length) await insererRubrique(db, { visiteId, localId: id, panelId: 'p-pa-sst', code: `pa.local.${id}.ecs`, nom: `${propre} — ECS / traitement d’eau`, ordre: baseOrdre + 4, fields: defs.water });
-    // Si le nom correspond à une zone officielle de la trame (SST 1..10,
-    // Centre commercial, Église, Piscine), on rattache immédiatement le local
-    // aux rubriques statiques conservées. L'écran reste dynamique, mais le
-    // classeur Excel officiel continue donc de recevoir ses cellules historiques.
     await remapperLocalVersRubriquesOfficielles(visiteId, id);
   }
   await synchroniserNombreSst(db, visiteId);
@@ -200,10 +198,17 @@ export async function supprimerLocalPreAllumage(localId) {
   const db = await getDb();
   const local = await db.getFirstAsync(`SELECT visite_id FROM pre_allumage_locaux WHERE id=?`, [localId]);
   if (!local) return;
-  const rubriques = await db.getAllAsync(`SELECT section_code FROM pre_allumage_rubriques WHERE local_id=?`, [localId]);
-  for (const { section_code: code } of rubriques) {
+  const rubriques = await db.getAllAsync(`SELECT id,section_code FROM pre_allumage_rubriques WHERE local_id=?`, [localId]);
+  for (const rubrique of rubriques) {
+    const code = rubrique.section_code;
     await db.runAsync(`DELETE FROM champs_visite WHERE visite_id=? AND section_code=?`, [local.visite_id, code]);
     await db.runAsync(`DELETE FROM controles_visite WHERE visite_id=? AND section_code=?`, [local.visite_id, code]);
+    // Les rubriques de la trame officielle n'appartiennent pas au local : elles
+    // sont simplement réutilisées pour garder la compatibilité Excel. On les
+    // détache avant suppression du local afin de pouvoir les remapper plus tard.
+    if (!String(code || '').startsWith('pa.local.')) {
+      await db.runAsync(`UPDATE pre_allumage_rubriques SET local_id=NULL,modifie_le=datetime('now') WHERE id=?`, [rubrique.id]);
+    }
   }
   await db.runAsync(`DELETE FROM pre_allumage_locaux WHERE id=?`, [localId]);
   await synchroniserNombreSst(db, local.visite_id);
@@ -274,5 +279,4 @@ export function rubriquesVersSections(rubriques, panelId) {
 export const PREALLUMAGE_TYPES_LOCAUX = Object.freeze([
   { code: SST, label: 'Sous-station / SST' },
   { code: CHAUFFERIE, label: 'Chaufferie' },
-  { code: 'autre', label: 'Autre local / installation' },
 ]);
