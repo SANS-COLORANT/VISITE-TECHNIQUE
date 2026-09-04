@@ -24,7 +24,7 @@ export function SiteRadialActionMenu({ menu, onAction, onClose }) {
 
   return <Modal visible transparent animationType="fade" onRequestClose={onClose}>
     <View style={{ flex: 1 }}>
-      <Pressable onPress={onClose} style={{ position: 'absolute', inset: 0, backgroundColor: '#0004' }} />
+      <Pressable onPress={onClose} style={{ position: 'absolute', top: 0, right: 0, bottom: 0, left: 0, backgroundColor: '#0004' }} />
       <View pointerEvents="box-none" style={{ position: 'absolute', left: centerX - HALF, top: centerY - HALF, width: SIZE, height: SIZE }}>
         <View pointerEvents="none" style={{ position: 'absolute', left: 43, top: 43, width: 146, height: 146, borderRadius: 73, backgroundColor: '#06111ADC', borderWidth: 1, borderColor: '#31576C' }} />
         {actions.map((action) => {
