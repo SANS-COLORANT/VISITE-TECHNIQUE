@@ -72,6 +72,7 @@ export const PreAllumageCompactField = React.memo(function PreAllumageCompactFie
   localName,
   onSaved,
   showPhoto = false,
+  showThermalBadge = true,
 }) {
   const libelleBrut = field?.displayLabel || field?.libelle || field?.cle || 'Champ';
   const libelleLocal = sansPrefixeLocal(libelleBrut, localName);
@@ -132,7 +133,7 @@ export const PreAllumageCompactField = React.memo(function PreAllumageCompactFie
   if (groupe?.hidden) return null;
 
   return <View style={{ flex: 1, minWidth: 0, paddingVertical: 4 }}>
-    {groupe ? <View style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4, paddingHorizontal: 7, minHeight: 22, borderRadius: 11, backgroundColor: groupe.label === 'Chauffage' ? '#FFF4E8' : groupe.label === 'ECS / primaire' ? '#EEF7FF' : '#F2F4F7' }}><Text style={{ fontSize: 11 }}>{groupe.icon}</Text><Text style={{ color: COLORS.inkSoft, fontSize: 9, fontWeight: '900' }}>{groupe.label}</Text></View> : null}
+    {showThermalBadge && groupe ? <View style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 4, marginBottom: 4, paddingHorizontal: 7, minHeight: 22, borderRadius: 11, backgroundColor: groupe.label === 'Chauffage' ? '#FFF4E8' : groupe.label === 'ECS / primaire' ? '#EEF7FF' : '#F2F4F7' }}><Text style={{ fontSize: 11 }}>{groupe.icon}</Text><Text style={{ color: COLORS.inkSoft, fontSize: 9, fontWeight: '900' }}>{groupe.label}</Text></View> : null}
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 6 }}>
       <Text numberOfLines={2} style={{ flex: 1, color: COLORS.ink, fontWeight: '800', fontSize: 12 }}>{label}</Text>
       {showPhoto ? <PreAllumagePhotoButton visiteId={visiteId} entiteKey={entiteKey} label={`${localName || ''} · ${label}`} style={{ minHeight: 32, paddingHorizontal: 8, paddingVertical: 5 }} /> : null}
