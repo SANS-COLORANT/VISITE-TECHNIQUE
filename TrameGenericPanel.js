@@ -10,7 +10,7 @@ import { PreAllumagePlanCard } from './PreAllumagePlanCard.js';
 import { styles } from './styles.js';
 import { enregistrerAliasPreAllumage, fieldAliasKey, libelleChamp, listerAliasesPreAllumage, sectionAliasDescriptor } from './preAllumageAliases.js';
 import { PreAllumageModularPanel } from './PreAllumageModularPanel.js';
-import { PreAllumageInfoPanelV3 } from './PreAllumageInfoPanelV3.js';
+import { PreAllumageInfoPanelBusiness } from './PreAllumageInfoPanelBusiness.js';
 import { PreAllumageInstallationPanelV3 } from './PreAllumageInstallationPanelV3.js';
 import { PreAllumageConclusionPanel } from './PreAllumageConclusionPanel.js';
 
@@ -65,7 +65,7 @@ export function mettreAJourCacheControle(visiteId, key, patch) {
 }
 
 export function TrameGenericPanel(props) {
-  if (props.panelId === 'p-pa-infos') return <PreAllumageInfoPanelV3 {...props} />;
+  if (props.panelId === 'p-pa-infos') return <PreAllumageInfoPanelBusiness {...props} />;
   if (props.panelId === 'p-pa-batiments') return <PreAllumageInstallationPanelV3 {...props} />;
   if (props.panelId === 'p-pa-conclusion') return <PreAllumageConclusionPanel {...props} />;
   if (props.panelId.startsWith('p-pa-')) return <PreAllumageModularPanel {...props} />;
