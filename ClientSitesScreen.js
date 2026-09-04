@@ -5,7 +5,11 @@ import { COLORS, styles } from './styles.js';
 import { listerSitesClient, creerSite } from './db.js';
 import { getResumeSuppressionSite, supprimerSiteComplet } from './entityManagementDb.js';
 import { synchroniserCoordonneesSite } from './siteGeoDb.js';
-import { SiteAddressManager, composerAdresse } from './SiteAddressManager.js';
+import { modifierSiteRapide } from './siteBulkDb.js';
+import { dupliquerSite } from './siteOrganizationDb.js';
+import { composerAdresse } from './SiteAddressManager.js';
+import { SiteGroupsManager } from './SiteGroupsManager.js';
+import { SiteRadialActionMenu } from './SiteRadialActionMenu.js';
 
 const adresseVide = () => ({ numero: '', voie: '', complement: '', codePostal: '', ville: '' });
 
@@ -13,7 +17,10 @@ function ClientSitesScreen({ route, navigation }) {
   const { clientId, nomClient } = route?.params || {};
   const [sites, setSites] = useState([]);
   const [modalVisible, setModalVisible] = useState(false);
-  const [gestionVisible, setGestionVisible] = useState(false);
+  const [groupesVisible, setGroupesVisible] = useState(false);
+  const [radialMenu, setRadialMenu] = useState(null);
+  const [renameSite, setRenameSite] = useState(null);
+  const [renameValue, setRenameValue] = useState('');
   const [nouveauNom, setNouveauNom] = useState('');
   const [nouvelleAdresse, setNouvelleAdresse] = useState(adresseVide);
 
@@ -61,6 +68,45 @@ function ClientSitesScreen({ route, navigation }) {
     } catch (e) { Alert.alert('Suppression impossible', String(e?.message || e)); }
   };
 
+  const demanderDuplication = (site) => Alert.alert(
+    'Dupliquer ce site ?',
+    `METRA va créer « ${site.nom_site} - copie » avec son patrimoine et sa maquette LAB 3D. Les anciennes visites, réserves, mesures et photos ne seront pas copiées.`,
+    [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Dupliquer', onPress: async () => {
+        try {
+          await dupliquerSite(site.id, { copierPatrimoine: true, copierLab3d: true });
+          await charger();
+        } catch (e) { Alert.alert('Duplication impossible', String(e?.message || e)); }
+      } },
+    ]
+  );
+
+  const ouvrirMenuSite = (event, site) => {
+    event?.stopPropagation?.();
+    const native = event?.nativeEvent || {};
+    setRadialMenu({ site, x: native.pageX, y: native.pageY });
+  };
+
+  const actionMenuSite = (action, site) => {
+    setRadialMenu(null);
+    if (!site) return;
+    if (action === 'delete') confirmerSuppressionSite(site);
+    else if (action === 'duplicate') demanderDuplication(site);
+    else if (action === 'rename') { setRenameSite(site); setRenameValue(site.nom_site || ''); }
+  };
+
+  const enregistrerRenommage = async () => {
+    const nom = String(renameValue || '').trim();
+    if (!renameSite) return;
+    if (!nom) return Alert.alert('Nom requis', 'Merci de saisir le nom du site.');
+    try {
+      await modifierSiteRapide(renameSite.id, { nomSite: nom });
+      setRenameSite(null); setRenameValue('');
+      await charger();
+    } catch (e) { Alert.alert('Renommage impossible', String(e?.message || e)); }
+  };
+
   return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
     <FlatList
       contentContainerStyle={styles.content}
@@ -72,10 +118,12 @@ function ClientSitesScreen({ route, navigation }) {
           <View style={{ flexDirection: 'row', gap: 10 }}><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{sites.length}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>sites</Text></View><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{avecAdresse}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>adresses renseignées</Text></View><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{sansAdresse}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>à compléter</Text></View></View>
         </View>
 
-        <TouchableOpacity style={[styles.btnPrimary, { marginBottom: 8 }]} onPress={() => navigation.navigate('ClientPilotage', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnPrimaryText}>▦ Pilotage · cartographie & synthèse</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, { marginBottom: 8 }]} onPress={() => navigation.navigate('ClientMap', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>🗺 Carte METRA des sites</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, { marginBottom: 8 }]} onPress={() => setGestionVisible(true)}><Text style={styles.btnSecondaryText}>✎ Gérer · renommer · dupliquer · groupes</Text></TouchableOpacity>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}><TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setModalVisible(true)}><Text style={styles.btnPrimaryText}>+ Ajouter un site</Text></TouchableOpacity><TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnPrimaryText}>📄 Documents & exports</Text></TouchableOpacity></View>
+        <TouchableOpacity style={[styles.btnPrimary, { marginBottom: 8 }]} onPress={() => navigation.navigate('ClientPilotage', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnPrimaryText}>▦ Pilotage patrimoine</Text></TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+          <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => navigation.navigate('ClientMap', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>🗺 Carte</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => setGroupesVisible(true)} disabled={!sites.length}><Text style={styles.btnSecondaryText}>▦ Groupes</Text></TouchableOpacity>
+        </View>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}><TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setModalVisible(true)}><Text style={styles.btnPrimaryText}>+ Ajouter</Text></TouchableOpacity><TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnPrimaryText}>📄 Documents</Text></TouchableOpacity></View>
 
         {sansAdresse > 0 ? <View style={{ backgroundColor: '#FFF8E7', borderWidth: 1, borderColor: '#F0D99B', borderRadius: 12, padding: 10, marginBottom: 14 }}><Text style={{ color: '#7A5700', fontSize: 12, fontWeight: '700' }}>{sansAdresse} site(s) sans adresse complète</Text></View> : null}
         <View style={styles.sectionHeaderRow}><Text style={styles.sectionLabel}>Sites</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>{sites.length}</Text></View>
@@ -83,15 +131,17 @@ function ClientSitesScreen({ route, navigation }) {
       renderItem={({ item }) => <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => ouvrirSite(item)}>
         <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom_site}</Text>{item.adresse ? <Text style={styles.cardSub}>{item.adresse}</Text> : <Text style={{ color: '#A26A00', fontSize: 12 }}>Adresse à renseigner</Text>}{item.localisation_note ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 4 }}>{item.localisation_note}</Text> : null}</View>
         <View style={[styles.badge, item.statut === 'Actif' ? styles.badgeActif : styles.badgeInactif]}><Text style={[styles.badgeText, item.statut === 'Actif' ? styles.badgeTextActif : styles.badgeTextInactif]}>{item.statut || 'Actif'}</Text></View>
-        <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); setGestionVisible(true); }} style={{ minWidth: 40, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}><Text style={{ color: COLORS.inkSoft, fontSize: 20, fontWeight: '900' }}>⋯</Text></TouchableOpacity>
-        <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionSite(item); }} style={{ minWidth: 38, minHeight: 42, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.red || '#B42318', fontSize: 16, fontWeight: '800' }}>✕</Text></TouchableOpacity>
+        <TouchableOpacity onPress={(e) => ouvrirMenuSite(e, item)} style={{ minWidth: 46, minHeight: 46, alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}><Text style={{ color: COLORS.inkSoft, fontSize: 22, fontWeight: '900' }}>⋯</Text></TouchableOpacity>
       </TouchableOpacity>}
       ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucun site pour ce client.</Text></View>}
     />
 
     <Modal visible={modalVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Nouveau site</Text><TextInput style={styles.input} placeholder="Nom du site" value={nouveauNom} onChangeText={setNouveauNom}/><View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}><TextInput style={[styles.input, { width: 84 }]} placeholder="N°" value={nouvelleAdresse.numero} keyboardType="numbers-and-punctuation" onChangeText={(v) => patchNouvelleAdresse({ numero: v })}/><TextInput style={[styles.input, { flex: 1 }]} placeholder="Rue / avenue / voie" value={nouvelleAdresse.voie} onChangeText={(v) => patchNouvelleAdresse({ voie: v })}/></View><TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Complément : bâtiment, entrée…" value={nouvelleAdresse.complement} onChangeText={(v) => patchNouvelleAdresse({ complement: v })}/><View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}><TextInput style={[styles.input, { width: 120 }]} placeholder="Code postal" value={nouvelleAdresse.codePostal} keyboardType="number-pad" maxLength={5} onChangeText={(v) => patchNouvelleAdresse({ codePostal: v.replace(/\D/g, '').slice(0, 5) })}/><TextInput style={[styles.input, { flex: 1 }]} placeholder="Ville" value={nouvelleAdresse.ville} onChangeText={(v) => patchNouvelleAdresse({ ville: v })}/></View><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setModalVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={ajouterSiteFn}><Text style={styles.btnPrimaryText}>Créer</Text></TouchableOpacity></View></View></View></Modal>
 
-    <SiteAddressManager visible={gestionVisible} clientId={clientId} sites={sites} onClose={() => setGestionVisible(false)} onChanged={charger}/>
+    <Modal visible={!!renameSite} transparent animationType="fade" onRequestClose={() => setRenameSite(null)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Renommer le site</Text><TextInput autoFocus style={styles.input} value={renameValue} onChangeText={setRenameValue} selectTextOnFocus/><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setRenameSite(null)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerRenommage}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></View></View></Modal>
+
+    <SiteGroupsManager visible={groupesVisible} clientId={clientId} sites={sites} onClose={() => setGroupesVisible(false)} onChanged={charger}/>
+    <SiteRadialActionMenu menu={radialMenu} onClose={() => setRadialMenu(null)} onAction={actionMenuSite}/>
   </View>;
 }
 
