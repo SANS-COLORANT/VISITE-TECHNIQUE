@@ -16,6 +16,7 @@ on:
       - .github/scripts/patch_pdf_cover_fallback_build.py
       - .github/scripts/patch_preallumage_pdf_cover_build.py
       - .github/scripts/patch_preallumage_report_regressions.py
+      - .github/scripts/patch_preallumage_field_ux_build.py
       - .github/scripts/patch_report_editor_assets_build.py
       - .github/scripts/patch_excel_import_date.py
       - .github/scripts/patch_report_mode_defaults.py
@@ -216,6 +217,16 @@ jobs:
           grep -q "preAllumageBuildingRows" wordDocxExporter.js
           grep -q "preAllumagePlanImages" wordDocxExporter.js
           grep -q "preparerPhotosRapport(data)" preAllumageReportExporter.js
+
+      - name: Apply Pre-allumage field UX
+        run: |
+          python .github/scripts/patch_preallumage_field_ux_build.py
+          node --check preAllumageCounterDb.js
+          grep -q "const localSwipe = useMemo" PreAllumageInstallationPanelV3.js
+          grep -q "Ajouter un compteur" PreAllumageInstallationPanelV3.js
+          grep -q "unitVisible" PreAllumageCompactField.js
+          grep -q "labelPosition" PreAllumageHeatCurve.js
+          grep -q "activeTabRef.current === 'p-pa-batiments'" VisiteScreen.js
 
       - name: Validate final Word DOCX integrity and cover
         run: |

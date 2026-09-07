@@ -26,18 +26,18 @@ jobs:
           migrations = Path('database/migrations/index.js').read_text(encoding='utf-8')
           match = re.search(r'DATABASE_SCHEMA_VERSION\s*=\s*(\d+)', constants)
           if not match:
-              raise SystemExit('DATABASE_SCHEMA_VERSION introuvable')
+            raise SystemExit('DATABASE_SCHEMA_VERSION introuvable')
           declared = int(match.group(1))
           versions = [int(v) for v in re.findall(r'migration(\d+)', migrations)]
           latest = max(versions) if versions else 0
           if declared != latest:
-              raise SystemExit(f'Version SQLite incoherente: constante={declared}, derniere migration={latest}')
+            raise SystemExit(f'Version SQLite incoherente: constante={declared}, derniere migration={latest}')
           print(f'Version SQLite coherente: {declared}')
           PY
 
       # Rejoue dans la PR les patchs qui ont déjà fait échouer les builds APK.
-      # La restauration Pré-allumage s'applique volontairement après les couches
-      # LAB et mise en page professionnelle afin de valider le code réellement livré.
+      # Les couches Pré-allumage sont appliquées après le rapport professionnel
+      # afin de contrôler le code réellement livré à la tablette.
       - name: Validate build patch compatibility
         run: |
           python .github/scripts/patch_report_mode_defaults.py
@@ -45,11 +45,13 @@ jobs:
           python .github/scripts/patch_lab_health_build.py
           python .github/scripts/patch_report_professional_layout_build.py
           python .github/scripts/patch_preallumage_report_regressions.py
+          python .github/scripts/patch_preallumage_field_ux_build.py
           node --check reportBuilder.js
           node --check reportEditorExporter.js
           node --check preAllumageReportExporter.js
           node --check preAllumageReportHtml.js
           node --check wordDocxExporter.js
+          node --check preAllumageCounterDb.js
           grep -q "PREALLUMAGE_REPORT_PANEL_ORDER" reportBuilder.js
           grep -q "construireSitePreAllumageHtml" reportBuilder.js
           grep -q "preAllumageBuildingRows" wordDocxExporter.js
@@ -59,6 +61,11 @@ jobs:
           grep -q "photoCount-6" reportBuilder.js
           grep -q "photoCount-6" reportEditorExporter.js
           grep -q "Périmètre :" reportBuilder.js
+          grep -q "const localSwipe = useMemo" PreAllumageInstallationPanelV3.js
+          grep -q "Ajouter un compteur" PreAllumageInstallationPanelV3.js
+          grep -q "unitVisible" PreAllumageCompactField.js
+          grep -q "labelPosition" PreAllumageHeatCurve.js
+          grep -q "activeTabRef.current === 'p-pa-batiments'" VisiteScreen.js
 
       - name: Setup Node
         uses: actions/setup-node@v4
