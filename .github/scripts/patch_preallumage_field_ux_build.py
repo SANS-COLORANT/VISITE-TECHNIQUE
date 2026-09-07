@@ -7,8 +7,10 @@ def run_patch(path: str) -> None:
 
 
 # Conserve les passes Pré-allumage déjà validées, puis applique la transition
-# pleine page et les optimisations de chargement sur le code réellement livré.
+# pleine page, les optimisations de chargement et enfin les garde-fous communs
+# de création/export sur le code réellement livré à la tablette.
 run_patch('.github/scripts/patch_preallumage_field_ux_base.py')
 run_patch('.github/scripts/patch_preallumage_navigation_popup_fix.py')
 run_patch('.github/scripts/patch_preallumage_layout_container_fix.py')
 run_patch('.github/scripts/patch_preallumage_swipe_performance.py')
+run_patch('.github/scripts/patch_visit_creation_export_type.py')
