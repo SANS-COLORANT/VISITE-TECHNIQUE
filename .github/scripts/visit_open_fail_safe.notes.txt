@@ -1,1 +1,0 @@
-Scénarios couverts : ouverture d'une visite existante et navigation automatique après import Excel unique. Les deux passent par VisiteScreen et ne doivent plus attendre les préparations secondaires avant l'affichage.
