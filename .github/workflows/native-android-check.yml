@@ -53,6 +53,7 @@ jobs:
           node --check wordDocxExporter.js
           node --check preAllumageCounterDb.js
           node --check visitPrefillDb.js
+          node --check VisiteScreen.js
           grep -q "PREALLUMAGE_REPORT_PANEL_ORDER" reportBuilder.js
           grep -q "construireSitePreAllumageHtml" reportBuilder.js
           grep -q "preAllumageBuildingRows" wordDocxExporter.js
@@ -69,7 +70,9 @@ jobs:
           grep -q "activeTabRef.current === 'p-pa-batiments'" VisiteScreen.js
           grep -q "commit = true" PreAllumageInstallationPanelV3.js
           grep -q "preAllumageLocalSwipeRef.current?.(direction, false)" VisiteScreen.js
-          grep -q "const warmupPromise = Promise.all" VisiteScreen.js
+          grep -q "VISIT_OPEN_FAIL_SAFE_V1" VisiteScreen.js
+          grep -q "Ouverture visite impossible" VisiteScreen.js
+          grep -q "Préremplissage visite incomplet" VisiteScreen.js
           grep -q "const anciens = await db.getAllAsync" visitPrefillDb.js
           grep -q "await assurerStructureSitePreAllumage(props.visiteId);" PreAllumageInstallationPanelBusiness.js
 
