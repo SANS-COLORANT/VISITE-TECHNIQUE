@@ -7,6 +7,7 @@ const app=read('App.js');
 requireText(app,'DEFERRED_SCREEN_LOADERS','deferred screen registry');
 requireText(app,"Report:()=>require('./ReportScreen.js').ReportScreen",'deferred report');
 requireText(app,"Lab3D:()=>require('./Lab3DScreen.js').Lab3DScreen",'deferred LAB3D');
+requireText(app,"ClientDocuments:()=>require('./ClientDocumentsScreen.js').ClientDocumentsScreen",'deferred client documents');
 requireText(app,"import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';",'hydraulic build compatibility');
 forbidText(app,"import { ReportScreen } from './ReportScreen.js';",'eager report screen');
 forbidText(app,"import { Lab3DScreen } from './Lab3DScreen.js';",'eager LAB3D screen');
@@ -15,9 +16,10 @@ const home=read('HomeScreen.js');
 requireText(home,'chargerBatchExcelModule','lazy home Excel');
 forbidText(home,"from './batchExcel.js';",'eager home XLSX graph');
 
+// Le patch Android d'export typé attend encore cet import exact. L'écran
+// Documents est différé au niveau App, ce qui retire quand même ce graphe du démarrage.
 const docs=read('ClientDocumentsScreen.js');
-requireText(docs,'chargerExportClientModule','lazy client export');
-forbidText(docs,"import { exporterDernieresVisitesClient } from './clientBatchExport.js';",'eager client export');
+requireText(docs,"import { exporterDernieresVisitesClient } from './clientBatchExport.js';",'client typed export build compatibility');
 
 const visit=read('VisiteScreen.js');
 requireText(visit,'chargerExcelExportModule','lazy visit Excel export');
@@ -25,7 +27,6 @@ requireText(visit,'chargerPreAllumageReportModule','lazy preallumage report expo
 forbidText(visit,"import { exporterEtPartager } from './excelExport.js';",'eager visit Excel export');
 forbidText(visit,"import { exporterRapportPreAllumage } from './preAllumageReportExporter.js';",'eager PRE report export');
 
-// Le build historique s'appuie encore sur cet import pour patcher l'export typé.
 const siteVisits=read('SiteVisitesScreen.js');
 requireText(siteVisits,"import { exporterVisitesExcelEnLot } from './batchExcel.js';",'site export build compatibility');
 
