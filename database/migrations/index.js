@@ -25,6 +25,7 @@ import { migration024 } from './024_site_groups.js';
 import { migration025 } from './025_pre_allumage_referentials.js';
 import { migration026 } from './026_pre_allumage_primary_usage.js';
 import { migration027 } from './027_symfony_api_cache.js';
+import { migration028 } from './028_symfony_preparation_integrity.js';
 
 export const MIGRATIONS = Object.freeze([
   migration001, migration002, migration003, migration004, migration005,
@@ -32,5 +33,5 @@ export const MIGRATIONS = Object.freeze([
   migration011, migration012, migration013, migration014, migration015,
   migration016, migration017, migration018, migration019, migration020,
   migration021, migration022, migration023, migration024, migration025,
-  migration026, migration027,
+  migration026, migration027, migration028,
 ]);
