@@ -53,7 +53,9 @@ function patchCacheDb() {
 function patchDirectoryScreen() {
   const path = 'MetraDirectoryScreen.js';
   let text = read(path);
-  const marker = 'const METRA_DIRECTORY_FAST_CACHE = { clients: [], sites: [] };';
+  const marker = 'let METRA_DIRECTORY_FAST_CACHE = { clients: [], sites: [] };';
+  const legacyMarker = 'const METRA_DIRECTORY_FAST_CACHE = { clients: [], sites: [] };';
+  if (text.includes(legacyMarker)) text = text.replace(legacyMarker, marker);
   if (!text.includes(marker)) {
     const anchor = "const SUCCESS = '#16794B';\n";
     if (!text.includes(anchor)) throw new Error('MetraDirectory fast cache anchor not found');
@@ -67,8 +69,6 @@ function patchDirectoryScreen() {
   );
   const oldSearch = `  const search = useCallback(async (text = query) => {\n    setDirectory(await searchCachedDirectory(text));\n  }, [query]);`;
   const newSearch = `  const search = useCallback(async (text = query) => {\n    const next = await searchCachedDirectory(text);\n    METRA_DIRECTORY_FAST_CACHE = next;\n    setDirectory(next);\n  }, [query]);`;
-  // The cache needs reassignment, so change its declaration once before wiring search.
-  text = text.replace('const METRA_DIRECTORY_FAST_CACHE = { clients: [], sites: [] };', 'let METRA_DIRECTORY_FAST_CACHE = { clients: [], sites: [] };');
   if (!text.includes('METRA_DIRECTORY_FAST_CACHE = next;')) {
     if (!text.includes(oldSearch)) throw new Error('MetraDirectory search cache anchor not found');
     text = text.replace(oldSearch, newSearch);
