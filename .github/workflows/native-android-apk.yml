@@ -353,7 +353,7 @@ jobs:
           APKSIGNER="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner"
           VERIFY_OUTPUT="$("$APKSIGNER" verify --verbose --print-certs "$APK" 2>&1)"
           printf '%s\n' "$VERIFY_OUTPUT" | grep -E 'Verified|certificate SHA-256 digest' || true
-          ACTUAL_SHA256="$(printf '%s\n' "$VERIFY_OUTPUT" | awk -F': ' 'tolower($0) ~ /certificate sha-256 digest/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          ACTUAL_SHA256="$(printf '%s\n' "$VERIFY_OUTPUT" | awk -F': ' 'tolower($0) ~ /certificate sha-256 digest/{print $NF; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
           if [ -z "$ACTUAL_SHA256" ]; then
             ACTUAL_SHA256="$(keytool -printcert -jarfile "$APK" 2>/dev/null | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
           fi
