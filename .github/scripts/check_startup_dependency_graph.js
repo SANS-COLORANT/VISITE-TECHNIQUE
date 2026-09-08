@@ -18,4 +18,10 @@ requireText(db,'const {PRESCRIPTIONS}=chargerDonneesLegacy()','on-demand prescri
 requireText(db,'const {TRAME_DATA}=chargerDonneesLegacy()','on-demand legacy visit defaults');
 requireText(db,'chargerMaterielPersistant().listerMaterielPersistant','on-demand material listing');
 
-console.log('Startup dependency graph contract validated: Home avoids deletion/XLSX modules and db.js avoids parsing ICPE catalogue/persistent equipment until needed.');
+const database=read('database/index.js');
+requireText(database,'Un seul passage JS -> natif au démarrage','single SQLite startup bridge call');
+forbidText(database,"await db.execAsync('PRAGMA synchronous = NORMAL;')",'separate SQLite pragma bridge call');
+requireText(database,'PRAGMA journal_mode = WAL;','WAL retained');
+requireText(database,'PRAGMA foreign_keys = ON;','foreign keys retained');
+
+console.log('Startup dependency graph contract validated: Home avoids deletion/XLSX modules, db.js defers heavy data repositories, and SQLite startup PRAGMAs use one native bridge call.');
