@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = require('path');
 
 const IMPORT = 'import com.metra.dpop.MetraDpopPackage';
-const PACKAGE = 'packages.add(MetraDpopPackage())';
+const KOTLIN_TOKEN = 'PackageList(this).packages';
+const KOTLIN_WRAPPED = 'PackageList(this).packages.apply { add(MetraDpopPackage()) }';
 
 module.exports = function withMetraDpop(config) {
   config = withDangerousMod(config, ['android', async (cfg) => {
@@ -26,22 +27,16 @@ module.exports = function withMetraDpop(config) {
         : `${IMPORT}\n${src}`;
     }
 
-    if (!src.includes(PACKAGE)) {
-      const expo51Block = /(val\s+packages\s*=\s*PackageList\(this\)\.packages\s*\n)/;
-      const expressionApply = /(PackageList\(this\)\.packages\.apply\s*\{\s*\n?)/;
-      const expressionAlso = /(PackageList\(this\)\.packages\.also\s*\{\s*packages\s*->\s*\n?)/;
-      const javaBlock = /(List<ReactPackage>\s+packages\s*=\s*new\s+PackageList\(this\)\.getPackages\(\);\s*\n)/;
-
-      if (expo51Block.test(src)) {
-        src = src.replace(expo51Block, (m) => `${m}        ${PACKAGE}\n`);
-      } else if (expressionApply.test(src)) {
-        src = src.replace(expressionApply, (m) => `${m}              ${PACKAGE}\n`);
-      } else if (expressionAlso.test(src)) {
-        src = src.replace(expressionAlso, (m) => `${m}              ${PACKAGE}\n`);
-      } else if (javaBlock.test(src)) {
-        src = src.replace(javaBlock, (m) => `${m}      packages.add(new MetraDpopPackage());\n`);
+    if (!src.includes('MetraDpopPackage()')) {
+      if (src.includes(KOTLIN_TOKEN)) {
+        src = src.replace(KOTLIN_TOKEN, KOTLIN_WRAPPED);
       } else {
-        throw new Error('withMetraDpop: impossible de localiser la liste ReactPackage dans MainApplication');
+        const javaToken = 'new PackageList(this).getPackages()';
+        if (src.includes(javaToken)) {
+          src = src.replace(javaToken, `new PackageList(this).getPackages() {{ add(new MetraDpopPackage()); }}`);
+        } else {
+          throw new Error('withMetraDpop: impossible de localiser PackageList dans MainApplication');
+        }
       }
     }
 
