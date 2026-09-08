@@ -56,7 +56,7 @@ async function convertirMaterielLegacy(db, visiteId, installationId, trameId) {
     await upsertObservation(db, equipementId, visiteId, { etat: m.etat || 'Bon', present: 1 });
   }
 }
-async function injecterEquipementsActifsDuSite(db, visiteId, siteId, trameId, installationId = null) {
+async function injecterEquipementsActifsDuSite(db, visiteId, siteId, trameId, installationId = null, referenceOnly = false) {
   const actifsBruts = await db.getAllAsync(`SELECT e.*,
       (SELECT GROUP_CONCAT(et.trame_id) FROM equipement_trames et WHERE et.equipement_id=e.id AND et.actif=1) AS trames_explicit,
       (SELECT COUNT(*) FROM equipement_trames et2 WHERE et2.equipement_id=e.id) AS nb_trames,
@@ -68,20 +68,27 @@ async function injecterEquipementsActifsDuSite(db, visiteId, siteId, trameId, in
      ORDER BY e.designation,e.marque,e.modele`, [visiteId, siteId, installationId, installationId, visiteId]);
   const actifs = actifsBruts.filter((e) => equipementCompatible(e, trameId));
   for (const e of actifs) {
-    const materielId = uuidv4(); const etat = e.dernier_etat || 'Bon';
+    const materielId = uuidv4();
+    // Une visite préparée depuis Symfony connaît le patrimoine mais n'a encore
+    // observé aucun état. On garde donc l'état du dernier passage en historique
+    // au lieu de le recopier comme constat du jour.
+    const etat = referenceOnly ? null : (e.dernier_etat || 'Bon');
     await db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,designation,marque,modele,annee,etat,equipement_id) VALUES(?,?,?,?,?,?,?,?,?)`, [materielId, visiteId, e.type_code || 'Équipement', e.designation || 'Équipement', e.marque || null, e.modele || null, e.annee ? String(e.annee) : null, etat, e.id]);
-    await upsertObservation(db, e.id, visiteId, { etat, present: 1 });
+    if (!referenceOnly) await upsertObservation(db, e.id, visiteId, { etat, present: 1 });
   }
 }
 export async function listerMaterielPersistant(visiteId) {
   const db = await getDb(); const contexte = await getContexteVisite(db, visiteId); const installationId = await ensureInstallation(db, contexte.site_id, contexte.installation_id);
   await convertirMaterielLegacy(db, visiteId, installationId, contexte.trame_id);
-  await injecterEquipementsActifsDuSite(db, visiteId, contexte.site_id, contexte.trame_id, contexte.installation_id || null);
-  return db.getAllAsync(`SELECT m.*, e.statut AS statut_equipement, COALESCE(o.etat,m.etat,'Bon') AS etat, COALESCE(o.commentaire,'') AS observation_commentaire,
+  const apiPrepared = Boolean(contexte.api_remote_local_id);
+  await injecterEquipementsActifsDuSite(db, visiteId, contexte.site_id, contexte.trame_id, contexte.installation_id || null, apiPrepared);
+  return db.getAllAsync(`SELECT m.*, e.statut AS statut_equipement,
+      CASE WHEN ?=1 THEN COALESCE(o.etat,m.etat) ELSE COALESCE(o.etat,m.etat,'Bon') END AS etat,
+      COALESCE(o.commentaire,'') AS observation_commentaire,
       (SELECT COUNT(*) FROM observations_equipement h WHERE h.equipement_id=m.equipement_id) AS nb_observations,
       (SELECT MAX(v.date_visite) FROM observations_equipement h JOIN visites v ON v.id=h.visite_id WHERE h.equipement_id=m.equipement_id AND h.visite_id<>m.visite_id) AS derniere_visite
      FROM materiel m LEFT JOIN equipements e ON e.id=m.equipement_id LEFT JOIN observations_equipement o ON o.equipement_id=m.equipement_id AND o.visite_id=m.visite_id
-     WHERE m.visite_id=? ORDER BY m.cree_le,m.id`, [visiteId]);
+     WHERE m.visite_id=? ORDER BY m.cree_le,m.id`, [apiPrepared ? 1 : 0, visiteId]);
 }
 export async function ajouterMaterielPersistant(visiteId) {
   const db = await getDb(); const contexte = await getContexteVisite(db, visiteId); const installationId = await ensureInstallation(db, contexte.site_id, contexte.installation_id);
