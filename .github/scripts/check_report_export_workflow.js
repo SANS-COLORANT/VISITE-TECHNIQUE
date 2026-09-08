@@ -11,20 +11,24 @@ requireText(directory, 'Touchez un site pour consulter sa fiche', 'client browse
 const documents = read('ClientDocumentsScreen.js');
 forbidText(documents, 'initialiserArborescenceClient', 'eager client/site folder creation');
 requireText(documents, "Aucun dossier de site n'est créé avant ton choix d'export.", 'lazy report folders message');
+requireText(documents, "const ouvrirRapports = () =>", 'report screen opens without storage side effects');
 
 const report = read('ReportScreen.js');
+requireText(report, "const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique');", 'legacy VMC report state anchor preserved');
 requireText(report, '[dossiersParSite,setDossiersParSite]', 'per-site folder choice state');
 requireText(report, 'Un seul document · {clientNomRapport}', 'grouped client document choice');
 requireText(report, 'Un PDF par site', 'per-site PDF choice');
 requireText(report, 'Créer un dossier pour chaque site', 'selected-site folder option');
-requireText(report, 'layout,dossiersParSite', 'report output config');
+requireText(report, 'photosConfig:photos,format,dossiersParSite', 'per-site folder choice forwarded separately');
 requireText(report, 'return new Set()', 'no automatic full-client report selection');
+forbidText(report, 'layout,dossiersParSite', 'legacy report config must remain compatible');
 
 const exporter = read('reportEditorExporter.js');
 requireText(exporter, "from './metraStorage.js'", 'METRA report storage import');
 requireText(exporter, 'clientNom ? await dossierRapportsClientMetra(clientNom)', 'grouped client folder');
 requireText(exporter, 'await dossierRapportsSiteMetra({ clientNom, siteNom })', 'selected site report folder');
-requireText(exporter, 'config?.dossiersParSite === false', 'per-site folder toggle');
+requireText(exporter, 'dossiersParSite === false', 'per-site folder toggle');
+requireText(exporter, '// METRA storage compatibility: dossierUri || await choisirDossier(datas);', 'legacy storage patch compatibility marker');
 
 const storage = read('metraStorage.js');
 requireText(storage, 'export async function dossierRapportsClientMetra', 'client report folder helper');
