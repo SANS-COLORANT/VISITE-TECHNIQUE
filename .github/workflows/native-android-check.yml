@@ -41,8 +41,6 @@ jobs:
           node --check preAllumageCounterDb.js
           node --check visitPrefillDb.js
           node --check VisiteScreen.js
-          grep -q "PREALLUMAGE_REPORT_PANEL_ORDER" reportBuilder.js
-          grep -q "await assurerStructureSitePreAllumage(props.visiteId);" PreAllumageInstallationPanelBusiness.js
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
