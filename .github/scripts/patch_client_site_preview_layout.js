@@ -14,12 +14,34 @@ const selectionMarker = '1, plusieurs ou tous les sites';
 const markerIndex = text.indexOf(selectionMarker);
 if (markerIndex < 0) throw new Error('Client multi-site selection marker not found');
 
-const listAnchor = `        <FlatList\n          data={sites}\n          keyExtractor={(x) => \`\${x.remote_client_id}-\${x.remote_site_id}\`}`;
-const listFixed = `        <FlatList\n          style={{ flexGrow: 0, flexShrink: 1, minHeight: 220, maxHeight: 440 }}\n          contentContainerStyle={{ paddingBottom: siteSelectionMode ? 4 : 10 }}\n          initialNumToRender={12}\n          maxToRenderPerBatch={10}\n          updateCellsBatchingPeriod={24}\n          windowSize={7}\n          removeClippedSubviews={false}\n          keyboardShouldPersistTaps=\"handled\"\n          data={sites}\n          keyExtractor={(x) => \`\${x.remote_client_id}-\${x.remote_site_id}\`}`;
-const listIndex = text.indexOf(listAnchor, markerIndex);
-if (!text.includes('minHeight: 220, maxHeight: 440')) {
-  if (listIndex < 0) throw new Error('Client site list anchor not found');
-  text = text.slice(0, listIndex) + text.slice(listIndex).replace(listAnchor, listFixed);
+const listStart = text.indexOf('        <FlatList\n', markerIndex);
+if (listStart < 0) throw new Error('Client site list start not found');
+const listEnd = text.indexOf('        />', listStart);
+if (listEnd < 0) throw new Error('Client site list end not found');
+let list = text.slice(listStart, listEnd + '        />'.length);
+
+if (!list.includes('minHeight: 220, maxHeight: 440')) {
+  if (list.includes('          style={{ flex: 1 }}\n')) {
+    list = list.replace(
+      '          style={{ flex: 1 }}\n',
+      '          style={{ flexGrow: 0, flexShrink: 1, minHeight: 220, maxHeight: 440 }}\n'
+    );
+  } else {
+    list = list.replace(
+      '        <FlatList\n',
+      '        <FlatList\n          style={{ flexGrow: 0, flexShrink: 1, minHeight: 220, maxHeight: 440 }}\n'
+    );
+  }
+  if (!list.includes('contentContainerStyle={{ paddingBottom: siteSelectionMode ? 4 : 10 }}')) {
+    list = list.replace(
+      /          style=\{\{[^\n]+\}\}\n/,
+      (m) => `${m}          contentContainerStyle={{ paddingBottom: siteSelectionMode ? 4 : 10 }}\n`
+    );
+  }
+  if (!list.includes('keyboardShouldPersistTaps="handled"')) {
+    list = list.replace('          data={sites}\n', '          keyboardShouldPersistTaps="handled"\n          data={sites}\n');
+  }
+  text = text.slice(0, listStart) + list + text.slice(listEnd + '        />'.length);
 }
 
 text = text.replace(
