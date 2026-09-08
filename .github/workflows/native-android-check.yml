@@ -64,6 +64,10 @@ jobs:
           npx expo prebuild --clean --platform android --no-install
           test -s android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
           test -s android/app/src/main/java/com/metra/dpop/MetraDpopPackage.kt
-          grep -R -q "MetraDpopPackage" android/app/src/main/java/*/*/MainApplication.*
+          MAIN_APPLICATION="$(find android/app/src/main/java -type f \( -name 'MainApplication.kt' -o -name 'MainApplication.java' \) -print -quit)"
+          test -n "$MAIN_APPLICATION"
+          echo "MainApplication généré: $MAIN_APPLICATION"
+          grep -q "import com.metra.dpop.MetraDpopPackage" "$MAIN_APPLICATION"
+          grep -q "packages.add(MetraDpopPackage())" "$MAIN_APPLICATION"
       - name: Validate JavaScript bundle
         run: npx expo export --platform android --output-dir dist-check
