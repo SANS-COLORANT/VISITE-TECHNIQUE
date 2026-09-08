@@ -114,15 +114,25 @@ async function findEquipmentByRemoteId(db, siteId, installationId, remoteMateria
   return row || null;
 }
 
+async function findByApiMaterialNumber(db, installationId, numeroMateriel) {
+  const number = text(numeroMateriel);
+  if (!number) return null;
+  const rows = await db.getAllAsync(
+    `SELECT e.id FROM attributs_libres a
+     JOIN equipements e ON e.id=a.entite_id
+     WHERE a.entite_type='equipement' AND a.cle='api_symfony.numero_materiel'
+       AND e.installation_id=? AND e.statut<>'retire'
+       AND lower(trim(COALESCE(a.valeur,'')))=lower(trim(?))`,
+    [installationId, number]
+  );
+  return rows.length === 1 ? rows[0].id : null;
+}
+
 async function findConservativeEquipmentMatch(db, installationId, material) {
-  const number = text(material?.numeroMateriel);
-  if (number) {
-    const byNumber = await db.getAllAsync(
-      `SELECT id FROM equipements WHERE installation_id=? AND statut<>'retire' AND lower(trim(COALESCE(numero_serie,'')))=lower(trim(?))`,
-      [installationId, number]
-    );
-    if (byNumber.length === 1) return byNumber[0].id;
-  }
+  // numero_materiel n'est pas documenté comme un numéro de série : on ne le
+  // fusionne donc jamais implicitement avec equipements.numero_serie.
+  const byApiNumber = await findByApiMaterialNumber(db, installationId, material?.numeroMateriel);
+  if (byApiNumber) return byApiNumber;
 
   const designation = text(material?.designation);
   if (!designation) return null;
@@ -153,19 +163,19 @@ async function ensureEquipmentFromCurrentListing(db, siteId, installationId, mat
   if (!equipmentId) {
     equipmentId = createId();
     await db.runAsync(
-      `INSERT INTO equipements(id,installation_id,type_code,designation,marque,modele,numero_serie,annee,statut)
-       VALUES(?,?,?,?,?,?,?,?, 'actif')`,
+      `INSERT INTO equipements(id,installation_id,type_code,designation,marque,modele,annee,statut)
+       VALUES(?,?,?,?,?,?,?, 'actif')`,
       [equipmentId, installationId, text(material?.categorie) || 'equipement', text(material?.designation) || 'Équipement',
-        text(material?.marque), text(material?.modele), text(material?.numeroMateriel), yearAsInteger(material?.annee)]
+        text(material?.marque), text(material?.modele), yearAsInteger(material?.annee)]
     );
   } else if (wasRemoteLinked) {
     await db.runAsync(
       `UPDATE equipements SET
          type_code=COALESCE(?,type_code),designation=COALESCE(?,designation),marque=COALESCE(?,marque),
-         modele=COALESCE(?,modele),numero_serie=COALESCE(?,numero_serie),annee=COALESCE(?,annee),modifie_le=datetime('now')
+         modele=COALESCE(?,modele),annee=COALESCE(?,annee),modifie_le=datetime('now')
        WHERE id=?`,
       [text(material?.categorie), text(material?.designation), text(material?.marque), text(material?.modele),
-        text(material?.numeroMateriel), yearAsInteger(material?.annee), equipmentId]
+        yearAsInteger(material?.annee), equipmentId]
     );
   }
 
@@ -176,10 +186,12 @@ async function ensureEquipmentFromCurrentListing(db, siteId, installationId, mat
     currentLocalListing: true,
     payload: material,
   });
+  await upsertAttribute(db, 'equipement', equipmentId, 'api_symfony.numero_materiel', material?.numeroMateriel);
   await upsertAttribute(db, 'equipement', equipmentId, 'api_symfony.annee_source', material?.annee);
   await upsertAttribute(db, 'equipement', equipmentId, 'api_symfony.nombre', material?.nombre);
   await upsertAttribute(db, 'equipement', equipmentId, 'api_symfony.reseau_desservi', material?.reseauDesservi);
   await upsertAttribute(db, 'equipement', equipmentId, 'api_symfony.caracteristiques', material?.caracteristiques);
+  await upsertAttribute(db, 'equipement', equipmentId, 'api_symfony.etat_reference', material?.etat);
   return equipmentId;
 }
 
@@ -192,7 +204,7 @@ async function linkEquipmentToVisit(db, visiteId, equipmentId, material) {
      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [id, visiteId, text(material?.categorie), text(material?.nombre), text(material?.designation), text(material?.numeroMateriel),
       text(material?.reseauDesservi), text(material?.marque), text(material?.modele), text(material?.caracteristiques),
-      text(material?.annee), text(material?.etat), equipmentId]
+      text(material?.annee), null, equipmentId]
   );
   return id;
 }
@@ -213,8 +225,10 @@ function buildReferenceDetails(ref, remoteLocalId) {
       criteriaAreHistoricalReferenceOnly: true,
       remarksBelongToLatestRemoteVisitOnly: true,
       materialsAreCurrentLocalPatrimoine: true,
+      materialStateIsReferenceOnly: true,
       previousCriteriaMustNotSeedCurrentVisit: true,
       previousRemarksMustNotSeedCurrentVisit: true,
+      previousMaterialStateMustNotSeedCurrentVisit: true,
     },
     unavailableHistory: {
       photographies: true,
@@ -252,8 +266,8 @@ export async function importApiReferenceForVisit(visiteId, remoteLocalId) {
       importedMaterials += 1;
     }
 
-    // Critères et remarques de l'API sont uniquement des références historiques.
-    // Ils ne sont jamais écrits dans controles, mesures, champs_visite ou remarques de la visite du jour.
+    // Critères, remarques et état du listing API sont des références de préparation.
+    // Ils ne sont jamais écrits comme constat, mesure, réserve ou état observé du jour.
     await upsertProvenance(db, 'visite', visiteId, remoteId, buildReferenceDetails(ref, remoteId));
 
     result = {
