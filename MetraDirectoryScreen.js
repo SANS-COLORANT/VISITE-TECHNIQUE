@@ -165,7 +165,7 @@ function MetraDirectoryScreen({ navigation, route }) {
     if (siteActionBusy) return;
     setSiteActionBusy(true);
     try {
-      const siteId = await materializeCachedSite(site.remote_site_id);
+      const siteId = await materializeCachedSite(site.remote_site_id, site.remote_client_id || siteClient?.remote_client_id);
       setSelectedSite(null);
       setSelectedClient(null);
       navigation.navigate('SiteVisites', { siteId, nomSite: site.nom });
@@ -177,7 +177,8 @@ function MetraDirectoryScreen({ navigation, route }) {
     if (!selectedSite || siteActionBusy) return;
     setSiteActionBusy(true);
     try {
-      const siteId = await materializeCachedSite(selectedSite.remote_site_id);
+      const remoteClientId = selectedSite.remote_client_id || siteClient?.remote_client_id;
+      const siteId = await materializeCachedSite(selectedSite.remote_site_id, remoteClientId);
       const params = {
         siteId,
         nomSite: selectedSite.nom,
@@ -195,7 +196,7 @@ function MetraDirectoryScreen({ navigation, route }) {
   };
 
   const rows = useMemo(() => {
-    const siteRows = directory.sites.map((x) => ({ kind: 'site', id: `s-${x.remote_site_id}`, ...x }));
+    const siteRows = directory.sites.map((x) => ({ kind: 'site', id: `s-${x.remote_client_id}-${x.remote_site_id}`, ...x }));
     const clientRows = directory.clients.map((x) => ({ kind: 'client', id: `c-${x.remote_client_id}`, ...x }));
     return query.trim() ? [...siteRows, ...clientRows] : [...clientRows, ...siteRows];
   }, [directory, query]);
@@ -255,7 +256,7 @@ function MetraDirectoryScreen({ navigation, route }) {
           <Text style={styles.sectionLabel}>{sites.length} site{sites.length > 1 ? 's' : ''}</Text>
           {status.activated ? <TouchableOpacity disabled={clientRefreshing} onPress={() => refreshClientPreparation(selectedClient.remote_client_id)} style={{ paddingHorizontal: 8, paddingVertical: 6 }}><Text style={{ color: ACCENT, fontWeight: '800', fontSize: 12 }}>{clientRefreshing ? 'Actualisation…' : '↻ Actualiser'}</Text></TouchableOpacity> : null}
         </View>
-        <FlatList data={sites} keyExtractor={(x) => String(x.remote_site_id)} renderItem={({ item }) => <DirectoryRow item={{ ...item, kind: 'site', client_nom: selectedClient?.nom, client_ville: selectedClient?.ville }} onPress={() => openSite(item, { keepClientSheet: true })} />} ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 22 }]}>Aucun site encore disponible dans la préparation de ce client.</Text>} />
+        <FlatList data={sites} keyExtractor={(x) => `${x.remote_client_id}-${x.remote_site_id}`} renderItem={({ item }) => <DirectoryRow item={{ ...item, kind: 'site', client_nom: selectedClient?.nom, client_ville: selectedClient?.ville }} onPress={() => openSite(item, { keepClientSheet: true })} />} ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 22 }]}>Aucun site encore disponible dans la préparation de ce client.</Text>} />
       </View></View>
     </Modal>
 
