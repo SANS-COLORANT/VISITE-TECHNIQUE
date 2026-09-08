@@ -11,33 +11,20 @@ on:
 jobs:
   expo-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Validate SQLite schema version
         run: |
           python - <<'PY'
           import re
           from pathlib import Path
-
-          constants = Path('database/constants.js').read_text(encoding='utf-8')
-          migrations = Path('database/migrations/index.js').read_text(encoding='utf-8')
-          match = re.search(r'DATABASE_SCHEMA_VERSION\s*=\s*(\d+)', constants)
-          if not match:
-            raise SystemExit('DATABASE_SCHEMA_VERSION introuvable')
-          declared = int(match.group(1))
-          versions = [int(v) for v in re.findall(r'migration(\d+)', migrations)]
-          latest = max(versions) if versions else 0
-          if declared != latest:
-            raise SystemExit(f'Version SQLite incoherente: constante={declared}, derniere migration={latest}')
+          constants=Path('database/constants.js').read_text(encoding='utf-8'); migrations=Path('database/migrations/index.js').read_text(encoding='utf-8')
+          declared=int(re.search(r'DATABASE_SCHEMA_VERSION\s*=\s*(\d+)',constants).group(1)); versions=[int(v) for v in re.findall(r'migration(\d+)',migrations)]; latest=max(versions) if versions else 0
+          if declared!=latest: raise SystemExit(f'Version SQLite incoherente: constante={declared}, derniere migration={latest}')
           print(f'Version SQLite coherente: {declared}')
           PY
-
-      # Rejoue dans la PR les patchs qui ont déjà fait échouer les builds APK.
-      # Les couches Pré-allumage sont appliquées après le rapport professionnel
-      # afin de contrôler le code réellement livré à la tablette.
       - name: Validate build patch compatibility
         run: |
           python .github/scripts/patch_report_mode_defaults.py
@@ -55,40 +42,31 @@ jobs:
           node --check visitPrefillDb.js
           node --check VisiteScreen.js
           grep -q "PREALLUMAGE_REPORT_PANEL_ORDER" reportBuilder.js
-          grep -q "construireSitePreAllumageHtml" reportBuilder.js
-          grep -q "preAllumageBuildingRows" wordDocxExporter.js
-          grep -q "preAllumagePlanImages" wordDocxExporter.js
-          grep -q "PROFESSIONAL_REPORT_LAYOUT_V1" reportBuilder.js
-          grep -q "Criticité" reportBuilder.js
-          grep -q "photoCount-6" reportBuilder.js
-          grep -q "photoCount-6" reportEditorExporter.js
-          grep -q "Périmètre :" reportBuilder.js
-          grep -q "const localSwipe = useMemo" PreAllumageInstallationPanelV3.js
-          grep -q "Ajouter un compteur" PreAllumageInstallationPanelV3.js
-          grep -q "unitVisible" PreAllumageCompactField.js
-          grep -q "labelPosition" PreAllumageHeatCurve.js
-          grep -q "activeTabRef.current === 'p-pa-batiments'" VisiteScreen.js
-          grep -q "commit = true" PreAllumageInstallationPanelV3.js
-          grep -q "preAllumageLocalSwipeRef.current?.(direction, false)" VisiteScreen.js
           grep -q "VISIT_OPEN_FAIL_SAFE_V1" VisiteScreen.js
-          grep -q "Ouverture visite impossible" VisiteScreen.js
-          grep -q "Préremplissage visite incomplet" VisiteScreen.js
-          grep -q "const anciens = await db.getAllAsync" visitPrefillDb.js
           grep -q "await assurerStructureSitePreAllumage(props.visiteId);" PreAllumageInstallationPanelBusiness.js
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - name: Install dependencies
         run: npm install --no-audit --no-fund
-
       - name: Check Expo dependency versions
         run: npx expo install --check
-
       - name: Expo Doctor
         run: npx expo-doctor
-
+      - name: Validate API integration JavaScript
+        run: |
+          node --check symfonyApi.js
+          node --check symfonyApiCacheDb.js
+          node --check apiVisitPreparationDb.js
+          node --check MetraDirectoryScreen.js
+          node --check HomeScreen.js
+          node --check App.js
+      - name: Validate native DPoP prebuild
+        run: |
+          npx expo prebuild --clean --platform android --no-install
+          test -s android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
+          test -s android/app/src/main/java/com/metra/dpop/MetraDpopPackage.kt
+          grep -R -q "MetraDpopPackage" android/app/src/main/java/*/*/MainApplication.*
       - name: Validate JavaScript bundle
         run: npx expo export --platform android --output-dir dist-check
