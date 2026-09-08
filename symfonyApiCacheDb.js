@@ -5,6 +5,7 @@ const DEFAULT_BASE_URL = 'https://intranet-energieetservice.com';
 const clean = (v) => String(v ?? '').trim();
 const normalize = (v) => clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const json = (value) => JSON.stringify(value ?? null);
+const has = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
 
 async function db() { return openAppDatabase(); }
 
@@ -22,9 +23,11 @@ export async function updateApiSyncState(patch = {}) {
      ON CONFLICT(id) DO UPDATE SET base_url=excluded.base_url,tablette_id=excluded.tablette_id,
        last_clients_sync_at=excluded.last_clients_sync_at,last_success_at=excluded.last_success_at,
        last_error=excluded.last_error,modifie_le=datetime('now')`,
-    [patch.base_url ?? current.base_url ?? DEFAULT_BASE_URL, patch.tablette_id ?? current.tablette_id ?? null,
-      patch.last_clients_sync_at ?? current.last_clients_sync_at ?? null, patch.last_success_at ?? current.last_success_at ?? null,
-      Object.prototype.hasOwnProperty.call(patch, 'last_error') ? patch.last_error : (current.last_error ?? null)]
+    [has(patch, 'base_url') ? patch.base_url : (current.base_url ?? DEFAULT_BASE_URL),
+      has(patch, 'tablette_id') ? patch.tablette_id : (current.tablette_id ?? null),
+      has(patch, 'last_clients_sync_at') ? patch.last_clients_sync_at : (current.last_clients_sync_at ?? null),
+      has(patch, 'last_success_at') ? patch.last_success_at : (current.last_success_at ?? null),
+      has(patch, 'last_error') ? patch.last_error : (current.last_error ?? null)]
   );
 }
 
@@ -53,14 +56,17 @@ export async function cacheAuthorizedClients(clients = []) {
 export async function cachePreparation(remoteClientId, payload) {
   const clientId = clean(remoteClientId); if (!clientId) throw new Error('Client API requis');
   const database = await db();
+  const visites = Array.isArray(payload?.visites) ? payload.visites : [];
+  const remoteSiteIds = [...new Set(visites.map((visite) => clean(visite?.site?.id)).filter(Boolean))];
+  const remoteLocalIds = [...new Set(visites.map((visite) => clean(visite?.local?.id)).filter(Boolean))];
+
   await database.withTransactionAsync(async () => {
     await database.runAsync(
       `INSERT INTO api_preparation_cache(remote_client_id,payload_json,synced_at) VALUES(?,?,datetime('now'))
        ON CONFLICT(remote_client_id) DO UPDATE SET payload_json=excluded.payload_json,synced_at=datetime('now')`, [clientId, json(payload)]
     );
-    await database.runAsync(`DELETE FROM api_local_links WHERE remote_site_id IN (SELECT remote_site_id FROM api_site_links WHERE remote_client_id=?)`, [clientId]);
-    await database.runAsync(`DELETE FROM api_site_links WHERE remote_client_id=?`, [clientId]);
-    for (const visite of payload?.visites || []) {
+
+    for (const visite of visites) {
       const siteId = clean(visite?.site?.id); if (!siteId) continue;
       await database.runAsync(
         `INSERT INTO api_site_links(remote_site_id,remote_client_id,nom,payload_json,synced_at) VALUES(?,?,?,?,datetime('now'))
@@ -79,6 +85,22 @@ export async function cachePreparation(remoteClientId, payload) {
           visite?.derniereVisite?.date ?? null, visite?.derniereVisite?.statut ?? null, json(visite)]
       );
     }
+
+    const clientSiteRows = await database.getAllAsync(`SELECT remote_site_id FROM api_site_links WHERE remote_client_id=?`, [clientId]);
+    const knownSiteIds = clientSiteRows.map((row) => clean(row.remote_site_id)).filter(Boolean);
+    const staleLocalSiteIds = knownSiteIds.filter((id) => !remoteSiteIds.includes(id));
+    if (remoteLocalIds.length) {
+      const marks = remoteLocalIds.map(() => '?').join(',');
+      await database.runAsync(
+        `DELETE FROM api_local_links WHERE remote_site_id IN (SELECT remote_site_id FROM api_site_links WHERE remote_client_id=?) AND remote_local_id NOT IN (${marks})`,
+        [clientId, ...remoteLocalIds]
+      );
+    } else {
+      await database.runAsync(`DELETE FROM api_local_links WHERE remote_site_id IN (SELECT remote_site_id FROM api_site_links WHERE remote_client_id=?)`, [clientId]);
+    }
+    for (const staleSiteId of staleLocalSiteIds) {
+      await database.runAsync(`DELETE FROM api_site_links WHERE remote_site_id=? AND local_site_id IS NULL`, [staleSiteId]);
+    }
   });
   await updateApiSyncState({ last_success_at: new Date().toISOString(), last_error: null });
 }
@@ -87,11 +109,22 @@ export async function searchCachedDirectory(query = '') {
   const database = await db();
   const q = normalize(query);
   const clients = await database.getAllAsync(`SELECT * FROM api_client_links WHERE autorise=1 ORDER BY nom`);
-  const sites = await database.getAllAsync(`SELECT s.*,c.nom AS client_nom FROM api_site_links s JOIN api_client_links c ON c.remote_client_id=s.remote_client_id WHERE c.autorise=1 ORDER BY c.nom,s.nom`);
+  const sites = await database.getAllAsync(`
+    SELECT s.*, c.nom AS client_nom, c.ville AS client_ville, c.code_everwin AS client_code_everwin,
+      COUNT(l.remote_local_id) AS local_count,
+      MAX(l.derniere_visite_date) AS derniere_visite_date,
+      GROUP_CONCAT(DISTINCT l.remote_trame_nom) AS trames,
+      GROUP_CONCAT(l.designation, ' ') AS local_designations
+    FROM api_site_links s
+    JOIN api_client_links c ON c.remote_client_id=s.remote_client_id
+    LEFT JOIN api_local_links l ON l.remote_site_id=s.remote_site_id
+    WHERE c.autorise=1
+    GROUP BY s.remote_site_id
+    ORDER BY c.nom,s.nom`);
   if (!q) return { clients, sites };
   return {
-    clients: clients.filter((c) => normalize([c.nom,c.categorie,c.code_everwin,c.ville,c.agence_libelle].join(' ')).includes(q)),
-    sites: sites.filter((s) => normalize([s.nom,s.client_nom].join(' ')).includes(q)),
+    clients: clients.filter((c) => normalize([c.nom,c.categorie,c.code_everwin,c.ville,c.agence_libelle,c.adresse_postale].join(' ')).includes(q)),
+    sites: sites.filter((s) => normalize([s.nom,s.client_nom,s.client_ville,s.client_code_everwin,s.trames,s.local_designations].join(' ')).includes(q)),
   };
 }
 
@@ -99,7 +132,14 @@ export async function getCachedClient(remoteClientId) {
   return (await db()).getFirstAsync(`SELECT * FROM api_client_links WHERE remote_client_id=?`, [clean(remoteClientId)]);
 }
 export async function listCachedSites(remoteClientId) {
-  return (await db()).getAllAsync(`SELECT * FROM api_site_links WHERE remote_client_id=? ORDER BY nom`, [clean(remoteClientId)]);
+  return (await db()).getAllAsync(`
+    SELECT s.*, COUNT(l.remote_local_id) AS local_count, MAX(l.derniere_visite_date) AS derniere_visite_date,
+      GROUP_CONCAT(DISTINCT l.remote_trame_nom) AS trames
+    FROM api_site_links s
+    LEFT JOIN api_local_links l ON l.remote_site_id=s.remote_site_id
+    WHERE s.remote_client_id=?
+    GROUP BY s.remote_site_id
+    ORDER BY s.nom`, [clean(remoteClientId)]);
 }
 export async function listCachedLocals(remoteSiteId) {
   return (await db()).getAllAsync(`SELECT * FROM api_local_links WHERE remote_site_id=? ORDER BY designation`, [clean(remoteSiteId)]);
@@ -115,6 +155,19 @@ export async function materializeCachedClient(remoteClientId) {
   const remote = await database.getFirstAsync(`SELECT * FROM api_client_links WHERE remote_client_id=?`, [clean(remoteClientId)]);
   if (!remote) throw new Error('Client API absent du cache local');
   if (remote.local_client_id) return remote.local_client_id;
+
+  let existing = null;
+  if (clean(remote.code_everwin)) {
+    existing = await database.getFirstAsync(`SELECT id FROM clients WHERE lower(trim(COALESCE(code_exploitant,'')))=lower(trim(?)) LIMIT 1`, [clean(remote.code_everwin)]);
+  }
+  if (!existing && clean(remote.nom)) {
+    existing = await database.getFirstAsync(`SELECT id FROM clients WHERE lower(trim(nom))=lower(trim(?)) LIMIT 1`, [clean(remote.nom)]);
+  }
+  if (existing?.id) {
+    await database.runAsync(`UPDATE api_client_links SET local_client_id=?,cree_localement=0 WHERE remote_client_id=?`, [existing.id, remote.remote_client_id]);
+    return existing.id;
+  }
+
   const id = createId();
   const adresse = [remote.adresse_postale, remote.ville].filter(Boolean).join(' ');
   await database.runAsync(`INSERT INTO clients(id,nom,code_exploitant,adresse) VALUES(?,?,?,?)`, [id, remote.nom, remote.code_everwin || null, adresse || null]);
@@ -128,6 +181,13 @@ export async function materializeCachedSite(remoteSiteId) {
   if (!remote) throw new Error('Site API absent du cache local');
   if (remote.local_site_id) return remote.local_site_id;
   const clientId = await materializeCachedClient(remote.remote_client_id);
+
+  const existing = await database.getFirstAsync(`SELECT id FROM sites WHERE client_id=? AND lower(trim(nom_site))=lower(trim(?)) LIMIT 1`, [clientId, clean(remote.nom)]);
+  if (existing?.id) {
+    await database.runAsync(`UPDATE api_site_links SET local_site_id=?,cree_localement=0 WHERE remote_site_id=?`, [existing.id, remote.remote_site_id]);
+    return existing.id;
+  }
+
   const id = createId();
   await database.runAsync(`INSERT INTO sites(id,client_id,nom_site,statut) VALUES(?,?,?,'Actif')`, [id, clientId, remote.nom]);
   await database.runAsync(`UPDATE api_site_links SET local_site_id=?,cree_localement=1 WHERE remote_site_id=?`, [id, remote.remote_site_id]);
