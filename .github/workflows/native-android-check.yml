@@ -11,10 +11,11 @@ on:
 jobs:
   expo-check:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Validate SQLite schema version
         run: |
           python - <<'PY'
@@ -25,6 +26,7 @@ jobs:
           if declared!=latest: raise SystemExit(f'Version SQLite incoherente: constante={declared}, derniere migration={latest}')
           print(f'Version SQLite coherente: {declared}')
           PY
+
       - name: Validate build patch compatibility
         run: |
           python .github/scripts/patch_report_mode_defaults.py
@@ -41,16 +43,34 @@ jobs:
           node --check preAllumageCounterDb.js
           node --check visitPrefillDb.js
           node --check VisiteScreen.js
+          node --check App.js
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Configure npm resilience
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 2000
+          npm config set fetch-retry-maxtimeout 30000
+
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --no-audit --no-fund --prefer-online
+
       - name: Check Expo dependency versions
         run: npx expo install --check
+
       - name: Expo Doctor
-        run: npx expo-doctor
+        run: npm run doctor
+
       - name: Validate API integration JavaScript
         run: |
           node --check symfonyApi.js
@@ -59,6 +79,7 @@ jobs:
           node --check MetraDirectoryScreen.js
           node --check HomeScreen.js
           node --check App.js
+
       - name: Validate native DPoP prebuild
         run: |
           npx expo prebuild --clean --platform android --no-install
@@ -69,5 +90,10 @@ jobs:
           echo "MainApplication généré: $MAIN_APPLICATION"
           grep -q "import com.metra.dpop.MetraDpopPackage" "$MAIN_APPLICATION"
           grep -q "MetraDpopPackage()" "$MAIN_APPLICATION"
+
+      - name: Compile native Android bridge
+        working-directory: android
+        run: ./gradlew :app:compileDebugKotlin --no-daemon --max-workers=2
+
       - name: Validate JavaScript bundle
         run: npx expo export --platform android --output-dir dist-check
