@@ -12,6 +12,10 @@ jobs:
   expo-check:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      GRADLE_OPTS: >-
+        -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+        -Dorg.gradle.workers.max=2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -29,6 +33,28 @@ jobs:
 
       - name: Validate Symfony preparation contract
         run: python .github/scripts/check_symfony_preparation_contract.py
+
+      - name: Validate APK patch order after postinstall
+        run: |
+          WORK="$RUNNER_TEMP/metra-apk-order"
+          rm -rf "$WORK"
+          mkdir -p "$WORK"
+          tar --exclude=.git -cf - . | tar -C "$WORK" -xf -
+          cd "$WORK"
+          npm run postinstall
+          python .github/scripts/patch_report_mode_defaults.py
+          python .github/scripts/patch_hydraulic_feature_build.py
+          python .github/scripts/patch_lab_health_build.py
+          python .github/scripts/patch_report_professional_layout_build.py
+          python .github/scripts/patch_preallumage_report_regressions.py
+          python .github/scripts/patch_preallumage_field_ux_build.py
+          node --check App.js
+          node --check HomeScreen.js
+          node --check SiteVisitesScreen.js
+          node --check VisiteScreen.js
+          node --check visitPrefillDb.js
+          node --check reportBuilder.js
+          echo "Ordre APK validé : postinstall puis patches Android historiques."
 
       - name: Validate build patch compatibility
         run: |
@@ -98,6 +124,11 @@ jobs:
           echo "MainApplication généré: $MAIN_APPLICATION"
           grep -q "import com.metra.dpop.MetraDpopPackage" "$MAIN_APPLICATION"
           grep -q "MetraDpopPackage()" "$MAIN_APPLICATION"
+
+      - name: Configure Gradle memory
+        working-directory: android
+        run: |
+          printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\n' >> gradle.properties
 
       - name: Compile native Android bridge
         working-directory: android
