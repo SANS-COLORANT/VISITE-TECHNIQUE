@@ -49,6 +49,19 @@ function patchDb(){
   write(path,text);
 }
 
+function patchDatabasePragmas(){
+  const path='database/index.js';
+  let text=read(path);
+  const old=`async function configurerSQLitePourTablette(db) {\n  await db.execAsync('PRAGMA journal_mode = WAL;');\n  await db.execAsync('PRAGMA synchronous = NORMAL;');\n  await db.execAsync('PRAGMA cache_size = -16384;');\n  await db.execAsync('PRAGMA temp_store = MEMORY;');\n  await db.execAsync('PRAGMA busy_timeout = 3000;');\n  await db.execAsync('PRAGMA foreign_keys = ON;');\n}`;
+  const next=`async function configurerSQLitePourTablette(db) {\n  // Un seul passage JS -> natif au démarrage au lieu de six appels successifs.\n  await db.execAsync(\`\n    PRAGMA journal_mode = WAL;\n    PRAGMA synchronous = NORMAL;\n    PRAGMA cache_size = -16384;\n    PRAGMA temp_store = MEMORY;\n    PRAGMA busy_timeout = 3000;\n    PRAGMA foreign_keys = ON;\n  \`);\n}`;
+  if(!text.includes(next)){
+    requireAnchor(text,old,'SQLite startup pragmas');
+    text=text.replace(old,next);
+  }
+  write(path,text);
+}
+
 patchHome();
 patchDb();
-console.log('Startup dependency graph trimmed: deletion/FileSystem, ICPE reference data and persistent equipment repository load only when first used.');
+patchDatabasePragmas();
+console.log('Startup dependency graph trimmed and SQLite startup bridge calls collapsed: fewer modules and native round-trips before first interactive screen.');
