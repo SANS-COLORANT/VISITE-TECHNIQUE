@@ -1,5 +1,4 @@
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
-import { assurerStructureSitePreAllumage } from './preAllumageSiteBootstrap.js';
 
 function sectionCode(panelId, section) {
   return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
@@ -68,15 +67,24 @@ export async function preremplirVisiteDepuisContexte(db, visiteId) {
     for (const [p,s,c,v] of fixes) await insertIfEmpty(db, visiteId, p, s, c, v);
   }
 
-  const equipements = contexte.installation_id
-    ? await db.getAllAsync(`SELECT e.* FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=? AND i.id=? AND i.actif=1 AND e.statut='actif'`, [contexte.site_id, contexte.installation_id])
-    : await db.getAllAsync(`SELECT e.* FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=? AND i.actif=1 AND e.statut='actif'`, [contexte.site_id]);
-  if (trame.id !== 'pre_allumage' && equipements.length) {
-    await insertIfEmpty(db, visiteId, 'p-infos', 'Description des principaux équipements', "Nb d'équipements", equipements.length);
-    const types = [...new Set(equipements.map((e)=>String(e.type_code||'').trim()).filter(Boolean))];
-    if (types.length === 1) await insertIfEmpty(db, visiteId, 'p-infos', 'Description des principaux équipements', 'Production primaire', types[0]);
+  // Le matériel courant appartient au patrimoine du LOCAL. Pour une visite
+  // préparée depuis Symfony, on ne résume donc que l'installation associée à
+  // ce local ; les visites historiques non rattachées gardent le comportement
+  // site complet pour compatibilité.
+  if (trame.id !== 'pre_allumage') {
+    const equipements = contexte.installation_id
+      ? await db.getAllAsync(`SELECT e.* FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=? AND i.id=? AND i.actif=1 AND e.statut='actif'`, [contexte.site_id, contexte.installation_id])
+      : await db.getAllAsync(`SELECT e.* FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=? AND i.actif=1 AND e.statut='actif'`, [contexte.site_id]);
+    if (equipements.length) {
+      await insertIfEmpty(db, visiteId, 'p-infos', 'Description des principaux équipements', "Nb d'équipements", equipements.length);
+      const types = [...new Set(equipements.map((e)=>String(e.type_code||'').trim()).filter(Boolean))];
+      if (types.length === 1) await insertIfEmpty(db, visiteId, 'p-infos', 'Description des principaux équipements', 'Production primaire', types[0]);
+    }
   }
 
+  // Une valeur stable METRA ne peut être reportée que depuis une visite du
+  // même local lorsqu'une installation est connue. Les avis/mesures/constats
+  // Symfony ne passent jamais par cette mécanique.
   const precedente = await db.getFirstAsync(`SELECT id FROM visites
     WHERE site_id=? AND id<>? AND COALESCE(trame_id, ?) = ?
       AND (? IS NULL OR installation_id=?)
@@ -87,14 +95,15 @@ export async function preremplirVisiteDepuisContexte(db, visiteId) {
       await copierChampsPersistantsMemeTrame(db, visiteId, precedente.id, trame);
     } else {
       const clesStables = [['p-infos','Informations générales','Nbr de bât / lgt'],['p-infos','Informations générales','Exploitant - marché'],['p-infos','Informations générales','Type de LT'],['p-infos','Description des principaux équipements','Production primaire'],['p-infos','Description des principaux équipements','Type de régulation'],['p-infos','Description des principaux équipements','Production ECS']];
+      const anciens = await db.getAllAsync(
+        `SELECT section_code,cle,valeur FROM champs_visite WHERE visite_id=? AND valeur IS NOT NULL AND trim(valeur)<>''`,
+        [precedente.id]
+      );
+      const anciensMap = new Map((anciens || []).map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
       for (const [p,s,c] of clesStables) {
-        const ancien = await db.getFirstAsync(`SELECT valeur FROM champs_visite WHERE visite_id=? AND section_code=? AND cle=?`, [precedente.id, sectionCode(p,s), c]);
-        if (ancien?.valeur) await insertIfEmpty(db, visiteId, p, s, c, ancien.valeur);
+        const valeur = anciensMap.get(`${sectionCode(p,s)}||${c}`);
+        if (valeur) await insertIfEmpty(db, visiteId, p, s, c, valeur);
       }
     }
-  }
-
-  if (trame.id === 'pre_allumage') {
-    await assurerStructureSitePreAllumage(visiteId);
   }
 }
