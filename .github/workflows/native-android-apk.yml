@@ -27,6 +27,9 @@ jobs:
     env:
       NODE_ENV: production
       GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+      METRA_RELEASE_STORE_PASSWORD: ${{ secrets.METRA_ANDROID_KEYSTORE_PASSWORD }}
+      METRA_RELEASE_KEY_ALIAS: ${{ secrets.METRA_ANDROID_KEY_ALIAS }}
+      METRA_RELEASE_KEY_PASSWORD: ${{ secrets.METRA_ANDROID_KEY_PASSWORD }}
       GRADLE_OPTS: >-
         -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
         -Dorg.gradle.workers.max=2
@@ -53,6 +56,24 @@ jobs:
           p.write_text(s, encoding='utf-8')
           PY
           grep -q "APK_BUILD = '${{ github.run_number }}'" appVersion.js
+
+      - name: Stamp Android update identity
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          expected_package = 'com.visitetechnique.tablet'
+          app = Path('app.json')
+          data = json.loads(app.read_text(encoding='utf-8'))
+          android = data.setdefault('expo', {}).setdefault('android', {})
+          actual_package = android.get('package')
+          if actual_package != expected_package:
+              raise SystemExit(f'applicationId METRA modifié: {actual_package!r} != {expected_package!r}')
+          android['versionCode'] = int('${{ github.run_number }}')
+          app.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+          print(f'Identité Android conservée: {expected_package}, versionCode=${{ github.run_number }}')
+          PY
+          grep -q 'private const val KEY_ALIAS = "metra_dpop_p256_v1"' native/metra-dpop/MetraDpopModule.kt
 
       - name: Apply targeted Excel import date cleanup
         run: python .github/scripts/patch_excel_import_date.py
@@ -274,6 +295,38 @@ jobs:
       - name: Generate Android project
         run: npx expo prebuild --clean --platform android --no-install
 
+      - name: Validate update-compatible Android package
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          s = Path('android/app/build.gradle').read_text(encoding='utf-8')
+          if not re.search(r'applicationId\s+["\']com\.visitetechnique\.tablet["\']', s):
+              raise SystemExit('applicationId Android inattendu après Expo prebuild')
+          if not re.search(r'versionCode\s+${{ github.run_number }}\b', s):
+              raise SystemExit('versionCode Android non incrémenté pour la mise à jour')
+          print('applicationId et versionCode Android compatibles avec une mise à jour.')
+          PY
+          test -s android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
+          grep -q 'private const val KEY_ALIAS = "metra_dpop_p256_v1"' android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
+
+      - name: Configure stable Android release signing
+        env:
+          METRA_ANDROID_KEYSTORE_BASE64: ${{ secrets.METRA_ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -z "$METRA_ANDROID_KEYSTORE_BASE64" ] || [ -z "$METRA_RELEASE_STORE_PASSWORD" ] || [ -z "$METRA_RELEASE_KEY_ALIAS" ] || [ -z "$METRA_RELEASE_KEY_PASSWORD" ]; then
+            echo "::error::Signature Android stable absente. Configure METRA_ANDROID_KEYSTORE_BASE64, METRA_ANDROID_KEYSTORE_PASSWORD, METRA_ANDROID_KEY_ALIAS et METRA_ANDROID_KEY_PASSWORD dans GitHub Secrets."
+            echo "::error::Le build release est volontairement bloqué pour éviter une APK qui forcerait la désinstallation et effacerait l'activation tablette."
+            exit 1
+          fi
+          printf '%s' "$METRA_ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/metra-release.keystore
+          test -s android/app/metra-release.keystore
+          python .github/scripts/configure_android_release_signing.py
+          keytool -list -v \
+            -keystore android/app/metra-release.keystore \
+            -storepass "$METRA_RELEASE_STORE_PASSWORD" \
+            -alias "$METRA_RELEASE_KEY_ALIAS" | grep -E 'Alias name:|SHA256:'
+
       - name: Configure Gradle memory
         working-directory: android
         run: |
@@ -286,6 +339,12 @@ jobs:
       - name: Build standalone release APK
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon --max-workers=2
+
+      - name: Verify release APK signature
+        run: |
+          APK="$(find android/app/build/outputs/apk/release -name '*.apk' -type f -print -quit)"
+          test -n "$APK"
+          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner" verify --verbose --print-certs "$APK" | grep -E 'Verified|Signer #1 certificate SHA-256 digest'
 
       - name: Upload standalone tablet APK
         uses: actions/upload-artifact@v4
