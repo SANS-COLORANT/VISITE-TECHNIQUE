@@ -6,8 +6,180 @@ const clean = (v) => String(v ?? '').trim();
 const normalize = (v) => clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 const json = (value) => JSON.stringify(value ?? null);
 const has = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
+const list = (value) => Array.isArray(value) ? value : [];
+const nullableString = (value) => value == null || value === '' ? null : String(value);
+const remoteId = (value) => value == null || value === '' ? null : clean(value);
+const orderValue = (value, fallback) => {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : (1000000 + fallback);
+};
 
 async function db() { return openAppDatabase(); }
+
+function ordered(items, mapper) {
+  return list(items)
+    .map((item, index) => ({ value: mapper(item || {}, index), index }))
+    .sort((a, b) => orderValue(a.value?.ordre, a.index) - orderValue(b.value?.ordre, b.index))
+    .map((entry) => entry.value);
+}
+
+function normalizeCriterion(criterion, categoryId, subCategoryId, index) {
+  const id = remoteId(criterion?.id);
+  const visiteSourceId = remoteId(criterion?.visiteSourceId ?? criterion?.visite_source_id);
+  return {
+    ...criterion,
+    id,
+    nom: nullableString(criterion?.nom ?? criterion?.nom_critere),
+    ordre: criterion?.ordre ?? index,
+    avisApplicable: Boolean(criterion?.avisApplicable ?? criterion?.avis_applicable ?? false),
+    avis: nullableString(criterion?.avis),
+    commentaire: nullableString(criterion?.commentaire),
+    visiteSourceId,
+    referencePath: [categoryId, subCategoryId, id].map((v) => v || '?').join(':'),
+  };
+}
+
+function normalizeSubCategory(subCategory, categoryId, index) {
+  const id = remoteId(subCategory?.id);
+  return {
+    ...subCategory,
+    id,
+    nom: nullableString(subCategory?.nom),
+    ordre: subCategory?.ordre ?? index,
+    criteres: ordered(subCategory?.criteres, (criterion, criterionIndex) => normalizeCriterion(criterion, categoryId, id, criterionIndex)),
+  };
+}
+
+function normalizeCategory(category, index) {
+  const id = remoteId(category?.id);
+  return {
+    ...category,
+    id,
+    nom: nullableString(category?.nom),
+    ordre: category?.ordre ?? index,
+    sousCategories: ordered(category?.sousCategories ?? category?.sous_categories, (subCategory, subIndex) => normalizeSubCategory(subCategory, id, subIndex)),
+  };
+}
+
+function normalizeTrame(trame) {
+  if (!trame || typeof trame !== 'object') return null;
+  return {
+    ...trame,
+    id: remoteId(trame.id),
+    nom: nullableString(trame.nom),
+    categories: ordered(trame.categories, normalizeCategory),
+  };
+}
+
+function normalizeRemark(remark) {
+  return {
+    ...remark,
+    id: remoteId(remark?.id),
+    poste: nullableString(remark?.poste),
+    prestation: nullableString(remark?.prestation),
+    dateReserve: nullableString(remark?.dateReserve ?? remark?.date_reserve),
+    delai: nullableString(remark?.delai),
+    etatAvancement: nullableString(remark?.etatAvancement ?? remark?.etat_avancement),
+    estimatif: nullableString(remark?.estimatif),
+  };
+}
+
+function normalizeMaterial(material) {
+  return {
+    ...material,
+    id: remoteId(material?.id),
+    categorie: nullableString(material?.categorie),
+    nombre: nullableString(material?.nombre),
+    designation: nullableString(material?.designation),
+    numeroMateriel: nullableString(material?.numeroMateriel ?? material?.numero_materiel),
+    reseauDesservi: nullableString(material?.reseauDesservi ?? material?.reseau_desservi),
+    marque: nullableString(material?.marque),
+    modele: nullableString(material?.modele),
+    caracteristiques: nullableString(material?.caracteristiques),
+    annee: nullableString(material?.annee),
+    etat: nullableString(material?.etat),
+  };
+}
+
+function normalizeLatestVisit(visit) {
+  if (!visit || typeof visit !== 'object') return null;
+  return {
+    ...visit,
+    id: remoteId(visit.id),
+    date: nullableString(visit.date),
+    statut: nullableString(visit.statut),
+  };
+}
+
+function countCriteria(trame) {
+  return list(trame?.categories).reduce((total, category) => total + list(category?.sousCategories).reduce((subtotal, subCategory) => subtotal + list(subCategory?.criteres).length, 0), 0);
+}
+
+function countOlderCriterionSources(trame, latestVisitId) {
+  const latest = remoteId(latestVisitId);
+  let total = 0;
+  for (const category of list(trame?.categories)) {
+    for (const subCategory of list(category?.sousCategories)) {
+      for (const criterion of list(subCategory?.criteres)) {
+        const source = remoteId(criterion?.visiteSourceId);
+        if (source && (!latest || source !== latest)) total += 1;
+      }
+    }
+  }
+  return total;
+}
+
+export function normalizePreparationPayload(payload = {}) {
+  const normalizedVisits = list(payload?.visites).map((entry) => {
+    const local = entry?.local && typeof entry.local === 'object' ? {
+      ...entry.local,
+      id: remoteId(entry.local.id),
+      designation: nullableString(entry.local.designation),
+    } : null;
+    const site = entry?.site && typeof entry.site === 'object' ? {
+      ...entry.site,
+      id: remoteId(entry.site.id),
+      nom: nullableString(entry.site.nom),
+    } : null;
+    const latestVisit = normalizeLatestVisit(entry?.derniereVisite ?? entry?.derniere_visite);
+    const trame = normalizeTrame(entry?.trame);
+    const remarques = list(entry?.remarques).map(normalizeRemark);
+    const materiels = list(entry?.materiels).map(normalizeMaterial);
+    const notes = list(entry?.notes);
+    return {
+      ...entry,
+      local,
+      site,
+      derniereVisite: latestVisit,
+      trame,
+      remarques,
+      materiels,
+      notes,
+      preparationMeta: {
+        criteriaCount: countCriteria(trame),
+        historicalCriteriaCount: countOlderCriterionSources(trame, latestVisit?.id),
+        remarkCount: remarques.length,
+        materialCount: materiels.length,
+        criteriaAreReferenceOnly: true,
+        remarksAreLatestVisitReferenceOnly: true,
+        materialsAreCurrentLocalPatrimoine: true,
+        historicalPhotosAvailable: false,
+        historicalNotesAvailable: false,
+        historicalConclusionAvailable: false,
+      },
+    };
+  }).filter((entry) => entry.local?.id && entry.site?.id);
+
+  return {
+    ...payload,
+    client: payload?.client && typeof payload.client === 'object' ? {
+      ...payload.client,
+      id: remoteId(payload.client.id),
+      nom: nullableString(payload.client.nom),
+    } : null,
+    visites: normalizedVisits,
+  };
+}
 
 export async function getApiSyncState() {
   const database = await db();
@@ -56,50 +228,40 @@ export async function cacheAuthorizedClients(clients = []) {
 export async function cachePreparation(remoteClientId, payload) {
   const clientId = clean(remoteClientId); if (!clientId) throw new Error('Client API requis');
   const database = await db();
-  const visites = Array.isArray(payload?.visites) ? payload.visites : [];
-  const remoteSiteIds = [...new Set(visites.map((visite) => clean(visite?.site?.id)).filter(Boolean))];
-  const remoteLocalIds = [...new Set(visites.map((visite) => clean(visite?.local?.id)).filter(Boolean))];
+  const normalized = normalizePreparationPayload(payload);
+  const visites = normalized.visites;
 
   await database.withTransactionAsync(async () => {
     await database.runAsync(
       `INSERT INTO api_preparation_cache(remote_client_id,payload_json,synced_at) VALUES(?,?,datetime('now'))
-       ON CONFLICT(remote_client_id) DO UPDATE SET payload_json=excluded.payload_json,synced_at=datetime('now')`, [clientId, json(payload)]
+       ON CONFLICT(remote_client_id) DO UPDATE SET payload_json=excluded.payload_json,synced_at=datetime('now')`, [clientId, json(normalized)]
     );
 
+    await database.runAsync(`UPDATE api_site_links SET remote_present=0 WHERE remote_client_id=?`, [clientId]);
+    await database.runAsync(`UPDATE api_local_links SET remote_present=0 WHERE remote_site_id IN (SELECT remote_site_id FROM api_site_links WHERE remote_client_id=?)`, [clientId]);
+
     for (const visite of visites) {
-      const siteId = clean(visite?.site?.id); if (!siteId) continue;
+      const siteId = remoteId(visite?.site?.id); if (!siteId) continue;
       await database.runAsync(
-        `INSERT INTO api_site_links(remote_site_id,remote_client_id,nom,payload_json,synced_at) VALUES(?,?,?,?,datetime('now'))
-         ON CONFLICT(remote_site_id) DO UPDATE SET remote_client_id=excluded.remote_client_id,nom=excluded.nom,payload_json=excluded.payload_json,synced_at=datetime('now')`,
-        [siteId, clientId, clean(visite?.site?.nom) || `Site ${siteId}`, json(visite?.site)]
+        `INSERT INTO api_site_links(remote_site_id,remote_client_id,nom,remote_present,payload_json,synced_at) VALUES(?,?,?,?,?,datetime('now'))
+         ON CONFLICT(remote_site_id) DO UPDATE SET remote_client_id=excluded.remote_client_id,nom=excluded.nom,remote_present=1,payload_json=excluded.payload_json,synced_at=datetime('now')`,
+        [siteId, clientId, clean(visite?.site?.nom) || `Site ${siteId}`, 1, json(visite?.site)]
       );
-      const localId = clean(visite?.local?.id); if (!localId) continue;
+      const localId = remoteId(visite?.local?.id); if (!localId) continue;
+      const meta = visite.preparationMeta || {};
       await database.runAsync(
-        `INSERT INTO api_local_links(remote_local_id,remote_site_id,designation,remote_trame_id,remote_trame_nom,derniere_visite_id,derniere_visite_date,derniere_visite_statut,reference_json,synced_at)
-         VALUES(?,?,?,?,?,?,?,?,?,datetime('now'))
+        `INSERT INTO api_local_links(remote_local_id,remote_site_id,designation,remote_trame_id,remote_trame_nom,derniere_visite_id,derniere_visite_date,derniere_visite_statut,reference_json,remote_present,criteria_count,historical_criteria_count,remark_count,material_count,synced_at)
+         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'))
          ON CONFLICT(remote_local_id) DO UPDATE SET remote_site_id=excluded.remote_site_id,designation=excluded.designation,
            remote_trame_id=excluded.remote_trame_id,remote_trame_nom=excluded.remote_trame_nom,derniere_visite_id=excluded.derniere_visite_id,
-           derniere_visite_date=excluded.derniere_visite_date,derniere_visite_statut=excluded.derniere_visite_statut,reference_json=excluded.reference_json,synced_at=datetime('now')`,
-        [localId, siteId, visite?.local?.designation ?? null, visite?.trame?.id != null ? clean(visite.trame.id) : null,
-          visite?.trame?.nom ?? null, visite?.derniereVisite?.id != null ? clean(visite.derniereVisite.id) : null,
-          visite?.derniereVisite?.date ?? null, visite?.derniereVisite?.statut ?? null, json(visite)]
+           derniere_visite_date=excluded.derniere_visite_date,derniere_visite_statut=excluded.derniere_visite_statut,reference_json=excluded.reference_json,
+           remote_present=1,criteria_count=excluded.criteria_count,historical_criteria_count=excluded.historical_criteria_count,
+           remark_count=excluded.remark_count,material_count=excluded.material_count,synced_at=datetime('now')`,
+        [localId, siteId, visite?.local?.designation ?? null, visite?.trame?.id ?? null,
+          visite?.trame?.nom ?? null, visite?.derniereVisite?.id ?? null,
+          visite?.derniereVisite?.date ?? null, visite?.derniereVisite?.statut ?? null, json(visite), 1,
+          Number(meta.criteriaCount || 0), Number(meta.historicalCriteriaCount || 0), Number(meta.remarkCount || 0), Number(meta.materialCount || 0)]
       );
-    }
-
-    const clientSiteRows = await database.getAllAsync(`SELECT remote_site_id FROM api_site_links WHERE remote_client_id=?`, [clientId]);
-    const knownSiteIds = clientSiteRows.map((row) => clean(row.remote_site_id)).filter(Boolean);
-    const staleLocalSiteIds = knownSiteIds.filter((id) => !remoteSiteIds.includes(id));
-    if (remoteLocalIds.length) {
-      const marks = remoteLocalIds.map(() => '?').join(',');
-      await database.runAsync(
-        `DELETE FROM api_local_links WHERE remote_site_id IN (SELECT remote_site_id FROM api_site_links WHERE remote_client_id=?) AND remote_local_id NOT IN (${marks})`,
-        [clientId, ...remoteLocalIds]
-      );
-    } else {
-      await database.runAsync(`DELETE FROM api_local_links WHERE remote_site_id IN (SELECT remote_site_id FROM api_site_links WHERE remote_client_id=?)`, [clientId]);
-    }
-    for (const staleSiteId of staleLocalSiteIds) {
-      await database.runAsync(`DELETE FROM api_site_links WHERE remote_site_id=? AND local_site_id IS NULL`, [staleSiteId]);
     }
   });
   await updateApiSyncState({ last_success_at: new Date().toISOString(), last_error: null });
@@ -114,11 +276,13 @@ export async function searchCachedDirectory(query = '') {
       COUNT(l.remote_local_id) AS local_count,
       MAX(l.derniere_visite_date) AS derniere_visite_date,
       GROUP_CONCAT(DISTINCT l.remote_trame_nom) AS trames,
-      GROUP_CONCAT(l.designation, ' ') AS local_designations
+      GROUP_CONCAT(l.designation, ' ') AS local_designations,
+      COALESCE(SUM(l.material_count),0) AS material_count,
+      COALESCE(SUM(l.remark_count),0) AS remark_count
     FROM api_site_links s
     JOIN api_client_links c ON c.remote_client_id=s.remote_client_id
-    LEFT JOIN api_local_links l ON l.remote_site_id=s.remote_site_id
-    WHERE c.autorise=1
+    LEFT JOIN api_local_links l ON l.remote_site_id=s.remote_site_id AND l.remote_present=1
+    WHERE c.autorise=1 AND s.remote_present=1
     GROUP BY s.remote_site_id
     ORDER BY c.nom,s.nom`);
   if (!q) return { clients, sites };
@@ -134,20 +298,29 @@ export async function getCachedClient(remoteClientId) {
 export async function listCachedSites(remoteClientId) {
   return (await db()).getAllAsync(`
     SELECT s.*, COUNT(l.remote_local_id) AS local_count, MAX(l.derniere_visite_date) AS derniere_visite_date,
-      GROUP_CONCAT(DISTINCT l.remote_trame_nom) AS trames
+      GROUP_CONCAT(DISTINCT l.remote_trame_nom) AS trames,
+      COALESCE(SUM(l.material_count),0) AS material_count,
+      COALESCE(SUM(l.remark_count),0) AS remark_count
     FROM api_site_links s
-    LEFT JOIN api_local_links l ON l.remote_site_id=s.remote_site_id
-    WHERE s.remote_client_id=?
+    LEFT JOIN api_local_links l ON l.remote_site_id=s.remote_site_id AND l.remote_present=1
+    WHERE s.remote_client_id=? AND s.remote_present=1
     GROUP BY s.remote_site_id
     ORDER BY s.nom`, [clean(remoteClientId)]);
 }
 export async function listCachedLocals(remoteSiteId) {
-  return (await db()).getAllAsync(`SELECT * FROM api_local_links WHERE remote_site_id=? ORDER BY designation`, [clean(remoteSiteId)]);
+  return (await db()).getAllAsync(`SELECT * FROM api_local_links WHERE remote_site_id=? AND remote_present=1 ORDER BY designation`, [clean(remoteSiteId)]);
 }
 export async function getCachedLocalReference(remoteLocalId) {
-  const row = await (await db()).getFirstAsync(`SELECT reference_json FROM api_local_links WHERE remote_local_id=?`, [clean(remoteLocalId)]);
+  const row = await (await db()).getFirstAsync(`SELECT reference_json FROM api_local_links WHERE remote_local_id=? AND remote_present=1`, [clean(remoteLocalId)]);
   if (!row?.reference_json) return null;
   try { return JSON.parse(row.reference_json); } catch { return null; }
+}
+
+export async function setCachedLocalInstallation(remoteLocalId, localInstallationId) {
+  const localId = clean(remoteLocalId);
+  const installationId = clean(localInstallationId);
+  if (!localId || !installationId) throw new Error('Association local / installation incomplète');
+  await (await db()).runAsync(`UPDATE api_local_links SET local_installation_id=?,synced_at=synced_at WHERE remote_local_id=?`, [installationId, localId]);
 }
 
 export async function materializeCachedClient(remoteClientId) {
