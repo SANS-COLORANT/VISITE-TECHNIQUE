@@ -7,7 +7,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "postinstall": "node .github/scripts/patch_latest_api_visit_import.js && node .github/scripts/patch_client_multi_site_import.js",
+    "postinstall": "node .github/scripts/patch_latest_api_visit_import.js && node .github/scripts/patch_client_multi_site_import.js && node .github/scripts/patch_latest_api_visit_fields.js",
     "start": "expo start",
     "android": "expo start --android",
     "doctor": "npx --yes expo-doctor@1.20.4",
