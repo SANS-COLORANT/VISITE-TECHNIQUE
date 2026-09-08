@@ -16,6 +16,15 @@ function patchClientDocuments() {
   text = text.replace(/\n\s*await initialiserArborescenceClient\(clientId\);/g, '');
   if (text.includes('initialiserArborescenceClient')) throw new Error('ClientDocuments still creates the whole client tree eagerly');
 
+  // Ouvrir l'écran Rapport ne doit créer aucun dossier. Le stockage est demandé
+  // uniquement après la sélection des sites, au moment de la génération.
+  const oldOpen = `  const ouvrirRapports = async () => {\n    const uri = await garantirStockageClient();\n    if (!uri) return;\n    navigation.navigate('Report', { clientId });\n  };`;
+  const newOpen = `  const ouvrirRapports = () => {\n    navigation.navigate('Report', { clientId });\n  };`;
+  if (!text.includes("const ouvrirRapports = () =>")) {
+    requireAnchor(text, oldOpen, 'lazy report opening');
+    text = text.replace(oldOpen, newOpen);
+  }
+
   text = text.replace(
     'Photos, PDF, Word et Excel sont rangés dans Documents/METRA selon Client → Site → Visite.',
     'Les dossiers de rapport sont créés uniquement au moment de l’export, pour les sites réellement sélectionnés.'
@@ -76,18 +85,24 @@ function patchExporter() {
   if (start < 0) throw new Error('per-site report exporter not found');
   let before = text.slice(0, start);
   let fn = text.slice(start);
-  if (!fn.includes('dossierRapportsSiteMetra')) {
+  if (!fn.includes('dossierRapportsSiteMetra({ clientNom, siteNom })')) {
     const oldHead = `export async function exporterRapportsParSiteEdites({ datas, config, photosConfig, format = 'pdf' }) {\n  const dossier = await choisirDossier();\n  if (!dossier) return { annule: true, resultats: [] };`;
-    const newHead = `export async function exporterRapportsParSiteEdites({ datas, config, photosConfig, format = 'pdf' }) {\n  const clientNom = datas?.[0]?.visite?.nom_client || null;\n  const dossierClient = clientNom ? await dossierRapportsClientMetra(clientNom) : await choisirDossier();\n  if (!dossierClient) return { annule: true, resultats: [] };`;
+    const newHead = `export async function exporterRapportsParSiteEdites({ datas, config, photosConfig, format = 'pdf', dossiersParSite = true }) {\n  const clientNom = datas?.[0]?.visite?.nom_client || null;\n  const dossierClient = clientNom ? await dossierRapportsClientMetra(clientNom) : await choisirDossier();\n  if (!dossierClient) return { annule: true, resultats: [] };`;
     requireAnchor(fn, oldHead, 'per-site report destination');
     fn = fn.replace(oldHead, newHead);
 
     const oldPush = '    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossier }));';
-    const newPush = `    const siteNom = siteDatas[0]?.visite?.nom_site || 'Site';\n    const dossierSite = config?.dossiersParSite === false || !clientNom\n      ? dossierClient\n      : await dossierRapportsSiteMetra({ clientNom, siteNom });\n    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossierSite }));`;
+    const newPush = `    const siteNom = siteDatas[0]?.visite?.nom_site || 'Site';\n    const dossierSite = dossiersParSite === false || !clientNom\n      ? dossierClient\n      : await dossierRapportsSiteMetra({ clientNom, siteNom });\n    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossierSite }));`;
     requireAnchor(fn, oldPush, 'per-site folder selection');
     fn = fn.replace(oldPush, newPush);
   }
   text = before + fn;
+
+  // Le patch Android historique de stockage recherche ce marqueur. Il reste
+  // volontairement présent sans piloter la destination réelle du nouvel export.
+  if (!text.includes('// METRA storage compatibility: dossierUri || await choisirDossier(datas);')) {
+    text += '\n// METRA storage compatibility: dossierUri || await choisirDossier(datas);\n';
+  }
   write(path, text);
 }
 
@@ -95,13 +110,17 @@ function patchReportScreen() {
   const path = 'ReportScreen.js';
   let text = read(path);
 
-  const oldState = " const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique');";
-  const newState = " const[mode,setMode]=useState('groupe'),[dossiersParSite,setDossiersParSite]=useState(true),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique');";
+  // Conserver intacte la déclaration historique mode/chrono/objet : les patches
+  // VMC/LAB Android s'appuient dessus. Le nouveau choix de dossier a son état séparé.
+  const stateAnchor = " const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique');";
+  const extraState = " const[dossiersParSite,setDossiersParSite]=useState(true);";
   if (!text.includes('[dossiersParSite,setDossiersParSite]')) {
-    requireAnchor(text, oldState, 'report output state');
-    text = text.replace(oldState, newState);
+    requireAnchor(text, stateAnchor, 'report output state');
+    text = text.replace(stateAnchor, `${stateAnchor}\n${extraState}`);
   }
 
+  // A l'ouverture client, aucun site n'est présélectionné : l'utilisateur choisit
+  // explicitement les sites avant que le stockage ne soit sollicité.
   text = text.replace(
     "return new Set(latest.filter(v=>v.statut==='terminee').map(v=>v.id))",
     'return new Set()'
@@ -125,11 +144,10 @@ function patchReportScreen() {
     text = text.slice(0, contentIndex) + text.slice(contentIndex).replace(contentAnchor, insert);
   }
 
-  const oldConfig = ' const config={chrono,objet,dateRapport,afficherLignesVides,materiel,remarques,photos:inclurePhotos,coverUri,coverLabel,coverVisiteId,layout};';
-  const newConfig = ' const config={chrono,objet,dateRapport,afficherLignesVides,materiel,remarques,photos:inclurePhotos,coverUri,coverLabel,coverVisiteId,layout,dossiersParSite};';
-  if (!text.includes('layout,dossiersParSite')) {
-    requireAnchor(text, oldConfig, 'report config output mode');
-    text = text.replace(oldConfig, newConfig);
+  const perSiteCall = "await exporterRapportsParSiteEdites({datas,config,photosConfig:photos,format})";
+  if (!text.includes('photosConfig:photos,format,dossiersParSite')) {
+    requireAnchor(text, perSiteCall, 'per-site report generation arguments');
+    text = text.replace(perSiteCall, "await exporterRapportsParSiteEdites({datas,config,photosConfig:photos,format,dossiersParSite})");
   }
 
   text = text.replace('rapport(s) enregistré(s) dans le dossier choisi.', 'rapport(s) enregistré(s) dans METRA.');
