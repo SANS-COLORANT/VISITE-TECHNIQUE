@@ -30,6 +30,28 @@ jobs:
       - name: Validate Symfony preparation contract
         run: python .github/scripts/check_symfony_preparation_contract.py
 
+      - name: Validate APK patch order after postinstall
+        run: |
+          WORK="$RUNNER_TEMP/metra-apk-order"
+          rm -rf "$WORK"
+          mkdir -p "$WORK"
+          tar --exclude=.git -cf - . | tar -C "$WORK" -xf -
+          cd "$WORK"
+          npm run postinstall
+          python .github/scripts/patch_report_mode_defaults.py
+          python .github/scripts/patch_hydraulic_feature_build.py
+          python .github/scripts/patch_lab_health_build.py
+          python .github/scripts/patch_report_professional_layout_build.py
+          python .github/scripts/patch_preallumage_report_regressions.py
+          python .github/scripts/patch_preallumage_field_ux_build.py
+          node --check App.js
+          node --check HomeScreen.js
+          node --check SiteVisitesScreen.js
+          node --check VisiteScreen.js
+          node --check visitPrefillDb.js
+          node --check reportBuilder.js
+          echo "Ordre APK validé : postinstall puis patches Android historiques."
+
       - name: Validate build patch compatibility
         run: |
           python .github/scripts/patch_report_mode_defaults.py
