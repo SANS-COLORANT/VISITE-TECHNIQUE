@@ -17,6 +17,7 @@ forbidText(db,"from './persistentEquipmentDb.js'",'eager persistent equipment re
 requireText(db,'const {PRESCRIPTIONS}=chargerDonneesLegacy()','on-demand prescriptions seed');
 requireText(db,'const {TRAME_DATA}=chargerDonneesLegacy()','on-demand legacy visit defaults');
 requireText(db,'chargerMaterielPersistant().listerMaterielPersistant','on-demand material listing');
+requireText(db,'async function listerHistoriqueEquipement(...args){return chargerMaterielPersistant().listerHistoriqueEquipement(...args);}','lazy equipment history export binding');
 
 const database=read('database/index.js');
 requireText(database,'Un seul passage JS -> natif au démarrage','single SQLite startup bridge call');
@@ -24,4 +25,4 @@ forbidText(database,"await db.execAsync('PRAGMA synchronous = NORMAL;')",'separa
 requireText(database,'PRAGMA journal_mode = WAL;','WAL retained');
 requireText(database,'PRAGMA foreign_keys = ON;','foreign keys retained');
 
-console.log('Startup dependency graph contract validated: Home avoids deletion/XLSX modules, db.js defers heavy data repositories, and SQLite startup PRAGMAs use one native bridge call.');
+console.log('Startup dependency graph contract validated: Home avoids deletion/XLSX modules, db.js defers heavy data repositories with all exported bindings intact, and SQLite startup PRAGMAs use one native bridge call.');
