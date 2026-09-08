@@ -176,9 +176,19 @@ jobs:
       - name: Apply hydraulic LAB feature gate
         run: |
           python .github/scripts/patch_hydraulic_feature_build.py
-          grep -q "subscribeLabFeatureChanges" App.js
-          grep -q "hydraulicVisible ?" App.js
-          ! grep -q "HydraulicFeatureSettingRow" App.js
+          node --check App.js
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          s = Path('App.js').read_text(encoding='utf-8')
+          if 'subscribeLabFeatureChanges' not in s:
+              raise SystemExit('hydraulic subscription missing')
+          if not re.search(r'hydraulicVisible\s*\?', s):
+              raise SystemExit('hydraulic visit gate missing')
+          if 'HydraulicFeatureSettingRow' in s:
+              raise SystemExit('obsolete HydraulicFeatureSettingRow still present')
+          print('Hydraulic feature gate validated without formatting-dependent greps.')
+          PY
 
       - name: Apply METRA LAB health dashboard
         run: |
