@@ -83,7 +83,9 @@ relation = conn.execute("SELECT remote_client_id,remote_site_id,remote_present F
 if relation != ('c1', 's1', 1):
     raise SystemExit(f'migration contract: v27 client/site relation not backfilled: {relation!r}')
 
-# A site may be related to more than one client without replacing its identity.
+# A site may be related to more than one client without replacing its physical
+# identity. The client/site association is many-to-many, the METRA patrimoine
+# linked to the remote SITE remains unique.
 conn.execute("INSERT INTO api_client_links(remote_client_id,nom,payload_json) VALUES('c2','Client 2','{}')")
 conn.execute("INSERT INTO api_client_site_links(remote_client_id,remote_site_id,remote_present) VALUES('c2','s1',1)")
 count = conn.execute("SELECT COUNT(*) FROM api_client_site_links WHERE remote_site_id='s1'").fetchone()[0]
@@ -104,6 +106,8 @@ require(cache, 'remarksAreLatestVisitReferenceOnly: true', 'latest-visit remark 
 require(cache, 'materialsAreCurrentLocalPatrimoine: true', 'local material semantics')
 require(cache, 'api_client_site_links', 'client/site relation cache')
 require(cache, 'UPDATE api_local_links SET remote_present=0 WHERE remote_site_id=?', 'site-scoped local refresh')
+require(cache, 'if (remote.local_site_id)', 'one remote SITE / one METRA patrimoine')
+require(cache, 'UPDATE api_client_site_links SET local_site_id=? WHERE remote_site_id=?', 'shared site link propagation')
 
 require(prep, 'previousCriteriaMustNotSeedCurrentVisit: true', 'criteria isolation')
 require(prep, 'previousRemarksMustNotSeedCurrentVisit: true', 'remark isolation')
@@ -120,4 +124,4 @@ require(prefill, 'contexte.installation_id', 'LOCAL-scoped stable prefill')
 require(prefill, 'AND (? IS NULL OR installation_id=?)', 'same-LOCAL carry forward')
 require(directory, 'materializeCachedSite(selectedSite.remote_site_id, remoteClientId)', 'selected client context')
 
-print('Symfony preparation contract validated: CLIENT/SITE/LOCAL, trame branches, history isolation and current patrimoine.')
+print('Symfony preparation contract validated: CLIENT/SITE/LOCAL, trame branches, unique site patrimoine, history isolation and current material listing.')
