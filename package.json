@@ -3,9 +3,7 @@
   "version": "1.0.0",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
-  "engines": {
-    "node": ">=18"
-  },
+  "engines": { "node": ">=18" },
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
@@ -27,6 +25,7 @@
     "expo-linear-gradient": "~13.0.2",
     "expo-location": "~17.0.1",
     "expo-splash-screen": "~0.27.5",
+    "expo-secure-store": "~13.0.2",
     "pdf-lib": "^1.17.1",
     "react-native-zip-archive": "7.1.1",
     "xlsx": "^0.18.5",
