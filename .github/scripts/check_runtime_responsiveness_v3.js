@@ -16,10 +16,12 @@ const home=read('HomeScreen.js');
 requireText(home,'chargerBatchExcelModule','lazy home Excel');
 forbidText(home,"from './batchExcel.js';",'eager home XLSX graph');
 
-// Le patch Android d'export typé attend encore cet import exact. L'écran
-// Documents est différé au niveau App, ce qui retire quand même ce graphe du démarrage.
+// En source, l'import ne contient que l'exporteur. Le prépatch Android de type
+// ajoute ensuite listerTypesVisitesClient. Les deux formes sont légitimes.
 const docs=read('ClientDocumentsScreen.js');
-requireText(docs,"import { exporterDernieresVisitesClient } from './clientBatchExport.js';",'client typed export build compatibility');
+if(!/import\s*\{\s*exporterDernieresVisitesClient(?:\s*,\s*listerTypesVisitesClient)?\s*\}\s*from\s*['"]\.\/clientBatchExport\.js['"]\s*;/.test(docs)){
+  throw new Error('client typed export build compatibility: exporter import missing');
+}
 
 const visit=read('VisiteScreen.js');
 requireText(visit,'chargerExcelExportModule','lazy visit Excel export');
