@@ -173,6 +173,27 @@ function MetraDirectoryScreen({ navigation, route }) {
     finally { setSiteActionBusy(false); }
   };
 
+  const openPreparedVisit = async (local) => {
+    if (!selectedSite || siteActionBusy) return;
+    setSiteActionBusy(true);
+    try {
+      const siteId = await materializeCachedSite(selectedSite.remote_site_id);
+      const params = {
+        siteId,
+        nomSite: selectedSite.nom,
+        apiRemoteLocalId: String(local.remote_local_id),
+        apiRemoteLocalDesignation: local.designation || 'Local technique',
+        apiRemoteTrameId: local.remote_trame_id || null,
+        apiRemoteTrameNom: local.remote_trame_nom || null,
+        openNewVisit: true,
+      };
+      setSelectedSite(null);
+      setSelectedClient(null);
+      navigation.navigate('SiteVisites', params);
+    } catch (e) { Alert.alert('Préparation impossible', String(e.message || e)); }
+    finally { setSiteActionBusy(false); }
+  };
+
   const rows = useMemo(() => {
     const siteRows = directory.sites.map((x) => ({ kind: 'site', id: `s-${x.remote_site_id}`, ...x }));
     const clientRows = directory.clients.map((x) => ({ kind: 'client', id: `c-${x.remote_client_id}`, ...x }));
@@ -257,18 +278,26 @@ function MetraDirectoryScreen({ navigation, route }) {
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
               <Text style={{ color: INK, fontSize: 13.5, fontWeight: '900' }}>Préparation de visite</Text>
-              <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 3 }}>{locals.length ? 'Les installations connues sont prêtes dans METRA.' : 'Aucune installation détaillée encore synchronisée.'}</Text>
+              <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 3 }}>{locals.length ? 'Choisis le local technique : METRA gardera son patrimoine et son historique séparés.' : 'Aucune installation détaillée encore synchronisée.'}</Text>
             </View>
             {status.activated ? <TouchableOpacity onPress={refreshSite} disabled={siteRefreshing} style={{ minWidth: 88, alignItems: 'flex-end', paddingVertical: 8 }}>{siteRefreshing ? <ActivityIndicator size="small" /> : <Text style={{ color: ACCENT, fontSize: 12, fontWeight: '900' }}>↻ Actualiser</Text>}</TouchableOpacity> : null}
           </View>
           {siteTrames.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 11 }}>{siteTrames.slice(0, 4).map((label) => <SmallPill key={label}>{label}</SmallPill>)}</View> : null}
         </View>
-        <FlatList style={{ marginTop: 12, maxHeight: 250 }} data={locals} keyExtractor={(item) => String(item.remote_local_id)} renderItem={({ item }) => <View style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#EEF0F2' }}>
-          <Text style={{ color: INK, fontSize: 13.5, fontWeight: '800' }}>{item.designation || 'Local technique'}</Text>
-          <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 3 }}>{[item.remote_trame_nom, item.derniere_visite_date ? `dernière visite ${String(item.derniere_visite_date).slice(0, 10)}` : null].filter(Boolean).join(' · ')}</Text>
-        </View>} ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 12 }]}>Le site peut déjà être ouvert dans METRA. Les installations apparaîtront après synchronisation de sa préparation.</Text>} />
-        <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16, minHeight: 50, alignItems: 'center', justifyContent: 'center' }]} disabled={siteActionBusy} onPress={() => openInMetra(selectedSite)}>
-          <Text style={styles.btnPrimaryText}>{siteActionBusy ? 'Ouverture…' : 'Ouvrir le site dans METRA'}</Text>
+        <FlatList style={{ marginTop: 12, maxHeight: 300 }} data={locals} keyExtractor={(item) => String(item.remote_local_id)} renderItem={({ item }) => <TouchableOpacity activeOpacity={0.78} onPress={() => openPreparedVisit(item)} style={{ paddingVertical: 11, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: '#EEF0F2', flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flex: 1, paddingRight: 10 }}>
+            <Text style={{ color: INK, fontSize: 13.5, fontWeight: '800' }}>{item.designation || 'Local technique'}</Text>
+            <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 3 }}>{[item.remote_trame_nom, item.derniere_visite_date ? `dernière visite ${String(item.derniere_visite_date).slice(0, 10)}` : null].filter(Boolean).join(' · ')}</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 7 }}>
+              {Number(item.material_count || 0) > 0 ? <SmallPill>{Number(item.material_count)} matériel{Number(item.material_count) > 1 ? 's' : ''}</SmallPill> : null}
+              {Number(item.criteria_count || 0) > 0 ? <SmallPill>{Number(item.criteria_count)} critères en référence</SmallPill> : null}
+              {Number(item.historical_criteria_count || 0) > 0 ? <SmallPill tone="warning">{Number(item.historical_criteria_count)} issus d’une visite antérieure</SmallPill> : null}
+            </View>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}><Text style={{ color: ACCENT, fontWeight: '900', fontSize: 12 }}>Préparer</Text><Text style={{ color: '#98A2B3', fontSize: 21, marginTop: 2 }}>›</Text></View>
+        </TouchableOpacity>} ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 12 }]}>Le site peut déjà être ouvert dans METRA. Les installations apparaîtront après synchronisation de sa préparation.</Text>} />
+        <TouchableOpacity style={[styles.btnSecondary, { marginTop: 16, minHeight: 48, alignItems: 'center', justifyContent: 'center' }]} disabled={siteActionBusy} onPress={() => openInMetra(selectedSite)}>
+          <Text style={styles.btnSecondaryText}>{siteActionBusy ? 'Ouverture…' : 'Ouvrir le patrimoine du site'}</Text>
         </TouchableOpacity>
         <Text style={{ color: MUTED, fontSize: 11.5, textAlign: 'center', marginTop: 8 }}>Patrimoine · visites · équipements · remarques · LAB</Text>
       </View></View>
