@@ -7,32 +7,14 @@ on:
       - native-android
     paths:
       - '**/*.js'
+      - '**/*.json'
+      - 'native/**'
+      - 'plugins/**'
+      - 'database/**'
       - 'assets/metra/**'
       - 'visual-packs/**'
-      - package.json
-      - app.json
-      - eas.json
-      - .github/workflows/native-android-apk.yml
-      - .github/scripts/patch_pdf_cover_fallback_build.py
-      - .github/scripts/patch_preallumage_pdf_cover_build.py
-      - .github/scripts/patch_preallumage_report_regressions.py
-      - .github/scripts/patch_preallumage_field_ux_build.py
-      - .github/scripts/patch_report_editor_assets_build.py
-      - .github/scripts/patch_excel_import_date.py
-      - .github/scripts/patch_report_mode_defaults.py
-      - .github/scripts/patch_report_professional_layout_build.py
-      - .github/scripts/patch_word_cover_layout.py
-      - .github/scripts/patch_word_docx_build.py
-      - .github/scripts/patch_word_base64_android_build.py
-      - .github/scripts/patch_word_docx_integrity_build.py
-      - .github/scripts/generate_word_docx_template_build.py
-      - .github/scripts/patch_word_office_compat_build.py
-      - .github/scripts/patch_word_template_document_build.py
-      - .github/scripts/patch_word_saf_read_build.py
-      - .github/scripts/patch_report_preview_toolbar_build.py
-      - .github/scripts/patch_report_preview_cover_assets_build.py
-      - .github/scripts/patch_hydraulic_feature_build.py
-      - .github/scripts/patch_lab_health_build.py
+      - '.github/workflows/native-android-apk.yml'
+      - '.github/scripts/**'
 
 concurrency:
   group: native-android-apk-${{ github.ref }}
@@ -96,13 +78,17 @@ jobs:
       - name: Setup Gradle cache
         uses: gradle/actions/setup-gradle@v4
 
+      - name: Configure npm resilience
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 2000
+          npm config set fetch-retry-maxtimeout 30000
+
       - name: Install dependencies
-        run: npm install --no-audit --no-fund
+        run: npm install --no-audit --no-fund --prefer-online
 
       - name: Validate Expo project
-        run: |
-          npx expo install --check
-          npx expo-doctor
+        run: npm run check:native
 
       - name: Generate Office-compatible Word skeleton
         run: |
