@@ -11,10 +11,20 @@ requireText(directory, 'Touchez un site pour consulter sa fiche', 'client browse
 const documents = read('ClientDocumentsScreen.js');
 forbidText(documents, 'initialiserArborescenceClient', 'eager client/site folder creation');
 requireText(documents, "Aucun dossier de site n'est créé avant ton choix d'export.", 'lazy report folders message');
-requireText(documents, "const ouvrirRapports = () =>", 'report screen opens without storage side effects');
+requireText(documents, "const ouvrirRapports = () =>", 'report screen opens without eager storage');
+if (documents.includes('const lancerExportPourTrame')) {
+  const start = documents.indexOf('const lancerExportPourTrame');
+  const reportBranch = documents.indexOf("if (action === 'rapport')", start);
+  const storageRequest = documents.indexOf('const uri = await garantirStockageClient();', start);
+  if (reportBranch < 0 || storageRequest < 0 || storageRequest < reportBranch) {
+    throw new Error('typed report flow must navigate before requesting storage');
+  }
+}
 
 const report = read('ReportScreen.js');
-requireText(report, "const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique');", 'legacy VMC report state anchor preserved');
+const baseState = "const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique');";
+const vmcState = "const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique'),[sousTitre,setSousTitre]=useState('Présentation de la trame de visite technique');";
+if (!report.includes(baseState) && !report.includes(vmcState)) throw new Error('legacy VMC report state chain not preserved');
 requireText(report, '[dossiersParSite,setDossiersParSite]', 'per-site folder choice state');
 requireText(report, 'Un seul document · {clientNomRapport}', 'grouped client document choice');
 requireText(report, 'Un PDF par site', 'per-site PDF choice');
@@ -34,4 +44,4 @@ const storage = read('metraStorage.js');
 requireText(storage, 'export async function dossierRapportsClientMetra', 'client report folder helper');
 requireText(storage, 'export async function dossierRapportsSiteMetra', 'site report folder helper');
 
-console.log('Report export workflow validated: browsing sites remains visible and report folders are created only for the chosen output after explicit site selection.');
+console.log('Report export workflow validated before/after legacy patches: sites remain browseable and report folders are created only for the chosen output after explicit site selection.');
