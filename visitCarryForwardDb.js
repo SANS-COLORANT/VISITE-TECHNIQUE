@@ -109,8 +109,37 @@ async function copyMeterStructure(db, visiteId, previousVisitId) {
   return copied;
 }
 
+async function remoteLocalForInstallation(db, installationId) {
+  if (!installationId) return null;
+  const link = await db.getFirstAsync(
+    `SELECT remote_local_id FROM api_local_links WHERE local_installation_id=? AND remote_present=1 ORDER BY synced_at DESC LIMIT 1`,
+    [installationId]
+  );
+  return clean(link?.remote_local_id) || null;
+}
+
+async function bindInstallation(db, contexte, visiteId, installationId, remoteLocalId = null) {
+  const finalRemoteLocalId = clean(remoteLocalId) || await remoteLocalForInstallation(db, installationId);
+  const installation = await db.getFirstAsync(`SELECT nom FROM installations WHERE id=? LIMIT 1`, [installationId]);
+  await db.runAsync(
+    `UPDATE visites SET installation_id=?,api_remote_local_id=COALESCE(api_remote_local_id,?),modifie_le=datetime('now') WHERE id=?`,
+    [installationId, finalRemoteLocalId, visiteId]
+  );
+  return {
+    ...contexte,
+    installation_id: installationId,
+    api_remote_local_id: contexte.api_remote_local_id || finalRemoteLocalId,
+    nom_installation: contexte.nom_installation || installation?.nom || null,
+  };
+}
+
 async function inferUniqueInstallation(db, contexte, visiteId, trameId) {
-  if (contexte.installation_id) return contexte;
+  if (contexte.installation_id) {
+    const enriched = contexte.api_remote_local_id
+      ? contexte
+      : await bindInstallation(db, contexte, visiteId, contexte.installation_id, null);
+    return { contexte: enriched, canCarry: true };
+  }
 
   const history = await db.getAllAsync(
     `SELECT id,installation_id,api_remote_local_id,date_visite,modifie_le
@@ -121,46 +150,39 @@ async function inferUniqueInstallation(db, contexte, visiteId, trameId) {
   );
   const installationIds = [...new Set((history || []).map((row) => clean(row.installation_id)).filter(Boolean))];
 
-  let installationId = null;
-  let remoteLocalId = null;
+  if (installationIds.length > 1) {
+    // Plusieurs locaux portent des visites de cette trame : il faut un choix
+    // explicite de local, sinon aucune donnée locale n'est reportée.
+    return { contexte, canCarry: false };
+  }
+
   if (installationIds.length === 1) {
-    installationId = installationIds[0];
-    remoteLocalId = clean((history || []).find((row) => clean(row.installation_id) === installationId && clean(row.api_remote_local_id))?.api_remote_local_id) || null;
-  } else if (installationIds.length === 0) {
-    const installations = await db.getAllAsync(
-      `SELECT id FROM installations WHERE site_id=? AND actif=1 ORDER BY cree_le,id`,
-      [contexte.site_id]
-    );
-    if (installations.length === 1) installationId = installations[0].id;
+    const installationId = installationIds[0];
+    const remoteLocalId = clean((history || []).find((row) => clean(row.installation_id) === installationId && clean(row.api_remote_local_id))?.api_remote_local_id) || null;
+    return { contexte: await bindInstallation(db, contexte, visiteId, installationId, remoteLocalId), canCarry: true };
   }
 
-  // Plusieurs locaux techniques possibles : ne jamais deviner lequel utiliser.
-  if (!installationId) return contexte;
-
-  if (!remoteLocalId) {
-    const link = await db.getFirstAsync(
-      `SELECT remote_local_id FROM api_local_links WHERE local_installation_id=? AND remote_present=1 ORDER BY synced_at DESC LIMIT 1`,
-      [installationId]
-    );
-    remoteLocalId = clean(link?.remote_local_id) || null;
-  }
-
-  const installation = await db.getFirstAsync(`SELECT nom FROM installations WHERE id=? LIMIT 1`, [installationId]);
-  await db.runAsync(
-    `UPDATE visites SET installation_id=?,api_remote_local_id=COALESCE(api_remote_local_id,?),modifie_le=datetime('now') WHERE id=?`,
-    [installationId, remoteLocalId, visiteId]
+  const installations = await db.getAllAsync(
+    `SELECT id FROM installations WHERE site_id=? AND actif=1 ORDER BY cree_le,id`,
+    [contexte.site_id]
   );
-  return {
-    ...contexte,
-    installation_id: installationId,
-    api_remote_local_id: contexte.api_remote_local_id || remoteLocalId,
-    nom_installation: contexte.nom_installation || installation?.nom || null,
-  };
+  if (installations.length > 1) return { contexte, canCarry: false };
+  if (installations.length === 1) {
+    return { contexte: await bindInstallation(db, contexte, visiteId, installations[0].id, null), canCarry: true };
+  }
+
+  // Ancien patrimoine sans notion de local : on conserve le report historique
+  // au niveau du site pour ne pas casser les visites existantes.
+  return { contexte, canCarry: true };
 }
 
 export async function carryForwardPreviousVisit(db, visiteId, contexte) {
   const trame = obtenirTrame(contexte.trame_id || DEFAULT_TRAME_ID);
-  const resolved = await inferUniqueInstallation(db, contexte, visiteId, trame.id);
+  const resolution = await inferUniqueInstallation(db, contexte, visiteId, trame.id);
+  const resolved = resolution.contexte;
+  if (!resolution.canCarry) {
+    return { contexte: resolved, previousVisitId: null, copiedFields: 0, copiedNetworks: 0, copiedMeters: 0, ambiguousLocal: true };
+  }
 
   const previous = await db.getFirstAsync(
     `SELECT id FROM visites
@@ -181,5 +203,6 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
     copiedFields,
     copiedNetworks,
     copiedMeters,
+    ambiguousLocal: false,
   };
 }
