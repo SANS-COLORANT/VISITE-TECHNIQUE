@@ -6,7 +6,7 @@ async function getDb() { if (!dbInstance) dbInstance = await openAppDatabase(); 
 const uuidv4 = () => createId();
 
 async function getContexteVisite(db, visiteId) {
-  const visite = await db.getFirstAsync(`SELECT id, site_id, COALESCE(trame_id,'icpe_v1') AS trame_id FROM visites WHERE id=?`, [visiteId]);
+  const visite = await db.getFirstAsync(`SELECT id, site_id, installation_id, api_remote_local_id, COALESCE(trame_id,'icpe_v1') AS trame_id FROM visites WHERE id=?`, [visiteId]);
   if (!visite) throw new Error('Visite introuvable');
   return visite;
 }
@@ -30,7 +30,11 @@ async function affecterEquipementTrame(db, equipementId, trameId) {
   await db.runAsync(`INSERT INTO equipement_trames(equipement_id,trame_id,actif) VALUES(?,?,1)
     ON CONFLICT(equipement_id,trame_id) DO UPDATE SET actif=1,modifie_le=datetime('now')`, [equipementId, trameId]);
 }
-async function ensureInstallation(db, siteId) {
+async function ensureInstallation(db, siteId, preferredInstallationId = null) {
+  if (preferredInstallationId) {
+    const preferred = await db.getFirstAsync(`SELECT id FROM installations WHERE id=? AND site_id=? AND actif=1 LIMIT 1`, [preferredInstallationId, siteId]);
+    if (preferred?.id) return preferred.id;
+  }
   let installation = await db.getFirstAsync(`SELECT id FROM installations WHERE site_id=? AND actif=1 ORDER BY cree_le LIMIT 1`, [siteId]);
   if (installation) return installation.id;
   const id = uuidv4();
@@ -52,15 +56,16 @@ async function convertirMaterielLegacy(db, visiteId, installationId, trameId) {
     await upsertObservation(db, equipementId, visiteId, { etat: m.etat || 'Bon', present: 1 });
   }
 }
-async function injecterEquipementsActifsDuSite(db, visiteId, siteId, trameId) {
+async function injecterEquipementsActifsDuSite(db, visiteId, siteId, trameId, installationId = null) {
   const actifsBruts = await db.getAllAsync(`SELECT e.*,
       (SELECT GROUP_CONCAT(et.trame_id) FROM equipement_trames et WHERE et.equipement_id=e.id AND et.actif=1) AS trames_explicit,
       (SELECT COUNT(*) FROM equipement_trames et2 WHERE et2.equipement_id=e.id) AS nb_trames,
       (SELECT o.etat FROM observations_equipement o JOIN visites v2 ON v2.id=o.visite_id WHERE o.equipement_id=e.id AND o.present=1 AND v2.id<>? ORDER BY COALESCE(v2.date_visite,'') DESC,o.observe_le DESC LIMIT 1) dernier_etat
      FROM equipements e JOIN installations i ON i.id=e.installation_id
      WHERE i.site_id=? AND i.actif=1 AND e.statut='actif'
+       AND (? IS NULL OR e.installation_id=?)
        AND NOT EXISTS(SELECT 1 FROM materiel m WHERE m.visite_id=? AND m.equipement_id=e.id)
-     ORDER BY e.designation,e.marque,e.modele`, [visiteId, siteId, visiteId]);
+     ORDER BY e.designation,e.marque,e.modele`, [visiteId, siteId, installationId, installationId, visiteId]);
   const actifs = actifsBruts.filter((e) => equipementCompatible(e, trameId));
   for (const e of actifs) {
     const materielId = uuidv4(); const etat = e.dernier_etat || 'Bon';
@@ -69,9 +74,9 @@ async function injecterEquipementsActifsDuSite(db, visiteId, siteId, trameId) {
   }
 }
 export async function listerMaterielPersistant(visiteId) {
-  const db = await getDb(); const contexte = await getContexteVisite(db, visiteId); const installationId = await ensureInstallation(db, contexte.site_id);
+  const db = await getDb(); const contexte = await getContexteVisite(db, visiteId); const installationId = await ensureInstallation(db, contexte.site_id, contexte.installation_id);
   await convertirMaterielLegacy(db, visiteId, installationId, contexte.trame_id);
-  await injecterEquipementsActifsDuSite(db, visiteId, contexte.site_id, contexte.trame_id);
+  await injecterEquipementsActifsDuSite(db, visiteId, contexte.site_id, contexte.trame_id, contexte.installation_id || null);
   return db.getAllAsync(`SELECT m.*, e.statut AS statut_equipement, COALESCE(o.etat,m.etat,'Bon') AS etat, COALESCE(o.commentaire,'') AS observation_commentaire,
       (SELECT COUNT(*) FROM observations_equipement h WHERE h.equipement_id=m.equipement_id) AS nb_observations,
       (SELECT MAX(v.date_visite) FROM observations_equipement h JOIN visites v ON v.id=h.visite_id WHERE h.equipement_id=m.equipement_id AND h.visite_id<>m.visite_id) AS derniere_visite
@@ -79,7 +84,7 @@ export async function listerMaterielPersistant(visiteId) {
      WHERE m.visite_id=? ORDER BY m.cree_le,m.id`, [visiteId]);
 }
 export async function ajouterMaterielPersistant(visiteId) {
-  const db = await getDb(); const contexte = await getContexteVisite(db, visiteId); const installationId = await ensureInstallation(db, contexte.site_id);
+  const db = await getDb(); const contexte = await getContexteVisite(db, visiteId); const installationId = await ensureInstallation(db, contexte.site_id, contexte.installation_id);
   const equipementId = uuidv4(); const materielId = uuidv4();
   await db.runAsync(`INSERT INTO equipements(id,installation_id,type_code,designation,statut) VALUES(?,?,?,?, 'actif')`, [equipementId, installationId, 'Équipement', 'Équipement']);
   await affecterEquipementTrame(db, equipementId, contexte.trame_id);
