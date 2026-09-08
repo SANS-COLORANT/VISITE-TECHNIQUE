@@ -1,4 +1,5 @@
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
+import { carryForwardPreviousVisit } from './visitCarryForwardDb.js';
 
 function sectionCode(panelId, section) {
   return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
@@ -31,7 +32,7 @@ async function copierChampsPersistantsMemeTrame(db, visiteId, precedenteId, tram
 }
 
 export async function preremplirVisiteDepuisContexte(db, visiteId) {
-  const contexte = await db.getFirstAsync(`SELECT v.id,v.date_visite,v.technicien,v.mode_visite,v.trame_id,v.installation_id,v.api_remote_local_id,
+  let contexte = await db.getFirstAsync(`SELECT v.id,v.date_visite,v.technicien,v.mode_visite,v.trame_id,v.installation_id,v.api_remote_local_id,
             s.id site_id,s.nom_site,s.adresse,s.localisation_note,
             c.id client_id,c.nom nom_client,c.code_exploitant,
             i.nom nom_installation
@@ -41,6 +42,13 @@ export async function preremplirVisiteDepuisContexte(db, visiteId) {
      LEFT JOIN installations i ON i.id=v.installation_id
      WHERE v.id=?`, [visiteId]);
   if (!contexte) return;
+
+  // Une nouvelle visite reprend les éléments patrimoniaux et descriptifs de la
+  // dernière visite du même local/trame. Les avis, réserves et mesures du jour
+  // restent volontairement propres à la nouvelle visite.
+  const carryForward = await carryForwardPreviousVisit(db, visiteId, contexte);
+  contexte = carryForward?.contexte || contexte;
+
   const trame = obtenirTrame(contexte.trame_id || DEFAULT_TRAME_ID);
   const maintenant = new Date();
   const dateVisite = contexte.date_visite || maintenant.toISOString().slice(0,10);
@@ -82,9 +90,9 @@ export async function preremplirVisiteDepuisContexte(db, visiteId) {
     }
   }
 
-  // Une valeur stable METRA ne peut être reportée que depuis une visite du
-  // même local lorsqu'une installation est connue. Les avis/mesures/constats
-  // Symfony ne passent jamais par cette mécanique.
+  // Compatibilité avec le report stable historique : le nouveau mécanisme
+  // ci-dessus a déjà repris les données réutilisables. Cette passe reste
+  // idempotente et protège les trames qui déclarent explicitement stable/carryForward.
   const precedente = await db.getFirstAsync(`SELECT id FROM visites
     WHERE site_id=? AND id<>? AND COALESCE(trame_id, ?) = ?
       AND (? IS NULL OR installation_id=?)
