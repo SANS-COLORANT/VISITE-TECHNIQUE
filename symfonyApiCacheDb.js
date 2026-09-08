@@ -294,8 +294,8 @@ export async function searchCachedDirectory(query = '') {
   const q = normalize(query);
   const clients = await database.getAllAsync(`SELECT * FROM api_client_links WHERE autorise=1 ORDER BY nom`);
   const sites = await database.getAllAsync(`
-    SELECT s.remote_site_id, cs.remote_client_id, cs.local_site_id, cs.cree_localement,
-      s.nom, s.payload_json, s.synced_at,
+    SELECT s.remote_site_id, cs.remote_client_id, COALESCE(s.local_site_id,cs.local_site_id) AS local_site_id,
+      s.cree_localement, s.nom, s.payload_json, s.synced_at,
       c.nom AS client_nom, c.ville AS client_ville, c.code_everwin AS client_code_everwin,
       COUNT(l.remote_local_id) AS local_count,
       MAX(l.derniere_visite_date) AS derniere_visite_date,
@@ -323,8 +323,8 @@ export async function getCachedClient(remoteClientId) {
 
 export async function listCachedSites(remoteClientId) {
   return (await db()).getAllAsync(`
-    SELECT s.remote_site_id, cs.remote_client_id, cs.local_site_id, cs.cree_localement,
-      s.nom, s.payload_json, s.synced_at,
+    SELECT s.remote_site_id, cs.remote_client_id, COALESCE(s.local_site_id,cs.local_site_id) AS local_site_id,
+      s.cree_localement, s.nom, s.payload_json, s.synced_at,
       COUNT(l.remote_local_id) AS local_count, MAX(l.derniere_visite_date) AS derniere_visite_date,
       GROUP_CONCAT(DISTINCT l.remote_trame_nom) AS trames,
       COALESCE(SUM(l.material_count),0) AS material_count,
@@ -399,10 +399,16 @@ export async function materializeCachedSite(remoteSiteId, remoteClientId = null)
       [siteRemoteId]
     );
   }
+
+  // SITE est une identité physique globale dans Symfony. Même s'il apparaît
+  // via plusieurs LOT/CLIENT, METRA conserve un seul patrimoine pour ce site.
+  if (remote.local_site_id) {
+    await database.runAsync(`UPDATE api_client_site_links SET local_site_id=? WHERE remote_site_id=?`, [remote.local_site_id, siteRemoteId]);
+    return remote.local_site_id;
+  }
+
   const relationClientId = relation?.remote_client_id || requestedClientId || remote.remote_client_id;
   if (!relationClientId) throw new Error('Client du site API introuvable');
-  if (relation?.local_site_id) return relation.local_site_id;
-
   const clientId = await materializeCachedClient(relationClientId);
   const existing = await database.getFirstAsync(`SELECT id FROM sites WHERE client_id=? AND lower(trim(nom_site))=lower(trim(?)) LIMIT 1`, [clientId, clean(remote.nom)]);
   const localSiteId = existing?.id || createId();
@@ -412,16 +418,11 @@ export async function materializeCachedSite(remoteSiteId, remoteClientId = null)
   }
 
   await database.runAsync(
-    `INSERT INTO api_client_site_links(remote_client_id,remote_site_id,local_site_id,cree_localement,remote_present,synced_at)
-     VALUES(?,?,?,?,1,datetime('now'))
-     ON CONFLICT(remote_client_id,remote_site_id) DO UPDATE SET local_site_id=excluded.local_site_id,
-       cree_localement=excluded.cree_localement,synced_at=datetime('now')`,
-    [relationClientId, siteRemoteId, localSiteId, createdLocally]
+    `UPDATE api_site_links SET local_site_id=?,cree_localement=? WHERE remote_site_id=?`,
+    [localSiteId, createdLocally, siteRemoteId]
   );
-  // Compatibilité avec les premières versions du cache : garder un raccourci
-  // global uniquement s'il n'en existe pas déjà, sans écraser un autre client.
   await database.runAsync(
-    `UPDATE api_site_links SET local_site_id=COALESCE(local_site_id,?),cree_localement=CASE WHEN local_site_id IS NULL THEN ? ELSE cree_localement END WHERE remote_site_id=?`,
+    `UPDATE api_client_site_links SET local_site_id=?,cree_localement=? WHERE remote_site_id=?`,
     [localSiteId, createdLocally, siteRemoteId]
   );
   return localSiteId;
