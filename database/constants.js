@@ -1,9 +1,9 @@
 export const DATABASE_NAME = 'visite_technique.db';
 
 // Keep this value aligned with the highest migration registered in
-// database/migrations/index.js. Migrations 028-029 harden the Symfony
-// preparation mapping from client/site/local to METRA patrimoine.
-export const DATABASE_SCHEMA_VERSION = 29;
+// database/migrations/index.js. Migration 030 adds navigation/query indexes
+// for clients containing hundreds of sites without changing business data.
+export const DATABASE_SCHEMA_VERSION = 30;
 
 export const ENTITY_TYPES = Object.freeze({
   CLIENT: 'client',
