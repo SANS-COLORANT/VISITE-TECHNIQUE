@@ -1,8 +1,8 @@
 export const DATABASE_NAME = 'visite_technique.db';
 
 // Keep this value aligned with the highest migration registered in
-// database/migrations/index.js. Migration 026 adds the Pré-allumage primary usage flag.
-export const DATABASE_SCHEMA_VERSION = 26;
+// database/migrations/index.js. Migration 027 adds the offline Symfony API directory cache.
+export const DATABASE_SCHEMA_VERSION = 27;
 
 export const ENTITY_TYPES = Object.freeze({
   CLIENT: 'client',
@@ -19,6 +19,7 @@ export const ENTITY_TYPES = Object.freeze({
 export const DATA_ORIGINS = Object.freeze({
   MANUAL: 'manuel',
   EXCEL_IMPORT: 'import_excel',
+  SYMFONY_API: 'api_symfony',
   LEGACY_MIGRATION: 'migration_legacy',
   OCR: 'ocr',
   SYSTEM: 'systeme',
