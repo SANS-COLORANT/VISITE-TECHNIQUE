@@ -12,6 +12,10 @@ jobs:
   expo-check:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      GRADLE_OPTS: >-
+        -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+        -Dorg.gradle.workers.max=2
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -120,6 +124,11 @@ jobs:
           echo "MainApplication généré: $MAIN_APPLICATION"
           grep -q "import com.metra.dpop.MetraDpopPackage" "$MAIN_APPLICATION"
           grep -q "MetraDpopPackage()" "$MAIN_APPLICATION"
+
+      - name: Configure Gradle memory
+        working-directory: android
+        run: |
+          printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\n' >> gradle.properties
 
       - name: Compile native Android bridge
         working-directory: android
