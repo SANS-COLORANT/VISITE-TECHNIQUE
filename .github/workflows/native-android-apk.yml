@@ -27,9 +27,7 @@ jobs:
     env:
       NODE_ENV: production
       GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
-      METRA_RELEASE_STORE_PASSWORD: ${{ secrets.METRA_ANDROID_KEYSTORE_PASSWORD }}
-      METRA_RELEASE_KEY_ALIAS: ${{ secrets.METRA_ANDROID_KEY_ALIAS }}
-      METRA_RELEASE_KEY_PASSWORD: ${{ secrets.METRA_ANDROID_KEY_PASSWORD }}
+      METRA_COMPAT_SIGNER_SHA256: FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C
       GRADLE_OPTS: >-
         -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
         -Dorg.gradle.workers.max=2
@@ -310,22 +308,29 @@ jobs:
           test -s android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
           grep -q 'private const val KEY_ALIAS = "metra_dpop_p256_v1"' android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
 
-      - name: Configure stable Android release signing
-        env:
-          METRA_ANDROID_KEYSTORE_BASE64: ${{ secrets.METRA_ANDROID_KEYSTORE_BASE64 }}
+      - name: Configure update-compatible Android release signing
         run: |
-          if [ -z "$METRA_ANDROID_KEYSTORE_BASE64" ] || [ -z "$METRA_RELEASE_STORE_PASSWORD" ] || [ -z "$METRA_RELEASE_KEY_ALIAS" ] || [ -z "$METRA_RELEASE_KEY_PASSWORD" ]; then
-            echo "::error::Signature Android stable absente. Configure METRA_ANDROID_KEYSTORE_BASE64, METRA_ANDROID_KEYSTORE_PASSWORD, METRA_ANDROID_KEY_ALIAS et METRA_ANDROID_KEY_PASSWORD dans GitHub Secrets."
-            echo "::error::Le build release est volontairement bloqué pour éviter une APK qui forcerait la désinstallation et effacerait l'activation tablette."
+          set -euo pipefail
+          LEGACY_KEYSTORE="android/app/debug.keystore"
+          test -s "$LEGACY_KEYSTORE"
+          ACTUAL_SHA256="$(keytool -list -v -keystore "$LEGACY_KEYSTORE" -storepass android -alias androiddebugkey | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          if [ "$ACTUAL_SHA256" != "$METRA_COMPAT_SIGNER_SHA256" ]; then
+            echo "::error::Le certificat généré par Expo ne correspond pas à l'identité historique de METRA."
+            echo "::error::Attendu: $METRA_COMPAT_SIGNER_SHA256 ; obtenu: $ACTUAL_SHA256"
             exit 1
           fi
-          printf '%s' "$METRA_ANDROID_KEYSTORE_BASE64" | base64 --decode > android/app/metra-release.keystore
-          test -s android/app/metra-release.keystore
+          cp "$LEGACY_KEYSTORE" android/app/metra-release.keystore
+          export METRA_RELEASE_STORE_PASSWORD=android
+          export METRA_RELEASE_KEY_ALIAS=androiddebugkey
+          export METRA_RELEASE_KEY_PASSWORD=android
+          {
+            echo "METRA_RELEASE_STORE_PASSWORD=android"
+            echo "METRA_RELEASE_KEY_ALIAS=androiddebugkey"
+            echo "METRA_RELEASE_KEY_PASSWORD=android"
+          } >> "$GITHUB_ENV"
           python .github/scripts/configure_android_release_signing.py
-          keytool -list -v \
-            -keystore android/app/metra-release.keystore \
-            -storepass "$METRA_RELEASE_STORE_PASSWORD" \
-            -alias "$METRA_RELEASE_KEY_ALIAS" | grep -E 'Alias name:|SHA256:'
+          echo "Certificat historique METRA confirmé: $ACTUAL_SHA256"
+          echo "La release sera signée avec la même identité que l'APK #327 pour permettre la mise à jour Android sans désinstallation."
 
       - name: Configure Gradle memory
         working-directory: android
@@ -342,9 +347,19 @@ jobs:
 
       - name: Verify release APK signature
         run: |
+          set -euo pipefail
           APK="$(find android/app/build/outputs/apk/release -name '*.apk' -type f -print -quit)"
           test -n "$APK"
-          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner" verify --verbose --print-certs "$APK" | grep -E 'Verified|Signer #1 certificate SHA-256 digest'
+          APKSIGNER="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner"
+          VERIFY_OUTPUT="$($APKSIGNER verify --verbose --print-certs "$APK")"
+          printf '%s\n' "$VERIFY_OUTPUT" | grep -E 'Verified|Signer #1 certificate SHA-256 digest'
+          ACTUAL_SHA256="$(printf '%s\n' "$VERIFY_OUTPUT" | awk -F': ' '/Signer #1 certificate SHA-256 digest/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          if [ "$ACTUAL_SHA256" != "$METRA_COMPAT_SIGNER_SHA256" ]; then
+            echo "::error::L'APK release n'est pas signée avec le certificat historique METRA."
+            echo "::error::Attendu: $METRA_COMPAT_SIGNER_SHA256 ; obtenu: $ACTUAL_SHA256"
+            exit 1
+          fi
+          echo "APK release compatible avec les installations METRA existantes: certificat $ACTUAL_SHA256"
 
       - name: Upload standalone tablet APK
         uses: actions/upload-artifact@v4
