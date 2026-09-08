@@ -9,6 +9,7 @@ const has = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, 
 const list = (value) => Array.isArray(value) ? value : [];
 const nullableString = (value) => value == null || value === '' ? null : String(value);
 const remoteId = (value) => value == null || value === '' ? null : clean(value);
+const boolValue = (value) => value === true || value === 1 || value === '1' || normalize(value) === 'true';
 const orderValue = (value, fallback) => {
   const n = Number(value);
   return Number.isFinite(n) ? n : (1000000 + fallback);
@@ -31,10 +32,12 @@ function normalizeCriterion(criterion, categoryId, subCategoryId, index) {
     id,
     nom: nullableString(criterion?.nom ?? criterion?.nom_critere),
     ordre: criterion?.ordre ?? index,
-    avisApplicable: Boolean(criterion?.avisApplicable ?? criterion?.avis_applicable ?? false),
+    avisApplicable: boolValue(criterion?.avisApplicable ?? criterion?.avis_applicable ?? false),
     avis: nullableString(criterion?.avis),
     commentaire: nullableString(criterion?.commentaire),
     visiteSourceId,
+    // Une même entité critère peut être réutilisée dans plusieurs branches de
+    // trame. Le chemin complet évite de fusionner deux occurrences distinctes.
     referencePath: [categoryId, subCategoryId, id].map((v) => v || '?').join(':'),
   };
 }
@@ -96,6 +99,8 @@ function normalizeMaterial(material) {
     marque: nullableString(material?.marque),
     modele: nullableString(material?.modele),
     caracteristiques: nullableString(material?.caracteristiques),
+    // Dans Symfony ces deux colonnes sont des chaînes : ne pas les convertir
+    // implicitement en numéro/série pendant la préparation.
     annee: nullableString(material?.annee),
     etat: nullableString(material?.etat),
   };
@@ -230,6 +235,7 @@ export async function cachePreparation(remoteClientId, payload) {
   const database = await db();
   const normalized = normalizePreparationPayload(payload);
   const visites = normalized.visites;
+  const siteIds = [...new Set(visites.map((visite) => remoteId(visite?.site?.id)).filter(Boolean))];
 
   await database.withTransactionAsync(async () => {
     await database.runAsync(
@@ -237,16 +243,32 @@ export async function cachePreparation(remoteClientId, payload) {
        ON CONFLICT(remote_client_id) DO UPDATE SET payload_json=excluded.payload_json,synced_at=datetime('now')`, [clientId, json(normalized)]
     );
 
-    await database.runAsync(`UPDATE api_site_links SET remote_present=0 WHERE remote_client_id=?`, [clientId]);
-    await database.runAsync(`UPDATE api_local_links SET remote_present=0 WHERE remote_site_id IN (SELECT remote_site_id FROM api_site_links WHERE remote_client_id=?)`, [clientId]);
+    // Le schéma Symfony passe par LOT <-> SITE : la relation client/site est
+    // donc stockée séparément de l'identité globale du site. Une synchro d'un
+    // client ne peut plus effacer/réaffecter un site partagé par un autre.
+    await database.runAsync(`UPDATE api_client_site_links SET remote_present=0 WHERE remote_client_id=?`, [clientId]);
+
+    // LOCAL appartient directement à SITE. Pour chaque site réellement présent
+    // dans cette réponse complète, on marque d'abord son ancien listing local
+    // comme absent, puis les locaux reçus sont réactivés ci-dessous.
+    for (const siteId of siteIds) {
+      await database.runAsync(`UPDATE api_local_links SET remote_present=0 WHERE remote_site_id=?`, [siteId]);
+    }
 
     for (const visite of visites) {
       const siteId = remoteId(visite?.site?.id); if (!siteId) continue;
       await database.runAsync(
         `INSERT INTO api_site_links(remote_site_id,remote_client_id,nom,remote_present,payload_json,synced_at) VALUES(?,?,?,?,?,datetime('now'))
-         ON CONFLICT(remote_site_id) DO UPDATE SET remote_client_id=excluded.remote_client_id,nom=excluded.nom,remote_present=1,payload_json=excluded.payload_json,synced_at=datetime('now')`,
+         ON CONFLICT(remote_site_id) DO UPDATE SET nom=excluded.nom,remote_present=1,payload_json=excluded.payload_json,synced_at=datetime('now')`,
         [siteId, clientId, clean(visite?.site?.nom) || `Site ${siteId}`, 1, json(visite?.site)]
       );
+      await database.runAsync(
+        `INSERT INTO api_client_site_links(remote_client_id,remote_site_id,remote_present,synced_at)
+         VALUES(?,?,1,datetime('now'))
+         ON CONFLICT(remote_client_id,remote_site_id) DO UPDATE SET remote_present=1,synced_at=datetime('now')`,
+        [clientId, siteId]
+      );
+
       const localId = remoteId(visite?.local?.id); if (!localId) continue;
       const meta = visite.preparationMeta || {};
       await database.runAsync(
@@ -272,18 +294,21 @@ export async function searchCachedDirectory(query = '') {
   const q = normalize(query);
   const clients = await database.getAllAsync(`SELECT * FROM api_client_links WHERE autorise=1 ORDER BY nom`);
   const sites = await database.getAllAsync(`
-    SELECT s.*, c.nom AS client_nom, c.ville AS client_ville, c.code_everwin AS client_code_everwin,
+    SELECT s.remote_site_id, cs.remote_client_id, cs.local_site_id, cs.cree_localement,
+      s.nom, s.payload_json, s.synced_at,
+      c.nom AS client_nom, c.ville AS client_ville, c.code_everwin AS client_code_everwin,
       COUNT(l.remote_local_id) AS local_count,
       MAX(l.derniere_visite_date) AS derniere_visite_date,
       GROUP_CONCAT(DISTINCT l.remote_trame_nom) AS trames,
       GROUP_CONCAT(l.designation, ' ') AS local_designations,
       COALESCE(SUM(l.material_count),0) AS material_count,
       COALESCE(SUM(l.remark_count),0) AS remark_count
-    FROM api_site_links s
-    JOIN api_client_links c ON c.remote_client_id=s.remote_client_id
+    FROM api_client_site_links cs
+    JOIN api_site_links s ON s.remote_site_id=cs.remote_site_id
+    JOIN api_client_links c ON c.remote_client_id=cs.remote_client_id
     LEFT JOIN api_local_links l ON l.remote_site_id=s.remote_site_id AND l.remote_present=1
-    WHERE c.autorise=1 AND s.remote_present=1
-    GROUP BY s.remote_site_id
+    WHERE c.autorise=1 AND cs.remote_present=1
+    GROUP BY cs.remote_client_id,s.remote_site_id
     ORDER BY c.nom,s.nom`);
   if (!q) return { clients, sites };
   return {
@@ -295,21 +320,27 @@ export async function searchCachedDirectory(query = '') {
 export async function getCachedClient(remoteClientId) {
   return (await db()).getFirstAsync(`SELECT * FROM api_client_links WHERE remote_client_id=?`, [clean(remoteClientId)]);
 }
+
 export async function listCachedSites(remoteClientId) {
   return (await db()).getAllAsync(`
-    SELECT s.*, COUNT(l.remote_local_id) AS local_count, MAX(l.derniere_visite_date) AS derniere_visite_date,
+    SELECT s.remote_site_id, cs.remote_client_id, cs.local_site_id, cs.cree_localement,
+      s.nom, s.payload_json, s.synced_at,
+      COUNT(l.remote_local_id) AS local_count, MAX(l.derniere_visite_date) AS derniere_visite_date,
       GROUP_CONCAT(DISTINCT l.remote_trame_nom) AS trames,
       COALESCE(SUM(l.material_count),0) AS material_count,
       COALESCE(SUM(l.remark_count),0) AS remark_count
-    FROM api_site_links s
+    FROM api_client_site_links cs
+    JOIN api_site_links s ON s.remote_site_id=cs.remote_site_id
     LEFT JOIN api_local_links l ON l.remote_site_id=s.remote_site_id AND l.remote_present=1
-    WHERE s.remote_client_id=? AND s.remote_present=1
-    GROUP BY s.remote_site_id
+    WHERE cs.remote_client_id=? AND cs.remote_present=1
+    GROUP BY cs.remote_client_id,s.remote_site_id
     ORDER BY s.nom`, [clean(remoteClientId)]);
 }
+
 export async function listCachedLocals(remoteSiteId) {
   return (await db()).getAllAsync(`SELECT * FROM api_local_links WHERE remote_site_id=? AND remote_present=1 ORDER BY designation`, [clean(remoteSiteId)]);
 }
+
 export async function getCachedLocalReference(remoteLocalId) {
   const row = await (await db()).getFirstAsync(`SELECT reference_json FROM api_local_links WHERE remote_local_id=? AND remote_present=1`, [clean(remoteLocalId)]);
   if (!row?.reference_json) return null;
@@ -348,23 +379,52 @@ export async function materializeCachedClient(remoteClientId) {
   return id;
 }
 
-export async function materializeCachedSite(remoteSiteId) {
+export async function materializeCachedSite(remoteSiteId, remoteClientId = null) {
   const database = await db();
-  const remote = await database.getFirstAsync(`SELECT * FROM api_site_links WHERE remote_site_id=?`, [clean(remoteSiteId)]);
+  const siteRemoteId = clean(remoteSiteId);
+  const requestedClientId = clean(remoteClientId);
+  const remote = await database.getFirstAsync(`SELECT * FROM api_site_links WHERE remote_site_id=?`, [siteRemoteId]);
   if (!remote) throw new Error('Site API absent du cache local');
-  if (remote.local_site_id) return remote.local_site_id;
-  const clientId = await materializeCachedClient(remote.remote_client_id);
 
+  let relation = null;
+  if (requestedClientId) {
+    relation = await database.getFirstAsync(
+      `SELECT * FROM api_client_site_links WHERE remote_client_id=? AND remote_site_id=? LIMIT 1`,
+      [requestedClientId, siteRemoteId]
+    );
+  }
+  if (!relation) {
+    relation = await database.getFirstAsync(
+      `SELECT * FROM api_client_site_links WHERE remote_site_id=? AND remote_present=1 ORDER BY synced_at DESC LIMIT 1`,
+      [siteRemoteId]
+    );
+  }
+  const relationClientId = relation?.remote_client_id || requestedClientId || remote.remote_client_id;
+  if (!relationClientId) throw new Error('Client du site API introuvable');
+  if (relation?.local_site_id) return relation.local_site_id;
+
+  const clientId = await materializeCachedClient(relationClientId);
   const existing = await database.getFirstAsync(`SELECT id FROM sites WHERE client_id=? AND lower(trim(nom_site))=lower(trim(?)) LIMIT 1`, [clientId, clean(remote.nom)]);
-  if (existing?.id) {
-    await database.runAsync(`UPDATE api_site_links SET local_site_id=?,cree_localement=0 WHERE remote_site_id=?`, [existing.id, remote.remote_site_id]);
-    return existing.id;
+  const localSiteId = existing?.id || createId();
+  const createdLocally = existing?.id ? 0 : 1;
+  if (!existing?.id) {
+    await database.runAsync(`INSERT INTO sites(id,client_id,nom_site,statut) VALUES(?,?,?,'Actif')`, [localSiteId, clientId, remote.nom]);
   }
 
-  const id = createId();
-  await database.runAsync(`INSERT INTO sites(id,client_id,nom_site,statut) VALUES(?,?,?,'Actif')`, [id, clientId, remote.nom]);
-  await database.runAsync(`UPDATE api_site_links SET local_site_id=?,cree_localement=1 WHERE remote_site_id=?`, [id, remote.remote_site_id]);
-  return id;
+  await database.runAsync(
+    `INSERT INTO api_client_site_links(remote_client_id,remote_site_id,local_site_id,cree_localement,remote_present,synced_at)
+     VALUES(?,?,?,?,1,datetime('now'))
+     ON CONFLICT(remote_client_id,remote_site_id) DO UPDATE SET local_site_id=excluded.local_site_id,
+       cree_localement=excluded.cree_localement,synced_at=datetime('now')`,
+    [relationClientId, siteRemoteId, localSiteId, createdLocally]
+  );
+  // Compatibilité avec les premières versions du cache : garder un raccourci
+  // global uniquement s'il n'en existe pas déjà, sans écraser un autre client.
+  await database.runAsync(
+    `UPDATE api_site_links SET local_site_id=COALESCE(local_site_id,?),cree_localement=CASE WHEN local_site_id IS NULL THEN ? ELSE cree_localement END WHERE remote_site_id=?`,
+    [localSiteId, createdLocally, siteRemoteId]
+  );
+  return localSiteId;
 }
 
 export async function markApiError(error) {
