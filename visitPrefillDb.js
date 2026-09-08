@@ -32,7 +32,7 @@ async function copierChampsPersistantsMemeTrame(db, visiteId, precedenteId, tram
 }
 
 export async function preremplirVisiteDepuisContexte(db, visiteId) {
-  let contexte = await db.getFirstAsync(`SELECT v.id,v.date_visite,v.technicien,v.mode_visite,v.trame_id,v.installation_id,v.api_remote_local_id,
+  let contexte = await db.getFirstAsync(`SELECT v.id,v.date_visite,v.technicien,v.mode_visite,v.statut,v.trame_id,v.installation_id,v.api_remote_local_id,
             s.id site_id,s.nom_site,s.adresse,s.localisation_note,
             c.id client_id,c.nom nom_client,c.code_exploitant,
             i.nom nom_installation
