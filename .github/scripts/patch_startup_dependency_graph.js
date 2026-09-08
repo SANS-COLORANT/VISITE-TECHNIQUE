@@ -41,11 +41,22 @@ function patchDb(){
   text=text.replace('async function ajouterMateriel(visiteId){return ajouterMaterielPersistant(visiteId);}',"async function ajouterMateriel(visiteId){return chargerMaterielPersistant().ajouterMaterielPersistant(visiteId);}");
   text=text.replace('async function upsertMaterielChamp(id,cle,valeur){return upsertMaterielPersistant(id,cle,valeur);}',"async function upsertMaterielChamp(id,cle,valeur){return chargerMaterielPersistant().upsertMaterielPersistant(id,cle,valeur);}");
   text=text.replace('async function supprimerMateriel(id){return retirerMaterielPersistant(id);}',"async function supprimerMateriel(id){return chargerMaterielPersistant().retirerMaterielPersistant(id);}");
-  text=text.replace(/return listerHistoriqueEquipement\(([^)]*)\);/g,"return chargerMaterielPersistant().listerHistoriqueEquipement($1);");
+
+  // listerHistoriqueEquipement était historiquement importé puis ré-exporté
+  // directement par db.js. Une fois l'import statique retiré, il faut donc
+  // conserver une liaison locale lazy ; `node --check` ne détecte pas une
+  // exportation sans binding mais Metro/Babel, lui, la refuse.
+  if(!text.includes('async function listerHistoriqueEquipement(...args)')){
+    const anchor="async function supprimerMateriel(id){return chargerMaterielPersistant().retirerMaterielPersistant(id);}";
+    requireAnchor(text,anchor,'lazy equipment history binding');
+    text=text.replace(anchor,`${anchor}\nasync function listerHistoriqueEquipement(...args){return chargerMaterielPersistant().listerHistoriqueEquipement(...args);}`);
+  }
+
   if(text.includes("from './data.js'"))throw new Error('db data.js eager import still present');
   if(text.includes("from './persistentEquipmentDb.js'"))throw new Error('db persistent equipment eager import still present');
   if(!text.includes('const {PRESCRIPTIONS}=chargerDonneesLegacy()'))throw new Error('db prescriptions lazy load not applied');
   if(!text.includes('const {TRAME_DATA}=chargerDonneesLegacy()'))throw new Error('db trame lazy load not applied');
+  if(!text.includes('async function listerHistoriqueEquipement(...args)'))throw new Error('db equipment history lazy binding missing');
   write(path,text);
 }
 
