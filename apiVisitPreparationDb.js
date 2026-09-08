@@ -140,7 +140,7 @@ async function findConservativeEquipmentMatch(db, installationId, material) {
 
 async function ensureEquipmentFromCurrentListing(db, siteId, installationId, material) {
   const remoteMaterialId = sourceId(material?.id);
-  let linked = await findEquipmentByRemoteId(db, siteId, installationId, remoteMaterialId);
+  const linked = await findEquipmentByRemoteId(db, siteId, installationId, remoteMaterialId);
   let equipmentId = linked?.id || null;
   const wasRemoteLinked = Boolean(equipmentId);
 
@@ -237,6 +237,7 @@ export async function importApiReferenceForVisit(visiteId, remoteLocalId) {
   let result = null;
   await db.withTransactionAsync(async () => {
     const installationId = await ensureInstallationForRemoteLocal(db, visit.site_id, remoteId, ref);
+    await db.runAsync(`UPDATE visites SET installation_id=?,api_remote_local_id=?,modifie_le=datetime('now') WHERE id=?`, [installationId, remoteId, visiteId]);
     let importedMaterials = 0;
 
     for (const sourceMaterial of Array.isArray(ref?.materiels) ? ref.materiels : []) {
