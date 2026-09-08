@@ -177,6 +177,13 @@ async function inferUniqueInstallation(db, contexte, visiteId, trameId) {
 }
 
 export async function carryForwardPreviousVisit(db, visiteId, contexte) {
+  // Le report automatique n'est déclenché que pour une nouvelle visite active.
+  // Ouvrir une ancienne visite terminée/importée ne doit jamais la modifier à
+  // partir d'une autre visite historique.
+  if (clean(contexte?.statut) !== 'en_cours') {
+    return { contexte, previousVisitId: null, copiedFields: 0, copiedNetworks: 0, copiedMeters: 0, skippedHistoricalVisit: true };
+  }
+
   const trame = obtenirTrame(contexte.trame_id || DEFAULT_TRAME_ID);
   const resolution = await inferUniqueInstallation(db, contexte, visiteId, trame.id);
   const resolved = resolution.contexte;
