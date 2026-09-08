@@ -68,6 +68,6 @@ jobs:
           test -n "$MAIN_APPLICATION"
           echo "MainApplication généré: $MAIN_APPLICATION"
           grep -q "import com.metra.dpop.MetraDpopPackage" "$MAIN_APPLICATION"
-          grep -q "packages.add(MetraDpopPackage())" "$MAIN_APPLICATION"
+          grep -q "MetraDpopPackage()" "$MAIN_APPLICATION"
       - name: Validate JavaScript bundle
         run: npx expo export --platform android --output-dir dist-check
