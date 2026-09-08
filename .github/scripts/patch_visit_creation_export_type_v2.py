@@ -43,6 +43,28 @@ if 'preremplirVisiteDepuisContexte' in site or 'getDb } from' in site:
 site_path.write_text(site, encoding='utf-8')
 
 
+# The new report UX deliberately opens ReportScreen without touching Android
+# storage. The historical typed-export patch still expects the former async
+# function while applying its client visit-type selector. Recreate that source
+# shape only for the duration of the compatibility patch; after the legacy pass
+# we move the storage request back to the Excel-only branch.
+client_path = Path('ClientDocumentsScreen.js')
+client = client_path.read_text(encoding='utf-8')
+direct_report_open = """  const ouvrirRapports = () => {
+    navigation.navigate('Report', { clientId });
+  };
+"""
+legacy_report_open = """  const ouvrirRapports = async () => {
+    const uri = await garantirStockageClient();
+    if (!uri) return;
+    navigation.navigate('Report', { clientId });
+  };
+"""
+if direct_report_open in client:
+    client = client.replace(direct_report_open, legacy_report_open, 1)
+client_path.write_text(client, encoding='utf-8')
+
+
 # Reuse all of the already validated typed-export/report logic from the original
 # patch, but make its two old exact-source guards understand the new API-aware
 # source. Other missing markers remain hard failures.
@@ -63,10 +85,39 @@ if old_helper not in legacy:
 legacy = legacy.replace(old_helper, new_helper, 1)
 exec(compile(legacy, str(legacy_path), 'exec'), {'__name__': '__main__', '__file__': str(legacy_path)})
 
+# For reports, choosing the visit type must not create any folder. Storage is
+# requested only for Excel here; PDF/Word storage is deferred until ReportScreen
+# has an explicit site selection and the user presses Generate.
+client = client_path.read_text(encoding='utf-8')
+legacy_launch = """    const uri = await garantirStockageClient();
+    if (!uri) return;
+    if (action === 'rapport') {
+      navigation.navigate('Report', { clientId, trameId });
+      return;
+    }
+    if (action !== 'excel') return;
+    setBusy(true);
+"""
+deferred_launch = """    if (action === 'rapport') {
+      navigation.navigate('Report', { clientId, trameId });
+      return;
+    }
+    if (action !== 'excel') return;
+    const uri = await garantirStockageClient();
+    if (!uri) return;
+    setBusy(true);
+"""
+if legacy_launch in client:
+    client = client.replace(legacy_launch, deferred_launch, 1)
+elif deferred_launch not in client:
+    raise SystemExit('Client report storage deferral marker not found after typed export patch')
+client_path.write_text(client, encoding='utf-8')
+
 # Final invariants: the build must not regress from LOCAL scope back to the
 # first installation/site-wide behavior.
 visit_prefill = Path('visitPrefillDb.js').read_text(encoding='utf-8')
 site_final = site_path.read_text(encoding='utf-8')
+client_final = client_path.read_text(encoding='utf-8')
 if 'contexte.installation_id' not in visit_prefill:
     raise SystemExit('LOCAL-scoped prefill lost during build patch')
 if "AND (? IS NULL OR installation_id=?)" not in visit_prefill:
@@ -75,5 +126,7 @@ if 'apiRemoteLocalId' not in site_final or 'creerVisiteProduction({ siteId, mode
     raise SystemExit('API LOCAL context lost during SiteVisites build patch')
 if 'preremplirVisiteDepuisContexte' in site_final:
     raise SystemExit('Direct blocking prefill reintroduced in SiteVisites')
+if deferred_launch not in client_final:
+    raise SystemExit('Report storage is no longer deferred until report generation')
 
-print('Visit creation/export patch applied with Symfony LOCAL scoping preserved.')
+print('Visit creation/export patch applied with Symfony LOCAL scoping preserved and report storage deferred.')
