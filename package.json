@@ -3,18 +3,20 @@
   "version": "1.0.0",
   "private": true,
   "main": "node_modules/expo/AppEntry.js",
-  "engines": { "node": ">=18" },
+  "engines": {
+    "node": ">=18"
+  },
   "scripts": {
     "start": "expo start",
     "android": "expo start --android",
-    "doctor": "npx expo-doctor",
-    "check:native": "npx expo install --check && npx expo-doctor",
+    "doctor": "npx --yes expo-doctor@1.20.4",
+    "check:native": "npx expo install --check && npx --yes expo-doctor@1.20.4",
     "prebuild:android": "npx expo prebuild --clean --platform android",
     "build:apk": "npx eas-cli build -p android --profile preview",
     "build:aab": "npx eas-cli build -p android --profile production"
   },
   "dependencies": {
-    "expo": "~51.0.0",
+    "expo": "51.0.39",
     "expo-sqlite": "~14.0.0",
     "expo-image-picker": "~15.1.0",
     "expo-image-manipulator": "~12.0.5",
@@ -34,5 +36,8 @@
     "expo-asset": "~10.0.10",
     "react-native-maps": "1.14.0",
     "react-native-svg": "15.2.0"
+  },
+  "overrides": {
+    "@expo/xcpretty": "4.4.4"
   }
 }
