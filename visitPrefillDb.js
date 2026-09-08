@@ -32,13 +32,20 @@ async function copierChampsPersistantsMemeTrame(db, visiteId, precedenteId, tram
 }
 
 export async function preremplirVisiteDepuisContexte(db, visiteId) {
-  const contexte = await db.getFirstAsync(`SELECT v.id,v.date_visite,v.technicien,v.mode_visite,v.trame_id,
+  const contexte = await db.getFirstAsync(`SELECT v.id,v.date_visite,v.technicien,v.mode_visite,v.trame_id,v.installation_id,v.api_remote_local_id,
             s.id site_id,s.nom_site,s.adresse,s.localisation_note,
-            c.id client_id,c.nom nom_client,c.code_exploitant
-     FROM visites v JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id WHERE v.id=?`, [visiteId]);
+            c.id client_id,c.nom nom_client,c.code_exploitant,
+            i.nom nom_installation
+     FROM visites v
+     JOIN sites s ON s.id=v.site_id
+     JOIN clients c ON c.id=s.client_id
+     LEFT JOIN installations i ON i.id=v.installation_id
+     WHERE v.id=?`, [visiteId]);
   if (!contexte) return;
   const trame = obtenirTrame(contexte.trame_id || DEFAULT_TRAME_ID);
-  const maintenant = new Date(); const dateVisite = contexte.date_visite || maintenant.toISOString().slice(0,10); const nomLocal = contexte.localisation_note || null;
+  const maintenant = new Date();
+  const dateVisite = contexte.date_visite || maintenant.toISOString().slice(0,10);
+  const nomLocal = contexte.nom_installation || contexte.localisation_note || null;
 
   if (trame.id === 'pre_allumage') {
     const fixesPa = [
@@ -61,14 +68,20 @@ export async function preremplirVisiteDepuisContexte(db, visiteId) {
     for (const [p,s,c,v] of fixes) await insertIfEmpty(db, visiteId, p, s, c, v);
   }
 
-  const equipements = await db.getAllAsync(`SELECT e.* FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=? AND i.actif=1 AND e.statut='actif'`, [contexte.site_id]);
+  const equipements = contexte.installation_id
+    ? await db.getAllAsync(`SELECT e.* FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=? AND i.id=? AND i.actif=1 AND e.statut='actif'`, [contexte.site_id, contexte.installation_id])
+    : await db.getAllAsync(`SELECT e.* FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=? AND i.actif=1 AND e.statut='actif'`, [contexte.site_id]);
   if (trame.id !== 'pre_allumage' && equipements.length) {
     await insertIfEmpty(db, visiteId, 'p-infos', 'Description des principaux équipements', "Nb d'équipements", equipements.length);
     const types = [...new Set(equipements.map((e)=>String(e.type_code||'').trim()).filter(Boolean))];
     if (types.length === 1) await insertIfEmpty(db, visiteId, 'p-infos', 'Description des principaux équipements', 'Production primaire', types[0]);
   }
 
-  const precedente = await db.getFirstAsync(`SELECT id FROM visites WHERE site_id=? AND id<>? AND COALESCE(trame_id, ?) = ? ORDER BY COALESCE(date_visite,'') DESC, modifie_le DESC LIMIT 1`, [contexte.site_id, visiteId, DEFAULT_TRAME_ID, trame.id]);
+  const precedente = await db.getFirstAsync(`SELECT id FROM visites
+    WHERE site_id=? AND id<>? AND COALESCE(trame_id, ?) = ?
+      AND (? IS NULL OR installation_id=?)
+    ORDER BY COALESCE(date_visite,'') DESC, modifie_le DESC LIMIT 1`,
+  [contexte.site_id, visiteId, DEFAULT_TRAME_ID, trame.id, contexte.installation_id, contexte.installation_id]);
   if (precedente) {
     if (trame.id === 'pre_allumage') {
       await copierChampsPersistantsMemeTrame(db, visiteId, precedente.id, trame);
