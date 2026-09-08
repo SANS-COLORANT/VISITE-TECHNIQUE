@@ -11,6 +11,9 @@ export const migration028 = {
     ALTER TABLE api_local_links ADD COLUMN remark_count INTEGER NOT NULL DEFAULT 0;
     ALTER TABLE api_local_links ADD COLUMN material_count INTEGER NOT NULL DEFAULT 0;
 
+    ALTER TABLE visites ADD COLUMN installation_id TEXT REFERENCES installations(id) ON DELETE SET NULL;
+    ALTER TABLE visites ADD COLUMN api_remote_local_id TEXT;
+
     CREATE INDEX IF NOT EXISTS idx_api_site_remote_present
       ON api_site_links(remote_client_id, remote_present);
     CREATE INDEX IF NOT EXISTS idx_api_local_installation
@@ -19,5 +22,9 @@ export const migration028 = {
       ON api_local_links(derniere_visite_date);
     CREATE INDEX IF NOT EXISTS idx_api_local_remote_present
       ON api_local_links(remote_site_id, remote_present);
+    CREATE INDEX IF NOT EXISTS idx_visites_installation
+      ON visites(installation_id, date_visite);
+    CREATE INDEX IF NOT EXISTS idx_visites_api_remote_local
+      ON visites(api_remote_local_id);
   `,
 };
