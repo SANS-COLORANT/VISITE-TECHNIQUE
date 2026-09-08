@@ -27,6 +27,9 @@ jobs:
           print(f'Version SQLite coherente: {declared}')
           PY
 
+      - name: Validate Symfony preparation contract
+        run: python .github/scripts/check_symfony_preparation_contract.py
+
       - name: Validate build patch compatibility
         run: |
           python .github/scripts/patch_report_mode_defaults.py
@@ -42,6 +45,8 @@ jobs:
           node --check wordDocxExporter.js
           node --check preAllumageCounterDb.js
           node --check visitPrefillDb.js
+          node --check SiteVisitesScreen.js
+          node --check persistentEquipmentDb.js
           node --check VisiteScreen.js
           node --check App.js
 
@@ -76,7 +81,10 @@ jobs:
           node --check symfonyApi.js
           node --check symfonyApiCacheDb.js
           node --check apiVisitPreparationDb.js
+          node --check persistentEquipmentDb.js
+          node --check visitPrefillDb.js
           node --check MetraDirectoryScreen.js
+          node --check SiteVisitesScreen.js
           node --check HomeScreen.js
           node --check App.js
 
