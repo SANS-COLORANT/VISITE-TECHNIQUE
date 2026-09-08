@@ -16,8 +16,9 @@ function patchClientDocuments() {
   text = text.replace(/\n\s*await initialiserArborescenceClient\(clientId\);/g, '');
   if (text.includes('initialiserArborescenceClient')) throw new Error('ClientDocuments still creates the whole client tree eagerly');
 
-  // Ouvrir l'écran Rapport ne doit créer aucun dossier. Le stockage est demandé
-  // uniquement après la sélection des sites, au moment de la génération.
+  // Before the historical typed-export pass, ReportScreen can be opened directly.
+  // After that pass, ouvrirRapports already routes through demanderTypeExport and
+  // storage is deferred there by patch_visit_creation_export_type_v2.py.
   const oldOpen = `  const ouvrirRapports = async () => {\n    const uri = await garantirStockageClient();\n    if (!uri) return;\n    navigation.navigate('Report', { clientId });\n  };`;
   const newOpen = `  const ouvrirRapports = () => {\n    navigation.navigate('Report', { clientId });\n  };`;
   if (!text.includes("const ouvrirRapports = () =>")) {
@@ -75,10 +76,12 @@ function patchExporter() {
   }
 
   const oldSingle = `export async function exporterRapportEdite({ datas, config, photosConfig, format = 'pdf', dossierUri = null }) {\n  const dossier = dossierUri || await choisirDossier();\n  if (!dossier) return { annule: true };\n  return { annule: false, ...(await exporterUnFormatEdite({ datas, config, photosConfig, format, dossier })) };\n}`;
+  const storageSingle = `export async function exporterRapportEdite({ datas, config, photosConfig, format = 'pdf', dossierUri = null }) {\n  const dossier = dossierUri || await choisirDossier(datas);\n  if (!dossier) return { annule: true };\n  return { annule: false, ...(await exporterUnFormatEdite({ datas, config, photosConfig, format, dossier })) };\n}`;
   const newSingle = `export async function exporterRapportEdite({ datas, config, photosConfig, format = 'pdf', dossierUri = null }) {\n  const clientNom = datas?.[0]?.visite?.nom_client || null;\n  const dossier = dossierUri || (clientNom ? await dossierRapportsClientMetra(clientNom) : await choisirDossier());\n  if (!dossier) return { annule: true };\n  return { annule: false, ...(await exporterUnFormatEdite({ datas, config, photosConfig, format, dossier })) };\n}`;
   if (!text.includes('clientNom ? await dossierRapportsClientMetra(clientNom)')) {
-    requireAnchor(text, oldSingle, 'single/grouped report destination');
-    text = text.replace(oldSingle, newSingle);
+    const singleAnchor = text.includes(oldSingle) ? oldSingle : (text.includes(storageSingle) ? storageSingle : null);
+    if (!singleAnchor) throw new Error('single/grouped report destination: anchor not found');
+    text = text.replace(singleAnchor, newSingle);
   }
 
   const start = text.indexOf('export async function exporterRapportsParSiteEdites');
@@ -86,20 +89,29 @@ function patchExporter() {
   let before = text.slice(0, start);
   let fn = text.slice(start);
   if (!fn.includes('dossierRapportsSiteMetra({ clientNom, siteNom })')) {
-    const oldHead = `export async function exporterRapportsParSiteEdites({ datas, config, photosConfig, format = 'pdf' }) {\n  const dossier = await choisirDossier();\n  if (!dossier) return { annule: true, resultats: [] };`;
+    const oldSignature = `export async function exporterRapportsParSiteEdites({ datas, config, photosConfig, format = 'pdf' }) {`;
+    const oldHead = `${oldSignature}\n  const dossier = await choisirDossier();\n  if (!dossier) return { annule: true, resultats: [] };`;
     const newHead = `export async function exporterRapportsParSiteEdites({ datas, config, photosConfig, format = 'pdf', dossiersParSite = true }) {\n  const clientNom = datas?.[0]?.visite?.nom_client || null;\n  const dossierClient = clientNom ? await dossierRapportsClientMetra(clientNom) : await choisirDossier();\n  if (!dossierClient) return { annule: true, resultats: [] };`;
-    requireAnchor(fn, oldHead, 'per-site report destination');
-    fn = fn.replace(oldHead, newHead);
+    if (fn.includes(oldHead)) {
+      fn = fn.replace(oldHead, newHead);
+    } else if (fn.includes(oldSignature)) {
+      // Historical automatic-storage patch has already removed the common picker.
+      fn = fn.replace(oldSignature, newHead);
+    } else {
+      throw new Error('per-site report destination: anchor not found');
+    }
 
     const oldPush = '    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossier }));';
+    const storagePush = '    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format }));';
     const newPush = `    const siteNom = siteDatas[0]?.visite?.nom_site || 'Site';\n    const dossierSite = dossiersParSite === false || !clientNom\n      ? dossierClient\n      : await dossierRapportsSiteMetra({ clientNom, siteNom });\n    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossierSite }));`;
-    requireAnchor(fn, oldPush, 'per-site folder selection');
-    fn = fn.replace(oldPush, newPush);
+    const pushAnchor = fn.includes(oldPush) ? oldPush : (fn.includes(storagePush) ? storagePush : null);
+    if (!pushAnchor) throw new Error('per-site folder selection: anchor not found');
+    fn = fn.replace(pushAnchor, newPush);
   }
   text = before + fn;
 
-  // Le patch Android historique de stockage recherche ce marqueur. Il reste
-  // volontairement présent sans piloter la destination réelle du nouvel export.
+  // The historical Android storage patch checks this legacy shape. Keeping it as
+  // a marker makes this patch safe both before and after that compatibility pass.
   if (!text.includes('// METRA storage compatibility: dossierUri || await choisirDossier(datas);')) {
     text += '\n// METRA storage compatibility: dossierUri || await choisirDossier(datas);\n';
   }
@@ -110,17 +122,18 @@ function patchReportScreen() {
   const path = 'ReportScreen.js';
   let text = read(path);
 
-  // Conserver intacte la déclaration historique mode/chrono/objet : les patches
-  // VMC/LAB Android s'appuient dessus. Le nouveau choix de dossier a son état séparé.
-  const stateAnchor = " const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique');";
+  // Keep the historical mode/chrono/objet chain untouched. Depending on whether
+  // the VMC compatibility pass already ran, the same line may also contain sousTitre.
+  const stateBase = " const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique');";
+  const stateVmc = " const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique'),[sousTitre,setSousTitre]=useState('Présentation de la trame de visite technique');";
   const extraState = " const[dossiersParSite,setDossiersParSite]=useState(true);";
   if (!text.includes('[dossiersParSite,setDossiersParSite]')) {
-    requireAnchor(text, stateAnchor, 'report output state');
+    const stateAnchor = text.includes(stateVmc) ? stateVmc : (text.includes(stateBase) ? stateBase : null);
+    if (!stateAnchor) throw new Error('report output state: anchor not found');
     text = text.replace(stateAnchor, `${stateAnchor}\n${extraState}`);
   }
 
-  // A l'ouverture client, aucun site n'est présélectionné : l'utilisateur choisit
-  // explicitement les sites avant que le stockage ne soit sollicité.
+  // A client report starts with an explicit site choice.
   text = text.replace(
     "return new Set(latest.filter(v=>v.statut==='terminee').map(v=>v.id))",
     'return new Set()'
@@ -151,7 +164,9 @@ function patchReportScreen() {
   }
 
   text = text.replace('rapport(s) enregistré(s) dans le dossier choisi.', 'rapport(s) enregistré(s) dans METRA.');
+  text = text.replace('rapport(s) classé(s) automatiquement dans Documents/METRA.', 'rapport(s) enregistré(s) dans METRA.');
   text = text.replace("a été enregistré dans le dossier choisi.", "a été enregistré dans le dossier Rapports du client.");
+  text = text.replace("a été classé automatiquement dans Documents/METRA.", "a été enregistré dans le dossier Rapports du client.");
   write(path, text);
 }
 
