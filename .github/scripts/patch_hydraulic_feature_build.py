@@ -8,9 +8,10 @@ workspace_import = "import { HydraulicSchemaWorkspace } from './HydraulicSchemaW
 if workspace_import not in s:
     raise SystemExit('Hydraulic workspace import marker not found')
 
-# Consolidate named imports from featureSettings.js. This remains safe when
-# LAB 3D / hydraulic visibility have already been integrated in App.js.
-feature_pattern = re.compile(r"^import\s*\{\s*([^}]*)\s*\}\s*from\s*'\./featureSettings\.js';\s*$", re.MULTILINE)
+# Consolidate named imports from featureSettings.js. The production App.js can
+# be compacted with several import statements on the same physical line, so the
+# matcher must target the import statement itself rather than an entire line.
+feature_pattern = re.compile(r"import\s*\{\s*([^}]*)\s*\}\s*from\s*'\./featureSettings\.js';")
 imports = feature_pattern.findall(s)
 names = []
 for group in imports:
