@@ -29,6 +29,14 @@ const sites = read('ClientSitesScreen.js');
 requireText(sites, 'CLIENT_SITES_FAST_CACHE', 'client site cache');
 requireText(sites, 'removeClippedSubviews={false}', 'client site Android clipping guard');
 
+const directoryScreen = read('MetraDirectoryScreen.js');
+requireText(directoryScreen, 'METRA_DIRECTORY_FAST_CACHE', 'Intranet directory render cache');
+requireText(directoryScreen, 'removeClippedSubviews={false}', 'Intranet long-list clipping guard');
+const directoryDb = read('symfonyApiCacheDb.js');
+requireText(directoryDb, 'let directorySnapshot = null;', 'Intranet directory query cache');
+requireText(directoryDb, 'invalidateDirectorySnapshot()', 'Intranet directory cache invalidation');
+requireText(directoryDb, 'const snapshot = directorySnapshot ||', 'Intranet in-memory filtering');
+
 const groups = read('SiteGroupsManager.js');
 requireText(groups, 'function SiteGroupVirtualList', 'site group virtualization');
 requireText(groups, '<FlatList', 'site group FlatList');
