@@ -21,6 +21,24 @@ function criterionSourceRelation(criterion, latestVisitId) {
   return sourceId === remoteId(latestVisitId) ? 'latest_visit' : 'earlier_visit';
 }
 
+const CONTEXT_STOP_WORDS = new Set([
+  'a', 'au', 'aux', 'de', 'des', 'du', 'd', 'et', 'la', 'le', 'les', 'l',
+  'conf', 'conformite', 'conformites', 'relatif', 'relative', 'relatifs', 'relatives',
+]);
+
+function contextTokens(value) {
+  return normalize(value).split(' ').filter((token) => token && !CONTEXT_STOP_WORDS.has(token));
+}
+
+function contextOverlap(left, right) {
+  const a = new Set(contextTokens(left));
+  const b = new Set(contextTokens(right));
+  if (!a.size || !b.size) return 0;
+  let common = 0;
+  for (const token of a) if (b.has(token)) common += 1;
+  return common;
+}
+
 function sanitizeRemoteReference(ref) {
   if (!ref || typeof ref !== 'object') return ref;
   const trame = ref.trame && typeof ref.trame === 'object' ? {
@@ -116,11 +134,30 @@ function localControlCandidates(trameId) {
           key: normalize(field.cle),
           sectionKey: normalize(section),
           panelKey: normalize(definition?.ui?.labels?.[panelId] || panelId),
+          panelIdKey: normalize(panelId),
         });
       }
     }
   }
   return candidates;
+}
+
+function contextScore(candidate, categoryName, subCategoryName) {
+  const categoryKey = normalize(categoryName);
+  const subCategoryKey = normalize(subCategoryName);
+  let score = 0;
+
+  if (candidate.sectionKey && candidate.sectionKey === subCategoryKey) score += 100;
+  else score += contextOverlap(candidate.sectionKey, subCategoryKey) * 18;
+
+  if (candidate.panelKey && candidate.panelKey === categoryKey) score += 45;
+  else score += contextOverlap(candidate.panelKey, categoryKey) * 14;
+
+  // Le panelId contient les familles métier stables (conf-local, conf-energie,
+  // conf-chauffage, conf-ecs...). Cela départage les mêmes libellés réutilisés
+  // dans plusieurs branches de la trame Intranet.
+  score += contextOverlap(candidate.panelIdKey, categoryKey) * 12;
+  return score;
 }
 
 function findControlCandidate(candidates, criterionName, categoryName, subCategoryName) {
@@ -129,14 +166,24 @@ function findControlCandidate(candidates, criterionName, categoryName, subCatego
   const exact = candidates.filter((candidate) => candidate.key === key);
   if (exact.length === 1) return exact[0];
   if (exact.length > 1) {
-    const context = [normalize(subCategoryName), normalize(categoryName)].filter(Boolean);
-    const scored = exact.map((candidate) => ({
-      candidate,
-      score: context.reduce((score, token) => score + (candidate.sectionKey === token ? 3 : 0) + (candidate.panelKey === token ? 2 : 0), 0),
-    })).sort((a, b) => b.score - a.score);
-    if (scored[0]?.score > (scored[1]?.score || -1)) return scored[0].candidate;
+    const scored = exact
+      .map((candidate) => ({ candidate, score: contextScore(candidate, categoryName, subCategoryName) }))
+      .sort((a, b) => b.score - a.score);
+    const best = scored[0];
+    const second = scored[1];
+    if (best?.score > (second?.score ?? -1)) return best.candidate;
   }
   return null;
+}
+
+function isTechnicalControlTarget(trameId, target) {
+  // Dans l'ICPE, pH et températures sont des contrôles avec avis mais leur
+  // mesure elle-même est stockée dans commentaire côté Symfony.
+  return trameId === DEFAULT_TRAME_ID && target?.panelId === 'p-releves';
+}
+
+function remoteCriterionReference(category, subCategory, criterion) {
+  return criterion?.referencePath || [remoteId(category?.id), remoteId(subCategory?.id), remoteId(criterion?.id)].map((v) => v || '?').join(':');
 }
 
 function latestVisitStatus(sourceStatus) {
@@ -185,9 +232,15 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
   const candidates = localControlCandidates(trameId);
   let mappedCriteria = 0;
   let sourceCriteria = 0;
+  let sourceControlCriteria = 0;
+  let unmappedControlCriteria = 0;
+  let technicalCommentsPreserved = 0;
+  let hiddenHistoricalControlComments = 0;
   let criteriaFromLatestVisit = 0;
   let criteriaFromEarlierVisits = 0;
   let criteriaWithoutSourceVisit = 0;
+  const unmappedControlSample = [];
+
   for (const category of Array.isArray(ref?.trame?.categories) ? ref.trame.categories : []) {
     for (const subCategory of Array.isArray(category?.sousCategories) ? category.sousCategories : []) {
       for (const criterion of Array.isArray(subCategory?.criteres) ? subCategory.criteres : []) {
@@ -200,12 +253,36 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
         if (sourceRelation === 'latest_visit') criteriaFromLatestVisit += 1;
         else if (sourceRelation === 'earlier_visit') criteriaFromEarlierVisits += 1;
         else criteriaWithoutSourceVisit += 1;
+
+        const avis = meaningfulRemoteValue(criterion?.avis);
+        if (!avis) continue;
+        sourceControlCriteria += 1;
+
         const target = findControlCandidate(candidates, criterion?.nom, category?.nom, subCategory?.nom);
-        if (!target) continue;
+        if (!target) {
+          unmappedControlCriteria += 1;
+          if (unmappedControlSample.length < 25) {
+            unmappedControlSample.push({
+              referencePath: remoteCriterionReference(category, subCategory, criterion),
+              category: text(category?.nom),
+              subCategory: text(subCategory?.nom),
+              criterion: text(criterion?.nom),
+              avis,
+            });
+          }
+          continue;
+        }
+
+        const rawComment = meaningfulRemoteValue(criterion?.commentaire);
+        const preserveTechnicalComment = isTechnicalControlTarget(trameId, target);
+        const commentaire = preserveTechnicalComment ? rawComment : null;
+        if (preserveTechnicalComment && rawComment) technicalCommentsPreserved += 1;
+        if (!preserveTechnicalComment && rawComment) hiddenHistoricalControlComments += 1;
+
         await db.runAsync(
           `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire) VALUES(?,?,?,?,?)
            ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET avis=excluded.avis,commentaire=excluded.commentaire`,
-          [visiteId, target.sectionCode, target.cle, meaningfulRemoteValue(criterion?.avis), meaningfulRemoteValue(criterion?.commentaire)]
+          [visiteId, target.sectionCode, target.cle, avis, commentaire]
         );
         mappedCriteria += 1;
       }
@@ -230,22 +307,28 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
     const remarqueId = linked?.id || createId();
     if (linked?.id) {
       await db.runAsync(
-        `UPDATE remarques SET visite_id=?,poste=?,prestation=?,delai=?,estimatif=?,origine='Intranet',reference_type='api_symfony',reference_id=?,reference_libelle=? WHERE id=?`,
+        `UPDATE remarques SET visite_id=?,poste=?,prestation=?,delai=?,estimatif=?,origine='Intranet',controle_key=NULL,reference_type='api_symfony',reference_id=?,reference_libelle=? WHERE id=?`,
         [visiteId, text(remark.poste) || 'Observation', text(remark.prestation) || '', text(remark.delai), remark.estimatif ?? null, remoteRemarkId, text(remark.poste) || 'Réserve Intranet', remarqueId]
       );
     } else {
       await db.runAsync(
-        `INSERT INTO remarques(id,visite_id,poste,prestation,delai,estimatif,origine,reference_type,reference_id,reference_libelle)
-         VALUES(?,?,?,?,?,?,'Intranet','api_symfony',?,?)`,
+        `INSERT INTO remarques(id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,reference_type,reference_id,reference_libelle)
+         VALUES(?,?,NULL,?,?,?,?, 'Intranet','api_symfony',?,?)`,
         [remarqueId, visiteId, text(remark.poste) || 'Observation', text(remark.prestation) || '', text(remark.delai), remark.estimatif ?? null, remoteRemarkId, text(remark.poste) || 'Réserve Intranet']
       );
     }
-    await upsertProvenance(db, 'remarque', remarqueId, remoteRemarkId, { sourceType: 'latest_remote_visit_remark', remoteVisitId, payload: remark });
+    await upsertProvenance(db, 'remarque', remarqueId, remoteRemarkId, {
+      sourceType: 'latest_remote_visit_remark',
+      remoteVisitId,
+      summaryOnly: true,
+      linkedToControl: false,
+      payload: remark,
+    });
     importedRemarks += 1;
   }
 
   await upsertProvenance(db, 'visite', visiteId, remoteVisitId, {
-    schemaVersion: 2,
+    schemaVersion: 3,
     sourceType: 'imported_latest_visit',
     remoteVisitId,
     remoteLocalId,
@@ -257,13 +340,21 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
     notes: Array.isArray(ref?.notes) ? ref.notes : [],
     importSummary: {
       sourceCriteria,
+      sourceControlCriteria,
       mappedCriteria,
+      unmappedControlCriteria,
+      unmappedControlSample,
+      technicalCommentsPreserved,
+      hiddenHistoricalControlComments,
       criteriaFromLatestVisit,
       criteriaFromEarlierVisits,
       criteriaWithoutSourceVisit,
       fieldImport,
       importedRemarks,
       criteriaRule: 'preparation_values_are_latest_known_visiteSourceId_is_provenance_only',
+      controlIdentityRule: 'remote_branch_is_category_subcategory_criterion_context_mapping',
+      controlCommentRule: 'historical_conformity_comments_hidden_except_technical_measure_values',
+      intranetRemarksRule: 'latest_remote_visit_summary_only_not_linked_to_controls',
       placeholderRule: 'slash_is_empty',
       materialsRule: 'current_patrimoine_not_historical_visit',
     },
@@ -275,6 +366,10 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
     remoteVisitId,
     mappedCriteria,
     sourceCriteria,
+    sourceControlCriteria,
+    unmappedControlCriteria,
+    technicalCommentsPreserved,
+    hiddenHistoricalControlComments,
     criteriaFromLatestVisit,
     criteriaFromEarlierVisits,
     criteriaWithoutSourceVisit,

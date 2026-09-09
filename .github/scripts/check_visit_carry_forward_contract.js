@@ -12,6 +12,10 @@ const carry = read('visitCarryForwardDb.js');
 requireText(carry, "if (trame.id === 'pre_allumage') return Boolean(field.stable || field.carryForward);", 'pre-allumage durable fields only');
 requireText(carry, 'async function copyReusableControls', 'control carry-forward');
 requireText(carry, "if (trame.id === 'pre_allumage') return 0;", 'pre-allumage controls stay blank');
+requireText(carry, 'async function isImportedHistoricalVisit', 'historical Intranet visit detection');
+requireText(carry, "details_json LIKE '%\\\"sourceType\\\":\\\"imported_latest_visit\\\"%'", 'imported historical provenance detection');
+requireText(carry, 'function technicalControlKeys(trame)', 'technical values preserved from imported history');
+requireText(carry, 'const commentaire = importedHistory && !technicalKeys.has(key) ? null : previousComment;', 'historical conformity comments do not seed the next visit');
 requireText(carry, 'SELECT ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id', 'network values selected');
 requireText(carry, 'row.t_ext_c ?? null', 'external temperature carry-forward');
 requireText(carry, 'row.t_dep_c ?? null', 'departure temperature carry-forward');
@@ -29,6 +33,15 @@ requireText(latest, 'export async function importLatestApiVisitForLocal(siteId, 
 requireText(latest, "placeholderRule: 'slash_is_empty'", 'import provenance placeholder rule');
 requireText(latest, "criteriaRule: 'preparation_values_are_latest_known_visiteSourceId_is_provenance_only'", 'latest-known criterion semantics');
 requireText(latest, 'criteriaFromEarlierVisits', 'older criterion source diagnostics');
+requireText(latest, 'function contextScore(candidate, categoryName, subCategoryName)', 'branch-aware conformity matching');
+requireText(latest, 'contextOverlap(candidate.panelIdKey, categoryKey)', 'category context disambiguates duplicate criterion names');
+requireText(latest, 'function isTechnicalControlTarget(trameId, target)', 'technical control exception');
+requireText(latest, 'const commentaire = preserveTechnicalComment ? rawComment : null;', 'historical conformity comments are hidden');
+requireText(latest, 'sourceControlCriteria', 'control import diagnostics');
+requireText(latest, 'unmappedControlCriteria', 'unmapped control diagnostics');
+requireText(latest, "controlCommentRule: 'historical_conformity_comments_hidden_except_technical_measure_values'", 'historical comment semantics');
+requireText(latest, "intranetRemarksRule: 'latest_remote_visit_summary_only_not_linked_to_controls'", 'Intranet remarks summary-only semantics');
+requireText(latest, "controle_key=NULL", 'Intranet remarks must stay independent from controls');
 forbidText(latest, 'remoteId(criterion?.visiteSourceId) !== remoteVisitId', 'older preparation controls must not be rejected');
 forbidText(latest, 'remoteId(criterion?.visiteSourceId) === remoteVisitId', 'source visit id must not gate controls');
 
@@ -58,4 +71,4 @@ if (historicalImport < 0 || referenceImport < 0 || historicalImport > referenceI
   throw new Error('prepared visit must materialize the latest preparation snapshot before importing the current API reference');
 }
 
-console.log('Visit preparation contract validated: ICPE/VMC import every latest-known preparation value regardless of visiteSourceId, branch identity is preserved, Pré-allumage keeps controls blank, and slash placeholders stay empty.');
+console.log('Visit preparation contract validated: Intranet history imports latest-known S/N.S/etc. without ordinary conformity comments, keeps technical measurements, leaves Intranet remarks summary-only, carries avis into the next visit without cloning old reserves, and keeps Pré-allumage controls blank.');
