@@ -18,21 +18,22 @@ function SiteSelectionRow({ item, selected, onPress, disabled }) {
       backgroundColor: selected ? '#FFF7F1' : SURFACE,
       borderWidth: selected ? 2 : 1,
       borderColor: selected ? ACCENT : BORDER,
-      borderRadius: 16,
-      padding: 14,
-      marginBottom: 9,
+      borderRadius: 15,
+      paddingHorizontal: 12,
+      paddingVertical: 11,
+      marginBottom: 7,
       flexDirection: 'row',
       alignItems: 'center',
       opacity: disabled ? 0.62 : 1,
     }}
   >
-    <View style={{ width: 28, height: 28, borderRadius: 8, borderWidth: 2, borderColor: selected ? ACCENT : '#C9CDD3', backgroundColor: selected ? ACCENT : '#FFF', alignItems: 'center', justifyContent: 'center', marginRight: 12 }}>
-      {selected ? <Text style={{ color: '#FFF', fontSize: 17, fontWeight: '900' }}>✓</Text> : null}
+    <View style={{ width: 26, height: 26, borderRadius: 8, borderWidth: 2, borderColor: selected ? ACCENT : '#C9CDD3', backgroundColor: selected ? ACCENT : '#FFF', alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
+      {selected ? <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '900' }}>✓</Text> : null}
     </View>
     <View style={{ flex: 1, paddingRight: 8 }}>
       <Text numberOfLines={1} style={{ color: INK, fontSize: 15, fontWeight: '900' }}>{item.nom}</Text>
-      <Text numberOfLines={1} style={{ color: MUTED, fontSize: 12, marginTop: 3 }}>{[item.client_ville, item.derniere_visite_date ? \`dernière visite \${String(item.derniere_visite_date).slice(0, 10)}\` : null].filter(Boolean).join(' · ') || 'Site disponible'}</Text>
-      <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 8 }}>
+      <Text numberOfLines={1} style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>{[item.client_ville, item.derniere_visite_date ? `dernière visite ${String(item.derniere_visite_date).slice(0, 10)}` : null].filter(Boolean).join(' · ') || 'Site disponible'}</Text>
+      <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
         <SmallPill>{Number(item.local_count || 0)} installation{Number(item.local_count || 0) > 1 ? 's' : ''}</SmallPill>
         {labels.slice(0, 2).map((label) => <SmallPill key={label}>{label}</SmallPill>)}
       </View>
@@ -125,11 +126,11 @@ if (!text.includes(functionsMarker)) {
       setBatchImportProgress(null);
 
       const lines = [
-        \`\${importedSites} site\${importedSites > 1 ? 's' : ''} importé\${importedSites > 1 ? 's' : ''} dans METRA.\`,
-        \`\${importedVisits} dernière\${importedVisits > 1 ? 's' : ''} visite\${importedVisits > 1 ? 's' : ''} intégrée\${importedVisits > 1 ? 's' : ''}.\`,
+        `${importedSites} site${importedSites > 1 ? 's' : ''} importé${importedSites > 1 ? 's' : ''} dans METRA.`,
+        `${importedVisits} dernière${importedVisits > 1 ? 's' : ''} visite${importedVisits > 1 ? 's' : ''} intégrée${importedVisits > 1 ? 's' : ''}.`,
       ];
-      if (errors.length) lines.push(\`\${errors.length} site\${errors.length > 1 ? 's' : ''} en erreur.\`);
-      Alert.alert(errors.length ? 'Import multiple terminé avec réserves' : 'Import multiple terminé', lines.join('\\n'));
+      if (errors.length) lines.push(`${errors.length} site${errors.length > 1 ? 's' : ''} en erreur.`);
+      Alert.alert(errors.length ? 'Import multiple terminé avec réserves' : 'Import multiple terminé', lines.join('\n'));
     } finally {
       setBatchImportBusy(false);
     }
@@ -139,15 +140,24 @@ if (!text.includes(functionsMarker)) {
   text = text.replace(anchor, functions + anchor);
 }
 
+const clientSheetOld = `<Modal visible={!!selectedClient && !selectedSite} transparent animationType="fade" onRequestClose={() => setSelectedClient(null)}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxHeight: '86%', borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>`;
+const clientSheetNew = `<Modal visible={!!selectedClient && !selectedSite} transparent animationType="fade" onRequestClose={() => setSelectedClient(null)}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { height: '92%', maxHeight: '92%', borderTopLeftRadius: 22, borderTopRightRadius: 22, overflow: 'hidden' }]}>`;
+if (!text.includes("height: '92%', maxHeight: '92%'")) {
+  if (!text.includes(clientSheetOld)) throw new Error('client modal sheet height anchor not found');
+  text = text.replace(clientSheetOld, clientSheetNew);
+}
+
 const clientModalOld = `        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, marginBottom: 8 }}>
           <Text style={styles.sectionLabel}>{sites.length} site{sites.length > 1 ? 's' : ''}</Text>
           {status.activated ? <TouchableOpacity disabled={clientRefreshing} onPress={() => refreshClientPreparation(selectedClient.remote_client_id)} style={{ paddingHorizontal: 8, paddingVertical: 6 }}><Text style={{ color: ACCENT, fontWeight: '800', fontSize: 12 }}>{clientRefreshing ? 'Actualisation…' : '↻ Actualiser'}</Text></TouchableOpacity> : null}
         </View>
-        <FlatList data={sites} keyExtractor={(x) => \`\${x.remote_client_id}-\${x.remote_site_id}\`} renderItem={({ item }) => <DirectoryRow item={{ ...item, kind: 'site', client_nom: selectedClient?.nom, client_ville: selectedClient?.ville }} onPress={() => openSite(item, { keepClientSheet: true })} />} ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 22 }]}>Aucun site encore disponible dans la préparation de ce client.</Text>} />`;
-const clientModalNew = `        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, marginBottom: 8, gap: 8 }}>
+        <FlatList data={sites} keyExtractor={(x) => `${x.remote_client_id}-${x.remote_site_id}`} renderItem={({ item }) => <DirectoryRow item={{ ...item, kind: 'site', client_nom: selectedClient?.nom, client_ville: selectedClient?.ville }} onPress={() => openSite(item, { keepClientSheet: true })} />} ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 22 }]}>Aucun site encore disponible dans la préparation de ce client.</Text>} />`;
+const clientModalNew = `        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8, gap: 8 }}>
           <View style={{ flex: 1 }}>
             <Text style={styles.sectionLabel}>{sites.length} site{sites.length > 1 ? 's' : ''}</Text>
-            <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 2 }}>{siteSelectionMode ? \`\${selectedSiteIds.size} sélectionné\${selectedSiteIds.size > 1 ? 's' : ''}\` : 'Ouvre un site ou sélectionne-en plusieurs pour les importer ensemble.'}</Text>
+            <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 2 }}>{siteSelectionMode ? `${selectedSiteIds.size} sélectionné${selectedSiteIds.size > 1 ? 's' : ''}` : 'Ouvre un site ou sélectionne-en plusieurs pour les importer ensemble.'}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             {!siteSelectionMode && status.activated ? <TouchableOpacity disabled={clientRefreshing || batchImportBusy} onPress={() => refreshClientPreparation(selectedClient.remote_client_id)} style={{ paddingHorizontal: 8, paddingVertical: 7 }}><Text style={{ color: ACCENT, fontWeight: '800', fontSize: 12 }}>{clientRefreshing ? 'Actualisation…' : '↻ Actualiser'}</Text></TouchableOpacity> : null}
@@ -159,19 +169,25 @@ const clientModalNew = `        <View style={{ flexDirection: 'row', justifyCont
           <Text style={{ color: MUTED, fontSize: 11.5 }}>1, plusieurs ou tous les sites</Text>
         </View> : null}
         <FlatList
+          style={{ flex: 1, minHeight: 0 }}
+          contentContainerStyle={{ paddingBottom: 4 }}
           data={sites}
-          keyExtractor={(x) => \`\${x.remote_client_id}-\${x.remote_site_id}\`}
+          keyExtractor={(x) => `${x.remote_client_id}-${x.remote_site_id}`}
+          initialNumToRender={10}
+          maxToRenderPerBatch={10}
+          windowSize={7}
+          keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => siteSelectionMode
             ? <SiteSelectionRow item={{ ...item, client_ville: selectedClient?.ville }} selected={selectedSiteIds.has(String(item.remote_site_id))} disabled={batchImportBusy} onPress={() => toggleSiteSelection(item.remote_site_id)} />
             : <DirectoryRow item={{ ...item, kind: 'site', client_nom: selectedClient?.nom, client_ville: selectedClient?.ville }} onPress={() => openSite(item, { keepClientSheet: true })} />}
           ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 22 }]}>Aucun site encore disponible dans la préparation de ce client.</Text>}
         />
-        {siteSelectionMode ? <View style={{ borderTopWidth: 1, borderTopColor: '#EEF0F2', paddingTop: 12, marginTop: 5 }}>
-          {batchImportProgress ? <Text style={{ color: MUTED, fontSize: 11.5, textAlign: 'center', marginBottom: 8 }}>Import {batchImportProgress.current}/{batchImportProgress.total}{batchImportProgress.site ? \` · \${batchImportProgress.site}\` : ''}</Text> : null}
+        {siteSelectionMode ? <View style={{ flexShrink: 0, borderTopWidth: 1, borderTopColor: '#EEF0F2', paddingTop: 11, marginTop: 4, backgroundColor: SURFACE }}>
+          {batchImportProgress ? <Text style={{ color: MUTED, fontSize: 11.5, textAlign: 'center', marginBottom: 8 }}>Import {batchImportProgress.current}/{batchImportProgress.total}{batchImportProgress.site ? ` · ${batchImportProgress.site}` : ''}</Text> : null}
           <TouchableOpacity
             disabled={batchImportBusy || selectedSiteIds.size === 0}
             onPress={importSelectedSites}
-            style={[styles.btnPrimary, { minHeight: 48, alignItems: 'center', justifyContent: 'center', opacity: batchImportBusy || selectedSiteIds.size === 0 ? 0.5 : 1 }]}
+            style={[styles.btnPrimary, { flex: 0, minHeight: 48, alignItems: 'center', justifyContent: 'center', opacity: batchImportBusy || selectedSiteIds.size === 0 ? 0.5 : 1 }]}
           >
             {batchImportBusy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnPrimaryText}>Importer {selectedSiteIds.size || ''} site{selectedSiteIds.size > 1 ? 's' : ''} dans METRA</Text>}
           </TouchableOpacity>
@@ -183,4 +199,4 @@ if (!text.includes('1, plusieurs ou tous les sites')) {
 }
 
 fs.writeFileSync(path, text);
-console.log('Client multi-site selection/import wired into MetraDirectoryScreen.');
+console.log('Client multi-site selection/import wired into MetraDirectoryScreen with a full-height scrollable list and sticky import footer.');
