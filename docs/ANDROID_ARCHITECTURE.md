@@ -50,3 +50,13 @@ Une action « Valider les contrôles restants comme satisfaisants » peut existe
 ## Build
 
 Une validation JavaScript réussie ne remplace pas une compilation Android. Les PR touchant aux dépendances ou au natif doivent passer la compilation Gradle avant fusion.
+
+### Source runtime autoritative
+
+Le code runtime versionné dans GitHub est la source de vérité de l’application. Une installation npm ou un build Android ne doit pas reconstruire silencieusement des fonctionnalités, de l’ergonomie, des optimisations ou des règles métier en patchant les fichiers source.
+
+- `postinstall` vérifie l’état source et échoue si un contrat n’est plus respecté ; il ne répare pas les fichiers.
+- Une évolution runtime est développée directement dans les fichiers source sur une branche dédiée et accompagnée de contrats/tests adaptés.
+- Les anciens patches de source peuvent rester temporairement disponibles uniquement comme outil explicite de récupération d’un ancien checkout ; ils ne doivent jamais être appelés automatiquement par CI.
+- Les générations réellement liées au packaging restent autorisées pendant le build : versionCode, assets générés, projet Android issu d’Expo, configuration de signature et artefacts APK.
+- Toute mutation de source encore nécessaire dans le workflow APK doit être considérée comme dette technique à matérialiser progressivement, avec validation de non-régression avant suppression du patch.
