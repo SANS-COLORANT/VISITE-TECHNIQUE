@@ -4,9 +4,33 @@ on:
   push:
     branches:
       - native-android
+    paths:
+      - '**/*.js'
+      - '**/*.json'
+      - 'native/**'
+      - 'plugins/**'
+      - 'database/**'
+      - 'assets/metra/**'
+      - 'visual-packs/**'
+      - '.github/workflows/native-android-check.yml'
+      - '.github/scripts/**'
   pull_request:
     branches:
       - native-android
+    paths:
+      - '**/*.js'
+      - '**/*.json'
+      - 'native/**'
+      - 'plugins/**'
+      - 'database/**'
+      - 'assets/metra/**'
+      - 'visual-packs/**'
+      - '.github/workflows/native-android-check.yml'
+      - '.github/scripts/**'
+
+concurrency:
+  group: native-android-check-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   expo-check:
@@ -34,14 +58,15 @@ jobs:
       - name: Validate Symfony preparation contract
         run: python .github/scripts/check_symfony_preparation_contract.py
 
-      - name: Validate APK patch order after postinstall
+      - name: Validate APK patch order and idempotence after METRA preparation
         run: |
           WORK="$RUNNER_TEMP/metra-apk-order"
           rm -rf "$WORK"
           mkdir -p "$WORK"
           tar --exclude=.git -cf - . | tar -C "$WORK" -xf -
           cd "$WORK"
-          npm run postinstall
+          npm run prepare:metra
+          npm run prepare:metra
           python .github/scripts/patch_report_mode_defaults.py
           python .github/scripts/patch_hydraulic_feature_build.py
           python .github/scripts/patch_lab_health_build.py
@@ -54,7 +79,7 @@ jobs:
           node --check VisiteScreen.js
           node --check visitPrefillDb.js
           node --check reportBuilder.js
-          echo "Ordre APK validé : postinstall puis patches Android historiques."
+          echo "Ordre APK validé : préparation METRA idempotente puis patches Android historiques."
 
       - name: Validate build patch compatibility
         run: |
