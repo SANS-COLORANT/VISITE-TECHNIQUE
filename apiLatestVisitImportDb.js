@@ -3,6 +3,7 @@ import { createId } from './database/ids.js';
 import { getCachedLocalReference, listCachedLocals } from './symfonyApiCacheDb.js';
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { DEFAULT_TRAME_ID, obtenirTrame } from './trameRegistry.js';
+import { enrichLatestImportedVisitFields } from './apiLatestVisitFieldEnrichmentDb.js';
 
 function clean(value) { return value == null ? '' : String(value).trim(); }
 function text(value) { const v = clean(value); return v || null; }
@@ -173,6 +174,10 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, ref) {
     }
   }
 
+  const fieldImport = await enrichLatestImportedVisitFields({
+    db, visiteId, siteId, remoteVisitId, trameId, ref,
+  });
+
   let importedRemarks = 0;
   const remarks = Array.isArray(ref?.remarques) ? ref.remarques : [];
   for (let index = 0; index < remarks.length; index += 1) {
@@ -215,13 +220,14 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, ref) {
     importSummary: {
       sourceCriteria,
       mappedCriteria,
+      fieldImport,
       importedRemarks,
       criteriaRule: 'only_criteria_whose_visiteSourceId_matches_derniereVisite',
       materialsRule: 'current_patrimoine_not_historical_visit',
     },
   });
 
-  return { imported: true, visiteId, remoteVisitId, mappedCriteria, sourceCriteria, importedRemarks, created: !existing?.id };
+  return { imported: true, visiteId, remoteVisitId, mappedCriteria, sourceCriteria, importedRemarks, fieldImport, created: !existing?.id };
 }
 
 export async function importLatestApiVisitsForSite(siteId, remoteSiteId) {

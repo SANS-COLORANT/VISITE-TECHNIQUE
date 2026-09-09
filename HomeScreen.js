@@ -4,13 +4,14 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
-import { supprimerVisiteComplete, getResumeSuppressionClient, supprimerClientComplet } from './entityManagementDb.js';
-import { choisirEtAnalyserExcels, importerAnalysesExcel } from './batchExcel.js';
+const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null };
+function chargerBatchExcelModule(){return require('./batchExcel.js');}
+function chargerEntityManagementModule(){return require('./entityManagementDb.js');}
 
 function HomeScreen({ navigation, onR1LongPress }) {
-  const [clients, setClients] = useState([]);
-  const [visitesEnCours, setVisitesEnCours] = useState([]);
-  const [stats, setStats] = useState({ enCours: 0, terminees: 0 });
+  const [clients, setClients] = useState(() => HOME_FAST_CACHE.clients || []);
+  const [visitesEnCours, setVisitesEnCours] = useState(() => HOME_FAST_CACHE.visitesEnCours || []);
+  const [stats, setStats] = useState(() => HOME_FAST_CACHE.stats || { enCours: 0, terminees: 0 });
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [nouveauNom, setNouveauNom] = useState('');
@@ -21,10 +22,12 @@ function HomeScreen({ navigation, onR1LongPress }) {
   const [quickSearch, setQuickSearch] = useState('');
 
   const charger = useCallback(async () => {
-    const [c, v, s] = await Promise.all([listerClients(), listerVisitesEnCours(), compterVisites()]);
-    setClients(c);
-    setVisitesEnCours(v);
-    setStats(s);
+    // Stale-while-revalidate : au retour Accueil on conserve le dernier rendu
+    // et chaque bloc se rafraîchit dès que sa requête SQLite est terminée.
+    const clientsPromise = listerClients().then((rows) => { HOME_FAST_CACHE.clients = rows || []; setClients(rows || []); });
+    const visitsPromise = listerVisitesEnCours().then((rows) => { HOME_FAST_CACHE.visitesEnCours = rows || []; setVisitesEnCours(rows || []); });
+    const statsPromise = compterVisites().then((value) => { HOME_FAST_CACHE.stats = value || { enCours: 0, terminees: 0 }; setStats(HOME_FAST_CACHE.stats); });
+    await Promise.all([clientsPromise, visitsPromise, statsPromise]);
   }, []);
 
   useEffect(() => { charger().catch((e) => console.warn('Chargement accueil impossible', e)); }, [charger]);
@@ -35,18 +38,18 @@ function HomeScreen({ navigation, onR1LongPress }) {
   const confirmerSuppressionVisite = (v) => Alert.alert(
     'Supprimer cette visite ?',
     `« ${v.nom_client} — ${v.nom_site} » et toutes les données propres à cette visite seront définitivement supprimées.`,
-    [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive', onPress: async () => { await supprimerVisiteComplete(v.id); await charger(); } }]
+    [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive', onPress: async () => { await chargerEntityManagementModule().supprimerVisiteComplete(v.id); await charger(); } }]
   );
 
   const confirmerSuppressionClient = async (client) => {
     try {
-      const r = await getResumeSuppressionClient(client.id);
+      const r = await chargerEntityManagementModule().getResumeSuppressionClient(client.id);
       if (!r) return;
       Alert.alert(
         'Supprimer ce client ?',
         `« ${r.nom} » contient ${r.sites} site(s) et ${r.visites} visite(s). Tout le contenu associé sera définitivement supprimé.`,
         [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer tout', style: 'destructive', onPress: async () => {
-          try { await supprimerClientComplet(client.id); await charger(); }
+          try { await chargerEntityManagementModule().supprimerClientComplet(client.id); await charger(); }
           catch (e) { Alert.alert('Suppression impossible', String(e.message || e)); }
         } }]
       );
@@ -71,7 +74,7 @@ function HomeScreen({ navigation, onR1LongPress }) {
 
   const choisirExcel = async () => {
     try {
-      const lot = await choisirEtAnalyserExcels();
+      const lot = await chargerBatchExcelModule().choisirEtAnalyserExcels();
       if (!lot) return;
       if (!lot.analyses.length) {
         Alert.alert('Aucun fichier importable', lot.erreurs.map((e) => `${e.nomFichier} : ${e.message}`).join('\n') || 'Aucune trame Excel reconnue.');
@@ -85,7 +88,7 @@ function HomeScreen({ navigation, onR1LongPress }) {
     if (!importBatch?.analyses?.length || importEnCours) return;
     setImportEnCours(true);
     try {
-      const resultats = await importerAnalysesExcel(importBatch.analyses);
+      const resultats = await chargerBatchExcelModule().importerAnalysesExcel(importBatch.analyses);
       const reussis = resultats.filter((r) => r.ok && !r.dejaImporte);
       const deja = resultats.filter((r) => r.ok && r.dejaImporte);
       const echecs = resultats.filter((r) => !r.ok);

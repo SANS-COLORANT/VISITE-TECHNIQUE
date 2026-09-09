@@ -17,6 +17,9 @@ const orderValue = (value, fallback) => {
 
 async function db() { return openAppDatabase(); }
 
+let directorySnapshot = null;
+function invalidateDirectorySnapshot() { directorySnapshot = null; }
+
 function ordered(items, mapper) {
   return list(items)
     .map((item, index) => ({ value: mapper(item || {}, index), index }))
@@ -227,6 +230,7 @@ export async function cacheAuthorizedClients(clients = []) {
       );
     }
   });
+  invalidateDirectorySnapshot();
   await updateApiSyncState({ last_clients_sync_at: new Date().toISOString(), last_success_at: new Date().toISOString(), last_error: null });
 }
 
@@ -286,37 +290,43 @@ export async function cachePreparation(remoteClientId, payload) {
       );
     }
   });
+  invalidateDirectorySnapshot();
   await updateApiSyncState({ last_success_at: new Date().toISOString(), last_error: null });
 }
 
 export async function searchCachedDirectory(query = '') {
-  const database = await db();
   const q = normalize(query);
-  const clients = await database.getAllAsync(`SELECT * FROM api_client_links WHERE autorise=1 ORDER BY nom`);
-  const sites = await database.getAllAsync(`
-    SELECT s.remote_site_id, cs.remote_client_id, COALESCE(s.local_site_id,cs.local_site_id) AS local_site_id,
-      s.cree_localement, s.nom, s.payload_json, s.synced_at,
-      c.nom AS client_nom, c.ville AS client_ville, c.code_everwin AS client_code_everwin,
-      COUNT(l.remote_local_id) AS local_count,
-      MAX(l.derniere_visite_date) AS derniere_visite_date,
-      GROUP_CONCAT(DISTINCT l.remote_trame_nom) AS trames,
-      GROUP_CONCAT(l.designation, ' ') AS local_designations,
-      COALESCE(SUM(l.material_count),0) AS material_count,
-      COALESCE(SUM(l.remark_count),0) AS remark_count
-    FROM api_client_site_links cs
-    JOIN api_site_links s ON s.remote_site_id=cs.remote_site_id
-    JOIN api_client_links c ON c.remote_client_id=cs.remote_client_id
-    LEFT JOIN api_local_links l ON l.remote_site_id=s.remote_site_id AND l.remote_present=1
-    WHERE c.autorise=1 AND cs.remote_present=1
-    GROUP BY cs.remote_client_id,s.remote_site_id
-    ORDER BY c.nom,s.nom`);
-  if (!q) return { clients, sites };
+  const snapshot = directorySnapshot || await (async () => {
+    const database = await db();
+    const [clients, sites] = await Promise.all([
+      database.getAllAsync(`SELECT * FROM api_client_links WHERE autorise=1 ORDER BY nom`),
+      database.getAllAsync(`
+        SELECT s.remote_site_id, cs.remote_client_id, COALESCE(s.local_site_id,cs.local_site_id) AS local_site_id,
+          s.cree_localement, s.nom, s.payload_json, s.synced_at,
+          c.nom AS client_nom, c.ville AS client_ville, c.code_everwin AS client_code_everwin,
+          COUNT(l.remote_local_id) AS local_count,
+          MAX(l.derniere_visite_date) AS derniere_visite_date,
+          GROUP_CONCAT(DISTINCT l.remote_trame_nom) AS trames,
+          GROUP_CONCAT(l.designation, ' ') AS local_designations,
+          COALESCE(SUM(l.material_count),0) AS material_count,
+          COALESCE(SUM(l.remark_count),0) AS remark_count
+        FROM api_client_site_links cs
+        JOIN api_site_links s ON s.remote_site_id=cs.remote_site_id
+        JOIN api_client_links c ON c.remote_client_id=cs.remote_client_id
+        LEFT JOIN api_local_links l ON l.remote_site_id=s.remote_site_id AND l.remote_present=1
+        WHERE c.autorise=1 AND cs.remote_present=1
+        GROUP BY cs.remote_client_id,s.remote_site_id
+        ORDER BY c.nom,s.nom`),
+    ]);
+    directorySnapshot = { clients, sites };
+    return directorySnapshot;
+  })();
+  if (!q) return snapshot;
   return {
-    clients: clients.filter((c) => normalize([c.nom,c.categorie,c.code_everwin,c.ville,c.agence_libelle,c.adresse_postale].join(' ')).includes(q)),
-    sites: sites.filter((s) => normalize([s.nom,s.client_nom,s.client_ville,s.client_code_everwin,s.trames,s.local_designations].join(' ')).includes(q)),
+    clients: snapshot.clients.filter((c) => normalize([c.nom,c.categorie,c.code_everwin,c.ville,c.agence_libelle,c.adresse_postale].join(' ')).includes(q)),
+    sites: snapshot.sites.filter((s) => normalize([s.nom,s.client_nom,s.client_ville,s.client_code_everwin,s.trames,s.local_designations].join(' ')).includes(q)),
   };
 }
-
 export async function getCachedClient(remoteClientId) {
   return (await db()).getFirstAsync(`SELECT * FROM api_client_links WHERE remote_client_id=?`, [clean(remoteClientId)]);
 }

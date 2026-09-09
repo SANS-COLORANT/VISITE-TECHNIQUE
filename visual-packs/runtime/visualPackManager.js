@@ -1,6 +1,4 @@
 import * as FileSystem from 'expo-file-system';
-import * as DocumentPicker from 'expo-document-picker';
-import { unzip } from 'react-native-zip-archive';
 import { getDb } from '../../db.js';
 
 const CLASSIC_MANIFEST = require('../classic/manifest.json');
@@ -243,6 +241,8 @@ function nativePath(uri) {
 }
 
 export async function importVisualPackZip() {
+  const DocumentPicker = require('expo-document-picker');
+  const { unzip } = require('react-native-zip-archive');
   const picked = await DocumentPicker.getDocumentAsync({
     type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'],
     multiple: false,

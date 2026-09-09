@@ -1,6 +1,9 @@
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { carryForwardPreviousVisit } from './visitCarryForwardDb.js';
 
+const prefillTermines = new Set();
+const prefillEnCours = new Map();
+
 function sectionCode(panelId, section) {
   return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
 }
@@ -31,7 +34,7 @@ async function copierChampsPersistantsMemeTrame(db, visiteId, precedenteId, tram
   }
 }
 
-export async function preremplirVisiteDepuisContexte(db, visiteId) {
+async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
   let contexte = await db.getFirstAsync(`SELECT v.id,v.date_visite,v.technicien,v.mode_visite,v.statut,v.trame_id,v.installation_id,v.api_remote_local_id,
             s.id site_id,s.nom_site,s.adresse,s.localisation_note,
             c.id client_id,c.nom nom_client,c.code_exploitant,
@@ -114,4 +117,11 @@ export async function preremplirVisiteDepuisContexte(db, visiteId) {
       }
     }
   }
+}
+
+export async function preremplirVisiteDepuisContexte(db, visiteId) {
+ const key=String(visiteId||'');if(!key||prefillTermines.has(key))return;
+ const existant=prefillEnCours.get(key);if(existant)return existant;
+ const promise=preremplirVisiteDepuisContexteInterne(db,visiteId).then((r)=>{prefillTermines.add(key);return r;}).finally(()=>prefillEnCours.delete(key));
+ prefillEnCours.set(key,promise);return promise;
 }

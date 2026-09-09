@@ -1,23 +1,26 @@
 import * as SQLite from 'expo-sqlite';
 import { DATABASE_NAME } from './constants.js';
 import { migrateDatabase, verifyDatabaseIntegrity } from './migrate.js';
-import { syncReferenceCatalog } from './referenceCatalog.js';
-import { seedEquipmentCatalog } from './equipmentCatalogSeed.js';
-import { seedEquipmentCatalogExtra } from './equipmentCatalogExtraSeed.js';
-import { seedEquipmentCatalogBreadth } from './equipmentCatalogBreadthSeed.js';
-import { seedEquipmentCatalogDeep } from './equipmentCatalogDeepSeed.js';
-import { seedEquipmentCatalogDeep2 } from './equipmentCatalogDeepSeed2.js';
-import { seedEquipmentCatalogDeep3 } from './equipmentCatalogDeepSeed3.js';
-import { seedEquipmentCatalogDeep4 } from './equipmentCatalogDeepSeed4.js';
-import { seedEquipmentCatalogAir } from './equipmentCatalogAirSeed.js';
-import { seedEquipmentCatalogVentilation } from './equipmentCatalogVentilationSeed.js';
-import { seedEquipmentCatalogHydronics } from './equipmentCatalogHydronicsSeed.js';
-import { seedEquipmentCatalogPeripheral } from './equipmentCatalogPeripheralSeed.js';
-import { seedEquipmentCatalogImages } from './equipmentCatalogImageSeed.js';
-import { seedEquipmentCatalogVisuals } from './equipmentCatalogVisualSeed.js';
-
 let databasePromise = null;
 let catalogueEnrichmentPromise = null;
+const CORE_REFERENCE_META_KEY='reference_catalog_icpe_v2';
+const CORE_EQUIPMENT_META_KEY='equipment_catalog_core_v3';
+
+async function assurerReferentielsBase(db){
+  const rows=await db.getAllAsync(`SELECT key FROM _meta WHERE key IN (?,?)`,[CORE_REFERENCE_META_KEY,CORE_EQUIPMENT_META_KEY]);
+  const done=new Set((rows||[]).map((row)=>row.key));
+  if(!done.has(CORE_REFERENCE_META_KEY)){await require('./referenceCatalog.js').syncReferenceCatalog(db);await db.runAsync(`INSERT OR REPLACE INTO _meta(key,value) VALUES(?,?)`,[CORE_REFERENCE_META_KEY,'1']);}
+  if(!done.has(CORE_EQUIPMENT_META_KEY)){await require('./equipmentCatalogSeed.js').seedEquipmentCatalog(db);await db.runAsync(`INSERT OR REPLACE INTO _meta(key,value) VALUES(?,?)`,[CORE_EQUIPMENT_META_KEY,'1']);}
+}
+
+function chargeursEnrichissementCatalogue(){return [
+ ()=>require('./equipmentCatalogExtraSeed.js').seedEquipmentCatalogExtra,()=>require('./equipmentCatalogBreadthSeed.js').seedEquipmentCatalogBreadth,
+ ()=>require('./equipmentCatalogDeepSeed.js').seedEquipmentCatalogDeep,()=>require('./equipmentCatalogDeepSeed2.js').seedEquipmentCatalogDeep2,
+ ()=>require('./equipmentCatalogDeepSeed3.js').seedEquipmentCatalogDeep3,()=>require('./equipmentCatalogDeepSeed4.js').seedEquipmentCatalogDeep4,
+ ()=>require('./equipmentCatalogAirSeed.js').seedEquipmentCatalogAir,()=>require('./equipmentCatalogVentilationSeed.js').seedEquipmentCatalogVentilation,
+ ()=>require('./equipmentCatalogHydronicsSeed.js').seedEquipmentCatalogHydronics,()=>require('./equipmentCatalogPeripheralSeed.js').seedEquipmentCatalogPeripheral,
+ ()=>require('./equipmentCatalogImageSeed.js').seedEquipmentCatalogImages,()=>require('./equipmentCatalogVisualSeed.js').seedEquipmentCatalogVisuals,
+];}
 
 function installerCompatibiliteVisite(db) {
   if (db.__visiteMapCompatInstalled) return;
@@ -36,30 +39,22 @@ function installerCompatibiliteVisite(db) {
 }
 
 async function configurerSQLitePourTablette(db) {
-  await db.execAsync('PRAGMA journal_mode = WAL;');
-  await db.execAsync('PRAGMA synchronous = NORMAL;');
-  await db.execAsync('PRAGMA cache_size = -16384;');
-  await db.execAsync('PRAGMA temp_store = MEMORY;');
-  await db.execAsync('PRAGMA busy_timeout = 3000;');
-  await db.execAsync('PRAGMA foreign_keys = ON;');
+  // Un seul passage JS -> natif au démarrage au lieu de six appels successifs.
+  await db.execAsync(`
+    PRAGMA journal_mode = WAL;
+    PRAGMA synchronous = NORMAL;
+    PRAGMA cache_size = -16384;
+    PRAGMA temp_store = MEMORY;
+    PRAGMA busy_timeout = 3000;
+    PRAGMA foreign_keys = ON;
+  `);
 }
 
 export async function ensureEquipmentCatalogReady() {
   if (!catalogueEnrichmentPromise) {
     catalogueEnrichmentPromise = (async () => {
       const db = await openAppDatabase();
-      await seedEquipmentCatalogExtra(db);
-      await seedEquipmentCatalogBreadth(db);
-      await seedEquipmentCatalogDeep(db);
-      await seedEquipmentCatalogDeep2(db);
-      await seedEquipmentCatalogDeep3(db);
-      await seedEquipmentCatalogDeep4(db);
-      await seedEquipmentCatalogAir(db);
-      await seedEquipmentCatalogVentilation(db);
-      await seedEquipmentCatalogHydronics(db);
-      await seedEquipmentCatalogPeripheral(db);
-      await seedEquipmentCatalogImages(db);
-      await seedEquipmentCatalogVisuals(db);
+      for(const charger of chargeursEnrichissementCatalogue()) await charger()(db);
       return db;
     })().catch((error) => {
       catalogueEnrichmentPromise = null;
@@ -76,8 +71,7 @@ export function openAppDatabase() {
       await configurerSQLitePourTablette(db);
       installerCompatibiliteVisite(db);
       await migrateDatabase(db);
-      await syncReferenceCatalog(db);
-      await seedEquipmentCatalog(db);
+      await assurerReferentielsBase(db);
       return db;
     })().catch((error) => {
       databasePromise = null;

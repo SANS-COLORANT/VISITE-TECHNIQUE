@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOp
 import { COLORS, styles } from './styles.js';
 import { activateTablet, getActivationStatus, syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';
 import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory } from './symfonyApiCacheDb.js';
+import { importLatestApiVisitsForSite } from './apiLatestVisitImportDb.js';
 
 const SURFACE = '#FFFFFF';
 const BORDER = '#E6E8EC';
@@ -10,6 +11,8 @@ const INK = COLORS.ink || '#17212B';
 const MUTED = COLORS.muted || '#667085';
 const ACCENT = COLORS.orange || '#E86F2D';
 const SUCCESS = '#16794B';
+
+let METRA_DIRECTORY_FAST_CACHE = { clients: [], sites: [] };
 
 function humanSyncDate(value) {
   if (!value) return null;
@@ -52,10 +55,43 @@ function DirectoryRow({ item, onPress }) {
   </TouchableOpacity>;
 }
 
+function SiteSelectionRow({ item, selected, onPress, disabled }) {
+  const labels = trameLabels(item.trames);
+  return <TouchableOpacity
+    activeOpacity={0.82}
+    disabled={disabled}
+    onPress={onPress}
+    style={{
+      backgroundColor: selected ? '#FFF7F1' : SURFACE,
+      borderWidth: selected ? 2 : 1,
+      borderColor: selected ? ACCENT : BORDER,
+      borderRadius: 15,
+      paddingHorizontal: 12,
+      paddingVertical: 11,
+      marginBottom: 7,
+      flexDirection: 'row',
+      alignItems: 'center',
+      opacity: disabled ? 0.62 : 1,
+    }}
+  >
+    <View style={{ width: 26, height: 26, borderRadius: 8, borderWidth: 2, borderColor: selected ? ACCENT : '#C9CDD3', backgroundColor: selected ? ACCENT : '#FFF', alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
+      {selected ? <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '900' }}>✓</Text> : null}
+    </View>
+    <View style={{ flex: 1, paddingRight: 8 }}>
+      <Text numberOfLines={1} style={{ color: INK, fontSize: 15, fontWeight: '900' }}>{item.nom}</Text>
+      <Text numberOfLines={1} style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>{[item.client_ville, item.derniere_visite_date ? `dernière visite ${String(item.derniere_visite_date).slice(0, 10)}` : null].filter(Boolean).join(' · ') || 'Site disponible'}</Text>
+      <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+        <SmallPill>{Number(item.local_count || 0)} installation{Number(item.local_count || 0) > 1 ? 's' : ''}</SmallPill>
+        {labels.slice(0, 2).map((label) => <SmallPill key={label}>{label}</SmallPill>)}
+      </View>
+    </View>
+  </TouchableOpacity>;
+}
+
 function MetraDirectoryScreen({ navigation, route }) {
   const [status, setStatus] = useState({ activated: false });
   const [query, setQuery] = useState(() => String(route?.params?.query || ''));
-  const [directory, setDirectory] = useState({ clients: [], sites: [] });
+  const [directory, setDirectory] = useState(() => METRA_DIRECTORY_FAST_CACHE);
   const [syncing, setSyncing] = useState(false);
   const [activationVisible, setActivationVisible] = useState(false);
   const [activationCode, setActivationCode] = useState('');
@@ -68,6 +104,10 @@ function MetraDirectoryScreen({ navigation, route }) {
   const [clientRefreshing, setClientRefreshing] = useState(false);
   const [siteRefreshing, setSiteRefreshing] = useState(false);
   const [siteActionBusy, setSiteActionBusy] = useState(false);
+  const [siteSelectionMode, setSiteSelectionMode] = useState(false);
+  const [selectedSiteIds, setSelectedSiteIds] = useState(() => new Set());
+  const [batchImportBusy, setBatchImportBusy] = useState(false);
+  const [batchImportProgress, setBatchImportProgress] = useState(null);
 
   const refreshStatus = useCallback(async () => {
     const next = await getActivationStatus();
@@ -76,7 +116,9 @@ function MetraDirectoryScreen({ navigation, route }) {
   }, []);
 
   const search = useCallback(async (text = query) => {
-    setDirectory(await searchCachedDirectory(text));
+    const next = await searchCachedDirectory(text);
+    METRA_DIRECTORY_FAST_CACHE = next;
+    setDirectory(next);
   }, [query]);
 
   useEffect(() => { refreshStatus().catch(() => {}); }, [refreshStatus]);
@@ -131,8 +173,85 @@ function MetraDirectoryScreen({ navigation, route }) {
       setSelectedClient(client);
       setSites(cachedSites);
       setLocals([]);
+      setSiteSelectionMode(false);
+      setSelectedSiteIds(new Set());
+      setBatchImportProgress(null);
       if (status.activated) refreshClientPreparation(remoteClientId).catch(() => {});
     } catch (e) { Alert.alert('Ouverture impossible', String(e.message || e)); }
+  };
+
+  const toggleSiteSelection = useCallback((remoteSiteId) => {
+    const id = String(remoteSiteId);
+    setSelectedSiteIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }, []);
+
+  const enterSiteSelection = () => {
+    setSelectedSiteIds(new Set());
+    setBatchImportProgress(null);
+    setSiteSelectionMode(true);
+  };
+
+  const cancelSiteSelection = () => {
+    if (batchImportBusy) return;
+    setSiteSelectionMode(false);
+    setSelectedSiteIds(new Set());
+    setBatchImportProgress(null);
+  };
+
+  const toggleAllSites = () => {
+    if (batchImportBusy) return;
+    setSelectedSiteIds((current) => current.size === sites.length
+      ? new Set()
+      : new Set(sites.map((site) => String(site.remote_site_id))));
+  };
+
+  const importSelectedSites = async () => {
+    if (batchImportBusy || !selectedClient) return;
+    const selected = sites.filter((site) => selectedSiteIds.has(String(site.remote_site_id)));
+    if (!selected.length) {
+      Alert.alert('Sélection requise', 'Sélectionne au moins un site à importer dans METRA.');
+      return;
+    }
+
+    setBatchImportBusy(true);
+    setBatchImportProgress({ current: 0, total: selected.length, site: null });
+    let importedSites = 0;
+    let importedVisits = 0;
+    const errors = [];
+
+    try {
+      for (let index = 0; index < selected.length; index += 1) {
+        const site = selected[index];
+        setBatchImportProgress({ current: index + 1, total: selected.length, site: site.nom });
+        try {
+          const remoteClientId = site.remote_client_id || selectedClient.remote_client_id;
+          const siteId = await materializeCachedSite(site.remote_site_id, remoteClientId);
+          const latestImport = await importLatestApiVisitsForSite(siteId, site.remote_site_id);
+          importedSites += 1;
+          importedVisits += Number(latestImport?.importedCount || 0);
+        } catch (error) {
+          errors.push({ site: site.nom, message: String(error?.message || error) });
+        }
+      }
+
+      await search(query).catch(() => {});
+      setSiteSelectionMode(false);
+      setSelectedSiteIds(new Set());
+      setBatchImportProgress(null);
+
+      const lines = [
+        `${importedSites} site${importedSites > 1 ? 's' : ''} importé${importedSites > 1 ? 's' : ''} dans METRA.`,
+        `${importedVisits} dernière${importedVisits > 1 ? 's' : ''} visite${importedVisits > 1 ? 's' : ''} intégrée${importedVisits > 1 ? 's' : ''}.`,
+      ];
+      if (errors.length) lines.push(`${errors.length} site${errors.length > 1 ? 's' : ''} en erreur.`);
+      Alert.alert(errors.length ? 'Import multiple terminé avec réserves' : 'Import multiple terminé', lines.join('\n'));
+    } finally {
+      setBatchImportBusy(false);
+    }
   };
 
   const openSite = async (site, { keepClientSheet = false } = {}) => {
@@ -166,9 +285,14 @@ function MetraDirectoryScreen({ navigation, route }) {
     setSiteActionBusy(true);
     try {
       const siteId = await materializeCachedSite(site.remote_site_id, site.remote_client_id || siteClient?.remote_client_id);
+      const latestImport = await importLatestApiVisitsForSite(siteId, site.remote_site_id);
       setSelectedSite(null);
       setSelectedClient(null);
-      navigation.navigate('SiteVisites', { siteId, nomSite: site.nom });
+      navigation.navigate('SiteVisites', {
+        siteId,
+        nomSite: site.nom,
+        apiLatestImportCount: latestImport.importedCount,
+      });
     } catch (e) { Alert.alert('Ouverture impossible', String(e.message || e)); }
     finally { setSiteActionBusy(false); }
   };
@@ -208,9 +332,15 @@ function MetraDirectoryScreen({ navigation, route }) {
 
   return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
     <FlatList
+      style={{ flex: 1 }}
       contentContainerStyle={[styles.content, { paddingBottom: 34 }]}
       keyboardShouldPersistTaps="handled"
       data={rows}
+      initialNumToRender={16}
+      maxToRenderPerBatch={12}
+      updateCellsBatchingPeriod={24}
+      windowSize={7}
+      removeClippedSubviews={false}
       keyExtractor={(x) => x.id}
       ListHeaderComponent={<>
         <View style={{ backgroundColor: SURFACE, borderRadius: 18, borderWidth: 1, borderColor: BORDER, padding: 12, marginBottom: 10 }}>
@@ -243,7 +373,7 @@ function MetraDirectoryScreen({ navigation, route }) {
     />
 
     <Modal visible={!!selectedClient && !selectedSite} transparent animationType="fade" onRequestClose={() => setSelectedClient(null)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxHeight: '86%', borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { height: '92%', maxHeight: '92%', borderTopLeftRadius: 22, borderTopRightRadius: 22, overflow: 'hidden' }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1, paddingRight: 10 }}>
             <Text style={{ color: MUTED, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>CLIENT</Text>
@@ -252,11 +382,46 @@ function MetraDirectoryScreen({ navigation, route }) {
           </View>
           <TouchableOpacity onPress={() => setSelectedClient(null)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: MUTED, fontSize: 19 }}>✕</Text></TouchableOpacity>
         </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, marginBottom: 8 }}>
-          <Text style={styles.sectionLabel}>{sites.length} site{sites.length > 1 ? 's' : ''}</Text>
-          {status.activated ? <TouchableOpacity disabled={clientRefreshing} onPress={() => refreshClientPreparation(selectedClient.remote_client_id)} style={{ paddingHorizontal: 8, paddingVertical: 6 }}><Text style={{ color: ACCENT, fontWeight: '800', fontSize: 12 }}>{clientRefreshing ? 'Actualisation…' : '↻ Actualiser'}</Text></TouchableOpacity> : null}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8, gap: 8 }}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.sectionLabel}>{sites.length} site{sites.length > 1 ? 's' : ''}</Text>
+            <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 2 }}>{siteSelectionMode ? `${selectedSiteIds.size} sélectionné${selectedSiteIds.size > 1 ? 's' : ''}` : 'Touchez un site pour consulter sa fiche, ou utilisez Sélectionner pour en importer plusieurs.'}</Text>
+          </View>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            {!siteSelectionMode && status.activated ? <TouchableOpacity disabled={clientRefreshing || batchImportBusy} onPress={() => refreshClientPreparation(selectedClient.remote_client_id)} style={{ paddingHorizontal: 8, paddingVertical: 7 }}><Text style={{ color: ACCENT, fontWeight: '800', fontSize: 12 }}>{clientRefreshing ? 'Actualisation…' : '↻ Actualiser'}</Text></TouchableOpacity> : null}
+            {sites.length ? <TouchableOpacity disabled={batchImportBusy} onPress={siteSelectionMode ? cancelSiteSelection : enterSiteSelection} style={{ paddingHorizontal: 9, paddingVertical: 7, borderRadius: 9, borderWidth: 1, borderColor: siteSelectionMode ? BORDER : ACCENT, backgroundColor: siteSelectionMode ? '#F7F8FA' : '#FFF7F1' }}><Text style={{ color: siteSelectionMode ? MUTED : ACCENT, fontWeight: '900', fontSize: 12 }}>{siteSelectionMode ? 'Annuler' : 'Sélectionner'}</Text></TouchableOpacity> : null}
+          </View>
         </View>
-        <FlatList data={sites} keyExtractor={(x) => `${x.remote_client_id}-${x.remote_site_id}`} renderItem={({ item }) => <DirectoryRow item={{ ...item, kind: 'site', client_nom: selectedClient?.nom, client_ville: selectedClient?.ville }} onPress={() => openSite(item, { keepClientSheet: true })} />} ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 22 }]}>Aucun site encore disponible dans la préparation de ce client.</Text>} />
+        {siteSelectionMode ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, backgroundColor: '#F8F9FB', borderWidth: 1, borderColor: '#ECEEF1', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 9 }}>
+          <TouchableOpacity disabled={batchImportBusy} onPress={toggleAllSites} style={{ paddingVertical: 5, paddingHorizontal: 4 }}><Text style={{ color: ACCENT, fontWeight: '900', fontSize: 12 }}>{selectedSiteIds.size === sites.length && sites.length ? 'Tout désélectionner' : 'Tout sélectionner'}</Text></TouchableOpacity>
+          <Text style={{ color: MUTED, fontSize: 11.5 }}>1, plusieurs ou tous les sites</Text>
+        </View> : null}
+        <FlatList
+          style={{ flex: 1 }}
+          contentContainerStyle={{ paddingBottom: siteSelectionMode ? 4 : 10 }}
+          data={sites}
+          initialNumToRender={14}
+          maxToRenderPerBatch={10}
+          updateCellsBatchingPeriod={24}
+          windowSize={7}
+          removeClippedSubviews={false}
+          keyExtractor={(x) => `${x.remote_client_id}-${x.remote_site_id}`}
+          keyboardShouldPersistTaps="handled"
+          renderItem={({ item }) => siteSelectionMode
+            ? <SiteSelectionRow item={{ ...item, client_ville: selectedClient?.ville }} selected={selectedSiteIds.has(String(item.remote_site_id))} disabled={batchImportBusy} onPress={() => toggleSiteSelection(item.remote_site_id)} />
+            : <DirectoryRow item={{ ...item, kind: 'site', client_nom: selectedClient?.nom, client_ville: selectedClient?.ville }} onPress={() => openSite(item, { keepClientSheet: true })} />}
+          ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 22 }]}>Aucun site encore disponible dans la préparation de ce client.</Text>}
+        />
+        {siteSelectionMode ? <View style={{ flexShrink: 0, borderTopWidth: 1, borderTopColor: '#EEF0F2', paddingTop: 11, marginTop: 4, backgroundColor: SURFACE }}>
+          {batchImportProgress ? <Text style={{ color: MUTED, fontSize: 11.5, textAlign: 'center', marginBottom: 8 }}>Import {batchImportProgress.current}/{batchImportProgress.total}{batchImportProgress.site ? ` · ${batchImportProgress.site}` : ''}</Text> : null}
+          <TouchableOpacity
+            disabled={batchImportBusy || selectedSiteIds.size === 0}
+            onPress={importSelectedSites}
+            style={[styles.btnPrimary, { flex: 0, minHeight: 48, alignItems: 'center', justifyContent: 'center', opacity: batchImportBusy || selectedSiteIds.size === 0 ? 0.5 : 1 }]}
+          >
+            {batchImportBusy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnPrimaryText}>Importer {selectedSiteIds.size || ''} site{selectedSiteIds.size > 1 ? 's' : ''} dans METRA</Text>}
+          </TouchableOpacity>
+        </View> : null}
       </View></View>
     </Modal>
 
@@ -298,9 +463,9 @@ function MetraDirectoryScreen({ navigation, route }) {
           <View style={{ alignItems: 'flex-end' }}><Text style={{ color: ACCENT, fontWeight: '900', fontSize: 12 }}>Préparer</Text><Text style={{ color: '#98A2B3', fontSize: 21, marginTop: 2 }}>›</Text></View>
         </TouchableOpacity>} ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 12 }]}>Le site peut déjà être ouvert dans METRA. Les installations apparaîtront après synchronisation de sa préparation.</Text>} />
         <TouchableOpacity style={[styles.btnSecondary, { marginTop: 16, minHeight: 48, alignItems: 'center', justifyContent: 'center' }]} disabled={siteActionBusy} onPress={() => openInMetra(selectedSite)}>
-          <Text style={styles.btnSecondaryText}>{siteActionBusy ? 'Ouverture…' : 'Ouvrir le patrimoine du site'}</Text>
+          <Text style={styles.btnSecondaryText}>{siteActionBusy ? 'Import en cours…' : 'Importer le site dans METRA'}</Text>
         </TouchableOpacity>
-        <Text style={{ color: MUTED, fontSize: 11.5, textAlign: 'center', marginTop: 8 }}>Patrimoine · visites · équipements · remarques · LAB</Text>
+        <Text style={{ color: MUTED, fontSize: 11.5, textAlign: 'center', marginTop: 8 }}>Patrimoine · dernière visite disponible · équipements · remarques · LAB</Text>
       </View></View>
     </Modal>
 

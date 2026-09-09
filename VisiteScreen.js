@@ -6,8 +6,6 @@ import { getVisite, getNote, upsertNote, getDb } from './db.js';
 import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { recalculerProgressionVisite } from './visitProgressDb.js';
-import { exporterEtPartager } from './excelExport.js';
-import { exporterRapportPreAllumage } from './preAllumageReportExporter.js';
 import { OptimizedRegulationPanel, prechargerRegulation, invaliderCacheRegulation } from './OptimizedRegulationPanel.js';
 import { OptimizedRelevesPanel } from './OptimizedRelevesPanel.js';
 import { OptimizedPhotoPanel } from './OptimizedPhotoPanel.js';
@@ -18,6 +16,8 @@ import { VmcCaissonManager, chargerCaissonsVmc } from './VmcCaissonManager.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+function chargerExcelExportModule(){return require('./excelExport.js');}
+function chargerPreAllumageReportModule(){return require('./preAllumageReportExporter.js');}
 const SPECIAL_PANEL_DEFAULTS = ['p-regulation', 'p-releves', 'p-equip', 'p-remarques', 'p-photos'];
 
 function VisiteScreen({ route, onBack }) {
@@ -219,7 +219,7 @@ function VisiteScreen({ route, onBack }) {
     try {
       Keyboard.dismiss();
       await attendre(180);
-      const resultat = await exporterEtPartager(visiteId);
+      const resultat = await chargerExcelExportModule().exporterEtPartager(visiteId);
       if (resultat?.stats?.reseauxSupplementaires > 0) {
         Alert.alert('Export complet', `${resultat.stats.reseauxSupplementaires} réseau(x) supplémentaire(s) ont été placés dans la feuille « RESEAUX COMPLEMENTAIRES » afin de ne perdre aucune donnée.`);
       }
@@ -234,7 +234,7 @@ function VisiteScreen({ route, onBack }) {
     try {
       Keyboard.dismiss();
       await attendre(120);
-      const resultat = await exporterRapportPreAllumage(visiteId, format);
+      const resultat = await chargerPreAllumageReportModule().exporterRapportPreAllumage(visiteId, format);
       if (!resultat?.annule) Alert.alert('Rapport Pré-allumage généré', `${resultat.nom} a été enregistré dans le dossier choisi.`);
     } catch (e) {
       Alert.alert('Génération impossible', String(e?.message || e));
