@@ -31,6 +31,32 @@ function canCarryField(trame, field) {
   return true;
 }
 
+function technicalControlKeys(trame) {
+  const keys = new Set();
+  // Dans l'ICPE, les contrôles du panneau Relevés portent aussi la mesure métier
+  // dans commentaire (pH, températures...). Cette valeur doit survivre au report.
+  if (trame.id !== DEFAULT_TRAME_ID) return keys;
+  const panelId = 'p-releves';
+  for (const [section, fields] of Object.entries(trame.ui?.panels?.[panelId] || {})) {
+    const code = sectionCode(panelId, section);
+    for (const field of fields || []) {
+      if (field?.type === 'controle' && field?.cle) keys.add(`${code}||${field.cle}`);
+    }
+  }
+  return keys;
+}
+
+async function isImportedHistoricalVisit(db, visiteId) {
+  const row = await db.getFirstAsync(
+    `SELECT id FROM provenances
+     WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony'
+       AND details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%'
+     ORDER BY importe_le DESC LIMIT 1`,
+    [visiteId]
+  );
+  return Boolean(row?.id);
+}
+
 async function copyReusableFields(db, visiteId, previousVisitId, trame) {
   const rows = await db.getAllAsync(
     `SELECT section_code,cle,valeur FROM champs_visite
@@ -80,6 +106,8 @@ async function copyReusableControls(db, visiteId, previousVisitId, trame) {
   // Les essais de Pré-allumage doivent être refaits à chaque visite.
   if (trame.id === 'pre_allumage') return 0;
 
+  const importedHistory = await isImportedHistoricalVisit(db, previousVisitId);
+  const technicalKeys = importedHistory ? technicalControlKeys(trame) : new Set();
   const rows = await db.getAllAsync(
     `SELECT section_code,cle,avis,commentaire FROM controles_visite
      WHERE visite_id=?
@@ -89,8 +117,14 @@ async function copyReusableControls(db, visiteId, previousVisitId, trame) {
   let copied = 0;
   for (const row of rows || []) {
     if (!row?.section_code || !row?.cle) continue;
+    const key = `${row.section_code}||${row.cle}`;
     const avis = clean(row.avis) || null;
-    const commentaire = clean(row.commentaire) || null;
+    const previousComment = clean(row.commentaire) || null;
+    // Une visite historique Intranet sert de photographie de départ : on reprend
+    // l'avis S/N.S/etc., mais pas son commentaire de conformité. Les mesures du
+    // panneau Relevés restent conservées car leur valeur métier est portée par
+    // commentaire dans le modèle Symfony.
+    const commentaire = importedHistory && !technicalKeys.has(key) ? null : previousComment;
     if (!avis && !commentaire) continue;
     const result = await db.runAsync(
       `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)
