@@ -29,7 +29,9 @@ Maintenir les trames METRA et leurs règles de saisie sans mélanger les domaine
 - Une visite n’affiche que les équipements compatibles avec sa trame.
 - Les avis disponibles sont `S`, `N.S`, `N.R`, `S.O`, `N.V`.
 - Un avis `S` doit également proposer un commentaire positif pertinent.
-- ICPE et VMC reprennent la dernière visite du même local/trame comme préremplissage modifiable, y compris avis, commentaires de contrôle, températures, réseaux et relevés.
+- ICPE et VMC reprennent les dernières valeurs connues du même local/trame comme préremplissage modifiable, y compris avis, commentaires de contrôle, températures, réseaux et relevés.
+- Dans la préparation Intranet, `visiteSourceId` est une provenance par critère et peut être plus ancien que `derniereVisite.id` ; il ne doit jamais être utilisé comme filtre d’inclusion du critère.
+- Les marqueurs de valeur vide Intranet, notamment `/`, restent vides et ne créent pas de faux éléments.
 - Pré-allumage ne reprend que les informations durables explicitement prévues et laisse ses contrôles/essais vides.
 - Une réserve, une photo ou une conclusion historique n’est jamais clonée automatiquement dans la nouvelle visite.
 - Les formats Excel officiels restent propres à chaque trame.
