@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   generate-lockfile:
-    if: github.event.head_commit.message != 'build: add reproducible npm lockfile'
+    if: ${{ github.event.head_commit.message != 'build: add reproducible npm lockfile' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
