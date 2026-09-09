@@ -29,6 +29,11 @@ Pour chaque PR :
 - création ICPE ;
 - création VMC ;
 - création Pré-allumage ;
+- reprise ICPE de la dernière visite du même local/trame : champs, S/N.S/N.R/S.O/N.V, commentaires, températures, réseaux et relevés ;
+- reprise VMC de la dernière visite du même local/trame : champs, nombre/noms des caissons et contrôles ;
+- Pré-allumage : reprise des informations durables seulement, contrôles/essais laissés vides ;
+- aucune duplication automatique des réserves, photos ou conclusions historiques dans la nouvelle visite ;
+- import Intranet : les marqueurs vides comme `/` ne doivent pas créer de faux réseaux ou de fausses valeurs ;
 - isolation des remarques et réserves ;
 - filtrage des équipements ;
 - import/export Excel ;

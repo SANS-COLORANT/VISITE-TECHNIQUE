@@ -3,8 +3,9 @@ import { createId } from './database/ids.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { dossierVisiteMetra, obtenirRacineMetra } from './metraStorage.js';
 import { importApiReferenceForVisit } from './apiVisitPreparationDb.js';
+import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
 
-/** Création d'une visite native de production. Aucune valeur technique supposée n'est injectée. */
+/** Création d'une visite native de production. Le préremplissage vient uniquement de l'historique réel du même local/trame. */
 export async function creerVisiteProduction({ siteId, technicien = null, mode = 'complete', trameId = DEFAULT_TRAME_ID, apiRemoteLocalId = null } = {}) {
   if (!siteId) throw new Error('Site requis pour créer une visite');
   const modeNormalise = mode === 'express' ? 'express' : 'complete';
@@ -22,7 +23,13 @@ export async function creerVisiteProduction({ siteId, technicien = null, mode = 
     await db.runAsync(`INSERT OR IGNORE INTO notes (visite_id, contenu) VALUES (?, '')`, [id]);
   });
 
-  if (apiRemoteLocalId) await importApiReferenceForVisit(id, apiRemoteLocalId);
+  if (apiRemoteLocalId) {
+    // Matérialiser d'abord la dernière visite réelle du local Intranet. Le
+    // préremplissage standard peut ensuite repartir de cette visite historique
+    // sans transformer la référence API en constat du jour.
+    await importLatestApiVisitForLocal(siteId, apiRemoteLocalId);
+    await importApiReferenceForVisit(id, apiRemoteLocalId);
+  }
 
   // Le stockage Android SAF peut être lent (lecture/création de plusieurs
   // dossiers). Il ne doit jamais retarder l'ouverture de la visite : la base

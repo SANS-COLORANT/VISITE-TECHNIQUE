@@ -46,9 +46,9 @@ async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
      WHERE v.id=?`, [visiteId]);
   if (!contexte) return;
 
-  // Une nouvelle visite reprend les éléments patrimoniaux et descriptifs de la
-  // dernière visite du même local/trame. Les avis, réserves et mesures du jour
-  // restent volontairement propres à la nouvelle visite.
+  // ICPE et VMC repartent des champs, avis et mesures de la dernière visite du
+  // même local/trame. Pré-allumage ne reprend que les informations durables et
+  // garde ses contrôles vides. Les réserves/photos historiques restent isolées.
   const carryForward = await carryForwardPreviousVisit(db, visiteId, contexte);
   contexte = carryForward?.contexte || contexte;
 
