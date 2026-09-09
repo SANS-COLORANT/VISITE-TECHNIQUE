@@ -32,7 +32,7 @@ function SiteSelectionRow({ item, selected, onPress, disabled }) {
     </View>
     <View style={{ flex: 1, paddingRight: 8 }}>
       <Text numberOfLines={1} style={{ color: INK, fontSize: 15, fontWeight: '900' }}>{item.nom}</Text>
-      <Text numberOfLines={1} style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>{[item.client_ville, item.derniere_visite_date ? `dernière visite ${String(item.derniere_visite_date).slice(0, 10)}` : null].filter(Boolean).join(' · ') || 'Site disponible'}</Text>
+      <Text numberOfLines={1} style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>{[item.client_ville, item.derniere_visite_date ? \`dernière visite \${String(item.derniere_visite_date).slice(0, 10)}\` : null].filter(Boolean).join(' · ') || 'Site disponible'}</Text>
       <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
         <SmallPill>{Number(item.local_count || 0)} installation{Number(item.local_count || 0) > 1 ? 's' : ''}</SmallPill>
         {labels.slice(0, 2).map((label) => <SmallPill key={label}>{label}</SmallPill>)}
@@ -126,11 +126,11 @@ if (!text.includes(functionsMarker)) {
       setBatchImportProgress(null);
 
       const lines = [
-        `${importedSites} site${importedSites > 1 ? 's' : ''} importé${importedSites > 1 ? 's' : ''} dans METRA.`,
-        `${importedVisits} dernière${importedVisits > 1 ? 's' : ''} visite${importedVisits > 1 ? 's' : ''} intégrée${importedVisits > 1 ? 's' : ''}.`,
+        \`\${importedSites} site\${importedSites > 1 ? 's' : ''} importé\${importedSites > 1 ? 's' : ''} dans METRA.\`,
+        \`\${importedVisits} dernière\${importedVisits > 1 ? 's' : ''} visite\${importedVisits > 1 ? 's' : ''} intégrée\${importedVisits > 1 ? 's' : ''}.\`,
       ];
-      if (errors.length) lines.push(`${errors.length} site${errors.length > 1 ? 's' : ''} en erreur.`);
-      Alert.alert(errors.length ? 'Import multiple terminé avec réserves' : 'Import multiple terminé', lines.join('\n'));
+      if (errors.length) lines.push(\`\${errors.length} site\${errors.length > 1 ? 's' : ''} en erreur.\`);
+      Alert.alert(errors.length ? 'Import multiple terminé avec réserves' : 'Import multiple terminé', lines.join('\\n'));
     } finally {
       setBatchImportBusy(false);
     }
@@ -153,11 +153,11 @@ const clientModalOld = `        <View style={{ flexDirection: 'row', justifyCont
           <Text style={styles.sectionLabel}>{sites.length} site{sites.length > 1 ? 's' : ''}</Text>
           {status.activated ? <TouchableOpacity disabled={clientRefreshing} onPress={() => refreshClientPreparation(selectedClient.remote_client_id)} style={{ paddingHorizontal: 8, paddingVertical: 6 }}><Text style={{ color: ACCENT, fontWeight: '800', fontSize: 12 }}>{clientRefreshing ? 'Actualisation…' : '↻ Actualiser'}</Text></TouchableOpacity> : null}
         </View>
-        <FlatList data={sites} keyExtractor={(x) => `${x.remote_client_id}-${x.remote_site_id}`} renderItem={({ item }) => <DirectoryRow item={{ ...item, kind: 'site', client_nom: selectedClient?.nom, client_ville: selectedClient?.ville }} onPress={() => openSite(item, { keepClientSheet: true })} />} ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 22 }]}>Aucun site encore disponible dans la préparation de ce client.</Text>} />`;
+        <FlatList data={sites} keyExtractor={(x) => \`\${x.remote_client_id}-\${x.remote_site_id}\`} renderItem={({ item }) => <DirectoryRow item={{ ...item, kind: 'site', client_nom: selectedClient?.nom, client_ville: selectedClient?.ville }} onPress={() => openSite(item, { keepClientSheet: true })} />} ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 22 }]}>Aucun site encore disponible dans la préparation de ce client.</Text>} />`;
 const clientModalNew = `        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8, gap: 8 }}>
           <View style={{ flex: 1 }}>
             <Text style={styles.sectionLabel}>{sites.length} site{sites.length > 1 ? 's' : ''}</Text>
-            <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 2 }}>{siteSelectionMode ? `${selectedSiteIds.size} sélectionné${selectedSiteIds.size > 1 ? 's' : ''}` : 'Ouvre un site ou sélectionne-en plusieurs pour les importer ensemble.'}</Text>
+            <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 2 }}>{siteSelectionMode ? \`\${selectedSiteIds.size} sélectionné\${selectedSiteIds.size > 1 ? 's' : ''}\` : 'Ouvre un site ou sélectionne-en plusieurs pour les importer ensemble.'}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
             {!siteSelectionMode && status.activated ? <TouchableOpacity disabled={clientRefreshing || batchImportBusy} onPress={() => refreshClientPreparation(selectedClient.remote_client_id)} style={{ paddingHorizontal: 8, paddingVertical: 7 }}><Text style={{ color: ACCENT, fontWeight: '800', fontSize: 12 }}>{clientRefreshing ? 'Actualisation…' : '↻ Actualiser'}</Text></TouchableOpacity> : null}
@@ -172,7 +172,7 @@ const clientModalNew = `        <View style={{ flexDirection: 'row', justifyCont
           style={{ flex: 1, minHeight: 0 }}
           contentContainerStyle={{ paddingBottom: 4 }}
           data={sites}
-          keyExtractor={(x) => `${x.remote_client_id}-${x.remote_site_id}`}
+          keyExtractor={(x) => \`\${x.remote_client_id}-\${x.remote_site_id}\`}
           initialNumToRender={10}
           maxToRenderPerBatch={10}
           windowSize={7}
@@ -183,7 +183,7 @@ const clientModalNew = `        <View style={{ flexDirection: 'row', justifyCont
           ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 22 }]}>Aucun site encore disponible dans la préparation de ce client.</Text>}
         />
         {siteSelectionMode ? <View style={{ flexShrink: 0, borderTopWidth: 1, borderTopColor: '#EEF0F2', paddingTop: 11, marginTop: 4, backgroundColor: SURFACE }}>
-          {batchImportProgress ? <Text style={{ color: MUTED, fontSize: 11.5, textAlign: 'center', marginBottom: 8 }}>Import {batchImportProgress.current}/{batchImportProgress.total}{batchImportProgress.site ? ` · ${batchImportProgress.site}` : ''}</Text> : null}
+          {batchImportProgress ? <Text style={{ color: MUTED, fontSize: 11.5, textAlign: 'center', marginBottom: 8 }}>Import {batchImportProgress.current}/{batchImportProgress.total}{batchImportProgress.site ? \` · \${batchImportProgress.site}\` : ''}</Text> : null}
           <TouchableOpacity
             disabled={batchImportBusy || selectedSiteIds.size === 0}
             onPress={importSelectedSites}
