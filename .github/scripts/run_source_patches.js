@@ -51,14 +51,18 @@ const JS_SYNTAX_FILES = [
   'MetraDirectoryScreen.js',
 ];
 
+function spawnNode(args, stdio = 'inherit') {
+  return spawnSync(process.execPath, args, {
+    cwd: ROOT,
+    stdio,
+    env: process.env,
+  });
+}
+
 function runNode(args, label) {
   const startedAt = Date.now();
   console.log(`\n[METRA prepare] ${label}`);
-  const result = spawnSync(process.execPath, args, {
-    cwd: ROOT,
-    stdio: 'inherit',
-    env: process.env,
-  });
+  const result = spawnNode(args, 'inherit');
   if (result.error) {
     console.error(`[METRA prepare] ${label} could not start: ${result.error.message}`);
     process.exit(1);
@@ -70,8 +74,20 @@ function runNode(args, label) {
   console.log(`[METRA prepare] ${label} OK (${Date.now() - startedAt} ms)`);
 }
 
-console.log('[METRA prepare] Applying source patches in the canonical order.');
-for (const [label, script] of PATCHES) runNode([script], `patch: ${label}`);
+function finalStateAlreadyPrepared() {
+  for (const [, script] of CONTRACT_CHECKS) {
+    const result = spawnNode([script], 'ignore');
+    if (result.error || result.status !== 0) return false;
+  }
+  return true;
+}
+
+if (finalStateAlreadyPrepared()) {
+  console.log('[METRA prepare] Final prepared state already detected; source patches are skipped.');
+} else {
+  console.log('[METRA prepare] Applying source patches in the canonical order.');
+  for (const [label, script] of PATCHES) runNode([script], `patch: ${label}`);
+}
 
 console.log('\n[METRA prepare] Validating patch contracts.');
 for (const [label, script] of CONTRACT_CHECKS) runNode([script], `contract: ${label}`);
