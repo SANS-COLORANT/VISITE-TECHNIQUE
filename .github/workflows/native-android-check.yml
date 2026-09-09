@@ -117,7 +117,8 @@ jobs:
           cache: npm
           cache-dependency-path: package-lock.json
 
-      - name: Setup Java
+      - name: Setup Java for PR native validation
+        if: github.event_name == 'pull_request'
         uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -159,7 +160,8 @@ jobs:
           node --check HomeScreen.js
           node --check App.js
 
-      - name: Validate native DPoP prebuild
+      - name: Validate native DPoP prebuild on PR
+        if: github.event_name == 'pull_request'
         run: |
           npx expo prebuild --clean --platform android --no-install
           test -s android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
@@ -170,14 +172,21 @@ jobs:
           grep -q "import com.metra.dpop.MetraDpopPackage" "$MAIN_APPLICATION"
           grep -q "MetraDpopPackage()" "$MAIN_APPLICATION"
 
-      - name: Configure Gradle memory
+      - name: Configure Gradle memory for PR
+        if: github.event_name == 'pull_request'
         working-directory: android
         run: |
           printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\n' >> gradle.properties
 
-      - name: Compile native Android bridge
+      - name: Compile native Android bridge on PR
+        if: github.event_name == 'pull_request'
         working-directory: android
         run: ./gradlew :app:compileDebugKotlin --no-daemon --max-workers=2
 
-      - name: Validate JavaScript bundle
+      - name: Validate JavaScript bundle on PR
+        if: github.event_name == 'pull_request'
         run: npx expo export --platform android --output-dir dist-check
+
+      - name: Explain push validation scope
+        if: github.event_name == 'push'
+        run: echo "Native compilation/export are intentionally skipped here because the push-triggered APK workflow performs the full Expo prebuild and Gradle debug/release builds on the same commit."
