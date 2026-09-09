@@ -5,6 +5,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 
 const CONTRACT_CHECKS = [
   ['latest API visit runtime contract', '.github/scripts/check_api_latest_visit_runtime.js'],
+  ['visit carry-forward contract', '.github/scripts/check_visit_carry_forward_contract.js'],
   ['large-client performance contract', '.github/scripts/check_large_client_performance.js'],
   ['runtime responsiveness v3 contract', '.github/scripts/check_runtime_responsiveness_v3.js'],
   ['startup dependency graph contract', '.github/scripts/check_startup_dependency_graph.js'],
@@ -25,6 +26,8 @@ const JS_SYNTAX_FILES = [
   'SiteOverviewPanel.js',
   'VisiteScreen.js',
   'visitPrefillDb.js',
+  'visitCarryForwardDb.js',
+  'visitCreationDb.js',
   'ClientMapScreen.js',
   'EquipmentCatalogueBrowser.js',
   'ClientPilotageScreen.js',
