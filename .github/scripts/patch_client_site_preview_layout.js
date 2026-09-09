@@ -3,11 +3,13 @@ const fs = require('fs');
 const path = 'MetraDirectoryScreen.js';
 let text = fs.readFileSync(path, 'utf8');
 
-const clientModalAnchor = "<Modal visible={!!selectedClient && !selectedSite} transparent animationType=\"fade\" onRequestClose={() => setSelectedClient(null)}>\n      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxHeight: '86%', borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>";
-const clientModalFixed = "<Modal visible={!!selectedClient && !selectedSite} transparent animationType=\"fade\" onRequestClose={() => setSelectedClient(null)}>\n      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { height: '86%', maxHeight: '86%', minHeight: 420, borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>";
-if (!text.includes("height: '86%', maxHeight: '86%', minHeight: 420")) {
-  if (!text.includes(clientModalAnchor)) throw new Error('Client modal sheet anchor not found');
-  text = text.replace(clientModalAnchor, clientModalFixed);
+// Le patch multi-sites place désormais la fenêtre client à 92 % de la hauteur.
+// Conserver ce format plein écran au lieu de réappliquer l'ancien gabarit 86 %.
+const clientModalOld = "<Modal visible={!!selectedClient && !selectedSite} transparent animationType=\"fade\" onRequestClose={() => setSelectedClient(null)}>\n      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxHeight: '86%', borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>";
+const clientModalFull = "<Modal visible={!!selectedClient && !selectedSite} transparent animationType=\"fade\" onRequestClose={() => setSelectedClient(null)}>\n      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { height: '92%', maxHeight: '92%', borderTopLeftRadius: 22, borderTopRightRadius: 22, overflow: 'hidden' }]}>";
+if (!text.includes("height: '92%', maxHeight: '92%'")) {
+  if (!text.includes(clientModalOld)) throw new Error('Client modal sheet anchor not found');
+  text = text.replace(clientModalOld, clientModalFull);
 }
 
 const selectionMarker = '1, plusieurs ou tous les sites';
@@ -20,29 +22,25 @@ const listEnd = text.indexOf('        />', listStart);
 if (listEnd < 0) throw new Error('Client site list end not found');
 let list = text.slice(listStart, listEnd + '        />'.length);
 
-if (!list.includes('minHeight: 220, maxHeight: 440')) {
-  if (list.includes('          style={{ flex: 1 }}\n')) {
-    list = list.replace(
-      '          style={{ flex: 1 }}\n',
-      '          style={{ flexGrow: 0, flexShrink: 1, minHeight: 220, maxHeight: 440 }}\n'
-    );
+// La liste doit absorber tout l'espace restant de la fenêtre. Les limites fixes
+// (220/440 px) créaient justement la grande zone blanche observée sur tablette.
+if (!list.includes('          style={{ flex: 1 }}\n')) {
+  if (/          style=\{\{[^\n]+\}\}\n/.test(list)) {
+    list = list.replace(/          style=\{\{[^\n]+\}\}\n/, '          style={{ flex: 1 }}\n');
   } else {
-    list = list.replace(
-      '        <FlatList\n',
-      '        <FlatList\n          style={{ flexGrow: 0, flexShrink: 1, minHeight: 220, maxHeight: 440 }}\n'
-    );
+    list = list.replace('        <FlatList\n', '        <FlatList\n          style={{ flex: 1 }}\n');
   }
-  if (!list.includes('contentContainerStyle={{ paddingBottom: siteSelectionMode ? 4 : 10 }}')) {
-    list = list.replace(
-      /          style=\{\{[^\n]+\}\}\n/,
-      (m) => `${m}          contentContainerStyle={{ paddingBottom: siteSelectionMode ? 4 : 10 }}\n`
-    );
-  }
-  if (!list.includes('keyboardShouldPersistTaps="handled"')) {
-    list = list.replace('          data={sites}\n', '          keyboardShouldPersistTaps="handled"\n          data={sites}\n');
-  }
-  text = text.slice(0, listStart) + list + text.slice(listEnd + '        />'.length);
 }
+if (!list.includes('contentContainerStyle={{ paddingBottom: siteSelectionMode ? 4 : 10 }}')) {
+  list = list.replace(
+    '          style={{ flex: 1 }}\n',
+    '          style={{ flex: 1 }}\n          contentContainerStyle={{ paddingBottom: siteSelectionMode ? 4 : 10 }}\n'
+  );
+}
+if (!list.includes('keyboardShouldPersistTaps="handled"')) {
+  list = list.replace('          data={sites}\n', '          keyboardShouldPersistTaps="handled"\n          data={sites}\n');
+}
+text = text.slice(0, listStart) + list + text.slice(listEnd + '        />'.length);
 
 text = text.replace(
   "'Ouvre un site ou sélectionne-en plusieurs pour les importer ensemble.'",
@@ -50,4 +48,4 @@ text = text.replace(
 );
 
 fs.writeFileSync(path, text);
-console.log('Client site preview restored: the site list keeps a visible, scrollable area in browse and multi-select modes.');
+console.log('Client site preview preserved with full-height modal, flexible scrollable list and sticky import footer.');
