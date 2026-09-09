@@ -13,9 +13,11 @@ import { SiteRadialActionMenu } from './SiteRadialActionMenu.js';
 
 const adresseVide = () => ({ numero: '', voie: '', complement: '', codePostal: '', ville: '' });
 
+const CLIENT_SITES_FAST_CACHE = new Map();
+
 function ClientSitesScreen({ route, navigation }) {
   const { clientId, nomClient } = route?.params || {};
-  const [sites, setSites] = useState([]);
+  const [sites, setSites] = useState(() => CLIENT_SITES_FAST_CACHE.get(String(clientId || '')) || []);
   const [modalVisible, setModalVisible] = useState(false);
   const [groupesVisible, setGroupesVisible] = useState(false);
   const [radialMenu, setRadialMenu] = useState(null);
@@ -27,8 +29,10 @@ function ClientSitesScreen({ route, navigation }) {
   const charger = useCallback(async () => {
     if (!clientId) { setSites([]); return []; }
     const liste = await listerSitesClient(clientId);
-    setSites(Array.isArray(liste) ? liste : []);
-    return liste;
+    const normalisee = Array.isArray(liste) ? liste : [];
+    CLIENT_SITES_FAST_CACHE.set(String(clientId), normalisee);
+    setSites(normalisee);
+    return normalisee;
   }, [clientId]);
 
   useEffect(() => {
@@ -109,8 +113,15 @@ function ClientSitesScreen({ route, navigation }) {
 
   return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
     <FlatList
-      contentContainerStyle={styles.content}
+      style={{ flex: 1 }}
+      contentContainerStyle={[styles.content, { paddingBottom: 34 }]}
       data={sites}
+      initialNumToRender={16}
+      maxToRenderPerBatch={12}
+      updateCellsBatchingPeriod={24}
+      windowSize={7}
+      removeClippedSubviews={false}
+      keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.id}
       ListHeaderComponent={<View>
         <Text style={styles.sectionLabel}>Patrimoine client</Text>

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { buildMatrixCells, getClientTechnicalMatrix, getMatrixCellPhotos, normAvis } from './clientTechnicalMatrix.js';
-import { getStatsSitePatrimoine } from './patrimoineDb.js';
+import { getStatsSitesPatrimoine } from './patrimoineDb.js';
 import { listerAppartenancesClient, listerGroupesClient } from './siteOrganizationDb.js';
 import { reserveSeverityLabel } from './reserveSeverity.js';
 import { exporterPilotageExcel, PILOTAGE_DEFAULT_COLUMNS, PILOTAGE_EXPORT_COLUMNS, PILOTAGE_EXPORT_PRESETS } from './clientTechnicalMatrixExport.js';
@@ -25,6 +25,14 @@ const STATUS_OPTIONS = [
 
 function issueKey(issue) { return issue?.remarque_id || `${issue?.visit_id || issue?.id}||${issue?.section_code || ''}||${issue?.cle || ''}`; }
 function normalize(value = '') { return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); }
+
+async function mapAvecConcurrence(items, limite, worker) {
+  const resultats = new Array(items.length); let curseur = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, limite), items.length) }, async () => {
+    while (true) { const index = curseur++; if (index >= items.length) return; resultats[index] = await worker(items[index], index); }
+  });
+  await Promise.all(workers); return resultats;
+}
 
 function Cell({ cell, onPress }) {
   const p = STATE[cell.state] || STATE.none;
@@ -81,8 +89,7 @@ export function ClientPilotageScreen({ route, navigation }) {
         listerGroupesClient(clientId),
         listerAppartenancesClient(clientId),
       ]);
-      const nextStats = new Map();
-      for (const site of m?.sites || []) nextStats.set(site.id, await getStatsSitePatrimoine(site.id));
+      const nextStats = await getStatsSitesPatrimoine(clientId);
       setMatrix(m);
       setGroupes(gs || []);
       setMemberships(ms || []);
@@ -157,9 +164,8 @@ export function ClientPilotageScreen({ route, navigation }) {
 
   const openCell = async (site, category, cell) => {
     setSelected({ site, category, cell });
-    const map = {};
-    for (const issue of cell.issues || []) map[issueKey(issue)] = await getMatrixCellPhotos(issue);
-    setPhotos(map);
+    const entries = await mapAvecConcurrence(cell.issues || [], 4, async (issue) => [issueKey(issue), await getMatrixCellPhotos(issue)]);
+    setPhotos(Object.fromEntries(entries));
   };
 
   const activeFilterCount = useMemo(() => [filters.trame !== 'all', filters.status !== 'all', filters.minSeverity > 0, filters.category !== 'all', !!filters.search.trim()].filter(Boolean).length, [filters]);

@@ -2,7 +2,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Text, TouchableOpacity, View } from 'react-native';
 import { listerSitesClient } from './db.js';
-import { getStatsClientPatrimoine, getStatsSitePatrimoine } from './patrimoineDb.js';
+import { getStatsSitesPatrimoine } from './patrimoineDb.js';
 import { getLabFeatureEnabled } from './featureSettings.js';
 import { HEALTH_DIMENSIONS, getClientHealth } from './siteHealth.js';
 import { COLORS, styles } from './styles.js';
@@ -43,17 +43,23 @@ export function ClientPatrimoineScreen({ route, navigation }) {
   const charger = useCallback(async () => {
     setLoading(true);
     try {
-      const [liste, resumeClient, enabled] = await Promise.all([
+      const [liste, statsBySite, enabled] = await Promise.all([
         listerSitesClient(clientId),
-        getStatsClientPatrimoine(clientId),
+        getStatsSitesPatrimoine(clientId),
         getLabFeatureEnabled('health_dashboard'),
       ]);
-      const lignes = [];
-      for (const site of liste) lignes.push({ ...site, stats: await getStatsSitePatrimoine(site.id) });
+      const lignes = (liste || []).map((site) => ({ ...site, stats: statsBySite.get(site.id) || { reserves: {}, equipements: {} } }));
+      const resumeClient = { sites: lignes.length, reserves: { total: 0, ouvertes: 0, levees: 0 }, equipements: { total: 0, actifs: 0, remplaces: 0 } };
+      for (const site of lignes) {
+        const r = site.stats?.reserves || {}, e = site.stats?.equipements || {};
+        resumeClient.reserves.total += Number(r.total || 0); resumeClient.reserves.ouvertes += Number(r.ouvertes || 0); resumeClient.reserves.levees += Number(r.levees || 0);
+        resumeClient.equipements.total += Number(e.total || 0); resumeClient.equipements.actifs += Number(e.actifs || 0); resumeClient.equipements.remplaces += Number(e.remplaces || 0);
+      }
       setResume(resumeClient);
       setSites(lignes);
       setHealthEnabled(enabled);
-      setClientHealth(enabled ? await getClientHealth(clientId) : null);
+      setLoading(false);
+      setClientHealth(enabled ? await getClientHealth(clientId, statsBySite) : null);
     } finally { setLoading(false); }
   }, [clientId]);
 
@@ -67,9 +73,15 @@ export function ClientPatrimoineScreen({ route, navigation }) {
   if (loading) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={COLORS.orange} size="large"/><Text style={{ color: COLORS.muted, marginTop: 10 }}>Calcul de la synthèse locale…</Text></View>;
 
   return <FlatList
+    style={{ flex: 1 }}
     data={sites}
     keyExtractor={(item) => item.id}
-    contentContainerStyle={styles.content}
+    initialNumToRender={12}
+    maxToRenderPerBatch={10}
+    updateCellsBatchingPeriod={24}
+    windowSize={7}
+    removeClippedSubviews={false}
+    contentContainerStyle={[styles.content, { paddingBottom: 34 }]}
     ListHeaderComponent={<View>
       <Text style={styles.sectionTitle}>{healthEnabled ? 'Santé du patrimoine' : 'Synthèse patrimoine'}</Text>
       <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 14 }}>{nomClient || 'Client'} · données calculées localement sur la tablette</Text>

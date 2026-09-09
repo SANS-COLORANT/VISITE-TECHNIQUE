@@ -138,6 +138,17 @@ export async function initialiserArborescenceClient(clientId) {
   return { client: client.nom, sites: sites.length };
 }
 
+export async function dossierRapportsClientMetra(clientNom) {
+  return garantirCheminMetra(['Clients', nettoyerSegment(clientNom, 'Client'), 'Rapports']);
+}
+
+export async function dossierRapportsSiteMetra({ clientNom, siteNom }) {
+  return garantirCheminMetra([
+    'Clients', nettoyerSegment(clientNom, 'Client'),
+    'Rapports', nettoyerSegment(siteNom, 'Site'),
+  ]);
+}
+
 export async function dossierRapportMetra(datas = []) {
   const premiere = datas?.[0]?.visite;
   if (!premiere) return garantirCheminMetra(['Exports']);

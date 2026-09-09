@@ -141,7 +141,8 @@ function ClientMapScreen({ route, navigation }) {
       try {
         if (!actif) return;
         await charger();
-        const r = await synchroniserCoordonneesClient(clientId);
+        await new Promise((resolve) => setTimeout(resolve, 180));
+        const r = await synchroniserCoordonneesClient(clientId, { max: 12 });
         if (!actif) return;
         if (r.positionnes) await charger();
       } catch {
@@ -301,6 +302,7 @@ function ClientMapScreen({ route, navigation }) {
               {positionnes.map((site) => (
                 <Marker
                   key={site.id}
+                  tracksViewChanges={false}
                   coordinate={{ latitude: Number(site.latitude), longitude: Number(site.longitude) }}
                   title={site.nom_site || 'Site'}
                   description={site.adresse || ''}

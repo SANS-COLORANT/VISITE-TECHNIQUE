@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { exporterDernieresVisitesClient } from './clientBatchExport.js';
-import { garantirRacineMetra, initialiserArborescenceClient, obtenirRacineMetra } from './metraStorage.js';
+import { garantirRacineMetra, obtenirRacineMetra } from './metraStorage.js';
 
 function ActionCard({ title, text, action, secondary = false, disabled = false }) {
   return <View style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, padding: 14, marginBottom: 10 }}><Text style={{ fontSize: 15, fontWeight: '900', color: COLORS.ink }}>{title}</Text><Text style={{ marginTop: 5, color: COLORS.muted, fontSize: 11.5, lineHeight: 17 }}>{text}</Text><TouchableOpacity disabled={disabled} onPress={action} style={[secondary ? styles.btnSecondary : styles.btnPrimary, { marginTop: 12 }, disabled && { opacity: 0.45 }]}><Text style={secondary ? styles.btnSecondaryText : styles.btnPrimaryText}>{title}</Text></TouchableOpacity></View>;
@@ -25,9 +25,6 @@ export function ClientDocumentsScreen({ route, navigation }) {
         Alert.alert('Stockage METRA', "L'autorisation du dossier Documents est nécessaire une seule fois pour classer automatiquement les fichiers.");
         return null;
       }
-      // Matérialise immédiatement l'arborescence des clients/sites/visites
-      // existants. Les prochaines visites créeront leur dossier à la création.
-      await initialiserArborescenceClient(clientId);
       return uri;
     } catch (e) {
       Alert.alert('Stockage METRA', String(e?.message || e));
@@ -36,21 +33,19 @@ export function ClientDocumentsScreen({ route, navigation }) {
   };
 
   const garantirStockageClient = async () => {
-    if (!racine) return preparerStockage();
+    // Ne jamais matérialiser ici les centaines de dossiers du client :
+    // les chemins Site/Visite sont créés paresseusement au moment de l'export.
     try {
       setBusy(true);
-      await initialiserArborescenceClient(clientId);
-      return racine;
-    } catch (e) {
-      // Une autorisation SAF peut avoir été révoquée par Android. Le service
-      // central la redemandera proprement au prochain passage si nécessaire.
+      const uri = await garantirRacineMetra();
+      setRacine(uri);
+      return uri;
+    } catch {
       return preparerStockage();
     } finally { setBusy(false); }
   };
 
-  const ouvrirRapports = async () => {
-    const uri = await garantirStockageClient();
-    if (!uri) return;
+  const ouvrirRapports = () => {
     navigation.navigate('Report', { clientId });
   };
 
@@ -75,11 +70,11 @@ export function ClientDocumentsScreen({ route, navigation }) {
 
     <View style={{ padding: 12, borderRadius: 12, backgroundColor: racine ? '#EEF8F1' : '#FFF8E7', borderWidth: 1, borderColor: racine ? '#B7DEC2' : '#F0D99B', marginBottom: 14 }}>
       <Text style={{ fontWeight: '900', color: racine ? '#1E6A36' : '#7A5700' }}>{racine ? '✓ Classement automatique actif' : 'Classement automatique à autoriser'}</Text>
-      <Text style={{ marginTop: 4, fontSize: 11, color: COLORS.muted }}>{racine ? 'Photos, PDF, Word et Excel sont rangés dans Documents/METRA selon Client → Site → Visite.' : "Android demandera une seule fois l'accès au dossier Documents. Ensuite METRA crée et utilise automatiquement toute l'arborescence."}</Text>
+      <Text style={{ marginTop: 4, fontSize: 11, color: COLORS.muted }}>{racine ? 'Les dossiers de rapport sont créés uniquement au moment de l’export, pour les sites réellement sélectionnés.' : "Android demandera une seule fois l'accès au dossier Documents. Aucun dossier de site n'est créé avant ton choix d'export."}</Text>
       {!racine ? <TouchableOpacity disabled={busy} style={[styles.btnSecondary, { marginTop: 9 }]} onPress={preparerStockage}><Text style={styles.btnSecondaryText}>Autoriser Documents/METRA</Text></TouchableOpacity> : null}
     </View>
 
-    <ActionCard disabled={busy} title="Créer un rapport PDF / Word" text="Choisir les dernières visites, le contenu, les photos et le format. Les fichiers générés sont ensuite classés automatiquement dans le dossier du client ou de la visite." action={ouvrirRapports} />
+    <ActionCard disabled={busy} title="Créer un rapport PDF / Word" text="Sélectionner d’abord les sites, puis choisir un document unique au nom du client ou un PDF par site. Les dossiers ne sont créés qu’au moment de la génération." action={ouvrirRapports} />
     <ActionCard disabled={busy} secondary title="Exporter les dernières visites en Excel" text="Un fichier Excel par dernière visite, classé automatiquement par client, site et visite pour transmission ou traitement." action={exporterExcel} />
 
     {busy ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}><ActivityIndicator color={COLORS.orange}/><Text style={{ color: COLORS.muted }}>Traitement en cours…</Text></View> : null}

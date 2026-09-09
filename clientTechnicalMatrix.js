@@ -126,11 +126,22 @@ export async function getClientTechnicalMatrix(clientId) {
   }
 
   const rows = [];
-  for (const visit of latest.values()) {
-    const [controls, remarks] = await Promise.all([
-      db.getAllAsync(`SELECT section_code,cle,avis,commentaire FROM controles_visite WHERE visite_id=? ORDER BY section_code,cle`, [visit.id]),
-      db.getAllAsync(`SELECT id remarque_id,controle_key,poste,prestation,delai,estimatif,origine,reference_type,reference_id,reference_libelle,COALESCE(criticite,2) criticite,COALESCE(criticite_defaut,2) criticite_defaut,COALESCE(criticite_modifiee,0) criticite_modifiee,cree_le FROM remarques WHERE visite_id=? ORDER BY criticite DESC,cree_le,id`, [visit.id]),
+  const latestVisits = [...latest.values()];
+  const controlsByVisit = new Map();
+  const remarksByVisit = new Map();
+  const ids = latestVisits.map((visit) => visit.id);
+  if (ids.length) {
+    const placeholders = ids.map(() => '?').join(',');
+    const [allControls, allRemarks] = await Promise.all([
+      db.getAllAsync(`SELECT visite_id,section_code,cle,avis,commentaire FROM controles_visite WHERE visite_id IN (${placeholders}) ORDER BY visite_id,section_code,cle`, ids),
+      db.getAllAsync(`SELECT visite_id,id remarque_id,controle_key,poste,prestation,delai,estimatif,origine,reference_type,reference_id,reference_libelle,COALESCE(criticite,2) criticite,COALESCE(criticite_defaut,2) criticite_defaut,COALESCE(criticite_modifiee,0) criticite_modifiee,cree_le FROM remarques WHERE visite_id IN (${placeholders}) ORDER BY visite_id,criticite DESC,cree_le,id`, ids),
     ]);
+    for (const row of allControls || []) { if (!controlsByVisit.has(row.visite_id)) controlsByVisit.set(row.visite_id, []); controlsByVisit.get(row.visite_id).push(row); }
+    for (const row of allRemarks || []) { if (!remarksByVisit.has(row.visite_id)) remarksByVisit.set(row.visite_id, []); remarksByVisit.get(row.visite_id).push(row); }
+  }
+  for (const visit of latestVisits) {
+    const controls = controlsByVisit.get(visit.id) || [];
+    const remarks = remarksByVisit.get(visit.id) || [];
 
     const byControl = new Map();
     for (const remark of remarks || []) {

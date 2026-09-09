@@ -66,7 +66,7 @@ export function SiteOverviewPanel({ siteId, mode }) {
       }
       setStatsSite(await getStatsSitePatrimoine(siteId));
     } finally { setLoading(false); }
-  }, [siteId, mode, sousMenu, visiteDebut, visiteFin]);
+  }, [siteId, mode, sousMenu]);
 
   useEffect(() => { charger(); }, [charger]);
 

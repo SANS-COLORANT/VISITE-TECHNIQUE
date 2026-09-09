@@ -5,6 +5,7 @@ import { Asset } from 'expo-asset';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { construireHtmlRapport } from './reportBuilder.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
+import { dossierRapportsClientMetra, dossierRapportsSiteMetra } from './metraStorage.js';
 
 const MIME_PDF = 'application/pdf';
 const MIME_WORD = 'application/msword';
@@ -393,7 +394,10 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
 }
 
 async function exporterUnFormatEdite({ datas, config, photosConfig, format, dossier }) {
-  const base = propre(`${config.chrono || 'Rapport'}_${datas.length === 1 ? datas[0].visite.nom_site : datas[0].visite.nom_client}_${config.objet || 'CRV'}`);
+  const clientNom = datas[0]?.visite?.nom_client || 'Rapport';
+  const base = propre(datas.length > 1
+    ? `${clientNom}_${config.chrono || 'Rapport'}_${config.objet || 'CRV'}`
+    : `${config.chrono || 'Rapport'}_${datas[0]?.visite?.nom_site || clientNom}_${config.objet || 'CRV'}`);
   const sites = [...new Set(datas.map((d) => d.visite.nom_site).filter(Boolean))];
   const siteFooter = sites.length === 1 ? sites[0] : `${sites.length} sites sélectionnés`;
   const clientCover = datas[0]?.visite?.nom_client || 'Rapport';
@@ -417,14 +421,16 @@ async function exporterUnFormatEdite({ datas, config, photosConfig, format, doss
 }
 
 export async function exporterRapportEdite({ datas, config, photosConfig, format = 'pdf', dossierUri = null }) {
-  const dossier = dossierUri || await choisirDossier();
+  const clientNom = datas?.[0]?.visite?.nom_client || null;
+  const dossier = dossierUri || (clientNom ? await dossierRapportsClientMetra(clientNom) : await choisirDossier());
   if (!dossier) return { annule: true };
   return { annule: false, ...(await exporterUnFormatEdite({ datas, config, photosConfig, format, dossier })) };
 }
 
-export async function exporterRapportsParSiteEdites({ datas, config, photosConfig, format = 'pdf' }) {
-  const dossier = await choisirDossier();
-  if (!dossier) return { annule: true, resultats: [] };
+export async function exporterRapportsParSiteEdites({ datas, config, photosConfig, format = 'pdf', dossiersParSite = true }) {
+  const clientNom = datas?.[0]?.visite?.nom_client || null;
+  const dossierClient = clientNom ? await dossierRapportsClientMetra(clientNom) : await choisirDossier();
+  if (!dossierClient) return { annule: true, resultats: [] };
   const groupes = new Map();
   for (const data of datas) {
     const key = data.visite.site_id || data.visite.nom_site || data.visite.id;
@@ -437,7 +443,13 @@ export async function exporterRapportsParSiteEdites({ datas, config, photosConfi
     const siteConfig = config.coverVisiteId && config.coverVisiteId !== visiteId
       ? { ...config, coverUri: null, coverLabel: 'Image standard METRA', coverVisiteId: null }
       : config;
-    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossier }));
+    const siteNom = siteDatas[0]?.visite?.nom_site || 'Site';
+    const dossierSite = dossiersParSite === false || !clientNom
+      ? dossierClient
+      : await dossierRapportsSiteMetra({ clientNom, siteNom });
+    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossierSite }));
   }
   return { annule: false, resultats };
 }
+
+// METRA storage compatibility: dossierUri || await choisirDossier(datas);

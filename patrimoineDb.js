@@ -37,6 +37,42 @@ export async function synchroniserReservesSite(siteId) {
   }
 }
 
+async function synchroniserReservesClient(clientId) {
+  const base = await db();
+  const sources = await base.getAllAsync(
+    `SELECT r.id,r.visite_id,r.poste,r.prestation,r.cree_le,v.date_visite,v.site_id
+     FROM remarques r
+     JOIN visites v ON v.id=r.visite_id
+     JOIN sites s ON s.id=v.site_id
+     WHERE s.client_id=?
+       AND NOT EXISTS(SELECT 1 FROM reserves_suivi rs WHERE rs.source_remarque_id=r.id)
+     ORDER BY v.site_id,COALESCE(v.date_visite,''),r.cree_le,r.id`,
+    [clientId]
+  );
+  if (!sources.length) return;
+  await base.withTransactionAsync(async () => {
+    for (const r of sources) {
+      const reserveId = createId();
+      const date = r.date_visite || r.cree_le || maintenant();
+      await base.runAsync(
+        `INSERT OR IGNORE INTO reserves_suivi
+         (id,site_id,source_visite_id,source_remarque_id,poste,prestation,statut,cree_le,modifie_le)
+         VALUES(?,?,?,?,?,?,'ouverte',?,?)`,
+        [reserveId, r.site_id, r.visite_id, r.id, r.poste || 'Observation', r.prestation || '', date, maintenant()]
+      );
+      const creee = await base.getFirstAsync(`SELECT id FROM reserves_suivi WHERE source_remarque_id=?`, [r.id]);
+      if (creee?.id === reserveId) {
+        await base.runAsync(
+          `INSERT INTO historique_reserves
+           (id,reserve_id,type_evenement,date_evenement,nouveau_statut,commentaire,source_visite_id)
+           VALUES(?,?, 'creation', ?, 'ouverte', ?, ?)`,
+          [createId(), reserveId, date, 'Créée depuis une réserve de visite', r.visite_id]
+        );
+      }
+    }
+  });
+}
+
 export async function listerReservesSite(siteId, options = {}) {
   await synchroniserReservesSite(siteId);
   const base = await db();
@@ -261,25 +297,55 @@ export async function getStatsSitePatrimoine(siteId) {
   };
 }
 
-export async function getStatsClientPatrimoine(clientId) {
+export async function getStatsSitesPatrimoine(clientId) {
+  await synchroniserReservesClient(clientId);
   const base = await db();
-  const sites = await base.getAllAsync(`SELECT id FROM sites WHERE client_id=?`, [clientId]);
-  for (const s of sites) await synchroniserReservesSite(s.id);
-  const r = await base.getFirstAsync(
-    `SELECT COUNT(*) AS total,
+  const [sites, reserves, equipements] = await Promise.all([
+    base.getAllAsync(`SELECT id FROM sites WHERE client_id=?`, [clientId]),
+    base.getAllAsync(`SELECT r.site_id,COUNT(*) AS total,
       SUM(CASE WHEN r.statut='ouverte' THEN 1 ELSE 0 END) AS ouvertes,
       SUM(CASE WHEN r.statut='levee' THEN 1 ELSE 0 END) AS levees
-     FROM reserves_suivi r JOIN sites s ON s.id=r.site_id WHERE s.client_id=?`, [clientId]
-  );
-  const e = await base.getFirstAsync(
-    `SELECT COUNT(*) AS total,
+      FROM reserves_suivi r JOIN sites s ON s.id=r.site_id
+      WHERE s.client_id=? GROUP BY r.site_id`, [clientId]),
+    base.getAllAsync(`SELECT i.site_id,COUNT(*) AS total,
       SUM(CASE WHEN e.statut='actif' THEN 1 ELSE 0 END) AS actifs,
-      SUM(CASE WHEN e.statut='remplace' THEN 1 ELSE 0 END) AS remplaces
-     FROM equipements e JOIN installations i ON i.id=e.installation_id JOIN sites s ON s.id=i.site_id WHERE s.client_id=?`, [clientId]
-  );
-  return {
-    sites: sites.length,
-    reserves: { total: Number(r?.total || 0), ouvertes: Number(r?.ouvertes || 0), levees: Number(r?.levees || 0) },
-    equipements: { total: Number(e?.total || 0), actifs: Number(e?.actifs || 0), remplaces: Number(e?.remplaces || 0) },
+      SUM(CASE WHEN e.statut='remplace' THEN 1 ELSE 0 END) AS remplaces,
+      SUM(CASE WHEN COALESCE(
+        (SELECT h.etat_apres FROM historique_equipements h WHERE h.equipement_id=e.id AND h.etat_apres IS NOT NULL ORDER BY h.date_evenement DESC LIMIT 1),
+        (SELECT o.etat FROM observations_equipement o JOIN visites v ON v.id=o.visite_id WHERE o.equipement_id=e.id ORDER BY COALESCE(v.date_visite,'') DESC,o.observe_le DESC LIMIT 1),'')
+        IN ('Vétuste','Dégradé','Hors service','À surveiller') THEN 1 ELSE 0 END) AS a_surveiller
+      FROM equipements e JOIN installations i ON i.id=e.installation_id JOIN sites s ON s.id=i.site_id
+      WHERE s.client_id=? GROUP BY i.site_id`, [clientId]),
+  ]);
+  const map = new Map((sites || []).map((site) => [site.id, {
+    reserves: { total: 0, ouvertes: 0, levees: 0 },
+    equipements: { total: 0, actifs: 0, remplaces: 0, aSurveiller: 0 },
+  }]));
+  for (const row of reserves || []) {
+    const current = map.get(row.site_id); if (!current) continue;
+    current.reserves = { total: Number(row.total || 0), ouvertes: Number(row.ouvertes || 0), levees: Number(row.levees || 0) };
+  }
+  for (const row of equipements || []) {
+    const current = map.get(row.site_id); if (!current) continue;
+    current.equipements = { total: Number(row.total || 0), actifs: Number(row.actifs || 0), remplaces: Number(row.remplaces || 0), aSurveiller: Number(row.a_surveiller || 0) };
+  }
+  return map;
+}
+
+export async function getStatsClientPatrimoine(clientId) {
+  const stats = await getStatsSitesPatrimoine(clientId);
+  const total = {
+    sites: stats.size,
+    reserves: { total: 0, ouvertes: 0, levees: 0 },
+    equipements: { total: 0, actifs: 0, remplaces: 0 },
   };
+  for (const value of stats.values()) {
+    total.reserves.total += Number(value.reserves?.total || 0);
+    total.reserves.ouvertes += Number(value.reserves?.ouvertes || 0);
+    total.reserves.levees += Number(value.reserves?.levees || 0);
+    total.equipements.total += Number(value.equipements?.total || 0);
+    total.equipements.actifs += Number(value.equipements?.actifs || 0);
+    total.equipements.remplaces += Number(value.equipements?.remplaces || 0);
+  }
+  return total;
 }

@@ -10,6 +10,14 @@ export const HEALTH_DIMENSIONS = Object.freeze([
   { key: 'donnees', label: 'Qualité des données', weight: 10 },
 ]);
 
+async function mapHealthAvecConcurrence(items, limite, worker) {
+  const resultats = new Array(items.length); let curseur = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, limite), items.length) }, async () => {
+    while (true) { const index = curseur++; if (index >= items.length) return; resultats[index] = await worker(items[index], index); }
+  });
+  await Promise.all(workers); return resultats;
+}
+
 const clampScore = (value) => {
   const n = Number(value);
   return Number.isFinite(n) ? Math.max(0, Math.min(100, Math.round(n))) : null;
@@ -103,11 +111,11 @@ function equipmentScore(stats = {}) {
   return clampScore(((actifs - Math.min(actifs, surveiller)) / actifs) * 100);
 }
 
-export async function computeAutomaticSiteHealth(siteId, forcedVisitId = null) {
+export async function computeAutomaticSiteHealth(siteId, forcedVisitId = null, patrimoineOverride = null) {
   const db = await getDb();
   const [visite, patrimoine] = await Promise.all([
     latestVisit(db, siteId, forcedVisitId),
-    getStatsSitePatrimoine(siteId),
+    patrimoineOverride ? Promise.resolve(patrimoineOverride) : getStatsSitePatrimoine(siteId),
   ]);
   const controles = await controlStats(db, visite?.id);
   const reserves = patrimoine?.reserves || {};
@@ -166,9 +174,9 @@ function normalizeManualScores(scores = {}) {
   return out;
 }
 
-export async function getSiteHealth(siteId, forcedVisitId = null) {
+export async function getSiteHealth(siteId, forcedVisitId = null, patrimoineOverride = null) {
   const [automatic, settings] = await Promise.all([
-    computeAutomaticSiteHealth(siteId, forcedVisitId),
+    computeAutomaticSiteHealth(siteId, forcedVisitId, patrimoineOverride),
     getSiteHealthManualSettings(siteId),
   ]);
   if (settings.mode !== 'manual') return { ...automatic, settings, automatic };
@@ -220,14 +228,14 @@ export function aggregateSiteHealth(siteHealthList = []) {
   };
 }
 
-export async function getClientHealth(clientId) {
+export async function getClientHealth(clientId, statsBySite = null) {
   const db = await getDb();
   const sites = await db.getAllAsync(`SELECT id,nom_site,adresse FROM sites WHERE client_id=? ORDER BY nom_site COLLATE NOCASE`, [clientId]);
-  const health = [];
-  for (const site of sites) {
-    const item = await getSiteHealth(site.id);
-    health.push({ ...item, siteName: site.nom_site || 'Site', address: site.adresse || '' });
-  }
+  const health = await mapHealthAvecConcurrence(sites || [], 6, async (site) => {
+    const override = statsBySite?.get ? statsBySite.get(site.id) : null;
+    const item = await getSiteHealth(site.id, null, override || null);
+    return { ...item, siteName: site.nom_site || 'Site', address: site.adresse || '' };
+  });
   return { ...aggregateSiteHealth(health), items: health };
 }
 

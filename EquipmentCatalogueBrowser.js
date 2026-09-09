@@ -144,11 +144,12 @@ function SimpleModal({ visible,title,fields,onClose,onSave }) {
 
 export function EquipmentCatalogueBrowser(){
   const {width}=useWindowDimensions();const tablet=width>=700;const cols=tablet?2:1;
-  const [tab,setTab]=useState('marques');const [brands,setBrands]=useState([]);const [cats,setCats]=useState([]);const [models,setModels]=useState([]);const [search,setSearch]=useState('');
+  const [tab,setTab]=useState('marques');const [brands,setBrands]=useState([]);const [cats,setCats]=useState([]);const [models,setModels]=useState([]);const [search,setSearch]=useState('');const [searchDb,setSearchDb]=useState('');
   const [brand,setBrand]=useState(null);const [model,setModel]=useState(null);const [variants,setVariants]=useState([]);const [variant,setVariant]=useState(null);const [sheet,setSheet]=useState(null);const [modelPreview,setModelPreview]=useState(null);const [modal,setModal]=useState(null);
 
-  const refresh=useCallback(async()=>{const[b,c,m]=await Promise.all([listerMarquesEquipement(),listerCategoriesEquipement(),rechercherCatalogueIntelligent({recherche:search})]);setBrands(b);setCats(c);setModels(m);},[search]);
+  const refresh=useCallback(async()=>{const[b,c,m]=await Promise.all([listerMarquesEquipement(),listerCategoriesEquipement(),rechercherCatalogueIntelligent({recherche:searchDb})]);setBrands(b);setCats(c);setModels(m);},[searchDb]);
   useEffect(()=>{refresh();},[refresh]);
+  useEffect(()=>{const timer=setTimeout(()=>setSearchDb(search.trim()),180);return()=>clearTimeout(timer);},[search]);
 
   const baseData=tab==='marques'?brands:tab==='categories'?cats:models;
   const filtered=useMemo(()=>baseData.filter(x=>!search.trim()||`${x.nom||''} ${x.marque||''} ${x.categorie||''}`.toLowerCase().includes(search.toLowerCase())||tab==='modeles'),[baseData,search,tab]);
