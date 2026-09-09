@@ -169,13 +169,8 @@ const clientModalNew = `        <View style={{ flexDirection: 'row', justifyCont
           <Text style={{ color: MUTED, fontSize: 11.5 }}>1, plusieurs ou tous les sites</Text>
         </View> : null}
         <FlatList
-          style={{ flex: 1, minHeight: 0 }}
-          contentContainerStyle={{ paddingBottom: 4 }}
           data={sites}
           keyExtractor={(x) => \`\${x.remote_client_id}-\${x.remote_site_id}\`}
-          initialNumToRender={10}
-          maxToRenderPerBatch={10}
-          windowSize={7}
           keyboardShouldPersistTaps="handled"
           renderItem={({ item }) => siteSelectionMode
             ? <SiteSelectionRow item={{ ...item, client_ville: selectedClient?.ville }} selected={selectedSiteIds.has(String(item.remote_site_id))} disabled={batchImportBusy} onPress={() => toggleSiteSelection(item.remote_site_id)} />
