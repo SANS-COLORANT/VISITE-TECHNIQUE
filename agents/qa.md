@@ -29,11 +29,13 @@ Pour chaque PR :
 - création ICPE ;
 - création VMC ;
 - création Pré-allumage ;
-- reprise ICPE de la dernière visite du même local/trame : champs, S/N.S/N.R/S.O/N.V, commentaires, températures, réseaux et relevés ;
-- reprise VMC de la dernière visite du même local/trame : champs, nombre/noms des caissons et contrôles ;
+- reprise ICPE des dernières valeurs connues du même local/trame : champs, S/N.S/N.R/S.O/N.V, commentaires, températures, réseaux et relevés ;
+- reprise VMC des dernières valeurs connues du même local/trame : champs, nombre/noms des caissons et contrôles ;
 - Pré-allumage : reprise des informations durables seulement, contrôles/essais laissés vides ;
 - aucune duplication automatique des réserves, photos ou conclusions historiques dans la nouvelle visite ;
+- import Intranet : un critère dont `visiteSourceId` est antérieur à `derniereVisite.id` doit quand même être importé, car il représente la dernière valeur connue de ce critère ;
 - import Intranet : les marqueurs vides comme `/` ne doivent pas créer de faux réseaux ou de fausses valeurs ;
+- import Intranet : un identifiant de critère réutilisé dans plusieurs branches reste distingué par son chemin catégorie / sous-catégorie / critère ;
 - isolation des remarques et réserves ;
 - filtrage des équipements ;
 - import/export Excel ;
