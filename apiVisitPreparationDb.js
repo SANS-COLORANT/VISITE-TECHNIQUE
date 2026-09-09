@@ -210,8 +210,10 @@ async function linkEquipmentToVisit(db, visiteId, equipmentId, material) {
 }
 
 function buildReferenceDetails(ref, remoteLocalId) {
+  const mappedTrameId = mapRemoteTrameToLocal(ref?.trame);
+  const preAllumage = mappedTrameId === 'pre_allumage';
   return {
-    schemaVersion: 2,
+    schemaVersion: 3,
     sourceType: 'preparation_visite',
     remoteLocalId,
     local: ref?.local || null,
@@ -222,11 +224,13 @@ function buildReferenceDetails(ref, remoteLocalId) {
     notes: Array.isArray(ref?.notes) ? ref.notes : [],
     preparationMeta: ref?.preparationMeta || null,
     semantics: {
-      criteriaAreHistoricalReferenceOnly: true,
+      criteriaAreLatestKnownPreparationValues: true,
+      criteriaSourceVisitIdIsProvenanceOnly: true,
+      criteriaCanPrefillCurrentVisit: !preAllumage,
+      preAllumageControlsMustStayBlank: preAllumage,
       remarksBelongToLatestRemoteVisitOnly: true,
       materialsAreCurrentLocalPatrimoine: true,
       materialStateIsReferenceOnly: true,
-      previousCriteriaMustNotSeedCurrentVisit: true,
       previousRemarksMustNotSeedCurrentVisit: true,
       previousMaterialStateMustNotSeedCurrentVisit: true,
     },
@@ -266,8 +270,11 @@ export async function importApiReferenceForVisit(visiteId, remoteLocalId) {
       importedMaterials += 1;
     }
 
-    // Critères, remarques et état du listing API sont des références de préparation.
-    // Ils ne sont jamais écrits comme constat, mesure, réserve ou état observé du jour.
+    // Les critères de préparation sont les dernières valeurs connues par critère.
+    // Leur visiteSourceId reste une provenance : ICPE/VMC peuvent les utiliser
+    // comme préremplissage, tandis que Pré-allumage garde ses contrôles à refaire.
+    // Les remarques et l'état du matériel restent des références et ne deviennent
+    // jamais automatiquement de nouvelles observations de la visite courante.
     await upsertProvenance(db, 'visite', visiteId, remoteId, buildReferenceDetails(ref, remoteId));
 
     result = {

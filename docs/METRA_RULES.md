@@ -14,10 +14,12 @@ Ce document est la référence commune pour tout développement humain ou assist
 8. Un contrôle satisfaisant doit pouvoir générer un commentaire positif rédigé.
 9. Une réserve n’est créée que lorsqu’une action corrective est justifiée.
 10. Les données permanentes proviennent du patrimoine partagé ; les mesures et constats restent liés à leur visite d’origine.
-11. Pour ICPE et VMC, une nouvelle visite du même local et de la même trame est préremplie à partir de la dernière visite connue : champs, avis `S` / `N.S` / `N.R` / `S.O` / `N.V`, commentaires de contrôle, températures, réseaux et relevés disponibles. Ce préremplissage reste modifiable immédiatement par le technicien.
+11. Pour ICPE et VMC, une nouvelle visite du même local et de la même trame est préremplie à partir des dernières valeurs connues : champs, avis `S` / `N.S` / `N.R` / `S.O` / `N.V`, commentaires de contrôle, températures, réseaux et relevés disponibles. Lorsque ces valeurs viennent de `GET /api/clients/{idclient}/preparation-visites`, chaque critère est déjà la dernière valeur connue de ce critère ; `visiteSourceId` indique seulement la visite d’origine et peut être antérieur à `derniereVisite.id`. Il ne doit jamais servir à exclure la valeur du préremplissage. Ce préremplissage reste modifiable immédiatement par le technicien.
 12. Pré-allumage est l’exception : seules les informations durables explicitement déclarées `stable` / `carryForward` et la structure patrimoniale sont reprises ; les contrôles et essais doivent être refaits et restent vides à l’ouverture de la nouvelle visite.
 13. Les réserves, photos et conclusions d’une ancienne visite ne sont jamais recréées automatiquement comme observations de la nouvelle visite, même si un avis ou un commentaire de contrôle est prérempli.
-14. L’application terrain doit rester utilisable hors connexion.
+14. Les marqueurs techniques de valeur vide reçus de l’Intranet, notamment `/`, sont traités comme vides et ne doivent pas créer de faux réseaux, compteurs, champs ou contrôles.
+15. Lorsqu’un identifiant de critère est réutilisé dans plusieurs branches d’une trame, son identité locale doit conserver le chemin catégorie / sous-catégorie / critère afin d’éviter toute collision.
+16. L’application terrain doit rester utilisable hors connexion.
 
 ## Avis de contrôle
 

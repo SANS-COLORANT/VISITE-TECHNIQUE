@@ -8,6 +8,11 @@ def require(text: str, needle: str, label: str) -> None:
         raise SystemExit(f'{label}: invariant missing: {needle}')
 
 
+def forbid(text: str, needle: str, label: str) -> None:
+    if needle in text:
+        raise SystemExit(f'{label}: forbidden invariant present: {needle}')
+
+
 def migration_sql(path: str) -> str:
     text = Path(path).read_text(encoding='utf-8')
     match = re.search(r"sql:\s*`(.*)`\s*,?\s*\n?\};?", text, re.S)
@@ -93,15 +98,19 @@ if count != 2:
     raise SystemExit('migration contract: client/site many-to-many relation not preserved')
 
 # 2) Static semantic guards derived from the Symfony preparation contract.
+# The preparation endpoint already resolves each criterion to its latest-known
+# value. visiteSourceId is provenance only and may be older than derniereVisite.
 cache = Path('symfonyApiCacheDb.js').read_text(encoding='utf-8')
 prep = Path('apiVisitPreparationDb.js').read_text(encoding='utf-8')
+latest = Path('apiLatestVisitImportDb.js').read_text(encoding='utf-8')
+fields = Path('apiLatestVisitFieldEnrichmentDb.js').read_text(encoding='utf-8')
 persistent = Path('persistentEquipmentDb.js').read_text(encoding='utf-8')
 prefill = Path('visitPrefillDb.js').read_text(encoding='utf-8')
 directory = Path('MetraDirectoryScreen.js').read_text(encoding='utf-8')
 
 require(cache, 'referencePath:', 'reused criterion branch identity')
-require(cache, 'visiteSourceId', 'criterion source visit')
-require(cache, 'criteriaAreReferenceOnly: true', 'criterion reference semantics')
+require(cache, 'visiteSourceId', 'criterion source visit provenance')
+require(cache, 'historicalCriteriaCount', 'older criterion source diagnostics')
 require(cache, 'remarksAreLatestVisitReferenceOnly: true', 'latest-visit remark semantics')
 require(cache, 'materialsAreCurrentLocalPatrimoine: true', 'local material semantics')
 require(cache, 'api_client_site_links', 'client/site relation cache')
@@ -109,7 +118,11 @@ require(cache, 'UPDATE api_local_links SET remote_present=0 WHERE remote_site_id
 require(cache, 'if (remote.local_site_id)', 'one remote SITE / one METRA patrimoine')
 require(cache, 'UPDATE api_client_site_links SET local_site_id=? WHERE remote_site_id=?', 'shared site link propagation')
 
-require(prep, 'previousCriteriaMustNotSeedCurrentVisit: true', 'criteria isolation')
+require(prep, 'criteriaAreLatestKnownPreparationValues: true', 'latest-known criteria semantics')
+require(prep, 'criteriaSourceVisitIdIsProvenanceOnly: true', 'criterion source provenance semantics')
+require(prep, 'criteriaCanPrefillCurrentVisit: !preAllumage', 'ICPE/VMC preparation prefill')
+require(prep, 'preAllumageControlsMustStayBlank: preAllumage', 'Pré-allumage control exception')
+forbid(prep, 'previousCriteriaMustNotSeedCurrentVisit: true', 'stale criteria isolation')
 require(prep, 'previousRemarksMustNotSeedCurrentVisit: true', 'remark isolation')
 require(prep, 'previousMaterialStateMustNotSeedCurrentVisit: true', 'material-state isolation')
 require(prep, "'api_symfony.numero_materiel'", 'material number provenance')
@@ -118,10 +131,18 @@ require(prep, 'UPDATE visites SET installation_id=?,api_remote_local_id=?', 'vis
 if 'numero_serie=COALESCE' in prep or 'text(material?.numeroMateriel), yearAsInteger' in prep:
     raise SystemExit('material contract: numero_materiel must not be silently treated as numero_serie')
 
+require(latest, "criteriaRule: 'preparation_values_are_latest_known_visiteSourceId_is_provenance_only'", 'control import semantics')
+forbid(latest, 'remoteId(criterion?.visiteSourceId) !== remoteVisitId', 'older-source control rejection')
+forbid(latest, 'remoteId(criterion?.visiteSourceId) === remoteVisitId', 'control source-id gate')
+require(fields, "rule: 'preparation_values_are_latest_known_visiteSourceId_is_provenance_only'", 'field import semantics')
+forbid(fields, 'remoteId(criterion?.visiteSourceId) !== remoteVisitId', 'older-source field rejection')
+forbid(fields, 'remoteId(criterion?.visiteSourceId) === remoteVisitId', 'field source-id gate')
+require(fields, 'criterionReference(category, subCategory, criterion)', 'branch-safe field identity')
+
 require(persistent, 'const apiPrepared = Boolean(contexte.api_remote_local_id)', 'prepared visit detection')
-require(persistent, 'if (!referenceOnly) await upsertObservation', 'no automatic observation from preparation')
+require(persistent, 'if (!referenceOnly) await upsertObservation', 'no automatic material observation from preparation')
 require(prefill, 'contexte.installation_id', 'LOCAL-scoped stable prefill')
 require(prefill, 'AND (? IS NULL OR installation_id=?)', 'same-LOCAL carry forward')
 require(directory, 'materializeCachedSite(selectedSite.remote_site_id, remoteClientId)', 'selected client context')
 
-print('Symfony preparation contract validated: CLIENT/SITE/LOCAL, trame branches, unique site patrimoine, history isolation and current material listing.')
+print('Symfony preparation contract validated: CLIENT/SITE/LOCAL, latest-known criterion values, source provenance, trame branches, unique site patrimoine and current material listing.')

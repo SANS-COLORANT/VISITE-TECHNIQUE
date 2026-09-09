@@ -46,11 +46,11 @@ requireText(
   'const fieldImport = await enrichLatestImportedVisitFields({',
   'latest visit field enrichment call'
 );
-requireText(latest, 'fieldImport,\n      importedRemarks', 'latest visit import summary');
-requireText(
-  latest,
-  'return { imported: true, visiteId, remoteVisitId, mappedCriteria, sourceCriteria, importedRemarks, fieldImport, created: !existing?.id };',
-  'latest visit import return payload'
-);
+requireText(latest, 'fieldImport,', 'latest visit field import summary');
+requireText(latest, 'importedRemarks,', 'latest visit remark import summary');
+requireText(latest, 'criteriaFromEarlierVisits', 'older-source criterion diagnostics');
+requireText(latest, 'created: !existing?.id,', 'latest visit creation/update return state');
+requireText(latest, 'export async function importLatestApiVisitForLocal(siteId, remoteLocalId)', 'selected-local import flow');
+requireText(latest, 'export async function importLatestApiVisitsForSite(siteId, remoteSiteId)', 'site and batch import flow');
 
-console.log('Latest API visit runtime contract validated: single-site and multi-site imports include the latest visit and enriched fields.');
+console.log('Latest API visit runtime contract validated: selected-local, single-site and multi-site imports include the preparation snapshot, latest-known criterion values and enriched fields.');

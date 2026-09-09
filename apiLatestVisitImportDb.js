@@ -15,6 +15,11 @@ function normalize(value) {
   return clean(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 function remoteId(value) { const v = clean(value); return v || null; }
+function criterionSourceRelation(criterion, latestVisitId) {
+  const sourceId = remoteId(criterion?.visiteSourceId);
+  if (!sourceId) return 'without_source';
+  return sourceId === remoteId(latestVisitId) ? 'latest_visit' : 'earlier_visit';
+}
 
 function sanitizeRemoteReference(ref) {
   if (!ref || typeof ref !== 'object') return ref;
@@ -180,12 +185,21 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
   const candidates = localControlCandidates(trameId);
   let mappedCriteria = 0;
   let sourceCriteria = 0;
+  let criteriaFromLatestVisit = 0;
+  let criteriaFromEarlierVisits = 0;
+  let criteriaWithoutSourceVisit = 0;
   for (const category of Array.isArray(ref?.trame?.categories) ? ref.trame.categories : []) {
     for (const subCategory of Array.isArray(category?.sousCategories) ? category.sousCategories : []) {
       for (const criterion of Array.isArray(subCategory?.criteres) ? subCategory.criteres : []) {
-        if (remoteId(criterion?.visiteSourceId) !== remoteVisitId) continue;
+        // La route de préparation renvoie déjà, pour chaque critère, sa dernière
+        // valeur connue. visiteSourceId est uniquement la provenance de cette
+        // valeur et peut donc être antérieur à derniereVisite.id.
         if (criterion?.avis == null && criterion?.commentaire == null) continue;
         sourceCriteria += 1;
+        const sourceRelation = criterionSourceRelation(criterion, remoteVisitId);
+        if (sourceRelation === 'latest_visit') criteriaFromLatestVisit += 1;
+        else if (sourceRelation === 'earlier_visit') criteriaFromEarlierVisits += 1;
+        else criteriaWithoutSourceVisit += 1;
         const target = findControlCandidate(candidates, criterion?.nom, category?.nom, subCategory?.nom);
         if (!target) continue;
         await db.runAsync(
@@ -231,7 +245,7 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
   }
 
   await upsertProvenance(db, 'visite', visiteId, remoteVisitId, {
-    schemaVersion: 1,
+    schemaVersion: 2,
     sourceType: 'imported_latest_visit',
     remoteVisitId,
     remoteLocalId,
@@ -244,15 +258,30 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
     importSummary: {
       sourceCriteria,
       mappedCriteria,
+      criteriaFromLatestVisit,
+      criteriaFromEarlierVisits,
+      criteriaWithoutSourceVisit,
       fieldImport,
       importedRemarks,
-      criteriaRule: 'only_criteria_whose_visiteSourceId_matches_derniereVisite',
+      criteriaRule: 'preparation_values_are_latest_known_visiteSourceId_is_provenance_only',
       placeholderRule: 'slash_is_empty',
       materialsRule: 'current_patrimoine_not_historical_visit',
     },
   });
 
-  return { imported: true, visiteId, remoteVisitId, mappedCriteria, sourceCriteria, importedRemarks, fieldImport, created: !existing?.id };
+  return {
+    imported: true,
+    visiteId,
+    remoteVisitId,
+    mappedCriteria,
+    sourceCriteria,
+    criteriaFromLatestVisit,
+    criteriaFromEarlierVisits,
+    criteriaWithoutSourceVisit,
+    importedRemarks,
+    fieldImport,
+    created: !existing?.id,
+  };
 }
 
 export async function importLatestApiVisitForLocal(siteId, remoteLocalId) {
