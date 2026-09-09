@@ -19,7 +19,7 @@ Les rôles spécialisés sont décrits dans `agents/`.
 3. Équipements filtrés selon la trame.
 4. Contrôles propres à chaque trame.
 5. Un avis satisfaisant peut et doit proposer un commentaire positif.
-6. Les mesures du jour ne sont jamais reprises automatiquement depuis une ancienne visite.
+6. Une nouvelle visite ICPE ou VMC reprend par défaut les champs, mesures, réseaux/compteurs et avis de la dernière visite du même local et de la même trame, comme valeurs de préremplissage immédiatement modifiables. Pré-allumage ne reprend que les informations durables explicitement prévues et laisse les contrôles à refaire vides. Les réserves, photos et conclusions historiques ne deviennent jamais automatiquement de nouvelles observations.
 7. L’application doit rester utilisable hors connexion.
 8. Une modification d’une trame ne doit pas casser les autres.
 9. Développer sur une branche dédiée et ouvrir une PR vers `native-android`.
