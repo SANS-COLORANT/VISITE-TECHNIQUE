@@ -42,6 +42,14 @@ forbidText(fields, 'remoteId(criterion?.visiteSourceId) !== remoteVisitId', 'old
 forbidText(fields, 'remoteId(criterion?.visiteSourceId) === remoteVisitId', 'source visit id must not gate fields or networks');
 forbidText(fields, "networkCriterionRefs.add(remoteId(criterion?.id)", 'reused criterion ids must be scoped by branch');
 
+const preparation = read('apiVisitPreparationDb.js');
+requireText(preparation, 'criteriaAreLatestKnownPreparationValues: true', 'preparation criteria meaning');
+requireText(preparation, 'criteriaSourceVisitIdIsProvenanceOnly: true', 'source visit provenance meaning');
+requireText(preparation, 'criteriaCanPrefillCurrentVisit: !preAllumage', 'ICPE/VMC preparation prefill');
+requireText(preparation, 'preAllumageControlsMustStayBlank: preAllumage', 'Pré-allumage exception');
+forbidText(preparation, 'previousCriteriaMustNotSeedCurrentVisit: true', 'stale no-prefill semantic');
+forbidText(preparation, 'criteriaAreHistoricalReferenceOnly: true', 'stale reference-only semantic');
+
 const creation = read('visitCreationDb.js');
 requireText(creation, "import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';", 'prepared visit history importer wiring');
 const historicalImport = creation.indexOf('await importLatestApiVisitForLocal(siteId, apiRemoteLocalId);');
