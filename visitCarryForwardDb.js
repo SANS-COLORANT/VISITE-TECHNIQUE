@@ -18,25 +18,17 @@ const CURRENT_METADATA_KEYS = new Set([
   'Adresse',
 ]);
 
-const ICPE_REGULATION_MEASURE_KEYS = new Set([
-  'T°ext(°C)',
-  'T°dép(°C)',
-]);
-
-function canCarryField(trame, panelId, field) {
+function canCarryField(trame, field) {
   if (!field?.cle || field.type !== 'champ') return false;
   if (CURRENT_METADATA_KEYS.has(field.cle)) return false;
 
-  // En ICPE, les données descriptives/configuration peuvent être reprises.
-  // Les relevés et mesures du jour restent volontairement vides.
-  if (trame.id === DEFAULT_TRAME_ID) {
-    if (panelId === 'p-releves') return false;
-    if (panelId === 'p-regulation' && ICPE_REGULATION_MEASURE_KEYS.has(field.cle)) return false;
-    return true;
-  }
+  // Pré-allumage est volontairement l'exception : seules les informations
+  // durables explicitement marquées stable/carryForward sont reprises.
+  if (trame.id === 'pre_allumage') return Boolean(field.stable || field.carryForward);
 
-  // Les autres trames conservent leur contrat explicite existant.
-  return Boolean(field.stable || field.carryForward);
+  // ICPE, VMC et les futures trames classiques repartent de la dernière
+  // visite du même local/trame. Les valeurs restent immédiatement modifiables.
+  return true;
 }
 
 async function copyReusableFields(db, visiteId, previousVisitId, trame) {
@@ -45,14 +37,30 @@ async function copyReusableFields(db, visiteId, previousVisitId, trame) {
      WHERE visite_id=? AND valeur IS NOT NULL AND trim(valeur)<>''`,
     [previousVisitId]
   );
-  const previous = new Map((rows || []).map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
   let copied = 0;
 
+  if (trame.id !== 'pre_allumage') {
+    // Reprendre aussi les champs techniques hors registre UI (ex. vmc.config)
+    // afin de conserver le nombre réel et le nom des caissons.
+    for (const row of rows || []) {
+      if (!row?.section_code || !row?.cle || CURRENT_METADATA_KEYS.has(row.cle)) continue;
+      const result = await db.runAsync(
+        `INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)
+         ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur
+         WHERE champs_visite.valeur IS NULL OR trim(champs_visite.valeur)=''`,
+        [visiteId, row.section_code, row.cle, String(row.valeur)]
+      );
+      if (Number(result?.changes || 0) > 0) copied += 1;
+    }
+    return copied;
+  }
+
+  const previous = new Map((rows || []).map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
   for (const [panelId, sections] of Object.entries(trame.ui?.panels || {})) {
     for (const [section, fields] of Object.entries(sections || {})) {
       const code = sectionCode(panelId, section);
       for (const field of fields || []) {
-        if (!canCarryField(trame, panelId, field)) continue;
+        if (!canCarryField(trame, field)) continue;
         const value = previous.get(`${code}||${field.cle}`);
         if (value == null || clean(value) === '') continue;
         const result = await db.runAsync(
@@ -68,12 +76,43 @@ async function copyReusableFields(db, visiteId, previousVisitId, trame) {
   return copied;
 }
 
-async function copyNetworkStructure(db, visiteId, previousVisitId) {
+async function copyReusableControls(db, visiteId, previousVisitId, trame) {
+  // Les essais de Pré-allumage doivent être refaits à chaque visite.
+  if (trame.id === 'pre_allumage') return 0;
+
+  const rows = await db.getAllAsync(
+    `SELECT section_code,cle,avis,commentaire FROM controles_visite
+     WHERE visite_id=?
+       AND (avis IS NOT NULL OR commentaire IS NOT NULL)`,
+    [previousVisitId]
+  );
+  let copied = 0;
+  for (const row of rows || []) {
+    if (!row?.section_code || !row?.cle) continue;
+    const avis = clean(row.avis) || null;
+    const commentaire = clean(row.commentaire) || null;
+    if (!avis && !commentaire) continue;
+    const result = await db.runAsync(
+      `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)
+       VALUES(?,?,?,?,?)
+       ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET
+         avis=excluded.avis,
+         commentaire=excluded.commentaire
+       WHERE (controles_visite.avis IS NULL OR trim(controles_visite.avis)='')
+         AND (controles_visite.commentaire IS NULL OR trim(controles_visite.commentaire)='')`,
+      [visiteId, row.section_code, row.cle, avis, commentaire]
+    );
+    if (Number(result?.changes || 0) > 0) copied += 1;
+  }
+  return copied;
+}
+
+async function copyNetworkValues(db, visiteId, previousVisitId) {
   const existing = await db.getFirstAsync(`SELECT COUNT(*) AS n FROM reseaux WHERE visite_id=?`, [visiteId]);
   if (Number(existing?.n || 0) > 0) return 0;
 
   const previous = await db.getAllAsync(
-    `SELECT ordre,nom_reseau,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id
+    `SELECT ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id
      FROM reseaux WHERE visite_id=? ORDER BY ordre,id`,
     [previousVisitId]
   );
@@ -81,28 +120,29 @@ async function copyNetworkStructure(db, visiteId, previousVisitId) {
   for (const row of previous || []) {
     await db.runAsync(
       `INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id)
-       VALUES(?,?,?,?,NULL,NULL,?,?,?,?)`,
-      [createId(), visiteId, Number(row.ordre || 0), row.nom_reseau || 'Réseau', row.courbe_de_chauffe || null,
-        row.tnc || null, row.consigne_programme_horaire || null, row.reseau_site_id || null]
+       VALUES(?,?,?,?,?,?,?,?,?,?)`,
+      [createId(), visiteId, Number(row.ordre || 0), row.nom_reseau || 'Réseau', row.t_ext_c ?? null,
+        row.t_dep_c ?? null, row.courbe_de_chauffe ?? null, row.tnc ?? null,
+        row.consigne_programme_horaire ?? null, row.reseau_site_id || null]
     );
     copied += 1;
   }
   return copied;
 }
 
-async function copyMeterStructure(db, visiteId, previousVisitId) {
+async function copyMeterValues(db, visiteId, previousVisitId) {
   const existing = await db.getFirstAsync(`SELECT COUNT(*) AS n FROM compteurs WHERE visite_id=?`, [visiteId]);
   if (Number(existing?.n || 0) > 0) return 0;
 
   const previous = await db.getAllAsync(
-    `SELECT label,unite,compteur_site_id FROM compteurs WHERE visite_id=? ORDER BY id`,
+    `SELECT label,valeur,unite,compteur_site_id FROM compteurs WHERE visite_id=? ORDER BY id`,
     [previousVisitId]
   );
   let copied = 0;
   for (const row of previous || []) {
     await db.runAsync(
-      `INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id) VALUES(?,?,?,NULL,?,?)`,
-      [createId(), visiteId, row.label || 'Compteur', row.unite || null, row.compteur_site_id || null]
+      `INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id) VALUES(?,?,?,?,?,?)`,
+      [createId(), visiteId, row.label || 'Compteur', row.valeur ?? null, row.unite || null, row.compteur_site_id || null]
     );
     copied += 1;
   }
@@ -181,14 +221,14 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
   // Ouvrir une ancienne visite terminée/importée ne doit jamais la modifier à
   // partir d'une autre visite historique.
   if (clean(contexte?.statut) !== 'en_cours') {
-    return { contexte, previousVisitId: null, copiedFields: 0, copiedNetworks: 0, copiedMeters: 0, skippedHistoricalVisit: true };
+    return { contexte, previousVisitId: null, copiedFields: 0, copiedControls: 0, copiedNetworks: 0, copiedMeters: 0, skippedHistoricalVisit: true };
   }
 
   const trame = obtenirTrame(contexte.trame_id || DEFAULT_TRAME_ID);
   const resolution = await inferUniqueInstallation(db, contexte, visiteId, trame.id);
   const resolved = resolution.contexte;
   if (!resolution.canCarry) {
-    return { contexte: resolved, previousVisitId: null, copiedFields: 0, copiedNetworks: 0, copiedMeters: 0, ambiguousLocal: true };
+    return { contexte: resolved, previousVisitId: null, copiedFields: 0, copiedControls: 0, copiedNetworks: 0, copiedMeters: 0, ambiguousLocal: true };
   }
 
   const previous = await db.getFirstAsync(
@@ -198,16 +238,18 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
      ORDER BY COALESCE(date_visite,'') DESC,modifie_le DESC LIMIT 1`,
     [resolved.site_id, visiteId, DEFAULT_TRAME_ID, trame.id, resolved.installation_id, resolved.installation_id]
   );
-  if (!previous?.id) return { contexte: resolved, previousVisitId: null, copiedFields: 0, copiedNetworks: 0, copiedMeters: 0 };
+  if (!previous?.id) return { contexte: resolved, previousVisitId: null, copiedFields: 0, copiedControls: 0, copiedNetworks: 0, copiedMeters: 0 };
 
   const copiedFields = await copyReusableFields(db, visiteId, previous.id, trame);
-  const copiedNetworks = trame.id === DEFAULT_TRAME_ID ? await copyNetworkStructure(db, visiteId, previous.id) : 0;
-  const copiedMeters = trame.id === DEFAULT_TRAME_ID ? await copyMeterStructure(db, visiteId, previous.id) : 0;
+  const copiedControls = await copyReusableControls(db, visiteId, previous.id, trame);
+  const copiedNetworks = trame.id === DEFAULT_TRAME_ID ? await copyNetworkValues(db, visiteId, previous.id) : 0;
+  const copiedMeters = trame.id === DEFAULT_TRAME_ID ? await copyMeterValues(db, visiteId, previous.id) : 0;
 
   return {
     contexte: resolved,
     previousVisitId: previous.id,
     copiedFields,
+    copiedControls,
     copiedNetworks,
     copiedMeters,
     ambiguousLocal: false,
