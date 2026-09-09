@@ -7,10 +7,33 @@ import { enrichLatestImportedVisitFields } from './apiLatestVisitFieldEnrichment
 
 function clean(value) { return value == null ? '' : String(value).trim(); }
 function text(value) { const v = clean(value); return v || null; }
+function meaningfulRemoteValue(value) {
+  const v = clean(value);
+  return !v || v === '/' ? null : v;
+}
 function normalize(value) {
   return clean(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
 function remoteId(value) { const v = clean(value); return v || null; }
+
+function sanitizeRemoteReference(ref) {
+  if (!ref || typeof ref !== 'object') return ref;
+  const trame = ref.trame && typeof ref.trame === 'object' ? {
+    ...ref.trame,
+    categories: (Array.isArray(ref.trame.categories) ? ref.trame.categories : []).map((category) => ({
+      ...category,
+      sousCategories: (Array.isArray(category?.sousCategories) ? category.sousCategories : []).map((subCategory) => ({
+        ...subCategory,
+        criteres: (Array.isArray(subCategory?.criteres) ? subCategory.criteres : []).map((criterion) => ({
+          ...criterion,
+          avis: meaningfulRemoteValue(criterion?.avis),
+          commentaire: meaningfulRemoteValue(criterion?.commentaire),
+        })),
+      })),
+    })),
+  } : ref.trame;
+  return { ...ref, trame };
+}
 
 async function upsertProvenance(db, entiteType, entiteId, referenceExterne, details) {
   const ref = remoteId(referenceExterne);
@@ -126,7 +149,8 @@ async function findImportedVisit(db, remoteVisitId) {
   );
 }
 
-async function importLatestVisitForLocal(db, siteId, remoteLocalId, ref) {
+async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
+  const ref = sanitizeRemoteReference(sourceRef);
   const latest = ref?.derniereVisite;
   const remoteVisitId = remoteId(latest?.id);
   if (!remoteVisitId) return { imported: false, reason: 'no_latest_visit' };
@@ -167,7 +191,7 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, ref) {
         await db.runAsync(
           `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire) VALUES(?,?,?,?,?)
            ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET avis=excluded.avis,commentaire=excluded.commentaire`,
-          [visiteId, target.sectionCode, target.cle, text(criterion?.avis), text(criterion?.commentaire)]
+          [visiteId, target.sectionCode, target.cle, meaningfulRemoteValue(criterion?.avis), meaningfulRemoteValue(criterion?.commentaire)]
         );
         mappedCriteria += 1;
       }
@@ -223,11 +247,27 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, ref) {
       fieldImport,
       importedRemarks,
       criteriaRule: 'only_criteria_whose_visiteSourceId_matches_derniereVisite',
+      placeholderRule: 'slash_is_empty',
       materialsRule: 'current_patrimoine_not_historical_visit',
     },
   });
 
   return { imported: true, visiteId, remoteVisitId, mappedCriteria, sourceCriteria, importedRemarks, fieldImport, created: !existing?.id };
+}
+
+export async function importLatestApiVisitForLocal(siteId, remoteLocalId) {
+  const localSiteId = clean(siteId);
+  const remoteIdLocal = clean(remoteLocalId);
+  if (!localSiteId || !remoteIdLocal) throw new Error('Site local / local Intranet requis pour importer la dernière visite.');
+
+  const ref = await getCachedLocalReference(remoteIdLocal);
+  if (!ref) return { imported: false, reason: 'no_cached_reference' };
+  const db = await getDb();
+  let result = { imported: false, reason: 'not_processed' };
+  await db.withTransactionAsync(async () => {
+    result = await importLatestVisitForLocal(db, localSiteId, remoteIdLocal, ref);
+  });
+  return result;
 }
 
 export async function importLatestApiVisitsForSite(siteId, remoteSiteId) {
