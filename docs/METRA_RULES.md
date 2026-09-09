@@ -13,9 +13,11 @@ Ce document est la référence commune pour tout développement humain ou assist
 7. Les contrôles sont propres à chaque trame, même lorsqu’ils portent sur un même équipement patrimonial.
 8. Un contrôle satisfaisant doit pouvoir générer un commentaire positif rédigé.
 9. Une réserve n’est créée que lorsqu’une action corrective est justifiée.
-10. Les données permanentes proviennent du patrimoine partagé ; les mesures et constats du jour restent liés à la visite.
-11. Une ancienne mesure ne doit jamais être reprise automatiquement comme nouvelle mesure du jour.
-12. L’application terrain doit rester utilisable hors connexion.
+10. Les données permanentes proviennent du patrimoine partagé ; les mesures et constats restent liés à leur visite d’origine.
+11. Pour ICPE et VMC, une nouvelle visite du même local et de la même trame est préremplie à partir de la dernière visite connue : champs, avis `S` / `N.S` / `N.R` / `S.O` / `N.V`, commentaires de contrôle, températures, réseaux et relevés disponibles. Ce préremplissage reste modifiable immédiatement par le technicien.
+12. Pré-allumage est l’exception : seules les informations durables explicitement déclarées `stable` / `carryForward` et la structure patrimoniale sont reprises ; les contrôles et essais doivent être refaits et restent vides à l’ouverture de la nouvelle visite.
+13. Les réserves, photos et conclusions d’une ancienne visite ne sont jamais recréées automatiquement comme observations de la nouvelle visite, même si un avis ou un commentaire de contrôle est prérempli.
+14. L’application terrain doit rester utilisable hors connexion.
 
 ## Avis de contrôle
 
