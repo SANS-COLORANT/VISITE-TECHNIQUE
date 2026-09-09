@@ -49,8 +49,14 @@ requireText(
 requireText(latest, 'fieldImport,', 'latest visit field import summary');
 requireText(latest, 'importedRemarks,', 'latest visit remark import summary');
 requireText(latest, 'criteriaFromEarlierVisits', 'older-source criterion diagnostics');
+requireText(latest, 'sourceControlCriteria', 'source control count');
+requireText(latest, 'unmappedControlCriteria', 'unmapped control count');
+requireText(latest, 'technicalCommentsPreserved', 'technical values kept');
+requireText(latest, 'hiddenHistoricalControlComments', 'ordinary historical comments hidden');
+requireText(latest, "summaryOnly: true", 'Intranet remarks remain historical summary records');
+requireText(latest, "linkedToControl: false", 'Intranet remarks are not falsely linked');
 requireText(latest, 'created: !existing?.id,', 'latest visit creation/update return state');
 requireText(latest, 'export async function importLatestApiVisitForLocal(siteId, remoteLocalId)', 'selected-local import flow');
 requireText(latest, 'export async function importLatestApiVisitsForSite(siteId, remoteSiteId)', 'site and batch import flow');
 
-console.log('Latest API visit runtime contract validated: selected-local, single-site and multi-site imports include the preparation snapshot, latest-known criterion values and enriched fields.');
+console.log('Latest API visit runtime contract validated: selected-local, single-site and multi-site imports include the historical Intranet snapshot, S/N.S/etc. states, technical measurement values and summary-only Intranet remarks.');
