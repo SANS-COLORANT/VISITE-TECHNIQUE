@@ -1,0 +1,66 @@
+name: Apply npm ci optimization
+
+on:
+  push:
+    branches:
+      - infra/reproducible-npm-install
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Apply deterministic npm install policy
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          targets = [
+              Path('.github/workflows/native-android-check.yml'),
+              Path('.github/workflows/native-android-apk.yml'),
+          ]
+          old_setup = """      - name: Setup Node\n        uses: actions/setup-node@v4\n        with:\n          node-version: 20\n"""
+          new_setup = """      - name: Setup Node\n        uses: actions/setup-node@v4\n        with:\n          node-version: 20\n          cache: npm\n          cache-dependency-path: package-lock.json\n"""
+          old_install = "      - name: Install dependencies\n        run: npm install --no-audit --no-fund --prefer-online\n"
+          new_install = "      - name: Install dependencies from lockfile\n        run: npm ci --no-audit --no-fund --prefer-offline\n"
+
+          for path in targets:
+              text = path.read_text(encoding='utf-8')
+              if new_setup not in text:
+                  if old_setup not in text:
+                      raise SystemExit(f'Setup Node anchor missing in {path}')
+                  text = text.replace(old_setup, new_setup, 1)
+              if new_install not in text:
+                  if old_install not in text:
+                      raise SystemExit(f'Install anchor missing in {path}')
+                  text = text.replace(old_install, new_install, 1)
+              path.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Validate workflow contract
+        run: |
+          test -s package-lock.json
+          grep -q "cache: npm" .github/workflows/native-android-check.yml
+          grep -q "cache-dependency-path: package-lock.json" .github/workflows/native-android-check.yml
+          grep -q "npm ci --no-audit --no-fund --prefer-offline" .github/workflows/native-android-check.yml
+          grep -q "cache: npm" .github/workflows/native-android-apk.yml
+          grep -q "cache-dependency-path: package-lock.json" .github/workflows/native-android-apk.yml
+          grep -q "npm ci --no-audit --no-fund --prefer-offline" .github/workflows/native-android-apk.yml
+
+      - name: Commit optimized workflows and remove helper
+        run: |
+          set -euo pipefail
+          git rm .github/workflows/apply-npm-ci.yml
+          git add .github/workflows/native-android-check.yml .github/workflows/native-android-apk.yml
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "ci: use package-lock npm cache and npm ci"
+          git push origin HEAD:infra/reproducible-npm-install
