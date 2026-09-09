@@ -24,14 +24,16 @@ Les rôles spécialisés sont décrits dans `agents/`.
 8. Une modification d’une trame ne doit pas casser les autres.
 9. Développer sur une branche dédiée et ouvrir une PR vers `native-android`.
 10. Ne jamais considérer un bundle JavaScript réussi comme une compilation Android réussie.
+11. Le code runtime versionné est la source de vérité : ne jamais ajouter dans `postinstall` ou dans la CI un patch automatique qui modifie silencieusement une fonctionnalité, l’ergonomie, les performances ou une règle métier. Modifier le vrai fichier source et son contrat de validation dans une PR dédiée.
 
 ## Avant toute modification
 
 - identifier le rôle principal concerné dans `agents/` ;
 - identifier les impacts sur ICPE, VMC et Pré-allumage ;
 - vérifier si SQLite, Excel, PDF/Word ou Android natif sont touchés ;
-- limiter le changement au périmètre demandé.
+- limiter le changement au périmètre demandé ;
+- distinguer explicitement une génération de packaging légitime d’une mutation du code runtime qui doit être matérialisée dans Git.
 
 ## Avant fusion
 
-Appliquer la matrice de `agents/qa.md` et documenter les tests réellement exécutés.
+Appliquer la matrice de `agents/qa.md` et documenter les tests réellement exécutés. Pour un changement de build, vérifier également que `npm ci` et `postinstall` n’altèrent pas le code runtime versionné.

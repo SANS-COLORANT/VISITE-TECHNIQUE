@@ -58,15 +58,24 @@ jobs:
       - name: Validate Symfony preparation contract
         run: python .github/scripts/check_symfony_preparation_contract.py
 
-      - name: Validate APK patch order and idempotence after METRA preparation
+      - name: Validate committed runtime source is immutable
         run: |
-          WORK="$RUNNER_TEMP/metra-apk-order"
+          WORK="$RUNNER_TEMP/metra-runtime-verify"
           rm -rf "$WORK"
           mkdir -p "$WORK"
           tar --exclude=.git -cf - . | tar -C "$WORK" -xf -
           cd "$WORK"
-          npm run prepare:metra
-          npm run prepare:metra
+          snapshot_runtime() {
+            find . -type f ! -path './node_modules/*' -print0 | sort -z | xargs -0 sha256sum | sha256sum
+          }
+          BEFORE="$(snapshot_runtime)"
+          npm run verify:metra
+          npm run verify:metra
+          AFTER="$(snapshot_runtime)"
+          if [ "$BEFORE" != "$AFTER" ]; then
+            echo "::error::La vérification METRA a modifié les fichiers source."
+            exit 1
+          fi
           python .github/scripts/patch_report_mode_defaults.py
           python .github/scripts/patch_hydraulic_feature_build.py
           python .github/scripts/patch_lab_health_build.py
@@ -79,7 +88,7 @@ jobs:
           node --check VisiteScreen.js
           node --check visitPrefillDb.js
           node --check reportBuilder.js
-          echo "Ordre APK validé : préparation METRA idempotente puis patches Android historiques."
+          echo "Source runtime vérifiée deux fois sans mutation ; compatibilité des patches Android historiques validée."
 
       - name: Validate build patch compatibility
         run: |
@@ -120,8 +129,17 @@ jobs:
           npm config set fetch-retry-mintimeout 2000
           npm config set fetch-retry-maxtimeout 30000
 
+      - name: Snapshot tracked source before npm install
+        run: git ls-files -z | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/metra-tracked-before.sha256"
+
       - name: Install dependencies from lockfile
         run: npm ci --no-audit --no-fund --prefer-offline
+
+      - name: Validate npm install did not mutate tracked source
+        run: |
+          git ls-files -z | sort -z | xargs -0 sha256sum > "$RUNNER_TEMP/metra-tracked-after.sha256"
+          diff -u "$RUNNER_TEMP/metra-tracked-before.sha256" "$RUNNER_TEMP/metra-tracked-after.sha256"
+          echo "npm ci et postinstall n'ont modifié aucun fichier versionné."
 
       - name: Check Expo dependency versions
         run: npx expo install --check

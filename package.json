@@ -7,8 +7,10 @@
     "node": ">=18"
   },
   "scripts": {
-    "prepare:metra": "node .github/scripts/run_source_patches.js",
-    "postinstall": "npm run prepare:metra",
+    "verify:metra": "node .github/scripts/run_source_patches.js",
+    "prepare:metra": "npm run verify:metra",
+    "prepare:metra:legacy": "node .github/scripts/apply_legacy_source_patches.js",
+    "postinstall": "npm run verify:metra",
     "start": "expo start",
     "android": "expo start --android",
     "doctor": "npx --yes expo-doctor@1.20.4",
