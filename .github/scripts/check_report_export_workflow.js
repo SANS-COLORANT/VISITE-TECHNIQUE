@@ -4,8 +4,10 @@ function requireText(text, needle, label) { if (!text.includes(needle)) throw ne
 function forbidText(text, needle, label) { if (text.includes(needle)) throw new Error(`${label}: forbidden ${needle}`); }
 
 const directory = read('MetraDirectoryScreen.js');
-requireText(directory, "height: '86%', maxHeight: '86%', minHeight: 420", 'client modal visible height');
-requireText(directory, 'minHeight: 220, maxHeight: 440', 'client site preview list');
+requireText(directory, "height: '92%', maxHeight: '92%'", 'client modal full height');
+requireText(directory, 'style={{ flex: 1 }}', 'client site flexible scroll list');
+requireText(directory, 'contentContainerStyle={{ paddingBottom: siteSelectionMode ? 4 : 10 }}', 'client site list bottom spacing');
+forbidText(directory, 'minHeight: 220, maxHeight: 440', 'legacy fixed client site list height');
 requireText(directory, 'Touchez un site pour consulter sa fiche', 'client browse mode helper');
 
 const documents = read('ClientDocumentsScreen.js');
@@ -44,4 +46,4 @@ const storage = read('metraStorage.js');
 requireText(storage, 'export async function dossierRapportsClientMetra', 'client report folder helper');
 requireText(storage, 'export async function dossierRapportsSiteMetra', 'site report folder helper');
 
-console.log('Report export workflow validated before/after legacy patches: sites remain browseable and report folders are created only for the chosen output after explicit site selection.');
+console.log('Report export workflow validated: client sites remain browseable in a full-height scrollable modal and report folders are created only for the chosen output after explicit site selection.');
