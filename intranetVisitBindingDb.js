@@ -8,15 +8,41 @@ function normalize(value) {
 }
 function parseJson(value) { try { return JSON.parse(value || 'null'); } catch { return null; } }
 function unique(rows) { return rows.length === 1 ? rows[0] : null; }
+function validApiId(value) {
+  const raw = clean(value);
+  if (!/^\d+$/.test(raw)) return false;
+  const number = Number(raw);
+  return Number.isSafeInteger(number) && number > 0;
+}
+function countReferenceCriteria(reference) {
+  const categories = Array.isArray(reference?.trame?.categories) ? reference.trame.categories : [];
+  return categories.reduce((total, category) => total + (Array.isArray(category?.sousCategories) ? category.sousCategories : [])
+    .reduce((subtotal, subCategory) => subtotal + (Array.isArray(subCategory?.criteres) ? subCategory.criteres.length : 0), 0), 0);
+}
 
 async function loadVisit(db, visiteId) {
   return db.getFirstAsync(`SELECT v.*,s.client_id,s.nom_site,c.nom AS nom_client,c.code_exploitant AS client_code
     FROM visites v JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id WHERE v.id=?`, [String(visiteId)]);
 }
 
-function compatibleLocal(local, trameId) {
-  const mapped = mapRemoteTrameToLocal({ id: local.remote_trame_id, nom: local.remote_trame_nom });
-  return !mapped || mapped === trameId;
+function localBindingState(local, trameId) {
+  const reference = parseJson(local?.reference_json);
+  if (!reference?.local?.id || !reference?.site?.id) {
+    return { compatible: false, compatibilityReason: 'Référence Intranet incomplète pour ce local. Actualise les données du client.' };
+  }
+  const remoteTrameId = clean(reference?.trame?.id ?? local?.remote_trame_id);
+  if (!validApiId(remoteTrameId)) {
+    return { compatible: false, compatibilityReason: 'Aucune trame Intranet exploitable n’est configurée pour ce local.' };
+  }
+  const criteriaCount = countReferenceCriteria(reference);
+  if (!criteriaCount) {
+    return { compatible: false, compatibilityReason: 'La trame Intranet de ce local ne contient aucun critère de préparation.' };
+  }
+  const mapped = mapRemoteTrameToLocal(reference.trame || { id: remoteTrameId, nom: local?.remote_trame_nom });
+  if (mapped && mapped !== trameId) {
+    return { compatible: false, compatibilityReason: `Trame incompatible avec la visite METRA (${local?.remote_trame_nom || remoteTrameId}).` };
+  }
+  return { compatible: true, compatibilityReason: null };
 }
 
 export async function getVisitIntranetBindingOptions(visiteId, { remoteClientId = null, remoteSiteId = null } = {}) {
@@ -67,20 +93,18 @@ export async function getVisitIntranetBindingOptions(visiteId, { remoteClientId 
   let locals = [];
   let suggestedLocalId = null;
   if (selectedSiteId) {
-    locals = await db.getAllAsync(`SELECT remote_local_id,remote_site_id,local_installation_id,designation,remote_trame_id,remote_trame_nom,
+    const rawLocals = await db.getAllAsync(`SELECT remote_local_id,remote_site_id,local_installation_id,designation,remote_trame_id,remote_trame_nom,
         derniere_visite_id,derniere_visite_date,criteria_count,material_count,reference_json
       FROM api_local_links WHERE remote_site_id=? AND remote_present=1 ORDER BY designation,remote_local_id`, [selectedSiteId]);
+    locals = rawLocals.map((row) => ({ ...row, ...localBindingState(row, visite.trame_id) }));
+    const sendableLocals = locals.filter((row) => row.compatible);
     const visitLocal = clean(visite.api_remote_local_id);
-    if (locals.some((row) => clean(row.remote_local_id) === visitLocal)) suggestedLocalId = visitLocal;
+    if (sendableLocals.some((row) => clean(row.remote_local_id) === visitLocal)) suggestedLocalId = visitLocal;
     if (!suggestedLocalId && clean(visite.installation_id)) {
-      const linkedLocals = locals.filter((row) => clean(row.local_installation_id) === clean(visite.installation_id));
+      const linkedLocals = sendableLocals.filter((row) => clean(row.local_installation_id) === clean(visite.installation_id));
       suggestedLocalId = clean(unique(linkedLocals)?.remote_local_id) || null;
     }
-    if (!suggestedLocalId) {
-      const compatible = locals.filter((row) => compatibleLocal(row, visite.trame_id));
-      suggestedLocalId = clean(unique(compatible)?.remote_local_id) || null;
-    }
-    if (!suggestedLocalId && locals.length === 1) suggestedLocalId = clean(locals[0].remote_local_id);
+    if (!suggestedLocalId) suggestedLocalId = clean(unique(sendableLocals)?.remote_local_id) || null;
   }
 
   return {
@@ -95,7 +119,7 @@ export async function getVisitIntranetBindingOptions(visiteId, { remoteClientId 
     },
     clients,
     sites,
-    locals: locals.map((row) => ({ ...row, compatible: compatibleLocal(row, visite.trame_id) })),
+    locals,
     selectedClientId,
     selectedSiteId,
     suggestedLocalId,
@@ -125,18 +149,18 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
   if (!local) throw new Error('Local introuvable sur ce site dans la préparation Intranet. Actualise les données du client.');
 
   const reference = parseJson(local.reference_json);
-  if (!reference?.local?.id || !reference?.site?.id || !reference?.trame?.id) {
+  if (!reference?.local?.id || !reference?.site?.id) {
     throw new Error('Référence de préparation Intranet incomplète pour ce local. Actualise les données avant l’envoi.');
   }
   if (clean(reference.site.id) !== siteId || clean(reference.local.id) !== localId) {
     throw new Error('La référence Intranet du local ne correspond plus au site sélectionné. Actualise la préparation.');
   }
+  const state = localBindingState(local, visite.trame_id);
+  if (!state.compatible) throw new Error(state.compatibilityReason);
   const mappedTrame = mapRemoteTrameToLocal(reference.trame);
   if (mappedTrame && mappedTrame !== visite.trame_id) {
     throw new Error(`Trame incompatible : la visite METRA utilise « ${visite.trame_id} » et le local Intranet utilise « ${reference.trame.nom || reference.trame.id} ».`);
   }
-  const categories = Array.isArray(reference?.trame?.categories) ? reference.trame.categories : [];
-  if (!categories.length) throw new Error('La trame Intranet de ce local ne contient aucun critère de préparation. Actualise les données du client.');
 
   const existingProvenances = await db.getAllAsync(`SELECT id,details_json FROM provenances WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le DESC`, [String(visiteId)]);
   const previousBindingIds = [];
