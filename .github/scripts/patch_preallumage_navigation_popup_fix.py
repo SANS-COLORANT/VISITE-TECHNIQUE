@@ -119,8 +119,11 @@ s, chips_count = old_chips.subn('', s, count=1)
 if chips_count == 0 and 'fixed-${l.id}' not in s:
     raise SystemExit('old local chip strip not found')
 
-return_marker = "  return <>\n    <SectionList ref={listRef}"
-return_new = "  return <>\n    {fixedLocalNavigator}\n    <SectionList ref={listRef}"
+# Preserve the reference entry already implemented in the runtime source.
+# This compatibility pass must not generate that feature itself.
+reference_entry = next((line + "\n" for line in s.splitlines() if '<PhotoReferenceAccess visiteId={visiteId}' in line), '')
+return_marker = "  return <>\n" + reference_entry + "    <SectionList ref={listRef}"
+return_new = "  return <>\n    {fixedLocalNavigator}\n" + reference_entry + "    <SectionList ref={listRef}"
 s = replace_once(s, return_marker, return_new, 'fixed local navigator render')
 
 for fn in ['AddLocalModal', 'AddEquipmentModal', 'AddCounterModal', 'ConfigModal', 'ActionsModal']:

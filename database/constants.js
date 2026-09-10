@@ -1,9 +1,8 @@
 export const DATABASE_NAME = 'visite_technique.db';
 
 // Keep this value aligned with the highest migration registered in
-// database/migrations/index.js. Migration 031 adds the private offline cache
-// for photos from the latest Intranet visit of each technical room.
-export const DATABASE_SCHEMA_VERSION = 31;
+// database/migrations/index.js. Migration 032 preserves dated photo references and versioned private files.
+export const DATABASE_SCHEMA_VERSION = 32;
 
 export const ENTITY_TYPES = Object.freeze({
   CLIENT: 'client',

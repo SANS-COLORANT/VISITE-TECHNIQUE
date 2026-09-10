@@ -5,6 +5,10 @@ import { activateTablet, getActivationStatus, syncAuthorizedClients, syncClientP
 import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory } from './symfonyApiCacheDb.js';
 import { importLatestApiVisitsForSite } from './apiLatestVisitImportDb.js';
 import { ClientLatestVisitPhotosModal } from './ClientLatestVisitPhotosModal.js';
+import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
+import { SitePhotoPreparationOption } from './SitePhotoPreparationOption.js';
+import { startPhotoDownload } from './latestVisitPhotoTasks.js';
+import { filterLatestVisitPhotos, photoSummary } from './latestVisitPhotoModel.js';
 
 const SURFACE = '#FFFFFF';
 const BORDER = '#E6E8EC';
@@ -110,6 +114,8 @@ function MetraDirectoryScreen({ navigation, route }) {
   const [batchImportBusy, setBatchImportBusy] = useState(false);
   const [batchImportProgress, setBatchImportProgress] = useState(null);
   const [latestPhotosClient, setLatestPhotosClient] = useState(null);
+  const [includePhotos, setIncludePhotos] = useState(true);
+  const [photoPlan, setPhotoPlan] = useState(null);
 
   const refreshStatus = useCallback(async () => {
     const next = await getActivationStatus();
@@ -204,6 +210,8 @@ function MetraDirectoryScreen({ navigation, route }) {
   }, []);
 
   const enterSiteSelection = () => {
+    setIncludePhotos(true);
+    setPhotoPlan(null);
     setSelectedSiteIds(new Set());
     setBatchImportProgress(null);
     setSiteSelectionMode(true);
@@ -231,6 +239,12 @@ function MetraDirectoryScreen({ navigation, route }) {
       return;
     }
 
+    if (includePhotos && !photoPlan?.ready) {
+      Alert.alert('Photos non prêtes', 'Attends la vérification des photos, réessaie ou désactive leur inclusion pour importer les données seules.');
+      return;
+    }
+    const selectedPhotoManifest = includePhotos ? photoPlan.manifest : null;
+    const importedRemoteIds = [];
     setBatchImportBusy(true);
     setBatchImportProgress({ current: 0, total: selected.length, site: null });
     let importedSites = 0;
@@ -246,12 +260,19 @@ function MetraDirectoryScreen({ navigation, route }) {
           const siteId = await materializeCachedSite(site.remote_site_id, remoteClientId);
           const latestImport = await importLatestApiVisitsForSite(siteId, site.remote_site_id);
           importedSites += 1;
+          importedRemoteIds.push(String(site.remote_site_id));
           importedVisits += Number(latestImport?.importedCount || 0);
         } catch (error) {
           errors.push({ site: site.nom, message: String(error?.message || error) });
         }
       }
 
+      let photosScheduled = 0;
+      if (selectedPhotoManifest && importedRemoteIds.length) {
+        const selectedPhotos = filterLatestVisitPhotos(selectedPhotoManifest, { siteIds: importedRemoteIds });
+        photosScheduled = photoSummary(selectedPhotos).missing;
+        if (photosScheduled) startPhotoDownload({ clientId: selectedClient.remote_client_id, manifest: selectedPhotos, label: `${selectedClient.nom} · ${importedRemoteIds.length} site(s) préparé(s)` });
+      }
       await search(query).catch(() => {});
       setSiteSelectionMode(false);
       setSelectedSiteIds(new Set());
@@ -261,6 +282,7 @@ function MetraDirectoryScreen({ navigation, route }) {
         `${importedSites} site${importedSites > 1 ? 's' : ''} importé${importedSites > 1 ? 's' : ''} dans METRA.`,
         `${importedVisits} dernière${importedVisits > 1 ? 's' : ''} visite${importedVisits > 1 ? 's' : ''} intégrée${importedVisits > 1 ? 's' : ''}.`,
       ];
+      if (photosScheduled) lines.push(`${photosScheduled} photo(s) en cours de téléchargement. Tu peux continuer dans METRA et consulter le suivi.`);
       if (errors.length) lines.push(`${errors.length} site${errors.length > 1 ? 's' : ''} en erreur.`);
       Alert.alert(errors.length ? 'Import multiple terminé avec réserves' : 'Import multiple terminé', lines.join('\n'));
     } finally {
@@ -417,7 +439,7 @@ function MetraDirectoryScreen({ navigation, route }) {
           </View>
         </View>
         {siteSelectionMode ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, backgroundColor: '#F8F9FB', borderWidth: 1, borderColor: '#ECEEF1', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 9 }}>
-          <TouchableOpacity disabled={batchImportBusy} onPress={toggleAllSites} style={{ paddingVertical: 5, paddingHorizontal: 4 }}><Text style={{ color: ACCENT, fontWeight: '900', fontSize: 12 }}>{selectedSiteIds.size === sites.length && sites.length ? 'Tout désélectionner' : 'Tout sélectionner'}</Text></TouchableOpacity>
+          <TouchableOpacity disabled={batchImportBusy} onPress={toggleAllSites} style={{ paddingVertical: 5, paddingHorizontal: 4 }}><Text style={{ color: ACCENT, fontSize: 12, fontWeight: '900' }}>{selectedSiteIds.size === sites.length && sites.length ? 'Tout désélectionner' : 'Tout sélectionner'}</Text></TouchableOpacity>
           <Text style={{ color: MUTED, fontSize: 11.5 }}>1, plusieurs ou tous les sites</Text>
         </View> : null}
         <FlatList
@@ -437,9 +459,10 @@ function MetraDirectoryScreen({ navigation, route }) {
           ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 22 }]}>Aucun site encore disponible dans la préparation de ce client.</Text>}
         />
         {siteSelectionMode ? <View style={{ flexShrink: 0, borderTopWidth: 1, borderTopColor: '#EEF0F2', paddingTop: 11, marginTop: 4, backgroundColor: SURFACE }}>
+          <SitePhotoPreparationOption clientId={selectedClient?.remote_client_id} siteIds={[...selectedSiteIds]} enabled={includePhotos} onEnabledChange={setIncludePhotos} onPlanChange={setPhotoPlan} activated={status.activated} disabled={batchImportBusy} />
           {batchImportProgress ? <Text style={{ color: MUTED, fontSize: 11.5, textAlign: 'center', marginBottom: 8 }}>Import {batchImportProgress.current}/{batchImportProgress.total}{batchImportProgress.site ? ` · ${batchImportProgress.site}` : ''}</Text> : null}
           <TouchableOpacity
-            disabled={batchImportBusy || selectedSiteIds.size === 0}
+            disabled={batchImportBusy || selectedSiteIds.size === 0 || (includePhotos && !photoPlan?.ready)}
             onPress={importSelectedSites}
             style={[styles.btnPrimary, { flex: 0, minHeight: 48, alignItems: 'center', justifyContent: 'center', opacity: batchImportBusy || selectedSiteIds.size === 0 ? 0.5 : 1 }]}
           >
@@ -460,7 +483,7 @@ function MetraDirectoryScreen({ navigation, route }) {
           <TouchableOpacity onPress={() => setSelectedSite(null)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: MUTED, fontSize: 19 }}>✕</Text></TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 15 }}>
-          <SmallPill tone="success">Disponible hors connexion</SmallPill>
+          <SmallPill tone="success">Données enregistrées</SmallPill>
           <SmallPill>{locals.length} installation{locals.length > 1 ? 's' : ''}</SmallPill>
           {latestVisit ? <SmallPill>Dernière visite {String(latestVisit).slice(0, 10)}</SmallPill> : null}
         </View>
@@ -474,6 +497,7 @@ function MetraDirectoryScreen({ navigation, route }) {
           </View>
           {siteTrames.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 11 }}>{siteTrames.slice(0, 4).map((label) => <SmallPill key={label}>{label}</SmallPill>)}</View> : null}
         </View>
+        <PhotoReferenceAccess remoteClientId={selectedSite?.remote_client_id || siteClient?.remote_client_id} remoteSiteId={selectedSite?.remote_site_id} clientName={siteClient?.nom} contextTitle={selectedSite?.nom} />
         <FlatList style={{ marginTop: 12, maxHeight: 300 }} data={locals} keyExtractor={(item) => String(item.remote_local_id)} renderItem={({ item }) => <TouchableOpacity activeOpacity={0.78} onPress={() => openPreparedVisit(item)} style={{ paddingVertical: 11, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: '#EEF0F2', flexDirection: 'row', alignItems: 'center' }}>
           <View style={{ flex: 1, paddingRight: 10 }}>
             <Text style={{ color: INK, fontSize: 13.5, fontWeight: '800' }}>{item.designation || 'Local technique'}</Text>

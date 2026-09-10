@@ -49,7 +49,18 @@ requireText(modal, 'localAvailable', 'offline thumbnail state');
 
 const constants = read('database/constants.js');
 const migrationIndex = read('database/migrations/index.js');
-requireText(constants, 'DATABASE_SCHEMA_VERSION = 31', 'database schema version');
+requireText(constants, 'DATABASE_SCHEMA_VERSION = 32', 'database schema version');
 requireText(migrationIndex, 'migration031', 'migration registration');
 
 console.log('Latest-visit photo contract validated: explicit manifest preview, DPoP downloads (max 3), private offline cache, retry handling, thumbnails/viewer, and strict separation from new visit observations.');
+
+const access = read('PhotoReferenceAccess.js');
+requireText(access, 'ClientLatestVisitPhotosModal', 'contextual gallery');
+requireText(read('VisiteScreen.js'), 'PhotoReferenceAccess visiteId={visiteId}', 'visit access');
+requireText(read('SiteVisitesScreen.js'), 'PhotoReferenceAccess siteId={siteId}', 'site access');
+requireText(screen, 'SitePhotoPreparationOption', 'selected sites preparation');
+requireText(read('latestVisitPhotoTasks.js'), 'pausePhotoDownload', 'non-blocking queue');
+requireText(database, 'api_visit_photo_references', 'stable visit reference');
+requireText(read('ReferencePhotoViewer.js'), 'PanResponder', 'zoom and pan');
+forbidText(modal, '!manifest && (syncing || activated)', 'infinite offline loading');
+forbidText(modal, 'if (!downloading) onClose', 'blocking download modal');

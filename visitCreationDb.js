@@ -4,6 +4,7 @@ import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { dossierVisiteMetra, obtenirRacineMetra } from './metraStorage.js';
 import { importApiReferenceForVisit } from './apiVisitPreparationDb.js';
 import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
+import { pinPhotoReferencesForVisit } from './latestVisitPhotosDb.js';
 
 /** Création d'une visite native de production. Le préremplissage vient uniquement de l'historique réel du même local/trame. */
 export async function creerVisiteProduction({ siteId, technicien = null, mode = 'complete', trameId = DEFAULT_TRAME_ID, apiRemoteLocalId = null } = {}) {
@@ -30,6 +31,9 @@ export async function creerVisiteProduction({ siteId, technicien = null, mode = 
     await importLatestApiVisitForLocal(siteId, apiRemoteLocalId);
     await importApiReferenceForVisit(id, apiRemoteLocalId);
   }
+
+  // Snapshot only cached reference metadata: no network and no observation copy.
+  try { await pinPhotoReferencesForVisit(id); } catch (e) { console.warn('Photo reference snapshot deferred', e); }
 
   // Le stockage Android SAF peut être lent (lecture/création de plusieurs
   // dossiers). Il ne doit jamais retarder l'ouverture de la visite : la base
