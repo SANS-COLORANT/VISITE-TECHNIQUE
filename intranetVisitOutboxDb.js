@@ -14,6 +14,7 @@ export function subscribeVisitOutbox(listener) { listeners.add(listener); return
 export function getVisitOutboxRevision() { return revision; }
 
 const RETRYABLE_HTTP = new Set([500, 502, 503, 504]);
+const LOCAL_AUTH_ERRORS = new Set(['reactivation_required', 'dpop_key_missing', 'invalid_grant']);
 function isoAfter(milliseconds) { return new Date(Date.now() + Math.max(1000, milliseconds)).toISOString(); }
 function retryAfterMs(value) {
   if (value == null || value === '') return 60_000;
@@ -140,13 +141,14 @@ async function sendRow(db, row) {
     return { status: 'synced', row: await getVisitUploadState(row.visite_id), response };
   } catch (error) {
     const status = Number(error?.status || 0);
+    const localAuthFailure = LOCAL_AUTH_ERRORS.has(String(error?.code || ''));
     if (error?.code === 'invalid_ack') await markTerminal(db, row, 'rejected', error);
+    else if (localAuthFailure || status === 401) await markTerminal(db, row, 'auth_error', error);
     else if (!status || RETRYABLE_HTTP.has(status)) await markRetry(db, row, error, exponentialRetry(Number(row.attempt_count || 0) + 1));
     else if (status === 429) await markRetry(db, row, error, retryAfterMs(error.retryAfter));
     else if (status === 409 && error?.code === 'synchronization_conflict') await markTerminal(db, row, 'conflict', error);
     else if (status === 409) await markTerminal(db, row, 'rejected', error);
     else if (status === 422) await markTerminal(db, row, 'validation_error', error);
-    else if (status === 401) await markTerminal(db, row, 'auth_error', error);
     else await markTerminal(db, row, 'rejected', error);
     notify();
     return { status: 'error', row: await getVisitUploadState(row.visite_id), error };
@@ -168,7 +170,8 @@ export async function processVisitOutbox({ limit = 3 } = {}) {
       const result = await sendRow(db, row);
       results.push(result);
       const http = Number(result?.error?.status || 0);
-      if (result?.status === 'error' && (!http || http === 401 || http === 429 || RETRYABLE_HTTP.has(http))) break;
+      const auth = LOCAL_AUTH_ERRORS.has(String(result?.error?.code || ''));
+      if (result?.status === 'error' && (auth || !http || http === 401 || http === 429 || RETRYABLE_HTTP.has(http))) break;
     }
     return results;
   })().finally(() => { processorPromise = null; });
