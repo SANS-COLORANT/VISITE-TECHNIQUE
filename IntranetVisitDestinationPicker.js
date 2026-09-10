@@ -7,10 +7,10 @@ import { syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';
 function OptionRow({ selected, disabled = false, title, subtitle, onPress }) {
   return <TouchableOpacity accessibilityRole="button" disabled={disabled} onPress={onPress} style={{
     minHeight: 48, borderRadius: 11, borderWidth: 1, borderColor: selected ? COLORS.primary : COLORS.line,
-    backgroundColor: selected ? '#FFF3E8' : '#FFFFFF', paddingHorizontal: 11, paddingVertical: 9, marginBottom: 7, opacity: disabled ? 0.45 : 1,
+    backgroundColor: selected ? '#FFF3E8' : '#FFFFFF', paddingHorizontal: 11, paddingVertical: 9, marginBottom: 7, opacity: disabled ? 0.55 : 1,
   }}>
     <Text style={{ color: selected ? COLORS.primary : COLORS.ink, fontSize: 12.5, fontWeight: '900' }}>{selected ? '✓ ' : ''}{title}</Text>
-    {subtitle ? <Text style={{ color: COLORS.muted, fontSize: 10.5, lineHeight: 15, marginTop: 2 }}>{subtitle}</Text> : null}
+    {subtitle ? <Text style={{ color: disabled ? '#B42318' : COLORS.muted, fontSize: 10.5, lineHeight: 15, marginTop: 2 }}>{subtitle}</Text> : null}
   </TouchableOpacity>;
 }
 
@@ -113,7 +113,8 @@ export function IntranetVisitDestinationPicker({ visible, visiteId, onClose, onB
         </> : null}
 
         {siteId ? <><Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '900', marginTop: 8, marginBottom: 6 }}>3 · Local / installation Intranet</Text>
-          {locals.length ? locals.map((row) => <OptionRow key={row.remote_local_id} selected={String(row.remote_local_id) === String(localId)} disabled={!row.compatible} title={row.designation || `Local ${row.remote_local_id}`} subtitle={[row.remote_trame_nom, row.derniere_visite_date ? `dernière visite ${String(row.derniere_visite_date).slice(0,10)}` : null, `ID ${row.remote_local_id}`, row.compatible ? null : 'trame incompatible'].filter(Boolean).join(' · ')} onPress={() => setLocalId(String(row.remote_local_id))} />) : <Text style={{ color: '#B42318', fontSize: 11.5, lineHeight: 16, marginBottom: 8 }}>Aucun local trouvé sur ce site. Actualise les données du client. Le POST Intranet exige un localId : METRA ne peut pas inventer ce rattachement.</Text>}
+          {locals.length ? locals.map((row) => <OptionRow key={row.remote_local_id} selected={String(row.remote_local_id) === String(localId)} disabled={!row.compatible} title={row.designation || `Local ${row.remote_local_id}`} subtitle={[row.remote_trame_nom || 'Trame Intranet non renseignée', row.derniere_visite_date ? `dernière visite ${String(row.derniere_visite_date).slice(0,10)}` : null, `ID ${row.remote_local_id}`, row.compatible ? null : (row.compatibilityReason || 'Local non envoyable avec cette trame')].filter(Boolean).join(' · ')} onPress={() => setLocalId(String(row.remote_local_id))} />) : <Text style={{ color: '#B42318', fontSize: 11.5, lineHeight: 16, marginBottom: 8 }}>Aucun local trouvé sur ce site. Actualise les données du client. Le POST Intranet exige un localId : METRA ne peut pas inventer ce rattachement.</Text>}
+          {locals.length && !locals.some((row) => row.compatible) ? <View style={{ backgroundColor: '#FFF8ED', borderWidth: 1, borderColor: '#F1D2A6', borderRadius: 10, padding: 9, marginTop: 2, marginBottom: 8 }}><Text style={{ color: '#805017', fontSize: 11, lineHeight: 16, fontWeight: '700' }}>Aucun local de ce site ne fournit actuellement une trame Intranet complète et compatible. Actualise d’abord. Si le message reste affiché, la trame doit être renseignée côté Intranet avant l’envoi ; la visite METRA reste conservée.</Text></View> : null}
         </> : null}
       </ScrollView>}
 
