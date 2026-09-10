@@ -1,4 +1,4 @@
-name: Temporary Intranet Any Visit Patch
+name: Temporary Intranet Any Visit Validation
 
 on:
   push:
@@ -6,17 +6,14 @@ on:
       - feat/intranet-send-any-visit
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
-  patch:
-    if: github.actor != 'github-actions[bot]'
+  validate:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
 
       - name: Setup Node
         uses: actions/setup-node@v4
@@ -27,20 +24,8 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Apply flexible Intranet destination patch
-        run: python3 .github/scripts/tmp_patch_intranet_any_visit.py
-
-      - name: Validate dedicated contract
-        run: node .github/scripts/check_intranet_any_visit_contract.js
+      - name: Validate executable any-visit binding
+        run: node .github/scripts/test_intranet_any_visit_binding.js
 
       - name: Validate full METRA source contracts
         run: npm run verify:metra
-
-      - name: Commit prepared source
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add intranetVisitBindingDb.js IntranetVisitDestinationPicker.js intranetVisitPayload.js IntranetVisitSync.js .github/scripts/check_intranet_any_visit_contract.js .github/scripts/run_source_patches.js docs/INTRANET_VISIT_UPLOAD.md
-          git diff --cached --quiet && exit 0
-          git commit -m "feat: envoyer toute visite vers une destination Intranet"
-          git push origin HEAD:feat/intranet-send-any-visit
