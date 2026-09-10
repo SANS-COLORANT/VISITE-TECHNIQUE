@@ -37,7 +37,7 @@ function serverFeedback(row) {
 
 function needsIntranetReferenceRepair(error) {
   const text = [error?.message, ...(Array.isArray(error?.issues) ? error.issues : [])].filter(Boolean).join(' | ');
-  return /Trame\s*:\s*identifiant Intranet invalide|aucun critère de référence figé|Référence Intranet figée absente|n[’']est pas rattachée à un local Intranet/i.test(text);
+  return /Trame\s*:\s*identifiant Intranet invalide|aucun critère de référence figé|Référence Intranet figée absente|n[’']est pas rattachée à un local Intranet|branche Intranet dupliquée|référence Intranet.*incomplète/i.test(text);
 }
 
 export function IntranetVisitSyncRuntime() {
@@ -93,22 +93,26 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null }) {
       const summary = preview.summary;
       const progressWarning = finalizeFirst && Number(visite.progression_pct || 0) < 100
         ? `\n\nAttention : la visite n’est renseignée qu’à ${visite.progression_pct || 0} %. Les champs obligatoires Intranet doivent malgré tout être valides.` : '';
-      const materialWarning = preview.destructiveMaterialClear
-        ? `\n\nATTENTION : le listing Intranet contenait ${preview.sourceMaterialCount} matériel(s) et METRA en enverra 0. Le serveur supprimera tout le listing matériel de ce local.` : '';
-      const submit = async (confirmMaterialClear = false) => {
+      const materialWarning = preview.destructiveMaterialChange
+        ? `\n\nATTENTION : le listing Intranet de référence contient ${preview.sourceMaterialCount} matériel(s), METRA en enverra ${summary.materials}. Le serveur remplace le listing complet : ${preview.removedSourceMaterialCount} matériel(s) au minimum seront supprimés.` : '';
+      const submit = async (confirmMaterialReplacement = false) => {
         setBusy(true);
         try {
           if (finalizeFirst) await finalizeVisitForUpload(visiteId);
-          await queueVisitUpload(visiteId, { confirmMaterialClear, replaceTerminal });
+          await queueVisitUpload(visiteId, { confirmMaterialReplacement, replaceTerminal });
           await onVisitChanged?.();
           await refresh();
           processVisitOutbox({ limit: 1 }).catch(() => {});
         } catch (error) {
-          if (error?.code === 'material_clear_confirmation_required') {
+          if (['material_replacement_confirmation_required', 'material_clear_confirmation_required'].includes(error?.code)) {
+            const destructiveClear = Number(error?.prepared?.summary?.materials || 0) === 0;
             Alert.alert(
-              'Attention : listing matériel vidé',
+              destructiveClear ? 'Attention : listing matériel vidé' : 'Attention : matériels supprimés de l’Intranet',
               `${error.message}\n\nCette action remplacera le listing matériel complet de ce local dans l’Intranet.`,
-              [{ text: 'Annuler', style: 'cancel' }, { text: 'Confirmer le listing vide', style: 'destructive', onPress: () => submit(true).catch(() => {}) }]
+              [
+                { text: 'Annuler', style: 'cancel' },
+                { text: destructiveClear ? 'Confirmer le listing vide' : 'Confirmer le remplacement', style: 'destructive', onPress: () => submit(true).catch(() => {}) },
+              ]
             );
             return;
           }
@@ -121,7 +125,11 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null }) {
         `${summary.criteria} critères · ${summary.remarks} réserve(s) · ${summary.materials} matériel(s) · ${summary.notes} note(s).${progressWarning}${materialWarning}\n\nLes photos et la conclusion ne sont pas incluses : la route serveur fournie ne les accepte pas.\n\nLe contenu est figé au moment de la mise en file. En cas de coupure, METRA reprend le même envoi sans créer de doublon.`,
         [
           { text: 'Annuler', style: 'cancel' },
-          { text: preview.destructiveMaterialClear ? 'Vider le listing et envoyer' : (finalizeFirst ? 'Finaliser et envoyer' : 'Mettre en attente / envoyer'), style: preview.destructiveMaterialClear ? 'destructive' : 'default', onPress: () => submit(preview.destructiveMaterialClear).catch(() => {}) },
+          {
+            text: preview.destructiveMaterialChange ? 'Confirmer le remplacement et envoyer' : (finalizeFirst ? 'Finaliser et envoyer' : 'Mettre en attente / envoyer'),
+            style: preview.destructiveMaterialChange ? 'destructive' : 'default',
+            onPress: () => submit(preview.destructiveMaterialChange).catch(() => {}),
+          },
         ]
       );
     } catch (error) {
