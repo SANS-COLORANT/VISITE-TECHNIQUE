@@ -18,9 +18,12 @@ function isoAfter(milliseconds) { return new Date(Date.now() + Math.max(1000, mi
 function retryAfterMs(value) {
   if (value == null || value === '') return 60_000;
   const seconds = Number(value);
-  if (Number.isFinite(seconds)) return Math.min(15 * 60_000, Math.max(1000, seconds * 1000));
+  // Le contrat serveur demande de respecter Retry-After. Ne pas raccourcir une
+  // attente longue : cela provoquerait des 429 supplémentaires et consommerait
+  // inutilement de nouvelles preuves DPoP.
+  if (Number.isFinite(seconds)) return Math.max(1000, seconds * 1000);
   const at = Date.parse(String(value));
-  return Number.isFinite(at) ? Math.min(15 * 60_000, Math.max(1000, at - Date.now())) : 60_000;
+  return Number.isFinite(at) ? Math.max(1000, at - Date.now()) : 60_000;
 }
 function exponentialRetry(attempt) { return Math.min(15 * 60_000, Math.max(15_000, 15_000 * 2 ** Math.min(6, Math.max(0, attempt - 1)))); }
 function violationsJson(error) { return error?.violations?.length ? JSON.stringify(error.violations) : null; }
@@ -35,7 +38,6 @@ export async function listVisitOutbox({ includeSynced = false } = {}) {
     FROM api_visit_outbox o JOIN visites v ON v.id=o.visite_id JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id
     ${includeSynced ? '' : "WHERE o.status<>'synced'"} ORDER BY o.queued_at`);
 }
-
 
 export async function finalizeVisitForUpload(visiteId) {
   const db = await getDb();
@@ -56,7 +58,12 @@ export async function previewVisitUpload(visiteId) {
   return buildIntranetVisitPayload(visiteId, '00000000-0000-4000-8000-000000000000');
 }
 
-export async function queueVisitUpload(visiteId, { confirmMaterialClear = false, replaceTerminal = false } = {}) {
+export async function queueVisitUpload(visiteId, {
+  confirmMaterialReplacement = false,
+  // Compatibilité avec le nom utilisé par le premier build de l'upload.
+  confirmMaterialClear = false,
+  replaceTerminal = false,
+} = {}) {
   const db = await getDb();
   const visit = await db.getFirstAsync(`SELECT id,statut FROM visites WHERE id=?`, [visiteId]);
   if (!visit) throw new IntranetVisitValidationError(['Visite introuvable.']);
@@ -70,9 +77,13 @@ export async function queueVisitUpload(visiteId, { confirmMaterialClear = false,
   }
   const envoiId = await createIntranetUploadId();
   const prepared = await buildIntranetVisitPayload(visiteId, envoiId);
-  if (prepared.destructiveMaterialClear && !confirmMaterialClear) {
-    const error = new Error(`Le local comportait ${prepared.sourceMaterialCount} matériel(s) dans la référence Intranet et la visite en contient maintenant 0. L’envoi videra entièrement le listing matériel du local.`);
-    error.code = 'material_clear_confirmation_required';
+  if (prepared.destructiveMaterialChange && !confirmMaterialReplacement && !confirmMaterialClear) {
+    const removed = Number(prepared.removedSourceMaterialCount || 0);
+    const error = new Error(
+      `Le listing Intranet de référence contient ${prepared.sourceMaterialCount} matériel(s) et METRA en enverra ${prepared.summary.materials}. `
+      + `Le POST remplace le listing complet : ${removed} matériel(s) au minimum disparaîtront du local si cet envoi est confirmé.`
+    );
+    error.code = 'material_replacement_confirmation_required';
     error.prepared = prepared;
     throw error;
   }
