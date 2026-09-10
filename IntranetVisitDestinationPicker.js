@@ -23,13 +23,17 @@ export function IntranetVisitDestinationPicker({ visible, visiteId, onClose, onB
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(null);
 
-  const apply = (data, requestedClient = null, requestedSite = null) => {
-    const nextClient = requestedClient || data.selectedClientId || null;
-    const nextSite = requestedSite || data.selectedSiteId || null;
+  const apply = (data) => {
+    // Les sélections résolues par la base sont autoritatives. Un client/site
+    // demandé peut avoir disparu ou ne plus être autorisé après un refresh.
+    // Garder l'ancien identifiant dans l'état React afficherait alors les
+    // options d'un autre contexte et provoquerait un refus au moment du bind.
+    const nextClient = data?.selectedClientId || null;
+    const nextSite = data?.selectedSiteId || null;
     setOptions(data);
     setClientId(nextClient);
     setSiteId(nextSite);
-    setLocalId(data.suggestedLocalId || null);
+    setLocalId(data?.suggestedLocalId || null);
   };
 
   const load = async (requestedClient = null, requestedSite = null) => {
@@ -37,7 +41,7 @@ export function IntranetVisitDestinationPicker({ visible, visiteId, onClose, onB
     setError(null);
     try {
       const data = await getVisitIntranetBindingOptions(visiteId, { remoteClientId: requestedClient, remoteSiteId: requestedSite });
-      apply(data, requestedClient, requestedSite);
+      apply(data);
       return data;
     } catch (e) {
       setError(String(e?.message || e));
@@ -66,9 +70,18 @@ export function IntranetVisitDestinationPicker({ visible, visiteId, onClose, onB
     if (refreshing) return;
     setRefreshing(true); setError(null);
     try {
+      // 1. Le serveur décide d'abord quels clients sont encore autorisés.
       await syncAuthorizedClients();
-      if (clientId) await syncClientPreparation(clientId);
-      await load(clientId, siteId);
+      const afterClients = await load(clientId, siteId);
+      const authorizedClientId = afterClients?.selectedClientId || null;
+
+      // 2. On ne demande jamais la préparation d'un ancien client devenu
+      // interdit. Si le refresh vient au contraire de découvrir/suggérer un
+      // client, sa préparation est chargée dans la même action utilisateur.
+      if (authorizedClientId) {
+        await syncClientPreparation(authorizedClientId);
+        await load(authorizedClientId, afterClients?.selectedSiteId || null);
+      }
     } catch (e) {
       setError(`Réponse Intranet : ${String(e?.message || e)}`);
     } finally { setRefreshing(false); }
