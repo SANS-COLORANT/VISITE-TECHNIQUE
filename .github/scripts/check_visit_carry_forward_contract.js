@@ -16,7 +16,8 @@ requireText(carry, 'async function isImportedHistoricalVisit', 'historical Intra
 requireText(carry, "details_json LIKE '%\\\"sourceType\\\":\\\"imported_latest_visit\\\"%'", 'imported historical provenance detection');
 requireText(carry, 'function technicalControlKeys(trame)', 'technical values preserved from imported history');
 requireText(carry, 'const commentaire = importedHistory && !technicalKeys.has(key) ? null : previousComment;', 'historical conformity comments do not seed the next visit');
-requireText(carry, 'SELECT ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id', 'network values selected');
+requireText(carry, 'SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id', 'network values selected');
+requireText(carry, "entite_type='reseau' AND entite_id=? AND origine='api_symfony'", 'network Intranet provenance carried forward');
 requireText(carry, 'row.t_ext_c ?? null', 'external temperature carry-forward');
 requireText(carry, 'row.t_dep_c ?? null', 'departure temperature carry-forward');
 requireText(carry, 'SELECT label,valeur,unite,compteur_site_id FROM compteurs', 'meter values selected');
@@ -66,7 +67,7 @@ forbidText(preparation, 'criteriaAreHistoricalReferenceOnly: true', 'stale refer
 const creation = read('visitCreationDb.js');
 requireText(creation, "import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';", 'prepared visit history importer wiring');
 const historicalImport = creation.indexOf('await importLatestApiVisitForLocal(siteId, apiRemoteLocalId);');
-const referenceImport = creation.indexOf('await importApiReferenceForVisit(id, apiRemoteLocalId);');
+const referenceImport = creation.indexOf('await importApiReferenceForVisit(id, apiRemoteLocalId, apiRemoteClientId);');
 if (historicalImport < 0 || referenceImport < 0 || historicalImport > referenceImport) {
   throw new Error('prepared visit must materialize the latest preparation snapshot before importing the current API reference');
 }

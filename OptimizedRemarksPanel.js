@@ -39,7 +39,7 @@ function libellePhotoRemarque(remarque, prestation) {
   return prestation || 'Anomalie';
 }
 
-function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panelLabels }) {
+function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panelLabels, intranetLinked = false }) {
   const [prestation, setPrestation, blurPrestation] = useDurableAutosave(remarque.prestation, async (v) => {
     await modifierRemarqueVisite(remarque.id, { prestation: v });
   });
@@ -52,6 +52,14 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
   const [delai, setDelai, blurDelai] = useDurableAutosave(remarque.delai == null ? '' : String(remarque.delai), async (v) => {
     await modifierRemarqueVisite(remarque.id, { delai: v });
   });
+  const dateReserveInitiale = remarque.intranet_date_reserve || String(remarque.cree_le || '').slice(0, 10);
+  const [dateReserve, setDateReserve, blurDateReserve] = useDurableAutosave(dateReserveInitiale, async (v) => {
+    await modifierRemarqueVisite(remarque.id, { intranet_date_reserve: v });
+  });
+  const [echeance, setEcheance, blurEcheance] = useDurableAutosave(remarque.intranet_delai || '', async (v) => {
+    await modifierRemarqueVisite(remarque.id, { intranet_delai: v });
+  });
+  const [etatAvancement, setEtatAvancement] = useState(remarque.intranet_etat_avancement || '');
 
   const changerPrestation = useCallback((v) => {
     setPrestation(v);
@@ -69,6 +77,20 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
     setDelai(v);
     onPatch(remarque.id, { delai: nombreOuNull(v) });
   }, [onPatch, remarque.id, setDelai]);
+  const changerDateReserve = useCallback((v) => {
+    setDateReserve(v);
+    onPatch(remarque.id, { intranet_date_reserve: v });
+  }, [onPatch, remarque.id, setDateReserve]);
+  const changerEcheance = useCallback((v) => {
+    setEcheance(v);
+    onPatch(remarque.id, { intranet_delai: v });
+  }, [onPatch, remarque.id, setEcheance]);
+  const changerEtatAvancement = useCallback(async (v) => {
+    const next = etatAvancement === v ? '' : v;
+    setEtatAvancement(next);
+    onPatch(remarque.id, { intranet_etat_avancement: next || null });
+    await modifierRemarqueVisite(remarque.id, { intranet_etat_avancement: next || null });
+  }, [etatAvancement, onPatch, remarque.id]);
   const changerCriticite = useCallback(async (value) => {
     await modifierCriticiteRemarque(remarque.id, value);
     onPatch(remarque.id, {
@@ -108,10 +130,24 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
           <TextInput style={styles.input} value={prix} onChangeText={changerPrix} onBlur={() => { blurPrix().catch(() => {}); }} placeholder="€ HT" keyboardType="numeric" />
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={styles.fieldLabel}>Délai</Text>
+          <Text style={styles.fieldLabel}>Délai interne</Text>
           <TextInput style={styles.input} value={delai} onChangeText={changerDelai} onBlur={() => { blurDelai().catch(() => {}); }} placeholder="Mois" keyboardType="numeric" />
         </View>
       </View>
+      {intranetLinked ? <>
+      <View style={{ marginTop: 10, padding: 10, borderWidth: 1, borderColor: '#E6E8EC', borderRadius: 10, backgroundColor: '#F8FAFC' }}>
+        <Text style={[styles.fieldLabel, { marginBottom: 3 }]}>Suivi Intranet de la réserve</Text>
+        <Text style={[styles.importHint, { marginBottom: 8 }]}>Le délai interne en mois reste inchangé. L’API Intranet attend séparément une date d’échéance.</Text>
+        <View style={{ flexDirection: 'row', gap: 8 }}>
+          <View style={{ flex: 1 }}><Text style={styles.fieldLabel}>Date réserve</Text><TextInput style={styles.input} value={dateReserve} onChangeText={changerDateReserve} onBlur={() => { blurDateReserve().catch(() => {}); }} placeholder="AAAA-MM-JJ" autoCapitalize="none" /></View>
+          <View style={{ flex: 1 }}><Text style={styles.fieldLabel}>Échéance</Text><TextInput style={styles.input} value={echeance} onChangeText={changerEcheance} onBlur={() => { blurEcheance().catch(() => {}); }} placeholder="AAAA-MM-JJ ou vide" autoCapitalize="none" /></View>
+        </View>
+        <Text style={[styles.fieldLabel, { marginTop: 9 }]}>État d’avancement</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 5 }}>
+          {['Non réalisé', 'Devis émis', 'En cours', 'Terminé', 'Annulé'].map((etat) => <TouchableOpacity key={etat} onPress={() => changerEtatAvancement(etat).catch(() => {})} style={{ minHeight: 38, justifyContent: 'center', paddingHorizontal: 10, borderWidth: 1, borderColor: etatAvancement === etat ? '#E86F2D' : '#D0D5DD', borderRadius: 19, backgroundColor: etatAvancement === etat ? '#FFF3E8' : '#FFF' }}><Text style={{ fontSize: 11, fontWeight: '800', color: etatAvancement === etat ? '#9A4C0A' : '#475467' }}>{etat}</Text></TouchableOpacity>)}
+        </ScrollView>
+      </View>
+      </> : null}
       <View style={styles.remarqueMeta}>
         <Text style={styles.remarqueMetaTxt}>Origine : <Text style={styles.bold}>{remarque.origine || 'Manuelle'}</Text></Text>
       </View>
@@ -125,7 +161,7 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
   );
 }
 
-function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, panels = {} }) {
+function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, panels = {}, intranetLinked = false }) {
   const [remarques, setRemarques] = useState(() => remarksCache.get(visiteId) || []);
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
@@ -242,7 +278,7 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
       <FlatList
         data={remarques}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <ReserveCard remarque={item} visiteId={visiteId} onPatch={patchLocal} onDelete={deleteLocal} onRattacher={ouvrirRattachement} panelLabels={panelLabels} />}
+        renderItem={({ item }) => <ReserveCard remarque={item} visiteId={visiteId} onPatch={patchLocal} onDelete={deleteLocal} onRattacher={ouvrirRattachement} panelLabels={panelLabels} intranetLinked={intranetLinked} />}
         ListHeaderComponent={header}
         ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucune réserve pour l'instant.</Text><Text style={styles.emptySub}>Passe un point de contrôle en N.S pour en générer une.</Text></View>}
         ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ouvrirBiblio}><Text style={styles.addBtnText}>+ Ajouter une réserve manuelle</Text></TouchableOpacity>}

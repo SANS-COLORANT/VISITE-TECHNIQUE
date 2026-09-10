@@ -49,7 +49,7 @@ requireText(modal, 'localAvailable', 'offline thumbnail state');
 
 const constants = read('database/constants.js');
 const migrationIndex = read('database/migrations/index.js');
-requireText(constants, 'DATABASE_SCHEMA_VERSION = 32', 'database schema version');
+requireText(constants, 'DATABASE_SCHEMA_VERSION = 33', 'database schema version');
 requireText(migrationIndex, 'migration031', 'migration registration');
 
 console.log('Latest-visit photo contract validated: explicit manifest preview, DPoP downloads (max 3), private offline cache, retry handling, thumbnails/viewer, and strict separation from new visit observations.');

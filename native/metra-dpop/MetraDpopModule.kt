@@ -97,6 +97,15 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
   }
 
   @ReactMethod
+  fun randomUuid(promise: Promise) {
+    try {
+      promise.resolve(UUID.randomUUID().toString())
+    } catch (e: Exception) {
+      promise.reject("METRA_UUID_ERROR", e.message, e)
+    }
+  }
+
+  @ReactMethod
   fun createProof(method: String, htu: String, accessToken: String?, promise: Promise) {
     try {
       ensureKey()

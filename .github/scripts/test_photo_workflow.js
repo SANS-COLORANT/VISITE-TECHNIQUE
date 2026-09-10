@@ -185,7 +185,7 @@ async function main() {
     check((await server.db.getFirstAsync(`SELECT COUNT(*) n FROM api_photo_files`)).n > 0, 'shared private cache survives deletion of one visit');
     check((await server.db.getAllAsync('PRAGMA foreign_key_check')).length === 0, 'all foreign keys remain valid');
     const fresh = databaseProcess(path.join(dir, 'fresh.db'));
-    try { await fresh.send('migrate', '', [0, 32]); check((await fresh.db.getAllAsync("SELECT name FROM sqlite_master WHERE name='api_visit_photo_references'")).length === 1, 'brand-new database migrates through v32'); } finally { fresh.close(); }
+    try { await fresh.send('migrate', '', [0, 33]); check((await fresh.db.getAllAsync("SELECT name FROM sqlite_master WHERE name='api_visit_photo_references'")).length === 1, 'brand-new database migrates through v33'); } finally { fresh.close(); }
     console.log(`\n${checks} photo workflow checks passed (real SQLite; mocked filesystem and transport).`);
   } finally { server.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 }

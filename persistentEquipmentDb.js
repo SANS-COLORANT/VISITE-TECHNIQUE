@@ -102,12 +102,14 @@ export async function ajouterMaterielPersistant(visiteId) {
 const CHAMP_EQUIPEMENT = { categorie: 'type_code', designation: 'designation', marque: 'marque', modele: 'modele', annee: 'annee' };
 export async function upsertMaterielPersistant(materielId, cle, valeur) {
   const db = await getDb(); const m = await db.getFirstAsync(`SELECT * FROM materiel WHERE id=?`, [materielId]); if (!m) return;
-  const champsAutorises = new Set(['categorie','designation','marque','modele','annee','etat']);
+  const champsAutorises = new Set(['categorie','nombre','designation','numero_materiel','reseau_desservi','marque','modele','caracteristiques','annee','etat']);
   if (!champsAutorises.has(cle)) throw new Error(`Champ matériel non autorisé: ${cle}`);
   await db.runAsync(`UPDATE materiel SET ${cle}=? WHERE id=?`, [valeur, materielId]);
   if (!m.equipement_id) return;
   if (cle === 'etat') { await upsertObservation(db, m.equipement_id, m.visite_id, { etat: valeur || 'Bon', present: 1 }); return; }
-  const colonne = CHAMP_EQUIPEMENT[cle]; const persist = cle === 'annee' ? (valeur ? Number(valeur) || null : null) : (valeur || null);
+  const colonne = CHAMP_EQUIPEMENT[cle];
+  if (!colonne) return; // champs détaillés propres à la visite / au contrat Intranet
+  const persist = cle === 'annee' ? (valeur ? Number(valeur) || null : null) : (valeur || null);
   await db.runAsync(`UPDATE equipements SET ${colonne}=?,modifie_le=datetime('now') WHERE id=?`, [persist, m.equipement_id]);
 }
 export async function retirerMaterielPersistant(materielId) {

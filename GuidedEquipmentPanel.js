@@ -79,6 +79,10 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
  const[designation,setDesignation,blurDesignation,setDesignationNow]=useDurableAutosave(item.designation,v=>upsertMaterielChamp(item.id,'designation',v));
  const[modele,setModele,blurModele,setModeleNow]=useDurableAutosave(item.modele,v=>upsertMaterielChamp(item.id,'modele',v));
  const[annee,setAnnee,blurAnnee]=useDurableAutosave(item.annee,v=>upsertMaterielChamp(item.id,'annee',v));
+ const[nombre,setNombre,blurNombre]=useDurableAutosave(item.nombre,v=>upsertMaterielChamp(item.id,'nombre',v));
+ const[numero,setNumero,blurNumero]=useDurableAutosave(item.numero_materiel,v=>upsertMaterielChamp(item.id,'numero_materiel',v));
+ const[reseau,setReseau,blurReseau]=useDurableAutosave(item.reseau_desservi,v=>upsertMaterielChamp(item.id,'reseau_desservi',v));
+ const[caracteristiques,setCaracteristiques,blurCaracteristiques]=useDurableAutosave(item.caracteristiques,v=>upsertMaterielChamp(item.id,'caracteristiques',v));
  useEffect(()=>{setCategorie(item.categorie||'');setMarque(item.marque||'');setEtat(item.etat||'')},[item.categorie,item.marque,item.etat]);
 
  const refsType=useMemo(()=>catalogue.filter(e=>typeCompatible(categorie,e.categorie)),[catalogue,categorie]);
@@ -117,8 +121,11 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
   <PickerField label="3. Marque" valeur={marque} placeholder={categorie?'Choisir une marque':'Choisir d’abord le type'} disabled={!categorie} onPress={()=>setPicker('marque')} sub={categorie&&marquesType.length?`${marquesType.length} marque(s) compatibles dans le catalogue`:null}/>
   <PickerField label="4. Modèle" valeur={modele} placeholder={!categorie?'Choisir d’abord le type':!marque?'Choisir d’abord la marque':'Choisir un modèle'} disabled={!categorie||!marque} onPress={()=>setPicker('modele')} sub={categorie&&marque?(modeles.length?`${modeles.length} modèle(s) ${marque} correspondant à ${categorie}`:`Aucun modèle ${marque} / ${categorie} dans la base — saisie manuelle possible ci-dessous`):null}/>
   {categorie&&marque?<TextInput style={[styles.input,{marginTop:7}]} value={modele} onChangeText={setModele} onBlur={blurModele} placeholder="Ou saisir / corriger la référence exacte du modèle"/>:null}
-  <View style={{marginTop:10}}><Text style={styles.fieldLabel}>Année</Text><TextInput style={[styles.input,{width:130}]} value={annee} onChangeText={setAnnee} onBlur={blurAnnee} keyboardType="numeric" placeholder="Année"/></View>
-  <View style={{height:10}}/><Text style={styles.fieldLabel}>5. État constaté</Text><View style={{height:6}}/><ChipSelector valeur={etat} options={['Bon','À surveiller','Dégradé','Hors service']} onChange={sauverEtat}/>
+  <View style={{marginTop:10,flexDirection:'row',gap:8}}><View style={{width:110}}><Text style={styles.fieldLabel}>Nombre</Text><TextInput style={styles.input} value={nombre} onChangeText={setNombre} onBlur={blurNombre} placeholder="Ex. 2"/></View><View style={{width:130}}><Text style={styles.fieldLabel}>Année</Text><TextInput style={styles.input} value={annee} onChangeText={setAnnee} onBlur={blurAnnee} keyboardType="numeric" placeholder="Année"/></View><View style={{flex:1}}><Text style={styles.fieldLabel}>N° matériel</Text><TextInput style={styles.input} value={numero} onChangeText={setNumero} onBlur={blurNumero} placeholder="Ex. CHA-001"/></View></View>
+  <View style={{marginTop:8}}><Text style={styles.fieldLabel}>Réseau desservi</Text><TextInput style={styles.input} value={reseau} onChangeText={setReseau} onBlur={blurReseau} placeholder="Ex. Bâtiment A"/></View>
+  <View style={{marginTop:8}}><Text style={styles.fieldLabel}>Caractéristiques</Text><TextInput style={styles.input} value={caracteristiques} onChangeText={setCaracteristiques} onBlur={blurCaracteristiques} placeholder="Ex. 500 kW"/></View>
+  <View style={{height:10}}/><Text style={styles.fieldLabel}>5. État constaté</Text><View style={{height:6}}/><ChipSelector valeur={etat} options={['Neuf','Bon','Moyen','Vétuste','Hors service','À surveiller','Dégradé']} onChange={sauverEtat}/>
+  {['À surveiller','Dégradé'].includes(etat)?<Text style={[styles.importHint,{marginTop:5}]}>Pour une visite liée à l’Intranet, choisis avant l’envoi un état accepté par le serveur : Neuf, Bon, Moyen, Vétuste ou Hors service.</Text>:null}
 
   {item.equipement_id?<View style={[styles.persistentEquipmentBadge,{marginTop:10}]}><Text style={styles.persistentEquipmentBadgeText}>↻ Équipement permanent · {item.nb_observations||0} observation(s)</Text></View>:null}
   <TouchableOpacity style={{marginTop:12}} onPress={async()=>{await supprimerMateriel(item.id);await onChange()}}><Text style={styles.removeLink}>Déclarer cet équipement retiré</Text></TouchableOpacity>

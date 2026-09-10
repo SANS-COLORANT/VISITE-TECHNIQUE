@@ -36,7 +36,7 @@ if export_states not in site:
         raise SystemExit('API-aware site export state marker not found')
     site = site.replace(export_marker, export_marker + export_states, 1)
 
-if 'apiRemoteLocalId' not in site or 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId })' not in site:
+if 'apiRemoteLocalId' not in site or 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })' not in site:
     raise SystemExit('API LOCAL visit creation flow missing before build compatibility patch')
 if 'preremplirVisiteDepuisContexte' in site or 'getDb } from' in site:
     raise SystemExit('Site visit screen still contains blocking direct prefill')
@@ -76,7 +76,7 @@ old_helper = """    if old not in text:
 new_helper = """    if old not in text:
         if label == 'skip unused PRE equipment query' and 'contexte.installation_id' in text and "if (trame.id !== 'pre_allumage')" in text:
             return text
-        if label == 'navigate immediately after visit creation' and 'apiRemoteLocalId' in text and 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId })' in text and 'preremplirVisiteDepuisContexte' not in text:
+        if label == 'navigate immediately after visit creation' and 'apiRemoteLocalId' in text and 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })' in text and 'preremplirVisiteDepuisContexte' not in text:
             return text
         raise SystemExit(f'{label}: marker not found')
 """
@@ -122,7 +122,7 @@ if 'contexte.installation_id' not in visit_prefill:
     raise SystemExit('LOCAL-scoped prefill lost during build patch')
 if "AND (? IS NULL OR installation_id=?)" not in visit_prefill:
     raise SystemExit('Previous stable fields are no longer scoped to the same LOCAL')
-if 'apiRemoteLocalId' not in site_final or 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId })' not in site_final:
+if 'apiRemoteLocalId' not in site_final or 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })' not in site_final:
     raise SystemExit('API LOCAL context lost during SiteVisites build patch')
 if 'preremplirVisiteDepuisContexte' in site_final:
     raise SystemExit('Direct blocking prefill reintroduced in SiteVisites')

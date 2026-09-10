@@ -3,6 +3,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions, Animated, Easing } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
+import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
 import { getVisite, getNote, upsertNote, getDb } from './db.js';
 import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
@@ -266,7 +267,7 @@ function VisiteScreen({ route, onBack }) {
       if (pid === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
       if (pid === 'p-releves') return <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} />;
       if (pid === 'p-equip') return <GuidedEquipmentPanel visiteId={visiteId} />;
-      if (pid === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} />;
+      if (pid === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} intranetLinked={Boolean(visite?.api_remote_local_id) && Number(visite?.api_is_historical) !== 1} />;
       if (pid === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
     }
     return <TrameGenericPanel visiteId={visiteId} panelId={pid} sections={panels[pid]} onSaved={onSaved} />;
@@ -297,6 +298,7 @@ function VisiteScreen({ route, onBack }) {
         </View>
         <View style={styles.progressRow}><View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${visite.progression_pct}%` }]} /></View><Text style={styles.progressPct}>{visite.progression_pct}%</Text></View>
         {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? <PhotoReferenceAccess visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} /> : null}
+        <IntranetVisitSyncControl visite={visite} onVisitChanged={charger} />
         <TouchableOpacity style={styles.anomalyBtn} onPress={() => setAnomalieVisible(true)}><Text style={styles.anomalyBtnText}>⚠ Ajouter une anomalie, une remarque ou une réserve</Text></TouchableOpacity>
         {visite.mode_visite === 'express' && <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>}
         {trame.id === 'vmc' && vmcCaissons.length > 0 ? <VmcCaissonManager visiteId={visiteId} caissons={vmcCaissons} onChange={onCaissonsChange} onNavigate={changerOnglet} /> : null}

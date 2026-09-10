@@ -14,7 +14,7 @@ for raw in sys.stdin:
     try:
         method = request['method']
         if method == 'migrate':
-            start, end = request.get('params', [0, 32])
+            start, end = request.get('params', [0, 33])
             for path in sorted((root / 'database/migrations').glob('[0-9]*.js')):
                 number = int(path.name.split('_')[0])
                 if start < number <= end:

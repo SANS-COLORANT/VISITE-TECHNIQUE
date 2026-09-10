@@ -41,6 +41,7 @@ function SiteVisitesScreen({ route, navigation }) {
   const params = route?.params || {};
   const { siteId, nomSite } = params;
   const apiRemoteLocalId = params.apiRemoteLocalId ? String(params.apiRemoteLocalId) : null;
+  const apiRemoteClientId = params.apiRemoteClientId ? String(params.apiRemoteClientId) : null;
   const apiRemoteLocalDesignation = params.apiRemoteLocalDesignation || null;
   const apiRemoteTrame = apiRemoteLocalId ? { id: params.apiRemoteTrameId || null, nom: params.apiRemoteTrameNom || null } : null;
   const apiSuggestedTrameId = mapRemoteTrameToLocal(apiRemoteTrame);
@@ -106,7 +107,7 @@ function SiteVisitesScreen({ route, navigation }) {
       : (trameChoisie || DEFAULT_TRAME_ID);
     setCreationEnCours(true);
     try {
-      const visiteId = await creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId });
+      const visiteId = await creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId });
       const db = await getDb();
       await preremplirVisiteDepuisContexte(db, visiteId);
       setChoixModeVisible(false);
@@ -301,7 +302,10 @@ function SiteVisitesScreen({ route, navigation }) {
                 <Text style={styles.cardTitle}>{item.date_visite || 'Sans date'}</Text>
                 <Text style={styles.cardSub}>{trame.nom}{item.technicien ? ` · ${item.technicien}` : ''}</Text>
               </View>
-              <View style={styles.badge}><Text style={styles.badgeText}>{STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%</Text></View>
+              <View style={{ alignItems: 'flex-end', gap: 4 }}>
+                <View style={styles.badge}><Text style={styles.badgeText}>{STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%</Text></View>
+                {item.api_remote_local_id ? <Text style={{ color: Number(item.api_is_historical) === 1 || item.intranet_sync_status === 'synced' ? '#16794B' : ['conflict','validation_error','rejected','auth_error'].includes(item.intranet_sync_status) ? '#B42318' : COLORS.muted, fontSize: 10.5, fontWeight: '800' }}>{Number(item.api_is_historical) === 1 ? '↙ Intranet · historique' : item.intranet_sync_status === 'synced' ? `✓ Intranet${item.intranet_remote_visit_id ? ` · n°${item.intranet_remote_visit_id}` : ''}` : item.intranet_sync_status ? '☁ Intranet · à suivre' : '☁ Intranet · non envoyée'}</Text> : null}
+              </View>
               {!selectionExport ? <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }} accessibilityLabel={`Supprimer la visite du ${item.date_visite || ''}`}>
                 <Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text>
               </TouchableOpacity> : null}

@@ -55,6 +55,8 @@ async function parseResponse(response) {
     error.status = response.status;
     error.code = body?.error || body?.code || null;
     error.retryAfter = response.headers?.get?.('Retry-After') || null;
+    error.body = body;
+    error.violations = Array.isArray(body?.violations) ? body.violations : [];
     throw error;
   }
   return body;
@@ -106,6 +108,8 @@ async function downloadAttempt(path, destinationUri, accessToken) {
     error.status = response.status;
     error.code = body?.error || body?.code || null;
     error.retryAfter = response.headers?.get?.('Retry-After') || null;
+    error.body = body;
+    error.violations = Array.isArray(body?.violations) ? body.violations : [];
     throw error;
   }
 
@@ -309,22 +313,56 @@ export async function initializeApiSession() {
   }
 }
 
-export async function protectedRequest(method, path) {
+export async function protectedRequest(method, path, { body = null, headers = {} } = {}) {
   const url = endpoint(path);
   let token = await validAccessToken();
+  let refreshed = false;
+  let proofRetried = false;
 
-  try {
-    return await rawRequest(method, url, { accessToken: token });
-  } catch (error) {
-    if (error.status !== 401) throw error;
-
-    if (error.code === 'invalid_dpop_proof') {
-      // Même access token, mais preuve DPoP entièrement neuve (nouveau jti/signature).
-      return rawRequest(method, url, { accessToken: token });
+  // Every rawRequest creates a fresh DPoP proof. The request body object is
+  // intentionally NOT rebuilt here: an idempotent visit upload retries the
+  // exact same serialized JSON bytes with the same envoiId.
+  while (true) {
+    try {
+      return await rawRequest(method, url, { accessToken: token, body, headers });
+    } catch (error) {
+      if (error.status !== 401) throw error;
+      if (error.code === 'invalid_dpop_proof' && !proofRetried) {
+        proofRetried = true;
+        continue;
+      }
+      if (!refreshed) {
+        token = await refreshTokens();
+        refreshed = true;
+        proofRetried = false;
+        continue;
+      }
+      throw error;
     }
+  }
+}
 
-    token = await refreshTokens();
-    return rawRequest(method, url, { accessToken: token });
+export async function createIntranetUploadId() {
+  const native = ensureNativeDpop();
+  if (!native.randomUuid) throw new Error('Ce build METRA ne peut pas créer un identifiant sécurisé d’envoi.');
+  const value = String(await native.randomUuid());
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value)) {
+    throw new Error('Identifiant d’envoi UUID v4 invalide.');
+  }
+  return value;
+}
+
+export async function sendClientVisits(remoteClientId, serializedPayload) {
+  const id = encodeURIComponent(String(remoteClientId));
+  const body = typeof serializedPayload === 'string' ? serializedPayload : JSON.stringify(serializedPayload);
+  try {
+    return await protectedRequest('POST', `/api/clients/${id}/visites`, {
+      body,
+      headers: { 'Content-Type': 'application/json' },
+    });
+  } catch (error) {
+    await markApiError(error).catch(() => {});
+    throw error;
   }
 }
 

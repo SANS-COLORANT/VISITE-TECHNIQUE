@@ -220,6 +220,7 @@ function buildReferenceDetails(ref, remoteLocalId) {
     site: ref?.site || null,
     derniereVisite: ref?.derniereVisite || null,
     trame: ref?.trame || null,
+    materiels: Array.isArray(ref?.materiels) ? ref.materiels : [],
     remarquesDerniereVisite: Array.isArray(ref?.remarques) ? ref.remarques : [],
     notes: Array.isArray(ref?.notes) ? ref.notes : [],
     preparationMeta: ref?.preparationMeta || null,
@@ -242,7 +243,7 @@ function buildReferenceDetails(ref, remoteLocalId) {
   };
 }
 
-export async function importApiReferenceForVisit(visiteId, remoteLocalId) {
+export async function importApiReferenceForVisit(visiteId, remoteLocalId, remoteClientId = null) {
   const remoteId = sourceId(remoteLocalId);
   if (!remoteId) return null;
   const ref = await getCachedLocalReference(remoteId);
@@ -255,7 +256,21 @@ export async function importApiReferenceForVisit(visiteId, remoteLocalId) {
   let result = null;
   await db.withTransactionAsync(async () => {
     const installationId = await ensureInstallationForRemoteLocal(db, visit.site_id, remoteId, ref);
-    await db.runAsync(`UPDATE visites SET installation_id=?,api_remote_local_id=?,modifie_le=datetime('now') WHERE id=?`, [installationId, remoteId, visiteId]);
+    let resolvedClientId = sourceId(remoteClientId);
+    if (!resolvedClientId) {
+      const candidates = await db.getAllAsync(
+        `SELECT cs.remote_client_id,CASE WHEN c.local_client_id=s.client_id THEN 1 ELSE 0 END AS same_local_client
+         FROM api_client_site_links cs JOIN api_client_links c ON c.remote_client_id=cs.remote_client_id
+         JOIN sites s ON s.id=? WHERE cs.remote_site_id=? AND cs.remote_present=1 ORDER BY cs.synced_at DESC`,
+        [visit.site_id, sourceId(ref?.site?.id)]
+      );
+      const own = candidates.filter((row) => Number(row.same_local_client) === 1);
+      resolvedClientId = sourceId(own.length === 1 ? own[0].remote_client_id : (candidates.length === 1 ? candidates[0].remote_client_id : null));
+    }
+    await db.runAsync(
+      `UPDATE visites SET installation_id=?,api_remote_local_id=?,api_remote_client_id=?,api_remote_trame_id=?,api_source_remote_visit_id=?,modifie_le=datetime('now') WHERE id=?`,
+      [installationId, remoteId, resolvedClientId, sourceId(ref?.trame?.id), sourceId(ref?.derniereVisite?.id), visiteId]
+    );
     let importedMaterials = 0;
 
     for (const sourceMaterial of Array.isArray(ref?.materiels) ? ref.materiels : []) {
@@ -283,6 +298,8 @@ export async function importApiReferenceForVisit(visiteId, remoteLocalId) {
       remoteLocalId: remoteId,
       suggestedTrameId: mapRemoteTrameToLocal(ref?.trame),
       latestRemoteVisitId: sourceId(ref?.derniereVisite?.id),
+      remoteClientId: resolvedClientId,
+      remoteTrameId: sourceId(ref?.trame?.id),
     };
   });
 

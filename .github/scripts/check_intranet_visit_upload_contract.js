@@ -1,0 +1,41 @@
+const fs = require('fs');
+function read(path) { return fs.readFileSync(path, 'utf8'); }
+function requireText(text, needle, label) { if (!text.includes(needle)) throw new Error(`${label}: missing ${needle}`); }
+function forbidText(text, needle, label) { if (text.includes(needle)) throw new Error(`${label}: forbidden ${needle}`); }
+const api = read('symfonyApi.js');
+requireText(api, "protectedRequest('POST', `/api/clients/${id}/visites`", 'POST visits route');
+requireText(api, "'Content-Type': 'application/json'", 'JSON content type');
+requireText(api, 'body, headers', 'same serialized body on authenticated retry');
+requireText(api, 'error.violations', 'server violation preservation');
+requireText(read('native/metra-dpop/MetraDpopModule.kt'), 'fun randomUuid', 'native RFC UUID generator');
+const payload = read('intranetVisitPayload.js');
+requireText(payload, 'INTRANET_MAX_BODY_BYTES = 5 * 1024 * 1024', '5 MiB client guard');
+requireText(payload, "sourceType === 'imported_latest_visit'", 'historical visit rejection');
+requireText(payload, 'destructiveMaterialClear', 'material replacement protection');
+requireText(payload, "return v || '/';", 'empty comment slash contract');
+requireText(payload, 'remoteNetworkGroups', 'network current-value mapping');
+requireText(payload, 'remoteCategoryId', 'network provenance mapping');
+requireText(payload, "pre_allumage_locaux", 'multi-local PRE upload guard');
+requireText(payload, "maximum 2000 par visite", 'criterion count guard');
+requireText(payload, 'counterValue', 'counter current-value mapping');
+forbidText(payload, 'photos:', 'photos excluded from JSON contract');
+forbidText(payload, 'conclusion:', 'conclusion excluded from JSON contract');
+const outbox = read('intranetVisitOutboxDb.js');
+requireText(outbox, 'api_visit_outbox', 'persistent outbox');
+requireText(outbox, "status='retry'", 'offline retry state');
+requireText(outbox, "status === 429", 'Retry-After handling');
+requireText(outbox, "status === 409", 'conflict handling');
+requireText(outbox, 'row.payload_json', 'idempotent serialized retry');
+requireText(outbox, "error?.code === 'invalid_ack'", 'ambiguous acknowledgement terminal guard');
+requireText(read('visitCarryForwardDb.js'), "entite_type='reseau'", 'network provenance carry-forward');
+const migration = read('database/migrations/033_intranet_visit_outbox.js');
+requireText(migration, 'api_source_remote_visit_id', 'frozen source visit');
+requireText(migration, 'payload_json TEXT NOT NULL', 'immutable queued JSON');
+requireText(migration, 'intranet_delai', 'explicit due date field');
+const ui = read('IntranetVisitSync.js');
+requireText(ui, 'Les photos et la conclusion ne sont pas incluses', 'unsupported content disclosure');
+requireText(ui, 'Confirmer le listing vide', 'destructive material confirmation');
+requireText(read('VisiteScreen.js'), '<IntranetVisitSyncControl visite={visite}', 'visit sync control');
+requireText(read('App.js'), '<IntranetVisitSyncRuntime/>', 'foreground retry runtime');
+requireText(read('App.js'), '<IntranetVisitSyncBanner/>', 'global pending status');
+console.log('Intranet visit upload contract validated: exact POST, idempotent outbox, offline retry, conflicts, full criteria/material safeguards and explicit unsupported photo/conclusion scope.');
