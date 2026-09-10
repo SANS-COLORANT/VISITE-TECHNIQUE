@@ -5,6 +5,7 @@ import {
   discardTerminalVisitUpload, finalizeVisitForUpload, getVisitUploadState, listVisitOutbox, previewVisitUpload,
   processVisitOutbox, queueVisitUpload, retryVisitUploadNow, subscribeVisitOutbox,
 } from './intranetVisitOutboxDb.js';
+import { IntranetVisitDestinationPicker } from './IntranetVisitDestinationPicker.js';
 
 const STATUS = Object.freeze({
   pending: ['En attente d’envoi', '#805017'], sending: ['Envoi vers l’Intranet…', COLORS.primary],
@@ -19,6 +20,19 @@ function firstServerViolation(row) {
     if (Array.isArray(values) && values[0]) return [values[0].path, values[0].message].filter(Boolean).join(' · ');
   } catch {}
   return null;
+}
+
+function serverFeedback(row) {
+  if (!row) return null;
+  const http = Number(row.http_status || 0);
+  const violation = firstServerViolation(row);
+  const fallback = violation || row.error_message || row.error_code || null;
+  if (http === 404) return `Réponse Intranet HTTP 404 · client introuvable ou non autorisé pour cette tablette${fallback ? ` · ${fallback}` : ''}`;
+  if (http === 403) return `Réponse Intranet HTTP 403 · tablette non autorisée à écrire${fallback ? ` · ${fallback}` : ''}`;
+  if (http === 422) return `Réponse Intranet HTTP 422 · données, trame, local ou association client/site refusés${fallback ? ` · ${fallback}` : ''}`;
+  if (http === 409) return `Réponse Intranet HTTP 409 · conflit de synchronisation${fallback ? ` · ${fallback}` : ''}`;
+  if (http) return `Réponse Intranet HTTP ${http}${fallback ? ` · ${fallback}` : ''}`;
+  return fallback;
 }
 
 export function IntranetVisitSyncRuntime() {
@@ -62,7 +76,9 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null }) {
   const visiteId = visite?.id;
   const { row, loading, refresh } = useVisitUploadState(visiteId);
   const [busy, setBusy] = useState(false);
-  if (!visite?.api_remote_local_id || Number(visite?.api_is_historical) === 1) return null;
+  const [bindingVisible, setBindingVisible] = useState(false);
+  if (Number(visite?.api_is_historical) === 1) return null;
+  const linkedToIntranet = Boolean(visite?.api_remote_local_id);
 
   const confirmAndQueue = async (replaceTerminal = false, finalizeFirst = false) => {
     if (busy) return;
@@ -109,10 +125,10 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null }) {
     } finally { setBusy(false); }
   };
 
-  const label = row ? (STATUS[row.status]?.[0] || row.status) : (visite.statut === 'terminee' || visite.statut === 'exportee' ? 'Prête à envoyer' : 'Finaliser avant envoi');
+  const label = row ? (STATUS[row.status]?.[0] || row.status) : (!linkedToIntranet ? 'Destination Intranet à choisir' : (visite.statut === 'terminee' || visite.statut === 'exportee' ? 'Prête à envoyer' : 'Finaliser avant envoi'));
   const color = row ? (STATUS[row.status]?.[1] || COLORS.muted) : COLORS.muted;
-  const detail = row?.status === 'synced' ? `Visite Intranet n°${row.remote_visit_id}${row.replayed ? ' · accusé rejoué sans doublon' : ''}`
-    : firstServerViolation(row) || row?.error_message || (row?.status === 'conflict' ? 'Une visite plus récente existe sur le serveur. Actualise la préparation Intranet avant de préparer une nouvelle visite.' : null);
+  const detail = row?.status === 'synced' ? `Réponse Intranet OK · visite n°${row.remote_visit_id}${row.replayed ? ' · accusé rejoué sans doublon' : ''}`
+    : serverFeedback(row) || (row?.status === 'conflict' ? 'Une visite plus récente existe sur le serveur. Actualise la préparation Intranet avant de préparer une nouvelle visite.' : null);
   const hardIdempotencyConflict = row?.error_code === 'idempotency_conflict';
   const invalidAck = row?.error_code === 'invalid_ack';
   const terminalEditable = row && row.status === 'validation_error';
@@ -123,7 +139,8 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null }) {
       <View style={{ flex: 1 }}><Text style={{ color: COLORS.ink, fontSize: 12.5, fontWeight: '900' }}>Synchronisation Intranet</Text><Text accessibilityLiveRegion="polite" style={{ color, fontSize: 11.5, fontWeight: '800', marginTop: 3 }}>{loading ? 'Lecture de l’état…' : label}</Text>{detail ? <Text style={{ color: COLORS.muted, fontSize: 10.5, lineHeight: 15, marginTop: 3 }}>{detail}</Text> : null}</View>
       {busy || row?.status === 'sending' ? <ActivityIndicator size="small" color={COLORS.primary} /> : null}
     </View>
-    {!row ? <TouchableOpacity accessibilityRole="button" disabled={busy || loading} onPress={() => confirmAndQueue(false, !['terminee','exportee'].includes(visite.statut))} style={[styles.btnSecondary, { minHeight: 46, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>{['terminee','exportee'].includes(visite.statut) ? 'Préparer et envoyer' : 'Finaliser et préparer l’envoi'}</Text></TouchableOpacity> : null}
+    {!row && !linkedToIntranet ? <TouchableOpacity accessibilityRole="button" disabled={busy || loading} onPress={() => setBindingVisible(true)} style={[styles.btnSecondary, { minHeight: 46, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>Choisir la destination Intranet</Text></TouchableOpacity> : null}
+    {!row && linkedToIntranet ? <TouchableOpacity accessibilityRole="button" disabled={busy || loading} onPress={() => confirmAndQueue(false, !['terminee','exportee'].includes(visite.statut))} style={[styles.btnSecondary, { minHeight: 46, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>{['terminee','exportee'].includes(visite.statut) ? 'Préparer et envoyer' : 'Finaliser et préparer l’envoi'}</Text></TouchableOpacity> : null}
     {retryable ? <TouchableOpacity accessibilityRole="button" disabled={busy || row?.status === 'sending'} onPress={() => { setBusy(true); retryVisitUploadNow(visiteId).then(refresh).finally(() => setBusy(false)); }} style={[styles.btnSecondary, { minHeight: 46, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>{row?.status === 'auth_error' ? 'Réessayer après réactivation' : 'Réessayer maintenant'}</Text></TouchableOpacity> : null}
     {terminalEditable ? <TouchableOpacity accessibilityRole="button" disabled={busy} onPress={() => confirmAndQueue(true, false)} style={[styles.btnSecondary, { minHeight: 46, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>Repréparer après correction</Text></TouchableOpacity> : null}
     {row && ['pending','sending','retry'].includes(row.status) ? <Text style={{ color: COLORS.muted, fontSize: 10.5, lineHeight: 15, marginTop: 7 }}>L’envoi est figé avec son envoiId. Les corrections faites après sa mise en file ne modifieront pas cette tentative : attends son résultat avant de reprendre la visite.</Text> : null}
@@ -131,5 +148,6 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null }) {
     {hardIdempotencyConflict ? <Text style={{ color: '#B42318', fontSize: 10.5, lineHeight: 15, marginTop: 7 }}>Conflit d’idempotence : ne génère pas un nouvel envoi. Le même envoiId existe avec un contenu différent ; conserve cette visite et fais contrôler le serveur.</Text> : null}
     {invalidAck ? <Text style={{ color: '#B42318', fontSize: 10.5, lineHeight: 15, marginTop: 7 }}>Accusé serveur incohérent : ne génère pas un nouvel envoi. Le serveur a peut-être déjà créé la visite ; conserve cet envoiId et fais contrôler l’Intranet.</Text> : null}
     {row?.status === 'conflict' ? <Text style={{ color: '#B42318', fontSize: 10.5, lineHeight: 15, marginTop: 7 }}>Cet envoi n’est pas répété automatiquement. Recharge les données du local depuis l’Intranet avant de repartir d’une référence récente.</Text> : null}
+    <IntranetVisitDestinationPicker visible={bindingVisible} visiteId={visiteId} onClose={() => setBindingVisible(false)} onBound={async () => { setBindingVisible(false); await onVisitChanged?.(); await refresh(); }} />
   </View>;
 }

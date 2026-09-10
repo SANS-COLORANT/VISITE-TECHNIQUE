@@ -115,3 +115,20 @@ localement, mais bloquent l'envoi tant qu'ils n'ont pas été adaptés explicite
 
 La liste des visites affiche aussi si une visite rattachée à l'Intranet est non
 envoyée, à suivre ou synchronisée.
+
+
+## Envoi de n’importe quelle visite METRA
+
+Une visite n’a plus besoin d’avoir été créée depuis le bouton « Préparer » de l’annuaire Intranet pour être synchronisable.
+
+Le bloc **Synchronisation Intranet** reste visible sur toute visite METRA non historique. Si la visite ne possède pas encore d’identifiants serveur, l’utilisateur choisit explicitement :
+
+1. le client Intranet autorisé sur la tablette ;
+2. le site de ce client ;
+3. le local / l’installation du site compatible avec la trame de la visite.
+
+METRA propose automatiquement les correspondances déjà connues pour le client, le site, l’installation ou la trame, mais ne fabrique jamais un `localId`. L’utilisateur peut actualiser `GET /api/clients` puis `GET /api/clients/{idclient}/preparation-visites` depuis le sélecteur avant de confirmer.
+
+L’association fige sur la visite les identifiants `api_remote_client_id`, `api_remote_local_id`, `api_remote_trame_id` et `api_source_remote_visit_id`, ainsi qu’une copie de la référence de préparation utilisée. Elle ne copie aucune ancienne réserve ou conclusion dans la visite du jour.
+
+Le POST serveur actuel ne reçoit pas de `siteId` ni de nom de client/site : il exige l’identifiant du client dans l’URL et un `localId` dans chaque visite. En conséquence, un client réellement absent/non autorisé est signalé par le serveur en HTTP 404 ; un local, une trame ou une association incorrecte est normalement signalé en HTTP 422. METRA affiche désormais explicitement le code HTTP et le message/violation renvoyés par l’Intranet.

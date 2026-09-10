@@ -173,7 +173,7 @@ async function frozenContext(db, visite) {
     try {
       const details = JSON.parse(row.details_json || 'null');
       if (details?.sourceType === 'imported_latest_visit') return { historical: true, details };
-      if (details?.sourceType === 'preparation_visite') return { historical: false, details };
+      if (details?.sourceType === 'preparation_visite' || details?.sourceType === 'upload_binding') return { historical: false, details };
     } catch {}
   }
   return null;
@@ -339,10 +339,10 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
   const db = await getDb();
   const visite = await db.getFirstAsync(`SELECT v.*,s.client_id FROM visites v JOIN sites s ON s.id=v.site_id WHERE v.id=?`, [visiteId]);
   if (!visite) throw new IntranetVisitValidationError(['Visite introuvable.']);
-  if (!visite.api_remote_local_id) throw new IntranetVisitValidationError(['Cette visite n’est pas rattachée à un local Intranet. Ouvre le local depuis la préparation Intranet pour créer une visite synchronisable.']);
+  if (!visite.api_remote_local_id) throw new IntranetVisitValidationError(['Cette visite n’est pas encore rattachée à une destination Intranet. Choisis le client, le site et le local depuis le bloc Synchronisation Intranet.']);
   const context = await frozenContext(db, visite);
   if (context?.historical) throw new IntranetVisitValidationError(['Une visite historique importée depuis l’Intranet ne peut jamais être renvoyée comme nouvelle visite.']);
-  if (!context?.details) throw new IntranetVisitValidationError(['Référence Intranet figée absente. Reprépare une nouvelle visite depuis l’Intranet.']);
+  if (!context?.details) throw new IntranetVisitValidationError(['Référence Intranet figée absente. Associe ou réassocie cette visite à un local Intranet disposant d’une préparation à jour.']);
   const details = context.details;
   if (visite.trame_id === 'pre_allumage') {
     const localCount = await db.getFirstAsync(`SELECT COUNT(*) AS n FROM pre_allumage_locaux WHERE visite_id=?`, [visite.id]);
