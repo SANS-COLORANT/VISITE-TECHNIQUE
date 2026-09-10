@@ -35,6 +35,11 @@ function serverFeedback(row) {
   return fallback;
 }
 
+function needsIntranetReferenceRepair(error) {
+  const text = [error?.message, ...(Array.isArray(error?.issues) ? error.issues : [])].filter(Boolean).join(' | ');
+  return /Trame\s*:\s*identifiant Intranet invalide|aucun critère de référence figé|Référence Intranet figée absente|n[’']est pas rattachée à un local Intranet/i.test(text);
+}
+
 export function IntranetVisitSyncRuntime() {
   useEffect(() => {
     let alive = true;
@@ -120,6 +125,17 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null }) {
         ]
       );
     } catch (error) {
+      if (needsIntranetReferenceRepair(error)) {
+        Alert.alert(
+          'Référence Intranet à actualiser',
+          'Cette visite est bien conservée dans METRA, mais sa référence locale ne contient pas la trame Intranet complète nécessaire à l’envoi (identifiant de trame et critères).\n\nActualise puis sélectionne le client, le site et le local. Si le local reste indiqué sans trame, celle-ci doit être renseignée côté Intranet avant l’envoi. Aucune donnée saisie dans la visite n’est supprimée.',
+          [
+            { text: 'Fermer', style: 'cancel' },
+            { text: 'Actualiser / choisir', onPress: () => setBindingVisible(true) },
+          ]
+        );
+        return;
+      }
       const issues = error?.issues || [];
       Alert.alert('Visite non envoyable', issues.length ? `${error.message}\n\n${issues.slice(0, 7).map((x) => `• ${x}`).join('\n')}${issues.length > 7 ? `\n• … ${issues.length - 7} autre(s)` : ''}` : String(error?.message || error));
     } finally { setBusy(false); }
