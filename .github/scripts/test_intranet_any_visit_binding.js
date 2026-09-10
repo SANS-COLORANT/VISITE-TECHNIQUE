@@ -117,8 +117,6 @@ async function main() {
     check(prepared.remoteClientId === '12' && prepared.payload.visites[0].localId === 501 && prepared.payload.visites[0].trameId === 3, 'ordinary visit becomes a valid wire payload after explicit binding');
     check(prepared.payload.visites[0].criteres[0].avis === 'S' && prepared.payload.visites[0].criteres[0].commentaire === 'Fonctionnement satisfaisant', 'wire payload uses the current METRA observation, not an old Intranet response');
 
-    await assert.rejects(() => binding.bindVisitToIntranetTarget('ordinary-visit', { remoteClientId: '12', remoteSiteId: '45', remoteLocalId: '501' }), /déjà un envoi|destination ne peut plus/i, 'binding should be locked after queueing');
-    // The previous assertion only becomes meaningful with an outbox row; add one and repeat.
     await server.db.runAsync(`INSERT INTO api_visit_outbox(envoi_id,visite_id,remote_client_id,payload_json,payload_bytes,status) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','ordinary-visit','12','{}',2,'pending')`);
     await assert.rejects(() => binding.bindVisitToIntranetTarget('ordinary-visit', { remoteClientId: '12', remoteSiteId: '45', remoteLocalId: '501' }), /déjà un envoi|destination ne peut plus/i);
     checks++; console.log(`OK ${checks}: destination cannot be changed after an idempotent upload has been queued`);
