@@ -146,19 +146,25 @@ async function copyNetworkValues(db, visiteId, previousVisitId) {
   if (Number(existing?.n || 0) > 0) return 0;
 
   const previous = await db.getAllAsync(
-    `SELECT ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id
+    `SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id
      FROM reseaux WHERE visite_id=? ORDER BY ordre,id`,
     [previousVisitId]
   );
   let copied = 0;
   for (const row of previous || []) {
+    const newId = createId();
     await db.runAsync(
       `INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id)
        VALUES(?,?,?,?,?,?,?,?,?,?)`,
-      [createId(), visiteId, Number(row.ordre || 0), row.nom_reseau || 'Réseau', row.t_ext_c ?? null,
+      [newId, visiteId, Number(row.ordre || 0), row.nom_reseau || 'Réseau', row.t_ext_c ?? null,
         row.t_dep_c ?? null, row.courbe_de_chauffe ?? null, row.tnc ?? null,
         row.consigne_programme_horaire ?? null, row.reseau_site_id || null]
     );
+    const provenance = await db.getAllAsync(`SELECT reference_externe,details_json FROM provenances WHERE entite_type='reseau' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le`, [row.id]);
+    for (const source of provenance || []) {
+      await db.runAsync(`INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json) VALUES(?, 'reseau', ?, 'api_symfony', ?, ?)`,
+        [createId(), newId, source.reference_externe ?? null, source.details_json ?? null]);
+    }
     copied += 1;
   }
   return copied;

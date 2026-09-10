@@ -343,6 +343,7 @@ function MetraDirectoryScreen({ navigation, route }) {
         siteId,
         nomSite: selectedSite.nom,
         apiRemoteLocalId: String(local.remote_local_id),
+        apiRemoteClientId: String(remoteClientId),
         apiRemoteLocalDesignation: local.designation || 'Local technique',
         apiRemoteTrameId: local.remote_trame_id || null,
         apiRemoteTrameNom: local.remote_trame_nom || null,

@@ -7,7 +7,7 @@ import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
 import { pinPhotoReferencesForVisit } from './latestVisitPhotosDb.js';
 
 /** Création d'une visite native de production. Le préremplissage vient uniquement de l'historique réel du même local/trame. */
-export async function creerVisiteProduction({ siteId, technicien = null, mode = 'complete', trameId = DEFAULT_TRAME_ID, apiRemoteLocalId = null } = {}) {
+export async function creerVisiteProduction({ siteId, technicien = null, mode = 'complete', trameId = DEFAULT_TRAME_ID, apiRemoteLocalId = null, apiRemoteClientId = null } = {}) {
   if (!siteId) throw new Error('Site requis pour créer une visite');
   const modeNormalise = mode === 'express' ? 'express' : 'complete';
   const trame = obtenirTrame(trameId);
@@ -29,7 +29,7 @@ export async function creerVisiteProduction({ siteId, technicien = null, mode = 
     // préremplissage standard peut ensuite repartir de cette visite historique
     // sans transformer la référence API en constat du jour.
     await importLatestApiVisitForLocal(siteId, apiRemoteLocalId);
-    await importApiReferenceForVisit(id, apiRemoteLocalId);
+    await importApiReferenceForVisit(id, apiRemoteLocalId, apiRemoteClientId);
   }
 
   // Snapshot only cached reference metadata: no network and no observation copy.

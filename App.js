@@ -3,6 +3,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { View, Text, TouchableOpacity, BackHandler, Keyboard } from 'react-native';
 import { PhotoDownloadBanner } from './PhotoDownloadStatus.js';
+import { IntranetVisitSyncBanner, IntranetVisitSyncRuntime } from './IntranetVisitSync.js';
 import { getDb } from './db.js'; import { COLORS, styles } from './styles.js'; import { HomeScreen } from './HomeScreen.js'; import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';
 import { getHydraulicSchemaVisible,getLab3DVisible,subscribeLabFeatureChanges } from './featureSettings.js'; import { AppErrorBoundary } from './AppErrorBoundary.js'; import { R1EasterEgg } from './R1EasterEgg.js'; import { VisualPackLoadingScreen } from './visual-packs/runtime/VisualPackLoadingScreen.js'; import { VisualPackAsset } from './visual-packs/runtime/VisualPackAsset.js'; import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRuntime.js'; import { getActiveVisualPack,getVisualPackStartupDuration,resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
 const SPLASH_BG='#FBF0E1';
@@ -30,6 +31,8 @@ function AppContent(){const[dbReady,setDbReady]=useState(false),[dbError,setDbEr
  useEffect(()=>subscribeLabFeatureChanges((key,enabled)=>{if(key==='hydraulic_schema')setHydraulicVisible(enabled);if(key==='lab_3d'){setLab3dVisible(enabled);if(!enabled)setStack((s)=>s.filter((e,i)=>e.name!=='Lab3D'||i===0));}}),[]);useEffect(()=>{const sub=BackHandler.addEventListener('hardwareBackPress',()=>{if(r1Visible)return true;if(stack.length<=1)return false;goBack();return true;});return()=>sub.remove();},[stack.length,goBack,r1Visible]);
  if(dbError)return <View style={styles.center}><Text style={styles.errorTitle}>Erreur de démarrage</Text><Text style={styles.errorText}>{String(dbError.message||dbError)}</Text><TouchableOpacity style={[styles.btnPrimary,{marginTop:18}]} onPress={initialiser}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity></View>;if(!visualPack)return <View style={{flex:1,backgroundColor:SPLASH_BG}}/>;if(!dbReady)return <VisualPackLoadingScreen pack={visualPack}/>;
  const current=stack[stack.length-1],navigation={navigate,goBack,goHome},route={params:current.params};return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{flex:1,backgroundColor:COLORS.bg}}>
+ <IntranetVisitSyncRuntime/>
+ <IntranetVisitSyncBanner/>
  <PhotoDownloadBanner/>
  {current.name==='Home'?<><SimpleHeader title="Visite Technique" visualPack={visualPack}/><HomeScreen navigation={navigation} route={route} onR1LongPress={()=>setR1Visible(true)}/></>:null}
  {current.name==='MetraDirectory'?<><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="MetraDirectory" navigation={navigation} route={route}/></>:null}

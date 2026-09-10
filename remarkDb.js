@@ -84,12 +84,16 @@ export async function ajouterRemarqueVisite(visiteId, data = {}) {
 
 export async function modifierRemarqueVisite(id, patch = {}) {
   const db = await openAppDatabase();
-  const autorisees = ['poste', 'prestation', 'delai', 'estimatif', 'criticite'];
+  const autorisees = ['poste', 'prestation', 'delai', 'estimatif', 'criticite', 'intranet_date_reserve', 'intranet_delai', 'intranet_etat_avancement'];
   const sets = []; const params = [];
   for (const cle of autorisees) {
     if (!Object.prototype.hasOwnProperty.call(patch, cle)) continue;
     sets.push(`${cle}=?`);
-    params.push(cle === 'delai' || cle === 'estimatif' ? normaliserNombreNullable(patch[cle]) : cle === 'criticite' ? clampReserveSeverity(patch[cle]) : patch[cle]);
+    let value = patch[cle];
+    if (cle === 'delai' || cle === 'estimatif') value = normaliserNombreNullable(value);
+    else if (cle === 'criticite') value = clampReserveSeverity(value);
+    else if (cle.startsWith('intranet_')) value = value == null || String(value).trim() === '' ? null : String(value).trim();
+    params.push(value);
     if (cle === 'criticite') sets.push('criticite_modifiee=1');
   }
   if (!sets.length) return;

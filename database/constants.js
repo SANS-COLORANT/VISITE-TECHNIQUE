@@ -1,8 +1,8 @@
 export const DATABASE_NAME = 'visite_technique.db';
 
 // Keep this value aligned with the highest migration registered in
-// database/migrations/index.js. Migration 032 preserves dated photo references and versioned private files.
-export const DATABASE_SCHEMA_VERSION = 32;
+// database/migrations/index.js. Migration 033 adds the persistent Intranet visit outbox and frozen remote context.
+export const DATABASE_SCHEMA_VERSION = 33;
 
 export const ENTITY_TYPES = Object.freeze({
   CLIENT: 'client',
