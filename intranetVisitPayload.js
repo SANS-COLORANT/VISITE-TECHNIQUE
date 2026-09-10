@@ -169,14 +169,18 @@ function mapNetworksToRemoteGroups(networks, groups, provenanceRows, issues) {
 async function frozenContext(db, visite) {
   const rows = await db.getAllAsync(`SELECT details_json,reference_externe,importe_le FROM provenances
     WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le DESC`, [visite.id]);
+  let preparedContext = null;
   for (const row of rows || []) {
     try {
       const details = JSON.parse(row.details_json || 'null');
       if (details?.sourceType === 'imported_latest_visit') return { historical: true, details };
-      if (details?.sourceType === 'preparation_visite' || details?.sourceType === 'upload_binding') return { historical: false, details };
+      // An explicit send-time destination must win over an older preparation
+      // reference, including when SQLite timestamps fall in the same second.
+      if (details?.sourceType === 'upload_binding') return { historical: false, details };
+      if (details?.sourceType === 'preparation_visite' && !preparedContext) preparedContext = { historical: false, details };
     } catch {}
   }
-  return null;
+  return preparedContext;
 }
 
 async function resolveRemoteClientId(db, visite, details, issues) {

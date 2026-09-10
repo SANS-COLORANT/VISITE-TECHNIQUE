@@ -133,6 +133,26 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null }) {
   const invalidAck = row?.error_code === 'invalid_ack';
   const terminalEditable = row && row.status === 'validation_error';
   const retryable = row && ['pending', 'retry', 'auth_error'].includes(row.status);
+  const destinationChangeAllowed = !row || (
+    ['validation_error', 'rejected', 'conflict'].includes(row.status)
+    && !hardIdempotencyConflict
+    && !invalidAck
+  );
+  const changeDestination = async () => {
+    if (busy || !destinationChangeAllowed) return;
+    if (row) {
+      setBusy(true);
+      try {
+        const discarded = await discardTerminalVisitUpload(visiteId);
+        if (!discarded) {
+          Alert.alert('Destination verrouillée', 'Cet envoi ne peut pas changer de destination dans son état actuel.');
+          return;
+        }
+        await refresh();
+      } finally { setBusy(false); }
+    }
+    setBindingVisible(true);
+  };
 
   return <View style={{ borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, backgroundColor: '#F8FAFC', padding: 10, marginVertical: 7 }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -141,6 +161,8 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null }) {
     </View>
     {!row && !linkedToIntranet ? <TouchableOpacity accessibilityRole="button" disabled={busy || loading} onPress={() => setBindingVisible(true)} style={[styles.btnSecondary, { minHeight: 46, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>Choisir la destination Intranet</Text></TouchableOpacity> : null}
     {!row && linkedToIntranet ? <TouchableOpacity accessibilityRole="button" disabled={busy || loading} onPress={() => confirmAndQueue(false, !['terminee','exportee'].includes(visite.statut))} style={[styles.btnSecondary, { minHeight: 46, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>{['terminee','exportee'].includes(visite.statut) ? 'Préparer et envoyer' : 'Finaliser et préparer l’envoi'}</Text></TouchableOpacity> : null}
+    {!row && linkedToIntranet ? <TouchableOpacity accessibilityRole="button" disabled={busy || loading} onPress={changeDestination} style={{ minHeight: 38, marginTop: 4, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.primary, fontSize: 11.5, fontWeight: '900' }}>Modifier la destination Intranet</Text></TouchableOpacity> : null}
+    {row && destinationChangeAllowed ? <TouchableOpacity accessibilityRole="button" disabled={busy} onPress={changeDestination} style={[styles.btnSecondary, { minHeight: 44, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>Changer / actualiser la destination</Text></TouchableOpacity> : null}
     {retryable ? <TouchableOpacity accessibilityRole="button" disabled={busy || row?.status === 'sending'} onPress={() => { setBusy(true); retryVisitUploadNow(visiteId).then(refresh).finally(() => setBusy(false)); }} style={[styles.btnSecondary, { minHeight: 46, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>{row?.status === 'auth_error' ? 'Réessayer après réactivation' : 'Réessayer maintenant'}</Text></TouchableOpacity> : null}
     {terminalEditable ? <TouchableOpacity accessibilityRole="button" disabled={busy} onPress={() => confirmAndQueue(true, false)} style={[styles.btnSecondary, { minHeight: 46, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>Repréparer après correction</Text></TouchableOpacity> : null}
     {row && ['pending','sending','retry'].includes(row.status) ? <Text style={{ color: COLORS.muted, fontSize: 10.5, lineHeight: 15, marginTop: 7 }}>L’envoi est figé avec son envoiId. Les corrections faites après sa mise en file ne modifieront pas cette tentative : attends son résultat avant de reprendre la visite.</Text> : null}

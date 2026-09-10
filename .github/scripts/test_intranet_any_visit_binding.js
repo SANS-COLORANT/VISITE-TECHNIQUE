@@ -111,6 +111,9 @@ async function main() {
     check(Number(before.controls.n) === Number(after.controls.n) && Number(before.remarks.n) === Number(after.remarks.n) && Number(before.materials.n) === Number(after.materials.n), 'binding never copies, removes or rewrites current visit observations');
     const links = await server.db.getFirstAsync(`SELECT c.local_client_id,s.local_site_id FROM api_client_links c CROSS JOIN api_site_links s WHERE c.remote_client_id='12' AND s.remote_site_id='45'`);
     check(links.local_client_id === 'local-client' && links.local_site_id === 'local-site', 'explicit successful association is remembered for future visits of the same client/site');
+    await binding.bindVisitToIntranetTarget('ordinary-visit', { remoteClientId: '12', remoteSiteId: '45', remoteLocalId: '501' });
+    const bindingCount = await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM provenances WHERE entite_type='visite' AND entite_id='ordinary-visit' AND details_json LIKE '%"sourceType":"upload_binding"%'`);
+    check(Number(bindingCount.n) === 1, 'changing the destination before queueing replaces the previous explicit binding instead of leaving ambiguous frozen references');
 
     const payload = load('intranetVisitPayload.js', { getDb: async () => server.db, obtenirTrame: () => localTrame });
     const prepared = await payload.buildIntranetVisitPayload('ordinary-visit', '11111111-1111-4111-8111-111111111111');

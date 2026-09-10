@@ -138,10 +138,12 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
   const categories = Array.isArray(reference?.trame?.categories) ? reference.trame.categories : [];
   if (!categories.length) throw new Error('La trame Intranet de ce local ne contient aucun critère de préparation. Actualise les données du client.');
 
-  const existingProvenances = await db.getAllAsync(`SELECT details_json FROM provenances WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le DESC`, [String(visiteId)]);
+  const existingProvenances = await db.getAllAsync(`SELECT id,details_json FROM provenances WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le DESC`, [String(visiteId)]);
+  const previousBindingIds = [];
   for (const row of existingProvenances) {
     const details = parseJson(row.details_json);
     if (details?.sourceType === 'imported_latest_visit') throw new Error('Une visite historique Intranet ne peut pas être réutilisée comme nouvelle visite.');
+    if (details?.sourceType === 'upload_binding' && row.id) previousBindingIds.push(String(row.id));
   }
 
   const details = {
@@ -153,6 +155,9 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
   };
 
   await db.withTransactionAsync(async () => {
+    for (const provenanceId of previousBindingIds) {
+      await db.runAsync(`DELETE FROM provenances WHERE id=?`, [provenanceId]);
+    }
     await db.runAsync(`UPDATE visites SET api_remote_client_id=?,api_remote_local_id=?,api_remote_trame_id=?,api_source_remote_visit_id=?,modifie_le=datetime('now') WHERE id=?`,
       [clientId, localId, clean(reference.trame.id), clean(reference?.derniereVisite?.id) || null, String(visiteId)]);
     await db.runAsync(`UPDATE api_client_links SET local_client_id=COALESCE(local_client_id,?) WHERE remote_client_id=?`, [visite.client_id, clientId]);
