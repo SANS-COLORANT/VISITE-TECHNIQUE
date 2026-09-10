@@ -47,6 +47,8 @@ function limited(value, max, path, issues, { required = false } = {}) {
 function exactComment(value, issues, path) {
   const v = clean(value);
   if (v.length > 1500) issues.push(`${path} : ${v.length} caractères, maximum 1500.`);
+  // Le serveur accepte commentaire:null mais ne crée alors pas LocalCritere.
+  // Une chaîne non nulle est donc systématique afin de ne perdre aucun avis.
   return v || '/';
 }
 function meaningfulRemote(value) { const v = clean(value); return !v || v === '/' ? null : v; }
@@ -206,6 +208,12 @@ function sourceVisitId(visite, details, issues) {
 function remoteTrameId(visite, details, issues) {
   return apiId(nullable(visite.api_remote_trame_id) ?? nullable(details?.trame?.id), 'Trame', issues);
 }
+function countRemoteCriteria(trame) {
+  return (Array.isArray(trame?.categories) ? trame.categories : []).reduce((total, category) => {
+    const subs = Array.isArray(category?.sousCategories) ? category.sousCategories : [];
+    return total + subs.reduce((subtotal, subCategory) => subtotal + (Array.isArray(subCategory?.criteres) ? subCategory.criteres.length : 0), 0);
+  }, 0);
+}
 
 async function buildCriteria(db, visite, details, issues) {
   const remoteTrame = details?.trame;
@@ -222,9 +230,10 @@ async function buildCriteria(db, visite, details, issues) {
   const fieldMap = new Map(fields.map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
   const controlMap = new Map(controls.map((row) => [`${row.section_code}||${row.cle}`, row]));
   const remoteNetworkGroups = visite.trame_id === 'icpe_v1'
-    ? categories.flatMap((category) => (category.sousCategories || []).filter(isNetworkGroup).map((subCategory) => ({ category, subCategory }))) : [];
+    ? categories.flatMap((category) => (Array.isArray(category?.sousCategories) ? category.sousCategories : []).filter(isNetworkGroup).map((subCategory) => ({ category, subCategory }))) : [];
   const networkAssignments = mapNetworksToRemoteGroups(networks, remoteNetworkGroups, networkProvenances, issues);
   const result = [];
+  const seenRemoteBranches = new Set();
   let ordinal = 0;
   for (const category of categories) {
     for (const subCategory of Array.isArray(category?.sousCategories) ? category.sousCategories : []) {
@@ -235,6 +244,11 @@ async function buildCriteria(db, visite, details, issues) {
         const categorieId = apiId(category?.id, `${path} / catégorie`, issues);
         const sousCategorieId = apiId(subCategory?.id, `${path} / sous-catégorie`, issues);
         const critereId = apiId(criterion?.id, `${path} / identifiant`, issues);
+        if (categorieId && sousCategorieId && critereId) {
+          const remoteBranch = `${categorieId}:${sousCategorieId}:${critereId}`;
+          if (seenRemoteBranches.has(remoteBranch)) issues.push(`${path} : branche Intranet dupliquée (${remoteBranch}). Actualise la préparation avant l’envoi.`);
+          else seenRemoteBranches.add(remoteBranch);
+        }
         const applicable = criterion?.avisApplicable === true;
         let avis = null;
         let commentaire = '/';
@@ -316,8 +330,15 @@ async function buildMaterials(db, visiteId, sourceMaterialCount, issues) {
       etat: state && INTRANET_MATERIAL_STATES.includes(state) ? state : state,
     };
   });
-  return { materiels: result, destructiveMaterialClear: result.length === 0 && Number(sourceMaterialCount || 0) > 0,
-    sourceMaterialCount: Number(sourceMaterialCount || 0) };
+  const sourceCount = Number(sourceMaterialCount || 0);
+  const removedSourceMaterialCount = Math.max(0, sourceCount - result.length);
+  return {
+    materiels: result,
+    destructiveMaterialChange: removedSourceMaterialCount > 0,
+    destructiveMaterialClear: result.length === 0 && sourceCount > 0,
+    removedSourceMaterialCount,
+    sourceMaterialCount: sourceCount,
+  };
 }
 
 async function buildNotes(db, visiteId, issues) {
@@ -368,7 +389,7 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
     buildCriteria(db, visite, details, issues), buildRemarks(db, visite.id, issues),
     buildMaterials(db, visite.id, sourceMaterials, issues), buildNotes(db, visite.id, issues),
   ]);
-  const expectedCriteria = (details?.trame?.categories || []).reduce((n, category) => n + (category?.sousCategories || []).reduce((m, sub) => m + (sub?.criteres || []).length, 0), 0);
+  const expectedCriteria = countRemoteCriteria(details?.trame);
   if (criteres.length !== expectedCriteria) issues.push(`Critères : ${criteres.length}/${expectedCriteria}, la trame Intranet doit être envoyée intégralement.`);
   if (criteres.length > 2000) issues.push(`Critères : ${criteres.length}, maximum 2000 par visite.`);
   if (remarques.length > 500) issues.push(`Réserves : ${remarques.length}, maximum 500 par visite.`);
@@ -381,10 +402,19 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
   const serialized = JSON.stringify(payload);
   const payloadBytes = utf8ByteLength(serialized);
   if (payloadBytes > INTRANET_MAX_BODY_BYTES) issues.push(`Envoi trop volumineux : ${(payloadBytes / 1048576).toFixed(2)} Mio, maximum 5 Mio.`);
-  if (issues.length) throw new IntranetVisitValidationError(issues, { destructiveMaterialClear: materialData.destructiveMaterialClear, remoteClientId });
+  if (issues.length) throw new IntranetVisitValidationError(issues, {
+    destructiveMaterialChange: materialData.destructiveMaterialChange,
+    destructiveMaterialClear: materialData.destructiveMaterialClear,
+    removedSourceMaterialCount: materialData.removedSourceMaterialCount,
+    sourceMaterialCount: materialData.sourceMaterialCount,
+    remoteClientId,
+  });
   return {
     remoteClientId: String(remoteClientId), payload, serialized, payloadBytes,
-    destructiveMaterialClear: materialData.destructiveMaterialClear, sourceMaterialCount: materialData.sourceMaterialCount,
+    destructiveMaterialChange: materialData.destructiveMaterialChange,
+    destructiveMaterialClear: materialData.destructiveMaterialClear,
+    removedSourceMaterialCount: materialData.removedSourceMaterialCount,
+    sourceMaterialCount: materialData.sourceMaterialCount,
     summary: { criteria: criteres.length, remarks: remarques.length, materials: materialData.materiels.length, notes: notes.length,
       photosExcluded: true, conclusionExcluded: true },
   };
