@@ -27,10 +27,21 @@ async function loadVisit(db, visiteId) {
 
 function localBindingState(local, trameId) {
   const reference = parseJson(local?.reference_json);
-  if (!reference?.local?.id || !reference?.site?.id) {
-    return { compatible: false, compatibilityReason: 'Référence Intranet incomplète pour ce local. Actualise les données du client.' };
+  if (!reference || typeof reference !== 'object') {
+    return { compatible: false, compatibilityReason: 'Référence Intranet illisible pour ce local. Actualise les données du client.' };
   }
-  const remoteTrameId = clean(reference?.trame?.id ?? local?.remote_trame_id);
+  const cachedLocalId = clean(local?.remote_local_id);
+  const cachedSiteId = clean(local?.remote_site_id);
+  const referenceLocalId = clean(reference?.local?.id);
+  const referenceSiteId = clean(reference?.site?.id);
+  if (![cachedLocalId, cachedSiteId, referenceLocalId, referenceSiteId].every(validApiId)) {
+    return { compatible: false, compatibilityReason: 'Référence Intranet incomplète ou identifiants local/site invalides. Actualise les données du client.' };
+  }
+  if (referenceLocalId !== cachedLocalId || referenceSiteId !== cachedSiteId) {
+    return { compatible: false, compatibilityReason: 'La référence Intranet ne correspond plus au local/site du cache. Actualise les données du client.' };
+  }
+
+  const remoteTrameId = clean(reference?.trame?.id) || clean(local?.remote_trame_id);
   if (!validApiId(remoteTrameId)) {
     return { compatible: false, compatibilityReason: 'Aucune trame Intranet exploitable n’est configurée pour ce local.' };
   }
@@ -38,11 +49,43 @@ function localBindingState(local, trameId) {
   if (!criteriaCount) {
     return { compatible: false, compatibilityReason: 'La trame Intranet de ce local ne contient aucun critère de préparation.' };
   }
-  const mapped = mapRemoteTrameToLocal(reference.trame || { id: remoteTrameId, nom: local?.remote_trame_nom });
-  if (mapped && mapped !== trameId) {
-    return { compatible: false, compatibilityReason: `Trame incompatible avec la visite METRA (${local?.remote_trame_nom || remoteTrameId}).` };
+
+  const trameForMapping = { ...(reference?.trame || {}), id: remoteTrameId, nom: reference?.trame?.nom || local?.remote_trame_nom || null };
+  const mapped = mapRemoteTrameToLocal(trameForMapping);
+  if (!mapped) {
+    return { compatible: false, compatibilityReason: `Trame Intranet non reconnue par METRA (${trameForMapping.nom || remoteTrameId}).` };
   }
-  return { compatible: true, compatibilityReason: null };
+  if (mapped !== trameId) {
+    return { compatible: false, compatibilityReason: `Trame incompatible avec la visite METRA (${trameForMapping.nom || remoteTrameId}).` };
+  }
+
+  const latestId = clean(reference?.derniereVisite?.id);
+  if (latestId && !validApiId(latestId)) {
+    return { compatible: false, compatibilityReason: 'Identifiant de dernière visite Intranet invalide. Actualise les données du client.' };
+  }
+
+  const seen = new Set();
+  for (const category of Array.isArray(reference?.trame?.categories) ? reference.trame.categories : []) {
+    if (!validApiId(category?.id)) {
+      return { compatible: false, compatibilityReason: 'La trame Intranet contient une catégorie sans identifiant valide. Actualise les données du client.' };
+    }
+    for (const subCategory of Array.isArray(category?.sousCategories) ? category.sousCategories : []) {
+      if (!validApiId(subCategory?.id)) {
+        return { compatible: false, compatibilityReason: 'La trame Intranet contient une sous-catégorie sans identifiant valide. Actualise les données du client.' };
+      }
+      for (const criterion of Array.isArray(subCategory?.criteres) ? subCategory.criteres : []) {
+        if (!validApiId(criterion?.id)) {
+          return { compatible: false, compatibilityReason: 'La trame Intranet contient un critère sans identifiant valide. Actualise les données du client.' };
+        }
+        const key = `${clean(category.id)}:${clean(subCategory.id)}:${clean(criterion.id)}`;
+        if (seen.has(key)) {
+          return { compatible: false, compatibilityReason: `La trame Intranet contient une branche de critère dupliquée (${key}). Actualise les données du client.` };
+        }
+        seen.add(key);
+      }
+    }
+  }
+  return { compatible: true, compatibilityReason: null, remoteTrameId, reference };
 }
 
 export async function getVisitIntranetBindingOptions(visiteId, { remoteClientId = null, remoteSiteId = null } = {}) {
@@ -51,8 +94,9 @@ export async function getVisitIntranetBindingOptions(visiteId, { remoteClientId 
   if (!visite) throw new Error('Visite METRA introuvable.');
   if (Number(visite.api_is_historical) === 1) throw new Error('Une visite historique Intranet ne peut pas être renvoyée comme nouvelle visite.');
 
-  const clients = await db.getAllAsync(`SELECT remote_client_id,local_client_id,nom,code_everwin,ville,agence_libelle
+  const clientRows = await db.getAllAsync(`SELECT remote_client_id,local_client_id,nom,code_everwin,ville,agence_libelle
     FROM api_client_links WHERE autorise=1 ORDER BY nom,remote_client_id`);
+  const clients = clientRows.filter((row) => validApiId(row.remote_client_id));
   const requestedClient = clean(remoteClientId);
   const visitClient = clean(visite.api_remote_client_id);
   let selectedClientId = clients.some((row) => clean(row.remote_client_id) === requestedClient) ? requestedClient : null;
@@ -74,9 +118,10 @@ export async function getVisitIntranetBindingOptions(visiteId, { remoteClientId 
   let sites = [];
   let selectedSiteId = null;
   if (selectedClientId) {
-    sites = await db.getAllAsync(`SELECT s.remote_site_id,cs.remote_client_id,COALESCE(s.local_site_id,cs.local_site_id) AS local_site_id,s.nom,s.synced_at
+    const siteRows = await db.getAllAsync(`SELECT s.remote_site_id,cs.remote_client_id,COALESCE(s.local_site_id,cs.local_site_id) AS local_site_id,s.nom,s.synced_at
       FROM api_client_site_links cs JOIN api_site_links s ON s.remote_site_id=cs.remote_site_id
       WHERE cs.remote_client_id=? AND cs.remote_present=1 AND s.remote_present=1 ORDER BY s.nom,s.remote_site_id`, [selectedClientId]);
+    sites = siteRows.filter((row) => validApiId(row.remote_site_id));
     const requestedSite = clean(remoteSiteId);
     if (sites.some((row) => clean(row.remote_site_id) === requestedSite)) selectedSiteId = requestedSite;
     if (!selectedSiteId) {
@@ -131,6 +176,7 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
   const siteId = clean(remoteSiteId);
   const localId = clean(remoteLocalId);
   if (!clientId || !siteId || !localId) throw new Error('Choisis le client, le site et le local Intranet avant de continuer.');
+  if (![clientId, siteId, localId].every(validApiId)) throw new Error('Les identifiants client, site ou local Intranet sont invalides. Actualise les données avant de continuer.');
 
   const db = await getDb();
   const visite = await loadVisit(db, visiteId);
@@ -148,18 +194,13 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
   const local = await db.getFirstAsync(`SELECT * FROM api_local_links WHERE remote_local_id=? AND remote_site_id=? AND remote_present=1`, [localId, siteId]);
   if (!local) throw new Error('Local introuvable sur ce site dans la préparation Intranet. Actualise les données du client.');
 
-  const reference = parseJson(local.reference_json);
-  if (!reference?.local?.id || !reference?.site?.id) {
-    throw new Error('Référence de préparation Intranet incomplète pour ce local. Actualise les données avant l’envoi.');
-  }
-  if (clean(reference.site.id) !== siteId || clean(reference.local.id) !== localId) {
-    throw new Error('La référence Intranet du local ne correspond plus au site sélectionné. Actualise la préparation.');
-  }
   const state = localBindingState(local, visite.trame_id);
   if (!state.compatible) throw new Error(state.compatibilityReason);
-  const mappedTrame = mapRemoteTrameToLocal(reference.trame);
-  if (mappedTrame && mappedTrame !== visite.trame_id) {
-    throw new Error(`Trame incompatible : la visite METRA utilise « ${visite.trame_id} » et le local Intranet utilise « ${reference.trame.nom || reference.trame.id} ».`);
+  const reference = state.reference;
+  const remoteTrameId = state.remoteTrameId;
+  const mappedTrame = mapRemoteTrameToLocal({ ...(reference?.trame || {}), id: remoteTrameId, nom: reference?.trame?.nom || local.remote_trame_nom });
+  if (!mappedTrame || mappedTrame !== visite.trame_id) {
+    throw new Error(`Trame incompatible : la visite METRA utilise « ${visite.trame_id} » et le local Intranet utilise « ${reference?.trame?.nom || remoteTrameId} ».`);
   }
 
   const existingProvenances = await db.getAllAsync(`SELECT id,details_json FROM provenances WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le DESC`, [String(visiteId)]);
@@ -170,8 +211,10 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
     if (details?.sourceType === 'upload_binding' && row.id) previousBindingIds.push(String(row.id));
   }
 
+  const frozenTrame = { ...(reference?.trame || {}), id: remoteTrameId, nom: reference?.trame?.nom || local.remote_trame_nom || null };
   const details = {
     ...reference,
+    trame: frozenTrame,
     schemaVersion: 4,
     sourceType: 'upload_binding',
     remoteLocalId: localId,
@@ -183,7 +226,7 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
       await db.runAsync(`DELETE FROM provenances WHERE id=?`, [provenanceId]);
     }
     await db.runAsync(`UPDATE visites SET api_remote_client_id=?,api_remote_local_id=?,api_remote_trame_id=?,api_source_remote_visit_id=?,modifie_le=datetime('now') WHERE id=?`,
-      [clientId, localId, clean(reference.trame.id), clean(reference?.derniereVisite?.id) || null, String(visiteId)]);
+      [clientId, localId, remoteTrameId, clean(reference?.derniereVisite?.id) || null, String(visiteId)]);
     await db.runAsync(`UPDATE api_client_links SET local_client_id=COALESCE(local_client_id,?) WHERE remote_client_id=?`, [visite.client_id, clientId]);
     await db.runAsync(`UPDATE api_site_links SET local_site_id=COALESCE(local_site_id,?) WHERE remote_site_id=?`, [visite.site_id, siteId]);
     await db.runAsync(`UPDATE api_client_site_links SET local_site_id=COALESCE(local_site_id,?) WHERE remote_client_id=? AND remote_site_id=?`, [visite.site_id, clientId, siteId]);
@@ -201,6 +244,6 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
     clientName: client.nom,
     siteName: site.nom,
     localName: local.designation || reference?.local?.designation || `Local ${localId}`,
-    trameName: reference?.trame?.nom || null,
+    trameName: frozenTrame.nom || null,
   };
 }
