@@ -1,0 +1,46 @@
+name: Temporary Any Visit Safety Apply
+
+on:
+  push:
+    branches:
+      - feat/intranet-send-any-visit
+
+permissions:
+  contents: write
+
+jobs:
+  apply:
+    if: github.event.head_commit.message == 'ci: apply safe Intranet destination correction'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Apply safe destination corrections
+        run: python3 .github/scripts/tmp_adjust_intranet_any_visit.py
+
+      - name: Validate flexible binding tests
+        run: node .github/scripts/test_intranet_any_visit_binding.js
+
+      - name: Validate full METRA source contracts
+        run: npm run verify:metra
+
+      - name: Commit prepared source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add intranetVisitPayload.js intranetVisitBindingDb.js IntranetVisitSync.js .github/scripts/check_intranet_any_visit_contract.js .github/scripts/test_intranet_any_visit_binding.js
+          git diff --cached --quiet && exit 0
+          git commit -m "feat: permettre de corriger la destination Intranet avant renvoi"
+          git push origin HEAD:feat/intranet-send-any-visit
