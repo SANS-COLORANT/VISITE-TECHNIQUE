@@ -14,6 +14,7 @@ const CONTRACT_CHECKS = [
   ['Intranet visit upload contract', '.github/scripts/check_intranet_visit_upload_contract.js'],
   ['Intranet any-visit binding contract', '.github/scripts/check_intranet_any_visit_contract.js'],
   ['Intranet visit upload executable tests', '.github/scripts/test_intranet_visit_upload.js'],
+  ['Intranet any-visit binding executable tests', '.github/scripts/test_intranet_any_visit_binding.js'],
   ['photo workflow executable regression tests', '.github/scripts/test_photo_workflow.js'],
 ];
 
