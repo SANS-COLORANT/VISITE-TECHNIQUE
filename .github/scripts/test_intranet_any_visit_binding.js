@@ -41,7 +41,11 @@ const remoteTrame = { id: '3', nom: 'ICPE', categories: [{ id: '10', nom: 'Contr
 const reference = { local: { id: '501', designation: 'Chaufferie' }, site: { id: '45', nom: 'Site Alpha' },
   derniereVisite: { id: '812', date: '2026-09-01', statut: 'Terminé' }, trame: remoteTrame, materiels: [], remarques: [], notes: [] };
 const incompatibleReference = { local: { id: '502', designation: 'Local VMC' }, site: { id: '45', nom: 'Site Alpha' },
-  derniereVisite: null, trame: { id: '8', nom: 'VMC', categories: [{ id: '80', nom: 'VMC', sousCategories: [] }] }, materiels: [], remarques: [], notes: [] };
+  derniereVisite: null, trame: { id: '8', nom: 'VMC', categories: [{ id: '80', nom: 'VMC', sousCategories: [{ id: '81', nom: 'Caisson', criteres: [{ id: '82', nom: 'État', avisApplicable: true }] }] }] }, materiels: [], remarques: [], notes: [] };
+const missingTrameReference = { local: { id: '503', designation: 'Local sans trame' }, site: { id: '45', nom: 'Site Alpha' },
+  derniereVisite: null, trame: null, materiels: [], remarques: [], notes: [] };
+const emptyCriteriaReference = { local: { id: '504', designation: 'Local trame vide' }, site: { id: '45', nom: 'Site Alpha' },
+  derniereVisite: null, trame: { id: '3', nom: 'ICPE', categories: [] }, materiels: [], remarques: [], notes: [] };
 
 function mapRemoteTrameToLocal(remote) {
   const value = String(remote?.nom || '').toLowerCase();
@@ -72,6 +76,10 @@ async function main() {
       VALUES('501','45','Chaufferie','3','ICPE','812','2026-09-01',1,?)`, [JSON.stringify(reference)]);
     await server.db.runAsync(`INSERT INTO api_local_links(remote_local_id,remote_site_id,designation,remote_trame_id,remote_trame_nom,criteria_count,reference_json)
       VALUES('502','45','Local VMC','8','VMC',1,?)`, [JSON.stringify(incompatibleReference)]);
+    await server.db.runAsync(`INSERT INTO api_local_links(remote_local_id,remote_site_id,designation,remote_trame_id,remote_trame_nom,criteria_count,reference_json)
+      VALUES('503','45','Local sans trame',NULL,NULL,0,?)`, [JSON.stringify(missingTrameReference)]);
+    await server.db.runAsync(`INSERT INTO api_local_links(remote_local_id,remote_site_id,designation,remote_trame_id,remote_trame_nom,criteria_count,reference_json)
+      VALUES('504','45','Local trame vide','3','ICPE',0,?)`, [JSON.stringify(emptyCriteriaReference)]);
 
     let ids = 0;
     const binding = load('intranetVisitBindingDb.js', {
@@ -84,13 +92,19 @@ async function main() {
     check(options.clients.length === 2, 'ordinary local visit sees all authorized Intranet clients');
     check(options.selectedClientId === '12', 'client is suggested from a unique stable client code without requiring prior Prepare flow');
     check(options.selectedSiteId === '45', 'site is suggested from an exact unique site match');
-    check(options.suggestedLocalId === '501', 'sole trame-compatible local is suggested without selecting an incompatible room');
+    check(options.suggestedLocalId === '501', 'sole sendable trame-compatible local is suggested without selecting invalid references');
     check(options.locals.find((row) => row.remote_local_id === '502')?.compatible === false, 'incompatible remote trame is exposed but cannot be selected by the UI');
+    check(options.locals.find((row) => row.remote_local_id === '503')?.compatible === false && /Aucune trame Intranet/.test(options.locals.find((row) => row.remote_local_id === '503')?.compatibilityReason || ''), 'a local with trame=null is visible but explicitly non-sendable');
+    check(options.locals.find((row) => row.remote_local_id === '504')?.compatible === false && /aucun critère/.test(options.locals.find((row) => row.remote_local_id === '504')?.compatibilityReason || ''), 'a remote trame without criteria is visible but explicitly non-sendable');
 
     await assert.rejects(() => binding.bindVisitToIntranetTarget('ordinary-visit', { remoteClientId: '99', remoteSiteId: '45', remoteLocalId: '501' }), /Site introuvable/);
     checks++; console.log(`OK ${checks}: a site that does not belong to the selected client is rejected locally`);
     await assert.rejects(() => binding.bindVisitToIntranetTarget('ordinary-visit', { remoteClientId: '12', remoteSiteId: '45', remoteLocalId: '502' }), /Trame incompatible/);
     checks++; console.log(`OK ${checks}: an incompatible local/trame binding is rejected before the POST`);
+    await assert.rejects(() => binding.bindVisitToIntranetTarget('ordinary-visit', { remoteClientId: '12', remoteSiteId: '45', remoteLocalId: '503' }), /Aucune trame Intranet/);
+    checks++; console.log(`OK ${checks}: a local returned by the API with trame=null is blocked with an actionable diagnosis`);
+    await assert.rejects(() => binding.bindVisitToIntranetTarget('ordinary-visit', { remoteClientId: '12', remoteSiteId: '45', remoteLocalId: '504' }), /aucun critère/);
+    checks++; console.log(`OK ${checks}: an empty remote trame is blocked before payload construction`);
 
     const before = {
       controls: await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM controles_visite WHERE visite_id='ordinary-visit'`),
