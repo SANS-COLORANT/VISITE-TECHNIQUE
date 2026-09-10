@@ -25,11 +25,12 @@ jobs:
         run: |
           set -euo pipefail
           npm run verify:metra
-      - name: Commit source changes and remove temporary publisher
+      - name: Commit runtime source without workflow changes
         shell: bash
         run: |
           set -euo pipefail
-          rm -rf .github/agent-upload-parts .github/workflows/intranet-upload-workspace.yml
+          git checkout -- .github/workflows/native-android-check.yml
+          rm -rf .github/agent-upload-parts
           git config user.name "METRA GitHub Actions"
           git config user.email "actions@github.com"
           git add -A
