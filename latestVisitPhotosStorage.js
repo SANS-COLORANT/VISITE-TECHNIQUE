@@ -2,12 +2,15 @@ import * as FileSystem from 'expo-file-system';
 import { downloadProtectedPhoto, fetchClientLatestVisitPhotosManifest } from './symfonyApi.js';
 import {
   cacheLatestVisitPhotosManifest,
+  hydratePhotoMetadata,
   flattenLatestVisitPhotos,
   getCachedLatestVisitPhotosManifest,
   markLatestVisitPhotoDownloaded,
   markLatestVisitPhotoError,
   markLatestVisitPhotoMissingLocally,
 } from './latestVisitPhotosDb.js';
+
+import { mapLatestVisitPhotos, photoFileKey, photoSummary } from './latestVisitPhotoModel.js';
 
 const ROOT_DIRECTORY = 'visite-technique/intranet-photos/';
 const MAX_CONCURRENT_DOWNLOADS = 3;
@@ -67,7 +70,8 @@ async function ensureDestination(photo, remoteClientId) {
   if (!FileSystem.documentDirectory) throw new Error('Stockage privé Android indisponible.');
   const directory = `${FileSystem.documentDirectory}${ROOT_DIRECTORY}${safeSegment(remoteClientId, 'client')}/${safeSegment(photo.site?.id, 'site')}/${safeSegment(photo.local?.id, 'local')}/${safeSegment(photo.derniereVisite?.id, 'visite')}/`;
   await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
-  const filename = `${safeSegment(photo.id, 'photo')}${extensionFor(photo)}`;
+  const revision = [photo.tailleOctets || 0, photo.largeurPixels || 0, photo.hauteurPixels || 0, safeSegment(photo.typeMime, 'image')].join('-');
+  const filename = `${safeSegment(photo.id, 'photo')}-${revision}${extensionFor(photo)}`;
   return { finalUri: `${directory}${filename}`, temporaryUri: `${directory}.${filename}.part` };
 }
 
@@ -75,57 +79,73 @@ async function existingLocalPhoto(photo) {
   if (!photo?.localUri) return false;
   try {
     const info = await FileSystem.getInfoAsync(photo.localUri);
-    return Boolean(info?.exists && Number(info.size || photo.downloadedBytes || 0) > 0);
+    const size = Number(info?.size || 0), expected = Number(photo.tailleOctets || photo.downloadedBytes || 0);
+    return Boolean(info?.exists && size > 0 && (!expected || expected === size));
   } catch { return false; }
 }
 
 export async function hydrateLatestVisitPhotosCache(remoteClientId, manifest = null) {
-  const hydrated = manifest || await getCachedLatestVisitPhotosManifest(remoteClientId);
+  const hydrated = manifest ? await hydratePhotoMetadata(remoteClientId, manifest) : await getCachedLatestVisitPhotosManifest(remoteClientId);
   if (!hydrated) return null;
-  const photos = flattenLatestVisitPhotos(hydrated);
+  const photos = flattenLatestVisitPhotos(hydrated), availability = new Map();
   let cursor = 0;
-  const workers = Array.from({ length: Math.min(8, Math.max(1, photos.length)) }, async () => {
+  await Promise.all(Array.from({ length: Math.min(8, photos.length) }, async () => {
     while (cursor < photos.length) {
-      const photo = photos[cursor]; cursor += 1;
-      photo.localAvailable = await existingLocalPhoto(photo);
-      if (photo.localUri && !photo.localAvailable) {
-        photo.localUri = null;
-        photo.downloadStatus = photo.disponible ? 'pending' : 'unavailable';
-        await markLatestVisitPhotoMissingLocally(remoteClientId, photo.id);
-      }
+      const photo = photos[cursor++];
+      const localAvailable = await existingLocalPhoto(photo);
+      availability.set(photoFileKey(photo), localAvailable);
+      if (photo.localUri && !localAvailable) await markLatestVisitPhotoMissingLocally(remoteClientId, photo);
     }
+  }));
+  const result = mapLatestVisitPhotos(hydrated, (photo) => {
+    const localAvailable = Boolean(availability.get(photoFileKey(photo)));
+    return { ...photo, localAvailable, localUri: localAvailable ? photo.localUri : null,
+      downloadStatus: localAvailable ? 'downloaded' : photo.downloadStatus === 'downloaded' ? (photo.disponible ? 'pending' : 'unavailable') : photo.downloadStatus };
   });
-  await Promise.all(workers);
-  hydrated.localPhotoCount = photos.filter((photo) => photo.localAvailable).length;
-  hydrated.missingDownloadCount = photos.filter((photo) => photo.disponible && !photo.localAvailable).length;
-  hydrated.unavailablePhotoCount = photos.filter((photo) => !photo.disponible && !photo.localAvailable).length;
-  return hydrated;
+  const summary = photoSummary(result);
+  return { ...result, localPhotoCount: summary.saved, missingDownloadCount: summary.missing, unavailablePhotoCount: summary.unavailable };
 }
 
 export async function loadCachedLatestVisitPhotos(remoteClientId) {
   return hydrateLatestVisitPhotosCache(remoteClientId);
 }
 
+const manifestRequests = new Map();
 export async function syncLatestVisitPhotosManifest(remoteClientId) {
-  const payload = await fetchClientLatestVisitPhotosManifest(remoteClientId);
-  const manifest = await cacheLatestVisitPhotosManifest(remoteClientId, payload);
-  return hydrateLatestVisitPhotosCache(remoteClientId, manifest);
+  const id = String(remoteClientId);
+  if (manifestRequests.has(id)) return manifestRequests.get(id);
+  const request = (async () => {
+    const payload = await fetchClientLatestVisitPhotosManifest(id);
+    const manifest = await cacheLatestVisitPhotosManifest(id, payload);
+    return hydrateLatestVisitPhotosCache(id, manifest);
+  })();
+  manifestRequests.set(id, request);
+  try { return await request; } finally { if (manifestRequests.get(id) === request) manifestRequests.delete(id); }
 }
 
-async function downloadOne(remoteClientId, photo, rateLimit) {
+async function waitUnlessPaused(milliseconds, control) {
+  const until = Date.now() + milliseconds;
+  while (!control.paused && Date.now() < until) await wait(Math.min(200, until - Date.now()));
+}
+
+async function downloadOne(remoteClientId, photo, rateLimit, control) {
   if (await existingLocalPhoto(photo)) {
     photo.localAvailable = true;
     return { status: 'cached', photo };
   }
   if (!photo.disponible || !photo.cheminTelechargement) return { status: 'unavailable', photo };
 
-  const { finalUri, temporaryUri } = await ensureDestination(photo, remoteClientId);
+  let temporaryUri = null;
   let retryCount = 0;
   while (true) {
     const gateDelay = rateLimit.until - Date.now();
-    if (gateDelay > 0) await wait(gateDelay);
-    await FileSystem.deleteAsync(temporaryUri, { idempotent: true }).catch(() => {});
+    if (gateDelay > 0) await waitUnlessPaused(gateDelay, control);
+    if (control.paused) return { status: 'paused', photo };
     try {
+      const destination = await ensureDestination(photo, remoteClientId);
+      temporaryUri = destination.temporaryUri;
+      const finalUri = destination.finalUri;
+      await FileSystem.deleteAsync(temporaryUri, { idempotent: true }).catch(() => {});
       const result = await downloadProtectedPhoto(validatedDownloadPath(remoteClientId, photo), temporaryUri);
       const contentType = headerValue(result.headers, 'content-type') || result.mimeType;
       if (!contentType || !contentType.toLowerCase().startsWith('image/')) {
@@ -144,20 +164,20 @@ async function downloadOne(remoteClientId, photo, rateLimit) {
       }
       await FileSystem.deleteAsync(finalUri, { idempotent: true }).catch(() => {});
       await FileSystem.moveAsync({ from: temporaryUri, to: finalUri });
-      await markLatestVisitPhotoDownloaded(remoteClientId, photo.id, finalUri, info.size);
+      await markLatestVisitPhotoDownloaded(remoteClientId, photo, finalUri, info.size);
       photo.localUri = finalUri;
       photo.localAvailable = true;
       photo.downloadStatus = 'downloaded';
       photo.downloadError = null;
       return { status: 'downloaded', photo };
     } catch (error) {
-      await FileSystem.deleteAsync(temporaryUri, { idempotent: true }).catch(() => {});
+      if (temporaryUri) await FileSystem.deleteAsync(temporaryUri, { idempotent: true }).catch(() => {});
       if (error?.status === 429 && retryCount < MAX_RATE_LIMIT_RETRIES) {
         retryCount += 1;
         rateLimit.until = Math.max(rateLimit.until, Date.now() + retryAfterMilliseconds(error.retryAfter));
         continue;
       }
-      await markLatestVisitPhotoError(remoteClientId, photo.id, error);
+      await markLatestVisitPhotoError(remoteClientId, photo, error).catch(() => {});
       photo.downloadStatus = 'error';
       photo.downloadError = String(error?.message || error);
       return { status: 'error', photo, error };
@@ -165,23 +185,34 @@ async function downloadOne(remoteClientId, photo, rateLimit) {
   }
 }
 
-export async function downloadClientLatestVisitPhotos(remoteClientId, manifest, onProgress = null) {
+export async function downloadClientLatestVisitPhotos(remoteClientId, manifest, onProgress = null, control = { paused: false }) {
+  manifest = await hydrateLatestVisitPhotosCache(remoteClientId, manifest);
   const candidates = flattenLatestVisitPhotos(manifest).filter((photo) => photo.disponible && !photo.localAvailable);
   const summary = { total: candidates.length, completed: 0, downloaded: 0, cached: 0, failed: 0, errors: [] };
+  const expectedBytes = candidates.reduce((n, p) => n + Number(p.tailleOctets || 0), 0);
+  let freeBytes = null;
+  try { freeBytes = await FileSystem.getFreeDiskStorageAsync(); } catch {}
+  if (Number.isFinite(freeBytes) && expectedBytes + 16 * 1024 * 1024 > freeBytes) {
+    throw new Error('Espace insuffisant sur la tablette. Libère du stockage ou choisis moins de photos.');
+  }
   const rateLimit = { until: 0 };
+  let consecutiveErrors = 0;
   let cursor = 0;
   const notify = (photo = null) => onProgress?.({ ...summary, currentPhoto: photo });
   notify();
 
   const worker = async () => {
-    while (cursor < candidates.length) {
+    while (!control.paused && cursor < candidates.length) {
       const photo = candidates[cursor]; cursor += 1;
-      const result = await downloadOne(remoteClientId, photo, rateLimit);
+      const result = await downloadOne(remoteClientId, photo, rateLimit, control);
+      if (result.status === 'paused') break;
       summary.completed += 1;
-      if (result.status === 'downloaded') summary.downloaded += 1;
+      if (result.status === 'downloaded') { summary.downloaded += 1; consecutiveErrors = 0; }
       else if (result.status === 'cached') summary.cached += 1;
       else if (result.status === 'error') {
         summary.failed += 1;
+        consecutiveErrors += 1;
+        if (consecutiveErrors >= 3 || result.error?.status === 401 || result.error?.status === 403) control.paused = true;
         summary.errors.push({ photoId: photo.id, message: String(result.error?.message || result.error) });
       }
       notify(photo);
@@ -190,7 +221,7 @@ export async function downloadClientLatestVisitPhotos(remoteClientId, manifest, 
   await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENT_DOWNLOADS, Math.max(1, candidates.length)) }, worker));
   // Recharge depuis SQLite pour fournir de nouvelles références React et faire
   // apparaître immédiatement les miniatures qui viennent d'être téléchargées.
-  return { ...summary, manifest: await hydrateLatestVisitPhotosCache(remoteClientId) };
+  return { ...summary, paused: Boolean(control.paused), manifest: await hydrateLatestVisitPhotosCache(remoteClientId, manifest) };
 }
 
 export { MAX_CONCURRENT_DOWNLOADS };

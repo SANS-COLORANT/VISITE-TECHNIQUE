@@ -11,6 +11,7 @@ const CONTRACT_CHECKS = [
   ['startup dependency graph contract', '.github/scripts/check_startup_dependency_graph.js'],
   ['report export workflow contract', '.github/scripts/check_report_export_workflow.js'],
   ['latest visit photos contract', '.github/scripts/check_latest_visit_photos_contract.js'],
+  ['photo workflow executable regression tests', '.github/scripts/test_photo_workflow.js'],
 ];
 
 const JS_SYNTAX_FILES = [
@@ -44,10 +45,17 @@ const JS_SYNTAX_FILES = [
   'apiLatestVisitFieldEnrichmentDb.js',
   'MetraDirectoryScreen.js',
   'ClientLatestVisitPhotosModal.js',
+  'latestVisitPhotoModel.js',
+  'latestVisitPhotoTasks.js',
+  'PhotoDownloadStatus.js',
+  'PhotoReferenceAccess.js',
+  'ReferencePhotoViewer.js',
+  'SitePhotoPreparationOption.js',
   'latestVisitPhotosDb.js',
   'latestVisitPhotosStorage.js',
   'symfonyApi.js',
   'database/migrations/031_latest_visit_photos.js',
+  'database/migrations/032_photo_reference_workflow.js',
 ];
 
 function runNode(args, label) {

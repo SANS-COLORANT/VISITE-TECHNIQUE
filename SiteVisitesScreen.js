@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView } from 'react-native';
 import { COLORS, styles } from './styles.js';
+import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { listerVisitesSite, getDb } from './db.js';
 import { creerVisiteProduction } from './visitCreationDb.js';
 import { supprimerVisiteComplete } from './entityManagementDb.js';
@@ -285,7 +286,7 @@ function SiteVisitesScreen({ route, navigation }) {
         contentContainerStyle={styles.content}
         data={siteTab === 'visites' ? visites : []}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={<View><LocalisationHeader /><SiteTabs />{siteTab === 'visites' ? <VisitesHeader /> : null}</View>}
+        ListHeaderComponent={<View><PhotoReferenceAccess siteId={siteId} remoteLocalId={apiRemoteLocalId} contextTitle={nomSite} /><LocalisationHeader /><SiteTabs />{siteTab === 'visites' ? <VisitesHeader /> : null}</View>}
         renderItem={({ item }) => {
           const trame = obtenirTrame(item.trame_id || DEFAULT_TRAME_ID);
           const selectionnee = visitesSelectionnees.has(item.id);
