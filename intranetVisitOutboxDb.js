@@ -14,13 +14,17 @@ export function subscribeVisitOutbox(listener) { listeners.add(listener); return
 export function getVisitOutboxRevision() { return revision; }
 
 const RETRYABLE_HTTP = new Set([500, 502, 503, 504]);
+const LOCAL_AUTH_ERRORS = new Set(['reactivation_required', 'dpop_key_missing', 'invalid_grant']);
 function isoAfter(milliseconds) { return new Date(Date.now() + Math.max(1000, milliseconds)).toISOString(); }
 function retryAfterMs(value) {
   if (value == null || value === '') return 60_000;
   const seconds = Number(value);
-  if (Number.isFinite(seconds)) return Math.min(15 * 60_000, Math.max(1000, seconds * 1000));
+  // Le contrat serveur demande de respecter Retry-After. Ne pas raccourcir une
+  // attente longue : cela provoquerait des 429 supplémentaires et consommerait
+  // inutilement de nouvelles preuves DPoP.
+  if (Number.isFinite(seconds)) return Math.max(1000, seconds * 1000);
   const at = Date.parse(String(value));
-  return Number.isFinite(at) ? Math.min(15 * 60_000, Math.max(1000, at - Date.now())) : 60_000;
+  return Number.isFinite(at) ? Math.max(1000, at - Date.now()) : 60_000;
 }
 function exponentialRetry(attempt) { return Math.min(15 * 60_000, Math.max(15_000, 15_000 * 2 ** Math.min(6, Math.max(0, attempt - 1)))); }
 function violationsJson(error) { return error?.violations?.length ? JSON.stringify(error.violations) : null; }
@@ -35,7 +39,6 @@ export async function listVisitOutbox({ includeSynced = false } = {}) {
     FROM api_visit_outbox o JOIN visites v ON v.id=o.visite_id JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id
     ${includeSynced ? '' : "WHERE o.status<>'synced'"} ORDER BY o.queued_at`);
 }
-
 
 export async function finalizeVisitForUpload(visiteId) {
   const db = await getDb();
@@ -56,7 +59,12 @@ export async function previewVisitUpload(visiteId) {
   return buildIntranetVisitPayload(visiteId, '00000000-0000-4000-8000-000000000000');
 }
 
-export async function queueVisitUpload(visiteId, { confirmMaterialClear = false, replaceTerminal = false } = {}) {
+export async function queueVisitUpload(visiteId, {
+  confirmMaterialReplacement = false,
+  // Compatibilité avec le nom utilisé par le premier build de l'upload.
+  confirmMaterialClear = false,
+  replaceTerminal = false,
+} = {}) {
   const db = await getDb();
   const visit = await db.getFirstAsync(`SELECT id,statut FROM visites WHERE id=?`, [visiteId]);
   if (!visit) throw new IntranetVisitValidationError(['Visite introuvable.']);
@@ -70,9 +78,15 @@ export async function queueVisitUpload(visiteId, { confirmMaterialClear = false,
   }
   const envoiId = await createIntranetUploadId();
   const prepared = await buildIntranetVisitPayload(visiteId, envoiId);
-  if (prepared.destructiveMaterialClear && !confirmMaterialClear) {
-    const error = new Error(`Le local comportait ${prepared.sourceMaterialCount} matériel(s) dans la référence Intranet et la visite en contient maintenant 0. L’envoi videra entièrement le listing matériel du local.`);
-    error.code = 'material_clear_confirmation_required';
+  if (prepared.destructiveMaterialChange && !confirmMaterialReplacement && !confirmMaterialClear) {
+    const removed = Number(prepared.removedSourceMaterialCount || 0);
+    const error = new Error(
+      `Le listing Intranet de référence contient ${prepared.sourceMaterialCount} matériel(s) et METRA en enverra ${prepared.summary.materials}. `
+      + `Le POST remplace le listing complet : ${removed} matériel(s) au minimum disparaîtront du local si cet envoi est confirmé.`
+    );
+    error.code = prepared.destructiveMaterialClear
+      ? 'material_clear_confirmation_required'
+      : 'material_replacement_confirmation_required';
     error.prepared = prepared;
     throw error;
   }
@@ -127,13 +141,14 @@ async function sendRow(db, row) {
     return { status: 'synced', row: await getVisitUploadState(row.visite_id), response };
   } catch (error) {
     const status = Number(error?.status || 0);
+    const localAuthFailure = LOCAL_AUTH_ERRORS.has(String(error?.code || ''));
     if (error?.code === 'invalid_ack') await markTerminal(db, row, 'rejected', error);
+    else if (localAuthFailure || status === 401) await markTerminal(db, row, 'auth_error', error);
     else if (!status || RETRYABLE_HTTP.has(status)) await markRetry(db, row, error, exponentialRetry(Number(row.attempt_count || 0) + 1));
     else if (status === 429) await markRetry(db, row, error, retryAfterMs(error.retryAfter));
     else if (status === 409 && error?.code === 'synchronization_conflict') await markTerminal(db, row, 'conflict', error);
     else if (status === 409) await markTerminal(db, row, 'rejected', error);
     else if (status === 422) await markTerminal(db, row, 'validation_error', error);
-    else if (status === 401) await markTerminal(db, row, 'auth_error', error);
     else await markTerminal(db, row, 'rejected', error);
     notify();
     return { status: 'error', row: await getVisitUploadState(row.visite_id), error };
@@ -155,7 +170,8 @@ export async function processVisitOutbox({ limit = 3 } = {}) {
       const result = await sendRow(db, row);
       results.push(result);
       const http = Number(result?.error?.status || 0);
-      if (result?.status === 'error' && (!http || http === 401 || http === 429 || RETRYABLE_HTTP.has(http))) break;
+      const auth = LOCAL_AUTH_ERRORS.has(String(result?.error?.code || ''));
+      if (result?.status === 'error' && (auth || !http || http === 401 || http === 429 || RETRYABLE_HTTP.has(http))) break;
     }
     return results;
   })().finally(() => { processorPromise = null; });

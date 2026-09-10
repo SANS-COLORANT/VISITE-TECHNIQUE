@@ -52,7 +52,10 @@ async function convertirMaterielLegacy(db, visiteId, installationId, trameId) {
     const equipementId = uuidv4();
     await db.runAsync(`INSERT INTO equipements(id,installation_id,type_code,designation,marque,modele,annee,statut) VALUES(?,?,?,?,?,?,?,'actif')`, [equipementId, installationId, m.categorie || 'equipement', m.designation || 'Équipement', m.marque || null, m.modele || null, m.annee ? Number(m.annee) || null : null]);
     await affecterEquipementTrame(db, equipementId, trameId);
-    await db.runAsync(`UPDATE materiel SET equipement_id=? WHERE id=?`, [equipementId, m.id]);
+    // Une ligne matériel locale représente au minimum un équipement. Les
+    // anciennes versions pouvaient laisser "nombre" vide, ce que le POST
+    // Intranet refuse. On corrige uniquement ce matériel legacy local.
+    await db.runAsync(`UPDATE materiel SET equipement_id=?,nombre=CASE WHEN TRIM(COALESCE(nombre,''))='' THEN '1' ELSE nombre END WHERE id=?`, [equipementId, m.id]);
     await upsertObservation(db, equipementId, visiteId, { etat: m.etat || 'Bon', present: 1 });
   }
 }
@@ -60,7 +63,8 @@ async function injecterEquipementsActifsDuSite(db, visiteId, siteId, trameId, in
   const actifsBruts = await db.getAllAsync(`SELECT e.*,
       (SELECT GROUP_CONCAT(et.trame_id) FROM equipement_trames et WHERE et.equipement_id=e.id AND et.actif=1) AS trames_explicit,
       (SELECT COUNT(*) FROM equipement_trames et2 WHERE et2.equipement_id=e.id) AS nb_trames,
-      (SELECT o.etat FROM observations_equipement o JOIN visites v2 ON v2.id=o.visite_id WHERE o.equipement_id=e.id AND o.present=1 AND v2.id<>? ORDER BY COALESCE(v2.date_visite,'') DESC,o.observe_le DESC LIMIT 1) dernier_etat
+      (SELECT o.etat FROM observations_equipement o JOIN visites v2 ON v2.id=o.visite_id WHERE o.equipement_id=e.id AND o.present=1 AND v2.id<>? ORDER BY COALESCE(v2.date_visite,'') DESC,o.observe_le DESC LIMIT 1) dernier_etat,
+      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=e.id AND a.cle='api_symfony.nombre' ORDER BY a.modifie_le DESC LIMIT 1) nombre_reference
      FROM equipements e JOIN installations i ON i.id=e.installation_id
      WHERE i.site_id=? AND i.actif=1 AND e.statut='actif'
        AND (? IS NULL OR e.installation_id=?)
@@ -73,15 +77,33 @@ async function injecterEquipementsActifsDuSite(db, visiteId, siteId, trameId, in
     // observé aucun état. On garde donc l'état du dernier passage en historique
     // au lieu de le recopier comme constat du jour.
     const etat = referenceOnly ? null : (e.dernier_etat || 'Bon');
-    await db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,designation,marque,modele,annee,etat,equipement_id) VALUES(?,?,?,?,?,?,?,?,?)`, [materielId, visiteId, e.type_code || 'Équipement', e.designation || 'Équipement', e.marque || null, e.modele || null, e.annee ? String(e.annee) : null, etat, e.id]);
+    const nombre = String(e.nombre_reference || '').trim() || '1';
+    await db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,nombre,designation,marque,modele,annee,etat,equipement_id) VALUES(?,?,?,?,?,?,?,?,?,?)`, [materielId, visiteId, e.type_code || 'Équipement', nombre, e.designation || 'Équipement', e.marque || null, e.modele || null, e.annee ? String(e.annee) : null, etat, e.id]);
     if (!referenceOnly) await upsertObservation(db, e.id, visiteId, { etat, present: 1 });
   }
 }
 export async function listerMaterielPersistant(visiteId) {
-  const db = await getDb(); const contexte = await getContexteVisite(db, visiteId); const installationId = await ensureInstallation(db, contexte.site_id, contexte.installation_id);
+  const db = await getDb();
+  const contexte = await getContexteVisite(db, visiteId);
+  const installationId = await ensureInstallation(db, contexte.site_id, contexte.installation_id);
+  // Une visite ordinaire ancienne pouvait ne pas être rattachée à une
+  // installation. Sans ce gel, le listing chargeait alors les équipements de
+  // toutes les chaufferies/sous-stations du site, puis l'envoi vers un seul
+  // local Intranet pouvait mélanger plusieurs patrimoines.
+  if (!contexte.installation_id) {
+    await db.runAsync(`UPDATE visites SET installation_id=?,modifie_le=datetime('now') WHERE id=?`, [installationId, visiteId]);
+    contexte.installation_id = installationId;
+  }
   await convertirMaterielLegacy(db, visiteId, installationId, contexte.trame_id);
   const apiPrepared = Boolean(contexte.api_remote_local_id);
-  await injecterEquipementsActifsDuSite(db, visiteId, contexte.site_id, contexte.trame_id, contexte.installation_id || null, apiPrepared);
+  await injecterEquipementsActifsDuSite(db, visiteId, contexte.site_id, contexte.trame_id, installationId, apiPrepared);
+  // Les équipements purement locaux créés par METRA avant ce correctif peuvent
+  // déjà avoir une ligne de visite avec quantité vide. Un équipement lié à
+  // Symfony n'est jamais corrigé silencieusement ici : sa quantité de référence
+  // doit rester celle reçue de l'Intranet.
+  await db.runAsync(`UPDATE materiel SET nombre='1' WHERE visite_id=? AND TRIM(COALESCE(nombre,''))=''
+    AND equipement_id IS NOT NULL
+    AND NOT EXISTS(SELECT 1 FROM provenances p WHERE p.entite_type='equipement' AND p.entite_id=materiel.equipement_id AND p.origine='api_symfony')`, [visiteId]);
   return db.getAllAsync(`SELECT m.*, e.statut AS statut_equipement,
       CASE WHEN ?=1 THEN COALESCE(o.etat,m.etat) ELSE COALESCE(o.etat,m.etat,'Bon') END AS etat,
       COALESCE(o.commentaire,'') AS observation_commentaire,
@@ -91,11 +113,14 @@ export async function listerMaterielPersistant(visiteId) {
      WHERE m.visite_id=? ORDER BY m.cree_le,m.id`, [apiPrepared ? 1 : 0, visiteId]);
 }
 export async function ajouterMaterielPersistant(visiteId) {
-  const db = await getDb(); const contexte = await getContexteVisite(db, visiteId); const installationId = await ensureInstallation(db, contexte.site_id, contexte.installation_id);
+  const db = await getDb();
+  const contexte = await getContexteVisite(db, visiteId);
+  const installationId = await ensureInstallation(db, contexte.site_id, contexte.installation_id);
+  if (!contexte.installation_id) await db.runAsync(`UPDATE visites SET installation_id=?,modifie_le=datetime('now') WHERE id=?`, [installationId, visiteId]);
   const equipementId = uuidv4(); const materielId = uuidv4();
   await db.runAsync(`INSERT INTO equipements(id,installation_id,type_code,designation,statut) VALUES(?,?,?,?, 'actif')`, [equipementId, installationId, 'Équipement', 'Équipement']);
   await affecterEquipementTrame(db, equipementId, contexte.trame_id);
-  await db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,designation,etat,equipement_id) VALUES(?,?,?,?,?,?)`, [materielId, visiteId, 'Équipement', 'Équipement', 'Bon', equipementId]);
+  await db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,nombre,designation,etat,equipement_id) VALUES(?,?,?,?,?,?,?)`, [materielId, visiteId, 'Équipement', '1', 'Équipement', 'Bon', equipementId]);
   await upsertObservation(db, equipementId, visiteId, { etat: 'Bon', present: 1 });
   return materielId;
 }
