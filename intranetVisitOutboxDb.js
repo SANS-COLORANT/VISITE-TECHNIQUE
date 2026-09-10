@@ -83,7 +83,9 @@ export async function queueVisitUpload(visiteId, {
       `Le listing Intranet de référence contient ${prepared.sourceMaterialCount} matériel(s) et METRA en enverra ${prepared.summary.materials}. `
       + `Le POST remplace le listing complet : ${removed} matériel(s) au minimum disparaîtront du local si cet envoi est confirmé.`
     );
-    error.code = 'material_replacement_confirmation_required';
+    error.code = prepared.destructiveMaterialClear
+      ? 'material_clear_confirmation_required'
+      : 'material_replacement_confirmation_required';
     error.prepared = prepared;
     throw error;
   }
