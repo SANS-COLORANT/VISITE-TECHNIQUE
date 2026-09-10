@@ -47,6 +47,18 @@ Le commentaire reste éditable.
 
 Une action « Valider les contrôles restants comme satisfaisants » peut exister, mais seulement après action explicite de l’utilisateur et en générant les commentaires positifs adaptés à chaque contrôle.
 
+## Photos des dernières visites Intranet
+
+Le chargement est explicitement déclenché depuis la fiche d'un client
+synchronisé. METRA affiche le nombre de photos et le volume total du manifeste
+avant le téléchargement, ignore sans bloquer les fichiers distants signalés
+indisponibles, puis télécharge au maximum trois images simultanément.
+
+Chaque fichier utilise une nouvelle preuve DPoP, respecte `Retry-After` en cas
+de limitation et est enregistré uniquement dans le stockage privé. La galerie
+hors ligne et sa visionneuse restent un historique de consultation séparé des
+observations de la visite en cours.
+
 ## Build
 
 Une validation JavaScript réussie ne remplace pas une compilation Android. Les PR touchant aux dépendances ou au natif doivent passer la compilation Gradle avant fusion.

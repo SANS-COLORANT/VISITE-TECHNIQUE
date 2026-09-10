@@ -152,6 +152,9 @@ jobs:
         run: |
           node --check symfonyApi.js
           node --check symfonyApiCacheDb.js
+          node --check latestVisitPhotosDb.js
+          node --check latestVisitPhotosStorage.js
+          node --check ClientLatestVisitPhotosModal.js
           node --check apiVisitPreparationDb.js
           node --check persistentEquipmentDb.js
           node --check visitPrefillDb.js
