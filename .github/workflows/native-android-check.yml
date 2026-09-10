@@ -151,6 +151,9 @@ jobs:
       - name: Validate API integration JavaScript
         run: |
           node --check symfonyApi.js
+          node --check intranetVisitPayload.js
+          node --check intranetVisitOutboxDb.js
+          node --check IntranetVisitSync.js
           node --check symfonyApiCacheDb.js
           node --check latestVisitPhotosDb.js
           node --check latestVisitPhotosStorage.js
