@@ -10,6 +10,7 @@ const CONTRACT_CHECKS = [
   ['runtime responsiveness v3 contract', '.github/scripts/check_runtime_responsiveness_v3.js'],
   ['startup dependency graph contract', '.github/scripts/check_startup_dependency_graph.js'],
   ['report export workflow contract', '.github/scripts/check_report_export_workflow.js'],
+  ['latest visit photos contract', '.github/scripts/check_latest_visit_photos_contract.js'],
 ];
 
 const JS_SYNTAX_FILES = [
@@ -42,6 +43,11 @@ const JS_SYNTAX_FILES = [
   'apiLatestVisitImportDb.js',
   'apiLatestVisitFieldEnrichmentDb.js',
   'MetraDirectoryScreen.js',
+  'ClientLatestVisitPhotosModal.js',
+  'latestVisitPhotosDb.js',
+  'latestVisitPhotosStorage.js',
+  'symfonyApi.js',
+  'database/migrations/031_latest_visit_photos.js',
 ];
 
 function runNode(args, label) {

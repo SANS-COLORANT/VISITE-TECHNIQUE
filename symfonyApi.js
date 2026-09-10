@@ -1,4 +1,5 @@
 import * as SecureStore from 'expo-secure-store';
+import * as FileSystem from 'expo-file-system';
 import { NativeModules } from 'react-native';
 import { cacheAuthorizedClients, cachePreparation, getApiSyncState, markApiError, updateApiSyncState } from './symfonyApiCacheDb.js';
 
@@ -57,6 +58,70 @@ async function parseResponse(response) {
     throw error;
   }
   return body;
+}
+
+function protectedDownloadUrl(path) {
+  const value = String(path || '').trim();
+  if (!/^\/api\/clients\/[^/?#]+\/dernieres-visites\/photos\/[^/?#]+$/.test(value)) {
+    throw new Error('Chemin de téléchargement de photo refusé.');
+  }
+  return endpoint(value);
+}
+
+function blobAsBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('Lecture du fichier téléchargé impossible.'));
+    reader.onload = () => {
+      const dataUrl = String(reader.result || '');
+      const separator = dataUrl.indexOf(',');
+      if (separator < 0) reject(new Error('Encodage de la photo téléchargée invalide.'));
+      else resolve(dataUrl.slice(separator + 1));
+    };
+    reader.readAsDataURL(blob);
+  });
+}
+
+async function downloadAttempt(path, destinationUri, accessToken) {
+  const url = protectedDownloadUrl(path);
+  const proof = await createProof('GET', url, accessToken);
+  const response = await fetch(url, {
+    method: 'GET',
+    redirect: 'manual',
+    headers: {
+      Accept: 'image/*',
+      DPoP: proof,
+      Authorization: `DPoP ${accessToken}`,
+    },
+  });
+  if (response.status >= 300 && response.status < 400) {
+    const error = new Error('Redirection HTTP refusée pour protéger la preuve DPoP.');
+    error.status = response.status;
+    throw error;
+  }
+  if (!response.ok) {
+    let body = null;
+    try { const text = await response.text(); body = text ? JSON.parse(text) : null; } catch {}
+    const error = new Error(body?.error_description || body?.message || body?.error || `Erreur API HTTP ${response.status}`);
+    error.status = response.status;
+    error.code = body?.error || body?.code || null;
+    error.retryAfter = response.headers?.get?.('Retry-After') || null;
+    throw error;
+  }
+
+  const blob = await response.blob();
+  try {
+    const base64 = await blobAsBase64(blob);
+    await FileSystem.writeAsStringAsync(destinationUri, base64, { encoding: FileSystem.EncodingType.Base64 });
+  } finally { blob.close?.(); }
+  const headers = {};
+  response.headers?.forEach?.((value, key) => { headers[key] = value; });
+  return {
+    uri: destinationUri,
+    status: response.status,
+    headers,
+    mimeType: response.headers?.get?.('Content-Type') || blob.type || null,
+  };
 }
 
 async function clearLegacyAccessStorage() {
@@ -263,6 +328,25 @@ export async function protectedRequest(method, path) {
   }
 }
 
+export async function downloadProtectedPhoto(path, destinationUri) {
+  let token = await validAccessToken();
+  try {
+    return await downloadAttempt(path, destinationUri, token);
+  } catch (error) {
+    if (error.status !== 401) throw error;
+    if (error.code === 'invalid_dpop_proof') {
+      try {
+        // Une nouvelle tentative produit obligatoirement un nouveau htu/jti/signature.
+        return await downloadAttempt(path, destinationUri, token);
+      } catch (retryError) {
+        if (retryError.status !== 401) throw retryError;
+      }
+    }
+    token = await refreshTokens();
+    return downloadAttempt(path, destinationUri, token);
+  }
+}
+
 export async function syncAuthorizedClients() {
   try {
     const payload = await protectedRequest('GET', '/api/clients');
@@ -281,6 +365,16 @@ export async function syncClientPreparation(remoteClientId, trameId = null) {
     const payload = await protectedRequest('GET', `/api/clients/${id}/preparation-visites${suffix}`);
     await cachePreparation(remoteClientId, payload);
     return payload;
+  } catch (error) {
+    await markApiError(error);
+    throw error;
+  }
+}
+
+export async function fetchClientLatestVisitPhotosManifest(remoteClientId) {
+  const id = encodeURIComponent(String(remoteClientId));
+  try {
+    return await protectedRequest('GET', `/api/clients/${id}/dernieres-visites/photos`);
   } catch (error) {
     await markApiError(error);
     throw error;

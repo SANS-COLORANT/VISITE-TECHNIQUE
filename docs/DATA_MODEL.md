@@ -75,6 +75,18 @@ Les compteurs sont patrimoniaux ; leurs index sont des observations datées lié
 
 Un nouvel index ne doit jamais être prérempli à partir de l’ancien. L’ancien index peut être affiché comme référence.
 
+## Photos historiques Intranet
+
+Les photos téléchargées depuis l'API « dernières visites » sont conservées dans
+un cache historique distinct des photos terrain :
+
+- le manifeste garde les sites, locaux et identifiants de la dernière visite ;
+- les fichiers sont enregistrés dans le stockage privé de l'application ;
+- les métadonnées associent chaque fichier aux identifiants distants du client,
+  du site, du local, de la visite et de la photo ;
+- ces images sont consultables hors connexion mais ne sont jamais insérées dans
+  la table des photos d'une nouvelle visite.
+
 ## Migrations SQLite
 
 Toute évolution de schéma doit :

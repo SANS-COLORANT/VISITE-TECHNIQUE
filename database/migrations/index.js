@@ -28,6 +28,7 @@ import { migration027 } from './027_symfony_api_cache.js';
 import { migration028 } from './028_symfony_preparation_integrity.js';
 import { migration029 } from './029_symfony_client_site_relations.js';
 import { migration030 } from './030_large_client_performance_indexes.js';
+import { migration031 } from './031_latest_visit_photos.js';
 
 export const MIGRATIONS = Object.freeze([
   migration001, migration002, migration003, migration004, migration005,
@@ -36,4 +37,5 @@ export const MIGRATIONS = Object.freeze([
   migration016, migration017, migration018, migration019, migration020,
   migration021, migration022, migration023, migration024, migration025,
   migration026, migration027, migration028, migration029, migration030,
+  migration031,
 ]);

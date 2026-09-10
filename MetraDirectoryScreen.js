@@ -4,6 +4,7 @@ import { COLORS, styles } from './styles.js';
 import { activateTablet, getActivationStatus, syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';
 import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory } from './symfonyApiCacheDb.js';
 import { importLatestApiVisitsForSite } from './apiLatestVisitImportDb.js';
+import { ClientLatestVisitPhotosModal } from './ClientLatestVisitPhotosModal.js';
 
 const SURFACE = '#FFFFFF';
 const BORDER = '#E6E8EC';
@@ -108,6 +109,7 @@ function MetraDirectoryScreen({ navigation, route }) {
   const [selectedSiteIds, setSelectedSiteIds] = useState(() => new Set());
   const [batchImportBusy, setBatchImportBusy] = useState(false);
   const [batchImportProgress, setBatchImportProgress] = useState(null);
+  const [latestPhotosClient, setLatestPhotosClient] = useState(null);
 
   const refreshStatus = useCallback(async () => {
     const next = await getActivationStatus();
@@ -178,6 +180,18 @@ function MetraDirectoryScreen({ navigation, route }) {
       setBatchImportProgress(null);
       if (status.activated) refreshClientPreparation(remoteClientId).catch(() => {});
     } catch (e) { Alert.alert('Ouverture impossible', String(e.message || e)); }
+  };
+
+  const openClientLatestPhotos = () => {
+    if (!selectedClient) return;
+    setLatestPhotosClient(selectedClient);
+    setSelectedClient(null);
+  };
+
+  const closeClientLatestPhotos = () => {
+    const clientToRestore = latestPhotosClient;
+    setLatestPhotosClient(null);
+    if (clientToRestore) setSelectedClient(clientToRestore);
   };
 
   const toggleSiteSelection = useCallback((remoteSiteId) => {
@@ -382,6 +396,16 @@ function MetraDirectoryScreen({ navigation, route }) {
           </View>
           <TouchableOpacity onPress={() => setSelectedClient(null)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: MUTED, fontSize: 19 }}>✕</Text></TouchableOpacity>
         </View>
+        {!siteSelectionMode ? <TouchableOpacity
+          activeOpacity={0.82}
+          disabled={batchImportBusy}
+          onPress={openClientLatestPhotos}
+          style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF7F1', borderWidth: 1, borderColor: '#F1C9AD', borderRadius: 14, padding: 12, marginTop: 14 }}
+        >
+          <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center', marginRight: 11 }}><Text style={{ color: '#FFF', fontSize: 19, fontWeight: '900' }}>▧</Text></View>
+          <View style={{ flex: 1, paddingRight: 8 }}><Text style={{ color: INK, fontSize: 13.5, fontWeight: '900' }}>Charger les photos des dernières visites</Text><Text style={{ color: MUTED, fontSize: 11.5, lineHeight: 16, marginTop: 2 }}>Manifeste, volume à télécharger et galerie disponible hors connexion.</Text></View>
+          <Text style={{ color: ACCENT, fontSize: 22, fontWeight: '800' }}>›</Text>
+        </TouchableOpacity> : null}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8, gap: 8 }}>
           <View style={{ flex: 1 }}>
             <Text style={styles.sectionLabel}>{sites.length} site{sites.length > 1 ? 's' : ''}</Text>
@@ -468,6 +492,13 @@ function MetraDirectoryScreen({ navigation, route }) {
         <Text style={{ color: MUTED, fontSize: 11.5, textAlign: 'center', marginTop: 8 }}>Patrimoine · dernière visite disponible · équipements · remarques · LAB</Text>
       </View></View>
     </Modal>
+
+    <ClientLatestVisitPhotosModal
+      visible={!!latestPhotosClient}
+      client={latestPhotosClient}
+      activated={status.activated}
+      onClose={closeClientLatestPhotos}
+    />
 
     <Modal visible={activationVisible} transparent animationType="fade" onRequestClose={() => setActivationVisible(false)}>
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, { borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>
