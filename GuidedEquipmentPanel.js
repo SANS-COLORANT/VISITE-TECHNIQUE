@@ -71,18 +71,19 @@ function PickerField({label,valeur,placeholder,onPress,disabled=false,sub}){
  </View>;
 }
 
-const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,marques,catalogue}){
+const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,onSaved,types,marques,catalogue}){
  const[categorie,setCategorie]=useState(item.categorie||'');
  const[marque,setMarque]=useState(item.marque||'');
  const[etat,setEtat]=useState(item.etat||'');
  const[picker,setPicker]=useState(null);
- const[designation,setDesignation,blurDesignation,setDesignationNow]=useDurableAutosave(item.designation,v=>upsertMaterielChamp(item.id,'designation',v));
- const[modele,setModele,blurModele,setModeleNow]=useDurableAutosave(item.modele,v=>upsertMaterielChamp(item.id,'modele',v));
- const[annee,setAnnee,blurAnnee]=useDurableAutosave(item.annee,v=>upsertMaterielChamp(item.id,'annee',v));
- const[nombre,setNombre,blurNombre]=useDurableAutosave(item.nombre,v=>upsertMaterielChamp(item.id,'nombre',v));
- const[numero,setNumero,blurNumero]=useDurableAutosave(item.numero_materiel,v=>upsertMaterielChamp(item.id,'numero_materiel',v));
- const[reseau,setReseau,blurReseau]=useDurableAutosave(item.reseau_desservi,v=>upsertMaterielChamp(item.id,'reseau_desservi',v));
- const[caracteristiques,setCaracteristiques,blurCaracteristiques]=useDurableAutosave(item.caracteristiques,v=>upsertMaterielChamp(item.id,'caracteristiques',v));
+ const save=useCallback(async(col,v)=>{await upsertMaterielChamp(item.id,col,v);onSaved?.()},[item.id,onSaved]);
+ const[designation,setDesignation,blurDesignation,setDesignationNow]=useDurableAutosave(item.designation,v=>save('designation',v));
+ const[modele,setModele,blurModele,setModeleNow]=useDurableAutosave(item.modele,v=>save('modele',v));
+ const[annee,setAnnee,blurAnnee]=useDurableAutosave(item.annee,v=>save('annee',v));
+ const[nombre,setNombre,blurNombre]=useDurableAutosave(item.nombre,v=>save('nombre',v));
+ const[numero,setNumero,blurNumero]=useDurableAutosave(item.numero_materiel,v=>save('numero_materiel',v));
+ const[reseau,setReseau,blurReseau]=useDurableAutosave(item.reseau_desservi,v=>save('reseau_desservi',v));
+ const[caracteristiques,setCaracteristiques,blurCaracteristiques]=useDurableAutosave(item.caracteristiques,v=>save('caracteristiques',v));
  useEffect(()=>{setCategorie(item.categorie||'');setMarque(item.marque||'');setEtat(item.etat||'')},[item.categorie,item.marque,item.etat]);
 
  const refsType=useMemo(()=>catalogue.filter(e=>typeCompatible(categorie,e.categorie)),[catalogue,categorie]);
@@ -94,20 +95,20 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
   const ancien=categorie;
   const t=String(v||'').trim();
   setCategorie(t);
-  await upsertMaterielChamp(item.id,'categorie',t);
+  await save('categorie',t);
   if(!designation||eq(designation,'Équipement')||eq(designation,ancien))await setDesignationNow(t||'Équipement');
   const refsNouveau=catalogue.filter(e=>typeCompatible(t,e.categorie));
-  if(marque&&!refsNouveau.some(e=>eq(e.marque,marque))){setMarque('');await upsertMaterielChamp(item.id,'marque','');await setModeleNow('')}
+  if(marque&&!refsNouveau.some(e=>eq(e.marque,marque))){setMarque('');await save('marque','');await setModeleNow('')}
   else if(modele&&!refsNouveau.some(e=>eq(e.marque,marque)&&eq(nomModele(e),modele)))await setModeleNow('');
  };
  const choisirMarque=async v=>{
   const m=String(v||'').trim();
   setMarque(m);
-  await upsertMaterielChamp(item.id,'marque',m);
+  await save('marque',m);
   if(modele&&!refsType.some(e=>eq(e.marque,m)&&eq(nomModele(e),modele)))await setModeleNow('');
  };
  const choisirModele=async v=>{await setModeleNow(String(v||'').trim())};
- const sauverEtat=async v=>{setEtat(v);await upsertMaterielChamp(item.id,'etat',v)};
+ const sauverEtat=async v=>{setEtat(v);await save('etat',v)};
 
  return <View style={styles.formCard}>
   <View style={styles.equipmentBrandHeader}>
@@ -128,7 +129,7 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
   {['À surveiller','Dégradé'].includes(etat)?<Text style={[styles.importHint,{marginTop:5}]}>Pour une visite liée à l’Intranet, choisis avant l’envoi un état accepté par le serveur : Neuf, Bon, Moyen, Vétuste ou Hors service.</Text>:null}
 
   {item.equipement_id?<View style={[styles.persistentEquipmentBadge,{marginTop:10}]}><Text style={styles.persistentEquipmentBadgeText}>↻ Équipement permanent · {item.nb_observations||0} observation(s)</Text></View>:null}
-  <TouchableOpacity style={{marginTop:12}} onPress={async()=>{await supprimerMateriel(item.id);await onChange()}}><Text style={styles.removeLink}>Déclarer cet équipement retiré</Text></TouchableOpacity>
+  <TouchableOpacity style={{marginTop:12}} onPress={async()=>{await supprimerMateriel(item.id);onSaved?.();await onChange()}}><Text style={styles.removeLink}>Déclarer cet équipement retiré</Text></TouchableOpacity>
 
   <PickerSheet visible={picker==='type'} titre="Type d’équipement" options={types} valeur={categorie} onClose={()=>setPicker(null)} onPick={choisirType}/>
   <PickerSheet visible={picker==='marque'} titre="Marque" options={marquesType.length?marquesType:marques} valeur={marque} onClose={()=>setPicker(null)} onPick={choisirMarque} emptyText="Aucune marque compatible dans le catalogue"/>
@@ -136,7 +137,7 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
  </View>;
 });
 
-export function GuidedEquipmentPanel({visiteId}){
+export function GuidedEquipmentPanel({visiteId,onSaved}){
  const[materiel,setMateriel]=useState([]),[types,setTypes]=useState(TYPES),[marques,setMarques]=useState(MARQUES),[catalogue,setCatalogue]=useState([]);
  const charger=useCallback(async()=>setMateriel(await listerMateriel(visiteId)),[visiteId]);
  useEffect(()=>{charger()},[charger]);
@@ -152,6 +153,6 @@ export function GuidedEquipmentPanel({visiteId}){
    setCatalogue(r||[]);
   }catch(e){console.warn('Catalogue équipements non chargé',e)}
  })();return()=>{actif=false}},[]);
- const ajouter=useCallback(async()=>{await ajouterMateriel(visiteId);await charger()},[visiteId,charger]);
- return <FlatList data={materiel} keyExtractor={i=>i.id} renderItem={({item})=><EquipmentCard item={item} visiteId={visiteId} onChange={charger} types={types} marques={marques} catalogue={catalogue}/>} contentContainerStyle={styles.panelContent} ListHeaderComponent={<View><Text style={styles.sectionTitle}>Équipements · {materiel.length}</Text><Text style={styles.importHint}>VMC, CTA, ventilateurs et tourelles sont inclus. Touchez Type, Marque ou Modèle : un volet tactile s’ouvre et filtre automatiquement le catalogue.</Text></View>} ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ajouter}><Text style={styles.addBtnText}>+ Ajouter un équipement</Text></TouchableOpacity>} initialNumToRender={4} maxToRenderPerBatch={4} windowSize={5} removeClippedSubviews keyboardShouldPersistTaps="handled"/>;
+ const ajouter=useCallback(async()=>{await ajouterMateriel(visiteId);onSaved?.();await charger()},[visiteId,charger,onSaved]);
+ return <FlatList data={materiel} keyExtractor={i=>i.id} renderItem={({item})=><EquipmentCard item={item} visiteId={visiteId} onChange={charger} onSaved={onSaved} types={types} marques={marques} catalogue={catalogue}/>} contentContainerStyle={styles.panelContent} ListHeaderComponent={<View><Text style={styles.sectionTitle}>Équipements · {materiel.length}</Text><Text style={styles.importHint}>VMC, CTA, ventilateurs et tourelles sont inclus. Touchez Type, Marque ou Modèle : un volet tactile s’ouvre et filtre automatiquement le catalogue.</Text></View>} ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ajouter}><Text style={styles.addBtnText}>+ Ajouter un équipement</Text></TouchableOpacity>} initialNumToRender={4} maxToRenderPerBatch={4} windowSize={5} removeClippedSubviews keyboardShouldPersistTaps="handled"/>;
 }
