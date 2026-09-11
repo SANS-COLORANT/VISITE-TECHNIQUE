@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, ActivityIndicator, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
-import { exporterDernieresVisitesClient } from './clientBatchExport.js';
 import { garantirRacineMetra, obtenirRacineMetra } from './metraStorage.js';
+
+function chargerExportClient(){return require('./clientBatchExport.js');}
 
 function ActionCard({ title, text, action, secondary = false, disabled = false }) {
   return <View style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, padding: 14, marginBottom: 10 }}><Text style={{ fontSize: 15, fontWeight: '900', color: COLORS.ink }}>{title}</Text><Text style={{ marginTop: 5, color: COLORS.muted, fontSize: 11.5, lineHeight: 17 }}>{text}</Text><TouchableOpacity disabled={disabled} onPress={action} style={[secondary ? styles.btnSecondary : styles.btnPrimary, { marginTop: 12 }, disabled && { opacity: 0.45 }]}><Text style={secondary ? styles.btnSecondaryText : styles.btnPrimaryText}>{title}</Text></TouchableOpacity></View>;
@@ -14,7 +15,7 @@ export function ClientDocumentsScreen({ route, navigation }) {
   const [racine, setRacine] = useState(null);
 
   const chargerStockage = useCallback(async () => setRacine(await obtenirRacineMetra()), []);
-  useEffect(() => { chargerStockage(); }, [chargerStockage]);
+  useEffect(() => { chargerStockage().catch(() => {}); }, [chargerStockage]);
 
   const preparerStockage = async () => {
     try {
@@ -33,8 +34,6 @@ export function ClientDocumentsScreen({ route, navigation }) {
   };
 
   const garantirStockageClient = async () => {
-    // Ne jamais matérialiser ici les centaines de dossiers du client :
-    // les chemins Site/Visite sont créés paresseusement au moment de l'export.
     try {
       setBusy(true);
       const uri = await garantirRacineMetra();
@@ -45,16 +44,14 @@ export function ClientDocumentsScreen({ route, navigation }) {
     } finally { setBusy(false); }
   };
 
-  const ouvrirRapports = () => {
-    navigation.navigate('Report', { clientId });
-  };
+  const ouvrirRapports = () => navigation.navigate('Report', { clientId });
 
   const exporterExcel = async () => {
     const uri = await garantirStockageClient();
     if (!uri) return;
     setBusy(true);
     try {
-      const resultat = await exporterDernieresVisitesClient(clientId);
+      const resultat = await chargerExportClient().exporterDernieresVisitesClient(clientId);
       if (resultat?.annule) return;
       const ok = resultat?.enregistres?.length || 0;
       const erreurs = resultat?.erreurs?.length || 0;

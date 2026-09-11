@@ -54,7 +54,7 @@ async function main() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'metra-binding-test-'));
   const server = databaseProcess(path.join(dir, 'binding.db'));
   try {
-    await server.send('migrate', '', [0, 33]);
+    await server.send('migrate', '', [0, 36]);
     await server.db.execAsync(`
       INSERT INTO clients(id,nom,code_exploitant) VALUES('local-client','Client Alpha','CL-100');
       INSERT INTO clients(id,nom,code_exploitant) VALUES('other-local-client','Autre client importé','ZZ-999');

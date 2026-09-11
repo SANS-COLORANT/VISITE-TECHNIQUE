@@ -22,8 +22,10 @@ MODERN_PAGER_SKIP_LABELS = {
         'pass local swipe registration',
     },
     '.github/scripts/patch_preallumage_swipe_performance.py': {
+        'batch previous visit stable fields',
         'full page local swipe transition',
         'interactive full page local drag',
+        'non-blocking visit warmup',
     },
 }
 

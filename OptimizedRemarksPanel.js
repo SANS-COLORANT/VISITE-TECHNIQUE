@@ -39,7 +39,7 @@ function libellePhotoRemarque(remarque, prestation) {
   return prestation || 'Anomalie';
 }
 
-function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panelLabels, intranetLinked = false }) {
+function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, onSaved, panelLabels, intranetLinked = false }) {
   const [prestation, setPrestation, blurPrestation] = useDurableAutosave(remarque.prestation, async (v) => {
     await modifierRemarqueVisite(remarque.id, { prestation: v });
   });
@@ -64,33 +64,41 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
   const changerPrestation = useCallback((v) => {
     setPrestation(v);
     onPatch(remarque.id, { prestation: v });
-  }, [onPatch, remarque.id, setPrestation]);
+    onSaved?.();
+  }, [onPatch, onSaved, remarque.id, setPrestation]);
   const changerPoste = useCallback((v) => {
     setPoste(v);
     onPatch(remarque.id, { poste: v });
-  }, [onPatch, remarque.id, setPoste]);
+    onSaved?.();
+  }, [onPatch, onSaved, remarque.id, setPoste]);
   const changerPrix = useCallback((v) => {
     setPrix(v);
     onPatch(remarque.id, { estimatif: nombreOuNull(v) });
-  }, [onPatch, remarque.id, setPrix]);
+    onSaved?.();
+  }, [onPatch, onSaved, remarque.id, setPrix]);
   const changerDelai = useCallback((v) => {
+    // Le délai interne en mois n'est pas envoyé à l'Intranet : il ne change pas
+    // à lui seul l'état Online/Offline.
     setDelai(v);
     onPatch(remarque.id, { delai: nombreOuNull(v) });
   }, [onPatch, remarque.id, setDelai]);
   const changerDateReserve = useCallback((v) => {
     setDateReserve(v);
     onPatch(remarque.id, { intranet_date_reserve: v });
-  }, [onPatch, remarque.id, setDateReserve]);
+    onSaved?.();
+  }, [onPatch, onSaved, remarque.id, setDateReserve]);
   const changerEcheance = useCallback((v) => {
     setEcheance(v);
     onPatch(remarque.id, { intranet_delai: v });
-  }, [onPatch, remarque.id, setEcheance]);
+    onSaved?.();
+  }, [onPatch, onSaved, remarque.id, setEcheance]);
   const changerEtatAvancement = useCallback(async (v) => {
     const next = etatAvancement === v ? '' : v;
     setEtatAvancement(next);
     onPatch(remarque.id, { intranet_etat_avancement: next || null });
     await modifierRemarqueVisite(remarque.id, { intranet_etat_avancement: next || null });
-  }, [etatAvancement, onPatch, remarque.id]);
+    onSaved?.();
+  }, [etatAvancement, onPatch, onSaved, remarque.id]);
   const changerCriticite = useCallback(async (value) => {
     await modifierCriticiteRemarque(remarque.id, value);
     onPatch(remarque.id, {
@@ -105,7 +113,7 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
         <Text style={styles.remarquePoste}>Réserve de la visite</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <PhotoButton visiteId={visiteId} entiteKey={`remarque||${remarque.id}`} label={libellePhotoRemarque(remarque, prestation)} />
-          <TouchableOpacity onPress={async () => { await supprimerRemarqueVisite(remarque.id); onDelete(remarque.id); }}>
+          <TouchableOpacity onPress={async () => { await supprimerRemarqueVisite(remarque.id); onDelete(remarque.id); onSaved?.(); }}>
             <Text style={styles.removeLink}>Supprimer</Text>
           </TouchableOpacity>
         </View>
@@ -161,7 +169,7 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
   );
 }
 
-function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, panels = {}, intranetLinked = false }) {
+function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, panels = {}, intranetLinked = false, onSaved = null }) {
   const [remarques, setRemarques] = useState(() => remarksCache.get(visiteId) || []);
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
@@ -212,12 +220,14 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
   };
   const choisirDepuisBiblio = async (item) => {
     await ajouterRemarqueDepuisBibliotheque(visiteId, item);
+    onSaved?.();
     setBiblioVisible(false);
     remarksCache.delete(visiteId);
     await charger();
   };
   const ajouterVierge = async () => {
     await ajouterRemarqueVisite(visiteId);
+    onSaved?.();
     setBiblioVisible(false);
     remarksCache.delete(visiteId);
     await charger();
@@ -278,7 +288,7 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
       <FlatList
         data={remarques}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <ReserveCard remarque={item} visiteId={visiteId} onPatch={patchLocal} onDelete={deleteLocal} onRattacher={ouvrirRattachement} panelLabels={panelLabels} intranetLinked={intranetLinked} />}
+        renderItem={({ item }) => <ReserveCard remarque={item} visiteId={visiteId} onPatch={patchLocal} onDelete={deleteLocal} onRattacher={ouvrirRattachement} onSaved={onSaved} panelLabels={panelLabels} intranetLinked={intranetLinked} />}
         ListHeaderComponent={header}
         ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucune réserve pour l'instant.</Text><Text style={styles.emptySub}>Passe un point de contrôle en N.S pour en générer une.</Text></View>}
         ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ouvrirBiblio}><Text style={styles.addBtnText}>+ Ajouter une réserve manuelle</Text></TouchableOpacity>}

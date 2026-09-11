@@ -37,18 +37,19 @@ export async function prechargerRegulation(visiteId, force = false) {
 
 export function invaliderCacheRegulation(visiteId) { cacheRegulation.delete(visiteId); }
 
-const ReseauCard = memo(function ReseauCard({ reseau, visiteId, onRemove }) {
+const ReseauCard = memo(function ReseauCard({ reseau, visiteId, onRemove, onSaved }) {
   const fields = useMemo(() => RESEAU_TEMPLATE.filter((f) => f.cle !== 'Nom réseau'), []);
   const [nom, setNom, flushNom] = useDurableAutosave(reseau.nom_reseau || '', async (v) => {
     await upsertReseauChamp(reseau.id, 'nom_reseau', v.trim() || 'Réseau');
+    onSaved?.();
   }, 450);
   const [values, setValues] = useState(() => Object.fromEntries(fields.map((f) => [f.cle, reseau[CLE_TO_COL[f.cle]] ?? ''])));
 
   const saveField = useCallback((cle, value) => {
     setValues((old) => ({ ...old, [cle]: value }));
     const col = CLE_TO_COL[cle];
-    if (col) upsertReseauChamp(reseau.id, col, value).catch(console.warn);
-  }, [reseau.id]);
+    if (col) upsertReseauChamp(reseau.id, col, value).then(() => onSaved?.()).catch(console.warn);
+  }, [onSaved, reseau.id]);
 
   return <View style={styles.formCard}>
     <View style={styles.reseauHeaderRow}>
@@ -100,13 +101,15 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
       const id = await ajouterReseau(visiteId, `Réseau ${n}`);
       const row = { id, visite_id: visiteId, ordre: reseaux.length, nom_reseau: `Réseau ${n}` };
       setReseaux((old) => { const next = [...old, row]; patchCache(next); return next; });
+      onSaved?.();
     } finally { setAdding(false); }
-  }, [adding, patchCache, reseaux.length, visiteId]);
+  }, [adding, onSaved, patchCache, reseaux.length, visiteId]);
 
   const remove = useCallback(async (id) => {
     await supprimerReseau(id);
     setReseaux((old) => { const next = old.filter((r) => r.id !== id); patchCache(next); return next; });
-  }, [patchCache]);
+    onSaved?.();
+  }, [onSaved, patchCache]);
 
   const renderTrameField = (f, sectionCode) => {
     const key = `${sectionCode}||${f.cle}`;
@@ -132,7 +135,7 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
   return <FlatList
     data={reseaux}
     keyExtractor={(item) => item.id}
-    renderItem={({ item }) => <ReseauCard reseau={item} visiteId={visiteId} onRemove={remove} />}
+    renderItem={({ item }) => <ReseauCard reseau={item} visiteId={visiteId} onRemove={remove} onSaved={onSaved} />}
     ListHeaderComponent={header}
     ListFooterComponent={footer}
     contentContainerStyle={styles.panelContent}

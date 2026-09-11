@@ -5,6 +5,11 @@ function clean(value) { return value == null ? '' : String(value).trim(); }
 function sectionCode(panelId, section) {
   return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
 }
+function chunks(rows, size) {
+  const result = [];
+  for (let i = 0; i < rows.length; i += size) result.push(rows.slice(i, i + size));
+  return result;
+}
 
 const CURRENT_METADATA_KEYS = new Set([
   'Nom du client',
@@ -58,30 +63,36 @@ async function isImportedHistoricalVisit(db, visiteId) {
 }
 
 async function copyReusableFields(db, visiteId, previousVisitId, trame) {
+  if (trame.id !== 'pre_allumage') {
+    // Une seule instruction SQLite remplace l'ancienne boucle champ par champ.
+    // Sur une trame ICPE complète cela évite des dizaines d'allers-retours JS ↔ SQLite.
+    const excluded = [...CURRENT_METADATA_KEYS];
+    const placeholders = excluded.map(() => '?').join(',');
+    const result = await db.runAsync(
+      `INSERT INTO champs_visite(visite_id,section_code,cle,valeur)
+       SELECT ?,section_code,cle,valeur
+       FROM champs_visite
+       WHERE visite_id=?
+         AND section_code IS NOT NULL AND trim(section_code)<>''
+         AND cle IS NOT NULL AND trim(cle)<>''
+         AND valeur IS NOT NULL AND trim(valeur)<>''
+         AND cle NOT IN (${placeholders})
+       ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur
+       WHERE champs_visite.valeur IS NULL OR trim(champs_visite.valeur)=''`,
+      [visiteId, previousVisitId, ...excluded]
+    );
+    return Number(result?.changes || 0);
+  }
+
+  // Pré-allumage garde sa règle stricte : seuls les champs explicitement
+  // stable/carryForward sont repris. Leur nombre est volontairement limité.
   const rows = await db.getAllAsync(
     `SELECT section_code,cle,valeur FROM champs_visite
      WHERE visite_id=? AND valeur IS NOT NULL AND trim(valeur)<>''`,
     [previousVisitId]
   );
-  let copied = 0;
-
-  if (trame.id !== 'pre_allumage') {
-    // Reprendre aussi les champs techniques hors registre UI (ex. vmc.config)
-    // afin de conserver le nombre réel et le nom des caissons.
-    for (const row of rows || []) {
-      if (!row?.section_code || !row?.cle || CURRENT_METADATA_KEYS.has(row.cle)) continue;
-      const result = await db.runAsync(
-        `INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)
-         ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur
-         WHERE champs_visite.valeur IS NULL OR trim(champs_visite.valeur)=''`,
-        [visiteId, row.section_code, row.cle, String(row.valeur)]
-      );
-      if (Number(result?.changes || 0) > 0) copied += 1;
-    }
-    return copied;
-  }
-
   const previous = new Map((rows || []).map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
+  let copied = 0;
   for (const [panelId, sections] of Object.entries(trame.ui?.panels || {})) {
     for (const [section, fields] of Object.entries(sections || {})) {
       const code = sectionCode(panelId, section);
@@ -107,38 +118,39 @@ async function copyReusableControls(db, visiteId, previousVisitId, trame) {
   if (trame.id === 'pre_allumage') return 0;
 
   const importedHistory = await isImportedHistoricalVisit(db, previousVisitId);
-  const technicalKeys = importedHistory ? technicalControlKeys(trame) : new Set();
-  const rows = await db.getAllAsync(
-    `SELECT section_code,cle,avis,commentaire FROM controles_visite
-     WHERE visite_id=?
-       AND (avis IS NOT NULL OR commentaire IS NOT NULL)`,
-    [previousVisitId]
-  );
-  let copied = 0;
-  for (const row of rows || []) {
-    if (!row?.section_code || !row?.cle) continue;
-    const key = `${row.section_code}||${row.cle}`;
-    const avis = clean(row.avis) || null;
-    const previousComment = clean(row.commentaire) || null;
-    // Une visite historique Intranet sert de photographie de départ : on reprend
-    // l'avis S/N.S/etc., mais pas son commentaire de conformité. Les mesures du
-    // panneau Relevés restent conservées car leur valeur métier est portée par
-    // commentaire dans le modèle Symfony.
-    const commentaire = importedHistory && !technicalKeys.has(key) ? null : previousComment;
-    if (!avis && !commentaire) continue;
-    const result = await db.runAsync(
-      `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)
-       VALUES(?,?,?,?,?)
-       ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET
-         avis=excluded.avis,
-         commentaire=excluded.commentaire
-       WHERE (controles_visite.avis IS NULL OR trim(controles_visite.avis)='')
-         AND (controles_visite.commentaire IS NULL OR trim(controles_visite.commentaire)='')`,
-      [visiteId, row.section_code, row.cle, avis, commentaire]
-    );
-    if (Number(result?.changes || 0) > 0) copied += 1;
+  const technicalKeys = importedHistory ? [...technicalControlKeys(trame)] : [];
+  let commentExpression = `NULLIF(trim(commentaire),'')`;
+  const params = [visiteId];
+  if (importedHistory) {
+    if (technicalKeys.length) {
+      const placeholders = technicalKeys.map(() => '?').join(',');
+      commentExpression = `CASE WHEN (section_code || '||' || cle) IN (${placeholders}) THEN NULLIF(trim(commentaire),'') ELSE NULL END`;
+      params.push(...technicalKeys);
+    } else {
+      commentExpression = 'NULL';
+    }
   }
-  return copied;
+  params.push(previousVisitId);
+
+  // Même règle métier qu'avant, mais en une seule écriture : une visite
+  // historique Intranet fournit les avis sans recopier ses commentaires de
+  // conformité ; les valeurs techniques du panneau Relevés sont conservées.
+  const result = await db.runAsync(
+    `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)
+     SELECT ?,section_code,cle,NULLIF(trim(avis),''),${commentExpression}
+     FROM controles_visite
+     WHERE visite_id=?
+       AND section_code IS NOT NULL AND trim(section_code)<>''
+       AND cle IS NOT NULL AND trim(cle)<>''
+       AND (avis IS NOT NULL OR commentaire IS NOT NULL)
+     ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET
+       avis=excluded.avis,
+       commentaire=excluded.commentaire
+     WHERE (controles_visite.avis IS NULL OR trim(controles_visite.avis)='')
+       AND (controles_visite.commentaire IS NULL OR trim(controles_visite.commentaire)='')`,
+    params
+  );
+  return Number(result?.changes || 0);
 }
 
 async function copyNetworkValues(db, visiteId, previousVisitId) {
@@ -150,24 +162,41 @@ async function copyNetworkValues(db, visiteId, previousVisitId) {
      FROM reseaux WHERE visite_id=? ORDER BY ordre,id`,
     [previousVisitId]
   );
-  let copied = 0;
-  for (const row of previous || []) {
-    const newId = createId();
-    await db.runAsync(
-      `INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id)
-       VALUES(?,?,?,?,?,?,?,?,?,?)`,
-      [newId, visiteId, Number(row.ordre || 0), row.nom_reseau || 'Réseau', row.t_ext_c ?? null,
-        row.t_dep_c ?? null, row.courbe_de_chauffe ?? null, row.tnc ?? null,
-        row.consigne_programme_horaire ?? null, row.reseau_site_id || null]
-    );
-    const provenance = await db.getAllAsync(`SELECT reference_externe,details_json FROM provenances WHERE entite_type='reseau' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le`, [row.id]);
-    for (const source of provenance || []) {
-      await db.runAsync(`INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json) VALUES(?, 'reseau', ?, 'api_symfony', ?, ?)`,
-        [createId(), newId, source.reference_externe ?? null, source.details_json ?? null]);
-    }
-    copied += 1;
+  if (!previous.length) return 0;
+
+  // Les réseaux et leurs provenances sont copiés en lots. L'ancienne version
+  // effectuait un INSERT puis un SELECT de provenance pour chaque réseau.
+  const mapped = previous.map((row) => ({ previousId: row.id, newId: createId(), row }));
+  for (const part of chunks(mapped, 60)) {
+    const placeholders = part.map(() => '(?,?,?,?,?,?,?,?,?,?)').join(',');
+    const params = part.flatMap(({ newId, row }) => [
+      newId, visiteId, Number(row.ordre || 0), row.nom_reseau || 'Réseau', row.t_ext_c ?? null,
+      row.t_dep_c ?? null, row.courbe_de_chauffe ?? null, row.tnc ?? null,
+      row.consigne_programme_horaire ?? null, row.reseau_site_id || null,
+    ]);
+    await db.runAsync(`INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id) VALUES ${placeholders}`, params);
   }
-  return copied;
+
+  const newIds = new Map(mapped.map((row) => [String(row.previousId), row.newId]));
+  const sourceProvenances = [];
+  for (const idPart of chunks(previous.map((row) => String(row.id)), 250)) {
+    const placeholders = idPart.map(() => '?').join(',');
+    const rows = await db.getAllAsync(
+      `SELECT entite_id,reference_externe,details_json FROM provenances
+       WHERE entite_type='reseau' AND origine='api_symfony' AND entite_id IN (${placeholders})
+       ORDER BY importe_le,id`, idPart
+    );
+    sourceProvenances.push(...rows);
+  }
+  for (const part of chunks(sourceProvenances, 80)) {
+    const placeholders = part.map(() => '(?,?,?,?,?,?)').join(',');
+    const params = part.flatMap((source) => [
+      createId(), 'reseau', newIds.get(String(source.entite_id)), 'api_symfony',
+      source.reference_externe ?? null, source.details_json ?? null,
+    ]);
+    await db.runAsync(`INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json) VALUES ${placeholders}`, params);
+  }
+  return mapped.length;
 }
 
 async function copyMeterValues(db, visiteId, previousVisitId) {
@@ -178,15 +207,16 @@ async function copyMeterValues(db, visiteId, previousVisitId) {
     `SELECT label,valeur,unite,compteur_site_id FROM compteurs WHERE visite_id=? ORDER BY id`,
     [previousVisitId]
   );
-  let copied = 0;
-  for (const row of previous || []) {
-    await db.runAsync(
-      `INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id) VALUES(?,?,?,?,?,?)`,
-      [createId(), visiteId, row.label || 'Compteur', row.valeur ?? null, row.unite || null, row.compteur_site_id || null]
-    );
-    copied += 1;
+  if (!previous.length) return 0;
+
+  for (const part of chunks(previous, 100)) {
+    const placeholders = part.map(() => '(?,?,?,?,?,?)').join(',');
+    const params = part.flatMap((row) => [
+      createId(), visiteId, row.label || 'Compteur', row.valeur ?? null, row.unite || null, row.compteur_site_id || null,
+    ]);
+    await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id) VALUES ${placeholders}`, params);
   }
-  return copied;
+  return previous.length;
 }
 
 async function remoteLocalForInstallation(db, installationId) {

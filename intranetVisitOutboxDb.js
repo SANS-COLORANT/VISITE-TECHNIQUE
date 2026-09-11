@@ -28,6 +28,8 @@ function retryAfterMs(value) {
 }
 function exponentialRetry(attempt) { return Math.min(15 * 60_000, Math.max(15_000, 15_000 * 2 ** Math.min(6, Math.max(0, attempt - 1)))); }
 function violationsJson(error) { return error?.violations?.length ? JSON.stringify(error.violations) : null; }
+function contentRevisionOf(visit) { return Number(visit?.api_content_revision || 0); }
+function syncedRevisionOf(visit) { return Number(visit?.api_synced_revision || 0); }
 
 export async function getVisitUploadState(visiteId) {
   const db = await getDb();
@@ -66,16 +68,23 @@ export async function queueVisitUpload(visiteId, {
   replaceTerminal = false,
 } = {}) {
   const db = await getDb();
-  const visit = await db.getFirstAsync(`SELECT id,statut FROM visites WHERE id=?`, [visiteId]);
+  const visit = await db.getFirstAsync(`SELECT id,statut,api_content_revision,api_synced_revision FROM visites WHERE id=?`, [visiteId]);
   if (!visit) throw new IntranetVisitValidationError(['Visite introuvable.']);
   if (!['terminee', 'exportee'].includes(visit.statut)) {
     throw new IntranetVisitValidationError(['Finalise la visite avant de l’envoyer. Le POST Intranet crée une nouvelle visite serveur et ne permet pas de mettre à jour progressivement une visite déjà créée.']);
   }
+  const currentRevision = contentRevisionOf(visit);
+  const syncedRevision = syncedRevisionOf(visit);
   const existing = await getVisitUploadState(visiteId);
+  let replaceSynced = false;
   if (existing) {
-    if (['pending', 'sending', 'retry'].includes(existing.status) || existing.status === 'synced') return existing;
-    if (!replaceTerminal) return existing;
+    if (['pending', 'sending', 'retry'].includes(existing.status)) return existing;
+    if (existing.status === 'synced') {
+      if (currentRevision === syncedRevision) return existing;
+      replaceSynced = true;
+    } else if (!replaceTerminal) return existing;
   }
+
   const envoiId = await createIntranetUploadId();
   const prepared = await buildIntranetVisitPayload(visiteId, envoiId);
   if (prepared.destructiveMaterialChange && !confirmMaterialReplacement && !confirmMaterialClear) {
@@ -90,11 +99,17 @@ export async function queueVisitUpload(visiteId, {
     error.prepared = prepared;
     throw error;
   }
-  if (existing && replaceTerminal) await db.runAsync(`DELETE FROM api_visit_outbox WHERE visite_id=?`, [visiteId]);
+
+  // Une ligne déjà synchronisée peut être remplacée uniquement parce qu'une
+  // révision métier plus récente existe. On ne modifie jamais un payload
+  // pending/retry/sending : son UUID et ses octets restent immuables.
+  if (existing && (replaceTerminal || replaceSynced)) {
+    await db.runAsync(`DELETE FROM api_visit_outbox WHERE visite_id=?`, [visiteId]);
+  }
   await db.runAsync(`INSERT INTO api_visit_outbox(
-      envoi_id,visite_id,remote_client_id,payload_json,payload_bytes,status,attempt_count,next_attempt_at
-    ) VALUES(?,?,?,?,?,'pending',0,NULL)`,
-    [envoiId, String(visiteId), prepared.remoteClientId, prepared.serialized, prepared.payloadBytes]);
+      envoi_id,visite_id,remote_client_id,payload_json,payload_bytes,status,attempt_count,next_attempt_at,content_revision
+    ) VALUES(?,?,?,?,?,'pending',0,NULL,?)`,
+    [envoiId, String(visiteId), prepared.remoteClientId, prepared.serialized, prepared.payloadBytes, currentRevision]);
   notify();
   return getVisitUploadState(visiteId);
 }
@@ -160,8 +175,16 @@ async function sendRow(db, row) {
     let expectedLocalId = null;
     try { expectedLocalId = JSON.parse(row.payload_json)?.visites?.[0]?.localId; } catch {}
     if (String(visits[0].localId) !== String(expectedLocalId)) throw Object.assign(new Error('Accusé de réception Intranet incohérent : localId différent.'), { code: 'invalid_ack' });
-    await db.runAsync(`UPDATE api_visit_outbox SET status='synced',next_attempt_at=NULL,http_status=?,error_code=NULL,error_message=NULL,violations_json=NULL,remote_visit_id=?,replayed=?,synced_at=datetime('now'),updated_at=datetime('now') WHERE envoi_id=?`,
-      [response?.rejoue ? 200 : 201, String(visits[0].id), response?.rejoue ? 1 : 0, row.envoi_id]);
+    const remoteVisitId = String(visits[0].id);
+    await db.withTransactionAsync(async () => {
+      await db.runAsync(`UPDATE api_visit_outbox SET status='synced',next_attempt_at=NULL,http_status=?,error_code=NULL,error_message=NULL,violations_json=NULL,remote_visit_id=?,replayed=?,synced_at=datetime('now'),updated_at=datetime('now') WHERE envoi_id=?`,
+        [response?.rejoue ? 200 : 201, remoteVisitId, response?.rejoue ? 1 : 0, row.envoi_id]);
+      // On acquitte exactement la révision incluse dans le payload immuable.
+      // Si l'utilisateur a modifié la visite pendant l'envoi, content_revision
+      // est déjà supérieure et le badge reste donc Offline.
+      await db.runAsync(`UPDATE visites SET api_synced_revision=?,api_source_remote_visit_id=?,modifie_le=datetime('now') WHERE id=?`,
+        [Number(row.content_revision || 0), remoteVisitId, String(row.visite_id)]);
+    });
     notify();
     return { status: 'synced', row: await getVisitUploadState(row.visite_id), response };
   } catch (error) {

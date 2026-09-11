@@ -3,15 +3,16 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, BackHandler, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { CategorieCritereSelector } from './GenericFields.js';
-import { EquipmentCatalogueBrowser } from './EquipmentCatalogueBrowser.js';
 import { listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio } from './db.js';
-import { exporterSauvegardeBase, exporterSauvegardeComplete, choisirEtRestaurerSauvegardeComplete } from './databaseBackup.js';
 import { ensureEquipmentCatalogReady } from './database/index.js';
-import { diagnostiquerStockageLocal } from './storageHealth.js';
-import { exporterSupportDump } from './supportDump.js';
 
 const CATEGORIES_EQUIPEMENT=['Adoucisseur','Armoire électrique','Ballon ECS','Chaudière','Circulateur','Coffret gaz','Compteur','Désemboueur','Détendeur','Échangeur','Extincteur','Filtre','Manomètre','Pompe','Robinetterie','Soupape','Vanne',"Vase d'expansion"];
 const MARQUES_EQUIPEMENT=['De Dietrich','Viessmann','Grundfos','Wilo','Saunier Duval','Atlantic','Frisquet','Chappée','Chaffoteaux','Elm Leblanc','Bosch','Vaillant','Fernox','Alfa Laval'];
+
+function EquipmentCatalogueLazy(){const Component=require('./EquipmentCatalogueBrowser.js').EquipmentCatalogueBrowser;return <Component/>;}
+function backupTools(){return require('./databaseBackup.js');}
+function storageHealthTools(){return require('./storageHealth.js');}
+function supportDumpTools(){return require('./supportDump.js');}
 
 function ParametresScreen(){
   const[onglet,setOnglet]=useState('reserves');
@@ -22,179 +23,61 @@ function ParametresScreen(){
     if(onglet!=='equipements'||cataloguePret)return;
     let actif=true;
     setCatalogueErreur(null);
-    ensureEquipmentCatalogReady()
-      .then(()=>{if(actif)setCataloguePret(true);})
-      .catch((e)=>{if(actif)setCatalogueErreur(String(e.message||e));});
+    ensureEquipmentCatalogReady().then(()=>{if(actif)setCataloguePret(true);}).catch((e)=>{if(actif)setCatalogueErreur(String(e.message||e));});
     return()=>{actif=false;};
   },[onglet,cataloguePret]);
 
   const contenuEquipements=cataloguePret
-    ?<EquipmentCatalogueBrowser/>
+    ?<EquipmentCatalogueLazy/>
     :<View style={{flex:1,alignItems:'center',justifyContent:'center',padding:28}}>
-      {catalogueErreur?
-        <>
-          <Text style={{fontSize:16,fontWeight:'800',color:COLORS.text}}>Catalogue indisponible</Text>
-          <Text style={{marginTop:8,color:COLORS.muted,textAlign:'center'}}>{catalogueErreur}</Text>
-          <TouchableOpacity style={[styles.btnPrimary,{marginTop:16}]} onPress={()=>{setCatalogueErreur(null);setCataloguePret(false);setOnglet('reserves');setTimeout(()=>setOnglet('equipements'),0);}}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity>
-        </>
-        :<>
-          <ActivityIndicator size="large" color={COLORS.orange}/>
-          <Text style={{marginTop:12,fontWeight:'800',color:COLORS.text}}>Préparation du catalogue…</Text>
-          <Text style={{marginTop:5,color:COLORS.muted,textAlign:'center'}}>Cette étape est surtout visible au premier lancement. Les ouvertures suivantes utilisent la base déjà enrichie.</Text>
-        </>}
+      {catalogueErreur?<><Text style={{fontSize:16,fontWeight:'800',color:COLORS.text}}>Catalogue indisponible</Text><Text style={{marginTop:8,color:COLORS.muted,textAlign:'center'}}>{catalogueErreur}</Text><TouchableOpacity style={[styles.btnPrimary,{marginTop:16}]} onPress={()=>{setCatalogueErreur(null);setCataloguePret(false);setOnglet('reserves');setTimeout(()=>setOnglet('equipements'),0);}}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity></>:<><ActivityIndicator size="large" color={COLORS.orange}/><Text style={{marginTop:12,fontWeight:'800',color:COLORS.text}}>Préparation du catalogue…</Text><Text style={{marginTop:5,color:COLORS.muted,textAlign:'center'}}>Cette étape est surtout visible au premier lancement. Les ouvertures suivantes utilisent la base déjà enrichie.</Text></>}
     </View>;
 
-  return <View style={{flex:1,backgroundColor:COLORS.bg}}>
-    <View style={styles.paramTabs}>
-      <TouchableOpacity style={[styles.paramTab,onglet==='reserves'&&styles.paramTabActive]} onPress={()=>setOnglet('reserves')}><Text style={[styles.paramTabText,onglet==='reserves'&&styles.paramTabTextActive]}>Réserves</Text></TouchableOpacity>
-      <TouchableOpacity style={[styles.paramTab,onglet==='equipements'&&styles.paramTabActive]} onPress={()=>setOnglet('equipements')}><Text style={[styles.paramTabText,onglet==='equipements'&&styles.paramTabTextActive]}>Équipements</Text></TouchableOpacity>
-      <TouchableOpacity style={[styles.paramTab,onglet==='donnees'&&styles.paramTabActive]} onPress={()=>setOnglet('donnees')}><Text style={[styles.paramTabText,onglet==='donnees'&&styles.paramTabTextActive]}>Données</Text></TouchableOpacity>
-    </View>
-    {onglet==='reserves'?<BibliothequeReserves/>:onglet==='equipements'?contenuEquipements:<GestionDonnees/>}
-  </View>;
+  return <View style={{flex:1,backgroundColor:COLORS.bg}}><View style={styles.paramTabs}>
+    <TouchableOpacity style={[styles.paramTab,onglet==='reserves'&&styles.paramTabActive]} onPress={()=>setOnglet('reserves')}><Text style={[styles.paramTabText,onglet==='reserves'&&styles.paramTabTextActive]}>Réserves</Text></TouchableOpacity>
+    <TouchableOpacity style={[styles.paramTab,onglet==='equipements'&&styles.paramTabActive]} onPress={()=>setOnglet('equipements')}><Text style={[styles.paramTabText,onglet==='equipements'&&styles.paramTabTextActive]}>Équipements</Text></TouchableOpacity>
+    <TouchableOpacity style={[styles.paramTab,onglet==='donnees'&&styles.paramTabActive]} onPress={()=>setOnglet('donnees')}><Text style={[styles.paramTabText,onglet==='donnees'&&styles.paramTabTextActive]}>Données</Text></TouchableOpacity>
+  </View>{onglet==='reserves'?<BibliothequeReserves/>:onglet==='equipements'?contenuEquipements:<GestionDonnees/>}</View>;
 }
 
 function BoutonDonnees({label,onPress,disabled=false,secondaire=false,danger=false}){
   const base=secondaire?styles.btnSecondary:styles.btnPrimary;
-  return <TouchableOpacity
-    style={[base,{marginTop:10,alignSelf:'stretch',alignItems:'center'},disabled&&{opacity:.5},danger&&{backgroundColor:'#FFF1F0',borderWidth:1,borderColor:'#F5B7B1'}]}
-    disabled={disabled}
-    onPress={onPress}
-  >
-    <Text style={danger?{color:'#A61B1B',fontWeight:'800'}:(secondaire?styles.btnSecondaryText:styles.btnPrimaryText)}>{label}</Text>
-  </TouchableOpacity>;
+  return <TouchableOpacity style={[base,{marginTop:10,alignSelf:'stretch',alignItems:'center'},disabled&&{opacity:.5},danger&&{backgroundColor:'#FFF1F0',borderWidth:1,borderColor:'#F5B7B1'}]} disabled={disabled} onPress={onPress}><Text style={danger?{color:'#A61B1B',fontWeight:'800'}:(secondaire?styles.btnSecondaryText:styles.btnPrimaryText)}>{label}</Text></TouchableOpacity>;
 }
 
 function GestionDonnees(){
   const[action,setAction]=useState(null);
   const[diagnostic,setDiagnostic]=useState(null);
   const[supportVisible,setSupportVisible]=useState(false);
+  const executer=async(nom,fn)=>{if(action)return;setAction(nom);try{return await fn();}finally{setAction(null);}};
 
-  const executer=async(nom,fn)=>{
-    if(action)return;
-    setAction(nom);
-    try{return await fn();}
-    finally{setAction(null);}
-  };
-
-  const sauvegarderBase=()=>executer('base',async()=>{
-    try{await exporterSauvegardeBase();}
-    catch(e){Alert.alert('Sauvegarde impossible',String(e.message||e));}
-  });
-
-  const sauvegarderComplet=()=>executer('complete',async()=>{
-    try{
-      const r=await exporterSauvegardeComplete();
-      if(r) Alert.alert('Sauvegarde créée',`Archive complète créée avec ${r.manifeste?.counts?.visites||0} visite(s) et ${r.manifeste?.counts?.photos||0} photo(s).`);
-    }catch(e){Alert.alert('Sauvegarde complète impossible',String(e.message||e));}
-  });
-
+  const sauvegarderBase=()=>executer('base',async()=>{try{await backupTools().exporterSauvegardeBase();}catch(e){Alert.alert('Sauvegarde impossible',String(e.message||e));}});
+  const sauvegarderComplet=()=>executer('complete',async()=>{try{const r=await backupTools().exporterSauvegardeComplete();if(r)Alert.alert('Sauvegarde créée',`Archive complète créée avec ${r.manifeste?.counts?.visites||0} visite(s) et ${r.manifeste?.counts?.photos||0} photo(s).`);}catch(e){Alert.alert('Sauvegarde complète impossible',String(e.message||e));}});
   const lancerRestauration=()=>executer('restore',async()=>{
     try{
-      const resultat=await choisirEtRestaurerSauvegardeComplete();
+      const resultat=await backupTools().choisirEtRestaurerSauvegardeComplete();
       if(!resultat)return;
-      Alert.alert(
-        'Restauration terminée',
-        `La sauvegarde a été restaurée et contrôlée. L’application va se fermer pour recharger proprement les données au prochain lancement.`,
-        [{text:'Fermer l’application',onPress:()=>BackHandler.exitApp()}],
-        {cancelable:false}
-      );
-    }catch(e){
-      Alert.alert(
-        'Restauration impossible',
-        `${String(e.message||e)}\n\nPour garantir une connexion SQLite propre, ferme puis relance l’application avant de poursuivre.`,
-        [{text:'Fermer l’application',onPress:()=>BackHandler.exitApp()}],
-        {cancelable:false}
-      );
-    }
+      Alert.alert('Restauration terminée',`La sauvegarde a été restaurée et contrôlée. L’application va se fermer pour recharger proprement les données au prochain lancement.`,[{text:'Fermer l’application',onPress:()=>BackHandler.exitApp()}],{cancelable:false});
+    }catch(e){Alert.alert('Restauration impossible',`${String(e.message||e)}\n\nPour garantir une connexion SQLite propre, ferme puis relance l’application avant de poursuivre.`,[{text:'Fermer l’application',onPress:()=>BackHandler.exitApp()}],{cancelable:false});}
   });
-
-  const demanderRestauration=()=>Alert.alert(
-    'Restaurer une sauvegarde complète ?',
-    'Les données actuellement présentes sur cette tablette seront remplacées par le contenu de l’archive sélectionnée. Une copie de sécurité temporaire est créée automatiquement pendant l’opération.',
-    [
-      {text:'Annuler',style:'cancel'},
-      {text:'Choisir une sauvegarde',style:'destructive',onPress:lancerRestauration},
-    ]
-  );
-
-  const diagnostiquer=()=>executer('diagnostic',async()=>{
-    try{
-      const d=await diagnostiquerStockageLocal();
-      setDiagnostic(d);
-    }catch(e){Alert.alert('Diagnostic impossible',String(e.message||e));}
-  });
-
-  const deverrouillerSupport=()=>{
-    if(supportVisible)return;
-    setSupportVisible(true);
-    Alert.alert('Support METRA activé','Le bouton de DUMP technique est disponible pour cette session dans Paramètres > Données.');
-  };
-
-  const lancerDump=()=>executer('dump',async()=>{
-    try{
-      await exporterSupportDump();
-    }catch(e){Alert.alert('DUMP impossible',String(e.message||e));}
-  });
-
-  const demanderDump=()=>Alert.alert(
-    'Exporter un DUMP support ?',
-    'Le fichier contient les liaisons Client/Site/Local Intranet, les trames et critères reçus, les données des visites liées et les erreurs d’envoi. Il ne contient ni photo, ni fichier SQLite, ni jeton de connexion, mot de passe ou clé DPoP. Les données techniques et noms de clients/sites restent des données métier : partage-le uniquement avec le support METRA.',
-    [
-      {text:'Annuler',style:'cancel'},
-      {text:'Exporter le DUMP',onPress:lancerDump},
-    ]
-  );
+  const demanderRestauration=()=>Alert.alert('Restaurer une sauvegarde complète ?','Les données actuellement présentes sur cette tablette seront remplacées par le contenu de l’archive sélectionnée. Une copie de sécurité temporaire est créée automatiquement pendant l’opération.',[{text:'Annuler',style:'cancel'},{text:'Choisir une sauvegarde',style:'destructive',onPress:lancerRestauration}]);
+  const diagnostiquer=()=>executer('diagnostic',async()=>{try{setDiagnostic(await storageHealthTools().diagnostiquerStockageLocal());}catch(e){Alert.alert('Diagnostic impossible',String(e.message||e));}});
+  const deverrouillerSupport=()=>{if(supportVisible)return;setSupportVisible(true);Alert.alert('Support METRA activé','Le bouton de DUMP technique est disponible pour cette session dans Paramètres > Données.');};
+  const lancerDump=()=>executer('dump',async()=>{try{await supportDumpTools().exporterSupportDump();}catch(e){Alert.alert('DUMP impossible',String(e.message||e));}});
+  const demanderDump=()=>Alert.alert('Exporter un DUMP support ?','Le fichier contient les liaisons Client/Site/Local Intranet, les trames et critères reçus, les données des visites liées et les erreurs d’envoi. Il ne contient ni photo, ni fichier SQLite, ni jeton de connexion, mot de passe ou clé DPoP. Les données techniques et noms de clients/sites restent des données métier : partage-le uniquement avec le support METRA.',[{text:'Annuler',style:'cancel'},{text:'Exporter le DUMP',onPress:lancerDump}]);
 
   const occupe=!!action;
   return <ScrollView contentContainerStyle={styles.content}>
     <Text style={styles.sectionLabel}>Sauvegardes</Text>
-    <View style={[styles.card,{alignItems:'flex-start'}]}>
-      <View style={{flex:1}}>
-        <Text style={styles.cardTitle}>Sauvegarde complète</Text>
-        <Text style={[styles.cardSub,{marginTop:5}]}>Archive ZIP recommandée pour le terrain : base SQLite, toutes les visites et photos gérées par l’application, plus un manifeste de version.</Text>
-        <Text style={[styles.cardSub,{marginTop:6}]}>L’archive peut être enregistrée dans Drive, OneDrive, un dossier réseau ou envoyée par mail.</Text>
-      </View>
-      <BoutonDonnees label={action==='complete'?'Création de l’archive…':'Exporter base + photos'} disabled={occupe} onPress={sauvegarderComplet}/>
-      <BoutonDonnees label={action==='base'?'Export…':'Exporter la base seule (.db)'} disabled={occupe} secondaire onPress={sauvegarderBase}/>
-    </View>
+    <View style={[styles.card,{alignItems:'flex-start'}]}><View style={{flex:1}}><Text style={styles.cardTitle}>Sauvegarde complète</Text><Text style={[styles.cardSub,{marginTop:5}]}>Archive ZIP recommandée pour le terrain : base SQLite, toutes les visites et photos gérées par l’application, plus un manifeste de version.</Text><Text style={[styles.cardSub,{marginTop:6}]}>L’archive peut être enregistrée dans Drive, OneDrive, un dossier réseau ou envoyée par mail.</Text></View><BoutonDonnees label={action==='complete'?'Création de l’archive…':'Exporter base + photos'} disabled={occupe} onPress={sauvegarderComplet}/><BoutonDonnees label={action==='base'?'Export…':'Exporter la base seule (.db)'} disabled={occupe} secondaire onPress={sauvegarderBase}/></View>
 
     <Text style={[styles.sectionLabel,{marginTop:18}]}>Restauration</Text>
-    <View style={[styles.card,{alignItems:'flex-start'}]}>
-      <View style={{flex:1}}>
-        <Text style={styles.cardTitle}>Restaurer une tablette</Text>
-        <Text style={[styles.cardSub,{marginTop:5}]}>Restaure une archive complète créée par l’application. La version est vérifiée avant remplacement, les chemins des photos sont automatiquement adaptés à la nouvelle tablette et l’intégrité SQLite est contrôlée après restauration.</Text>
-      </View>
-      <BoutonDonnees label={action==='restore'?'Restauration…':'Restaurer une sauvegarde ZIP'} disabled={occupe} danger onPress={demanderRestauration}/>
-    </View>
+    <View style={[styles.card,{alignItems:'flex-start'}]}><View style={{flex:1}}><Text style={styles.cardTitle}>Restaurer une tablette</Text><Text style={[styles.cardSub,{marginTop:5}]}>Restaure une archive complète créée par l’application. La version est vérifiée avant remplacement, les chemins des photos sont automatiquement adaptés à la nouvelle tablette et l’intégrité SQLite est contrôlée après restauration.</Text></View><BoutonDonnees label={action==='restore'?'Restauration…':'Restaurer une sauvegarde ZIP'} disabled={occupe} danger onPress={demanderRestauration}/></View>
 
-    <TouchableOpacity activeOpacity={1} onLongPress={deverrouillerSupport} delayLongPress={1600}>
-      <Text style={[styles.sectionLabel,{marginTop:18}]}>Santé des données</Text>
-    </TouchableOpacity>
-    <View style={[styles.card,{alignItems:'flex-start'}]}>
-      <View style={{flex:1}}>
-        <Text style={styles.cardTitle}>Diagnostic local</Text>
-        <Text style={[styles.cardSub,{marginTop:5}]}>Vérifie l’intégrité SQLite, les relations de base, la version du schéma et la présence physique des photos.</Text>
-        {diagnostic&&<View style={{marginTop:12,padding:12,borderRadius:10,backgroundColor:diagnostic.ok?'#EDF8F0':'#FFF4E5',alignSelf:'stretch'}}>
-          <Text style={{fontWeight:'900',color:diagnostic.ok?'#246B38':'#8A5400'}}>{diagnostic.ok?'✓ Données saines':'⚠ Vérification nécessaire'}</Text>
-          <Text style={[styles.cardSub,{marginTop:6}]}>SQLite : {diagnostic.integrityOk?'OK':'Erreur'} · Relations : {diagnostic.foreignKeysOk?'OK':'Erreur'} · Schéma : v{diagnostic.versionSchema}/{diagnostic.versionAttendue}</Text>
-          <Text style={[styles.cardSub,{marginTop:3}]}>{diagnostic.clients} clients · {diagnostic.sites} sites · {diagnostic.visites} visites · {diagnostic.remarques} réserves</Text>
-          <Text style={[styles.cardSub,{marginTop:3}]}>Photos : {diagnostic.photosTotal} référencées · {diagnostic.photosManquantes} manquante(s)</Text>
-        </View>}
-      </View>
-      <BoutonDonnees label={action==='diagnostic'?'Diagnostic…':'Lancer le diagnostic'} disabled={occupe} secondaire onPress={diagnostiquer}/>
-    </View>
+    <TouchableOpacity activeOpacity={1} onLongPress={deverrouillerSupport} delayLongPress={1600}><Text style={[styles.sectionLabel,{marginTop:18}]}>Santé des données</Text></TouchableOpacity>
+    <View style={[styles.card,{alignItems:'flex-start'}]}><View style={{flex:1}}><Text style={styles.cardTitle}>Diagnostic local</Text><Text style={[styles.cardSub,{marginTop:5}]}>Vérifie l’intégrité SQLite, les relations de base, la version du schéma et la présence physique des photos.</Text>{diagnostic&&<View style={{marginTop:12,padding:12,borderRadius:10,backgroundColor:diagnostic.ok?'#EDF8F0':'#FFF4E5',alignSelf:'stretch'}}><Text style={{fontWeight:'900',color:diagnostic.ok?'#246B38':'#8A5400'}}>{diagnostic.ok?'✓ Données saines':'⚠ Vérification nécessaire'}</Text><Text style={[styles.cardSub,{marginTop:6}]}>SQLite : {diagnostic.integrityOk?'OK':'Erreur'} · Relations : {diagnostic.foreignKeysOk?'OK':'Erreur'} · Schéma : v{diagnostic.versionSchema}/{diagnostic.versionAttendue}</Text><Text style={[styles.cardSub,{marginTop:3}]}>{diagnostic.clients} clients · {diagnostic.sites} sites · {diagnostic.visites} visites · {diagnostic.remarques} réserves</Text><Text style={[styles.cardSub,{marginTop:3}]}>Photos : {diagnostic.photosTotal} référencées · {diagnostic.photosManquantes} manquante(s)</Text></View>}</View><BoutonDonnees label={action==='diagnostic'?'Diagnostic…':'Lancer le diagnostic'} disabled={occupe} secondaire onPress={diagnostiquer}/></View>
 
-    {supportVisible&&<>
-      <Text style={[styles.sectionLabel,{marginTop:18}]}>Support avancé</Text>
-      <View style={[styles.card,{alignItems:'flex-start'}]}>
-        <View style={{flex:1}}>
-          <Text style={styles.cardTitle}>DUMP diagnostic Intranet</Text>
-          <Text style={[styles.cardSub,{marginTop:5}]}>Génère un JSON lisible par le support avec les références Intranet reçues, les catégories/sous-catégories/critères, les liaisons locales et les dernières visites concernées. Les secrets d’authentification sont exclus ou masqués.</Text>
-        </View>
-        <BoutonDonnees label={action==='dump'?'Création du DUMP…':'Exporter le DUMP support'} disabled={occupe} secondaire onPress={demanderDump}/>
-      </View>
-    </>}
+    {supportVisible&&<><Text style={[styles.sectionLabel,{marginTop:18}]}>Support avancé</Text><View style={[styles.card,{alignItems:'flex-start'}]}><View style={{flex:1}}><Text style={styles.cardTitle}>DUMP diagnostic Intranet</Text><Text style={[styles.cardSub,{marginTop:5}]}>Génère un JSON lisible par le support avec les références Intranet reçues, les catégories/sous-catégories/critères, les liaisons locales et les dernières visites concernées. Les secrets d’authentification sont exclus ou masqués.</Text></View><BoutonDonnees label={action==='dump'?'Création du DUMP…':'Exporter le DUMP support'} disabled={occupe} secondaire onPress={demanderDump}/></View></>}
   </ScrollView>;
 }
 
@@ -208,56 +91,8 @@ function BibliothequeReserves(){
   const visibles=useMemo(()=>{const q=recherche.trim().toLocaleLowerCase('fr');if(!q)return reserves;return reserves.filter(r=>`${r.nom||''} ${r.description||''} ${r.poste||''}`.toLocaleLowerCase('fr').includes(q));},[reserves,recherche]);
   const fermerModal=()=>setModalVisible(false);
 
-  return <View style={{flex:1,minHeight:0}}>
-    <FlatList
-      style={{flex:1}}
-      contentContainerStyle={[styles.content,{paddingBottom:96,flexGrow:1}]}
-      data={visibles}
-      keyExtractor={i=>i.id}
-      initialNumToRender={18}
-      maxToRenderPerBatch={18}
-      windowSize={9}
-      removeClippedSubviews={false}
-      keyboardShouldPersistTaps="handled"
-      ListHeaderComponent={<View>
-        <View style={styles.sectionHeaderRow}><View style={{flex:1,paddingRight:12}}><Text style={styles.sectionLabel}>Bibliothèque de réserves</Text><Text style={[styles.cardSub,{marginTop:4}]}>{reserves.length} réserve(s) disponible(s) · toucher une ligne pour l’ouvrir entièrement</Text></View><TouchableOpacity onPress={ouvrirNouveau}><Text style={styles.addLink}>+ Ajouter</Text></TouchableOpacity></View>
-        <TextInput style={[styles.input,{marginBottom:12,backgroundColor:COLORS.white}]} value={recherche} onChangeText={setRecherche} placeholder="Rechercher une réserve, un poste, une prestation…" returnKeyType="search" />
-      </View>}
-      ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>{recherche?'Aucune réserve trouvée':'Aucune réserve enregistrée'}</Text><Text style={styles.emptySub}>{recherche?'Essaie un autre mot-clé.':'Ajoute une réserve pour la retrouver ensuite pendant les visites.'}</Text></View>}
-      renderItem={({item})=>{
-        const meta=[item.poste,item.delai?`${item.delai} mois`:null,item.prix!=null?`${item.prix} € HT`:null].filter(Boolean).join(' · ');
-        return <TouchableOpacity style={[styles.card,{alignItems:'flex-start'}]} activeOpacity={.7} onPress={()=>ouvrirEdition(item)}>
-          <View style={{flex:1,minWidth:0}}>
-            <Text style={styles.cardTitle}>{item.nom}</Text>
-            {item.description?<Text style={[styles.cardSub,{marginTop:4,lineHeight:17}]}>{item.description}</Text>:null}
-            {meta?<Text style={{fontSize:10.5,color:COLORS.inkFaint,marginTop:6,fontWeight:'700'}}>{meta}</Text>:null}
-            <Text style={{fontSize:9.5,color:COLORS.orangeDark,marginTop:6,fontWeight:'800'}}>Ouvrir / modifier</Text>
-          </View>
-          <TouchableOpacity onPress={()=>supprimer(item)} hitSlop={{top:10,bottom:10,left:10,right:10}}><Text style={styles.removeLink}>Suppr.</Text></TouchableOpacity>
-        </TouchableOpacity>;
-      }}
-    />
-    <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={fermerModal}>
-      <View style={[styles.modalOverlay,{paddingVertical:24,paddingHorizontal:18}]}>
-        <View style={[styles.modalSheet,{width:'94%',maxWidth:760,maxHeight:'92%',paddingBottom:12,overflow:'hidden'}]}>
-          <ScrollView
-            style={{flexGrow:0}}
-            contentContainerStyle={{paddingBottom:12}}
-            keyboardShouldPersistTaps="handled"
-            nestedScrollEnabled
-            showsVerticalScrollIndicator
-          >
-            <Text style={styles.modalTitle}>{editId?'Modifier la réserve':'Nouvelle réserve'}</Text>
-            {!editId?<View style={{marginBottom:14,paddingBottom:14,borderBottomWidth:1,borderBottomColor:COLORS.line}}><CategorieCritereSelector onRempli={r=>{setNom(r.nom);setDescription(r.description);setPoste(r.poste||'');setDelai(r.delai?String(r.delai):'');setPrix(r.prix?String(Math.round(r.prix)):'');}}/></View>:null}
-            <TextInput style={styles.input} placeholder="Nom" value={nom} onChangeText={setNom}/>
-            <TextInput style={[styles.input,{marginTop:10,minHeight:90,textAlignVertical:'top'}]} placeholder="Description / prestation" value={description} onChangeText={setDescription} multiline/>
-            <TextInput style={[styles.input,{marginTop:10}]} placeholder="Poste" value={poste} onChangeText={setPoste}/>
-            <View style={{flexDirection:'row',gap:10,marginTop:10}}><TextInput style={[styles.input,{flex:1}]} placeholder="Prix (€HT)" value={prix} onChangeText={setPrix} keyboardType="numeric"/><TextInput style={[styles.input,{flex:1}]} placeholder="Délai (mois)" value={delai} onChangeText={setDelai} keyboardType="numeric"/></View>
-          </ScrollView>
-          <View style={[styles.modalActions,{paddingTop:10,borderTopWidth:1,borderTopColor:COLORS.line}]}><TouchableOpacity style={styles.btnSecondary} onPress={fermerModal}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrer}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View>
-        </View>
-      </View>
-    </Modal>
+  return <View style={{flex:1,minHeight:0}}><FlatList style={{flex:1}} contentContainerStyle={[styles.content,{paddingBottom:96,flexGrow:1}]} data={visibles} keyExtractor={i=>i.id} initialNumToRender={14} maxToRenderPerBatch={10} updateCellsBatchingPeriod={20} windowSize={6} removeClippedSubviews keyboardShouldPersistTaps="handled" ListHeaderComponent={<View><View style={styles.sectionHeaderRow}><View style={{flex:1,paddingRight:12}}><Text style={styles.sectionLabel}>Bibliothèque de réserves</Text><Text style={[styles.cardSub,{marginTop:4}]}>{reserves.length} réserve(s) disponible(s) · toucher une ligne pour l’ouvrir entièrement</Text></View><TouchableOpacity onPress={ouvrirNouveau}><Text style={styles.addLink}>+ Ajouter</Text></TouchableOpacity></View><TextInput style={[styles.input,{marginBottom:12,backgroundColor:COLORS.white}]} value={recherche} onChangeText={setRecherche} placeholder="Rechercher une réserve, un poste, une prestation…" returnKeyType="search" /></View>} ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>{recherche?'Aucune réserve trouvée':'Aucune réserve enregistrée'}</Text><Text style={styles.emptySub}>{recherche?'Essaie un autre mot-clé.':'Ajoute une réserve pour la retrouver ensuite pendant les visites.'}</Text></View>} renderItem={({item})=>{const meta=[item.poste,item.delai?`${item.delai} mois`:null,item.prix!=null?`${item.prix} € HT`:null].filter(Boolean).join(' · ');return <TouchableOpacity style={[styles.card,{alignItems:'flex-start'}]} activeOpacity={.7} onPress={()=>ouvrirEdition(item)}><View style={{flex:1,minWidth:0}}><Text style={styles.cardTitle}>{item.nom}</Text>{item.description?<Text style={[styles.cardSub,{marginTop:4,lineHeight:17}]}>{item.description}</Text>:null}{meta?<Text style={{fontSize:10.5,color:COLORS.inkFaint,marginTop:6,fontWeight:'700'}}>{meta}</Text>:null}<Text style={{fontSize:9.5,color:COLORS.orangeDark,marginTop:6,fontWeight:'800'}}>Ouvrir / modifier</Text></View><TouchableOpacity onPress={()=>supprimer(item)} hitSlop={{top:10,bottom:10,left:10,right:10}}><Text style={styles.removeLink}>Suppr.</Text></TouchableOpacity></TouchableOpacity>;}} />
+    <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={fermerModal}><View style={[styles.modalOverlay,{paddingVertical:24,paddingHorizontal:18}]}><View style={[styles.modalSheet,{width:'94%',maxWidth:760,maxHeight:'92%',paddingBottom:12,overflow:'hidden'}]}><ScrollView style={{flexGrow:0}} contentContainerStyle={{paddingBottom:12}} keyboardShouldPersistTaps="handled" nestedScrollEnabled showsVerticalScrollIndicator><Text style={styles.modalTitle}>{editId?'Modifier la réserve':'Nouvelle réserve'}</Text>{!editId?<View style={{marginBottom:14,paddingBottom:14,borderBottomWidth:1,borderBottomColor:COLORS.line}}><CategorieCritereSelector onRempli={r=>{setNom(r.nom);setDescription(r.description);setPoste(r.poste||'');setDelai(r.delai?String(r.delai):'');setPrix(r.prix?String(Math.round(r.prix)):'');}}/></View>:null}<TextInput style={styles.input} placeholder="Nom" value={nom} onChangeText={setNom}/><TextInput style={[styles.input,{marginTop:10,minHeight:90,textAlignVertical:'top'}]} placeholder="Description / prestation" value={description} onChangeText={setDescription} multiline/><TextInput style={[styles.input,{marginTop:10}]} placeholder="Poste" value={poste} onChangeText={setPoste}/><View style={{flexDirection:'row',gap:10,marginTop:10}}><TextInput style={[styles.input,{flex:1}]} placeholder="Prix (€HT)" value={prix} onChangeText={setPrix} keyboardType="numeric"/><TextInput style={[styles.input,{flex:1}]} placeholder="Délai (mois)" value={delai} onChangeText={setDelai} keyboardType="numeric"/></View></ScrollView><View style={[styles.modalActions,{paddingTop:10,borderTopWidth:1,borderTopColor:COLORS.line}]}><TouchableOpacity style={styles.btnSecondary} onPress={fermerModal}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrer}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></View></View></Modal>
   </View>;
 }
 

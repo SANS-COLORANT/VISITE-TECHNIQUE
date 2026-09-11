@@ -22,6 +22,9 @@ function bindingError(message, code, extra = {}) {
   Object.assign(error, extra);
   return error;
 }
+function visitIsDirty(visite) {
+  return Number(visite?.api_content_revision || 0) !== Number(visite?.api_synced_revision || 0);
+}
 
 async function loadVisit(db, visiteId) {
   return db.getFirstAsync(`SELECT v.*,s.client_id,s.nom_site,c.nom AS nom_client,c.code_exploitant AS client_code
@@ -151,7 +154,6 @@ export async function getVisitIntranetBindingOptions(visiteId) {
   const db = await getDb();
   const visite = await loadVisit(db, visiteId);
   if (!visite) throw new Error('Visite METRA introuvable.');
-  if (Number(visite.api_is_historical) === 1) throw new Error('Une visite historique Intranet ne peut pas être renvoyée comme nouvelle visite.');
 
   const clients = await linkedClientsForVisit(db, visite);
   const selectedClientId = await resolveImportedClientId(db, visite).catch(() => null);
@@ -180,7 +182,6 @@ export async function bindVisitToImportedClientTarget(visiteId) {
   const db = await getDb();
   const visite = await loadVisit(db, visiteId);
   if (!visite) throw new Error('Visite METRA introuvable.');
-  if (Number(visite.api_is_historical) === 1) throw new Error('Une visite historique Intranet ne peut pas être renvoyée comme nouvelle visite.');
   const clientId = await resolveImportedClientId(db, visite);
   try {
     const siteId = await resolveImportedSiteId(db, visite, clientId);
@@ -201,9 +202,11 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
   const db = await getDb();
   const visite = await loadVisit(db, visiteId);
   if (!visite) throw new Error('Visite METRA introuvable.');
-  if (Number(visite.api_is_historical) === 1) throw new Error('Une visite historique Intranet ne peut pas être renvoyée comme nouvelle visite.');
-  const queued = await db.getFirstAsync(`SELECT status FROM api_visit_outbox WHERE visite_id=?`, [String(visiteId)]);
-  if (queued) throw new Error('Cette visite possède déjà un envoi Intranet. La destination ne peut plus être changée pour cet envoi.');
+  const dirty = visitIsDirty(visite);
+  const queued = await db.getFirstAsync(`SELECT status,remote_visit_id,content_revision FROM api_visit_outbox WHERE visite_id=?`, [String(visiteId)]);
+  if (queued && !(queued.status === 'synced' && dirty)) {
+    throw new Error('Cette visite possède déjà un envoi Intranet actif. La destination ne peut plus être changée pour cet envoi.');
+  }
 
   const client = await db.getFirstAsync(`SELECT * FROM api_client_links WHERE remote_client_id=? AND local_client_id=? AND autorise=1`, [clientId, visite.client_id]);
   if (!client) throw bindingError('La visite ne peut être envoyée que vers le client Intranet ayant été importé dans ce client METRA.', 'wrong_imported_client');
@@ -222,28 +225,53 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
   const mappedTrame = mapRemoteTrameToLocal({ ...(reference?.trame || {}), id: remoteTrameId, nom: reference?.trame?.nom || local.remote_trame_nom });
   if (!mappedTrame || mappedTrame !== visite.trame_id) throw new Error(`Trame incompatible : la visite METRA utilise « ${visite.trame_id} » et le local Intranet utilise « ${reference?.trame?.nom || remoteTrameId} ».`);
 
-  const existingProvenances = await db.getAllAsync(`SELECT id,details_json FROM provenances WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le DESC`, [String(visiteId)]);
+  const existingProvenances = await db.getAllAsync(`SELECT id,details_json,reference_externe FROM provenances WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le DESC,id DESC`, [String(visiteId)]);
   const previousBindingIds = [];
+  let importedRemoteVisitId = null;
+  let hasImportedHistory = false;
   for (const row of existingProvenances) {
-    const details = parseJson(row.details_json);
-    if (details?.sourceType === 'imported_latest_visit') throw new Error('Une visite historique Intranet ne peut pas être réutilisée comme nouvelle visite.');
-    if (details?.sourceType === 'upload_binding' && row.id) previousBindingIds.push(String(row.id));
+    const provenance = parseJson(row.details_json);
+    if (provenance?.sourceType === 'imported_latest_visit') {
+      hasImportedHistory = true;
+      if (!importedRemoteVisitId && validApiId(row.reference_externe)) importedRemoteVisitId = clean(row.reference_externe);
+    }
+    if (provenance?.sourceType === 'upload_binding' && row.id) previousBindingIds.push(String(row.id));
+  }
+  if (hasImportedHistory && !dirty) {
+    throw bindingError('Cette visite importée est déjà identique à la version Intranet. Modifie une donnée métier avant de créer une nouvelle visite serveur.', 'imported_visit_unchanged');
   }
 
+  const lastConfirmedRemoteVisitId = validApiId(queued?.remote_visit_id)
+    ? clean(queued.remote_visit_id)
+    : validApiId(visite.api_source_remote_visit_id)
+      ? clean(visite.api_source_remote_visit_id)
+      : importedRemoteVisitId
+        || (validApiId(reference?.derniereVisite?.id) ? clean(reference.derniereVisite.id) : null);
   const frozenTrame = { ...(reference?.trame || {}), id: remoteTrameId, nom: reference?.trame?.nom || local.remote_trame_nom || null };
   const details = {
     ...reference,
+    derniereVisite: lastConfirmedRemoteVisitId
+      ? { ...(reference?.derniereVisite || {}), id: Number(lastConfirmedRemoteVisitId) }
+      : (reference?.derniereVisite || null),
     trame: frozenTrame,
-    schemaVersion: 5,
+    schemaVersion: 6,
     sourceType: 'upload_binding',
     remoteLocalId: localId,
-    binding: { remoteClientId: clientId, remoteSiteId: siteId, remoteLocalId: localId, boundAt: new Date().toISOString(), policy: 'same_imported_client' },
+    binding: {
+      remoteClientId: clientId,
+      remoteSiteId: siteId,
+      remoteLocalId: localId,
+      boundAt: new Date().toISOString(),
+      policy: 'same_imported_client',
+      resyncAfterLocalEdit: hasImportedHistory || queued?.status === 'synced',
+      sourceRemoteVisitId: lastConfirmedRemoteVisitId,
+    },
   };
 
   await db.withTransactionAsync(async () => {
     for (const provenanceId of previousBindingIds) await db.runAsync(`DELETE FROM provenances WHERE id=?`, [provenanceId]);
     await db.runAsync(`UPDATE visites SET api_remote_client_id=?,api_remote_local_id=?,api_remote_trame_id=?,api_source_remote_visit_id=?,modifie_le=datetime('now') WHERE id=?`,
-      [clientId, localId, remoteTrameId, clean(reference?.derniereVisite?.id) || null, String(visiteId)]);
+      [clientId, localId, remoteTrameId, lastConfirmedRemoteVisitId, String(visiteId)]);
     await db.runAsync(`UPDATE api_site_links SET local_site_id=COALESCE(local_site_id,?) WHERE remote_site_id=?`, [visite.site_id, siteId]);
     await db.runAsync(`UPDATE api_client_site_links SET local_site_id=COALESCE(local_site_id,?) WHERE remote_client_id=? AND remote_site_id=?`, [visite.site_id, clientId, siteId]);
     if (clean(visite.installation_id)) await db.runAsync(`UPDATE api_local_links SET local_installation_id=COALESCE(local_installation_id,?) WHERE remote_local_id=?`, [visite.installation_id, localId]);
@@ -255,6 +283,7 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
     remoteClientId: clientId,
     remoteSiteId: siteId,
     remoteLocalId: localId,
+    sourceRemoteVisitId: lastConfirmedRemoteVisitId,
     clientName: client.nom,
     siteName: site.nom,
     localName: local.designation || reference?.local?.designation || `Local ${localId}`,

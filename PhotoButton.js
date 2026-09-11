@@ -9,6 +9,7 @@ import { upsertRemarquePrescription } from './remarkDb.js';
 import { openAppDatabase } from './database/index.js';
 import { supprimerPhotoComplete } from './photoDb.js';
 import { copierPhotoDansDocuments, supprimerCopiePhotoDocuments } from './photoDocumentsStorage.js';
+import { notifyIntranetPhotoChanged } from './intranetPhotoEvents.js';
 import { styles } from './styles.js';
 
 function nettoyerNomFichier(valeur = '', fallback = 'Photo') {
@@ -225,6 +226,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       const labelDb = photo.nom ? `${labelFinal}||${photo.nom}` : (labelFinal || null);
       const cibleKey = photo.entiteKey || cible.entiteKey;
       const photoId = await ajouterPhoto(visiteId, cibleKey, photo.uri, labelDb);
+      notifyIntranetPhotoChanged();
       const items = await charger(cibleKey);
       setIndex(Math.max(0, items.length - 1));
       onPhotoSaved?.({ id: photoId, entiteKey: cibleKey, uri: photo.uri, label: labelFinal });
@@ -253,6 +255,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       }
       await supprimerCopiePhotoDocuments(photoExistante.uri).catch(() => {});
       await supprimerPhotoGeree(photoExistante.uri);
+      notifyIntranetPhotoChanged();
       await charger(nouvelle.entiteKey || cibleKey);
       onPhotoSaved?.({ id: photoExistante.id, entiteKey: nouvelle.entiteKey || cibleKey, uri: nouvelle.uri, label: nouvelle.label || label });
     } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
@@ -272,6 +275,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
           onPress: async () => {
             try {
               await supprimerPhotoComplete(photo.id);
+              notifyIntranetPhotoChanged();
               const items = await charger(photo.entite_key || entiteKey);
               if (items.length === 0) setViewerVisible(false);
               else setIndex((actuel) => Math.min(actuel, items.length - 1));

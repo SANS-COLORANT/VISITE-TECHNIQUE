@@ -5,8 +5,9 @@ p = Path('App.js')
 s = p.read_text(encoding='utf-8')
 
 workspace_import = "import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';\n"
-if workspace_import not in s:
-    raise SystemExit('Hydraulic workspace import marker not found')
+workspace_deferred = "HydraulicSchema:()=>require('./HydraulicSchemaWorkspace.js').HydraulicSchemaWorkspace"
+if workspace_import not in s and workspace_deferred not in s:
+    raise SystemExit('Hydraulic workspace loader marker not found')
 
 # Consolidate named imports from featureSettings.js. The production App.js can
 # be compacted with several import statements on the same physical line, so the
@@ -24,9 +25,26 @@ for required in ('getHydraulicSchemaVisible', 'subscribeLabFeatureChanges'):
         names.append(required)
 preferred = ['getHydraulicSchemaVisible', 'getLab3DVisible', 'subscribeLabFeatureChanges']
 ordered = [name for name in preferred if name in names] + [name for name in names if name not in preferred]
-s = feature_pattern.sub('', s)
 settings_import = "import { " + ", ".join(ordered) + " } from './featureSettings.js';\n"
-s = s.replace(workspace_import, workspace_import + settings_import, 1)
+
+# Modern runtime deliberately defers the heavy HydraulicSchemaWorkspace module.
+# When that loader is already present, keep it deferred and only normalize the
+# lightweight featureSettings import in place. Older APK sources may still use
+# the eager workspace import; those retain the historical patch path below.
+if workspace_deferred in s:
+    if imports:
+        first = feature_pattern.search(s)
+        s = feature_pattern.sub('', s)
+        insertion = first.start() if first else 0
+        s = s[:insertion] + settings_import + s[insertion:]
+    else:
+        anchor = "import { AppErrorBoundary } from './AppErrorBoundary.js';\n"
+        if anchor not in s:
+            raise SystemExit('featureSettings import anchor not found')
+        s = s.replace(anchor, settings_import + anchor, 1)
+else:
+    s = feature_pattern.sub('', s)
+    s = s.replace(workspace_import, workspace_import + settings_import, 1)
 
 # State: support both the older multi-line source and the compact App.js.
 has_hydraulic_state = bool(re.search(r"\[\s*hydraulicVisible\s*,\s*setHydraulicVisible\s*\]\s*=\s*useState\(false\)", s))
@@ -68,9 +86,7 @@ if not re.search(r"key\s*===\s*['\"]hydraulic_schema['\"]", s):
     s = s.replace(visual_callback, visual_callback + subscription, 1)
 
 # Visit button: detect the actual behavior instead of depending on one exact
-# JSX formatting. Both of these are valid and equivalent:
-#   hydraulicVisible ? <TouchableOpacity ...
-#   hydraulicVisible ? (\n  <TouchableOpacity ...
+# JSX formatting. Both compact and expanded forms are valid.
 visit_gate_pattern = re.compile(
     r"hydraulicVisible\s*\?\s*(?:\(\s*)?<TouchableOpacity\b",
     re.DOTALL,
@@ -92,6 +108,8 @@ s = s.replace("<HydraulicFeatureSettingRow enabled={hydraulicVisible} onChange={
 # Final assertions validate behavior, not a particular formatting style.
 if len(feature_pattern.findall(s)) != 1:
     raise SystemExit('featureSettings imports were not consolidated')
+if workspace_import not in s and workspace_deferred not in s:
+    raise SystemExit('hydraulic workspace unavailable')
 if not re.search(r"\[\s*hydraulicVisible\s*,\s*setHydraulicVisible\s*\]", s):
     raise SystemExit('hydraulic visibility state missing')
 if 'getHydraulicSchemaVisible()' not in s:
@@ -102,4 +120,4 @@ if not visit_gate_pattern.search(s):
     raise SystemExit('hydraulic visit gate missing')
 
 p.write_text(s, encoding='utf-8')
-print('Hydraulic schema feature gate verified and normalized safely.')
+print('Hydraulic schema feature gate verified safely; modern runtime remains deferred.')

@@ -39,8 +39,8 @@ const VisitPanelHost = memo(function VisitPanelHost({
   if (special) {
     if (panelId === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
     if (panelId === 'p-releves') return <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} />;
-    if (panelId === 'p-equip') return <GuidedEquipmentPanel visiteId={visiteId} />;
-    if (panelId === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} intranetLinked={intranetLinked} />;
+    if (panelId === 'p-equip') return <GuidedEquipmentPanel visiteId={visiteId} onSaved={onSaved} />;
+    if (panelId === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} intranetLinked={intranetLinked} onSaved={onSaved} />;
     if (panelId === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
   }
   return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} />;
@@ -237,22 +237,40 @@ function VisiteScreen({ route, onBack }) {
     const db = await getDb();
     await preremplirVisiteDepuisContexte(db, visiteId);
     const v = await getVisite(visiteId);
-    const estVmc = (v?.trame_id || DEFAULT_TRAME_ID) === 'vmc';
-    const caissons = estVmc ? await chargerCaissonsVmc(visiteId) : [];
-    const progression = await recalculerProgressionVisite(db, visiteId);
-    invaliderCacheTrameGenerique(visiteId);
-    invaliderCacheRegulation(visiteId);
-    await Promise.all([
-      prechargerDonneesTrameGenerique(visiteId, true),
-      prechargerRegulation(visiteId, true),
+    if (!v) { setVisite(null); return; }
+
+    // L'écran devient interactif dès que la ligne visite est disponible. Les
+    // calculs de progression, caissons et caches démarrent ensuite sans bloquer
+    // le premier rendu : le panneau courant partage le même cache/promise.
+    setVisite(v);
+    const estVmc = (v.trame_id || DEFAULT_TRAME_ID) === 'vmc';
+    void Promise.all([
+      prechargerDonneesTrameGenerique(visiteId),
+      prechargerRegulation(visiteId),
+    ]).catch((e) => console.warn('Préchauffage de la visite différé', e));
+
+    const [caissons, progression] = await Promise.all([
+      estVmc ? chargerCaissonsVmc(visiteId) : Promise.resolve([]),
+      recalculerProgressionVisite(db, visiteId),
     ]);
     setVmcCaissons(caissons);
-    setVisite(v ? { ...v, progression_pct: progression } : v);
+    setVisite((actuelle) => actuelle ? { ...actuelle, progression_pct: progression } : actuelle);
   }, [visiteId]);
 
   useEffect(() => { charger(); }, [charger]);
 
   const onSaved = useCallback(() => {
+    // Le changement de statut Intranet ne doit pas attendre le recalcul de
+    // progression ni une nouvelle lecture SQLite. La migration 035 reste la
+    // source durable ; ce patch local ne sert qu'à refléter immédiatement le
+    // passage Online -> Offline à l'écran.
+    setVisite((actuelle) => {
+      if (!actuelle?.api_remote_local_id) return actuelle;
+      const courant = Number(actuelle.api_content_revision || 0);
+      const synchronise = Number(actuelle.api_synced_revision || 0);
+      if (courant !== synchronise) return actuelle;
+      return { ...actuelle, api_content_revision: courant + 1 };
+    });
     if (progressionTimerRef.current) clearTimeout(progressionTimerRef.current);
     progressionTimerRef.current = setTimeout(async () => {
       try {
@@ -402,12 +420,14 @@ function VisiteScreen({ route, onBack }) {
   const fermerNote = async () => {
     if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
     await upsertNote(visiteId, noteTxt);
+    onSaved();
     setNoteVisible(false);
   };
 
   const noteTimerRef = useRef(null);
   const onChangeNoteTxt = (t) => {
     setNoteTxt(t);
+    onSaved();
     if (noteTimerRef.current) clearTimeout(noteTimerRef.current);
     noteTimerRef.current = setTimeout(() => upsertNote(visiteId, t), 700);
   };
@@ -455,6 +475,7 @@ function VisiteScreen({ route, onBack }) {
     const texte = anomalieTxt.trim();
     if (!texte) return;
     await ajouterRemarqueVisite(visiteId, { poste: 'Observation', prestation: texte, origine: 'Anomalie rapide' });
+    onSaved();
     setAnomalieTxt('');
     setAnomalieVisible(false);
     if (tabsReels.includes('p-remarques')) changerOnglet('p-remarques');
@@ -462,7 +483,7 @@ function VisiteScreen({ route, onBack }) {
 
   if (!visite) return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.orange} /></View>;
 
-  const intranetLinked = Boolean(visite?.api_remote_local_id) && Number(visite?.api_is_historical) !== 1;
+  const intranetLinked = Boolean(visite?.api_remote_local_id);
   const pagerPanels = tabsReels.filter((panelId) => panelId === activeTab || mountedPanelIds.has(panelId));
   const animatedContent = (
     <View style={{ flex: 1, overflow: 'hidden' }} {...swipeHandlers.current.panHandlers}>

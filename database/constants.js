@@ -1,8 +1,8 @@
 export const DATABASE_NAME = 'visite_technique.db';
 
 // Keep this value aligned with the highest migration registered in
-// database/migrations/index.js. Migration 034 keeps linked METRA installation names aligned with the Intranet LOCAL designation.
-export const DATABASE_SCHEMA_VERSION = 34;
+// database/migrations/index.js. Migration 036 adds durable per-photo Intranet synchronization.
+export const DATABASE_SCHEMA_VERSION = 36;
 
 export const ENTITY_TYPES = Object.freeze({
   CLIENT: 'client',

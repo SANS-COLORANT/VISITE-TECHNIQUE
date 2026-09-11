@@ -33,6 +33,8 @@ import { migration031 } from './031_latest_visit_photos.js';
 import { migration032 } from './032_photo_reference_workflow.js';
 import { migration033 } from './033_intranet_visit_outbox.js';
 import { migration034 } from './034_intranet_local_name_sync.js';
+import { migration035 } from './035_intranet_content_revision.js';
+import { migration036 } from './036_intranet_photo_outbox.js';
 
 export const MIGRATIONS = Object.freeze([
   migration001, migration002, migration003, migration004, migration005,
@@ -41,5 +43,6 @@ export const MIGRATIONS = Object.freeze([
   migration016, migration017, migration018, migration019, migration020,
   migration021, migration022, migration023, migration024, migration025,
   migration026, migration027, migration028, migration029, migration030,
-  migration031, migration032, migration033, migration034,
+  migration031, migration032, migration033, migration034, migration035,
+  migration036,
 ]);

@@ -27,7 +27,11 @@ requireText(home, 'const clientsPromise = listerClients()', 'home independent re
 
 const sites = read('ClientSitesScreen.js');
 requireText(sites, 'CLIENT_SITES_FAST_CACHE', 'client site cache');
-requireText(sites, 'removeClippedSubviews={false}', 'client site Android clipping guard');
+requireText(sites, 'initialNumToRender={14}', 'client site bounded first render');
+requireText(sites, 'maxToRenderPerBatch={10}', 'client site bounded render batches');
+requireText(sites, 'windowSize={6}', 'client site bounded render window');
+requireText(sites, 'removeClippedSubviews', 'client site Android virtualization');
+forbidText(sites, 'removeClippedSubviews={false}', 'client site clipping optimization disabled');
 
 const directoryScreen = read('MetraDirectoryScreen.js');
 requireText(directoryScreen, 'METRA_DIRECTORY_FAST_CACHE', 'Intranet directory render cache');
@@ -56,7 +60,8 @@ requireText(pilotage, 'getStatsSitesPatrimoine(clientId)', 'pilotage bulk stats'
 requireText(pilotage, 'mapAvecConcurrence(cell.issues || [], 4', 'pilotage bounded photo reads');
 
 const matrix = read('clientTechnicalMatrix.js');
-requireText(matrix, 'const controlsByVisit = new Map();', 'technical matrix batched controls');
+requireText(matrix, 'controlsByVisit = new Map()', 'technical matrix batched controls');
+requireText(matrix, 'remarksByVisit = new Map()', 'technical matrix batched remarks');
 requireText(matrix, 'WHERE visite_id IN (${placeholders})', 'technical matrix IN query');
 
 const database = read('db.js');

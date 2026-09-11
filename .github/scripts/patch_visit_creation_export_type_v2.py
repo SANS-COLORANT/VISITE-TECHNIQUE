@@ -1,132 +1,56 @@
 from pathlib import Path
 
 
-# Compatibility shim for the historical build patch. The production sources now
-# know about Symfony LOCAL -> METRA installation scoping; this pass preserves
-# that richer flow instead of forcing the older site-wide source markers.
-site_path = Path('SiteVisitesScreen.js')
-site = site_path.read_text(encoding='utf-8')
+# The committed runtime is now the source of truth. This compatibility pass no
+# longer rewrites SiteVisites/visitPrefill at build time: it validates the
+# low-latency, API-aware implementation that is already committed instead.
+site = Path('SiteVisitesScreen.js').read_text(encoding='utf-8')
+creation = Path('visitCreationDb.js').read_text(encoding='utf-8')
+prefill = Path('visitPrefillDb.js').read_text(encoding='utf-8')
+carry = Path('visitCarryForwardDb.js').read_text(encoding='utf-8')
+client = Path('ClientDocumentsScreen.js').read_text(encoding='utf-8')
 
-site = site.replace(
-    "import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView } from 'react-native';",
-    "import { View, Text, FlatList, TouchableOpacity, Modal, Pressable, TextInput, Alert, Linking, ScrollView } from 'react-native';",
-    1,
+
+def require(marker, text, message):
+    if marker not in text:
+        raise SystemExit(message)
+
+
+# Creation stays bound to the exact imported Symfony LOCAL/client context.
+require('apiRemoteLocalId', site, 'API LOCAL visit creation context missing')
+require(
+    'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })',
+    site,
+    'API LOCAL visit creation flow missing',
 )
-site = site.replace("import { listerVisitesSite, getDb } from './db.js';", "import { listerVisitesSite } from './db.js';", 1)
-site = site.replace("import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';\n", '', 1)
-site = site.replace(
-    "      const db = await getDb();\n      await preremplirVisiteDepuisContexte(db, visiteId);\n",
-    '',
-    1,
-)
 
-# VisiteScreen performs the stable-field prefill once, after the visit can
-# already be rendered. Keep creationEnCours only once and place the export
-# states exactly where the existing typed-export patch expects them.
-creation_state = "  const [creationEnCours, setCreationEnCours] = useState(false);\n"
-site = site.replace(creation_state, '', 1)
-export_marker = "  const [exportLotEnCours, setExportLotEnCours] = useState(false);\n"
-export_states = (
-    "  const [choixTrameExportVisible, setChoixTrameExportVisible] = useState(false);\n"
-    "  const [trameExportId, setTrameExportId] = useState(null);\n"
-    "  const [creationEnCours, setCreationEnCours] = useState(false);\n"
-)
-if export_states not in site:
-    if export_marker not in site:
-        raise SystemExit('API-aware site export state marker not found')
-    site = site.replace(export_marker, export_marker + export_states, 1)
+# The visit is fully prefilled before navigation so values never appear
+# progressively after the form becomes visible. The prefill itself is batched,
+# coalesced and durable, which avoids the old field-by-field latency.
+require('await preremplirVisiteDepuisContexte(db, visiteId);', site, 'Prefill-before-navigation contract missing')
+require('navigation.navigate(\'Visite\', { visiteId });', site, 'Visit navigation missing')
+if site.index('await preremplirVisiteDepuisContexte(db, visiteId);') > site.index("navigation.navigate('Visite', { visiteId });"):
+    raise SystemExit('Visit navigation happens before its initial values are ready')
+require('const prefillEnCours = new Map();', prefill, 'Coalesced visit prefill missing')
+require('async function insertManyIfEmpty', prefill, 'Batched fixed-field prefill missing')
+require('PREFILL_MARKER_VERSION', prefill, 'Durable visit prefill marker missing')
+require("INSERT INTO _meta(key,value) VALUES(?, 'done')", prefill, 'Durable prefill completion write missing')
 
-if 'apiRemoteLocalId' not in site or 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })' not in site:
-    raise SystemExit('API LOCAL visit creation flow missing before build compatibility patch')
-if 'preremplirVisiteDepuisContexte' in site or 'getDb } from' in site:
-    raise SystemExit('Site visit screen still contains blocking direct prefill')
-site_path.write_text(site, encoding='utf-8')
+# Carry-forward remains scoped to the same local/installation and uses grouped
+# SQLite operations for the classical ICPE/VMC paths.
+require('async function inferUniqueInstallation', carry, 'LOCAL inference guard missing')
+require('AND (? IS NULL OR installation_id=?)', carry, 'Previous visit is no longer scoped to the same LOCAL')
+require('INSERT INTO champs_visite(visite_id,section_code,cle,valeur)', carry, 'Batched field carry-forward missing')
+require('INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)', carry, 'Batched control carry-forward missing')
 
+# Non-form work is deliberately outside the critical path.
+require('void pinPhotoReferencesForVisit(id)', creation, 'Photo reference preparation is no longer deferred')
+require("void (async () => {", creation, 'Documents/METRA preparation is no longer deferred')
 
-# The new report UX deliberately opens ReportScreen without touching Android
-# storage. The historical typed-export patch still expects the former async
-# function while applying its client visit-type selector. Recreate that source
-# shape only for the duration of the compatibility patch; after the legacy pass
-# we move the storage request back to the Excel-only branch.
-client_path = Path('ClientDocumentsScreen.js')
-client = client_path.read_text(encoding='utf-8')
-direct_report_open = """  const ouvrirRapports = () => {
-    navigation.navigate('Report', { clientId });
-  };
-"""
-legacy_report_open = """  const ouvrirRapports = async () => {
-    const uri = await garantirStockageClient();
-    if (!uri) return;
-    navigation.navigate('Report', { clientId });
-  };
-"""
-if direct_report_open in client:
-    client = client.replace(direct_report_open, legacy_report_open, 1)
-client_path.write_text(client, encoding='utf-8')
+# Site/client export dependencies remain lazy. Opening a site or the report
+# selector must not evaluate XLSX or ask Android storage permission.
+require("function chargerBatchExcel(){return require('./batchExcel.js');}", site, 'Site XLSX loader is no longer lazy')
+require("function chargerExportClient(){return require('./clientBatchExport.js');}", client, 'Client XLSX loader is no longer lazy')
+require("const ouvrirRapports = () => navigation.navigate('Report', { clientId });", client, 'Opening reports touches storage before navigation')
 
-
-# Reuse all of the already validated typed-export/report logic from the original
-# patch, but make its two old exact-source guards understand the new API-aware
-# source. Other missing markers remain hard failures.
-legacy_path = Path('.github/scripts/patch_visit_creation_export_type.py')
-legacy = legacy_path.read_text(encoding='utf-8')
-old_helper = """    if old not in text:
-        raise SystemExit(f'{label}: marker not found')
-"""
-new_helper = """    if old not in text:
-        if label == 'skip unused PRE equipment query' and 'contexte.installation_id' in text and "if (trame.id !== 'pre_allumage')" in text:
-            return text
-        if label == 'navigate immediately after visit creation' and 'apiRemoteLocalId' in text and 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })' in text and 'preremplirVisiteDepuisContexte' not in text:
-            return text
-        raise SystemExit(f'{label}: marker not found')
-"""
-if old_helper not in legacy:
-    raise SystemExit('Legacy build patch helper marker not found')
-legacy = legacy.replace(old_helper, new_helper, 1)
-exec(compile(legacy, str(legacy_path), 'exec'), {'__name__': '__main__', '__file__': str(legacy_path)})
-
-# For reports, choosing the visit type must not create any folder. Storage is
-# requested only for Excel here; PDF/Word storage is deferred until ReportScreen
-# has an explicit site selection and the user presses Generate.
-client = client_path.read_text(encoding='utf-8')
-legacy_launch = """    const uri = await garantirStockageClient();
-    if (!uri) return;
-    if (action === 'rapport') {
-      navigation.navigate('Report', { clientId, trameId });
-      return;
-    }
-    if (action !== 'excel') return;
-    setBusy(true);
-"""
-deferred_launch = """    if (action === 'rapport') {
-      navigation.navigate('Report', { clientId, trameId });
-      return;
-    }
-    if (action !== 'excel') return;
-    const uri = await garantirStockageClient();
-    if (!uri) return;
-    setBusy(true);
-"""
-if legacy_launch in client:
-    client = client.replace(legacy_launch, deferred_launch, 1)
-elif deferred_launch not in client:
-    raise SystemExit('Client report storage deferral marker not found after typed export patch')
-client_path.write_text(client, encoding='utf-8')
-
-# Final invariants: the build must not regress from LOCAL scope back to the
-# first installation/site-wide behavior.
-visit_prefill = Path('visitPrefillDb.js').read_text(encoding='utf-8')
-site_final = site_path.read_text(encoding='utf-8')
-client_final = client_path.read_text(encoding='utf-8')
-if 'contexte.installation_id' not in visit_prefill:
-    raise SystemExit('LOCAL-scoped prefill lost during build patch')
-if "AND (? IS NULL OR installation_id=?)" not in visit_prefill:
-    raise SystemExit('Previous stable fields are no longer scoped to the same LOCAL')
-if 'apiRemoteLocalId' not in site_final or 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })' not in site_final:
-    raise SystemExit('API LOCAL context lost during SiteVisites build patch')
-if 'preremplirVisiteDepuisContexte' in site_final:
-    raise SystemExit('Direct blocking prefill reintroduced in SiteVisites')
-if deferred_launch not in client_final:
-    raise SystemExit('Report storage is no longer deferred until report generation')
-
-print('Visit creation/export patch applied with Symfony LOCAL scoping preserved and report storage deferred.')
+print('Modern visit creation/export contract validated: LOCAL-safe, prefilled before paint, batched/coalesced and storage/XLSX deferred.')

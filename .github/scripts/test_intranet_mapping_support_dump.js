@@ -76,7 +76,7 @@ async function main() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'metra-support-dump-'));
   const server = databaseProcess(path.join(dir, 'dump.db'));
   try {
-    await server.send('migrate', '', [0, 34]);
+    await server.send('migrate', '', [0, 35]);
     await server.db.execAsync(`
       INSERT INTO clients(id,nom) VALUES('client-local','Client support');
       INSERT INTO sites(id,client_id,nom_site) VALUES('site-local','client-local','Site support');
@@ -93,11 +93,11 @@ async function main() {
         VALUES('prov','visite','visit-local','api_symfony','501','{"authorization":"DPoP do-not-export","remoteCategoryId":"10"}');
     `);
     const support = load('supportDump.js', {
-      FileSystem: {}, Sharing: {}, getDb: async () => server.db, DATABASE_SCHEMA_VERSION: 34,
+      FileSystem: {}, Sharing: {}, getDb: async () => server.db, DATABASE_SCHEMA_VERSION: 35,
       listerTramesDisponibles: () => [localTrame], normaliserSectionCode,
     });
     const dump = await support.construireSupportDump();
-    check(dump.format === 'metra-support-dump' && dump.schemaVersion === 34, 'support dump carries an explicit format and schema version');
+    check(dump.format === 'metra-support-dump' && dump.schemaVersion === 35, 'support dump carries an explicit format and schema version');
     check(dump.intranet.preparations[0].payload_json.access_token === '[REDACTED]', 'access token-like preparation field is redacted recursively');
     check(dump.intranet.locals[0].reference_json.private_key === '[REDACTED]', 'private key-like local reference field is redacted recursively');
     check(dump.linkedVisitData.provenance[0].details_json.authorization === '[REDACTED]', 'Authorization-like provenance field is redacted recursively');

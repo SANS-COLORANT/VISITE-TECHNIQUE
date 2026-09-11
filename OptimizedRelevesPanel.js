@@ -6,6 +6,7 @@ import { TRAME_DATA } from './data.js';
 import {
   ajouterCompteur,
   getChampsVisite,
+  getVisite,
   listerCompteurs,
   supprimerCompteur,
   upsertCompteurChamp,
@@ -29,22 +30,22 @@ function mapperChamps(rows = []) {
   return map;
 }
 
-const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRemove }) {
+const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRemove, onSaved }) {
   const [label, setLabel, surBlurLabel] = useSaisieAvecAutoSave(
     compteur.label,
-    (v) => upsertCompteurChamp(compteur.id, 'label', v)
+    async (v) => { await upsertCompteurChamp(compteur.id, 'label', v); onSaved?.(); }
   );
   const [unite, setUnite] = useState(compteur.unite || 'm³');
   const [valeur, setValeur, surBlurValeur] = useSaisieAvecAutoSave(
     compteur.valeur,
-    (v) => upsertCompteurChamp(compteur.id, 'valeur', v)
+    async (v) => { await upsertCompteurChamp(compteur.id, 'valeur', v); onSaved?.(); }
   );
 
   useEffect(() => { setUnite(compteur.unite || 'm³'); }, [compteur.unite]);
 
   const retirer = async () => {
     onRemove(compteur.id);
-    try { await supprimerCompteur(compteur.id); }
+    try { await supprimerCompteur(compteur.id); onSaved?.(); }
     catch (e) { console.warn('Suppression compteur impossible', e); }
   };
 
@@ -68,7 +69,7 @@ const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRe
           {UNITES.map((u) => (
             <TouchableOpacity key={u} style={[styles.uniteChip, unite === u && styles.uniteChipSelected]} onPress={() => {
               setUnite(u);
-              upsertCompteurChamp(compteur.id, 'unite', u).catch((e) => console.warn('Unité compteur non sauvegardée', e));
+              upsertCompteurChamp(compteur.id, 'unite', u).then(() => onSaved?.()).catch((e) => console.warn('Unité compteur non sauvegardée', e));
             }}>
               <Text style={[styles.uniteChipText, unite === u && styles.uniteChipTextSelected]}>{u}</Text>
             </TouchableOpacity>
@@ -95,11 +96,14 @@ export function OptimizedRelevesPanel({ visiteId, onSaved }) {
   const champsPression = useMemo(() => (sections['Relevés des compteurs et manomètres'] || []).filter((f) => !/^Index/i.test(f.cle)), [sections]);
 
   const chargerInitial = useCallback(async () => {
-    const [champs, compteursDb] = await Promise.all([getChampsVisite(visiteId), listerCompteurs(visiteId)]);
+    const [champs, compteursDb, visite] = await Promise.all([getChampsVisite(visiteId), listerCompteurs(visiteId), getVisite(visiteId)]);
     setChampsMap(mapperChamps(champs));
     setCompteurs(compteursDb);
 
-    if (!autoSeedFaitRef.current && compteursDb.length === 0 && champsCompteursIndex.length > 0) {
+    // Les compteurs de confort ne sont amorcés que sur une visite active. Ouvrir
+    // une visite historique importée ne doit jamais la rendre artificiellement
+    // "modifiée" ni créer de contenu absent de l'Intranet.
+    if (!autoSeedFaitRef.current && visite?.statut === 'en_cours' && compteursDb.length === 0 && champsCompteursIndex.length > 0) {
       autoSeedFaitRef.current = true;
       const crees = [];
       for (const f of champsCompteursIndex) {
@@ -128,6 +132,7 @@ export function OptimizedRelevesPanel({ visiteId, onSaved }) {
     try {
       const id = await ajouterCompteur(visiteId, label);
       setCompteurs((courants) => [...courants, { id, visite_id: visiteId, label, unite: null, valeur: null }]);
+      onSaved?.();
       setAjoutCompteurVisible(false); setNomCompteurChoisi(''); setNomCompteurLibre(''); setModeNomLibre(false);
     } catch (e) { console.warn('Création compteur impossible', e); }
     finally { setCreationEnCours(false); }
@@ -160,7 +165,7 @@ export function OptimizedRelevesPanel({ visiteId, onSaved }) {
       ListHeaderComponent={<Text style={styles.sectionTitle}>Pressions</Text>}
       renderItem={({ item }) => {
         if (item.type === 'titre') return <Text style={styles.sectionTitle}>{item.label}</Text>;
-        if (item.type === 'compteur') return <CompteurCard compteur={item.compteur} visiteId={visiteId} onRemove={retirerLocalement} />;
+        if (item.type === 'compteur') return <CompteurCard compteur={item.compteur} visiteId={visiteId} onRemove={retirerLocalement} onSaved={onSaved} />;
         if (item.type === 'ajout') return <TouchableOpacity style={styles.addBtn} onPress={ouvrirAjoutCompteur}><Text style={styles.addBtnText}>+ Ajouter un compteur</Text></TouchableOpacity>;
         const key = `${item.section}||${item.field.cle}`;
         return <View style={styles.formCard}><DurableChampGenerique visiteId={visiteId} sectionCode={item.section} field={item.field} valeurInitiale={champsMap[key]} onSaved={(v) => {
