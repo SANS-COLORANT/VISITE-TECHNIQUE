@@ -12,7 +12,7 @@ function check(condition, label) { assert.ok(condition, label); checks += 1; con
 function load(file, dependencies = {}) {
   const source = fs.readFileSync(path.join(root, file), 'utf8');
   const names = [...source.matchAll(/export\s+(?:async\s+)?(?:function|const|let|class)\s+(\w+)/g)].map((m) => m[1]);
-  for (const match of source.matchAll(/export\s*\{([^}]+)\}/g)) names.push(...match[1].split(',').map((n) => n.trim().split(/\s+as\s+/).pop()).filter(Boolean));
+  for (const match of source.matchAll(/export\s*\{([^}]+)\}/g)) names.push(...match[1].split(',').map((n) => n.trim().split(/\s+as\s+/)[0]).filter(Boolean));
   const script = source
     .replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*$/gm, '')
     .replace(/export\s*\{[^}]+\};?/g, '')
