@@ -58,30 +58,36 @@ async function isImportedHistoricalVisit(db, visiteId) {
 }
 
 async function copyReusableFields(db, visiteId, previousVisitId, trame) {
+  if (trame.id !== 'pre_allumage') {
+    // Une seule instruction SQLite remplace l'ancienne boucle champ par champ.
+    // Sur une trame ICPE complète cela évite des dizaines d'allers-retours JS ↔ SQLite.
+    const excluded = [...CURRENT_METADATA_KEYS];
+    const placeholders = excluded.map(() => '?').join(',');
+    const result = await db.runAsync(
+      `INSERT INTO champs_visite(visite_id,section_code,cle,valeur)
+       SELECT ?,section_code,cle,valeur
+       FROM champs_visite
+       WHERE visite_id=?
+         AND section_code IS NOT NULL AND trim(section_code)<>''
+         AND cle IS NOT NULL AND trim(cle)<>''
+         AND valeur IS NOT NULL AND trim(valeur)<>''
+         AND cle NOT IN (${placeholders})
+       ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur
+       WHERE champs_visite.valeur IS NULL OR trim(champs_visite.valeur)=''`,
+      [visiteId, previousVisitId, ...excluded]
+    );
+    return Number(result?.changes || 0);
+  }
+
+  // Pré-allumage garde sa règle stricte : seuls les champs explicitement
+  // stable/carryForward sont repris. Leur nombre est volontairement limité.
   const rows = await db.getAllAsync(
     `SELECT section_code,cle,valeur FROM champs_visite
      WHERE visite_id=? AND valeur IS NOT NULL AND trim(valeur)<>''`,
     [previousVisitId]
   );
-  let copied = 0;
-
-  if (trame.id !== 'pre_allumage') {
-    // Reprendre aussi les champs techniques hors registre UI (ex. vmc.config)
-    // afin de conserver le nombre réel et le nom des caissons.
-    for (const row of rows || []) {
-      if (!row?.section_code || !row?.cle || CURRENT_METADATA_KEYS.has(row.cle)) continue;
-      const result = await db.runAsync(
-        `INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)
-         ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur
-         WHERE champs_visite.valeur IS NULL OR trim(champs_visite.valeur)=''`,
-        [visiteId, row.section_code, row.cle, String(row.valeur)]
-      );
-      if (Number(result?.changes || 0) > 0) copied += 1;
-    }
-    return copied;
-  }
-
   const previous = new Map((rows || []).map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
+  let copied = 0;
   for (const [panelId, sections] of Object.entries(trame.ui?.panels || {})) {
     for (const [section, fields] of Object.entries(sections || {})) {
       const code = sectionCode(panelId, section);
@@ -107,38 +113,39 @@ async function copyReusableControls(db, visiteId, previousVisitId, trame) {
   if (trame.id === 'pre_allumage') return 0;
 
   const importedHistory = await isImportedHistoricalVisit(db, previousVisitId);
-  const technicalKeys = importedHistory ? technicalControlKeys(trame) : new Set();
-  const rows = await db.getAllAsync(
-    `SELECT section_code,cle,avis,commentaire FROM controles_visite
-     WHERE visite_id=?
-       AND (avis IS NOT NULL OR commentaire IS NOT NULL)`,
-    [previousVisitId]
-  );
-  let copied = 0;
-  for (const row of rows || []) {
-    if (!row?.section_code || !row?.cle) continue;
-    const key = `${row.section_code}||${row.cle}`;
-    const avis = clean(row.avis) || null;
-    const previousComment = clean(row.commentaire) || null;
-    // Une visite historique Intranet sert de photographie de départ : on reprend
-    // l'avis S/N.S/etc., mais pas son commentaire de conformité. Les mesures du
-    // panneau Relevés restent conservées car leur valeur métier est portée par
-    // commentaire dans le modèle Symfony.
-    const commentaire = importedHistory && !technicalKeys.has(key) ? null : previousComment;
-    if (!avis && !commentaire) continue;
-    const result = await db.runAsync(
-      `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)
-       VALUES(?,?,?,?,?)
-       ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET
-         avis=excluded.avis,
-         commentaire=excluded.commentaire
-       WHERE (controles_visite.avis IS NULL OR trim(controles_visite.avis)='')
-         AND (controles_visite.commentaire IS NULL OR trim(controles_visite.commentaire)='')`,
-      [visiteId, row.section_code, row.cle, avis, commentaire]
-    );
-    if (Number(result?.changes || 0) > 0) copied += 1;
+  const technicalKeys = importedHistory ? [...technicalControlKeys(trame)] : [];
+  let commentExpression = `NULLIF(trim(commentaire),'')`;
+  const params = [visiteId];
+  if (importedHistory) {
+    if (technicalKeys.length) {
+      const placeholders = technicalKeys.map(() => '?').join(',');
+      commentExpression = `CASE WHEN (section_code || '||' || cle) IN (${placeholders}) THEN NULLIF(trim(commentaire),'') ELSE NULL END`;
+      params.push(...technicalKeys);
+    } else {
+      commentExpression = 'NULL';
+    }
   }
-  return copied;
+  params.push(previousVisitId);
+
+  // Même règle métier qu'avant, mais en une seule écriture : une visite
+  // historique Intranet fournit les avis sans recopier ses commentaires de
+  // conformité ; les valeurs techniques du panneau Relevés sont conservées.
+  const result = await db.runAsync(
+    `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)
+     SELECT ?,section_code,cle,NULLIF(trim(avis),''),${commentExpression}
+     FROM controles_visite
+     WHERE visite_id=?
+       AND section_code IS NOT NULL AND trim(section_code)<>''
+       AND cle IS NOT NULL AND trim(cle)<>''
+       AND (avis IS NOT NULL OR commentaire IS NOT NULL)
+     ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET
+       avis=excluded.avis,
+       commentaire=excluded.commentaire
+     WHERE (controles_visite.avis IS NULL OR trim(controles_visite.avis)='')
+       AND (controles_visite.commentaire IS NULL OR trim(controles_visite.commentaire)='')`,
+    params
+  );
+  return Number(result?.changes || 0);
 }
 
 async function copyNetworkValues(db, visiteId, previousVisitId) {
