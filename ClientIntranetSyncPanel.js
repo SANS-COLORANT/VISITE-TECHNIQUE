@@ -85,7 +85,11 @@ export function ClientIntranetSyncPanel({ clientId }) {
     setBusy(true);
     setProgressText(`Préparation de ${rows.length} visite${rows.length > 1 ? 's' : ''}…`);
     try {
-      const result = await envoyerVisitesIntranetClient(rows.map((row) => row.id), { finalizeInProgress, processImmediately: true, immediateLimit: rows.length === 1 ? 1 : 3 });
+      const result = await envoyerVisitesIntranetClient(rows.map((row) => row.id), {
+        finalizeInProgress,
+        processImmediately: true,
+        immediateLimit: rows.length === 1 ? 1 : Math.min(8, rows.length),
+      });
       await charger();
       setSelected(new Set());
       setSelectionMode(false);
@@ -94,6 +98,7 @@ export function ClientIntranetSyncPanel({ clientId }) {
       const prepared = result.prepared.filter((r) => r.state !== 'online').length;
       const lines = [];
       if (prepared) lines.push(`${prepared} visite${prepared > 1 ? 's' : ''} préparée${prepared > 1 ? 's' : ''} pour l’Intranet.`);
+      if (prepared > 8) lines.push('Les visites restantes sont déjà en file et partiront automatiquement sans nouvelle sélection.');
       if (material.length) lines.push(`${material.length} visite${material.length > 1 ? 's' : ''} nécessite${material.length > 1 ? 'nt' : ''} une confirmation du listing matériel depuis la visite.`);
       if (autres.length) lines.push(`${autres.length} visite${autres.length > 1 ? 's' : ''} à corriger avant envoi.`);
       if (!lines.length) lines.push('Aucune nouvelle visite à envoyer.');
@@ -132,12 +137,11 @@ export function ClientIntranetSyncPanel({ clientId }) {
         {busy ? <ActivityIndicator size="small" color={COLORS.orange} /> : null}
       </View>
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-        <TouchableOpacity onPress={() => ouvrir('offline')} style={{ flex: 1, minHeight: 44, borderRadius: 11, backgroundColor: OFFLINE, justifyContent: 'center', paddingHorizontal: 12 }}><Text style={{ color: '#FFF', fontWeight: '900', fontSize: 13 }}>Offline · {offline.length}</Text><Text style={{ color: '#D0D5DD', fontSize: 9.5, marginTop: 1 }}>Appuyer pour envoyer</Text></TouchableOpacity>
-        <TouchableOpacity onPress={() => ouvrir('online')} style={{ flex: 1, minHeight: 44, borderRadius: 11, backgroundColor: ONLINE, justifyContent: 'center', paddingHorizontal: 12 }}><Text style={{ color: '#FFF', fontWeight: '900', fontSize: 13 }}>Online · {online.length}</Text><Text style={{ color: '#DDF3E7', fontSize: 9.5, marginTop: 1 }}>Déjà synchronisées</Text></TouchableOpacity>
+        <TouchableOpacity disabled={busy || !offline.length} onPress={() => demanderEnvoi(offline)} style={{ flex: 1, minHeight: 44, borderRadius: 11, backgroundColor: OFFLINE, justifyContent: 'center', paddingHorizontal: 12, opacity: busy || !offline.length ? 0.55 : 1 }}><Text style={{ color: '#FFF', fontWeight: '900', fontSize: 13 }}>Offline · {offline.length}</Text><Text style={{ color: '#D0D5DD', fontSize: 9.5, marginTop: 1 }}>{offline.length ? 'Appuyer = envoyer toutes' : 'Tout est synchronisé'}</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => ouvrir('online')} style={{ flex: 1, minHeight: 44, borderRadius: 11, backgroundColor: ONLINE, justifyContent: 'center', paddingHorizontal: 12 }}><Text style={{ color: '#FFF', fontWeight: '900', fontSize: 13 }}>Online · {online.length}</Text><Text style={{ color: '#DDF3E7', fontSize: 9.5, marginTop: 1 }}>Appuyer pour consulter</Text></TouchableOpacity>
       </View>
-      {offline.length ? <View style={{ flexDirection: 'row', gap: 8, marginTop: 9 }}>
-        <TouchableOpacity disabled={busy} onPress={() => demanderEnvoi(offline)} style={[styles.btnPrimary, { flex: 1, minHeight: 42, justifyContent: 'center' }]}><Text style={styles.btnPrimaryText}>Envoyer toutes les Offline</Text></TouchableOpacity>
-        <TouchableOpacity disabled={busy} onPress={() => { ouvrir('offline'); setSelectionMode(true); }} style={[styles.btnSecondary, { minHeight: 42, justifyContent: 'center' }]}><Text style={styles.btnSecondaryText}>Choisir plusieurs</Text></TouchableOpacity>
+      {offline.length ? <View style={{ marginTop: 9 }}>
+        <TouchableOpacity disabled={busy} onPress={() => { ouvrir('offline'); setSelectionMode(true); }} style={[styles.btnSecondary, { minHeight: 42, justifyContent: 'center', alignItems: 'center' }]}><Text style={styles.btnSecondaryText}>Choisir plusieurs visites Offline</Text></TouchableOpacity>
       </View> : null}
       {progressText ? <Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 7 }}>{progressText}</Text> : null}
     </View>
