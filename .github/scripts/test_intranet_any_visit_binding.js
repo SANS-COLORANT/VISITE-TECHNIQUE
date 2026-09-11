@@ -57,16 +57,18 @@ async function main() {
     await server.send('migrate', '', [0, 33]);
     await server.db.execAsync(`
       INSERT INTO clients(id,nom,code_exploitant) VALUES('local-client','Client Alpha','CL-100');
-      INSERT INTO clients(id,nom,code_exploitant) VALUES('other-local-client','Autre client','ZZ-999');
+      INSERT INTO clients(id,nom,code_exploitant) VALUES('other-local-client','Autre client importé','ZZ-999');
+      INSERT INTO clients(id,nom,code_exploitant) VALUES('pure-local-client','Client local seul','LOCAL-1');
       INSERT INTO sites(id,client_id,nom_site) VALUES('local-site','local-client','Site Alpha');
-      INSERT INTO sites(id,client_id,nom_site) VALUES('other-local-site','other-local-client','Autre site');
+      INSERT INTO sites(id,client_id,nom_site) VALUES('other-local-site','other-local-client','Autre site importé');
+      INSERT INTO sites(id,client_id,nom_site) VALUES('pure-local-site','pure-local-client','Site local seul');
       INSERT INTO visites(id,site_id,date_visite,statut,trame_id) VALUES('ordinary-visit','local-site','2026-09-10','terminee','icpe_v1');
-      INSERT INTO visites(id,site_id,date_visite,statut,trame_id) VALUES('unimported-visit','other-local-site','2026-09-10','terminee','icpe_v1');
+      INSERT INTO visites(id,site_id,date_visite,statut,trame_id) VALUES('unimported-visit','pure-local-site','2026-09-10','terminee','icpe_v1');
       INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire) VALUES('ordinary-visit','test.sous','Contrôle A','S','Fonctionnement satisfaisant');
       INSERT INTO materiel(id,visite_id,categorie,nombre,designation,etat) VALUES('ordinary-material','ordinary-visit','PRODUCTION CHAUD','1','Chaudière','Bon');
 
       INSERT INTO api_client_links(remote_client_id,local_client_id,nom,code_everwin,autorise,payload_json) VALUES('12','local-client','Client Alpha','CL-100',1,'{}');
-      INSERT INTO api_client_links(remote_client_id,local_client_id,nom,code_everwin,autorise,payload_json) VALUES('99','other-local-client','Autre client','ZZ-999',1,'{}');
+      INSERT INTO api_client_links(remote_client_id,local_client_id,nom,code_everwin,autorise,payload_json) VALUES('99','other-local-client','Autre client importé','ZZ-999',1,'{}');
       INSERT INTO api_site_links(remote_site_id,remote_client_id,local_site_id,nom,payload_json) VALUES('45','12','local-site','Site Alpha','{}');
       INSERT INTO api_client_site_links(remote_client_id,remote_site_id,local_site_id) VALUES('12','45','local-site');
     `);
@@ -90,7 +92,7 @@ async function main() {
     check(options.locals.find((row) => row.remote_local_id === '503')?.compatible === false, 'local without a usable remote trame remains non-sendable');
 
     await assert.rejects(() => binding.bindVisitToIntranetTarget('ordinary-visit', { remoteClientId: '99', remoteSiteId: '45', remoteLocalId: '501' }), /ayant été importé|client Intranet/i);
-    checks++; console.log(`OK ${checks}: explicit cross-client upload is rejected even when another client is authorized on the tablet`);
+    checks++; console.log(`OK ${checks}: explicit cross-client upload is rejected even when another imported client is authorized on the tablet`);
 
     await assert.rejects(() => binding.bindVisitToImportedClientTarget('unimported-visit'), /n’a pas été importé depuis l’Intranet/);
     checks++; console.log(`OK ${checks}: a purely local client cannot be silently redirected to an arbitrary authorized Intranet client`);
