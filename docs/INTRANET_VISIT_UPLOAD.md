@@ -14,11 +14,36 @@ Le corps JSON est figé au moment de la mise en file et contient uniquement
 Les photos et la conclusion ne sont pas envoyées par cette route : le contrat
 serveur fourni les exclut explicitement et ne définit pas encore leur flux.
 
+## Liaison au client importé
+
+Le client Intranet devient une propriété de rattachement du client METRA au
+moment où le client/site est matérialisé depuis l'annuaire Intranet. Une visite
+créée ensuite dans ce client METRA ne peut être renvoyée que vers ce même client
+Intranet.
+
+METRA ne propose plus de sélecteur permettant de choisir un autre client au
+moment de l'envoi. Le site est résolu uniquement à partir de la liaison du site
+METRA avec ce client importé. Le local est repris depuis la liaison de la visite
+ou de l'installation ; si cette liaison n'existe pas, METRA ne choisit un local
+automatiquement que lorsqu'un seul local compatible est possible. Toute
+ambiguïté bloque l'envoi au lieu de deviner une destination.
+
+Si la préparation locale est obsolète ou incomplète, METRA tente d'actualiser
+`GET /api/clients/{idclient}/preparation-visites` pour ce même client importé,
+puis retente la résolution. Il ne bascule jamais vers un autre client autorisé
+sur la tablette.
+
 ## Offline-first et idempotence
 
-- L'utilisateur finalise la visite puis choisit **Préparer et envoyer**.
-- METRA valide tout le JSON avant d'écrire la file d'attente.
-- Android génère alors un UUID v4 `envoiId` via le module natif DPoP.
+- Une visite non exportée affiche **Offline** en noir.
+- Un appui sur **Offline** prépare et envoie directement la visite vers son
+  client Intranet importé ; aucun choix de client n'est demandé.
+- Après un accusé serveur valide, l'état devient **Online** en vert.
+- Une visite historique importée depuis l'Intranet est affichée **Online** car
+  elle existe déjà côté serveur, mais elle ne peut pas être recréée comme une
+  nouvelle visite.
+- Android génère un UUID v4 `envoiId` via le module natif DPoP au moment de la
+  mise en file.
 - Le JSON sérialisé et cet UUID sont enregistrés dans SQLite et ne sont plus
   reconstruits pour une tentative réseau.
 - Une coupure réseau, un HTTP 5xx ou un 429 conserve cet envoi. La tentative
@@ -38,7 +63,8 @@ le système arrête réellement le processus.
 - `401` : la couche DPoP peut renouveler une seule fois le jeton. Si l'échec
   persiste, la ligne passe en `auth_error`.
 - `409 synchronization_conflict` : état `conflict`, jamais relancé
-  automatiquement. Une nouvelle préparation Intranet est nécessaire.
+  automatiquement. Une nouvelle préparation du même client Intranet est
+  nécessaire.
 - `409 idempotency_conflict` : également terminal.
 - `422` : les violations serveur sont conservées dans SQLite et affichables.
 - `400`, `404`, `413`, `415` : rejet terminal ; aucune boucle automatique.
@@ -48,12 +74,16 @@ le système arrête réellement le processus.
 - `429` : `Retry-After` pilote la prochaine tentative.
 - erreur réseau / `500`, `502`, `503`, `504` : nouvelle tentative différée.
 
+Le bouton reste **Offline** tant que l'Intranet n'a pas accusé l'envoi. Les
+messages d'erreur serveur sont affichés sous cet état. Un succès confirmé passe
+le bouton en **Online**.
+
 ## Construction des critères
 
-La référence de trame Intranet est figée sur la visite au moment de sa création
-depuis la préparation. L'envoi parcourt toutes les catégories,
-sous-catégories et critères de cette référence et produit exactement une ligne
-par critère. Un mapping ambigu ou absent bloque l'envoi avant HTTP.
+La référence de trame Intranet est figée sur la visite avant l'envoi. L'envoi
+parcourt toutes les catégories, sous-catégories et critères de cette référence
+et produit exactement une ligne par critère. Un mapping ambigu ou absent bloque
+l'envoi avant HTTP.
 
 - Contrôle applicable : avis courant METRA parmi `S.O`, `S`, `N.S`, `N.R`,
   `N.V` + commentaire courant ; commentaire vide envoyé sous `/`.
@@ -93,42 +123,11 @@ Le serveur remplace entièrement son `listing_materiel` avec le tableau reçu.
 METRA envoie donc toutes les lignes `materiel` de la visite, pas seulement les
 modifications.
 
-Si la référence Intranet comportait au moins un matériel et que le tableau
-courant est vide, l'utilisateur doit confirmer explicitement **Confirmer le
-listing vide** avant la mise en file. Cette protection empêche une suppression
+Si la référence Intranet comportait du matériel et que le tableau courant en
+contient moins, l'utilisateur doit confirmer explicitement le remplacement du
+listing avant la mise en file. Cette protection évite une suppression
 accidentelle du patrimoine distant.
 
 Les états acceptés côté serveur sont `Hors service`, `Vétuste`, `Moyen`, `Bon`,
 `Neuf` ou `null`. Les états METRA historiques supplémentaires restent utilisables
 localement, mais bloquent l'envoi tant qu'ils n'ont pas été adaptés explicitement.
-
-## États visibles
-
-- Prête à envoyer
-- En attente d'envoi
-- Envoi vers l'Intranet
-- En attente de connexion / nouvelle tentative
-- Synchronisée avec l'Intranet
-- Conflit de synchronisation
-- Données refusées à corriger
-- Connexion Intranet à réactiver
-
-La liste des visites affiche aussi si une visite rattachée à l'Intranet est non
-envoyée, à suivre ou synchronisée.
-
-
-## Envoi de n’importe quelle visite METRA
-
-Une visite n’a plus besoin d’avoir été créée depuis le bouton « Préparer » de l’annuaire Intranet pour être synchronisable.
-
-Le bloc **Synchronisation Intranet** reste visible sur toute visite METRA non historique. Si la visite ne possède pas encore d’identifiants serveur, l’utilisateur choisit explicitement :
-
-1. le client Intranet autorisé sur la tablette ;
-2. le site de ce client ;
-3. le local / l’installation du site compatible avec la trame de la visite.
-
-METRA propose automatiquement les correspondances déjà connues pour le client, le site, l’installation ou la trame, mais ne fabrique jamais un `localId`. L’utilisateur peut actualiser `GET /api/clients` puis `GET /api/clients/{idclient}/preparation-visites` depuis le sélecteur avant de confirmer.
-
-L’association fige sur la visite les identifiants `api_remote_client_id`, `api_remote_local_id`, `api_remote_trame_id` et `api_source_remote_visit_id`, ainsi qu’une copie de la référence de préparation utilisée. Elle ne copie aucune ancienne réserve ou conclusion dans la visite du jour.
-
-Le POST serveur actuel ne reçoit pas de `siteId` ni de nom de client/site : il exige l’identifiant du client dans l’URL et un `localId` dans chaque visite. En conséquence, un client réellement absent/non autorisé est signalé par le serveur en HTTP 404 ; un local, une trame ou une association incorrecte est normalement signalé en HTTP 422. METRA affiche désormais explicitement le code HTTP et le message/violation renvoyés par l’Intranet.
