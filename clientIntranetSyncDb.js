@@ -14,6 +14,7 @@ import {
   queueVisitPhotosForSyncedVisit,
   subscribeVisitPhotoOutbox,
 } from './intranetVisitPhotoOutboxDb.js';
+import { subscribeIntranetPhotoChanges } from './intranetPhotoEvents.js';
 import { bindVisitToImportedClientTarget } from './intranetVisitBindingDb.js';
 import { syncClientPreparation } from './symfonyApi.js';
 
@@ -32,7 +33,11 @@ export function clientVisitIsDirty(row) {
 
 export function clientVisitIsOnline(row) {
   const historical = Number(row?.api_is_historical || 0) === 1;
-  if (historical) return !clientVisitIsDirty(row);
+  // Une visite importée est Online sans outbox car elle existe déjà sur le serveur.
+  // Dès qu'elle a été réexportée par METRA, son nouvel accusé de visite ne suffit
+  // plus : les photos locales doivent elles aussi être acquittées avant Online.
+  const historicalOnly = historical && row?.intranet_sync_status !== 'synced';
+  if (historicalOnly) return !clientVisitIsDirty(row);
   const photoIncomplete = number(row?.intranet_photo_unscheduled_count) > 0
     || number(row?.intranet_photo_pending_count) > 0
     || number(row?.intranet_photo_error_count) > 0;
@@ -174,7 +179,7 @@ async function prepareOne(visiteId, { finalizeInProgress = false } = {}) {
 export async function envoyerVisitesIntranetClient(visitIds, {
   finalizeInProgress = false,
   processImmediately = true,
-  immediateLimit = 3,
+  immediateLimit = 8,
 } = {}) {
   const ids = [...new Set((visitIds || []).map((id) => clean(id)).filter(Boolean))];
   const prepared = [];
@@ -192,11 +197,13 @@ export async function envoyerVisitesIntranetClient(visitIds, {
   let processed = [];
   let processedPhotos = [];
   if (processImmediately && visitQueuedCount) {
-    processed = await processVisitOutbox({ limit: Math.max(1, Math.min(3, Number(immediateLimit || 3))) }).catch(() => []);
+    // Le serveur autorise 10 POST visites/minute/tablette. On traite au plus 8
+    // immédiatement pour garder une marge aux actions manuelles et aux reprises.
+    processed = await processVisitOutbox({ limit: Math.max(1, Math.min(8, Number(immediateLimit || 8))) }).catch(() => []);
   }
   if (processImmediately && (visitQueuedCount || photoQueuedCount)) {
     processedPhotos = await processVisitPhotoOutbox({
-      limit: Math.max(1, Math.min(12, Math.max(3, Number(immediateLimit || 3) * 2))),
+      limit: Math.max(1, Math.min(20, Math.max(6, Number(immediateLimit || 8) * 2))),
       visitIds: ids,
       discover: true,
     }).catch(() => []);
@@ -207,5 +214,6 @@ export async function envoyerVisitesIntranetClient(visitIds, {
 export function subscribeVisitOutbox(listener) {
   const a = subscribeBaseVisitOutbox(listener);
   const b = subscribeVisitPhotoOutbox(listener);
-  return () => { a(); b(); };
+  const c = subscribeIntranetPhotoChanges(listener);
+  return () => { a(); b(); c(); };
 }
