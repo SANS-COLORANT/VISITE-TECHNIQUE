@@ -1,6 +1,6 @@
 /** Suivi patrimoine d'un site, indépendant des trames de visite figées. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { BrandMark } from './BrandLogo.js';
 import { COLORS, styles } from './styles.js';
 import {
@@ -14,6 +14,12 @@ import {
   remplacerEquipement,
   statsReservesPeriode,
 } from './patrimoineDb.js';
+
+const SITE_OVERVIEW_FAST_CACHE = new Map();
+
+function cacheKey(siteId, mode, sousMenu) {
+  return `${siteId || ''}||${mode || ''}||${sousMenu || ''}`;
+}
 
 function Segment({ items, value, onChange }) {
   return <View style={{ flexDirection: 'row', gap: 7, marginBottom: 12 }}>{items.map((item) => {
@@ -36,15 +42,17 @@ function StatBox({ value, label }) {
 }
 
 export function SiteOverviewPanel({ siteId, mode }) {
-  const [rows, setRows] = useState([]);
-  const [loading, setLoading] = useState(true);
   const [sousMenu, setSousMenu] = useState('actuels');
-  const [visites, setVisites] = useState([]);
+  const currentKey = cacheKey(siteId, mode, sousMenu);
+  const cached = SITE_OVERVIEW_FAST_CACHE.get(currentKey);
+  const [rows, setRows] = useState(cached?.rows || []);
+  const [loading, setLoading] = useState(!cached);
+  const [visites, setVisites] = useState(cached?.visites || []);
   const [periode, setPeriode] = useState('origine');
-  const [visiteDebut, setVisiteDebut] = useState(null);
-  const [visiteFin, setVisiteFin] = useState(null);
+  const [visiteDebut, setVisiteDebut] = useState(cached?.visites?.[1] || null);
+  const [visiteFin, setVisiteFin] = useState(cached?.visites?.[0] || null);
   const [statsPeriode, setStatsPeriode] = useState(null);
-  const [statsSite, setStatsSite] = useState(null);
+  const [statsSite, setStatsSite] = useState(cached?.statsSite || null);
   const [remplacement, setRemplacement] = useState(null);
   const [nouveauMarque, setNouveauMarque] = useState('');
   const [nouveauModele, setNouveauModele] = useState('');
@@ -52,30 +60,64 @@ export function SiteOverviewPanel({ siteId, mode }) {
 
   useEffect(() => { setSousMenu('actuels'); setPeriode('origine'); }, [mode]);
 
-  const charger = useCallback(async () => {
-    setLoading(true);
-    try {
-      if (mode === 'equipements') {
-        setRows(await listerEquipementsSitePatrimoine(siteId, sousMenu === 'historique' ? 'historique' : 'actuels'));
-      } else {
-        const vs = await listerVisitesDatesSite(siteId);
-        setVisites(vs);
-        if (!visiteFin && vs[0]) setVisiteFin(vs[0]);
-        if (!visiteDebut && vs[1]) setVisiteDebut(vs[1]);
-        setRows(await listerReservesSite(siteId, { statut: sousMenu === 'historique' ? 'levees' : 'ouvertes' }));
-      }
-      setStatsSite(await getStatsSitePatrimoine(siteId));
-    } finally { setLoading(false); }
+  const appliquer = useCallback((next) => {
+    SITE_OVERVIEW_FAST_CACHE.set(cacheKey(siteId, mode, sousMenu), next);
+    setRows(next.rows || []);
+    setStatsSite(next.statsSite || null);
+    if (mode === 'remarques') {
+      const vs = next.visites || [];
+      setVisites(vs);
+      setVisiteFin((current) => current && vs.some((v) => v.id === current.id) ? current : (vs[0] || null));
+      setVisiteDebut((current) => current && vs.some((v) => v.id === current.id) ? current : (vs[1] || vs[0] || null));
+    }
   }, [siteId, mode, sousMenu]);
 
-  useEffect(() => { charger(); }, [charger]);
+  const charger = useCallback(async ({ afficherChargement = true } = {}) => {
+    if (afficherChargement) setLoading(true);
+    try {
+      if (mode === 'equipements') {
+        const [nextRows, nextStats] = await Promise.all([
+          listerEquipementsSitePatrimoine(siteId, sousMenu === 'historique' ? 'historique' : 'actuels'),
+          getStatsSitePatrimoine(siteId),
+        ]);
+        appliquer({ rows: nextRows || [], statsSite: nextStats || null, visites: [] });
+      } else {
+        const [vs, nextRows, nextStats] = await Promise.all([
+          listerVisitesDatesSite(siteId),
+          listerReservesSite(siteId, { statut: sousMenu === 'historique' ? 'levees' : 'ouvertes' }),
+          getStatsSitePatrimoine(siteId),
+        ]);
+        appliquer({ rows: nextRows || [], statsSite: nextStats || null, visites: vs || [] });
+      }
+    } finally { setLoading(false); }
+  }, [siteId, mode, sousMenu, appliquer]);
+
+  useEffect(() => {
+    const hit = SITE_OVERVIEW_FAST_CACHE.get(currentKey);
+    if (hit) {
+      appliquer(hit);
+      setLoading(false);
+      // La vue cache est peinte immédiatement ; la base est relue ensuite sans
+      // écran blanc afin de récupérer les changements effectués ailleurs.
+      charger({ afficherChargement: false }).catch(() => {});
+    } else {
+      setRows([]);
+      setStatsSite(null);
+      setLoading(true);
+      charger().catch(() => setLoading(false));
+    }
+  }, [currentKey, appliquer, charger]);
 
   useEffect(() => {
     if (mode !== 'remarques') return;
+    let alive = true;
     const depuis = periode === 'entre' ? visiteDebut?.date_visite : null;
     const jusqua = periode === 'entre' ? visiteFin?.date_visite : null;
-    statsReservesPeriode(siteId, depuis, jusqua).then(setStatsPeriode).catch(() => setStatsPeriode(null));
-  }, [mode, periode, siteId, visiteDebut, visiteFin, rows.length]);
+    statsReservesPeriode(siteId, depuis, jusqua)
+      .then((value) => { if (alive) setStatsPeriode(value); })
+      .catch(() => { if (alive) setStatsPeriode(null); });
+    return () => { alive = false; };
+  }, [mode, periode, siteId, visiteDebut?.id, visiteFin?.id, rows.length]);
 
   const datesValides = useMemo(() => {
     if (!visiteDebut?.date_visite || !visiteFin?.date_visite) return null;
@@ -84,34 +126,29 @@ export function SiteOverviewPanel({ siteId, mode }) {
       : { debut: visiteFin, fin: visiteDebut };
   }, [visiteDebut, visiteFin]);
 
-  const changerVisite = (type, sens) => {
+  const changerVisite = useCallback((type, sens) => {
     if (!visites.length) return;
     const actuelle = type === 'debut' ? visiteDebut : visiteFin;
     const index = Math.max(0, visites.findIndex((v) => v.id === actuelle?.id));
     const next = visites[(index + sens + visites.length) % visites.length];
     type === 'debut' ? setVisiteDebut(next) : setVisiteFin(next);
-  };
+  }, [visites, visiteDebut, visiteFin]);
 
+  const refreshSansFlash = () => charger({ afficherChargement: false }).catch(() => {});
   const confirmerLevee = (item) => Alert.alert('Lever cette réserve ?', 'La visite d’origine restera inchangée. La levée sera ajoutée uniquement à l’historique du site.', [
     { text: 'Annuler', style: 'cancel' },
-    { text: 'Lever', onPress: async () => { await leverReserve(item.id); await charger(); } },
+    { text: 'Lever', onPress: async () => { await leverReserve(item.id); refreshSansFlash(); } },
   ]);
-
   const confirmerReouverture = (item) => Alert.alert('Réouvrir cette réserve ?', 'Un nouvel événement sera ajouté à son historique.', [
     { text: 'Annuler', style: 'cancel' },
-    { text: 'Réouvrir', onPress: async () => { await reouvrirReserve(item.id); await charger(); } },
+    { text: 'Réouvrir', onPress: async () => { await reouvrirReserve(item.id); refreshSansFlash(); } },
   ]);
-
   const marquerVetuste = (item) => Alert.alert('Déclarer cet équipement vétuste ?', 'Cette action alimente l’historique patrimoine sans modifier une ancienne visite.', [
     { text: 'Annuler', style: 'cancel' },
-    { text: 'Déclarer vétuste', onPress: async () => { await declarerEtatEquipement(item.id, 'Vétuste'); await charger(); } },
+    { text: 'Déclarer vétuste', onPress: async () => { await declarerEtatEquipement(item.id, 'Vétuste'); refreshSansFlash(); } },
   ]);
 
-  const ouvrirRemplacement = (item) => {
-    setRemplacement(item);
-    setNouveauMarque(''); setNouveauModele(''); setNouveauAnnee('');
-  };
-
+  const ouvrirRemplacement = (item) => { setRemplacement(item); setNouveauMarque(''); setNouveauModele(''); setNouveauAnnee(''); };
   const validerRemplacement = async () => {
     if (!remplacement) return;
     try {
@@ -123,18 +160,32 @@ export function SiteOverviewPanel({ siteId, mode }) {
         annee: nouveauAnnee.trim() || null,
       });
       setRemplacement(null);
-      await charger();
+      refreshSansFlash();
     } catch (e) { Alert.alert('Remplacement impossible', String(e?.message || e)); }
   };
 
-  if (loading) return <View style={{ paddingVertical: 36 }}><ActivityIndicator color={COLORS.orange} /></View>;
+  const listProps = {
+    keyExtractor: (item) => item.id,
+    initialNumToRender: 12,
+    maxToRenderPerBatch: 10,
+    updateCellsBatchingPeriod: 24,
+    windowSize: 7,
+    removeClippedSubviews: true,
+    contentContainerStyle: { paddingBottom: 110 },
+  };
+
+  if (loading && !rows.length && !statsSite) return <View style={{ paddingVertical: 36 }}><ActivityIndicator color={COLORS.orange} /></View>;
 
   if (mode === 'equipements') {
-    return <View>
-      <Segment items={[{ id: 'actuels', label: 'Actuels' }, { id: 'historique', label: 'Historique' }]} value={sousMenu} onChange={setSousMenu} />
-      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}><StatBox value={statsSite?.equipements?.actifs || 0} label="actifs"/><StatBox value={statsSite?.equipements?.aSurveiller || 0} label="vétustes / à surveiller"/><StatBox value={statsSite?.equipements?.remplaces || 0} label="remplacés"/></View>
-      <FlatList data={rows} keyExtractor={(item) => item.id} scrollEnabled={false}
-        ListHeaderComponent={<Text style={[styles.sectionLabel, { marginBottom: 10 }]}>{sousMenu === 'historique' ? 'Historique des équipements' : 'Équipements actuels'} · {rows.length}</Text>}
+    return <View style={{ flex: 1, minHeight: 0 }}>
+      <FlatList
+        {...listProps}
+        data={rows}
+        ListHeaderComponent={<View>
+          <Segment items={[{ id: 'actuels', label: 'Actuels' }, { id: 'historique', label: 'Historique' }]} value={sousMenu} onChange={setSousMenu} />
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}><StatBox value={statsSite?.equipements?.actifs || 0} label="actifs"/><StatBox value={statsSite?.equipements?.aSurveiller || 0} label="vétustes / à surveiller"/><StatBox value={statsSite?.equipements?.remplaces || 0} label="remplacés"/></View>
+          <Text style={[styles.sectionLabel, { marginBottom: 10 }]}>{sousMenu === 'historique' ? 'Historique des équipements' : 'Équipements actuels'} · {rows.length}</Text>
+        </View>}
         ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>{sousMenu === 'historique' ? 'Aucun équipement dans l’historique.' : 'Aucun équipement actif connu pour ce site.'}</Text></View>}
         renderItem={({ item }) => <View style={[styles.card, { alignItems: 'flex-start', flexWrap: 'wrap' }]}>
           <BrandMark marque={item.marque} compact />
@@ -143,19 +194,23 @@ export function SiteOverviewPanel({ siteId, mode }) {
           {sousMenu === 'actuels' ? <View style={{ width: '100%', flexDirection: 'row', gap: 8, marginTop: 10 }}><TouchableOpacity style={[styles.btnSecondary, { flex: 1, paddingVertical: 8 }]} onPress={() => marquerVetuste(item)}><Text style={styles.btnSecondaryText}>Déclarer vétuste</Text></TouchableOpacity><TouchableOpacity style={[styles.btnPrimary, { flex: 1, paddingVertical: 8 }]} onPress={() => ouvrirRemplacement(item)}><Text style={styles.btnPrimaryText}>Remplacé</Text></TouchableOpacity></View> : null}
         </View>}
       />
-      <Modal visible={!!remplacement} transparent animationType="fade" onRequestClose={() => setRemplacement(null)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><ScrollView keyboardShouldPersistTaps="handled"><Text style={styles.modalTitle}>Équipement de remplacement</Text><Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 12 }}>L’ancien équipement restera dans l’historique. Le nouveau deviendra l’équipement actif du site.</Text><TextInput style={styles.input} placeholder="Nouvelle marque" value={nouveauMarque} onChangeText={setNouveauMarque}/><TextInput style={[styles.input, { marginTop: 9 }]} placeholder="Nouveau modèle" value={nouveauModele} onChangeText={setNouveauModele}/><TextInput style={[styles.input, { marginTop: 9 }]} placeholder="Année" keyboardType="number-pad" value={nouveauAnnee} onChangeText={setNouveauAnnee}/><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setRemplacement(null)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={validerRemplacement}><Text style={styles.btnPrimaryText}>Valider le remplacement</Text></TouchableOpacity></View></ScrollView></View></View></Modal>
+      <Modal visible={!!remplacement} transparent animationType="fade" onRequestClose={() => setRemplacement(null)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><View><Text style={styles.modalTitle}>Équipement de remplacement</Text><Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 12 }}>L’ancien équipement restera dans l’historique. Le nouveau deviendra l’équipement actif du site.</Text><TextInput style={styles.input} placeholder="Nouvelle marque" value={nouveauMarque} onChangeText={setNouveauMarque}/><TextInput style={[styles.input, { marginTop: 9 }]} placeholder="Nouveau modèle" value={nouveauModele} onChangeText={setNouveauModele}/><TextInput style={[styles.input, { marginTop: 9 }]} placeholder="Année" keyboardType="number-pad" value={nouveauAnnee} onChangeText={setNouveauAnnee}/><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setRemplacement(null)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={validerRemplacement}><Text style={styles.btnPrimaryText}>Valider le remplacement</Text></TouchableOpacity></View></View></View></View></Modal>
     </View>;
   }
 
-  return <View>
+  const remarkHeader = <View>
     <Segment items={[{ id: 'actuels', label: 'En cours' }, { id: 'historique', label: 'Historique' }]} value={sousMenu} onChange={setSousMenu} />
     <Segment items={[{ id: 'origine', label: 'Depuis le début' }, { id: 'entre', label: 'Entre 2 visites' }]} value={periode} onChange={setPeriode} />
     {periode === 'entre' && visites.length ? <View style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, padding: 10, marginBottom: 12 }}><Text style={{ fontWeight: '800', marginBottom: 8 }}>Comparer deux visites</Text><View style={{ gap: 7 }}><View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={{ width: 58, color: COLORS.muted, fontSize: 11 }}>Début</Text><TouchableOpacity onPress={() => changerVisite('debut', -1)} style={{ padding: 8 }}><Text>‹</Text></TouchableOpacity><Text style={{ flex: 1, textAlign: 'center', fontWeight: '700' }}>{visiteDebut?.date_visite || '—'}</Text><TouchableOpacity onPress={() => changerVisite('debut', 1)} style={{ padding: 8 }}><Text>›</Text></TouchableOpacity></View><View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={{ width: 58, color: COLORS.muted, fontSize: 11 }}>Fin</Text><TouchableOpacity onPress={() => changerVisite('fin', -1)} style={{ padding: 8 }}><Text>‹</Text></TouchableOpacity><Text style={{ flex: 1, textAlign: 'center', fontWeight: '700' }}>{visiteFin?.date_visite || '—'}</Text><TouchableOpacity onPress={() => changerVisite('fin', 1)} style={{ padding: 8 }}><Text>›</Text></TouchableOpacity></View></View>{datesValides ? <Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 7, textAlign: 'center' }}>Période : {datesValides.debut.date_visite} → {datesValides.fin.date_visite}</Text> : null}</View> : null}
     {statsPeriode ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}><StatBox value={statsPeriode.creees} label="créées sur la période"/><StatBox value={statsPeriode.levees} label="levées sur la période"/><StatBox value={statsPeriode.ouvertesFin} label="ouvertes à la fin"/><StatBox value={statsPeriode.totalDepuisOrigine} label="depuis le début"/></View> : null}
-    <FlatList data={rows} keyExtractor={(item) => item.id} scrollEnabled={false}
-      ListHeaderComponent={<Text style={[styles.sectionLabel, { marginBottom: 10 }]}>{sousMenu === 'historique' ? 'Réserves levées' : 'Réserves à traiter'} · {rows.length}</Text>}
-      ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>{sousMenu === 'historique' ? 'Aucune réserve levée pour ce site.' : 'Aucune réserve ouverte pour ce site.'}</Text></View>}
-      renderItem={({ item }) => <View style={[styles.card, { alignItems: 'flex-start', flexWrap: 'wrap' }]}><View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.poste || 'Observation'}</Text><Text style={[styles.cardSub, { marginTop: 4, color: COLORS.ink }]}>{item.prestation || 'Sans description'}</Text><Text style={[styles.cardSub, { marginTop: 5 }]}>Créée le {String(item.cree_le || '').slice(0, 10)}{item.date_visite_origine ? ` · visite du ${item.date_visite_origine}` : ''} · {item.nb_evenements || 0} événement(s)</Text>{item.levee_le ? <Text style={[styles.cardSub, { marginTop: 3 }]}>Levée le {String(item.levee_le).slice(0, 10)}</Text> : null}</View>{sousMenu === 'historique' ? <TouchableOpacity style={[styles.btnSecondary, { marginLeft: 8, paddingVertical: 8 }]} onPress={() => confirmerReouverture(item)}><Text style={styles.btnSecondaryText}>Réouvrir</Text></TouchableOpacity> : <TouchableOpacity style={[styles.btnPrimary, { marginLeft: 8, paddingVertical: 8 }]} onPress={() => confirmerLevee(item)}><Text style={styles.btnPrimaryText}>Lever</Text></TouchableOpacity>}</View>}
-    />
+    <Text style={[styles.sectionLabel, { marginBottom: 10 }]}>{sousMenu === 'historique' ? 'Réserves levées' : 'Réserves à traiter'} · {rows.length}</Text>
   </View>;
+
+  return <View style={{ flex: 1, minHeight: 0 }}><FlatList
+    {...listProps}
+    data={rows}
+    ListHeaderComponent={remarkHeader}
+    ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>{sousMenu === 'historique' ? 'Aucune réserve levée pour ce site.' : 'Aucune réserve ouverte pour ce site.'}</Text></View>}
+    renderItem={({ item }) => <View style={[styles.card, { alignItems: 'flex-start', flexWrap: 'wrap' }]}><View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.poste || 'Observation'}</Text><Text style={[styles.cardSub, { marginTop: 4, color: COLORS.ink }]}>{item.prestation || 'Sans description'}</Text><Text style={[styles.cardSub, { marginTop: 5 }]}>Créée le {String(item.cree_le || '').slice(0, 10)}{item.date_visite_origine ? ` · visite du ${item.date_visite_origine}` : ''} · {item.nb_evenements || 0} événement(s)</Text>{item.levee_le ? <Text style={[styles.cardSub, { marginTop: 3 }]}>Levée le {String(item.levee_le).slice(0, 10)}</Text> : null}</View>{sousMenu === 'historique' ? <TouchableOpacity style={[styles.btnSecondary, { marginLeft: 8, paddingVertical: 8 }]} onPress={() => confirmerReouverture(item)}><Text style={styles.btnSecondaryText}>Réouvrir</Text></TouchableOpacity> : <TouchableOpacity style={[styles.btnPrimary, { marginLeft: 8, paddingVertical: 8 }]} onPress={() => confirmerLevee(item)}><Text style={styles.btnPrimaryText}>Lever</Text></TouchableOpacity>}</View>}
+  /></View>;
 }
