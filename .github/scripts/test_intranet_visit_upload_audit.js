@@ -74,7 +74,7 @@ async function main() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'metra-upload-audit-'));
   const server = databaseProcess(path.join(dir, 'audit.db'));
   try {
-    await server.send('migrate', '', [0, 33]);
+    await server.send('migrate', '', [0, 36]);
     const payloadModule = load('intranetVisitPayload.js', { getDb: async () => server.db, obtenirTrame: () => localTrame });
 
     // Full-state material semantics: a partial reduction is destructive too.
