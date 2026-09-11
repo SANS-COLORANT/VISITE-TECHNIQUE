@@ -7,10 +7,11 @@ const app=read('App.js');
 requireText(app,'DEFERRED_SCREEN_LOADERS','deferred screen registry');
 requireText(app,"Report:()=>require('./ReportScreen.js').ReportScreen",'deferred report');
 requireText(app,"Lab3D:()=>require('./Lab3DScreen.js').Lab3DScreen",'deferred LAB3D');
+requireText(app,"HydraulicSchema:()=>require('./HydraulicSchemaWorkspace.js').HydraulicSchemaWorkspace",'deferred hydraulic schema');
 requireText(app,"ClientDocuments:()=>require('./ClientDocumentsScreen.js').ClientDocumentsScreen",'deferred client documents');
-requireText(app,"import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';",'hydraulic build compatibility');
 forbidText(app,"import { ReportScreen } from './ReportScreen.js';",'eager report screen');
 forbidText(app,"import { Lab3DScreen } from './Lab3DScreen.js';",'eager LAB3D screen');
+forbidText(app,"import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';",'eager hydraulic schema');
 
 const home=read('HomeScreen.js');
 requireText(home,'chargerBatchExcelModule','lazy home Excel');
