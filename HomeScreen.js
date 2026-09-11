@@ -4,11 +4,12 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
+import { SpiralActiveHome } from './visual-packs/spiral-active/SpiralActiveHome.js';
 const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
 function chargerEntityManagementModule(){return require('./entityManagementDb.js');}
 
-function HomeScreen({ navigation, onR1LongPress }) {
+function HomeScreen({ navigation, onR1LongPress, spiralPreview = false }) {
   const [clients, setClients] = useState(() => HOME_FAST_CACHE.clients || []);
   const [visitesEnCours, setVisitesEnCours] = useState(() => HOME_FAST_CACHE.visitesEnCours || []);
   const [stats, setStats] = useState(() => HOME_FAST_CACHE.stats || { enCours: 0, terminees: 0 });
@@ -103,6 +104,36 @@ function HomeScreen({ navigation, onR1LongPress }) {
     } catch (e) { Alert.alert('Erreur pendant l’import', String(e.message || e)); }
     finally { setImportEnCours(false); }
   };
+
+  if (spiralPreview) {
+    return <SpiralActiveHome
+      clients={clients}
+      visitesEnCours={visitesEnCours}
+      stats={stats}
+      refreshing={refreshing}
+      onRefresh={onRefresh}
+      quickSearch={quickSearch}
+      setQuickSearch={setQuickSearch}
+      openDirectory={openDirectory}
+      navigation={navigation}
+      choisirExcel={choisirExcel}
+      confirmerSuppressionVisite={confirmerSuppressionVisite}
+      confirmerSuppressionClient={confirmerSuppressionClient}
+      modalVisible={modalVisible}
+      setModalVisible={setModalVisible}
+      nouveauNom={nouveauNom}
+      setNouveauNom={setNouveauNom}
+      nouveauCode={nouveauCode}
+      setNouveauCode={setNouveauCode}
+      ajouterClient={ajouterClient}
+      creationClient={creationClient}
+      importBatch={importBatch}
+      setImportBatch={setImportBatch}
+      confirmerImport={confirmerImport}
+      importEnCours={importEnCours}
+      onR1LongPress={onR1LongPress}
+    />;
+  }
 
   return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
     <View style={styles.homeTopRow}>
