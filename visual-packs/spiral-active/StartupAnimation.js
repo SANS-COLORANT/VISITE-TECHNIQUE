@@ -179,8 +179,6 @@ const styles = StyleSheet.create({
     flex: 1,
     overflow: 'hidden',
     backgroundColor: BG,
-    alignItems: 'center',
-    justifyContent: 'center',
   },
   angularShardA: {
     position: 'absolute',
@@ -204,6 +202,10 @@ const styles = StyleSheet.create({
   },
   centerSpiral: {
     position: 'absolute',
+    left: '50%',
+    top: '50%',
+    marginLeft: -104,
+    marginTop: -104,
     width: 208,
     height: 208,
     alignItems: 'center',
@@ -211,6 +213,10 @@ const styles = StyleSheet.create({
   },
   travellingPoint: {
     position: 'absolute',
+    left: '50%',
+    top: '50%',
+    marginLeft: -8,
+    marginTop: -8,
     width: 16,
     height: 16,
     alignItems: 'center',
@@ -234,6 +240,8 @@ const styles = StyleSheet.create({
   },
   wordmark: {
     position: 'absolute',
+    left: 0,
+    right: 0,
     top: '63%',
     alignItems: 'center',
   },
