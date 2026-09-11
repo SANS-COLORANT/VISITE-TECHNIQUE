@@ -31,6 +31,9 @@ requireText(visit,'const pagerX = useRef(new Animated.Value(0)).current','single
 requireText(visit,'mountedPanelIds','small mounted panel window');
 requireText(visit,'HEAVY_LAZY_PANELS','heavy panel lazy policy');
 requireText(visit,'if (!swipeHandlers.current)','stable PanResponder allocation');
+requireText(visit,"gestureModeRef.current = localMode ? 'preallumage-local' : 'tabs'",'preallumage local swipe separated from tab pager');
+requireText(visit,'preAllumageLocalSwipeRef.current?.(direction, false)','preallumage local dry-run before animation');
+requireText(visit,"onRegisterLocalSwipe={trame.id === 'pre_allumage'",'preallumage local handler registration');
 requireText(visit,'left: index * pagerWidth','neighbor panel positioning');
 requireText(visit,'pointerEvents={panelId === activeTab ? \'auto\' : \'none\'}','inactive panel touch isolation');
 forbidText(visit,'basculerApresSortie','two-phase swipe transition removed');
@@ -72,4 +75,4 @@ requireText(visual,"const DocumentPicker = require('expo-document-picker');",'la
 requireText(visual,"const { unzip } = require('react-native-zip-archive');",'lazy visual pack unzip');
 forbidText(visual,"import * as DocumentPicker from 'expo-document-picker';",'eager visual pack picker');
 
-console.log('Runtime responsiveness v4 contract validated: visit swipe uses a stable native pager with warm neighbours and memoized panels; startup modules remain deferred, catalogue warm starts gated, prefill coalesced, map/search work bounded.');
+console.log('Runtime responsiveness v4 contract validated: visit swipe uses a stable native pager with warm neighbours and memoized panels; PRE local swipes remain isolated; startup modules remain deferred, catalogue warm starts gated, prefill coalesced, map/search work bounded.');
