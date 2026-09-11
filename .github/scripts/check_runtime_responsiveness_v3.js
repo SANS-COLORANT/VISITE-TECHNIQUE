@@ -42,7 +42,10 @@ forbidText(visit,"import { exporterEtPartager } from './excelExport.js';",'eager
 forbidText(visit,"import { exporterRapportPreAllumage } from './preAllumageReportExporter.js';",'eager PRE report export');
 
 const siteVisits=read('SiteVisitesScreen.js');
-requireText(siteVisits,"import { exporterVisitesExcelEnLot } from './batchExcel.js';",'site export build compatibility');
+requireText(siteVisits,'function chargerBatchExcel(){return require(\'./batchExcel.js\');}','lazy site batch Excel');
+forbidText(siteVisits,"import { exporterVisitesExcelEnLot } from './batchExcel.js';",'eager site batch Excel');
+requireText(siteVisits,'SITE_VISITS_FAST_CACHE','site visit instant cache');
+requireText(siteVisits,'listerVisitesSiteAvecEtatIntranet','batched site visit Intranet state');
 
 const database=read('database/index.js');
 requireText(database,'CORE_REFERENCE_META_KEY','reference version gate');
@@ -55,10 +58,23 @@ forbidText(database,"import { seedEquipmentCatalog }",'eager core catalogue seed
 const prefill=read('visitPrefillDb.js');
 requireText(prefill,'const prefillTermines = new Set();','prefill completed cache');
 requireText(prefill,'const prefillEnCours = new Map();','prefill in-flight cache');
+requireText(prefill,'visit_prefill_v','durable prefill marker');
+requireText(prefill,"SELECT value FROM _meta WHERE key=? LIMIT 1",'prefill survives app restart');
 requireText(prefill,'preremplirVisiteDepuisContexteInterne','prefill coalescing wrapper');
 
+const carry=read('visitCarryForwardDb.js');
+requireText(carry,'function chunks(rows, size)','carry-forward batch helper');
+requireText(carry,'VALUES ${placeholders}','batched carry-forward inserts');
+requireText(carry,"entite_id IN (${placeholders})",'batched network provenance lookup');
+
 const overview=read('SiteOverviewPanel.js');
+requireText(overview,'SITE_OVERVIEW_FAST_CACHE','site overview instant cache');
+requireText(overview,'Promise.all([','site overview parallel reads');
 requireText(overview,'}, [siteId, mode, sousMenu]);','stable site overview loader');
+
+const clientSites=read('ClientSitesScreen.js');
+requireText(clientSites,'CLIENT_SITES_FAST_CACHE','client sites instant cache');
+requireText(clientSites,'appliquerSites([...sites','optimistic site creation');
 
 const map=read('ClientMapScreen.js');
 requireText(map,'synchroniserCoordonneesClient(clientId, { max: 12 })','bounded automatic geocoding');
@@ -75,4 +91,4 @@ requireText(visual,"const DocumentPicker = require('expo-document-picker');",'la
 requireText(visual,"const { unzip } = require('react-native-zip-archive');",'lazy visual pack unzip');
 forbidText(visual,"import * as DocumentPicker from 'expo-document-picker';",'eager visual pack picker');
 
-console.log('Runtime responsiveness v4 contract validated: visit swipe uses a stable native pager with warm neighbours and memoized panels; PRE local swipes remain isolated; startup modules remain deferred, catalogue warm starts gated, prefill coalesced, map/search work bounded.');
+console.log('Runtime responsiveness v5 contract validated: visit swipe uses a stable native pager with warm neighbours and memoized panels; PRE local swipes remain isolated; startup modules and Excel paths are deferred, new-visit prefill is durable/coalesced, network/meter carry-forward is batched, page caches paint before background refresh, map/search work stays bounded.');
