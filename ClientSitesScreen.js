@@ -10,14 +10,15 @@ import { dupliquerSite } from './siteOrganizationDb.js';
 import { composerAdresse } from './SiteAddressManager.js';
 import { SiteGroupsManager } from './SiteGroupsManager.js';
 import { SiteRadialActionMenu } from './SiteRadialActionMenu.js';
+import { ClientIntranetSyncPanel } from './ClientIntranetSyncPanel.js';
 
 const adresseVide = () => ({ numero: '', voie: '', complement: '', codePostal: '', ville: '' });
-
 const CLIENT_SITES_FAST_CACHE = new Map();
 
 function ClientSitesScreen({ route, navigation }) {
   const { clientId, nomClient } = route?.params || {};
-  const [sites, setSites] = useState(() => CLIENT_SITES_FAST_CACHE.get(String(clientId || '')) || []);
+  const cacheKey = String(clientId || '');
+  const [sites, setSites] = useState(() => CLIENT_SITES_FAST_CACHE.get(cacheKey) || []);
   const [modalVisible, setModalVisible] = useState(false);
   const [groupesVisible, setGroupesVisible] = useState(false);
   const [radialMenu, setRadialMenu] = useState(null);
@@ -26,21 +27,21 @@ function ClientSitesScreen({ route, navigation }) {
   const [nouveauNom, setNouveauNom] = useState('');
   const [nouvelleAdresse, setNouvelleAdresse] = useState(adresseVide);
 
-  const charger = useCallback(async () => {
-    if (!clientId) { setSites([]); return []; }
-    const liste = await listerSitesClient(clientId);
-    const normalisee = Array.isArray(liste) ? liste : [];
-    CLIENT_SITES_FAST_CACHE.set(String(clientId), normalisee);
+  const appliquerSites = useCallback((next) => {
+    const normalisee = Array.isArray(next) ? next : [];
+    CLIENT_SITES_FAST_CACHE.set(cacheKey, normalisee);
     setSites(normalisee);
     return normalisee;
-  }, [clientId]);
+  }, [cacheKey]);
+
+  const charger = useCallback(async () => {
+    if (!clientId) return appliquerSites([]);
+    return appliquerSites(await listerSitesClient(clientId));
+  }, [clientId, appliquerSites]);
 
   useEffect(() => {
     let actif = true;
-    (async () => {
-      try { if (actif) await charger(); }
-      catch (e) { if (actif) Alert.alert('Sites', String(e?.message || e)); }
-    })();
+    charger().catch((e) => { if (actif) Alert.alert('Sites', String(e?.message || e)); });
     return () => { actif = false; };
   }, [charger]);
 
@@ -49,12 +50,14 @@ function ClientSitesScreen({ route, navigation }) {
   const patchNouvelleAdresse = (patch) => setNouvelleAdresse((prev) => ({ ...prev, ...patch }));
 
   const ajouterSiteFn = async () => {
-    if (!nouveauNom.trim()) return Alert.alert('Nom requis', 'Merci de saisir le nom du site.');
+    const nom = nouveauNom.trim();
+    if (!nom) return Alert.alert('Nom requis', 'Merci de saisir le nom du site.');
     const adresse = composerAdresse(nouvelleAdresse);
     try {
-      const siteId = await creerSite({ clientId, nomSite: nouveauNom.trim(), adresse: adresse || null });
+      const siteId = await creerSite({ clientId, nomSite: nom, adresse: adresse || null });
+      appliquerSites([...sites, { id: siteId, client_id: clientId, nom_site: nom, adresse: adresse || null, statut: 'Actif' }].sort((a, b) => String(a.nom_site || '').localeCompare(String(b.nom_site || ''), 'fr', { sensitivity: 'base' })));
       setNouveauNom(''); setNouvelleAdresse(adresseVide()); setModalVisible(false);
-      await charger();
+      charger().catch(() => {});
       if (adresse) synchroniserCoordonneesSite(siteId, adresse).then(charger).catch(() => {});
     } catch (e) { Alert.alert('Création impossible', String(e?.message || e)); }
   };
@@ -67,7 +70,7 @@ function ClientSitesScreen({ route, navigation }) {
       if (!resume) return;
       Alert.alert('Supprimer ce site ?', `« ${resume.nom_site} » contient ${resume.visites} visite(s) et ${resume.equipements} équipement(s) permanent(s). Tout sera définitivement supprimé.`, [
         { text: 'Annuler', style: 'cancel' },
-        { text: 'Supprimer tout', style: 'destructive', onPress: async () => { try { await supprimerSiteComplet(site.id); await charger(); } catch (e) { Alert.alert('Suppression impossible', String(e?.message || e)); } } },
+        { text: 'Supprimer tout', style: 'destructive', onPress: async () => { try { await supprimerSiteComplet(site.id); appliquerSites(sites.filter((row) => row.id !== site.id)); charger().catch(() => {}); } catch (e) { Alert.alert('Suppression impossible', String(e?.message || e)); } } },
       ]);
     } catch (e) { Alert.alert('Suppression impossible', String(e?.message || e)); }
   };
@@ -78,10 +81,8 @@ function ClientSitesScreen({ route, navigation }) {
     [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Dupliquer', onPress: async () => {
-        try {
-          await dupliquerSite(site.id, { copierPatrimoine: true, copierLab3d: true });
-          await charger();
-        } catch (e) { Alert.alert('Duplication impossible', String(e?.message || e)); }
+        try { await dupliquerSite(site.id, { copierPatrimoine: true, copierLab3d: true }); await charger(); }
+        catch (e) { Alert.alert('Duplication impossible', String(e?.message || e)); }
       } },
     ]
   );
@@ -106,8 +107,9 @@ function ClientSitesScreen({ route, navigation }) {
     if (!nom) return Alert.alert('Nom requis', 'Merci de saisir le nom du site.');
     try {
       await modifierSiteRapide(renameSite.id, { nomSite: nom });
+      appliquerSites(sites.map((site) => site.id === renameSite.id ? { ...site, nom_site: nom } : site));
       setRenameSite(null); setRenameValue('');
-      await charger();
+      charger().catch(() => {});
     } catch (e) { Alert.alert('Renommage impossible', String(e?.message || e)); }
   };
 
@@ -116,11 +118,11 @@ function ClientSitesScreen({ route, navigation }) {
       style={{ flex: 1 }}
       contentContainerStyle={[styles.content, { paddingBottom: 34 }]}
       data={sites}
-      initialNumToRender={16}
-      maxToRenderPerBatch={12}
-      updateCellsBatchingPeriod={24}
-      windowSize={7}
-      removeClippedSubviews={false}
+      initialNumToRender={14}
+      maxToRenderPerBatch={10}
+      updateCellsBatchingPeriod={20}
+      windowSize={6}
+      removeClippedSubviews
       keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.id}
       ListHeaderComponent={<View>
@@ -128,6 +130,8 @@ function ClientSitesScreen({ route, navigation }) {
         <View style={{ marginTop: 8, marginBottom: 12, padding: 14, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E3E5E8' }}>
           <View style={{ flexDirection: 'row', gap: 10 }}><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{sites.length}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>sites</Text></View><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{avecAdresse}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>adresses renseignées</Text></View><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{sansAdresse}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>à compléter</Text></View></View>
         </View>
+
+        <ClientIntranetSyncPanel clientId={clientId} />
 
         <TouchableOpacity style={[styles.btnPrimary, { marginBottom: 8 }]} onPress={() => navigation.navigate('ClientPilotage', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnPrimaryText}>▦ Pilotage patrimoine</Text></TouchableOpacity>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
