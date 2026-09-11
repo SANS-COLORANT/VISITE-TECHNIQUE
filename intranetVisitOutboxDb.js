@@ -117,6 +117,21 @@ async function markTerminal(db, row, status, error) {
     [status, error?.status || null, error?.code || null, String(error?.message || 'Envoi refusé'), violationsJson(error), row.envoi_id]);
 }
 
+async function assertRowTargetsImportedClient(db, row) {
+  const linked = await db.getFirstAsync(`SELECT c.remote_client_id
+    FROM visites v
+    JOIN sites s ON s.id=v.site_id
+    JOIN api_client_links c ON c.local_client_id=s.client_id
+    WHERE v.id=? AND c.remote_client_id=? LIMIT 1`, [String(row.visite_id), String(row.remote_client_id)]);
+  if (linked) return null;
+  const error = Object.assign(new Error(
+    'Cet envoi a été préparé pour un autre client Intranet que le client importé lié à la visite. METRA bloque cet ancien envoi avant tout appel réseau.'
+  ), { code: 'wrong_imported_client' });
+  await markTerminal(db, row, 'rejected', error);
+  notify();
+  return error;
+}
+
 export async function recoverInterruptedVisitUploads() {
   const db = await getDb();
   const result = await db.runAsync(`UPDATE api_visit_outbox SET status='retry',next_attempt_at=datetime('now'),error_code='interrupted',error_message='Envoi interrompu avant confirmation : reprise idempotente.',updated_at=datetime('now') WHERE status='sending'`);
@@ -124,6 +139,9 @@ export async function recoverInterruptedVisitUploads() {
 }
 
 async function sendRow(db, row) {
+  const ownershipError = await assertRowTargetsImportedClient(db, row);
+  if (ownershipError) return { status: 'error', row: await getVisitUploadState(row.visite_id), error: ownershipError };
+
   await db.runAsync(`UPDATE api_visit_outbox SET status='sending',attempt_count=attempt_count+1,last_attempt_at=datetime('now'),error_code=NULL,error_message=NULL,violations_json=NULL,updated_at=datetime('now') WHERE envoi_id=?`, [row.envoi_id]);
   notify();
   try {
