@@ -33,6 +33,8 @@ requireText(outbox, 'row.payload_json', 'idempotent serialized retry');
 requireText(outbox, "error?.code === 'invalid_ack'", 'ambiguous acknowledgement terminal guard');
 requireText(outbox, 'LOCAL_AUTH_ERRORS', 'local reactivation errors are not treated as network retries');
 requireText(outbox, "'material_replacement_confirmation_required'", 'partial material replacement requires confirmation');
+requireText(outbox, 'assertRowTargetsImportedClient', 'outbox verifies imported-client ownership before HTTP');
+requireText(outbox, "code: 'wrong_imported_client'", 'legacy cross-client outbox is blocked before HTTP');
 requireText(read('visitCarryForwardDb.js'), "entite_type='reseau'", 'network provenance carry-forward');
 requireText(read('persistentEquipmentDb.js'), "'1', 'Équipement', 'Bon'", 'new local equipment has server-required quantity');
 const migration = read('database/migrations/033_intranet_visit_outbox.js');
@@ -48,4 +50,4 @@ requireText(docs, 'Les photos et la conclusion ne sont pas envoyées', 'unsuppor
 requireText(read('VisiteScreen.js'), '<IntranetVisitSyncControl visite={visite}', 'visit sync control');
 requireText(read('App.js'), '<IntranetVisitSyncRuntime/>', 'foreground retry runtime');
 requireText(read('App.js'), '<IntranetVisitSyncBanner/>', 'global pending status');
-console.log('Intranet visit upload contract validated: exact POST, idempotent outbox, Offline/Online status, conflicts, structural criteria validation, full material safeguards and documented unsupported photo/conclusion scope.');
+console.log('Intranet visit upload contract validated: exact POST, imported-client ownership before HTTP, idempotent outbox, Offline/Online status, conflicts, structural criteria validation, full material safeguards and documented unsupported photo/conclusion scope.');
