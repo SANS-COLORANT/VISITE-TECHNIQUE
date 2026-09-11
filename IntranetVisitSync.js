@@ -77,8 +77,10 @@ function initialUploadRowFromVisit(visite) {
 }
 
 function initialPhotoStateFromVisit(visite, row) {
-  const historicalOnly = Number(visite?.api_is_historical) === 1 && row?.status !== 'synced';
-  if (historicalOnly) return { ready: true, complete: true, localCount: 0, unscheduledCount: 0, pendingCount: 0, errorCount: 0, syncedCount: 0 };
+  const contentRevision = Number(visite?.api_content_revision || 0);
+  const syncedRevision = Number(visite?.api_synced_revision || 0);
+  const historicalOnly = Number(visite?.api_is_historical) === 1 && row?.status !== 'synced' && contentRevision === syncedRevision;
+  if (historicalOnly) return { ready: true, complete: true, localCount: 0, unscheduledCount: 0, pendingCount: 0, errorCount: 0, syncedCount: 0, contentRevision, syncedRevision };
   const known = ['intranet_photo_local_count', 'intranet_photo_unscheduled_count', 'intranet_photo_pending_count', 'intranet_photo_error_count', 'intranet_photo_synced_count'].some((key) => visite?.[key] != null);
   if (!known) return null;
   const localCount = Number(visite?.intranet_photo_local_count || 0);
@@ -86,9 +88,9 @@ function initialPhotoStateFromVisit(visite, row) {
   const pendingCount = Number(visite?.intranet_photo_pending_count || 0);
   const errorCount = Number(visite?.intranet_photo_error_count || 0);
   const syncedCount = Number(visite?.intranet_photo_synced_count || 0);
-  const cleanBusiness = Number(visite?.api_content_revision || 0) === Number(visite?.api_synced_revision || 0);
+  const cleanBusiness = contentRevision === syncedRevision;
   const ready = row?.status === 'synced' && Boolean(row?.remote_visit_id) && cleanBusiness;
-  return { ready, complete: ready && unscheduledCount === 0 && pendingCount === 0 && errorCount === 0, localCount, unscheduledCount, pendingCount, errorCount, syncedCount, remoteVisitId: row?.remote_visit_id || null };
+  return { ready, complete: ready && unscheduledCount === 0 && pendingCount === 0 && errorCount === 0, localCount, unscheduledCount, pendingCount, errorCount, syncedCount, remoteVisitId: row?.remote_visit_id || null, contentRevision, syncedRevision };
 }
 
 export function useVisitUploadState(visiteId, { initialRow = null, initialPhotoState = null, passive = false } = {}) {
@@ -108,7 +110,7 @@ export function useVisitUploadState(visiteId, { initialRow = null, initialPhotoS
     setLoading(true); refresh();
     const a = subscribeVisitOutbox(refresh), b = subscribeVisitPhotoOutbox(refresh), c = subscribeIntranetPhotoChanges(refresh);
     return () => { a(); b(); c(); };
-  }, [refresh, passive, initialRow?.status, initialRow?.remote_visit_id, initialRow?.error_code, initialRow?.error_message, initialPhotoState?.unscheduledCount, initialPhotoState?.pendingCount, initialPhotoState?.errorCount, initialPhotoState?.syncedCount]);
+  }, [refresh, passive, initialRow?.status, initialRow?.remote_visit_id, initialRow?.error_code, initialRow?.error_message, initialPhotoState?.unscheduledCount, initialPhotoState?.pendingCount, initialPhotoState?.errorCount, initialPhotoState?.syncedCount, initialPhotoState?.contentRevision, initialPhotoState?.syncedRevision]);
   return { row, photoState, loading, refresh };
 }
 
@@ -140,8 +142,10 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
   const { row, photoState, loading, refresh } = useVisitUploadState(visiteId, { initialRow, initialPhotoState, passive });
   const [busy, setBusy] = useState(false);
   const historical = Number(visite?.api_is_historical) === 1;
-  const contentRevision = Number(visite?.api_content_revision || 0), syncedRevision = Number(visite?.api_synced_revision || 0), dirty = contentRevision !== syncedRevision;
-  const historicalOnly = historical && row?.status !== 'synced';
+  const contentRevision = Number(photoState?.contentRevision ?? visite?.api_content_revision ?? 0);
+  const syncedRevision = Number(photoState?.syncedRevision ?? visite?.api_synced_revision ?? 0);
+  const dirty = contentRevision !== syncedRevision;
+  const historicalOnly = historical && row?.status !== 'synced' && !dirty;
   const photosComplete = historicalOnly || photoState == null || photoState.complete;
   const online = (historicalOnly || row?.status === 'synced') && !dirty && photosComplete;
   const hardIdempotencyConflict = row?.error_code === 'idempotency_conflict', invalidAck = row?.error_code === 'invalid_ack';
