@@ -60,6 +60,11 @@ async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
     ['p-pa-infos','Informations générales','Saison de chauffe',saisonDeChauffe(dateVisite)],
     ['p-pa-infos','Informations générales','Exploitant',contexte.code_exploitant],
     ['p-pa-infos','Informations générales','Chargé d’affaires / rédacteur',contexte.technicien],
+  ] : trame.id === 'vmc' ? [
+    ['p-vmc-infos','Informations générales','Date de visite',dateVisite],
+    ['p-vmc-infos','Informations générales','N° de site',contexte.site_id],
+    ['p-vmc-infos','Informations générales','Référence du site',contexte.nom_site],
+    ['p-vmc-infos','Informations générales','Exploitant',contexte.code_exploitant],
   ] : [
     ['p-infos','Général','Nom du client',contexte.nom_client],
     ['p-infos','Général','Nom du site',contexte.nom_site],
@@ -73,7 +78,7 @@ async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
   ];
   await insertManyIfEmpty(db, visiteId, fixes);
 
-  if (trame.id !== 'pre_allumage') {
+  if (trame.id === DEFAULT_TRAME_ID) {
     const equipements = contexte.installation_id
       ? await db.getAllAsync(`SELECT e.type_code FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=? AND i.id=? AND i.actif=1 AND e.statut='actif'`, [contexte.site_id, contexte.installation_id])
       : await db.getAllAsync(`SELECT e.type_code FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=? AND i.actif=1 AND e.statut='actif'`, [contexte.site_id]);
