@@ -118,14 +118,21 @@ async function markTerminal(db, row, status, error) {
 }
 
 async function assertRowTargetsImportedClient(db, row) {
-  const linked = await db.getFirstAsync(`SELECT c.remote_client_id
+  let payloadLocalId = null;
+  try { payloadLocalId = JSON.parse(row.payload_json)?.visites?.[0]?.localId ?? null; } catch {}
+  const linked = payloadLocalId == null ? null : await db.getFirstAsync(`SELECT l.remote_local_id
     FROM visites v
-    JOIN sites s ON s.id=v.site_id
-    JOIN api_client_links c ON c.local_client_id=s.client_id
-    WHERE v.id=? AND c.remote_client_id=? LIMIT 1`, [String(row.visite_id), String(row.remote_client_id)]);
+    JOIN sites local_site ON local_site.id=v.site_id
+    JOIN api_client_links c ON c.local_client_id=local_site.client_id
+    JOIN api_client_site_links cs ON cs.remote_client_id=c.remote_client_id AND cs.remote_present=1
+    JOIN api_site_links remote_site ON remote_site.remote_site_id=cs.remote_site_id AND remote_site.remote_present=1
+    JOIN api_local_links l ON l.remote_site_id=remote_site.remote_site_id AND l.remote_present=1
+    WHERE v.id=? AND c.remote_client_id=?
+      AND COALESCE(remote_site.local_site_id,cs.local_site_id)=local_site.id
+      AND l.remote_local_id=? LIMIT 1`, [String(row.visite_id), String(row.remote_client_id), String(payloadLocalId)]);
   if (linked) return null;
   const error = Object.assign(new Error(
-    'Cet envoi a été préparé pour un autre client Intranet que le client importé lié à la visite. METRA bloque cet ancien envoi avant tout appel réseau.'
+    'Cet envoi ne correspond plus au client, au site ou au local Intranet importé lié à la visite. METRA bloque cet ancien envoi avant tout appel réseau.'
   ), { code: 'wrong_imported_client' });
   await markTerminal(db, row, 'rejected', error);
   notify();
