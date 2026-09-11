@@ -8,6 +8,7 @@ import { listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio
 import { exporterSauvegardeBase, exporterSauvegardeComplete, choisirEtRestaurerSauvegardeComplete } from './databaseBackup.js';
 import { ensureEquipmentCatalogReady } from './database/index.js';
 import { diagnostiquerStockageLocal } from './storageHealth.js';
+import { exporterSupportDump } from './supportDump.js';
 
 const CATEGORIES_EQUIPEMENT=['Adoucisseur','Armoire électrique','Ballon ECS','Chaudière','Circulateur','Coffret gaz','Compteur','Désemboueur','Détendeur','Échangeur','Extincteur','Filtre','Manomètre','Pompe','Robinetterie','Soupape','Vanne',"Vase d'expansion"];
 const MARQUES_EQUIPEMENT=['De Dietrich','Viessmann','Grundfos','Wilo','Saunier Duval','Atlantic','Frisquet','Chappée','Chaffoteaux','Elm Leblanc','Bosch','Vaillant','Fernox','Alfa Laval'];
@@ -67,6 +68,7 @@ function BoutonDonnees({label,onPress,disabled=false,secondaire=false,danger=fal
 function GestionDonnees(){
   const[action,setAction]=useState(null);
   const[diagnostic,setDiagnostic]=useState(null);
+  const[supportVisible,setSupportVisible]=useState(false);
 
   const executer=async(nom,fn)=>{
     if(action)return;
@@ -123,6 +125,27 @@ function GestionDonnees(){
     }catch(e){Alert.alert('Diagnostic impossible',String(e.message||e));}
   });
 
+  const deverrouillerSupport=()=>{
+    if(supportVisible)return;
+    setSupportVisible(true);
+    Alert.alert('Support METRA activé','Le bouton de DUMP technique est disponible pour cette session dans Paramètres > Données.');
+  };
+
+  const lancerDump=()=>executer('dump',async()=>{
+    try{
+      await exporterSupportDump();
+    }catch(e){Alert.alert('DUMP impossible',String(e.message||e));}
+  });
+
+  const demanderDump=()=>Alert.alert(
+    'Exporter un DUMP support ?',
+    'Le fichier contient les liaisons Client/Site/Local Intranet, les trames et critères reçus, les données des visites liées et les erreurs d’envoi. Il ne contient ni photo, ni fichier SQLite, ni jeton de connexion, mot de passe ou clé DPoP. Les données techniques et noms de clients/sites restent des données métier : partage-le uniquement avec le support METRA.',
+    [
+      {text:'Annuler',style:'cancel'},
+      {text:'Exporter le DUMP',onPress:lancerDump},
+    ]
+  );
+
   const occupe=!!action;
   return <ScrollView contentContainerStyle={styles.content}>
     <Text style={styles.sectionLabel}>Sauvegardes</Text>
@@ -145,7 +168,9 @@ function GestionDonnees(){
       <BoutonDonnees label={action==='restore'?'Restauration…':'Restaurer une sauvegarde ZIP'} disabled={occupe} danger onPress={demanderRestauration}/>
     </View>
 
-    <Text style={[styles.sectionLabel,{marginTop:18}]}>Santé des données</Text>
+    <TouchableOpacity activeOpacity={1} onLongPress={deverrouillerSupport} delayLongPress={1600}>
+      <Text style={[styles.sectionLabel,{marginTop:18}]}>Santé des données</Text>
+    </TouchableOpacity>
     <View style={[styles.card,{alignItems:'flex-start'}]}>
       <View style={{flex:1}}>
         <Text style={styles.cardTitle}>Diagnostic local</Text>
@@ -159,6 +184,17 @@ function GestionDonnees(){
       </View>
       <BoutonDonnees label={action==='diagnostic'?'Diagnostic…':'Lancer le diagnostic'} disabled={occupe} secondaire onPress={diagnostiquer}/>
     </View>
+
+    {supportVisible&&<>
+      <Text style={[styles.sectionLabel,{marginTop:18}]}>Support avancé</Text>
+      <View style={[styles.card,{alignItems:'flex-start'}]}>
+        <View style={{flex:1}}>
+          <Text style={styles.cardTitle}>DUMP diagnostic Intranet</Text>
+          <Text style={[styles.cardSub,{marginTop:5}]}>Génère un JSON lisible par le support avec les références Intranet reçues, les catégories/sous-catégories/critères, les liaisons locales et les dernières visites concernées. Les secrets d’authentification sont exclus ou masqués.</Text>
+        </View>
+        <BoutonDonnees label={action==='dump'?'Création du DUMP…':'Exporter le DUMP support'} disabled={occupe} secondaire onPress={demanderDump}/>
+      </View>
+    </>}
   </ScrollView>;
 }
 
