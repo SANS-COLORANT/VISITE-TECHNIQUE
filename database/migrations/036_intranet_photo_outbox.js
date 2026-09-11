@@ -59,7 +59,7 @@ export const migration036 = {
     WHEN EXISTS (
       SELECT 1 FROM provenances p
       WHERE p.entite_type='visite' AND p.entite_id=NEW.visite_id AND p.origine='api_symfony'
-        AND p.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%'
+        AND p.details_json LIKE '%"sourceType":"imported_latest_visit"%'
     )
     BEGIN
       UPDATE visites SET api_content_revision=api_content_revision+1 WHERE id=NEW.visite_id;
@@ -75,7 +75,7 @@ export const migration036 = {
       EXISTS (
         SELECT 1 FROM provenances p
         WHERE p.entite_type='visite' AND p.entite_id=NEW.visite_id AND p.origine='api_symfony'
-          AND p.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%'
+          AND p.details_json LIKE '%"sourceType":"imported_latest_visit"%'
       ) OR EXISTS (
         SELECT 1 FROM api_visit_photo_outbox po
         WHERE po.visite_id=NEW.visite_id AND po.photo_id=NEW.id AND po.status='synced'
@@ -90,7 +90,7 @@ export const migration036 = {
     WHEN EXISTS (
       SELECT 1 FROM provenances p
       WHERE p.entite_type='visite' AND p.entite_id=OLD.visite_id AND p.origine='api_symfony'
-        AND p.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%'
+        AND p.details_json LIKE '%"sourceType":"imported_latest_visit"%'
     ) OR EXISTS (
       SELECT 1 FROM api_visit_photo_outbox po
       WHERE po.visite_id=OLD.visite_id AND po.photo_id=OLD.id AND po.status='synced'
