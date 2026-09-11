@@ -14,6 +14,7 @@ const CONTRACT_CHECKS = [
   ['Intranet visit upload contract', '.github/scripts/check_intranet_visit_upload_contract.js'],
   ['Intranet any-visit binding contract', '.github/scripts/check_intranet_any_visit_contract.js'],
   ['Intranet LOCAL name sync contract', '.github/scripts/check_intranet_local_name_sync.js'],
+  ['Intranet LOCAL name sync executable tests', '.github/scripts/test_intranet_local_name_sync.js'],
   ['Intranet visit upload executable tests', '.github/scripts/test_intranet_visit_upload.js'],
   ['Intranet any-visit binding executable tests', '.github/scripts/test_intranet_any_visit_binding.js'],
   ['Intranet focused upload audit', '.github/scripts/test_intranet_visit_upload_audit.js'],
