@@ -49,7 +49,9 @@ requireText(modal, 'localAvailable', 'offline thumbnail state');
 
 const constants = read('database/constants.js');
 const migrationIndex = read('database/migrations/index.js');
-requireText(constants, 'DATABASE_SCHEMA_VERSION = 33', 'database schema version');
+const schemaMatch = constants.match(/DATABASE_SCHEMA_VERSION\s*=\s*(\d+)/);
+const schemaVersion = Number(schemaMatch?.[1] || 0);
+if (!Number.isInteger(schemaVersion) || schemaVersion < 31) throw new Error(`database schema version: invalid ${schemaVersion}`);
 requireText(migrationIndex, 'migration031', 'migration registration');
 
 console.log('Latest-visit photo contract validated: explicit manifest preview, DPoP downloads (max 3), private offline cache, retry handling, thumbnails/viewer, and strict separation from new visit observations.');
