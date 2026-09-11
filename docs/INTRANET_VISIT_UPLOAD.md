@@ -2,7 +2,7 @@
 
 ## Contrat serveur implémenté
 
-METRA envoie une visite finalisée vers :
+METRA envoie d'abord une visite finalisée vers :
 
 `POST /api/clients/{idclient}/visites`
 
@@ -11,8 +11,13 @@ Le corps JSON est figé au moment de la mise en file et contient uniquement
 `trameId`, `derniereVisiteIdSource`, `date`, `statut`, `criteres`, `remarques`,
 `materiels`, `notes`.
 
-Les photos et la conclusion ne sont pas envoyées par cette route : le contrat
-serveur fourni les exclut explicitement et ne définit pas encore leur flux.
+Le JSON de visite reste strictement sans photo. Après l'accusé serveur de cette
+première route, METRA récupère l'identifiant Symfony de la visite puis envoie
+chaque photographie séparément vers :
+
+`POST /api/clients/{idclient}/visites/{idvisite}/photos`
+
+La conclusion reste hors du contrat d'envoi actuel.
 
 ## Liaison au client importé
 
@@ -38,52 +43,108 @@ sur la tablette.
 - Une visite non exportée affiche **Offline** en noir.
 - Un appui sur **Offline** prépare et envoie directement la visite vers son
   client Intranet importé ; aucun choix de client n'est demandé.
-- Après un accusé serveur valide, l'état devient **Online** en vert.
+- Une visite nouvellement créée ne passe **Online** qu'après confirmation du
+  JSON de visite et de toutes ses photos locales.
 - Une visite historique importée depuis l'Intranet est affichée **Online** car
   elle existe déjà côté serveur, mais elle ne peut pas être recréée comme une
-  nouvelle visite.
-- Android génère un UUID v4 `envoiId` via le module natif DPoP au moment de la
-  mise en file.
-- Le JSON sérialisé et cet UUID sont enregistrés dans SQLite et ne sont plus
-  reconstruits pour une tentative réseau.
-- Une coupure réseau, un HTTP 5xx ou un 429 conserve cet envoi. La tentative
-  suivante renvoie exactement le même JSON et le même `envoiId`, mais
-  `symfonyApi.js` crée une nouvelle preuve DPoP à chaque requête HTTP.
+  nouvelle visite sans modification métier.
+- Android génère un UUID v4 `envoiId` pour la visite et un UUID v4
+  `envoiPhotoId` distinct pour chaque photo.
+- Le JSON sérialisé et son `envoiId` sont enregistrés dans SQLite et ne sont
+  plus reconstruits pour une tentative réseau.
+- Chaque photo est copiée dans une zone privée de file d'attente avant son
+  premier envoi. Les nouvelles tentatives réutilisent exactement le même
+  `envoiPhotoId`, les mêmes métadonnées et les mêmes octets.
+- Une coupure réseau, un HTTP 5xx ou un 429 conserve les files. La tentative
+  suivante utilise une nouvelle preuve DPoP mais les mêmes identifiants
+  idempotents.
 - Une ligne restée `sending` après arrêt du processus passe en `retry` au
-  redémarrage. L'accusé 200 rejoué est traité comme un succès sans doublon.
-- La file est traitée séquentiellement, jusqu'à trois visites par réveil, pour
-  rester nettement sous la limite serveur de dix envois par minute.
+  redémarrage.
+- Les photos sont cadencées sous la limite serveur de 60 requêtes/minute et le
+  traitement respecte `Retry-After` en cas de 429.
 
-La file est persistante ; son traitement automatique est opportuniste lorsque
-METRA est au premier plan. Aucun service Android permanent n'est promis lorsque
-le système arrête réellement le processus.
+Les files sont persistantes ; leur traitement automatique est opportuniste
+lorsque METRA est au premier plan. Aucun service Android permanent n'est promis
+lorsque le système arrête réellement le processus.
+
+## Envoi des photographies
+
+La séquence est impérative :
+
+1. envoi du JSON de visite ;
+2. lecture de l'identifiant `id` renvoyé par Symfony pour cette visite ;
+3. mise en file des photos locales ;
+4. une requête multipart séparée par photographie.
+
+Chaque requête photo utilise `multipart/form-data` généré par React Native. METRA
+ne définit jamais lui-même l'en-tête `Content-Type`, afin de laisser React Native
+produire le bon `boundary`.
+
+Champs envoyés :
+
+- `fichier` : JPEG, PNG, GIF ou WebP, 10 Mio maximum ;
+- `envoiPhotoId` : UUID v4 durable de la photo ;
+- `description` : libellé METRA, 255 caractères maximum, chaîne vide autorisée ;
+- `ordre` : entier positif unique dans la visite, de 1 à 10000 ;
+- `grandFormat` : `true` ou `false` ; METRA envoie actuellement `false` lorsque
+  la photo locale ne possède pas d'information de mise en page dédiée ;
+- `categorieId`, `sousCategorieId`, `critereId` : envoyés ensemble uniquement
+  lorsque le rattachement au critère peut être résolu sans ambiguïté. Sinon la
+  photo est transmise comme photo générale de la visite.
+
+Une photo rattachée localement à une réserve `remarque||...` est d'abord ramenée
+à son `controle_key`, puis le même référentiel de mapping de critère que le
+payload de visite est utilisé. Les photographies de référence téléchargées
+depuis les dernières visites Intranet sont stockées dans les tables
+`api_latest_visit_photos` / `api_photo_files` et ne sont pas confondues avec les
+photos terrain de la table `photos` : elles ne sont donc jamais réenvoyées.
+
+L'outbox photo est indépendante de l'outbox visite. Une photo rejetée n'impose
+pas de renvoyer le JSON complet ni les autres images déjà confirmées. Lorsqu'une
+ancienne visite METRA avait déjà été synchronisée avant l'ajout de ce flux, le
+runtime détecte ses photos locales non encore envoyées et les rattache à
+l'identifiant de visite Symfony déjà connu.
 
 ## Conflits et erreurs
+
+### Visite
 
 - `401` : la couche DPoP peut renouveler une seule fois le jeton. Si l'échec
   persiste, la ligne passe en `auth_error`.
 - `409 synchronization_conflict` : état `conflict`, jamais relancé
   automatiquement. Une nouvelle préparation du même client Intranet est
   nécessaire.
-- `409 idempotency_conflict` : également terminal.
+- `409 idempotency_conflict` : terminal.
 - `422` : les violations serveur sont conservées dans SQLite et affichables.
 - `400`, `404`, `413`, `415` : rejet terminal ; aucune boucle automatique.
-- Accusé `2xx` incohérent (envoiId, `rejoue`, index, visite ou local) : rejet
-  terminal local. METRA ne génère surtout pas un nouvel `envoiId`, car la visite
-  peut déjà avoir été créée côté serveur.
+- Accusé `2xx` incohérent : rejet terminal local. METRA ne génère pas un nouvel
+  `envoiId`, car la visite peut déjà exister côté serveur.
 - `429` : `Retry-After` pilote la prochaine tentative.
 - erreur réseau / `500`, `502`, `503`, `504` : nouvelle tentative différée.
 
-Le bouton reste **Offline** tant que l'Intranet n'a pas accusé l'envoi. Les
-messages d'erreur serveur sont affichés sous cet état. Un succès confirmé passe
-le bouton en **Online**.
+### Photos
+
+- `401` : réauthentification DPoP selon le flux commun ; échec persistant en
+  `auth_error` ;
+- `404` : client/visite inaccessible ou incohérent, rejet terminal ;
+- `409 idempotency_conflict` : terminal, aucun nouvel UUID automatique ;
+- `413` : photo trop volumineuse, terminal ;
+- `415` : format multipart ou média non accepté, terminal ;
+- `422` : fichier, ordre, UUID ou rattachement au critère invalide, terminal ;
+- `429` : reprise selon `Retry-After` ;
+- erreur réseau / `500`, `502`, `503`, `504` : reprise différée avec le même
+  `envoiPhotoId` et la même copie figée.
+
+Le bouton reste **Offline** tant qu'une donnée métier ou une photo locale de la
+version courante reste à envoyer/corriger. Il passe **Online** uniquement lorsque
+les accusés nécessaires sont reçus.
 
 ## Construction des critères
 
 La référence de trame Intranet est figée sur la visite avant l'envoi. L'envoi
 parcourt toutes les catégories, sous-catégories et critères de cette référence
 et produit exactement une ligne par critère. Un mapping ambigu ou absent bloque
-l'envoi avant HTTP.
+l'envoi du JSON avant HTTP.
 
 - Contrôle applicable : avis courant METRA parmi `S.O`, `S`, `N.S`, `N.R`,
   `N.V` + commentaire courant ; commentaire vide envoyé sous `/`.
@@ -101,7 +162,8 @@ l'envoi avant HTTP.
   explicite local METRA → local Intranet ; aucun rapprochement par nom n'est inventé.
 
 Une visite historique importée depuis Symfony est explicitement interdite à
-l'envoi afin qu'elle ne soit jamais recréée comme nouvelle visite serveur.
+l'envoi inchangé afin qu'elle ne soit jamais recréée comme nouvelle visite
+serveur.
 
 ## Remarques / réserves
 
