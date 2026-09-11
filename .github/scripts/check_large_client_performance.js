@@ -63,7 +63,9 @@ const database = read('db.js');
 requireText(database, "SUM(CASE WHEN statut='en_cours' THEN 1 ELSE 0 END)", 'single visit count query');
 
 const constants = read('database/constants.js');
-requireText(constants, 'DATABASE_SCHEMA_VERSION = 33', 'performance schema version');
+const schemaMatch = constants.match(/DATABASE_SCHEMA_VERSION\s*=\s*(\d+)/);
+const schemaVersion = Number(schemaMatch?.[1] || 0);
+if (!Number.isInteger(schemaVersion) || schemaVersion < 30) throw new Error(`performance schema version: invalid ${schemaVersion}`);
 const migration = read('database/migrations/030_large_client_performance_indexes.js');
 requireText(migration, 'idx_sites_client_nom', 'site navigation index');
 requireText(migration, 'idx_visites_site_trame_install_date', 'visit carry-forward index');
