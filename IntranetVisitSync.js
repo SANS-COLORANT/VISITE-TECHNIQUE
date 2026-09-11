@@ -116,7 +116,10 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
   const { row, loading, refresh } = useVisitUploadState(visiteId);
   const [busy, setBusy] = useState(false);
   const historical = Number(visite?.api_is_historical) === 1;
-  const online = historical || row?.status === 'synced';
+  const contentRevision = Number(visite?.api_content_revision || 0);
+  const syncedRevision = Number(visite?.api_synced_revision || 0);
+  const dirty = contentRevision !== syncedRevision;
+  const online = (historical || row?.status === 'synced') && !dirty;
   const hardIdempotencyConflict = row?.error_code === 'idempotency_conflict';
   const invalidAck = row?.error_code === 'invalid_ack';
 
@@ -216,12 +219,14 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
   };
 
   const detail = online
-    ? (historical ? 'Déjà présente sur l’Intranet (visite importée).' : `Export Intranet confirmé${row?.remote_visit_id ? ` · visite n°${row.remote_visit_id}` : ''}.`)
-    : row?.status === 'sending' ? 'Envoi vers le même client Intranet en cours…'
-      : row?.status === 'pending' ? 'Envoi en attente.'
-        : row?.status === 'retry' ? 'Non exportée · nouvelle tentative dès que la connexion le permet.'
-          : row?.status === 'auth_error' ? 'Non exportée · connexion Intranet à réactiver.'
-            : serverFeedback(row) || 'Non exportée sur l’Intranet. Appuie sur Offline pour l’envoyer au client importé.';
+    ? (historical && !row?.remote_visit_id ? 'Déjà présente sur l’Intranet (visite importée).' : `Export Intranet confirmé${row?.remote_visit_id ? ` · visite n°${row.remote_visit_id}` : ''}.`)
+    : dirty && (historical || row?.status === 'synced')
+      ? 'Modifications locales non envoyées. Appuie sur Offline pour créer une nouvelle visite Intranet avec ces changements.'
+      : row?.status === 'sending' ? 'Envoi vers le même client Intranet en cours…'
+        : row?.status === 'pending' ? 'Envoi en attente.'
+          : row?.status === 'retry' ? 'Non exportée · nouvelle tentative dès que la connexion le permet.'
+            : row?.status === 'auth_error' ? 'Non exportée · connexion Intranet à réactiver.'
+              : serverFeedback(row) || 'Non exportée sur l’Intranet. Appuie sur Offline pour l’envoyer au client importé.';
   const detailIsError = !online && row && ['validation_error', 'rejected', 'conflict', 'auth_error'].includes(row.status);
 
   return <View style={compact ? { alignItems: 'flex-end' } : { borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, backgroundColor: '#F8FAFC', padding: 10, marginVertical: 7 }}>
