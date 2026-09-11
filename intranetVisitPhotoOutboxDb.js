@@ -10,11 +10,16 @@ const LOCAL_AUTH_ERRORS = new Set(['reactivation_required', 'dpop_key_missing', 
 const PHOTO_TYPES = Object.freeze({
   jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp',
 });
+const PHOTO_UPLOAD_CONCURRENCY = 3;
+// Le serveur autorise 60 photos/minute/tablette. On garde une marge pour les
+// actions déclenchées ailleurs dans l'application sans ralentir les premiers lots.
+const PHOTO_REQUEST_BUDGET_PER_MINUTE = 54;
 
 const listeners = new Set();
 let revision = 0;
 let processorPromise = null;
-let lastPhotoRequestAt = 0;
+let photoRequestTimes = [];
+let photoRateGate = Promise.resolve();
 
 function clean(value) { return value == null ? '' : String(value).trim(); }
 function notify() { revision += 1; for (const listener of listeners) { try { listener(revision); } catch {} } }
@@ -33,10 +38,22 @@ function retryAfterMs(value) {
   return Number.isFinite(at) ? Math.max(1000, at - Date.now()) : 60_000;
 }
 function sleep(ms) { return new Promise((resolve) => setTimeout(resolve, ms)); }
-async function respectServerPhotoRate() {
-  const wait = Math.max(0, 1050 - (Date.now() - lastPhotoRequestAt));
-  if (wait) await sleep(wait);
-  lastPhotoRequestAt = Date.now();
+async function reservePhotoRequestSlot() {
+  // Le ticket sérialise uniquement la réservation du quota, pas la requête HTTP.
+  // Trois requêtes peuvent donc partir ensemble tout en respectant le budget glissant.
+  const ticket = photoRateGate.then(async () => {
+    let now = Date.now();
+    photoRequestTimes = photoRequestTimes.filter((at) => now - at < 60_000);
+    if (photoRequestTimes.length >= PHOTO_REQUEST_BUDGET_PER_MINUTE) {
+      const wait = Math.max(0, 60_000 - (now - photoRequestTimes[0]) + 150);
+      if (wait) await sleep(wait);
+      now = Date.now();
+      photoRequestTimes = photoRequestTimes.filter((at) => now - at < 60_000);
+    }
+    photoRequestTimes.push(now);
+  });
+  photoRateGate = ticket.catch(() => {});
+  return ticket;
 }
 function photoDescription(label) {
   const value = clean(label);
@@ -160,6 +177,7 @@ async function frozenPhotoMetadata(db, photo, localToRemote, order) {
   const criterion = localKey ? localToRemote.get(localKey) || null : null;
   return {
     sourceUri,
+    sourceEntityKey: clean(photo.entite_key) || null,
     contentType,
     description: photoDescription(photo.label),
     order,
@@ -171,12 +189,14 @@ async function frozenPhotoMetadata(db, photo, localToRemote, order) {
 export async function getVisitPhotoSyncState(visiteId) {
   const db = await getDb();
   const visitRow = await db.getFirstAsync(`SELECT o.remote_visit_id,o.remote_client_id,o.status AS visit_status,v.api_content_revision,v.api_synced_revision FROM visites v LEFT JOIN api_visit_outbox o ON o.visite_id=v.id WHERE v.id=?`, [String(visiteId)]);
-  if (!visitRow) return { ready: false, complete: false, localCount: 0, unscheduledCount: 0, pendingCount: 0, errorCount: 0, syncedCount: 0 };
+  if (!visitRow) return { ready: false, complete: false, localCount: 0, unscheduledCount: 0, pendingCount: 0, errorCount: 0, syncedCount: 0, contentRevision: 0, syncedRevision: 0 };
+  const contentRevision = Number(visitRow.api_content_revision || 0);
+  const syncedRevision = Number(visitRow.api_synced_revision || 0);
   const remoteVisitId = clean(visitRow.remote_visit_id);
   const local = await db.getFirstAsync(`SELECT COUNT(*) AS n FROM photos WHERE visite_id=?`, [String(visiteId)]);
   const localCount = Number(local?.n || 0);
   if (!remoteVisitId || visitRow.visit_status !== 'synced') {
-    return { ready: false, complete: localCount === 0, localCount, unscheduledCount: localCount, pendingCount: 0, errorCount: 0, syncedCount: 0, remoteVisitId: remoteVisitId || null };
+    return { ready: false, complete: localCount === 0, localCount, unscheduledCount: localCount, pendingCount: 0, errorCount: 0, syncedCount: 0, remoteVisitId: remoteVisitId || null, contentRevision, syncedRevision };
   }
   const [counts, unscheduled] = await Promise.all([
     db.getFirstAsync(`SELECT
@@ -193,13 +213,15 @@ export async function getVisitPhotoSyncState(visiteId) {
   const errorCount = Number(counts?.error_count || 0);
   const syncedCount = Number(counts?.synced_count || 0);
   const unscheduledCount = Number(unscheduled?.n || 0);
-  const cleanBusiness = Number(visitRow.api_content_revision || 0) === Number(visitRow.api_synced_revision || 0);
+  const cleanBusiness = contentRevision === syncedRevision;
   return {
     ready: cleanBusiness,
     complete: cleanBusiness && unscheduledCount === 0 && pendingCount === 0 && errorCount === 0,
     localCount, unscheduledCount, pendingCount, errorCount, syncedCount,
     remoteVisitId,
     remoteClientId: clean(visitRow.remote_client_id) || null,
+    contentRevision,
+    syncedRevision,
   };
 }
 
@@ -249,11 +271,11 @@ export async function queueVisitPhotosForSyncedVisit(visiteId, explicit = {}) {
       const criterion = metadata.criterion;
       try {
         await db.runAsync(`INSERT INTO api_visit_photo_outbox(
-          id,photo_id,visite_id,remote_client_id,remote_visit_id,envoi_photo_id,source_uri,snapshot_uri,
+          id,photo_id,visite_id,remote_client_id,remote_visit_id,envoi_photo_id,source_uri,source_entity_key,snapshot_uri,
           content_type,description,photo_order,is_large_format,categorie_id,sous_categorie_id,critere_id,status
-        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')`, [
+        ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'pending')`, [
           createId(), String(photo.id), String(visiteId), remoteClientId, remoteVisitId, envoiPhotoId,
-          metadata.sourceUri, snapshotUri, metadata.contentType, metadata.description, metadata.order, 0,
+          metadata.sourceUri, metadata.sourceEntityKey, snapshotUri, metadata.contentType, metadata.description, metadata.order, 0,
           criterion?.categorieId || null, criterion?.sousCategorieId || null, criterion?.critereId || null,
         ]);
       } catch (error) {
@@ -291,7 +313,37 @@ export async function recoverInterruptedPhotoUploads() {
   if (Number(result?.changes || 0) > 0) notify();
 }
 
+async function cancelStalePhotoRow(db, row) {
+  await removeSnapshot(row.snapshot_uri);
+  await db.runAsync(`DELETE FROM api_visit_photo_outbox WHERE id=? AND status<>'synced'`, [row.id]);
+  notify();
+  return { status: 'cancelled', row };
+}
+
+async function currentPhotoRowMatchesSnapshot(db, row) {
+  const state = await db.getFirstAsync(`SELECT v.api_content_revision,v.api_synced_revision,o.status AS visit_status,o.remote_visit_id AS current_remote_visit_id,p.uri,p.label,p.entite_key
+    FROM visites v
+    LEFT JOIN api_visit_outbox o ON o.visite_id=v.id
+    LEFT JOIN photos p ON p.id=? AND p.visite_id=v.id
+    WHERE v.id=?`, [String(row.photo_id), String(row.visite_id)]);
+  if (!state) return false;
+  if (Number(state.api_content_revision || 0) !== Number(state.api_synced_revision || 0)) return false;
+  if (state.visit_status !== 'synced' || clean(state.current_remote_visit_id) !== clean(row.remote_visit_id)) return false;
+  if (!state.uri || clean(state.uri) !== clean(row.source_uri)) return false;
+  if (photoDescription(state.label) !== String(row.description || '')) return false;
+  if (clean(state.entite_key) !== clean(row.source_entity_key)) return false;
+  return true;
+}
+
 async function sendPhotoRow(db, row) {
+  // Une modification survenue après la mise en file ne doit jamais envoyer un
+  // ancien fichier ou d'anciennes métadonnées vers la visite serveur précédente.
+  if (!(await currentPhotoRowMatchesSnapshot(db, row))) {
+    const cancelled = await cancelStalePhotoRow(db, row);
+    await queueVisitPhotosForSyncedVisit(row.visite_id, { remoteClientId: row.remote_client_id, remoteVisitId: row.remote_visit_id }).catch(() => {});
+    return cancelled;
+  }
+
   const info = row.snapshot_uri ? await FileSystem.getInfoAsync(row.snapshot_uri, { size: true }).catch(() => null) : null;
   if (!info?.exists || Number(info.size || 0) <= 0) {
     const error = Object.assign(new Error('Copie figée de la photo introuvable. METRA refuse de recréer la même idempotency key avec d’autres octets.'), { code: 'photo_snapshot_missing' });
@@ -320,7 +372,7 @@ async function sendPhotoRow(db, row) {
     const extension = extensionFromUri(row.snapshot_uri) || (row.content_type === 'image/png' ? 'png' : row.content_type === 'image/gif' ? 'gif' : row.content_type === 'image/webp' ? 'webp' : 'jpg');
     form.append('fichier', { uri: row.snapshot_uri, name: `photo.${extension}`, type: row.content_type });
 
-    await respectServerPhotoRate();
+    await reservePhotoRequestSlot();
     const response = await protectedRequest('POST', `/api/clients/${encodeURIComponent(row.remote_client_id)}/visites/${encodeURIComponent(row.remote_visit_id)}/photos`, { body: form });
     if (String(response?.envoiPhotoId || '') !== String(row.envoi_photo_id)) throw Object.assign(new Error('Accusé Intranet photo incohérent : envoiPhotoId différent.'), { code: 'invalid_photo_ack' });
     if (!response?.photo?.id) throw Object.assign(new Error('Accusé Intranet photo incomplet : identifiant photo absent.'), { code: 'invalid_photo_ack' });
@@ -347,7 +399,16 @@ async function sendPhotoRow(db, row) {
   }
 }
 
-export async function processVisitPhotoOutbox({ limit = 6, visitIds = null, discover = true } = {}) {
+function batchHasBlockingFailure(results) {
+  return (results || []).some((result) => {
+    if (result?.status !== 'error') return false;
+    const http = Number(result?.error?.status || 0);
+    const auth = LOCAL_AUTH_ERRORS.has(String(result?.error?.code || ''));
+    return auth || !http || http === 401 || http === 429 || RETRYABLE_HTTP.has(http);
+  });
+}
+
+export async function processVisitPhotoOutbox({ limit = 18, visitIds = null, discover = true } = {}) {
   if (processorPromise) return processorPromise;
   processorPromise = (async () => {
     const db = await getDb();
@@ -355,15 +416,17 @@ export async function processVisitPhotoOutbox({ limit = 6, visitIds = null, disc
     if (discover) await queueMissingPhotosForSyncedVisits({ limitVisits: 30 });
     const ids = [...new Set((visitIds || []).map((id) => clean(id)).filter(Boolean))];
     const visitFilter = ids.length ? ` AND visite_id IN (${ids.map(() => '?').join(',')})` : '';
-    const params = ids.length ? [...ids, Math.max(1, Math.min(20, Number(limit || 6)))] : [Math.max(1, Math.min(20, Number(limit || 6)))];
+    const boundedLimit = Math.max(1, Math.min(30, Number(limit || 18)));
+    const params = ids.length ? [...ids, boundedLimit] : [boundedLimit];
     const rows = await db.getAllAsync(`SELECT * FROM api_visit_photo_outbox WHERE status IN ('pending','retry') AND (next_attempt_at IS NULL OR datetime(next_attempt_at)<=datetime('now'))${visitFilter} ORDER BY queued_at,photo_order LIMIT ?`, params);
     const results = [];
-    for (const row of rows || []) {
-      const result = await sendPhotoRow(db, row);
-      results.push(result);
-      const http = Number(result?.error?.status || 0);
-      const auth = LOCAL_AUTH_ERRORS.has(String(result?.error?.code || ''));
-      if (result?.status === 'error' && (auth || !http || http === 401 || http === 429 || RETRYABLE_HTTP.has(http))) break;
+    // Le contrat Symfony autorise une faible concurrence. Trois photos partent
+    // ensemble ; chaque photo garde son UUID, son snapshot et sa reprise propre.
+    for (let offset = 0; offset < (rows || []).length; offset += PHOTO_UPLOAD_CONCURRENCY) {
+      const batch = rows.slice(offset, offset + PHOTO_UPLOAD_CONCURRENCY);
+      const batchResults = await Promise.all(batch.map((row) => sendPhotoRow(db, row)));
+      results.push(...batchResults);
+      if (batchHasBlockingFailure(batchResults)) break;
     }
     return results;
   })().finally(() => { processorPromise = null; });
@@ -375,6 +438,6 @@ export async function retryVisitPhotoUploadsNow(visiteId) {
   await db.runAsync(`UPDATE api_visit_photo_outbox SET status='pending',next_attempt_at=NULL,updated_at=datetime('now') WHERE visite_id=? AND status IN ('retry','auth_error')`, [String(visiteId)]);
   notify();
   await queueVisitPhotosForSyncedVisit(visiteId);
-  await processVisitPhotoOutbox({ limit: 6, visitIds: [visiteId], discover: false });
+  await processVisitPhotoOutbox({ limit: 18, visitIds: [visiteId], discover: false });
   return getVisitPhotoSyncState(visiteId);
 }
