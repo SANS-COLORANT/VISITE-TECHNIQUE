@@ -85,9 +85,30 @@ async function buildCandidates(db, visite) {
   return candidates;
 }
 
+const ICPE_PANEL_CATEGORY_CONTEXTS = Object.freeze({
+  'p-conf-local': ['local'],
+  'p-conf-energie': ['energie'],
+  'p-conf-chauffage': ['chauffage'],
+  'p-conf-ecs': ['ecs', 'eau chaude sanitaire', 'sanitaire'],
+  'p-conf-adouc': ['adoucisseur', 'adoucissement'],
+});
+
+function categoryPanelBonus(candidate, categoryName) {
+  const tokens = ICPE_PANEL_CATEGORY_CONTEXTS[candidate?.panelId];
+  if (!tokens?.length) return 0;
+  const category = normalize(categoryName);
+  if (!category) return 0;
+  return tokens.some((token) => category.includes(normalize(token))) ? 40 : 0;
+}
+
 function preferredType(criterion) { return criterion?.avisApplicable === true ? 'controle' : 'champ'; }
 function candidateScore(candidate, criterion, categoryName, subCategoryName) {
   let score = candidate.type === preferredType(criterion) ? 8 : 0;
+  // Plusieurs conformités ICPE portent volontairement le même libellé local
+  // (ex. « Type de disconnection » en Chauffage et en ECS). La catégorie
+  // Intranet est alors le discriminant métier fort. En son absence on conserve
+  // le fail-safe historique et METRA refuse de deviner.
+  score += categoryPanelBonus(candidate, categoryName);
   const contexts = [normalize(subCategoryName), normalize(categoryName)].filter(Boolean);
   for (const token of contexts) {
     if (candidate.sectionKey === token) score += 20;
@@ -109,6 +130,25 @@ function findCandidate(candidates, criterion, categoryName, subCategoryName) {
   const same = ranked.filter((r) => r.score === ranked[0].score);
   const identity = new Set(same.map((r) => `${r.candidate.sectionCode}||${r.candidate.cle}||${r.candidate.type}`));
   return identity.size === 1 ? same[0].candidate : null;
+}
+
+export function inspectIntranetCriterionCandidate(localTrameId, criterion, categoryName, subCategoryName) {
+  const candidates = buildStaticCandidates(localTrameId);
+  const key = normalize(criterion?.nom);
+  const exact = candidates.filter((candidate) => candidate.key === key);
+  const ranked = exact.map((candidate) => ({
+    panelId: candidate.panelId,
+    section: candidate.section,
+    sectionCode: candidate.sectionCode,
+    cle: candidate.cle,
+    type: candidate.type,
+    score: candidateScore(candidate, criterion, categoryName, subCategoryName),
+  })).sort((a, b) => b.score - a.score);
+  const resolved = findCandidate(candidates, criterion, categoryName, subCategoryName);
+  return {
+    resolved: resolved ? { panelId: resolved.panelId, section: resolved.section, sectionCode: resolved.sectionCode, cle: resolved.cle, type: resolved.type } : null,
+    candidates: ranked,
+  };
 }
 
 const NETWORK_COLUMNS = Object.freeze({
@@ -240,7 +280,10 @@ async function buildCriteria(db, visite, details, issues) {
       const networkGroup = visite.trame_id === 'icpe_v1' && isNetworkGroup(subCategory);
       const network = networkGroup ? networkAssignments.get(remoteNetworkKey(category?.id, subCategory?.id)) : null;
       for (const criterion of Array.isArray(subCategory?.criteres) ? subCategory.criteres : []) {
-        const path = `Critère « ${clean(criterion?.nom) || criterion?.id || ordinal + 1} »`;
+        const criterionName = clean(criterion?.nom) || criterion?.id || ordinal + 1;
+        const categoryName = clean(category?.nom) || `catégorie ${category?.id || '?'}`;
+        const subCategoryName = clean(subCategory?.nom) || `sous-catégorie ${subCategory?.id || '?'}`;
+        const path = `Critère « ${criterionName} » [${categoryName} > ${subCategoryName}]`;
         const categorieId = apiId(category?.id, `${path} / catégorie`, issues);
         const sousCategorieId = apiId(subCategory?.id, `${path} / sous-catégorie`, issues);
         const critereId = apiId(criterion?.id, `${path} / identifiant`, issues);
