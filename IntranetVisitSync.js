@@ -5,7 +5,7 @@ import {
   discardTerminalVisitUpload, finalizeVisitForUpload, getVisitUploadState, listVisitOutbox,
   processVisitOutbox, queueVisitUpload, retryVisitUploadNow, subscribeVisitOutbox,
 } from './intranetVisitOutboxDb.js';
-import { bindVisitToImportedClientTarget } from './intranetVisitBindingDb.js';
+import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions } from './intranetVisitBindingDb.js';
 import { syncClientPreparation } from './symfonyApi.js';
 
 const OFFLINE = '#111111';
@@ -95,6 +95,22 @@ async function bindSameImportedClient(visiteId) {
   }
 }
 
+async function assertQueuedClientStillMatchesImportedClient(visiteId, row) {
+  if (!row?.remote_client_id) return;
+  const options = await getVisitIntranetBindingOptions(visiteId);
+  const expected = options?.selectedClientId;
+  if (!expected) {
+    const error = new Error('Le client Intranet d’origine de cette visite n’est plus identifiable. Cet ancien envoi reste bloqué pour éviter de l’expédier vers un autre client.');
+    error.code = 'queued_client_unresolved';
+    throw error;
+  }
+  if (String(expected) !== String(row.remote_client_id)) {
+    const error = new Error('Cet envoi en attente a été préparé avec un autre client Intranet par une ancienne version de METRA. Il ne sera pas rejoué automatiquement. La visite doit rester liée à son client importé d’origine.');
+    error.code = 'queued_client_mismatch';
+    throw error;
+  }
+}
+
 export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compact = false }) {
   const visiteId = visite?.id;
   const { row, loading, refresh } = useVisitUploadState(visiteId);
@@ -153,6 +169,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
       }
 
       if (row && ['pending', 'retry', 'auth_error'].includes(row.status)) {
+        await assertQueuedClientStillMatchesImportedClient(visiteId, row);
         await retryVisitUploadNow(visiteId);
         await refresh();
         await onVisitChanged?.();
