@@ -1,5 +1,5 @@
-/** Écran Visite — navigation fluide, swipe interactif et panneaux virtualisés. */
-import React, { useState, useCallback, useEffect, useRef } from 'react';
+/** Écran Visite — pager natif, swipe interactif et panneaux gardés chauds. */
+import React, { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions, Animated, Easing } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
@@ -21,11 +21,38 @@ const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function chargerExcelExportModule(){return require('./excelExport.js');}
 function chargerPreAllumageReportModule(){return require('./preAllumageReportExporter.js');}
 const SPECIAL_PANEL_DEFAULTS = ['p-regulation', 'p-releves', 'p-equip', 'p-remarques', 'p-photos'];
+const HEAVY_LAZY_PANELS = new Set(['p-equip', 'p-releves']);
+const PAGER_PRUNE_DELAY_MS = 700;
+
+const VisitPanelHost = memo(function VisitPanelHost({
+  visiteId,
+  panelId,
+  sections,
+  special,
+  onSaved,
+  tabOrder,
+  panelLabels,
+  panels,
+  intranetLinked,
+}) {
+  if (special) {
+    if (panelId === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
+    if (panelId === 'p-releves') return <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} />;
+    if (panelId === 'p-equip') return <GuidedEquipmentPanel visiteId={visiteId} />;
+    if (panelId === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} intranetLinked={intranetLinked} />;
+    if (panelId === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
+  }
+  return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} />;
+});
 
 function VisiteScreen({ route, onBack }) {
   const { visiteId } = route.params;
   const { width } = useWindowDimensions();
   const modeTablette = width >= 900;
+  const pagerWidth = Math.max(1, modeTablette ? width - 205 : width);
+  const pagerWidthRef = useRef(pagerWidth);
+  pagerWidthRef.current = pagerWidth;
+
   const [visite, setVisite] = useState(null);
   const [vmcCaissons, setVmcCaissons] = useState([]);
   const [activeTab, setActiveTab] = useState('p-infos');
@@ -33,7 +60,14 @@ function VisiteScreen({ route, onBack }) {
   const tabOrderRef = useRef([]);
   const progressionTimerRef = useRef(null);
   const transitionRef = useRef(false);
-  const translateX = useRef(new Animated.Value(0)).current;
+  const pagerX = useRef(new Animated.Value(0)).current;
+  const gestureStartIndexRef = useRef(0);
+  const finishSwipeRef = useRef(null);
+  const ensureMountedRef = useRef(null);
+  const pagerPruneTimerRef = useRef(null);
+  const stickyHeavyPanelsRef = useRef(new Set());
+  const mountedPanelIdsRef = useRef(new Set(['p-infos']));
+  const [mountedPanelIds, setMountedPanelIds] = useState(() => new Set(['p-infos']));
   const [noteVisible, setNoteVisible] = useState(false);
   const [noteTxt, setNoteTxt] = useState('');
   const [anomalieVisible, setAnomalieVisible] = useState(false);
@@ -43,52 +77,122 @@ function VisiteScreen({ route, onBack }) {
   const tabOrderBase = trame.ui?.tabOrder || [];
   const panelLabelsBase = trame.ui?.labels || {};
   const panels = trame.ui?.panels || {};
-  const specialPanels = new Set(trame.ui?.specialPanels || SPECIAL_PANEL_DEFAULTS);
-  const vmcActifs = new Set(
+  const specialPanels = useMemo(() => new Set(trame.ui?.specialPanels || SPECIAL_PANEL_DEFAULTS), [trame.id, trame.ui?.specialPanels]);
+  const vmcActifs = useMemo(() => new Set(
     trame.id === 'vmc'
       ? (vmcCaissons.length ? vmcCaissons.filter((c) => c.actif).map((c) => c.panelId) : ['p-vmc-c1'])
       : []
-  );
-  const tabOrder = trame.id === 'vmc'
+  ), [trame.id, vmcCaissons]);
+  const tabOrder = useMemo(() => trame.id === 'vmc'
     ? tabOrderBase.filter((pid) => !/^p-vmc-c[1-6]$/.test(pid) || vmcActifs.has(pid))
-    : tabOrderBase;
-  const panelLabels = trame.id === 'vmc'
+    : tabOrderBase, [trame.id, tabOrderBase, vmcActifs]);
+  const panelLabels = useMemo(() => trame.id === 'vmc'
     ? {
         ...panelLabelsBase,
         ...Object.fromEntries(vmcCaissons.filter((c) => c.actif).map((c) => [c.panelId, `N°${c.index} · ${c.nom}`])),
       }
-    : panelLabelsBase;
-  const tabsReels = tabOrder.filter((t) => t !== 'SEP');
+    : panelLabelsBase, [trame.id, panelLabelsBase, vmcCaissons]);
+  const tabsReels = useMemo(() => tabOrder.filter((t) => t !== 'SEP'), [tabOrder]);
+  const tabsSignature = tabsReels.join('|');
+
+  const addMountedPanels = useCallback((ids, { stickyHeavy = false } = {}) => {
+    const next = new Set(mountedPanelIdsRef.current);
+    let changed = false;
+    for (const raw of ids || []) {
+      const id = String(raw || '');
+      if (!id) continue;
+      if (!next.has(id)) { next.add(id); changed = true; }
+      if (stickyHeavy && HEAVY_LAZY_PANELS.has(id)) stickyHeavyPanelsRef.current.add(id);
+    }
+    if (changed) {
+      mountedPanelIdsRef.current = next;
+      setMountedPanelIds(next);
+    }
+    return changed;
+  }, []);
+  ensureMountedRef.current = addMountedPanels;
+
+  const desiredPagerPanels = useCallback((tabId) => {
+    const tabs = tabOrderRef.current;
+    const index = tabs.indexOf(tabId);
+    const desired = new Set();
+    if (index >= 0) {
+      const candidates = [tabs[index - 1], tabs[index], tabs[index + 1]].filter(Boolean);
+      for (const panelId of candidates) {
+        if (panelId === tabId || !HEAVY_LAZY_PANELS.has(panelId) || stickyHeavyPanelsRef.current.has(panelId)) desired.add(panelId);
+      }
+    }
+    for (const panelId of stickyHeavyPanelsRef.current) {
+      if (tabs.includes(panelId)) desired.add(panelId);
+    }
+    return desired;
+  }, []);
+
+  const warmPagerWindow = useCallback((tabId) => {
+    if (pagerPruneTimerRef.current) clearTimeout(pagerPruneTimerRef.current);
+    const desired = desiredPagerPanels(tabId);
+    addMountedPanels([...desired]);
+    pagerPruneTimerRef.current = setTimeout(() => {
+      const keep = desiredPagerPanels(activeTabRef.current);
+      mountedPanelIdsRef.current = keep;
+      setMountedPanelIds(keep);
+      pagerPruneTimerRef.current = null;
+    }, PAGER_PRUNE_DELAY_MS);
+  }, [addMountedPanels, desiredPagerPanels]);
 
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
-  useEffect(() => { tabOrderRef.current = tabsReels; }, [trame.id, tabOrder.join('|')]);
+  useEffect(() => { tabOrderRef.current = tabsReels; }, [tabsSignature]);
   useEffect(() => () => {
     if (progressionTimerRef.current) clearTimeout(progressionTimerRef.current);
+    if (pagerPruneTimerRef.current) clearTimeout(pagerPruneTimerRef.current);
+    pagerX.stopAnimation();
     invaliderCacheTrameGenerique(visiteId);
     invaliderCacheRegulation(visiteId);
-  }, [visiteId]);
+  }, [pagerX, visiteId]);
 
   useEffect(() => {
     if (!visite || tabsReels.length === 0) return;
-    if (!tabsReels.includes(activeTabRef.current)) {
-      activeTabRef.current = tabsReels[0];
-      setActiveTab(tabsReels[0]);
+    tabOrderRef.current = tabsReels;
+    let current = activeTabRef.current;
+    if (!tabsReels.includes(current)) {
+      current = tabsReels[0];
+      activeTabRef.current = current;
+      setActiveTab(current);
     }
-  }, [visite?.trame_id, tabsReels.join('|')]);
+    const index = tabsReels.indexOf(current);
+    transitionRef.current = false;
+    pagerX.stopAnimation();
+    pagerX.setValue(-Math.max(0, index) * pagerWidth);
+    addMountedPanels([current], { stickyHeavy: true });
+    warmPagerWindow(current);
+  }, [visite?.trame_id, tabsSignature, pagerWidth, addMountedPanels, warmPagerWindow, pagerX]);
 
-  const basculerApresSortie = useCallback((prochain, direction) => {
+  const completeTabChange = useCallback((prochain) => {
     activeTabRef.current = prochain;
     setActiveTab(prochain);
-    translateX.setValue(direction > 0 ? width : -width);
-    requestAnimationFrame(() => {
-      Animated.timing(translateX, {
-        toValue: 0,
-        duration: 190,
+    transitionRef.current = false;
+    requestAnimationFrame(() => warmPagerWindow(prochain));
+  }, [warmPagerWindow]);
+
+  const animateToTab = useCallback((prochain, duration = 145) => {
+    const tabs = tabOrderRef.current;
+    const targetIndex = tabs.indexOf(prochain);
+    if (targetIndex < 0) { transitionRef.current = false; return; }
+    const wasMounted = mountedPanelIdsRef.current.has(prochain);
+    addMountedPanels([prochain], { stickyHeavy: true });
+    const start = () => {
+      Animated.timing(pagerX, {
+        toValue: -targetIndex * pagerWidthRef.current,
+        duration,
         easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
-      }).start(() => { transitionRef.current = false; });
-    });
-  }, [translateX, width]);
+      }).start(({ finished }) => {
+        if (finished) completeTabChange(prochain);
+        else transitionRef.current = false;
+      });
+    };
+    if (wasMounted) start(); else requestAnimationFrame(start);
+  }, [addMountedPanels, completeTabChange, pagerX]);
 
   const changerOnglet = useCallback((prochain, anime = true) => {
     if (!prochain || prochain === activeTabRef.current || transitionRef.current) return;
@@ -96,21 +200,24 @@ function VisiteScreen({ route, onBack }) {
     const tabs = tabOrderRef.current;
     const from = tabs.indexOf(activeTabRef.current);
     const to = tabs.indexOf(prochain);
-    if (!anime || from < 0 || to < 0 || width <= 0) {
-      activeTabRef.current = prochain;
-      setActiveTab(prochain);
-      translateX.setValue(0);
+    if (from < 0 || to < 0) return;
+    const wasMounted = mountedPanelIdsRef.current.has(prochain);
+    addMountedPanels([prochain], { stickyHeavy: true });
+
+    if (!anime || Math.abs(to - from) !== 1 || pagerWidthRef.current <= 0) {
+      transitionRef.current = true;
+      const commit = () => {
+        pagerX.stopAnimation();
+        pagerX.setValue(-to * pagerWidthRef.current);
+        completeTabChange(prochain);
+      };
+      if (wasMounted) commit(); else requestAnimationFrame(commit);
       return;
     }
-    const direction = to > from ? 1 : -1;
+
     transitionRef.current = true;
-    Animated.timing(translateX, {
-      toValue: direction > 0 ? -width : width,
-      duration: 150,
-      easing: Easing.in(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => basculerApresSortie(prochain, direction));
-  }, [basculerApresSortie, translateX, width]);
+    animateToTab(prochain, 155);
+  }, [addMountedPanels, animateToTab, completeTabChange, pagerX]);
 
   const retourSecurise = useCallback(() => {
     Keyboard.dismiss();
@@ -159,41 +266,56 @@ function VisiteScreen({ route, onBack }) {
 
   const terminerSwipe = useCallback((g) => {
     const tabs = tabOrderRef.current;
-    const idx = tabs.indexOf(activeTabRef.current);
-    const threshold = Math.max(70, width * 0.16);
-    const versSuivant = g.dx < -threshold || g.vx < -0.55;
-    const versPrecedent = g.dx > threshold || g.vx > 0.55;
+    const idx = Math.max(0, Math.min(tabs.length - 1, gestureStartIndexRef.current));
+    const w = pagerWidthRef.current;
+    const threshold = Math.max(54, w * 0.12);
+    const versSuivant = g.dx < -threshold || g.vx < -0.48;
+    const versPrecedent = g.dx > threshold || g.vx > 0.48;
     const prochain = versSuivant && idx < tabs.length - 1 ? tabs[idx + 1] : versPrecedent && idx > 0 ? tabs[idx - 1] : null;
 
     if (!prochain) {
-      Animated.spring(translateX, { toValue: 0, speed: 24, bounciness: 0, useNativeDriver: true }).start();
+      Animated.spring(pagerX, { toValue: -idx * w, speed: 28, bounciness: 0, useNativeDriver: true }).start(() => {
+        transitionRef.current = false;
+        warmPagerWindow(activeTabRef.current);
+      });
       return;
     }
 
-    const direction = versSuivant ? 1 : -1;
-    transitionRef.current = true;
-    Animated.timing(translateX, {
-      toValue: direction > 0 ? -width : width,
-      duration: 130,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(() => basculerApresSortie(prochain, direction));
-  }, [basculerApresSortie, translateX, width]);
+    animateToTab(prochain, 135);
+  }, [animateToTab, pagerX, warmPagerWindow]);
+  finishSwipeRef.current = terminerSwipe;
 
   const swipeHandlers = useRef(null);
-  swipeHandlers.current = PanResponder.create({
-    onMoveShouldSetPanResponder: (_evt, g) => !transitionRef.current && Math.abs(g.dx) > 10 && Math.abs(g.dx) > Math.abs(g.dy) * 1.45,
-    onPanResponderGrant: () => { Keyboard.dismiss(); translateX.stopAnimation(); },
-    onPanResponderMove: (_evt, g) => {
-      const tabs = tabOrderRef.current;
-      const idx = tabs.indexOf(activeTabRef.current);
-      let dx = g.dx;
-      if ((idx === 0 && dx > 0) || (idx === tabs.length - 1 && dx < 0)) dx *= 0.28;
-      translateX.setValue(dx);
-    },
-    onPanResponderRelease: (_evt, g) => terminerSwipe(g),
-    onPanResponderTerminate: () => Animated.spring(translateX, { toValue: 0, speed: 24, bounciness: 0, useNativeDriver: true }).start(),
-  });
+  if (!swipeHandlers.current) {
+    swipeHandlers.current = PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt, g) => !transitionRef.current && Math.abs(g.dx) > 9 && Math.abs(g.dx) > Math.abs(g.dy) * 1.35,
+      onPanResponderGrant: () => {
+        Keyboard.dismiss();
+        const tabs = tabOrderRef.current;
+        gestureStartIndexRef.current = Math.max(0, tabs.indexOf(activeTabRef.current));
+        transitionRef.current = true;
+        pagerX.stopAnimation();
+      },
+      onPanResponderMove: (_evt, g) => {
+        const tabs = tabOrderRef.current;
+        const idx = Math.max(0, Math.min(tabs.length - 1, gestureStartIndexRef.current));
+        const w = pagerWidthRef.current;
+        let dx = g.dx;
+        if ((idx === 0 && dx > 0) || (idx === tabs.length - 1 && dx < 0)) dx *= 0.24;
+        const target = dx < -36 && idx < tabs.length - 1 ? tabs[idx + 1] : dx > 36 && idx > 0 ? tabs[idx - 1] : null;
+        if (target && !mountedPanelIdsRef.current.has(target)) ensureMountedRef.current?.([target]);
+        pagerX.setValue(-idx * w + dx);
+      },
+      onPanResponderRelease: (_evt, g) => finishSwipeRef.current?.(g),
+      onPanResponderTerminate: () => {
+        const idx = Math.max(0, gestureStartIndexRef.current);
+        Animated.spring(pagerX, { toValue: -idx * pagerWidthRef.current, speed: 28, bounciness: 0, useNativeDriver: true }).start(() => {
+          transitionRef.current = false;
+        });
+      },
+      onPanResponderTerminationRequest: () => false,
+    });
+  }
 
   const ouvrirNote = async () => {
     const note = await getNote(visiteId);
@@ -261,25 +383,32 @@ function VisiteScreen({ route, onBack }) {
     if (tabsReels.includes('p-remarques')) changerOnglet('p-remarques');
   };
 
-  const contenuActif = () => {
-    const pid = activeTab;
-    if (specialPanels.has(pid)) {
-      if (pid === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
-      if (pid === 'p-releves') return <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} />;
-      if (pid === 'p-equip') return <GuidedEquipmentPanel visiteId={visiteId} />;
-      if (pid === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} intranetLinked={Boolean(visite?.api_remote_local_id) && Number(visite?.api_is_historical) !== 1} />;
-      if (pid === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
-    }
-    return <TrameGenericPanel visiteId={visiteId} panelId={pid} sections={panels[pid]} onSaved={onSaved} />;
-  };
-
   if (!visite) return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.orange} /></View>;
 
+  const intranetLinked = Boolean(visite?.api_remote_local_id) && Number(visite?.api_is_historical) !== 1;
+  const pagerPanels = tabsReels.filter((panelId) => panelId === activeTab || mountedPanelIds.has(panelId));
   const animatedContent = (
     <View style={{ flex: 1, overflow: 'hidden' }} {...swipeHandlers.current.panHandlers}>
-      <Animated.View style={{ flex: 1, transform: [{ translateX }] }}>
-        {contenuActif()}
-      </Animated.View>
+      {pagerPanels.map((panelId) => {
+        const index = tabsReels.indexOf(panelId);
+        return <Animated.View
+          key={panelId}
+          pointerEvents={panelId === activeTab ? 'auto' : 'none'}
+          style={{ position: 'absolute', top: 0, bottom: 0, left: index * pagerWidth, width: pagerWidth, transform: [{ translateX: pagerX }] }}
+        >
+          <VisitPanelHost
+            visiteId={visiteId}
+            panelId={panelId}
+            sections={panels[panelId]}
+            special={specialPanels.has(panelId)}
+            onSaved={onSaved}
+            tabOrder={tabOrder}
+            panelLabels={panelLabels}
+            panels={panels}
+            intranetLinked={intranetLinked}
+          />
+        </Animated.View>;
+      })}
     </View>
   );
 
