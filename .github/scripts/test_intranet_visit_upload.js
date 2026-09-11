@@ -127,7 +127,7 @@ async function main() {
     const uuids = [
       'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
       'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
-      'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee',
+      'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'ffffffff-ffff-4fff-8fff-ffffffffffff',
     ];
     const sender = async (_client, serialized) => {
       calls.push(serialized);
