@@ -1,18 +1,16 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Text, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS } from './styles.js';
 import {
-  discardTerminalVisitUpload, finalizeVisitForUpload, getVisitUploadState, listVisitOutbox, previewVisitUpload,
+  discardTerminalVisitUpload, finalizeVisitForUpload, getVisitUploadState, listVisitOutbox,
   processVisitOutbox, queueVisitUpload, retryVisitUploadNow, subscribeVisitOutbox,
 } from './intranetVisitOutboxDb.js';
-import { IntranetVisitDestinationPicker } from './IntranetVisitDestinationPicker.js';
+import { bindVisitToImportedClientTarget } from './intranetVisitBindingDb.js';
+import { syncClientPreparation } from './symfonyApi.js';
 
-const STATUS = Object.freeze({
-  pending: ['En attente d’envoi', '#805017'], sending: ['Envoi vers l’Intranet…', COLORS.primary],
-  retry: ['En attente de connexion / nouvelle tentative', '#805017'], synced: ['Synchronisée avec l’Intranet', '#16794B'],
-  conflict: ['Conflit de synchronisation', '#B42318'], validation_error: ['Données refusées à corriger', '#B42318'],
-  rejected: ['Envoi refusé', '#B42318'], auth_error: ['Connexion Intranet à réactiver', '#B42318'],
-});
+const OFFLINE = '#111111';
+const ONLINE = '#16794B';
+const ERROR = '#B42318';
 
 function firstServerViolation(row) {
   try {
@@ -27,17 +25,19 @@ function serverFeedback(row) {
   const http = Number(row.http_status || 0);
   const violation = firstServerViolation(row);
   const fallback = violation || row.error_message || row.error_code || null;
-  if (http === 404) return `Réponse Intranet HTTP 404 · client introuvable ou non autorisé pour cette tablette${fallback ? ` · ${fallback}` : ''}`;
-  if (http === 403) return `Réponse Intranet HTTP 403 · tablette non autorisée à écrire${fallback ? ` · ${fallback}` : ''}`;
-  if (http === 422) return `Réponse Intranet HTTP 422 · données, trame, local ou association client/site refusés${fallback ? ` · ${fallback}` : ''}`;
-  if (http === 409) return `Réponse Intranet HTTP 409 · conflit de synchronisation${fallback ? ` · ${fallback}` : ''}`;
-  if (http) return `Réponse Intranet HTTP ${http}${fallback ? ` · ${fallback}` : ''}`;
+  if (http === 404) return `Intranet HTTP 404 · client ou ressource introuvable/non autorisée${fallback ? ` · ${fallback}` : ''}`;
+  if (http === 403) return `Intranet HTTP 403 · tablette non autorisée${fallback ? ` · ${fallback}` : ''}`;
+  if (http === 422) return `Intranet HTTP 422 · visite, trame ou local refusé${fallback ? ` · ${fallback}` : ''}`;
+  if (http === 409) return `Intranet HTTP 409 · conflit de synchronisation${fallback ? ` · ${fallback}` : ''}`;
+  if (http) return `Intranet HTTP ${http}${fallback ? ` · ${fallback}` : ''}`;
   return fallback;
 }
 
-function needsIntranetReferenceRepair(error) {
-  const text = [error?.message, ...(Array.isArray(error?.issues) ? error.issues : [])].filter(Boolean).join(' | ');
-  return /Trame\s*:\s*identifiant Intranet invalide|aucun critère de référence figé|Référence Intranet figée absente|n[’']est pas rattachée à un local Intranet|branche Intranet dupliquée|référence Intranet.*incomplète/i.test(text);
+function localBindingFeedback(error) {
+  const issues = Array.isArray(error?.issues) ? error.issues : [];
+  return issues.length
+    ? `${error?.message || 'Visite non envoyable'}\n\n${issues.slice(0, 7).map((x) => `• ${x}`).join('\n')}${issues.length > 7 ? `\n• … ${issues.length - 7} autre(s)` : ''}`
+    : String(error?.message || error || 'Visite non envoyable');
 }
 
 export function IntranetVisitSyncRuntime() {
@@ -77,123 +77,150 @@ export function useVisitUploadState(visiteId) {
   return { row, loading, refresh };
 }
 
-export function IntranetVisitSyncControl({ visite, onVisitChanged = null }) {
+async function bindSameImportedClient(visiteId) {
+  try {
+    return await bindVisitToImportedClientTarget(visiteId);
+  } catch (error) {
+    const refreshable = error?.remoteClientId && ['imported_site_missing', 'intranet_reference_refresh_required', 'wrong_imported_site'].includes(error?.code);
+    if (!refreshable) throw error;
+    try {
+      await syncClientPreparation(error.remoteClientId);
+    } catch (refreshError) {
+      const wrapped = new Error(`Impossible d’actualiser le client Intranet avant l’envoi : ${String(refreshError?.message || refreshError)}`);
+      wrapped.code = refreshError?.code || error?.code;
+      wrapped.remoteClientId = error.remoteClientId;
+      throw wrapped;
+    }
+    return bindVisitToImportedClientTarget(visiteId);
+  }
+}
+
+export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compact = false }) {
   const visiteId = visite?.id;
   const { row, loading, refresh } = useVisitUploadState(visiteId);
   const [busy, setBusy] = useState(false);
-  const [bindingVisible, setBindingVisible] = useState(false);
-  if (Number(visite?.api_is_historical) === 1) return null;
-  const linkedToIntranet = Boolean(visite?.api_remote_local_id);
+  const historical = Number(visite?.api_is_historical) === 1;
+  const online = historical || row?.status === 'synced';
+  const hardIdempotencyConflict = row?.error_code === 'idempotency_conflict';
+  const invalidAck = row?.error_code === 'invalid_ack';
 
-  const confirmAndQueue = async (replaceTerminal = false, finalizeFirst = false) => {
-    if (busy) return;
-    setBusy(true);
+  const finishQueueAndSend = async (confirmMaterialReplacement = false) => {
+    await queueVisitUpload(visiteId, { confirmMaterialReplacement });
+    await onVisitChanged?.();
+    await refresh();
+    await processVisitOutbox({ limit: 1 }).catch(() => {});
+    await refresh();
+    await onVisitChanged?.();
+    const finalRow = await getVisitUploadState(visiteId);
+    if (finalRow && ['validation_error', 'rejected', 'conflict', 'auth_error'].includes(finalRow.status)) {
+      Alert.alert('Envoi Intranet non validé', serverFeedback(finalRow) || 'L’Intranet a refusé ou interrompu l’envoi. La visite reste Offline.');
+    }
+  };
+
+  const queueWithMaterialSafety = async () => {
     try {
-      const preview = await previewVisitUpload(visiteId);
-      const summary = preview.summary;
-      const progressWarning = finalizeFirst && Number(visite.progression_pct || 0) < 100
-        ? `\n\nAttention : la visite n’est renseignée qu’à ${visite.progression_pct || 0} %. Les champs obligatoires Intranet doivent malgré tout être valides.` : '';
-      const materialWarning = preview.destructiveMaterialChange
-        ? `\n\nATTENTION : le listing Intranet de référence contient ${preview.sourceMaterialCount} matériel(s), METRA en enverra ${summary.materials}. Le serveur remplace le listing complet : ${preview.removedSourceMaterialCount} matériel(s) au minimum seront supprimés.` : '';
-      const submit = async (confirmMaterialReplacement = false) => {
-        setBusy(true);
-        try {
-          if (finalizeFirst) await finalizeVisitForUpload(visiteId);
-          await queueVisitUpload(visiteId, { confirmMaterialReplacement, replaceTerminal });
-          await onVisitChanged?.();
-          await refresh();
-          processVisitOutbox({ limit: 1 }).catch(() => {});
-        } catch (error) {
-          if (['material_replacement_confirmation_required', 'material_clear_confirmation_required'].includes(error?.code)) {
-            const destructiveClear = Number(error?.prepared?.summary?.materials || 0) === 0;
-            Alert.alert(
-              destructiveClear ? 'Attention : listing matériel vidé' : 'Attention : matériels supprimés de l’Intranet',
-              `${error.message}\n\nCette action remplacera le listing matériel complet de ce local dans l’Intranet.`,
-              [
-                { text: 'Annuler', style: 'cancel' },
-                { text: destructiveClear ? 'Confirmer le listing vide' : 'Confirmer le remplacement', style: 'destructive', onPress: () => submit(true).catch(() => {}) },
-              ]
-            );
-            return;
-          }
-          const issues = error?.issues || [];
-          Alert.alert('Envoi impossible', issues.length ? `${error.message}\n\n${issues.slice(0, 7).map((x) => `• ${x}`).join('\n')}${issues.length > 7 ? `\n• … ${issues.length - 7} autre(s)` : ''}` : String(error?.message || error));
-        } finally { setBusy(false); }
-      };
-      Alert.alert(
-        finalizeFirst ? 'Finaliser et envoyer cette visite ?' : 'Envoyer cette visite vers l’Intranet ?',
-        `${summary.criteria} critères · ${summary.remarks} réserve(s) · ${summary.materials} matériel(s) · ${summary.notes} note(s).${progressWarning}${materialWarning}\n\nLes photos et la conclusion ne sont pas incluses : la route serveur fournie ne les accepte pas.\n\nLe contenu est figé au moment de la mise en file. En cas de coupure, METRA reprend le même envoi sans créer de doublon.`,
-        [
-          { text: 'Annuler', style: 'cancel' },
-          {
-            text: preview.destructiveMaterialChange ? 'Confirmer le remplacement et envoyer' : (finalizeFirst ? 'Finaliser et envoyer' : 'Mettre en attente / envoyer'),
-            style: preview.destructiveMaterialChange ? 'destructive' : 'default',
-            onPress: () => submit(preview.destructiveMaterialChange).catch(() => {}),
-          },
-        ]
-      );
+      await finishQueueAndSend(false);
     } catch (error) {
-      if (needsIntranetReferenceRepair(error)) {
+      if (['material_replacement_confirmation_required', 'material_clear_confirmation_required'].includes(error?.code)) {
+        const prepared = error?.prepared;
+        const destructiveClear = Number(prepared?.summary?.materials || 0) === 0;
         Alert.alert(
-          'Référence Intranet à actualiser',
-          'Cette visite est bien conservée dans METRA, mais sa référence locale ne contient pas la trame Intranet complète nécessaire à l’envoi (identifiant de trame et critères).\n\nActualise puis sélectionne le client, le site et le local. Si le local reste indiqué sans trame, celle-ci doit être renseignée côté Intranet avant l’envoi. Aucune donnée saisie dans la visite n’est supprimée.',
+          destructiveClear ? 'Attention : listing matériel vidé' : 'Attention : matériels supprimés de l’Intranet',
+          `${error.message}\n\nLe serveur remplace le listing matériel complet du local.`,
           [
-            { text: 'Fermer', style: 'cancel' },
-            { text: 'Actualiser / choisir', onPress: () => setBindingVisible(true) },
+            { text: 'Annuler', style: 'cancel' },
+            { text: destructiveClear ? 'Confirmer le listing vide' : 'Confirmer le remplacement', style: 'destructive', onPress: () => {
+              setBusy(true);
+              finishQueueAndSend(true).catch((e) => Alert.alert('Envoi impossible', localBindingFeedback(e))).finally(() => setBusy(false));
+            } },
           ]
         );
         return;
       }
-      const issues = error?.issues || [];
-      Alert.alert('Visite non envoyable', issues.length ? `${error.message}\n\n${issues.slice(0, 7).map((x) => `• ${x}`).join('\n')}${issues.length > 7 ? `\n• … ${issues.length - 7} autre(s)` : ''}` : String(error?.message || error));
-    } finally { setBusy(false); }
-  };
-
-  const label = row ? (STATUS[row.status]?.[0] || row.status) : (!linkedToIntranet ? 'Destination Intranet à choisir' : (visite.statut === 'terminee' || visite.statut === 'exportee' ? 'Prête à envoyer' : 'Finaliser avant envoi'));
-  const color = row ? (STATUS[row.status]?.[1] || COLORS.muted) : COLORS.muted;
-  const detail = row?.status === 'synced' ? `Réponse Intranet OK · visite n°${row.remote_visit_id}${row.replayed ? ' · accusé rejoué sans doublon' : ''}`
-    : serverFeedback(row) || (row?.status === 'conflict' ? 'Une visite plus récente existe sur le serveur. Actualise la préparation Intranet avant de préparer une nouvelle visite.' : null);
-  const hardIdempotencyConflict = row?.error_code === 'idempotency_conflict';
-  const invalidAck = row?.error_code === 'invalid_ack';
-  const terminalEditable = row && row.status === 'validation_error';
-  const retryable = row && ['pending', 'retry', 'auth_error'].includes(row.status);
-  const destinationChangeAllowed = !row || (
-    ['validation_error', 'rejected', 'conflict'].includes(row.status)
-    && !hardIdempotencyConflict
-    && !invalidAck
-  );
-  const changeDestination = async () => {
-    if (busy || !destinationChangeAllowed) return;
-    if (row) {
-      setBusy(true);
-      try {
-        const discarded = await discardTerminalVisitUpload(visiteId);
-        if (!discarded) {
-          Alert.alert('Destination verrouillée', 'Cet envoi ne peut pas changer de destination dans son état actuel.');
-          return;
-        }
-        await refresh();
-      } finally { setBusy(false); }
+      throw error;
     }
-    setBindingVisible(true);
   };
 
-  return <View style={{ borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, backgroundColor: '#F8FAFC', padding: 10, marginVertical: 7 }}>
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-      <View style={{ flex: 1 }}><Text style={{ color: COLORS.ink, fontSize: 12.5, fontWeight: '900' }}>Synchronisation Intranet</Text><Text accessibilityLiveRegion="polite" style={{ color, fontSize: 11.5, fontWeight: '800', marginTop: 3 }}>{loading ? 'Lecture de l’état…' : label}</Text>{detail ? <Text style={{ color: COLORS.muted, fontSize: 10.5, lineHeight: 15, marginTop: 3 }}>{detail}</Text> : null}</View>
-      {busy || row?.status === 'sending' ? <ActivityIndicator size="small" color={COLORS.primary} /> : null}
+  const prepareAndSend = async () => {
+    if (busy || loading || online || row?.status === 'sending') return;
+    setBusy(true);
+    try {
+      if (hardIdempotencyConflict || invalidAck) {
+        Alert.alert('Envoi Intranet verrouillé', hardIdempotencyConflict
+          ? 'Le même envoiId existe déjà avec un contenu différent. METRA ne crée pas un nouvel envoi afin d’éviter un doublon.'
+          : 'L’accusé serveur est incohérent et la visite a peut-être déjà été créée. METRA ne génère pas un nouvel envoi automatiquement.');
+        return;
+      }
+
+      if (row && ['pending', 'retry', 'auth_error'].includes(row.status)) {
+        await retryVisitUploadNow(visiteId);
+        await refresh();
+        await onVisitChanged?.();
+        return;
+      }
+
+      if (row && ['validation_error', 'rejected', 'conflict'].includes(row.status)) {
+        if (row.status === 'conflict' && row.remote_client_id) {
+          try { await syncClientPreparation(row.remote_client_id); }
+          catch (e) { throw new Error(`Impossible d’actualiser le même client Intranet après le conflit : ${String(e?.message || e)}`); }
+        }
+        const discarded = await discardTerminalVisitUpload(visiteId);
+        if (!discarded) throw new Error('Cet envoi ne peut pas encore être reconstruit sans risque de doublon.');
+      }
+
+      await bindSameImportedClient(visiteId);
+      await onVisitChanged?.();
+
+      const final = ['terminee', 'exportee'].includes(visite?.statut);
+      if (!final) {
+        Alert.alert(
+          'Visite non terminée',
+          'La visite est encore en cours. L’envoi vers l’Intranet crée une visite serveur : termine-la avant de l’envoyer.',
+          [
+            { text: 'Annuler', style: 'cancel' },
+            { text: 'Finaliser et envoyer', onPress: () => {
+              setBusy(true);
+              finalizeVisitForUpload(visiteId)
+                .then(() => queueWithMaterialSafety())
+                .catch((e) => Alert.alert('Envoi impossible', localBindingFeedback(e)))
+                .finally(() => setBusy(false));
+            } },
+          ]
+        );
+        return;
+      }
+
+      await queueWithMaterialSafety();
+    } catch (error) {
+      Alert.alert('Visite non envoyable', localBindingFeedback(error));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const detail = online
+    ? (historical ? 'Déjà présente sur l’Intranet (visite importée).' : `Export Intranet confirmé${row?.remote_visit_id ? ` · visite n°${row.remote_visit_id}` : ''}.`)
+    : row?.status === 'sending' ? 'Envoi vers le même client Intranet en cours…'
+      : row?.status === 'pending' ? 'Envoi en attente.'
+        : row?.status === 'retry' ? 'Non exportée · nouvelle tentative dès que la connexion le permet.'
+          : row?.status === 'auth_error' ? 'Non exportée · connexion Intranet à réactiver.'
+            : serverFeedback(row) || 'Non exportée sur l’Intranet. Appuie sur Offline pour l’envoyer au client importé.';
+  const detailIsError = !online && row && ['validation_error', 'rejected', 'conflict', 'auth_error'].includes(row.status);
+
+  return <View style={compact ? { alignItems: 'flex-end' } : { borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, backgroundColor: '#F8FAFC', padding: 10, marginVertical: 7 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+      {!compact ? <Text style={{ flex: 1, color: COLORS.ink, fontSize: 12.5, fontWeight: '900' }}>Intranet</Text> : null}
+      {busy || row?.status === 'sending' ? <ActivityIndicator size="small" color={online ? ONLINE : OFFLINE} /> : null}
+      <TouchableOpacity
+        accessibilityRole="button"
+        accessibilityLabel={online ? 'Online, visite présente sur l’Intranet' : 'Offline, appuyer pour envoyer la visite sur l’Intranet'}
+        disabled={loading || busy || online || row?.status === 'sending'}
+        onPress={(event) => { event?.stopPropagation?.(); prepareAndSend().catch(() => {}); }}
+        style={{ minWidth: 82, minHeight: 36, paddingHorizontal: 14, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: online ? ONLINE : OFFLINE, opacity: loading ? 0.55 : 1 }}
+      >
+        <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '900', letterSpacing: 0.3 }}>{online ? 'Online' : 'Offline'}</Text>
+      </TouchableOpacity>
     </View>
-    {!row && !linkedToIntranet ? <TouchableOpacity accessibilityRole="button" disabled={busy || loading} onPress={() => setBindingVisible(true)} style={[styles.btnSecondary, { minHeight: 46, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>Choisir la destination Intranet</Text></TouchableOpacity> : null}
-    {!row && linkedToIntranet ? <TouchableOpacity accessibilityRole="button" disabled={busy || loading} onPress={() => confirmAndQueue(false, !['terminee','exportee'].includes(visite.statut))} style={[styles.btnSecondary, { minHeight: 46, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>{['terminee','exportee'].includes(visite.statut) ? 'Préparer et envoyer' : 'Finaliser et préparer l’envoi'}</Text></TouchableOpacity> : null}
-    {!row && linkedToIntranet ? <TouchableOpacity accessibilityRole="button" disabled={busy || loading} onPress={changeDestination} style={{ minHeight: 38, marginTop: 4, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.primary, fontSize: 11.5, fontWeight: '900' }}>Modifier la destination Intranet</Text></TouchableOpacity> : null}
-    {row && destinationChangeAllowed ? <TouchableOpacity accessibilityRole="button" disabled={busy} onPress={changeDestination} style={[styles.btnSecondary, { minHeight: 44, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>Changer / actualiser la destination</Text></TouchableOpacity> : null}
-    {retryable ? <TouchableOpacity accessibilityRole="button" disabled={busy || row?.status === 'sending'} onPress={() => { setBusy(true); retryVisitUploadNow(visiteId).then(refresh).finally(() => setBusy(false)); }} style={[styles.btnSecondary, { minHeight: 46, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>{row?.status === 'auth_error' ? 'Réessayer après réactivation' : 'Réessayer maintenant'}</Text></TouchableOpacity> : null}
-    {terminalEditable ? <TouchableOpacity accessibilityRole="button" disabled={busy} onPress={() => confirmAndQueue(true, false)} style={[styles.btnSecondary, { minHeight: 46, marginTop: 8 }]}><Text style={styles.btnSecondaryText}>Repréparer après correction</Text></TouchableOpacity> : null}
-    {row && ['pending','sending','retry'].includes(row.status) ? <Text style={{ color: COLORS.muted, fontSize: 10.5, lineHeight: 15, marginTop: 7 }}>L’envoi est figé avec son envoiId. Les corrections faites après sa mise en file ne modifieront pas cette tentative : attends son résultat avant de reprendre la visite.</Text> : null}
-    {row?.status === 'synced' ? <Text style={{ color: COLORS.muted, fontSize: 10.5, lineHeight: 15, marginTop: 7 }}>Cette visite a déjà été créée sur l’Intranet. Pour un nouveau constat, crée une nouvelle visite METRA au lieu de renvoyer celle-ci.</Text> : null}
-    {hardIdempotencyConflict ? <Text style={{ color: '#B42318', fontSize: 10.5, lineHeight: 15, marginTop: 7 }}>Conflit d’idempotence : ne génère pas un nouvel envoi. Le même envoiId existe avec un contenu différent ; conserve cette visite et fais contrôler le serveur.</Text> : null}
-    {invalidAck ? <Text style={{ color: '#B42318', fontSize: 10.5, lineHeight: 15, marginTop: 7 }}>Accusé serveur incohérent : ne génère pas un nouvel envoi. Le serveur a peut-être déjà créé la visite ; conserve cet envoiId et fais contrôler l’Intranet.</Text> : null}
-    {row?.status === 'conflict' ? <Text style={{ color: '#B42318', fontSize: 10.5, lineHeight: 15, marginTop: 7 }}>Cet envoi n’est pas répété automatiquement. Recharge les données du local depuis l’Intranet avant de repartir d’une référence récente.</Text> : null}
-    <IntranetVisitDestinationPicker visible={bindingVisible} visiteId={visiteId} onClose={() => setBindingVisible(false)} onBound={async () => { setBindingVisible(false); await onVisitChanged?.(); await refresh(); }} />
+    {!compact ? <Text accessibilityLiveRegion="polite" style={{ color: detailIsError ? ERROR : COLORS.muted, fontSize: 10.5, lineHeight: 15, marginTop: 6 }}>{loading ? 'Lecture de l’état Intranet…' : detail}</Text> : null}
   </View>;
 }
