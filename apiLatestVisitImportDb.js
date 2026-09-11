@@ -16,6 +16,7 @@ function criterionSourceRelation(criterion, latestVisitId) {
   return sourceId === remoteId(latestVisitId) ? 'latest_visit' : 'earlier_visit';
 }
 
+const INTRANET_MATERIAL_STATES = new Set(['Hors service', 'Vétuste', 'Moyen', 'Bon', 'Neuf']);
 const CONTEXT_STOP_WORDS = new Set(['a','au','aux','de','des','du','d','et','la','le','les','l','conf','conformite','conformites','relatif','relative','relatifs','relatives']);
 function contextTokens(value) { return normalize(value).split(' ').filter((token) => token && !CONTEXT_STOP_WORDS.has(token)); }
 function contextOverlap(left, right) {
@@ -113,7 +114,10 @@ function findControlCandidate(candidates, criterionName, categoryName, subCatego
 function isTechnicalControlTarget(trameId, target) { return trameId === DEFAULT_TRAME_ID && target?.panelId === 'p-releves'; }
 function remoteCriterionReference(category, subCategory, criterion) { return criterion?.referencePath || [remoteId(category?.id), remoteId(subCategory?.id), remoteId(criterion?.id)].map((v) => v || '?').join(':'); }
 function latestVisitStatus(sourceStatus) { return normalize(sourceStatus).includes('complet') ? 'a_completer' : 'terminee'; }
-async function findImportedVisit(db, remoteVisitId) { return db.getFirstAsync(`SELECT v.id FROM provenances p JOIN visites v ON v.id=p.entite_id WHERE p.entite_type='visite' AND p.origine='api_symfony' AND p.reference_externe=? ORDER BY p.importe_le DESC LIMIT 1`, [remoteVisitId]); }
+async function findImportedVisit(db, remoteVisitId) {
+  return db.getFirstAsync(`SELECT v.id,v.api_content_revision,v.api_synced_revision FROM provenances p JOIN visites v ON v.id=p.entite_id WHERE p.entite_type='visite' AND p.origine='api_symfony' AND p.reference_externe=? AND p.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%' ORDER BY p.importe_le DESC LIMIT 1`, [remoteVisitId]);
+}
+function existingVisitIsDirty(existing) { return Boolean(existing?.id) && Number(existing.api_content_revision || 0) !== Number(existing.api_synced_revision || 0); }
 
 async function upsertControlsBatch(db, rows) {
   for (let offset = 0; offset < rows.length; offset += 80) {
@@ -124,17 +128,42 @@ async function upsertControlsBatch(db, rows) {
   }
 }
 
+async function replaceHistoricalMaterialSnapshot(db, visiteId, sourceMaterials) {
+  const materials = Array.isArray(sourceMaterials) ? sourceMaterials : [];
+  await db.runAsync(`DELETE FROM materiel WHERE visite_id=?`, [visiteId]);
+  for (let offset = 0; offset < materials.length; offset += 60) {
+    const chunk = materials.slice(offset, offset + 60);
+    const placeholders = chunk.map(() => '(?,?,?,?,?,?,?,?,?,?,?,?,?)').join(',');
+    const params = [];
+    for (const material of chunk) {
+      const state = text(material?.etat);
+      params.push(
+        createId(), visiteId, text(material?.categorie), text(material?.nombre), text(material?.designation),
+        text(material?.numeroMateriel), text(material?.reseauDesservi), text(material?.marque), text(material?.modele),
+        text(material?.caracteristiques), text(material?.annee), state && INTRANET_MATERIAL_STATES.has(state) ? state : null, null
+      );
+    }
+    await db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,nombre,designation,numero_materiel,reseau_desservi,marque,modele,caracteristiques,annee,etat,equipement_id) VALUES ${placeholders}`, params);
+  }
+}
+
 async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
   const ref = sanitizeRemoteReference(sourceRef);
   const latest = ref?.derniereVisite;
   const remoteVisitId = remoteId(latest?.id);
   if (!remoteVisitId) return { imported: false, reason: 'no_latest_visit' };
 
+  // Un rafraîchissement Intranet ne doit jamais écraser une visite importée que
+  // le technicien a déjà modifiée localement et qui attend donc un nouvel envoi.
+  const existing = await findImportedVisit(db, remoteVisitId);
+  if (existingVisitIsDirty(existing)) {
+    return { imported: false, reason: 'local_changes_pending', visiteId: existing.id, remoteVisitId, protectedLocalChanges: true };
+  }
+
   const installationId = await ensureInstallation(db, siteId, remoteLocalId, ref);
   const trameId = mapRemoteTrameToLocal(ref?.trame) || DEFAULT_TRAME_ID;
   const visitDate = text(latest?.date)?.slice(0, 10) || null;
   const status = latestVisitStatus(latest?.statut);
-  const existing = await findImportedVisit(db, remoteVisitId);
   const visiteId = existing?.id || createId();
 
   if (existing?.id) {
@@ -195,17 +224,17 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
     importedRemarks += 1;
   }
 
+  // Le listing matériel de la préparation représente l'état courant du LOCAL.
+  // On le garde sur la visite historique importée afin qu'une modification puis
+  // un nouvel envoi ne transforme jamais implicitement un listing distant non
+  // vide en liste vide. Cette photographie n'est pas reportée comme état du jour
+  // lors de la création d'une nouvelle visite.
+  await replaceHistoricalMaterialSnapshot(db, visiteId, ref?.materiels);
+
   await upsertProvenance(db, 'visite', visiteId, remoteVisitId, {
-    schemaVersion: 4,
-    sourceType: 'imported_latest_visit',
-    remoteVisitId,
-    remoteLocalId,
-    remoteSiteId: remoteId(ref?.site?.id),
-    remoteStatus: text(latest?.statut),
-    remoteDate: text(latest?.date),
-    trame: ref?.trame || null,
-    materiels: Array.isArray(ref?.materiels) ? ref.materiels : [],
-    remarques: remarks,
+    schemaVersion: 4, sourceType: 'imported_latest_visit', remoteVisitId, remoteLocalId,
+    remoteSiteId: remoteId(ref?.site?.id), remoteStatus: text(latest?.statut), remoteDate: text(latest?.date),
+    trame: ref?.trame || null, materiels: Array.isArray(ref?.materiels) ? ref.materiels : [], remarques: remarks,
     notes: Array.isArray(ref?.notes) ? ref.notes : [],
     importSummary: {
       sourceCriteria, sourceControlCriteria, mappedCriteria, unmappedControlCriteria, unmappedControlSample,
@@ -214,15 +243,11 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
       criteriaRule: 'preparation_values_are_latest_known_visiteSourceId_is_provenance_only',
       controlIdentityRule: 'remote_branch_is_category_subcategory_criterion_context_mapping',
       controlCommentRule: 'historical_conformity_comments_hidden_except_technical_measure_values',
-      intranetRemarksRule: 'latest_remote_visit_summary_only_not_linked_to_controls',
-      placeholderRule: 'slash_is_empty', materialsRule: 'current_patrimoine_not_historical_visit',
+      intranetRemarksRule: 'latest_remote_visit_summary_only_not_linked_to_controls', placeholderRule: 'slash_is_empty',
+      materialsRule: 'current_patrimoine_snapshot_for_safe_resend_not_carry_forward_state',
     },
   });
 
-  // Tous les INSERT/UPDATE ci-dessus passent volontairement par les mêmes
-  // triggers de révision que les saisies utilisateur. Une fois l'import fini,
-  // on acquitte exactement cet état : la visite importée est Online. Le premier
-  // changement terrain incrémentera api_content_revision et la repassera Offline.
   await db.runAsync(`UPDATE visites SET api_content_revision=CASE WHEN api_content_revision<1 THEN 1 ELSE api_content_revision END WHERE id=?`, [visiteId]);
   await db.runAsync(`UPDATE visites SET api_synced_revision=api_content_revision WHERE id=?`, [visiteId]);
 
@@ -249,8 +274,6 @@ export async function importLatestApiVisitsForSite(siteId, remoteSiteId) {
   const localSiteId = clean(siteId), remoteIdSite = clean(remoteSiteId);
   if (!localSiteId || !remoteIdSite) throw new Error('Site local / site Intranet requis pour importer la dernière visite.');
   const locals = await listCachedLocals(remoteIdSite);
-  // Les références sont des lectures cache : on les récupère en parallèle avant
-  // d'ouvrir la transaction d'écriture pour ne pas garder SQLite verrouillée.
   const prepared = await Promise.all((locals || []).map(async (local) => {
     const remoteLocalId = clean(local?.remote_local_id);
     return remoteLocalId ? { remoteLocalId, ref: await getCachedLocalReference(remoteLocalId) } : null;
@@ -265,6 +288,7 @@ export async function importLatestApiVisitsForSite(siteId, remoteSiteId) {
     importedCount: results.filter((result) => result.imported).length,
     createdCount: results.filter((result) => result.imported && result.created).length,
     updatedCount: results.filter((result) => result.imported && !result.created).length,
+    protectedLocalChangesCount: results.filter((result) => result.protectedLocalChanges).length,
     results,
   };
 }
