@@ -1,8 +1,43 @@
 from pathlib import Path
 
 
+# Les anciens patches Pré-allumage contiennent encore quelques remplacements
+# strictement liés à l'ancien swipe global de VisiteScreen. Le pager v4 porte
+# désormais ces comportements directement dans le runtime. Pour conserver la
+# vérification stricte de tous les autres patches, on neutralise en mémoire ces
+# remplacements obsolètes lorsque le nouveau pager est présent. Ils sont ignorés
+# même si un marqueur historique apparaît encore dans le nouveau code : un faux
+# positif ne doit jamais réinjecter l'ancien translateX dans VisiteScreen.
+MODERN_VISIT_PAGER = 'const pagerX = useRef(new Animated.Value(0)).current' in Path('VisiteScreen.js').read_text(encoding='utf-8')
+MODERN_PAGER_SKIP_LABELS = {
+    '.github/scripts/patch_preallumage_field_ux_base.py': {
+        'disable global swipe on preallumage installations',
+    },
+    '.github/scripts/patch_preallumage_navigation_popup_fix.py': {
+        'reactivate robust global responder for local swipe',
+        'route swipe to preallumage local',
+        'terminerSwipe dependency',
+        'local swipe drag feedback',
+        'visit local swipe registration callback',
+        'pass local swipe registration',
+    },
+    '.github/scripts/patch_preallumage_swipe_performance.py': {
+        'full page local swipe transition',
+        'interactive full page local drag',
+    },
+}
+
+
 def run_patch(path: str) -> None:
     source = Path(path).read_text(encoding='utf-8')
+    skip_labels = MODERN_PAGER_SKIP_LABELS.get(path) if MODERN_VISIT_PAGER else None
+    if skip_labels:
+        marker = """    if new in text:\n        return text\n"""
+        labels_literal = repr(skip_labels)
+        replacement = f"""    if label in {labels_literal}:\n        return text\n    if new in text:\n        return text\n"""
+        if marker not in source:
+            raise SystemExit(f'{path}: replace_once compatibility marker not found')
+        source = source.replace(marker, replacement, 1)
     exec(compile(source, path, 'exec'), {'__name__': '__main__', '__file__': path})
 
 
