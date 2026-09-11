@@ -5,6 +5,11 @@ function clean(value) { return value == null ? '' : String(value).trim(); }
 function sectionCode(panelId, section) {
   return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
 }
+function chunks(rows, size) {
+  const result = [];
+  for (let i = 0; i < rows.length; i += size) result.push(rows.slice(i, i + size));
+  return result;
+}
 
 const CURRENT_METADATA_KEYS = new Set([
   'Nom du client',
@@ -157,24 +162,41 @@ async function copyNetworkValues(db, visiteId, previousVisitId) {
      FROM reseaux WHERE visite_id=? ORDER BY ordre,id`,
     [previousVisitId]
   );
-  let copied = 0;
-  for (const row of previous || []) {
-    const newId = createId();
-    await db.runAsync(
-      `INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id)
-       VALUES(?,?,?,?,?,?,?,?,?,?)`,
-      [newId, visiteId, Number(row.ordre || 0), row.nom_reseau || 'Réseau', row.t_ext_c ?? null,
-        row.t_dep_c ?? null, row.courbe_de_chauffe ?? null, row.tnc ?? null,
-        row.consigne_programme_horaire ?? null, row.reseau_site_id || null]
-    );
-    const provenance = await db.getAllAsync(`SELECT reference_externe,details_json FROM provenances WHERE entite_type='reseau' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le`, [row.id]);
-    for (const source of provenance || []) {
-      await db.runAsync(`INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json) VALUES(?, 'reseau', ?, 'api_symfony', ?, ?)`,
-        [createId(), newId, source.reference_externe ?? null, source.details_json ?? null]);
-    }
-    copied += 1;
+  if (!previous.length) return 0;
+
+  // Les réseaux et leurs provenances sont copiés en lots. L'ancienne version
+  // effectuait un INSERT puis un SELECT de provenance pour chaque réseau.
+  const mapped = previous.map((row) => ({ previousId: row.id, newId: createId(), row }));
+  for (const part of chunks(mapped, 60)) {
+    const placeholders = part.map(() => '(?,?,?,?,?,?,?,?,?,?)').join(',');
+    const params = part.flatMap(({ newId, row }) => [
+      newId, visiteId, Number(row.ordre || 0), row.nom_reseau || 'Réseau', row.t_ext_c ?? null,
+      row.t_dep_c ?? null, row.courbe_de_chauffe ?? null, row.tnc ?? null,
+      row.consigne_programme_horaire ?? null, row.reseau_site_id || null,
+    ]);
+    await db.runAsync(`INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id) VALUES ${placeholders}`, params);
   }
-  return copied;
+
+  const newIds = new Map(mapped.map((row) => [String(row.previousId), row.newId]));
+  const sourceProvenances = [];
+  for (const idPart of chunks(previous.map((row) => String(row.id)), 250)) {
+    const placeholders = idPart.map(() => '?').join(',');
+    const rows = await db.getAllAsync(
+      `SELECT entite_id,reference_externe,details_json FROM provenances
+       WHERE entite_type='reseau' AND origine='api_symfony' AND entite_id IN (${placeholders})
+       ORDER BY importe_le,id`, idPart
+    );
+    sourceProvenances.push(...rows);
+  }
+  for (const part of chunks(sourceProvenances, 80)) {
+    const placeholders = part.map(() => '(?,?,?,?,?,?)').join(',');
+    const params = part.flatMap((source) => [
+      createId(), 'reseau', newIds.get(String(source.entite_id)), 'api_symfony',
+      source.reference_externe ?? null, source.details_json ?? null,
+    ]);
+    await db.runAsync(`INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json) VALUES ${placeholders}`, params);
+  }
+  return mapped.length;
 }
 
 async function copyMeterValues(db, visiteId, previousVisitId) {
@@ -185,15 +207,16 @@ async function copyMeterValues(db, visiteId, previousVisitId) {
     `SELECT label,valeur,unite,compteur_site_id FROM compteurs WHERE visite_id=? ORDER BY id`,
     [previousVisitId]
   );
-  let copied = 0;
-  for (const row of previous || []) {
-    await db.runAsync(
-      `INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id) VALUES(?,?,?,?,?,?)`,
-      [createId(), visiteId, row.label || 'Compteur', row.valeur ?? null, row.unite || null, row.compteur_site_id || null]
-    );
-    copied += 1;
+  if (!previous.length) return 0;
+
+  for (const part of chunks(previous, 100)) {
+    const placeholders = part.map(() => '(?,?,?,?,?,?)').join(',');
+    const params = part.flatMap((row) => [
+      createId(), visiteId, row.label || 'Compteur', row.valeur ?? null, row.unite || null, row.compteur_site_id || null,
+    ]);
+    await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id) VALUES ${placeholders}`, params);
   }
-  return copied;
+  return previous.length;
 }
 
 async function remoteLocalForInstallation(db, installationId) {
