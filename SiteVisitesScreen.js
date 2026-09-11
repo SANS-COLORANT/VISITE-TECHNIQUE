@@ -14,6 +14,7 @@ import { listerTramesDisponibles, obtenirTrame, DEFAULT_TRAME_ID } from './trame
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { SiteOverviewPanel } from './SiteOverviewPanel.js';
 import { exporterVisitesExcelEnLot } from './batchExcel.js';
+import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
 
 const STATUT_LABELS = { en_cours: 'En cours', terminee: 'Terminée', a_completer: 'À compléter', exportee: 'Exportée' };
 const SITE_TABS = [
@@ -60,6 +61,7 @@ function SiteVisitesScreen({ route, navigation }) {
   const [selectionExport, setSelectionExport] = useState(false);
   const [visitesSelectionnees, setVisitesSelectionnees] = useState(() => new Set());
   const [exportLotEnCours, setExportLotEnCours] = useState(false);
+  const [intranetClientImported, setIntranetClientImported] = useState(false);
   const autoOpenHandled = useRef(false);
   const tramesDisponibles = listerTramesDisponibles();
 
@@ -67,6 +69,11 @@ function SiteVisitesScreen({ route, navigation }) {
     const [v, s] = await Promise.all([listerVisitesSite(siteId), getSiteLocalisation(siteId)]);
     setVisites(v);
     setSite(s);
+    const database = await getDb();
+    const importedClient = s?.client_id
+      ? await database.getFirstAsync(`SELECT remote_client_id FROM api_client_links WHERE local_client_id=? LIMIT 1`, [s.client_id])
+      : null;
+    setIntranetClientImported(Boolean(importedClient?.remote_client_id));
     if (s) {
       const morceaux = decomposerAdresse(s.adresse || '');
       setAdresseRue(morceaux.rue);
@@ -302,9 +309,9 @@ function SiteVisitesScreen({ route, navigation }) {
                 <Text style={styles.cardTitle}>{item.date_visite || 'Sans date'}</Text>
                 <Text style={styles.cardSub}>{trame.nom}{item.technicien ? ` · ${item.technicien}` : ''}</Text>
               </View>
-              <View style={{ alignItems: 'flex-end', gap: 4 }}>
+              <View style={{ alignItems: 'flex-end', gap: 5 }}>
                 <View style={styles.badge}><Text style={styles.badgeText}>{STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%</Text></View>
-                {item.api_remote_local_id ? <Text style={{ color: Number(item.api_is_historical) === 1 || item.intranet_sync_status === 'synced' ? '#16794B' : ['conflict','validation_error','rejected','auth_error'].includes(item.intranet_sync_status) ? '#B42318' : COLORS.muted, fontSize: 10.5, fontWeight: '800' }}>{Number(item.api_is_historical) === 1 ? '↙ Intranet · historique' : item.intranet_sync_status === 'synced' ? `✓ Intranet${item.intranet_remote_visit_id ? ` · n°${item.intranet_remote_visit_id}` : ''}` : item.intranet_sync_status ? '☁ Intranet · à suivre' : '☁ Intranet · non envoyée'}</Text> : null}
+                {!selectionExport && (intranetClientImported || item.api_remote_local_id) ? <IntranetVisitSyncControl visite={item} onVisitChanged={charger} compact /> : null}
               </View>
               {!selectionExport ? <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }} accessibilityLabel={`Supprimer la visite du ${item.date_visite || ''}`}>
                 <Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text>
