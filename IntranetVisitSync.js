@@ -9,6 +9,7 @@ import {
   getVisitPhotoSyncState, processVisitPhotoOutbox, queueVisitPhotosForSyncedVisit,
   retryVisitPhotoUploadsNow, subscribeVisitPhotoOutbox,
 } from './intranetVisitPhotoOutboxDb.js';
+import { subscribeIntranetPhotoChanges } from './intranetPhotoEvents.js';
 import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions } from './intranetVisitBindingDb.js';
 import { syncClientPreparation } from './symfonyApi.js';
 
@@ -35,7 +36,7 @@ function localBindingFeedback(error) {
   return issues.length ? `${error?.message || 'Visite non envoyable'}\n\n${issues.slice(0, 7).map((x) => `• ${x}`).join('\n')}${issues.length > 7 ? `\n• … ${issues.length - 7} autre(s)` : ''}` : String(error?.message || error || 'Visite non envoyable');
 }
 
-async function runIntranetSyncCycle({ visitLimit = 3, photoLimit = 12 } = {}) {
+async function runIntranetSyncCycle({ visitLimit = 8, photoLimit = 18 } = {}) {
   await processVisitOutbox({ limit: visitLimit }).catch(() => {});
   await processVisitPhotoOutbox({ limit: photoLimit }).catch(() => {});
 }
@@ -56,12 +57,12 @@ export function IntranetVisitSyncBanner() {
   const refresh = useCallback(() => listVisitOutbox().then(setRows).catch(() => {}), []);
   useEffect(() => {
     refresh();
-    const a = subscribeVisitOutbox(refresh), b = subscribeVisitPhotoOutbox(refresh);
-    return () => { a(); b(); };
+    const a = subscribeVisitOutbox(refresh), b = subscribeVisitPhotoOutbox(refresh), c = subscribeIntranetPhotoChanges(refresh);
+    return () => { a(); b(); c(); };
   }, [refresh]);
   if (!rows.length) return null;
   const sending = rows.filter((r) => r.status === 'sending').length, waiting = rows.filter((r) => ['pending', 'retry'].includes(r.status)).length, blocked = rows.length - sending - waiting;
-  return <View accessibilityLiveRegion="polite" style={{ minHeight: 40, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: blocked ? '#FFF1F0' : '#FFF8ED', borderBottomWidth: 1, borderBottomColor: COLORS.line, flexDirection: 'row', alignItems: 'center' }}><Text style={{ flex: 1, color: COLORS.ink, fontSize: 12, fontWeight: '800' }}>Intranet · {sending ? `${sending} envoi en cours` : `${waiting} en attente`}{blocked ? ` · ${blocked} à corriger` : ''}</Text>{waiting ? <TouchableOpacity accessibilityRole="button" onPress={() => runIntranetSyncCycle({ visitLimit: 3, photoLimit: 12 }).catch(() => {})} style={{ minHeight: 40, justifyContent: 'center', paddingHorizontal: 10 }}><Text style={{ color: COLORS.primary, fontWeight: '900', fontSize: 12 }}>Synchroniser</Text></TouchableOpacity> : null}</View>;
+  return <View accessibilityLiveRegion="polite" style={{ minHeight: 40, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: blocked ? '#FFF1F0' : '#FFF8ED', borderBottomWidth: 1, borderBottomColor: COLORS.line, flexDirection: 'row', alignItems: 'center' }}><Text style={{ flex: 1, color: COLORS.ink, fontSize: 12, fontWeight: '800' }}>Intranet · {sending ? `${sending} envoi en cours` : `${waiting} en attente`}{blocked ? ` · ${blocked} à corriger` : ''}</Text>{waiting ? <TouchableOpacity accessibilityRole="button" onPress={() => runIntranetSyncCycle({ visitLimit: 8, photoLimit: 18 }).catch(() => {})} style={{ minHeight: 40, justifyContent: 'center', paddingHorizontal: 10 }}><Text style={{ color: COLORS.primary, fontWeight: '900', fontSize: 12 }}>Synchroniser</Text></TouchableOpacity> : null}</View>;
 }
 
 function initialUploadRowFromVisit(visite) {
@@ -76,7 +77,8 @@ function initialUploadRowFromVisit(visite) {
 }
 
 function initialPhotoStateFromVisit(visite, row) {
-  if (Number(visite?.api_is_historical) === 1) return { ready: true, complete: true, localCount: 0, unscheduledCount: 0, pendingCount: 0, errorCount: 0, syncedCount: 0 };
+  const historicalOnly = Number(visite?.api_is_historical) === 1 && row?.status !== 'synced';
+  if (historicalOnly) return { ready: true, complete: true, localCount: 0, unscheduledCount: 0, pendingCount: 0, errorCount: 0, syncedCount: 0 };
   const known = ['intranet_photo_local_count', 'intranet_photo_unscheduled_count', 'intranet_photo_pending_count', 'intranet_photo_error_count', 'intranet_photo_synced_count'].some((key) => visite?.[key] != null);
   if (!known) return null;
   const localCount = Number(visite?.intranet_photo_local_count || 0);
@@ -104,8 +106,8 @@ export function useVisitUploadState(visiteId, { initialRow = null, initialPhotoS
   useEffect(() => {
     if (passive) { setRow(initialRow); setPhotoState(initialPhotoState); setLoading(false); return undefined; }
     setLoading(true); refresh();
-    const a = subscribeVisitOutbox(refresh), b = subscribeVisitPhotoOutbox(refresh);
-    return () => { a(); b(); };
+    const a = subscribeVisitOutbox(refresh), b = subscribeVisitPhotoOutbox(refresh), c = subscribeIntranetPhotoChanges(refresh);
+    return () => { a(); b(); c(); };
   }, [refresh, passive, initialRow?.status, initialRow?.remote_visit_id, initialRow?.error_code, initialRow?.error_message, initialPhotoState?.unscheduledCount, initialPhotoState?.pendingCount, initialPhotoState?.errorCount, initialPhotoState?.syncedCount]);
   return { row, photoState, loading, refresh };
 }
@@ -139,8 +141,9 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
   const [busy, setBusy] = useState(false);
   const historical = Number(visite?.api_is_historical) === 1;
   const contentRevision = Number(visite?.api_content_revision || 0), syncedRevision = Number(visite?.api_synced_revision || 0), dirty = contentRevision !== syncedRevision;
-  const photosComplete = historical || photoState == null || photoState.complete;
-  const online = (historical || row?.status === 'synced') && !dirty && photosComplete;
+  const historicalOnly = historical && row?.status !== 'synced';
+  const photosComplete = historicalOnly || photoState == null || photoState.complete;
+  const online = (historicalOnly || row?.status === 'synced') && !dirty && photosComplete;
   const hardIdempotencyConflict = row?.error_code === 'idempotency_conflict', invalidAck = row?.error_code === 'invalid_ack';
 
   const syncPhotosForCurrentVisit = async () => {
@@ -148,7 +151,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
     if (queued?.errors?.length) {
       Alert.alert('Certaines photos ne peuvent pas être préparées', queued.errors.slice(0, 5).map((item) => `• ${item.message}`).join('\n') + (queued.errors.length > 5 ? `\n• … ${queued.errors.length - 5} autre(s)` : ''));
     }
-    await processVisitPhotoOutbox({ limit: 6, visitIds: [visiteId], discover: false }).catch(() => {});
+    await processVisitPhotoOutbox({ limit: 18, visitIds: [visiteId], discover: false }).catch(() => {});
   };
 
   const finishQueueAndSend = async (confirmMaterialReplacement = false) => {
@@ -182,7 +185,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
     if (busy || loading || online || row?.status === 'sending') return;
     setBusy(true);
     try {
-      if (!dirty && row?.status === 'synced' && !historical && photoState && !photoState.complete) {
+      if (!dirty && row?.status === 'synced' && photoState && !photoState.complete) {
         await retryVisitPhotoUploadsNow(visiteId).catch(() => {});
         await syncPhotosForCurrentVisit();
         await refresh(); await onVisitChanged?.();
@@ -218,7 +221,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
   const photoPending = Number(photoState?.pendingCount || 0) + Number(photoState?.unscheduledCount || 0);
   const photoErrors = Number(photoState?.errorCount || 0);
   const detail = online
-    ? (historical && !row?.remote_visit_id ? 'Déjà présente sur l’Intranet (visite importée).' : `Export Intranet confirmé${row?.remote_visit_id ? ` · visite n°${row.remote_visit_id}` : ''}${Number(photoState?.localCount || 0) ? ` · ${photoState.localCount} photo${photoState.localCount > 1 ? 's' : ''}` : ''}.`)
+    ? (historicalOnly ? 'Déjà présente sur l’Intranet (visite importée).' : `Export Intranet confirmé${row?.remote_visit_id ? ` · visite n°${row.remote_visit_id}` : ''}${Number(photoState?.localCount || 0) ? ` · ${photoState.localCount} photo${photoState.localCount > 1 ? 's' : ''}` : ''}.`)
     : !dirty && row?.status === 'synced' && photoErrors ? `${photoErrors} photo${photoErrors > 1 ? 's' : ''} refusée${photoErrors > 1 ? 's' : ''} ou à corriger. Appuie sur Offline pour reprendre les envois possibles.`
       : !dirty && row?.status === 'synced' && photoPending ? `${photoPending} photo${photoPending > 1 ? 's' : ''} à envoyer vers la visite Intranet n°${row.remote_visit_id}.`
         : dirty && (historical || row?.status === 'synced') ? 'Modifications locales non envoyées. Appuie sur Offline pour créer une nouvelle visite Intranet avec ces changements.'
