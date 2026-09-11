@@ -60,7 +60,8 @@ requireText(pilotage, 'getStatsSitesPatrimoine(clientId)', 'pilotage bulk stats'
 requireText(pilotage, 'mapAvecConcurrence(cell.issues || [], 4', 'pilotage bounded photo reads');
 
 const matrix = read('clientTechnicalMatrix.js');
-requireText(matrix, 'const controlsByVisit = new Map();', 'technical matrix batched controls');
+requireText(matrix, 'controlsByVisit = new Map()', 'technical matrix batched controls');
+requireText(matrix, 'remarksByVisit = new Map()', 'technical matrix batched remarks');
 requireText(matrix, 'WHERE visite_id IN (${placeholders})', 'technical matrix IN query');
 
 const database = read('db.js');
