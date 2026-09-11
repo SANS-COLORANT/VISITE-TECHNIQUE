@@ -106,6 +106,7 @@ latest = Path('apiLatestVisitImportDb.js').read_text(encoding='utf-8')
 fields = Path('apiLatestVisitFieldEnrichmentDb.js').read_text(encoding='utf-8')
 persistent = Path('persistentEquipmentDb.js').read_text(encoding='utf-8')
 prefill = Path('visitPrefillDb.js').read_text(encoding='utf-8')
+carry = Path('visitCarryForwardDb.js').read_text(encoding='utf-8')
 directory = Path('MetraDirectoryScreen.js').read_text(encoding='utf-8')
 
 require(cache, 'referencePath:', 'reused criterion branch identity')
@@ -141,8 +142,10 @@ require(fields, 'criterionReference(category, subCategory, criterion)', 'branch-
 
 require(persistent, 'const apiPrepared = Boolean(contexte.api_remote_local_id)', 'prepared visit detection')
 require(persistent, 'if (!referenceOnly) await upsertObservation', 'no automatic material observation from preparation')
-require(prefill, 'contexte.installation_id', 'LOCAL-scoped stable prefill')
-require(prefill, 'AND (? IS NULL OR installation_id=?)', 'same-LOCAL carry forward')
+require(prefill, 'carryForwardPreviousVisit', 'prefill delegates reusable history to the dedicated carry-forward module')
+require(carry, 'contexte.installation_id', 'LOCAL-scoped stable prefill')
+require(carry, 'AND (? IS NULL OR installation_id=?)', 'same-LOCAL carry forward')
+require(carry, 'if (installations.length > 1) return { contexte, canCarry: false };', 'ambiguous multi-LOCAL carry forward is blocked')
 require(directory, 'materializeCachedSite(selectedSite.remote_site_id, remoteClientId)', 'selected client context')
 
 print('Symfony preparation contract validated: CLIENT/SITE/LOCAL, latest-known criterion values, source provenance, trame branches, unique site patrimoine and current material listing.')
