@@ -34,6 +34,7 @@ const VisitPanelHost = memo(function VisitPanelHost({
   panelLabels,
   panels,
   intranetLinked,
+  onRegisterLocalSwipe,
 }) {
   if (special) {
     if (panelId === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
@@ -42,7 +43,7 @@ const VisitPanelHost = memo(function VisitPanelHost({
     if (panelId === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} intranetLinked={intranetLinked} />;
     if (panelId === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
   }
-  return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} />;
+  return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} />;
 });
 
 function VisiteScreen({ route, onBack }) {
@@ -61,8 +62,13 @@ function VisiteScreen({ route, onBack }) {
   const progressionTimerRef = useRef(null);
   const transitionRef = useRef(false);
   const pagerX = useRef(new Animated.Value(0)).current;
+  const preAllumageLocalX = useRef(new Animated.Value(0)).current;
+  const preAllumageLocalSwipeRef = useRef(null);
+  const trameIdRef = useRef(DEFAULT_TRAME_ID);
+  const gestureModeRef = useRef('tabs');
   const gestureStartIndexRef = useRef(0);
   const finishSwipeRef = useRef(null);
+  const finishLocalSwipeRef = useRef(null);
   const ensureMountedRef = useRef(null);
   const pagerPruneTimerRef = useRef(null);
   const stickyHeavyPanelsRef = useRef(new Set());
@@ -74,6 +80,7 @@ function VisiteScreen({ route, onBack }) {
   const [anomalieTxt, setAnomalieTxt] = useState('');
 
   const trame = obtenirTrame(visite?.trame_id || DEFAULT_TRAME_ID);
+  trameIdRef.current = trame.id;
   const tabOrderBase = trame.ui?.tabOrder || [];
   const panelLabelsBase = trame.ui?.labels || {};
   const panels = trame.ui?.panels || {};
@@ -146,9 +153,10 @@ function VisiteScreen({ route, onBack }) {
     if (progressionTimerRef.current) clearTimeout(progressionTimerRef.current);
     if (pagerPruneTimerRef.current) clearTimeout(pagerPruneTimerRef.current);
     pagerX.stopAnimation();
+    preAllumageLocalX.stopAnimation();
     invaliderCacheTrameGenerique(visiteId);
     invaliderCacheRegulation(visiteId);
-  }, [pagerX, visiteId]);
+  }, [pagerX, preAllumageLocalX, visiteId]);
 
   useEffect(() => {
     if (!visite || tabsReels.length === 0) return;
@@ -163,9 +171,10 @@ function VisiteScreen({ route, onBack }) {
     transitionRef.current = false;
     pagerX.stopAnimation();
     pagerX.setValue(-Math.max(0, index) * pagerWidth);
+    preAllumageLocalX.setValue(0);
     addMountedPanels([current], { stickyHeavy: true });
     warmPagerWindow(current);
-  }, [visite?.trame_id, tabsSignature, pagerWidth, addMountedPanels, warmPagerWindow, pagerX]);
+  }, [visite?.trame_id, tabsSignature, pagerWidth, addMountedPanels, warmPagerWindow, pagerX, preAllumageLocalX]);
 
   const completeTabChange = useCallback((prochain) => {
     activeTabRef.current = prochain;
@@ -264,6 +273,49 @@ function VisiteScreen({ route, onBack }) {
     onSaved();
   }, [visiteId, onSaved]);
 
+  const enregistrerSwipeLocalPreAllumage = useCallback((handler) => {
+    preAllumageLocalSwipeRef.current = typeof handler === 'function' ? handler : null;
+  }, []);
+
+  const terminerSwipeLocalPreAllumage = useCallback((g) => {
+    const w = pagerWidthRef.current;
+    const threshold = Math.max(44, w * 0.065);
+    const versSuivant = g.dx < -threshold || g.vx < -0.42;
+    const versPrecedent = g.dx > threshold || g.vx > 0.42;
+    const direction = versSuivant ? 1 : versPrecedent ? -1 : 0;
+    const peutChanger = direction ? preAllumageLocalSwipeRef.current?.(direction, false) : false;
+    if (!peutChanger) {
+      Animated.spring(preAllumageLocalX, { toValue: 0, speed: 28, bounciness: 0, useNativeDriver: true }).start(() => {
+        transitionRef.current = false;
+      });
+      return;
+    }
+    Animated.timing(preAllumageLocalX, {
+      toValue: direction > 0 ? -w : w,
+      duration: 115,
+      easing: Easing.out(Easing.cubic),
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) { transitionRef.current = false; return; }
+      const changed = preAllumageLocalSwipeRef.current?.(direction, true);
+      if (!changed) {
+        preAllumageLocalX.setValue(0);
+        transitionRef.current = false;
+        return;
+      }
+      preAllumageLocalX.setValue(direction > 0 ? w : -w);
+      requestAnimationFrame(() => {
+        Animated.timing(preAllumageLocalX, {
+          toValue: 0,
+          duration: 165,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true,
+        }).start(() => { transitionRef.current = false; });
+      });
+    });
+  }, [preAllumageLocalX]);
+  finishLocalSwipeRef.current = terminerSwipeLocalPreAllumage;
+
   const terminerSwipe = useCallback((g) => {
     const tabs = tabOrderRef.current;
     const idx = Math.max(0, Math.min(tabs.length - 1, gestureStartIndexRef.current));
@@ -288,15 +340,31 @@ function VisiteScreen({ route, onBack }) {
   const swipeHandlers = useRef(null);
   if (!swipeHandlers.current) {
     swipeHandlers.current = PanResponder.create({
-      onMoveShouldSetPanResponder: (_evt, g) => !transitionRef.current && Math.abs(g.dx) > 9 && Math.abs(g.dx) > Math.abs(g.dy) * 1.35,
+      onMoveShouldSetPanResponder: (_evt, g) => {
+        if (transitionRef.current || Math.abs(g.dx) <= 9 || Math.abs(g.dx) <= Math.abs(g.dy) * 1.35) return false;
+        const localMode = trameIdRef.current === 'pre_allumage' && activeTabRef.current === 'p-pa-batiments';
+        return localMode ? typeof preAllumageLocalSwipeRef.current === 'function' : true;
+      },
       onPanResponderGrant: () => {
         Keyboard.dismiss();
+        const localMode = trameIdRef.current === 'pre_allumage' && activeTabRef.current === 'p-pa-batiments' && typeof preAllumageLocalSwipeRef.current === 'function';
+        gestureModeRef.current = localMode ? 'preallumage-local' : 'tabs';
+        transitionRef.current = true;
+        if (localMode) {
+          preAllumageLocalX.stopAnimation();
+          return;
+        }
         const tabs = tabOrderRef.current;
         gestureStartIndexRef.current = Math.max(0, tabs.indexOf(activeTabRef.current));
-        transitionRef.current = true;
         pagerX.stopAnimation();
       },
       onPanResponderMove: (_evt, g) => {
+        if (gestureModeRef.current === 'preallumage-local') {
+          const direction = g.dx < 0 ? 1 : -1;
+          const peutChanger = preAllumageLocalSwipeRef.current?.(direction, false);
+          preAllumageLocalX.setValue(peutChanger ? g.dx : g.dx * 0.20);
+          return;
+        }
         const tabs = tabOrderRef.current;
         const idx = Math.max(0, Math.min(tabs.length - 1, gestureStartIndexRef.current));
         const w = pagerWidthRef.current;
@@ -306,8 +374,17 @@ function VisiteScreen({ route, onBack }) {
         if (target && !mountedPanelIdsRef.current.has(target)) ensureMountedRef.current?.([target]);
         pagerX.setValue(-idx * w + dx);
       },
-      onPanResponderRelease: (_evt, g) => finishSwipeRef.current?.(g),
+      onPanResponderRelease: (_evt, g) => {
+        if (gestureModeRef.current === 'preallumage-local') finishLocalSwipeRef.current?.(g);
+        else finishSwipeRef.current?.(g);
+      },
       onPanResponderTerminate: () => {
+        if (gestureModeRef.current === 'preallumage-local') {
+          Animated.spring(preAllumageLocalX, { toValue: 0, speed: 28, bounciness: 0, useNativeDriver: true }).start(() => {
+            transitionRef.current = false;
+          });
+          return;
+        }
         const idx = Math.max(0, gestureStartIndexRef.current);
         Animated.spring(pagerX, { toValue: -idx * pagerWidthRef.current, speed: 28, bounciness: 0, useNativeDriver: true }).start(() => {
           transitionRef.current = false;
@@ -396,17 +473,20 @@ function VisiteScreen({ route, onBack }) {
           pointerEvents={panelId === activeTab ? 'auto' : 'none'}
           style={{ position: 'absolute', top: 0, bottom: 0, left: index * pagerWidth, width: pagerWidth, transform: [{ translateX: pagerX }] }}
         >
-          <VisitPanelHost
-            visiteId={visiteId}
-            panelId={panelId}
-            sections={panels[panelId]}
-            special={specialPanels.has(panelId)}
-            onSaved={onSaved}
-            tabOrder={tabOrder}
-            panelLabels={panelLabels}
-            panels={panels}
-            intranetLinked={intranetLinked}
-          />
+          <Animated.View style={{ flex: 1, transform: panelId === 'p-pa-batiments' ? [{ translateX: preAllumageLocalX }] : [] }}>
+            <VisitPanelHost
+              visiteId={visiteId}
+              panelId={panelId}
+              sections={panels[panelId]}
+              special={specialPanels.has(panelId)}
+              onSaved={onSaved}
+              tabOrder={tabOrder}
+              panelLabels={panelLabels}
+              panels={panels}
+              intranetLinked={intranetLinked}
+              onRegisterLocalSwipe={trame.id === 'pre_allumage' && panelId === 'p-pa-batiments' ? enregistrerSwipeLocalPreAllumage : undefined}
+            />
+          </Animated.View>
         </Animated.View>;
       })}
     </View>
