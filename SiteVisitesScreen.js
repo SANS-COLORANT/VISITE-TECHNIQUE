@@ -4,7 +4,8 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
-import { listerVisitesSite, getDb } from './db.js';
+import { getDb } from './db.js';
+import { listerVisitesSiteAvecEtatIntranet } from './siteVisitListDb.js';
 import { creerVisiteProduction } from './visitCreationDb.js';
 import { supprimerVisiteComplete } from './entityManagementDb.js';
 import { getSiteLocalisation } from './siteGeoDb.js';
@@ -14,7 +15,7 @@ import { listerTramesDisponibles, obtenirTrame, DEFAULT_TRAME_ID } from './trame
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { SiteOverviewPanel } from './SiteOverviewPanel.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
-import { subscribeVisitOutbox } from './intranetVisitOutboxDb.js';
+import { subscribeVisitOutbox } from './clientIntranetSyncDb.js';
 
 function chargerBatchExcel(){return require('./batchExcel.js');}
 
@@ -70,7 +71,7 @@ function SiteVisitesScreen({ route, navigation }) {
   const charger = useCallback(async () => {
     const databasePromise = getDb();
     const [v, s, importedClient] = await Promise.all([
-      listerVisitesSite(siteId),
+      listerVisitesSiteAvecEtatIntranet(siteId),
       getSiteLocalisation(siteId),
       databasePromise.then((database) => database.getFirstAsync(`SELECT c.remote_client_id FROM sites s JOIN api_client_links c ON c.local_client_id=s.client_id WHERE s.id=? LIMIT 1`, [siteId])),
     ]);
@@ -88,8 +89,8 @@ function SiteVisitesScreen({ route, navigation }) {
   }, [cacheKey, siteId]);
 
   useEffect(() => { charger().catch(() => {}); }, [charger]);
-  // Une seule souscription pour toute la liste : les boutons compacts n'exécutent
-  // plus chacun une requête SQLite à chaque événement d'outbox.
+  // Une seule souscription combinée visite + photos pour toute la liste : les
+  // boutons compacts restent passifs et ne créent jamais de N+1 SQLite.
   useEffect(() => subscribeVisitOutbox(() => charger().catch(() => {})), [charger]);
   useEffect(() => {
     if (!params.openNewVisit || !apiRemoteLocalId || autoOpenHandled.current) return;
