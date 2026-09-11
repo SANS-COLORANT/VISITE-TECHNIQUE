@@ -1,11 +1,20 @@
 /** VISITE TECHNIQUE — point d'entrée natif Android. */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, BackHandler, Keyboard } from 'react-native';
+import { View, Text, TouchableOpacity, BackHandler, Keyboard, InteractionManager } from 'react-native';
 import { PhotoDownloadBanner } from './PhotoDownloadStatus.js';
 import { IntranetVisitSyncBanner, IntranetVisitSyncRuntime } from './IntranetVisitSync.js';
-import { getDb } from './db.js'; import { COLORS, styles } from './styles.js'; import { HomeScreen } from './HomeScreen.js'; import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';
-import { getHydraulicSchemaVisible,getLab3DVisible,subscribeLabFeatureChanges } from './featureSettings.js'; import { AppErrorBoundary } from './AppErrorBoundary.js'; import { R1EasterEgg } from './R1EasterEgg.js'; import { VisualPackLoadingScreen } from './visual-packs/runtime/VisualPackLoadingScreen.js'; import { VisualPackAsset } from './visual-packs/runtime/VisualPackAsset.js'; import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRuntime.js'; import { getActiveVisualPack,getVisualPackStartupDuration,resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
+import { getDb } from './db.js';
+import { COLORS, styles } from './styles.js';
+import { HomeScreen } from './HomeScreen.js';
+import { getHydraulicSchemaVisible,getLab3DVisible,subscribeLabFeatureChanges } from './featureSettings.js';
+import { AppErrorBoundary } from './AppErrorBoundary.js';
+import { R1EasterEgg } from './R1EasterEgg.js';
+import { VisualPackLoadingScreen } from './visual-packs/runtime/VisualPackLoadingScreen.js';
+import { VisualPackAsset } from './visual-packs/runtime/VisualPackAsset.js';
+import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRuntime.js';
+import { getActiveVisualPack,getVisualPackStartupDuration,resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
+
 const SPLASH_BG='#FBF0E1';
 const DEFERRED_SCREEN_LOADERS=Object.freeze({
  MetraDirectory:()=>require('./MetraDirectoryScreen.js').MetraDirectoryScreen,
@@ -19,25 +28,72 @@ const DEFERRED_SCREEN_LOADERS=Object.freeze({
  SiteVisites:()=>require('./SiteVisitesScreen.js').SiteVisitesScreen,
  Report:()=>require('./ReportScreen.js').ReportScreen,
  Lab3D:()=>require('./Lab3DScreen.js').Lab3DScreen,
+ HydraulicSchema:()=>require('./HydraulicSchemaWorkspace.js').HydraulicSchemaWorkspace,
  Parametres:()=>require('./visual-packs/runtime/VisualPacksSettingsScreen.js').VisualPacksSettingsScreen,
 });
-function DeferredScreen({name,...props}){const Component=DEFERRED_SCREEN_LOADERS[name]?.();return Component?<Component {...props}/>:null;}
+const SCREEN_COMPONENT_CACHE=new Map();
+function loadDeferredScreen(name){
+ if(SCREEN_COMPONENT_CACHE.has(name))return SCREEN_COMPONENT_CACHE.get(name);
+ const Component=DEFERRED_SCREEN_LOADERS[name]?.();
+ if(Component)SCREEN_COMPONENT_CACHE.set(name,Component);
+ return Component||null;
+}
+function DeferredScreen({name,...props}){const Component=loadDeferredScreen(name);return Component?<Component {...props}/>:null;}
 function SimpleHeader({title,onBack,visualPack}){const uri=resolveVisualPackAssetUri(visualPack,visualPack?.interface?.headerLogo);return <View style={styles.simpleHeader}>{onBack?<TouchableOpacity style={styles.simpleHeaderBack} onPress={onBack}><Text style={styles.simpleHeaderBackText}>←</Text></TouchableOpacity>:<View style={styles.simpleHeaderBack}/>}<Text style={styles.simpleHeaderTitle}>{title}</Text><View style={styles.simpleHeaderBack}>{uri?<VisualPackAsset uri={uri} style={{width:34,height:26}}/>:null}</View></View>;}
 function GlobalHomeButton({onPress}){return <TouchableOpacity onPress={onPress} style={{position:'absolute',left:18,bottom:20,minHeight:46,paddingHorizontal:15,borderRadius:23,backgroundColor:COLORS.white,borderWidth:1.5,borderColor:COLORS.orange,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,elevation:9,zIndex:260}}><Text style={{color:COLORS.orange,fontSize:20,fontWeight:'900'}}>⌂</Text><Text style={{color:COLORS.ink,fontSize:11.5,fontWeight:'900'}}>Accueil</Text></TouchableOpacity>;}
 function Lab3DFab({onPress,bottom=82,label='⬡ LAB 3D'}){return <TouchableOpacity onPress={onPress} style={{position:'absolute',right:18,bottom,minHeight:48,paddingHorizontal:17,borderRadius:24,backgroundColor:'#10384B',borderWidth:2,borderColor:'#5DD8FF',alignItems:'center',justifyContent:'center',elevation:9,zIndex:205}}><Text style={{color:'#F5FBFF',fontWeight:'900',fontSize:12.5}}>{label}</Text></TouchableOpacity>;}
-function AppContent(){const[dbReady,setDbReady]=useState(false),[dbError,setDbError]=useState(null),[visualPack,setVisualPack]=useState(null),[visualRevision,setVisualRevision]=useState(0),[stack,setStack]=useState([{name:'Home',params:{}}]),[r1Visible,setR1Visible]=useState(false),[hydraulicVisible,setHydraulicVisible]=useState(false),[lab3dVisible,setLab3dVisible]=useState(true);
- const initialiser=useCallback(async()=>{setDbReady(false);setDbError(null);setVisualPack(null);try{await getDb();const[pack,schemaVisible,lab3dEnabled]=await Promise.all([getActiveVisualPack(),getHydraulicSchemaVisible(),getLab3DVisible()]);setHydraulicVisible(schemaVisible);setLab3dVisible(lab3dEnabled);setRuntimeVisualPalette(pack?.colors);setVisualPack(pack);await new Promise((r)=>setTimeout(r,getVisualPackStartupDuration(pack)));setDbReady(true);}catch(err){setDbError(err);}},[]);useEffect(()=>{initialiser();},[initialiser]);
- const navigate=useCallback((name,params={})=>setStack((s)=>{const c=s[s.length-1];return c?.name===name&&JSON.stringify(c.params||{})===JSON.stringify(params||{})?s:[...s,{name,params}];}),[]);const goBack=useCallback(()=>{Keyboard.dismiss();setTimeout(()=>setStack((s)=>s.length>1?s.slice(0,-1):s),0);},[]);const goHome=useCallback(()=>{Keyboard.dismiss();setR1Visible(false);setTimeout(()=>setStack([{name:'Home',params:{}}]),0);},[]);const handleVisualPackChanged=useCallback((pack)=>{setRuntimeVisualPalette(pack?.colors);setVisualPack(pack);setVisualRevision((v)=>v+1);},[]);
- useEffect(()=>subscribeLabFeatureChanges((key,enabled)=>{if(key==='hydraulic_schema')setHydraulicVisible(enabled);if(key==='lab_3d'){setLab3dVisible(enabled);if(!enabled)setStack((s)=>s.filter((e,i)=>e.name!=='Lab3D'||i===0));}}),[]);useEffect(()=>{const sub=BackHandler.addEventListener('hardwareBackPress',()=>{if(r1Visible)return true;if(stack.length<=1)return false;goBack();return true;});return()=>sub.remove();},[stack.length,goBack,r1Visible]);
- if(dbError)return <View style={styles.center}><Text style={styles.errorTitle}>Erreur de démarrage</Text><Text style={styles.errorText}>{String(dbError.message||dbError)}</Text><TouchableOpacity style={[styles.btnPrimary,{marginTop:18}]} onPress={initialiser}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity></View>;if(!visualPack)return <View style={{flex:1,backgroundColor:SPLASH_BG}}/>;if(!dbReady)return <VisualPackLoadingScreen pack={visualPack}/>;
- const current=stack[stack.length-1],navigation={navigate,goBack,goHome},route={params:current.params};return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{flex:1,backgroundColor:COLORS.bg}}>
+
+function AppContent(){
+ const[dbReady,setDbReady]=useState(false),[dbError,setDbError]=useState(null),[visualPack,setVisualPack]=useState(null),[visualRevision,setVisualRevision]=useState(0),[stack,setStack]=useState([{name:'Home',params:{}}]),[r1Visible,setR1Visible]=useState(false),[hydraulicVisible,setHydraulicVisible]=useState(false),[lab3dVisible,setLab3dVisible]=useState(true);
+ const initialiser=useCallback(async()=>{setDbReady(false);setDbError(null);setVisualPack(null);try{await getDb();const[pack,schemaVisible,lab3dEnabled]=await Promise.all([getActiveVisualPack(),getHydraulicSchemaVisible(),getLab3DVisible()]);setHydraulicVisible(schemaVisible);setLab3dVisible(lab3dEnabled);setRuntimeVisualPalette(pack?.colors);setVisualPack(pack);await new Promise((r)=>setTimeout(r,getVisualPackStartupDuration(pack)));setDbReady(true);}catch(err){setDbError(err);}},[]);
+ useEffect(()=>{initialiser();},[initialiser]);
+ const navigate=useCallback((name,params={})=>setStack((s)=>{const c=s[s.length-1];return c?.name===name&&JSON.stringify(c.params||{})===JSON.stringify(params||{})?s:[...s,{name,params}];}),[]);
+ const goBack=useCallback(()=>{Keyboard.dismiss();setTimeout(()=>setStack((s)=>s.length>1?s.slice(0,-1):s),0);},[]);
+ const goHome=useCallback(()=>{Keyboard.dismiss();setR1Visible(false);setTimeout(()=>setStack([{name:'Home',params:{}}]),0);},[]);
+ const handleVisualPackChanged=useCallback((pack)=>{setRuntimeVisualPalette(pack?.colors);setVisualPack(pack);setVisualRevision((v)=>v+1);},[]);
+ useEffect(()=>subscribeLabFeatureChanges((key,enabled)=>{if(key==='hydraulic_schema')setHydraulicVisible(enabled);if(key==='lab_3d'){setLab3dVisible(enabled);if(!enabled)setStack((s)=>s.filter((e,i)=>e.name!=='Lab3D'||i===0));}}),[]);
+ useEffect(()=>{const sub=BackHandler.addEventListener('hardwareBackPress',()=>{if(r1Visible)return true;if(stack.length<=1)return false;goBack();return true;});return()=>sub.remove();},[stack.length,goBack,r1Visible]);
+
+ // Le démarrage ne charge toujours que l'accueil. Dès le premier rendu terminé,
+ // les écrans les plus utilisés sont parsés par petites tranches pendant les
+ // temps morts. Le premier tap suivant ne paie donc plus le coût de require().
+ useEffect(()=>{
+  if(!dbReady)return undefined;
+  let cancelled=false;
+  const timers=[];
+  let interaction=null;
+  interaction=InteractionManager.runAfterInteractions(()=>{
+   const core=['ClientSites','SiteVisites','Visite','MetraDirectory','ClientPatrimoine','ClientPilotage','ClientTechnicalMatrix','ClientMap','ClientDocuments','Parametres'];
+   core.forEach((name,index)=>timers.push(setTimeout(()=>{if(!cancelled)loadDeferredScreen(name);},180+index*140)));
+   // Les outils 3D/rapport sont plus lourds : ils sont préchauffés beaucoup plus
+   // tard pour ne jamais ralentir l'accueil, mais deviennent ensuite instantanés.
+   ['Report','HydraulicSchema','Lab3D'].forEach((name,index)=>timers.push(setTimeout(()=>{if(!cancelled)loadDeferredScreen(name);},4200+index*900)));
+  });
+  return()=>{cancelled=true;interaction?.cancel?.();timers.forEach(clearTimeout);};
+ },[dbReady]);
+
+ if(dbError)return <View style={styles.center}><Text style={styles.errorTitle}>Erreur de démarrage</Text><Text style={styles.errorText}>{String(dbError.message||dbError)}</Text><TouchableOpacity style={[styles.btnPrimary,{marginTop:18}]} onPress={initialiser}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity></View>;
+ if(!visualPack)return <View style={{flex:1,backgroundColor:SPLASH_BG}}/>;
+ if(!dbReady)return <VisualPackLoadingScreen pack={visualPack}/>;
+ const current=stack[stack.length-1],navigation={navigate,goBack,goHome,preload:loadDeferredScreen},route={params:current.params};
+ return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{flex:1,backgroundColor:COLORS.bg}}>
  <IntranetVisitSyncRuntime/>
  <IntranetVisitSyncBanner/>
  <PhotoDownloadBanner/>
  {current.name==='Home'?<><SimpleHeader title="Visite Technique" visualPack={visualPack}/><HomeScreen navigation={navigation} route={route} onR1LongPress={()=>setR1Visible(true)}/></>:null}
  {current.name==='MetraDirectory'?<><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="MetraDirectory" navigation={navigation} route={route}/></>:null}
- {current.name==='ClientSites'?<><SimpleHeader title={current.params?.nomClient||'Sites'} onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientSites" navigation={navigation} route={route}/></>:null}{current.name==='ClientMap'?<><SimpleHeader title="Carte METRA des sites" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientMap" navigation={navigation} route={route}/></>:null}{current.name==='ClientPilotage'?<><SimpleHeader title="Pilotage patrimoine" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientPilotage" navigation={navigation} route={route}/></>:null}{current.name==='ClientDocuments'?<><SimpleHeader title="Documents & exports" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientDocuments" navigation={navigation} route={route}/></>:null}{current.name==='ClientPatrimoine'?<><SimpleHeader title="Synthèse patrimoine" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientPatrimoine" navigation={navigation} route={route}/></>:null}{current.name==='ClientTechnicalMatrix'?<><SimpleHeader title="Cartographie technique" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientTechnicalMatrix" navigation={navigation} route={route}/></>:null}
+ {current.name==='ClientSites'?<><SimpleHeader title={current.params?.nomClient||'Sites'} onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientSites" navigation={navigation} route={route}/></>:null}
+ {current.name==='ClientMap'?<><SimpleHeader title="Carte METRA des sites" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientMap" navigation={navigation} route={route}/></>:null}
+ {current.name==='ClientPilotage'?<><SimpleHeader title="Pilotage patrimoine" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientPilotage" navigation={navigation} route={route}/></>:null}
+ {current.name==='ClientDocuments'?<><SimpleHeader title="Documents & exports" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientDocuments" navigation={navigation} route={route}/></>:null}
+ {current.name==='ClientPatrimoine'?<><SimpleHeader title="Synthèse patrimoine" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientPatrimoine" navigation={navigation} route={route}/></>:null}
+ {current.name==='ClientTechnicalMatrix'?<><SimpleHeader title="Cartographie technique" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientTechnicalMatrix" navigation={navigation} route={route}/></>:null}
  {current.name==='SiteVisites'?<><SimpleHeader title={current.params?.nomSite||'Visites'} onBack={goBack} visualPack={visualPack}/><DeferredScreen name="SiteVisites" navigation={navigation} route={route}/>{lab3dVisible?<Lab3DFab onPress={()=>navigate('Lab3D',{siteId:current.params?.siteId,nomSite:current.params?.nomSite})} label="⬡ LAB 3D du site"/>:null}</>:null}
  {current.name==='Visite'?<><DeferredScreen name="Visite" navigation={navigation} route={route} onBack={goBack}/>{lab3dVisible?<Lab3DFab onPress={()=>navigate('Lab3D',{visiteId:current.params?.visiteId})} bottom={hydraulicVisible?72:20} label="⬡ LAB 3D du site"/>:null}{hydraulicVisible?<TouchableOpacity onPress={()=>navigate('HydraulicSchema',{visiteId:current.params?.visiteId})} style={{position:'absolute',right:18,bottom:20,minHeight:42,paddingHorizontal:13,borderRadius:21,backgroundColor:COLORS.white,borderWidth:1,borderColor:COLORS.line,alignItems:'center',justifyContent:'center',elevation:4,zIndex:200}}><Text>⌁ Schéma technique</Text></TouchableOpacity>:null}</>:null}
- {current.name==='HydraulicSchema'?<><SimpleHeader title="Schéma technique animé" onBack={goBack} visualPack={visualPack}/><HydraulicSchemaWorkspace route={route}/></>:null}{current.name==='Lab3D'&&lab3dVisible?<><SimpleHeader title="LAB 3D · Maquette du site" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="Lab3D" navigation={navigation} route={route}/></>:null}{current.name==='Report'?<DeferredScreen name="Report" route={route} onBack={goBack}/>:null}{current.name==='Parametres'?<><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="Parametres" visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged}/></>:null}{current.name!=='Home'?<GlobalHomeButton onPress={goHome}/>:null}<R1EasterEgg visible={r1Visible} onFinish={()=>setR1Visible(false)}/></View>;}
+ {current.name==='HydraulicSchema'?<><SimpleHeader title="Schéma technique animé" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="HydraulicSchema" route={route}/></>:null}
+ {current.name==='Lab3D'&&lab3dVisible?<><SimpleHeader title="LAB 3D · Maquette du site" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="Lab3D" navigation={navigation} route={route}/></>:null}
+ {current.name==='Report'?<DeferredScreen name="Report" route={route} onBack={goBack}/>:null}
+ {current.name==='Parametres'?<><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="Parametres" visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged}/></>:null}
+ {current.name!=='Home'?<GlobalHomeButton onPress={goHome}/>:null}<R1EasterEgg visible={r1Visible} onFinish={()=>setR1Visible(false)}/></View>;
+}
 export default function App(){return <AppErrorBoundary><AppContent/></AppErrorBoundary>;}
