@@ -3,6 +3,7 @@ import { carryForwardPreviousVisit } from './visitCarryForwardDb.js';
 
 const prefillTermines = new Set();
 const prefillEnCours = new Map();
+const PREFILL_MARKER_VERSION = 2;
 
 function sectionCode(panelId, section) { return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_'); }
 function formatHeure(date = new Date()) { const p = (n) => String(n).padStart(2, '0'); return `${p(date.getHours())}:${p(date.getMinutes())}`; }
@@ -12,6 +13,7 @@ function saisonDeChauffe(dateTexte) {
   const m = Number.isNaN(d.getTime()) ? new Date().getMonth()+1 : d.getMonth()+1;
   const debut = m >= 7 ? y : y - 1; return `${debut}-${debut+1}`;
 }
+function prefillMarker(visiteId) { return `visit_prefill_v${PREFILL_MARKER_VERSION}:${String(visiteId)}`; }
 
 /** Une seule traversée du bridge SQLite pour tout un bloc de champs fixes. */
 async function insertManyIfEmpty(db, visiteId, rows) {
@@ -92,9 +94,18 @@ export async function preremplirVisiteDepuisContexte(db, visiteId) {
   if (!key || prefillTermines.has(key)) return;
   const existant = prefillEnCours.get(key);
   if (existant) return existant;
-  const promise = preremplirVisiteDepuisContexteInterne(db, visiteId)
-    .then((r) => { prefillTermines.add(key); return r; })
-    .finally(() => prefillEnCours.delete(key));
+  const promise = (async () => {
+    const marker = prefillMarker(key);
+    const durable = await db.getFirstAsync(`SELECT value FROM _meta WHERE key=? LIMIT 1`, [marker]);
+    if (durable?.value === 'done') {
+      prefillTermines.add(key);
+      return;
+    }
+    const result = await preremplirVisiteDepuisContexteInterne(db, visiteId);
+    await db.runAsync(`INSERT INTO _meta(key,value) VALUES(?, 'done') ON CONFLICT(key) DO UPDATE SET value='done'`, [marker]);
+    prefillTermines.add(key);
+    return result;
+  })().finally(() => prefillEnCours.delete(key));
   prefillEnCours.set(key, promise);
   return promise;
 }
