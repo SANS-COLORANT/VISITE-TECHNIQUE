@@ -6,6 +6,25 @@ import { importApiReferenceForVisit } from './apiVisitPreparationDb.js';
 import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
 import { pinPhotoReferencesForVisit } from './latestVisitPhotosDb.js';
 
+async function latestImportedVisitAlreadyMaterialized(db, remoteLocalId) {
+  const local = await db.getFirstAsync(
+    `SELECT derniere_visite_id FROM api_local_links WHERE remote_local_id=? LIMIT 1`,
+    [String(remoteLocalId)]
+  );
+  const remoteVisitId = String(local?.derniere_visite_id || '').trim();
+  if (!remoteVisitId) return false;
+  const existing = await db.getFirstAsync(
+    `SELECT 1 AS ok FROM provenances p
+     JOIN visites v ON v.id=p.entite_id
+     WHERE p.entite_type='visite' AND p.origine='api_symfony'
+       AND p.reference_externe=?
+       AND p.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%'
+     LIMIT 1`,
+    [remoteVisitId]
+  );
+  return Boolean(existing?.ok);
+}
+
 /** Création d'une visite native de production. Le préremplissage vient uniquement de l'historique réel du même local/trame. */
 export async function creerVisiteProduction({ siteId, technicien = null, mode = 'complete', trameId = DEFAULT_TRAME_ID, apiRemoteLocalId = null, apiRemoteClientId = null } = {}) {
   if (!siteId) throw new Error('Site requis pour créer une visite');
@@ -25,10 +44,14 @@ export async function creerVisiteProduction({ siteId, technicien = null, mode = 
   });
 
   if (apiRemoteLocalId) {
-    // Matérialiser d'abord la dernière visite réelle du local Intranet. Le
-    // préremplissage standard peut ensuite repartir de cette visite historique
-    // sans transformer la référence API en constat du jour.
-    await importLatestApiVisitForLocal(siteId, apiRemoteLocalId);
+    // L'import du client/site matérialise déjà la dernière visite réelle du
+    // local. La recréer à chaque nouvelle visite coûtait des dizaines/centaines
+    // d'écritures SQLite inutiles avant même d'afficher l'écran. On ne relance
+    // ce travail que si le cache annonce une nouvelle visite serveur non encore
+    // matérialisée localement.
+    if (!(await latestImportedVisitAlreadyMaterialized(db, apiRemoteLocalId))) {
+      await importLatestApiVisitForLocal(siteId, apiRemoteLocalId);
+    }
     await importApiReferenceForVisit(id, apiRemoteLocalId, apiRemoteClientId);
   }
 
