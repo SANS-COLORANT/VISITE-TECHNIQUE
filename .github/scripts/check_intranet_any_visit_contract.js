@@ -27,6 +27,8 @@ need(sync, 'Appuie sur Offline pour l’envoyer au client importé', 'direct-sen
 need(sync, 'Export Intranet confirmé', 'success status feedback');
 need(sync, 'serverFeedback', 'server error feedback');
 need(sync, 'discardTerminalVisitUpload', 'safe terminal retry preparation');
+need(sync, 'assertQueuedClientStillMatchesImportedClient', 'legacy queued upload client guard');
+need(sync, 'queued_client_mismatch', 'old cross-client queued payload protection');
 forbid(sync, 'IntranetVisitDestinationPicker', 'arbitrary destination picker removed from visit send flow');
 forbid(sync, 'Choisir la destination Intranet', 'no arbitrary client chooser');
 forbid(sync, 'Modifier la destination Intranet', 'no cross-client destination edit');
@@ -35,4 +37,4 @@ const payload = read('intranetVisitPayload.js');
 need(payload, "sourceType === 'upload_binding'", 'send-time frozen context');
 need(payload, 'preparedContext', 'explicit binding precedence over old preparation');
 
-console.log('Imported-client Intranet contract validated: a METRA visit can only return to its imported client/site/local, with one black Offline button that becomes green Online after server acknowledgement.');
+console.log('Imported-client Intranet contract validated: a METRA visit can only return to its imported client/site/local, with one black Offline button that becomes green Online after server acknowledgement, including protection against legacy queued cross-client payloads.');
