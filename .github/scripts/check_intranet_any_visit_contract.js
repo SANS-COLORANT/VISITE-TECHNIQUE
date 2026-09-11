@@ -33,8 +33,13 @@ forbid(sync, 'IntranetVisitDestinationPicker', 'arbitrary destination picker rem
 forbid(sync, 'Choisir la destination Intranet', 'no arbitrary client chooser');
 forbid(sync, 'Modifier la destination Intranet', 'no cross-client destination edit');
 
+const siteVisits = read('SiteVisitesScreen.js');
+need(siteVisits, 'intranetClientImported', 'site knows whether its client was imported from Intranet');
+need(siteVisits, '<IntranetVisitSyncControl visite={item} onVisitChanged={charger} compact />', 'visit cards expose direct Offline Online action');
+need(siteVisits, 'local_client_id=?', 'visit-card status is based on durable imported-client relation');
+
 const payload = read('intranetVisitPayload.js');
 need(payload, "sourceType === 'upload_binding'", 'send-time frozen context');
 need(payload, 'preparedContext', 'explicit binding precedence over old preparation');
 
-console.log('Imported-client Intranet contract validated: a METRA visit can only return to its imported client/site/local, with one black Offline button that becomes green Online after server acknowledgement, including protection against legacy queued cross-client payloads.');
+console.log('Imported-client Intranet contract validated: a METRA visit can only return to its imported client/site/local, with one black Offline button that becomes green Online after server acknowledgement, visible directly on visit cards and protected against legacy queued cross-client payloads.');
