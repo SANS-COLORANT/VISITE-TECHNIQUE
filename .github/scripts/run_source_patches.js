@@ -4,6 +4,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const CONTRACT_CHECKS = [
+  ['Spiral Active UI contract', '.github/scripts/check_spiral_active_ui.js'],
   ['latest API visit runtime contract', '.github/scripts/check_api_latest_visit_runtime.js'],
   ['visit carry-forward contract', '.github/scripts/check_visit_carry_forward_contract.js'],
   ['large-client performance contract', '.github/scripts/check_large_client_performance.js'],
@@ -50,6 +51,11 @@ const JS_SYNTAX_FILES = [
   'db.js',
   'database/index.js',
   'visual-packs/runtime/visualPackManager.js',
+  'visual-packs/runtime/VisualPackLoadingScreen.js',
+  'visual-packs/spiral-active/SpiralArt.js',
+  'visual-packs/spiral-active/StartupAnimation.js',
+  'visual-packs/spiral-active/SpiralActiveDock.js',
+  'visual-packs/spiral-active/SpiralActiveHome.js',
   'symfonyApiCacheDb.js',
   'apiLatestVisitImportDb.js',
   'apiLatestVisitFieldEnrichmentDb.js',

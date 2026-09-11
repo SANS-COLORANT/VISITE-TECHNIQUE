@@ -2,6 +2,7 @@ import React from 'react';
 import { StyleSheet, View } from 'react-native';
 import { ClassicStartupAnimation } from '../classic/StartupAnimation.js';
 import { DoomStartupAnimation } from '../doom/StartupAnimation.js';
+import { SpiralActiveStartupAnimation } from '../spiral-active/StartupAnimation.js';
 import { VisualEffectLayer } from './VisualEffectLayer.js';
 import { VisualPackAsset } from './VisualPackAsset.js';
 import { VisualPackAnimatedLayer } from './VisualPackAnimatedLayer.js';
@@ -9,6 +10,7 @@ import { resolveVisualPackAssetUri } from './visualPackManager.js';
 
 function BuiltinStartup({ preset }) {
   if (preset === 'metra-doom') return <DoomStartupAnimation />;
+  if (preset === 'metra-spiral-active') return <SpiralActiveStartupAnimation />;
   if (preset === 'none') return null;
   return <ClassicStartupAnimation />;
 }

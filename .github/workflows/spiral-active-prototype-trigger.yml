@@ -1,0 +1,29 @@
+name: Trigger Spirale Active Prototype APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - feat/spiral-active-ui-test
+    paths:
+      - '.github/workflows/spiral-active-prototype-trigger.yml'
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch-production-apk-pipeline:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch full native APK pipeline on prototype branch
+        uses: actions/github-script@v7
+        with:
+          script: |
+            await github.rest.actions.createWorkflowDispatch({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              workflow_id: 'native-android-apk.yml',
+              ref: 'feat/spiral-active-ui-test'
+            });
+            core.notice('Full native APK pipeline dispatched for Spirale Active prototype.');

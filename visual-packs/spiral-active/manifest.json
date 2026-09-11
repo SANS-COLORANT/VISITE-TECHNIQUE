@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "id": "spiral-active",
+  "name": "Spirale Active — Prototype",
+  "description": "Prototype UX premium : animation point-vers-spirale et molette gestuelle de navigation.",
+  "version": 1,
+  "colors": {
+    "main": "#F26426",
+    "dark": "#14202C",
+    "light": "#FFF4EA"
+  },
+  "startup": {
+    "preset": "metra-spiral-active",
+    "durationMs": 2500,
+    "backgroundColor": "#F4F1E8"
+  },
+  "interface": {
+    "experimentalSpiralDock": true,
+    "surface": "#FFFDF8",
+    "background": "#F4F1E8"
+  }
+}
