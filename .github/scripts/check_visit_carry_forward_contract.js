@@ -15,9 +15,11 @@ requireText(carry, "if (trame.id === 'pre_allumage') return 0;", 'pre-allumage c
 requireText(carry, 'async function isImportedHistoricalVisit', 'historical Intranet visit detection');
 requireText(carry, "details_json LIKE '%\\\"sourceType\\\":\\\"imported_latest_visit\\\"%'", 'imported historical provenance detection');
 requireText(carry, 'function technicalControlKeys(trame)', 'technical values preserved from imported history');
-requireText(carry, 'const commentaire = importedHistory && !technicalKeys.has(key) ? null : previousComment;', 'historical conformity comments do not seed the next visit');
+requireText(carry, "commentExpression = `CASE WHEN (section_code || '||' || cle) IN", 'historical conformity comments filtered in batched SQL');
+requireText(carry, "commentExpression = 'NULL';", 'historical non-technical comments stay hidden');
 requireText(carry, 'SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id', 'network values selected');
-requireText(carry, "entite_type='reseau' AND entite_id=? AND origine='api_symfony'", 'network Intranet provenance carried forward');
+requireText(carry, "entite_type='reseau' AND origine='api_symfony' AND entite_id IN", 'network Intranet provenances loaded in batches');
+requireText(carry, 'VALUES ${placeholders}', 'batched SQL inserts');
 requireText(carry, 'row.t_ext_c ?? null', 'external temperature carry-forward');
 requireText(carry, 'row.t_dep_c ?? null', 'departure temperature carry-forward');
 requireText(carry, 'SELECT label,valeur,unite,compteur_site_id FROM compteurs', 'meter values selected');
@@ -72,4 +74,4 @@ if (historicalImport < 0 || referenceImport < 0 || historicalImport > referenceI
   throw new Error('prepared visit must materialize the latest preparation snapshot before importing the current API reference');
 }
 
-console.log('Visit preparation contract validated: Intranet history imports latest-known S/N.S/etc. without ordinary conformity comments, keeps technical measurements, leaves Intranet remarks summary-only, carries avis into the next visit without cloning old reserves, and keeps Pré-allumage controls blank.');
+console.log('Visit preparation contract validated: Intranet history imports latest-known S/N.S/etc. without ordinary conformity comments, keeps technical measurements, leaves Intranet remarks summary-only, carries avis into the next visit without cloning old reserves, and batches network/meter carry-forward.');
