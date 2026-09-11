@@ -166,5 +166,23 @@ export const migration035 = {
     AFTER DELETE ON notes BEGIN
       UPDATE visites SET api_content_revision=api_content_revision+1 WHERE id=OLD.visite_id;
     END;
+
+    -- L'import de la dernière visite écrit ses champs avant sa provenance. La
+    -- provenance importée constitue donc le point exact où le contenu local est
+    -- réputé identique à l'Intranet, même après un réimport.
+    CREATE TRIGGER IF NOT EXISTS trg_imported_visit_revision_insert
+    AFTER INSERT ON provenances
+    WHEN NEW.entite_type='visite' AND NEW.origine='api_symfony'
+      AND NEW.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%'
+    BEGIN
+      UPDATE visites SET api_synced_revision=api_content_revision WHERE id=NEW.entite_id;
+    END;
+    CREATE TRIGGER IF NOT EXISTS trg_imported_visit_revision_update
+    AFTER UPDATE OF details_json,importe_le ON provenances
+    WHEN NEW.entite_type='visite' AND NEW.origine='api_symfony'
+      AND NEW.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%'
+    BEGIN
+      UPDATE visites SET api_synced_revision=api_content_revision WHERE id=NEW.entite_id;
+    END;
   `,
 };
