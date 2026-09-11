@@ -49,6 +49,12 @@ async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
   const maintenant = new Date();
   const dateVisite = contexte.date_visite || maintenant.toISOString().slice(0,10);
   const nomLocal = contexte.nom_installation || contexte.localisation_note || null;
+  const fixesVmc = [
+    ['p-vmc-infos','Informations générales','Date de visite',dateVisite],
+    ['p-vmc-infos','Informations générales','N° de site',contexte.site_id],
+    ['p-vmc-infos','Informations générales','Référence du site',contexte.nom_site],
+    ['p-vmc-infos','Informations générales','Exploitant',contexte.code_exploitant],
+  ];
 
   const fixes = trame.id === 'pre_allumage' ? [
     ['p-pa-infos','Général','Nom du client',contexte.nom_client],
@@ -60,12 +66,7 @@ async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
     ['p-pa-infos','Informations générales','Saison de chauffe',saisonDeChauffe(dateVisite)],
     ['p-pa-infos','Informations générales','Exploitant',contexte.code_exploitant],
     ['p-pa-infos','Informations générales','Chargé d’affaires / rédacteur',contexte.technicien],
-  ] : trame.id === 'vmc' ? [
-    ['p-vmc-infos','Informations générales','Date de visite',dateVisite],
-    ['p-vmc-infos','Informations générales','N° de site',contexte.site_id],
-    ['p-vmc-infos','Informations générales','Référence du site',contexte.nom_site],
-    ['p-vmc-infos','Informations générales','Exploitant',contexte.code_exploitant],
-  ] : [
+  ] : trame.id === 'vmc' ? fixesVmc : [
     ['p-infos','Général','Nom du client',contexte.nom_client],
     ['p-infos','Général','Nom du site',contexte.nom_site],
     ['p-infos','Général','Nom du local',nomLocal],
