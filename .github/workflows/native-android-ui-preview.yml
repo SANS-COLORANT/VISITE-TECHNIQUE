@@ -67,7 +67,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: android
-          key: metra-ui-preview-android-v2-${{ runner.os }}-${{ hashFiles('package-lock.json', 'app.json', 'plugins/**/*', 'native/**/*') }}
+          key: metra-ui-preview-android-v3-${{ runner.os }}-${{ hashFiles('package-lock.json', 'app.json', 'app.config.js', 'plugins/**/*', 'native/**/*') }}
 
       - name: Stamp preview identity
         run: |
@@ -94,7 +94,7 @@ jobs:
         if: steps.android-project-cache.outputs.cache-hit != 'true'
         run: npx expo prebuild --clean --platform android --no-install
 
-      - name: Stamp preview Android versionCode
+      - name: Validate preview Android project
         run: |
           python - <<'PY'
           import re
@@ -105,10 +105,15 @@ jobs:
           s, count = re.subn(r'(?m)^(\s*)versionCode\s+\d+\s*$', r'\g<1>versionCode ${{ github.run_number }}', s, count=1)
           if count != 1:
               raise SystemExit('versionCode Android introuvable')
+          if not re.search(r'applicationId\s+["\']com\.visitetechnique\.tablet\.preview["\']', s):
+              raise SystemExit('applicationId Preview inattendu après Expo prebuild')
           p.write_text(s, encoding='utf-8')
+
+          dpop = Path('android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt')
+          if not dpop.is_file() or dpop.stat().st_size == 0:
+              raise SystemExit('module natif DPoP absent du projet Android Preview')
+          print('Projet Android Preview prêt.')
           PY
-          grep -q 'applicationId "com.visitetechnique.tablet.preview"' android/app/build.gradle
-          test -s android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
 
       - name: Configure Gradle for fast preview
         working-directory: android
