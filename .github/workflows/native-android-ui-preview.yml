@@ -17,6 +17,9 @@ on:
       - 'native/**'
       - '.github/workflows/native-android-ui-preview.yml'
 
+permissions:
+  contents: write
+
 concurrency:
   group: fast-ui-preview-${{ github.ref }}
   cancel-in-progress: true
@@ -136,3 +139,23 @@ jobs:
           path: METRA-UI-PREVIEW-${{ github.run_number }}.apk
           retention-days: 7
           if-no-files-found: error
+
+      - name: Publish direct-download preview
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TAG="ui-preview-${{ github.run_number }}-a${{ github.run_attempt }}"
+          gh release create "$TAG" "METRA-UI-PREVIEW-${{ github.run_number }}.apk" \
+            --repo "${{ github.repository }}" \
+            --title "METRA UI Preview #${{ github.run_number }}" \
+            --notes "APK de prévisualisation UI généré automatiquement depuis ${GITHUB_SHA}. Version de test, distincte de l'application principale." \
+            --prerelease \
+            --target "${GITHUB_SHA}"
+          APK_URL="$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets --jq '.assets[0].url')"
+          {
+            echo '### APK UI Preview prêt'
+            echo
+            echo "[Télécharger directement METRA-UI-PREVIEW-${{ github.run_number }}.apk](${APK_URL})"
+            echo
+            echo "Release : $TAG"
+          } >> "$GITHUB_STEP_SUMMARY"
