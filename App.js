@@ -14,8 +14,11 @@ import { VisualPackLoadingScreen } from './visual-packs/runtime/VisualPackLoadin
 import { VisualPackAsset } from './visual-packs/runtime/VisualPackAsset.js';
 import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 import { getActiveVisualPack,getVisualPackStartupDuration,resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
+import { SpiralActiveDock } from './visual-packs/spiral-active/SpiralActiveDock.js';
 
 const SPLASH_BG='#FBF0E1';
+const PREMIUM_BG='#F4F1E8';
+const PREMIUM_INK='#14202C';
 const DEFERRED_SCREEN_LOADERS=Object.freeze({
  MetraDirectory:()=>require('./MetraDirectoryScreen.js').MetraDirectoryScreen,
  ClientSites:()=>require('./ClientSitesScreen.js').ClientSitesScreen,
@@ -39,7 +42,11 @@ function loadDeferredScreen(name){
  return Component||null;
 }
 function DeferredScreen({name,...props}){const Component=loadDeferredScreen(name);return Component?<Component {...props}/>:null;}
-function SimpleHeader({title,onBack,visualPack}){const uri=resolveVisualPackAssetUri(visualPack,visualPack?.interface?.headerLogo);return <View style={styles.simpleHeader}>{onBack?<TouchableOpacity style={styles.simpleHeaderBack} onPress={onBack}><Text style={styles.simpleHeaderBackText}>←</Text></TouchableOpacity>:<View style={styles.simpleHeaderBack}/>}<Text style={styles.simpleHeaderTitle}>{title}</Text><View style={styles.simpleHeaderBack}>{uri?<VisualPackAsset uri={uri} style={{width:34,height:26}}/>:null}</View></View>;}
+function SimpleHeader({title,onBack,visualPack,premium=false}){
+ const uri=resolveVisualPackAssetUri(visualPack,visualPack?.interface?.headerLogo);
+ if(premium)return <View style={{flexDirection:'row',alignItems:'center',backgroundColor:'#FFFDF8',paddingTop:50,paddingHorizontal:16,paddingBottom:11,borderBottomWidth:1,borderBottomColor:'#DFE2DF'}}>{onBack?<TouchableOpacity style={{width:44,height:40,alignItems:'flex-start',justifyContent:'center'}} onPress={onBack}><Text style={{color:PREMIUM_INK,fontSize:22,fontWeight:'700'}}>←</Text></TouchableOpacity>:<View style={{width:44}}/>}<View style={{flex:1,alignItems:'center'}}><Text numberOfLines={1} style={{color:PREMIUM_INK,fontSize:16,fontWeight:'800',letterSpacing:-0.25}}>{title}</Text><View style={{marginTop:6,width:30,height:2,backgroundColor:'#F26426',borderRadius:2}}/></View><View style={{width:44}}/></View>;
+ return <View style={styles.simpleHeader}>{onBack?<TouchableOpacity style={styles.simpleHeaderBack} onPress={onBack}><Text style={styles.simpleHeaderBackText}>←</Text></TouchableOpacity>:<View style={styles.simpleHeaderBack}/>}<Text style={styles.simpleHeaderTitle}>{title}</Text><View style={styles.simpleHeaderBack}>{uri?<VisualPackAsset uri={uri} style={{width:34,height:26}}/>:null}</View></View>;
+}
 function GlobalHomeButton({onPress}){return <TouchableOpacity onPress={onPress} style={{position:'absolute',left:18,bottom:20,minHeight:46,paddingHorizontal:15,borderRadius:23,backgroundColor:COLORS.white,borderWidth:1.5,borderColor:COLORS.orange,flexDirection:'row',alignItems:'center',justifyContent:'center',gap:7,elevation:9,zIndex:260}}><Text style={{color:COLORS.orange,fontSize:20,fontWeight:'900'}}>⌂</Text><Text style={{color:COLORS.ink,fontSize:11.5,fontWeight:'900'}}>Accueil</Text></TouchableOpacity>;}
 function Lab3DFab({onPress,bottom=82,label='⬡ LAB 3D'}){return <TouchableOpacity onPress={onPress} style={{position:'absolute',right:18,bottom,minHeight:48,paddingHorizontal:17,borderRadius:24,backgroundColor:'#10384B',borderWidth:2,borderColor:'#5DD8FF',alignItems:'center',justifyContent:'center',elevation:9,zIndex:205}}><Text style={{color:'#F5FBFF',fontWeight:'900',fontSize:12.5}}>{label}</Text></TouchableOpacity>;}
 
@@ -76,24 +83,52 @@ function AppContent(){
  if(!visualPack)return <View style={{flex:1,backgroundColor:SPLASH_BG}}/>;
  if(!dbReady)return <VisualPackLoadingScreen pack={visualPack}/>;
  const current=stack[stack.length-1],navigation={navigate,goBack,goHome,preload:loadDeferredScreen},route={params:current.params};
- return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{flex:1,backgroundColor:COLORS.bg}}>
+ const premium=visualPack?.id==='spiral-active'||visualPack?.interface?.premiumHome===true||visualPack?.interface?.experimentalSpiralDock===true;
+ const currentParams=current.params||{};
+ const hasClient=!!currentParams.clientId;
+ const hasSite=!!currentParams.siteId;
+ const hasVisit=!!currentParams.visiteId;
+ const spiralExploreActions=[
+  {icon:'⌂',label:'Accueil',caption:'Page principale',onPress:goHome},
+  {icon:'⌕',label:'Recherche',caption:'Clients & sites',onPress:()=>navigate('MetraDirectory',{query:''})},
+  hasClient?{icon:'▦',label:'Patrimoine',caption:'Vue du client',onPress:()=>navigate('ClientPatrimoine',{clientId:currentParams.clientId,nomClient:currentParams.nomClient})}:{icon:'▦',label:'Clients',caption:'Répertoire',onPress:()=>navigate('MetraDirectory',{query:''})},
+  hasClient?{icon:'⌖',label:'Carte',caption:'Sites du client',onPress:()=>navigate('ClientMap',{clientId:currentParams.clientId,nomClient:currentParams.nomClient})}:{icon:'⚙',label:'Réglages',caption:'Apparence',onPress:()=>navigate('Parametres')},
+ ];
+ const spiralActionActions=[
+  hasSite?{icon:'＋',label:'Visites',caption:'Ouvrir le site',tone:'action',onPress:()=>navigate('SiteVisites',{...currentParams})}:null,
+  hasVisit?{icon:'▤',label:'Rapport',caption:'Préparer la sortie',tone:'action',onPress:()=>navigate('Report',{visiteId:currentParams.visiteId})}:null,
+  lab3dVisible&&(hasSite||hasVisit)?{icon:'⬡',label:'LAB 3D',caption:'Maquette du site',tone:'action',onPress:()=>navigate('Lab3D',hasVisit?{visiteId:currentParams.visiteId}:{siteId:currentParams.siteId,nomSite:currentParams.nomSite})}:null,
+  hydraulicVisible&&hasVisit?{icon:'⌁',label:'Schéma',caption:'Technique animé',tone:'action',onPress:()=>navigate('HydraulicSchema',{visiteId:currentParams.visiteId})}:null,
+  {icon:'⚙',label:'Réglages',caption:'Apparence',onPress:()=>navigate('Parametres')},
+  stack.length>1?{icon:'←',label:'Retour',caption:'Écran précédent',onPress:goBack}:null,
+ ].filter(Boolean);
+ const spiralQuickActions=[
+  {icon:'⌂',label:'Accueil',caption:'Page principale',onPress:goHome},
+  {icon:'⌕',label:'Recherche',caption:'Tout retrouver',onPress:()=>navigate('MetraDirectory',{query:''})},
+  stack.length>1?{icon:'←',label:'Retour',caption:'Écran précédent',onPress:goBack}:{icon:'▦',label:'Clients',caption:'Répertoire',onPress:()=>navigate('MetraDirectory',{query:''})},
+  {icon:'⚙',label:'Réglages',caption:'Apparence',onPress:()=>navigate('Parametres')},
+ ];
+ return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{flex:1,backgroundColor:premium?PREMIUM_BG:COLORS.bg}}>
  <IntranetVisitSyncRuntime/>
  <IntranetVisitSyncBanner/>
  <PhotoDownloadBanner/>
- {current.name==='Home'?<><SimpleHeader title="Visite Technique" visualPack={visualPack}/><HomeScreen navigation={navigation} route={route} onR1LongPress={()=>setR1Visible(true)}/></>:null}
- {current.name==='MetraDirectory'?<><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="MetraDirectory" navigation={navigation} route={route}/></>:null}
- {current.name==='ClientSites'?<><SimpleHeader title={current.params?.nomClient||'Sites'} onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientSites" navigation={navigation} route={route}/></>:null}
- {current.name==='ClientMap'?<><SimpleHeader title="Carte METRA des sites" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientMap" navigation={navigation} route={route}/></>:null}
- {current.name==='ClientPilotage'?<><SimpleHeader title="Pilotage patrimoine" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientPilotage" navigation={navigation} route={route}/></>:null}
- {current.name==='ClientDocuments'?<><SimpleHeader title="Documents & exports" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientDocuments" navigation={navigation} route={route}/></>:null}
- {current.name==='ClientPatrimoine'?<><SimpleHeader title="Synthèse patrimoine" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientPatrimoine" navigation={navigation} route={route}/></>:null}
- {current.name==='ClientTechnicalMatrix'?<><SimpleHeader title="Cartographie technique" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="ClientTechnicalMatrix" navigation={navigation} route={route}/></>:null}
- {current.name==='SiteVisites'?<><SimpleHeader title={current.params?.nomSite||'Visites'} onBack={goBack} visualPack={visualPack}/><DeferredScreen name="SiteVisites" navigation={navigation} route={route}/>{lab3dVisible?<Lab3DFab onPress={()=>navigate('Lab3D',{siteId:current.params?.siteId,nomSite:current.params?.nomSite})} label="⬡ LAB 3D du site"/>:null}</>:null}
+ {current.name==='Home'?<>{!premium?<SimpleHeader title="Visite Technique" visualPack={visualPack}/>:null}<HomeScreen navigation={navigation} route={route} spiralPreview={premium} onR1LongPress={()=>setR1Visible(true)}/></>:null}
+ {current.name==='MetraDirectory'?<><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack} premium={premium}/><DeferredScreen name="MetraDirectory" navigation={navigation} route={route}/></>:null}
+ {current.name==='ClientSites'?<><SimpleHeader title={current.params?.nomClient||'Sites'} onBack={goBack} visualPack={visualPack} premium={premium}/><DeferredScreen name="ClientSites" navigation={navigation} route={route}/></>:null}
+ {current.name==='ClientMap'?<><SimpleHeader title={premium?'Carte des sites':'Carte METRA des sites'} onBack={goBack} visualPack={visualPack} premium={premium}/><DeferredScreen name="ClientMap" navigation={navigation} route={route}/></>:null}
+ {current.name==='ClientPilotage'?<><SimpleHeader title="Pilotage patrimoine" onBack={goBack} visualPack={visualPack} premium={premium}/><DeferredScreen name="ClientPilotage" navigation={navigation} route={route}/></>:null}
+ {current.name==='ClientDocuments'?<><SimpleHeader title="Documents & exports" onBack={goBack} visualPack={visualPack} premium={premium}/><DeferredScreen name="ClientDocuments" navigation={navigation} route={route}/></>:null}
+ {current.name==='ClientPatrimoine'?<><SimpleHeader title="Synthèse patrimoine" onBack={goBack} visualPack={visualPack} premium={premium}/><DeferredScreen name="ClientPatrimoine" navigation={navigation} route={route}/></>:null}
+ {current.name==='ClientTechnicalMatrix'?<><SimpleHeader title="Cartographie technique" onBack={goBack} visualPack={visualPack} premium={premium}/><DeferredScreen name="ClientTechnicalMatrix" navigation={navigation} route={route}/></>:null}
+ {current.name==='SiteVisites'?<><SimpleHeader title={current.params?.nomSite||'Visites'} onBack={goBack} visualPack={visualPack} premium={premium}/><DeferredScreen name="SiteVisites" navigation={navigation} route={route}/>{lab3dVisible?<Lab3DFab onPress={()=>navigate('Lab3D',{siteId:current.params?.siteId,nomSite:current.params?.nomSite})} label="⬡ LAB 3D du site"/>:null}</>:null}
  {current.name==='Visite'?<><DeferredScreen name="Visite" navigation={navigation} route={route} onBack={goBack}/>{lab3dVisible?<Lab3DFab onPress={()=>navigate('Lab3D',{visiteId:current.params?.visiteId})} bottom={hydraulicVisible?72:20} label="⬡ LAB 3D du site"/>:null}{hydraulicVisible?<TouchableOpacity onPress={()=>navigate('HydraulicSchema',{visiteId:current.params?.visiteId})} style={{position:'absolute',right:18,bottom:20,minHeight:42,paddingHorizontal:13,borderRadius:21,backgroundColor:COLORS.white,borderWidth:1,borderColor:COLORS.line,alignItems:'center',justifyContent:'center',elevation:4,zIndex:200}}><Text>⌁ Schéma technique</Text></TouchableOpacity>:null}</>:null}
- {current.name==='HydraulicSchema'?<><SimpleHeader title="Schéma technique animé" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="HydraulicSchema" route={route}/></>:null}
- {current.name==='Lab3D'&&lab3dVisible?<><SimpleHeader title="LAB 3D · Maquette du site" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="Lab3D" navigation={navigation} route={route}/></>:null}
+ {current.name==='HydraulicSchema'?<><SimpleHeader title="Schéma technique animé" onBack={goBack} visualPack={visualPack} premium={premium}/><DeferredScreen name="HydraulicSchema" route={route}/></>:null}
+ {current.name==='Lab3D'&&lab3dVisible?<><SimpleHeader title="LAB 3D · Maquette du site" onBack={goBack} visualPack={visualPack} premium={premium}/><DeferredScreen name="Lab3D" navigation={navigation} route={route}/></>:null}
  {current.name==='Report'?<DeferredScreen name="Report" route={route} onBack={goBack}/>:null}
- {current.name==='Parametres'?<><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack}/><DeferredScreen name="Parametres" visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged}/></>:null}
- {current.name!=='Home'?<GlobalHomeButton onPress={goHome}/>:null}<R1EasterEgg visible={r1Visible} onFinish={()=>setR1Visible(false)}/></View>;
+ {current.name==='Parametres'?<><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack} premium={premium}/><DeferredScreen name="Parametres" visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged}/></>:null}
+ {current.name!=='Home'&&!premium?<GlobalHomeButton onPress={goHome}/>:null}
+ {premium&&current.name!=='Home'&&!r1Visible?<SpiralActiveDock exploreActions={spiralExploreActions} actionActions={spiralActionActions} quickActions={spiralQuickActions}/>:null}
+ <R1EasterEgg visible={r1Visible} onFinish={()=>setR1Visible(false)}/>
+ </View>;
 }
 export default function App(){return <AppErrorBoundary><AppContent/></AppErrorBoundary>;}
