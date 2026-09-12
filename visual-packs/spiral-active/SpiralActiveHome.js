@@ -9,54 +9,65 @@ const PALETTE = {
   ink: '#10161C',
   orange: '#F26426',
   green: '#78A84D',
+  glass: 'rgba(11,16,20,0.64)',
+  glassStrong: 'rgba(10,15,19,0.76)',
+  glassSoft: 'rgba(20,27,32,0.54)',
   line: 'rgba(255,255,255,0.18)',
-  glass: 'rgba(12,17,21,0.54)',
-  glassStrong: 'rgba(12,17,21,0.67)',
   white: '#FFFFFF',
-  mutedWhite: 'rgba(255,255,255,0.66)',
+  mutedWhite: 'rgba(255,255,255,0.68)',
 };
 
-const SECTORS = ['Copro', 'Bailleur', 'Collectivité', 'Tertiaire'];
+const SECTORS = [
+  { label: 'Copro', icon: '⌂' },
+  { label: 'Bailleur', icon: '▥' },
+  { label: 'Collectivité', icon: '◇' },
+  { label: 'Tertiaire', icon: '▤' },
+];
 
 function formatLastSync(value) {
-  if (!value) return 'Aucune synchronisation enregistrée';
+  if (!value) return 'Jamais synchronisé';
   const date = new Date(value);
   if (!Number.isFinite(date.getTime())) return 'Synchronisation enregistrée';
   const pad = (n) => String(n).padStart(2, '0');
   return `${pad(date.getDate())}/${pad(date.getMonth() + 1)}/${date.getFullYear()} · ${pad(date.getHours())}:${pad(date.getMinutes())}`;
 }
 
-function SectorButton({ label, onPress }) {
+function SectorButton({ item, onPress }) {
   return (
-    <TouchableOpacity
-      activeOpacity={0.86}
-      accessibilityRole="button"
-      accessibilityLabel={label}
-      style={styles.sectorButton}
-      onPress={onPress}
-    >
-      <Text style={styles.sectorText}>{label}</Text>
+    <TouchableOpacity activeOpacity={0.86} style={styles.sectorButton} onPress={onPress} accessibilityRole="button" accessibilityLabel={item.label}>
+      <Text style={styles.sectorIcon}>{item.icon}</Text>
+      <Text style={styles.sectorText}>{item.label}</Text>
     </TouchableOpacity>
   );
 }
 
-function GlassAction({ title, subtitle, primary = false, onPress, disabled = false, testID }) {
+function GlassAction({ title, subtitle, primary = false, onPress, disabled = false, testID, style }) {
   return (
     <TouchableOpacity
       testID={testID}
-      activeOpacity={0.9}
+      activeOpacity={0.88}
       accessibilityRole="button"
       accessibilityState={{ disabled }}
       disabled={disabled}
-      style={[styles.glassAction, primary ? styles.glassActionPrimary : null, disabled ? styles.glassActionDisabled : null]}
+      style={[styles.glassAction, primary ? styles.glassActionPrimary : null, disabled ? styles.glassActionDisabled : null, style]}
       onPress={onPress}
     >
-      <View style={{ flex: 1, minWidth: 0 }}>
+      <View style={styles.actionTextWrap}>
         <Text style={[styles.actionTitle, primary ? styles.actionTitlePrimary : null]} numberOfLines={1}>{title}</Text>
         {subtitle ? <Text style={styles.actionSubtitle} numberOfLines={1}>{subtitle}</Text> : null}
       </View>
       <Text style={styles.actionArrow}>›</Text>
     </TouchableOpacity>
+  );
+}
+
+function InfoTile({ label, value, accent = false }) {
+  return (
+    <View style={styles.infoTile}>
+      <View style={[styles.infoMarker, accent ? styles.infoMarkerAccent : null]} />
+      <Text style={styles.infoLabel}>{label}</Text>
+      <Text style={styles.infoValue} numberOfLines={1}>{value}</Text>
+    </View>
   );
 }
 
@@ -80,17 +91,22 @@ export function SpiralActiveHome({
 }) {
   const { width, height } = useWindowDimensions();
   const tablet = width >= 800;
+  const portrait = height > width;
   const intro = useRef(new Animated.Value(0)).current;
   const [apiStatus, setApiStatus] = useState(null);
-  const lastVisit = Array.isArray(visitesEnCours) && visitesEnCours.length ? visitesEnCours[0] : null;
-  const contentWidth = Math.min(width - (tablet ? 64 : 28), tablet ? 760 : 620);
-  const contentTop = Math.max(tablet ? 246 : 190, Math.min(height * (tablet ? 0.39 : 0.34), tablet ? 312 : 250));
+
+  const visits = Array.isArray(visitesEnCours) ? visitesEnCours : [];
+  const lastVisit = visits[0] || null;
+  const contentWidth = Math.min(width - (tablet ? 72 : 28), tablet ? 860 : 620);
+  const contentTop = portrait
+    ? Math.max(330, Math.min(height * 0.29, 455))
+    : Math.max(178, Math.min(height * 0.25, 245));
 
   useEffect(() => {
     const animation = Animated.timing(intro, {
       toValue: 1,
-      duration: 480,
-      delay: 140,
+      duration: 520,
+      delay: 110,
       easing: Easing.bezier(0.18, 0.8, 0.22, 1),
       useNativeDriver: true,
     });
@@ -125,18 +141,14 @@ export function SpiralActiveHome({
   };
 
   const openDirectory = () => navigation.navigate('MetraDirectory', { query: '' });
-  const openSector = (sector) => {
-    // Aucun filtre métier sectoriel n'est inventé ici : la catégorie sert d'accès
-    // visuel au répertoire tant que le modèle de données ne porte pas ce champ.
-    navigation.navigate('MetraDirectory', { query: '', sectorHint: sector });
-  };
+  const openSector = (sector) => navigation.navigate('MetraDirectory', { query: '', sectorHint: sector });
   const openLastVisit = () => {
     if (lastVisit?.id) navigation.navigate('Visite', { visiteId: lastVisit.id });
   };
 
   const introOpacity = intro;
-  const introY = intro.interpolate({ inputRange: [0, 1], outputRange: [5, 0] });
-  const latestSubtitle = lastVisit
+  const introY = intro.interpolate({ inputRange: [0, 1], outputRange: [8, 0] });
+  const lastVisitSubtitle = lastVisit
     ? `${lastVisit.nom_client || 'Client'} · ${lastVisit.nom_site || 'Site'}`
     : 'Aucune visite en cours à reprendre';
 
@@ -161,13 +173,7 @@ export function SpiralActiveHome({
       <HomeBuildingScene />
 
       <Animated.View style={[styles.topControls, { opacity: introOpacity, transform: [{ translateY: introY }] }]}>
-        <TouchableOpacity
-          testID="premium-connectivity-pill"
-          accessibilityRole="button"
-          activeOpacity={0.86}
-          style={styles.connectivityPill}
-          onPress={showConnectionDetails}
-        >
+        <TouchableOpacity testID="premium-connectivity-pill" activeOpacity={0.86} style={styles.connectivityPill} onPress={showConnectionDetails}>
           <View style={[styles.statusDot, online ? styles.statusDotOnline : styles.statusDotOffline]} />
           <Text style={styles.connectivityText}>{online ? 'ONLINE' : 'OFFLINE'}</Text>
         </TouchableOpacity>
@@ -197,14 +203,14 @@ export function SpiralActiveHome({
         ]}
       >
         <View style={styles.sectorRow}>
-          {SECTORS.map((sector) => <SectorButton key={sector} label={sector} onPress={() => openSector(sector)} />)}
+          {SECTORS.map((item) => <SectorButton key={item.label} item={item} onPress={() => openSector(item.label)} />)}
         </View>
 
         <GlassAction
           testID="premium-intranet-search"
           primary
           title="Recherche Client depuis Intranet"
-          subtitle="Données synchronisées · disponibles hors connexion"
+          subtitle={online ? 'Recherche en ligne et données locales synchronisées' : 'Données synchronisées disponibles hors connexion'}
           onPress={openDirectory}
         />
 
@@ -212,16 +218,23 @@ export function SpiralActiveHome({
           <GlassAction
             testID="premium-client-access"
             title="Client"
-            subtitle="Clients et sites"
+            subtitle="Clients, sites et patrimoine"
             onPress={openDirectory}
+            style={styles.secondaryAction}
           />
           <GlassAction
             testID="premium-last-visit"
             title="Dernière visite"
-            subtitle={latestSubtitle}
+            subtitle={lastVisitSubtitle}
             disabled={!lastVisit}
             onPress={openLastVisit}
+            style={styles.secondaryAction}
           />
+        </View>
+
+        <View style={styles.infoRow}>
+          <InfoTile label="Visites en cours" value={String(visits.length)} accent={visits.length > 0} />
+          <InfoTile label="Dernière synchronisation" value={formatLastSync(apiStatus?.lastSyncAt)} />
         </View>
       </Animated.View>
 
@@ -232,27 +245,11 @@ export function SpiralActiveHome({
           <View style={styles.modalSheet}>
             <Text style={styles.modalKicker}>CLIENT</Text>
             <Text style={styles.modalTitle}>Nouveau client</Text>
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Nom du client"
-              placeholderTextColor="#8A929A"
-              value={nouveauNom}
-              onChangeText={setNouveauNom}
-            />
-            <TextInput
-              style={styles.modalInput}
-              placeholder="Code exploitant (optionnel)"
-              placeholderTextColor="#8A929A"
-              value={nouveauCode}
-              onChangeText={setNouveauCode}
-            />
+            <TextInput style={styles.modalInput} placeholder="Nom du client" placeholderTextColor="#8A929A" value={nouveauNom} onChangeText={setNouveauNom} />
+            <TextInput style={styles.modalInput} placeholder="Code exploitant (optionnel)" placeholderTextColor="#8A929A" value={nouveauCode} onChangeText={setNouveauCode} />
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setModalVisible(false)}>
-                <Text style={styles.modalCancelText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={ajouterClient}>
-                <Text style={styles.modalConfirmText}>{creationClient ? 'Création…' : 'Créer'}</Text>
-              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setModalVisible(false)}><Text style={styles.modalCancelText}>Annuler</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirm} onPress={ajouterClient}><Text style={styles.modalConfirmText}>{creationClient ? 'Création…' : 'Créer'}</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -274,12 +271,8 @@ export function SpiralActiveHome({
               </ScrollView>
             ) : null}
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setImportBatch(null)}>
-                <Text style={styles.modalCancelText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={confirmerImport}>
-                <Text style={styles.modalConfirmText}>{importEnCours ? 'Import…' : `Importer ${importBatch?.analyses?.length || 0}`}</Text>
-              </TouchableOpacity>
+              <TouchableOpacity style={styles.modalCancel} onPress={() => setImportBatch(null)}><Text style={styles.modalCancelText}>Annuler</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.modalConfirm} onPress={confirmerImport}><Text style={styles.modalConfirmText}>{importEnCours ? 'Import…' : `Importer ${importBatch?.analyses?.length || 0}`}</Text></TouchableOpacity>
             </View>
           </View>
         </View>
@@ -289,224 +282,47 @@ export function SpiralActiveHome({
 }
 
 const styles = StyleSheet.create({
-  root: {
-    flex: 1,
-    overflow: 'hidden',
-    backgroundColor: PALETTE.paper,
-  },
-  topControls: {
-    position: 'absolute',
-    top: 22,
-    right: 26,
-    zIndex: 40,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 9,
-  },
-  connectivityPill: {
-    minWidth: 108,
-    minHeight: 38,
-    paddingHorizontal: 13,
-    borderRadius: 19,
-    borderWidth: 1,
-    borderColor: 'rgba(15,20,24,0.10)',
-    backgroundColor: 'rgba(255,253,248,0.86)',
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 7,
-  },
-  statusDot: {
-    width: 7,
-    height: 7,
-    borderRadius: 4,
-  },
+  root: { flex: 1, overflow: 'hidden', backgroundColor: PALETTE.paper },
+  topControls: { position: 'absolute', top: 24, right: 28, zIndex: 40, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  connectivityPill: { minWidth: 112, minHeight: 42, paddingHorizontal: 15, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(15,20,24,0.10)', backgroundColor: 'rgba(255,253,248,0.92)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, elevation: 3 },
+  statusDot: { width: 8, height: 8, borderRadius: 4 },
   statusDotOnline: { backgroundColor: PALETTE.green },
   statusDotOffline: { backgroundColor: PALETTE.orange },
-  connectivityText: {
-    color: PALETTE.ink,
-    fontSize: 10,
-    fontWeight: '900',
-    letterSpacing: 0.8,
-  },
-  settingsButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(15,20,24,0.10)',
-    backgroundColor: 'rgba(255,253,248,0.86)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  settingsIcon: {
-    color: PALETTE.ink,
-    fontSize: 18,
-    fontWeight: '800',
-  },
-  content: {
-    position: 'absolute',
-    left: '50%',
-    zIndex: 25,
-  },
-  sectorRow: {
-    flexDirection: 'row',
-    gap: 9,
-    marginBottom: 11,
-  },
-  sectorButton: {
-    flex: 1,
-    minHeight: 42,
-    paddingHorizontal: 10,
-    borderRadius: 15,
-    borderWidth: 1,
-    borderColor: PALETTE.line,
-    backgroundColor: 'rgba(12,17,21,0.43)',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sectorText: {
-    color: PALETTE.white,
-    fontSize: 11,
-    fontWeight: '800',
-    letterSpacing: 0.15,
-  },
-  glassAction: {
-    minHeight: 68,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: PALETTE.line,
-    backgroundColor: PALETTE.glass,
-    paddingHorizontal: 20,
-    paddingVertical: 12,
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  glassActionPrimary: {
-    minHeight: 72,
-    backgroundColor: PALETTE.glassStrong,
-  },
-  glassActionDisabled: {
-    opacity: 0.58,
-  },
-  actionTitle: {
-    color: PALETTE.white,
-    fontSize: 15,
-    lineHeight: 19,
-    fontWeight: '800',
-    letterSpacing: -0.2,
-  },
-  actionTitlePrimary: {
-    fontSize: 16.5,
-  },
-  actionSubtitle: {
-    marginTop: 3,
-    color: PALETTE.mutedWhite,
-    fontSize: 10.5,
-    lineHeight: 14,
-    fontWeight: '600',
-  },
-  actionArrow: {
-    marginLeft: 12,
-    color: 'rgba(255,255,255,0.78)',
-    fontSize: 25,
-    lineHeight: 28,
-    fontWeight: '300',
-  },
-  secondaryRow: {
-    flexDirection: 'row',
-    gap: 11,
-    marginTop: 11,
-  },
-  modalOverlay: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: 24,
-    backgroundColor: 'rgba(7,10,13,0.48)',
-  },
-  modalSheet: {
-    width: '100%',
-    maxWidth: 500,
-    maxHeight: '84%',
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    backgroundColor: '#F8F6F0',
-    padding: 20,
-  },
-  modalKicker: {
-    color: PALETTE.orange,
-    fontSize: 9,
-    fontWeight: '900',
-    letterSpacing: 1.5,
-  },
-  modalTitle: {
-    marginTop: 4,
-    marginBottom: 15,
-    color: PALETTE.ink,
-    fontSize: 22,
-    fontWeight: '900',
-    letterSpacing: -0.45,
-  },
-  modalInput: {
-    minHeight: 52,
-    marginBottom: 10,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#DDE0DE',
-    backgroundColor: '#FFFFFF',
-    paddingHorizontal: 14,
-    color: PALETTE.ink,
-    fontSize: 14,
-  },
-  modalActions: {
-    marginTop: 10,
-    flexDirection: 'row',
-    justifyContent: 'flex-end',
-    gap: 9,
-  },
-  modalCancel: {
-    minHeight: 44,
-    paddingHorizontal: 16,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: '#D7DBD9',
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalCancelText: {
-    color: '#5C646C',
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  modalConfirm: {
-    minHeight: 44,
-    paddingHorizontal: 18,
-    borderRadius: 14,
-    backgroundColor: PALETTE.ink,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalConfirmText: {
-    color: '#FFFFFF',
-    fontSize: 12,
-    fontWeight: '900',
-  },
-  importRow: {
-    paddingVertical: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: '#E3E5E2',
-  },
-  importName: {
-    color: PALETTE.ink,
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  importSite: {
-    marginTop: 3,
-    color: '#6C747B',
-    fontSize: 10.5,
-  },
+  connectivityText: { color: PALETTE.ink, fontSize: 11, fontWeight: '900', letterSpacing: 0.8 },
+  settingsButton: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(15,20,24,0.10)', backgroundColor: 'rgba(255,253,248,0.92)', alignItems: 'center', justifyContent: 'center', elevation: 3 },
+  settingsIcon: { color: PALETTE.ink, fontSize: 19, fontWeight: '800' },
+  content: { position: 'absolute', left: '50%', zIndex: 25 },
+  sectorRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
+  sectorButton: { flex: 1, minHeight: 58, paddingHorizontal: 8, borderRadius: 17, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: 'rgba(10,15,19,0.58)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000000', shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
+  sectorIcon: { color: '#FFFFFF', fontSize: 16, lineHeight: 18, marginBottom: 3, fontWeight: '700' },
+  sectorText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '800', letterSpacing: 0.1 },
+  glassAction: { minHeight: 78, borderRadius: 21, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: PALETTE.glass, paddingHorizontal: 20, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', shadowColor: '#000000', shadowOpacity: 0.13, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 6 },
+  glassActionPrimary: { minHeight: 86, backgroundColor: PALETTE.glassStrong },
+  glassActionDisabled: { opacity: 0.56 },
+  actionTextWrap: { flex: 1, minWidth: 0 },
+  actionTitle: { color: '#FFFFFF', fontSize: 15.5, lineHeight: 20, fontWeight: '800', letterSpacing: -0.2 },
+  actionTitlePrimary: { fontSize: 18, lineHeight: 23 },
+  actionSubtitle: { marginTop: 4, color: PALETTE.mutedWhite, fontSize: 10.5, lineHeight: 14, fontWeight: '600' },
+  actionArrow: { marginLeft: 14, color: 'rgba(255,255,255,0.80)', fontSize: 26, lineHeight: 28, fontWeight: '300' },
+  secondaryRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
+  secondaryAction: { flex: 1, minWidth: 0 },
+  infoRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
+  infoTile: { flex: 1, minWidth: 0, minHeight: 60, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(16,22,28,0.08)', backgroundColor: 'rgba(255,253,248,0.78)', paddingHorizontal: 15, paddingVertical: 10, justifyContent: 'center' },
+  infoMarker: { position: 'absolute', left: 0, top: 12, bottom: 12, width: 3, borderRadius: 2, backgroundColor: 'rgba(16,22,28,0.18)' },
+  infoMarkerAccent: { backgroundColor: PALETTE.orange },
+  infoLabel: { color: '#68727B', fontSize: 9.5, fontWeight: '800', letterSpacing: 0.45, textTransform: 'uppercase' },
+  infoValue: { marginTop: 4, color: PALETTE.ink, fontSize: 12.5, fontWeight: '800' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(9,13,17,0.42)', alignItems: 'center', justifyContent: 'center', padding: 20 },
+  modalSheet: { width: '100%', maxWidth: 520, borderRadius: 24, backgroundColor: '#FFFDF8', padding: 22, borderWidth: 1, borderColor: '#DDE1E3', elevation: 18 },
+  modalKicker: { color: PALETTE.orange, fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
+  modalTitle: { marginTop: 3, marginBottom: 16, color: PALETTE.ink, fontSize: 22, fontWeight: '900' },
+  modalInput: { minHeight: 50, marginBottom: 10, borderRadius: 15, borderWidth: 1, borderColor: '#DDE1E3', backgroundColor: '#F5F5F1', paddingHorizontal: 14, color: PALETTE.ink, fontSize: 14 },
+  modalActions: { flexDirection: 'row', gap: 10, marginTop: 8 },
+  modalCancel: { flex: 1, minHeight: 48, borderRadius: 15, borderWidth: 1, borderColor: '#D7DCE0', alignItems: 'center', justifyContent: 'center' },
+  modalCancelText: { color: PALETTE.ink, fontSize: 12.5, fontWeight: '800' },
+  modalConfirm: { flex: 1, minHeight: 48, borderRadius: 15, backgroundColor: PALETTE.ink, alignItems: 'center', justifyContent: 'center' },
+  modalConfirmText: { color: '#FFFFFF', fontSize: 12.5, fontWeight: '900' },
+  importRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: '#E3E6E8' },
+  importName: { color: PALETTE.ink, fontSize: 12.5, fontWeight: '800' },
+  importSite: { marginTop: 2, color: '#6D7780', fontSize: 10.5 },
 });
