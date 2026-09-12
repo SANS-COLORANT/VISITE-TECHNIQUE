@@ -7,6 +7,7 @@ export const SPIRAL_ACTIVE_STARTUP_DURATION_MS = 2500;
 const BG = '#F4F1E8';
 const INK = '#14202C';
 const ORANGE = '#F26426';
+const FINAL_DOCK_SIZE = 176;
 
 function clampTarget(value, min, max) {
   return Math.max(min, Math.min(max, value));
@@ -168,7 +169,7 @@ export function SpiralActiveStartupAnimation() {
           },
         ]}
       >
-        <SpiralSvg size={154} strokeWidth={7.8} dashOffset={animated.bottomDashOffset} showCenter={false} />
+        <SpiralSvg size={FINAL_DOCK_SIZE} strokeWidth={9.2} dashOffset={animated.bottomDashOffset} showCenter={false} />
       </Animated.View>
     </View>
   );
@@ -261,9 +262,9 @@ const styles = StyleSheet.create({
   bottomSpiral: {
     position: 'absolute',
     left: '50%',
-    marginLeft: -77,
-    bottom: -78,
-    width: 154,
-    height: 154,
+    marginLeft: -(FINAL_DOCK_SIZE / 2),
+    bottom: -84,
+    width: FINAL_DOCK_SIZE,
+    height: FINAL_DOCK_SIZE,
   },
 });
