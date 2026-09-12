@@ -55,6 +55,7 @@ const JS_SYNTAX_FILES = [
   'visual-packs/spiral-active/SpiralArt.js',
   'visual-packs/spiral-active/StartupAnimation.js',
   'visual-packs/spiral-active/SpiralActiveDock.js',
+  'visual-packs/spiral-active/HomeBuildingScene.js',
   'visual-packs/spiral-active/SpiralActiveHome.js',
   'symfonyApiCacheDb.js',
   'apiLatestVisitImportDb.js',
