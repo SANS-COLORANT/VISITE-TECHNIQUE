@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, PanResponder, StyleSheet, Text, TouchableOpacity, Vibration, View, useWindowDimensions } from 'react-native';
-import { SpiralSvg } from './SpiralArt.js';
+import { VelvetArt } from './velvetNative.js';
 
 const MAX_ANGLE = 38;
 const TRIGGER_ANGLE = 16;
@@ -168,7 +168,7 @@ export function SpiralActiveDock({ exploreActions = [], actionActions = [], quic
             },
           ]}
         >
-          <SpiralSvg size={size} strokeWidth={tablet ? 10.8 : 9.2} showCenter={false} />
+          <VelvetArt mode="dock" style={{ width: size, height: size }} />
         </Animated.View>
       </View>
     </View>

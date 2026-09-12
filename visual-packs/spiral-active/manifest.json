@@ -3,7 +3,7 @@
   "id": "spiral-active",
   "name": "Nouvelle interface — Premium",
   "description": "Accueil architectural épuré avec quatre bâtiments indépendants, spirale gestuelle, accès terrain rapides et habillage premium.",
-  "version": 4,
+  "version": 5,
   "colors": {
     "main": "#F26426",
     "dark": "#14202C",
@@ -11,22 +11,27 @@
   },
   "startup": {
     "preset": "metra-spiral-active",
-    "durationMs": 2500,
+    "durationMs": 4900,
     "backgroundColor": "#F4F1E8",
-    "replaceable": true
+    "replaceable": true,
+    "completion": "native-event",
+    "provider": "android-animated-image-drawable"
   },
   "spiralDock": {
     "diameterTablet": 220,
     "diameterPhone": 176,
     "visibleRatio": 0.55,
     "touchDiameterTablet": 276,
-    "appearanceProvider": "svg",
+    "appearanceProvider": "velvet-source-frame",
     "replaceable": true
   },
   "homeScene": {
     "enabled": true,
     "mode": "four-independent-buildings",
-    "canvas": [1024, 540],
+    "canvas": [
+      2048,
+      1080
+    ],
     "entryDurationMs": 900,
     "motion": {
       "type": "converge",
@@ -48,7 +53,7 @@
         "asset": "./home-scene/02_collectif_left_mid.webp",
         "side": "left",
         "depth": 2,
-        "introStart": 0.10,
+        "introStart": 0.1,
         "introEnd": 0.68
       },
       {
@@ -56,7 +61,7 @@
         "asset": "./home-scene/03_poste_municipal_right_mid.webp",
         "side": "right",
         "depth": 3,
-        "introStart": 0.20,
+        "introStart": 0.2,
         "introEnd": 0.82
       },
       {
@@ -64,8 +69,8 @@
         "asset": "./home-scene/04_building_right_near.webp",
         "side": "right",
         "depth": 4,
-        "introStart": 0.30,
-        "introEnd": 1.00
+        "introStart": 0.3,
+        "introEnd": 1.0
       }
     ]
   },
