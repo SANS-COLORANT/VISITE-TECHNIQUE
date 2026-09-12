@@ -2,25 +2,23 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Image, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const CANVAS_RATIO = 1024 / 540;
 const LAYERS = [
-  { id: 'haussmann', source: require('./home-scene/01_haussmann_left_far.webp'), fromX: -18, delay: 0 },
-  { id: 'collectif', source: require('./home-scene/02_collectif_left_mid.webp'), fromX: -12, delay: 55 },
-  { id: 'municipal', source: require('./home-scene/03_poste_municipal_right_mid.webp'), fromX: 12, delay: 110 },
-  { id: 'building', source: require('./home-scene/04_building_right_near.webp'), fromX: 18, delay: 165 },
+  { id: 'haussmann', source: require('./home-scene/01_haussmann_left_far.webp'), fromX: -24, fromY: 10, delay: 0 },
+  { id: 'collectif', source: require('./home-scene/02_collectif_left_mid.webp'), fromX: -16, fromY: 8, delay: 50 },
+  { id: 'municipal', source: require('./home-scene/03_poste_municipal_right_mid.webp'), fromX: 16, fromY: 8, delay: 100 },
+  { id: 'building', source: require('./home-scene/04_building_right_near.webp'), fromX: 24, fromY: 12, delay: 150 },
 ];
 
 export function HomeBuildingScene() {
   const { width, height } = useWindowDimensions();
+  const portrait = height > width;
   const intro = useRef(new Animated.Value(0)).current;
-  const sceneHeight = Math.min(Math.max(390, width / CANVAS_RATIO), Math.max(430, height * 0.76));
-  const sceneTop = Math.max(0, Math.min(34, height * 0.045));
 
   useEffect(() => {
     const animation = Animated.timing(intro, {
       toValue: 1,
-      duration: 620,
-      delay: 90,
+      duration: 760,
+      delay: 60,
       easing: Easing.bezier(0.16, 0.84, 0.22, 1),
       useNativeDriver: true,
     });
@@ -28,13 +26,31 @@ export function HomeBuildingScene() {
     return () => animation.stop();
   }, [intro]);
 
+  const sceneWidth = portrait ? width * 1.38 : width * 1.06;
+  const sceneHeight = portrait ? Math.min(height * 0.63, 820) : Math.min(height * 0.82, 650);
+  const sceneLeft = (width - sceneWidth) / 2;
+  const sceneTop = portrait ? Math.max(55, height * 0.045) : 18;
+
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
-      <View style={[styles.sceneViewport, { top: sceneTop, height: sceneHeight }]}> 
+    <View pointerEvents="none" style={styles.root}>
+      <View style={styles.ambient}>
+        {LAYERS.map((layer) => (
+          <Image
+            key={`ambient-${layer.id}`}
+            source={layer.source}
+            style={styles.ambientImage}
+            resizeMode="cover"
+            fadeDuration={0}
+          />
+        ))}
+        <View style={styles.ambientShade} />
+      </View>
+
+      <View style={[styles.sceneViewport, { top: sceneTop, left: sceneLeft, width: sceneWidth, height: sceneHeight }]}> 
         {LAYERS.map((layer, index) => {
-          const start = Math.min(0.35, (layer.delay / 620));
+          const start = Math.min(0.32, layer.delay / 760);
           const opacity = intro.interpolate({
-            inputRange: [0, start, Math.min(1, start + 0.48), 1],
+            inputRange: [0, start, Math.min(1, start + 0.42), 1],
             outputRange: [0, 0, 1, 1],
             extrapolate: 'clamp',
           });
@@ -45,29 +61,38 @@ export function HomeBuildingScene() {
           });
           const translateY = intro.interpolate({
             inputRange: [0, 1],
-            outputRange: [8 + (index * 2), 0],
+            outputRange: [layer.fromY + (index * 2), 0],
+            extrapolate: 'clamp',
+          });
+          const scale = intro.interpolate({
+            inputRange: [0, 1],
+            outputRange: [0.985, 1],
             extrapolate: 'clamp',
           });
           return (
             <Animated.View
               key={layer.id}
-              style={[StyleSheet.absoluteFill, { opacity, transform: [{ translateX }, { translateY }] }]}
+              style={[StyleSheet.absoluteFill, { opacity, transform: [{ translateX }, { translateY }, { scale }] }]}
             >
-              <Image source={layer.source} style={styles.layerImage} resizeMode="cover" fadeDuration={0} />
+              <Image source={layer.source} style={styles.layerImage} resizeMode="contain" fadeDuration={0} />
             </Animated.View>
           );
         })}
-        <View style={styles.softWash} />
-        <LinearGradient
-          pointerEvents="none"
-          colors={['rgba(244,241,232,0)', 'rgba(244,241,232,0.12)', 'rgba(244,241,232,0.94)']}
-          locations={[0, 0.7, 1]}
-          style={styles.bottomFade}
-        />
       </View>
+
       <LinearGradient
-        pointerEvents="none"
-        colors={['rgba(244,241,232,0.58)', 'rgba(244,241,232,0)']}
+        colors={[
+          'rgba(13,19,25,0.03)',
+          'rgba(13,19,25,0.11)',
+          'rgba(244,241,232,0.18)',
+          'rgba(244,241,232,0.86)',
+          '#F4F1E8',
+        ]}
+        locations={[0, 0.30, 0.54, 0.76, 1]}
+        style={styles.fullFade}
+      />
+      <LinearGradient
+        colors={['rgba(244,241,232,0.42)', 'rgba(244,241,232,0)']}
         style={styles.topWash}
       />
     </View>
@@ -75,33 +100,40 @@ export function HomeBuildingScene() {
 }
 
 const styles = StyleSheet.create({
-  sceneViewport: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
+  root: {
+    ...StyleSheet.absoluteFillObject,
     overflow: 'hidden',
     backgroundColor: '#F4F1E8',
+  },
+  ambient: {
+    ...StyleSheet.absoluteFillObject,
+    opacity: 0.34,
+  },
+  ambientImage: {
+    ...StyleSheet.absoluteFillObject,
+    width: '100%',
+    height: '100%',
+  },
+  ambientShade: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(244,241,232,0.18)',
+  },
+  sceneViewport: {
+    position: 'absolute',
+    overflow: 'hidden',
   },
   layerImage: {
     width: '100%',
     height: '100%',
   },
-  softWash: {
+  fullFade: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(244,241,232,0.08)',
-  },
-  bottomFade: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    height: '35%',
   },
   topWash: {
     position: 'absolute',
     left: 0,
     right: 0,
     top: 0,
-    height: 90,
+    height: 135,
   },
 });
