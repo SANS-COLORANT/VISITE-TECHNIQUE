@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "spiral-active",
   "name": "Spirale Active — Prototype",
-  "description": "Prototype UX premium : animation point-vers-spirale et molette gestuelle de navigation.",
-  "version": 1,
+  "description": "Prototype UX premium : spirale gestuelle, scène d'accueil architecturale et ouverture du hub par pincement.",
+  "version": 2,
   "colors": {
     "main": "#F26426",
     "dark": "#14202C",
@@ -12,10 +12,33 @@
   "startup": {
     "preset": "metra-spiral-active",
     "durationMs": 2500,
-    "backgroundColor": "#F4F1E8"
+    "backgroundColor": "#F4F1E8",
+    "replaceable": true
+  },
+  "spiralDock": {
+    "diameterTablet": 176,
+    "diameterPhone": 154,
+    "visibleRatio": 0.5,
+    "touchDiameterTablet": 206,
+    "appearanceProvider": "svg",
+    "replaceable": true
+  },
+  "homeScene": {
+    "enabled": true,
+    "canvas": [1024, 540],
+    "entryDurationMs": 1050,
+    "pinchThreshold": 0.62,
+    "replaceable": true,
+    "layers": [
+      { "id": "haussmann", "asset": "./home-scene/01_haussmann_left_far.webp", "side": "left", "depth": 1 },
+      { "id": "collectif", "asset": "./home-scene/02_collectif_left_mid.webp", "side": "left", "depth": 2 },
+      { "id": "poste-municipal", "asset": "./home-scene/03_poste_municipal_right_mid.webp", "side": "right", "depth": 3 },
+      { "id": "building", "asset": "./home-scene/04_building_right_near.webp", "side": "right", "depth": 4 }
+    ]
   },
   "interface": {
     "experimentalSpiralDock": true,
+    "experimentalBuildingScene": true,
     "surface": "#FFFDF8",
     "background": "#F4F1E8"
   }
