@@ -39,7 +39,7 @@ def read_payload(archive, approval):
     data = archive.read_bytes()
     require(sha(data) == approval['archiveSha256'], 'ZIP hash does not match approval')
     files = approval['files']
-    require(len(files) == 9, 'Expected exactly nine approved files')
+    require(len(files) == 10, 'Expected exactly ten approved media files')
     payload = {}
     with ZipFile(io.BytesIO(data)) as zip_:
         names = zip_.namelist()
@@ -104,10 +104,22 @@ def validate_payload(payload):
             duration += im.info['duration']
         require(duration == meta['durationMs'] == 4900, 'Wrong animation duration')
         last_pixels = pixels.tobytes()
+        im.seek(75)
+        im.load()
+        dock_pixels = im.convert('RGBA').crop((860, 390, 1164, 694)).tobytes()
     with Image.open(io.BytesIO(payload[PREFIX + 'startup-media/spiral-final-canvas.png'])) as im:
         im.load()
         require(im.convert('RGBA').tobytes() == last_pixels, 'Last-frame reference mismatch')
-    require(meta['status'] == 'VERIFIED_SOURCE_NOT_ENABLED_IN_RUNTIME', 'Animation must not be silently enabled')
+    require(meta['status'] == 'NATIVE_PLAYER_WIRED_PENDING_ANDROID_VISUAL_ACCEPTANCE', 'Wrong runtime readiness status')
+    require(config['startup']['durationMs'] == 4900, 'Wrong native intro metadata duration')
+    require(config['startup']['completion'] == 'native-event', 'Intro must use the native completion callback')
+    require(meta['dock']['sourceFrame'] == 75 and meta['dock']['crop'] == [860, 390, 1164, 694], 'Wrong complete spiral source')
+    dock_data = payload[PREFIX + 'startup-media/spiral-dock.png']
+    require(sha(dock_data) == meta['dock']['sha256'], 'Dock file mismatch')
+    with Image.open(io.BytesIO(dock_data)) as im:
+        im.load()
+        require(im.size == (304, 304) and im.convert('RGBA').tobytes() == dock_pixels, 'Dock pixels differ from original full frame')
+    require(sha(payload[PREFIX + 'startup-media/spiral-final-canvas.png']) == meta['finalCanvas']['sha256'], 'Final canvas hash mismatch')
 
 
 def install(root, archive, approval_file, check_only=False):
@@ -136,7 +148,7 @@ def install(root, archive, approval_file, check_only=False):
             target.write_bytes(payload[name])
             require(sha(target.read_bytes()) == approval['files'][name]['sha256'], 'Post-write hash mismatch')
     print('Verified: four distinct buildings; 147 animation frames; exact provenance. Native visual acceptance remains required.')
-    print('Check only.' if check_only else 'Approved media installed. Velvet animation is staged, NOT enabled in runtime.')
+    print('Check only.' if check_only else 'Approved media installed. Native player wired; APK and Android visual validation still required.')
     return sorted(payload)
 
 

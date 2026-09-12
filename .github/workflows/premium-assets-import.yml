@@ -1,4 +1,4 @@
-name: Import verified premium media
+name: Import verified premium media and build APK
 
 on:
   push:
@@ -19,6 +19,8 @@ jobs:
     if: github.ref == 'refs/heads/work/premium-home-asset-integrity'
     runs-on: ubuntu-latest
     timeout-minutes: 10
+    outputs:
+      commit: ${{ steps.commit.outputs.sha }}
     steps:
       - name: Checkout exact uploaded revision
         uses: actions/checkout@v4
@@ -45,24 +47,35 @@ jobs:
         run: |
           node .github/scripts/validate_premium_home_scene.js
           python .github/scripts/validate_premium_home_images.py --require-provenance --output /tmp/premium-media-audit
+          python .github/scripts/validate_velvet_media.py
 
       - name: Run existing model and image regression tests
         run: |
-          node --test .github/scripts/test_premium_home_model.js
+          node --test .github/scripts/test_premium_home_model.js .github/scripts/test_velvet_integration.js
           python .github/scripts/test_premium_home_images.py -v
 
       - name: Commit only verified media to the working branch
+        id: commit
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
           git add -- visual-packs/spiral-active/home-scene visual-packs/spiral-active/manifest.json visual-packs/spiral-active/startup-media
           git rm -- METRA_ASSETS_VALIDES.zip
-          git commit -m 'fix(assets): import verified building originals and stage velvet intro'
+          git commit -m 'fix(assets): import verified originals for four buildings and velvet player'
           git push origin HEAD:refs/heads/work/premium-home-asset-integrity
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           {
             echo '## Verified media imported'
             echo 'Four building layers and their manifest/provenance are committed to the working branch.'
-            echo 'All 147 frames of the velvet intro were verified; the native player is NOT enabled yet.'
-            echo 'No APK or release was produced. PR #81 remains a draft pending native visual acceptance.'
+            echo 'All 147 velvet frames and the complete spiral dock were verified.'
+            echo 'The dependent APK job builds this exact imported commit; PR #81 remains a draft pending visual acceptance.'
             echo "Commit: $(git rev-parse HEAD)"
           } >> "$GITHUB_STEP_SUMMARY"
+
+  build-preview:
+    needs: import
+    uses: ./.github/workflows/native-android-ui-preview.yml
+    with:
+      build_ref: ${{ needs.import.outputs.commit }}
+    permissions:
+      contents: write

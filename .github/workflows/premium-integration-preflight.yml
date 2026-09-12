@@ -5,7 +5,7 @@ on:
     branches: [work/premium-home-asset-integrity]
     paths:
       - '.github/workflows/premium-integration-preflight.yml'
-      - 'native/velvet/**'
+      - 'native/metra-velvet/**'
       - 'plugins/withMetraVelvet.js'
       - '.github/scripts/test_velvet_*.js'
       - '.github/scripts/test_velvet_*.py'
@@ -42,5 +42,48 @@ jobs:
         run: python -m pip install --disable-pip-version-check 'Pillow==12.3.0'
       - name: Run existing isolated regressions (no production image substitution)
         run: |
-          node --test .github/scripts/test_premium_home_model.js
+          node --test .github/scripts/test_premium_home_model.js .github/scripts/test_velvet_integration.js
           python .github/scripts/test_premium_home_images.py -v
+
+  native-bridge-compile:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      METRA_VELVET_SOURCE_CHECK: '1'
+      EXPO_NO_TELEMETRY: '1'
+      NODE_ENV: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install locked compiler dependencies without production-media postinstall
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefer-offline
+      - name: Parse all changed runtime sources
+        run: |
+          node - <<'JS'
+          const fs = require('fs'), parser = require('@babel/parser');
+          for (const file of ['App.js', 'app.config.js', 'visual-packs/runtime/VisualPackLoadingScreen.js',
+            'visual-packs/runtime/visualPackManager.js', 'visual-packs/spiral-active/StartupAnimation.js',
+            'visual-packs/spiral-active/velvetNative.js', 'visual-packs/spiral-active/SpiralActiveDock.js']) {
+            parser.parse(fs.readFileSync(file, 'utf8'), { sourceType: 'unambiguous', plugins: ['jsx'] });
+          }
+          JS
+      - name: Generate native bridge only (no substitute media and no APK)
+        run: |
+          npx expo prebuild --clean --platform android --no-install
+          test -s android/app/src/main/java/com/metra/velvet/MetraVelvetView.kt
+          MAIN=$(find android/app/src/main/java -name MainApplication.kt -print -quit)
+          grep -q 'add(MetraVelvetPackage())' "$MAIN"
+          grep -q 'MetraDpopPackage()' "$MAIN"
+      - name: Compile both native bridges without publishing an application
+        working-directory: android
+        run: |
+          printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\n' >> gradle.properties
+          ./gradlew :app:compileDebugKotlin --no-daemon --max-workers=2

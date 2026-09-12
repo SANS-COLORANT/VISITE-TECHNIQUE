@@ -52,7 +52,7 @@ function Lab3DFab({onPress,bottom=82,label='⬡ LAB 3D'}){return <TouchableOpaci
 
 function AppContent(){
  const[dbReady,setDbReady]=useState(false),[dbError,setDbError]=useState(null),[visualPack,setVisualPack]=useState(null),[visualRevision,setVisualRevision]=useState(0),[stack,setStack]=useState([{name:'Home',params:{}}]),[r1Visible,setR1Visible]=useState(false),[hydraulicVisible,setHydraulicVisible]=useState(false),[lab3dVisible,setLab3dVisible]=useState(true);
- const initialiser=useCallback(async()=>{setDbReady(false);setDbError(null);setVisualPack(null);try{await getDb();const[pack,schemaVisible,lab3dEnabled]=await Promise.all([getActiveVisualPack(),getHydraulicSchemaVisible(),getLab3DVisible()]);setHydraulicVisible(schemaVisible);setLab3dVisible(lab3dEnabled);setRuntimeVisualPalette(pack?.colors);setVisualPack(pack);await new Promise((r)=>setTimeout(r,getVisualPackStartupDuration(pack)));setDbReady(true);}catch(err){setDbError(err);}},[]);
+ const initialiser=useCallback(async()=>{setDbReady(false);setDbError(null);setVisualPack(null);try{await getDb();const[pack,schemaVisible,lab3dEnabled]=await Promise.all([getActiveVisualPack(),getHydraulicSchemaVisible(),getLab3DVisible()]);setHydraulicVisible(schemaVisible);setLab3dVisible(lab3dEnabled);setRuntimeVisualPalette(pack?.colors);setVisualPack(pack);if(pack?.startup?.preset!=='metra-spiral-active'){await new Promise((r)=>setTimeout(r,getVisualPackStartupDuration(pack)));setDbReady(true);}}catch(err){setDbError(err);}},[]);
  useEffect(()=>{initialiser();},[initialiser]);
  const navigate=useCallback((name,params={})=>setStack((s)=>{const c=s[s.length-1];return c?.name===name&&JSON.stringify(c.params||{})===JSON.stringify(params||{})?s:[...s,{name,params}];}),[]);
  const goBack=useCallback(()=>{Keyboard.dismiss();setTimeout(()=>setStack((s)=>s.length>1?s.slice(0,-1):s),0);},[]);
@@ -81,7 +81,7 @@ function AppContent(){
 
  if(dbError)return <View style={styles.center}><Text style={styles.errorTitle}>Erreur de démarrage</Text><Text style={styles.errorText}>{String(dbError.message||dbError)}</Text><TouchableOpacity style={[styles.btnPrimary,{marginTop:18}]} onPress={initialiser}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity></View>;
  if(!visualPack)return <View style={{flex:1,backgroundColor:SPLASH_BG}}/>;
- if(!dbReady)return <VisualPackLoadingScreen pack={visualPack}/>;
+ if(!dbReady)return <VisualPackLoadingScreen pack={visualPack} onComplete={()=>setDbReady(true)}/>;
  const current=stack[stack.length-1],navigation={navigate,goBack,goHome,preload:loadDeferredScreen},route={params:current.params};
  const premium=visualPack?.id==='spiral-active'||visualPack?.interface?.premiumHome===true||visualPack?.interface?.experimentalSpiralDock===true;
  const currentParams=current.params||{};
