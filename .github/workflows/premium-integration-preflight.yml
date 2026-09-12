@@ -1,0 +1,46 @@
+name: Premium integration preflight
+
+on:
+  push:
+    branches: [work/premium-home-asset-integrity]
+    paths:
+      - '.github/workflows/premium-integration-preflight.yml'
+      - 'native/velvet/**'
+      - 'plugins/withMetraVelvet.js'
+      - '.github/scripts/test_velvet_*.js'
+      - '.github/scripts/test_velvet_*.py'
+      - 'visual-packs/spiral-active/velvet*.js'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: premium-integration-preflight-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  source-and-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - name: Export exact reviewed source for integration audit
+        run: git archive --format=zip --output=PREMIUM-SOURCE.zip HEAD
+      - uses: actions/upload-artifact@v4
+        with:
+          name: PREMIUM-SOURCE-${{ github.run_id }}-${{ github.run_attempt }}
+          path: PREMIUM-SOURCE.zip
+          retention-days: 3
+          if-no-files-found: error
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install audit decoder only
+        run: python -m pip install --disable-pip-version-check 'Pillow==12.3.0'
+      - name: Run existing isolated regressions (no production image substitution)
+        run: |
+          node --test .github/scripts/test_premium_home_model.js
+          python .github/scripts/test_premium_home_images.py -v
