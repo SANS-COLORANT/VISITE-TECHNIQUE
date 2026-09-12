@@ -7,7 +7,7 @@
     "node": ">=18"
   },
   "scripts": {
-    "verify:metra": "node .github/scripts/run_source_patches.js",
+    "verify:metra": "node .github/scripts/run_source_patches.js && node .github/scripts/validate_premium_home_scene.js",
     "prepare:metra": "npm run verify:metra",
     "prepare:metra:legacy": "node .github/scripts/apply_legacy_source_patches.js",
     "postinstall": "npm run verify:metra",
