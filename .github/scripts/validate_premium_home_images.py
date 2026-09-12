@@ -1,7 +1,4 @@
-"""Decode actual pixels; optionally prove that the same bytes are in an APK.
-CI only: python -m pip install Pillow==12.3.0
-Does not modify assets. Returns nonzero on any failure; never accepts truncated files.
-"""
+"""Read actual pixels and optionally verify the exact packaged bytes; never repair files."""
 import argparse
 import hashlib
 import io
@@ -12,20 +9,14 @@ from zipfile import ZipFile
 from PIL import Image, ImageChops, ImageFile, features
 
 ImageFile.LOAD_TRUNCATED_IMAGES = False
+MAX_BYTES = 20_000_000
 
 
-def decode_layer(data, canvas):
-    if len(data) > 20_000_000:
-        raise ValueError('Layer exceeds the 20 MB audit limit')
-    with Image.open(io.BytesIO(data)) as image:
-        if image.format != 'WEBP' or image.size != tuple(canvas):
-            raise ValueError(f'Unexpected format/size: {image.format} {image.size}')
-        if getattr(image, 'n_frames', 1) != 1:
-            raise ValueError('Expected a static image')
-        image.load()  # Full decode is essential; headers and verify() are insufficient.
-        if 'A' not in image.getbands():
-            raise ValueError('No alpha channel')
-        rgba = image.convert('RGBA')
+def digest(data):
+    return hashlib.sha256(data).hexdigest()
+
+
+def validate_rgba(rgba):
     hist = rgba.getchannel('A').histogram()
     count = sum(hist)
     if hist[0] < count * 0.05:
@@ -35,8 +26,26 @@ def decode_layer(data, canvas):
     return rgba
 
 
+def decode_layer(data, canvas):
+    if len(data) > MAX_BYTES:
+        raise ValueError('Layer exceeds 20 MB')
+    if data[:4] != b'RIFF' or len(data) < 12 or data[8:12] != b'WEBP':
+        raise ValueError('Invalid WebP signature')
+    if struct.unpack_from('<I', data, 4)[0] + 8 != len(data):
+        raise ValueError('RIFF length mismatch')
+    with Image.open(io.BytesIO(data)) as image:
+        if image.format != 'WEBP' or image.size != tuple(canvas):
+            raise ValueError(f'Unexpected format/size: {image.format} {image.size}')
+        if getattr(image, 'n_frames', 1) != 1:
+            raise ValueError('Expected a static image')
+        image.load()
+        if 'A' not in image.getbands():
+            raise ValueError('No alpha channel')
+        rgba = image.convert('RGBA')
+    return validate_rgba(rgba)
+
+
 def visible_contributions(images):
-    """Alpha contribution after the layers above it, not just file presence."""
     transmission = Image.new('L', images[0].size, 255)
     fractions = []
     for image in reversed(images):
@@ -49,68 +58,85 @@ def visible_contributions(images):
     return list(reversed(fractions))
 
 
-def audit(root, apk=None, output=None):
-    pack = root / 'visual-packs' / 'spiral-active'
-    config = json.loads((pack / 'manifest.json').read_text(encoding='utf-8'))['homeScene']
-    canvas = config['canvas']
-    if len(canvas) != 2 or any(not isinstance(n, int) or n <= 0 for n in canvas) or canvas[0] * canvas[1] > 20_000_000:
-        raise ValueError('Invalid canvas dimensions')
-    layers = config['layers']
-    if len(layers) != 4 or len({layer['id'] for layer in layers}) != 4:
-        raise ValueError('Expected exactly four distinct layers')
-    if not features.check('webp'):
-        raise RuntimeError('Pillow was installed without WebP support')
-    apk_images = {}
-    if apk:
-        with ZipFile(apk) as archive:
-            for info in archive.infolist():
-                if info.filename.lower().endswith('.webp'):
-                    if info.file_size > 20_000_000:
-                        raise ValueError(f'APK WebP too large: {info.filename}')
-                    data = archive.read(info)
-                    apk_images.setdefault(hashlib.sha256(data).hexdigest(), []).append((info.filename, data))
-    results, decoded, errors, seen = [], [], [], set()
-    for layer in layers:
-        record = {'id': layer['id'], 'asset': layer['asset'], 'errors': []}
-        try:
-            source = (pack / layer['asset']).resolve()
-            if not source.is_relative_to(pack.resolve()):
-                raise ValueError('Asset path escapes the pack')
-            data = source.read_bytes()
-            digest = hashlib.sha256(data).hexdigest()
-            record.update(bytes=len(data), sha256=digest,
-                          git_blob_sha=hashlib.sha1(b'blob ' + str(len(data)).encode() + b'\0' + data).hexdigest())
-            if len(data) >= 12 and data[:4] == b'RIFF':
-                declared = struct.unpack_from('<I', data, 4)[0] + 8
-                record['riff_declared_bytes'] = declared
-                if declared != len(data):
-                    record['errors'].append(f'RIFF length mismatch: {declared} declared, {len(data)} actual')
-            if digest in seen:
-                record['errors'].append('Duplicate bytes across two layers')
-            seen.add(digest)
-            if apk:
-                matches = apk_images.get(digest, [])
-                record['apk_entries'] = [name for name, _ in matches]
-                if not matches:
-                    record['errors'].append('Exact source bytes are not present in APK')
-                else:
-                    data = matches[0][1]  # Decode what was packaged, not an unrelated file.
+def find_apk_images(apk, expected):
+    matches, scanned = {}, 0
+    with ZipFile(apk) as archive:
+        for info in archive.infolist():
+            if info.filename.lower().endswith('.webp'):
+                scanned += info.file_size
+                if info.file_size > MAX_BYTES or scanned > 256_000_000:
+                    raise ValueError('APK image audit resource limit exceeded')
+                data = archive.read(info)  # CRC checked by ZipFile; nothing is extracted to disk.
+                sha = digest(data)
+                if sha in expected:
+                    matches.setdefault(sha, []).append(info.filename)
+                    decode_layer(data, expected[sha])
+    return matches
+
+
+def audit(root, apk=None, output=None, require_provenance=False):
+    pack = root / 'visual-packs/spiral-active'
+    results, decoded, errors, seen, pixel_hashes = [], [], [], set(), set()
+    canvas = None
+    try:
+        config = json.loads((pack / 'manifest.json').read_text(encoding='utf-8'))['homeScene']
+        canvas, layers = config['canvas'], config['layers']
+        if len(canvas) != 2 or any(type(n) is not int or n <= 0 for n in canvas) or canvas[0] * canvas[1] > 20_000_000:
+            raise ValueError('Invalid canvas dimensions')
+        if len(layers) != 4 or len({layer['id'] for layer in layers}) != 4:
+            raise ValueError('Expected four distinct layers')
+        if not features.check('webp'):
+            raise RuntimeError('Pillow has no WebP support')
+        provenance = None
+        if require_provenance:
+            provenance = json.loads((pack / 'home-scene/asset-provenance.json').read_text(encoding='utf-8'))
+            if provenance.get('schemaVersion') != 1 or provenance.get('canvas') != canvas:
+                raise ValueError('Invalid provenance/canvas')
+            if len(provenance.get('files', [])) != 4 or len({r['id'] for r in provenance['files']}) != 4:
+                raise ValueError('Invalid provenance layer count')
+        for layer in layers:
+            record = {'id': layer['id'], 'asset': layer['asset'], 'errors': []}
             try:
+                source = (pack / layer['asset']).resolve()
+                if not source.is_relative_to(pack.resolve()):
+                    raise ValueError('Asset path escapes pack')
+                if source.stat().st_size > MAX_BYTES:
+                    raise ValueError('Layer exceeds 20 MB')
+                data = source.read_bytes()
+                sha = digest(data)
+                record.update(bytes=len(data), sha256=sha)
+                if sha in seen:
+                    raise ValueError('Duplicate bytes')
+                seen.add(sha)
                 image = decode_layer(data, canvas)
-                record.update(decode='OK', alpha_bbox=image.getchannel('A').getbbox())
+                pixel_sha = digest(image.tobytes())
+                if pixel_sha in pixel_hashes:
+                    raise ValueError('Duplicate decoded pixels')
+                pixel_hashes.add(pixel_sha)
+                if provenance:
+                    entry = next((r for r in provenance['files'] if r['id'] == layer['id']), None)
+                    if not entry or entry['sha256'] != sha or entry['pixel_sha256'] != pixel_sha or entry['asset'] != layer['asset']:
+                        raise ValueError('Bytes/pixels do not match approved import provenance')
+                record.update(decode='OK', pixel_sha256=pixel_sha, alpha_bbox=image.getchannel('A').getbbox())
                 decoded.append(image)
             except Exception as exc:
-                record.update(decode='ERROR')
+                record['decode'] = 'ERROR'
                 record['errors'].append(f'{type(exc).__name__}: {exc}')
-        except Exception as exc:
-            record['errors'].append(f'{type(exc).__name__}: {exc}')
-        errors.extend(f"{layer['id']}: {error}" for error in record['errors'])
-        results.append(record)
-    if len(decoded) == 4 and not errors:
-        for result, fraction in zip(results, visible_contributions(decoded)):
-            result['visible_alpha_fraction'] = round(fraction, 6)
-            if fraction < 0.02:
-                errors.append(f"{result['id']}: hidden by the layers above (visible fraction {fraction:.4f})")
+            errors.extend(f"{layer['id']}: {e}" for e in record['errors'])
+            results.append(record)
+        if len(decoded) == 4 and not errors:
+            for record, fraction in zip(results, visible_contributions(decoded)):
+                record['visible_alpha_fraction'] = round(fraction, 6)
+                if fraction < 0.02:
+                    errors.append(f"{record['id']}: hidden by other layers ({fraction:.4f})")
+        if apk and not errors:
+            matches = find_apk_images(apk, {r['sha256']: canvas for r in results})
+            for record in results:
+                record['apk_entries'] = matches.get(record['sha256'], [])
+                if not record['apk_entries']:
+                    errors.append(f"{record['id']}: exact source bytes missing from APK")
+    except Exception as exc:
+        errors.append(f'{type(exc).__name__}: {exc}')
     report = {'apk': str(apk) if apk else None, 'layers': results, 'errors': errors,
               'status': 'BLOCKED' if errors else 'PIXELS_OK_VISUAL_ACCEPTANCE_REQUIRED'}
     if output:
@@ -130,5 +156,6 @@ if __name__ == '__main__':
     parser.add_argument('--repo-root', type=Path, default=Path(__file__).resolve().parents[2])
     parser.add_argument('--apk', type=Path)
     parser.add_argument('--output', type=Path)
+    parser.add_argument('--require-provenance', action='store_true')
     args = parser.parse_args()
-    raise SystemExit(audit(args.repo_root, args.apk, args.output))
+    raise SystemExit(audit(args.repo_root, args.apk, args.output, args.require_provenance))

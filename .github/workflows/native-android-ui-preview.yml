@@ -1,13 +1,8 @@
 name: Fast UI Preview APK
-
 on:
   workflow_dispatch:
   push:
-    branches:
-      - 'ui-preview/**'
-      - 'fix/premium-*'
-      - 'feat/premium-*'
-      - 'feat/fast-ui-preview-apk'
+    branches: ['ui-preview/**', 'fix/premium-*', 'feat/premium-*', 'feat/fast-ui-preview-apk']
     paths:
       - '**/*.js'
       - '**/*.json'
@@ -15,19 +10,17 @@ on:
       - 'assets/metra/**'
       - 'plugins/**'
       - 'native/**'
+      - '.github/scripts/*premium_home*'
       - '.github/workflows/native-android-ui-preview.yml'
-
 permissions:
   contents: write
-
 concurrency:
   group: fast-ui-preview-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
   build-ui-preview:
     runs-on: ubuntu-latest
-    timeout-minutes: 18
+    timeout-minutes: 20
     env:
       NODE_ENV: production
       EXPO_NO_TELEMETRY: 1
@@ -35,49 +28,60 @@ jobs:
         -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
         -Dorg.gradle.workers.max=2
         -Dorg.gradle.caching=true
-
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: npm
           cache-dependency-path: package-lock.json
-
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CI image decoder (not an app dependency)
+        run: python -m pip install --disable-pip-version-check Pillow==12.3.0
+      - name: Preflight before any Android compilation
+        run: |
+          node --test .github/scripts/test_premium_home_model.js
+          python .github/scripts/test_premium_home_images.py
+          node .github/scripts/validate_premium_home_scene.js
+          python .github/scripts/validate_premium_home_images.py --require-provenance --output asset-audit/before-build
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
-
       - name: Setup Gradle cache
         uses: gradle/actions/setup-gradle@v4
-
       - name: Configure npm resilience
         run: |
           npm config set fetch-retries 5
           npm config set fetch-retry-mintimeout 2000
           npm config set fetch-retry-maxtimeout 30000
-
       - name: Install dependencies from lockfile
         run: npm ci --no-audit --no-fund --prefer-offline
-
+      - name: Validate changed runtime JavaScript syntax
+        run: |
+          node - <<'JS'
+          const fs = require('fs');
+          const parser = require('@babel/parser');
+          for (const name of ['SpiralActiveHome.js', 'HomeBuildingScene.js', 'homeSceneModel.js']) {
+            parser.parse(fs.readFileSync('visual-packs/spiral-active/' + name, 'utf8'), { sourceType: 'unambiguous', plugins: ['jsx'] });
+          }
+          JS
       - name: Restore generated Android project
         id: android-project-cache
         uses: actions/cache@v4
         with:
           path: android
           key: metra-ui-preview-android-v3-${{ runner.os }}-${{ hashFiles('package-lock.json', 'app.json', 'app.config.js', 'plugins/**/*', 'native/**/*') }}
-
       - name: Stamp preview identity
         run: |
           python - <<'PY'
           import json
           from pathlib import Path
-
           app = Path('app.json')
           data = json.loads(app.read_text(encoding='utf-8'))
           expo = data.setdefault('expo', {})
@@ -86,76 +90,85 @@ jobs:
           android['package'] = 'com.visitetechnique.tablet.preview'
           android['versionCode'] = 1
           app.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-
           version = Path('appVersion.js')
           source = version.read_text(encoding='utf-8')
           source = source.replace("export const APK_BUILD = 'DEV';", "export const APK_BUILD = 'UI-${{ github.run_number }}';")
           version.write_text(source, encoding='utf-8')
           PY
-
       - name: Generate Android project only when native inputs changed
         if: steps.android-project-cache.outputs.cache-hit != 'true'
         run: npx expo prebuild --clean --platform android --no-install
-
       - name: Validate preview Android project
         run: |
           python - <<'PY'
           import re
           from pathlib import Path
-
           p = Path('android/app/build.gradle')
           s = p.read_text(encoding='utf-8')
           s, count = re.subn(r'(?m)^(\s*)versionCode\s+\d+\s*$', r'\g<1>versionCode ${{ github.run_number }}', s, count=1)
           if count != 1:
-              raise SystemExit('versionCode Android introuvable')
+              raise SystemExit('Android versionCode missing')
           if not re.search(r'applicationId\s+["\']com\.visitetechnique\.tablet\.preview["\']', s):
-              raise SystemExit('applicationId Preview inattendu après Expo prebuild')
+              raise SystemExit('Wrong Preview applicationId')
           p.write_text(s, encoding='utf-8')
-
           dpop = Path('android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt')
           if not dpop.is_file() or dpop.stat().st_size == 0:
-              raise SystemExit('module natif DPoP absent du projet Android Preview')
-          print('Projet Android Preview prêt.')
+              raise SystemExit('Native DPoP module missing')
           PY
-
       - name: Configure Gradle for fast preview
         working-directory: android
         run: |
           printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\norg.gradle.caching=true\n' >> gradle.properties
-
       - name: Build standalone preview APK only
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon --max-workers=2 --build-cache
-
-      - name: Prepare preview artifact
+      - name: Verify the bytes actually packaged in the APK before publication
         run: |
           test -s android/app/build/outputs/apk/release/app-release.apk
+          python .github/scripts/validate_premium_home_images.py --require-provenance --apk android/app/build/outputs/apk/release/app-release.apk --output asset-audit/after-build
+      - name: Prepare preview artifact and checksum
+        run: |
           cp android/app/build/outputs/apk/release/app-release.apk METRA-UI-PREVIEW-${{ github.run_number }}.apk
-
-      - name: Upload preview APK
+          sha256sum METRA-UI-PREVIEW-${{ github.run_number }}.apk > METRA-UI-PREVIEW-${{ github.run_number }}.apk.sha256
+      - name: Upload verified preview APK
         uses: actions/upload-artifact@v4
         with:
-          name: METRA-UI-PREVIEW-${{ github.run_number }}
-          path: METRA-UI-PREVIEW-${{ github.run_number }}.apk
+          name: METRA-UI-PREVIEW-${{ github.run_number }}-a${{ github.run_attempt }}
+          path: |
+            METRA-UI-PREVIEW-${{ github.run_number }}.apk
+            METRA-UI-PREVIEW-${{ github.run_number }}.apk.sha256
           retention-days: 7
           if-no-files-found: error
-
-      - name: Publish direct-download preview
+      - name: Verify release download while still draft, then publish
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          set -euo pipefail
           TAG="ui-preview-${{ github.run_number }}-a${{ github.run_attempt }}"
-          gh release create "$TAG" "METRA-UI-PREVIEW-${{ github.run_number }}.apk" \
-            --repo "${{ github.repository }}" \
-            --title "METRA UI Preview #${{ github.run_number }}" \
-            --notes "APK de prévisualisation UI généré automatiquement depuis ${GITHUB_SHA}. Version de test, distincte de l'application principale." \
-            --prerelease \
-            --target "${GITHUB_SHA}"
-          APK_URL="$(gh release view "$TAG" --repo "${{ github.repository }}" --json assets --jq '.assets[0].url')"
+          APK="METRA-UI-PREVIEW-${{ github.run_number }}.apk"
+          gh release create "$TAG" "$APK" "$APK.sha256" \
+            --repo "$GITHUB_REPOSITORY" --title "METRA UI Preview #${{ github.run_number }}" \
+            --notes "APK Preview de test. Commit ${GITHUB_SHA}. Quatre calques verifies avant et apres compilation; validation visuelle Android encore requise." \
+            --draft --prerelease --target "$GITHUB_SHA"
+          VERIFY_DIR="$(mktemp -d "$RUNNER_TEMP/premium-download.XXXXXX")"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$APK" --dir "$VERIFY_DIR"
+          EXPECTED="$(sha256sum "$APK" | cut -d ' ' -f 1)"
+          ACTUAL="$(sha256sum "$VERIFY_DIR/$APK" | cut -d ' ' -f 1)"
+          test "$EXPECTED" = "$ACTUAL"
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
+          APK_URL="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | select(.name | endswith(".apk")) | .url')"
+          test -n "$APK_URL"
           {
-            echo '### APK UI Preview prêt'
-            echo
-            echo "[Télécharger directement METRA-UI-PREVIEW-${{ github.run_number }}.apk](${APK_URL})"
-            echo
-            echo "Release : $TAG"
+            echo '### APK Preview - fichier et telechargement verifies'
+            echo "[Telecharger $APK]($APK_URL)"
+            echo "Commit : $GITHUB_SHA"
+            echo "SHA256 : $EXPECTED"
           } >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve image audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-image-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: asset-audit/
+          if-no-files-found: warn
+          retention-days: 14

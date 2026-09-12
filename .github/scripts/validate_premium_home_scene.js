@@ -1,92 +1,81 @@
-/* Container validation only. Full pixel decoding is a separate CI gate. */
+/* Structural validation is not pixel decoding. Both gates are required. */
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const { validateSceneConfig } = require('../../visual-packs/spiral-active/homeSceneModel.js');
 const EXPECTED = [
-  ['haussmann', '01_haussmann_left_far.webp', 'left', 1],
-  ['collectif', '02_collectif_left_mid.webp', 'left', 2],
-  ['poste-municipal', '03_poste_municipal_right_mid.webp', 'right', 3],
-  ['building', '04_building_right_near.webp', 'right', 4],
+  ['haussmann', '01_haussmann_left_far.webp'], ['collectif', '02_collectif_left_mid.webp'],
+  ['poste-municipal', '03_poste_municipal_right_mid.webp'], ['building', '04_building_right_near.webp'],
 ];
-function requireValid(condition, message) { if (!condition) throw new Error(message); }
-function uint24(buffer, offset) {
-  return buffer[offset] | (buffer[offset + 1] << 8) | (buffer[offset + 2] << 16);
-}
+function check(condition, message) { if (!condition) throw new Error(message); }
+function uint24(buffer, offset) { return buffer[offset] | buffer[offset + 1] << 8 | buffer[offset + 2] << 16; }
 function inspectWebp(buffer) {
-  requireValid(Buffer.isBuffer(buffer) && buffer.length >= 30, 'Truncated WebP');
-  requireValid(buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP', 'Invalid RIFF/WEBP signature');
-  const declared = buffer.readUInt32LE(4) + 8;
-  requireValid(declared === buffer.length, `RIFF size mismatch: header=${declared}, actual=${buffer.length}`);
+  check(Buffer.isBuffer(buffer) && buffer.length >= 20, 'Truncated WebP');
+  check(buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP', 'Invalid RIFF/WEBP signature');
+  check(buffer.readUInt32LE(4) + 8 === buffer.length, 'RIFF size mismatch');
   const chunks = [];
   for (let offset = 12; offset < buffer.length;) {
-    requireValid(offset + 8 <= buffer.length, `Truncated chunk header at ${offset}`);
+    check(offset + 8 <= buffer.length, 'Truncated chunk header');
     const type = buffer.toString('ascii', offset, offset + 4);
-    const size = buffer.readUInt32LE(offset + 4);
-    const start = offset + 8;
-    const next = start + size + (size % 2);
-    requireValid(/^[\x20-\x7e]{4}$/.test(type), `Invalid chunk identifier at ${offset}`);
-    requireValid(next <= buffer.length, `Chunk ${type} exceeds file bounds at ${offset}`);
-    if (size % 2) requireValid(buffer[start + size] === 0, `Non-zero padding after ${type}`);
-    chunks.push({ type, start, size });
-    offset = next;
+    const size = buffer.readUInt32LE(offset + 4), start = offset + 8, next = start + size + size % 2;
+    check(/^[\x20-\x7e]{4}$/.test(type) && next <= buffer.length, 'Invalid/out-of-bounds chunk');
+    if (size % 2) check(buffer[start + size] === 0, 'Non-zero padding');
+    chunks.push({ type, size, start }); offset = next;
   }
-  const extended = chunks.filter((c) => c.type === 'VP8X');
-  requireValid(extended.length === 1 && chunks[0].type === 'VP8X' && extended[0].size === 10, 'Expected one leading VP8X chunk');
-  const { start } = extended[0];
-  const flags = buffer[start];
-  requireValid((flags & 0xc3) === 0, 'Invalid VP8X reserved/animation flags for a static layer');
-  requireValid(buffer[start + 1] === 0 && buffer[start + 2] === 0 && buffer[start + 3] === 0, 'Invalid VP8X reserved bytes');
-  const images = chunks.filter((c) => c.type === 'VP8 ' || c.type === 'VP8L');
-  requireValid(images.length === 1, 'Expected exactly one compressed image chunk');
-  requireValid(!chunks.some((c) => c.type === 'ANIM' || c.type === 'ANMF'), 'Animated image not allowed in a building layer');
-  const image = images[0];
-  const alpha = chunks.filter((c) => c.type === 'ALPH');
-  if (image.type === 'VP8 ') {
-    requireValid(image.size >= 10, 'Truncated VP8 bitstream');
-    requireValid(buffer.subarray(image.start + 3, image.start + 6).equals(Buffer.from([0x9d, 0x01, 0x2a])), 'Invalid VP8 keyframe signature');
-    requireValid(alpha.length === 1 && alpha[0].start < image.start && alpha[0].size > 1, 'Missing or misplaced alpha payload');
+  check(!chunks.some(c => c.type === 'ANIM' || c.type === 'ANMF'), 'Animated layer not allowed');
+  const images = chunks.filter(c => c.type === 'VP8 ' || c.type === 'VP8L');
+  check(images.length === 1, 'Exactly one compressed image required');
+  const image = images[0], alpha = chunks.filter(c => c.type === 'ALPH');
+  let info;
+  if (image.type === 'VP8L') {
+    check(image.size >= 5 && buffer[image.start] === 0x2f, 'Invalid VP8L bitstream');
+    const bits = buffer.readUInt32LE(image.start + 1);
+    check(bits >>> 29 === 0 && alpha.length === 0, 'Invalid VP8L version/alpha chunk');
+    info = { width: (bits & 0x3fff) + 1, height: ((bits >>> 14) & 0x3fff) + 1, hasAlpha: !!(bits & 0x10000000) };
   } else {
-    requireValid(image.size >= 5 && buffer[image.start] === 0x2f, 'Invalid VP8L bitstream');
-    requireValid(alpha.length === 0, 'VP8L uses its own alpha channel');
+    check(image.size >= 10 && buffer.subarray(image.start + 3, image.start + 6).equals(Buffer.from([0x9d, 0x01, 0x2a])), 'Invalid VP8 keyframe');
+    check(alpha.length === 1 && alpha[0].start < image.start && alpha[0].size > 1, 'Missing/misplaced alpha payload');
+    info = { width: buffer.readUInt16LE(image.start + 6) & 0x3fff, height: buffer.readUInt16LE(image.start + 8) & 0x3fff, hasAlpha: true };
   }
-  return { width: uint24(buffer, start + 4) + 1, height: uint24(buffer, start + 7) + 1, hasAlpha: (flags & 0x10) !== 0 };
+  const extended = chunks.filter(c => c.type === 'VP8X');
+  if (extended.length) {
+    check(extended.length === 1 && chunks[0].type === 'VP8X' && extended[0].size === 10, 'Invalid VP8X chunk');
+    const start = extended[0].start, flags = buffer[start];
+    check((flags & 0xc3) === 0 && buffer[start + 1] === 0 && buffer[start + 2] === 0 && buffer[start + 3] === 0, 'Invalid static VP8X flags');
+    check(uint24(buffer, start + 4) + 1 === info.width && uint24(buffer, start + 7) + 1 === info.height, 'Conflicting image/canvas dimensions');
+    check(!!(flags & 0x10) === info.hasAlpha, 'Conflicting alpha flag');
+  } else {
+    // Valid lossless transparent WebP can use VP8L alone: never require VP8X unnecessarily.
+    check(chunks.length === 1 && image.type === 'VP8L', 'Missing extended header');
+  }
+  return info;
 }
 function validate(root = path.resolve(__dirname, '..', '..')) {
-  const pack = path.join(root, 'visual-packs', 'spiral-active');
-  const errors = [];
-  const check = (condition, message) => { if (!condition) errors.push(message); };
+  const pack = path.join(root, 'visual-packs/spiral-active');
   const manifest = JSON.parse(fs.readFileSync(path.join(pack, 'manifest.json'), 'utf8'));
-  const config = manifest.homeScene || {};
-  const layers = config.layers || [];
-  check(manifest.version >= 4, 'Pack version must be >= 4');
-  check(config.mode === 'four-independent-buildings', 'Wrong scene mode');
-  check(config.motion?.type === 'converge', 'Wrong scene motion');
-  check(layers.length === 4, 'Exactly four layers are required');
-  check(Array.isArray(config.canvas) && config.canvas.length === 2 && config.canvas.every((n) => Number.isInteger(n) && n > 0), 'Invalid canvas');
-  check(!fs.existsSync(path.join(pack, 'home-scene', 'home-composite.webp')), 'Legacy composite is forbidden in this pack');
+  const config = manifest.homeScene;
+  const errors = validateSceneConfig(config, Object.fromEntries(EXPECTED));
+  if (manifest.version < 4) errors.push('Pack version must be >= 4');
+  if (fs.existsSync(path.join(pack, 'home-scene/home-composite.webp'))) errors.push('Legacy composite is forbidden');
   const hashes = new Set();
-  EXPECTED.forEach(([id, file, side, depth], i) => {
-    const layer = layers[i];
-    check(layer?.id === id && layer?.asset === `./home-scene/${file}` && layer?.side === side && layer?.depth === depth, `Invalid manifest entry for ${id}`);
-    check(Number.isFinite(layer?.introStart) && Number.isFinite(layer?.introEnd) && layer.introStart >= 0 && layer.introStart < layer.introEnd && layer.introEnd <= 1, `Invalid timing for ${id}`);
+  EXPECTED.forEach(([id, name], index) => {
+    if (config?.layers?.[index]?.asset !== `./home-scene/${name}`) errors.push(`Wrong asset for ${id}`);
     try {
-      const bytes = fs.readFileSync(path.join(pack, 'home-scene', file));
+      const bytes = fs.readFileSync(path.join(pack, 'home-scene', name));
       const info = inspectWebp(bytes);
-      check(info.width === config.canvas?.[0] && info.height === config.canvas?.[1], `${file}: wrong canvas dimensions`);
-      check(info.hasAlpha, `${file}: alpha flag missing`);
-      const digest = crypto.createHash('sha256').update(bytes).digest('hex');
-      check(!hashes.has(digest), `${file}: duplicate image content`);
-      hashes.add(digest);
-      console.log(`[PremiumHome] Container OK: ${file} (${bytes.length} bytes)`);
-    } catch (error) { errors.push(`${file}: ${error.message}`); }
+      check(info.hasAlpha, 'Missing alpha flag');
+      check(info.width === config.canvas[0] && info.height === config.canvas[1], 'Wrong canvas dimensions');
+      const hash = crypto.createHash('sha256').update(bytes).digest('hex');
+      check(!hashes.has(hash), 'Duplicate image bytes'); hashes.add(hash);
+    } catch (error) { errors.push(`${name}: ${error.message}`); }
   });
   const scene = fs.readFileSync(path.join(pack, 'HomeBuildingScene.js'), 'utf8');
-  check(!scene.includes('home-composite.webp'), 'Scene still references legacy composite');
-  check(scene.includes('premium-four-building-scene'), 'Missing scene testID');
-  check(scene.includes('premium-building-${layer.id}'), 'Missing per-building testID');
-  EXPECTED.forEach(([, file]) => check(scene.includes(file), `Scene does not reference ${file}`));
+  if (scene.includes('home-composite.webp')) errors.push('Legacy scene reference');
+  for (const token of ['premium-four-building-scene', 'premium-building-${layer.id}', 'onLoad=', 'onError='])
+    if (!scene.includes(token)) errors.push(`Missing runtime contract: ${token}`);
+  EXPECTED.forEach(([, name]) => { if (!scene.includes(name)) errors.push(`Missing bundled source: ${name}`); });
   if (errors.length) throw new Error(errors.join('\n'));
-  console.log('[PremiumHome] Structural checks passed. Pixel decoding and Android visual acceptance are still required.');
+  console.log('Structural checks passed. Full decoding and native visual acceptance still required.');
 }
 module.exports = { inspectWebp, validate };
 if (require.main === module) {

@@ -1,31 +1,54 @@
 name: Premium Home Asset Integrity
-
 on:
   workflow_dispatch:
   push:
-    branches:
-      - 'work/premium-home-asset-integrity'
-      - 'ui-preview/**'
-      - native-android
+    branches: ['work/premium-home-asset-integrity', 'ui-preview/**', native-android]
     paths:
       - 'visual-packs/spiral-active/**'
       - '.github/scripts/*premium_home*'
       - '.github/workflows/premium-home-assets.yml'
+      - '.github/workflows/native-android-ui-preview.yml'
   pull_request:
     paths:
       - 'visual-packs/spiral-active/**'
       - '.github/scripts/*premium_home*'
       - '.github/workflows/premium-home-assets.yml'
-
+      - '.github/workflows/native-android-ui-preview.yml'
 permissions:
   contents: read
-
 concurrency:
   group: premium-assets-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
+  unit-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m pip install --disable-pip-version-check Pillow==12.3.0
+      - name: Test loading, animation and responsive geometry without artwork
+        run: node --test .github/scripts/test_premium_home_model.js
+      - name: Test image intake, decoder, provenance and APK gates with synthetic fixtures
+        run: python .github/scripts/test_premium_home_images.py -v
+      - name: Install locked parser dependencies without app postinstall
+        run: npm ci --ignore-scripts --no-audit --no-fund --prefer-offline
+      - name: Parse changed runtime JSX
+        run: |
+          node - <<'JS'
+          const fs = require('fs');
+          const parser = require('@babel/parser');
+          for (const name of ['SpiralActiveHome.js', 'HomeBuildingScene.js', 'homeSceneModel.js']) {
+            parser.parse(fs.readFileSync('visual-packs/spiral-active/' + name, 'utf8'), { sourceType: 'unambiguous', plugins: ['jsx'] });
+          }
+          JS
   asset-integrity:
+    needs: unit-contracts
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
@@ -33,10 +56,7 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install CI image decoder (not an app dependency)
-        run: python -m pip install --disable-pip-version-check Pillow==12.3.0
-      - name: Test validator against valid and corrupt fixtures
-        run: python .github/scripts/test_premium_home_images.py
+      - run: python -m pip install --disable-pip-version-check Pillow==12.3.0
       - name: Validate RIFF and layer contract
         id: structure
         continue-on-error: true
@@ -44,8 +64,12 @@ jobs:
       - name: Fully decode the four actual assets
         id: pixels
         continue-on-error: true
-        run: python .github/scripts/validate_premium_home_images.py --output asset-audit
-      - name: Preserve diagnostic evidence
+        run: python .github/scripts/validate_premium_home_images.py --output asset-audit/pixels
+      - name: Verify original import provenance
+        id: provenance
+        continue-on-error: true
+        run: python .github/scripts/validate_premium_home_images.py --require-provenance --output asset-audit/provenance
+      - name: Preserve diagnostic evidence (never an APK)
         if: always()
         uses: actions/upload-artifact@v4
         with:
@@ -54,7 +78,7 @@ jobs:
           if-no-files-found: warn
           retention-days: 14
       - name: Reject invalid production assets
-        if: steps.structure.outcome != 'success' || steps.pixels.outcome != 'success'
+        if: steps.structure.outcome != 'success' || steps.pixels.outcome != 'success' || steps.provenance.outcome != 'success'
         run: |
-          echo '::error::Premium home assets are invalid. Restore original layers; do not release another APK with these files.'
+          echo '::error::Restore and validate original layers. No APK should be delivered with these assets.'
           exit 1
