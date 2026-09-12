@@ -27,3 +27,5 @@ jobs:
               ref: 'feat/spiral-active-ui-test'
             });
             core.notice('Full native APK pipeline dispatched for Spirale Active prototype.');
+
+# Prototype refresh: architectural home scene + pinch opening validation.
