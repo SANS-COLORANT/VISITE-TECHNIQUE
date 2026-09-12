@@ -41,9 +41,17 @@ function SectorButton({ item, onPress }) {
       accessibilityLabel={item.label}
     >
       <View style={styles.sectorIconWrap}>
-        <Text style={styles.sectorIcon}>{item.icon}</Text>
+        <Text style={styles.sectorIcon} maxFontSizeMultiplier={1.05}>{item.icon}</Text>
       </View>
-      <Text style={styles.sectorText}>{item.label}</Text>
+      <Text
+        style={styles.sectorText}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.80}
+        maxFontSizeMultiplier={1.05}
+      >
+        {item.label}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -60,10 +68,26 @@ function GlassAction({ title, subtitle, primary = false, onPress, disabled = fal
       onPress={onPress}
     >
       <View style={styles.actionTextWrap}>
-        <Text style={[styles.actionTitle, primary ? styles.actionTitlePrimary : null]} numberOfLines={1}>{title}</Text>
-        {subtitle ? <Text style={styles.actionSubtitle} numberOfLines={1}>{subtitle}</Text> : null}
+        <Text
+          style={[styles.actionTitle, primary ? styles.actionTitlePrimary : null]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={primary ? 0.82 : 0.78}
+          maxFontSizeMultiplier={1.08}
+        >
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text
+            style={styles.actionSubtitle}
+            numberOfLines={primary ? 1 : 2}
+            maxFontSizeMultiplier={1.08}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
-      <Text style={styles.actionArrow}>›</Text>
+      <Text style={styles.actionArrow} maxFontSizeMultiplier={1.05}>›</Text>
     </TouchableOpacity>
   );
 }
@@ -284,21 +308,21 @@ const styles = StyleSheet.create({
   settingsButton: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(15,20,24,0.10)', backgroundColor: 'rgba(255,253,248,0.92)', alignItems: 'center', justifyContent: 'center', elevation: 3 },
   settingsIcon: { color: PALETTE.ink, fontSize: 19, fontWeight: '800' },
   content: { position: 'absolute', left: '50%', zIndex: 25 },
-  sectorRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  sectorButton: { flex: 1, minHeight: 62, paddingHorizontal: 8, borderRadius: 18, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: 'rgba(10,15,19,0.66)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, shadowColor: '#000000', shadowOpacity: 0.14, shadowRadius: 11, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
-  sectorIconWrap: { width: 26, height: 26, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center' },
-  sectorIcon: { color: '#FFFFFF', fontSize: 14, lineHeight: 16, fontWeight: '800' },
-  sectorText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '800', letterSpacing: 0.1 },
-  glassAction: { minHeight: 80, borderRadius: 22, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: PALETTE.glass, paddingHorizontal: 20, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', shadowColor: '#000000', shadowOpacity: 0.15, shadowRadius: 15, shadowOffset: { width: 0, height: 5 }, elevation: 6 },
+  sectorRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  sectorButton: { flex: 1, minWidth: 0, minHeight: 60, paddingHorizontal: 6, borderRadius: 18, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: 'rgba(10,15,19,0.66)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, shadowColor: '#000000', shadowOpacity: 0.14, shadowRadius: 11, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
+  sectorIconWrap: { width: 24, height: 24, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  sectorIcon: { color: '#FFFFFF', fontSize: 13, lineHeight: 15, fontWeight: '800' },
+  sectorText: { flexShrink: 1, color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontWeight: '800', letterSpacing: 0.05, textAlign: 'center' },
+  glassAction: { minHeight: 82, borderRadius: 22, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: PALETTE.glass, paddingHorizontal: 18, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', shadowColor: '#000000', shadowOpacity: 0.15, shadowRadius: 15, shadowOffset: { width: 0, height: 5 }, elevation: 6 },
   glassActionPrimary: { minHeight: 90, backgroundColor: PALETTE.glassStrong },
   glassActionDisabled: { opacity: 0.78 },
   actionTextWrap: { flex: 1, minWidth: 0 },
   actionTitle: { color: '#FFFFFF', fontSize: 15.5, lineHeight: 20, fontWeight: '800', letterSpacing: -0.2 },
   actionTitlePrimary: { fontSize: 18, lineHeight: 23 },
-  actionSubtitle: { marginTop: 4, color: PALETTE.mutedWhite, fontSize: 10.5, lineHeight: 14, fontWeight: '600' },
-  actionArrow: { marginLeft: 14, color: 'rgba(255,255,255,0.82)', fontSize: 26, lineHeight: 28, fontWeight: '300' },
+  actionSubtitle: { marginTop: 4, color: PALETTE.mutedWhite, fontSize: 10.5, lineHeight: 13.5, fontWeight: '600' },
+  actionArrow: { marginLeft: 10, color: 'rgba(255,255,255,0.82)', fontSize: 25, lineHeight: 28, fontWeight: '300', flexShrink: 0 },
   secondaryRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  secondaryAction: { flex: 1, minWidth: 0 },
+  secondaryAction: { flex: 1, minWidth: 0, minHeight: 94 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(9,13,17,0.42)', alignItems: 'center', justifyContent: 'center', padding: 20 },
   modalSheet: { width: '100%', maxWidth: 520, borderRadius: 24, backgroundColor: '#FFFDF8', padding: 22, borderWidth: 1, borderColor: '#DDE1E3', elevation: 18 },
   modalKicker: { color: PALETTE.orange, fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },
