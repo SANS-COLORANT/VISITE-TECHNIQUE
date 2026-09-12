@@ -9,12 +9,11 @@ const PALETTE = {
   ink: '#10161C',
   orange: '#F26426',
   green: '#78A84D',
-  glass: 'rgba(11,16,20,0.64)',
-  glassStrong: 'rgba(10,15,19,0.76)',
-  glassSoft: 'rgba(20,27,32,0.54)',
+  glass: 'rgba(11,16,20,0.68)',
+  glassStrong: 'rgba(10,15,19,0.80)',
   line: 'rgba(255,255,255,0.18)',
   white: '#FFFFFF',
-  mutedWhite: 'rgba(255,255,255,0.68)',
+  mutedWhite: 'rgba(255,255,255,0.70)',
 };
 
 const SECTORS = [
@@ -34,9 +33,25 @@ function formatLastSync(value) {
 
 function SectorButton({ item, onPress }) {
   return (
-    <TouchableOpacity activeOpacity={0.86} style={styles.sectorButton} onPress={onPress} accessibilityRole="button" accessibilityLabel={item.label}>
-      <Text style={styles.sectorIcon}>{item.icon}</Text>
-      <Text style={styles.sectorText}>{item.label}</Text>
+    <TouchableOpacity
+      activeOpacity={0.86}
+      style={styles.sectorButton}
+      onPress={onPress}
+      accessibilityRole="button"
+      accessibilityLabel={item.label}
+    >
+      <View style={styles.sectorIconWrap}>
+        <Text style={styles.sectorIcon} maxFontSizeMultiplier={1.05}>{item.icon}</Text>
+      </View>
+      <Text
+        style={styles.sectorText}
+        numberOfLines={1}
+        adjustsFontSizeToFit
+        minimumFontScale={0.80}
+        maxFontSizeMultiplier={1.05}
+      >
+        {item.label}
+      </Text>
     </TouchableOpacity>
   );
 }
@@ -53,21 +68,27 @@ function GlassAction({ title, subtitle, primary = false, onPress, disabled = fal
       onPress={onPress}
     >
       <View style={styles.actionTextWrap}>
-        <Text style={[styles.actionTitle, primary ? styles.actionTitlePrimary : null]} numberOfLines={1}>{title}</Text>
-        {subtitle ? <Text style={styles.actionSubtitle} numberOfLines={1}>{subtitle}</Text> : null}
+        <Text
+          style={[styles.actionTitle, primary ? styles.actionTitlePrimary : null]}
+          numberOfLines={1}
+          adjustsFontSizeToFit
+          minimumFontScale={primary ? 0.82 : 0.78}
+          maxFontSizeMultiplier={1.08}
+        >
+          {title}
+        </Text>
+        {subtitle ? (
+          <Text
+            style={styles.actionSubtitle}
+            numberOfLines={primary ? 1 : 2}
+            maxFontSizeMultiplier={1.08}
+          >
+            {subtitle}
+          </Text>
+        ) : null}
       </View>
-      <Text style={styles.actionArrow}>›</Text>
+      <Text style={styles.actionArrow} maxFontSizeMultiplier={1.05}>›</Text>
     </TouchableOpacity>
-  );
-}
-
-function InfoTile({ label, value, accent = false }) {
-  return (
-    <View style={styles.infoTile}>
-      <View style={[styles.infoMarker, accent ? styles.infoMarkerAccent : null]} />
-      <Text style={styles.infoLabel}>{label}</Text>
-      <Text style={styles.infoValue} numberOfLines={1}>{value}</Text>
-    </View>
   );
 }
 
@@ -97,9 +118,9 @@ export function SpiralActiveHome({
 
   const visits = Array.isArray(visitesEnCours) ? visitesEnCours : [];
   const lastVisit = visits[0] || null;
-  const contentWidth = Math.min(width - (tablet ? 72 : 28), tablet ? 860 : 620);
+  const contentWidth = Math.min(width - (tablet ? 64 : 28), tablet ? 850 : 620);
   const contentTop = portrait
-    ? Math.max(330, Math.min(height * 0.29, 455))
+    ? Math.max(405, Math.min(height * 0.30, 468))
     : Math.max(178, Math.min(height * 0.25, 245));
 
   useEffect(() => {
@@ -231,11 +252,6 @@ export function SpiralActiveHome({
             style={styles.secondaryAction}
           />
         </View>
-
-        <View style={styles.infoRow}>
-          <InfoTile label="Visites en cours" value={String(visits.length)} accent={visits.length > 0} />
-          <InfoTile label="Dernière synchronisation" value={formatLastSync(apiStatus?.lastSyncAt)} />
-        </View>
       </Animated.View>
 
       <SpiralActiveDock exploreActions={exploreActions} actionActions={actionActions} quickActions={quickActions} />
@@ -292,26 +308,21 @@ const styles = StyleSheet.create({
   settingsButton: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(15,20,24,0.10)', backgroundColor: 'rgba(255,253,248,0.92)', alignItems: 'center', justifyContent: 'center', elevation: 3 },
   settingsIcon: { color: PALETTE.ink, fontSize: 19, fontWeight: '800' },
   content: { position: 'absolute', left: '50%', zIndex: 25 },
-  sectorRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
-  sectorButton: { flex: 1, minHeight: 58, paddingHorizontal: 8, borderRadius: 17, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: 'rgba(10,15,19,0.58)', alignItems: 'center', justifyContent: 'center', shadowColor: '#000000', shadowOpacity: 0.12, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
-  sectorIcon: { color: '#FFFFFF', fontSize: 16, lineHeight: 18, marginBottom: 3, fontWeight: '700' },
-  sectorText: { color: '#FFFFFF', fontSize: 11.5, fontWeight: '800', letterSpacing: 0.1 },
-  glassAction: { minHeight: 78, borderRadius: 21, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: PALETTE.glass, paddingHorizontal: 20, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', shadowColor: '#000000', shadowOpacity: 0.13, shadowRadius: 14, shadowOffset: { width: 0, height: 5 }, elevation: 6 },
-  glassActionPrimary: { minHeight: 86, backgroundColor: PALETTE.glassStrong },
-  glassActionDisabled: { opacity: 0.56 },
+  sectorRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
+  sectorButton: { flex: 1, minWidth: 0, minHeight: 60, paddingHorizontal: 6, borderRadius: 18, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: 'rgba(10,15,19,0.66)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, shadowColor: '#000000', shadowOpacity: 0.14, shadowRadius: 11, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
+  sectorIconWrap: { width: 24, height: 24, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(255,255,255,0.16)', backgroundColor: 'rgba(255,255,255,0.08)', alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  sectorIcon: { color: '#FFFFFF', fontSize: 13, lineHeight: 15, fontWeight: '800' },
+  sectorText: { flexShrink: 1, color: '#FFFFFF', fontSize: 11, lineHeight: 14, fontWeight: '800', letterSpacing: 0.05, textAlign: 'center' },
+  glassAction: { minHeight: 82, borderRadius: 22, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: PALETTE.glass, paddingHorizontal: 18, paddingVertical: 13, flexDirection: 'row', alignItems: 'center', shadowColor: '#000000', shadowOpacity: 0.15, shadowRadius: 15, shadowOffset: { width: 0, height: 5 }, elevation: 6 },
+  glassActionPrimary: { minHeight: 90, backgroundColor: PALETTE.glassStrong },
+  glassActionDisabled: { opacity: 0.78 },
   actionTextWrap: { flex: 1, minWidth: 0 },
   actionTitle: { color: '#FFFFFF', fontSize: 15.5, lineHeight: 20, fontWeight: '800', letterSpacing: -0.2 },
   actionTitlePrimary: { fontSize: 18, lineHeight: 23 },
-  actionSubtitle: { marginTop: 4, color: PALETTE.mutedWhite, fontSize: 10.5, lineHeight: 14, fontWeight: '600' },
-  actionArrow: { marginLeft: 14, color: 'rgba(255,255,255,0.80)', fontSize: 26, lineHeight: 28, fontWeight: '300' },
+  actionSubtitle: { marginTop: 4, color: PALETTE.mutedWhite, fontSize: 10.5, lineHeight: 13.5, fontWeight: '600' },
+  actionArrow: { marginLeft: 10, color: 'rgba(255,255,255,0.82)', fontSize: 25, lineHeight: 28, fontWeight: '300', flexShrink: 0 },
   secondaryRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  secondaryAction: { flex: 1, minWidth: 0 },
-  infoRow: { flexDirection: 'row', gap: 12, marginTop: 12 },
-  infoTile: { flex: 1, minWidth: 0, minHeight: 60, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(16,22,28,0.08)', backgroundColor: 'rgba(255,253,248,0.78)', paddingHorizontal: 15, paddingVertical: 10, justifyContent: 'center' },
-  infoMarker: { position: 'absolute', left: 0, top: 12, bottom: 12, width: 3, borderRadius: 2, backgroundColor: 'rgba(16,22,28,0.18)' },
-  infoMarkerAccent: { backgroundColor: PALETTE.orange },
-  infoLabel: { color: '#68727B', fontSize: 9.5, fontWeight: '800', letterSpacing: 0.45, textTransform: 'uppercase' },
-  infoValue: { marginTop: 4, color: PALETTE.ink, fontSize: 12.5, fontWeight: '800' },
+  secondaryAction: { flex: 1, minWidth: 0, minHeight: 94 },
   modalOverlay: { flex: 1, backgroundColor: 'rgba(9,13,17,0.42)', alignItems: 'center', justifyContent: 'center', padding: 20 },
   modalSheet: { width: '100%', maxWidth: 520, borderRadius: 24, backgroundColor: '#FFFDF8', padding: 22, borderWidth: 1, borderColor: '#DDE1E3', elevation: 18 },
   modalKicker: { color: PALETTE.orange, fontSize: 9, fontWeight: '900', letterSpacing: 1.5 },

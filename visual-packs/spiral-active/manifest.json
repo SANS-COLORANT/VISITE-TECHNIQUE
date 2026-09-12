@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "spiral-active",
   "name": "Nouvelle interface — Premium",
-  "description": "Accueil architectural épuré avec spirale gestuelle, accès terrain rapides et habillage premium.",
-  "version": 3,
+  "description": "Accueil architectural épuré avec quatre bâtiments indépendants, spirale gestuelle, accès terrain rapides et habillage premium.",
+  "version": 4,
   "colors": {
     "main": "#F26426",
     "dark": "#14202C",
@@ -25,14 +25,48 @@
   },
   "homeScene": {
     "enabled": true,
+    "mode": "four-independent-buildings",
     "canvas": [1024, 540],
-    "entryDurationMs": 620,
+    "entryDurationMs": 900,
+    "motion": {
+      "type": "converge",
+      "travelFactor": 0.46,
+      "verticalOffsetPx": 14
+    },
     "replaceable": true,
     "layers": [
-      { "id": "haussmann", "asset": "./home-scene/01_haussmann_left_far.webp", "side": "left", "depth": 1 },
-      { "id": "collectif", "asset": "./home-scene/02_collectif_left_mid.webp", "side": "left", "depth": 2 },
-      { "id": "poste-municipal", "asset": "./home-scene/03_poste_municipal_right_mid.webp", "side": "right", "depth": 3 },
-      { "id": "building", "asset": "./home-scene/04_building_right_near.webp", "side": "right", "depth": 4 }
+      {
+        "id": "haussmann",
+        "asset": "./home-scene/01_haussmann_left_far.webp",
+        "side": "left",
+        "depth": 1,
+        "introStart": 0.02,
+        "introEnd": 0.55
+      },
+      {
+        "id": "collectif",
+        "asset": "./home-scene/02_collectif_left_mid.webp",
+        "side": "left",
+        "depth": 2,
+        "introStart": 0.10,
+        "introEnd": 0.68
+      },
+      {
+        "id": "poste-municipal",
+        "asset": "./home-scene/03_poste_municipal_right_mid.webp",
+        "side": "right",
+        "depth": 3,
+        "introStart": 0.20,
+        "introEnd": 0.82
+      },
+      {
+        "id": "building",
+        "asset": "./home-scene/04_building_right_near.webp",
+        "side": "right",
+        "depth": 4,
+        "introStart": 0.30,
+        "introEnd": 1.00
+      }
     ]
   },
   "interface": {
