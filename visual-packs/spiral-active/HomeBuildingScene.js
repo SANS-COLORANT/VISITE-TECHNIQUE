@@ -2,12 +2,8 @@ import React, { useEffect, useRef } from 'react';
 import { Animated, Easing, Image, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 
-const LAYERS = [
-  { id: 'haussmann', source: require('./home-scene/01_haussmann_left_far.webp'), fromX: -24, fromY: 10, delay: 0 },
-  { id: 'collectif', source: require('./home-scene/02_collectif_left_mid.webp'), fromX: -16, fromY: 8, delay: 50 },
-  { id: 'municipal', source: require('./home-scene/03_poste_municipal_right_mid.webp'), fromX: 16, fromY: 8, delay: 100 },
-  { id: 'building', source: require('./home-scene/04_building_right_near.webp'), fromX: 24, fromY: 12, delay: 150 },
-];
+const HERO = require('./home-scene/home-composite.webp');
+const HERO_RATIO = 281 / 450;
 
 export function HomeBuildingScene() {
   const { width, height } = useWindowDimensions();
@@ -26,73 +22,73 @@ export function HomeBuildingScene() {
     return () => animation.stop();
   }, [intro]);
 
-  const sceneWidth = portrait ? width * 1.38 : width * 1.06;
-  const sceneHeight = portrait ? Math.min(height * 0.63, 820) : Math.min(height * 0.82, 650);
-  const sceneLeft = (width - sceneWidth) / 2;
-  const sceneTop = portrait ? Math.max(55, height * 0.045) : 18;
+  const heroWidth = portrait ? width * 1.08 : width * 0.98;
+  const heroHeight = heroWidth * HERO_RATIO;
+  const heroLeft = (width - heroWidth) / 2;
+  const heroTop = portrait ? Math.max(92, height * 0.065) : 18;
+
+  const opacity = intro.interpolate({
+    inputRange: [0, 0.18, 1],
+    outputRange: [0, 0.2, 1],
+    extrapolate: 'clamp',
+  });
+  const translateY = intro.interpolate({
+    inputRange: [0, 1],
+    outputRange: [12, 0],
+    extrapolate: 'clamp',
+  });
+  const scale = intro.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0.992, 1],
+    extrapolate: 'clamp',
+  });
 
   return (
     <View pointerEvents="none" style={styles.root}>
-      <View style={styles.ambient}>
-        {LAYERS.map((layer) => (
-          <Image
-            key={`ambient-${layer.id}`}
-            source={layer.source}
-            style={styles.ambientImage}
-            resizeMode="cover"
-            fadeDuration={0}
-          />
-        ))}
-        <View style={styles.ambientShade} />
-      </View>
+      <Image
+        source={HERO}
+        style={styles.ambientImage}
+        resizeMode="cover"
+        blurRadius={22}
+        fadeDuration={0}
+      />
+      <View style={styles.ambientWash} />
 
-      <View style={[styles.sceneViewport, { top: sceneTop, left: sceneLeft, width: sceneWidth, height: sceneHeight }]}> 
-        {LAYERS.map((layer, index) => {
-          const start = Math.min(0.32, layer.delay / 760);
-          const opacity = intro.interpolate({
-            inputRange: [0, start, Math.min(1, start + 0.42), 1],
-            outputRange: [0, 0, 1, 1],
-            extrapolate: 'clamp',
-          });
-          const translateX = intro.interpolate({
-            inputRange: [0, 1],
-            outputRange: [layer.fromX, 0],
-            extrapolate: 'clamp',
-          });
-          const translateY = intro.interpolate({
-            inputRange: [0, 1],
-            outputRange: [layer.fromY + (index * 2), 0],
-            extrapolate: 'clamp',
-          });
-          const scale = intro.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.985, 1],
-            extrapolate: 'clamp',
-          });
-          return (
-            <Animated.View
-              key={layer.id}
-              style={[StyleSheet.absoluteFill, { opacity, transform: [{ translateX }, { translateY }, { scale }] }]}
-            >
-              <Image source={layer.source} style={styles.layerImage} resizeMode="contain" fadeDuration={0} />
-            </Animated.View>
-          );
-        })}
-      </View>
+      <Animated.View
+        style={[
+          styles.heroFrame,
+          {
+            top: heroTop,
+            left: heroLeft,
+            width: heroWidth,
+            height: heroHeight,
+            opacity,
+            transform: [{ translateY }, { scale }],
+          },
+        ]}
+      >
+        <Image source={HERO} style={styles.heroImage} resizeMode="cover" fadeDuration={0} />
+        <LinearGradient
+          colors={['rgba(7,14,19,0.00)', 'rgba(7,14,19,0.05)', 'rgba(7,14,19,0.18)']}
+          locations={[0, 0.58, 1]}
+          style={StyleSheet.absoluteFillObject}
+        />
+      </Animated.View>
 
       <LinearGradient
         colors={[
-          'rgba(13,19,25,0.03)',
-          'rgba(13,19,25,0.11)',
-          'rgba(244,241,232,0.18)',
-          'rgba(244,241,232,0.86)',
+          'rgba(244,241,232,0.08)',
+          'rgba(244,241,232,0.00)',
+          'rgba(244,241,232,0.05)',
+          'rgba(244,241,232,0.52)',
           '#F4F1E8',
         ]}
-        locations={[0, 0.30, 0.54, 0.76, 1]}
+        locations={[0, 0.20, 0.43, 0.66, 0.86]}
         style={styles.fullFade}
       />
       <LinearGradient
-        colors={['rgba(244,241,232,0.42)', 'rgba(244,241,232,0)']}
+        colors={['rgba(244,241,232,0.66)', 'rgba(244,241,232,0.14)', 'rgba(244,241,232,0)']}
+        locations={[0, 0.52, 1]}
         style={styles.topWash}
       />
     </View>
@@ -105,24 +101,22 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
     backgroundColor: '#F4F1E8',
   },
-  ambient: {
-    ...StyleSheet.absoluteFillObject,
-    opacity: 0.34,
-  },
   ambientImage: {
     ...StyleSheet.absoluteFillObject,
     width: '100%',
     height: '100%',
+    opacity: 0.18,
+    transform: [{ scale: 1.18 }],
   },
-  ambientShade: {
+  ambientWash: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(244,241,232,0.18)',
+    backgroundColor: 'rgba(244,241,232,0.32)',
   },
-  sceneViewport: {
+  heroFrame: {
     position: 'absolute',
     overflow: 'hidden',
   },
-  layerImage: {
+  heroImage: {
     width: '100%',
     height: '100%',
   },
@@ -134,6 +128,6 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     top: 0,
-    height: 135,
+    height: 155,
   },
 });
