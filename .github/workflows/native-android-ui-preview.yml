@@ -1,0 +1,138 @@
+name: Fast UI Preview APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'ui-preview/**'
+      - 'fix/premium-*'
+      - 'feat/premium-*'
+      - 'feat/fast-ui-preview-apk'
+    paths:
+      - '**/*.js'
+      - '**/*.json'
+      - 'visual-packs/**'
+      - 'assets/metra/**'
+      - 'plugins/**'
+      - 'native/**'
+      - '.github/workflows/native-android-ui-preview.yml'
+
+concurrency:
+  group: fast-ui-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-ui-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    env:
+      NODE_ENV: production
+      EXPO_NO_TELEMETRY: 1
+      GRADLE_OPTS: >-
+        -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+        -Dorg.gradle.workers.max=2
+        -Dorg.gradle.caching=true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Configure npm resilience
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 2000
+          npm config set fetch-retry-maxtimeout 30000
+
+      - name: Install dependencies from lockfile
+        run: npm ci --no-audit --no-fund --prefer-offline
+
+      - name: Restore generated Android project
+        id: android-project-cache
+        uses: actions/cache@v4
+        with:
+          path: android
+          key: metra-ui-preview-android-v3-${{ runner.os }}-${{ hashFiles('package-lock.json', 'app.json', 'app.config.js', 'plugins/**/*', 'native/**/*') }}
+
+      - name: Stamp preview identity
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+
+          app = Path('app.json')
+          data = json.loads(app.read_text(encoding='utf-8'))
+          expo = data.setdefault('expo', {})
+          expo['name'] = 'Visite Preview'
+          android = expo.setdefault('android', {})
+          android['package'] = 'com.visitetechnique.tablet.preview'
+          android['versionCode'] = 1
+          app.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+
+          version = Path('appVersion.js')
+          source = version.read_text(encoding='utf-8')
+          source = source.replace("export const APK_BUILD = 'DEV';", "export const APK_BUILD = 'UI-${{ github.run_number }}';")
+          version.write_text(source, encoding='utf-8')
+          PY
+
+      - name: Generate Android project only when native inputs changed
+        if: steps.android-project-cache.outputs.cache-hit != 'true'
+        run: npx expo prebuild --clean --platform android --no-install
+
+      - name: Validate preview Android project
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+
+          p = Path('android/app/build.gradle')
+          s = p.read_text(encoding='utf-8')
+          s, count = re.subn(r'(?m)^(\s*)versionCode\s+\d+\s*$', r'\g<1>versionCode ${{ github.run_number }}', s, count=1)
+          if count != 1:
+              raise SystemExit('versionCode Android introuvable')
+          if not re.search(r'applicationId\s+["\']com\.visitetechnique\.tablet\.preview["\']', s):
+              raise SystemExit('applicationId Preview inattendu après Expo prebuild')
+          p.write_text(s, encoding='utf-8')
+
+          dpop = Path('android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt')
+          if not dpop.is_file() or dpop.stat().st_size == 0:
+              raise SystemExit('module natif DPoP absent du projet Android Preview')
+          print('Projet Android Preview prêt.')
+          PY
+
+      - name: Configure Gradle for fast preview
+        working-directory: android
+        run: |
+          printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\norg.gradle.caching=true\n' >> gradle.properties
+
+      - name: Build standalone preview APK only
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --max-workers=2 --build-cache
+
+      - name: Prepare preview artifact
+        run: |
+          test -s android/app/build/outputs/apk/release/app-release.apk
+          cp android/app/build/outputs/apk/release/app-release.apk METRA-UI-PREVIEW-${{ github.run_number }}.apk
+
+      - name: Upload preview APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: METRA-UI-PREVIEW-${{ github.run_number }}
+          path: METRA-UI-PREVIEW-${{ github.run_number }}.apk
+          retention-days: 7
+          if-no-files-found: error
