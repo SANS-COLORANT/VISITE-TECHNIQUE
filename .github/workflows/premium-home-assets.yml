@@ -1,0 +1,60 @@
+name: Premium Home Asset Integrity
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - 'work/premium-home-asset-integrity'
+      - 'ui-preview/**'
+      - native-android
+    paths:
+      - 'visual-packs/spiral-active/**'
+      - '.github/scripts/*premium_home*'
+      - '.github/workflows/premium-home-assets.yml'
+  pull_request:
+    paths:
+      - 'visual-packs/spiral-active/**'
+      - '.github/scripts/*premium_home*'
+      - '.github/workflows/premium-home-assets.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: premium-assets-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  asset-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CI image decoder (not an app dependency)
+        run: python -m pip install --disable-pip-version-check Pillow==12.3.0
+      - name: Test validator against valid and corrupt fixtures
+        run: python .github/scripts/test_premium_home_images.py
+      - name: Validate RIFF and layer contract
+        id: structure
+        continue-on-error: true
+        run: node .github/scripts/validate_premium_home_scene.js
+      - name: Fully decode the four actual assets
+        id: pixels
+        continue-on-error: true
+        run: python .github/scripts/validate_premium_home_images.py --output asset-audit
+      - name: Preserve diagnostic evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: premium-assets-${{ github.run_id }}-${{ github.run_attempt }}
+          path: asset-audit/
+          if-no-files-found: warn
+          retention-days: 14
+      - name: Reject invalid production assets
+        if: steps.structure.outcome != 'success' || steps.pixels.outcome != 'success'
+        run: |
+          echo '::error::Premium home assets are invalid. Restore original layers; do not release another APK with these files.'
+          exit 1

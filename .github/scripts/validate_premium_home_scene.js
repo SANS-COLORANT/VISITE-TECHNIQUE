@@ -1,101 +1,94 @@
+/* Container validation only. Full pixel decoding is a separate CI gate. */
 const fs = require('fs');
 const path = require('path');
-
-const root = path.resolve(__dirname, '..', '..');
-const packDir = path.join(root, 'visual-packs', 'spiral-active');
-const manifestPath = path.join(packDir, 'manifest.json');
-const scenePath = path.join(packDir, 'HomeBuildingScene.js');
-const legacyCompositePath = path.join(packDir, 'home-scene', 'home-composite.webp');
-
+const crypto = require('crypto');
 const EXPECTED = [
-  { id: 'haussmann', asset: './home-scene/01_haussmann_left_far.webp', side: 'left', depth: 1 },
-  { id: 'collectif', asset: './home-scene/02_collectif_left_mid.webp', side: 'left', depth: 2 },
-  { id: 'poste-municipal', asset: './home-scene/03_poste_municipal_right_mid.webp', side: 'right', depth: 3 },
-  { id: 'building', asset: './home-scene/04_building_right_near.webp', side: 'right', depth: 4 },
+  ['haussmann', '01_haussmann_left_far.webp', 'left', 1],
+  ['collectif', '02_collectif_left_mid.webp', 'left', 2],
+  ['poste-municipal', '03_poste_municipal_right_mid.webp', 'right', 3],
+  ['building', '04_building_right_near.webp', 'right', 4],
 ];
-
-function fail(message) {
-  console.error(`[PremiumHome] ${message}`);
-  process.exit(1);
-}
-
-function readUInt24LE(buffer, offset) {
-  if (offset + 2 >= buffer.length) fail('En-tête WebP tronqué.');
+function requireValid(condition, message) { if (!condition) throw new Error(message); }
+function uint24(buffer, offset) {
   return buffer[offset] | (buffer[offset + 1] << 8) | (buffer[offset + 2] << 16);
 }
-
-function inspectWebp(filePath) {
-  const buffer = fs.readFileSync(filePath);
-  if (buffer.length < 30) fail(`${path.basename(filePath)} est trop petit pour être un WebP valide.`);
-  if (buffer.toString('ascii', 0, 4) !== 'RIFF' || buffer.toString('ascii', 8, 12) !== 'WEBP') {
-    fail(`${path.basename(filePath)} n'est pas un WebP RIFF valide.`);
+function inspectWebp(buffer) {
+  requireValid(Buffer.isBuffer(buffer) && buffer.length >= 30, 'Truncated WebP');
+  requireValid(buffer.toString('ascii', 0, 4) === 'RIFF' && buffer.toString('ascii', 8, 12) === 'WEBP', 'Invalid RIFF/WEBP signature');
+  const declared = buffer.readUInt32LE(4) + 8;
+  requireValid(declared === buffer.length, `RIFF size mismatch: header=${declared}, actual=${buffer.length}`);
+  const chunks = [];
+  for (let offset = 12; offset < buffer.length;) {
+    requireValid(offset + 8 <= buffer.length, `Truncated chunk header at ${offset}`);
+    const type = buffer.toString('ascii', offset, offset + 4);
+    const size = buffer.readUInt32LE(offset + 4);
+    const start = offset + 8;
+    const next = start + size + (size % 2);
+    requireValid(/^[\x20-\x7e]{4}$/.test(type), `Invalid chunk identifier at ${offset}`);
+    requireValid(next <= buffer.length, `Chunk ${type} exceeds file bounds at ${offset}`);
+    if (size % 2) requireValid(buffer[start + size] === 0, `Non-zero padding after ${type}`);
+    chunks.push({ type, start, size });
+    offset = next;
   }
-
-  const vp8x = buffer.indexOf(Buffer.from('VP8X'));
-  if (vp8x < 0) fail(`${path.basename(filePath)} doit utiliser un conteneur VP8X avec transparence.`);
-  const flagsOffset = vp8x + 8;
-  const widthOffset = vp8x + 12;
-  const heightOffset = vp8x + 15;
-  if (heightOffset + 2 >= buffer.length) fail(`${path.basename(filePath)} possède un en-tête VP8X incomplet.`);
-
-  const flags = buffer[flagsOffset];
-  const width = readUInt24LE(buffer, widthOffset) + 1;
-  const height = readUInt24LE(buffer, heightOffset) + 1;
-  return { width, height, hasAlpha: (flags & 0x10) !== 0 };
-}
-
-if (!fs.existsSync(manifestPath)) fail('manifest.json du pack spiral-active introuvable.');
-if (!fs.existsSync(scenePath)) fail('HomeBuildingScene.js introuvable.');
-if (fs.existsSync(legacyCompositePath)) {
-  fail('home-composite.webp est interdit : la scène premium doit rester composée de quatre bâtiments indépendants.');
-}
-
-const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
-const homeScene = manifest.homeScene || {};
-const layers = Array.isArray(homeScene.layers) ? homeScene.layers : [];
-const canvas = Array.isArray(homeScene.canvas) ? homeScene.canvas : [];
-
-if (manifest.version < 4) fail('Le pack premium doit être en version 4 ou supérieure.');
-if (homeScene.mode !== 'four-independent-buildings') fail('homeScene.mode doit être four-independent-buildings.');
-if (homeScene.motion?.type !== 'converge') fail('La scène premium doit utiliser le mouvement converge.');
-if (layers.length !== 4) fail(`Quatre calques sont requis, ${layers.length} trouvé(s).`);
-if (canvas.length !== 2 || Number(canvas[0]) <= 0 || Number(canvas[1]) <= 0) fail('Canvas premium invalide.');
-
-const ids = new Set();
-for (let index = 0; index < EXPECTED.length; index += 1) {
-  const expected = EXPECTED[index];
-  const layer = layers[index];
-  if (!layer) fail(`Calque ${index + 1} absent.`);
-  if (layer.id !== expected.id) fail(`Ordre/identité de calque invalide à la position ${index + 1}: ${layer.id}.`);
-  if (layer.asset !== expected.asset) fail(`Asset invalide pour ${expected.id}: ${layer.asset}.`);
-  if (layer.side !== expected.side) fail(`Côté invalide pour ${expected.id}: ${layer.side}.`);
-  if (Number(layer.depth) !== expected.depth) fail(`Profondeur invalide pour ${expected.id}: ${layer.depth}.`);
-  if (ids.has(layer.id)) fail(`Identifiant de calque dupliqué: ${layer.id}.`);
-  ids.add(layer.id);
-
-  const assetPath = path.resolve(packDir, layer.asset);
-  if (!fs.existsSync(assetPath)) fail(`Asset manquant pour ${layer.id}: ${layer.asset}.`);
-  if (fs.statSync(assetPath).size < 1024) fail(`Asset anormalement petit pour ${layer.id}: ${layer.asset}.`);
-
-  const info = inspectWebp(assetPath);
-  if (info.width !== Number(canvas[0]) || info.height !== Number(canvas[1])) {
-    fail(`${layer.asset} doit mesurer exactement ${canvas[0]}x${canvas[1]} px, trouvé ${info.width}x${info.height}.`);
+  const extended = chunks.filter((c) => c.type === 'VP8X');
+  requireValid(extended.length === 1 && chunks[0].type === 'VP8X' && extended[0].size === 10, 'Expected one leading VP8X chunk');
+  const { start } = extended[0];
+  const flags = buffer[start];
+  requireValid((flags & 0xc3) === 0, 'Invalid VP8X reserved/animation flags for a static layer');
+  requireValid(buffer[start + 1] === 0 && buffer[start + 2] === 0 && buffer[start + 3] === 0, 'Invalid VP8X reserved bytes');
+  const images = chunks.filter((c) => c.type === 'VP8 ' || c.type === 'VP8L');
+  requireValid(images.length === 1, 'Expected exactly one compressed image chunk');
+  requireValid(!chunks.some((c) => c.type === 'ANIM' || c.type === 'ANMF'), 'Animated image not allowed in a building layer');
+  const image = images[0];
+  const alpha = chunks.filter((c) => c.type === 'ALPH');
+  if (image.type === 'VP8 ') {
+    requireValid(image.size >= 10, 'Truncated VP8 bitstream');
+    requireValid(buffer.subarray(image.start + 3, image.start + 6).equals(Buffer.from([0x9d, 0x01, 0x2a])), 'Invalid VP8 keyframe signature');
+    requireValid(alpha.length === 1 && alpha[0].start < image.start && alpha[0].size > 1, 'Missing or misplaced alpha payload');
+  } else {
+    requireValid(image.size >= 5 && buffer[image.start] === 0x2f, 'Invalid VP8L bitstream');
+    requireValid(alpha.length === 0, 'VP8L uses its own alpha channel');
   }
-  if (!info.hasAlpha) fail(`${layer.asset} doit conserver un canal alpha pour rester un bâtiment indépendant.`);
+  return { width: uint24(buffer, start + 4) + 1, height: uint24(buffer, start + 7) + 1, hasAlpha: (flags & 0x10) !== 0 };
 }
-
-const sceneSource = fs.readFileSync(scenePath, 'utf8');
-if (sceneSource.includes('home-composite.webp')) fail('HomeBuildingScene.js référence encore home-composite.webp.');
-if (!sceneSource.includes('premium-four-building-scene')) fail('Le testID de contrat premium-four-building-scene est absent.');
-if (!sceneSource.includes('BUILDING_SOURCES')) fail('HomeBuildingScene.js doit utiliser BUILDING_SOURCES.');
-for (const expected of EXPECTED) {
-  const fileName = path.basename(expected.asset);
-  if (!sceneSource.includes(fileName)) fail(`HomeBuildingScene.js ne référence pas ${fileName}.`);
-  if (!sceneSource.includes(`premium-building-${'${layer.id}'}`)) {
-    fail('Les quatre bâtiments doivent rester adressables individuellement par testID.');
-  }
+function validate(root = path.resolve(__dirname, '..', '..')) {
+  const pack = path.join(root, 'visual-packs', 'spiral-active');
+  const errors = [];
+  const check = (condition, message) => { if (!condition) errors.push(message); };
+  const manifest = JSON.parse(fs.readFileSync(path.join(pack, 'manifest.json'), 'utf8'));
+  const config = manifest.homeScene || {};
+  const layers = config.layers || [];
+  check(manifest.version >= 4, 'Pack version must be >= 4');
+  check(config.mode === 'four-independent-buildings', 'Wrong scene mode');
+  check(config.motion?.type === 'converge', 'Wrong scene motion');
+  check(layers.length === 4, 'Exactly four layers are required');
+  check(Array.isArray(config.canvas) && config.canvas.length === 2 && config.canvas.every((n) => Number.isInteger(n) && n > 0), 'Invalid canvas');
+  check(!fs.existsSync(path.join(pack, 'home-scene', 'home-composite.webp')), 'Legacy composite is forbidden in this pack');
+  const hashes = new Set();
+  EXPECTED.forEach(([id, file, side, depth], i) => {
+    const layer = layers[i];
+    check(layer?.id === id && layer?.asset === `./home-scene/${file}` && layer?.side === side && layer?.depth === depth, `Invalid manifest entry for ${id}`);
+    check(Number.isFinite(layer?.introStart) && Number.isFinite(layer?.introEnd) && layer.introStart >= 0 && layer.introStart < layer.introEnd && layer.introEnd <= 1, `Invalid timing for ${id}`);
+    try {
+      const bytes = fs.readFileSync(path.join(pack, 'home-scene', file));
+      const info = inspectWebp(bytes);
+      check(info.width === config.canvas?.[0] && info.height === config.canvas?.[1], `${file}: wrong canvas dimensions`);
+      check(info.hasAlpha, `${file}: alpha flag missing`);
+      const digest = crypto.createHash('sha256').update(bytes).digest('hex');
+      check(!hashes.has(digest), `${file}: duplicate image content`);
+      hashes.add(digest);
+      console.log(`[PremiumHome] Container OK: ${file} (${bytes.length} bytes)`);
+    } catch (error) { errors.push(`${file}: ${error.message}`); }
+  });
+  const scene = fs.readFileSync(path.join(pack, 'HomeBuildingScene.js'), 'utf8');
+  check(!scene.includes('home-composite.webp'), 'Scene still references legacy composite');
+  check(scene.includes('premium-four-building-scene'), 'Missing scene testID');
+  check(scene.includes('premium-building-${layer.id}'), 'Missing per-building testID');
+  EXPECTED.forEach(([, file]) => check(scene.includes(file), `Scene does not reference ${file}`));
+  if (errors.length) throw new Error(errors.join('\n'));
+  console.log('[PremiumHome] Structural checks passed. Pixel decoding and Android visual acceptance are still required.');
 }
-
-console.log(
-  `Premium home scene validated: 4 independent transparent ${canvas[0]}x${canvas[1]} WebP layers, converging motion, no legacy composite fallback.`,
-);
+module.exports = { inspectWebp, validate };
+if (require.main === module) {
+  try { validate(); } catch (error) { console.error(`[PremiumHome] BLOCKED\n${error.message}`); process.exitCode = 1; }
+}
