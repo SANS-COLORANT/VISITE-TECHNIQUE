@@ -4,17 +4,18 @@ import { getDb } from '../../db.js';
 const CLASSIC_MANIFEST = require('../classic/manifest.json');
 const DOOM_MANIFEST = require('../doom/manifest.json');
 const NOEL_MANIFEST = require('../noel/manifest.json');
+const SPIRAL_ACTIVE_MANIFEST = require('../spiral-active/manifest.json');
 
 const META_KEY = 'active_visual_pack';
 const LEGACY_META_KEY = 'app_theme_mode';
 const ROOT_URI = `${FileSystem.documentDirectory || ''}visual-packs/`;
 const CACHE_ROOT_URI = `${FileSystem.cacheDirectory || FileSystem.documentDirectory || ''}visual-pack-import/`;
-const BUILTIN_IDS = new Set(['classic', 'doom', 'noel']);
+const BUILTIN_IDS = new Set(['classic', 'doom', 'noel', 'spiral-active']);
 const EFFECT_TYPES = new Set(['snow', 'sparkles', 'confetti', 'leaves']);
-const PRESETS = new Set(['metra-classic', 'metra-doom', 'none']);
-const PRESET_DURATIONS = { 'metra-classic': 2300, 'metra-doom': 2600, none: 0 };
+const PRESETS = new Set(['metra-classic', 'metra-doom', 'metra-spiral-active', 'none']);
+const PRESET_DURATIONS = { 'metra-classic': 2300, 'metra-doom': 2600, 'metra-spiral-active': 2500, none: 0 };
 
-const BUILTIN_PACKS = [CLASSIC_MANIFEST, DOOM_MANIFEST, NOEL_MANIFEST].map((manifest) => ({
+const BUILTIN_PACKS = [CLASSIC_MANIFEST, DOOM_MANIFEST, NOEL_MANIFEST, SPIRAL_ACTIVE_MANIFEST].map((manifest) => ({
   ...normalizeManifest(manifest),
   _builtin: true,
   _baseUri: null,
