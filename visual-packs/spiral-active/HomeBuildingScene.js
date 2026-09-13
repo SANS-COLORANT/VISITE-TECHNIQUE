@@ -1,190 +1,110 @@
-import React, { useEffect, useRef } from 'react';
-import { Animated, Easing, Image, StyleSheet, View, useWindowDimensions } from 'react-native';
+import React, { useEffect, useReducer, useRef, useState } from 'react';
+import { AccessibilityInfo, Animated, AppState, Easing, Image, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { initialLoadState, reduceLoadState, validateSceneConfig, timelineFor, layerTransform } from './homeSceneModel.js';
 
 const PACK_MANIFEST = require('./manifest.json');
-
 const BUILDING_SOURCES = Object.freeze({
   haussmann: require('./home-scene/01_haussmann_left_far.webp'),
   collectif: require('./home-scene/02_collectif_left_mid.webp'),
   'poste-municipal': require('./home-scene/03_poste_municipal_right_mid.webp'),
   building: require('./home-scene/04_building_right_near.webp'),
 });
+const CONFIG = PACK_MANIFEST.homeScene;
+const CONFIG_ERRORS = validateSceneConfig(CONFIG, BUILDING_SOURCES);
+const LOAD_TIMEOUT_MS = 8000;
 
-const SCENE_CONFIG = PACK_MANIFEST?.homeScene || {};
-const CANVAS = Array.isArray(SCENE_CONFIG.canvas) && SCENE_CONFIG.canvas.length === 2
-  ? SCENE_CONFIG.canvas
-  : [1024, 540];
-const CANVAS_WIDTH = Number(CANVAS[0]) || 1024;
-const CANVAS_HEIGHT = Number(CANVAS[1]) || 540;
-const CANVAS_RATIO = CANVAS_WIDTH / CANVAS_HEIGHT;
-const ENTRY_DURATION_MS = Number(SCENE_CONFIG.entryDurationMs) || 900;
-const TRAVEL_FACTOR = Number(SCENE_CONFIG?.motion?.travelFactor) || 0.46;
-const VERTICAL_OFFSET = Number(SCENE_CONFIG?.motion?.verticalOffsetPx) || 14;
-
-const LAYERS = (Array.isArray(SCENE_CONFIG.layers) ? SCENE_CONFIG.layers : []).map((layer, index) => ({
-  ...layer,
-  source: BUILDING_SOURCES[layer.id],
-  sideSign: layer.side === 'left' ? -1 : 1,
-  depth: Number(layer.depth) || (index + 1),
-  introStart: Number.isFinite(Number(layer.introStart)) ? Number(layer.introStart) : Math.min(0.30, index * 0.09),
-  introEnd: Number.isFinite(Number(layer.introEnd)) ? Number(layer.introEnd) : Math.min(1, 0.58 + (index * 0.12)),
-}));
-
-const SCENE_READY = LAYERS.length === 4 && LAYERS.every((layer) => !!layer.source);
-
-export function HomeBuildingScene() {
-  const { width, height } = useWindowDimensions();
-  const portrait = height > width;
+// The parent supplies the SAME measured coordinate system used for the controls.
+export function HomeBuildingScene({ frame, onStatus }) {
+  const [load, dispatch] = useReducer(reduceLoadState, undefined, initialLoadState);
+  const [reduceMotion, setReduceMotion] = useState(null);
+  const [appState, setAppState] = useState(AppState.currentState);
   const intro = useRef(new Animated.Value(0)).current;
+  const settled = useRef(false);
+  const started = useRef(false);
+  const statusHandler = useRef(onStatus);
+  statusHandler.current = onStatus;
+  const valid = CONFIG_ERRORS.length === 0;
+  const ready = valid && load.phase === 'ready';
 
   useEffect(() => {
-    if (!SCENE_READY) return undefined;
-    intro.setValue(0);
-    const animation = Animated.timing(intro, {
-      toValue: 1,
-      duration: ENTRY_DURATION_MS,
-      delay: 80,
-      easing: Easing.bezier(0.16, 0.84, 0.22, 1),
-      useNativeDriver: true,
+    let active = true;
+    let preferenceEventReceived = false;
+    AccessibilityInfo.isReduceMotionEnabled().then(value => {
+      if (active && !preferenceEventReceived) setReduceMotion(Boolean(value));
+    }).catch(() => { if (active && !preferenceEventReceived) setReduceMotion(true); });
+    const motionSub = AccessibilityInfo.addEventListener('reduceMotionChanged', value => {
+      preferenceEventReceived = true;
+      if (active) setReduceMotion(Boolean(value));
     });
-    animation.start();
+    const stateSub = AppState.addEventListener('change', setAppState);
+    return () => { active = false; motionSub.remove(); stateSub.remove(); };
+  }, []);
+
+  useEffect(() => {
+    if (!valid || load.phase !== 'loading' || (appState && appState !== 'active')) return undefined;
+    const timer = setTimeout(() => dispatch({ type: 'timeout' }), LOAD_TIMEOUT_MS);
+    return () => clearTimeout(timer);
+  }, [valid, load.phase, appState]);
+
+  useEffect(() => {
+    const status = valid ? load : { phase: 'error', failed: [], reason: 'config', details: CONFIG_ERRORS };
+    statusHandler.current?.(status);
+    if (status.phase === 'error') console.warn('[PremiumHome] Scene unavailable', status.reason, status.failed, CONFIG_ERRORS);
+  }, [load, valid]);
+
+  useEffect(() => {
+    if (!ready || reduceMotion === null) return undefined;
+    if (reduceMotion || settled.current || (appState && appState !== 'active')) {
+      if (reduceMotion || started.current || settled.current) {
+        settled.current = true;
+        intro.setValue(1);
+      }
+      return undefined;
+    }
+    started.current = true;
+    const animation = Animated.timing(intro, {
+      toValue: 1, duration: CONFIG.entryDurationMs,
+      easing: Easing.bezier(0.16, 0.84, 0.22, 1), useNativeDriver: true,
+    });
+    animation.start(({ finished }) => { if (finished) settled.current = true; });
     return () => animation.stop();
-  }, [intro]);
+  }, [ready, reduceMotion, appState, intro]);
 
-  if (!SCENE_READY) {
-    console.error('[PremiumHome] Scène bâtiments invalide : quatre calques indépendants sont requis.');
-    return <View pointerEvents="none" style={styles.root} />;
-  }
-
-  const sceneWidth = portrait ? width : Math.min(width * 0.92, 1180);
-  const sceneHeight = sceneWidth / CANVAS_RATIO;
-  const sceneLeft = (width - sceneWidth) / 2;
-  const sceneTop = portrait
-    ? Math.max(84, Math.min(height * 0.07, 110))
-    : 12;
-  const travelBase = Math.min(sceneWidth, 1180);
-
+  if (!valid || !frame) return null;
   return (
-    <View pointerEvents="none" style={styles.root}>
-      <View
-        testID="premium-four-building-scene"
-        style={[
-          styles.sceneViewport,
-          {
-            top: sceneTop,
-            left: sceneLeft,
-            width: sceneWidth,
-            height: sceneHeight,
-          },
-        ]}
-      >
-        <View style={styles.sceneGlow} />
-
-        {LAYERS.map((layer) => {
-          const introProgress = intro.interpolate({
-            inputRange: [0, layer.introStart, layer.introEnd, 1],
-            outputRange: [0, 0, 1, 1],
-            extrapolate: 'clamp',
-          });
-          const translateX = introProgress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [
-              layer.sideSign * travelBase * (TRAVEL_FACTOR + (layer.depth * 0.035)),
-              0,
-            ],
-            extrapolate: 'clamp',
-          });
-          const translateY = introProgress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [VERTICAL_OFFSET + (layer.depth * 2), 0],
-            extrapolate: 'clamp',
-          });
-          const scale = introProgress.interpolate({
-            inputRange: [0, 1],
-            outputRange: [0.96 + (layer.depth * 0.003), 1],
-            extrapolate: 'clamp',
-          });
-          const opacity = introProgress.interpolate({
-            inputRange: [0, 0.16, 1],
-            outputRange: [0, 0.18, 1],
-            extrapolate: 'clamp',
-          });
-
+    <View testID="premium-four-building-scene" pointerEvents="none" accessible={false}
+      importantForAccessibility="no-hide-descendants" style={[styles.viewport, frame]}>
+      {/* Keep images mounted to decode, but never reveal a misleading partial scene. */}
+      <View style={[StyleSheet.absoluteFillObject, { opacity: ready ? 1 : 0 }]}>
+        {CONFIG.layers.map(layer => {
+          const progress = intro.interpolate(timelineFor(layer));
+          const from = layerTransform(layer, CONFIG, frame.width, 0);
+          const interpolate = (a, b) => progress.interpolate({ inputRange: [0, 1], outputRange: [a, b], extrapolate: 'clamp' });
           return (
-            <Animated.View
-              key={layer.id}
-              testID={`premium-building-${layer.id}`}
-              style={[
-                StyleSheet.absoluteFillObject,
-                {
-                  zIndex: layer.depth,
-                  opacity,
-                  transform: [{ translateX }, { translateY }, { scale }],
-                },
-              ]}
-            >
-              <Image
-                source={layer.source}
-                style={styles.layerImage}
-                resizeMode="contain"
-                fadeDuration={0}
-              />
+            <Animated.View key={layer.id} testID={`premium-building-${layer.id}`}
+              style={[StyleSheet.absoluteFillObject, {
+                zIndex: layer.depth, opacity: interpolate(0, 1),
+                transform: [{ translateX: interpolate(from.translateX, 0) },
+                  { translateY: interpolate(from.translateY, 0) }, { scale: interpolate(from.scale, 1) }],
+              }]}>
+              <Image source={BUILDING_SOURCES[layer.id]} resizeMode="contain" fadeDuration={0}
+                style={styles.image} accessible={false}
+                onLoad={() => dispatch({ type: 'loaded', id: layer.id })}
+                onError={() => dispatch({ type: 'error', id: layer.id })} />
             </Animated.View>
           );
         })}
-
-        <LinearGradient
-          pointerEvents="none"
-          colors={[
-            'rgba(244,241,232,0)',
-            'rgba(244,241,232,0)',
-            'rgba(244,241,232,0.22)',
-            '#F4F1E8',
-          ]}
-          locations={[0, 0.70, 0.88, 1]}
-          style={StyleSheet.absoluteFillObject}
-        />
+        <LinearGradient pointerEvents="none"
+          colors={['rgba(244,241,232,0)', 'rgba(244,241,232,0.12)', '#F4F1E8']}
+          locations={[0, 0.78, 1]} style={[StyleSheet.absoluteFillObject, styles.fade]} />
       </View>
-
-      <LinearGradient
-        pointerEvents="none"
-        colors={['rgba(244,241,232,0.90)', 'rgba(244,241,232,0.32)', 'rgba(244,241,232,0)']}
-        locations={[0, 0.52, 1]}
-        style={styles.topWash}
-      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  root: {
-    ...StyleSheet.absoluteFillObject,
-    overflow: 'hidden',
-    backgroundColor: '#F4F1E8',
-  },
-  sceneViewport: {
-    position: 'absolute',
-    overflow: 'hidden',
-  },
-  sceneGlow: {
-    position: 'absolute',
-    left: '12%',
-    right: '12%',
-    bottom: '5%',
-    height: '28%',
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,253,248,0.62)',
-  },
-  layerImage: {
-    width: '100%',
-    height: '100%',
-  },
-  topWash: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    top: 0,
-    height: 145,
-  },
+  viewport: { position: 'absolute', overflow: 'hidden', backgroundColor: 'transparent' },
+  image: { width: '100%', height: '100%', backgroundColor: 'transparent' },
+  fade: { zIndex: 10 },
 });

@@ -1,3 +1,4 @@
+import { PREMIUM_PREVIEW_BUILD } from '../../previewBuild.generated.js';
 import * as FileSystem from 'expo-file-system';
 import { getDb } from '../../db.js';
 
@@ -169,6 +170,7 @@ async function persistActiveVisualPack(db, packId) {
 }
 
 export async function getActiveVisualPack() {
+  if (PREMIUM_PREVIEW_BUILD) return getVisualPackById('spiral-active');
   const db = await getDb();
   const row = await db.getFirstAsync(`SELECT value FROM _meta WHERE key = ?`, [META_KEY]);
   if (row?.value) {

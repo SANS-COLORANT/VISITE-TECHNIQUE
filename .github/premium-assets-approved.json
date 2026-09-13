@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "archive": "METRA_ASSETS_VALIDES.zip",
+  "archiveSha256": "221005ace05749a9a149941aa0352cde3fb58418bcdb445174f27ce79bb3374c",
+  "archiveBytes": 14035379,
+  "targetBranch": "work/premium-home-asset-integrity",
+  "files": {
+    "visual-packs/spiral-active/home-scene/01_haussmann_left_far.webp": {
+      "sha256": "d23066015630c4a64de1d4b267c913139d96de5976eeb97e242174800e2f9240",
+      "bytes": 249458
+    },
+    "visual-packs/spiral-active/home-scene/02_collectif_left_mid.webp": {
+      "sha256": "2b6c47a6eb9c5c5df26830590c5631c87593fa3f6a66db734147bad14a37ce7b",
+      "bytes": 292200
+    },
+    "visual-packs/spiral-active/home-scene/03_poste_municipal_right_mid.webp": {
+      "sha256": "1d82a47c2e534e54d3c62d3eca685c4e5159098ce097fefe9f51258375941206",
+      "bytes": 346644
+    },
+    "visual-packs/spiral-active/home-scene/04_building_right_near.webp": {
+      "sha256": "fca17550293c3eb9c16a770985d02e2e8a67a19e4f2064441f96e86e49624db2",
+      "bytes": 318574
+    },
+    "visual-packs/spiral-active/home-scene/asset-provenance.json": {
+      "sha256": "8099ae0d177bf0c2e01d71d9f16e6ba41f1ff23c10d013a9133051bc16fba846",
+      "bytes": 1879
+    },
+    "visual-packs/spiral-active/manifest.json": {
+      "sha256": "568db62de3bafbca9c8469e3abb680e5f9fded80da6938c9bd989d44b1d6cfe7",
+      "bytes": 2126
+    },
+    "visual-packs/spiral-active/startup-media/METRA_Spirale_Intro_V4.webp": {
+      "sha256": "b1b3f84882584e0b64fe6f832870b188a16c78e94610434f55de7d4105c1408d",
+      "bytes": 12489004
+    },
+    "visual-packs/spiral-active/startup-media/animation-provenance.json": {
+      "sha256": "2cd23d0a793babafbeafe61cbccb9901bf62bded1b2ae728e453e53a03dccd22",
+      "bytes": 34552
+    },
+    "visual-packs/spiral-active/startup-media/spiral-dock.png": {
+      "sha256": "5c8bb98c84ef7342cb4ed602ee079c45e1c8abd37b5b996f40c01b3df3df3da7",
+      "bytes": 156528
+    },
+    "visual-packs/spiral-active/startup-media/spiral-final-canvas.png": {
+      "sha256": "fc802276c32260bab0abb07f37ca9cbd565c849ac7de2d8a7309a07d28bb0bf2",
+      "bytes": 142398
+    }
+  }
+}
