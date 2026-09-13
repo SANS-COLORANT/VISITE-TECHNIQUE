@@ -1,4 +1,4 @@
-"""Import an immutable reviewed scenery bundle only after staged tests pass."""
+"""Import only the reviewed V3 bundle; do not activate partial media or source."""
 import argparse
 import hashlib
 import io
@@ -10,27 +10,33 @@ import tempfile
 from pathlib import Path, PurePosixPath
 from zipfile import ZipFile
 
-ALLOWED = {
-    '.github/garden-assets-approved.json',
-    '.github/scripts/import_approved_premium_assets.py',
-    '.github/scripts/test_garden_images.py',
-    '.github/scripts/test_garden_scene.js',
-    '.github/scripts/validate_garden_assets.py',
-    '.github/scripts/validate_premium_home_images.py',
-    '.github/scripts/validate_premium_home_scene.js',
-    '.github/scripts/validate_velvet_media.py',
-    'docs/PREMIUM_GARDEN_V2.md',
-    'visual-packs/spiral-active/HomeBuildingScene.js',
-    'visual-packs/spiral-active/SpiralActiveHome.js',
-    'visual-packs/spiral-active/homeSceneModel.js',
-    'visual-packs/spiral-active/manifest.json',
-    'visual-packs/spiral-active/home-scene/01_haussmann_left_far.webp',
-    'visual-packs/spiral-active/home-scene/02_collectif_left_mid.webp',
-    'visual-packs/spiral-active/home-scene/03_poste_municipal_right_mid.webp',
-    'visual-packs/spiral-active/home-scene/04_building_right_near.webp',
-    'visual-packs/spiral-active/home-scene/05_trees_front.webp',
-    'visual-packs/spiral-active/home-scene/asset-provenance.json',
-}
+ALLOWED = set([
+    ".github/garden-assets-approved.json",
+    ".github/scripts/import_approved_premium_assets.py",
+    ".github/scripts/test_garden_images.py",
+    ".github/scripts/test_garden_scene.js",
+    ".github/scripts/test_garden_v3_images.py",
+    ".github/scripts/test_garden_v3_scene.js",
+    ".github/scripts/validate_garden_assets.py",
+    ".github/scripts/validate_premium_home_images.py",
+    ".github/scripts/validate_premium_home_scene.js",
+    ".github/scripts/validate_velvet_media.py",
+    "docs/PREMIUM_GARDEN_V3.md",
+    "visual-packs/spiral-active/HomeBuildingScene.js",
+    "visual-packs/spiral-active/SpiralActiveHome.js",
+    "visual-packs/spiral-active/home-scene/01_haussmann_left_far.webp",
+    "visual-packs/spiral-active/home-scene/02_collectif_left_mid.webp",
+    "visual-packs/spiral-active/home-scene/03_poste_municipal_right_mid.webp",
+    "visual-packs/spiral-active/home-scene/04_building_right_near.webp",
+    "visual-packs/spiral-active/home-scene/05_trees_rear.webp",
+    "visual-packs/spiral-active/home-scene/06_trees_left.webp",
+    "visual-packs/spiral-active/home-scene/07_trees_right.webp",
+    "visual-packs/spiral-active/home-scene/08_trees_front.webp",
+    "visual-packs/spiral-active/home-scene/asset-provenance.json",
+    "visual-packs/spiral-active/homeSceneModel.js",
+    "visual-packs/spiral-active/manifest.json"
+])
+
 
 def digest(data):
     return hashlib.sha256(data).hexdigest()
@@ -38,6 +44,8 @@ def digest(data):
 
 def read_bundle(root, archive):
     approval = json.loads((root / '.github/garden-bundle-approved.json').read_text())
+    if archive.name != approval['archive']:
+        raise ValueError('Use the unchanged METRA_DECOR_V3.zip, not the obsolete V2 archive')
     if archive.stat().st_size != approval['bytes'] or archive.stat().st_size > 10_000_000:
         raise ValueError('Unapproved ZIP size')
     data = archive.read_bytes()
@@ -50,7 +58,7 @@ def read_bundle(root, archive):
             raise ValueError('Oversized bundle manifest')
         metadata = json.loads(z.read('BUNDLE_MANIFEST.json'))
         records = metadata['files']
-        if set(records) != ALLOWED or approval['payloadCount'] != len(ALLOWED):
+        if metadata.get('schemaVersion') != 1 or set(records) != ALLOWED or approval['payloadCount'] != len(ALLOWED):
             raise ValueError('Wrong member manifest')
         payload = {}
         for name in sorted(ALLOWED):
@@ -69,7 +77,8 @@ def read_bundle(root, archive):
                 raise ValueError('Unsafe target: ' + name)
             baseline = record['base_sha256']
             if baseline is None:
-                if target.exists(): raise ValueError('New file already exists: ' + name)
+                if target.exists():
+                    raise ValueError('New file already exists: ' + name)
             elif not target.is_file() or digest(target.read_bytes()) != baseline:
                 raise ValueError('Source changed since review; refuse overwrite: ' + name)
             payload[name] = content
@@ -79,8 +88,7 @@ def read_bundle(root, archive):
 def install(root, archive, check_only=False):
     root = root.resolve()
     payload = read_bundle(root, archive)
-    # Stage the exact current repository, not fabricated files and not the production branch.
-    with tempfile.TemporaryDirectory(prefix='metra-garden-stage-') as temporary:
+    with tempfile.TemporaryDirectory(prefix='metra-garden-v3-stage-') as temporary:
         stage = Path(temporary) / 'repo'
         shutil.copytree(root, stage, symlinks=True,
                         ignore=shutil.ignore_patterns('.git', 'node_modules', 'android', '*.zip', '__pycache__'))
@@ -89,9 +97,10 @@ def install(root, archive, check_only=False):
             p.parent.mkdir(parents=True, exist_ok=True)
             p.write_bytes(data)
         commands = [
-            ['node', '--test', '.github/scripts/test_premium_home_model.js', '.github/scripts/test_velvet_integration.js', '.github/scripts/test_garden_scene.js'],
+            ['node', '--test', '.github/scripts/test_premium_home_model.js', '.github/scripts/test_velvet_integration.js', '.github/scripts/test_garden_scene.js', '.github/scripts/test_garden_v3_scene.js'],
             ['python', '.github/scripts/test_premium_home_images.py'],
             ['python', '.github/scripts/test_garden_images.py'],
+            ['python', '.github/scripts/test_garden_v3_images.py'],
             ['node', '.github/scripts/validate_premium_home_scene.js'],
             ['python', '.github/scripts/validate_garden_assets.py'],
             ['python', '.github/scripts/validate_velvet_media.py'],
@@ -106,8 +115,9 @@ def install(root, archive, check_only=False):
                 f.write(data)
                 temporary = Path(f.name)
             temporary.replace(p)
-            if digest(p.read_bytes()) != digest(data): raise ValueError('Post-write mismatch')
-    print('Reviewed V2 bundle validated. Native visual acceptance remains required.')
+            if digest(p.read_bytes()) != digest(data):
+                raise ValueError('Post-write mismatch')
+    print('Reviewed V3 bundle validated: four buildings + four trees. Android visual acceptance remains required.')
 
 
 if __name__ == '__main__':

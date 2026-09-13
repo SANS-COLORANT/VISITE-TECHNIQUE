@@ -1,4 +1,4 @@
-name: Garden V2 Preview APK
+name: Garden V3 Preview APK
 on:
   workflow_call:
     inputs:
@@ -9,7 +9,7 @@ on:
 permissions:
   contents: write
 concurrency:
-  group: garden-v2-preview-${{ github.ref }}
+  group: garden-v3-preview-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   build-ui-preview:
@@ -40,9 +40,10 @@ jobs:
         run: python -m pip install --disable-pip-version-check Pillow==12.3.0
       - name: Preflight before any Android compilation
         run: |
-          node --test .github/scripts/test_premium_home_model.js .github/scripts/test_velvet_integration.js .github/scripts/test_garden_scene.js
+          node --test .github/scripts/test_premium_home_model.js .github/scripts/test_velvet_integration.js .github/scripts/test_garden_scene.js .github/scripts/test_garden_v3_scene.js
           python .github/scripts/test_premium_home_images.py
           python .github/scripts/test_garden_images.py
+          python .github/scripts/test_garden_v3_images.py
           python .github/scripts/validate_garden_assets.py
           node .github/scripts/validate_premium_home_scene.js
           python .github/scripts/validate_premium_home_images.py --require-provenance --output asset-audit/before-build
@@ -118,15 +119,15 @@ jobs:
           python .github/scripts/validate_velvet_media.py --apk android/app/build/outputs/apk/release/app-release.apk
       - name: Prepare preview artifact and checksum
         run: |
-          cp android/app/build/outputs/apk/release/app-release.apk METRA-DECOR-V2-${{ github.run_number }}-a${{ github.run_attempt }}.apk
-          sha256sum METRA-DECOR-V2-${{ github.run_number }}-a${{ github.run_attempt }}.apk > METRA-DECOR-V2-${{ github.run_number }}-a${{ github.run_attempt }}.apk.sha256
+          cp android/app/build/outputs/apk/release/app-release.apk METRA-DECOR-V3-${{ github.run_number }}-a${{ github.run_attempt }}.apk
+          sha256sum METRA-DECOR-V3-${{ github.run_number }}-a${{ github.run_attempt }}.apk > METRA-DECOR-V3-${{ github.run_number }}-a${{ github.run_attempt }}.apk.sha256
       - name: Upload verified preview APK
         uses: actions/upload-artifact@v4
         with:
-          name: METRA-DECOR-V2-${{ github.run_id }}-a${{ github.run_attempt }}
+          name: METRA-DECOR-V3-${{ github.run_id }}-a${{ github.run_attempt }}
           path: |
-            METRA-DECOR-V2-${{ github.run_number }}-a${{ github.run_attempt }}.apk
-            METRA-DECOR-V2-${{ github.run_number }}-a${{ github.run_attempt }}.apk.sha256
+            METRA-DECOR-V3-${{ github.run_number }}-a${{ github.run_attempt }}.apk
+            METRA-DECOR-V3-${{ github.run_number }}-a${{ github.run_attempt }}.apk.sha256
           retention-days: 7
           if-no-files-found: error
       - name: Verify release download while still draft, then publish
@@ -134,11 +135,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          TAG="garden-v2-${{ github.run_id }}-a${{ github.run_attempt }}"
-          APK="METRA-DECOR-V2-${{ github.run_number }}-a${{ github.run_attempt }}.apk"
+          TAG="garden-v3-${{ github.run_id }}-a${{ github.run_attempt }}"
+          APK="METRA-DECOR-V3-${{ github.run_number }}-a${{ github.run_attempt }}.apk"
           gh release create "$TAG" "$APK" "$APK.sha256" \
-            --repo "$GITHUB_REPOSITORY" --title "METRA Premium - ciel et arbres V2 #${{ github.run_number }}" \
-            --notes "APK Preview de test. Commit ${PREVIEW_SOURCE_SHA}. Cinq calques V2 (quatre batiments et arbres), ciel natif et animation velours verifies; validation visuelle Android encore requise." \
+            --repo "$GITHUB_REPOSITORY" --title "METRA Premium - ciel et arbres V3 #${{ github.run_number }}" \
+            --notes "APK Preview de test. Commit ${PREVIEW_SOURCE_SHA}. Huit calques V3 (quatre batiments et quatre arbres independants), ciel natif et animation velours verifies; validation visuelle Android encore requise." \
             --draft --prerelease --target "$PREVIEW_SOURCE_SHA"
           VERIFY_DIR="$(mktemp -d "$RUNNER_TEMP/premium-download.XXXXXX")"
           gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$APK" --dir "$VERIFY_DIR"
