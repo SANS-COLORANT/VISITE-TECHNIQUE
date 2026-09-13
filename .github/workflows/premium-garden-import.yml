@@ -1,0 +1,55 @@
+name: Import scenery V2 and build APK
+on:
+  push:
+    branches: [work/premium-home-sky-trees]
+    paths: [METRA_DECOR_V2.zip]
+permissions:
+  contents: write
+concurrency:
+  group: garden-v2-import-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      commit: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.sha }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install audit decoder
+        run: python -m pip install --disable-pip-version-check Pillow==12.3.0
+      - name: Verify exact bundle, staged source and all five layer pixels
+        run: python .github/scripts/import_garden_bundle.py --archive METRA_DECOR_V2.zip
+      - name: Commit reviewed source and media together
+        id: commit
+        run: |
+          set -euo pipefail
+          git diff --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          python - <<'PY'
+          import sys, subprocess
+          sys.path.insert(0, '.github/scripts')
+          from import_garden_bundle import ALLOWED
+          subprocess.run(['git', 'add', '--', *sorted(ALLOWED)], check=True)
+          PY
+          git rm -- METRA_DECOR_V2.zip
+          git commit -m 'feat(home): integrate reviewed V2 buildings, foreground trees and native sky'
+          git push origin HEAD:refs/heads/work/premium-home-sky-trees
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "Imported exact V2 source/media commit: $(git rev-parse HEAD)" >> "$GITHUB_STEP_SUMMARY"
+  build-preview:
+    needs: import
+    uses: ./.github/workflows/premium-garden-preview.yml
+    with:
+      build_ref: ${{ needs.import.outputs.commit }}
+    permissions:
+      contents: write

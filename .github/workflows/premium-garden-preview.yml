@@ -1,0 +1,164 @@
+name: Garden V2 Preview APK
+on:
+  workflow_call:
+    inputs:
+      build_ref:
+        required: false
+        type: string
+        default: ""
+permissions:
+  contents: write
+concurrency:
+  group: garden-v2-preview-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build-ui-preview:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    env:
+      NODE_ENV: production
+      EXPO_NO_TELEMETRY: 1
+      GRADLE_OPTS: >-
+        -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+        -Dorg.gradle.workers.max=2
+        -Dorg.gradle.caching=true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.build_ref || github.sha }}
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install CI image decoder (not an app dependency)
+        run: python -m pip install --disable-pip-version-check Pillow==12.3.0
+      - name: Preflight before any Android compilation
+        run: |
+          node --test .github/scripts/test_premium_home_model.js .github/scripts/test_velvet_integration.js .github/scripts/test_garden_scene.js
+          python .github/scripts/test_premium_home_images.py
+          python .github/scripts/test_garden_images.py
+          python .github/scripts/validate_garden_assets.py
+          node .github/scripts/validate_premium_home_scene.js
+          python .github/scripts/validate_premium_home_images.py --require-provenance --output asset-audit/before-build
+          python .github/scripts/validate_velvet_media.py
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+      - name: Configure npm resilience
+        run: |
+          npm config set fetch-retries 5
+          npm config set fetch-retry-mintimeout 2000
+          npm config set fetch-retry-maxtimeout 30000
+      - name: Install dependencies from lockfile
+        run: npm ci --no-audit --no-fund --prefer-offline
+      - name: Validate changed runtime JavaScript syntax
+        run: |
+          node - <<'JS'
+          const fs = require('fs');
+          const parser = require('@babel/parser');
+          for (const name of ['SpiralActiveHome.js', 'HomeBuildingScene.js', 'homeSceneModel.js', 'StartupAnimation.js', 'SpiralActiveDock.js', 'velvetNative.js']) {
+            parser.parse(fs.readFileSync('visual-packs/spiral-active/' + name, 'utf8'), { sourceType: 'unambiguous', plugins: ['jsx'] });
+          }
+          JS
+      - name: Restore generated Android project
+        id: android-project-cache
+        uses: actions/cache@v4
+        with:
+          path: android
+          key: metra-ui-preview-android-velvet-v1-${{ runner.os }}-${{ hashFiles('package-lock.json', 'app.json', 'app.config.js', 'plugins/**/*', 'native/**/*', 'visual-packs/spiral-active/startup-media/**/*') }}
+      - name: Stamp preview identity
+        run: python .github/scripts/stamp_premium_preview.py
+      - name: Generate Android project only when native inputs changed
+        if: steps.android-project-cache.outputs.cache-hit != 'true'
+        run: npx expo prebuild --clean --platform android --no-install
+      - name: Validate preview Android project
+        run: |
+          python - <<'PY'
+          import re, json
+          from pathlib import Path
+          version_code = json.loads(Path("app.json").read_text())["expo"]["android"]["versionCode"]
+          p = Path('android/app/build.gradle')
+          s = p.read_text(encoding='utf-8')
+          s, count = re.subn(r'(?m)^(\s*)versionCode\s+\d+\s*$', lambda m: m.group(1) + f'versionCode {version_code}', s, count=1)
+          if count != 1:
+              raise SystemExit('Android versionCode missing')
+          if not re.search(r'applicationId\s+["\']com\.visitetechnique\.tablet\.preview["\']', s):
+              raise SystemExit('Wrong Preview applicationId')
+          p.write_text(s, encoding='utf-8')
+          dpop = Path('android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt')
+          if not dpop.is_file() or dpop.stat().st_size == 0:
+              raise SystemExit('Native DPoP module missing')
+          velvet = Path('android/app/src/main/java/com/metra/velvet/MetraVelvetView.kt')
+          if not velvet.is_file():
+              raise SystemExit('Native velvet player missing')
+          PY
+      - name: Configure Gradle for fast preview
+        working-directory: android
+        run: |
+          printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\norg.gradle.caching=true\n' >> gradle.properties
+      - name: Build standalone preview APK only
+        working-directory: android
+        run: |
+          test "${METRA_VELVET_SOURCE_CHECK:-0}" != 1
+          ./gradlew :app:assembleRelease --no-daemon --max-workers=2 --build-cache
+      - name: Verify the bytes actually packaged in the APK before publication
+        run: |
+          test -s android/app/build/outputs/apk/release/app-release.apk
+          python .github/scripts/validate_premium_home_images.py --require-provenance --apk android/app/build/outputs/apk/release/app-release.apk --output asset-audit/after-build
+          python .github/scripts/validate_velvet_media.py --apk android/app/build/outputs/apk/release/app-release.apk
+      - name: Prepare preview artifact and checksum
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk METRA-DECOR-V2-${{ github.run_number }}-a${{ github.run_attempt }}.apk
+          sha256sum METRA-DECOR-V2-${{ github.run_number }}-a${{ github.run_attempt }}.apk > METRA-DECOR-V2-${{ github.run_number }}-a${{ github.run_attempt }}.apk.sha256
+      - name: Upload verified preview APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: METRA-DECOR-V2-${{ github.run_id }}-a${{ github.run_attempt }}
+          path: |
+            METRA-DECOR-V2-${{ github.run_number }}-a${{ github.run_attempt }}.apk
+            METRA-DECOR-V2-${{ github.run_number }}-a${{ github.run_attempt }}.apk.sha256
+          retention-days: 7
+          if-no-files-found: error
+      - name: Verify release download while still draft, then publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          TAG="garden-v2-${{ github.run_id }}-a${{ github.run_attempt }}"
+          APK="METRA-DECOR-V2-${{ github.run_number }}-a${{ github.run_attempt }}.apk"
+          gh release create "$TAG" "$APK" "$APK.sha256" \
+            --repo "$GITHUB_REPOSITORY" --title "METRA Premium - ciel et arbres V2 #${{ github.run_number }}" \
+            --notes "APK Preview de test. Commit ${PREVIEW_SOURCE_SHA}. Cinq calques V2 (quatre batiments et arbres), ciel natif et animation velours verifies; validation visuelle Android encore requise." \
+            --draft --prerelease --target "$PREVIEW_SOURCE_SHA"
+          VERIFY_DIR="$(mktemp -d "$RUNNER_TEMP/premium-download.XXXXXX")"
+          gh release download "$TAG" --repo "$GITHUB_REPOSITORY" --pattern "$APK" --dir "$VERIFY_DIR"
+          EXPECTED="$(sha256sum "$APK" | cut -d ' ' -f 1)"
+          ACTUAL="$(sha256sum "$VERIFY_DIR/$APK" | cut -d ' ' -f 1)"
+          test "$EXPECTED" = "$ACTUAL"
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --draft=false --prerelease --latest=false
+          APK_URL="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json assets --jq '.assets[] | select(.name | endswith(".apk")) | .url')"
+          test -n "$APK_URL"
+          {
+            echo '### APK Preview - fichier et telechargement verifies'
+            echo "[Telecharger $APK]($APK_URL)"
+            echo "Commit : $PREVIEW_SOURCE_SHA"
+            echo "SHA256 : $EXPECTED"
+          } >> "$GITHUB_STEP_SUMMARY"
+      - name: Preserve image audit evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preview-image-audit-${{ github.run_id }}-${{ github.run_attempt }}
+          path: asset-audit/
+          if-no-files-found: warn
+          retention-days: 14
