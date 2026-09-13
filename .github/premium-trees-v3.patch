@@ -1,0 +1,297 @@
+--- a/visual-packs/spiral-active/HomeBuildingScene.js
++++ b/visual-packs/spiral-active/HomeBuildingScene.js
+@@ -1,7 +1,7 @@
+ import React, { useEffect, useReducer, useRef, useState } from 'react';
+ import { AccessibilityInfo, Animated, AppState, Easing, Image, StyleSheet, View } from 'react-native';
+ import { LinearGradient } from 'expo-linear-gradient';
+-import { initialLoadState, reduceLoadState, validateSceneConfig, timelineFor, layerTransform } from './homeSceneModel.js';
++import { initialLoadState, reduceLoadState, validateSceneConfig, timelineFor, layerTransform, sceneLoadIds } from './homeSceneModel.js';
+ 
+ const PACK_MANIFEST = require('./manifest.json');
+ const BUILDING_SOURCES = Object.freeze({
+@@ -9,14 +9,20 @@
+   collectif: require('./home-scene/02_collectif_left_mid.webp'),
+   'poste-municipal': require('./home-scene/03_poste_municipal_right_mid.webp'),
+   building: require('./home-scene/04_building_right_near.webp'),
++  'trees-rear': require('./home-scene/05_trees_rear.webp'),
++  'trees-left': require('./home-scene/06_trees_left.webp'),
++  'trees-right': require('./home-scene/07_trees_right.webp'),
++  'trees-front': require('./home-scene/08_trees_front.webp'),
+ });
+ const CONFIG = PACK_MANIFEST.homeScene;
+ const CONFIG_ERRORS = validateSceneConfig(CONFIG, BUILDING_SOURCES);
+ const LOAD_TIMEOUT_MS = 8000;
++const GARDEN = CONFIG.presentation === 'sky-trees-v3';
++const REQUIRED_IDS = sceneLoadIds(CONFIG);
+ 
+ // The parent supplies the SAME measured coordinate system used for the controls.
+ export function HomeBuildingScene({ frame, onStatus }) {
+-  const [load, dispatch] = useReducer(reduceLoadState, undefined, initialLoadState);
++  const [load, dispatch] = useReducer(reduceLoadState, REQUIRED_IDS, initialLoadState);
+   const [reduceMotion, setReduceMotion] = useState(null);
+   const [appState, setAppState] = useState(AppState.currentState);
+   const intro = useRef(new Animated.Value(0)).current;
+@@ -74,9 +80,11 @@
+   if (!valid || !frame) return null;
+   return (
+     <View testID="premium-four-building-scene" pointerEvents="none" accessible={false}
+-      importantForAccessibility="no-hide-descendants" style={[styles.viewport, frame]}>
++      importantForAccessibility="no-hide-descendants" style={[styles.viewport, GARDEN ? StyleSheet.absoluteFillObject : frame]}>
++      {GARDEN ? <LinearGradient testID="premium-sky" pointerEvents="none"
++        colors={CONFIG.sky.colors} locations={CONFIG.sky.locations} style={StyleSheet.absoluteFillObject} /> : null}
+       {/* Keep images mounted to decode, but never reveal a misleading partial scene. */}
+-      <View style={[StyleSheet.absoluteFillObject, { opacity: ready ? 1 : 0 }]}>
++      <View style={[GARDEN ? [styles.canvas, frame] : StyleSheet.absoluteFillObject, { opacity: ready ? 1 : 0 }]}>
+         {CONFIG.layers.map(layer => {
+           const progress = intro.interpolate(timelineFor(layer));
+           const from = layerTransform(layer, CONFIG, frame.width, 0);
+@@ -95,16 +103,34 @@
+             </Animated.View>
+           );
+         })}
+-        <LinearGradient pointerEvents="none"
++        {GARDEN ? (
++          <View testID="premium-foreground-trees" pointerEvents="none"
++            style={[StyleSheet.absoluteFillObject, { zIndex: 5 }]}>
++            {CONFIG.foregroundLayers.map(layer => (
++              <Animated.View key={layer.id} testID={`premium-tree-${layer.id}`} pointerEvents="none"
++                style={[StyleSheet.absoluteFillObject, { zIndex: layer.depth, opacity: intro }]}>
++                <Image source={BUILDING_SOURCES[layer.id]} resizeMode="contain" fadeDuration={0}
++                  style={styles.image} accessible={false}
++                  onLoad={() => dispatch({ type: 'loaded', id: layer.id })}
++                  onError={() => dispatch({ type: 'error', id: layer.id })} />
++              </Animated.View>
++            ))}
++          </View>
++        ) : null}
++        {!GARDEN ? <LinearGradient pointerEvents="none"
+           colors={['rgba(244,241,232,0)', 'rgba(244,241,232,0.12)', '#F4F1E8']}
+-          locations={[0, 0.78, 1]} style={[StyleSheet.absoluteFillObject, styles.fade]} />
++          locations={[0, 0.78, 1]} style={[StyleSheet.absoluteFillObject, styles.fade]} /> : null}
+       </View>
++      {GARDEN ? <LinearGradient pointerEvents="none"
++        colors={['rgba(12,27,27,0)', 'rgba(12,27,27,0)', 'rgba(12,27,27,0.26)']}
++        locations={[0, 0.50, 1]} style={[StyleSheet.absoluteFillObject, styles.fade]} /> : null}
+     </View>
+   );
+ }
+ 
+ const styles = StyleSheet.create({
+   viewport: { position: 'absolute', overflow: 'hidden', backgroundColor: 'transparent' },
++  canvas: { position: 'absolute' },
+   image: { width: '100%', height: '100%', backgroundColor: 'transparent' },
+   fade: { zIndex: 10 },
+ });
+--- a/visual-packs/spiral-active/homeSceneModel.js
++++ b/visual-packs/spiral-active/homeSceneModel.js
+@@ -2,6 +2,8 @@
+  * Coordinates are React Native layout units from the parent onLayout, not screenshot pixels.
+  */
+ const IDS = Object.freeze(['haussmann', 'collectif', 'poste-municipal', 'building']);
++const TREE_LAYERS = Object.freeze([{"id":"trees-rear","asset":"./home-scene/05_trees_rear.webp","depth":5},{"id":"trees-left","asset":"./home-scene/06_trees_left.webp","depth":6},{"id":"trees-right","asset":"./home-scene/07_trees_right.webp","depth":7},{"id":"trees-front","asset":"./home-scene/08_trees_front.webp","depth":8}].map(Object.freeze));
++const TREE_IDS = Object.freeze(TREE_LAYERS.map(layer => layer.id));
+ const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
+ const positive = (n, fallback) => Number.isFinite(n) && n > 0 ? n : fallback;
+ 
+@@ -30,6 +32,41 @@
+       errors.push(`Invalid timeline: ${id}`);
+     }
+   });
++  const presentation = config?.presentation;
++  if (presentation === 'sky-trees-v3') {
++    if (config.foreground != null) errors.push('Legacy foreground forbidden in V3');
++    if (!Array.isArray(config.foregroundLayers) || config.foregroundLayers.length !== 4) {
++      errors.push('Exactly four independent tree layers required');
++    }
++    TREE_LAYERS.forEach((expected, index) => {
++      const tree = config.foregroundLayers?.[index];
++      if (!tree || tree.id !== expected.id || tree.depth !== expected.depth ||
++          tree.asset !== expected.asset || !sources[expected.id]) {
++        errors.push(`Invalid independent tree: ${expected.id}`);
++      }
++    });
++  } else if (config?.foreground != null) {
++    const foreground = config.foreground;
++    if (presentation !== 'sky-trees-v2') errors.push('Unknown foreground presentation');
++    if (foreground.id !== 'trees' || foreground.depth !== 5 ||
++        foreground.asset !== './home-scene/05_trees_front.webp' || !sources.trees) {
++      errors.push('Invalid foreground layer');
++    }
++  } else if (presentation === 'sky-trees-v2') {
++    errors.push('Sky/trees presentation requires its foreground');
++  }
++  if (presentation !== 'sky-trees-v3' && config?.foregroundLayers != null) {
++    errors.push('Independent trees require sky-trees-v3');
++  }
++  if (presentation === 'sky-trees-v2' || presentation === 'sky-trees-v3') {
++    const sky = config.sky;
++    if (!Array.isArray(sky?.colors) || sky.colors.length < 2 ||
++        !sky.colors.every(color => /^#[0-9a-f]{6}$/i.test(color)) ||
++        !Array.isArray(sky.locations) || sky.locations.length !== sky.colors.length ||
++        sky.locations[0] !== 0 || sky.locations.at(-1) !== 1 ||
++        !sky.locations.every((value, i) => Number.isFinite(value) && value >= 0 && value <= 1 &&
++          (i === 0 || value > sky.locations[i - 1]))) errors.push('Invalid sky gradient');
++  }
+   return errors;
+ }
+ 
+@@ -51,28 +88,39 @@
+   };
+ }
+ 
+-function initialLoadState() {
+-  return { phase: 'loading', loaded: [], failed: [], reason: null };
++function sceneLoadIds(config) {
++  if (config?.presentation === 'sky-trees-v3') return [...IDS, ...TREE_IDS];
++  return config?.foreground ? [...IDS, 'trees'] : [...IDS];
++}
++
++function initialLoadState(requiredIds = IDS) {
++  const permittedSets = [IDS, [...IDS, 'trees'], [...IDS, ...TREE_IDS]];
++  if (!Array.isArray(requiredIds) || new Set(requiredIds).size !== requiredIds.length ||
++      !permittedSets.some(ids => ids.length === requiredIds.length && ids.every(id => requiredIds.includes(id)))) {
++    throw new Error('Invalid required image identities');
++  }
++  return { phase: 'loading', loaded: [], failed: [], reason: null, requiredIds: [...requiredIds] };
+ }
+ 
+ function reduceLoadState(state, event) {
+-  if (event.type === 'reset') return initialLoadState();
++  const requiredIds = state.requiredIds || IDS;
++  if (event.type === 'reset') return initialLoadState(requiredIds);
+   // A later successful callback must never erase an error or timeout.
+   if (state.phase === 'error') return state;
+   if (event.type === 'timeout') {
+     if (state.phase === 'ready') return state;
+-    return { ...state, phase: 'error', failed: IDS.filter(id => !state.loaded.includes(id)), reason: 'timeout' };
++    return { ...state, phase: 'error', failed: requiredIds.filter(id => !state.loaded.includes(id)), reason: 'timeout' };
+   }
+-  if (!IDS.includes(event.id)) return state;
++  if (!requiredIds.includes(event.id)) return state;
+   if (event.type === 'error') {
+     return { ...state, phase: 'error', failed: [event.id], reason: 'decode' };
+   }
+   if (event.type !== 'loaded' || state.loaded.includes(event.id)) return state;
+   const loaded = [...state.loaded, event.id];
+-  return { ...state, loaded, phase: loaded.length === IDS.length ? 'ready' : 'loading' };
++  return { ...state, loaded, phase: loaded.length === requiredIds.length ? 'ready' : 'loading' };
+ }
+ 
+-function getHomeLayout({ width, height, fontScale = 1, canvas = [1024, 540] }) {
++function getHomeLayout({ width, height, fontScale = 1, canvas = [1024, 540], presentation = null, controlsHeight = 0 }) {
+   const w = positive(width, 360);
+   const h = positive(height, 640);
+   const fs = positive(fontScale, 1);
+@@ -88,6 +136,31 @@
+   const secondaryColumns = contentWidth >= Math.max(220, 92 + 128 * fs) * 2 + 12 ? 2 : 1;
+   const headerHeight = Math.max(72, 36 + 28 * fs);
+   const bodyHeight = Math.max(1, h - headerHeight);
++  if (presentation === 'sky-trees-v2' || presentation === 'sky-trees-v3') {
++    // One uniform transform for all full canvases. Never crop layers independently.
++    const portrait = h >= w;
++    const sceneWidth = portrait ? w : Math.min(w, Math.max(120, h - headerHeight - 16) * ratio / 0.56);
++    const sceneHeight = sceneWidth / ratio;
++    // On portrait crop only surplus sky/foliage vertically, not the left/right buildings.
++    // On landscape keep the useful vertical band visible, with sky continuing at both sides.
++    const sceneTop = portrait ? (h > sceneHeight ? h - sceneHeight : (h - sceneHeight) / 2)
++      : headerHeight + 8 - sceneHeight * 0.245;
++    const rows = Math.ceil(4 / sectorColumns);
++    const estimatedControls = rows * Math.max(54, 20 + 20 * fs) + (rows - 1) * gap + 12 +
++      Math.max(90, 32 + 42 * fs) + 12 + (secondaryColumns === 2 ? 1 : 2) * Math.max(82, 32 + 36 * fs) +
++      (secondaryColumns === 2 ? 0 : 12);
++    const measuredControls = positive(controlsHeight, estimatedControls);
++    const dockClearance = 166;
++    const idealRootTop = portrait ? sceneTop + sceneHeight * 0.51 : headerHeight + bodyHeight * 0.24;
++    const contentTop = Math.max(16, Math.min(idealRootTop - headerHeight,
++      Math.max(16, bodyHeight - measuredControls - dockClearance - 12)));
++    return {
++      contentWidth, margin, gap, sectorColumns, secondaryColumns,
++      sectorWidth: (contentWidth - gap * (sectorColumns - 1)) / sectorColumns,
++      headerHeight, bodyHeight, dockClearance, contentTop,
++      sceneFrame: { left: (w - sceneWidth) / 2, top: sceneTop, width: sceneWidth, height: sceneHeight },
++    };
++  }
+   const maxSceneHeight = Math.max(100, bodyHeight * (h > w ? 0.65 : 0.44));
+   const sceneWidth = Math.min(w, 1180, maxSceneHeight * ratio);
+   const sceneHeight = sceneWidth / ratio;
+@@ -104,4 +177,4 @@
+   };
+ }
+ 
+-module.exports = { IDS, validateSceneConfig, timelineFor, layerTransform, initialLoadState, reduceLoadState, getHomeLayout };
++module.exports = { IDS, TREE_LAYERS, TREE_IDS, validateSceneConfig, timelineFor, layerTransform, initialLoadState, reduceLoadState, sceneLoadIds, getHomeLayout };
+--- a/visual-packs/spiral-active/SpiralActiveHome.js
++++ b/visual-packs/spiral-active/SpiralActiveHome.js
+@@ -6,6 +6,7 @@
+ import { getHomeLayout } from './homeSceneModel.js';
+ 
+ const MANIFEST = require('./manifest.json');
++const GARDEN = ['sky-trees-v2', 'sky-trees-v3'].includes(MANIFEST.homeScene.presentation);
+ const PALETTE = {
+   paper: '#F4F1E8', ink: '#10161C', orange: '#F26426', green: '#78A84D',
+   glass: 'rgba(11,16,20,0.68)', glassStrong: 'rgba(10,15,19,0.80)',
+@@ -53,12 +54,14 @@
+ }) {
+   const window = useWindowDimensions();
+   const [viewport, setViewport] = useState(null);
++  const [controlsHeight, setControlsHeight] = useState(0);
+   const [apiStatus, setApiStatus] = useState(null);
+   const [sceneStatus, setSceneStatus] = useState({ phase: 'loading' });
+   const [sceneAttempt, setSceneAttempt] = useState(0);
+   const layout = getHomeLayout({
+     width: viewport?.width || window.width, height: viewport?.height || window.height,
+     fontScale: window.fontScale, canvas: MANIFEST.homeScene.canvas,
++    presentation: MANIFEST.homeScene.presentation, controlsHeight,
+   });
+   const visits = Array.isArray(visitesEnCours) ? visitesEnCours : [];
+   const lastVisit = visits[0] || null;
+@@ -112,7 +115,8 @@
+   };
+   return (
+     <View style={styles.root} onLayout={measure} testID="premium-home-root">
+-      <View style={[styles.header, { minHeight: layout.headerHeight, paddingHorizontal: layout.margin }]}>
++      {GARDEN ? <HomeBuildingScene key={sceneAttempt} frame={layout.sceneFrame} onStatus={setSceneStatus} /> : null}
++      <View style={[styles.header, { minHeight: layout.headerHeight, paddingHorizontal: layout.margin }, GARDEN && { backgroundColor: 'transparent' }]}>
+         <TouchableOpacity testID="premium-connectivity-pill" accessibilityRole="button"
+           accessibilityLabel={online ? 'ONLINE' : 'OFFLINE'} activeOpacity={0.86}
+           style={styles.connectivityPill} onPress={showConnectionDetails}>
+@@ -129,8 +133,10 @@
+         removeClippedSubviews={false} keyboardShouldPersistTaps="handled" testID="premium-home-scroll">
+         <View style={{ flexGrow: 1, minHeight: layout.bodyHeight, paddingTop: layout.contentTop,
+           paddingBottom: layout.dockClearance }}>
+-          <HomeBuildingScene key={sceneAttempt} frame={layout.sceneFrame} onStatus={setSceneStatus} />
+-          <View style={[styles.content, { width: layout.contentWidth }]}>
++          {!GARDEN ? <HomeBuildingScene key={sceneAttempt} frame={layout.sceneFrame} onStatus={setSceneStatus} /> : null}
++          <View style={[styles.content, { width: layout.contentWidth }]}
++            onLayout={event => { const next = event.nativeEvent.layout.height;
++              if (next > 0) setControlsHeight(previous => Math.abs(previous - next) > 0.5 ? next : previous); }}>
+             {sceneStatus.phase === 'error' ? (
+               <TouchableOpacity accessibilityRole="button" style={styles.sceneNotice}
+                 onPress={() => { setSceneStatus({ phase: 'loading' }); setSceneAttempt(n => n + 1); }}>
+@@ -151,7 +157,9 @@
+           </View>
+         </View>
+       </ScrollView>
+-      <SpiralActiveDock exploreActions={exploreActions} actionActions={actionActions} quickActions={quickActions} />
++      <View pointerEvents="box-none" style={[StyleSheet.absoluteFillObject, { zIndex: 30 }]}>
++        <SpiralActiveDock exploreActions={exploreActions} actionActions={actionActions} quickActions={quickActions} />
++      </View>
+       <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => setModalVisible(false)}>
+         <View style={styles.modalOverlay}><View style={styles.modalSheet}>
+           <Text style={styles.modalKicker}>CLIENT</Text><Text style={styles.modalTitle}>Nouveau client</Text>
+@@ -182,13 +190,13 @@
+ }
+ const styles = StyleSheet.create({
+   root: { flex: 1, overflow: 'hidden', backgroundColor: PALETTE.paper },
+-  header: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 10, paddingVertical: 12, backgroundColor: PALETTE.paper },
++  header: { zIndex: 20, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 10, paddingVertical: 12, backgroundColor: PALETTE.paper },
+   connectivityPill: { minWidth: 112, minHeight: 44, paddingHorizontal: 15, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(15,20,24,0.10)', backgroundColor: 'rgba(255,253,248,0.92)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, flexShrink: 1 },
+   statusDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
+   connectivityText: { color: PALETTE.ink, fontSize: 12, fontWeight: '800', letterSpacing: 0.5, flexShrink: 1 },
+   settingsButton: { width: 44, height: 44, borderRadius: 22, borderWidth: 1, borderColor: 'rgba(15,20,24,0.10)', backgroundColor: 'rgba(255,253,248,0.92)', alignItems: 'center', justifyContent: 'center' },
+   settingsIcon: { color: PALETTE.ink, fontSize: 22 },
+-  body: { flex: 1 },
++  body: { flex: 1, zIndex: 20, backgroundColor: 'transparent' },
+   content: { alignSelf: 'center', zIndex: 20 },
+   sectorRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 12 },
+   sectorButton: { minHeight: 54, paddingHorizontal: 10, paddingVertical: 10, borderRadius: 16, borderWidth: 1, borderColor: PALETTE.line, backgroundColor: 'rgba(10,15,19,0.66)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
