@@ -15,6 +15,7 @@ import { syncClientPreparation } from './symfonyApi.js';
 const OFFLINE = '#111111';
 const ONLINE = '#16794B';
 const ERROR = '#B42318';
+const PHOTO_PART_INTERVAL_MS = 15_000;
 const EMPTY_PHOTO_SUMMARY = Object.freeze({ total: 0, queued: 0, unscheduled: 0, pending: 0, sending: 0, synced: 0, failed: 0 });
 
 function firstServerViolation(row) {
@@ -58,19 +59,39 @@ export function IntranetVisitSyncRuntime() {
   useEffect(() => {
     let alive = true;
     let running = false;
+    let photosRunning = false;
+
+    const runPhotos = async () => {
+      if (!alive || photosRunning) return;
+      photosRunning = true;
+      try {
+        await queueMissingSyncedVisitPhotos({ limitVisits: 40 });
+        // Une seule partie (10 photos maximum) par passage. Le passage suivant
+        // reprend automatiquement 15 s plus tard tant que METRA reste ouvert.
+        await processVisitPhotoOutbox({ limit: 10 });
+      } catch {} finally { photosRunning = false; }
+    };
+
     const run = async () => {
       if (!alive || running) return;
       running = true;
       try {
         await processVisitOutbox({ limit: 3 });
-        await queueMissingSyncedVisitPhotos({ limitVisits: 40 });
-        await processVisitPhotoOutbox({ limit: 30 });
+        await runPhotos();
       } catch {} finally { running = false; }
     };
+
     const startup = setTimeout(() => { run(); }, 1200);
     const interval = setInterval(() => { run(); }, 60_000);
+    const photoInterval = setInterval(() => { runPhotos(); }, PHOTO_PART_INTERVAL_MS);
     const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') run(); });
-    return () => { alive = false; clearTimeout(startup); clearInterval(interval); subscription.remove(); };
+    return () => {
+      alive = false;
+      clearTimeout(startup);
+      clearInterval(interval);
+      clearInterval(photoInterval);
+      subscription.remove();
+    };
   }, []);
   return null;
 }
@@ -85,7 +106,7 @@ export function IntranetVisitSyncBanner() {
   const blocked = rows.length - sending - waiting;
   return <View accessibilityLiveRegion="polite" style={{ minHeight: 40, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: blocked ? '#FFF1F0' : '#FFF8ED', borderBottomWidth: 1, borderBottomColor: COLORS.line, flexDirection: 'row', alignItems: 'center' }}>
     <Text style={{ flex: 1, color: COLORS.ink, fontSize: 12, fontWeight: '800' }}>Intranet · {sending ? `${sending} envoi en cours` : `${waiting} en attente`}{blocked ? ` · ${blocked} à corriger` : ''}</Text>
-    {waiting ? <TouchableOpacity accessibilityRole="button" onPress={() => processVisitOutbox({ limit: 3 }).then(() => queueMissingSyncedVisitPhotos({ limitVisits: 40 })).then(() => processVisitPhotoOutbox({ limit: 30 })).catch(() => {})} style={{ minHeight: 40, justifyContent: 'center', paddingHorizontal: 10 }}><Text style={{ color: COLORS.primary, fontWeight: '900', fontSize: 12 }}>Synchroniser</Text></TouchableOpacity> : null}
+    {waiting ? <TouchableOpacity accessibilityRole="button" onPress={() => processVisitOutbox({ limit: 3 }).then(() => queueMissingSyncedVisitPhotos({ limitVisits: 40 })).then(() => processVisitPhotoOutbox({ limit: 10 })).catch(() => {})} style={{ minHeight: 40, justifyContent: 'center', paddingHorizontal: 10 }}><Text style={{ color: COLORS.primary, fontWeight: '900', fontSize: 12 }}>Synchroniser</Text></TouchableOpacity> : null}
   </View>;
 }
 
@@ -290,12 +311,13 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
     }
   };
 
+  const remainingPhotos = Math.max(0, Number(photoSummary.total || 0) - Number(photoSummary.synced || 0) - Number(photoSummary.failed || 0));
   const photoDetail = visitSynced && photoSummary.total > 0
-    ? ` · photos ${photoSummary.synced}/${photoSummary.total}${photoSummary.failed ? ` · ${photoSummary.failed} refusée(s)` : ''}`
+    ? ` · photos ${photoSummary.synced}/${photoSummary.total}${remainingPhotos ? ' · envoi par lots de 10' : ''}${photoSummary.failed ? ` · ${photoSummary.failed} refusée(s)` : ''}`
     : '';
   const detail = online
     ? (historical ? 'Déjà présente sur l’Intranet (visite importée).' : `Export Intranet confirmé${row?.remote_visit_id ? ` · visite n°${row.remote_visit_id}` : ''}${photoSummary.total ? ` · ${photoSummary.synced} photo(s)` : ''}.`)
-    : visitSynced ? `Visite n°${row?.remote_visit_id || ''} créée sur l’Intranet${photoDetail}. Appuie sur Offline pour reprendre les photos.`
+    : visitSynced ? `Visite n°${row?.remote_visit_id || ''} créée sur l’Intranet${photoDetail}. Les lots suivants reprennent automatiquement.`
       : row?.status === 'sending' ? 'Envoi vers le même client Intranet en cours…'
         : row?.status === 'pending' ? 'Envoi en attente.'
           : row?.status === 'retry' ? 'Non exportée · nouvelle tentative dès que la connexion le permet.'
