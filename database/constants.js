@@ -1,8 +1,8 @@
 export const DATABASE_NAME = 'visite_technique.db';
 
 // Keep this value aligned with the highest migration registered in
-// database/migrations/index.js. Migration 035 ajoute une image de couverture locale aux clients et aux sites.
-export const DATABASE_SCHEMA_VERSION = 35;
+// database/migrations/index.js. Migration 036 ajoute la file d'envoi persistante des photos de visite vers l'Intranet.
+export const DATABASE_SCHEMA_VERSION = 36;
 
 export const ENTITY_TYPES = Object.freeze({
   CLIENT: 'client',
