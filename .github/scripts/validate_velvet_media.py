@@ -1,8 +1,8 @@
-"""Verify the approved Velvet startup media and the exact native APK assets.
+"""Verify the preserved Velvet source media and the exact native dock assets.
 
-The architectural home scene has its own validators/provenance.  This gate is
-intentionally limited to startup-media so replacing the home artwork does not
-invalidate the independently approved 147-frame spiral animation.
+The 147-frame WebP is retained as reviewed source material for provenance and
+for the extracted complete dock artwork. It is no longer the active full-screen
+startup: runtime startup is the React Native SVG spiral declared in manifest.
 """
 import argparse
 import io
@@ -33,6 +33,7 @@ def approved_startup_payload(root):
 
 def validate_startup_payload(root, payload):
     manifest = json.loads((root / PREFIX / 'manifest.json').read_text(encoding='utf-8'))
+    startup_js = (root / PREFIX / 'StartupAnimation.js').read_text(encoding='utf-8')
     meta = json.loads(payload[STARTUP_PREFIX + 'animation-provenance.json'])
     source_name = meta['source']
     data = payload[STARTUP_PREFIX + source_name]
@@ -56,7 +57,7 @@ def validate_startup_payload(root, payload):
             duration += image.info['duration']
             if index == image.n_frames - 1:
                 last_pixels = pixels.tobytes()
-        require(duration == meta['durationMs'] == 4900, 'Wrong animation duration')
+        require(duration == meta['durationMs'] == 4900, 'Wrong preserved source animation duration')
         image.seek(75)
         image.load()
         dock_pixels = image.convert('RGBA').crop((860, 390, 1164, 694)).tobytes()
@@ -66,11 +67,16 @@ def validate_startup_payload(root, payload):
         image.load()
         require(image.convert('RGBA').tobytes() == last_pixels, 'Last-frame reference mismatch')
 
-    require(meta['status'] == 'NATIVE_PLAYER_WIRED_PENDING_ANDROID_VISUAL_ACCEPTANCE', 'Wrong runtime readiness status')
-    require(manifest['startup']['durationMs'] == 4900, 'Wrong native intro metadata duration')
-    require(manifest['startup']['completion'] == 'native-event', 'Intro must use the native completion callback')
-    require(meta['dock']['sourceFrame'] == 75 and meta['dock']['crop'] == [860, 390, 1164, 694], 'Wrong complete spiral source')
+    # Active runtime contract: vector intro only; native Velvet is kept for the dock.
+    startup = manifest['startup']
+    require(startup['durationMs'] == 2100, 'Wrong vector intro metadata duration')
+    require(startup['completion'] == 'js-animation-end', 'Vector intro must complete from JS animation end')
+    require(startup['provider'] == 'react-native-svg', 'Vector intro provider mismatch')
+    require('SpiralSvg' in startup_js and 'SPIRAL_PATH_LENGTH' in startup_js, 'Vector startup implementation missing')
+    require('<VelvetArt mode="intro"' not in startup_js, 'Legacy full-screen Velvet intro must not be mounted')
+    require('<VelvetArt mode="dock"' in startup_js, 'Exact Velvet dock handoff missing')
 
+    require(meta['dock']['sourceFrame'] == 75 and meta['dock']['crop'] == [860, 390, 1164, 694], 'Wrong complete spiral source')
     dock_data = payload[STARTUP_PREFIX + 'spiral-dock.png']
     require(sha(dock_data) == meta['dock']['sha256'], 'Dock file mismatch')
     with Image.open(io.BytesIO(dock_data)) as image:
@@ -91,8 +97,8 @@ def verify(root, apk=None):
                 actual = archive.read(info)
                 require(info.file_size == len(expected) and sha(actual) == sha(expected),
                         'Incorrect native velvet asset in APK: ' + name)
-    print('Velvet: 147 original frames, complete source-frame dock, and native APK bytes verified.' if apk
-          else 'Velvet: every original startup frame and the derived complete dock verified. Android visual acceptance remains required.')
+    print('Velvet source provenance and complete native dock bytes verified; active intro is vector SVG.' if apk
+          else 'Preserved Velvet source and complete dock verified; active runtime intro is vector SVG.')
 
 
 if __name__ == '__main__':
