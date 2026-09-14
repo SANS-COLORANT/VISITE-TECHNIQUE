@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import { getDb } from './db.js';
+import { supprimerImagePatrimoine } from './patrimoineImageStorage.js';
 
 function estPhotoGereeParApplication(uri) {
   return !!uri && !!FileSystem.documentDirectory && String(uri).startsWith(`${FileSystem.documentDirectory}visite-technique/photos/`);
@@ -59,6 +60,7 @@ export async function getResumeSuppressionSite(siteId) {
 
 export async function supprimerSiteComplet(siteId) {
   const db = await getDb();
+  const siteImage = await db.getFirstAsync(`SELECT image_uri FROM sites WHERE id=?`, [siteId]);
   const photosASupprimer = [];
   await db.withTransactionAsync(async () => {
     const visites = await db.getAllAsync(`SELECT id FROM visites WHERE site_id=?`, [siteId]);
@@ -100,6 +102,7 @@ export async function supprimerSiteComplet(siteId) {
     await db.runAsync(`DELETE FROM sites WHERE id=?`, [siteId]);
   });
   await supprimerFichiersPhotos(photosASupprimer);
+  await supprimerImagePatrimoine({ type: 'site', id: siteId, uri: siteImage?.image_uri }).catch(() => {});
 }
 
 export async function getResumeSuppressionClient(clientId) {
@@ -115,6 +118,7 @@ export async function getResumeSuppressionClient(clientId) {
 
 export async function supprimerClientComplet(clientId) {
   const db = await getDb();
+  const clientImage = await db.getFirstAsync(`SELECT image_uri FROM clients WHERE id=?`, [clientId]);
   const sites = await db.getAllAsync(`SELECT id FROM sites WHERE client_id=?`, [clientId]);
   for (const site of sites) await supprimerSiteComplet(site.id);
   await db.withTransactionAsync(async () => {
@@ -123,4 +127,5 @@ export async function supprimerClientComplet(clientId) {
     await db.runAsync(`DELETE FROM journal_modifications WHERE entite_type='client' AND entite_id=?`, [clientId]);
     await db.runAsync(`DELETE FROM clients WHERE id=?`, [clientId]);
   });
+  await supprimerImagePatrimoine({ type: 'client', id: clientId, uri: clientImage?.image_uri }).catch(() => {});
 }
