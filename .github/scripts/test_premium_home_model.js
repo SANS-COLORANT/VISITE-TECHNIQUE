@@ -6,8 +6,8 @@ const {
 } = require('../../visual-packs/spiral-active/homeSceneModel.js');
 
 const config = {
-  mode: 'layered-architectural-home', canvas: [1280, 2048], entryDurationMs: 1450,
-  returnDurationMs: 420, startupDelayMs: 3100,
+  mode: 'layered-architectural-home', canvas: [1280, 2048], entryDurationMs: 1100,
+  returnDurationMs: 520, startupDelayMs: 900, buildingLiftPx: 28,
   motion: { type: 'converge', travelFactor: 0.085, verticalOffsetPx: 12, foliageRisePx: 24 },
   background: { id: 'background', depth: 0, introStart: 0, introEnd: .18 },
   layers: BUILDING_IDS.map((id, i) => ({ id, side: ['left', 'left', 'center', 'right'][i], depth: 10 + i, introStart: .06 + i * .06, introEnd: .5 + i * .08 })),
@@ -88,6 +88,25 @@ test('settled startup handoff paints the final scene immediately', () => {
   assert.ok(scene.includes('paintImmediately || ready ? 1 : 0'));
   assert.ok(home.includes("position: 'absolute', top: 0, left: 0, right: 0"));
   assert.ok(home.includes("backgroundColor: 'transparent'"));
+});
+
+test('buildings replace sector buttons as the direct four-way selector', () => {
+  const fs = require('fs'), path = require('path');
+  const scene = fs.readFileSync(path.resolve(__dirname, '../../visual-packs/spiral-active/HomeBuildingScene.js'), 'utf8');
+  const home = fs.readFileSync(path.resolve(__dirname, '../../visual-packs/spiral-active/SpiralActiveHome.js'), 'utf8');
+  for (const token of ['Pressable', 'premium-building-hit-', 'onBuildingPress', 'buildingLiftPx']) assert.ok(scene.includes(token), token);
+  for (const token of ['BUILDING_SECTORS', 'onBuildingPress={openBuilding}', "haussmann: 'Copro'", "collectif: 'Bailleur'", "'poste-municipal': 'Collectivité'", "building: 'Tertiaire'"]) assert.ok(home.includes(token), token);
+  assert.ok(!home.includes('SectorButton'));
+  assert.ok(!home.includes('SECTORS.map'));
+});
+
+test('home action surfaces are light rather than dark slabs', () => {
+  const fs = require('fs'), path = require('path');
+  const home = fs.readFileSync(path.resolve(__dirname, '../../visual-packs/spiral-active/SpiralActiveHome.js'), 'utf8');
+  const dock = fs.readFileSync(path.resolve(__dirname, '../../visual-packs/spiral-active/SpiralActiveDock.js'), 'utf8');
+  for (const token of ["card: 'rgba(255,255,253,0.95)'", "cardStrong: 'rgba(244,246,244,0.97)'", "color: PALETTE.ink"]) assert.ok(home.includes(token), token);
+  assert.ok(dock.includes("backgroundColor: 'rgba(255,255,253,0.97)'"));
+  assert.ok(dock.includes("color: '#10161C'"));
 });
 
 test('runtime uses the exact baked outlined assets without recoloring architecture', () => {
