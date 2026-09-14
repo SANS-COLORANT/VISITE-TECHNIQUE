@@ -1,0 +1,27 @@
+name: METRA Classic Preview APK
+
+on:
+  push:
+    branches:
+      - feat/metra-classic-refresh
+    paths:
+      - '**/*.js'
+      - '**/*.json'
+      - 'visual-packs/**'
+      - 'assets/metra/**'
+      - 'plugins/**'
+      - 'native/**'
+      - '.github/scripts/**'
+      - '.github/workflows/metra-classic-preview.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build-classic-preview:
+    uses: ./.github/workflows/native-android-ui-preview.yml
+    with:
+      build_ref: ${{ github.sha }}
+    permissions:
+      contents: write
