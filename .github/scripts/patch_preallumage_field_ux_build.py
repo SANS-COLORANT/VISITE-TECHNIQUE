@@ -53,3 +53,7 @@ run_patch('.github/scripts/patch_preallumage_swipe_performance.py')
 run_patch('.github/scripts/patch_visit_creation_export_type_v2.py')
 # Doit rester après les patches qui réécrivent le loader de VisiteScreen.
 run_patch('.github/scripts/patch_visit_open_fail_safe.py')
+# Dernière passe : répare les régressions observées sur tablette et vérifie que
+# les transformations précédentes n'ont pas réintroduit getDb manquant, le
+# blocage compteur ou le chargement tardif des pages Pré-allumage.
+run_patch('.github/scripts/patch_runtime_regressions.py')
