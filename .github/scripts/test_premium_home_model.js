@@ -74,10 +74,20 @@ test('responsive layout keeps scene registered to viewport and controls inside w
     const layout = getHomeLayout({ width, height, fontScale: 1 });
     assert.equal(layout.sceneFrame.left, 0); assert.equal(layout.sceneFrame.top, 0);
     assert.equal(layout.sceneFrame.width, width);
-    assert.ok(layout.sceneFrame.height > 0 && layout.sceneFrame.height <= height);
+    assert.equal(layout.sceneFrame.height, height);
     assert.ok(layout.contentWidth <= width && layout.contentTop >= 0);
     assert.ok(layout.dockClearance >= 165);
   }
+});
+
+test('settled startup handoff paints the final scene immediately', () => {
+  const fs = require('fs'), path = require('path');
+  const scene = fs.readFileSync(path.resolve(__dirname, '../../visual-packs/spiral-active/HomeBuildingScene.js'), 'utf8');
+  const home = fs.readFileSync(path.resolve(__dirname, '../../visual-packs/spiral-active/SpiralActiveHome.js'), 'utf8');
+  assert.ok(scene.includes("new Animated.Value(mode === 'settled' ? 1 : 0)"));
+  assert.ok(scene.includes('paintImmediately || ready ? 1 : 0'));
+  assert.ok(home.includes("position: 'absolute', top: 0, left: 0, right: 0"));
+  assert.ok(home.includes("backgroundColor: 'transparent'"));
 });
 
 test('runtime uses the exact baked outlined assets without recoloring architecture', () => {
