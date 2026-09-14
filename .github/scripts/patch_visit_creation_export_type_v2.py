@@ -72,14 +72,17 @@ client_path.write_text(client, encoding='utf-8')
 
 
 # Reuse all of the already validated typed-export/report logic from the original
-# patch, but make its two old exact-source guards understand the new API-aware
-# source. Other missing markers remain hard failures.
+# patch, but make its obsolete source guards understand the current API-aware
+# runtime. Missing markers which are not explicitly superseded remain hard
+# failures.
 legacy_path = Path('.github/scripts/patch_visit_creation_export_type.py')
 legacy = legacy_path.read_text(encoding='utf-8')
 old_helper = """    if old not in text:
         raise SystemExit(f'{label}: marker not found')
 """
 new_helper = """    if old not in text:
+        if label == 'non-blocking visit storage' and 'void Promise.allSettled([' in text and 'pinPhotoReferencesForVisit(id)' in text and 'dossierVisiteMetra(id)' in text:
+            return text
         if label == 'skip unused PRE equipment query' and 'contexte.installation_id' in text and "if (trame.id !== 'pre_allumage')" in text:
             return text
         if label == 'navigate immediately after visit creation' and 'apiRemoteLocalId' in text and 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })' in text and 'preremplirVisiteDepuisContexte' not in text:
@@ -89,6 +92,18 @@ new_helper = """    if old not in text:
 if old_helper not in legacy:
     raise SystemExit('Legacy build patch helper marker not found')
 legacy = legacy.replace(old_helper, new_helper, 1)
+
+# The legacy patch used to deliberately remove getDb from SiteVisites. That is
+# no longer valid: charger() uses getDb to resolve the imported-client binding
+# and IntranetVisitSyncControl calls charger() after an Offline upload. Removing
+# it is the exact cause of the tablet runtime error.
+legacy_getdb_call = """s = replace_once(s, \"import { listerVisitesSite, getDb } from './db.js';\", \"import { listerVisitesSite } from './db.js';\", 'site lightweight db import')
+"""
+if legacy_getdb_call in legacy:
+    legacy = legacy.replace(legacy_getdb_call, "# getDb intentionally retained by API-aware v2 compatibility shim\n", 1)
+else:
+    raise SystemExit('Legacy getDb removal marker not found')
+
 exec(compile(legacy, str(legacy_path), 'exec'), {'__name__': '__main__', '__file__': str(legacy_path)})
 
 # For reports, choosing the visit type must not create any folder. Storage is
@@ -124,6 +139,7 @@ client_path.write_text(client, encoding='utf-8')
 visit_prefill = Path('visitPrefillDb.js').read_text(encoding='utf-8')
 site_final = site_path.read_text(encoding='utf-8')
 client_final = client_path.read_text(encoding='utf-8')
+creation_final = Path('visitCreationDb.js').read_text(encoding='utf-8')
 if 'contexte.installation_id' not in visit_prefill:
     raise SystemExit('LOCAL-scoped prefill lost during build patch')
 if "AND (? IS NULL OR installation_id=?)" not in visit_prefill:
@@ -134,7 +150,9 @@ if 'preremplirVisiteDepuisContexte' in site_final:
     raise SystemExit('Direct blocking prefill reintroduced in SiteVisites')
 if "import { listerVisitesSite, getDb } from './db.js';" not in site_final:
     raise SystemExit('SiteVisites lost getDb while imported-client status still needs it')
+if 'void Promise.allSettled([' not in creation_final or 'pinPhotoReferencesForVisit(id)' not in creation_final:
+    raise SystemExit('Visit creation lost its non-blocking photo/storage preparation')
 if deferred_launch not in client_final:
     raise SystemExit('Report storage is no longer deferred until report generation')
 
-print('Visit creation/export patch applied with Symfony LOCAL scoping preserved, getDb retained and report storage deferred.')
+print('Visit creation/export patch applied with Symfony LOCAL scoping, prepared visits, non-blocking storage and getDb retained.')
