@@ -21,8 +21,58 @@ const CONFIG = PACK_MANIFEST.homeScene;
 const CONFIG_ERRORS = validateSceneConfig(CONFIG, SCENE_SOURCES);
 const LOAD_TIMEOUT_MS = 8000;
 
+const BUILDING_RIM = '#1B2B3A';
+const FOLIAGE_RIM = '#132319';
+const WARM_RIM = '#F26426';
+const BUILDING_OFFSETS = Object.freeze([
+  [-1.25, 0], [1.25, 0], [0, -1.25], [0, 1.25],
+]);
+const FOLIAGE_OFFSETS = Object.freeze([
+  [-0.8, -0.45], [0.9, 1.1],
+]);
+const FOLIAGE_OPACITY = Object.freeze({
+  'foliage-back': 0.055,
+  'foliage-mid': 0.075,
+  'foliage-front': 0.10,
+});
+
 function interpolated(progress, from, to) {
   return progress.interpolate({ inputRange: [0, 1], outputRange: [from, to], extrapolate: 'clamp' });
+}
+
+/**
+ * Premium separation is rendered from the SAME decoded texture: no second asset,
+ * no bitmap preprocessing at runtime. The shifted tinted copies only remain visible
+ * at the silhouette edge, so the effect reads as depth rather than a cartoon stroke.
+ */
+function PremiumOutlinedImage({ source, layerId, foliage = false, onLoad, onError }) {
+  const offsets = foliage ? FOLIAGE_OFFSETS : BUILDING_OFFSETS;
+  const rimOpacity = foliage ? (FOLIAGE_OPACITY[layerId] || 0.065) : 0.12;
+  const rimColor = foliage ? FOLIAGE_RIM : BUILDING_RIM;
+  const focalWarmRim = !foliage && layerId === 'poste-municipal';
+
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFillObject}>
+      {offsets.map(([x, y], index) => (
+        <Image key={`${layerId}-rim-${index}`} source={source} resizeMode="cover" fadeDuration={0}
+          accessible={false} style={[styles.image, {
+            tintColor: rimColor,
+            opacity: rimOpacity,
+            transform: [{ translateX: x }, { translateY: y }],
+          }]} />
+      ))}
+      {focalWarmRim ? (
+        <Image source={source} resizeMode="cover" fadeDuration={0} accessible={false}
+          style={[styles.image, {
+            tintColor: WARM_RIM,
+            opacity: 0.075,
+            transform: [{ translateX: -0.9 }, { translateY: -0.9 }],
+          }]} />
+      ) : null}
+      <Image source={source} resizeMode="cover" fadeDuration={0}
+        style={styles.image} accessible={false} onLoad={onLoad} onError={onError} />
+    </View>
+  );
 }
 
 export function HomeBuildingScene({ frame, onStatus, entryMode = 'auto' }) {
@@ -117,8 +167,7 @@ export function HomeBuildingScene({ frame, onStatus, entryMode = 'auto' }) {
                   { scale: interpolated(progress, from.scale, 1) },
                 ],
               }]}>
-              <Image source={SCENE_SOURCES[layer.id]} resizeMode="cover" fadeDuration={0}
-                style={styles.image} accessible={false}
+              <PremiumOutlinedImage source={SCENE_SOURCES[layer.id]} layerId={layer.id}
                 onLoad={() => dispatch({ type: 'loaded', id: layer.id })}
                 onError={() => dispatch({ type: 'error', id: layer.id })} />
             </Animated.View>
@@ -138,8 +187,7 @@ export function HomeBuildingScene({ frame, onStatus, entryMode = 'auto' }) {
                   { scale: interpolated(progress, from.scale, 1) },
                 ],
               }]}>
-              <Image source={SCENE_SOURCES[layer.id]} resizeMode="cover" fadeDuration={0}
-                style={styles.image} accessible={false}
+              <PremiumOutlinedImage source={SCENE_SOURCES[layer.id]} layerId={layer.id} foliage
                 onLoad={() => dispatch({ type: 'loaded', id: layer.id })}
                 onError={() => dispatch({ type: 'error', id: layer.id })} />
             </Animated.View>
