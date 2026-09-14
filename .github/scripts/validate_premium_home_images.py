@@ -71,8 +71,7 @@ def scene_entries(config):
             raise ValueError('Expected four buildings and three foliage layers')
         entries = [(config['background'], canvas, False)]
         entries.extend((layer, canvas, True) for layer in config['layers'])
-        foliage_size = [canvas[0] // 2, canvas[1] // 2]
-        entries.extend((layer, foliage_size, True) for layer in config['foliage'])
+        entries.extend((layer, canvas, True) for layer in config['foliage'])
         if len({entry['id'] for entry, _, _ in entries}) != 8:
             raise ValueError('Expected eight distinct scene ids')
         return entries, True
@@ -178,7 +177,6 @@ def audit(root, apk=None, output=None, require_provenance=False):
             errors.extend(f"{entry['id']}: {e}" for e in record['errors'])
             results.append(record)
 
-        # Preserve the stricter occlusion check for the legacy four-layer intake path.
         if not layered and len(decoded_alpha) == 4 and not errors:
             for (record, _), fraction in zip(decoded_alpha, visible_contributions([x[1] for x in decoded_alpha])):
                 record['visible_alpha_fraction'] = round(fraction, 6)
