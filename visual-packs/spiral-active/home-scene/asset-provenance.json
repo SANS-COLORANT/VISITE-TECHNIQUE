@@ -1,46 +1,51 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "canvas": [
-    2048,
-    1080
+    1280,
+    2048
   ],
-  "files": [
-    {
-      "id": "haussmann",
-      "asset": "./home-scene/01_haussmann_left_far.webp",
-      "source_name": "Paris(2).png",
-      "source_sha256": "8d588e5d8a84ab91e86b7b71d28a656c38d3cafb660b14bb711e60aed447a6eb",
-      "sha256": "d23066015630c4a64de1d4b267c913139d96de5976eeb97e242174800e2f9240",
-      "pixel_sha256": "3db43f675e626a7a90b31631a008440d86e877f279aee98e4f73ac517e1c9dea",
-      "bytes": 249458
+  "outline": {
+    "color": "#0A0C0F",
+    "buildingsRadiusPx": 5,
+    "foliageRadiusPx": 4,
+    "method": "outward-alpha-dilation"
+  },
+  "preservation": {
+    "buildings": "lossless WebP; original RGBA preserved inside original alpha, outline added only outside",
+    "foliage": "WebP q90 for app weight; geometry/alpha composition preserved visually"
+  },
+  "assets": {
+    "00_background.webp": {
+      "bytes": 63472,
+      "sha256": "fc2f739354454152b43ecd2c4c0dd10bf3aab309fbf2472fd3717c6e2053dcc2"
     },
-    {
-      "id": "collectif",
-      "asset": "./home-scene/02_collectif_left_mid.webp",
-      "source_name": "Collectif(2).png",
-      "source_sha256": "eafa388293aeb79edb0c77685250559489482f7d74a958346e207ded8dd4a37e",
-      "sha256": "2b6c47a6eb9c5c5df26830590c5631c87593fa3f6a66db734147bad14a37ce7b",
-      "pixel_sha256": "d3f2399d40cf4abf6e3e1339ad0e50f9109b0b7152597437401162c0105e008d",
-      "bytes": 292200
+    "01_haussmann_left_far.webp": {
+      "bytes": 154392,
+      "sha256": "f182c210a28c608e61b526d7ec6766fc8ed6003a58e2a942c3bc0d6543a3ffc6"
     },
-    {
-      "id": "poste-municipal",
-      "asset": "./home-scene/03_poste_municipal_right_mid.webp",
-      "source_name": "Municpale(2).png",
-      "source_sha256": "4104d4ee8f4abe2e10c8484f6bbe0eb8f4d2decd0551c7be410b4536901ce3cc",
-      "sha256": "1d82a47c2e534e54d3c62d3eca685c4e5159098ce097fefe9f51258375941206",
-      "pixel_sha256": "9c306d1a8283bdefc0503a9d9f4c729c1e2a58e18706fd18b5d627eed3da70bd",
-      "bytes": 346644
+    "02_collectif_left_mid.webp": {
+      "bytes": 189698,
+      "sha256": "f4584a9aa342fb4db50af775b181ac7bc148548982efacf954654aa5f8aa5f5c"
     },
-    {
-      "id": "building",
-      "asset": "./home-scene/04_building_right_near.webp",
-      "source_name": "Building(2).png",
-      "source_sha256": "742a6653473cf637aa51b036e3bac95e2ea2b208f00b30cf2ce7ee9ff3ffaf91",
-      "sha256": "fca17550293c3eb9c16a770985d02e2e8a67a19e4f2064441f96e86e49624db2",
-      "pixel_sha256": "b68f7536ed21205d1efe184aacf8b91c468a4ed9feb86100200138ded0616b8e",
-      "bytes": 318574
+    "03_poste_municipal_right_mid.webp": {
+      "bytes": 99630,
+      "sha256": "dcba4f84ca094bab469c47a03e06b9fa3388906f1515301e29d4c182fe5518d4"
+    },
+    "04_building_right_near.webp": {
+      "bytes": 198086,
+      "sha256": "408b23ffc8346a353d8077e401b62db3982950d9d9191410df993462f52a14c1"
+    },
+    "10_foliage_back.webp": {
+      "bytes": 693230,
+      "sha256": "1a6be806402b4104cfaaaf4ac3affbfa49f8725ff652d7abcd5df038ba5d9952"
+    },
+    "11_foliage_mid.webp": {
+      "bytes": 706224,
+      "sha256": "b5e0eff45d9df9e7e965c761de80095f06e54eb5f7068fdd543cc393ac56ef8f"
+    },
+    "12_foliage_front.webp": {
+      "bytes": 462112,
+      "sha256": "b2e64867648bdcbed030316602c8c677b18118a046d639a3a40c02a12a1c3699"
     }
-  ],
-  "note": "Staged original layers. Human composition and Android validation remain required."
+  }
 }
