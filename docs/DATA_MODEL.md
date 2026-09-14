@@ -29,6 +29,8 @@ Les objets suivants sont persistants et possèdent des identifiants stables :
 - équipement ;
 - compteur.
 
+Un client et un site peuvent chacun disposer d'une **image de couverture patrimoniale**. Cette image est distincte des photos de visite : le fichier est conservé dans le stockage privé local de METRA pour rester disponible hors connexion et la base SQLite ne stocke que son URI (`image_uri`). Une nouvelle photo ou une image choisie dans la galerie remplace uniquement cette couverture ; elle ne crée aucune observation de visite.
+
 Un équipement physique ne doit pas être dupliqué uniquement parce qu’il est contrôlé dans plusieurs trames.
 
 Exemple : une pompe chauffage peut être visible dans ICPE et Pré-allumage mais reste un seul équipement patrimonial.
