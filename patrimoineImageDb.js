@@ -1,5 +1,19 @@
 import { getDb } from './db.js';
 
+const listeners = new Set();
+
+function notifier(type, id, uri) {
+  for (const listener of [...listeners]) {
+    try { listener({ type, id, uri: uri || null }); } catch {}
+  }
+}
+
+export function onPatrimoineImageChanged(listener) {
+  if (typeof listener !== 'function') return () => {};
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
 export async function getClientPatrimoine(clientId) {
   if (!clientId) return null;
   return (await getDb()).getFirstAsync(
@@ -19,11 +33,13 @@ export async function getSitePatrimoine(siteId) {
 export async function enregistrerImageClient(clientId, uri) {
   if (!clientId) throw new Error('Client introuvable.');
   await (await getDb()).runAsync(`UPDATE clients SET image_uri=? WHERE id=?`, [uri || null, clientId]);
+  notifier('client', clientId, uri);
 }
 
 export async function enregistrerImageSite(siteId, uri) {
   if (!siteId) throw new Error('Site introuvable.');
   await (await getDb()).runAsync(`UPDATE sites SET image_uri=? WHERE id=?`, [uri || null, siteId]);
+  notifier('site', siteId, uri);
 }
 
 export async function lireImagePatrimoine(type, id) {
