@@ -1,0 +1,89 @@
+name: METRA 386 Image Check
+
+on:
+  push:
+    branches:
+      - feat/metra-classic-refresh
+  workflow_dispatch:
+
+concurrency:
+  group: metra-386-image-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate schema 35 and migration
+        run: |
+          python - <<'PY'
+          import re, sqlite3
+          from pathlib import Path
+          constants = Path('database/constants.js').read_text(encoding='utf-8')
+          index = Path('database/migrations/index.js').read_text(encoding='utf-8')
+          migration = Path('database/migrations/035_client_site_images.js').read_text(encoding='utf-8')
+          version = int(re.search(r'DATABASE_SCHEMA_VERSION\s*=\s*(\d+)', constants).group(1))
+          assert version == 35, version
+          assert 'migration035' in index
+          sql = re.search(r'sql:\s*`(.*?)`', migration, re.S).group(1)
+          db = sqlite3.connect(':memory:')
+          db.executescript('CREATE TABLE clients(id TEXT PRIMARY KEY, nom TEXT); CREATE TABLE sites(id TEXT PRIMARY KEY, client_id TEXT, nom_site TEXT);')
+          db.executescript(sql)
+          for table in ('clients', 'sites'):
+              columns = {row[1] for row in db.execute(f'PRAGMA table_info({table})')}
+              assert 'image_uri' in columns, (table, columns)
+          print('Migration image patrimoine v35: OK')
+          PY
+
+      - name: Validate JavaScript syntax and integration
+        run: |
+          node --check patrimoineImageStorage.js
+          node --check patrimoineImageDb.js
+          node --check PatrimoineImageCard.js
+          node --check HomeScreen.js
+          node --check ClientSitesScreen.js
+          node --check PhotoReferenceAccess.js
+          node --check entityManagementDb.js
+          grep -q 'entityType="client"' ClientSitesScreen.js
+          grep -q 'entityType="site"' PhotoReferenceAccess.js
+          grep -q 'PatrimoineThumbnail uri={item.image_uri}' HomeScreen.js
+          grep -q 'PatrimoineThumbnail uri={item.image_uri}' ClientSitesScreen.js
+          grep -q "visite-technique/patrimoine-images/" patrimoineImageStorage.js
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --prefer-offline
+
+      - name: Check Expo dependencies
+        run: npx expo install --check
+
+      - name: Verify METRA source
+        run: npm run verify:metra
+
+      - name: Generate Android project
+        run: npx expo prebuild --clean --platform android --no-install
+
+      - name: Compile Android bridge
+        working-directory: android
+        run: |
+          printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\n' >> gradle.properties
+          ./gradlew :app:compileDebugKotlin --no-daemon --max-workers=2
+
+      - name: Validate Android JavaScript bundle
+        run: npx expo export --platform android --output-dir dist-check
