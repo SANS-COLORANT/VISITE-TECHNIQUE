@@ -10,6 +10,8 @@ import { dupliquerSite } from './siteOrganizationDb.js';
 import { composerAdresse } from './SiteAddressManager.js';
 import { SiteGroupsManager } from './SiteGroupsManager.js';
 import { SiteRadialActionMenu } from './SiteRadialActionMenu.js';
+import { PatrimoineImageCard, PatrimoineThumbnail } from './PatrimoineImageCard.js';
+import { onPatrimoineImageChanged } from './patrimoineImageDb.js';
 
 const adresseVide = () => ({ numero: '', voie: '', complement: '', codePostal: '', ville: '' });
 
@@ -43,6 +45,10 @@ function ClientSitesScreen({ route, navigation }) {
     })();
     return () => { actif = false; };
   }, [charger]);
+
+  useEffect(() => onPatrimoineImageChanged((change) => {
+    if (change?.type === 'site') charger().catch(() => {});
+  }), [charger]);
 
   const sansAdresse = sites.filter((s) => !String(s.adresse || '').trim()).length;
   const avecAdresse = sites.length - sansAdresse;
@@ -124,6 +130,7 @@ function ClientSitesScreen({ route, navigation }) {
       keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.id}
       ListHeaderComponent={<View>
+        <PatrimoineImageCard entityType="client" entityId={clientId} title={nomClient || 'Client'} subtitle="Image du client · disponible hors connexion" />
         <Text style={styles.sectionLabel}>Patrimoine client</Text>
         <View style={{ marginTop: 8, marginBottom: 12, padding: 14, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E3E5E8' }}>
           <View style={{ flexDirection: 'row', gap: 10 }}><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{sites.length}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>sites</Text></View><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{avecAdresse}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>adresses renseignées</Text></View><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{sansAdresse}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>à compléter</Text></View></View>
@@ -140,6 +147,7 @@ function ClientSitesScreen({ route, navigation }) {
         <View style={styles.sectionHeaderRow}><Text style={styles.sectionLabel}>Sites</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>{sites.length}</Text></View>
       </View>}
       renderItem={({ item }) => <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => ouvrirSite(item)}>
+        <PatrimoineThumbnail uri={item.image_uri} size={60} radius={10} />
         <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom_site}</Text>{item.adresse ? <Text style={styles.cardSub}>{item.adresse}</Text> : <Text style={{ color: '#A26A00', fontSize: 12 }}>Adresse à renseigner</Text>}{item.localisation_note ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 4 }}>{item.localisation_note}</Text> : null}</View>
         <View style={[styles.badge, item.statut === 'Actif' ? styles.badgeActif : styles.badgeInactif]}><Text style={[styles.badgeText, item.statut === 'Actif' ? styles.badgeTextActif : styles.badgeTextInactif]}>{item.statut || 'Actif'}</Text></View>
         <TouchableOpacity onPress={(e) => ouvrirMenuSite(e, item)} style={{ minWidth: 46, minHeight: 46, alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}><Text style={{ color: COLORS.inkSoft, fontSize: 22, fontWeight: '900' }}>⋯</Text></TouchableOpacity>
