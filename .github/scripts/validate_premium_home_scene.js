@@ -9,9 +9,9 @@ const EXPECTED = [
   ['collectif', '02_collectif_left_mid.webp', true, [1280, 2048]],
   ['poste-municipal', '03_poste_municipal_right_mid.webp', true, [1280, 2048]],
   ['building', '04_building_right_near.webp', true, [1280, 2048]],
-  ['foliage-back', '10_foliage_back.webp', true, [640, 1024]],
-  ['foliage-mid', '11_foliage_mid.webp', true, [640, 1024]],
-  ['foliage-front', '12_foliage_front.webp', true, [640, 1024]],
+  ['foliage-back', '10_foliage_back.webp', true, [1280, 2048]],
+  ['foliage-mid', '11_foliage_mid.webp', true, [1280, 2048]],
+  ['foliage-front', '12_foliage_front.webp', true, [1280, 2048]],
 ];
 function check(condition, message) { if (!condition) throw new Error(message); }
 function uint24(buffer, offset) { return buffer[offset] | buffer[offset + 1] << 8 | buffer[offset + 2] << 16; }
@@ -51,8 +51,11 @@ function validate(root = path.resolve(__dirname, '..', '..')) {
   const config = manifest.homeScene;
   const sources = Object.fromEntries(EXPECTED.map(([id]) => [id, true]));
   const errors = validateSceneConfig(config, sources);
-  if (manifest.version < 6) errors.push('Pack version must be >= 6');
+  if (manifest.version < 7) errors.push('Pack version must be >= 7');
   if (config?.canvas?.[0] !== 1280 || config?.canvas?.[1] !== 2048) errors.push('Expected 1280x2048 registered canvas');
+  if (!config?.assetOutline?.baked || config.assetOutline.color !== '#0A0C0F' ||
+      config.assetOutline.buildingRadiusPx !== 5 || config.assetOutline.foliageRadiusPx !== 4 ||
+      config.assetOutline.preserveOriginalPixels !== true) errors.push('Strong baked outline contract missing');
   const configured = new Map([
     [config?.background?.id, config?.background?.asset],
     ...(config?.layers || []).map(x => [x.id, x.asset]),
@@ -72,12 +75,14 @@ function validate(root = path.resolve(__dirname, '..', '..')) {
       totalBytes += bytes.length;
     } catch (error) { errors.push(`${name}: ${error.message}`); }
   });
-  if (totalBytes > 2.5 * 1024 * 1024) errors.push(`Scene asset budget exceeded: ${totalBytes} bytes`);
+  if (totalBytes > 3 * 1024 * 1024) errors.push(`Scene asset budget exceeded: ${totalBytes} bytes`);
   if (SCENE_IDS.length !== EXPECTED.length) errors.push('Runtime scene IDs and validator disagree');
   const scene = fs.readFileSync(path.join(pack, 'HomeBuildingScene.js'), 'utf8');
   const startup = fs.readFileSync(path.join(pack, 'StartupAnimation.js'), 'utf8');
-  for (const token of ['premium-layered-home-scene', 'premium-building-${layer.id}', 'premium-foliage-${layer.id}', 'PremiumOutlinedImage', 'FOLIAGE_OPACITY', 'consumeHomeSceneEntryMode', 'onLoad=', 'onError='])
+  for (const token of ['premium-layered-home-scene', 'premium-building-${layer.id}', 'premium-foliage-${layer.id}', 'SceneAsset', 'consumeHomeSceneEntryMode', 'onLoad=', 'onError='])
     if (!scene.includes(token)) errors.push(`Missing runtime contract: ${token}`);
+  for (const forbidden of ['PremiumOutlinedImage', 'tintColor', 'home-composite.webp'])
+    if (scene.includes(forbidden)) errors.push(`Forbidden runtime image mutation: ${forbidden}`);
   EXPECTED.forEach(([, name]) => { if (!scene.includes(name)) errors.push(`Missing bundled source: ${name}`); });
   for (const token of ['HomeBuildingScene', 'entryMode="startup"', 'markStartupHomeSceneComplete'])
     if (!startup.includes(token)) errors.push(`Missing startup scene contract: ${token}`);
