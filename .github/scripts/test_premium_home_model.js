@@ -80,11 +80,12 @@ test('responsive layout keeps scene registered to viewport and controls inside w
   }
 });
 
-test('runtime keeps premium depth rims lightweight and tied to existing textures', () => {
+test('runtime uses the exact baked outlined assets without recoloring architecture', () => {
   const fs = require('fs'), path = require('path');
   const scene = fs.readFileSync(path.resolve(__dirname, '../../visual-packs/spiral-active/HomeBuildingScene.js'), 'utf8');
-  for (const token of ['PremiumOutlinedImage', 'BUILDING_RIM', 'FOLIAGE_RIM', 'FOLIAGE_OPACITY', 'WARM_RIM'])
+  for (const token of ['SceneAsset', '10_foliage_back.webp', '11_foliage_mid.webp', '12_foliage_front.webp'])
     assert.ok(scene.includes(token), token);
-  assert.ok(scene.includes("layerId === 'poste-municipal'"));
+  assert.ok(!scene.includes('tintColor'));
+  assert.ok(!scene.includes('PremiumOutlinedImage'));
   assert.ok(!scene.includes('home-composite.webp'));
 });
