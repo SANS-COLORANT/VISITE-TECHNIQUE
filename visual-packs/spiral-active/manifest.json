@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "spiral-active",
   "name": "Nouvelle interface — Premium",
-  "description": "Accueil architectural épuré avec quatre bâtiments indépendants, spirale gestuelle, accès terrain rapides et habillage premium.",
-  "version": 5,
+  "description": "Accueil architectural épuré avec quatre bâtiments indépendants, trois plans de végétation, spirale gestuelle et habillage premium.",
+  "version": 6,
   "colors": {
     "main": "#F26426",
     "dark": "#14202C",
@@ -27,49 +27,79 @@
   },
   "homeScene": {
     "enabled": true,
-    "mode": "four-independent-buildings",
-    "canvas": [
-      2048,
-      1080
-    ],
-    "entryDurationMs": 900,
+    "mode": "layered-architectural-home",
+    "canvas": [1280, 2048],
+    "entryDurationMs": 1450,
+    "returnDurationMs": 420,
+    "startupDelayMs": 3100,
     "motion": {
       "type": "converge",
-      "travelFactor": 0.46,
-      "verticalOffsetPx": 14
+      "travelFactor": 0.085,
+      "verticalOffsetPx": 12,
+      "foliageRisePx": 24
     },
     "replaceable": true,
+    "background": {
+      "id": "background",
+      "asset": "./home-scene/00_background.webp",
+      "depth": 0,
+      "introStart": 0.0,
+      "introEnd": 0.18
+    },
     "layers": [
       {
         "id": "haussmann",
         "asset": "./home-scene/01_haussmann_left_far.webp",
         "side": "left",
-        "depth": 1,
-        "introStart": 0.02,
-        "introEnd": 0.55
+        "depth": 10,
+        "introStart": 0.06,
+        "introEnd": 0.50
       },
       {
         "id": "collectif",
         "asset": "./home-scene/02_collectif_left_mid.webp",
         "side": "left",
-        "depth": 2,
-        "introStart": 0.1,
-        "introEnd": 0.68
+        "depth": 11,
+        "introStart": 0.12,
+        "introEnd": 0.58
       },
       {
         "id": "poste-municipal",
         "asset": "./home-scene/03_poste_municipal_right_mid.webp",
-        "side": "right",
-        "depth": 3,
-        "introStart": 0.2,
-        "introEnd": 0.82
+        "side": "center",
+        "depth": 12,
+        "introStart": 0.18,
+        "introEnd": 0.67
       },
       {
         "id": "building",
         "asset": "./home-scene/04_building_right_near.webp",
         "side": "right",
-        "depth": 4,
-        "introStart": 0.3,
+        "depth": 13,
+        "introStart": 0.24,
+        "introEnd": 0.74
+      }
+    ],
+    "foliage": [
+      {
+        "id": "foliage-back",
+        "asset": "./home-scene/10_foliage_back.webp",
+        "depth": 30,
+        "introStart": 0.40,
+        "introEnd": 0.76
+      },
+      {
+        "id": "foliage-mid",
+        "asset": "./home-scene/11_foliage_mid.webp",
+        "depth": 31,
+        "introStart": 0.52,
+        "introEnd": 0.88
+      },
+      {
+        "id": "foliage-front",
+        "asset": "./home-scene/12_foliage_front.webp",
+        "depth": 32,
+        "introStart": 0.62,
         "introEnd": 1.0
       }
     ]
