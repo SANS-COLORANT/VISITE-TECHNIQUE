@@ -41,15 +41,16 @@ export function HomeBuildingScene({ frame, onStatus, entryMode = 'auto' }) {
   const [load, dispatch] = useReducer(reduceLoadState, undefined, initialLoadState);
   const [reduceMotion, setReduceMotion] = useState(null);
   const [appState, setAppState] = useState(AppState.currentState);
-  const intro = useRef(new Animated.Value(0)).current;
-  const mountedAt = useRef(Date.now());
-  const settled = useRef(false);
-  const started = useRef(false);
   const mode = useRef(entryMode === 'auto' ? consumeHomeSceneEntryMode() : entryMode).current;
+  const intro = useRef(new Animated.Value(mode === 'settled' ? 1 : 0)).current;
+  const mountedAt = useRef(Date.now());
+  const settled = useRef(mode === 'settled');
+  const started = useRef(false);
   const statusHandler = useRef(onStatus);
   statusHandler.current = onStatus;
   const valid = CONFIG_ERRORS.length === 0;
   const ready = valid && load.phase === 'ready';
+  const paintImmediately = mode === 'settled';
 
   useEffect(() => {
     let active = true;
@@ -108,7 +109,7 @@ export function HomeBuildingScene({ frame, onStatus, entryMode = 'auto' }) {
   return (
     <View testID="premium-layered-home-scene" pointerEvents="none" accessible={false}
       importantForAccessibility="no-hide-descendants" style={[styles.viewport, frame]}>
-      <View style={[StyleSheet.absoluteFillObject, { opacity: ready ? 1 : 0 }]}>
+      <View style={[StyleSheet.absoluteFillObject, { opacity: paintImmediately || ready ? 1 : 0 }]}>
         <Animated.Image testID="premium-home-background" source={SCENE_SOURCES.background}
           resizeMode="cover" fadeDuration={0} accessible={false}
           style={[styles.image, { zIndex: CONFIG.background.depth, opacity: interpolated(bgProgress, 0, 1) }]}
