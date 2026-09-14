@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "spiral-active",
   "name": "Nouvelle interface — Premium",
-  "description": "Accueil architectural avec quatre bâtiments indépendants, trois plans de végétation, animation de formation et contours noirs francs intégrés aux assets.",
-  "version": 7,
+  "description": "Accueil architectural avec quatre bâtiments indépendants, trois plans de végétation, animation de formation, bâtiments interactifs et surfaces claires.",
+  "version": 8,
   "colors": {
     "main": "#F26426",
     "dark": "#14202C",
@@ -11,11 +11,11 @@
   },
   "startup": {
     "preset": "metra-spiral-active",
-    "durationMs": 4900,
+    "durationMs": 2100,
     "backgroundColor": "#F4F1E8",
     "replaceable": true,
-    "completion": "native-event",
-    "provider": "android-animated-image-drawable"
+    "completion": "js-animation-end",
+    "provider": "react-native-svg"
   },
   "spiralDock": {
     "diameterTablet": 220,
@@ -29,9 +29,10 @@
     "enabled": true,
     "mode": "layered-architectural-home",
     "canvas": [1280, 2048],
-    "entryDurationMs": 1450,
-    "returnDurationMs": 420,
-    "startupDelayMs": 3100,
+    "entryDurationMs": 1100,
+    "returnDurationMs": 520,
+    "startupDelayMs": 900,
+    "buildingLiftPx": 28,
     "assetOutline": {
       "baked": true,
       "color": "#0A0C0F",
