@@ -4,6 +4,8 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
+import { PatrimoineThumbnail } from './PatrimoineImageCard.js';
+import { onPatrimoineImageChanged } from './patrimoineImageDb.js';
 const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
 function chargerEntityManagementModule(){return require('./entityManagementDb.js');}
@@ -31,6 +33,9 @@ function HomeScreen({ navigation, onR1LongPress }) {
   }, []);
 
   useEffect(() => { charger().catch((e) => console.warn('Chargement accueil impossible', e)); }, [charger]);
+  useEffect(() => onPatrimoineImageChanged((change) => {
+    if (change?.type === 'client') charger().catch(() => {});
+  }), [charger]);
 
   const onRefresh = async () => { setRefreshing(true); await charger(); setRefreshing(false); };
   const openDirectory = () => navigation.navigate('MetraDirectory', { query: quickSearch.trim() });
@@ -64,7 +69,7 @@ function HomeScreen({ navigation, onR1LongPress }) {
     setCreationClient(true);
     try {
       const id = await creerClient({ nom, codeExploitant });
-      setClients((c) => [...c, { id, nom, code_exploitant: codeExploitant, adresse: null }].sort((a, b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr', { sensitivity: 'base' })));
+      setClients((c) => [...c, { id, nom, code_exploitant: codeExploitant, adresse: null, image_uri: null }].sort((a, b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr', { sensitivity: 'base' })));
       setNouveauNom('');
       setNouveauCode('');
       setModalVisible(false);
@@ -157,6 +162,7 @@ function HomeScreen({ navigation, onR1LongPress }) {
         </View>
       </>}
       renderItem={({ item }) => <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('ClientSites', { clientId: item.id, nomClient: item.nom })}>
+        <PatrimoineThumbnail uri={item.image_uri} size={54} radius={10} />
         <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom}</Text>{item.code_exploitant ? <Text style={styles.cardSub}>{item.code_exploitant}</Text> : null}</View>
         <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionClient(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text></TouchableOpacity>
         <Text style={styles.chevron}>›</Text>
