@@ -1,0 +1,83 @@
+name: Fix NS Comment Source
+
+on:
+  push:
+    branches:
+      - feat/metra-classic-refresh
+    paths:
+      - '.github/workflows/fix-ns-comment-source.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/metra-classic-refresh
+          fetch-depth: 0
+
+      - name: Patch N.S comment persistence and add regression guard
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          p = Path('PersistentControleGenerique.js')
+          s = p.read_text(encoding='utf-8')
+
+          old = """      } else {\n        setCritereChoisi(null);\n        setModeLibre(false);\n      }"""
+          new = """      } else {\n        setCritereChoisi(null);\n        setModeLibre(false);\n        if (etatInitial?.avis === 'N.S') {\n          setCommentaire(etatInitial?.commentaire || '');\n        }\n      }"""
+          if old not in s:
+              raise SystemExit('restore branch pattern not found')
+          s = s.replace(old, new, 1)
+
+          old = """  const choisirAvis = useCallback(async (val) => {\n    if (val === avis) return;\n    setAvis(val);\n    setCommentaire('');\n    setCritereChoisi(null);\n    setModeLibre(false);\n    if (val !== 'N.S') {\n      await supprimerRemarqueControle(visiteId, controleKey);\n      patchRemarqueCache(visiteId, controleKey, null);\n      setRemarque(null);\n    }\n    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: '' });\n    notifierEtat({ avis: val, commentaire: '' });\n  }, [avis, visiteId, sectionCode, field.cle, controleKey, notifierEtat]);"""
+          new = """  const choisirAvis = useCallback(async (val) => {\n    if (val === avis) return;\n    const commentaireConserve = val === 'N.S' ? String(commentaire || '') : '';\n    setAvis(val);\n    setCritereChoisi(null);\n    setModeLibre(false);\n\n    if (val === 'N.S') {\n      setCommentaire(commentaireConserve);\n      await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: commentaireConserve });\n      notifierEtat({ avis: val, commentaire: commentaireConserve });\n      return;\n    }\n\n    setCommentaire('');\n    await supprimerRemarqueControle(visiteId, controleKey);\n    patchRemarqueCache(visiteId, controleKey, null);\n    setRemarque(null);\n    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: '' });\n    notifierEtat({ avis: val, commentaire: '' });\n  }, [avis, commentaire, visiteId, sectionCode, field.cle, controleKey, notifierEtat]);"""
+          if old not in s:
+              raise SystemExit('choisirAvis pattern not found')
+          s = s.replace(old, new, 1)
+
+          old = "  useEffect(() => { if (modeLibre) setLibre(commentaire || remarque?.prestation || ''); }, [modeLibre, commentaire, remarque?.prestation, setLibre]);"
+          new = """  useEffect(() => {\n    if (avis === 'N.S' && critereChoisi === null) {\n      setLibre(commentaire || remarque?.prestation || '');\n    }\n  }, [avis, critereChoisi, commentaire, remarque?.prestation, setLibre]);"""
+          if old not in s:
+              raise SystemExit('free comment restore effect pattern not found')
+          s = s.replace(old, new, 1)
+
+          old = "{(modeLibre || options.length === 0) && <TextInput"
+          new = "{(critereChoisi === null || modeLibre || options.length === 0) && <TextInput"
+          if old not in s:
+              raise SystemExit('free comment visibility pattern not found')
+          s = s.replace(old, new, 1)
+
+          p.write_text(s, encoding='utf-8')
+
+          check = Path('.github/scripts/check_ns_comment_persistence.js')
+          check.write_text("""const fs = require('fs');\n\nconst src = fs.readFileSync('PersistentControleGenerique.js', 'utf8');\n\nfunction requireText(value, label) {\n  if (!src.includes(value)) throw new Error(`${label}: missing ${value}`);\n}\n\nrequireText(\"val === 'N.S' ? String(commentaire || '') : ''\", 'N.S keeps an existing comment when selected');\nrequireText(\"avis === 'N.S' && critereChoisi === null\", 'N.S free comment restores without a selected cause');\nrequireText(\"critereChoisi === null || modeLibre || options.length === 0\", 'N.S free comment remains visible without a selected cause');\nrequireText(\"setCommentaire(etatInitial?.commentaire || '')\", 'N.S persisted comment restores after remount');\n\nif (src.includes(\"setAvis(val);\\n    setCommentaire('');\\n    setCritereChoisi(null);\")) {\n  throw new Error('Old unconditional comment clearing is still present when changing avis.');\n}\n\nconsole.log('N.S comment persistence regression guard: OK');\n""", encoding='utf-8')
+
+          rp = Path('.github/scripts/run_source_patches.js')
+          r = rp.read_text(encoding='utf-8')
+          marker = "const CONTRACT_CHECKS = [\n"
+          addition = "  ['N.S comment persistence contract', '.github/scripts/check_ns_comment_persistence.js'],\n"
+          if addition not in r:
+              if marker not in r: raise SystemExit('CONTRACT_CHECKS marker missing')
+              r = r.replace(marker, marker + addition, 1)
+          syntax_marker = "const JS_SYNTAX_FILES = [\n"
+          syntax_add = "  'PersistentControleGenerique.js',\n"
+          if syntax_add not in r:
+              if syntax_marker not in r: raise SystemExit('JS_SYNTAX_FILES marker missing')
+              r = r.replace(syntax_marker, syntax_marker + syntax_add, 1)
+          rp.write_text(r, encoding='utf-8')
+          PY
+
+          node --check PersistentControleGenerique.js
+          node .github/scripts/check_ns_comment_persistence.js
+
+      - name: Commit source fix
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add PersistentControleGenerique.js .github/scripts/check_ns_comment_persistence.js .github/scripts/run_source_patches.js
+          git commit -m 'fix(ui): persist N.S comments without selected cause'
+          git push origin HEAD:feat/metra-classic-refresh
