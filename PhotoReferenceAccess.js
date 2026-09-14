@@ -4,6 +4,7 @@ import { COLORS, styles } from './styles.js';
 import { resolvePhotoContexts, getVisitPhotoReference, readPhotoLocalChoice } from './latestVisitPhotosDb.js';
 import { filterLatestVisitPhotos, photoSummary, photoStatusLabel } from './latestVisitPhotoModel.js';
 import { usePhotoDownloadState } from './PhotoDownloadStatus.js';
+import { PatrimoineImageCard } from './PatrimoineImageCard.js';
 
 export function PhotoReferenceAccess({ siteId = null, visiteId = null, remoteLocalId = null, contextKey = 'visit', contextTitle = null, remoteClientId = null, remoteSiteId = null, clientName = null }) {
   const [contexts, setContexts] = useState([]), [selected, setSelected] = useState(null), [picker, setPicker] = useState(false);
@@ -50,14 +51,22 @@ export function PhotoReferenceAccess({ siteId = null, visiteId = null, remoteLoc
       else setError('Aucun lien Intranet connu pour ce site.');
     } catch { setError('Impossible d’ouvrir les photos. Réessaie.'); }
   };
-  if (!contexts.length && !error) return null;
+
+  const siteCover = siteId && !visiteId
+    ? <PatrimoineImageCard entityType="site" entityId={siteId} title={contextTitle || 'Site'} subtitle="Image du site · disponible hors connexion" />
+    : null;
+
+  if (!contexts.length && !error) return siteCover;
   const Gallery = selected ? require('./ClientLatestVisitPhotosModal.js').ClientLatestVisitPhotosModal : null;
-  return <View style={{ marginVertical: 6 }}>
-    <TouchableOpacity accessibilityRole="button" onPress={open} style={{ minHeight: 52, borderWidth: 1, borderColor: COLORS.line, borderRadius: 10, backgroundColor: '#F4F7FA', paddingHorizontal: 12, paddingVertical: 8, justifyContent: 'center' }}>
-      <Text style={{ color: COLORS.ink, fontSize: 13, fontWeight: '700' }}>{contextTitle ? `Photos de référence · ${contextTitle}` : 'Photos de référence Intranet'}</Text>
-      <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 4 }}>{error || status || (contexts.length > 1 ? 'Choisir le client Intranet' : 'Consulter sans quitter la visite')}</Text>
-    </TouchableOpacity>
-    <Modal visible={picker} transparent animationType="fade" onRequestClose={() => setPicker(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Choisir le client de référence</Text>{contexts.map((ctx) => <TouchableOpacity key={`${ctx.client.remote_client_id}-${ctx.remoteSiteId}`} onPress={() => { setPicker(false); setSelected(ctx); }} style={{ minHeight: 48, justifyContent: 'center' }}><Text>{ctx.client.nom || ctx.client.remote_client_id}</Text></TouchableOpacity>)}<TouchableOpacity onPress={() => setPicker(false)} style={[styles.btnSecondary, { minHeight: 48 }]}><Text style={styles.btnSecondaryText}>Fermer</Text></TouchableOpacity></View></View></Modal>
-    {Gallery ? <Gallery visible client={selected.client} activated={activated} siteIds={[selected.remoteSiteId]} localIds={selected.remoteLocalId ? [selected.remoteLocalId] : null} visiteId={visiteId} contextKey={contextKey} contextTitle={contextTitle || selected.siteName} requireLocalChoice={Boolean(visiteId)} onClose={() => { setSelected(null); setRevision((n) => n + 1); }} /> : null}
+  return <View>
+    {siteCover}
+    <View style={{ marginVertical: 6 }}>
+      <TouchableOpacity accessibilityRole="button" onPress={open} style={{ minHeight: 52, borderWidth: 1, borderColor: COLORS.line, borderRadius: 10, backgroundColor: '#F4F7FA', paddingHorizontal: 12, paddingVertical: 8, justifyContent: 'center' }}>
+        <Text style={{ color: COLORS.ink, fontSize: 13, fontWeight: '700' }}>{contextTitle ? `Photos de référence · ${contextTitle}` : 'Photos de référence Intranet'}</Text>
+        <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 4 }}>{error || status || (contexts.length > 1 ? 'Choisir le client Intranet' : 'Consulter sans quitter la visite')}</Text>
+      </TouchableOpacity>
+      <Modal visible={picker} transparent animationType="fade" onRequestClose={() => setPicker(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Choisir le client de référence</Text>{contexts.map((ctx) => <TouchableOpacity key={`${ctx.client.remote_client_id}-${ctx.remoteSiteId}`} onPress={() => { setPicker(false); setSelected(ctx); }} style={{ minHeight: 48, justifyContent: 'center' }}><Text>{ctx.client.nom || ctx.client.remote_client_id}</Text></TouchableOpacity>)}<TouchableOpacity onPress={() => setPicker(false)} style={[styles.btnSecondary, { minHeight: 48 }]}><Text style={styles.btnSecondaryText}>Fermer</Text></TouchableOpacity></View></View></Modal>
+      {Gallery ? <Gallery visible client={selected.client} activated={activated} siteIds={[selected.remoteSiteId]} localIds={selected.remoteLocalId ? [selected.remoteLocalId] : null} visiteId={visiteId} contextKey={contextKey} contextTitle={contextTitle || selected.siteName} requireLocalChoice={Boolean(visiteId)} onClose={() => { setSelected(null); setRevision((n) => n + 1); }} /> : null}
+    </View>
   </View>;
 }
