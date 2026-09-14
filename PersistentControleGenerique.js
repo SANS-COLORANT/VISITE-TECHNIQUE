@@ -188,6 +188,9 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
       } else {
         setCritereChoisi(null);
         setModeLibre(false);
+        if (etatInitial?.avis === 'N.S') {
+          setCommentaire(etatInitial?.commentaire || '');
+        }
       }
     }).catch(console.warn);
     return () => { alive = false; };
@@ -200,18 +203,25 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
 
   const choisirAvis = useCallback(async (val) => {
     if (val === avis) return;
+    const commentaireConserve = val === 'N.S' ? String(commentaire || '') : '';
     setAvis(val);
-    setCommentaire('');
     setCritereChoisi(null);
     setModeLibre(false);
-    if (val !== 'N.S') {
-      await supprimerRemarqueControle(visiteId, controleKey);
-      patchRemarqueCache(visiteId, controleKey, null);
-      setRemarque(null);
+
+    if (val === 'N.S') {
+      setCommentaire(commentaireConserve);
+      await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: commentaireConserve });
+      notifierEtat({ avis: val, commentaire: commentaireConserve });
+      return;
     }
+
+    setCommentaire('');
+    await supprimerRemarqueControle(visiteId, controleKey);
+    patchRemarqueCache(visiteId, controleKey, null);
+    setRemarque(null);
     await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: '' });
     notifierEtat({ avis: val, commentaire: '' });
-  }, [avis, visiteId, sectionCode, field.cle, controleKey, notifierEtat]);
+  }, [avis, commentaire, visiteId, sectionCode, field.cle, controleKey, notifierEtat]);
 
   const choisirCritere = useCallback(async (opt, idx) => {
     setCritereChoisi(idx); setModeLibre(false); setCommentaire(opt.prestation || '');
@@ -249,7 +259,11 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
 
   const [libre, setLibre, flushLibre] = useDurableAutosave(commentaire, sauverLibre, 450);
   const [commentaireSimple, setCommentaireSimple, flushCommentaireSimple] = useDurableAutosave(commentaire, sauverCommentaireSimple, 450);
-  useEffect(() => { if (modeLibre) setLibre(commentaire || remarque?.prestation || ''); }, [modeLibre, commentaire, remarque?.prestation, setLibre]);
+  useEffect(() => {
+    if (avis === 'N.S' && critereChoisi === null) {
+      setLibre(commentaire || remarque?.prestation || '');
+    }
+  }, [avis, critereChoisi, commentaire, remarque?.prestation, setLibre]);
   useEffect(() => { if (avis && avis !== 'N.S') setCommentaireSimple(commentaire || ''); }, [avis, commentaire, setCommentaireSimple]);
 
   const patchReserve = useCallback((patch) => {
@@ -305,7 +319,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
         </View>
       </>}
       {critereChoisi !== null && remarque ? <EditionReserve remarque={remarque} onPatch={patchReserve} /> : null}
-      {(modeLibre || options.length === 0) && <TextInput style={[styles.input, { marginTop: 8, height: 60 }]} placeholder="Décrivez le problème constaté..." multiline value={libre} onChangeText={setLibre} onBlur={() => flushLibre().catch(() => {})} />}
+      {(critereChoisi === null || modeLibre || options.length === 0) && <TextInput style={[styles.input, { marginTop: 8, height: 60 }]} placeholder="Décrivez le problème constaté..." multiline value={libre} onChangeText={setLibre} onBlur={() => flushLibre().catch(() => {})} />}
       <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={field.cle} style={styles.photoRequiredBox} />
     </View>}
   </View>;

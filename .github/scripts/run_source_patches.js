@@ -4,6 +4,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const CONTRACT_CHECKS = [
+  ['N.S comment persistence contract', '.github/scripts/check_ns_comment_persistence.js'],
   ['latest API visit runtime contract', '.github/scripts/check_api_latest_visit_runtime.js'],
   ['visit carry-forward contract', '.github/scripts/check_visit_carry_forward_contract.js'],
   ['large-client performance contract', '.github/scripts/check_large_client_performance.js'],
@@ -23,6 +24,7 @@ const CONTRACT_CHECKS = [
 ];
 
 const JS_SYNTAX_FILES = [
+  'PersistentControleGenerique.js',
   'App.js',
   'ReportScreen.js',
   'reportBuilder.js',
