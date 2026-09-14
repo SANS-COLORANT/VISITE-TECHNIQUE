@@ -18,7 +18,7 @@ function ActionButton({ action, onDone }) {
     <TouchableOpacity
       accessibilityRole="button"
       accessibilityLabel={action.label}
-      activeOpacity={0.86}
+      activeOpacity={0.84}
       style={styles.actionButton}
       onPress={() => {
         onDone();
@@ -57,7 +57,7 @@ export function SpiralActiveDock({ exploreActions = [], actionActions = [], quic
     }).start();
   }, [mode, panelProgress]);
 
-  const settleRotation = (target) => Animated.spring(rotation, {
+  const settleRotation = target => Animated.spring(rotation, {
     toValue: target,
     speed: 20,
     bounciness: 3,
@@ -69,7 +69,7 @@ export function SpiralActiveDock({ exploreActions = [], actionActions = [], quic
     settleRotation(0);
   };
 
-  const selectMode = (nextMode) => {
+  const selectMode = nextMode => {
     Vibration.vibrate(8);
     setMode(nextMode);
     settleRotation(nextMode === 'explore' ? -19 : nextMode === 'actions' ? 19 : 0);
@@ -115,12 +115,8 @@ export function SpiralActiveDock({ exploreActions = [], actionActions = [], quic
   return (
     <View pointerEvents="box-none" style={StyleSheet.absoluteFill}>
       {mode !== 'closed' ? (
-        <TouchableOpacity
-          accessibilityLabel="Fermer les raccourcis"
-          activeOpacity={1}
-          style={styles.dismissLayer}
-          onPress={close}
-        />
+        <TouchableOpacity accessibilityLabel="Fermer les raccourcis" activeOpacity={1}
+          style={styles.dismissLayer} onPress={close} />
       ) : null}
 
       <Animated.View
@@ -178,7 +174,7 @@ export function SpiralActiveDock({ exploreActions = [], actionActions = [], quic
 const styles = StyleSheet.create({
   dismissLayer: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(8,12,16,0.08)',
+    backgroundColor: 'rgba(20,28,34,0.06)',
     zIndex: 305,
   },
   panel: {
@@ -188,13 +184,13 @@ const styles = StyleSheet.create({
     padding: 13,
     borderRadius: 20,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.18)',
-    backgroundColor: 'rgba(14,18,22,0.94)',
-    shadowColor: '#000000',
-    shadowOpacity: 0.18,
+    borderColor: 'rgba(18,27,34,0.12)',
+    backgroundColor: 'rgba(255,255,253,0.97)',
+    shadowColor: '#121A20',
+    shadowOpacity: 0.12,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 8 },
-    elevation: 16,
+    elevation: 12,
     zIndex: 330,
   },
   panelHeader: {
@@ -204,7 +200,7 @@ const styles = StyleSheet.create({
     marginBottom: 9,
   },
   panelTitle: {
-    color: '#FFFFFF',
+    color: '#10161C',
     fontSize: 16,
     lineHeight: 20,
     fontWeight: '800',
@@ -215,21 +211,18 @@ const styles = StyleSheet.create({
     height: 32,
     borderRadius: 16,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.16)',
+    borderColor: 'rgba(18,27,34,0.12)',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.07)',
+    backgroundColor: '#F1F3F1',
   },
   closeButtonText: {
-    color: '#FFFFFF',
+    color: '#10161C',
     fontSize: 20,
     lineHeight: 22,
     fontWeight: '500',
   },
-  actionsRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
+  actionsRow: { flexDirection: 'row', gap: 8 },
   actionButton: {
     flex: 1,
     minWidth: 0,
@@ -238,8 +231,8 @@ const styles = StyleSheet.create({
     paddingVertical: 8,
     borderRadius: 13,
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.12)',
-    backgroundColor: 'rgba(255,255,255,0.06)',
+    borderColor: 'rgba(18,27,34,0.10)',
+    backgroundColor: '#F3F5F3',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -249,19 +242,13 @@ const styles = StyleSheet.create({
     borderRadius: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: 'rgba(111,180,169,0.18)',
+    backgroundColor: 'rgba(83,137,125,0.12)',
     marginBottom: 5,
   },
-  actionIconWrapHot: {
-    backgroundColor: 'rgba(242,100,38,0.20)',
-  },
-  actionIcon: {
-    color: '#FFFFFF',
-    fontSize: 16,
-    fontWeight: '900',
-  },
+  actionIconWrapHot: { backgroundColor: 'rgba(242,100,38,0.12)' },
+  actionIcon: { color: '#10161C', fontSize: 16, fontWeight: '900' },
   actionLabel: {
-    color: '#FFFFFF',
+    color: '#10161C',
     fontSize: 10.5,
     lineHeight: 13,
     fontWeight: '800',
@@ -269,7 +256,7 @@ const styles = StyleSheet.create({
   },
   actionCaption: {
     marginTop: 2,
-    color: 'rgba(255,255,255,0.58)',
+    color: '#6B7680',
     fontSize: 8.4,
     lineHeight: 11,
     textAlign: 'center',
@@ -286,9 +273,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 13,
     borderRadius: 999,
-    backgroundColor: 'rgba(255,253,248,0.22)',
+    backgroundColor: 'rgba(255,253,248,0.26)',
   },
-  spiralWrap: {
-    position: 'absolute',
-  },
+  spiralWrap: { position: 'absolute' },
 });
