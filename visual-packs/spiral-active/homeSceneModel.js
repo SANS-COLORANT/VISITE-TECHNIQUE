@@ -111,7 +111,7 @@ function getHomeLayout({ width, height, fontScale = 1 }) {
   const sectorColumns = contentWidth >= minSector * 4 + gap * 3 ? 4 : contentWidth >= minSector * 2 + gap ? 2 : 1;
   const secondaryColumns = contentWidth >= Math.max(220, 92 + 128 * fs) * 2 + 12 ? 2 : 1;
   const headerHeight = Math.max(72, 36 + 28 * fs);
-  const bodyHeight = Math.max(1, h - headerHeight);
+  const bodyHeight = h;
   const portrait = h >= w;
   const contentTop = clamp(bodyHeight * (portrait ? 0.49 : 0.30), 150, Math.max(150, bodyHeight * 0.68));
   return {
