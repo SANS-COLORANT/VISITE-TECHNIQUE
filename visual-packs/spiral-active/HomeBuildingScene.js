@@ -1,27 +1,39 @@
 import React, { useEffect, useReducer, useRef, useState } from 'react';
 import { AccessibilityInfo, Animated, AppState, Easing, Image, StyleSheet, View } from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { initialLoadState, reduceLoadState, validateSceneConfig, timelineFor, layerTransform } from './homeSceneModel.js';
+import {
+  initialLoadState, reduceLoadState, validateSceneConfig, timelineFor,
+  layerTransform, foliageTransform,
+} from './homeSceneModel.js';
+import { consumeHomeSceneEntryMode } from './homeSceneSession.js';
 
 const PACK_MANIFEST = require('./manifest.json');
-const BUILDING_SOURCES = Object.freeze({
+const SCENE_SOURCES = Object.freeze({
+  background: require('./home-scene/00_background.webp'),
   haussmann: require('./home-scene/01_haussmann_left_far.webp'),
   collectif: require('./home-scene/02_collectif_left_mid.webp'),
   'poste-municipal': require('./home-scene/03_poste_municipal_right_mid.webp'),
   building: require('./home-scene/04_building_right_near.webp'),
+  'foliage-back': require('./home-scene/10_foliage_back.webp'),
+  'foliage-mid': require('./home-scene/11_foliage_mid.webp'),
+  'foliage-front': require('./home-scene/12_foliage_front.webp'),
 });
 const CONFIG = PACK_MANIFEST.homeScene;
-const CONFIG_ERRORS = validateSceneConfig(CONFIG, BUILDING_SOURCES);
+const CONFIG_ERRORS = validateSceneConfig(CONFIG, SCENE_SOURCES);
 const LOAD_TIMEOUT_MS = 8000;
 
-// The parent supplies the SAME measured coordinate system used for the controls.
-export function HomeBuildingScene({ frame, onStatus }) {
+function interpolated(progress, from, to) {
+  return progress.interpolate({ inputRange: [0, 1], outputRange: [from, to], extrapolate: 'clamp' });
+}
+
+export function HomeBuildingScene({ frame, onStatus, entryMode = 'auto' }) {
   const [load, dispatch] = useReducer(reduceLoadState, undefined, initialLoadState);
   const [reduceMotion, setReduceMotion] = useState(null);
   const [appState, setAppState] = useState(AppState.currentState);
   const intro = useRef(new Animated.Value(0)).current;
+  const mountedAt = useRef(Date.now());
   const settled = useRef(false);
   const started = useRef(false);
+  const mode = useRef(entryMode === 'auto' ? consumeHomeSceneEntryMode() : entryMode).current;
   const statusHandler = useRef(onStatus);
   statusHandler.current = onStatus;
   const valid = CONFIG_ERRORS.length === 0;
@@ -55,49 +67,84 @@ export function HomeBuildingScene({ frame, onStatus }) {
 
   useEffect(() => {
     if (!ready || reduceMotion === null) return undefined;
-    if (reduceMotion || settled.current || (appState && appState !== 'active')) {
-      if (reduceMotion || started.current || settled.current) {
-        settled.current = true;
-        intro.setValue(1);
-      }
+    if (reduceMotion || mode === 'settled') {
+      settled.current = true;
+      intro.setValue(1);
       return undefined;
     }
+    if (appState && appState !== 'active') return undefined;
+    if (started.current || settled.current) return undefined;
     started.current = true;
-    const animation = Animated.timing(intro, {
-      toValue: 1, duration: CONFIG.entryDurationMs,
-      easing: Easing.bezier(0.16, 0.84, 0.22, 1), useNativeDriver: true,
-    });
+    const duration = mode === 'startup' ? CONFIG.entryDurationMs : CONFIG.returnDurationMs;
+    const elapsed = Date.now() - mountedAt.current;
+    const delay = mode === 'startup' ? Math.max(0, CONFIG.startupDelayMs - elapsed) : 0;
+    const animation = Animated.sequence([
+      Animated.delay(delay),
+      Animated.timing(intro, {
+        toValue: 1,
+        duration,
+        easing: Easing.bezier(0.16, 0.84, 0.22, 1),
+        useNativeDriver: true,
+      }),
+    ]);
     animation.start(({ finished }) => { if (finished) settled.current = true; });
     return () => animation.stop();
-  }, [ready, reduceMotion, appState, intro]);
+  }, [ready, reduceMotion, appState, intro, mode]);
 
   if (!valid || !frame) return null;
+  const bgProgress = intro.interpolate(timelineFor(CONFIG.background));
   return (
-    <View testID="premium-four-building-scene" pointerEvents="none" accessible={false}
+    <View testID="premium-layered-home-scene" pointerEvents="none" accessible={false}
       importantForAccessibility="no-hide-descendants" style={[styles.viewport, frame]}>
-      {/* Keep images mounted to decode, but never reveal a misleading partial scene. */}
       <View style={[StyleSheet.absoluteFillObject, { opacity: ready ? 1 : 0 }]}>
+        <Animated.Image testID="premium-home-background" source={SCENE_SOURCES.background}
+          resizeMode="cover" fadeDuration={0} accessible={false}
+          style={[styles.image, { zIndex: CONFIG.background.depth, opacity: interpolated(bgProgress, 0, 1) }]}
+          onLoad={() => dispatch({ type: 'loaded', id: 'background' })}
+          onError={() => dispatch({ type: 'error', id: 'background' })} />
+
         {CONFIG.layers.map(layer => {
           const progress = intro.interpolate(timelineFor(layer));
           const from = layerTransform(layer, CONFIG, frame.width, 0);
-          const interpolate = (a, b) => progress.interpolate({ inputRange: [0, 1], outputRange: [a, b], extrapolate: 'clamp' });
           return (
             <Animated.View key={layer.id} testID={`premium-building-${layer.id}`}
               style={[StyleSheet.absoluteFillObject, {
-                zIndex: layer.depth, opacity: interpolate(0, 1),
-                transform: [{ translateX: interpolate(from.translateX, 0) },
-                  { translateY: interpolate(from.translateY, 0) }, { scale: interpolate(from.scale, 1) }],
+                zIndex: layer.depth,
+                opacity: interpolated(progress, 0, 1),
+                transform: [
+                  { translateX: interpolated(progress, from.translateX, 0) },
+                  { translateY: interpolated(progress, from.translateY, 0) },
+                  { scale: interpolated(progress, from.scale, 1) },
+                ],
               }]}>
-              <Image source={BUILDING_SOURCES[layer.id]} resizeMode="contain" fadeDuration={0}
+              <Image source={SCENE_SOURCES[layer.id]} resizeMode="cover" fadeDuration={0}
                 style={styles.image} accessible={false}
                 onLoad={() => dispatch({ type: 'loaded', id: layer.id })}
                 onError={() => dispatch({ type: 'error', id: layer.id })} />
             </Animated.View>
           );
         })}
-        <LinearGradient pointerEvents="none"
-          colors={['rgba(244,241,232,0)', 'rgba(244,241,232,0.12)', '#F4F1E8']}
-          locations={[0, 0.78, 1]} style={[StyleSheet.absoluteFillObject, styles.fade]} />
+
+        {CONFIG.foliage.map(layer => {
+          const progress = intro.interpolate(timelineFor(layer));
+          const from = foliageTransform(layer, CONFIG, 0);
+          return (
+            <Animated.View key={layer.id} testID={`premium-foliage-${layer.id}`}
+              style={[StyleSheet.absoluteFillObject, {
+                zIndex: layer.depth,
+                opacity: interpolated(progress, 0, 1),
+                transform: [
+                  { translateY: interpolated(progress, from.translateY, 0) },
+                  { scale: interpolated(progress, from.scale, 1) },
+                ],
+              }]}>
+              <Image source={SCENE_SOURCES[layer.id]} resizeMode="cover" fadeDuration={0}
+                style={styles.image} accessible={false}
+                onLoad={() => dispatch({ type: 'loaded', id: layer.id })}
+                onError={() => dispatch({ type: 'error', id: layer.id })} />
+            </Animated.View>
+          );
+        })}
       </View>
     </View>
   );
@@ -105,6 +152,5 @@ export function HomeBuildingScene({ frame, onStatus }) {
 
 const styles = StyleSheet.create({
   viewport: { position: 'absolute', overflow: 'hidden', backgroundColor: 'transparent' },
-  image: { width: '100%', height: '100%', backgroundColor: 'transparent' },
-  fade: { zIndex: 10 },
+  image: { ...StyleSheet.absoluteFillObject, width: '100%', height: '100%', backgroundColor: 'transparent' },
 });
