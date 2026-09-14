@@ -18,6 +18,9 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Apply tablet runtime regression fixes
+        run: python .github/scripts/patch_runtime_regressions.py
+
       - name: Validate schema 36 and migrations
         run: |
           python - <<'PY'
@@ -62,6 +65,11 @@ jobs:
           node --check entityManagementDb.js
           node --check intranetVisitPhotoOutboxDb.js
           node --check IntranetVisitSync.js
+          node --check intranetVisitPayload.js
+          node --check apiLatestVisitImportDb.js
+          node --check visitCreationDb.js
+          node --check PreAllumageInstallationPanelV3.js
+          node --check SiteVisitesScreen.js
           grep -q 'entityType="client"' ClientSitesScreen.js
           grep -q 'entityType="site"' PhotoReferenceAccess.js
           grep -q 'PatrimoineThumbnail uri={item.image_uri}' HomeScreen.js
@@ -70,6 +78,13 @@ jobs:
           grep -q 'api_visit_photo_outbox' intranetVisitPhotoOutboxDb.js
           grep -q '/visites/${visitId}/photos' intranetVisitPhotoOutboxDb.js
           grep -q 'syncVisitPhotosNow' IntranetVisitSync.js
+          grep -q "import { listerVisitesSite, getDb } from './db.js';" SiteVisitesScreen.js
+          grep -q 'await preremplirVisiteDepuisContexte(db, id);' visitCreationDb.js
+          grep -q 'await assurerStructureSitePreAllumage(id);' visitCreationDb.js
+          grep -q 'cached_latest_visit_already_materialized' apiLatestVisitImportDb.js
+          grep -q 'counter.ambiguous' intranetVisitPayload.js
+          ! grep -q 'compteur correspondant introuvable ou ambigu' intranetVisitPayload.js
+          grep -q 'const sectionsParLocal = useMemo(() =>' PreAllumageInstallationPanelV3.js
 
       - name: Setup Node
         uses: actions/setup-node@v4
