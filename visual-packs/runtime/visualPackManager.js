@@ -4,18 +4,21 @@ import { getDb } from '../../db.js';
 const CLASSIC_MANIFEST = require('../classic/manifest.json');
 const DOOM_MANIFEST = require('../doom/manifest.json');
 const NOEL_MANIFEST = require('../noel/manifest.json');
-const SPIRAL_ACTIVE_MANIFEST = require('../spiral-active/manifest.json');
 
 const META_KEY = 'active_visual_pack';
 const LEGACY_META_KEY = 'app_theme_mode';
 const ROOT_URI = `${FileSystem.documentDirectory || ''}visual-packs/`;
 const CACHE_ROOT_URI = `${FileSystem.cacheDirectory || FileSystem.documentDirectory || ''}visual-pack-import/`;
+// spiral-active reste réservé afin qu'un ZIP utilisateur ne puisse pas reprendre
+// cet identifiant. Il n'est cependant plus proposé ni activable dans METRA.
 const BUILTIN_IDS = new Set(['classic', 'doom', 'noel', 'spiral-active']);
 const EFFECT_TYPES = new Set(['snow', 'sparkles', 'confetti', 'leaves']);
+// Le preset premium reste accepté uniquement pour lire d'anciens manifests sans
+// faire planter une installation existante. Aucun pack intégré ne l'utilise plus.
 const PRESETS = new Set(['metra-classic', 'metra-doom', 'metra-spiral-active', 'none']);
 const PRESET_DURATIONS = { 'metra-classic': 2300, 'metra-doom': 2600, 'metra-spiral-active': 2500, none: 0 };
 
-const BUILTIN_PACKS = [CLASSIC_MANIFEST, DOOM_MANIFEST, NOEL_MANIFEST, SPIRAL_ACTIVE_MANIFEST].map((manifest) => ({
+const BUILTIN_PACKS = [CLASSIC_MANIFEST, DOOM_MANIFEST, NOEL_MANIFEST].map((manifest) => ({
   ...normalizeManifest(manifest),
   _builtin: true,
   _baseUri: null,
@@ -171,6 +174,18 @@ async function persistActiveVisualPack(db, packId) {
 export async function getActiveVisualPack() {
   const db = await getDb();
   const row = await db.getFirstAsync(`SELECT value FROM _meta WHERE key = ?`, [META_KEY]);
+
+  // Retour décidé vers la DA METRA historique : les tablettes qui avaient déjà
+  // enregistré l'interface architecturale sont migrées une seule fois vers
+  // Classique. Les données métier et tous les ajouts fonctionnels restent intacts.
+  if (String(row?.value || '').trim().toLowerCase() === 'spiral-active') {
+    const classic = await getVisualPackById('classic');
+    if (classic) {
+      await persistActiveVisualPack(db, classic.id);
+      return classic;
+    }
+  }
+
   if (row?.value) {
     const stored = await getVisualPackById(row.value);
     if (stored) return stored;
