@@ -5,6 +5,9 @@ import { dossierVisiteMetra, obtenirRacineMetra } from './metraStorage.js';
 import { importApiReferenceForVisit } from './apiVisitPreparationDb.js';
 import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
 import { pinPhotoReferencesForVisit } from './latestVisitPhotosDb.js';
+import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
+import { assurerStructureSitePreAllumage } from './preAllumageSiteBootstrap.js';
+import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
 
 /** Création d'une visite native de production. Le préremplissage vient uniquement de l'historique réel du même local/trame. */
 export async function creerVisiteProduction({ siteId, technicien = null, mode = 'complete', trameId = DEFAULT_TRAME_ID, apiRemoteLocalId = null, apiRemoteClientId = null } = {}) {
@@ -25,26 +28,40 @@ export async function creerVisiteProduction({ siteId, technicien = null, mode = 
   });
 
   if (apiRemoteLocalId) {
-    // Matérialiser d'abord la dernière visite réelle du local Intranet. Le
-    // préremplissage standard peut ensuite repartir de cette visite historique
-    // sans transformer la référence API en constat du jour.
+    // Les données Intranet sont déjà en cache local. On matérialise la référence
+    // AVANT d'ouvrir l'écran afin que l'utilisateur ne voie plus les champs se
+    // remplir progressivement quelques instants après la navigation.
     await importLatestApiVisitForLocal(siteId, apiRemoteLocalId);
     await importApiReferenceForVisit(id, apiRemoteLocalId, apiRemoteClientId);
   }
 
-  // Snapshot only cached reference metadata: no network and no observation copy.
-  try { await pinPhotoReferencesForVisit(id); } catch (e) { console.warn('Photo reference snapshot deferred', e); }
+  // Le préremplissage doit être terminé avant le retour de l'identifiant :
+  // SiteVisitesScreen peut alors ouvrir une visite dont les informations sont
+  // immédiatement cohérentes, y compris pour un client Intranet déjà importé.
+  await preremplirVisiteDepuisContexte(db, id);
 
-  // Le stockage Android SAF peut être lent (lecture/création de plusieurs
-  // dossiers). Il ne doit jamais retarder l'ouverture de la visite : la base
-  // locale est déjà créée, le classement Documents/METRA est préparé en fond.
-  void (async () => {
-    try {
+  if (trame.id === 'pre_allumage') {
+    // Prépare tous les locaux et leurs rubriques pendant l'état « création en
+    // cours ». Les locaux précédent/suivant sont ainsi déjà présents en mémoire
+    // SQLite lorsque l'écran Pré-allumage s'ouvre et le swipe ne déclenche pas
+    // la construction tardive de leur structure.
+    await assurerStructureSitePreAllumage(id);
+    await chargerPreAllumageModulaire(id);
+  }
+
+  // Les références photo et le classement Android ne sont pas nécessaires pour
+  // afficher les données métier. Ils sont volontairement préparés en fond pour
+  // raccourcir le chemin critique de création.
+  void Promise.allSettled([
+    pinPhotoReferencesForVisit(id),
+    (async () => {
       if (await obtenirRacineMetra()) await dossierVisiteMetra(id);
-    } catch (e) {
-      console.warn('Dossier METRA de la nouvelle visite non préparé immédiatement', e);
-    }
-  })();
+    })(),
+  ]).then((results) => {
+    const [photos, stockage] = results;
+    if (photos?.status === 'rejected') console.warn('Photo reference snapshot deferred', photos.reason);
+    if (stockage?.status === 'rejected') console.warn('Dossier METRA de la nouvelle visite non préparé immédiatement', stockage.reason);
+  });
 
   return id;
 }
