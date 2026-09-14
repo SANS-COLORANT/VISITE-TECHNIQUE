@@ -48,16 +48,26 @@ d'équipement, réseau, compteur ou générales qui n'ont pas de triplet serveur
 certain sont envoyées comme photos générales de la visite plutôt que d'inventer
 une liaison.
 
-Les envois photos sont traités avec une concurrence maximale de trois. Chaque
-tentative HTTP reçoit une nouvelle preuve DPoP ; l'`envoiPhotoId`, le fichier et
-les métadonnées restent stables pour permettre le rejeu idempotent. Un HTTP 201
-ou un HTTP 200 avec `rejoue: true` marque la photo comme synchronisée.
+Pour éviter qu'une visite comportant beaucoup de photographies surcharge
+l'Intranet, METRA découpe automatiquement l'export en **lots de 10 photos**.
+Un seul lot est traité à la fois, avec au maximum trois transferts simultanés à
+l'intérieur de ce lot. Le premier lot part immédiatement après la création de
+la visite ; les lots suivants reprennent automatiquement toutes les 15 secondes
+tant que METRA reste au premier plan. Si l'application est fermée ou que le
+réseau disparaît, la file SQLite conserve exactement les photos déjà confirmées
+et celles restant à envoyer. Au prochain passage, METRA reprend le lot suivant
+sans recréer la visite Symfony et sans changer les `envoiPhotoId` déjà attribués.
+
+Chaque tentative HTTP reçoit une nouvelle preuve DPoP ; l'`envoiPhotoId`, le
+fichier et les métadonnées restent stables pour permettre le rejeu idempotent.
+Un HTTP 201 ou un HTTP 200 avec `rejoue: true` marque la photo comme synchronisée.
 
 Le bouton de la visite ne passe **Online** que lorsque la visite elle-même et
 toutes ses photos locales sont confirmées par l'Intranet. Si la visite a été
-créée mais qu'une photo reste à envoyer, le statut demeure **Offline** et un
-nouvel appui reprend uniquement les photos : la visite Symfony n'est jamais
-recréée.
+créée mais que des photos restent à envoyer, le statut demeure **Offline** et
+l'interface affiche la progression `photos x/y · envoi par lots de 10`. Les
+lots suivants reprennent automatiquement ; un nouvel appui sur Offline permet
+aussi de relancer immédiatement le prochain lot sans recréer la visite.
 
 ## Liaison au client importé
 
@@ -85,6 +95,8 @@ sur la tablette.
   client Intranet importé ; aucun choix de client n'est demandé.
 - Après création de la visite serveur, les photos sont mises en file et envoyées
   séparément ; une panne sur une image ne renvoie pas toute la visite.
+- Les gros ensembles sont découpés en lots de 10 photos maximum ; chaque lot
+  reprend sur l'état persistant du lot précédent.
 - Après accusé serveur valide de la visite et de toutes les photos locales,
   l'état devient **Online** en vert.
 - Une visite historique importée depuis l'Intranet est affichée **Online** car
@@ -98,8 +110,8 @@ sur la tablette.
   DPoP.
 - Une ligne restée `sending` après arrêt du processus passe en `retry` au
   redémarrage.
-- Les visites sont envoyées séquentiellement. Les photos sont envoyées par lots
-  de trois maximum, nettement sous la limite de 60 photos/minute/tablette.
+- Les visites sont envoyées séquentiellement. Dans chaque lot de photos, trois
+  transferts au maximum sont simultanés ; le lot suivant est traité séparément.
 
 Les files sont persistantes ; leur traitement automatique est opportuniste
 lorsque METRA est au premier plan. Aucun service Android permanent n'est promis
