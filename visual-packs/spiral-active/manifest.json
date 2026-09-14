@@ -2,8 +2,8 @@
   "schemaVersion": 1,
   "id": "spiral-active",
   "name": "Nouvelle interface — Premium",
-  "description": "Accueil architectural épuré avec quatre bâtiments indépendants, trois plans de végétation, spirale gestuelle et habillage premium.",
-  "version": 6,
+  "description": "Accueil architectural avec quatre bâtiments indépendants, trois plans de végétation, animation de formation et contours noirs francs intégrés aux assets.",
+  "version": 7,
   "colors": {
     "main": "#F26426",
     "dark": "#14202C",
@@ -32,6 +32,13 @@
     "entryDurationMs": 1450,
     "returnDurationMs": 420,
     "startupDelayMs": 3100,
+    "assetOutline": {
+      "baked": true,
+      "color": "#0A0C0F",
+      "buildingRadiusPx": 5,
+      "foliageRadiusPx": 4,
+      "preserveOriginalPixels": true
+    },
     "motion": {
       "type": "converge",
       "travelFactor": 0.085,
