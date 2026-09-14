@@ -8,6 +8,11 @@ let revision = 0;
 let processorPromise = null;
 
 const MAX_PHOTO_BYTES = 10 * 1024 * 1024;
+// Un passage du processeur n'envoie jamais plus de 10 photos. Les gros lots
+// sont donc découpés en parties persistantes et reprennent là où ils se sont
+// arrêtés. Dans chaque partie, trois transferts maximum sont simultanés.
+export const PHOTO_UPLOAD_PART_SIZE = 10;
+export const PHOTO_UPLOAD_CONCURRENCY = 3;
 const RETRYABLE_HTTP = new Set([500, 502, 503, 504]);
 const LOCAL_AUTH_ERRORS = new Set(['reactivation_required', 'dpop_key_missing', 'invalid_grant']);
 
@@ -223,7 +228,7 @@ function shouldPause(results) {
   });
 }
 
-export async function processVisitPhotoOutbox({ limit = 30, visiteId = null } = {}) {
+export async function processVisitPhotoOutbox({ limit = PHOTO_UPLOAD_PART_SIZE, visiteId = null } = {}) {
   if (processorPromise) return processorPromise;
   processorPromise = (async () => {
     const db = await getDb();
@@ -231,11 +236,15 @@ export async function processVisitPhotoOutbox({ limit = 30, visiteId = null } = 
     const params = [];
     let filter = "status IN ('pending','retry') AND (next_attempt_at IS NULL OR datetime(next_attempt_at)<=datetime('now'))";
     if (visiteId) { filter += ' AND visite_id=?'; params.push(String(visiteId)); }
-    params.push(Math.max(1, Math.min(60, Number(limit || 30))));
+
+    // Même si un ancien appelant demande 30 ou 60 éléments, un passage reste
+    // volontairement limité à une seule partie de 10 photos maximum.
+    const requested = Math.max(1, Math.min(PHOTO_UPLOAD_PART_SIZE, Number(limit || PHOTO_UPLOAD_PART_SIZE)));
+    params.push(requested);
     const rows = await db.getAllAsync(`SELECT * FROM api_visit_photo_outbox WHERE ${filter} ORDER BY queued_at,ordre LIMIT ?`, params);
     const results = [];
-    for (let i = 0; i < rows.length; i += 3) {
-      const batch = await Promise.all(rows.slice(i, i + 3).map((row) => sendPhotoRow(db, row)));
+    for (let i = 0; i < rows.length; i += PHOTO_UPLOAD_CONCURRENCY) {
+      const batch = await Promise.all(rows.slice(i, i + PHOTO_UPLOAD_CONCURRENCY).map((row) => sendPhotoRow(db, row)));
       results.push(...batch);
       if (shouldPause(batch)) break;
     }
@@ -246,7 +255,9 @@ export async function processVisitPhotoOutbox({ limit = 30, visiteId = null } = 
 
 export async function syncVisitPhotosNow(visiteId) {
   await queueMissingVisitPhotos(visiteId);
-  return processVisitPhotoOutbox({ visiteId, limit: 60 });
+  // Premier lot immédiat. Les lots suivants sont repris automatiquement par
+  // IntranetVisitSyncRuntime sans recréer la visite Symfony.
+  return processVisitPhotoOutbox({ visiteId, limit: PHOTO_UPLOAD_PART_SIZE });
 }
 
 export async function retryVisitPhotoUploadsNow(visiteId) {
