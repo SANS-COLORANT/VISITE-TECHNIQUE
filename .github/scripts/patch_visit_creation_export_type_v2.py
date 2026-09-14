@@ -12,7 +12,10 @@ site = site.replace(
     "import { View, Text, FlatList, TouchableOpacity, Modal, Pressable, TextInput, Alert, Linking, ScrollView } from 'react-native';",
     1,
 )
-site = site.replace("import { listerVisitesSite, getDb } from './db.js';", "import { listerVisitesSite } from './db.js';", 1)
+# getDb reste nécessaire pour déterminer localement si le client courant est
+# déjà matérialisé depuis l'Intranet. Une ancienne version de ce patch retirait
+# cet import tout en laissant son appel dans charger(), ce qui provoquait
+# « Property 'getDb' doesn't exist » dans l'APK livré.
 site = site.replace("import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';\n", '', 1)
 site = site.replace(
     "      const db = await getDb();\n      await preremplirVisiteDepuisContexte(db, visiteId);\n",
@@ -20,9 +23,10 @@ site = site.replace(
     1,
 )
 
-# VisiteScreen performs the stable-field prefill once, after the visit can
-# already be rendered. Keep creationEnCours only once and place the export
-# states exactly where the existing typed-export patch expects them.
+# creerVisiteProduction prépare désormais les informations métier avant de
+# retourner l'identifiant. SiteVisites ne doit donc pas refaire ce préremplissage.
+# Keep creationEnCours only once and place the export states exactly where the
+# existing typed-export patch expects them.
 creation_state = "  const [creationEnCours, setCreationEnCours] = useState(false);\n"
 site = site.replace(creation_state, '', 1)
 export_marker = "  const [exportLotEnCours, setExportLotEnCours] = useState(false);\n"
@@ -38,8 +42,10 @@ if export_states not in site:
 
 if 'apiRemoteLocalId' not in site or 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })' not in site:
     raise SystemExit('API LOCAL visit creation flow missing before build compatibility patch')
-if 'preremplirVisiteDepuisContexte' in site or 'getDb } from' in site:
+if 'preremplirVisiteDepuisContexte' in site:
     raise SystemExit('Site visit screen still contains blocking direct prefill')
+if "import { listerVisitesSite, getDb } from './db.js';" not in site:
+    raise SystemExit('SiteVisites must keep getDb for imported-client state')
 site_path.write_text(site, encoding='utf-8')
 
 
@@ -126,7 +132,9 @@ if 'apiRemoteLocalId' not in site_final or 'creerVisiteProduction({ siteId, mode
     raise SystemExit('API LOCAL context lost during SiteVisites build patch')
 if 'preremplirVisiteDepuisContexte' in site_final:
     raise SystemExit('Direct blocking prefill reintroduced in SiteVisites')
+if "import { listerVisitesSite, getDb } from './db.js';" not in site_final:
+    raise SystemExit('SiteVisites lost getDb while imported-client status still needs it')
 if deferred_launch not in client_final:
     raise SystemExit('Report storage is no longer deferred until report generation')
 
-print('Visit creation/export patch applied with Symfony LOCAL scoping preserved and report storage deferred.')
+print('Visit creation/export patch applied with Symfony LOCAL scoping preserved, getDb retained and report storage deferred.')
