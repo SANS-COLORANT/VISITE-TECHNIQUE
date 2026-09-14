@@ -186,6 +186,34 @@ s = s.replace(
 )
 p.write_text(s, encoding='utf-8')
 
+# Le conteneur métier ne doit pas rebâtir une structure déjà préparée pendant
+# creerVisiteProduction. Pour une ancienne visite non préparée, il conserve le
+# bootstrap complet en fallback.
+p = Path('PreAllumageInstallationPanelBusiness.js')
+s = p.read_text(encoding='utf-8')
+old_business_source = """      await chargerPreAllumageModulaire(props.visiteId);
+      await assurerStructureSitePreAllumage(props.visiteId);
+      await preparerStructurePreAllumage(props.visiteId);
+      await chargerPreAllumageModulaire(props.visiteId);
+"""
+old_business_build = """      await assurerStructureSitePreAllumage(props.visiteId);
+      await chargerPreAllumageModulaire(props.visiteId);
+"""
+new_business = """      const initialModel = await chargerPreAllumageModulaire(props.visiteId);
+      if (!(initialModel?.locaux || []).length) {
+        await assurerStructureSitePreAllumage(props.visiteId);
+        await chargerPreAllumageModulaire(props.visiteId);
+      }
+"""
+if new_business not in s:
+    if old_business_source in s:
+        s = s.replace(old_business_source, new_business, 1)
+    elif old_business_build in s:
+        s = s.replace(old_business_build, new_business, 1)
+    else:
+        raise SystemExit('warm preallumage business bootstrap marker not found')
+p.write_text(s, encoding='utf-8')
+
 
 # ---------------------------------------------------------------------------
 # 5. Garde-fous explicites : le build doit échouer si une régression réapparaît.
@@ -194,6 +222,7 @@ site = Path('SiteVisitesScreen.js').read_text(encoding='utf-8')
 payload = Path('intranetVisitPayload.js').read_text(encoding='utf-8')
 creation = Path('visitCreationDb.js').read_text(encoding='utf-8')
 v3 = Path('PreAllumageInstallationPanelV3.js').read_text(encoding='utf-8')
+business = Path('PreAllumageInstallationPanelBusiness.js').read_text(encoding='utf-8')
 
 if "const database = await getDb();" in site and "import { listerVisitesSite, getDb } from './db.js';" not in site:
     raise SystemExit('SiteVisites getDb runtime regression still present')
@@ -207,6 +236,8 @@ if "trame.id === 'pre_allumage'" not in creation or 'await assurerStructureSiteP
     raise SystemExit('Pre-allumage locals are no longer prepared during visit creation')
 if 'const sectionsParLocal = useMemo(() =>' not in v3:
     raise SystemExit('Pre-allumage adjacent local page cache missing')
+if 'const initialModel = await chargerPreAllumageModulaire(props.visiteId);' not in business:
+    raise SystemExit('Pre-allumage warm bootstrap optimization missing')
 if 'cached_latest_visit_already_materialized' not in Path('apiLatestVisitImportDb.js').read_text(encoding='utf-8'):
     raise SystemExit('Imported latest-visit fast path missing')
 
