@@ -18,8 +18,8 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Apply tablet runtime regression fixes
-        run: python .github/scripts/patch_runtime_regressions.py
+      - name: Apply production Pre-allumage and tablet runtime patches
+        run: python .github/scripts/patch_preallumage_field_ux_build.py
 
       - name: Validate schema 36 and migrations
         run: |
@@ -69,6 +69,7 @@ jobs:
           node --check apiLatestVisitImportDb.js
           node --check visitCreationDb.js
           node --check PreAllumageInstallationPanelV3.js
+          node --check PreAllumageInstallationPanelBusiness.js
           node --check SiteVisitesScreen.js
           grep -q 'entityType="client"' ClientSitesScreen.js
           grep -q 'entityType="site"' PhotoReferenceAccess.js
@@ -85,6 +86,7 @@ jobs:
           grep -q 'counter.ambiguous' intranetVisitPayload.js
           ! grep -q 'compteur correspondant introuvable ou ambigu' intranetVisitPayload.js
           grep -q 'const sectionsParLocal = useMemo(() =>' PreAllumageInstallationPanelV3.js
+          grep -q 'const initialModel = await chargerPreAllumageModulaire(props.visiteId);' PreAllumageInstallationPanelBusiness.js
 
       - name: Setup Node
         uses: actions/setup-node@v4
