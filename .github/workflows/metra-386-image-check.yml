@@ -18,25 +18,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Validate schema 35 and migration
+      - name: Validate schema 36 and migrations
         run: |
           python - <<'PY'
           import re, sqlite3
           from pathlib import Path
           constants = Path('database/constants.js').read_text(encoding='utf-8')
           index = Path('database/migrations/index.js').read_text(encoding='utf-8')
-          migration = Path('database/migrations/035_client_site_images.js').read_text(encoding='utf-8')
+          migration35 = Path('database/migrations/035_client_site_images.js').read_text(encoding='utf-8')
+          migration36 = Path('database/migrations/036_intranet_visit_photo_outbox.js').read_text(encoding='utf-8')
           version = int(re.search(r'DATABASE_SCHEMA_VERSION\s*=\s*(\d+)', constants).group(1))
-          assert version == 35, version
-          assert 'migration035' in index
-          sql = re.search(r'sql:\s*`(.*?)`', migration, re.S).group(1)
+          assert version == 36, version
+          assert 'migration035' in index and 'migration036' in index
+          sql35 = re.search(r'sql:\s*`(.*?)`', migration35, re.S).group(1)
+          sql36 = re.search(r'sql:\s*`(.*?)`', migration36, re.S).group(1)
           db = sqlite3.connect(':memory:')
-          db.executescript('CREATE TABLE clients(id TEXT PRIMARY KEY, nom TEXT); CREATE TABLE sites(id TEXT PRIMARY KEY, client_id TEXT, nom_site TEXT);')
-          db.executescript(sql)
+          db.executescript('''
+            PRAGMA foreign_keys=ON;
+            CREATE TABLE clients(id TEXT PRIMARY KEY, nom TEXT);
+            CREATE TABLE sites(id TEXT PRIMARY KEY, client_id TEXT, nom_site TEXT);
+            CREATE TABLE visites(id TEXT PRIMARY KEY);
+            CREATE TABLE photos(id TEXT PRIMARY KEY, visite_id TEXT, uri TEXT NOT NULL);
+          ''')
+          db.executescript(sql35)
+          db.executescript(sql36)
           for table in ('clients', 'sites'):
               columns = {row[1] for row in db.execute(f'PRAGMA table_info({table})')}
               assert 'image_uri' in columns, (table, columns)
-          print('Migration image patrimoine v35: OK')
+          photo_columns = {row[1] for row in db.execute('PRAGMA table_info(api_visit_photo_outbox)')}
+          for column in ('photo_id','visite_id','envoi_photo_id','remote_client_id','remote_visit_id','uri','ordre','status','remote_photo_id'):
+              assert column in photo_columns, column
+          print('Migrations patrimoine v35 + photos Intranet v36: OK')
           PY
 
       - name: Validate JavaScript syntax and integration
@@ -48,11 +60,16 @@ jobs:
           node --check ClientSitesScreen.js
           node --check PhotoReferenceAccess.js
           node --check entityManagementDb.js
+          node --check intranetVisitPhotoOutboxDb.js
+          node --check IntranetVisitSync.js
           grep -q 'entityType="client"' ClientSitesScreen.js
           grep -q 'entityType="site"' PhotoReferenceAccess.js
           grep -q 'PatrimoineThumbnail uri={item.image_uri}' HomeScreen.js
           grep -q 'PatrimoineThumbnail uri={item.image_uri}' ClientSitesScreen.js
           grep -q "visite-technique/patrimoine-images/" patrimoineImageStorage.js
+          grep -q 'api_visit_photo_outbox' intranetVisitPhotoOutboxDb.js
+          grep -q '/visites/${visitId}/photos' intranetVisitPhotoOutboxDb.js
+          grep -q 'syncVisitPhotosNow' IntranetVisitSync.js
 
       - name: Setup Node
         uses: actions/setup-node@v4
