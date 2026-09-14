@@ -112,7 +112,7 @@ export function SpiralActiveHome({
   };
   return (
     <View style={styles.root} onLayout={measure} testID="premium-home-root">
-      <View style={[styles.header, { minHeight: layout.headerHeight, paddingHorizontal: layout.margin }]}>
+      <View pointerEvents="box-none" style={[styles.header, { minHeight: layout.headerHeight, paddingHorizontal: layout.margin }]}>
         <TouchableOpacity testID="premium-connectivity-pill" accessibilityRole="button"
           accessibilityLabel={online ? 'ONLINE' : 'OFFLINE'} activeOpacity={0.86}
           style={styles.connectivityPill} onPress={showConnectionDetails}>
@@ -182,7 +182,7 @@ export function SpiralActiveHome({
 }
 const styles = StyleSheet.create({
   root: { flex: 1, overflow: 'hidden', backgroundColor: PALETTE.paper },
-  header: { flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 10, paddingVertical: 12, backgroundColor: PALETTE.paper },
+  header: { position: 'absolute', top: 0, left: 0, right: 0, zIndex: 80, flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', flexWrap: 'wrap', gap: 10, paddingVertical: 12, backgroundColor: 'transparent' },
   connectivityPill: { minWidth: 112, minHeight: 44, paddingHorizontal: 15, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(15,20,24,0.10)', backgroundColor: 'rgba(255,253,248,0.92)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, flexShrink: 1 },
   statusDot: { width: 8, height: 8, borderRadius: 4, flexShrink: 0 },
   connectivityText: { color: PALETTE.ink, fontSize: 12, fontWeight: '800', letterSpacing: 0.5, flexShrink: 1 },
