@@ -17,6 +17,8 @@ on:
       - 'plugins/**'
       - 'native/**'
       - '.github/scripts/*premium_home*'
+      - '.github/scripts/validate_velvet_media.py'
+      - '.github/scripts/test_velvet_integration.js'
       - '.github/workflows/native-android-ui-preview.yml'
 permissions:
   contents: write
