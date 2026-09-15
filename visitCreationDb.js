@@ -7,30 +7,50 @@ import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
 import { pinPhotoReferencesForVisit } from './latestVisitPhotosDb.js';
 
 /** Création d'une visite native de production. Le préremplissage vient uniquement de l'historique réel du même local/trame. */
-export async function creerVisiteProduction({ siteId, technicien = null, mode = 'complete', trameId = DEFAULT_TRAME_ID, apiRemoteLocalId = null, apiRemoteClientId = null } = {}) {
+export async function creerVisiteProduction({
+  siteId,
+  technicien = null,
+  mode = 'complete',
+  trameId = DEFAULT_TRAME_ID,
+  apiRemoteLocalId = null,
+  apiRemoteClientId = null,
+  apiRemoteTrameId = null,
+  installationId = null,
+} = {}) {
   if (!siteId) throw new Error('Site requis pour créer une visite');
   const modeNormalise = mode === 'express' ? 'express' : 'complete';
   const trame = obtenirTrame(trameId);
   const db = await getDb();
   const id = createId();
+  const remoteClientId = apiRemoteClientId == null ? null : String(apiRemoteClientId).trim() || null;
+  const remoteLocalId = apiRemoteLocalId == null ? null : String(apiRemoteLocalId).trim() || null;
+  const remoteTrameId = apiRemoteTrameId == null ? null : String(apiRemoteTrameId).trim() || null;
+  const localInstallationId = installationId == null ? null : String(installationId).trim() || null;
 
   await db.withTransactionAsync(async () => {
     await db.runAsync(
       `INSERT INTO visites
-        (id, site_id, date_visite, technicien, statut, progression_pct, mode_visite, trame_id)
-       VALUES (?, ?, date('now'), ?, 'en_cours', 0, ?, ?)`,
-      [id, siteId, technicien ? String(technicien).trim() || null : null, modeNormalise, trame.id]
+        (id, site_id, date_visite, technicien, statut, progression_pct, mode_visite, trame_id,
+         installation_id, api_remote_client_id, api_remote_local_id, api_remote_trame_id)
+       VALUES (?, ?, date('now'), ?, 'en_cours', 0, ?, ?, ?, ?, ?, ?)`,
+      [id, siteId, technicien ? String(technicien).trim() || null : null, modeNormalise, trame.id,
+        localInstallationId, remoteClientId, remoteLocalId, remoteTrameId]
     );
     await db.runAsync(`INSERT OR IGNORE INTO notes (visite_id, contenu) VALUES (?, '')`, [id]);
   });
 
-  if (apiRemoteLocalId) {
+  if (remoteLocalId) {
     // Matérialiser d'abord la dernière visite réelle du local Intranet. Le
     // préremplissage standard peut ensuite repartir de cette visite historique
     // sans transformer la référence API en constat du jour.
-    await importLatestApiVisitForLocal(siteId, apiRemoteLocalId);
-    await importApiReferenceForVisit(id, apiRemoteLocalId, apiRemoteClientId);
+    await importLatestApiVisitForLocal(siteId, remoteLocalId);
+    await importApiReferenceForVisit(id, remoteLocalId, remoteClientId);
   }
+
+  // Un local créé hors connexion n'a pas encore de remoteLocalId. L'identité
+  // installation reste néanmoins figée sur la visite. Dès l'accusé serveur,
+  // intranetStructureDb complète api_remote_local_id/api_remote_trame_id sur
+  // toutes les visites rattachées à cette installation sans les recréer.
 
   // Snapshot only cached reference metadata: no network and no observation copy.
   try { await pinPhotoReferencesForVisit(id); } catch (e) { console.warn('Photo reference snapshot deferred', e); }
