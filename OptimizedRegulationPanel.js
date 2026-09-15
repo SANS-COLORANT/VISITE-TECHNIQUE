@@ -37,30 +37,36 @@ export async function prechargerRegulation(visiteId, force = false) {
 
 export function invaliderCacheRegulation(visiteId) { cacheRegulation.delete(visiteId); }
 
-const ReseauTextField = memo(function ReseauTextField({ reseauId, colonne, valeur }) {
+const ReseauTextField = memo(function ReseauTextField({ reseauId, colonne, valeur, onChangeValue }) {
   const save = useCallback(async (v) => {
     if (colonne) await upsertReseauChamp(reseauId, colonne, v);
   }, [reseauId, colonne]);
   const [texte, setTexte, flush] = useDurableAutosave(valeur ?? '', save, 400);
-  return <TextInput style={styles.input} value={texte} onChangeText={setTexte} onBlur={() => flush().catch(console.warn)} />;
+  return <TextInput style={styles.input} value={texte} onChangeText={(v) => { setTexte(v); onChangeValue?.(v); }} onBlur={() => flush().catch(console.warn)} />;
 });
 
-const ReseauCard = memo(function ReseauCard({ reseau, visiteId, onRemove }) {
+const ReseauCard = memo(function ReseauCard({ reseau, visiteId, onRemove, onPatch }) {
   const fields = useMemo(() => RESEAU_TEMPLATE.filter((f) => f.cle !== 'Nom réseau'), []);
   const [nom, setNom, flushNom] = useDurableAutosave(reseau.nom_reseau || '', async (v) => {
     await upsertReseauChamp(reseau.id, 'nom_reseau', v.trim() || 'Réseau');
   }, 450);
   const [values, setValues] = useState(() => Object.fromEntries(fields.map((f) => [f.cle, reseau[CLE_TO_COL[f.cle]] ?? ''])));
 
-  const saveField = useCallback((cle, value) => {
+  const patchField = useCallback((cle, value) => {
     setValues((old) => ({ ...old, [cle]: value }));
     const col = CLE_TO_COL[cle];
+    if (col) onPatch?.(reseau.id, { [col]: value });
+  }, [onPatch, reseau.id]);
+
+  const saveField = useCallback((cle, value) => {
+    patchField(cle, value);
+    const col = CLE_TO_COL[cle];
     if (col) upsertReseauChamp(reseau.id, col, value).catch(console.warn);
-  }, [reseau.id]);
+  }, [reseau.id, patchField]);
 
   return <View style={styles.formCard}>
     <View style={styles.reseauHeaderRow}>
-      <TextInput style={styles.reseauNomInput} value={nom} onChangeText={setNom} onBlur={() => { flushNom().catch(() => {}); }} />
+      <TextInput style={styles.reseauNomInput} value={nom} onChangeText={(v) => { setNom(v); onPatch?.(reseau.id, { nom_reseau: v }); }} onBlur={() => { flushNom().catch(() => {}); }} />
       <PhotoButton visiteId={visiteId} entiteKey={reseau.reseau_site_id ? `reseau_site||${reseau.reseau_site_id}` : `reseau||${reseau.id}`} label={nom} />
       <TouchableOpacity onPress={() => onRemove(reseau.id)}><Text style={styles.removeLink}>Retirer</Text></TouchableOpacity>
     </View>
@@ -70,7 +76,7 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, onRemove }) {
       return <View key={f.cle} style={styles.fieldBlock}>
         <Text style={styles.fieldLabel}>{cleanLabel(f.cle)}{extractUnit(f.cle) && !cfg ? ` (${extractUnit(f.cle)})` : ''}</Text>
         {cfg ? <StepperNumerique valeur={values[f.cle]} config={cfg} onChange={(v) => saveField(f.cle, v)} /> :
-          <ReseauTextField reseauId={reseau.id} colonne={col} valeur={values[f.cle]} />}
+          <ReseauTextField reseauId={reseau.id} colonne={col} valeur={values[f.cle]} onChangeValue={(v) => patchField(f.cle, v)} />}
       </View>;
     })}
   </View>;
@@ -92,6 +98,15 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
     const c = cacheRegulation.get(visiteId)?.data;
     if (c) cacheRegulation.set(visiteId, { data: { ...c, reseaux: next }, promise: null });
   }, [visiteId]);
+
+  const patchReseau = useCallback((id, patch) => {
+    setReseaux((old) => {
+      const next = old.map((r) => r.id === id ? { ...r, ...patch } : r);
+      patchCache(next);
+      return next;
+    });
+    onSaved?.();
+  }, [onSaved, patchCache]);
 
   const saveTrameField = useCallback((key, valeur) => {
     setChampsMap((old) => ({ ...old, [key]: valeur }));
@@ -141,7 +156,7 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
   return <FlatList
     data={reseaux}
     keyExtractor={(item) => item.id}
-    renderItem={({ item }) => <ReseauCard reseau={item} visiteId={visiteId} onRemove={remove} />}
+    renderItem={({ item }) => <ReseauCard reseau={item} visiteId={visiteId} onRemove={remove} onPatch={patchReseau} />}
     ListHeaderComponent={header}
     ListFooterComponent={footer}
     contentContainerStyle={styles.panelContent}
