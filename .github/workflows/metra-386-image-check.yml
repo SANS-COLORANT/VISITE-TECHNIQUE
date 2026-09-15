@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - feat/metra-classic-refresh
+      - fix/durable-visit-inputs-s-photos
   workflow_dispatch:
 
 concurrency:
