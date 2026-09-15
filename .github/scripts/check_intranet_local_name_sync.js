@@ -10,9 +10,9 @@ const migrations = read('database/migrations/index.js');
 const migration = read('database/migrations/034_intranet_local_name_sync.js');
 const cache = read('symfonyApiCacheDb.js');
 
-requireText(constants, 'DATABASE_SCHEMA_VERSION = 34', 'schema version');
+requireText(constants, 'DATABASE_SCHEMA_VERSION = 35', 'schema version');
 requireText(migrations, "import { migration034 } from './034_intranet_local_name_sync.js';", 'migration registration');
-requireText(migrations, 'migration031, migration032, migration033, migration034', 'migration ordering');
+requireText(migrations, 'migration031, migration032, migration033, migration034, migration035', 'migration ordering');
 requireText(cache, 'designation: nullableString(entry.local.designation)', 'remote LOCAL designation normalization');
 requireText(cache, 'designation=excluded.designation', 'remote LOCAL designation refresh');
 
@@ -24,4 +24,4 @@ requireText(migration, 'trg_api_local_update_sync_installation_name', 'update tr
 requireText(migration, 'AFTER UPDATE OF local_installation_id, designation ON api_local_links', 'link/designation refresh trigger');
 requireText(migration, 'SET nom = NEW.designation', 'Intranet name propagation');
 
-console.log('Intranet LOCAL name sync contract validated: imported LOCAL designation is persisted, existing mappings are aligned at v34, and future link/name refreshes update the METRA installation without replacing it with an empty name.');
+console.log('Intranet LOCAL name sync contract validated: imported LOCAL designation remains protected by migration 034; schema 035 adds structure creation without changing the name-sync guarantees.');
