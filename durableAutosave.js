@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * Autosauvegarde adaptée aux listes virtualisées.
  * - debounce pour éviter une écriture SQLite par caractère ;
  * - flush sur blur ;
- * - flush de la dernière valeur au démontage si elle n'a pas encore été écrite.
+ * - flush de la dernière valeur au démontage si elle n'a pas encore été écrite ;
+ * - resynchronisation locale sans réécriture quand un autre handler a déjà persisté la valeur.
  *
  * La fonction de sauvegarde est toujours appelée avec la valeur la plus récente,
  * même si la cellule FlatList est démontée pendant un défilement rapide.
@@ -60,6 +61,17 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 500) {
     return executerSauvegarde(true);
   }, [executerSauvegarde]);
 
+  const replacePersisted = useCallback((prochaine) => {
+    const texte = prochaine == null ? '' : String(prochaine);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    valeurRef.current = texte;
+    sauveeRef.current = texte;
+    setValeurState(texte);
+  }, []);
+
   useEffect(() => () => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (valeurRef.current !== sauveeRef.current) {
@@ -69,5 +81,5 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 500) {
     }
   }, []);
 
-  return [valeur, setValeur, flush, setImmediate];
+  return [valeur, setValeur, flush, setImmediate, replacePersisted];
 }
