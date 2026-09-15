@@ -7,6 +7,7 @@ function requireText(text, needle, label) {
 
 const constants = read('database/constants.js');
 const migrations = read('database/migrations/index.js');
+const migrator = read('database/migrate.js');
 const migration35 = read('database/migrations/035_client_site_images.js');
 const migration36 = read('database/migrations/036_intranet_visit_photo_outbox.js');
 const migration37 = read('database/migrations/037_intranet_server_schema_alignment.js');
@@ -27,8 +28,10 @@ requireText(migrations, 'migration036, migration037, migration038', 'migration o
 requireText(migration35, "name: 'client_site_images'", 'v35 must never be reused');
 requireText(migration36, "name: 'intranet_visit_photo_outbox'", 'v36 must never be reused');
 requireText(migration37, "name: 'intranet_server_schema_alignment'", 'v37 must never be reused');
+requireText(migrator, 'db.execAsync(migration.sql)', 'SQLite migration runner contract');
 requireText(migration38, 'version: 38', 'structure migration version');
 requireText(migration38, "name: 'intranet_structure_creation'", 'structure migration identity');
+requireText(migration38, 'sql: `', 'structure migration uses current SQL runner contract');
 requireText(migration38, 'api_structure_referential', 'offline referential cache');
 requireText(migration38, 'api_structure_outbox', 'structure outbox');
 requireText(migration38, 'creation_id TEXT NOT NULL UNIQUE', 'persistent idempotency key');
@@ -63,4 +66,4 @@ requireText(visitCreation, 'apiRemoteTrameId = null', 'visit keeps remote trame 
 requireText(visitCreation, 'installation_id, api_remote_client_id, api_remote_local_id, api_remote_trame_id', 'visit freezes structure identity');
 requireText(runtime, 'processStructureOutbox({ limit: 4 })', 'automatic structure retry runtime');
 
-console.log('Intranet site/local creation contract validated on canonical SQLite lineage 35->36->37->38; no shipped migration number is reused.');
+console.log('Intranet site/local creation contract validated on canonical SQLite lineage 35->36->37->38 using the active migration.sql runner; no shipped migration number is reused.');
