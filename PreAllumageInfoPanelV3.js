@@ -9,6 +9,7 @@ import {
   listerReferentielsPreAllumage,
   PREALLUMAGE_REFERENCE_CATEGORIES,
 } from './preAllumageReferenceDb.js';
+import { useDurableAutosave } from './durableAutosave.js';
 import { COLORS, styles } from './styles.js';
 
 function mapChamps(rows) { return Object.fromEntries((rows || []).map((r) => [`${r.section_code}||${r.cle}`, r.valeur])); }
@@ -77,17 +78,24 @@ function StandardField({ visiteId, sectionCode, field, value, onSaved }) {
   const label = field.displayLabel || field.libelle || field.cle;
   const estDate = field.cle === 'Date de la visite';
   const multiline = /Observations générales/i.test(field.cle) || /adresse/i.test(label);
-  const [texte, setTexte] = useState(estDate ? dateAffichee(value) : String(value || ''));
   const [error, setError] = useState(false);
-  useEffect(() => { setTexte(estDate ? dateAffichee(value) : String(value || '')); setError(false); }, [value, estDate]);
-  const save = async () => {
-    const propre = String(texte || '').trim();
-    if (estDate && !dateValide(propre)) { setError(true); return; }
+  const save = useCallback(async (raw) => {
+    const propre = String(raw || '').trim();
+    if (estDate && !dateValide(propre)) return;
     await upsertChamp(visiteId, sectionCode, field.cle, propre);
     if (estDate) await upsertChamp(visiteId, 'pa-infos.informations_g_n_rales', 'Date de visite', propre);
     onSaved(propre);
+  }, [estDate, visiteId, sectionCode, field.cle, onSaved]);
+  const [texte, setTexte, flush] = useDurableAutosave(estDate ? dateAffichee(value) : String(value || ''), save, 400);
+  const changer = (v) => {
+    setError(false);
+    setTexte(estDate ? masquerDate(v) : v);
   };
-  return <View style={{ paddingVertical: 6 }}><Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '800', marginBottom: 5 }}>{label}</Text><TextInput style={[styles.input, { minHeight: multiline ? 68 : 42, textAlignVertical: multiline ? 'top' : 'center', fontSize: 12 }, error && { borderColor: COLORS.red }]} multiline={multiline} value={texte} onChangeText={(v) => { setError(false); setTexte(estDate ? masquerDate(v) : v); }} onBlur={() => save().catch(console.warn)} keyboardType={estDate ? 'number-pad' : 'default'} placeholder={estDate ? 'JJ/MM/AAAA' : 'Saisir…'} />{error ? <Text style={{ color: COLORS.red, fontSize: 10, marginTop: 4 }}>Date attendue au format JJ/MM/AAAA.</Text> : null}</View>;
+  const blur = () => {
+    if (estDate && !dateValide(texte)) { setError(true); return; }
+    flush().catch(console.warn);
+  };
+  return <View style={{ paddingVertical: 6 }}><Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '800', marginBottom: 5 }}>{label}</Text><TextInput style={[styles.input, { minHeight: multiline ? 68 : 42, textAlignVertical: multiline ? 'top' : 'center', fontSize: 12 }, error && { borderColor: COLORS.red }]} multiline={multiline} value={texte} onChangeText={changer} onBlur={blur} keyboardType={estDate ? 'number-pad' : 'default'} placeholder={estDate ? 'JJ/MM/AAAA' : 'Saisir…'} />{error ? <Text style={{ color: COLORS.red, fontSize: 10, marginTop: 4 }}>Date attendue au format JJ/MM/AAAA.</Text> : null}</View>;
 }
 
 function grouper(items, twoCols) {
@@ -118,7 +126,7 @@ export function PreAllumageInfoPanelV3({ visiteId, onSaved }) {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([chargerPreAllumageModulaire(visiteId), getChampsVisite(visiteId), synchroniserNombreLocauxPreAllumage(visiteId), loadRefs()]).then(async ([m, c]) => {
+    Promise.all([chargerPreAllumageModulaire(visiteId), getChampsVisite(visiteId), synchroniserNombreLocauxPreAllumage(visiteId), loadRefs()]).then(async ([m]) => {
       if (!alive) return;
       setModele(m); setChamps(mapChamps(await getChampsVisite(visiteId)));
     }).catch(console.warn);
