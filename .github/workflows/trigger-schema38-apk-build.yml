@@ -20,3 +20,5 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run native-android-apk.yml -R SANS-COLORANT/VISITE-TECHNIQUE --ref "${GITHUB_REF_NAME}"
+
+# Re-dispatch after aligning migration 038 with the active migration.sql runner.
