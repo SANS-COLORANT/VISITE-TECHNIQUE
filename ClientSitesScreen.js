@@ -12,6 +12,7 @@ import { SiteGroupsManager } from './SiteGroupsManager.js';
 import { SiteRadialActionMenu } from './SiteRadialActionMenu.js';
 import { PatrimoineImageCard, PatrimoineThumbnail } from './PatrimoineImageCard.js';
 import { onPatrimoineImageChanged } from './patrimoineImageDb.js';
+import { IntranetSiteCreationModal } from './IntranetStructureUi.js';
 
 const adresseVide = () => ({ numero: '', voie: '', complement: '', codePostal: '', ville: '' });
 
@@ -21,6 +22,7 @@ function ClientSitesScreen({ route, navigation }) {
   const { clientId, nomClient } = route?.params || {};
   const [sites, setSites] = useState(() => CLIENT_SITES_FAST_CACHE.get(String(clientId || '')) || []);
   const [modalVisible, setModalVisible] = useState(false);
+  const [intranetSiteVisible, setIntranetSiteVisible] = useState(false);
   const [groupesVisible, setGroupesVisible] = useState(false);
   const [radialMenu, setRadialMenu] = useState(null);
   const [renameSite, setRenameSite] = useState(null);
@@ -66,6 +68,10 @@ function ClientSitesScreen({ route, navigation }) {
   };
 
   const ouvrirSite = (site) => navigation.navigate('SiteVisites', { siteId: site.id, nomSite: site.nom_site });
+  const ouvrirStructure = (event, site) => {
+    event?.stopPropagation?.();
+    navigation.navigate('IntranetStructure', { siteId: site.id, nomSite: site.nom_site, clientId, nomClient });
+  };
 
   const confirmerSuppressionSite = async (site) => {
     try {
@@ -141,7 +147,11 @@ function ClientSitesScreen({ route, navigation }) {
           <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => navigation.navigate('ClientMap', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>🗺 Carte</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => setGroupesVisible(true)} disabled={!sites.length}><Text style={styles.btnSecondaryText}>▦ Groupes</Text></TouchableOpacity>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}><TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setModalVisible(true)}><Text style={styles.btnPrimaryText}>+ Ajouter</Text></TouchableOpacity><TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnPrimaryText}>📄 Documents</Text></TouchableOpacity></View>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+          <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setModalVisible(true)}><Text style={styles.btnPrimaryText}>+ Site local</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setIntranetSiteVisible(true)}><Text style={styles.btnPrimaryText}>+ Site Intranet</Text></TouchableOpacity>
+        </View>
+        <TouchableOpacity style={[styles.btnSecondary, { marginBottom: 12 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>📄 Documents</Text></TouchableOpacity>
 
         {sansAdresse > 0 ? <View style={{ backgroundColor: '#FFF8E7', borderWidth: 1, borderColor: '#F0D99B', borderRadius: 12, padding: 10, marginBottom: 14 }}><Text style={{ color: '#7A5700', fontSize: 12, fontWeight: '700' }}>{sansAdresse} site(s) sans adresse complète</Text></View> : null}
         <View style={styles.sectionHeaderRow}><Text style={styles.sectionLabel}>Sites</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>{sites.length}</Text></View>
@@ -149,13 +159,16 @@ function ClientSitesScreen({ route, navigation }) {
       renderItem={({ item }) => <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => ouvrirSite(item)}>
         <PatrimoineThumbnail uri={item.image_uri} size={60} radius={10} />
         <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom_site}</Text>{item.adresse ? <Text style={styles.cardSub}>{item.adresse}</Text> : <Text style={{ color: '#A26A00', fontSize: 12 }}>Adresse à renseigner</Text>}{item.localisation_note ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 4 }}>{item.localisation_note}</Text> : null}</View>
+        <TouchableOpacity onPress={(e) => ouvrirStructure(e, item)} style={{ minHeight: 38, paddingHorizontal: 9, borderRadius: 10, borderWidth: 1, borderColor: COLORS.line, justifyContent: 'center', marginRight: 6 }}><Text style={{ color: COLORS.primary, fontSize: 10.5, fontWeight: '900' }}>Locaux Intranet</Text></TouchableOpacity>
         <View style={[styles.badge, item.statut === 'Actif' ? styles.badgeActif : styles.badgeInactif]}><Text style={[styles.badgeText, item.statut === 'Actif' ? styles.badgeTextActif : styles.badgeTextInactif]}>{item.statut || 'Actif'}</Text></View>
         <TouchableOpacity onPress={(e) => ouvrirMenuSite(e, item)} style={{ minWidth: 46, minHeight: 46, alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}><Text style={{ color: COLORS.inkSoft, fontSize: 22, fontWeight: '900' }}>⋯</Text></TouchableOpacity>
       </TouchableOpacity>}
       ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucun site pour ce client.</Text></View>}
     />
 
-    <Modal visible={modalVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Nouveau site</Text><TextInput style={styles.input} placeholder="Nom du site" value={nouveauNom} onChangeText={setNouveauNom}/><View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}><TextInput style={[styles.input, { width: 84 }]} placeholder="N°" value={nouvelleAdresse.numero} keyboardType="numbers-and-punctuation" onChangeText={(v) => patchNouvelleAdresse({ numero: v })}/><TextInput style={[styles.input, { flex: 1 }]} placeholder="Rue / avenue / voie" value={nouvelleAdresse.voie} onChangeText={(v) => patchNouvelleAdresse({ voie: v })}/></View><TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Complément : bâtiment, entrée…" value={nouvelleAdresse.complement} onChangeText={(v) => patchNouvelleAdresse({ complement: v })}/><View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}><TextInput style={[styles.input, { width: 120 }]} placeholder="Code postal" value={nouvelleAdresse.codePostal} keyboardType="number-pad" maxLength={5} onChangeText={(v) => patchNouvelleAdresse({ codePostal: v.replace(/\D/g, '').slice(0, 5) })}/><TextInput style={[styles.input, { flex: 1 }]} placeholder="Ville" value={nouvelleAdresse.ville} onChangeText={(v) => patchNouvelleAdresse({ ville: v })}/></View><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setModalVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={ajouterSiteFn}><Text style={styles.btnPrimaryText}>Créer</Text></TouchableOpacity></View></View></View></Modal>
+    <Modal visible={modalVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Nouveau site local</Text><Text style={{ color: COLORS.muted, fontSize: 11.5, marginBottom: 10 }}>Ce bouton crée uniquement un site dans la base locale METRA. Utilise « Site Intranet » pour créer aussi la structure serveur.</Text><TextInput style={styles.input} placeholder="Nom du site" value={nouveauNom} onChangeText={setNouveauNom}/><View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}><TextInput style={[styles.input, { width: 84 }]} placeholder="N°" value={nouvelleAdresse.numero} keyboardType="numbers-and-punctuation" onChangeText={(v) => patchNouvelleAdresse({ numero: v })}/><TextInput style={[styles.input, { flex: 1 }]} placeholder="Rue / avenue / voie" value={nouvelleAdresse.voie} onChangeText={(v) => patchNouvelleAdresse({ voie: v })}/></View><TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Complément : bâtiment, entrée…" value={nouvelleAdresse.complement} onChangeText={(v) => patchNouvelleAdresse({ complement: v })}/><View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}><TextInput style={[styles.input, { width: 120 }]} placeholder="Code postal" value={nouvelleAdresse.codePostal} keyboardType="number-pad" maxLength={5} onChangeText={(v) => patchNouvelleAdresse({ codePostal: v.replace(/\D/g, '').slice(0, 5) })}/><TextInput style={[styles.input, { flex: 1 }]} placeholder="Ville" value={nouvelleAdresse.ville} onChangeText={(v) => patchNouvelleAdresse({ ville: v })}/></View><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setModalVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={ajouterSiteFn}><Text style={styles.btnPrimaryText}>Créer</Text></TouchableOpacity></View></View></View></Modal>
+
+    <IntranetSiteCreationModal visible={intranetSiteVisible} clientId={clientId} onClose={() => setIntranetSiteVisible(false)} onCreated={charger} />
 
     <Modal visible={!!renameSite} transparent animationType="fade" onRequestClose={() => setRenameSite(null)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Renommer le site</Text><TextInput autoFocus style={styles.input} value={renameValue} onChangeText={setRenameValue} selectTextOnFocus/><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setRenameSite(null)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerRenommage}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></View></View></Modal>
 
