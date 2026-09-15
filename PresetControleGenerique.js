@@ -5,6 +5,7 @@ import { COLORS, styles } from './styles.js';
 import { upsertControlePartiel } from './controlDb.js';
 import { listerRemarquesVisite, upsertRemarquePrescription, supprimerRemarqueControle } from './remarkDb.js';
 import { PhotoButton } from './PhotoButton.js';
+import { useDurableAutosave } from './durableAutosave.js';
 
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
 
@@ -34,17 +35,46 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
   const label = displayLabel || field.cle;
   const trameLabel = field.trameLabel || (field.preAllumage ? 'Pré-allumage' : 'Visite');
   const [avis, setAvis] = useState(etatInitial?.avis || null);
-  const [commentaire, setCommentaire] = useState(etatInitial?.commentaire || '');
   const [remarque, setRemarque] = useState(null);
   const [presetChoisi, setPresetChoisi] = useState(null);
   const presets = useMemo(() => field?.presets || {}, [field]);
   const options = avis ? (presets[avis] || []) : [];
   const palette = palettePanel(avis);
 
+  const notifier = useCallback((patch) => {
+    onEtatChange?.(patch);
+    onSaved?.();
+  }, [onEtatChange, onSaved]);
+
+  const sauvegarderCommentaire = useCallback(async (raw) => {
+    const texte = String(raw || '').trim();
+    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis, commentaire: texte });
+    if (avis === 'N.S') {
+      const prescription = {
+        poste: remarque?.poste || field.poste || trameLabel,
+        prestation: texte || `Anomalie constatée sur ${label} — à préciser.`,
+        delai: remarque?.delai ?? null,
+        estimatif: remarque?.estimatif ?? null,
+      };
+      const origine = `${trameLabel} — ${label} — Autre`;
+      const id = await upsertRemarquePrescription(visiteId, controleKey, prescription, origine);
+      setRemarque({ ...(remarque || {}), id, visite_id: visiteId, controle_key: controleKey, origine, ...prescription });
+    } else {
+      await supprimerRemarqueControle(visiteId, controleKey);
+      setRemarque(null);
+    }
+    notifier({ avis, commentaire: texte });
+  }, [visiteId, sectionCode, field, label, trameLabel, controleKey, avis, remarque, notifier]);
+
+  const [commentaire, setCommentaire, flushCommentaire, , replaceCommentairePersisted] = useDurableAutosave(
+    etatInitial?.commentaire || '',
+    sauvegarderCommentaire,
+    350
+  );
+
   useEffect(() => {
     setAvis(etatInitial?.avis || null);
-    setCommentaire(etatInitial?.commentaire || '');
-  }, [etatInitial?.avis, etatInitial?.commentaire]);
+  }, [etatInitial?.avis]);
 
   useEffect(() => {
     let alive = true;
@@ -61,15 +91,10 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
     setPresetChoisi(idx >= 0 ? idx : null);
   }, [avis, commentaire, presets]);
 
-  const notifier = useCallback((patch) => {
-    onEtatChange?.(patch);
-    onSaved?.();
-  }, [onEtatChange, onSaved]);
-
   const appliquerPreset = useCallback(async (val, opt, idx = 0) => {
     const texte = opt?.commentaire || '';
     setPresetChoisi(idx);
-    setCommentaire(texte);
+    replaceCommentairePersisted(texte);
     await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: texte });
     if (val === 'N.S') {
       const prescription = {
@@ -86,7 +111,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
       setRemarque(null);
     }
     notifier({ avis: val, commentaire: texte });
-  }, [visiteId, sectionCode, field, label, trameLabel, controleKey, notifier]);
+  }, [visiteId, sectionCode, field, label, trameLabel, controleKey, notifier, replaceCommentairePersisted]);
 
   const choisirAvis = useCallback(async (val) => {
     if (val === avis) return;
@@ -97,7 +122,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
       await appliquerPreset(val, valOptions[0], 0);
       return;
     }
-    setCommentaire('');
+    replaceCommentairePersisted('');
     await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: '' });
     if (val === 'N.S') {
       const prescription = { poste: field.poste || trameLabel, prestation: `Anomalie constatée sur ${label} — à préciser.`, delai: null, estimatif: null };
@@ -109,24 +134,9 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
       setRemarque(null);
     }
     notifier({ avis: val, commentaire: '' });
-  }, [avis, presets, appliquerPreset, visiteId, sectionCode, field, label, trameLabel, controleKey, notifier]);
+  }, [avis, presets, appliquerPreset, visiteId, sectionCode, field, label, trameLabel, controleKey, notifier, replaceCommentairePersisted]);
 
   const choisirPreset = useCallback(async (opt, idx) => appliquerPreset(avis, opt, idx), [avis, appliquerPreset]);
-
-  const sauverLibre = useCallback(async () => {
-    const texte = String(commentaire || '').trim();
-    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis, commentaire: texte });
-    if (avis === 'N.S') {
-      const prescription = { poste: remarque?.poste || field.poste || trameLabel, prestation: texte || `Anomalie constatée sur ${label} — à préciser.`, delai: remarque?.delai ?? null, estimatif: remarque?.estimatif ?? null };
-      const origine = `${trameLabel} — ${label} — Autre`;
-      const id = await upsertRemarquePrescription(visiteId, controleKey, prescription, origine);
-      setRemarque({ ...(remarque || {}), id, visite_id: visiteId, controle_key: controleKey, origine, ...prescription });
-    } else {
-      await supprimerRemarqueControle(visiteId, controleKey);
-      setRemarque(null);
-    }
-    notifier({ avis, commentaire: texte });
-  }, [visiteId, sectionCode, field, label, trameLabel, controleKey, avis, commentaire, remarque, notifier]);
 
   return <View style={styles.controlRow}>
     <View style={styles.controlTop}>
@@ -152,9 +162,9 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
           </TouchableOpacity>)}
         </View>
       </>}
-      <TextInput style={[styles.input, { marginTop: 8, minHeight: 64, textAlignVertical: 'top', backgroundColor: '#fff' }]} multiline value={commentaire} onChangeText={(v) => { setCommentaire(v); setPresetChoisi(null); }} onBlur={() => sauverLibre().catch(console.warn)} placeholder="Commentaire technique…" />
+      <TextInput style={[styles.input, { marginTop: 8, minHeight: 64, textAlignVertical: 'top', backgroundColor: '#fff' }]} multiline value={commentaire} onChangeText={(v) => { setCommentaire(v); setPresetChoisi(null); }} onBlur={() => flushCommentaire().catch(console.warn)} placeholder="Commentaire technique…" />
       {avis === 'N.S' && remarque ? <View style={styles.prestationResult}><Text style={styles.criterePanelLabel}>Réserve de cette visite</Text><Text style={styles.prestationText}>{remarque.prestation}</Text></View> : null}
-      {avis === 'N.S' ? <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={label} style={styles.photoRequiredBox} /> : null}
+      {(avis === 'N.S' || avis === 'S') ? <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={label} beforeCapture={avis === 'S' ? () => ({ entiteKey: controleKey, label }) : undefined} style={avis === 'N.S' ? styles.photoRequiredBox : undefined} /> : null}
     </View>}
   </View>;
 });
