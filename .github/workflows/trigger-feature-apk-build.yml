@@ -1,0 +1,22 @@
+name: Trigger feature APK build
+
+on:
+  push:
+    branches:
+      - feat/metra-create-sites-locaux-build386
+    paths:
+      - '.github/workflows/trigger-feature-apk-build.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch APK workflow on this branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run native-android-apk.yml --ref "${GITHUB_REF_NAME}"
