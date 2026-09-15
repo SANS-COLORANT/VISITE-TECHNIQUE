@@ -82,6 +82,7 @@ const JS_SYNTAX_FILES = [
   'database/migrations/036_intranet_visit_photo_outbox.js',
   'database/migrations/037_intranet_server_schema_alignment.js',
   'database/migrations/038_intranet_structure_creation.js',
+  'database/migrations/039_intranet_structure_outbox_alignment.js',
   'symfonyApi.js',
   'database/migrations/031_latest_visit_photos.js',
   'database/migrations/032_photo_reference_workflow.js',
