@@ -10,8 +10,9 @@ import {
   supprimerCompteur,
   upsertCompteurChamp,
 } from './db.js';
-import { cleanLabel, useSaisieAvecAutoSave } from './GenericFields.js';
+import { cleanLabel } from './GenericFields.js';
 import { DurableChampGenerique } from './DurableChampGenerique.js';
+import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 
 const COMPTEUR_TYPES = [
@@ -30,14 +31,16 @@ function mapperChamps(rows = []) {
 }
 
 const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRemove }) {
-  const [label, setLabel, surBlurLabel] = useSaisieAvecAutoSave(
+  const [label, setLabel, flushLabel] = useDurableAutosave(
     compteur.label,
-    (v) => upsertCompteurChamp(compteur.id, 'label', v)
+    (v) => upsertCompteurChamp(compteur.id, 'label', v),
+    450
   );
   const [unite, setUnite] = useState(compteur.unite || 'm³');
-  const [valeur, setValeur, surBlurValeur] = useSaisieAvecAutoSave(
+  const [valeur, setValeur, flushValeur] = useDurableAutosave(
     compteur.valeur,
-    (v) => upsertCompteurChamp(compteur.id, 'valeur', v)
+    (v) => upsertCompteurChamp(compteur.id, 'valeur', v),
+    450
   );
 
   useEffect(() => { setUnite(compteur.unite || 'm³'); }, [compteur.unite]);
@@ -52,7 +55,7 @@ const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRe
     <View style={styles.compteurRow}>
       <View style={styles.compteurRowTop}>
         <View style={{ flex: 1 }}>
-          <TextInput style={styles.input} value={label} onChangeText={setLabel} onBlur={surBlurLabel} placeholder="Nom du compteur" />
+          <TextInput style={styles.input} value={label} onChangeText={setLabel} onBlur={() => flushLabel().catch(console.warn)} placeholder="Nom du compteur" />
         </View>
         <PhotoButton visiteId={visiteId} entiteKey={compteur.compteur_site_id ? `compteur_site||${compteur.compteur_site_id}` : `compteur||${compteur.id}`} label={label || 'Compteur'} />
         <TouchableOpacity onPress={retirer}><Text style={styles.removeLink}>Retirer</Text></TouchableOpacity>
@@ -63,7 +66,7 @@ const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRe
         </View>
       )}
       <View style={styles.compteurRowBody}>
-        <TextInput style={styles.compteurValInput} value={valeur} onChangeText={setValeur} onBlur={surBlurValeur} placeholder="Valeur relevée" keyboardType="numeric" />
+        <TextInput style={styles.compteurValInput} value={valeur} onChangeText={setValeur} onBlur={() => flushValeur().catch(console.warn)} placeholder="Valeur relevée" keyboardType="numeric" />
         <View style={styles.uniteRow}>
           {UNITES.map((u) => (
             <TouchableOpacity key={u} style={[styles.uniteChip, unite === u && styles.uniteChipSelected]} onPress={() => {
