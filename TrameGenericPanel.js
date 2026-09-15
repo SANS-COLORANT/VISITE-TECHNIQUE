@@ -128,7 +128,7 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved }) {
         {item.field.type === 'champ' ? <DurableChampGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} valeurInitiale={champsMap[item.key]} displayLabel={labelPhoto} onRename={item.field.renamable ? (v) => sauverAlias(fieldAliasKey(item.sectionCode, item.field.cle), v, item.field.cle) : null} onSaved={(valeur) => {
           setChampsMap((courant) => ({ ...courant, [item.key]: valeur })); mettreAJourCacheChamp(visiteId, item.key, valeur); onSaved?.();
         }} /> : item.field.vmc === true ? <VmcControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={etat} onEtatChange={(patch) => patchControle(item.key, patch)} onSaved={onSaved} /> : item.field.presets ? <PresetControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={etat} onEtatChange={(patch) => patchControle(item.key, patch)} onSaved={onSaved} /> : <PersistentControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={etat} onEtatChange={(patch) => patchControle(item.key, patch)} onSaved={onSaved} />}
-        {item.field.type !== 'champ' && item.field.vmc !== true && etat?.avis === 'S' ? <View style={{ marginTop: 8 }}>
+        {item.field.type !== 'champ' && item.field.vmc !== true && !item.field.presets && etat?.avis === 'S' ? <View style={{ marginTop: 8 }}>
           <PhotoButton
             visiteId={visiteId}
             entiteKey={item.key}
