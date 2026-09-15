@@ -39,12 +39,11 @@ export async function creerVisiteProduction({
     await db.runAsync(`INSERT OR IGNORE INTO notes (visite_id, contenu) VALUES (?, '')`, [id]);
   });
 
-  if (remoteLocalId) {
-    // Matérialiser d'abord la dernière visite réelle du local Intranet. Le
-    // préremplissage standard peut ensuite repartir de cette visite historique
-    // sans transformer la référence API en constat du jour.
-    await importLatestApiVisitForLocal(siteId, remoteLocalId);
-    await importApiReferenceForVisit(id, remoteLocalId, remoteClientId);
+  if (apiRemoteLocalId) {
+    // Conserve volontairement cet ordre : la dernière visite réelle est d'abord
+    // matérialisée, puis la référence courante est liée à la nouvelle visite.
+    await importLatestApiVisitForLocal(siteId, apiRemoteLocalId);
+    await importApiReferenceForVisit(id, apiRemoteLocalId, apiRemoteClientId);
   }
 
   // Un local créé hors connexion n'a pas encore de remoteLocalId. L'identité
