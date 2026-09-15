@@ -30,7 +30,7 @@ function mapperChamps(rows = []) {
   return map;
 }
 
-const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRemove }) {
+const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRemove, onPatch }) {
   const [label, setLabel, flushLabel] = useDurableAutosave(
     compteur.label,
     (v) => upsertCompteurChamp(compteur.id, 'label', v),
@@ -55,7 +55,7 @@ const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRe
     <View style={styles.compteurRow}>
       <View style={styles.compteurRowTop}>
         <View style={{ flex: 1 }}>
-          <TextInput style={styles.input} value={label} onChangeText={setLabel} onBlur={() => flushLabel().catch(console.warn)} placeholder="Nom du compteur" />
+          <TextInput style={styles.input} value={label} onChangeText={(v) => { setLabel(v); onPatch?.(compteur.id, { label: v }); }} onBlur={() => flushLabel().catch(console.warn)} placeholder="Nom du compteur" />
         </View>
         <PhotoButton visiteId={visiteId} entiteKey={compteur.compteur_site_id ? `compteur_site||${compteur.compteur_site_id}` : `compteur||${compteur.id}`} label={label || 'Compteur'} />
         <TouchableOpacity onPress={retirer}><Text style={styles.removeLink}>Retirer</Text></TouchableOpacity>
@@ -66,11 +66,12 @@ const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRe
         </View>
       )}
       <View style={styles.compteurRowBody}>
-        <TextInput style={styles.compteurValInput} value={valeur} onChangeText={setValeur} onBlur={() => flushValeur().catch(console.warn)} placeholder="Valeur relevée" keyboardType="numeric" />
+        <TextInput style={styles.compteurValInput} value={valeur} onChangeText={(v) => { setValeur(v); onPatch?.(compteur.id, { valeur: v }); }} onBlur={() => flushValeur().catch(console.warn)} placeholder="Valeur relevée" keyboardType="numeric" />
         <View style={styles.uniteRow}>
           {UNITES.map((u) => (
             <TouchableOpacity key={u} style={[styles.uniteChip, unite === u && styles.uniteChipSelected]} onPress={() => {
               setUnite(u);
+              onPatch?.(compteur.id, { unite: u });
               upsertCompteurChamp(compteur.id, 'unite', u).catch((e) => console.warn('Unité compteur non sauvegardée', e));
             }}>
               <Text style={[styles.uniteChipText, unite === u && styles.uniteChipTextSelected]}>{u}</Text>
@@ -137,6 +138,10 @@ export function OptimizedRelevesPanel({ visiteId, onSaved }) {
   };
 
   const retirerLocalement = useCallback((id) => setCompteurs((courants) => courants.filter((c) => c.id !== id)), []);
+  const patchCompteur = useCallback((id, patch) => {
+    setCompteurs((courants) => courants.map((c) => c.id === id ? { ...c, ...patch } : c));
+    onSaved?.();
+  }, [onSaved]);
 
   const rows = useMemo(() => {
     const result = [];
@@ -163,7 +168,7 @@ export function OptimizedRelevesPanel({ visiteId, onSaved }) {
       ListHeaderComponent={<Text style={styles.sectionTitle}>Pressions</Text>}
       renderItem={({ item }) => {
         if (item.type === 'titre') return <Text style={styles.sectionTitle}>{item.label}</Text>;
-        if (item.type === 'compteur') return <CompteurCard compteur={item.compteur} visiteId={visiteId} onRemove={retirerLocalement} />;
+        if (item.type === 'compteur') return <CompteurCard compteur={item.compteur} visiteId={visiteId} onRemove={retirerLocalement} onPatch={patchCompteur} />;
         if (item.type === 'ajout') return <TouchableOpacity style={styles.addBtn} onPress={ouvrirAjoutCompteur}><Text style={styles.addBtnText}>+ Ajouter un compteur</Text></TouchableOpacity>;
         const key = `${item.section}||${item.field.cle}`;
         return <View style={styles.formCard}><DurableChampGenerique visiteId={visiteId} sectionCode={item.section} field={item.field} valeurInitiale={champsMap[key]} onSaved={(v) => {
