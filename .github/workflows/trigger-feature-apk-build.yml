@@ -19,4 +19,4 @@ jobs:
       - name: Dispatch APK workflow on this branch
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh workflow run native-android-apk.yml --ref "${GITHUB_REF_NAME}"
+        run: gh workflow run native-android-apk.yml -R SANS-COLORANT/VISITE-TECHNIQUE --ref "${GITHUB_REF_NAME}"
