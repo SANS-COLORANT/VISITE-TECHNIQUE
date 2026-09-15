@@ -4,7 +4,9 @@ import { useCallback, useEffect, useRef, useState } from 'react';
  * Autosauvegarde adaptée aux listes virtualisées.
  * - debounce pour éviter une écriture SQLite par caractère ;
  * - flush sur blur ;
- * - flush de la dernière valeur au démontage si elle n'a pas encore été écrite.
+ * - flush de la dernière valeur au démontage si elle n'a pas encore été écrite ;
+ * - resynchronisation locale sans réécriture quand un autre handler a déjà persisté la valeur ;
+ * - une valeur renvoyée immédiatement par le parent ne marque jamais une saisie locale encore sale comme sauvegardée.
  *
  * La fonction de sauvegarde est toujours appelée avec la valeur la plus récente,
  * même si la cellule FlatList est démontée pendant un défilement rapide.
@@ -21,6 +23,13 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 500) {
 
   useEffect(() => {
     const prochaine = valeurInitiale == null ? '' : String(valeurInitiale);
+    // Cas fréquent : le parent reflète immédiatement la valeur que l'utilisateur
+    // vient de saisir. Ne surtout pas la considérer comme déjà persistée, sinon le
+    // debounce serait neutralisé avant l'écriture SQLite.
+    if (prochaine === valeurRef.current) return;
+    // Si une saisie locale attend encore sa sauvegarde, elle reste prioritaire sur
+    // une valeur externe plus ancienne reçue pendant une virtualisation/re-render.
+    if (valeurRef.current !== sauveeRef.current) return;
     valeurRef.current = prochaine;
     sauveeRef.current = prochaine;
     setValeurState(prochaine);
@@ -33,10 +42,12 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 500) {
     }
     const courante = valeurRef.current;
     if (!force && courante === sauveeRef.current) return Promise.resolve();
+    const precedenteSauvee = sauveeRef.current;
     sauveeRef.current = courante;
     return Promise.resolve(saveRef.current?.(courante)).catch((error) => {
-      // Autorise une nouvelle tentative au prochain changement/blur si l'écriture échoue.
-      sauveeRef.current = Symbol('save-failed');
+      // Réouvre l'état sale pour permettre une nouvelle tentative au prochain
+      // changement, blur ou démontage.
+      sauveeRef.current = precedenteSauvee;
       throw error;
     });
   }, []);
@@ -60,14 +71,25 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 500) {
     return executerSauvegarde(true);
   }, [executerSauvegarde]);
 
+  const replacePersisted = useCallback((prochaine) => {
+    const texte = prochaine == null ? '' : String(prochaine);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    valeurRef.current = texte;
+    sauveeRef.current = texte;
+    setValeurState(texte);
+  }, []);
+
   useEffect(() => () => {
     if (timerRef.current) clearTimeout(timerRef.current);
     if (valeurRef.current !== sauveeRef.current) {
-      // Ne pas attendre ici : React ne sait pas attendre un cleanup asynchrone,
-      // mais l'écriture SQLite est tout de même déclenchée avant destruction du hook.
+      // React n'attend pas un cleanup asynchrone, mais l'écriture est déclenchée
+      // avant destruction de la cellule virtualisée.
       Promise.resolve(saveRef.current?.(valeurRef.current)).catch(() => {});
     }
   }, []);
 
-  return [valeur, setValeur, flush, setImmediate];
+  return [valeur, setValeur, flush, setImmediate, replacePersisted];
 }

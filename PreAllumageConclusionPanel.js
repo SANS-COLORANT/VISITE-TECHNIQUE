@@ -5,6 +5,7 @@ import { getChampsVisite, upsertChamp } from './db.js';
 import { listerRemarquesVisite } from './remarkDb.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
 import { reserveSeverityLabel } from './reserveSeverity.js';
+import { useDurableAutosave } from './durableAutosave.js';
 import { COLORS, styles } from './styles.js';
 
 function mapChamps(rows) { return Object.fromEntries((rows || []).map((r) => [`${r.section_code}||${r.cle}`, r.valeur])); }
@@ -31,10 +32,13 @@ function ligneSynthese(g) {
 }
 
 function LongField({ visiteId, sectionCode, label, storageKey, value, onSaved }) {
-  const [text, setText] = useState(String(value || ''));
-  useEffect(() => { setText(String(value || '')); }, [value]);
-  const save = async () => { await upsertChamp(visiteId, sectionCode, storageKey, text); onSaved(text); };
-  return <View style={{ backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 10, padding: 10, marginBottom: 7 }}><Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '900', marginBottom: 6 }}>{label}</Text><TextInput multiline value={text} onChangeText={setText} onBlur={() => save().catch(console.warn)} placeholder="Saisir ou compléter…" style={[styles.input, { minHeight: /Conclusion libre/i.test(label) ? 130 : 82, textAlignVertical: 'top', fontSize: 12 }]} /></View>;
+  const save = useCallback(async (raw) => {
+    const texte = String(raw || '');
+    await upsertChamp(visiteId, sectionCode, storageKey, texte);
+    onSaved(texte);
+  }, [visiteId, sectionCode, storageKey, onSaved]);
+  const [text, setText, flush] = useDurableAutosave(value, save, 400);
+  return <View style={{ backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 10, padding: 10, marginBottom: 7 }}><Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '900', marginBottom: 6 }}>{label}</Text><TextInput multiline value={text} onChangeText={setText} onBlur={() => flush().catch(console.warn)} placeholder="Saisir ou compléter…" style={[styles.input, { minHeight: /Conclusion libre/i.test(label) ? 130 : 82, textAlignVertical: 'top', fontSize: 12 }]} /></View>;
 }
 
 export function PreAllumageConclusionPanel({ visiteId, onSaved }) {

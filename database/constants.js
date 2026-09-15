@@ -1,8 +1,9 @@
 export const DATABASE_NAME = 'visite_technique.db';
 
 // Keep this value aligned with the highest migration registered in
-// database/migrations/index.js. Migration 036 adds durable per-photo Intranet synchronization.
-export const DATABASE_SCHEMA_VERSION = 36;
+// database/migrations/index.js. Migration 038 adds offline client/site cover images
+// after the Intranet content-revision/photo-outbox and server-schema migrations.
+export const DATABASE_SCHEMA_VERSION = 38;
 
 export const ENTITY_TYPES = Object.freeze({
   CLIENT: 'client',

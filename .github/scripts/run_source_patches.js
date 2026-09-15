@@ -22,6 +22,7 @@ const CONTRACT_CHECKS = [
   ['Intranet any-visit binding executable tests', '.github/scripts/test_intranet_any_visit_binding.js'],
   ['Intranet focused upload audit', '.github/scripts/test_intranet_visit_upload_audit.js'],
   ['photo workflow executable regression tests', '.github/scripts/test_photo_workflow.js'],
+  ['N.S free comment persistence', '.github/scripts/check_ns_comment_persistence.js'],
 ];
 
 const JS_SYNTAX_FILES = [
@@ -78,9 +79,25 @@ const JS_SYNTAX_FILES = [
   'database/migrations/034_intranet_local_name_sync.js',
   'database/migrations/035_intranet_content_revision.js',
   'database/migrations/036_intranet_photo_outbox.js',
+  'database/migrations/037_intranet_server_schema_alignment.js',
+  'database/migrations/038_client_site_images.js',
   'symfonyApi.js',
   'database/migrations/031_latest_visit_photos.js',
   'database/migrations/032_photo_reference_workflow.js',
+  'durableAutosave.js',
+  'OptimizedRegulationPanel.js',
+  'OptimizedRelevesPanel.js',
+  'PersistentControleGenerique.js',
+  'PreAllumageCompactControl.js',
+  'PreAllumageConclusionPanel.js',
+  'PreAllumageInfoPanelV3.js',
+  'PreAllumagePhotoButton.js',
+  'PresetControleGenerique.js',
+  'TrameGenericPanel.js',
+  'VmcControleGenerique.js',
+  'PatrimoineImageCard.js',
+  'patrimoineImageDb.js',
+  'patrimoineImageStorage.js',
 ];
 
 function runNode(args, label) {

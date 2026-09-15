@@ -55,3 +55,9 @@ run_patch('.github/scripts/patch_preallumage_swipe_performance.py')
 run_patch('.github/scripts/patch_visit_creation_export_type_v2.py')
 # Doit rester après les patches qui réécrivent le loader de VisiteScreen.
 run_patch('.github/scripts/patch_visit_open_fail_safe.py')
+# Réapplique en dernier les garde-fous validés sur tablette : persistance durable
+# des saisies virtualisées et cohérence des contrôles/photos.
+run_patch('.github/scripts/patch_runtime_regressions.py')
+# Aligne enfin le cache Symfony sur le schéma serveur confirmé sans inventer de
+# nouvelle route API.
+run_patch('.github/scripts/patch_intranet_sql_cache_alignment.py')

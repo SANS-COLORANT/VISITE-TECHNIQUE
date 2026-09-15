@@ -37,6 +37,16 @@ export async function prechargerRegulation(visiteId, force = false) {
 
 export function invaliderCacheRegulation(visiteId) { cacheRegulation.delete(visiteId); }
 
+const ReseauTextField = memo(function ReseauTextField({ reseauId, colonne, valeur, onSaved }) {
+  const save = useCallback(async (v) => {
+    if (!colonne) return;
+    await upsertReseauChamp(reseauId, colonne, v);
+    onSaved?.();
+  }, [reseauId, colonne, onSaved]);
+  const [texte, setTexte, flush] = useDurableAutosave(valeur ?? '', save, 400);
+  return <TextInput style={styles.input} value={texte} onChangeText={setTexte} onBlur={() => flush().catch(console.warn)} />;
+});
+
 const ReseauCard = memo(function ReseauCard({ reseau, visiteId, onRemove, onSaved }) {
   const fields = useMemo(() => RESEAU_TEMPLATE.filter((f) => f.cle !== 'Nom réseau'), []);
   const [nom, setNom, flushNom] = useDurableAutosave(reseau.nom_reseau || '', async (v) => {
@@ -59,10 +69,11 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, onRemove, onSave
     </View>
     {fields.map((f) => {
       const cfg = getNumericConfig(f.cle);
+      const col = CLE_TO_COL[f.cle];
       return <View key={f.cle} style={styles.fieldBlock}>
         <Text style={styles.fieldLabel}>{cleanLabel(f.cle)}{extractUnit(f.cle) && !cfg ? ` (${extractUnit(f.cle)})` : ''}</Text>
         {cfg ? <StepperNumerique valeur={values[f.cle]} config={cfg} onChange={(v) => saveField(f.cle, v)} /> :
-          <TextInput style={styles.input} value={String(values[f.cle] ?? '')} onChangeText={(t) => setValues((v) => ({ ...v, [f.cle]: t }))} onBlur={() => saveField(f.cle, values[f.cle])} />}
+          <ReseauTextField reseauId={reseau.id} colonne={col} valeur={values[f.cle]} onSaved={onSaved} />}
       </View>;
     })}
   </View>;
