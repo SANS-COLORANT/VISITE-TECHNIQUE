@@ -1,12 +1,12 @@
 /** Écran Accueil. */
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView } from 'react-native';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView, PanResponder } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
 import { PatrimoineThumbnail } from './PatrimoineImageCard.js';
 import { onPatrimoineImageChanged } from './patrimoineImageDb.js';
-import { unlockMissionsLab } from './featureSettings.js';
+import { MISSION_COLORS } from './missionTheme.js';
 
 const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
@@ -39,17 +39,20 @@ function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
     if (change?.type === 'client') charger().catch(() => {});
   }), [charger]);
 
+  const missionsSwipeResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gesture) => (
+      missionsEnabled
+      && gesture.dx > 22
+      && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.45
+    ),
+    onPanResponderTerminationRequest: () => true,
+    onPanResponderRelease: (_, gesture) => {
+      if (missionsEnabled && gesture.dx > 85) navigation.navigate('Missions', { enteredBySwipe: true });
+    },
+  }), [missionsEnabled, navigation]);
+
   const onRefresh = async () => { setRefreshing(true); await charger(); setRefreshing(false); };
   const openDirectory = () => navigation.navigate('MetraDirectory', { query: quickSearch.trim() });
-
-  const ouvrirLab = () => navigation.navigate('LabMetra');
-  const deverrouillerMissions = async () => {
-    try {
-      await unlockMissionsLab();
-      navigation.navigate('LabMetra');
-      Alert.alert('LAB METRA', 'Missions est maintenant proposé dans le LAB. Il reste désactivé : active-le explicitement avec son interrupteur pour l’afficher dans l’application.');
-    } catch (e) { Alert.alert('LAB METRA', String(e.message || e)); }
-  };
 
   const confirmerSuppressionVisite = (v) => Alert.alert(
     'Supprimer cette visite ?',
@@ -120,18 +123,10 @@ function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
     finally { setImportEnCours(false); }
   };
 
-  return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: COLORS.bg }} {...missionsSwipeResponder.panHandlers}>
     <View style={styles.homeTopRow}>
       <TouchableOpacity style={styles.importExcelBtn} onPress={choisirExcel}><Text style={styles.importExcelBtnText}>⇧ Importer Excel(s)</Text></TouchableOpacity>
       <View style={{ flex: 1 }} />
-      {missionsEnabled ? <TouchableOpacity style={[styles.parametresBtn, { marginRight: 8, borderColor: COLORS.orange }]} onPress={() => navigation.navigate('Missions')}><Text style={[styles.parametresBtnText, { color: COLORS.orange }]}>◎ Missions</Text></TouchableOpacity> : null}
-      <TouchableOpacity
-        style={[styles.parametresBtn, { marginRight: 8 }]}
-        onPress={ouvrirLab}
-        onLongPress={deverrouillerMissions}
-        delayLongPress={2000}
-        activeOpacity={0.8}
-      ><Text style={styles.parametresBtnText}>LAB METRA</Text></TouchableOpacity>
       <TouchableOpacity style={styles.parametresBtn} onPress={() => navigation.navigate('Parametres')}><Text style={styles.parametresBtnText}>⚙ Paramètres</Text></TouchableOpacity>
     </View>
 
@@ -141,6 +136,7 @@ function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
       data={clients}
       keyExtractor={(i) => i.id}
       ListHeaderComponent={<>
+        {missionsEnabled ? <View style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: MISSION_COLORS.accentSoft }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, fontWeight: '800' }}>Glisser vers la droite → Missions</Text></View> : null}
         <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E6E8EC', padding: 13, marginBottom: 16 }}>
           <Text style={{ color: COLORS.ink || '#17212B', fontSize: 13.5, fontWeight: '900', marginBottom: 9 }}>Accès rapide au patrimoine</Text>
           <View style={{ minHeight: 50, borderRadius: 14, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: '#ECEEF1', flexDirection: 'row', alignItems: 'center', paddingLeft: 13 }}>
