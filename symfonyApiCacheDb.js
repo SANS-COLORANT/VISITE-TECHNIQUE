@@ -185,6 +185,34 @@ export function normalizePreparationPayload(payload = {}) {
   };
 }
 
+export function extractStructureSitesFromReferential(payload = {}) {
+  const byId = new Map();
+  const add = (site, lot = null) => {
+    if (!site || typeof site !== 'object') return;
+    const id = remoteId(site.id);
+    if (!id) return;
+    const previous = byId.get(id) || {};
+    const lotId = remoteId(lot?.id);
+    const lotIds = [...new Set([...(previous.__lotIds || []), ...(lotId ? [lotId] : [])])];
+    byId.set(id, {
+      ...previous,
+      ...site,
+      id,
+      nom: nullableString(site.nom) || nullableString(previous.nom) || `Site ${id}`,
+      __lotIds: lotIds,
+    });
+  };
+
+  // Le contrat actuel expose les sites sous lots[].sites. Le support d'un
+  // éventuel tableau sites racine reste volontairement tolérant pour éviter
+  // qu'une évolution serveur mineure rende les sites sans visite invisibles.
+  for (const site of list(payload?.sites)) add(site, null);
+  for (const lot of list(payload?.lots)) {
+    for (const site of list(lot?.sites)) add(site, lot);
+  }
+  return [...byId.values()];
+}
+
 export async function getApiSyncState() {
   const database = await db();
   return (await database.getFirstAsync(`SELECT * FROM api_sync_state WHERE id=1`)) || { id: 1, base_url: DEFAULT_BASE_URL };
@@ -293,6 +321,50 @@ export async function cachePreparation(remoteClientId, payload) {
   });
   invalidateDirectorySnapshot();
   await updateApiSyncState({ last_success_at: new Date().toISOString(), last_error: null });
+}
+
+export async function cacheStructureDirectory(remoteClientId, payload) {
+  const clientId = clean(remoteClientId); if (!clientId) throw new Error('Client API requis');
+  if (!payload || typeof payload !== 'object') throw new Error('Référentiel de structure invalide');
+  const sites = extractStructureSitesFromReferential(payload);
+  const database = await db();
+
+  await database.withTransactionAsync(async () => {
+    // Le même référentiel sert à la création Site/Local et à l'annuaire. Le
+    // conserver ici évite deux vérités locales différentes selon l'écran utilisé.
+    await database.runAsync(
+      `INSERT INTO api_structure_referential(remote_client_id,payload_json,synced_at) VALUES(?,?,datetime('now'))
+       ON CONFLICT(remote_client_id) DO UPDATE SET payload_json=excluded.payload_json,synced_at=datetime('now')`,
+      [clientId, json(payload)]
+    );
+
+    // cachePreparation vient de remettre remote_present=0 pour ce client. On
+    // réactive ensuite TOUS les sites du référentiel, y compris ceux sans local
+    // ou sans aucune visite. Les sites ayant une préparation détaillée gardent
+    // simplement leurs locaux/références en complément.
+    for (const site of sites) {
+      const siteId = remoteId(site?.id); if (!siteId) continue;
+      const safeSite = { ...site };
+      delete safeSite.__lotIds;
+      await database.runAsync(
+        `INSERT INTO api_site_links(remote_site_id,remote_client_id,nom,remote_present,payload_json,synced_at)
+         VALUES(?,?,?,?,?,datetime('now'))
+         ON CONFLICT(remote_site_id) DO UPDATE SET remote_client_id=excluded.remote_client_id,nom=excluded.nom,
+           remote_present=1,payload_json=excluded.payload_json,synced_at=datetime('now')`,
+        [siteId, clientId, clean(site?.nom) || `Site ${siteId}`, 1, json(safeSite)]
+      );
+      await database.runAsync(
+        `INSERT INTO api_client_site_links(remote_client_id,remote_site_id,remote_present,synced_at)
+         VALUES(?,?,1,datetime('now'))
+         ON CONFLICT(remote_client_id,remote_site_id) DO UPDATE SET remote_present=1,synced_at=datetime('now')`,
+        [clientId, siteId]
+      );
+    }
+  });
+
+  invalidateDirectorySnapshot();
+  await updateApiSyncState({ last_success_at: new Date().toISOString(), last_error: null });
+  return { remoteClientId: clientId, siteCount: sites.length };
 }
 
 function buildDirectorySnapshot(clients, sites) {
