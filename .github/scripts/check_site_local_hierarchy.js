@@ -15,6 +15,7 @@ function forbidText(source, needle, message) {
 const client = read('ClientSitesScreen.js');
 const app = read('App.js');
 const structureUi = read('IntranetStructureUi.js');
+const siteVisits = read('SiteVisitesScreen.js');
 
 // CLIENT -> SITE : le niveau client peut créer/ouvrir des sites, mais ne doit
 // plus exposer la gestion d'un LOCAL directement dans chaque carte de site.
@@ -37,4 +38,12 @@ requireText(structureUi, 'await queueMetraLocalCreation({', 'La création de loc
 requireText(structureUi, 'localSiteId: siteId', 'Le local créé doit être explicitement rattaché au site courant.');
 requireText(structureUi, '+ Ajouter un local', 'Le bouton de création de local doit rester dans le panneau du site.');
 
-console.log('Client -> Site -> Local hierarchy contract OK.');
+// LOCAL -> VISITE : pour un site importé depuis l'Intranet, une nouvelle visite
+// doit d'abord choisir le LOCAL destinataire. Les sites purement locaux conservent
+// leur création de visite directe pour ne pas casser le fonctionnement historique.
+requireText(siteVisits, 'if (intranetClientImported && !apiRemoteLocalId)', 'Une visite Intranet doit passer par le local.');
+requireText(siteVisits, "navigation.navigate('IntranetStructure'", 'Le bouton Nouvelle visite d’un site Intranet doit ouvrir ses locaux.');
+requireText(siteVisits, 'Choisir le local de la visite', 'Le libellé doit expliquer clairement le choix du local.');
+requireText(siteVisits, "creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })", 'La création locale-aware de visite doit rester intacte.');
+
+console.log('Client -> Site -> Local -> Visit hierarchy contract OK.');
