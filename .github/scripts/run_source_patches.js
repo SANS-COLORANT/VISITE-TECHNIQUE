@@ -22,6 +22,7 @@ const CONTRACT_CHECKS = [
   ['Intranet any-visit binding executable tests', '.github/scripts/test_intranet_any_visit_binding.js'],
   ['Intranet focused upload audit', '.github/scripts/test_intranet_visit_upload_audit.js'],
   ['photo workflow executable regression tests', '.github/scripts/test_photo_workflow.js'],
+  ['Missions LAB isolation contract', '.github/scripts/check_missions_lab_contract.js'],
 ];
 
 const JS_SYNTAX_FILES = [
@@ -52,6 +53,16 @@ const JS_SYNTAX_FILES = [
   'siteHealth.js',
   'db.js',
   'database/index.js',
+  'featureSettings.js',
+  'LabMetraPanel.js',
+  'missionsDb.js',
+  'missionVisitDb.js',
+  'missionRecipes.js',
+  'missionExcelExport.js',
+  'MissionsHomeScreen.js',
+  'MissionCreateScreen.js',
+  'MissionScreen.js',
+  'MissionVisitScreen.js',
   'visual-packs/runtime/visualPackManager.js',
   'symfonyApiCacheDb.js',
   'apiLatestVisitImportDb.js',
@@ -83,6 +94,7 @@ const JS_SYNTAX_FILES = [
   'database/migrations/037_intranet_server_schema_alignment.js',
   'database/migrations/038_intranet_structure_creation.js',
   'database/migrations/039_intranet_structure_outbox_alignment.js',
+  'database/migrations/040_missions_core.js',
   'symfonyApi.js',
   'database/migrations/031_latest_visit_photos.js',
   'database/migrations/032_photo_reference_workflow.js',
