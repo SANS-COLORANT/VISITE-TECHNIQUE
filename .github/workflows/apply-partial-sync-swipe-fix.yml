@@ -1,0 +1,39 @@
+name: Apply partial Intranet visit and tab swipe fix
+
+on:
+  push:
+    branches:
+      - fix/metra-partial-intranet-tab-swipe
+    paths:
+      - '.github/workflows/apply-partial-sync-swipe-fix.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: fix/metra-partial-intranet-tab-swipe
+          fetch-depth: 0
+
+      - name: Apply focused source fixes
+        run: python3 .github/scripts/apply_partial_sync_swipe_fix.py
+
+      - name: Validate focused contract and syntax
+        run: |
+          node .github/scripts/check_partial_intranet_visit_contract.js
+          node --check VisiteScreen.js
+          node --check intranetVisitPayload.js
+
+      - name: Commit patched runtime source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add VisiteScreen.js intranetVisitPayload.js .github/scripts/check_partial_intranet_visit_contract.js .github/scripts/run_source_patches.js
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: autoriser visites partielles et deverrouiller les onglets"
+          git push origin HEAD:fix/metra-partial-intranet-tab-swipe
