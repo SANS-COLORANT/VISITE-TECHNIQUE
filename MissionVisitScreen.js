@@ -39,7 +39,7 @@ function OptionalField({ sectionKey, field, value, onChange, onSave }) {
 }
 
 export function MissionVisitScreen({ navigation, route }) {
-  const missionId = route?.params?.missionId;
+  const routeMissionId = route?.params?.missionId;
   const visitId = route?.params?.visitId;
   const [data, setData] = useState(null);
   const [values, setValues] = useState({});
@@ -68,37 +68,39 @@ export function MissionVisitScreen({ navigation, route }) {
   useEffect(() => { reload(); }, [reload]);
 
   const recipe = useMemo(() => getMissionVisitRecipe(data?.visit?.family), [data?.visit?.family]);
+  const actualMissionId = data?.visit?.mission_id || routeMissionId;
 
   const saveField = async (sectionKey, field, value) => {
-    if (!data?.visit) return;
+    if (!data?.visit || !actualMissionId) return;
     try {
       await enregistrerValeurTrameMission({
-        missionId,
+        missionId: actualMissionId,
         visitId,
         siteId: data.visit.site_id,
         templateId: data.visit.family || 'libre',
         fieldCode: `${sectionKey}.${field.key}`,
         fieldLabel: field.label,
         value,
-        valueType: 'text',
+        valueType: field.type === 'number' ? 'number' : field.type === 'boolean' ? 'boolean' : field.type === 'date' ? 'date' : 'text',
       });
       setStats(await compterSaisieVisiteMission(visitId));
     } catch (e) { Alert.alert('Enregistrement impossible', String(e.message || e)); }
   };
 
   const addNote = async () => {
-    if (!note.trim()) return;
+    if (!note.trim() || !actualMissionId) return;
     try {
-      await ajouterNoteVisiteMission({ missionId, visitId, siteId: data?.visit?.site_id, content: note, visibility: 'internal' });
+      await ajouterNoteVisiteMission({ missionId: actualMissionId, visitId, siteId: data?.visit?.site_id, content: note, visibility: 'internal' });
       setNote('');
       await reload();
     } catch (e) { Alert.alert('Note non enregistrée', String(e.message || e)); }
   };
 
   const addPoint = async () => {
+    if (!actualMissionId) return;
     try {
       await creerPointMission({
-        missionId,
+        missionId: actualMissionId,
         siteId: data?.visit?.site_id,
         visitId,
         type: pointType,
