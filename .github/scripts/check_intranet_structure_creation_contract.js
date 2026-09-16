@@ -70,7 +70,8 @@ requireText(ui, 'IntranetSiteLocalsPanel', 'local creation UI');
 requireText(ui, 'queueMetraSiteCreation', 'site UI queues offline operation');
 requireText(ui, 'queueMetraLocalCreation', 'local UI queues offline operation');
 requireText(clientSites, '+ Site Intranet', 'client sites exposes Intranet creation');
-requireText(clientSites, "navigation.navigate('IntranetStructure'", 'site structure navigation');
+requireText(app, "rightAction={{label:'Locaux'", 'site screen exposes local management');
+requireText(app, "navigate('IntranetStructure',{siteId:current.params?.siteId", 'site structure navigation stays scoped to selected site');
 requireText(app, '<IntranetStructureRuntime/>', 'global structure outbox runtime');
 requireText(app, "IntranetStructure:()=>require('./IntranetStructureScreen.js')", 'structure screen lazy route');
 
@@ -79,4 +80,4 @@ requireText(visitCreation, 'apiRemoteTrameId = null', 'visit keeps remote trame 
 requireText(visitCreation, 'installation_id, api_remote_client_id, api_remote_local_id, api_remote_trame_id', 'visit freezes structure identity');
 requireText(runtime, 'processStructureOutbox({ limit: 4 })', 'automatic structure retry runtime');
 
-console.log('Intranet site/local creation contract validated on SQLite lineage 35->36->37->38->39. Migration 039 repairs the v38 outbox in place and aligns every runtime column without deleting user data.');
+console.log('Intranet site/local creation contract validated on SQLite lineage 35->36->37->38->39 with LOCAL management scoped to the selected SITE. Migration 039 repairs the v38 outbox in place and aligns every runtime column without deleting user data.');
