@@ -1,0 +1,40 @@
+name: Apply partial counter alignment
+
+on:
+  push:
+    branches:
+      - perf/metra-global-runtime-audit
+    paths:
+      - '.github/workflows/apply-partial-counter-alignment.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  patch-source:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout target branch
+        uses: actions/checkout@v4
+        with:
+          ref: perf/metra-global-runtime-audit
+          fetch-depth: 0
+
+      - name: Align missing versus ambiguous counters
+        run: python3 .github/scripts/apply_partial_counter_alignment.py
+
+      - name: Validate partial visit contract and runtime patch compatibility
+        run: |
+          node .github/scripts/check_partial_intranet_visit_contract.js
+          node --check intranetVisitPayload.js
+          python3 .github/scripts/patch_runtime_regressions.py
+          node --check intranetVisitPayload.js
+
+      - name: Commit aligned runtime source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add intranetVisitPayload.js
+          git diff --cached --quiet && exit 0
+          git commit -m "fix: distinguer compteur vide et compteur ambigu"
+          git push origin HEAD:perf/metra-global-runtime-audit
