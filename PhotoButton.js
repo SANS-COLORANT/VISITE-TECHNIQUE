@@ -11,6 +11,39 @@ import { supprimerPhotoComplete } from './photoDb.js';
 import { copierPhotoDansDocuments, supprimerCopiePhotoDocuments } from './photoDocumentsStorage.js';
 import { styles } from './styles.js';
 
+const PHOTO_SNAPSHOT_TTL_MS = 1800;
+const photoVisitSnapshots = new Map();
+const canonicalPhotoKeys = new Map();
+
+function invaliderPhotoSnapshot(visiteId) {
+  photoVisitSnapshots.delete(String(visiteId || ''));
+}
+
+async function chargerPhotosVisitePartagees(visiteId, force = false) {
+  const key = String(visiteId || '');
+  if (!key) return [];
+  const now = Date.now();
+  const cached = photoVisitSnapshots.get(key);
+  if (!force && cached?.data && now - cached.at < PHOTO_SNAPSHOT_TTL_MS) return cached.data;
+  if (!force && cached?.promise) return cached.promise;
+
+  const entry = { data: null, at: 0, promise: null };
+  entry.promise = listerPhotos(visiteId).then((rows) => {
+    const data = Array.isArray(rows) ? rows : [];
+    if (photoVisitSnapshots.get(key) === entry) {
+      entry.data = data;
+      entry.at = Date.now();
+      entry.promise = null;
+    }
+    return data;
+  }).catch((error) => {
+    if (photoVisitSnapshots.get(key) === entry) photoVisitSnapshots.delete(key);
+    throw error;
+  });
+  photoVisitSnapshots.set(key, entry);
+  return entry.promise;
+}
+
 function nettoyerNomFichier(valeur = '', fallback = 'Photo') {
   const propre = String(valeur || fallback)
     .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
@@ -55,6 +88,9 @@ async function clePhotoCanoniqueVmc(visiteId, entiteKey) {
   if (!cle.startsWith('remarque||')) return cle;
   const remarqueId = cle.slice('remarque||'.length);
   if (!remarqueId) return cle;
+  const cacheKey = `${String(visiteId || '')}||${cle}`;
+  if (canonicalPhotoKeys.has(cacheKey)) return canonicalPhotoKeys.get(cacheKey);
+  let resultat = cle;
   try {
     const db = await openAppDatabase();
     const remarque = await db.getFirstAsync(
@@ -65,9 +101,10 @@ async function clePhotoCanoniqueVmc(visiteId, entiteKey) {
     // Une réserve VMC et son contrôle partagent la même preuve photo. On garde
     // le contrôle comme rattachement canonique pour que l'image ne disparaisse
     // jamais si l'avis repasse ensuite de N.S à S.
-    if (/^vmc-c\d+\./.test(controleKey)) return controleKey;
+    if (/^vmc-c\d+\./.test(controleKey)) resultat = controleKey;
   } catch {}
-  return cle;
+  canonicalPhotoKeys.set(cacheKey, resultat);
+  return resultat;
 }
 
 async function libellePhotoMetier(visiteId, entiteKey, label) {
@@ -76,8 +113,6 @@ async function libellePhotoMetier(visiteId, entiteKey, label) {
   const matchVmc = sectionCode.match(/^vmc-c(\d+)\./);
   if (!matchVmc) return libelleInitial;
 
-  // Si le libellé est déjà qualifié par un caisson (ex. depuis la carte Réserve),
-  // on le conserve tel quel afin de ne jamais créer « Caisson n°1 · Caisson n°1 … ».
   if (/^Caisson n°\d+(?:\s*-\s*[^·]+)?\s*·/i.test(libelleInitial)) return libelleInitial;
 
   const index = Number(matchVmc[1]);
@@ -94,11 +129,11 @@ async function libellePhotoMetier(visiteId, entiteKey, label) {
   return `${libelleCaissonVmc(index, nomCaisson)} · ${libelleInitial}`;
 }
 
-async function dossierPhotosVisite(visiteId) {
+async function dossierPhotosVisite(visiteId, visiteConnue = null) {
   const racine = FileSystem.documentDirectory;
   if (!racine) throw new Error('Stockage local Android indisponible');
-  let visite = null;
-  try { visite = await getVisite(visiteId); } catch {}
+  let visite = visiteConnue;
+  if (!visite) { try { visite = await getVisite(visiteId); } catch {} }
   const client = nettoyerNomFichier(visite?.nom_client, 'Client');
   const site = nettoyerNomFichier(visite?.nom_site, 'Site');
   const date = nettoyerNomFichier(visite?.date_visite, 'Sans_date');
@@ -106,12 +141,13 @@ async function dossierPhotosVisite(visiteId) {
   return `${racine}visite-technique/photos/${client}/${site}/${visiteDossier}/`;
 }
 
-async function copierPhotoDurable(uriSource, visiteId, nom) {
-  const dossier = await dossierPhotosVisite(visiteId);
+async function copierPhotoDurable(uriSource, visiteId, nom, visiteConnue = null) {
+  const dossier = await dossierPhotosVisite(visiteId, visiteConnue);
   await FileSystem.makeDirectoryAsync(dossier, { intermediates: true });
   const destination = dossier + nom;
-  const existante = await FileSystem.getInfoAsync(destination);
-  if (existante.exists) await FileSystem.deleteAsync(destination, { idempotent: true });
+  // Le nom contient horodatage + suffixe aléatoire. Un delete idempotent évite
+  // le getInfoAsync supplémentaire tout en gardant copyAsync sûr en cas de collision.
+  await FileSystem.deleteAsync(destination, { idempotent: true }).catch(() => {});
   await FileSystem.copyAsync({ from: uriSource, to: destination });
   return destination;
 }
@@ -124,17 +160,17 @@ async function supprimerPhotoGeree(uri) {
 async function preparerPhotoNommee({ visiteId, entiteKey = null, label = 'Photo', uri }) {
   if (!uri) return { uri: null, nom: null, label: null };
   const entiteCanonique = await clePhotoCanoniqueVmc(visiteId, entiteKey);
-  let nomSite = 'Site';
-  try { const visite = await getVisite(visiteId); nomSite = visite?.nom_site || 'Site'; } catch {}
-  const site = nettoyerNomFichier(nomSite, 'Site');
+  let visite = null;
+  try { visite = await getVisite(visiteId); } catch {}
+  const site = nettoyerNomFichier(visite?.nom_site, 'Site');
   const type = typePhotoDepuisEntite(entiteCanonique);
   const labelMetier = await libellePhotoMetier(visiteId, entiteCanonique, label);
   const libelle = nettoyerNomFichier(labelMetier || type, type);
   const nom = `${site}__${type}__${libelle}__${horodatagePhoto()}__${suffixeCourt()}.jpg`;
-  const uriDurable = await copierPhotoDurable(uri, visiteId, nom);
-  // La copie interne reste la source canonique pour le backup. Une seconde copie
-  // est déposée dans Documents afin d'être directement visible par l'utilisateur.
-  await copierPhotoDansDocuments(uriDurable, nom).catch(() => null);
+  const uriDurable = await copierPhotoDurable(uri, visiteId, nom, visite);
+  // La copie privée est la source canonique/durable. La copie Documents est une
+  // commodité utilisateur : elle ne doit pas bloquer le retour caméra ni l'écriture SQLite.
+  void copierPhotoDansDocuments(uriDurable, nom).catch(() => null);
   return { uri: uriDurable, nom, label: labelMetier, entiteKey: entiteCanonique };
 }
 
@@ -184,18 +220,19 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     setIndex(0);
   }, [visiteId, entiteKey]);
 
-  const charger = useCallback(async (cle = entiteKey) => {
+  const charger = useCallback(async (cle = entiteKey, force = false) => {
     const canonique = await clePhotoCanoniqueVmc(visiteId, cle);
-    const items = await listerPhotos(visiteId, canonique);
+    // Tous les PhotoButton montés ensemble partagent la même lecture de visite.
+    // On évite ainsi une requête SELECT par conformité/réserve au changement d'onglet.
+    const snapshot = await chargerPhotosVisitePartagees(visiteId, force);
+    const attendu = String(canonique || '');
+    const items = snapshot.filter((photo) => String(photo?.entite_key || '') === attendu);
     setPhotos(items);
     setPhotosChargees(true);
     setIndex((actuel) => Math.min(actuel, Math.max(0, items.length - 1)));
     return items;
   }, [visiteId, entiteKey]);
 
-  // Les photos sont durables pour TOUS les rattachements, pas seulement les
-  // remarques. Cela évite que le bouton redevienne « Photo » après un changement
-  // d'onglet alors que l'image est bien présente en base et dans le rapport.
   useEffect(() => {
     if (entiteKey) charger(entiteKey).catch(() => {});
     else setPhotosChargees(true);
@@ -216,16 +253,17 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     return { ...cible, entiteKey: canonique };
   }, [beforeCapture, visiteId, entiteKey, label]);
 
-  const ajouter = async () => {
+  const ajouter = async (ciblePrecalculee = null) => {
     try {
       const captureUri = await prendrePhoto(); if (!captureUri) return;
-      const cible = await resoudreCible();
+      const cible = ciblePrecalculee?.entiteKey ? ciblePrecalculee : await resoudreCible();
       const photo = await preparerPhotoNommee({ visiteId, entiteKey: cible.entiteKey, label: cible.label, uri: captureUri });
       const labelFinal = photo.label || cible.label || typePhotoDepuisEntite(cible.entiteKey);
       const labelDb = photo.nom ? `${labelFinal}||${photo.nom}` : (labelFinal || null);
       const cibleKey = photo.entiteKey || cible.entiteKey;
       const photoId = await ajouterPhoto(visiteId, cibleKey, photo.uri, labelDb);
-      const items = await charger(cibleKey);
+      invaliderPhotoSnapshot(visiteId);
+      const items = await charger(cibleKey, true);
       setIndex(Math.max(0, items.length - 1));
       onPhotoSaved?.({ id: photoId, entiteKey: cibleKey, uri: photo.uri, label: labelFinal });
     } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
@@ -236,7 +274,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       const cible = await resoudreCible();
       const items = photosChargees ? photos : await charger(cible.entiteKey);
       if (items.length > 0) { setIndex(0); setViewerVisible(true); }
-      else await ajouter();
+      else await ajouter(cible);
     } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
   };
 
@@ -253,7 +291,8 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       }
       await supprimerCopiePhotoDocuments(photoExistante.uri).catch(() => {});
       await supprimerPhotoGeree(photoExistante.uri);
-      await charger(nouvelle.entiteKey || cibleKey);
+      invaliderPhotoSnapshot(visiteId);
+      await charger(nouvelle.entiteKey || cibleKey, true);
       onPhotoSaved?.({ id: photoExistante.id, entiteKey: nouvelle.entiteKey || cibleKey, uri: nouvelle.uri, label: nouvelle.label || label });
     } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
   };
@@ -272,7 +311,8 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
           onPress: async () => {
             try {
               await supprimerPhotoComplete(photo.id);
-              const items = await charger(photo.entite_key || entiteKey);
+              invaliderPhotoSnapshot(visiteId);
+              const items = await charger(photo.entite_key || entiteKey, true);
               if (items.length === 0) setViewerVisible(false);
               else setIndex((actuel) => Math.min(actuel, items.length - 1));
             } catch (e) {
@@ -289,7 +329,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       style={[styles.photoBtn, photosChargees && photos.length > 0 && styles.photoBtnTaken, estReserve && photos.length > 0 && { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8 }, style]}
       onPress={onPress}
     >
-      {estReserve && photosChargees && photos[0]?.uri ? <Image source={{ uri: photos[0].uri }} style={{ width: 44, height: 44, borderRadius: 7 }} resizeMode="cover" /> : null}
+      {estReserve && photosChargees && photos[0]?.uri ? <Image source={{ uri: photos[0].uri }} style={{ width: 44, height: 44, borderRadius: 7 }} resizeMode="cover" resizeMethod="resize" fadeDuration={0} /> : null}
       <Text style={[styles.photoBtnText, photosChargees && photos.length > 0 && styles.photoBtnTextTaken]}>{photosChargees && photos.length > 0 ? `👁 ${photos.length} photo${photos.length > 1 ? 's' : ''}` : '📷 Photo'}</Text>
     </TouchableOpacity>
     <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
@@ -307,7 +347,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
         )}
         <View style={styles.photoViewerActions}>
           <TouchableOpacity style={styles.photoViewerSecondary} onPress={demanderSuppression}><Text style={styles.photoViewerSecondaryText}>Supprimer</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.photoViewerSecondary} onPress={ajouter}><Text style={styles.photoViewerSecondaryText}>+ Ajouter</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.photoViewerSecondary} onPress={() => ajouter()}><Text style={styles.photoViewerSecondaryText}>+ Ajouter</Text></TouchableOpacity>
           <TouchableOpacity style={styles.photoViewerPrimary} onPress={reprendre}><Text style={styles.photoViewerPrimaryText}>📷 Reprendre</Text></TouchableOpacity>
         </View>
       </View>
