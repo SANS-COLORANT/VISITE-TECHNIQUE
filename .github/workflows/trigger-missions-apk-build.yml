@@ -3,6 +3,8 @@ name: Trigger Missions APK build
 # Validation APK dédiée au socle Missions. Ce déclencheur reste volontairement
 # séparé du workflow SQLite afin d'éviter une compilation Android à chaque petit
 # changement pendant la phase LAB.
+# Le build ci-dessous est relancé seulement après succès des contrats METRA et
+# du test SQLite base neuve + migration v39 -> v40.
 on:
   push:
     branches:
