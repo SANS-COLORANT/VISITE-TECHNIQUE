@@ -15,9 +15,7 @@ import { mapLatestVisitPhotos, photoFileKey, photoSummary } from './latestVisitP
 const ROOT_DIRECTORY = 'visite-technique/intranet-photos/';
 const MAX_CONCURRENT_DOWNLOADS = 3;
 const MAX_RATE_LIMIT_RETRIES = 2;
-const LOCAL_FILE_VERIFICATION_TTL_MS = 5000;
 const ensuredDirectories = new Set();
-const localFileVerification = new Map();
 
 function safeSegment(value, fallback) {
   const result = String(value ?? '')
@@ -83,30 +81,16 @@ async function ensureDestination(photo, remoteClientId) {
   return { finalUri: `${directory}${filename}`, temporaryUri: `${directory}.${filename}.part` };
 }
 
-function localVerificationKey(photo) {
-  return `${String(photo?.localUri || '')}||${Number(photo?.tailleOctets || photo?.downloadedBytes || 0)}`;
-}
-
-function rememberLocalPhoto(photo, available) {
-  if (!photo?.localUri) return;
-  localFileVerification.set(localVerificationKey(photo), { available: Boolean(available), at: Date.now() });
-}
-
-async function existingLocalPhoto(photo, force = false) {
+async function existingLocalPhoto(photo) {
   if (!photo?.localUri) return false;
-  const key = localVerificationKey(photo);
-  const cached = localFileVerification.get(key);
-  if (!force && cached && Date.now() - cached.at < LOCAL_FILE_VERIFICATION_TTL_MS) return cached.available;
   try {
+    // Ne pas mémoriser un résultat positif entre deux hydratations : les tests
+    // et les nettoyages Android doivent être détectés immédiatement. Cette stat
+    // est la garde de vérité du mode hors connexion.
     const info = await FileSystem.getInfoAsync(photo.localUri);
     const size = Number(info?.size || 0), expected = Number(photo.tailleOctets || photo.downloadedBytes || 0);
-    const available = Boolean(info?.exists && size > 0 && (!expected || expected === size));
-    localFileVerification.set(key, { available, at: Date.now() });
-    return available;
-  } catch {
-    localFileVerification.set(key, { available: false, at: Date.now() });
-    return false;
-  }
+    return Boolean(info?.exists && size > 0 && (!expected || expected === size));
+  } catch { return false; }
 }
 
 export async function hydrateLatestVisitPhotosCache(remoteClientId, manifest = null) {
@@ -119,10 +103,7 @@ export async function hydrateLatestVisitPhotosCache(remoteClientId, manifest = n
       const photo = photos[cursor++];
       const localAvailable = await existingLocalPhoto(photo);
       availability.set(photoFileKey(photo), localAvailable);
-      if (photo.localUri && !localAvailable) {
-        localFileVerification.delete(localVerificationKey(photo));
-        await markLatestVisitPhotoMissingLocally(remoteClientId, photo);
-      }
+      if (photo.localUri && !localAvailable) await markLatestVisitPhotoMissingLocally(remoteClientId, photo);
     }
   }));
   const result = mapLatestVisitPhotos(hydrated, (photo) => {
@@ -197,7 +178,6 @@ async function downloadOne(remoteClientId, photo, rateLimit, control) {
       photo.localAvailable = true;
       photo.downloadStatus = 'downloaded';
       photo.downloadError = null;
-      rememberLocalPhoto(photo, true);
       return { status: 'downloaded', photo };
     } catch (error) {
       if (temporaryUri) await FileSystem.deleteAsync(temporaryUri, { idempotent: true }).catch(() => {});
