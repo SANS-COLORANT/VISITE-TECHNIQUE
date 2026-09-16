@@ -21,4 +21,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: gh workflow run native-android-apk.yml -R SANS-COLORANT/VISITE-TECHNIQUE --ref "${GITHUB_REF_NAME}"
 
-# Re-dispatch after preserving the modern batched visit prefill through the historical PRE build patch.
+# Re-dispatch after moving LOCAL management from the client list to the selected site and adding a hierarchy regression contract.
