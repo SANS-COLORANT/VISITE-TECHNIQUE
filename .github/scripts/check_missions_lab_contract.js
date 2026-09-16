@@ -25,6 +25,7 @@ requireText(migration40, "name: 'missions_core'", 'migration identity');
 requireText(migration40, 'CREATE TABLE IF NOT EXISTS missions', 'missions table');
 requireText(migration40, 'CREATE TABLE IF NOT EXISTS mission_points', 'mission points');
 requireText(migration40, 'CREATE TABLE IF NOT EXISTS mission_template_values', 'generic template values');
+requireText(migration40, "status TEXT NOT NULL DEFAULT 'draft'", 'draft visit persistence');
 
 for (const forbidden of ['api_remote_', 'remote_client_id', 'remote_site_id', 'api_structure_outbox']) {
   if (migration40.includes(forbidden)) throw new Error(`Le schéma Missions ne doit pas dépendre de l'Intranet: ${forbidden}`);
@@ -39,10 +40,9 @@ requireText(lab, 'delayLongPress={2000}', '2 second LAB long press');
 requireText(lab, 'setMissionsVisible(false)', 'unlock does not activate Missions');
 requireText(home, 'delayLongPress={2000}', 'home LAB long press');
 requireText(home, 'missionsEnabled ?', 'Missions entry hidden while disabled');
-requireText(app, "getMissionsVisible()", 'runtime Missions flag');
+requireText(app, 'getMissionsVisible()', 'runtime Missions flag');
 requireText(app, "current.name === 'Missions' && missionsVisible", 'guarded Missions route');
-requireText(db, "status: 'draft'", 'draft mission support');
-requireText(db, "'draft'", 'draft persistence');
+requireText(db, "'draft'", 'draft mission creation');
 requireText(visit, 'Aucun champ de cette visite n’est obligatoire.', 'non-blocking field UX');
 requireText(visit, 'Terminer sans tout remplir', 'incomplete visit completion');
 requireText(visit, '＋ Point non prévu', 'free point creation');
