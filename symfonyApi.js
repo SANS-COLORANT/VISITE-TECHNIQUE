@@ -70,6 +70,37 @@ function protectedDownloadUrl(path) {
   return endpoint(value);
 }
 
+function headerValue(headers, name) {
+  const expected = String(name).toLowerCase();
+  const entry = Object.entries(headers || {}).find(([key]) => String(key).toLowerCase() === expected);
+  return entry?.[1] == null ? null : String(entry[1]);
+}
+
+function bodyFromNativeDownload(result) {
+  const text = String(result?.errorBody || '').trim();
+  if (!text) return null;
+  try { return JSON.parse(text); } catch { return { message: text }; }
+}
+
+function throwNativeDownloadHttpError(result) {
+  const status = Number(result?.status || 0);
+  const headers = result?.headers || {};
+  if (status >= 300 && status < 400) {
+    const error = new Error('Redirection HTTP refusée pour protéger la preuve DPoP.');
+    error.status = status;
+    throw error;
+  }
+  if (status >= 200 && status < 300) return;
+  const body = bodyFromNativeDownload(result);
+  const error = new Error(body?.error_description || body?.message || body?.error || `Erreur API HTTP ${status || 'inconnue'}`);
+  error.status = status;
+  error.code = body?.error || body?.code || null;
+  error.retryAfter = headerValue(headers, 'Retry-After');
+  error.body = body;
+  error.violations = Array.isArray(body?.violations) ? body.violations : [];
+  throw error;
+}
+
 function blobAsBase64(blob) {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -84,17 +115,11 @@ function blobAsBase64(blob) {
   });
 }
 
-async function downloadAttempt(path, destinationUri, accessToken) {
-  const url = protectedDownloadUrl(path);
-  const proof = await createProof('GET', url, accessToken);
+async function downloadAttemptLegacy(url, destinationUri, accessToken, proof) {
   const response = await fetch(url, {
     method: 'GET',
     redirect: 'manual',
-    headers: {
-      Accept: 'image/*',
-      DPoP: proof,
-      Authorization: `DPoP ${accessToken}`,
-    },
+    headers: { Accept: 'image/*', DPoP: proof, Authorization: `DPoP ${accessToken}` },
   });
   if (response.status >= 300 && response.status < 400) {
     const error = new Error('Redirection HTTP refusée pour protéger la preuve DPoP.');
@@ -112,7 +137,6 @@ async function downloadAttempt(path, destinationUri, accessToken) {
     error.violations = Array.isArray(body?.violations) ? body.violations : [];
     throw error;
   }
-
   const blob = await response.blob();
   try {
     const base64 = await blobAsBase64(blob);
@@ -120,12 +144,28 @@ async function downloadAttempt(path, destinationUri, accessToken) {
   } finally { blob.close?.(); }
   const headers = {};
   response.headers?.forEach?.((value, key) => { headers[key] = value; });
-  return {
-    uri: destinationUri,
-    status: response.status,
-    headers,
-    mimeType: response.headers?.get?.('Content-Type') || blob.type || null,
-  };
+  return { uri: destinationUri, status: response.status, headers,
+    mimeType: response.headers?.get?.('Content-Type') || blob.type || null };
+}
+
+async function downloadAttempt(path, destinationUri, accessToken) {
+  const url = protectedDownloadUrl(path);
+  const proof = await createProof('GET', url, accessToken);
+  const native = ensureNativeDpop();
+  if (native.downloadProtected) {
+    // Chemin normal des APK récents : le flux HTTP est écrit directement dans
+    // le fichier temporaire Android. Aucun Blob/Base64 ne traverse le bridge JS.
+    const result = await native.downloadProtected(url, accessToken, proof, destinationUri);
+    throwNativeDownloadHttpError(result);
+    return {
+      uri: destinationUri,
+      status: Number(result?.status || 200),
+      headers: result?.headers || {},
+      mimeType: result?.mimeType || headerValue(result?.headers, 'Content-Type'),
+    };
+  }
+  // Fallback uniquement pour anciens runtimes natifs / développement.
+  return downloadAttemptLegacy(url, destinationUri, accessToken, proof);
 }
 
 async function clearLegacyAccessStorage() {
