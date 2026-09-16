@@ -7,6 +7,7 @@ import { IntranetVisitSyncBanner, IntranetVisitSyncRuntime } from './IntranetVis
 import { IntranetStructureRuntime } from './IntranetStructureRuntime.js';
 import { getDb } from './db.js';
 import { COLORS, styles } from './styles.js';
+import { MISSION_COLORS } from './missionTheme.js';
 import { HomeScreen } from './HomeScreen.js';
 import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';
 import { getHydraulicSchemaVisible, getLab3DVisible, getMissionsVisible, subscribeLabFeatureChanges } from './featureSettings.js';
@@ -34,7 +35,6 @@ const DEFERRED_SCREEN_LOADERS = Object.freeze({
   Report: () => require('./ReportScreen.js').ReportScreen,
   Lab3D: () => require('./Lab3DScreen.js').Lab3DScreen,
   Parametres: () => require('./visual-packs/runtime/VisualPacksSettingsScreen.js').VisualPacksSettingsScreen,
-  LabMetra: () => require('./LabMetraPanel.js').LabMetraPanel,
   Missions: () => require('./MissionsHomeScreen.js').MissionsHomeScreen,
   MissionCreate: () => require('./MissionCreateScreen.js').MissionCreateScreen,
   Mission: () => require('./MissionScreen.js').MissionScreen,
@@ -55,9 +55,22 @@ function SimpleHeader({ title, onBack, visualPack }) {
   </View>;
 }
 
-function GlobalHomeButton({ onPress }) {
-  return <TouchableOpacity onPress={onPress} style={{ position: 'absolute', left: 18, bottom: 20, minHeight: 46, paddingHorizontal: 15, borderRadius: 23, backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: COLORS.orange, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, elevation: 9, zIndex: 260 }}>
-    <Text style={{ color: COLORS.orange, fontSize: 20, fontWeight: '900' }}>⌂</Text><Text style={{ color: COLORS.ink, fontSize: 11.5, fontWeight: '900' }}>Accueil</Text>
+function MissionHeader({ title, onBack, visualPack, root = false }) {
+  const uri = resolveVisualPackAssetUri(visualPack, visualPack?.interface?.headerLogo);
+  return <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: MISSION_COLORS.accentStrong, paddingTop: 50, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accent }}>
+    {onBack ? <TouchableOpacity style={{ width: 40, minHeight: 34, alignItems: 'flex-start', justifyContent: 'center' }} onPress={onBack}><Text style={{ fontSize: 21, color: '#DDF2E5', fontWeight: '800' }}>←</Text></TouchableOpacity> : <View style={{ width: 40 }} />}
+    <View style={{ flex: 1, alignItems: 'center' }}>
+      <Text style={{ fontSize: 8.5, color: '#BFE2CC', fontWeight: '900', letterSpacing: 1.1 }}>{root ? 'UNIVERS MISSIONS' : 'MISSIONS'}</Text>
+      <Text style={{ marginTop: 1, textAlign: 'center', fontSize: 15.5, fontWeight: '900', color: '#FFFFFF' }}>{title}</Text>
+    </View>
+    <View style={{ width: 40, alignItems: 'flex-end', justifyContent: 'center' }}>{uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null}</View>
+  </View>;
+}
+
+function GlobalHomeButton({ onPress, missionMode = false }) {
+  const accent = missionMode ? MISSION_COLORS.accent : COLORS.orange;
+  return <TouchableOpacity onPress={onPress} style={{ position: 'absolute', left: 18, bottom: 20, minHeight: 46, paddingHorizontal: 15, borderRadius: 23, backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, elevation: 9, zIndex: 260 }}>
+    <Text style={{ color: accent, fontSize: 20, fontWeight: '900' }}>{missionMode ? '◎' : '⌂'}</Text><Text style={{ color: missionMode ? MISSION_COLORS.accentStrong : COLORS.ink, fontSize: 11.5, fontWeight: '900' }}>{missionMode ? 'Missions' : 'Accueil'}</Text>
   </TouchableOpacity>;
 }
 
@@ -115,6 +128,12 @@ function AppContent() {
     setTimeout(() => setStack([{ name: 'Home', params: {} }]), 0);
   }, []);
 
+  const goMissionsHome = useCallback(() => {
+    if (!missionsVisible) return goHome();
+    Keyboard.dismiss();
+    setTimeout(() => setStack([{ name: 'Home', params: {} }, { name: 'Missions', params: { enteredBySwipe: true } }]), 0);
+  }, [goHome, missionsVisible]);
+
   const handleVisualPackChanged = useCallback((pack) => {
     setRuntimeVisualPalette(pack?.colors);
     setVisualPack(pack);
@@ -148,10 +167,11 @@ function AppContent() {
   if (!dbReady) return <VisualPackLoadingScreen pack={visualPack} />;
 
   const current = stack[stack.length - 1];
-  const navigation = { navigate, goBack, goHome };
+  const navigation = { navigate, goBack, goHome, goMissionsHome };
   const route = { params: current.params };
+  const missionMode = MISSION_ROUTES.has(current.name);
 
-  return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: COLORS.bg }}>
+  return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: missionMode ? MISSION_COLORS.bg : COLORS.bg }}>
     <IntranetStructureRuntime />
     <IntranetVisitSyncRuntime />
     <IntranetVisitSyncBanner />
@@ -172,14 +192,13 @@ function AppContent() {
     {current.name === 'Lab3D' && lab3dVisible ? <><SimpleHeader title="LAB 3D · Maquette du site" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="Lab3D" navigation={navigation} route={route} /></> : null}
     {current.name === 'Report' ? <DeferredScreen name="Report" route={route} onBack={goBack} /> : null}
     {current.name === 'Parametres' ? <><SimpleHeader title="Paramètres" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="Parametres" visualPack={visualPack} onVisualPackChanged={handleVisualPackChanged} /></> : null}
-    {current.name === 'LabMetra' ? <><SimpleHeader title="LAB METRA" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="LabMetra" /></> : null}
 
-    {current.name === 'Missions' && missionsVisible ? <><SimpleHeader title="Missions" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="Missions" navigation={navigation} route={route} /></> : null}
-    {current.name === 'MissionCreate' && missionsVisible ? <><SimpleHeader title="Nouvelle Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionCreate" navigation={navigation} route={route} /></> : null}
-    {current.name === 'Mission' && missionsVisible ? <><SimpleHeader title="Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="Mission" navigation={navigation} route={route} /></> : null}
-    {current.name === 'MissionVisit' && missionsVisible ? <><SimpleHeader title="Visite Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionVisit" navigation={navigation} route={route} /></> : null}
+    {current.name === 'Missions' && missionsVisible ? <><MissionHeader title="Tableau de bord" onBack={goHome} visualPack={visualPack} root /><DeferredScreen name="Missions" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionCreate' && missionsVisible ? <><MissionHeader title="Nouvelle Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionCreate" navigation={navigation} route={route} /></> : null}
+    {current.name === 'Mission' && missionsVisible ? <><MissionHeader title="Dossier Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="Mission" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionVisit' && missionsVisible ? <><MissionHeader title="Visite terrain" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionVisit" navigation={navigation} route={route} /></> : null}
 
-    {current.name !== 'Home' ? <GlobalHomeButton onPress={goHome} /> : null}
+    {current.name !== 'Home' && current.name !== 'Missions' ? <GlobalHomeButton missionMode={missionMode} onPress={missionMode ? goMissionsHome : goHome} /> : null}
     <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
   </View>;
 }
