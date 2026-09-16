@@ -1,7 +1,14 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
-import { LAB_FEATURES, getLabFeatureStates, setLabFeatureEnabled } from './featureSettings.js';
+import {
+  LAB_FEATURES,
+  getLabFeatureStates,
+  getMissionsLabUnlocked,
+  setLabFeatureEnabled,
+  setMissionsVisible,
+  unlockMissionsLab,
+} from './featureSettings.js';
 
 function FeatureRow({ feature, enabled, disabled, onChange }) {
   return (
@@ -32,24 +39,51 @@ function FeatureRow({ feature, enabled, disabled, onChange }) {
 
 export function LabMetraPanel() {
   const [states, setStates] = useState({});
+  const [missionsUnlocked, setMissionsUnlocked] = useState(false);
   const [loading, setLoading] = useState(true);
   const [savingKey, setSavingKey] = useState(null);
 
   const reload = useCallback(async () => {
     setLoading(true);
-    try { setStates(await getLabFeatureStates()); }
-    catch (error) { Alert.alert('LAB METRA', String(error?.message || error)); }
-    finally { setLoading(false); }
+    try {
+      const [nextStates, unlocked] = await Promise.all([getLabFeatureStates(), getMissionsLabUnlocked()]);
+      setStates(nextStates);
+      setMissionsUnlocked(unlocked);
+    } catch (error) {
+      Alert.alert('LAB METRA', String(error?.message || error));
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+
+  const visibleFeatures = useMemo(
+    () => LAB_FEATURES.filter((feature) => !feature.hiddenUntilUnlocked || missionsUnlocked),
+    [missionsUnlocked]
+  );
+
+  const unlockMissions = useCallback(async () => {
+    if (missionsUnlocked || savingKey) return;
+    try {
+      await unlockMissionsLab();
+      setMissionsUnlocked(true);
+      // Le déverrouillage rend seulement le choix visible. Missions reste OFF.
+      setStates((current) => ({ ...current, missions: false }));
+      await setMissionsVisible(false);
+      Alert.alert('LAB METRA', 'Le réglage Missions est maintenant disponible. La fonctionnalité reste désactivée tant que tu ne l’actives pas explicitement.');
+    } catch (error) {
+      Alert.alert('LAB METRA', String(error?.message || error));
+    }
+  }, [missionsUnlocked, savingKey]);
 
   const toggle = useCallback(async (key, enabled) => {
     if (savingKey) return;
     setSavingKey(key);
     setStates((current) => ({ ...current, [key]: enabled }));
     try {
-      await setLabFeatureEnabled(key, enabled);
+      if (key === 'missions') await setMissionsVisible(enabled);
+      else await setLabFeatureEnabled(key, enabled);
     } catch (error) {
       setStates((current) => ({ ...current, [key]: !enabled }));
       Alert.alert('Réglage non enregistré', String(error?.message || error));
@@ -62,13 +96,18 @@ export function LabMetraPanel() {
 
   return (
     <View style={styles.content}>
-      <View style={{ borderRadius: 15, backgroundColor: '#FFF7F1', borderWidth: 1, borderColor: '#F6C7AD', padding: 14, marginBottom: 16 }}>
+      <TouchableOpacity
+        activeOpacity={1}
+        delayLongPress={2000}
+        onLongPress={unlockMissions}
+        style={{ borderRadius: 15, backgroundColor: '#FFF7F1', borderWidth: 1, borderColor: '#F6C7AD', padding: 14, marginBottom: 16 }}
+      >
         <Text style={{ fontSize: 17, fontWeight: '900', color: COLORS.ink }}>LAB METRA</Text>
         <Text style={{ marginTop: 5, color: COLORS.inkSoft, fontSize: 11.5, lineHeight: 16 }}>
           Active uniquement les fonctions que tu veux essayer. Une fonction désactivée reste masquée dans l'application et n'altère pas le fonctionnement normal des visites.
         </Text>
-      </View>
-      {LAB_FEATURES.map((feature) => (
+      </TouchableOpacity>
+      {visibleFeatures.map((feature) => (
         <FeatureRow
           key={feature.key}
           feature={feature}
