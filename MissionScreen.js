@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { creerPointMission, creerVisiteMission, getMissionDashboard, mettreAJourMission, mettreAJourStatutPoint } from './missionsDb.js';
+import { exporterMissionExcel } from './missionExcelExport.js';
 
 const POINT_TYPES = Object.freeze([
   ['reserve', 'Réserve'],
@@ -47,6 +48,7 @@ export function MissionScreen({ navigation, route }) {
   const [pointDescription, setPointDescription] = useState('');
   const [pointDueText, setPointDueText] = useState('');
   const [saving, setSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const reload = useCallback(async () => {
     if (!missionId) return;
@@ -72,14 +74,7 @@ export function MissionScreen({ navigation, route }) {
     if (saving) return;
     setSaving(true);
     try {
-      await creerPointMission({
-        missionId,
-        siteId: data?.sites?.[0]?.id || null,
-        type: pointType,
-        label: pointLabel,
-        description: pointDescription,
-        dueText: pointDueText,
-      });
+      await creerPointMission({ missionId, siteId: data?.sites?.[0]?.id || null, type: pointType, label: pointLabel, description: pointDescription, dueText: pointDueText });
       setPointModal(false);
       setPointLabel('');
       setPointDescription('');
@@ -95,6 +90,16 @@ export function MissionScreen({ navigation, route }) {
       await mettreAJourStatutPoint(point.id, 'closed', { comment: 'Clôture depuis la fiche Mission' });
       await reload();
     } catch (e) { Alert.alert('Point non modifié', String(e.message || e)); }
+  };
+
+  const exportExcel = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const result = await exporterMissionExcel(missionId);
+      Alert.alert('Export Mission créé', `${result.name}\n\nLes données sont structurées par feuilles et les médias restent référencés séparément.`);
+    } catch (e) { Alert.alert('Export impossible', String(e.message || e)); }
+    finally { setExporting(false); }
   };
 
   if (loading && !data) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bg }}><ActivityIndicator color={COLORS.orange} /></View>;
@@ -127,6 +132,10 @@ export function MissionScreen({ navigation, route }) {
           <TouchableOpacity style={[styles.btnPrimary, { flex: 1, alignItems: 'center' }]} onPress={createVisit}><Text style={styles.btnPrimaryText}>Démarrer une visite</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnSecondary, { flex: 1, alignItems: 'center' }]} onPress={() => setPointModal(true)}><Text style={styles.btnSecondaryText}>＋ Point libre</Text></TouchableOpacity>
         </View>
+
+        <TouchableOpacity style={[styles.btnSecondary, { marginTop: 9, alignItems: 'center' }]} disabled={exporting} onPress={exportExcel}>
+          <Text style={styles.btnSecondaryText}>{exporting ? 'Export Excel…' : '⇩ Exporter toutes les données en Excel'}</Text>
+        </TouchableOpacity>
 
         <Text style={[styles.sectionLabel, { marginTop: 20 }]}>Points à suivre</Text>
         {points.length ? points.map((point) => (
