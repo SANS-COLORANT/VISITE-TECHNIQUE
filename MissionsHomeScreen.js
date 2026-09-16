@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, FlatList, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
+import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { listerMissions } from './missionsDb.js';
 
 const STATUS_LABELS = Object.freeze({
@@ -16,7 +17,7 @@ function MissionCard({ mission, onPress }) {
     <TouchableOpacity
       activeOpacity={0.8}
       onPress={onPress}
-      style={{ backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 16, padding: 15, marginBottom: 10 }}
+      style={[{ backgroundColor: COLORS.white, borderWidth: 1, borderRadius: 16, padding: 15, marginBottom: 10 }, missionStyles.card]}
     >
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 12 }}>
         <View style={{ flex: 1 }}>
@@ -27,8 +28,8 @@ function MissionCard({ mission, onPress }) {
             {[mission.client_name, mission.type || mission.family].filter(Boolean).join(' · ') || 'À compléter'}
           </Text>
         </View>
-        <View style={{ backgroundColor: mission.status === 'active' ? '#EDF8F0' : COLORS.bg, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 5 }}>
-          <Text style={{ color: mission.status === 'active' ? '#246B38' : COLORS.inkSoft, fontSize: 9.5, fontWeight: '900' }}>
+        <View style={{ backgroundColor: mission.status === 'active' ? MISSION_COLORS.accentLight : MISSION_COLORS.accentSoft, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 5 }}>
+          <Text style={{ color: mission.status === 'active' ? MISSION_COLORS.accentDark : COLORS.inkSoft, fontSize: 9.5, fontWeight: '900' }}>
             {STATUS_LABELS[mission.status] || mission.status || 'Brouillon'}
           </Text>
         </View>
@@ -62,7 +63,7 @@ export function MissionsHomeScreen({ navigation }) {
   }, [missions, query]);
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+    <View style={[{ flex: 1 }, missionStyles.screen]}>
       <FlatList
         data={visible}
         keyExtractor={(item) => item.id}
@@ -72,16 +73,16 @@ export function MissionsHomeScreen({ navigation }) {
           <>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 14 }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: COLORS.ink, fontSize: 22, fontWeight: '900' }}>Missions</Text>
+                <Text style={[{ fontSize: 22, fontWeight: '900' }, missionStyles.title]}>Missions</Text>
                 <Text style={{ color: COLORS.inkSoft, fontSize: 11.5, marginTop: 3 }}>Dossiers ponctuels · indépendants de l’Intranet</Text>
               </View>
-              <TouchableOpacity style={styles.btnPrimary} onPress={() => navigation.navigate('MissionCreate')}>
-                <Text style={styles.btnPrimaryText}>＋ Nouvelle mission</Text>
+              <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => navigation.navigate('MissionCreate')}>
+                <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Nouvelle mission</Text>
               </TouchableOpacity>
             </View>
 
-            <View style={{ minHeight: 48, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}>
-              <Text style={{ color: COLORS.inkFaint, fontSize: 18, marginRight: 8 }}>⌕</Text>
+            <View style={[{ minHeight: 48, borderWidth: 1, borderRadius: 14, paddingHorizontal: 13, flexDirection: 'row', alignItems: 'center', marginBottom: 16 }, missionStyles.input]}>
+              <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 18, marginRight: 8 }}>⌕</Text>
               <TextInput
                 value={query}
                 onChangeText={setQuery}
@@ -91,8 +92,8 @@ export function MissionsHomeScreen({ navigation }) {
               />
             </View>
 
-            <View style={{ backgroundColor: '#F4F7F9', borderRadius: 13, padding: 12, marginBottom: 15 }}>
-              <Text style={{ color: COLORS.ink, fontSize: 11.5, fontWeight: '900' }}>Saisie libre et progressive</Text>
+            <View style={[{ borderRadius: 13, padding: 12, marginBottom: 15 }, missionStyles.infoBox]}>
+              <Text style={[{ fontSize: 11.5, fontWeight: '900' }, missionStyles.accentText]}>Saisie libre et progressive</Text>
               <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15, marginTop: 3 }}>
                 Une Mission peut rester incomplète. Les champs non renseignés n’empêchent ni l’enregistrement, ni la reprise plus tard.
               </Text>
@@ -101,7 +102,7 @@ export function MissionsHomeScreen({ navigation }) {
         )}
         renderItem={({ item }) => <MissionCard mission={item} onPress={() => navigation.navigate('Mission', { missionId: item.id })} />}
         ListEmptyComponent={loading
-          ? <View style={{ padding: 40, alignItems: 'center' }}><ActivityIndicator color={COLORS.orange}/></View>
+          ? <View style={{ padding: 40, alignItems: 'center' }}><ActivityIndicator color={MISSION_COLORS.accent}/></View>
           : <View style={{ padding: 34, alignItems: 'center' }}><Text style={{ color: COLORS.ink, fontWeight: '800' }}>Aucune mission</Text><Text style={{ color: COLORS.inkSoft, fontSize: 11, marginTop: 5, textAlign: 'center' }}>Crée un brouillon ou une Mission guidée. Rien n’est envoyé à l’Intranet.</Text></View>}
       />
     </View>
