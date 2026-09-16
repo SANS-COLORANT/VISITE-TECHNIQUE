@@ -6,6 +6,31 @@ function text(value) {
   return normalized || null;
 }
 
+async function getVisitContext(db, visitId) {
+  const visit = await db.getFirstAsync(
+    `SELECT id,mission_id,site_id FROM mission_visits WHERE id=?`,
+    [visitId]
+  );
+  if (!visit) throw new Error('Visite Mission introuvable.');
+  return visit;
+}
+
+function assertSameContext(expected, received, label) {
+  const a = text(expected);
+  const b = text(received);
+  if (a && b && a !== b) throw new Error(`${label} incohérent avec la visite Mission.`);
+}
+
+function normalizeBoolean(raw) {
+  if (raw === null || raw === undefined || raw === '') return null;
+  if (typeof raw === 'boolean') return raw ? 1 : 0;
+  if (typeof raw === 'number') return raw === 0 ? 0 : 1;
+  const value = String(raw).trim().toLowerCase();
+  if (['0', 'false', 'non', 'no', 'off'].includes(value)) return 0;
+  if (['1', 'true', 'oui', 'yes', 'on'].includes(value)) return 1;
+  return raw ? 1 : 0;
+}
+
 export async function chargerVisiteMission(visitId) {
   const db = await getDb();
   const visit = await db.getFirstAsync(
@@ -27,23 +52,57 @@ export async function chargerVisiteMission(visitId) {
   return { visit, values, notes, points };
 }
 
-export async function enregistrerValeurTrameMission({ missionId, visitId, siteId = null, templateId, fieldCode, fieldLabel = null, value = null, valueType = 'text', unit = null } = {}) {
-  if (!missionId || !visitId || !fieldCode) throw new Error('Contexte de champ Mission incomplet.');
+export async function enregistrerValeurTrameMission({
+  missionId = null,
+  visitId,
+  siteId = null,
+  locationId = null,
+  equipmentId = null,
+  templateId,
+  fieldCode,
+  fieldLabel = null,
+  value = null,
+  valueType = 'text',
+  unit = null,
+} = {}) {
+  if (!visitId || !fieldCode) throw new Error('Contexte de champ Mission incomplet.');
   const db = await getDb();
+  const visit = await getVisitContext(db, visitId);
+  assertSameContext(visit.mission_id, missionId, 'Mission');
+  assertSameContext(visit.site_id, siteId, 'Site');
+
+  const effectiveMissionId = visit.mission_id;
+  const effectiveSiteId = text(visit.site_id) || text(siteId);
+  const normalizedLocationId = text(locationId);
+  const normalizedEquipmentId = text(equipmentId);
+  const normalizedTemplateId = text(templateId);
+
   const existing = await db.getFirstAsync(
     `SELECT id FROM mission_template_values
-     WHERE mission_id=? AND visit_id=? AND field_code=? AND COALESCE(template_id,'')=COALESCE(?, '')
+     WHERE mission_id=? AND visit_id=?
+       AND COALESCE(site_id,'')=COALESCE(?, '')
+       AND COALESCE(location_id,'')=COALESCE(?, '')
+       AND COALESCE(equipment_id,'')=COALESCE(?, '')
+       AND COALESCE(template_id,'')=COALESCE(?, '')
+       AND field_code=?
      LIMIT 1`,
-    [missionId, visitId, fieldCode, text(templateId)]
+    [effectiveMissionId, visitId, effectiveSiteId, normalizedLocationId, normalizedEquipmentId, normalizedTemplateId, fieldCode]
   );
+
   const now = new Date().toISOString();
   const raw = value === undefined ? null : value;
   let valueText = null;
   let valueNumber = null;
   let valueBoolean = null;
   let valueDate = null;
-  if (valueType === 'number') valueNumber = raw === '' || raw === null ? null : Number(raw);
-  else if (valueType === 'boolean') valueBoolean = raw === null || raw === '' ? null : (raw ? 1 : 0);
+
+  if (valueType === 'number') {
+    if (raw !== '' && raw !== null) {
+      const parsed = Number(String(raw).replace(',', '.'));
+      if (!Number.isFinite(parsed)) throw new Error(`Valeur numérique invalide pour « ${fieldLabel || fieldCode} ».`);
+      valueNumber = parsed;
+    }
+  } else if (valueType === 'boolean') valueBoolean = normalizeBoolean(raw);
   else if (valueType === 'date') valueDate = text(raw);
   else valueText = text(raw);
 
@@ -52,7 +111,7 @@ export async function enregistrerValeurTrameMission({ missionId, visitId, siteId
       `UPDATE mission_template_values
        SET field_label=?,value_type=?,value_text=?,value_number=?,value_boolean=?,value_date=?,unit=?,updated_at=?
        WHERE id=?`,
-      [text(fieldLabel), valueType, valueText, valueNumber, valueBoolean, valueDate, text(unit), now, existing.id]
+      [text(fieldLabel), text(valueType) || 'text', valueText, valueNumber, valueBoolean, valueDate, text(unit), now, existing.id]
     );
     return existing.id;
   }
@@ -60,21 +119,25 @@ export async function enregistrerValeurTrameMission({ missionId, visitId, siteId
   const id = createId('mtv');
   await db.runAsync(
     `INSERT INTO mission_template_values(
-       id,mission_id,visit_id,site_id,template_id,field_code,field_label,value_type,
+       id,mission_id,visit_id,site_id,location_id,equipment_id,template_id,field_code,field_label,value_type,
        value_text,value_number,value_boolean,value_date,unit,source_type,created_at,updated_at
-     ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, missionId, visitId, text(siteId), text(templateId), fieldCode, text(fieldLabel), valueType, valueText, valueNumber, valueBoolean, valueDate, text(unit), 'manual', now, now]
+     ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, effectiveMissionId, visitId, effectiveSiteId, normalizedLocationId, normalizedEquipmentId, normalizedTemplateId, fieldCode,
+      text(fieldLabel), text(valueType) || 'text', valueText, valueNumber, valueBoolean, valueDate, text(unit), 'manual', now, now]
   );
   return id;
 }
 
-export async function ajouterNoteVisiteMission({ missionId, visitId, siteId = null, content = '', visibility = 'internal', type = 'terrain' } = {}) {
-  if (!missionId || !visitId) throw new Error('Visite Mission requise.');
+export async function ajouterNoteVisiteMission({ missionId = null, visitId, siteId = null, content = '', visibility = 'internal', type = 'terrain' } = {}) {
+  if (!visitId) throw new Error('Visite Mission requise.');
   const db = await getDb();
+  const visit = await getVisitContext(db, visitId);
+  assertSameContext(visit.mission_id, missionId, 'Mission');
+  assertSameContext(visit.site_id, siteId, 'Site');
   const id = createId('mnote');
   await db.runAsync(
     `INSERT INTO mission_notes(id,mission_id,site_id,visit_id,type,content,visibility) VALUES(?,?,?,?,?,?,?)`,
-    [id, missionId, text(siteId), visitId, text(type), text(content), text(visibility) || 'internal']
+    [id, visit.mission_id, text(visit.site_id) || text(siteId), visitId, text(type), text(content), text(visibility) || 'internal']
   );
   return id;
 }
@@ -84,6 +147,7 @@ export async function mettreAJourVisiteMission(visitId, changes = {}) {
   const entries = Object.entries(changes).filter(([key]) => allowed[key]);
   if (!entries.length) return;
   const db = await getDb();
+  await getVisitContext(db, visitId);
   const set = entries.map(([key]) => `${allowed[key]}=?`);
   const values = entries.map(([, value]) => text(value));
   const now = new Date().toISOString();
