@@ -12,6 +12,7 @@ const CONTRACT_CHECKS = [
   ['startup dependency graph contract', '.github/scripts/check_startup_dependency_graph.js'],
   ['report export workflow contract', '.github/scripts/check_report_export_workflow.js'],
   ['latest visit photos contract', '.github/scripts/check_latest_visit_photos_contract.js'],
+  ['Intranet photo download performance contract', '.github/scripts/check_intranet_photo_download_perf.js'],
   ['Intranet visit upload contract', '.github/scripts/check_intranet_visit_upload_contract.js'],
   ['Intranet structure creation contract', '.github/scripts/check_intranet_structure_creation_contract.js'],
   ['Intranet any-visit binding contract', '.github/scripts/check_intranet_any_visit_contract.js'],
