@@ -9,6 +9,7 @@ Tout agent IA intervenant dans ce dépôt doit respecter les règles de ce fichi
 - `docs/TRAMES.md`
 - `docs/REPORTS.md`
 - `docs/ANDROID_ARCHITECTURE.md`
+- `docs/MISSIONS.md`
 
 Les rôles spécialisés sont décrits dans `agents/`.
 
@@ -22,14 +23,17 @@ Les rôles spécialisés sont décrits dans `agents/`.
 6. Une nouvelle visite ICPE ou VMC reprend par défaut les champs, mesures, réseaux/compteurs et avis de la dernière visite du même local et de la même trame, comme valeurs de préremplissage immédiatement modifiables. Pré-allumage ne reprend que les informations durables explicitement prévues et laisse les contrôles à refaire vides. Les réserves, photos et conclusions historiques ne deviennent jamais automatiquement de nouvelles observations.
 7. L’application doit rester utilisable hors connexion.
 8. Une modification d’une trame ne doit pas casser les autres.
-9. Développer sur une branche dédiée et ouvrir une PR vers `native-android`.
-10. Ne jamais considérer un bundle JavaScript réussi comme une compilation Android réussie.
-11. Le code runtime versionné est la source de vérité : ne jamais ajouter dans `postinstall` ou dans la CI un patch automatique qui modifie silencieusement une fonctionnalité, l’ergonomie, les performances ou une règle métier. Modifier le vrai fichier source et son contrat de validation dans une PR dédiée.
+9. Le module Missions est strictement indépendant de l'Intranet et reste désactivé par défaut derrière le verrou LAB défini dans `docs/MISSIONS.md`.
+10. Une visite Mission peut rester partiellement renseignée et doit pouvoir être reprise après fermeture sans perte.
+11. Développer sur une branche dédiée et ouvrir une PR vers `native-android`.
+12. Ne jamais considérer un bundle JavaScript réussi comme une compilation Android réussie.
+13. Le code runtime versionné est la source de vérité : ne jamais ajouter dans `postinstall` ou dans la CI un patch automatique qui modifie silencieusement une fonctionnalité, l’ergonomie, les performances ou une règle métier. Modifier le vrai fichier source et son contrat de validation dans une PR dédiée.
 
 ## Avant toute modification
 
 - identifier le rôle principal concerné dans `agents/` ;
 - identifier les impacts sur ICPE, VMC et Pré-allumage ;
+- pour Missions, vérifier explicitement qu'aucune dépendance Intranet n'est introduite ;
 - vérifier si SQLite, Excel, PDF/Word ou Android natif sont touchés ;
 - limiter le changement au périmètre demandé ;
 - distinguer explicitement une génération de packaging légitime d’une mutation du code runtime qui doit être matérialisée dans Git.

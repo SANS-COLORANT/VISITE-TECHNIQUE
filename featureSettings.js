@@ -1,6 +1,7 @@
 import { getDb } from './db.js';
 
 const LAB_PREFIX = 'lab_feature_';
+const LAB_MISSIONS_UNLOCKED_KEY = 'lab_missions_unlocked';
 const SITE_HEALTH_PREFIX = 'lab_health_site_';
 const listeners = new Set();
 
@@ -23,6 +24,13 @@ export const LAB_FEATURES = Object.freeze([
     description: 'Maquette 3D des sites et équipements. Peut être totalement masquée sans supprimer les maquettes déjà enregistrées.',
     icon: '⬡',
   },
+  {
+    key: 'missions',
+    title: 'Missions',
+    description: 'Dossiers ponctuels indépendants des visites récurrentes et de l’Intranet. Activation volontaire uniquement.',
+    icon: '◎',
+    hiddenUntilUnlocked: true,
+  },
 ]);
 
 function featureKey(key) {
@@ -33,8 +41,7 @@ export async function getLabFeatureEnabled(key) {
   const db = await getDb();
   const row = await db.getFirstAsync(`SELECT value FROM _meta WHERE key=?`, [featureKey(key)]);
   // Toutes les fonctionnalités LAB sont opt-in : une installation neuve ne doit
-  // jamais afficher LAB 3D (ni une autre fonction expérimentale) sans activation
-  // explicite dans les paramètres METRA.
+  // jamais afficher une fonction expérimentale sans activation explicite.
   if (!row) return false;
   return String(row.value || '') === '1';
 }
@@ -58,6 +65,21 @@ export async function getLabFeatureStates() {
   return states;
 }
 
+export async function getMissionsLabUnlocked() {
+  const db = await getDb();
+  const row = await db.getFirstAsync(`SELECT value FROM _meta WHERE key=?`, [LAB_MISSIONS_UNLOCKED_KEY]);
+  return String(row?.value || '') === '1';
+}
+
+export async function unlockMissionsLab() {
+  const db = await getDb();
+  await db.runAsync(
+    `INSERT INTO _meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+    [LAB_MISSIONS_UNLOCKED_KEY, '1']
+  );
+  return true;
+}
+
 export function subscribeLabFeatureChanges(listener) {
   if (typeof listener !== 'function') return () => {};
   listeners.add(listener);
@@ -78,6 +100,15 @@ export async function getLab3DVisible() {
 
 export async function setLab3DVisible(enabled) {
   return setLabFeatureEnabled('lab_3d', enabled);
+}
+
+export async function getMissionsVisible() {
+  return getLabFeatureEnabled('missions');
+}
+
+export async function setMissionsVisible(enabled) {
+  if (enabled && !(await getMissionsLabUnlocked())) throw new Error('Le module Missions doit d’abord être déverrouillé depuis LAB METRA.');
+  return setLabFeatureEnabled('missions', enabled);
 }
 
 export async function getSiteHealthManualSettings(siteId) {

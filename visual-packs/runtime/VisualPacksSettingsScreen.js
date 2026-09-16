@@ -10,6 +10,7 @@ import {
 } from 'react-native';
 import { COLORS, styles } from '../../styles.js';
 import { ParametresScreen } from '../../ParametresScreen.js';
+import { LabMetraPanel } from '../../LabMetraPanel.js';
 import { setRuntimeVisualPalette } from './visualPaletteRuntime.js';
 import {
   activateVisualPack,
@@ -163,12 +164,44 @@ function CompactToggle({ animationOn, activeName, accent, disabled, onOff, onOn,
   );
 }
 
+function LabSettingsEntry({ open, onPress }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      activeOpacity={0.8}
+      style={{
+        marginHorizontal: 16,
+        marginTop: 12,
+        marginBottom: open ? 8 : 12,
+        minHeight: 52,
+        paddingHorizontal: 14,
+        borderRadius: 14,
+        borderWidth: 1,
+        borderColor: open ? '#F2A875' : COLORS.line,
+        backgroundColor: open ? '#FFF6EF' : COLORS.white,
+        flexDirection: 'row',
+        alignItems: 'center',
+      }}
+    >
+      <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: '#FFF1E8', alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
+        <Text style={{ color: COLORS.orangeDark, fontSize: 16, fontWeight: '900' }}>LAB</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ color: COLORS.ink, fontSize: 12.5, fontWeight: '900' }}>LAB METRA</Text>
+        <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 9.5 }}>Fonctionnalités expérimentales · accès uniquement depuis Paramètres</Text>
+      </View>
+      <Text style={{ color: COLORS.orangeDark, fontSize: 18 }}>{open ? '⌃' : '⌄'}</Text>
+    </TouchableOpacity>
+  );
+}
+
 export function VisualPacksSettingsScreen({ visualPack, onVisualPackChanged }) {
   const [saving, setSaving] = useState(false);
   const [packs, setPacks] = useState([]);
   const [loadingPacks, setLoadingPacks] = useState(true);
   const [selectorVisible, setSelectorVisible] = useState(false);
   const [lastAnimatedPackId, setLastAnimatedPackId] = useState(null);
+  const [labOpen, setLabOpen] = useState(false);
   const longPressTriggered = useRef(false);
 
   const reloadPacks = useCallback(async () => {
@@ -267,8 +300,16 @@ export function VisualPacksSettingsScreen({ visualPack, onVisualPackChanged }) {
         onLongPressOn={openSelector}
       />
 
+      <LabSettingsEntry open={labOpen} onPress={() => setLabOpen((value) => !value)} />
+
       <View style={{ flex: 1 }}>
-        <ParametresScreen />
+        {labOpen ? (
+          <ScrollView contentContainerStyle={{ paddingBottom: 70 }}>
+            <LabMetraPanel />
+          </ScrollView>
+        ) : (
+          <ParametresScreen />
+        )}
       </View>
 
       <Modal

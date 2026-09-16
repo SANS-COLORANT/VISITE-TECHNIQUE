@@ -1,16 +1,18 @@
 /** Écran Accueil. */
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView } from 'react-native';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView, PanResponder } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
 import { PatrimoineThumbnail } from './PatrimoineImageCard.js';
 import { onPatrimoineImageChanged } from './patrimoineImageDb.js';
+import { MISSION_COLORS } from './missionTheme.js';
+
 const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
 function chargerEntityManagementModule(){return require('./entityManagementDb.js');}
 
-function HomeScreen({ navigation, onR1LongPress }) {
+function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
   const [clients, setClients] = useState(() => HOME_FAST_CACHE.clients || []);
   const [visitesEnCours, setVisitesEnCours] = useState(() => HOME_FAST_CACHE.visitesEnCours || []);
   const [stats, setStats] = useState(() => HOME_FAST_CACHE.stats || { enCours: 0, terminees: 0 });
@@ -36,6 +38,18 @@ function HomeScreen({ navigation, onR1LongPress }) {
   useEffect(() => onPatrimoineImageChanged((change) => {
     if (change?.type === 'client') charger().catch(() => {});
   }), [charger]);
+
+  const missionsSwipeResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gesture) => (
+      missionsEnabled
+      && gesture.dx > 22
+      && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.45
+    ),
+    onPanResponderTerminationRequest: () => true,
+    onPanResponderRelease: (_, gesture) => {
+      if (missionsEnabled && gesture.dx > 85) navigation.navigate('Missions', { enteredBySwipe: true });
+    },
+  }), [missionsEnabled, navigation]);
 
   const onRefresh = async () => { setRefreshing(true); await charger(); setRefreshing(false); };
   const openDirectory = () => navigation.navigate('MetraDirectory', { query: quickSearch.trim() });
@@ -109,7 +123,7 @@ function HomeScreen({ navigation, onR1LongPress }) {
     finally { setImportEnCours(false); }
   };
 
-  return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: COLORS.bg }} {...missionsSwipeResponder.panHandlers}>
     <View style={styles.homeTopRow}>
       <TouchableOpacity style={styles.importExcelBtn} onPress={choisirExcel}><Text style={styles.importExcelBtnText}>⇧ Importer Excel(s)</Text></TouchableOpacity>
       <View style={{ flex: 1 }} />
@@ -122,6 +136,7 @@ function HomeScreen({ navigation, onR1LongPress }) {
       data={clients}
       keyExtractor={(i) => i.id}
       ListHeaderComponent={<>
+        {missionsEnabled ? <View style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: MISSION_COLORS.accentSoft }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, fontWeight: '800' }}>Glisser vers la droite → Missions</Text></View> : null}
         <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E6E8EC', padding: 13, marginBottom: 16 }}>
           <Text style={{ color: COLORS.ink || '#17212B', fontSize: 13.5, fontWeight: '900', marginBottom: 9 }}>Accès rapide au patrimoine</Text>
           <View style={{ minHeight: 50, borderRadius: 14, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: '#ECEEF1', flexDirection: 'row', alignItems: 'center', paddingLeft: 13 }}>
@@ -130,7 +145,6 @@ function HomeScreen({ navigation, onR1LongPress }) {
               value={quickSearch}
               onChangeText={setQuickSearch}
               onSubmitEditing={openDirectory}
-              onFocus={() => {}}
               placeholder="Client, site, ville, adresse, équipement…"
               placeholderTextColor="#98A2B3"
               style={{ flex: 1, color: COLORS.ink || '#17212B', fontSize: 14.5, paddingVertical: 12 }}

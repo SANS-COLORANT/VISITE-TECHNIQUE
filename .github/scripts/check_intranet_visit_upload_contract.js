@@ -1,6 +1,7 @@
 const fs = require('fs');
 function read(path) { return fs.readFileSync(path, 'utf8'); }
 function requireText(text, needle, label) { if (!text.includes(needle)) throw new Error(`${label}: missing ${needle}`); }
+function requireRegex(text, pattern, label) { if (!pattern.test(text)) throw new Error(`${label}: pattern missing ${pattern}`); }
 function forbidText(text, needle, label) { if (text.includes(needle)) throw new Error(`${label}: forbidden ${needle}`); }
 const api = read('symfonyApi.js');
 requireText(api, "protectedRequest('POST', `/api/clients/${id}/visites`", 'POST visits route');
@@ -83,6 +84,7 @@ requireText(docs, 'envoiPhotoId', 'photo idempotency documented');
 requireText(docs, 'lots de 10', 'photo part upload documented');
 requireText(docs, 'La conclusion reste hors synchronisation', 'unsupported conclusion disclosure remains documented');
 requireText(read('VisiteScreen.js'), '<IntranetVisitSyncControl visite={visite}', 'visit sync control');
-requireText(read('App.js'), '<IntranetVisitSyncRuntime/>', 'foreground retry runtime');
-requireText(read('App.js'), '<IntranetVisitSyncBanner/>', 'global pending status');
+const app = read('App.js');
+requireRegex(app, /<IntranetVisitSyncRuntime\s*\/>/, 'foreground retry runtime');
+requireRegex(app, /<IntranetVisitSyncBanner\s*\/>/, 'global pending status');
 console.log('Intranet visit upload contract validated: exact visit POST plus separate idempotent multipart photo upload in resumable parts of 10, DPoP retries, persistent outboxes, Offline/Online status, conflicts, structural criteria validation and full material safeguards.');
