@@ -9,6 +9,7 @@ const CONTRACT_CHECKS = [
   ['visit carry-forward contract', '.github/scripts/check_visit_carry_forward_contract.js'],
   ['large-client performance contract', '.github/scripts/check_large_client_performance.js'],
   ['runtime responsiveness v3 contract', '.github/scripts/check_runtime_responsiveness_v3.js'],
+  ['global runtime hot paths contract', '.github/scripts/check_global_runtime_hotpaths.js'],
   ['startup dependency graph contract', '.github/scripts/check_startup_dependency_graph.js'],
   ['report export workflow contract', '.github/scripts/check_report_export_workflow.js'],
   ['latest visit photos contract', '.github/scripts/check_latest_visit_photos_contract.js'],
@@ -27,6 +28,8 @@ const CONTRACT_CHECKS = [
 
 const JS_SYNTAX_FILES = [
   'PersistentControleGenerique.js',
+  'PhotoButton.js',
+  'preAllumageStructureDb.js',
   'App.js',
   'ReportScreen.js',
   'reportBuilder.js',
