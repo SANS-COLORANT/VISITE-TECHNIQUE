@@ -1,7 +1,7 @@
 import * as SecureStore from 'expo-secure-store';
 import * as FileSystem from 'expo-file-system';
 import { NativeModules } from 'react-native';
-import { cacheAuthorizedClients, cachePreparation, getApiSyncState, markApiError, updateApiSyncState } from './symfonyApiCacheDb.js';
+import { cacheAuthorizedClients, cachePreparation, cacheStructureDirectory, getApiSyncState, markApiError, updateApiSyncState } from './symfonyApiCacheDb.js';
 
 export const METRA_API_BASE_URL = 'https://intranet-energieetservice.com';
 
@@ -440,8 +440,17 @@ export async function syncClientPreparation(remoteClientId, trameId = null) {
   const id = encodeURIComponent(String(remoteClientId));
   const suffix = trameId != null ? `?trame=${encodeURIComponent(String(trameId))}` : '';
   try {
-    const payload = await protectedRequest('GET', `/api/clients/${id}/preparation-visites${suffix}`);
+    // preparation-visites reste la source des locaux, patrimoines et dernières
+    // visites. referentiel-structure est la source de la STRUCTURE complète et
+    // contient aussi les sites qui n'ont encore aucune visite.
+    const [payload, structure] = await Promise.all([
+      protectedRequest('GET', `/api/clients/${id}/preparation-visites${suffix}`),
+      protectedRequest('GET', `/api/clients/${id}/referentiel-structure`),
+    ]);
+    // Ordre volontaire : la préparation remet d'abord les anciennes relations à
+    // zéro, puis le référentiel réactive tous les sites existants, même vides.
     await cachePreparation(remoteClientId, payload);
+    await cacheStructureDirectory(remoteClientId, structure);
     return payload;
   } catch (error) {
     await markApiError(error);
