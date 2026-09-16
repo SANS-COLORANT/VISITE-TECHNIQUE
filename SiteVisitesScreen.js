@@ -332,7 +332,7 @@ function SiteVisitesScreen({ route, navigation }) {
           );
         }}
         ListEmptyComponent={siteTab === 'visites'
-          ? <View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>{intranetClientImported && !apiRemoteLocalId ? 'Choisis ou crée d’abord le local concerné.' : 'Lance la première avec le bouton ci-dessous.'}</Text></View>
+          ? <View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>Lance la première avec le bouton ci-dessous.</Text></View>
           : <SiteOverviewPanel siteId={siteId} mode={siteTab} />}
       />
 
