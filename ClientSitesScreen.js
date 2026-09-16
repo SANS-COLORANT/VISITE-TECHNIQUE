@@ -67,11 +67,7 @@ function ClientSitesScreen({ route, navigation }) {
     } catch (e) { Alert.alert('Création impossible', String(e?.message || e)); }
   };
 
-  const ouvrirSite = (site) => navigation.navigate('SiteVisites', { siteId: site.id, nomSite: site.nom_site });
-  const ouvrirStructure = (event, site) => {
-    event?.stopPropagation?.();
-    navigation.navigate('IntranetStructure', { siteId: site.id, nomSite: site.nom_site, clientId, nomClient });
-  };
+  const ouvrirSite = (site) => navigation.navigate('SiteVisites', { siteId: site.id, nomSite: site.nom_site, clientId, nomClient });
 
   const confirmerSuppressionSite = async (site) => {
     try {
@@ -147,10 +143,11 @@ function ClientSitesScreen({ route, navigation }) {
           <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => navigation.navigate('ClientMap', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>🗺 Carte</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => setGroupesVisible(true)} disabled={!sites.length}><Text style={styles.btnSecondaryText}>▦ Groupes</Text></TouchableOpacity>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 4 }}>
           <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setModalVisible(true)}><Text style={styles.btnPrimaryText}>+ Site local</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setIntranetSiteVisible(true)}><Text style={styles.btnPrimaryText}>+ Site Intranet</Text></TouchableOpacity>
         </View>
+        <Text style={{ color: COLORS.muted, fontSize: 10.5, marginBottom: 8, textAlign: 'center' }}>Les locaux se créent et se gèrent depuis le site concerné.</Text>
         <TouchableOpacity style={[styles.btnSecondary, { marginBottom: 12 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>📄 Documents</Text></TouchableOpacity>
 
         {sansAdresse > 0 ? <View style={{ backgroundColor: '#FFF8E7', borderWidth: 1, borderColor: '#F0D99B', borderRadius: 12, padding: 10, marginBottom: 14 }}><Text style={{ color: '#7A5700', fontSize: 12, fontWeight: '700' }}>{sansAdresse} site(s) sans adresse complète</Text></View> : null}
@@ -159,7 +156,6 @@ function ClientSitesScreen({ route, navigation }) {
       renderItem={({ item }) => <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => ouvrirSite(item)}>
         <PatrimoineThumbnail uri={item.image_uri} size={60} radius={10} />
         <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom_site}</Text>{item.adresse ? <Text style={styles.cardSub}>{item.adresse}</Text> : <Text style={{ color: '#A26A00', fontSize: 12 }}>Adresse à renseigner</Text>}{item.localisation_note ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 4 }}>{item.localisation_note}</Text> : null}</View>
-        <TouchableOpacity onPress={(e) => ouvrirStructure(e, item)} style={{ minHeight: 38, paddingHorizontal: 9, borderRadius: 10, borderWidth: 1, borderColor: COLORS.line, justifyContent: 'center', marginRight: 6 }}><Text style={{ color: COLORS.primary, fontSize: 10.5, fontWeight: '900' }}>Locaux Intranet</Text></TouchableOpacity>
         <View style={[styles.badge, item.statut === 'Actif' ? styles.badgeActif : styles.badgeInactif]}><Text style={[styles.badgeText, item.statut === 'Actif' ? styles.badgeTextActif : styles.badgeTextInactif]}>{item.statut || 'Actif'}</Text></View>
         <TouchableOpacity onPress={(e) => ouvrirMenuSite(e, item)} style={{ minWidth: 46, minHeight: 46, alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}><Text style={{ color: COLORS.inkSoft, fontSize: 22, fontWeight: '900' }}>⋯</Text></TouchableOpacity>
       </TouchableOpacity>}
