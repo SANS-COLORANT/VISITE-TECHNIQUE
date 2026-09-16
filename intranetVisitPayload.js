@@ -5,6 +5,10 @@ export const INTRANET_MAX_BODY_BYTES = 5 * 1024 * 1024;
 export const INTRANET_AVIS = Object.freeze(['S.O', 'S', 'N.S', 'N.R', 'N.V']);
 export const INTRANET_PROGRESS = Object.freeze(['Non réalisé', 'Devis émis', 'En cours', 'Terminé', 'Annulé']);
 export const INTRANET_MATERIAL_STATES = Object.freeze(['Hors service', 'Vétuste', 'Moyen', 'Bon', 'Neuf']);
+// Le serveur exige une branche pour chaque critère de la trame. Une conformité
+// laissée volontairement vide dans METRA est donc envoyée comme Non vérifié
+// plutôt que de bloquer toute la visite ou de prétendre qu'elle est satisfaite.
+export const INTRANET_UNANSWERED_AVIS = 'N.V';
 
 function clean(value) { return value == null ? '' : String(value).trim(); }
 function nullable(value) { const v = clean(value); return v || null; }
@@ -300,20 +304,26 @@ async function buildCriteria(db, visite, details, issues) {
 
         if (column) {
           if (network) commentaire = exactComment(network[column], issues, `${path} / commentaire`);
-          if (applicable) issues.push(`${path} : critère réseau déclaré avec avis, mapping non supporté sans ambiguïté.`);
+          // Une branche réseau laissée vide reste une branche valide du POST.
+          // Si elle porte exceptionnellement un avis, N.V exprime fidèlement
+          // l'absence de contrôle sans inventer une conformité.
+          if (applicable) avis = INTRANET_UNANSWERED_AVIS;
         } else if (!candidate) {
-          issues.push(`${path} : aucun champ METRA correspondant de façon sûre.`);
+          // La structure distante reste exhaustive, mais une absence de champ
+          // METRA équivalent ne doit plus rendre toute la visite non envoyable.
+          avis = applicable ? INTRANET_UNANSWERED_AVIS : null;
+          commentaire = '/';
         } else if (applicable) {
           const control = controlMap.get(`${candidate.sectionCode}||${candidate.cle}`);
           const currentAvis = nullable(control?.avis);
-          if (!INTRANET_AVIS.includes(currentAvis)) issues.push(`${path} : avis obligatoire (${INTRANET_AVIS.join(', ')}).`);
-          else avis = currentAvis;
+          avis = INTRANET_AVIS.includes(currentAvis) ? currentAvis : INTRANET_UNANSWERED_AVIS;
           commentaire = exactComment(control?.commentaire, issues, `${path} / commentaire`);
         } else {
           let value;
           if (visite.trame_id === 'icpe_v1' && candidate.panelId === 'p-releves' && /^index\b/.test(normalize(candidate.label))) {
+            // Un compteur non relevé est une donnée manquante, pas une erreur de
+            // structure. '/' est le marqueur métier accepté par l'Intranet.
             value = counterValue(counters, criterion, candidate);
-            if (value === undefined) issues.push(`${path} : compteur correspondant introuvable ou ambigu.`);
           } else value = fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`);
           commentaire = exactComment(value, issues, `${path} / commentaire`);
         }

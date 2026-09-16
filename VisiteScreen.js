@@ -203,8 +203,24 @@ function VisiteScreen({ route, onBack }) {
     if (wasMounted) start(); else requestAnimationFrame(start);
   }, [addMountedPanels, completeTabChange, pagerX]);
 
+  const interrompreTransitionOnglet = useCallback(() => {
+    // Un swipe interrompu (FlatList, ScrollView horizontal, slider de criticité...)
+    // ne doit jamais laisser transitionRef verrouillé. Un tap explicite sur un
+    // onglet est prioritaire et remet le pager dans un état navigable.
+    pagerX.stopAnimation();
+    preAllumageLocalX.stopAnimation();
+    preAllumageLocalX.setValue(0);
+    transitionRef.current = false;
+  }, [pagerX, preAllumageLocalX]);
+
   const changerOnglet = useCallback((prochain, anime = true) => {
-    if (!prochain || prochain === activeTabRef.current || transitionRef.current) return;
+    if (!prochain) return;
+    interrompreTransitionOnglet();
+    if (prochain === activeTabRef.current) {
+      const currentIndex = tabOrderRef.current.indexOf(prochain);
+      if (currentIndex >= 0) pagerX.setValue(-currentIndex * pagerWidthRef.current);
+      return;
+    }
     Keyboard.dismiss();
     const tabs = tabOrderRef.current;
     const from = tabs.indexOf(activeTabRef.current);
@@ -226,7 +242,7 @@ function VisiteScreen({ route, onBack }) {
 
     transitionRef.current = true;
     animateToTab(prochain, 155);
-  }, [addMountedPanels, animateToTab, completeTabChange, pagerX]);
+  }, [addMountedPanels, animateToTab, completeTabChange, pagerX, interrompreTransitionOnglet]);
 
   const retourSecurise = useCallback(() => {
     Keyboard.dismiss();
@@ -390,7 +406,9 @@ function VisiteScreen({ route, onBack }) {
           transitionRef.current = false;
         });
       },
-      onPanResponderTerminationRequest: () => false,
+      // Autoriser les contrôles enfants (slider, listes horizontales...) à
+      // reprendre la main. onPanResponderTerminate remet déjà le pager à zéro.
+      onPanResponderTerminationRequest: () => true,
     });
   }
 

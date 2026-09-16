@@ -15,6 +15,7 @@ const CONTRACT_CHECKS = [
   ['latest visit photos contract', '.github/scripts/check_latest_visit_photos_contract.js'],
   ['Intranet photo download performance contract', '.github/scripts/check_intranet_photo_download_perf.js'],
   ['Intranet visit upload contract', '.github/scripts/check_intranet_visit_upload_contract.js'],
+  ['partial Intranet visit + tab swipe contract', '.github/scripts/check_partial_intranet_visit_contract.js'],
   ['Intranet structure creation contract', '.github/scripts/check_intranet_structure_creation_contract.js'],
   ['Client -> Site -> Local hierarchy contract', '.github/scripts/check_site_local_hierarchy.js'],
   ['Intranet site without visit import contract', '.github/scripts/check_empty_site_import_contract.js'],
