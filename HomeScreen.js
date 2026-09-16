@@ -6,11 +6,13 @@ import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
 import { PatrimoineThumbnail } from './PatrimoineImageCard.js';
 import { onPatrimoineImageChanged } from './patrimoineImageDb.js';
+import { unlockMissionsLab } from './featureSettings.js';
+
 const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
 function chargerEntityManagementModule(){return require('./entityManagementDb.js');}
 
-function HomeScreen({ navigation, onR1LongPress }) {
+function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
   const [clients, setClients] = useState(() => HOME_FAST_CACHE.clients || []);
   const [visitesEnCours, setVisitesEnCours] = useState(() => HOME_FAST_CACHE.visitesEnCours || []);
   const [stats, setStats] = useState(() => HOME_FAST_CACHE.stats || { enCours: 0, terminees: 0 });
@@ -39,6 +41,15 @@ function HomeScreen({ navigation, onR1LongPress }) {
 
   const onRefresh = async () => { setRefreshing(true); await charger(); setRefreshing(false); };
   const openDirectory = () => navigation.navigate('MetraDirectory', { query: quickSearch.trim() });
+
+  const ouvrirLab = () => navigation.navigate('LabMetra');
+  const deverrouillerMissions = async () => {
+    try {
+      await unlockMissionsLab();
+      navigation.navigate('LabMetra');
+      Alert.alert('LAB METRA', 'Missions est maintenant proposé dans le LAB. Il reste désactivé : active-le explicitement avec son interrupteur pour l’afficher dans l’application.');
+    } catch (e) { Alert.alert('LAB METRA', String(e.message || e)); }
+  };
 
   const confirmerSuppressionVisite = (v) => Alert.alert(
     'Supprimer cette visite ?',
@@ -113,6 +124,14 @@ function HomeScreen({ navigation, onR1LongPress }) {
     <View style={styles.homeTopRow}>
       <TouchableOpacity style={styles.importExcelBtn} onPress={choisirExcel}><Text style={styles.importExcelBtnText}>⇧ Importer Excel(s)</Text></TouchableOpacity>
       <View style={{ flex: 1 }} />
+      {missionsEnabled ? <TouchableOpacity style={[styles.parametresBtn, { marginRight: 8, borderColor: COLORS.orange }]} onPress={() => navigation.navigate('Missions')}><Text style={[styles.parametresBtnText, { color: COLORS.orange }]}>◎ Missions</Text></TouchableOpacity> : null}
+      <TouchableOpacity
+        style={[styles.parametresBtn, { marginRight: 8 }]}
+        onPress={ouvrirLab}
+        onLongPress={deverrouillerMissions}
+        delayLongPress={2000}
+        activeOpacity={0.8}
+      ><Text style={styles.parametresBtnText}>LAB METRA</Text></TouchableOpacity>
       <TouchableOpacity style={styles.parametresBtn} onPress={() => navigation.navigate('Parametres')}><Text style={styles.parametresBtnText}>⚙ Paramètres</Text></TouchableOpacity>
     </View>
 
@@ -130,7 +149,6 @@ function HomeScreen({ navigation, onR1LongPress }) {
               value={quickSearch}
               onChangeText={setQuickSearch}
               onSubmitEditing={openDirectory}
-              onFocus={() => {}}
               placeholder="Client, site, ville, adresse, équipement…"
               placeholderTextColor="#98A2B3"
               style={{ flex: 1, color: COLORS.ink || '#17212B', fontSize: 14.5, paddingVertical: 12 }}
