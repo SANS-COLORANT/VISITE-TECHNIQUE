@@ -38,3 +38,5 @@ jobs:
           git diff --cached --quiet && exit 0
           git commit -m "fix: distinguer compteur vide et compteur ambigu"
           git push origin HEAD:perf/metra-global-runtime-audit
+
+# Retry after aligning exact runtime-regression markers.
