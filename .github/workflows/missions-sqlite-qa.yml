@@ -1,6 +1,22 @@
 name: Missions SQLite QA
 
 on:
+  push:
+    branches:
+      - feat/metra-missions-lab
+    paths:
+      - 'database/constants.js'
+      - 'database/migrations/**'
+      - 'missionsDb.js'
+      - 'missionVisitDb.js'
+      - 'missionExcelExport.js'
+      - 'Mission*.js'
+      - 'Missions*.js'
+      - 'featureSettings.js'
+      - 'LabMetraPanel.js'
+      - '.github/scripts/check_missions_lab_contract.js'
+      - '.github/scripts/test_missions_sqlite_compat.py'
+      - '.github/workflows/missions-sqlite-qa.yml'
   pull_request:
     paths:
       - 'database/constants.js'
