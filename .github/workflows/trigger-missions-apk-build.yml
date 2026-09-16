@@ -1,5 +1,8 @@
 name: Trigger Missions APK build
 
+# Validation APK dédiée au socle Missions. Ce déclencheur reste volontairement
+# séparé du workflow SQLite afin d'éviter une compilation Android à chaque petit
+# changement pendant la phase LAB.
 on:
   push:
     branches:
