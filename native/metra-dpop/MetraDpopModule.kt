@@ -1,14 +1,22 @@
 package com.metra.dpop
 
+import android.net.Uri
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
 import android.util.Base64
+import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import org.json.JSONObject
+import java.io.BufferedInputStream
+import java.io.ByteArrayOutputStream
+import java.io.File
+import java.io.FileOutputStream
 import java.math.BigInteger
+import java.net.HttpURLConnection
+import java.net.URL
 import java.nio.charset.StandardCharsets
 import java.security.KeyPairGenerator
 import java.security.KeyStore
@@ -17,13 +25,17 @@ import java.security.Signature
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
 import java.util.UUID
+import java.util.concurrent.Executors
 
 class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
   companion object {
     // Ne jamais versionner cet alias avec la version de METRA : il identifie
     // l'installation de l'application sur la tablette pendant toute sa durée de vie.
     private const val KEY_ALIAS = "metra_dpop_p256_v1"
+    private const val MAX_ERROR_BODY_BYTES = 64 * 1024
   }
+
+  private val downloadExecutor = Executors.newCachedThreadPool()
 
   override fun getName() = "MetraDpop"
 
@@ -87,6 +99,37 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
     return r + s
   }
 
+  private fun destinationFile(destinationUri: String): File {
+    val uri = Uri.parse(destinationUri)
+    val path = if (uri.scheme == "file") uri.path else destinationUri
+    if (path.isNullOrBlank()) throw IllegalArgumentException("Chemin de destination photo invalide")
+    return File(path)
+  }
+
+  private fun responseHeaders(connection: HttpURLConnection) = Arguments.createMap().apply {
+    connection.headerFields.forEach { (key, values) ->
+      if (!key.isNullOrBlank() && !values.isNullOrEmpty()) putString(key, values.joinToString(", "))
+    }
+  }
+
+  private fun readErrorBody(connection: HttpURLConnection): String? {
+    val stream = connection.errorStream ?: return null
+    return try {
+      BufferedInputStream(stream).use { input ->
+        val output = ByteArrayOutputStream()
+        val buffer = ByteArray(8192)
+        var remaining = MAX_ERROR_BODY_BYTES
+        while (remaining > 0) {
+          val read = input.read(buffer, 0, minOf(buffer.size, remaining))
+          if (read <= 0) break
+          output.write(buffer, 0, read)
+          remaining -= read
+        }
+        output.toString(StandardCharsets.UTF_8.name())
+      }
+    } catch (_: Exception) { null }
+  }
+
   @ReactMethod
   fun hasKey(promise: Promise) {
     try {
@@ -136,6 +179,62 @@ class MetraDpopModule(context: ReactApplicationContext) : ReactContextBaseJavaMo
       promise.resolve(signingInput + "." + b64(joseSignature(signer.sign())))
     } catch (e: Exception) {
       promise.reject("METRA_DPOP_ERROR", e.message, e)
+    }
+  }
+
+  /** Téléchargement binaire natif : HTTP -> fichier Android, sans Blob/Base64 JS. */
+  @ReactMethod
+  fun downloadProtected(url: String, accessToken: String, proof: String, destinationUri: String, promise: Promise) {
+    downloadExecutor.execute {
+      var connection: HttpURLConnection? = null
+      var target: File? = null
+      try {
+        target = destinationFile(destinationUri)
+        target.parentFile?.mkdirs()
+        connection = (URL(url).openConnection() as HttpURLConnection).apply {
+          requestMethod = "GET"
+          // Une preuve DPoP est liée à l'URL exacte : aucune redirection implicite.
+          instanceFollowRedirects = false
+          connectTimeout = 20_000
+          readTimeout = 60_000
+          useCaches = false
+          setRequestProperty("Accept", "image/*")
+          setRequestProperty("DPoP", proof)
+          setRequestProperty("Authorization", "DPoP $accessToken")
+        }
+
+        val status = connection.responseCode
+        val headers = responseHeaders(connection)
+        val mimeType = connection.contentType
+        if (status in 200..299) {
+          BufferedInputStream(connection.inputStream, 64 * 1024).use { input ->
+            FileOutputStream(target).use { output ->
+              val buffer = ByteArray(64 * 1024)
+              while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                if (read > 0) output.write(buffer, 0, read)
+              }
+              output.fd.sync()
+            }
+          }
+        } else {
+          target.delete()
+        }
+
+        promise.resolve(Arguments.createMap().apply {
+          putInt("status", status)
+          putString("uri", destinationUri)
+          putString("mimeType", mimeType)
+          putMap("headers", headers)
+          if (status !in 200..299) putString("errorBody", readErrorBody(connection))
+        })
+      } catch (e: Exception) {
+        try { target?.delete() } catch (_: Exception) {}
+        promise.reject("METRA_PROTECTED_DOWNLOAD_ERROR", e.message, e)
+      } finally {
+        connection?.disconnect()
+      }
     }
   }
 }
