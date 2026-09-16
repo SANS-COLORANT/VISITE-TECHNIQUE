@@ -1,13 +1,16 @@
 const fs=require('fs');
 function read(path){return fs.readFileSync(path,'utf8');}
 function requireText(text,needle,label){if(!text.includes(needle))throw new Error(`${label}: missing ${needle}`);}
+function requireRegex(text,pattern,label){if(!pattern.test(text))throw new Error(`${label}: pattern missing ${pattern}`);}
 function forbidText(text,needle,label){if(text.includes(needle))throw new Error(`${label}: forbidden ${needle}`);}
 
 const app=read('App.js');
 requireText(app,'DEFERRED_SCREEN_LOADERS','deferred screen registry');
-requireText(app,"Report:()=>require('./ReportScreen.js').ReportScreen",'deferred report');
-requireText(app,"Lab3D:()=>require('./Lab3DScreen.js').Lab3DScreen",'deferred LAB3D');
-requireText(app,"ClientDocuments:()=>require('./ClientDocumentsScreen.js').ClientDocumentsScreen",'deferred client documents');
+// Le registre peut etre compacte ou formate par Prettier. Le contrat porte sur
+// le chargement differe reel, pas sur les espaces autour de ':' / '=>'.
+requireRegex(app,/\bReport\s*:\s*\(\s*\)\s*=>\s*require\(['"]\.\/ReportScreen\.js['"]\)\.ReportScreen/,'deferred report');
+requireRegex(app,/\bLab3D\s*:\s*\(\s*\)\s*=>\s*require\(['"]\.\/Lab3DScreen\.js['"]\)\.Lab3DScreen/,'deferred LAB3D');
+requireRegex(app,/\bClientDocuments\s*:\s*\(\s*\)\s*=>\s*require\(['"]\.\/ClientDocumentsScreen\.js['"]\)\.ClientDocumentsScreen/,'deferred client documents');
 requireText(app,"import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';",'hydraulic build compatibility');
 forbidText(app,"import { ReportScreen } from './ReportScreen.js';",'eager report screen');
 forbidText(app,"import { Lab3DScreen } from './Lab3DScreen.js';",'eager LAB3D screen');
