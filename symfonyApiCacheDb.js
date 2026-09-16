@@ -39,8 +39,6 @@ function normalizeCriterion(criterion, categoryId, subCategoryId, index) {
     avis: nullableString(criterion?.avis),
     commentaire: nullableString(criterion?.commentaire),
     visiteSourceId,
-    // Une même entité critère peut être réutilisée dans plusieurs branches de
-    // trame. Le chemin complet évite de fusionner deux occurrences distinctes.
     referencePath: [categoryId, subCategoryId, id].map((v) => v || '?').join(':'),
   };
 }
@@ -102,8 +100,6 @@ function normalizeMaterial(material) {
     marque: nullableString(material?.marque),
     modele: nullableString(material?.modele),
     caracteristiques: nullableString(material?.caracteristiques),
-    // Dans Symfony ces deux colonnes sont des chaînes : ne pas les convertir
-    // implicitement en numéro/série pendant la préparation.
     annee: nullableString(material?.annee),
     etat: nullableString(material?.etat),
   };
@@ -238,23 +234,28 @@ export async function cachePreparation(remoteClientId, payload) {
   const clientId = clean(remoteClientId); if (!clientId) throw new Error('Client API requis');
   const database = await db();
   const normalized = normalizePreparationPayload(payload);
+  const serialized = json(normalized);
+  const current = await database.getFirstAsync(`SELECT payload_json FROM api_preparation_cache WHERE remote_client_id=?`, [clientId]);
+
+  if (current?.payload_json === serialized) {
+    // Une préparation identique ne doit pas réécrire tous les sites/locaux et
+    // leurs grosses références JSON. On rafraîchit uniquement la fraîcheur du cache.
+    await database.runAsync(`UPDATE api_preparation_cache SET synced_at=datetime('now') WHERE remote_client_id=?`, [clientId]);
+    await updateApiSyncState({ last_success_at: new Date().toISOString(), last_error: null });
+    return;
+  }
+
   const visites = normalized.visites;
   const siteIds = [...new Set(visites.map((visite) => remoteId(visite?.site?.id)).filter(Boolean))];
 
   await database.withTransactionAsync(async () => {
     await database.runAsync(
       `INSERT INTO api_preparation_cache(remote_client_id,payload_json,synced_at) VALUES(?,?,datetime('now'))
-       ON CONFLICT(remote_client_id) DO UPDATE SET payload_json=excluded.payload_json,synced_at=datetime('now')`, [clientId, json(normalized)]
+       ON CONFLICT(remote_client_id) DO UPDATE SET payload_json=excluded.payload_json,synced_at=datetime('now')`, [clientId, serialized]
     );
 
-    // Le schéma Symfony passe par LOT <-> SITE : la relation client/site est
-    // donc stockée séparément de l'identité globale du site. Une synchro d'un
-    // client ne peut plus effacer/réaffecter un site partagé par un autre.
     await database.runAsync(`UPDATE api_client_site_links SET remote_present=0 WHERE remote_client_id=?`, [clientId]);
 
-    // LOCAL appartient directement à SITE. Pour chaque site réellement présent
-    // dans cette réponse complète, on marque d'abord son ancien listing local
-    // comme absent, puis les locaux reçus sont réactivés ci-dessous.
     for (const siteId of siteIds) {
       await database.runAsync(`UPDATE api_local_links SET remote_present=0 WHERE remote_site_id=?`, [siteId]);
     }
@@ -294,6 +295,12 @@ export async function cachePreparation(remoteClientId, payload) {
   await updateApiSyncState({ last_success_at: new Date().toISOString(), last_error: null });
 }
 
+function buildDirectorySnapshot(clients, sites) {
+  const clientSearch = (clients || []).map((c) => normalize([c.nom,c.categorie,c.code_everwin,c.ville,c.agence_libelle,c.adresse_postale].join(' ')));
+  const siteSearch = (sites || []).map((s) => normalize([s.nom,s.client_nom,s.client_ville,s.client_code_everwin,s.trames,s.local_designations].join(' ')));
+  return { clients: clients || [], sites: sites || [], clientSearch, siteSearch };
+}
+
 export async function searchCachedDirectory(query = '') {
   const q = normalize(query);
   const snapshot = directorySnapshot || await (async () => {
@@ -318,13 +325,13 @@ export async function searchCachedDirectory(query = '') {
         GROUP BY cs.remote_client_id,s.remote_site_id
         ORDER BY c.nom,s.nom`),
     ]);
-    directorySnapshot = { clients, sites };
+    directorySnapshot = buildDirectorySnapshot(clients, sites);
     return directorySnapshot;
   })();
-  if (!q) return snapshot;
+  if (!q) return { clients: snapshot.clients, sites: snapshot.sites };
   return {
-    clients: snapshot.clients.filter((c) => normalize([c.nom,c.categorie,c.code_everwin,c.ville,c.agence_libelle,c.adresse_postale].join(' ')).includes(q)),
-    sites: snapshot.sites.filter((s) => normalize([s.nom,s.client_nom,s.client_ville,s.client_code_everwin,s.trames,s.local_designations].join(' ')).includes(q)),
+    clients: snapshot.clients.filter((_, index) => snapshot.clientSearch[index]?.includes(q)),
+    sites: snapshot.sites.filter((_, index) => snapshot.siteSearch[index]?.includes(q)),
   };
 }
 export async function getCachedClient(remoteClientId) {
@@ -410,8 +417,6 @@ export async function materializeCachedSite(remoteSiteId, remoteClientId = null)
     );
   }
 
-  // SITE est une identité physique globale dans Symfony. Même s'il apparaît
-  // via plusieurs LOT/CLIENT, METRA conserve un seul patrimoine pour ce site.
   if (remote.local_site_id) {
     await database.runAsync(`UPDATE api_client_site_links SET local_site_id=? WHERE remote_site_id=?`, [remote.local_site_id, siteRemoteId]);
     return remote.local_site_id;
