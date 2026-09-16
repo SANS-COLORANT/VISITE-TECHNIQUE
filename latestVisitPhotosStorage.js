@@ -15,7 +15,6 @@ import { mapLatestVisitPhotos, photoFileKey, photoSummary } from './latestVisitP
 const ROOT_DIRECTORY = 'visite-technique/intranet-photos/';
 const MAX_CONCURRENT_DOWNLOADS = 3;
 const MAX_RATE_LIMIT_RETRIES = 2;
-const ensuredDirectories = new Set();
 
 function safeSegment(value, fallback) {
   const result = String(value ?? '')
@@ -67,14 +66,14 @@ function validatedDownloadPath(remoteClientId, photo) {
   return path;
 }
 
-async function ensureDestination(photo, remoteClientId) {
+async function ensureDestination(photo, remoteClientId, batchDirectories) {
   if (!FileSystem.documentDirectory) throw new Error('Stockage privé Android indisponible.');
   const directory = `${FileSystem.documentDirectory}${ROOT_DIRECTORY}${safeSegment(remoteClientId, 'client')}/${safeSegment(photo.site?.id, 'site')}/${safeSegment(photo.local?.id, 'local')}/${safeSegment(photo.derniereVisite?.id, 'visite')}/`;
-  // Plusieurs photos d'un même local/visite partagent le dossier. Éviter un
-  // appel natif makeDirectoryAsync pour chacune d'elles pendant le même process.
-  if (!ensuredDirectories.has(directory)) {
+  // Cache limité au lot courant : évite N appels natifs pour les photos d'un
+  // même local sans masquer une suppression/erreur de dossier lors d'un futur lot.
+  if (!batchDirectories.has(directory)) {
     await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
-    ensuredDirectories.add(directory);
+    batchDirectories.add(directory);
   }
   const revision = [photo.tailleOctets || 0, photo.largeurPixels || 0, photo.hauteurPixels || 0, safeSegment(photo.typeMime, 'image')].join('-');
   const filename = `${safeSegment(photo.id, 'photo')}-${revision}${extensionFor(photo)}`;
@@ -84,9 +83,6 @@ async function ensureDestination(photo, remoteClientId) {
 async function existingLocalPhoto(photo) {
   if (!photo?.localUri) return false;
   try {
-    // Ne pas mémoriser un résultat positif entre deux hydratations : les tests
-    // et les nettoyages Android doivent être détectés immédiatement. Cette stat
-    // est la garde de vérité du mode hors connexion.
     const info = await FileSystem.getInfoAsync(photo.localUri);
     const size = Number(info?.size || 0), expected = Number(photo.tailleOctets || photo.downloadedBytes || 0);
     return Boolean(info?.exists && size > 0 && (!expected || expected === size));
@@ -137,7 +133,7 @@ async function waitUnlessPaused(milliseconds, control) {
   while (!control.paused && Date.now() < until) await wait(Math.min(200, until - Date.now()));
 }
 
-async function downloadOne(remoteClientId, photo, rateLimit, control) {
+async function downloadOne(remoteClientId, photo, rateLimit, control, batchDirectories) {
   if (await existingLocalPhoto(photo)) {
     photo.localAvailable = true;
     return { status: 'cached', photo };
@@ -151,7 +147,7 @@ async function downloadOne(remoteClientId, photo, rateLimit, control) {
     if (gateDelay > 0) await waitUnlessPaused(gateDelay, control);
     if (control.paused) return { status: 'paused', photo };
     try {
-      const destination = await ensureDestination(photo, remoteClientId);
+      const destination = await ensureDestination(photo, remoteClientId, batchDirectories);
       temporaryUri = destination.temporaryUri;
       const finalUri = destination.finalUri;
       await FileSystem.deleteAsync(temporaryUri, { idempotent: true }).catch(() => {});
@@ -205,6 +201,7 @@ export async function downloadClientLatestVisitPhotos(remoteClientId, manifest, 
     throw new Error('Espace insuffisant sur la tablette. Libère du stockage ou choisis moins de photos.');
   }
   const rateLimit = { until: 0 };
+  const batchDirectories = new Set();
   let consecutiveErrors = 0;
   let cursor = 0;
   const notify = (photo = null) => onProgress?.({ ...summary, currentPhoto: photo });
@@ -213,7 +210,7 @@ export async function downloadClientLatestVisitPhotos(remoteClientId, manifest, 
   const worker = async () => {
     while (!control.paused && cursor < candidates.length) {
       const photo = candidates[cursor]; cursor += 1;
-      const result = await downloadOne(remoteClientId, photo, rateLimit, control);
+      const result = await downloadOne(remoteClientId, photo, rateLimit, control, batchDirectories);
       if (result.status === 'paused') break;
       summary.completed += 1;
       if (result.status === 'downloaded') { summary.downloaded += 1; consecutiveErrors = 0; }
@@ -228,8 +225,6 @@ export async function downloadClientLatestVisitPhotos(remoteClientId, manifest, 
     }
   };
   await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENT_DOWNLOADS, Math.max(1, candidates.length)) }, worker));
-  // Recharge depuis SQLite pour fournir de nouvelles références React et faire
-  // apparaître immédiatement les miniatures qui viennent d'être téléchargées.
   return { ...summary, paused: Boolean(control.paused), manifest: await hydrateLatestVisitPhotosCache(remoteClientId, manifest) };
 }
 
