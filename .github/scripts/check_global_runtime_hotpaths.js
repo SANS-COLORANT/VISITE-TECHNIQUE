@@ -43,8 +43,8 @@ need(latestPhotos, 'current?.payload_json === serializedManifest', 'unchanged re
 need(latestPhotos, "UPDATE api_latest_visit_photo_manifests SET synced_at=datetime('now')", 'unchanged manifest only refreshes timestamp');
 
 const photoStorage = read('latestVisitPhotosStorage.js');
-need(photoStorage, 'ensuredDirectories', 'download directory creation cache');
-need(photoStorage, 'if (!ensuredDirectories.has(directory))', 'download directory native call deduplication');
+need(photoStorage, 'const batchDirectories = new Set();', 'download directory cache is scoped to one batch');
+need(photoStorage, 'if (!batchDirectories.has(directory))', 'download directory native call deduplication');
 need(photoStorage, 'const info = await FileSystem.getInfoAsync(photo.localUri)', 'offline availability remains verified from the actual file');
 forbid(photoStorage, 'LOCAL_FILE_VERIFICATION_TTL_MS', 'stale positive local-file cache');
 forbid(photoStorage, 'localFileVerification', 'stale local-file availability map');
@@ -61,4 +61,4 @@ const native = read('native/metra-dpop/MetraDpopModule.kt');
 need(native, 'fun downloadProtected(', 'native protected downloader remains active');
 need(native, 'BufferedInputStream(connection.inputStream', 'remote photos remain native-streamed');
 
-console.log('Global METRA runtime hot-path contract validated: no pre-allumage/prefill query storms, shared local photo reads, idle outbox filtering, reused photo criterion mapping, unchanged cache fast paths, deduplicated directory creation with strict file availability checks, pre-normalized directory search and native binary streaming.');
+console.log('Global METRA runtime hot-path contract validated: no pre-allumage/prefill query storms, shared local photo reads, idle outbox filtering, reused photo criterion mapping, unchanged cache fast paths, per-batch directory deduplication with strict file availability checks, pre-normalized directory search and native binary streaming.');
