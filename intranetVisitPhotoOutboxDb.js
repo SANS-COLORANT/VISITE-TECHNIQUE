@@ -95,9 +95,6 @@ function buildPhotoCriterionMap(visite, details) {
   for (const category of categories) {
     for (const subCategory of Array.isArray(category?.sousCategories) ? category.sousCategories : []) {
       for (const criterion of Array.isArray(subCategory?.criteres) ? subCategory.criteres : []) {
-        // Le même moteur de correspondance que l'envoi de visite reste la
-        // source de vérité, mais il n'est exécuté qu'une fois par critère de la
-        // trame au lieu d'une fois par photo x critère.
         const inspected = inspectIntranetCriterionCandidate(visite.trame_id, criterion, category?.nom, subCategory?.nom);
         const resolved = inspected?.resolved;
         if (!resolved) continue;
@@ -114,8 +111,6 @@ function buildPhotoCriterionMap(visite, details) {
   }
   const result = new Map();
   for (const [key, unique] of matchesByLocalKey) {
-    // Une photo n'est liée au critère serveur que lorsque la branche distante
-    // est non ambiguë. Sinon les trois champs sont volontairement omis.
     result.set(key, unique.size === 1 ? [...unique.values()][0] : null);
   }
   return result;
@@ -151,39 +146,36 @@ export async function listVisitPhotoOutbox({ includeSynced = false } = {}) {
 
 export async function queueMissingVisitPhotos(visiteId) {
   const db = await getDb();
-  const visitId = String(visiteId);
-  const visitUpload = await db.getFirstAsync(`SELECT remote_client_id,remote_visit_id,status FROM api_visit_outbox WHERE visite_id=?`, [visitId]);
+  const localVisitId = String(visiteId);
+  const visitUpload = await db.getFirstAsync(`SELECT remote_client_id,remote_visit_id,status FROM api_visit_outbox WHERE visite_id=?`, [localVisitId]);
   if (!visitUpload || visitUpload.status !== 'synced' || !visitUpload.remote_visit_id) return 0;
 
   const [visite, photos, maxOrder, details, remarks] = await Promise.all([
-    db.getFirstAsync(`SELECT * FROM visites WHERE id=?`, [visitId]),
+    db.getFirstAsync(`SELECT * FROM visites WHERE id=?`, [localVisitId]),
     db.getAllAsync(`SELECT p.* FROM photos p
       WHERE p.visite_id=? AND NOT EXISTS(
         SELECT 1 FROM api_visit_photo_outbox o WHERE o.photo_id=p.id
-      ) ORDER BY p.cree_le,p.id`, [visitId]),
-    db.getFirstAsync(`SELECT COALESCE(MAX(ordre),0) AS n FROM api_visit_photo_outbox WHERE visite_id=?`, [visitId]),
-    frozenPreparationDetails(db, visitId),
-    db.getAllAsync(`SELECT id,controle_key FROM remarques WHERE visite_id=? AND controle_key IS NOT NULL`, [visitId]),
+      ) ORDER BY p.cree_le,p.id`, [localVisitId]),
+    db.getFirstAsync(`SELECT COALESCE(MAX(ordre),0) AS n FROM api_visit_photo_outbox WHERE visite_id=?`, [localVisitId]),
+    frozenPreparationDetails(db, localVisitId),
+    db.getAllAsync(`SELECT id,controle_key FROM remarques WHERE visite_id=? AND controle_key IS NOT NULL`, [localVisitId]),
   ]);
   if (!visite || !photos?.length) return 0;
 
-  let ordre = Math.max(0, Number(maxOrder?.n || 0));
-  const restant = Math.max(0, 10000 - ordre);
+  const baseOrder = Math.max(0, Number(maxOrder?.n || 0));
+  const restant = Math.max(0, 10000 - baseOrder);
   const candidates = photos.slice(0, restant);
   if (!candidates.length) return 0;
   const remarkControls = new Map((remarks || []).map((row) => [String(row.id), row.controle_key]));
   const criterionMap = buildPhotoCriterionMap(visite, details);
   const context = { details, criterionMap, remarkControls };
 
-  // UUID Android + mapping critère sont préparés avec une concurrence bornée,
-  // puis toutes les insertions SQLite sont regroupées dans une seule transaction.
-  const prepared = await mapWithConcurrency(candidates, 8, async (photo) => {
+  const prepared = await mapWithConcurrency(candidates, 8, async (photo, index) => {
     const [envoiPhotoId, criterion] = await Promise.all([
       createIntranetUploadId(),
       resolvePhotoCriterion(db, visite, photo.entite_key, context),
     ]);
-    ordre += 1;
-    return { photo, envoiPhotoId, criterion, ordre };
+    return { photo, envoiPhotoId, criterion, ordre: baseOrder + index + 1 };
   });
 
   let queued = 0;
@@ -194,7 +186,7 @@ export async function queueMissingVisitPhotos(visiteId) {
           photo_id,visite_id,envoi_photo_id,remote_client_id,remote_visit_id,uri,description,ordre,grand_format,
           categorie_id,sous_categorie_id,critere_id,status,attempt_count,next_attempt_at
         ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?, 'pending',0,NULL)`, [
-        String(photo.id), visitId, envoiPhotoId, String(visitUpload.remote_client_id), String(visitUpload.remote_visit_id),
+        String(photo.id), localVisitId, envoiPhotoId, String(visitUpload.remote_client_id), String(visitUpload.remote_visit_id),
         String(photo.uri), photoDescription(photo.label), item.ordre, 0,
         criterion?.categorieId || null, criterion?.sousCategorieId || null, criterion?.critereId || null,
       ]);
@@ -207,9 +199,6 @@ export async function queueMissingVisitPhotos(visiteId) {
 
 export async function queueMissingSyncedVisitPhotos({ limitVisits = 40 } = {}) {
   const db = await getDb();
-  // Le runtime passe toutes les 15 s. Ne plus rouvrir les 40 dernières visites
-  // quand elles n'ont rien à programmer : SQLite filtre directement les seules
-  // visites ayant au moins une photo sans ligne d'outbox.
   const visits = await db.getAllAsync(`SELECT o.visite_id FROM api_visit_outbox o
     WHERE o.status='synced' AND o.remote_visit_id IS NOT NULL
       AND EXISTS(
@@ -260,8 +249,8 @@ async function sendPhotoRow(db, row) {
     form.append('fichier', { uri: row.uri, ...photoFile(row.uri) });
 
     const clientId = encodeURIComponent(String(row.remote_client_id));
-    const remoteVisitId = encodeURIComponent(String(row.remote_visit_id));
-    const response = await protectedRequest('POST', `/api/clients/${clientId}/visites/${remoteVisitId}/photos`, { body: form });
+    const visitId = encodeURIComponent(String(row.remote_visit_id));
+    const response = await protectedRequest('POST', `/api/clients/${clientId}/visites/${visitId}/photos`, { body: form });
     if (String(response?.envoiPhotoId || '') !== String(row.envoi_photo_id)) throw Object.assign(new Error('Accusé photo Intranet incohérent : envoiPhotoId différent.'), { code: 'invalid_photo_ack' });
     if (typeof response?.rejoue !== 'boolean' || response?.photo?.id == null || String(response?.photo?.visiteId || '') !== String(row.remote_visit_id)) {
       throw Object.assign(new Error('Accusé photo Intranet incomplet ou rattaché à une autre visite.'), { code: 'invalid_photo_ack' });
@@ -303,8 +292,6 @@ export async function processVisitPhotoOutbox({ limit = PHOTO_UPLOAD_PART_SIZE, 
     let filter = "status IN ('pending','retry') AND (next_attempt_at IS NULL OR datetime(next_attempt_at)<=datetime('now'))";
     if (visiteId) { filter += ' AND visite_id=?'; params.push(String(visiteId)); }
 
-    // Même si un ancien appelant demande 30 ou 60 éléments, un passage reste
-    // volontairement limité à une seule partie de 10 photos maximum.
     const requested = Math.max(1, Math.min(PHOTO_UPLOAD_PART_SIZE, Number(limit || PHOTO_UPLOAD_PART_SIZE)));
     params.push(requested);
     const rows = await db.getAllAsync(`SELECT * FROM api_visit_photo_outbox WHERE ${filter} ORDER BY queued_at,ordre LIMIT ?`, params);
