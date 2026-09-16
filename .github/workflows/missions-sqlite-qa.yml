@@ -17,6 +17,7 @@ on:
       - 'HomeScreen.js'
       - 'featureSettings.js'
       - 'LabMetraPanel.js'
+      - 'visual-packs/runtime/VisualPacksSettingsScreen.js'
       - '.github/scripts/**'
       - '.github/workflows/missions-sqlite-qa.yml'
   pull_request:
@@ -33,6 +34,7 @@ on:
       - 'HomeScreen.js'
       - 'featureSettings.js'
       - 'LabMetraPanel.js'
+      - 'visual-packs/runtime/VisualPacksSettingsScreen.js'
       - '.github/scripts/**'
       - '.github/workflows/missions-sqlite-qa.yml'
   workflow_dispatch:
