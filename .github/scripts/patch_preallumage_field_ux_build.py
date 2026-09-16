@@ -22,6 +22,10 @@ MODERN_PAGER_SKIP_LABELS = {
         'pass local swipe registration',
     },
     '.github/scripts/patch_preallumage_swipe_performance.py': {
+        # Le runtime moderne a déjà remplacé les SELECT champ-par-champ par une
+        # lecture batch de champs_visite. Le patch historique ne doit pas tenter
+        # de réécrire une seconde fois cette fonction avec son ancien marqueur.
+        'batch previous visit stable fields',
         'full page local swipe transition',
         'interactive full page local drag',
     },
