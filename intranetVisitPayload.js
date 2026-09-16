@@ -171,8 +171,10 @@ function cleanCounterLabel(value) { return normalize(String(value || '').replace
 function counterValue(counters, criterion, candidate) {
   const keys = new Set([cleanCounterLabel(criterion?.nom), cleanCounterLabel(candidate?.label), cleanCounterLabel(candidate?.cle)].filter(Boolean));
   const exact = counters.filter((counter) => keys.has(cleanCounterLabel(counter.label)));
-  if (exact.length === 1) return exact[0].valeur;
-  return undefined;
+  if (exact.length === 1) return { value: exact[0].valeur, ambiguous: false };
+  // Aucun compteur renseigné est un cas métier valide : exactComment(undefined)
+  // l'enverra sous forme de « / ». Plusieurs correspondances restent bloquantes.
+  return { value: undefined, ambiguous: exact.length > 1 };
 }
 function remoteNetworkKey(categoryId, subCategoryId) { return `${clean(categoryId)}:${clean(subCategoryId)}`; }
 function mapNetworksToRemoteGroups(networks, groups, provenanceRows, issues) {
@@ -321,9 +323,9 @@ async function buildCriteria(db, visite, details, issues) {
         } else {
           let value;
           if (visite.trame_id === 'icpe_v1' && candidate.panelId === 'p-releves' && /^index\b/.test(normalize(candidate.label))) {
-            // Un compteur non relevé est une donnée manquante, pas une erreur de
-            // structure. '/' est le marqueur métier accepté par l'Intranet.
-            value = counterValue(counters, criterion, candidate);
+            const counter = counterValue(counters, criterion, candidate);
+            value = counter.value;
+            if (counter.ambiguous) issues.push(`${path} : plusieurs compteurs locaux correspondent à ce critère.`);
           } else value = fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`);
           commentaire = exactComment(value, issues, `${path} / commentaire`);
         }
