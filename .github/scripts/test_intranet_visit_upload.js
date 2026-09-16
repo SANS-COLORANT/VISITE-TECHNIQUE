@@ -146,8 +146,17 @@ async function main() {
 
     await seed(server.db, 'missing-control');
     await server.db.runAsync(`DELETE FROM controles_visite WHERE visite_id='missing-control'`);
-    await assert.rejects(() => payloadModule.buildIntranetVisitPayload('missing-control', '33333333-3333-4333-8333-333333333333'), /avis obligatoire/);
-    checks++; console.log(`OK ${checks}: missing required opinion blocks server upload before HTTP`);
+    const missingControl = await payloadModule.buildIntranetVisitPayload('missing-control', '33333333-3333-4333-8333-333333333333');
+    const missingOpinionCriterion = missingControl.payload.visites[0].criteres.find((criterion) => criterion.critereId === 100);
+    check(missingOpinionCriterion?.avis === 'N.V' && missingOpinionCriterion?.commentaire === '/',
+      'missing conformity is exported as N.V with slash comment instead of blocking the whole visit');
+
+    await seed(server.db, 'missing-counter');
+    await server.db.runAsync(`DELETE FROM compteurs WHERE visite_id='missing-counter'`);
+    const missingCounter = await payloadModule.buildIntranetVisitPayload('missing-counter', '34333333-3333-4333-8333-333333333333');
+    const missingCounterCriterion = missingCounter.payload.visites[0].criteres.find((criterion) => criterion.critereId === 104);
+    check(missingCounterCriterion?.avis === null && missingCounterCriterion?.commentaire === '/',
+      'missing counter is exported as an empty technical value instead of blocking the whole visit');
 
     await seed(server.db, 'pre-multi');
     await server.db.runAsync(`UPDATE visites SET trame_id='pre_allumage' WHERE id='pre-multi'`);
