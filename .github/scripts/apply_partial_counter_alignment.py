@@ -13,9 +13,8 @@ new_fn = """function counterValue(counters, criterion, candidate) {
   const keys = new Set([cleanCounterLabel(criterion?.nom), cleanCounterLabel(candidate?.label), cleanCounterLabel(candidate?.cle)].filter(Boolean));
   const exact = counters.filter((counter) => keys.has(cleanCounterLabel(counter.label)));
   if (exact.length === 1) return { value: exact[0].valeur, ambiguous: false };
-  // Aucun compteur renseigné est un cas métier valide : il sera envoyé sous
-  // forme de « / ». Plusieurs correspondances restent bloquantes pour ne pas
-  // envoyer arbitrairement la valeur d'un mauvais compteur.
+  // Aucun compteur renseigné est un cas métier valide : exactComment(undefined)
+  // l'enverra sous forme de « / ». Plusieurs correspondances restent bloquantes.
   return { value: undefined, ambiguous: exact.length > 1 };
 }
 """
@@ -27,9 +26,7 @@ old_call = """            // Un compteur non relevé est une donnée manquante, 
             // structure. '/' est le marqueur métier accepté par l'Intranet.
             value = counterValue(counters, criterion, candidate);
 """
-new_call = """            // Un compteur non relevé est une donnée manquante, pas une erreur de
-            // structure. '/' est le marqueur métier accepté par l'Intranet.
-            const counter = counterValue(counters, criterion, candidate);
+new_call = """            const counter = counterValue(counters, criterion, candidate);
             value = counter.value;
             if (counter.ambiguous) issues.push(`${path} : plusieurs compteurs locaux correspondent à ce critère.`);
 """
