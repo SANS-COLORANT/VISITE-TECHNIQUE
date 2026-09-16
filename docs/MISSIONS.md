@@ -16,14 +16,18 @@ Le module **Missions est totalement indépendant de l'Intranet** :
 
 Les clients, sites, localisations, équipements, visites, points et documents Missions sont des objets locaux Missions distincts.
 
-## Activation LAB
+## Activation LAB et navigation
 
 Missions est **désactivé par défaut**.
 
-1. Le réglage Missions n'est pas visible tant que l'utilisateur n'a pas maintenu **LAB METRA pendant 2 secondes**.
-2. Ce geste ne doit jamais activer Missions : il révèle uniquement son interrupteur.
-3. L'utilisateur doit ensuite activer explicitement l'interrupteur **Missions**.
-4. Lorsque Missions est désactivé, toutes ses entrées d'interface sont masquées, sans supprimer les données déjà enregistrées.
+1. **LAB METRA n'est jamais affiché sur l'écran d'accueil.** Son accès se fait uniquement depuis **Paramètres**.
+2. Dans Paramètres, l'utilisateur ouvre LAB METRA puis maintient **LAB METRA pendant 2 secondes** pour révéler le réglage Missions.
+3. Ce geste ne doit jamais activer Missions : il révèle uniquement son interrupteur.
+4. L'utilisateur doit ensuite activer explicitement l'interrupteur **Missions**.
+5. Lorsque Missions est désactivé, toutes ses entrées d'interface sont masquées, sans supprimer les données déjà enregistrées.
+6. Lorsque Missions est actif, l'accès principal se fait depuis l'accueil Visites techniques par un **swipe vers la droite**. Il n'y a pas de bouton Missions permanent sur l'accueil.
+7. L'espace Missions possède son propre tableau de bord, sa propre palette verte et sa propre hiérarchie d'information. Il ne doit pas reproduire l'accueil Client/Patrimoine des Visites techniques.
+8. Depuis le tableau de bord Missions, un swipe inverse permet de revenir aux Visites techniques.
 
 ## Saisie terrain non bloquante
 
@@ -134,8 +138,11 @@ Les fichiers lourds et images ne sont pas incorporés physiquement dans le class
 Avant fusion d'une évolution Missions, vérifier au minimum :
 
 - Missions absent et OFF sur installation neuve ;
+- LAB METRA absent de l'accueil et accessible depuis Paramètres uniquement ;
 - déverrouillage LAB 2 secondes sans activation automatique ;
 - activation/désactivation persistante ;
+- swipe accueil → Missions uniquement si la fonctionnalité est active ;
+- tableau de bord Missions visuellement et fonctionnellement distinct des Visites techniques ;
 - création d'un brouillon partiel ;
 - création d'une visite avec champs vides ;
 - reprise après fermeture/redémarrage ;
