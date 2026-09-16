@@ -5,6 +5,7 @@ name: Trigger Missions APK build
 # changement pendant la phase LAB.
 # Le build ci-dessous est relancé seulement après succès des contrats METRA et
 # du test SQLite base neuve + migration v39 -> v40.
+# Validation UX : accueil Missions dédié, swipe accueil -> Missions et LAB dans Paramètres.
 on:
   push:
     branches:
