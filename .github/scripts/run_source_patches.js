@@ -16,6 +16,7 @@ const CONTRACT_CHECKS = [
   ['Intranet photo download performance contract', '.github/scripts/check_intranet_photo_download_perf.js'],
   ['Intranet visit upload contract', '.github/scripts/check_intranet_visit_upload_contract.js'],
   ['Intranet structure creation contract', '.github/scripts/check_intranet_structure_creation_contract.js'],
+  ['Client -> Site -> Local hierarchy contract', '.github/scripts/check_site_local_hierarchy.js'],
   ['Intranet any-visit binding contract', '.github/scripts/check_intranet_any_visit_contract.js'],
   ['Intranet LOCAL name sync contract', '.github/scripts/check_intranet_local_name_sync.js'],
   ['Intranet LOCAL name sync executable tests', '.github/scripts/test_intranet_local_name_sync.js'],
