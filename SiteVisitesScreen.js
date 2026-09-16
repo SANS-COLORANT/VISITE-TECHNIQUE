@@ -92,6 +92,18 @@ function SiteVisitesScreen({ route, navigation }) {
   }, [params.openNewVisit, apiRemoteLocalId, apiSuggestedTrameId]);
 
   const ouvrirNouvelleVisite = () => {
+    // Une visite destinée à l'Intranet appartient à un LOCAL. Sur un site lié,
+    // on fait donc choisir/créer le local avant de créer la visite au lieu de
+    // fabriquer une visite site sans destination puis de la rattacher plus tard.
+    if (intranetClientImported && !apiRemoteLocalId) {
+      navigation.navigate('IntranetStructure', {
+        siteId,
+        nomSite,
+        clientId: params.clientId || site?.client_id || null,
+        nomClient: params.nomClient || null,
+      });
+      return;
+    }
     if (apiRemoteLocalId) {
       setTrameChoisie(apiSuggestedTrameId);
     } else {
@@ -281,7 +293,7 @@ function SiteVisitesScreen({ route, navigation }) {
     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
       <View style={{ flex: 1 }}>
         <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>Historique des visites — {nomSite}</Text>
-        {apiRemoteLocalId ? <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 4 }}>Contexte : {apiRemoteLocalDesignation || 'Local technique'} · préparation Intranet</Text> : null}
+        {apiRemoteLocalId ? <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 4 }}>Contexte : {apiRemoteLocalDesignation || 'Local technique'} · préparation Intranet</Text> : intranetClientImported ? <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 4 }}>Les nouvelles visites Intranet démarrent depuis le local concerné.</Text> : null}
       </View>
       {visites.length > 0 && !selectionExport ? <TouchableOpacity onPress={ouvrirSelectionExport} style={{ paddingHorizontal: 10, paddingVertical: 8 }}><Text style={{ color: COLORS.primary, fontWeight: '800' }}>Exporter plusieurs</Text></TouchableOpacity> : null}
     </View>
@@ -320,7 +332,7 @@ function SiteVisitesScreen({ route, navigation }) {
           );
         }}
         ListEmptyComponent={siteTab === 'visites'
-          ? <View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>Lance la première avec le bouton ci-dessous.</Text></View>
+          ? <View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>{intranetClientImported && !apiRemoteLocalId ? 'Choisis ou crée d’abord le local concerné.' : 'Lance la première avec le bouton ci-dessous.'}</Text></View>
           : <SiteOverviewPanel siteId={siteId} mode={siteTab} />}
       />
 
@@ -329,7 +341,7 @@ function SiteVisitesScreen({ route, navigation }) {
         <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={toutSelectionner} disabled={exportLotEnCours}><Text style={styles.btnSecondaryText}>{visitesSelectionnees.size === visites.length ? 'Tout désélectionner' : 'Tout sélectionner'}</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnPrimary, { flex: 1.2 }]} onPress={exporterSelection} disabled={!visitesSelectionnees.size || exportLotEnCours}><Text style={styles.btnPrimaryText}>{exportLotEnCours ? 'Export…' : `Exporter ${visitesSelectionnees.size}`}</Text></TouchableOpacity>
       </View> : siteTab === 'visites' ? <View style={styles.fabBar}>
-        <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={ouvrirNouvelleVisite}><Text style={styles.btnPrimaryText}>+ Nouvelle visite</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={ouvrirNouvelleVisite}><Text style={styles.btnPrimaryText}>{intranetClientImported && !apiRemoteLocalId ? 'Choisir le local de la visite' : '+ Nouvelle visite'}</Text></TouchableOpacity>
       </View> : null}
 
       <Modal visible={gpsVisible} transparent animationType="fade" onRequestClose={() => setGpsVisible(false)}>
