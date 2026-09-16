@@ -42,6 +42,12 @@ const latestPhotos = read('latestVisitPhotosDb.js');
 need(latestPhotos, 'current?.payload_json === serializedManifest', 'unchanged remote photo manifest fast path');
 need(latestPhotos, "UPDATE api_latest_visit_photo_manifests SET synced_at=datetime('now')", 'unchanged manifest only refreshes timestamp');
 
+const photoStorage = read('latestVisitPhotosStorage.js');
+need(photoStorage, 'LOCAL_FILE_VERIFICATION_TTL_MS', 'short-lived local photo stat cache');
+need(photoStorage, 'ensuredDirectories', 'download directory creation cache');
+need(photoStorage, 'localFileVerification', 'filesystem verification cache');
+need(photoStorage, 'rememberLocalPhoto(photo, true)', 'downloaded photo primes verification cache');
+
 const apiCache = read('symfonyApiCacheDb.js');
 need(apiCache, 'current?.payload_json === serialized', 'unchanged Intranet preparation fast path');
 need(apiCache, 'buildDirectorySnapshot', 'directory normalized search snapshot');
@@ -54,4 +60,4 @@ const native = read('native/metra-dpop/MetraDpopModule.kt');
 need(native, 'fun downloadProtected(', 'native protected downloader remains active');
 need(native, 'BufferedInputStream(connection.inputStream', 'remote photos remain native-streamed');
 
-console.log('Global METRA runtime hot-path contract validated: no pre-allumage/prefill query storms, shared local photo reads, idle outbox filtering, reused photo criterion mapping, unchanged cache fast paths, pre-normalized directory search and native binary streaming.');
+console.log('Global METRA runtime hot-path contract validated: no pre-allumage/prefill query storms, shared local photo reads, idle outbox filtering, reused photo criterion mapping, unchanged cache fast paths, bounded filesystem checks, pre-normalized directory search and native binary streaming.');
