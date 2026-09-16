@@ -20,7 +20,6 @@ function withPhotoTransaction(database, work) {
   return next;
 }
 
-
 function normalizePhoto(photo, context, fallbackOrder) {
   const id = clean(photo?.id);
   if (!id) return null;
@@ -126,10 +125,30 @@ export function flattenLatestVisitPhotos(manifest) {
 export async function cacheLatestVisitPhotosManifest(remoteClientId, payload) {
   const clientId = clean(remoteClientId);
   const manifest = normalizeLatestVisitPhotosManifest(payload, clientId);
+  const serializedManifest = json(manifest);
   const database = await openAppDatabase();
   const photos = flattenLatestVisitPhotos(manifest);
 
   await withPhotoTransaction(database, async (database) => {
+    const current = await database.getFirstAsync(
+      `SELECT payload_json FROM api_latest_visit_photo_manifests WHERE remote_client_id=?`,
+      [clientId]
+    );
+    if (current?.payload_json === serializedManifest) {
+      // Le manifeste n'a pas changé : ne pas refaire N upserts de photos à
+      // chaque ouverture/actualisation. Les fichiers locaux et statuts restent
+      // intacts ; seul l'horodatage de synchronisation est rafraîchi.
+      await database.runAsync(
+        `UPDATE api_latest_visit_photo_manifests SET synced_at=datetime('now') WHERE remote_client_id=?`,
+        [clientId]
+      );
+      await database.runAsync(
+        `UPDATE api_latest_visit_photos SET synced_at=datetime('now') WHERE remote_client_id=? AND manifest_present=1`,
+        [clientId]
+      );
+      return;
+    }
+
     const previousFiles = await database.getAllAsync(
       `SELECT * FROM api_latest_visit_photos WHERE remote_client_id=? AND local_uri IS NOT NULL`, [clientId]);
     for (const row of previousFiles) {
@@ -148,7 +167,7 @@ export async function cacheLatestVisitPhotosManifest(remoteClientId, payload) {
         available_photo_count=excluded.available_photo_count,available_bytes=excluded.available_bytes,
         payload_json=excluded.payload_json,synced_at=datetime('now')`,
       [clientId, manifest.client.nom, manifest.nombreSites, manifest.nombrePhotosDisponibles,
-        manifest.volumePhotosDisponibles, json(manifest)]
+        manifest.volumePhotosDisponibles, serializedManifest]
     );
     await database.runAsync(
       `UPDATE api_latest_visit_photos SET manifest_present=0 WHERE remote_client_id=?`,
