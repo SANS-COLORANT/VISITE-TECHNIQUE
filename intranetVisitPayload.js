@@ -360,10 +360,49 @@ async function buildRemarks(db, visiteId, issues) {
   });
 }
 
-async function buildMaterials(db, visiteId, sourceMaterialCount, issues) {
+function materialWireFromReference(row, index, issues) {
+  const prefix = `Matériel Intranet ${index + 1}`;
+  const state = nullable(row?.etat);
+  if (state && !INTRANET_MATERIAL_STATES.includes(state)) {
+    issues.push(`${prefix} / état « ${state} » non accepté par l’Intranet. Actualise la préparation du client avant l’envoi.`);
+  }
+  return {
+    categorie: limited(row?.categorie, 255, `${prefix} / catégorie`, issues, { required: true }),
+    nombre: limited(row?.nombre, 255, `${prefix} / nombre`, issues, { required: true }),
+    designation: limited(row?.designation, 255, `${prefix} / désignation`, issues, { required: true }),
+    numeroMateriel: limited(row?.numeroMateriel ?? row?.numero_materiel, 255, `${prefix} / numéro matériel`, issues),
+    reseauDesservi: limited(row?.reseauDesservi ?? row?.reseau_desservi, 255, `${prefix} / réseau desservi`, issues),
+    marque: limited(row?.marque, 255, `${prefix} / marque`, issues),
+    modele: limited(row?.modele, 255, `${prefix} / modèle`, issues),
+    caracteristiques: limited(row?.caracteristiques, 255, `${prefix} / caractéristiques`, issues),
+    annee: limited(row?.annee, 128, `${prefix} / année`, issues),
+    etat: state && INTRANET_MATERIAL_STATES.includes(state) ? state : state,
+  };
+}
+
+async function buildMaterials(db, visiteId, sourceMaterials, issues) {
   const rows = await db.getAllAsync(`SELECT m.*,
       (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=m.equipement_id AND a.cle='api_symfony.etat_reference' ORDER BY a.modifie_le DESC LIMIT 1) AS intranet_reference_state
     FROM materiel m WHERE m.visite_id=? ORDER BY m.cree_le,m.id`, [visiteId]);
+  const sourceRows = Array.isArray(sourceMaterials) ? sourceMaterials : [];
+  const sourceCount = sourceRows.length || Number(sourceMaterials || 0);
+
+  // Le POST Symfony remplace le listing matériel complet. Un onglet Matériels
+  // vide parce que le technicien ne l'a pas renseigné ne doit donc surtout pas
+  // être interprété comme « supprimer tous les matériels ». Si la préparation
+  // figée contient les objets complets, on renvoie leur état serveur inchangé.
+  if (rows.length === 0 && sourceRows.length > 0) {
+    const preserved = sourceRows.map((row, index) => materialWireFromReference(row, index, issues));
+    return {
+      materiels: preserved,
+      destructiveMaterialChange: false,
+      destructiveMaterialClear: false,
+      removedSourceMaterialCount: 0,
+      sourceMaterialCount: sourceCount,
+      preservedSourceMaterials: true,
+    };
+  }
+
   const result = rows.map((row, index) => {
     const prefix = `Matériel ${index + 1}`;
     const currentState = nullable(row.etat);
@@ -385,7 +424,6 @@ async function buildMaterials(db, visiteId, sourceMaterialCount, issues) {
       etat: state && INTRANET_MATERIAL_STATES.includes(state) ? state : state,
     };
   });
-  const sourceCount = Number(sourceMaterialCount || 0);
   const removedSourceMaterialCount = Math.max(0, sourceCount - result.length);
   return {
     materiels: result,
@@ -393,6 +431,7 @@ async function buildMaterials(db, visiteId, sourceMaterialCount, issues) {
     destructiveMaterialClear: result.length === 0 && sourceCount > 0,
     removedSourceMaterialCount,
     sourceMaterialCount: sourceCount,
+    preservedSourceMaterials: false,
   };
 }
 
@@ -436,7 +475,7 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
   if (!date || !validDate(date)) issues.push('Date de visite : format YYYY-MM-DD requis.');
   const status = visite.statut === 'terminee' || visite.statut === 'exportee' ? 'Terminé' : 'En cours';
   const sourceMaterials = Array.isArray(details?.materiels)
-    ? details.materiels.length
+    ? details.materiels
     : Number(details?.preparationMeta?.materialCount ?? ((await db.getFirstAsync(
       `SELECT material_count FROM api_local_links WHERE remote_local_id=?`, [String(visite.api_remote_local_id)]
     ))?.material_count ?? 0));
@@ -470,6 +509,7 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
     destructiveMaterialClear: materialData.destructiveMaterialClear,
     removedSourceMaterialCount: materialData.removedSourceMaterialCount,
     sourceMaterialCount: materialData.sourceMaterialCount,
+    preservedSourceMaterials: Boolean(materialData.preservedSourceMaterials),
     summary: { criteria: criteres.length, remarks: remarques.length, materials: materialData.materiels.length, notes: notes.length,
       photosExcluded: true, conclusionExcluded: true },
   };

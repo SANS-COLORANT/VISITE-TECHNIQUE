@@ -58,7 +58,7 @@ const remoteTrame = { id: '3', nom: 'ICPE', categories: [
   ] }] },
 ] };
 const context = { schemaVersion: 3, sourceType: 'preparation_visite', remoteLocalId: '501', site: { id: '45', nom: 'Site A' },
-  derniereVisite: { id: '812', date: '2026-09-01' }, trame: remoteTrame, materiels: [{ id: 1 }] };
+  derniereVisite: { id: '812', date: '2026-09-01' }, trame: remoteTrame, materiels: [{ id: 1, categorie: 'PRODUCTION CHAUD', nombre: '2', designation: 'Chaudière gaz', numeroMateriel: 'CHA-001', reseauDesservi: 'Bâtiment A', marque: 'Exemple', modele: 'G500', caracteristiques: '500 kW', annee: '2019', etat: 'Bon' }] };
 
 async function seed(db, id = 'visit-1') {
   await db.execAsync(`
@@ -136,7 +136,10 @@ async function main() {
     await server.db.runAsync(`UPDATE remarques SET intranet_date_reserve='2026-09-10' WHERE visite_id='visit-1'`);
     await server.db.runAsync(`DELETE FROM materiel WHERE visite_id='visit-1'`);
     const emptyMaterial = await payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111');
-    check(emptyMaterial.destructiveMaterialClear && emptyMaterial.sourceMaterialCount === 1, 'empty local listing is flagged as destructive when remote reference had material');
+    check(!emptyMaterial.destructiveMaterialClear && emptyMaterial.preservedSourceMaterials && emptyMaterial.sourceMaterialCount === 1,
+      'empty local Materials tab preserves the frozen Intranet listing instead of clearing it');
+    check(emptyMaterial.payload.visites[0].materiels[0]?.numeroMateriel === 'CHA-001',
+      'preserved material keeps the exact remote business fields');
     await server.db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,nombre,designation,etat) VALUES('material-restored','visit-1','Chaudière','1','Chaudière','Bon')`);
 
     await seed(server.db, 'historical');
@@ -198,10 +201,11 @@ async function main() {
 
     await seed(server.db, 'clear-list');
     await server.db.runAsync(`DELETE FROM materiel WHERE visite_id='clear-list'`);
-    await assert.rejects(() => outbox.queueVisitUpload('clear-list'), (error) => error?.code === 'material_clear_confirmation_required');
-    check(!(await outbox.getVisitUploadState('clear-list')), 'destructive empty material listing is not queued before explicit confirmation');
-    const cleared = await outbox.queueVisitUpload('clear-list', { confirmMaterialClear: true });
-    check(cleared.status === 'pending', 'explicit confirmation allows intentional remote material-list clearing');
+    const preservedEmpty = await outbox.queueVisitUpload('clear-list');
+    check(preservedEmpty.status === 'pending', 'empty Materials tab queues normally without destructive-clear confirmation');
+    const preservedQueuedBody = JSON.parse(preservedEmpty.payload_json);
+    check(preservedQueuedBody.visites[0].materiels.length === 1 && preservedQueuedBody.visites[0].materiels[0].numeroMateriel === 'CHA-001',
+      'queued empty Materials tab reuses the frozen remote material listing');
     await server.db.runAsync(`DELETE FROM api_visit_outbox WHERE visite_id='clear-list'`);
 
     await seed(server.db, 'rate-limit'); mode = '429';

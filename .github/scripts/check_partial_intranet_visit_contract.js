@@ -15,6 +15,7 @@ requireText(payload, 'apiId(category?.id', 'remote category identity stays ID-ba
 requireText(payload, 'apiId(subCategory?.id', 'remote subcategory identity stays ID-based');
 requireText(payload, 'apiId(criterion?.id', 'remote criterion identity stays ID-based');
 requireText(payload, 'destructiveMaterialChange', 'material replacement safety retained');
+requireText(payload, 'preservedSourceMaterials', 'empty material tab preserves frozen Intranet list');
 
 const binding = read('intranetVisitBindingDb.js');
 requireText(binding, 'remote_local_id', 'remote local target remains ID-based');
