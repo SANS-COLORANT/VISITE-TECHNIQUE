@@ -276,6 +276,7 @@ export function MissionEquipmentScreen({ navigation, route }) {
     setBusy(true);
     try {
       await modifierEquipementMission(selectedId, {
+        missionId,
         ...edit,
         criticality: { ...(edit.criticality || {}), reason: edit.criticalityReason || null },
       });
