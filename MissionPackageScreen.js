@@ -7,6 +7,7 @@ import { DEFAULT_MISSION_PACKAGE_OPTIONS, exporterPackageMission } from './missi
 const ITEMS = [
   ['reportPdf','Rapport PDF'],
   ['reportDocx','Rapport Word DOCX'],
+  ['individualReports','Rapports individuels par site'],
   ['excel','Excel complet relationnel'],
   ['photos','Photos originales'],
   ['sourceDocuments','Documents sources'],
