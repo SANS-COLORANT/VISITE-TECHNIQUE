@@ -202,6 +202,14 @@ requireText(read('missionPackageImport.js'), 'restorePlans', 'package plan resto
 requireText(read('missionPackageImport.js'), 'restoreMapLayers', 'package offline map restoration');
 requireText(read('MissionsHomeScreen.js'), 'Restaurer ZIP', 'complete Mission ZIP restore UX');
 requireText(read('missionMediaDb.js'), 'resolveMissionContext', 'automatic media context inheritance');
+requireText(read('missionMediaDb.js'), 'modifierVisibilitePhotoMission', 'photo selection for report/client deliverables');
+requireText(read('missionPhotoAlbumExport.js'), "mode === 'report'", 'report photo album filter');
+requireText(read('missionPhotoAlbumExport.js'), "mode === 'issues'", 'issues photo album filter');
+requireText(read('MissionPhotoAnnotationScreen.js'), 'Inclure dans le rapport / livrable client', 'report photo selection UX');
+requireText(read('MissionPhotoAnnotationScreen.js'), 'Album complet', 'all photos album UX');
+requireText(read('MissionPhotoAnnotationScreen.js'), 'Sélection rapport', 'report selection album UX');
+requireText(read('MissionPhotoAnnotationScreen.js'), 'Points / actions', 'issue photo album UX');
+requireText(read('missionPackageExport.js'), 'photoAlbumReport: true', 'report photo album in complete package');
 requireText(read('MissionActionsScreen.js'), '📷 Avant', 'before photo action evidence');
 requireText(read('MissionActionsScreen.js'), '📷 Après', 'after photo action evidence');
 requireText(read('MissionExcelMappingScreen.js'), 'Enregistrer le mapping & appliquer', 'reusable Excel mapping');
