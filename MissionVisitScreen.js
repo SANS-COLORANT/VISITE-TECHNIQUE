@@ -359,6 +359,12 @@ export function MissionVisitScreen({ navigation, route }) {
           sourceLabel: 'Référence saisie pendant la Mission',
         });
       }
+      const submitted = {
+        type: measureType.trim(),
+        value: measureValue.trim(),
+        unit: measureUnit.trim(),
+        reference: measureReference.trim(),
+      };
       const numericValue = Number(measureValue.replace(',', '.'));
       const result = await enregistrerMesureMission({
         missionId: actualMissionId,
@@ -381,7 +387,27 @@ export function MissionVisitScreen({ navigation, route }) {
       setMeasureReference('');
       setStats(await compterSaisieVisiteMission(visitId));
       if (result?.anomalyStatus === 'to_check') {
-        Alert.alert('Valeur à contrôler', 'La mesure dépasse la tolérance de sa référence. METRA la signale sans conclure automatiquement à une anomalie technique.');
+        const description = [
+          submitted.value ? 'Mesure : ' + submitted.value + (submitted.unit ? ' ' + submitted.unit : '') : null,
+          submitted.reference ? 'Référence : ' + submitted.reference + (submitted.unit ? ' ' + submitted.unit : '') : null,
+        ].filter(Boolean).join(' · ');
+        Alert.alert(
+          'Valeur à contrôler',
+          'La mesure dépasse la tolérance de sa référence. METRA la signale sans conclure automatiquement à un défaut.',
+          [
+            { text: 'Conserver seulement la mesure', style: 'cancel' },
+            {
+              text: 'Créer un point à contrôler',
+              onPress: () => openPointPreset({
+                pointType: 'control',
+                label: 'Valeur à contrôler · ' + submitted.type,
+                description,
+                priority: 'À contrôler',
+                requestedAction: 'Vérifier cette valeur et son contexte avant conclusion.',
+              }),
+            },
+          ]
+        );
       }
     } catch (e) {
       Alert.alert('Mesure non enregistrée', String(e?.message || e));
