@@ -128,6 +128,7 @@ const BASE = Object.freeze({
     objective: 'Préparer en masse, saisir très vite site par site et consolider automatiquement la progression et les écarts.',
     steps: ['Préparation', 'Site', 'Saisie rapide', 'Statut', 'Consolidation'],
     quickActions: [
+      action('campaignDashboard', 'Cockpit sites', 'navigate', { route: 'MissionCampaignDashboard' }),
       action('map', 'Carte / progression', 'navigate', { route: 'MissionMap' }),
       action('equipment', 'Inventaire', 'navigate', { route: 'MissionEquipment' }),
       action('measurementCampaign', 'Campagne mesures', 'navigate', { route: 'MissionMeasurementCampaign' }),
