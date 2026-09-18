@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
+import { getDb } from './db.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import {
   calculerFormuleMission,
@@ -9,14 +10,18 @@ import {
   listerCalculsMission,
   listerFormulesMission,
 } from './missionCalculationDb.js';
+import { getCalculationAutoValues, isFormulaRecommended, sortFormulasForMission } from './missionCalculationAssist.js';
 
 function parse(value, fallback = []) {
   try { return value ? JSON.parse(value) : fallback; } catch { return fallback; }
 }
 
-function FormulaCard({ item, selected, onPress }) {
+function FormulaCard({ item, selected, recommended, onPress }) {
   return <TouchableOpacity onPress={onPress} style={[missionStyles.card, { padding: 11, marginBottom: 7, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine }]}>
-    <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11, fontWeight: '900' }}>{item.label}</Text>
+    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+      <Text style={{ flex: 1, color: MISSION_COLORS.accentStrong, fontSize: 11, fontWeight: '900' }}>{item.label}</Text>
+      {recommended ? <Text style={{ color: MISSION_COLORS.accentDark, backgroundColor: MISSION_COLORS.accentSoft, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3, fontSize: 7.7, fontWeight: '900' }}>RECOMMANDÉ</Text> : null}
+    </View>
     <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 2 }}>{item.family || 'Personnalisée'} · {item.unit || 'sans unité'}</Text>
     <Text style={{ color: COLORS.inkSoft, fontSize: 9.2, marginTop: 4 }}>{item.formula}</Text>
   </TouchableOpacity>;
@@ -24,6 +29,8 @@ function FormulaCard({ item, selected, onPress }) {
 
 export function MissionCalculationScreen({ route }) {
   const missionId = route?.params?.missionId;
+  const siteId = route?.params?.siteId || null;
+  const equipmentId = route?.params?.equipmentId || null;
   const [formulas, setFormulas] = useState([]);
   const [calculations, setCalculations] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -31,23 +38,71 @@ export function MissionCalculationScreen({ route }) {
   const [preview, setPreview] = useState(null);
   const [customVisible, setCustomVisible] = useState(false);
   const [custom, setCustom] = useState({ label: '', family: 'CVC', formula: '', unit: '', inputs: '' });
+  const [missionType, setMissionType] = useState(null);
+  const [recommendedOnly, setRecommendedOnly] = useState(true);
+  const [autoSources, setAutoSources] = useState({});
+  const [autoLoading, setAutoLoading] = useState(false);
 
   const load = useCallback(async () => {
-    const [f, c] = await Promise.all([listerFormulesMission(missionId), listerCalculsMission(missionId)]);
-    setFormulas(f || []);
+    const db = await getDb();
+    const [f, c, mission] = await Promise.all([
+      listerFormulesMission(missionId),
+      listerCalculsMission(missionId),
+      db.getFirstAsync('SELECT type FROM missions WHERE id=?', [missionId]),
+    ]);
+    const nextType = mission?.type || null;
+    const sorted = sortFormulasForMission(nextType, f || []);
+    setMissionType(nextType);
+    setFormulas(sorted);
     setCalculations(c || []);
-    if (!selectedId && f?.[0]?.id) setSelectedId(f[0].id);
+    if (!selectedId && sorted?.[0]?.id) setSelectedId(sorted[0].id);
   }, [missionId, selectedId]);
 
   useEffect(() => { load(); }, [load]);
 
+  const recommendedCount = useMemo(
+    () => formulas.filter((formula) => isFormulaRecommended(missionType, formula)).length,
+    [formulas, missionType]
+  );
+  const visibleFormulas = useMemo(
+    () => recommendedOnly && recommendedCount
+      ? formulas.filter((formula) => isFormulaRecommended(missionType, formula))
+      : formulas,
+    [formulas, missionType, recommendedOnly, recommendedCount]
+  );
   const selected = useMemo(() => formulas.find((f) => f.id === selectedId) || null, [formulas, selectedId]);
   const schema = useMemo(() => parse(selected?.input_schema_json, []), [selected]);
 
   useEffect(() => {
+    let cancelled = false;
     setValues({});
     setPreview(null);
-  }, [selectedId]);
+    setAutoSources({});
+    if (!selected || !missionId) return () => { cancelled = true; };
+
+    setAutoLoading(true);
+    (async () => {
+      try {
+        const auto = await getCalculationAutoValues({
+          missionId,
+          formulaRow: selected,
+          siteId,
+          equipmentId,
+        });
+        if (cancelled) return;
+        setValues(auto.values || {});
+        setAutoSources(auto.sources || {});
+      } catch {
+        if (!cancelled) {
+          setValues({});
+          setAutoSources({});
+        }
+      } finally {
+        if (!cancelled) setAutoLoading(false);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [selectedId, selected, missionId, siteId, equipmentId]);
 
   useEffect(() => {
     if (!selected || !schema.length) {
@@ -128,9 +183,28 @@ export function MissionCalculationScreen({ route }) {
         </TouchableOpacity>
       </View>
 
-      <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Bibliothèque</Text>
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 7 }}>
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { flex: 1, marginBottom: 0 }]}>Bibliothèque</Text>
+        {recommendedCount ? <TouchableOpacity
+          onPress={() => setRecommendedOnly((value) => !value)}
+          style={{ borderWidth: 1, borderColor: MISSION_COLORS.accentLine, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6, backgroundColor: recommendedOnly ? MISSION_COLORS.accentSoft : '#FFFFFF' }}
+        >
+          <Text style={{ color: recommendedOnly ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.4, fontWeight: '900' }}>
+            {recommendedOnly ? 'Recommandées · ' + recommendedCount : 'Toutes les formules'}
+          </Text>
+        </TouchableOpacity> : null}
+      </View>
+      {recommendedCount ? <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, lineHeight: 12, marginBottom: 7 }}>
+        METRA place en premier les calculs cohérents avec cette Mission. Tu peux toujours afficher toute la bibliothèque.
+      </Text> : null}
       <View style={{ maxHeight: 260 }}>
-        {formulas.map((item) => <FormulaCard key={item.id} item={item} selected={item.id === selectedId} onPress={() => setSelectedId(item.id)} />)}
+        {visibleFormulas.map((item) => <FormulaCard
+          key={item.id}
+          item={item}
+          selected={item.id === selectedId}
+          recommended={isFormulaRecommended(missionType, item)}
+          onPress={() => setSelectedId(item.id)}
+        />)}
       </View>
 
       {selected ? <View style={[missionStyles.card, { padding: 13, marginTop: 12 }]}>
@@ -138,13 +212,25 @@ export function MissionCalculationScreen({ route }) {
         <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, marginTop: 3 }}>{selected.formula} {selected.unit ? '→ ' + selected.unit : ''}</Text>
         <View style={{ marginTop: 12 }}>
           {schema.map((input) => <View key={input.key} style={{ marginBottom: 9 }}>
-            <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '800', marginBottom: 4 }}>{input.label || input.key}{input.unit ? ' · ' + input.unit : ''}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
+              <Text style={{ flex: 1, color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '800' }}>{input.label || input.key}{input.unit ? ' · ' + input.unit : ''}</Text>
+              {autoSources[input.key] ? <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 7.6, fontWeight: '900' }}>PRÉREMPLI</Text> : null}
+            </View>
+            {autoSources[input.key] ? <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, lineHeight: 11, marginBottom: 4 }}>{autoSources[input.key]}</Text> : null}
             <TextInput
               style={[styles.input, missionStyles.input]}
               keyboardType="decimal-pad"
               value={String(values[input.key] ?? '')}
-              onChangeText={(v) => setValues((all) => ({ ...all, [input.key]: v }))}
-              placeholder={input.key}
+              onChangeText={(v) => {
+                setValues((all) => ({ ...all, [input.key]: v }));
+                setAutoSources((all) => {
+                  if (!all[input.key]) return all;
+                  const next = { ...all };
+                  delete next[input.key];
+                  return next;
+                });
+              }}
+              placeholder={autoLoading ? 'Recherche dans la Mission…' : input.key}
             />
           </View>)}
         </View>
