@@ -53,6 +53,10 @@ requireText(migration42, 'CREATE TABLE IF NOT EXISTS mission_voice_notes', 'voic
 requireText(migration42, 'CREATE TABLE IF NOT EXISTS mission_visit_checks', 'before-leaving checklist');
 requireText(migration42, 'CREATE TABLE IF NOT EXISTS mission_document_extractions', 'document extraction');
 requireText(migration42, 'CREATE TABLE IF NOT EXISTS mission_document_review_items', 'document extraction review');
+requireText(migration42, 'ALTER TABLE mission_photos ADD COLUMN location_id', 'photo Room context');
+requireText(migration42, 'ALTER TABLE mission_photos ADD COLUMN action_id', 'photo action context');
+requireText(migration42, 'ALTER TABLE mission_photos ADD COLUMN phase_role', 'before after photo role');
+requireText(migration42, 'ALTER TABLE mission_measures ADD COLUMN location_id', 'measurement Room context');
 requireText(migration40, "name: 'missions_core'", 'migration identity');
 requireText(migration40, 'CREATE TABLE IF NOT EXISTS missions', 'missions table');
 requireText(migration40, 'CREATE TABLE IF NOT EXISTS mission_points', 'mission points');
@@ -128,6 +132,9 @@ requireText(read('MissionEquipmentScreen.js'), 'Plaque signalétique · photo + 
 requireText(read('MissionPlanScreen.js'), 'GeoPackage QGIS', 'QGIS GeoPackage export UX');
 requireText(read('MissionVisitScreen.js'), 'Avant de quitter le site', 'non-blocking before leaving checklist');
 requireText(read('MissionPackageScreen.js'), 'Créer et partager le ZIP complet', 'complete mission package');
+requireText(read('missionMediaDb.js'), 'resolveMissionContext', 'automatic media context inheritance');
+requireText(read('MissionActionsScreen.js'), '📷 Avant', 'before photo action evidence');
+requireText(read('MissionActionsScreen.js'), '📷 Après', 'after photo action evidence');
 requireText(read('MissionExcelMappingScreen.js'), 'Enregistrer le mapping & appliquer', 'reusable Excel mapping');
 requireText(read('MissionReportScreen.js'), 'Word', 'editable Word report export');
 requireText(read('MissionReportScreen.js'), 'PDF', 'editable PDF report export');
