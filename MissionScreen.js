@@ -190,6 +190,7 @@ export function MissionScreen({ navigation, route }) {
           {[
             ['workflow', 'MissionWorkflow', 'Workflow', 'Phases · volets · occurrences'],
             ['structure', 'MissionStructure', 'Patrimoine', 'Site · bâtiment · niveau · local'],
+            ['technicalStructure', 'MissionTechnicalStructure', 'Architecture technique', 'Installation · système · réseau · équipement'],
             ['equipment', 'MissionEquipment', 'Inventaire', 'Équipements · composants · OCR'],
             ['measurements', 'MissionMeasurements', 'Mesures', 'Références · séries · instruments'],
             ['plans', 'MissionPlan', 'Plans / PDF / SIG', 'Mesures · calques · GeoPackage'],
