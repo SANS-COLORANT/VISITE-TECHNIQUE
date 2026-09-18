@@ -214,6 +214,14 @@ requireText(read('MissionP3DashboardScreen.js'), 'projection patrimoniale', 'P2 
 requireText(read('MissionP3DashboardScreen.js'), 'METRA ne transforme pas cette projection en décision contractuelle automatique.', 'non-automatic P3 decision wording');
 requireText(read('missionClientExcelExport.js'), "'11_Projection_P3'", 'P3 projection client Excel worksheet');
 requireText(recipes, 'p3Dashboard: true', 'P2 P3 projection capability on dedicated mission type');
+requireText(app, "MissionReceptionBoard", 'OPR commissioning handover board route');
+requireText(read('MissionReceptionBoardScreen.js'), 'Ouvrages · statut en 1 geste', 'one-tap reception equipment board');
+requireText(read('MissionReceptionBoardScreen.js'), 'Aucun inventaire n’est recréé pour cette phase.', 'reception reuses Mission inventory');
+requireText(recipes, 'receptionBoard: true', 'reception board capability on OPR commissioning handover');
+requireText(read('missionFieldPlaybooks.js'), 'equipmentLifecycleStatuses', 'mission-specific one-tap lifecycle states');
+requireText(read('MissionVisitScreen.js'), 'CYCLE PROJET · 1 GESTE', 'one-tap project lifecycle field UX');
+requireText(read('missionEquipmentDb.js'), "'receptionne'", 'equipment reception lifecycle state');
+requireText(read('missionEquipmentDb.js'), "'avec_reserve'", 'equipment lifecycle reserve state');
 requireText(read('missionPackageImport.js'), 'importerMissionDepuisExcelUri', 'structured Mission restore from package');
 requireText(read('missionPackageImport.js'), 'restorePhotos', 'package photo restoration');
 requireText(read('missionPackageImport.js'), 'restoreDocuments', 'package document restoration');
