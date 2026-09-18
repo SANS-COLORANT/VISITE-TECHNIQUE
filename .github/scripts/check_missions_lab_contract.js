@@ -198,5 +198,13 @@ requireText(read('MissionActionsScreen.js'), '📷 Après', 'after photo action 
 requireText(read('MissionExcelMappingScreen.js'), 'Enregistrer le mapping & appliquer', 'reusable Excel mapping');
 requireText(read('MissionReportScreen.js'), 'Word', 'editable Word report export');
 requireText(read('MissionReportScreen.js'), 'PDF', 'editable PDF report export');
+requireText(read('missionTestPresets.js'), 'reprise_saison_mission', 'Mission-only season restart test preset');
+requireText(read('MissionTestsScreen.js'), 'Protocoles recommandés', 'mission-aware test preset UX');
+requireText(read('missionDocumentPresets.js'), 'getMissionExpectedDocumentPresets', 'mission-specific expected document presets');
+requireText(read('MissionDocumentsScreen.js'), 'Préparer attendus', 'expected document preparation UX');
+
+const documentPresetTypes = read('missionDocumentPresets.js');
+const missingDocumentPresets = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + type + ":\\s*'").test(documentPresetTypes));
+if (missingDocumentPresets.length) throw new Error('Types de Mission sans groupe de documents suggérés: ' + missingDocumentPresets.join(', '));
 
 console.log('Missions LAB contract validated: schema v43, strict Intranet isolation, offline mission tooling, complete Excel round-trip, plans/SIG, campaigns, OCR, measurements, reports and packages.');
