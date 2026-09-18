@@ -7,6 +7,7 @@ import { exporterMissionExcel } from './missionExcelExport.js';
 import { choisirEtImporterMissionExcel } from './missionExcelImport.js';
 import { getMissionDomainSummary } from './missionDomainDb.js';
 import { getMissionCapabilities } from './missionRecipes.js';
+import { getMissionFieldPlaybook } from './missionFieldPlaybooks.js';
 
 const POINT_TYPES = Object.freeze([
   ['reserve', 'Réserve'],
@@ -74,14 +75,49 @@ export function MissionScreen({ navigation, route }) {
     () => getMissionCapabilities(data?.mission?.family, data?.mission?.type),
     [data?.mission?.family, data?.mission?.type]
   );
+  const playbook = useMemo(
+    () => getMissionFieldPlaybook(data?.mission?.type),
+    [data?.mission?.type]
+  );
 
   const createVisit = async () => {
     try {
-      const visitId = await creerVisiteMission({ missionId, siteId: data?.sites?.[0]?.id || null });
+      const visitId = await creerVisiteMission({
+        missionId,
+        siteId: data?.sites?.[0]?.id || null,
+        visitType: playbook.defaultVisitType || 'visite terrain',
+      });
       await mettreAJourMission(missionId, { status: 'active' });
       await reload();
       navigation.navigate('MissionVisit', { missionId, visitId });
     } catch (e) { Alert.alert('Visite non créée', String(e.message || e)); }
+  };
+
+  const openPlaybookPoint = (preset) => {
+    setPointType(preset?.pointType || 'information');
+    setPointLabel(preset?.label || '');
+    setPointDescription(preset?.description || preset?.requestedAction || '');
+    setPointDueText(preset?.due || '');
+    setPointModal(true);
+  };
+
+  const openPlaybookAction = (item) => {
+    if (!item) return;
+    if (item.kind === 'navigate' && item.route) {
+      navigation.navigate(item.route, { missionId, siteId: data?.sites?.[0]?.id || null });
+      return;
+    }
+    if (item.kind === 'point') {
+      openPlaybookPoint(item.preset);
+      return;
+    }
+    if (item.kind === 'measure') {
+      navigation.navigate('MissionMeasurements', { missionId });
+      return;
+    }
+    if (item.kind === 'document') {
+      navigation.navigate('MissionDocuments', { missionId });
+    }
   };
 
   const createPoint = async () => {
@@ -177,6 +213,31 @@ export function MissionScreen({ navigation, route }) {
         <View style={[{ marginTop: 16, borderRadius: 14, padding: 13 }, missionStyles.infoBox]}>
           <Text style={[{ fontWeight: '900', fontSize: 12 }, missionStyles.accentText]}>Saisie non bloquante</Text>
           <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15, marginTop: 4 }}>Pendant une visite, tu peux laisser n’importe quelle rubrique vide, quitter l’application et reprendre plus tard. La progression est informative uniquement.</Text>
+        </View>
+
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Parcours recommandé · {playbook.label}</Text>
+        <View style={[missionStyles.card, { padding: 13 }]}>
+          <Text style={{ color: COLORS.inkSoft, fontSize: 10.2, lineHeight: 15 }}>{playbook.objective}</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 39, marginTop: 9 }}>
+            {(playbook.steps || []).map((step, index) => <View key={step} style={{ flexDirection: 'row', alignItems: 'center' }}>
+              <View style={{ minHeight: 29, borderRadius: 9, backgroundColor: MISSION_COLORS.accentSoft, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 8.6, fontWeight: '900' }}>{index + 1} · {step}</Text>
+              </View>
+              {index < playbook.steps.length - 1 ? <Text style={{ color: MISSION_COLORS.accentLineStrong, marginHorizontal: 4 }}>›</Text> : null}
+            </View>)}
+          </ScrollView>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 }}>
+            {(playbook.quickActions || [])
+              .filter((item) => ['navigate','point','measure','document'].includes(item.kind))
+              .slice(0, 6)
+              .map((item) => <TouchableOpacity
+                key={item.key}
+                style={[styles.btnSecondary, missionStyles.secondaryButton]}
+                onPress={() => openPlaybookAction(item)}
+              >
+                <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{item.label}</Text>
+              </TouchableOpacity>)}
+          </View>
         </View>
 
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Aujourd’hui</Text>
