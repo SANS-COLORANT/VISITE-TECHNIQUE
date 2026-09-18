@@ -278,6 +278,7 @@ export function MissionScreen({ navigation, route }) {
             ['actions', 'MissionActions', 'Actions', 'Responsables · échéances · coûts'],
             ['subjects', 'MissionSubjects', 'Sujets & décisions', 'Constat → décision → action → historique'],
             ['p3Dashboard', 'MissionP3Dashboard', 'Projection P2 / P3', 'Âge · coût · échéance · renouvellement'],
+            ['amoDashboard', 'MissionAmoDashboard', 'Pilotage AMO', 'Volets · année · actions · P3 · livrables'],
             ['receptionBoard', 'MissionReceptionBoard', 'Réception / mise en service', 'Ouvrages · essais · réserves · documents'],
             ['expertiseBoard', 'MissionExpertise', 'Expertise / sinistre', 'Faits → hypothèses → investigations → conclusion'],
             ['reserveClearance', 'MissionReserveClearance', 'Levée de réserves', 'Avant / après · levée · maintien · partielle'],
