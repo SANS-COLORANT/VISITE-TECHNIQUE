@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Svg, { G, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { getDb } from './db.js';
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { relierEquipementsMission } from './missionDomainDb.js';
 
 const NODE_W = 150;
 const NODE_H = 60;
@@ -89,6 +90,12 @@ export function MissionTechnicalGraphScreen({ route }) {
   const [equipment, setEquipment] = useState([]);
   const [relations, setRelations] = useState([]);
   const [selected, setSelected] = useState(null);
+  const [linkMode, setLinkMode] = useState(false);
+  const [linkSource, setLinkSource] = useState(null);
+  const [linkTarget, setLinkTarget] = useState(null);
+  const [relationModal, setRelationModal] = useState(false);
+  const [relationType, setRelationType] = useState('feeds');
+  const [relationLabel, setRelationLabel] = useState('Alimente');
 
   const load = useCallback(async () => {
     if (!missionId) return;
@@ -113,6 +120,45 @@ export function MissionTechnicalGraphScreen({ route }) {
 
   useEffect(() => { load(); }, [load]);
 
+  const onNodePress = (node) => {
+    if (!linkMode) {
+      setSelected(node);
+      return;
+    }
+    if (!linkSource) {
+      setLinkSource(node);
+      setSelected(node);
+      return;
+    }
+    if (linkSource.id === node.id) {
+      setLinkSource(null);
+      setSelected(null);
+      return;
+    }
+    setLinkTarget(node);
+    setRelationModal(true);
+  };
+
+  const saveRelation = async () => {
+    if (!linkSource || !linkTarget) return;
+    try {
+      await relierEquipementsMission({
+        missionId,
+        sourceEquipmentId: linkSource.id,
+        targetEquipmentId: linkTarget.id,
+        relationType: relationType || 'linked_to',
+        label: relationLabel || null,
+      });
+      setRelationModal(false);
+      setLinkSource(null);
+      setLinkTarget(null);
+      setSelected(null);
+      await load();
+    } catch (e) {
+      Alert.alert('Relation non créée', String(e?.message || e));
+    }
+  };
+
   const layout = useMemo(() => buildLayout(equipment, relations), [equipment, relations]);
 
   if (loading) {
@@ -125,6 +171,15 @@ export function MissionTechnicalGraphScreen({ route }) {
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
         Les traits représentent de vraies relations structurées entre équipements. Touchez un équipement pour afficher son contexte.
       </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 9 }}>
+        <TouchableOpacity
+          onPress={() => { setLinkMode((v) => !v); setLinkSource(null); setLinkTarget(null); setSelected(null); }}
+          style={[styles.btnSecondary, missionStyles.secondaryButton, linkMode ? { backgroundColor: MISSION_COLORS.accentLight, borderColor: MISSION_COLORS.accent } : null]}
+        >
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{linkMode ? 'Terminer les liaisons' : '＋ Relier des équipements'}</Text>
+        </TouchableOpacity>
+        {linkMode ? <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, alignSelf: 'center' }}>{linkSource ? 'Source : ' + nodeLabel(linkSource) + ' → choisissez la cible' : 'Choisissez l’équipement source'}</Text> : null}
+      </View>
     </View>
 
     {!equipment.length ? <View style={{ padding: 16 }}>
@@ -164,7 +219,7 @@ export function MissionTechnicalGraphScreen({ route }) {
           })}
           {[...layout.nodes.values()].map((node) => {
             const active = selected?.id === node.id;
-            return <G key={node.id} onPress={() => setSelected(node)}>
+            return <G key={node.id} onPress={() => onNodePress(node)}>
               <Rect
                 x={node.x}
                 y={node.y}
@@ -201,5 +256,19 @@ export function MissionTechnicalGraphScreen({ route }) {
         <TouchableOpacity onPress={() => setSelected(null)} style={{ padding: 5 }}><Text style={{ color: COLORS.inkFaint }}>✕</Text></TouchableOpacity>
       </View>
     </View> : null}
+    <Modal visible={relationModal} transparent animationType="fade" onRequestClose={() => setRelationModal(false)}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>Créer la relation</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 10, lineHeight: 14, marginBottom: 10 }}>
+          {linkSource ? nodeLabel(linkSource) : ''} → {linkTarget ? nodeLabel(linkTarget) : ''}
+        </Text>
+        <TextInput style={[styles.input, missionStyles.input]} value={relationType} onChangeText={setRelationType} placeholder="Type : feeds, controls, connected_to…" />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={relationLabel} onChangeText={setRelationLabel} placeholder="Libellé : Alimente, Commande, Retour…" />
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => { setRelationModal(false); setLinkTarget(null); }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveRelation}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Relier</Text></TouchableOpacity>
+        </View>
+      </View></View>
+    </Modal>
   </View>;
 }
