@@ -30,6 +30,9 @@ const importFile = read('missionExcelImport.js');
 const excelSchema = read('missionExcelSchema.js');
 const recipes = read('missionRecipes.js');
 const missionScreen = read('MissionScreen.js');
+const fieldPlaybooks = read('missionFieldPlaybooks.js');
+const reportRecipes = read('missionReportRecipes.js');
+const visitAutofill = read('missionVisitAutofillDb.js');
 
 requireText(constants, 'DATABASE_SCHEMA_VERSION = 43', 'schema v43');
 requireText(migrations, "import { migration040 } from './040_missions_core.js';", 'migration 040 registered');
@@ -126,6 +129,22 @@ const recipeBlock = recipes.match(/const TYPE_RECIPES = Object\.freeze\(\{([\s\S
 if (!recipeBlock) throw new Error('Impossible de lire TYPE_RECIPES.');
 const missingRecipes = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + type + ':\\s*\\{').test(recipeBlock[1]));
 if (missingRecipes.length) throw new Error('Types de Mission sans recette Rapide/Standard/Expert: ' + missingRecipes.join(', '));
+
+const missingFieldPlaybooks = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + type + ':\\s*\\{').test(fieldPlaybooks));
+if (missingFieldPlaybooks.length) throw new Error('Types de Mission sans parcours terrain ergonomique: ' + missingFieldPlaybooks.join(', '));
+
+const missingReportRecipes = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + type + ":\\s*'").test(reportRecipes));
+if (missingReportRecipes.length) throw new Error('Types de Mission sans recette de rapport: ' + missingReportRecipes.join(', '));
+
+requireText(fieldPlaybooks, 'getMissionFieldPlaybook', 'mission field playbook API');
+requireText(read('MissionVisitScreen.js'), 'Mode terrain · {playbook.label}', 'mission-specific field mode');
+requireText(read('MissionVisitScreen.js'), 'DÉJÀ CONNU PAR METRA · PAS DE RESSAISIE', 'no-retyping structured autofill UX');
+requireText(visitAutofill, 'chargerContexteAutoVisiteMission', 'structured Mission autofill engine');
+requireText(visitAutofill, 'valeurAutoPourChampMission', 'field autofill resolver');
+requireText(read('MissionScreen.js'), 'Parcours recommandé · {playbook.label}', 'mission-specific dossier guidance');
+requireText(reportRecipes, 'getMissionReportRecipe', 'mission-specific report recipe API');
+requireText(read('missionReportDb.js'), "key: 'inventaire'", 'automatic inventory report section');
+requireText(read('missionReportDb.js'), "key: 'architecture'", 'automatic technical architecture report section');
 
 requireText(app, "MissionEquipment", 'equipment workspace route');
 requireText(app, "MissionStructure", 'patrimony hierarchy route');
