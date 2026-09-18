@@ -68,7 +68,7 @@ async function loadClientData(missionId) {
   if (!mission) throw new Error('Mission introuvable.');
 
   const [
-    sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions,
+    sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions, lifecycle,
   ] = await Promise.all([
     db.getAllAsync(
       `SELECT s.*
@@ -192,9 +192,19 @@ async function loadClientData(missionId) {
        WHERE d.mission_id=? ORDER BY COALESCE(d.decided_at,d.created_at)`,
       [missionId]
     ),
+    db.getAllAsync(
+      `SELECT h.*,e.type AS equipment_type,e.brand AS equipment_brand,e.model AS equipment_model,
+        s.name AS site_name,l.label AS location_label
+       FROM mission_equipment_lifecycle h
+       JOIN mission_equipment e ON e.id=h.equipment_id
+       LEFT JOIN mission_sites s ON s.id=e.site_id
+       LEFT JOIN mission_locations l ON l.id=e.location_id
+       WHERE h.mission_id=? ORDER BY COALESCE(h.effective_date,h.created_at)`,
+      [missionId]
+    ),
   ]);
 
-  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions };
+  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions, lifecycle };
 }
 
 function photoPath(photo, photoPathById) {
@@ -437,6 +447,18 @@ export async function construireClasseurClientMission(missionId, { photoPathById
         Statut_cycle_vie: row.lifecycle_status || '',
         Verification_terrain: labelStatus(row.verification_status),
       })), [24,26,30,22,26,18,22,26,24,22,22]);
+  }
+
+  if (data.lifecycle?.length) {
+    addSheet(wb, '12_Historique_cycle', data.lifecycle.map((row) => ({
+      Date: row.effective_date || row.created_at || '',
+      Site: row.site_name || '',
+      Localisation: row.location_label || '',
+      Equipement: [row.equipment_type,row.equipment_brand,row.equipment_model].filter(Boolean).join(' · '),
+      Etat_precedent: row.from_state || '',
+      Nouvel_etat: row.to_state || '',
+      Commentaire: row.comment || '',
+    })), [22,24,26,34,22,22,55]);
   }
 
   return { wb, data };
