@@ -5,6 +5,8 @@ import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerPointMission } from './missionsDb.js';
 import { creerOuTrouverActeurMission, creerReferenceMission, enregistrerDetailsPointMission, enregistrerMesureMission } from './missionDomainDb.js';
 import { capturerPhotoMission, choisirEtAjouterDocumentMission } from './missionMediaDb.js';
+import { demarrerDicteeLocale } from './missionNativeTools.js';
+import { enregistrerNoteVocaleMission, genererChecklistFinVisite } from './missionVisitQualityDb.js';
 import { getMissionVisitRecipe, MISSION_CAPTURE_MODES } from './missionRecipes.js';
 import { ajouterNoteVisiteMission, chargerVisiteMission, compterSaisieVisiteMission, enregistrerValeurTrameMission, mettreAJourVisiteMission } from './missionVisitDb.js';
 
@@ -18,10 +20,28 @@ function ChoiceField({ field, value, onChange }) {
       const selected = value === option;
       return <TouchableOpacity key={option} onPress={() => onChange(selected ? '' : option)} style={{ borderWidth: 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : COLORS.white, borderRadius: 11, paddingHorizontal: 10, paddingVertical: 8, marginRight: 7, marginBottom: 7 }}><Text style={{ color: selected ? MISSION_COLORS.accentDark : COLORS.ink, fontSize: 10.5, fontWeight: '800' }}>{option}</Text></TouchableOpacity>;
     })}
+    <Modal visible={checklistModal} transparent animationType="fade" onRequestClose={() => setChecklistModal(false)}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>Avant de quitter le site</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 10, lineHeight: 14, marginBottom: 10 }}>
+          METRA a détecté quelques points à vérifier. Cette liste est informative : elle ne bloque jamais la fin de visite.
+        </Text>
+        <ScrollView style={{ maxHeight: 340 }}>
+          {checklist.map((item) => <View key={item.id} style={{ borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine, paddingVertical: 8 }}>
+            <Text style={{ color: item.severity === 'warning' ? '#8A5B14' : MISSION_COLORS.accentStrong, fontSize: 10.5, fontWeight: '900' }}>{item.label}</Text>
+            {item.message ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, marginTop: 3 }}>{item.message}</Text> : null}
+          </View>)}
+        </ScrollView>
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setChecklistModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Revenir à la visite</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={reallyComplete}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Terminer quand même</Text></TouchableOpacity>
+        </View>
+      </View></View>
+    </Modal>
   </View>;
 }
 
-function OptionalField({ sectionKey, field, value, onChange, onSave }) {
+function OptionalField({ sectionKey, field, value, onChange, onSave, onDictate, dictationBusy }) {
   return <View style={{ marginBottom: 14 }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
       <Text style={{ flex: 1, color: COLORS.ink, fontWeight: '800', fontSize: 11.5 }}>{field.label}</Text>
@@ -29,15 +49,24 @@ function OptionalField({ sectionKey, field, value, onChange, onSave }) {
     </View>
     {field.type === 'choice'
       ? <ChoiceField field={field} value={value || ''} onChange={(next) => { onChange(next); onSave(next); }} />
-      : <TextInput
-          value={value || ''}
-          onChangeText={onChange}
-          onBlur={() => onSave(value || '')}
-          multiline
-          placeholder="Laisser vide si non renseigné"
-          placeholderTextColor={COLORS.inkFaint}
-          style={[styles.input, missionStyles.input, { minHeight: 62, textAlignVertical: 'top' }]}
-        />}
+      : <View>
+          <TextInput
+            value={value || ''}
+            onChangeText={onChange}
+            onBlur={() => onSave(value || '')}
+            multiline
+            placeholder="Laisser vide si non renseigné"
+            placeholderTextColor={COLORS.inkFaint}
+            style={[styles.input, missionStyles.input, { minHeight: 62, textAlignVertical: 'top', paddingRight: 46 }]}
+          />
+          {onDictate ? <TouchableOpacity
+            onPress={onDictate}
+            disabled={dictationBusy}
+            style={{ position: 'absolute', right: 7, top: 7, width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: MISSION_COLORS.accentSoft, alignItems: 'center', justifyContent: 'center' }}
+          >
+            <Text style={{ fontSize: 16 }}>{dictationBusy ? '…' : '🎙'}</Text>
+          </TouchableOpacity> : null}
+        </View>}
   </View>;
 }
 
@@ -66,6 +95,9 @@ export function MissionVisitScreen({ navigation, route }) {
   const [measureUnit, setMeasureUnit] = useState('');
   const [measureReference, setMeasureReference] = useState('');
   const [mediaBusy, setMediaBusy] = useState(false);
+  const [dictationBusy, setDictationBusy] = useState(false);
+  const [checklist, setChecklist] = useState([]);
+  const [checklistModal, setChecklistModal] = useState(false);
 
   const reload = useCallback(async () => {
     if (!visitId) return;
@@ -218,6 +250,36 @@ export function MissionVisitScreen({ navigation, route }) {
     }
   };
 
+  const dictateText = async (currentValue, applyValue, { pointId = null } = {}) => {
+    if (!actualMissionId || dictationBusy) return;
+    setDictationBusy(true);
+    try {
+      const result = await demarrerDicteeLocale('fr-FR');
+      const transcript = String(result?.text || '').trim();
+      if (!transcript) return;
+      const next = [String(currentValue || '').trim(), transcript].filter(Boolean).join(' ');
+      applyValue(next);
+      await enregistrerNoteVocaleMission({
+        missionId: actualMissionId,
+        visitId,
+        siteId: data?.visit?.site_id,
+        pointId,
+        transcript,
+        locale: 'fr-FR',
+      });
+    } catch (e) {
+      Alert.alert('Dictée indisponible', String(e?.message || e));
+    } finally {
+      setDictationBusy(false);
+    }
+  };
+
+  const reallyComplete = async () => {
+    await mettreAJourVisiteMission(visitId, { status: 'completed' });
+    setChecklistModal(false);
+    navigation.goBack();
+  };
+
   const addPoint = async () => {
     if (!actualMissionId) return;
     try {
@@ -257,14 +319,33 @@ export function MissionVisitScreen({ navigation, route }) {
     } catch (e) { Alert.alert('Point non créé', String(e.message || e)); }
   };
 
-  const complete = () => Alert.alert(
-    'Terminer cette visite ?',
-    'Les rubriques laissées vides resteront vides. METRA ne bloque pas la fin de visite et tu pourras toujours consulter les données saisies.',
-    [
-      { text: 'Continuer la saisie', style: 'cancel' },
-      { text: 'Terminer sans tout remplir', onPress: async () => { await mettreAJourVisiteMission(visitId, { status: 'completed' }); navigation.goBack(); } },
-    ]
-  );
+  const complete = async () => {
+    try {
+      const checks = await genererChecklistFinVisite(actualMissionId, visitId);
+      setChecklist(checks || []);
+      if (checks?.length) {
+        setChecklistModal(true);
+        return;
+      }
+      Alert.alert(
+        'Terminer cette visite ?',
+        'Aucun point de vigilance automatique n’a été détecté. La visite restera modifiable.',
+        [
+          { text: 'Continuer la saisie', style: 'cancel' },
+          { text: 'Terminer', onPress: reallyComplete },
+        ]
+      );
+    } catch (e) {
+      Alert.alert(
+        'Terminer cette visite ?',
+        'La checklist automatique n’a pas pu être calculée. Tu peux quand même terminer la visite.',
+        [
+          { text: 'Continuer la saisie', style: 'cancel' },
+          { text: 'Terminer quand même', onPress: reallyComplete },
+        ]
+      );
+    }
+  };
 
   if (loading && !data) return <View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center' }, missionStyles.screen]}><ActivityIndicator color={MISSION_COLORS.accent}/></View>;
   if (!data?.visit) return <View style={styles.center}><Text style={styles.errorTitle}>Visite Mission introuvable</Text></View>;
@@ -313,13 +394,35 @@ export function MissionVisitScreen({ navigation, route }) {
         <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13.5, fontWeight: '900', marginBottom: 12 }}>{section.label}</Text>
         {section.fields.map((field) => {
           const code = `${section.key}.${field.key}`;
-          return <OptionalField key={field.key} sectionKey={section.key} field={field} value={values[code] || ''} onChange={(next) => setValues((current) => ({ ...current, [code]: next }))} onSave={(next) => saveField(section.key, field, next)} />;
+          return <OptionalField
+            key={field.key}
+            sectionKey={section.key}
+            field={field}
+            value={values[code] || ''}
+            onChange={(next) => setValues((current) => ({ ...current, [code]: next }))}
+            onSave={(next) => saveField(section.key, field, next)}
+            dictationBusy={dictationBusy}
+            onDictate={field.type === 'choice' ? null : async () => {
+              const current = values[code] || '';
+              await dictateText(current, async (next) => {
+                setValues((all) => ({ ...all, [code]: next }));
+                await saveField(section.key, field, next);
+              });
+            }}
+          />;
         })}
       </View>)}
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 8 }]}>Note libre</Text>
       <View style={[{ backgroundColor: COLORS.white, borderWidth: 1, borderRadius: 14, padding: 12 }, missionStyles.card]}>
-        <TextInput style={[styles.input, missionStyles.input, { minHeight: 76, textAlignVertical: 'top' }]} multiline value={note} onChangeText={setNote} placeholder="Note terrain / réunion interne…" />
+        <View>
+          <TextInput style={[styles.input, missionStyles.input, { minHeight: 76, textAlignVertical: 'top', paddingRight: 46 }]} multiline value={note} onChangeText={setNote} placeholder="Note terrain / réunion interne…" />
+          <TouchableOpacity
+            style={{ position: 'absolute', right: 7, top: 7, width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: MISSION_COLORS.accentSoft, alignItems: 'center', justifyContent: 'center' }}
+            onPress={() => dictateText(note, setNote)}
+            disabled={dictationBusy}
+          ><Text style={{ fontSize: 16 }}>{dictationBusy ? '…' : '🎙'}</Text></TouchableOpacity>
+        </View>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { marginTop: 9, alignItems: 'center' }]} onPress={addNote}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Ajouter la note</Text></TouchableOpacity>
       </View>
 
@@ -355,8 +458,22 @@ export function MissionVisitScreen({ navigation, route }) {
           {POINT_TYPES.map(([key, label]) => <TouchableOpacity key={key} onPress={() => setPointType(key)} style={{ borderWidth: 1, borderColor: pointType === key ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: pointType === key ? MISSION_COLORS.accentLight : COLORS.white, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6, marginBottom: 6 }}><Text style={{ color: pointType === key ? MISSION_COLORS.accentDark : COLORS.ink, fontSize: 9.5, fontWeight: '800' }}>{label}</Text></TouchableOpacity>)}
         </View>
         <TextInput style={[styles.input, missionStyles.input]} value={pointLabel} onChangeText={setPointLabel} placeholder="Titre / constat (optionnel)" />
-        <TextInput style={[styles.input, missionStyles.input, { marginTop: 9, minHeight: 70, textAlignVertical: 'top' }]} multiline value={pointDescription} onChangeText={setPointDescription} placeholder="Description (optionnelle)" />
-        <TextInput style={[styles.input, missionStyles.input, { marginTop: 9 }]} value={pointRequestedAction} onChangeText={setPointRequestedAction} placeholder="Action demandée / suite" />
+        <View style={{ marginTop: 9 }}>
+          <TextInput style={[styles.input, missionStyles.input, { minHeight: 70, textAlignVertical: 'top', paddingRight: 46 }]} multiline value={pointDescription} onChangeText={setPointDescription} placeholder="Description (optionnelle)" />
+          <TouchableOpacity
+            onPress={() => dictateText(pointDescription, setPointDescription)}
+            disabled={dictationBusy}
+            style={{ position: 'absolute', right: 7, top: 7, width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: MISSION_COLORS.accentSoft, alignItems: 'center', justifyContent: 'center' }}
+          ><Text style={{ fontSize: 16 }}>{dictationBusy ? '…' : '🎙'}</Text></TouchableOpacity>
+        </View>
+        <View style={{ marginTop: 9 }}>
+          <TextInput style={[styles.input, missionStyles.input, { paddingRight: 46 }]} value={pointRequestedAction} onChangeText={setPointRequestedAction} placeholder="Action demandée / suite" />
+          <TouchableOpacity
+            onPress={() => dictateText(pointRequestedAction, setPointRequestedAction)}
+            disabled={dictationBusy}
+            style={{ position: 'absolute', right: 7, top: 7, width: 34, height: 34, borderRadius: 17, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: MISSION_COLORS.accentSoft, alignItems: 'center', justifyContent: 'center' }}
+          ><Text style={{ fontSize: 16 }}>{dictationBusy ? '…' : '🎙'}</Text></TouchableOpacity>
+        </View>
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 9 }}>
           <TextInput style={[styles.input, missionStyles.input, { flex: 1 }]} value={pointResponsible} onChangeText={setPointResponsible} placeholder="Responsable / entreprise" />
           <TextInput style={[styles.input, missionStyles.input, { flex: 1 }]} value={pointDue} onChangeText={setPointDue} placeholder="Échéance" />
