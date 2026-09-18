@@ -773,6 +773,7 @@ function mergeSections(baseSections, extraSections) {
 const BASE_CAPABILITIES = Object.freeze({
   workflow: true,
   structure: true,
+  technicalStructure: true,
   equipment: true,
   measurements: true,
   plans: true,
