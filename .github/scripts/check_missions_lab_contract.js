@@ -211,6 +211,11 @@ requireText(read('MissionSubjectsScreen.js'), 'Sujets · constats · décisions'
 requireText(read('MissionSubjectsScreen.js'), '＋ Constat', 'subject finding capture');
 requireText(read('MissionSubjectsScreen.js'), '＋ Décision', 'subject decision capture');
 requireText(read('MissionSubjectsScreen.js'), '＋ Action', 'subject action capture');
+requireText(read('missionWorkstreamPresets.js'), 'P3 / renouvellements', 'AMO P3 workstream preset');
+requireText(read('missionWorkstreamPresets.js'), 'PPI / patrimoine', 'AMO PPI workstream preset');
+requireText(read('missionWorkstreamPresets.js'), 'Réunions & pilotage', 'AMO meeting workstream preset');
+requireText(read('MissionWorkflowScreen.js'), 'Préparer les volets métier', 'AMO workstream preparation UX');
+requireText(read('MissionSubjectsScreen.js'), 'VOLET / AXE', 'subject to workstream assignment UX');
 requireText(read('missionReportDb.js'), "key: 'sujets'", 'subject history report section');
 requireText(read('missionClientExcelExport.js'), "'02_Sujets'", 'subject history client Excel worksheet');
 requireText(app, "MissionP3Dashboard", 'P2 P3 projection route');
@@ -218,6 +223,14 @@ requireText(read('MissionP3DashboardScreen.js'), 'projection patrimoniale', 'P2 
 requireText(read('MissionP3DashboardScreen.js'), 'METRA ne transforme pas cette projection en décision contractuelle automatique.', 'non-automatic P3 decision wording');
 requireText(read('missionClientExcelExport.js'), "'11_Projection_P3'", 'P3 projection client Excel worksheet');
 requireText(recipes, 'p3Dashboard: true', 'P2 P3 projection capability on dedicated mission type');
+requireText(app, "MissionExpertise", 'expertise incident route');
+requireText(read('MissionExpertiseScreen.js'), 'METRA sépare strictement le fait observé, l’hypothèse de travail et la conclusion.', 'fact hypothesis conclusion separation');
+requireText(read('MissionExpertiseScreen.js'), '＋ Fait horodaté', 'timestamped expertise fact capture');
+requireText(read('MissionExpertiseScreen.js'), '＋ Hypothèse', 'expertise hypothesis capture');
+requireText(read('MissionExpertiseScreen.js'), 'CONCLUSION', 'separate expertise conclusion');
+requireText(read('missionReportDb.js'), "key: 'expertise'", 'expertise report chronology');
+requireText(read('missionClientExcelExport.js'), "'02B_Expertise'", 'expertise client Excel sheet');
+requireText(recipes, 'expertiseBoard: true', 'dedicated expertise capability');
 requireText(app, "MissionReceptionBoard", 'OPR commissioning handover board route');
 requireText(read('MissionReceptionBoardScreen.js'), 'Ouvrages · statut en 1 geste', 'one-tap reception equipment board');
 requireText(read('MissionReceptionBoardScreen.js'), 'Aucun inventaire n’est recréé pour cette phase.', 'reception reuses Mission inventory');
