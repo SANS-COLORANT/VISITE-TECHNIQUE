@@ -101,6 +101,7 @@ function ProfileField({ field, value, onChange }) {
 export function MissionEquipmentScreen({ navigation, route }) {
   const missionId = route?.params?.missionId;
   const initialSiteId = route?.params?.siteId || '';
+  const initialEquipmentId = route?.params?.equipmentId || '';
   const [loading, setLoading] = useState(true);
   const [equipment, setEquipment] = useState([]);
   const [sites, setSites] = useState([]);
@@ -126,6 +127,7 @@ export function MissionEquipmentScreen({ navigation, route }) {
   const [ocrResult, setOcrResult] = useState(null);
   const [ocrEdit, setOcrEdit] = useState({});
   const [detailMode, setDetailMode] = useState('rapide');
+  const [initialEquipmentOpened, setInitialEquipmentOpened] = useState(false);
 
   const load = useCallback(async () => {
     if (!missionId) return;
@@ -217,6 +219,13 @@ export function MissionEquipmentScreen({ navigation, route }) {
       setSelectedId(null);
     }
   };
+
+  useEffect(() => {
+    if (!initialEquipmentId || initialEquipmentOpened || loading) return;
+    if (!equipment.some((row) => row.id === initialEquipmentId)) return;
+    setInitialEquipmentOpened(true);
+    openDetails(initialEquipmentId);
+  }, [initialEquipmentId, initialEquipmentOpened, loading, equipment]);
 
   const createEquipment = async () => {
     if (!newSiteId || !newType.trim()) {
