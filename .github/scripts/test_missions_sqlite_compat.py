@@ -88,7 +88,10 @@ def seed_v41(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO mission_validations(id,mission_id,document_id,subject_id,status) VALUES('val1','m1','d1','sub1','to_review')")
     conn.execute("INSERT INTO mission_scenarios(id,mission_id,label,investment,annual_saving) VALUES('sc1','m1','Equilibrage',1600,300)")
     conn.execute("INSERT INTO mission_scenario_actions(scenario_id,action_id) VALUES('sc1','act1')")
-    conn.execute("INSERT INTO mission_geometries(id,mission_id,site_id,point_id,geometry_type,geojson,plan_document_id) VALUES('g1','m1','s1','p1','point','{"type":"Point","coordinates":[1,2]}','d1')")
+    conn.execute(
+        "INSERT INTO mission_geometries(id,mission_id,site_id,point_id,geometry_type,geojson,plan_document_id) VALUES(?,?,?,?,?,?,?)",
+        ("g1", "m1", "s1", "p1", "point", '{"type":"Point","coordinates":[1,2]}', "d1"),
+    )
     conn.execute("INSERT INTO mission_equipment_relations(id,mission_id,source_equipment_id,target_equipment_id,relation_type) VALUES('er1','m1','e1','e1','self_test')")
     conn.execute("INSERT INTO mission_calculations(id,mission_id,equipment_id,label,formula,result_number,unit) VALUES('calc1','m1','e1','Delta T','depart-retour',10,'K')")
     conn.execute("INSERT INTO mission_photo_annotations(id,photo_id,annotation_type,text) VALUES('pa1','photo1','text','Fuite')")
@@ -102,7 +105,10 @@ def seed_v41(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO mission_measure_details(measure_id,reference_id,series_id,source_type,delta_number,anomaly_status) VALUES('me1','ref1','ser1','terrain',7.5,'to_check')")
     conn.execute("INSERT INTO mission_import_batches(id,mission_id,source_name,status) VALUES('ib1','m1','source.xlsx','completed')")
     conn.execute("INSERT INTO mission_import_issues(id,batch_id,message) VALUES('ii1','ib1','Doublon probable')")
-    conn.execute("INSERT INTO mission_import_rows(id,batch_id,sheet_name,row_index,row_json) VALUES('ir1','ib1','Feuil1',2,'{"A":"B"}')")
+    conn.execute(
+        "INSERT INTO mission_import_rows(id,batch_id,sheet_name,row_index,row_json) VALUES(?,?,?,?,?)",
+        ("ir1", "ib1", "Feuil1", 2, '{"A":"B"}'),
+    )
     conn.commit()
     assert_integrity(conn, "donnees v41")
 
