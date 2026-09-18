@@ -3,6 +3,7 @@ import * as FileSystem from 'expo-file-system';
 import * as DocumentPicker from 'expo-document-picker';
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
+import { autoMapperClasseurMission } from './missionExcelAutoMap.js';
 import {
   MISSION_EXCEL_FORMAT,
   MISSION_EXCEL_SCHEMA_VERSION,
@@ -161,9 +162,10 @@ async function preserveRawWorkbook(db, missionId, workbook, source) {
       entityType: 'workbook',
       sourceRef: source.sourceName,
       message: 'Classeur externe conservé intégralement avant mapping métier.',
-      suggestion: 'Utiliser ensuite le mapping METRA pour transformer les feuilles en Sites, Équipements, Mesures, Actions ou autres objets.',
+      suggestion: 'METRA transforme automatiquement uniquement les colonnes reconnues avec suffisamment de certitude ; la source brute reste toujours conservée.',
     });
-    const summary = { mode: 'raw_external', sheets: workbook.SheetNames?.length || 0, rows: totalRows };
+    const mapped = await autoMapperClasseurMission({ db, missionId, batchId, workbook, safeSheetRows });
+    const summary = { mode: 'raw_external', sheets: workbook.SheetNames?.length || 0, rows: totalRows, mapped };
     await finishImportBatch(db, batchId, 'completed', summary);
     return { missionId, batchId, ...summary, canonical: false };
   } catch (error) {
