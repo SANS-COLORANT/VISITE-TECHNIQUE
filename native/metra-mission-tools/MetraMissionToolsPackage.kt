@@ -7,7 +7,7 @@ import com.facebook.react.uimanager.ViewManager
 
 class MetraMissionToolsPackage : ReactPackage {
   override fun createNativeModules(reactContext: ReactApplicationContext): List<NativeModule> =
-    listOf(MetraOcrModule(reactContext), MetraSpeechModule(reactContext), MetraPdfModule(reactContext))
+    listOf(MetraOcrModule(reactContext), MetraSpeechModule(reactContext), MetraPdfModule(reactContext), MetraGeoPackageModule(reactContext))
 
   override fun createViewManagers(reactContext: ReactApplicationContext): List<ViewManager<*, *>> = emptyList()
 }
