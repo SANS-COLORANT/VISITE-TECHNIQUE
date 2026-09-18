@@ -15,6 +15,7 @@ const ITEMS = [
   ['annotatedPlans','Plans annotés PDF'],
   ['sigGeoJson','SIG GeoJSON'],
   ['sigGeoPackage','SIG GeoPackage QGIS'],
+  ['offlineMapLayers','Rasters / tuiles cartographiques hors ligne'],
   ['synopticData','Données des synoptiques'],
   ['manifest','Manifest du dossier'],
 ];
@@ -41,7 +42,7 @@ export function MissionPackageScreen({ route }) {
     <ScrollView contentContainerStyle={{padding:16,paddingBottom:110}}>
       <Text style={[styles.sectionTitle,missionStyles.title]}>Dossier complet Mission</Text>
       <Text style={{color:COLORS.inkSoft,fontSize:10.5,lineHeight:15}}>
-        Compose le livrable final sans ressaisie. Les données structurées restent dans l’Excel complet et les originaux sont conservés séparément.
+        Compose le livrable final sans ressaisie. Le ZIP est aussi restaurable sur un autre poste/tablette : données structurées, photos, documents, plans et couches cartographiques locales.
       </Text>
       <View style={[missionStyles.card,{padding:12,marginTop:14}]}>
         {ITEMS.map(([key,label])=><TouchableOpacity key={key} onPress={()=>toggle(key)} style={{flexDirection:'row',alignItems:'center',paddingVertical:9,borderBottomWidth:1,borderBottomColor:MISSION_COLORS.accentLine}}>
