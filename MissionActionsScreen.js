@@ -6,6 +6,7 @@ import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerOuTrouverActeurMission } from './missionDomainDb.js';
 import { capturerPhotoMission } from './missionMediaDb.js';
+import { exporterSyntheseActionsMission } from './missionClientExcelExport.js';
 
 const STATUSES = [['open','Ouverte'],['in_progress','En cours'],['waiting','En attente'],['to_check','À contrôler'],['closed','Clôturée'],['cancelled','Annulée']];
 
@@ -38,6 +39,7 @@ export function MissionActionsScreen({ route }) {
   const [editVisible, setEditVisible] = useState(false);
   const [draft, setDraft] = useState({});
   const [editingId, setEditingId] = useState(null);
+  const [exportingSummary, setExportingSummary] = useState(false);
 
   const load = useCallback(async () => {
     const db = await getDb();
@@ -157,6 +159,22 @@ export function MissionActionsScreen({ route }) {
     }
   };
 
+  const exportSummary = async () => {
+    if (exportingSummary) return;
+    setExportingSummary(true);
+    try {
+      const result = await exporterSyntheseActionsMission(missionId);
+      Alert.alert(
+        'Synthèse actions / réserves créée',
+        result.name + '\n\nLe classeur contient uniquement la synthèse, les actions et les réserves avec responsable, échéance, coût et références photos.'
+      );
+    } catch (e) {
+      Alert.alert('Export impossible', String(e?.message || e));
+    } finally {
+      setExportingSummary(false);
+    }
+  };
+
   const totalCost = useMemo(() => visible.reduce((sum, a) => sum + (num(a.cost_estimate) || 0), 0), [visible]);
 
   return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
@@ -168,6 +186,9 @@ export function MissionActionsScreen({ route }) {
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
         <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={openNew}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Action</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} disabled={exportingSummary} onPress={exportSummary}>
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{exportingSummary ? 'Export…' : '⇩ Synthèse Excel'}</Text>
+        </TouchableOpacity>
         <Chip label="Ouvertes" selected={filter === 'open'} onPress={() => setFilter('open')} />
         <Chip label="Clôturées" selected={filter === 'closed'} onPress={() => setFilter('closed')} />
         <Chip label="Toutes" selected={filter === 'all'} onPress={() => setFilter('all')} />
