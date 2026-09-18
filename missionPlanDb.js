@@ -645,12 +645,17 @@ export async function exporterPlanPdfAnnote({ missionId, documentId, share = tru
   const document = await db.getFirstAsync('SELECT * FROM mission_documents WHERE id=? AND mission_id=?', [documentId, missionId]);
   if (!document?.file_uri) throw new Error('Plan source introuvable.');
 
-  const annotations = await db.getAllAsync(
-    `SELECT a.* FROM mission_plan_annotations a
-     LEFT JOIN mission_plan_layers l ON l.id=a.layer_id
-     WHERE a.document_id=? AND COALESCE(l.visible,1)=1 ORDER BY a.page_number,a.created_at`,
-    [documentId]
-  );
+  const [annotations, signatures] = await Promise.all([
+    db.getAllAsync(
+      `SELECT a.*,g.properties_json AS geometry_properties_json FROM mission_plan_annotations a
+       LEFT JOIN mission_plan_layers l ON l.id=a.layer_id
+       LEFT JOIN mission_geometries g ON g.id=a.geometry_id
+       WHERE a.document_id=? AND COALESCE(l.visible,1)=1 ORDER BY a.page_number,a.created_at`,
+      [documentId]
+    ),
+    db.getAllAsync('SELECT * FROM mission_signatures WHERE mission_id=?', [missionId]),
+  ]);
+  const signatureById = new Map(signatures.map((row) => [row.id, row]));
   const pdf = await pdfFromSource(document);
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const pages = pdf.getPages();
@@ -662,6 +667,42 @@ export async function exporterPlanPdfAnnote({ missionId, documentId, share = tru
     const geometry = parseJson(row.geometry_json, {});
     const points = geometry?.points || [];
     const color = rgb(0.18, 0.49, 0.35);
+
+    if (row.annotation_type === 'signature' && row.linked_entity_type === 'signature' && row.linked_entity_id) {
+      const signature = signatureById.get(row.linked_entity_id);
+      const metadata = parseJson(signature?.metadata_json, {});
+      const strokes = Array.isArray(metadata?.strokes) ? metadata.strokes : [];
+      const properties = parseJson(row.geometry_properties_json, {});
+      const anchor = points[0] || geometry;
+      const boxWidth = width * Math.max(0.08, Math.min(0.55, Number(properties?.widthRatio || 0.22)));
+      const boxHeight = height * Math.max(0.04, Math.min(0.30, Number(properties?.heightRatio || 0.09)));
+      const originX = Number(anchor?.x || 0) * width;
+      const originTopY = height - Number(anchor?.y || 0) * height;
+
+      for (const stroke of strokes) {
+        if (!Array.isArray(stroke) || stroke.length < 2) continue;
+        for (let i = 0; i < stroke.length - 1; i += 1) {
+          const a = stroke[i];
+          const b = stroke[i + 1];
+          page.drawLine({
+            start: { x: originX + Number(a?.x || 0) * boxWidth, y: originTopY - Number(a?.y || 0) * boxHeight },
+            end: { x: originX + Number(b?.x || 0) * boxWidth, y: originTopY - Number(b?.y || 0) * boxHeight },
+            thickness: 1.5,
+            color,
+          });
+        }
+      }
+      if (signature?.signer_label) {
+        page.drawText(String(signature.signer_label), {
+          x: originX,
+          y: originTopY - boxHeight - 10,
+          size: 7,
+          font,
+          color,
+        });
+      }
+      continue;
+    }
 
     if (row.annotation_type === 'text') {
       const p = normalizedToPdf(points[0] || geometry, width, height);
