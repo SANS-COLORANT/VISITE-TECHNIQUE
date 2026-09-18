@@ -4,6 +4,7 @@ import * as Sharing from 'expo-sharing';
 import { PDFDocument, degrees, rgb, StandardFonts } from 'pdf-lib';
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
+import { exporterGeoPackageLocal } from './missionNativeTools.js';
 
 function clean(value) {
   const out = String(value ?? '').trim();
@@ -411,4 +412,16 @@ export async function importerGeoJsonMission({ missionId } = {}) {
     created += 1;
   }
   return { layerId, featureCount: created, name: asset.name };
+}
+
+
+export async function exporterGeoPackageMission(missionId, { share = true } = {}) {
+  const geo = await exporterGeoJsonMission(missionId, { share: false });
+  const outputUri = (FileSystem.cacheDirectory || FileSystem.documentDirectory) + 'METRA_Mission_' + safeName(missionId) + '.gpkg';
+  const result = await exporterGeoPackageLocal(geo.data, outputUri);
+  const uri = result?.uri || outputUri;
+  if (share && await Sharing.isAvailableAsync()) {
+    await Sharing.shareAsync(uri, { mimeType: 'application/geopackage+sqlite3', dialogTitle: 'GeoPackage METRA pour QGIS' });
+  }
+  return { uri, featureCount: result?.featureCount ?? geo.featureCount };
 }
