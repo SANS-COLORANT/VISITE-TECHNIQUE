@@ -275,6 +275,7 @@ export function MissionScreen({ navigation, route }) {
             ['plans', 'MissionPlan', 'Plans / PDF / SIG', 'Mesures · calques · GeoPackage'],
             ['map', 'MissionMap', 'Cartographie', 'Multi-sites · progression · SIG'],
             ['actions', 'MissionActions', 'Actions', 'Responsables · échéances · coûts'],
+            ['subjects', 'MissionSubjects', 'Sujets & décisions', 'Constat → décision → action → historique'],
             ['reserveClearance', 'MissionReserveClearance', 'Levée de réserves', 'Avant / après · levée · maintien · partielle'],
             ['tests', 'MissionTests', 'Essais', 'Protocoles · commissioning'],
             ['calculations', 'MissionCalculation', 'Calculs 🧮', 'Formules · hypothèses · résultats'],
