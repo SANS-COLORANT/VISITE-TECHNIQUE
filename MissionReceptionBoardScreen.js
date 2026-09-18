@@ -134,7 +134,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
     if (busyId) return;
     setBusyId(row.id);
     try {
-      await modifierEquipementMission(row.id, { lifecycleStatus: status });
+      await modifierEquipementMission(row.id, { missionId, lifecycleStatus: status, changeComment: 'Mise à jour depuis tableau réception / passation' });
       setEquipment((all) => all.map((item) => item.id === row.id ? { ...item, lifecycle_status: status } : item));
     } finally {
       setBusyId(null);
