@@ -180,6 +180,37 @@ export function MissionScreen({ navigation, route }) {
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} onPress={() => setPointModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Point libre</Text></TouchableOpacity>
         </View>
 
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 20 }]}>Outils Mission</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {[
+            ['MissionWorkflow', 'Workflow', 'Phases · volets · occurrences'],
+            ['MissionEquipment', 'Inventaire', 'Équipements · composants · OCR'],
+            ['MissionMeasurements', 'Mesures', 'Références · séries · instruments'],
+            ['MissionPlan', 'Plans / PDF / SIG', 'Mesures · calques · GeoPackage'],
+            ['MissionActions', 'Actions', 'Responsables · échéances · coûts'],
+            ['MissionTests', 'Essais', 'Protocoles · commissioning'],
+            ['MissionCalculation', 'Calculs 🧮', 'Formules · hypothèses · résultats'],
+            ['MissionScenarios', 'Scénarios', 'Étude · investissement · gains'],
+            ['MissionDocuments', 'Documents / VISA', 'Attendus · validation'],
+            ['MissionDocumentInbox', 'Inbox documents', 'Extraction locale · revue'],
+            ['MissionExcelMapping', 'Mapping Excel', 'Colonnes externes → METRA'],
+            ['MissionPhotoAnnotations', 'Photos annotées', 'Flèches · zones · texte'],
+            ['MissionTechnicalGraph', 'Synoptique', 'Relations techniques visuelles'],
+            ['MissionSignature', 'Signature', 'Passation · OPR · réception'],
+            ['MissionPackage', 'Dossier complet', 'ZIP configurable'],
+          ].map(([routeName, title, subtitle]) => (
+            <TouchableOpacity
+              key={routeName}
+              activeOpacity={0.82}
+              onPress={() => navigation.navigate(routeName, { missionId })}
+              style={[missionStyles.card, { width: '48%', minHeight: 76, padding: 11, justifyContent: 'center' }]}
+            >
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 10.8, fontWeight: '900' }}>{title}</Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, lineHeight: 12, marginTop: 3 }}>{subtitle}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
         <TouchableOpacity
           style={[styles.btnSecondary, missionStyles.secondaryButton, { marginTop: 9, alignItems: 'center' }]}
           onPress={() => navigation.navigate('MissionTechnicalGraph', { missionId })}
