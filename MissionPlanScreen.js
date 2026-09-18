@@ -10,6 +10,7 @@ import {
   choisirEtImporterPlanMission,
   creerCalquePlan,
   exporterGeoJsonMission,
+  exporterGeoPackageMission,
   exporterPlanPdfAnnote,
   getCalibrationPlan,
   importerGeoJsonMission,
@@ -331,6 +332,7 @@ export function MissionPlanScreen({ navigation, route }) {
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionMap', { missionId })}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Carte SIG</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={async () => { try { await importerGeoJsonMission({ missionId }); Alert.alert('SIG', 'Couche GeoJSON importée hors ligne.'); } catch (e) { Alert.alert('Import SIG', String(e?.message || e)); } }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Importer GeoJSON</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={async () => { try { await exporterGeoJsonMission(missionId); } catch (e) { Alert.alert('Export SIG', String(e?.message || e)); } }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Exporter GeoJSON</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={async () => { try { await exporterGeoPackageMission(missionId); } catch (e) { Alert.alert('GeoPackage', String(e?.message || e)); } }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>GeoPackage QGIS</Text></TouchableOpacity>
       </View>
 
       {plans.length ? <>
