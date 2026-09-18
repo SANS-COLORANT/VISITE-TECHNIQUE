@@ -290,6 +290,7 @@ function inventoryRows(data) {
     Annee_mise_en_service: e.installation_year || '',
     Etat: e.state || '',
     Verification_terrain: labelStatus(e.verification_status),
+    Statut_cycle_projet: e.lifecycle_status || '',
     Duree_vie_indicative_ans: formatNumber(e.expected_lifetime_years),
     Cout_renouvellement_EUR: formatNumber(e.replacement_cost),
     Annee_renouvellement_indicative: e.replacement_year || '',
