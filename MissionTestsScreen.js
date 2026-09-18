@@ -13,6 +13,7 @@ import {
   terminerExecutionEssai,
 } from './missionTestDb.js';
 import { creerPointMission } from './missionsDb.js';
+import { getMissionTestPresets } from './missionTestPresets.js';
 
 const STATUS_OPTIONS = [
   ['ok', 'OK'],
@@ -64,25 +65,59 @@ export function MissionTestsScreen({ route }) {
   const [startEquipmentId, setStartEquipmentId] = useState(null);
   const [runData, setRunData] = useState(null);
   const [stepEdits, setStepEdits] = useState({});
+  const [missionType, setMissionType] = useState(null);
+  const [installingPresets, setInstallingPresets] = useState(false);
 
   const load = useCallback(async () => {
     if (!missionId) return;
     const db = await getDb();
-    const [p, r, s, e] = await Promise.all([
+    const [p, r, s, e, m] = await Promise.all([
       listerProtocolesEssaisMission(missionId),
       listerExecutionsEssaisMission(missionId),
       db.getAllAsync('SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name', [missionId]),
       db.getAllAsync('SELECT e.*,s.name AS site_name FROM mission_equipment e JOIN mission_site_links l ON l.site_id=e.site_id LEFT JOIN mission_sites s ON s.id=e.site_id WHERE l.mission_id=? ORDER BY s.name,e.type,e.brand,e.model LIMIT 1000', [missionId]),
+      db.getFirstAsync('SELECT type FROM missions WHERE id=?', [missionId]),
     ]);
     setProtocols(p || []);
     setRuns(r || []);
     setSites(s || []);
     setEquipment(e || []);
+    setMissionType(m?.type || null);
   }, [missionId]);
 
   useEffect(() => { load(); }, [load]);
 
   const selectedEquipment = useMemo(() => equipment.filter((e) => !startSiteId || e.site_id === startSiteId), [equipment, startSiteId]);
+  const recommendedPresets = useMemo(() => getMissionTestPresets(missionType), [missionType]);
+
+  const installRecommended = async () => {
+    if (!recommendedPresets.length || installingPresets) return;
+    setInstallingPresets(true);
+    try {
+      const existingLabels = new Set(protocols.map((protocol) => String(protocol.label || '').trim().toLowerCase()));
+      let added = 0;
+      for (const preset of recommendedPresets) {
+        if (existingLabels.has(String(preset.label || '').trim().toLowerCase())) continue;
+        await creerProtocoleEssaiComplet({
+          missionId,
+          label: preset.label,
+          type: preset.type,
+          description: preset.description,
+          steps: preset.steps,
+        });
+        added += 1;
+      }
+      await load();
+      Alert.alert(
+        added ? 'Protocoles ajoutés' : 'Protocoles déjà disponibles',
+        added ? String(added) + ' protocole(s) recommandé(s) ajouté(s) à la Mission.' : 'Aucun doublon créé.'
+      );
+    } catch (e) {
+      Alert.alert('Protocoles non ajoutés', String(e?.message || e));
+    } finally {
+      setInstallingPresets(false);
+    }
+  };
 
   const saveProtocol = async () => {
     const steps = parseSteps(protocolDraft.steps);
@@ -183,9 +218,23 @@ export function MissionTestsScreen({ route }) {
         Un protocole conserve l’attendu ; chaque exécution conserve l’observé. Les écarts peuvent créer un point sans perdre le résultat d’essai.
       </Text>
 
-      <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { alignSelf: 'flex-start', marginTop: 12 }]} onPress={() => setCreateVisible(true)}>
-        <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Protocole</Text>
-      </TouchableOpacity>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setCreateVisible(true)}>
+          <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Protocole libre</Text>
+        </TouchableOpacity>
+        {recommendedPresets.length ? <TouchableOpacity
+          style={[styles.btnSecondary, missionStyles.secondaryButton]}
+          disabled={installingPresets}
+          onPress={installRecommended}
+        >
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>
+            {installingPresets ? 'Ajout…' : '＋ Protocoles recommandés (' + recommendedPresets.length + ')'}
+          </Text>
+        </TouchableOpacity> : null}
+      </View>
+      {recommendedPresets.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, lineHeight: 12, marginTop: 6 }}>
+        Les protocoles proposés dépendent du type de Mission. Ils restent modifiables et ne concluent jamais automatiquement au diagnostic.
+      </Text> : null}
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Protocoles</Text>
       {protocols.map((p) => <View key={p.id} style={[missionStyles.card, { padding: 12, marginBottom: 8 }]}>
