@@ -98,10 +98,10 @@ export function MissionVisitScreen({ navigation, route }) {
       const next = await chargerVisiteMission(visitId);
       setData(next);
       const map = {};
-      let nextMode = 'standard';
+      let nextMode = getMissionFieldPlaybook(next?.visit?.mission_type).defaultMode || 'standard';
       for (const row of next?.values || []) {
         const value = row.value_text ?? row.value_number ?? row.value_boolean ?? row.value_date ?? '';
-        if (row.field_code === '__meta.capture_mode') nextMode = value || 'standard';
+        if (row.field_code === '__meta.capture_mode') nextMode = value || nextMode;
         else map[row.field_code] = value;
       }
       setValues(map);
