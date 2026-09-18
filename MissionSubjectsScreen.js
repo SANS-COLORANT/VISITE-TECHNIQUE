@@ -65,6 +65,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
   const [eventKind, setEventKind] = useState('observation');
   const [filter, setFilter] = useState('open');
   const [busy, setBusy] = useState(false);
+  const [nextActions, setNextActions] = useState([]);
 
   const [subjectDraft, setSubjectDraft] = useState({
     label: '',
@@ -83,7 +84,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
   const load = useCallback(async () => {
     if (!missionId) return;
     const db = await getDb();
-    const [rows, siteRows] = await Promise.all([
+    const [rows, siteRows, nextActionRows] = await Promise.all([
       db.getAllAsync(
         `SELECT s.*,site.name AS site_name,
           (SELECT COUNT(*) FROM mission_observations o WHERE o.subject_id=s.id) AS observations_count,
@@ -100,9 +101,24 @@ export function MissionSubjectsScreen({ navigation, route }) {
         'SELECT s.* FROM mission_sites s JOIN mission_site_links ml ON ml.site_id=s.id WHERE ml.mission_id=? ORDER BY s.name',
         [missionId]
       ),
+      db.getAllAsync(
+        `SELECT a.*,sub.label AS subject_label,site.name AS site_name,
+          actor.company AS responsible_company,actor.name AS responsible_name
+         FROM mission_actions a
+         LEFT JOIN mission_subjects sub ON sub.id=a.subject_id
+         LEFT JOIN mission_sites site ON site.id=a.site_id
+         LEFT JOIN mission_actors actor ON actor.id=a.responsible_actor_id
+         WHERE a.mission_id=? AND a.status NOT IN ('closed','cancelled')
+         ORDER BY
+           CASE WHEN a.due_date IS NULL OR a.due_date='' THEN 1 ELSE 0 END,
+           a.due_date,a.created_at
+         LIMIT 30`,
+        [missionId]
+      ),
     ]);
     setSubjects(rows || []);
     setSites(siteRows || []);
+    setNextActions(nextActionRows || []);
 
     const targetId = selectedId || rows?.[0]?.id || null;
     if (!selectedId && targetId) setSelectedId(targetId);
@@ -287,6 +303,28 @@ export function MissionSubjectsScreen({ navigation, route }) {
         <Chip label="Clos" selected={filter === 'closed'} onPress={() => setFilter('closed')} />
         <Chip label="Tous" selected={filter === 'all'} onPress={() => setFilter('all')} />
       </View>
+
+      {nextActions.length ? <>
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 16 }]}>À traiter avant le prochain point</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {nextActions.slice(0, 12).map((action) => {
+            const overdue = action.due_date && action.due_date < new Date().toISOString().slice(0,10);
+            return <TouchableOpacity
+              key={action.id}
+              onPress={() => navigation.navigate('MissionActions', { missionId })}
+              style={[missionStyles.card, { width: 235, padding: 10, marginRight: 8 }]}
+            >
+              <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }} numberOfLines={2}>{action.label}</Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, marginTop: 3 }} numberOfLines={2}>
+                {[action.subject_label,action.site_name,action.responsible_company || action.responsible_name].filter(Boolean).join(' · ') || 'Contexte à compléter'}
+              </Text>
+              <Text style={{ color: overdue ? '#8B3A3A' : MISSION_COLORS.accentDark, fontSize: 8.3, fontWeight: '900', marginTop: 5 }}>
+                {overdue ? 'ÉCHUE · ' : ''}{action.due_date || action.due_text || 'Échéance à compléter'}
+              </Text>
+            </TouchableOpacity>;
+          })}
+        </ScrollView>
+      </> : null}
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 16 }]}>Sujets</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 118 }}>
