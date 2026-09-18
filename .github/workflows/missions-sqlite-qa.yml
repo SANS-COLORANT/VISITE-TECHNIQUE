@@ -15,6 +15,7 @@ on:
       - 'missionExcelAutoMap.js'
       - 'missionExcelSchema.js'
       - 'missionEquipmentDb.js'
+      - 'missionStructureDb.js'
       - 'missionVisitQualityDb.js'
       - 'missionPlanDb.js'
       - 'missionCalculationDb.js'
