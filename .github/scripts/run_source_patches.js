@@ -66,6 +66,7 @@ const JS_SYNTAX_FILES = [
   'missionMediaDb.js',
   'missionNativeTools.js',
   'missionEquipmentDb.js',
+  'missionEquipmentCatalog.js',
   'missionStructureDb.js',
   'missionVisitQualityDb.js',
   'missionPlanDb.js',
