@@ -189,6 +189,33 @@ function makeAutoSections(data) {
     });
   }
 
+  if (m.type === 'assistance_p2_p3' && data.equipment?.length) {
+    const byYear = new Map();
+    let incomplete = 0;
+    for (const equipment of data.equipment) {
+      const targetYear = Number(equipment.replacement_year);
+      const cost = Number(equipment.replacement_cost) || 0;
+      if (!targetYear || equipment.replacement_cost === null || equipment.replacement_cost === undefined || !equipment.expected_lifetime_years) incomplete += 1;
+      if (!targetYear) continue;
+      const current = byYear.get(targetYear) || { count: 0, cost: 0 };
+      current.count += 1;
+      current.cost += cost;
+      byYear.set(targetYear, current);
+    }
+    const rows = [...byYear.entries()]
+      .sort((a,b) => a[0] - b[0])
+      .map(([year,values]) => [year, values.count, values.cost]);
+    if (incomplete) rows.push(['À compléter', incomplete, '']);
+    sections.push({
+      key: 'projection_p3',
+      title: 'Projection indicative des renouvellements',
+      content: [
+        blockParagraph('Projection construite à partir des durées de vie, coûts et années cibles renseignés dans la Mission. Elle ne constitue pas automatiquement une décision contractuelle P3.'),
+        blockTable(['Année / statut', 'Équipements', 'Coût renseigné'], rows),
+      ],
+    });
+  }
+
   if (data.installations?.length || data.systems?.length || data.networks?.length) {
     const rows = [];
     for (const installation of data.installations || []) {
