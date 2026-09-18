@@ -180,6 +180,12 @@ export function MissionScreen({ navigation, route }) {
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} onPress={() => setPointModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Point libre</Text></TouchableOpacity>
         </View>
 
+        <TouchableOpacity
+          style={[styles.btnPrimary, missionStyles.primaryButton, { marginTop: 9, alignItems: 'center' }]}
+          onPress={() => navigation.navigate('MissionReport', { missionId })}
+        >
+          <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Rapport · éditer / Word / PDF</Text>
+        </TouchableOpacity>
         <View style={{ flexDirection: 'row', gap: 9, marginTop: 9 }}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} disabled={importing} onPress={importExcel}>
             <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{importing ? 'Import…' : '⇧ Importer Excel'}</Text>
