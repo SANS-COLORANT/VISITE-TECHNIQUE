@@ -19,7 +19,7 @@ import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRun
 import { getActiveVisualPack, getVisualPackStartupDuration, resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
 
 const SPLASH_BG = '#FBF0E1';
-const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign']);
+const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign']);
 
 const DEFERRED_SCREEN_LOADERS = Object.freeze({
   MetraDirectory: () => require('./MetraDirectoryScreen.js').MetraDirectoryScreen,
@@ -43,6 +43,7 @@ const DEFERRED_SCREEN_LOADERS = Object.freeze({
   MissionTechnicalGraph: () => require('./MissionTechnicalGraphScreen.js').MissionTechnicalGraphScreen,
   MissionEquipment: () => require('./MissionEquipmentScreen.js').MissionEquipmentScreen,
   MissionStructure: () => require('./MissionStructureScreen.js').MissionStructureScreen,
+  MissionTechnicalStructure: () => require('./MissionTechnicalStructureScreen.js').MissionTechnicalStructureScreen,
   MissionPlan: () => require('./MissionPlanScreen.js').MissionPlanScreen,
   MissionMap: () => require('./MissionMapScreen.js').MissionMapScreen,
   MissionCalculation: () => require('./MissionCalculationScreen.js').MissionCalculationScreen,
@@ -220,6 +221,7 @@ function AppContent() {
     {current.name === 'MissionTechnicalGraph' && missionsVisible ? <><MissionHeader title="Synoptique technique" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionTechnicalGraph" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionEquipment' && missionsVisible ? <><MissionHeader title="Inventaire Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionEquipment" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionStructure' && missionsVisible ? <><MissionHeader title="Patrimoine Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionStructure" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionTechnicalStructure' && missionsVisible ? <><MissionHeader title="Architecture technique" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionTechnicalStructure" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionPlan' && missionsVisible ? <><MissionHeader title="Plans · PDF · SIG" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionPlan" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionMap' && missionsVisible ? <><MissionHeader title="Cartographie Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionMap" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionCalculation' && missionsVisible ? <><MissionHeader title="Calculs Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionCalculation" navigation={navigation} route={route} /></> : null}
