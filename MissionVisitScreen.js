@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Modal, ScrollView, Text, TextInput, Touchable
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerPointMission } from './missionsDb.js';
-import { creerOuTrouverActeurMission, creerReferenceMission, enregistrerDetailsPointMission, enregistrerMesureMission } from './missionDomainDb.js';
+import { creerActionMission, creerOuTrouverActeurMission, creerReferenceMission, enregistrerDetailsPointMission, enregistrerMesureMission } from './missionDomainDb.js';
 import { capturerPhotoMission, choisirEtAjouterDocumentMission } from './missionMediaDb.js';
 import { demarrerDicteeLocale } from './missionNativeTools.js';
 import { enregistrerNoteVocaleMission, genererChecklistFinVisite, ignorerCheckVisite } from './missionVisitQualityDb.js';
@@ -472,6 +472,36 @@ export function MissionVisitScreen({ navigation, route }) {
           costEstimate: pointCost,
           allocation: pointAllocation,
           requestedAction: pointRequestedAction,
+        });
+      }
+
+      const shouldCreateAction =
+        ['reserve', 'action'].includes(pointType)
+        || (
+          ['request', 'control'].includes(pointType)
+          && Boolean(
+            pointRequestedAction.trim()
+            || pointResponsible.trim()
+            || pointDue.trim()
+            || pointPriority.trim()
+            || pointCost.trim()
+            || pointAllocation.trim()
+          )
+        );
+      if (shouldCreateAction) {
+        await creerActionMission({
+          missionId: actualMissionId,
+          sourcePointId: pointId,
+          siteId: data?.visit?.site_id,
+          locationId: contextLocationId || null,
+          equipmentId: contextEquipmentId || null,
+          label: pointRequestedAction.trim() || pointLabel.trim() || (pointType === 'reserve' ? 'Lever la réserve' : 'Traiter le point'),
+          description: pointDescription,
+          priority: pointPriority,
+          responsibleActorId,
+          dueText: pointDue,
+          costEstimate: pointCost,
+          allocation: pointAllocation,
         });
       }
       setPointModal(false);
