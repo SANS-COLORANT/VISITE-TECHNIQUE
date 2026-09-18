@@ -276,6 +276,7 @@ export function MissionScreen({ navigation, route }) {
             ['map', 'MissionMap', 'Cartographie', 'Multi-sites · progression · SIG'],
             ['actions', 'MissionActions', 'Actions', 'Responsables · échéances · coûts'],
             ['subjects', 'MissionSubjects', 'Sujets & décisions', 'Constat → décision → action → historique'],
+            ['p3Dashboard', 'MissionP3Dashboard', 'Projection P2 / P3', 'Âge · coût · échéance · renouvellement'],
             ['reserveClearance', 'MissionReserveClearance', 'Levée de réserves', 'Avant / après · levée · maintien · partielle'],
             ['tests', 'MissionTests', 'Essais', 'Protocoles · commissioning'],
             ['calculations', 'MissionCalculation', 'Calculs 🧮', 'Formules · hypothèses · résultats'],
