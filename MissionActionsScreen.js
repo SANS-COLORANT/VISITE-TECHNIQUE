@@ -153,8 +153,14 @@ export function MissionActionsScreen({ route }) {
       await enregistrerHistoriqueActionMission({
         missionId,
         actionId: editingId,
-        before,
-        after,
+        before: {
+          ...before,
+          responsible_actor_id: before?.responsible_company || before?.responsible_name || before?.responsible_actor_id || null,
+        },
+        after: {
+          ...after,
+          responsible_actor_id: clean(draft.responsible),
+        },
         source: 'MissionActions',
       });
     } else {
