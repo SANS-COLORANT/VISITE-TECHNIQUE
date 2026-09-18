@@ -129,6 +129,12 @@ if (missingRecipes.length) throw new Error('Types de Mission sans recette Rapide
 
 requireText(app, "MissionEquipment", 'equipment workspace route');
 requireText(app, "MissionStructure", 'patrimony hierarchy route');
+requireText(app, "MissionTechnicalStructure", 'technical architecture route');
+requireText(read('missionTechnicalStructureDb.js'), 'creerInstallationMission', 'installation creation');
+requireText(read('missionTechnicalStructureDb.js'), 'creerSystemeMission', 'system creation');
+requireText(read('missionTechnicalStructureDb.js'), 'creerReseauTechniqueMission', 'network creation');
+requireText(read('missionTechnicalStructureDb.js'), 'rattacherEquipementArchitectureMission', 'equipment architecture binding');
+requireText(read('MissionTechnicalStructureScreen.js'), 'Installation → Système → Réseau / circuit → Équipement', 'technical hierarchy UX');
 requireText(read('MissionStructureScreen.js'), 'Site → Bâtiment → Niveau → Local / local technique → Équipement', 'indoor hierarchy UX');
 requireText(read('missionStructureDb.js'), 'parent_location_id', 'hierarchical locations storage');
 requireText(app, "MissionPlan", 'plans workspace route');
