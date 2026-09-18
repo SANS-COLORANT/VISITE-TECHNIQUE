@@ -796,13 +796,14 @@ const BASE_CAPABILITIES = Object.freeze({
   expertiseBoard: false,
   campaignDashboard: false,
   amoDashboard: false,
+  controlBoard: false,
 });
 
 const FAMILY_CAPABILITIES = Object.freeze({
   etude_audit: { scenarios: true },
   travaux_chantier: { tests: true, subjects: true },
   campagne_multisites: { map: true, campaignDashboard: true },
-  conformite_reglementaire: { tests: true },
+  conformite_reglementaire: { tests: true, controlBoard: true },
 });
 
 const TYPE_CAPABILITIES = Object.freeze({
@@ -826,8 +827,9 @@ const TYPE_CAPABILITIES = Object.freeze({
   opr_reception: { tests: true, signature: true, receptionBoard: true, reserveClearance: true },
   levee_reserves: { tests: true, signature: true, reserveClearance: true },
   passation_travaux_exploitant: { tests: true, signature: true, receptionBoard: true },
-  controle_exploitation: { tests: true },
+  controle_exploitation: { tests: true, controlBoard: true },
   assistance_p2_p3: { scenarios: true, tests: true, p3Dashboard: true, amoDashboard: true, subjects: true },
+  suivi_sanitaire: { controlBoard: true },
   preallumage_reprise_saison: { tests: true },
   expertise_sinistre: { expertiseBoard: true },
   campagne_technique: { map: true },
