@@ -68,7 +68,7 @@ async function loadClientData(missionId) {
   if (!mission) throw new Error('Mission introuvable.');
 
   const [
-    sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations, campaignSiteProgress,
+    sites, visits, actions, points, equipment, measures, photos, documents, scenarios, workstreams, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations, campaignSiteProgress,
   ] = await Promise.all([
     db.getAllAsync(
       `SELECT s.*
@@ -172,6 +172,16 @@ async function loadClientData(missionId) {
       [missionId]
     ),
     db.getAllAsync(
+      `SELECT w.*,
+        (SELECT COUNT(*) FROM mission_subjects sub WHERE sub.workstream_id=w.id) AS subject_count,
+        (SELECT COUNT(*) FROM mission_subjects sub WHERE sub.workstream_id=w.id AND sub.status<>'closed') AS open_subject_count,
+        (SELECT COUNT(*) FROM mission_actions a JOIN mission_subjects sub ON sub.id=a.subject_id
+          WHERE sub.workstream_id=w.id AND a.status NOT IN ('closed','cancelled')) AS open_action_count
+       FROM mission_workstreams w
+       WHERE w.mission_id=? ORDER BY w.sort_order,w.label`,
+      [missionId]
+    ),
+    db.getAllAsync(
       `SELECT sub.*,s.name AS site_name
        FROM mission_subjects sub
        LEFT JOIN mission_sites s ON s.id=sub.site_id
@@ -243,7 +253,7 @@ async function loadClientData(missionId) {
     ),
   ]);
 
-  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations, campaignSiteProgress };
+  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios, workstreams, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations, campaignSiteProgress };
 }
 
 function photoPath(photo, photoPathById) {
@@ -462,6 +472,17 @@ export async function construireClasseurClientMission(missionId, { photoPathById
         Actions_ouvertes: Number(site.open_actions || 0),
       };
     }), [30,22,22,18,16,12,22,18,14,18,14,18]);
+  }
+  if (data.workstreams?.length) {
+    addSheet(wb, '01C_Volets_AMO', data.workstreams.map((row) => ({
+      Volet: row.label || '',
+      Type: row.kind || '',
+      Statut: row.status || '',
+      Sujets: Number(row.subject_count || 0),
+      Sujets_ouverts: Number(row.open_subject_count || 0),
+      Actions_ouvertes: Number(row.open_action_count || 0),
+      Description: row.description || '',
+    })), [34,22,18,12,16,18,70]);
   }
   addSheet(wb, '02_Sujets', data.subjects.map((subject) => ({
     Site: subject.site_name || '',
