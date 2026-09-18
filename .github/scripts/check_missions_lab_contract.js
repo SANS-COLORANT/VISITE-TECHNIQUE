@@ -274,6 +274,10 @@ requireText(read('missionDomainDb.js'), 'enregistrerHistoriqueActionMission', 'a
 requireText(read('MissionActionsScreen.js'), 'HISTORIQUE DES MODIFICATIONS', 'action history UX');
 requireText(read('missionReportDb.js'), "key: 'historique_actions'", 'action history report section');
 requireText(read('missionClientExcelExport.js'), "'13_Historique_actions'", 'action history client Excel worksheet');
+requireText(read('MissionDocumentsScreen.js'), 'HISTORIQUE DES REVUES', 'versioned documentary review UX');
+requireText(read('MissionDocumentsScreen.js'), 'VERSION / RÉVISION', 'document revision label UX');
+requireText(read('missionReportDb.js'), "key: 'revue_documents'", 'document review report chronology');
+requireText(read('missionClientExcelExport.js'), "'14_Revue_documents'", 'document review client Excel worksheet');
 requireText(read('MissionVisitScreen.js'), "changeComment: 'Réserve créée depuis la visite Mission'", 'OPR reserve lifecycle linkage');
 requireText(recipes, 'reserveClearance: true', 'OPR and reserve-lifting continuity capability');
 
