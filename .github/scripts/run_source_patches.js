@@ -72,6 +72,7 @@ const JS_SYNTAX_FILES = [
   'MissionScreen.js',
   'MissionVisitScreen.js',
   'MissionReportScreen.js',
+  'MissionTechnicalGraphScreen.js',
   'visual-packs/runtime/VisualPacksSettingsScreen.js',
   'visual-packs/runtime/visualPackManager.js',
   'symfonyApiCacheDb.js',
