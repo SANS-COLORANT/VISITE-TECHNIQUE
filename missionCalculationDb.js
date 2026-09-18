@@ -44,6 +44,75 @@ const BUILTIN_FORMULAS = Object.freeze([
   { key: 'simple_savings_pct', family: 'Énergie', label: 'Économie relative', formula: '((before - after) / before) * 100', unit: '%', inputs: [
     ['before', 'Avant', ''], ['after', 'Après', ''],
   ] },
+  { key: 'hydraulic_delta_t', family: 'Hydraulique', label: 'ΔT eau depuis puissance et débit', formula: 'power_kW / (1.163 * flow_m3h)', unit: 'K', inputs: [
+    ['power_kW', 'Puissance', 'kW'], ['flow_m3h', 'Débit', 'm³/h'],
+  ] },
+  { key: 'water_velocity', family: 'Hydraulique', label: 'Vitesse eau depuis débit et diamètre', formula: '(flow_m3h / 3600) / (3.141592653589793 * pow(diameter_mm / 1000, 2) / 4)', unit: 'm/s', inputs: [
+    ['flow_m3h', 'Débit', 'm³/h'], ['diameter_mm', 'Diamètre intérieur', 'mm'],
+  ] },
+  { key: 'diameter_from_velocity', family: 'Hydraulique', label: 'Diamètre intérieur depuis débit et vitesse', formula: 'sqrt((4 * flow_m3h / 3600) / (3.141592653589793 * velocity_ms)) * 1000', unit: 'mm', inputs: [
+    ['flow_m3h', 'Débit', 'm³/h'], ['velocity_ms', 'Vitesse cible', 'm/s'],
+  ] },
+  { key: 'head_to_bar', family: 'Hydraulique', label: 'HMT eau → pression', formula: 'head_mce * 0.0980665', unit: 'bar', inputs: [
+    ['head_mce', 'Hauteur manométrique', 'mCE'],
+  ] },
+  { key: 'bar_to_head', family: 'Hydraulique', label: 'Pression → HMT eau', formula: 'pressure_bar / 0.0980665', unit: 'mCE', inputs: [
+    ['pressure_bar', 'Pression', 'bar'],
+  ] },
+  { key: 'pump_hydraulic_power', family: 'Hydraulique', label: 'Puissance hydraulique pompe', formula: 'flow_m3h * head_mce * 9.81 / 3600', unit: 'kW', inputs: [
+    ['flow_m3h', 'Débit', 'm³/h'], ['head_mce', 'HMT', 'mCE'],
+  ] },
+  { key: 'pump_electrical_power', family: 'Hydraulique', label: 'Puissance électrique pompe estimée', formula: '(flow_m3h * head_mce * 9.81 / 3600) / efficiency', unit: 'kW', inputs: [
+    ['flow_m3h', 'Débit', 'm³/h'], ['head_mce', 'HMT', 'mCE'], ['efficiency', 'Rendement global (0 à 1)', ''],
+  ] },
+  { key: 'air_flow_from_velocity', family: 'Ventilation', label: 'Débit d’air depuis vitesse et section', formula: 'velocity_ms * area_m2 * 3600', unit: 'm³/h', inputs: [
+    ['velocity_ms', 'Vitesse', 'm/s'], ['area_m2', 'Section', 'm²'],
+  ] },
+  { key: 'air_delta_t', family: 'Ventilation', label: 'ΔT air depuis puissance sensible et débit', formula: 'power_W / (0.34 * flow_m3h)', unit: 'K', inputs: [
+    ['power_W', 'Puissance sensible', 'W'], ['flow_m3h', 'Débit d’air', 'm³/h'],
+  ] },
+  { key: 'ventilation_balance_pct', family: 'Ventilation', label: 'Écart soufflage / extraction', formula: '((supply_m3h - extract_m3h) / supply_m3h) * 100', unit: '%', inputs: [
+    ['supply_m3h', 'Débit soufflage', 'm³/h'], ['extract_m3h', 'Débit extraction', 'm³/h'],
+  ] },
+  { key: 'filter_dp_increase_pct', family: 'Ventilation', label: 'Évolution perte de charge filtre', formula: '((current_Pa - initial_Pa) / initial_Pa) * 100', unit: '%', inputs: [
+    ['current_Pa', 'ΔP actuelle', 'Pa'], ['initial_Pa', 'ΔP de référence', 'Pa'],
+  ] },
+  { key: 'heat_recovery_power', family: 'Ventilation', label: 'Puissance récupérée sur air', formula: '0.34 * flow_m3h * (extract_C - outdoor_C) * efficiency_pct / 100', unit: 'W', inputs: [
+    ['flow_m3h', 'Débit traversant', 'm³/h'], ['extract_C', 'Air extrait', '°C'], ['outdoor_C', 'Air extérieur', '°C'], ['efficiency_pct', 'Rendement échangeur', '%'],
+  ] },
+  { key: 'ecs_power_from_flow', family: 'ECS', label: 'Puissance ECS depuis débit de puisage', formula: 'flow_Lmin * deltaT_K * 0.0697667', unit: 'kW', inputs: [
+    ['flow_Lmin', 'Débit eau', 'L/min'], ['deltaT_K', 'Élévation de température', 'K'],
+  ] },
+  { key: 'ecs_storage_energy', family: 'ECS', label: 'Énergie utile d’un stockage ECS', formula: 'volume_L * deltaT_K * 0.001163', unit: 'kWh', inputs: [
+    ['volume_L', 'Volume stocké', 'L'], ['deltaT_K', 'Écart de température utile', 'K'],
+  ] },
+  { key: 'ecs_reheat_time', family: 'ECS', label: 'Temps théorique de réchauffage ECS', formula: '(volume_L * deltaT_K * 0.001163) / power_kW', unit: 'h', inputs: [
+    ['volume_L', 'Volume stocké', 'L'], ['deltaT_K', 'Élévation de température', 'K'], ['power_kW', 'Puissance utile', 'kW'],
+  ] },
+  { key: 'three_phase_power', family: 'Électricité CVC', label: 'Puissance active triphasée', formula: '1.7320508075688772 * voltage_V * current_A * cos_phi / 1000', unit: 'kW', inputs: [
+    ['voltage_V', 'Tension entre phases', 'V'], ['current_A', 'Intensité', 'A'], ['cos_phi', 'cos φ', ''],
+  ] },
+  { key: 'single_phase_power', family: 'Électricité CVC', label: 'Puissance active monophasée', formula: 'voltage_V * current_A * cos_phi / 1000', unit: 'kW', inputs: [
+    ['voltage_V', 'Tension', 'V'], ['current_A', 'Intensité', 'A'], ['cos_phi', 'cos φ', ''],
+  ] },
+  { key: 'annual_energy_cost', family: 'Énergie', label: 'Coût annuel énergie', formula: 'energy_kWh * price_EUR_kWh', unit: '€', inputs: [
+    ['energy_kWh', 'Consommation annuelle', 'kWh'], ['price_EUR_kWh', 'Prix énergie', '€/kWh'],
+  ] },
+  { key: 'annual_energy_saving', family: 'Énergie', label: 'Économie annuelle d’énergie', formula: 'before_kWh - after_kWh', unit: 'kWh/an', inputs: [
+    ['before_kWh', 'Avant', 'kWh/an'], ['after_kWh', 'Après', 'kWh/an'],
+  ] },
+  { key: 'annual_cost_saving', family: 'Énergie', label: 'Économie annuelle financière', formula: '(before_kWh - after_kWh) * price_EUR_kWh', unit: '€/an', inputs: [
+    ['before_kWh', 'Avant', 'kWh/an'], ['after_kWh', 'Après', 'kWh/an'], ['price_EUR_kWh', 'Prix énergie', '€/kWh'],
+  ] },
+  { key: 'refrigerant_co2e', family: 'Clim/PAC', label: 'Charge frigorigène en équivalent CO₂', formula: 'charge_kg * gwp / 1000', unit: 'tCO₂e', inputs: [
+    ['charge_kg', 'Charge fluide', 'kg'], ['gwp', 'PRG / GWP documentaire', ''],
+  ] },
+  { key: 'equipment_age', family: 'Patrimoine', label: 'Âge indicatif équipement', formula: 'current_year - installation_year', unit: 'ans', inputs: [
+    ['current_year', 'Année courante', ''], ['installation_year', 'Année mise en service', ''],
+  ] },
+  { key: 'replacement_year', family: 'Patrimoine', label: 'Année indicative de renouvellement', formula: 'installation_year + lifetime_years', unit: 'année', inputs: [
+    ['installation_year', 'Année mise en service', ''], ['lifetime_years', 'Durée de vie indicative', 'ans'],
+  ] },
 ]);
 
 function clean(value) {
