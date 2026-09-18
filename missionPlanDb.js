@@ -428,6 +428,85 @@ export async function listerCiblesAnnotationMission(missionId) {
   ];
 }
 
+export async function creerReserveDepuisAnnotationPlan({
+  annotationId,
+  label,
+  description = null,
+  responsibleLabel = null,
+  dueDate = null,
+  dueText = null,
+  priority = null,
+  costEstimate = null,
+} = {}) {
+  const db = await getDb();
+  const row = await db.getFirstAsync(
+    'SELECT a.id,a.mission_id,a.document_id,a.geometry_id,g.site_id,g.location_id,g.equipment_id ' +
+    'FROM mission_plan_annotations a LEFT JOIN mission_geometries g ON g.id=a.geometry_id WHERE a.id=?',
+    [annotationId]
+  );
+  if (!row) throw new Error('Annotation introuvable.');
+  const finalLabel = clean(label) || 'Réserve localisée sur plan';
+
+  let actorId = null;
+  if (clean(responsibleLabel)) {
+    const existing = await db.getFirstAsync(
+      "SELECT id FROM mission_actors WHERE mission_id=? AND LOWER(COALESCE(company,name,''))=LOWER(?) LIMIT 1",
+      [row.mission_id, clean(responsibleLabel)]
+    );
+    actorId = existing?.id || createId('mactor');
+    if (!existing?.id) {
+      await db.runAsync(
+        'INSERT INTO mission_actors(id,mission_id,site_id,company,role,actor_type) VALUES(?,?,?,?,?,?)',
+        [actorId, row.mission_id, row.site_id || null, clean(responsibleLabel), 'Responsable réserve', 'responsible']
+      );
+    }
+  }
+
+  const pointId = createId('mpt');
+  const actionId = createId('mact');
+  const cost = costEstimate === null || costEstimate === undefined || costEstimate === ''
+    ? null
+    : Number(String(costEstimate).replace(',', '.'));
+
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      'INSERT INTO mission_points(' +
+        'id,mission_id,site_id,location_id,equipment_id,type,label,description,status,responsible_actor_id,due_date,due_text,priority,visibility,source_type,source_id' +
+      ') VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      [
+        pointId, row.mission_id, row.site_id || null, row.location_id || null, row.equipment_id || null,
+        'reserve', finalLabel, clean(description), 'open', actorId, clean(dueDate), clean(dueText), clean(priority),
+        'internal', 'plan', row.document_id,
+      ]
+    );
+    await db.runAsync(
+      'INSERT INTO mission_point_history(id,point_id,status_after,comment,source) VALUES(?,?,?,?,?)',
+      [createId('mphist'), pointId, 'open', clean(description), 'plan']
+    );
+    await db.runAsync(
+      'INSERT INTO mission_actions(' +
+        'id,mission_id,source_point_id,site_id,location_id,equipment_id,label,description,status,priority,responsible_actor_id,due_date,due_text,cost_estimate' +
+      ') VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      [
+        actionId, row.mission_id, pointId, row.site_id || null, row.location_id || null, row.equipment_id || null,
+        finalLabel, clean(description), 'open', clean(priority), actorId, clean(dueDate), clean(dueText),
+        Number.isFinite(cost) ? cost : null,
+      ]
+    );
+    await db.runAsync(
+      "UPDATE mission_plan_annotations SET linked_entity_type='point',linked_entity_id=?,updated_at=datetime('now') WHERE id=?",
+      [pointId, annotationId]
+    );
+    if (row.geometry_id) {
+      await db.runAsync(
+        "UPDATE mission_geometries SET point_id=?,action_id=?,updated_at=datetime('now') WHERE id=?",
+        [pointId, actionId, row.geometry_id]
+      );
+    }
+  });
+  return { pointId, actionId };
+}
+
 export async function creerReseauDepuisPlanMission({
   missionId,
   documentId,
@@ -573,13 +652,13 @@ export async function exporterPlanPdfAnnote({ missionId, documentId, share = tru
       page.drawText(String(row.text || ''), { x: p.x, y: p.y, size: 10, font, color });
       continue;
     }
-    if (row.annotation_type === 'point' || row.annotation_type === 'symbol') {
+    if (row.annotation_type === 'point' || row.annotation_type === 'symbol' || row.annotation_type === 'count') {
       const p = normalizedToPdf(points[0] || geometry, width, height);
       page.drawCircle({ x: p.x, y: p.y, size: 5, borderColor: color, borderWidth: 2 });
       if (row.text) page.drawText(String(row.text), { x: p.x + 7, y: p.y + 2, size: 8, font, color });
       continue;
     }
-    if ((row.annotation_type === 'line' || row.annotation_type === 'distance' || row.annotation_type === 'network') && points.length >= 2) {
+    if ((row.annotation_type === 'line' || row.annotation_type === 'distance' || row.annotation_type === 'network' || row.annotation_type === 'angle') && points.length >= 2) {
       for (let i = 0; i < points.length - 1; i += 1) {
         page.drawLine({ start: normalizedToPdf(points[i], width, height), end: normalizedToPdf(points[i + 1], width, height), thickness: 2, color });
       }
