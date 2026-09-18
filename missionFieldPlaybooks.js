@@ -97,6 +97,14 @@ const BASE = Object.freeze({
   passation: {
     defaultMode: 'rapide',
     defaultVisitType: 'passation contradictoire',
+    equipmentVerificationStatuses: [
+      ['confirme', 'Confirmé'],
+      ['different', 'Différent'],
+      ['non_retrouve', 'Non retrouvé'],
+      ['remplace', 'Remplacé'],
+      ['inaccessible', 'Inaccessible'],
+      ['a_verifier', 'À vérifier'],
+    ],
     objective: 'Comparer l’inventaire attendu au terrain, conserver les différences et produire une passation contradictoire sans ressaisie.',
     steps: ['Attendu', 'Trouvé', 'Différence', 'Photo', 'Validation'],
     quickActions: [
@@ -438,6 +446,12 @@ const TYPES = Object.freeze({
   inventaire_patrimonial: {
     base: 'campaign',
     label: 'Inventaire patrimonial',
+    equipmentVerificationStatuses: [
+      ['confirme', 'Confirmé'],
+      ['different', 'Différent'],
+      ['inaccessible', 'Inaccessible'],
+      ['a_verifier', 'À vérifier'],
+    ],
     objective: 'Créer un inventaire rapide mais structuré, enrichissable ensuite sans refaire le terrain.',
     steps: ['Site', 'Local', 'Équipement', 'Plaque / photo', 'État'],
     quickActions: [
@@ -498,6 +512,7 @@ export function getMissionFieldPlaybook(missionType) {
     quickActions: mergeUnique(base.quickActions, type?.quickActions, (item) => item.key),
     measures: mergeUnique(base.measures || [], type?.measures || [], (item) => item.type + '|' + item.unit),
     pointPresets: mergeUnique(base.pointPresets || [], type?.pointPresets || [], (item) => item.label),
+    equipmentVerificationStatuses: type?.equipmentVerificationStatuses || base.equipmentVerificationStatuses || [],
   };
 }
 
