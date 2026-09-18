@@ -568,6 +568,18 @@ export function MissionVisitScreen({ navigation, route }) {
           allocation: pointAllocation,
         });
       }
+      if (
+        pointType === 'reserve'
+        && contextEquipmentId
+        && ['opr_reception','commissioning','passation_travaux_exploitant'].includes(data?.visit?.mission_type)
+      ) {
+        await modifierEquipementMission(contextEquipmentId, {
+          missionId: actualMissionId,
+          lifecycleStatus: 'avec_reserve',
+          changeComment: 'Réserve créée depuis la visite Mission',
+        });
+        setContextEquipment((rows) => rows.map((row) => row.id === contextEquipmentId ? { ...row, lifecycle_status: 'avec_reserve' } : row));
+      }
       setPointModal(false);
       setPointLabel('');
       setPointDescription('');
