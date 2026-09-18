@@ -78,6 +78,7 @@ const JS_SYNTAX_FILES = [
   'missionMeasurementDb.js',
   'missionDocumentExtractionDb.js',
   'missionPackageExport.js',
+  'missionPackageImport.js',
   'missionReportDb.js',
   'missionReportExporter.js',
   'missionTheme.js',
