@@ -5,6 +5,7 @@ import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerPointMission, creerVisiteMission, getMissionDashboard, mettreAJourMission, mettreAJourStatutPoint } from './missionsDb.js';
 import { exporterMissionExcel } from './missionExcelExport.js';
 import { choisirEtImporterMissionExcel } from './missionExcelImport.js';
+import { getMissionDomainSummary } from './missionDomainDb.js';
 
 const POINT_TYPES = Object.freeze([
   ['reserve', 'Réserve'],
@@ -52,11 +53,16 @@ export function MissionScreen({ navigation, route }) {
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [domainSummary, setDomainSummary] = useState({});
 
   const reload = useCallback(async () => {
     if (!missionId) return;
     setLoading(true);
-    try { setData(await getMissionDashboard(missionId)); }
+    try {
+      const [dashboard, summary] = await Promise.all([getMissionDashboard(missionId), getMissionDomainSummary(missionId)]);
+      setData(dashboard);
+      setDomainSummary(summary || {});
+    }
     finally { setLoading(false); }
   }, [missionId]);
 
@@ -140,6 +146,24 @@ export function MissionScreen({ navigation, route }) {
             <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 10.5, fontWeight: '700' }}>{openPoints.length} point(s) ouvert(s)</Text>
             <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 10.5, fontWeight: '700' }}>{documents.length} document(s)</Text>
           </View>
+        </View>
+
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Pilotage du dossier</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
+          {[
+            [domainSummary.open_actions || 0, 'actions ouvertes'],
+            [domainSummary.observations || 0, 'constats'],
+            [domainSummary.hypotheses || 0, 'hypothèses'],
+            [domainSummary.tests || 0, 'essais'],
+            [domainSummary.scenarios || 0, 'scénarios'],
+            [domainSummary.expected_documents || 0, 'documents attendus'],
+            [domainSummary.calculations || 0, 'calculs 🧮'],
+          ].map(([value, label]) => (
+            <View key={label} style={[{ minWidth: 104, flexGrow: 1, borderRadius: 13, padding: 10 }, missionStyles.statBox]}>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 16 }}>{value}</Text>
+              <Text style={{ color: COLORS.inkSoft, fontSize: 9.2, marginTop: 2 }}>{label}</Text>
+            </View>
+          ))}
         </View>
 
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Frise de la Mission</Text>
