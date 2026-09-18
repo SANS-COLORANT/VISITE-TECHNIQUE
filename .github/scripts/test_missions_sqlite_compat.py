@@ -124,12 +124,20 @@ def exercise(conn: sqlite3.Connection) -> None:
     conn.commit()
     mission_tables = [row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'mission_%'")]
     for table in mission_tables:
-        if table in ("mission_clients", "mission_sites"):
+        # Client, Site, Localisation et Equipement appartiennent au référentiel local Missions
+        # et peuvent être réutilisés par une autre Mission. Ils ne sont donc pas supprimés
+        # lors de la clôture/suppression d'un dossier.
+        if table in ("mission_clients", "mission_sites", "mission_locations", "mission_equipment"):
             continue
         if count(conn, table) != 0:
             raise AssertionError(f"Cascade incomplete dans {table}.")
-    if count(conn, "mission_clients") != 1 or count(conn, "mission_sites") != 1:
-        raise AssertionError("Client/Site Missions doivent survivre a la suppression d'une Mission.")
+    if (
+        count(conn, "mission_clients") != 1
+        or count(conn, "mission_sites") != 1
+        or count(conn, "mission_locations") != 1
+        or count(conn, "mission_equipment") != 1
+    ):
+        raise AssertionError("Le référentiel local Client/Site/Localisation/Equipement Missions doit survivre a la suppression d'une Mission.")
     assert_integrity(conn, "apres suppression cascade")
 
 
