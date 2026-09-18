@@ -86,6 +86,18 @@ export const migration042 = {
     ALTER TABLE mission_geometries ADD COLUMN photo_id TEXT REFERENCES mission_photos(id) ON DELETE SET NULL;
     ALTER TABLE mission_geometries ADD COLUMN action_id TEXT REFERENCES mission_actions(id) ON DELETE SET NULL;
 
+    -- Contexte automatique commun : une photo/mesure/document hérite de ce que METRA connaît déjà.
+    ALTER TABLE mission_photos ADD COLUMN location_id TEXT REFERENCES mission_locations(id) ON DELETE SET NULL;
+    ALTER TABLE mission_photos ADD COLUMN geometry_id TEXT REFERENCES mission_geometries(id) ON DELETE SET NULL;
+    ALTER TABLE mission_photos ADD COLUMN action_id TEXT REFERENCES mission_actions(id) ON DELETE SET NULL;
+    ALTER TABLE mission_photos ADD COLUMN phase_role TEXT;
+
+    ALTER TABLE mission_documents ADD COLUMN location_id TEXT REFERENCES mission_locations(id) ON DELETE SET NULL;
+    ALTER TABLE mission_documents ADD COLUMN equipment_id TEXT REFERENCES mission_equipment(id) ON DELETE SET NULL;
+
+    ALTER TABLE mission_measures ADD COLUMN location_id TEXT REFERENCES mission_locations(id) ON DELETE SET NULL;
+    ALTER TABLE mission_measure_series ADD COLUMN location_id TEXT REFERENCES mission_locations(id) ON DELETE SET NULL;
+
     CREATE TABLE IF NOT EXISTS mission_plan_layers (
       id TEXT PRIMARY KEY NOT NULL,
       mission_id TEXT NOT NULL,
@@ -321,6 +333,9 @@ export const migration042 = {
     CREATE INDEX IF NOT EXISTS idx_mission_instruments_mission ON mission_measurement_instruments(mission_id);
     CREATE INDEX IF NOT EXISTS idx_mission_ocr_jobs_photo ON mission_ocr_jobs(mission_id,photo_id,status);
     CREATE INDEX IF NOT EXISTS idx_mission_voice_notes_context ON mission_voice_notes(mission_id,visit_id,created_at);
+    CREATE INDEX IF NOT EXISTS idx_mission_photo_context ON mission_photos(mission_id,site_id,location_id,equipment_id,point_id,action_id,phase_role);
+    CREATE INDEX IF NOT EXISTS idx_mission_measure_context ON mission_measures(mission_id,site_id,location_id,equipment_id,point_id);
+    CREATE INDEX IF NOT EXISTS idx_mission_document_context ON mission_documents(mission_id,site_id,location_id,equipment_id,point_id);
     CREATE INDEX IF NOT EXISTS idx_mission_document_extractions_doc ON mission_document_extractions(mission_id,document_id,page_number);
     CREATE INDEX IF NOT EXISTS idx_mission_document_review_status ON mission_document_review_items(mission_id,status,document_id);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_mission_visit_checks_unique ON mission_visit_checks(visit_id,check_key,COALESCE(entity_type,''),COALESCE(entity_id,''));
