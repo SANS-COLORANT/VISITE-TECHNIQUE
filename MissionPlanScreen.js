@@ -4,12 +4,14 @@ import Svg, { Circle, Line, Polygon, Text as SvgText } from 'react-native-svg';
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { rendrePagePdfLocale } from './missionNativeTools.js';
+import { capturerPhotoMission } from './missionMediaDb.js';
 import {
   ajouterAnnotationPlan,
   calibrerPlan,
   choisirEtImporterPlanMission,
   creerCalquePlan,
   creerReseauDepuisPlanMission,
+  creerReserveDepuisAnnotationPlan,
   deplacerPagePdfMission,
   dupliquerPagePdfMission,
   exporterGeoJsonMission,
@@ -142,6 +144,9 @@ export function MissionPlanScreen({ navigation, route }) {
   const [networkModal, setNetworkModal] = useState(false);
   const [networkPoints, setNetworkPoints] = useState([]);
   const [networkDraft, setNetworkDraft] = useState({ label: '', type: '', material: '', dimension: '', insulation: '', direction: '' });
+  const [reserveAnnotation, setReserveAnnotation] = useState(null);
+  const [reserveDraft, setReserveDraft] = useState({ label: '', description: '', responsible: '', dueDate: '', dueText: '', priority: '', cost: '' });
+  const [mediaBusyId, setMediaBusyId] = useState(null);
 
   const loadPlans = useCallback(async () => {
     const rows = await listerPlansMission(missionId);
@@ -371,6 +376,64 @@ export function MissionPlanScreen({ navigation, route }) {
     }
   };
 
+  const openReserve = (annotation) => {
+    setReserveAnnotation(annotation);
+    setReserveDraft({
+      label: annotation?.text ? 'Réserve · ' + annotation.text : 'Réserve localisée sur plan',
+      description: '',
+      responsible: '',
+      dueDate: '',
+      dueText: '',
+      priority: '',
+      cost: '',
+    });
+  };
+
+  const createReserve = async () => {
+    if (!reserveAnnotation) return;
+    try {
+      await creerReserveDepuisAnnotationPlan({
+        annotationId: reserveAnnotation.id,
+        label: reserveDraft.label,
+        description: reserveDraft.description,
+        responsibleLabel: reserveDraft.responsible,
+        dueDate: reserveDraft.dueDate,
+        dueText: reserveDraft.dueText,
+        priority: reserveDraft.priority,
+        costEstimate: reserveDraft.cost,
+      });
+      setReserveAnnotation(null);
+      await Promise.all([
+        refreshLinkTargets(),
+        listerAnnotationsPlan(selected.id, page).then(setAnnotations),
+      ]);
+      Alert.alert('Réserve créée', 'Le point et son action sont localisés sur le plan. Responsable, échéance, coût et photos avant/après restent modifiables dans Actions.');
+    } catch (e) {
+      Alert.alert('Réserve non créée', String(e?.message || e));
+    }
+  };
+
+  const takePhotoAtAnnotation = async (annotation) => {
+    if (!annotation?.geometry_id || mediaBusyId) return;
+    setMediaBusyId(annotation.id);
+    try {
+      const photo = await capturerPhotoMission({
+        missionId,
+        geometryId: annotation.geometry_id,
+        label: annotation.text ? 'Photo · ' + annotation.text : 'Photo localisée sur plan',
+        type: 'plan_position',
+      });
+      if (photo) {
+        await refreshLinkTargets();
+        Alert.alert('Photo positionnée', 'La photo a hérité automatiquement du contexte du point du plan.');
+      }
+    } catch (e) {
+      Alert.alert('Photo impossible', String(e?.message || e));
+    } finally {
+      setMediaBusyId(null);
+    }
+  };
+
   const confirmCalibration = async () => {
     if (draftPoints.length < 2 || !selected) return;
     try {
@@ -574,9 +637,17 @@ export function MissionPlanScreen({ navigation, route }) {
                     Lié : {LINK_TYPE_LABELS[a.linked_entity_type] || a.linked_entity_type} · {linked?.label || a.linked_entity_id}
                   </Text> : <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, marginTop: 4 }}>Non lié à un objet METRA</Text>}
                 </View>
-                <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => openLink(a)}>
-                  <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Lier</Text>
-                </TouchableOpacity>
+                <View style={{ alignItems: 'flex-end', gap: 5 }}>
+                  <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => openLink(a)}>
+                    <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Lier</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} disabled={mediaBusyId === a.id} onPress={() => takePhotoAtAnnotation(a)}>
+                    <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{mediaBusyId === a.id ? '…' : '📷 Photo'}</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => openReserve(a)}>
+                    <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Réserve</Text>
+                  </TouchableOpacity>
+                </View>
               </View>
             </View>;
           })}
@@ -625,6 +696,26 @@ export function MissionPlanScreen({ navigation, route }) {
           <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setLinkAnnotation(null)}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer</Text></TouchableOpacity>
         </View>
       </View></View>
+    </Modal>
+
+    <Modal visible={!!reserveAnnotation} transparent animationType="fade" onRequestClose={() => setReserveAnnotation(null)}>
+      <View style={styles.modalOverlay}><ScrollView style={[styles.modalSheet, missionStyles.modalSheet]} contentContainerStyle={{ paddingBottom: 16 }}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>Réserve / action localisée</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, lineHeight: 14, marginBottom: 10 }}>
+          METRA crée un point et une action liés à cette géométrie. Les photos avant / après pourront ensuite être prises depuis Actions sans ressaisie du contexte.
+        </Text>
+        <TextInput style={[styles.input, missionStyles.input]} value={reserveDraft.label} onChangeText={(v) => setReserveDraft((p) => ({ ...p, label: v }))} placeholder="Réserve / action demandée" autoFocus />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8, minHeight: 72, textAlignVertical: 'top' }]} multiline value={reserveDraft.description} onChangeText={(v) => setReserveDraft((p) => ({ ...p, description: v }))} placeholder="Constat / description" />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={reserveDraft.responsible} onChangeText={(v) => setReserveDraft((p) => ({ ...p, responsible: v }))} placeholder="Responsable / entreprise" />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={reserveDraft.dueDate} onChangeText={(v) => setReserveDraft((p) => ({ ...p, dueDate: v }))} placeholder="Échéance AAAA-MM-JJ" />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={reserveDraft.dueText} onChangeText={(v) => setReserveDraft((p) => ({ ...p, dueText: v }))} placeholder="Échéance libre : prochaine visite…" />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={reserveDraft.priority} onChangeText={(v) => setReserveDraft((p) => ({ ...p, priority: v }))} placeholder="Priorité / criticité" />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} keyboardType="decimal-pad" value={reserveDraft.cost} onChangeText={(v) => setReserveDraft((p) => ({ ...p, cost: v }))} placeholder="Coût estimé €" />
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setReserveAnnotation(null)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createReserve}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer point + action</Text></TouchableOpacity>
+        </View>
+      </ScrollView></View>
     </Modal>
 
     <Modal visible={textModal} transparent animationType="fade" onRequestClose={() => setTextModal(false)}>
