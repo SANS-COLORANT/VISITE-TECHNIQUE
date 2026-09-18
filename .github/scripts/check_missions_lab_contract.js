@@ -260,6 +260,10 @@ requireText(read('MissionReportScreen.js'), 'Word', 'editable Word report export
 requireText(read('MissionReportScreen.js'), 'PDF', 'editable PDF report export');
 requireText(read('missionTestPresets.js'), 'reprise_saison_mission', 'Mission-only season restart test preset');
 requireText(read('MissionTestsScreen.js'), 'Protocoles recommandés', 'mission-aware test preset UX');
+requireText(read('missionTestDb.js'), 'previousRun', 'previous test execution comparison');
+requireText(read('MissionTestsScreen.js'), 'Rejouer · nouveau passage', 'repeat test pass UX');
+requireText(read('MissionTestsScreen.js'), 'PASSAGE PRÉCÉDENT', 'previous test values UX');
+requireText(read('MissionTestsScreen.js'), 'les anciennes valeurs restent visibles sans être recopiées', 'no stale test value copy rule');
 requireText(read('missionDocumentPresets.js'), 'getMissionExpectedDocumentPresets', 'mission-specific expected document presets');
 requireText(read('MissionDocumentsScreen.js'), 'Préparer attendus', 'expected document preparation UX');
 requireText(read('missionCalculationAssist.js'), 'sortFormulasForMission', 'mission-aware calculation recommendations');
