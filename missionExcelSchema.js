@@ -105,6 +105,9 @@ export const MISSION_TABLE_IMPORT_ORDER = Object.freeze([
   'mission_report_outputs',
   'mission_point_details',
   'mission_measure_details',
+  'mission_import_batches',
+  'mission_import_issues',
+  'mission_import_rows',
 ]);
 
 export function sheetForTable(tableName) {
