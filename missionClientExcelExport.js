@@ -68,7 +68,7 @@ async function loadClientData(missionId) {
   if (!mission) throw new Error('Mission introuvable.');
 
   const [
-    sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions, lifecycle, actionHistory, validations,
+    sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations,
   ] = await Promise.all([
     db.getAllAsync(
       `SELECT s.*
@@ -186,6 +186,14 @@ async function loadClientData(missionId) {
       [missionId]
     ),
     db.getAllAsync(
+      `SELECT h.*,sub.label AS subject_label,o.content AS source_fact
+       FROM mission_hypotheses h
+       LEFT JOIN mission_subjects sub ON sub.id=h.subject_id
+       LEFT JOIN mission_observations o ON o.id=h.observation_id
+       WHERE h.mission_id=? ORDER BY h.created_at`,
+      [missionId]
+    ),
+    db.getAllAsync(
       `SELECT d.*,sub.label AS subject_label
        FROM mission_decisions d
        LEFT JOIN mission_subjects sub ON sub.id=d.subject_id
@@ -220,7 +228,7 @@ async function loadClientData(missionId) {
     ),
   ]);
 
-  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions, lifecycle, actionHistory, validations };
+  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations };
 }
 
 function photoPath(photo, photoPathById) {
@@ -422,6 +430,27 @@ export async function construireClasseurClientMission(missionId, { photoPathById
     Decisions: data.decisions.filter((row) => row.subject_id === subject.id).map((row) => [row.decided_at || row.created_at || '', row.label || '', row.description || ''].filter(Boolean).join(' · ')).join(' | '),
     Actions_ouvertes: data.actions.filter((row) => row.subject_id === subject.id && !['closed','cancelled'].includes(row.status)).map((row) => row.label).join(' | '),
   })), [24,36,54,16,16,70,70,60]);
+  if (data.mission.type === 'expertise_sinistre' && (data.observations.length || data.hypotheses.length)) {
+    const expertiseRows = [
+      ...data.observations.map((row) => ({
+        Date: row.observed_at || row.created_at || '',
+        Sujet: row.subject_label || '',
+        Nature: 'FAIT',
+        Element: row.content || '',
+        Source_ou_statut: [row.source_type,row.confidence].filter(Boolean).join(' · '),
+        Conclusion: '',
+      })),
+      ...data.hypotheses.map((row) => ({
+        Date: row.created_at || '',
+        Sujet: row.subject_label || '',
+        Nature: 'HYPOTHESE',
+        Element: row.label || '',
+        Source_ou_statut: row.status || '',
+        Conclusion: row.conclusion || '',
+      })),
+    ].sort((a,b) => String(a.Date || '').localeCompare(String(b.Date || '')));
+    addSheet(wb, '02B_Expertise', expertiseRows, [22,34,16,70,32,70]);
+  }
   addSheet(wb, '03_Actions', actionRows(data, photoPathById), [24,26,32,38,46,30,16,16,30,18,15,18,20,34,34,21,21]);
   addSheet(wb, '04_Reserves', reserveRows(data, photoPathById), [24,26,32,38,46,16,16,30,38,18,18,20,34,34,21,21]);
   addSheet(wb, '05_Inventaire', inventoryRows(data), [24,26,30,28,28,30,22,26,18,18,22,18,20,22,18]);
