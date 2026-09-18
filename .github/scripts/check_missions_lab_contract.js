@@ -15,6 +15,7 @@ const migrations = read('database/migrations/index.js');
 const migration40 = read('database/migrations/040_missions_core.js');
 const migration41 = read('database/migrations/041_missions_architecture.js');
 const migration42 = read('database/migrations/042_missions_complete_tooling.js');
+const migration43 = read('database/migrations/043_missions_measurement_campaigns.js');
 const settings = read('featureSettings.js');
 const lab = read('LabMetraPanel.js');
 const settingsScreen = read('visual-packs/runtime/VisualPacksSettingsScreen.js');
@@ -30,11 +31,12 @@ const excelSchema = read('missionExcelSchema.js');
 const recipes = read('missionRecipes.js');
 const missionScreen = read('MissionScreen.js');
 
-requireText(constants, 'DATABASE_SCHEMA_VERSION = 42', 'schema v42');
+requireText(constants, 'DATABASE_SCHEMA_VERSION = 43', 'schema v43');
 requireText(migrations, "import { migration040 } from './040_missions_core.js';", 'migration 040 registered');
 requireText(migrations, 'migration039, migration040', 'migration ordering 39 -> 40');
 requireText(migrations, 'migration041', 'migration 041 registered');
 requireText(migrations, 'migration042', 'migration 042 registered');
+requireText(migrations, 'migration043', 'migration 043 registered');
 requireText(migration41, "name: 'missions_architecture_v2'", 'mission architecture v2');
 requireText(migration41, 'CREATE TABLE IF NOT EXISTS mission_actions', 'mission actions');
 requireText(migration41, 'CREATE TABLE IF NOT EXISTS mission_references', 'mission references');
@@ -57,6 +59,9 @@ requireText(migration42, 'ALTER TABLE mission_photos ADD COLUMN location_id', 'p
 requireText(migration42, 'ALTER TABLE mission_photos ADD COLUMN action_id', 'photo action context');
 requireText(migration42, 'ALTER TABLE mission_photos ADD COLUMN phase_role', 'before after photo role');
 requireText(migration42, 'ALTER TABLE mission_measures ADD COLUMN location_id', 'measurement Room context');
+requireText(migration43, "name: 'missions_measurement_campaigns'", 'measurement campaigns v43');
+requireText(migration43, 'CREATE TABLE IF NOT EXISTS mission_measure_campaigns', 'measurement campaign headers');
+requireText(migration43, 'CREATE TABLE IF NOT EXISTS mission_measure_campaign_points', 'measurement campaign points');
 requireText(migration40, "name: 'missions_core'", 'migration identity');
 requireText(migration40, 'CREATE TABLE IF NOT EXISTS missions', 'missions table');
 requireText(migration40, 'CREATE TABLE IF NOT EXISTS mission_points', 'mission points');
@@ -64,7 +69,7 @@ requireText(migration40, 'CREATE TABLE IF NOT EXISTS mission_template_values', '
 requireText(migration40, "status TEXT NOT NULL DEFAULT 'draft'", 'draft visit persistence');
 
 for (const forbidden of ['api_remote_', 'remote_client_id', 'remote_site_id', 'api_structure_outbox']) {
-  if (migration40.includes(forbidden) || migration41.includes(forbidden) || migration42.includes(forbidden)) throw new Error(`Le schéma Missions ne doit pas dépendre de l'Intranet: ${forbidden}`);
+  if (migration40.includes(forbidden) || migration41.includes(forbidden) || migration42.includes(forbidden) || migration43.includes(forbidden)) throw new Error(`Le schéma Missions ne doit pas dépendre de l'Intranet: ${forbidden}`);
 }
 
 requireText(settings, "key: 'missions'", 'missions feature flag');
@@ -98,7 +103,9 @@ requireText(importFile, 'raw_external', 'arbitrary workbook preservation');
 requireText(importFile, 'canonical_roundtrip', 'canonical Excel round-trip');
 requireText(excelSchema, "['48_Lignes_Import_Brut', 'mission_import_rows']", 'raw Excel rows exported');
 requireText(excelSchema, "['65_Revue_Doc', 'mission_document_review_items']", 'v42 complete data exported');
-requireText(excelSchema, 'MISSION_EXCEL_SCHEMA_VERSION = 42', 'Excel schema v42');
+requireText(excelSchema, "['66_Campagnes_Mesures', 'mission_measure_campaigns']", 'v43 campaigns exported');
+requireText(excelSchema, "['67_Points_Campagnes', 'mission_measure_campaign_points']", 'v43 campaign points exported');
+requireText(excelSchema, 'MISSION_EXCEL_SCHEMA_VERSION = 43', 'Excel schema v43');
 requireText(excelSchema, 'MISSION_TABLE_IMPORT_ORDER', 'relational import ordering');
 requireText(visit, 'MISSION_CAPTURE_MODES', 'Rapide Standard Expert modes');
 requireText(visit, '📷 Photo', 'mission photo quick capture');
@@ -126,6 +133,11 @@ requireText(read('MissionStructureScreen.js'), 'Site → Bâtiment → Niveau �
 requireText(read('missionStructureDb.js'), 'parent_location_id', 'hierarchical locations storage');
 requireText(app, "MissionPlan", 'plans workspace route');
 requireText(app, "MissionMeasurements", 'measurements workspace route');
+requireText(app, "MissionMeasurementCampaign", 'measurement campaign workspace route');
+requireText(read('MissionMeasurementCampaignScreen.js'), 'Enregistrer → suivant', 'ultra-fast value-next campaign UX');
+requireText(read('missionMeasurementCampaignDb.js'), 'importerPointsCampagneMesuresExcel', 'prepared campaign list import');
+requireText(read('missionMeasurementCampaignDb.js'), 'dupliquerCampagneMesuresMission', 'before after repeat campaign');
+requireText(read('missionMeasurementCampaignDb.js'), 'comparerCampagneMesures', 'point-by-point campaign comparison');
 requireText(app, "MissionDocumentInbox", 'document inbox route');
 requireText(app, "MissionPackage", 'complete package route');
 requireText(read('MissionEquipmentScreen.js'), 'Plaque signalétique · photo + OCR local', 'offline plate OCR UX');
@@ -162,4 +174,4 @@ requireText(read('MissionExcelMappingScreen.js'), 'Enregistrer le mapping & appl
 requireText(read('MissionReportScreen.js'), 'Word', 'editable Word report export');
 requireText(read('MissionReportScreen.js'), 'PDF', 'editable PDF report export');
 
-console.log('Missions LAB contract validated: schema v42, strict Intranet isolation, offline mission tooling, complete Excel round-trip, plans/SIG, OCR, measurements, reports and packages.');
+console.log('Missions LAB contract validated: schema v43, strict Intranet isolation, offline mission tooling, complete Excel round-trip, plans/SIG, campaigns, OCR, measurements, reports and packages.');
