@@ -202,10 +202,3 @@ export function valeurAutoPourChampMission(field, context = {}) {
   }
   return '';
 }
-
-function compactList(values = [], limit = 6) {
-  const rows = unique(values);
-  if (!rows.length) return '';
-  const kept = rows.slice(0, limit);
-  return kept.join(' · ') + (rows.length > kept.length ? ' · +' + (rows.length - kept.length) : '');
-}
