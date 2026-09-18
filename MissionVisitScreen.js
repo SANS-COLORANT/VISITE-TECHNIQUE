@@ -3,6 +3,8 @@ import { ActivityIndicator, Alert, Modal, ScrollView, Text, TextInput, Touchable
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerPointMission } from './missionsDb.js';
+import { creerReferenceMission, enregistrerMesureMission } from './missionDomainDb.js';
+import { capturerPhotoMission, choisirEtAjouterDocumentMission } from './missionMediaDb.js';
 import { getMissionVisitRecipe, MISSION_CAPTURE_MODES } from './missionRecipes.js';
 import { ajouterNoteVisiteMission, chargerVisiteMission, compterSaisieVisiteMission, enregistrerValeurTrameMission, mettreAJourVisiteMission } from './missionVisitDb.js';
 
@@ -52,6 +54,12 @@ export function MissionVisitScreen({ navigation, route }) {
   const [pointLabel, setPointLabel] = useState('');
   const [pointDescription, setPointDescription] = useState('');
   const [captureMode, setCaptureMode] = useState('standard');
+  const [measureModal, setMeasureModal] = useState(false);
+  const [measureType, setMeasureType] = useState('');
+  const [measureValue, setMeasureValue] = useState('');
+  const [measureUnit, setMeasureUnit] = useState('');
+  const [measureReference, setMeasureReference] = useState('');
+  const [mediaBusy, setMediaBusy] = useState(false);
 
   const reload = useCallback(async () => {
     if (!visitId) return;
@@ -123,6 +131,87 @@ export function MissionVisitScreen({ navigation, route }) {
     } catch (e) { Alert.alert('Note non enregistrée', String(e.message || e)); }
   };
 
+  const addPhoto = async () => {
+    if (!actualMissionId || mediaBusy) return;
+    setMediaBusy(true);
+    try {
+      const photo = await capturerPhotoMission({
+        missionId: actualMissionId,
+        siteId: data?.visit?.site_id,
+        visitId,
+        label: 'Photo terrain',
+        type: 'terrain',
+      });
+      if (photo) setStats(await compterSaisieVisiteMission(visitId));
+    } catch (e) {
+      Alert.alert('Photo non enregistrée', String(e?.message || e));
+    } finally {
+      setMediaBusy(false);
+    }
+  };
+
+  const addDocument = async () => {
+    if (!actualMissionId || mediaBusy) return;
+    setMediaBusy(true);
+    try {
+      const document = await choisirEtAjouterDocumentMission({
+        missionId: actualMissionId,
+        siteId: data?.visit?.site_id,
+        visitId,
+        type: 'source_terrain',
+      });
+      if (document) Alert.alert('Document ajouté', document.name || 'Document enregistré hors ligne.');
+    } catch (e) {
+      Alert.alert('Document non enregistré', String(e?.message || e));
+    } finally {
+      setMediaBusy(false);
+    }
+  };
+
+  const addMeasure = async () => {
+    if (!actualMissionId || !measureType.trim()) return;
+    try {
+      let referenceId = null;
+      if (measureReference.trim() !== '') {
+        const referenceNumber = Number(measureReference.replace(',', '.'));
+        if (!Number.isFinite(referenceNumber)) throw new Error('La référence attendue doit être numérique.');
+        referenceId = await creerReferenceMission({
+          missionId: actualMissionId,
+          siteId: data?.visit?.site_id,
+          measureType: measureType,
+          value: referenceNumber,
+          unit: measureUnit,
+          sourceType: 'manual',
+          sourceLabel: 'Référence saisie pendant la Mission',
+        });
+      }
+      const numericValue = Number(measureValue.replace(',', '.'));
+      const result = await enregistrerMesureMission({
+        missionId: actualMissionId,
+        visitId,
+        siteId: data?.visit?.site_id,
+        type: measureType,
+        value: Number.isFinite(numericValue) && measureValue.trim() !== '' ? numericValue : null,
+        valueText: Number.isFinite(numericValue) && measureValue.trim() !== '' ? null : measureValue,
+        unit: measureUnit,
+        referenceId,
+        sourceType: 'terrain',
+        quality: 'measured',
+      });
+      setMeasureModal(false);
+      setMeasureType('');
+      setMeasureValue('');
+      setMeasureUnit('');
+      setMeasureReference('');
+      setStats(await compterSaisieVisiteMission(visitId));
+      if (result?.anomalyStatus === 'to_check') {
+        Alert.alert('Valeur à contrôler', 'La mesure dépasse la tolérance de sa référence. METRA la signale sans conclure automatiquement à une anomalie technique.');
+      }
+    } catch (e) {
+      Alert.alert('Mesure non enregistrée', String(e?.message || e));
+    }
+  };
+
   const addPoint = async () => {
     if (!actualMissionId) return;
     try {
@@ -163,16 +252,24 @@ export function MissionVisitScreen({ navigation, route }) {
         <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 10, fontWeight: '900', marginTop: 9 }}>Aucun champ de cette visite n’est obligatoire.</Text>
       </View>
 
-      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>
-        <View style={[{ flex: 1, borderRadius: 12, padding: 10 }, missionStyles.statBox]}><Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 15 }}>{stats?.fields_count || 0}</Text><Text style={{ color: COLORS.inkSoft, fontSize: 9 }}>champs saisis</Text></View>
-        <View style={[{ flex: 1, borderRadius: 12, padding: 10 }, missionStyles.statBox]}><Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 15 }}>{stats?.points_count || 0}</Text><Text style={{ color: COLORS.inkSoft, fontSize: 9 }}>points</Text></View>
-        <View style={[{ flex: 1, borderRadius: 12, padding: 10 }, missionStyles.statBox]}><Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 15 }}>{stats?.notes_count || 0}</Text><Text style={{ color: COLORS.inkSoft, fontSize: 9 }}>notes</Text></View>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+        {[
+          [stats?.fields_count || 0, 'champs'],
+          [stats?.points_count || 0, 'points'],
+          [stats?.measures_count || 0, 'mesures'],
+          [stats?.photos_count || 0, 'photos'],
+          [stats?.notes_count || 0, 'notes'],
+        ].map(([value, label]) => <View key={label} style={[{ minWidth: 84, flexGrow: 1, borderRadius: 12, padding: 10 }, missionStyles.statBox]}><Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 15 }}>{value}</Text><Text style={{ color: COLORS.inkSoft, fontSize: 9 }}>{label}</Text></View>)}
       </View>
 
-      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 18 }}>
-        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} onPress={() => setPointModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Point non prévu</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} onPress={complete}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Fin de visite</Text></TouchableOpacity>
+      <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Saisie rapide</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]} onPress={() => setPointModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Point</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]} onPress={() => setMeasureModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Mesure</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]} disabled={mediaBusy} onPress={addPhoto}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>📷 Photo</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]} disabled={mediaBusy} onPress={addDocument}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Document</Text></TouchableOpacity>
       </View>
+      <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { marginBottom: 18, alignItems: 'center' }]} onPress={complete}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Fin de visite</Text></TouchableOpacity>
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Niveau de saisie · {recipe.label}</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
@@ -205,6 +302,25 @@ export function MissionVisitScreen({ navigation, route }) {
         {data.points.map((point) => <View key={point.id} style={[{ backgroundColor: COLORS.white, borderWidth: 1, borderRadius: 12, padding: 11, marginBottom: 7 }, missionStyles.card]}><Text style={{ color: COLORS.ink, fontWeight: '800', fontSize: 11.5 }}>{point.label || point.description || 'Point sans titre'}</Text><Text style={{ color: MISSION_COLORS.accentDark, marginTop: 3, fontSize: 9.5 }}>{point.type} · {point.status}</Text></View>)}
       </> : null}
     </ScrollView>
+
+    <Modal visible={measureModal} transparent animationType="fade" onRequestClose={() => setMeasureModal(false)}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>Ajouter une mesure</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 10, lineHeight: 14, marginBottom: 10 }}>
+          Le contexte Mission / site / visite est repris automatiquement. La référence est facultative et sert à calculer l'écart.
+        </Text>
+        <TextInput style={[styles.input, missionStyles.input]} value={measureType} onChangeText={setMeasureType} placeholder="Type : température départ, débit, pression…" />
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 9 }}>
+          <TextInput style={[styles.input, missionStyles.input, { flex: 1 }]} value={measureValue} onChangeText={setMeasureValue} keyboardType="decimal-pad" placeholder="Valeur" />
+          <TextInput style={[styles.input, missionStyles.input, { width: 92 }]} value={measureUnit} onChangeText={setMeasureUnit} placeholder="Unité" />
+        </View>
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 9 }]} value={measureReference} onChangeText={setMeasureReference} keyboardType="decimal-pad" placeholder="Référence attendue (facultatif)" />
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setMeasureModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={addMeasure}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
+        </View>
+      </View></View>
+    </Modal>
 
     <Modal visible={pointModal} transparent animationType="fade" onRequestClose={() => setPointModal(false)}>
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
