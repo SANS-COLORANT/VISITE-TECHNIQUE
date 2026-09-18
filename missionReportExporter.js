@@ -3,7 +3,7 @@ import * as Sharing from 'expo-sharing';
 import * as Print from 'expo-print';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { zip } from 'react-native-zip-archive';
-import { chargerRapportMission, initialiserRapportMission } from './missionReportDb.js';
+import { chargerRapportMission, initialiserRapportMission, construireRapportMissionPortee } from './missionReportDb.js';
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 
@@ -182,42 +182,45 @@ async function buildDocx(report, outputUri) {
   return zipped || outputUri;
 }
 
-async function recordOutput(missionId, profileId, format, fileUri) {
+async function recordOutput(missionId, profileId, format, fileUri, scopeType = 'mission', scopeId = null) {
   const db = await getDb();
   const id = createId('mreport');
   await db.runAsync(
-    'INSERT INTO mission_report_outputs(id,mission_id,profile_id,scope_type,format,file_uri,status,generated_at) VALUES(?,?,?,?,?,?,?,?)',
-    [id, missionId, profileId, 'mission', format, fileUri, 'generated', new Date().toISOString()]
+    'INSERT INTO mission_report_outputs(id,mission_id,profile_id,scope_type,scope_id,format,file_uri,status,generated_at) VALUES(?,?,?,?,?,?,?,?,?)',
+    [id, missionId, profileId, scopeType, scopeId, format, fileUri, 'generated', new Date().toISOString()]
   );
   return id;
 }
 
-async function ensureReport(missionId) {
+async function ensureReport(missionId, siteId = null) {
+  if (siteId) return construireRapportMissionPortee(missionId, { siteId });
   const existing = await chargerRapportMission(missionId);
   if (existing?.sections?.length) return existing;
   return initialiserRapportMission(missionId);
 }
 
-export async function exporterRapportMissionPdf(missionId, { share = true } = {}) {
-  const report = await ensureReport(missionId);
+export async function exporterRapportMissionPdf(missionId, { share = true, siteId = null } = {}) {
+  const report = await ensureReport(missionId, siteId);
   const html = await buildHtml(report);
   const generated = await Print.printToFileAsync({ html, base64: false });
   const root = FileSystem.cacheDirectory || FileSystem.documentDirectory;
-  const name = 'Rapport_Mission_' + fileSafe(report.data?.mission?.label || missionId) + '.pdf';
+  const siteSuffixPdf = siteId ? '__' + fileSafe(report.data?.sites?.[0]?.name || siteId) : '';
+  const name = 'Rapport_Mission_' + fileSafe(report.data?.mission?.label || missionId) + siteSuffixPdf + '.pdf';
   const uri = root + name;
   if (generated.uri !== uri) await FileSystem.copyAsync({ from: generated.uri, to: uri });
-  await recordOutput(missionId, report.profile?.id, 'pdf', uri);
+  await recordOutput(missionId, report.profile?.id, 'pdf', uri, siteId ? 'site' : 'mission', siteId);
   if (share && await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: PDF_MIME, dialogTitle: 'Rapport METRA Missions' });
   return { uri, name };
 }
 
-export async function exporterRapportMissionDocx(missionId, { share = true } = {}) {
-  const report = await ensureReport(missionId);
+export async function exporterRapportMissionDocx(missionId, { share = true, siteId = null } = {}) {
+  const report = await ensureReport(missionId, siteId);
   const root = FileSystem.cacheDirectory || FileSystem.documentDirectory;
-  const name = 'Rapport_Mission_' + fileSafe(report.data?.mission?.label || missionId) + '.docx';
+  const siteSuffixDocx = siteId ? '__' + fileSafe(report.data?.sites?.[0]?.name || siteId) : '';
+  const name = 'Rapport_Mission_' + fileSafe(report.data?.mission?.label || missionId) + siteSuffixDocx + '.docx';
   const uri = root + name;
   await buildDocx(report, uri);
-  await recordOutput(missionId, report.profile?.id, 'docx', uri);
+  await recordOutput(missionId, report.profile?.id, 'docx', uri, siteId ? 'site' : 'mission', siteId);
   if (share && await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: DOCX_MIME, dialogTitle: 'Rapport Word METRA Missions' });
   return { uri, name };
 }
