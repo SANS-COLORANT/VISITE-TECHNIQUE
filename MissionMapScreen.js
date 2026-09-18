@@ -5,7 +5,7 @@ import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
-import { exporterGeoJsonMission, importerGeoJsonMission } from './missionPlanDb.js';
+import { exporterGeoJsonMission, exporterGeoPackageMission, importerGeoJsonMission } from './missionPlanDb.js';
 
 function parse(value) {
   try { return value ? JSON.parse(value) : null; } catch { return null; }
@@ -119,7 +119,8 @@ export function MissionMapScreen({ route }) {
           style={{ borderRadius: 10, borderWidth: 1, borderColor: selectedSiteId === site.id ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selectedSiteId === site.id ? MISSION_COLORS.accentLight : '#FFFFFF', paddingHorizontal: 9, paddingVertical: 6 }}
         ><Text style={{ color: selectedSiteId === site.id ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontWeight: '800' }}>{site.name}</Text></TouchableOpacity>)}
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={importGeo}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ GeoJSON</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={exportGeo}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>⇩ SIG</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={exportGeo}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>⇩ GeoJSON</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={async () => { try { await exporterGeoPackageMission(missionId); } catch (e) { Alert.alert('GeoPackage', String(e?.message || e)); } }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>⇩ GeoPackage</Text></TouchableOpacity>
       </View>
     </View>
 
