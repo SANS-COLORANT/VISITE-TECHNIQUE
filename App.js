@@ -19,7 +19,7 @@ import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRun
 import { getActiveVisualPack, getVisualPackStartupDuration, resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
 
 const SPLASH_BG = '#FBF0E1';
-const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects']);
+const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects', 'MissionP3Dashboard']);
 
 const DEFERRED_SCREEN_LOADERS = Object.freeze({
   MetraDirectory: () => require('./MetraDirectoryScreen.js').MetraDirectoryScreen,
@@ -61,6 +61,7 @@ const DEFERRED_SCREEN_LOADERS = Object.freeze({
   MissionMeasurementCampaign: () => require('./MissionMeasurementCampaignScreen.js').MissionMeasurementCampaignScreen,
   MissionReserveClearance: () => require('./MissionReserveClearanceScreen.js').MissionReserveClearanceScreen,
   MissionSubjects: () => require('./MissionSubjectsScreen.js').MissionSubjectsScreen,
+  MissionP3Dashboard: () => require('./MissionP3DashboardScreen.js').MissionP3DashboardScreen,
 });
 
 function DeferredScreen({ name, ...props }) {
@@ -241,6 +242,7 @@ function AppContent() {
     {current.name === 'MissionMeasurementCampaign' && missionsVisible ? <><MissionHeader title="Campagnes de mesures" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionMeasurementCampaign" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionReserveClearance' && missionsVisible ? <><MissionHeader title="Levée de réserves" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionReserveClearance" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionSubjects' && missionsVisible ? <><MissionHeader title="Sujets & décisions" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionSubjects" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionP3Dashboard' && missionsVisible ? <><MissionHeader title="Projection P2 / P3" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionP3Dashboard" navigation={navigation} route={route} /></> : null}
 
     {current.name !== 'Home' && current.name !== 'Missions' ? <GlobalHomeButton missionMode={missionMode} onPress={missionMode ? goMissionsHome : goHome} /> : null}
     <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
