@@ -239,7 +239,7 @@ requireText(read('missionClientExcelExport.js'), "'01B_Progression_sites'", 'mul
 requireText(recipes, 'campaignDashboard: true', 'campaign dashboard family capability');
 requireText(app, "MissionAmoDashboard", 'long-running AMO dashboard route');
 requireText(read('MissionAmoDashboardScreen.js'), 'Pilotage AMO / exploitation', 'AMO long-duration dashboard UX');
-requireText(read('MissionAmoDashboardScreen.js'), 'Volets exploitation, énergie, P3, PPI, réunions et réception', 'AMO workstream continuity');
+requireText(read('MissionAmoDashboardScreen.js'), 'volets exploitation, énergie, P3, PPI, réunions et réception', 'AMO workstream continuity');
 requireText(read('MissionAmoDashboardScreen.js'), 'Bilan {selectedYear}', 'annual AMO view');
 requireText(recipes, 'amoDashboard: true', 'AMO dashboard capability');
 requireText(app, "MissionReceptionBoard", 'OPR commissioning handover board route');
