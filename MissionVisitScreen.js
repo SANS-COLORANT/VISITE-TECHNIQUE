@@ -9,6 +9,7 @@ import { demarrerDicteeLocale } from './missionNativeTools.js';
 import { enregistrerNoteVocaleMission, genererChecklistFinVisite, ignorerCheckVisite } from './missionVisitQualityDb.js';
 import { getMissionVisitRecipe, MISSION_CAPTURE_MODES } from './missionRecipes.js';
 import { ajouterNoteVisiteMission, chargerVisiteMission, compterSaisieVisiteMission, enregistrerValeurTrameMission, mettreAJourVisiteMission } from './missionVisitDb.js';
+import { listerStructureMission } from './missionStructureDb.js';
 
 const POINT_TYPES = [
   ['reserve', 'Réserve'], ['action', 'Action'], ['request', 'Demande'], ['control', 'Contrôle'], ['decision', 'Décision'], ['information', 'Information'],
@@ -55,6 +56,8 @@ function OptionalField({ sectionKey, field, value, onChange, onSave, onDictate, 
 export function MissionVisitScreen({ navigation, route }) {
   const routeMissionId = route?.params?.missionId;
   const visitId = route?.params?.visitId;
+  const routeLocationId = route?.params?.locationId || '';
+  const routeEquipmentId = route?.params?.equipmentId || '';
   const [data, setData] = useState(null);
   const [values, setValues] = useState({});
   const [stats, setStats] = useState(null);
@@ -80,6 +83,12 @@ export function MissionVisitScreen({ navigation, route }) {
   const [dictationBusy, setDictationBusy] = useState(false);
   const [checklist, setChecklist] = useState([]);
   const [checklistModal, setChecklistModal] = useState(false);
+  const [contextLocations, setContextLocations] = useState([]);
+  const [contextEquipment, setContextEquipment] = useState([]);
+  const [contextLocationId, setContextLocationId] = useState(routeLocationId);
+  const [contextEquipmentId, setContextEquipmentId] = useState(routeEquipmentId);
+  const [contextModal, setContextModal] = useState(false);
+  const [contextQuery, setContextQuery] = useState('');
 
   const reload = useCallback(async () => {
     if (!visitId) return;
@@ -105,6 +114,67 @@ export function MissionVisitScreen({ navigation, route }) {
 
   const recipe = useMemo(() => getMissionVisitRecipe(data?.visit?.family, data?.visit?.mission_type, captureMode), [data?.visit?.family, data?.visit?.mission_type, captureMode]);
   const actualMissionId = data?.visit?.mission_id || routeMissionId;
+
+  useEffect(() => {
+    if (!actualMissionId || !data?.visit?.site_id) return;
+    (async () => {
+      try {
+        const structure = await listerStructureMission(actualMissionId);
+        const siteId = data.visit.site_id;
+        const locations = (structure.locations || []).filter((row) => row.site_id === siteId);
+        const equipment = (structure.equipment || []).filter((row) => row.site_id === siteId);
+        setContextLocations(locations);
+        setContextEquipment(equipment);
+
+        if (routeEquipmentId) {
+          const selected = equipment.find((row) => row.id === routeEquipmentId);
+          if (selected?.location_id) setContextLocationId(selected.location_id);
+        }
+      } catch {}
+    })();
+  }, [actualMissionId, data?.visit?.site_id, routeEquipmentId]);
+
+  const selectedContextLocation = useMemo(
+    () => contextLocations.find((row) => row.id === contextLocationId) || null,
+    [contextLocations, contextLocationId]
+  );
+  const selectedContextEquipment = useMemo(
+    () => contextEquipment.find((row) => row.id === contextEquipmentId) || null,
+    [contextEquipment, contextEquipmentId]
+  );
+  const filteredContextLocations = useMemo(() => {
+    const q = contextQuery.trim().toLowerCase();
+    if (!q) return contextLocations.slice(0, 120);
+    return contextLocations.filter((row) => [row.label,row.kind].some((value) => String(value || '').toLowerCase().includes(q))).slice(0, 120);
+  }, [contextLocations, contextQuery]);
+  const filteredContextEquipment = useMemo(() => {
+    const q = contextQuery.trim().toLowerCase();
+    return contextEquipment
+      .filter((row) => !contextLocationId || row.location_id === contextLocationId)
+      .filter((row) => !q || [row.type,row.brand,row.model].some((value) => String(value || '').toLowerCase().includes(q)))
+      .slice(0, 180);
+  }, [contextEquipment, contextLocationId, contextQuery]);
+
+  const clearTechnicalContext = () => {
+    setContextLocationId('');
+    setContextEquipmentId('');
+  };
+
+  const selectLocationContext = (locationId) => {
+    setContextLocationId(locationId || '');
+    if (contextEquipmentId) {
+      const currentEquipment = contextEquipment.find((row) => row.id === contextEquipmentId);
+      if (!currentEquipment || currentEquipment.location_id !== locationId) setContextEquipmentId('');
+    }
+  };
+
+  const selectEquipmentContext = (equipmentId) => {
+    const equipment = contextEquipment.find((row) => row.id === equipmentId);
+    setContextEquipmentId(equipmentId || '');
+    if (equipment?.location_id) setContextLocationId(equipment.location_id);
+    setContextModal(false);
+    setContextQuery('');
+  };
 
   const changeCaptureMode = async (nextMode) => {
     setCaptureMode(nextMode);
@@ -159,6 +229,8 @@ export function MissionVisitScreen({ navigation, route }) {
         missionId: actualMissionId,
         siteId: data?.visit?.site_id,
         visitId,
+        locationId: contextLocationId || null,
+        equipmentId: contextEquipmentId || null,
         label: 'Photo terrain',
         type: 'terrain',
       });
@@ -178,6 +250,8 @@ export function MissionVisitScreen({ navigation, route }) {
         missionId: actualMissionId,
         siteId: data?.visit?.site_id,
         visitId,
+        locationId: contextLocationId || null,
+        equipmentId: contextEquipmentId || null,
         type: 'source_terrain',
       });
       if (document) Alert.alert('Document ajouté', document.name || 'Document enregistré hors ligne.');
@@ -210,6 +284,8 @@ export function MissionVisitScreen({ navigation, route }) {
         missionId: actualMissionId,
         visitId,
         siteId: data?.visit?.site_id,
+        locationId: contextLocationId || null,
+        equipmentId: contextEquipmentId || null,
         type: measureType,
         value: Number.isFinite(numericValue) && measureValue.trim() !== '' ? numericValue : null,
         valueText: Number.isFinite(numericValue) && measureValue.trim() !== '' ? null : measureValue,
@@ -245,6 +321,8 @@ export function MissionVisitScreen({ navigation, route }) {
         missionId: actualMissionId,
         visitId,
         siteId: data?.visit?.site_id,
+        locationId: contextLocationId || null,
+        equipmentId: contextEquipmentId || null,
         pointId,
         transcript,
         locale: 'fr-FR',
@@ -299,6 +377,8 @@ export function MissionVisitScreen({ navigation, route }) {
         missionId: actualMissionId,
         siteId: data?.visit?.site_id,
         visitId,
+        locationId: contextLocationId || null,
+        equipmentId: contextEquipmentId || null,
         type: pointType,
         label: pointLabel,
         description: pointDescription,
@@ -366,6 +446,27 @@ export function MissionVisitScreen({ navigation, route }) {
         <Text style={[{ fontSize: 17, fontWeight: '900' }, missionStyles.title]}>{visit.mission_label || 'Mission'}</Text>
         <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, marginTop: 4 }}>{[visit.client_name, visit.site_name, visit.visit_date].filter(Boolean).join(' · ')}</Text>
         <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 10, fontWeight: '900', marginTop: 9 }}>Aucun champ de cette visite n’est obligatoire.</Text>
+      </View>
+
+      <View style={[missionStyles.card, { padding: 11, marginBottom: 12 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '900', letterSpacing: 0.4 }}>CONTEXTE DE SAISIE</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '900', marginTop: 3 }} numberOfLines={2}>
+              {[
+                visit.site_name,
+                selectedContextLocation?.label,
+                selectedContextEquipment ? [selectedContextEquipment.type, selectedContextEquipment.brand, selectedContextEquipment.model].filter(Boolean).join(' · ') : null,
+              ].filter(Boolean).join('  ›  ')}
+            </Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, lineHeight: 12, marginTop: 3 }}>
+              Photos, mesures, points, documents et dictée héritent automatiquement de ce contexte.
+            </Text>
+          </View>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => { setContextQuery(''); setContextModal(true); }}>
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Changer</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
@@ -440,6 +541,52 @@ export function MissionVisitScreen({ navigation, route }) {
         {data.points.map((point) => <View key={point.id} style={[{ backgroundColor: COLORS.white, borderWidth: 1, borderRadius: 12, padding: 11, marginBottom: 7 }, missionStyles.card]}><Text style={{ color: COLORS.ink, fontWeight: '800', fontSize: 11.5 }}>{point.label || point.description || 'Point sans titre'}</Text><Text style={{ color: MISSION_COLORS.accentDark, marginTop: 3, fontSize: 9.5 }}>{point.type} · {point.status}</Text></View>)}
       </> : null}
     </ScrollView>
+
+    <Modal visible={contextModal} transparent animationType="fade" onRequestClose={() => setContextModal(false)}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>Contexte de saisie</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 9.6, lineHeight: 14, marginBottom: 9 }}>
+          Choisis seulement ce que tu connais. METRA reprend ensuite ce contexte dans les nouvelles données sans le redemander.
+        </Text>
+        <TextInput
+          style={[styles.input, missionStyles.input]}
+          value={contextQuery}
+          onChangeText={setContextQuery}
+          placeholder="Rechercher local, chaudière, pompe, CTA, UE, UI…"
+        />
+        <ScrollView style={{ maxHeight: 390, marginTop: 8 }}>
+          <TouchableOpacity onPress={() => { clearTechnicalContext(); setContextModal(false); }} style={{ paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
+            <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 10.5, fontWeight: '900' }}>Site entier · {visit.site_name || 'Site'}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, marginTop: 2 }}>Aucun local / équipement imposé</Text>
+          </TouchableOpacity>
+
+          {filteredContextLocations.length ? <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 10 }]}>Locaux / zones</Text> : null}
+          {filteredContextLocations.map((location) => <TouchableOpacity
+            key={location.id}
+            onPress={() => selectLocationContext(location.id)}
+            style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine, backgroundColor: contextLocationId === location.id ? MISSION_COLORS.accentSoft : 'transparent' }}
+          >
+            <Text style={{ color: COLORS.ink, fontSize: 10.1, fontWeight: contextLocationId === location.id ? '900' : '700' }}>{location.label}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 2 }}>{location.kind || 'localisation'}</Text>
+          </TouchableOpacity>)}
+
+          {filteredContextEquipment.length ? <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 10 }]}>Équipements {contextLocationId ? 'du local sélectionné' : 'du site'}</Text> : null}
+          {filteredContextEquipment.map((equipment) => <TouchableOpacity
+            key={equipment.id}
+            onPress={() => selectEquipmentContext(equipment.id)}
+            style={{ paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine, backgroundColor: contextEquipmentId === equipment.id ? MISSION_COLORS.accentSoft : 'transparent' }}
+          >
+            <Text style={{ color: COLORS.ink, fontSize: 10.1, fontWeight: contextEquipmentId === equipment.id ? '900' : '700' }}>
+              {[equipment.type,equipment.brand,equipment.model].filter(Boolean).join(' · ') || 'Équipement'}
+            </Text>
+          </TouchableOpacity>)}
+        </ScrollView>
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={clearTechnicalContext}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Réinitialiser</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => { setContextModal(false); setContextQuery(''); }}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Utiliser ce contexte</Text></TouchableOpacity>
+        </View>
+      </View></View>
+    </Modal>
 
     <Modal visible={checklistModal} transparent animationType="fade" onRequestClose={() => setChecklistModal(false)}>
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
