@@ -12,6 +12,8 @@ function point(label, pointType = 'information', extras = {}) {
 
 const BASE = Object.freeze({
   diagnostic: {
+    defaultMode: 'standard',
+    defaultVisitType: 'diagnostic terrain',
     objective: 'Observer l’existant, vérifier les documents, mesurer ce qui est utile et tracer les écarts sans ressaisie.',
     steps: ['Contexte', 'Existant', 'Mesures', 'Écarts', 'Synthèse'],
     quickActions: [
@@ -30,6 +32,8 @@ const BASE = Object.freeze({
   },
 
   study: {
+    defaultMode: 'standard',
+    defaultVisitType: 'relevé / étude terrain',
     objective: 'Partir de l’existant réel pour construire des scénarios, dimensionnements, contraintes et livrables sans recréer les données.',
     steps: ['Existant', 'Contraintes', 'Mesures', 'Scénarios', 'Solution'],
     quickActions: [
@@ -49,6 +53,8 @@ const BASE = Object.freeze({
   },
 
   works: {
+    defaultMode: 'rapide',
+    defaultVisitType: 'visite chantier',
     objective: 'Tracer ce qui est réellement constaté sur chantier, qui doit agir et ce qui devra être recontrôlé à la visite suivante.',
     steps: ['Avancement', 'Constat', 'Réserve', 'Responsable', 'Suivi'],
     quickActions: [
@@ -68,6 +74,8 @@ const BASE = Object.freeze({
   },
 
   reception: {
+    defaultMode: 'rapide',
+    defaultVisitType: 'OPR / réception',
     objective: 'Comparer le prévu et le réalisé, créer les réserves en quelques gestes et préparer immédiatement OPR, réception ou levée.',
     steps: ['Ouvrage', 'Contrôle', 'Réserve', 'Preuve', 'Statut'],
     quickActions: [
@@ -87,6 +95,8 @@ const BASE = Object.freeze({
   },
 
   passation: {
+    defaultMode: 'rapide',
+    defaultVisitType: 'passation contradictoire',
     objective: 'Comparer l’inventaire attendu au terrain, conserver les différences et produire une passation contradictoire sans ressaisie.',
     steps: ['Attendu', 'Trouvé', 'Différence', 'Photo', 'Validation'],
     quickActions: [
@@ -105,6 +115,8 @@ const BASE = Object.freeze({
   },
 
   campaign: {
+    defaultMode: 'rapide',
+    defaultVisitType: 'campagne terrain',
     objective: 'Préparer en masse, saisir très vite site par site et consolider automatiquement la progression et les écarts.',
     steps: ['Préparation', 'Site', 'Saisie rapide', 'Statut', 'Consolidation'],
     quickActions: [
@@ -123,6 +135,8 @@ const BASE = Object.freeze({
   },
 
   measurementCampaign: {
+    defaultMode: 'rapide',
+    defaultVisitType: 'campagne de mesures',
     objective: 'Préparer les points puis utiliser une saisie terrain valeur → suivant avec statuts d’accès et comparaison avant / après.',
     steps: ['Liste', 'Point', 'Valeur', 'Statut', 'Suivant'],
     quickActions: [
@@ -139,6 +153,8 @@ const BASE = Object.freeze({
   },
 
   control: {
+    defaultMode: 'rapide',
+    defaultVisitType: 'contrôle terrain',
     objective: 'Contrôler un point précis, rattacher la preuve et créer immédiatement l’action utile sans transformer METRA en organisme certificateur.',
     steps: ['Référence', 'Contrôle', 'Preuve', 'Écart', 'Action'],
     quickActions: [
@@ -157,6 +173,8 @@ const BASE = Object.freeze({
   },
 
   followUp: {
+    defaultMode: 'rapide',
+    defaultVisitType: 'suivi terrain',
     objective: 'Reprendre le sujet au même endroit, voir ce qui a changé et ne saisir que l’évolution utile.',
     steps: ['Dernier état', 'Évolution', 'Preuve', 'Action', 'Prochaine étape'],
     quickActions: [
@@ -473,6 +491,8 @@ export function getMissionFieldPlaybook(missionType) {
   return {
     type: missionType || null,
     label: type?.label || 'Mission terrain',
+    defaultMode: type?.defaultMode || base.defaultMode || 'standard',
+    defaultVisitType: type?.defaultVisitType || base.defaultVisitType || 'visite terrain',
     objective: type?.objective || base.objective,
     steps: type?.steps || base.steps,
     quickActions: mergeUnique(base.quickActions, type?.quickActions, (item) => item.key),
