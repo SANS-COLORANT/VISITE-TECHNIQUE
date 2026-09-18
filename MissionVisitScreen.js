@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Modal, ScrollView, Text, TextInput, Touchable
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerPointMission } from './missionsDb.js';
-import { getMissionVisitRecipe } from './missionRecipes.js';
+import { getMissionVisitRecipe, MISSION_CAPTURE_MODES } from './missionRecipes.js';
 import { ajouterNoteVisiteMission, chargerVisiteMission, compterSaisieVisiteMission, enregistrerValeurTrameMission, mettreAJourVisiteMission } from './missionVisitDb.js';
 
 const POINT_TYPES = [
@@ -51,6 +51,7 @@ export function MissionVisitScreen({ navigation, route }) {
   const [pointType, setPointType] = useState('information');
   const [pointLabel, setPointLabel] = useState('');
   const [pointDescription, setPointDescription] = useState('');
+  const [captureMode, setCaptureMode] = useState('standard');
 
   const reload = useCallback(async () => {
     if (!visitId) return;
@@ -59,8 +60,14 @@ export function MissionVisitScreen({ navigation, route }) {
       const next = await chargerVisiteMission(visitId);
       setData(next);
       const map = {};
-      for (const row of next?.values || []) map[row.field_code] = row.value_text ?? row.value_number ?? row.value_boolean ?? row.value_date ?? '';
+      let nextMode = 'standard';
+      for (const row of next?.values || []) {
+        const value = row.value_text ?? row.value_number ?? row.value_boolean ?? row.value_date ?? '';
+        if (row.field_code === '__meta.capture_mode') nextMode = value || 'standard';
+        else map[row.field_code] = value;
+      }
       setValues(map);
+      setCaptureMode(nextMode);
       setStats(await compterSaisieVisiteMission(visitId));
       if (next?.visit?.status === 'draft') await mettreAJourVisiteMission(visitId, { status: 'in_progress' });
     } finally { setLoading(false); }
@@ -68,8 +75,27 @@ export function MissionVisitScreen({ navigation, route }) {
 
   useEffect(() => { reload(); }, [reload]);
 
-  const recipe = useMemo(() => getMissionVisitRecipe(data?.visit?.family), [data?.visit?.family]);
+  const recipe = useMemo(() => getMissionVisitRecipe(data?.visit?.family, data?.visit?.mission_type, captureMode), [data?.visit?.family, data?.visit?.mission_type, captureMode]);
   const actualMissionId = data?.visit?.mission_id || routeMissionId;
+
+  const changeCaptureMode = async (nextMode) => {
+    setCaptureMode(nextMode);
+    if (!data?.visit || !actualMissionId) return;
+    try {
+      await enregistrerValeurTrameMission({
+        missionId: actualMissionId,
+        visitId,
+        siteId: data.visit.site_id,
+        templateId: '__meta',
+        fieldCode: '__meta.capture_mode',
+        fieldLabel: 'Mode de saisie',
+        value: nextMode,
+        valueType: 'text',
+      });
+    } catch (e) {
+      Alert.alert('Mode non enregistré', String(e.message || e));
+    }
+  };
 
   const saveField = async (sectionKey, field, value) => {
     if (!data?.visit || !actualMissionId) return;
@@ -148,7 +174,17 @@ export function MissionVisitScreen({ navigation, route }) {
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} onPress={complete}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Fin de visite</Text></TouchableOpacity>
       </View>
 
-      <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Trame proposée · {recipe.label}</Text>
+      <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Niveau de saisie · {recipe.label}</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
+        {MISSION_CAPTURE_MODES.map(([key, label]) => {
+          const selected = captureMode === key;
+          return <TouchableOpacity key={key} onPress={() => changeCaptureMode(key)} style={{ borderRadius: 11, borderWidth: 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : COLORS.white, paddingHorizontal: 11, paddingVertical: 8, marginRight: 7, marginBottom: 7 }}><Text style={{ color: selected ? MISSION_COLORS.accentDark : COLORS.inkSoft, fontSize: 10, fontWeight: '900' }}>{label}</Text></TouchableOpacity>;
+        })}
+      </View>
+      <Text style={{ color: COLORS.inkFaint, fontSize: 9.5, lineHeight: 13.5, marginBottom: 12 }}>
+        Rapide = constat essentiel · Standard = mesures/comparaisons · Expert = investigation, calculs et analyse approfondie. Le choix reste modifiable à tout moment.
+      </Text>
+      <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Trame proposée</Text>
       {!recipe.sections.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 10.5, marginBottom: 16 }}>Mission libre : utilise les Points et Notes, ou complète la Mission plus tard.</Text> : null}
       {recipe.sections.map((section) => <View key={section.key} style={[{ backgroundColor: COLORS.white, borderWidth: 1, borderRadius: 15, padding: 14, marginBottom: 12 }, missionStyles.card]}>
         <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13.5, fontWeight: '900', marginBottom: 12 }}>{section.label}</Text>
