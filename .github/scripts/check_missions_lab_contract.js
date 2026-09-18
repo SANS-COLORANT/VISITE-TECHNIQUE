@@ -216,6 +216,8 @@ requireText(read('missionWorkstreamPresets.js'), 'PPI / patrimoine', 'AMO PPI wo
 requireText(read('missionWorkstreamPresets.js'), 'Réunions & pilotage', 'AMO meeting workstream preset');
 requireText(read('MissionWorkflowScreen.js'), 'Préparer les volets métier', 'AMO workstream preparation UX');
 requireText(read('MissionSubjectsScreen.js'), 'VOLET / AXE', 'subject to workstream assignment UX');
+requireText(read('missionReportDb.js'), "key: 'volets'", 'AMO workstream report section');
+requireText(read('missionClientExcelExport.js'), "'01C_Volets_AMO'", 'AMO workstream client Excel sheet');
 requireText(read('missionReportDb.js'), "key: 'sujets'", 'subject history report section');
 requireText(read('missionClientExcelExport.js'), "'02_Sujets'", 'subject history client Excel worksheet');
 requireText(app, "MissionP3Dashboard", 'P2 P3 projection route');
