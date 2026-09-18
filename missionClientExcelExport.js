@@ -241,6 +241,7 @@ function reserveRows(data, photoPathById = null) {
       Reserve: p.label || '',
       Description: p.description || '',
       Statut: labelStatus(p.status),
+      Resultat_recontrole: labelStatus(p.qualification),
       Priorite: p.priority || '',
       Responsable: p.responsible_company || p.responsible_name || action?.responsible_company || action?.responsible_name || '',
       Action_demandee: p.requested_action || action?.label || '',
