@@ -12,7 +12,7 @@ module.exports = function withMetraMissionTools(config) {
     const sourceDir = path.join(cfg.modRequest.projectRoot, 'native', 'metra-mission-tools');
     const targetDir = path.join(cfg.modRequest.platformProjectRoot, 'app', 'src', 'main', 'java', 'com', 'metra', 'missiontools');
     fs.mkdirSync(targetDir, { recursive: true });
-    for (const file of ['MetraOcrModule.kt', 'MetraSpeechModule.kt', 'MetraMissionToolsPackage.kt']) {
+    for (const file of ['MetraOcrModule.kt', 'MetraSpeechModule.kt', 'MetraPdfModule.kt', 'MetraMissionToolsPackage.kt']) {
       fs.copyFileSync(path.join(sourceDir, file), path.join(targetDir, file));
     }
     return cfg;
