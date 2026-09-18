@@ -13,6 +13,7 @@ import { ajouterNoteVisiteMission, chargerVisiteMission, compterSaisieVisiteMiss
 import { listerStructureMission } from './missionStructureDb.js';
 import { modifierEquipementMission } from './missionEquipmentDb.js';
 import { chargerContexteAutoVisiteMission, valeurAutoPourChampMission } from './missionVisitAutofillDb.js';
+import { chargerMemoireVisiteMission, previousVisitLabel } from './missionVisitMemoryDb.js';
 
 const POINT_TYPES = [
   ['reserve', 'Réserve'], ['action', 'Action'], ['request', 'Demande'], ['control', 'Contrôle'], ['decision', 'Décision'], ['information', 'Information'],
@@ -27,7 +28,7 @@ function ChoiceField({ field, value, onChange }) {
   </View>;
 }
 
-function OptionalField({ sectionKey, field, value, autoValue = '', onChange, onSave, onDictate, dictationBusy }) {
+function OptionalField({ sectionKey, field, value, autoValue = '', previousValue = '', previousLabel = '', onReusePrevious, onChange, onSave, onDictate, dictationBusy }) {
   return <View style={{ marginBottom: 14 }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
       <Text style={{ flex: 1, color: COLORS.ink, fontWeight: '800', fontSize: 11.5 }}>{field.label}</Text>
@@ -36,6 +37,20 @@ function OptionalField({ sectionKey, field, value, autoValue = '', onChange, onS
     {autoValue ? <View style={{ marginBottom: 7, borderRadius: 10, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: MISSION_COLORS.accentSoft, padding: 9 }}>
       <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 7.8, fontWeight: '900', letterSpacing: 0.45 }}>DÉJÀ CONNU PAR METRA · PAS DE RESSAISIE</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 9.2, lineHeight: 13, marginTop: 3 }}>{autoValue}</Text>
+    </View> : null}
+    {previousValue !== '' && previousValue !== null && previousValue !== undefined ? <View style={{ marginBottom: 7, borderRadius: 10, borderWidth: 1, borderColor: '#D7DDD9', backgroundColor: '#F5F7F6', padding: 9 }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+        <View style={{ flex: 1 }}>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 7.7, fontWeight: '900', letterSpacing: 0.4 }}>VISITE PRÉCÉDENTE{previousLabel ? ' · ' + previousLabel : ''}</Text>
+          <Text style={{ color: COLORS.inkSoft, fontSize: 9.1, lineHeight: 13, marginTop: 3 }}>{String(previousValue)}</Text>
+        </View>
+        {onReusePrevious ? <TouchableOpacity
+          onPress={onReusePrevious}
+          style={{ marginLeft: 8, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: '#FFFFFF', borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6 }}
+        >
+          <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.2, fontWeight: '900' }}>REPRENDRE</Text>
+        </TouchableOpacity> : null}
+      </View>
     </View> : null}
     {field.type === 'choice'
       ? <ChoiceField field={field} value={value || ''} onChange={(next) => { onChange(next); onSave(next); }} />
@@ -97,6 +112,7 @@ export function MissionVisitScreen({ navigation, route }) {
   const [contextModal, setContextModal] = useState(false);
   const [contextQuery, setContextQuery] = useState('');
   const [autoContext, setAutoContext] = useState({});
+  const [previousMemory, setPreviousMemory] = useState({ previousVisit: null, values: {}, summary: null });
 
   const reload = useCallback(async () => {
     if (!visitId) return;
@@ -123,6 +139,27 @@ export function MissionVisitScreen({ navigation, route }) {
   const recipe = useMemo(() => getMissionVisitRecipe(data?.visit?.family, data?.visit?.mission_type, captureMode), [data?.visit?.family, data?.visit?.mission_type, captureMode]);
   const playbook = useMemo(() => getMissionFieldPlaybook(data?.visit?.mission_type), [data?.visit?.mission_type]);
   const actualMissionId = data?.visit?.mission_id || routeMissionId;
+
+  useEffect(() => {
+    if (!actualMissionId || !visitId) {
+      setPreviousMemory({ previousVisit: null, values: {}, summary: null });
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const memory = await chargerMemoireVisiteMission({
+          missionId: actualMissionId,
+          visitId,
+          siteId: data?.visit?.site_id || null,
+        });
+        if (!cancelled) setPreviousMemory(memory || { previousVisit: null, values: {}, summary: null });
+      } catch {
+        if (!cancelled) setPreviousMemory({ previousVisit: null, values: {}, summary: null });
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [actualMissionId, visitId, data?.visit?.site_id]);
 
   useEffect(() => {
     if (!actualMissionId || !data?.visit?.site_id) return;
@@ -711,6 +748,33 @@ export function MissionVisitScreen({ navigation, route }) {
         </Text>
       </View> : null}
 
+      {previousMemory.previousVisit ? <View style={[missionStyles.card, { padding: 11, marginBottom: 12, borderColor: '#D7DDD9' }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.1, fontWeight: '900', letterSpacing: 0.45 }}>MÉMOIRE · VISITE PRÉCÉDENTE</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10.2, fontWeight: '900', marginTop: 3 }}>{previousVisitLabel(previousMemory.previousVisit)}</Text>
+            <Text style={{ color: COLORS.inkSoft, fontSize: 8.8, lineHeight: 12, marginTop: 4 }}>
+              {previousMemory.summary?.fieldsCount || 0} champ(s) · {previousMemory.summary?.measures?.length || 0} mesure(s) affichée(s) · {previousMemory.summary?.unresolvedCount || 0} point(s) non soldé(s)
+            </Text>
+          </View>
+          {previousMemory.summary?.openActionsCount ? <TouchableOpacity
+            style={[styles.btnSecondary, missionStyles.secondaryButton, { marginLeft: 8 }]}
+            onPress={() => navigation.navigate('MissionActions', { missionId: actualMissionId, siteId: data?.visit?.site_id || null })}
+          >
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{previousMemory.summary.openActionsCount} action(s) ouverte(s)</Text>
+          </TouchableOpacity> : null}
+        </View>
+        {(previousMemory.summary?.unresolved || []).length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 44, marginTop: 7 }}>
+          {previousMemory.summary.unresolved.map((item, index) => <View key={index} style={{ borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: '#FFFFFF', borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6, marginRight: 6 }}>
+            <Text style={{ color: COLORS.ink, fontSize: 8.6, fontWeight: '800' }} numberOfLines={1}>{item.label || 'Point à suivre'}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 7.7, marginTop: 2 }} numberOfLines={1}>{[item.responsible,item.due,item.priority].filter(Boolean).join(' · ') || item.status}</Text>
+          </View>)}
+        </ScrollView> : null}
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.1, lineHeight: 11, marginTop: 6 }}>
+          Les valeurs précédentes restent grisées : METRA ne les recopie jamais automatiquement. « Reprendre » confirme explicitement une valeur encore valable.
+        </Text>
+      </View> : null}
+
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
         {[
           [stats?.fields_count || 0, 'champs'],
@@ -803,6 +867,13 @@ export function MissionVisitScreen({ navigation, route }) {
             field={field}
             value={values[code] || ''}
             autoValue={valeurAutoPourChampMission(field, autoContext)}
+            previousValue={previousMemory.values?.[code] ?? ''}
+            previousLabel={previousVisitLabel(previousMemory.previousVisit)}
+            onReusePrevious={() => {
+              const next = previousMemory.values?.[code] ?? '';
+              setValues((current) => ({ ...current, [code]: next }));
+              saveValue(section.key, field, next);
+            }}
             onChange={(next) => setValues((current) => ({ ...current, [code]: next }))}
             onSave={(next) => saveField(section.key, field, next)}
             dictationBusy={dictationBusy}
