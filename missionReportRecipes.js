@@ -89,8 +89,9 @@ const BASE = Object.freeze({
   },
   expertise: {
     label: 'Rapport d’expertise technique',
-    order: ['contexte','visites','photos','mesures','points','actions','documents','inventaire','architecture','calculs','scenarios','essais'],
+    order: ['contexte','expertise','visites','photos','mesures','points','actions','documents','inventaire','architecture','calculs','scenarios','essais'],
     titles: {
+      expertise: 'Chronologie factuelle, hypothèses et conclusions',
       photos: 'Éléments factuels et preuves photographiques',
       points: 'Faits, hypothèses et investigations',
       mesures: 'Mesures et relevés',
