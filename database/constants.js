@@ -4,7 +4,7 @@ export const DATABASE_NAME = 'visite_technique.db';
 // database/migrations/index.js. Migrations 035-039 ont deja ete livrees ou
 // preparees sur certaines branches/tablettes. Les migrations 040-042 ajoutent le
 // stockage local et l'architecture metier du module Missions sans toucher aux donnees Intranet.
-export const DATABASE_SCHEMA_VERSION = 42;
+export const DATABASE_SCHEMA_VERSION = 43;
 
 export const ENTITY_TYPES = Object.freeze({
   CLIENT: 'client',
