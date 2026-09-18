@@ -237,6 +237,11 @@ requireText(read('MissionCampaignDashboardScreen.js'), 'Continuer · ', 'next si
 requireText(read('MissionCampaignDashboardScreen.js'), 'Accès / replanifier', 'campaign access exception status');
 requireText(read('missionClientExcelExport.js'), "'01B_Progression_sites'", 'multi-site campaign client Excel progress');
 requireText(recipes, 'campaignDashboard: true', 'campaign dashboard family capability');
+requireText(app, "MissionAmoDashboard", 'long-running AMO dashboard route');
+requireText(read('MissionAmoDashboardScreen.js'), 'Pilotage AMO / exploitation', 'AMO long-duration dashboard UX');
+requireText(read('MissionAmoDashboardScreen.js'), 'Volets exploitation, énergie, P3, PPI, réunions et réception', 'AMO workstream continuity');
+requireText(read('MissionAmoDashboardScreen.js'), 'Bilan {selectedYear}', 'annual AMO view');
+requireText(recipes, 'amoDashboard: true', 'AMO dashboard capability');
 requireText(app, "MissionReceptionBoard", 'OPR commissioning handover board route');
 requireText(read('MissionReceptionBoardScreen.js'), 'Ouvrages · statut en 1 geste', 'one-tap reception equipment board');
 requireText(read('MissionReceptionBoardScreen.js'), 'Aucun inventaire n’est recréé pour cette phase.', 'reception reuses Mission inventory');
@@ -252,6 +257,12 @@ requireText(read('MissionReceptionBoardScreen.js'), 'Conformité inventaire ↔ 
 requireText(read('MissionReceptionBoardScreen.js'), 'Essais fonctionnels représentatifs', 'handover functional tests control');
 requireText(read('MissionReceptionBoardScreen.js'), 'ne vaut pas contrôle réglementaire de conformité', 'handover regulatory disclaimer');
 requireText(read('MissionReceptionBoardScreen.js'), 'mission_passation_pv', 'handover PV history trace');
+requireText(app, "MissionControlBoard", 'structured control board route');
+requireText(read('MissionControlBoardScreen.js'), 'Référence → contrôle → preuve → écart éventuel → action → recontrôle.', 'control workflow continuity');
+requireText(read('MissionControlBoardScreen.js'), 'METRA aide à structurer le constat sans se substituer à un organisme de contrôle', 'non-certification wording');
+requireText(read('MissionControlBoardScreen.js'), 'mission_control_board', 'control result history trace');
+requireText(read('MissionControlBoardScreen.js'), "qualification === 'ecart'", 'automatic follow-up action on control gap');
+requireText(recipes, 'controlBoard: true', 'control board capability');
 requireText(recipes, 'receptionBoard: true', 'reception board capability on OPR commissioning handover');
 requireText(read('missionFieldPlaybooks.js'), 'equipmentLifecycleStatuses', 'mission-specific one-tap lifecycle states');
 requireText(read('MissionVisitScreen.js'), 'CYCLE PROJET · 1 GESTE', 'one-tap project lifecycle field UX');
