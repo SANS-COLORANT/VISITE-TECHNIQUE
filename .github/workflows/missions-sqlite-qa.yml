@@ -16,6 +16,8 @@ on:
       - 'missionExcelSchema.js'
       - 'missionDomainDb.js'
       - 'missionMediaDb.js'
+      - 'missionReportDb.js'
+      - 'missionReportExporter.js'
       - 'missionTheme.js'
       - 'Mission*.js'
       - 'Missions*.js'
