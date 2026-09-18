@@ -4,13 +4,18 @@ import { createId } from './database/ids.js';
 export const MISSION_FAMILIES = Object.freeze([
   { key: 'etude_audit', label: 'Étude / Audit', types: [
     ['audit_energetique', 'Audit énergétique'],
-    ['audit_technique', 'Audit / diagnostic technique CVC'],
+    ['audit_technique', 'Audit / diagnostic technique CVC global'],
+    ['diagnostic_chaufferie_ss', 'Diagnostic chaufferie / sous-station'],
     ['diagnostic_ecs', 'Diagnostic / audit ECS'],
+    ['diagnostic_ventilation_cta', 'Diagnostic VMC / ventilation / CTA'],
     ['diagnostic_climatisation_pac', 'Diagnostic climatisation / PAC'],
     ['diagnostic_gtb', 'Diagnostic régulation / GTB / GTC'],
     ['diagnostic_cible', 'Diagnostic problème ciblé'],
-    ['etude_cvc', 'Étude CVC / thermique / ECS'],
+    ['etude_cvc', 'Étude CVC / thermique'],
     ['etude_renovation', 'Étude de rénovation / remplacement'],
+    ['etude_ecs', 'Étude ECS'],
+    ['etude_ventilation_clim', 'Étude ventilation / climatisation'],
+    ['etude_regulation_gtb', 'Étude régulation / GTB / GTC'],
   ] },
   { key: 'travaux_chantier', label: 'Travaux / Chantier', types: [
     ['amo_travaux', 'AMO travaux'],
@@ -24,8 +29,10 @@ export const MISSION_FAMILIES = Object.freeze([
   { key: 'suivi_ponctuel', label: 'Suivi ponctuel', types: [
     ['suivi_technique', 'Suivi technique ciblé'],
     ['controle_exploitation', 'Contrôle ponctuel d’exploitation'],
+    ['assistance_p2_p3', 'Assistance exploitation / contrats P2-P3'],
     ['plan_action', 'Plan d’action'],
     ['suivi_sanitaire', 'Suivi sanitaire ponctuel'],
+    ['preallumage_reprise_saison', 'Pré-allumage / reprise de saison'],
     ['expertise_sinistre', 'Expertise / sinistre'],
   ] },
   { key: 'campagne_multisites', label: 'Campagne / Multi-sites', types: [
