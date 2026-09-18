@@ -93,6 +93,7 @@ export async function enregistrerMesureCompleteMission({
   visitId = null,
   siteId = null,
   equipmentId = null,
+  locationId = null,
   pointId = null,
   type,
   value = null,
@@ -135,6 +136,7 @@ export async function enregistrerMesureCompleteMission({
     siteId,
     pointId,
     equipmentId,
+    locationId,
     type,
     value,
     valueText,
@@ -175,7 +177,7 @@ function downsample(points, max = 500) {
   return out;
 }
 
-export async function importerSerieMesuresMission({ missionId, visitId = null, siteId = null, equipmentId = null, type = 'serie', unit = null } = {}) {
+export async function importerSerieMesuresMission({ missionId, visitId = null, siteId = null, locationId = null, equipmentId = null, type = 'serie', unit = null } = {}) {
   const picked = await DocumentPicker.getDocumentAsync({
     type: ['text/csv','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','text/plain'],
     copyToCacheDirectory: true,
@@ -219,12 +221,24 @@ export async function importerSerieMesuresMission({ missionId, visitId = null, s
   await FileSystem.copyAsync({ from: asset.uri, to: dest });
 
   const db = await getDb();
+  let effectiveSiteId = clean(siteId);
+  let effectiveLocationId = clean(locationId);
+  if (equipmentId) {
+    const equipment = await db.getFirstAsync(
+      'SELECT e.site_id,e.location_id FROM mission_equipment e JOIN mission_site_links ml ON ml.site_id=e.site_id WHERE e.id=? AND ml.mission_id=?',
+      [equipmentId, missionId]
+    );
+    if (equipment) {
+      effectiveSiteId = effectiveSiteId || equipment.site_id || null;
+      effectiveLocationId = effectiveLocationId || equipment.location_id || null;
+    }
+  }
   const id = createId('mseries');
   await db.runAsync(
-    `INSERT INTO mission_measure_series(id,mission_id,visit_id,site_id,equipment_id,type,unit,sample_count,min_value,max_value,avg_value,source_file_uri,summary_json)
-     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    `INSERT INTO mission_measure_series(id,mission_id,visit_id,site_id,location_id,equipment_id,type,unit,sample_count,min_value,max_value,avg_value,source_file_uri,summary_json)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      id, missionId, clean(visitId), clean(siteId), clean(equipmentId), clean(type) || 'serie', clean(unit),
+      id, missionId, clean(visitId), effectiveSiteId, effectiveLocationId, clean(equipmentId), clean(type) || 'serie', clean(unit),
       points.length, minValue, maxValue, avgValue, dest,
       JSON.stringify({ sourceName: asset.name, sheetName, timeKey, valueKey, points: downsample(points) }),
     ]
