@@ -53,6 +53,8 @@ export function MissionExpertiseScreen({ navigation, route }) {
   const [subjectVisible, setSubjectVisible] = useState(false);
   const [factVisible, setFactVisible] = useState(false);
   const [hypothesisVisible, setHypothesisVisible] = useState(false);
+  const [conclusionHypothesis, setConclusionHypothesis] = useState(null);
+  const [conclusionDraft, setConclusionDraft] = useState('');
   const [busy, setBusy] = useState(false);
   const [subjectDraft, setSubjectDraft] = useState({ label: '', description: '' });
   const [factDraft, setFactDraft] = useState({ content: '', sourceType: 'terrain', confidence: 'confirmed' });
@@ -198,22 +200,28 @@ export function MissionExpertiseScreen({ navigation, route }) {
     await load();
   };
 
-  const setConclusion = (row) => {
-    let value = row.conclusion || '';
-    Alert.prompt?.(
-      'Conclusion / état de l’hypothèse',
-      'La conclusion reste distincte du fait initial.',
-      async (text) => {
-        const db = await getDb();
-        await db.runAsync(
-          "UPDATE mission_hypotheses SET conclusion=?,updated_at=datetime('now') WHERE id=? AND mission_id=?",
-          [String(text || '').trim() || null,row.id,missionId]
-        );
-        await load();
-      },
-      'plain-text',
-      value
-    );
+  const openConclusion = (row) => {
+    setConclusionHypothesis(row);
+    setConclusionDraft(row.conclusion || '');
+  };
+
+  const saveConclusion = async () => {
+    if (!conclusionHypothesis || busy) return;
+    setBusy(true);
+    try {
+      const db = await getDb();
+      await db.runAsync(
+        "UPDATE mission_hypotheses SET conclusion=?,updated_at=datetime('now') WHERE id=? AND mission_id=?",
+        [String(conclusionDraft || '').trim() || null,conclusionHypothesis.id,missionId]
+      );
+      setConclusionHypothesis(null);
+      setConclusionDraft('');
+      await load();
+    } catch (e) {
+      Alert.alert('Conclusion non enregistrée', String(e?.message || e));
+    } finally {
+      setBusy(false);
+    }
   };
 
   return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
@@ -290,9 +298,9 @@ export function MissionExpertiseScreen({ navigation, route }) {
           <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, fontWeight: '900' }}>CONCLUSION</Text>
           <Text style={{ color: COLORS.ink, fontSize: 9, lineHeight: 13, marginTop: 3 }}>{row.conclusion}</Text>
         </View> : null}
-        {Alert.prompt ? <TouchableOpacity onPress={() => setConclusion(row)} style={{ alignSelf: 'flex-start', marginTop: 7 }}>
+        <TouchableOpacity onPress={() => openConclusion(row)} style={{ alignSelf: 'flex-start', marginTop: 7 }}>
           <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.4, fontWeight: '900' }}>{row.conclusion ? 'Modifier la conclusion' : '＋ Conclusion'}</Text>
-        </TouchableOpacity> : null}
+        </TouchableOpacity>
       </View>)}
       {!hypothesesForSubject.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 9.3 }}>Aucune hypothèse enregistrée.</Text> : null}
 
@@ -336,6 +344,18 @@ export function MissionExpertiseScreen({ navigation, route }) {
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={()=>setHypothesisVisible(false)}><Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busy} onPress={createHypothesis}><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer l’hypothèse</Text></TouchableOpacity>
+        </View>
+      </View></View>
+    </Modal>
+
+    <Modal visible={!!conclusionHypothesis} transparent animationType="fade" onRequestClose={() => setConclusionHypothesis(null)}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet,missionStyles.modalSheet]}>
+        <Text style={[styles.modalTitle,missionStyles.title]}>Conclusion de l’hypothèse</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 9.2, lineHeight: 13, marginBottom: 8 }}>{conclusionHypothesis?.label || ''}</Text>
+        <Field label="Conclusion distincte du fait" value={conclusionDraft} onChangeText={setConclusionDraft} multiline placeholder="Conclusion, résultat des investigations, limites restantes…" />
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={()=>setConclusionHypothesis(null)}><Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busy} onPress={saveConclusion}><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
