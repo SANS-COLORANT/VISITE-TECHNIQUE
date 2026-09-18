@@ -170,7 +170,7 @@ export function MissionAmoDashboardScreen({ navigation, route }) {
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Pilotage AMO / exploitation</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
-        Vue longue durée de la même Mission : volets exploitation, énergie, P3, PPI, réunions et réception. Les visites, sujets, actions et renouvellements restent reliés au même dossier.
+        Vue longue durée de la même Mission : Volets exploitation, énergie, P3, PPI, réunions et réception. Les visites, sujets, actions et renouvellements restent reliés au même dossier.
       </Text>
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }}>
