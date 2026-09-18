@@ -23,6 +23,7 @@ const CONTRACT_CHECKS = [
   ['Intranet focused upload audit', '.github/scripts/test_intranet_visit_upload_audit.js'],
   ['photo workflow executable regression tests', '.github/scripts/test_photo_workflow.js'],
   ['Missions LAB isolation contract', '.github/scripts/check_missions_lab_contract.js'],
+  ['Missions app compatibility contract', '.github/scripts/check_missions_app_compat.js'],
 ];
 
 const JS_SYNTAX_FILES = [
