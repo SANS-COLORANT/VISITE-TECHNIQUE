@@ -139,6 +139,13 @@ requireText(read('MissionPlanScreen.js'), 'Réserve / action localisée', 'plan-
 requireText(read('MissionPlanScreen.js'), 'Réseau technique', 'structured network drawing');
 requireText(read('MissionPlanScreen.js'), 'Comptage', 'PDF counting tool');
 requireText(read('MissionPlanScreen.js'), '📷 Photo', 'photo positioning from plan geometry');
+requireText(read('missionPlanDb.js'), "linked_entity_type='point'", 'plan reserve geometry binding');
+requireText(read('MissionPlanScreen.js'), 'Placer une signature', 'contextual PDF signature placement');
+requireText(read('missionPlanDb.js'), "row.annotation_type === 'signature'", 'signature rendered into annotated PDF');
+requireText(read('missionMapLayerDb.js'), 'importerRasterMission', 'offline raster import');
+requireText(read('missionMapLayerDb.js'), 'importerTuilesXyzMission', 'offline XYZ tile import');
+requireText(read('MissionMapScreen.js'), 'LocalTile', 'offline XYZ tile rendering');
+requireText(read('MissionMapScreen.js'), 'Overlay', 'offline raster rendering');
 requireText(read('MissionVisitScreen.js'), 'Avant de quitter le site', 'non-blocking before leaving checklist');
 requireText(read('MissionPackageScreen.js'), 'Créer et partager le ZIP complet', 'complete mission package');
 requireText(read('missionMediaDb.js'), 'resolveMissionContext', 'automatic media context inheritance');
