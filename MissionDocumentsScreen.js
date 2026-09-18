@@ -6,6 +6,7 @@ import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { choisirEtAjouterDocumentMission } from './missionMediaDb.js';
 import { creerOuTrouverActeurMission } from './missionDomainDb.js';
+import { getMissionExpectedDocumentPresets } from './missionDocumentPresets.js';
 
 const EXPECTED_STATUS = [
   ['expected','Attendu'],
@@ -44,10 +45,12 @@ export function MissionDocumentsScreen({ route }) {
   const [visaDoc, setVisaDoc] = useState(null);
   const [visaStatus, setVisaStatus] = useState('to_review');
   const [visaComment, setVisaComment] = useState('');
+  const [missionType, setMissionType] = useState(null);
+  const [installingExpected, setInstallingExpected] = useState(false);
 
   const load = useCallback(async () => {
     const db = await getDb();
-    const [d,e,v] = await Promise.all([
+    const [d,e,v,m] = await Promise.all([
       db.getAllAsync('SELECT * FROM mission_documents WHERE mission_id=? ORDER BY created_at DESC', [missionId]),
       db.getAllAsync(
         `SELECT ed.*,a.company AS responsible_company,a.name AS responsible_name,d.name AS document_name
@@ -65,13 +68,53 @@ export function MissionDocumentsScreen({ route }) {
          WHERE v.mission_id=? ORDER BY v.created_at DESC`,
         [missionId]
       ),
+      db.getFirstAsync('SELECT type FROM missions WHERE id=?', [missionId]),
     ]);
     setDocs(d || []);
     setExpected(e || []);
     setValidations(v || []);
+    setMissionType(m?.type || null);
   }, [missionId]);
 
   React.useEffect(() => { load(); }, [load]);
+
+  const recommendedDocuments = React.useMemo(
+    () => getMissionExpectedDocumentPresets(missionType),
+    [missionType]
+  );
+
+  const installRecommendedDocuments = async () => {
+    if (!recommendedDocuments.length || installingExpected) return;
+    setInstallingExpected(true);
+    try {
+      const db = await getDb();
+      const existingLabels = new Set(expected.map((row) => String(row.label || '').trim().toLowerCase()));
+      let added = 0;
+      await db.withTransactionAsync(async () => {
+        for (const preset of recommendedDocuments) {
+          const normalized = String(preset.label || '').trim().toLowerCase();
+          if (!normalized || existingLabels.has(normalized)) continue;
+          await db.runAsync(
+            'INSERT INTO mission_expected_documents(id,mission_id,type,label,status,comment) VALUES(?,?,?,?,?,?)',
+            [createId('medoc'), missionId, preset.type || null, preset.label, 'expected', preset.comment || null]
+          );
+          existingLabels.add(normalized);
+          added += 1;
+        }
+      });
+      await load();
+      Alert.alert(
+        added ? 'Documents attendus préparés' : 'Liste déjà préparée',
+        added
+          ? String(added) + ' document(s) proposé(s) selon le type de Mission. Ils restent facultatifs et modifiables.'
+          : 'Aucun doublon créé.'
+      );
+    } catch (e) {
+      Alert.alert('Préparation impossible', String(e?.message || e));
+    } finally {
+      setInstallingExpected(false);
+    }
+  };
 
   const importDoc = async () => {
     try {
@@ -145,7 +188,19 @@ export function MissionDocumentsScreen({ route }) {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
         <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={importDoc}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Importer document</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setAddExpectedVisible(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Document attendu</Text></TouchableOpacity>
+        {recommendedDocuments.length ? <TouchableOpacity
+          style={[styles.btnSecondary, missionStyles.secondaryButton]}
+          disabled={installingExpected}
+          onPress={installRecommendedDocuments}
+        >
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>
+            {installingExpected ? 'Préparation…' : 'Préparer attendus (' + recommendedDocuments.length + ')'}
+          </Text>
+        </TouchableOpacity> : null}
       </View>
+      {recommendedDocuments.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, lineHeight: 12, marginTop: 6 }}>
+        METRA propose les documents habituellement utiles à cette Mission. Rien n’est réputé obligatoire automatiquement : tu confirmes leur statut selon le dossier réel.
+      </Text> : null}
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Documents attendus</Text>
       {expected.map((row) => <View key={row.id} style={[missionStyles.card, { padding: 11, marginBottom: 8 }]}>
