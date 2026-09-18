@@ -76,6 +76,55 @@ export async function creerDecisionMission({ missionId, visitId = null, subjectI
   return id;
 }
 
+export async function creerOuTrouverActeurMission({ missionId, name = null, company = null, role = null, siteId = null, actorType = 'responsible' } = {}) {
+  const db = await getDb();
+  await requireMission(db, missionId);
+  const normalizedName = txt(name);
+  const normalizedCompany = txt(company);
+  if (!normalizedName && !normalizedCompany) return null;
+  const existing = await db.getFirstAsync(
+    `SELECT id FROM mission_actors
+     WHERE mission_id=? AND COALESCE(site_id,'')=COALESCE(?, '')
+       AND LOWER(COALESCE(name,''))=LOWER(COALESCE(?, ''))
+       AND LOWER(COALESCE(company,''))=LOWER(COALESCE(?, ''))
+     LIMIT 1`,
+    [missionId, txt(siteId), normalizedName, normalizedCompany]
+  );
+  if (existing?.id) return existing.id;
+  const id = createId('mactor');
+  await db.runAsync(
+    `INSERT INTO mission_actors(id,mission_id,site_id,name,company,role,actor_type) VALUES(?,?,?,?,?,?,?)`,
+    [id, missionId, txt(siteId), normalizedName, normalizedCompany, txt(role), txt(actorType)]
+  );
+  return id;
+}
+
+export async function enregistrerDetailsPointMission({
+  pointId,
+  scopeType = null,
+  scopeId = null,
+  costEstimate = null,
+  costCurrency = 'EUR',
+  allocation = null,
+  criticality = null,
+  requestedAction = null,
+  referenceId = null,
+} = {}) {
+  const db = await getDb();
+  const point = await db.getFirstAsync(`SELECT id FROM mission_points WHERE id=?`, [pointId]);
+  if (!point) throw new Error('Point Mission introuvable.');
+  await db.runAsync(
+    `INSERT INTO mission_point_details(point_id,scope_type,scope_id,cost_estimate,cost_currency,allocation,criticality_json,requested_action,reference_id)
+     VALUES(?,?,?,?,?,?,?,?,?)
+     ON CONFLICT(point_id) DO UPDATE SET
+       scope_type=excluded.scope_type,scope_id=excluded.scope_id,cost_estimate=excluded.cost_estimate,cost_currency=excluded.cost_currency,
+       allocation=excluded.allocation,criticality_json=excluded.criticality_json,requested_action=excluded.requested_action,reference_id=excluded.reference_id,
+       updated_at=datetime('now')`,
+    [pointId, txt(scopeType), txt(scopeId), num(costEstimate), txt(costCurrency) || 'EUR', txt(allocation),
+      criticality ? JSON.stringify(criticality) : null, txt(requestedAction), txt(referenceId)]
+  );
+}
+
 export async function creerActionMission({
   missionId, sourcePointId = null, subjectId = null, siteId = null, locationId = null, equipmentId = null,
   label, description = null, priority = null, responsibleActorId = null, dueDate = null, dueText = null,
