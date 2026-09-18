@@ -7,6 +7,7 @@ name: Trigger Missions APK build
 # du test SQLite base neuve + migrations v39 -> v40 -> v41.
 # Validation UX : accueil Missions dédié, swipe accueil -> Missions et LAB dans Paramètres.
 # Rebuild demandé après intégration du lot V2 complet au 18/09/2026.
+# Revalidation compatibilité application après sujets chantier, levée de réserves, P2/P3 et livrables client.
 on:
   push:
     branches:
