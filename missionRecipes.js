@@ -794,12 +794,13 @@ const BASE_CAPABILITIES = Object.freeze({
   p3Dashboard: false,
   receptionBoard: false,
   expertiseBoard: false,
+  campaignDashboard: false,
 });
 
 const FAMILY_CAPABILITIES = Object.freeze({
   etude_audit: { scenarios: true },
   travaux_chantier: { tests: true, subjects: true },
-  campagne_multisites: { map: true },
+  campagne_multisites: { map: true, campaignDashboard: true },
   conformite_reglementaire: { tests: true },
 });
 
