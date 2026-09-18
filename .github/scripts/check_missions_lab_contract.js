@@ -83,7 +83,7 @@ requireText(app, 'function MissionHeader', 'dedicated Missions header');
 forbidText(app, "name: 'LabMetra'", 'LAB must not have a standalone route');
 requireText(db, "'draft'", 'draft mission creation');
 requireText(visit, 'Aucun champ de cette visite n’est obligatoire.', 'non-blocking field UX');
-requireText(visit, 'Terminer sans tout remplir', 'incomplete visit completion');
+requireText(visit, 'Terminer quand même', 'non-blocking incomplete visit completion');
 requireText(visit, '>＋ Point<', 'free point creation');
 requireText(exportFile, "'00_Meta'", 'versioned Excel workbook metadata');
 requireText(exportFile, 'MISSION_EXCEL_SHEETS', 'complete Excel schema export');
