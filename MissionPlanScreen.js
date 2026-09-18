@@ -9,6 +9,8 @@ import {
   calibrerPlan,
   choisirEtImporterPlanMission,
   creerCalquePlan,
+  deplacerPagePdfMission,
+  dupliquerPagePdfMission,
   exporterGeoJsonMission,
   exporterGeoPackageMission,
   exporterPlanPdfAnnote,
@@ -19,6 +21,7 @@ import {
   listerPlansMission,
   mesurerGeometriePlan,
   supprimerAnnotationPlan,
+  supprimerPagePdfMission,
   tournerPagePdfMission,
 } from './missionPlanDb.js';
 
@@ -308,14 +311,58 @@ export function MissionPlanScreen({ navigation, route }) {
     catch (e) { Alert.alert('Export impossible', String(e?.message || e)); }
   };
 
+  const adoptDerivedPdf = async (result, nextPage = page) => {
+    if (!result?.id) return;
+    await loadPlans();
+    setSelectedId(result.id);
+    setPage(Math.max(1, Number(nextPage) || 1));
+    setDraftPoints([]);
+  };
+
   const rotate = async () => {
     if (!selected || !String(selected.type).includes('pdf')) return;
     try {
       const result = await tournerPagePdfMission({ missionId, documentId: selected.id, pageNumber: page, angle: 90 });
-      await loadPlans();
-      setSelectedId(result.id);
-      setPage(1);
+      await adoptDerivedPdf(result, page);
     } catch (e) { Alert.alert('Rotation impossible', String(e?.message || e)); }
+  };
+
+  const duplicatePage = async () => {
+    if (!selected || !String(selected.type).includes('pdf')) return;
+    try {
+      const result = await dupliquerPagePdfMission({ missionId, documentId: selected.id, pageNumber: page });
+      await adoptDerivedPdf(result, page + 1);
+    } catch (e) { Alert.alert('Duplication impossible', String(e?.message || e)); }
+  };
+
+  const movePage = async (delta) => {
+    if (!selected || !String(selected.type).includes('pdf')) return;
+    try {
+      const result = await deplacerPagePdfMission({ missionId, documentId: selected.id, pageNumber: page, delta });
+      if (result?.unchanged) return;
+      await adoptDerivedPdf(result, Math.max(1, Math.min(pageCount, page + (delta < 0 ? -1 : 1))));
+    } catch (e) { Alert.alert('Déplacement impossible', String(e?.message || e)); }
+  };
+
+  const deletePage = () => {
+    if (!selected || !String(selected.type).includes('pdf')) return;
+    Alert.alert(
+      'Supprimer cette page ?',
+      'Le PDF source reste intact. METRA créera une nouvelle version dérivée sans cette page.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Créer la version sans cette page',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              const result = await supprimerPagePdfMission({ missionId, documentId: selected.id, pageNumber: page });
+              await adoptDerivedPdf(result, Math.max(1, Math.min(page, pageCount - 1)));
+            } catch (e) { Alert.alert('Suppression impossible', String(e?.message || e)); }
+          },
+        },
+      ]
+    );
   };
 
   const draftPx = draftPoints.map((p) => ({ x: p.x * canvas.width, y: p.y * canvas.height }));
@@ -347,6 +394,7 @@ export function MissionPlanScreen({ navigation, route }) {
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setLayerModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Calque</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={deleteLast}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>↶ Dernière annotation</Text></TouchableOpacity>
           {String(selected.type).includes('pdf') ? <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={rotate}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>↻ Rotation page</Text></TouchableOpacity> : null}
+          {String(selected.type).includes('pdf') ? <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={duplicatePage}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>⧉ Dupliquer page</Text></TouchableOpacity> : null}
           <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={exportAnnotated}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Exporter PDF annoté</Text></TouchableOpacity>
         </View>
 
@@ -367,11 +415,18 @@ export function MissionPlanScreen({ navigation, route }) {
           {tool === 'polygon' && draftPoints.length >= 3 ? <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={finishPolygon}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer polygone</Text></TouchableOpacity> : null}
         </View>
 
-        {pageCount > 1 ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}>
-          <TouchableOpacity disabled={page <= 1} onPress={() => { setPage((p) => Math.max(1, p - 1)); setDraftPoints([]); }} style={{ padding: 8 }}><Text style={{ color: page <= 1 ? COLORS.inkFaint : MISSION_COLORS.accentDark }}>← Page</Text></TouchableOpacity>
-          <Text style={{ color: COLORS.ink, fontWeight: '900' }}>{page} / {pageCount}</Text>
-          <TouchableOpacity disabled={page >= pageCount} onPress={() => { setPage((p) => Math.min(pageCount, p + 1)); setDraftPoints([]); }} style={{ padding: 8 }}><Text style={{ color: page >= pageCount ? COLORS.inkFaint : MISSION_COLORS.accentDark }}>Page →</Text></TouchableOpacity>
-        </View> : null}
+        {pageCount > 1 ? <>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 6 }}>
+            <TouchableOpacity disabled={page <= 1} onPress={() => { setPage((p) => Math.max(1, p - 1)); setDraftPoints([]); }} style={{ padding: 8 }}><Text style={{ color: page <= 1 ? COLORS.inkFaint : MISSION_COLORS.accentDark }}>← Page</Text></TouchableOpacity>
+            <Text style={{ color: COLORS.ink, fontWeight: '900' }}>{page} / {pageCount}</Text>
+            <TouchableOpacity disabled={page >= pageCount} onPress={() => { setPage((p) => Math.min(pageCount, p + 1)); setDraftPoints([]); }} style={{ padding: 8 }}><Text style={{ color: page >= pageCount ? COLORS.inkFaint : MISSION_COLORS.accentDark }}>Page →</Text></TouchableOpacity>
+          </View>
+          {String(selected.type).includes('pdf') ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginBottom: 9 }}>
+            <TouchableOpacity disabled={page <= 1} style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => movePage(-1)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Déplacer avant</Text></TouchableOpacity>
+            <TouchableOpacity disabled={page >= pageCount} style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => movePage(1)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Déplacer après</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={deletePage}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText, { color: '#8B3A3A' }]}>Supprimer page</Text></TouchableOpacity>
+          </View> : null}
+        </> : null}
 
         <View style={{ alignItems: 'center' }}>
           <Pressable onPress={onCanvasPress} style={{ width: canvas.width, height: canvas.height, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: MISSION_COLORS.accentLine, overflow: 'hidden' }}>
