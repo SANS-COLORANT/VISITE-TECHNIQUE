@@ -415,12 +415,13 @@ export async function listerAnnotationsPlan(documentId, pageNumber = 1) {
 
 export async function listerCiblesAnnotationMission(missionId) {
   const db = await getDb();
-  const [sites, locations, equipment, points, actions, measures, photos, installations, systems, networks, signatures] = await Promise.all([
+  const [sites, locations, equipment, points, actions, subjects, measures, photos, installations, systems, networks, signatures] = await Promise.all([
     db.getAllAsync('SELECT s.id,s.name AS label,s.city AS subtitle FROM mission_sites s JOIN mission_site_links ml ON ml.site_id=s.id WHERE ml.mission_id=? ORDER BY s.name', [missionId]),
     db.getAllAsync('SELECT l.id,l.label,s.name AS site_name,l.kind FROM mission_locations l JOIN mission_site_links ml ON ml.site_id=l.site_id LEFT JOIN mission_sites s ON s.id=l.site_id WHERE ml.mission_id=? ORDER BY s.name,l.sort_order,l.label', [missionId]),
     db.getAllAsync('SELECT e.id,e.type,e.brand,e.model,s.name AS site_name,l.label AS location_label FROM mission_equipment e JOIN mission_site_links ml ON ml.site_id=e.site_id LEFT JOIN mission_sites s ON s.id=e.site_id LEFT JOIN mission_locations l ON l.id=e.location_id WHERE ml.mission_id=? ORDER BY s.name,e.type,e.brand,e.model LIMIT 3000', [missionId]),
     db.getAllAsync('SELECT p.id,p.label,p.description,p.status,s.name AS site_name FROM mission_points p LEFT JOIN mission_sites s ON s.id=p.site_id WHERE p.mission_id=? ORDER BY p.created_at DESC LIMIT 1500', [missionId]),
     db.getAllAsync('SELECT a.id,a.label,a.status,s.name AS site_name FROM mission_actions a LEFT JOIN mission_sites s ON s.id=a.site_id WHERE a.mission_id=? ORDER BY a.created_at DESC LIMIT 1500', [missionId]),
+    db.getAllAsync('SELECT sub.id,sub.label,sub.status,sub.priority,s.name AS site_name FROM mission_subjects sub LEFT JOIN mission_sites s ON s.id=sub.site_id WHERE sub.mission_id=? ORDER BY sub.updated_at DESC LIMIT 1500', [missionId]),
     db.getAllAsync('SELECT m.id,m.type,m.value_number,m.value_text,m.unit,s.name AS site_name FROM mission_measures m LEFT JOIN mission_sites s ON s.id=m.site_id WHERE m.mission_id=? ORDER BY m.created_at DESC LIMIT 1500', [missionId]),
     db.getAllAsync('SELECT p.id,p.label,p.type,p.taken_at,s.name AS site_name FROM mission_photos p LEFT JOIN mission_sites s ON s.id=p.site_id WHERE p.mission_id=? ORDER BY COALESCE(p.taken_at,p.created_at) DESC LIMIT 1000', [missionId]),
     db.getAllAsync('SELECT i.id,i.label,i.type,s.name AS site_name FROM mission_installations i LEFT JOIN mission_sites s ON s.id=i.site_id WHERE i.mission_id=? ORDER BY s.name,i.label', [missionId]),
@@ -435,6 +436,7 @@ export async function listerCiblesAnnotationMission(missionId) {
     ...equipment.map((row) => ({ type: 'equipment', id: row.id, label: [row.type,row.brand,row.model].filter(Boolean).join(' · ') || 'Équipement', subtitle: [row.site_name,row.location_label].filter(Boolean).join(' · ') })),
     ...points.map((row) => ({ type: 'point', id: row.id, label: row.label || row.description || 'Point', subtitle: [row.site_name,row.status].filter(Boolean).join(' · ') })),
     ...actions.map((row) => ({ type: 'action', id: row.id, label: row.label || 'Action', subtitle: [row.site_name,row.status].filter(Boolean).join(' · ') })),
+    ...subjects.map((row) => ({ type: 'subject', id: row.id, label: row.label || 'Sujet', subtitle: [row.site_name,row.priority,row.status].filter(Boolean).join(' · ') })),
     ...measures.map((row) => ({ type: 'measure', id: row.id, label: row.type || 'Mesure', subtitle: [row.value_number ?? row.value_text, row.unit, row.site_name].filter((v) => v !== null && v !== undefined && v !== '').join(' · ') })),
     ...photos.map((row) => ({ type: 'photo', id: row.id, label: row.label || row.type || 'Photo', subtitle: [row.site_name,row.taken_at].filter(Boolean).join(' · ') })),
     ...installations.map((row) => ({ type: 'installation', id: row.id, label: row.label, subtitle: [row.site_name,row.type].filter(Boolean).join(' · ') })),
