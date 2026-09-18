@@ -68,7 +68,7 @@ async function loadClientData(missionId) {
   if (!mission) throw new Error('Mission introuvable.');
 
   const [
-    sites, visits, actions, points, equipment, measures, photos, documents, scenarios,
+    sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions,
   ] = await Promise.all([
     db.getAllAsync(
       `SELECT s.*
@@ -171,9 +171,30 @@ async function loadClientData(missionId) {
       'SELECT * FROM mission_scenarios WHERE mission_id=? ORDER BY CASE status WHEN \'retained\' THEN 0 ELSE 1 END,created_at',
       [missionId]
     ),
+    db.getAllAsync(
+      `SELECT sub.*,s.name AS site_name
+       FROM mission_subjects sub
+       LEFT JOIN mission_sites s ON s.id=sub.site_id
+       WHERE sub.mission_id=? ORDER BY sub.created_at`,
+      [missionId]
+    ),
+    db.getAllAsync(
+      `SELECT o.*,sub.label AS subject_label
+       FROM mission_observations o
+       LEFT JOIN mission_subjects sub ON sub.id=o.subject_id
+       WHERE o.mission_id=? ORDER BY COALESCE(o.observed_at,o.created_at)`,
+      [missionId]
+    ),
+    db.getAllAsync(
+      `SELECT d.*,sub.label AS subject_label
+       FROM mission_decisions d
+       LEFT JOIN mission_subjects sub ON sub.id=d.subject_id
+       WHERE d.mission_id=? ORDER BY COALESCE(d.decided_at,d.created_at)`,
+      [missionId]
+    ),
   ]);
 
-  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios };
+  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions };
 }
 
 function photoPath(photo, photoPathById) {
@@ -351,19 +372,29 @@ export async function construireClasseurClientMission(missionId, { photoPathById
     Code_postal: s.postal_code || '',
     Reference: s.reference || '',
   })), [32,42,24,14,22]);
-  addSheet(wb, '02_Actions', actionRows(data, photoPathById), [24,26,32,38,46,30,16,16,30,18,15,18,20,34,34,21,21]);
-  addSheet(wb, '03_Reserves', reserveRows(data, photoPathById), [24,26,32,38,46,16,16,30,38,18,18,20,34,34,21,21]);
-  addSheet(wb, '04_Inventaire', inventoryRows(data), [24,26,30,28,28,30,22,26,18,18,22,18,20,22,18]);
-  addSheet(wb, '05_Mesures', measureRows(data), [21,24,26,32,30,16,12,18,28,14,14,20,28,36]);
-  addSheet(wb, '06_Visites', data.visits.map((v) => ({
+  addSheet(wb, '02_Sujets', data.subjects.map((subject) => ({
+    Site: subject.site_name || '',
+    Sujet: subject.label || '',
+    Description: subject.description || '',
+    Statut: labelStatus(subject.status),
+    Priorite: subject.priority || '',
+    Constats: data.observations.filter((row) => row.subject_id === subject.id).map((row) => [row.observed_at || row.created_at || '', row.content || ''].filter(Boolean).join(' · ')).join(' | '),
+    Decisions: data.decisions.filter((row) => row.subject_id === subject.id).map((row) => [row.decided_at || row.created_at || '', row.label || '', row.description || ''].filter(Boolean).join(' · ')).join(' | '),
+    Actions_ouvertes: data.actions.filter((row) => row.subject_id === subject.id && !['closed','cancelled'].includes(row.status)).map((row) => row.label).join(' | '),
+  })), [24,36,54,16,16,70,70,60]);
+  addSheet(wb, '03_Actions', actionRows(data, photoPathById), [24,26,32,38,46,30,16,16,30,18,15,18,20,34,34,21,21]);
+  addSheet(wb, '04_Reserves', reserveRows(data, photoPathById), [24,26,32,38,46,16,16,30,38,18,18,20,34,34,21,21]);
+  addSheet(wb, '05_Inventaire', inventoryRows(data), [24,26,30,28,28,30,22,26,18,18,22,18,20,22,18]);
+  addSheet(wb, '06_Mesures', measureRows(data), [21,24,26,32,30,16,12,18,28,14,14,20,28,36]);
+  addSheet(wb, '07_Visites', data.visits.map((v) => ({
     Date: v.visit_date || v.created_at || '',
     Site: v.site_name || '',
     Type_visite: v.visit_type || '',
     Statut: labelStatus(v.status),
     Commentaire: v.comment || '',
   })), [21,28,30,16,55]);
-  addSheet(wb, '07_Photos', photoRows(data, photoPathById), [21,24,26,32,20,34,18,34,34,60]);
-  addSheet(wb, '08_Documents', data.documents.map((d) => ({
+  addSheet(wb, '08_Photos', photoRows(data, photoPathById), [21,24,26,32,20,34,18,34,34,60]);
+  addSheet(wb, '09_Documents', data.documents.map((d) => ({
     Date: d.document_date || d.created_at || '',
     Site: d.site_name || '',
     Localisation: d.location_label || '',
@@ -374,7 +405,7 @@ export async function construireClasseurClientMission(missionId, { photoPathById
   })), [21,24,26,32,42,20,60]);
 
   if (data.scenarios.length) {
-    addSheet(wb, '09_Scenarios', data.scenarios.map((s) => ({
+    addSheet(wb, '10_Scenarios', data.scenarios.map((s) => ({
       Scenario: s.label || '',
       Statut: labelStatus(s.status),
       Description: s.description || '',
