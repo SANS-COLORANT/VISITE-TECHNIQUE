@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Executable SQLite validation for METRA Missions schema v40 -> v42."""
+"""Executable SQLite validation for METRA Missions schema v40 -> v43."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ MIGRATIONS = [
     (40, "missions_core", ROOT / "database" / "migrations" / "040_missions_core.js"),
     (41, "missions_architecture_v2", ROOT / "database" / "migrations" / "041_missions_architecture.js"),
     (42, "missions_complete_tooling", ROOT / "database" / "migrations" / "042_missions_complete_tooling.js"),
+    (43, "missions_measurement_campaigns", ROOT / "database" / "migrations" / "043_missions_measurement_campaigns.js"),
 ]
 
 
@@ -162,10 +163,24 @@ def seed_v42(conn: sqlite3.Connection) -> None:
     assert_integrity(conn, "donnees v42")
 
 
+def seed_v43(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        "INSERT INTO mission_measure_campaigns(id,mission_id,site_id,label,measure_type,unit,status,default_expected_value,comparison_group) VALUES(?,?,?,?,?,?,?,?,?)",
+        ("camp1","m1","s1","Campagne ECS initiale","Température","C","in_progress",55,"ecs-temp"),
+    )
+    conn.execute(
+        "INSERT INTO mission_measure_campaign_points(id,campaign_id,mission_id,site_id,location_id,equipment_id,external_ref,label,point_type,sort_order,status,expected_value,measured_value,measure_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+        ("campp1","camp1","m1","s1","loc1","e1","equipment:e1","Pompe bouclage","equipment",0,"measured",55,62.5,"me1"),
+    )
+    conn.commit()
+    assert_integrity(conn, "donnees v43")
+
+
 def exercise(conn: sqlite3.Connection) -> None:
     seed_core(conn)
     seed_v41(conn)
     seed_v42(conn)
+    seed_v43(conn)
     conn.execute("UPDATE mission_visits SET status='completed', completed_at=datetime('now') WHERE id='v1'")
     conn.commit()
     assert_integrity(conn, "visite incomplete terminee")
@@ -186,6 +201,16 @@ def exercise(conn: sqlite3.Connection) -> None:
     measure_cols = {row[1] for row in conn.execute("PRAGMA table_info(mission_measures)")}
     if "location_id" not in measure_cols:
         raise AssertionError("Colonne v42 manquante: mission_measures.location_id")
+    campaign_tables = {
+        row[0]
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master WHERE type='table' AND name IN ('mission_measure_campaigns','mission_measure_campaign_points')"
+        )
+    }
+    if campaign_tables != {"mission_measure_campaigns", "mission_measure_campaign_points"}:
+        raise AssertionError(f"Tables v43 campagnes manquantes: {campaign_tables!r}")
+    if count(conn, "mission_measure_campaigns") != 1 or count(conn, "mission_measure_campaign_points") != 1:
+        raise AssertionError("Les donnees de campagne v43 ne sont pas exploitables.")
 
     conn.execute("DELETE FROM missions WHERE id='m1'")
     conn.commit()
@@ -230,9 +255,9 @@ def run_case(start_version: int) -> None:
 
 
 def main() -> None:
-    for version in (39, 40, 41):
+    for version in (39, 40, 41, 42):
         run_case(version)
-    print(f"SQLite {sqlite3.sqlite_version}: Missions v40-v42 valides sur upgrades v39, v40 et v41.")
+    print(f"SQLite {sqlite3.sqlite_version}: Missions v40-v43 valides sur upgrades v39, v40, v41 et v42.")
 
 
 if __name__ == "__main__":
