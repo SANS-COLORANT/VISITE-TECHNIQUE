@@ -792,6 +792,7 @@ const BASE_CAPABILITIES = Object.freeze({
   reserveClearance: false,
   subjects: false,
   p3Dashboard: false,
+  receptionBoard: false,
 });
 
 const FAMILY_CAPABILITIES = Object.freeze({
@@ -818,10 +819,10 @@ const TYPE_CAPABILITIES = Object.freeze({
   amo_travaux: { tests: true, subjects: true },
   moe_travaux: { tests: true, subjects: true },
   det_chantier: { tests: true, subjects: true },
-  commissioning: { tests: true },
-  opr_reception: { tests: true, signature: true },
+  commissioning: { tests: true, receptionBoard: true },
+  opr_reception: { tests: true, signature: true, receptionBoard: true },
   levee_reserves: { tests: true, signature: true, reserveClearance: true },
-  passation_travaux_exploitant: { tests: true, signature: true },
+  passation_travaux_exploitant: { tests: true, signature: true, receptionBoard: true },
   controle_exploitation: { tests: true },
   assistance_p2_p3: { scenarios: true, tests: true, p3Dashboard: true },
   preallumage_reprise_saison: { tests: true },
