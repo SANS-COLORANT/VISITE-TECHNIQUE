@@ -209,7 +209,7 @@ export function MissionVisitScreen({ navigation, route }) {
   const setContextEquipmentVerification = async (status) => {
     if (!contextEquipmentId || !actualMissionId) return;
     try {
-      await modifierEquipementMission(contextEquipmentId, { verificationStatus: status });
+      await modifierEquipementMission(contextEquipmentId, { missionId: actualMissionId, verificationStatus: status, changeComment: 'Statut terrain' });
       setContextEquipment((rows) => rows.map((row) => row.id === contextEquipmentId ? { ...row, verification_status: status } : row));
       const next = await chargerContexteAutoVisiteMission(actualMissionId, {
         siteId: data?.visit?.site_id || null,
@@ -225,7 +225,7 @@ export function MissionVisitScreen({ navigation, route }) {
   const setContextEquipmentLifecycle = async (status) => {
     if (!contextEquipmentId || !actualMissionId) return;
     try {
-      await modifierEquipementMission(contextEquipmentId, { lifecycleStatus: status });
+      await modifierEquipementMission(contextEquipmentId, { missionId: actualMissionId, lifecycleStatus: status, changeComment: 'Cycle projet depuis visite terrain' });
       setContextEquipment((rows) => rows.map((row) => row.id === contextEquipmentId ? { ...row, lifecycle_status: status } : row));
       const next = await chargerContexteAutoVisiteMission(actualMissionId, {
         siteId: data?.visit?.site_id || null,
