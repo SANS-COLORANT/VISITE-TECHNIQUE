@@ -73,7 +73,7 @@ function SeriesChart({ series, width }) {
   </Svg>;
 }
 
-export function MissionMeasurementsScreen({ route }) {
+export function MissionMeasurementsScreen({ navigation, route }) {
   const missionId = route?.params?.missionId;
   const { width } = useWindowDimensions();
   const [data, setData] = useState({ measures: [], series: [] });
@@ -209,6 +209,7 @@ export function MissionMeasurementsScreen({ route }) {
         <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setMeasureVisible(true)}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Mesure</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setTypeVisible(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Type personnalisé</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setInstrumentVisible(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Instrument</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionMeasurementCampaign', { missionId })}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Campagnes terrain · valeur → suivant</Text></TouchableOpacity>
       </View>
 
       <View style={[missionStyles.card, { padding: 12, marginTop: 12 }]}>
