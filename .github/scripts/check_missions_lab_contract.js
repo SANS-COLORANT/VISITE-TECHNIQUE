@@ -231,6 +231,12 @@ requireText(read('MissionExpertiseScreen.js'), 'CONCLUSION', 'separate expertise
 requireText(read('missionReportDb.js'), "key: 'expertise'", 'expertise report chronology');
 requireText(read('missionClientExcelExport.js'), "'02B_Expertise'", 'expertise client Excel sheet');
 requireText(recipes, 'expertiseBoard: true', 'dedicated expertise capability');
+requireText(app, "MissionCampaignDashboard", 'multi-site campaign cockpit route');
+requireText(read('MissionCampaignDashboardScreen.js'), 'Cockpit léger pour 5 comme pour plusieurs centaines de sites', 'large campaign cockpit UX');
+requireText(read('MissionCampaignDashboardScreen.js'), 'Continuer · ', 'next site continuation UX');
+requireText(read('MissionCampaignDashboardScreen.js'), 'Accès / replanifier', 'campaign access exception status');
+requireText(read('missionClientExcelExport.js'), "'01B_Progression_sites'", 'multi-site campaign client Excel progress');
+requireText(recipes, 'campaignDashboard: true', 'campaign dashboard family capability');
 requireText(app, "MissionReceptionBoard", 'OPR commissioning handover board route');
 requireText(read('MissionReceptionBoardScreen.js'), 'Ouvrages · statut en 1 geste', 'one-tap reception equipment board');
 requireText(read('MissionReceptionBoardScreen.js'), 'Aucun inventaire n’est recréé pour cette phase.', 'reception reuses Mission inventory');
