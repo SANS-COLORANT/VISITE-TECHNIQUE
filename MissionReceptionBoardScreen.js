@@ -4,6 +4,8 @@ import { getDb } from './db.js';
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { modifierEquipementMission } from './missionEquipmentDb.js';
+import { creerPointMission } from './missionsDb.js';
+import { createId } from './database/ids.js';
 
 const STATUS_BY_TYPE = Object.freeze({
   opr_reception: [
@@ -30,6 +32,25 @@ const LABEL_BY_TYPE = Object.freeze({
   commissioning: 'Mise en service / commissioning',
   passation_travaux_exploitant: 'Passation travaux → exploitant',
 });
+
+const PASSATION_CHECKS = Object.freeze([
+  ['documents', 'Documents remis / disponibles'],
+  ['stocks_index', 'Stocks, index et relevés utiles'],
+  ['materiel_consommables', 'Matériel / consommables remis'],
+  ['acces', 'Clés, badges, codes et moyens d’accès'],
+  ['inventaire', 'Conformité inventaire ↔ terrain'],
+  ['etat_installations', 'État des installations / anomalies'],
+  ['essais', 'Essais fonctionnels représentatifs'],
+  ['reserves', 'Réserves de prise en charge'],
+  ['annexes', 'Annexes / pièces jointes au PV'],
+]);
+
+const PASSATION_RESULTS = Object.freeze([
+  ['ok', 'OK', 'closed'],
+  ['a_regulariser', 'À régulariser', 'open'],
+  ['non_verifie', 'Non vérifié', 'to_check'],
+  ['non_applicable', 'N/A', 'no_follow_up'],
+]);
 
 function Chip({ label, selected, onPress }) {
   return <TouchableOpacity
@@ -68,6 +89,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
   const [equipmentFilter, setEquipmentFilter] = useState('all');
   const [displayLimit, setDisplayLimit] = useState(120);
   const [activeModes, setActiveModes] = useState({ static: true, dynamic: true, clearance: true });
+  const [preparingPassation, setPreparingPassation] = useState(false);
 
   const load = useCallback(async () => {
     if (!missionId) return;
@@ -160,6 +182,71 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
     }
   };
 
+  const passationChecks = useMemo(
+    () => points.filter((row) => row.type === 'control' && String(row.label || '').startsWith('PV Passation · ')),
+    [points]
+  );
+
+  const preparePassationChecks = async () => {
+    if (preparingPassation) return;
+    setPreparingPassation(true);
+    try {
+      const existing = new Set(passationChecks.map((row) => String(row.label || '').replace(/^PV Passation · /, '').trim().toLowerCase()));
+      let added = 0;
+      for (const [,label] of PASSATION_CHECKS) {
+        if (existing.has(label.toLowerCase())) continue;
+        await creerPointMission({
+          missionId,
+          type: 'control',
+          label: 'PV Passation · ' + label,
+          description: 'Contrôle de passation à confirmer contradictoirement.',
+          status: 'open',
+          qualification: 'non_verifie',
+          visibility: 'report',
+        });
+        added += 1;
+      }
+      await load();
+      if (!added) return;
+    } finally {
+      setPreparingPassation(false);
+    }
+  };
+
+  const setPassationResult = async (row, qualification, status) => {
+    if (busyId) return;
+    setBusyId(row.id);
+    try {
+      const db = await getDb();
+      const before = row.status || 'open';
+      const now = new Date().toISOString();
+      await db.withTransactionAsync(async () => {
+        await db.runAsync(
+          `UPDATE mission_points SET
+            qualification=?,status=?,closed_at=?,updated_at=datetime('now')
+           WHERE id=? AND mission_id=?`,
+          [qualification,status,['closed','no_follow_up'].includes(status) ? now : null,row.id,missionId]
+        );
+        await db.runAsync(
+          `INSERT INTO mission_point_history(
+            id,point_id,status_before,status_after,comment,source
+          ) VALUES(?,?,?,?,?,?)`,
+          [
+            createId('mph'),
+            row.id,
+            before,
+            status,
+            'PV de passation · ' + qualification,
+            'mission_passation_pv',
+          ]
+        );
+      });
+      await load();
+    } finally {
+      setBusyId(null);
+    }
+  };
+
   const filteredEquipment = useMemo(() => {
     if (equipmentFilter === 'issues') return equipment.filter((row) => ['different','non_retrouve','a_verifier'].includes(row.verification_status));
     if (equipmentFilter === 'reserved') return equipment.filter((row) => row.lifecycle_status === 'avec_reserve');
@@ -192,6 +279,24 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
           <Chip label="OPR dynamique" selected={activeModes.dynamic} onPress={() => toggleMode('dynamic')} />
           <Chip label="Levée / recontrôle" selected={activeModes.clearance} onPress={() => toggleMode('clearance')} />
         </View>
+      </View> : null}
+      {mission?.type === 'passation_travaux_exploitant' ? <View style={[missionStyles.card, { padding: 11, marginTop: 12 }]}>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontWeight: '900', letterSpacing: 0.45 }}>PV DE PASSATION · CONTRADICTOIRE</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 8.8, lineHeight: 12, marginTop: 3 }}>
+          Le PV organise la remise de l’exploitation : documents, stocks/index, moyens d’accès, inventaire, état des installations, essais, réserves et annexes.
+        </Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.1, lineHeight: 11, marginTop: 5 }}>
+          Ce PV ne vaut pas contrôle réglementaire de conformité. Les contrôles réglementaires restent du ressort des organismes habilités lorsqu’ils sont requis.
+        </Text>
+        <TouchableOpacity
+          style={[styles.btnSecondary, missionStyles.secondaryButton, { alignSelf: 'flex-start', marginTop: 8 }]}
+          disabled={preparingPassation}
+          onPress={preparePassationChecks}
+        >
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>
+            {preparingPassation ? 'Préparation…' : passationChecks.length ? 'Compléter / vérifier le PV' : 'Préparer le PV de passation'}
+          </Text>
+        </TouchableOpacity>
       </View> : null}
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 13 }}>
@@ -287,6 +392,21 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
             <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Ouvrir le recontrôle</Text>
           </TouchableOpacity>
         </View>
+      </> : null}
+
+      {mission?.type === 'passation_travaux_exploitant' && passationChecks.length ? <>
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>PV de passation · points formels</Text>
+        {passationChecks.map((row) => <View key={row.id} style={[missionStyles.card, { padding: 10, marginBottom: 7 }]}>
+          <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }}>{String(row.label || '').replace(/^PV Passation · /, '')}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 7 }}>
+            {PASSATION_RESULTS.map(([key,label,status]) => <Chip
+              key={key}
+              label={label}
+              selected={row.qualification === key}
+              onPress={() => setPassationResult(row,key,status)}
+            />)}
+          </View>
+        </View>)}
       </> : null}
 
       {documents.length ? <>
