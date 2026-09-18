@@ -820,7 +820,7 @@ const TYPE_CAPABILITIES = Object.freeze({
   moe_travaux: { tests: true, subjects: true },
   det_chantier: { tests: true, subjects: true },
   commissioning: { tests: true, receptionBoard: true },
-  opr_reception: { tests: true, signature: true, receptionBoard: true },
+  opr_reception: { tests: true, signature: true, receptionBoard: true, reserveClearance: true },
   levee_reserves: { tests: true, signature: true, reserveClearance: true },
   passation_travaux_exploitant: { tests: true, signature: true, receptionBoard: true },
   controle_exploitation: { tests: true },
