@@ -369,6 +369,7 @@ const TYPES = Object.freeze({
       ['mis_en_service', 'Mis en service'],
     ],
     quickActions: [
+      action('receptionBoard', 'Tableau mise en service', 'navigate', { route: 'MissionReceptionBoard' }),
       action('tests', 'Essai fonctionnel', 'navigate', { route: 'MissionTests' }),
       action('measure', 'Mesure', 'measure'),
       action('equipment', 'Équipement / réglages', 'navigate', { route: 'MissionEquipment' }),
@@ -401,6 +402,7 @@ const TYPES = Object.freeze({
       ['receptionne', 'Réceptionné'],
     ],
     quickActions: [
+      action('receptionBoard', 'Tableau OPR', 'navigate', { route: 'MissionReceptionBoard' }),
       action('equipment', 'Ouvrages / équipements', 'navigate', { route: 'MissionEquipment' }),
       action('tests', 'Essais OPR', 'navigate', { route: 'MissionTests' }),
       action('reserve', '＋ Réserve OPR', 'point', { preset: point('Réserve OPR / réception', 'reserve', { priority: 'À lever' }) }),
@@ -431,6 +433,7 @@ const TYPES = Object.freeze({
       ['mis_en_service', 'Mis en service'],
     ],
     quickActions: [
+      action('receptionBoard', 'Tableau passation', 'navigate', { route: 'MissionReceptionBoard' }),
       action('equipment', 'Inventaire contradictoire', 'navigate', { route: 'MissionEquipment' }),
       action('tests', 'Démonstration / essais', 'navigate', { route: 'MissionTests' }),
       action('documents', 'DOE / accès / notices', 'navigate', { route: 'MissionDocuments' }),
