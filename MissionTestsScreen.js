@@ -1,0 +1,295 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { getDb } from './db.js';
+import { COLORS, styles } from './styles.js';
+import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import {
+  chargerExecutionEssai,
+  creerProtocoleEssaiComplet,
+  demarrerExecutionEssai,
+  enregistrerEtapeEssai,
+  listerExecutionsEssaisMission,
+  listerProtocolesEssaisMission,
+  terminerExecutionEssai,
+} from './missionTestDb.js';
+import { creerPointMission } from './missionsDb.js';
+
+const STATUS_OPTIONS = [
+  ['ok', 'OK'],
+  ['deviation', 'Écart'],
+  ['not_tested', 'Non testé'],
+  ['impossible', 'Impossible'],
+  ['to_repeat', 'À reprendre'],
+];
+
+function Chip({ label, selected, onPress }) {
+  return <TouchableOpacity
+    onPress={onPress}
+    style={{
+      borderWidth: 1,
+      borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
+      backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF',
+      borderRadius: 10,
+      paddingHorizontal: 8,
+      paddingVertical: 7,
+      marginRight: 6,
+      marginBottom: 6,
+    }}
+  ><Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{label}</Text></TouchableOpacity>;
+}
+
+function parseSteps(text) {
+  return String(text || '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean).map((line) => {
+    const p = line.split('|').map((v) => v.trim());
+    return {
+      label: p[0] || 'Étape',
+      expectedText: p[1] || '',
+      referenceValue: p[2] || '',
+      unit: p[3] || '',
+      tolerancePct: p[4] || '',
+    };
+  });
+}
+
+export function MissionTestsScreen({ route }) {
+  const missionId = route?.params?.missionId;
+  const [protocols, setProtocols] = useState([]);
+  const [runs, setRuns] = useState([]);
+  const [sites, setSites] = useState([]);
+  const [equipment, setEquipment] = useState([]);
+  const [createVisible, setCreateVisible] = useState(false);
+  const [protocolDraft, setProtocolDraft] = useState({ label: '', type: '', description: '', steps: '' });
+  const [startProtocol, setStartProtocol] = useState(null);
+  const [startSiteId, setStartSiteId] = useState(null);
+  const [startEquipmentId, setStartEquipmentId] = useState(null);
+  const [runData, setRunData] = useState(null);
+  const [stepEdits, setStepEdits] = useState({});
+
+  const load = useCallback(async () => {
+    if (!missionId) return;
+    const db = await getDb();
+    const [p, r, s, e] = await Promise.all([
+      listerProtocolesEssaisMission(missionId),
+      listerExecutionsEssaisMission(missionId),
+      db.getAllAsync('SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name', [missionId]),
+      db.getAllAsync('SELECT e.*,s.name AS site_name FROM mission_equipment e JOIN mission_site_links l ON l.site_id=e.site_id LEFT JOIN mission_sites s ON s.id=e.site_id WHERE l.mission_id=? ORDER BY s.name,e.type,e.brand,e.model LIMIT 1000', [missionId]),
+    ]);
+    setProtocols(p || []);
+    setRuns(r || []);
+    setSites(s || []);
+    setEquipment(e || []);
+  }, [missionId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const selectedEquipment = useMemo(() => equipment.filter((e) => !startSiteId || e.site_id === startSiteId), [equipment, startSiteId]);
+
+  const saveProtocol = async () => {
+    const steps = parseSteps(protocolDraft.steps);
+    if (!protocolDraft.label.trim() || !steps.length) {
+      Alert.alert('À compléter', 'Indique un nom de protocole et au moins une étape.');
+      return;
+    }
+    await creerProtocoleEssaiComplet({
+      missionId,
+      label: protocolDraft.label,
+      type: protocolDraft.type,
+      description: protocolDraft.description,
+      steps,
+    });
+    setProtocolDraft({ label: '', type: '', description: '', steps: '' });
+    setCreateVisible(false);
+    await load();
+  };
+
+  const startRun = async () => {
+    if (!startProtocol) return;
+    const run = await demarrerExecutionEssai({
+      missionId,
+      protocolId: startProtocol.id,
+      siteId: startSiteId,
+      equipmentId: startEquipmentId,
+    });
+    setStartProtocol(null);
+    setRunData(run);
+    setStepEdits(Object.fromEntries((run.steps || []).map((step) => [step.id, {
+      status: step.result_status || '',
+      value: step.result_number === null || step.result_number === undefined ? '' : String(step.result_number),
+      text: step.result_text || '',
+      comment: step.result_comment || '',
+    }])));
+  };
+
+  const openRun = async (runId) => {
+    const run = await chargerExecutionEssai(runId);
+    setRunData(run);
+    setStepEdits(Object.fromEntries((run.steps || []).map((step) => [step.id, {
+      status: step.result_status || '',
+      value: step.result_number === null || step.result_number === undefined ? '' : String(step.result_number),
+      text: step.result_text || '',
+      comment: step.result_comment || '',
+    }])));
+  };
+
+  const saveStep = async (step) => {
+    const edit = stepEdits[step.id] || {};
+    await enregistrerEtapeEssai({
+      runId: runData.run.id,
+      step,
+      status: edit.status || null,
+      value: edit.value,
+      valueText: edit.text,
+      unit: step.reference_unit || '',
+      comment: edit.comment,
+    });
+    setRunData(await chargerExecutionEssai(runData.run.id));
+  };
+
+  const makePoint = async (step) => {
+    const edit = stepEdits[step.id] || {};
+    const pointId = await creerPointMission({
+      missionId,
+      siteId: runData?.run?.site_id,
+      visitId: runData?.run?.visit_id,
+      type: 'control',
+      label: 'Essai · ' + step.label,
+      description: [step.expected_text ? 'Attendu : ' + step.expected_text : '', edit.value ? 'Mesuré : ' + edit.value + ' ' + (step.reference_unit || '') : '', edit.comment || ''].filter(Boolean).join('\n'),
+      priority: 'À contrôler',
+    });
+    await enregistrerEtapeEssai({
+      runId: runData.run.id,
+      step,
+      status: edit.status || 'deviation',
+      value: edit.value,
+      valueText: edit.text,
+      unit: step.reference_unit || '',
+      comment: edit.comment,
+      pointId,
+    });
+    Alert.alert('Point créé', 'Le résultat d’essai reste lié au point de suivi.');
+  };
+
+  const finishRun = async () => {
+    for (const step of runData?.steps || []) await saveStep(step);
+    await terminerExecutionEssai(runData.run.id);
+    setRunData(null);
+    await load();
+  };
+
+  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
+      <Text style={[styles.sectionTitle, missionStyles.title]}>Essais · Commissioning</Text>
+      <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
+        Un protocole conserve l’attendu ; chaque exécution conserve l’observé. Les écarts peuvent créer un point sans perdre le résultat d’essai.
+      </Text>
+
+      <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { alignSelf: 'flex-start', marginTop: 12 }]} onPress={() => setCreateVisible(true)}>
+        <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Protocole</Text>
+      </TouchableOpacity>
+
+      <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Protocoles</Text>
+      {protocols.map((p) => <View key={p.id} style={[missionStyles.card, { padding: 12, marginBottom: 8 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11.5, fontWeight: '900' }}>{p.label}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 2 }}>{p.type || 'Protocole'} · {p.steps.length} étape(s)</Text>
+            {p.description ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, marginTop: 4 }}>{p.description}</Text> : null}
+          </View>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => { setStartProtocol(p); setStartSiteId(sites?.[0]?.id || null); setStartEquipmentId(null); }}>
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Démarrer</Text>
+          </TouchableOpacity>
+        </View>
+      </View>)}
+
+      <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Exécutions</Text>
+      {runs.map((r) => <TouchableOpacity key={r.id} onPress={() => openRun(r.id)} style={[missionStyles.card, { padding: 11, marginBottom: 7 }]}>
+        <View style={{ flexDirection: 'row' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 10.8 }}>{r.protocol_label}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 2 }}>{[r.site_name, r.equipment_type].filter(Boolean).join(' · ') || 'Sans rattachement'}</Text>
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ color: r.status === 'completed' ? MISSION_COLORS.accentDark : '#8A5B14', fontSize: 9, fontWeight: '900' }}>{r.status}</Text>
+            <Text style={{ color: Number(r.deviations_count || 0) ? '#8B3A3A' : COLORS.inkFaint, fontSize: 8.7 }}>{r.deviations_count || 0} écart(s)</Text>
+          </View>
+        </View>
+      </TouchableOpacity>)}
+    </ScrollView>
+
+    <Modal visible={createVisible} transparent animationType="fade" onRequestClose={() => setCreateVisible(false)}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>Nouveau protocole</Text>
+        <TextInput style={[styles.input, missionStyles.input]} value={protocolDraft.label} onChangeText={(v) => setProtocolDraft((p) => ({ ...p, label: v }))} placeholder="Nom : Essai antigel CTA, pompe, régulation…" />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={protocolDraft.type} onChangeText={(v) => setProtocolDraft((p) => ({ ...p, type: v }))} placeholder="Type" />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={protocolDraft.description} onChangeText={(v) => setProtocolDraft((p) => ({ ...p, description: v }))} placeholder="Description" />
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 10, marginBottom: 4 }}>UNE ÉTAPE PAR LIGNE · étape | attendu | référence | unité | tolérance %</Text>
+        <TextInput
+          style={[styles.input, missionStyles.input, { minHeight: 140, textAlignVertical: 'top' }]}
+          multiline
+          value={protocolDraft.steps}
+          onChangeText={(v) => setProtocolDraft((p) => ({ ...p, steps: v }))}
+          placeholder={'Ouverture vanne froid | La vanne s’ouvre | 100 | % | 5\nDébit soufflage | Conforme projet | 720 | m³/h | 10'}
+        />
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setCreateVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveProtocol}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
+        </View>
+      </View></View>
+    </Modal>
+
+    <Modal visible={!!startProtocol} transparent animationType="fade" onRequestClose={() => setStartProtocol(null)}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>Démarrer · {startProtocol?.label}</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginBottom: 5 }}>SITE (FACULTATIF)</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }}>
+          {sites.map((s) => <Chip key={s.id} label={s.name} selected={startSiteId === s.id} onPress={() => { setStartSiteId(s.id); setStartEquipmentId(null); }} />)}
+        </View>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginBottom: 5 }}>ÉQUIPEMENT (FACULTATIF)</Text>
+        <ScrollView style={{ maxHeight: 190 }}>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+            {selectedEquipment.map((e) => <Chip key={e.id} label={[e.type, e.brand, e.model].filter(Boolean).join(' · ')} selected={startEquipmentId === e.id} onPress={() => setStartEquipmentId(startEquipmentId === e.id ? null : e.id)} />)}
+          </View>
+        </ScrollView>
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setStartProtocol(null)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={startRun}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Démarrer</Text></TouchableOpacity>
+        </View>
+      </View></View>
+    </Modal>
+
+    <Modal visible={!!runData} animationType="slide" onRequestClose={() => setRunData(null)}>
+      <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 10, backgroundColor: MISSION_COLORS.accentStrong, flexDirection: 'row', alignItems: 'center' }}>
+          <TouchableOpacity onPress={() => setRunData(null)} style={{ paddingRight: 12 }}><Text style={{ color: '#FFFFFF', fontSize: 21 }}>←</Text></TouchableOpacity>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: '#BFE2CC', fontSize: 8.5, fontWeight: '900' }}>ESSAI MISSION</Text>
+            <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 14 }}>{runData?.run?.protocol_label}</Text>
+          </View>
+        </View>
+        <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 90 }}>
+          {(runData?.steps || []).map((step, index) => {
+            const edit = stepEdits[step.id] || {};
+            return <View key={step.id} style={[missionStyles.card, { padding: 12, marginBottom: 10 }]}>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11.5, fontWeight: '900' }}>{index + 1}. {step.label}</Text>
+              {step.expected_text ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, marginTop: 4 }}>Attendu : {step.expected_text}</Text> : null}
+              {step.reference_number !== null && step.reference_number !== undefined ? <Text style={{ color: COLORS.inkFaint, fontSize: 9, marginTop: 2 }}>Référence : {step.reference_number} {step.reference_unit || ''}{step.tolerance_pct !== null && step.tolerance_pct !== undefined ? ' · ±' + step.tolerance_pct + '%' : ''}</Text> : null}
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 9 }}>
+                <TextInput style={[styles.input, missionStyles.input, { flex: 1 }]} keyboardType="decimal-pad" value={edit.value || ''} onChangeText={(v) => setStepEdits((all) => ({ ...all, [step.id]: { ...edit, value: v } }))} placeholder="Valeur observée" />
+                <Text style={{ alignSelf: 'center', color: COLORS.inkSoft, fontSize: 10 }}>{step.reference_unit || ''}</Text>
+              </View>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
+                {STATUS_OPTIONS.map(([key, label]) => <Chip key={key} label={label} selected={edit.status === key} onPress={() => setStepEdits((all) => ({ ...all, [step.id]: { ...edit, status: key } }))} />)}
+              </View>
+              <TextInput style={[styles.input, missionStyles.input, { marginTop: 5 }]} value={edit.comment || ''} onChangeText={(v) => setStepEdits((all) => ({ ...all, [step.id]: { ...edit, comment: v } }))} placeholder="Commentaire / observation" />
+              <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => saveStep(step)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Enregistrer</Text></TouchableOpacity>
+                <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => makePoint(step)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Créer un point</Text></TouchableOpacity>
+              </View>
+            </View>;
+          })}
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { alignItems: 'center', marginTop: 4 }]} onPress={finishRun}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Terminer l’essai</Text></TouchableOpacity>
+        </ScrollView>
+      </View>
+    </Modal>
+  </View>;
+}
