@@ -362,6 +362,12 @@ const TYPES = Object.freeze({
       ['inaccessible', 'Inaccessible'],
       ['a_verifier', 'À vérifier'],
     ],
+    equipmentLifecycleStatuses: [
+      ['installe', 'Installé'],
+      ['controle', 'Contrôlé'],
+      ['avec_reserve', 'Avec réserve'],
+      ['mis_en_service', 'Mis en service'],
+    ],
     quickActions: [
       action('tests', 'Essai fonctionnel', 'navigate', { route: 'MissionTests' }),
       action('measure', 'Mesure', 'measure'),
@@ -388,6 +394,12 @@ const TYPES = Object.freeze({
       ['inaccessible', 'Inaccessible'],
       ['a_verifier', 'À vérifier'],
     ],
+    equipmentLifecycleStatuses: [
+      ['installe', 'Installé'],
+      ['controle', 'Contrôlé'],
+      ['avec_reserve', 'Avec réserve'],
+      ['receptionne', 'Réceptionné'],
+    ],
     quickActions: [
       action('equipment', 'Ouvrages / équipements', 'navigate', { route: 'MissionEquipment' }),
       action('tests', 'Essais OPR', 'navigate', { route: 'MissionTests' }),
@@ -413,6 +425,11 @@ const TYPES = Object.freeze({
     label: 'Passation travaux → exploitant',
     objective: 'Passer de l’ouvrage réceptionné à une prise en main exploitable : inventaire, démonstration, réglages, accès, documents et éléments restant à remettre.',
     steps: ['Inventaire', 'Fonctionnement', 'Réglages', 'Documents / accès', 'Écarts', 'Signature'],
+    equipmentLifecycleStatuses: [
+      ['receptionne', 'Réceptionné'],
+      ['avec_reserve', 'Avec réserve'],
+      ['mis_en_service', 'Mis en service'],
+    ],
     quickActions: [
       action('equipment', 'Inventaire contradictoire', 'navigate', { route: 'MissionEquipment' }),
       action('tests', 'Démonstration / essais', 'navigate', { route: 'MissionTests' }),
@@ -565,6 +582,7 @@ export function getMissionFieldPlaybook(missionType) {
     measures: mergeUnique(base.measures || [], type?.measures || [], (item) => item.type + '|' + item.unit),
     pointPresets: mergeUnique(base.pointPresets || [], type?.pointPresets || [], (item) => item.label),
     equipmentVerificationStatuses: type?.equipmentVerificationStatuses || base.equipmentVerificationStatuses || [],
+    equipmentLifecycleStatuses: type?.equipmentLifecycleStatuses || base.equipmentLifecycleStatuses || [],
   };
 }
 
