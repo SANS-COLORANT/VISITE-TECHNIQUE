@@ -504,13 +504,19 @@ const TYPES = Object.freeze({
   expertise_sinistre: {
     base: 'diagnostic',
     label: 'Expertise / sinistre',
-    objective: 'Séparer strictement les faits, preuves, hypothèses et investigations pour conserver une chronologie exploitable.',
-    steps: ['État initial', 'Preuves', 'Faits', 'Mesures', 'Hypothèses'],
+    objective: 'Séparer strictement les faits, preuves, hypothèses, investigations et conclusions pour conserver une chronologie exploitable et opposable.',
+    steps: ['État initial', 'Faits', 'Preuves', 'Mesures', 'Hypothèses', 'Conclusion'],
     quickActions: [
+      action('expertiseBoard', 'Chronologie expertise', 'navigate', { route: 'MissionExpertise' }),
       action('photo', 'Photo horodatée', 'photo'),
-      action('fact', 'Fait', 'point', { preset: point('Fait observé', 'information') }),
-      action('hypothesis', 'Hypothèse', 'point', { preset: point('Hypothèse technique à vérifier', 'control', { priority: 'À investiguer' }) }),
+      action('measure', 'Mesure', 'measure'),
+      action('documents', 'Document / preuve', 'navigate', { route: 'MissionDocuments' }),
       action('plan', 'Localiser', 'navigate', { route: 'MissionPlan' }),
+    ],
+    pointPresets: [
+      point('Élément factuel à compléter', 'request', { priority: 'À documenter' }),
+      point('Investigation complémentaire', 'action', { priority: 'À investiguer' }),
+      point('Information tierce à confirmer', 'control', { priority: 'À confirmer' }),
     ],
   },
 
