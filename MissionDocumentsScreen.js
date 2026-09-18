@@ -45,6 +45,7 @@ export function MissionDocumentsScreen({ route }) {
   const [visaDoc, setVisaDoc] = useState(null);
   const [visaStatus, setVisaStatus] = useState('to_review');
   const [visaComment, setVisaComment] = useState('');
+  const [visaVersion, setVisaVersion] = useState('');
   const [missionType, setMissionType] = useState(null);
   const [installingExpected, setInstallingExpected] = useState(false);
 
@@ -166,17 +167,19 @@ export function MissionDocumentsScreen({ route }) {
     await db.runAsync(
       'INSERT INTO mission_validations(id,mission_id,document_id,validation_type,version_label,status,comment,validated_at) VALUES(?,?,?,?,?,?,?,?)',
       [
-        createId('mval'), missionId, visaDoc.id, 'visa', null, visaStatus, visaComment || null,
+        createId('mval'), missionId, visaDoc.id, 'visa', visaVersion || null, visaStatus, visaComment || null,
         ['validated','validated_with_reservations'].includes(visaStatus) ? new Date().toISOString() : null,
       ]
     );
     setVisaDoc(null);
     setVisaComment('');
+    setVisaVersion('');
     setVisaStatus('to_review');
     await load();
   };
 
   const latestVisa = (docId) => validations.find((v) => v.document_id === docId);
+  const visaHistory = (docId) => validations.filter((v) => v.document_id === docId);
 
   return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
@@ -216,11 +219,18 @@ export function MissionDocumentsScreen({ route }) {
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Documents Mission</Text>
       {docs.map((doc) => {
         const visa = latestVisa(doc.id);
-        return <TouchableOpacity key={doc.id} onPress={() => { setVisaDoc(doc); setVisaStatus(visa?.status || 'to_review'); setVisaComment(visa?.comment || ''); }} style={[missionStyles.card, { padding: 11, marginBottom: 7 }]}>
+        return <TouchableOpacity key={doc.id} onPress={() => {
+          setVisaDoc(doc);
+          setVisaStatus('to_review');
+          setVisaComment('');
+          setVisaVersion(visa?.version_label || '');
+        }} style={[missionStyles.card, { padding: 11, marginBottom: 7 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <View style={{ flex: 1 }}>
               <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '900' }}>{doc.name || 'Document'}</Text>
-              <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop: 2 }}>{doc.type || 'source'} · {doc.source || 'Mission'}</Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop: 2 }}>
+                {doc.type || 'source'} · {doc.source || 'Mission'} · {visaHistory(doc.id).length} revue(s)
+              </Text>
             </View>
             <Text style={{ color: visa?.status === 'validated' ? MISSION_COLORS.accentDark : COLORS.inkFaint, fontSize: 8.7, fontWeight: '900' }}>{visa?.status || 'Sans VISA'}</Text>
           </View>
@@ -246,10 +256,23 @@ export function MissionDocumentsScreen({ route }) {
     <Modal visible={!!visaDoc} transparent animationType="fade" onRequestClose={() => setVisaDoc(null)}>
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
         <Text style={[styles.modalTitle, missionStyles.title]}>VISA · {visaDoc?.name}</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginBottom: 4 }}>VERSION / RÉVISION</Text>
+        <TextInput style={[styles.input, missionStyles.input, { marginBottom: 8 }]} value={visaVersion} onChangeText={setVisaVersion} placeholder="V1, indice B, PRO-DCE du 18/09…" />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }}>
           {VISA_STATUS.map(([key,label]) => <Chip key={key} label={label} selected={visaStatus === key} onPress={() => setVisaStatus(key)} />)}
         </View>
-        <TextInput style={[styles.input, missionStyles.input, { minHeight: 90, textAlignVertical: 'top' }]} multiline value={visaComment} onChangeText={setVisaComment} placeholder="Remarques / réserves de validation" />
+        <TextInput style={[styles.input, missionStyles.input, { minHeight: 90, textAlignVertical: 'top' }]} multiline value={visaComment} onChangeText={setVisaComment} placeholder="Nouvelle remarque / réserve / réponse de validation" />
+
+        {visaDoc && visaHistory(visaDoc.id).length ? <View style={{ marginTop: 13 }}>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '900', marginBottom: 6 }}>HISTORIQUE DES REVUES</Text>
+          {visaHistory(visaDoc.id).slice(0, 12).map((row) => <View key={row.id} style={{ opacity: 0.76, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
+            <Text style={{ color: COLORS.ink, fontSize: 8.9, fontWeight: '900' }}>
+              {[row.version_label,row.status].filter(Boolean).join(' · ') || 'Revue'}
+            </Text>
+            {row.comment ? <Text style={{ color: COLORS.inkSoft, fontSize: 8.6, lineHeight: 12, marginTop: 2 }}>{row.comment}</Text> : null}
+            <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 2 }}>{row.validated_at || row.created_at || ''}</Text>
+          </View>)}
+        </View> : null}
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setVisaDoc(null)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveVisa}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer le VISA</Text></TouchableOpacity>
