@@ -4,6 +4,7 @@ import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { getMissionScenarioPresets } from './missionScenarioPresets.js';
 
 function clean(v) { const s = String(v ?? '').trim(); return s || null; }
 function num(v) {
@@ -25,12 +26,14 @@ function Field({ label, value, onChangeText, keyboardType = 'default', multiline
   </View>;
 }
 
-export function MissionScenarioScreen({ route }) {
+export function MissionScenarioScreen({ navigation, route }) {
   const missionId = route?.params?.missionId;
   const [scenarios, setScenarios] = useState([]);
   const [actions, setActions] = useState([]);
   const [links, setLinks] = useState([]);
   const [createVisible, setCreateVisible] = useState(false);
+  const [missionType, setMissionType] = useState(null);
+  const [preparingPresets, setPreparingPresets] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [draft, setDraft] = useState({
     label: '',
@@ -47,23 +50,26 @@ export function MissionScenarioScreen({ route }) {
   const load = useCallback(async () => {
     if (!missionId) return;
     const db = await getDb();
-    const [s, a, l] = await Promise.all([
+    const [s, a, l, m] = await Promise.all([
       db.getAllAsync('SELECT * FROM mission_scenarios WHERE mission_id=? ORDER BY created_at', [missionId]),
       db.getAllAsync('SELECT * FROM mission_actions WHERE mission_id=? ORDER BY created_at', [missionId]),
       db.getAllAsync(
         'SELECT sa.* FROM mission_scenario_actions sa JOIN mission_scenarios s ON s.id=sa.scenario_id WHERE s.mission_id=?',
         [missionId]
       ),
+      db.getFirstAsync('SELECT type FROM missions WHERE id=?', [missionId]),
     ]);
     setScenarios(s || []);
     setActions(a || []);
     setLinks(l || []);
+    setMissionType(m?.type || null);
     if (!selectedId && s?.[0]?.id) setSelectedId(s[0].id);
   }, [missionId, selectedId]);
 
   useEffect(() => { load(); }, [load]);
 
   const selected = useMemo(() => scenarios.find((s) => s.id === selectedId) || null, [scenarios, selectedId]);
+  const scenarioPresets = useMemo(() => getMissionScenarioPresets(missionType), [missionType]);
   const selectedLinks = useMemo(() => links.filter((l) => l.scenario_id === selectedId), [links, selectedId]);
   const linkByAction = useMemo(() => new Map(selectedLinks.map((l) => [l.action_id, l])), [selectedLinks]);
 
@@ -82,6 +88,86 @@ export function MissionScenarioScreen({ route }) {
       payback: annual > 0 ? investment / annual : num(selected.payback_years),
     };
   }, [selected, selectedLinks, actions]);
+
+  const prepareScenarioPresets = async () => {
+    if (!scenarioPresets.length || preparingPresets) return;
+    setPreparingPresets(true);
+    try {
+      const db = await getDb();
+      const labels = new Set(scenarios.map((scenario) => String(scenario.label || '').trim().toLowerCase()));
+      let added = 0;
+      await db.withTransactionAsync(async () => {
+        for (const preset of scenarioPresets) {
+          const normalized = String(preset.label || '').trim().toLowerCase();
+          if (!normalized || labels.has(normalized)) continue;
+          await db.runAsync(
+            `INSERT INTO mission_scenarios(
+              id,mission_id,label,description,constraints_text,benefits_text,status
+            ) VALUES(?,?,?,?,?,?,?)`,
+            [
+              createId('mscen'), missionId, preset.label, clean(preset.description),
+              clean(preset.constraints), clean(preset.benefits), 'draft',
+            ]
+          );
+          labels.add(normalized);
+          added += 1;
+        }
+      });
+      await load();
+      Alert.alert(
+        added ? 'Scénarios préparés' : 'Scénarios déjà présents',
+        added
+          ? String(added) + ' scénario(s) de départ ajouté(s). Aucun n’est automatiquement considéré comme préférable.'
+          : 'Aucun doublon créé.'
+      );
+    } catch (e) {
+      Alert.alert('Préparation impossible', String(e?.message || e));
+    } finally {
+      setPreparingPresets(false);
+    }
+  };
+
+  const createWorksPhaseFromScenario = async () => {
+    if (!selected) return;
+    try {
+      const db = await getDb();
+      await db.withTransactionAsync(async () => {
+        await db.runAsync("UPDATE mission_scenarios SET status='draft',updated_at=datetime('now') WHERE mission_id=?", [missionId]);
+        await db.runAsync("UPDATE mission_scenarios SET status='retained',updated_at=datetime('now') WHERE id=?", [selected.id]);
+
+        const marker = 'scenario:' + selected.id;
+        const existing = await db.getFirstAsync(
+          "SELECT id FROM mission_phases WHERE mission_id=? AND comment LIKE ? LIMIT 1",
+          [missionId, '%' + marker + '%']
+        );
+        if (!existing) {
+          const orderRow = await db.getFirstAsync(
+            'SELECT COALESCE(MAX(sort_order),-1)+1 AS next_order FROM mission_phases WHERE mission_id=?',
+            [missionId]
+          );
+          await db.runAsync(
+            'INSERT INTO mission_phases(id,mission_id,type,label,status,sort_order,comment) VALUES(?,?,?,?,?,?,?)',
+            [
+              createId('mphase'), missionId, 'travaux',
+              'Travaux · ' + selected.label, 'planned', Number(orderRow?.next_order || 0),
+              'Phase créée depuis le scénario retenu · ' + marker,
+            ]
+          );
+        }
+      });
+      await load();
+      Alert.alert(
+        'Scénario relié à la suite de la Mission',
+        'La phase Travaux utilise la même Mission : inventaire, actions, plans, mesures et état initial restent disponibles sans duplication.',
+        [
+          { text: 'Rester ici', style: 'cancel' },
+          { text: 'Ouvrir le workflow', onPress: () => navigation.navigate('MissionWorkflow', { missionId }) },
+        ]
+      );
+    } catch (e) {
+      Alert.alert('Phase non créée', String(e?.message || e));
+    }
+  };
 
   const createScenario = async () => {
     if (!draft.label.trim()) {
@@ -140,9 +226,23 @@ export function MissionScenarioScreen({ route }) {
         Compare l’existant et plusieurs scénarios sans dupliquer la Mission. Les actions déjà créées peuvent être incluses ou exclues du scénario.
       </Text>
 
-      <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { alignSelf: 'flex-start', marginTop: 12 }]} onPress={() => setCreateVisible(true)}>
-        <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Scénario</Text>
-      </TouchableOpacity>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setCreateVisible(true)}>
+          <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Scénario libre</Text>
+        </TouchableOpacity>
+        {scenarioPresets.length ? <TouchableOpacity
+          style={[styles.btnSecondary, missionStyles.secondaryButton]}
+          disabled={preparingPresets}
+          onPress={prepareScenarioPresets}
+        >
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>
+            {preparingPresets ? 'Préparation…' : 'Préparer scénarios (' + scenarioPresets.length + ')'}
+          </Text>
+        </TouchableOpacity> : null}
+      </View>
+      {scenarioPresets.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, lineHeight: 12, marginTop: 6 }}>
+        Les scénarios sont des points de départ neutres. Les coûts, performances, avantages, contraintes et scénario retenu restent à renseigner à partir du dossier réel.
+      </Text> : null}
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Comparer</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -162,9 +262,14 @@ export function MissionScenarioScreen({ route }) {
               <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 14 }}>{selected.label}</Text>
               {selected.description ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, marginTop: 4 }}>{selected.description}</Text> : null}
             </View>
-            <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={setRetained}>
-              <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{selected.status === 'retained' ? 'Scénario retenu' : 'Retenir ce scénario'}</Text>
-            </TouchableOpacity>
+            <View style={{ alignItems: 'flex-end', gap: 6 }}>
+              <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={setRetained}>
+                <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{selected.status === 'retained' ? 'Scénario retenu' : 'Retenir ce scénario'}</Text>
+              </TouchableOpacity>
+              {selected.status === 'retained' ? <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createWorksPhaseFromScenario}>
+                <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer / ouvrir phase Travaux</Text>
+              </TouchableOpacity> : null}
+            </View>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
             {[
