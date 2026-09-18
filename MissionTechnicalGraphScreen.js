@@ -59,6 +59,32 @@ function relationPresentation(rel) {
   return { dash: null, width: 2.4 };
 }
 
+const RELATION_PRESETS = Object.freeze([
+  ['feeds', 'Alimente'],
+  ['serves', 'Dessert'],
+  ['controls', 'Commande'],
+  ['measures', 'Mesure / sonde'],
+  ['return', 'Retour'],
+  ['connected_to', 'Raccordé à'],
+]);
+
+function equipmentCategoryKey(row) {
+  return resolveEquipmentCategory(row?.type, (() => {
+    try { return JSON.parse(row?.properties_json || '{}')?.categoryKey || null; } catch { return null; }
+  })())?.key || 'other';
+}
+
+function suggestedRelation(source, target) {
+  const a = equipmentCategoryKey(source);
+  const b = equipmentCategoryKey(target);
+  if (a === 'outdoor_unit' && b === 'indoor_unit') return ['serves', 'UE → UI'];
+  if (a === 'sensor' && ['plc','actuator','valve'].includes(b)) return ['measures', 'Mesure / information'];
+  if (['plc','gateway'].includes(a) && ['actuator','valve','pump','boiler','heat_pump','indoor_unit'].includes(b)) return ['controls', 'Commande'];
+  if (a === 'actuator' && b === 'valve') return ['controls', 'Actionne'];
+  if (a === 'meter') return ['measures', 'Mesure'];
+  return ['feeds', 'Alimente'];
+}
+
 function buildLayout(equipment, relations) {
   const byId = new Map(equipment.map((item) => [item.id, item]));
   const incoming = new Map();
@@ -178,6 +204,9 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
       return;
     }
     setLinkTarget(node);
+    const suggestion = suggestedRelation(linkSource, node);
+    setRelationType(suggestion[0]);
+    setRelationLabel(suggestion[1]);
     setRelationModal(true);
   };
 
@@ -383,8 +412,28 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
         <Text style={{ color: COLORS.inkSoft, fontSize: 10, lineHeight: 14, marginBottom: 10 }}>
           {linkSource ? nodeLabel(linkSource) : ''} → {linkTarget ? nodeLabel(linkTarget) : ''}
         </Text>
-        <TextInput style={[styles.input, missionStyles.input]} value={relationType} onChangeText={setRelationType} placeholder="Type : feeds, controls, connected_to…" />
-        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={relationLabel} onChangeText={setRelationLabel} placeholder="Libellé : Alimente, Commande, Retour…" />
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '900', marginBottom: 5 }}>RELATION RAPIDE</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 43, marginBottom: 8 }}>
+          {RELATION_PRESETS.map(([key,label]) => {
+            const selectedPreset = relationType === key;
+            return <TouchableOpacity
+              key={key}
+              onPress={() => { setRelationType(key); setRelationLabel(label); }}
+              style={{
+                borderWidth: 1,
+                borderColor: selectedPreset ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
+                backgroundColor: selectedPreset ? MISSION_COLORS.accentLight : '#FFFFFF',
+                borderRadius: 10,
+                paddingHorizontal: 9,
+                paddingVertical: 7,
+                marginRight: 6,
+              }}
+            >
+              <Text style={{ color: selectedPreset ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.6, fontWeight: '900' }}>{label}</Text>
+            </TouchableOpacity>;
+          })}
+        </ScrollView>
+        <TextInput style={[styles.input, missionStyles.input]} value={relationLabel} onChangeText={setRelationLabel} placeholder="Libellé de la relation" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => { setRelationModal(false); setLinkTarget(null); }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveRelation}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Relier</Text></TouchableOpacity>
