@@ -4,6 +4,7 @@ import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerPointMission, creerVisiteMission, getMissionDashboard, mettreAJourMission, mettreAJourStatutPoint } from './missionsDb.js';
 import { exporterMissionExcel } from './missionExcelExport.js';
+import { choisirEtImporterMissionExcel } from './missionExcelImport.js';
 
 const POINT_TYPES = Object.freeze([
   ['reserve', 'Réserve'],
@@ -50,6 +51,7 @@ export function MissionScreen({ navigation, route }) {
   const [pointDueText, setPointDueText] = useState('');
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
 
   const reload = useCallback(async () => {
     if (!missionId) return;
@@ -103,6 +105,26 @@ export function MissionScreen({ navigation, route }) {
     finally { setExporting(false); }
   };
 
+  const importExcel = async () => {
+    if (importing) return;
+    setImporting(true);
+    try {
+      const result = await choisirEtImporterMissionExcel({ targetMissionId: missionId });
+      if (!result) return;
+      await reload();
+      Alert.alert(
+        result.canonical ? 'Classeur METRA réimporté' : 'Classeur externe importé',
+        result.canonical
+          ? 'Les données structurées du classeur ont été fusionnées à partir de leurs identifiants stables.'
+          : `${result.rows || 0} ligne(s) ont été conservées intégralement comme source Excel de cette Mission.`
+      );
+    } catch (e) {
+      Alert.alert('Import impossible', String(e?.message || e));
+    } finally {
+      setImporting(false);
+    }
+  };
+
   if (loading && !data) return <View style={[{ flex: 1, alignItems: 'center', justifyContent: 'center' }, missionStyles.screen]}><ActivityIndicator color={MISSION_COLORS.accent} /></View>;
   if (!data?.mission) return <View style={styles.center}><Text style={styles.errorTitle}>Mission introuvable</Text></View>;
 
@@ -134,9 +156,17 @@ export function MissionScreen({ navigation, route }) {
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} onPress={() => setPointModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Point libre</Text></TouchableOpacity>
         </View>
 
-        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { marginTop: 9, alignItems: 'center' }]} disabled={exporting} onPress={exportExcel}>
-          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{exporting ? 'Export Excel…' : '⇩ Exporter toutes les données en Excel'}</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 9, marginTop: 9 }}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} disabled={importing} onPress={importExcel}>
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{importing ? 'Import…' : '⇧ Importer Excel'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} disabled={exporting} onPress={exportExcel}>
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{exporting ? 'Export…' : '⇩ Export Excel complet'}</Text>
+          </TouchableOpacity>
+        </View>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 9, lineHeight: 13, marginTop: 6, textAlign: 'center' }}>
+          Classeur relationnel complet : données métier, calculs, essais, scénarios, rapports et provenance. Les médias restent référencés.
+        </Text>
 
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 20 }]}>Points à suivre</Text>
         {points.length ? points.map((point) => (
