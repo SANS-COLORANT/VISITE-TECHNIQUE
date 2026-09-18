@@ -60,6 +60,7 @@ const JS_SYNTAX_FILES = [
   'missionRecipes.js',
   'missionExcelExport.js',
   'missionExcelImport.js',
+  'missionExcelAutoMap.js',
   'missionExcelSchema.js',
   'missionDomainDb.js',
   'missionMediaDb.js',
