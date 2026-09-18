@@ -1,0 +1,432 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import Svg, { Circle, Line, Polygon, Text as SvgText } from 'react-native-svg';
+import { COLORS, styles } from './styles.js';
+import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { rendrePagePdfLocale } from './missionNativeTools.js';
+import {
+  ajouterAnnotationPlan,
+  calibrerPlan,
+  choisirEtImporterPlanMission,
+  creerCalquePlan,
+  exporterGeoJsonMission,
+  exporterPlanPdfAnnote,
+  getCalibrationPlan,
+  importerGeoJsonMission,
+  listerAnnotationsPlan,
+  listerCalquesPlan,
+  listerPlansMission,
+  mesurerGeometriePlan,
+  supprimerAnnotationPlan,
+  tournerPagePdfMission,
+} from './missionPlanDb.js';
+
+const TOOLS = [
+  ['select', 'Consulter'],
+  ['point', 'Point'],
+  ['line', 'Ligne'],
+  ['network', 'Réseau'],
+  ['distance', 'Distance'],
+  ['polygon', 'Polygone'],
+  ['angle', 'Angle'],
+  ['text', 'Texte'],
+  ['calibrate', 'Calibrer'],
+];
+
+function parseGeometry(row) {
+  return row?.geometry || {};
+}
+
+function ToolChip({ selected, label, onPress }) {
+  return <TouchableOpacity
+    onPress={onPress}
+    style={{
+      borderWidth: 1,
+      borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
+      backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF',
+      borderRadius: 11,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      marginRight: 6,
+      marginBottom: 6,
+    }}
+  ><Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9.5, fontWeight: '800' }}>{label}</Text></TouchableOpacity>;
+}
+
+function normalizedPoints(row, width, height) {
+  const g = parseGeometry(row);
+  const points = Array.isArray(g.points) ? g.points : (g.x !== undefined ? [g] : []);
+  return points.map((p) => ({ x: Number(p.x || 0) * width, y: Number(p.y || 0) * height }));
+}
+
+function AnnotationShape({ row, width, height, onPress }) {
+  const pts = normalizedPoints(row, width, height);
+  if (!pts.length) return null;
+  const color = MISSION_COLORS.accent;
+
+  if (row.annotation_type === 'point' || row.annotation_type === 'symbol') {
+    const p = pts[0];
+    return <React.Fragment>
+      <Circle cx={p.x} cy={p.y} r={7} fill={MISSION_COLORS.accentLight} stroke={color} strokeWidth={2.5} onPress={onPress} />
+      {row.text ? <SvgText x={p.x + 10} y={p.y - 8} fontSize="11" fontWeight="700" fill={MISSION_COLORS.accentStrong}>{String(row.text).slice(0, 30)}</SvgText> : null}
+    </React.Fragment>;
+  }
+
+  if (row.annotation_type === 'text') {
+    const p = pts[0];
+    return <SvgText x={p.x} y={p.y} fontSize="12" fontWeight="700" fill={MISSION_COLORS.accentStrong} onPress={onPress}>{String(row.text || 'Texte').slice(0, 45)}</SvgText>;
+  }
+
+  if (row.annotation_type === 'polygon' && pts.length >= 3) {
+    return <Polygon points={pts.map((p) => p.x + ',' + p.y).join(' ')} fill="rgba(47,125,88,0.12)" stroke={color} strokeWidth={2.5} onPress={onPress} />;
+  }
+
+  return <React.Fragment>
+    {pts.slice(0, -1).map((p, i) => <Line key={i} x1={p.x} y1={p.y} x2={pts[i + 1].x} y2={pts[i + 1].y} stroke={color} strokeWidth={row.annotation_type === 'network' ? 4 : 2.5} onPress={onPress} />)}
+    {row.text && pts[0] ? <SvgText x={pts[0].x + 6} y={pts[0].y - 6} fontSize="10" fill={MISSION_COLORS.accentStrong}>{String(row.text).slice(0, 35)}</SvgText> : null}
+  </React.Fragment>;
+}
+
+export function MissionPlanScreen({ navigation, route }) {
+  const missionId = route?.params?.missionId;
+  const { width: windowWidth } = useWindowDimensions();
+  const [plans, setPlans] = useState([]);
+  const [selectedId, setSelectedId] = useState(null);
+  const [selected, setSelected] = useState(null);
+  const [layers, setLayers] = useState([]);
+  const [layerId, setLayerId] = useState(null);
+  const [annotations, setAnnotations] = useState([]);
+  const [page, setPage] = useState(1);
+  const [pageCount, setPageCount] = useState(1);
+  const [preview, setPreview] = useState(null);
+  const [tool, setTool] = useState('select');
+  const [draftPoints, setDraftPoints] = useState([]);
+  const [canvas, setCanvas] = useState({ width: Math.max(320, windowWidth - 32), height: 500 });
+  const [calibration, setCalibration] = useState(null);
+  const [textModal, setTextModal] = useState(false);
+  const [textValue, setTextValue] = useState('');
+  const [pendingPoint, setPendingPoint] = useState(null);
+  const [calibrationModal, setCalibrationModal] = useState(false);
+  const [realDistance, setRealDistance] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [layerModal, setLayerModal] = useState(false);
+  const [layerName, setLayerName] = useState('');
+
+  const loadPlans = useCallback(async () => {
+    const rows = await listerPlansMission(missionId);
+    setPlans(rows || []);
+    if (!selectedId && rows?.[0]?.id) setSelectedId(rows[0].id);
+  }, [missionId, selectedId]);
+
+  useEffect(() => { loadPlans(); }, [loadPlans]);
+
+  const loadPlanContext = useCallback(async () => {
+    const doc = plans.find((p) => p.id === selectedId);
+    setSelected(doc || null);
+    if (!doc) return;
+    setLoading(true);
+    try {
+      const [layerRows, annotationRows, cal] = await Promise.all([
+        listerCalquesPlan(doc.id),
+        listerAnnotationsPlan(doc.id, page),
+        getCalibrationPlan(doc.id, page),
+      ]);
+      setLayers(layerRows || []);
+      setLayerId((current) => current && layerRows.some((l) => l.id === current) ? current : layerRows?.[0]?.id || null);
+      setAnnotations(annotationRows || []);
+      setCalibration(cal || null);
+
+      if (String(doc.type).includes('pdf') || String(doc.name || '').toLowerCase().endsWith('.pdf')) {
+        const render = await rendrePagePdfLocale(doc.file_uri, page - 1, 1400);
+        setPreview(render);
+        setPageCount(render.pageCount || 1);
+      } else {
+        await new Promise((resolve) => {
+          Image.getSize(doc.file_uri, (w, h) => {
+            setPreview({ uri: doc.file_uri, width: w, height: h, pageCount: 1 });
+            setPageCount(1);
+            resolve();
+          }, () => {
+            setPreview({ uri: doc.file_uri, width: 1200, height: 800, pageCount: 1 });
+            setPageCount(1);
+            resolve();
+          });
+        });
+      }
+    } catch (e) {
+      Alert.alert('Plan indisponible', String(e?.message || e));
+    } finally {
+      setLoading(false);
+    }
+  }, [plans, selectedId, page]);
+
+  useEffect(() => { loadPlanContext(); }, [loadPlanContext]);
+
+  const aspect = preview?.width && preview?.height ? preview.height / preview.width : 0.72;
+  const displayWidth = Math.min(Math.max(320, windowWidth - 32), 1100);
+  const displayHeight = Math.max(260, Math.min(1500, displayWidth * aspect));
+
+  useEffect(() => {
+    setCanvas({ width: displayWidth, height: displayHeight });
+  }, [displayWidth, displayHeight]);
+
+  const saveShape = async (annotationType, points, label = null) => {
+    if (!selected) return;
+    await ajouterAnnotationPlan({
+      missionId,
+      documentId: selected.id,
+      layerId,
+      pageNumber: page,
+      annotationType,
+      geometry: { type: annotationType, points },
+      text: label,
+    });
+    setDraftPoints([]);
+    setAnnotations(await listerAnnotationsPlan(selected.id, page));
+  };
+
+  const measureLabel = useCallback((type, points) => {
+    if (!calibration) return null;
+    const m = mesurerGeometriePlan({
+      geometry: { type, points },
+      calibration,
+      displayWidth: canvas.width,
+      displayHeight: canvas.height,
+    });
+    if (!m) return null;
+    if (m.type === 'distance') return Number(m.value).toFixed(2) + ' ' + m.unit;
+    if (m.type === 'polygon') return Number(m.area).toFixed(2) + ' ' + m.areaUnit + ' · P ' + Number(m.perimeter).toFixed(2) + ' ' + m.perimeterUnit;
+    if (m.type === 'angle') return Number(m.value).toFixed(1) + '°';
+    return null;
+  }, [calibration, canvas]);
+
+  const onCanvasPress = async (event) => {
+    if (!selected || tool === 'select') return;
+    const x = Math.max(0, Math.min(1, event.nativeEvent.locationX / canvas.width));
+    const y = Math.max(0, Math.min(1, event.nativeEvent.locationY / canvas.height));
+    const point = { x, y };
+
+    if (tool === 'point') {
+      await saveShape('point', [point]);
+      return;
+    }
+    if (tool === 'text') {
+      setPendingPoint(point);
+      setTextValue('');
+      setTextModal(true);
+      return;
+    }
+
+    const next = [...draftPoints, point];
+    setDraftPoints(next);
+    if (tool === 'calibrate' && next.length >= 2) {
+      setCalibrationModal(true);
+      return;
+    }
+    if (['line', 'network', 'distance'].includes(tool) && next.length >= 2) {
+      await saveShape(tool, next.slice(0, 2), tool === 'distance' ? measureLabel('distance', next.slice(0, 2)) : null);
+      return;
+    }
+    if (tool === 'angle' && next.length >= 3) {
+      await saveShape('angle', next.slice(0, 3), measureLabel('angle', next.slice(0, 3)));
+    }
+  };
+
+  const finishPolygon = async () => {
+    if (draftPoints.length < 3) {
+      Alert.alert('Polygone incomplet', 'Place au moins 3 points.');
+      return;
+    }
+    await saveShape('polygon', draftPoints, measureLabel('polygon', draftPoints));
+  };
+
+  const confirmText = async () => {
+    if (!pendingPoint) return;
+    await saveShape('text', [pendingPoint], textValue);
+    setTextModal(false);
+    setPendingPoint(null);
+    setTextValue('');
+  };
+
+  const confirmCalibration = async () => {
+    if (draftPoints.length < 2 || !selected) return;
+    try {
+      const cal = await calibrerPlan({
+        missionId,
+        documentId: selected.id,
+        pageNumber: page,
+        pointA: draftPoints[0],
+        pointB: draftPoints[1],
+        displayWidth: canvas.width,
+        displayHeight: canvas.height,
+        realDistance,
+        unit: 'm',
+      });
+      setCalibration(cal);
+      setDraftPoints([]);
+      setCalibrationModal(false);
+      setRealDistance('');
+      setTool('distance');
+    } catch (e) {
+      Alert.alert('Calibration impossible', String(e?.message || e));
+    }
+  };
+
+  const importPlan = async () => {
+    try {
+      const doc = await choisirEtImporterPlanMission({ missionId });
+      if (doc) {
+        setSelectedId(doc.id);
+        setPage(1);
+        await loadPlans();
+      }
+    } catch (e) {
+      Alert.alert('Import impossible', String(e?.message || e));
+    }
+  };
+
+  const createLayer = async () => {
+    if (!selected || !layerName.trim()) return;
+    const id = await creerCalquePlan({ missionId, documentId: selected.id, label: layerName.trim() });
+    setLayerModal(false);
+    setLayerName('');
+    setLayers(await listerCalquesPlan(selected.id));
+    setLayerId(id);
+  };
+
+  const deleteLast = async () => {
+    const last = annotations[annotations.length - 1];
+    if (!last) return;
+    await supprimerAnnotationPlan(last.id);
+    setAnnotations(await listerAnnotationsPlan(selected.id, page));
+  };
+
+  const exportAnnotated = async () => {
+    if (!selected) return;
+    try { await exporterPlanPdfAnnote({ missionId, documentId: selected.id, share: true }); }
+    catch (e) { Alert.alert('Export impossible', String(e?.message || e)); }
+  };
+
+  const rotate = async () => {
+    if (!selected || !String(selected.type).includes('pdf')) return;
+    try {
+      const result = await tournerPagePdfMission({ missionId, documentId: selected.id, pageNumber: page, angle: 90 });
+      await loadPlans();
+      setSelectedId(result.id);
+      setPage(1);
+    } catch (e) { Alert.alert('Rotation impossible', String(e?.message || e)); }
+  };
+
+  const draftPx = draftPoints.map((p) => ({ x: p.x * canvas.width, y: p.y * canvas.height }));
+
+  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
+      <Text style={[styles.sectionTitle, missionStyles.title]}>Plans · PDF · SIG</Text>
+      <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
+        Le plan original reste intact. Les annotations, mesures et objets techniques sont enregistrés en couches structurées.
+      </Text>
+
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 11 }}>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={importPlan}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Importer plan / PDF</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionMap', { missionId })}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Carte SIG</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={async () => { try { await importerGeoJsonMission({ missionId }); Alert.alert('SIG', 'Couche GeoJSON importée hors ligne.'); } catch (e) { Alert.alert('Import SIG', String(e?.message || e)); } }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Importer GeoJSON</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={async () => { try { await exporterGeoJsonMission(missionId); } catch (e) { Alert.alert('Export SIG', String(e?.message || e)); } }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Exporter GeoJSON</Text></TouchableOpacity>
+      </View>
+
+      {plans.length ? <>
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Document actif</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {plans.map((doc) => <ToolChip key={doc.id} label={doc.name || 'Plan'} selected={doc.id === selectedId} onPress={() => { setSelectedId(doc.id); setPage(1); setDraftPoints([]); }} />)}
+        </ScrollView>
+      </> : <View style={[missionStyles.card, { padding: 14, marginTop: 16 }]}><Text style={{ color: COLORS.inkSoft, fontSize: 10.5 }}>Aucun plan importé.</Text></View>}
+
+      {selected ? <>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 14 }}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setLayerModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Calque</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={deleteLast}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>↶ Dernière annotation</Text></TouchableOpacity>
+          {String(selected.type).includes('pdf') ? <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={rotate}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>↻ Rotation page</Text></TouchableOpacity> : null}
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={exportAnnotated}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Exporter PDF annoté</Text></TouchableOpacity>
+        </View>
+
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 16 }]}>Calque</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+          {layers.map((layer) => <ToolChip key={layer.id} label={layer.label} selected={layer.id === layerId} onPress={() => setLayerId(layer.id)} />)}
+        </ScrollView>
+
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 14 }]}>Outil</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+          {TOOLS.map(([key, label]) => <ToolChip key={key} label={label} selected={tool === key} onPress={() => { setTool(key); setDraftPoints([]); }} />)}
+        </View>
+
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
+          <Text style={{ flex: 1, color: COLORS.inkFaint, fontSize: 9.5 }}>
+            {calibration ? 'Échelle calibrée : ' + Number(calibration.real_distance || calibration.realDistance).toFixed(2) + ' ' + (calibration.unit || 'm') : 'Échelle non calibrée · utilisez « Calibrer » pour les distances/surfaces réelles.'}
+          </Text>
+          {tool === 'polygon' && draftPoints.length >= 3 ? <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={finishPolygon}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer polygone</Text></TouchableOpacity> : null}
+        </View>
+
+        {pageCount > 1 ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 8 }}>
+          <TouchableOpacity disabled={page <= 1} onPress={() => { setPage((p) => Math.max(1, p - 1)); setDraftPoints([]); }} style={{ padding: 8 }}><Text style={{ color: page <= 1 ? COLORS.inkFaint : MISSION_COLORS.accentDark }}>← Page</Text></TouchableOpacity>
+          <Text style={{ color: COLORS.ink, fontWeight: '900' }}>{page} / {pageCount}</Text>
+          <TouchableOpacity disabled={page >= pageCount} onPress={() => { setPage((p) => Math.min(pageCount, p + 1)); setDraftPoints([]); }} style={{ padding: 8 }}><Text style={{ color: page >= pageCount ? COLORS.inkFaint : MISSION_COLORS.accentDark }}>Page →</Text></TouchableOpacity>
+        </View> : null}
+
+        <View style={{ alignItems: 'center' }}>
+          <Pressable onPress={onCanvasPress} style={{ width: canvas.width, height: canvas.height, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: MISSION_COLORS.accentLine, overflow: 'hidden' }}>
+            {loading ? <View style={{ position: 'absolute', inset: 0, alignItems: 'center', justifyContent: 'center', zIndex: 10 }}><ActivityIndicator color={MISSION_COLORS.accent} /></View> : null}
+            {preview?.uri ? <Image source={{ uri: preview.uri }} style={{ position: 'absolute', left: 0, top: 0, width: canvas.width, height: canvas.height }} resizeMode="stretch" /> : null}
+            <Svg width={canvas.width} height={canvas.height} style={{ position: 'absolute', left: 0, top: 0 }}>
+              {annotations.filter((a) => Number(a.layer_visible ?? 1) === 1).map((row) => <AnnotationShape key={row.id} row={row} width={canvas.width} height={canvas.height} onPress={() => {}} />)}
+              {draftPx.map((p, i) => <Circle key={'draft-' + i} cx={p.x} cy={p.y} r={5} fill="#FFFFFF" stroke={MISSION_COLORS.accent} strokeWidth={2} />)}
+              {draftPx.slice(0, -1).map((p, i) => <Line key={'draft-line-' + i} x1={p.x} y1={p.y} x2={draftPx[i + 1].x} y2={draftPx[i + 1].y} stroke={MISSION_COLORS.accent} strokeDasharray="5,4" strokeWidth={2} />)}
+            </Svg>
+          </Pressable>
+        </View>
+
+        {annotations.length ? <View style={{ marginTop: 12 }}>
+          <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Annotations de la page</Text>
+          {annotations.map((a) => <View key={a.id} style={[missionStyles.card, { padding: 10, marginBottom: 6 }]}>
+            <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '800', fontSize: 10.5 }}>{a.annotation_type}{a.text ? ' · ' + a.text : ''}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 2 }}>{a.layer_label || 'Sans calque'}</Text>
+          </View>)}
+        </View> : null}
+      </> : null}
+    </ScrollView>
+
+    <Modal visible={textModal} transparent animationType="fade" onRequestClose={() => setTextModal(false)}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>Texte sur le plan</Text>
+        <TextInput style={[styles.input, missionStyles.input]} value={textValue} onChangeText={setTextValue} placeholder="Libellé / commentaire" autoFocus />
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setTextModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={confirmText}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Ajouter</Text></TouchableOpacity>
+        </View>
+      </View></View>
+    </Modal>
+
+    <Modal visible={calibrationModal} transparent animationType="fade" onRequestClose={() => { setCalibrationModal(false); setDraftPoints([]); }}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>Calibrer l’échelle</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 10, lineHeight: 14, marginBottom: 10 }}>
+          Indique la distance réelle entre les deux points placés sur le plan.
+        </Text>
+        <TextInput style={[styles.input, missionStyles.input]} value={realDistance} onChangeText={setRealDistance} keyboardType="decimal-pad" placeholder="Distance réelle en mètres" autoFocus />
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => { setCalibrationModal(false); setDraftPoints([]); }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={confirmCalibration}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Calibrer</Text></TouchableOpacity>
+        </View>
+      </View></View>
+    </Modal>
+
+    <Modal visible={layerModal} transparent animationType="fade" onRequestClose={() => setLayerModal(false)}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>Nouveau calque</Text>
+        <TextInput style={[styles.input, missionStyles.input]} value={layerName} onChangeText={setLayerName} placeholder="Réseaux chauffage, réserves, équipements…" autoFocus />
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setLayerModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createLayer}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
+        </View>
+      </View></View>
+    </Modal>
+  </View>;
+}
