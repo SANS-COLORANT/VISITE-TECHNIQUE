@@ -6,7 +6,7 @@ import { creerPointMission } from './missionsDb.js';
 import { creerOuTrouverActeurMission, creerReferenceMission, enregistrerDetailsPointMission, enregistrerMesureMission } from './missionDomainDb.js';
 import { capturerPhotoMission, choisirEtAjouterDocumentMission } from './missionMediaDb.js';
 import { demarrerDicteeLocale } from './missionNativeTools.js';
-import { enregistrerNoteVocaleMission, genererChecklistFinVisite } from './missionVisitQualityDb.js';
+import { enregistrerNoteVocaleMission, genererChecklistFinVisite, ignorerCheckVisite } from './missionVisitQualityDb.js';
 import { getMissionVisitRecipe, MISSION_CAPTURE_MODES } from './missionRecipes.js';
 import { ajouterNoteVisiteMission, chargerVisiteMission, compterSaisieVisiteMission, enregistrerValeurTrameMission, mettreAJourVisiteMission } from './missionVisitDb.js';
 
@@ -20,24 +20,6 @@ function ChoiceField({ field, value, onChange }) {
       const selected = value === option;
       return <TouchableOpacity key={option} onPress={() => onChange(selected ? '' : option)} style={{ borderWidth: 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : COLORS.white, borderRadius: 11, paddingHorizontal: 10, paddingVertical: 8, marginRight: 7, marginBottom: 7 }}><Text style={{ color: selected ? MISSION_COLORS.accentDark : COLORS.ink, fontSize: 10.5, fontWeight: '800' }}>{option}</Text></TouchableOpacity>;
     })}
-    <Modal visible={checklistModal} transparent animationType="fade" onRequestClose={() => setChecklistModal(false)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
-        <Text style={[styles.modalTitle, missionStyles.title]}>Avant de quitter le site</Text>
-        <Text style={{ color: COLORS.inkSoft, fontSize: 10, lineHeight: 14, marginBottom: 10 }}>
-          METRA a détecté quelques points à vérifier. Cette liste est informative : elle ne bloque jamais la fin de visite.
-        </Text>
-        <ScrollView style={{ maxHeight: 340 }}>
-          {checklist.map((item) => <View key={item.id} style={{ borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine, paddingVertical: 8 }}>
-            <Text style={{ color: item.severity === 'warning' ? '#8A5B14' : MISSION_COLORS.accentStrong, fontSize: 10.5, fontWeight: '900' }}>{item.label}</Text>
-            {item.message ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, marginTop: 3 }}>{item.message}</Text> : null}
-          </View>)}
-        </ScrollView>
-        <View style={styles.modalActions}>
-          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setChecklistModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Revenir à la visite</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={reallyComplete}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Terminer quand même</Text></TouchableOpacity>
-        </View>
-      </View></View>
-    </Modal>
   </View>;
 }
 
@@ -280,6 +262,33 @@ export function MissionVisitScreen({ navigation, route }) {
     navigation.goBack();
   };
 
+  const ignoreChecklistItem = async (item) => {
+    try {
+      await ignorerCheckVisite(item.id);
+      setChecklist((current) => current.filter((row) => row.id !== item.id));
+    } catch (e) {
+      Alert.alert('Checklist non mise à jour', String(e?.message || e));
+    }
+  };
+
+  const openChecklistItem = (item) => {
+    setChecklistModal(false);
+    if (item.entity_type === 'equipment' && item.entity_id) {
+      navigation.navigate('MissionEquipment', {
+        missionId: actualMissionId,
+        equipmentId: item.entity_id,
+        siteId: data?.visit?.site_id,
+      });
+      return;
+    }
+    if (item.entity_type === 'point') {
+      Alert.alert(
+        'Point à compléter',
+        'Ouvre le dossier Mission puis la liste des points/actions pour compléter le responsable ou l’échéance.'
+      );
+    }
+  };
+
   const addPoint = async () => {
     if (!actualMissionId) return;
     try {
@@ -431,6 +440,31 @@ export function MissionVisitScreen({ navigation, route }) {
         {data.points.map((point) => <View key={point.id} style={[{ backgroundColor: COLORS.white, borderWidth: 1, borderRadius: 12, padding: 11, marginBottom: 7 }, missionStyles.card]}><Text style={{ color: COLORS.ink, fontWeight: '800', fontSize: 11.5 }}>{point.label || point.description || 'Point sans titre'}</Text><Text style={{ color: MISSION_COLORS.accentDark, marginTop: 3, fontSize: 9.5 }}>{point.type} · {point.status}</Text></View>)}
       </> : null}
     </ScrollView>
+
+    <Modal visible={checklistModal} transparent animationType="fade" onRequestClose={() => setChecklistModal(false)}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>Avant de quitter le site</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 10, lineHeight: 14, marginBottom: 10 }}>
+          METRA a détecté quelques points à vérifier. Cette liste est informative : elle ne bloque jamais la fin de visite.
+        </Text>
+        <ScrollView style={{ maxHeight: 340 }}>
+          {checklist.map((item) => <View key={item.id} style={{ borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine, paddingVertical: 9 }}>
+            <TouchableOpacity onPress={() => openChecklistItem(item)} activeOpacity={0.78}>
+              <Text style={{ color: item.severity === 'warning' ? '#8A5B14' : MISSION_COLORS.accentStrong, fontSize: 10.5, fontWeight: '900' }}>{item.label}</Text>
+              {item.message ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, marginTop: 3 }}>{item.message}</Text> : null}
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => ignoreChecklistItem(item)} style={{ alignSelf: 'flex-start', marginTop: 6, paddingVertical: 3 }}>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, fontWeight: '800' }}>Ignorer pour cette fin de visite</Text>
+            </TouchableOpacity>
+          </View>)}
+          {!checklist.length ? <Text style={{ color: COLORS.inkSoft, fontSize: 10, lineHeight: 14, paddingVertical: 12 }}>Tous les points de vigilance ont été traités ou ignorés. Tu peux terminer la visite.</Text> : null}
+        </ScrollView>
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setChecklistModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Revenir à la visite</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={reallyComplete}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Terminer quand même</Text></TouchableOpacity>
+        </View>
+      </View></View>
+    </Modal>
 
     <Modal visible={measureModal} transparent animationType="fade" onRequestClose={() => setMeasureModal(false)}>
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
