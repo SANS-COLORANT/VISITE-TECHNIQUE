@@ -11,6 +11,7 @@ import { getMissionVisitRecipe, MISSION_CAPTURE_MODES } from './missionRecipes.j
 import { getMissionFieldPlaybook } from './missionFieldPlaybooks.js';
 import { ajouterNoteVisiteMission, chargerVisiteMission, compterSaisieVisiteMission, enregistrerValeurTrameMission, mettreAJourVisiteMission } from './missionVisitDb.js';
 import { listerStructureMission } from './missionStructureDb.js';
+import { modifierEquipementMission } from './missionEquipmentDb.js';
 import { chargerContexteAutoVisiteMission, valeurAutoPourChampMission } from './missionVisitAutofillDb.js';
 
 const POINT_TYPES = [
@@ -203,6 +204,22 @@ export function MissionVisitScreen({ navigation, route }) {
     if (equipment?.location_id) setContextLocationId(equipment.location_id);
     setContextModal(false);
     setContextQuery('');
+  };
+
+  const setContextEquipmentVerification = async (status) => {
+    if (!contextEquipmentId || !actualMissionId) return;
+    try {
+      await modifierEquipementMission(contextEquipmentId, { verificationStatus: status });
+      setContextEquipment((rows) => rows.map((row) => row.id === contextEquipmentId ? { ...row, verification_status: status } : row));
+      const next = await chargerContexteAutoVisiteMission(actualMissionId, {
+        siteId: data?.visit?.site_id || null,
+        locationId: contextLocationId || null,
+        equipmentId: contextEquipmentId,
+      });
+      setAutoContext(next || {});
+    } catch (e) {
+      Alert.alert('Statut non enregistré', String(e?.message || e));
+    }
   };
 
   const changeCaptureMode = async (nextMode) => {
@@ -604,6 +621,34 @@ export function MissionVisitScreen({ navigation, route }) {
           </TouchableOpacity>
         </View>
       </View>
+
+      {selectedContextEquipment && (playbook.equipmentVerificationStatuses || []).length ? <View style={[missionStyles.card, { padding: 10, marginBottom: 12 }]}>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginBottom: 6 }}>STATUT TERRAIN · 1 GESTE</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+          {playbook.equipmentVerificationStatuses.map(([key,label]) => {
+            const selected = selectedContextEquipment.verification_status === key;
+            return <TouchableOpacity
+              key={key}
+              onPress={() => setContextEquipmentVerification(key)}
+              style={{
+                borderWidth: 1,
+                borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
+                backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF',
+                borderRadius: 10,
+                paddingHorizontal: 9,
+                paddingVertical: 7,
+                marginRight: 6,
+                marginBottom: 6,
+              }}
+            >
+              <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontWeight: '900' }}>{label}</Text>
+            </TouchableOpacity>;
+          })}
+        </View>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, lineHeight: 11 }}>
+          Le statut est enregistré sur la fiche équipement et sera réutilisé dans l’inventaire, les écarts et le rapport.
+        </Text>
+      </View> : null}
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
         {[
