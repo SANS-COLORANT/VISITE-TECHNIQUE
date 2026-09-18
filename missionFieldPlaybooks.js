@@ -466,6 +466,7 @@ const TYPES = Object.freeze({
     objective: 'Croiser inventaire, état, historique, obligations et renouvellements pour préparer une lecture contractuelle et patrimoniale exploitable.',
     steps: ['Inventaire', 'Périmètre', 'État', 'Historique', 'P3 / budget'],
     quickActions: [
+      action('amoDashboard', 'Pilotage AMO', 'navigate', { route: 'MissionAmoDashboard' }),
       action('equipment', 'Inventaire P2/P3', 'navigate', { route: 'MissionEquipment' }),
       action('p3Dashboard', 'Projection P2 / P3', 'navigate', { route: 'MissionP3Dashboard' }),
       action('sensitive', 'Équipement sensible', 'point', { preset: point('Équipement sensible / renouvellement à anticiper', 'control', { priority: 'À analyser' }) }),
