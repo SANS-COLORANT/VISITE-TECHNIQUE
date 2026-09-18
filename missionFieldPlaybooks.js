@@ -164,11 +164,12 @@ const BASE = Object.freeze({
   control: {
     defaultMode: 'rapide',
     defaultVisitType: 'contrôle terrain',
-    objective: 'Contrôler un point précis, rattacher la preuve et créer immédiatement l’action utile sans transformer METRA en organisme certificateur.',
-    steps: ['Référence', 'Contrôle', 'Preuve', 'Écart', 'Action'],
+    objective: 'Contrôler un point précis, rattacher la référence et la preuve, créer l’action utile et prévoir le recontrôle sans transformer METRA en organisme certificateur.',
+    steps: ['Référence', 'Contrôle', 'Preuve', 'Écart', 'Action', 'Recontrôle'],
     quickActions: [
+      action('controlBoard', 'Contrôles ciblés', 'navigate', { route: 'MissionControlBoard' }),
       action('tests', 'Contrôles / essais', 'navigate', { route: 'MissionTests' }),
-      action('control', 'Écart', 'point', { preset: point('Écart / contrôle à traiter', 'control', { priority: 'À traiter' }) }),
+      action('control', 'Écart rapide', 'point', { preset: point('Écart / contrôle à traiter', 'control', { priority: 'À traiter' }) }),
       action('photo', 'Preuve photo', 'photo'),
       action('document', 'Document', 'document'),
       action('actions', 'Actions', 'navigate', { route: 'MissionActions' }),
