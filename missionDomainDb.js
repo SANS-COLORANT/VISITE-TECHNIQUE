@@ -17,6 +17,65 @@ async function requireMission(db, missionId) {
   if (!row) throw new Error('Mission introuvable.');
 }
 
+async function resolveTechnicalContext(db, missionId, {
+  visitId = null,
+  siteId = null,
+  pointId = null,
+  equipmentId = null,
+  locationId = null,
+} = {}) {
+  const ctx = {
+    visitId: txt(visitId),
+    siteId: txt(siteId),
+    pointId: txt(pointId),
+    equipmentId: txt(equipmentId),
+    locationId: txt(locationId),
+  };
+
+  if (ctx.pointId) {
+    const point = await db.getFirstAsync(
+      'SELECT mission_id,visit_origin_id,site_id,location_id,equipment_id FROM mission_points WHERE id=?',
+      [ctx.pointId]
+    );
+    if (!point || String(point.mission_id) !== String(missionId)) throw new Error('Point Mission introuvable.');
+    ctx.visitId = ctx.visitId || point.visit_origin_id || null;
+    ctx.siteId = ctx.siteId || point.site_id || null;
+    ctx.locationId = ctx.locationId || point.location_id || null;
+    ctx.equipmentId = ctx.equipmentId || point.equipment_id || null;
+  }
+
+  if (ctx.equipmentId) {
+    const equipment = await db.getFirstAsync(
+      'SELECT e.site_id,e.location_id FROM mission_equipment e JOIN mission_site_links ml ON ml.site_id=e.site_id WHERE e.id=? AND ml.mission_id=?',
+      [ctx.equipmentId, missionId]
+    );
+    if (!equipment) throw new Error('Équipement Mission introuvable.');
+    ctx.siteId = ctx.siteId || equipment.site_id || null;
+    ctx.locationId = ctx.locationId || equipment.location_id || null;
+  }
+
+  if (ctx.locationId) {
+    const location = await db.getFirstAsync(
+      'SELECT l.site_id FROM mission_locations l JOIN mission_site_links ml ON ml.site_id=l.site_id WHERE l.id=? AND ml.mission_id=?',
+      [ctx.locationId, missionId]
+    );
+    if (!location) throw new Error('Localisation Mission introuvable.');
+    ctx.siteId = ctx.siteId || location.site_id || null;
+  }
+
+  if (ctx.visitId) {
+    const visit = await db.getFirstAsync('SELECT mission_id,site_id FROM mission_visits WHERE id=?', [ctx.visitId]);
+    if (!visit || String(visit.mission_id) !== String(missionId)) throw new Error('Visite Mission introuvable.');
+    ctx.siteId = ctx.siteId || visit.site_id || null;
+  }
+
+  if (ctx.siteId) {
+    const linked = await db.getFirstAsync('SELECT 1 AS ok FROM mission_site_links WHERE mission_id=? AND site_id=?', [missionId, ctx.siteId]);
+    if (!linked) throw new Error('Le Site ne correspond pas à cette Mission.');
+  }
+  return ctx;
+}
+
 export async function creerVoletMission({ missionId, label, kind = null, parentId = null, description = null, sortOrder = 0 } = {}) {
   const db = await getDb();
   await requireMission(db, missionId);
@@ -162,12 +221,13 @@ export async function creerReferenceMission({
 }
 
 export async function enregistrerMesureMission({
-  missionId, visitId = null, siteId = null, pointId = null, equipmentId = null, type, value = null, valueText = null,
+  missionId, visitId = null, siteId = null, pointId = null, equipmentId = null, locationId = null, type, value = null, valueText = null,
   unit = null, referenceId = null, sourceType = 'terrain', sourceId = null, sourceLabel = null, quality = 'measured',
   measuredAt = null, instrumentLabel = null, comment = null,
 } = {}) {
   const db = await getDb();
   await requireMission(db, missionId);
+  const context = await resolveTechnicalContext(db, missionId, { visitId, siteId, pointId, equipmentId, locationId });
   const id = createId('mmeas');
   const numericValue = num(value);
   let reference = null;
@@ -184,9 +244,9 @@ export async function enregistrerMesureMission({
 
   await db.withTransactionAsync(async () => {
     await db.runAsync(
-      `INSERT INTO mission_measures(id,mission_id,visit_id,site_id,point_id,equipment_id,type,value_number,value_text,unit,target_value,comment)
-       VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, missionId, txt(visitId), txt(siteId), txt(pointId), txt(equipmentId), txt(type) || 'valeur', numericValue, txt(valueText), txt(unit),
+      `INSERT INTO mission_measures(id,mission_id,visit_id,site_id,location_id,point_id,equipment_id,type,value_number,value_text,unit,target_value,comment)
+       VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [id, missionId, context.visitId, context.siteId, context.locationId, context.pointId, context.equipmentId, txt(type) || 'valeur', numericValue, txt(valueText), txt(unit),
         referenceNumber !== null ? String(referenceNumber) : txt(reference?.value_text), txt(comment)]
     );
     await db.runAsync(
@@ -199,16 +259,17 @@ export async function enregistrerMesureMission({
 }
 
 export async function creerSerieMesuresMission({
-  missionId, visitId = null, siteId = null, equipmentId = null, type, unit = null, startedAt = null, endedAt = null,
+  missionId, visitId = null, siteId = null, equipmentId = null, locationId = null, type, unit = null, startedAt = null, endedAt = null,
   sampleCount = 0, minValue = null, maxValue = null, avgValue = null, sourceFileUri = null, summary = null,
 } = {}) {
   const db = await getDb();
   await requireMission(db, missionId);
+  const context = await resolveTechnicalContext(db, missionId, { visitId, siteId, equipmentId, locationId });
   const id = createId('mseries');
   await db.runAsync(
-    `INSERT INTO mission_measure_series(id,mission_id,visit_id,site_id,equipment_id,type,unit,started_at,ended_at,sample_count,min_value,max_value,avg_value,source_file_uri,summary_json)
-     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, missionId, txt(visitId), txt(siteId), txt(equipmentId), txt(type) || 'serie', txt(unit), txt(startedAt), txt(endedAt), Number(sampleCount) || 0,
+    `INSERT INTO mission_measure_series(id,mission_id,visit_id,site_id,location_id,equipment_id,type,unit,started_at,ended_at,sample_count,min_value,max_value,avg_value,source_file_uri,summary_json)
+     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+    [id, missionId, context.visitId, context.siteId, context.locationId, context.equipmentId, txt(type) || 'serie', txt(unit), txt(startedAt), txt(endedAt), Number(sampleCount) || 0,
       num(minValue), num(maxValue), num(avgValue), txt(sourceFileUri), summary ? JSON.stringify(summary) : null]
   );
   return id;
