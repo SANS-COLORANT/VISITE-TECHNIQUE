@@ -19,7 +19,7 @@ import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRun
 import { getActiveVisualPack, getVisualPackStartupDuration, resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
 
 const SPLASH_BG = '#FBF0E1';
-const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit']);
+const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport']);
 
 const DEFERRED_SCREEN_LOADERS = Object.freeze({
   MetraDirectory: () => require('./MetraDirectoryScreen.js').MetraDirectoryScreen,
@@ -39,6 +39,7 @@ const DEFERRED_SCREEN_LOADERS = Object.freeze({
   MissionCreate: () => require('./MissionCreateScreen.js').MissionCreateScreen,
   Mission: () => require('./MissionScreen.js').MissionScreen,
   MissionVisit: () => require('./MissionVisitScreen.js').MissionVisitScreen,
+  MissionReport: () => require('./MissionReportScreen.js').MissionReportScreen,
 });
 
 function DeferredScreen({ name, ...props }) {
@@ -197,6 +198,7 @@ function AppContent() {
     {current.name === 'MissionCreate' && missionsVisible ? <><MissionHeader title="Nouvelle Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionCreate" navigation={navigation} route={route} /></> : null}
     {current.name === 'Mission' && missionsVisible ? <><MissionHeader title="Dossier Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="Mission" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionVisit' && missionsVisible ? <><MissionHeader title="Visite terrain" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionVisit" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionReport' && missionsVisible ? <><MissionHeader title="Rapport Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionReport" navigation={navigation} route={route} /></> : null}
 
     {current.name !== 'Home' && current.name !== 'Missions' ? <GlobalHomeButton missionMode={missionMode} onPress={missionMode ? goMissionsHome : goHome} /> : null}
     <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
