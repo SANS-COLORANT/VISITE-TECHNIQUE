@@ -22,7 +22,7 @@ const BASE = Object.freeze({
   },
   works: {
     label: 'Compte rendu de suivi de travaux',
-    order: ['contexte','visites','sujets','points','actions','essais','documents','inventaire','architecture','mesures','photos','calculs','scenarios'],
+    order: ['contexte','visites','sujets','cycle_projet','points','actions','essais','documents','inventaire','architecture','mesures','photos','calculs','scenarios'],
     titles: {
       visites: 'Interventions / visites de chantier',
       sujets: 'Sujets, constats et décisions de chantier',
@@ -33,7 +33,7 @@ const BASE = Object.freeze({
   },
   reception: {
     label: 'Compte rendu OPR / réception',
-    order: ['contexte','visites','essais','points','actions','documents','inventaire','mesures','photos','architecture','calculs','scenarios'],
+    order: ['contexte','visites','inventaire','cycle_projet','essais','points','actions','documents','mesures','photos','architecture','calculs','scenarios'],
     titles: {
       points: 'Réserves et écarts constatés',
       actions: 'Suivi des réserves',
@@ -43,7 +43,7 @@ const BASE = Object.freeze({
   },
   passation: {
     label: 'Rapport de passation',
-    order: ['contexte','inventaire','architecture','visites','points','mesures','essais','actions','documents','photos','calculs','scenarios'],
+    order: ['contexte','inventaire','cycle_projet','architecture','visites','points','mesures','essais','actions','documents','photos','calculs','scenarios'],
     titles: {
       inventaire: 'Inventaire contradictoire',
       points: 'Écarts entre attendu et terrain',
