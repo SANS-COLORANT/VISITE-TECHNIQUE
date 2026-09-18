@@ -11,6 +11,7 @@ import { getMissionVisitRecipe, MISSION_CAPTURE_MODES } from './missionRecipes.j
 import { getMissionFieldPlaybook } from './missionFieldPlaybooks.js';
 import { ajouterNoteVisiteMission, chargerVisiteMission, compterSaisieVisiteMission, enregistrerValeurTrameMission, mettreAJourVisiteMission } from './missionVisitDb.js';
 import { listerStructureMission } from './missionStructureDb.js';
+import { chargerContexteAutoVisiteMission, valeurAutoPourChampMission } from './missionVisitAutofillDb.js';
 
 const POINT_TYPES = [
   ['reserve', 'Réserve'], ['action', 'Action'], ['request', 'Demande'], ['control', 'Contrôle'], ['decision', 'Décision'], ['information', 'Information'],
@@ -25,12 +26,16 @@ function ChoiceField({ field, value, onChange }) {
   </View>;
 }
 
-function OptionalField({ sectionKey, field, value, onChange, onSave, onDictate, dictationBusy }) {
+function OptionalField({ sectionKey, field, value, autoValue = '', onChange, onSave, onDictate, dictationBusy }) {
   return <View style={{ marginBottom: 14 }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
       <Text style={{ flex: 1, color: COLORS.ink, fontWeight: '800', fontSize: 11.5 }}>{field.label}</Text>
       <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.5, fontWeight: '700' }}>OPTIONNEL</Text>
     </View>
+    {autoValue ? <View style={{ marginBottom: 7, borderRadius: 10, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: MISSION_COLORS.accentSoft, padding: 9 }}>
+      <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 7.8, fontWeight: '900', letterSpacing: 0.45 }}>DÉJÀ CONNU PAR METRA · PAS DE RESSAISIE</Text>
+      <Text style={{ color: COLORS.inkSoft, fontSize: 9.2, lineHeight: 13, marginTop: 3 }}>{autoValue}</Text>
+    </View> : null}
     {field.type === 'choice'
       ? <ChoiceField field={field} value={value || ''} onChange={(next) => { onChange(next); onSave(next); }} />
       : <View>
@@ -39,7 +44,7 @@ function OptionalField({ sectionKey, field, value, onChange, onSave, onDictate, 
             onChangeText={onChange}
             onBlur={() => onSave(value || '')}
             multiline
-            placeholder="Laisser vide si non renseigné"
+            placeholder={autoValue ? 'Ajouter uniquement une précision si nécessaire' : 'Laisser vide si non renseigné'}
             placeholderTextColor={COLORS.inkFaint}
             style={[styles.input, missionStyles.input, { minHeight: 62, textAlignVertical: 'top', paddingRight: 46 }]}
           />
@@ -90,6 +95,7 @@ export function MissionVisitScreen({ navigation, route }) {
   const [contextEquipmentId, setContextEquipmentId] = useState(routeEquipmentId);
   const [contextModal, setContextModal] = useState(false);
   const [contextQuery, setContextQuery] = useState('');
+  const [autoContext, setAutoContext] = useState({});
 
   const reload = useCallback(async () => {
     if (!visitId) return;
@@ -135,6 +141,27 @@ export function MissionVisitScreen({ navigation, route }) {
       } catch {}
     })();
   }, [actualMissionId, data?.visit?.site_id, routeEquipmentId]);
+
+  useEffect(() => {
+    if (!actualMissionId) {
+      setAutoContext({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const next = await chargerContexteAutoVisiteMission(actualMissionId, {
+          siteId: data?.visit?.site_id || null,
+          locationId: contextLocationId || null,
+          equipmentId: contextEquipmentId || null,
+        });
+        if (!cancelled) setAutoContext(next || {});
+      } catch {
+        if (!cancelled) setAutoContext({});
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [actualMissionId, data?.visit?.site_id, contextLocationId, contextEquipmentId]);
 
   const selectedContextLocation = useMemo(
     () => contextLocations.find((row) => row.id === contextLocationId) || null,
@@ -613,6 +640,7 @@ export function MissionVisitScreen({ navigation, route }) {
             sectionKey={section.key}
             field={field}
             value={values[code] || ''}
+            autoValue={valeurAutoPourChampMission(field, autoContext)}
             onChange={(next) => setValues((current) => ({ ...current, [code]: next }))}
             onSave={(next) => saveField(section.key, field, next)}
             dictationBusy={dictationBusy}
