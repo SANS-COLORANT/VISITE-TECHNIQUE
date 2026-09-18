@@ -78,8 +78,9 @@ function LocationNode({ node, onAddChild, onEdit, onDelete }) {
 
 export function MissionStructureScreen({ navigation, route }) {
   const missionId = route?.params?.missionId;
+  const initialSiteId = route?.params?.siteId || null;
   const [raw, setRaw] = useState({ sites: [], locations: [], equipment: [] });
-  const [expandedSite, setExpandedSite] = useState(null);
+  const [expandedSite, setExpandedSite] = useState(initialSiteId);
   const [modalVisible, setModalVisible] = useState(false);
   const [editingId, setEditingId] = useState(null);
   const [draft, setDraft] = useState({ siteId: '', parentLocationId: '', kind: 'building', label: '' });
