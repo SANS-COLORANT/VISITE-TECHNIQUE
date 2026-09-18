@@ -150,6 +150,10 @@ def seed_v42(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO mission_custom_measure_types(id,mission_id,label,unit) VALUES('mt1','m1','Temperature plaque','C')")
     conn.execute("INSERT INTO mission_ocr_jobs(id,mission_id,photo_id,equipment_id,status,raw_text) VALUES('ocr1','m1','photo1','e1','confirmed','MODEL X')")
     conn.execute("INSERT INTO mission_voice_notes(id,mission_id,visit_id,site_id,transcript) VALUES('voice1','m1','v1','s1','Note dictee')")
+    conn.execute("UPDATE mission_photos SET location_id='loc1',action_id='act1',phase_role='before' WHERE id='photo1'")
+    conn.execute("UPDATE mission_measures SET location_id='loc1' WHERE id='me1'")
+    conn.execute("UPDATE mission_measure_series SET location_id='loc1' WHERE id='ser1'")
+    conn.execute("UPDATE mission_documents SET location_id='loc1',equipment_id='e1' WHERE id='d1'")
     conn.execute("INSERT INTO mission_visit_checks(id,mission_id,visit_id,check_key,label,severity,entity_type,entity_id) VALUES('check1','m1','v1','equipment_state_missing','Etat a verifier','info','equipment','e1')")
     conn.execute("UPDATE mission_geometries SET measure_id='me1',photo_id='photo1',action_id='act1' WHERE id='g1'")
     conn.execute("INSERT INTO mission_document_extractions(id,mission_id,document_id,page_number,source_part,engine,raw_text) VALUES('ext1','m1','d1',1,'page:1','test','Texte')")
@@ -175,6 +179,13 @@ def exercise(conn: sqlite3.Connection) -> None:
     for required in ("measure_id", "photo_id", "action_id"):
         if required not in geo_cols:
             raise AssertionError(f"Colonne v42 manquante: mission_geometries.{required}")
+    photo_cols = {row[1] for row in conn.execute("PRAGMA table_info(mission_photos)")}
+    for required in ("location_id", "geometry_id", "action_id", "phase_role"):
+        if required not in photo_cols:
+            raise AssertionError(f"Colonne v42 manquante: mission_photos.{required}")
+    measure_cols = {row[1] for row in conn.execute("PRAGMA table_info(mission_measures)")}
+    if "location_id" not in measure_cols:
+        raise AssertionError("Colonne v42 manquante: mission_measures.location_id")
 
     conn.execute("DELETE FROM missions WHERE id='m1'")
     conn.commit()
