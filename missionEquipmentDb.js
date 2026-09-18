@@ -187,9 +187,68 @@ export async function modifierEquipementMission(equipmentId, changes = {}) {
     values.push(changes.properties ? JSON.stringify(changes.properties) : null);
   }
   if (!setters.length) return;
+
+  const contextMissionId = clean(changes.missionId);
+  const lifecycleChanged = 'lifecycleStatus' in changes
+    && clean(current.lifecycle_status) !== clean(changes.lifecycleStatus);
+  const verificationChanged = 'verificationStatus' in changes
+    && clean(current.verification_status) !== clean(changes.verificationStatus);
+
+  if ((lifecycleChanged || verificationChanged) && !contextMissionId) {
+    const links = await db.getAllAsync(
+      'SELECT mission_id FROM mission_site_links WHERE site_id=? ORDER BY created_at DESC LIMIT 2',
+      [current.site_id]
+    );
+    if (links.length === 1) {
+      changes.missionId = links[0].mission_id;
+    }
+  }
+  const effectiveMissionId = clean(changes.missionId);
+
   setters.push("updated_at=datetime('now')");
   values.push(equipmentId);
-  await db.runAsync('UPDATE mission_equipment SET ' + setters.join(',') + ' WHERE id=?', values);
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('UPDATE mission_equipment SET ' + setters.join(',') + ' WHERE id=?', values);
+
+    if (lifecycleChanged && effectiveMissionId) {
+      await db.runAsync(
+        `INSERT INTO mission_equipment_lifecycle(
+          id,mission_id,equipment_id,from_state,to_state,effective_date,comment
+        ) VALUES(?,?,?,?,?,?,?)`,
+        [
+          createId('melife'),
+          effectiveMissionId,
+          equipmentId,
+          clean(current.lifecycle_status),
+          clean(changes.lifecycleStatus) || 'existant_conserve',
+          new Date().toISOString(),
+          clean(changes.changeComment) || 'Changement de cycle de vie depuis METRA Missions',
+        ]
+      );
+    }
+
+    if (verificationChanged && effectiveMissionId) {
+      await db.runAsync(
+        `INSERT INTO mission_provenance(
+          id,mission_id,entity_type,entity_id,field_name,source_kind,source_value,confidence
+        ) VALUES(?,?,?,?,?,?,?,?)`,
+        [
+          createId('mprov'),
+          effectiveMissionId,
+          'equipment',
+          equipmentId,
+          'verification_status',
+          'field_change',
+          JSON.stringify({
+            before: clean(current.verification_status),
+            after: clean(changes.verificationStatus),
+            changed_at: new Date().toISOString(),
+          }),
+          'confirmed',
+        ]
+      );
+    }
+  });
 }
 
 export async function dupliquerEquipementMission(equipmentId, quantity = 1) {
