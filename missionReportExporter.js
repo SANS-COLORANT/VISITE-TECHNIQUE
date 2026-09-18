@@ -198,7 +198,7 @@ async function ensureReport(missionId) {
   return initialiserRapportMission(missionId);
 }
 
-export async function exporterRapportMissionPdf(missionId) {
+export async function exporterRapportMissionPdf(missionId, { share = true } = {}) {
   const report = await ensureReport(missionId);
   const html = await buildHtml(report);
   const generated = await Print.printToFileAsync({ html, base64: false });
@@ -207,17 +207,17 @@ export async function exporterRapportMissionPdf(missionId) {
   const uri = root + name;
   if (generated.uri !== uri) await FileSystem.copyAsync({ from: generated.uri, to: uri });
   await recordOutput(missionId, report.profile?.id, 'pdf', uri);
-  if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: PDF_MIME, dialogTitle: 'Rapport METRA Missions' });
+  if (share && await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: PDF_MIME, dialogTitle: 'Rapport METRA Missions' });
   return { uri, name };
 }
 
-export async function exporterRapportMissionDocx(missionId) {
+export async function exporterRapportMissionDocx(missionId, { share = true } = {}) {
   const report = await ensureReport(missionId);
   const root = FileSystem.cacheDirectory || FileSystem.documentDirectory;
   const name = 'Rapport_Mission_' + fileSafe(report.data?.mission?.label || missionId) + '.docx';
   const uri = root + name;
   await buildDocx(report, uri);
   await recordOutput(missionId, report.profile?.id, 'docx', uri);
-  if (await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: DOCX_MIME, dialogTitle: 'Rapport Word METRA Missions' });
+  if (share && await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: DOCX_MIME, dialogTitle: 'Rapport Word METRA Missions' });
   return { uri, name };
 }
