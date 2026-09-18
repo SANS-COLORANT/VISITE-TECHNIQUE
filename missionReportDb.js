@@ -30,7 +30,7 @@ async function loadMissionReportData(db, missionId) {
 
   const [
     sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations,
+    equipment, locations, installations, systems, networks, components, workstreams, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations,
   ] = await Promise.all([
     db.getAllAsync('SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name', [missionId]),
     db.getAllAsync('SELECT v.*,s.name AS site_name FROM mission_visits v LEFT JOIN mission_sites s ON s.id=v.site_id WHERE v.mission_id=? ORDER BY COALESCE(v.visit_date,v.created_at)', [missionId]),
@@ -105,6 +105,16 @@ async function loadMissionReportData(db, missionId) {
       [missionId]
     ),
     db.getAllAsync(
+      `SELECT w.*,
+        (SELECT COUNT(*) FROM mission_subjects sub WHERE sub.workstream_id=w.id) AS subject_count,
+        (SELECT COUNT(*) FROM mission_subjects sub WHERE sub.workstream_id=w.id AND sub.status<>'closed') AS open_subject_count,
+        (SELECT COUNT(*) FROM mission_actions a JOIN mission_subjects sub ON sub.id=a.subject_id
+          WHERE sub.workstream_id=w.id AND a.status NOT IN ('closed','cancelled')) AS open_action_count
+       FROM mission_workstreams w
+       WHERE w.mission_id=? ORDER BY w.sort_order,w.label`,
+      [missionId]
+    ),
+    db.getAllAsync(
       `SELECT sub.*,s.name AS site_name,
         (SELECT COUNT(*) FROM mission_actions a WHERE a.subject_id=sub.id AND a.status NOT IN ('closed','cancelled')) AS open_actions_count
        FROM mission_subjects sub
@@ -165,7 +175,7 @@ async function loadMissionReportData(db, missionId) {
 
   return {
     mission, sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations,
+    equipment, locations, installations, systems, networks, components, workstreams, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations,
   };
 }
 
@@ -276,6 +286,25 @@ function makeAutoSections(data) {
       key: 'architecture',
       title: 'Architecture technique',
       content: [blockTable(['Site', 'Local', 'Niveau', 'Nom', 'Rattachement / type', 'Statut'], rows)],
+    });
+  }
+
+  if (data.workstreams?.length) {
+    sections.push({
+      key: 'volets',
+      title: 'Volets / axes de la Mission',
+      content: [blockTable(
+        ['Volet', 'Type', 'Statut', 'Sujets', 'Sujets ouverts', 'Actions ouvertes', 'Description'],
+        data.workstreams.map((row) => [
+          row.label || '',
+          row.kind || '',
+          row.status || '',
+          row.subject_count ?? 0,
+          row.open_subject_count ?? 0,
+          row.open_action_count ?? 0,
+          row.description || '',
+        ])
+      )],
     });
   }
 
