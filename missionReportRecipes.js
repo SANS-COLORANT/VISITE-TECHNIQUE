@@ -201,7 +201,13 @@ const OVERRIDES = Object.freeze({
   },
   assistance_p2_p3: {
     label: 'Analyse exploitation / P2-P3',
-    titles: { inventaire: 'Inventaire contractuel / patrimonial', points: 'Équipements sensibles et écarts de périmètre', scenarios: 'Projection renouvellement / P3' },
+    order: ['contexte','inventaire','projection_p3','architecture','visites','mesures','essais','points','actions','calculs','scenarios','documents','photos'],
+    titles: {
+      inventaire: 'Inventaire contractuel / patrimonial',
+      projection_p3: 'Projection indicative des renouvellements P3',
+      points: 'Équipements sensibles et écarts de périmètre',
+      scenarios: 'Scénarios de renouvellement / P3',
+    },
   },
   preallumage_reprise_saison: {
     label: 'Compte rendu de reprise de saison',
