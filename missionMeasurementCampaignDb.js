@@ -415,6 +415,45 @@ export async function dupliquerCampagneMesuresMission(campaignId, { label = null
   return targetId;
 }
 
+export async function comparerCampagneMesures(campaignId) {
+  const db = await getDb();
+  const campaign = await requireCampaign(db, campaignId);
+  if (!clean(campaign.comparison_group)) return { previousCampaign: null, rows: [] };
+
+  const previous = await db.getFirstAsync(
+    `SELECT * FROM mission_measure_campaigns
+     WHERE mission_id=? AND comparison_group=? AND id<>?
+     ORDER BY CASE WHEN created_at < ? THEN 0 ELSE 1 END,created_at DESC LIMIT 1`,
+    [campaign.mission_id,campaign.comparison_group,campaign.id,campaign.created_at]
+  );
+  if (!previous) return { previousCampaign: null, rows: [] };
+
+  const rows = await db.getAllAsync(
+    `SELECT current.id,current.label,current.external_ref,current.status,current.measured_value,current.measured_text,
+      previous.id AS previous_point_id,previous.status AS previous_status,previous.measured_value AS previous_value,previous.measured_text AS previous_text
+     FROM mission_measure_campaign_points current
+     LEFT JOIN mission_measure_campaign_points previous
+       ON previous.campaign_id=?
+      AND (
+        (current.external_ref IS NOT NULL AND previous.external_ref=current.external_ref)
+        OR (current.external_ref IS NULL AND previous.external_ref IS NULL AND LOWER(previous.label)=LOWER(current.label))
+      )
+     WHERE current.campaign_id=?
+     ORDER BY current.sort_order,current.label`,
+    [previous.id,campaignId]
+  );
+  return {
+    previousCampaign: previous,
+    rows: rows.map((row) => ({
+      ...row,
+      delta: row.measured_value !== null && row.measured_value !== undefined
+        && row.previous_value !== null && row.previous_value !== undefined
+        ? Number(row.measured_value) - Number(row.previous_value)
+        : null,
+    })),
+  };
+}
+
 export async function supprimerPointCampagneMesures(pointId) {
   const db = await getDb();
   await db.runAsync('DELETE FROM mission_measure_campaign_points WHERE id=?', [pointId]);
