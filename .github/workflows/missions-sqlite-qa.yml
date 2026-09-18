@@ -27,6 +27,7 @@ on:
       - 'missionMeasurementDb.js'
       - 'missionDocumentExtractionDb.js'
       - 'missionPackageExport.js'
+      - 'missionPackageImport.js'
       - 'missionNativeTools.js'
       - 'missionDomainDb.js'
       - 'missionMediaDb.js'
