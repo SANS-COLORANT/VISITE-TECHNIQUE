@@ -3,6 +3,7 @@ import * as Sharing from 'expo-sharing';
 import { zip } from 'react-native-zip-archive';
 import { getDb } from './db.js';
 import { preparerExportMission } from './missionExcelExport.js';
+import { preparerExportMissionClient, preparerSyntheseActionsMission } from './missionClientExcelExport.js';
 import { exporterRapportMissionDocx, exporterRapportMissionPdf } from './missionReportExporter.js';
 import { exporterGeoJsonMission, exporterGeoPackageMission, exporterPlanPdfAnnote, listerPlansMission } from './missionPlanDb.js';
 
@@ -63,6 +64,8 @@ export const DEFAULT_MISSION_PACKAGE_OPTIONS = Object.freeze({
   reportDocx: true,
   individualReports: true,
   excel: true,
+  excelClient: true,
+  actionsSummary: true,
   photos: true,
   sourceDocuments: true,
   annotatedPlans: true,
@@ -158,6 +161,8 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
     db.getAllAsync('SELECT * FROM mission_map_layers WHERE mission_id=? ORDER BY created_at', [missionId]),
   ]);
 
+  const packagePhotoPathById = {};
+
   if (cfg.photos && photos.length) {
     const folder = await ensure(root + 'Photos/');
     const photoIndex = [];
@@ -170,6 +175,7 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
       const copied = await copyIfFile(photo.file_uri, folder + name);
       if (copied) {
         manifest.files.push('Photos/' + name);
+        packagePhotoPathById[photo.id] = 'Photos/' + name;
         photoIndex.push({ ...photo, package_file: 'Photos/' + name });
       } else {
         photoIndex.push({ ...photo, package_file: null });
@@ -177,6 +183,22 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
     }
     await FileSystem.writeAsStringAsync(folder + 'index.json', JSON.stringify(photoIndex, null, 2));
     manifest.files.push('Photos/index.json');
+  }
+
+  if (cfg.excelClient || cfg.actionsSummary) {
+    const folder = await ensure(root + 'Data/');
+    if (cfg.excelClient) {
+      const out = await preparerExportMissionClient(missionId, { photoPathById: packagePhotoPathById });
+      const name = safe(out.name || 'Export_client.xlsx');
+      await FileSystem.writeAsStringAsync(folder + name, out.base64, { encoding: FileSystem.EncodingType.Base64 });
+      manifest.files.push('Data/' + name);
+    }
+    if (cfg.actionsSummary) {
+      const out = await preparerSyntheseActionsMission(missionId, { photoPathById: packagePhotoPathById });
+      const name = safe(out.name || 'Synthese_actions.xlsx');
+      await FileSystem.writeAsStringAsync(folder + name, out.base64, { encoding: FileSystem.EncodingType.Base64 });
+      manifest.files.push('Data/' + name);
+    }
   }
 
   if (cfg.sourceDocuments && documents.length) {
