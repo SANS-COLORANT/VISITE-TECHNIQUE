@@ -79,6 +79,7 @@ const JS_SYNTAX_FILES = [
   'missionMapLayerDb.js',
   'missionCalculationDb.js',
   'missionCalculationAssist.js',
+  'missionScenarioPresets.js',
   'missionTestDb.js',
   'missionExcelMappingDb.js',
   'missionPhotoAnnotationDb.js',
