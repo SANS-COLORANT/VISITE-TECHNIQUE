@@ -123,7 +123,7 @@ export function MissionMeasurementCampaignScreen({ route }) {
     setPoints(rows || []);
     setComparison(compare || { previousCampaign: null, rows: [] });
 
-    const preferred = (rows || []).findIndex((row) => row.status === 'planned' || row.status === 'reschedule');
+    const preferred = (rows || []).findIndex((row) => row.status === 'planned');
     setCurrentIndex((current) => {
       if (!rows?.length) return 0;
       if (current >= rows.length) return Math.max(0, rows.length - 1);
@@ -265,14 +265,21 @@ export function MissionMeasurementCampaignScreen({ route }) {
         comment: quickComment,
         sourceType: 'terrain',
       });
-      await refreshAll();
-      if (status === 'measured') {
-        goNext();
-        if (result?.anomalyStatus === 'to_check') {
-          Alert.alert('Valeur à contrôler', 'La valeur dépasse la tolérance de référence. METRA la signale sans conclure automatiquement à un défaut.');
-        }
-      } else {
-        goNext();
+      const [nextRows, nextComparison] = await Promise.all([
+        listerPointsCampagneMesures(selectedCampaign.id),
+        comparerCampagneMesures(selectedCampaign.id),
+        loadCampaigns(),
+      ]);
+      setPoints(nextRows || []);
+      setComparison(nextComparison || { previousCampaign: null, rows: [] });
+      const afterCurrent = (nextRows || []).findIndex((row, index) => index > currentIndex && row.status === 'planned');
+      const firstRemaining = (nextRows || []).findIndex((row) => row.status === 'planned');
+      const targetIndex = afterCurrent >= 0 ? afterCurrent : firstRemaining >= 0 ? firstRemaining : Math.min(currentIndex, Math.max(0, (nextRows || []).length - 1));
+      setCurrentIndex(targetIndex);
+      setQuickValue('');
+      setQuickComment('');
+      if (status === 'measured' && result?.anomalyStatus === 'to_check') {
+        Alert.alert('Valeur à contrôler', 'La valeur dépasse la tolérance de référence. METRA la signale sans conclure automatiquement à un défaut.');
       }
     } catch (e) {
       Alert.alert('Enregistrement impossible', String(e?.message || e));
