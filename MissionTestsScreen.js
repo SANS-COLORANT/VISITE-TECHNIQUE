@@ -157,6 +157,23 @@ export function MissionTestsScreen({ route }) {
     }])));
   };
 
+  const repeatRun = async (runRow) => {
+    const run = await demarrerExecutionEssai({
+      missionId,
+      protocolId: runRow.protocol_id,
+      siteId: runRow.site_id || null,
+      equipmentId: runRow.equipment_id || null,
+    });
+    setRunData(run);
+    setStepEdits(Object.fromEntries((run.steps || []).map((step) => [step.id, {
+      status: step.result_status || '',
+      value: step.result_number === null || step.result_number === undefined ? '' : String(step.result_number),
+      text: step.result_text || '',
+      comment: step.result_comment || '',
+    }])));
+    await load();
+  };
+
   const openRun = async (runId) => {
     const run = await chargerExecutionEssai(runId);
     setRunData(run);
@@ -300,18 +317,35 @@ export function MissionTestsScreen({ route }) {
       </View>)}
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Exécutions</Text>
-      {runs.map((r) => <TouchableOpacity key={r.id} onPress={() => openRun(r.id)} style={[missionStyles.card, { padding: 11, marginBottom: 7 }]}>
-        <View style={{ flexDirection: 'row' }}>
-          <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 10.8 }}>{r.protocol_label}</Text>
-            <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 2 }}>{[r.site_name, r.equipment_type].filter(Boolean).join(' · ') || 'Sans rattachement'}</Text>
-          </View>
-          <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ color: r.status === 'completed' ? MISSION_COLORS.accentDark : '#8A5B14', fontSize: 9, fontWeight: '900' }}>{r.status}</Text>
-            <Text style={{ color: Number(r.deviations_count || 0) ? '#8B3A3A' : COLORS.inkFaint, fontSize: 8.7 }}>{r.deviations_count || 0} écart(s)</Text>
-          </View>
-        </View>
-      </TouchableOpacity>)}
+      {runs.map((r) => {
+        const samePasses = runs.filter((item) =>
+          item.protocol_id === r.protocol_id
+          && String(item.site_id || '') === String(r.site_id || '')
+          && String(item.equipment_id || '') === String(r.equipment_id || '')
+        );
+        const chronological = [...samePasses].sort((a,b) => String(a.created_at || '').localeCompare(String(b.created_at || '')));
+        const passNumber = chronological.findIndex((item) => item.id === r.id) + 1;
+        return <View key={r.id} style={[missionStyles.card, { padding: 11, marginBottom: 7 }]}>
+          <TouchableOpacity onPress={() => openRun(r.id)}>
+            <View style={{ flexDirection: 'row' }}>
+              <View style={{ flex: 1 }}>
+                <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 10.8 }}>{r.protocol_label}</Text>
+                <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 2 }}>{[r.site_name, r.equipment_type, passNumber ? 'Passage ' + passNumber : null].filter(Boolean).join(' · ') || 'Sans rattachement'}</Text>
+              </View>
+              <View style={{ alignItems: 'flex-end' }}>
+                <Text style={{ color: r.status === 'completed' ? MISSION_COLORS.accentDark : '#8A5B14', fontSize: 9, fontWeight: '900' }}>{r.status}</Text>
+                <Text style={{ color: Number(r.deviations_count || 0) ? '#8B3A3A' : COLORS.inkFaint, fontSize: 8.7 }}>{r.deviations_count || 0} écart(s)</Text>
+              </View>
+            </View>
+          </TouchableOpacity>
+          {r.status === 'completed' ? <TouchableOpacity
+            onPress={() => repeatRun(r)}
+            style={{ alignSelf: 'flex-start', marginTop: 7, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6, backgroundColor: MISSION_COLORS.accentSoft }}
+          >
+            <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.3, fontWeight: '900' }}>↻ Rejouer · nouveau passage</Text>
+          </TouchableOpacity> : null}
+        </View>;
+      })}
     </ScrollView>
 
     <Modal visible={createVisible} transparent animationType="fade" onRequestClose={() => setCreateVisible(false)}>
@@ -365,12 +399,26 @@ export function MissionTestsScreen({ route }) {
           </View>
         </View>
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 90 }}>
+          {runData?.previousRun ? <View style={[missionStyles.card, { padding: 10, marginBottom: 10, borderColor: '#D7DDD9' }]}>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8, fontWeight: '900' }}>COMPARAISON AVEC LE PASSAGE PRÉCÉDENT</Text>
+            <Text style={{ color: COLORS.inkSoft, fontSize: 8.8, lineHeight: 12, marginTop: 3 }}>
+              {runData.previousRun.completed_at || runData.previousRun.started_at || ''} · les anciennes valeurs restent visibles sans être recopiées.
+            </Text>
+          </View> : null}
           {(runData?.steps || []).map((step, index) => {
             const edit = stepEdits[step.id] || {};
             return <View key={step.id} style={[missionStyles.card, { padding: 12, marginBottom: 10 }]}>
               <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11.5, fontWeight: '900' }}>{index + 1}. {step.label}</Text>
               {step.expected_text ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, marginTop: 4 }}>Attendu : {step.expected_text}</Text> : null}
               {step.reference_number !== null && step.reference_number !== undefined ? <Text style={{ color: COLORS.inkFaint, fontSize: 9, marginTop: 2 }}>Référence : {step.reference_number} {step.reference_unit || ''}{step.tolerance_pct !== null && step.tolerance_pct !== undefined ? ' · ±' + step.tolerance_pct + '%' : ''}</Text> : null}
+              {step.previous_status ? <View style={{ marginTop: 6, borderRadius: 9, borderWidth: 1, borderColor: '#D7DDD9', backgroundColor: '#F5F7F6', padding: 7 }}>
+                <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, fontWeight: '900' }}>PASSAGE PRÉCÉDENT · {step.previous_status}</Text>
+                <Text style={{ color: COLORS.inkSoft, fontSize: 8.7, marginTop: 2 }}>
+                  {step.previous_number !== null && step.previous_number !== undefined
+                    ? String(step.previous_number) + (step.previous_unit ? ' ' + step.previous_unit : '')
+                    : (step.previous_text || 'Aucune valeur numérique')}
+                </Text>
+              </View> : null}
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 9 }}>
                 <TextInput style={[styles.input, missionStyles.input, { flex: 1 }]} keyboardType="decimal-pad" value={edit.value || ''} onChangeText={(v) => setStepEdits((all) => ({ ...all, [step.id]: { ...edit, value: v } }))} placeholder="Valeur observée" />
                 <Text style={{ alignSelf: 'center', color: COLORS.inkSoft, fontSize: 10 }}>{step.reference_unit || ''}</Text>
