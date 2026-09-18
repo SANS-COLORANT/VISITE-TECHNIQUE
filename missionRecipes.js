@@ -790,11 +790,12 @@ const BASE_CAPABILITIES = Object.freeze({
   signature: false,
   package: true,
   reserveClearance: false,
+  subjects: false,
 });
 
 const FAMILY_CAPABILITIES = Object.freeze({
   etude_audit: { scenarios: true },
-  travaux_chantier: { tests: true },
+  travaux_chantier: { tests: true, subjects: true },
   campagne_multisites: { map: true },
   conformite_reglementaire: { tests: true },
 });
@@ -813,9 +814,9 @@ const TYPE_CAPABILITIES = Object.freeze({
   etude_ecs: { scenarios: true },
   etude_ventilation_clim: { scenarios: true },
   etude_regulation_gtb: { scenarios: true },
-  amo_travaux: { tests: true },
-  moe_travaux: { tests: true },
-  det_chantier: { tests: true },
+  amo_travaux: { tests: true, subjects: true },
+  moe_travaux: { tests: true, subjects: true },
+  det_chantier: { tests: true, subjects: true },
   commissioning: { tests: true },
   opr_reception: { tests: true, signature: true },
   levee_reserves: { tests: true, signature: true, reserveClearance: true },
