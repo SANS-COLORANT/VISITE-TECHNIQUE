@@ -222,6 +222,22 @@ export function MissionVisitScreen({ navigation, route }) {
     }
   };
 
+  const setContextEquipmentLifecycle = async (status) => {
+    if (!contextEquipmentId || !actualMissionId) return;
+    try {
+      await modifierEquipementMission(contextEquipmentId, { lifecycleStatus: status });
+      setContextEquipment((rows) => rows.map((row) => row.id === contextEquipmentId ? { ...row, lifecycle_status: status } : row));
+      const next = await chargerContexteAutoVisiteMission(actualMissionId, {
+        siteId: data?.visit?.site_id || null,
+        locationId: contextLocationId || null,
+        equipmentId: contextEquipmentId,
+      });
+      setAutoContext(next || {});
+    } catch (e) {
+      Alert.alert('Cycle projet non enregistré', String(e?.message || e));
+    }
+  };
+
   const changeCaptureMode = async (nextMode) => {
     setCaptureMode(nextMode);
     if (!data?.visit || !actualMissionId) return;
@@ -652,6 +668,34 @@ export function MissionVisitScreen({ navigation, route }) {
         </View>
         <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, lineHeight: 11 }}>
           Le statut est enregistré sur la fiche équipement et sera réutilisé dans l’inventaire, les écarts et le rapport.
+        </Text>
+      </View> : null}
+
+      {selectedContextEquipment && (playbook.equipmentLifecycleStatuses || []).length ? <View style={[missionStyles.card, { padding: 10, marginBottom: 12 }]}>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginBottom: 6 }}>CYCLE PROJET · 1 GESTE</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+          {playbook.equipmentLifecycleStatuses.map(([key,label]) => {
+            const selected = selectedContextEquipment.lifecycle_status === key;
+            return <TouchableOpacity
+              key={key}
+              onPress={() => setContextEquipmentLifecycle(key)}
+              style={{
+                borderWidth: 1,
+                borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
+                backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF',
+                borderRadius: 10,
+                paddingHorizontal: 9,
+                paddingVertical: 7,
+                marginRight: 6,
+                marginBottom: 6,
+              }}
+            >
+              <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontWeight: '900' }}>{label}</Text>
+            </TouchableOpacity>;
+          })}
+        </View>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, lineHeight: 11 }}>
+          Une même fiche suit l’ouvrage de l’installation au contrôle, aux réserves, à la réception puis à la mise en service.
         </Text>
       </View> : null}
 
