@@ -225,6 +225,14 @@ requireText(read('MissionReceptionBoardScreen.js'), 'MODES OPR · CUMULABLES', '
 requireText(read('MissionReceptionBoardScreen.js'), 'OPR statique', 'static OPR mode');
 requireText(read('MissionReceptionBoardScreen.js'), 'OPR dynamique', 'dynamic OPR mode');
 requireText(read('MissionReceptionBoardScreen.js'), 'Levée / recontrôle', 'reserve clearance OPR mode');
+requireText(read('MissionReceptionBoardScreen.js'), 'PV DE PASSATION · CONTRADICTOIRE', 'formal handover PV workspace');
+requireText(read('MissionReceptionBoardScreen.js'), 'Documents remis / disponibles', 'handover documents control');
+requireText(read('MissionReceptionBoardScreen.js'), 'Stocks, index et relevés utiles', 'handover stocks and index control');
+requireText(read('MissionReceptionBoardScreen.js'), 'Clés, badges, codes et moyens d’accès', 'handover access control');
+requireText(read('MissionReceptionBoardScreen.js'), 'Conformité inventaire ↔ terrain', 'handover inventory comparison');
+requireText(read('MissionReceptionBoardScreen.js'), 'Essais fonctionnels représentatifs', 'handover functional tests control');
+requireText(read('MissionReceptionBoardScreen.js'), 'ne vaut pas contrôle réglementaire de conformité', 'handover regulatory disclaimer');
+requireText(read('MissionReceptionBoardScreen.js'), 'mission_passation_pv', 'handover PV history trace');
 requireText(recipes, 'receptionBoard: true', 'reception board capability on OPR commissioning handover');
 requireText(read('missionFieldPlaybooks.js'), 'equipmentLifecycleStatuses', 'mission-specific one-tap lifecycle states');
 requireText(read('MissionVisitScreen.js'), 'CYCLE PROJET · 1 GESTE', 'one-tap project lifecycle field UX');
