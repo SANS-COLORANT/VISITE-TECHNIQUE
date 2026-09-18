@@ -17,6 +17,7 @@ import {
   modifierEquipementMission,
 } from './missionEquipmentDb.js';
 import { capturerPhotoMission } from './missionMediaDb.js';
+import { EQUIPMENT_CATEGORIES, EQUIPMENT_PROFILE_MODES, getEquipmentProfile, resolveEquipmentCategory } from './missionEquipmentCatalog.js';
 
 const STATE_LABELS = Object.freeze({
   non_evalue: 'Non évalué',
@@ -80,6 +81,23 @@ function Field({ label, value, onChangeText, keyboardType = 'default', placehold
   </View>;
 }
 
+function ProfileField({ field, value, onChange }) {
+  if (field.type === 'choice') {
+    return <View style={{ marginBottom: 9 }}>
+      <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, fontWeight: '800', marginBottom: 5 }}>{field.label.toUpperCase()}</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
+        {(field.options || []).map((option) => <Chip key={option} label={option} selected={value === option} onPress={() => onChange(value === option ? '' : option)} />)}
+      </View>
+    </View>;
+  }
+  return <Field
+    label={field.label + (field.unit ? ' · ' + field.unit : '')}
+    value={value ?? ''}
+    onChangeText={onChange}
+    keyboardType={field.type === 'number' ? 'decimal-pad' : 'default'}
+  />;
+}
+
 export function MissionEquipmentScreen({ navigation, route }) {
   const missionId = route?.params?.missionId;
   const initialSiteId = route?.params?.siteId || '';
@@ -87,6 +105,7 @@ export function MissionEquipmentScreen({ navigation, route }) {
   const [equipment, setEquipment] = useState([]);
   const [sites, setSites] = useState([]);
   const [locations, setLocations] = useState([]);
+  const [missionMeta, setMissionMeta] = useState(null);
   const [query, setQuery] = useState('');
   const [createVisible, setCreateVisible] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
@@ -99,18 +118,21 @@ export function MissionEquipmentScreen({ navigation, route }) {
   const [newBrand, setNewBrand] = useState('');
   const [newModel, setNewModel] = useState('');
   const [newQuantity, setNewQuantity] = useState('1');
+  const [newCategoryKey, setNewCategoryKey] = useState('');
+  const [newProperties, setNewProperties] = useState({});
 
   const [edit, setEdit] = useState({});
   const [componentLabel, setComponentLabel] = useState('');
   const [ocrResult, setOcrResult] = useState(null);
   const [ocrEdit, setOcrEdit] = useState({});
+  const [detailMode, setDetailMode] = useState('rapide');
 
   const load = useCallback(async () => {
     if (!missionId) return;
     setLoading(true);
     try {
       const db = await getDb();
-      const [eq, siteRows, locationRows] = await Promise.all([
+      const [eq, siteRows, locationRows, missionRow] = await Promise.all([
         listerEquipementsMission(missionId, initialSiteId ? { siteId: initialSiteId } : {}),
         db.getAllAsync(
           'SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name',
@@ -120,10 +142,12 @@ export function MissionEquipmentScreen({ navigation, route }) {
           'SELECT l.* FROM mission_locations l JOIN mission_site_links ml ON ml.site_id=l.site_id WHERE ml.mission_id=? ORDER BY l.site_id,l.sort_order,l.label',
           [missionId]
         ),
+        db.getFirstAsync('SELECT id,family,type,label FROM missions WHERE id=?', [missionId]),
       ]);
       setEquipment(eq || []);
       setSites(siteRows || []);
       setLocations(locationRows || []);
+      setMissionMeta(missionRow || null);
       if (!newSiteId && siteRows?.[0]?.id) setNewSiteId(siteRows[0].id);
     } catch (e) {
       Alert.alert('Inventaire indisponible', String(e?.message || e));
@@ -137,6 +161,26 @@ export function MissionEquipmentScreen({ navigation, route }) {
   const locationsForSite = useMemo(
     () => locations.filter((row) => row.site_id === newSiteId),
     [locations, newSiteId]
+  );
+
+  const newProfile = useMemo(
+    () => getEquipmentProfile({
+      typeLabel: newType,
+      categoryKey: newCategoryKey || null,
+      missionType: missionMeta?.type || null,
+      mode: 'rapide',
+    }),
+    [newType, newCategoryKey, missionMeta?.type]
+  );
+
+  const detailProfile = useMemo(
+    () => getEquipmentProfile({
+      typeLabel: edit.type || '',
+      categoryKey: edit.properties?.categoryKey || null,
+      missionType: missionMeta?.type || null,
+      mode: detailMode,
+    }),
+    [edit.type, edit.properties?.categoryKey, missionMeta?.type, detailMode]
   );
 
   const filtered = useMemo(() => {
@@ -165,7 +209,9 @@ export function MissionEquipmentScreen({ navigation, route }) {
         locationId: e.location_id || '',
         criticality: e.criticality || {},
         criticalityReason: e.criticality?.reason || '',
+        properties: e.properties || {},
       });
+      setDetailMode('rapide');
     } catch (err) {
       Alert.alert('Équipement indisponible', String(err?.message || err));
       setSelectedId(null);
@@ -186,6 +232,10 @@ export function MissionEquipmentScreen({ navigation, route }) {
         type: newType,
         brand: newBrand,
         model: newModel,
+        properties: {
+          ...newProperties,
+          categoryKey: newCategoryKey || resolveEquipmentCategory(newType)?.key || 'other',
+        },
         sourceType: 'terrain',
       });
       const qty = Math.max(1, Math.min(200, Number(newQuantity) || 1));
@@ -196,6 +246,8 @@ export function MissionEquipmentScreen({ navigation, route }) {
       setNewBrand('');
       setNewModel('');
       setNewQuantity('1');
+      setNewCategoryKey('');
+      setNewProperties({});
       await load();
     } catch (e) {
       Alert.alert('Création impossible', String(e?.message || e));
@@ -343,12 +395,25 @@ export function MissionEquipmentScreen({ navigation, route }) {
     />
 
     <Modal visible={createVisible} transparent animationType="fade" onRequestClose={() => setCreateVisible(false)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
+      <View style={styles.modalOverlay}><ScrollView style={[styles.modalSheet, missionStyles.modalSheet]} contentContainerStyle={{ paddingBottom: 18 }}>
         <Text style={[styles.modalTitle, missionStyles.title]}>Ajouter rapidement un équipement</Text>
         <Text style={{ color: COLORS.inkFaint, fontSize: 9, marginBottom: 6 }}>SITE</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 45, marginBottom: 9 }}>
           {sites.map((site) => <Chip key={site.id} label={site.name} selected={newSiteId === site.id} onPress={() => { setNewSiteId(site.id); setNewLocationId(''); }} />)}
         </ScrollView>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 9, marginBottom: 6 }}>CATÉGORIE RAPIDE</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', maxHeight: 190, overflow: 'hidden', marginBottom: 5 }}>
+          {EQUIPMENT_CATEGORIES.map((category) => <Chip
+            key={category.key}
+            label={category.label}
+            selected={newCategoryKey === category.key}
+            onPress={() => {
+              setNewCategoryKey(category.key);
+              setNewType(category.label);
+              setNewProperties((current) => ({ ...current, categoryKey: category.key }));
+            }}
+          />)}
+        </View>
         {locationsForSite.length ? <>
           <Text style={{ color: COLORS.inkFaint, fontSize: 9, marginBottom: 6 }}>LOCALISATION (FACULTATIF)</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 45, marginBottom: 9 }}>
@@ -358,12 +423,21 @@ export function MissionEquipmentScreen({ navigation, route }) {
         <Field label="Type / désignation" value={newType} onChangeText={setNewType} placeholder="Pompe, chaudière, ballon, automate…" />
         <Field label="Marque" value={newBrand} onChangeText={setNewBrand} />
         <Field label="Modèle" value={newModel} onChangeText={setNewModel} />
-        <Field label="Quantité identique à créer" value={newQuantity} onChangeText={setNewQuantity} keyboardType="number-pad" />
+        {newProfile.fields.length ? <>
+          <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 4 }]}>Caractéristiques rapides · {newProfile.category.label}</Text>
+          {newProfile.fields.map((profileField) => <ProfileField
+            key={profileField.key}
+            field={profileField}
+            value={newProperties[profileField.key]}
+            onChange={(value) => setNewProperties((current) => ({ ...current, [profileField.key]: value }))}
+          />)}
+        </> : null}
+        <Field label="Quantité d’équipements identiques à créer" value={newQuantity} onChangeText={setNewQuantity} keyboardType="number-pad" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setCreateVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} disabled={busy} onPress={createEquipment}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{busy ? 'Création…' : 'Créer'}</Text></TouchableOpacity>
         </View>
-      </View></View>
+      </ScrollView></View>
     </Modal>
 
     <Modal visible={!!selectedId && !!details} animationType="slide" onRequestClose={() => { setSelectedId(null); setDetails(null); }}>
@@ -381,6 +455,28 @@ export function MissionEquipmentScreen({ navigation, route }) {
           <Field label="Marque" value={edit.brand} onChangeText={(v) => setEdit((p) => ({ ...p, brand: v }))} />
           <Field label="Modèle" value={edit.model} onChangeText={(v) => setEdit((p) => ({ ...p, model: v }))} />
           <Field label="Année / mise en service" value={edit.installationYear} onChangeText={(v) => setEdit((p) => ({ ...p, installationYear: v }))} />
+
+          <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Caractéristiques · {detailProfile.category.label}</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 6 }}>
+            {EQUIPMENT_PROFILE_MODES.map(([key,label]) => <Chip key={key} label={label} selected={detailMode === key} onPress={() => setDetailMode(key)} />)}
+          </View>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, lineHeight: 12, marginBottom: 7 }}>
+            Le profil change selon le type d’équipement et la Mission. « Rapide » garde seulement ce qui est utile sur le terrain.
+          </Text>
+          {detailProfile.fields.map((profileField) => <ProfileField
+            key={profileField.key}
+            field={profileField}
+            value={edit.properties?.[profileField.key]}
+            onChange={(value) => setEdit((current) => ({
+              ...current,
+              properties: {
+                ...(current.properties || {}),
+                categoryKey: detailProfile.category.key,
+                [profileField.key]: value,
+              },
+            }))}
+          />)}
+
           <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, fontWeight: '800', marginBottom: 5 }}>LOCALISATION</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 45, marginBottom: 12 }}>
             <Chip label="Sans localisation" selected={!edit.locationId} onPress={() => setEdit((p) => ({ ...p, locationId: '' }))} />
