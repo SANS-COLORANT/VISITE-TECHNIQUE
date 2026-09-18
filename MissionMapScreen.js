@@ -41,7 +41,7 @@ function regionFromGeometries(rows) {
   };
 }
 
-export function MissionMapScreen({ route }) {
+export function MissionMapScreen({ navigation, route }) {
   const missionId = route?.params?.missionId;
   const [geometries, setGeometries] = useState([]);
   const [sites, setSites] = useState([]);
@@ -63,10 +63,12 @@ export function MissionMapScreen({ route }) {
         `SELECT s.id,s.name,
           (SELECT COUNT(*) FROM mission_visits v WHERE v.mission_id=? AND v.site_id=s.id) AS visits_total,
           (SELECT COUNT(*) FROM mission_visits v WHERE v.mission_id=? AND v.site_id=s.id AND v.status='completed') AS visits_done,
-          (SELECT COUNT(*) FROM mission_points p WHERE p.mission_id=? AND p.site_id=s.id AND p.status NOT IN ('closed','cancelled')) AS open_points
+          (SELECT COUNT(*) FROM mission_points p WHERE p.mission_id=? AND p.site_id=s.id AND p.status NOT IN ('closed','cancelled')) AS open_points,
+          (SELECT COUNT(*) FROM mission_points p WHERE p.mission_id=? AND p.site_id=s.id AND p.status NOT IN ('closed','cancelled')
+             AND (LOWER(COALESCE(p.priority,'')) LIKE '%crit%' OR LOWER(COALESCE(p.priority,'')) LIKE '%urgent%' OR LOWER(COALESCE(p.priority,'')) LIKE '%haute%')) AS critical_points
          FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id
          WHERE l.mission_id=? ORDER BY s.name`,
-        [missionId, missionId, missionId, missionId]
+        [missionId, missionId, missionId, missionId, missionId]
       ),
       listerCouchesCarteMission(missionId),
     ]);
@@ -256,7 +258,9 @@ export function MissionMapScreen({ route }) {
             key={row.id}
             coordinate={coords[0]}
             title={row.label || siteStat?.name || 'Point METRA'}
-            description={siteStat ? (String(siteStat.visits_done || 0) + '/' + String(siteStat.visits_total || 0) + ' visite(s) · ' + String(siteStat.open_points || 0) + ' point(s) ouvert(s)') : 'Géométrie Mission'}
+            description={siteStat ? (String(siteStat.visits_done || 0) + '/' + String(siteStat.visits_total || 0) + ' visite(s) · ' + String(siteStat.open_points || 0) + ' point(s) ouvert(s)' + (Number(siteStat.critical_points || 0) ? ' · ' + siteStat.critical_points + ' critique(s)' : '')) : 'Géométrie Mission'}
+            pinColor={Number(siteStat?.critical_points || 0) ? '#8B3A3A' : Number(siteStat?.open_points || 0) ? '#C78120' : MISSION_COLORS.accent}
+            onCalloutPress={() => row.site_id && navigation.navigate('MissionStructure', { missionId, siteId: row.site_id })}
           />;
         }
         if (geometry.type === 'LineString') return <Polyline key={row.id} coordinates={coords} strokeWidth={4} />;
@@ -314,7 +318,7 @@ export function MissionMapScreen({ route }) {
     <View style={{ padding: 10, borderTopWidth: 1, borderTopColor: MISSION_COLORS.accentLine, backgroundColor: '#FFFFFF' }}>
       <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 9.5, fontWeight: '900', marginBottom: 4 }}>PROGRESSION MULTI-SITES</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 9 }} numberOfLines={2}>
-        {stats.map((s) => s.name + ' ' + (s.visits_done || 0) + '/' + (s.visits_total || 0) + (Number(s.open_points || 0) ? ' · ' + s.open_points + ' ouvert(s)' : '')).join('   •   ') || 'Aucune donnée de progression.'}
+        {stats.map((s) => s.name + ' ' + (s.visits_done || 0) + '/' + (s.visits_total || 0) + (Number(s.open_points || 0) ? ' · ' + s.open_points + ' ouvert(s)' : '') + (Number(s.critical_points || 0) ? ' · ' + s.critical_points + ' critique(s)' : '')).join('   •   ') || 'Aucune donnée de progression.'}
       </Text>
     </View>
   </View>;
