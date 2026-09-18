@@ -30,7 +30,7 @@ async function loadMissionReportData(db, missionId) {
 
   const [
     sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components,
+    equipment, locations, installations, systems, networks, components, subjects, observations, decisions,
   ] = await Promise.all([
     db.getAllAsync('SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name', [missionId]),
     db.getAllAsync('SELECT v.*,s.name AS site_name FROM mission_visits v LEFT JOIN mission_sites s ON s.id=v.site_id WHERE v.mission_id=? ORDER BY COALESCE(v.visit_date,v.created_at)', [missionId]),
@@ -104,11 +104,35 @@ async function loadMissionReportData(db, missionId) {
        WHERE c.mission_id=? ORDER BY e.type,c.label`,
       [missionId]
     ),
+    db.getAllAsync(
+      `SELECT sub.*,s.name AS site_name,
+        (SELECT COUNT(*) FROM mission_actions a WHERE a.subject_id=sub.id AND a.status NOT IN ('closed','cancelled')) AS open_actions_count
+       FROM mission_subjects sub
+       LEFT JOIN mission_sites s ON s.id=sub.site_id
+       WHERE sub.mission_id=? ORDER BY sub.created_at`,
+      [missionId]
+    ),
+    db.getAllAsync(
+      `SELECT o.*,sub.label AS subject_label,s.name AS site_name
+       FROM mission_observations o
+       LEFT JOIN mission_subjects sub ON sub.id=o.subject_id
+       LEFT JOIN mission_sites s ON s.id=o.site_id
+       WHERE o.mission_id=? ORDER BY COALESCE(o.observed_at,o.created_at)`,
+      [missionId]
+    ),
+    db.getAllAsync(
+      `SELECT d.*,sub.label AS subject_label,a.company AS actor_company,a.name AS actor_name
+       FROM mission_decisions d
+       LEFT JOIN mission_subjects sub ON sub.id=d.subject_id
+       LEFT JOIN mission_actors a ON a.id=d.decided_by_actor_id
+       WHERE d.mission_id=? ORDER BY COALESCE(d.decided_at,d.created_at)`,
+      [missionId]
+    ),
   ]);
 
   return {
     mission, sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components,
+    equipment, locations, installations, systems, networks, components, subjects, observations, decisions,
   };
 }
 
@@ -191,6 +215,48 @@ function makeAutoSections(data) {
       key: 'architecture',
       title: 'Architecture technique',
       content: [blockTable(['Site', 'Local', 'Niveau', 'Nom', 'Rattachement / type', 'Statut'], rows)],
+    });
+  }
+
+  if (data.subjects?.length) {
+    const rows = [];
+    for (const subject of data.subjects) {
+      rows.push([
+        subject.site_name || '',
+        subject.label || '',
+        subject.status || '',
+        subject.priority || '',
+        subject.open_actions_count ?? 0,
+        subject.description || '',
+      ]);
+      for (const observation of (data.observations || []).filter((row) => row.subject_id === subject.id)) {
+        rows.push([
+          observation.site_name || subject.site_name || '',
+          '↳ Constat',
+          '',
+          '',
+          '',
+          [observation.observed_at || observation.created_at || '', observation.content || ''].filter(Boolean).join(' · '),
+        ]);
+      }
+      for (const decision of (data.decisions || []).filter((row) => row.subject_id === subject.id)) {
+        rows.push([
+          subject.site_name || '',
+          '↳ Décision',
+          decision.status || '',
+          '',
+          '',
+          [decision.decided_at || decision.created_at || '', decision.label || '', decision.description || ''].filter(Boolean).join(' · '),
+        ]);
+      }
+    }
+    sections.push({
+      key: 'sujets',
+      title: 'Sujets, constats et décisions',
+      content: [blockTable(
+        ['Site', 'Sujet / événement', 'Statut', 'Priorité', 'Actions ouvertes', 'Historique / détail'],
+        rows
+      )],
     });
   }
 
