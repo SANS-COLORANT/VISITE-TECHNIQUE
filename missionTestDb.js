@@ -84,7 +84,43 @@ export async function chargerExecutionEssai(runId) {
      WHERE st.protocol_id=? ORDER BY st.sort_order`,
     [runId, run.protocol_id]
   );
-  return { run, steps };
+
+  const previousRun = await db.getFirstAsync(
+    `SELECT id,started_at,completed_at,status
+     FROM mission_test_runs
+     WHERE mission_id=? AND protocol_id=? AND id<>?
+       AND COALESCE(site_id,'')=COALESCE(?,'')
+       AND COALESCE(equipment_id,'')=COALESCE(?,'')
+       AND COALESCE(started_at,created_at) < COALESCE(?,?)
+     ORDER BY COALESCE(started_at,created_at) DESC
+     LIMIT 1`,
+    [run.mission_id, run.protocol_id, runId, run.site_id, run.equipment_id, run.started_at, run.created_at]
+  );
+
+  let previousByStep = {};
+  if (previousRun?.id) {
+    const previousResults = await db.getAllAsync(
+      'SELECT test_step_id,status,value_number,value_text,unit,comment FROM mission_test_results WHERE test_run_id=?',
+      [previousRun.id]
+    );
+    previousByStep = Object.fromEntries((previousResults || []).map((row) => [row.test_step_id,row]));
+  }
+
+  return {
+    run,
+    previousRun,
+    steps: steps.map((step) => {
+      const previous = previousByStep[step.id] || null;
+      return {
+        ...step,
+        previous_status: previous?.status || null,
+        previous_number: previous?.value_number ?? null,
+        previous_text: previous?.value_text || null,
+        previous_unit: previous?.unit || null,
+        previous_comment: previous?.comment || null,
+      };
+    }),
+  };
 }
 
 function evaluateStatus(step, value) {
