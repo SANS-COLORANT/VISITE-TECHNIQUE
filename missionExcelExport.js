@@ -62,6 +62,21 @@ const QUERIES = Object.freeze({
   mission_import_batches: `SELECT * FROM mission_import_batches WHERE mission_id=? ORDER BY created_at`,
   mission_import_issues: `SELECT i.* FROM mission_import_issues i JOIN mission_import_batches b ON b.id=i.batch_id WHERE b.mission_id=? ORDER BY i.created_at`,
   mission_import_rows: `SELECT r.* FROM mission_import_rows r JOIN mission_import_batches b ON b.id=r.batch_id WHERE b.mission_id=? ORDER BY r.sheet_name,r.row_index`,
+  mission_installations: `SELECT * FROM mission_installations WHERE mission_id=? ORDER BY site_id,location_id,label`,
+  mission_systems: `SELECT * FROM mission_systems WHERE mission_id=? ORDER BY installation_id,label`,
+  mission_networks: `SELECT * FROM mission_networks WHERE mission_id=? ORDER BY installation_id,system_id,label`,
+  mission_components: `SELECT * FROM mission_components WHERE mission_id=? ORDER BY equipment_id,label`,
+  mission_plan_layers: `SELECT * FROM mission_plan_layers WHERE mission_id=? ORDER BY document_id,sort_order`,
+  mission_plan_calibrations: `SELECT * FROM mission_plan_calibrations WHERE mission_id=? ORDER BY document_id,page_number`,
+  mission_plan_annotations: `SELECT * FROM mission_plan_annotations WHERE mission_id=? ORDER BY document_id,page_number,created_at`,
+  mission_map_layers: `SELECT * FROM mission_map_layers WHERE mission_id=? ORDER BY created_at`,
+  mission_import_mappings: `SELECT * FROM mission_import_mappings WHERE mission_id=? OR mission_id IS NULL ORDER BY is_default DESC,created_at`,
+  mission_formula_library: `SELECT * FROM mission_formula_library WHERE mission_id=? OR mission_id IS NULL ORDER BY scope,label`,
+  mission_measurement_instruments: `SELECT * FROM mission_measurement_instruments WHERE mission_id=? ORDER BY label`,
+  mission_custom_measure_types: `SELECT * FROM mission_custom_measure_types WHERE mission_id=? OR mission_id IS NULL ORDER BY label`,
+  mission_ocr_jobs: `SELECT * FROM mission_ocr_jobs WHERE mission_id=? ORDER BY created_at`,
+  mission_voice_notes: `SELECT * FROM mission_voice_notes WHERE mission_id=? ORDER BY created_at`,
+  mission_visit_checks: `SELECT * FROM mission_visit_checks WHERE mission_id=? ORDER BY visit_id,severity,created_at`,
 });
 
 async function chargerExportMission(missionId) {
