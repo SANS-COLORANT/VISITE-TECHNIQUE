@@ -9,6 +9,8 @@ const ITEMS = [
   ['reportDocx','Rapport Word DOCX'],
   ['individualReports','Rapports individuels par site'],
   ['excel','Excel complet relationnel'],
+  ['excelClient','Excel client simplifié'],
+  ['actionsSummary','Synthèse actions / réserves'],
   ['photos','Photos originales'],
   ['sourceDocuments','Documents sources'],
   ['sourcePlans','Plans sources'],
@@ -42,7 +44,7 @@ export function MissionPackageScreen({ route }) {
     <ScrollView contentContainerStyle={{padding:16,paddingBottom:110}}>
       <Text style={[styles.sectionTitle,missionStyles.title]}>Dossier complet Mission</Text>
       <Text style={{color:COLORS.inkSoft,fontSize:10.5,lineHeight:15}}>
-        Compose le livrable final sans ressaisie. Le ZIP est aussi restaurable sur un autre poste/tablette : données structurées, photos, documents, plans et couches cartographiques locales.
+        Compose le livrable final sans ressaisie. Le ZIP peut contenir l’Excel relationnel réimportable, un Excel client lisible, une synthèse actions / réserves, les rapports, médias, plans et données SIG.
       </Text>
       <View style={[missionStyles.card,{padding:12,marginTop:14}]}>
         {ITEMS.map(([key,label])=><TouchableOpacity key={key} onPress={()=>toggle(key)} style={{flexDirection:'row',alignItems:'center',paddingVertical:9,borderBottomWidth:1,borderBottomColor:MISSION_COLORS.accentLine}}>
