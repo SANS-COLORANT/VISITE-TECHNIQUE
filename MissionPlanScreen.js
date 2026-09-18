@@ -1,10 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
-import Svg, { Circle, Line, Polygon, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, Line, Polygon, Rect, Text as SvgText } from 'react-native-svg';
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { rendrePagePdfLocale } from './missionNativeTools.js';
 import { capturerPhotoMission } from './missionMediaDb.js';
+import { getDb } from './db.js';
+import { getMissionCapabilities } from './missionRecipes.js';
 import {
   ajouterAnnotationPlan,
   calibrerPlan,
@@ -41,6 +43,7 @@ const TOOLS = [
   ['angle', 'Angle'],
   ['text', 'Texte'],
   ['calibrate', 'Calibrer'],
+  ['signature', 'Signature'],
 ];
 
 const LINK_TYPES = Object.freeze([
@@ -54,6 +57,7 @@ const LINK_TYPES = Object.freeze([
   ['installation', 'Installation'],
   ['system', 'Système'],
   ['network', 'Réseau'],
+  ['signature', 'Signature'],
 ]);
 const LINK_TYPE_LABELS = Object.freeze(Object.fromEntries(LINK_TYPES));
 
@@ -103,6 +107,17 @@ function AnnotationShape({ row, width, height, onPress }) {
     return <SvgText x={p.x} y={p.y} fontSize="12" fontWeight="700" fill={MISSION_COLORS.accentStrong} onPress={onPress}>{String(row.text || 'Texte').slice(0, 45)}</SvgText>;
   }
 
+  if (row.annotation_type === 'signature') {
+    const p = pts[0];
+    const props = row.geometryProperties || {};
+    const w = width * Math.max(0.08, Math.min(0.55, Number(props.widthRatio || 0.22)));
+    const h = height * Math.max(0.04, Math.min(0.30, Number(props.heightRatio || 0.09)));
+    return <React.Fragment>
+      <Rect x={p.x} y={p.y} width={w} height={h} rx="5" fill="rgba(47,125,88,0.06)" stroke={color} strokeDasharray="5,4" strokeWidth={1.8} onPress={onPress} />
+      <SvgText x={p.x + 6} y={p.y + 16} fontSize="9" fontWeight="700" fill={MISSION_COLORS.accentStrong}>{String(row.text || 'Signature').slice(0, 35)}</SvgText>
+    </React.Fragment>;
+  }
+
   if (row.annotation_type === 'polygon' && pts.length >= 3) {
     return <Polygon points={pts.map((p) => p.x + ',' + p.y).join(' ')} fill="rgba(47,125,88,0.12)" stroke={color} strokeWidth={2.5} onPress={onPress} />;
   }
@@ -147,6 +162,9 @@ export function MissionPlanScreen({ navigation, route }) {
   const [reserveAnnotation, setReserveAnnotation] = useState(null);
   const [reserveDraft, setReserveDraft] = useState({ label: '', description: '', responsible: '', dueDate: '', dueText: '', priority: '', cost: '' });
   const [mediaBusyId, setMediaBusyId] = useState(null);
+  const [signaturePoint, setSignaturePoint] = useState(null);
+  const [signatureModal, setSignatureModal] = useState(false);
+  const [missionCapabilities, setMissionCapabilities] = useState(null);
 
   const loadPlans = useCallback(async () => {
     const rows = await listerPlansMission(missionId);
@@ -164,6 +182,18 @@ export function MissionPlanScreen({ navigation, route }) {
   }, [missionId]);
 
   useEffect(() => { refreshLinkTargets(); }, [refreshLinkTargets]);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const db = await getDb();
+        const mission = await db.getFirstAsync('SELECT family,type FROM missions WHERE id=?', [missionId]);
+        setMissionCapabilities(getMissionCapabilities(mission?.family, mission?.type));
+      } catch {
+        setMissionCapabilities(getMissionCapabilities(null, null));
+      }
+    })();
+  }, [missionId]);
 
   const loadPlanContext = useCallback(async () => {
     const doc = plans.find((p) => p.id === selectedId);
@@ -206,6 +236,19 @@ export function MissionPlanScreen({ navigation, route }) {
   }, [plans, selectedId, page]);
 
   useEffect(() => { loadPlanContext(); }, [loadPlanContext]);
+
+  const visibleTools = useMemo(
+    () => TOOLS.filter(([key]) => key !== 'signature' || missionCapabilities?.signature),
+    [missionCapabilities]
+  );
+  const visibleLinkTypes = useMemo(
+    () => LINK_TYPES.filter(([key]) => key !== 'signature' || missionCapabilities?.signature),
+    [missionCapabilities]
+  );
+  const signatureTargets = useMemo(
+    () => linkTargets.filter((target) => target.type === 'signature'),
+    [linkTargets]
+  );
 
   const aspect = preview?.width && preview?.height ? preview.height / preview.width : 0.72;
   const displayWidth = Math.min(Math.max(320, windowWidth - 32), 1100);
@@ -267,6 +310,12 @@ export function MissionPlanScreen({ navigation, route }) {
       setTextModal(true);
       return;
     }
+    if (tool === 'signature') {
+      setSignaturePoint(point);
+      await refreshLinkTargets();
+      setSignatureModal(true);
+      return;
+    }
 
     const next = [...draftPoints, point];
     setDraftPoints(next);
@@ -303,6 +352,21 @@ export function MissionPlanScreen({ navigation, route }) {
     setTextModal(false);
     setPendingPoint(null);
     setTextValue('');
+  };
+
+  const placeSignature = async (signatureTarget) => {
+    if (!signaturePoint || !signatureTarget) return;
+    try {
+      await saveShape('signature', [signaturePoint], signatureTarget.label || 'Signature', {
+        linkedEntityType: 'signature',
+        linkedEntityId: signatureTarget.id,
+        properties: { widthRatio: 0.22, heightRatio: 0.09 },
+      });
+      setSignatureModal(false);
+      setSignaturePoint(null);
+    } catch (e) {
+      Alert.alert('Signature non placée', String(e?.message || e));
+    }
   };
 
   const confirmNetwork = async () => {
@@ -587,7 +651,7 @@ export function MissionPlanScreen({ navigation, route }) {
 
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 14 }]}>Outil</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
-          {TOOLS.map(([key, label]) => <ToolChip key={key} label={label} selected={tool === key} onPress={() => { setTool(key); setDraftPoints([]); }} />)}
+          {visibleTools.map(([key, label]) => <ToolChip key={key} label={label} selected={tool === key} onPress={() => { setTool(key); setDraftPoints([]); }} />)}
         </View>
 
         <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
@@ -681,7 +745,7 @@ export function MissionPlanScreen({ navigation, route }) {
           Le point, la ligne ou le polygone devient la géométrie de l’objet choisi. Une seule saisie pourra ensuite alimenter photos, mesures, constats et exports.
         </Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 44, marginBottom: 7 }}>
-          {LINK_TYPES.map(([key,label]) => <ToolChip key={key} label={label} selected={linkType === key} onPress={() => { setLinkType(key); setLinkQuery(''); }} />)}
+          {visibleLinkTypes.map(([key,label]) => <ToolChip key={key} label={label} selected={linkType === key} onPress={() => { setLinkType(key); setLinkQuery(''); }} />)}
         </ScrollView>
         <TextInput style={[styles.input, missionStyles.input]} value={linkQuery} onChangeText={setLinkQuery} placeholder="Rechercher dans cette catégorie…" />
         <ScrollView style={{ maxHeight: 330, marginTop: 7 }}>
@@ -694,6 +758,31 @@ export function MissionPlanScreen({ navigation, route }) {
         <View style={styles.modalActions}>
           {linkAnnotation?.linked_entity_id ? <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={clearLink}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Délier</Text></TouchableOpacity> : null}
           <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setLinkAnnotation(null)}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer</Text></TouchableOpacity>
+        </View>
+      </View></View>
+    </Modal>
+
+    <Modal visible={signatureModal} transparent animationType="fade" onRequestClose={() => { setSignatureModal(false); setSignaturePoint(null); }}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>Placer une signature</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, lineHeight: 14, marginBottom: 9 }}>
+          Choisis une signature enregistrée dans cette Mission. Elle sera dessinée dans le PDF exporté sans modifier le fichier source.
+        </Text>
+        <ScrollView style={{ maxHeight: 280 }}>
+          {signatureTargets.map((target) => <TouchableOpacity key={target.id} onPress={() => placeSignature(target)} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
+            <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '900' }}>{target.label}</Text>
+            {target.subtitle ? <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop: 2 }}>{target.subtitle}</Text> : null}
+          </TouchableOpacity>)}
+          {!signatureTargets.length ? <View style={{ paddingVertical: 10 }}>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 9.5, lineHeight: 13 }}>Aucune signature enregistrée pour cette Mission.</Text>
+            <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { alignSelf: 'flex-start', marginTop: 9 }]} onPress={() => { setSignatureModal(false); navigation.navigate('MissionSignature', { missionId }); }}>
+              <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Créer une signature</Text>
+            </TouchableOpacity>
+          </View> : null}
+        </ScrollView>
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={refreshLinkTargets}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Actualiser</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => { setSignatureModal(false); setSignaturePoint(null); }}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
