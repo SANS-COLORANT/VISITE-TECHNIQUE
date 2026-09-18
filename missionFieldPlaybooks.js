@@ -351,12 +351,24 @@ const TYPES = Object.freeze({
     ],
   },
   commissioning: {
-    base: 'reception', label: 'Mise en service / commissioning',
+    base: 'reception',
+    label: 'Mise en service / commissioning',
+    objective: 'Tracer les essais, réglages finaux, écarts et valeurs obtenues sans ressaisir l’inventaire ni les caractéristiques déjà connues.',
+    steps: ['Équipement', 'Protocole', 'Essai', 'Mesures', 'Réglage final', 'Écart / validation'],
     measures: [measure('Consigne', '°C'), measure('Température', '°C'), measure('Débit', 'm³/h'), measure('Pression', 'bar'), measure('Fréquence', 'Hz')],
+    equipmentVerificationStatuses: [
+      ['confirme', 'Conforme / présent'],
+      ['different', 'Différent'],
+      ['inaccessible', 'Inaccessible'],
+      ['a_verifier', 'À vérifier'],
+    ],
     quickActions: [
       action('tests', 'Essai fonctionnel', 'navigate', { route: 'MissionTests' }),
       action('measure', 'Mesure', 'measure'),
+      action('equipment', 'Équipement / réglages', 'navigate', { route: 'MissionEquipment' }),
+      action('documents', 'PV / documents', 'navigate', { route: 'MissionDocuments' }),
       action('graph', 'Synoptique', 'navigate', { route: 'MissionTechnicalGraph' }),
+      action('actions', 'Écarts à reprendre', 'navigate', { route: 'MissionActions' }),
     ],
     pointPresets: [
       point('Réponse différente de l’attendu', 'control', { priority: 'À régler' }),
@@ -364,7 +376,27 @@ const TYPES = Object.freeze({
       point('Réglage final à confirmer', 'action'),
     ],
   },
-  opr_reception: { base: 'reception', label: 'OPR / réception' },
+  opr_reception: {
+    base: 'reception',
+    label: 'OPR / réception',
+    objective: 'Comparer rapidement le prévu, l’installé et le fonctionnement constaté puis créer les réserves au fil du contrôle.',
+    steps: ['Prévu', 'Installé', 'Contrôle', 'Essai', 'Réserve / preuve', 'Validation'],
+    equipmentVerificationStatuses: [
+      ['confirme', 'Conforme au prévu'],
+      ['different', 'Différent'],
+      ['non_retrouve', 'Non retrouvé'],
+      ['inaccessible', 'Inaccessible'],
+      ['a_verifier', 'À vérifier'],
+    ],
+    quickActions: [
+      action('equipment', 'Ouvrages / équipements', 'navigate', { route: 'MissionEquipment' }),
+      action('tests', 'Essais OPR', 'navigate', { route: 'MissionTests' }),
+      action('reserve', '＋ Réserve OPR', 'point', { preset: point('Réserve OPR / réception', 'reserve', { priority: 'À lever' }) }),
+      action('actions', 'Réserves / actions', 'navigate', { route: 'MissionActions' }),
+      action('documents', 'DOE / PV / récolement', 'navigate', { route: 'MissionDocuments' }),
+      action('signature', 'Signature / PV', 'navigate', { route: 'MissionSignature' }),
+    ],
+  },
   levee_reserves: {
     base: 'reception', label: 'Levée de réserves',
     objective: 'Reprendre les réserves existantes, constater seulement leur évolution et produire la preuve avant / après.',
@@ -376,7 +408,24 @@ const TYPES = Object.freeze({
       action('point', 'Nouvelle réserve', 'point', { preset: point('Nouvelle réserve constatée au recontrôle', 'reserve', { priority: 'À traiter' }) }),
     ],
   },
-  passation_travaux_exploitant: { base: 'passation', label: 'Passation travaux → exploitant' },
+  passation_travaux_exploitant: {
+    base: 'passation',
+    label: 'Passation travaux → exploitant',
+    objective: 'Passer de l’ouvrage réceptionné à une prise en main exploitable : inventaire, démonstration, réglages, accès, documents et éléments restant à remettre.',
+    steps: ['Inventaire', 'Fonctionnement', 'Réglages', 'Documents / accès', 'Écarts', 'Signature'],
+    quickActions: [
+      action('equipment', 'Inventaire contradictoire', 'navigate', { route: 'MissionEquipment' }),
+      action('tests', 'Démonstration / essais', 'navigate', { route: 'MissionTests' }),
+      action('documents', 'DOE / accès / notices', 'navigate', { route: 'MissionDocuments' }),
+      action('actions', 'Éléments manquants', 'navigate', { route: 'MissionActions' }),
+      action('signature', 'Signature passation', 'navigate', { route: 'MissionSignature' }),
+    ],
+    pointPresets: [
+      point('Équipement différent de l’inventaire remis', 'control', { priority: 'À clarifier' }),
+      point('Document / accès restant à remettre', 'request', { priority: 'À transmettre' }),
+      point('Réglage / fonctionnement à reprendre', 'action', { priority: 'À traiter' }),
+    ],
+  },
 
   suivi_technique: { base: 'followUp', label: 'Suivi technique ciblé' },
   controle_exploitation: {
