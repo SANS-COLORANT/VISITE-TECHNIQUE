@@ -61,6 +61,8 @@ const JS_SYNTAX_FILES = [
   'missionFieldPlaybooks.js',
   'missionVisitAutofillDb.js',
   'missionReportRecipes.js',
+  'missionTestPresets.js',
+  'missionDocumentPresets.js',
   'missionExcelExport.js',
   'missionExcelImport.js',
   'missionExcelAutoMap.js',
