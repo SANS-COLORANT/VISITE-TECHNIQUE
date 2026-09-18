@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Executable SQLite validation for METRA Missions schema v40 -> v41."""
+"""Executable SQLite validation for METRA Missions schema v40 -> v42."""
 
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ ROOT = Path(__file__).resolve().parents[2]
 MIGRATIONS = [
     (40, "missions_core", ROOT / "database" / "migrations" / "040_missions_core.js"),
     (41, "missions_architecture_v2", ROOT / "database" / "migrations" / "041_missions_architecture.js"),
+    (42, "missions_complete_tooling", ROOT / "database" / "migrations" / "042_missions_complete_tooling.js"),
 ]
 
 
@@ -43,17 +44,26 @@ def apply_migrations(conn: sqlite3.Connection, from_version: int) -> None:
     for version, name, path in MIGRATIONS:
         if version <= from_version:
             continue
-        sql = read_sql(path)
-        conn.executescript(sql)
+        conn.executescript(read_sql(path))
         conn.execute("INSERT OR IGNORE INTO schema_migrations(version,nom) VALUES(?,?)", (version, name))
         conn.commit()
         assert_integrity(conn, f"migration {version}")
 
 
+def prepare_start_version(conn: sqlite3.Connection, start_version: int) -> None:
+    if start_version >= 39:
+        conn.execute("INSERT INTO schema_migrations(version,nom) VALUES(39,'legacy_39')")
+    for version, name, path in MIGRATIONS:
+        if version <= start_version:
+            conn.executescript(read_sql(path))
+            conn.execute("INSERT OR IGNORE INTO schema_migrations(version,nom) VALUES(?,?)", (version, name))
+    conn.commit()
+
+
 def seed_core(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO mission_clients(id,name) VALUES('c1','Client test')")
     conn.execute("INSERT INTO mission_sites(id,client_id,name) VALUES('s1','c1','Site test')")
-    conn.execute("INSERT INTO missions(id,client_id,status,family,type) VALUES('m1','c1','draft','etude_audit','diagnostic_ecs')")
+    conn.execute("INSERT INTO missions(id,client_id,status,family,type,label) VALUES('m1','c1','draft','etude_audit','diagnostic_ecs','Mission test')")
     conn.execute("INSERT INTO mission_site_links(mission_id,site_id) VALUES('m1','s1')")
     conn.execute("INSERT INTO mission_locations(id,site_id,label) VALUES('loc1','s1','Local ECS')")
     conn.execute("INSERT INTO mission_phases(id,mission_id,label) VALUES('ph1','m1','Terrain')")
@@ -65,7 +75,7 @@ def seed_core(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO mission_point_actors(point_id,actor_id) VALUES('p1','a1')")
     conn.execute("INSERT INTO mission_measures(id,mission_id,visit_id,site_id,point_id,equipment_id,type,value_number,unit) VALUES('me1','m1','v1','s1','p1','e1','temperature',62.5,'C')")
     conn.execute("INSERT INTO mission_notes(id,mission_id,site_id,visit_id,point_id,content) VALUES('n1','m1','s1','v1','p1','Note test')")
-    conn.execute("INSERT INTO mission_documents(id,mission_id,site_id,visit_id,point_id,name) VALUES('d1','m1','s1','v1','p1','Plan source')")
+    conn.execute("INSERT INTO mission_documents(id,mission_id,site_id,visit_id,point_id,type,name,file_uri) VALUES('d1','m1','s1','v1','p1','plan_pdf','Plan source','file:///tmp/plan.pdf')")
     conn.execute("INSERT INTO mission_photos(id,mission_id,site_id,visit_id,point_id,equipment_id,file_uri) VALUES('photo1','m1','s1','v1','p1','e1','file:///tmp/photo.jpg')")
     conn.execute("INSERT INTO mission_template_values(id,mission_id,visit_id,site_id,location_id,equipment_id,template_id,field_code,value_type,value_text) VALUES('tv1','m1','v1','s1','loc1','e1','audit','ecs.production','text','Ballon 650L')")
     conn.commit()
@@ -105,28 +115,57 @@ def seed_v41(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO mission_measure_details(measure_id,reference_id,series_id,source_type,delta_number,anomaly_status) VALUES('me1','ref1','ser1','terrain',7.5,'to_check')")
     conn.execute("INSERT INTO mission_import_batches(id,mission_id,source_name,status) VALUES('ib1','m1','source.xlsx','completed')")
     conn.execute("INSERT INTO mission_import_issues(id,batch_id,message) VALUES('ii1','ib1','Doublon probable')")
-    conn.execute(
-        "INSERT INTO mission_import_rows(id,batch_id,sheet_name,row_index,row_json) VALUES(?,?,?,?,?)",
-        ("ir1", "ib1", "Feuil1", 2, '{"A":"B"}'),
-    )
+    conn.execute("INSERT INTO mission_import_rows(id,batch_id,sheet_name,row_index,row_json) VALUES(?,?,?,?,?)", ("ir1", "ib1", "Feuil1", 2, '{"A":"B"}'))
     conn.commit()
-    assert_integrity(conn, "donnees v41")
+
+
+def seed_v42(conn: sqlite3.Connection) -> None:
+    conn.execute("INSERT INTO mission_installations(id,mission_id,site_id,location_id,type,label) VALUES('inst1','m1','s1','loc1','ecs','Production ECS')")
+    conn.execute("INSERT INTO mission_systems(id,mission_id,installation_id,type,label) VALUES('sys1','m1','inst1','bouclage','Bouclage ECS')")
+    conn.execute("INSERT INTO mission_networks(id,mission_id,site_id,installation_id,system_id,type,label) VALUES('net1','m1','s1','inst1','sys1','return','Retour ECS')")
+    conn.execute("UPDATE mission_equipment SET installation_id='inst1',system_id='sys1',network_id='net1',verification_status='confirme',lifecycle_status='existant_conserve',expected_lifetime_years=15,replacement_cost=2000,replacement_year=2030,criticality_json='{"continuity":true}' WHERE id='e1'")
+    conn.execute("INSERT INTO mission_components(id,mission_id,equipment_id,type,label) VALUES('comp1','m1','e1','motor','Moteur')")
+    conn.execute("INSERT INTO mission_plan_layers(id,mission_id,document_id,label) VALUES('layer1','m1','d1','Reservations')")
+    conn.execute("INSERT INTO mission_plan_calibrations(id,mission_id,document_id,page_number,point_a_json,point_b_json,pixel_distance,real_distance,scale_ratio) VALUES('cal1','m1','d1',1,'{"x":0,"y":0}','{"x":1,"y":0}',100,10,0.1)")
+    conn.execute("INSERT INTO mission_plan_annotations(id,mission_id,document_id,layer_id,page_number,annotation_type,geometry_json,text) VALUES('ann1','m1','d1','layer1',1,'point','{"points":[{"x":0.5,"y":0.5}]}','Point')")
+    conn.execute("INSERT INTO mission_map_layers(id,mission_id,label,type,data_json) VALUES('map1','m1','Sites','geojson','{"type":"FeatureCollection","features":[]}')")
+    conn.execute("INSERT INTO mission_import_mappings(id,mission_id,name,mapping_json) VALUES('mapx1','m1','Equipements','{"entityType":"equipment","fieldMap":{"type":"Designation"}}')")
+    conn.execute("INSERT INTO mission_formula_library(id,mission_id,scope,label,formula,unit,input_schema_json) VALUES('formula1','m1','mission','Delta T','supply-return','K','[]')")
+    conn.execute("INSERT INTO mission_measurement_instruments(id,mission_id,label,brand,model) VALUES('instr1','m1','Thermometre','Test','T1')")
+    conn.execute("INSERT INTO mission_custom_measure_types(id,mission_id,label,unit) VALUES('mt1','m1','Temperature plaque','C')")
+    conn.execute("INSERT INTO mission_ocr_jobs(id,mission_id,photo_id,equipment_id,status,raw_text) VALUES('ocr1','m1','photo1','e1','confirmed','MODEL X')")
+    conn.execute("INSERT INTO mission_voice_notes(id,mission_id,visit_id,site_id,transcript) VALUES('voice1','m1','v1','s1','Note dictee')")
+    conn.execute("INSERT INTO mission_visit_checks(id,mission_id,visit_id,check_key,label,severity,entity_type,entity_id) VALUES('check1','m1','v1','equipment_state_missing','Etat a verifier','info','equipment','e1')")
+    conn.execute("UPDATE mission_geometries SET measure_id='me1',photo_id='photo1',action_id='act1' WHERE id='g1'")
+    conn.execute("INSERT INTO mission_document_extractions(id,mission_id,document_id,page_number,source_part,engine,raw_text) VALUES('ext1','m1','d1',1,'page:1','test','Texte')")
+    conn.execute("INSERT INTO mission_document_review_items(id,mission_id,document_id,extraction_id,item_type,label,status) VALUES('rev1','m1','d1','ext1','information','Element a revoir','to_review')")
+    conn.commit()
+    assert_integrity(conn, "donnees v42")
 
 
 def exercise(conn: sqlite3.Connection) -> None:
     seed_core(conn)
     seed_v41(conn)
+    seed_v42(conn)
     conn.execute("UPDATE mission_visits SET status='completed', completed_at=datetime('now') WHERE id='v1'")
     conn.commit()
     assert_integrity(conn, "visite incomplete terminee")
+
+    # Vérifie que les nouvelles colonnes / tables sont réellement disponibles.
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(mission_equipment)")}
+    for required in ("installation_id", "verification_status", "criticality_json"):
+        if required not in cols:
+            raise AssertionError(f"Colonne v42 manquante: mission_equipment.{required}")
+    geo_cols = {row[1] for row in conn.execute("PRAGMA table_info(mission_geometries)")}
+    for required in ("measure_id", "photo_id", "action_id"):
+        if required not in geo_cols:
+            raise AssertionError(f"Colonne v42 manquante: mission_geometries.{required}")
 
     conn.execute("DELETE FROM missions WHERE id='m1'")
     conn.commit()
     mission_tables = [row[0] for row in conn.execute("SELECT name FROM sqlite_master WHERE type='table' AND name LIKE 'mission_%'")]
     for table in mission_tables:
-        # Client, Site, Localisation et Equipement appartiennent au référentiel local Missions
-        # et peuvent être réutilisés par une autre Mission. Ils ne sont donc pas supprimés
-        # lors de la clôture/suppression d'un dossier.
+        # Référentiel local réutilisable entre Missions.
         if table in ("mission_clients", "mission_sites", "mission_locations", "mission_equipment"):
             continue
         if count(conn, table) != 0:
@@ -138,6 +177,10 @@ def exercise(conn: sqlite3.Connection) -> None:
         or count(conn, "mission_equipment") != 1
     ):
         raise AssertionError("Le référentiel local Client/Site/Localisation/Equipement Missions doit survivre a la suppression d'une Mission.")
+
+    equipment = conn.execute("SELECT installation_id,system_id,network_id FROM mission_equipment WHERE id='e1'").fetchone()
+    if equipment != (None, None, None):
+        raise AssertionError(f"Les rattachements Mission supprimés doivent être remis à NULL: {equipment!r}")
     assert_integrity(conn, "apres suppression cascade")
 
 
@@ -147,11 +190,7 @@ def run_case(start_version: int) -> None:
         try:
             conn.execute("PRAGMA foreign_keys=ON")
             conn.execute("CREATE TABLE schema_migrations(version INTEGER PRIMARY KEY, nom TEXT NOT NULL, appliquee_le TEXT NOT NULL DEFAULT (datetime('now')))")
-            if start_version >= 39:
-                conn.execute("INSERT INTO schema_migrations(version,nom) VALUES(39,'legacy_39')")
-            if start_version >= 40:
-                conn.executescript(read_sql(MIGRATIONS[0][2]))
-                conn.execute("INSERT OR IGNORE INTO schema_migrations(version,nom) VALUES(40,'missions_core')")
+            prepare_start_version(conn, start_version)
             conn.execute("CREATE TABLE IF NOT EXISTS legacy_user_data(id TEXT PRIMARY KEY, payload TEXT)")
             conn.execute("INSERT INTO legacy_user_data VALUES('keep-me','preserve')")
             conn.commit()
@@ -165,9 +204,9 @@ def run_case(start_version: int) -> None:
 
 
 def main() -> None:
-    run_case(39)
-    run_case(40)
-    print(f"SQLite {sqlite3.sqlite_version}: Missions v40-v41 valides sur upgrade v39 et v40.")
+    for version in (39, 40, 41):
+        run_case(version)
+    print(f"SQLite {sqlite3.sqlite_version}: Missions v40-v42 valides sur upgrades v39, v40 et v41.")
 
 
 if __name__ == "__main__":
