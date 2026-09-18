@@ -17,6 +17,7 @@ on:
       - 'missionEquipmentDb.js'
       - 'missionEquipmentCatalog.js'
       - 'missionStructureDb.js'
+      - 'missionTechnicalStructureDb.js'
       - 'missionVisitQualityDb.js'
       - 'missionPlanDb.js'
       - 'missionMapLayerDb.js'
