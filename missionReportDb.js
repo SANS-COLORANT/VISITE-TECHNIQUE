@@ -162,7 +162,7 @@ function makeAutoSections(data) {
       key: 'inventaire',
       title: 'Inventaire et état des équipements',
       content: [blockTable(
-        ['Site', 'Local', 'Équipement', 'Marque', 'Modèle', 'État', 'Vérification', 'Année', 'Coût renouvellement', 'Année cible'],
+        ['Site', 'Local', 'Équipement', 'Marque', 'Modèle', 'État', 'Vérification', 'Cycle projet', 'Année', 'Coût renouvellement', 'Année cible'],
         data.equipment.map((e) => [
           e.site_name || '',
           e.location_label || '',
@@ -171,6 +171,7 @@ function makeAutoSections(data) {
           e.model || '',
           e.state || '',
           e.verification_status || '',
+          e.lifecycle_status || '',
           e.installation_year || '',
           e.replacement_cost ?? '',
           e.replacement_year ?? '',
