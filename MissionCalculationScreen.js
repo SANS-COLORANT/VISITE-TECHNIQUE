@@ -49,6 +49,28 @@ export function MissionCalculationScreen({ route }) {
     setPreview(null);
   }, [selectedId]);
 
+  useEffect(() => {
+    if (!selected || !schema.length) {
+      setPreview(null);
+      return;
+    }
+    const complete = schema.every((input) => {
+      const raw = values[input.key];
+      if (raw === null || raw === undefined || String(raw).trim() === '') return false;
+      return Number.isFinite(Number(String(raw).replace(',', '.')));
+    });
+    if (!complete) {
+      setPreview(null);
+      return;
+    }
+    try {
+      const result = calculerFormuleMission(selected, values);
+      setPreview(result.result);
+    } catch {
+      setPreview(null);
+    }
+  }, [selected, schema, values]);
+
   const calculate = () => {
     if (!selected) return;
     try {
@@ -97,7 +119,7 @@ export function MissionCalculationScreen({ route }) {
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Calculs 🧮</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15, marginBottom: 12 }}>
-        Les calculs restent explicables : formule, entrées, hypothèses et résultat sont conservés. Une formule peut être ajoutée et réutilisée.
+        Les calculs restent explicables : formule, entrées, hypothèses et résultat sont conservés. Dès que toutes les entrées sont disponibles, le résultat se recalcule automatiquement.
       </Text>
 
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
@@ -127,7 +149,7 @@ export function MissionCalculationScreen({ route }) {
           </View>)}
         </View>
         {preview !== null ? <View style={[missionStyles.statBox, { padding: 12, borderRadius: 12, marginBottom: 10 }]}>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5 }}>RÉSULTAT</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5 }}>RÉSULTAT · RECALCUL AUTOMATIQUE</Text>
           <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 22, fontWeight: '900', marginTop: 2 }}>{Number(preview).toLocaleString('fr-FR', { maximumFractionDigits: 3 })} {selected.unit || ''}</Text>
         </View> : null}
         <View style={{ flexDirection: 'row', gap: 8 }}>
