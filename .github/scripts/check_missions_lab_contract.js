@@ -255,6 +255,14 @@ requireText(read('MissionScenarioScreen.js'), 'Préparer scénarios', 'scenario 
 requireText(read('MissionScenarioScreen.js'), 'Créer / ouvrir phase Travaux', 'retained scenario continuity into Works');
 requireText(read('MissionVisitScreen.js'), 'creerActionMission', 'automatic action creation from field reserves');
 requireText(read('MissionVisitScreen.js'), 'Créer un point à contrôler', 'non-automatic atypical measurement point proposal');
+requireText(read('MissionTestsScreen.js'), 'Le résultat d’essai, le point et l’action restent liés.', 'test deviation point action linkage');
+requireText(read('MissionTestsScreen.js'), "lifecycleStatus: 'avec_reserve'", 'test deviation updates project lifecycle');
+requireText(read('MissionTestsScreen.js'), "missionType === 'commissioning' ? 'mis_en_service' : 'controle'", 'successful test lifecycle progression');
+requireText(read('missionPlanDb.js'), "type: 'subject'", 'subjects available as plan link targets');
+requireText(read('MissionPlanScreen.js'), 'Sujet chantier / suivi', 'plan subject linking UX');
+requireText(read('MissionSubjectsScreen.js'), 'À traiter avant le prochain point', 'open action preview before next meeting');
+requireText(read('MissionReceptionBoardScreen.js'), 'Documents de réception / passation · statut rapide', 'one-tap reception document status');
+requireText(read('MissionReceptionBoardScreen.js'), "['received','Reçu']", 'received document status shortcut');
 
 const documentPresetTypes = read('missionDocumentPresets.js');
 const missingDocumentPresets = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + type + ":\\s*'").test(documentPresetTypes));
