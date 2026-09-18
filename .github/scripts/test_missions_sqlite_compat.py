@@ -123,13 +123,28 @@ def seed_v42(conn: sqlite3.Connection) -> None:
     conn.execute("INSERT INTO mission_installations(id,mission_id,site_id,location_id,type,label) VALUES('inst1','m1','s1','loc1','ecs','Production ECS')")
     conn.execute("INSERT INTO mission_systems(id,mission_id,installation_id,type,label) VALUES('sys1','m1','inst1','bouclage','Bouclage ECS')")
     conn.execute("INSERT INTO mission_networks(id,mission_id,site_id,installation_id,system_id,type,label) VALUES('net1','m1','s1','inst1','sys1','return','Retour ECS')")
-    conn.execute("UPDATE mission_equipment SET installation_id='inst1',system_id='sys1',network_id='net1',verification_status='confirme',lifecycle_status='existant_conserve',expected_lifetime_years=15,replacement_cost=2000,replacement_year=2030,criticality_json='{"continuity":true}' WHERE id='e1'")
+    conn.execute(
+        "UPDATE mission_equipment SET installation_id=?,system_id=?,network_id=?,verification_status=?,lifecycle_status=?,expected_lifetime_years=?,replacement_cost=?,replacement_year=?,criticality_json=? WHERE id=?",
+        ("inst1","sys1","net1","confirme","existant_conserve",15,2000,2030,'{"continuity":true}',"e1"),
+    )
     conn.execute("INSERT INTO mission_components(id,mission_id,equipment_id,type,label) VALUES('comp1','m1','e1','motor','Moteur')")
     conn.execute("INSERT INTO mission_plan_layers(id,mission_id,document_id,label) VALUES('layer1','m1','d1','Reservations')")
-    conn.execute("INSERT INTO mission_plan_calibrations(id,mission_id,document_id,page_number,point_a_json,point_b_json,pixel_distance,real_distance,scale_ratio) VALUES('cal1','m1','d1',1,'{"x":0,"y":0}','{"x":1,"y":0}',100,10,0.1)")
-    conn.execute("INSERT INTO mission_plan_annotations(id,mission_id,document_id,layer_id,page_number,annotation_type,geometry_json,text) VALUES('ann1','m1','d1','layer1',1,'point','{"points":[{"x":0.5,"y":0.5}]}','Point')")
-    conn.execute("INSERT INTO mission_map_layers(id,mission_id,label,type,data_json) VALUES('map1','m1','Sites','geojson','{"type":"FeatureCollection","features":[]}')")
-    conn.execute("INSERT INTO mission_import_mappings(id,mission_id,name,mapping_json) VALUES('mapx1','m1','Equipements','{"entityType":"equipment","fieldMap":{"type":"Designation"}}')")
+    conn.execute(
+        "INSERT INTO mission_plan_calibrations(id,mission_id,document_id,page_number,point_a_json,point_b_json,pixel_distance,real_distance,scale_ratio) VALUES(?,?,?,?,?,?,?,?,?)",
+        ("cal1","m1","d1",1,'{"x":0,"y":0}','{"x":1,"y":0}',100,10,0.1),
+    )
+    conn.execute(
+        "INSERT INTO mission_plan_annotations(id,mission_id,document_id,layer_id,page_number,annotation_type,geometry_json,text) VALUES(?,?,?,?,?,?,?,?)",
+        ("ann1","m1","d1","layer1",1,"point",'{"points":[{"x":0.5,"y":0.5}]}',"Point"),
+    )
+    conn.execute(
+        "INSERT INTO mission_map_layers(id,mission_id,label,type,data_json) VALUES(?,?,?,?,?)",
+        ("map1","m1","Sites","geojson",'{"type":"FeatureCollection","features":[]}'),
+    )
+    conn.execute(
+        "INSERT INTO mission_import_mappings(id,mission_id,name,mapping_json) VALUES(?,?,?,?)",
+        ("mapx1","m1","Equipements",'{"entityType":"equipment","fieldMap":{"type":"Designation"}}'),
+    )
     conn.execute("INSERT INTO mission_formula_library(id,mission_id,scope,label,formula,unit,input_schema_json) VALUES('formula1','m1','mission','Delta T','supply-return','K','[]')")
     conn.execute("INSERT INTO mission_measurement_instruments(id,mission_id,label,brand,model) VALUES('instr1','m1','Thermometre','Test','T1')")
     conn.execute("INSERT INTO mission_custom_measure_types(id,mission_id,label,unit) VALUES('mt1','m1','Temperature plaque','C')")
