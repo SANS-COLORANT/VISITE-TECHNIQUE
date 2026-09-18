@@ -181,6 +181,12 @@ export function MissionScreen({ navigation, route }) {
         </View>
 
         <TouchableOpacity
+          style={[styles.btnSecondary, missionStyles.secondaryButton, { marginTop: 9, alignItems: 'center' }]}
+          onPress={() => navigation.navigate('MissionTechnicalGraph', { missionId })}
+        >
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Synoptique technique · relations équipements</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
           style={[styles.btnPrimary, missionStyles.primaryButton, { marginTop: 9, alignItems: 'center' }]}
           onPress={() => navigation.navigate('MissionReport', { missionId })}
         >
