@@ -419,6 +419,25 @@ export async function construireClasseurClientMission(missionId, { photoPathById
     })), [34,16,55,20,22,22,18,18,48,48]);
   }
 
+  if (data.equipment.some((row) => row.replacement_year || row.replacement_cost || row.expected_lifetime_years)) {
+    addSheet(wb, '11_Projection_P3', data.equipment
+      .filter((row) => row.replacement_year || row.replacement_cost || row.expected_lifetime_years)
+      .sort((a,b) => (Number(a.replacement_year) || 9999) - (Number(b.replacement_year) || 9999))
+      .map((row) => ({
+        Site: row.site_name || '',
+        Localisation: row.location_label || '',
+        Equipement: row.type || '',
+        Marque: row.brand || '',
+        Modele: row.model || '',
+        Etat: row.state || '',
+        Duree_vie_indicative_ans: formatNumber(row.expected_lifetime_years),
+        Annee_renouvellement_indicative: row.replacement_year || '',
+        Cout_renouvellement_EUR: formatNumber(row.replacement_cost),
+        Statut_cycle_vie: row.lifecycle_status || '',
+        Verification_terrain: labelStatus(row.verification_status),
+      })), [24,26,30,22,26,18,22,26,24,22,22]);
+  }
+
   return { wb, data };
 }
 
