@@ -270,6 +270,11 @@ requireText(read('missionClientExcelExport.js'), "'12_Historique_cycle'", 'proje
 requireText(read('missionReportDb.js'), "key: 'projection_p3'", 'P2 P3 renewal projection report section');
 requireText(read('MissionReceptionBoardScreen.js'), 'Afficher 120 de plus', 'progressive large inventory rendering');
 requireText(read('MissionReceptionBoardScreen.js'), 'écarts inventaire', 'reception inventory difference summary');
+requireText(read('missionDomainDb.js'), 'enregistrerHistoriqueActionMission', 'action change history writer');
+requireText(read('MissionActionsScreen.js'), 'HISTORIQUE DES MODIFICATIONS', 'action history UX');
+requireText(read('missionReportDb.js'), "key: 'historique_actions'", 'action history report section');
+requireText(read('missionClientExcelExport.js'), "'13_Historique_actions'", 'action history client Excel worksheet');
+requireText(read('MissionVisitScreen.js'), "changeComment: 'Réserve créée depuis la visite Mission'", 'OPR reserve lifecycle linkage');
 requireText(recipes, 'reserveClearance: true', 'OPR and reserve-lifting continuity capability');
 
 const documentPresetTypes = read('missionDocumentPresets.js');
