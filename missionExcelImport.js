@@ -186,6 +186,10 @@ async function importCanonicalWorkbook(db, workbook, source) {
   let batchId = null;
   const counts = {};
   await db.withTransactionAsync(async () => {
+    // Les classeurs peuvent contenir une hiérarchie dont le parent se trouve
+    // après l'enfant (localisations, relations). On diffère donc les FK jusqu'au
+    // commit tout en conservant l'intégrité finale.
+    await db.execAsync('PRAGMA defer_foreign_keys=ON');
     for (const table of MISSION_TABLE_IMPORT_ORDER) {
       counts[table] = await upsertRows(db, table, tables[table] || []);
     }
