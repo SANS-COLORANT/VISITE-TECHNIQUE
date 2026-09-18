@@ -30,7 +30,7 @@ async function loadMissionReportData(db, missionId) {
 
   const [
     sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components, subjects, observations, decisions, lifecycle, lifecycle,
+    equipment, locations, installations, systems, networks, components, subjects, observations, decisions, lifecycle,
   ] = await Promise.all([
     db.getAllAsync('SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name', [missionId]),
     db.getAllAsync('SELECT v.*,s.name AS site_name FROM mission_visits v LEFT JOIN mission_sites s ON s.id=v.site_id WHERE v.mission_id=? ORDER BY COALESCE(v.visit_date,v.created_at)', [missionId]),
@@ -141,7 +141,7 @@ async function loadMissionReportData(db, missionId) {
 
   return {
     mission, sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components, subjects, observations, decisions,
+    equipment, locations, installations, systems, networks, components, subjects, observations, decisions, lifecycle,
   };
 }
 
