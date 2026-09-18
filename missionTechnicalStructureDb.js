@@ -45,8 +45,8 @@ export async function listerArchitectureTechniqueMission(missionId, { siteId = n
       params
     ),
     db.getAllAsync(
-      'SELECT sy.*,i.label AS installation_label FROM mission_systems sy LEFT JOIN mission_installations i ON i.id=sy.installation_id WHERE sy.mission_id=? ORDER BY sy.label',
-      [missionId]
+      'SELECT sy.*,i.label AS installation_label FROM mission_systems sy LEFT JOIN mission_installations i ON i.id=sy.installation_id WHERE sy.mission_id=?' + (siteId ? ' AND i.site_id=?' : '') + ' ORDER BY sy.label',
+      siteId ? [missionId, siteId] : [missionId]
     ),
     db.getAllAsync(
       'SELECT n.*,i.label AS installation_label,sy.label AS system_label,l.label AS location_label FROM mission_networks n LEFT JOIN mission_installations i ON i.id=n.installation_id LEFT JOIN mission_systems sy ON sy.id=n.system_id LEFT JOIN mission_locations l ON l.id=n.location_id WHERE n.mission_id=?' + siteClause + ' ORDER BY n.label',
