@@ -58,6 +58,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
   const missionId = route?.params?.missionId;
   const [subjects, setSubjects] = useState([]);
   const [sites, setSites] = useState([]);
+  const [workstreams, setWorkstreams] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
   const [timeline, setTimeline] = useState([]);
   const [newVisible, setNewVisible] = useState(false);
@@ -72,6 +73,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
     description: '',
     siteId: '',
     priority: '',
+    workstreamId: '',
   });
   const [eventDraft, setEventDraft] = useState({
     label: '',
@@ -84,14 +86,15 @@ export function MissionSubjectsScreen({ navigation, route }) {
   const load = useCallback(async () => {
     if (!missionId) return;
     const db = await getDb();
-    const [rows, siteRows, nextActionRows] = await Promise.all([
+    const [rows, siteRows, workstreamRows, nextActionRows] = await Promise.all([
       db.getAllAsync(
-        `SELECT s.*,site.name AS site_name,
+        `SELECT s.*,site.name AS site_name,w.label AS workstream_label,
           (SELECT COUNT(*) FROM mission_observations o WHERE o.subject_id=s.id) AS observations_count,
           (SELECT COUNT(*) FROM mission_decisions d WHERE d.subject_id=s.id) AS decisions_count,
           (SELECT COUNT(*) FROM mission_actions a WHERE a.subject_id=s.id AND a.status NOT IN ('closed','cancelled')) AS open_actions_count
          FROM mission_subjects s
          LEFT JOIN mission_sites site ON site.id=s.site_id
+         LEFT JOIN mission_workstreams w ON w.id=s.workstream_id
          WHERE s.mission_id=?
          ORDER BY CASE s.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 WHEN 'waiting' THEN 2 ELSE 3 END,
            s.updated_at DESC,s.created_at DESC`,
@@ -99,6 +102,10 @@ export function MissionSubjectsScreen({ navigation, route }) {
       ),
       db.getAllAsync(
         'SELECT s.* FROM mission_sites s JOIN mission_site_links ml ON ml.site_id=s.id WHERE ml.mission_id=? ORDER BY s.name',
+        [missionId]
+      ),
+      db.getAllAsync(
+        'SELECT * FROM mission_workstreams WHERE mission_id=? ORDER BY sort_order,label',
         [missionId]
       ),
       db.getAllAsync(
@@ -118,6 +125,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
     ]);
     setSubjects(rows || []);
     setSites(siteRows || []);
+    setWorkstreams(workstreamRows || []);
     setNextActions(nextActionRows || []);
 
     const targetId = selectedId || rows?.[0]?.id || null;
@@ -175,6 +183,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
       description: '',
       siteId: sites?.[0]?.id || '',
       priority: '',
+      workstreamId: workstreams?.[0]?.id || '',
     });
     setNewVisible(true);
   };
@@ -185,6 +194,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
     try {
       const id = await creerSujetMission({
         missionId,
+        workstreamId: subjectDraft.workstreamId || null,
         siteId: subjectDraft.siteId || null,
         label: subjectDraft.label,
         description: subjectDraft.description,
@@ -342,7 +352,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
           }}
         >
           <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '900' }} numberOfLines={2}>{row.label}</Text>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 3 }}>{[row.site_name,row.priority,row.status].filter(Boolean).join(' · ')}</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 3 }}>{[row.workstream_label,row.site_name,row.priority,row.status].filter(Boolean).join(' · ')}</Text>
           <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.1, marginTop: 5 }}>
             {row.observations_count || 0} constat(s) · {row.decisions_count || 0} décision(s) · {row.open_actions_count || 0} action(s) ouverte(s)
           </Text>
@@ -354,7 +364,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <View style={{ flex: 1 }}>
               <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 12.4, fontWeight: '900' }}>{selected.label}</Text>
-              <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop: 3 }}>{[selected.site_name,selected.priority].filter(Boolean).join(' · ') || 'Sujet Mission'}</Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop: 3 }}>{[selected.workstream_label,selected.site_name,selected.priority].filter(Boolean).join(' · ') || 'Sujet Mission'}</Text>
               {selected.description ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.3, lineHeight: 13, marginTop: 5 }}>{selected.description}</Text> : null}
             </View>
             <View style={{ marginLeft: 8 }}>
@@ -405,6 +415,12 @@ export function MissionSubjectsScreen({ navigation, route }) {
         <Field label="Sujet" value={subjectDraft.label} onChangeText={(v) => setSubjectDraft((d) => ({ ...d, label: v }))} placeholder="Signalétique, planning, trappes, stockage, faux-plafond…" />
         <Field label="Description / contexte" value={subjectDraft.description} onChangeText={(v) => setSubjectDraft((d) => ({ ...d, description: v }))} multiline />
         <Field label="Priorité" value={subjectDraft.priority} onChangeText={(v) => setSubjectDraft((d) => ({ ...d, priority: v }))} placeholder="Urgent, à suivre, information…" />
+        {workstreams.length ? <>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginBottom: 5 }}>VOLET / AXE</Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 7 }}>
+            {workstreams.map((w) => <Chip key={w.id} label={w.label} selected={subjectDraft.workstreamId === w.id} onPress={() => setSubjectDraft((d) => ({ ...d, workstreamId: d.workstreamId === w.id ? '' : w.id }))} />)}
+          </View>
+        </> : null}
         <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginBottom: 5 }}>SITE</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
           {sites.map((site) => <Chip key={site.id} label={site.name} selected={subjectDraft.siteId === site.id} onPress={() => setSubjectDraft((d) => ({ ...d, siteId: d.siteId === site.id ? '' : site.id }))} />)}
