@@ -118,6 +118,7 @@ const GEOMETRY_LINK_KEYS = Object.freeze([
   'installation_id',
   'system_id',
   'network_id',
+  'signature_id',
 ]);
 
 function planGeometryToGeoJson(annotationType, geometry) {
@@ -130,7 +131,7 @@ function planGeometryToGeoJson(annotationType, geometry) {
     .filter((point) => Number.isFinite(point[0]) && Number.isFinite(point[1]));
   if (!points.length) return null;
 
-  if (['point', 'symbol', 'text', 'count'].includes(annotationType)) {
+  if (['point', 'symbol', 'text', 'count', 'signature'].includes(annotationType)) {
     return { type: 'Point', coordinates: points[0] };
   }
   if (annotationType === 'polygon') {
@@ -251,6 +252,19 @@ async function resolveEntityGeometryContext(db, missionId, entityType, entityId)
       network_id: row.id,
     };
   }
+  if (type === 'signature') {
+    const row = await db.getFirstAsync(
+      'SELECT id,visit_id FROM mission_signatures WHERE id=? AND mission_id=?',
+      [id, missionId]
+    );
+    if (!row) throw new Error('Signature Mission introuvable.');
+    let siteId = null;
+    if (row.visit_id) {
+      const visit = await db.getFirstAsync('SELECT site_id FROM mission_visits WHERE id=? AND mission_id=?', [row.visit_id, missionId]);
+      siteId = visit?.site_id || null;
+    }
+    return { site_id: siteId, signature_id: row.id };
+  }
   throw new Error('Type de liaison non pris en charge : ' + type);
 }
 
@@ -293,9 +307,9 @@ export async function ajouterAnnotationPlan({
     if (geometryId) {
       await db.runAsync(
         'INSERT INTO mission_geometries(' +
-          'id,mission_id,site_id,location_id,equipment_id,point_id,subject_id,measure_id,photo_id,action_id,installation_id,system_id,network_id,' +
+          'id,mission_id,site_id,location_id,equipment_id,point_id,subject_id,measure_id,photo_id,action_id,installation_id,system_id,network_id,signature_id,' +
           'geometry_type,geojson,coordinate_space,plan_document_id,plan_page,label,style_json,properties_json' +
-        ') VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        ') VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
         [
           geometryId,
           missionId,
@@ -344,7 +358,7 @@ export async function lierAnnotationPlan(annotationId, { entityType = null, enti
     );
     if (annotation.geometry_id) {
       await db.runAsync(
-        "UPDATE mission_geometries SET site_id=?,location_id=?,equipment_id=?,point_id=?,subject_id=?,measure_id=?,photo_id=?,action_id=?,installation_id=?,system_id=?,network_id=?,updated_at=datetime('now') WHERE id=?",
+        "UPDATE mission_geometries SET site_id=?,location_id=?,equipment_id=?,point_id=?,subject_id=?,measure_id=?,photo_id=?,action_id=?,installation_id=?,system_id=?,network_id=?,signature_id=?,updated_at=datetime('now') WHERE id=?",
         [...values, annotation.geometry_id]
       );
     }
@@ -365,13 +379,13 @@ export async function supprimerAnnotationPlan(id) {
       db.getFirstAsync('SELECT COUNT(*) AS c FROM mission_plan_annotations WHERE geometry_id=?', [row.geometry_id]),
       db.getFirstAsync('SELECT COUNT(*) AS c FROM mission_photos WHERE geometry_id=?', [row.geometry_id]),
       db.getFirstAsync(
-        'SELECT location_id,equipment_id,point_id,subject_id,measure_id,photo_id,action_id,installation_id,system_id,network_id FROM mission_geometries WHERE id=?',
+        'SELECT location_id,equipment_id,point_id,subject_id,measure_id,photo_id,action_id,installation_id,system_id,network_id,signature_id FROM mission_geometries WHERE id=?',
         [row.geometry_id]
       ),
     ]);
     const hasEntityLink = geometry && [
       geometry.location_id, geometry.equipment_id, geometry.point_id, geometry.subject_id, geometry.measure_id,
-      geometry.photo_id, geometry.action_id, geometry.installation_id, geometry.system_id, geometry.network_id,
+      geometry.photo_id, geometry.action_id, geometry.installation_id, geometry.system_id, geometry.network_id, geometry.signature_id,
     ].some(Boolean);
     if (!Number(remaining?.c || 0) && !Number(photoRef?.c || 0) && !hasEntityLink) {
       await db.runAsync('DELETE FROM mission_geometries WHERE id=?', [row.geometry_id]);
@@ -401,7 +415,7 @@ export async function listerAnnotationsPlan(documentId, pageNumber = 1) {
 
 export async function listerCiblesAnnotationMission(missionId) {
   const db = await getDb();
-  const [sites, locations, equipment, points, actions, measures, photos, installations, systems, networks] = await Promise.all([
+  const [sites, locations, equipment, points, actions, measures, photos, installations, systems, networks, signatures] = await Promise.all([
     db.getAllAsync('SELECT s.id,s.name AS label,s.city AS subtitle FROM mission_sites s JOIN mission_site_links ml ON ml.site_id=s.id WHERE ml.mission_id=? ORDER BY s.name', [missionId]),
     db.getAllAsync('SELECT l.id,l.label,s.name AS site_name,l.kind FROM mission_locations l JOIN mission_site_links ml ON ml.site_id=l.site_id LEFT JOIN mission_sites s ON s.id=l.site_id WHERE ml.mission_id=? ORDER BY s.name,l.sort_order,l.label', [missionId]),
     db.getAllAsync('SELECT e.id,e.type,e.brand,e.model,s.name AS site_name,l.label AS location_label FROM mission_equipment e JOIN mission_site_links ml ON ml.site_id=e.site_id LEFT JOIN mission_sites s ON s.id=e.site_id LEFT JOIN mission_locations l ON l.id=e.location_id WHERE ml.mission_id=? ORDER BY s.name,e.type,e.brand,e.model LIMIT 3000', [missionId]),
@@ -412,6 +426,7 @@ export async function listerCiblesAnnotationMission(missionId) {
     db.getAllAsync('SELECT i.id,i.label,i.type,s.name AS site_name FROM mission_installations i LEFT JOIN mission_sites s ON s.id=i.site_id WHERE i.mission_id=? ORDER BY s.name,i.label', [missionId]),
     db.getAllAsync('SELECT sy.id,sy.label,sy.type,i.label AS installation_label FROM mission_systems sy LEFT JOIN mission_installations i ON i.id=sy.installation_id WHERE sy.mission_id=? ORDER BY i.label,sy.label', [missionId]),
     db.getAllAsync('SELECT n.id,n.label,n.type,s.name AS site_name FROM mission_networks n LEFT JOIN mission_sites s ON s.id=n.site_id WHERE n.mission_id=? ORDER BY s.name,n.label', [missionId]),
+    db.getAllAsync('SELECT id,signer_label,role_label,signed_at FROM mission_signatures WHERE mission_id=? ORDER BY COALESCE(signed_at,created_at) DESC', [missionId]),
   ]);
 
   return [
@@ -425,6 +440,7 @@ export async function listerCiblesAnnotationMission(missionId) {
     ...installations.map((row) => ({ type: 'installation', id: row.id, label: row.label, subtitle: [row.site_name,row.type].filter(Boolean).join(' · ') })),
     ...systems.map((row) => ({ type: 'system', id: row.id, label: row.label, subtitle: [row.installation_label,row.type].filter(Boolean).join(' · ') })),
     ...networks.map((row) => ({ type: 'network', id: row.id, label: row.label, subtitle: [row.site_name,row.type].filter(Boolean).join(' · ') })),
+    ...signatures.map((row) => ({ type: 'signature', id: row.id, label: row.signer_label || 'Signature', subtitle: [row.role_label,row.signed_at].filter(Boolean).join(' · ') })),
   ];
 }
 
