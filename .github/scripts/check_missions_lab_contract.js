@@ -14,6 +14,7 @@ const constants = read('database/constants.js');
 const migrations = read('database/migrations/index.js');
 const migration40 = read('database/migrations/040_missions_core.js');
 const migration41 = read('database/migrations/041_missions_architecture.js');
+const migration42 = read('database/migrations/042_missions_complete_tooling.js');
 const settings = read('featureSettings.js');
 const lab = read('LabMetraPanel.js');
 const settingsScreen = read('visual-packs/runtime/VisualPacksSettingsScreen.js');
@@ -27,10 +28,11 @@ const exportFile = read('missionExcelExport.js');
 const importFile = read('missionExcelImport.js');
 const excelSchema = read('missionExcelSchema.js');
 
-requireText(constants, 'DATABASE_SCHEMA_VERSION = 41', 'schema v41');
+requireText(constants, 'DATABASE_SCHEMA_VERSION = 42', 'schema v42');
 requireText(migrations, "import { migration040 } from './040_missions_core.js';", 'migration 040 registered');
 requireText(migrations, 'migration039, migration040', 'migration ordering 39 -> 40');
 requireText(migrations, 'migration041', 'migration 041 registered');
+requireText(migrations, 'migration042', 'migration 042 registered');
 requireText(migration41, "name: 'missions_architecture_v2'", 'mission architecture v2');
 requireText(migration41, 'CREATE TABLE IF NOT EXISTS mission_actions', 'mission actions');
 requireText(migration41, 'CREATE TABLE IF NOT EXISTS mission_references', 'mission references');
@@ -39,6 +41,16 @@ requireText(migration41, 'CREATE TABLE IF NOT EXISTS mission_scenarios', 'missio
 requireText(migration41, 'CREATE TABLE IF NOT EXISTS mission_geometries', 'mission geometries');
 requireText(migration41, 'CREATE TABLE IF NOT EXISTS mission_import_rows', 'raw Excel preservation');
 requireText(migration41, 'CREATE TABLE IF NOT EXISTS mission_report_sections', 'editable report sections');
+requireText(migration42, "name: 'missions_complete_tooling'", 'mission complete tooling v42');
+requireText(migration42, 'CREATE TABLE IF NOT EXISTS mission_installations', 'technical installations');
+requireText(migration42, 'CREATE TABLE IF NOT EXISTS mission_plan_annotations', 'plan annotations');
+requireText(migration42, 'CREATE TABLE IF NOT EXISTS mission_map_layers', 'SIG layers');
+requireText(migration42, 'CREATE TABLE IF NOT EXISTS mission_formula_library', 'formula library');
+requireText(migration42, 'CREATE TABLE IF NOT EXISTS mission_ocr_jobs', 'offline plate OCR jobs');
+requireText(migration42, 'CREATE TABLE IF NOT EXISTS mission_voice_notes', 'voice notes');
+requireText(migration42, 'CREATE TABLE IF NOT EXISTS mission_visit_checks', 'before-leaving checklist');
+requireText(migration42, 'CREATE TABLE IF NOT EXISTS mission_document_extractions', 'document extraction');
+requireText(migration42, 'CREATE TABLE IF NOT EXISTS mission_document_review_items', 'document extraction review');
 requireText(migration40, "name: 'missions_core'", 'migration identity');
 requireText(migration40, 'CREATE TABLE IF NOT EXISTS missions', 'missions table');
 requireText(migration40, 'CREATE TABLE IF NOT EXISTS mission_points', 'mission points');
@@ -46,7 +58,7 @@ requireText(migration40, 'CREATE TABLE IF NOT EXISTS mission_template_values', '
 requireText(migration40, "status TEXT NOT NULL DEFAULT 'draft'", 'draft visit persistence');
 
 for (const forbidden of ['api_remote_', 'remote_client_id', 'remote_site_id', 'api_structure_outbox']) {
-  if (migration40.includes(forbidden) || migration41.includes(forbidden)) throw new Error(`Le schéma Missions ne doit pas dépendre de l'Intranet: ${forbidden}`);
+  if (migration40.includes(forbidden) || migration41.includes(forbidden) || migration42.includes(forbidden)) throw new Error(`Le schéma Missions ne doit pas dépendre de l'Intranet: ${forbidden}`);
 }
 
 requireText(settings, "key: 'missions'", 'missions feature flag');
@@ -78,7 +90,9 @@ requireText(exportFile, 'MISSION_EXCEL_SHEETS', 'complete Excel schema export');
 requireText(importFile, 'choisirEtImporterMissionExcel', 'Excel import picker');
 requireText(importFile, 'raw_external', 'arbitrary workbook preservation');
 requireText(importFile, 'canonical_roundtrip', 'canonical Excel round-trip');
-requireText(excelSchema, "['48_Lignes_Import_Brut', 'mission_import_rows']", 'all mission data exported');
+requireText(excelSchema, "['48_Lignes_Import_Brut', 'mission_import_rows']", 'raw Excel rows exported');
+requireText(excelSchema, "['65_Revue_Doc', 'mission_document_review_items']", 'v42 complete data exported');
+requireText(excelSchema, 'MISSION_EXCEL_SCHEMA_VERSION = 42', 'Excel schema v42');
 requireText(excelSchema, 'MISSION_TABLE_IMPORT_ORDER', 'relational import ordering');
 requireText(visit, 'MISSION_CAPTURE_MODES', 'Rapide Standard Expert modes');
 requireText(visit, '📷 Photo', 'mission photo quick capture');
@@ -86,4 +100,17 @@ requireText(visit, '＋ Mesure', 'mission measurement quick capture');
 forbidText(read('missionRecipes.js'), 'pre_allumage', 'Missions must not reuse recurring pre-allumage recipe points');
 forbidText(read('missionRecipes.js'), 'vmc-c', 'Missions must not reuse recurring VMC recipe point identifiers');
 
-console.log('Missions LAB contract validated: schema v41, Intranet isolation, non-blocking visits, mission-specific UX and complete Excel import/export round-trip.');
+requireText(app, "MissionEquipment", 'equipment workspace route');
+requireText(app, "MissionPlan", 'plans workspace route');
+requireText(app, "MissionMeasurements", 'measurements workspace route');
+requireText(app, "MissionDocumentInbox", 'document inbox route');
+requireText(app, "MissionPackage", 'complete package route');
+requireText(read('MissionEquipmentScreen.js'), 'Plaque signalétique · photo + OCR local', 'offline plate OCR UX');
+requireText(read('MissionPlanScreen.js'), 'GeoPackage QGIS', 'QGIS GeoPackage export UX');
+requireText(read('MissionVisitScreen.js'), 'Avant de quitter le site', 'non-blocking before leaving checklist');
+requireText(read('MissionPackageScreen.js'), 'Créer et partager le ZIP complet', 'complete mission package');
+requireText(read('MissionExcelMappingScreen.js'), 'Enregistrer le mapping & appliquer', 'reusable Excel mapping');
+requireText(read('MissionReportScreen.js'), 'Word', 'editable Word report export');
+requireText(read('MissionReportScreen.js'), 'PDF', 'editable PDF report export');
+
+console.log('Missions LAB contract validated: schema v42, strict Intranet isolation, offline mission tooling, complete Excel round-trip, plans/SIG, OCR, measurements, reports and packages.');
