@@ -497,6 +497,76 @@ export const migration041 = {
       FOREIGN KEY(profile_id) REFERENCES mission_report_profiles(id) ON DELETE SET NULL
     );
 
+    CREATE TABLE IF NOT EXISTS mission_import_rows (
+      id TEXT PRIMARY KEY NOT NULL,
+      batch_id TEXT NOT NULL,
+      sheet_name TEXT NOT NULL,
+      row_index INTEGER NOT NULL,
+      row_json TEXT NOT NULL,
+      mapped_entity_type TEXT,
+      mapped_entity_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY(batch_id) REFERENCES mission_import_batches(id) ON DELETE CASCADE
+    );
+
+    CREATE TABLE IF NOT EXISTS mission_point_details (
+      point_id TEXT PRIMARY KEY NOT NULL,
+      scope_type TEXT,
+      scope_id TEXT,
+      cost_estimate REAL,
+      cost_currency TEXT DEFAULT 'EUR',
+      allocation TEXT,
+      criticality_json TEXT,
+      requested_action TEXT,
+      reference_id TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY(point_id) REFERENCES mission_points(id) ON DELETE CASCADE,
+      FOREIGN KEY(reference_id) REFERENCES mission_references(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS mission_measure_details (
+      measure_id TEXT PRIMARY KEY NOT NULL,
+      reference_id TEXT,
+      series_id TEXT,
+      source_type TEXT,
+      source_id TEXT,
+      source_label TEXT,
+      quality TEXT,
+      measured_at TEXT,
+      instrument_label TEXT,
+      delta_number REAL,
+      delta_percent REAL,
+      anomaly_status TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY(measure_id) REFERENCES mission_measures(id) ON DELETE CASCADE,
+      FOREIGN KEY(reference_id) REFERENCES mission_references(id) ON DELETE SET NULL,
+      FOREIGN KEY(series_id) REFERENCES mission_measure_series(id) ON DELETE SET NULL
+    );
+
+    CREATE TABLE IF NOT EXISTS mission_report_sections (
+      id TEXT PRIMARY KEY NOT NULL,
+      mission_id TEXT NOT NULL,
+      profile_id TEXT,
+      scope_type TEXT NOT NULL DEFAULT 'mission',
+      scope_id TEXT,
+      section_key TEXT,
+      title TEXT NOT NULL,
+      content_text TEXT,
+      content_json TEXT,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      hidden INTEGER NOT NULL DEFAULT 0,
+      source_type TEXT,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY(mission_id) REFERENCES missions(id) ON DELETE CASCADE,
+      FOREIGN KEY(profile_id) REFERENCES mission_report_profiles(id) ON DELETE SET NULL
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_mission_import_rows_batch ON mission_import_rows(batch_id, sheet_name, row_index);
+    CREATE INDEX IF NOT EXISTS idx_mission_report_sections_scope ON mission_report_sections(mission_id, scope_type, scope_id, sort_order);
+
     CREATE INDEX IF NOT EXISTS idx_mission_workstreams_mission ON mission_workstreams(mission_id, sort_order);
     CREATE INDEX IF NOT EXISTS idx_mission_subjects_mission_status ON mission_subjects(mission_id, status, updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_mission_observations_mission ON mission_observations(mission_id, subject_id, created_at DESC);
