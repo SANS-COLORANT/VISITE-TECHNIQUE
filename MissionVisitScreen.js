@@ -483,10 +483,15 @@ export function MissionVisitScreen({ navigation, route }) {
       return;
     }
     if (item.entity_type === 'point') {
-      Alert.alert(
-        'Point à compléter',
-        'Ouvre le dossier Mission puis la liste des points/actions pour compléter le responsable ou l’échéance.'
-      );
+      navigation.navigate('MissionActions', { missionId: actualMissionId, siteId: data?.visit?.site_id || null });
+      return;
+    }
+    if (item.entity_type === 'test_run') {
+      navigation.navigate('MissionTests', { missionId: actualMissionId, visitId });
+      return;
+    }
+    if (item.entity_type === 'measurement_campaign') {
+      navigation.navigate('MissionMeasurementCampaign', { missionId: actualMissionId });
     }
   };
 
