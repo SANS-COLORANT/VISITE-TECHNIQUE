@@ -202,6 +202,10 @@ requireText(read('missionTestPresets.js'), 'reprise_saison_mission', 'Mission-on
 requireText(read('MissionTestsScreen.js'), 'Protocoles recommandés', 'mission-aware test preset UX');
 requireText(read('missionDocumentPresets.js'), 'getMissionExpectedDocumentPresets', 'mission-specific expected document presets');
 requireText(read('MissionDocumentsScreen.js'), 'Préparer attendus', 'expected document preparation UX');
+requireText(read('missionCalculationAssist.js'), 'sortFormulasForMission', 'mission-aware calculation recommendations');
+requireText(read('missionCalculationAssist.js'), 'getCalculationAutoValues', 'calculation input autofill from Mission data');
+requireText(read('MissionCalculationScreen.js'), 'PRÉREMPLI', 'calculation autofill provenance UX');
+requireText(read('MissionCalculationScreen.js'), 'Recommandées · ', 'recommended formula filter UX');
 
 const documentPresetTypes = read('missionDocumentPresets.js');
 const missingDocumentPresets = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + type + ":\\s*'").test(documentPresetTypes));
