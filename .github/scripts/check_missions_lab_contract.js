@@ -27,6 +27,8 @@ const visit = read('MissionVisitScreen.js');
 const exportFile = read('missionExcelExport.js');
 const importFile = read('missionExcelImport.js');
 const excelSchema = read('missionExcelSchema.js');
+const recipes = read('missionRecipes.js');
+const missionScreen = read('MissionScreen.js');
 
 requireText(constants, 'DATABASE_SCHEMA_VERSION = 42', 'schema v42');
 requireText(migrations, "import { migration040 } from './040_missions_core.js';", 'migration 040 registered');
@@ -97,8 +99,22 @@ requireText(excelSchema, 'MISSION_TABLE_IMPORT_ORDER', 'relational import orderi
 requireText(visit, 'MISSION_CAPTURE_MODES', 'Rapide Standard Expert modes');
 requireText(visit, '📷 Photo', 'mission photo quick capture');
 requireText(visit, '＋ Mesure', 'mission measurement quick capture');
-forbidText(read('missionRecipes.js'), 'pre_allumage', 'Missions must not reuse recurring pre-allumage recipe points');
-forbidText(read('missionRecipes.js'), 'vmc-c', 'Missions must not reuse recurring VMC recipe point identifiers');
+forbidText(recipes, 'pre_allumage', 'Missions must not reuse recurring pre-allumage recipe points');
+forbidText(recipes, 'vmc-c', 'Missions must not reuse recurring VMC recipe point identifiers');
+requireText(recipes, 'getMissionCapabilities', 'mission-specific feature capabilities');
+requireText(missionScreen, 'getMissionCapabilities', 'Mission screen uses contextual capabilities');
+requireText(recipes, "diagnostic_chaufferie_ss", 'boiler room/substation dedicated recipe');
+requireText(recipes, "diagnostic_ventilation_cta", 'ventilation/CTA dedicated recipe');
+requireText(recipes, "assistance_p2_p3", 'P2/P3 dedicated recipe');
+requireText(recipes, "preallumage_reprise_saison", 'season restart dedicated recipe');
+
+const typeBlock = db.match(/export const MISSION_FAMILIES = Object\.freeze\(\[([\s\S]*?)\]\);/);
+if (!typeBlock) throw new Error('Impossible de lire MISSION_FAMILIES.');
+const missionTypes = [...typeBlock[1].matchAll(/\['([a-z0-9_]+)'\s*,\s*'[^']+'\]/g)].map((m) => m[1]);
+const recipeBlock = recipes.match(/const TYPE_RECIPES = Object\.freeze\(\{([\s\S]*?)\n\}\);/);
+if (!recipeBlock) throw new Error('Impossible de lire TYPE_RECIPES.');
+const missingRecipes = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + type + ':\\s*\\{').test(recipeBlock[1]));
+if (missingRecipes.length) throw new Error('Types de Mission sans recette Rapide/Standard/Expert: ' + missingRecipes.join(', '));
 
 requireText(app, "MissionEquipment", 'equipment workspace route');
 requireText(app, "MissionPlan", 'plans workspace route');
