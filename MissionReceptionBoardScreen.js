@@ -186,6 +186,9 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionActions',{ missionId })}>
           <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Réserves / actions</Text>
         </TouchableOpacity>
+        {mission?.type === 'opr_reception' && summary.openReserves ? <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionReserveClearance',{ missionId })}>
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Levée / recontrôle</Text>
+        </TouchableOpacity> : null}
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionDocuments',{ missionId })}>
           <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Documents</Text>
         </TouchableOpacity>
