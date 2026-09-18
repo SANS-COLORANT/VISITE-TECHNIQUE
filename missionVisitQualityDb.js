@@ -39,7 +39,7 @@ async function pushCheck(db, missionId, visitId, checkKey, label, severity, enti
 
 export async function genererChecklistFinVisite(missionId, visitId) {
   const db = await getDb();
-  const visit = await db.getFirstAsync('SELECT * FROM mission_visits WHERE id=? AND mission_id=?', [visitId, missionId]);
+  const visit = await db.getFirstAsync('SELECT v.*,m.type AS mission_type FROM mission_visits v JOIN missions m ON m.id=v.mission_id WHERE v.id=? AND v.mission_id=?', [visitId, missionId]);
   if (!visit) throw new Error('Visite Mission introuvable.');
 
   await db.runAsync("DELETE FROM mission_visit_checks WHERE visit_id=? AND status='open'", [visitId]);
@@ -50,6 +50,8 @@ export async function genererChecklistFinVisite(missionId, visitId) {
     importedUnverified,
     openPointsNoResponsible,
     openPointsNoDue,
+    unfinishedTests,
+    campaignRemaining,
     emptyVisit,
   ] = await Promise.all([
     db.getAllAsync(
@@ -57,6 +59,7 @@ export async function genererChecklistFinVisite(missionId, visitId) {
        JOIN mission_site_links l ON l.site_id=e.site_id
        WHERE l.mission_id=? AND (? IS NULL OR e.site_id=?)
          AND COALESCE(e.state,'non_evalue')='non_evalue'
+         AND COALESCE(e.verification_status,'non_verifie') IN ('confirme','different','remplace')
        LIMIT 20`,
       [missionId, visit.site_id, visit.site_id]
     ),
@@ -64,6 +67,7 @@ export async function genererChecklistFinVisite(missionId, visitId) {
       `SELECT e.id,e.type,e.brand,e.model FROM mission_equipment e
        JOIN mission_site_links l ON l.site_id=e.site_id
        WHERE l.mission_id=? AND (? IS NULL OR e.site_id=?)
+         AND COALESCE(e.verification_status,'non_verifie') IN ('confirme','different','remplace')
          AND NOT EXISTS(SELECT 1 FROM mission_photos p WHERE p.equipment_id=e.id)
        LIMIT 20`,
       [missionId, visit.site_id, visit.site_id]
@@ -78,16 +82,44 @@ export async function genererChecklistFinVisite(missionId, visitId) {
       [missionId, visit.site_id, visit.site_id]
     ),
     db.getAllAsync(
-      `SELECT id,label,description FROM mission_points
-       WHERE mission_id=? AND visit_origin_id=? AND status NOT IN ('closed','cancelled')
-         AND responsible_actor_id IS NULL LIMIT 20`,
+      `SELECT p.id,p.label,p.description FROM mission_points p
+       LEFT JOIN mission_point_details d ON d.point_id=p.id
+       WHERE p.mission_id=? AND p.visit_origin_id=? AND p.status NOT IN ('closed','cancelled','no_follow_up')
+         AND (
+           p.type IN ('reserve','action','request')
+           OR COALESCE(d.requested_action,'')<>''
+         )
+         AND p.responsible_actor_id IS NULL LIMIT 20`,
       [missionId, visitId]
     ),
     db.getAllAsync(
-      `SELECT id,label,description FROM mission_points
-       WHERE mission_id=? AND visit_origin_id=? AND status NOT IN ('closed','cancelled')
-         AND COALESCE(due_date,due_text,'')='' LIMIT 20`,
+      `SELECT p.id,p.label,p.description FROM mission_points p
+       LEFT JOIN mission_point_details d ON d.point_id=p.id
+       WHERE p.mission_id=? AND p.visit_origin_id=? AND p.status NOT IN ('closed','cancelled','no_follow_up')
+         AND (
+           p.type IN ('reserve','action','request')
+           OR COALESCE(d.requested_action,'')<>''
+         )
+         AND COALESCE(p.due_date,p.due_text,'')='' LIMIT 20`,
       [missionId, visitId]
+    ),
+    db.getAllAsync(
+      `SELECT tr.id,p.label AS protocol_label,e.type AS equipment_type
+       FROM mission_test_runs tr
+       JOIN mission_test_protocols p ON p.id=tr.protocol_id
+       LEFT JOIN mission_equipment e ON e.id=tr.equipment_id
+       WHERE tr.mission_id=? AND tr.visit_id=? AND tr.status<>'completed'
+       ORDER BY tr.created_at LIMIT 10`,
+      [missionId, visitId]
+    ),
+    db.getFirstAsync(
+      `SELECT COUNT(*) AS remaining
+       FROM mission_measure_campaign_points cp
+       JOIN mission_measure_campaigns c ON c.id=cp.campaign_id
+       WHERE cp.mission_id=?
+         AND (? IS NULL OR cp.site_id=? OR c.site_id=?)
+         AND cp.status='planned'`,
+      [missionId, visit.site_id, visit.site_id, visit.site_id]
     ),
     db.getFirstAsync(
       `SELECT
@@ -128,6 +160,20 @@ export async function genererChecklistFinVisite(missionId, visitId) {
     await pushCheck(
       db, missionId, visitId, 'point_due_missing', 'Point ouvert sans échéance', 'info',
       'point', p.id, p.label || p.description || 'Point'
+    );
+  }
+
+  for (const run of unfinishedTests) {
+    await pushCheck(
+      db, missionId, visitId, 'test_run_unfinished', 'Essai commencé non terminé', 'warning',
+      'test_run', run.id, [run.protocol_label,run.equipment_type].filter(Boolean).join(' · ')
+    );
+  }
+
+  if (Number(campaignRemaining?.remaining || 0) > 0) {
+    await pushCheck(
+      db, missionId, visitId, 'campaign_points_remaining', 'Campagne de mesures encore incomplète', 'info',
+      'measurement_campaign', null, String(campaignRemaining.remaining) + ' point(s) restent au statut « À mesurer » sur ce site / cette Mission.'
     );
   }
 
