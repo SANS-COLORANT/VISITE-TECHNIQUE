@@ -407,6 +407,7 @@ const TYPES = Object.freeze({
       action('tests', 'Essais OPR', 'navigate', { route: 'MissionTests' }),
       action('reserve', '＋ Réserve OPR', 'point', { preset: point('Réserve OPR / réception', 'reserve', { priority: 'À lever' }) }),
       action('actions', 'Réserves / actions', 'navigate', { route: 'MissionActions' }),
+      action('reserveClearance', 'Levée / recontrôle', 'navigate', { route: 'MissionReserveClearance' }),
       action('documents', 'DOE / PV / récolement', 'navigate', { route: 'MissionDocuments' }),
       action('signature', 'Signature / PV', 'navigate', { route: 'MissionSignature' }),
     ],
