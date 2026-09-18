@@ -791,6 +791,7 @@ const BASE_CAPABILITIES = Object.freeze({
   package: true,
   reserveClearance: false,
   subjects: false,
+  p3Dashboard: false,
 });
 
 const FAMILY_CAPABILITIES = Object.freeze({
@@ -822,7 +823,7 @@ const TYPE_CAPABILITIES = Object.freeze({
   levee_reserves: { tests: true, signature: true, reserveClearance: true },
   passation_travaux_exploitant: { tests: true, signature: true },
   controle_exploitation: { tests: true },
-  assistance_p2_p3: { scenarios: true, tests: true },
+  assistance_p2_p3: { scenarios: true, tests: true, p3Dashboard: true },
   preallumage_reprise_saison: { tests: true },
   campagne_technique: { map: true },
   campagne_mesures: { map: true },
