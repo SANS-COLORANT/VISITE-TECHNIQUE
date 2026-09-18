@@ -82,16 +82,19 @@ function Field({ label, value, onChangeText, keyboardType = 'default', placehold
 
 export function MissionEquipmentScreen({ navigation, route }) {
   const missionId = route?.params?.missionId;
+  const initialSiteId = route?.params?.siteId || '';
   const [loading, setLoading] = useState(true);
   const [equipment, setEquipment] = useState([]);
   const [sites, setSites] = useState([]);
+  const [locations, setLocations] = useState([]);
   const [query, setQuery] = useState('');
   const [createVisible, setCreateVisible] = useState(false);
   const [selectedId, setSelectedId] = useState(null);
   const [details, setDetails] = useState(null);
   const [busy, setBusy] = useState(false);
 
-  const [newSiteId, setNewSiteId] = useState('');
+  const [newSiteId, setNewSiteId] = useState(initialSiteId);
+  const [newLocationId, setNewLocationId] = useState('');
   const [newType, setNewType] = useState('');
   const [newBrand, setNewBrand] = useState('');
   const [newModel, setNewModel] = useState('');
@@ -107,24 +110,34 @@ export function MissionEquipmentScreen({ navigation, route }) {
     setLoading(true);
     try {
       const db = await getDb();
-      const [eq, siteRows] = await Promise.all([
-        listerEquipementsMission(missionId),
+      const [eq, siteRows, locationRows] = await Promise.all([
+        listerEquipementsMission(missionId, initialSiteId ? { siteId: initialSiteId } : {}),
         db.getAllAsync(
           'SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name',
+          [missionId]
+        ),
+        db.getAllAsync(
+          'SELECT l.* FROM mission_locations l JOIN mission_site_links ml ON ml.site_id=l.site_id WHERE ml.mission_id=? ORDER BY l.site_id,l.sort_order,l.label',
           [missionId]
         ),
       ]);
       setEquipment(eq || []);
       setSites(siteRows || []);
+      setLocations(locationRows || []);
       if (!newSiteId && siteRows?.[0]?.id) setNewSiteId(siteRows[0].id);
     } catch (e) {
       Alert.alert('Inventaire indisponible', String(e?.message || e));
     } finally {
       setLoading(false);
     }
-  }, [missionId, newSiteId]);
+  }, [missionId, newSiteId, initialSiteId]);
 
   useEffect(() => { load(); }, [load]);
+
+  const locationsForSite = useMemo(
+    () => locations.filter((row) => row.site_id === newSiteId),
+    [locations, newSiteId]
+  );
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -149,6 +162,7 @@ export function MissionEquipmentScreen({ navigation, route }) {
         expectedLifetimeYears: e.expected_lifetime_years === null || e.expected_lifetime_years === undefined ? '' : String(e.expected_lifetime_years),
         replacementCost: e.replacement_cost === null || e.replacement_cost === undefined ? '' : String(e.replacement_cost),
         replacementYear: e.replacement_year === null || e.replacement_year === undefined ? '' : String(e.replacement_year),
+        locationId: e.location_id || '',
         criticality: e.criticality || {},
         criticalityReason: e.criticality?.reason || '',
       });
@@ -168,6 +182,7 @@ export function MissionEquipmentScreen({ navigation, route }) {
       const id = await creerEquipementMission({
         missionId,
         siteId: newSiteId,
+        locationId: newLocationId || null,
         type: newType,
         brand: newBrand,
         model: newModel,
@@ -177,6 +192,7 @@ export function MissionEquipmentScreen({ navigation, route }) {
       if (qty > 1) await dupliquerEquipementMission(id, qty - 1);
       setCreateVisible(false);
       setNewType('');
+      setNewLocationId('');
       setNewBrand('');
       setNewModel('');
       setNewQuantity('1');
@@ -331,8 +347,14 @@ export function MissionEquipmentScreen({ navigation, route }) {
         <Text style={[styles.modalTitle, missionStyles.title]}>Ajouter rapidement un équipement</Text>
         <Text style={{ color: COLORS.inkFaint, fontSize: 9, marginBottom: 6 }}>SITE</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 45, marginBottom: 9 }}>
-          {sites.map((site) => <Chip key={site.id} label={site.name} selected={newSiteId === site.id} onPress={() => setNewSiteId(site.id)} />)}
+          {sites.map((site) => <Chip key={site.id} label={site.name} selected={newSiteId === site.id} onPress={() => { setNewSiteId(site.id); setNewLocationId(''); }} />)}
         </ScrollView>
+        {locationsForSite.length ? <>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 9, marginBottom: 6 }}>LOCALISATION (FACULTATIF)</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 45, marginBottom: 9 }}>
+            {locationsForSite.map((location) => <Chip key={location.id} label={location.label} selected={newLocationId === location.id} onPress={() => setNewLocationId(newLocationId === location.id ? '' : location.id)} />)}
+          </ScrollView>
+        </> : null}
         <Field label="Type / désignation" value={newType} onChangeText={setNewType} placeholder="Pompe, chaudière, ballon, automate…" />
         <Field label="Marque" value={newBrand} onChangeText={setNewBrand} />
         <Field label="Modèle" value={newModel} onChangeText={setNewModel} />
@@ -359,6 +381,16 @@ export function MissionEquipmentScreen({ navigation, route }) {
           <Field label="Marque" value={edit.brand} onChangeText={(v) => setEdit((p) => ({ ...p, brand: v }))} />
           <Field label="Modèle" value={edit.model} onChangeText={(v) => setEdit((p) => ({ ...p, model: v }))} />
           <Field label="Année / mise en service" value={edit.installationYear} onChangeText={(v) => setEdit((p) => ({ ...p, installationYear: v }))} />
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, fontWeight: '800', marginBottom: 5 }}>LOCALISATION</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 45, marginBottom: 12 }}>
+            <Chip label="Sans localisation" selected={!edit.locationId} onPress={() => setEdit((p) => ({ ...p, locationId: '' }))} />
+            {locations.filter((location) => location.site_id === details?.equipment?.site_id).map((location) => <Chip
+              key={location.id}
+              label={location.label}
+              selected={edit.locationId === location.id}
+              onPress={() => setEdit((p) => ({ ...p, locationId: location.id }))}
+            />)}
+          </ScrollView>
 
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { marginBottom: 16, alignItems: 'center' }]} disabled={busy} onPress={photoPlaqueAndOcr}>
             <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{busy ? 'Analyse…' : '📷 Plaque signalétique · photo + OCR local'}</Text>
