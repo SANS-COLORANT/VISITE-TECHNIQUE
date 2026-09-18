@@ -274,6 +274,7 @@ export function MissionScreen({ navigation, route }) {
             ['measurements', 'MissionMeasurements', 'Mesures', 'Références · séries · instruments'],
             ['plans', 'MissionPlan', 'Plans / PDF / SIG', 'Mesures · calques · GeoPackage'],
             ['map', 'MissionMap', 'Cartographie', 'Multi-sites · progression · SIG'],
+            ['campaignDashboard', 'MissionCampaignDashboard', 'Cockpit multi-sites', 'À faire · en cours · terminés · accès'],
             ['actions', 'MissionActions', 'Actions', 'Responsables · échéances · coûts'],
             ['subjects', 'MissionSubjects', 'Sujets & décisions', 'Constat → décision → action → historique'],
             ['p3Dashboard', 'MissionP3Dashboard', 'Projection P2 / P3', 'Âge · coût · échéance · renouvellement'],
