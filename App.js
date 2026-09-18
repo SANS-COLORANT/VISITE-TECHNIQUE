@@ -19,7 +19,7 @@ import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRun
 import { getActiveVisualPack, getVisualPackStartupDuration, resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
 
 const SPLASH_BG = '#FBF0E1';
-const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects', 'MissionP3Dashboard', 'MissionReceptionBoard', 'MissionExpertise', 'MissionCampaignDashboard', 'MissionAmoDashboard']);
+const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects', 'MissionP3Dashboard', 'MissionReceptionBoard', 'MissionExpertise', 'MissionCampaignDashboard', 'MissionAmoDashboard', 'MissionControlBoard']);
 
 const DEFERRED_SCREEN_LOADERS = Object.freeze({
   MetraDirectory: () => require('./MetraDirectoryScreen.js').MetraDirectoryScreen,
@@ -66,6 +66,7 @@ const DEFERRED_SCREEN_LOADERS = Object.freeze({
   MissionExpertise: () => require('./MissionExpertiseScreen.js').MissionExpertiseScreen,
   MissionCampaignDashboard: () => require('./MissionCampaignDashboardScreen.js').MissionCampaignDashboardScreen,
   MissionAmoDashboard: () => require('./MissionAmoDashboardScreen.js').MissionAmoDashboardScreen,
+  MissionControlBoard: () => require('./MissionControlBoardScreen.js').MissionControlBoardScreen,
 });
 
 function DeferredScreen({ name, ...props }) {
@@ -251,6 +252,7 @@ function AppContent() {
     {current.name === 'MissionExpertise' && missionsVisible ? <><MissionHeader title="Expertise / sinistre" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionExpertise" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionCampaignDashboard' && missionsVisible ? <><MissionHeader title="Campagne multi-sites" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionCampaignDashboard" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionAmoDashboard' && missionsVisible ? <><MissionHeader title="Pilotage AMO" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionAmoDashboard" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionControlBoard' && missionsVisible ? <><MissionHeader title="Contrôle ciblé" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionControlBoard" navigation={navigation} route={route} /></> : null}
 
     {current.name !== 'Home' && current.name !== 'Missions' ? <GlobalHomeButton missionMode={missionMode} onPress={missionMode ? goMissionsHome : goHome} /> : null}
     <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
