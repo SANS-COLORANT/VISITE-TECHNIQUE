@@ -106,6 +106,160 @@ export async function creerCalquePlan({ missionId, documentId, label, kind = 'an
   return id;
 }
 
+const GEOMETRY_LINK_KEYS = Object.freeze([
+  'site_id',
+  'location_id',
+  'equipment_id',
+  'point_id',
+  'subject_id',
+  'measure_id',
+  'photo_id',
+  'action_id',
+  'installation_id',
+  'system_id',
+  'network_id',
+]);
+
+function planGeometryToGeoJson(annotationType, geometry) {
+  if (!geometry) return null;
+  const rawPoints = Array.isArray(geometry.points)
+    ? geometry.points
+    : (geometry.x !== undefined && geometry.y !== undefined ? [geometry] : []);
+  const points = rawPoints
+    .map((point) => [Number(point?.x), Number(point?.y)])
+    .filter((point) => Number.isFinite(point[0]) && Number.isFinite(point[1]));
+  if (!points.length) return null;
+
+  if (['point', 'symbol', 'text', 'count'].includes(annotationType)) {
+    return { type: 'Point', coordinates: points[0] };
+  }
+  if (annotationType === 'polygon') {
+    if (points.length < 3) return null;
+    const ring = [...points];
+    const first = ring[0];
+    const last = ring[ring.length - 1];
+    if (first[0] !== last[0] || first[1] !== last[1]) ring.push([...first]);
+    return { type: 'Polygon', coordinates: [ring] };
+  }
+  if (points.length < 2) return null;
+  return { type: 'LineString', coordinates: points };
+}
+
+async function resolveEntityGeometryContext(db, missionId, entityType, entityId) {
+  const type = clean(entityType);
+  const id = clean(entityId);
+  if (!type || !id) return {};
+
+  if (type === 'site') {
+    const row = await db.getFirstAsync(
+      'SELECT s.id FROM mission_sites s JOIN mission_site_links ml ON ml.site_id=s.id WHERE s.id=? AND ml.mission_id=?',
+      [id, missionId]
+    );
+    if (!row) throw new Error('Site Mission introuvable.');
+    return { site_id: row.id };
+  }
+  if (type === 'location') {
+    const row = await db.getFirstAsync(
+      'SELECT l.id,l.site_id FROM mission_locations l JOIN mission_site_links ml ON ml.site_id=l.site_id WHERE l.id=? AND ml.mission_id=?',
+      [id, missionId]
+    );
+    if (!row) throw new Error('Localisation Mission introuvable.');
+    return { site_id: row.site_id, location_id: row.id };
+  }
+  if (type === 'equipment') {
+    const row = await db.getFirstAsync(
+      'SELECT e.id,e.site_id,e.location_id FROM mission_equipment e JOIN mission_site_links ml ON ml.site_id=e.site_id WHERE e.id=? AND ml.mission_id=?',
+      [id, missionId]
+    );
+    if (!row) throw new Error('Équipement Mission introuvable.');
+    return { site_id: row.site_id, location_id: row.location_id, equipment_id: row.id };
+  }
+  if (type === 'point') {
+    const row = await db.getFirstAsync(
+      'SELECT id,site_id,location_id,equipment_id FROM mission_points WHERE id=? AND mission_id=?',
+      [id, missionId]
+    );
+    if (!row) throw new Error('Point Mission introuvable.');
+    return { site_id: row.site_id, location_id: row.location_id, equipment_id: row.equipment_id, point_id: row.id };
+  }
+  if (type === 'subject') {
+    const row = await db.getFirstAsync(
+      'SELECT id,site_id,location_id FROM mission_subjects WHERE id=? AND mission_id=?',
+      [id, missionId]
+    );
+    if (!row) throw new Error('Sujet Mission introuvable.');
+    return { site_id: row.site_id, location_id: row.location_id, subject_id: row.id };
+  }
+  if (type === 'measure') {
+    const row = await db.getFirstAsync(
+      'SELECT id,site_id,location_id,point_id,equipment_id FROM mission_measures WHERE id=? AND mission_id=?',
+      [id, missionId]
+    );
+    if (!row) throw new Error('Mesure Mission introuvable.');
+    return { site_id: row.site_id, location_id: row.location_id, equipment_id: row.equipment_id, point_id: row.point_id, measure_id: row.id };
+  }
+  if (type === 'photo') {
+    const row = await db.getFirstAsync(
+      'SELECT id,site_id,location_id,point_id,equipment_id,action_id FROM mission_photos WHERE id=? AND mission_id=?',
+      [id, missionId]
+    );
+    if (!row) throw new Error('Photo Mission introuvable.');
+    return {
+      site_id: row.site_id,
+      location_id: row.location_id,
+      equipment_id: row.equipment_id,
+      point_id: row.point_id,
+      action_id: row.action_id,
+      photo_id: row.id,
+    };
+  }
+  if (type === 'action') {
+    const row = await db.getFirstAsync(
+      'SELECT id,site_id,location_id,equipment_id,source_point_id FROM mission_actions WHERE id=? AND mission_id=?',
+      [id, missionId]
+    );
+    if (!row) throw new Error('Action Mission introuvable.');
+    return { site_id: row.site_id, location_id: row.location_id, equipment_id: row.equipment_id, point_id: row.source_point_id, action_id: row.id };
+  }
+  if (type === 'installation') {
+    const row = await db.getFirstAsync(
+      'SELECT id,site_id,location_id FROM mission_installations WHERE id=? AND mission_id=?',
+      [id, missionId]
+    );
+    if (!row) throw new Error('Installation Mission introuvable.');
+    return { site_id: row.site_id, location_id: row.location_id, installation_id: row.id };
+  }
+  if (type === 'system') {
+    const row = await db.getFirstAsync(
+      'SELECT sy.id,sy.installation_id,i.site_id,i.location_id FROM mission_systems sy LEFT JOIN mission_installations i ON i.id=sy.installation_id WHERE sy.id=? AND sy.mission_id=?',
+      [id, missionId]
+    );
+    if (!row) throw new Error('Système Mission introuvable.');
+    return { site_id: row.site_id, location_id: row.location_id, installation_id: row.installation_id, system_id: row.id };
+  }
+  if (type === 'network') {
+    const row = await db.getFirstAsync(
+      'SELECT id,site_id,location_id,installation_id,system_id FROM mission_networks WHERE id=? AND mission_id=?',
+      [id, missionId]
+    );
+    if (!row) throw new Error('Réseau Mission introuvable.');
+    return {
+      site_id: row.site_id,
+      location_id: row.location_id,
+      installation_id: row.installation_id,
+      system_id: row.system_id,
+      network_id: row.id,
+    };
+  }
+  throw new Error('Type de liaison non pris en charge : ' + type);
+}
+
+function geometryLinkValues(context = {}, fallbackSiteId = null) {
+  return GEOMETRY_LINK_KEYS.map((key) => key === 'site_id'
+    ? (context.site_id || fallbackSiteId || null)
+    : (context[key] || null));
+}
+
 export async function ajouterAnnotationPlan({
   missionId,
   documentId,
@@ -116,38 +270,183 @@ export async function ajouterAnnotationPlan({
   text = null,
   symbolKey = null,
   style = null,
+  properties = null,
   linkedEntityType = null,
   linkedEntityId = null,
 } = {}) {
   const db = await getDb();
-  const id = createId('mpann');
-  await db.runAsync(
-    'INSERT INTO mission_plan_annotations(id,mission_id,document_id,layer_id,page_number,annotation_type,geometry_json,text,symbol_key,style_json,linked_entity_type,linked_entity_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
-    [
-      id, missionId, documentId, clean(layerId), Number(pageNumber) || 1, annotationType || 'point',
-      geometry ? JSON.stringify(geometry) : null, clean(text), clean(symbolKey), style ? JSON.stringify(style) : null,
-      clean(linkedEntityType), clean(linkedEntityId),
-    ]
+  const document = await db.getFirstAsync(
+    'SELECT id,site_id FROM mission_documents WHERE id=? AND mission_id=?',
+    [documentId, missionId]
   );
+  if (!document) throw new Error('Plan Mission introuvable.');
+
+  const id = createId('mpann');
+  const geoJson = planGeometryToGeoJson(annotationType || 'point', geometry);
+  const entityContext = linkedEntityType && linkedEntityId
+    ? await resolveEntityGeometryContext(db, missionId, linkedEntityType, linkedEntityId)
+    : {};
+  const geometryId = geoJson ? createId('mgeo') : null;
+  const linkValues = geometryLinkValues(entityContext, document.site_id);
+
+  await db.withTransactionAsync(async () => {
+    if (geometryId) {
+      await db.runAsync(
+        'INSERT INTO mission_geometries(' +
+          'id,mission_id,site_id,location_id,equipment_id,point_id,subject_id,measure_id,photo_id,action_id,installation_id,system_id,network_id,' +
+          'geometry_type,geojson,coordinate_space,plan_document_id,plan_page,label,style_json,properties_json' +
+        ') VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)',
+        [
+          geometryId,
+          missionId,
+          ...linkValues,
+          String(geoJson.type || annotationType || 'geometry').toLowerCase(),
+          JSON.stringify(geoJson),
+          'plan',
+          documentId,
+          Number(pageNumber) || 1,
+          clean(text),
+          style ? JSON.stringify(style) : null,
+          properties ? JSON.stringify(properties) : null,
+        ]
+      );
+    }
+    await db.runAsync(
+      'INSERT INTO mission_plan_annotations(' +
+        'id,mission_id,document_id,layer_id,page_number,annotation_type,geometry_json,geometry_id,text,symbol_key,style_json,linked_entity_type,linked_entity_id' +
+      ') VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)',
+      [
+        id, missionId, documentId, clean(layerId), Number(pageNumber) || 1, annotationType || 'point',
+        geometry ? JSON.stringify(geometry) : null, geometryId, clean(text), clean(symbolKey), style ? JSON.stringify(style) : null,
+        clean(linkedEntityType), clean(linkedEntityId),
+      ]
+    );
+  });
   return id;
+}
+
+export async function lierAnnotationPlan(annotationId, { entityType = null, entityId = null } = {}) {
+  const db = await getDb();
+  const annotation = await db.getFirstAsync(
+    'SELECT a.id,a.mission_id,a.document_id,a.geometry_id,d.site_id AS document_site_id FROM mission_plan_annotations a JOIN mission_documents d ON d.id=a.document_id WHERE a.id=?',
+    [annotationId]
+  );
+  if (!annotation) throw new Error('Annotation introuvable.');
+  const context = entityType && entityId
+    ? await resolveEntityGeometryContext(db, annotation.mission_id, entityType, entityId)
+    : {};
+  const values = geometryLinkValues(context, annotation.document_site_id);
+
+  await db.withTransactionAsync(async () => {
+    await db.runAsync(
+      "UPDATE mission_plan_annotations SET linked_entity_type=?,linked_entity_id=?,updated_at=datetime('now') WHERE id=?",
+      [clean(entityType), clean(entityId), annotationId]
+    );
+    if (annotation.geometry_id) {
+      await db.runAsync(
+        "UPDATE mission_geometries SET site_id=?,location_id=?,equipment_id=?,point_id=?,subject_id=?,measure_id=?,photo_id=?,action_id=?,installation_id=?,system_id=?,network_id=?,updated_at=datetime('now') WHERE id=?",
+        [...values, annotation.geometry_id]
+      );
+    }
+  });
 }
 
 export async function supprimerAnnotationPlan(id) {
   const db = await getDb();
-  await db.runAsync('DELETE FROM mission_plan_annotations WHERE id=?', [id]);
+  const row = await db.getFirstAsync(
+    'SELECT id,geometry_id FROM mission_plan_annotations WHERE id=?',
+    [id]
+  );
+  if (!row) return;
+  await db.withTransactionAsync(async () => {
+    await db.runAsync('DELETE FROM mission_plan_annotations WHERE id=?', [id]);
+    if (!row.geometry_id) return;
+    const [remaining, photoRef, geometry] = await Promise.all([
+      db.getFirstAsync('SELECT COUNT(*) AS c FROM mission_plan_annotations WHERE geometry_id=?', [row.geometry_id]),
+      db.getFirstAsync('SELECT COUNT(*) AS c FROM mission_photos WHERE geometry_id=?', [row.geometry_id]),
+      db.getFirstAsync(
+        'SELECT location_id,equipment_id,point_id,subject_id,measure_id,photo_id,action_id,installation_id,system_id,network_id FROM mission_geometries WHERE id=?',
+        [row.geometry_id]
+      ),
+    ]);
+    const hasEntityLink = geometry && [
+      geometry.location_id, geometry.equipment_id, geometry.point_id, geometry.subject_id, geometry.measure_id,
+      geometry.photo_id, geometry.action_id, geometry.installation_id, geometry.system_id, geometry.network_id,
+    ].some(Boolean);
+    if (!Number(remaining?.c || 0) && !Number(photoRef?.c || 0) && !hasEntityLink) {
+      await db.runAsync('DELETE FROM mission_geometries WHERE id=?', [row.geometry_id]);
+    }
+  });
 }
 
 export async function listerAnnotationsPlan(documentId, pageNumber = 1) {
   const db = await getDb();
   const rows = await db.getAllAsync(
-    `SELECT a.*,l.label AS layer_label,l.visible AS layer_visible,l.locked AS layer_locked
-     FROM mission_plan_annotations a
-     LEFT JOIN mission_plan_layers l ON l.id=a.layer_id
-     WHERE a.document_id=? AND a.page_number=?
-     ORDER BY COALESCE(l.sort_order,0),a.created_at`,
+    'SELECT a.*,l.label AS layer_label,l.visible AS layer_visible,l.locked AS layer_locked,' +
+      'g.properties_json AS geometry_properties_json,g.network_id AS geometry_network_id,g.point_id AS geometry_point_id,g.action_id AS geometry_action_id ' +
+    'FROM mission_plan_annotations a ' +
+    'LEFT JOIN mission_plan_layers l ON l.id=a.layer_id ' +
+    'LEFT JOIN mission_geometries g ON g.id=a.geometry_id ' +
+    'WHERE a.document_id=? AND a.page_number=? ' +
+    'ORDER BY COALESCE(l.sort_order,0),a.created_at',
     [documentId, Number(pageNumber) || 1]
   );
-  return rows.map((row) => ({ ...row, geometry: parseJson(row.geometry_json), style: parseJson(row.style_json, {}) }));
+  return rows.map((row) => ({
+    ...row,
+    geometry: parseJson(row.geometry_json),
+    style: parseJson(row.style_json, {}),
+    geometryProperties: parseJson(row.geometry_properties_json, {}),
+  }));
+}
+
+export async function listerCiblesAnnotationMission(missionId) {
+  const db = await getDb();
+  const [sites, locations, equipment, points, actions, measures, photos, installations, systems, networks] = await Promise.all([
+    db.getAllAsync('SELECT s.id,s.name AS label,s.city AS subtitle FROM mission_sites s JOIN mission_site_links ml ON ml.site_id=s.id WHERE ml.mission_id=? ORDER BY s.name', [missionId]),
+    db.getAllAsync('SELECT l.id,l.label,s.name AS site_name,l.kind FROM mission_locations l JOIN mission_site_links ml ON ml.site_id=l.site_id LEFT JOIN mission_sites s ON s.id=l.site_id WHERE ml.mission_id=? ORDER BY s.name,l.sort_order,l.label', [missionId]),
+    db.getAllAsync('SELECT e.id,e.type,e.brand,e.model,s.name AS site_name,l.label AS location_label FROM mission_equipment e JOIN mission_site_links ml ON ml.site_id=e.site_id LEFT JOIN mission_sites s ON s.id=e.site_id LEFT JOIN mission_locations l ON l.id=e.location_id WHERE ml.mission_id=? ORDER BY s.name,e.type,e.brand,e.model LIMIT 3000', [missionId]),
+    db.getAllAsync('SELECT p.id,p.label,p.description,p.status,s.name AS site_name FROM mission_points p LEFT JOIN mission_sites s ON s.id=p.site_id WHERE p.mission_id=? ORDER BY p.created_at DESC LIMIT 1500', [missionId]),
+    db.getAllAsync('SELECT a.id,a.label,a.status,s.name AS site_name FROM mission_actions a LEFT JOIN mission_sites s ON s.id=a.site_id WHERE a.mission_id=? ORDER BY a.created_at DESC LIMIT 1500', [missionId]),
+    db.getAllAsync('SELECT m.id,m.type,m.value_number,m.value_text,m.unit,s.name AS site_name FROM mission_measures m LEFT JOIN mission_sites s ON s.id=m.site_id WHERE m.mission_id=? ORDER BY m.created_at DESC LIMIT 1500', [missionId]),
+    db.getAllAsync('SELECT p.id,p.label,p.type,p.taken_at,s.name AS site_name FROM mission_photos p LEFT JOIN mission_sites s ON s.id=p.site_id WHERE p.mission_id=? ORDER BY COALESCE(p.taken_at,p.created_at) DESC LIMIT 1000', [missionId]),
+    db.getAllAsync('SELECT i.id,i.label,i.type,s.name AS site_name FROM mission_installations i LEFT JOIN mission_sites s ON s.id=i.site_id WHERE i.mission_id=? ORDER BY s.name,i.label', [missionId]),
+    db.getAllAsync('SELECT sy.id,sy.label,sy.type,i.label AS installation_label FROM mission_systems sy LEFT JOIN mission_installations i ON i.id=sy.installation_id WHERE sy.mission_id=? ORDER BY i.label,sy.label', [missionId]),
+    db.getAllAsync('SELECT n.id,n.label,n.type,s.name AS site_name FROM mission_networks n LEFT JOIN mission_sites s ON s.id=n.site_id WHERE n.mission_id=? ORDER BY s.name,n.label', [missionId]),
+  ]);
+
+  return [
+    ...sites.map((row) => ({ type: 'site', id: row.id, label: row.label, subtitle: row.subtitle || '' })),
+    ...locations.map((row) => ({ type: 'location', id: row.id, label: row.label, subtitle: [row.site_name, row.kind].filter(Boolean).join(' · ') })),
+    ...equipment.map((row) => ({ type: 'equipment', id: row.id, label: [row.type,row.brand,row.model].filter(Boolean).join(' · ') || 'Équipement', subtitle: [row.site_name,row.location_label].filter(Boolean).join(' · ') })),
+    ...points.map((row) => ({ type: 'point', id: row.id, label: row.label || row.description || 'Point', subtitle: [row.site_name,row.status].filter(Boolean).join(' · ') })),
+    ...actions.map((row) => ({ type: 'action', id: row.id, label: row.label || 'Action', subtitle: [row.site_name,row.status].filter(Boolean).join(' · ') })),
+    ...measures.map((row) => ({ type: 'measure', id: row.id, label: row.type || 'Mesure', subtitle: [row.value_number ?? row.value_text, row.unit, row.site_name].filter((v) => v !== null && v !== undefined && v !== '').join(' · ') })),
+    ...photos.map((row) => ({ type: 'photo', id: row.id, label: row.label || row.type || 'Photo', subtitle: [row.site_name,row.taken_at].filter(Boolean).join(' · ') })),
+    ...installations.map((row) => ({ type: 'installation', id: row.id, label: row.label, subtitle: [row.site_name,row.type].filter(Boolean).join(' · ') })),
+    ...systems.map((row) => ({ type: 'system', id: row.id, label: row.label, subtitle: [row.installation_label,row.type].filter(Boolean).join(' · ') })),
+    ...networks.map((row) => ({ type: 'network', id: row.id, label: row.label, subtitle: [row.site_name,row.type].filter(Boolean).join(' · ') })),
+  ];
+}
+
+export async function creerReseauDepuisPlanMission({
+  missionId,
+  documentId,
+  label,
+  type = null,
+  properties = null,
+} = {}) {
+  const db = await getDb();
+  const document = await db.getFirstAsync(
+    'SELECT id,site_id,location_id FROM mission_documents WHERE id=? AND mission_id=?',
+    [documentId, missionId]
+  );
+  if (!document) throw new Error('Plan Mission introuvable.');
+  const id = createId('mnet');
+  await db.runAsync(
+    'INSERT INTO mission_networks(id,mission_id,site_id,location_id,type,label,properties_json) VALUES(?,?,?,?,?,?,?)',
+    [id, missionId, document.site_id || null, document.location_id || null, clean(type), clean(label) || 'Réseau technique', properties ? JSON.stringify(properties) : null]
+  );
+  return id;
 }
 
 export async function calibrerPlan({
