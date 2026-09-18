@@ -11,6 +11,7 @@ on:
       - 'missionsDb.js'
       - 'missionVisitDb.js'
       - 'missionExcelExport.js'
+      - 'missionClientExcelExport.js'
       - 'missionExcelImport.js'
       - 'missionExcelAutoMap.js'
       - 'missionExcelSchema.js'
