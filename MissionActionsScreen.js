@@ -4,7 +4,7 @@ import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
-import { creerOuTrouverActeurMission } from './missionDomainDb.js';
+import { creerOuTrouverActeurMission, enregistrerHistoriqueActionMission } from './missionDomainDb.js';
 import { capturerPhotoMission } from './missionMediaDb.js';
 import { exporterSyntheseActionsMission } from './missionClientExcelExport.js';
 
@@ -40,6 +40,7 @@ export function MissionActionsScreen({ route }) {
   const [draft, setDraft] = useState({});
   const [editingId, setEditingId] = useState(null);
   const [exportingSummary, setExportingSummary] = useState(false);
+  const [actionHistory, setActionHistory] = useState([]);
 
   const load = useCallback(async () => {
     const db = await getDb();
@@ -71,6 +72,7 @@ export function MissionActionsScreen({ route }) {
 
   const openNew = () => {
     setEditingId(null);
+    setActionHistory([]);
     setDraft({
       siteId: sites?.[0]?.id || '',
       label: '',
@@ -87,7 +89,7 @@ export function MissionActionsScreen({ route }) {
     setEditVisible(true);
   };
 
-  const openEdit = (a) => {
+  const openEdit = async (a) => {
     setEditingId(a.id);
     setDraft({
       siteId: a.site_id || '',
@@ -103,6 +105,18 @@ export function MissionActionsScreen({ route }) {
       progress: a.progress === null || a.progress === undefined ? '' : String(a.progress),
     });
     setEditVisible(true);
+    try {
+      const db = await getDb();
+      const history = await db.getAllAsync(
+        `SELECT * FROM mission_provenance
+         WHERE mission_id=? AND entity_type='action' AND entity_id=? AND source_kind='action_change'
+         ORDER BY created_at DESC LIMIT 80`,
+        [missionId,a.id]
+      );
+      setActionHistory(history || []);
+    } catch {
+      setActionHistory([]);
+    }
   };
 
   const save = async () => {
@@ -115,14 +129,34 @@ export function MissionActionsScreen({ route }) {
       ? await creerOuTrouverActeurMission({ missionId, siteId: draft.siteId || null, company: draft.responsible.trim(), role: 'Responsable action' })
       : null;
     if (editingId) {
+      const before = actions.find((row) => row.id === editingId) || await db.getFirstAsync('SELECT * FROM mission_actions WHERE id=? AND mission_id=?', [editingId,missionId]);
+      const after = {
+        label: draft.label.trim(),
+        description: clean(draft.description),
+        status: draft.status || 'open',
+        priority: clean(draft.priority),
+        responsible_actor_id: actorId,
+        due_date: clean(draft.dueDate),
+        due_text: clean(draft.dueText),
+        cost_estimate: num(draft.cost),
+        allocation: clean(draft.allocation),
+        progress: num(draft.progress),
+      };
       await db.runAsync(
         `UPDATE mission_actions SET site_id=?,label=?,description=?,status=?,priority=?,responsible_actor_id=?,due_date=?,due_text=?,cost_estimate=?,allocation=?,progress=?,closed_at=?,updated_at=datetime('now') WHERE id=?`,
         [
-          clean(draft.siteId), draft.label.trim(), clean(draft.description), draft.status || 'open', clean(draft.priority),
-          actorId, clean(draft.dueDate), clean(draft.dueText), num(draft.cost), clean(draft.allocation), num(draft.progress),
-          ['closed','cancelled'].includes(draft.status) ? new Date().toISOString() : null, editingId,
+          clean(draft.siteId), after.label, after.description, after.status, after.priority,
+          after.responsible_actor_id, after.due_date, after.due_text, after.cost_estimate, after.allocation, after.progress,
+          ['closed','cancelled'].includes(after.status) ? new Date().toISOString() : null, editingId,
         ]
       );
+      await enregistrerHistoriqueActionMission({
+        missionId,
+        actionId: editingId,
+        before,
+        after,
+        source: 'MissionActions',
+      });
     } else {
       await db.runAsync(
         `INSERT INTO mission_actions(id,mission_id,site_id,label,description,status,priority,responsible_actor_id,due_date,due_text,cost_estimate,allocation,progress)
@@ -261,6 +295,32 @@ export function MissionActionsScreen({ route }) {
         </View> : <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, lineHeight: 12, marginTop: 4 }}>
           Enregistre d’abord l’action pour pouvoir lui rattacher les photos avant / après.
         </Text>}
+
+        {editingId ? <View style={{ marginTop: 13 }}>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '800', marginBottom: 6 }}>HISTORIQUE DES MODIFICATIONS</Text>
+          {actionHistory.length ? actionHistory.slice(0, 12).map((row) => {
+            let change = {};
+            try { change = JSON.parse(row.source_value || '{}'); } catch {}
+            const labels = {
+              status: 'Statut',
+              responsible_actor_id: 'Responsable',
+              due_date: 'Date échéance',
+              due_text: 'Échéance',
+              cost_estimate: 'Coût estimé',
+              allocation: 'Imputation / lot',
+              progress: 'Progression',
+              priority: 'Priorité',
+              label: 'Action',
+              description: 'Description',
+            };
+            return <View key={row.id} style={{ opacity: 0.72, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
+              <Text style={{ color: COLORS.ink, fontSize: 8.7, fontWeight: '800' }}>
+                {labels[row.field_name] || row.field_name} · {String(change.before ?? '—')} → {String(change.after ?? '—')}
+              </Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 2 }}>{row.created_at || ''}</Text>
+            </View>;
+          }) : <Text style={{ color: COLORS.inkFaint, fontSize: 8.7 }}>Aucune modification antérieure enregistrée.</Text>}
+        </View> : null}
 
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setEditVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
