@@ -100,6 +100,9 @@ jobs:
       - name: Validate Missions source contract
         run: node .github/scripts/check_missions_lab_contract.js
 
+      - name: Validate compatibility with current METRA Android app
+        run: node .github/scripts/check_missions_app_compat.js
+
       - name: Execute SQLite v40-v43 compatibility tests
         run: python .github/scripts/test_missions_sqlite_compat.py
 
