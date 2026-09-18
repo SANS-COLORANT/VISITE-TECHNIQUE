@@ -77,6 +77,8 @@ const QUERIES = Object.freeze({
   mission_ocr_jobs: `SELECT * FROM mission_ocr_jobs WHERE mission_id=? ORDER BY created_at`,
   mission_voice_notes: `SELECT * FROM mission_voice_notes WHERE mission_id=? ORDER BY created_at`,
   mission_visit_checks: `SELECT * FROM mission_visit_checks WHERE mission_id=? ORDER BY visit_id,severity,created_at`,
+  mission_document_extractions: `SELECT * FROM mission_document_extractions WHERE mission_id=? ORDER BY document_id,page_number,created_at`,
+  mission_document_review_items: `SELECT * FROM mission_document_review_items WHERE mission_id=? ORDER BY document_id,status,created_at`,
 });
 
 async function chargerExportMission(missionId) {
