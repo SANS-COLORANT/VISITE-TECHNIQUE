@@ -68,7 +68,7 @@ async function loadClientData(missionId) {
   if (!mission) throw new Error('Mission introuvable.');
 
   const [
-    sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations,
+    sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations, campaignSiteProgress,
   ] = await Promise.all([
     db.getAllAsync(
       `SELECT s.*
@@ -226,9 +226,24 @@ async function loadClientData(missionId) {
        WHERE v.mission_id=? ORDER BY COALESCE(v.validated_at,v.created_at)`,
       [missionId]
     ),
+    db.getAllAsync(
+      `SELECT s.id,s.name,s.city,s.reference,
+        (SELECT COUNT(*) FROM mission_visits vv WHERE vv.mission_id=? AND vv.site_id=s.id) AS visit_count,
+        (SELECT MAX(COALESCE(vv.visit_date,vv.created_at)) FROM mission_visits vv WHERE vv.mission_id=? AND vv.site_id=s.id) AS last_visit_at,
+        (SELECT COUNT(*) FROM mission_actions a WHERE a.mission_id=? AND a.site_id=s.id AND a.status NOT IN ('closed','cancelled')) AS open_actions,
+        (SELECT COUNT(*) FROM mission_measure_campaign_points cp WHERE cp.mission_id=? AND cp.site_id=s.id) AS campaign_total,
+        (SELECT COUNT(*) FROM mission_measure_campaign_points cp WHERE cp.mission_id=? AND cp.site_id=s.id AND cp.status='planned') AS campaign_planned,
+        (SELECT COUNT(*) FROM mission_measure_campaign_points cp WHERE cp.mission_id=? AND cp.site_id=s.id AND cp.status='measured') AS campaign_measured,
+        (SELECT COUNT(*) FROM mission_measure_campaign_points cp WHERE cp.mission_id=? AND cp.site_id=s.id AND cp.status<>'planned') AS campaign_done,
+        (SELECT COUNT(*) FROM mission_measure_campaign_points cp WHERE cp.mission_id=? AND cp.site_id=s.id AND cp.status NOT IN ('planned','measured','not_applicable')) AS campaign_exception
+       FROM mission_sites s
+       JOIN mission_site_links ml ON ml.site_id=s.id
+       WHERE ml.mission_id=? ORDER BY s.name`,
+      [missionId,missionId,missionId,missionId,missionId,missionId,missionId,missionId,missionId]
+    ),
   ]);
 
-  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations };
+  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations, campaignSiteProgress };
 }
 
 function photoPath(photo, photoPathById) {
@@ -420,6 +435,34 @@ export async function construireClasseurClientMission(missionId, { photoPathById
     Code_postal: s.postal_code || '',
     Reference: s.reference || '',
   })), [32,42,24,14,22]);
+  if (data.campaignSiteProgress?.length > 1) {
+    addSheet(wb, '01B_Progression_sites', data.campaignSiteProgress.map((site) => {
+      const total = Number(site.campaign_total || 0);
+      const done = Number(site.campaign_done || 0);
+      const planned = Number(site.campaign_planned || 0);
+      const measured = Number(site.campaign_measured || 0);
+      const exception = Number(site.campaign_exception || 0);
+      let status = 'À faire';
+      if (total > 0 && planned === 0) status = 'Terminé';
+      else if (total > 0 && done > 0) status = 'En cours';
+      else if (Number(site.visit_count || 0) > 0) status = 'En cours';
+      if (exception > 0 && measured === 0 && planned === 0) status = 'Accès / exception';
+      return {
+        Site: site.name || '',
+        Ville: site.city || '',
+        Reference: site.reference || '',
+        Statut: status,
+        Progression_pct: total ? Math.round((done / total) * 100) : '',
+        Visites: Number(site.visit_count || 0),
+        Derniere_occurrence: site.last_visit_at || '',
+        Points_campagne: total,
+        Mesures: measured,
+        Restant_a_traiter: planned,
+        Exceptions: exception,
+        Actions_ouvertes: Number(site.open_actions || 0),
+      };
+    }), [30,22,22,18,16,12,22,18,14,18,14,18]);
+  }
   addSheet(wb, '02_Sujets', data.subjects.map((subject) => ({
     Site: subject.site_name || '',
     Sujet: subject.label || '',
