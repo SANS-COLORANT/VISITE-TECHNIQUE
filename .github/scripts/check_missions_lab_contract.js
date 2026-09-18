@@ -141,6 +141,10 @@ requireText(read('MissionVisitScreen.js'), 'Mode terrain · {playbook.label}', '
 requireText(read('MissionVisitScreen.js'), 'DÉJÀ CONNU PAR METRA · PAS DE RESSAISIE', 'no-retyping structured autofill UX');
 requireText(visitAutofill, 'chargerContexteAutoVisiteMission', 'structured Mission autofill engine');
 requireText(visitAutofill, 'valeurAutoPourChampMission', 'field autofill resolver');
+requireText(read('missionVisitMemoryDb.js'), 'chargerMemoireVisiteMission', 'previous visit memory engine');
+requireText(read('MissionVisitScreen.js'), 'MÉMOIRE · VISITE PRÉCÉDENTE', 'previous visit summary UX');
+requireText(read('MissionVisitScreen.js'), 'REPRENDRE', 'explicit one-tap reuse of previous value');
+requireText(read('MissionVisitScreen.js'), 'METRA ne les recopie jamais automatiquement', 'no stale auto-copy rule');
 requireText(read('MissionScreen.js'), 'Parcours recommandé · {playbook.label}', 'mission-specific dossier guidance');
 requireText(reportRecipes, 'getMissionReportRecipe', 'mission-specific report recipe API');
 requireText(read('missionReportDb.js'), "key: 'inventaire'", 'automatic inventory report section');
@@ -217,6 +221,10 @@ requireText(recipes, 'p3Dashboard: true', 'P2 P3 projection capability on dedica
 requireText(app, "MissionReceptionBoard", 'OPR commissioning handover board route');
 requireText(read('MissionReceptionBoardScreen.js'), 'Ouvrages · statut en 1 geste', 'one-tap reception equipment board');
 requireText(read('MissionReceptionBoardScreen.js'), 'Aucun inventaire n’est recréé pour cette phase.', 'reception reuses Mission inventory');
+requireText(read('MissionReceptionBoardScreen.js'), 'MODES OPR · CUMULABLES', 'cumulative OPR modes');
+requireText(read('MissionReceptionBoardScreen.js'), 'OPR statique', 'static OPR mode');
+requireText(read('MissionReceptionBoardScreen.js'), 'OPR dynamique', 'dynamic OPR mode');
+requireText(read('MissionReceptionBoardScreen.js'), 'Levée / recontrôle', 'reserve clearance OPR mode');
 requireText(recipes, 'receptionBoard: true', 'reception board capability on OPR commissioning handover');
 requireText(read('missionFieldPlaybooks.js'), 'equipmentLifecycleStatuses', 'mission-specific one-tap lifecycle states');
 requireText(read('MissionVisitScreen.js'), 'CYCLE PROJET · 1 GESTE', 'one-tap project lifecycle field UX');
