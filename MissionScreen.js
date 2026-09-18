@@ -6,6 +6,7 @@ import { creerPointMission, creerVisiteMission, getMissionDashboard, mettreAJour
 import { exporterMissionExcel } from './missionExcelExport.js';
 import { choisirEtImporterMissionExcel } from './missionExcelImport.js';
 import { getMissionDomainSummary } from './missionDomainDb.js';
+import { getMissionCapabilities } from './missionRecipes.js';
 
 const POINT_TYPES = Object.freeze([
   ['reserve', 'Réserve'],
@@ -69,6 +70,10 @@ export function MissionScreen({ navigation, route }) {
   useEffect(() => { reload(); }, [reload]);
 
   const openPoints = useMemo(() => (data?.points || []).filter((p) => !['closed', 'no_follow_up'].includes(p.status)), [data?.points]);
+  const capabilities = useMemo(
+    () => getMissionCapabilities(data?.mission?.family, data?.mission?.type),
+    [data?.mission?.family, data?.mission?.type]
+  );
 
   const createVisit = async () => {
     try {
@@ -183,22 +188,23 @@ export function MissionScreen({ navigation, route }) {
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 20 }]}>Outils Mission</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {[
-            ['MissionWorkflow', 'Workflow', 'Phases · volets · occurrences'],
-            ['MissionEquipment', 'Inventaire', 'Équipements · composants · OCR'],
-            ['MissionMeasurements', 'Mesures', 'Références · séries · instruments'],
-            ['MissionPlan', 'Plans / PDF / SIG', 'Mesures · calques · GeoPackage'],
-            ['MissionActions', 'Actions', 'Responsables · échéances · coûts'],
-            ['MissionTests', 'Essais', 'Protocoles · commissioning'],
-            ['MissionCalculation', 'Calculs 🧮', 'Formules · hypothèses · résultats'],
-            ['MissionScenarios', 'Scénarios', 'Étude · investissement · gains'],
-            ['MissionDocuments', 'Documents / VISA', 'Attendus · validation'],
-            ['MissionDocumentInbox', 'Inbox documents', 'Extraction locale · revue'],
-            ['MissionExcelMapping', 'Mapping Excel', 'Colonnes externes → METRA'],
-            ['MissionPhotoAnnotations', 'Photos annotées', 'Flèches · zones · texte'],
-            ['MissionTechnicalGraph', 'Synoptique', 'Relations techniques visuelles'],
-            ['MissionSignature', 'Signature', 'Passation · OPR · réception'],
-            ['MissionPackage', 'Dossier complet', 'ZIP configurable'],
-          ].map(([routeName, title, subtitle]) => (
+            ['workflow', 'MissionWorkflow', 'Workflow', 'Phases · volets · occurrences'],
+            ['equipment', 'MissionEquipment', 'Inventaire', 'Équipements · composants · OCR'],
+            ['measurements', 'MissionMeasurements', 'Mesures', 'Références · séries · instruments'],
+            ['plans', 'MissionPlan', 'Plans / PDF / SIG', 'Mesures · calques · GeoPackage'],
+            ['map', 'MissionMap', 'Cartographie', 'Multi-sites · progression · SIG'],
+            ['actions', 'MissionActions', 'Actions', 'Responsables · échéances · coûts'],
+            ['tests', 'MissionTests', 'Essais', 'Protocoles · commissioning'],
+            ['calculations', 'MissionCalculation', 'Calculs 🧮', 'Formules · hypothèses · résultats'],
+            ['scenarios', 'MissionScenarios', 'Scénarios', 'Étude · investissement · gains'],
+            ['documents', 'MissionDocuments', 'Documents / VISA', 'Attendus · validation'],
+            ['inbox', 'MissionDocumentInbox', 'Inbox documents', 'Extraction locale · revue'],
+            ['excelMapping', 'MissionExcelMapping', 'Mapping Excel', 'Colonnes externes → METRA'],
+            ['photoAnnotations', 'MissionPhotoAnnotations', 'Photos annotées', 'Flèches · zones · texte'],
+            ['synoptic', 'MissionTechnicalGraph', 'Synoptique', 'Relations techniques visuelles'],
+            ['signature', 'MissionSignature', 'Signature', 'Passation · OPR · réception'],
+            ['package', 'MissionPackage', 'Dossier complet', 'ZIP configurable'],
+          ].filter(([capability]) => capabilities?.[capability] !== false).map(([capability, routeName, title, subtitle]) => (
             <TouchableOpacity
               key={routeName}
               activeOpacity={0.82}
@@ -211,12 +217,6 @@ export function MissionScreen({ navigation, route }) {
           ))}
         </View>
 
-        <TouchableOpacity
-          style={[styles.btnSecondary, missionStyles.secondaryButton, { marginTop: 9, alignItems: 'center' }]}
-          onPress={() => navigation.navigate('MissionTechnicalGraph', { missionId })}
-        >
-          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Synoptique technique · relations équipements</Text>
-        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.btnPrimary, missionStyles.primaryButton, { marginTop: 9, alignItems: 'center' }]}
           onPress={() => navigation.navigate('MissionReport', { missionId })}
