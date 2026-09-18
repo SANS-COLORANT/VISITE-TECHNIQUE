@@ -243,6 +243,19 @@ export async function supprimerPhotoMission(photoId) {
   }
 }
 
+export async function modifierVisibilitePhotoMission(photoId, visibility = 'internal') {
+  const allowed = ['internal', 'report', 'client'];
+  const finalVisibility = allowed.includes(String(visibility || '')) ? String(visibility) : 'internal';
+  const db = await getDb();
+  const photo = await db.getFirstAsync('SELECT id FROM mission_photos WHERE id=?', [photoId]);
+  if (!photo) throw new Error('Photo Mission introuvable.');
+  await db.runAsync(
+    "UPDATE mission_photos SET visibility=?,updated_at=datetime('now') WHERE id=?",
+    [finalVisibility, photoId]
+  );
+  return finalVisibility;
+}
+
 export async function choisirEtAjouterDocumentMission({
   missionId,
   siteId = null,
