@@ -36,6 +36,28 @@ async function copyIfFile(uri, destination) {
   }
 }
 
+async function copyPath(uri, destination) {
+  if (!uri) return false;
+  try {
+    const info = await FileSystem.getInfoAsync(uri);
+    if (!info.exists) return false;
+    if (!info.isDirectory) {
+      await FileSystem.copyAsync({ from: uri, to: destination });
+      return true;
+    }
+    await FileSystem.makeDirectoryAsync(destination, { intermediates: true });
+    const names = await FileSystem.readDirectoryAsync(uri);
+    for (const name of names) {
+      const sourceChild = uri + (uri.endsWith('/') ? '' : '/') + name;
+      const destinationChild = destination + (destination.endsWith('/') ? '' : '/') + name;
+      await copyPath(sourceChild, destinationChild);
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const DEFAULT_MISSION_PACKAGE_OPTIONS = Object.freeze({
   reportPdf: true,
   reportDocx: true,
@@ -47,6 +69,7 @@ export const DEFAULT_MISSION_PACKAGE_OPTIONS = Object.freeze({
   sourcePlans: true,
   sigGeoJson: true,
   sigGeoPackage: true,
+  offlineMapLayers: true,
   synopticData: true,
   manifest: true,
 });
@@ -125,49 +148,77 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
     manifest.files.push('Data/' + name);
   }
 
-  const [photos, documents, relations, equipment, actions, points] = await Promise.all([
+  const [photos, documents, relations, equipment, actions, points, mapLayers] = await Promise.all([
     db.getAllAsync('SELECT * FROM mission_photos WHERE mission_id=? ORDER BY created_at', [missionId]),
     db.getAllAsync('SELECT * FROM mission_documents WHERE mission_id=? ORDER BY created_at', [missionId]),
     db.getAllAsync('SELECT * FROM mission_equipment_relations WHERE mission_id=? ORDER BY created_at', [missionId]),
     db.getAllAsync('SELECT e.* FROM mission_equipment e JOIN mission_site_links l ON l.site_id=e.site_id WHERE l.mission_id=? ORDER BY e.type', [missionId]),
     db.getAllAsync('SELECT * FROM mission_actions WHERE mission_id=? ORDER BY created_at', [missionId]),
     db.getAllAsync('SELECT * FROM mission_points WHERE mission_id=? ORDER BY created_at', [missionId]),
+    db.getAllAsync('SELECT * FROM mission_map_layers WHERE mission_id=? ORDER BY created_at', [missionId]),
   ]);
 
   if (cfg.photos && photos.length) {
     const folder = await ensure(root + 'Photos/');
+    const photoIndex = [];
     let index = 0;
     for (const photo of photos) {
       index += 1;
-      const ext = String(photo.file_uri || '').toLowerCase().endsWith('.png') ? '.png' : '.jpg';
+      const lower = String(photo.file_uri || '').toLowerCase();
+      const ext = lower.endsWith('.png') ? '.png' : lower.endsWith('.webp') ? '.webp' : '.jpg';
       const name = String(index).padStart(4, '0') + '__' + safe(photo.label || photo.type || photo.id) + ext;
-      if (await copyIfFile(photo.file_uri, folder + name)) manifest.files.push('Photos/' + name);
+      const copied = await copyIfFile(photo.file_uri, folder + name);
+      if (copied) {
+        manifest.files.push('Photos/' + name);
+        photoIndex.push({ ...photo, package_file: 'Photos/' + name });
+      } else {
+        photoIndex.push({ ...photo, package_file: null });
+      }
     }
-    await FileSystem.writeAsStringAsync(folder + 'index.json', JSON.stringify(photos, null, 2));
+    await FileSystem.writeAsStringAsync(folder + 'index.json', JSON.stringify(photoIndex, null, 2));
     manifest.files.push('Photos/index.json');
   }
 
   if (cfg.sourceDocuments && documents.length) {
     const folder = await ensure(root + 'Documents_sources/');
+    const documentIndex = [];
     let index = 0;
-    for (const doc of documents.filter((d) => !String(d.type || '').startsWith('plan_derived'))) {
+    for (const doc of documents.filter((d) => !String(d.type || '').startsWith('plan_'))) {
       index += 1;
       const extension = String(doc.name || '').includes('.') ? '.' + String(doc.name).split('.').pop() : '';
-      const name = String(index).padStart(3, '0') + '__' + safe(doc.name || doc.id) + (extension && !safe(doc.name || '').toLowerCase().endsWith(extension.toLowerCase()) ? extension : '');
-      if (await copyIfFile(doc.file_uri, folder + name)) manifest.files.push('Documents_sources/' + name);
+      const baseName = safe(doc.name || doc.id);
+      const name = String(index).padStart(3, '0') + '__' + baseName + (extension && !baseName.toLowerCase().endsWith(extension.toLowerCase()) ? extension : '');
+      const copied = await copyIfFile(doc.file_uri, folder + name);
+      if (copied) {
+        manifest.files.push('Documents_sources/' + name);
+        documentIndex.push({ ...doc, package_file: 'Documents_sources/' + name });
+      } else {
+        documentIndex.push({ ...doc, package_file: null });
+      }
     }
+    await FileSystem.writeAsStringAsync(folder + 'index.json', JSON.stringify(documentIndex, null, 2));
+    manifest.files.push('Documents_sources/index.json');
   }
 
   const plans = await listerPlansMission(missionId);
   if ((cfg.sourcePlans || cfg.annotatedPlans) && plans.length) {
     if (cfg.sourcePlans) {
       const folder = await ensure(root + 'Plans/Sources/');
+      const planIndex = [];
       let index = 0;
       for (const plan of plans.filter((p) => !String(p.type || '').includes('derived'))) {
         index += 1;
         const name = String(index).padStart(3, '0') + '__' + safe(plan.name || plan.id);
-        if (await copyIfFile(plan.file_uri, folder + name)) manifest.files.push('Plans/Sources/' + name);
+        const copied = await copyIfFile(plan.file_uri, folder + name);
+        if (copied) {
+          manifest.files.push('Plans/Sources/' + name);
+          planIndex.push({ ...plan, package_file: 'Plans/Sources/' + name });
+        } else {
+          planIndex.push({ ...plan, package_file: null });
+        }
       }
+      await FileSystem.writeAsStringAsync(folder + 'index.json', JSON.stringify(planIndex, null, 2));
+      manifest.files.push('Plans/Sources/index.json');
     }
     if (cfg.annotatedPlans) {
       const folder = await ensure(root + 'Plans/Annotes/');
@@ -181,6 +232,36 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
         } catch {}
       }
     }
+  }
+
+  if (cfg.offlineMapLayers && mapLayers.length) {
+    const folder = await ensure(root + 'Map_layers/');
+    const layerIndex = [];
+    for (const layer of mapLayers) {
+      if (!layer.source_uri) {
+        layerIndex.push({ ...layer, package_file: null });
+        continue;
+      }
+      const info = await FileSystem.getInfoAsync(layer.source_uri).catch(() => ({ exists: false }));
+      if (!info.exists) {
+        layerIndex.push({ ...layer, package_file: null });
+        continue;
+      }
+      const packageName = layer.type === 'xyz_tiles'
+        ? safe(layer.id + '__' + (layer.label || 'tiles')) + '/'
+        : safe(layer.id + '__' + (layer.label || 'layer'));
+      const destination = folder + packageName;
+      const copied = await copyPath(layer.source_uri, destination);
+      if (copied) {
+        const relative = 'Map_layers/' + packageName;
+        manifest.files.push(relative);
+        layerIndex.push({ ...layer, package_file: relative });
+      } else {
+        layerIndex.push({ ...layer, package_file: null });
+      }
+    }
+    await FileSystem.writeAsStringAsync(folder + 'index.json', JSON.stringify(layerIndex, null, 2));
+    manifest.files.push('Map_layers/index.json');
   }
 
   if (cfg.sigGeoJson || cfg.sigGeoPackage) {
@@ -219,6 +300,7 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
       relations: relations.length,
       actions: actions.length,
       points: points.length,
+      mapLayers: mapLayers.length,
     };
     await FileSystem.writeAsStringAsync(root + 'manifest.json', JSON.stringify(manifest, null, 2), { encoding: FileSystem.EncodingType.UTF8 });
   }
