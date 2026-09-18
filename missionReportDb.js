@@ -30,7 +30,7 @@ async function loadMissionReportData(db, missionId) {
 
   const [
     sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components, subjects, observations, decisions, lifecycle, actionHistory, validations,
+    equipment, locations, installations, systems, networks, components, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations,
   ] = await Promise.all([
     db.getAllAsync('SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name', [missionId]),
     db.getAllAsync('SELECT v.*,s.name AS site_name FROM mission_visits v LEFT JOIN mission_sites s ON s.id=v.site_id WHERE v.mission_id=? ORDER BY COALESCE(v.visit_date,v.created_at)', [missionId]),
@@ -121,6 +121,14 @@ async function loadMissionReportData(db, missionId) {
       [missionId]
     ),
     db.getAllAsync(
+      `SELECT h.*,sub.label AS subject_label,o.content AS source_fact
+       FROM mission_hypotheses h
+       LEFT JOIN mission_subjects sub ON sub.id=h.subject_id
+       LEFT JOIN mission_observations o ON o.id=h.observation_id
+       WHERE h.mission_id=? ORDER BY h.created_at`,
+      [missionId]
+    ),
+    db.getAllAsync(
       `SELECT d.*,sub.label AS subject_label,a.company AS actor_company,a.name AS actor_name
        FROM mission_decisions d
        LEFT JOIN mission_subjects sub ON sub.id=d.subject_id
@@ -157,7 +165,7 @@ async function loadMissionReportData(db, missionId) {
 
   return {
     mission, sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components, subjects, observations, decisions, lifecycle, actionHistory, validations,
+    equipment, locations, installations, systems, networks, components, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations,
   };
 }
 
@@ -308,6 +316,39 @@ function makeAutoSections(data) {
       title: 'Sujets, constats et décisions',
       content: [blockTable(
         ['Site', 'Sujet / événement', 'Statut', 'Priorité', 'Actions ouvertes', 'Historique / détail'],
+        rows
+      )],
+    });
+  }
+
+  if (data.mission?.type === 'expertise_sinistre' && ((data.observations || []).length || (data.hypotheses || []).length)) {
+    const rows = [];
+    for (const observation of data.observations || []) {
+      rows.push([
+        observation.observed_at || observation.created_at || '',
+        observation.subject_label || '',
+        'FAIT',
+        observation.content || '',
+        [observation.source_type,observation.confidence].filter(Boolean).join(' · '),
+        '',
+      ]);
+    }
+    for (const hypothesis of data.hypotheses || []) {
+      rows.push([
+        hypothesis.created_at || '',
+        hypothesis.subject_label || '',
+        'HYPOTHÈSE',
+        hypothesis.label || '',
+        hypothesis.status || '',
+        hypothesis.conclusion || '',
+      ]);
+    }
+    rows.sort((a,b) => String(a[0] || '').localeCompare(String(b[0] || '')));
+    sections.push({
+      key: 'expertise',
+      title: 'Chronologie factuelle, hypothèses et conclusions',
+      content: [blockTable(
+        ['Date', 'Sujet', 'Nature', 'Élément', 'Source / statut', 'Conclusion'],
         rows
       )],
     });
@@ -564,6 +605,16 @@ export async function construireRapportMissionPortee(missionId, { siteId = null 
       systems: data.systems.filter((row) => !row.site_name || data.installations.some((installation) => installation.id === row.installation_id && installation.site_id === siteId)),
       networks: data.networks.filter((row) => !row.site_id || row.site_id === siteId),
       components: data.components.filter((row) => data.equipment.some((equipment) => equipment.id === row.equipment_id && equipment.site_id === siteId)),
+      subjects: data.subjects.filter((row) => !row.site_id || row.site_id === siteId),
+      observations: data.observations.filter((row) => !row.site_id || row.site_id === siteId),
+      hypotheses: data.hypotheses.filter((row) => {
+        if (!row.subject_id) return true;
+        return data.subjects.some((subject) => subject.id === row.subject_id && (!subject.site_id || subject.site_id === siteId));
+      }),
+      decisions: data.decisions.filter((row) => {
+        if (!row.subject_id) return true;
+        return data.subjects.some((subject) => subject.id === row.subject_id && (!subject.site_id || subject.site_id === siteId));
+      }),
     };
   }
   const profile = await db.getFirstAsync(
