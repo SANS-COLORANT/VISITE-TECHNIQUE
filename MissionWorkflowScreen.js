@@ -5,6 +5,7 @@ import { createId } from './database/ids.js';
 import { creerVisiteMission } from './missionsDb.js';
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { getMissionWorkstreamPresets } from './missionWorkstreamPresets.js';
 
 const PHASE_STATUS = [['planned','Prévue'],['active','Active'],['done','Terminée'],['skipped','Non retenue']];
 
@@ -20,6 +21,8 @@ export function MissionWorkflowScreen({ navigation, route }) {
   const [workstreams, setWorkstreams] = useState([]);
   const [sites, setSites] = useState([]);
   const [visits, setVisits] = useState([]);
+  const [missionType, setMissionType] = useState(null);
+  const [preparingWorkstreams, setPreparingWorkstreams] = useState(false);
   const [phaseModal, setPhaseModal] = useState(false);
   const [workstreamModal, setWorkstreamModal] = useState(false);
   const [visitModal, setVisitModal] = useState(false);
@@ -29,9 +32,16 @@ export function MissionWorkflowScreen({ navigation, route }) {
 
   const load = useCallback(async () => {
     const db = await getDb();
-    const [p,w,s,v] = await Promise.all([
+    const [p,w,s,v,m] = await Promise.all([
       db.getAllAsync('SELECT * FROM mission_phases WHERE mission_id=? ORDER BY sort_order,id', [missionId]),
-      db.getAllAsync('SELECT * FROM mission_workstreams WHERE mission_id=? ORDER BY sort_order,id', [missionId]),
+      db.getAllAsync(
+        `SELECT w.*,
+          (SELECT COUNT(*) FROM mission_subjects sub WHERE sub.workstream_id=w.id) AS subject_count,
+          (SELECT COUNT(*) FROM mission_subjects sub WHERE sub.workstream_id=w.id AND sub.status<>'closed') AS open_subject_count
+         FROM mission_workstreams w
+         WHERE w.mission_id=? ORDER BY w.sort_order,w.id`,
+        [missionId]
+      ),
       db.getAllAsync('SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name', [missionId]),
       db.getAllAsync(
         `SELECT v.*,p.label AS phase_label,s.name AS site_name FROM mission_visits v
@@ -40,14 +50,21 @@ export function MissionWorkflowScreen({ navigation, route }) {
          WHERE v.mission_id=? ORDER BY COALESCE(v.visit_date,v.created_at) DESC`,
         [missionId]
       ),
+      db.getFirstAsync('SELECT type FROM missions WHERE id=?', [missionId]),
     ]);
     setPhases(p || []);
     setWorkstreams(w || []);
     setSites(s || []);
     setVisits(v || []);
+    setMissionType(m?.type || null);
   }, [missionId]);
 
   React.useEffect(() => { load(); }, [load]);
+
+  const recommendedWorkstreams = React.useMemo(
+    () => getMissionWorkstreamPresets(missionType),
+    [missionType]
+  );
 
   const addPhase = async () => {
     if (!phaseDraft.label.trim()) return;
@@ -80,6 +97,40 @@ export function MissionWorkflowScreen({ navigation, route }) {
       await db.runAsync("UPDATE mission_phases SET sort_order=?,updated_at=datetime('now') WHERE id=?", [phase.sort_order, other.id]);
     });
     await load();
+  };
+
+  const prepareRecommendedWorkstreams = async () => {
+    if (!recommendedWorkstreams.length || preparingWorkstreams) return;
+    setPreparingWorkstreams(true);
+    try {
+      const db = await getDb();
+      const existing = new Set(workstreams.map((row) => String(row.label || '').trim().toLowerCase()));
+      let added = 0;
+      await db.withTransactionAsync(async () => {
+        for (const preset of recommendedWorkstreams) {
+          const key = String(preset.label || '').trim().toLowerCase();
+          if (!key || existing.has(key)) continue;
+          const nextOrder = workstreams.length + added;
+          await db.runAsync(
+            'INSERT INTO mission_workstreams(id,mission_id,kind,label,status,sort_order,description) VALUES(?,?,?,?,?,?,?)',
+            [createId('mw'), missionId, preset.kind || null, preset.label, 'active', nextOrder, preset.description || null]
+          );
+          existing.add(key);
+          added += 1;
+        }
+      });
+      await load();
+      Alert.alert(
+        added ? 'Volets préparés' : 'Volets déjà disponibles',
+        added
+          ? String(added) + ' volet(s) ajoutés. Ils restent entièrement modifiables.'
+          : 'Aucun doublon créé.'
+      );
+    } catch (e) {
+      Alert.alert('Préparation impossible', String(e?.message || e));
+    } finally {
+      setPreparingWorkstreams(false);
+    }
   };
 
   const addWorkstream = async () => {
@@ -119,6 +170,15 @@ export function MissionWorkflowScreen({ navigation, route }) {
         <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setVisitModal(true)}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Occurrence / visite</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setPhaseModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Phase</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setWorkstreamModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Volet</Text></TouchableOpacity>
+        {recommendedWorkstreams.length ? <TouchableOpacity
+          style={[styles.btnSecondary, missionStyles.secondaryButton]}
+          disabled={preparingWorkstreams}
+          onPress={prepareRecommendedWorkstreams}
+        >
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>
+            {preparingWorkstreams ? 'Préparation…' : 'Préparer les volets métier'}
+          </Text>
+        </TouchableOpacity> : null}
       </View>
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Phases</Text>
@@ -138,8 +198,15 @@ export function MissionWorkflowScreen({ navigation, route }) {
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Volets / axes</Text>
       {workstreams.length ? workstreams.map((w) => <View key={w.id} style={[missionStyles.card,{padding:11,marginBottom:7}]}>
-        <Text style={{ color: COLORS.ink, fontSize: 10.8, fontWeight:'900' }}>{w.label}</Text>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop:2 }}>{w.kind || 'Volet'} · {w.status}</Text>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: COLORS.ink, fontSize: 10.8, fontWeight:'900' }}>{w.label}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop:2 }}>{w.kind || 'Volet'} · {w.status}</Text>
+          </View>
+          <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.3, fontWeight: '900' }}>
+            {w.open_subject_count || 0} ouvert(s) / {w.subject_count || 0} sujet(s)
+          </Text>
+        </View>
         {w.description ? <Text style={{ color: COLORS.inkSoft, fontSize:9.2, marginTop:4 }}>{w.description}</Text> : null}
       </View>) : <Text style={{ color: COLORS.inkFaint, fontSize:9.5 }}>Aucun volet. Utile pour une AMO pluriannuelle : exploitation, énergie, P3, PPI, réunions, réception…</Text>}
 
