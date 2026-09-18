@@ -65,6 +65,8 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
   const [points, setPoints] = useState([]);
   const [documents, setDocuments] = useState([]);
   const [busyId, setBusyId] = useState(null);
+  const [equipmentFilter, setEquipmentFilter] = useState('all');
+  const [displayLimit, setDisplayLimit] = useState(120);
 
   const load = useCallback(async () => {
     if (!missionId) return;
@@ -127,6 +129,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
       tests: tests.length,
       completedTests: completedTests.length,
       pendingDocuments: expectedPending.length,
+      inventoryDifferences: equipment.filter((row) => ['different','non_retrouve','a_verifier'].includes(row.verification_status)).length,
     };
   }, [equipment,tests,actions,points,documents]);
 
@@ -156,6 +159,14 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
     }
   };
 
+  const filteredEquipment = useMemo(() => {
+    if (equipmentFilter === 'issues') return equipment.filter((row) => ['different','non_retrouve','a_verifier'].includes(row.verification_status));
+    if (equipmentFilter === 'reserved') return equipment.filter((row) => row.lifecycle_status === 'avec_reserve');
+    if (equipmentFilter === 'pending') return equipment.filter((row) => !['controle','receptionne','mis_en_service'].includes(row.lifecycle_status));
+    return equipment;
+  }, [equipment,equipmentFilter]);
+  const displayedEquipment = filteredEquipment.slice(0, displayLimit);
+
   const title = LABEL_BY_TYPE[mission?.type] || 'Réception / mise en service';
   const completionLabel = mission?.type === 'commissioning'
     ? 'mis en service'
@@ -177,6 +188,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
         <Stat value={summary.openReserves} label="réserves ouvertes" />
         <Stat value={summary.completedTests + '/' + summary.tests} label="essais terminés" />
         <Stat value={summary.pendingDocuments} label="documents attendus" />
+        <Stat value={summary.inventoryDifferences} label="écarts inventaire" />
       </View>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 14 }}>
@@ -198,7 +210,13 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
       </View>
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Ouvrages · statut en 1 geste</Text>
-      {equipment.map((row) => <View key={row.id} style={[missionStyles.card, { padding: 11, marginBottom: 8 }]}>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 7 }}>
+        <Chip label={'Tous · ' + equipment.length} selected={equipmentFilter === 'all'} onPress={() => { setEquipmentFilter('all'); setDisplayLimit(120); }} />
+        <Chip label={'À contrôler · ' + summary.inventoryDifferences} selected={equipmentFilter === 'issues'} onPress={() => { setEquipmentFilter('issues'); setDisplayLimit(120); }} />
+        <Chip label={'Avec réserve · ' + summary.reserved} selected={equipmentFilter === 'reserved'} onPress={() => { setEquipmentFilter('reserved'); setDisplayLimit(120); }} />
+        <Chip label="Restant à valider" selected={equipmentFilter === 'pending'} onPress={() => { setEquipmentFilter('pending'); setDisplayLimit(120); }} />
+      </View>
+      {displayedEquipment.map((row) => <View key={row.id} style={[missionStyles.card, { padding: 11, marginBottom: 8 }]}>
         <TouchableOpacity onPress={() => navigation.navigate('MissionEquipment',{ missionId,siteId:row.site_id,equipmentId:row.id })}>
           <Text style={{ color: COLORS.ink, fontSize: 10.8, fontWeight: '900' }}>{row.type || 'Équipement'}</Text>
           <Text style={{ color: COLORS.inkSoft, fontSize: 8.9, marginTop: 3 }}>{[row.brand,row.model].filter(Boolean).join(' · ') || 'Caractéristiques à compléter'}</Text>
@@ -213,8 +231,19 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
           />)}
         </View>
       </View>)}
+      {filteredEquipment.length > displayedEquipment.length ? <TouchableOpacity
+        style={[styles.btnSecondary, missionStyles.secondaryButton, { alignSelf: 'center', marginBottom: 10 }]}
+        onPress={() => setDisplayLimit((value) => value + 120)}
+      >
+        <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>
+          Afficher 120 de plus · {displayedEquipment.length}/{filteredEquipment.length}
+        </Text>
+      </TouchableOpacity> : null}
       {!equipment.length ? <View style={[missionStyles.card,{padding:14}]}>
         <Text style={{ color: COLORS.inkSoft, fontSize: 9.5 }}>Aucun équipement dans cette Mission. L’inventaire peut être préparé sur PC ou créé rapidement sur le terrain.</Text>
+      </View> : null}
+      {equipment.length && !filteredEquipment.length ? <View style={[missionStyles.card,{padding:14}]}>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 9.5 }}>Aucun ouvrage dans ce filtre.</Text>
       </View> : null}
 
       {documents.length ? <>
