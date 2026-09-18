@@ -30,7 +30,7 @@ async function loadMissionReportData(db, missionId) {
 
   const [
     sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components, subjects, observations, decisions,
+    equipment, locations, installations, systems, networks, components, subjects, observations, decisions, lifecycle, lifecycle,
   ] = await Promise.all([
     db.getAllAsync('SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name', [missionId]),
     db.getAllAsync('SELECT v.*,s.name AS site_name FROM mission_visits v LEFT JOIN mission_sites s ON s.id=v.site_id WHERE v.mission_id=? ORDER BY COALESCE(v.visit_date,v.created_at)', [missionId]),
@@ -126,6 +126,15 @@ async function loadMissionReportData(db, missionId) {
        LEFT JOIN mission_subjects sub ON sub.id=d.subject_id
        LEFT JOIN mission_actors a ON a.id=d.decided_by_actor_id
        WHERE d.mission_id=? ORDER BY COALESCE(d.decided_at,d.created_at)`,
+      [missionId]
+    ),
+    db.getAllAsync(
+      `SELECT h.*,e.type AS equipment_type,e.brand AS equipment_brand,e.model AS equipment_model,
+        s.name AS site_name
+       FROM mission_equipment_lifecycle h
+       JOIN mission_equipment e ON e.id=h.equipment_id
+       LEFT JOIN mission_sites s ON s.id=e.site_id
+       WHERE h.mission_id=? ORDER BY COALESCE(h.effective_date,h.created_at)`,
       [missionId]
     ),
   ]);
@@ -257,6 +266,24 @@ function makeAutoSections(data) {
       content: [blockTable(
         ['Site', 'Sujet / événement', 'Statut', 'Priorité', 'Actions ouvertes', 'Historique / détail'],
         rows
+      )],
+    });
+  }
+
+  if (data.lifecycle?.length) {
+    sections.push({
+      key: 'cycle_projet',
+      title: 'Historique du cycle projet des ouvrages',
+      content: [blockTable(
+        ['Date', 'Site', 'Équipement', 'État précédent', 'Nouvel état', 'Commentaire'],
+        data.lifecycle.map((row) => [
+          row.effective_date || row.created_at || '',
+          row.site_name || '',
+          [row.equipment_type,row.equipment_brand,row.equipment_model].filter(Boolean).join(' · '),
+          row.from_state || '',
+          row.to_state || '',
+          row.comment || '',
+        ])
       )],
     });
   }
