@@ -85,7 +85,11 @@ export const migration042 = {
     ALTER TABLE mission_geometries ADD COLUMN measure_id TEXT REFERENCES mission_measures(id) ON DELETE SET NULL;
     ALTER TABLE mission_geometries ADD COLUMN photo_id TEXT REFERENCES mission_photos(id) ON DELETE SET NULL;
     ALTER TABLE mission_geometries ADD COLUMN action_id TEXT REFERENCES mission_actions(id) ON DELETE SET NULL;
+    ALTER TABLE mission_geometries ADD COLUMN installation_id TEXT REFERENCES mission_installations(id) ON DELETE SET NULL;
+    ALTER TABLE mission_geometries ADD COLUMN system_id TEXT REFERENCES mission_systems(id) ON DELETE SET NULL;
+    ALTER TABLE mission_geometries ADD COLUMN network_id TEXT REFERENCES mission_networks(id) ON DELETE SET NULL;
     ALTER TABLE mission_geometries ADD COLUMN plan_page INTEGER NOT NULL DEFAULT 1;
+    ALTER TABLE mission_geometries ADD COLUMN properties_json TEXT;
 
     -- Contexte automatique commun : une photo/mesure/document hérite de ce que METRA connaît déjà.
     ALTER TABLE mission_photos ADD COLUMN location_id TEXT REFERENCES mission_locations(id) ON DELETE SET NULL;
@@ -332,6 +336,7 @@ export const migration042 = {
     CREATE INDEX IF NOT EXISTS idx_mission_plan_annotations_doc ON mission_plan_annotations(mission_id,document_id,page_number,layer_id);
     CREATE INDEX IF NOT EXISTS idx_mission_plan_annotations_geometry ON mission_plan_annotations(geometry_id);
     CREATE INDEX IF NOT EXISTS idx_mission_geometry_plan_page ON mission_geometries(mission_id,plan_document_id,plan_page);
+    CREATE INDEX IF NOT EXISTS idx_mission_geometry_technical ON mission_geometries(mission_id,installation_id,system_id,network_id);
     CREATE INDEX IF NOT EXISTS idx_mission_map_layers_mission ON mission_map_layers(mission_id,visible);
     CREATE INDEX IF NOT EXISTS idx_mission_import_mappings_sig ON mission_import_mappings(mission_id,source_signature);
     CREATE INDEX IF NOT EXISTS idx_mission_formula_library_scope ON mission_formula_library(scope,family,mission_type,enabled);
