@@ -206,6 +206,11 @@ requireText(read('missionCalculationAssist.js'), 'sortFormulasForMission', 'miss
 requireText(read('missionCalculationAssist.js'), 'getCalculationAutoValues', 'calculation input autofill from Mission data');
 requireText(read('MissionCalculationScreen.js'), 'PRÉREMPLI', 'calculation autofill provenance UX');
 requireText(read('MissionCalculationScreen.js'), 'Recommandées · ', 'recommended formula filter UX');
+requireText(read('missionScenarioPresets.js'), 'getMissionScenarioPresets', 'neutral mission-specific scenario starters');
+requireText(read('MissionScenarioScreen.js'), 'Préparer scénarios', 'scenario starter UX');
+requireText(read('MissionScenarioScreen.js'), 'Créer / ouvrir phase Travaux', 'retained scenario continuity into Works');
+requireText(read('MissionVisitScreen.js'), 'creerActionMission', 'automatic action creation from field reserves');
+requireText(read('MissionVisitScreen.js'), 'Créer un point à contrôler', 'non-automatic atypical measurement point proposal');
 
 const documentPresetTypes = read('missionDocumentPresets.js');
 const missingDocumentPresets = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + type + ":\\s*'").test(documentPresetTypes));
