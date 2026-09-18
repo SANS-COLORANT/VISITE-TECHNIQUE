@@ -66,6 +66,8 @@ export const MISSION_EXCEL_SHEETS = Object.freeze([
   ['61_OCR_Plaques', 'mission_ocr_jobs'],
   ['62_Notes_Vocales', 'mission_voice_notes'],
   ['63_Checklist_Visite', 'mission_visit_checks'],
+  ['64_Extractions_Doc', 'mission_document_extractions'],
+  ['65_Revue_Doc', 'mission_document_review_items'],
 ]);
 
 export const MISSION_TABLE_BY_SHEET = Object.freeze(
@@ -138,6 +140,8 @@ export const MISSION_TABLE_IMPORT_ORDER = Object.freeze([
   'mission_ocr_jobs',
   'mission_voice_notes',
   'mission_visit_checks',
+  'mission_document_extractions',
+  'mission_document_review_items',
 ]);
 
 export function sheetForTable(tableName) {
