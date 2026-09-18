@@ -117,6 +117,7 @@ const JS_SYNTAX_FILES = [
   'MissionDocumentInboxScreen.js',
   'MissionMeasurementsScreen.js',
   'MissionMeasurementCampaignScreen.js',
+  'MissionReserveClearanceScreen.js',
   'visual-packs/runtime/VisualPacksSettingsScreen.js',
   'visual-packs/runtime/visualPackManager.js',
   'symfonyApiCacheDb.js',
