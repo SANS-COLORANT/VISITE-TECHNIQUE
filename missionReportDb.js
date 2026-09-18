@@ -41,7 +41,16 @@ async function loadMissionReportData(db, missionId) {
     db.getAllAsync('SELECT * FROM mission_scenarios WHERE mission_id=? ORDER BY created_at', [missionId]),
     db.getAllAsync("SELECT * FROM mission_calculations WHERE mission_id=? AND status='active' ORDER BY created_at", [missionId]),
     db.getAllAsync('SELECT * FROM mission_expected_documents WHERE mission_id=? ORDER BY created_at', [missionId]),
-    db.getAllAsync('SELECT * FROM mission_photos WHERE mission_id=? ORDER BY COALESCE(taken_at,created_at)', [missionId]),
+    db.getAllAsync(
+      `SELECT p.*,s.name AS site_name,l.label AS location_label,
+        e.type AS equipment_type,e.brand AS equipment_brand,e.model AS equipment_model
+       FROM mission_photos p
+       LEFT JOIN mission_sites s ON s.id=p.site_id
+       LEFT JOIN mission_locations l ON l.id=p.location_id
+       LEFT JOIN mission_equipment e ON e.id=p.equipment_id
+       WHERE p.mission_id=? ORDER BY COALESCE(p.taken_at,p.created_at)`,
+      [missionId]
+    ),
     db.getAllAsync(
       `SELECT e.*,s.name AS site_name,l.label AS location_label,i.label AS installation_label,sy.label AS system_label,n.label AS network_label
        FROM mission_equipment e
@@ -334,7 +343,11 @@ function makeAutoSections(data) {
           photo.taken_at || photo.created_at || '',
           photo.type || '',
           photo.label || '',
-          [photo.site_id, photo.location_id, photo.equipment_id].filter(Boolean).join(' · '),
+          [
+            photo.site_name,
+            photo.location_label,
+            [photo.equipment_type, photo.equipment_brand, photo.equipment_model].filter(Boolean).join(' · '),
+          ].filter(Boolean).join(' · '),
           photo.phase_role || '',
         ])
       )],
@@ -368,6 +381,12 @@ export async function construireRapportMissionPortee(missionId, { siteId = null 
       calculations: data.calculations.filter((row) => !row.site_id || row.site_id === siteId),
       expectedDocuments: data.expectedDocuments.filter((row) => !row.site_id || row.site_id === siteId),
       photos: data.photos.filter((row) => !row.site_id || row.site_id === siteId),
+      equipment: data.equipment.filter((row) => row.site_id === siteId),
+      locations: data.locations.filter((row) => row.site_id === siteId),
+      installations: data.installations.filter((row) => !row.site_id || row.site_id === siteId),
+      systems: data.systems.filter((row) => !row.site_name || data.installations.some((installation) => installation.id === row.installation_id && installation.site_id === siteId)),
+      networks: data.networks.filter((row) => !row.site_id || row.site_id === siteId),
+      components: data.components.filter((row) => data.equipment.some((equipment) => equipment.id === row.equipment_id && equipment.site_id === siteId)),
     };
   }
   const profile = await db.getFirstAsync(
