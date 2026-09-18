@@ -1,6 +1,6 @@
 import { NativeModules, PermissionsAndroid, Platform } from 'react-native';
 
-const { MetraOcr, MetraSpeech } = NativeModules;
+const { MetraOcr, MetraSpeech, MetraPdf } = NativeModules;
 
 export function ocrLocalDisponible() {
   return Platform.OS === 'android' && Boolean(MetraOcr?.recognize);
@@ -44,4 +44,14 @@ export async function annulerDicteeLocale() {
   if (MetraSpeech?.cancel) {
     try { await MetraSpeech.cancel(); } catch {}
   }
+}
+
+
+export function renduPdfLocalDisponible() {
+  return Platform.OS === 'android' && Boolean(MetraPdf?.renderPage);
+}
+
+export async function rendrePagePdfLocale(fileUri, pageIndex = 0, maxWidth = 1400) {
+  if (!renduPdfLocalDisponible()) throw new Error("Le rendu PDF local n'est pas disponible sur cet appareil.");
+  return MetraPdf.renderPage(fileUri, Number(pageIndex) || 0, Number(maxWidth) || 1400);
 }
