@@ -9,6 +9,7 @@ import {
   calibrerPlan,
   choisirEtImporterPlanMission,
   creerCalquePlan,
+  creerReseauDepuisPlanMission,
   deplacerPagePdfMission,
   dupliquerPagePdfMission,
   exporterGeoJsonMission,
@@ -16,8 +17,10 @@ import {
   exporterPlanPdfAnnote,
   getCalibrationPlan,
   importerGeoJsonMission,
+  lierAnnotationPlan,
   listerAnnotationsPlan,
   listerCalquesPlan,
+  listerCiblesAnnotationMission,
   listerPlansMission,
   mesurerGeometriePlan,
   supprimerAnnotationPlan,
@@ -28,6 +31,7 @@ import {
 const TOOLS = [
   ['select', 'Consulter'],
   ['point', 'Point'],
+  ['count', 'Comptage'],
   ['line', 'Ligne'],
   ['network', 'Réseau'],
   ['distance', 'Distance'],
@@ -36,6 +40,20 @@ const TOOLS = [
   ['text', 'Texte'],
   ['calibrate', 'Calibrer'],
 ];
+
+const LINK_TYPES = Object.freeze([
+  ['site', 'Site'],
+  ['location', 'Bâtiment / local'],
+  ['equipment', 'Équipement'],
+  ['point', 'Point / réserve'],
+  ['action', 'Action'],
+  ['measure', 'Mesure'],
+  ['photo', 'Photo'],
+  ['installation', 'Installation'],
+  ['system', 'Système'],
+  ['network', 'Réseau'],
+]);
+const LINK_TYPE_LABELS = Object.freeze(Object.fromEntries(LINK_TYPES));
 
 function parseGeometry(row) {
   return row?.geometry || {};
@@ -68,11 +86,13 @@ function AnnotationShape({ row, width, height, onPress }) {
   if (!pts.length) return null;
   const color = MISSION_COLORS.accent;
 
-  if (row.annotation_type === 'point' || row.annotation_type === 'symbol') {
+  if (row.annotation_type === 'point' || row.annotation_type === 'symbol' || row.annotation_type === 'count') {
     const p = pts[0];
     return <React.Fragment>
-      <Circle cx={p.x} cy={p.y} r={7} fill={MISSION_COLORS.accentLight} stroke={color} strokeWidth={2.5} onPress={onPress} />
-      {row.text ? <SvgText x={p.x + 10} y={p.y - 8} fontSize="11" fontWeight="700" fill={MISSION_COLORS.accentStrong}>{String(row.text).slice(0, 30)}</SvgText> : null}
+      <Circle cx={p.x} cy={p.y} r={row.annotation_type === 'count' ? 10 : 7} fill={MISSION_COLORS.accentLight} stroke={color} strokeWidth={2.5} onPress={onPress} />
+      {row.annotation_type === 'count'
+        ? <SvgText x={p.x} y={p.y + 4} textAnchor="middle" fontSize="10" fontWeight="900" fill={MISSION_COLORS.accentStrong}>{String(row.text || '')}</SvgText>
+        : (row.text ? <SvgText x={p.x + 10} y={p.y - 8} fontSize="11" fontWeight="700" fill={MISSION_COLORS.accentStrong}>{String(row.text).slice(0, 30)}</SvgText> : null)}
     </React.Fragment>;
   }
 
@@ -115,6 +135,13 @@ export function MissionPlanScreen({ navigation, route }) {
   const [loading, setLoading] = useState(false);
   const [layerModal, setLayerModal] = useState(false);
   const [layerName, setLayerName] = useState('');
+  const [linkTargets, setLinkTargets] = useState([]);
+  const [linkAnnotation, setLinkAnnotation] = useState(null);
+  const [linkType, setLinkType] = useState('equipment');
+  const [linkQuery, setLinkQuery] = useState('');
+  const [networkModal, setNetworkModal] = useState(false);
+  const [networkPoints, setNetworkPoints] = useState([]);
+  const [networkDraft, setNetworkDraft] = useState({ label: '', type: '', material: '', dimension: '', insulation: '', direction: '' });
 
   const loadPlans = useCallback(async () => {
     const rows = await listerPlansMission(missionId);
@@ -123,6 +150,15 @@ export function MissionPlanScreen({ navigation, route }) {
   }, [missionId, selectedId]);
 
   useEffect(() => { loadPlans(); }, [loadPlans]);
+
+  const refreshLinkTargets = useCallback(async () => {
+    if (!missionId) return;
+    try {
+      setLinkTargets(await listerCiblesAnnotationMission(missionId));
+    } catch {}
+  }, [missionId]);
+
+  useEffect(() => { refreshLinkTargets(); }, [refreshLinkTargets]);
 
   const loadPlanContext = useCallback(async () => {
     const doc = plans.find((p) => p.id === selectedId);
@@ -174,7 +210,7 @@ export function MissionPlanScreen({ navigation, route }) {
     setCanvas({ width: displayWidth, height: displayHeight });
   }, [displayWidth, displayHeight]);
 
-  const saveShape = async (annotationType, points, label = null) => {
+  const saveShape = async (annotationType, points, label = null, extra = {}) => {
     if (!selected) return;
     await ajouterAnnotationPlan({
       missionId,
@@ -184,6 +220,7 @@ export function MissionPlanScreen({ navigation, route }) {
       annotationType,
       geometry: { type: annotationType, points },
       text: label,
+      ...extra,
     });
     setDraftPoints([]);
     setAnnotations(await listerAnnotationsPlan(selected.id, page));
@@ -214,6 +251,11 @@ export function MissionPlanScreen({ navigation, route }) {
       await saveShape('point', [point]);
       return;
     }
+    if (tool === 'count') {
+      const number = annotations.filter((row) => row.annotation_type === 'count').length + 1;
+      await saveShape('count', [point], String(number), { symbolKey: 'count' });
+      return;
+    }
     if (tool === 'text') {
       setPendingPoint(point);
       setTextValue('');
@@ -227,7 +269,13 @@ export function MissionPlanScreen({ navigation, route }) {
       setCalibrationModal(true);
       return;
     }
-    if (['line', 'network', 'distance'].includes(tool) && next.length >= 2) {
+    if (tool === 'network' && next.length >= 2) {
+      setNetworkPoints(next.slice(0, 2));
+      setNetworkDraft({ label: '', type: '', material: '', dimension: '', insulation: '', direction: '' });
+      setNetworkModal(true);
+      return;
+    }
+    if (['line', 'distance'].includes(tool) && next.length >= 2) {
       await saveShape(tool, next.slice(0, 2), tool === 'distance' ? measureLabel('distance', next.slice(0, 2)) : null);
       return;
     }
@@ -250,6 +298,77 @@ export function MissionPlanScreen({ navigation, route }) {
     setTextModal(false);
     setPendingPoint(null);
     setTextValue('');
+  };
+
+  const confirmNetwork = async () => {
+    if (!selected || networkPoints.length < 2) return;
+    try {
+      const properties = {
+        material: networkDraft.material || null,
+        dimension: networkDraft.dimension || null,
+        insulation: networkDraft.insulation || null,
+        direction: networkDraft.direction || null,
+      };
+      const networkId = await creerReseauDepuisPlanMission({
+        missionId,
+        documentId: selected.id,
+        label: networkDraft.label || 'Réseau technique',
+        type: networkDraft.type || null,
+        properties,
+      });
+      await saveShape('network', networkPoints, networkDraft.label || 'Réseau technique', {
+        linkedEntityType: 'network',
+        linkedEntityId: networkId,
+        properties,
+      });
+      setNetworkModal(false);
+      setNetworkPoints([]);
+      setNetworkDraft({ label: '', type: '', material: '', dimension: '', insulation: '', direction: '' });
+      await refreshLinkTargets();
+    } catch (e) {
+      Alert.alert('Réseau non créé', String(e?.message || e));
+    }
+  };
+
+  const linkedTargetByKey = useMemo(
+    () => new Map(linkTargets.map((target) => [target.type + ':' + target.id, target])),
+    [linkTargets]
+  );
+
+  const filteredLinkTargets = useMemo(() => {
+    const q = linkQuery.trim().toLowerCase();
+    return linkTargets
+      .filter((target) => target.type === linkType)
+      .filter((target) => !q || [target.label, target.subtitle].some((value) => String(value || '').toLowerCase().includes(q)))
+      .slice(0, 150);
+  }, [linkTargets, linkType, linkQuery]);
+
+  const openLink = (annotation) => {
+    setLinkAnnotation(annotation);
+    setLinkType(annotation?.linked_entity_type || 'equipment');
+    setLinkQuery('');
+  };
+
+  const applyLink = async (target) => {
+    if (!linkAnnotation) return;
+    try {
+      await lierAnnotationPlan(linkAnnotation.id, { entityType: target.type, entityId: target.id });
+      setAnnotations(await listerAnnotationsPlan(selected.id, page));
+      setLinkAnnotation(null);
+    } catch (e) {
+      Alert.alert('Liaison impossible', String(e?.message || e));
+    }
+  };
+
+  const clearLink = async () => {
+    if (!linkAnnotation) return;
+    try {
+      await lierAnnotationPlan(linkAnnotation.id, { entityType: null, entityId: null });
+      setAnnotations(await listerAnnotationsPlan(selected.id, page));
+      setLinkAnnotation(null);
+    } catch (e) {
+      Alert.alert('Déliaison impossible', String(e?.message || e));
+    }
   };
 
   const confirmCalibration = async () => {
@@ -442,13 +561,71 @@ export function MissionPlanScreen({ navigation, route }) {
 
         {annotations.length ? <View style={{ marginTop: 12 }}>
           <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Annotations de la page</Text>
-          {annotations.map((a) => <View key={a.id} style={[missionStyles.card, { padding: 10, marginBottom: 6 }]}>
-            <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '800', fontSize: 10.5 }}>{a.annotation_type}{a.text ? ' · ' + a.text : ''}</Text>
-            <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 2 }}>{a.layer_label || 'Sans calque'}</Text>
-          </View>)}
+          {annotations.map((a) => {
+            const linked = a.linked_entity_type && a.linked_entity_id
+              ? linkedTargetByKey.get(a.linked_entity_type + ':' + a.linked_entity_id)
+              : null;
+            return <View key={a.id} style={[missionStyles.card, { padding: 10, marginBottom: 6 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '800', fontSize: 10.5 }}>{a.annotation_type}{a.text ? ' · ' + a.text : ''}</Text>
+                  <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 2 }}>{a.layer_label || 'Sans calque'}</Text>
+                  {a.linked_entity_type ? <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.8, marginTop: 4 }}>
+                    Lié : {LINK_TYPE_LABELS[a.linked_entity_type] || a.linked_entity_type} · {linked?.label || a.linked_entity_id}
+                  </Text> : <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, marginTop: 4 }}>Non lié à un objet METRA</Text>}
+                </View>
+                <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => openLink(a)}>
+                  <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Lier</Text>
+                </TouchableOpacity>
+              </View>
+            </View>;
+          })}
         </View> : null}
       </> : null}
     </ScrollView>
+
+    <Modal visible={networkModal} transparent animationType="fade" onRequestClose={() => { setNetworkModal(false); setNetworkPoints([]); setDraftPoints([]); }}>
+      <View style={styles.modalOverlay}><ScrollView style={[styles.modalSheet, missionStyles.modalSheet]} contentContainerStyle={{ paddingBottom: 16 }}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>Réseau technique</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, lineHeight: 14, marginBottom: 10 }}>
+          La ligne devient un vrai objet Réseau METRA, réutilisable dans le synoptique, l’Excel et l’export SIG.
+        </Text>
+        <TextInput style={[styles.input, missionStyles.input]} value={networkDraft.label} onChangeText={(v) => setNetworkDraft((p) => ({ ...p, label: v }))} placeholder="Nom : Départ radiateurs Nord…" autoFocus />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={networkDraft.type} onChangeText={(v) => setNetworkDraft((p) => ({ ...p, type: v }))} placeholder="Type : chauffage, ECS, air neuf, fluide…" />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={networkDraft.dimension} onChangeText={(v) => setNetworkDraft((p) => ({ ...p, dimension: v }))} placeholder="Dimension / diamètre / section" />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={networkDraft.material} onChangeText={(v) => setNetworkDraft((p) => ({ ...p, material: v }))} placeholder="Matériau" />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={networkDraft.insulation} onChangeText={(v) => setNetworkDraft((p) => ({ ...p, insulation: v }))} placeholder="Calorifuge / isolation" />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={networkDraft.direction} onChangeText={(v) => setNetworkDraft((p) => ({ ...p, direction: v }))} placeholder="Sens / fonction" />
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => { setNetworkModal(false); setNetworkPoints([]); setDraftPoints([]); }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={confirmNetwork}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer le réseau</Text></TouchableOpacity>
+        </View>
+      </ScrollView></View>
+    </Modal>
+
+    <Modal visible={!!linkAnnotation} transparent animationType="fade" onRequestClose={() => setLinkAnnotation(null)}>
+      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>Lier l’objet du plan</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, lineHeight: 14, marginBottom: 9 }}>
+          Le point, la ligne ou le polygone devient la géométrie de l’objet choisi. Une seule saisie pourra ensuite alimenter photos, mesures, constats et exports.
+        </Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 44, marginBottom: 7 }}>
+          {LINK_TYPES.map(([key,label]) => <ToolChip key={key} label={label} selected={linkType === key} onPress={() => { setLinkType(key); setLinkQuery(''); }} />)}
+        </ScrollView>
+        <TextInput style={[styles.input, missionStyles.input]} value={linkQuery} onChangeText={setLinkQuery} placeholder="Rechercher dans cette catégorie…" />
+        <ScrollView style={{ maxHeight: 330, marginTop: 7 }}>
+          {filteredLinkTargets.map((target) => <TouchableOpacity key={target.type + ':' + target.id} onPress={() => applyLink(target)} style={{ paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
+            <Text style={{ color: COLORS.ink, fontSize: 10.2, fontWeight: '800' }}>{target.label}</Text>
+            {target.subtitle ? <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, marginTop: 2 }}>{target.subtitle}</Text> : null}
+          </TouchableOpacity>)}
+          {!filteredLinkTargets.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 9.5, paddingVertical: 12 }}>Aucun objet dans cette catégorie.</Text> : null}
+        </ScrollView>
+        <View style={styles.modalActions}>
+          {linkAnnotation?.linked_entity_id ? <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={clearLink}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Délier</Text></TouchableOpacity> : null}
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setLinkAnnotation(null)}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer</Text></TouchableOpacity>
+        </View>
+      </View></View>
+    </Modal>
 
     <Modal visible={textModal} transparent animationType="fade" onRequestClose={() => setTextModal(false)}>
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
