@@ -64,6 +64,7 @@ const JS_SYNTAX_FILES = [
   'missionTestPresets.js',
   'missionDocumentPresets.js',
   'missionExcelExport.js',
+  'missionClientExcelExport.js',
   'missionExcelImport.js',
   'missionExcelAutoMap.js',
   'missionExcelSchema.js',
