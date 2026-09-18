@@ -124,6 +124,8 @@ const JS_SYNTAX_FILES = [
   'MissionP3DashboardScreen.js',
   'MissionExpertiseScreen.js',
   'MissionCampaignDashboardScreen.js',
+  'MissionAmoDashboardScreen.js',
+  'MissionControlBoardScreen.js',
   'missionWorkstreamPresets.js',
   'MissionReceptionBoardScreen.js',
   'visual-packs/runtime/VisualPacksSettingsScreen.js',
