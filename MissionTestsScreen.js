@@ -13,6 +13,8 @@ import {
   terminerExecutionEssai,
 } from './missionTestDb.js';
 import { creerPointMission } from './missionsDb.js';
+import { creerActionMission } from './missionDomainDb.js';
+import { modifierEquipementMission } from './missionEquipmentDb.js';
 import { getMissionTestPresets } from './missionTestPresets.js';
 
 const STATUS_OPTIONS = [
@@ -181,16 +183,38 @@ export function MissionTestsScreen({ route }) {
   };
 
   const makePoint = async (step) => {
+    if (step.point_id) {
+      Alert.alert('Point déjà lié', 'Cette étape d’essai possède déjà un point de suivi. METRA évite de créer un doublon.');
+      return;
+    }
     const edit = stepEdits[step.id] || {};
+    const isOpr = missionType === 'opr_reception';
+    const pointType = isOpr ? 'reserve' : 'control';
     const pointId = await creerPointMission({
       missionId,
       siteId: runData?.run?.site_id,
       visitId: runData?.run?.visit_id,
-      type: 'control',
-      label: 'Essai · ' + step.label,
-      description: [step.expected_text ? 'Attendu : ' + step.expected_text : '', edit.value ? 'Mesuré : ' + edit.value + ' ' + (step.reference_unit || '') : '', edit.comment || ''].filter(Boolean).join('\n'),
-      priority: 'À contrôler',
+      equipmentId: runData?.run?.equipment_id,
+      type: pointType,
+      label: (isOpr ? 'Réserve OPR · ' : 'Essai · ') + step.label,
+      description: [
+        step.expected_text ? 'Attendu : ' + step.expected_text : '',
+        edit.value ? 'Observé : ' + edit.value + ' ' + (step.reference_unit || '') : (edit.text ? 'Observé : ' + edit.text : ''),
+        edit.comment || '',
+      ].filter(Boolean).join('\n'),
+      priority: isOpr ? 'À lever' : 'À contrôler',
     });
+
+    await creerActionMission({
+      missionId,
+      sourcePointId: pointId,
+      siteId: runData?.run?.site_id,
+      equipmentId: runData?.run?.equipment_id,
+      label: isOpr ? 'Lever la réserve · ' + step.label : 'Traiter l’écart d’essai · ' + step.label,
+      description: edit.comment || step.expected_text || null,
+      priority: isOpr ? 'À lever' : 'À régler',
+    });
+
     await enregistrerEtapeEssai({
       runId: runData.run.id,
       step,
@@ -201,11 +225,34 @@ export function MissionTestsScreen({ route }) {
       comment: edit.comment,
       pointId,
     });
-    Alert.alert('Point créé', 'Le résultat d’essai reste lié au point de suivi.');
+
+    if (runData?.run?.equipment_id && ['opr_reception','commissioning','passation_travaux_exploitant'].includes(missionType)) {
+      await modifierEquipementMission(runData.run.equipment_id, { lifecycleStatus: 'avec_reserve' });
+    }
+
+    const refreshed = await chargerExecutionEssai(runData.run.id);
+    setRunData(refreshed);
+    setStepEdits((all) => ({ ...all, [step.id]: { ...edit, status: edit.status || 'deviation' } }));
+    Alert.alert('Suivi créé', 'Le résultat d’essai, le point et l’action restent liés. Aucun diagnostic automatique n’est ajouté.');
   };
 
   const finishRun = async () => {
     for (const step of runData?.steps || []) await saveStep(step);
+    const refreshed = await chargerExecutionEssai(runData.run.id);
+    const statuses = (refreshed?.steps || []).map((step) => step.result_status || 'not_tested');
+    const hasIssue = statuses.some((status) => ['deviation','impossible','to_repeat','failed','to_check'].includes(status));
+    const allOk = statuses.length > 0 && statuses.every((status) => status === 'ok');
+
+    if (refreshed?.run?.equipment_id && ['opr_reception','commissioning','passation_travaux_exploitant'].includes(missionType)) {
+      if (hasIssue) {
+        await modifierEquipementMission(refreshed.run.equipment_id, { lifecycleStatus: 'avec_reserve' });
+      } else if (allOk) {
+        await modifierEquipementMission(refreshed.run.equipment_id, {
+          lifecycleStatus: missionType === 'commissioning' ? 'mis_en_service' : 'controle',
+        });
+      }
+    }
+
     await terminerExecutionEssai(runData.run.id);
     setRunData(null);
     await load();
@@ -332,7 +379,7 @@ export function MissionTestsScreen({ route }) {
               <TextInput style={[styles.input, missionStyles.input, { marginTop: 5 }]} value={edit.comment || ''} onChangeText={(v) => setStepEdits((all) => ({ ...all, [step.id]: { ...edit, comment: v } }))} placeholder="Commentaire / observation" />
               <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
                 <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => saveStep(step)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Enregistrer</Text></TouchableOpacity>
-                <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => makePoint(step)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Créer un point</Text></TouchableOpacity>
+                <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => makePoint(step)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{step.point_id ? 'Point lié ✓' : 'Créer suivi'}</Text></TouchableOpacity>
               </View>
             </View>;
           })}
