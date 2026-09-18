@@ -22,7 +22,7 @@ const BASE = Object.freeze({
   },
   works: {
     label: 'Compte rendu de suivi de travaux',
-    order: ['contexte','visites','sujets','cycle_projet','points','actions','historique_actions','essais','documents','inventaire','architecture','mesures','photos','calculs','scenarios'],
+    order: ['contexte','visites','sujets','cycle_projet','points','actions','historique_actions','essais','documents','revue_documents','inventaire','architecture','mesures','photos','calculs','scenarios'],
     titles: {
       visites: 'Interventions / visites de chantier',
       sujets: 'Sujets, constats et décisions de chantier',
@@ -33,7 +33,7 @@ const BASE = Object.freeze({
   },
   reception: {
     label: 'Compte rendu OPR / réception',
-    order: ['contexte','visites','inventaire','cycle_projet','essais','points','actions','historique_actions','documents','mesures','photos','architecture','calculs','scenarios'],
+    order: ['contexte','visites','inventaire','cycle_projet','essais','points','actions','historique_actions','documents','revue_documents','mesures','photos','architecture','calculs','scenarios'],
     titles: {
       points: 'Réserves et écarts constatés',
       actions: 'Suivi des réserves',
