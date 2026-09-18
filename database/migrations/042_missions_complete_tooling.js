@@ -85,6 +85,7 @@ export const migration042 = {
     ALTER TABLE mission_geometries ADD COLUMN measure_id TEXT REFERENCES mission_measures(id) ON DELETE SET NULL;
     ALTER TABLE mission_geometries ADD COLUMN photo_id TEXT REFERENCES mission_photos(id) ON DELETE SET NULL;
     ALTER TABLE mission_geometries ADD COLUMN action_id TEXT REFERENCES mission_actions(id) ON DELETE SET NULL;
+    ALTER TABLE mission_geometries ADD COLUMN plan_page INTEGER NOT NULL DEFAULT 1;
 
     -- Contexte automatique commun : une photo/mesure/document hérite de ce que METRA connaît déjà.
     ALTER TABLE mission_photos ADD COLUMN location_id TEXT REFERENCES mission_locations(id) ON DELETE SET NULL;
@@ -150,6 +151,8 @@ export const migration042 = {
       FOREIGN KEY(document_id) REFERENCES mission_documents(id) ON DELETE CASCADE,
       FOREIGN KEY(layer_id) REFERENCES mission_plan_layers(id) ON DELETE SET NULL
     );
+
+    ALTER TABLE mission_plan_annotations ADD COLUMN geometry_id TEXT REFERENCES mission_geometries(id) ON DELETE SET NULL;
 
     CREATE TABLE IF NOT EXISTS mission_map_layers (
       id TEXT PRIMARY KEY NOT NULL,
@@ -327,6 +330,8 @@ export const migration042 = {
     CREATE INDEX IF NOT EXISTS idx_mission_plan_layers_doc ON mission_plan_layers(mission_id,document_id,sort_order);
     CREATE INDEX IF NOT EXISTS idx_mission_plan_calibrations_doc ON mission_plan_calibrations(mission_id,document_id,page_number);
     CREATE INDEX IF NOT EXISTS idx_mission_plan_annotations_doc ON mission_plan_annotations(mission_id,document_id,page_number,layer_id);
+    CREATE INDEX IF NOT EXISTS idx_mission_plan_annotations_geometry ON mission_plan_annotations(geometry_id);
+    CREATE INDEX IF NOT EXISTS idx_mission_geometry_plan_page ON mission_geometries(mission_id,plan_document_id,plan_page);
     CREATE INDEX IF NOT EXISTS idx_mission_map_layers_mission ON mission_map_layers(mission_id,visible);
     CREATE INDEX IF NOT EXISTS idx_mission_import_mappings_sig ON mission_import_mappings(mission_id,source_signature);
     CREATE INDEX IF NOT EXISTS idx_mission_formula_library_scope ON mission_formula_library(scope,family,mission_type,enabled);
