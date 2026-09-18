@@ -30,7 +30,7 @@ async function loadMissionReportData(db, missionId) {
 
   const [
     sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components, subjects, observations, decisions, lifecycle, actionHistory,
+    equipment, locations, installations, systems, networks, components, subjects, observations, decisions, lifecycle, actionHistory, validations,
   ] = await Promise.all([
     db.getAllAsync('SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name', [missionId]),
     db.getAllAsync('SELECT v.*,s.name AS site_name FROM mission_visits v LEFT JOIN mission_sites s ON s.id=v.site_id WHERE v.mission_id=? ORDER BY COALESCE(v.visit_date,v.created_at)', [missionId]),
@@ -145,11 +145,19 @@ async function loadMissionReportData(db, missionId) {
        ORDER BY p.created_at`,
       [missionId]
     ),
+    db.getAllAsync(
+      `SELECT v.*,d.name AS document_name,a.company AS reviewer_company,a.name AS reviewer_name
+       FROM mission_validations v
+       LEFT JOIN mission_documents d ON d.id=v.document_id
+       LEFT JOIN mission_actors a ON a.id=v.reviewer_actor_id
+       WHERE v.mission_id=? ORDER BY COALESCE(v.validated_at,v.created_at)`,
+      [missionId]
+    ),
   ]);
 
   return {
     mission, sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components, subjects, observations, decisions, lifecycle, actionHistory,
+    equipment, locations, installations, systems, networks, components, subjects, observations, decisions, lifecycle, actionHistory, validations,
   };
 }
 
@@ -463,6 +471,24 @@ function makeAutoSections(data) {
           sc.energy_saving_kwh ?? '',
           sc.co2_saving_kg ?? '',
           sc.payback_years ?? '',
+        ])
+      )],
+    });
+  }
+
+  if (data.validations?.length) {
+    sections.push({
+      key: 'revue_documents',
+      title: 'Historique des revues documentaires / VISA',
+      content: [blockTable(
+        ['Date', 'Document', 'Version', 'Statut', 'Relecteur', 'Commentaire'],
+        data.validations.map((row) => [
+          row.validated_at || row.created_at || '',
+          row.document_name || '',
+          row.version_label || '',
+          row.status || '',
+          row.reviewer_company || row.reviewer_name || '',
+          row.comment || '',
         ])
       )],
     });
