@@ -263,6 +263,14 @@ requireText(read('MissionPlanScreen.js'), 'Sujet chantier / suivi', 'plan subjec
 requireText(read('MissionSubjectsScreen.js'), 'À traiter avant le prochain point', 'open action preview before next meeting');
 requireText(read('MissionReceptionBoardScreen.js'), 'Documents de réception / passation · statut rapide', 'one-tap reception document status');
 requireText(read('MissionReceptionBoardScreen.js'), "['received','Reçu']", 'received document status shortcut');
+requireText(read('missionEquipmentDb.js'), 'mission_equipment_lifecycle', 'equipment lifecycle history writes');
+requireText(read('missionEquipmentDb.js'), "source_kind,source_value,confidence", 'equipment verification provenance trace');
+requireText(read('missionReportDb.js'), "key: 'cycle_projet'", 'project lifecycle report history');
+requireText(read('missionClientExcelExport.js'), "'12_Historique_cycle'", 'project lifecycle client Excel history');
+requireText(read('missionReportDb.js'), "key: 'projection_p3'", 'P2 P3 renewal projection report section');
+requireText(read('MissionReceptionBoardScreen.js'), 'Afficher 120 de plus', 'progressive large inventory rendering');
+requireText(read('MissionReceptionBoardScreen.js'), 'écarts inventaire', 'reception inventory difference summary');
+requireText(recipes, 'reserveClearance: true', 'OPR and reserve-lifting continuity capability');
 
 const documentPresetTypes = read('missionDocumentPresets.js');
 const missingDocumentPresets = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + type + ":\\s*'").test(documentPresetTypes));
