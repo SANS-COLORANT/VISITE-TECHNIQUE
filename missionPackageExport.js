@@ -4,6 +4,7 @@ import { zip } from 'react-native-zip-archive';
 import { getDb } from './db.js';
 import { preparerExportMission } from './missionExcelExport.js';
 import { preparerExportMissionClient, preparerSyntheseActionsMission } from './missionClientExcelExport.js';
+import { preparerAlbumPhotosMission } from './missionPhotoAlbumExport.js';
 import { exporterRapportMissionDocx, exporterRapportMissionPdf } from './missionReportExporter.js';
 import { exporterGeoJsonMission, exporterGeoPackageMission, exporterPlanPdfAnnote, listerPlansMission } from './missionPlanDb.js';
 
@@ -67,6 +68,9 @@ export const DEFAULT_MISSION_PACKAGE_OPTIONS = Object.freeze({
   excelClient: true,
   actionsSummary: true,
   photos: true,
+  photoAlbumAll: false,
+  photoAlbumReport: true,
+  photoAlbumIssues: true,
   sourceDocuments: true,
   annotatedPlans: true,
   sourcePlans: true,
@@ -198,6 +202,24 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
       const name = safe(out.name || 'Synthese_actions.xlsx');
       await FileSystem.writeAsStringAsync(folder + name, out.base64, { encoding: FileSystem.EncodingType.Base64 });
       manifest.files.push('Data/' + name);
+    }
+  }
+
+  if (cfg.photoAlbumAll || cfg.photoAlbumReport || cfg.photoAlbumIssues) {
+    const albumFolder = await ensure(root + 'Photos/Albums/');
+    const albumModes = [
+      ['photoAlbumAll', 'all'],
+      ['photoAlbumReport', 'report'],
+      ['photoAlbumIssues', 'issues'],
+    ];
+    for (const [optionKey, mode] of albumModes) {
+      if (!cfg[optionKey]) continue;
+      try {
+        const out = await preparerAlbumPhotosMission(missionId, { mode });
+        const name = safe(out.name || ('Album_' + mode + '.pdf'));
+        await FileSystem.writeAsStringAsync(albumFolder + name, out.base64, { encoding: FileSystem.EncodingType.Base64 });
+        manifest.files.push('Photos/Albums/' + name);
+      } catch {}
     }
   }
 
