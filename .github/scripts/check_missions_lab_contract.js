@@ -117,6 +117,9 @@ const missingRecipes = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + t
 if (missingRecipes.length) throw new Error('Types de Mission sans recette Rapide/Standard/Expert: ' + missingRecipes.join(', '));
 
 requireText(app, "MissionEquipment", 'equipment workspace route');
+requireText(app, "MissionStructure", 'patrimony hierarchy route');
+requireText(read('MissionStructureScreen.js'), 'Site → Bâtiment → Niveau → Local / local technique → Équipement', 'indoor hierarchy UX');
+requireText(read('missionStructureDb.js'), 'parent_location_id', 'hierarchical locations storage');
 requireText(app, "MissionPlan", 'plans workspace route');
 requireText(app, "MissionMeasurements", 'measurements workspace route');
 requireText(app, "MissionDocumentInbox", 'document inbox route');
