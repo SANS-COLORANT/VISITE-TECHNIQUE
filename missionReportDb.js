@@ -1,5 +1,6 @@
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
+import { getMissionReportRecipe } from './missionReportRecipes.js';
 
 function clean(value) {
   return String(value ?? '').trim();
@@ -27,7 +28,10 @@ async function loadMissionReportData(db, missionId) {
   );
   if (!mission) throw new Error('Mission introuvable.');
 
-  const [sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos] = await Promise.all([
+  const [
+    sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
+    equipment, locations, installations, systems, networks, components,
+  ] = await Promise.all([
     db.getAllAsync('SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name', [missionId]),
     db.getAllAsync('SELECT v.*,s.name AS site_name FROM mission_visits v LEFT JOIN mission_sites s ON s.id=v.site_id WHERE v.mission_id=? ORDER BY COALESCE(v.visit_date,v.created_at)', [missionId]),
     db.getAllAsync('SELECT p.*,s.name AS site_name,a.company AS responsible_company,a.name AS responsible_name,d.cost_estimate,d.allocation,d.requested_action FROM mission_points p LEFT JOIN mission_sites s ON s.id=p.site_id LEFT JOIN mission_actors a ON a.id=p.responsible_actor_id LEFT JOIN mission_point_details d ON d.point_id=p.id WHERE p.mission_id=? ORDER BY p.created_at', [missionId]),
@@ -38,14 +42,71 @@ async function loadMissionReportData(db, missionId) {
     db.getAllAsync("SELECT * FROM mission_calculations WHERE mission_id=? AND status='active' ORDER BY created_at", [missionId]),
     db.getAllAsync('SELECT * FROM mission_expected_documents WHERE mission_id=? ORDER BY created_at', [missionId]),
     db.getAllAsync('SELECT * FROM mission_photos WHERE mission_id=? ORDER BY COALESCE(taken_at,created_at)', [missionId]),
+    db.getAllAsync(
+      `SELECT e.*,s.name AS site_name,l.label AS location_label,i.label AS installation_label,sy.label AS system_label,n.label AS network_label
+       FROM mission_equipment e
+       JOIN mission_site_links ml ON ml.site_id=e.site_id
+       LEFT JOIN mission_sites s ON s.id=e.site_id
+       LEFT JOIN mission_locations l ON l.id=e.location_id
+       LEFT JOIN mission_installations i ON i.id=e.installation_id
+       LEFT JOIN mission_systems sy ON sy.id=e.system_id
+       LEFT JOIN mission_networks n ON n.id=e.network_id
+       WHERE ml.mission_id=?
+       ORDER BY s.name,l.sort_order,e.type,e.brand,e.model`,
+      [missionId]
+    ),
+    db.getAllAsync(
+      `SELECT l.*,s.name AS site_name FROM mission_locations l
+       JOIN mission_site_links ml ON ml.site_id=l.site_id
+       LEFT JOIN mission_sites s ON s.id=l.site_id
+       WHERE ml.mission_id=? ORDER BY s.name,l.sort_order,l.label`,
+      [missionId]
+    ),
+    db.getAllAsync(
+      `SELECT i.*,s.name AS site_name,l.label AS location_label
+       FROM mission_installations i
+       LEFT JOIN mission_sites s ON s.id=i.site_id
+       LEFT JOIN mission_locations l ON l.id=i.location_id
+       WHERE i.mission_id=? ORDER BY s.name,i.label`,
+      [missionId]
+    ),
+    db.getAllAsync(
+      `SELECT sy.*,i.label AS installation_label,s.name AS site_name
+       FROM mission_systems sy
+       LEFT JOIN mission_installations i ON i.id=sy.installation_id
+       LEFT JOIN mission_sites s ON s.id=i.site_id
+       WHERE sy.mission_id=? ORDER BY s.name,i.label,sy.label`,
+      [missionId]
+    ),
+    db.getAllAsync(
+      `SELECT n.*,s.name AS site_name,l.label AS location_label,i.label AS installation_label,sy.label AS system_label
+       FROM mission_networks n
+       LEFT JOIN mission_sites s ON s.id=n.site_id
+       LEFT JOIN mission_locations l ON l.id=n.location_id
+       LEFT JOIN mission_installations i ON i.id=n.installation_id
+       LEFT JOIN mission_systems sy ON sy.id=n.system_id
+       WHERE n.mission_id=? ORDER BY s.name,i.label,sy.label,n.label`,
+      [missionId]
+    ),
+    db.getAllAsync(
+      `SELECT c.*,e.type AS equipment_type,e.brand AS equipment_brand,e.model AS equipment_model
+       FROM mission_components c
+       JOIN mission_equipment e ON e.id=c.equipment_id
+       WHERE c.mission_id=? ORDER BY e.type,c.label`,
+      [missionId]
+    ),
   ]);
 
-  return { mission, sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos };
+  return {
+    mission, sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
+    equipment, locations, installations, systems, networks, components,
+  };
 }
 
 function makeAutoSections(data) {
   const sections = [];
   const m = data.mission;
+  const recipe = getMissionReportRecipe(m.type);
 
   sections.push({
     key: 'contexte',
@@ -62,6 +123,67 @@ function makeAutoSections(data) {
       ]),
     ],
   });
+
+  if (data.equipment?.length) {
+    sections.push({
+      key: 'inventaire',
+      title: 'Inventaire et état des équipements',
+      content: [blockTable(
+        ['Site', 'Local', 'Équipement', 'Marque', 'Modèle', 'État', 'Vérification', 'Année', 'Coût renouvellement', 'Année cible'],
+        data.equipment.map((e) => [
+          e.site_name || '',
+          e.location_label || '',
+          e.type || '',
+          e.brand || '',
+          e.model || '',
+          e.state || '',
+          e.verification_status || '',
+          e.installation_year || '',
+          e.replacement_cost ?? '',
+          e.replacement_year ?? '',
+        ])
+      )],
+    });
+  }
+
+  if (data.installations?.length || data.systems?.length || data.networks?.length) {
+    const rows = [];
+    for (const installation of data.installations || []) {
+      rows.push([
+        installation.site_name || '',
+        installation.location_label || '',
+        'Installation',
+        installation.label || '',
+        installation.type || '',
+        installation.status || '',
+      ]);
+    }
+    for (const system of data.systems || []) {
+      rows.push([
+        system.site_name || '',
+        '',
+        'Système',
+        system.label || '',
+        [system.installation_label, system.type].filter(Boolean).join(' · '),
+        system.status || '',
+      ]);
+    }
+    for (const network of data.networks || []) {
+      rows.push([
+        network.site_name || '',
+        network.location_label || '',
+        'Réseau / circuit',
+        network.label || '',
+        [network.installation_label, network.system_label, network.type].filter(Boolean).join(' · '),
+        network.status || '',
+      ]);
+    }
+    sections.push({
+      key: 'architecture',
+      title: 'Architecture technique',
+      content: [blockTable(['Site', 'Local', 'Niveau', 'Nom', 'Rattachement / type', 'Statut'], rows)],
+    });
+  }
 
   if (data.visits.length) {
     sections.push({
@@ -202,7 +324,32 @@ function makeAutoSections(data) {
     });
   }
 
-  return sections;
+  if (data.photos?.length) {
+    sections.push({
+      key: 'photos',
+      title: 'Index photographique',
+      content: [blockTable(
+        ['Date', 'Type', 'Libellé', 'Contexte', 'Rôle'],
+        data.photos.map((photo) => [
+          photo.taken_at || photo.created_at || '',
+          photo.type || '',
+          photo.label || '',
+          [photo.site_id, photo.location_id, photo.equipment_id].filter(Boolean).join(' · '),
+          photo.phase_role || '',
+        ])
+      )],
+    });
+  }
+
+  const orderIndex = new Map((recipe.order || []).map((key, index) => [key, index]));
+  for (const section of sections) {
+    if (recipe.titles?.[section.key]) section.title = recipe.titles[section.key];
+  }
+  return sections.sort((a, b) => {
+    const ai = orderIndex.has(a.key) ? orderIndex.get(a.key) : 999;
+    const bi = orderIndex.has(b.key) ? orderIndex.get(b.key) : 999;
+    return ai - bi;
+  });
 }
 
 export async function construireRapportMissionPortee(missionId, { siteId = null } = {}) {
@@ -228,7 +375,7 @@ export async function construireRapportMissionPortee(missionId, { siteId = null 
     [missionId]
   );
   return {
-    profile: profile || { id: null, mission_id: missionId, label: scoped.mission?.label ? 'Rapport - ' + scoped.mission.label : 'Rapport Mission' },
+    profile: profile || { id: null, mission_id: missionId, label: getMissionReportRecipe(scoped.mission?.type).label },
     sections: makeAutoSections(scoped).map((section, index) => ({
       id: 'scope_' + (siteId || 'mission') + '_' + section.key,
       mission_id: missionId,
@@ -257,9 +404,10 @@ export async function initialiserRapportMission(missionId, { forceRefresh = fals
 
   if (!profile) {
     const id = createId('mrp');
+    const reportRecipe = getMissionReportRecipe(data.mission.type);
     await db.runAsync(
       'INSERT INTO mission_report_profiles(id,mission_id,type,label,scope,is_default,config_json) VALUES(?,?,?,?,?,?,?)',
-      [id, missionId, data.mission.type || 'mission', data.mission.label ? 'Rapport - ' + data.mission.label : 'Rapport Mission', 'mission', 1, JSON.stringify({ version: 1 })]
+      [id, missionId, data.mission.type || 'mission', reportRecipe.label, 'mission', 1, JSON.stringify({ version: 2, recipe: reportRecipe.group })]
     );
     profile = await db.getFirstAsync('SELECT * FROM mission_report_profiles WHERE id=?', [id]);
   }
