@@ -148,6 +148,13 @@ requireText(read('MissionMapScreen.js'), 'LocalTile', 'offline XYZ tile renderin
 requireText(read('MissionMapScreen.js'), 'Overlay', 'offline raster rendering');
 requireText(read('MissionVisitScreen.js'), 'Avant de quitter le site', 'non-blocking before leaving checklist');
 requireText(read('MissionPackageScreen.js'), 'Créer et partager le ZIP complet', 'complete mission package');
+requireText(read('missionPackageExport.js'), 'offlineMapLayers: true', 'offline map layers in complete package');
+requireText(read('missionPackageImport.js'), 'importerMissionDepuisExcelUri', 'structured Mission restore from package');
+requireText(read('missionPackageImport.js'), 'restorePhotos', 'package photo restoration');
+requireText(read('missionPackageImport.js'), 'restoreDocuments', 'package document restoration');
+requireText(read('missionPackageImport.js'), 'restorePlans', 'package plan restoration');
+requireText(read('missionPackageImport.js'), 'restoreMapLayers', 'package offline map restoration');
+requireText(read('MissionsHomeScreen.js'), 'Restaurer ZIP', 'complete Mission ZIP restore UX');
 requireText(read('missionMediaDb.js'), 'resolveMissionContext', 'automatic media context inheritance');
 requireText(read('MissionActionsScreen.js'), '📷 Avant', 'before photo action evidence');
 requireText(read('MissionActionsScreen.js'), '📷 Après', 'after photo action evidence');
