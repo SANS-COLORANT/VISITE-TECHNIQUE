@@ -68,7 +68,7 @@ async function loadClientData(missionId) {
   if (!mission) throw new Error('Mission introuvable.');
 
   const [
-    sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions, lifecycle, actionHistory,
+    sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions, lifecycle, actionHistory, validations,
   ] = await Promise.all([
     db.getAllAsync(
       `SELECT s.*
@@ -210,9 +210,17 @@ async function loadClientData(missionId) {
        ORDER BY p.created_at`,
       [missionId]
     ),
+    db.getAllAsync(
+      `SELECT v.*,d.name AS document_name,a.company AS reviewer_company,a.name AS reviewer_name
+       FROM mission_validations v
+       LEFT JOIN mission_documents d ON d.id=v.document_id
+       LEFT JOIN mission_actors a ON a.id=v.reviewer_actor_id
+       WHERE v.mission_id=? ORDER BY COALESCE(v.validated_at,v.created_at)`,
+      [missionId]
+    ),
   ]);
 
-  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions, lifecycle, actionHistory };
+  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions, lifecycle, actionHistory, validations };
 }
 
 function photoPath(photo, photoPathById) {
@@ -495,6 +503,17 @@ export async function construireClasseurClientMission(missionId, { photoPathById
         Source: change.source || '',
       };
     }), [22,38,24,32,32,22]);
+  }
+
+  if (data.validations?.length) {
+    addSheet(wb, '14_Revue_documents', data.validations.map((row) => ({
+      Date: row.validated_at || row.created_at || '',
+      Document: row.document_name || '',
+      Version_revision: row.version_label || '',
+      Statut: row.status || '',
+      Relecteur: row.reviewer_company || row.reviewer_name || '',
+      Commentaire: row.comment || '',
+    })), [22,42,24,24,30,70]);
   }
 
   return { wb, data };
