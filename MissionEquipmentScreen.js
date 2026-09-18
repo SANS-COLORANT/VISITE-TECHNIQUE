@@ -149,6 +149,8 @@ export function MissionEquipmentScreen({ navigation, route }) {
         expectedLifetimeYears: e.expected_lifetime_years === null || e.expected_lifetime_years === undefined ? '' : String(e.expected_lifetime_years),
         replacementCost: e.replacement_cost === null || e.replacement_cost === undefined ? '' : String(e.replacement_cost),
         replacementYear: e.replacement_year === null || e.replacement_year === undefined ? '' : String(e.replacement_year),
+        criticality: e.criticality || {},
+        criticalityReason: e.criticality?.reason || '',
       });
     } catch (err) {
       Alert.alert('Équipement indisponible', String(err?.message || err));
@@ -190,7 +192,10 @@ export function MissionEquipmentScreen({ navigation, route }) {
     if (!selectedId) return;
     setBusy(true);
     try {
-      await modifierEquipementMission(selectedId, edit);
+      await modifierEquipementMission(selectedId, {
+        ...edit,
+        criticality: { ...(edit.criticality || {}), reason: edit.criticalityReason || null },
+      });
       setDetails(await getEquipmentDetails(selectedId));
       await load();
       Alert.alert('Équipement mis à jour', 'Les caractéristiques sont enregistrées dans le référentiel local de la Mission.');
@@ -379,6 +384,27 @@ export function MissionEquipmentScreen({ navigation, route }) {
           <Field label="Coût de remplacement estimé (€)" value={edit.replacementCost} onChangeText={(v) => setEdit((p) => ({ ...p, replacementCost: v }))} keyboardType="decimal-pad" />
           <Field label="Année de remplacement projetée" value={edit.replacementYear} onChangeText={(v) => setEdit((p) => ({ ...p, replacementYear: v }))} keyboardType="number-pad" />
 
+          <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Criticité explicable</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 9, lineHeight: 13, marginBottom: 7 }}>
+            METRA conserve les axes sélectionnés et la justification. Il ne transforme pas automatiquement cette saisie en diagnostic définitif.
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 6 }}>
+            {[
+              ['security','Sécurité'],
+              ['regulatory','Réglementaire'],
+              ['continuity','Continuité'],
+              ['energy','Énergie'],
+              ['comfort','Confort'],
+              ['asset','Patrimoine'],
+            ].map(([key,label]) => <Chip
+              key={key}
+              label={label}
+              selected={Boolean(edit.criticality?.[key])}
+              onPress={() => setEdit((p) => ({ ...p, criticality: { ...(p.criticality || {}), [key]: !p.criticality?.[key] } }))}
+            />)}
+          </View>
+          <Field label="Justification / contexte de criticité" value={edit.criticalityReason} onChangeText={(v) => setEdit((p) => ({ ...p, criticalityReason: v }))} placeholder="Pourquoi cet équipement est sensible ?" />
+
           <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Composants</Text>
           {(details?.components || []).map((c) => <View key={c.id} style={{ paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
             <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '800' }}>{c.label}</Text>
@@ -388,6 +414,24 @@ export function MissionEquipmentScreen({ navigation, route }) {
             <TextInput style={[styles.input, missionStyles.input, { flex: 1 }]} value={componentLabel} onChangeText={setComponentLabel} placeholder="Ajouter sonde, filtre, vanne…" />
             <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={addComponent}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋</Text></TouchableOpacity>
           </View>
+
+          <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Historique de l’équipement</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 9, lineHeight: 13, marginBottom: 7 }}>
+            Historique transversal du même équipement dans le référentiel local Missions. Les valeurs anciennes restent volontairement discrètes.
+          </Text>
+          {(details?.measures || []).slice(0, 5).map((m) => <View key={m.id} style={{ opacity: 0.68, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
+            <Text style={{ color: COLORS.ink, fontSize: 9.5 }}>{m.type || 'Mesure'} · {m.value_number ?? m.value_text ?? '/'} {m.unit || ''}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.2 }}>{m.created_at || ''}</Text>
+          </View>)}
+          {(details?.points || []).slice(0, 5).map((p) => <View key={p.id} style={{ opacity: 0.68, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
+            <Text style={{ color: COLORS.ink, fontSize: 9.5 }}>{p.label || p.description || 'Point'} · {p.status}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.2 }}>{p.created_at || ''}</Text>
+          </View>)}
+          {(details?.lifecycle || []).slice(0, 5).map((h) => <View key={h.id} style={{ opacity: 0.68, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
+            <Text style={{ color: COLORS.ink, fontSize: 9.5 }}>{h.from_state || '—'} → {h.to_state}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.2 }}>{h.effective_date || h.created_at || ''}</Text>
+          </View>)}
+          {!details?.measures?.length && !details?.points?.length && !details?.lifecycle?.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 9 }}>Aucun historique antérieur.</Text> : null}
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 18 }}>
             <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={duplicateSelected}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Dupliquer</Text></TouchableOpacity>
