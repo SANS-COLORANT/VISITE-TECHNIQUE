@@ -184,6 +184,55 @@ export async function enregistrerDetailsPointMission({
   );
 }
 
+export async function enregistrerHistoriqueActionMission({
+  missionId,
+  actionId,
+  before = {},
+  after = {},
+  source = 'manual',
+} = {}) {
+  if (!missionId || !actionId) return 0;
+  const db = await getDb();
+  await requireMission(db, missionId);
+  const action = await db.getFirstAsync('SELECT id FROM mission_actions WHERE id=? AND mission_id=?', [actionId, missionId]);
+  if (!action) throw new Error('Action Mission introuvable.');
+
+  const fields = [
+    'label','description','status','priority','responsible_actor_id','due_date','due_text',
+    'cost_estimate','allocation','progress',
+  ];
+  let count = 0;
+  await db.withTransactionAsync(async () => {
+    for (const field of fields) {
+      const beforeValue = before?.[field] ?? null;
+      const afterValue = after?.[field] ?? null;
+      if (String(beforeValue ?? '') === String(afterValue ?? '')) continue;
+      await db.runAsync(
+        `INSERT INTO mission_provenance(
+          id,mission_id,entity_type,entity_id,field_name,source_kind,source_value,confidence
+        ) VALUES(?,?,?,?,?,?,?,?)`,
+        [
+          createId('mprov'),
+          missionId,
+          'action',
+          actionId,
+          field,
+          'action_change',
+          JSON.stringify({
+            before: beforeValue,
+            after: afterValue,
+            source,
+            changed_at: new Date().toISOString(),
+          }),
+          'confirmed',
+        ]
+      );
+      count += 1;
+    }
+  });
+  return count;
+}
+
 export async function creerActionMission({
   missionId, sourcePointId = null, subjectId = null, siteId = null, locationId = null, equipmentId = null,
   label, description = null, priority = null, responsibleActorId = null, dueDate = null, dueText = null,
