@@ -210,16 +210,17 @@ function makeAutoSections(data) {
       key: 'points',
       title: 'Constats, réserves et points à suivre',
       content: [blockTable(
-        ['Type', 'Site', 'Point', 'Statut', 'Responsable', 'Échéance', 'Coût', 'Imputation'],
+        ['Type', 'Site', 'Point', 'Statut', 'Résultat / qualification', 'Responsable', 'Échéance', 'Coût', 'Imputation'],
         data.points.map((p) => [
           p.type || '',
           p.site_name || '',
           p.label || p.description || '',
           p.status || '',
+          p.qualification || '',
           p.responsible_company || p.responsible_name || '',
           p.due_date || p.due_text || '',
           p.cost_estimate ?? '',
-          p.allocation || p.qualification || '',
+          p.allocation || '',
         ])
       )],
     });
