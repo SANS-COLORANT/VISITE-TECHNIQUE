@@ -445,8 +445,9 @@ const TYPES = Object.freeze({
     steps: ['Inventaire', 'Périmètre', 'État', 'Historique', 'P3 / budget'],
     quickActions: [
       action('equipment', 'Inventaire P2/P3', 'navigate', { route: 'MissionEquipment' }),
+      action('p3Dashboard', 'Projection P2 / P3', 'navigate', { route: 'MissionP3Dashboard' }),
       action('sensitive', 'Équipement sensible', 'point', { preset: point('Équipement sensible / renouvellement à anticiper', 'control', { priority: 'À analyser' }) }),
-      action('scenario', 'Projection renouvellement', 'navigate', { route: 'MissionScenarios' }),
+      action('scenario', 'Scénarios renouvellement', 'navigate', { route: 'MissionScenarios' }),
       action('calculation', 'Calculs / coûts', 'navigate', { route: 'MissionCalculation' }),
     ],
   },
