@@ -67,6 +67,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
   const [busyId, setBusyId] = useState(null);
   const [equipmentFilter, setEquipmentFilter] = useState('all');
   const [displayLimit, setDisplayLimit] = useState(120);
+  const [activeModes, setActiveModes] = useState({ static: true, dynamic: true, clearance: true });
 
   const load = useCallback(async () => {
     if (!missionId) return;
@@ -168,6 +169,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
   const displayedEquipment = filteredEquipment.slice(0, displayLimit);
 
   const title = LABEL_BY_TYPE[mission?.type] || 'Réception / mise en service';
+  const toggleMode = (key) => setActiveModes((current) => ({ ...current, [key]: !current[key] }));
   const completionLabel = mission?.type === 'commissioning'
     ? 'mis en service'
     : mission?.type === 'passation_travaux_exploitant'
@@ -180,6 +182,17 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
         Tableau terrain synthétique : l’état de chaque ouvrage, les essais, les réserves, les actions et les documents restent reliés à la même Mission. Aucun inventaire n’est recréé pour cette phase.
       </Text>
+      {mission?.type === 'opr_reception' ? <View style={[missionStyles.card, { padding: 11, marginTop: 12 }]}>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontWeight: '900', letterSpacing: 0.45 }}>MODES OPR · CUMULABLES</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 8.8, lineHeight: 12, marginTop: 3 }}>
+          Une même OPR peut combiner contrôle statique, essais dynamiques et recontrôle de réserves. Aucun dossier séparé n’est créé.
+        </Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 8 }}>
+          <Chip label="OPR statique" selected={activeModes.static} onPress={() => toggleMode('static')} />
+          <Chip label="OPR dynamique" selected={activeModes.dynamic} onPress={() => toggleMode('dynamic')} />
+          <Chip label="Levée / recontrôle" selected={activeModes.clearance} onPress={() => toggleMode('clearance')} />
+        </View>
+      </View> : null}
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 13 }}>
         <Stat value={summary.equipment} label="ouvrages / équipements" />
@@ -192,13 +205,13 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
       </View>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 14 }}>
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => navigation.navigate('MissionTests',{ missionId })}>
+        {activeModes.dynamic || mission?.type !== 'opr_reception' ? <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => navigation.navigate('MissionTests',{ missionId })}>
           <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Essais</Text>
-        </TouchableOpacity>
+        </TouchableOpacity> : null}
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionActions',{ missionId })}>
           <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Réserves / actions</Text>
         </TouchableOpacity>
-        {mission?.type === 'opr_reception' && summary.openReserves ? <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionReserveClearance',{ missionId })}>
+        {mission?.type === 'opr_reception' && activeModes.clearance && summary.openReserves ? <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionReserveClearance',{ missionId })}>
           <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Levée / recontrôle</Text>
         </TouchableOpacity> : null}
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionDocuments',{ missionId })}>
@@ -209,6 +222,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
         </TouchableOpacity>
       </View>
 
+      {activeModes.static || mission?.type !== 'opr_reception' ? <>
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Ouvrages · statut en 1 geste</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 7 }}>
         <Chip label={'Tous · ' + equipment.length} selected={equipmentFilter === 'all'} onPress={() => { setEquipmentFilter('all'); setDisplayLimit(120); }} />
@@ -245,6 +259,35 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
       {equipment.length && !filteredEquipment.length ? <View style={[missionStyles.card,{padding:14}]}>
         <Text style={{ color: COLORS.inkSoft, fontSize: 9.5 }}>Aucun ouvrage dans ce filtre.</Text>
       </View> : null}
+      </> : null}
+
+      {activeModes.dynamic && mission?.type === 'opr_reception' ? <>
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>OPR dynamique · essais</Text>
+        <View style={[missionStyles.card, { padding: 11 }]}>
+          <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }}>
+            {summary.completedTests}/{summary.tests} essai(s) terminé(s)
+          </Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, lineHeight: 12, marginTop: 3 }}>
+            Les protocoles conservent attendu, observé, valeur de référence, mesure, résultat et preuve. Plusieurs passages restent possibles sur le même essai.
+          </Text>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { alignSelf: 'flex-start', marginTop: 8 }]} onPress={() => navigation.navigate('MissionTests',{ missionId })}>
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Ouvrir les essais dynamiques</Text>
+          </TouchableOpacity>
+        </View>
+      </> : null}
+
+      {mission?.type === 'opr_reception' && activeModes.clearance ? <>
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Levée / recontrôle</Text>
+        <View style={[missionStyles.card, { padding: 11 }]}>
+          <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }}>{summary.openReserves} réserve(s) ouverte(s)</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, lineHeight: 12, marginTop: 3 }}>
+            Reprendre la réserve initiale, contrôler, photographier après intervention puis qualifier : levée, maintenue, partielle, inaccessible ou non vérifiable.
+          </Text>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { alignSelf: 'flex-start', marginTop: 8 }]} onPress={() => navigation.navigate('MissionReserveClearance',{ missionId })}>
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Ouvrir le recontrôle</Text>
+          </TouchableOpacity>
+        </View>
+      </> : null}
 
       {documents.length ? <>
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Documents de réception / passation · statut rapide</Text>
