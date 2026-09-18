@@ -19,7 +19,7 @@ import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRun
 import { getActiveVisualPack, getVisualPackStartupDuration, resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
 
 const SPLASH_BG = '#FBF0E1';
-const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph']);
+const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements']);
 
 const DEFERRED_SCREEN_LOADERS = Object.freeze({
   MetraDirectory: () => require('./MetraDirectoryScreen.js').MetraDirectoryScreen,
@@ -41,6 +41,21 @@ const DEFERRED_SCREEN_LOADERS = Object.freeze({
   MissionVisit: () => require('./MissionVisitScreen.js').MissionVisitScreen,
   MissionReport: () => require('./MissionReportScreen.js').MissionReportScreen,
   MissionTechnicalGraph: () => require('./MissionTechnicalGraphScreen.js').MissionTechnicalGraphScreen,
+  MissionEquipment: () => require('./MissionEquipmentScreen.js').MissionEquipmentScreen,
+  MissionPlan: () => require('./MissionPlanScreen.js').MissionPlanScreen,
+  MissionMap: () => require('./MissionMapScreen.js').MissionMapScreen,
+  MissionCalculation: () => require('./MissionCalculationScreen.js').MissionCalculationScreen,
+  MissionTests: () => require('./MissionTestsScreen.js').MissionTestsScreen,
+  MissionScenarios: () => require('./MissionScenarioScreen.js').MissionScenarioScreen,
+  MissionExcelMapping: () => require('./MissionExcelMappingScreen.js').MissionExcelMappingScreen,
+  MissionPhotoAnnotations: () => require('./MissionPhotoAnnotationScreen.js').MissionPhotoAnnotationScreen,
+  MissionActions: () => require('./MissionActionsScreen.js').MissionActionsScreen,
+  MissionDocuments: () => require('./MissionDocumentsScreen.js').MissionDocumentsScreen,
+  MissionSignature: () => require('./MissionSignatureScreen.js').MissionSignatureScreen,
+  MissionWorkflow: () => require('./MissionWorkflowScreen.js').MissionWorkflowScreen,
+  MissionPackage: () => require('./MissionPackageScreen.js').MissionPackageScreen,
+  MissionDocumentInbox: () => require('./MissionDocumentInboxScreen.js').MissionDocumentInboxScreen,
+  MissionMeasurements: () => require('./MissionMeasurementsScreen.js').MissionMeasurementsScreen,
 });
 
 function DeferredScreen({ name, ...props }) {
@@ -201,6 +216,21 @@ function AppContent() {
     {current.name === 'MissionVisit' && missionsVisible ? <><MissionHeader title="Visite terrain" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionVisit" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionReport' && missionsVisible ? <><MissionHeader title="Rapport Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionReport" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionTechnicalGraph' && missionsVisible ? <><MissionHeader title="Synoptique technique" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionTechnicalGraph" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionEquipment' && missionsVisible ? <><MissionHeader title="Inventaire Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionEquipment" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionPlan' && missionsVisible ? <><MissionHeader title="Plans · PDF · SIG" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionPlan" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionMap' && missionsVisible ? <><MissionHeader title="Cartographie Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionMap" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionCalculation' && missionsVisible ? <><MissionHeader title="Calculs Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionCalculation" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionTests' && missionsVisible ? <><MissionHeader title="Essais · Commissioning" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionTests" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionScenarios' && missionsVisible ? <><MissionHeader title="Scénarios" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionScenarios" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionExcelMapping' && missionsVisible ? <><MissionHeader title="Mapping Excel" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionExcelMapping" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionPhotoAnnotations' && missionsVisible ? <><MissionHeader title="Annotations photo" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionPhotoAnnotations" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionActions' && missionsVisible ? <><MissionHeader title="Actions Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionActions" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionDocuments' && missionsVisible ? <><MissionHeader title="Documents · VISA" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionDocuments" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionSignature' && missionsVisible ? <><MissionHeader title="Signature Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionSignature" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionWorkflow' && missionsVisible ? <><MissionHeader title="Workflow Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionWorkflow" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionPackage' && missionsVisible ? <><MissionHeader title="Dossier complet" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionPackage" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionDocumentInbox' && missionsVisible ? <><MissionHeader title="Inbox documents" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionDocumentInbox" navigation={navigation} route={route} /></> : null}
+    {current.name === 'MissionMeasurements' && missionsVisible ? <><MissionHeader title="Mesures Mission" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionMeasurements" navigation={navigation} route={route} /></> : null}
 
     {current.name !== 'Home' && current.name !== 'Missions' ? <GlobalHomeButton missionMode={missionMode} onPress={missionMode ? goMissionsHome : goHome} /> : null}
     <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
