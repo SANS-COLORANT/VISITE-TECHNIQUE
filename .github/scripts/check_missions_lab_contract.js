@@ -159,6 +159,13 @@ requireText(read('missionStructureDb.js'), 'parent_location_id', 'hierarchical l
 requireText(app, "MissionPlan", 'plans workspace route');
 requireText(app, "MissionMeasurements", 'measurements workspace route');
 requireText(app, "MissionMeasurementCampaign", 'measurement campaign workspace route');
+requireText(app, "MissionReserveClearance", 'dedicated reserve clearance route');
+requireText(read('MissionReserveClearanceScreen.js'), 'Photo initiale', 'reserve before evidence');
+requireText(read('MissionReserveClearanceScreen.js'), 'Photo après', 'reserve after evidence');
+requireText(read('MissionReserveClearanceScreen.js'), 'Partielle', 'partial reserve clearance state');
+requireText(read('MissionReserveClearanceScreen.js'), 'Inaccessible', 'inaccessible reserve clearance state');
+requireText(read('MissionReserveClearanceScreen.js'), 'mission_reserve_clearance', 'reserve clearance history trace');
+requireText(recipes, 'reserveClearance: true', 'reserve clearance capability on dedicated mission type');
 requireText(read('MissionMeasurementCampaignScreen.js'), 'Enregistrer → suivant', 'ultra-fast value-next campaign UX');
 requireText(read('missionMeasurementCampaignDb.js'), 'importerPointsCampagneMesuresExcel', 'prepared campaign list import');
 requireText(read('missionMeasurementCampaignDb.js'), 'dupliquerCampagneMesuresMission', 'before after repeat campaign');
