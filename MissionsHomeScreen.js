@@ -4,6 +4,7 @@ import { COLORS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { listerMissions } from './missionsDb.js';
 import { choisirEtImporterMissionExcel } from './missionExcelImport.js';
+import { choisirEtImporterPackageMission } from './missionPackageImport.js';
 
 const STATUS_LABELS = Object.freeze({
   draft: 'Brouillon',
@@ -102,6 +103,7 @@ export function MissionsHomeScreen({ navigation }) {
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
   const [importing, setImporting] = useState(false);
+  const [restoringPackage, setRestoringPackage] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -132,6 +134,33 @@ export function MissionsHomeScreen({ navigation }) {
       Alert.alert('Import Excel impossible', String(e?.message || e));
     } finally {
       setImporting(false);
+    }
+  };
+
+  const restorePackage = async () => {
+    if (restoringPackage) return;
+    setRestoringPackage(true);
+    try {
+      const result = await choisirEtImporterPackageMission();
+      if (!result) return;
+      await reload();
+      const restoredFiles = [
+        result.photos?.restored || 0,
+        result.documents?.restored || 0,
+        result.plans?.restored || 0,
+        result.mapLayers?.restored || 0,
+      ].reduce((sum, value) => sum + Number(value || 0), 0);
+      Alert.alert(
+        'Dossier Mission restauré',
+        (result.mission?.label || 'Mission') + '\n\n'
+          + restoredFiles + ' fichier(s)/couche(s) restauré(s) hors ligne. '
+          + 'Les données structurées ont été réintégrées depuis l’Excel relationnel.'
+      );
+      navigation.navigate('Mission', { missionId: result.missionId });
+    } catch (e) {
+      Alert.alert('Restauration ZIP impossible', String(e?.message || e));
+    } finally {
+      setRestoringPackage(false);
     }
   };
 
@@ -188,9 +217,17 @@ export function MissionsHomeScreen({ navigation }) {
             onPress={importExcel}
             disabled={importing}
             activeOpacity={0.82}
-            style={{ minHeight: 42, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}
+            style={{ minHeight: 42, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', marginRight: 8, marginBottom: 8 }}
           >
             <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 11.5 }}>{importing ? 'Import…' : '⇧ Importer Excel'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={restorePackage}
+            disabled={restoringPackage}
+            activeOpacity={0.82}
+            style={{ minHeight: 42, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}
+          >
+            <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 11.5 }}>{restoringPackage ? 'Restauration…' : '↥ Restaurer ZIP'}</Text>
           </TouchableOpacity>
         </View>
       </View>
