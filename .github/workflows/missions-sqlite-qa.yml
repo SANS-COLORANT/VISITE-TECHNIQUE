@@ -26,6 +26,7 @@ on:
       - 'missionTestDb.js'
       - 'missionExcelMappingDb.js'
       - 'missionPhotoAnnotationDb.js'
+      - 'missionPhotoAlbumExport.js'
       - 'missionMeasurementDb.js'
       - 'missionMeasurementCampaignDb.js'
       - 'missionDocumentExtractionDb.js'
