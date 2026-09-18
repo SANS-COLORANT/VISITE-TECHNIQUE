@@ -1,5 +1,5 @@
 export const MISSION_EXCEL_FORMAT = 'METRA_MISSIONS_XLSX_V2';
-export const MISSION_EXCEL_SCHEMA_VERSION = 41;
+export const MISSION_EXCEL_SCHEMA_VERSION = 42;
 
 // Canonical workbook contract. Only Missions tables are included: never Intranet / recurring visit tables.
 export const MISSION_EXCEL_SHEETS = Object.freeze([
@@ -51,6 +51,21 @@ export const MISSION_EXCEL_SHEETS = Object.freeze([
   ['46_Imports', 'mission_import_batches'],
   ['47_Problemes_Import', 'mission_import_issues'],
   ['48_Lignes_Import_Brut', 'mission_import_rows'],
+  ['49_Installations', 'mission_installations'],
+  ['50_Systemes', 'mission_systems'],
+  ['51_Reseaux', 'mission_networks'],
+  ['52_Composants', 'mission_components'],
+  ['53_Calques_Plans', 'mission_plan_layers'],
+  ['54_Calibrations_Plans', 'mission_plan_calibrations'],
+  ['55_Annotations_Plans', 'mission_plan_annotations'],
+  ['56_Couches_SIG', 'mission_map_layers'],
+  ['57_Mappings_Excel', 'mission_import_mappings'],
+  ['58_Formules', 'mission_formula_library'],
+  ['59_Instruments', 'mission_measurement_instruments'],
+  ['60_Types_Mesures', 'mission_custom_measure_types'],
+  ['61_OCR_Plaques', 'mission_ocr_jobs'],
+  ['62_Notes_Vocales', 'mission_voice_notes'],
+  ['63_Checklist_Visite', 'mission_visit_checks'],
 ]);
 
 export const MISSION_TABLE_BY_SHEET = Object.freeze(
@@ -108,6 +123,21 @@ export const MISSION_TABLE_IMPORT_ORDER = Object.freeze([
   'mission_import_batches',
   'mission_import_issues',
   'mission_import_rows',
+  'mission_installations',
+  'mission_systems',
+  'mission_networks',
+  'mission_components',
+  'mission_plan_layers',
+  'mission_plan_calibrations',
+  'mission_plan_annotations',
+  'mission_map_layers',
+  'mission_import_mappings',
+  'mission_formula_library',
+  'mission_measurement_instruments',
+  'mission_custom_measure_types',
+  'mission_ocr_jobs',
+  'mission_voice_notes',
+  'mission_visit_checks',
 ]);
 
 export function sheetForTable(tableName) {
