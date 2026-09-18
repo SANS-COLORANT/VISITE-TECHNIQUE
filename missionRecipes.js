@@ -789,6 +789,7 @@ const BASE_CAPABILITIES = Object.freeze({
   synoptic: true,
   signature: false,
   package: true,
+  reserveClearance: false,
 });
 
 const FAMILY_CAPABILITIES = Object.freeze({
@@ -817,7 +818,7 @@ const TYPE_CAPABILITIES = Object.freeze({
   det_chantier: { tests: true },
   commissioning: { tests: true },
   opr_reception: { tests: true, signature: true },
-  levee_reserves: { tests: true, signature: true },
+  levee_reserves: { tests: true, signature: true, reserveClearance: true },
   passation_travaux_exploitant: { tests: true, signature: true },
   controle_exploitation: { tests: true },
   assistance_p2_p3: { scenarios: true, tests: true },
