@@ -320,23 +320,79 @@ export async function exporterPlanPdfAnnote({ missionId, documentId, share = tru
   return { id: derivedId, uri, name };
 }
 
-export async function tournerPagePdfMission({ missionId, documentId, pageNumber = 1, angle = 90 } = {}) {
-  const db = await getDb();
+async function chargerPdfSourceMission(db, missionId, documentId) {
   const source = await db.getFirstAsync('SELECT * FROM mission_documents WHERE id=? AND mission_id=?', [documentId, missionId]);
   if (!source?.file_uri) throw new Error('PDF source introuvable.');
   const base64 = await FileSystem.readAsStringAsync(source.file_uri, { encoding: FileSystem.EncodingType.Base64 });
   const pdf = await PDFDocument.load(base64);
+  return { source, pdf };
+}
+
+async function enregistrerPdfDeriveMission(db, missionId, source, pdf, prefix) {
+  const uri = (FileSystem.cacheDirectory || FileSystem.documentDirectory) + safeName(prefix || 'Plan') + '_' + Date.now() + '.pdf';
+  await FileSystem.writeAsStringAsync(uri, await pdf.saveAsBase64(), { encoding: FileSystem.EncodingType.Base64 });
+  const id = createId('mdoc');
+  const name = (prefix || 'Plan') + '__' + (source.name || 'plan.pdf');
+  await db.runAsync(
+    'INSERT INTO mission_documents(id,mission_id,site_id,location_id,equipment_id,type,name,source,file_uri,visibility,offline_state,document_date) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)',
+    [id, missionId, source.site_id || null, source.location_id || null, source.equipment_id || null, 'plan_derived_pdf', name, 'generated_from:' + source.id, uri, 'internal', 'available_offline', new Date().toISOString().slice(0, 10)]
+  );
+  return { id, uri, name };
+}
+
+async function reconstruirePdfParOrdre(sourcePdf, indices) {
+  const target = await PDFDocument.create();
+  const copied = await target.copyPages(sourcePdf, indices);
+  copied.forEach((page) => target.addPage(page));
+  return target;
+}
+
+export async function dupliquerPagePdfMission({ missionId, documentId, pageNumber = 1 } = {}) {
+  const db = await getDb();
+  const { source, pdf } = await chargerPdfSourceMission(db, missionId, documentId);
+  const count = pdf.getPageCount();
+  const index = Math.max(0, Math.min(count - 1, Number(pageNumber || 1) - 1));
+  const order = [];
+  for (let i = 0; i < count; i += 1) {
+    order.push(i);
+    if (i === index) order.push(i);
+  }
+  const output = await reconstruirePdfParOrdre(pdf, order);
+  return enregistrerPdfDeriveMission(db, missionId, source, output, 'Duplication_page');
+}
+
+export async function supprimerPagePdfMission({ missionId, documentId, pageNumber = 1 } = {}) {
+  const db = await getDb();
+  const { source, pdf } = await chargerPdfSourceMission(db, missionId, documentId);
+  const count = pdf.getPageCount();
+  if (count <= 1) throw new Error('Impossible de supprimer l’unique page du PDF.');
+  const index = Math.max(0, Math.min(count - 1, Number(pageNumber || 1) - 1));
+  const order = Array.from({ length: count }, (_, i) => i).filter((i) => i !== index);
+  const output = await reconstruirePdfParOrdre(pdf, order);
+  return enregistrerPdfDeriveMission(db, missionId, source, output, 'Suppression_page');
+}
+
+export async function deplacerPagePdfMission({ missionId, documentId, pageNumber = 1, delta = 1 } = {}) {
+  const db = await getDb();
+  const { source, pdf } = await chargerPdfSourceMission(db, missionId, documentId);
+  const count = pdf.getPageCount();
+  const index = Math.max(0, Math.min(count - 1, Number(pageNumber || 1) - 1));
+  const targetIndex = Math.max(0, Math.min(count - 1, index + (Number(delta) < 0 ? -1 : 1)));
+  if (index === targetIndex) return { id: source.id, uri: source.file_uri, name: source.name, unchanged: true };
+  const order = Array.from({ length: count }, (_, i) => i);
+  const [moved] = order.splice(index, 1);
+  order.splice(targetIndex, 0, moved);
+  const output = await reconstruirePdfParOrdre(pdf, order);
+  return enregistrerPdfDeriveMission(db, missionId, source, output, delta < 0 ? 'Page_avancee' : 'Page_reculée');
+}
+
+export async function tournerPagePdfMission({ missionId, documentId, pageNumber = 1, angle = 90 } = {}) {
+  const db = await getDb();
+  const { source, pdf } = await chargerPdfSourceMission(db, missionId, documentId);
   const pages = pdf.getPages();
   const page = pages[Math.max(0, Math.min(pages.length - 1, Number(pageNumber) - 1))];
   page.setRotation(degrees((Number(page.getRotation()?.angle || 0) + Number(angle || 90)) % 360));
-  const uri = (FileSystem.cacheDirectory || FileSystem.documentDirectory) + 'Plan_rotation_' + Date.now() + '.pdf';
-  await FileSystem.writeAsStringAsync(uri, await pdf.saveAsBase64(), { encoding: FileSystem.EncodingType.Base64 });
-  const id = createId('mdoc');
-  await db.runAsync(
-    'INSERT INTO mission_documents(id,mission_id,site_id,type,name,source,file_uri,visibility,offline_state,document_date) VALUES(?,?,?,?,?,?,?,?,?,?)',
-    [id, missionId, source.site_id, 'plan_derived_pdf', 'Rotation_' + (source.name || 'plan.pdf'), 'generated_from:' + source.id, uri, 'internal', 'available_offline', new Date().toISOString().slice(0, 10)]
-  );
-  return { id, uri };
+  return enregistrerPdfDeriveMission(db, missionId, source, pdf, 'Rotation');
 }
 
 export async function exporterGeoJsonMission(missionId, { share = true } = {}) {
