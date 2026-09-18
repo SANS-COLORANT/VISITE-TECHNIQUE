@@ -4,7 +4,7 @@ import { reconnaitreTexteImageLocale } from './missionNativeTools.js';
 
 const EQUIPMENT_STATES = Object.freeze(['non_evalue', 'bon', 'correct', 'degrade', 'mauvais', 'hs']);
 const VERIFICATION_STATES = Object.freeze(['non_verifie', 'confirme', 'different', 'non_retrouve', 'depose', 'remplace', 'inaccessible', 'a_verifier']);
-const LIFECYCLE_STATES = Object.freeze(['existant_conserve', 'a_deposer', 'a_transferer', 'reemploi_prevu', 'depose', 'stocke', 'transfere', 'reinstalle', 'neuf', 'mis_en_service']);
+const LIFECYCLE_STATES = Object.freeze(['existant_conserve', 'a_deposer', 'a_transferer', 'reemploi_prevu', 'depose', 'stocke', 'transfere', 'reinstalle', 'neuf', 'projete', 'commande', 'installe', 'controle', 'avec_reserve', 'receptionne', 'mis_en_service']);
 
 function clean(value) {
   const out = String(value ?? '').trim();
