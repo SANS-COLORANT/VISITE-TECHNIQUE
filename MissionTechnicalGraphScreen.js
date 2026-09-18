@@ -1,10 +1,11 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import Svg, { G, Line, Rect, Text as SvgText } from 'react-native-svg';
+import Svg, { Circle, G, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { getDb } from './db.js';
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { relierEquipementsMission } from './missionDomainDb.js';
+import { resolveEquipmentCategory } from './missionEquipmentCatalog.js';
 
 const NODE_W = 150;
 const NODE_H = 60;
@@ -17,6 +18,45 @@ function nodeLabel(row) {
 
 function subLabel(row) {
   return [row.brand, row.model].filter(Boolean).join(' · ');
+}
+
+function categoryBadge(row) {
+  const key = resolveEquipmentCategory(row.type, (() => {
+    try { return JSON.parse(row.properties_json || '{}')?.categoryKey || null; } catch { return null; }
+  })())?.key;
+  const badges = {
+    boiler: 'CH',
+    burner: 'BR',
+    pump: 'P',
+    heat_exchanger: 'EX',
+    valve: 'V',
+    expansion: 'EP',
+    ecs_tank: 'ECS',
+    vmc_box: 'VMC',
+    cta: 'CTA',
+    fan: 'F',
+    filter: 'FL',
+    heat_pump: 'PAC',
+    chiller: 'GF',
+    outdoor_unit: 'UE',
+    indoor_unit: 'UI',
+    fan_coil: 'VC',
+    rooftop: 'RT',
+    plc: 'GTB',
+    sensor: 'S',
+    actuator: 'A',
+    gateway: 'GW',
+    meter: 'C',
+    water_treatment: 'TE',
+  };
+  return badges[key] || 'EQ';
+}
+
+function relationPresentation(rel) {
+  const type = String(rel?.relation_type || '').toLowerCase();
+  if (type.includes('control') || type.includes('commande')) return { dash: '6,4', width: 1.8 };
+  if (type.includes('return') || type.includes('retour')) return { dash: '3,3', width: 2.2 };
+  return { dash: null, width: 2.4 };
 }
 
 function buildLayout(equipment, relations) {
@@ -84,7 +124,7 @@ function buildLayout(equipment, relations) {
   };
 }
 
-export function MissionTechnicalGraphScreen({ route }) {
+export function MissionTechnicalGraphScreen({ navigation, route }) {
   const missionId = route?.params?.missionId;
   const [loading, setLoading] = useState(true);
   const [equipment, setEquipment] = useState([]);
@@ -96,6 +136,8 @@ export function MissionTechnicalGraphScreen({ route }) {
   const [relationModal, setRelationModal] = useState(false);
   const [relationType, setRelationType] = useState('feeds');
   const [relationLabel, setRelationLabel] = useState('Alimente');
+  const [siteFilter, setSiteFilter] = useState('all');
+  const [query, setQuery] = useState('');
 
   const load = useCallback(async () => {
     if (!missionId) return;
@@ -159,7 +201,30 @@ export function MissionTechnicalGraphScreen({ route }) {
     }
   };
 
-  const layout = useMemo(() => buildLayout(equipment, relations), [equipment, relations]);
+  const sites = useMemo(() => {
+    const map = new Map();
+    equipment.forEach((row) => {
+      if (row.site_id && !map.has(row.site_id)) map.set(row.site_id, row.site_name || 'Site');
+    });
+    return [...map.entries()].map(([id, label]) => ({ id, label }));
+  }, [equipment]);
+
+  const visibleEquipment = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return equipment.filter((row) => {
+      if (siteFilter !== 'all' && row.site_id !== siteFilter) return false;
+      if (!q) return true;
+      return [row.type,row.brand,row.model,row.location_label,row.site_name]
+        .some((value) => String(value || '').toLowerCase().includes(q));
+    });
+  }, [equipment, siteFilter, query]);
+
+  const visibleIds = useMemo(() => new Set(visibleEquipment.map((row) => row.id)), [visibleEquipment]);
+  const visibleRelations = useMemo(
+    () => relations.filter((rel) => visibleIds.has(rel.source_equipment_id) && visibleIds.has(rel.target_equipment_id)),
+    [relations, visibleIds]
+  );
+  const layout = useMemo(() => buildLayout(visibleEquipment, visibleRelations), [visibleEquipment, visibleRelations]);
 
   if (loading) {
     return <View style={styles.center}><ActivityIndicator color={MISSION_COLORS.accent} /><Text style={{ marginTop: 8, color: COLORS.muted }}>Construction du synoptique…</Text></View>;
@@ -171,6 +236,28 @@ export function MissionTechnicalGraphScreen({ route }) {
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
         Les traits représentent de vraies relations structurées entre équipements. Touchez un équipement pour afficher son contexte.
       </Text>
+      <TextInput
+        style={[styles.input, missionStyles.input, { marginTop: 9 }]}
+        value={query}
+        onChangeText={setQuery}
+        placeholder="Rechercher chaudière, pompe, CTA, UE, UI, local…"
+      />
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 44, marginTop: 7 }}>
+        <TouchableOpacity
+          onPress={() => setSiteFilter('all')}
+          style={{ borderWidth: 1, borderColor: siteFilter === 'all' ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: siteFilter === 'all' ? MISSION_COLORS.accentLight : '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6 }}
+        >
+          <Text style={{ color: siteFilter === 'all' ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>Tous les sites</Text>
+        </TouchableOpacity>
+        {sites.map((site) => <TouchableOpacity
+          key={site.id}
+          onPress={() => setSiteFilter(site.id)}
+          style={{ borderWidth: 1, borderColor: siteFilter === site.id ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: siteFilter === site.id ? MISSION_COLORS.accentLight : '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6 }}
+        >
+          <Text style={{ color: siteFilter === site.id ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{site.label}</Text>
+        </TouchableOpacity>)}
+      </ScrollView>
+      <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 5 }}>{visibleEquipment.length} équipement(s) · {visibleRelations.length} liaison(s) affichée(s)</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 9 }}>
         <TouchableOpacity
           onPress={() => { setLinkMode((v) => !v); setLinkSource(null); setLinkTarget(null); setSelected(null); }}
@@ -182,7 +269,7 @@ export function MissionTechnicalGraphScreen({ route }) {
       </View>
     </View>
 
-    {!equipment.length ? <View style={{ padding: 16 }}>
+    {!visibleEquipment.length ? <View style={{ padding: 16 }}>
       <View style={[styles.card, missionStyles.card]}>
         <Text style={{ color: COLORS.inkSoft, fontSize: 11, lineHeight: 16 }}>
           Aucun équipement Mission n’est encore disponible. Importez un inventaire Excel ou créez les équipements nécessaires à la Mission.
@@ -190,21 +277,45 @@ export function MissionTechnicalGraphScreen({ route }) {
       </View>
     </View> : null}
 
-    {equipment.length ? <ScrollView horizontal style={{ flex: 1 }} contentContainerStyle={{ minWidth: layout.width }}>
+    {visibleEquipment.length ? <ScrollView horizontal style={{ flex: 1 }} contentContainerStyle={{ minWidth: layout.width }}>
       <ScrollView contentContainerStyle={{ width: layout.width, minHeight: layout.height }}>
         <Svg width={layout.width} height={layout.height}>
-          {relations.map((rel) => {
+          {visibleRelations.map((rel) => {
             const a = layout.nodes.get(rel.source_equipment_id);
             const b = layout.nodes.get(rel.target_equipment_id);
             if (!a || !b) return null;
+            const presentation = relationPresentation(rel);
+            const x1 = a.x + NODE_W;
+            const y1 = a.y + NODE_H / 2;
+            const x2 = b.x;
+            const y2 = b.y + NODE_H / 2;
+            const angle = Math.atan2(y2 - y1, x2 - x1);
+            const arrow = 9;
             return <G key={rel.id}>
               <Line
-                x1={a.x + NODE_W}
-                y1={a.y + NODE_H / 2}
-                x2={b.x}
-                y2={b.y + NODE_H / 2}
+                x1={x1}
+                y1={y1}
+                x2={x2}
+                y2={y2}
                 stroke={MISSION_COLORS.accentLineStrong}
-                strokeWidth="2"
+                strokeWidth={presentation.width}
+                strokeDasharray={presentation.dash || undefined}
+              />
+              <Line
+                x1={x2}
+                y1={y2}
+                x2={x2 - arrow * Math.cos(angle - Math.PI / 6)}
+                y2={y2 - arrow * Math.sin(angle - Math.PI / 6)}
+                stroke={MISSION_COLORS.accentLineStrong}
+                strokeWidth={presentation.width}
+              />
+              <Line
+                x1={x2}
+                y1={y2}
+                x2={x2 - arrow * Math.cos(angle + Math.PI / 6)}
+                y2={y2 - arrow * Math.sin(angle + Math.PI / 6)}
+                stroke={MISSION_COLORS.accentLineStrong}
+                strokeWidth={presentation.width}
               />
               <SvgText
                 x={(a.x + NODE_W + b.x) / 2}
@@ -231,8 +342,12 @@ export function MissionTechnicalGraphScreen({ route }) {
                 stroke={active ? MISSION_COLORS.accent : MISSION_COLORS.accentLineStrong}
                 strokeWidth={active ? '2.5' : '1.5'}
               />
-              <SvgText x={node.x + 10} y={node.y + 22} fontSize="10" fontWeight="700" fill={MISSION_COLORS.accentStrong}>
-                {nodeLabel(node).slice(0, 24)}
+              <Circle cx={node.x + 19} cy={node.y + 19} r="11" fill={MISSION_COLORS.accentSoft} stroke={MISSION_COLORS.accentLineStrong} strokeWidth="1" />
+              <SvgText x={node.x + 19} y={node.y + 22} textAnchor="middle" fontSize="7" fontWeight="900" fill={MISSION_COLORS.accentStrong}>
+                {categoryBadge(node)}
+              </SvgText>
+              <SvgText x={node.x + 36} y={node.y + 22} fontSize="10" fontWeight="700" fill={MISSION_COLORS.accentStrong}>
+                {nodeLabel(node).slice(0, 19)}
               </SvgText>
               <SvgText x={node.x + 10} y={node.y + 39} fontSize="8.5" fill={COLORS.inkSoft}>
                 {subLabel(node).slice(0, 28)}
@@ -252,6 +367,12 @@ export function MissionTechnicalGraphScreen({ route }) {
           <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 13 }}>{nodeLabel(selected)}</Text>
           <Text style={{ color: COLORS.inkSoft, fontSize: 10, marginTop: 3 }}>{subLabel(selected) || 'Caractéristiques à compléter'}</Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 9.5, marginTop: 3 }}>{selected.site_name || ''}{selected.location_label ? ' · ' + selected.location_label : ''}</Text>
+          <TouchableOpacity
+            style={[styles.btnSecondary, missionStyles.secondaryButton, { alignSelf: 'flex-start', marginTop: 8 }]}
+            onPress={() => navigation.navigate('MissionEquipment', { missionId, equipmentId: selected.id, siteId: selected.site_id })}
+          >
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Ouvrir la fiche équipement</Text>
+          </TouchableOpacity>
         </View>
         <TouchableOpacity onPress={() => setSelected(null)} style={{ padding: 5 }}><Text style={{ color: COLORS.inkFaint }}>✕</Text></TouchableOpacity>
       </View>
