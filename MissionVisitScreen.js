@@ -8,6 +8,7 @@ import { capturerPhotoMission, choisirEtAjouterDocumentMission } from './mission
 import { demarrerDicteeLocale } from './missionNativeTools.js';
 import { enregistrerNoteVocaleMission, genererChecklistFinVisite, ignorerCheckVisite } from './missionVisitQualityDb.js';
 import { getMissionVisitRecipe, MISSION_CAPTURE_MODES } from './missionRecipes.js';
+import { getMissionFieldPlaybook } from './missionFieldPlaybooks.js';
 import { ajouterNoteVisiteMission, chargerVisiteMission, compterSaisieVisiteMission, enregistrerValeurTrameMission, mettreAJourVisiteMission } from './missionVisitDb.js';
 import { listerStructureMission } from './missionStructureDb.js';
 
@@ -113,6 +114,7 @@ export function MissionVisitScreen({ navigation, route }) {
   useEffect(() => { reload(); }, [reload]);
 
   const recipe = useMemo(() => getMissionVisitRecipe(data?.visit?.family, data?.visit?.mission_type, captureMode), [data?.visit?.family, data?.visit?.mission_type, captureMode]);
+  const playbook = useMemo(() => getMissionFieldPlaybook(data?.visit?.mission_type), [data?.visit?.mission_type]);
   const actualMissionId = data?.visit?.mission_id || routeMissionId;
 
   useEffect(() => {
@@ -259,6 +261,57 @@ export function MissionVisitScreen({ navigation, route }) {
       Alert.alert('Document non enregistré', String(e?.message || e));
     } finally {
       setMediaBusy(false);
+    }
+  };
+
+  const openMeasurePreset = (preset = null) => {
+    setMeasureType(preset?.type || '');
+    setMeasureUnit(preset?.unit || '');
+    setMeasureReference(preset?.referenceValue === null || preset?.referenceValue === undefined ? '' : String(preset.referenceValue));
+    setMeasureValue('');
+    setMeasureModal(true);
+  };
+
+  const openPointPreset = (preset = null) => {
+    setPointType(preset?.pointType || 'information');
+    setPointLabel(preset?.label || '');
+    setPointDescription(preset?.description || '');
+    setPointResponsible('');
+    setPointDue(preset?.due || '');
+    setPointPriority(preset?.priority || '');
+    setPointCost(preset?.cost || '');
+    setPointAllocation(preset?.allocation || '');
+    setPointRequestedAction(preset?.requestedAction || '');
+    setPointModal(true);
+  };
+
+  const runPlaybookAction = async (item) => {
+    if (!item) return;
+    if (item.kind === 'photo') {
+      await addPhoto();
+      return;
+    }
+    if (item.kind === 'document') {
+      await addDocument();
+      return;
+    }
+    if (item.kind === 'measure') {
+      openMeasurePreset(item.preset || playbook?.measures?.[0] || null);
+      return;
+    }
+    if (item.kind === 'point') {
+      openPointPreset(item.preset || playbook?.pointPresets?.[0] || null);
+      return;
+    }
+    if (item.kind === 'navigate' && item.route) {
+      const params = {
+        missionId: actualMissionId,
+        siteId: data?.visit?.site_id || null,
+        visitId,
+        locationId: contextLocationId || null,
+        equipmentId: contextEquipmentId || null,
+      };
+      navigation.navigate(item.route, params);
     }
   };
 
@@ -479,10 +532,61 @@ export function MissionVisitScreen({ navigation, route }) {
         ].map(([value, label]) => <View key={label} style={[{ minWidth: 84, flexGrow: 1, borderRadius: 12, padding: 10 }, missionStyles.statBox]}><Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 15 }}>{value}</Text><Text style={{ color: COLORS.inkSoft, fontSize: 9 }}>{label}</Text></View>)}
       </View>
 
-      <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Saisie rapide</Text>
+      <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Mode terrain · {playbook.label}</Text>
+      <View style={[missionStyles.card, { padding: 12, marginBottom: 12 }]}>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 9.7, lineHeight: 14 }}>{playbook.objective}</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 38, marginTop: 9 }}>
+          {(playbook.steps || []).map((step, index) => <View key={step} style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ minHeight: 28, borderRadius: 9, backgroundColor: MISSION_COLORS.accentSoft, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 8.6, fontWeight: '900' }}>{index + 1} · {step}</Text>
+            </View>
+            {index < playbook.steps.length - 1 ? <Text style={{ color: MISSION_COLORS.accentLineStrong, marginHorizontal: 4 }}>›</Text> : null}
+          </View>)}
+        </ScrollView>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 }}>
+          {(playbook.quickActions || []).slice(0, 8).map((item) => <TouchableOpacity
+            key={item.key}
+            activeOpacity={0.82}
+            disabled={mediaBusy && ['photo','document'].includes(item.kind)}
+            style={[styles.btnSecondary, missionStyles.secondaryButton, { minHeight: 38, justifyContent: 'center' }]}
+            onPress={() => runPlaybookAction(item)}
+          >
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{item.label}</Text>
+          </TouchableOpacity>)}
+        </View>
+
+        {(playbook.measures || []).length ? <>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginTop: 10, marginBottom: 5 }}>MESURES COURANTES</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 42 }}>
+            {playbook.measures.slice(0, 8).map((preset) => <TouchableOpacity
+              key={preset.type + '|' + preset.unit}
+              onPress={() => openMeasurePreset(preset)}
+              style={{ borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6 }}
+            >
+              <Text style={{ color: COLORS.ink, fontSize: 8.8, fontWeight: '800' }}>{preset.label}</Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 1 }}>{preset.unit || 'Valeur'}</Text>
+            </TouchableOpacity>)}
+          </ScrollView>
+        </> : null}
+
+        {(playbook.pointPresets || []).length ? <>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginTop: 10, marginBottom: 5 }}>POINTS EN 1 GESTE</Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 42 }}>
+            {playbook.pointPresets.slice(0, 7).map((preset) => <TouchableOpacity
+              key={preset.label}
+              onPress={() => openPointPreset(preset)}
+              style={{ borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6 }}
+            >
+              <Text style={{ color: COLORS.ink, fontSize: 8.8, fontWeight: '800' }} numberOfLines={1}>{preset.label}</Text>
+            </TouchableOpacity>)}
+          </ScrollView>
+        </> : null}
+      </View>
+
+      <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Saisie libre</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 }}>
-        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]} onPress={() => setPointModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Point</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]} onPress={() => setMeasureModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Mesure</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]} onPress={() => openPointPreset(null)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Point</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]} onPress={() => openMeasurePreset(null)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Mesure</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]} disabled={mediaBusy} onPress={addPhoto}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>📷 Photo</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]} disabled={mediaBusy} onPress={addDocument}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Document</Text></TouchableOpacity>
       </View>
@@ -634,7 +738,7 @@ export function MissionVisitScreen({ navigation, route }) {
 
     <Modal visible={pointModal} transparent animationType="fade" onRequestClose={() => setPointModal(false)}>
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
-        <Text style={[styles.modalTitle, missionStyles.title]}>Ajouter un point non prévu</Text>
+        <Text style={[styles.modalTitle, missionStyles.title]}>{pointLabel ? 'Point · ' + pointLabel : 'Ajouter un point'}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 6 }}>
           {POINT_TYPES.map(([key, label]) => <TouchableOpacity key={key} onPress={() => setPointType(key)} style={{ borderWidth: 1, borderColor: pointType === key ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: pointType === key ? MISSION_COLORS.accentLight : COLORS.white, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6, marginBottom: 6 }}><Text style={{ color: pointType === key ? MISSION_COLORS.accentDark : COLORS.ink, fontSize: 9.5, fontWeight: '800' }}>{label}</Text></TouchableOpacity>)}
         </View>
