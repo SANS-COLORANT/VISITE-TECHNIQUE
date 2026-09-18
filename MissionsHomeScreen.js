@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, FlatList, PanResponder, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, PanResponder, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { listerMissions } from './missionsDb.js';
+import { choisirEtImporterMissionExcel } from './missionExcelImport.js';
+import { choisirEtImporterPackageMission } from './missionPackageImport.js';
 
 const STATUS_LABELS = Object.freeze({
   draft: 'Brouillon',
@@ -100,6 +102,8 @@ export function MissionsHomeScreen({ navigation }) {
   const [loading, setLoading] = useState(true);
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState('all');
+  const [importing, setImporting] = useState(false);
+  const [restoringPackage, setRestoringPackage] = useState(false);
 
   const reload = useCallback(async () => {
     setLoading(true);
@@ -108,6 +112,57 @@ export function MissionsHomeScreen({ navigation }) {
   }, []);
 
   useEffect(() => { reload(); }, [reload]);
+
+  const importExcel = async () => {
+    if (importing) return;
+    setImporting(true);
+    try {
+      const result = await choisirEtImporterMissionExcel();
+      if (!result) return;
+      await reload();
+      if (result.canonical) {
+        Alert.alert('Mission importée', 'Le classeur METRA a été réintégré avec ses données structurées et ses liaisons.');
+        navigation.navigate('Mission', { missionId: result.missionId });
+      } else {
+        Alert.alert(
+          'Classeur importé',
+          `${result.rows || 0} ligne(s) provenant de ${result.sheets || 0} feuille(s) ont été conservées intégralement. Le mapping métier pourra être complété sans perdre la source Excel.`
+        );
+        navigation.navigate('Mission', { missionId: result.missionId });
+      }
+    } catch (e) {
+      Alert.alert('Import Excel impossible', String(e?.message || e));
+    } finally {
+      setImporting(false);
+    }
+  };
+
+  const restorePackage = async () => {
+    if (restoringPackage) return;
+    setRestoringPackage(true);
+    try {
+      const result = await choisirEtImporterPackageMission();
+      if (!result) return;
+      await reload();
+      const restoredFiles = [
+        result.photos?.restored || 0,
+        result.documents?.restored || 0,
+        result.plans?.restored || 0,
+        result.mapLayers?.restored || 0,
+      ].reduce((sum, value) => sum + Number(value || 0), 0);
+      Alert.alert(
+        'Dossier Mission restauré',
+        (result.mission?.label || 'Mission') + '\n\n'
+          + restoredFiles + ' fichier(s)/couche(s) restauré(s) hors ligne. '
+          + 'Les données structurées ont été réintégrées depuis l’Excel relationnel.'
+      );
+      navigation.navigate('Mission', { missionId: result.missionId });
+    } catch (e) {
+      Alert.alert('Restauration ZIP impossible', String(e?.message || e));
+    } finally {
+      setRestoringPackage(false);
+    }
+  };
 
   const stats = useMemo(() => ({
     active: missions.filter((m) => m.status === 'active').length,
@@ -150,13 +205,31 @@ export function MissionsHomeScreen({ navigation }) {
         <Text style={{ color: '#D7EEE0', fontSize: 10.5, lineHeight: 15, marginTop: 5, maxWidth: '82%' }}>
           Préparation, terrain, points à suivre et données exploitables sur PC — sans lien avec l’Intranet.
         </Text>
-        <TouchableOpacity
-          onPress={() => navigation.navigate('MissionCreate')}
-          activeOpacity={0.82}
-          style={{ alignSelf: 'flex-start', marginTop: 14, minHeight: 42, borderRadius: 13, backgroundColor: '#FFFFFF', paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center' }}
-        >
-          <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 11.5 }}>＋ Nouvelle Mission</Text>
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 14 }}>
+          <TouchableOpacity
+            onPress={() => navigation.navigate('MissionCreate')}
+            activeOpacity={0.82}
+            style={{ minHeight: 42, borderRadius: 13, backgroundColor: '#FFFFFF', paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', marginRight: 8, marginBottom: 8 }}
+          >
+            <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 11.5 }}>＋ Nouvelle Mission</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={importExcel}
+            disabled={importing}
+            activeOpacity={0.82}
+            style={{ minHeight: 42, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', marginRight: 8, marginBottom: 8 }}
+          >
+            <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 11.5 }}>{importing ? 'Import…' : '⇧ Importer Excel'}</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={restorePackage}
+            disabled={restoringPackage}
+            activeOpacity={0.82}
+            style={{ minHeight: 42, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.12)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', paddingHorizontal: 14, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}
+          >
+            <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 11.5 }}>{restoringPackage ? 'Restauration…' : '↥ Restaurer ZIP'}</Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={{ flexDirection: 'row', gap: 8, marginBottom: 16 }}>

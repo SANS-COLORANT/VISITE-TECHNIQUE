@@ -24,15 +24,18 @@ const visitCreation = read('visitCreationDb.js');
 const clientSites = read('ClientSitesScreen.js');
 
 // La migration Intranet reste figée en v39. Le schéma global peut avancer
-// (Missions utilise désormais v40) sans réutiliser ni modifier 35 -> 39.
-requireText(constants, 'DATABASE_SCHEMA_VERSION = 40', 'current global schema version 40');
+// (Missions utilise désormais v40-v43) sans réutiliser ni modifier 35 -> 39.
+requireText(constants, 'DATABASE_SCHEMA_VERSION = 43', 'current global schema version 43');
 requireText(migrations, "import { migration035 } from './035_client_site_images.js';", 'migration 035 historical registration');
 requireText(migrations, "import { migration036 } from './036_intranet_visit_photo_outbox.js';", 'migration 036 historical registration');
 requireText(migrations, "import { migration037 } from './037_intranet_server_schema_alignment.js';", 'migration 037 historical registration');
 requireText(migrations, "import { migration038 } from './038_intranet_structure_creation.js';", 'migration 038 historical registration');
 requireText(migrations, "import { migration039 } from './039_intranet_structure_outbox_alignment.js';", 'migration 039 repair registration');
 requireText(migrations, "import { migration040 } from './040_missions_core.js';", 'migration 040 registration after Intranet lineage');
-requireRegex(migrations, /migration037\s*,\s*migration038\s*,\s*migration039\s*,\s*migration040/, 'migration ordering 37 -> 38 -> 39 -> 40');
+requireText(migrations, "import { migration041 } from './041_missions_architecture.js';", 'migration 041 additive Missions architecture');
+requireText(migrations, "import { migration042 } from './042_missions_complete_tooling.js';", 'migration 042 additive Missions tooling');
+requireText(migrations, "import { migration043 } from './043_missions_measurement_campaigns.js';", 'migration 043 additive Missions campaigns');
+requireRegex(migrations, /migration037\s*,\s*migration038\s*,\s*migration039\s*,\s*migration040[\s\S]*migration041[\s\S]*migration042[\s\S]*migration043/, 'migration ordering 37 -> 38 -> 39 -> 40 -> 41 -> 42 -> 43');
 requireText(migration35, "name: 'client_site_images'", 'v35 must never be reused');
 requireText(migration36, "name: 'intranet_visit_photo_outbox'", 'v36 must never be reused');
 requireText(migration37, "name: 'intranet_server_schema_alignment'", 'v37 must never be reused');
@@ -86,4 +89,4 @@ requireText(visitCreation, 'apiRemoteTrameId = null', 'visit keeps remote trame 
 requireText(visitCreation, 'installation_id, api_remote_client_id, api_remote_local_id, api_remote_trame_id', 'visit freezes structure identity');
 requireText(runtime, 'processStructureOutbox({ limit: 4 })', 'automatic structure retry runtime');
 
-console.log('Intranet site/local creation contract validated: immutable SQLite lineage 35->36->37->38->39 is preserved, while the global application schema advances additively to v40 for Missions.');
+console.log('Intranet site/local creation contract validated: immutable SQLite lineage 35->36->37->38->39 is preserved, while the global application schema advances additively to v43 for Missions.');

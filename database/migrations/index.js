@@ -38,6 +38,9 @@ import { migration037 } from './037_intranet_server_schema_alignment.js';
 import { migration038 } from './038_intranet_structure_creation.js';
 import { migration039 } from './039_intranet_structure_outbox_alignment.js';
 import { migration040 } from './040_missions_core.js';
+import { migration041 } from './041_missions_architecture.js';
+import { migration042 } from './042_missions_complete_tooling.js';
+import { migration043 } from './043_missions_measurement_campaigns.js';
 
 export const MIGRATIONS = Object.freeze([
   migration001, migration002, migration003, migration004, migration005,
@@ -48,4 +51,5 @@ export const MIGRATIONS = Object.freeze([
   migration026, migration027, migration028, migration029, migration030,
   migration031, migration032, migration033, migration034, migration035,
   migration036, migration037, migration038, migration039, migration040,
+  migration041, migration042, migration043,
 ]);

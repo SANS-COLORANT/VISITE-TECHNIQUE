@@ -4,14 +4,44 @@ on:
   push:
     branches:
       - feat/metra-missions-lab
+      - feat/metra-missions-architecture-v2
     paths:
       - 'database/constants.js'
       - 'database/migrations/**'
       - 'missionsDb.js'
       - 'missionVisitDb.js'
       - 'missionExcelExport.js'
+      - 'missionClientExcelExport.js'
+      - 'missionExcelImport.js'
+      - 'missionExcelAutoMap.js'
+      - 'missionExcelSchema.js'
+      - 'missionEquipmentDb.js'
+      - 'missionEquipmentCatalog.js'
+      - 'missionStructureDb.js'
+      - 'missionTechnicalStructureDb.js'
+      - 'missionVisitQualityDb.js'
+      - 'missionPlanDb.js'
+      - 'missionMapLayerDb.js'
+      - 'missionCalculationDb.js'
+      - 'missionTestDb.js'
+      - 'missionExcelMappingDb.js'
+      - 'missionPhotoAnnotationDb.js'
+      - 'missionPhotoAlbumExport.js'
+      - 'missionMeasurementDb.js'
+      - 'missionMeasurementCampaignDb.js'
+      - 'missionDocumentExtractionDb.js'
+      - 'missionPackageExport.js'
+      - 'missionPackageImport.js'
+      - 'missionNativeTools.js'
+      - 'missionDomainDb.js'
+      - 'missionMediaDb.js'
+      - 'missionReportDb.js'
+      - 'missionReportExporter.js'
       - 'missionTheme.js'
       - 'Mission*.js'
+      - 'native/metra-mission-tools/**'
+      - 'plugins/withMetraMissionTools.js'
+      - 'app.config.js'
       - 'Missions*.js'
       - 'App.js'
       - 'HomeScreen.js'
@@ -27,6 +57,10 @@ on:
       - 'missionsDb.js'
       - 'missionVisitDb.js'
       - 'missionExcelExport.js'
+      - 'missionExcelImport.js'
+      - 'missionExcelSchema.js'
+      - 'missionDomainDb.js'
+      - 'missionMediaDb.js'
       - 'missionTheme.js'
       - 'Mission*.js'
       - 'Missions*.js'
@@ -66,10 +100,16 @@ jobs:
       - name: Validate Missions source contract
         run: node .github/scripts/check_missions_lab_contract.js
 
-      - name: Execute SQLite v40 compatibility tests
+      - name: Validate compatibility with current METRA Android app
+        run: node .github/scripts/check_missions_app_compat.js
+
+      - name: Execute SQLite v40-v43 compatibility tests
         run: python .github/scripts/test_missions_sqlite_compat.py
 
       - name: Confirm schema lineage
         run: |
-          grep -q "DATABASE_SCHEMA_VERSION = 40" database/constants.js
+          grep -q "DATABASE_SCHEMA_VERSION = 43" database/constants.js
           grep -q "migration039, migration040" database/migrations/index.js
+          grep -q "migration041" database/migrations/index.js
+          grep -q "migration042" database/migrations/index.js
+          grep -q "migration043" database/migrations/index.js

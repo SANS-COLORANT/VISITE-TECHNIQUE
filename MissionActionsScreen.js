@@ -1,0 +1,338 @@
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { getDb } from './db.js';
+import { createId } from './database/ids.js';
+import { COLORS, styles } from './styles.js';
+import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { creerOuTrouverActeurMission, enregistrerHistoriqueActionMission } from './missionDomainDb.js';
+import { capturerPhotoMission } from './missionMediaDb.js';
+import { exporterSyntheseActionsMission } from './missionClientExcelExport.js';
+
+const STATUSES = [['open','Ouverte'],['in_progress','En cours'],['waiting','En attente'],['to_check','À contrôler'],['closed','Clôturée'],['cancelled','Annulée']];
+
+function clean(v) { const s = String(v ?? '').trim(); return s || null; }
+function num(v) {
+  if (v === null || v === undefined || v === '') return null;
+  const n = Number(String(v).replace(',', '.').replace(/\s/g, ''));
+  return Number.isFinite(n) ? n : null;
+}
+
+function Chip({ label, selected, onPress }) {
+  return <TouchableOpacity onPress={onPress} style={{ borderWidth: 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6, marginBottom: 6 }}>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{label}</Text>
+  </TouchableOpacity>;
+}
+
+function Field({ label, value, onChangeText, keyboardType = 'default', multiline = false }) {
+  return <View style={{ marginBottom: 8 }}>
+    <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '800', marginBottom: 4 }}>{label.toUpperCase()}</Text>
+    <TextInput style={[styles.input, missionStyles.input, multiline ? { minHeight: 70, textAlignVertical: 'top' } : null]} value={String(value ?? '')} onChangeText={onChangeText} keyboardType={keyboardType} multiline={multiline} />
+  </View>;
+}
+
+export function MissionActionsScreen({ route }) {
+  const missionId = route?.params?.missionId;
+  const [actions, setActions] = useState([]);
+  const [sites, setSites] = useState([]);
+  const [photos, setPhotos] = useState([]);
+  const [filter, setFilter] = useState('open');
+  const [editVisible, setEditVisible] = useState(false);
+  const [draft, setDraft] = useState({});
+  const [editingId, setEditingId] = useState(null);
+  const [exportingSummary, setExportingSummary] = useState(false);
+  const [actionHistory, setActionHistory] = useState([]);
+
+  const load = useCallback(async () => {
+    const db = await getDb();
+    const [a, s, p] = await Promise.all([
+      db.getAllAsync(
+        `SELECT a.*,s.name AS site_name,ac.company AS responsible_company,ac.name AS responsible_name,p.label AS source_point_label
+         FROM mission_actions a
+         LEFT JOIN mission_sites s ON s.id=a.site_id
+         LEFT JOIN mission_actors ac ON ac.id=a.responsible_actor_id
+         LEFT JOIN mission_points p ON p.id=a.source_point_id
+         WHERE a.mission_id=? ORDER BY CASE a.status WHEN 'open' THEN 0 WHEN 'in_progress' THEN 1 ELSE 2 END,COALESCE(a.due_date,'9999-12-31'),a.created_at DESC`,
+        [missionId]
+      ),
+      db.getAllAsync('SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name', [missionId]),
+      db.getAllAsync("SELECT * FROM mission_photos WHERE mission_id=? AND action_id IS NOT NULL ORDER BY COALESCE(taken_at,created_at) DESC", [missionId]),
+    ]);
+    setActions(a || []);
+    setSites(s || []);
+    setPhotos(p || []);
+  }, [missionId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const visible = useMemo(() => {
+    if (filter === 'all') return actions;
+    if (filter === 'closed') return actions.filter((a) => ['closed','cancelled'].includes(a.status));
+    return actions.filter((a) => !['closed','cancelled'].includes(a.status));
+  }, [actions, filter]);
+
+  const openNew = () => {
+    setEditingId(null);
+    setActionHistory([]);
+    setDraft({
+      siteId: sites?.[0]?.id || '',
+      label: '',
+      description: '',
+      status: 'open',
+      priority: '',
+      responsible: '',
+      dueDate: '',
+      dueText: '',
+      cost: '',
+      allocation: '',
+      progress: '',
+    });
+    setEditVisible(true);
+  };
+
+  const openEdit = async (a) => {
+    setEditingId(a.id);
+    setDraft({
+      siteId: a.site_id || '',
+      label: a.label || '',
+      description: a.description || '',
+      status: a.status || 'open',
+      priority: a.priority || '',
+      responsible: a.responsible_company || a.responsible_name || '',
+      dueDate: a.due_date || '',
+      dueText: a.due_text || '',
+      cost: a.cost_estimate === null || a.cost_estimate === undefined ? '' : String(a.cost_estimate),
+      allocation: a.allocation || '',
+      progress: a.progress === null || a.progress === undefined ? '' : String(a.progress),
+    });
+    setEditVisible(true);
+    try {
+      const db = await getDb();
+      const history = await db.getAllAsync(
+        `SELECT * FROM mission_provenance
+         WHERE mission_id=? AND entity_type='action' AND entity_id=? AND source_kind='action_change'
+         ORDER BY created_at DESC LIMIT 80`,
+        [missionId,a.id]
+      );
+      setActionHistory(history || []);
+    } catch {
+      setActionHistory([]);
+    }
+  };
+
+  const save = async () => {
+    if (!draft.label?.trim()) {
+      Alert.alert('À compléter', 'Indique au minimum l’action à réaliser.');
+      return;
+    }
+    const db = await getDb();
+    const actorId = draft.responsible?.trim()
+      ? await creerOuTrouverActeurMission({ missionId, siteId: draft.siteId || null, company: draft.responsible.trim(), role: 'Responsable action' })
+      : null;
+    if (editingId) {
+      const before = actions.find((row) => row.id === editingId) || await db.getFirstAsync('SELECT * FROM mission_actions WHERE id=? AND mission_id=?', [editingId,missionId]);
+      const after = {
+        label: draft.label.trim(),
+        description: clean(draft.description),
+        status: draft.status || 'open',
+        priority: clean(draft.priority),
+        responsible_actor_id: actorId,
+        due_date: clean(draft.dueDate),
+        due_text: clean(draft.dueText),
+        cost_estimate: num(draft.cost),
+        allocation: clean(draft.allocation),
+        progress: num(draft.progress),
+      };
+      await db.runAsync(
+        `UPDATE mission_actions SET site_id=?,label=?,description=?,status=?,priority=?,responsible_actor_id=?,due_date=?,due_text=?,cost_estimate=?,allocation=?,progress=?,closed_at=?,updated_at=datetime('now') WHERE id=?`,
+        [
+          clean(draft.siteId), after.label, after.description, after.status, after.priority,
+          after.responsible_actor_id, after.due_date, after.due_text, after.cost_estimate, after.allocation, after.progress,
+          ['closed','cancelled'].includes(after.status) ? new Date().toISOString() : null, editingId,
+        ]
+      );
+      await enregistrerHistoriqueActionMission({
+        missionId,
+        actionId: editingId,
+        before: {
+          ...before,
+          responsible_actor_id: before?.responsible_company || before?.responsible_name || before?.responsible_actor_id || null,
+        },
+        after: {
+          ...after,
+          responsible_actor_id: clean(draft.responsible),
+        },
+        source: 'MissionActions',
+      });
+    } else {
+      await db.runAsync(
+        `INSERT INTO mission_actions(id,mission_id,site_id,label,description,status,priority,responsible_actor_id,due_date,due_text,cost_estimate,allocation,progress)
+         VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          createId('mact'), missionId, clean(draft.siteId), draft.label.trim(), clean(draft.description), draft.status || 'open',
+          clean(draft.priority), actorId, clean(draft.dueDate), clean(draft.dueText), num(draft.cost), clean(draft.allocation), num(draft.progress),
+        ]
+      );
+    }
+    setEditVisible(false);
+    await load();
+  };
+
+  const photosForAction = useCallback(
+    (actionId, role = null) => photos.filter((photo) => photo.action_id === actionId && (!role || photo.phase_role === role)),
+    [photos]
+  );
+
+  const captureActionPhoto = async (role) => {
+    if (!editingId) return;
+    try {
+      const label = role === 'before' ? 'Avant intervention' : role === 'after' ? 'Après intervention' : 'Preuve action';
+      const photo = await capturerPhotoMission({
+        missionId,
+        actionId: editingId,
+        phaseRole: role,
+        label,
+        type: 'action_evidence',
+      });
+      if (photo) await load();
+    } catch (e) {
+      Alert.alert('Photo impossible', String(e?.message || e));
+    }
+  };
+
+  const exportSummary = async () => {
+    if (exportingSummary) return;
+    setExportingSummary(true);
+    try {
+      const result = await exporterSyntheseActionsMission(missionId);
+      Alert.alert(
+        'Synthèse actions / réserves créée',
+        result.name + '\n\nLe classeur contient uniquement la synthèse, les actions et les réserves avec responsable, échéance, coût et références photos.'
+      );
+    } catch (e) {
+      Alert.alert('Export impossible', String(e?.message || e));
+    } finally {
+      setExportingSummary(false);
+    }
+  };
+
+  const totalCost = useMemo(() => visible.reduce((sum, a) => sum + (num(a.cost_estimate) || 0), 0), [visible]);
+
+  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
+      <Text style={[styles.sectionTitle, missionStyles.title]}>Actions · responsables · échéances</Text>
+      <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
+        Les actions sont indépendantes du texte du rapport : elles gardent leur responsable, échéance, coût, imputation et historique de statut.
+      </Text>
+
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={openNew}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Action</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} disabled={exportingSummary} onPress={exportSummary}>
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{exportingSummary ? 'Export…' : '⇩ Synthèse Excel'}</Text>
+        </TouchableOpacity>
+        <Chip label="Ouvertes" selected={filter === 'open'} onPress={() => setFilter('open')} />
+        <Chip label="Clôturées" selected={filter === 'closed'} onPress={() => setFilter('closed')} />
+        <Chip label="Toutes" selected={filter === 'all'} onPress={() => setFilter('all')} />
+      </View>
+
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+        <View style={[missionStyles.statBox, { flex: 1, padding: 10, borderRadius: 11 }]}><Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 15 }}>{visible.length}</Text><Text style={{ color: COLORS.inkFaint, fontSize: 8.5 }}>actions affichées</Text></View>
+        <View style={[missionStyles.statBox, { flex: 1, padding: 10, borderRadius: 11 }]}><Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 15 }}>{totalCost.toLocaleString('fr-FR')} €</Text><Text style={{ color: COLORS.inkFaint, fontSize: 8.5 }}>coût estimé</Text></View>
+      </View>
+
+      <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 16 }]}>Liste</Text>
+      {visible.map((a) => <TouchableOpacity key={a.id} onPress={() => openEdit(a)} style={[missionStyles.card, { padding: 12, marginBottom: 8 }]}>
+        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+          <View style={{ flex: 1 }}>
+            <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 11.2 }}>{a.label}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 3 }}>{[a.site_name, a.responsible_company || a.responsible_name, a.due_date || a.due_text].filter(Boolean).join(' · ') || 'Contexte à compléter'}</Text>
+            {a.description ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.3, marginTop: 4 }} numberOfLines={2}>{a.description}</Text> : null}
+          </View>
+          <View style={{ alignItems: 'flex-end' }}>
+            <Text style={{ color: ['closed','cancelled'].includes(a.status) ? COLORS.inkFaint : MISSION_COLORS.accentDark, fontSize: 8.8, fontWeight: '900' }}>{a.status}</Text>
+            {a.cost_estimate !== null && a.cost_estimate !== undefined ? <Text style={{ color: COLORS.inkSoft, fontSize: 9, marginTop: 4 }}>{Number(a.cost_estimate).toLocaleString('fr-FR')} €</Text> : null}
+          </View>
+        </View>
+        {a.source_point_label ? <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.5, marginTop: 6 }}>Origine : {a.source_point_label}</Text> : null}
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.4, marginTop: 5 }}>
+          Photos : {photosForAction(a.id, 'before').length} avant · {photosForAction(a.id, 'after').length} après
+        </Text>
+      </TouchableOpacity>)}
+    </ScrollView>
+
+    <Modal visible={editVisible} transparent animationType="fade" onRequestClose={() => setEditVisible(false)}>
+      <View style={styles.modalOverlay}><ScrollView style={[styles.modalSheet, missionStyles.modalSheet]} contentContainerStyle={{ paddingBottom: 16 }}>
+        <Text style={[styles.modalTitle, missionStyles.title]}>{editingId ? 'Modifier l’action' : 'Nouvelle action'}</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '800', marginBottom: 4 }}>SITE</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 7 }}>
+          {sites.map((s) => <Chip key={s.id} label={s.name} selected={draft.siteId === s.id} onPress={() => setDraft((p) => ({ ...p, siteId: s.id }))} />)}
+        </View>
+        <Field label="Action" value={draft.label} onChangeText={(v) => setDraft((p) => ({ ...p, label: v }))} />
+        <Field label="Description" value={draft.description} onChangeText={(v) => setDraft((p) => ({ ...p, description: v }))} multiline />
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '800', marginBottom: 4 }}>STATUT</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 7 }}>
+          {STATUSES.map(([key,label]) => <Chip key={key} label={label} selected={draft.status === key} onPress={() => setDraft((p) => ({ ...p, status: key }))} />)}
+        </View>
+        <Field label="Responsable / entreprise" value={draft.responsible} onChangeText={(v) => setDraft((p) => ({ ...p, responsible: v }))} />
+        <Field label="Priorité / criticité" value={draft.priority} onChangeText={(v) => setDraft((p) => ({ ...p, priority: v }))} />
+        <Field label="Date échéance AAAA-MM-JJ" value={draft.dueDate} onChangeText={(v) => setDraft((p) => ({ ...p, dueDate: v }))} />
+        <Field label="Échéance libre" value={draft.dueText} onChangeText={(v) => setDraft((p) => ({ ...p, dueText: v }))} />
+        <Field label="Coût estimé €" value={draft.cost} onChangeText={(v) => setDraft((p) => ({ ...p, cost: v }))} keyboardType="decimal-pad" />
+        <Field label="Imputation / lot" value={draft.allocation} onChangeText={(v) => setDraft((p) => ({ ...p, allocation: v }))} />
+        <Field label="Progression %" value={draft.progress} onChangeText={(v) => setDraft((p) => ({ ...p, progress: v }))} keyboardType="decimal-pad" />
+
+        {editingId ? <View style={{ marginTop: 5 }}>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '800', marginBottom: 6 }}>SUIVI PHOTO AVANT / APRÈS</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+            <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} onPress={() => captureActionPhoto('before')}>
+              <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>📷 Avant</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} onPress={() => captureActionPhoto('after')}>
+              <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>📷 Après</Text>
+            </TouchableOpacity>
+          </View>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+            {photosForAction(editingId).map((photo) => <View key={photo.id} style={{ marginRight: 7, width: 90 }}>
+              <Image source={{ uri: photo.thumbnail_uri || photo.preview_uri || photo.file_uri }} style={{ width: 90, height: 64, borderRadius: 8, backgroundColor: MISSION_COLORS.accentSoft }} resizeMode="cover" />
+              <Text style={{ color: photo.phase_role === 'after' ? MISSION_COLORS.accentDark : COLORS.inkFaint, fontSize: 7.8, marginTop: 3, textAlign: 'center' }}>
+                {photo.phase_role === 'before' ? 'AVANT' : photo.phase_role === 'after' ? 'APRÈS' : 'PREUVE'}
+              </Text>
+            </View>)}
+          </ScrollView>
+        </View> : <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, lineHeight: 12, marginTop: 4 }}>
+          Enregistre d’abord l’action pour pouvoir lui rattacher les photos avant / après.
+        </Text>}
+
+        {editingId ? <View style={{ marginTop: 13 }}>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '800', marginBottom: 6 }}>HISTORIQUE DES MODIFICATIONS</Text>
+          {actionHistory.length ? actionHistory.slice(0, 12).map((row) => {
+            let change = {};
+            try { change = JSON.parse(row.source_value || '{}'); } catch {}
+            const labels = {
+              status: 'Statut',
+              responsible_actor_id: 'Responsable',
+              due_date: 'Date échéance',
+              due_text: 'Échéance',
+              cost_estimate: 'Coût estimé',
+              allocation: 'Imputation / lot',
+              progress: 'Progression',
+              priority: 'Priorité',
+              label: 'Action',
+              description: 'Description',
+            };
+            return <View key={row.id} style={{ opacity: 0.72, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
+              <Text style={{ color: COLORS.ink, fontSize: 8.7, fontWeight: '800' }}>
+                {labels[row.field_name] || row.field_name} · {String(change.before ?? '—')} → {String(change.after ?? '—')}
+              </Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 2 }}>{row.created_at || ''}</Text>
+            </View>;
+          }) : <Text style={{ color: COLORS.inkFaint, fontSize: 8.7 }}>Aucune modification antérieure enregistrée.</Text>}
+        </View> : null}
+
+        <View style={styles.modalActions}>
+          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setEditVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={save}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
+        </View>
+      </ScrollView></View>
+    </Modal>
+  </View>;
+}
