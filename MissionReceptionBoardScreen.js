@@ -117,7 +117,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
     const openReserves = points.filter((row) => row.type === 'reserve' && !['closed','no_follow_up','cancelled'].includes(row.status));
     const openActions = actions.filter((row) => !['closed','cancelled'].includes(row.status));
     const completedTests = tests.filter((row) => row.status === 'completed');
-    const expectedPending = documents.filter((row) => !['received','validated'].includes(row.status));
+    const expectedPending = documents.filter((row) => !['received','validated','up_to_date','not_existing'].includes(row.status));
     return {
       equipment: equipment.length,
       checked: equipment.filter((row) => ['controle','receptionne','mis_en_service'].includes(row.lifecycle_status)).length,
@@ -136,6 +136,21 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
     try {
       await modifierEquipementMission(row.id, { lifecycleStatus: status });
       setEquipment((all) => all.map((item) => item.id === row.id ? { ...item, lifecycle_status: status } : item));
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const setDocumentStatus = async (row, status) => {
+    if (busyId) return;
+    setBusyId(row.id);
+    try {
+      const db = await getDb();
+      await db.runAsync(
+        "UPDATE mission_expected_documents SET status=?,updated_at=datetime('now') WHERE id=? AND mission_id=?",
+        [status,row.id,missionId]
+      );
+      setDocuments((all) => all.map((item) => item.id === row.id ? { ...item, status } : item));
     } finally {
       setBusyId(null);
     }
@@ -198,6 +213,34 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
       {!equipment.length ? <View style={[missionStyles.card,{padding:14}]}>
         <Text style={{ color: COLORS.inkSoft, fontSize: 9.5 }}>Aucun équipement dans cette Mission. L’inventaire peut être préparé sur PC ou créé rapidement sur le terrain.</Text>
       </View> : null}
+
+      {documents.length ? <>
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Documents de réception / passation · statut rapide</Text>
+        {documents.slice(0, 16).map((row) => <View key={row.id} style={[missionStyles.card, { padding: 10, marginBottom: 7 }]}>
+          <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }}>{row.label || 'Document attendu'}</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 2 }}>
+            {[row.type,row.due_date || row.due_text].filter(Boolean).join(' · ') || 'Document Mission'}
+          </Text>
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 7 }}>
+            {[
+              ['received','Reçu'],
+              ['up_to_date','À jour'],
+              ['incomplete','Incomplet'],
+              ['to_send','À transmettre'],
+              ['missing','Introuvable'],
+              ['validated','Validé'],
+            ].map(([key,label]) => <Chip
+              key={key}
+              label={label}
+              selected={row.status === key}
+              onPress={() => setDocumentStatus(row,key)}
+            />)}
+          </View>
+        </View>)}
+        {documents.length > 16 ? <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { alignSelf: 'flex-start' }]} onPress={() => navigation.navigate('MissionDocuments',{ missionId })}>
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Voir les {documents.length} documents</Text>
+        </TouchableOpacity> : null}
+      </> : null}
     </ScrollView>
   </View>;
 }
