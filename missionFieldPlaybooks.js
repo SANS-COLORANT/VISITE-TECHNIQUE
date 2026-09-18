@@ -344,8 +344,9 @@ const TYPES = Object.freeze({
   det_chantier: {
     base: 'works', label: 'Suivi chantier / DET',
     quickActions: [
+      action('subjects', 'Sujets chantier', 'navigate', { route: 'MissionSubjects' }),
       action('reserve', 'Réserve / observation', 'point', { preset: point('Observation / réserve chantier', 'reserve', { priority: 'À traiter' }) }),
-      action('decision', 'Décision', 'point', { preset: point('Décision chantier', 'decision') }),
+      action('decision', 'Décision rapide', 'point', { preset: point('Décision chantier', 'decision') }),
       action('actions', 'À recontrôler', 'navigate', { route: 'MissionActions' }),
     ],
   },
