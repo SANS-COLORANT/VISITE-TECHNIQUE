@@ -227,7 +227,7 @@ export function MissionTestsScreen({ route }) {
     });
 
     if (runData?.run?.equipment_id && ['opr_reception','commissioning','passation_travaux_exploitant'].includes(missionType)) {
-      await modifierEquipementMission(runData.run.equipment_id, { lifecycleStatus: 'avec_reserve' });
+      await modifierEquipementMission(runData.run.equipment_id, { missionId, lifecycleStatus: 'avec_reserve', changeComment: 'Écart issu d’un essai Mission' });
     }
 
     const refreshed = await chargerExecutionEssai(runData.run.id);
@@ -245,10 +245,12 @@ export function MissionTestsScreen({ route }) {
 
     if (refreshed?.run?.equipment_id && ['opr_reception','commissioning','passation_travaux_exploitant'].includes(missionType)) {
       if (hasIssue) {
-        await modifierEquipementMission(refreshed.run.equipment_id, { lifecycleStatus: 'avec_reserve' });
+        await modifierEquipementMission(refreshed.run.equipment_id, { missionId, lifecycleStatus: 'avec_reserve', changeComment: 'Essai terminé avec écart' });
       } else if (allOk) {
         await modifierEquipementMission(refreshed.run.equipment_id, {
+          missionId,
           lifecycleStatus: missionType === 'commissioning' ? 'mis_en_service' : 'controle',
+          changeComment: missionType === 'commissioning' ? 'Essai Mission terminé sans écart' : 'Contrôle Mission terminé sans écart',
         });
       }
     }
