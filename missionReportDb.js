@@ -205,6 +205,48 @@ function makeAutoSections(data) {
   return sections;
 }
 
+export async function construireRapportMissionPortee(missionId, { siteId = null } = {}) {
+  const db = await getDb();
+  const data = await loadMissionReportData(db, missionId);
+  let scoped = data;
+  if (siteId) {
+    scoped = {
+      ...data,
+      sites: data.sites.filter((row) => row.id === siteId),
+      visits: data.visits.filter((row) => row.site_id === siteId),
+      points: data.points.filter((row) => row.site_id === siteId),
+      actions: data.actions.filter((row) => !row.site_id || row.site_id === siteId),
+      measures: data.measures.filter((row) => !row.site_id || row.site_id === siteId),
+      tests: data.tests.filter((row) => !row.site_id || row.site_id === siteId),
+      calculations: data.calculations.filter((row) => !row.site_id || row.site_id === siteId),
+      expectedDocuments: data.expectedDocuments.filter((row) => !row.site_id || row.site_id === siteId),
+      photos: data.photos.filter((row) => !row.site_id || row.site_id === siteId),
+    };
+  }
+  const profile = await db.getFirstAsync(
+    'SELECT * FROM mission_report_profiles WHERE mission_id=? ORDER BY is_default DESC,created_at LIMIT 1',
+    [missionId]
+  );
+  return {
+    profile: profile || { id: null, mission_id: missionId, label: scoped.mission?.label ? 'Rapport - ' + scoped.mission.label : 'Rapport Mission' },
+    sections: makeAutoSections(scoped).map((section, index) => ({
+      id: 'scope_' + (siteId || 'mission') + '_' + section.key,
+      mission_id: missionId,
+      scope_type: siteId ? 'site' : 'mission',
+      scope_id: siteId,
+      section_key: section.key,
+      title: section.title,
+      content_json: JSON.stringify(section.content),
+      content_text: null,
+      sort_order: index,
+      hidden: 0,
+      source_type: 'auto_scope',
+    })),
+    data: scoped,
+    scope: { type: siteId ? 'site' : 'mission', id: siteId },
+  };
+}
+
 export async function initialiserRapportMission(missionId, { forceRefresh = false } = {}) {
   const db = await getDb();
   const data = await loadMissionReportData(db, missionId);
