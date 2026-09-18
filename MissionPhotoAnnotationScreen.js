@@ -8,6 +8,8 @@ import {
   listerPhotosAvecAnnotationsMission,
   supprimerAnnotationPhotoMission,
 } from './missionPhotoAnnotationDb.js';
+import { modifierVisibilitePhotoMission } from './missionMediaDb.js';
+import { exporterAlbumPhotosMission } from './missionPhotoAlbumExport.js';
 
 const TOOLS = [['select', 'Consulter'], ['circle', 'Cercle'], ['arrow', 'Flèche'], ['zone', 'Zone'], ['text', 'Texte']];
 
@@ -60,6 +62,7 @@ export function MissionPhotoAnnotationScreen({ route }) {
   const [textModal, setTextModal] = useState(false);
   const [textValue, setTextValue] = useState('');
   const [textPoint, setTextPoint] = useState(null);
+  const [exportingAlbum, setExportingAlbum] = useState(false);
 
   const load = useCallback(async () => {
     const rows = await listerPhotosAvecAnnotationsMission(missionId);
@@ -132,6 +135,29 @@ export function MissionPhotoAnnotationScreen({ route }) {
     await load();
   };
 
+  const setPhotoForReport = async (enabled) => {
+    if (!selectedId) return;
+    try {
+      await modifierVisibilitePhotoMission(selectedId, enabled ? 'report' : 'internal');
+      await load();
+    } catch (e) {
+      Alert.alert('Photo non modifiée', String(e?.message || e));
+    }
+  };
+
+  const exportAlbum = async (mode) => {
+    if (exportingAlbum) return;
+    setExportingAlbum(true);
+    try {
+      const out = await exporterAlbumPhotosMission(missionId, { mode, share: true });
+      Alert.alert('Album photos créé', out.name + '\n\n' + out.count + ' photo(s) dans la sélection.');
+    } catch (e) {
+      Alert.alert('Album impossible', String(e?.message || e));
+    } finally {
+      setExportingAlbum(false);
+    }
+  };
+
   const choosePhoto = async (photo) => {
     setSelectedId(photo.id);
     setSelected(photo);
@@ -150,6 +176,17 @@ export function MissionPhotoAnnotationScreen({ route }) {
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
         L’original reste intact. Les flèches, cercles, zones et textes sont stockés en couche séparée et restent modifiables.
       </Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 11 }}>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} disabled={exportingAlbum} onPress={() => exportAlbum('all')}>
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>⇩ Album complet</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} disabled={exportingAlbum} onPress={() => exportAlbum('report')}>
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>⇩ Sélection rapport</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} disabled={exportingAlbum} onPress={() => exportAlbum('issues')}>
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>⇩ Points / actions</Text>
+        </TouchableOpacity>
+      </View>
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 15 }]}>Photo</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
@@ -160,6 +197,34 @@ export function MissionPhotoAnnotationScreen({ route }) {
       </ScrollView>
 
       {selected ? <>
+        <View style={[missionStyles.card, { padding: 10, marginTop: 12 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }}>Inclure dans le rapport / livrable client</Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 8.4, lineHeight: 12, marginTop: 2 }}>
+                L’original reste conservé. Ce choix sert uniquement à constituer la sélection photo des livrables.
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={() => setPhotoForReport(!['report','client'].includes(String(selected.visibility || '')))}
+              style={{
+                minWidth: 74,
+                borderWidth: 1,
+                borderColor: ['report','client'].includes(String(selected.visibility || '')) ? MISSION_COLORS.accent : MISSION_COLORS.accentLineStrong,
+                backgroundColor: ['report','client'].includes(String(selected.visibility || '')) ? MISSION_COLORS.accentLight : '#FFFFFF',
+                borderRadius: 10,
+                paddingHorizontal: 9,
+                paddingVertical: 8,
+                alignItems: 'center',
+              }}
+            >
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 8.8, fontWeight: '900' }}>
+                {['report','client'].includes(String(selected.visibility || '')) ? 'INCLUSE ✓' : 'AJOUTER'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 14 }]}>Outil</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
           {TOOLS.map(([key, label]) => <Chip key={key} label={label} selected={tool === key} onPress={() => { setTool(key); setDraft([]); }} />)}
