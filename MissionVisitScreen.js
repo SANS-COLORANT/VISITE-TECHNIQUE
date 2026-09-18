@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, Modal, ScrollView, Text, TextInput, Touchable
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerPointMission } from './missionsDb.js';
-import { creerReferenceMission, enregistrerMesureMission } from './missionDomainDb.js';
+import { creerOuTrouverActeurMission, creerReferenceMission, enregistrerDetailsPointMission, enregistrerMesureMission } from './missionDomainDb.js';
 import { capturerPhotoMission, choisirEtAjouterDocumentMission } from './missionMediaDb.js';
 import { getMissionVisitRecipe, MISSION_CAPTURE_MODES } from './missionRecipes.js';
 import { ajouterNoteVisiteMission, chargerVisiteMission, compterSaisieVisiteMission, enregistrerValeurTrameMission, mettreAJourVisiteMission } from './missionVisitDb.js';
@@ -53,6 +53,12 @@ export function MissionVisitScreen({ navigation, route }) {
   const [pointType, setPointType] = useState('information');
   const [pointLabel, setPointLabel] = useState('');
   const [pointDescription, setPointDescription] = useState('');
+  const [pointResponsible, setPointResponsible] = useState('');
+  const [pointDue, setPointDue] = useState('');
+  const [pointPriority, setPointPriority] = useState('');
+  const [pointCost, setPointCost] = useState('');
+  const [pointAllocation, setPointAllocation] = useState('');
+  const [pointRequestedAction, setPointRequestedAction] = useState('');
   const [captureMode, setCaptureMode] = useState('standard');
   const [measureModal, setMeasureModal] = useState(false);
   const [measureType, setMeasureType] = useState('');
@@ -215,17 +221,37 @@ export function MissionVisitScreen({ navigation, route }) {
   const addPoint = async () => {
     if (!actualMissionId) return;
     try {
-      await creerPointMission({
+      const responsibleActorId = pointResponsible.trim()
+        ? await creerOuTrouverActeurMission({ missionId: actualMissionId, siteId: data?.visit?.site_id, company: pointResponsible.trim(), role: 'Responsable action' })
+        : null;
+      const pointId = await creerPointMission({
         missionId: actualMissionId,
         siteId: data?.visit?.site_id,
         visitId,
         type: pointType,
         label: pointLabel,
         description: pointDescription,
+        responsibleActorId,
+        dueText: pointDue,
+        priority: pointPriority,
       });
+      if (pointCost.trim() || pointAllocation.trim() || pointRequestedAction.trim()) {
+        await enregistrerDetailsPointMission({
+          pointId,
+          costEstimate: pointCost,
+          allocation: pointAllocation,
+          requestedAction: pointRequestedAction,
+        });
+      }
       setPointModal(false);
       setPointLabel('');
       setPointDescription('');
+      setPointResponsible('');
+      setPointDue('');
+      setPointPriority('');
+      setPointCost('');
+      setPointAllocation('');
+      setPointRequestedAction('');
       setPointType('information');
       await reload();
     } catch (e) { Alert.alert('Point non créé', String(e.message || e)); }
@@ -330,6 +356,16 @@ export function MissionVisitScreen({ navigation, route }) {
         </View>
         <TextInput style={[styles.input, missionStyles.input]} value={pointLabel} onChangeText={setPointLabel} placeholder="Titre / constat (optionnel)" />
         <TextInput style={[styles.input, missionStyles.input, { marginTop: 9, minHeight: 70, textAlignVertical: 'top' }]} multiline value={pointDescription} onChangeText={setPointDescription} placeholder="Description (optionnelle)" />
+        <TextInput style={[styles.input, missionStyles.input, { marginTop: 9 }]} value={pointRequestedAction} onChangeText={setPointRequestedAction} placeholder="Action demandée / suite" />
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 9 }}>
+          <TextInput style={[styles.input, missionStyles.input, { flex: 1 }]} value={pointResponsible} onChangeText={setPointResponsible} placeholder="Responsable / entreprise" />
+          <TextInput style={[styles.input, missionStyles.input, { flex: 1 }]} value={pointDue} onChangeText={setPointDue} placeholder="Échéance" />
+        </View>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 9 }}>
+          <TextInput style={[styles.input, missionStyles.input, { flex: 1 }]} value={pointPriority} onChangeText={setPointPriority} placeholder="Priorité" />
+          <TextInput style={[styles.input, missionStyles.input, { flex: 1 }]} value={pointAllocation} onChangeText={setPointAllocation} placeholder="Imputation / lot" />
+          <TextInput style={[styles.input, missionStyles.input, { width: 90 }]} value={pointCost} onChangeText={setPointCost} keyboardType="decimal-pad" placeholder="€ estim." />
+        </View>
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setPointModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={addPoint}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Ajouter</Text></TouchableOpacity>
