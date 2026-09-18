@@ -52,6 +52,7 @@ const LINK_TYPES = Object.freeze([
   ['equipment', 'Équipement'],
   ['point', 'Point / réserve'],
   ['action', 'Action'],
+  ['subject', 'Sujet chantier / suivi'],
   ['measure', 'Mesure'],
   ['photo', 'Photo'],
   ['installation', 'Installation'],
