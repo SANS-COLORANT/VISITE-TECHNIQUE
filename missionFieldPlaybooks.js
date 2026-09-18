@@ -369,9 +369,10 @@ const TYPES = Object.freeze({
     objective: 'Reprendre les réserves existantes, constater seulement leur évolution et produire la preuve avant / après.',
     steps: ['Réserve initiale', 'Contrôle', 'Photo après', 'Levée / maintien', 'Suite'],
     quickActions: [
-      action('actions', 'Réserves ouvertes', 'navigate', { route: 'MissionActions' }),
-      action('photo', 'Photo après', 'photo'),
-      action('point', 'Maintien / partiel', 'point', { preset: point('Réserve maintenue / partiellement levée', 'reserve', { priority: 'À poursuivre' }) }),
+      action('reserveClearance', 'Recontrôle rapide', 'navigate', { route: 'MissionReserveClearance' }),
+      action('actions', 'Réserves / actions', 'navigate', { route: 'MissionActions' }),
+      action('photo', 'Photo libre', 'photo'),
+      action('point', 'Nouvelle réserve', 'point', { preset: point('Nouvelle réserve constatée au recontrôle', 'reserve', { priority: 'À traiter' }) }),
     ],
   },
   passation_travaux_exploitant: { base: 'passation', label: 'Passation travaux → exploitant' },
