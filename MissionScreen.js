@@ -189,6 +189,7 @@ export function MissionScreen({ navigation, route }) {
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}>
           {[
             ['workflow', 'MissionWorkflow', 'Workflow', 'Phases · volets · occurrences'],
+            ['structure', 'MissionStructure', 'Patrimoine', 'Site · bâtiment · niveau · local'],
             ['equipment', 'MissionEquipment', 'Inventaire', 'Équipements · composants · OCR'],
             ['measurements', 'MissionMeasurements', 'Mesures', 'Références · séries · instruments'],
             ['plans', 'MissionPlan', 'Plans / PDF / SIG', 'Mesures · calques · GeoPackage'],
