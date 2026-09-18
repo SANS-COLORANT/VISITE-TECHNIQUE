@@ -39,6 +39,7 @@ async function copyIfFile(uri, destination) {
 export const DEFAULT_MISSION_PACKAGE_OPTIONS = Object.freeze({
   reportPdf: true,
   reportDocx: true,
+  individualReports: true,
   excel: true,
   photos: true,
   sourceDocuments: true,
@@ -92,6 +93,27 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
       const out = await exporterRapportMissionDocx(missionId, { share: false });
       const dest = folder + safe(out.name || 'Rapport_Mission.docx');
       if (await copyIfFile(out.uri, dest)) manifest.files.push('Rapport/' + safe(out.name || 'Rapport_Mission.docx'));
+    }
+    if (cfg.individualReports) {
+      const sites = await db.getAllAsync(
+        'SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name',
+        [missionId]
+      );
+      if (sites.length) {
+        const siteFolder = await ensure(root + 'Rapport/Sites/');
+        for (const site of sites) {
+          if (cfg.reportPdf) {
+            const out = await exporterRapportMissionPdf(missionId, { share: false, siteId: site.id });
+            const name = safe(out.name || ('Rapport_' + site.name + '.pdf'));
+            if (await copyIfFile(out.uri, siteFolder + name)) manifest.files.push('Rapport/Sites/' + name);
+          }
+          if (cfg.reportDocx) {
+            const out = await exporterRapportMissionDocx(missionId, { share: false, siteId: site.id });
+            const name = safe(out.name || ('Rapport_' + site.name + '.docx'));
+            if (await copyIfFile(out.uri, siteFolder + name)) manifest.files.push('Rapport/Sites/' + name);
+          }
+        }
+      }
     }
   }
 
