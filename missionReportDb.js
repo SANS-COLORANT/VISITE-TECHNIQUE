@@ -30,7 +30,7 @@ async function loadMissionReportData(db, missionId) {
 
   const [
     sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components, subjects, observations, decisions, lifecycle,
+    equipment, locations, installations, systems, networks, components, subjects, observations, decisions, lifecycle, actionHistory,
   ] = await Promise.all([
     db.getAllAsync('SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name', [missionId]),
     db.getAllAsync('SELECT v.*,s.name AS site_name FROM mission_visits v LEFT JOIN mission_sites s ON s.id=v.site_id WHERE v.mission_id=? ORDER BY COALESCE(v.visit_date,v.created_at)', [missionId]),
@@ -137,11 +137,19 @@ async function loadMissionReportData(db, missionId) {
        WHERE h.mission_id=? ORDER BY COALESCE(h.effective_date,h.created_at)`,
       [missionId]
     ),
+    db.getAllAsync(
+      `SELECT p.*,a.label AS action_label
+       FROM mission_provenance p
+       JOIN mission_actions a ON a.id=p.entity_id
+       WHERE p.mission_id=? AND p.entity_type='action' AND p.source_kind='action_change'
+       ORDER BY p.created_at`,
+      [missionId]
+    ),
   ]);
 
   return {
     mission, sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components, subjects, observations, decisions, lifecycle,
+    equipment, locations, installations, systems, networks, components, subjects, observations, decisions, lifecycle, actionHistory,
   };
 }
 
@@ -343,6 +351,27 @@ function makeAutoSections(data) {
           p.cost_estimate ?? '',
           p.allocation || '',
         ])
+      )],
+    });
+  }
+
+  if (data.actionHistory?.length) {
+    sections.push({
+      key: 'historique_actions',
+      title: 'Historique des évolutions d’actions',
+      content: [blockTable(
+        ['Date', 'Action', 'Champ', 'Avant', 'Après'],
+        data.actionHistory.map((row) => {
+          let change = {};
+          try { change = JSON.parse(row.source_value || '{}'); } catch {}
+          return [
+            row.created_at || '',
+            row.action_label || '',
+            row.field_name || '',
+            change.before ?? '',
+            change.after ?? '',
+          ];
+        })
       )],
     });
   }
