@@ -47,6 +47,12 @@ const LIFE_LABELS = Object.freeze({
   transfere: 'Transféré',
   reinstalle: 'Réinstallé',
   neuf: 'Neuf',
+  projete: 'Projeté',
+  commande: 'Commandé',
+  installe: 'Installé',
+  controle: 'Contrôlé',
+  avec_reserve: 'Avec réserve',
+  receptionne: 'Réceptionné',
   mis_en_service: 'Mis en service',
 });
 
