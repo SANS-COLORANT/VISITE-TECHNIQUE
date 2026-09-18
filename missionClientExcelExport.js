@@ -68,7 +68,7 @@ async function loadClientData(missionId) {
   if (!mission) throw new Error('Mission introuvable.');
 
   const [
-    sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions, lifecycle,
+    sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions, lifecycle, actionHistory,
   ] = await Promise.all([
     db.getAllAsync(
       `SELECT s.*
@@ -202,9 +202,17 @@ async function loadClientData(missionId) {
        WHERE h.mission_id=? ORDER BY COALESCE(h.effective_date,h.created_at)`,
       [missionId]
     ),
+    db.getAllAsync(
+      `SELECT p.*,a.label AS action_label
+       FROM mission_provenance p
+       JOIN mission_actions a ON a.id=p.entity_id
+       WHERE p.mission_id=? AND p.entity_type='action' AND p.source_kind='action_change'
+       ORDER BY p.created_at`,
+      [missionId]
+    ),
   ]);
 
-  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions, lifecycle };
+  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios, subjects, observations, decisions, lifecycle, actionHistory };
 }
 
 function photoPath(photo, photoPathById) {
@@ -214,6 +222,18 @@ function photoPath(photo, photoPathById) {
 
 function actionRows(data, photoPathById = null) {
   const byAction = new Map();
+  const historyByAction = new Map();
+  for (const row of data.actionHistory || []) {
+    let change = {};
+    try { change = JSON.parse(row.source_value || '{}'); } catch {}
+    const list = historyByAction.get(row.entity_id) || [];
+    list.push([
+      row.created_at || '',
+      row.field_name || '',
+      String(change.before ?? '—') + ' → ' + String(change.after ?? '—'),
+    ].filter(Boolean).join(' · '));
+    historyByAction.set(row.entity_id, list);
+  }
   for (const photo of data.photos) {
     if (!photo.action_id) continue;
     const list = byAction.get(photo.action_id) || [];
@@ -242,6 +262,7 @@ function actionRows(data, photoPathById = null) {
       Photo_apres: after ? photoPath(after, photoPathById) : '',
       Creee_le: a.created_at || '',
       Cloturee_le: a.closed_at || '',
+      Historique: (historyByAction.get(a.id) || []).join(' | '),
     };
   });
 }
@@ -459,6 +480,21 @@ export async function construireClasseurClientMission(missionId, { photoPathById
       Nouvel_etat: row.to_state || '',
       Commentaire: row.comment || '',
     })), [22,24,26,34,22,22,55]);
+  }
+
+  if (data.actionHistory?.length) {
+    addSheet(wb, '13_Historique_actions', data.actionHistory.map((row) => {
+      let change = {};
+      try { change = JSON.parse(row.source_value || '{}'); } catch {}
+      return {
+        Date: row.created_at || '',
+        Action: row.action_label || '',
+        Champ: row.field_name || '',
+        Avant: change.before ?? '',
+        Apres: change.after ?? '',
+        Source: change.source || '',
+      };
+    }), [22,38,24,32,32,22]);
   }
 
   return { wb, data };
