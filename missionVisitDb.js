@@ -169,7 +169,7 @@ export async function compterSaisieVisiteMission(visitId) {
   const db = await getDb();
   const row = await db.getFirstAsync(
     `SELECT
-      (SELECT COUNT(*) FROM mission_template_values WHERE visit_id=? AND COALESCE(value_text,CAST(value_number AS TEXT),CAST(value_boolean AS TEXT),value_date,'')<>'') AS fields_count,
+      (SELECT COUNT(*) FROM mission_template_values WHERE visit_id=? AND field_code NOT LIKE '__meta.%' AND COALESCE(value_text,CAST(value_number AS TEXT),CAST(value_boolean AS TEXT),value_date,'')<>'') AS fields_count,
       (SELECT COUNT(*) FROM mission_points WHERE visit_origin_id=?) AS points_count,
       (SELECT COUNT(*) FROM mission_notes WHERE visit_id=?) AS notes_count,
       (SELECT COUNT(*) FROM mission_photos WHERE visit_id=?) AS photos_count,
