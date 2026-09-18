@@ -4,6 +4,7 @@ import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerPointMission, creerVisiteMission, getMissionDashboard, mettreAJourMission, mettreAJourStatutPoint } from './missionsDb.js';
 import { exporterMissionExcel } from './missionExcelExport.js';
+import { exporterMissionExcelClient } from './missionClientExcelExport.js';
 import { choisirEtImporterMissionExcel } from './missionExcelImport.js';
 import { getMissionDomainSummary } from './missionDomainDb.js';
 import { getMissionCapabilities } from './missionRecipes.js';
@@ -54,6 +55,7 @@ export function MissionScreen({ navigation, route }) {
   const [pointDueText, setPointDueText] = useState('');
   const [saving, setSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [exportingClient, setExportingClient] = useState(false);
   const [importing, setImporting] = useState(false);
   const [domainSummary, setDomainSummary] = useState({});
 
@@ -150,6 +152,22 @@ export function MissionScreen({ navigation, route }) {
       Alert.alert('Export Mission créé', `${result.name}\n\nLes données sont structurées par feuilles et les médias restent référencés séparément.`);
     } catch (e) { Alert.alert('Export impossible', String(e.message || e)); }
     finally { setExporting(false); }
+  };
+
+  const exportClientExcel = async () => {
+    if (exportingClient) return;
+    setExportingClient(true);
+    try {
+      const result = await exporterMissionExcelClient(missionId);
+      Alert.alert(
+        'Excel client créé',
+        result.name + '\n\nSynthèse, sites, actions, réserves, inventaire, mesures, visites, photos, documents et scénarios sont présentés dans des feuilles directement exploitables.'
+      );
+    } catch (e) {
+      Alert.alert('Export client impossible', String(e?.message || e));
+    } finally {
+      setExportingClient(false);
+    }
   };
 
   const importExcel = async () => {
@@ -291,11 +309,20 @@ export function MissionScreen({ navigation, route }) {
             <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{importing ? 'Import…' : '⇧ Importer Excel'}</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} disabled={exporting} onPress={exportExcel}>
-            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{exporting ? 'Export…' : '⇩ Export Excel complet'}</Text>
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{exporting ? 'Export…' : '⇩ Excel complet'}</Text>
           </TouchableOpacity>
         </View>
+        <TouchableOpacity
+          style={[styles.btnSecondary, missionStyles.secondaryButton, { marginTop: 8, alignItems: 'center' }]}
+          disabled={exportingClient}
+          onPress={exportClientExcel}
+        >
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>
+            {exportingClient ? 'Création Excel client…' : '⇩ Excel client simplifié'}
+          </Text>
+        </TouchableOpacity>
         <Text style={{ color: COLORS.inkFaint, fontSize: 9, lineHeight: 13, marginTop: 6, textAlign: 'center' }}>
-          Classeur relationnel complet : données métier, calculs, essais, scénarios, rapports et provenance. Les médias restent référencés.
+          Excel complet = réimportable dans METRA. Excel client = lecture directe : synthèse, actions, réserves, inventaire, mesures et documents.
         </Text>
 
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 20 }]}>Points à suivre</Text>
