@@ -29,24 +29,61 @@ function bindingError(message, code, extra = {}) {
  * METRA n'en choisit une automatiquement que si la correspondance avec la
  * trame locale est unique. Aucune identité serveur n'est inventée.
  */
-export function resolveFirstVisitRemoteTrame(referential, localTrameId) {
-  const trames = Array.isArray(referential?.trames) ? referential.trames : [];
-  const candidates = trames
-    .filter((trame) => validApiId(trame?.id) && mapRemoteTrameToLocal(trame) === localTrameId)
+function normalizeTrameName(value) {
+  return clean(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+
+export function resolveFirstVisitRemoteTrame(referential, localTrameId, visitTrameName = null) {
+  const trames = (Array.isArray(referential?.trames) ? referential.trames : [])
+    .filter((trame) => validApiId(trame?.id))
     .map((trame) => ({ id: clean(trame.id), nom: clean(trame.nom) || null }));
 
+  // La valeur affichée dans Informations > « Trame utilisée » est renseignée
+  // au moment où le technicien choisit le type de visite. Elle est donc le
+  // discriminant prioritaire pour retrouver la trame Symfony, avant tout
+  // classement heuristique par famille (ICPE/chaufferie/sous-station...).
+  const requestedName = clean(visitTrameName);
+  if (requestedName) {
+    const requestedKey = normalizeTrameName(requestedName);
+    const named = trames.filter((trame) => normalizeTrameName(trame.nom) === requestedKey);
+    if (named.length === 1) {
+      return { remoteTrameId: named[0].id, remoteTrameName: named[0].nom, candidates: named, matchedBy: 'visit_field' };
+    }
+    if (!named.length) {
+      throw bindingError(
+        `Aucune trame Intranet nommée « ${requestedName} » n'est disponible dans le référentiel de ce client.`,
+        'intranet_first_visit_trame_name_missing',
+        { localTrameId, visitTrameName: requestedName, candidates: trames }
+      );
+    }
+    throw bindingError(
+      `Plusieurs trames Intranet portent le nom « ${requestedName} ». METRA refuse d'en choisir une au hasard.`,
+      'intranet_first_visit_trame_name_ambiguous',
+      { localTrameId, visitTrameName: requestedName, candidates: named }
+    );
+  }
+
+  // Compatibilité avec d'anciennes visites où le champ n'aurait jamais été
+  // matérialisé : on conserve le comportement historique uniquement si une
+  // seule correspondance de famille est possible.
+  const candidates = trames.filter((trame) => mapRemoteTrameToLocal(trame) === localTrameId);
   if (candidates.length === 1) {
-    return { remoteTrameId: candidates[0].id, remoteTrameName: candidates[0].nom, candidates };
+    return { remoteTrameId: candidates[0].id, remoteTrameName: candidates[0].nom, candidates, matchedBy: 'legacy_family' };
   }
   if (!candidates.length) {
     throw bindingError(
-      `Aucune trame Intranet du référentiel ne correspond de façon sûre à la trame METRA « ${localTrameId || 'inconnue'} ».`,
+      `La valeur « Trame utilisée » est absente et aucune trame Intranet ne correspond de façon sûre à la trame METRA « ${localTrameId || 'inconnue'} ».`,
       'intranet_first_visit_trame_missing',
       { localTrameId, candidates: [] }
     );
   }
   throw bindingError(
-    `Plusieurs trames Intranet correspondent à la trame METRA « ${localTrameId} » : ${candidates.map((row) => row.nom || `ID ${row.id}`).join(', ')}. METRA refuse d'en choisir une au hasard.`,
+    `La valeur « Trame utilisée » est absente et plusieurs trames Intranet correspondent à la trame METRA « ${localTrameId} ». Ouvre l'onglet Informations pour vérifier la trame de la visite.`,
     'intranet_first_visit_trame_ambiguous',
     { localTrameId, candidates }
   );
@@ -55,6 +92,15 @@ export function resolveFirstVisitRemoteTrame(referential, localTrameId) {
 async function loadVisit(db, visiteId) {
   return db.getFirstAsync(`SELECT v.*,s.client_id,s.nom_site,c.nom AS nom_client,c.code_exploitant AS client_code
     FROM visites v JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id WHERE v.id=?`, [String(visiteId)]);
+}
+
+async function loadVisitTrameUsedName(db, visiteId) {
+  const row = await db.getFirstAsync(`SELECT valeur
+    FROM champs_visite
+    WHERE visite_id=? AND cle='Trame utilisée'
+      AND valeur IS NOT NULL AND trim(valeur)<>''
+    ORDER BY rowid DESC LIMIT 1`, [String(visiteId)]);
+  return clean(row?.valeur) || null;
 }
 
 function localBindingState(local, trameId) {
@@ -202,7 +248,8 @@ export async function getVisitIntranetBindingOptions(visiteId) {
     locals = rawLocals.map((row) => ({ ...row, ...localBindingState(row, visite.trame_id) }));
     suggestedLocalId = await resolveImportedLocalId(db, visite, selectedClientId, selectedSiteId).catch(() => null);
   }
-  return { visite, clients, sites, locals, selectedClientId, selectedSiteId, suggestedLocalId };
+  const visitTrameName = await loadVisitTrameUsedName(db, visite.id);
+  return { visite, visitTrameName, clients, sites, locals, selectedClientId, selectedSiteId, suggestedLocalId };
 }
 
 export async function bindVisitToImportedClientTarget(visiteId) {
