@@ -23,6 +23,35 @@ function bindingError(message, code, extra = {}) {
   return error;
 }
 
+/**
+ * Résout la trame Symfony à utiliser quand un local Intranet n'a encore
+ * aucune visite. Le référentiel de structure expose les trames disponibles ;
+ * METRA n'en choisit une automatiquement que si la correspondance avec la
+ * trame locale est unique. Aucune identité serveur n'est inventée.
+ */
+export function resolveFirstVisitRemoteTrame(referential, localTrameId) {
+  const trames = Array.isArray(referential?.trames) ? referential.trames : [];
+  const candidates = trames
+    .filter((trame) => validApiId(trame?.id) && mapRemoteTrameToLocal(trame) === localTrameId)
+    .map((trame) => ({ id: clean(trame.id), nom: clean(trame.nom) || null }));
+
+  if (candidates.length === 1) {
+    return { remoteTrameId: candidates[0].id, remoteTrameName: candidates[0].nom, candidates };
+  }
+  if (!candidates.length) {
+    throw bindingError(
+      `Aucune trame Intranet du référentiel ne correspond de façon sûre à la trame METRA « ${localTrameId || 'inconnue'} ».`,
+      'intranet_first_visit_trame_missing',
+      { localTrameId, candidates: [] }
+    );
+  }
+  throw bindingError(
+    `Plusieurs trames Intranet correspondent à la trame METRA « ${localTrameId} » : ${candidates.map((row) => row.nom || `ID ${row.id}`).join(', ')}. METRA refuse d'en choisir une au hasard.`,
+    'intranet_first_visit_trame_ambiguous',
+    { localTrameId, candidates }
+  );
+}
+
 async function loadVisit(db, visiteId) {
   return db.getFirstAsync(`SELECT v.*,s.client_id,s.nom_site,c.nom AS nom_client,c.code_exploitant AS client_code
     FROM visites v JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id WHERE v.id=?`, [String(visiteId)]);
