@@ -10,6 +10,7 @@ name: Trigger Missions APK build
 # Revalidation compatibilité application après sujets chantier, levée de réserves, P2/P3 et livrables client.
 # Build de validation demandé après ajout Expertise/Sinistre, cockpit multi-sites,
 # pilotage AMO longue durée, contrôles ciblés, mémoire inter-visites et OPR multi-modes.
+# Build final demandé après validation du parcours Client -> Site -> Local -> Visites et compatibilité build 424.
 on:
   push:
     branches:
