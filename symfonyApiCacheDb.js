@@ -420,20 +420,39 @@ export async function materializeCachedSite(remoteSiteId, remoteClientId = null)
   const relationClientId = relation?.remote_client_id || requestedClientId || remote.remote_client_id;
   if (!relationClientId) throw new Error('Client du site API introuvable');
   const clientId = await materializeCachedClient(relationClientId);
-  const existing = await database.getFirstAsync(`SELECT id FROM sites WHERE client_id=? AND lower(trim(nom_site))=lower(trim(?)) LIMIT 1`, [clientId, clean(remote.nom)]);
-  const localSiteId = existing?.id || createId();
-  const createdLocally = existing?.id ? 0 : 1;
-  if (!existing?.id) {
-    await database.runAsync(`INSERT INTO sites(id,client_id,nom_site,statut) VALUES(?,?,?,'Actif')`, [localSiteId, clientId, remote.nom]);
+
+  // L'identité d'un site Intranet est son remote_site_id. Le nom reste un
+  // libellé : deux sites homonymes ou différents uniquement par la casse ne
+  // doivent jamais être fusionnés automatiquement.
+  const relationLocalSiteId = clean(relation?.local_site_id);
+  if (relationLocalSiteId) {
+    const mapped = await database.getFirstAsync(`SELECT id FROM sites WHERE id=? LIMIT 1`, [relationLocalSiteId]);
+    if (mapped?.id) {
+      await database.runAsync(
+        `UPDATE api_site_links SET local_site_id=? WHERE remote_site_id=?`,
+        [relationLocalSiteId, siteRemoteId]
+      );
+      await database.runAsync(
+        `UPDATE api_client_site_links SET local_site_id=? WHERE remote_site_id=?`,
+        [relationLocalSiteId, siteRemoteId]
+      );
+      return relationLocalSiteId;
+    }
   }
 
+  const localSiteId = createId();
   await database.runAsync(
-    `UPDATE api_site_links SET local_site_id=?,cree_localement=? WHERE remote_site_id=?`,
-    [localSiteId, createdLocally, siteRemoteId]
+    `INSERT INTO sites(id,client_id,nom_site,statut) VALUES(?,?,?,'Actif')`,
+    [localSiteId, clientId, remote.nom]
+  );
+
+  await database.runAsync(
+    `UPDATE api_site_links SET local_site_id=?,cree_localement=1 WHERE remote_site_id=?`,
+    [localSiteId, siteRemoteId]
   );
   await database.runAsync(
-    `UPDATE api_client_site_links SET local_site_id=?,cree_localement=? WHERE remote_site_id=?`,
-    [localSiteId, createdLocally, siteRemoteId]
+    `UPDATE api_client_site_links SET local_site_id=?,cree_localement=1 WHERE remote_site_id=?`,
+    [localSiteId, siteRemoteId]
   );
   return localSiteId;
 }
