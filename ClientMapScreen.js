@@ -326,7 +326,7 @@ function ClientMapScreen({ route, navigation }) {
             <Text style={{ color: COLORS.inkSoft, marginTop: 4 }}>{selection.adresse || 'Adresse à renseigner'}</Text>
             {selection.localisation_note ? <Text style={{ color: COLORS.muted, marginTop: 5 }}>{selection.localisation_note}</Text> : null}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-              <TouchableOpacity style={styles.btnPrimary} onPress={() => navigation.navigate('SiteVisites', { siteId: selection.id, nomSite: selection.nom_site })}><Text style={styles.btnPrimaryText}>Ouvrir le site</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.btnPrimary} onPress={() => navigation.navigate('SiteLocals', { siteId: selection.id, nomSite: selection.nom_site, clientId, nomClient })}><Text style={styles.btnPrimaryText}>Ouvrir le site</Text></TouchableOpacity>
               <TouchableOpacity style={styles.btnSecondary} onPress={() => ouvrirGoogleMaps(selection)}><Text style={styles.btnSecondaryText}>Google Maps ↗</Text></TouchableOpacity>
               <TouchableOpacity style={styles.btnSecondary} onPress={() => ouvrirGoogleEarth(selection)}><Text style={styles.btnSecondaryText}>Google Earth ↗</Text></TouchableOpacity>
             </View>
