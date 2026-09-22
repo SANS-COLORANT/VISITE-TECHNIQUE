@@ -146,8 +146,13 @@ et produit exactement une ligne par critère. Un mapping ambigu ou absent bloque
 l'envoi avant HTTP.
 
 - Contrôle applicable : avis courant METRA parmi `S.O`, `S`, `N.S`, `N.R`,
-  `N.V` + commentaire courant ; commentaire vide envoyé sous `/`.
-- Critère sans avis : `avis: null` + valeur courante dans `commentaire`, ou `/`.
+  `N.V` + commentaire courant. Si le contrôle n'est pas renseigné, METRA envoie
+  `N.V` (non vérifié) ; un commentaire vide est envoyé sous `/`. Une absence
+  de saisie ne bloque donc jamais l'envoi.
+- Critère sans avis : `avis: null` + valeur courante dans `commentaire`, ou `/`
+  lorsque le champ n'est pas renseigné.
+- Index compteur absent : `/`. Plusieurs compteurs correspondant au même critère
+  restent bloquants car METRA ne choisit jamais une valeur au hasard.
 - Réseaux ICPE : les valeurs sont relues dans la table `reseaux`. L'identité
   catégorie/sous-catégorie Intranet est conservée dans la provenance lors du
   report vers la nouvelle visite. Les branches Intranet sans réseau local sont
@@ -162,6 +167,13 @@ l'envoi avant HTTP.
 
 Une visite historique importée depuis Symfony est explicitement interdite à
 l'envoi afin qu'elle ne soit jamais recréée comme nouvelle visite serveur.
+
+Les blocages locaux sont réservés aux erreurs structurelles ou ambiguës (identifiants
+Intranet invalides, mapping de critère absent/ambigu, doublon de branche, valeur
+non conforme à une énumération serveur, etc.). Le simple fait qu'une visite soit
+incomplète ne constitue pas une erreur d'envoi : les valeurs non renseignées sont
+encodées avec les marqueurs prévus par le contrat (`N.V`, `/`, `null` ou tableau
+vide selon le champ).
 
 ## Remarques / réserves
 
