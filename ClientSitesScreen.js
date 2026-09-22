@@ -67,7 +67,7 @@ function ClientSitesScreen({ route, navigation }) {
     } catch (e) { Alert.alert('Création impossible', String(e?.message || e)); }
   };
 
-  const ouvrirSite = (site) => navigation.navigate('SiteVisites', { siteId: site.id, nomSite: site.nom_site });
+  const ouvrirSite = (site) => navigation.navigate('SiteLocals', { siteId: site.id, nomSite: site.nom_site, clientId, nomClient });
   const ouvrirStructure = (event, site) => {
     event?.stopPropagation?.();
     navigation.navigate('IntranetStructure', { siteId: site.id, nomSite: site.nom_site, clientId, nomClient });
