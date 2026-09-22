@@ -40,7 +40,9 @@ if export_states not in site:
         raise SystemExit('API-aware site export state marker not found')
     site = site.replace(export_marker, export_marker + export_states, 1)
 
-if 'apiRemoteLocalId' not in site or 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })' not in site:
+creation_call_legacy = 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })'
+creation_call_local = 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId, installationId })'
+if 'apiRemoteLocalId' not in site or (creation_call_legacy not in site and creation_call_local not in site):
     raise SystemExit('API LOCAL visit creation flow missing before build compatibility patch')
 if 'preremplirVisiteDepuisContexte' in site:
     raise SystemExit('Site visit screen still contains blocking direct prefill')
@@ -85,7 +87,7 @@ new_helper = """    if old not in text:
             return text
         if label == 'skip unused PRE equipment query' and 'contexte.installation_id' in text and "if (trame.id !== 'pre_allumage')" in text:
             return text
-        if label == 'navigate immediately after visit creation' and 'apiRemoteLocalId' in text and 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })' in text and 'preremplirVisiteDepuisContexte' not in text:
+        if label == 'navigate immediately after visit creation' and 'apiRemoteLocalId' in text and ('creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })' in text or 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId, installationId })' in text) and 'preremplirVisiteDepuisContexte' not in text:
             return text
         raise SystemExit(f'{label}: marker not found')
 """
@@ -144,12 +146,13 @@ if 'contexte.installation_id' not in visit_prefill:
     raise SystemExit('LOCAL-scoped prefill lost during build patch')
 if "AND (? IS NULL OR installation_id=?)" not in visit_prefill:
     raise SystemExit('Previous stable fields are no longer scoped to the same LOCAL')
-if 'apiRemoteLocalId' not in site_final or 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })' not in site_final:
+if 'apiRemoteLocalId' not in site_final or (creation_call_legacy not in site_final and creation_call_local not in site_final):
     raise SystemExit('API LOCAL context lost during SiteVisites build patch')
 if 'preremplirVisiteDepuisContexte' in site_final:
     raise SystemExit('Direct blocking prefill reintroduced in SiteVisites')
-if "import { listerVisitesSite, getDb } from './db.js';" not in site_final:
-    raise SystemExit('SiteVisites lost getDb while imported-client status still needs it')
+if ("import { listerVisitesSite, getDb } from './db.js';" not in site_final
+        and "import { listerVisitesSite, listerVisitesLocal, getDb } from './db.js';" not in site_final):
+    raise SystemExit('SiteVisites lost getDb/local visit repository while imported-client status still needs it')
 if 'void Promise.allSettled([' not in creation_final or 'pinPhotoReferencesForVisit(id)' not in creation_final:
     raise SystemExit('Visit creation lost its non-blocking photo/storage preparation')
 if deferred_launch not in client_final:
