@@ -4,7 +4,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
-import { listerVisitesSite, getDb } from './db.js';
+import { listerVisitesSite, listerVisitesLocal, getDb } from './db.js';
 import { creerVisiteProduction } from './visitCreationDb.js';
 import { supprimerVisiteComplete } from './entityManagementDb.js';
 import { getSiteLocalisation } from './siteGeoDb.js';
@@ -41,6 +41,9 @@ function composerAdresse(rue, ville, codePostal) {
 function SiteVisitesScreen({ route, navigation }) {
   const params = route?.params || {};
   const { siteId, nomSite } = params;
+  const installationId = params.installationId ? String(params.installationId) : null;
+  const nomLocal = params.nomLocal || apiRemoteLocalDesignation || null;
+  const legacyOnly = params.legacyOnly === true;
   const apiRemoteLocalId = params.apiRemoteLocalId ? String(params.apiRemoteLocalId) : null;
   const apiRemoteClientId = params.apiRemoteClientId ? String(params.apiRemoteClientId) : null;
   const apiRemoteLocalDesignation = params.apiRemoteLocalDesignation || null;
@@ -66,7 +69,12 @@ function SiteVisitesScreen({ route, navigation }) {
   const tramesDisponibles = listerTramesDisponibles();
 
   const charger = useCallback(async () => {
-    const [v, s] = await Promise.all([listerVisitesSite(siteId), getSiteLocalisation(siteId)]);
+    const visitesPromise = legacyOnly
+      ? listerVisitesLocal(siteId, null, { legacyOnly: true })
+      : installationId
+        ? listerVisitesLocal(siteId, installationId)
+        : listerVisitesSite(siteId);
+    const [v, s] = await Promise.all([visitesPromise, getSiteLocalisation(siteId)]);
     setVisites(v);
     setSite(s);
     const database = await getDb();
@@ -81,7 +89,7 @@ function SiteVisitesScreen({ route, navigation }) {
       setCodePostal(morceaux.codePostal);
       setNote(s.localisation_note || '');
     }
-  }, [siteId]);
+  }, [siteId, installationId, legacyOnly]);
 
   useEffect(() => { charger(); }, [charger]);
   useEffect(() => {
@@ -92,6 +100,11 @@ function SiteVisitesScreen({ route, navigation }) {
   }, [params.openNewVisit, apiRemoteLocalId, apiSuggestedTrameId]);
 
   const ouvrirNouvelleVisite = () => {
+    if (legacyOnly) return;
+    if (!installationId && !apiRemoteLocalId) {
+      Alert.alert('Local requis', 'Choisis d’abord un local depuis la fiche du site avant de créer une visite.');
+      return;
+    }
     if (apiRemoteLocalId) {
       setTrameChoisie(apiSuggestedTrameId);
     } else {
@@ -102,7 +115,7 @@ function SiteVisitesScreen({ route, navigation }) {
   };
 
   const nouvelleVisite = async (mode) => {
-    if (creationEnCours) return;
+    if (creationEnCours || legacyOnly) return;
     if (apiRemoteLocalId && mode === 'express') return;
     if (mode === 'express' && visites.length === 0) return;
     if (apiRemoteLocalId && !trameChoisie) {
@@ -114,7 +127,7 @@ function SiteVisitesScreen({ route, navigation }) {
       : (trameChoisie || DEFAULT_TRAME_ID);
     setCreationEnCours(true);
     try {
-      const visiteId = await creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId });
+      const visiteId = await creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId, installationId });
       const db = await getDb();
       await preremplirVisiteDepuisContexte(db, visiteId);
       setChoixModeVisible(false);
@@ -280,8 +293,10 @@ function SiteVisitesScreen({ route, navigation }) {
   const VisitesHeader = () => (
     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>Historique des visites — {nomSite}</Text>
-        {apiRemoteLocalId ? <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 4 }}>Contexte : {apiRemoteLocalDesignation || 'Local technique'} · préparation Intranet</Text> : null}
+        <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>Historique des visites — {nomLocal || nomSite}</Text>
+        {legacyOnly
+          ? <Text style={{ color: '#7A5700', fontSize: 11.5, marginTop: 4 }}>Anciennes visites sans local : consultation uniquement, aucune nouvelle visite ne sera créée ici.</Text>
+          : <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 4 }}>{apiRemoteLocalId ? `Contexte : ${apiRemoteLocalDesignation || nomLocal || 'Local technique'} · préparation Intranet` : `Local : ${nomLocal || 'Local technique'}`}</Text>}
       </View>
       {visites.length > 0 && !selectionExport ? <TouchableOpacity onPress={ouvrirSelectionExport} style={{ paddingHorizontal: 10, paddingVertical: 8 }}><Text style={{ color: COLORS.primary, fontWeight: '800' }}>Exporter plusieurs</Text></TouchableOpacity> : null}
     </View>
@@ -294,7 +309,7 @@ function SiteVisitesScreen({ route, navigation }) {
         contentContainerStyle={styles.content}
         data={siteTab === 'visites' ? visites : []}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={<View><PhotoReferenceAccess siteId={siteId} remoteLocalId={apiRemoteLocalId} contextTitle={nomSite} /><LocalisationHeader /><SiteTabs />{siteTab === 'visites' ? <VisitesHeader /> : null}</View>}
+        ListHeaderComponent={<View><PhotoReferenceAccess siteId={siteId} remoteLocalId={apiRemoteLocalId} contextTitle={nomLocal || nomSite} /><LocalisationHeader /><SiteTabs />{siteTab === 'visites' ? <VisitesHeader /> : null}</View>}
         renderItem={({ item }) => {
           const trame = obtenirTrame(item.trame_id || DEFAULT_TRAME_ID);
           const selectionnee = visitesSelectionnees.has(item.id);
@@ -320,7 +335,7 @@ function SiteVisitesScreen({ route, navigation }) {
           );
         }}
         ListEmptyComponent={siteTab === 'visites'
-          ? <View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>Lance la première avec le bouton ci-dessous.</Text></View>
+          ? <View style={styles.empty}><Text style={styles.emptyText}>{legacyOnly ? 'Aucune visite non rattachée.' : 'Aucune visite pour ce local.'}</Text><Text style={styles.emptySub}>{legacyOnly ? 'Les visites correctement rattachées sont disponibles depuis leur local.' : 'Lance la première visite de ce local avec le bouton ci-dessous.'}</Text></View>
           : <SiteOverviewPanel siteId={siteId} mode={siteTab} />}
       />
 
@@ -328,7 +343,7 @@ function SiteVisitesScreen({ route, navigation }) {
         <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={annulerSelectionExport} disabled={exportLotEnCours}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={toutSelectionner} disabled={exportLotEnCours}><Text style={styles.btnSecondaryText}>{visitesSelectionnees.size === visites.length ? 'Tout désélectionner' : 'Tout sélectionner'}</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnPrimary, { flex: 1.2 }]} onPress={exporterSelection} disabled={!visitesSelectionnees.size || exportLotEnCours}><Text style={styles.btnPrimaryText}>{exportLotEnCours ? 'Export…' : `Exporter ${visitesSelectionnees.size}`}</Text></TouchableOpacity>
-      </View> : siteTab === 'visites' ? <View style={styles.fabBar}>
+      </View> : siteTab === 'visites' && !legacyOnly ? <View style={styles.fabBar}>
         <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={ouvrirNouvelleVisite}><Text style={styles.btnPrimaryText}>+ Nouvelle visite</Text></TouchableOpacity>
       </View> : null}
 
