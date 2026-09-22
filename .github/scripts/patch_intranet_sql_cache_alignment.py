@@ -153,7 +153,7 @@ new = """  const adresse = [remote.adresse_postale, remote.ville].filter(Boolean
 """
 s = replace_once(s, old, new, 'fill blank client metadata')
 
-old = """  const existing = await database.getFirstAsync(`SELECT id FROM sites WHERE client_id=? AND lower(trim(nom_site))=lower(trim(?)) LIMIT 1`, [clientId, clean(remote.nom)]);
+legacy_old = """  const existing = await database.getFirstAsync(`SELECT id FROM sites WHERE client_id=? AND lower(trim(nom_site))=lower(trim(?)) LIMIT 1`, [clientId, clean(remote.nom)]);
   const localSiteId = existing?.id || createId();
   const createdLocally = existing?.id ? 0 : 1;
   if (!existing?.id) {
@@ -162,7 +162,7 @@ old = """  const existing = await database.getFirstAsync(`SELECT id FROM sites W
 
   await database.runAsync(
 """
-new = """  const existing = await database.getFirstAsync(`SELECT id FROM sites WHERE client_id=? AND lower(trim(nom_site))=lower(trim(?)) LIMIT 1`, [clientId, clean(remote.nom)]);
+legacy_new = """  const existing = await database.getFirstAsync(`SELECT id FROM sites WHERE client_id=? AND lower(trim(nom_site))=lower(trim(?)) LIMIT 1`, [clientId, clean(remote.nom)]);
   const localSiteId = existing?.id || createId();
   const createdLocally = existing?.id ? 0 : 1;
   const cpVille = [remote.code_postal, remote.ville].filter(Boolean).join(' ');
@@ -175,7 +175,37 @@ new = """  const existing = await database.getFirstAsync(`SELECT id FROM sites W
 
   await database.runAsync(
 """
-s = replace_once(s, old, new, 'materialize server site address')
+
+# Depuis le correctif SITE/LOCAL, materializeCachedSite ne rapproche plus les
+# sites par leur libellé. On conserve cette identité stricte et on ne fait ici
+# qu'ajouter l'adresse serveur au site fraîchement créé.
+identity_old = """  const localSiteId = createId();
+  await database.runAsync(
+    `INSERT INTO sites(id,client_id,nom_site,statut) VALUES(?,?,?,'Actif')`,
+    [localSiteId, clientId, remote.nom]
+  );
+
+  await database.runAsync(
+"""
+identity_new = """  const localSiteId = createId();
+  const cpVille = [remote.code_postal, remote.ville].filter(Boolean).join(' ');
+  const adresse = [remote.adresse, cpVille].filter(Boolean).join('\\n');
+  await database.runAsync(
+    `INSERT INTO sites(id,client_id,nom_site,adresse,statut) VALUES(?,?,?,?, 'Actif')`,
+    [localSiteId, clientId, remote.nom, adresse || null]
+  );
+
+  await database.runAsync(
+"""
+
+if identity_new in s or legacy_new in s:
+    pass
+elif identity_old in s:
+    s = s.replace(identity_old, identity_new, 1)
+elif legacy_old in s:
+    s = s.replace(legacy_old, legacy_new, 1)
+else:
+    raise SystemExit('materialize server site address: compatible SITE identity marker not found')
 
 p.write_text(s, encoding='utf-8')
 
