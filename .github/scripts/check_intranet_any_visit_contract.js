@@ -17,6 +17,10 @@ need(binding, 'countReferenceCriteria', 'frozen criteria validation');
 need(binding, 'seen.has(key)', 'duplicate remote branch rejection');
 need(binding, 'Aucune trame Intranet exploitable n’est configurée pour ce local.', 'missing trame diagnosis');
 need(binding, 'resolveFirstVisitRemoteTrame', 'first-visit trame resolver');
+need(binding, "cle='Trame utilisée'", 'first-visit reads Trame utilisée from visit Informations');
+need(binding, "matchedBy: 'visit_field'", 'first-visit prioritizes exact visit trame name');
+need(binding, 'intranet_first_visit_trame_name_ambiguous', 'duplicate exact trame name guard');
+need(binding, 'intranet_first_visit_trame_name_missing', 'missing exact trame name guard');
 need(binding, 'intranet_first_visit_trame_ambiguous', 'first-visit trame ambiguity guard');
 need(binding, 'intranet_first_visit_trame_missing', 'first-visit missing trame guard');
 
@@ -27,6 +31,7 @@ need(sync, "online ? 'Online' : 'Offline'", 'single Online/Offline status button
 need(sync, 'bindVisitToImportedClientTarget', 'one-click same-client binding');
 need(sync, 'syncClientPreparation(error.remoteClientId)', 'automatic refresh of the same imported client');
 need(sync, 'hydrateFirstVisitReference', 'first-visit reference hydration');
+need(sync, 'options?.visitTrameName', 'first-visit uses visit Informations trame name');
 need(sync, 'syncStructureReferential(remoteClientId)', 'first-visit structure referential refresh');
 need(sync, 'syncClientPreparation(remoteClientId, resolved.remoteTrameId)', 'first-visit filtered trame preparation');
 need(sync, 'Appuie sur Offline pour l’envoyer au client importé', 'direct-send UX');
