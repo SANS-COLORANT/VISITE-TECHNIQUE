@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOp
 import { COLORS, styles } from './styles.js';
 import { activateTablet, getActivationStatus, syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';
 import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory } from './symfonyApiCacheDb.js';
+import { syncStructureReferential } from './intranetStructureDb.js';
 import { importLatestApiVisitsForSite } from './apiLatestVisitImportDb.js';
 import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
 import { ClientLatestVisitPhotosModal } from './ClientLatestVisitPhotosModal.js';
@@ -167,6 +168,10 @@ function MetraDirectoryScreen({ navigation, route }) {
     setClientRefreshing(true);
     try {
       await syncClientPreparation(remoteClientId);
+      // Le référentiel contient notamment les identifiants de trame nécessaires
+      // à une première visite sur un local qui n'a encore aucun historique.
+      // Son échec ne doit pas empêcher l'import classique du client/site.
+      await syncStructureReferential(remoteClientId).catch(() => null);
       setSites(await listCachedSites(remoteClientId));
       await Promise.all([search(query), refreshStatus()]);
     } catch (e) {
