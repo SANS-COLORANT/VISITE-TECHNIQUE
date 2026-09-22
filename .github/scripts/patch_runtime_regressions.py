@@ -16,7 +16,11 @@ def replace_once(text: str, old: str, new: str, label: str) -> str:
 # ---------------------------------------------------------------------------
 p = Path('SiteVisitesScreen.js')
 s = p.read_text(encoding='utf-8')
-if "const database = await getDb();" in s and "import { listerVisitesSite, getDb } from './db.js';" not in s:
+has_site_getdb_import = (
+    "import { listerVisitesSite, getDb } from './db.js';" in s
+    or "import { listerVisitesSite, listerVisitesLocal, getDb } from './db.js';" in s
+)
+if "const database = await getDb();" in s and not has_site_getdb_import:
     s = replace_once(
         s,
         "import { listerVisitesSite } from './db.js';",
@@ -224,7 +228,11 @@ creation = Path('visitCreationDb.js').read_text(encoding='utf-8')
 v3 = Path('PreAllumageInstallationPanelV3.js').read_text(encoding='utf-8')
 business = Path('PreAllumageInstallationPanelBusiness.js').read_text(encoding='utf-8')
 
-if "const database = await getDb();" in site and "import { listerVisitesSite, getDb } from './db.js';" not in site:
+has_site_getdb_import = (
+    "import { listerVisitesSite, getDb } from './db.js';" in site
+    or "import { listerVisitesSite, listerVisitesLocal, getDb } from './db.js';" in site
+)
+if "const database = await getDb();" in site and not has_site_getdb_import:
     raise SystemExit('SiteVisites getDb runtime regression still present')
 if "compteur correspondant introuvable ou ambigu" in payload:
     raise SystemExit('Missing counter still blocks Intranet upload')
