@@ -401,7 +401,7 @@ export async function syncClientPreparation(remoteClientId, trameId = null) {
   const suffix = trameId != null ? `?trame=${encodeURIComponent(String(trameId))}` : '';
   try {
     const payload = await protectedRequest('GET', `/api/clients/${id}/preparation-visites${suffix}`);
-    await cachePreparation(remoteClientId, payload);
+    await cachePreparation(remoteClientId, payload, { partial: trameId != null });
     return payload;
   } catch (error) {
     await markApiError(error);
