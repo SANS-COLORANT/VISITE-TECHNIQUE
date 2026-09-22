@@ -12,6 +12,7 @@ name: Trigger Missions APK build
 # pilotage AMO longue durée, contrôles ciblés, mémoire inter-visites et OPR multi-modes.
 # Build final demandé après validation du parcours Client -> Site -> Local -> Visites et compatibilité build 424.
 # Rebuild compatibilité démarrage SQLite demandé après correctif _meta.value NOT NULL (22/09/2026).
+# Rebuild final après test de reprise du vrai état laissé par le build 429 (réparation commitée sans marqueur _meta).
 on:
   push:
     branches:
