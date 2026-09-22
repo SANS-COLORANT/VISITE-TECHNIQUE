@@ -55,7 +55,11 @@ function databaseProcess(filename) {
       throw error;
     }
   };
-  db.withTransactionAsync = (fn) => db.withExclusiveTransactionAsync(() => fn());
+  // Reproduit le comportement Expo SQLite: withTransactionAsync n'expose
+  // pas la valeur retournee par le callback.
+  db.withTransactionAsync = async (fn) => {
+    await db.withExclusiveTransactionAsync(() => fn());
+  };
   return { db, send, close: () => child.stdin.end() };
 }
 
@@ -113,6 +117,13 @@ async function main() {
     });
 
     const first = await repair.repairIntranetSiteLocalIdentityOnce(server.db);
+    const markerAfterFirst = await server.db.getFirstAsync(
+      `SELECT value FROM _meta WHERE key='intranet_identity_repair_build424_v1'`
+    );
+    check(Boolean(markerAfterFirst?.value), 'startup repair persists a non-NULL _meta marker with Expo transaction semantics');
+    const storedSummary = JSON.parse(markerAfterFirst.value);
+    check(storedSummary.siteSplits === 1 && storedSummary.localSplits === 1,
+      'stored _meta repair summary matches the first repair result');
     check(first.siteSplits === 1, 'two distinct remote sites sharing one local site are split once');
     check(first.localSplits === 1, 'two distinct remote locals sharing one installation are split once');
 
