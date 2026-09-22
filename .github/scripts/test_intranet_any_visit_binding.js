@@ -129,6 +129,14 @@ async function main() {
     check(firstVisitRow.api_remote_trame_id === '3' && firstVisitRow.api_source_remote_visit_id == null,
       'first visit freezes remote trame id while keeping derniereVisiteIdSource null');
 
+    // Rétablit le fixture initial pour les scénarios historiques ci-dessous :
+    // la première visite reste autonome grâce à sa référence figée en provenance.
+    await server.db.runAsync(`
+      UPDATE api_local_links
+      SET local_installation_id=NULL,remote_trame_id=NULL,remote_trame_nom=NULL,criteria_count=0,reference_json=?
+      WHERE remote_local_id='503'
+    `, [JSON.stringify(reference('503', 'Local sans trame', null))]);
+
     await assert.rejects(() => binding.bindVisitToIntranetTarget('ordinary-visit', { remoteClientId: '99', remoteSiteId: '45', remoteLocalId: '501' }), /ayant été importé|client Intranet/i);
     checks++; console.log(`OK ${checks}: explicit cross-client upload is rejected even when another imported client is authorized on the tablet`);
 
