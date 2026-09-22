@@ -15,7 +15,6 @@ on:
     branches:
       - feat/metra-missions-lab
       - feat/metra-missions-architecture-v2
-      - fix/metra-site-local-identity-build424
     paths:
       - '.github/workflows/trigger-missions-apk-build.yml'
   workflow_dispatch:
