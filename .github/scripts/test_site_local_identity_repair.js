@@ -164,6 +164,38 @@ async function main() {
     const legacy = await server.db.getFirstAsync(`SELECT installation_id FROM visites WHERE id='visit-legacy'`);
     check(Boolean(legacy?.installation_id), 'legacy visit is attached only when its remaining site has one unambiguous active local');
 
+    const afterFirstCounts = {
+      sites: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM sites`))?.n || 0),
+      installations: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM installations`))?.n || 0),
+    };
+
+    // Reproduit exactement l'etat laisse par le build 429: l'ancienne
+    // implementation avait deja COMMIT la reparation, puis plantait en
+    // essayant d'ecrire undefined dans _meta.value. La base utilisateur peut
+    // donc etre reparee mais sans marqueur. Le build suivant doit reprendre
+    // sans dupliquer ni perdre de donnees.
+    await server.db.runAsync(
+      `DELETE FROM _meta WHERE key='intranet_identity_repair_build424_v1'`
+    );
+    const recovered = await repair.repairIntranetSiteLocalIdentityOnce(server.db);
+    const afterRecoveryCounts = {
+      sites: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM sites`))?.n || 0),
+      installations: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM installations`))?.n || 0),
+    };
+    check(
+      afterFirstCounts.sites === afterRecoveryCounts.sites
+      && afterFirstCounts.installations === afterRecoveryCounts.installations,
+      'recovery from build 429 committed-without-marker state does not duplicate sites or locals'
+    );
+    check(recovered.siteSplits === 0 && recovered.localSplits === 0,
+      'recovery recognizes already repaired SITE/LOCAL identities without replaying splits');
+
+    const recoveredMarker = await server.db.getFirstAsync(
+      `SELECT value FROM _meta WHERE key='intranet_identity_repair_build424_v1'`
+    );
+    check(Boolean(recoveredMarker?.value),
+      'recovery from build 429 state persists the missing non-NULL _meta marker');
+
     const beforeSecond = {
       sites: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM sites`))?.n || 0),
       installations: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM installations`))?.n || 0),
@@ -175,8 +207,8 @@ async function main() {
     };
     check(beforeSecond.sites === afterSecond.sites && beforeSecond.installations === afterSecond.installations,
       'repair is idempotent and does not duplicate sites or locals on next startup');
-    check(second.siteSplits === first.siteSplits && second.localSplits === first.localSplits,
-      'second startup reads the stored repair summary instead of repairing again');
+    check(second.siteSplits === recovered.siteSplits && second.localSplits === recovered.localSplits,
+      'next startup reads the stored recovery summary instead of repairing again');
 
     const audit = await server.db.getFirstAsync(
       `SELECT COUNT(*) AS n FROM journal_modifications
