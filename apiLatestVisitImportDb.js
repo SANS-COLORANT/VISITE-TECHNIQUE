@@ -94,14 +94,8 @@ async function ensureInstallation(db, siteId, remoteLocalId, ref) {
   );
   let installationId = byProvenance?.id || null;
   const designation = text(ref?.local?.designation) || 'Local technique';
-
-  if (!installationId) {
-    const sameName = await db.getAllAsync(
-      `SELECT id FROM installations WHERE site_id=? AND actif=1 AND lower(trim(COALESCE(nom,'')))=lower(trim(?)) ORDER BY cree_le`,
-      [siteId, designation]
-    );
-    if (sameName.length === 1) installationId = sameName[0].id;
-  }
+  // Le libellé du local n'est jamais utilisé comme identité. Deux locaux
+  // Intranet homonymes conservent deux installations METRA distinctes.
 
   if (!installationId) {
     installationId = createId();
