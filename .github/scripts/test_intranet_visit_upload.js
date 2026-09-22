@@ -145,9 +145,43 @@ async function main() {
     checks++; console.log(`OK ${checks}: imported historical visit cannot be resent as a new visit`);
 
     await seed(server.db, 'missing-control');
-    await server.db.runAsync(`DELETE FROM controles_visite WHERE visite_id='missing-control'`);
-    await assert.rejects(() => payloadModule.buildIntranetVisitPayload('missing-control', '33333333-3333-4333-8333-333333333333'), /avis obligatoire/);
-    checks++; console.log(`OK ${checks}: missing required opinion blocks server upload before HTTP`);
+    await server.db.execAsync(`
+      DELETE FROM controles_visite WHERE visite_id='missing-control';
+      DELETE FROM champs_visite WHERE visite_id='missing-control';
+      DELETE FROM reseaux WHERE visite_id='missing-control';
+      DELETE FROM compteurs WHERE visite_id='missing-control';
+      DELETE FROM materiel WHERE visite_id='missing-control';
+      DELETE FROM remarques WHERE visite_id='missing-control';
+      DELETE FROM notes WHERE visite_id='missing-control';
+    `);
+    await server.db.runAsync(
+      `UPDATE provenances SET details_json=? WHERE entite_type='visite' AND entite_id='missing-control'`,
+      [JSON.stringify({ ...context, materiels: [] })]
+    );
+    const partialVisit = await payloadModule.buildIntranetVisitPayload('missing-control', '33333333-3333-4333-8333-333333333333');
+    const partialWire = partialVisit.payload.visites[0];
+    check(partialWire.criteres[0].avis === 'N.V' && partialWire.criteres[0].commentaire === '/',
+      'empty applicable control is sent as N.V with slash instead of blocking the visit');
+    check(partialWire.criteres.slice(1).every((criterion) => criterion.commentaire === '/'),
+      'empty fields, networks and missing counter values are sent as slash');
+    check(partialWire.remarques.length === 0 && partialWire.materiels.length === 0 && partialWire.notes.length === 0,
+      'empty optional visit collections remain valid empty arrays');
+
+    await seed(server.db, 'invalid-control');
+    await server.db.runAsync(`UPDATE controles_visite SET avis='INCONNU' WHERE visite_id='invalid-control'`);
+    await assert.rejects(
+      () => payloadModule.buildIntranetVisitPayload('invalid-control', '44444444-4444-4444-8444-444444444444'),
+      /avis .* invalide/i
+    );
+    checks++; console.log(`OK ${checks}: a non-empty invalid opinion still blocks corrupted data`);
+
+    await seed(server.db, 'ambiguous-counter');
+    await server.db.runAsync(`INSERT INTO compteurs(id,visite_id,label,unite,valeur) VALUES('meter-ambiguous-2','ambiguous-counter','Index Gaz','m³','999')`);
+    await assert.rejects(
+      () => payloadModule.buildIntranetVisitPayload('ambiguous-counter', '55555555-5555-4555-8555-555555555555'),
+      /plusieurs compteurs/i
+    );
+    checks++; console.log(`OK ${checks}: ambiguous counter mapping is still blocked rather than guessed`);
 
     await seed(server.db, 'pre-multi');
     await server.db.runAsync(`UPDATE visites SET trame_id='pre_allumage' WHERE id='pre-multi'`);
