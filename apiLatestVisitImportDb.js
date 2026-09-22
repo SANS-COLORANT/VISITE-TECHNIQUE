@@ -197,11 +197,10 @@ async function findImportedVisit(db, remoteVisitId) {
 
 async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
   const ref = sanitizeRemoteReference(sourceRef);
+  const installationId = await ensureInstallation(db, siteId, remoteLocalId, ref);
   const latest = ref?.derniereVisite;
   const remoteVisitId = remoteId(latest?.id);
-  if (!remoteVisitId) return { imported: false, reason: 'no_latest_visit' };
-
-  const installationId = await ensureInstallation(db, siteId, remoteLocalId, ref);
+  if (!remoteVisitId) return { imported: false, reason: 'no_latest_visit', installationId };
   const trameId = mapRemoteTrameToLocal(ref?.trame) || DEFAULT_TRAME_ID;
   const visitDate = text(latest?.date)?.slice(0, 10) || null;
   const status = latestVisitStatus(latest?.statut);
@@ -369,8 +368,24 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
     criteriaWithoutSourceVisit,
     importedRemarks,
     fieldImport,
+    installationId,
     created: !existing?.id,
   };
+}
+
+export async function materializeCachedLocalForSite(siteId, remoteLocalId) {
+  const localSiteId = clean(siteId);
+  const remoteIdLocal = clean(remoteLocalId);
+  if (!localSiteId || !remoteIdLocal) throw new Error('Site local / local Intranet requis pour matérialiser le local.');
+
+  const ref = await getCachedLocalReference(remoteIdLocal);
+  if (!ref) return null;
+  const db = await getDb();
+  let installationId = null;
+  await db.withTransactionAsync(async () => {
+    installationId = await ensureInstallation(db, localSiteId, remoteIdLocal, sanitizeRemoteReference(ref));
+  });
+  return installationId;
 }
 
 export async function importLatestApiVisitForLocal(siteId, remoteLocalId) {
