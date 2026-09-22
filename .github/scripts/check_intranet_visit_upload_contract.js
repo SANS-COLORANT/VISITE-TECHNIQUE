@@ -22,6 +22,10 @@ requireText(payload, 'remoteCategoryId', 'network provenance mapping');
 requireText(payload, "pre_allumage_locaux", 'multi-local PRE upload guard');
 requireText(payload, "maximum 2000 par visite", 'criterion count guard');
 requireText(payload, 'counterValue', 'counter current-value mapping');
+requireText(payload, "return 'N.V';", 'empty applicable controls become non-verified instead of blocking');
+requireText(payload, "status: 'missing'", 'missing counter value is distinguishable from ambiguity');
+requireText(payload, "plusieurs compteurs correspondent", 'ambiguous counters remain fail-safe');
+forbidText(payload, 'avis obligatoire', 'empty applicable control must not block upload');
 forbidText(payload, 'photos:', 'photos excluded from visit JSON contract');
 forbidText(payload, 'conclusion:', 'conclusion excluded from JSON contract');
 const outbox = read('intranetVisitOutboxDb.js');
@@ -87,4 +91,4 @@ requireText(read('VisiteScreen.js'), '<IntranetVisitSyncControl visite={visite}'
 const app = read('App.js');
 requireRegex(app, /<IntranetVisitSyncRuntime\s*\/>/, 'foreground retry runtime');
 requireRegex(app, /<IntranetVisitSyncBanner\s*\/>/, 'global pending status');
-console.log('Intranet visit upload contract validated: exact visit POST plus separate idempotent multipart photo upload in resumable parts of 10, DPoP retries, persistent outboxes, Offline/Online status, conflicts, structural criteria validation and full material safeguards.');
+console.log('Intranet visit upload contract validated: exact visit POST plus separate idempotent multipart photo upload in resumable parts of 10, DPoP retries, persistent outboxes, partial visit values encoded as N.V or slash, conflicts, structural mapping validation and full material safeguards.');
