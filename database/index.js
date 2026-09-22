@@ -1,6 +1,7 @@
 import * as SQLite from 'expo-sqlite';
 import { DATABASE_NAME } from './constants.js';
 import { migrateDatabase, verifyDatabaseIntegrity } from './migrate.js';
+import { repairIntranetSiteLocalIdentityOnce } from '../intranetIdentityRepairDb.js';
 let databasePromise = null;
 let catalogueEnrichmentPromise = null;
 const CORE_REFERENCE_META_KEY='reference_catalog_icpe_v2';
@@ -71,6 +72,7 @@ export function openAppDatabase() {
       await configurerSQLitePourTablette(db);
       installerCompatibiliteVisite(db);
       await migrateDatabase(db);
+      await repairIntranetSiteLocalIdentityOnce(db);
       await assurerReferentielsBase(db);
       return db;
     })().catch((error) => {
