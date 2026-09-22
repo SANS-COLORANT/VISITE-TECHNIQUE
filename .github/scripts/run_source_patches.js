@@ -22,6 +22,7 @@ const CONTRACT_CHECKS = [
   ['Intranet mapping/support dump executable tests', '.github/scripts/test_intranet_mapping_support_dump.js'],
   ['Intranet visit upload executable tests', '.github/scripts/test_intranet_visit_upload.js'],
   ['Intranet any-visit binding executable tests', '.github/scripts/test_intranet_any_visit_binding.js'],
+  ['Intranet first-visit preparation executable tests', '.github/scripts/test_intranet_first_visit_preparation.js'],
   ['Intranet focused upload audit', '.github/scripts/test_intranet_visit_upload_audit.js'],
   ['photo workflow executable regression tests', '.github/scripts/test_photo_workflow.js'],
   ['Missions LAB isolation contract', '.github/scripts/check_missions_lab_contract.js'],
