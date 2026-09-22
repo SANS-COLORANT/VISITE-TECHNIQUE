@@ -46,8 +46,9 @@ if 'apiRemoteLocalId' not in site or (creation_call_legacy not in site and creat
     raise SystemExit('API LOCAL visit creation flow missing before build compatibility patch')
 if 'preremplirVisiteDepuisContexte' in site:
     raise SystemExit('Site visit screen still contains blocking direct prefill')
-if "import { listerVisitesSite, getDb } from './db.js';" not in site:
-    raise SystemExit('SiteVisites must keep getDb for imported-client state')
+if ("import { listerVisitesSite, getDb } from './db.js';" not in site
+        and "import { listerVisitesSite, listerVisitesLocal, getDb } from './db.js';" not in site):
+    raise SystemExit('SiteVisites must keep getDb/local visit repository for imported-client state')
 site_path.write_text(site, encoding='utf-8')
 
 
