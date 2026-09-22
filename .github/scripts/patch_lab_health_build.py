@@ -60,13 +60,30 @@ empty_old = """        ListEmptyComponent={siteTab === 'visites'
           ? <View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>Lance la première avec le bouton ci-dessous.</Text></View>
           : <SiteOverviewPanel siteId={siteId} mode={siteTab} />}
 """
+empty_local = """        ListEmptyComponent={siteTab === 'visites'
+          ? <View style={styles.empty}><Text style={styles.emptyText}>{legacyOnly ? 'Aucune visite non rattachée.' : 'Aucune visite pour ce local.'}</Text><Text style={styles.emptySub}>{legacyOnly ? 'Les visites correctement rattachées sont disponibles depuis leur local.' : 'Lance la première visite de ce local avec le bouton ci-dessous.'}</Text></View>
+          : <SiteOverviewPanel siteId={siteId} mode={siteTab} />}
+"""
 empty_new = """        ListEmptyComponent={siteTab === 'visites'
           ? <View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>Lance la première avec le bouton ci-dessous.</Text></View>
           : siteTab === 'sante'
             ? <SiteHealthPanel siteId={siteId} siteName={nomSite} />
             : <SiteOverviewPanel siteId={siteId} mode={siteTab} />}
 """
-s = replace_once(s, empty_old, empty_new, 'site health panel')
+empty_local_new = """        ListEmptyComponent={siteTab === 'visites'
+          ? <View style={styles.empty}><Text style={styles.emptyText}>{legacyOnly ? 'Aucune visite non rattachée.' : 'Aucune visite pour ce local.'}</Text><Text style={styles.emptySub}>{legacyOnly ? 'Les visites correctement rattachées sont disponibles depuis leur local.' : 'Lance la première visite de ce local avec le bouton ci-dessous.'}</Text></View>
+          : siteTab === 'sante'
+            ? <SiteHealthPanel siteId={siteId} siteName={nomSite} />
+            : <SiteOverviewPanel siteId={siteId} mode={siteTab} />}
+"""
+if empty_local_new in s or empty_new in s:
+    pass
+elif empty_local in s:
+    s = s.replace(empty_local, empty_local_new, 1)
+elif empty_old in s:
+    s = s.replace(empty_old, empty_new, 1)
+else:
+    raise SystemExit('site health panel marker not found')
 p.write_text(s, encoding='utf-8')
 
 
