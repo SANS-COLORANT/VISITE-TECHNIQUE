@@ -42,11 +42,11 @@ function SiteVisitesScreen({ route, navigation }) {
   const params = route?.params || {};
   const { siteId, nomSite } = params;
   const installationId = params.installationId ? String(params.installationId) : null;
-  const nomLocal = params.nomLocal || apiRemoteLocalDesignation || null;
   const legacyOnly = params.legacyOnly === true;
   const apiRemoteLocalId = params.apiRemoteLocalId ? String(params.apiRemoteLocalId) : null;
   const apiRemoteClientId = params.apiRemoteClientId ? String(params.apiRemoteClientId) : null;
   const apiRemoteLocalDesignation = params.apiRemoteLocalDesignation || null;
+  const nomLocal = params.nomLocal || apiRemoteLocalDesignation || null;
   const apiRemoteTrame = apiRemoteLocalId ? { id: params.apiRemoteTrameId || null, nom: params.apiRemoteTrameNom || null } : null;
   const apiSuggestedTrameId = mapRemoteTrameToLocal(apiRemoteTrame);
   const [visites, setVisites] = useState([]);
