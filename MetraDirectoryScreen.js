@@ -3,7 +3,8 @@ import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOp
 import { COLORS, styles } from './styles.js';
 import { activateTablet, getActivationStatus, syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';
 import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory } from './symfonyApiCacheDb.js';
-import { importLatestApiVisitForLocal, importLatestApiVisitsForSite } from './apiLatestVisitImportDb.js';
+import { importLatestApiVisitsForSite } from './apiLatestVisitImportDb.js';
+import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
 import { ClientLatestVisitPhotosModal } from './ClientLatestVisitPhotosModal.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { SitePhotoPreparationOption } from './SitePhotoPreparationOption.js';
