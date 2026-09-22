@@ -150,7 +150,8 @@ async function hydrateFirstVisitReference(visiteId, remoteClientId) {
 
   const options = await getVisitIntranetBindingOptions(visiteId);
   const localTrameId = options?.visite?.trame_id;
-  const resolved = resolveFirstVisitRemoteTrame(referential, localTrameId);
+  const visitTrameName = options?.visitTrameName || null;
+  const resolved = resolveFirstVisitRemoteTrame(referential, localTrameId, visitTrameName);
 
   // Le filtre ?trame= force l'API à fournir la définition complète de la
   // trame même lorsque le local ne possède encore aucune dernière visite.
