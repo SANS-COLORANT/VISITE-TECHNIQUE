@@ -17,6 +17,7 @@ const CONTRACT_CHECKS = [
   ['Intranet any-visit binding contract', '.github/scripts/check_intranet_any_visit_contract.js'],
   ['Intranet LOCAL name sync contract', '.github/scripts/check_intranet_local_name_sync.js'],
   ['SITE/LOCAL navigation contract', '.github/scripts/check_site_local_navigation_contract.js'],
+  ['SITE/LOCAL identity executable tests', '.github/scripts/test_site_local_identity_repair.js'],
   ['Intranet LOCAL name sync executable tests', '.github/scripts/test_intranet_local_name_sync.js'],
   ['Intranet mapping/support dump executable tests', '.github/scripts/test_intranet_mapping_support_dump.js'],
   ['Intranet visit upload executable tests', '.github/scripts/test_intranet_visit_upload.js'],
