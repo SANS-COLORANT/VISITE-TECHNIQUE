@@ -381,17 +381,35 @@ export async function repairIntranetSiteLocalIdentityOnce(db) {
     try { return JSON.parse(done.value); } catch { return { alreadyDone: true }; }
   }
 
-  const summary = await db.withTransactionAsync(async () => {
-    const siteSplits = await splitMergedSites(db);
-    const localSplits = await splitMergedLocals(db);
-    const alignedLocals = await alignMappedLocalsToSites(db);
-    const legacyVisitsAttached = await attachUnambiguousLegacyVisits(db);
-    return { siteSplits, localSplits, alignedLocals, legacyVisitsAttached };
+  // Expo SQLite ne relaie pas la valeur retournee par le callback de
+  // withTransactionAsync(). Conserver le resume dans la portee externe evite
+  // d'ecrire undefined -> NULL dans _meta.value (colonne NOT NULL).
+  // Le marqueur est ecrit dans la meme transaction que la reparation afin
+  // qu'un echec n'enregistre jamais une reparation partielle comme terminee.
+  let summary = {
+    siteSplits: 0,
+    localSplits: 0,
+    alignedLocals: 0,
+    legacyVisitsAttached: 0,
+  };
+
+  await db.withTransactionAsync(async () => {
+    summary = {
+      siteSplits: await splitMergedSites(db),
+      localSplits: await splitMergedLocals(db),
+      alignedLocals: await alignMappedLocalsToSites(db),
+      legacyVisitsAttached: await attachUnambiguousLegacyVisits(db),
+    };
+
+    const metaValue = JSON.stringify(summary);
+    if (!metaValue) {
+      throw new Error('Impossible de serialiser le resume de reparation SITE/LOCAL.');
+    }
+    await db.runAsync(
+      `INSERT OR REPLACE INTO _meta(key,value) VALUES(?,?)`,
+      [META_KEY, metaValue]
+    );
   });
 
-  await db.runAsync(
-    `INSERT OR REPLACE INTO _meta(key,value) VALUES(?,?)`,
-    [META_KEY, JSON.stringify(summary)]
-  );
   return summary;
 }
