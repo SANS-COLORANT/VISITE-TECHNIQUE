@@ -9,8 +9,9 @@ import {
   getVisitPhotoUploadSummary, processVisitPhotoOutbox, queueMissingSyncedVisitPhotos,
   retryVisitPhotoUploadsNow, subscribeVisitPhotoOutbox, syncVisitPhotosNow,
 } from './intranetVisitPhotoOutboxDb.js';
-import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions } from './intranetVisitBindingDb.js';
+import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions, resolveFirstVisitRemoteTrame } from './intranetVisitBindingDb.js';
 import { syncClientPreparation } from './symfonyApi.js';
+import { getCachedStructureReferential, syncStructureReferential } from './intranetStructureDb.js';
 
 const OFFLINE = '#111111';
 const ONLINE = '#16794B';
@@ -132,13 +133,43 @@ export function useVisitPhotoUploadSummary(visiteId) {
   return { summary, loading, refresh };
 }
 
+async function hydrateFirstVisitReference(visiteId, remoteClientId) {
+  let referential = await getCachedStructureReferential(remoteClientId).catch(() => null);
+  try {
+    // Le référentiel est léger et contient les identifiants de trame officiels.
+    // On l'actualise avant de choisir une trame pour une toute première visite.
+    referential = await syncStructureReferential(remoteClientId);
+  } catch (error) {
+    if (!referential) {
+      const wrapped = new Error(`Impossible de charger le référentiel Intranet nécessaire à cette première visite : ${String(error?.message || error)}`);
+      wrapped.code = error?.code || 'intranet_structure_referential_required';
+      wrapped.remoteClientId = remoteClientId;
+      throw wrapped;
+    }
+  }
+
+  const options = await getVisitIntranetBindingOptions(visiteId);
+  const localTrameId = options?.visite?.trame_id;
+  const resolved = resolveFirstVisitRemoteTrame(referential, localTrameId);
+
+  // Le filtre ?trame= force l'API à fournir la définition complète de la
+  // trame même lorsque le local ne possède encore aucune dernière visite.
+  // cachePreparation traite cette réponse comme partielle et ne masque donc
+  // aucun autre site/local déjà importé.
+  await syncClientPreparation(remoteClientId, resolved.remoteTrameId);
+  return resolved;
+}
+
 async function bindSameImportedClient(visiteId) {
   try {
     return await bindVisitToImportedClientTarget(visiteId);
   } catch (error) {
     const refreshable = error?.remoteClientId && ['imported_site_missing', 'intranet_reference_refresh_required', 'wrong_imported_site'].includes(error?.code);
     if (!refreshable) throw error;
+
     try {
+      // Premier essai : actualisation normale du client, suffisante lorsqu'une
+      // dernière visite existe déjà côté Intranet.
       await syncClientPreparation(error.remoteClientId);
     } catch (refreshError) {
       const wrapped = new Error(`Impossible d’actualiser le client Intranet avant l’envoi : ${String(refreshError?.message || refreshError)}`);
@@ -146,7 +177,19 @@ async function bindSameImportedClient(visiteId) {
       wrapped.remoteClientId = error.remoteClientId;
       throw wrapped;
     }
-    return bindVisitToImportedClientTarget(visiteId);
+
+    try {
+      return await bindVisitToImportedClientTarget(visiteId);
+    } catch (retryError) {
+      // Cas première visite : le local existe mais aucune visite antérieure ne
+      // permet à preparation-visites de déduire une trame. METRA récupère alors
+      // l'identifiant de trame depuis referentiel-structure et redemande une
+      // préparation explicitement filtrée sur cette trame.
+      if (retryError?.code !== 'intranet_reference_refresh_required') throw retryError;
+      const remoteClientId = retryError?.remoteClientId || error.remoteClientId;
+      await hydrateFirstVisitReference(visiteId, remoteClientId);
+      return bindVisitToImportedClientTarget(visiteId);
+    }
   }
 }
 
