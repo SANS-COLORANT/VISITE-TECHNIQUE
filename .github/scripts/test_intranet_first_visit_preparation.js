@@ -158,22 +158,35 @@ async function main() {
       createId: () => 'unused-binding-id',
       mapRemoteTrameToLocal,
     });
-    const resolved = binding.resolveFirstVisitRemoteTrame({ trames: [remoteTrame] }, 'icpe_v1');
-    check(resolved.remoteTrameId === '3', 'unique referentiel-structure trame is resolved for first visit');
+    const resolved = binding.resolveFirstVisitRemoteTrame(
+      { trames: [remoteTrame, { ...remoteTrame, id: '4', nom: 'ICPE Chaufferie' }] },
+      'icpe_v1',
+      'ICPE'
+    );
+    check(resolved.remoteTrameId === '3' && resolved.matchedBy === 'visit_field',
+      'Informations > Trame utilisée selects the exact remote trame even when several trames belong to the ICPE family');
 
     assert.throws(
-      () => binding.resolveFirstVisitRemoteTrame({ trames: [remoteTrame, { ...remoteTrame, id: '4', nom: 'ICPE Chaufferie' }] }, 'icpe_v1'),
-      (error) => error?.code === 'intranet_first_visit_trame_ambiguous'
+      () => binding.resolveFirstVisitRemoteTrame(
+        { trames: [remoteTrame, { ...remoteTrame, id: '4', nom: 'ICPE' }] },
+        'icpe_v1',
+        'ICPE'
+      ),
+      (error) => error?.code === 'intranet_first_visit_trame_name_ambiguous'
     );
     checks += 1;
-    console.log(`OK ${checks}: ambiguous remote trames are rejected instead of guessed`);
+    console.log(`OK ${checks}: duplicate exact remote trame names are rejected instead of guessed`);
 
     assert.throws(
-      () => binding.resolveFirstVisitRemoteTrame({ trames: [{ id: '8', nom: 'VMC' }] }, 'icpe_v1'),
-      (error) => error?.code === 'intranet_first_visit_trame_missing'
+      () => binding.resolveFirstVisitRemoteTrame({ trames: [{ id: '8', nom: 'VMC' }] }, 'icpe_v1', 'ICPE'),
+      (error) => error?.code === 'intranet_first_visit_trame_name_missing'
     );
     checks += 1;
-    console.log(`OK ${checks}: missing compatible remote trame is explicit`);
+    console.log(`OK ${checks}: missing exact Trame utilisée name is explicit`);
+
+    const legacyResolved = binding.resolveFirstVisitRemoteTrame({ trames: [remoteTrame] }, 'icpe_v1', null);
+    check(legacyResolved.remoteTrameId === '3' && legacyResolved.matchedBy === 'legacy_family',
+      'legacy visit without Trame utilisée still works only when the family match is unique');
 
     check((await server.db.getAllAsync('PRAGMA foreign_key_check')).length === 0,
       'first-visit filtered preparation leaves SQLite foreign keys valid');
