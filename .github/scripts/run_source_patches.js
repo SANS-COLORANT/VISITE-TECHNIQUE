@@ -6,6 +6,7 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const CONTRACT_CHECKS = [
   ['N.S comment persistence contract', '.github/scripts/check_ns_comment_persistence.js'],
   ['latest API visit runtime contract', '.github/scripts/check_api_latest_visit_runtime.js'],
+  ['Intranet equipment import + brand logo contract', '.github/scripts/check_intranet_equipment_import.js'],
   ['visit carry-forward contract', '.github/scripts/check_visit_carry_forward_contract.js'],
   ['large-client performance contract', '.github/scripts/check_large_client_performance.js'],
   ['runtime responsiveness v3 contract', '.github/scripts/check_runtime_responsiveness_v3.js'],
@@ -58,6 +59,7 @@ const JS_SYNTAX_FILES = [
   'ClientPatrimoineScreen.js',
   'clientTechnicalMatrix.js',
   'patrimoineDb.js',
+  'persistentEquipmentDb.js',
   'siteHealth.js',
   'db.js',
   'database/index.js',
