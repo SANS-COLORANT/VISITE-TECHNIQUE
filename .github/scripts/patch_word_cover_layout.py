@@ -58,7 +58,7 @@ old = r'''  const toc = construireToc(datas, config);
       ${footerCorporateHtml()}
     </div>
     ${toc}'''
-old_patrimoine = old.replace("    ${toc}'''", "    ${patrimoineHtml}\n    ${toc}'''")
+old_patrimoine = old.replace("    ${toc}", "    ${patrimoineHtml}\n    ${toc}", 1)
 
 new = r'''  const toc = construireToc(datas, config);
   const coverHtml = output === 'word'
