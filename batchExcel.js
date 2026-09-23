@@ -1,7 +1,7 @@
 /** Import/export Excel en lot : plusieurs fichiers sélectionnés en une seule opération. */
 import * as XLSX from 'xlsx';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { analyserClasseur, importerAnalyseExcel } from './excelImport.js';
 import { preparerExport } from './excelExport.js';
 import { creerFichierSaf, dossierVisiteMetra } from './metraStorage.js';

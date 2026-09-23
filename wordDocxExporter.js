@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { zip } from 'react-native-zip-archive';
 import { REPORT_COVER, REPORT_LOGO } from './reportBrandAssets.js';

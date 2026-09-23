@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getDb } from './db.js';
 import { verifyDatabaseIntegrity } from './database/index.js';
 import { DATABASE_SCHEMA_VERSION } from './database/constants.js';

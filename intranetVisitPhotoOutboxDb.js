@@ -1,4 +1,4 @@
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { getDb } from './db.js';
 import { inspectIntranetCriterionCandidate } from './intranetVisitPayload.js';
 import { createIntranetUploadId, protectedRequest } from './symfonyApi.js';

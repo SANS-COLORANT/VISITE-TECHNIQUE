@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { TouchableOpacity, Text, Alert, View, Image, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import * as FileSystem from 'expo-file-system';
+import * as FileSystem from 'expo-file-system/legacy';
 import { listerPhotos, ajouterPhoto, remplacerPhoto, getVisite } from './db.js';
 import { upsertRemarquePrescription } from './remarkDb.js';
 import { openAppDatabase } from './database/index.js';
