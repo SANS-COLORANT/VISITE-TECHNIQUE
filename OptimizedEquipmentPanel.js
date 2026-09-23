@@ -113,7 +113,7 @@ const EquipmentCard = memo(function EquipmentCard({ item, visiteId, onChange, ca
   return (
     <View style={styles.formCard}>
       <View style={styles.equipmentBrandHeader}>
-        <BrandMark marque={marque} compact />
+        <BrandMark marque={{marque,logo_uri:item.marque_logo_uri}} compact />
         <TouchableOpacity style={[styles.biblioShortcutBtn, { flex: 1 }]} onPress={() => setBiblioVisible(true)}>
           <Text style={styles.biblioShortcutBtnText}>📚 Catalogue complet</Text>
         </TouchableOpacity>
