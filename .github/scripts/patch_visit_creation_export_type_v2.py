@@ -80,6 +80,18 @@ client_path.write_text(client, encoding='utf-8')
 # failures.
 legacy_path = Path('.github/scripts/patch_visit_creation_export_type.py')
 legacy = legacy_path.read_text(encoding='utf-8')
+# ReportScreen peut désormais exposer aussi l'export par local. Le patch
+# historique doit conserver ce troisième exporteur au lieu d'attendre
+# strictement l'ancienne ligne d'import site/groupe.
+legacy = legacy.replace(
+    'import_marker = "import{exporterRapportEdite,exporterRapportsParSiteEdites}from\'./reportEditorExporter.js\';\\n"',
+    'import_marker = "import{exporterRapportEdite,exporterRapportsParSiteEdites,exporterRapportsParLocalEdites}from\'./reportEditorExporter.js\';\\n" if "exporterRapportsParLocalEdites" in s else "import{exporterRapportEdite,exporterRapportsParSiteEdites}from\'./reportEditorExporter.js\';\\n"',
+    1,
+)
+# Le rapport courant retient la dernière visite par local (et non plus une
+# seule visite par site). Adapter les marqueurs du patch typé sans revenir
+# à l'ancien périmètre.
+legacy = legacy.replace('garderDerniereVisiteParSite', 'garderDerniereVisiteParPerimetre')
 old_helper = """    if old not in text:
         raise SystemExit(f'{label}: marker not found')
 """

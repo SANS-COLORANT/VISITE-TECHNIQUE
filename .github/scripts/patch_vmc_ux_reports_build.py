@@ -217,7 +217,7 @@ if new not in s:
     if old not in s:
         raise SystemExit('report subtitle state target not found')
     s = s.replace(old, new, 1)
-marker = " const groupeInterdit=selected.size<=1;\n"
+marker = " const groupeInterdit=false;\n" if " const groupeInterdit=false;\n" in s else " const groupeInterdit=selected.size<=1;\n"
 if 'const vmcOnly=selectedRows.length>0' not in s:
     insert = marker + " const vmcOnly=selectedRows.length>0&&selectedRows.every(v=>(v.trame_id||'')==='vmc');\n useEffect(()=>{if(vmcOnly){setObjet(v=>v==='Compte rendu de visite technique'? 'Compte rendu de visite technique VMC':v);setSousTitre(v=>v==='Présentation de la trame de visite technique'?'Présentation de la trame de visite technique VMC':v)}},[vmcOnly]);\n"
     if marker not in s:

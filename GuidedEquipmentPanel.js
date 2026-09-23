@@ -85,6 +85,11 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
  const[caracteristiques,setCaracteristiques,blurCaracteristiques]=useDurableAutosave(item.caracteristiques,v=>upsertMaterielChamp(item.id,'caracteristiques',v));
  useEffect(()=>{setCategorie(item.categorie||'');setMarque(item.marque||'');setEtat(item.etat||'')},[item.categorie,item.marque,item.etat]);
 
+ const marqueLogo=useMemo(()=>{
+  const match=catalogue.find(e=>marque&&eq(e.marque,marque)&&e.logo_uri);
+  if(match?.logo_uri)return match.logo_uri;
+  return eq(marque,item.marque)?(item.marque_logo_uri||null):null;
+ },[catalogue,marque,item.marque,item.marque_logo_uri]);
  const refsType=useMemo(()=>catalogue.filter(e=>typeCompatible(categorie,e.categorie)),[catalogue,categorie]);
  const marquesType=useMemo(()=>uniq(refsType.map(e=>e.marque)),[refsType]);
  const refsMarque=useMemo(()=>refsType.filter(e=>!marque||eq(e.marque,marque)),[refsType,marque]);
@@ -111,7 +116,7 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
 
  return <View style={styles.formCard}>
   <View style={styles.equipmentBrandHeader}>
-   <BrandMark marque={marque} compact/>
+   <BrandMark marque={{marque,logo_uri:marqueLogo}} compact/>
    <View style={{flex:1}}><Text style={styles.cardTitle}>{designation||categorie||'Nouvel équipement'}</Text><Text style={styles.cardSub}>{[marque,modele].filter(Boolean).join(' · ')||'À compléter'}</Text></View>
    <PhotoButton visiteId={visiteId} entiteKey={item.equipement_id?`equipement||${item.equipement_id}`:`materiel||${item.id}`} label={designation||categorie||'Équipement'}/>
   </View>

@@ -92,7 +92,7 @@ p.write_text(s, encoding='utf-8')
 # ---------------------------------------------------------------------------
 p = Path('ReportScreen.js')
 s = p.read_text(encoding='utf-8')
-import_marker = "import{exporterRapportEdite,exporterRapportsParSiteEdites}from'./reportEditorExporter.js';\n"
+import_marker = "import{exporterRapportEdite,exporterRapportsParSiteEdites,exporterRapportsParLocalEdites}from'./reportEditorExporter.js';\n" if "exporterRapportsParLocalEdites" in s else "import{exporterRapportEdite,exporterRapportsParSiteEdites}from'./reportEditorExporter.js';\n"
 health_import = "import{getLabFeatureEnabled}from'./featureSettings.js';\n"
 if health_import not in s:
     s = replace_once(s, import_marker, import_marker + health_import, 'report health import')

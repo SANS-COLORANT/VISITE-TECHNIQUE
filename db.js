@@ -9,7 +9,24 @@ function chargerMaterielPersistant(){return require('./persistentEquipmentDb.js'
 export function uuidv4() { return createId(); }
 
 let dbInstance = null;
-async function getDb() { if (dbInstance) return dbInstance; dbInstance = await openAppDatabase(); await seedDemoSiNecessaire(dbInstance); await seedBibliothequeSiNecessaire(dbInstance); await seedEquipementsBibliothequeSiNecessaire(dbInstance); return dbInstance; }
+let dbInitPromise = null;
+async function getDb() {
+  if (dbInstance) return dbInstance;
+  if (!dbInitPromise) {
+    dbInitPromise = (async () => {
+      const db = await openAppDatabase();
+      await seedDemoSiNecessaire(db);
+      await seedBibliothequeSiNecessaire(db);
+      await seedEquipementsBibliothequeSiNecessaire(db);
+      dbInstance = db;
+      return db;
+    })().catch((error) => {
+      dbInitPromise = null;
+      throw error;
+    });
+  }
+  return dbInitPromise;
+}
 
 async function seedDemoSiNecessaire(db) { const deja=await db.getFirstAsync(`SELECT value FROM _meta WHERE key = 'demo_seeded'`); if(deja)return; const clientId=uuidv4(),siteId=uuidv4(); await db.runAsync(`INSERT INTO clients (id, nom, code_exploitant, adresse) VALUES (?, ?, ?, ?)`,[clientId,'Résidence Les Pins','RLP01','12 rue des Tilleuls']); await db.runAsync(`INSERT INTO sites (id, client_id, nom_site, adresse, statut) VALUES (?, ?, ?, ?, ?)`,[siteId,clientId,'Chaufferie centrale','12 rue des Tilleuls','Actif']); await db.runAsync(`INSERT INTO clients (id, nom, code_exploitant, adresse) VALUES (?, ?, ?, ?)`,[uuidv4(),'Office HLM Colombes','OHC08','5 avenue de la République']); await db.runAsync(`INSERT INTO _meta (key, value) VALUES ('demo_seeded', '1')`); }
 async function seedBibliothequeSiNecessaire(db){const deja=await db.getFirstAsync(`SELECT value FROM _meta WHERE key = 'biblio_seeded'`);if(deja)return;const {PRESCRIPTIONS}=chargerDonneesLegacy();for(const[cle,options]of Object.entries(PRESCRIPTIONS))for(const opt of options){const nom=cle+(opt.critere?' — '+opt.critere:'');await db.runAsync(`INSERT INTO reserves_bibliotheque (id, nom, description, prix, poste, delai) VALUES (?, ?, ?, ?, ?, ?)`,[uuidv4(),nom,opt.prestation,opt.estimatif??null,opt.poste??null,opt.delai??null]);}await db.runAsync(`INSERT INTO _meta (key, value) VALUES ('biblio_seeded', '1')`);}

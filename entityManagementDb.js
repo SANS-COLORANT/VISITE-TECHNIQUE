@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import { getDb } from './db.js';
+import { supprimerCopiePhotoDocuments } from './photoDocumentsStorage.js';
 import { supprimerImagePatrimoine } from './patrimoineImageStorage.js';
 
 function estPhotoGereeParApplication(uri) {
@@ -9,6 +10,7 @@ function estPhotoGereeParApplication(uri) {
 async function supprimerFichiersPhotos(uris = []) {
   const uniques = [...new Set((uris || []).filter(estPhotoGereeParApplication))];
   for (const uri of uniques) {
+    await supprimerCopiePhotoDocuments(uri).catch(() => {});
     try {
       await FileSystem.deleteAsync(uri, { idempotent: true });
     } catch {

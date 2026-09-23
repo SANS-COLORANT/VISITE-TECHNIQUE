@@ -186,6 +186,185 @@ function latestVisitStatus(sourceStatus) {
   return 'terminee';
 }
 
+function materialFallbackReference(remoteLocalId, material, index) {
+  const fingerprint = [
+    material?.categorie,
+    material?.designation,
+    material?.numeroMateriel,
+    material?.marque,
+    material?.modele,
+  ].map(normalize).filter(Boolean).join('|');
+  return `local:${remoteLocalId}:material:${fingerprint || index}`;
+}
+
+function materialYear(value) {
+  const raw = clean(value);
+  if (!raw) return null;
+  const match = raw.match(/\b(19|20)\d{2}\b/);
+  return match ? Number(match[0]) : null;
+}
+
+async function upsertEquipmentAttribute(db, equipmentId, key, value) {
+  const normalizedValue = value == null ? null : String(value);
+  const existing = await db.getFirstAsync(
+    `SELECT id FROM attributs_libres WHERE entite_type='equipement' AND entite_id=? AND cle=? LIMIT 1`,
+    [equipmentId, key]
+  );
+  if (existing?.id) {
+    await db.runAsync(
+      `UPDATE attributs_libres SET valeur=?,modifie_le=datetime('now') WHERE id=?`,
+      [normalizedValue, existing.id]
+    );
+    return;
+  }
+  await db.runAsync(
+    `INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur) VALUES(?,'equipement',?,?,?)`,
+    [createId(), equipmentId, key, normalizedValue]
+  );
+}
+
+async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installationId, visiteId, trameId }) {
+  const materials = Array.isArray(ref?.materiels) ? ref.materiels : [];
+  if (!materials.length) return { sourceMaterials: 0, importedMaterials: 0, matchedCatalogBrands: 0 };
+
+  const brandRows = await db.getAllAsync(
+    `SELECT id,nom,logo_uri FROM marques_equipement WHERE actif=1 ORDER BY nom`
+  );
+  const brandsByKey = new Map(brandRows.map((row) => [normalize(row.nom), row]));
+  let importedMaterials = 0;
+  let matchedCatalogBrands = 0;
+
+  for (let index = 0; index < materials.length; index += 1) {
+    const material = materials[index] || {};
+    const explicitRemoteId = remoteId(material.id);
+    const externalReference = explicitRemoteId || materialFallbackReference(remoteLocalId, material, index);
+    const catalogBrand = brandsByKey.get(normalize(material.marque)) || null;
+    const brand = text(catalogBrand?.nom) || text(material.marque);
+    if (catalogBrand) matchedCatalogBrands += 1;
+
+    const typeCode = text(material.categorie) || 'Équipement';
+    const designation = text(material.designation)
+      || [brand, text(material.modele)].filter(Boolean).join(' ')
+      || typeCode;
+    const model = text(material.modele);
+    const year = materialYear(material.annee);
+
+    const linked = await db.getFirstAsync(
+      `SELECT e.id FROM provenances p
+       JOIN equipements e ON e.id=p.entite_id
+       WHERE p.entite_type='equipement' AND p.origine='api_symfony'
+         AND p.reference_externe=? AND e.installation_id=?
+       ORDER BY p.importe_le DESC LIMIT 1`,
+      [externalReference, installationId]
+    );
+
+    let equipmentId = linked?.id || null;
+    if (!equipmentId && !explicitRemoteId) {
+      const existing = await db.getFirstAsync(
+        `SELECT id FROM equipements
+         WHERE installation_id=? AND statut='actif'
+           AND lower(trim(COALESCE(designation,'')))=lower(trim(?))
+           AND lower(trim(COALESCE(marque,'')))=lower(trim(COALESCE(?,'')))
+           AND lower(trim(COALESCE(modele,'')))=lower(trim(COALESCE(?,'')))
+         ORDER BY cree_le LIMIT 1`,
+        [installationId, designation, brand, model]
+      );
+      equipmentId = existing?.id || null;
+    }
+
+    if (equipmentId) {
+      await db.runAsync(
+        `UPDATE equipements
+         SET installation_id=?,type_code=?,designation=?,marque=?,modele=?,annee=?,statut='actif',modifie_le=datetime('now')
+         WHERE id=?`,
+        [installationId, typeCode, designation, brand, model, year, equipmentId]
+      );
+    } else {
+      equipmentId = createId();
+      await db.runAsync(
+        `INSERT INTO equipements(id,installation_id,type_code,designation,marque,modele,annee,statut)
+         VALUES(?,?,?,?,?,?,?,'actif')`,
+        [equipmentId, installationId, typeCode, designation, brand, model, year]
+      );
+    }
+
+    const attributes = [
+      ['api_symfony.nombre', text(material.nombre)],
+      ['api_symfony.numero_materiel', text(material.numeroMateriel)],
+      ['api_symfony.reseau_desservi', text(material.reseauDesservi)],
+      ['api_symfony.caracteristiques', text(material.caracteristiques)],
+      ['api_symfony.etat', text(material.etat)],
+      ['api_symfony.remote_local_id', remoteLocalId],
+      ['catalogue.marque_id', catalogBrand?.id || null],
+      ['catalogue.marque_logo_uri', catalogBrand?.logo_uri || null],
+    ];
+    // Écritures volontairement séquentielles dans la transaction SQLite :
+    // éviter les finalizeAsync/statement races déjà observées sur tablette.
+    for (const [key, value] of attributes) {
+      await upsertEquipmentAttribute(db, equipmentId, key, value);
+    }
+
+    if (trameId) {
+      await db.runAsync(
+        `INSERT INTO equipement_trames(equipement_id,trame_id,actif) VALUES(?,?,1)
+         ON CONFLICT(equipement_id,trame_id) DO UPDATE SET actif=1,modifie_le=datetime('now')`,
+        [equipmentId, trameId]
+      );
+    }
+
+    await upsertProvenance(db, 'equipement', equipmentId, externalReference, {
+      schemaVersion: 1,
+      sourceType: 'current_remote_local_patrimoine',
+      remoteMaterialId: explicitRemoteId,
+      remoteLocalId,
+      remoteVisitId: remoteId(ref?.derniereVisite?.id),
+      canonicalBrand: brand,
+      catalogBrandId: catalogBrand?.id || null,
+      payload: material,
+    });
+
+    // Le patrimoine Intranet est courant, pas un constat historique de la
+    // dernière visite. Une ligne matériel n'est créée que si une visite de
+    // référence existe ; l'équipement permanent, lui, est importé même sans
+    // historique de visite.
+    if (visiteId) {
+      const materialRow = await db.getFirstAsync(
+        `SELECT id FROM materiel WHERE visite_id=? AND equipement_id=? LIMIT 1`,
+        [visiteId, equipmentId]
+      );
+      const quantity = text(material.nombre) || '1';
+      if (materialRow?.id) {
+        await db.runAsync(
+          `UPDATE materiel SET categorie=?,nombre=?,designation=?,numero_materiel=?,reseau_desservi=?,marque=?,modele=?,caracteristiques=?,annee=?,etat=NULL
+           WHERE id=?`,
+          [
+            typeCode, quantity, designation, text(material.numeroMateriel), text(material.reseauDesservi),
+            brand, model, text(material.caracteristiques), text(material.annee), materialRow.id,
+          ]
+        );
+      } else {
+        await db.runAsync(
+          `INSERT INTO materiel(id,visite_id,categorie,nombre,designation,numero_materiel,reseau_desservi,marque,modele,caracteristiques,annee,etat,equipement_id)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,NULL,?)`,
+          [
+            createId(), visiteId, typeCode, quantity, designation, text(material.numeroMateriel),
+            text(material.reseauDesservi), brand, model, text(material.caracteristiques),
+            text(material.annee), equipmentId,
+          ]
+        );
+      }
+    }
+
+    importedMaterials += 1;
+  }
+
+  return {
+    sourceMaterials: materials.length,
+    importedMaterials,
+    matchedCatalogBrands,
+  };
+}
+
 async function findImportedVisit(db, remoteVisitId) {
   return db.getFirstAsync(
     `SELECT v.id FROM provenances p JOIN visites v ON v.id=p.entite_id
@@ -198,10 +377,15 @@ async function findImportedVisit(db, remoteVisitId) {
 async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
   const ref = sanitizeRemoteReference(sourceRef);
   const installationId = await ensureInstallation(db, siteId, remoteLocalId, ref);
+  const trameId = mapRemoteTrameToLocal(ref?.trame) || DEFAULT_TRAME_ID;
   const latest = ref?.derniereVisite;
   const remoteVisitId = remoteId(latest?.id);
-  if (!remoteVisitId) return { imported: false, reason: 'no_latest_visit', installationId };
-  const trameId = mapRemoteTrameToLocal(ref?.trame) || DEFAULT_TRAME_ID;
+  if (!remoteVisitId) {
+    const materialImport = await importCurrentMaterialsForLocal(db, {
+      ref, remoteLocalId, installationId, visiteId: null, trameId,
+    });
+    return { imported: false, reason: 'no_latest_visit', installationId, ...materialImport };
+  }
   const visitDate = text(latest?.date)?.slice(0, 10) || null;
   const status = latestVisitStatus(latest?.statut);
   const existing = await findImportedVisit(db, remoteVisitId);
@@ -285,6 +469,9 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
   const fieldImport = await enrichLatestImportedVisitFields({
     db, visiteId, siteId, remoteVisitId, trameId, ref,
   });
+  const materialImport = await importCurrentMaterialsForLocal(db, {
+    ref, remoteLocalId, installationId, visiteId, trameId,
+  });
 
   let importedRemarks = 0;
   const remarks = Array.isArray(ref?.remarques) ? ref.remarques : [];
@@ -321,7 +508,7 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
   }
 
   await upsertProvenance(db, 'visite', visiteId, remoteVisitId, {
-    schemaVersion: 3,
+    schemaVersion: 4,
     sourceType: 'imported_latest_visit',
     remoteVisitId,
     remoteLocalId,
@@ -343,6 +530,7 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
       criteriaFromEarlierVisits,
       criteriaWithoutSourceVisit,
       fieldImport,
+      materialImport,
       importedRemarks,
       criteriaRule: 'preparation_values_are_latest_known_visiteSourceId_is_provenance_only',
       controlIdentityRule: 'remote_branch_is_category_subcategory_criterion_context_mapping',
@@ -367,6 +555,9 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
     criteriaFromEarlierVisits,
     criteriaWithoutSourceVisit,
     importedRemarks,
+    importedMaterials: materialImport.importedMaterials,
+    sourceMaterials: materialImport.sourceMaterials,
+    matchedCatalogBrands: materialImport.matchedCatalogBrands,
     fieldImport,
     installationId,
     created: !existing?.id,

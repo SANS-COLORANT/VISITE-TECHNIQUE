@@ -13,8 +13,9 @@ requireText(report, 'Tout sélectionner', 'report bulk selection');
 requireText(report, 'Tout désélectionner', 'report bulk deselection');
 requireText(report, 'chargerDonneesRapportParLots(ids,4)', 'report bounded preparation');
 requireText(report, 'Choisir les photos et la couverture', 'report photo action');
-if (report.indexOf('Choisir les photos et la couverture') > report.indexOf('{visites.map')) {
-  throw new Error('report photo action must stay above the long site list');
+const reportListMarker = report.includes('{sitesGroupes.map') ? '{sitesGroupes.map' : '{visites.map';
+if (report.indexOf('Choisir les photos et la couverture') > report.indexOf(reportListMarker)) {
+  throw new Error('report photo action must stay above the long site/local list');
 }
 
 const documents = read('ClientDocumentsScreen.js');

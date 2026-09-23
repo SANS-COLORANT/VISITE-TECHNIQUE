@@ -64,7 +64,11 @@ async function injecterEquipementsActifsDuSite(db, visiteId, siteId, trameId, in
       (SELECT GROUP_CONCAT(et.trame_id) FROM equipement_trames et WHERE et.equipement_id=e.id AND et.actif=1) AS trames_explicit,
       (SELECT COUNT(*) FROM equipement_trames et2 WHERE et2.equipement_id=e.id) AS nb_trames,
       (SELECT o.etat FROM observations_equipement o JOIN visites v2 ON v2.id=o.visite_id WHERE o.equipement_id=e.id AND o.present=1 AND v2.id<>? ORDER BY COALESCE(v2.date_visite,'') DESC,o.observe_le DESC LIMIT 1) dernier_etat,
-      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=e.id AND a.cle='api_symfony.nombre' ORDER BY a.modifie_le DESC LIMIT 1) nombre_reference
+      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=e.id AND a.cle='api_symfony.nombre' ORDER BY a.modifie_le DESC LIMIT 1) nombre_reference,
+      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=e.id AND a.cle='api_symfony.numero_materiel' ORDER BY a.modifie_le DESC LIMIT 1) numero_materiel_reference,
+      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=e.id AND a.cle='api_symfony.reseau_desservi' ORDER BY a.modifie_le DESC LIMIT 1) reseau_desservi_reference,
+      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=e.id AND a.cle='api_symfony.caracteristiques' ORDER BY a.modifie_le DESC LIMIT 1) caracteristiques_reference,
+      (SELECT b.logo_uri FROM marques_equipement b WHERE b.actif=1 AND b.nom=e.marque COLLATE NOCASE LIMIT 1) marque_logo_uri
      FROM equipements e JOIN installations i ON i.id=e.installation_id
      WHERE i.site_id=? AND i.actif=1 AND e.statut='actif'
        AND (? IS NULL OR e.installation_id=?)
@@ -78,7 +82,12 @@ async function injecterEquipementsActifsDuSite(db, visiteId, siteId, trameId, in
     // au lieu de le recopier comme constat du jour.
     const etat = referenceOnly ? null : (e.dernier_etat || 'Bon');
     const nombre = String(e.nombre_reference || '').trim() || '1';
-    await db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,nombre,designation,marque,modele,annee,etat,equipement_id) VALUES(?,?,?,?,?,?,?,?,?,?)`, [materielId, visiteId, e.type_code || 'Équipement', nombre, e.designation || 'Équipement', e.marque || null, e.modele || null, e.annee ? String(e.annee) : null, etat, e.id]);
+    await db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,nombre,designation,numero_materiel,reseau_desservi,marque,modele,caracteristiques,annee,etat,equipement_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
+      materielId, visiteId, e.type_code || 'Équipement', nombre, e.designation || 'Équipement',
+      e.numero_materiel_reference || null, e.reseau_desservi_reference || null,
+      e.marque || null, e.modele || null, e.caracteristiques_reference || null,
+      e.annee ? String(e.annee) : null, etat, e.id
+    ]);
     if (!referenceOnly) await upsertObservation(db, e.id, visiteId, { etat, present: 1 });
   }
 }
@@ -105,6 +114,7 @@ export async function listerMaterielPersistant(visiteId) {
     AND equipement_id IS NOT NULL
     AND NOT EXISTS(SELECT 1 FROM provenances p WHERE p.entite_type='equipement' AND p.entite_id=materiel.equipement_id AND p.origine='api_symfony')`, [visiteId]);
   return db.getAllAsync(`SELECT m.*, e.statut AS statut_equipement,
+      (SELECT b.logo_uri FROM marques_equipement b WHERE b.actif=1 AND b.nom=m.marque COLLATE NOCASE LIMIT 1) AS marque_logo_uri,
       CASE WHEN ?=1 THEN COALESCE(o.etat,m.etat) ELSE COALESCE(o.etat,m.etat,'Bon') END AS etat,
       COALESCE(o.commentaire,'') AS observation_commentaire,
       (SELECT COUNT(*) FROM observations_equipement h WHERE h.equipement_id=m.equipement_id) AS nb_observations,

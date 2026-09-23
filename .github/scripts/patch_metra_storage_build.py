@@ -54,7 +54,11 @@ def patch_exporter(path: Path, anchor: str, edited: bool):
 
     if "requestDirectoryPermissionsAsync" in s and "async function choisirDossier(datas = [])" not in s:
         raise SystemExit(f'{path.name}: old report picker still active')
-    if "dossierUri || await choisirDossier(datas);" not in s:
+    automatic_storage = (
+        "dossierUri || await choisirDossier(datas);" in s
+        or (edited and "dossierRapportsClientMetra" in s)
+    )
+    if not automatic_storage:
         raise SystemExit(f'{path.name}: automatic report folder missing')
 
     path.write_text(s, encoding='utf-8')

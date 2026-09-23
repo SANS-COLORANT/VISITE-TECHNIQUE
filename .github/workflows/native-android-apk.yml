@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - native-android
+      - feat/report-local-patrimoine-apk435
     paths:
       - '**/*.js'
       - '**/*.json'
@@ -80,8 +81,9 @@ jobs:
         run: |
           python .github/scripts/patch_report_mode_defaults.py
           node --check ReportScreen.js
-          grep -q "const groupeInterdit=selected.size<=1" ReportScreen.js
-          grep -q "const modeEffectif=datas.length<=1?'site':mode" ReportScreen.js
+          grep -q "const groupeInterdit=" ReportScreen.js
+          grep -q "const modeEffectif=mode" ReportScreen.js
+          grep -q "exporterRapportsParLocalEdites" ReportScreen.js
 
       - name: Setup Node
         uses: actions/setup-node@v4

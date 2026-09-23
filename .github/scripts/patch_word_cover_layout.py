@@ -58,6 +58,8 @@ old = r'''  const toc = construireToc(datas, config);
       ${footerCorporateHtml()}
     </div>
     ${toc}'''
+old_patrimoine = old.replace("    ${toc}", "    ${patrimoineHtml}\n    ${toc}", 1)
+
 new = r'''  const toc = construireToc(datas, config);
   const coverHtml = output === 'word'
     ? wordCoverHtml(clientCover, dateRapport, config)
@@ -74,13 +76,16 @@ new = r'''  const toc = construireToc(datas, config);
 
   return `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${cssRapport(output)}</style></head><body>
     ${coverHtml}
+    ${patrimoineHtml}
     ${toc}'''
 
-if old not in s:
-    if "const coverHtml = output === 'word'" not in s:
-        raise SystemExit('shared cover block not found')
-else:
-    s = s.replace(old, new, 1)
+if old_patrimoine in s:
+    s = s.replace(old_patrimoine, new, 1)
+elif old in s:
+    # Legacy source without the optional patrimoine section.
+    s = s.replace(old, new.replace("    ${patrimoineHtml}\n", ""), 1)
+elif "const coverHtml = output === 'word'" not in s:
+    raise SystemExit('shared cover block not found')
 
 p.write_text(s, encoding='utf-8')
 print('Word-only cover layout installed; native PDF branch untouched.')
