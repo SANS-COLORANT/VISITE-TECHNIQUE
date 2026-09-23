@@ -61,6 +61,12 @@ const EquipmentCard = memo(function EquipmentCard({ item, visiteId, onChange, ca
     () => catalogue.filter((e) => !categorie || egal(e.categorie, categorie)),
     [catalogue, categorie]
   );
+  const marqueLogo = useMemo(() => {
+    const match = catalogue.find((e) => marque && egal(e.marque, marque) && e.logo_uri);
+    if (match?.logo_uri) return match.logo_uri;
+    return egal(marque, item.marque) ? (item.marque_logo_uri || null) : null;
+  }, [catalogue, marque, item.marque, item.marque_logo_uri]);
+
   const marquesContextuelles = useMemo(
     () => unique(catalogueCategorie.map((e) => e.marque)),
     [catalogueCategorie]
@@ -113,7 +119,7 @@ const EquipmentCard = memo(function EquipmentCard({ item, visiteId, onChange, ca
   return (
     <View style={styles.formCard}>
       <View style={styles.equipmentBrandHeader}>
-        <BrandMark marque={{marque,logo_uri:item.marque_logo_uri}} compact />
+        <BrandMark marque={{marque,logo_uri:marqueLogo}} compact />
         <TouchableOpacity style={[styles.biblioShortcutBtn, { flex: 1 }]} onPress={() => setBiblioVisible(true)}>
           <Text style={styles.biblioShortcutBtnText}>📚 Catalogue complet</Text>
         </TouchableOpacity>
