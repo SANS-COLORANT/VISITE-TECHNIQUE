@@ -223,7 +223,7 @@ async function upsertEquipmentAttribute(db, equipmentId, key, value) {
   );
 }
 
-async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installationId, visiteId }) {
+async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installationId, visiteId, trameId }) {
   const materials = Array.isArray(ref?.materiels) ? ref.materiels : [];
   if (!materials.length) return { sourceMaterials: 0, importedMaterials: 0, matchedCatalogBrands: 0 };
 
@@ -298,6 +298,14 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
       upsertEquipmentAttribute(db, equipmentId, 'catalogue.marque_id', catalogBrand?.id || null),
       upsertEquipmentAttribute(db, equipmentId, 'catalogue.marque_logo_uri', catalogBrand?.logo_uri || null),
     ]);
+
+    if (trameId) {
+      await db.runAsync(
+        `INSERT INTO equipement_trames(equipement_id,trame_id,actif) VALUES(?,?,1)
+         ON CONFLICT(equipement_id,trame_id) DO UPDATE SET actif=1,modifie_le=datetime('now')`,
+        [equipmentId, trameId]
+      );
+    }
 
     await upsertProvenance(db, 'equipement', equipmentId, externalReference, {
       schemaVersion: 1,
@@ -449,7 +457,7 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
     db, visiteId, siteId, remoteVisitId, trameId, ref,
   });
   const materialImport = await importCurrentMaterialsForLocal(db, {
-    ref, remoteLocalId, installationId, visiteId,
+    ref, remoteLocalId, installationId, visiteId, trameId,
   });
 
   let importedRemarks = 0;
