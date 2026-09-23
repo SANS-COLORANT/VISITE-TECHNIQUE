@@ -18,6 +18,8 @@ requireText(latest, "SELECT id,nom,logo_uri FROM marques_equipement", 'local cat
 requireText(latest, 'const catalogBrand = brandsByKey.get(normalize(material.marque))', 'accent/case tolerant brand matching');
 requireText(latest, 'canonicalBrand: brand', 'canonical catalog brand persisted');
 requireText(latest, 'matchedCatalogBrands', 'brand matching diagnostics');
+requireText(latest, "visiteId: null, trameId", 'equipment is imported even without visit history');
+requireText(latest, "for (const [key, value] of attributes)", 'SQLite equipment attribute writes stay sequential');
 
 const persistent = read('persistentEquipmentDb.js');
 requireText(persistent, "a.cle='api_symfony.numero_materiel'", 'material number survives future visits');
