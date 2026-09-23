@@ -6,7 +6,6 @@
     "icon": "./assets/metra/app-icon.png",
     "orientation": "default",
     "userInterfaceStyle": "automatic",
-    "jsEngine": "hermes",
     "android": {
       "package": "com.visitetechnique.tablet",
       "versionCode": 1,
@@ -28,6 +27,7 @@
       "expo-asset",
       "expo-secure-store",
       "expo-sqlite",
+      "expo-sharing",
       [
         "expo-splash-screen",
         {
