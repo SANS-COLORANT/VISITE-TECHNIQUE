@@ -27,7 +27,7 @@ old_generer = "const r=mode==='site'?await exporterRapportsParSite({datas,config
 new_generer = "const modeEffectif=datas.length<=1?'site':mode;const r=modeEffectif==='site'?await exporterRapportsParSite({datas,config,photosConfig:photos,format}):await exporterRapport({datas,config,photosConfig:photos,format});"
 if old_generer in s:
     s = s.replace(old_generer, new_generer, 1)
-elif "const modeEffectif=datas.length<=1?'site':mode;" not in s:
+elif "const modeEffectif=" not in s:
     raise SystemExit('generation target not found')
 
 old_alert = "if(!r?.annule)Alert.alert('Rapport généré',mode==='site'?`${r.resultats?.length||0} rapport(s) enregistré(s) dans le dossier choisi.`:`${r.nom||'Le rapport'} a été enregistré dans le dossier choisi.`)"
