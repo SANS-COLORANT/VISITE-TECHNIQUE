@@ -88,6 +88,10 @@ legacy = legacy.replace(
     'import_marker = "import{exporterRapportEdite,exporterRapportsParSiteEdites,exporterRapportsParLocalEdites}from\'./reportEditorExporter.js\';\\n" if "exporterRapportsParLocalEdites" in s else "import{exporterRapportEdite,exporterRapportsParSiteEdites}from\'./reportEditorExporter.js\';\\n"',
     1,
 )
+# Le rapport courant retient la dernière visite par local (et non plus une
+# seule visite par site). Adapter les marqueurs du patch typé sans revenir
+# à l'ancien périmètre.
+legacy = legacy.replace('garderDerniereVisiteParSite', 'garderDerniereVisiteParPerimetre')
 old_helper = """    if old not in text:
         raise SystemExit(f'{label}: marker not found')
 """
