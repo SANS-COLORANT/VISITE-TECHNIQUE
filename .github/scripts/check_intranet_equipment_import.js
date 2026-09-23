@@ -34,9 +34,11 @@ const overview = read('SiteOverviewPanel.js');
 requireText(overview, 'logo_uri:item.marque_logo_uri', 'patrimoine card uses database logo');
 
 const optimized = read('OptimizedEquipmentPanel.js');
-requireText(optimized, 'logo_uri:item.marque_logo_uri', 'standard equipment card uses database logo');
+requireText(optimized, 'logo_uri:marqueLogo', 'standard equipment card uses resolved database logo');
+requireText(optimized, 'catalogue.find((e) => marque && egal(e.marque, marque) && e.logo_uri)', 'standard equipment resolves live catalog brand logo');
 
 const guided = read('GuidedEquipmentPanel.js');
-requireText(guided, 'logo_uri:item.marque_logo_uri', 'guided equipment card uses database logo');
+requireText(guided, 'logo_uri:marqueLogo', 'guided equipment card uses resolved database logo');
+requireText(guided, 'catalogue.find(e=>marque&&eq(e.marque,marque)&&e.logo_uri)', 'guided equipment resolves live catalog brand logo');
 
 console.log('Intranet equipment import contract validated: current local patrimoine is materialized idempotently and known catalog brands reuse their database logo.');
