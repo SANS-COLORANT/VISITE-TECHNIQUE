@@ -53,7 +53,24 @@ new_counter = """function counterValue(counters, criterion, candidate) {
   return { value: undefined, ambiguous: exact.length > 1 };
 }
 """
-s = replace_once(s, old_counter, new_counter, 'allow missing counter value')
+# Depuis le contrat d'envoi partiel, le runtime peut utiliser soit l'ancien
+# protocole { value, ambiguous }, soit le protocole plus explicite
+# { status: 'matched'|'missing'|'ambiguous', value }. Les deux satisfont le
+# même invariant métier : compteur absent => "/", ambiguïté => blocage.
+# Ne jamais forcer le code moderne à revenir vers l'ancienne représentation.
+modern_counter_status = (
+    "return { status: 'matched', value: exact[0].valeur };" in s
+    and "return { status: 'missing', value: null };" in s
+    and "return { status: 'ambiguous', value: null };" in s
+)
+legacy_counter_status = (
+    "return { value: exact[0].valeur, ambiguous: false };" in s
+    and "ambiguous: exact.length > 1" in s
+)
+
+if not modern_counter_status and not legacy_counter_status:
+    s = replace_once(s, old_counter, new_counter, 'allow missing counter value')
+
 old_counter_call = """            value = counterValue(counters, criterion, candidate);
             if (value === undefined) issues.push(`${path} : compteur correspondant introuvable ou ambigu.`);
 """
@@ -61,7 +78,8 @@ new_counter_call = """            const counter = counterValue(counters, criteri
             value = counter.value;
             if (counter.ambiguous) issues.push(`${path} : plusieurs compteurs locaux correspondent à ce critère.`);
 """
-s = replace_once(s, old_counter_call, new_counter_call, 'block only ambiguous counters')
+if "counter.status === 'ambiguous'" not in s and 'counter.ambiguous' not in s:
+    s = replace_once(s, old_counter_call, new_counter_call, 'block only ambiguous counters')
 p.write_text(s, encoding='utf-8')
 
 
@@ -236,7 +254,7 @@ if "const database = await getDb();" in site and not has_site_getdb_import:
     raise SystemExit('SiteVisites getDb runtime regression still present')
 if "compteur correspondant introuvable ou ambigu" in payload:
     raise SystemExit('Missing counter still blocks Intranet upload')
-if 'counter.ambiguous' not in payload:
+if "counter.status === 'ambiguous'" not in payload and 'counter.ambiguous' not in payload:
     raise SystemExit('Ambiguous counter protection missing')
 if 'await preremplirVisiteDepuisContexte(db, id);' not in creation:
     raise SystemExit('New visit no longer prepares stable data before navigation')
