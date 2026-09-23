@@ -195,6 +195,7 @@ export async function listerEquipementsSitePatrimoine(siteId, statut = 'actuels'
   const filtre = statut === 'historique' ? `e.statut<>'actif'` : statut === 'tous' ? '1=1' : `e.statut='actif'`;
   return base.getAllAsync(
     `SELECT e.*,
+       (SELECT b.logo_uri FROM marques_equipement b WHERE b.actif=1 AND b.nom=e.marque COLLATE NOCASE LIMIT 1) AS marque_logo_uri,
        COALESCE(
          (SELECT h.etat_apres FROM historique_equipements h WHERE h.equipement_id=e.id AND h.etat_apres IS NOT NULL ORDER BY h.date_evenement DESC LIMIT 1),
          (SELECT o.etat FROM observations_equipement o JOIN visites v ON v.id=o.visite_id WHERE o.equipement_id=e.id ORDER BY COALESCE(v.date_visite,'') DESC,o.observe_le DESC LIMIT 1),
