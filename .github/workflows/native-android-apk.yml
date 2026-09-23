@@ -289,6 +289,12 @@ jobs:
           grep -q "embedExactSafe(EXACT_LOGO, 'png')" reportBuilder.js
           grep -q "EXACT_SPIRAL_4" reportBuilder.js
 
+      - name: Validate final patched METRA runtime contracts
+        run: |
+          node .github/scripts/run_source_patches.js
+          node .github/scripts/test_intranet_visit_upload.js
+          node .github/scripts/test_intranet_first_visit_preparation.js
+
       - name: Validate JavaScript bundle
         run: npx expo export --platform android --output-dir dist-ci
 
