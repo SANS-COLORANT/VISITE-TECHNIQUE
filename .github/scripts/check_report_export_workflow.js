@@ -29,9 +29,15 @@ const vmcState = "const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useS
 if (!report.includes(baseState) && !report.includes(vmcState)) throw new Error('legacy VMC report state chain not preserved');
 requireText(report, '[dossiersParSite,setDossiersParSite]', 'per-site folder choice state');
 requireText(report, 'Un seul document · {clientNomRapport}', 'grouped client document choice');
-requireText(report, 'Un PDF par site', 'per-site PDF choice');
+requireText(report, 'Un document par site', 'per-site document choice');
 requireText(report, 'Créer un dossier pour chaque site', 'selected-site folder option');
 requireText(report, 'photosConfig:photos,format,dossiersParSite', 'per-site folder choice forwarded separately');
+requireText(report, '[dossiersParLocal,setDossiersParLocal]', 'per-local folder choice state');
+requireText(report, 'Un document par local', 'per-local document choice');
+requireText(report, 'Créer un dossier pour chaque local', 'selected-local folder option');
+requireText(report, 'exporterRapportsParLocalEdites', 'per-local exporter');
+requireText(report, 'Synthèse du patrimoine en début de rapport', 'patrimoine report toggle');
+requireText(report, 'patrimoineScope', 'patrimoine report scope');
 requireText(report, 'return new Set()', 'no automatic full-client report selection');
 forbidText(report, 'layout,dossiersParSite', 'legacy report config must remain compatible');
 
@@ -40,10 +46,19 @@ requireText(exporter, "from './metraStorage.js'", 'METRA report storage import')
 requireText(exporter, 'clientNom ? await dossierRapportsClientMetra(clientNom)', 'grouped client folder');
 requireText(exporter, 'await dossierRapportsSiteMetra({ clientNom, siteNom })', 'selected site report folder');
 requireText(exporter, 'dossiersParSite === false', 'per-site folder toggle');
+requireText(exporter, 'export async function exporterRapportsParLocalEdites', 'per-local exporter implementation');
+requireText(exporter, 'dossiersParLocal !== false', 'per-local folder toggle');
+requireText(exporter, 'await dossierRapportsLocalMetra({ clientNom, siteNom, localNom })', 'selected local report folder');
 requireText(exporter, '// METRA storage compatibility: dossierUri || await choisirDossier(datas);', 'legacy storage patch compatibility marker');
 
 const storage = read('metraStorage.js');
 requireText(storage, 'export async function dossierRapportsClientMetra', 'client report folder helper');
 requireText(storage, 'export async function dossierRapportsSiteMetra', 'site report folder helper');
+requireText(storage, 'export async function dossierRapportsLocalMetra', 'local report folder helper');
 
-console.log('Report export workflow validated: client sites remain browseable in a full-height scrollable modal and report folders are created only for the chosen output after explicit site selection.');
+const builder = read('reportBuilder.js');
+requireText(builder, 'getStatsPatrimoineSelection', 'patrimoine summary data source');
+requireText(builder, 'SYNTHÈSE DU PATRIMOINE', 'patrimoine summary report section');
+requireText(builder, 'LEFT JOIN installations i ON i.id=v.installation_id', 'report local identity');
+
+console.log('Report export workflow validated: site/local selection, grouped/site/local outputs, lazy METRA folders and patrimoine summary are wired.');
