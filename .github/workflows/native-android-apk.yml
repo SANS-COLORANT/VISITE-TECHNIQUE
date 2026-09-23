@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - native-android
+      - feat/report-local-patrimoine-apk435
     paths:
       - '**/*.js'
       - '**/*.json'
