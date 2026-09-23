@@ -97,6 +97,19 @@ jobs:
       - name: Validate all committed METRA runtime contracts
         run: node .github/scripts/run_source_patches.js
 
+      - name: Validate APK build-time patch compatibility
+        run: |
+          python .github/scripts/patch_preallumage_field_ux_build.py
+          node .github/scripts/run_source_patches.js
+          node --check PreAllumageInstallationPanelV3.js
+          node --check PreAllumageCompactField.js
+          node --check PreAllumageHeatCurve.js
+          node --check VisiteScreen.js
+          grep -q "const localSwipe = useMemo" PreAllumageInstallationPanelV3.js
+          grep -q "Ajouter un compteur" PreAllumageInstallationPanelV3.js
+          grep -q "unitVisible" PreAllumageCompactField.js
+          grep -q "labelPosition" PreAllumageHeatCurve.js
+
       - name: Validate Missions source contract
         run: node .github/scripts/check_missions_lab_contract.js
 
