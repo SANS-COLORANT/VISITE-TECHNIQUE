@@ -319,32 +319,35 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
     });
 
     // Le patrimoine Intranet est courant, pas un constat historique de la
-    // dernière visite. On crée uniquement une ligne de référence sans état
-    // observé afin que l'onglet Équipements affiche immédiatement le matériel.
-    const materialRow = await db.getFirstAsync(
-      `SELECT id FROM materiel WHERE visite_id=? AND equipement_id=? LIMIT 1`,
-      [visiteId, equipmentId]
-    );
-    const quantity = text(material.nombre) || '1';
-    if (materialRow?.id) {
-      await db.runAsync(
-        `UPDATE materiel SET categorie=?,nombre=?,designation=?,numero_materiel=?,reseau_desservi=?,marque=?,modele=?,caracteristiques=?,annee=?,etat=NULL
-         WHERE id=?`,
-        [
-          typeCode, quantity, designation, text(material.numeroMateriel), text(material.reseauDesservi),
-          brand, model, text(material.caracteristiques), text(material.annee), materialRow.id,
-        ]
+    // dernière visite. Une ligne matériel n'est créée que si une visite de
+    // référence existe ; l'équipement permanent, lui, est importé même sans
+    // historique de visite.
+    if (visiteId) {
+      const materialRow = await db.getFirstAsync(
+        `SELECT id FROM materiel WHERE visite_id=? AND equipement_id=? LIMIT 1`,
+        [visiteId, equipmentId]
       );
-    } else {
-      await db.runAsync(
-        `INSERT INTO materiel(id,visite_id,categorie,nombre,designation,numero_materiel,reseau_desservi,marque,modele,caracteristiques,annee,etat,equipement_id)
-         VALUES(?,?,?,?,?,?,?,?,?,?,?,NULL,?)`,
-        [
-          createId(), visiteId, typeCode, quantity, designation, text(material.numeroMateriel),
-          text(material.reseauDesservi), brand, model, text(material.caracteristiques),
-          text(material.annee), equipmentId,
-        ]
-      );
+      const quantity = text(material.nombre) || '1';
+      if (materialRow?.id) {
+        await db.runAsync(
+          `UPDATE materiel SET categorie=?,nombre=?,designation=?,numero_materiel=?,reseau_desservi=?,marque=?,modele=?,caracteristiques=?,annee=?,etat=NULL
+           WHERE id=?`,
+          [
+            typeCode, quantity, designation, text(material.numeroMateriel), text(material.reseauDesservi),
+            brand, model, text(material.caracteristiques), text(material.annee), materialRow.id,
+          ]
+        );
+      } else {
+        await db.runAsync(
+          `INSERT INTO materiel(id,visite_id,categorie,nombre,designation,numero_materiel,reseau_desservi,marque,modele,caracteristiques,annee,etat,equipement_id)
+           VALUES(?,?,?,?,?,?,?,?,?,?,?,NULL,?)`,
+          [
+            createId(), visiteId, typeCode, quantity, designation, text(material.numeroMateriel),
+            text(material.reseauDesservi), brand, model, text(material.caracteristiques),
+            text(material.annee), equipmentId,
+          ]
+        );
+      }
     }
 
     importedMaterials += 1;
@@ -369,10 +372,15 @@ async function findImportedVisit(db, remoteVisitId) {
 async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
   const ref = sanitizeRemoteReference(sourceRef);
   const installationId = await ensureInstallation(db, siteId, remoteLocalId, ref);
+  const trameId = mapRemoteTrameToLocal(ref?.trame) || DEFAULT_TRAME_ID;
   const latest = ref?.derniereVisite;
   const remoteVisitId = remoteId(latest?.id);
-  if (!remoteVisitId) return { imported: false, reason: 'no_latest_visit', installationId };
-  const trameId = mapRemoteTrameToLocal(ref?.trame) || DEFAULT_TRAME_ID;
+  if (!remoteVisitId) {
+    const materialImport = await importCurrentMaterialsForLocal(db, {
+      ref, remoteLocalId, installationId, visiteId: null, trameId,
+    });
+    return { imported: false, reason: 'no_latest_visit', installationId, ...materialImport };
+  }
   const visitDate = text(latest?.date)?.slice(0, 10) || null;
   const status = latestVisitStatus(latest?.statut);
   const existing = await findImportedVisit(db, remoteVisitId);
