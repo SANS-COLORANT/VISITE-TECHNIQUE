@@ -288,16 +288,21 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
       );
     }
 
-    await Promise.all([
-      upsertEquipmentAttribute(db, equipmentId, 'api_symfony.nombre', text(material.nombre)),
-      upsertEquipmentAttribute(db, equipmentId, 'api_symfony.numero_materiel', text(material.numeroMateriel)),
-      upsertEquipmentAttribute(db, equipmentId, 'api_symfony.reseau_desservi', text(material.reseauDesservi)),
-      upsertEquipmentAttribute(db, equipmentId, 'api_symfony.caracteristiques', text(material.caracteristiques)),
-      upsertEquipmentAttribute(db, equipmentId, 'api_symfony.etat', text(material.etat)),
-      upsertEquipmentAttribute(db, equipmentId, 'api_symfony.remote_local_id', remoteLocalId),
-      upsertEquipmentAttribute(db, equipmentId, 'catalogue.marque_id', catalogBrand?.id || null),
-      upsertEquipmentAttribute(db, equipmentId, 'catalogue.marque_logo_uri', catalogBrand?.logo_uri || null),
-    ]);
+    const attributes = [
+      ['api_symfony.nombre', text(material.nombre)],
+      ['api_symfony.numero_materiel', text(material.numeroMateriel)],
+      ['api_symfony.reseau_desservi', text(material.reseauDesservi)],
+      ['api_symfony.caracteristiques', text(material.caracteristiques)],
+      ['api_symfony.etat', text(material.etat)],
+      ['api_symfony.remote_local_id', remoteLocalId],
+      ['catalogue.marque_id', catalogBrand?.id || null],
+      ['catalogue.marque_logo_uri', catalogBrand?.logo_uri || null],
+    ];
+    // Écritures volontairement séquentielles dans la transaction SQLite :
+    // éviter les finalizeAsync/statement races déjà observées sur tablette.
+    for (const [key, value] of attributes) {
+      await upsertEquipmentAttribute(db, equipmentId, key, value);
+    }
 
     if (trameId) {
       await db.runAsync(
