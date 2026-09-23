@@ -111,7 +111,7 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
 
  return <View style={styles.formCard}>
   <View style={styles.equipmentBrandHeader}>
-   <BrandMark marque={marque} compact/>
+   <BrandMark marque={{marque,logo_uri:item.marque_logo_uri}} compact/>
    <View style={{flex:1}}><Text style={styles.cardTitle}>{designation||categorie||'Nouvel équipement'}</Text><Text style={styles.cardSub}>{[marque,modele].filter(Boolean).join(' · ')||'À compléter'}</Text></View>
    <PhotoButton visiteId={visiteId} entiteKey={item.equipement_id?`equipement||${item.equipement_id}`:`materiel||${item.id}`} label={designation||categorie||'Équipement'}/>
   </View>
