@@ -27,6 +27,7 @@
     "plugins": [
       "expo-asset",
       "expo-secure-store",
+      "expo-sqlite",
       [
         "expo-splash-screen",
         {
