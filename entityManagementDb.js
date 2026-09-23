@@ -1,5 +1,6 @@
 import * as FileSystem from 'expo-file-system';
 import { getDb } from './db.js';
+import { supprimerCopiePhotoDocuments } from './photoDocumentsStorage.js';
 
 function estPhotoGereeParApplication(uri) {
   return !!uri && !!FileSystem.documentDirectory && String(uri).startsWith(`${FileSystem.documentDirectory}visite-technique/photos/`);
@@ -8,6 +9,7 @@ function estPhotoGereeParApplication(uri) {
 async function supprimerFichiersPhotos(uris = []) {
   const uniques = [...new Set((uris || []).filter(estPhotoGereeParApplication))];
   for (const uri of uniques) {
+    await supprimerCopiePhotoDocuments(uri).catch(() => {});
     try {
       await FileSystem.deleteAsync(uri, { idempotent: true });
     } catch {
@@ -124,3 +126,4 @@ export async function supprimerClientComplet(clientId) {
     await db.runAsync(`DELETE FROM clients WHERE id=?`, [clientId]);
   });
 }
+
