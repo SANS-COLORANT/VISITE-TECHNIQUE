@@ -16,6 +16,7 @@ name: Trigger Missions APK build
 # Rebuild première visite Intranet sans historique : résolution sûre de trame + préparation filtrée non destructive.
 # Rebuild final : la trame Intranet de première visite est résolue par la valeur Informations > Trame utilisée.
 # Rebuild final : visites Intranet partielles autorisées durablement (avis vide -> N.V, valeur vide -> /, compteur absent -> /).
+# Rebuild 435 : correctif durable des patches APK obsolètes + préflight CI des patches avant compilation.
 on:
   push:
     branches:
