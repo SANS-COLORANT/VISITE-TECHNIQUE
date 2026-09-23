@@ -332,6 +332,122 @@ export async function getStatsSitesPatrimoine(clientId) {
   return map;
 }
 
+
+function statsPatrimoineVides() {
+  return {
+    reserves: { total: 0, ouvertes: 0, levees: 0 },
+    equipements: { total: 0, actifs: 0, remplaces: 0, aSurveiller: 0 },
+  };
+}
+
+function totaliserStatsPatrimoine(stats) {
+  const total = {
+    sites: stats.size,
+    reserves: { total: 0, ouvertes: 0, levees: 0 },
+    equipements: { total: 0, actifs: 0, remplaces: 0, aSurveiller: 0 },
+  };
+  for (const value of stats.values()) {
+    total.reserves.total += Number(value.reserves?.total || 0);
+    total.reserves.ouvertes += Number(value.reserves?.ouvertes || 0);
+    total.reserves.levees += Number(value.reserves?.levees || 0);
+    total.equipements.total += Number(value.equipements?.total || 0);
+    total.equipements.actifs += Number(value.equipements?.actifs || 0);
+    total.equipements.remplaces += Number(value.equipements?.remplaces || 0);
+    total.equipements.aSurveiller += Number(value.equipements?.aSurveiller || 0);
+  }
+  return total;
+}
+
+/**
+ * Même source que l'écran "Synthèse patrimoine", avec un filtre optionnel
+ * sur les locaux sélectionnés pour les rapports.
+ */
+export async function getStatsPatrimoineSelection({
+  clientId,
+  siteIds = [],
+  installationIds = [],
+  scope = 'sites',
+} = {}) {
+  if (!clientId) return { scope: 'sites', stats: new Map(), totals: totaliserStatsPatrimoine(new Map()) };
+
+  const wantedSites = new Set((siteIds || []).filter(Boolean).map(String));
+  const wantedInstallations = [...new Set((installationIds || []).filter(Boolean).map(String))];
+
+  if (scope !== 'locals' || !wantedInstallations.length) {
+    const all = await getStatsSitesPatrimoine(clientId);
+    const stats = new Map();
+    for (const [siteId, value] of all.entries()) {
+      if (!wantedSites.size || wantedSites.has(String(siteId))) stats.set(siteId, value);
+    }
+    return { scope: 'sites', stats, totals: totaliserStatsPatrimoine(stats) };
+  }
+
+  await synchroniserReservesClient(clientId);
+  const base = await db();
+  const placeholders = wantedInstallations.map(() => '?').join(',');
+  const [siteRows, reserveRows, equipementRows] = await Promise.all([
+    base.getAllAsync(
+      `SELECT DISTINCT i.site_id
+       FROM installations i
+       JOIN sites s ON s.id=i.site_id
+       WHERE s.client_id=? AND i.id IN (${placeholders})`,
+      [clientId, ...wantedInstallations]
+    ),
+    base.getAllAsync(
+      `SELECT v.site_id,
+         COUNT(r.id) AS total,
+         SUM(CASE WHEN r.statut='ouverte' THEN 1 ELSE 0 END) AS ouvertes,
+         SUM(CASE WHEN r.statut='levee' THEN 1 ELSE 0 END) AS levees
+       FROM reserves_suivi r
+       JOIN visites v ON v.id=r.source_visite_id
+       JOIN sites s ON s.id=v.site_id
+       WHERE s.client_id=? AND v.installation_id IN (${placeholders})
+       GROUP BY v.site_id`,
+      [clientId, ...wantedInstallations]
+    ),
+    base.getAllAsync(
+      `SELECT i.site_id,
+         COUNT(*) AS total,
+         SUM(CASE WHEN e.statut='actif' THEN 1 ELSE 0 END) AS actifs,
+         SUM(CASE WHEN e.statut='remplace' THEN 1 ELSE 0 END) AS remplaces,
+         SUM(CASE WHEN COALESCE(
+           (SELECT h.etat_apres FROM historique_equipements h WHERE h.equipement_id=e.id AND h.etat_apres IS NOT NULL ORDER BY h.date_evenement DESC LIMIT 1),
+           (SELECT o.etat FROM observations_equipement o JOIN visites v2 ON v2.id=o.visite_id WHERE o.equipement_id=e.id ORDER BY COALESCE(v2.date_visite,'') DESC,o.observe_le DESC LIMIT 1),'')
+           IN ('Vétuste','Dégradé','Hors service','À surveiller') THEN 1 ELSE 0 END) AS a_surveiller
+       FROM equipements e
+       JOIN installations i ON i.id=e.installation_id
+       JOIN sites s ON s.id=i.site_id
+       WHERE s.client_id=? AND i.id IN (${placeholders})
+       GROUP BY i.site_id`,
+      [clientId, ...wantedInstallations]
+    ),
+  ]);
+
+  const stats = new Map();
+  for (const row of siteRows || []) {
+    if (!wantedSites.size || wantedSites.has(String(row.site_id))) stats.set(row.site_id, statsPatrimoineVides());
+  }
+  for (const row of reserveRows || []) {
+    if (!stats.has(row.site_id)) continue;
+    stats.get(row.site_id).reserves = {
+      total: Number(row.total || 0),
+      ouvertes: Number(row.ouvertes || 0),
+      levees: Number(row.levees || 0),
+    };
+  }
+  for (const row of equipementRows || []) {
+    if (!stats.has(row.site_id)) continue;
+    stats.get(row.site_id).equipements = {
+      total: Number(row.total || 0),
+      actifs: Number(row.actifs || 0),
+      remplaces: Number(row.remplaces || 0),
+      aSurveiller: Number(row.a_surveiller || 0),
+    };
+  }
+
+  return { scope: 'locals', stats, totals: totaliserStatsPatrimoine(stats) };
+}
+
 export async function getStatsClientPatrimoine(clientId) {
   const stats = await getStatsSitesPatrimoine(clientId);
   const total = {
