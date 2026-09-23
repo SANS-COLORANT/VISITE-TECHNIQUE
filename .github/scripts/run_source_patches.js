@@ -11,6 +11,7 @@ const CONTRACT_CHECKS = [
   ['startup dependency graph contract', '.github/scripts/check_startup_dependency_graph.js'],
   ['report export workflow contract', '.github/scripts/check_report_export_workflow.js'],
   ['latest visit photos contract', '.github/scripts/check_latest_visit_photos_contract.js'],
+  ['visit photo cleanup', '.github/scripts/test_visit_photo_cleanup.js'],
   ['Intranet visit upload contract', '.github/scripts/check_intranet_visit_upload_contract.js'],
   ['Intranet photo upload contract', '.github/scripts/check_intranet_photo_upload_contract.js'],
   ['Intranet photo outbox executable tests', '.github/scripts/test_intranet_photo_outbox.js'],
@@ -110,3 +111,4 @@ console.log('\n[METRA verify] Validating JavaScript syntax.');
 for (const file of JS_SYNTAX_FILES) runNode(['--check', file], `syntax: ${file}`);
 
 console.log('\n[METRA verify] Committed runtime source is valid. No source patch was applied.');
+
