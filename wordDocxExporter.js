@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { zip } from 'react-native-zip-archive';
 import { REPORT_COVER, REPORT_LOGO } from './reportBrandAssets.js';
+import { getStatsPatrimoineSelection } from './patrimoineDb.js';
 
 export const MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
@@ -63,6 +64,43 @@ async function preparePhoto(photo, index) {
 function reportRows(group, includeEmpty) {
   const rows = (group?.rows || []).filter((row) => includeEmpty || cleanText(row?.avis || row?.comment));
   return rows.map((row) => [row.label || '', row.avis || '', row.comment || '']);
+}
+
+async function patrimoineSummaryXml(datas, config) {
+  if (!config?.patrimoine || !(datas || []).length) return '';
+  const clientId = datas[0]?.visite?.client_id;
+  if (!clientId) return '';
+  const siteIds = [...new Set(datas.map((data) => data.visite?.site_id).filter(Boolean))];
+  const installationIds = [...new Set(datas.map((data) => data.visite?.installation_id).filter(Boolean))];
+  const scope = config.patrimoineScope === 'locals' && installationIds.length ? 'locals' : 'sites';
+  const synthese = await getStatsPatrimoineSelection({ clientId, siteIds, installationIds, scope });
+  const nomsSites = new Map();
+  for (const data of datas) if (data.visite?.site_id && !nomsSites.has(data.visite.site_id)) nomsSites.set(data.visite.site_id, data.visite.nom_site || 'Site');
+  const t = synthese.totals || {};
+  const out = [];
+  out.push(paragraph('SYNTHÈSE DU PATRIMOINE', { bold: true, size: 28, color: 'F26426', align: 'center', after: 90 }));
+  out.push(paragraph(scope === 'locals' ? 'Périmètre : locaux sélectionnés uniquement' : 'Périmètre : sites concernés par le rapport', { size: 17, color: '666666', align: 'center', after: 90 }));
+  if (scope === 'locals') {
+    const locaux = [...new Set(datas.map((data) => data.visite?.nom_local).filter(Boolean))].join(' · ');
+    if (locaux) out.push(paragraph(locaux, { size: 16, color: '777777', align: 'center', after: 100 }));
+  }
+  out.push(table([
+    ['Sites', 'Réserves à traiter', 'Équipements actifs', 'À surveiller'],
+    [t.sites || 0, t.reserves?.ouvertes || 0, t.equipements?.actifs || 0, t.equipements?.aSurveiller || 0],
+  ], [1900, 2500, 2500, 2000]));
+  const rows = [...(synthese.stats || new Map()).entries()].map(([siteId, stats]) => [
+    nomsSites.get(siteId) || 'Site',
+    stats.reserves?.ouvertes || 0,
+    stats.reserves?.levees || 0,
+    stats.equipements?.actifs || 0,
+    stats.equipements?.aSurveiller || 0,
+  ]);
+  out.push(table([
+    ['Site', 'Réserves ouvertes', 'Réserves levées', 'Équipements actifs', 'À surveiller'],
+    ...(rows.length ? rows : [['Aucune donnée', '', '', '', '']]),
+  ], [2600, 1700, 1700, 1900, 1500]));
+  out.push(paragraph("Synthèse calculée au moment de l’export à partir des mêmes données locales que l’écran Synthèse patrimoine.", { size: 15, color: '777777', after: 120 }));
+  return out.join('');
 }
 
 function siteDocumentXml(data, config, imageByPhotoId) {
@@ -179,6 +217,8 @@ async function createDocxPackage({ datas, config, photosConfig = [], title = nul
   body.push(paragraph(`Date du rapport : ${dateFr(config.dateRapport || new Date().toISOString().slice(0, 10))}`, { size: 18, align: 'center', after: 50 }));
   if (config.chrono) body.push(paragraph(`Référence : ${config.chrono}`, { size: 18, align: 'center', after: 100 }));
   if (cover) body.push(imageParagraph(cover.relId, cover.widthEmu, cover.heightEmu, cover.docPrId, cover.filename));
+  const patrimoineXml = await patrimoineSummaryXml(datas, config);
+  if (patrimoineXml) { body.push(pageBreak()); body.push(patrimoineXml); }
   body.push(pageBreak());
 
   for (let index = 0; index < (datas || []).length; index += 1) {
