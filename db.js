@@ -9,7 +9,24 @@ function chargerMaterielPersistant(){return require('./persistentEquipmentDb.js'
 export function uuidv4() { return createId(); }
 
 let dbInstance = null;
-async function getDb() { if (dbInstance) return dbInstance; dbInstance = await openAppDatabase(); await seedDemoSiNecessaire(dbInstance); await seedBibliothequeSiNecessaire(dbInstance); await seedEquipementsBibliothequeSiNecessaire(dbInstance); return dbInstance; }
+let dbInitPromise = null;
+async function getDb() {
+  if (dbInstance) return dbInstance;
+  if (!dbInitPromise) {
+    dbInitPromise = (async () => {
+      const db = await openAppDatabase();
+      await seedDemoSiNecessaire(db);
+      await seedBibliothequeSiNecessaire(db);
+      await seedEquipementsBibliothequeSiNecessaire(db);
+      dbInstance = db;
+      return db;
+    })().catch((error) => {
+      dbInitPromise = null;
+      throw error;
+    });
+  }
+  return dbInitPromise;
+}
 
 async function seedDemoSiNecessaire(db) { const deja=await db.getFirstAsync(`SELECT value FROM _meta WHERE key = 'demo_seeded'`); if(deja)return; const clientId=uuidv4(),siteId=uuidv4(); await db.runAsync(`INSERT INTO clients (id, nom, code_exploitant, adresse) VALUES (?, ?, ?, ?)`,[clientId,'Résidence Les Pins','RLP01','12 rue des Tilleuls']); await db.runAsync(`INSERT INTO sites (id, client_id, nom_site, adresse, statut) VALUES (?, ?, ?, ?, ?)`,[siteId,clientId,'Chaufferie centrale','12 rue des Tilleuls','Actif']); await db.runAsync(`INSERT INTO clients (id, nom, code_exploitant, adresse) VALUES (?, ?, ?, ?)`,[uuidv4(),'Office HLM Colombes','OHC08','5 avenue de la République']); await db.runAsync(`INSERT INTO _meta (key, value) VALUES ('demo_seeded', '1')`); }
 async function seedBibliothequeSiNecessaire(db){const deja=await db.getFirstAsync(`SELECT value FROM _meta WHERE key = 'biblio_seeded'`);if(deja)return;const {PRESCRIPTIONS}=chargerDonneesLegacy();for(const[cle,options]of Object.entries(PRESCRIPTIONS))for(const opt of options){const nom=cle+(opt.critere?' — '+opt.critere:'');await db.runAsync(`INSERT INTO reserves_bibliotheque (id, nom, description, prix, poste, delai) VALUES (?, ?, ?, ?, ?, ?)`,[uuidv4(),nom,opt.prestation,opt.estimatif??null,opt.poste??null,opt.delai??null]);}await db.runAsync(`INSERT INTO _meta (key, value) VALUES ('biblio_seeded', '1')`);}
@@ -57,3 +74,4 @@ async function ajouterCategorieEquipement({nom,icone}){const db=await getDb(),id
 async function listerVariantesEquipement(modeleId){return(await getDb()).getAllAsync(`SELECT * FROM variantes_equipement WHERE modele_id=? AND actif=1 ORDER BY nom`,[modeleId]);} async function ajouterVarianteEquipement({modeleId,nom,reference,description}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO variantes_equipement(id,modele_id,nom,reference,description) VALUES(?,?,?,?,?)`,[id,modeleId,nom,reference||null,description||null]);return id;} async function getFicheVarianteEquipement(id){const db=await getDb();const variante=await db.getFirstAsync(`SELECT v.*,m.nom modele,c.nom categorie,b.nom marque,b.logo_uri,b.couleur FROM variantes_equipement v JOIN modeles_equipement m ON m.id=v.modele_id JOIN categories_equipement c ON c.id=m.categorie_id JOIN marques_equipement b ON b.id=m.marque_id WHERE v.id=?`,[id]);if(!variante)return null;variante.caracteristiques=await db.getAllAsync(`SELECT * FROM caracteristiques_equipement WHERE variante_id=? ORDER BY ordre,cle`,[id]);variante.courbes=await db.getAllAsync(`SELECT * FROM courbes_equipement WHERE variante_id=? ORDER BY nom`,[id]);variante.documents=await db.getAllAsync(`SELECT * FROM documents_equipement WHERE variante_id=? ORDER BY type,nom`,[id]);return variante;} async function ajouterCaracteristiqueEquipement({varianteId,cle,valeur,unite}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO caracteristiques_equipement(id,variante_id,cle,valeur,unite) VALUES(?,?,?,?,?)`,[id,varianteId,cle,valeur||null,unite||null]);return id;} async function ajouterCourbeEquipement({varianteId,nom,axeX='Débit',uniteX='m³/h',axeY='HMT',uniteY='mCE',serie='[]'}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO courbes_equipement(id,variante_id,nom,axe_x,unite_x,axe_y,unite_y,serie) VALUES(?,?,?,?,?,?,?,?)`,[id,varianteId,nom,axeX,uniteX,axeY,uniteY,serie]);return id;} async function ajouterDocumentEquipement({varianteId,type,nom,uri}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO documents_equipement(id,variante_id,type,nom,uri) VALUES(?,?,?,?,?)`,[id,varianteId,type||'Document',nom,uri]);return id;}
 
 export {getDb,listerClients,creerClient,listerSitesClient,creerSite,listerVisitesEnCours,compterVisites,creerVisite,supprimerVisite,getVisite,toucherVisite,getChampsVisite,upsertChamp,getControlesVisite,upsertControle,recalculerProgression,listerReseaux,ajouterReseau,upsertReseauChamp,supprimerReseau,listerCompteurs,ajouterCompteur,upsertCompteurChamp,supprimerCompteur,listerMateriel,ajouterMateriel,upsertMaterielChamp,supprimerMateriel,listerHistoriqueEquipement,listerRemarques,upsertRemarqueDepuisPrescription,supprimerRemarqueParControle,ajouterRemarqueManuelle,ajouterAnomalieRapide,rattacherRemarque,getNote,upsertNote,listerPhotos,ajouterPhoto,remplacerPhoto,listerBibliothequeReserves,ajouterReserveBiblio,modifierReserveBiblio,supprimerReserveBiblio,ajouterRemarqueDepuisBiblio,listerBibliothequeEquipements,ajouterEquipementBiblio,modifierEquipementBiblio,supprimerEquipementBiblio,listerCategoriesEquipement,listerMarquesEquipement,rechercherModelesEquipement,ajouterCategorieEquipement,ajouterMarqueEquipement,ajouterModeleEquipement,desactiverCategorieEquipement,desactiverMarqueEquipement,listerVisitesSite,listerVariantesEquipement,ajouterVarianteEquipement,getFicheVarianteEquipement,ajouterCaracteristiqueEquipement,ajouterCourbeEquipement,ajouterDocumentEquipement};
+
