@@ -50,7 +50,7 @@ const VisitPanelHost = memo(function VisitPanelHost({
 });
 
 function VisiteScreen({ route, onBack }) {
-  const { visiteId } = route.params;
+  const { visiteId, visitePreview = null } = route.params;
   const { width, height } = useWindowDimensions();
   const appareilTablette = Math.min(width, height) >= 600;
   const modeTablette = width >= 900;
@@ -58,7 +58,8 @@ function VisiteScreen({ route, onBack }) {
   const pagerWidthRef = useRef(pagerWidth);
   pagerWidthRef.current = pagerWidth;
 
-  const [visite, setVisite] = useState(null);
+  const [visite, setVisite] = useState(() => visitePreview ? { ...visitePreview, progression_pct: Number(visitePreview.progression_pct || 0) } : null);
+  const [chargementErreur, setChargementErreur] = useState(null); // VISIT_OPEN_FAIL_SAFE_V1 · VISIT_OPEN_FAST_V2
   const [vmcCaissons, setVmcCaissons] = useState([]);
   const [activeTab, setActiveTab] = useState('p-infos');
   const activeTabRef = useRef('p-infos');
@@ -159,9 +160,9 @@ function VisiteScreen({ route, onBack }) {
     if (pagerPruneTimerRef.current) clearTimeout(pagerPruneTimerRef.current);
     pagerX.stopAnimation();
     preAllumageLocalX.stopAnimation();
-    invaliderCacheTrameGenerique(visiteId);
-    invaliderCacheRegulation(visiteId);
-  }, [pagerX, preAllumageLocalX, visiteId]);
+    // Les trois dernières visites restent chaudes en mémoire. Ne pas vider les
+    // caches ici : revenir dans une visite doit être instantané.
+  }, [pagerX, preAllumageLocalX]);
 
   useEffect(() => {
     if (!visite || tabsReels.length === 0) return;
@@ -239,28 +240,75 @@ function VisiteScreen({ route, onBack }) {
     flushDurableAutosaves().finally(() => setTimeout(() => onBack?.(), 0));
   }, [onBack]);
 
-  const charger = useCallback(async () => {
-    const db = await getDb();
-    await preremplirVisiteDepuisContexte(db, visiteId);
-    const v = await getVisite(visiteId);
-    const estVmc = (v?.trame_id || DEFAULT_TRAME_ID) === 'vmc';
-    const caissons = estVmc ? await chargerCaissonsVmc(visiteId) : [];
-    const progression = await recalculerProgressionVisite(db, visiteId);
-    invaliderCacheTrameGenerique(visiteId);
-    invaliderCacheRegulation(visiteId);
-    await Promise.all([
-      prechargerDonneesTrameGenerique(visiteId, true),
-      prechargerRegulation(visiteId, true),
-    ]);
-    setVmcCaissons(caissons);
-    setVisite(v ? { ...v, progression_pct: progression } : v);
+  const charger = useCallback(async ({ forceCaches = false } = {}) => {
+    setChargementErreur(null);
+
+    let v = null;
+    try {
+      // Lecture minimale : site + client + local arrivent dans une seule requête.
+      // Si un preview a été transmis par la liste, l'écran est déjà visible avant
+      // même cette lecture.
+      v = await getVisite(visiteId);
+      if (!v) throw new Error('Visite introuvable dans la base locale.');
+      setVisite((courante) => ({
+        ...(courante || {}),
+        ...v,
+        progression_pct: Number(courante?.progression_pct ?? v.progression_pct ?? 0),
+      }));
+    } catch (e) {
+      console.warn('Ouverture visite impossible', e);
+      setChargementErreur(String(e?.message || e || 'Erreur inconnue'));
+      return;
+    }
+
+    // Tout le reste se prépare sans bloquer l'affichage. Le préremplissage est
+    // marqué durablement : pour une visite déjà préparée, ce passage coûte une
+    // simple lecture _meta. Les caches chauds ne sont rechargés que si nécessaire.
+    void (async () => {
+      try {
+        const db = await getDb();
+        let prefillEffectif = false;
+        try {
+          const resultatPrefill = await preremplirVisiteDepuisContexte(db, visiteId);
+          prefillEffectif = resultatPrefill !== undefined;
+        } catch (e) {
+          console.warn('Préremplissage visite incomplet', e);
+        }
+
+        if (forceCaches || prefillEffectif) {
+          invaliderCacheTrameGenerique(visiteId);
+          invaliderCacheRegulation(visiteId);
+        }
+
+        const estVmc = (v?.trame_id || DEFAULT_TRAME_ID) === 'vmc';
+        const [caissons] = await Promise.all([
+          estVmc ? chargerCaissonsVmc(visiteId).catch(() => []) : Promise.resolve([]),
+          prechargerDonneesTrameGenerique(visiteId, forceCaches || prefillEffectif),
+          prechargerRegulation(visiteId, forceCaches || prefillEffectif),
+        ]);
+        setVmcCaissons(caissons || []);
+
+        try {
+          const progression = await recalculerProgressionVisite(db, visiteId);
+          setVisite((courante) => courante ? { ...courante, ...v, progression_pct: progression } : { ...v, progression_pct: progression });
+        } catch (e) {
+          console.warn('Progression initiale non recalculée', e);
+        }
+      } catch (e) {
+        console.warn('Initialisation secondaire de la visite incomplète', e);
+      }
+    })();
   }, [visiteId]);
 
   useEffect(() => {
     let actif = true;
     recupererPhotosEnAttente(visiteId)
-      .catch((e) => console.warn('Récupération photo interrompue', e))
-      .finally(() => { if (actif) charger(); });
+      .catch((e) => console.warn('Récupération photo interrompue', e));
+    charger().catch((e) => {
+      if (!actif) return;
+      console.warn('Chargement visite interrompu', e);
+      setChargementErreur(String(e?.message || e || 'Erreur inconnue'));
+    });
     return () => { actif = false; };
   }, [charger, visiteId]);
 
@@ -472,6 +520,14 @@ function VisiteScreen({ route, onBack }) {
     if (tabsReels.includes('p-remarques')) changerOnglet('p-remarques');
   };
 
+  if (!visite && chargementErreur) return <View style={[styles.center, { paddingHorizontal: 24 }]}>
+    <Text style={{ color: COLORS.ink, fontSize: 17, fontWeight: '900', textAlign: 'center' }}>Impossible d’ouvrir la visite</Text>
+    <Text style={{ color: COLORS.inkSoft, fontSize: 12, marginTop: 8, textAlign: 'center' }}>{chargementErreur}</Text>
+    <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+      <TouchableOpacity style={styles.btnSecondary} onPress={retourSecurise}><Text style={styles.btnSecondaryText}>Retour</Text></TouchableOpacity>
+      <TouchableOpacity style={styles.btnPrimary} onPress={() => charger({ forceCaches: true })}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity>
+    </View>
+  </View>;
   if (!visite) return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.orange} /></View>;
 
   const intranetLinked = Boolean(visite?.api_remote_local_id) && Number(visite?.api_is_historical) !== 1;
@@ -511,7 +567,7 @@ function VisiteScreen({ route, onBack }) {
           <TouchableOpacity style={styles.visiteBackBtn} onPress={retourSecurise}><Text style={styles.visiteBackBtnText}>←</Text></TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>{visite.nom_site}</Text>
-            <Text style={styles.cardSub}>{visite.nom_client} · {visite.date_visite} · {trame.nom} · {visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'}</Text>
+            <Text style={styles.cardSub}>{[visite.nom_client, visite.nom_installation, visite.date_visite, trame.nom, visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'].filter(Boolean).join(' · ')}</Text>
           </View>
           {appareilTablette ? <TouchableOpacity style={styles.noteBtn} onPress={() => setCompanionVisible(true)}><Text style={styles.noteBtnText}>Téléphone</Text></TouchableOpacity> : null}
           <TouchableOpacity style={styles.noteBtn} onPress={ouvrirNote}><Text style={styles.noteBtnText}>Note libre</Text></TouchableOpacity>
@@ -520,7 +576,7 @@ function VisiteScreen({ route, onBack }) {
         </View>
         <View style={styles.progressRow}><View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${visite.progression_pct}%` }]} /></View><Text style={styles.progressPct}>{visite.progression_pct}%</Text></View>
         {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? <PhotoReferenceAccess visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} /> : null}
-        <IntranetVisitSyncControl visite={visite} onVisitChanged={charger} />
+        <IntranetVisitSyncControl visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />
         <TouchableOpacity style={styles.anomalyBtn} onPress={() => setAnomalieVisible(true)}><Text style={styles.anomalyBtnText}>⚠ Ajouter une anomalie, une remarque ou une réserve</Text></TouchableOpacity>
         {visite.mode_visite === 'express' && <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>}
         {trame.id === 'vmc' && vmcCaissons.length > 0 ? <VmcCaissonManager visiteId={visiteId} caissons={vmcCaissons} onChange={onCaissonsChange} onNavigate={changerOnglet} /> : null}
