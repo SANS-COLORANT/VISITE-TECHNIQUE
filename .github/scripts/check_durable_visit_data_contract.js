@@ -51,7 +51,7 @@ expect(siteVisits.includes('visites.slice(0, 3)'), 'Les trois visites les plus r
 expect(siteVisits.includes('onPressIn={() => { if (!selectionExport) prechaufferVisite(item)'), 'Un appui doit commencer le préchauffage avant la navigation.');
 expect(siteVisits.includes('visitePreview'), 'La navigation doit transmettre un contexte de visite immédiatement affichable.');
 expect(visit.includes('VISIT_OPEN_FAST_V2'), 'VisiteScreen doit utiliser l’ouverture rapide avec preview.');
-expect(visit.includes('visitePreview ? { ...visitePreview'), 'Le site/local doivent être visibles avant la première requête SQLite.');
+expect(visit.includes('const initialPreview = visitePreview || runtimeInitial?.preview') && visit.includes('initialPreview ? { ...initialPreview'), 'Le site/local doivent être visibles depuis le preview HOT/WARM avant la première requête SQLite.');
 expect(db.includes('i.nom nom_installation'), 'La lecture minimale d’une visite doit retourner le local avec le site et le client.');
 
 console.log('[durable-visit-data-contract] OK');
