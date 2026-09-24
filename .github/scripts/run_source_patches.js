@@ -31,6 +31,7 @@ const CONTRACT_CHECKS = [
   ['photo workflow executable regression tests', '.github/scripts/test_photo_workflow.js'],
   ['Missions LAB isolation contract', '.github/scripts/check_missions_lab_contract.js'],
   ['Missions app compatibility contract', '.github/scripts/check_missions_app_compat.js'],
+  ['phone companion contract', '.github/scripts/check_companion_mode_contract.js'],
 ];
 
 const JS_SYNTAX_FILES = [
@@ -175,6 +176,14 @@ const JS_SYNTAX_FILES = [
   'database/migrations/042_missions_complete_tooling.js',
   'database/migrations/043_missions_measurement_campaigns.js',
   'plugins/withMetraMissionTools.js',
+  'plugins/withMetraCompanion.js',
+  'companionNative.js',
+  'companionProtocol.js',
+  'companionOutbox.js',
+  'companionData.js',
+  'MetraCvcIcons.js',
+  'CompanionTabletModal.js',
+  'CompanionPhoneScreen.js',
   'app.config.js',
   'symfonyApi.js',
   'database/migrations/031_latest_visit_photos.js',
