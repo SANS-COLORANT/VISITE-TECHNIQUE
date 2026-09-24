@@ -32,6 +32,7 @@ const CONTRACT_CHECKS = [
   ['Missions LAB isolation contract', '.github/scripts/check_missions_lab_contract.js'],
   ['Missions app compatibility contract', '.github/scripts/check_missions_app_compat.js'],
   ['phone companion contract', '.github/scripts/check_companion_mode_contract.js'],
+  ['navigation + site sort contract', '.github/scripts/check_navigation_sort_contract.js'],
 ];
 
 const JS_SYNTAX_FILES = [
@@ -44,6 +45,8 @@ const JS_SYNTAX_FILES = [
   'ClientDocumentsScreen.js',
   'HomeScreen.js',
   'ClientSitesScreen.js',
+  'siteSort.js',
+  'navigationMemory.js',
   'SiteGroupsManager.js',
   'SiteVisitesScreen.js',
   'SiteLocalsScreen.js',
