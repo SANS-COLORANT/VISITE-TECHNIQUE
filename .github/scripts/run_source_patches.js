@@ -34,6 +34,7 @@ const CONTRACT_CHECKS = [
   ['phone companion contract', '.github/scripts/check_companion_mode_contract.js'],
   ['navigation + site sort contract', '.github/scripts/check_navigation_sort_contract.js'],
   ['durable visit data contract', '.github/scripts/check_durable_visit_data_contract.js'],
+  ['field runtime foundation', '.github/scripts/check_field_runtime_foundation.js'],
 ];
 
 const JS_SYNTAX_FILES = [
@@ -45,6 +46,14 @@ const JS_SYNTAX_FILES = [
   'PhotoButton.js',
   'photoPersistenceJournal.js',
   'boundedCache.js',
+  'visitRuntimeCache.js',
+  'visitPrewarm.js',
+  'visitPreviousSnapshot.js',
+  'navigationPrewarm.js',
+  'useListScrollMemory.js',
+  'saveActivity.js',
+  'photoVariantCache.js',
+  'PhotoVariantImage.js',
   'App.js',
   'ReportScreen.js',
   'reportBuilder.js',
