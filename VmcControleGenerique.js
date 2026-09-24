@@ -1,5 +1,5 @@
 /** Contrôle VMC dédié : avis, commentaires, réserve, criticité et photos. */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { upsertControlePartiel } from './controlDb.js';
@@ -17,6 +17,7 @@ function libelleEtat(avis) { if (avis === 'S') return 'Correct / présent'; if (
 export const VmcControleGenerique = React.memo(function VmcControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, onEtatChange }) {
   const controleKey = `${sectionCode}||${field.cle}`;
   const [avis, setAvis] = useState(etatInitial?.avis || null);
+  const avisRef = useRef(etatInitial?.avis || null);
   const [remarque, setRemarque] = useState(null);
   const [presetChoisi, setPresetChoisi] = useState(null);
   const presets = useMemo(() => field?.presets || {}, [field]);
@@ -34,8 +35,9 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
 
   const persisterCommentaire = useCallback(async (value) => {
     const texte = String(value || '').trim();
-    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis, commentaire: texte });
-    if (avis === 'N.S' && texte) {
+    const avisCourant = avisRef.current;
+    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: avisCourant, commentaire: texte });
+    if (avisCourant === 'N.S' && texte) {
       await upsertRemarquePrescription(
         visiteId,
         controleKey,
@@ -49,12 +51,12 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
         `VMC — ${field.cle} — Autre`
       );
       await rechargerRemarque();
-    } else if (avis !== 'N.S') {
+    } else if (avisCourant !== 'N.S') {
       await supprimerRemarqueControle(visiteId, controleKey);
       setRemarque(null);
     }
-    notifier({ avis, commentaire: texte });
-  }, [visiteId, sectionCode, field, controleKey, avis, remarque, notifier, rechargerRemarque]);
+    notifier({ avis: avisCourant, commentaire: texte });
+  }, [visiteId, sectionCode, field, controleKey, remarque, notifier, rechargerRemarque]);
 
   const [commentaire, setCommentaire, flushCommentaire] = useDurableAutosave(
     etatInitial?.commentaire || '',
@@ -62,7 +64,7 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
     320
   );
 
-  useEffect(() => { setAvis(etatInitial?.avis || null); }, [etatInitial?.avis]);
+  useEffect(() => { avisRef.current = etatInitial?.avis || null; setAvis(avisRef.current); }, [etatInitial?.avis]);
   useEffect(() => {
     let alive = true;
     listerRemarquesVisite(visiteId).then((rows) => {
@@ -78,6 +80,7 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
 
   const choisirAvis = useCallback(async (val) => {
     if (val === avis) return;
+    avisRef.current = val;
     setAvis(val);
     setPresetChoisi(null);
     setCommentaire('');
