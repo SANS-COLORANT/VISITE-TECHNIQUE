@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as ImagePicker from 'expo-image-picker';
+import { launchMetraCamera } from './cameraRuntime.js';
 
 const TYPES = new Set(['client', 'site']);
 const MAX_WIDTH = 1600;
@@ -34,14 +35,9 @@ export function estImagePatrimoineGeree(uri) {
 
 async function choisirAsset(source) {
   if (source === 'camera') {
-    const permission = await ImagePicker.requestCameraPermissionsAsync();
-    if (!permission.granted) throw new Error("L’accès à l’appareil photo est nécessaire pour prendre une photo.");
-    const resultat = await ImagePicker.launchCameraAsync({
-      allowsEditing: false,
-      base64: false,
-      quality: 0.9,
-    });
-    return resultat.canceled ? null : resultat.assets?.[0] || null;
+    const resultat = await launchMetraCamera({ allowsEditing: false, quality: 0.9 });
+    if (resultat?.status === 'permission') throw new Error("L’accès à l’appareil photo est nécessaire pour prendre une photo.");
+    return resultat?.uri ? (resultat.asset || { uri: resultat.uri }) : null;
   }
 
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -67,9 +63,10 @@ async function optimiserImage(asset) {
   return resultat?.uri || asset.uri;
 }
 
-export async function importerImagePatrimoine({ type, id, source = 'galerie' }) {
+export async function importerImagePatrimoine({ type, id, source = 'galerie', onCaptured = null }) {
   const asset = await choisirAsset(source === 'camera' ? 'camera' : 'galerie');
   if (!asset) return null;
+  try { onCaptured?.(asset.uri); } catch {}
   const temporaire = await optimiserImage(asset);
   if (!temporaire) return null;
 
