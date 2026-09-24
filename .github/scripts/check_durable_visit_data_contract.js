@@ -20,6 +20,9 @@ const visit = read('VisiteScreen.js');
 const generic = read('TrameGenericPanel.js');
 const regulation = read('OptimizedRegulationPanel.js');
 const bounded = read('boundedCache.js');
+const prefill = read('visitPrefillDb.js');
+const siteVisits = read('SiteVisitesScreen.js');
+const db = read('db.js');
 
 expect(autosave.includes("AppState.addEventListener('change'"), 'Les brouillons doivent être flushés quand METRA passe en arrière-plan.');
 expect(autosave.includes('queueRef.current') && autosave.includes('persisteeRef'), 'Les écritures doivent être sérialisées et suivre la dernière valeur persistée.');
@@ -39,8 +42,16 @@ expect(visit.includes('recupererPhotosEnAttente(visiteId)'), 'L’ouverture d’
 expect(visit.includes('flushDurableAutosaves()'), 'Le changement d’onglet et le retour doivent déclencher un flush des brouillons.');
 
 expect(bounded.includes('class BoundedLruMap'), 'Le cache chaud doit être borné.');
-expect(generic.includes('new BoundedLruMap(6)'), 'Le cache de trame doit être borné à un petit jeu de visites chaudes.');
-expect(regulation.includes('new BoundedLruMap(6)'), 'Le cache de régulation doit être borné.');
-expect(persistent.includes('new BoundedLruMap(6)'), 'Le cache des remarques doit être borné.');
+expect(generic.includes('new BoundedLruMap(3)'), 'Le cache de trame doit garder exactement trois visites chaudes.');
+expect(regulation.includes('new BoundedLruMap(3)'), 'Le cache de régulation doit garder exactement trois visites chaudes.');
+expect(persistent.includes('new BoundedLruMap(3)'), 'Le cache des remarques doit garder exactement trois visites chaudes.');
+expect(prefill.includes("PREFILL_META_PREFIX = 'visit_prefill_done::'"), 'Une visite déjà préparée doit être reconnue après redémarrage sans recopier son historique.');
+expect(prefill.includes('new BoundedLruMap(3)'), 'Le statut de préremplissage en mémoire doit lui aussi être borné à trois visites.');
+expect(siteVisits.includes('visites.slice(0, 3)'), 'Les trois visites les plus récentes doivent être préchauffées depuis l’historique.');
+expect(siteVisits.includes('onPressIn={() => { if (!selectionExport) prechaufferVisite(item)'), 'Un appui doit commencer le préchauffage avant la navigation.');
+expect(siteVisits.includes('visitePreview'), 'La navigation doit transmettre un contexte de visite immédiatement affichable.');
+expect(visit.includes('VISIT_OPEN_FAST_V2'), 'VisiteScreen doit utiliser l’ouverture rapide avec preview.');
+expect(visit.includes('visitePreview ? { ...visitePreview'), 'Le site/local doivent être visibles avant la première requête SQLite.');
+expect(db.includes('i.nom nom_installation'), 'La lecture minimale d’une visite doit retourner le local avec le site et le client.');
 
 console.log('[durable-visit-data-contract] OK');
