@@ -409,7 +409,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
   return <>
     <TouchableOpacity
       style={[styles.photoBtn, photosChargees && photos.length > 0 && styles.photoBtnTaken, estReserve && photos.length > 0 && { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8 }, style]}
-      onPressIn={prechaufferCapture}
+      onPressIn={() => { prechaufferCapture().catch(() => {}); }}
       onPress={onPress}
     >
       {estReserve && photosChargees && photos[0]?.uri ? <PhotoVariantImage uri={photos[0].uri} variant={photos[0].pending ? 'original' : 'thumb'} style={{ width: 44, height: 44, borderRadius: 7 }} resizeMode="cover" /> : null}
@@ -431,7 +431,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
         )}
         <View style={styles.photoViewerActions}>
           <TouchableOpacity style={styles.photoViewerSecondary} onPress={demanderSuppression}><Text style={styles.photoViewerSecondaryText}>Supprimer</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.photoViewerSecondary} onPressIn={prechaufferCapture} onPress={ajouter}><Text style={styles.photoViewerSecondaryText}>+ Ajouter</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.photoViewerSecondary} onPressIn={() => { prechaufferCapture().catch(() => {}); }} onPress={ajouter}><Text style={styles.photoViewerSecondaryText}>+ Ajouter</Text></TouchableOpacity>
           <TouchableOpacity style={styles.photoViewerPrimary} onPressIn={() => { prewarmCameraRuntime().catch(() => {}); prewarmPhotoCaptureContext(visiteId).catch(() => {}); }} onPress={reprendre}><Text style={styles.photoViewerPrimaryText}>📷 Reprendre</Text></TouchableOpacity>
         </View>
       </View>
