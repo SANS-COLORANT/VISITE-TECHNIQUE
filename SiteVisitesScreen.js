@@ -4,7 +4,6 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView, InteractionManager } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
-import { getVisite } from './db.js';
 import { creerVisiteProduction } from './visitCreationDb.js';
 import { supprimerVisiteComplete } from './entityManagementDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
@@ -14,11 +13,10 @@ import { SiteOverviewPanel } from './SiteOverviewPanel.js';
 import { exporterVisitesExcelEnLot } from './batchExcel.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
 import { getNavigationScrollOffset, getNavigationState, hydrateNavigationState, setNavigationScrollOffset, setNavigationState } from './navigationMemory.js';
-import { prechargerDonneesTrameGenerique } from './TrameGenericPanel.js';
-import { prechargerRegulation } from './OptimizedRegulationPanel.js';
 import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
 import { peekLocalVisits, prewarmLocalVisits } from './navigationPrewarm.js';
 import { forgetVisitRuntime, markVisitHot, markVisitWarm } from './visitRuntimeCache.js';
+import { prewarmVisit } from './visitPrewarm.js';
 
 const STATUT_LABELS = { en_cours: 'En cours', terminee: 'Terminée', a_completer: 'À compléter', exportee: 'Exportée' };
 const SITE_TABS = [
@@ -87,14 +85,9 @@ function SiteVisitesScreen({ route, navigation }) {
   const prechaufferVisite = useCallback(async (visiteOuId, force = false) => {
     const id = typeof visiteOuId === 'string' ? visiteOuId : visiteOuId?.id;
     if (!id) return null;
-    const [visite] = await Promise.all([
-      getVisite(id),
-      prechargerDonneesTrameGenerique(id, force),
-      prechargerRegulation(id, force),
-    ]);
-    const preview = construirePreview(visite || (typeof visiteOuId === 'object' ? visiteOuId : { id }));
-    markVisitHot(id, { preview });
-    return preview;
+    const base = construirePreview(typeof visiteOuId === 'object' ? visiteOuId : { id });
+    const visite = await prewarmVisit(id, { force, preview: base });
+    return construirePreview(visite || base);
   }, [construirePreview]);
 
   const charger = useCallback(async () => {
