@@ -93,6 +93,7 @@ function CompanionPhoneScreen({ onExit }) {
   const [busyTarget, setBusyTarget] = useState(null);
   const [pending, setPending] = useState(0);
   const connectedRef = useRef(false);
+  const connectionRef = useRef(null);
 
   const modules = snapshot?.modules?.length ? snapshot.modules : FALLBACK_MODULES;
   const selectedModule = useMemo(() => modules.find((m) => m.id === selectedModuleId) || null, [modules, selectedModuleId]);
@@ -165,6 +166,7 @@ function CompanionPhoneScreen({ onExit }) {
         return;
       }
       const connection = parseCompanionQrPayload(raw);
+      connectionRef.current = connection;
       await connectCompanion(connection);
       setStatus('Connexion à la tablette…');
     } catch (e) {
@@ -173,6 +175,21 @@ function CompanionPhoneScreen({ onExit }) {
       setStatus('Aucune tablette connectée');
     }
   }, [phase]);
+
+  const reconnect = useCallback(async () => {
+    const connection = connectionRef.current;
+    if (!connection) {
+      await scan();
+      return;
+    }
+    setStatus('Reconnexion à la tablette…');
+    try {
+      await connectCompanion(connection);
+    } catch (e) {
+      setStatus('Tablette indisponible · rescanner si nécessaire');
+      Alert.alert('Reconnexion impossible', String(e?.message || e));
+    }
+  }, [scan]);
 
   const capture = useCallback(async (target) => {
     if (!target?.targetKey || busyTarget) return;
@@ -262,6 +279,8 @@ function CompanionPhoneScreen({ onExit }) {
               <Text style={{ color: '#FFF', fontWeight: '900', fontSize: 16 }}>{snapshot.visit?.site || 'Visite'}</Text>
               <Text style={{ marginTop: 3, color: '#D5E3E9', fontSize: 12 }}>{snapshot.visit?.client || ''} · {snapshot.visit?.date || ''}</Text>
             </View>
+
+            {phase === 'disconnected' ? <TouchableOpacity onPress={reconnect} style={{ marginBottom: 12, minHeight: 50, borderRadius: 15, backgroundColor: '#FFF0E6', borderWidth: 1, borderColor: '#E8B78F', alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#A5521D', fontWeight: '900' }}>Reconnecter à la tablette</Text><Text style={{ marginTop: 2, color: '#A96C45', fontSize: 10.5 }}>{pending > 0 ? `${pending} photo${pending > 1 ? 's' : ''} en attente` : 'Les nouvelles photos resteront sur le téléphone'}</Text></TouchableOpacity> : null}
 
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
               {modules.map((item) => <ModuleTile key={item.id} item={item} onPress={(m) => {
