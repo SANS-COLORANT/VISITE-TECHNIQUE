@@ -587,6 +587,32 @@ export async function importLatestApiVisitForLocal(siteId, remoteLocalId) {
   const ref = await getCachedLocalReference(remoteIdLocal);
   if (!ref) return { imported: false, reason: 'no_cached_reference' };
   const db = await getDb();
+
+  const cachedRemoteVisitId = remoteId(ref?.derniereVisite?.id);
+  if (cachedRemoteVisitId) {
+    const existing = await findImportedVisit(db, cachedRemoteVisitId);
+    if (existing?.id) {
+      const [cacheState, importedState] = await Promise.all([
+        db.getFirstAsync(`SELECT synced_at FROM api_local_links WHERE remote_local_id=? LIMIT 1`, [remoteIdLocal]),
+        db.getFirstAsync(`SELECT importe_le FROM provenances
+          WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony' AND reference_externe=?
+          ORDER BY importe_le DESC LIMIT 1`, [existing.id, cachedRemoteVisitId]),
+      ]);
+      const cacheStamp = String(cacheState?.synced_at || '');
+      const importedStamp = String(importedState?.importe_le || '');
+      if (importedStamp && (!cacheStamp || importedStamp >= cacheStamp)) {
+        return {
+          imported: true,
+          visiteId: existing.id,
+          remoteVisitId: cachedRemoteVisitId,
+          created: false,
+          reused: true,
+          reason: 'cached_latest_visit_already_materialized',
+        };
+      }
+    }
+  }
+
   let result = { imported: false, reason: 'not_processed' };
   await db.withTransactionAsync(async () => {
     result = await importLatestVisitForLocal(db, localSiteId, remoteIdLocal, ref);
