@@ -15,6 +15,7 @@ import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { SiteOverviewPanel } from './SiteOverviewPanel.js';
 import { exporterVisitesExcelEnLot } from './batchExcel.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
+import { getNavigationScrollOffset, setNavigationScrollOffset } from './navigationMemory.js';
 
 const STATUT_LABELS = { en_cours: 'En cours', terminee: 'Terminée', a_completer: 'À compléter', exportee: 'Exportée' };
 const SITE_TABS = [
@@ -66,6 +67,8 @@ function SiteVisitesScreen({ route, navigation }) {
   const [exportLotEnCours, setExportLotEnCours] = useState(false);
   const [intranetClientImported, setIntranetClientImported] = useState(false);
   const autoOpenHandled = useRef(false);
+  const listRef = useRef(null);
+  const scrollKey = `site-visits:${String(siteId || '')}:${String(installationId || (legacyOnly ? 'legacy' : 'site'))}`;
   const tramesDisponibles = listerTramesDisponibles();
 
   const charger = useCallback(async () => {
@@ -92,6 +95,13 @@ function SiteVisitesScreen({ route, navigation }) {
   }, [siteId, installationId, legacyOnly]);
 
   useEffect(() => { charger(); }, [charger]);
+  useEffect(() => {
+    if (siteTab !== 'visites') return undefined;
+    const offset = getNavigationScrollOffset(scrollKey);
+    if (!offset || !visites.length) return undefined;
+    const timer = setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
+    return () => clearTimeout(timer);
+  }, [scrollKey, visites.length, siteTab]);
   useEffect(() => {
     if (!params.openNewVisit || !apiRemoteLocalId || autoOpenHandled.current) return;
     autoOpenHandled.current = true;
@@ -305,7 +315,10 @@ function SiteVisitesScreen({ route, navigation }) {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <FlatList
+        ref={listRef}
         key={`${siteTab}-${selectionExport ? 'selection' : 'normal'}`}
+        onScroll={(event) => { if (siteTab === 'visites') setNavigationScrollOffset(scrollKey, event.nativeEvent.contentOffset.y); }}
+        scrollEventThrottle={80}
         contentContainerStyle={styles.content}
         data={siteTab === 'visites' ? visites : []}
         keyExtractor={(item) => item.id}
