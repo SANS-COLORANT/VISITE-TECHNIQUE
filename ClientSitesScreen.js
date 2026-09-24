@@ -16,6 +16,9 @@ import { IntranetSiteCreationModal } from './IntranetStructureUi.js';
 import { SITE_SORT_OPTIONS, buildSiteGroupMap, siteGroupLabel, sortSites } from './siteSort.js';
 import { getNavigationScrollOffset, getNavigationState, hydrateNavigationState, setNavigationScrollOffset, setNavigationState } from './navigationMemory.js';
 import { peekClientSites, prewarmClientSites, prewarmSiteLocals } from './navigationPrewarm.js';
+import { CompanionTabletModal } from './CompanionTabletModal.js';
+import { CvcIcon } from './MetraCvcIcons.js';
+import { getRuntimeAccent, getRuntimePalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 
 const adresseVide = () => ({ numero: '', voie: '', complement: '', codePostal: '', ville: '' });
 
@@ -32,6 +35,7 @@ function ClientSitesScreen({ route, navigation }) {
   const [search, setSearch] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [intranetSiteVisible, setIntranetSiteVisible] = useState(false);
+  const [clientCompanionVisible, setClientCompanionVisible] = useState(false);
   const [groupesVisible, setGroupesVisible] = useState(false);
   const [radialMenu, setRadialMenu] = useState(null);
   const [renameSite, setRenameSite] = useState(null);
@@ -98,6 +102,8 @@ function ClientSitesScreen({ route, navigation }) {
 
   const sansAdresse = sites.filter((s) => !String(s.adresse || '').trim()).length;
   const avecAdresse = sites.length - sansAdresse;
+  const accent = getRuntimeAccent();
+  const palette = getRuntimePalette();
   const patchNouvelleAdresse = (patch) => setNouvelleAdresse((prev) => ({ ...prev, ...patch }));
 
   const ajouterSiteFn = async () => {
@@ -198,7 +204,16 @@ function ClientSitesScreen({ route, navigation }) {
           <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setModalVisible(true)}><Text style={styles.btnPrimaryText}>+ Site local</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setIntranetSiteVisible(true)}><Text style={styles.btnPrimaryText}>+ Site Intranet</Text></TouchableOpacity>
         </View>
-        <TouchableOpacity style={[styles.btnSecondary, { marginBottom: 12 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>📄 Documents</Text></TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 12 }}>
+          <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>📄 Documents</Text></TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', gap: 7, borderColor: accent, backgroundColor: palette.light }]}
+            onPress={() => setClientCompanionVisible(true)}
+          >
+            <CvcIcon name="camera" size={19} color={accent} />
+            <Text style={[styles.btnSecondaryText, { color: accent }]}>QR client</Text>
+          </TouchableOpacity>
+        </View>
 
         {sansAdresse > 0 ? <View style={{ backgroundColor: '#FFF8E7', borderWidth: 1, borderColor: '#F0D99B', borderRadius: 12, padding: 10, marginBottom: 14 }}><Text style={{ color: '#7A5700', fontSize: 12, fontWeight: '700' }}>{sansAdresse} site(s) sans adresse complète</Text></View> : null}
         <View style={styles.sectionHeaderRow}><Text style={styles.sectionLabel}>Sites</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>{sitesFiltres.length}/{sites.length}</Text></View>
@@ -229,6 +244,13 @@ function ClientSitesScreen({ route, navigation }) {
     <Modal visible={modalVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Nouveau site local</Text><Text style={{ color: COLORS.muted, fontSize: 11.5, marginBottom: 10 }}>Ce bouton crée uniquement un site dans la base locale METRA. Utilise « Site Intranet » pour créer aussi la structure serveur.</Text><TextInput style={styles.input} placeholder="Nom du site" value={nouveauNom} onChangeText={setNouveauNom}/><View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}><TextInput style={[styles.input, { width: 84 }]} placeholder="N°" value={nouvelleAdresse.numero} keyboardType="numbers-and-punctuation" onChangeText={(v) => patchNouvelleAdresse({ numero: v })}/><TextInput style={[styles.input, { flex: 1 }]} placeholder="Rue / avenue / voie" value={nouvelleAdresse.voie} onChangeText={(v) => patchNouvelleAdresse({ voie: v })}/></View><TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Complément : bâtiment, entrée…" value={nouvelleAdresse.complement} onChangeText={(v) => patchNouvelleAdresse({ complement: v })}/><View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}><TextInput style={[styles.input, { width: 120 }]} placeholder="Code postal" value={nouvelleAdresse.codePostal} keyboardType="number-pad" maxLength={5} onChangeText={(v) => patchNouvelleAdresse({ codePostal: v.replace(/\D/g, '').slice(0, 5) })}/><TextInput style={[styles.input, { flex: 1 }]} placeholder="Ville" value={nouvelleAdresse.ville} onChangeText={(v) => patchNouvelleAdresse({ ville: v })}/></View><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setModalVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={ajouterSiteFn}><Text style={styles.btnPrimaryText}>Créer</Text></TouchableOpacity></View></View></View></Modal>
 
     <IntranetSiteCreationModal visible={intranetSiteVisible} clientId={clientId} onClose={() => setIntranetSiteVisible(false)} onCreated={charger} />
+
+    <CompanionTabletModal
+      visible={clientCompanionVisible}
+      clientId={clientId}
+      nomClient={nomClient}
+      onClose={() => setClientCompanionVisible(false)}
+    />
 
     <Modal visible={!!renameSite} transparent animationType="fade" onRequestClose={() => setRenameSite(null)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Renommer le site</Text><TextInput autoFocus style={styles.input} value={renameValue} onChangeText={setRenameValue} selectTextOnFocus/><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setRenameSite(null)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerRenommage}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></View></View></Modal>
 
