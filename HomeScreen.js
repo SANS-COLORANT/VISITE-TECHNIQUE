@@ -1,18 +1,21 @@
 /** Écran Accueil. */
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView, PanResponder } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
 import { PatrimoineThumbnail } from './PatrimoineImageCard.js';
 import { onPatrimoineImageChanged } from './patrimoineImageDb.js';
 import { MISSION_COLORS } from './missionTheme.js';
+import { getNavigationScrollOffset, setNavigationScrollOffset } from './navigationMemory.js';
 
 const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
 function chargerEntityManagementModule(){return require('./entityManagementDb.js');}
 
 function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
+  const listRef = useRef(null);
+  const scrollKey = 'home:clients';
   const [clients, setClients] = useState(() => HOME_FAST_CACHE.clients || []);
   const [visitesEnCours, setVisitesEnCours] = useState(() => HOME_FAST_CACHE.visitesEnCours || []);
   const [stats, setStats] = useState(() => HOME_FAST_CACHE.stats || { enCours: 0, terminees: 0 });
@@ -35,6 +38,12 @@ function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
   }, []);
 
   useEffect(() => { charger().catch((e) => console.warn('Chargement accueil impossible', e)); }, [charger]);
+  useEffect(() => {
+    const offset = getNavigationScrollOffset(scrollKey);
+    if (!offset || !clients.length) return undefined;
+    const timer = setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
+    return () => clearTimeout(timer);
+  }, [clients.length]);
   useEffect(() => onPatrimoineImageChanged((change) => {
     if (change?.type === 'client') charger().catch(() => {});
   }), [charger]);
@@ -131,6 +140,9 @@ function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
     </View>
 
     <FlatList
+      ref={listRef}
+      onScroll={(event) => setNavigationScrollOffset(scrollKey, event.nativeEvent.contentOffset.y)}
+      scrollEventThrottle={80}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.orange} />}
       data={clients}
