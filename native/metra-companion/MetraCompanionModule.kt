@@ -1,6 +1,8 @@
 package com.metra.companion
 
+import android.content.Context
 import android.graphics.Bitmap
+import android.net.ConnectivityManager
 import android.net.Uri
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
@@ -58,7 +60,23 @@ class MetraCompanionModule(private val context: ReactApplicationContext) : React
   }
 
   private fun localIpv4(): String {
-    val enumeration = NetworkInterface.getNetworkInterfaces() ?: return "127.0.0.1"
+    // Priorité au réseau Android réellement actif. L'ancienne énumération brute
+    // pouvait choisir une interface privée cellulaire/VPN différente du Wi-Fi
+    // utilisé par le téléphone, ce qui donnait un QR valide mais injoignable.
+    try {
+      val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
+      val active = manager?.activeNetwork
+      val properties = active?.let { manager.getLinkProperties(it) }
+      for (link in properties?.linkAddresses.orEmpty()) {
+        val address = link.address
+        if (address is Inet4Address && !address.isLoopbackAddress && address.isSiteLocalAddress) {
+          return address.hostAddress ?: continue
+        }
+      }
+    } catch (_: Exception) {}
+
+    val enumeration = NetworkInterface.getNetworkInterfaces()
+      ?: throw IllegalStateException("Aucun réseau local actif. Active le Wi-Fi sur la tablette.")
     val interfaces = Collections.list(enumeration)
     for (network in interfaces) {
       if (!network.isUp || network.isLoopback) continue
@@ -68,7 +86,7 @@ class MetraCompanionModule(private val context: ReactApplicationContext) : React
         }
       }
     }
-    throw IllegalStateException("Aucune adresse réseau locale disponible")
+    throw IllegalStateException("Aucun réseau local joignable. Active le Wi-Fi sur la tablette et le téléphone.")
   }
 
   private fun writeFrame(header: JSONObject, payloadFile: File? = null) {
