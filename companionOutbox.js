@@ -2,6 +2,7 @@ import * as FileSystem from 'expo-file-system';
 
 const ROOT = `${FileSystem.documentDirectory || ''}metra-companion/outbox/`;
 const MANIFEST = `${ROOT}queue.json`;
+let mutationQueue = Promise.resolve();
 
 function id() {
   return `cmp_${Date.now()}_${Math.random().toString(36).slice(2, 9)}`;
@@ -30,26 +31,36 @@ async function writeQueue(items) {
   await FileSystem.writeAsStringAsync(MANIFEST, JSON.stringify(items || []));
 }
 
+function serialiseMutation(worker) {
+  const run = mutationQueue.then(worker, worker);
+  mutationQueue = run.catch(() => {});
+  return run;
+}
+
 async function enqueueCompanionPhoto({ uri, meta }) {
-  await ensureRoot();
-  const transferId = id();
-  const extension = String(uri || '').toLowerCase().includes('.png') ? '.png' : '.jpg';
-  const destination = `${ROOT}${transferId}${extension}`;
-  await FileSystem.copyAsync({ from: uri, to: destination });
-  const items = await readQueue();
-  const item = { transferId, uri: destination, meta: { ...(meta || {}), transferId }, createdAt: new Date().toISOString() };
-  items.push(item);
-  await writeQueue(items);
-  return item;
+  return serialiseMutation(async () => {
+    await ensureRoot();
+    const transferId = id();
+    const extension = String(uri || '').toLowerCase().includes('.png') ? '.png' : '.jpg';
+    const destination = `${ROOT}${transferId}${extension}`;
+    await FileSystem.copyAsync({ from: uri, to: destination });
+    const items = await readQueue();
+    const item = { transferId, uri: destination, meta: { ...(meta || {}), transferId }, createdAt: new Date().toISOString() };
+    items.push(item);
+    await writeQueue(items);
+    return item;
+  });
 }
 
 async function removeCompanionOutboxItem(transferId) {
-  const items = await readQueue();
-  const item = items.find((x) => x.transferId === transferId);
-  const next = items.filter((x) => x.transferId !== transferId);
-  await writeQueue(next);
-  if (item?.uri) FileSystem.deleteAsync(item.uri, { idempotent: true }).catch(() => {});
-  return next;
+  return serialiseMutation(async () => {
+    const items = await readQueue();
+    const item = items.find((x) => x.transferId === transferId);
+    const next = items.filter((x) => x.transferId !== transferId);
+    await writeQueue(next);
+    if (item?.uri) FileSystem.deleteAsync(item.uri, { idempotent: true }).catch(() => {});
+    return next;
+  });
 }
 
 export { enqueueCompanionPhoto, readQueue as listCompanionOutbox, removeCompanionOutboxItem };
