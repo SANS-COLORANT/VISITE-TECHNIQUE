@@ -1,21 +1,23 @@
 /** Écran d'un site : visites, équipements, remarques + localisation par adresse. */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView, InteractionManager } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
-import { listerVisitesSite, listerVisitesLocal, getDb } from './db.js';
+import { listerVisitesSite, listerVisitesLocal, getDb, getVisite } from './db.js';
 import { creerVisiteProduction } from './visitCreationDb.js';
 import { supprimerVisiteComplete } from './entityManagementDb.js';
 import { getSiteLocalisation } from './siteGeoDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
-import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { listerTramesDisponibles, obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { SiteOverviewPanel } from './SiteOverviewPanel.js';
 import { exporterVisitesExcelEnLot } from './batchExcel.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
 import { getNavigationScrollOffset, setNavigationScrollOffset } from './navigationMemory.js';
+import { prechargerDonneesTrameGenerique } from './TrameGenericPanel.js';
+import { prechargerRegulation } from './OptimizedRegulationPanel.js';
+import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
 
 const STATUT_LABELS = { en_cours: 'En cours', terminee: 'Terminée', a_completer: 'À compléter', exportee: 'Exportée' };
 const SITE_TABS = [
@@ -71,6 +73,26 @@ function SiteVisitesScreen({ route, navigation }) {
   const scrollKey = `site-visits:${String(siteId || '')}:${String(installationId || (legacyOnly ? 'legacy' : 'site'))}`;
   const tramesDisponibles = listerTramesDisponibles();
 
+  const construirePreview = useCallback((visite = {}) => ({
+    ...visite,
+    id: visite.id,
+    site_id: visite.site_id || siteId,
+    nom_site: visite.nom_site || nomSite || site?.nom_site || '',
+    nom_client: visite.nom_client || params.nomClient || '',
+    nom_installation: visite.nom_installation || nomLocal || '',
+  }), [siteId, nomSite, nomLocal, params.nomClient, site?.nom_site]);
+
+  const prechaufferVisite = useCallback(async (visiteOuId, force = false) => {
+    const id = typeof visiteOuId === 'string' ? visiteOuId : visiteOuId?.id;
+    if (!id) return null;
+    const [visite] = await Promise.all([
+      getVisite(id),
+      prechargerDonneesTrameGenerique(id, force),
+      prechargerRegulation(id, force),
+    ]);
+    return construirePreview(visite || (typeof visiteOuId === 'object' ? visiteOuId : { id }));
+  }, [construirePreview]);
+
   const charger = useCallback(async () => {
     const visitesPromise = legacyOnly
       ? listerVisitesLocal(siteId, null, { legacyOnly: true })
@@ -95,6 +117,32 @@ function SiteVisitesScreen({ route, navigation }) {
   }, [siteId, installationId, legacyOnly]);
 
   useEffect(() => { charger(); }, [charger]);
+
+  useEffect(() => {
+    if (!visites.length) return undefined;
+    const task = InteractionManager.runAfterInteractions(() => {
+      for (const visite of visites.slice(0, 3)) {
+        prechaufferVisite(visite).catch(() => {});
+      }
+    });
+    return () => task?.cancel?.();
+  }, [visites, prechaufferVisite]);
+
+  useEffect(() => {
+    if (!apiRemoteLocalId || legacyOnly) return undefined;
+    let actif = true;
+    const task = InteractionManager.runAfterInteractions(() => {
+      importLatestApiVisitForLocal(siteId, apiRemoteLocalId)
+        .then((resultat) => {
+          if (actif && resultat?.imported && !resultat?.reused) charger().catch(() => {});
+        })
+        .catch((e) => console.warn('Préparation locale Intranet différée', e));
+    });
+    return () => {
+      actif = false;
+      task?.cancel?.();
+    };
+  }, [siteId, apiRemoteLocalId, legacyOnly, charger]);
   useEffect(() => {
     if (siteTab !== 'visites') return undefined;
     const offset = getNavigationScrollOffset(scrollKey);
@@ -138,10 +186,19 @@ function SiteVisitesScreen({ route, navigation }) {
     setCreationEnCours(true);
     try {
       const visiteId = await creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId, installationId });
-      const db = await getDb();
-      await preremplirVisiteDepuisContexte(db, visiteId);
+      const previewBase = construirePreview({
+        id: visiteId,
+        site_id: siteId,
+        installation_id: installationId,
+        api_remote_local_id: apiRemoteLocalId,
+        trame_id: trameId,
+        mode_visite: mode,
+        statut: 'en_cours',
+        progression_pct: 0,
+      });
+      const visitePreview = await prechaufferVisite(visiteId, true).catch(() => previewBase);
       setChoixModeVisible(false);
-      navigation.navigate('Visite', { visiteId });
+      navigation.navigate('Visite', { visiteId, visitePreview: visitePreview || previewBase });
     } catch (e) {
       Alert.alert('Création impossible', String(e?.message || e));
     } finally {
@@ -330,7 +387,8 @@ function SiteVisitesScreen({ route, navigation }) {
             <TouchableOpacity
               style={[styles.card, selectionExport && selectionnee ? { borderWidth: 2, borderColor: COLORS.primary } : null]}
               activeOpacity={0.7}
-              onPress={() => selectionExport ? basculerSelection(item.id) : navigation.navigate('Visite', { visiteId: item.id })}
+              onPressIn={() => { if (!selectionExport) prechaufferVisite(item).catch(() => {}); }}
+              onPress={() => selectionExport ? basculerSelection(item.id) : navigation.navigate('Visite', { visiteId: item.id, visitePreview: construirePreview(item) })}
             >
               {selectionExport ? <View style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: selectionnee ? COLORS.primary : COLORS.line, backgroundColor: selectionnee ? COLORS.primary : '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}><Text style={{ color: '#fff', fontWeight: '900' }}>{selectionnee ? '✓' : ''}</Text></View> : null}
               <View style={{ flex: 1 }}>
