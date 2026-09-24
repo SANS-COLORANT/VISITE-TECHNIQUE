@@ -300,7 +300,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
         style={[styles.input, { minHeight: 60, textAlignVertical: 'top', backgroundColor: '#fff' }]}
         multiline
         value={commentaireSimple}
-        onChangeText={setCommentaireSimple}
+        onChangeText={(v) => { setCommentaire(v); setCommentaireSimple(v); onEtatChange?.({ avis, commentaire: v }); }}
         onBlur={() => flushCommentaireSimple().catch(() => {})}
         placeholder="Ajouter un commentaire si nécessaire…"
       />
@@ -319,7 +319,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
         </View>
       </>}
       {critereChoisi !== null && remarque ? <EditionReserve remarque={remarque} onPatch={patchReserve} /> : null}
-      {(critereChoisi === null || modeLibre || options.length === 0) && <TextInput style={[styles.input, { marginTop: 8, height: 60 }]} placeholder="Décrivez le problème constaté..." multiline value={libre} onChangeText={setLibre} onBlur={() => flushLibre().catch(() => {})} />}
+      {(critereChoisi === null || modeLibre || options.length === 0) && <TextInput style={[styles.input, { marginTop: 8, height: 60 }]} placeholder="Décrivez le problème constaté..." multiline value={libre} onChangeText={(v) => { setCommentaire(v); setLibre(v); onEtatChange?.({ avis: 'N.S', commentaire: v }); }} onBlur={() => flushLibre().catch(() => {})} />}
       <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={field.cle} style={styles.photoRequiredBox} />
     </View>}
   </View>;
