@@ -22,7 +22,7 @@ import { CvcIcon } from './MetraCvcIcons.js';
 
 const SPLASH_BG = '#FBF0E1';
 const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects', 'MissionP3Dashboard', 'MissionReceptionBoard', 'MissionExpertise', 'MissionCampaignDashboard', 'MissionAmoDashboard', 'MissionControlBoard']);
-const BACK_SWIPE_ROUTES = new Set(['MetraDirectory', 'ClientSites', 'SiteLocals', 'SiteVisites', 'ClientPilotage', 'ClientDocuments', 'ClientPatrimoine', 'ClientTechnicalMatrix', 'IntranetStructure', 'Report', 'Parametres', 'Lab3D']);
+const BACK_SWIPE_ROUTES = new Set(['MetraDirectory', 'ClientSites', 'SiteLocals', 'SiteVisites', 'ClientPilotage', 'ClientDocuments', 'ClientPatrimoine', 'ClientTechnicalMatrix', 'IntranetStructure', 'Parametres']);
 
 const DEFERRED_SCREEN_LOADERS = Object.freeze({
   MetraDirectory: () => require('./MetraDirectoryScreen.js').MetraDirectoryScreen,
