@@ -1,7 +1,12 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
-import { buildCompanionVisitSnapshot, importCompanionPhoto } from './companionData.js';
+import {
+  assertVisitBelongsToCompanionClient,
+  buildCompanionClientSnapshot,
+  buildCompanionVisitSnapshot,
+  importCompanionPhoto,
+} from './companionData.js';
 import { buildCompanionQrPayload } from './companionProtocol.js';
 import {
   generateCompanionQr,
@@ -10,57 +15,125 @@ import {
   stopCompanion,
   subscribeCompanion,
 } from './companionNative.js';
+import { getRuntimeAccent } from './visual-packs/runtime/visualPaletteRuntime.js';
 
-function CompanionTabletModal({ visible, visiteId, onClose }) {
+function withTimeout(promise, ms, message) {
+  let timer = null;
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      timer = setTimeout(() => reject(new Error(message)), ms);
+    }),
+  ]).finally(() => {
+    if (timer) clearTimeout(timer);
+  });
+}
+
+function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomClient = null, onClose }) {
+  const scope = visiteId ? 'visit' : 'client';
+  const scopeId = visiteId || clientId;
   const [phase, setPhase] = useState('idle');
   const [qrUri, setQrUri] = useState(null);
   const [snapshot, setSnapshot] = useState(null);
   const [connection, setConnection] = useState('En attente du téléphone');
   const [lastEvent, setLastEvent] = useState('');
+  const [phoneVisitId, setPhoneVisitId] = useState(null);
   const mountedRef = useRef(true);
+  const accent = getRuntimeAccent();
 
   const stop = useCallback(async () => {
     try { await stopCompanion(); } catch {}
   }, []);
 
+  const buildScopeSnapshot = useCallback(async () => {
+    if (scope === 'visit') return buildCompanionVisitSnapshot(visiteId);
+    return buildCompanionClientSnapshot(clientId);
+  }, [scope, visiteId, clientId]);
+
   const launch = useCallback(async () => {
-    if (!visible || !visiteId) return;
+    if (!visible || !scopeId) return;
     setPhase('starting');
     setQrUri(null);
     setSnapshot(null);
+    setPhoneVisitId(null);
     setConnection('Préparation de la session locale…');
     setLastEvent('');
+
     try {
-      const nextSnapshot = await buildCompanionVisitSnapshot(visiteId);
-      const host = await startCompanionHost({
-        visitId: visiteId,
-        site: nextSnapshot?.visit?.site || '',
-        client: nextSnapshot?.visit?.client || '',
+      const nextSnapshot = await withTimeout(
+        buildScopeSnapshot(),
+        18000,
+        scope === 'client'
+          ? 'La préparation du client prend trop de temps. Réessaie après avoir rouvert le client.'
+          : 'La préparation de la visite prend trop de temps. Réessaie après avoir rouvert la visite.'
+      );
+
+      const host = await withTimeout(
+        startCompanionHost({
+          scope,
+          scopeId,
+          visitId: visiteId || null,
+          clientId: clientId || nextSnapshot?.client?.id || null,
+          site: nextSnapshot?.visit?.site || '',
+          client: nextSnapshot?.visit?.client || nextSnapshot?.client?.name || nomClient || '',
+        }),
+        10000,
+        'Impossible de démarrer la liaison locale. Vérifie que le Wi‑Fi est actif sur la tablette.'
+      );
+
+      const payload = buildCompanionQrPayload({
+        ...host,
+        scope,
+        scopeId,
+        label: scope === 'client'
+          ? (nextSnapshot?.client?.name || nomClient || 'Client')
+          : (nextSnapshot?.visit?.site || 'Visite'),
       });
-      const payload = buildCompanionQrPayload(host);
-      const uri = await generateCompanionQr(payload, 720);
+
+      const uri = await withTimeout(
+        generateCompanionQr(payload, 720),
+        8000,
+        'Le QR code n’a pas pu être généré.'
+      );
+
       if (!mountedRef.current) return;
       setSnapshot(nextSnapshot);
       setQrUri(uri);
       setConnection('En attente du téléphone');
       setPhase('ready');
     } catch (e) {
+      await stop().catch(() => {});
       if (!mountedRef.current) return;
       setPhase('error');
       setConnection(String(e?.message || e));
     }
-  }, [visible, visiteId]);
+  }, [visible, scopeId, scope, visiteId, clientId, nomClient, buildScopeSnapshot, stop]);
 
-  const refreshSnapshot = useCallback(async () => {
+  const refreshSnapshot = useCallback(async ({ notify = true } = {}) => {
     try {
-      const next = await buildCompanionVisitSnapshot(visiteId);
+      const next = await buildScopeSnapshot();
       setSnapshot(next);
-      await sendCompanionMessage(next);
-      setLastEvent('Données de visite actualisées sur le téléphone');
+      if (notify) await sendCompanionMessage(next);
+      setLastEvent(scope === 'client' ? 'Patrimoine client actualisé sur le téléphone' : 'Données de visite actualisées sur le téléphone');
+      return next;
     } catch (e) {
       Alert.alert('Actualisation impossible', String(e?.message || e));
+      return null;
     }
-  }, [visiteId]);
+  }, [buildScopeSnapshot, scope]);
+
+  const sendVisitToPhone = useCallback(async (requestedVisitId) => {
+    const id = String(requestedVisitId || '').trim();
+    if (!id) throw new Error('Visite non sélectionnée');
+    if (scope === 'client') await assertVisitBelongsToCompanionClient(clientId, id);
+    else if (String(visiteId) !== id) throw new Error('Cette session est liée à une autre visite.');
+
+    const next = await buildCompanionVisitSnapshot(id);
+    setPhoneVisitId(id);
+    await sendCompanionMessage(next);
+    setLastEvent(`Visite ouverte sur le téléphone · ${next?.visit?.site || ''}`);
+    return next;
+  }, [scope, clientId, visiteId]);
 
   useEffect(() => {
     mountedRef.current = true;
@@ -73,43 +146,79 @@ function CompanionTabletModal({ visible, visiteId, onClose }) {
       stop();
       return undefined;
     }
+
     const unsubscribe = subscribeCompanion(async (event) => {
       if (!mountedRef.current) return;
+
       if (event?.type === 'status') {
         if (event.status === 'connected') {
           setConnection('Téléphone connecté');
           setLastEvent('Connexion locale établie');
           try {
-            const next = snapshot || await buildCompanionVisitSnapshot(visiteId);
-            setSnapshot(next);
+            const next = snapshot || await buildScopeSnapshot();
+            if (!snapshot) setSnapshot(next);
             await sendCompanionMessage(next);
           } catch (e) {
             setLastEvent(`Envoi des données impossible : ${String(e?.message || e)}`);
           }
         } else if (event.status === 'disconnected') {
           setConnection('Téléphone déconnecté');
+          setPhoneVisitId(null);
+        } else if (event.status === 'error') {
+          setConnection('Erreur de liaison locale');
         }
         return;
       }
-      if (event?.type === 'message' && event.message?.type === 'requestSnapshot') {
-        await refreshSnapshot();
-        return;
+
+      if (event?.type === 'message') {
+        const message = event.message || {};
+        if (message.type === 'requestSnapshot') {
+          await refreshSnapshot();
+          return;
+        }
+        if (message.type === 'requestClientSnapshot' && scope === 'client') {
+          const next = await buildCompanionClientSnapshot(clientId);
+          setSnapshot(next);
+          await sendCompanionMessage(next);
+          setPhoneVisitId(null);
+          setLastEvent('Retour au client sur le téléphone');
+          return;
+        }
+        if (message.type === 'selectVisit') {
+          try {
+            await sendVisitToPhone(message.visitId);
+          } catch (e) {
+            await sendCompanionMessage({
+              type: 'visitSelectionError',
+              visitId: message.visitId || null,
+              message: String(e?.message || e),
+            }).catch(() => {});
+            setLastEvent(`Visite non ouverte : ${String(e?.message || e)}`);
+          }
+          return;
+        }
       }
+
       if (event?.type === 'fileReceived') {
         const meta = event.meta || {};
+        const targetVisitId = String(meta.visitId || visiteId || phoneVisitId || '').trim();
         try {
-          const imported = await importCompanionPhoto({ visiteId, uri: event.uri, meta });
+          if (!targetVisitId) throw new Error('Choisis une visite sur le téléphone avant d’envoyer une photo.');
+          if (scope === 'client') await assertVisitBelongsToCompanionClient(clientId, targetVisitId);
+          const imported = await importCompanionPhoto({ visiteId: targetVisitId, uri: event.uri, meta });
           await sendCompanionMessage({
             type: 'photoImported',
             transferId: meta.transferId || null,
             photoId: imported.id,
             targetKey: imported.entiteKey,
             label: imported.label,
+            visitId: targetVisitId,
           });
           setLastEvent(`Photo reçue · ${imported.label || 'élément'}`);
-          const next = await buildCompanionVisitSnapshot(visiteId);
-          setSnapshot(next);
-          await sendCompanionMessage(next);
+
+          const nextVisit = await buildCompanionVisitSnapshot(targetVisitId);
+          setPhoneVisitId(targetVisitId);
+          await sendCompanionMessage(nextVisit);
         } catch (e) {
           await sendCompanionMessage({
             type: 'photoImportError',
@@ -120,8 +229,9 @@ function CompanionTabletModal({ visible, visiteId, onClose }) {
         }
       }
     });
+
     return () => unsubscribe();
-  }, [visible, visiteId, snapshot, refreshSnapshot, stop]);
+  }, [visible, visiteId, clientId, phoneVisitId, scope, snapshot, buildScopeSnapshot, refreshSnapshot, sendVisitToPhone, stop]);
 
   const close = useCallback(async () => {
     await stop();
@@ -129,46 +239,96 @@ function CompanionTabletModal({ visible, visiteId, onClose }) {
   }, [onClose, stop]);
 
   const moduleSummary = useMemo(
-    () => (snapshot?.modules || []).filter((m) => Number(m.count || 0) > 0),
+    () => snapshot?.type === 'visitSnapshot'
+      ? (snapshot?.modules || []).filter((m) => Number(m.count || 0) > 0)
+      : [],
     [snapshot]
   );
+
+  const clientCounts = snapshot?.type === 'clientSnapshot' ? snapshot.counts : null;
 
   return (
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
       <View style={styles.modalOverlay}>
         <View style={[styles.modalSheet, { width: '92%', maxWidth: 760, maxHeight: '92%' }]}>
           <ScrollView contentContainerStyle={{ paddingBottom: 8 }}>
-            <Text style={styles.modalTitle}>Téléphone compagnon</Text>
+            <Text style={styles.modalTitle}>
+              {scope === 'client' ? 'Téléphone compagnon · Client' : 'Téléphone compagnon · Visite'}
+            </Text>
             <Text style={[styles.importHint, { marginBottom: 12 }]}>
-              Le QR code transmet uniquement une session locale temporaire. Le téléphone récupère le contexte de cette visite et peut envoyer ses photos directement au bon équipement, compteur, température, local, réseau ou remarque.
+              {scope === 'client'
+                ? 'Ce QR associe le téléphone à tout le client. Il suffit ensuite de choisir un site puis une visite sur le téléphone, sans rescanner de QR à chaque visite.'
+                : 'Ce QR associe le téléphone à cette visite. Les photos sont classées directement sur le bon équipement, compteur, température, local, réseau ou remarque.'}
             </Text>
 
-            {phase === 'starting' ? <View style={{ minHeight: 260, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator size="large" color={COLORS.primary} /><Text style={{ marginTop: 12, color: COLORS.muted }}>Création de la session locale…</Text></View> : null}
-
-            {phase === 'error' ? <View style={styles.empty}><Text style={styles.emptyText}>Impossible de créer la session</Text><Text style={styles.emptySub}>{connection}</Text><TouchableOpacity style={[styles.btnPrimary, { marginTop: 14 }]} onPress={launch}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity></View> : null}
-
-            {phase === 'ready' ? <>
-              <View style={{ alignItems: 'center', paddingVertical: 8 }}>
-                {qrUri ? <Image source={{ uri: qrUri }} style={{ width: 300, height: 300, backgroundColor: '#FFF', borderRadius: 18 }} resizeMode="contain" /> : null}
-                <Text style={{ marginTop: 10, fontSize: 15, fontWeight: '900', color: COLORS.text }}>{connection}</Text>
-                <Text style={{ marginTop: 4, fontSize: 12, color: COLORS.muted, textAlign: 'center' }}>Sur le téléphone : MÉTRA → Mode Compagnon → Scanner le QR de la tablette</Text>
+            {phase === 'starting' ? (
+              <View style={{ minHeight: 260, alignItems: 'center', justifyContent: 'center' }}>
+                <ActivityIndicator size="large" color={accent} />
+                <Text style={{ marginTop: 12, color: COLORS.inkSoft }}>
+                  {scope === 'client' ? 'Préparation du client et du QR code…' : 'Création de la session locale…'}
+                </Text>
+                <Text style={{ marginTop: 6, color: COLORS.inkFaint, fontSize: 11, textAlign: 'center' }}>
+                  Si le réseau local n’est pas disponible, un message d’erreur remplace automatiquement ce chargement.
+                </Text>
               </View>
+            ) : null}
 
-              <View style={{ marginTop: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.line, backgroundColor: '#FAFBFC' }}>
-                <Text style={{ fontWeight: '900', color: COLORS.text }}>{snapshot?.visit?.site || 'Visite'}</Text>
-                <Text style={{ marginTop: 3, color: COLORS.muted, fontSize: 12 }}>{snapshot?.visit?.client || ''} · {snapshot?.visit?.date || ''}</Text>
-                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 }}>
-                  {moduleSummary.map((m) => <View key={m.id} style={{ paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999, backgroundColor: '#FFF', borderWidth: 1, borderColor: COLORS.line }}><Text style={{ fontSize: 11, fontWeight: '800', color: COLORS.text }}>{m.label} · {m.count}</Text></View>)}
+            {phase === 'error' ? (
+              <View style={styles.empty}>
+                <Text style={styles.emptyText}>Impossible de créer la session</Text>
+                <Text style={styles.emptySub}>{connection}</Text>
+                <TouchableOpacity style={[styles.btnPrimary, { marginTop: 14 }]} onPress={launch}>
+                  <Text style={styles.btnPrimaryText}>Réessayer</Text>
+                </TouchableOpacity>
+              </View>
+            ) : null}
+
+            {phase === 'ready' ? (
+              <>
+                <View style={{ alignItems: 'center', paddingVertical: 8 }}>
+                  {qrUri ? <Image source={{ uri: qrUri }} style={{ width: 300, height: 300, backgroundColor: '#FFF', borderRadius: 18 }} resizeMode="contain" /> : null}
+                  <Text style={{ marginTop: 10, fontSize: 15, fontWeight: '900', color: COLORS.ink }}>{connection}</Text>
+                  <Text style={{ marginTop: 4, fontSize: 12, color: COLORS.inkSoft, textAlign: 'center' }}>
+                    Sur le téléphone : Compagnon → Scanner le QR de la tablette
+                  </Text>
                 </View>
-              </View>
 
-              {lastEvent ? <Text style={{ marginTop: 10, textAlign: 'center', color: COLORS.muted, fontSize: 12 }}>{lastEvent}</Text> : null}
+                <View style={{ marginTop: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.bg }}>
+                  {snapshot?.type === 'clientSnapshot' ? (
+                    <>
+                      <Text style={{ fontWeight: '900', color: COLORS.ink }}>{snapshot?.client?.name || nomClient || 'Client'}</Text>
+                      <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 12 }}>
+                        {clientCounts?.sites || 0} sites · {clientCounts?.locals || 0} locaux · {clientCounts?.visits || 0} visites
+                      </Text>
+                      {phoneVisitId ? <Text style={{ marginTop: 7, color: accent, fontSize: 11.5, fontWeight: '800' }}>Une visite est actuellement ouverte sur le téléphone.</Text> : null}
+                    </>
+                  ) : (
+                    <>
+                      <Text style={{ fontWeight: '900', color: COLORS.ink }}>{snapshot?.visit?.site || 'Visite'}</Text>
+                      <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 12 }}>{snapshot?.visit?.client || ''} · {snapshot?.visit?.date || ''}</Text>
+                      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 }}>
+                        {moduleSummary.map((m) => (
+                          <View key={m.id} style={{ paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line }}>
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: COLORS.ink }}>{m.label} · {m.count}</Text>
+                          </View>
+                        ))}
+                      </View>
+                    </>
+                  )}
+                </View>
 
-              <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
-                <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={refreshSnapshot}><Text style={styles.btnSecondaryText}>Actualiser</Text></TouchableOpacity>
-                <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={close}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
-              </View>
-            </> : null}
+                {lastEvent ? <Text style={{ marginTop: 10, textAlign: 'center', color: COLORS.inkSoft, fontSize: 12 }}>{lastEvent}</Text> : null}
+
+                <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
+                  <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => refreshSnapshot()}>
+                    <Text style={styles.btnSecondaryText}>Actualiser</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={close}>
+                    <Text style={styles.btnPrimaryText}>Fermer</Text>
+                  </TouchableOpacity>
+                </View>
+              </>
+            ) : null}
           </ScrollView>
         </View>
       </View>
