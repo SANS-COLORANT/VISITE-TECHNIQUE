@@ -10,6 +10,7 @@ import { openAppDatabase } from './database/index.js';
 import { supprimerPhotoComplete } from './photoDb.js';
 import { copierPhotoDansDocuments, supprimerCopiePhotoDocuments } from './photoDocumentsStorage.js';
 import { styles } from './styles.js';
+import { confirmerPhotoJournalisee, journaliserPhotoEnAttente } from './photoPersistenceJournal.js';
 
 function nettoyerNomFichier(valeur = '', fallback = 'Photo') {
   const propre = String(valeur || fallback)
@@ -134,7 +135,7 @@ async function preparerPhotoNommee({ visiteId, entiteKey = null, label = 'Photo'
   const uriDurable = await copierPhotoDurable(uri, visiteId, nom);
   // La copie interne reste la source canonique pour le backup. Une seconde copie
   // est déposée dans Documents afin d'être directement visible par l'utilisateur.
-  await copierPhotoDansDocuments(uriDurable, nom).catch(() => null);
+  copierPhotoDansDocuments(uriDurable, nom).catch(() => null);
   return { uri: uriDurable, nom, label: labelMetier, entiteKey: entiteCanonique };
 }
 
@@ -224,7 +225,9 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       const labelFinal = photo.label || cible.label || typePhotoDepuisEntite(cible.entiteKey);
       const labelDb = photo.nom ? `${labelFinal}||${photo.nom}` : (labelFinal || null);
       const cibleKey = photo.entiteKey || cible.entiteKey;
+      const journalKey = await journaliserPhotoEnAttente({ visiteId, entiteKey: cibleKey, uri: photo.uri, labelDb });
       const photoId = await ajouterPhoto(visiteId, cibleKey, photo.uri, labelDb);
+      await confirmerPhotoJournalisee(journalKey).catch(() => {});
       const items = await charger(cibleKey);
       setIndex(Math.max(0, items.length - 1));
       onPhotoSaved?.({ id: photoId, entiteKey: cibleKey, uri: photo.uri, label: labelFinal });
