@@ -202,7 +202,9 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     let alive = true;
     let unsubscribe = () => {};
     (async () => {
-      const canonique = await clePhotoCanoniqueVmc(visiteId, entiteKey);
+      const reserveExistante = await resoudreReserveDepuisControle(visiteId, entiteKey, label, { create: false });
+      const cleCandidate = reserveExistante?.entiteKey || entiteKey;
+      const canonique = await clePhotoCanoniqueVmc(visiteId, cleCandidate);
       if (!alive) return;
       canonicalKeyRef.current = String(canonique || '');
       const cached = peekVisitPhotos(visiteId);
@@ -279,6 +281,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       const cible = ciblePrechauffee.needsReserve
         ? await resoudreCible({ createReserve: true })
         : ciblePrechauffee;
+      canonicalKeyRef.current = String(cible.entiteKey || entiteKey || '');
       const photo = await preparerPhotoNommee({ visiteId, entiteKey: cible.entiteKey, label: cible.label, uri: captureUri });
       const labelFinal = photo.label || cible.label || typePhotoDepuisEntite(cible.entiteKey);
       const labelDb = photo.nom ? `${labelFinal}||${photo.nom}` : (labelFinal || null);
