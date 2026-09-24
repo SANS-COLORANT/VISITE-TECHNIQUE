@@ -155,6 +155,29 @@ La mémoire durable conserve au maximum 24 contextes UI récents.
 
 Un retour doit remettre l'utilisateur au même endroit, sans recalculer un écran complet uniquement pour restaurer sa position.
 
+## Appareil photo instantané
+
+Le pipeline caméra suit la même règle que la navigation : **le geste terrain ne doit pas attendre le stockage**.
+
+Avant le clic final, METRA peut préchauffer sans effet métier :
+- état de permission caméra déjà accordée ;
+- dossier privé de la visite ;
+- index photo de la visite ;
+- cible de classement si elle existe déjà.
+
+Un simple `onPressIn` ne doit jamais créer une réserve ou modifier une donnée métier.
+
+Au retour de l'appareil photo :
+- la prise apparaît immédiatement dans l'interface avec un identifiant temporaire ;
+- le bouton redevient disponible dès que la caméra est fermée ;
+- copie privée METRA, journal de récupération, SQLite, copie Documents et variantes sont traités derrière ;
+- une série de photos peut continuer pendant que les précédentes se finalisent ;
+- le mode Compagnon copie et envoie ses prises en arrière-plan, avec une outbox sérialisée.
+
+La première autorisation Android peut afficher le dialogue système : ce délai n'est pas masquable. Une fois l'autorisation accordée, elle est mise en cache et n'est plus redemandée à chaque prise.
+
+Les captures utilisées comme image de patrimoine suivent la même logique : aperçu immédiat au retour caméra, puis compression et copie durable en arrière-plan.
+
 ## Photos
 
 L'original est copié immédiatement dans le stockage privé durable METRA.
