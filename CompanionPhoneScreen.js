@@ -13,6 +13,7 @@ import {
 import { parseCompanionQrPayload } from './companionProtocol.js';
 import { enqueueCompanionPhoto, listCompanionOutbox, removeCompanionOutboxItem } from './companionOutbox.js';
 import { COLORS, styles } from './styles.js';
+import { prewarmCameraRuntime } from './cameraRuntime.js';
 
 const FALLBACK_MODULES = [
   { id: 'equipment', label: 'Équipements', icon: 'tools', count: 0, targets: [] },
@@ -51,11 +52,12 @@ function ModuleTile({ item, onPress }) {
   );
 }
 
-function TargetRow({ item, onCapture, busy }) {
+function TargetRow({ item, onCapture, onWarm, busy }) {
   const value = [item.value, item.unit].filter(Boolean).join(' ');
   return (
     <TouchableOpacity
       disabled={busy}
+      onPressIn={() => onWarm?.(item)}
       onPress={() => onCapture(item)}
       activeOpacity={0.82}
       style={{
@@ -117,6 +119,7 @@ function CompanionPhoneScreen({ onExit }) {
   }, [refreshPending]);
 
   useEffect(() => {
+    prewarmCameraRuntime().catch(() => {});
     refreshPending().catch(() => {});
     const unsubscribe = subscribeCompanion(async (event) => {
       if (event?.type === 'status') {
@@ -194,30 +197,45 @@ function CompanionPhoneScreen({ onExit }) {
   const capture = useCallback(async (target) => {
     if (!target?.targetKey || busyTarget) return;
     setBusyTarget(target.id);
+    let uri = null;
     try {
-      const uri = await prendrePhoto();
-      if (!uri) return;
-      const queued = await enqueueCompanionPhoto({
-        uri,
-        meta: {
-          targetKey: target.targetKey,
-          label: target.label,
-          moduleId: selectedModule?.id || null,
-          visitId: snapshot?.visit?.id || null,
-        },
-      });
-      await refreshPending();
-      if (connectedRef.current) {
-        await sendCompanionFile(queued.meta, queued.uri);
-        setStatus(`Photo envoyée · ${target.label}`);
-      } else {
-        setStatus(`Photo conservée · ${target.label}`);
-      }
+      uri = await prendrePhoto();
     } catch (e) {
-      Alert.alert('Photo non envoyée', String(e?.message || e));
+      Alert.alert('Photo impossible', String(e?.message || e));
     } finally {
+      // On libère le bouton dès le retour de l'appareil photo : la copie dans
+      // l'outbox et l'envoi réseau local continuent en arrière-plan.
       setBusyTarget(null);
     }
+    if (!uri) return;
+
+    setPending((value) => value + 1);
+    setStatus(`Photo capturée · classement ${target.label}`);
+
+    void (async () => {
+      try {
+        const queued = await enqueueCompanionPhoto({
+          uri,
+          meta: {
+            targetKey: target.targetKey,
+            label: target.label,
+            moduleId: selectedModule?.id || null,
+            visitId: snapshot?.visit?.id || null,
+          },
+        });
+        await refreshPending();
+        if (connectedRef.current) {
+          await sendCompanionFile(queued.meta, queued.uri);
+          setStatus(`Photo envoyée · ${target.label}`);
+        } else {
+          setStatus(`Photo conservée · ${target.label}`);
+        }
+      } catch (e) {
+        await refreshPending().catch(() => {});
+        setStatus(`Photo à reprendre · ${target.label}`);
+        Alert.alert('Photo non envoyée', String(e?.message || e));
+      }
+    })();
   }, [busyTarget, refreshPending, selectedModule?.id, snapshot?.visit?.id]);
 
   const quit = useCallback(async () => {
@@ -244,7 +262,7 @@ function CompanionPhoneScreen({ onExit }) {
           data={targets}
           keyExtractor={(item) => String(item.id)}
           contentContainerStyle={{ padding: 14, paddingBottom: 34 }}
-          renderItem={({ item }) => <TargetRow item={item} onCapture={capture} busy={busyTarget === item.id} />}
+          renderItem={({ item }) => <TargetRow item={item} onCapture={capture} onWarm={() => prewarmCameraRuntime().catch(() => {})} busy={busyTarget === item.id} />}
           ListEmptyComponent={<View style={{ marginTop: 60, alignItems: 'center', paddingHorizontal: 28 }}><CvcIcon name={selectedModule.icon} size={54} color="#87949A" /><Text style={{ marginTop: 14, fontWeight: '900', fontSize: 16, color: '#36454D' }}>Aucun élément dans cette rubrique</Text><Text style={{ marginTop: 6, textAlign: 'center', color: '#7A878E' }}>La tablette transmet automatiquement les éléments présents dans la visite.</Text></View>}
         />
       </View>
