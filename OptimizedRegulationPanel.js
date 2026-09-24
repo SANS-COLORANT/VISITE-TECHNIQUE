@@ -4,13 +4,14 @@ import { FlatList, Text, TextInput, TouchableOpacity, View } from 'react-native'
 import { TRAME_DATA, RESEAU_TEMPLATE } from './data.js';
 import { listerReseaux, ajouterReseau, upsertReseauChamp, supprimerReseau } from './db.js';
 import { prechargerDonneesTrameGenerique, mettreAJourCacheChamp } from './TrameGenericPanel.js';
+import { BoundedLruMap } from './boundedCache.js';
 import { DurableChampGenerique } from './DurableChampGenerique.js';
 import { cleanLabel, extractUnit, getNumericConfig, StepperNumerique } from './GenericFields.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 import { styles } from './styles.js';
 
-const cacheRegulation = new Map();
+const cacheRegulation = new BoundedLruMap(6);
 const CLE_TO_COL = {
   'T°ext(°C)': 't_ext_c',
   'T°dép(°C)': 't_dep_c',
