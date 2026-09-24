@@ -58,6 +58,20 @@ module.exports = function withMetraCompanion(config) {
         manifest['uses-permission'].push({ $: { 'android:name': name } });
       }
     }
+
+    const application = manifest.application?.[0];
+    if (application) {
+      application['meta-data'] = application['meta-data'] || [];
+      const dependencyName = 'com.google.mlkit.vision.DEPENDENCIES';
+      if (!application['meta-data'].some((entry) => entry?.$?.['android:name'] === dependencyName)) {
+        application['meta-data'].push({
+          $: {
+            'android:name': dependencyName,
+            'android:value': 'barcode_ui',
+          },
+        });
+      }
+    }
     return cfg;
   });
 
