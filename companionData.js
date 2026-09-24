@@ -2,7 +2,7 @@ import * as FileSystem from 'expo-file-system';
 import { getVisite, getChampsVisite, getControlesVisite, listerCompteurs, listerMateriel, listerPhotos, listerReseaux } from './db.js';
 import { openAppDatabase } from './database/index.js';
 import { listerRemarquesVisite } from './remarkDb.js';
-import { TRAME_DATA } from './data.js';
+import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { ajouterPhoto } from './db.js';
 import { preparerPhotoNommee } from './PhotoButton.js';
 
@@ -40,6 +40,7 @@ async function buildCompanionVisitSnapshot(visiteId) {
   const visite = await getVisite(visiteId);
   if (!visite) throw new Error('Visite introuvable');
 
+  const trame = obtenirTrame(visite.trame_id || DEFAULT_TRAME_ID);
   const [equipements, compteurs, reseaux, remarques, photos, champs, controles, installations] = await Promise.all([
     listerMateriel(visiteId),
     listerCompteurs(visiteId),
@@ -85,6 +86,21 @@ async function buildCompanionVisitSnapshot(visiteId) {
     { subtitle: clean(i.type_code) }
   )));
 
+  const codeSection = (panelId, section) => panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const templateRows = Object.entries(trame?.ui?.panels || {}).flatMap(([panelId, sections]) =>
+    Object.entries(sections || {}).flatMap(([section, fields]) =>
+      (fields || []).filter((field) => field?.hiddenInApp !== true).map((field) => ({
+        panelId,
+        section,
+        sectionCode: codeSection(panelId, section),
+        field,
+      }))
+    )
+  );
+
+  const valuesByKey = new Map((champs || []).map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
+  const controlsByKey = new Map((controles || []).map((row) => [`${row.section_code}||${row.cle}`, row]));
+
   const tempFromDb = (champs || []).filter((row) => {
     const txt = norm(`${row.section_code} ${row.cle}`);
     return txt.includes('temp') || txt.includes('ph');
@@ -94,15 +110,16 @@ async function buildCompanionVisitSnapshot(visiteId) {
     `${row.section_code}||${row.cle}`,
     { value: clean(row.valeur) }
   ));
+  const tempFromTemplate = templateRows.filter(({ section, field }) => {
+    const txt = norm(`${section} ${field?.cle}`);
+    return field?.type === 'champ' && (txt.includes('temp') || txt.includes('ph'));
+  }).map(({ sectionCode, field }) => {
+    const key = `${sectionCode}||${field.cle}`;
+    return target(key, field.cle, key, { value: clean(valuesByKey.get(key)) });
+  });
+  const temperatureTargets = uniqueTargets([...tempFromDb, ...tempFromTemplate]);
 
-  const tempTemplate = ((TRAME_DATA?.['p-releves'] || {})['Températures et pH'] || []).map((field) => target(
-    `releves.temperatures||${field.cle}`,
-    field.cle,
-    `releves.temperatures||${field.cle}`
-  ));
-  const temperatureTargets = uniqueTargets([...tempFromDb, ...tempTemplate]);
-
-  const regulationTargets = uniqueTargets((champs || []).filter((row) => {
+  const regulationFromDb = (champs || []).filter((row) => {
     const txt = norm(`${row.section_code} ${row.cle}`);
     return txt.includes('regul') || txt.includes('consigne') || txt.includes('sonde') || txt.includes('automate');
   }).map((row) => target(
@@ -110,14 +127,29 @@ async function buildCompanionVisitSnapshot(visiteId) {
     row.cle,
     `${row.section_code}||${row.cle}`,
     { value: clean(row.valeur) }
-  )));
+  ));
+  const regulationFromTemplate = templateRows.filter(({ section, field }) => {
+    const txt = norm(`${section} ${field?.cle}`);
+    return field?.type === 'champ' && (txt.includes('regul') || txt.includes('consigne') || txt.includes('sonde') || txt.includes('automate'));
+  }).map(({ sectionCode, field }) => {
+    const key = `${sectionCode}||${field.cle}`;
+    return target(key, field.cle, key, { value: clean(valuesByKey.get(key)) });
+  });
+  const regulationTargets = uniqueTargets([...regulationFromDb, ...regulationFromTemplate]);
 
-  const controlTargets = uniqueTargets((controles || []).map((c) => target(
-    `${c.section_code}||${c.cle}`,
-    c.cle,
-    `${c.section_code}||${c.cle}`,
-    { value: clean(c.avis), subtitle: clean(c.commentaire) }
-  )));
+  const controlTargets = uniqueTargets([
+    ...(controles || []).map((control) => target(
+      `${control.section_code}||${control.cle}`,
+      control.cle,
+      `${control.section_code}||${control.cle}`,
+      { value: clean(control.avis), subtitle: clean(control.commentaire) }
+    )),
+    ...templateRows.filter(({ field }) => field?.type !== 'champ').map(({ sectionCode, field }) => {
+      const key = `${sectionCode}||${field.cle}`;
+      const current = controlsByKey.get(key);
+      return target(key, field.cle, key, { value: clean(current?.avis), subtitle: clean(current?.commentaire) });
+    }),
+  ]);
 
   const modules = MODULES.map((module) => {
     let targets = [];
