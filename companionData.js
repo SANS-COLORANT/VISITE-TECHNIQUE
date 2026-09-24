@@ -1,5 +1,5 @@
 import * as FileSystem from 'expo-file-system';
-import { getVisite, getChampsVisite, getControlesVisite, listerCompteurs, listerMateriel, listerPhotos, listerReseaux } from './db.js';
+import { getVisite, getChampsVisite, getControlesVisite, listerCompteurs, listerMateriel, listerPhotos, listerReseaux, listerSitesClient } from './db.js';
 import { openAppDatabase } from './database/index.js';
 import { listerRemarquesVisite } from './remarkDb.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
@@ -34,6 +34,115 @@ function uniqueTargets(items = []) {
 
 function target(id, label, targetKey, extra = {}) {
   return { id: String(id || targetKey || label), label: clean(label) || 'Élément', targetKey: targetKey || null, ...extra };
+}
+
+
+async function buildCompanionClientSnapshot(clientId) {
+  const db = await openAppDatabase();
+  const id = clean(clientId);
+  if (!id) throw new Error('Client compagnon invalide');
+
+  const [client, sites, installations, visites] = await Promise.all([
+    db.getFirstAsync('SELECT id,nom,code_exploitant,adresse FROM clients WHERE id=? LIMIT 1', [id]),
+    listerSitesClient(id),
+    db.getAllAsync(
+      `SELECT i.id,i.site_id,i.nom,i.type_code
+         FROM installations i
+         JOIN sites s ON s.id=i.site_id
+        WHERE s.client_id=? AND i.actif=1
+        ORDER BY s.nom_site COLLATE NOCASE,i.nom COLLATE NOCASE`,
+      [id]
+    ),
+    db.getAllAsync(
+      `SELECT v.id,v.site_id,v.installation_id,v.date_visite,v.statut,v.trame_id,v.progression_pct,v.modifie_le
+         FROM visites v
+         JOIN sites s ON s.id=v.site_id
+        WHERE s.client_id=?
+        ORDER BY CASE WHEN v.statut='en_cours' THEN 0 ELSE 1 END,
+                 COALESCE(v.modifie_le,v.date_visite,'') DESC`,
+      [id]
+    ),
+  ]);
+
+  if (!client?.id) throw new Error('Client introuvable');
+
+  const localBySite = new Map();
+  for (const local of installations || []) {
+    const siteId = String(local.site_id || '');
+    if (!localBySite.has(siteId)) localBySite.set(siteId, []);
+    localBySite.get(siteId).push({
+      id: String(local.id),
+      name: clean(local.nom) || clean(local.type_code) || 'Local technique',
+      type: clean(local.type_code),
+    });
+  }
+
+  const visitsBySite = new Map();
+  for (const visite of visites || []) {
+    const siteId = String(visite.site_id || '');
+    if (!visitsBySite.has(siteId)) visitsBySite.set(siteId, []);
+    visitsBySite.get(siteId).push({
+      id: String(visite.id),
+      installationId: visite.installation_id ? String(visite.installation_id) : null,
+      date: clean(visite.date_visite),
+      status: clean(visite.statut),
+      template: clean(visite.trame_id || 'icpe_v1'),
+      progress: Number(visite.progression_pct || 0),
+    });
+  }
+
+  const resultSites = (sites || []).map((site) => {
+    const siteId = String(site.id || '');
+    const locals = localBySite.get(siteId) || [];
+    const localNameById = new Map(locals.map((local) => [String(local.id), local.name]));
+    const siteVisits = (visitsBySite.get(siteId) || []).map((visite) => ({
+      ...visite,
+      local: visite.installationId ? (localNameById.get(String(visite.installationId)) || 'Local technique') : 'Visite site',
+    }));
+    return {
+      id: siteId,
+      name: clean(site.nom_site) || 'Site',
+      address: clean(site.adresse),
+      locals,
+      visits: siteVisits,
+      visitCount: siteVisits.length,
+      activeVisitCount: siteVisits.filter((visite) => visite.status === 'en_cours').length,
+    };
+  });
+
+  return {
+    version: 2,
+    type: 'clientSnapshot',
+    scope: 'client',
+    client: {
+      id: String(client.id),
+      name: clean(client.nom) || 'Client',
+      code: clean(client.code_exploitant),
+      address: clean(client.adresse),
+    },
+    sites: resultSites,
+    counts: {
+      sites: resultSites.length,
+      locals: resultSites.reduce((sum, site) => sum + site.locals.length, 0),
+      visits: resultSites.reduce((sum, site) => sum + site.visits.length, 0),
+      activeVisits: resultSites.reduce((sum, site) => sum + site.activeVisitCount, 0),
+    },
+    generatedAt: new Date().toISOString(),
+  };
+}
+
+async function assertVisitBelongsToCompanionClient(clientId, visiteId) {
+  const db = await openAppDatabase();
+  const row = await db.getFirstAsync(
+    `SELECT v.id
+       FROM visites v
+       JOIN sites s ON s.id=v.site_id
+      WHERE v.id=? AND s.client_id=?
+      LIMIT 1`,
+    [String(visiteId || ''), String(clientId || '')]
+  );
+  if (!row?.id) throw new Error('Cette visite ne fait pas partie du client associé au QR code.');
+  return true;
 }
 
 async function buildCompanionVisitSnapshot(visiteId) {
@@ -220,4 +329,4 @@ async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
   return { id: photoId, uri: prepared.uri, entiteKey: cibleKey, label: prepared.label || label };
 }
 
-export { MODULES as COMPANION_MODULES, buildCompanionVisitSnapshot, importCompanionPhoto };
+export { MODULES as COMPANION_MODULES, buildCompanionClientSnapshot, buildCompanionVisitSnapshot, assertVisitBelongsToCompanionClient, importCompanionPhoto };
