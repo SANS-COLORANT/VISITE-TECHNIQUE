@@ -2,6 +2,7 @@ import { getVisite } from './db.js';
 import { prechargerDonneesTrameGenerique } from './TrameGenericPanel.js';
 import { prechargerRegulation } from './OptimizedRegulationPanel.js';
 import { markVisitHot } from './visitRuntimeCache.js';
+import { prewarmPreviousVisitSnapshot } from './visitPreviousSnapshot.js';
 
 const inFlight = new Map();
 
@@ -23,6 +24,9 @@ export async function prewarmVisit(visiteOrId, { force = false, preview = null }
   ]).then(([visite]) => {
     const merged = { ...(currentPreview || {}), ...(visite || {}), id };
     markVisitHot(id, { preview: merged });
+    // La comparaison historique est une référence séparée. Elle ne bloque pas
+    // l'ouverture et ne recopie jamais réserves/photos dans la visite courante.
+    prewarmPreviousVisitSnapshot(id).catch(() => {});
     return merged;
   }).finally(() => inFlight.delete(id));
 
