@@ -33,10 +33,18 @@ const CONTRACT_CHECKS = [
   ['Missions app compatibility contract', '.github/scripts/check_missions_app_compat.js'],
   ['phone companion contract', '.github/scripts/check_companion_mode_contract.js'],
   ['navigation + site sort contract', '.github/scripts/check_navigation_sort_contract.js'],
+  ['durable visit data contract', '.github/scripts/check_durable_visit_data_contract.js'],
 ];
 
 const JS_SYNTAX_FILES = [
   'PersistentControleGenerique.js',
+  'VmcControleGenerique.js',
+  'PresetControleGenerique.js',
+  'DurableChampGenerique.js',
+  'durableAutosave.js',
+  'PhotoButton.js',
+  'photoPersistenceJournal.js',
+  'boundedCache.js',
   'App.js',
   'ReportScreen.js',
   'reportBuilder.js',
