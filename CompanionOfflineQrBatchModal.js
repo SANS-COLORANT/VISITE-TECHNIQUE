@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { COLORS, styles } from './styles.js';
-import { buildCompanionClientSnapshot } from './companionData.js';
+import { buildCompanionOfflineClientSnapshot } from './companionData.js';
 import { buildOfflineClientQrBatch } from './companionOfflineQr.js';
 import { generateCompanionQr } from './companionNative.js';
 import { listTabletQrBatches, saveTabletQrBatch } from './companionQrArchive.js';
@@ -63,16 +63,16 @@ function CompanionOfflineQrBatchModal({ visible, clientId, nomClient, onClose })
   const createBatch = useCallback(async () => {
     if (!clientId || phase === 'building') return;
     setPhase('building');
-    setMessage('Préparation des sites…');
+    setMessage('Préparation des sites et des visites terrain…');
     try {
-      const snapshot = await buildCompanionClientSnapshot(clientId);
+      const snapshot = await buildCompanionOfflineClientSnapshot(clientId);
       const next = buildOfflineClientQrBatch(snapshot);
       await saveTabletQrBatch(next);
       setBatch(next);
       setBatches((current) => [next, ...current.filter((item) => item.batchId !== next.batchId)]);
       setFrameIndex(0);
       setQrUris({});
-      setMessage(`${next.totalFrames} QR pour ${next.totalSites} site${next.totalSites > 1 ? 's' : ''}`);
+      setMessage(`${next.totalFrames} QR · ${next.totalSites} site${next.totalSites > 1 ? 's' : ''} · ${next.totalDetailedVisits || 0} visite${Number(next.totalDetailedVisits || 0) > 1 ? 's' : ''} terrain`);
       requestAnimationFrame(() => listRef.current?.scrollTo({ x: 0, animated: false }));
     } catch (e) {
       Alert.alert('Création des QR impossible', String(e?.message || e));
@@ -121,7 +121,7 @@ function CompanionOfflineQrBatchModal({ visible, clientId, nomClient, onClose })
               </TouchableOpacity>
               <View style={{ flex: 1, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 13, backgroundColor: light }}>
                 <Text style={{ color: accent, fontWeight: '900', fontSize: 12 }}>
-                  {batch ? `${batch.totalSites || 0} sites · ${batch.totalFrames || 0} QR` : 'Aucun lot enregistré'}
+                  {batch ? `${batch.totalSites || 0} sites · ${batch.totalDetailedVisits || 0} visites · ${batch.totalFrames || 0} QR` : 'Aucun lot enregistré'}
                 </Text>
               </View>
             </View>
@@ -161,7 +161,7 @@ function CompanionOfflineQrBatchModal({ visible, clientId, nomClient, onClose })
               <View style={{ marginTop: 26, padding: 22, borderRadius: 18, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center' }}>
                 <Text style={{ fontSize: 16, color: COLORS.ink, fontWeight: '900' }}>Créer le premier lot</Text>
                 <Text style={{ marginTop: 6, color: COLORS.inkSoft, textAlign: 'center', lineHeight: 18 }}>
-                  METRA répartira automatiquement les sites sur autant de QR que nécessaire.
+                  METRA répartira automatiquement les sites et les visites terrain utiles sur autant de QR que nécessaire.
                 </Text>
               </View>
             ) : (
@@ -226,7 +226,7 @@ function CompanionOfflineQrBatchModal({ visible, clientId, nomClient, onClose })
                     Sites contenus dans ce QR
                   </Text>
                   <Text style={{ marginTop: 5, color: COLORS.inkSoft, lineHeight: 18, fontSize: 11.5 }}>
-                    {siteNames.length ? siteNames.join(' · ') : 'Fragment complémentaire du site précédent'}
+                    {siteNames.length ? siteNames.join(' · ') : (currentFrame?.detailLabels?.length ? currentFrame.detailLabels.join(' · ') : 'Fragment complémentaire de visite')}
                   </Text>
                   <Text style={{ marginTop: 8, color: COLORS.inkFaint, fontSize: 10.5 }}>
                     Lot {String(batch.batchId || '').slice(-8)} · créé le {dateCourte(batch.createdAt)}
