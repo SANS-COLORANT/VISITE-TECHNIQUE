@@ -19,6 +19,7 @@ import java.io.DataOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.Inet4Address
+import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
@@ -232,7 +233,8 @@ class MetraCompanionModule(private val context: ReactApplicationContext) : React
     executor.execute {
       try {
         disconnectInternal()
-        val client = Socket(host, port)
+        val client = Socket()
+        client.connect(InetSocketAddress(host, port), 5000)
         client.tcpNoDelay = true
         client.soTimeout = 0
         val out = DataOutputStream(BufferedOutputStream(client.getOutputStream()))
