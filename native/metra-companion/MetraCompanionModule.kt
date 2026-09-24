@@ -16,7 +16,7 @@ import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
-import com.journeyapps.barcodescanner.IntentIntegrator
+import com.google.zxing.integration.android.IntentIntegrator
 import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
