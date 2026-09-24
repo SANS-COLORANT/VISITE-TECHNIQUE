@@ -12,6 +12,7 @@ import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.modules.core.DeviceEventManagerModule
 import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.google.zxing.BarcodeFormat
+import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
 import org.json.JSONObject
 import java.io.BufferedInputStream
@@ -307,7 +308,13 @@ class MetraCompanionModule(private val context: ReactApplicationContext) : React
     executor.execute {
       try {
         val targetSize = size.coerceIn(256, 1400)
-        val matrix = QRCodeWriter().encode(payload, BarcodeFormat.QR_CODE, targetSize, targetSize)
+        val matrix = QRCodeWriter().encode(
+          payload,
+          BarcodeFormat.QR_CODE,
+          targetSize,
+          targetSize,
+          mapOf(EncodeHintType.CHARACTER_SET to "UTF-8", EncodeHintType.MARGIN to 1)
+        )
         val bitmap = Bitmap.createBitmap(targetSize, targetSize, Bitmap.Config.ARGB_8888)
         for (x in 0 until targetSize) for (y in 0 until targetSize) {
           bitmap.setPixel(x, y, if (matrix[x, y]) 0xFF111111.toInt() else 0xFFFFFFFF.toInt())
