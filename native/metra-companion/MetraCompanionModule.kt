@@ -351,7 +351,7 @@ class MetraCompanionModule(private val context: ReactApplicationContext) : React
     try {
       scanPromise = promise
       IntentIntegrator(activity)
-        .setDesiredBarcodeFormats(IntentIntegrator.QR_CODE_TYPES)
+        .setDesiredBarcodeFormats(IntentIntegrator.QR_CODE)
         .setPrompt("Scanner le QR MÉTRA")
         .setBeepEnabled(false)
         .setBarcodeImageEnabled(false)
