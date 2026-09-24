@@ -617,6 +617,7 @@ function CompanionPhoneScreen({ onExit }) {
         </View>
 
         {!snapshot ? (
+          <>
           <View style={{ marginTop: 24, padding: 22, borderRadius: 20, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center' }}>
             <View style={{ width: 82, height: 82, borderRadius: 26, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}>
               <CvcIcon name="camera" size={50} color={accent} />
@@ -669,6 +670,7 @@ function CompanionPhoneScreen({ onExit }) {
               ))}
             </View>
           ) : null}
+          </>
         ) : isVisitSnapshot ? (
           <>
             <View style={{ padding: 14, borderRadius: 16, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, marginBottom: 12 }}>
