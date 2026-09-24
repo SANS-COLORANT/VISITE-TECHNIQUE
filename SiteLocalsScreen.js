@@ -22,7 +22,7 @@ function SiteLocalsScreen({ route, navigation }) {
 
   const charger = useCallback(async () => {
     if (!siteId) return;
-    if (!locaux.length) setLoading(true);
+    if (!peekSiteLocals(siteId)) setLoading(true);
     try {
       const bundle = await prewarmSiteLocals(siteId, { force: true });
       setLocaux(bundle?.rows || []);
@@ -32,7 +32,7 @@ function SiteLocalsScreen({ route, navigation }) {
     } finally {
       setLoading(false);
     }
-  }, [siteId, locaux.length]);
+  }, [siteId]);
 
   useEffect(() => { charger(); }, [charger]);
 
