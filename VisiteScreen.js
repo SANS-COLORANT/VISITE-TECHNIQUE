@@ -19,6 +19,9 @@ import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { CompanionTabletModal } from './CompanionTabletModal.js';
 import { flushDurableAutosaves } from './durableAutosave.js';
 import { recupererPhotosEnAttente } from './photoPersistenceJournal.js';
+import { flushNavigationMemory, getNavigationState, hydrateNavigationState, setNavigationState } from './navigationMemory.js';
+import { getVisitRuntime, markVisitHot, patchVisitUiState } from './visitRuntimeCache.js';
+import { getSaveActivity, subscribeSaveActivity } from './saveActivity.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function chargerExcelExportModule(){return require('./excelExport.js');}
@@ -51,6 +54,10 @@ const VisitPanelHost = memo(function VisitPanelHost({
 
 function VisiteScreen({ route, onBack }) {
   const { visiteId, visitePreview = null } = route.params;
+  const visitNavKey = `visit:${String(visiteId || '')}`;
+  const runtimeInitial = getVisitRuntime(visiteId);
+  const initialPreview = visitePreview || runtimeInitial?.preview || null;
+  const initialTab = runtimeInitial?.ui?.activeTab || getNavigationState(visitNavKey)?.activeTab || 'p-infos';
   const { width, height } = useWindowDimensions();
   const appareilTablette = Math.min(width, height) >= 600;
   const modeTablette = width >= 900;
@@ -58,11 +65,13 @@ function VisiteScreen({ route, onBack }) {
   const pagerWidthRef = useRef(pagerWidth);
   pagerWidthRef.current = pagerWidth;
 
-  const [visite, setVisite] = useState(() => visitePreview ? { ...visitePreview, progression_pct: Number(visitePreview.progression_pct || 0) } : null);
+  const [visite, setVisite] = useState(() => initialPreview ? { ...initialPreview, progression_pct: Number(initialPreview.progression_pct || 0) } : null);
   const [chargementErreur, setChargementErreur] = useState(null); // VISIT_OPEN_FAIL_SAFE_V1 · VISIT_OPEN_FAST_V2
   const [vmcCaissons, setVmcCaissons] = useState([]);
-  const [activeTab, setActiveTab] = useState('p-infos');
-  const activeTabRef = useRef('p-infos');
+  const [activeTab, setActiveTab] = useState(initialTab);
+  const activeTabRef = useRef(initialTab);
+  const desiredRestoreTabRef = useRef(initialTab);
+  const [saveActivity, setSaveActivity] = useState(() => getSaveActivity());
   const tabOrderRef = useRef([]);
   const progressionTimerRef = useRef(null);
   const transitionRef = useRef(false);
@@ -77,8 +86,8 @@ function VisiteScreen({ route, onBack }) {
   const ensureMountedRef = useRef(null);
   const pagerPruneTimerRef = useRef(null);
   const stickyHeavyPanelsRef = useRef(new Set());
-  const mountedPanelIdsRef = useRef(new Set(['p-infos']));
-  const [mountedPanelIds, setMountedPanelIds] = useState(() => new Set(['p-infos']));
+  const mountedPanelIdsRef = useRef(new Set([initialTab]));
+  const [mountedPanelIds, setMountedPanelIds] = useState(() => new Set([initialTab]));
   const [noteVisible, setNoteVisible] = useState(false);
   const [noteTxt, setNoteTxt] = useState('');
   const [anomalieVisible, setAnomalieVisible] = useState(false);
@@ -153,6 +162,30 @@ function VisiteScreen({ route, onBack }) {
     }, PAGER_PRUNE_DELAY_MS);
   }, [addMountedPanels, desiredPagerPanels]);
 
+  useEffect(() => subscribeSaveActivity(setSaveActivity), []);
+
+  useEffect(() => {
+    let alive = true;
+    hydrateNavigationState(visitNavKey).then((state) => {
+      if (!alive || !state?.activeTab) return;
+      desiredRestoreTabRef.current = state.activeTab;
+      const tabs = tabOrderRef.current;
+      const idx = tabs.indexOf(state.activeTab);
+      if (idx < 0) return;
+      activeTabRef.current = state.activeTab;
+      setActiveTab(state.activeTab);
+      addMountedPanels([state.activeTab], { stickyHeavy: true });
+      pagerX.stopAnimation();
+      pagerX.setValue(-idx * pagerWidthRef.current);
+      warmPagerWindow(state.activeTab);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [visitNavKey, addMountedPanels, pagerX, warmPagerWindow]);
+
+  useEffect(() => {
+    markVisitHot(visiteId, { preview: visite || initialPreview || null, ui: { activeTab: activeTabRef.current } });
+  }, [visiteId]);
+
   useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
   useEffect(() => { tabOrderRef.current = tabsReels; }, [tabsSignature]);
   useEffect(() => () => {
@@ -167,12 +200,13 @@ function VisiteScreen({ route, onBack }) {
   useEffect(() => {
     if (!visite || tabsReels.length === 0) return;
     tabOrderRef.current = tabsReels;
-    let current = activeTabRef.current;
+    let current = desiredRestoreTabRef.current || activeTabRef.current;
     if (!tabsReels.includes(current)) {
       current = tabsReels[0];
       activeTabRef.current = current;
       setActiveTab(current);
     }
+    desiredRestoreTabRef.current = null;
     const index = tabsReels.indexOf(current);
     transitionRef.current = false;
     pagerX.stopAnimation();
@@ -186,9 +220,11 @@ function VisiteScreen({ route, onBack }) {
     flushDurableAutosaves().catch(() => {});
     activeTabRef.current = prochain;
     setActiveTab(prochain);
+    patchVisitUiState(visiteId, { activeTab: prochain });
+    setNavigationState(visitNavKey, { activeTab: prochain });
     transitionRef.current = false;
     requestAnimationFrame(() => warmPagerWindow(prochain));
-  }, [warmPagerWindow]);
+  }, [visiteId, visitNavKey, warmPagerWindow]);
 
   const animateToTab = useCallback((prochain, duration = 145) => {
     const tabs = tabOrderRef.current;
@@ -237,8 +273,10 @@ function VisiteScreen({ route, onBack }) {
 
   const retourSecurise = useCallback(() => {
     Keyboard.dismiss();
-    flushDurableAutosaves().finally(() => setTimeout(() => onBack?.(), 0));
-  }, [onBack]);
+    setNavigationState(visitNavKey, { activeTab: activeTabRef.current });
+    Promise.allSettled([flushDurableAutosaves(), flushNavigationMemory()])
+      .finally(() => setTimeout(() => onBack?.(), 0));
+  }, [onBack, visitNavKey]);
 
   const charger = useCallback(async ({ forceCaches = false } = {}) => {
     setChargementErreur(null);
@@ -250,11 +288,15 @@ function VisiteScreen({ route, onBack }) {
       // même cette lecture.
       v = await getVisite(visiteId);
       if (!v) throw new Error('Visite introuvable dans la base locale.');
-      setVisite((courante) => ({
-        ...(courante || {}),
-        ...v,
-        progression_pct: Number(courante?.progression_pct ?? v.progression_pct ?? 0),
-      }));
+      setVisite((courante) => {
+        const next = {
+          ...(courante || {}),
+          ...v,
+          progression_pct: Number(courante?.progression_pct ?? v.progression_pct ?? 0),
+        };
+        markVisitHot(visiteId, { preview: next, ui: { activeTab: activeTabRef.current } });
+        return next;
+      });
     } catch (e) {
       console.warn('Ouverture visite impossible', e);
       setChargementErreur(String(e?.message || e || 'Erreur inconnue'));
@@ -290,7 +332,11 @@ function VisiteScreen({ route, onBack }) {
 
         try {
           const progression = await recalculerProgressionVisite(db, visiteId);
-          setVisite((courante) => courante ? { ...courante, ...v, progression_pct: progression } : { ...v, progression_pct: progression });
+          setVisite((courante) => {
+            const next = courante ? { ...courante, ...v, progression_pct: progression } : { ...v, progression_pct: progression };
+            markVisitHot(visiteId, { preview: next, ui: { activeTab: activeTabRef.current } });
+            return next;
+          });
         } catch (e) {
           console.warn('Progression initiale non recalculée', e);
         }
@@ -318,7 +364,12 @@ function VisiteScreen({ route, onBack }) {
       try {
         const db = await getDb();
         const progression = await recalculerProgressionVisite(db, visiteId);
-        setVisite((actuelle) => actuelle ? { ...actuelle, progression_pct: progression } : actuelle);
+        setVisite((actuelle) => {
+          if (!actuelle) return actuelle;
+          const next = { ...actuelle, progression_pct: progression };
+          markVisitHot(visiteId, { preview: next, ui: { activeTab: activeTabRef.current } });
+          return next;
+        });
       } catch (e) {
         console.warn('Progression visite non recalculée', e);
       } finally {
@@ -574,7 +625,16 @@ function VisiteScreen({ route, onBack }) {
           {trame.id === 'pre_allumage' ? <TouchableOpacity style={styles.noteBtn} onPress={choisirFormatRapportPreAllumage} disabled={reportExporting}><Text style={styles.noteBtnText}>{reportExporting ? 'Rapport…' : 'PDF / Word'}</Text></TouchableOpacity> : null}
           <TouchableOpacity style={styles.exportBtn} onPress={exporter} disabled={exporting}><Text style={styles.exportBtnText}>{exporting ? '...' : `Excel ${trame.nom}`}</Text></TouchableOpacity>
         </View>
-        <View style={styles.progressRow}><View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${visite.progression_pct}%` }]} /></View><Text style={styles.progressPct}>{visite.progression_pct}%</Text></View>
+        <View style={styles.progressRow}>
+          <View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${visite.progression_pct}%` }]} /></View>
+          <Text style={styles.progressPct}>{visite.progression_pct}%</Text>
+          <Text
+            accessibilityLiveRegion="polite"
+            style={{ marginLeft: 9, fontSize: 10.5, fontWeight: '800', color: saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32' }}
+          >
+            {saveActivity.lastError ? '⚠ Sauvegarde à reprendre' : saveActivity.pending ? `${saveActivity.pending} en attente` : '✓ Enregistré'}
+          </Text>
+        </View>
         {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? <PhotoReferenceAccess visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} /> : null}
         <IntranetVisitSyncControl visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />
         <TouchableOpacity style={styles.anomalyBtn} onPress={() => setAnomalieVisible(true)}><Text style={styles.anomalyBtnText}>⚠ Ajouter une anomalie, une remarque ou une réserve</Text></TouchableOpacity>
