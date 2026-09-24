@@ -131,6 +131,35 @@ async function buildCompanionClientSnapshot(clientId) {
   };
 }
 
+async function buildCompanionOfflineClientSnapshot(clientId) {
+  const snapshot = await buildCompanionClientSnapshot(clientId);
+  const offlineVisitSnapshots = {};
+
+  // Le lot QR hors connexion embarque la ou les visites terrain actives de
+  // chaque site. S'il n'y a aucune visite en cours, on prend uniquement la
+  // visite la plus récente afin de conserver un nombre de QR raisonnable.
+  for (const site of snapshot.sites || []) {
+    const visits = Array.isArray(site.visits) ? site.visits : [];
+    const active = visits.filter((visit) => visit.status === 'en_cours');
+    const selected = active.length ? active : visits.slice(0, 1);
+
+    for (const visit of selected) {
+      try {
+        offlineVisitSnapshots[String(visit.id)] = await buildCompanionVisitSnapshot(visit.id);
+      } catch {
+        // Un historique partiellement migré ne doit pas empêcher le reste du
+        // patrimoine d'être exporté. La référence de visite reste disponible.
+      }
+    }
+  }
+
+  return {
+    ...snapshot,
+    offlineVisitSnapshots,
+    offlineDetailVisitIds: Object.keys(offlineVisitSnapshots),
+  };
+}
+
 async function assertVisitBelongsToCompanionClient(clientId, visiteId) {
   const db = await openAppDatabase();
   const row = await db.getFirstAsync(
@@ -329,4 +358,4 @@ async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
   return { id: photoId, uri: prepared.uri, entiteKey: cibleKey, label: prepared.label || label };
 }
 
-export { MODULES as COMPANION_MODULES, buildCompanionClientSnapshot, buildCompanionVisitSnapshot, assertVisitBelongsToCompanionClient, importCompanionPhoto };
+export { MODULES as COMPANION_MODULES, buildCompanionClientSnapshot, buildCompanionOfflineClientSnapshot, buildCompanionVisitSnapshot, assertVisitBelongsToCompanionClient, importCompanionPhoto };
