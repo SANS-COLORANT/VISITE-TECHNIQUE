@@ -155,12 +155,29 @@ async function buildCompanionVisitSnapshot(visiteId) {
 
 async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
   if (!visiteId || !uri) throw new Error('Photo compagnon incomplète');
+  const db = await openAppDatabase();
+  const transferId = clean(meta?.transferId);
+  if (transferId) {
+    const existing = await db.getFirstAsync(`SELECT value FROM _meta WHERE key=?`, [`companion_transfer_${transferId}`]);
+    if (existing?.value) {
+      const photo = await db.getFirstAsync(`SELECT * FROM photos WHERE id=? LIMIT 1`, [existing.value]);
+      if (String(uri).startsWith(FileSystem.cacheDirectory || '')) FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+      if (photo?.id) return { id: photo.id, uri: photo.uri, entiteKey: photo.entite_key, label: clean(photo.label).split('||')[0] || clean(meta?.label) || 'Photo téléphone', duplicate: true };
+    }
+  }
+
   const entiteKey = meta?.targetKey || null;
   const label = clean(meta?.label) || 'Photo téléphone';
   const prepared = await preparerPhotoNommee({ visiteId, entiteKey, label, uri });
   if (!prepared?.uri) throw new Error('Impossible de préparer la photo reçue');
   const labelDb = prepared.nom ? `${prepared.label || label}||${prepared.nom}` : (prepared.label || label);
   const photoId = await ajouterPhoto(visiteId, prepared.entiteKey || entiteKey, prepared.uri, labelDb);
+  if (transferId) {
+    await db.runAsync(
+      `INSERT INTO _meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+      [`companion_transfer_${transferId}`, photoId]
+    );
+  }
   if (String(uri).startsWith(FileSystem.cacheDirectory || '')) {
     FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
   }
