@@ -1,7 +1,7 @@
 /** VISITE TECHNIQUE — point d'entrée natif Android. */
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, BackHandler, Keyboard, useWindowDimensions } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, BackHandler, Keyboard, PanResponder, useWindowDimensions } from 'react-native';
 import { PhotoDownloadBanner } from './PhotoDownloadStatus.js';
 import { IntranetVisitSyncBanner, IntranetVisitSyncRuntime } from './IntranetVisitSync.js';
 import { IntranetStructureRuntime } from './IntranetStructureRuntime.js';
@@ -22,6 +22,7 @@ import { CvcIcon } from './MetraCvcIcons.js';
 
 const SPLASH_BG = '#FBF0E1';
 const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects', 'MissionP3Dashboard', 'MissionReceptionBoard', 'MissionExpertise', 'MissionCampaignDashboard', 'MissionAmoDashboard', 'MissionControlBoard']);
+const BACK_SWIPE_ROUTES = new Set(['MetraDirectory', 'ClientSites', 'SiteLocals', 'SiteVisites', 'ClientPilotage', 'ClientDocuments', 'ClientPatrimoine', 'ClientTechnicalMatrix', 'IntranetStructure', 'Report', 'Parametres', 'Lab3D']);
 
 const DEFERRED_SCREEN_LOADERS = Object.freeze({
   MetraDirectory: () => require('./MetraDirectoryScreen.js').MetraDirectoryScreen,
@@ -153,6 +154,20 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
     setTimeout(() => setStack((current) => current.length > 1 ? current.slice(0, -1) : current), 0);
   }, []);
 
+  const currentName = stack[stack.length - 1]?.name || 'Home';
+  const backSwipeEnabled = stack.length > 1 && BACK_SWIPE_ROUTES.has(currentName);
+  const backSwipeResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, gesture) => (
+      backSwipeEnabled
+      && gesture.dx < -18
+      && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.45
+    ),
+    onPanResponderTerminationRequest: () => true,
+    onPanResponderRelease: (_event, gesture) => {
+      if (backSwipeEnabled && (gesture.dx < -82 || gesture.vx < -0.55)) goBack();
+    },
+  }), [backSwipeEnabled, goBack]);
+
   const goHome = useCallback(() => {
     Keyboard.dismiss();
     setR1Visible(false);
@@ -202,7 +217,7 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
   const route = { params: current.params };
   const missionMode = MISSION_ROUTES.has(current.name);
 
-  return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: missionMode ? MISSION_COLORS.bg : COLORS.bg }}>
+  return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: missionMode ? MISSION_COLORS.bg : COLORS.bg }} {...(backSwipeEnabled ? backSwipeResponder.panHandlers : {})}>
     <IntranetStructureRuntime />
     <IntranetVisitSyncRuntime />
     <IntranetVisitSyncBanner />
