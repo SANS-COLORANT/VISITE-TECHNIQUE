@@ -12,7 +12,7 @@ import {
   subscribeCompanion,
 } from './companionNative.js';
 import { parseCompanionQrPayload } from './companionProtocol.js';
-import { isOfflineClientQr } from './companionOfflineQr.js';
+import { decodeOfflineClientQrFrame, isOfflineClientQr } from './companionOfflineQr.js';
 import { getPhoneQrBatch, listPhoneQrBatches, savePhoneOfflineQrFrame } from './companionQrArchive.js';
 import { enqueueCompanionPhoto, listCompanionOutbox, removeCompanionOutboxItem } from './companionOutbox.js';
 import { COLORS } from './styles.js';
@@ -314,8 +314,9 @@ function CompanionPhoneScreen({ onExit }) {
     return () => unsubscribe();
   }, [flushOutbox, refreshPending, refreshSavedQrClients, nativeAvailable]);
 
-  const scanOfflineSequence = useCallback(async (firstRaw) => {
+  const scanOfflineSequence = useCallback(async (firstRaw, expectedBatchId = null) => {
     let raw = firstRaw || '';
+    let activeBatchId = expectedBatchId ? String(expectedBatchId) : null;
     if (!raw) {
       raw = await withTimeout(
         decodeCompanionQr(),
@@ -329,6 +330,13 @@ function CompanionPhoneScreen({ onExit }) {
         Alert.alert('QR différent', 'Ce QR ne fait pas partie d’un lot client MÉTRA hors connexion.');
         break;
       }
+
+      const frame = decodeOfflineClientQrFrame(raw);
+      if (activeBatchId && String(frame.b) !== activeBatchId) {
+        Alert.alert('Mauvais lot QR', 'Ce QR appartient à un autre lot. La progression actuelle est conservée.');
+        break;
+      }
+      if (!activeBatchId) activeBatchId = String(frame.b);
 
       const saved = await savePhoneOfflineQrFrame(raw);
       connectedRef.current = false;
@@ -400,6 +408,20 @@ function CompanionPhoneScreen({ onExit }) {
       Alert.alert(snapshot?.offlineQr ? 'Scan interrompu' : 'Connexion impossible', String(e?.message || e));
     }
   }, [nativeAvailable, phase, scanOfflineSequence, snapshot?.offlineQr]);
+
+  const continueSavedQrClient = useCallback(async (batchId) => {
+    if (!nativeAvailable) return;
+    await openSavedQrClient(batchId);
+    setPhase('scanning');
+    setStatus('Scanner le prochain QR du lot…');
+    try {
+      await scanOfflineSequence('', batchId);
+    } catch (e) {
+      setPhase('offline');
+      setStatus('Scan interrompu · progression conservée');
+      Alert.alert('Scan interrompu', String(e?.message || e));
+    }
+  }, [nativeAvailable, openSavedQrClient, scanOfflineSequence]);
 
   const reconnect = useCallback(async () => {
     const connection = connectionRef.current;
@@ -661,7 +683,7 @@ function CompanionPhoneScreen({ onExit }) {
                       <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 11.5 }}>Ouvrir</Text>
                     </TouchableOpacity>
                     {!item.complete ? (
-                      <TouchableOpacity onPress={async () => { await openSavedQrClient(item.batchId); await scan(); }} style={{ flex: 1, minHeight: 42, borderRadius: 12, backgroundColor: accent, alignItems: 'center', justifyContent: 'center' }}>
+                      <TouchableOpacity onPress={() => continueSavedQrClient(item.batchId)} style={{ flex: 1, minHeight: 42, borderRadius: 12, backgroundColor: accent, alignItems: 'center', justifyContent: 'center' }}>
                         <Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 11.5 }}>Continuer le scan</Text>
                       </TouchableOpacity>
                     ) : null}
