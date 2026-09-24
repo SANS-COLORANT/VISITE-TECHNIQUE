@@ -1,5 +1,5 @@
 /** Panneau de saisie générique virtualisé piloté par la définition de la trame. */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SectionList, Text, TextInput, View } from 'react-native';
 import { getChampsVisite, getControlesVisite } from './db.js';
 import { DurableChampGenerique } from './DurableChampGenerique.js';
@@ -14,6 +14,7 @@ import { PreAllumageInfoPanelBusiness } from './PreAllumageInfoPanelBusiness.js'
 import { PreAllumageInstallationPanelBusiness } from './PreAllumageInstallationPanelBusiness.js';
 import { PreAllumageConclusionPanel } from './PreAllumageConclusionPanel.js';
 import { BoundedLruMap } from './boundedCache.js';
+import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollOffset } from './navigationMemory.js';
 
 const visiteDataCache = new BoundedLruMap(3);
 
@@ -75,6 +76,8 @@ export function TrameGenericPanel(props) {
 
 function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved }) {
   const cacheInitial = visiteDataCache.get(visiteId)?.data;
+  const listRef = useRef(null);
+  const navKey = `visit-panel:${String(visiteId || '')}:${String(panelId || '')}`;
   const [champsMap, setChampsMap] = useState(cacheInitial?.champsMap || {});
   const [controlesMap, setControlesMap] = useState(cacheInitial?.controlesMap || {});
   const [aliases, setAliases] = useState({});
@@ -102,6 +105,23 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved }) {
     }).filter((section) => section.data.length > 0);
   }, [panelId, sections]);
 
+  useEffect(() => {
+    let alive = true;
+    hydrateNavigationState(navKey).then((state) => {
+      if (!alive) return;
+      const offset = Number(state?.scrollY || 0);
+      if (offset) setTimeout(() => listRef.current?.scrollToOffset?.({ offset, animated: false }), 50);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [navKey]);
+
+  useEffect(() => {
+    const offset = getNavigationScrollOffset(navKey);
+    if (!offset || !listeSections.length) return undefined;
+    const timer = setTimeout(() => listRef.current?.scrollToOffset?.({ offset, animated: false }), 50);
+    return () => clearTimeout(timer);
+  }, [navKey, listeSections.length]);
+
   if (!sections) return null;
   const patchControle = (key, patch) => {
     setControlesMap((courant) => ({ ...courant, [key]: { ...(courant[key] || {}), ...patch } }));
@@ -113,7 +133,10 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved }) {
   };
 
   return <SectionList
+    ref={listRef}
     sections={listeSections}
+    onScroll={(event) => setNavigationScrollOffset(navKey, event.nativeEvent.contentOffset.y)}
+    scrollEventThrottle={100}
     keyExtractor={(item) => item.key}
     ListHeaderComponent={panelId === 'p-pa-batiments' ? <PreAllumagePlanCard visiteId={visiteId} onSaved={onSaved} /> : null}
     renderSectionHeader={({ section }) => {
