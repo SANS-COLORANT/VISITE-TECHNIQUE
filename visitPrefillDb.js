@@ -1,8 +1,10 @@
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { carryForwardPreviousVisit } from './visitCarryForwardDb.js';
+import { BoundedLruMap } from './boundedCache.js';
 
-const prefillTermines = new Set();
+const prefillTermines = new BoundedLruMap(3);
 const prefillEnCours = new Map();
+const PREFILL_META_PREFIX = 'visit_prefill_done::';
 
 function sectionCode(panelId, section) {
   return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
@@ -120,8 +122,30 @@ async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
 }
 
 export async function preremplirVisiteDepuisContexte(db, visiteId) {
- const key=String(visiteId||'');if(!key||prefillTermines.has(key))return;
- const existant=prefillEnCours.get(key);if(existant)return existant;
- const promise=preremplirVisiteDepuisContexteInterne(db,visiteId).then((r)=>{prefillTermines.add(key);return r;}).finally(()=>prefillEnCours.delete(key));
- prefillEnCours.set(key,promise);return promise;
+  const key = String(visiteId || '');
+  if (!key || prefillTermines.get(key)) return;
+
+  const existant = prefillEnCours.get(key);
+  if (existant) return existant;
+
+  const promise = (async () => {
+    const metaKey = `${PREFILL_META_PREFIX}${key}`;
+    const deja = await db.getFirstAsync('SELECT value FROM _meta WHERE key=? LIMIT 1', [metaKey]);
+    if (String(deja?.value || '') === '1') {
+      prefillTermines.set(key, true);
+      return;
+    }
+
+    const resultat = await preremplirVisiteDepuisContexteInterne(db, key);
+    await db.runAsync(
+      `INSERT INTO _meta(key,value) VALUES(?, '1')
+       ON CONFLICT(key) DO UPDATE SET value='1'`,
+      [metaKey]
+    );
+    prefillTermines.set(key, true);
+    return resultat;
+  })().finally(() => prefillEnCours.delete(key));
+
+  prefillEnCours.set(key, promise);
+  return promise;
 }
