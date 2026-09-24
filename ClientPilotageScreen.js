@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { buildMatrixCells, getClientTechnicalMatrix, getMatrixCellPhotos, normAvis } from './clientTechnicalMatrix.js';
 import { getStatsSitesPatrimoine } from './patrimoineDb.js';
 import { listerAppartenancesClient, listerGroupesClient } from './siteOrganizationDb.js';
 import { reserveSeverityLabel } from './reserveSeverity.js';
 import { exporterPilotageExcel, PILOTAGE_DEFAULT_COLUMNS, PILOTAGE_EXPORT_COLUMNS, PILOTAGE_EXPORT_PRESETS } from './clientTechnicalMatrixExport.js';
+import { PhotoVariantImage } from './PhotoVariantImage.js';
+import { prewarmSiteLocals } from './navigationPrewarm.js';
 
 const STATE = {
   green: { bg: '#E8F5E9', border: '#2E7D32', text: '#1B5E20', symbol: '✓' },
