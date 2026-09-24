@@ -3,6 +3,9 @@ import { prechargerDonneesTrameGenerique } from './TrameGenericPanel.js';
 import { prechargerRegulation } from './OptimizedRegulationPanel.js';
 import { markVisitHot } from './visitRuntimeCache.js';
 import { prewarmPreviousVisitSnapshot } from './visitPreviousSnapshot.js';
+import { prewarmCameraRuntime } from './cameraRuntime.js';
+import { prewarmPhotoCaptureContext } from './photoCaptureContext.js';
+import { loadVisitPhotos } from './photoRuntimeCache.js';
 
 const inFlight = new Map();
 
@@ -27,6 +30,12 @@ export async function prewarmVisit(visiteOrId, { force = false, preview = null }
     // La comparaison historique est une référence séparée. Elle ne bloque pas
     // l'ouverture et ne recopie jamais réserves/photos dans la visite courante.
     prewarmPreviousVisitSnapshot(id).catch(() => {});
+    // Le pipeline photo se prépare après le contexte métier chaud, sans retarder
+    // l'ouverture : permission déjà accordée, dossier privé, index photo et
+    // miniatures probables seront prêts avant le premier appui terrain.
+    prewarmCameraRuntime().catch(() => {});
+    prewarmPhotoCaptureContext(id).catch(() => {});
+    loadVisitPhotos(id).catch(() => {});
     return merged;
   }).finally(() => inFlight.delete(id));
 
