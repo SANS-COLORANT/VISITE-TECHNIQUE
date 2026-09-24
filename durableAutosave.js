@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { AppState } from 'react-native';
+import { markDraftDirty, markDraftError, markDraftSaved, markDraftSaving } from './saveActivity.js';
 
 const activeFlushers = new Set();
 let appStateSubscription = null;
+let autosaveSequence = 0;
 
 function ensureAppStateFlushListener() {
   if (appStateSubscription || !AppState?.addEventListener) return;
@@ -46,6 +48,8 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
   const timerRef = useRef(null);
   const saveRef = useRef(sauvegarder);
   const queueRef = useRef(Promise.resolve());
+  const activityKeyRef = useRef(null);
+  if (!activityKeyRef.current) activityKeyRef.current = `autosave:${++autosaveSequence}`;
 
   useEffect(() => { saveRef.current = sauvegarder; }, [sauvegarder]);
 
@@ -70,9 +74,19 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
 
     const run = async () => {
       const courante = valeurRef.current;
-      if (!force && courante === persisteeRef.current) return;
-      await saveRef.current?.(courante);
-      persisteeRef.current = courante;
+      if (!force && courante === persisteeRef.current) {
+        markDraftSaved(activityKeyRef.current);
+        return;
+      }
+      markDraftSaving(activityKeyRef.current);
+      try {
+        await saveRef.current?.(courante);
+        persisteeRef.current = courante;
+        markDraftSaved(activityKeyRef.current);
+      } catch (error) {
+        markDraftError(activityKeyRef.current, error);
+        throw error;
+      }
     };
 
     // Les écritures d'un même champ restent strictement dans l'ordre.
@@ -84,6 +98,7 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
     const texte = prochaine == null ? '' : String(prochaine);
     valeurRef.current = texte;
     setValeurState(texte);
+    if (texte !== persisteeRef.current) markDraftDirty(activityKeyRef.current);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       executerSauvegarde().catch(() => {});
@@ -96,6 +111,7 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
     const texte = prochaine == null ? '' : String(prochaine);
     valeurRef.current = texte;
     setValeurState(texte);
+    if (texte !== persisteeRef.current) markDraftDirty(activityKeyRef.current);
     return executerSauvegarde(true);
   }, [executerSauvegarde]);
 
@@ -111,6 +127,7 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
     valeurRef.current = texte;
     persisteeRef.current = texte;
     setValeurState(texte);
+    markDraftSaved(activityKeyRef.current);
   }, []);
 
   useEffect(() => registerFlusher(flush), [flush]);
