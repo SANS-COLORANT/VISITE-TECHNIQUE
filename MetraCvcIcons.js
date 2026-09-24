@@ -1,0 +1,93 @@
+import React from 'react';
+import Svg, { Circle, G, Line, Path, Polyline, Rect } from 'react-native-svg';
+
+const COMMON = Object.freeze({ fill: 'none', strokeLinecap: 'round', strokeLinejoin: 'round' });
+
+function CvcIcon({ name, size = 36, color = '#10384B', strokeWidth = 1.9 }) {
+  const p = { ...COMMON, stroke: color, strokeWidth };
+  const key = String(name || '').toLowerCase();
+  let body = null;
+
+  if (key === 'tools' || key === 'equipment') {
+    body = <G {...p}>
+      <Path d="M8 4.8a5.1 5.1 0 0 0 6.4 6.4L23 19.8a2.3 2.3 0 1 1-3.2 3.2l-8.6-8.6A5.1 5.1 0 0 1 4.8 8L8 11.2l3.2-3.2L8 4.8Z" />
+      <Path d="m16.2 11.4 5.3-5.3 2.4-.8-.8 2.4-5.3 5.3" />
+      <Line x1="6.4" y1="21.6" x2="13.7" y2="14.3" />
+    </G>;
+  } else if (key === 'meter' || key === 'counter') {
+    body = <G {...p}>
+      <Circle cx="14" cy="14" r="10" />
+      <Path d="M7.7 18.7a7.5 7.5 0 1 1 12.6 0" />
+      <Line x1="14" y1="14" x2="18.8" y2="9.7" />
+      <Circle cx="14" cy="14" r="1.2" />
+      <Rect x="9" y="19.2" width="10" height="3.3" rx="1" />
+    </G>;
+  } else if (key === 'temperature' || key === 'thermometer') {
+    body = <G {...p}>
+      <Path d="M12 5.5a3 3 0 0 1 6 0v10.1a5.2 5.2 0 1 1-6 0V5.5Z" />
+      <Line x1="15" y1="7" x2="15" y2="18.5" />
+      <Circle cx="15" cy="20.5" r="2.1" />
+      <Line x1="19.7" y1="8.2" x2="22.8" y2="8.2" />
+      <Line x1="19.7" y1="12.1" x2="22" y2="12.1" />
+    </G>;
+  } else if (key === 'distribution' || key === 'network') {
+    body = <G {...p}>
+      <Path d="M4 9h8v5h6v-4h6" />
+      <Path d="M12 14v7h7" />
+      <Circle cx="4.5" cy="9" r="1.5" />
+      <Circle cx="24" cy="10" r="1.5" />
+      <Circle cx="19" cy="21" r="1.5" />
+      <Path d="M9.5 6.4h5v5h-5Z" />
+    </G>;
+  } else if (key === 'local' || key === 'building') {
+    body = <G {...p}>
+      <Path d="M5 24V8.5L14 4l9 4.5V24" />
+      <Path d="M9 24v-6h10v6" />
+      <Rect x="8" y="10" width="4" height="4" rx=".6" />
+      <Rect x="16" y="10" width="4" height="4" rx=".6" />
+      <Line x1="3" y1="24" x2="25" y2="24" />
+    </G>;
+  } else if (key === 'regulation' || key === 'controller') {
+    body = <G {...p}>
+      <Rect x="4" y="5" width="20" height="18" rx="3" />
+      <Rect x="7.5" y="8" width="13" height="5" rx="1" />
+      <Line x1="8" y1="17.5" x2="20" y2="17.5" />
+      <Circle cx="10" cy="17.5" r="1.7" />
+      <Line x1="8" y1="21" x2="20" y2="21" />
+      <Circle cx="17" cy="21" r="1.7" />
+    </G>;
+  } else if (key === 'remark' || key === 'warning') {
+    body = <G {...p}>
+      <Path d="M14 4 25 23H3L14 4Z" />
+      <Line x1="14" y1="10" x2="14" y2="16" />
+      <Circle cx="14" cy="19.5" r=".9" fill={color} stroke="none" />
+    </G>;
+  } else if (key === 'photo' || key === 'camera') {
+    body = <G {...p}>
+      <Path d="M5 9h4l1.7-2.5h6.6L19 9h4a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V11a2 2 0 0 1 2-2Z" />
+      <Circle cx="14" cy="16" r="4.2" />
+      <Circle cx="21.3" cy="12" r=".9" fill={color} stroke="none" />
+    </G>;
+  } else if (key === 'document') {
+    body = <G {...p}>
+      <Path d="M7 3.8h9l5 5V24H7Z" />
+      <Path d="M16 3.8V9h5" />
+      <Line x1="10" y1="13" x2="18" y2="13" />
+      <Line x1="10" y1="17" x2="18" y2="17" />
+      <Line x1="10" y1="21" x2="16" y2="21" />
+    </G>;
+  } else if (key === 'control' || key === 'check') {
+    body = <G {...p}>
+      <Rect x="6" y="5.5" width="16" height="19" rx="2.5" />
+      <Path d="M10 5.5V3.8h8v1.7" />
+      <Polyline points="9,14 12,17 19,10" />
+      <Line x1="10" y1="21" x2="18" y2="21" />
+    </G>;
+  } else {
+    body = <G {...p}><Circle cx="14" cy="14" r="10" /><Path d="M9 14h10M14 9v10" /></G>;
+  }
+
+  return <Svg width={size} height={size} viewBox="0 0 28 28" accessibilityElementsHidden>{body}</Svg>;
+}
+
+export { CvcIcon };
