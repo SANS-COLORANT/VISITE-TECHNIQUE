@@ -206,10 +206,13 @@ function CompanionPhoneScreen({ onExit }) {
     return items;
   }, []);
 
-  const flushOutbox = useCallback(async () => {
+  const flushOutbox = useCallback(async (allowedVisitIds = null) => {
     if (!connectedRef.current) return;
     const items = await refreshPending();
+    const allowed = allowedVisitIds ? new Set([...allowedVisitIds].map(String)) : null;
     for (const item of items) {
+      const visitId = String(item?.meta?.visitId || '');
+      if (allowed && !allowed.has(visitId)) continue;
       try {
         await sendCompanionFile(item.meta, item.uri);
       } catch {
@@ -231,7 +234,6 @@ function CompanionPhoneScreen({ onExit }) {
           setPhase('connected');
           setStatus('Connecté à la tablette');
           await sendCompanionMessage({ type: 'requestSnapshot' }).catch(() => {});
-          await flushOutbox().catch(() => {});
         } else if (event.status === 'disconnected') {
           setStatus('Connexion perdue · les photos restent en attente');
           setPhase((p) => p === 'idle' ? p : 'disconnected');
@@ -252,6 +254,8 @@ function CompanionPhoneScreen({ onExit }) {
           setBusyVisitId(null);
           setPhase('connected');
           setStatus('Client synchronisé');
+          const allowedVisits = new Set((message.sites || []).flatMap((site) => (site.visits || []).map((visit) => String(visit.id))));
+          flushOutbox(allowedVisits).catch(() => {});
           return;
         }
         if (message.type === 'visitSnapshot') {
@@ -260,6 +264,7 @@ function CompanionPhoneScreen({ onExit }) {
           setBusyVisitId(null);
           setPhase('connected');
           setStatus('Visite prête');
+          flushOutbox(new Set([String(message?.visit?.id || '')])).catch(() => {});
           return;
         }
         if (message.type === 'visitSelectionError') {
