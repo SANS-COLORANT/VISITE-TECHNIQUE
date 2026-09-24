@@ -25,6 +25,31 @@ Après authentification, la tablette transmet au téléphone un instantané lég
 
 La session est détruite lorsque la fenêtre Compagnon est fermée.
 
+## Lots QR hors connexion
+
+Pour les cas où la tablette et le téléphone ne disposent d'aucun réseau local commun, le périmètre **Client** peut également être transféré par une série de QR codes statiques.
+
+La tablette :
+
+1. construit un instantané compact du client avec ses sites, locaux et références de visites ;
+2. découpe automatiquement cet instantané en autant de QR que nécessaire ;
+3. conserve le lot dans la fiche du client ;
+4. affiche les QR sous forme de pages horizontales avec le numéro, les noms de sites et une description du contenu ;
+5. permet de rouvrir un ancien lot sans le régénérer.
+
+Le téléphone :
+
+1. reconnaît un lot QR hors connexion ;
+2. enregistre chaque QR immédiatement dans le stockage privé METRA ;
+3. rouvre automatiquement le scanner pour le QR suivant ;
+4. conserve la progression si l'utilisateur s'arrête ou ferme l'application ;
+5. affiche les clients QR déjà enregistrés et le nombre de QR reçus / attendus ;
+6. permet de reprendre le scan plusieurs heures ou plusieurs jours plus tard.
+
+Un QR déjà lu peut être rescanné sans dupliquer les sites. Les fragments d'un même site sont fusionnés par identifiants stables.
+
+Le lot QR hors connexion transporte volontairement un **contexte client léger**. Il ne remplace pas la liaison Compagnon pour les modules détaillés d'une visite ni pour le transfert des photos. Une fois une liaison locale disponible, la session Compagnon complète peut être utilisée sans perdre le client déjà mémorisé.
+
 ## Réseau
 
 Le transport Compagnon fonctionne directement sur le réseau local Android. Le téléphone et la tablette doivent être joignables sur le **même Wi-Fi local ou le même point d'accès/hotspot**.
