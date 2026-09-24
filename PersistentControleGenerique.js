@@ -14,10 +14,11 @@ import {
 } from './remarkDb.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
+import { BoundedLruMap } from './boundedCache.js';
 
 const PRESCRIPTIONS_COMPLETES = fusionnerPrescriptions(PRESCRIPTIONS);
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
-const remarquesCache = new Map();
+const remarquesCache = new BoundedLruMap(6);
 let biblioReservePromise = null;
 let biblioReserveCache = null;
 
