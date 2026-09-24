@@ -56,7 +56,7 @@ Le transport Compagnon fonctionne directement sur le réseau local Android. Le t
 
 Le transfert des données et des photos ne dépend pas de l'Intranet et ne nécessite pas d'accès Internet une fois les appareils sur le même réseau local.
 
-Le scan QR s'appuie sur le scanner de codes Google disponible sur Android. Selon l'état de Google Play Services sur l'appareil, son composant de scan peut nécessiter d'avoir été téléchargé au préalable.
+Le scan QR utilise désormais un scanner ZXing embarqué directement dans l'APK. Il n'a donc pas besoin de télécharger un composant Google Play au premier usage et reste disponible lorsque le téléphone n'a aucune connexion Internet.
 
 ## Modules du téléphone Compagnon
 
