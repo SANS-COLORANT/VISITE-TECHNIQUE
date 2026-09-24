@@ -136,12 +136,15 @@ export async function preremplirVisiteDepuisContexte(db, visiteId) {
       return;
     }
 
-    const resultat = await preremplirVisiteDepuisContexteInterne(db, key);
-    await db.runAsync(
-      `INSERT INTO _meta(key,value) VALUES(?, '1')
-       ON CONFLICT(key) DO UPDATE SET value='1'`,
-      [metaKey]
-    );
+    let resultat;
+    await db.withTransactionAsync(async () => {
+      resultat = await preremplirVisiteDepuisContexteInterne(db, key);
+      await db.runAsync(
+        `INSERT INTO _meta(key,value) VALUES(?, '1')
+         ON CONFLICT(key) DO UPDATE SET value='1'`,
+        [metaKey]
+      );
+    });
     prefillTermines.set(key, true);
     return resultat;
   })().finally(() => prefillEnCours.delete(key));
