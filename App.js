@@ -279,20 +279,50 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
 }
 
 function PhoneModeChooser({ onChoose }) {
-  return <View style={{ flex: 1, backgroundColor: '#F4F6F6', paddingTop: 64, paddingHorizontal: 18 }}>
-    <Text style={{ fontSize: 26, fontWeight: '900', color: '#14242D' }}>Choisir le mode téléphone</Text>
-    <Text style={{ marginTop: 7, marginBottom: 24, color: '#6B7880', lineHeight: 19 }}>Utilise toute l'application sur le téléphone, ou connecte-le à une tablette pour photographier plus vite.</Text>
+  const [palette, setPalette] = useState(() => ({ main: COLORS.orange, dark: COLORS.orangeDark, light: COLORS.orangeLight }));
+  const [pack, setPack] = useState(null);
 
-    <TouchableOpacity onPress={() => onChoose('integral')} activeOpacity={0.84} style={{ minHeight: 170, padding: 19, borderRadius: 22, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#D9E0E3', marginBottom: 12 }}>
-      <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: '#F0F4F5', alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="tools" size={36} color="#10384B" /></View>
-      <Text style={{ marginTop: 18, fontSize: 19, fontWeight: '900', color: '#16242E' }}>Version intégrale</Text>
-      <Text style={{ marginTop: 5, color: '#6D7A82', lineHeight: 18 }}>Clients, sites, visites, saisies, équipements, photos et exports dans l'interface complète adaptée au téléphone.</Text>
+  useEffect(() => {
+    let alive = true;
+    getActiveVisualPack()
+      .then((activePack) => {
+        if (!alive) return;
+        setRuntimeVisualPalette(activePack?.colors);
+        setPack(activePack || null);
+        setPalette({
+          main: activePack?.colors?.main || COLORS.orange,
+          dark: activePack?.colors?.dark || COLORS.orangeDark,
+          light: activePack?.colors?.light || COLORS.orangeLight,
+        });
+      })
+      .catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const logoUri = resolveVisualPackAssetUri(pack, pack?.interface?.headerLogo);
+
+  return <View style={{ flex: 1, backgroundColor: COLORS.bg, paddingTop: 58, paddingHorizontal: 18 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 26 }}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 24, fontWeight: '900', color: COLORS.ink }}>Choisir le mode téléphone</Text>
+        <Text style={{ marginTop: 7, color: COLORS.inkSoft, lineHeight: 19 }}>Version complète sur téléphone ou compagnon photo de la tablette.</Text>
+      </View>
+      {logoUri ? <VisualPackAsset uri={logoUri} style={{ width: 48, height: 38 }} /> : null}
+    </View>
+
+    <TouchableOpacity onPress={() => onChoose('integral')} activeOpacity={0.84} style={{ minHeight: 164, padding: 18, borderRadius: 18, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, marginBottom: 12 }}>
+      <View style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: palette.light, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="tools" size={34} color={palette.main} /></View>
+      <Text style={{ marginTop: 16, fontSize: 18.5, fontWeight: '900', color: COLORS.ink }}>Version intégrale</Text>
+      <Text style={{ marginTop: 5, color: COLORS.inkSoft, lineHeight: 18 }}>Clients, sites, visites, saisies, équipements, photos et exports dans l’interface complète.</Text>
     </TouchableOpacity>
 
-    <TouchableOpacity onPress={() => onChoose('companion')} activeOpacity={0.84} style={{ minHeight: 170, padding: 19, borderRadius: 22, backgroundColor: '#10384B', borderWidth: 1, borderColor: '#10384B' }}>
-      <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: '#FFFFFF18', alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="camera" size={36} color="#FFFFFF" /></View>
-      <Text style={{ marginTop: 18, fontSize: 19, fontWeight: '900', color: '#FFF' }}>Mode Compagnon</Text>
-      <Text style={{ marginTop: 5, color: '#D5E2E7', lineHeight: 18 }}>Scanne le QR de la tablette puis photographie directement les équipements, compteurs, températures, locaux, réseaux et remarques.</Text>
+    <TouchableOpacity onPress={() => onChoose('companion')} activeOpacity={0.84} style={{ minHeight: 164, padding: 18, borderRadius: 18, backgroundColor: palette.light, borderWidth: 1.5, borderColor: palette.main }}>
+      <View style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.main }}><CvcIcon name="camera" size={34} color={palette.main} /></View>
+      <Text style={{ marginTop: 16, fontSize: 18.5, fontWeight: '900', color: COLORS.ink }}>Compagnon</Text>
+      <Text style={{ marginTop: 5, color: COLORS.inkSoft, lineHeight: 18 }}>Scanne le QR d’une visite ou d’un client puis prends les photos directement dans les bonnes rubriques.</Text>
+      <View style={{ marginTop: 12, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: COLORS.white }}>
+        <Text style={{ color: palette.dark, fontSize: 10.5, fontWeight: '900' }}>TABLETTE + TÉLÉPHONE</Text>
+      </View>
     </TouchableOpacity>
   </View>;
 }
