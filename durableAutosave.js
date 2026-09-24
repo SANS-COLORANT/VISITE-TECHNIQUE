@@ -99,6 +99,20 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
     return executerSauvegarde(true);
   }, [executerSauvegarde]);
 
+  // À utiliser lorsqu'une action métier vient elle-même de persister la valeur
+  // (preset, changement S/N.S, etc.). Cela annule le debounce devenu inutile
+  // sans déclencher une seconde sauvegarde susceptible de modifier la sémantique.
+  const adopterValeurPersistee = useCallback((prochaine) => {
+    const texte = prochaine == null ? '' : String(prochaine);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
+    valeurRef.current = texte;
+    persisteeRef.current = texte;
+    setValeurState(texte);
+  }, []);
+
   useEffect(() => registerFlusher(flush), [flush]);
 
   useEffect(() => () => {
@@ -111,5 +125,5 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
     }
   }, [executerSauvegarde]);
 
-  return [valeur, setValeur, flush, setImmediate];
+  return [valeur, setValeur, flush, setImmediate, adopterValeurPersistee];
 }
