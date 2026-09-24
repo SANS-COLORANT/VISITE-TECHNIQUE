@@ -1,7 +1,7 @@
 /** VISITE TECHNIQUE — point d'entrée natif Android. */
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, BackHandler, Keyboard } from 'react-native';
+import { View, Text, TouchableOpacity, BackHandler, Keyboard, useWindowDimensions } from 'react-native';
 import { PhotoDownloadBanner } from './PhotoDownloadStatus.js';
 import { IntranetVisitSyncBanner, IntranetVisitSyncRuntime } from './IntranetVisitSync.js';
 import { IntranetStructureRuntime } from './IntranetStructureRuntime.js';
@@ -17,6 +17,8 @@ import { VisualPackLoadingScreen } from './visual-packs/runtime/VisualPackLoadin
 import { VisualPackAsset } from './visual-packs/runtime/VisualPackAsset.js';
 import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 import { getActiveVisualPack, getVisualPackStartupDuration, resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
+import { CompanionPhoneScreen } from './CompanionPhoneScreen.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 const SPLASH_BG = '#FBF0E1';
 const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects', 'MissionP3Dashboard', 'MissionReceptionBoard', 'MissionExpertise', 'MissionCampaignDashboard', 'MissionAmoDashboard', 'MissionControlBoard']);
@@ -75,12 +77,12 @@ function DeferredScreen({ name, ...props }) {
   return Component ? <Component {...props} /> : null;
 }
 
-function SimpleHeader({ title, onBack, visualPack }) {
+function SimpleHeader({ title, onBack, visualPack, rightAction = null }) {
   const uri = resolveVisualPackAssetUri(visualPack, visualPack?.interface?.headerLogo);
   return <View style={styles.simpleHeader}>
     {onBack ? <TouchableOpacity style={styles.simpleHeaderBack} onPress={onBack}><Text style={styles.simpleHeaderBackText}>←</Text></TouchableOpacity> : <View style={styles.simpleHeaderBack} />}
     <Text style={styles.simpleHeaderTitle}>{title}</Text>
-    <View style={styles.simpleHeaderBack}>{uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null}</View>
+    <View style={styles.simpleHeaderBack}>{rightAction ? <TouchableOpacity onPress={rightAction.onPress} style={{ minWidth: 78, minHeight: 32, paddingHorizontal: 9, borderRadius: 16, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}><Text style={{ fontSize: 10.5, fontWeight: '900', color: COLORS.text }}>{rightAction.label}</Text></TouchableOpacity> : (uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null)}</View>
   </View>;
 }
 
@@ -107,7 +109,7 @@ function Lab3DFab({ onPress, bottom = 82, label = '⬡ LAB 3D' }) {
   return <TouchableOpacity onPress={onPress} style={{ position: 'absolute', right: 18, bottom, minHeight: 48, paddingHorizontal: 17, borderRadius: 24, backgroundColor: '#10384B', borderWidth: 2, borderColor: '#5DD8FF', alignItems: 'center', justifyContent: 'center', elevation: 9, zIndex: 205 }}><Text style={{ color: '#F5FBFF', fontWeight: '900', fontSize: 12.5 }}>{label}</Text></TouchableOpacity>;
 }
 
-function AppContent() {
+function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(null);
   const [visualPack, setVisualPack] = useState(null);
@@ -206,7 +208,7 @@ function AppContent() {
     <IntranetVisitSyncBanner />
     <PhotoDownloadBanner />
 
-    {current.name === 'Home' ? <><SimpleHeader title="Visite Technique" visualPack={visualPack} /><HomeScreen navigation={navigation} route={route} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} /></> : null}
+    {current.name === 'Home' ? <><SimpleHeader title="Visite Technique" visualPack={visualPack} rightAction={phoneIntegralMode ? { label: 'Changer de mode', onPress: onPhoneModeExit } : null} /><HomeScreen navigation={navigation} route={route} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} /></> : null}
     {current.name === 'MetraDirectory' ? <><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MetraDirectory" navigation={navigation} route={route} /></> : null}
     {current.name === 'ClientSites' ? <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientSites" navigation={navigation} route={route} /></> : null}
     {current.name === 'SiteLocals' ? <><SimpleHeader title={current.params?.nomSite || 'Locaux'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="SiteLocals" navigation={navigation} route={route} /></> : null}
@@ -261,6 +263,35 @@ function AppContent() {
   </View>;
 }
 
+function PhoneModeChooser({ onChoose }) {
+  return <View style={{ flex: 1, backgroundColor: '#F4F6F6', paddingTop: 64, paddingHorizontal: 18 }}>
+    <Text style={{ fontSize: 26, fontWeight: '900', color: '#14242D' }}>Choisir le mode téléphone</Text>
+    <Text style={{ marginTop: 7, marginBottom: 24, color: '#6B7880', lineHeight: 19 }}>Utilise toute l'application sur le téléphone, ou connecte-le à une tablette pour photographier plus vite.</Text>
+
+    <TouchableOpacity onPress={() => onChoose('integral')} activeOpacity={0.84} style={{ minHeight: 170, padding: 19, borderRadius: 22, backgroundColor: '#FFF', borderWidth: 1, borderColor: '#D9E0E3', marginBottom: 12 }}>
+      <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: '#F0F4F5', alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="tools" size={36} color="#10384B" /></View>
+      <Text style={{ marginTop: 18, fontSize: 19, fontWeight: '900', color: '#16242E' }}>Version intégrale</Text>
+      <Text style={{ marginTop: 5, color: '#6D7A82', lineHeight: 18 }}>Clients, sites, visites, saisies, équipements, photos et exports dans l'interface complète adaptée au téléphone.</Text>
+    </TouchableOpacity>
+
+    <TouchableOpacity onPress={() => onChoose('companion')} activeOpacity={0.84} style={{ minHeight: 170, padding: 19, borderRadius: 22, backgroundColor: '#10384B', borderWidth: 1, borderColor: '#10384B' }}>
+      <View style={{ width: 56, height: 56, borderRadius: 18, backgroundColor: '#FFFFFF18', alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="camera" size={36} color="#FFFFFF" /></View>
+      <Text style={{ marginTop: 18, fontSize: 19, fontWeight: '900', color: '#FFF' }}>Mode Compagnon</Text>
+      <Text style={{ marginTop: 5, color: '#D5E2E7', lineHeight: 18 }}>Scanne le QR de la tablette puis photographie directement les équipements, compteurs, températures, locaux, réseaux et remarques.</Text>
+    </TouchableOpacity>
+  </View>;
+}
+
 export default function App() {
-  return <AppErrorBoundary><AppContent /></AppErrorBoundary>;
+  const { width } = useWindowDimensions();
+  const phone = width < 700;
+  const [phoneMode, setPhoneMode] = useState(null);
+
+  useEffect(() => {
+    if (!phone) setPhoneMode(null);
+  }, [phone]);
+
+  if (phone && !phoneMode) return <AppErrorBoundary><PhoneModeChooser onChoose={setPhoneMode} /></AppErrorBoundary>;
+  if (phone && phoneMode === 'companion') return <AppErrorBoundary><CompanionPhoneScreen onExit={() => setPhoneMode(null)} /></AppErrorBoundary>;
+  return <AppErrorBoundary><AppContent phoneIntegralMode={phone && phoneMode === 'integral'} onPhoneModeExit={() => setPhoneMode(null)} /></AppErrorBoundary>;
 }
