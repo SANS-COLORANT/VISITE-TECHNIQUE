@@ -48,9 +48,10 @@ for (const moduleId of ['equipment','meters','temperatures','locals','distributi
   expect(data.includes(`id: '${moduleId}'`), `Module compagnon manquant : ${moduleId}`);
 }
 expect(data.includes('companion_transfer_'), 'Les transferts photo doivent être idempotents.');
-expect(native.includes('ServerSocket') && native.includes('sendFile') && native.includes('GmsBarcodeScanning'), 'Le module Android doit fournir transport local, transfert fichier et scan QR.');
+expect(native.includes('ServerSocket') && native.includes('sendFile') && native.includes('IntentIntegrator'), 'Le module Android doit fournir transport local, transfert fichier et scan QR embarqué.');
 expect(native.includes('InetSocketAddress') && native.includes('5000'), 'La connexion réseau Compagnon doit avoir un délai maximum explicite.');
-expect(plugin.includes('play-services-code-scanner') && plugin.includes('com.google.zxing:core'), 'Le plugin Android doit embarquer scan et génération QR.');
+expect(plugin.includes('zxing-android-embedded') && plugin.includes('com.google.zxing:core'), 'Le plugin Android doit embarquer localement le scan et la génération QR.');
+expect(!plugin.includes('play-services-code-scanner'), 'Le scan QR hors connexion ne doit pas dépendre d’un module Google Play téléchargé à la demande.');
 expect(config.includes('./plugins/withMetraCompanion'), 'Le plugin compagnon doit être activé par la configuration Expo.');
 
 console.log('[companion-contract] OK');
