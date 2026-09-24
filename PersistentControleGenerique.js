@@ -1,5 +1,5 @@
 /** Contrôle de conformité persistant : restaure la réserve liée après virtualisation/swipe. */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PRESCRIPTIONS } from './data.js';
@@ -152,13 +152,15 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
   const baseOptions = useMemo(() => PRESCRIPTIONS_COMPLETES[categorieKey] || PRESCRIPTIONS_COMPLETES[field.cle] || [], [categorieKey, field.cle]);
   const [options, setOptions] = useState(baseOptions);
   const [avis, setAvis] = useState(etatInitial?.avis || null);
+  const avisRef = useRef(etatInitial?.avis || null);
   const [commentaire, setCommentaire] = useState(etatInitial?.commentaire || '');
   const [remarque, setRemarque] = useState(null);
   const [critereChoisi, setCritereChoisi] = useState(null);
   const [modeLibre, setModeLibre] = useState(false);
 
   useEffect(() => {
-    setAvis(etatInitial?.avis || null);
+    avisRef.current = etatInitial?.avis || null;
+    setAvis(avisRef.current);
     setCommentaire(etatInitial?.commentaire || '');
   }, [etatInitial?.avis, etatInitial?.commentaire]);
 
@@ -205,6 +207,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
   const choisirAvis = useCallback(async (val) => {
     if (val === avis) return;
     const commentaireConserve = val === 'N.S' ? String(commentaire || '') : '';
+    avisRef.current = val;
     setAvis(val);
     setCritereChoisi(null);
     setModeLibre(false);
@@ -254,9 +257,10 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
   const sauverCommentaireSimple = useCallback(async (texte) => {
     const v = String(texte || '');
     setCommentaire(v);
-    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis, commentaire: v });
-    notifierEtat({ avis, commentaire: v });
-  }, [visiteId, sectionCode, field.cle, avis, notifierEtat]);
+    const avisCourant = avisRef.current;
+    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: avisCourant, commentaire: v });
+    notifierEtat({ avis: avisCourant, commentaire: v });
+  }, [visiteId, sectionCode, field.cle, notifierEtat]);
 
   const [libre, setLibre, flushLibre] = useDurableAutosave(commentaire, sauverLibre, 450);
   const [commentaireSimple, setCommentaireSimple, flushCommentaireSimple] = useDurableAutosave(commentaire, sauverCommentaireSimple, 450);
