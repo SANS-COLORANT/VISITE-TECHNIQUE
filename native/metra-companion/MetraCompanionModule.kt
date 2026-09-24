@@ -1,19 +1,22 @@
 package com.metra.companion
 
+import android.app.Activity
 import android.content.Context
+import android.content.Intent
 import android.graphics.Bitmap
 import android.net.ConnectivityManager
 import android.net.Uri
+import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.bridge.Promise
 import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.modules.core.DeviceEventManagerModule
-import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.EncodeHintType
 import com.google.zxing.qrcode.QRCodeWriter
+import com.journeyapps.barcodescanner.IntentIntegrator
 import org.json.JSONObject
 import java.io.BufferedInputStream
 import java.io.BufferedOutputStream
@@ -31,7 +34,7 @@ import java.util.Collections
 import java.util.UUID
 import java.util.concurrent.Executors
 
-class MetraCompanionModule(private val context: ReactApplicationContext) : ReactContextBaseJavaModule(context) {
+class MetraCompanionModule(private val context: ReactApplicationContext) : ReactContextBaseJavaModule(context), ActivityEventListener {
   private val executor = Executors.newCachedThreadPool()
   @Volatile private var serverSocket: ServerSocket? = null
   @Volatile private var socket: Socket? = null
@@ -40,6 +43,11 @@ class MetraCompanionModule(private val context: ReactApplicationContext) : React
   @Volatile private var hostToken: String? = null
   @Volatile private var role: String? = null
   private val writeLock = Any()
+  @Volatile private var scanPromise: Promise? = null
+
+  init {
+    context.addActivityEventListener(this)
+  }
 
   override fun getName() = "MetraCompanion"
 
@@ -336,16 +344,38 @@ class MetraCompanionModule(private val context: ReactApplicationContext) : React
       promise.reject("METRA_COMPANION_SCAN_ERROR", "Activité Android indisponible")
       return
     }
+    if (scanPromise != null) {
+      promise.reject("METRA_COMPANION_SCAN_BUSY", "Un scan QR est déjà en cours")
+      return
+    }
     try {
-      val scanner = GmsBarcodeScanning.getClient(activity)
-      scanner.startScan()
-        .addOnSuccessListener { barcode -> promise.resolve(barcode.rawValue ?: "") }
-        .addOnCanceledListener { promise.resolve("") }
-        .addOnFailureListener { e -> promise.reject("METRA_COMPANION_SCAN_ERROR", e.message, e) }
+      scanPromise = promise
+      IntentIntegrator(activity)
+        .setDesiredBarcodeFormats(IntentIntegrator.QR_CODE_TYPES)
+        .setPrompt("Scanner le QR MÉTRA")
+        .setBeepEnabled(false)
+        .setBarcodeImageEnabled(false)
+        .setOrientationLocked(false)
+        .initiateScan()
+    } catch (e: Exception) {
+      scanPromise = null
+      promise.reject("METRA_COMPANION_SCAN_ERROR", e.message, e)
+    }
+  }
+
+  override fun onActivityResult(activity: Activity?, requestCode: Int, resultCode: Int, data: Intent?) {
+    if (requestCode != IntentIntegrator.REQUEST_CODE) return
+    val promise = scanPromise ?: return
+    scanPromise = null
+    try {
+      val result = IntentIntegrator.parseActivityResult(requestCode, resultCode, data)
+      promise.resolve(result?.contents ?: "")
     } catch (e: Exception) {
       promise.reject("METRA_COMPANION_SCAN_ERROR", e.message, e)
     }
   }
+
+  override fun onNewIntent(intent: Intent?) {}
 
   private fun disconnectInternal() {
     try { socket?.close() } catch (_: Exception) {}
@@ -378,6 +408,9 @@ class MetraCompanionModule(private val context: ReactApplicationContext) : React
   @ReactMethod fun removeListeners(count: Int) {}
 
   override fun invalidate() {
+    scanPromise?.resolve("")
+    scanPromise = null
+    context.removeActivityEventListener(this)
     stopInternal()
     executor.shutdownNow()
     super.invalidate()
