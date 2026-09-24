@@ -182,6 +182,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
   const [photos, setPhotos] = useState([]);
   const [photosChargees, setPhotosChargees] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerHd, setViewerHd] = useState(false);
   const [index, setIndex] = useState(0);
   const estReserve = String(entiteKey || '').startsWith('remarque||');
 
@@ -189,6 +190,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     setPhotos([]);
     setPhotosChargees(false);
     setViewerVisible(false);
+    setViewerHd(false);
     setIndex(0);
   }, [visiteId, entiteKey]);
 
@@ -253,7 +255,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     try {
       const cible = await resoudreCible();
       const items = photosChargees ? photos : await charger(cible.entiteKey);
-      if (items.length > 0) { setIndex(0); setViewerVisible(true); }
+      if (items.length > 0) { setIndex(0); setViewerHd(false); setViewerVisible(true); }
       else await ajouter();
     } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
   };
@@ -314,9 +316,10 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       <View style={styles.photoViewerOverlay}>
         <View style={styles.photoViewerHeader}>
           <Text style={styles.photoViewerTitle}>{label || 'Photo'} · {index + 1}/{photos.length}</Text>
+          <TouchableOpacity onPress={() => setViewerHd((value) => !value)} style={{ paddingHorizontal: 12, paddingVertical: 7 }}><Text style={styles.photoViewerSecondaryText}>{viewerHd ? 'Aperçu' : 'HD'}</Text></TouchableOpacity>
           <TouchableOpacity onPress={() => setViewerVisible(false)}><Text style={styles.photoViewerClose}>✕</Text></TouchableOpacity>
         </View>
-        {photos[index] && <PhotoVariantImage uri={photos[index].uri} variant="preview" style={styles.photoViewerImage} resizeMode="contain" />}
+        {photos[index] && <PhotoVariantImage uri={photos[index].uri} variant={viewerHd ? 'original' : 'preview'} style={styles.photoViewerImage} resizeMode="contain" />}
         {photos.length > 1 && (
           <View style={styles.photoViewerNav}>
             <TouchableOpacity style={styles.photoViewerNavBtn} onPress={() => setIndex((index - 1 + photos.length) % photos.length)}><Text style={styles.photoViewerNavText}>‹ Précédente</Text></TouchableOpacity>
