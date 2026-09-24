@@ -201,7 +201,9 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
 
       if (event?.type === 'fileReceived') {
         const meta = event.meta || {};
-        const targetVisitId = String(meta.visitId || visiteId || phoneVisitId || '').trim();
+        const targetVisitId = scope === 'client'
+          ? String(meta.visitId || phoneVisitId || '').trim()
+          : String(visiteId || '').trim();
         try {
           if (!targetVisitId) throw new Error('Choisis une visite sur le téléphone avant d’envoyer une photo.');
           if (scope === 'client') await assertVisitBelongsToCompanionClient(clientId, targetVisitId);
