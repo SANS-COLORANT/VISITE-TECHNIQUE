@@ -1,13 +1,16 @@
 /** Niveau Site -> Locaux : un local ouvre uniquement son historique de visites. */
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { getDb, uuidv4 } from './db.js';
 import { materializeCachedLocalForSite } from './apiLatestVisitImportDb.js';
+import { getNavigationScrollOffset, setNavigationScrollOffset } from './navigationMemory.js';
 
 function SiteLocalsScreen({ route, navigation }) {
   const { siteId, nomSite, clientId, nomClient } = route?.params || {};
+  const listRef = useRef(null);
+  const scrollKey = `site-locals:${String(siteId || '')}`;
   const [locaux, setLocaux] = useState([]);
   const [legacyCount, setLegacyCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -85,6 +88,13 @@ function SiteLocalsScreen({ route, navigation }) {
 
   useEffect(() => { charger(); }, [charger]);
 
+  useEffect(() => {
+    const offset = getNavigationScrollOffset(scrollKey);
+    if (!offset || !locaux.length) return undefined;
+    const timer = setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
+    return () => clearTimeout(timer);
+  }, [scrollKey, locaux.length]);
+
   const remoteClientPourLocal = async (local) => {
     if (!local?.remote_site_id) return null;
     const db = await getDb();
@@ -150,7 +160,10 @@ function SiteLocalsScreen({ route, navigation }) {
 
   return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
     <FlatList
+      ref={listRef}
       style={{ flex: 1 }}
+      onScroll={(event) => setNavigationScrollOffset(scrollKey, event.nativeEvent.contentOffset.y)}
+      scrollEventThrottle={80}
       contentContainerStyle={[styles.content, { paddingBottom: 96 }]}
       data={locaux}
       keyExtractor={(item) => item.installation_id}
