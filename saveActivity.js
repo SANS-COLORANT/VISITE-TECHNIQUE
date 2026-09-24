@@ -33,7 +33,7 @@ export function subscribeSaveActivity(listener) {
 
 export function markDraftDirty(key) {
   const id = String(key || '').trim();
-  if (!id) return;
+  if (!id || dirty.has(id)) return;
   dirty.add(id);
   lastError = null;
   emit();
@@ -42,19 +42,18 @@ export function markDraftDirty(key) {
 export function markDraftSaving(key) {
   const id = String(key || '').trim();
   if (!id) return;
-  dirty.delete(id);
+  const changed = dirty.delete(id) || !saving.has(id);
   saving.add(id);
-  emit();
+  if (changed) emit();
 }
 
 export function markDraftSaved(key) {
   const id = String(key || '').trim();
   if (!id) return;
-  dirty.delete(id);
-  saving.delete(id);
+  const changed = dirty.delete(id) || saving.delete(id);
   lastSavedAt = Date.now();
   lastError = null;
-  emit();
+  if (changed) emit();
 }
 
 export function markDraftError(key, error) {
