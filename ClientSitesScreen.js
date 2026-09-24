@@ -2,11 +2,11 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { COLORS, styles } from './styles.js';
-import { listerSitesClient, creerSite } from './db.js';
+import { creerSite } from './db.js';
 import { getResumeSuppressionSite, supprimerSiteComplet } from './entityManagementDb.js';
 import { synchroniserCoordonneesSite } from './siteGeoDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
-import { dupliquerSite, listerAppartenancesClient } from './siteOrganizationDb.js';
+import { dupliquerSite } from './siteOrganizationDb.js';
 import { composerAdresse } from './SiteAddressManager.js';
 import { SiteGroupsManager } from './SiteGroupsManager.js';
 import { SiteRadialActionMenu } from './SiteRadialActionMenu.js';
@@ -14,21 +14,22 @@ import { PatrimoineImageCard, PatrimoineThumbnail } from './PatrimoineImageCard.
 import { onPatrimoineImageChanged } from './patrimoineImageDb.js';
 import { IntranetSiteCreationModal } from './IntranetStructureUi.js';
 import { SITE_SORT_OPTIONS, buildSiteGroupMap, siteGroupLabel, sortSites } from './siteSort.js';
-import { getNavigationScrollOffset, setNavigationScrollOffset } from './navigationMemory.js';
+import { getNavigationScrollOffset, getNavigationState, hydrateNavigationState, setNavigationScrollOffset, setNavigationState } from './navigationMemory.js';
+import { peekClientSites, prewarmClientSites, prewarmSiteLocals } from './navigationPrewarm.js';
 
 const adresseVide = () => ({ numero: '', voie: '', complement: '', codePostal: '', ville: '' });
 
-const CLIENT_SITES_FAST_CACHE = new Map();
-const CLIENT_SITES_SORT_CACHE = new Map();
 
 function ClientSitesScreen({ route, navigation }) {
   const { clientId, nomClient } = route?.params || {};
   const cacheKey = String(clientId || '');
   const scrollKey = `client-sites:${cacheKey}`;
   const listRef = useRef(null);
-  const [sites, setSites] = useState(() => CLIENT_SITES_FAST_CACHE.get(cacheKey) || []);
-  const [memberships, setMemberships] = useState([]);
-  const [sortMode, setSortMode] = useState(() => CLIENT_SITES_SORT_CACHE.get(cacheKey) || 'alpha');
+  const initialBundle = peekClientSites(cacheKey);
+  const [sites, setSites] = useState(() => initialBundle?.sites || []);
+  const [memberships, setMemberships] = useState(() => initialBundle?.memberships || []);
+  const [sortMode, setSortMode] = useState(() => getNavigationState(scrollKey)?.sortMode || 'alpha');
+  const [search, setSearch] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [intranetSiteVisible, setIntranetSiteVisible] = useState(false);
   const [groupesVisible, setGroupesVisible] = useState(false);
@@ -40,16 +41,11 @@ function ClientSitesScreen({ route, navigation }) {
 
   const charger = useCallback(async () => {
     if (!clientId) { setSites([]); setMemberships([]); return []; }
-    const [liste, appartenances] = await Promise.all([
-      listerSitesClient(clientId),
-      listerAppartenancesClient(clientId),
-    ]);
-    const normalisee = Array.isArray(liste) ? liste : [];
-    CLIENT_SITES_FAST_CACHE.set(cacheKey, normalisee);
-    setSites(normalisee);
-    setMemberships(Array.isArray(appartenances) ? appartenances : []);
-    return normalisee;
-  }, [clientId, cacheKey]);
+    const bundle = await prewarmClientSites(clientId, { force: true });
+    setSites(bundle?.sites || []);
+    setMemberships(bundle?.memberships || []);
+    return bundle?.sites || [];
+  }, [clientId]);
 
   useEffect(() => {
     let actif = true;
@@ -66,20 +62,39 @@ function ClientSitesScreen({ route, navigation }) {
 
   const groupMap = useMemo(() => buildSiteGroupMap(memberships), [memberships]);
   const sitesTries = useMemo(() => sortSites(sites, sortMode, groupMap), [sites, sortMode, groupMap]);
+  const sitesFiltres = useMemo(() => {
+    const q = String(search || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    if (!q) return sitesTries;
+    return sitesTries.filter((site) => {
+      const haystack = [site.nom_site, site.adresse, site.localisation_note, siteGroupLabel(site.id, groupMap)]
+        .filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [sitesTries, search, groupMap]);
+
+  useEffect(() => {
+    let alive = true;
+    hydrateNavigationState(scrollKey).then((state) => {
+      if (!alive || !state) return;
+      if (state.sortMode) setSortMode(state.sortMode);
+      const offset = Number(state.scrollY || 0);
+      if (offset) setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [scrollKey]);
 
   useEffect(() => {
     const offset = getNavigationScrollOffset(scrollKey);
-    if (!offset || !sitesTries.length) return undefined;
+    if (!offset || !sitesFiltres.length) return undefined;
     const timer = setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
     return () => clearTimeout(timer);
-  }, [scrollKey, sitesTries.length]);
+  }, [scrollKey, sitesFiltres.length]);
 
   const changerTri = useCallback((mode) => {
-    CLIENT_SITES_SORT_CACHE.set(cacheKey, mode);
     setSortMode(mode);
-    setNavigationScrollOffset(scrollKey, 0);
+    setNavigationState(scrollKey, { sortMode: mode, scrollY: 0 });
     requestAnimationFrame(() => listRef.current?.scrollToOffset({ offset: 0, animated: false }));
-  }, [cacheKey, scrollKey]);
+  }, [scrollKey]);
 
   const sansAdresse = sites.filter((s) => !String(s.adresse || '').trim()).length;
   const avecAdresse = sites.length - sansAdresse;
@@ -159,7 +174,7 @@ function ClientSitesScreen({ route, navigation }) {
       onScroll={(event) => setNavigationScrollOffset(scrollKey, event.nativeEvent.contentOffset.y)}
       scrollEventThrottle={80}
       contentContainerStyle={[styles.content, { paddingBottom: 34 }]}
-      data={sitesTries}
+      data={sitesFiltres}
       initialNumToRender={16}
       maxToRenderPerBatch={12}
       updateCellsBatchingPeriod={24}
@@ -186,15 +201,22 @@ function ClientSitesScreen({ route, navigation }) {
         <TouchableOpacity style={[styles.btnSecondary, { marginBottom: 12 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>📄 Documents</Text></TouchableOpacity>
 
         {sansAdresse > 0 ? <View style={{ backgroundColor: '#FFF8E7', borderWidth: 1, borderColor: '#F0D99B', borderRadius: 12, padding: 10, marginBottom: 14 }}><Text style={{ color: '#7A5700', fontSize: 12, fontWeight: '700' }}>{sansAdresse} site(s) sans adresse complète</Text></View> : null}
-        <View style={styles.sectionHeaderRow}><Text style={styles.sectionLabel}>Sites</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>{sites.length}</Text></View>
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 7, marginBottom: 12 }}>
+        <View style={styles.sectionHeaderRow}><Text style={styles.sectionLabel}>Sites</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>{sitesFiltres.length}/{sites.length}</Text></View>
+        <TextInput
+          style={[styles.input, { marginTop: 8, marginBottom: 8 }]}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Rechercher un site, une adresse, un lot…"
+          autoCorrect={false}
+        />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 1, marginBottom: 12 }}>
           {SITE_SORT_OPTIONS.map((option) => {
             const active = sortMode === option.id;
             return <TouchableOpacity key={option.id} onPress={() => changerTri(option.id)} style={{ minHeight: 36, paddingHorizontal: 11, borderRadius: 18, borderWidth: 1, borderColor: active ? COLORS.orange : COLORS.line, backgroundColor: active ? '#FFF3E8' : '#FFF', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 11, fontWeight: '900', color: active ? COLORS.orange : COLORS.inkSoft }}>{option.label}</Text></TouchableOpacity>;
           })}
         </View>
       </View>}
-      renderItem={({ item }) => <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => ouvrirSite(item)}>
+      renderItem={({ item }) => <TouchableOpacity style={styles.card} activeOpacity={0.7} onPressIn={() => prewarmSiteLocals(item.id).catch(() => {})} onPress={() => ouvrirSite(item)}>
         <PatrimoineThumbnail uri={item.image_uri} size={60} radius={10} />
         <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom_site}</Text>{siteGroupLabel(item.id, groupMap) ? <Text style={{ color: COLORS.primary, fontSize: 10.5, fontWeight: '800', marginTop: 2 }}>{siteGroupLabel(item.id, groupMap)}</Text> : null}{item.adresse ? <Text style={styles.cardSub}>{item.adresse}</Text> : <Text style={{ color: '#A26A00', fontSize: 12 }}>Adresse à renseigner</Text>}{item.localisation_note ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 4 }}>{item.localisation_note}</Text> : null}</View>
         <TouchableOpacity onPress={(e) => ouvrirStructure(e, item)} style={{ minHeight: 38, paddingHorizontal: 9, borderRadius: 10, borderWidth: 1, borderColor: COLORS.line, justifyContent: 'center', marginRight: 6 }}><Text style={{ color: COLORS.primary, fontSize: 10.5, fontWeight: '900' }}>Locaux Intranet</Text></TouchableOpacity>
