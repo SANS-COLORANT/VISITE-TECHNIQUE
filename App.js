@@ -82,7 +82,7 @@ function SimpleHeader({ title, onBack, visualPack, rightAction = null }) {
   return <View style={styles.simpleHeader}>
     {onBack ? <TouchableOpacity style={styles.simpleHeaderBack} onPress={onBack}><Text style={styles.simpleHeaderBackText}>←</Text></TouchableOpacity> : <View style={styles.simpleHeaderBack} />}
     <Text style={styles.simpleHeaderTitle}>{title}</Text>
-    <View style={styles.simpleHeaderBack}>{rightAction ? <TouchableOpacity onPress={rightAction.onPress} style={{ minWidth: 78, minHeight: 32, paddingHorizontal: 9, borderRadius: 16, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}><Text style={{ fontSize: 10.5, fontWeight: '900', color: COLORS.text }}>{rightAction.label}</Text></TouchableOpacity> : (uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null)}</View>
+    <View style={[styles.simpleHeaderBack, rightAction ? { width: 104, alignItems: 'flex-end' } : null]}>{rightAction ? <TouchableOpacity onPress={rightAction.onPress} style={{ minWidth: 78, minHeight: 32, paddingHorizontal: 9, borderRadius: 16, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}><Text style={{ fontSize: 10.5, fontWeight: '900', color: COLORS.text }}>{rightAction.label}</Text></TouchableOpacity> : (uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null)}</View>
   </View>;
 }
 
@@ -283,8 +283,8 @@ function PhoneModeChooser({ onChoose }) {
 }
 
 export default function App() {
-  const { width } = useWindowDimensions();
-  const phone = width < 700;
+  const { width, height } = useWindowDimensions();
+  const phone = Math.min(width, height) < 600;
   const [phoneMode, setPhoneMode] = useState(null);
 
   useEffect(() => {
