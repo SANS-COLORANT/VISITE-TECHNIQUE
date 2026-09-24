@@ -6,7 +6,7 @@ const IMPORT = 'import com.metra.companion.MetraCompanionPackage';
 const KOTLIN_TOKEN = 'PackageList(this).packages';
 const KOTLIN_WRAPPED = 'PackageList(this).packages.apply { add(MetraCompanionPackage()) }';
 const ZXING_DEP = "implementation 'com.google.zxing:core:3.5.3'";
-const CODE_SCANNER_DEP = "implementation 'com.google.android.gms:play-services-code-scanner:16.1.0'";
+const ZXING_EMBEDDED_DEP = "implementation 'com.journeyapps:zxing-android-embedded:4.3.0'";
 
 module.exports = function withMetraCompanion(config) {
   config = withDangerousMod(config, ['android', async (cfg) => {
@@ -44,7 +44,7 @@ module.exports = function withMetraCompanion(config) {
   config = withAppBuildGradle(config, (cfg) => {
     const marker = 'dependencies {';
     if (!cfg.modResults.contents.includes(marker)) throw new Error('withMetraCompanion: bloc dependencies introuvable');
-    for (const dep of [ZXING_DEP, CODE_SCANNER_DEP]) {
+    for (const dep of [ZXING_DEP, ZXING_EMBEDDED_DEP]) {
       if (!cfg.modResults.contents.includes(dep)) cfg.modResults.contents = cfg.modResults.contents.replace(marker, marker + '\n    ' + dep);
     }
     return cfg;
@@ -53,25 +53,12 @@ module.exports = function withMetraCompanion(config) {
   config = withAndroidManifest(config, (cfg) => {
     const manifest = cfg.modResults.manifest;
     manifest['uses-permission'] = manifest['uses-permission'] || [];
-    for (const name of ['android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE']) {
+    for (const name of ['android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE', 'android.permission.CAMERA']) {
       if (!manifest['uses-permission'].some((entry) => entry?.$?.['android:name'] === name)) {
         manifest['uses-permission'].push({ $: { 'android:name': name } });
       }
     }
 
-    const application = manifest.application?.[0];
-    if (application) {
-      application['meta-data'] = application['meta-data'] || [];
-      const dependencyName = 'com.google.mlkit.vision.DEPENDENCIES';
-      if (!application['meta-data'].some((entry) => entry?.$?.['android:name'] === dependencyName)) {
-        application['meta-data'].push({
-          $: {
-            'android:name': dependencyName,
-            'android:value': 'barcode_ui',
-          },
-        });
-      }
-    }
     return cfg;
   });
 
