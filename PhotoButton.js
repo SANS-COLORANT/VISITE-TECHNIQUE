@@ -1,7 +1,7 @@
 /** Capture photo native Android + stockage durable et nommage métier. */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { TouchableOpacity, Text, Alert, View, Image, Modal } from 'react-native';
+import { TouchableOpacity, Text, Alert, View, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
 import * as FileSystem from 'expo-file-system';
 import { listerPhotos, ajouterPhoto, remplacerPhoto, getVisite } from './db.js';
@@ -11,6 +11,9 @@ import { supprimerPhotoComplete } from './photoDb.js';
 import { copierPhotoDansDocuments, supprimerCopiePhotoDocuments } from './photoDocumentsStorage.js';
 import { styles } from './styles.js';
 import { confirmerPhotoJournalisee, journaliserPhotoEnAttente } from './photoPersistenceJournal.js';
+import { forgetPhotoVariants, preparePhotoVariants } from './photoVariantCache.js';
+import { PhotoVariantImage } from './PhotoVariantImage.js';
+import { beginExternalSave, endExternalSave } from './saveActivity.js';
 
 function nettoyerNomFichier(valeur = '', fallback = 'Photo') {
   const propre = String(valeur || fallback)
@@ -119,6 +122,7 @@ async function copierPhotoDurable(uriSource, visiteId, nom) {
 
 async function supprimerPhotoGeree(uri) {
   if (!uri || !FileSystem.documentDirectory || !String(uri).startsWith(`${FileSystem.documentDirectory}visite-technique/photos/`)) return;
+  forgetPhotoVariants(uri).catch(() => {});
   try { await FileSystem.deleteAsync(uri, { idempotent: true }); } catch {}
 }
 
@@ -136,6 +140,9 @@ async function preparerPhotoNommee({ visiteId, entiteKey = null, label = 'Photo'
   // La copie interne reste la source canonique pour le backup. Une seconde copie
   // est déposée dans Documents afin d'être directement visible par l'utilisateur.
   copierPhotoDansDocuments(uriDurable, nom).catch(() => null);
+  // Miniature + aperçu se génèrent en arrière-plan. L'original reste la seule
+  // source durable et n'est jamais chargé dans les listes si une variante existe.
+  preparePhotoVariants(uriDurable).catch(() => {});
   return { uri: uriDurable, nom, label: labelMetier, entiteKey: entiteCanonique };
 }
 
@@ -218,8 +225,11 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
   }, [beforeCapture, visiteId, entiteKey, label]);
 
   const ajouter = async () => {
+    let saveKey = null;
     try {
       const captureUri = await prendrePhoto(); if (!captureUri) return;
+      saveKey = `photo:${visiteId}:${Date.now()}`;
+      beginExternalSave(saveKey);
       const cible = await resoudreCible();
       const photo = await preparerPhotoNommee({ visiteId, entiteKey: cible.entiteKey, label: cible.label, uri: captureUri });
       const labelFinal = photo.label || cible.label || typePhotoDepuisEntite(cible.entiteKey);
@@ -230,8 +240,13 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       await confirmerPhotoJournalisee(journalKey).catch(() => {});
       const items = await charger(cibleKey);
       setIndex(Math.max(0, items.length - 1));
+      endExternalSave(saveKey);
+      saveKey = null;
       onPhotoSaved?.({ id: photoId, entiteKey: cibleKey, uri: photo.uri, label: labelFinal });
-    } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
+    } catch (e) {
+      if (saveKey) endExternalSave(saveKey, e);
+      Alert.alert('Erreur photo', String(e?.message || e));
+    }
   };
 
   const onPress = async () => {
@@ -292,7 +307,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       style={[styles.photoBtn, photosChargees && photos.length > 0 && styles.photoBtnTaken, estReserve && photos.length > 0 && { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8 }, style]}
       onPress={onPress}
     >
-      {estReserve && photosChargees && photos[0]?.uri ? <Image source={{ uri: photos[0].uri }} style={{ width: 44, height: 44, borderRadius: 7 }} resizeMode="cover" /> : null}
+      {estReserve && photosChargees && photos[0]?.uri ? <PhotoVariantImage uri={photos[0].uri} variant="thumb" style={{ width: 44, height: 44, borderRadius: 7 }} resizeMode="cover" /> : null}
       <Text style={[styles.photoBtnText, photosChargees && photos.length > 0 && styles.photoBtnTextTaken]}>{photosChargees && photos.length > 0 ? `👁 ${photos.length} photo${photos.length > 1 ? 's' : ''}` : '📷 Photo'}</Text>
     </TouchableOpacity>
     <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
@@ -301,7 +316,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
           <Text style={styles.photoViewerTitle}>{label || 'Photo'} · {index + 1}/{photos.length}</Text>
           <TouchableOpacity onPress={() => setViewerVisible(false)}><Text style={styles.photoViewerClose}>✕</Text></TouchableOpacity>
         </View>
-        {photos[index] && <Image source={{ uri: photos[index].uri }} style={styles.photoViewerImage} resizeMode="contain" />}
+        {photos[index] && <PhotoVariantImage uri={photos[index].uri} variant="preview" style={styles.photoViewerImage} resizeMode="contain" />}
         {photos.length > 1 && (
           <View style={styles.photoViewerNav}>
             <TouchableOpacity style={styles.photoViewerNavBtn} onPress={() => setIndex((index - 1 + photos.length) % photos.length)}><Text style={styles.photoViewerNavText}>‹ Précédente</Text></TouchableOpacity>
