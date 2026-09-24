@@ -12,6 +12,8 @@ import {
   subscribeCompanion,
 } from './companionNative.js';
 import { parseCompanionQrPayload } from './companionProtocol.js';
+import { isOfflineClientQr } from './companionOfflineQr.js';
+import { getPhoneQrBatch, listPhoneQrBatches, savePhoneOfflineQrFrame } from './companionQrArchive.js';
 import { enqueueCompanionPhoto, listCompanionOutbox, removeCompanionOutboxItem } from './companionOutbox.js';
 import { COLORS } from './styles.js';
 import { prewarmCameraRuntime } from './cameraRuntime.js';
@@ -188,6 +190,7 @@ function CompanionPhoneScreen({ onExit }) {
   const [busyTarget, setBusyTarget] = useState(null);
   const [busyVisitId, setBusyVisitId] = useState(null);
   const [pending, setPending] = useState(0);
+  const [savedQrClients, setSavedQrClients] = useState([]);
   const connectedRef = useRef(false);
   const connectionRef = useRef(null);
 
@@ -204,6 +207,28 @@ function CompanionPhoneScreen({ onExit }) {
     const items = await listCompanionOutbox();
     setPending(items.length);
     return items;
+  }, []);
+
+  const refreshSavedQrClients = useCallback(async () => {
+    const items = await listPhoneQrBatches();
+    setSavedQrClients(items || []);
+    return items || [];
+  }, []);
+
+  const openSavedQrClient = useCallback(async (batchId) => {
+    const saved = await getPhoneQrBatch(batchId);
+    if (!saved?.snapshot) return;
+    connectedRef.current = false;
+    connectionRef.current = null;
+    setClientSnapshot(saved.snapshot);
+    setSnapshot(saved.snapshot);
+    setSelectedSiteId(null);
+    setSelectedModuleId(null);
+    setPhase('offline');
+    const progress = saved.snapshot.offlineProgress;
+    setStatus(progress?.complete
+      ? 'Client QR disponible hors connexion'
+      : `${progress?.scanned || 0}/${progress?.total || 0} QR enregistrés · reprise possible`);
   }, []);
 
   const flushOutbox = useCallback(async (allowedVisitIds = null) => {
@@ -224,6 +249,7 @@ function CompanionPhoneScreen({ onExit }) {
   useEffect(() => {
     prewarmCameraRuntime().catch(() => {});
     refreshPending().catch(() => {});
+    refreshSavedQrClients().catch(() => {});
 
     if (!nativeAvailable) return undefined;
 
@@ -286,7 +312,48 @@ function CompanionPhoneScreen({ onExit }) {
     });
 
     return () => unsubscribe();
-  }, [flushOutbox, refreshPending, nativeAvailable]);
+  }, [flushOutbox, refreshPending, refreshSavedQrClients, nativeAvailable]);
+
+  const scanOfflineSequence = useCallback(async (firstRaw) => {
+    let raw = firstRaw || '';
+    if (!raw) {
+      raw = await withTimeout(
+        decodeCompanionQr(),
+        45000,
+        'Le scanner QR ne répond pas. Ferme puis réessaie.'
+      );
+    }
+
+    while (raw) {
+      if (!isOfflineClientQr(raw)) {
+        Alert.alert('QR différent', 'Ce QR ne fait pas partie d’un lot client MÉTRA hors connexion.');
+        break;
+      }
+
+      const saved = await savePhoneOfflineQrFrame(raw);
+      connectedRef.current = false;
+      connectionRef.current = null;
+      setClientSnapshot(saved.snapshot);
+      setSnapshot(saved.snapshot);
+      setSelectedSiteId(null);
+      setSelectedModuleId(null);
+      setPhase('offline');
+
+      const progress = saved.snapshot?.offlineProgress || {};
+      setStatus(progress.complete
+        ? `Client enregistré · ${saved.snapshot?.counts?.sites || 0} sites`
+        : `${progress.scanned || 0}/${progress.total || 0} QR enregistrés · scanner le suivant`);
+      await refreshSavedQrClients();
+
+      if (progress.complete) break;
+
+      raw = await withTimeout(
+        decodeCompanionQr(),
+        45000,
+        'Le scanner QR ne répond pas. Tu pourras reprendre plus tard depuis ce client.'
+      );
+    }
+  }, [refreshSavedQrClients]);
 
   const scan = useCallback(async () => {
     if (!nativeAvailable) {
@@ -305,8 +372,13 @@ function CompanionPhoneScreen({ onExit }) {
         'Le scanner QR ne répond pas. Ferme puis réessaie, ou vérifie les services Google Play.'
       );
       if (!raw) {
-        setPhase('idle');
-        setStatus('Scan annulé');
+        setPhase(snapshot?.offlineQr ? 'offline' : 'idle');
+        setStatus(snapshot?.offlineQr ? 'Scan interrompu · progression conservée' : 'Scan annulé');
+        return;
+      }
+
+      if (isOfflineClientQr(raw)) {
+        await scanOfflineSequence(raw);
         return;
       }
 
@@ -320,14 +392,14 @@ function CompanionPhoneScreen({ onExit }) {
       await withTimeout(
         connectCompanion(connection),
         9000,
-        'La tablette ne répond pas. Vérifie que les deux appareils sont sur le même réseau Wi‑Fi.'
+        'La tablette ne répond pas. Vérifie que les deux appareils sont sur le même réseau Wi-Fi.'
       );
     } catch (e) {
-      setPhase('idle');
-      setStatus('Connexion non établie');
-      Alert.alert('Connexion impossible', String(e?.message || e));
+      setPhase(snapshot?.offlineQr ? 'offline' : 'idle');
+      setStatus(snapshot?.offlineQr ? 'Scan interrompu · progression conservée' : 'Connexion non établie');
+      Alert.alert(snapshot?.offlineQr ? 'Scan interrompu' : 'Connexion impossible', String(e?.message || e));
     }
-  }, [nativeAvailable, phase]);
+  }, [nativeAvailable, phase, scanOfflineSequence, snapshot?.offlineQr]);
 
   const reconnect = useCallback(async () => {
     const connection = connectionRef.current;
@@ -350,6 +422,13 @@ function CompanionPhoneScreen({ onExit }) {
 
   const selectVisit = useCallback(async (visit) => {
     if (!visit?.id || busyVisitId) return;
+    if (snapshot?.offlineQr && !connectedRef.current) {
+      Alert.alert(
+        'Visite hors connexion',
+        'Le lot QR conserve le client, les sites, locaux et références de visites. Pour ouvrir les modules détaillés de la visite et envoyer des photos, associe ensuite la tablette en mode Compagnon.'
+      );
+      return;
+    }
     setBusyVisitId(visit.id);
     setStatus('Ouverture de la visite…');
     try {
@@ -363,7 +442,7 @@ function CompanionPhoneScreen({ onExit }) {
       setStatus('Visite non ouverte');
       Alert.alert('Visite indisponible', String(e?.message || e));
     }
-  }, [busyVisitId]);
+  }, [busyVisitId, snapshot?.offlineQr]);
 
   const backToClient = useCallback(async () => {
     if (!clientSnapshot) return;
@@ -497,6 +576,18 @@ function CompanionPhoneScreen({ onExit }) {
           <Text style={{ marginTop: 10, color: COLORS.inkSoft, fontSize: 11.5 }}>
             {snapshot.counts?.sites || 0} sites · {snapshot.counts?.locals || 0} locaux · {snapshot.counts?.visits || 0} visites
           </Text>
+          {snapshot.offlineQr ? (
+            <TouchableOpacity
+              onPress={scan}
+              style={{ marginTop: 9, alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 7, borderRadius: 14, backgroundColor: light, borderWidth: 1, borderColor: accent }}
+            >
+              <Text style={{ color: accent, fontSize: 11.5, fontWeight: '900' }}>
+                {snapshot.offlineProgress?.complete
+                  ? `Lot QR complet · ${snapshot.offlineProgress?.total || 0}/${snapshot.offlineProgress?.total || 0}`
+                  : `Continuer le scan · ${snapshot.offlineProgress?.scanned || 0}/${snapshot.offlineProgress?.total || 0}`}
+              </Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
         <FlatList
           data={snapshot.sites || []}
@@ -548,6 +639,36 @@ function CompanionPhoneScreen({ onExit }) {
             {(phase === 'scanning' || phase === 'connecting') ? <Text style={{ marginTop: 10, color: COLORS.inkSoft, fontSize: 11.5, textAlign: 'center' }}>{phase === 'scanning' ? 'Scanner ouvert · tu peux annuler avec Retour' : 'Connexion locale en cours…'}</Text> : null}
             {pending > 0 ? <Text style={{ marginTop: 14, color: accent, fontWeight: '800', fontSize: 12 }}>{pending} photo{pending > 1 ? 's' : ''} conservée{pending > 1 ? 's' : ''} en attente d'une tablette</Text> : null}
           </View>
+          {savedQrClients.length ? (
+            <View style={{ marginTop: 16 }}>
+              <Text style={{ color: COLORS.ink, fontSize: 13.5, fontWeight: '900', marginBottom: 8 }}>Clients QR enregistrés</Text>
+              {savedQrClients.map((item) => (
+                <View key={item.batchId} style={{ padding: 13, borderRadius: 15, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, marginBottom: 8 }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ color: COLORS.ink, fontSize: 14, fontWeight: '900' }}>{item.clientName || 'Client'}</Text>
+                      <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 11.5 }}>
+                        {item.scanned || 0}/{item.totalFrames || 0} QR · {item.complete ? 'complet' : 'à poursuivre'}
+                      </Text>
+                    </View>
+                    <View style={{ paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: light }}>
+                      <Text style={{ color: accent, fontSize: 10.5, fontWeight: '900' }}>{item.complete ? 'HORS LIGNE' : 'EN COURS'}</Text>
+                    </View>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
+                    <TouchableOpacity onPress={() => openSavedQrClient(item.batchId)} style={{ flex: 1, minHeight: 42, borderRadius: 12, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center' }}>
+                      <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 11.5 }}>Ouvrir</Text>
+                    </TouchableOpacity>
+                    {!item.complete ? (
+                      <TouchableOpacity onPress={async () => { await openSavedQrClient(item.batchId); await scan(); }} style={{ flex: 1, minHeight: 42, borderRadius: 12, backgroundColor: accent, alignItems: 'center', justifyContent: 'center' }}>
+                        <Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 11.5 }}>Continuer le scan</Text>
+                      </TouchableOpacity>
+                    ) : null}
+                  </View>
+                </View>
+              ))}
+            </View>
+          ) : null}
         ) : isVisitSnapshot ? (
           <>
             <View style={{ padding: 14, borderRadius: 16, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, marginBottom: 12 }}>
