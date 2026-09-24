@@ -8,7 +8,7 @@ import com.facebook.react.bridge.ReactApplicationContext
 import com.facebook.react.bridge.ReactContextBaseJavaModule
 import com.facebook.react.bridge.ReactMethod
 import com.facebook.react.modules.core.DeviceEventManagerModule
-import com.google.android.gms.codescanner.GmsBarcodeScanning
+import com.google.mlkit.vision.codescanner.GmsBarcodeScanning
 import com.google.zxing.BarcodeFormat
 import com.google.zxing.qrcode.QRCodeWriter
 import org.json.JSONObject
@@ -23,6 +23,7 @@ import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
 import java.nio.charset.StandardCharsets
+import java.util.Collections
 import java.util.UUID
 import java.util.concurrent.Executors
 
@@ -56,10 +57,11 @@ class MetraCompanionModule(private val context: ReactApplicationContext) : React
   }
 
   private fun localIpv4(): String {
-    val interfaces = NetworkInterface.getNetworkInterfaces()?.toList() ?: emptyList()
+    val enumeration = NetworkInterface.getNetworkInterfaces() ?: return "127.0.0.1"
+    val interfaces = Collections.list(enumeration)
     for (network in interfaces) {
       if (!network.isUp || network.isLoopback) continue
-      for (address in network.inetAddresses.toList()) {
+      for (address in Collections.list(network.inetAddresses)) {
         if (address is Inet4Address && !address.isLoopbackAddress && address.isSiteLocalAddress) {
           return address.hostAddress ?: continue
         }
