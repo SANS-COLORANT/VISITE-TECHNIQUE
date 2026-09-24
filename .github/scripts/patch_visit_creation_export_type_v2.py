@@ -47,7 +47,8 @@ if 'apiRemoteLocalId' not in site or (creation_call_legacy not in site and creat
 if 'preremplirVisiteDepuisContexte' in site:
     raise SystemExit('Site visit screen still contains blocking direct prefill')
 if ("import { listerVisitesSite, getDb } from './db.js';" not in site
-        and "import { listerVisitesSite, listerVisitesLocal, getDb } from './db.js';" not in site):
+        and "import { listerVisitesSite, listerVisitesLocal, getDb } from './db.js';" not in site
+        and "import { listerVisitesSite, listerVisitesLocal, getDb, getVisite } from './db.js';" not in site):
     raise SystemExit('SiteVisites must keep getDb/local visit repository for imported-client state')
 site_path.write_text(site, encoding='utf-8')
 
@@ -101,6 +102,8 @@ new_helper = """    if old not in text:
         if label == 'skip unused PRE equipment query' and 'contexte.installation_id' in text and "if (trame.id !== 'pre_allumage')" in text:
             return text
         if label == 'navigate immediately after visit creation' and 'apiRemoteLocalId' in text and ('creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId })' in text or 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId, installationId })' in text) and 'preremplirVisiteDepuisContexte' not in text:
+            return text
+        if label == 'site Pressable import' and "InteractionManager } from 'react-native';" in text:
             return text
         raise SystemExit(f'{label}: marker not found')
 """
@@ -164,7 +167,8 @@ if 'apiRemoteLocalId' not in site_final or (creation_call_legacy not in site_fin
 if 'preremplirVisiteDepuisContexte' in site_final:
     raise SystemExit('Direct blocking prefill reintroduced in SiteVisites')
 if ("import { listerVisitesSite, getDb } from './db.js';" not in site_final
-        and "import { listerVisitesSite, listerVisitesLocal, getDb } from './db.js';" not in site_final):
+        and "import { listerVisitesSite, listerVisitesLocal, getDb } from './db.js';" not in site_final
+        and "import { listerVisitesSite, listerVisitesLocal, getDb, getVisite } from './db.js';" not in site_final):
     raise SystemExit('SiteVisites lost getDb/local visit repository while imported-client status still needs it')
 if 'void Promise.allSettled([' not in creation_final or 'pinPhotoReferencesForVisit(id)' not in creation_final:
     raise SystemExit('Visit creation lost its non-blocking photo/storage preparation')
