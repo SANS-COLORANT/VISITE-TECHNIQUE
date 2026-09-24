@@ -68,7 +68,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
     notifier({ avis: avisCourant, commentaire: texte });
   }, [visiteId, sectionCode, field, label, trameLabel, controleKey, remarque, notifier]);
 
-  const [commentaire, setCommentaire, flushCommentaire] = useDurableAutosave(
+  const [commentaire, setCommentaire, flushCommentaire, , adopterCommentairePersiste] = useDurableAutosave(
     etatInitial?.commentaire || '',
     persisterCommentaire,
     320
@@ -111,8 +111,9 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
       await supprimerRemarqueControle(visiteId, controleKey);
       setRemarque(null);
     }
+    adopterCommentairePersiste(texte);
     notifier({ avis: val, commentaire: texte });
-  }, [visiteId, sectionCode, field, label, trameLabel, controleKey, notifier, setCommentaire, onEtatChange]);
+  }, [visiteId, sectionCode, field, label, trameLabel, controleKey, notifier, setCommentaire, adopterCommentairePersiste, onEtatChange]);
 
   const choisirAvis = useCallback(async (val) => {
     if (val === avis) return;
@@ -136,8 +137,9 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
       await supprimerRemarqueControle(visiteId, controleKey);
       setRemarque(null);
     }
+    adopterCommentairePersiste('');
     notifier({ avis: val, commentaire: '' });
-  }, [avis, presets, appliquerPreset, visiteId, sectionCode, field, label, trameLabel, controleKey, notifier, setCommentaire, onEtatChange]);
+  }, [avis, presets, appliquerPreset, visiteId, sectionCode, field, label, trameLabel, controleKey, notifier, setCommentaire, adopterCommentairePersiste, onEtatChange]);
 
   const choisirPreset = useCallback(async (opt, idx) => appliquerPreset(avis, opt, idx), [avis, appliquerPreset]);
 
