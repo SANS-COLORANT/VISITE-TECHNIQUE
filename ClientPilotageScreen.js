@@ -246,12 +246,9 @@ export function ClientPilotageScreen({ route, navigation }) {
 
     <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: COLORS.line, backgroundColor: '#fff' }}>
       <View style={{ paddingHorizontal: 14, paddingTop: 12 }}><Text style={styles.sectionLabel}>Cartographie technique</Text><Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 3 }}>Chaque constat est classé dans une seule catégorie. Rouge = criticité 4–5 · orange = N.S · gris = non relevé/non visible.</Text></View>
-      {visibleCategories.length && sites.length ? <ScrollView horizontal contentContainerStyle={{ padding: 8 }}>
-        <View>
-          <View style={{ flexDirection: 'row' }}><View style={{ width: 180, padding: 8 }}><Text style={{ fontWeight: '900' }}>Sites</Text></View>{visibleCategories.map((c) => <View key={c.key} style={{ width: 98, padding: 6, justifyContent: 'center' }}><Text style={{ textAlign: 'center', fontSize: 10, fontWeight: '800' }}>{c.label}</Text></View>)}</View>
-          {sites.map((site) => <View key={site.id} style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: COLORS.line, alignItems: 'center' }}><TouchableOpacity onPress={() => navigation.navigate('SiteLocals', { siteId: site.id, nomSite: site.nom_site, clientId, nomClient })} style={{ width: 180, padding: 9 }}><Text style={{ fontWeight: '800', color: COLORS.primary }}>{site.nom_site}</Text><Text style={{ fontSize: 9.5, color: COLORS.muted }} numberOfLines={2}>{site.adresse || 'Adresse non renseignée'}</Text></TouchableOpacity>{visibleCategories.map((c) => <Cell key={c.key} cell={site.cells[c.key] || { total: 0, state: 'none' }} onPress={() => openCell(site, c, site.cells[c.key])}/>)}</View>)}
-        </View>
-      </ScrollView> : <View style={{ padding: 20 }}><Text style={{ color: COLORS.muted, textAlign: 'center' }}>Aucun constat ne correspond aux filtres.</Text></View>}
+      {visibleCategories.length && sites.length
+        ? <VirtualizedTechnicalMatrix sites={sites} categories={visibleCategories} navigation={navigation} clientId={clientId} nomClient={nomClient} openCell={openCell} />
+        : <View style={{ padding: 20 }}><Text style={{ color: COLORS.muted, textAlign: 'center' }}>Aucun constat ne correspond aux filtres.</Text></View>}
     </View>
 
     <View style={{ padding: 14 }}>
