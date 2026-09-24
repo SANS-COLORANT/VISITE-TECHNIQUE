@@ -83,10 +83,10 @@ export function setNavigationScrollOffset(key, offset) {
   if (!id) return;
   const value = Number(offset || 0);
   const next = Number.isFinite(value) && value > 0 ? value : 0;
-  const previous = Number(states.get(id)?.scrollY || 0);
-  // Evite de salir SQLite pour quelques pixels de déplacement.
-  const persist = Math.abs(next - previous) >= 24 || next === 0;
-  setNavigationState(id, { scrollY: next }, { persist });
+  // Chaque événement remplace seulement la valeur mémoire et marque la même
+  // clé dirty. Le timer unique (1,2 s) coalesce donc tout un geste de scroll
+  // en une seule écriture SQLite avec la position la plus récente.
+  setNavigationState(id, { scrollY: next }, { persist: true });
 }
 
 export async function hydrateNavigationState(key) {
