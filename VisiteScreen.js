@@ -16,6 +16,7 @@ import { OptimizedRemarksPanel } from './OptimizedRemarksPanel.js';
 import { TrameGenericPanel, prechargerDonneesTrameGenerique, invaliderCacheTrameGenerique } from './TrameGenericPanel.js';
 import { VmcCaissonManager, chargerCaissonsVmc } from './VmcCaissonManager.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
+import { CompanionTabletModal } from './CompanionTabletModal.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function chargerExcelExportModule(){return require('./excelExport.js');}
@@ -78,6 +79,7 @@ function VisiteScreen({ route, onBack }) {
   const [noteTxt, setNoteTxt] = useState('');
   const [anomalieVisible, setAnomalieVisible] = useState(false);
   const [anomalieTxt, setAnomalieTxt] = useState('');
+  const [companionVisible, setCompanionVisible] = useState(false);
 
   const trame = obtenirTrame(visite?.trame_id || DEFAULT_TRAME_ID);
   trameIdRef.current = trame.id;
@@ -501,6 +503,7 @@ function VisiteScreen({ route, onBack }) {
             <Text style={styles.cardTitle}>{visite.nom_site}</Text>
             <Text style={styles.cardSub}>{visite.nom_client} · {visite.date_visite} · {trame.nom} · {visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'}</Text>
           </View>
+          {modeTablette ? <TouchableOpacity style={styles.noteBtn} onPress={() => setCompanionVisible(true)}><Text style={styles.noteBtnText}>Téléphone</Text></TouchableOpacity> : null}
           <TouchableOpacity style={styles.noteBtn} onPress={ouvrirNote}><Text style={styles.noteBtnText}>Note libre</Text></TouchableOpacity>
           {trame.id === 'pre_allumage' ? <TouchableOpacity style={styles.noteBtn} onPress={choisirFormatRapportPreAllumage} disabled={reportExporting}><Text style={styles.noteBtnText}>{reportExporting ? 'Rapport…' : 'PDF / Word'}</Text></TouchableOpacity> : null}
           <TouchableOpacity style={styles.exportBtn} onPress={exporter} disabled={exporting}><Text style={styles.exportBtnText}>{exporting ? '...' : `Excel ${trame.nom}`}</Text></TouchableOpacity>
@@ -530,6 +533,7 @@ function VisiteScreen({ route, onBack }) {
         <TextInput style={[styles.input, { height: 160, textAlignVertical: 'top' }]} multiline value={noteTxt} onChangeText={onChangeNoteTxt} placeholder="Notes générales sur la visite..." />
         <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
       </View></View></Modal>
+      <CompanionTabletModal visible={companionVisible} visiteId={visiteId} onClose={() => setCompanionVisible(false)} />
       <Modal visible={anomalieVisible} transparent animationType="fade" onRequestClose={() => setAnomalieVisible(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Ajouter une anomalie</Text><Text style={styles.importHint}>Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.</Text>
         <TextInput style={[styles.input, { minHeight: 100, marginTop: 12, textAlignVertical: 'top' }]} multiline autoFocus value={anomalieTxt} onChangeText={setAnomalieTxt} placeholder="Ex. Pompe défaillante, température de départ trop basse…" />
