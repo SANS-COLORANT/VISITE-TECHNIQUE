@@ -161,7 +161,7 @@ async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
     const existing = await db.getFirstAsync(`SELECT value FROM _meta WHERE key=?`, [`companion_transfer_${transferId}`]);
     if (existing?.value) {
       const photo = await db.getFirstAsync(`SELECT * FROM photos WHERE id=? LIMIT 1`, [existing.value]);
-      if (String(uri).startsWith(FileSystem.cacheDirectory || '')) FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+      if (Boolean(FileSystem.cacheDirectory) && String(uri).startsWith(FileSystem.cacheDirectory)) FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
       if (photo?.id) return { id: photo.id, uri: photo.uri, entiteKey: photo.entite_key, label: clean(photo.label).split('||')[0] || clean(meta?.label) || 'Photo téléphone', duplicate: true };
     }
   }
@@ -178,7 +178,7 @@ async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
       [`companion_transfer_${transferId}`, photoId]
     );
   }
-  if (String(uri).startsWith(FileSystem.cacheDirectory || '')) {
+  if (Boolean(FileSystem.cacheDirectory) && String(uri).startsWith(FileSystem.cacheDirectory)) {
     FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
   }
   return { id: photoId, uri: prepared.uri, entiteKey: prepared.entiteKey || entiteKey, label: prepared.label || label };
