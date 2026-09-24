@@ -4,20 +4,21 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView, InteractionManager } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
-import { listerVisitesSite, listerVisitesLocal, getDb, getVisite } from './db.js';
+import { getVisite } from './db.js';
 import { creerVisiteProduction } from './visitCreationDb.js';
 import { supprimerVisiteComplete } from './entityManagementDb.js';
-import { getSiteLocalisation } from './siteGeoDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
 import { listerTramesDisponibles, obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { SiteOverviewPanel } from './SiteOverviewPanel.js';
 import { exporterVisitesExcelEnLot } from './batchExcel.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
-import { getNavigationScrollOffset, setNavigationScrollOffset } from './navigationMemory.js';
+import { getNavigationScrollOffset, getNavigationState, hydrateNavigationState, setNavigationScrollOffset, setNavigationState } from './navigationMemory.js';
 import { prechargerDonneesTrameGenerique } from './TrameGenericPanel.js';
 import { prechargerRegulation } from './OptimizedRegulationPanel.js';
 import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
+import { peekLocalVisits, prewarmLocalVisits } from './navigationPrewarm.js';
+import { forgetVisitRuntime, markVisitHot, markVisitWarm } from './visitRuntimeCache.js';
 
 const STATUT_LABELS = { en_cours: 'En cours', terminee: 'Terminée', a_completer: 'À compléter', exportee: 'Exportée' };
 const SITE_TABS = [
@@ -52,9 +53,11 @@ function SiteVisitesScreen({ route, navigation }) {
   const nomLocal = params.nomLocal || apiRemoteLocalDesignation || null;
   const apiRemoteTrame = apiRemoteLocalId ? { id: params.apiRemoteTrameId || null, nom: params.apiRemoteTrameNom || null } : null;
   const apiSuggestedTrameId = mapRemoteTrameToLocal(apiRemoteTrame);
-  const [visites, setVisites] = useState([]);
-  const [site, setSite] = useState(null);
-  const [siteTab, setSiteTab] = useState('visites');
+  const initialBundle = peekLocalVisits(siteId, installationId, legacyOnly);
+  const [visites, setVisites] = useState(() => initialBundle?.visits || []);
+  const [site, setSite] = useState(() => initialBundle?.site || null);
+  const scrollKey = `site-visits:${String(siteId || '')}:${String(installationId || (legacyOnly ? 'legacy' : 'site'))}`;
+  const [siteTab, setSiteTab] = useState(() => getNavigationState(scrollKey)?.siteTab || 'visites');
   const [choixModeVisible, setChoixModeVisible] = useState(false);
   const [trameChoisie, setTrameChoisie] = useState(() => apiRemoteLocalId ? apiSuggestedTrameId : DEFAULT_TRAME_ID);
   const [creationEnCours, setCreationEnCours] = useState(false);
@@ -67,10 +70,9 @@ function SiteVisitesScreen({ route, navigation }) {
   const [selectionExport, setSelectionExport] = useState(false);
   const [visitesSelectionnees, setVisitesSelectionnees] = useState(() => new Set());
   const [exportLotEnCours, setExportLotEnCours] = useState(false);
-  const [intranetClientImported, setIntranetClientImported] = useState(false);
+  const [intranetClientImported, setIntranetClientImported] = useState(() => Boolean(initialBundle?.intranetClientImported));
   const autoOpenHandled = useRef(false);
   const listRef = useRef(null);
-  const scrollKey = `site-visits:${String(siteId || '')}:${String(installationId || (legacyOnly ? 'legacy' : 'site'))}`;
   const tramesDisponibles = listerTramesDisponibles();
 
   const construirePreview = useCallback((visite = {}) => ({
@@ -90,23 +92,21 @@ function SiteVisitesScreen({ route, navigation }) {
       prechargerDonneesTrameGenerique(id, force),
       prechargerRegulation(id, force),
     ]);
-    return construirePreview(visite || (typeof visiteOuId === 'object' ? visiteOuId : { id }));
+    const preview = construirePreview(visite || (typeof visiteOuId === 'object' ? visiteOuId : { id }));
+    markVisitHot(id, { preview });
+    return preview;
   }, [construirePreview]);
 
   const charger = useCallback(async () => {
-    const visitesPromise = legacyOnly
-      ? listerVisitesLocal(siteId, null, { legacyOnly: true })
-      : installationId
-        ? listerVisitesLocal(siteId, installationId)
-        : listerVisitesSite(siteId);
-    const [v, s] = await Promise.all([visitesPromise, getSiteLocalisation(siteId)]);
+    const bundle = await prewarmLocalVisits({ siteId, installationId, legacyOnly, force: true });
+    const v = bundle?.visits || [];
+    const s = bundle?.site || null;
     setVisites(v);
     setSite(s);
-    const database = await getDb();
-    const importedClient = s?.client_id
-      ? await database.getFirstAsync(`SELECT remote_client_id FROM api_client_links WHERE local_client_id=? LIMIT 1`, [s.client_id])
-      : null;
-    setIntranetClientImported(Boolean(importedClient?.remote_client_id));
+    setIntranetClientImported(Boolean(bundle?.intranetClientImported));
+    for (const visite of v.slice(0, 12)) {
+      markVisitWarm(visite.id, { preview: construirePreview(visite) });
+    }
     if (s) {
       const morceaux = decomposerAdresse(s.adresse || '');
       setAdresseRue(morceaux.rue);
@@ -114,9 +114,21 @@ function SiteVisitesScreen({ route, navigation }) {
       setCodePostal(morceaux.codePostal);
       setNote(s.localisation_note || '');
     }
-  }, [siteId, installationId, legacyOnly]);
+    return bundle;
+  }, [siteId, installationId, legacyOnly, construirePreview]);
 
-  useEffect(() => { charger(); }, [charger]);
+  useEffect(() => { charger().catch((e) => console.warn('Actualisation visites impossible', e)); }, [charger]);
+
+  useEffect(() => {
+    let alive = true;
+    hydrateNavigationState(scrollKey).then((state) => {
+      if (!alive || !state) return;
+      if (SITE_TABS.some((tab) => tab.id === state.siteTab)) setSiteTab(state.siteTab);
+      const offset = Number(state.scrollY || 0);
+      if (offset) setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [scrollKey]);
 
   useEffect(() => {
     if (!visites.length) return undefined;
@@ -197,6 +209,7 @@ function SiteVisitesScreen({ route, navigation }) {
         progression_pct: 0,
       });
       const visitePreview = await prechaufferVisite(visiteId, true).catch(() => previewBase);
+      markVisitHot(visiteId, { preview: visitePreview || previewBase });
       setChoixModeVisible(false);
       navigation.navigate('Visite', { visiteId, visitePreview: visitePreview || previewBase });
     } catch (e) {
@@ -213,7 +226,7 @@ function SiteVisitesScreen({ route, navigation }) {
       [
         { text: 'Annuler', style: 'cancel' },
         { text: 'Supprimer', style: 'destructive', onPress: async () => {
-          try { await supprimerVisiteComplete(visite.id); await charger(); }
+          try { await supprimerVisiteComplete(visite.id); forgetVisitRuntime(visite.id); await charger(); }
           catch (e) { Alert.alert('Suppression impossible', String(e.message || e)); }
         } },
       ]
@@ -349,7 +362,7 @@ function SiteVisitesScreen({ route, navigation }) {
       {SITE_TABS.map((tab) => {
         const actif = siteTab === tab.id;
         return (
-          <TouchableOpacity key={tab.id} onPress={() => { setSiteTab(tab.id); if (tab.id !== 'visites') annulerSelectionExport(); }} style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: actif ? COLORS.orange : COLORS.line, backgroundColor: actif ? COLORS.orangeLight : COLORS.white }}>
+          <TouchableOpacity key={tab.id} onPress={() => { setSiteTab(tab.id); setNavigationState(scrollKey, { siteTab: tab.id }); if (tab.id !== 'visites') annulerSelectionExport(); }} style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: actif ? COLORS.orange : COLORS.line, backgroundColor: actif ? COLORS.orangeLight : COLORS.white }}>
             <Text style={{ color: actif ? COLORS.orangeDark : COLORS.inkSoft, fontWeight: actif ? '800' : '600', fontSize: 12.5 }}>{tab.label}</Text>
           </TouchableOpacity>
         );
@@ -388,7 +401,12 @@ function SiteVisitesScreen({ route, navigation }) {
               style={[styles.card, selectionExport && selectionnee ? { borderWidth: 2, borderColor: COLORS.primary } : null]}
               activeOpacity={0.7}
               onPressIn={() => { if (!selectionExport) prechaufferVisite(item).catch(() => {}); }}
-              onPress={() => selectionExport ? basculerSelection(item.id) : navigation.navigate('Visite', { visiteId: item.id, visitePreview: construirePreview(item) })}
+              onPress={() => {
+                if (selectionExport) return basculerSelection(item.id);
+                const preview = construirePreview(item);
+                markVisitHot(item.id, { preview });
+                navigation.navigate('Visite', { visiteId: item.id, visitePreview: preview });
+              }}
             >
               {selectionExport ? <View style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: selectionnee ? COLORS.primary : COLORS.line, backgroundColor: selectionnee ? COLORS.primary : '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}><Text style={{ color: '#fff', fontWeight: '900' }}>{selectionnee ? '✓' : ''}</Text></View> : null}
               <View style={{ flex: 1 }}>
