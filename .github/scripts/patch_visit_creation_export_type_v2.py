@@ -12,6 +12,11 @@ site = site.replace(
     "import { View, Text, FlatList, TouchableOpacity, Modal, Pressable, TextInput, Alert, Linking, ScrollView } from 'react-native';",
     1,
 )
+site = site.replace(
+    "import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView, InteractionManager } from 'react-native';",
+    "import { View, Text, FlatList, TouchableOpacity, Modal, Pressable, TextInput, Alert, Linking, ScrollView, InteractionManager } from 'react-native';",
+    1,
+)
 # getDb reste nécessaire pour déterminer localement si le client courant est
 # déjà matérialisé depuis l'Intranet. Une ancienne version de ce patch retirait
 # cet import tout en laissant son appel dans charger(), ce qui provoquait
