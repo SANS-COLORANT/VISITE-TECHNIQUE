@@ -50,6 +50,37 @@ function Chip({ label, active, onPress, danger = false }) {
   return <TouchableOpacity onPress={onPress} style={{ minHeight: 38, paddingHorizontal: 11, borderRadius: 10, borderWidth: 1, borderColor: active ? (danger ? '#B42318' : COLORS.orange) : COLORS.line, backgroundColor: active ? (danger ? '#FDECEC' : '#FFF3E8') : '#fff', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 10.5, fontWeight: '800', color: active ? (danger ? '#B42318' : COLORS.orange) : COLORS.inkSoft }}>{label}</Text></TouchableOpacity>;
 }
 
+function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, nomClient, openCell }) {
+  const tableWidth = Math.max(280, 180 + categories.length * 98);
+  return <View style={{ height: 540 }}>
+    <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator>
+      <View style={{ width: tableWidth, flex: 1 }}>
+        <View style={{ flexDirection: 'row', backgroundColor: '#FFF' }}>
+          <View style={{ width: 180, padding: 8 }}><Text style={{ fontWeight: '900' }}>Sites</Text></View>
+          {categories.map((category) => <View key={category.key} style={{ width: 98, padding: 6, justifyContent: 'center' }}><Text style={{ textAlign: 'center', fontSize: 10, fontWeight: '800' }}>{category.label}</Text></View>)}
+        </View>
+        <FlatList
+          data={sites}
+          keyExtractor={(site) => site.id}
+          nestedScrollEnabled
+          initialNumToRender={10}
+          maxToRenderPerBatch={8}
+          windowSize={7}
+          updateCellsBatchingPeriod={36}
+          removeClippedSubviews
+          renderItem={({ item: site }) => <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: COLORS.line, alignItems: 'center', backgroundColor: '#FFF' }}>
+            <TouchableOpacity onPressIn={() => prewarmSiteLocals(site.id).catch(() => {})} onPress={() => navigation.navigate('SiteLocals', { siteId: site.id, nomSite: site.nom_site, clientId, nomClient })} style={{ width: 180, minHeight: 62, padding: 9, justifyContent: 'center' }}>
+              <Text style={{ fontWeight: '800', color: COLORS.primary }}>{site.nom_site}</Text>
+              <Text style={{ fontSize: 9.5, color: COLORS.muted }} numberOfLines={2}>{site.adresse || 'Adresse non renseignée'}</Text>
+            </TouchableOpacity>
+            {categories.map((category) => <Cell key={category.key} cell={site.cells[category.key] || { total: 0, state: 'none' }} onPress={() => openCell(site, category, site.cells[category.key])}/>)}
+          </View>}
+        />
+      </View>
+    </ScrollView>
+  </View>;
+}
+
 function recordMatches(record, site, filters) {
   const avis = normAvis(record.avis);
   if (filters.trame !== 'all' && record.trame_id !== filters.trame) return false;
