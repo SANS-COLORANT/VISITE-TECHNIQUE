@@ -32,6 +32,7 @@ const regulation = read('OptimizedRegulationPanel.js');
 const equipment = read('GuidedEquipmentPanel.js');
 const remarks = read('OptimizedRemarksPanel.js');
 const pilotage = read('ClientPilotageScreen.js');
+const preallumage = read('PreAllumageInstallationPanelV3.js');
 const docs = read('docs/PERFORMANCE_RUNTIME.md');
 
 expect(runtime.includes('const HOT_LIMIT = 3;'), 'HOT doit rester limité à 3 visites.');
@@ -55,6 +56,8 @@ expect(navigation.includes("PREFIX = 'ui_state::'"), 'Le contexte UI doit surviv
 expect(visit.includes('hydrateNavigationState(visitNavKey)'), 'Une visite doit restaurer son onglet après redémarrage.');
 expect(visit.includes("setNavigationState(visitNavKey, { activeTab: prochain })"), 'Chaque changement d’onglet doit être mémorisé durablement.');
 expect(trame.includes('visit-panel:') && trame.includes('setNavigationScrollOffset'), 'Les panneaux génériques doivent restaurer leur scroll.');
+expect(preallumage.includes('visit-preallumage:') && preallumage.includes('activeLocalId') && preallumage.includes('collapsed'), 'Pré-allumage doit restaurer le local actif et les sections repliées.');
+expect(preallumage.includes('useListScrollMemory'), 'Pré-allumage doit restaurer le scroll propre à chaque local.');
 for (const [name, source] of [['Relevés', releves], ['Régulation', regulation], ['Équipements', equipment], ['Remarques', remarks], ['Photos', photoPanel]]) {
   expect(source.includes('useListScrollMemory'), name + ' doit restaurer sa position exacte.');
 }
