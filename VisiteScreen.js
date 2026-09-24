@@ -17,6 +17,8 @@ import { TrameGenericPanel, prechargerDonneesTrameGenerique, invaliderCacheTrame
 import { VmcCaissonManager, chargerCaissonsVmc } from './VmcCaissonManager.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { CompanionTabletModal } from './CompanionTabletModal.js';
+import { flushDurableAutosaves } from './durableAutosave.js';
+import { recupererPhotosEnAttente } from './photoPersistenceJournal.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function chargerExcelExportModule(){return require('./excelExport.js');}
@@ -180,6 +182,7 @@ function VisiteScreen({ route, onBack }) {
   }, [visite?.trame_id, tabsSignature, pagerWidth, addMountedPanels, warmPagerWindow, pagerX, preAllumageLocalX]);
 
   const completeTabChange = useCallback((prochain) => {
+    flushDurableAutosaves().catch(() => {});
     activeTabRef.current = prochain;
     setActiveTab(prochain);
     transitionRef.current = false;
@@ -233,10 +236,11 @@ function VisiteScreen({ route, onBack }) {
 
   const retourSecurise = useCallback(() => {
     Keyboard.dismiss();
-    setTimeout(() => onBack?.(), 0);
+    flushDurableAutosaves().finally(() => setTimeout(() => onBack?.(), 0));
   }, [onBack]);
 
   const charger = useCallback(async () => {
+    await recupererPhotosEnAttente(visiteId).catch((e) => console.warn('Récupération photo interrompue', e));
     const db = await getDb();
     await preremplirVisiteDepuisContexte(db, visiteId);
     const v = await getVisite(visiteId);
