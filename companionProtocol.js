@@ -1,10 +1,13 @@
-function buildCompanionQrPayload({ host, port, sessionId, token }) {
+function buildCompanionQrPayload({ host, port, sessionId, token, scope = 'visit', scopeId = null, label = null }) {
   const qs = [
     ['host', host],
     ['port', String(port || '')],
     ['session', sessionId],
     ['token', token],
-    ['v', '1'],
+    ['scope', scope || 'visit'],
+    ['scopeId', scopeId || ''],
+    ['label', label || ''],
+    ['v', '2'],
   ].map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v || ''))}`).join('&');
   return `metra://companion?${qs}`;
 }
@@ -21,7 +24,16 @@ function parseCompanionQrPayload(raw) {
   });
   const port = Number(params.port || 0);
   if (!params.host || !port || !params.session || !params.token) throw new Error('QR code MÉTRA incomplet.');
-  return { host: params.host, port, sessionId: params.session, token: params.token, version: Number(params.v || 1) };
+  return {
+    host: params.host,
+    port,
+    sessionId: params.session,
+    token: params.token,
+    version: Number(params.v || 1),
+    scope: params.scope || 'visit',
+    scopeId: params.scopeId || null,
+    label: params.label || null,
+  };
 }
 
 export { buildCompanionQrPayload, parseCompanionQrPayload };
