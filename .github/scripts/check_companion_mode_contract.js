@@ -20,6 +20,9 @@ const phone = read('CompanionPhoneScreen.js');
 const tablet = read('CompanionTabletModal.js');
 const data = read('companionData.js');
 const protocol = read('companionProtocol.js');
+const offlineQr = read('companionOfflineQr.js');
+const qrArchive = read('companionQrArchive.js');
+const offlineTablet = read('CompanionOfflineQrBatchModal.js');
 const native = read('native/metra-companion/MetraCompanionModule.kt');
 const plugin = read('plugins/withMetraCompanion.js');
 const config = read('app.config.js');
@@ -35,6 +38,10 @@ expect(protocol.includes("['scope', scope || 'visit']") && protocol.includes("['
 expect(phone.includes('decodeCompanionQr') && phone.includes('enqueueCompanionPhoto'), 'Le téléphone doit scanner le QR et conserver les photos avant accusé de réception.');
 expect(phone.includes("message.type === 'clientSnapshot'") && phone.includes("type: 'selectVisit'"), 'Le téléphone doit naviguer Client → Site → Visite sans rescanner.');
 expect(phone.includes('withTimeout(') && phone.includes('isCompanionNativeAvailable'), 'Le mode Compagnon ne doit jamais mouliner indéfiniment si le module ou le réseau local est indisponible.');
+expect(offlineQr.includes('buildOfflineClientQrBatch') && offlineQr.includes('DEFAULT_MAX_FRAME_CHARS'), 'Le transfert client hors connexion doit être découpé automatiquement en plusieurs QR.');
+expect(qrArchive.includes('savePhoneOfflineQrFrame') && qrArchive.includes('listTabletQrBatches'), 'Les lots QR doivent rester persistants sur tablette et téléphone.');
+expect(offlineTablet.includes('pagingEnabled') && offlineTablet.includes('LOTS ENREGISTRÉS POUR CE CLIENT'), 'La tablette doit permettre de retrouver un lot et de naviguer par slide entre les QR.');
+expect(phone.includes('scanOfflineSequence') && phone.includes('Clients QR enregistrés') && phone.includes('Continuer le scan'), 'Le téléphone doit scanner les QR à la suite et reprendre un lot partiel plus tard.');
 expect(phone.includes('getRuntimeAccent') && !phone.includes("backgroundColor: '#10384B'"), 'La DA téléphone Compagnon doit suivre le pack visuel actif.');
 for (const moduleId of ['equipment','meters','temperatures','locals','distribution','regulation','remarks','controls','photos']) {
   expect(data.includes(`id: '${moduleId}'`), `Module compagnon manquant : ${moduleId}`);
