@@ -15,7 +15,7 @@ import { PreAllumageInstallationPanelBusiness } from './PreAllumageInstallationP
 import { PreAllumageConclusionPanel } from './PreAllumageConclusionPanel.js';
 import { BoundedLruMap } from './boundedCache.js';
 
-const visiteDataCache = new BoundedLruMap(6);
+const visiteDataCache = new BoundedLruMap(3);
 
 function EditableAlias({ valeur, suffix = '', onSave }) {
   const [texte, setTexte] = useState(valeur || '');
