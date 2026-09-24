@@ -13,8 +13,9 @@ import { PreAllumageModularPanel } from './PreAllumageModularPanel.js';
 import { PreAllumageInfoPanelBusiness } from './PreAllumageInfoPanelBusiness.js';
 import { PreAllumageInstallationPanelBusiness } from './PreAllumageInstallationPanelBusiness.js';
 import { PreAllumageConclusionPanel } from './PreAllumageConclusionPanel.js';
+import { BoundedLruMap } from './boundedCache.js';
 
-const visiteDataCache = new Map();
+const visiteDataCache = new BoundedLruMap(6);
 
 function EditableAlias({ valeur, suffix = '', onSave }) {
   const [texte, setTexte] = useState(valeur || '');
