@@ -32,6 +32,7 @@ const CONTRACT_CHECKS = [
   ['Missions LAB isolation contract', '.github/scripts/check_missions_lab_contract.js'],
   ['Missions app compatibility contract', '.github/scripts/check_missions_app_compat.js'],
   ['phone companion contract', '.github/scripts/check_companion_mode_contract.js'],
+  ['phone companion offline multi-QR regression', '.github/scripts/test_companion_offline_qr.js'],
   ['navigation + site sort contract', '.github/scripts/check_navigation_sort_contract.js'],
   ['durable visit data contract', '.github/scripts/check_durable_visit_data_contract.js'],
   ['field runtime foundation', '.github/scripts/check_field_runtime_foundation.js'],
