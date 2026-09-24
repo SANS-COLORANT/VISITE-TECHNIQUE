@@ -49,7 +49,8 @@ const VisitPanelHost = memo(function VisitPanelHost({
 
 function VisiteScreen({ route, onBack }) {
   const { visiteId } = route.params;
-  const { width } = useWindowDimensions();
+  const { width, height } = useWindowDimensions();
+  const appareilTablette = Math.min(width, height) >= 600;
   const modeTablette = width >= 900;
   const pagerWidth = Math.max(1, modeTablette ? width - 205 : width);
   const pagerWidthRef = useRef(pagerWidth);
@@ -503,7 +504,7 @@ function VisiteScreen({ route, onBack }) {
             <Text style={styles.cardTitle}>{visite.nom_site}</Text>
             <Text style={styles.cardSub}>{visite.nom_client} · {visite.date_visite} · {trame.nom} · {visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'}</Text>
           </View>
-          {modeTablette ? <TouchableOpacity style={styles.noteBtn} onPress={() => setCompanionVisible(true)}><Text style={styles.noteBtnText}>Téléphone</Text></TouchableOpacity> : null}
+          {appareilTablette ? <TouchableOpacity style={styles.noteBtn} onPress={() => setCompanionVisible(true)}><Text style={styles.noteBtnText}>Téléphone</Text></TouchableOpacity> : null}
           <TouchableOpacity style={styles.noteBtn} onPress={ouvrirNote}><Text style={styles.noteBtnText}>Note libre</Text></TouchableOpacity>
           {trame.id === 'pre_allumage' ? <TouchableOpacity style={styles.noteBtn} onPress={choisirFormatRapportPreAllumage} disabled={reportExporting}><Text style={styles.noteBtnText}>{reportExporting ? 'Rapport…' : 'PDF / Word'}</Text></TouchableOpacity> : null}
           <TouchableOpacity style={styles.exportBtn} onPress={exporter} disabled={exporting}><Text style={styles.exportBtnText}>{exporting ? '...' : `Excel ${trame.nom}`}</Text></TouchableOpacity>
