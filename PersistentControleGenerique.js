@@ -18,7 +18,7 @@ import { BoundedLruMap } from './boundedCache.js';
 
 const PRESCRIPTIONS_COMPLETES = fusionnerPrescriptions(PRESCRIPTIONS);
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
-const remarquesCache = new BoundedLruMap(6);
+const remarquesCache = new BoundedLruMap(3);
 let biblioReservePromise = null;
 let biblioReserveCache = null;
 
