@@ -70,8 +70,8 @@ expect(visit.includes("'✓ Enregistré'") && visit.includes('saveActivity.pendi
 expect(photoCache.includes("thumb: { width: 320") && photoCache.includes("preview: { width: 1280"), 'Les niveaux miniature / aperçu doivent rester distincts.');
 expect(photoCache.includes('while (active < 2'), 'La génération photo doit rester limitée à deux jobs simultanés.');
 expect(photoCache.includes('limit: 160') && photoCache.includes('limit: 36'), 'Le cache disque photo doit être borné.');
-expect(photoButton.includes('variant={viewerHd ? \'original\' : \'preview\'}'), 'L’original photo ne doit être chargé que sur demande HD.');
-expect(photoPanel.includes('variant="thumb"') && photoPanel.includes("variant={viewerHd ? 'original' : 'preview'}"), 'La galerie doit utiliser miniature, aperçu puis original HD.');
+expect(photoButton.includes("variant={photos[index].pending || viewerHd ? 'original' : 'preview'}"), 'Une photo durable ne doit charger l’original que sur demande HD ; une prise encore temporaire peut afficher son URI source.');
+expect(photoPanel.includes("variant={photo.pending ? 'original' : 'thumb'}") && photoPanel.includes("variant={viewerPhoto.pending || viewerHd ? 'original' : 'preview'}"), 'La galerie doit utiliser miniature, aperçu puis original HD, avec affichage immédiat des prises temporaires.');
 
 expect(remarks.includes('new BoundedLruMap(3)'), 'Le cache remarques ne doit jamais redevenir non borné.');
 expect(pilotage.includes('function VirtualizedTechnicalMatrix'), 'La grande matrice Pilotage doit être virtualisée.');
