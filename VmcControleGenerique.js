@@ -58,7 +58,7 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
     notifier({ avis: avisCourant, commentaire: texte });
   }, [visiteId, sectionCode, field, controleKey, remarque, notifier, rechargerRemarque]);
 
-  const [commentaire, setCommentaire, flushCommentaire] = useDurableAutosave(
+  const [commentaire, setCommentaire, flushCommentaire, , adopterCommentairePersiste] = useDurableAutosave(
     etatInitial?.commentaire || '',
     persisterCommentaire,
     320
@@ -99,8 +99,9 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
       setRemarque(null);
     }
     await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: '' });
+    adopterCommentairePersiste('');
     notifier({ avis: val, commentaire: '' });
-  }, [avis, visiteId, sectionCode, field, controleKey, notifier, rechargerRemarque, setCommentaire, onEtatChange]);
+  }, [avis, visiteId, sectionCode, field, controleKey, notifier, rechargerRemarque, setCommentaire, adopterCommentairePersiste, onEtatChange]);
 
   const choisirPreset = useCallback(async (opt, idx) => {
     const texte = opt.commentaire || '';
@@ -121,8 +122,9 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
       await supprimerRemarqueControle(visiteId, controleKey);
       setRemarque(null);
     }
+    adopterCommentairePersiste(texte);
     notifier({ avis, commentaire: texte });
-  }, [visiteId, sectionCode, field, controleKey, avis, notifier, rechargerRemarque, setCommentaire, onEtatChange]);
+  }, [visiteId, sectionCode, field, controleKey, avis, notifier, rechargerRemarque, setCommentaire, adopterCommentairePersiste, onEtatChange]);
 
   const reglerCriticite = useCallback(async (value) => {
     if (!remarque?.id) return;
