@@ -32,7 +32,8 @@ expect(app.includes("phoneMode === 'integral'"), 'App.js doit exposer la version
 expect(visit.includes('CompanionTabletModal') && visit.includes('Téléphone'), 'La visite tablette doit ouvrir l’appairage téléphone.');
 expect(tablet.includes('buildCompanionQrPayload') && tablet.includes('startCompanionHost'), 'La tablette doit créer une session locale et un QR.');
 expect(tablet.includes("scope === 'client'") && tablet.includes('buildCompanionClientSnapshot'), 'Le QR doit pouvoir associer un client complet, pas seulement une visite.');
-expect(clientSites.includes('QR client') && clientSites.includes('CompanionTabletModal'), 'La fiche client doit exposer directement le QR Compagnon.');
+expect(clientSites.includes('Compagnon') && clientSites.includes('CompanionTabletModal'), 'La fiche client doit exposer directement le mode Compagnon.');
+expect(clientSites.includes('QR hors connexion · lots enregistrés') && clientSites.includes('CompanionOfflineQrBatchModal'), 'La fiche client doit retrouver directement les lots QR hors connexion, même sans réseau local.');
 expect(data.includes('buildCompanionClientSnapshot') && data.includes('assertVisitBelongsToCompanionClient'), 'Le périmètre client doit transmettre les sites/visites et empêcher les rattachements hors client.');
 expect(protocol.includes("['scope', scope || 'visit']") && protocol.includes("['v', '2']"), 'Le protocole QR doit transporter explicitement le périmètre client/visite.');
 expect(phone.includes('decodeCompanionQr') && phone.includes('enqueueCompanionPhoto'), 'Le téléphone doit scanner le QR et conserver les photos avant accusé de réception.');
