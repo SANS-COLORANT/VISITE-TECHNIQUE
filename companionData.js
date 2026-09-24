@@ -5,6 +5,7 @@ import { listerRemarquesVisite } from './remarkDb.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { ajouterPhoto } from './db.js';
 import { preparerPhotoNommee } from './PhotoButton.js';
+import { confirmerPhotoJournalisee, journaliserPhotoEnAttente } from './photoPersistenceJournal.js';
 
 const MODULES = Object.freeze([
   { id: 'equipment', label: 'Équipements', icon: 'tools' },
@@ -203,7 +204,10 @@ async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
   const prepared = await preparerPhotoNommee({ visiteId, entiteKey, label, uri });
   if (!prepared?.uri) throw new Error('Impossible de préparer la photo reçue');
   const labelDb = prepared.nom ? `${prepared.label || label}||${prepared.nom}` : (prepared.label || label);
-  const photoId = await ajouterPhoto(visiteId, prepared.entiteKey || entiteKey, prepared.uri, labelDb);
+  const cibleKey = prepared.entiteKey || entiteKey;
+  const journalKey = await journaliserPhotoEnAttente({ visiteId, entiteKey: cibleKey, uri: prepared.uri, labelDb });
+  const photoId = await ajouterPhoto(visiteId, cibleKey, prepared.uri, labelDb);
+  await confirmerPhotoJournalisee(journalKey).catch(() => {});
   if (transferId) {
     await db.runAsync(
       `INSERT INTO _meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
@@ -213,7 +217,7 @@ async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
   if (Boolean(FileSystem.cacheDirectory) && String(uri).startsWith(FileSystem.cacheDirectory)) {
     FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
   }
-  return { id: photoId, uri: prepared.uri, entiteKey: prepared.entiteKey || entiteKey, label: prepared.label || label };
+  return { id: photoId, uri: prepared.uri, entiteKey: cibleKey, label: prepared.label || label };
 }
 
 export { MODULES as COMPANION_MODULES, buildCompanionVisitSnapshot, importCompanionPhoto };
