@@ -135,13 +135,16 @@ async function prendrePhoto() {
   return result?.uri || null;
 }
 
-async function resoudreReserveDepuisControle(visiteId, controleKey, label) {
+async function resoudreReserveDepuisControle(visiteId, controleKey, label, { create = true } = {}) {
   if (!estCleControle(controleKey)) return null;
   const db = await openAppDatabase();
   let remarque = await db.getFirstAsync(
     `SELECT * FROM remarques WHERE visite_id=? AND controle_key=? LIMIT 1`,
     [visiteId, controleKey]
   );
+  if (!remarque?.id && !create) {
+    return { entiteKey: controleKey, label: label || 'Réserve', needsReserve: true };
+  }
   if (!remarque?.id) {
     const id = await upsertRemarquePrescription(
       visiteId,
@@ -213,7 +216,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     return () => { alive = false; unsubscribe(); };
   }, [visiteId, entiteKey, appliquerPhotos]);
 
-  const resoudreCible = useCallback(async () => {
+  const resoudreCible = useCallback(async ({ createReserve = true } = {}) => {
     let cible = null;
     if (beforeCapture) {
       const cibleAvant = await beforeCapture();
@@ -221,11 +224,12 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       else if (cibleAvant) cible = { entiteKey: cibleAvant.entiteKey || entiteKey, label: cibleAvant.label || label };
     }
     if (!cible) {
-      const reserve = await resoudreReserveDepuisControle(visiteId, entiteKey, label);
+      const reserve = await resoudreReserveDepuisControle(visiteId, entiteKey, label, { create: createReserve });
       cible = reserve || { entiteKey, label };
     }
     const canonique = await clePhotoCanoniqueVmc(visiteId, cible.entiteKey);
-    return { ...cible, entiteKey: canonique };
+    const labelMetier = await libellePhotoMetier(visiteId, canonique, cible.label || label);
+    return { ...cible, entiteKey: canonique, label: labelMetier || cible.label || label };
   }, [beforeCapture, visiteId, entiteKey, label]);
 
   const prechaufferCapture = useCallback(() => {
@@ -234,7 +238,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     if (!peekVisitPhotos(visiteId)) loadVisitPhotos(visiteId).catch(() => {});
     if (!targetPromiseRef.current) {
       targetPromiseRef.current = Promise.resolve()
-        .then(() => resoudreCible())
+        .then(() => resoudreCible({ createReserve: false }))
         .catch((error) => {
           targetPromiseRef.current = null;
           throw error;
@@ -252,26 +256,29 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       const ciblePromise = prechaufferCapture();
       const captureUri = await prendrePhoto();
       if (!captureUri) return;
-      const cible = await ciblePromise;
+      const ciblePrechauffee = await ciblePromise;
       targetPromiseRef.current = null;
 
       tempId = `photo-pending:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
       const optimistic = {
         id: tempId,
         visite_id: visiteId,
-        entite_key: cible.entiteKey || null,
+        entite_key: ciblePrechauffee.entiteKey || entiteKey || null,
         uri: captureUri,
-        label: cible.label || label || 'Photo',
+        label: ciblePrechauffee.label || label || 'Photo',
         cree_le: new Date().toISOString(),
         pending: true,
       };
-      // Retour caméra -> photo visible immédiatement. La copie durable et SQLite
-      // continuent derrière sans bloquer la saisie ni le swipe.
+      // Retour caméra -> photo visible immédiatement. Une éventuelle création de
+      // réserve et toute la persistance restent hors du chemin visuel.
       upsertRuntimePhoto(visiteId, optimistic);
       setIndex(Math.max(0, photos.length));
 
       saveKey = `photo:${visiteId}:${Date.now()}`;
       beginExternalSave(saveKey);
+      const cible = ciblePrechauffee.needsReserve
+        ? await resoudreCible({ createReserve: true })
+        : ciblePrechauffee;
       const photo = await preparerPhotoNommee({ visiteId, entiteKey: cible.entiteKey, label: cible.label, uri: captureUri });
       const labelFinal = photo.label || cible.label || typePhotoDepuisEntite(cible.entiteKey);
       const labelDb = photo.nom ? `${labelFinal}||${photo.nom}` : (labelFinal || null);
