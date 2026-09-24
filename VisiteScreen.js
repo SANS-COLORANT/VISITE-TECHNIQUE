@@ -240,7 +240,6 @@ function VisiteScreen({ route, onBack }) {
   }, [onBack]);
 
   const charger = useCallback(async () => {
-    await recupererPhotosEnAttente(visiteId).catch((e) => console.warn('Récupération photo interrompue', e));
     const db = await getDb();
     await preremplirVisiteDepuisContexte(db, visiteId);
     const v = await getVisite(visiteId);
@@ -257,7 +256,13 @@ function VisiteScreen({ route, onBack }) {
     setVisite(v ? { ...v, progression_pct: progression } : v);
   }, [visiteId]);
 
-  useEffect(() => { charger(); }, [charger]);
+  useEffect(() => {
+    let actif = true;
+    recupererPhotosEnAttente(visiteId)
+      .catch((e) => console.warn('Récupération photo interrompue', e))
+      .finally(() => { if (actif) charger(); });
+    return () => { actif = false; };
+  }, [charger, visiteId]);
 
   const onSaved = useCallback(() => {
     if (progressionTimerRef.current) clearTimeout(progressionTimerRef.current);
