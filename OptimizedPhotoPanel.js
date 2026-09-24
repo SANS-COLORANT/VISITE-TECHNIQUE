@@ -9,6 +9,7 @@ import { COLORS, styles } from './styles.js';
 import { PhotoVariantImage } from './PhotoVariantImage.js';
 import { confirmerPhotoJournalisee, journaliserPhotoEnAttente } from './photoPersistenceJournal.js';
 import { beginExternalSave, endExternalSave } from './saveActivity.js';
+import { useListScrollMemory } from './useListScrollMemory.js';
 
 const PhotoTile = memo(function PhotoTile({ photo, taille, onPress }) {
   return (
@@ -35,6 +36,7 @@ function OptimizedPhotoPanel({ visiteId }) {
   const [viewerPhoto, setViewerPhoto] = useState(null);
   const [viewerHd, setViewerHd] = useState(false);
   const [ajoutEnCours, setAjoutEnCours] = useState(false);
+  const { listRef, onScroll } = useListScrollMemory(`visit-panel:${visiteId}:p-photos`, photos.length);
 
   const charger = useCallback(async () => {
     setPhotos(await listerPhotos(visiteId));
@@ -129,7 +131,10 @@ function OptimizedPhotoPanel({ visiteId }) {
   return (
     <View style={{ flex: 1 }}>
       <FlatList
+        ref={listRef}
         data={photos}
+        onScroll={onScroll}
+        scrollEventThrottle={100}
         key={`photos-${colonnes}`}
         numColumns={colonnes}
         keyExtractor={(item) => item.id}
