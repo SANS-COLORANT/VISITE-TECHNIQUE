@@ -1,5 +1,5 @@
 /** Contrôle à présélections générique : avis + commentaire pour chaque état, réserve uniquement si nécessaire. */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { upsertControlePartiel } from './controlDb.js';
@@ -35,6 +35,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
   const label = displayLabel || field.cle;
   const trameLabel = field.trameLabel || (field.preAllumage ? 'Pré-allumage' : 'Visite');
   const [avis, setAvis] = useState(etatInitial?.avis || null);
+  const avisRef = useRef(etatInitial?.avis || null);
   const [remarque, setRemarque] = useState(null);
   const [presetChoisi, setPresetChoisi] = useState(null);
   const presets = useMemo(() => field?.presets || {}, [field]);
@@ -48,8 +49,9 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
 
   const persisterCommentaire = useCallback(async (value) => {
     const texte = String(value || '').trim();
-    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis, commentaire: texte });
-    if (avis === 'N.S') {
+    const avisCourant = avisRef.current;
+    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: avisCourant, commentaire: texte });
+    if (avisCourant === 'N.S') {
       const prescription = {
         poste: remarque?.poste || field.poste || trameLabel,
         prestation: texte || `Anomalie constatée sur ${label} — à préciser.`,
@@ -63,8 +65,8 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
       await supprimerRemarqueControle(visiteId, controleKey);
       setRemarque(null);
     }
-    notifier({ avis, commentaire: texte });
-  }, [visiteId, sectionCode, field, label, trameLabel, controleKey, avis, remarque, notifier]);
+    notifier({ avis: avisCourant, commentaire: texte });
+  }, [visiteId, sectionCode, field, label, trameLabel, controleKey, remarque, notifier]);
 
   const [commentaire, setCommentaire, flushCommentaire] = useDurableAutosave(
     etatInitial?.commentaire || '',
@@ -72,7 +74,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
     320
   );
 
-  useEffect(() => { setAvis(etatInitial?.avis || null); }, [etatInitial?.avis]);
+  useEffect(() => { avisRef.current = etatInitial?.avis || null; setAvis(avisRef.current); }, [etatInitial?.avis]);
 
   useEffect(() => {
     let alive = true;
@@ -114,6 +116,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
 
   const choisirAvis = useCallback(async (val) => {
     if (val === avis) return;
+    avisRef.current = val;
     setAvis(val);
     setPresetChoisi(null);
     const valOptions = presets[val] || [];
