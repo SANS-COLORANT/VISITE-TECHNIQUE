@@ -168,7 +168,10 @@ function VisitChoiceRow({ visit, onPress, busy, accent, light }) {
         <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 11.5 }}>
           {visit.date || 'Date non renseignée'} · {status}
         </Text>
-        <Text style={{ marginTop: 3, color: accent, fontSize: 11, fontWeight: '800' }}>{Number(visit.progress || 0)}%</Text>
+        <Text style={{ marginTop: 3, color: accent, fontSize: 11, fontWeight: '800' }}>
+          {Number(visit.progress || 0)}%
+          {visit.offlineReady === true ? ' · prêt hors ligne' : ''}
+        </Text>
       </View>
       <Text style={{ fontSize: 22, color: COLORS.inkFaint }}>›</Text>
     </TouchableOpacity>
@@ -444,13 +447,32 @@ function CompanionPhoneScreen({ onExit }) {
 
   const selectVisit = useCallback(async (visit) => {
     if (!visit?.id || busyVisitId) return;
+
     if (snapshot?.offlineQr && !connectedRef.current) {
-      Alert.alert(
-        'Visite hors connexion',
-        'Le lot QR conserve le client, les sites, locaux et références de visites. Pour ouvrir les modules détaillés de la visite et envoyer des photos, associe ensuite la tablette en mode Compagnon.'
-      );
+      const offlineSnapshot = visit.offlineSnapshot || null;
+      if (!offlineSnapshot) {
+        const partial = !snapshot?.offlineProgress?.complete;
+        Alert.alert(
+          partial ? 'Détails pas encore scannés' : 'Visite non embarquée dans ce lot',
+          partial
+            ? 'Les sites sont déjà disponibles, mais les QR contenant les détails de cette visite n’ont pas encore tous été scannés. Continue le lot QR puis réessaie.'
+            : 'Le lot hors connexion embarque les visites en cours de chaque site, ou la visite la plus récente lorsqu’il n’y en a aucune en cours. Pour une ancienne visite, utilise le mode Compagnon connecté.'
+        );
+        return;
+      }
+
+      setBusyVisitId(visit.id);
+      setSnapshot({
+        ...offlineSnapshot,
+        offlineQr: true,
+        offlineBatchId: snapshot.offlineBatchId,
+      });
+      setSelectedModuleId(null);
+      setStatus('Visite prête hors connexion');
+      setBusyVisitId(null);
       return;
     }
+
     setBusyVisitId(visit.id);
     setStatus('Ouverture de la visite…');
     try {
@@ -464,13 +486,17 @@ function CompanionPhoneScreen({ onExit }) {
       setStatus('Visite non ouverte');
       Alert.alert('Visite indisponible', String(e?.message || e));
     }
-  }, [busyVisitId, snapshot?.offlineQr]);
+  }, [busyVisitId, snapshot]);
 
   const backToClient = useCallback(async () => {
     if (!clientSnapshot) return;
     setSnapshot(clientSnapshot);
     setSelectedModuleId(null);
     setSelectedSiteId(null);
+    if (clientSnapshot.offlineQr && !connectedRef.current) {
+      setStatus(clientSnapshot.offlineProgress?.complete ? 'Client QR disponible hors connexion' : 'Client QR partiellement importé');
+      return;
+    }
     setStatus('Client synchronisé');
     await sendCompanionMessage({ type: 'requestClientSnapshot' }).catch(() => {});
   }, [clientSnapshot]);
@@ -566,7 +592,9 @@ function CompanionPhoneScreen({ onExit }) {
               </TouchableOpacity>
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 18, fontWeight: '900', color: COLORS.ink }}>{selectedSite.name}</Text>
-                <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 12 }}>Choisir une visite · aucun nouveau QR nécessaire</Text>
+                <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 12 }}>
+                  {snapshot.offlineQr ? 'Choisir une visite disponible hors connexion' : 'Choisir une visite · aucun nouveau QR nécessaire'}
+                </Text>
               </View>
             </View>
           </View>
@@ -713,9 +741,18 @@ function CompanionPhoneScreen({ onExit }) {
               }} />)}
             </View>
 
-            <TouchableOpacity onPress={() => sendCompanionMessage({ type: 'requestSnapshot' }).catch(() => {})} style={{ marginTop: 14, minHeight: 48, borderRadius: 15, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontWeight: '900', color: COLORS.ink }}>Actualiser depuis la tablette</Text>
-            </TouchableOpacity>
+            {snapshot.offlineQr && !connectedRef.current ? (
+              <View style={{ marginTop: 14, padding: 12, borderRadius: 15, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white }}>
+                <Text style={{ fontWeight: '900', color: COLORS.ink }}>Mode hors connexion</Text>
+                <Text style={{ marginTop: 4, color: COLORS.inkSoft, fontSize: 11.5, lineHeight: 17 }}>
+                  Les photos prises ici sont conservées sur le téléphone et seront envoyées à la tablette lors de la prochaine association Compagnon.
+                </Text>
+              </View>
+            ) : (
+              <TouchableOpacity onPress={() => sendCompanionMessage({ type: 'requestSnapshot' }).catch(() => {})} style={{ marginTop: 14, minHeight: 48, borderRadius: 15, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' }}>
+                <Text style={{ fontWeight: '900', color: COLORS.ink }}>Actualiser depuis la tablette</Text>
+              </TouchableOpacity>
+            )}
           </>
         ) : null}
       </ScrollView>
