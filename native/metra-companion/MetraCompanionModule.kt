@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import android.net.Uri
 import com.facebook.react.bridge.ActivityEventListener
 import com.facebook.react.bridge.Arguments
@@ -25,6 +27,7 @@ import java.io.DataOutputStream
 import java.io.File
 import java.io.FileOutputStream
 import java.net.Inet4Address
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
@@ -68,21 +71,68 @@ class MetraCompanionModule(private val context: ReactApplicationContext) : React
       .emit("MetraCompanionEvent", payload)
   }
 
-  private fun localIpv4(): String {
-    // Priorité au réseau Android réellement actif. L'ancienne énumération brute
-    // pouvait choisir une interface privée cellulaire/VPN différente du Wi-Fi
-    // utilisé par le téléphone, ce qui donnait un QR valide mais injoignable.
-    try {
-      val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager
-      val active = manager?.activeNetwork
-      val properties = active?.let { manager.getLinkProperties(it) }
-      for (link in properties?.linkAddresses.orEmpty()) {
+  private data class LanRoute(
+    val network: Network,
+    val address: Inet4Address,
+    val prefixLength: Int
+  )
+
+  private fun lanRoutes(): List<LanRoute> {
+    val manager = context.getSystemService(Context.CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return emptyList()
+    val result = mutableListOf<LanRoute>()
+
+    for (network in manager.allNetworks) {
+      val capabilities = manager.getNetworkCapabilities(network) ?: continue
+      val isLanTransport =
+        capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+          capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+      if (!isLanTransport) continue
+
+      val properties = manager.getLinkProperties(network) ?: continue
+      for (link in properties.linkAddresses) {
         val address = link.address
         if (address is Inet4Address && !address.isLoopbackAddress && address.isSiteLocalAddress) {
-          return address.hostAddress ?: continue
+          result.add(LanRoute(network, address, link.prefixLength.coerceIn(0, 32)))
         }
       }
-    } catch (_: Exception) {}
+    }
+    return result
+  }
+
+  private fun sameIpv4Subnet(local: Inet4Address, remote: Inet4Address, prefixLength: Int): Boolean {
+    if (prefixLength <= 0) return true
+    val localBytes = local.address
+    val remoteBytes = remote.address
+    var bits = prefixLength
+    for (index in 0 until 4) {
+      if (bits <= 0) break
+      val take = minOf(8, bits)
+      val mask = (0xFF shl (8 - take)) and 0xFF
+      if ((localBytes[index].toInt() and mask) != (remoteBytes[index].toInt() and mask)) return false
+      bits -= take
+    }
+    return true
+  }
+
+  private fun selectLanRoute(host: String? = null): LanRoute? {
+    val routes = lanRoutes()
+    if (routes.isEmpty()) return null
+    if (!host.isNullOrBlank()) {
+      try {
+        val remote = InetAddress.getByName(host)
+        if (remote is Inet4Address) {
+          routes.firstOrNull { sameIpv4Subnet(it.address, remote, it.prefixLength) }?.let { return it }
+        }
+      } catch (_: Exception) {}
+    }
+    return routes.firstOrNull()
+  }
+
+  private fun localIpv4(): String {
+    // Toujours privilégier une vraie interface Wi-Fi/Ethernet. Android peut
+    // conserver le réseau cellulaire/VPN comme réseau par défaut même quand le
+    // téléphone est connecté au même Wi-Fi que la tablette.
+    selectLanRoute()?.address?.hostAddress?.let { return it }
 
     val enumeration = NetworkInterface.getNetworkInterfaces()
       ?: throw IllegalStateException("Aucun réseau local actif. Active le Wi-Fi sur la tablette.")
@@ -260,7 +310,8 @@ class MetraCompanionModule(private val context: ReactApplicationContext) : React
     executor.execute {
       try {
         disconnectInternal()
-        val client = Socket()
+        val lanRoute = selectLanRoute(host)
+        val client = lanRoute?.network?.socketFactory?.createSocket() ?: Socket()
         client.connect(InetSocketAddress(host, port), 5000)
         client.tcpNoDelay = true
         client.soTimeout = 0
