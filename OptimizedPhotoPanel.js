@@ -1,11 +1,14 @@
 /** Galerie photo virtualisée pour limiter la mémoire sur tablette. */
 
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Image, Modal, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Alert, FlatList, Modal, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { listerPhotos, ajouterPhoto } from './db.js';
 import { supprimerPhotoComplete } from './photoDb.js';
 import { prendrePhoto, preparerPhotoNommee } from './PhotoButton.js';
 import { COLORS, styles } from './styles.js';
+import { PhotoVariantImage } from './PhotoVariantImage.js';
+import { confirmerPhotoJournalisee, journaliserPhotoEnAttente } from './photoPersistenceJournal.js';
+import { beginExternalSave, endExternalSave } from './saveActivity.js';
 
 const PhotoTile = memo(function PhotoTile({ photo, taille, onPress }) {
   return (
@@ -16,12 +19,11 @@ const PhotoTile = memo(function PhotoTile({ photo, taille, onPress }) {
       accessibilityRole="button"
       accessibilityLabel={photo.label ? `Ouvrir ${photo.label}` : 'Ouvrir la photo'}
     >
-      <Image
-        source={{ uri: photo.uri }}
+      <PhotoVariantImage
+        uri={photo.uri}
+        variant="thumb"
         style={[styles.photoThumbImg, { width: '100%', height: '100%' }]}
         resizeMode="cover"
-        resizeMethod="resize"
-        fadeDuration={0}
       />
     </TouchableOpacity>
   );
@@ -31,6 +33,7 @@ function OptimizedPhotoPanel({ visiteId }) {
   const { width } = useWindowDimensions();
   const [photos, setPhotos] = useState([]);
   const [viewerPhoto, setViewerPhoto] = useState(null);
+  const [viewerHd, setViewerHd] = useState(false);
   const [ajoutEnCours, setAjoutEnCours] = useState(false);
 
   const charger = useCallback(async () => {
@@ -61,7 +64,17 @@ function OptimizedPhotoPanel({ visiteId }) {
       });
       if (!photo.uri) return;
       const labelDb = photo.nom ? `Photo générale||${photo.nom}` : 'Photo générale';
-      await ajouterPhoto(visiteId, null, photo.uri, labelDb);
+      const saveKey = `photo-panel:${visiteId}:${Date.now()}`;
+      beginExternalSave(saveKey);
+      try {
+        const journalKey = await journaliserPhotoEnAttente({ visiteId, entiteKey: null, uri: photo.uri, labelDb });
+        await ajouterPhoto(visiteId, null, photo.uri, labelDb);
+        await confirmerPhotoJournalisee(journalKey).catch(() => {});
+        endExternalSave(saveKey);
+      } catch (error) {
+        endExternalSave(saveKey, error);
+        throw error;
+      }
       await charger();
     } catch (e) {
       Alert.alert('Erreur photo', String(e?.message || e));
@@ -120,7 +133,7 @@ function OptimizedPhotoPanel({ visiteId }) {
         key={`photos-${colonnes}`}
         numColumns={colonnes}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <PhotoTile photo={item} taille={taille} onPress={setViewerPhoto} />}
+        renderItem={({ item }) => <PhotoTile photo={item} taille={taille} onPress={(photo) => { setViewerHd(false); setViewerPhoto(photo); }} />}
         columnWrapperStyle={colonnes > 1 ? { gap: espace } : undefined}
         contentContainerStyle={styles.panelContent}
         ListHeaderComponent={header}
@@ -137,7 +150,12 @@ function OptimizedPhotoPanel({ visiteId }) {
       <Modal visible={!!viewerPhoto} transparent animationType="fade" onRequestClose={() => setViewerPhoto(null)}>
         <View style={styles.viewerOverlay}>
           <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={() => setViewerPhoto(null)} activeOpacity={1} />
-          {viewerPhoto ? <Image source={{ uri: viewerPhoto.uri }} style={styles.viewerImg} resizeMode="contain" /> : null}
+          {viewerPhoto ? <PhotoVariantImage uri={viewerPhoto.uri} variant={viewerHd ? 'original' : 'preview'} style={styles.viewerImg} resizeMode="contain" /> : null}
+          <View style={{ position: 'absolute', top: 24, right: 24 }}>
+            <TouchableOpacity style={styles.photoViewerSecondary} onPress={() => setViewerHd((v) => !v)}>
+              <Text style={styles.photoViewerSecondaryText}>{viewerHd ? 'Aperçu léger' : 'HD'}</Text>
+            </TouchableOpacity>
+          </View>
           <View style={{ position: 'absolute', bottom: 26, left: 24, right: 24, flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
             <TouchableOpacity style={styles.photoViewerSecondary} onPress={supprimerSelection}>
               <Text style={styles.photoViewerSecondaryText}>Supprimer</Text>
