@@ -11,7 +11,7 @@ import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 import { styles } from './styles.js';
 
-const cacheRegulation = new BoundedLruMap(6);
+const cacheRegulation = new BoundedLruMap(3);
 const CLE_TO_COL = {
   'T°ext(°C)': 't_ext_c',
   'T°dép(°C)': 't_dep_c',
