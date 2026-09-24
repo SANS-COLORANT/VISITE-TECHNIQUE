@@ -22,6 +22,9 @@ import { recupererPhotosEnAttente } from './photoPersistenceJournal.js';
 import { flushNavigationMemory, getNavigationState, hydrateNavigationState, setNavigationState } from './navigationMemory.js';
 import { getVisitRuntime, markVisitHot, patchVisitUiState } from './visitRuntimeCache.js';
 import { getSaveActivity, subscribeSaveActivity } from './saveActivity.js';
+import { prewarmCameraRuntime } from './cameraRuntime.js';
+import { prewarmPhotoCaptureContext } from './photoCaptureContext.js';
+import { loadVisitPhotos } from './photoRuntimeCache.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function chargerExcelExportModule(){return require('./excelExport.js');}
@@ -348,7 +351,10 @@ function VisiteScreen({ route, onBack }) {
 
   useEffect(() => {
     let actif = true;
+    prewarmCameraRuntime().catch(() => {});
+    prewarmPhotoCaptureContext(visiteId).catch(() => {});
     recupererPhotosEnAttente(visiteId)
+      .then((recovered) => loadVisitPhotos(visiteId, { force: Boolean(recovered) }).catch(() => {}))
       .catch((e) => console.warn('Récupération photo interrompue', e));
     charger().catch((e) => {
       if (!actif) return;
