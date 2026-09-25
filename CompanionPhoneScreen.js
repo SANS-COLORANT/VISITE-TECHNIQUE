@@ -356,11 +356,18 @@ function CompanionPhoneScreen({ onExit }) {
           return;
         }
         if (message.type === 'visitSnapshot') {
-          setSnapshot(message);
-          setSelectedModuleId(null);
+          setSnapshot((current) => {
+            const sameVisit = current?.type === 'visitSnapshot' &&
+              String(current?.visit?.id || '') === String(message?.visit?.id || '');
+            if (!sameVisit) {
+              setSelectedModuleId(null);
+              setSelectedTargetId(null);
+            }
+            return message;
+          });
           setBusyVisitId(null);
           setPhase('connected');
-          setStatus('Visite prête');
+          setStatus((current) => current.startsWith('Valeur') ? current : 'Visite prête');
           flushOutbox(new Set([String(message?.visit?.id || '')])).catch(() => {});
           return;
         }
@@ -374,6 +381,23 @@ function CompanionPhoneScreen({ onExit }) {
           await removeCompanionOutboxItem(message.transferId);
           await refreshPending();
           setStatus(`Photo classée · ${message.label || 'élément'}`);
+          return;
+        }
+        if (message.type === 'targetUpdated') {
+          if (!message.requestId || message.requestId === pendingEditRef.current) {
+            pendingEditRef.current = null;
+            setSavingFieldId(null);
+            setStatus('Valeur mise à jour');
+          }
+          return;
+        }
+        if (message.type === 'targetUpdateError') {
+          if (!message.requestId || message.requestId === pendingEditRef.current) {
+            pendingEditRef.current = null;
+            setSavingFieldId(null);
+          }
+          setStatus('Modification refusée');
+          Alert.alert('Modification impossible', message.message || 'La tablette a refusé la modification.');
           return;
         }
         if (message.type === 'photoImportError') {
