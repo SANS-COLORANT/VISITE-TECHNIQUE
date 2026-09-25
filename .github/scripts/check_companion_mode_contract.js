@@ -20,9 +20,6 @@ const phone = read('CompanionPhoneScreen.js');
 const tablet = read('CompanionTabletModal.js');
 const data = read('companionData.js');
 const protocol = read('companionProtocol.js');
-const offlineQr = read('companionOfflineQr.js');
-const qrArchive = read('companionQrArchive.js');
-const offlineTablet = read('CompanionOfflineQrBatchModal.js');
 const native = read('native/metra-companion/MetraCompanionModule.kt');
 const plugin = read('plugins/withMetraCompanion.js');
 const config = read('app.config.js');
@@ -33,18 +30,15 @@ expect(visit.includes('CompanionTabletModal') && visit.includes('Téléphone'), 
 expect(tablet.includes('buildCompanionQrPayload') && tablet.includes('startCompanionHost'), 'La tablette doit créer une session locale et un QR.');
 expect(tablet.includes("scope === 'client'") && tablet.includes('buildCompanionClientSnapshot'), 'Le QR doit pouvoir associer un client complet, pas seulement une visite.');
 expect(clientSites.includes('Compagnon') && clientSites.includes('CompanionTabletModal'), 'La fiche client doit exposer directement le mode Compagnon.');
-expect(clientSites.includes('QR hors connexion · lots enregistrés') && clientSites.includes('CompanionOfflineQrBatchModal'), 'La fiche client doit retrouver directement les lots QR hors connexion, même sans réseau local.');
 expect(data.includes('buildCompanionClientSnapshot') && data.includes('assertVisitBelongsToCompanionClient'), 'Le périmètre client doit transmettre les sites/visites et empêcher les rattachements hors client.');
 expect(protocol.includes("['scope', scope || 'visit']") && protocol.includes("['v', '2']"), 'Le protocole QR doit transporter explicitement le périmètre client/visite.');
 expect(phone.includes('decodeCompanionQr') && phone.includes('enqueueCompanionPhoto'), 'Le téléphone doit scanner le QR et conserver les photos avant accusé de réception.');
 expect(phone.includes("message.type === 'clientSnapshot'") && phone.includes("type: 'selectVisit'"), 'Le téléphone doit naviguer Client → Site → Visite sans rescanner.');
 expect(phone.includes('withTimeout(') && phone.includes('isCompanionNativeAvailable'), 'Le mode Compagnon ne doit jamais mouliner indéfiniment si le module ou le réseau local est indisponible.');
-expect(offlineQr.includes('buildOfflineClientQrBatch') && offlineQr.includes('DEFAULT_MAX_FRAME_CHARS'), 'Le transfert client hors connexion doit être découpé automatiquement en plusieurs QR.');
-expect(data.includes('buildCompanionOfflineClientSnapshot') && offlineQr.includes('offlineSnapshot'), 'Le lot QR hors connexion doit embarquer une visite terrain ouvrable avec ses modules et cibles photo.');
-expect(qrArchive.includes('savePhoneOfflineQrFrame') && qrArchive.includes('listTabletQrBatches'), 'Les lots QR doivent rester persistants sur tablette et téléphone.');
-expect(offlineTablet.includes('pagingEnabled') && offlineTablet.includes('LOTS ENREGISTRÉS POUR CE CLIENT'), 'La tablette doit permettre de retrouver un lot et de naviguer par slide entre les QR.');
-expect(phone.includes('scanOfflineSequence') && phone.includes('Clients QR enregistrés') && phone.includes('Continuer le scan'), 'Le téléphone doit scanner les QR à la suite et reprendre un lot partiel plus tard.');
 expect(phone.includes('getRuntimeAccent') && !phone.includes("backgroundColor: '#10384B'"), 'La DA téléphone Compagnon doit suivre le pack visuel actif.');
+expect(!phone.includes('scanOfflineSequence') && !tablet.includes('CompanionOfflineQrBatchModal') && !clientSites.includes('QR hors connexion'), 'Le mode Compagnon ne doit plus exposer de QR hors connexion.');
+expect(phone.includes('QuickFieldEditor') && phone.includes("type: 'updateTarget'") && data.includes('applyCompanionTargetUpdate'), 'Le téléphone doit permettre de sélectionner un élément, prendre une photo et modifier ses valeurs.');
+expect(data.includes("kind: 'equipment'") && data.includes("kind: 'counter'") && data.includes("kind: 'control'"), 'Les principales familles métier doivent exposer des champs éditables au téléphone.');
 for (const moduleId of ['equipment','meters','temperatures','locals','distribution','regulation','remarks','controls','photos']) {
   expect(data.includes(`id: '${moduleId}'`), `Module compagnon manquant : ${moduleId}`);
 }
@@ -53,6 +47,7 @@ expect(native.includes('ServerSocket') && native.includes('sendFile') && native.
 expect(native.includes('IntentIntegrator.QR_CODE') && !native.includes('QR_CODE_TYPES'), 'Le scanner QR doit utiliser l’API ZXing 4.3.0 réellement disponible.');
 expect(native.includes('InetSocketAddress') && native.includes('5000'), 'La connexion réseau Compagnon doit avoir un délai maximum explicite.');
 expect(native.includes('TRANSPORT_WIFI') && native.includes('socketFactory') && native.includes('selectLanRoute'), 'La liaison Compagnon doit forcer la socket sur le réseau Wi-Fi/LAN afin d’éviter le routage cellulaire CLAT.');
+expect(native.includes('matchingInterfaceAddress') && native.includes('bind(InetSocketAddress(local, 0))'), 'La liaison doit aussi fonctionner lorsque le téléphone fournit lui-même le hotspot.');
 expect(plugin.includes('zxing-android-embedded') && plugin.includes('com.google.zxing:core'), 'Le plugin Android doit embarquer localement le scan et la génération QR.');
 expect(!plugin.includes('play-services-code-scanner'), 'Le scan QR hors connexion ne doit pas dépendre d’un module Google Play téléchargé à la demande.');
 expect(config.includes('./plugins/withMetraCompanion'), 'Le plugin compagnon doit être activé par la configuration Expo.');
