@@ -348,6 +348,17 @@ jobs:
         run: |
           printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\n' >> gradle.properties
 
+      - name: Restrict native architectures to real devices
+        working-directory: android
+        run: |
+          # x86/x86_64 ne servent qu'aux émulateurs : aucune tablette ou
+          # téléphone METRA de terrain ne les utilise. Les retirer réduit
+          # nettement la taille de l'APK sans rien changer pour les
+          # appareils réels (armeabi-v7a couvre l'Android 32-bit encore
+          # en service, arm64-v8a le reste du parc).
+          sed -i 's/^reactNativeArchitectures=.*/reactNativeArchitectures=armeabi-v7a,arm64-v8a/' gradle.properties
+          grep -q '^reactNativeArchitectures=armeabi-v7a,arm64-v8a$' gradle.properties
+
       - name: Build diagnostic debug APK
         working-directory: android
         run: ./gradlew assembleDebug --no-daemon --max-workers=2
