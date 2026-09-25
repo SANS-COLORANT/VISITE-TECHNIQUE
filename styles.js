@@ -1,6 +1,9 @@
 /** Couleurs partagées + StyleSheet complet de l'application. */
 
 import { Platform, StyleSheet } from 'react-native';
+import { FONT_HEADING_BLACK, FONT_HEADING_BOLD, FONT_HEADING_SEMI, FONT_BODY_MEDIUM, FONT_BODY_SEMI, FONT_BODY_BOLD } from './AppFonts.js';
+
+export const FONTS = { black: FONT_HEADING_BLACK, bold: FONT_HEADING_BOLD, semi: FONT_HEADING_SEMI, bodyMedium: FONT_BODY_MEDIUM, bodySemi: FONT_BODY_SEMI, bodyBold: FONT_BODY_BOLD };
 
 export const COLORS = {
   orange: '#F26426', orangeDark: '#D9531A', orangeLight: '#FFF1EA',
@@ -23,12 +26,12 @@ export const styles = StyleSheet.create({
     flex: 1, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, paddingVertical: 14, alignItems: 'center',
     shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
-  statNum: { fontSize: 22, fontWeight: '700', color: COLORS.ink },
+  statNum: { fontSize: 22, fontWeight: '700', fontFamily: FONTS.black, color: COLORS.ink },
   statLabel: { fontSize: 11.5, color: COLORS.inkSoft, marginTop: 3 },
 
   sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, marginBottom: 9 },
-  sectionLabel: { fontSize: 12, fontWeight: '700', color: COLORS.inkFaint, textTransform: 'uppercase', letterSpacing: 0.5 },
-  addLink: { fontSize: 12.5, fontWeight: '700', color: COLORS.orangeDark },
+  sectionLabel: { fontSize: 12, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.inkFaint, textTransform: 'uppercase', letterSpacing: 0.5 },
+  addLink: { fontSize: 12.5, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.orangeDark },
 
   card: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, padding: 14, marginBottom: 9, gap: 10,
@@ -36,12 +39,12 @@ export const styles = StyleSheet.create({
   },
   deleteVisiteBtn: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.redBg, marginLeft: 4 },
   deleteVisiteBtnText: { color: COLORS.red, fontSize: 13, fontWeight: '700' },
-  cardTitle: { fontSize: 14.5, fontWeight: '600', color: COLORS.ink },
-  cardSub: { fontSize: 12, color: COLORS.inkSoft, marginTop: 2 },
+  cardTitle: { fontSize: 14.5, fontWeight: '600', fontFamily: FONTS.bold, color: COLORS.ink },
+  cardSub: { fontSize: 12, fontFamily: FONTS.bodyMedium, color: COLORS.inkSoft, marginTop: 2 },
   chevron: { color: COLORS.inkFaint, fontSize: 20 },
 
   badge: { backgroundColor: COLORS.orangeLight, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
-  badgeText: { fontSize: 11, fontWeight: '700', color: COLORS.orangeDark },
+  badgeText: { fontSize: 11, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.orangeDark },
   badgeActif: { backgroundColor: COLORS.greenBg },
   badgeInactif: { backgroundColor: COLORS.line },
   badgeTextActif: { color: COLORS.green },
@@ -53,7 +56,7 @@ export const styles = StyleSheet.create({
 
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalSheet: { backgroundColor: COLORS.white, borderRadius: 16, padding: 20, width: '85%' },
-  modalTitle: { fontSize: 16, fontWeight: '600', color: COLORS.ink, marginBottom: 14 },
+  modalTitle: { fontSize: 16, fontWeight: '600', fontFamily: FONTS.bold, color: COLORS.ink, marginBottom: 14 },
   input: { borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: COLORS.ink },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   fabBar: {
@@ -95,7 +98,7 @@ export const styles = StyleSheet.create({
   visitModeTitle: { fontSize: 14, fontWeight: '800', color: COLORS.ink, marginBottom: 3 },
   visitModeText: { fontSize: 11, lineHeight: 16, color: COLORS.inkSoft },
   anomalyBtn: { marginHorizontal: 18, marginBottom: 7, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 9, backgroundColor: '#FFF0EE', alignItems: 'center' },
-  anomalyBtnText: { fontSize: 11, fontWeight: '800', color: '#B42318' },
+  anomalyBtnText: { fontSize: 11, fontWeight: '800', fontFamily: FONTS.bodyBold, color: '#B42318' },
   expressHint: { marginHorizontal: 20, marginBottom: 6, fontSize: 9.5, lineHeight: 13, color: COLORS.inkSoft, textAlign: 'center' },
   brandFallback: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.orangeLight },
   brandFallbackText: { fontSize: 12, fontWeight: '800', color: COLORS.orangeDark },
@@ -103,9 +106,9 @@ export const styles = StyleSheet.create({
   catalogueChoice: { width: '48%', minHeight: 38, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
   catalogueChoiceActive: { borderColor: COLORS.orange, backgroundColor: COLORS.orangeLight },
   btnPrimary: { flex: 1, backgroundColor: COLORS.orange, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
-  btnPrimaryText: { color: COLORS.white, fontWeight: '600', fontSize: 13.5 },
+  btnPrimaryText: { color: COLORS.white, fontWeight: '600', fontFamily: FONTS.bodySemi, fontSize: 13.5 },
   btnSecondary: { flex: 1, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
-  btnSecondaryText: { color: COLORS.ink, fontWeight: '600', fontSize: 13.5 },
+  btnSecondaryText: { color: COLORS.ink, fontWeight: '600', fontFamily: FONTS.bodySemi, fontSize: 13.5 },
 
   // ---- Écran Visite : topbar + onglets ----
   visiteTopbar: { backgroundColor: COLORS.white, paddingTop: 50, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: COLORS.line },
@@ -124,14 +127,14 @@ export const styles = StyleSheet.create({
   simpleHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, paddingTop: 50, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: COLORS.line },
   simpleHeaderBack: { width: 36, alignItems: 'flex-start', justifyContent: 'center' },
   simpleHeaderBackText: { fontSize: 20, color: COLORS.ink },
-  simpleHeaderTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '600', color: COLORS.ink },
+  simpleHeaderTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '600', fontFamily: FONTS.bold, color: COLORS.ink },
   noteBtnText: { fontSize: 12, color: COLORS.inkSoft, fontWeight: '600' },
   exportBtn: { backgroundColor: COLORS.ink, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, marginLeft: 8 },
   exportBtnText: { fontSize: 12, color: COLORS.white, fontWeight: '600' },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   progressBarBg: { flex: 1, height: 6, backgroundColor: COLORS.line, borderRadius: 3, overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: COLORS.orange },
-  progressPct: { fontSize: 12, fontWeight: '700', color: COLORS.orangeDark },
+  progressPct: { fontSize: 12, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.orangeDark },
   tabStrip: { flexDirection: 'row' },
   tabItem: { paddingHorizontal: 12, paddingVertical: 10, marginRight: 2 },
   tabItemText: { fontSize: 12, fontWeight: '500', color: COLORS.inkSoft },

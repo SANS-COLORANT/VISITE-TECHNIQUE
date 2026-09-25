@@ -3,7 +3,7 @@
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView, PanResponder } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { COLORS, styles } from './styles.js';
+import { COLORS, FONTS, styles } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { IconOrb, FadeUp } from './premiumChrome.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
@@ -183,14 +183,14 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
     <View style={[styles.homeTopRow, { justifyContent: 'space-between' }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
         <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={36}><CvcIcon name="tools" size={18} color={COLORS.orangeDark} /></IconOrb>
-        <Text style={{ fontSize: 15, fontWeight: '800', color: COLORS.ink }}>Visite Technique</Text>
+        <Text style={{ fontSize: 15, fontWeight: '800', fontFamily: FONTS.black, color: COLORS.ink }}>Visite Technique</Text>
       </View>
       <View style={{ flexDirection: 'row' }}>
-        <TouchableOpacity accessibilityLabel="Importer des fichiers Excel" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.iconAction, styles.iconActionNeutral, { marginLeft: 0 }]} onPress={choisirExcel}>
-          <CvcIcon name="document" size={18} color={COLORS.ink} />
+        <TouchableOpacity accessibilityLabel="Importer des fichiers Excel" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} onPress={choisirExcel}>
+          <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={36}><CvcIcon name="document" size={17} color={COLORS.orangeDark} /></IconOrb>
         </TouchableOpacity>
-        <TouchableOpacity accessibilityLabel="Paramètres" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.iconAction, styles.iconActionNeutral]} onPress={() => navigation.navigate('Parametres')}>
-          <CvcIcon name="settings" size={18} color={COLORS.ink} />
+        <TouchableOpacity accessibilityLabel="Paramètres" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={() => navigation.navigate('Parametres')}>
+          <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={36}><CvcIcon name="settings" size={17} color={COLORS.orangeDark} /></IconOrb>
         </TouchableOpacity>
       </View>
     </View>

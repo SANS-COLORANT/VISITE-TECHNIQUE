@@ -5,6 +5,7 @@ import { COLORS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { IconOrb } from './premiumChrome.js';
 import { getVisite, getNote, upsertNote, getDb } from './db.js';
 import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
@@ -628,16 +629,16 @@ function VisiteScreen({ route, onBack }) {
             <Text numberOfLines={1} style={styles.cardSub}>{[visite.nom_client, visite.nom_installation, visite.date_visite, trame.nom, visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'].filter(Boolean).join(' · ')}</Text>
           </View>
           {appareilTablette ? (
-            <TouchableOpacity accessibilityLabel="Compagnon téléphone" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.iconAction, styles.iconActionNeutral]} onPress={() => setCompanionVisible(true)}>
-              <CvcIcon name="device" size={19} color={COLORS.ink} />
+            <TouchableOpacity accessibilityLabel="Compagnon téléphone" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={() => setCompanionVisible(true)}>
+              <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="device" size={19} color={COLORS.orangeDark} /></IconOrb>
             </TouchableOpacity>
           ) : null}
-          <TouchableOpacity accessibilityLabel="Note libre" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.iconAction, styles.iconActionNeutral]} onPress={ouvrirNote}>
-            <CvcIcon name="note" size={19} color={COLORS.ink} />
+          <TouchableOpacity accessibilityLabel="Note libre" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={ouvrirNote}>
+            <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="note" size={19} color={COLORS.orangeDark} /></IconOrb>
           </TouchableOpacity>
           {trame.id === 'pre_allumage' ? (
-            <TouchableOpacity accessibilityLabel="Exporter en PDF ou Word" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.iconAction, styles.iconActionNeutral]} onPress={choisirFormatRapportPreAllumage} disabled={reportExporting}>
-              {reportExporting ? <ActivityIndicator size="small" color={COLORS.ink} /> : <CvcIcon name="document" size={19} color={COLORS.ink} />}
+            <TouchableOpacity accessibilityLabel="Exporter en PDF ou Word" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={choisirFormatRapportPreAllumage} disabled={reportExporting}>
+              <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}>{reportExporting ? <ActivityIndicator size="small" color={COLORS.orangeDark} /> : <CvcIcon name="document" size={19} color={COLORS.orangeDark} />}</IconOrb>
             </TouchableOpacity>
           ) : null}
           <TouchableOpacity accessibilityLabel={`Exporter en Excel ${trame.nom}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.iconAction, styles.iconActionDark]} onPress={exporter} disabled={exporting}>

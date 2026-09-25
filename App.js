@@ -6,7 +6,7 @@ import { PhotoDownloadBanner } from './PhotoDownloadStatus.js';
 import { IntranetVisitSyncBanner, IntranetVisitSyncRuntime } from './IntranetVisitSync.js';
 import { IntranetStructureRuntime } from './IntranetStructureRuntime.js';
 import { getDb } from './db.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, FONTS, styles } from './styles.js';
 import { MISSION_COLORS } from './missionTheme.js';
 import { HomeScreen } from './HomeScreen.js';
 import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';
@@ -21,6 +21,7 @@ import { SpiralActiveDock } from './visual-packs/spiral-active/SpiralActiveDock.
 import { CompanionPhoneScreen } from './CompanionPhoneScreen.js';
 import { PhotoPhoneScreen } from './PhotoPhoneScreen.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { useAppFonts } from './AppFonts.js';
 
 const SPLASH_BG = '#FBF0E1';
 const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects', 'MissionP3Dashboard', 'MissionReceptionBoard', 'MissionExpertise', 'MissionCampaignDashboard', 'MissionAmoDashboard', 'MissionControlBoard']);
@@ -95,7 +96,7 @@ function SimpleHeader({ title, onBack, visualPack, rightAction = null }) {
       {onBack ? <TouchableOpacity onPress={onBack} style={{ width: 44, height: 40, alignItems: 'flex-start', justifyContent: 'center' }}><Text style={{ color: '#14202C', fontSize: 22, fontWeight: '700' }}>←</Text></TouchableOpacity> : <View style={{ width: 44 }} />}
       <View style={{ flex: 1, alignItems: 'center' }}>
         <Text style={{ color: '#14202C', fontSize: 9, fontWeight: '900', letterSpacing: 2 }}>METRA</Text>
-        <Text numberOfLines={1} style={{ marginTop: 2, color: '#14202C', fontSize: 16, fontWeight: '900', letterSpacing: -0.25 }}>{title}</Text>
+        <Text numberOfLines={1} style={{ marginTop: 2, color: '#14202C', fontSize: 16, fontWeight: '900', fontFamily: FONTS.black, letterSpacing: -0.25 }}>{title}</Text>
         <View style={{ marginTop: 6, width: 34, height: 3, backgroundColor: '#F26426', transform: [{ skewX: '-18deg' }] }} />
       </View>
       <View style={{ width: 44, alignItems: 'flex-end' }}>{uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : <View style={{ width: 10, height: 24, backgroundColor: '#DCEFF1', transform: [{ skewX: '-16deg' }] }} />}</View>
@@ -115,7 +116,7 @@ function MissionHeader({ title, onBack, visualPack, root = false }) {
     {onBack ? <TouchableOpacity style={{ width: 40, minHeight: 34, alignItems: 'flex-start', justifyContent: 'center' }} onPress={onBack}><Text style={{ fontSize: 21, color: '#DDF2E5', fontWeight: '800' }}>←</Text></TouchableOpacity> : <View style={{ width: 40 }} />}
     <View style={{ flex: 1, alignItems: 'center' }}>
       <Text style={{ fontSize: 8.5, color: '#BFE2CC', fontWeight: '900', letterSpacing: 1.1 }}>{root ? 'UNIVERS MISSIONS' : 'MISSIONS'}</Text>
-      <Text style={{ marginTop: 1, textAlign: 'center', fontSize: 15.5, fontWeight: '900', color: '#FFFFFF' }}>{title}</Text>
+      <Text style={{ marginTop: 1, textAlign: 'center', fontSize: 15.5, fontWeight: '900', fontFamily: FONTS.black, color: '#FFFFFF' }}>{title}</Text>
     </View>
     <View style={{ width: 40, alignItems: 'flex-end', justifyContent: 'center' }}>{uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null}</View>
   </View>;
@@ -381,11 +382,13 @@ export default function App() {
   const { width, height } = useWindowDimensions();
   const phone = Math.min(width, height) < 600;
   const [phoneMode, setPhoneMode] = useState(null);
+  const fontsReady = useAppFonts();
 
   useEffect(() => {
     if (!phone) setPhoneMode(null);
   }, [phone]);
 
+  if (!fontsReady) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
   if (phone && !phoneMode) return <AppErrorBoundary><PhoneModeChooser onChoose={setPhoneMode} /></AppErrorBoundary>;
   if (phone && phoneMode === 'photo') return <AppErrorBoundary><PhotoPhoneScreen onExit={() => setPhoneMode(null)} /></AppErrorBoundary>;
   if (phone && phoneMode === 'companion') return <AppErrorBoundary><CompanionPhoneScreen onExit={() => setPhoneMode(null)} /></AppErrorBoundary>;

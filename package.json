@@ -20,10 +20,13 @@
     "build:aab": "npx eas-cli build -p android --profile production"
   },
   "dependencies": {
+    "@expo-google-fonts/inter": "^0.4.2",
+    "@expo-google-fonts/sora": "^0.4.2",
     "expo": "51.0.39",
     "expo-asset": "~10.0.10",
     "expo-document-picker": "~12.0.2",
     "expo-file-system": "~17.0.0",
+    "expo-font": "~12.0.10",
     "expo-image-manipulator": "~12.0.5",
     "expo-image-picker": "~15.1.0",
     "expo-linear-gradient": "~13.0.2",

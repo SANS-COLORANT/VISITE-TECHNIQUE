@@ -1,6 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
+import { IconOrb } from './premiumChrome.js';
 import { prewarmCameraRuntime } from './cameraRuntime.js';
 import { PhotoVariantImage } from './PhotoVariantImage.js';
 import { enregistrerImagePatrimoine, lireImagePatrimoine } from './patrimoineImageDb.js';
@@ -83,8 +85,8 @@ export function PatrimoineImageCard({ entityType, entityId, title, subtitle = nu
   return <View style={{ backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: '#E3E5E8', overflow: 'hidden', marginBottom: 14 }}>
     <TouchableOpacity activeOpacity={uri ? 0.86 : 1} onPress={() => { if (uri) setViewer(true); }} accessibilityRole={uri ? 'imagebutton' : undefined}>
       {uri ? <PhotoVariantImage uri={uri} variant={busy ? 'original' : 'thumb'} resizeMode="cover" style={{ width: '100%', height: 152, backgroundColor: '#F2F3F5' }} /> : <View style={{ height: 96, backgroundColor: '#F7F8FA', alignItems: 'center', justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: '#ECEEF1' }}>
-        <Text style={{ fontSize: 25, color: COLORS.orange || '#F26426' }}>▧</Text>
-        <Text style={{ marginTop: 5, color: COLORS.muted, fontSize: 12 }}>{libelleType} non renseignée</Text>
+        <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="gallery" size={20} color={COLORS.orangeDark} /></IconOrb>
+        <Text style={{ marginTop: 7, color: COLORS.muted, fontSize: 12 }}>{libelleType} non renseignée</Text>
       </View>}
     </TouchableOpacity>
 
@@ -97,11 +99,11 @@ export function PatrimoineImageCard({ entityType, entityId, title, subtitle = nu
         {busy ? <ActivityIndicator color={COLORS.orange || '#F26426'} /> : null}
       </View>
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
-        <TouchableOpacity disabled={busy} onPressIn={() => { prewarmCameraRuntime().catch(() => {}); }} onPress={() => choisir('camera')} style={[styles.btnSecondary, { flex: 1, minWidth: 145, minHeight: 44 }]}>
-          <Text style={styles.btnSecondaryText}>📷 Prendre une photo</Text>
+        <TouchableOpacity disabled={busy} onPressIn={() => { prewarmCameraRuntime().catch(() => {}); }} onPress={() => choisir('camera')} style={[styles.btnSecondary, { flex: 1, minWidth: 145, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]}>
+          <CvcIcon name="camera" size={17} color={COLORS.ink} /><Text style={styles.btnSecondaryText}>Prendre une photo</Text>
         </TouchableOpacity>
-        <TouchableOpacity disabled={busy} onPress={() => choisir('galerie')} style={[styles.btnSecondary, { flex: 1, minWidth: 130, minHeight: 44 }]}>
-          <Text style={styles.btnSecondaryText}>▣ Galerie</Text>
+        <TouchableOpacity disabled={busy} onPress={() => choisir('galerie')} style={[styles.btnSecondary, { flex: 1, minWidth: 130, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]}>
+          <CvcIcon name="gallery" size={17} color={COLORS.ink} /><Text style={styles.btnSecondaryText}>Galerie</Text>
         </TouchableOpacity>
         {uri ? <TouchableOpacity disabled={busy} onPress={demanderSuppression} style={{ minHeight: 44, paddingHorizontal: 13, borderRadius: 10, borderWidth: 1, borderColor: '#F0D1CD', backgroundColor: '#FFF7F6', alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: COLORS.red || '#B42318', fontWeight: '800' }}>Supprimer</Text>
