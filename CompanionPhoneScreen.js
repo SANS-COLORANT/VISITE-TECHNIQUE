@@ -258,7 +258,6 @@ function VisitChoiceRow({ visit, onPress, busy, accent, light }) {
         </Text>
         <Text style={{ marginTop: 3, color: accent, fontSize: 11, fontWeight: '800' }}>
           {Number(visit.progress || 0)}%
-          {visit.offlineReady === true ? ' · prêt hors ligne' : ''}
         </Text>
       </View>
       <Text style={{ fontSize: 22, color: COLORS.inkFaint }}>›</Text>
@@ -538,11 +537,111 @@ function CompanionPhoneScreen({ onExit }) {
     })();
   }, [busyTarget, refreshPending, selectedModule?.id, snapshot?.visit?.id]);
 
+  const saveTargetField = useCallback(async (field, value) => {
+    if (!snapshot?.visit?.id || !field?.edit) return;
+    if (!connectedRef.current) {
+      Alert.alert('Tablette déconnectée', 'Reconnecte la tablette avant de modifier une valeur. Les photos, elles, peuvent rester en attente.');
+      return;
+    }
+
+    const requestId = `edit_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
+    pendingEditRef.current = requestId;
+    setSavingFieldId(String(field.id));
+    setStatus(`Mise à jour · ${field.label}`);
+
+    try {
+      await withTimeout(
+        sendCompanionMessage({
+          type: 'updateTarget',
+          requestId,
+          visitId: snapshot.visit.id,
+          edit: field.edit,
+          value,
+        }),
+        7000,
+        'La tablette ne répond pas.'
+      );
+    } catch (e) {
+      if (pendingEditRef.current === requestId) {
+        pendingEditRef.current = null;
+        setSavingFieldId(null);
+      }
+      setStatus('Modification non envoyée');
+      Alert.alert('Modification impossible', String(e?.message || e));
+    }
+  }, [snapshot?.visit?.id]);
+
   const quit = useCallback(async () => {
     connectedRef.current = false;
     await disconnectCompanion().catch(() => {});
     onExit?.();
   }, [onExit]);
+
+  if (selectedModule && selectedTarget && isVisitSnapshot) {
+    const fields = Array.isArray(selectedTarget.fields) ? selectedTarget.fields : [];
+    return (
+      <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity onPress={() => setSelectedTargetId(null)} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}>
+              <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.ink }}>←</Text>
+            </TouchableOpacity>
+            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}>
+              <CvcIcon name={selectedModule.icon} size={28} color={accent} />
+            </View>
+            <View style={{ flex: 1 }}>
+              <Text numberOfLines={2} style={{ fontSize: 18, fontWeight: '900', color: COLORS.ink }}>{selectedTarget.label}</Text>
+              <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 11.5 }}>{selectedModule.label}</Text>
+            </View>
+          </View>
+        </View>
+
+        <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
+          {selectedTarget.subtitle ? (
+            <View style={{ padding: 12, borderRadius: 14, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, marginBottom: 10 }}>
+              <Text style={{ color: COLORS.inkSoft, fontSize: 12 }}>{selectedTarget.subtitle}</Text>
+            </View>
+          ) : null}
+
+          <TouchableOpacity
+            disabled={busyTarget === selectedTarget.id}
+            onPressIn={() => prewarmCameraRuntime().catch(() => {})}
+            onPress={() => capture(selectedTarget)}
+            style={{ minHeight: 64, borderRadius: 17, backgroundColor: accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 18 }}
+          >
+            {busyTarget === selectedTarget.id
+              ? <ActivityIndicator color={COLORS.white} />
+              : <CvcIcon name="camera" size={28} color={COLORS.white} />}
+            <Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 15 }}>
+              {busyTarget === selectedTarget.id ? 'Ouverture appareil photo…' : 'Prendre une photo'}
+            </Text>
+          </TouchableOpacity>
+
+          <View style={{ marginTop: 14, padding: 14, borderRadius: 17, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line }}>
+            <Text style={{ color: COLORS.ink, fontSize: 14.5, fontWeight: '900', marginBottom: fields.length ? 12 : 2 }}>Valeurs</Text>
+            {fields.length ? fields.map((field) => (
+              <QuickFieldEditor
+                key={String(field.id)}
+                field={field}
+                onSave={saveTargetField}
+                saving={savingFieldId === String(field.id)}
+                accent={accent}
+                light={light}
+              />
+            )) : (
+              <Text style={{ color: COLORS.inkSoft, fontSize: 11.5, lineHeight: 17 }}>
+                Aucun champ à modifier pour cet élément. La prise de photo reste disponible immédiatement.
+              </Text>
+            )}
+          </View>
+
+          <Text style={{ marginTop: 12, color: COLORS.inkFaint, fontSize: 10.5, textAlign: 'center', lineHeight: 15 }}>
+            Les modifications sont enregistrées directement dans la visite ouverte sur la tablette.
+          </Text>
+        </ScrollView>
+      </View>
+    );
+  }
 
   if (selectedModule && isVisitSnapshot) {
     const targets = selectedModule.targets || [];
@@ -550,7 +649,7 @@ function CompanionPhoneScreen({ onExit }) {
       <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
         <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <TouchableOpacity onPress={() => setSelectedModuleId(null)} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}>
+            <TouchableOpacity onPress={() => { setSelectedTargetId(null); setSelectedModuleId(null); }} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}>
               <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.ink }}>←</Text>
             </TouchableOpacity>
             <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}>
@@ -558,7 +657,7 @@ function CompanionPhoneScreen({ onExit }) {
             </View>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 19, fontWeight: '900', color: COLORS.ink }}>{selectedModule.label}</Text>
-              <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 12 }}>{targets.length} élément{targets.length > 1 ? 's' : ''} · toucher pour photographier</Text>
+              <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 12 }}>{targets.length} élément{targets.length > 1 ? 's' : ''} · toucher pour ouvrir</Text>
             </View>
           </View>
         </View>
@@ -569,7 +668,7 @@ function CompanionPhoneScreen({ onExit }) {
           initialNumToRender={12}
           maxToRenderPerBatch={10}
           windowSize={7}
-          renderItem={({ item }) => <TargetRow item={item} onCapture={capture} onWarm={() => prewarmCameraRuntime().catch(() => {})} busy={busyTarget === item.id} accent={accent} light={light} />}
+          renderItem={({ item }) => <TargetRow item={item} onPress={(target) => setSelectedTargetId(target.id)} icon={selectedModule.icon} accent={accent} light={light} />}
           ListEmptyComponent={<View style={{ marginTop: 60, alignItems: 'center', paddingHorizontal: 28 }}><CvcIcon name={selectedModule.icon} size={54} color={accent} /><Text style={{ marginTop: 14, fontWeight: '900', fontSize: 16, color: COLORS.ink }}>Aucun élément dans cette rubrique</Text><Text style={{ marginTop: 6, textAlign: 'center', color: COLORS.inkSoft }}>La tablette transmet automatiquement les éléments présents dans la visite.</Text></View>}
         />
       </View>
@@ -588,7 +687,7 @@ function CompanionPhoneScreen({ onExit }) {
               <View style={{ flex: 1 }}>
                 <Text style={{ fontSize: 18, fontWeight: '900', color: COLORS.ink }}>{selectedSite.name}</Text>
                 <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 12 }}>
-                  {snapshot.offlineQr ? 'Choisir une visite disponible hors connexion' : 'Choisir une visite · aucun nouveau QR nécessaire'}
+                  Choisir une visite · aucun nouveau QR nécessaire
                 </Text>
               </View>
             </View>
@@ -621,18 +720,6 @@ function CompanionPhoneScreen({ onExit }) {
           <Text style={{ marginTop: 10, color: COLORS.inkSoft, fontSize: 11.5 }}>
             {snapshot.counts?.sites || 0} sites · {snapshot.counts?.locals || 0} locaux · {snapshot.counts?.visits || 0} visites
           </Text>
-          {snapshot.offlineQr ? (
-            <TouchableOpacity
-              onPress={scan}
-              style={{ marginTop: 9, alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 7, borderRadius: 14, backgroundColor: light, borderWidth: 1, borderColor: accent }}
-            >
-              <Text style={{ color: accent, fontSize: 11.5, fontWeight: '900' }}>
-                {snapshot.offlineProgress?.complete
-                  ? `Lot QR complet · ${snapshot.offlineProgress?.total || 0}/${snapshot.offlineProgress?.total || 0}`
-                  : `Continuer le scan · ${snapshot.offlineProgress?.scanned || 0}/${snapshot.offlineProgress?.total || 0}`}
-              </Text>
-            </TouchableOpacity>
-          ) : null}
         </View>
         <FlatList
           data={snapshot.sites || []}
@@ -685,36 +772,6 @@ function CompanionPhoneScreen({ onExit }) {
             {(phase === 'scanning' || phase === 'connecting') ? <Text style={{ marginTop: 10, color: COLORS.inkSoft, fontSize: 11.5, textAlign: 'center' }}>{phase === 'scanning' ? 'Scanner ouvert · tu peux annuler avec Retour' : 'Connexion locale en cours…'}</Text> : null}
             {pending > 0 ? <Text style={{ marginTop: 14, color: accent, fontWeight: '800', fontSize: 12 }}>{pending} photo{pending > 1 ? 's' : ''} conservée{pending > 1 ? 's' : ''} en attente d'une tablette</Text> : null}
           </View>
-          {savedQrClients.length ? (
-            <View style={{ marginTop: 16 }}>
-              <Text style={{ color: COLORS.ink, fontSize: 13.5, fontWeight: '900', marginBottom: 8 }}>Clients QR enregistrés</Text>
-              {savedQrClients.map((item) => (
-                <View key={item.batchId} style={{ padding: 13, borderRadius: 15, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, marginBottom: 8 }}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                    <View style={{ flex: 1 }}>
-                      <Text style={{ color: COLORS.ink, fontSize: 14, fontWeight: '900' }}>{item.clientName || 'Client'}</Text>
-                      <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 11.5 }}>
-                        {item.scanned || 0}/{item.totalFrames || 0} QR · {item.complete ? 'complet' : 'à poursuivre'}
-                      </Text>
-                    </View>
-                    <View style={{ paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: light }}>
-                      <Text style={{ color: accent, fontSize: 10.5, fontWeight: '900' }}>{item.complete ? 'HORS LIGNE' : 'EN COURS'}</Text>
-                    </View>
-                  </View>
-                  <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-                    <TouchableOpacity onPress={() => openSavedQrClient(item.batchId)} style={{ flex: 1, minHeight: 42, borderRadius: 12, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center' }}>
-                      <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 11.5 }}>Ouvrir</Text>
-                    </TouchableOpacity>
-                    {!item.complete ? (
-                      <TouchableOpacity onPress={() => continueSavedQrClient(item.batchId)} style={{ flex: 1, minHeight: 42, borderRadius: 12, backgroundColor: accent, alignItems: 'center', justifyContent: 'center' }}>
-                        <Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 11.5 }}>Continuer le scan</Text>
-                      </TouchableOpacity>
-                    ) : null}
-                  </View>
-                </View>
-              ))}
-            </View>
-          ) : null}
           </>
         ) : isVisitSnapshot ? (
           <>
@@ -732,22 +789,14 @@ function CompanionPhoneScreen({ onExit }) {
                   Alert.alert('Photos de la visite', `${m.count || 0} photo${Number(m.count || 0) > 1 ? 's' : ''} actuellement enregistrée${Number(m.count || 0) > 1 ? 's' : ''} sur la tablette.`);
                   return;
                 }
+                setSelectedTargetId(null);
                 setSelectedModuleId(m.id);
               }} />)}
             </View>
 
-            {snapshot.offlineQr && !connectedRef.current ? (
-              <View style={{ marginTop: 14, padding: 12, borderRadius: 15, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white }}>
-                <Text style={{ fontWeight: '900', color: COLORS.ink }}>Mode hors connexion</Text>
-                <Text style={{ marginTop: 4, color: COLORS.inkSoft, fontSize: 11.5, lineHeight: 17 }}>
-                  Les photos prises ici sont conservées sur le téléphone et seront envoyées à la tablette lors de la prochaine association Compagnon.
-                </Text>
-              </View>
-            ) : (
-              <TouchableOpacity onPress={() => sendCompanionMessage({ type: 'requestSnapshot' }).catch(() => {})} style={{ marginTop: 14, minHeight: 48, borderRadius: 15, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontWeight: '900', color: COLORS.ink }}>Actualiser depuis la tablette</Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity onPress={() => sendCompanionMessage({ type: 'requestSnapshot' }).catch(() => {})} style={{ marginTop: 14, minHeight: 48, borderRadius: 15, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontWeight: '900', color: COLORS.ink }}>Actualiser depuis la tablette</Text>
+            </TouchableOpacity>
           </>
         ) : null}
       </ScrollView>
