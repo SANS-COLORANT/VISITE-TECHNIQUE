@@ -35,28 +35,6 @@ const SPECIAL_PANEL_DEFAULTS = ['p-regulation', 'p-releves', 'p-equip', 'p-remar
 const HEAVY_LAZY_PANELS = new Set(['p-equip', 'p-releves']);
 const PAGER_PRUNE_DELAY_MS = 700;
 
-// Regroupe uniquement la navigation : les identifiants des panneaux restent ceux
-// des trames pour préserver les saisies, la reprise et les exports existants.
-const VISIT_TAB_GROUPS = {
-  icpe_v1: [
-    { label: 'Général', ids: ['p-infos'] },
-    { label: 'Installation', ids: ['p-distrib', 'p-regulation', 'p-releves'] },
-    { label: 'Contrôles', ids: ['p-conf-local', 'p-conf-energie', 'p-conf-chauffage', 'p-conf-ecs', 'p-conf-adouc'] },
-    { label: 'Suivi', ids: ['p-equip', 'p-remarques', 'p-photos'] },
-  ],
-  vmc: [
-    { label: 'Général', ids: ['p-vmc-infos'] },
-    { label: 'Caissons', ids: ['p-vmc-c1', 'p-vmc-c2', 'p-vmc-c3', 'p-vmc-c4', 'p-vmc-c5', 'p-vmc-c6'] },
-    { label: 'Équipements', ids: ['p-equip'] },
-    { label: 'Synthèse', ids: ['p-remarques', 'p-photos'] },
-  ],
-  pre_allumage: [
-    { label: 'Général', ids: ['p-pa-infos'] },
-    { label: 'Installations', ids: ['p-pa-batiments', 'p-equip'] },
-    { label: 'Synthèse', ids: ['p-pa-conclusion', 'p-remarques', 'p-photos'] },
-  ],
-};
-
 const VisitPanelHost = memo(function VisitPanelHost({
   visiteId,
   panelId,
@@ -91,10 +69,6 @@ function VisiteScreen({ route, onBack }) {
   const pagerWidth = Math.max(1, modeTablette ? width - 205 : width);
   const pagerWidthRef = useRef(pagerWidth);
   pagerWidthRef.current = pagerWidth;
-  const groupsScrollRef = useRef(null);
-  const groupPositionsRef = useRef({});
-  const subTabsScrollRef = useRef(null);
-  const subTabPositionsRef = useRef({});
 
   const [visite, setVisite] = useState(() => initialPreview ? { ...initialPreview, progression_pct: Number(initialPreview.progression_pct || 0) } : null);
   const [chargementErreur, setChargementErreur] = useState(null); // VISIT_OPEN_FAIL_SAFE_V1 · VISIT_OPEN_FAST_V2
@@ -147,22 +121,6 @@ function VisiteScreen({ route, onBack }) {
     : panelLabelsBase, [trame.id, panelLabelsBase, vmcCaissons]);
   const tabsReels = useMemo(() => tabOrder.filter((t) => t !== 'SEP'), [tabOrder]);
   const tabsSignature = tabsReels.join('|');
-  const tabGroups = useMemo(() => {
-    const remaining = new Set(tabsReels);
-    const groups = (VISIT_TAB_GROUPS[trame.id] || []).map(({ label, ids }) => {
-      const visibleIds = ids.filter((id) => remaining.delete(id));
-      return { label, ids: visibleIds };
-    }).filter((group) => group.ids.length);
-    if (remaining.size) groups.push({ label: 'Autres', ids: [...remaining] });
-    return groups;
-  }, [trame.id, tabsSignature]);
-  const activeGroup = tabGroups.find((group) => group.ids.includes(activeTab)) || tabGroups[0];
-  useEffect(() => {
-    const groupPosition = groupPositionsRef.current[activeGroup?.label];
-    if (groupPosition != null) groupsScrollRef.current?.scrollTo({ x: Math.max(0, groupPosition - 20), animated: true });
-    const position = subTabPositionsRef.current[activeTab];
-    if (position != null) subTabsScrollRef.current?.scrollTo({ x: Math.max(0, position - 20), animated: true });
-  }, [activeTab]);
 
   const addMountedPanels = useCallback((ids, { stickyHeavy = false } = {}) => {
     const next = new Set(mountedPanelIdsRef.current);
@@ -709,23 +667,15 @@ function VisiteScreen({ route, onBack }) {
         </TouchableOpacity>
         {visite.mode_visite === 'express' && <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>}
         {trame.id === 'vmc' && vmcCaissons.length > 0 ? <VmcCaissonManager visiteId={visiteId} caissons={vmcCaissons} onChange={onCaissonsChange} onNavigate={changerOnglet} /> : null}
-        {!modeTablette && <>
-          <ScrollView ref={groupsScrollRef} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabGroupStrip}>
-            {tabGroups.map((group) => <TouchableOpacity key={group.label} accessibilityRole="tab" accessibilityState={{ selected: group === activeGroup }} style={[styles.tabGroupItem, group === activeGroup && styles.tabGroupItemActive]} onLayout={(event) => { groupPositionsRef.current[group.label] = event.nativeEvent.layout.x; if (group === activeGroup) groupsScrollRef.current?.scrollTo({ x: Math.max(0, event.nativeEvent.layout.x - 20), animated: false }); }} onPress={() => changerOnglet(group.ids[0])}><Text style={[styles.tabGroupText, group === activeGroup && styles.tabGroupTextActive]}>{group.label}</Text></TouchableOpacity>)}
-          </ScrollView>
-          {activeGroup?.ids.length > 1 ? <ScrollView key={activeGroup.label} ref={subTabsScrollRef} keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.tabStrip}>
-            {activeGroup.ids.map((pid) => <TouchableOpacity key={pid} accessibilityRole="tab" accessibilityState={{ selected: activeTab === pid }} style={styles.tabItem} onLayout={(event) => { subTabPositionsRef.current[pid] = event.nativeEvent.layout.x; if (pid === activeTab) subTabsScrollRef.current?.scrollTo({ x: Math.max(0, event.nativeEvent.layout.x - 20), animated: false }); }} onPress={() => changerOnglet(pid)}><Text style={[styles.tabItemText, activeTab === pid && styles.tabItemTextActive]}>{panelLabels[pid] || pid}</Text>{activeTab === pid && <View style={styles.tabUnderline} />}</TouchableOpacity>)}
-          </ScrollView> : null}
-        </>}
+        {!modeTablette && <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.tabStrip}>
+          {tabOrder.map((pid, i) => pid === 'SEP' ? <View key={`sep-${i}`} style={styles.tabSep} /> : <TouchableOpacity key={pid} style={styles.tabItem} onPress={() => changerOnglet(pid)}><Text style={[styles.tabItemText, activeTab === pid && styles.tabItemTextActive]}>{panelLabels[pid] || pid}</Text>{activeTab === pid && <View style={styles.tabUnderline} />}</TouchableOpacity>)}
+        </ScrollView>}
       </View>
 
       {modeTablette ? <View style={{ flex: 1, flexDirection: 'row' }}>
         <View style={{ width: 205, backgroundColor: '#FFFFFF', borderRightWidth: 1, borderRightColor: COLORS.line }}>
           <ScrollView contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: 9 }} showsVerticalScrollIndicator={false}>
-            {tabGroups.map((group) => <View key={group.label}>
-              {group.ids.length > 1 ? <Text style={styles.sideGroupTitle}>{group.label}</Text> : null}
-              {group.ids.map((pid) => <TouchableOpacity key={pid} accessibilityRole="tab" accessibilityState={{ selected: activeTab === pid }} onPress={() => changerOnglet(pid)} style={[styles.sideTabItem, activeTab === pid && styles.sideTabItemActive]}><Text style={[styles.sideTabText, activeTab === pid && styles.sideTabTextActive]}>{group.ids.length === 1 ? group.label : panelLabels[pid] || pid}</Text></TouchableOpacity>)}
-            </View>)}
+            {tabOrder.map((pid, i) => pid === 'SEP' ? <View key={`side-sep-${i}`} style={{ height: 1, backgroundColor: COLORS.line, marginVertical: 8 }} /> : <TouchableOpacity key={pid} onPress={() => changerOnglet(pid)} style={{ minHeight: 43, paddingHorizontal: 11, paddingVertical: 10, borderRadius: 10, marginVertical: 2, justifyContent: 'center', backgroundColor: activeTab === pid ? '#FFF3E8' : 'transparent', borderWidth: activeTab === pid ? 1 : 0, borderColor: activeTab === pid ? '#F3C89B' : 'transparent' }}><Text style={{ fontSize: 13, fontWeight: activeTab === pid ? '800' : '600', color: activeTab === pid ? COLORS.primary : COLORS.text }}>{panelLabels[pid] || pid}</Text></TouchableOpacity>)}
           </ScrollView>
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>{animatedContent}</View>
