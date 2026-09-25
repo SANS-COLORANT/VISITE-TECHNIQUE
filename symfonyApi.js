@@ -1,7 +1,13 @@
 import * as SecureStore from 'expo-secure-store';
 import * as FileSystem from 'expo-file-system';
 import { NativeModules } from 'react-native';
-import { cacheAuthorizedClients, cachePreparation, getApiSyncState, markApiError, updateApiSyncState } from './symfonyApiCacheDb.js';
+import {
+  cacheAuthorizedClients,
+  cachePreparation,
+  getApiSyncState,
+  markApiError,
+  updateApiSyncState
+} from './symfonyApiCacheDb.js';
 
 export const METRA_API_BASE_URL = 'https://intranet-energieetservice.com';
 
@@ -19,7 +25,9 @@ let refreshPromise = null;
 
 function ensureNativeDpop() {
   if (!NativeDpop?.createProof) {
-    throw new Error('Le module de sécurité Android METRA n’est pas disponible dans ce build. Installe un APK natif METRA récent.');
+    throw new Error(
+      'Le module de sécurité Android METRA n’est pas disponible dans ce build. Installe un APK natif METRA récent.'
+    );
   }
   return NativeDpop;
 }
@@ -35,7 +43,9 @@ function endpoint(path) {
 }
 
 function urlEncoded(data) {
-  return Object.entries(data).map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value ?? ''))}`).join('&');
+  return Object.entries(data)
+    .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(String(value ?? ''))}`)
+    .join('&');
 }
 
 function localAuthError(message, code) {
@@ -47,11 +57,16 @@ function localAuthError(message, code) {
 async function parseResponse(response) {
   const text = await response.text();
   let body = null;
-  try { body = text ? JSON.parse(text) : null; }
-  catch { body = { message: text }; }
+  try {
+    body = text ? JSON.parse(text) : null;
+  } catch {
+    body = { message: text };
+  }
 
   if (!response.ok) {
-    const error = new Error(body?.error_description || body?.message || body?.error || `Erreur API HTTP ${response.status}`);
+    const error = new Error(
+      body?.error_description || body?.message || body?.error || `Erreur API HTTP ${response.status}`
+    );
     error.status = response.status;
     error.code = body?.error || body?.code || null;
     error.retryAfter = response.headers?.get?.('Retry-After') || null;
@@ -93,8 +108,8 @@ async function downloadAttempt(path, destinationUri, accessToken) {
     headers: {
       Accept: 'image/*',
       DPoP: proof,
-      Authorization: `DPoP ${accessToken}`,
-    },
+      Authorization: `DPoP ${accessToken}`
+    }
   });
   if (response.status >= 300 && response.status < 400) {
     const error = new Error('Redirection HTTP refusée pour protéger la preuve DPoP.');
@@ -103,8 +118,13 @@ async function downloadAttempt(path, destinationUri, accessToken) {
   }
   if (!response.ok) {
     let body = null;
-    try { const text = await response.text(); body = text ? JSON.parse(text) : null; } catch {}
-    const error = new Error(body?.error_description || body?.message || body?.error || `Erreur API HTTP ${response.status}`);
+    try {
+      const text = await response.text();
+      body = text ? JSON.parse(text) : null;
+    } catch {}
+    const error = new Error(
+      body?.error_description || body?.message || body?.error || `Erreur API HTTP ${response.status}`
+    );
     error.status = response.status;
     error.code = body?.error || body?.code || null;
     error.retryAfter = response.headers?.get?.('Retry-After') || null;
@@ -117,33 +137,35 @@ async function downloadAttempt(path, destinationUri, accessToken) {
   try {
     const base64 = await blobAsBase64(blob);
     await FileSystem.writeAsStringAsync(destinationUri, base64, { encoding: FileSystem.EncodingType.Base64 });
-  } finally { blob.close?.(); }
+  } finally {
+    blob.close?.();
+  }
   const headers = {};
-  response.headers?.forEach?.((value, key) => { headers[key] = value; });
+  response.headers?.forEach?.((value, key) => {
+    headers[key] = value;
+  });
   return {
     uri: destinationUri,
     status: response.status,
     headers,
-    mimeType: response.headers?.get?.('Content-Type') || blob.type || null,
+    mimeType: response.headers?.get?.('Content-Type') || blob.type || null
   };
 }
 
 async function clearLegacyAccessStorage() {
   await Promise.all([
     SecureStore.deleteItemAsync(LEGACY_ACCESS_KEY),
-    SecureStore.deleteItemAsync(LEGACY_ACCESS_EXP_KEY),
+    SecureStore.deleteItemAsync(LEGACY_ACCESS_EXP_KEY)
   ]);
 }
 
 async function clearSecureSession() {
   accessMemory = null;
-  await Promise.all([
-    LEGACY_ACCESS_KEY,
-    LEGACY_ACCESS_EXP_KEY,
-    REFRESH_KEY,
-    REFRESH_EXP_KEY,
-    TABLET_KEY,
-  ].map((key) => SecureStore.deleteItemAsync(key)));
+  await Promise.all(
+    [LEGACY_ACCESS_KEY, LEGACY_ACCESS_EXP_KEY, REFRESH_KEY, REFRESH_EXP_KEY, TABLET_KEY].map((key) =>
+      SecureStore.deleteItemAsync(key)
+    )
+  );
   await updateApiSyncState({ tablette_id: null, last_error: null });
 }
 
@@ -155,20 +177,20 @@ async function storeTokens(tokens) {
   const now = Date.now();
   accessMemory = {
     token: String(tokens.access_token),
-    expiresAt: now + Math.max(0, Number(tokens.expires_in || 0) * 1000 - 10000),
+    expiresAt: now + Math.max(0, Number(tokens.expires_in || 0) * 1000 - 10000)
   };
 
   await Promise.all([
     SecureStore.setItemAsync(REFRESH_KEY, String(tokens.refresh_token)),
     SecureStore.setItemAsync(REFRESH_EXP_KEY, String(now + Number(tokens.refresh_expires_in || 0) * 1000)),
     SecureStore.setItemAsync(TABLET_KEY, String(tokens.tablette_id ?? '')),
-    clearLegacyAccessStorage(),
+    clearLegacyAccessStorage()
   ]);
 
   await updateApiSyncState({
     tablette_id: String(tokens.tablette_id ?? ''),
     last_success_at: new Date().toISOString(),
-    last_error: null,
+    last_error: null
   });
 }
 
@@ -184,7 +206,7 @@ export async function getActivationStatus() {
     SecureStore.getItemAsync(REFRESH_EXP_KEY),
     SecureStore.getItemAsync(TABLET_KEY),
     getApiSyncState(),
-    hasNativeDpopKey().catch(() => false),
+    hasNativeDpopKey().catch(() => false)
   ]);
 
   const refreshExpiry = Number(refreshExp || 0);
@@ -195,7 +217,8 @@ export async function getActivationStatus() {
 
   let needsActivationReason = null;
   if (!refresh) needsActivationReason = 'missing_refresh_token';
-  else if (refreshExp && refreshExpiry > 0 && refreshExpiry <= Date.now()) needsActivationReason = 'refresh_token_expired';
+  else if (refreshExp && refreshExpiry > 0 && refreshExpiry <= Date.now())
+    needsActivationReason = 'refresh_token_expired';
   else if (!keyPresent) needsActivationReason = 'android_keystore_key_missing';
 
   return {
@@ -205,7 +228,7 @@ export async function getActivationStatus() {
     needsActivationReason,
     tabletteId: tablet || state?.tablette_id || null,
     lastSyncAt: state?.last_success_at || null,
-    lastError: state?.last_error || null,
+    lastError: state?.last_error || null
   };
 }
 
@@ -229,9 +252,9 @@ async function rawRequest(method, url, { accessToken = null, body = null, header
       Accept: 'application/json',
       DPoP: proof,
       ...(accessToken ? { Authorization: `DPoP ${accessToken}` } : {}),
-      ...headers,
+      ...headers
     },
-    body,
+    body
   });
 
   if (response.status >= 300 && response.status < 400) {
@@ -249,7 +272,7 @@ export async function activateTablet(code) {
   const url = endpoint('/api/tablettes/activation');
   const tokens = await rawRequest('POST', url, {
     body: urlEncoded({ code: activationCode }),
-    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
   });
   await storeTokens(tokens);
   return tokens;
@@ -275,7 +298,7 @@ async function refreshTokens() {
     try {
       const tokens = await rawRequest('POST', url, {
         body: urlEncoded({ grant_type: 'refresh_token', refresh_token: refresh }),
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
       });
       await storeTokens(tokens);
       return tokens.access_token;
@@ -285,7 +308,9 @@ async function refreshTokens() {
       if (error?.code === 'invalid_grant') await clearSecureSession();
       throw error;
     }
-  })().finally(() => { refreshPromise = null; });
+  })().finally(() => {
+    refreshPromise = null;
+  });
 
   return refreshPromise;
 }
@@ -305,7 +330,11 @@ export async function initializeApiSession() {
     await refreshTokens();
     return { ...(await getActivationStatus()), sessionRestored: true };
   } catch (error) {
-    if (error?.code === 'invalid_grant' || error?.code === 'reactivation_required' || error?.code === 'dpop_key_missing') {
+    if (
+      error?.code === 'invalid_grant' ||
+      error?.code === 'reactivation_required' ||
+      error?.code === 'dpop_key_missing'
+    ) {
       return { ...(await getActivationStatus()), sessionRestoreError: error.code };
     }
     // Hors connexion : ne jamais transformer une tablette activée en tablette à réactiver.
@@ -358,7 +387,7 @@ export async function sendClientVisits(remoteClientId, serializedPayload) {
   try {
     return await protectedRequest('POST', `/api/clients/${id}/visites`, {
       body,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' }
     });
   } catch (error) {
     await markApiError(error).catch(() => {});

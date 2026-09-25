@@ -12,18 +12,29 @@ async function main() {
   const root = 'file:///docs/visite-technique/photos/';
   const FileSystem = {
     documentDirectory: 'file:///docs/',
-    deleteAsync: async (uri) => { calls.push(`internal:${uri}`); },
+    deleteAsync: async (uri) => {
+      calls.push(`internal:${uri}`);
+    }
   };
-  const supprimerCopiePhotoDocuments = async (uri) => { calls.push(`documents:${uri}`); };
-  const nettoyer = new Function('FileSystem', 'supprimerCopiePhotoDocuments',
-    `${source.slice(start, end)}\nreturn supprimerFichiersPhotos;`)(FileSystem, supprimerCopiePhotoDocuments);
+  const supprimerCopiePhotoDocuments = async (uri) => {
+    calls.push(`documents:${uri}`);
+  };
+  const nettoyer = new Function(
+    'FileSystem',
+    'supprimerCopiePhotoDocuments',
+    `${source.slice(start, end)}\nreturn supprimerFichiersPhotos;`
+  )(FileSystem, supprimerCopiePhotoDocuments);
 
   await nettoyer([`${root}a.jpg`, `${root}a.jpg`, 'file:///outside.jpg']);
-  assert.deepEqual(calls, [
-    `documents:${root}a.jpg`,
-    `internal:${root}a.jpg`,
-  ], 'visit deletion cleans each Documents copy before the managed file');
+  assert.deepEqual(
+    calls,
+    [`documents:${root}a.jpg`, `internal:${root}a.jpg`],
+    'visit deletion cleans each Documents copy before the managed file'
+  );
   console.log('Visit photo cleanup: OK');
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1; });
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

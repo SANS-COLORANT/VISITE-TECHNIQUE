@@ -40,5 +40,5 @@ export const migration038 = {
       ON api_structure_outbox(local_site_id, resource_type, state, created_at);
     CREATE INDEX IF NOT EXISTS idx_api_structure_outbox_installation
       ON api_structure_outbox(local_installation_id, resource_type, state, created_at);
-  `,
+  `
 };

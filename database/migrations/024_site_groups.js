@@ -27,5 +27,5 @@ export const migration024 = {
       ON site_groupes(client_id, ordre, nom);
     CREATE INDEX IF NOT EXISTS idx_site_groupe_membres_site
       ON site_groupe_membres(site_id, groupe_id);
-  `,
+  `
 };

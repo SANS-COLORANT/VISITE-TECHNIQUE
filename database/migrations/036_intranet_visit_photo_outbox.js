@@ -39,5 +39,5 @@ export const migration036 = {
       ON api_visit_photo_outbox(visite_id, status, ordre);
     CREATE INDEX IF NOT EXISTS idx_api_visit_photo_outbox_remote
       ON api_visit_photo_outbox(remote_client_id, remote_visit_id, ordre);
-  `,
+  `
 };

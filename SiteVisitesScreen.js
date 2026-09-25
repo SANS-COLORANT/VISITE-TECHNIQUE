@@ -1,7 +1,18 @@
 /** Écran d'un site : visites, équipements, remarques + localisation par adresse. */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView, InteractionManager } from 'react-native';
+import {
+  View,
+  Text,
+  FlatList,
+  TouchableOpacity,
+  Modal,
+  TextInput,
+  Alert,
+  Linking,
+  ScrollView,
+  InteractionManager
+} from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { creerVisiteProduction } from './visitCreationDb.js';
@@ -12,7 +23,13 @@ import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { SiteOverviewPanel } from './SiteOverviewPanel.js';
 import { exporterVisitesExcelEnLot } from './batchExcel.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
-import { getNavigationScrollOffset, getNavigationState, hydrateNavigationState, setNavigationScrollOffset, setNavigationState } from './navigationMemory.js';
+import {
+  getNavigationScrollOffset,
+  getNavigationState,
+  hydrateNavigationState,
+  setNavigationScrollOffset,
+  setNavigationState
+} from './navigationMemory.js';
 import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
 import { peekLocalVisits, prewarmLocalVisits } from './navigationPrewarm.js';
 import { forgetVisitRuntime, markVisitHot, markVisitWarm } from './visitRuntimeCache.js';
@@ -22,11 +39,14 @@ const STATUT_LABELS = { en_cours: 'En cours', terminee: 'Terminée', a_completer
 const SITE_TABS = [
   { id: 'visites', label: 'Visites' },
   { id: 'equipements', label: 'Équipements' },
-  { id: 'remarques', label: 'Remarques' },
+  { id: 'remarques', label: 'Remarques' }
 ];
 
 function decomposerAdresse(adresseComplete) {
-  const lignes = String(adresseComplete || '').split(/\r?\n/).map((v) => v.trim()).filter(Boolean);
+  const lignes = String(adresseComplete || '')
+    .split(/\r?\n/)
+    .map((v) => v.trim())
+    .filter(Boolean);
   if (lignes.length >= 3) return { rue: lignes[0], ville: lignes[1], codePostal: lignes[2] };
   if (lignes.length === 2) {
     const cpVille = lignes[1].match(/^(\d{5})\s+(.+)$/);
@@ -37,7 +57,9 @@ function decomposerAdresse(adresseComplete) {
 }
 
 function composerAdresse(rue, ville, codePostal) {
-  return [String(rue || '').trim(), String(ville || '').trim(), String(codePostal || '').trim()].filter(Boolean).join('\n');
+  return [String(rue || '').trim(), String(ville || '').trim(), String(codePostal || '').trim()]
+    .filter(Boolean)
+    .join('\n');
 }
 
 function SiteVisitesScreen({ route, navigation }) {
@@ -49,7 +71,9 @@ function SiteVisitesScreen({ route, navigation }) {
   const apiRemoteClientId = params.apiRemoteClientId ? String(params.apiRemoteClientId) : null;
   const apiRemoteLocalDesignation = params.apiRemoteLocalDesignation || null;
   const nomLocal = params.nomLocal || apiRemoteLocalDesignation || null;
-  const apiRemoteTrame = apiRemoteLocalId ? { id: params.apiRemoteTrameId || null, nom: params.apiRemoteTrameNom || null } : null;
+  const apiRemoteTrame = apiRemoteLocalId
+    ? { id: params.apiRemoteTrameId || null, nom: params.apiRemoteTrameNom || null }
+    : null;
   const apiSuggestedTrameId = mapRemoteTrameToLocal(apiRemoteTrame);
   const initialBundle = peekLocalVisits(siteId, installationId, legacyOnly);
   const [visites, setVisites] = useState(() => initialBundle?.visits || []);
@@ -57,7 +81,7 @@ function SiteVisitesScreen({ route, navigation }) {
   const scrollKey = `site-visits:${String(siteId || '')}:${String(installationId || (legacyOnly ? 'legacy' : 'site'))}`;
   const [siteTab, setSiteTab] = useState(() => getNavigationState(scrollKey)?.siteTab || 'visites');
   const [choixModeVisible, setChoixModeVisible] = useState(false);
-  const [trameChoisie, setTrameChoisie] = useState(() => apiRemoteLocalId ? apiSuggestedTrameId : DEFAULT_TRAME_ID);
+  const [trameChoisie, setTrameChoisie] = useState(() => (apiRemoteLocalId ? apiSuggestedTrameId : DEFAULT_TRAME_ID));
   const [creationEnCours, setCreationEnCours] = useState(false);
   const [gpsVisible, setGpsVisible] = useState(false);
   const [adresseRue, setAdresseRue] = useState('');
@@ -68,27 +92,35 @@ function SiteVisitesScreen({ route, navigation }) {
   const [selectionExport, setSelectionExport] = useState(false);
   const [visitesSelectionnees, setVisitesSelectionnees] = useState(() => new Set());
   const [exportLotEnCours, setExportLotEnCours] = useState(false);
-  const [intranetClientImported, setIntranetClientImported] = useState(() => Boolean(initialBundle?.intranetClientImported));
+  const [intranetClientImported, setIntranetClientImported] = useState(() =>
+    Boolean(initialBundle?.intranetClientImported)
+  );
   const autoOpenHandled = useRef(false);
   const listRef = useRef(null);
   const tramesDisponibles = listerTramesDisponibles();
 
-  const construirePreview = useCallback((visite = {}) => ({
-    ...visite,
-    id: visite.id,
-    site_id: visite.site_id || siteId,
-    nom_site: visite.nom_site || nomSite || site?.nom_site || '',
-    nom_client: visite.nom_client || params.nomClient || '',
-    nom_installation: visite.nom_installation || nomLocal || '',
-  }), [siteId, nomSite, nomLocal, params.nomClient, site?.nom_site]);
+  const construirePreview = useCallback(
+    (visite = {}) => ({
+      ...visite,
+      id: visite.id,
+      site_id: visite.site_id || siteId,
+      nom_site: visite.nom_site || nomSite || site?.nom_site || '',
+      nom_client: visite.nom_client || params.nomClient || '',
+      nom_installation: visite.nom_installation || nomLocal || ''
+    }),
+    [siteId, nomSite, nomLocal, params.nomClient, site?.nom_site]
+  );
 
-  const prechaufferVisite = useCallback(async (visiteOuId, force = false) => {
-    const id = typeof visiteOuId === 'string' ? visiteOuId : visiteOuId?.id;
-    if (!id) return null;
-    const base = construirePreview(typeof visiteOuId === 'object' ? visiteOuId : { id });
-    const visite = await prewarmVisit(id, { force, preview: base });
-    return construirePreview(visite || base);
-  }, [construirePreview]);
+  const prechaufferVisite = useCallback(
+    async (visiteOuId, force = false) => {
+      const id = typeof visiteOuId === 'string' ? visiteOuId : visiteOuId?.id;
+      if (!id) return null;
+      const base = construirePreview(typeof visiteOuId === 'object' ? visiteOuId : { id });
+      const visite = await prewarmVisit(id, { force, preview: base });
+      return construirePreview(visite || base);
+    },
+    [construirePreview]
+  );
 
   const charger = useCallback(async () => {
     const bundle = await prewarmLocalVisits({ siteId, installationId, legacyOnly, force: true });
@@ -110,17 +142,23 @@ function SiteVisitesScreen({ route, navigation }) {
     return bundle;
   }, [siteId, installationId, legacyOnly, construirePreview]);
 
-  useEffect(() => { charger().catch((e) => console.warn('Actualisation visites impossible', e)); }, [charger]);
+  useEffect(() => {
+    charger().catch((e) => console.warn('Actualisation visites impossible', e));
+  }, [charger]);
 
   useEffect(() => {
     let alive = true;
-    hydrateNavigationState(scrollKey).then((state) => {
-      if (!alive || !state) return;
-      if (SITE_TABS.some((tab) => tab.id === state.siteTab)) setSiteTab(state.siteTab);
-      const offset = Number(state.scrollY || 0);
-      if (offset) setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
-    }).catch(() => {});
-    return () => { alive = false; };
+    hydrateNavigationState(scrollKey)
+      .then((state) => {
+        if (!alive || !state) return;
+        if (SITE_TABS.some((tab) => tab.id === state.siteTab)) setSiteTab(state.siteTab);
+        const offset = Number(state.scrollY || 0);
+        if (offset) setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, [scrollKey]);
 
   useEffect(() => {
@@ -182,15 +220,24 @@ function SiteVisitesScreen({ route, navigation }) {
     if (apiRemoteLocalId && mode === 'express') return;
     if (mode === 'express' && visites.length === 0) return;
     if (apiRemoteLocalId && !trameChoisie) {
-      Alert.alert('Trame à choisir', `La trame « ${apiRemoteTrame?.nom || 'Intranet'} » n’a pas de correspondance automatique sûre dans METRA. Choisis la trame à utiliser pour cette visite.`);
+      Alert.alert(
+        'Trame à choisir',
+        `La trame « ${apiRemoteTrame?.nom || 'Intranet'} » n’a pas de correspondance automatique sûre dans METRA. Choisis la trame à utiliser pour cette visite.`
+      );
       return;
     }
-    const trameId = mode === 'express'
-      ? (visites[0]?.trame_id || trameChoisie || DEFAULT_TRAME_ID)
-      : (trameChoisie || DEFAULT_TRAME_ID);
+    const trameId =
+      mode === 'express' ? visites[0]?.trame_id || trameChoisie || DEFAULT_TRAME_ID : trameChoisie || DEFAULT_TRAME_ID;
     setCreationEnCours(true);
     try {
-      const visiteId = await creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId, installationId });
+      const visiteId = await creerVisiteProduction({
+        siteId,
+        mode,
+        trameId,
+        apiRemoteLocalId,
+        apiRemoteClientId,
+        installationId
+      });
       const previewBase = construirePreview({
         id: visiteId,
         site_id: siteId,
@@ -199,7 +246,7 @@ function SiteVisitesScreen({ route, navigation }) {
         trame_id: trameId,
         mode_visite: mode,
         statut: 'en_cours',
-        progression_pct: 0,
+        progression_pct: 0
       });
       const visitePreview = await prechaufferVisite(visiteId, true).catch(() => previewBase);
       markVisitHot(visiteId, { preview: visitePreview || previewBase });
@@ -218,10 +265,19 @@ function SiteVisitesScreen({ route, navigation }) {
       `La visite du ${visite.date_visite || 'date non renseignée'} et toutes ses photos, réserves, relevés et observations propres seront définitivement supprimées.`,
       [
         { text: 'Annuler', style: 'cancel' },
-        { text: 'Supprimer', style: 'destructive', onPress: async () => {
-          try { await supprimerVisiteComplete(visite.id); forgetVisitRuntime(visite.id); await charger(); }
-          catch (e) { Alert.alert('Suppression impossible', String(e.message || e)); }
-        } },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await supprimerVisiteComplete(visite.id);
+              forgetVisitRuntime(visite.id);
+              await charger();
+            } catch (e) {
+              Alert.alert('Suppression impossible', String(e.message || e));
+            }
+          }
+        }
       ]
     );
   };
@@ -229,7 +285,8 @@ function SiteVisitesScreen({ route, navigation }) {
   const basculerSelection = useCallback((id) => {
     setVisitesSelectionnees((actuelles) => {
       const next = new Set(actuelles);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
@@ -246,7 +303,9 @@ function SiteVisitesScreen({ route, navigation }) {
   };
 
   const toutSelectionner = () => {
-    setVisitesSelectionnees((actuelles) => actuelles.size === visites.length ? new Set() : new Set(visites.map((v) => v.id)));
+    setVisitesSelectionnees((actuelles) =>
+      actuelles.size === visites.length ? new Set() : new Set(visites.map((v) => v.id))
+    );
   };
 
   const exporterSelection = async () => {
@@ -324,7 +383,9 @@ function SiteVisitesScreen({ route, navigation }) {
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
         <View style={{ flex: 1 }}>
           <Text style={styles.sectionLabel}>Localisation du site</Text>
-          <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 2 }}>{site?.adresse || 'Adresse à renseigner'}</Text>
+          <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 2 }}>
+            {site?.adresse || 'Adresse à renseigner'}
+          </Text>
         </View>
         <TouchableOpacity onPress={() => setGpsVisible(true)} style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
           <Text style={{ color: COLORS.primary, fontWeight: '700' }}>{site?.adresse ? 'Modifier' : '+ Adresse'}</Text>
@@ -335,7 +396,9 @@ function SiteVisitesScreen({ route, navigation }) {
         {site?.adresse ? (
           <>
             <Text style={{ fontWeight: '800' }}>📍 {site.adresse}</Text>
-            {site.localisation_note ? <Text style={{ marginTop: 7, color: '#555' }}>{site.localisation_note}</Text> : null}
+            {site.localisation_note ? (
+              <Text style={{ marginTop: 7, color: '#555' }}>{site.localisation_note}</Text>
+            ) : null}
             <TouchableOpacity onPress={() => ouvrirGoogleMaps()} style={{ marginTop: 10, paddingVertical: 8 }}>
               <Text style={{ color: COLORS.primary, fontWeight: '800' }}>Ouvrir dans Google Maps ↗</Text>
             </TouchableOpacity>
@@ -343,7 +406,9 @@ function SiteVisitesScreen({ route, navigation }) {
         ) : (
           <>
             <Text style={{ fontWeight: '700' }}>📍 Adresse non renseignée</Text>
-            <Text style={{ color: COLORS.muted, marginTop: 5, fontSize: 12 }}>Ajoute le numéro et la rue, la ville et le code postal. L'adresse reste disponible hors connexion.</Text>
+            <Text style={{ color: COLORS.muted, marginTop: 5, fontSize: 12 }}>
+              Ajoute le numéro et la rue, la ville et le code postal. L'adresse reste disponible hors connexion.
+            </Text>
           </>
         )}
       </View>
@@ -355,8 +420,32 @@ function SiteVisitesScreen({ route, navigation }) {
       {SITE_TABS.map((tab) => {
         const actif = siteTab === tab.id;
         return (
-          <TouchableOpacity key={tab.id} onPress={() => { setSiteTab(tab.id); setNavigationState(scrollKey, { siteTab: tab.id }); if (tab.id !== 'visites') annulerSelectionExport(); }} style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: actif ? COLORS.orange : COLORS.line, backgroundColor: actif ? COLORS.orangeLight : COLORS.white }}>
-            <Text style={{ color: actif ? COLORS.orangeDark : COLORS.inkSoft, fontWeight: actif ? '800' : '600', fontSize: 12.5 }}>{tab.label}</Text>
+          <TouchableOpacity
+            key={tab.id}
+            onPress={() => {
+              setSiteTab(tab.id);
+              setNavigationState(scrollKey, { siteTab: tab.id });
+              if (tab.id !== 'visites') annulerSelectionExport();
+            }}
+            style={{
+              flex: 1,
+              paddingVertical: 10,
+              alignItems: 'center',
+              borderRadius: 10,
+              borderWidth: 1,
+              borderColor: actif ? COLORS.orange : COLORS.line,
+              backgroundColor: actif ? COLORS.orangeLight : COLORS.white
+            }}
+          >
+            <Text
+              style={{
+                color: actif ? COLORS.orangeDark : COLORS.inkSoft,
+                fontWeight: actif ? '800' : '600',
+                fontSize: 12.5
+              }}
+            >
+              {tab.label}
+            </Text>
           </TouchableOpacity>
         );
       })}
@@ -367,11 +456,23 @@ function SiteVisitesScreen({ route, navigation }) {
     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
       <View style={{ flex: 1 }}>
         <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>Historique des visites — {nomLocal || nomSite}</Text>
-        {legacyOnly
-          ? <Text style={{ color: '#7A5700', fontSize: 11.5, marginTop: 4 }}>Anciennes visites sans local : consultation uniquement, aucune nouvelle visite ne sera créée ici.</Text>
-          : <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 4 }}>{apiRemoteLocalId ? `Contexte : ${apiRemoteLocalDesignation || nomLocal || 'Local technique'} · préparation Intranet` : `Local : ${nomLocal || 'Local technique'}`}</Text>}
+        {legacyOnly ? (
+          <Text style={{ color: '#7A5700', fontSize: 11.5, marginTop: 4 }}>
+            Anciennes visites sans local : consultation uniquement, aucune nouvelle visite ne sera créée ici.
+          </Text>
+        ) : (
+          <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 4 }}>
+            {apiRemoteLocalId
+              ? `Contexte : ${apiRemoteLocalDesignation || nomLocal || 'Local technique'} · préparation Intranet`
+              : `Local : ${nomLocal || 'Local technique'}`}
+          </Text>
+        )}
       </View>
-      {visites.length > 0 && !selectionExport ? <TouchableOpacity onPress={ouvrirSelectionExport} style={{ paddingHorizontal: 10, paddingVertical: 8 }}><Text style={{ color: COLORS.primary, fontWeight: '800' }}>Exporter plusieurs</Text></TouchableOpacity> : null}
+      {visites.length > 0 && !selectionExport ? (
+        <TouchableOpacity onPress={ouvrirSelectionExport} style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
+          <Text style={{ color: COLORS.primary, fontWeight: '800' }}>Exporter plusieurs</Text>
+        </TouchableOpacity>
+      ) : null}
     </View>
   );
 
@@ -380,20 +481,34 @@ function SiteVisitesScreen({ route, navigation }) {
       <FlatList
         ref={listRef}
         key={`${siteTab}-${selectionExport ? 'selection' : 'normal'}`}
-        onScroll={(event) => { if (siteTab === 'visites') setNavigationScrollOffset(scrollKey, event.nativeEvent.contentOffset.y); }}
+        onScroll={(event) => {
+          if (siteTab === 'visites') setNavigationScrollOffset(scrollKey, event.nativeEvent.contentOffset.y);
+        }}
         scrollEventThrottle={80}
         contentContainerStyle={styles.content}
         data={siteTab === 'visites' ? visites : []}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={<View><PhotoReferenceAccess siteId={siteId} remoteLocalId={apiRemoteLocalId} contextTitle={nomLocal || nomSite} /><LocalisationHeader /><SiteTabs />{siteTab === 'visites' ? <VisitesHeader /> : null}</View>}
+        ListHeaderComponent={
+          <View>
+            <PhotoReferenceAccess siteId={siteId} remoteLocalId={apiRemoteLocalId} contextTitle={nomLocal || nomSite} />
+            <LocalisationHeader />
+            <SiteTabs />
+            {siteTab === 'visites' ? <VisitesHeader /> : null}
+          </View>
+        }
         renderItem={({ item }) => {
           const trame = obtenirTrame(item.trame_id || DEFAULT_TRAME_ID);
           const selectionnee = visitesSelectionnees.has(item.id);
           return (
             <TouchableOpacity
-              style={[styles.card, selectionExport && selectionnee ? { borderWidth: 2, borderColor: COLORS.primary } : null]}
+              style={[
+                styles.card,
+                selectionExport && selectionnee ? { borderWidth: 2, borderColor: COLORS.primary } : null
+              ]}
               activeOpacity={0.7}
-              onPressIn={() => { if (!selectionExport) prechaufferVisite(item).catch(() => {}); }}
+              onPressIn={() => {
+                if (!selectionExport) prechaufferVisite(item).catch(() => {});
+              }}
               onPress={() => {
                 if (selectionExport) return basculerSelection(item.id);
                 const preview = construirePreview(item);
@@ -401,66 +516,271 @@ function SiteVisitesScreen({ route, navigation }) {
                 navigation.navigate('Visite', { visiteId: item.id, visitePreview: preview });
               }}
             >
-              {selectionExport ? <View style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: selectionnee ? COLORS.primary : COLORS.line, backgroundColor: selectionnee ? COLORS.primary : '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}><Text style={{ color: '#fff', fontWeight: '900' }}>{selectionnee ? '✓' : ''}</Text></View> : null}
+              {selectionExport ? (
+                <View
+                  style={{
+                    width: 28,
+                    height: 28,
+                    borderRadius: 14,
+                    borderWidth: 2,
+                    borderColor: selectionnee ? COLORS.primary : COLORS.line,
+                    backgroundColor: selectionnee ? COLORS.primary : '#fff',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: 10
+                  }}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '900' }}>{selectionnee ? '✓' : ''}</Text>
+                </View>
+              ) : null}
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{item.date_visite || 'Sans date'}</Text>
-                <Text style={styles.cardSub}>{trame.nom}{item.technicien ? ` · ${item.technicien}` : ''}</Text>
+                <Text style={styles.cardSub}>
+                  {trame.nom}
+                  {item.technicien ? ` · ${item.technicien}` : ''}
+                </Text>
               </View>
               <View style={{ alignItems: 'flex-end', gap: 5 }}>
-                <View style={styles.badge}><Text style={styles.badgeText}>{STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%</Text></View>
-                {!selectionExport && (intranetClientImported || item.api_remote_local_id) ? <IntranetVisitSyncControl visite={item} onVisitChanged={charger} compact /> : null}
+                <View style={styles.badge}>
+                  <Text style={styles.badgeText}>
+                    {STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%
+                  </Text>
+                </View>
+                {!selectionExport && (intranetClientImported || item.api_remote_local_id) ? (
+                  <IntranetVisitSyncControl visite={item} onVisitChanged={charger} compact />
+                ) : null}
               </View>
-              {!selectionExport ? <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }} accessibilityLabel={`Supprimer la visite du ${item.date_visite || ''}`}>
-                <Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text>
-              </TouchableOpacity> : null}
+              {!selectionExport ? (
+                <TouchableOpacity
+                  onPress={(e) => {
+                    e?.stopPropagation?.();
+                    confirmerSuppressionVisite(item);
+                  }}
+                  style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }}
+                  accessibilityLabel={`Supprimer la visite du ${item.date_visite || ''}`}
+                >
+                  <Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text>
+                </TouchableOpacity>
+              ) : null}
             </TouchableOpacity>
           );
         }}
-        ListEmptyComponent={siteTab === 'visites'
-          ? <View style={styles.empty}><Text style={styles.emptyText}>{legacyOnly ? 'Aucune visite non rattachée.' : 'Aucune visite pour ce local.'}</Text><Text style={styles.emptySub}>{legacyOnly ? 'Les visites correctement rattachées sont disponibles depuis leur local.' : 'Lance la première visite de ce local avec le bouton ci-dessous.'}</Text></View>
-          : <SiteOverviewPanel siteId={siteId} mode={siteTab} />}
+        ListEmptyComponent={
+          siteTab === 'visites' ? (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>
+                {legacyOnly ? 'Aucune visite non rattachée.' : 'Aucune visite pour ce local.'}
+              </Text>
+              <Text style={styles.emptySub}>
+                {legacyOnly
+                  ? 'Les visites correctement rattachées sont disponibles depuis leur local.'
+                  : 'Lance la première visite de ce local avec le bouton ci-dessous.'}
+              </Text>
+            </View>
+          ) : (
+            <SiteOverviewPanel siteId={siteId} mode={siteTab} />
+          )
+        }
       />
 
-      {siteTab === 'visites' && selectionExport ? <View style={[styles.fabBar, { flexDirection: 'row', gap: 8 }]}>
-        <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={annulerSelectionExport} disabled={exportLotEnCours}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={toutSelectionner} disabled={exportLotEnCours}><Text style={styles.btnSecondaryText}>{visitesSelectionnees.size === visites.length ? 'Tout désélectionner' : 'Tout sélectionner'}</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnPrimary, { flex: 1.2 }]} onPress={exporterSelection} disabled={!visitesSelectionnees.size || exportLotEnCours}><Text style={styles.btnPrimaryText}>{exportLotEnCours ? 'Export…' : `Exporter ${visitesSelectionnees.size}`}</Text></TouchableOpacity>
-      </View> : siteTab === 'visites' && !legacyOnly ? <View style={styles.fabBar}>
-        <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={ouvrirNouvelleVisite}><Text style={styles.btnPrimaryText}>+ Nouvelle visite</Text></TouchableOpacity>
-      </View> : null}
+      {siteTab === 'visites' && selectionExport ? (
+        <View style={[styles.fabBar, { flexDirection: 'row', gap: 8 }]}>
+          <TouchableOpacity
+            style={[styles.btnSecondary, { flex: 1 }]}
+            onPress={annulerSelectionExport}
+            disabled={exportLotEnCours}
+          >
+            <Text style={styles.btnSecondaryText}>Annuler</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnSecondary, { flex: 1 }]}
+            onPress={toutSelectionner}
+            disabled={exportLotEnCours}
+          >
+            <Text style={styles.btnSecondaryText}>
+              {visitesSelectionnees.size === visites.length ? 'Tout désélectionner' : 'Tout sélectionner'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnPrimary, { flex: 1.2 }]}
+            onPress={exporterSelection}
+            disabled={!visitesSelectionnees.size || exportLotEnCours}
+          >
+            <Text style={styles.btnPrimaryText}>
+              {exportLotEnCours ? 'Export…' : `Exporter ${visitesSelectionnees.size}`}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      ) : siteTab === 'visites' && !legacyOnly ? (
+        <View style={styles.fabBar}>
+          <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={ouvrirNouvelleVisite}>
+            <Text style={styles.btnPrimaryText}>+ Nouvelle visite</Text>
+          </TouchableOpacity>
+        </View>
+      ) : null}
 
       <Modal visible={gpsVisible} transparent animationType="fade" onRequestClose={() => setGpsVisible(false)}>
-        <View style={styles.modalOverlay}><View style={styles.modalSheet}>
-          <Text style={styles.modalTitle}>Adresse du site</Text>
-          <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 10 }}>L'adresse est enregistrée dans l'application et reste disponible hors connexion. Avec Internet, Google Maps peut la rechercher directement.</Text>
-          <TextInput style={styles.input} placeholder="Numéro + rue" value={adresseRue} onChangeText={setAdresseRue} autoCapitalize="words" />
-          <TextInput style={[styles.input, { marginTop: 10 }]} placeholder="Ville" value={ville} onChangeText={setVille} autoCapitalize="words" />
-          <TextInput style={[styles.input, { marginTop: 10 }]} placeholder="Code postal" value={codePostal} onChangeText={(v) => setCodePostal(v.replace(/\D/g, '').slice(0, 5))} keyboardType="number-pad" maxLength={5} />
-          <TextInput style={[styles.input, { marginTop: 10, minHeight: 70, textAlignVertical: 'top' }]} placeholder="Note d'accès : parking P2, porte chaufferie, sous-sol…" multiline value={note} onChangeText={setNote} />
-          <TouchableOpacity style={[styles.btnSecondary, { marginTop: 12 }]} disabled={localisationEnCours || !adresseRue.trim() || !ville.trim() || codePostal.length !== 5} onPress={enregistrerEtOuvrirMaps}><Text style={styles.btnSecondaryText}>{localisationEnCours ? 'Ouverture…' : '🗺️ Enregistrer et ouvrir dans Google Maps'}</Text></TouchableOpacity>
-          <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setGpsVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} disabled={localisationEnCours} onPress={enregistrerAdresse}><Text style={styles.btnPrimaryText}>{localisationEnCours ? 'Enregistrement…' : 'Enregistrer'}</Text></TouchableOpacity></View>
-        </View></View>
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Adresse du site</Text>
+            <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 10 }}>
+              L'adresse est enregistrée dans l'application et reste disponible hors connexion. Avec Internet, Google
+              Maps peut la rechercher directement.
+            </Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Numéro + rue"
+              value={adresseRue}
+              onChangeText={setAdresseRue}
+              autoCapitalize="words"
+            />
+            <TextInput
+              style={[styles.input, { marginTop: 10 }]}
+              placeholder="Ville"
+              value={ville}
+              onChangeText={setVille}
+              autoCapitalize="words"
+            />
+            <TextInput
+              style={[styles.input, { marginTop: 10 }]}
+              placeholder="Code postal"
+              value={codePostal}
+              onChangeText={(v) => setCodePostal(v.replace(/\D/g, '').slice(0, 5))}
+              keyboardType="number-pad"
+              maxLength={5}
+            />
+            <TextInput
+              style={[styles.input, { marginTop: 10, minHeight: 70, textAlignVertical: 'top' }]}
+              placeholder="Note d'accès : parking P2, porte chaufferie, sous-sol…"
+              multiline
+              value={note}
+              onChangeText={setNote}
+            />
+            <TouchableOpacity
+              style={[styles.btnSecondary, { marginTop: 12 }]}
+              disabled={localisationEnCours || !adresseRue.trim() || !ville.trim() || codePostal.length !== 5}
+              onPress={enregistrerEtOuvrirMaps}
+            >
+              <Text style={styles.btnSecondaryText}>
+                {localisationEnCours ? 'Ouverture…' : '🗺️ Enregistrer et ouvrir dans Google Maps'}
+              </Text>
+            </TouchableOpacity>
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.btnSecondary} onPress={() => setGpsVisible(false)}>
+                <Text style={styles.btnSecondaryText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btnPrimary} disabled={localisationEnCours} onPress={enregistrerAdresse}>
+                <Text style={styles.btnPrimaryText}>{localisationEnCours ? 'Enregistrement…' : 'Enregistrer'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
       </Modal>
 
-      <Modal visible={choixModeVisible} transparent animationType="fade" onRequestClose={() => { if (!creationEnCours) setChoixModeVisible(false); }}>
-        <View style={styles.modalOverlay}><View style={styles.modalSheet}><ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-          <Text style={styles.modalTitle}>{apiRemoteLocalId ? 'Préparer la visite' : 'Nouvelle visite'}</Text>
-          {apiRemoteLocalId ? <View style={{ padding: 12, borderRadius: 12, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: '#E6E8EC', marginBottom: 14 }}>
-            <Text style={{ color: COLORS.ink, fontWeight: '800', fontSize: 13 }}>{apiRemoteLocalDesignation || 'Local technique'}</Text>
-            <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 3 }}>{apiRemoteTrame?.nom ? `Trame Intranet : ${apiRemoteTrame.nom}` : 'Trame Intranet non renseignée'}</Text>
-            <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 7, lineHeight: 16 }}>Le matériel courant est rattaché au patrimoine de ce local. Les anciens avis, commentaires et réserves restent seulement des références : ils ne deviennent pas les réponses de la visite du jour.</Text>
-          </View> : null}
-          <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>Trame de visite</Text>
-          {apiRemoteLocalId && !apiSuggestedTrameId ? <Text style={{ color: '#9A4C0A', fontSize: 11.5, marginBottom: 8 }}>Aucune correspondance sûre détectée : sélectionne la bonne trame METRA.</Text> : null}
-          {tramesDisponibles.map((trame) => {
-            const selected = trameChoisie === trame.id;
-            return <TouchableOpacity key={trame.id} disabled={creationEnCours} style={[styles.visitModeCard, selected && { borderColor: COLORS.primary, backgroundColor: '#FFF7EF' }]} onPress={() => setTrameChoisie(trame.id)}><Text style={styles.visitModeIcon}>{selected ? '✓' : '📄'}</Text><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{trame.nom}</Text><Text style={styles.visitModeText}>{trame.description || `Trame ${trame.nom}`}</Text></View></TouchableOpacity>;
-          })}
-          <Text style={[styles.fieldLabel, { marginTop: 14, marginBottom: 8 }]}>Mode</Text>
-          {!apiRemoteLocalId ? <TouchableOpacity style={[styles.visitModeCard, visites.length === 0 && { opacity: 0.45 }]} disabled={visites.length === 0 || creationEnCours} onPress={() => nouvelleVisite('express')}><Text style={styles.visitModeIcon}>⚡</Text><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite Express</Text><Text style={styles.visitModeText}>{visites.length === 0 ? 'Disponible après une première visite complète.' : 'Reprend automatiquement la trame de la dernière visite et les informations stables.'}</Text></View></TouchableOpacity> : null}
-          <TouchableOpacity style={[styles.visitModeCard, (!trameChoisie || creationEnCours) && { opacity: 0.55 }]} disabled={!trameChoisie || creationEnCours} onPress={() => nouvelleVisite('complete')}><Text style={styles.visitModeIcon}>📋</Text><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{creationEnCours ? 'Préparation…' : 'Visite complète'}</Text><Text style={styles.visitModeText}>{apiRemoteLocalId ? 'Démarre sur le local sélectionné avec son patrimoine courant, sans recopier les constats historiques.' : 'Parcourt toute la trame sélectionnée pour une première visite ou un audit détaillé.'}</Text></View></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10 }]} disabled={creationEnCours} onPress={() => setChoixModeVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-        </ScrollView></View></View>
+      <Modal
+        visible={choixModeVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => {
+          if (!creationEnCours) setChoixModeVisible(false);
+        }}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
+              <Text style={styles.modalTitle}>{apiRemoteLocalId ? 'Préparer la visite' : 'Nouvelle visite'}</Text>
+              {apiRemoteLocalId ? (
+                <View
+                  style={{
+                    padding: 12,
+                    borderRadius: 12,
+                    backgroundColor: '#F7F8FA',
+                    borderWidth: 1,
+                    borderColor: '#E6E8EC',
+                    marginBottom: 14
+                  }}
+                >
+                  <Text style={{ color: COLORS.ink, fontWeight: '800', fontSize: 13 }}>
+                    {apiRemoteLocalDesignation || 'Local technique'}
+                  </Text>
+                  <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 3 }}>
+                    {apiRemoteTrame?.nom ? `Trame Intranet : ${apiRemoteTrame.nom}` : 'Trame Intranet non renseignée'}
+                  </Text>
+                  <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 7, lineHeight: 16 }}>
+                    Le matériel courant est rattaché au patrimoine de ce local. Les anciens avis, commentaires et
+                    réserves restent seulement des références : ils ne deviennent pas les réponses de la visite du jour.
+                  </Text>
+                </View>
+              ) : null}
+              <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>Trame de visite</Text>
+              {apiRemoteLocalId && !apiSuggestedTrameId ? (
+                <Text style={{ color: '#9A4C0A', fontSize: 11.5, marginBottom: 8 }}>
+                  Aucune correspondance sûre détectée : sélectionne la bonne trame METRA.
+                </Text>
+              ) : null}
+              {tramesDisponibles.map((trame) => {
+                const selected = trameChoisie === trame.id;
+                return (
+                  <TouchableOpacity
+                    key={trame.id}
+                    disabled={creationEnCours}
+                    style={[
+                      styles.visitModeCard,
+                      selected && { borderColor: COLORS.primary, backgroundColor: '#FFF7EF' }
+                    ]}
+                    onPress={() => setTrameChoisie(trame.id)}
+                  >
+                    <Text style={styles.visitModeIcon}>{selected ? '✓' : '📄'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.visitModeTitle}>{trame.nom}</Text>
+                      <Text style={styles.visitModeText}>{trame.description || `Trame ${trame.nom}`}</Text>
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+              <Text style={[styles.fieldLabel, { marginTop: 14, marginBottom: 8 }]}>Mode</Text>
+              {!apiRemoteLocalId ? (
+                <TouchableOpacity
+                  style={[styles.visitModeCard, visites.length === 0 && { opacity: 0.45 }]}
+                  disabled={visites.length === 0 || creationEnCours}
+                  onPress={() => nouvelleVisite('express')}
+                >
+                  <Text style={styles.visitModeIcon}>⚡</Text>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.visitModeTitle}>Visite Express</Text>
+                    <Text style={styles.visitModeText}>
+                      {visites.length === 0
+                        ? 'Disponible après une première visite complète.'
+                        : 'Reprend automatiquement la trame de la dernière visite et les informations stables.'}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
+              ) : null}
+              <TouchableOpacity
+                style={[styles.visitModeCard, (!trameChoisie || creationEnCours) && { opacity: 0.55 }]}
+                disabled={!trameChoisie || creationEnCours}
+                onPress={() => nouvelleVisite('complete')}
+              >
+                <Text style={styles.visitModeIcon}>📋</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.visitModeTitle}>{creationEnCours ? 'Préparation…' : 'Visite complète'}</Text>
+                  <Text style={styles.visitModeText}>
+                    {apiRemoteLocalId
+                      ? 'Démarre sur le local sélectionné avec son patrimoine courant, sans recopier les constats historiques.'
+                      : 'Parcourt toute la trame sélectionnée pour une première visite ou un audit détaillé.'}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnSecondary, { marginTop: 10 }]}
+                disabled={creationEnCours}
+                onPress={() => setChoixModeVisible(false)}
+              >
+                <Text style={styles.btnSecondaryText}>Annuler</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        </View>
       </Modal>
     </View>
   );

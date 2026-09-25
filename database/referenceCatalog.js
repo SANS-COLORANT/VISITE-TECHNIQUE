@@ -27,7 +27,7 @@ export function buildReferenceCatalog() {
           valueType: field.type === 'controle' ? 'avis_commentaire' : 'texte',
           sectionCode,
           excelRow: EXCEL_ROWS[`${sectionLabel}||${field.cle}`] ?? null,
-          hasComment: field.type === 'controle',
+          hasComment: field.type === 'controle'
         });
       });
     });
@@ -61,7 +61,7 @@ export async function syncReferenceCatalog(db) {
             entry.code,
             `B${entry.excelRow}`,
             entry.hasComment ? `C${entry.excelRow}` : null,
-            TEMPLATE_VERSION,
+            TEMPLATE_VERSION
           ]
         );
       }

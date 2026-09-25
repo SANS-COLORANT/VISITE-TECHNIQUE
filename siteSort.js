@@ -5,7 +5,7 @@ export const SITE_SORT_OPTIONS = Object.freeze([
   { id: 'alpha_desc', label: 'Z → A' },
   { id: 'number', label: 'N° / chiffre' },
   { id: 'group', label: 'Lot / groupe' },
-  { id: 'address', label: 'Adresse' },
+  { id: 'address', label: 'Adresse' }
 ]);
 
 function text(value) {
@@ -13,7 +13,9 @@ function text(value) {
 }
 
 function firstNumber(value) {
-  const match = text(value).replace(',', '.').match(/\d+(?:\.\d+)?/);
+  const match = text(value)
+    .replace(',', '.')
+    .match(/\d+(?:\.\d+)?/);
   return match ? Number(match[0]) : null;
 }
 
@@ -28,7 +30,10 @@ export function buildSiteGroupMap(memberships = []) {
     map.set(siteId, list);
   }
   for (const [siteId, groups] of map.entries()) {
-    map.set(siteId, [...groups].sort((a, b) => collator.compare(a, b)));
+    map.set(
+      siteId,
+      [...groups].sort((a, b) => collator.compare(a, b))
+    );
   }
   return map;
 }

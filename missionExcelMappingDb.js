@@ -1,13 +1,22 @@
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 
-function clean(v) { const s = String(v ?? '').trim(); return s || null; }
+function clean(v) {
+  const s = String(v ?? '').trim();
+  return s || null;
+}
 function num(v) {
   if (v === null || v === undefined || v === '') return null;
   const n = Number(String(v).replace(',', '.').replace(/\s/g, ''));
   return Number.isFinite(n) ? n : null;
 }
-function parse(value, fallback = {}) { try { return value ? JSON.parse(value) : fallback; } catch { return fallback; } }
+function parse(value, fallback = {}) {
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 async function ensureSite(db, missionId, name, code = null, city = null, address = null) {
   const n = clean(name);
@@ -19,7 +28,13 @@ async function ensureSite(db, missionId, name, code = null, city = null, address
   );
   if (existing?.id) return existing.id;
   const id = createId('msite');
-  await db.runAsync('INSERT INTO mission_sites(id,code,name,city,address) VALUES(?,?,?,?,?)', [id, clean(code), n, clean(city), clean(address)]);
+  await db.runAsync('INSERT INTO mission_sites(id,code,name,city,address) VALUES(?,?,?,?,?)', [
+    id,
+    clean(code),
+    n,
+    clean(city),
+    clean(address)
+  ]);
   await db.runAsync('INSERT INTO mission_site_links(mission_id,site_id) VALUES(?,?)', [missionId, id]);
   return id;
 }
@@ -33,10 +48,14 @@ async function ensureActor(db, missionId, siteId, label) {
   );
   if (existing?.id) return existing.id;
   const id = createId('mactor');
-  await db.runAsync(
-    'INSERT INTO mission_actors(id,mission_id,site_id,company,role,actor_type) VALUES(?,?,?,?,?,?)',
-    [id, missionId, clean(siteId), n, 'Responsable', 'responsible']
-  );
+  await db.runAsync('INSERT INTO mission_actors(id,mission_id,site_id,company,role,actor_type) VALUES(?,?,?,?,?,?)', [
+    id,
+    missionId,
+    clean(siteId),
+    n,
+    'Responsable',
+    'responsible'
+  ]);
   return id;
 }
 
@@ -76,7 +95,7 @@ export async function getImportBatchStructure(batchId, limit = 50) {
   return Object.entries(bySheet).map(([sheetName, data]) => ({
     sheetName,
     columns: [...data.columns],
-    rows: data.rows,
+    rows: data.rows
   }));
 }
 
@@ -95,13 +114,20 @@ export async function enregistrerMappingImportMission({
   entityType,
   sheetName = null,
   fieldMap = {},
-  isDefault = false,
+  isDefault = false
 } = {}) {
   const db = await getDb();
   const id = createId('mmapx');
   await db.runAsync(
     'INSERT INTO mission_import_mappings(id,mission_id,name,source_signature,mapping_json,is_default) VALUES(?,?,?,?,?,?)',
-    [id, missionId, clean(name) || 'Mapping Excel', clean(sourceSignature), JSON.stringify({ entityType, sheetName, fieldMap }), isDefault ? 1 : 0]
+    [
+      id,
+      missionId,
+      clean(name) || 'Mapping Excel',
+      clean(sourceSignature),
+      JSON.stringify({ entityType, sheetName, fieldMap }),
+      isDefault ? 1 : 0
+    ]
   );
   return id;
 }
@@ -112,7 +138,9 @@ export async function appliquerMappingImportMission({ missionId, batchId, mappin
   if (!mappingRow) throw new Error('Mapping introuvable.');
   const mapping = parse(mappingRow.mapping_json, {});
   const rows = await db.getAllAsync(
-    'SELECT * FROM mission_import_rows WHERE batch_id=?' + (mapping.sheetName ? ' AND sheet_name=?' : '') + ' ORDER BY sheet_name,row_index',
+    'SELECT * FROM mission_import_rows WHERE batch_id=?' +
+      (mapping.sheetName ? ' AND sheet_name=?' : '') +
+      ' ORDER BY sheet_name,row_index',
     mapping.sheetName ? [batchId, mapping.sheetName] : [batchId]
   );
   const summary = { created: 0, skipped: 0, errors: 0 };
@@ -123,14 +151,23 @@ export async function appliquerMappingImportMission({ missionId, batchId, mappin
     try {
       if (mapping.entityType === 'site') {
         const name = fieldValue(values, mapping.fieldMap, 'name');
-        if (!clean(name)) { summary.skipped += 1; continue; }
+        if (!clean(name)) {
+          summary.skipped += 1;
+          continue;
+        }
         const id = await ensureSite(
-          db, missionId, name,
+          db,
+          missionId,
+          name,
           fieldValue(values, mapping.fieldMap, 'code'),
           fieldValue(values, mapping.fieldMap, 'city'),
           fieldValue(values, mapping.fieldMap, 'address')
         );
-        await db.runAsync('UPDATE mission_import_rows SET mapped_entity_type=?,mapped_entity_id=? WHERE id=?', ['site', id, rawRow.id]);
+        await db.runAsync('UPDATE mission_import_rows SET mapped_entity_type=?,mapped_entity_id=? WHERE id=?', [
+          'site',
+          id,
+          rawRow.id
+        ]);
         summary.created += 1;
         continue;
       }
@@ -144,19 +181,24 @@ export async function appliquerMappingImportMission({ missionId, batchId, mappin
 
       if (mapping.entityType === 'equipment') {
         const type = clean(fieldValue(values, mapping.fieldMap, 'type'));
-        if (!siteId || !type) { summary.skipped += 1; continue; }
+        if (!siteId || !type) {
+          summary.skipped += 1;
+          continue;
+        }
         const id = createId('meq');
         const properties = {
           quantity: num(fieldValue(values, mapping.fieldMap, 'quantity')) || 1,
           network: clean(fieldValue(values, mapping.fieldMap, 'network')),
           sourceRow: rawRow.row_index,
-          sourceSheet: rawRow.sheet_name,
+          sourceSheet: rawRow.sheet_name
         };
         await db.runAsync(
           `INSERT INTO mission_equipment(id,site_id,type,brand,model,installation_year,state,properties_json,source_type,source_id,verification_status)
            VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
           [
-            id, siteId, type,
+            id,
+            siteId,
+            type,
             clean(fieldValue(values, mapping.fieldMap, 'brand')),
             clean(fieldValue(values, mapping.fieldMap, 'model')),
             clean(fieldValue(values, mapping.fieldMap, 'installation_year')),
@@ -164,33 +206,47 @@ export async function appliquerMappingImportMission({ missionId, batchId, mappin
             JSON.stringify(properties),
             'excel_mapping',
             rawRow.sheet_name + '!' + rawRow.row_index,
-            'non_verifie',
+            'non_verifie'
           ]
         );
-        await db.runAsync('UPDATE mission_import_rows SET mapped_entity_type=?,mapped_entity_id=? WHERE id=?', ['equipment', id, rawRow.id]);
+        await db.runAsync('UPDATE mission_import_rows SET mapped_entity_type=?,mapped_entity_id=? WHERE id=?', [
+          'equipment',
+          id,
+          rawRow.id
+        ]);
         summary.created += 1;
         continue;
       }
 
       if (mapping.entityType === 'action') {
         const label = clean(fieldValue(values, mapping.fieldMap, 'label'));
-        if (!label) { summary.skipped += 1; continue; }
+        if (!label) {
+          summary.skipped += 1;
+          continue;
+        }
         const actorId = await ensureActor(db, missionId, siteId, fieldValue(values, mapping.fieldMap, 'responsible'));
         const id = createId('mact');
         await db.runAsync(
           `INSERT INTO mission_actions(id,mission_id,site_id,label,status,priority,responsible_actor_id,due_text,cost_estimate,allocation)
            VALUES(?,?,?,?,?,?,?,?,?,?)`,
           [
-            id, missionId, siteId, label,
+            id,
+            missionId,
+            siteId,
+            label,
             clean(fieldValue(values, mapping.fieldMap, 'status')) || 'open',
             clean(fieldValue(values, mapping.fieldMap, 'priority')),
             actorId,
             clean(fieldValue(values, mapping.fieldMap, 'due')),
             num(fieldValue(values, mapping.fieldMap, 'cost')),
-            clean(fieldValue(values, mapping.fieldMap, 'allocation')),
+            clean(fieldValue(values, mapping.fieldMap, 'allocation'))
           ]
         );
-        await db.runAsync('UPDATE mission_import_rows SET mapped_entity_type=?,mapped_entity_id=? WHERE id=?', ['action', id, rawRow.id]);
+        await db.runAsync('UPDATE mission_import_rows SET mapped_entity_type=?,mapped_entity_id=? WHERE id=?', [
+          'action',
+          id,
+          rawRow.id
+        ]);
         summary.created += 1;
         continue;
       }
@@ -199,18 +255,30 @@ export async function appliquerMappingImportMission({ missionId, batchId, mappin
         const type = clean(fieldValue(values, mapping.fieldMap, 'type'));
         const value = num(fieldValue(values, mapping.fieldMap, 'value'));
         const valueText = clean(fieldValue(values, mapping.fieldMap, 'value_text'));
-        if (!type || (value === null && !valueText)) { summary.skipped += 1; continue; }
+        if (!type || (value === null && !valueText)) {
+          summary.skipped += 1;
+          continue;
+        }
         const id = createId('mmeas');
         await db.runAsync(
           'INSERT INTO mission_measures(id,mission_id,site_id,type,value_number,value_text,unit,source_type,source_id) VALUES(?,?,?,?,?,?,?,?,?)',
           [
-            id, missionId, siteId, type, value, valueText,
+            id,
+            missionId,
+            siteId,
+            type,
+            value,
+            valueText,
             clean(fieldValue(values, mapping.fieldMap, 'unit')),
             'excel_mapping',
-            rawRow.sheet_name + '!' + rawRow.row_index,
+            rawRow.sheet_name + '!' + rawRow.row_index
           ]
         );
-        await db.runAsync('UPDATE mission_import_rows SET mapped_entity_type=?,mapped_entity_id=? WHERE id=?', ['measure', id, rawRow.id]);
+        await db.runAsync('UPDATE mission_import_rows SET mapped_entity_type=?,mapped_entity_id=? WHERE id=?', [
+          'measure',
+          id,
+          rawRow.id
+        ]);
         summary.created += 1;
         continue;
       }
@@ -221,16 +289,22 @@ export async function appliquerMappingImportMission({ missionId, batchId, mappin
       await db.runAsync(
         'INSERT INTO mission_import_issues(id,batch_id,severity,entity_type,source_ref,message,suggestion) VALUES(?,?,?,?,?,?,?)',
         [
-          createId('mimpi'), batchId, 'warning', mapping.entityType, rawRow.sheet_name + '!' + rawRow.row_index,
-          String(e?.message || e), 'Vérifier le mapping de cette ligne.',
+          createId('mimpi'),
+          batchId,
+          'warning',
+          mapping.entityType,
+          rawRow.sheet_name + '!' + rawRow.row_index,
+          String(e?.message || e),
+          'Vérifier le mapping de cette ligne.'
         ]
       );
     }
   }
 
-  await db.runAsync(
-    'UPDATE mission_import_batches SET summary_json=?,completed_at=? WHERE id=?',
-    [JSON.stringify({ mappingId, entityType: mapping.entityType, ...summary }), new Date().toISOString(), batchId]
-  );
+  await db.runAsync('UPDATE mission_import_batches SET summary_json=?,completed_at=? WHERE id=?', [
+    JSON.stringify({ mappingId, entityType: mapping.entityType, ...summary }),
+    new Date().toISOString(),
+    batchId
+  ]);
   return summary;
 }

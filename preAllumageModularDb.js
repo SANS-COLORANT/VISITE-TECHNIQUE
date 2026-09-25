@@ -20,7 +20,13 @@ async function synchroniserNombreSst(db, visiteId) {
 }
 
 function sectionCode(panelId, section) {
-  return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  return (
+    panelId.replace('p-', '') +
+    '.' +
+    String(section)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+  );
 }
 
 function optionsChamp(field) {
@@ -30,17 +36,26 @@ function optionsChamp(field) {
 
 function champDepuisLigne(row) {
   let options = {};
-  try { options = row.options_json ? JSON.parse(row.options_json) : {}; } catch (_) { options = {}; }
+  try {
+    options = row.options_json ? JSON.parse(row.options_json) : {};
+  } catch (_) {
+    options = {};
+  }
   return {
     cle: row.cle_stockage,
     libelle: row.libelle,
     type: row.type_code,
-    ...(row.type_code === 'controle' ? { preAllumage: true, poste: 'Pré-allumage', presets: presetsPour(row.libelle) } : {}),
-    ...options,
+    ...(row.type_code === 'controle'
+      ? { preAllumage: true, poste: 'Pré-allumage', presets: presetsPour(row.libelle) }
+      : {}),
+    ...options
   };
 }
 
-async function insererRubrique(db, { visiteId, localId = null, panelId, code, nom, ordre = 0, supprimable = 1, fields = [] }) {
+async function insererRubrique(
+  db,
+  { visiteId, localId = null, panelId, code, nom, ordre = 0, supprimable = 1, fields = [] }
+) {
   const id = createId('pa-rubrique');
   await db.runAsync(
     `INSERT INTO pre_allumage_rubriques(id,visite_id,local_id,panel_id,section_code,nom,ordre,supprimable)
@@ -79,7 +94,10 @@ export async function initialiserPreAllumageModulaire(visiteId) {
         nom: libelleSection(panelId, nom, aliases),
         ordre: ordreRubrique++,
         supprimable: panelId === 'p-pa-infos' ? 0 : 1,
-        fields: fields.map((field) => ({ ...field, libelle: libelleChamp(sectionCode(panelId, nom), field.cle, aliases) })),
+        fields: fields.map((field) => ({
+          ...field,
+          libelle: libelleChamp(sectionCode(panelId, nom), field.cle, aliases)
+        }))
       });
     }
   }
@@ -100,7 +118,7 @@ export async function chargerPreAllumageModulaire(visiteId) {
       `SELECT c.* FROM pre_allumage_champs c JOIN pre_allumage_rubriques r ON r.id=c.rubrique_id
        WHERE r.visite_id=? ORDER BY r.ordre,c.ordre,c.cree_le`,
       [visiteId]
-    ),
+    )
   ]);
   // Les rubriques officielles orphelines restent en base uniquement comme
   // cibles de mapping Excel. Elles ne doivent jamais créer de faux locaux ou
@@ -115,29 +133,43 @@ export async function chargerPreAllumageModulaire(visiteId) {
   });
   return {
     locaux,
-    rubriques: rubriques.map((r) => ({ ...r, champs: champsParRubrique.get(r.id) || [] })),
+    rubriques: rubriques.map((r) => ({ ...r, champs: champsParRubrique.get(r.id) || [] }))
   };
 }
 
 function champsLocal(nom, typeCode, chauffage, ecs) {
   const compteurs = [
     { cle: `${nom} — Énergie (MWh)`, type: 'champ', numericIndex: true, renamable: true },
-    { cle: `${nom} — ECS (m³)`, type: 'champ', numericIndex: true, renamable: true },
+    { cle: `${nom} — ECS (m³)`, type: 'champ', numericIndex: true, renamable: true }
   ];
   const regulation = (PREALLUMAGE_PANELS['p-pa-regulation']?.['SST 1'] || []).map((f) => ({ ...f }));
   const heat = (PREALLUMAGE_PANELS['p-pa-sst']?.['SST 1 — Chauffage'] || []).map((f) => ({ ...f }));
   const water = (PREALLUMAGE_PANELS['p-pa-sst']?.['SST 1 — ECS / traitement d’eau'] || []).map((f) => ({ ...f }));
-  return { compteurs: ecs ? compteurs : compteurs.slice(0, 1), regulation, heat: chauffage ? heat : [], water: ecs ? water : [], typeCode };
+  return {
+    compteurs: ecs ? compteurs : compteurs.slice(0, 1),
+    regulation,
+    heat: chauffage ? heat : [],
+    water: ecs ? water : [],
+    typeCode
+  };
 }
 
-export async function ajouterLocalPreAllumage(visiteId, { nom, typeCode = SST, chauffage = true, ecs = true, primaire = false }) {
+export async function ajouterLocalPreAllumage(
+  visiteId,
+  { nom, typeCode = SST, chauffage = true, ecs = true, primaire = false }
+) {
   await initialiserPreAllumageModulaire(visiteId);
   const db = await getDb();
   const propre = String(nom || '').trim();
   if (!propre) throw new Error('Le nom du local est obligatoire.');
-  const existe = await db.getFirstAsync(`SELECT id FROM pre_allumage_locaux WHERE visite_id=? AND lower(nom)=lower(?)`, [visiteId, propre]);
+  const existe = await db.getFirstAsync(
+    `SELECT id FROM pre_allumage_locaux WHERE visite_id=? AND lower(nom)=lower(?)`,
+    [visiteId, propre]
+  );
   if (existe) throw new Error('Un local porte déjà ce nom.');
-  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),-1) n FROM pre_allumage_locaux WHERE visite_id=?`, [visiteId]);
+  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),-1) n FROM pre_allumage_locaux WHERE visite_id=?`, [
+    visiteId
+  ]);
   const id = createId('pa-local');
   const primaireStocke = typeCode === CHAUFFERIE && primaire ? 1 : 0;
   await db.runAsync(
@@ -146,21 +178,71 @@ export async function ajouterLocalPreAllumage(visiteId, { nom, typeCode = SST, c
   );
   const defs = champsLocal(propre, typeCode, chauffage, ecs);
   const baseOrdre = Date.now();
-  await insererRubrique(db, { visiteId, localId: id, panelId: 'p-pa-batiments', code: `pa.local.${id}.infos`, nom: propre, ordre: baseOrdre, fields: [
-    { cle: 'Nombre de logements desservis', type: 'champ', stable: true },
-    { cle: 'Bâtiments desservis', type: 'champ', stable: true },
-    { cle: 'Situation / localisation', type: 'champ', stable: true },
-  ] });
-  await insererRubrique(db, { visiteId, localId: id, panelId: 'p-pa-compteurs', code: `pa.local.${id}.compteurs`, nom: propre, ordre: baseOrdre + 1, fields: defs.compteurs });
-  await insererRubrique(db, { visiteId, localId: id, panelId: 'p-pa-regulation', code: `pa.local.${id}.regulation`, nom: propre, ordre: baseOrdre + 2, fields: defs.regulation });
+  await insererRubrique(db, {
+    visiteId,
+    localId: id,
+    panelId: 'p-pa-batiments',
+    code: `pa.local.${id}.infos`,
+    nom: propre,
+    ordre: baseOrdre,
+    fields: [
+      { cle: 'Nombre de logements desservis', type: 'champ', stable: true },
+      { cle: 'Bâtiments desservis', type: 'champ', stable: true },
+      { cle: 'Situation / localisation', type: 'champ', stable: true }
+    ]
+  });
+  await insererRubrique(db, {
+    visiteId,
+    localId: id,
+    panelId: 'p-pa-compteurs',
+    code: `pa.local.${id}.compteurs`,
+    nom: propre,
+    ordre: baseOrdre + 1,
+    fields: defs.compteurs
+  });
+  await insererRubrique(db, {
+    visiteId,
+    localId: id,
+    panelId: 'p-pa-regulation',
+    code: `pa.local.${id}.regulation`,
+    nom: propre,
+    ordre: baseOrdre + 2,
+    fields: defs.regulation
+  });
   if (typeCode === CHAUFFERIE) {
-    await insererRubrique(db, { visiteId, localId: id, panelId: 'p-pa-chaufferie', code: `pa.local.${id}.tests`, nom: `${propre} — Tests`, ordre: baseOrdre + 3, fields: [
-      { cle: 'Test allumage', type: 'controle' },
-      { cle: 'Fonctionnement de la régulation', type: 'controle' },
-    ] });
+    await insererRubrique(db, {
+      visiteId,
+      localId: id,
+      panelId: 'p-pa-chaufferie',
+      code: `pa.local.${id}.tests`,
+      nom: `${propre} — Tests`,
+      ordre: baseOrdre + 3,
+      fields: [
+        { cle: 'Test allumage', type: 'controle' },
+        { cle: 'Fonctionnement de la régulation', type: 'controle' }
+      ]
+    });
   } else {
-    if (defs.heat.length) await insererRubrique(db, { visiteId, localId: id, panelId: 'p-pa-sst', code: `pa.local.${id}.chauffage`, nom: `${propre} — Chauffage`, ordre: baseOrdre + 3, fields: defs.heat });
-    if (defs.water.length) await insererRubrique(db, { visiteId, localId: id, panelId: 'p-pa-sst', code: `pa.local.${id}.ecs`, nom: `${propre} — ECS / traitement d’eau`, ordre: baseOrdre + 4, fields: defs.water });
+    if (defs.heat.length)
+      await insererRubrique(db, {
+        visiteId,
+        localId: id,
+        panelId: 'p-pa-sst',
+        code: `pa.local.${id}.chauffage`,
+        nom: `${propre} — Chauffage`,
+        ordre: baseOrdre + 3,
+        fields: defs.heat
+      });
+    if (defs.water.length)
+      await insererRubrique(db, {
+        visiteId,
+        localId: id,
+        panelId: 'p-pa-sst',
+        code: `pa.local.${id}.ecs`,
+        nom: `${propre} — ECS / traitement d’eau`,
+        ordre: baseOrdre + 4,
+        fields: defs.water
+      });
     await remapperLocalVersRubriquesOfficielles(visiteId, id);
   }
   await synchroniserNombreSst(db, visiteId);
@@ -177,7 +259,10 @@ export async function renommerLocalPreAllumage(localId, nom) {
   await db.runAsync(`UPDATE pre_allumage_locaux SET nom=?,modifie_le=datetime('now') WHERE id=?`, [propre, localId]);
   for (const r of rubriques) {
     const suffixe = String(r.nom).startsWith(`${local.nom} —`) ? String(r.nom).slice(String(local.nom).length) : '';
-    await db.runAsync(`UPDATE pre_allumage_rubriques SET nom=?,modifie_le=datetime('now') WHERE id=?`, [`${propre}${suffixe}`, r.id]);
+    await db.runAsync(`UPDATE pre_allumage_rubriques SET nom=?,modifie_le=datetime('now') WHERE id=?`, [
+      `${propre}${suffixe}`,
+      r.id
+    ]);
   }
 }
 
@@ -185,13 +270,17 @@ export async function supprimerLocalPreAllumage(localId) {
   const db = await getDb();
   const local = await db.getFirstAsync(`SELECT visite_id FROM pre_allumage_locaux WHERE id=?`, [localId]);
   if (!local) return;
-  const rubriques = await db.getAllAsync(`SELECT id,section_code FROM pre_allumage_rubriques WHERE local_id=?`, [localId]);
+  const rubriques = await db.getAllAsync(`SELECT id,section_code FROM pre_allumage_rubriques WHERE local_id=?`, [
+    localId
+  ]);
   for (const rubrique of rubriques) {
     const code = rubrique.section_code;
     await db.runAsync(`DELETE FROM champs_visite WHERE visite_id=? AND section_code=?`, [local.visite_id, code]);
     await db.runAsync(`DELETE FROM controles_visite WHERE visite_id=? AND section_code=?`, [local.visite_id, code]);
     if (!String(code || '').startsWith('pa.local.')) {
-      await db.runAsync(`UPDATE pre_allumage_rubriques SET local_id=NULL,modifie_le=datetime('now') WHERE id=?`, [rubrique.id]);
+      await db.runAsync(`UPDATE pre_allumage_rubriques SET local_id=NULL,modifie_le=datetime('now') WHERE id=?`, [
+        rubrique.id
+      ]);
     }
   }
   await db.runAsync(`DELETE FROM pre_allumage_locaux WHERE id=?`, [localId]);
@@ -202,13 +291,22 @@ export async function ajouterRubriquePreAllumage(visiteId, panelId, nom) {
   const db = await getDb();
   const propre = String(nom || '').trim();
   if (!propre) throw new Error('Le nom de la rubrique est obligatoire.');
-  return insererRubrique(db, { visiteId, panelId, code: `pa.rubrique.${createId('section')}`, nom: propre, ordre: Date.now(), fields: [] });
+  return insererRubrique(db, {
+    visiteId,
+    panelId,
+    code: `pa.rubrique.${createId('section')}`,
+    nom: propre,
+    ordre: Date.now(),
+    fields: []
+  });
 }
 
 export async function renommerRubriquePreAllumage(id, nom) {
   const propre = String(nom || '').trim();
   if (!propre) return;
-  await (await getDb()).runAsync(`UPDATE pre_allumage_rubriques SET nom=?,modifie_le=datetime('now') WHERE id=?`, [propre, id]);
+  await (
+    await getDb()
+  ).runAsync(`UPDATE pre_allumage_rubriques SET nom=?,modifie_le=datetime('now') WHERE id=?`, [propre, id]);
 }
 
 export async function supprimerRubriquePreAllumage(id) {
@@ -224,11 +322,21 @@ export async function ajouterChampPreAllumage(rubriqueId, { libelle, type = 'cha
   const db = await getDb();
   const propre = String(libelle || '').trim();
   if (!propre) throw new Error('Le nom du champ est obligatoire.');
-  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),-1) n FROM pre_allumage_champs WHERE rubrique_id=?`, [rubriqueId]);
+  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),-1) n FROM pre_allumage_champs WHERE rubrique_id=?`, [
+    rubriqueId
+  ]);
   const id = createId('pa-champ');
   await db.runAsync(
     `INSERT INTO pre_allumage_champs(id,rubrique_id,cle_stockage,libelle,type_code,ordre,options_json) VALUES(?,?,?,?,?,?,?)`,
-    [id, rubriqueId, createId('champ'), propre, type, Number(max?.n || -1) + 1, numericIndex ? JSON.stringify({ numericIndex: true, renamable: true }) : null]
+    [
+      id,
+      rubriqueId,
+      createId('champ'),
+      propre,
+      type,
+      Number(max?.n || -1) + 1,
+      numericIndex ? JSON.stringify({ numericIndex: true, renamable: true }) : null
+    ]
   );
   return id;
 }
@@ -236,7 +344,9 @@ export async function ajouterChampPreAllumage(rubriqueId, { libelle, type = 'cha
 export async function renommerChampPreAllumage(id, libelle) {
   const propre = String(libelle || '').trim();
   if (!propre) return;
-  await (await getDb()).runAsync(`UPDATE pre_allumage_champs SET libelle=?,modifie_le=datetime('now') WHERE id=?`, [propre, id]);
+  await (
+    await getDb()
+  ).runAsync(`UPDATE pre_allumage_champs SET libelle=?,modifie_le=datetime('now') WHERE id=?`, [propre, id]);
 }
 
 export async function supprimerChampPreAllumage(id) {
@@ -246,21 +356,31 @@ export async function supprimerChampPreAllumage(id) {
     [id]
   );
   if (!row) return;
-  await db.runAsync(`DELETE FROM champs_visite WHERE visite_id=? AND section_code=? AND cle=?`, [row.visite_id, row.section_code, row.cle_stockage]);
-  await db.runAsync(`DELETE FROM controles_visite WHERE visite_id=? AND section_code=? AND cle=?`, [row.visite_id, row.section_code, row.cle_stockage]);
+  await db.runAsync(`DELETE FROM champs_visite WHERE visite_id=? AND section_code=? AND cle=?`, [
+    row.visite_id,
+    row.section_code,
+    row.cle_stockage
+  ]);
+  await db.runAsync(`DELETE FROM controles_visite WHERE visite_id=? AND section_code=? AND cle=?`, [
+    row.visite_id,
+    row.section_code,
+    row.cle_stockage
+  ]);
   await db.runAsync(`DELETE FROM pre_allumage_champs WHERE id=?`, [id]);
 }
 
 export function rubriquesVersSections(rubriques, panelId) {
-  return (rubriques || []).filter((r) => r.panel_id === panelId).map((r) => ({
-    ...r,
-    title: r.nom,
-    sectionCode: r.section_code,
-    fields: r.champs.map((c) => ({ ...c.field, displayLabel: c.libelle, modularFieldId: c.id })),
-  }));
+  return (rubriques || [])
+    .filter((r) => r.panel_id === panelId)
+    .map((r) => ({
+      ...r,
+      title: r.nom,
+      sectionCode: r.section_code,
+      fields: r.champs.map((c) => ({ ...c.field, displayLabel: c.libelle, modularFieldId: c.id }))
+    }));
 }
 
 export const PREALLUMAGE_TYPES_LOCAUX = Object.freeze([
   { code: SST, label: 'Sous-station' },
-  { code: CHAUFFERIE, label: 'Chaufferie' },
+  { code: CHAUFFERIE, label: 'Chaufferie' }
 ]);

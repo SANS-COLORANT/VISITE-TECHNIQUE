@@ -7,12 +7,16 @@ export function useListScrollMemory(key, readyToken = 1) {
 
   useEffect(() => {
     let alive = true;
-    hydrateNavigationState(navKey).then((state) => {
-      if (!alive) return;
-      const offset = Number(state?.scrollY || 0);
-      if (offset) setTimeout(() => listRef.current?.scrollToOffset?.({ offset, animated: false }), 45);
-    }).catch(() => {});
-    return () => { alive = false; };
+    hydrateNavigationState(navKey)
+      .then((state) => {
+        if (!alive) return;
+        const offset = Number(state?.scrollY || 0);
+        if (offset) setTimeout(() => listRef.current?.scrollToOffset?.({ offset, animated: false }), 45);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, [navKey]);
 
   useEffect(() => {
@@ -22,9 +26,12 @@ export function useListScrollMemory(key, readyToken = 1) {
     return () => clearTimeout(timer);
   }, [navKey, readyToken]);
 
-  const onScroll = useCallback((event) => {
-    setNavigationScrollOffset(navKey, event.nativeEvent.contentOffset.y);
-  }, [navKey]);
+  const onScroll = useCallback(
+    (event) => {
+      setNavigationScrollOffset(navKey, event.nativeEvent.contentOffset.y);
+    },
+    [navKey]
+  );
 
   return { listRef, onScroll };
 }

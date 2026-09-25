@@ -46,7 +46,7 @@ function FadeUp({ children, delay = 0, style }) {
       toValue: 1,
       duration: 360,
       delay,
-      useNativeDriver: true,
+      useNativeDriver: true
     });
     timer.start();
     return () => timer.stop();
@@ -58,8 +58,8 @@ function FadeUp({ children, delay = 0, style }) {
         style,
         {
           opacity: anim,
-          transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }],
-        },
+          transform: [{ translateY: anim.interpolate({ inputRange: [0, 1], outputRange: [10, 0] }) }]
+        }
       ]}
     >
       {children}
@@ -80,7 +80,7 @@ function ProgressRing({ pct = 0, size = 56, strokeWidth = 6, accent, track = 'rg
     const timer = Animated.timing(anim, {
       toValue: Math.max(0, Math.min(100, pct)),
       duration: 700,
-      useNativeDriver: false, // strokeDashoffset n'est pas pilotable par le native driver
+      useNativeDriver: false // strokeDashoffset n'est pas pilotable par le native driver
     });
     timer.start();
     return () => timer.stop();
@@ -88,19 +88,12 @@ function ProgressRing({ pct = 0, size = 56, strokeWidth = 6, accent, track = 'rg
 
   const dashoffset = anim.interpolate({
     inputRange: [0, 100],
-    outputRange: [circumference, 0],
+    outputRange: [circumference, 0]
   });
 
   return (
     <Svg width={size} height={size}>
-      <Circle
-        cx={size / 2}
-        cy={size / 2}
-        r={radius}
-        stroke={track}
-        strokeWidth={strokeWidth}
-        fill="none"
-      />
+      <Circle cx={size / 2} cy={size / 2} r={radius} stroke={track} strokeWidth={strokeWidth} fill="none" />
       <AnimatedCircle
         cx={size / 2}
         cy={size / 2}
@@ -125,14 +118,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.08,
     shadowRadius: 6,
     shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
+    elevation: 2
   },
   orbFill: {
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    overflow: 'hidden',
-  },
+    overflow: 'hidden'
+  }
 });
 
 export { IconOrb, FadeUp, ProgressRing };

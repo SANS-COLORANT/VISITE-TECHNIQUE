@@ -44,5 +44,5 @@ export const migration033 = {
       ON api_visit_outbox(remote_client_id, status, queued_at);
     CREATE INDEX IF NOT EXISTS idx_visites_api_remote_client
       ON visites(api_remote_client_id, api_remote_local_id);
-  `,
+  `
 };

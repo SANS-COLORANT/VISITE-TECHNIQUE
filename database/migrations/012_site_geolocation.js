@@ -10,5 +10,5 @@ export const migration012 = {
 
     CREATE INDEX IF NOT EXISTS idx_sites_client_gps
       ON sites(client_id, latitude, longitude);
-  `,
+  `
 };

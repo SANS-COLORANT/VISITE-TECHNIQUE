@@ -1,4 +1,9 @@
-const { withDangerousMod, withMainApplication, withAppBuildGradle, withAndroidManifest } = require('@expo/config-plugins');
+const {
+  withDangerousMod,
+  withMainApplication,
+  withAppBuildGradle,
+  withAndroidManifest
+} = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -9,15 +14,27 @@ const ZXING_DEP = "implementation 'com.google.zxing:core:3.5.3'";
 const ZXING_EMBEDDED_DEP = "implementation 'com.journeyapps:zxing-android-embedded:4.3.0'";
 
 module.exports = function withMetraCompanion(config) {
-  config = withDangerousMod(config, ['android', async (cfg) => {
-    const sourceDir = path.join(cfg.modRequest.projectRoot, 'native', 'metra-companion');
-    const targetDir = path.join(cfg.modRequest.platformProjectRoot, 'app', 'src', 'main', 'java', 'com', 'metra', 'companion');
-    fs.mkdirSync(targetDir, { recursive: true });
-    for (const file of ['MetraCompanionModule.kt', 'MetraCompanionPackage.kt']) {
-      fs.copyFileSync(path.join(sourceDir, file), path.join(targetDir, file));
+  config = withDangerousMod(config, [
+    'android',
+    async (cfg) => {
+      const sourceDir = path.join(cfg.modRequest.projectRoot, 'native', 'metra-companion');
+      const targetDir = path.join(
+        cfg.modRequest.platformProjectRoot,
+        'app',
+        'src',
+        'main',
+        'java',
+        'com',
+        'metra',
+        'companion'
+      );
+      fs.mkdirSync(targetDir, { recursive: true });
+      for (const file of ['MetraCompanionModule.kt', 'MetraCompanionPackage.kt']) {
+        fs.copyFileSync(path.join(sourceDir, file), path.join(targetDir, file));
+      }
+      return cfg;
     }
-    return cfg;
-  }]);
+  ]);
 
   config = withMainApplication(config, (cfg) => {
     let src = cfg.modResults.contents;
@@ -45,7 +62,8 @@ module.exports = function withMetraCompanion(config) {
     const marker = 'dependencies {';
     if (!cfg.modResults.contents.includes(marker)) throw new Error('withMetraCompanion: bloc dependencies introuvable');
     for (const dep of [ZXING_DEP, ZXING_EMBEDDED_DEP]) {
-      if (!cfg.modResults.contents.includes(dep)) cfg.modResults.contents = cfg.modResults.contents.replace(marker, marker + '\n    ' + dep);
+      if (!cfg.modResults.contents.includes(dep))
+        cfg.modResults.contents = cfg.modResults.contents.replace(marker, marker + '\n    ' + dep);
     }
     return cfg;
   });
@@ -53,7 +71,11 @@ module.exports = function withMetraCompanion(config) {
   config = withAndroidManifest(config, (cfg) => {
     const manifest = cfg.modResults.manifest;
     manifest['uses-permission'] = manifest['uses-permission'] || [];
-    for (const name of ['android.permission.INTERNET', 'android.permission.ACCESS_NETWORK_STATE', 'android.permission.CAMERA']) {
+    for (const name of [
+      'android.permission.INTERNET',
+      'android.permission.ACCESS_NETWORK_STATE',
+      'android.permission.CAMERA'
+    ]) {
       if (!manifest['uses-permission'].some((entry) => entry?.$?.['android:name'] === name)) {
         manifest['uses-permission'].push({ $: { 'android:name': name } });
       }

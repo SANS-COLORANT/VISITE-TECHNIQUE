@@ -38,14 +38,33 @@ class AppErrorBoundary extends React.Component {
     return (
       <View style={[styles.center, { padding: 28 }]}>
         <Text style={styles.errorTitle}>L’écran a rencontré un problème</Text>
-        <Text style={[styles.errorText, { marginTop: 8, textAlign: 'center' }]}>Les données déjà enregistrées localement sont conservées. Tu peux relancer l’interface ou fermer l’application.</Text>
-        <View style={{ marginTop: 12, width: '100%', maxWidth: 720, padding: 10, borderRadius: 10, backgroundColor: '#FFF4F2', borderWidth: 1, borderColor: '#F1B5AE' }}>
-          <Text selectable style={[styles.errorText, { fontSize: 11, color: '#8A1C13' }]}>{detail}</Text>
+        <Text style={[styles.errorText, { marginTop: 8, textAlign: 'center' }]}>
+          Les données déjà enregistrées localement sont conservées. Tu peux relancer l’interface ou fermer
+          l’application.
+        </Text>
+        <View
+          style={{
+            marginTop: 12,
+            width: '100%',
+            maxWidth: 720,
+            padding: 10,
+            borderRadius: 10,
+            backgroundColor: '#FFF4F2',
+            borderWidth: 1,
+            borderColor: '#F1B5AE'
+          }}
+        >
+          <Text selectable style={[styles.errorText, { fontSize: 11, color: '#8A1C13' }]}>
+            {detail}
+          </Text>
         </View>
         <TouchableOpacity style={[styles.btnPrimary, { marginTop: 20, minWidth: 180 }]} onPress={this.reessayer}>
           <Text style={styles.btnPrimaryText}>Relancer l’interface</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10, minWidth: 180 }]} onPress={() => BackHandler.exitApp()}>
+        <TouchableOpacity
+          style={[styles.btnSecondary, { marginTop: 10, minWidth: 180 }]}
+          onPress={() => BackHandler.exitApp()}
+        >
           <Text style={styles.btnSecondaryText}>Fermer l’application</Text>
         </TouchableOpacity>
       </View>

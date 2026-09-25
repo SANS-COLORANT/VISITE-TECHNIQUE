@@ -7,14 +7,17 @@ function buildCompanionQrPayload({ host, port, sessionId, token, scope = 'visit'
     ['scope', scope || 'visit'],
     ['scopeId', scopeId || ''],
     ['label', label || ''],
-    ['v', '2'],
-  ].map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v || ''))}`).join('&');
+    ['v', '2']
+  ]
+    .map(([k, v]) => `${encodeURIComponent(k)}=${encodeURIComponent(String(v || ''))}`)
+    .join('&');
   return `metra://companion?${qs}`;
 }
 
 function parseCompanionQrPayload(raw) {
   const text = String(raw || '').trim();
-  if (!text.startsWith('metra://companion?')) throw new Error('Ce QR code ne correspond pas à une session MÉTRA Compagnon.');
+  if (!text.startsWith('metra://companion?'))
+    throw new Error('Ce QR code ne correspond pas à une session MÉTRA Compagnon.');
   const query = text.slice(text.indexOf('?') + 1);
   const params = {};
   query.split('&').forEach((chunk) => {
@@ -32,7 +35,7 @@ function parseCompanionQrPayload(raw) {
     version: Number(params.v || 1),
     scope: params.scope || 'visit',
     scopeId: params.scopeId || null,
-    label: params.label || null,
+    label: params.label || null
   };
 }
 

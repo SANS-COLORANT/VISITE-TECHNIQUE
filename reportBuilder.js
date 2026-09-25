@@ -24,9 +24,9 @@ const REPORT_ASSET_MODULES = Object.freeze({
     require('./assets/report/spiral-red-orange.jpg'),
     require('./assets/report/spiral-yellow-green.jpg'),
     require('./assets/report/spiral-green-red.jpg'),
-    require('./assets/report/spiral-multicolor-alt.jpg'),
+    require('./assets/report/spiral-multicolor-alt.jpg')
   ],
-  pageMark: require('./assets/report/spiral-multicolor.png'),
+  pageMark: require('./assets/report/spiral-multicolor.png')
 });
 
 const REPORT_SECTION_META = Object.freeze({
@@ -38,7 +38,7 @@ const REPORT_SECTION_META = Object.freeze({
   'p-conf-energie': { titre: 'CONFORMITÉ ÉNERGIE', banner: true, breakBefore: true },
   'p-conf-chauffage': { titre: 'CONFORMITÉ CHAUFFAGE', banner: true, breakBefore: true },
   'p-conf-ecs': { titre: 'CONFORMITÉ ECS', banner: true, breakBefore: true },
-  'p-conf-adouc': { titre: 'CONFORMITÉ ADOUCISSEUR', banner: true, breakBefore: true },
+  'p-conf-adouc': { titre: 'CONFORMITÉ ADOUCISSEUR', banner: true, breakBefore: true }
 });
 
 function esc(v = '') {
@@ -50,19 +50,25 @@ function esc(v = '') {
 }
 
 function court(v = '', max = 52) {
-  const brut = String(v || '').split('||')[0].replace(/\s+/g, ' ').trim();
+  const brut = String(v || '')
+    .split('||')[0]
+    .replace(/\s+/g, ' ')
+    .trim();
   if (!brut) return '';
   const phrase = brut.split(/[\n.;!?]/)[0].trim() || brut;
   return phrase.length > max ? `${phrase.slice(0, max - 1).trim()}…` : phrase;
 }
 
 function propre(v = 'Rapport') {
-  return String(v || 'Rapport')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9._-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 80) || 'Rapport';
+  return (
+    String(v || 'Rapport')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 80) || 'Rapport'
+  );
 }
 
 function dateFr(v) {
@@ -77,7 +83,10 @@ function valeurChamp(champs, cle) {
 }
 
 function titreLocalDepuisChamps(champs) {
-  return court(valeurChamp(champs, 'Nom du local') || valeurChamp(champs, 'Type de LT') || 'Installation technique', 80);
+  return court(
+    valeurChamp(champs, 'Nom du local') || valeurChamp(champs, 'Type de LT') || 'Installation technique',
+    80
+  );
 }
 
 function typeLocalDepuisChamps(champs) {
@@ -89,7 +98,9 @@ function titreSectionRapport(panelId, fallback) {
 }
 
 function classeAvis(avis) {
-  const v = String(avis || '').trim().toUpperCase();
+  const v = String(avis || '')
+    .trim()
+    .toUpperCase();
   if (v === 'S') return 'avisOk';
   if (v === 'N.S' || v === 'NS') return 'avisKo';
   return '';
@@ -152,7 +163,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     db.getAllAsync(`SELECT * FROM photos WHERE visite_id=? ORDER BY cree_le,id`, [visiteId]),
     listerMateriel(visiteId),
     db.getFirstAsync(`SELECT contenu FROM notes WHERE visite_id=?`, [visiteId]),
-    trame.id === 'pre_allumage' ? listerAliasesPreAllumage(visiteId) : Promise.resolve({}),
+    trame.id === 'pre_allumage' ? listerAliasesPreAllumage(visiteId) : Promise.resolve({})
   ]);
 
   const champMap = new Map(champs.map((r) => [`${r.section_code}||${r.cle}`, r.valeur || '']));
@@ -175,10 +186,13 @@ export async function chargerDonneesVisiteRapport(visiteId) {
               label: c.libelle,
               storageKey: c.cle_stockage,
               type: c.type_code,
-              avis: c.type_code === 'controle' ? (controle?.avis || '') : '',
-              comment: c.type_code === 'controle' ? (controle?.commentaire || '') : (champMap.get(`${rubrique.section_code}||${c.cle_stockage}`) || ''),
+              avis: c.type_code === 'controle' ? controle?.avis || '' : '',
+              comment:
+                c.type_code === 'controle'
+                  ? controle?.commentaire || ''
+                  : champMap.get(`${rubrique.section_code}||${c.cle_stockage}`) || ''
             };
-          }),
+          })
         });
       }
       sections.push({
@@ -186,7 +200,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
         title: titreSectionRapport(panelId, trame.ui.labels?.[panelId]),
         banner: false,
         breakBefore: false,
-        groups,
+        groups
       });
       continue;
     }
@@ -202,25 +216,32 @@ export async function chargerDonneesVisiteRapport(visiteId) {
           return {
             label: f.cle,
             type: f.type,
-            avis: f.type === 'controle' ? (controle?.avis || '') : '',
-            comment: f.type === 'controle' ? (controle?.commentaire || '') : (champMap.get(`${code}||${f.cle}`) || ''),
+            avis: f.type === 'controle' ? controle?.avis || '' : '',
+            comment: f.type === 'controle' ? controle?.commentaire || '' : champMap.get(`${code}||${f.cle}`) || ''
           };
-        }),
+        })
       });
     }
 
     if (panelId === 'p-regulation') {
-      reseaux.forEach((r, i) => groups.push({
-        title: r.nom_reseau || `Réseau n°${i + 1}`,
-        rows: [
-          { label: 'T°ext(°C)', type: 'champ', avis: '', comment: r.t_ext_c || '' },
-          { label: 'T°dép(°C)', type: 'champ', avis: '', comment: r.t_dep_c || '' },
-          { label: 'Nom réseau', type: 'champ', avis: '', comment: r.nom_reseau || '' },
-          { label: 'Courbe de chauffe', type: 'champ', avis: '', comment: r.courbe_de_chauffe || '' },
-          { label: 'TNC', type: 'champ', avis: '', comment: r.tnc || '' },
-          { label: 'Consigne et Programme horaire', type: 'champ', avis: '', comment: r.consigne_programme_horaire || '' },
-        ],
-      }));
+      reseaux.forEach((r, i) =>
+        groups.push({
+          title: r.nom_reseau || `Réseau n°${i + 1}`,
+          rows: [
+            { label: 'T°ext(°C)', type: 'champ', avis: '', comment: r.t_ext_c || '' },
+            { label: 'T°dép(°C)', type: 'champ', avis: '', comment: r.t_dep_c || '' },
+            { label: 'Nom réseau', type: 'champ', avis: '', comment: r.nom_reseau || '' },
+            { label: 'Courbe de chauffe', type: 'champ', avis: '', comment: r.courbe_de_chauffe || '' },
+            { label: 'TNC', type: 'champ', avis: '', comment: r.tnc || '' },
+            {
+              label: 'Consigne et Programme horaire',
+              type: 'champ',
+              avis: '',
+              comment: r.consigne_programme_horaire || ''
+            }
+          ]
+        })
+      );
     }
 
     if (panelId === 'p-releves' && compteurs.length) {
@@ -230,8 +251,8 @@ export async function chargerDonneesVisiteRapport(visiteId) {
           label: c.label || 'Compteur',
           type: 'champ',
           avis: '',
-          comment: [c.valeur, c.unite].filter(Boolean).join(' '),
-        })),
+          comment: [c.valeur, c.unite].filter(Boolean).join(' ')
+        }))
       });
     }
 
@@ -240,7 +261,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
       title: titreSectionRapport(panelId, trame.ui.labels?.[panelId]),
       banner: REPORT_SECTION_META[panelId]?.banner === true,
       breakBefore: REPORT_SECTION_META[panelId]?.breakBefore === true,
-      groups,
+      groups
     });
   }
 
@@ -256,7 +277,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     reseaux,
     compteurs,
     note: note?.contenu || '',
-    aliases,
+    aliases
   };
 }
 
@@ -294,27 +315,29 @@ function libellePhoto(photo, data) {
 
 export function preparerPhotosRapport(data, existantes = []) {
   const ancien = new Map((existantes || []).map((x) => [x.id, x]));
-  return data.photos.map((p, i) => ({
-    id: p.id,
-    uri: p.uri,
-    visiteId: data.visite.id,
-    siteId: data.visite.site_id,
-    siteLabel: data.visite.nom_site || 'Site',
-    localLabel: data.visite.nom_local || data.visite.type_local || 'Installation technique',
-    label: ancien.get(p.id)?.label || libellePhoto(p, data),
-    include: ancien.get(p.id)?.include !== false,
-    ordre: ancien.get(p.id)?.ordre ?? i,
-    entiteKey: p.entite_key || null,
-  })).sort((a, b) => a.ordre - b.ordre);
+  return data.photos
+    .map((p, i) => ({
+      id: p.id,
+      uri: p.uri,
+      visiteId: data.visite.id,
+      siteId: data.visite.site_id,
+      siteLabel: data.visite.nom_site || 'Site',
+      localLabel: data.visite.nom_local || data.visite.type_local || 'Installation technique',
+      label: ancien.get(p.id)?.label || libellePhoto(p, data),
+      include: ancien.get(p.id)?.include !== false,
+      ordre: ancien.get(p.id)?.ordre ?? i,
+      entiteKey: p.entite_key || null
+    }))
+    .sort((a, b) => a.ordre - b.ordre);
 }
 
 async function imageRapportBase64(uri) {
   try {
-    const r = await ImageManipulator.manipulateAsync(
-      uri,
-      [{ resize: { width: 900 } }],
-      { compress: 0.55, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-    );
+    const r = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 900 } }], {
+      compress: 0.55,
+      format: ImageManipulator.SaveFormat.JPEG,
+      base64: true
+    });
     return r.base64 ? `data:image/jpeg;base64,${r.base64}` : null;
   } catch {
     return null;
@@ -325,12 +348,14 @@ function tableHtml(group, afficherLignesVides) {
   const rows = (group.rows || []).filter((r) => afficherLignesVides || String(r.avis || r.comment || '').trim());
   if (!rows.length) return '';
 
-  return `<div class="groupBlock"><h3>${esc(group.title)}</h3><table class="techTable"><thead><tr><th class="labelCol">Intitulé</th><th class="avisCol">Avis</th><th>Commentaire</th></tr></thead><tbody>${rows.map((r) => {
-    const comment = String(r.comment || '').trim() || '/';
-    const avis = String(r.avis || '').trim();
-    const champClass = r.type === 'champ' ? 'champAvis' : '';
-    return `<tr><td class="labelCell">${esc(r.label)}</td><td class="avisCell ${champClass} ${classeAvis(avis)}">${esc(avis)}</td><td>${esc(comment)}</td></tr>`;
-  }).join('')}</tbody></table></div>`;
+  return `<div class="groupBlock"><h3>${esc(group.title)}</h3><table class="techTable"><thead><tr><th class="labelCol">Intitulé</th><th class="avisCol">Avis</th><th>Commentaire</th></tr></thead><tbody>${rows
+    .map((r) => {
+      const comment = String(r.comment || '').trim() || '/';
+      const avis = String(r.avis || '').trim();
+      const champClass = r.type === 'champ' ? 'champAvis' : '';
+      return `<tr><td class="labelCell">${esc(r.label)}</td><td class="avisCell ${champClass} ${classeAvis(avis)}">${esc(avis)}</td><td>${esc(comment)}</td></tr>`;
+    })
+    .join('')}</tbody></table></div>`;
 }
 
 function sectionHtml(section, config) {
@@ -371,7 +396,12 @@ async function photosHtml(data, config, photosConfig) {
   }
   if (!prepared.length) return '';
 
-  return chunk(prepared, 6).map((page) => `<section class="photoPage pageBreakBefore"><div class="sectionBanner">PHOTOGRAPHIES</div><div class="photoGrid">${page.map((p) => `<div class="photoCard"><div class="photoImageWrap"><img src="${p.src}"/></div><div class="photoCaption">${esc(p.label || 'Photo')}</div></div>`).join('')}</div></section>`).join('');
+  return chunk(prepared, 6)
+    .map(
+      (page) =>
+        `<section class="photoPage pageBreakBefore"><div class="sectionBanner">PHOTOGRAPHIES</div><div class="photoGrid">${page.map((p) => `<div class="photoCard"><div class="photoImageWrap"><img src="${p.src}"/></div><div class="photoCaption">${esc(p.label || 'Photo')}</div></div>`).join('')}</div></section>`
+    )
+    .join('');
 }
 
 async function siteHtml(data, config, photosConfig) {
@@ -396,9 +426,12 @@ function footerCorporateHtml() {
 }
 
 function cssRapport(output = 'pdf') {
-  const fixedUi = output === 'word' ? `
+  const fixedUi =
+    output === 'word'
+      ? `
     .interiorHeader{display:block}.interiorFooter{display:flex}
-  ` : `
+  `
+      : `
     .interiorHeader,.interiorFooter{display:none}
   `;
   return `
@@ -467,13 +500,19 @@ async function construireSynthesePatrimoineHtml(datas, config) {
   const scope = config.patrimoineScope === 'locals' && installationIds.length ? 'locals' : 'sites';
   const synthese = await getStatsPatrimoineSelection({ clientId, siteIds, installationIds, scope });
   const nomsSites = new Map();
-  for (const d of datas) if (d.visite?.site_id && !nomsSites.has(d.visite.site_id)) nomsSites.set(d.visite.site_id, d.visite.nom_site || 'Site');
+  for (const d of datas)
+    if (d.visite?.site_id && !nomsSites.has(d.visite.site_id))
+      nomsSites.set(d.visite.site_id, d.visite.nom_site || 'Site');
 
-  const rows = [...(synthese.stats || new Map()).entries()].map(([siteId, stats]) => `<tr><td>${esc(nomsSites.get(siteId) || 'Site')}</td><td>${stats.reserves?.ouvertes || 0}</td><td>${stats.reserves?.levees || 0}</td><td>${stats.equipements?.actifs || 0}</td><td>${stats.equipements?.aSurveiller || 0}</td></tr>`).join('');
+  const rows = [...(synthese.stats || new Map()).entries()]
+    .map(
+      ([siteId, stats]) =>
+        `<tr><td>${esc(nomsSites.get(siteId) || 'Site')}</td><td>${stats.reserves?.ouvertes || 0}</td><td>${stats.reserves?.levees || 0}</td><td>${stats.equipements?.actifs || 0}</td><td>${stats.equipements?.aSurveiller || 0}</td></tr>`
+    )
+    .join('');
   const t = synthese.totals || {};
-  const locaux = scope === 'locals'
-    ? [...new Set(datas.map((d) => d.visite?.nom_local).filter(Boolean))].join(' · ')
-    : '';
+  const locaux =
+    scope === 'locals' ? [...new Set(datas.map((d) => d.visite?.nom_local).filter(Boolean))].join(' · ') : '';
   return `<section class="patrimoineSummary pageBreakBefore">
     <div class="sectionBanner">SYNTHÈSE DU PATRIMOINE</div>
     <div class="patrimoineScope">${scope === 'locals' ? 'Périmètre : locaux sélectionnés uniquement' : 'Périmètre : sites concernés par le rapport'}</div>
@@ -536,7 +575,9 @@ async function choisirDossier() {
     throw new Error("L'enregistrement dans Documents n'est pas disponible sur cet appareil.");
   }
   let initial = null;
-  try { initial = SAF.getUriForDirectoryInRoot ? SAF.getUriForDirectoryInRoot('Documents') : null; } catch {}
+  try {
+    initial = SAF.getUriForDirectoryInRoot ? SAF.getUriForDirectoryInRoot('Documents') : null;
+  } catch {}
   const p = await SAF.requestDirectoryPermissionsAsync(initial || undefined);
   return p?.granted ? p.directoryUri : null;
 }
@@ -551,7 +592,10 @@ async function copierPdfVersDossier(uriSource, dossier, nom) {
 
 async function ecrireWordHtml(dossier, nom, html) {
   const SAF = FileSystem.StorageAccessFramework;
-  const wordHtml = html.replace('<html>', '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">');
+  const wordHtml = html.replace(
+    '<html>',
+    '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+  );
   const uri = await SAF.createFileAsync(dossier, nom, MIME_WORD);
   await FileSystem.writeAsStringAsync(uri, wordHtml, { encoding: FileSystem.EncodingType.UTF8 });
   return uri;
@@ -570,7 +614,7 @@ async function lireAssetBinaire(moduleId) {
   // en attente indefiniment sur Android release.
   if (estUriFichierLisible(asset.localUri)) {
     return FileSystem.readAsStringAsync(asset.localUri, {
-      encoding: FileSystem.EncodingType.Base64,
+      encoding: FileSystem.EncodingType.Base64
     });
   }
 
@@ -579,15 +623,12 @@ async function lireAssetBinaire(moduleId) {
   try {
     const charge = await Promise.race([
       asset.downloadAsync(),
-      new Promise((_, reject) => setTimeout(
-        () => reject(new Error('Timeout de materialisation asset PDF')),
-        5000
-      )),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout de materialisation asset PDF')), 5000))
     ]);
     const localUri = charge?.localUri || asset.localUri;
     if (estUriFichierLisible(localUri)) {
       return FileSystem.readAsStringAsync(localUri, {
-        encoding: FileSystem.EncodingType.Base64,
+        encoding: FileSystem.EncodingType.Base64
       });
     }
   } catch (error) {
@@ -600,10 +641,7 @@ async function lireAssetBinaire(moduleId) {
   if (/^https?:/i.test(uri)) {
     const response = await Promise.race([
       fetch(uri),
-      new Promise((_, reject) => setTimeout(
-        () => reject(new Error('Timeout de lecture asset PDF')),
-        5000
-      )),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout de lecture asset PDF')), 5000))
     ]);
     if (!response.ok) throw new Error(`Lecture asset PDF impossible (${response.status}).`);
     const buffer = await response.arrayBuffer();
@@ -618,9 +656,13 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
   const pages = pdf.getPages();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const mm = (value) => value * 72 / 25.4;
+  const mm = (value) => (value * 72) / 25.4;
   const embedJpgSafe = async (base64) => {
-    try { return base64 ? await pdf.embedJpg(base64) : null; } catch { return null; }
+    try {
+      return base64 ? await pdf.embedJpg(base64) : null;
+    } catch {
+      return null;
+    }
   };
   const embedBundledSafe = async (moduleId, format) => {
     try {
@@ -638,7 +680,7 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
     embedJpgSafe(dataUriBase64(REPORT_COVER)),
     embedJpgSafe(dataUriBase64(REPORT_LOGO)),
     embedBundledSafe(REPORT_ASSET_MODULES.pageMark, 'png'),
-    ...REPORT_ASSET_MODULES.businessSpirals.map((moduleId) => embedBundledSafe(moduleId, 'jpg')),
+    ...REPORT_ASSET_MODULES.businessSpirals.map((moduleId) => embedBundledSafe(moduleId, 'jpg'))
   ]);
   const coverOpqibiImage = await embedJpgSafe(dataUriBase64(REPORT_OPQIBI));
 
@@ -673,7 +715,7 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
           x: mm(15),
           y: height - mm(11) - sLogo.height,
           width: sLogo.width,
-          height: sLogo.height,
+          height: sLogo.height
         });
       }
 
@@ -685,7 +727,7 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
         y: height - mm(25),
         size: dateSize,
         font: bold,
-        color: dark,
+        color: dark
       });
 
       page.drawText(`Nos réf. : ${config.chrono || ''}`, {
@@ -693,13 +735,13 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
         y: height - mm(48),
         size: 7.4,
         font: bold,
-        color: dark,
+        color: dark
       });
       page.drawLine({
         start: { x: mm(20), y: height - mm(49) },
         end: { x: mm(54), y: height - mm(49) },
         thickness: 0.6,
-        color: dark,
+        color: dark
       });
 
       const clientLabel = String(clientCover || '').trim() || 'Rapport de visite technique';
@@ -719,7 +761,7 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
         y: boxY + boxH / 2 - clientSize * 0.34,
         size: clientSize,
         font: bold,
-        color: white,
+        color: white
       });
 
       if (coverVisualImage) {
@@ -728,7 +770,7 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
           x: (width - sCover.width) / 2,
           y: height - mm(94) - sCover.height,
           width: sCover.width,
-          height: sCover.height,
+          height: sCover.height
         });
       }
 
@@ -741,7 +783,7 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
         y: height - mm(190),
         size: objectSize,
         font: bold,
-        color: dark,
+        color: dark
       });
 
       const business = ['COPROPRIÉTÉS', 'BAILLEURS SOCIAUX', 'COLLECTIVITÉS', 'TERTIAIRE'];
@@ -762,8 +804,12 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
       });
 
       const cities = [
-        ['VERSAILLES', true], ['NANTES', false], ['TOURS', false],
-        ['RENNES', false], ['LYON', false], ['BORDEAUX', false],
+        ['VERSAILLES', true],
+        ['NANTES', false],
+        ['TOURS', false],
+        ['RENNES', false],
+        ['LYON', false],
+        ['BORDEAUX', false]
       ];
       const citySize = 5.2;
       const cityGap = mm(4.1);
@@ -771,7 +817,13 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
       const cityTotal = cityWidths.reduce((sum, value) => sum + value, 0) + cityGap * (cities.length - 1);
       let cityX = (width - cityTotal) / 2;
       cities.forEach(([label, active], i) => {
-        page.drawText(label, { x: cityX, y: mm(25.5), size: citySize, font: active ? bold : font, color: active ? orange : grey });
+        page.drawText(label, {
+          x: cityX,
+          y: mm(25.5),
+          size: citySize,
+          font: active ? bold : font,
+          color: active ? orange : grey
+        });
         cityX += cityWidths[i] + cityGap;
       });
 
@@ -780,20 +832,29 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
       const websiteW = mm(48);
       page.drawRectangle({ x: 0, y: barY, width: width - websiteW, height: barH, color: orange });
       page.drawRectangle({ x: width - websiteW, y: barY, width: websiteW, height: barH, color: grey });
-      const contact = 'Tél. 01 39 55 17 20 - 21 avenue Georges Pompidou - 69486 LYON CEDEX 3 - contact@energieetservice.fr';
+      const contact =
+        'Tél. 01 39 55 17 20 - 21 avenue Georges Pompidou - 69486 LYON CEDEX 3 - contact@energieetservice.fr';
       let contactSize = 4.65;
-      while (contactSize > 3.8 && font.widthOfTextAtSize(contact, contactSize) > width - websiteW - mm(8)) contactSize -= 0.15;
+      while (contactSize > 3.8 && font.widthOfTextAtSize(contact, contactSize) > width - websiteW - mm(8))
+        contactSize -= 0.15;
       page.drawText(contact, { x: mm(5), y: barY + mm(2.65), size: contactSize, font, color: white });
       const website = 'energieetservice.fr';
       const websiteSize = 8.2;
       const websiteTextW = bold.widthOfTextAtSize(website, websiteSize);
-      page.drawText(website, { x: width - websiteW + (websiteW - websiteTextW) / 2, y: barY + mm(2.25), size: websiteSize, font: bold, color: white });
+      page.drawText(website, {
+        x: width - websiteW + (websiteW - websiteTextW) / 2,
+        y: barY + mm(2.25),
+        size: websiteSize,
+        font: bold,
+        color: white
+      });
 
       if (coverOpqibiImage) {
         const sOpqibi = fit(coverOpqibiImage, mm(17), mm(7.5));
         page.drawImage(coverOpqibiImage, { x: mm(5), y: mm(4.5), width: sOpqibi.width, height: sOpqibi.height });
       }
-      const legal = 'SAS au capital de 292 500 € - Siège social : 64 avenue de Paris - 78000 Versailles - RCS Versailles B 338 335 201 / NAF 7112B';
+      const legal =
+        'SAS au capital de 292 500 € - Siège social : 64 avenue de Paris - 78000 Versailles - RCS Versailles B 338 335 201 / NAF 7112B';
       let legalSize = 4.45;
       while (legalSize > 3.7 && font.widthOfTextAtSize(legal, legalSize) > width - mm(28)) legalSize -= 0.15;
       page.drawText(legal, { x: mm(25), y: mm(6.3), size: legalSize, font, color: grey });
@@ -810,16 +871,24 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
         x: mm(4.5),
         y: height - mm(4.5) - s.height,
         width: s.width,
-        height: s.height,
+        height: s.height
       });
     }
     const running = String(config.objet || 'Compte rendu de visite technique').toUpperCase();
     const runSize = 7.2;
     const runWidth = bold.widthOfTextAtSize(running, runSize);
-    page.drawText(running, { x: Math.max(left + 90, width - 50 - runWidth), y: height - 24, size: runSize, font: bold, color: rgb(0.15, 0.15, 0.15) });
+    page.drawText(running, {
+      x: Math.max(left + 90, width - 50 - runWidth),
+      y: height - 24,
+      size: runSize,
+      font: bold,
+      color: rgb(0.15, 0.15, 0.15)
+    });
 
     const meta = [`Nos réf. : ${config.chrono || ''}`, `Site : ${siteFooter || ''}`, `Objet : ${config.objet || ''}`];
-    meta.forEach((line, i) => page.drawText(String(line), { x: left, y: footerY + 15 - i * 7, size: 5.8, font, color: grey }));
+    meta.forEach((line, i) =>
+      page.drawText(String(line), { x: left, y: footerY + 15 - i * 7, size: 5.8, font, color: grey })
+    );
 
     const pageText = `${index + 1}/${total}`;
     const arrowW = 23;
@@ -831,10 +900,26 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
     const arrowColor = rgb(1, 1, 1);
     const arrowY = footerY + 7.5;
     page.drawLine({ start: { x: x + 6, y: arrowY }, end: { x: x + 16, y: arrowY }, thickness: 1.2, color: arrowColor });
-    page.drawLine({ start: { x: x + 12.5, y: arrowY + 3.2 }, end: { x: x + 16, y: arrowY }, thickness: 1.2, color: arrowColor });
-    page.drawLine({ start: { x: x + 12.5, y: arrowY - 3.2 }, end: { x: x + 16, y: arrowY }, thickness: 1.2, color: arrowColor });
+    page.drawLine({
+      start: { x: x + 12.5, y: arrowY + 3.2 },
+      end: { x: x + 16, y: arrowY },
+      thickness: 1.2,
+      color: arrowColor
+    });
+    page.drawLine({
+      start: { x: x + 12.5, y: arrowY - 3.2 },
+      end: { x: x + 16, y: arrowY },
+      thickness: 1.2,
+      color: arrowColor
+    });
     const tW = bold.widthOfTextAtSize(pageText, 6.6);
-    page.drawText(pageText, { x: x + arrowW + (numW - tW) / 2, y: footerY + 4, size: 6.6, font: bold, color: rgb(1, 1, 1) });
+    page.drawText(pageText, {
+      x: x + arrowW + (numW - tW) / 2,
+      y: footerY + 4,
+      size: 6.6,
+      font: bold,
+      color: rgb(1, 1, 1)
+    });
   });
 
   const outBase64 = await pdf.saveAsBase64({ dataUri: false });
@@ -844,7 +929,9 @@ async function habillerPdf(uriSource, config, siteFooter, clientCover) {
 }
 
 async function exporterUnFormat({ datas, config, photosConfig, format, dossier }) {
-  const base = propre(`${config.chrono || 'Rapport'}_${datas.length === 1 ? datas[0].visite.nom_site : datas[0].visite.nom_client}_${config.objet || 'CRV'}`);
+  const base = propre(
+    `${config.chrono || 'Rapport'}_${datas.length === 1 ? datas[0].visite.nom_site : datas[0].visite.nom_client}_${config.objet || 'CRV'}`
+  );
   const sites = [...new Set(datas.map((d) => d.visite.nom_site).filter(Boolean))];
   const siteFooter = sites.length === 1 ? sites[0] : `${sites.length} sites sélectionnés`;
   const clientCover = datas[0]?.visite?.nom_client || 'Rapport';
@@ -869,7 +956,7 @@ async function exporterUnFormat({ datas, config, photosConfig, format, dossier }
 }
 
 export async function exporterRapport({ datas, config, photosConfig, format = 'pdf', dossierUri = null }) {
-  const dossier = dossierUri || await choisirDossier();
+  const dossier = dossierUri || (await choisirDossier());
   if (!dossier) return { annule: true };
 
   if (format === 'both') {

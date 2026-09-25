@@ -19,10 +19,10 @@ export async function migrateDatabase(db) {
 
     await db.withTransactionAsync(async () => {
       await db.execAsync(migration.sql);
-      await db.runAsync(
-        'INSERT INTO schema_migrations (version, nom) VALUES (?, ?)',
-        [migration.version, migration.name]
-      );
+      await db.runAsync('INSERT INTO schema_migrations (version, nom) VALUES (?, ?)', [
+        migration.version,
+        migration.name
+      ]);
     });
   }
 
@@ -38,6 +38,6 @@ export async function verifyDatabaseIntegrity(db) {
   return {
     integrityOk: Object.values(integrity || {})[0] === 'ok',
     foreignKeysOk: foreignKeys.length === 0,
-    foreignKeyErrors: foreignKeys,
+    foreignKeyErrors: foreignKeys
   };
 }

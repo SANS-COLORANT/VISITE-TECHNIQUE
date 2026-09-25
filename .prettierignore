@@ -1,0 +1,6 @@
+node_modules
+package-lock.json
+templateExcel.js
+features/lab3d/manufacturerModels/**
+android
+ios

@@ -31,8 +31,8 @@ export function VisualPackAnimatedLayer({ pack, layer }) {
         toValue: 1,
         duration: durationMs,
         easing: easingFor(layer?.easing),
-        useNativeDriver: true,
-      }),
+        useNativeDriver: true
+      })
     ]);
     animation.start();
     return () => animation.stop();
@@ -43,23 +43,23 @@ export function VisualPackAnimatedLayer({ pack, layer }) {
     const to = layer?.to || {};
     const opacity = progress.interpolate({
       inputRange: [0, 1],
-      outputRange: [numberOr(from.opacity, 0), numberOr(to.opacity, 1)],
+      outputRange: [numberOr(from.opacity, 0), numberOr(to.opacity, 1)]
     });
     const translateX = progress.interpolate({
       inputRange: [0, 1],
-      outputRange: [numberOr(from.translateX, 0), numberOr(to.translateX, 0)],
+      outputRange: [numberOr(from.translateX, 0), numberOr(to.translateX, 0)]
     });
     const translateY = progress.interpolate({
       inputRange: [0, 1],
-      outputRange: [numberOr(from.translateY, 0), numberOr(to.translateY, 0)],
+      outputRange: [numberOr(from.translateY, 0), numberOr(to.translateY, 0)]
     });
     const scale = progress.interpolate({
       inputRange: [0, 1],
-      outputRange: [numberOr(from.scale, 1), numberOr(to.scale, 1)],
+      outputRange: [numberOr(from.scale, 1), numberOr(to.scale, 1)]
     });
     const rotate = progress.interpolate({
       inputRange: [0, 1],
-      outputRange: [`${numberOr(from.rotate, 0)}deg`, `${numberOr(to.rotate, 0)}deg`],
+      outputRange: [`${numberOr(from.rotate, 0)}deg`, `${numberOr(to.rotate, 0)}deg`]
     });
     return { opacity, transform: [{ translateX }, { translateY }, { scale }, { rotate }] };
   }, [layer?.from, layer?.to, progress]);
@@ -83,9 +83,9 @@ export function VisualPackAnimatedLayer({ pack, layer }) {
           width,
           height,
           marginLeft: centered ? -width / 2 : 0,
-          marginTop: centered ? -height / 2 : 0,
+          marginTop: centered ? -height / 2 : 0
         },
-        animatedStyle,
+        animatedStyle
       ]}
     >
       <VisualPackAsset uri={uri} style={styles.asset} resizeMode={layer?.resizeMode || 'contain'} />
@@ -95,5 +95,5 @@ export function VisualPackAnimatedLayer({ pack, layer }) {
 
 const styles = StyleSheet.create({
   layer: { position: 'absolute' },
-  asset: { width: '100%', height: '100%' },
+  asset: { width: '100%', height: '100%' }
 });

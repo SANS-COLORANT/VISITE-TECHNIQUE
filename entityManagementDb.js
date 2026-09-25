@@ -4,7 +4,11 @@ import { supprimerCopiePhotoDocuments } from './photoDocumentsStorage.js';
 import { supprimerImagePatrimoine } from './patrimoineImageStorage.js';
 
 function estPhotoGereeParApplication(uri) {
-  return !!uri && !!FileSystem.documentDirectory && String(uri).startsWith(`${FileSystem.documentDirectory}visite-technique/photos/`);
+  return (
+    !!uri &&
+    !!FileSystem.documentDirectory &&
+    String(uri).startsWith(`${FileSystem.documentDirectory}visite-technique/photos/`)
+  );
 }
 
 async function supprimerFichiersPhotos(uris = []) {
@@ -27,9 +31,19 @@ async function supprimerDonneesVisite(db, visiteId) {
 
   // Tables historiques/legacy sans FK explicites : nettoyage manuel pour ne laisser aucun orphelin.
   const tables = [
-    'photos', 'remarques', 'notes', 'controles_visite', 'champs_visite',
-    'reseaux', 'compteurs', 'materiel', 'mesures', 'controles',
-    'observations_equipement', 'observations_reseau', 'releves_compteur',
+    'photos',
+    'remarques',
+    'notes',
+    'controles_visite',
+    'champs_visite',
+    'reseaux',
+    'compteurs',
+    'materiel',
+    'mesures',
+    'controles',
+    'observations_equipement',
+    'observations_reseau',
+    'releves_compteur'
   ];
   for (const table of tables) {
     await db.runAsync(`DELETE FROM ${table} WHERE visite_id=?`, [visiteId]);
@@ -55,9 +69,15 @@ export async function getResumeSuppressionSite(siteId) {
   const visites = await db.getFirstAsync(`SELECT COUNT(*) n FROM visites WHERE site_id=?`, [siteId]);
   const installations = await db.getFirstAsync(`SELECT COUNT(*) n FROM installations WHERE site_id=?`, [siteId]);
   const equipements = await db.getFirstAsync(
-    `SELECT COUNT(*) n FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=?`, [siteId]
+    `SELECT COUNT(*) n FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=?`,
+    [siteId]
   );
-  return { ...site, visites: Number(visites?.n || 0), installations: Number(installations?.n || 0), equipements: Number(equipements?.n || 0) };
+  return {
+    ...site,
+    visites: Number(visites?.n || 0),
+    installations: Number(installations?.n || 0),
+    equipements: Number(equipements?.n || 0)
+  };
 }
 
 export async function supprimerSiteComplet(siteId) {
@@ -87,7 +107,9 @@ export async function supprimerSiteComplet(siteId) {
         await db.runAsync(`DELETE FROM controles WHERE reseau_id=?`, [r.id]);
       }
 
-      const compteurs = await db.getAllAsync(`SELECT id FROM compteurs_site WHERE installation_id=?`, [installation.id]);
+      const compteurs = await db.getAllAsync(`SELECT id FROM compteurs_site WHERE installation_id=?`, [
+        installation.id
+      ]);
       for (const c of compteurs) {
         await db.runAsync(`DELETE FROM releves_compteur WHERE compteur_site_id=?`, [c.id]);
         await db.runAsync(`DELETE FROM mesures WHERE compteur_id=?`, [c.id]);
@@ -113,7 +135,8 @@ export async function getResumeSuppressionClient(clientId) {
   if (!client) return null;
   const sites = await db.getFirstAsync(`SELECT COUNT(*) n FROM sites WHERE client_id=?`, [clientId]);
   const visites = await db.getFirstAsync(
-    `SELECT COUNT(*) n FROM visites v JOIN sites s ON s.id=v.site_id WHERE s.client_id=?`, [clientId]
+    `SELECT COUNT(*) n FROM visites v JOIN sites s ON s.id=v.site_id WHERE s.client_id=?`,
+    [clientId]
   );
   return { ...client, sites: Number(sites?.n || 0), visites: Number(visites?.n || 0) };
 }

@@ -11,5 +11,5 @@ export const migration009 = {
     ALTER TABLE variantes_equipement ADD COLUMN source_uri TEXT;
     ALTER TABLE variantes_equipement ADD COLUMN data_quality TEXT NOT NULL DEFAULT 'catalogue';
     ALTER TABLE variantes_equipement ADD COLUMN verified_at TEXT;
-  `,
+  `
 };

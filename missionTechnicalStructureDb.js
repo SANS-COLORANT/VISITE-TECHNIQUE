@@ -37,19 +37,27 @@ export async function listerArchitectureTechniqueMission(missionId, { siteId = n
       [missionId]
     ),
     db.getAllAsync(
-      'SELECT l.* FROM mission_locations l JOIN mission_site_links ml ON ml.site_id=l.site_id WHERE ml.mission_id=?' + (siteId ? ' AND l.site_id=?' : '') + ' ORDER BY l.site_id,l.sort_order,l.label',
+      'SELECT l.* FROM mission_locations l JOIN mission_site_links ml ON ml.site_id=l.site_id WHERE ml.mission_id=?' +
+        (siteId ? ' AND l.site_id=?' : '') +
+        ' ORDER BY l.site_id,l.sort_order,l.label',
       siteId ? [missionId, siteId] : [missionId]
     ),
     db.getAllAsync(
-      'SELECT i.*,l.label AS location_label FROM mission_installations i LEFT JOIN mission_locations l ON l.id=i.location_id WHERE i.mission_id=?' + siteClause + ' ORDER BY i.label',
+      'SELECT i.*,l.label AS location_label FROM mission_installations i LEFT JOIN mission_locations l ON l.id=i.location_id WHERE i.mission_id=?' +
+        siteClause +
+        ' ORDER BY i.label',
       params
     ),
     db.getAllAsync(
-      'SELECT sy.*,i.label AS installation_label FROM mission_systems sy LEFT JOIN mission_installations i ON i.id=sy.installation_id WHERE sy.mission_id=?' + (siteId ? ' AND i.site_id=?' : '') + ' ORDER BY sy.label',
+      'SELECT sy.*,i.label AS installation_label FROM mission_systems sy LEFT JOIN mission_installations i ON i.id=sy.installation_id WHERE sy.mission_id=?' +
+        (siteId ? ' AND i.site_id=?' : '') +
+        ' ORDER BY sy.label',
       siteId ? [missionId, siteId] : [missionId]
     ),
     db.getAllAsync(
-      'SELECT n.*,i.label AS installation_label,sy.label AS system_label,l.label AS location_label FROM mission_networks n LEFT JOIN mission_installations i ON i.id=n.installation_id LEFT JOIN mission_systems sy ON sy.id=n.system_id LEFT JOIN mission_locations l ON l.id=n.location_id WHERE n.mission_id=?' + siteClause + ' ORDER BY n.label',
+      'SELECT n.*,i.label AS installation_label,sy.label AS system_label,l.label AS location_label FROM mission_networks n LEFT JOIN mission_installations i ON i.id=n.installation_id LEFT JOIN mission_systems sy ON sy.id=n.system_id LEFT JOIN mission_locations l ON l.id=n.location_id WHERE n.mission_id=?' +
+        siteClause +
+        ' ORDER BY n.label',
       params
     ),
     db.getAllAsync(
@@ -70,7 +78,7 @@ export async function listerArchitectureTechniqueMission(missionId, { siteId = n
        WHERE c.mission_id=?${siteId ? ' AND e.site_id=?' : ''}
        ORDER BY c.label`,
       siteId ? [missionId, siteId] : [missionId]
-    ),
+    )
   ]);
 
   return { sites, locations, installations, systems, networks, equipment, components };
@@ -83,7 +91,7 @@ export async function creerInstallationMission({
   type = null,
   label,
   status = null,
-  properties = null,
+  properties = null
 } = {}) {
   const db = await getDb();
   await requireMission(db, missionId);
@@ -91,7 +99,16 @@ export async function creerInstallationMission({
   const id = createId('minst');
   await db.runAsync(
     'INSERT INTO mission_installations(id,mission_id,site_id,location_id,type,label,status,properties_json) VALUES(?,?,?,?,?,?,?,?)',
-    [id, missionId, clean(siteId), clean(locationId), clean(type), clean(label) || 'Installation', clean(status), properties ? JSON.stringify(properties) : null]
+    [
+      id,
+      missionId,
+      clean(siteId),
+      clean(locationId),
+      clean(type),
+      clean(label) || 'Installation',
+      clean(status),
+      properties ? JSON.stringify(properties) : null
+    ]
   );
   return id;
 }
@@ -102,16 +119,27 @@ export async function creerSystemeMission({
   type = null,
   label,
   status = null,
-  properties = null,
+  properties = null
 } = {}) {
   const db = await getDb();
   await requireMission(db, missionId);
-  const installation = await db.getFirstAsync('SELECT id FROM mission_installations WHERE id=? AND mission_id=?', [installationId, missionId]);
+  const installation = await db.getFirstAsync('SELECT id FROM mission_installations WHERE id=? AND mission_id=?', [
+    installationId,
+    missionId
+  ]);
   if (!installation) throw new Error('Installation introuvable.');
   const id = createId('msys');
   await db.runAsync(
     'INSERT INTO mission_systems(id,mission_id,installation_id,type,label,status,properties_json) VALUES(?,?,?,?,?,?,?)',
-    [id, missionId, installationId, clean(type), clean(label) || 'Système', clean(status), properties ? JSON.stringify(properties) : null]
+    [
+      id,
+      missionId,
+      installationId,
+      clean(type),
+      clean(label) || 'Système',
+      clean(status),
+      properties ? JSON.stringify(properties) : null
+    ]
   );
   return id;
 }
@@ -125,7 +153,7 @@ export async function creerReseauTechniqueMission({
   type = null,
   label,
   status = null,
-  properties = null,
+  properties = null
 } = {}) {
   const db = await getDb();
   await requireMission(db, missionId);
@@ -155,7 +183,18 @@ export async function creerReseauTechniqueMission({
   const id = createId('mnet');
   await db.runAsync(
     'INSERT INTO mission_networks(id,mission_id,site_id,location_id,installation_id,system_id,type,label,status,properties_json) VALUES(?,?,?,?,?,?,?,?,?,?)',
-    [id, missionId, clean(siteId), clean(locationId), clean(installationId), clean(systemId), clean(type), clean(label) || 'Réseau', clean(status), properties ? JSON.stringify(properties) : null]
+    [
+      id,
+      missionId,
+      clean(siteId),
+      clean(locationId),
+      clean(installationId),
+      clean(systemId),
+      clean(type),
+      clean(label) || 'Réseau',
+      clean(status),
+      properties ? JSON.stringify(properties) : null
+    ]
   );
   return id;
 }
@@ -165,7 +204,7 @@ export async function rattacherEquipementArchitectureMission({
   equipmentId,
   installationId = null,
   systemId = null,
-  networkId = null,
+  networkId = null
 } = {}) {
   const db = await getDb();
   await requireMission(db, missionId);
@@ -187,7 +226,8 @@ export async function rattacherEquipementArchitectureMission({
     if (!network) throw new Error('Réseau introuvable.');
     installationId = installationId || network.installation_id || null;
     systemId = systemId || network.system_id || null;
-    if (network.site_id && String(network.site_id) !== String(equipment.site_id)) throw new Error('Le réseau appartient à un autre Site.');
+    if (network.site_id && String(network.site_id) !== String(equipment.site_id))
+      throw new Error('Le réseau appartient à un autre Site.');
   }
   if (systemId) {
     system = await db.getFirstAsync(
@@ -196,15 +236,17 @@ export async function rattacherEquipementArchitectureMission({
     );
     if (!system) throw new Error('Système introuvable.');
     installationId = installationId || system.installation_id || null;
-    if (system.site_id && String(system.site_id) !== String(equipment.site_id)) throw new Error('Le système appartient à un autre Site.');
+    if (system.site_id && String(system.site_id) !== String(equipment.site_id))
+      throw new Error('Le système appartient à un autre Site.');
   }
   if (installationId) {
-    installation = await db.getFirstAsync(
-      'SELECT id,site_id FROM mission_installations WHERE id=? AND mission_id=?',
-      [installationId, missionId]
-    );
+    installation = await db.getFirstAsync('SELECT id,site_id FROM mission_installations WHERE id=? AND mission_id=?', [
+      installationId,
+      missionId
+    ]);
     if (!installation) throw new Error('Installation introuvable.');
-    if (installation.site_id && String(installation.site_id) !== String(equipment.site_id)) throw new Error('L’installation appartient à un autre Site.');
+    if (installation.site_id && String(installation.site_id) !== String(equipment.site_id))
+      throw new Error('L’installation appartient à un autre Site.');
   }
 
   await db.runAsync(
@@ -221,7 +263,7 @@ export async function creerComposantEquipementMission({
   brand = null,
   model = null,
   state = null,
-  properties = null,
+  properties = null
 } = {}) {
   const db = await getDb();
   await requireMission(db, missionId);
@@ -233,22 +275,33 @@ export async function creerComposantEquipementMission({
   const id = createId('mcomp');
   await db.runAsync(
     'INSERT INTO mission_components(id,mission_id,equipment_id,type,label,brand,model,state,properties_json) VALUES(?,?,?,?,?,?,?,?,?)',
-    [id, missionId, equipmentId, clean(type), clean(label) || 'Composant', clean(brand), clean(model), clean(state), properties ? JSON.stringify(properties) : null]
+    [
+      id,
+      missionId,
+      equipmentId,
+      clean(type),
+      clean(label) || 'Composant',
+      clean(brand),
+      clean(model),
+      clean(state),
+      properties ? JSON.stringify(properties) : null
+    ]
   );
   return id;
 }
 
 export async function supprimerObjetArchitectureMission(kind, id) {
   const db = await getDb();
-  const table = kind === 'installation'
-    ? 'mission_installations'
-    : kind === 'system'
-      ? 'mission_systems'
-      : kind === 'network'
-        ? 'mission_networks'
-        : kind === 'component'
-          ? 'mission_components'
-          : null;
+  const table =
+    kind === 'installation'
+      ? 'mission_installations'
+      : kind === 'system'
+        ? 'mission_systems'
+        : kind === 'network'
+          ? 'mission_networks'
+          : kind === 'component'
+            ? 'mission_components'
+            : null;
   if (!table) throw new Error('Type d’objet technique inconnu.');
   await db.runAsync('DELETE FROM ' + table + ' WHERE id=?', [id]);
 }

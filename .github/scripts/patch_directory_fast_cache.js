@@ -1,7 +1,11 @@
 const fs = require('fs');
 
-function read(path) { return fs.readFileSync(path, 'utf8'); }
-function write(path, text) { fs.writeFileSync(path, text); }
+function read(path) {
+  return fs.readFileSync(path, 'utf8');
+}
+function write(path, text) {
+  fs.writeFileSync(path, text);
+}
 function replaceOnce(text, from, to, label) {
   if (text.includes(to)) return text;
   if (!text.includes(from)) throw new Error(`${label}: anchor not found`);
@@ -25,16 +29,16 @@ function patchCacheDb() {
   if (!text.includes('invalidateDirectorySnapshot();\n  await updateApiSyncState({ last_clients_sync_at:')) {
     text = replaceOnce(
       text,
-      "  await updateApiSyncState({ last_clients_sync_at: new Date().toISOString(), last_success_at: new Date().toISOString(), last_error: null });",
-      "  invalidateDirectorySnapshot();\n  await updateApiSyncState({ last_clients_sync_at: new Date().toISOString(), last_success_at: new Date().toISOString(), last_error: null });",
+      '  await updateApiSyncState({ last_clients_sync_at: new Date().toISOString(), last_success_at: new Date().toISOString(), last_error: null });',
+      '  invalidateDirectorySnapshot();\n  await updateApiSyncState({ last_clients_sync_at: new Date().toISOString(), last_success_at: new Date().toISOString(), last_error: null });',
       'authorized clients cache invalidation'
     );
   }
   if (!text.includes('invalidateDirectorySnapshot();\n  await updateApiSyncState({ last_success_at:')) {
     text = replaceOnce(
       text,
-      "  await updateApiSyncState({ last_success_at: new Date().toISOString(), last_error: null });",
-      "  invalidateDirectorySnapshot();\n  await updateApiSyncState({ last_success_at: new Date().toISOString(), last_error: null });",
+      '  await updateApiSyncState({ last_success_at: new Date().toISOString(), last_error: null });',
+      '  invalidateDirectorySnapshot();\n  await updateApiSyncState({ last_success_at: new Date().toISOString(), last_error: null });',
       'preparation cache invalidation'
     );
   }

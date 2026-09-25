@@ -6,5 +6,5 @@ export const migration023 = {
     ALTER TABLE remarques ADD COLUMN criticite_defaut INTEGER NOT NULL DEFAULT 2 CHECK (criticite_defaut BETWEEN 0 AND 5);
     ALTER TABLE remarques ADD COLUMN criticite_modifiee INTEGER NOT NULL DEFAULT 0 CHECK (criticite_modifiee IN (0, 1));
     CREATE INDEX IF NOT EXISTS idx_remarques_criticite ON remarques(visite_id, criticite);
-  `,
+  `
 };

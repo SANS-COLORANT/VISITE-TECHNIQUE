@@ -351,5 +351,5 @@ export const migration042 = {
     CREATE INDEX IF NOT EXISTS idx_mission_document_extractions_doc ON mission_document_extractions(mission_id,document_id,page_number);
     CREATE INDEX IF NOT EXISTS idx_mission_document_review_status ON mission_document_review_items(mission_id,status,document_id);
     CREATE UNIQUE INDEX IF NOT EXISTS idx_mission_visit_checks_unique ON mission_visit_checks(visit_id,check_key,COALESCE(entity_type,''),COALESCE(entity_id,''));
-  `,
+  `
 };

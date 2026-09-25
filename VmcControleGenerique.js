@@ -3,29 +3,61 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { upsertControlePartiel } from './controlDb.js';
-import { listerRemarquesVisite, upsertRemarquePrescription, supprimerRemarqueControle, modifierCriticiteRemarque } from './remarkDb.js';
+import {
+  listerRemarquesVisite,
+  upsertRemarquePrescription,
+  supprimerRemarqueControle,
+  modifierCriticiteRemarque
+} from './remarkDb.js';
 import { PhotoButton } from './PhotoButton.js';
 import { defaultSeverityForControl } from './reserveSeverity.js';
 import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
 import { useDurableAutosave } from './durableAutosave.js';
 
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
-function avisChipColor(opt) { if (opt === 'S') return { bg: COLORS.greenBg, border: COLORS.green, text: COLORS.green }; if (opt === 'N.S') return { bg: COLORS.redBg, border: COLORS.red, text: COLORS.red }; return { bg: COLORS.line, border: COLORS.inkFaint, text: COLORS.inkSoft }; }
-function palettePanel(avis) { if (avis === 'S') return { bg: COLORS.greenBg, border: COLORS.green, text: COLORS.green, picked: COLORS.green }; if (avis === 'N.S') return { bg: COLORS.redBg, border: '#F4C7C7', text: COLORS.red, picked: COLORS.red }; return { bg: COLORS.bg, border: COLORS.line, text: COLORS.inkSoft, picked: COLORS.inkSoft }; }
-function libelleEtat(avis) { if (avis === 'S') return 'Correct / présent'; if (avis === 'S.O') return 'Sans objet'; if (avis === 'N.R') return 'Non relevé'; if (avis === 'N.V') return 'Non visible'; return null; }
+function avisChipColor(opt) {
+  if (opt === 'S') return { bg: COLORS.greenBg, border: COLORS.green, text: COLORS.green };
+  if (opt === 'N.S') return { bg: COLORS.redBg, border: COLORS.red, text: COLORS.red };
+  return { bg: COLORS.line, border: COLORS.inkFaint, text: COLORS.inkSoft };
+}
+function palettePanel(avis) {
+  if (avis === 'S') return { bg: COLORS.greenBg, border: COLORS.green, text: COLORS.green, picked: COLORS.green };
+  if (avis === 'N.S') return { bg: COLORS.redBg, border: '#F4C7C7', text: COLORS.red, picked: COLORS.red };
+  return { bg: COLORS.bg, border: COLORS.line, text: COLORS.inkSoft, picked: COLORS.inkSoft };
+}
+function libelleEtat(avis) {
+  if (avis === 'S') return 'Correct / présent';
+  if (avis === 'S.O') return 'Sans objet';
+  if (avis === 'N.R') return 'Non relevé';
+  if (avis === 'N.V') return 'Non visible';
+  return null;
+}
 
-export const VmcControleGenerique = React.memo(function VmcControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, onEtatChange }) {
+export const VmcControleGenerique = React.memo(function VmcControleGenerique({
+  visiteId,
+  sectionCode,
+  field,
+  etatInitial,
+  onSaved,
+  onEtatChange
+}) {
   const controleKey = `${sectionCode}||${field.cle}`;
   const [avis, setAvis] = useState(etatInitial?.avis || null);
   const avisRef = useRef(etatInitial?.avis || null);
   const [remarque, setRemarque] = useState(null);
   const [presetChoisi, setPresetChoisi] = useState(null);
   const presets = useMemo(() => field?.presets || {}, [field]);
-  const options = avis ? (presets[avis] || []) : [];
+  const options = avis ? presets[avis] || [] : [];
   const palette = palettePanel(avis);
   const etatApplication = libelleEtat(avis);
 
-  const notifier = useCallback((patch) => { onEtatChange?.(patch); onSaved?.(); }, [onEtatChange, onSaved]);
+  const notifier = useCallback(
+    (patch) => {
+      onEtatChange?.(patch);
+      onSaved?.();
+    },
+    [onEtatChange, onSaved]
+  );
   const rechargerRemarque = useCallback(async () => {
     const rows = await listerRemarquesVisite(visiteId);
     const row = (rows || []).find((r) => r.controle_key === controleKey) || null;
@@ -33,30 +65,33 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
     return row;
   }, [visiteId, controleKey]);
 
-  const persisterCommentaire = useCallback(async (value) => {
-    const texte = String(value || '').trim();
-    const avisCourant = avisRef.current;
-    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: avisCourant, commentaire: texte });
-    if (avisCourant === 'N.S' && texte) {
-      await upsertRemarquePrescription(
-        visiteId,
-        controleKey,
-        {
-          poste: remarque?.poste || field.poste || 'VMC',
-          prestation: texte,
-          delai: remarque?.delai ?? null,
-          estimatif: remarque?.estimatif ?? null,
-          criticiteDefaut: remarque?.criticite_defaut ?? defaultSeverityForControl(field),
-        },
-        `VMC — ${field.cle} — Autre`
-      );
-      await rechargerRemarque();
-    } else if (avisCourant !== 'N.S') {
-      await supprimerRemarqueControle(visiteId, controleKey);
-      setRemarque(null);
-    }
-    notifier({ avis: avisCourant, commentaire: texte });
-  }, [visiteId, sectionCode, field, controleKey, remarque, notifier, rechargerRemarque]);
+  const persisterCommentaire = useCallback(
+    async (value) => {
+      const texte = String(value || '').trim();
+      const avisCourant = avisRef.current;
+      await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: avisCourant, commentaire: texte });
+      if (avisCourant === 'N.S' && texte) {
+        await upsertRemarquePrescription(
+          visiteId,
+          controleKey,
+          {
+            poste: remarque?.poste || field.poste || 'VMC',
+            prestation: texte,
+            delai: remarque?.delai ?? null,
+            estimatif: remarque?.estimatif ?? null,
+            criticiteDefaut: remarque?.criticite_defaut ?? defaultSeverityForControl(field)
+          },
+          `VMC — ${field.cle} — Autre`
+        );
+        await rechargerRemarque();
+      } else if (avisCourant !== 'N.S') {
+        await supprimerRemarqueControle(visiteId, controleKey);
+        setRemarque(null);
+      }
+      notifier({ avis: avisCourant, commentaire: texte });
+    },
+    [visiteId, sectionCode, field, controleKey, remarque, notifier, rechargerRemarque]
+  );
 
   const [commentaire, setCommentaire, flushCommentaire, , adopterCommentairePersiste] = useDurableAutosave(
     etatInitial?.commentaire || '',
@@ -64,89 +99,223 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
     320
   );
 
-  useEffect(() => { avisRef.current = etatInitial?.avis || null; setAvis(avisRef.current); }, [etatInitial?.avis]);
+  useEffect(() => {
+    avisRef.current = etatInitial?.avis || null;
+    setAvis(avisRef.current);
+  }, [etatInitial?.avis]);
   useEffect(() => {
     let alive = true;
-    listerRemarquesVisite(visiteId).then((rows) => {
-      if (alive) setRemarque((rows || []).find((r) => r.controle_key === controleKey) || null);
-    }).catch(console.warn);
-    return () => { alive = false; };
+    listerRemarquesVisite(visiteId)
+      .then((rows) => {
+        if (alive) setRemarque((rows || []).find((r) => r.controle_key === controleKey) || null);
+      })
+      .catch(console.warn);
+    return () => {
+      alive = false;
+    };
   }, [visiteId, controleKey]);
   useEffect(() => {
-    if (!avis || !commentaire) { setPresetChoisi(null); return; }
+    if (!avis || !commentaire) {
+      setPresetChoisi(null);
+      return;
+    }
     const idx = (presets[avis] || []).findIndex((p) => p.commentaire === commentaire);
     setPresetChoisi(idx >= 0 ? idx : null);
   }, [avis, commentaire, presets]);
 
-  const choisirAvis = useCallback(async (val) => {
-    if (val === avis) return;
-    avisRef.current = val;
-    setAvis(val);
-    setPresetChoisi(null);
-    setCommentaire('');
-    onEtatChange?.({ avis: val, commentaire: '' });
-    if (val === 'N.S') {
-      const criticiteDefaut = defaultSeverityForControl(field);
-      await upsertRemarquePrescription(
-        visiteId,
-        controleKey,
-        { poste: field.poste || 'VMC', prestation: `Anomalie constatée sur ${field.cle} — à préciser.`, criticiteDefaut },
-        `VMC — ${field.cle} — À préciser`
+  const choisirAvis = useCallback(
+    async (val) => {
+      if (val === avis) return;
+      avisRef.current = val;
+      setAvis(val);
+      setPresetChoisi(null);
+      setCommentaire('');
+      onEtatChange?.({ avis: val, commentaire: '' });
+      if (val === 'N.S') {
+        const criticiteDefaut = defaultSeverityForControl(field);
+        await upsertRemarquePrescription(
+          visiteId,
+          controleKey,
+          {
+            poste: field.poste || 'VMC',
+            prestation: `Anomalie constatée sur ${field.cle} — à préciser.`,
+            criticiteDefaut
+          },
+          `VMC — ${field.cle} — À préciser`
+        );
+        await rechargerRemarque();
+      } else {
+        await supprimerRemarqueControle(visiteId, controleKey);
+        setRemarque(null);
+      }
+      await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: '' });
+      adopterCommentairePersiste('');
+      notifier({ avis: val, commentaire: '' });
+    },
+    [
+      avis,
+      visiteId,
+      sectionCode,
+      field,
+      controleKey,
+      notifier,
+      rechargerRemarque,
+      setCommentaire,
+      adopterCommentairePersiste,
+      onEtatChange
+    ]
+  );
+
+  const choisirPreset = useCallback(
+    async (opt, idx) => {
+      const texte = opt.commentaire || '';
+      setPresetChoisi(idx);
+      setCommentaire(texte);
+      onEtatChange?.({ avis, commentaire: texte });
+      await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis, commentaire: texte });
+      if (avis === 'N.S') {
+        const criticiteDefaut = defaultSeverityForControl(field, opt);
+        await upsertRemarquePrescription(
+          visiteId,
+          controleKey,
+          {
+            poste: opt.poste || field.poste || 'VMC',
+            prestation: opt.reserve || texte,
+            delai: opt.delai ?? null,
+            estimatif: opt.estimatif ?? null,
+            criticiteDefaut
+          },
+          `VMC — ${field.cle}${opt.label ? ` — ${opt.label}` : ''}`
+        );
+        await rechargerRemarque();
+      } else {
+        await supprimerRemarqueControle(visiteId, controleKey);
+        setRemarque(null);
+      }
+      adopterCommentairePersiste(texte);
+      notifier({ avis, commentaire: texte });
+    },
+    [
+      visiteId,
+      sectionCode,
+      field,
+      controleKey,
+      avis,
+      notifier,
+      rechargerRemarque,
+      setCommentaire,
+      adopterCommentairePersiste,
+      onEtatChange
+    ]
+  );
+
+  const reglerCriticite = useCallback(
+    async (value) => {
+      if (!remarque?.id) return;
+      await modifierCriticiteRemarque(remarque.id, value);
+      setRemarque((r) =>
+        r ? { ...r, criticite: value, criticite_modifiee: value === r.criticite_defaut ? 0 : 1 } : r
       );
-      await rechargerRemarque();
-    } else {
-      await supprimerRemarqueControle(visiteId, controleKey);
-      setRemarque(null);
-    }
-    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: '' });
-    adopterCommentairePersiste('');
-    notifier({ avis: val, commentaire: '' });
-  }, [avis, visiteId, sectionCode, field, controleKey, notifier, rechargerRemarque, setCommentaire, adopterCommentairePersiste, onEtatChange]);
+      notifier({ criticite: value });
+    },
+    [remarque?.id, notifier]
+  );
 
-  const choisirPreset = useCallback(async (opt, idx) => {
-    const texte = opt.commentaire || '';
-    setPresetChoisi(idx);
-    setCommentaire(texte);
-    onEtatChange?.({ avis, commentaire: texte });
-    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis, commentaire: texte });
-    if (avis === 'N.S') {
-      const criticiteDefaut = defaultSeverityForControl(field, opt);
-      await upsertRemarquePrescription(
-        visiteId,
-        controleKey,
-        { poste: opt.poste || field.poste || 'VMC', prestation: opt.reserve || texte, delai: opt.delai ?? null, estimatif: opt.estimatif ?? null, criticiteDefaut },
-        `VMC — ${field.cle}${opt.label ? ` — ${opt.label}` : ''}`
-      );
-      await rechargerRemarque();
-    } else {
-      await supprimerRemarqueControle(visiteId, controleKey);
-      setRemarque(null);
-    }
-    adopterCommentairePersiste(texte);
-    notifier({ avis, commentaire: texte });
-  }, [visiteId, sectionCode, field, controleKey, avis, notifier, rechargerRemarque, setCommentaire, adopterCommentairePersiste, onEtatChange]);
-
-  const reglerCriticite = useCallback(async (value) => {
-    if (!remarque?.id) return;
-    await modifierCriticiteRemarque(remarque.id, value);
-    setRemarque((r) => r ? { ...r, criticite: value, criticite_modifiee: value === r.criticite_defaut ? 0 : 1 } : r);
-    notifier({ criticite: value });
-  }, [remarque?.id, notifier]);
-
-  return <View style={styles.controlRow}><View style={styles.controlTop}><Text style={styles.controlLabel}>{field.cle}</Text><View style={styles.avisGroup}>{AVIS_OPTIONS.map((opt) => { const c = avisChipColor(opt); const selected = avis === opt; return <TouchableOpacity key={opt} style={[styles.avisChip, selected && { backgroundColor: c.bg, borderColor: c.border }]} onPress={() => choisirAvis(opt)}><Text style={[styles.avisChipText, selected && { color: c.text }]}>{opt}</Text></TouchableOpacity>; })}</View></View>
-    {avis && <View style={[styles.criterePanel, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-      {etatApplication ? <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: palette.text, backgroundColor: palette.bg, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8 }}><Text style={{ color: palette.text, fontWeight: '800', fontSize: 11 }}>{etatApplication}</Text></View> : null}
-      {options.length > 0 && <><Text style={[styles.criterePanelLabel, { color: palette.text }]}>{avis === 'N.S' ? 'Anomalie constatée' : 'Commentaire rapide'}</Text><View style={styles.critereChips}>{options.map((opt, idx) => <TouchableOpacity key={`${field.cle}-${avis}-${idx}`} style={[styles.critereChip, { borderColor: palette.text }, presetChoisi === idx && { backgroundColor: palette.picked, borderColor: palette.picked }]} onPress={() => choisirPreset(opt, idx)}><Text style={[styles.critereChipText, { color: presetChoisi === idx ? COLORS.white : palette.text }]}>{opt.label}</Text></TouchableOpacity>)}</View></>}
-      <TextInput
-        style={[styles.input, { marginTop: 8, minHeight: 64, textAlignVertical: 'top', backgroundColor: '#fff' }]}
-        multiline
-        value={commentaire}
-        onChangeText={(v) => { setCommentaire(v); setPresetChoisi(null); onEtatChange?.({ avis, commentaire: v }); }}
-        onBlur={() => flushCommentaire().catch(console.warn)}
-        placeholder="Commentaire technique…"
-      />
-      {avis === 'N.S' && remarque ? <View style={styles.prestationResult}><Text style={styles.criterePanelLabel}>Réserve proposée</Text><Text style={styles.prestationText}>{remarque.prestation}</Text><ReserveSeveritySlider value={remarque.criticite ?? 2} defaultValue={remarque.criticite_defaut ?? 2} onChange={(v) => reglerCriticite(v).catch(console.warn)} /></View> : null}
-      <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={field.cle} style={avis === 'N.S' ? styles.photoRequiredBox : undefined} />
-    </View>}
-  </View>;
+  return (
+    <View style={styles.controlRow}>
+      <View style={styles.controlTop}>
+        <Text style={styles.controlLabel}>{field.cle}</Text>
+        <View style={styles.avisGroup}>
+          {AVIS_OPTIONS.map((opt) => {
+            const c = avisChipColor(opt);
+            const selected = avis === opt;
+            return (
+              <TouchableOpacity
+                key={opt}
+                style={[styles.avisChip, selected && { backgroundColor: c.bg, borderColor: c.border }]}
+                onPress={() => choisirAvis(opt)}
+              >
+                <Text style={[styles.avisChipText, selected && { color: c.text }]}>{opt}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+      {avis && (
+        <View style={[styles.criterePanel, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+          {etatApplication ? (
+            <View
+              style={{
+                alignSelf: 'flex-start',
+                borderWidth: 1,
+                borderColor: palette.text,
+                backgroundColor: palette.bg,
+                borderRadius: 16,
+                paddingHorizontal: 10,
+                paddingVertical: 5,
+                marginBottom: 8
+              }}
+            >
+              <Text style={{ color: palette.text, fontWeight: '800', fontSize: 11 }}>{etatApplication}</Text>
+            </View>
+          ) : null}
+          {options.length > 0 && (
+            <>
+              <Text style={[styles.criterePanelLabel, { color: palette.text }]}>
+                {avis === 'N.S' ? 'Anomalie constatée' : 'Commentaire rapide'}
+              </Text>
+              <View style={styles.critereChips}>
+                {options.map((opt, idx) => (
+                  <TouchableOpacity
+                    key={`${field.cle}-${avis}-${idx}`}
+                    style={[
+                      styles.critereChip,
+                      { borderColor: palette.text },
+                      presetChoisi === idx && { backgroundColor: palette.picked, borderColor: palette.picked }
+                    ]}
+                    onPress={() => choisirPreset(opt, idx)}
+                  >
+                    <Text
+                      style={[styles.critereChipText, { color: presetChoisi === idx ? COLORS.white : palette.text }]}
+                    >
+                      {opt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </>
+          )}
+          <TextInput
+            style={[styles.input, { marginTop: 8, minHeight: 64, textAlignVertical: 'top', backgroundColor: '#fff' }]}
+            multiline
+            value={commentaire}
+            onChangeText={(v) => {
+              setCommentaire(v);
+              setPresetChoisi(null);
+              onEtatChange?.({ avis, commentaire: v });
+            }}
+            onBlur={() => flushCommentaire().catch(console.warn)}
+            placeholder="Commentaire technique…"
+          />
+          {avis === 'N.S' && remarque ? (
+            <View style={styles.prestationResult}>
+              <Text style={styles.criterePanelLabel}>Réserve proposée</Text>
+              <Text style={styles.prestationText}>{remarque.prestation}</Text>
+              <ReserveSeveritySlider
+                value={remarque.criticite ?? 2}
+                defaultValue={remarque.criticite_defaut ?? 2}
+                onChange={(v) => reglerCriticite(v).catch(console.warn)}
+              />
+            </View>
+          ) : null}
+          <PhotoButton
+            visiteId={visiteId}
+            entiteKey={controleKey}
+            label={field.cle}
+            style={avis === 'N.S' ? styles.photoRequiredBox : undefined}
+          />
+        </View>
+      )}
+    </View>
+  );
 });

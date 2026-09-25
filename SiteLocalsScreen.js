@@ -34,23 +34,40 @@ function SiteLocalsScreen({ route, navigation }) {
     }
   }, [siteId]);
 
-  useEffect(() => { charger(); }, [charger]);
+  useEffect(() => {
+    charger();
+  }, [charger]);
 
   useEffect(() => {
     let alive = true;
-    hydrateNavigationState(scrollKey).then((state) => {
-      if (!alive) return;
-      const offset = Number(state?.scrollY || 0);
-      if (offset) setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
-    }).catch(() => {});
-    return () => { alive = false; };
+    hydrateNavigationState(scrollKey)
+      .then((state) => {
+        if (!alive) return;
+        const offset = Number(state?.scrollY || 0);
+        if (offset) setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, [scrollKey]);
 
   const locauxFiltres = useMemo(() => {
-    const q = String(search || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    const q = String(search || '')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .toLowerCase()
+      .trim();
     if (!q) return locaux;
-    return locaux.filter((local) => [local.nom, local.remote_designation, local.remote_trame_nom, local.type_code]
-      .filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().includes(q));
+    return locaux.filter((local) =>
+      [local.nom, local.remote_designation, local.remote_trame_nom, local.type_code]
+        .filter(Boolean)
+        .join(' ')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .includes(q)
+    );
   }, [locaux, search]);
 
   useEffect(() => {
@@ -72,7 +89,7 @@ function SiteLocalsScreen({ route, navigation }) {
       apiRemoteClientId: local.remote_client_id ? String(local.remote_client_id) : null,
       apiRemoteLocalDesignation: local.remote_designation || local.nom || 'Local technique',
       apiRemoteTrameId: local.remote_trame_id || null,
-      apiRemoteTrameNom: local.remote_trame_nom || null,
+      apiRemoteTrameNom: local.remote_trame_nom || null
     });
   };
 
@@ -98,104 +115,202 @@ function SiteLocalsScreen({ route, navigation }) {
     }
   };
 
-  const ouvrirVisitesNonRattachees = () => navigation.navigate('SiteVisites', {
-    siteId,
-    nomSite,
-    clientId,
-    nomClient,
-    nomLocal: 'Visites non rattachées',
-    legacyOnly: true,
-  });
+  const ouvrirVisitesNonRattachees = () =>
+    navigation.navigate('SiteVisites', {
+      siteId,
+      nomSite,
+      clientId,
+      nomClient,
+      nomLocal: 'Visites non rattachées',
+      legacyOnly: true
+    });
 
-  return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-    <FlatList
-      ref={listRef}
-      style={{ flex: 1 }}
-      onScroll={(event) => setNavigationScrollOffset(scrollKey, event.nativeEvent.contentOffset.y)}
-      scrollEventThrottle={80}
-      contentContainerStyle={[styles.content, { paddingBottom: 96 }]}
-      data={locauxFiltres}
-      keyExtractor={(item) => item.installation_id}
-      initialNumToRender={14}
-      maxToRenderPerBatch={10}
-      updateCellsBatchingPeriod={24}
-      windowSize={7}
-      removeClippedSubviews={false}
-      ListHeaderComponent={<View>
-        <View style={{ marginBottom: 16 }}>
-          <Text style={styles.sectionLabel}>Site</Text>
-          <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 18 }}>{nomSite || 'Site'}</Text>
-          {nomClient ? <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 3 }}>{nomClient}</Text> : null}
-        </View>
+  return (
+    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+      <FlatList
+        ref={listRef}
+        style={{ flex: 1 }}
+        onScroll={(event) => setNavigationScrollOffset(scrollKey, event.nativeEvent.contentOffset.y)}
+        scrollEventThrottle={80}
+        contentContainerStyle={[styles.content, { paddingBottom: 96 }]}
+        data={locauxFiltres}
+        keyExtractor={(item) => item.installation_id}
+        initialNumToRender={14}
+        maxToRenderPerBatch={10}
+        updateCellsBatchingPeriod={24}
+        windowSize={7}
+        removeClippedSubviews={false}
+        ListHeaderComponent={
+          <View>
+            <View style={{ marginBottom: 16 }}>
+              <Text style={styles.sectionLabel}>Site</Text>
+              <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 18 }}>{nomSite || 'Site'}</Text>
+              {nomClient ? <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 3 }}>{nomClient}</Text> : null}
+            </View>
 
-        <View style={{ padding: 13, borderRadius: 13, borderWidth: 1, borderColor: COLORS.line, backgroundColor: '#fff', marginBottom: 15 }}>
-          <Text style={{ color: COLORS.ink, fontWeight: '800', fontSize: 13 }}>Choisis un local</Text>
-          <Text style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16, marginTop: 4 }}>Chaque local possède son propre historique. Une nouvelle visite créée ensuite reste rattachée uniquement à ce local.</Text>
-        </View>
+            <View
+              style={{
+                padding: 13,
+                borderRadius: 13,
+                borderWidth: 1,
+                borderColor: COLORS.line,
+                backgroundColor: '#fff',
+                marginBottom: 15
+              }}
+            >
+              <Text style={{ color: COLORS.ink, fontWeight: '800', fontSize: 13 }}>Choisis un local</Text>
+              <Text style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16, marginTop: 4 }}>
+                Chaque local possède son propre historique. Une nouvelle visite créée ensuite reste rattachée uniquement
+                à ce local.
+              </Text>
+            </View>
 
-        {legacyCount > 0 ? <TouchableOpacity onPress={ouvrirVisitesNonRattachees} style={{ padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E7C77A', backgroundColor: '#FFF8E7', marginBottom: 14 }}>
-          <Text style={{ color: '#7A5700', fontWeight: '900', fontSize: 12 }}>{legacyCount} ancienne{legacyCount > 1 ? 's' : ''} visite{legacyCount > 1 ? 's' : ''} sans local</Text>
-          <Text style={{ color: '#7A5700', fontSize: 11, marginTop: 3 }}>Elles restent accessibles sans être attribuées automatiquement à un mauvais local. ›</Text>
-        </TouchableOpacity> : null}
+            {legacyCount > 0 ? (
+              <TouchableOpacity
+                onPress={ouvrirVisitesNonRattachees}
+                style={{
+                  padding: 12,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: '#E7C77A',
+                  backgroundColor: '#FFF8E7',
+                  marginBottom: 14
+                }}
+              >
+                <Text style={{ color: '#7A5700', fontWeight: '900', fontSize: 12 }}>
+                  {legacyCount} ancienne{legacyCount > 1 ? 's' : ''} visite{legacyCount > 1 ? 's' : ''} sans local
+                </Text>
+                <Text style={{ color: '#7A5700', fontSize: 11, marginTop: 3 }}>
+                  Elles restent accessibles sans être attribuées automatiquement à un mauvais local. ›
+                </Text>
+              </TouchableOpacity>
+            ) : null}
 
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionLabel}>Locaux</Text>
-          <Text style={{ color: COLORS.muted, fontSize: 12 }}>{locauxFiltres.length}/{locaux.length}</Text>
-        </View>
-        <TextInput
-          style={[styles.input, { marginTop: 8, marginBottom: 10 }]}
-          value={search}
-          onChangeText={setSearch}
-          placeholder="Rechercher un local, une trame…"
-          autoCorrect={false}
-        />
-      </View>}
-      renderItem={({ item }) => {
-        const label = item.nom || item.remote_designation || 'Local technique';
-        const visitCount = Number(item.visit_count || 0);
-        return <TouchableOpacity
-          style={styles.card}
-          activeOpacity={0.72}
-          onPressIn={() => prewarmLocalVisits({ siteId, installationId: item.installation_id }).catch(() => {})}
-          onPress={() => ouvrirLocal(item)}
-        >
-          <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
-            <Text style={{ fontSize: 20 }}>▣</Text>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionLabel}>Locaux</Text>
+              <Text style={{ color: COLORS.muted, fontSize: 12 }}>
+                {locauxFiltres.length}/{locaux.length}
+              </Text>
+            </View>
+            <TextInput
+              style={[styles.input, { marginTop: 8, marginBottom: 10 }]}
+              value={search}
+              onChangeText={setSearch}
+              placeholder="Rechercher un local, une trame…"
+              autoCorrect={false}
+            />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>{label}</Text>
-            <Text style={styles.cardSub}>
-              {visitCount ? `${visitCount} visite${visitCount > 1 ? 's' : ''}${item.latest_visit_date ? ` · dernière ${String(item.latest_visit_date).slice(0, 10)}` : ''}` : 'Aucune visite'}
+        }
+        renderItem={({ item }) => {
+          const label = item.nom || item.remote_designation || 'Local technique';
+          const visitCount = Number(item.visit_count || 0);
+          return (
+            <TouchableOpacity
+              style={styles.card}
+              activeOpacity={0.72}
+              onPressIn={() => prewarmLocalVisits({ siteId, installationId: item.installation_id }).catch(() => {})}
+              onPress={() => ouvrirLocal(item)}
+            >
+              <View
+                style={{
+                  width: 44,
+                  height: 44,
+                  borderRadius: 12,
+                  backgroundColor: '#F7F8FA',
+                  borderWidth: 1,
+                  borderColor: COLORS.line,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginRight: 11
+                }}
+              >
+                <Text style={{ fontSize: 20 }}>▣</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <Text style={styles.cardTitle}>{label}</Text>
+                <Text style={styles.cardSub}>
+                  {visitCount
+                    ? `${visitCount} visite${visitCount > 1 ? 's' : ''}${item.latest_visit_date ? ` · dernière ${String(item.latest_visit_date).slice(0, 10)}` : ''}`
+                    : 'Aucune visite'}
+                </Text>
+                {item.remote_trame_nom ? (
+                  <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 3 }}>
+                    Trame Intranet · {item.remote_trame_nom}
+                  </Text>
+                ) : null}
+              </View>
+              {item.remote_local_id ? (
+                <View style={[styles.badge, styles.badgeActif]}>
+                  <Text style={[styles.badgeText, styles.badgeTextActif]}>Intranet</Text>
+                </View>
+              ) : null}
+              <Text style={{ color: '#98A2B3', fontSize: 24, marginLeft: 8 }}>›</Text>
+            </TouchableOpacity>
+          );
+        }}
+        ListEmptyComponent={
+          loading ? (
+            <View style={{ paddingVertical: 36 }}>
+              <ActivityIndicator color={COLORS.orange} />
+            </View>
+          ) : (
+            <View style={styles.empty}>
+              <Text style={styles.emptyText}>Aucun local sur ce site.</Text>
+              <Text style={styles.emptySub}>
+                Crée un local METRA ou utilise « Locaux Intranet » depuis la fiche du site.
+              </Text>
+            </View>
+          )
+        }
+      />
+
+      <View style={styles.fabBar}>
+        <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={() => setCreationVisible(true)}>
+          <Text style={styles.btnPrimaryText}>+ Nouveau local</Text>
+        </TouchableOpacity>
+      </View>
+
+      <Modal
+        visible={creationVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => !creationEnCours && setCreationVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Nouveau local METRA</Text>
+            <Text style={{ color: COLORS.muted, fontSize: 11.5, marginBottom: 11 }}>
+              Le local est créé uniquement dans METRA. La création d'un local Intranet reste gérée par l'écran « Locaux
+              Intranet » existant.
             </Text>
-            {item.remote_trame_nom ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 3 }}>Trame Intranet · {item.remote_trame_nom}</Text> : null}
+            <TextInput
+              autoFocus
+              style={styles.input}
+              placeholder="Ex. Chaufferie, SST 1, Local VMC…"
+              value={nouveauNom}
+              onChangeText={setNouveauNom}
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={styles.btnSecondary}
+                disabled={creationEnCours}
+                onPress={() => setCreationVisible(false)}
+              >
+                <Text style={styles.btnSecondaryText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.btnPrimary}
+                disabled={!nouveauNom.trim() || creationEnCours}
+                onPress={creerLocal}
+              >
+                <Text style={styles.btnPrimaryText}>{creationEnCours ? 'Création…' : 'Créer'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          {item.remote_local_id ? <View style={[styles.badge, styles.badgeActif]}><Text style={[styles.badgeText, styles.badgeTextActif]}>Intranet</Text></View> : null}
-          <Text style={{ color: '#98A2B3', fontSize: 24, marginLeft: 8 }}>›</Text>
-        </TouchableOpacity>;
-      }}
-      ListEmptyComponent={loading
-        ? <View style={{ paddingVertical: 36 }}><ActivityIndicator color={COLORS.orange} /></View>
-        : <View style={styles.empty}><Text style={styles.emptyText}>Aucun local sur ce site.</Text><Text style={styles.emptySub}>Crée un local METRA ou utilise « Locaux Intranet » depuis la fiche du site.</Text></View>}
-    />
-
-    <View style={styles.fabBar}>
-      <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={() => setCreationVisible(true)}>
-        <Text style={styles.btnPrimaryText}>+ Nouveau local</Text>
-      </TouchableOpacity>
-    </View>
-
-    <Modal visible={creationVisible} transparent animationType="fade" onRequestClose={() => !creationEnCours && setCreationVisible(false)}>
-      <View style={styles.modalOverlay}><View style={styles.modalSheet}>
-        <Text style={styles.modalTitle}>Nouveau local METRA</Text>
-        <Text style={{ color: COLORS.muted, fontSize: 11.5, marginBottom: 11 }}>Le local est créé uniquement dans METRA. La création d'un local Intranet reste gérée par l'écran « Locaux Intranet » existant.</Text>
-        <TextInput autoFocus style={styles.input} placeholder="Ex. Chaufferie, SST 1, Local VMC…" value={nouveauNom} onChangeText={setNouveauNom} />
-        <View style={styles.modalActions}>
-          <TouchableOpacity style={styles.btnSecondary} disabled={creationEnCours} onPress={() => setCreationVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.btnPrimary} disabled={!nouveauNom.trim() || creationEnCours} onPress={creerLocal}><Text style={styles.btnPrimaryText}>{creationEnCours ? 'Création…' : 'Créer'}</Text></TouchableOpacity>
         </View>
-      </View></View>
-    </Modal>
-  </View>;
+      </Modal>
+    </View>
+  );
 }
 
 export { SiteLocalsScreen };

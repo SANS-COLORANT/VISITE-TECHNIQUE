@@ -16,5 +16,5 @@ export const migration018 = {
         END
     WHERE controle_key IS NOT NULL
       AND TRIM(controle_key) <> '';
-  `,
+  `
 };

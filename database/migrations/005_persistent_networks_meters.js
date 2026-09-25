@@ -40,5 +40,5 @@ export const migration005 = {
     CREATE INDEX IF NOT EXISTS idx_compteurs_compteur_site ON compteurs(compteur_site_id);
     CREATE INDEX IF NOT EXISTS idx_observations_reseau_site ON observations_reseau(reseau_site_id, observe_le);
     CREATE INDEX IF NOT EXISTS idx_releves_compteur_site ON releves_compteur(compteur_site_id, releve_le);
-  `,
+  `
 };

@@ -5,8 +5,10 @@ let text = fs.readFileSync(path, 'utf8');
 
 // Le patch multi-sites place désormais la fenêtre client à 92 % de la hauteur.
 // Conserver ce format plein écran au lieu de réappliquer l'ancien gabarit 86 %.
-const clientModalOld = "<Modal visible={!!selectedClient && !selectedSite} transparent animationType=\"fade\" onRequestClose={() => setSelectedClient(null)}>\n      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxHeight: '86%', borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>";
-const clientModalFull = "<Modal visible={!!selectedClient && !selectedSite} transparent animationType=\"fade\" onRequestClose={() => setSelectedClient(null)}>\n      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { height: '92%', maxHeight: '92%', borderTopLeftRadius: 22, borderTopRightRadius: 22, overflow: 'hidden' }]}>";
+const clientModalOld =
+  '<Modal visible={!!selectedClient && !selectedSite} transparent animationType="fade" onRequestClose={() => setSelectedClient(null)}>\n      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxHeight: \'86%\', borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>';
+const clientModalFull =
+  "<Modal visible={!!selectedClient && !selectedSite} transparent animationType=\"fade\" onRequestClose={() => setSelectedClient(null)}>\n      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { height: '92%', maxHeight: '92%', borderTopLeftRadius: 22, borderTopRightRadius: 22, overflow: 'hidden' }]}>";
 if (!text.includes("height: '92%', maxHeight: '92%'")) {
   if (!text.includes(clientModalOld)) throw new Error('Client modal sheet anchor not found');
   text = text.replace(clientModalOld, clientModalFull);
@@ -38,7 +40,10 @@ if (!list.includes('contentContainerStyle={{ paddingBottom: siteSelectionMode ? 
   );
 }
 if (!list.includes('keyboardShouldPersistTaps="handled"')) {
-  list = list.replace('          data={sites}\n', '          keyboardShouldPersistTaps="handled"\n          data={sites}\n');
+  list = list.replace(
+    '          data={sites}\n',
+    '          keyboardShouldPersistTaps="handled"\n          data={sites}\n'
+  );
 }
 text = text.slice(0, listStart) + list + text.slice(listEnd + '        />'.length);
 

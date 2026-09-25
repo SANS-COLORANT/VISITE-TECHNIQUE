@@ -8,13 +8,17 @@ const MAX_WIDTH = 1600;
 const JPEG_QUALITY = 0.78;
 
 function typeValide(type) {
-  const valeur = String(type || '').trim().toLowerCase();
+  const valeur = String(type || '')
+    .trim()
+    .toLowerCase();
   if (!TYPES.has(valeur)) throw new Error('Type d’image patrimoine invalide.');
   return valeur;
 }
 
 function idDossier(id) {
-  const valeur = String(id || '').trim().replace(/[^a-zA-Z0-9_-]/g, '_');
+  const valeur = String(id || '')
+    .trim()
+    .replace(/[^a-zA-Z0-9_-]/g, '_');
   if (!valeur) throw new Error('Identifiant patrimoine manquant.');
   return valeur;
 }
@@ -36,17 +40,18 @@ export function estImagePatrimoineGeree(uri) {
 async function choisirAsset(source) {
   if (source === 'camera') {
     const resultat = await launchMetraCamera({ allowsEditing: false, quality: 0.9 });
-    if (resultat?.status === 'permission') throw new Error("L’accès à l’appareil photo est nécessaire pour prendre une photo.");
-    return resultat?.uri ? (resultat.asset || { uri: resultat.uri }) : null;
+    if (resultat?.status === 'permission')
+      throw new Error('L’accès à l’appareil photo est nécessaire pour prendre une photo.');
+    return resultat?.uri ? resultat.asset || { uri: resultat.uri } : null;
   }
 
   const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
-  if (!permission.granted) throw new Error("L’accès aux photos est nécessaire pour choisir une image.");
+  if (!permission.granted) throw new Error('L’accès aux photos est nécessaire pour choisir une image.');
   const resultat = await ImagePicker.launchImageLibraryAsync({
     mediaTypes: ImagePicker.MediaTypeOptions.Images,
     allowsEditing: false,
     base64: false,
-    quality: 1,
+    quality: 1
   });
   return resultat.canceled ? null : resultat.assets?.[0] || null;
 }
@@ -55,18 +60,19 @@ async function optimiserImage(asset) {
   if (!asset?.uri) return null;
   const largeur = Number(asset.width || 0);
   const actions = largeur > MAX_WIDTH ? [{ resize: { width: MAX_WIDTH } }] : [];
-  const resultat = await ImageManipulator.manipulateAsync(
-    asset.uri,
-    actions,
-    { compress: JPEG_QUALITY, format: ImageManipulator.SaveFormat.JPEG }
-  );
+  const resultat = await ImageManipulator.manipulateAsync(asset.uri, actions, {
+    compress: JPEG_QUALITY,
+    format: ImageManipulator.SaveFormat.JPEG
+  });
   return resultat?.uri || asset.uri;
 }
 
 export async function importerImagePatrimoine({ type, id, source = 'galerie', onCaptured = null }) {
   const asset = await choisirAsset(source === 'camera' ? 'camera' : 'galerie');
   if (!asset) return null;
-  try { onCaptured?.(asset.uri); } catch {}
+  try {
+    onCaptured?.(asset.uri);
+  } catch {}
   const temporaire = await optimiserImage(asset);
   if (!temporaire) return null;
 

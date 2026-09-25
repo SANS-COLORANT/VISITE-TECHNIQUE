@@ -5,7 +5,7 @@ import { BoundedLruMap } from './boundedCache.js';
 const ROOT = `${FileSystem.cacheDirectory || ''}metra-photo-variants/`;
 const CONFIG = Object.freeze({
   thumb: { width: 320, compress: 0.56, limit: 160 },
-  preview: { width: 1280, compress: 0.74, limit: 36 },
+  preview: { width: 1280, compress: 0.74, limit: 36 }
 });
 
 const memory = new BoundedLruMap(96);
@@ -67,11 +67,13 @@ async function pruneKind(kind) {
   const names = await FileSystem.readDirectoryAsync(dir).catch(() => []);
   if (names.length <= cfg.limit) return;
 
-  const entries = await Promise.all(names.map(async (name) => {
-    const uri = dir + name;
-    const info = await FileSystem.getInfoAsync(uri).catch(() => null);
-    return { uri, time: Number(info?.modificationTime || 0) };
-  }));
+  const entries = await Promise.all(
+    names.map(async (name) => {
+      const uri = dir + name;
+      const info = await FileSystem.getInfoAsync(uri).catch(() => null);
+      return { uri, time: Number(info?.modificationTime || 0) };
+    })
+  );
   entries.sort((a, b) => a.time - b.time);
   const excess = entries.slice(0, Math.max(0, entries.length - cfg.limit));
   await Promise.allSettled(excess.map((entry) => FileSystem.deleteAsync(entry.uri, { idempotent: true })));
@@ -108,11 +110,10 @@ export async function getPhotoVariant(uri, kind = 'thumb') {
     }
 
     const cfg = CONFIG[resolvedKind];
-    const result = await ImageManipulator.manipulateAsync(
-      source,
-      [{ resize: { width: cfg.width } }],
-      { compress: cfg.compress, format: ImageManipulator.SaveFormat.JPEG }
-    );
+    const result = await ImageManipulator.manipulateAsync(source, [{ resize: { width: cfg.width } }], {
+      compress: cfg.compress,
+      format: ImageManipulator.SaveFormat.JPEG
+    });
     if (!result?.uri) throw new Error('Miniature photo non générée');
     await FileSystem.deleteAsync(target, { idempotent: true }).catch(() => {});
     await FileSystem.moveAsync({ from: result.uri, to: target });
@@ -127,10 +128,7 @@ export async function getPhotoVariant(uri, kind = 'thumb') {
 
 export async function preparePhotoVariants(uri) {
   if (!uri) return;
-  await Promise.allSettled([
-    getPhotoVariant(uri, 'thumb'),
-    getPhotoVariant(uri, 'preview'),
-  ]);
+  await Promise.allSettled([getPhotoVariant(uri, 'thumb'), getPhotoVariant(uri, 'preview')]);
 }
 
 export async function forgetPhotoVariants(uri) {

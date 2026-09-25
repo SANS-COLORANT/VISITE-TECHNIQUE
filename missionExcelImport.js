@@ -8,7 +8,7 @@ import {
   MISSION_EXCEL_FORMAT,
   MISSION_EXCEL_SCHEMA_VERSION,
   MISSION_TABLE_BY_SHEET,
-  MISSION_TABLE_IMPORT_ORDER,
+  MISSION_TABLE_IMPORT_ORDER
 } from './missionExcelSchema.js';
 
 function normalizeText(value) {
@@ -47,7 +47,10 @@ async function upsertRows(db, table, rows) {
   if (!rows?.length) return 0;
   const info = await tableInfo(db, table);
   const allowed = new Set(info.map((col) => col.name));
-  const pk = info.filter((col) => Number(col.pk) > 0).sort((a, b) => Number(a.pk) - Number(b.pk)).map((col) => col.name);
+  const pk = info
+    .filter((col) => Number(col.pk) > 0)
+    .sort((a, b) => Number(a.pk) - Number(b.pk))
+    .map((col) => col.name);
   let count = 0;
 
   for (const row of rows) {
@@ -59,10 +62,7 @@ async function upsertRows(db, table, rows) {
     const conflict = pk.length
       ? ` ON CONFLICT(${pk.join(',')}) DO ${updates.length ? `UPDATE SET ${updates.join(',')}` : 'NOTHING'}`
       : '';
-    await db.runAsync(
-      `INSERT INTO ${table}(${columns.join(',')}) VALUES(${placeholders})${conflict}`,
-      values
-    );
+    await db.runAsync(`INSERT INTO ${table}(${columns.join(',')}) VALUES(${placeholders})${conflict}`, values);
     count += 1;
   }
   return count;
@@ -102,24 +102,43 @@ function safeSheetRows(sheet) {
   return rows;
 }
 
-async function createImportBatch(db, missionId, { sourceName, sourceUri, sourceType = 'excel', mode = 'merge', status = 'running', summary = null }) {
+async function createImportBatch(
+  db,
+  missionId,
+  { sourceName, sourceUri, sourceType = 'excel', mode = 'merge', status = 'running', summary = null }
+) {
   const id = createId('mimp');
   await db.runAsync(
     `INSERT INTO mission_import_batches(id,mission_id,source_name,source_uri,source_type,mode,status,summary_json)
      VALUES(?,?,?,?,?,?,?,?)`,
-    [id, missionId, normalizeText(sourceName), normalizeText(sourceUri), sourceType, mode, status, summary ? JSON.stringify(summary) : null]
+    [
+      id,
+      missionId,
+      normalizeText(sourceName),
+      normalizeText(sourceUri),
+      sourceType,
+      mode,
+      status,
+      summary ? JSON.stringify(summary) : null
+    ]
   );
   return id;
 }
 
 async function finishImportBatch(db, batchId, status, summary) {
-  await db.runAsync(
-    `UPDATE mission_import_batches SET status=?,summary_json=?,completed_at=? WHERE id=?`,
-    [status, JSON.stringify(summary || {}), new Date().toISOString(), batchId]
-  );
+  await db.runAsync(`UPDATE mission_import_batches SET status=?,summary_json=?,completed_at=? WHERE id=?`, [
+    status,
+    JSON.stringify(summary || {}),
+    new Date().toISOString(),
+    batchId
+  ]);
 }
 
-async function addImportIssue(db, batchId, { severity = 'warning', entityType = null, sourceRef = null, message, suggestion = null }) {
+async function addImportIssue(
+  db,
+  batchId,
+  { severity = 'warning', entityType = null, sourceRef = null, message, suggestion = null }
+) {
   await db.runAsync(
     `INSERT INTO mission_import_issues(id,batch_id,severity,entity_type,source_ref,message,suggestion)
      VALUES(?,?,?,?,?,?,?)`,
@@ -136,10 +155,14 @@ async function ensureExternalImportMission(db, sourceName) {
      VALUES(?,?,?,?,?,?,?,?)`,
     [missionId, 'campagne_multisites', 'import_excel_externe', label, 'draft', now.slice(0, 10), now, now]
   );
-  await db.runAsync(
-    `INSERT INTO mission_phases(id,mission_id,type,label,status,sort_order) VALUES(?,?,?,?,?,?)`,
-    [createId('mph'), missionId, 'preparation', 'Préparation / import', 'planned', 0]
-  );
+  await db.runAsync(`INSERT INTO mission_phases(id,mission_id,type,label,status,sort_order) VALUES(?,?,?,?,?,?)`, [
+    createId('mph'),
+    missionId,
+    'preparation',
+    'Préparation / import',
+    'planned',
+    0
+  ]);
   return missionId;
 }
 
@@ -152,7 +175,13 @@ async function preserveRawWorkbook(db, missionId, workbook, source) {
       for (const row of rows) {
         await db.runAsync(
           `INSERT INTO mission_import_rows(id,batch_id,sheet_name,row_index,row_json) VALUES(?,?,?,?,?)`,
-          [createId('mimpr'), batchId, sheetName, row.rowIndex, JSON.stringify({ values: row.values, formulas: row.formulas })]
+          [
+            createId('mimpr'),
+            batchId,
+            sheetName,
+            row.rowIndex,
+            JSON.stringify({ values: row.values, formulas: row.formulas })
+          ]
         );
         totalRows += 1;
       }
@@ -162,7 +191,8 @@ async function preserveRawWorkbook(db, missionId, workbook, source) {
       entityType: 'workbook',
       sourceRef: source.sourceName,
       message: 'Classeur externe conservé intégralement avant mapping métier.',
-      suggestion: 'METRA transforme automatiquement uniquement les colonnes reconnues avec suffisamment de certitude ; la source brute reste toujours conservée.',
+      suggestion:
+        'METRA transforme automatiquement uniquement les colonnes reconnues avec suffisamment de certitude ; la source brute reste toujours conservée.'
     });
     const mapped = await autoMapperClasseurMission({ db, missionId, batchId, workbook, safeSheetRows });
     const summary = { mode: 'raw_external', sheets: workbook.SheetNames?.length || 0, rows: totalRows, mapped };
@@ -182,7 +212,9 @@ async function importCanonicalWorkbook(db, workbook, source) {
 
   const version = Number(meta.schema_version || 0);
   if (version > MISSION_EXCEL_SCHEMA_VERSION) {
-    throw new Error(`Ce classeur utilise un schéma Missions plus récent (v${version}) que cette application (v${MISSION_EXCEL_SCHEMA_VERSION}).`);
+    throw new Error(
+      `Ce classeur utilise un schéma Missions plus récent (v${version}) que cette application (v${MISSION_EXCEL_SCHEMA_VERSION}).`
+    );
   }
 
   let batchId = null;
@@ -209,19 +241,15 @@ export async function importerMissionDepuisExcelUri({ uri, name = 'Mission.xlsx'
   const source = { sourceName: name, sourceUri: uri, sourceType: 'excel' };
 
   if (isCanonicalWorkbook(workbook)) return importCanonicalWorkbook(db, workbook, source);
-  const missionId = targetMissionId || await ensureExternalImportMission(db, name);
+  const missionId = targetMissionId || (await ensureExternalImportMission(db, name));
   return preserveRawWorkbook(db, missionId, workbook, source);
 }
 
 export async function choisirEtImporterMissionExcel({ targetMissionId = null } = {}) {
   const picked = await DocumentPicker.getDocumentAsync({
-    type: [
-      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'application/vnd.ms-excel',
-      'text/csv',
-    ],
+    type: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel', 'text/csv'],
     copyToCacheDirectory: true,
-    multiple: false,
+    multiple: false
   });
   if (picked?.canceled) return null;
   const asset = picked?.assets?.[0];

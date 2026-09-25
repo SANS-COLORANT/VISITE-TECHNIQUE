@@ -11,7 +11,9 @@ const pending = new Map();
 
 function coalesce(key, worker) {
   if (pending.has(key)) return pending.get(key);
-  const promise = Promise.resolve().then(worker).finally(() => pending.delete(key));
+  const promise = Promise.resolve()
+    .then(worker)
+    .finally(() => pending.delete(key));
   pending.set(key, promise);
   return promise;
 }
@@ -28,10 +30,7 @@ export async function prewarmClientSites(clientId, { force = false } = {}) {
     if (cached) return cached;
   }
   return coalesce(`client:${key}`, async () => {
-    const [sites, memberships] = await Promise.all([
-      listerSitesClient(key),
-      listerAppartenancesClient(key),
-    ]);
+    const [sites, memberships] = await Promise.all([listerSitesClient(key), listerAppartenancesClient(key)]);
     const bundle = { sites: sites || [], memberships: memberships || [], loadedAt: Date.now() };
     clientSites.set(key, bundle);
     return bundle;
@@ -105,7 +104,7 @@ export async function prewarmSiteLocals(siteId, { force = false } = {}) {
          ORDER BY COALESCE(i.nom,'') COLLATE NOCASE,i.cree_le`,
         [key]
       ),
-      db.getFirstAsync(`SELECT COUNT(*) AS n FROM visites WHERE site_id=? AND installation_id IS NULL`, [key]),
+      db.getFirstAsync(`SELECT COUNT(*) AS n FROM visites WHERE site_id=? AND installation_id IS NULL`, [key])
     ]);
     const bundle = { rows: rows || [], legacyCount: Number(legacy?.n || 0), loadedAt: Date.now() };
     siteLocals.set(key, bundle);
@@ -138,13 +137,15 @@ export async function prewarmLocalVisits({ siteId, installationId = null, legacy
     const [visits, site] = await Promise.all([visitsPromise, getSiteLocalisation(siteId)]);
     const db = await getDb();
     const importedClient = site?.client_id
-      ? await db.getFirstAsync('SELECT remote_client_id FROM api_client_links WHERE local_client_id=? LIMIT 1', [site.client_id])
+      ? await db.getFirstAsync('SELECT remote_client_id FROM api_client_links WHERE local_client_id=? LIMIT 1', [
+          site.client_id
+        ])
       : null;
     const bundle = {
       visits: visits || [],
       site: site || null,
       intranetClientImported: Boolean(importedClient?.remote_client_id),
-      loadedAt: Date.now(),
+      loadedAt: Date.now()
     };
     localVisits.set(key, bundle);
     return bundle;
@@ -168,6 +169,6 @@ export function navigationPrewarmStats() {
     clientSites: clientSites.size,
     siteLocals: siteLocals.size,
     localVisits: localVisits.size,
-    inflight: pending.size,
+    inflight: pending.size
   };
 }

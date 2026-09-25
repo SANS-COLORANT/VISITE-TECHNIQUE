@@ -16,16 +16,24 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function validateEditorCompatibility(schema) {
   const supportedTypes = new Set(HYDRAULIC_EQUIPMENT_TYPES.map((item) => item.id));
-  const unknownTypes = [...new Set(schema.equipment.map((item) => item.type).filter((type) => !supportedTypes.has(type)))];
+  const unknownTypes = [
+    ...new Set(schema.equipment.map((item) => item.type).filter((type) => !supportedTypes.has(type)))
+  ];
   if (unknownTypes.length) throw new Error(`Type(s) d'équipement non reconnu(s) : ${unknownTypes.join(', ')}.`);
 
   schema.connections.forEach((connection, index) => {
-    for (const [label, endpoint] of [['départ', connection.from], ['arrivée', connection.to]]) {
+    for (const [label, endpoint] of [
+      ['départ', connection.from],
+      ['arrivée', connection.to]
+    ]) {
       if (endpoint?.free) continue;
       const equipment = schema.equipment.find((item) => item.id === endpoint?.equipmentId);
       if (!equipment) throw new Error(`Liaison ${index + 1} : équipement de ${label} introuvable.`);
       const ports = new Set(hydraulicPorts(equipment.type).map((port) => port.id));
-      if (!ports.has(endpoint?.portId)) throw new Error(`Liaison ${index + 1} : borne « ${endpoint?.portId || '?'} » inconnue sur ${equipment.label || equipment.id}.`);
+      if (!ports.has(endpoint?.portId))
+        throw new Error(
+          `Liaison ${index + 1} : borne « ${endpoint?.portId || '?'} » inconnue sur ${equipment.label || equipment.id}.`
+        );
     }
   });
   return schema;
@@ -36,8 +44,9 @@ async function readStoredSchema(visiteId) {
   const rows = await getChampsVisite(visiteId);
   const row = rows.find((item) => item.section_code === SCHEMA_SECTION && item.cle === SCHEMA_KEY);
   if (!row?.valeur) return EMPTY_SCHEMA;
-  try { return normalizeHydraulicSchema(JSON.parse(row.valeur)); }
-  catch (error) {
+  try {
+    return normalizeHydraulicSchema(JSON.parse(row.valeur));
+  } catch (error) {
     console.warn('Schéma existant non normalisable, conservation en mode remplacement uniquement', error);
     return EMPTY_SCHEMA;
   }
@@ -54,11 +63,14 @@ function HydraulicSchemaWorkspace({ route }) {
     setEditorVisible(true);
   }, []);
 
-  const persistAndReload = useCallback(async (schema, message) => {
-    await upsertChamp(visiteId, SCHEMA_SECTION, SCHEMA_KEY, JSON.stringify(schema));
-    remountEditor();
-    Alert.alert('Import METRA terminé', message);
-  }, [visiteId, remountEditor]);
+  const persistAndReload = useCallback(
+    async (schema, message) => {
+      await upsertChamp(visiteId, SCHEMA_SECTION, SCHEMA_KEY, JSON.stringify(schema));
+      remountEditor();
+      Alert.alert('Import METRA terminé', message);
+    },
+    [visiteId, remountEditor]
+  );
 
   const importJson = useCallback(async () => {
     if (!visiteId || importing) return;
@@ -66,14 +78,24 @@ function HydraulicSchemaWorkspace({ route }) {
     setEditorVisible(false);
     try {
       await sleep(650);
-      const picked = await DocumentPicker.getDocumentAsync({ type: ['application/json', 'text/json', 'text/plain'], copyToCacheDirectory: true, multiple: false });
-      if (picked.canceled) { remountEditor(); return; }
+      const picked = await DocumentPicker.getDocumentAsync({
+        type: ['application/json', 'text/json', 'text/plain'],
+        copyToCacheDirectory: true,
+        multiple: false
+      });
+      if (picked.canceled) {
+        remountEditor();
+        return;
+      }
       const asset = picked.assets?.[0];
       if (!asset?.uri) throw new Error('Le fichier sélectionné est inaccessible.');
       const raw = await FileSystem.readAsStringAsync(asset.uri, { encoding: FileSystem.EncodingType.UTF8 });
       let parsed;
-      try { parsed = JSON.parse(raw); }
-      catch { throw new Error('Le fichier sélectionné n’est pas un JSON valide.'); }
+      try {
+        parsed = JSON.parse(raw);
+      } catch {
+        throw new Error('Le fichier sélectionné n’est pas un JSON valide.');
+      }
 
       const incoming = validateEditorCompatibility(normalizeHydraulicSchema(parsed));
       const summary = summarizeHydraulicSchema(incoming);
@@ -88,28 +110,65 @@ function HydraulicSchemaWorkspace({ route }) {
         return;
       }
 
-      Alert.alert('Importer le schéma METRA', `${detail}\n\nUn schéma existe déjà pour cette visite.`, [
-        { text: 'Annuler', style: 'cancel', onPress: remountEditor },
-        { text: 'Fusionner', onPress: async () => {
-          try { await persistAndReload(mergeHydraulicSchemas(current, incoming), `${detail}\nLe fichier a été fusionné avec le schéma existant.`); }
-          catch (error) { remountEditor(); Alert.alert('Import impossible', String(error?.message || error)); }
-        } },
-        { text: 'Remplacer', style: 'destructive', onPress: async () => {
-          try { await persistAndReload(incoming, `${detail}\nLe schéma précédent a été remplacé.`); }
-          catch (error) { remountEditor(); Alert.alert('Import impossible', String(error?.message || error)); }
-        } },
-      ], { cancelable: false });
+      Alert.alert(
+        'Importer le schéma METRA',
+        `${detail}\n\nUn schéma existe déjà pour cette visite.`,
+        [
+          { text: 'Annuler', style: 'cancel', onPress: remountEditor },
+          {
+            text: 'Fusionner',
+            onPress: async () => {
+              try {
+                await persistAndReload(
+                  mergeHydraulicSchemas(current, incoming),
+                  `${detail}\nLe fichier a été fusionné avec le schéma existant.`
+                );
+              } catch (error) {
+                remountEditor();
+                Alert.alert('Import impossible', String(error?.message || error));
+              }
+            }
+          },
+          {
+            text: 'Remplacer',
+            style: 'destructive',
+            onPress: async () => {
+              try {
+                await persistAndReload(incoming, `${detail}\nLe schéma précédent a été remplacé.`);
+              } catch (error) {
+                remountEditor();
+                Alert.alert('Import impossible', String(error?.message || error));
+              }
+            }
+          }
+        ],
+        { cancelable: false }
+      );
     } catch (error) {
       remountEditor();
       Alert.alert('Import JSON METRA impossible', String(error?.message || error));
-    } finally { setImporting(false); }
+    } finally {
+      setImporting(false);
+    }
   }, [visiteId, importing, persistAndReload, remountEditor]);
 
-  return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-    {editorVisible
-      ? <HydraulicSchemaScreenV2 key={`hydraulic-${revision}`} route={route} onImportJson={importJson} importingJson={importing} />
-      : <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator size="large" color={COLORS.orange} /><Text style={{ marginTop: 10, color: COLORS.inkSoft }}>Préparation de l’import…</Text></View>}
-  </View>;
+  return (
+    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+      {editorVisible ? (
+        <HydraulicSchemaScreenV2
+          key={`hydraulic-${revision}`}
+          route={route}
+          onImportJson={importJson}
+          importingJson={importing}
+        />
+      ) : (
+        <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}>
+          <ActivityIndicator size="large" color={COLORS.orange} />
+          <Text style={{ marginTop: 10, color: COLORS.inkSoft }}>Préparation de l’import…</Text>
+        </View>
+      )}
+    </View>
+  );
 }
 
 export { HydraulicSchemaWorkspace };

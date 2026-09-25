@@ -32,15 +32,17 @@ async function existe(uri) {
 }
 
 async function nettoyerDossier(uri) {
-  try { await FileSystem.deleteAsync(uri, { idempotent: true }); } catch {}
+  try {
+    await FileSystem.deleteAsync(uri, { idempotent: true });
+  } catch {}
   await FileSystem.makeDirectoryAsync(uri, { intermediates: true });
 }
 
 async function nettoyerJournauxSQLite(baseUri = cheminBaseSQLite()) {
   await Promise.all([
-    FileSystem.deleteAsync(`${baseUri}-wal`, { idempotent: true }).catch(()=>{}),
-    FileSystem.deleteAsync(`${baseUri}-shm`, { idempotent: true }).catch(()=>{}),
-    FileSystem.deleteAsync(`${baseUri}-journal`, { idempotent: true }).catch(()=>{}),
+    FileSystem.deleteAsync(`${baseUri}-wal`, { idempotent: true }).catch(() => {}),
+    FileSystem.deleteAsync(`${baseUri}-shm`, { idempotent: true }).catch(() => {}),
+    FileSystem.deleteAsync(`${baseUri}-journal`, { idempotent: true }).catch(() => {})
   ]);
 }
 
@@ -70,7 +72,7 @@ export async function exporterSauvegardeBase() {
     await partagerFichier(destination, 'Sauvegarder les données Visite Technique');
     return { nom: destination.split('/').pop(), partage: true };
   } finally {
-    await FileSystem.deleteAsync(destination, { idempotent: true }).catch(()=>{});
+    await FileSystem.deleteAsync(destination, { idempotent: true }).catch(() => {});
   }
 }
 
@@ -105,7 +107,7 @@ export async function exporterSauvegardeComplete() {
       createdAt: new Date().toISOString(),
       database: `database/${DATABASE_NAME}`,
       photosRoot: 'photos/',
-      counts: { visites: Number(compteVisites?.n || 0), photos: Number(comptePhotos?.n || 0) },
+      counts: { visites: Number(compteVisites?.n || 0), photos: Number(comptePhotos?.n || 0) }
     };
     await FileSystem.writeAsStringAsync(`${travail}manifest.json`, JSON.stringify(manifeste, null, 2));
 
@@ -114,8 +116,8 @@ export async function exporterSauvegardeComplete() {
     await partagerFichier(archiveUri, 'Sauvegarde complète Visite Technique', 'application/zip');
     return { uri: null, nom: archiveUri.split('/').pop(), manifeste, partage: true };
   } finally {
-    await FileSystem.deleteAsync(travail, { idempotent: true }).catch(()=>{});
-    await FileSystem.deleteAsync(archiveUri, { idempotent: true }).catch(()=>{});
+    await FileSystem.deleteAsync(travail, { idempotent: true }).catch(() => {});
+    await FileSystem.deleteAsync(archiveUri, { idempotent: true }).catch(() => {});
   }
 }
 
@@ -123,10 +125,14 @@ async function lireEtVerifierManifeste(dossier) {
   const uri = `${dossier}manifest.json`;
   if (!(await existe(uri))) throw new Error('Cette archive ne contient pas de manifeste Visite Technique.');
   const manifeste = JSON.parse(await FileSystem.readAsStringAsync(uri));
-  if (manifeste?.format !== BACKUP_FORMAT || Number(manifeste?.formatVersion) !== BACKUP_FORMAT_VERSION) throw new Error('Format de sauvegarde non reconnu.');
+  if (manifeste?.format !== BACKUP_FORMAT || Number(manifeste?.formatVersion) !== BACKUP_FORMAT_VERSION)
+    throw new Error('Format de sauvegarde non reconnu.');
   const version = Number(manifeste.schemaVersion || 0);
   if (!Number.isFinite(version) || version < 1) throw new Error('Version de base absente ou invalide.');
-  if (version > DATABASE_SCHEMA_VERSION) throw new Error(`Cette sauvegarde utilise une base plus récente (v${version}) que l’application (v${DATABASE_SCHEMA_VERSION}).`);
+  if (version > DATABASE_SCHEMA_VERSION)
+    throw new Error(
+      `Cette sauvegarde utilise une base plus récente (v${version}) que l’application (v${DATABASE_SCHEMA_VERSION}).`
+    );
   const dbBackup = `${dossier}${manifeste.database || `database/${DATABASE_NAME}`}`;
   if (!(await existe(dbBackup))) throw new Error('Base SQLite absente de la sauvegarde.');
   return { manifeste, dbBackup, photosBackup: `${dossier}${manifeste.photosRoot || 'photos/'}` };
@@ -149,7 +155,7 @@ export async function choisirEtRestaurerSauvegardeComplete() {
   const selection = await DocumentPicker.getDocumentAsync({
     type: ['application/zip', 'application/octet-stream'],
     copyToCacheDirectory: true,
-    multiple: false,
+    multiple: false
   });
   if (selection.canceled) return null;
   const asset = selection.assets?.[0];
@@ -183,7 +189,8 @@ export async function choisirEtRestaurerSauvegardeComplete() {
     const dbRestauree = await openAppDatabase();
     await rebaserUrisPhotos(dbRestauree);
     const controle = await verifyDatabaseIntegrity(dbRestauree);
-    if (!controle.integrityOk || !controle.foreignKeysOk) throw new Error('La base restaurée n’a pas passé le contrôle d’intégrité.');
+    if (!controle.integrityOk || !controle.foreignKeysOk)
+      throw new Error('La base restaurée n’a pas passé le contrôle d’intégrité.');
     await dbRestauree.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
     await closeAppDatabase();
     await nettoyerJournauxSQLite(sourceActuelle);
@@ -198,11 +205,14 @@ export async function choisirEtRestaurerSauvegardeComplete() {
         await nettoyerJournauxSQLite(sourceActuelle);
         await FileSystem.copyAsync({ from: `${securite}${DATABASE_NAME}`, to: sourceActuelle });
         await FileSystem.deleteAsync(photosActuelles, { idempotent: true });
-        if (await existe(`${securite}photos/`)) await FileSystem.copyAsync({ from: `${securite}photos/`, to: photosActuelles });
+        if (await existe(`${securite}photos/`))
+          await FileSystem.copyAsync({ from: `${securite}photos/`, to: photosActuelles });
       } catch {}
     }
     throw error;
   } finally {
-    try { await FileSystem.deleteAsync(restauration, { idempotent: true }); } catch {}
+    try {
+      await FileSystem.deleteAsync(restauration, { idempotent: true });
+    } catch {}
   }
 }

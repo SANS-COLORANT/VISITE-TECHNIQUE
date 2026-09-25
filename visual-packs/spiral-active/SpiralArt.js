@@ -18,10 +18,10 @@ function buildSpiralGeometry() {
 
   for (let index = 0; index <= steps; index += 1) {
     const ratio = index / steps;
-    const angle = (-Math.PI / 2) + (ratio * Math.PI * 2 * turns);
-    const radius = minRadius + ((maxRadius - minRadius) * ratio);
-    const x = cx + (Math.cos(angle) * radius);
-    const y = cy + (Math.sin(angle) * radius);
+    const angle = -Math.PI / 2 + ratio * Math.PI * 2 * turns;
+    const radius = minRadius + (maxRadius - minRadius) * ratio;
+    const x = cx + Math.cos(angle) * radius;
+    const y = cy + Math.sin(angle) * radius;
     d += `${index === 0 ? 'M' : ' L'} ${x.toFixed(2)} ${y.toFixed(2)}`;
     if (previous) length += Math.hypot(x - previous.x, y - previous.y);
     previous = { x, y };
@@ -34,16 +34,15 @@ const GEOMETRY = buildSpiralGeometry();
 export const SPIRAL_PATH = GEOMETRY.d;
 export const SPIRAL_PATH_LENGTH = GEOMETRY.length;
 
-export function SpiralSvg({
-  size = 120,
-  strokeWidth = 7,
-  dashOffset = 0,
-  opacity = 1,
-  showCenter = true,
-  testID,
-}) {
+export function SpiralSvg({ size = 120, strokeWidth = 7, dashOffset = 0, opacity = 1, showCenter = true, testID }) {
   return (
-    <Svg testID={testID} width={size} height={size} viewBox={`0 0 ${SPIRAL_VIEWBOX} ${SPIRAL_VIEWBOX}`} opacity={opacity}>
+    <Svg
+      testID={testID}
+      width={size}
+      height={size}
+      viewBox={`0 0 ${SPIRAL_VIEWBOX} ${SPIRAL_VIEWBOX}`}
+      opacity={opacity}
+    >
       <Defs>
         <LinearGradient id="metraSpiralGradient" x1="0" y1="0" x2="1" y2="1">
           <Stop offset="0" stopColor="#F26426" />

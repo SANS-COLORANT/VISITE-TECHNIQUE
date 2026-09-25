@@ -9,17 +9,31 @@ let revision = 0;
 const listeners = new Set();
 let snapshot = { revision: 0, tasks: [], event: null };
 
-export function getPhotoDownloadState() { return snapshot; }
+export function getPhotoDownloadState() {
+  return snapshot;
+}
 export function subscribePhotoDownloads(listener) {
   listeners.add(listener);
   return () => listeners.delete(listener);
 }
 function publish(event = null) {
-  snapshot = { revision: ++revision, event, tasks: tasks.map((task) => ({
-    id: task.id, clientId: task.clientId, label: task.label, status: task.status,
-    progress: task.progress, error: task.error || null,
-  })) };
-  for (const listener of listeners) { try { listener(snapshot); } catch {} }
+  snapshot = {
+    revision: ++revision,
+    event,
+    tasks: tasks.map((task) => ({
+      id: task.id,
+      clientId: task.clientId,
+      label: task.label,
+      status: task.status,
+      progress: task.progress,
+      error: task.error || null
+    }))
+  };
+  for (const listener of listeners) {
+    try {
+      listener(snapshot);
+    } catch {}
+  }
 }
 
 async function runNext() {
@@ -31,13 +45,20 @@ async function runNext() {
   publish();
   try {
     const { downloadClientLatestVisitPhotos } = require('./latestVisitPhotosStorage.js');
-    const result = await downloadClientLatestVisitPhotos(task.clientId, task.manifest, (progress) => {
-      task.progress = progress;
-      publish(progress.currentPhoto ? { clientId: task.clientId, photo: { ...progress.currentPhoto } } : null);
-    }, task.control);
+    const result = await downloadClientLatestVisitPhotos(
+      task.clientId,
+      task.manifest,
+      (progress) => {
+        task.progress = progress;
+        publish(progress.currentPhoto ? { clientId: task.clientId, photo: { ...progress.currentPhoto } } : null);
+      },
+      task.control
+    );
     task.manifest = result.manifest || task.manifest;
     task.status = result.paused ? 'paused' : result.failed ? 'partial' : 'done';
-    task.error = result.failed ? `${result.failed} photo(s) non récupérée(s). Relance uniquement les fichiers manquants.` : null;
+    task.error = result.failed
+      ? `${result.failed} photo(s) non récupérée(s). Relance uniquement les fichiers manquants.`
+      : null;
     task.resolve({ ...result, taskId: task.id });
   } catch (error) {
     task.status = 'error';
@@ -51,14 +72,34 @@ async function runNext() {
 }
 
 export function startPhotoDownload({ clientId, manifest, label = 'Photos de référence' }) {
-  if (!clientId || !manifest || String(manifest.client?.id) !== String(clientId)) throw new Error('Client des photos incohérent.');
-  const key = JSON.stringify([String(clientId), manifest.sites.map((s) => [String(s.site?.id), s.locaux.map((l) =>
-    [String(l.local?.id), String(l.derniereVisite?.id), l.photos.map((p) => photoFileKey({ ...p, site: s.site, local: l.local, derniereVisite: l.derniereVisite }))])])]);
+  if (!clientId || !manifest || String(manifest.client?.id) !== String(clientId))
+    throw new Error('Client des photos incohérent.');
+  const key = JSON.stringify([
+    String(clientId),
+    manifest.sites.map((s) => [
+      String(s.site?.id),
+      s.locaux.map((l) => [
+        String(l.local?.id),
+        String(l.derniereVisite?.id),
+        l.photos.map((p) => photoFileKey({ ...p, site: s.site, local: l.local, derniereVisite: l.derniereVisite }))
+      ])
+    ])
+  ]);
   const existing = tasks.find((t) => t.key === key && ['queued', 'running', 'pausing'].includes(t.status));
   if (existing) return { id: existing.id, completion: existing.completion };
-  const task = { id: `photo-${Date.now()}-${++revision}`, clientId: String(clientId), manifest, label,
-    key, control: { paused: false }, status: 'queued', progress: null };
-  task.completion = new Promise((resolve) => { task.resolve = resolve; });
+  const task = {
+    id: `photo-${Date.now()}-${++revision}`,
+    clientId: String(clientId),
+    manifest,
+    label,
+    key,
+    control: { paused: false },
+    status: 'queued',
+    progress: null
+  };
+  task.completion = new Promise((resolve) => {
+    task.resolve = resolve;
+  });
   // Keep unresolved work, but bound completed in-memory history on long rounds.
   tasks = tasks.filter((t) => t.status !== 'done');
   tasks.push(task);
@@ -72,7 +113,8 @@ export function pausePhotoDownload(taskId) {
   if (!task || !['queued', 'running'].includes(task.status)) return;
   task.control.paused = true;
   if (task.status === 'queued') {
-    task.status = 'paused'; task.resolve({ paused: true, taskId });
+    task.status = 'paused';
+    task.resolve({ paused: true, taskId });
   } else task.status = 'pausing';
   publish();
 }

@@ -34,5 +34,5 @@ export const migration014 = {
       AND nom='Office HLM Colombes'
       AND adresse='5 avenue de la République'
       AND NOT EXISTS (SELECT 1 FROM sites s WHERE s.client_id=clients.id);
-  `,
+  `
 };

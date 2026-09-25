@@ -2,7 +2,8 @@ import { createId } from './database/ids.js';
 
 function normalizeKey(value) {
   return String(value ?? '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
@@ -52,7 +53,7 @@ const ALIASES = Object.freeze({
   priority: ['priorite', 'criticite'],
   cost: ['cout', 'estimatif', 'budget', 'montant'],
   allocation: ['imputation', 'lot', 'qualification'],
-  status: ['statut', 'etat avancement', 'etat davancement'],
+  status: ['statut', 'etat avancement', 'etat davancement']
 });
 
 async function issue(db, batchId, severity, entityType, sourceRef, message, suggestion = null) {
@@ -67,7 +68,17 @@ async function provenance(db, missionId, entityType, entityId, sheetName, rowInd
   await db.runAsync(
     `INSERT INTO mission_provenance(id,mission_id,entity_type,entity_id,source_kind,source_sheet,source_cell,source_value,confidence)
      VALUES(?,?,?,?,?,?,?,?,?)`,
-    [createId('mprov'), missionId, entityType, entityId, 'excel_import', sheetName, `row:${rowIndex}`, JSON.stringify(sourceValue || {}), 'auto_mapped']
+    [
+      createId('mprov'),
+      missionId,
+      entityType,
+      entityId,
+      'excel_import',
+      sheetName,
+      `row:${rowIndex}`,
+      JSON.stringify(sourceValue || {}),
+      'auto_mapped'
+    ]
   );
 }
 
@@ -103,10 +114,13 @@ async function findOrCreateLocation(db, siteId, kind, label, parentId = null) {
   );
   if (existing?.id) return existing.id;
   const id = createId('mloc');
-  await db.runAsync(
-    `INSERT INTO mission_locations(id,site_id,parent_location_id,kind,label) VALUES(?,?,?,?,?)`,
-    [id, siteId, parentId, kind, clean]
-  );
+  await db.runAsync(`INSERT INTO mission_locations(id,site_id,parent_location_id,kind,label) VALUES(?,?,?,?,?)`, [
+    id,
+    siteId,
+    parentId,
+    kind,
+    clean
+  ]);
   return id;
 }
 
@@ -144,9 +158,17 @@ async function mapEquipment(db, missionId, siteId, locationId, values, sheetName
     `INSERT INTO mission_equipment(id,site_id,location_id,type,brand,model,installation_year,state,properties_json,source_type,source_id)
      VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      id, siteId, locationId, designation || category || 'Équipement', brand, model, year, state,
+      id,
+      siteId,
+      locationId,
+      designation || category || 'Équipement',
+      brand,
+      model,
+      year,
+      state,
       JSON.stringify({ sourceCategory: category, designation, quantity: quantity ?? 1, network }),
-      'excel_import', `${sheetName}!${rowIndex}`,
+      'excel_import',
+      `${sheetName}!${rowIndex}`
     ]
   );
   await provenance(db, missionId, 'equipment', id, sheetName, rowIndex, values);
@@ -177,13 +199,17 @@ async function mapAction(db, missionId, siteId, locationId, values, sheetName, r
       id,mission_id,site_id,location_id,label,status,priority,responsible_actor_id,due_text,cost_estimate,allocation
     ) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      id, missionId, siteId, locationId, action,
+      id,
+      missionId,
+      siteId,
+      locationId,
+      action,
       txt(pick(values, ALIASES.status)?.value) || 'open',
       txt(pick(values, ALIASES.priority)?.value),
       actorId,
       txt(pick(values, ALIASES.due)?.value),
       numberOrNull(pick(values, ALIASES.cost)?.value),
-      txt(pick(values, ALIASES.allocation)?.value),
+      txt(pick(values, ALIASES.allocation)?.value)
     ]
   );
   await provenance(db, missionId, 'action', id, sheetName, rowIndex, values);
@@ -191,7 +217,8 @@ async function mapAction(db, missionId, siteId, locationId, values, sheetName, r
 }
 
 export async function autoMapperClasseurMission({ db, missionId, batchId, workbook, safeSheetRows } = {}) {
-  if (!db || !missionId || !batchId || !workbook || !safeSheetRows) return { sites: 0, equipment: 0, actions: 0, unresolvedRows: 0 };
+  if (!db || !missionId || !batchId || !workbook || !safeSheetRows)
+    return { sites: 0, equipment: 0, actions: 0, unresolvedRows: 0 };
   const linkedBefore = await getLinkedSites(db, missionId);
   const aliasesByNormalizedName = new Map();
   const summary = { sites: 0, equipment: 0, actions: 0, unresolvedRows: 0 };
@@ -207,7 +234,11 @@ export async function autoMapperClasseurMission({ db, missionId, batchId, workbo
         const previous = aliasesByNormalizedName.get(normalized);
         if (previous && previous !== String(siteHit.value).trim()) {
           await issue(
-            db, batchId, 'warning', 'site', `${sheetName}!${row.rowIndex}`,
+            db,
+            batchId,
+            'warning',
+            'site',
+            `${sheetName}!${row.rowIndex}`,
             `Doublon probable de site : « ${previous} » / « ${String(siteHit.value).trim()} ».`,
             'Vérifier si les deux libellés doivent être fusionnés.'
           );
@@ -216,7 +247,8 @@ export async function autoMapperClasseurMission({ db, missionId, batchId, workbo
           `SELECT s.id FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? AND LOWER(TRIM(s.name))=LOWER(TRIM(?)) LIMIT 1`,
           [missionId, String(siteHit.value).trim()]
         );
-        siteId = existed?.id || await findOrCreateSite(db, missionId, siteHit.value, pick(values, ALIASES.siteCode)?.value);
+        siteId =
+          existed?.id || (await findOrCreateSite(db, missionId, siteHit.value, pick(values, ALIASES.siteCode)?.value));
         if (!existed?.id) {
           summary.sites += 1;
           await provenance(db, missionId, 'site', siteId, sheetName, row.rowIndex, values);
@@ -233,7 +265,11 @@ export async function autoMapperClasseurMission({ db, missionId, batchId, workbo
       if (!siteId && (equipmentCandidate(values) || txt(pick(values, ALIASES.action)?.value))) {
         summary.unresolvedRows += 1;
         await issue(
-          db, batchId, 'warning', equipmentCandidate(values) ? 'equipment' : 'action', `${sheetName}!${row.rowIndex}`,
+          db,
+          batchId,
+          'warning',
+          equipmentCandidate(values) ? 'equipment' : 'action',
+          `${sheetName}!${row.rowIndex}`,
           'Ligne structurée détectée mais aucun Site ne permet un rattachement fiable.',
           'Associer la feuille ou la ligne à un Site depuis le mapping d’import.'
         );

@@ -8,7 +8,10 @@ function requireText(value, label) {
 
 requireText("val === 'N.S' ? String(commentaire || '') : ''", 'N.S keeps an existing comment when selected');
 requireText("avis === 'N.S' && critereChoisi === null", 'N.S free comment restores without a selected cause');
-requireText("critereChoisi === null || modeLibre || options.length === 0", 'N.S free comment remains visible without a selected cause');
+requireText(
+  'critereChoisi === null || modeLibre || options.length === 0',
+  'N.S free comment remains visible without a selected cause'
+);
 requireText("setCommentaire(etatInitial?.commentaire || '')", 'N.S persisted comment restores after remount');
 
 if (src.includes("setAvis(val);\n    setCommentaire('');\n    setCritereChoisi(null);")) {

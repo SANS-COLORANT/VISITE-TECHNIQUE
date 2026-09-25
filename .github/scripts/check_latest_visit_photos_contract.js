@@ -1,6 +1,8 @@
 const fs = require('fs');
 
-function read(path) { return fs.readFileSync(path, 'utf8'); }
+function read(path) {
+  return fs.readFileSync(path, 'utf8');
+}
 function requireText(text, needle, label) {
   if (!text.includes(needle)) throw new Error(`${label}: missing ${needle}`);
 }
@@ -51,10 +53,13 @@ const constants = read('database/constants.js');
 const migrationIndex = read('database/migrations/index.js');
 const schemaMatch = constants.match(/DATABASE_SCHEMA_VERSION\s*=\s*(\d+)/);
 const schemaVersion = Number(schemaMatch?.[1] || 0);
-if (!Number.isInteger(schemaVersion) || schemaVersion < 31) throw new Error(`database schema version: invalid ${schemaVersion}`);
+if (!Number.isInteger(schemaVersion) || schemaVersion < 31)
+  throw new Error(`database schema version: invalid ${schemaVersion}`);
 requireText(migrationIndex, 'migration031', 'migration registration');
 
-console.log('Latest-visit photo contract validated: explicit manifest preview, DPoP downloads (max 3), private offline cache, retry handling, thumbnails/viewer, and strict separation from new visit observations.');
+console.log(
+  'Latest-visit photo contract validated: explicit manifest preview, DPoP downloads (max 3), private offline cache, retry handling, thumbnails/viewer, and strict separation from new visit observations.'
+);
 
 const access = read('PhotoReferenceAccess.js');
 requireText(access, 'ClientLatestVisitPhotosModal', 'contextual gallery');

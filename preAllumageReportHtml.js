@@ -46,7 +46,9 @@ function visibleRows(rows = [], afficherLignesVides = false) {
 }
 
 function resultClass(avis) {
-  const v = String(avis || '').trim().toUpperCase();
+  const v = String(avis || '')
+    .trim()
+    .toUpperCase();
   if (v === 'S') return 'paResultOk';
   if (v === 'N.S' || v === 'NS') return 'paResultKo';
   if (v) return 'paResultWarn';
@@ -58,15 +60,17 @@ function actionChaufferie(label) {
   const map = {
     'Test allumage': 'Test allumage',
     'Présence des flammes': 'Vérification de la présence des flammes',
-    'Augmentation de la température de l’eau en sortie de chaudière': 'Vérification de l’augmentation de la température de l’eau en sortie de chaudière via le thermomètre installé',
+    'Augmentation de la température de l’eau en sortie de chaudière':
+      'Vérification de l’augmentation de la température de l’eau en sortie de chaudière via le thermomètre installé',
     'Fonctionnement de la pompe de charge': 'Vérification du fonctionnement de la pompe de charge',
-    'Ouverture de l’électrovanne gaz / alimentation gaz': 'Vérification du fonctionnement de l’ouverture de l’électrovanne gaz pour alimentation en gaz',
+    'Ouverture de l’électrovanne gaz / alimentation gaz':
+      'Vérification du fonctionnement de l’ouverture de l’électrovanne gaz pour alimentation en gaz',
     'Fonctionnement de l’électrode d’allumage': 'Vérification du fonctionnement de l’électrode d’allumage',
     'Fonctionnement pompe n°1': 'Vérification du fonctionnement de la pompe n°1',
     'Fonctionnement pompe n°2': 'Vérification du fonctionnement de la pompe n°2',
     'Ouverture / fermeture vanne trois voies': 'Vérification du fonctionnement de la vanne trois voies',
     'Fonctionnement servomoteur': 'Vérification du fonctionnement du servomoteur',
-    'Fonctionnement de la régulation': 'Vérification du fonctionnement de la régulation',
+    'Fonctionnement de la régulation': 'Vérification du fonctionnement de la régulation'
   };
   return map[l] || l;
 }
@@ -75,73 +79,124 @@ function sstMeta(label) {
   const l = String(label || '');
   if (/^Pompe chauffage n°1$/i.test(l)) return ['Pompes chauffage', 'Vérification du fonctionnement de la pompe n°1'];
   if (/^Pompe chauffage n°2$/i.test(l)) return ['Pompes chauffage', 'Vérification du fonctionnement de la pompe n°2'];
-  if (l.startsWith('Vanne trois voies chauffage')) return ['Vanne trois voies avec servomoteur', 'Vérification du fonctionnement de la vanne trois voies'];
-  if (/^Servomoteur chauffage$/i.test(l)) return ['Vanne trois voies avec servomoteur', 'Vérification du fonctionnement du servomoteur'];
+  if (l.startsWith('Vanne trois voies chauffage'))
+    return ['Vanne trois voies avec servomoteur', 'Vérification du fonctionnement de la vanne trois voies'];
+  if (/^Servomoteur chauffage$/i.test(l))
+    return ['Vanne trois voies avec servomoteur', 'Vérification du fonctionnement du servomoteur'];
   if (/^Régulation chauffage$/i.test(l)) return ['Régulation', 'Vérification du fonctionnement de la régulation'];
-  if (/^Pompe bouclage ECS n°1$/i.test(l)) return ['Pompes bouclage ECS', 'Vérification du fonctionnement de la pompe n°1'];
-  if (/^Pompe bouclage ECS n°2$/i.test(l)) return ['Pompes bouclage ECS', 'Vérification du fonctionnement de la pompe n°2'];
-  if (/^Pompe primaire ECS n°1$/i.test(l)) return ['Pompes primaires ECS', 'Vérification du fonctionnement de la pompe n°1'];
-  if (/^Pompe primaire ECS n°2$/i.test(l)) return ['Pompes primaires ECS', 'Vérification du fonctionnement de la pompe n°2'];
-  if (l.startsWith('Vanne trois voies ECS')) return ['Vanne trois voies avec servomoteur ECS', 'Vérification du fonctionnement de la vanne trois voies'];
-  if (/^Servomoteur ECS$/i.test(l)) return ['Vanne trois voies avec servomoteur ECS', 'Vérification du fonctionnement du servomoteur'];
+  if (/^Pompe bouclage ECS n°1$/i.test(l))
+    return ['Pompes bouclage ECS', 'Vérification du fonctionnement de la pompe n°1'];
+  if (/^Pompe bouclage ECS n°2$/i.test(l))
+    return ['Pompes bouclage ECS', 'Vérification du fonctionnement de la pompe n°2'];
+  if (/^Pompe primaire ECS n°1$/i.test(l))
+    return ['Pompes primaires ECS', 'Vérification du fonctionnement de la pompe n°1'];
+  if (/^Pompe primaire ECS n°2$/i.test(l))
+    return ['Pompes primaires ECS', 'Vérification du fonctionnement de la pompe n°2'];
+  if (l.startsWith('Vanne trois voies ECS'))
+    return ['Vanne trois voies avec servomoteur ECS', 'Vérification du fonctionnement de la vanne trois voies'];
+  if (/^Servomoteur ECS$/i.test(l))
+    return ['Vanne trois voies avec servomoteur ECS', 'Vérification du fonctionnement du servomoteur'];
   if (/^Régulation ECS$/i.test(l)) return ['Régulation ECS', 'Vérification du fonctionnement de la régulation'];
-  if (l.startsWith('Traitement d’eau')) return ['Traitement d’eau', 'Vérification du fonctionnement des pompes doseuses'];
+  if (l.startsWith('Traitement d’eau'))
+    return ['Traitement d’eau', 'Vérification du fonctionnement des pompes doseuses'];
   return [l, l];
 }
 
 function tableEssaisGroup(title, rows, config, mode = 'sst') {
   const visibles = visibleRows(rows, config.afficherLignesVides);
   if (!visibles.length) return '';
-  return `<div class="paTestGroup"><div class="paSubTitle">${esc(title)}</div><table class="paTestTable"><thead><tr><th class="paEquip">Equipement</th><th>Action</th><th class="paComment">Commentaire</th></tr></thead><tbody>${visibles.map((r) => {
-    const meta = mode === 'chaufferie' ? [title, actionChaufferie(r.label)] : sstMeta(r.label);
-    const resultat = String(r.comment || '').trim() || (r.avis ? r.avis : '/');
-    return `<tr><td>${esc(meta[0])}</td><td>${esc(meta[1])}</td><td class="${resultClass(r.avis)}">${esc(resultat)}</td></tr>`;
-  }).join('')}</tbody></table></div>`;
+  return `<div class="paTestGroup"><div class="paSubTitle">${esc(title)}</div><table class="paTestTable"><thead><tr><th class="paEquip">Equipement</th><th>Action</th><th class="paComment">Commentaire</th></tr></thead><tbody>${visibles
+    .map((r) => {
+      const meta = mode === 'chaufferie' ? [title, actionChaufferie(r.label)] : sstMeta(r.label);
+      const resultat = String(r.comment || '').trim() || (r.avis ? r.avis : '/');
+      return `<tr><td>${esc(meta[0])}</td><td>${esc(meta[1])}</td><td class="${resultClass(r.avis)}">${esc(resultat)}</td></tr>`;
+    })
+    .join('')}</tbody></table></div>`;
 }
 
 function tableBatiments(data, config) {
   const groups = section(data, 'p-pa-batiments').groups || [];
-  const rows = groups.map((g, i) => {
-    const nb = rowValue(g, 'Nombre de logements desservis');
-    const bat = rowValue(g, 'Bâtiments desservis');
-    const sit = rowValue(g, 'Situation / localisation');
-    const connus = new Set(['Nombre de logements desservis', 'Bâtiments desservis', 'Situation / localisation']);
-    const extras = (g.rows || []).filter((r) => !connus.has(r.storageKey || r.label) && (config.afficherLignesVides || String(r.comment || '').trim()));
-    if (!config.afficherLignesVides && !nb && !bat && !sit && !extras.length) return '';
-    return `<tr><td>${esc(titreGroupe(data, 'p-pa-batiments', g))}</td><td>${esc(nb || '-')}</td><td>${esc(bat || '')}</td><td>${esc(sit || '')}</td></tr>${extras.map((r) => `<tr><td></td><td colspan="3"><b>${esc(r.label)} :</b> ${esc(r.comment || '')}</td></tr>`).join('')}`;
-  }).join('');
+  const rows = groups
+    .map((g, i) => {
+      const nb = rowValue(g, 'Nombre de logements desservis');
+      const bat = rowValue(g, 'Bâtiments desservis');
+      const sit = rowValue(g, 'Situation / localisation');
+      const connus = new Set(['Nombre de logements desservis', 'Bâtiments desservis', 'Situation / localisation']);
+      const extras = (g.rows || []).filter(
+        (r) => !connus.has(r.storageKey || r.label) && (config.afficherLignesVides || String(r.comment || '').trim())
+      );
+      if (!config.afficherLignesVides && !nb && !bat && !sit && !extras.length) return '';
+      return `<tr><td>${esc(titreGroupe(data, 'p-pa-batiments', g))}</td><td>${esc(nb || '-')}</td><td>${esc(bat || '')}</td><td>${esc(sit || '')}</td></tr>${extras.map((r) => `<tr><td></td><td colspan="3"><b>${esc(r.label)} :</b> ${esc(r.comment || '')}</td></tr>`).join('')}`;
+    })
+    .join('');
   return `<table class="paBuildingTable"><thead><tr><th>Local / SST</th><th>Nombre de logements desservis</th><th>Bâtiments desservis</th><th>Situation</th></tr></thead><tbody>${rows}</tbody></table>`;
 }
 
 function tableCompteurs(data, config) {
   const s = section(data, 'p-pa-compteurs');
-  const rows = (s.groups || []).flatMap((g) => (g.rows || []).map((r) => ({ groupe: g, row: r })))
+  const rows = (s.groups || [])
+    .flatMap((g) => (g.rows || []).map((r) => ({ groupe: g, row: r })))
     .filter(({ row }) => config.afficherLignesVides || String(row.comment || '').trim())
-    .map(({ groupe, row }) => `<tr><td>${esc(titreGroupe(data, 'p-pa-compteurs', groupe))}</td><td>${esc(row.label)}</td><td>${esc(String(row.comment || '').trim())}</td></tr>`).join('');
+    .map(
+      ({ groupe, row }) =>
+        `<tr><td>${esc(titreGroupe(data, 'p-pa-compteurs', groupe))}</td><td>${esc(row.label)}</td><td>${esc(String(row.comment || '').trim())}</td></tr>`
+    )
+    .join('');
   return `<table class="paMeterTable"><tbody><tr><td class="paLabel">Date de la visite</td><td colspan="2">${esc(dateFr(data.visite.date_visite))}</td></tr><tr><th>Local / groupe</th><th>Compteur</th><th>Index relevé</th></tr>${rows}</tbody></table>`;
 }
 
 function courtReg(label) {
-  return String(label || '').replace('Courbe de chauffe — ', '').replace(/ \(°C\)$/,'').replace('Température de non chauffe (°C)','Température de Non Chauffe').replace('Température extérieure (°C)','Température Extérieure').replace('Départ chauffage (°C)','Départ chauffage').replace('Retour chauffage (°C)','Retour chauffage').replace('Départ ECS (°C)','Départ ECS').replace('Retour ECS (°C)','Retour ECS').replace('Arrivée primaire ECS (°C)','Arrivée primaire ECS').replace('Retour primaire ECS (°C)','Retour primaire ECS');
+  return String(label || '')
+    .replace('Courbe de chauffe — ', '')
+    .replace(/ \(°C\)$/, '')
+    .replace('Température de non chauffe (°C)', 'Température de Non Chauffe')
+    .replace('Température extérieure (°C)', 'Température Extérieure')
+    .replace('Départ chauffage (°C)', 'Départ chauffage')
+    .replace('Retour chauffage (°C)', 'Retour chauffage')
+    .replace('Départ ECS (°C)', 'Départ ECS')
+    .replace('Retour ECS (°C)', 'Retour ECS')
+    .replace('Arrivée primaire ECS (°C)', 'Arrivée primaire ECS')
+    .replace('Retour primaire ECS (°C)', 'Retour primaire ECS');
 }
 
 function tableRegulation(data) {
   const groups = section(data, 'p-pa-regulation').groups || [];
   const labels = [];
-  groups.forEach((g) => (g.rows || []).forEach((r) => { if (!labels.includes(r.label)) labels.push(r.label); }));
+  groups.forEach((g) =>
+    (g.rows || []).forEach((r) => {
+      if (!labels.includes(r.label)) labels.push(r.label);
+    })
+  );
   const morceaux = [];
   for (let i = 0; i < groups.length; i += 6) morceaux.push(groups.slice(i, i + 6));
-  return morceaux.map((part, partIndex) => `<div class="paRegChunk${partIndex ? ' paRegBreak' : ''}"><table class="paRegTable"><thead><tr><th>Paramètre</th>${part.map((g) => `<th>${esc(titreGroupe(data, 'p-pa-regulation', g))}</th>`).join('')}</tr></thead><tbody>${labels.map((label) => `<tr><td class="paRegLabel">${esc(courtReg(label))}</td>${part.map((g) => {
-    const v = rowValue(g, label);
-    return `<td class="${/ecs|primaire/i.test(label) && v ? 'paTempValue' : ''}">${esc(v)}</td>`;
-  }).join('')}</tr>`).join('')}</tbody></table></div>`).join('');
+  return morceaux
+    .map(
+      (part, partIndex) =>
+        `<div class="paRegChunk${partIndex ? ' paRegBreak' : ''}"><table class="paRegTable"><thead><tr><th>Paramètre</th>${part.map((g) => `<th>${esc(titreGroupe(data, 'p-pa-regulation', g))}</th>`).join('')}</tr></thead><tbody>${labels
+          .map(
+            (label) =>
+              `<tr><td class="paRegLabel">${esc(courtReg(label))}</td>${part
+                .map((g) => {
+                  const v = rowValue(g, label);
+                  return `<td class="${/ecs|primaire/i.test(label) && v ? 'paTempValue' : ''}">${esc(v)}</td>`;
+                })
+                .join('')}</tr>`
+          )
+          .join('')}</tbody></table></div>`
+    )
+    .join('');
 }
 
 function conclusionHtml(data) {
   const groups = section(data, 'p-pa-conclusion').groups || [];
-  const lignes = groups.flatMap((g) => (g.rows || []).filter((r) => String(r.comment || r.avis || '').trim()).map((r) => ({ groupe: g.title, ...r })));
-  if (!lignes.length) return '<p class="paConclusionLead">La conclusion de la visite de pré-allumage reste à compléter.</p>';
-  return lignes.map((r) => `<div class="paConclusionItem"><b>${esc(r.label)}</b><p>${esc(r.comment || r.avis)}</p></div>`).join('');
+  const lignes = groups.flatMap((g) =>
+    (g.rows || []).filter((r) => String(r.comment || r.avis || '').trim()).map((r) => ({ groupe: g.title, ...r }))
+  );
+  if (!lignes.length)
+    return '<p class="paConclusionLead">La conclusion de la visite de pré-allumage reste à compléter.</p>';
+  return lignes
+    .map((r) => `<div class="paConclusionItem"><b>${esc(r.label)}</b><p>${esc(r.comment || r.avis)}</p></div>`)
+    .join('');
 }
 
 function page(titre, numero, body, extraClass = '') {
@@ -166,7 +221,9 @@ export function construireSitePreAllumageHtml(data, config, planSrc = null) {
   const exploitant = infoValue(data, 'Exploitant') || 'Non renseigné';
   const redacteur = infoValue(data, 'Chargé d’affaires / rédacteur') || '';
   const reference = config.chrono || infoValue(data, 'N° / référence du rapport') || '';
-  const plan = planSrc ? `<img src="${planSrc}" alt="Plan du site"/>` : '<div class="paPlanMissing">Aucun plan du site sélectionné dans METRA</div>';
+  const plan = planSrc
+    ? `<img src="${planSrc}" alt="Plan du site"/>`
+    : '<div class="paPlanMissing">Aucun plan du site sélectionné dans METRA</div>';
 
   const contacts = `<div class="paContacts"><div class="paContactCard paContactClient"><h3>Copropriété / Client</h3><p><b>${esc(data.visite.nom_client || '')}</b></p><p>${esc(data.visite.nom_site || '')}</p><p>${esc(data.visite.adresse || '')}</p></div><div class="paContactCard paContactOperator"><h3>Exploitant</h3><p><b>${esc(exploitant)}</b></p><p>Installations suivies dans le cadre de la visite de pré-allumage.</p></div><div class="paContactCard paContactAmo"><h3>Assistant à Maîtrise d’Ouvrage</h3><p><b>ENERGIE ET SERVICE</b></p>${redacteur ? `<p>${esc(redacteur)}</p>` : ''}<p>Réf. : ${esc(reference)}</p></div></div>`;
 
@@ -174,7 +231,11 @@ export function construireSitePreAllumageHtml(data, config, planSrc = null) {
   const compteurPage = tableCompteurs(data, config);
   const regulationPage = tableRegulation(data);
 
-  const chaufferie = (section(data, 'p-pa-chaufferie').groups || []).map((g) => ({ ...g, panelId: 'p-pa-chaufferie', mode: 'chaufferie' }));
+  const chaufferie = (section(data, 'p-pa-chaufferie').groups || []).map((g) => ({
+    ...g,
+    panelId: 'p-pa-chaufferie',
+    mode: 'chaufferie'
+  }));
   const preambule = `<div class="paPreamble"><b>Préambule</b><br/>Dans le cadre de sa mission, ENERGIE ET SERVICE s’est rendu sur site le ${esc(dateFr(data.visite.date_visite))} afin de réaliser des tests de pré-allumage des différents équipements présents en chaufferie et en sous-station. L’objectif est de statuer sur les capacités de l’installation à débuter la saison de chauffe${saison ? ` ${esc(saison)}` : ''}.</div>`;
 
   const sst = (section(data, 'p-pa-sst').groups || []).map((g) => ({ ...g, panelId: 'p-pa-sst', mode: 'sst' }));
@@ -183,7 +244,13 @@ export function construireSitePreAllumageHtml(data, config, planSrc = null) {
   for (let i = 0; i < tests.length; i += 4) {
     const part = tests.slice(i, i + 4);
     const body = part.map((g) => tableEssaisGroup(titreGroupe(data, g.panelId, g), g.rows, config, g.mode)).join('');
-    pagesTests.push(page(i === 0 ? 'Préambule et tests réalisés' : 'Tests réalisés — suite', i === 0 ? '4 / 5' : '5', `${i === 0 ? preambule : ''}${body}`));
+    pagesTests.push(
+      page(
+        i === 0 ? 'Préambule et tests réalisés' : 'Tests réalisés — suite',
+        i === 0 ? '4 / 5' : '5',
+        `${i === 0 ? preambule : ''}${body}`
+      )
+    );
   }
 
   return `<article class="paReport">

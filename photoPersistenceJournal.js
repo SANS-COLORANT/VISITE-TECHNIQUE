@@ -21,7 +21,7 @@ export async function journaliserPhotoEnAttente({ visiteId, entiteKey = null, ur
     entiteKey: entiteKey || null,
     uri: String(uri),
     labelDb: labelDb || null,
-    createdAt: new Date().toISOString(),
+    createdAt: new Date().toISOString()
   });
   await db.runAsync(
     `INSERT INTO _meta(key,value) VALUES(?,?)
@@ -39,34 +39,40 @@ export async function confirmerPhotoJournalisee(key) {
 
 async function recupererInterne(visiteId) {
   const db = await openAppDatabase();
-  const rows = await db.getAllAsync(
-    `SELECT key,value FROM _meta WHERE key LIKE ? ORDER BY key`,
-    [`${PENDING_PREFIX}%`]
-  );
+  const rows = await db.getAllAsync(`SELECT key,value FROM _meta WHERE key LIKE ? ORDER BY key`, [
+    `${PENDING_PREFIX}%`
+  ]);
   let recovered = 0;
   for (const row of rows || []) {
     let payload = null;
-    try { payload = JSON.parse(row.value || '{}'); } catch {}
+    try {
+      payload = JSON.parse(row.value || '{}');
+    } catch {}
     if (!payload || String(payload.visiteId || '') !== String(visiteId || '')) continue;
 
     const uri = String(payload.uri || '');
     let exists = false;
-    try { exists = Boolean((await FileSystem.getInfoAsync(uri))?.exists); } catch {}
+    try {
+      exists = Boolean((await FileSystem.getInfoAsync(uri))?.exists);
+    } catch {}
 
     if (!exists) {
       await db.runAsync('DELETE FROM _meta WHERE key=?', [row.key]);
       continue;
     }
 
-    const already = await db.getFirstAsync(
-      'SELECT id FROM photos WHERE visite_id=? AND uri=? LIMIT 1',
-      [String(visiteId), uri]
-    );
+    const already = await db.getFirstAsync('SELECT id FROM photos WHERE visite_id=? AND uri=? LIMIT 1', [
+      String(visiteId),
+      uri
+    ]);
     if (!already?.id) {
-      await db.runAsync(
-        `INSERT INTO photos(id,visite_id,entite_key,uri,label) VALUES(?,?,?,?,?)`,
-        [photoId(), String(visiteId), payload.entiteKey || null, uri, payload.labelDb || null]
-      );
+      await db.runAsync(`INSERT INTO photos(id,visite_id,entite_key,uri,label) VALUES(?,?,?,?,?)`, [
+        photoId(),
+        String(visiteId),
+        payload.entiteKey || null,
+        uri,
+        payload.labelDb || null
+      ]);
       recovered += 1;
     }
     await db.runAsync('DELETE FROM _meta WHERE key=?', [row.key]);

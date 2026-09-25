@@ -5,14 +5,20 @@ const emitter = native ? new NativeEventEmitter(native) : null;
 
 function assertAvailable() {
   if (Platform.OS !== 'android' || !native) {
-    throw new Error('Le mode Compagnon local est disponible uniquement dans le build Android METRA intégrant MetraCompanion.');
+    throw new Error(
+      'Le mode Compagnon local est disponible uniquement dans le build Android METRA intégrant MetraCompanion.'
+    );
   }
 }
 
 function parseJson(value, fallback = null) {
   if (value == null) return fallback;
   if (typeof value === 'object') return value;
-  try { return JSON.parse(String(value)); } catch { return fallback; }
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return fallback;
+  }
 }
 
 async function startCompanionHost(context = {}) {
@@ -22,7 +28,7 @@ async function startCompanionHost(context = {}) {
     host: String(result?.host || ''),
     port: Number(result?.port || 0),
     sessionId: String(result?.sessionId || ''),
-    token: String(result?.token || ''),
+    token: String(result?.token || '')
   };
 }
 
@@ -67,7 +73,7 @@ function subscribeCompanion(listener) {
     const event = {
       ...raw,
       message: parseJson(raw?.messageJson, null),
-      meta: parseJson(raw?.metaJson, null),
+      meta: parseJson(raw?.metaJson, null)
     };
     listener(event);
   });
@@ -88,5 +94,5 @@ export {
   sendCompanionMessage,
   startCompanionHost,
   stopCompanion,
-  subscribeCompanion,
+  subscribeCompanion
 };

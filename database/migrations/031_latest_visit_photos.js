@@ -51,5 +51,5 @@ export const migration031 = {
       ON api_latest_visit_photos(remote_local_id, remote_visit_id);
     CREATE INDEX IF NOT EXISTS idx_api_latest_photo_download
       ON api_latest_visit_photos(remote_client_id, download_status, remote_available);
-  `,
+  `
 };

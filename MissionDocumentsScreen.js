@@ -9,30 +9,46 @@ import { creerOuTrouverActeurMission } from './missionDomainDb.js';
 import { getMissionExpectedDocumentPresets } from './missionDocumentPresets.js';
 
 const EXPECTED_STATUS = [
-  ['expected','Attendu'],
-  ['received','Reçu'],
-  ['up_to_date','Présent & à jour'],
-  ['obsolete','Présent mais obsolète'],
-  ['incomplete','Incomplet'],
-  ['to_send','À transmettre'],
-  ['missing','Introuvable'],
-  ['not_existing','Non existant'],
-  ['validated','Validé'],
+  ['expected', 'Attendu'],
+  ['received', 'Reçu'],
+  ['up_to_date', 'Présent & à jour'],
+  ['obsolete', 'Présent mais obsolète'],
+  ['incomplete', 'Incomplet'],
+  ['to_send', 'À transmettre'],
+  ['missing', 'Introuvable'],
+  ['not_existing', 'Non existant'],
+  ['validated', 'Validé']
 ];
 
 const VISA_STATUS = [
-  ['to_review','À contrôler'],
-  ['validated','Validé'],
-  ['validated_with_reservations','Validé avec réserves'],
-  ['rejected','Refusé'],
-  ['to_revise','À réviser'],
-  ['obsolete','Obsolète'],
+  ['to_review', 'À contrôler'],
+  ['validated', 'Validé'],
+  ['validated_with_reservations', 'Validé avec réserves'],
+  ['rejected', 'Refusé'],
+  ['to_revise', 'À réviser'],
+  ['obsolete', 'Obsolète']
 ];
 
 function Chip({ label, selected, onPress }) {
-  return <TouchableOpacity onPress={onPress} style={{ borderWidth: 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6, marginBottom: 6 }}>
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{label}</Text>
-  </TouchableOpacity>;
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={{
+        borderWidth: 1,
+        borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
+        backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF',
+        borderRadius: 10,
+        paddingHorizontal: 9,
+        paddingVertical: 7,
+        marginRight: 6,
+        marginBottom: 6
+      }}
+    >
+      <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
 }
 
 export function MissionDocumentsScreen({ route }) {
@@ -41,7 +57,14 @@ export function MissionDocumentsScreen({ route }) {
   const [expected, setExpected] = useState([]);
   const [validations, setValidations] = useState([]);
   const [addExpectedVisible, setAddExpectedVisible] = useState(false);
-  const [draft, setDraft] = useState({ label: '', type: '', responsible: '', due: '', comment: '', status: 'expected' });
+  const [draft, setDraft] = useState({
+    label: '',
+    type: '',
+    responsible: '',
+    due: '',
+    comment: '',
+    status: 'expected'
+  });
   const [visaDoc, setVisaDoc] = useState(null);
   const [visaStatus, setVisaStatus] = useState('to_review');
   const [visaComment, setVisaComment] = useState('');
@@ -51,7 +74,7 @@ export function MissionDocumentsScreen({ route }) {
 
   const load = useCallback(async () => {
     const db = await getDb();
-    const [d,e,v,m] = await Promise.all([
+    const [d, e, v, m] = await Promise.all([
       db.getAllAsync('SELECT * FROM mission_documents WHERE mission_id=? ORDER BY created_at DESC', [missionId]),
       db.getAllAsync(
         `SELECT ed.*,a.company AS responsible_company,a.name AS responsible_name,d.name AS document_name
@@ -69,7 +92,7 @@ export function MissionDocumentsScreen({ route }) {
          WHERE v.mission_id=? ORDER BY v.created_at DESC`,
         [missionId]
       ),
-      db.getFirstAsync('SELECT type FROM missions WHERE id=?', [missionId]),
+      db.getFirstAsync('SELECT type FROM missions WHERE id=?', [missionId])
     ]);
     setDocs(d || []);
     setExpected(e || []);
@@ -77,23 +100,30 @@ export function MissionDocumentsScreen({ route }) {
     setMissionType(m?.type || null);
   }, [missionId]);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
-  const recommendedDocuments = React.useMemo(
-    () => getMissionExpectedDocumentPresets(missionType),
-    [missionType]
-  );
+  const recommendedDocuments = React.useMemo(() => getMissionExpectedDocumentPresets(missionType), [missionType]);
 
   const installRecommendedDocuments = async () => {
     if (!recommendedDocuments.length || installingExpected) return;
     setInstallingExpected(true);
     try {
       const db = await getDb();
-      const existingLabels = new Set(expected.map((row) => String(row.label || '').trim().toLowerCase()));
+      const existingLabels = new Set(
+        expected.map((row) =>
+          String(row.label || '')
+            .trim()
+            .toLowerCase()
+        )
+      );
       let added = 0;
       await db.withTransactionAsync(async () => {
         for (const preset of recommendedDocuments) {
-          const normalized = String(preset.label || '').trim().toLowerCase();
+          const normalized = String(preset.label || '')
+            .trim()
+            .toLowerCase();
           if (!normalized || existingLabels.has(normalized)) continue;
           await db.runAsync(
             'INSERT INTO mission_expected_documents(id,mission_id,type,label,status,comment) VALUES(?,?,?,?,?,?)',
@@ -124,7 +154,9 @@ export function MissionDocumentsScreen({ route }) {
         await load();
         Alert.alert('Document importé', doc.name || 'Document enregistré hors ligne.');
       }
-    } catch (e) { Alert.alert('Import impossible', String(e?.message || e)); }
+    } catch (e) {
+      Alert.alert('Import impossible', String(e?.message || e));
+    }
   };
 
   const addExpected = async () => {
@@ -135,7 +167,16 @@ export function MissionDocumentsScreen({ route }) {
       : null;
     await db.runAsync(
       'INSERT INTO mission_expected_documents(id,mission_id,type,label,status,responsible_actor_id,due_text,comment) VALUES(?,?,?,?,?,?,?,?)',
-      [createId('medoc'), missionId, draft.type || null, draft.label.trim(), draft.status || 'expected', actorId, draft.due || null, draft.comment || null]
+      [
+        createId('medoc'),
+        missionId,
+        draft.type || null,
+        draft.label.trim(),
+        draft.status || 'expected',
+        actorId,
+        draft.due || null,
+        draft.comment || null
+      ]
     );
     setAddExpectedVisible(false);
     setDraft({ label: '', type: '', responsible: '', due: '', comment: '', status: 'expected' });
@@ -144,7 +185,10 @@ export function MissionDocumentsScreen({ route }) {
 
   const changeExpectedStatus = async (row, status) => {
     const db = await getDb();
-    await db.runAsync("UPDATE mission_expected_documents SET status=?,updated_at=datetime('now') WHERE id=?", [status, row.id]);
+    await db.runAsync("UPDATE mission_expected_documents SET status=?,updated_at=datetime('now') WHERE id=?", [
+      status,
+      row.id
+    ]);
     await load();
   };
 
@@ -158,7 +202,9 @@ export function MissionDocumentsScreen({ route }) {
         [doc.id, row.id]
       );
       await load();
-    } catch (e) { Alert.alert('Document impossible', String(e?.message || e)); }
+    } catch (e) {
+      Alert.alert('Document impossible', String(e?.message || e));
+    }
   };
 
   const saveVisa = async () => {
@@ -167,8 +213,14 @@ export function MissionDocumentsScreen({ route }) {
     await db.runAsync(
       'INSERT INTO mission_validations(id,mission_id,document_id,validation_type,version_label,status,comment,validated_at) VALUES(?,?,?,?,?,?,?,?)',
       [
-        createId('mval'), missionId, visaDoc.id, 'visa', visaVersion || null, visaStatus, visaComment || null,
-        ['validated','validated_with_reservations'].includes(visaStatus) ? new Date().toISOString() : null,
+        createId('mval'),
+        missionId,
+        visaDoc.id,
+        'visa',
+        visaVersion || null,
+        visaStatus,
+        visaComment || null,
+        ['validated', 'validated_with_reservations'].includes(visaStatus) ? new Date().toISOString() : null
       ]
     );
     setVisaDoc(null);
@@ -181,103 +233,238 @@ export function MissionDocumentsScreen({ route }) {
   const latestVisa = (docId) => validations.find((v) => v.document_id === docId);
   const visaHistory = (docId) => validations.filter((v) => v.document_id === docId);
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
-    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
-      <Text style={[styles.sectionTitle, missionStyles.title]}>Documents · attendus · VISA</Text>
-      <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
-        Le document source reste conservé. METRA distingue présence, mise à jour, document attendu et décision de validation.
-      </Text>
+  return (
+    <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
+        <Text style={[styles.sectionTitle, missionStyles.title]}>Documents · attendus · VISA</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
+          Le document source reste conservé. METRA distingue présence, mise à jour, document attendu et décision de
+          validation.
+        </Text>
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={importDoc}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Importer document</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setAddExpectedVisible(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Document attendu</Text></TouchableOpacity>
-        {recommendedDocuments.length ? <TouchableOpacity
-          style={[styles.btnSecondary, missionStyles.secondaryButton]}
-          disabled={installingExpected}
-          onPress={installRecommendedDocuments}
-        >
-          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>
-            {installingExpected ? 'Préparation…' : 'Préparer attendus (' + recommendedDocuments.length + ')'}
-          </Text>
-        </TouchableOpacity> : null}
-      </View>
-      {recommendedDocuments.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, lineHeight: 12, marginTop: 6 }}>
-        METRA propose les documents habituellement utiles à cette Mission. Rien n’est réputé obligatoire automatiquement : tu confirmes leur statut selon le dossier réel.
-      </Text> : null}
-
-      <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Documents attendus</Text>
-      {expected.map((row) => <View key={row.id} style={[missionStyles.card, { padding: 11, marginBottom: 8 }]}>
-        <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 10.8 }}>{row.label}</Text>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, marginTop: 3 }}>{[row.responsible_company || row.responsible_name, row.due_date || row.due_text, row.document_name].filter(Boolean).join(' · ') || 'Contexte à compléter'}</Text>
-        {row.comment ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.2, marginTop: 4 }}>{row.comment}</Text> : null}
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
-          {EXPECTED_STATUS.map(([key,label]) => <Chip key={key} label={label} selected={row.status === key} onPress={() => changeExpectedStatus(row,key)} />)}
-          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => attachDocument(row)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Joindre fichier</Text></TouchableOpacity>
-        </ScrollView>
-      </View>)}
-
-      <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Documents Mission</Text>
-      {docs.map((doc) => {
-        const visa = latestVisa(doc.id);
-        return <TouchableOpacity key={doc.id} onPress={() => {
-          setVisaDoc(doc);
-          setVisaStatus('to_review');
-          setVisaComment('');
-          setVisaVersion(visa?.version_label || '');
-        }} style={[missionStyles.card, { padding: 11, marginBottom: 7 }]}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '900' }}>{doc.name || 'Document'}</Text>
-              <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop: 2 }}>
-                {doc.type || 'source'} · {doc.source || 'Mission'} · {visaHistory(doc.id).length} revue(s)
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={importDoc}>
+            <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Importer document</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnSecondary, missionStyles.secondaryButton]}
+            onPress={() => setAddExpectedVisible(true)}
+          >
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Document attendu</Text>
+          </TouchableOpacity>
+          {recommendedDocuments.length ? (
+            <TouchableOpacity
+              style={[styles.btnSecondary, missionStyles.secondaryButton]}
+              disabled={installingExpected}
+              onPress={installRecommendedDocuments}
+            >
+              <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>
+                {installingExpected ? 'Préparation…' : 'Préparer attendus (' + recommendedDocuments.length + ')'}
               </Text>
-            </View>
-            <Text style={{ color: visa?.status === 'validated' ? MISSION_COLORS.accentDark : COLORS.inkFaint, fontSize: 8.7, fontWeight: '900' }}>{visa?.status || 'Sans VISA'}</Text>
-          </View>
-        </TouchableOpacity>;
-      })}
-    </ScrollView>
-
-    <Modal visible={addExpectedVisible} transparent animationType="fade" onRequestClose={() => setAddExpectedVisible(false)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
-        <Text style={[styles.modalTitle, missionStyles.title]}>Document attendu</Text>
-        <TextInput style={[styles.input, missionStyles.input]} value={draft.label} onChangeText={(v) => setDraft((p) => ({ ...p, label: v }))} placeholder="Schéma hydraulique, DOE, PV essais…" />
-        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={draft.type} onChangeText={(v) => setDraft((p) => ({ ...p, type: v }))} placeholder="Type" />
-        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={draft.responsible} onChangeText={(v) => setDraft((p) => ({ ...p, responsible: v }))} placeholder="Responsable / entreprise" />
-        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={draft.due} onChangeText={(v) => setDraft((p) => ({ ...p, due: v }))} placeholder="Échéance" />
-        <TextInput style={[styles.input, missionStyles.input, { marginTop: 8, minHeight: 65, textAlignVertical: 'top' }]} multiline value={draft.comment} onChangeText={(v) => setDraft((p) => ({ ...p, comment: v }))} placeholder="Commentaire" />
-        <View style={styles.modalActions}>
-          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setAddExpectedVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={addExpected}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Ajouter</Text></TouchableOpacity>
+            </TouchableOpacity>
+          ) : null}
         </View>
-      </View></View>
-    </Modal>
+        {recommendedDocuments.length ? (
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, lineHeight: 12, marginTop: 6 }}>
+            METRA propose les documents habituellement utiles à cette Mission. Rien n’est réputé obligatoire
+            automatiquement : tu confirmes leur statut selon le dossier réel.
+          </Text>
+        ) : null}
 
-    <Modal visible={!!visaDoc} transparent animationType="fade" onRequestClose={() => setVisaDoc(null)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
-        <Text style={[styles.modalTitle, missionStyles.title]}>VISA · {visaDoc?.name}</Text>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginBottom: 4 }}>VERSION / RÉVISION</Text>
-        <TextInput style={[styles.input, missionStyles.input, { marginBottom: 8 }]} value={visaVersion} onChangeText={setVisaVersion} placeholder="V1, indice B, PRO-DCE du 18/09…" />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }}>
-          {VISA_STATUS.map(([key,label]) => <Chip key={key} label={label} selected={visaStatus === key} onPress={() => setVisaStatus(key)} />)}
-        </View>
-        <TextInput style={[styles.input, missionStyles.input, { minHeight: 90, textAlignVertical: 'top' }]} multiline value={visaComment} onChangeText={setVisaComment} placeholder="Nouvelle remarque / réserve / réponse de validation" />
-
-        {visaDoc && visaHistory(visaDoc.id).length ? <View style={{ marginTop: 13 }}>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '900', marginBottom: 6 }}>HISTORIQUE DES REVUES</Text>
-          {visaHistory(visaDoc.id).slice(0, 12).map((row) => <View key={row.id} style={{ opacity: 0.76, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
-            <Text style={{ color: COLORS.ink, fontSize: 8.9, fontWeight: '900' }}>
-              {[row.version_label,row.status].filter(Boolean).join(' · ') || 'Revue'}
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Documents attendus</Text>
+        {expected.map((row) => (
+          <View key={row.id} style={[missionStyles.card, { padding: 11, marginBottom: 8 }]}>
+            <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 10.8 }}>{row.label}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, marginTop: 3 }}>
+              {[row.responsible_company || row.responsible_name, row.due_date || row.due_text, row.document_name]
+                .filter(Boolean)
+                .join(' · ') || 'Contexte à compléter'}
             </Text>
-            {row.comment ? <Text style={{ color: COLORS.inkSoft, fontSize: 8.6, lineHeight: 12, marginTop: 2 }}>{row.comment}</Text> : null}
-            <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 2 }}>{row.validated_at || row.created_at || ''}</Text>
-          </View>)}
-        </View> : null}
-        <View style={styles.modalActions}>
-          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setVisaDoc(null)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveVisa}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer le VISA</Text></TouchableOpacity>
+            {row.comment ? (
+              <Text style={{ color: COLORS.inkSoft, fontSize: 9.2, marginTop: 4 }}>{row.comment}</Text>
+            ) : null}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
+              {EXPECTED_STATUS.map(([key, label]) => (
+                <Chip
+                  key={key}
+                  label={label}
+                  selected={row.status === key}
+                  onPress={() => changeExpectedStatus(row, key)}
+                />
+              ))}
+              <TouchableOpacity
+                style={[styles.btnSecondary, missionStyles.secondaryButton]}
+                onPress={() => attachDocument(row)}
+              >
+                <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Joindre fichier</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
+        ))}
+
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Documents Mission</Text>
+        {docs.map((doc) => {
+          const visa = latestVisa(doc.id);
+          return (
+            <TouchableOpacity
+              key={doc.id}
+              onPress={() => {
+                setVisaDoc(doc);
+                setVisaStatus('to_review');
+                setVisaComment('');
+                setVisaVersion(visa?.version_label || '');
+              }}
+              style={[missionStyles.card, { padding: 11, marginBottom: 7 }]}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '900' }}>{doc.name || 'Document'}</Text>
+                  <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop: 2 }}>
+                    {doc.type || 'source'} · {doc.source || 'Mission'} · {visaHistory(doc.id).length} revue(s)
+                  </Text>
+                </View>
+                <Text
+                  style={{
+                    color: visa?.status === 'validated' ? MISSION_COLORS.accentDark : COLORS.inkFaint,
+                    fontSize: 8.7,
+                    fontWeight: '900'
+                  }}
+                >
+                  {visa?.status || 'Sans VISA'}
+                </Text>
+              </View>
+            </TouchableOpacity>
+          );
+        })}
+      </ScrollView>
+
+      <Modal
+        visible={addExpectedVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAddExpectedVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, missionStyles.modalSheet]}>
+            <Text style={[styles.modalTitle, missionStyles.title]}>Document attendu</Text>
+            <TextInput
+              style={[styles.input, missionStyles.input]}
+              value={draft.label}
+              onChangeText={(v) => setDraft((p) => ({ ...p, label: v }))}
+              placeholder="Schéma hydraulique, DOE, PV essais…"
+            />
+            <TextInput
+              style={[styles.input, missionStyles.input, { marginTop: 8 }]}
+              value={draft.type}
+              onChangeText={(v) => setDraft((p) => ({ ...p, type: v }))}
+              placeholder="Type"
+            />
+            <TextInput
+              style={[styles.input, missionStyles.input, { marginTop: 8 }]}
+              value={draft.responsible}
+              onChangeText={(v) => setDraft((p) => ({ ...p, responsible: v }))}
+              placeholder="Responsable / entreprise"
+            />
+            <TextInput
+              style={[styles.input, missionStyles.input, { marginTop: 8 }]}
+              value={draft.due}
+              onChangeText={(v) => setDraft((p) => ({ ...p, due: v }))}
+              placeholder="Échéance"
+            />
+            <TextInput
+              style={[styles.input, missionStyles.input, { marginTop: 8, minHeight: 65, textAlignVertical: 'top' }]}
+              multiline
+              value={draft.comment}
+              onChangeText={(v) => setDraft((p) => ({ ...p, comment: v }))}
+              placeholder="Commentaire"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.btnSecondary, missionStyles.secondaryButton]}
+                onPress={() => setAddExpectedVisible(false)}
+              >
+                <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={addExpected}>
+                <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Ajouter</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-      </View></View>
-    </Modal>
-  </View>;
+      </Modal>
+
+      <Modal visible={!!visaDoc} transparent animationType="fade" onRequestClose={() => setVisaDoc(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, missionStyles.modalSheet]}>
+            <Text style={[styles.modalTitle, missionStyles.title]}>VISA · {visaDoc?.name}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginBottom: 4 }}>
+              VERSION / RÉVISION
+            </Text>
+            <TextInput
+              style={[styles.input, missionStyles.input, { marginBottom: 8 }]}
+              value={visaVersion}
+              onChangeText={setVisaVersion}
+              placeholder="V1, indice B, PRO-DCE du 18/09…"
+            />
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }}>
+              {VISA_STATUS.map(([key, label]) => (
+                <Chip key={key} label={label} selected={visaStatus === key} onPress={() => setVisaStatus(key)} />
+              ))}
+            </View>
+            <TextInput
+              style={[styles.input, missionStyles.input, { minHeight: 90, textAlignVertical: 'top' }]}
+              multiline
+              value={visaComment}
+              onChangeText={setVisaComment}
+              placeholder="Nouvelle remarque / réserve / réponse de validation"
+            />
+
+            {visaDoc && visaHistory(visaDoc.id).length ? (
+              <View style={{ marginTop: 13 }}>
+                <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '900', marginBottom: 6 }}>
+                  HISTORIQUE DES REVUES
+                </Text>
+                {visaHistory(visaDoc.id)
+                  .slice(0, 12)
+                  .map((row) => (
+                    <View
+                      key={row.id}
+                      style={{
+                        opacity: 0.76,
+                        paddingVertical: 6,
+                        borderBottomWidth: 1,
+                        borderBottomColor: MISSION_COLORS.accentLine
+                      }}
+                    >
+                      <Text style={{ color: COLORS.ink, fontSize: 8.9, fontWeight: '900' }}>
+                        {[row.version_label, row.status].filter(Boolean).join(' · ') || 'Revue'}
+                      </Text>
+                      {row.comment ? (
+                        <Text style={{ color: COLORS.inkSoft, fontSize: 8.6, lineHeight: 12, marginTop: 2 }}>
+                          {row.comment}
+                        </Text>
+                      ) : null}
+                      <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 2 }}>
+                        {row.validated_at || row.created_at || ''}
+                      </Text>
+                    </View>
+                  ))}
+              </View>
+            ) : null}
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.btnSecondary, missionStyles.secondaryButton]}
+                onPress={() => setVisaDoc(null)}
+              >
+                <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveVisa}>
+                <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer le VISA</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
 }

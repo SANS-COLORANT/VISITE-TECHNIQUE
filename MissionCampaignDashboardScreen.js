@@ -7,29 +7,35 @@ import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 
 const FILTERS = Object.freeze([
-  ['all','Tous'],
-  ['todo','À faire'],
-  ['progress','En cours'],
-  ['done','Terminés'],
-  ['exception','Accès / replanif.'],
+  ['all', 'Tous'],
+  ['todo', 'À faire'],
+  ['progress', 'En cours'],
+  ['done', 'Terminés'],
+  ['exception', 'Accès / replanif.']
 ]);
 
 function Chip({ label, selected, onPress }) {
-  return <TouchableOpacity
-    onPress={onPress}
-    style={{
-      borderWidth: 1,
-      borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
-      backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF',
-      borderRadius: 10,
-      paddingHorizontal: 9,
-      paddingVertical: 7,
-      marginRight: 6,
-      marginBottom: 6,
-    }}
-  >
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontWeight: '900' }}>{label}</Text>
-  </TouchableOpacity>;
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={{
+        borderWidth: 1,
+        borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
+        backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF',
+        borderRadius: 10,
+        paddingHorizontal: 9,
+        paddingVertical: 7,
+        marginRight: 6,
+        marginBottom: 6
+      }}
+    >
+      <Text
+        style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontWeight: '900' }}
+      >
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
 }
 
 function progress(site) {
@@ -56,12 +62,14 @@ function siteState(site) {
 }
 
 function stateLabel(state) {
-  return {
-    todo: 'À faire',
-    progress: 'En cours',
-    done: 'Terminé',
-    exception: 'Accès / replanifier',
-  }[state] || state;
+  return (
+    {
+      todo: 'À faire',
+      progress: 'En cours',
+      done: 'Terminé',
+      exception: 'Accès / replanifier'
+    }[state] || state
+  );
 }
 
 export function MissionCampaignDashboardScreen({ navigation, route }) {
@@ -97,18 +105,29 @@ export function MissionCampaignDashboardScreen({ navigation, route }) {
          WHERE ml.mission_id=?
          ORDER BY s.name`,
         [
-          missionId,missionId,missionId,missionId,
-          missionId,missionId,
-          missionId,missionId,missionId,missionId,missionId,missionId,
           missionId,
+          missionId,
+          missionId,
+          missionId,
+          missionId,
+          missionId,
+          missionId,
+          missionId,
+          missionId,
+          missionId,
+          missionId,
+          missionId,
+          missionId
         ]
-      ),
+      )
     ]);
     setMissionType(mission?.type || null);
     setSites(rows || []);
   }, [missionId]);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   const enriched = useMemo(
     () => sites.map((site) => ({ ...site, derived_state: siteState(site), progress_pct: progress(site) })),
@@ -120,36 +139,39 @@ export function MissionCampaignDashboardScreen({ navigation, route }) {
     return enriched.filter((site) => {
       if (filter !== 'all' && site.derived_state !== filter) return false;
       if (!q) return true;
-      return [site.name,site.city,site.address,site.reference]
+      return [site.name, site.city, site.address, site.reference]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q));
     });
   }, [enriched, filter, query]);
 
-  const summary = useMemo(() => ({
-    total: enriched.length,
-    todo: enriched.filter((site) => site.derived_state === 'todo').length,
-    progress: enriched.filter((site) => site.derived_state === 'progress').length,
-    done: enriched.filter((site) => site.derived_state === 'done').length,
-    exception: enriched.filter((site) => site.derived_state === 'exception').length,
-  }), [enriched]);
+  const summary = useMemo(
+    () => ({
+      total: enriched.length,
+      todo: enriched.filter((site) => site.derived_state === 'todo').length,
+      progress: enriched.filter((site) => site.derived_state === 'progress').length,
+      done: enriched.filter((site) => site.derived_state === 'done').length,
+      exception: enriched.filter((site) => site.derived_state === 'exception').length
+    }),
+    [enriched]
+  );
 
   const openSite = async (site) => {
     if (busySiteId) return;
     setBusySiteId(site.id);
     try {
       if (site.last_visit_id && site.last_visit_status === 'draft') {
-        navigation.navigate('MissionVisit',{ missionId, visitId: site.last_visit_id });
+        navigation.navigate('MissionVisit', { missionId, visitId: site.last_visit_id });
         return;
       }
       const playbook = getMissionFieldPlaybook(missionType);
       const visitId = await creerVisiteMission({
         missionId,
         siteId: site.id,
-        visitType: playbook.defaultVisitType || 'campagne terrain',
+        visitType: playbook.defaultVisitType || 'campagne terrain'
       });
       await load();
-      navigation.navigate('MissionVisit',{ missionId, visitId });
+      navigation.navigate('MissionVisit', { missionId, visitId });
     } catch (e) {
       Alert.alert('Site non ouvert', String(e?.message || e));
     } finally {
@@ -158,113 +180,192 @@ export function MissionCampaignDashboardScreen({ navigation, route }) {
   };
 
   const nextSite = useMemo(
-    () => enriched.find((site) => site.derived_state === 'progress')
-      || enriched.find((site) => site.derived_state === 'todo')
-      || enriched.find((site) => site.derived_state === 'exception')
-      || null,
+    () =>
+      enriched.find((site) => site.derived_state === 'progress') ||
+      enriched.find((site) => site.derived_state === 'todo') ||
+      enriched.find((site) => site.derived_state === 'exception') ||
+      null,
     [enriched]
   );
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
-    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.sectionTitle, missionStyles.title]}>Campagne multi-sites</Text>
-      <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
-        Cockpit léger pour 5 comme pour plusieurs centaines de sites : progression, accès, visites, inventaire, points et actions sans ouvrir chaque dossier.
-      </Text>
-
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 13 }}>
-        {[
-          [summary.total,'sites'],
-          [summary.todo,'à faire'],
-          [summary.progress,'en cours'],
-          [summary.done,'terminés'],
-          [summary.exception,'accès / replanif.'],
-        ].map(([value,label]) => <View key={label} style={[missionStyles.statBox,{minWidth:'29%',flexGrow:1,padding:9,borderRadius:11}]}>
-          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 14, fontWeight: '900' }}>{value}</Text>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 2 }}>{label}</Text>
-        </View>)}
-      </View>
-
-      {nextSite ? <TouchableOpacity
-        style={[styles.btnPrimary, missionStyles.primaryButton, { marginTop: 12, alignItems: 'center', paddingVertical: 11 }]}
-        disabled={busySiteId === nextSite.id}
-        onPress={() => openSite(nextSite)}
-      >
-        <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>
-          {busySiteId === nextSite.id ? 'Ouverture…' : 'Continuer · ' + nextSite.name}
+  return (
+    <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
+        <Text style={[styles.sectionTitle, missionStyles.title]}>Campagne multi-sites</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
+          Cockpit léger pour 5 comme pour plusieurs centaines de sites : progression, accès, visites, inventaire, points
+          et actions sans ouvrir chaque dossier.
         </Text>
-      </TouchableOpacity> : null}
 
-      <TextInput
-        style={[styles.input,missionStyles.input,{marginTop:12}]}
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Rechercher un site, une ville, une référence…"
-      />
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 9 }}>
-        {FILTERS.map(([key,label]) => <Chip key={key} label={label} selected={filter === key} onPress={() => setFilter(key)} />)}
-      </View>
-
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 2, marginBottom: 10 }}>
-        <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionMap',{missionId})}>
-          <Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Carte</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionMeasurementCampaign',{missionId})}>
-          <Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Campagnes de mesures</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionEquipment',{missionId})}>
-          <Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Inventaire global</Text>
-        </TouchableOpacity>
-      </View>
-
-      {visible.map((site) => {
-        const state = site.derived_state;
-        return <View key={site.id} style={[missionStyles.card,{padding:11,marginBottom:8}]}>
-          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: COLORS.ink, fontSize: 10.8, fontWeight: '900' }}>{site.name}</Text>
-              <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 2 }}>{[site.city,site.reference].filter(Boolean).join(' · ')}</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 13 }}>
+          {[
+            [summary.total, 'sites'],
+            [summary.todo, 'à faire'],
+            [summary.progress, 'en cours'],
+            [summary.done, 'terminés'],
+            [summary.exception, 'accès / replanif.']
+          ].map(([value, label]) => (
+            <View
+              key={label}
+              style={[missionStyles.statBox, { minWidth: '29%', flexGrow: 1, padding: 9, borderRadius: 11 }]}
+            >
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 14, fontWeight: '900' }}>{value}</Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 2 }}>{label}</Text>
             </View>
-            <View style={{ borderRadius: 9, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: state === 'done' ? MISSION_COLORS.accentLight : '#FFFFFF', paddingHorizontal: 8, paddingVertical: 5 }}>
-              <Text style={{ color: state === 'done' ? MISSION_COLORS.accentDark : COLORS.inkSoft, fontSize: 8.2, fontWeight: '900' }}>{stateLabel(state)}</Text>
-            </View>
-          </View>
+          ))}
+        </View>
 
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
-            <Text style={{ color: COLORS.inkSoft, fontSize: 8.6 }}>{site.visit_count || 0} visite(s)</Text>
-            <Text style={{ color: COLORS.inkSoft, fontSize: 8.6 }}>· {site.equipment_count || 0} équipement(s)</Text>
-            <Text style={{ color: Number(site.open_points || 0) ? '#8A5B14' : COLORS.inkFaint, fontSize: 8.6 }}>· {site.open_points || 0} point(s) ouvert(s)</Text>
-            <Text style={{ color: Number(site.open_actions || 0) ? '#8A5B14' : COLORS.inkFaint, fontSize: 8.6 }}>· {site.open_actions || 0} action(s)</Text>
-          </View>
-
-          {Number(site.campaign_total || 0) ? <View style={{ marginTop: 8 }}>
-            <View style={{ height: 6, borderRadius: 4, backgroundColor: '#E7ECE9', overflow: 'hidden' }}>
-              <View style={{ height: 6, width: Math.max(2,site.progress_pct) + '%', backgroundColor: MISSION_COLORS.accent }} />
-            </View>
-            <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, marginTop: 4 }}>
-              Campagne : {site.campaign_done || 0}/{site.campaign_total || 0} traité(s) · {site.progress_pct} %
-              {Number(site.campaign_exception || 0) ? ' · ' + site.campaign_exception + ' exception(s)' : ''}
+        {nextSite ? (
+          <TouchableOpacity
+            style={[
+              styles.btnPrimary,
+              missionStyles.primaryButton,
+              { marginTop: 12, alignItems: 'center', paddingVertical: 11 }
+            ]}
+            disabled={busySiteId === nextSite.id}
+            onPress={() => openSite(nextSite)}
+          >
+            <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>
+              {busySiteId === nextSite.id ? 'Ouverture…' : 'Continuer · ' + nextSite.name}
             </Text>
-          </View> : null}
+          </TouchableOpacity>
+        ) : null}
 
-          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 9 }}>
-            <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busySiteId === site.id} onPress={() => openSite(site)}>
-              <Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>{site.last_visit_status === 'draft' ? 'Reprendre la visite' : 'Ouvrir terrain'}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionEquipment',{missionId,siteId:site.id})}>
-              <Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Inventaire</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionActions',{missionId,siteId:site.id})}>
-              <Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Actions</Text>
-            </TouchableOpacity>
+        <TextInput
+          style={[styles.input, missionStyles.input, { marginTop: 12 }]}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Rechercher un site, une ville, une référence…"
+        />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 9 }}>
+          {FILTERS.map(([key, label]) => (
+            <Chip key={key} label={label} selected={filter === key} onPress={() => setFilter(key)} />
+          ))}
+        </View>
+
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 2, marginBottom: 10 }}>
+          <TouchableOpacity
+            style={[styles.btnSecondary, missionStyles.secondaryButton]}
+            onPress={() => navigation.navigate('MissionMap', { missionId })}
+          >
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Carte</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnSecondary, missionStyles.secondaryButton]}
+            onPress={() => navigation.navigate('MissionMeasurementCampaign', { missionId })}
+          >
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Campagnes de mesures</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnSecondary, missionStyles.secondaryButton]}
+            onPress={() => navigation.navigate('MissionEquipment', { missionId })}
+          >
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Inventaire global</Text>
+          </TouchableOpacity>
+        </View>
+
+        {visible.map((site) => {
+          const state = site.derived_state;
+          return (
+            <View key={site.id} style={[missionStyles.card, { padding: 11, marginBottom: 8 }]}>
+              <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: COLORS.ink, fontSize: 10.8, fontWeight: '900' }}>{site.name}</Text>
+                  <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 2 }}>
+                    {[site.city, site.reference].filter(Boolean).join(' · ')}
+                  </Text>
+                </View>
+                <View
+                  style={{
+                    borderRadius: 9,
+                    borderWidth: 1,
+                    borderColor: MISSION_COLORS.accentLine,
+                    backgroundColor: state === 'done' ? MISSION_COLORS.accentLight : '#FFFFFF',
+                    paddingHorizontal: 8,
+                    paddingVertical: 5
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: state === 'done' ? MISSION_COLORS.accentDark : COLORS.inkSoft,
+                      fontSize: 8.2,
+                      fontWeight: '900'
+                    }}
+                  >
+                    {stateLabel(state)}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 8 }}>
+                <Text style={{ color: COLORS.inkSoft, fontSize: 8.6 }}>{site.visit_count || 0} visite(s)</Text>
+                <Text style={{ color: COLORS.inkSoft, fontSize: 8.6 }}>
+                  · {site.equipment_count || 0} équipement(s)
+                </Text>
+                <Text style={{ color: Number(site.open_points || 0) ? '#8A5B14' : COLORS.inkFaint, fontSize: 8.6 }}>
+                  · {site.open_points || 0} point(s) ouvert(s)
+                </Text>
+                <Text style={{ color: Number(site.open_actions || 0) ? '#8A5B14' : COLORS.inkFaint, fontSize: 8.6 }}>
+                  · {site.open_actions || 0} action(s)
+                </Text>
+              </View>
+
+              {Number(site.campaign_total || 0) ? (
+                <View style={{ marginTop: 8 }}>
+                  <View style={{ height: 6, borderRadius: 4, backgroundColor: '#E7ECE9', overflow: 'hidden' }}>
+                    <View
+                      style={{
+                        height: 6,
+                        width: Math.max(2, site.progress_pct) + '%',
+                        backgroundColor: MISSION_COLORS.accent
+                      }}
+                    />
+                  </View>
+                  <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, marginTop: 4 }}>
+                    Campagne : {site.campaign_done || 0}/{site.campaign_total || 0} traité(s) · {site.progress_pct} %
+                    {Number(site.campaign_exception || 0) ? ' · ' + site.campaign_exception + ' exception(s)' : ''}
+                  </Text>
+                </View>
+              ) : null}
+
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 9 }}>
+                <TouchableOpacity
+                  style={[styles.btnPrimary, missionStyles.primaryButton]}
+                  disabled={busySiteId === site.id}
+                  onPress={() => openSite(site)}
+                >
+                  <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>
+                    {site.last_visit_status === 'draft' ? 'Reprendre la visite' : 'Ouvrir terrain'}
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btnSecondary, missionStyles.secondaryButton]}
+                  onPress={() => navigation.navigate('MissionEquipment', { missionId, siteId: site.id })}
+                >
+                  <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Inventaire</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[styles.btnSecondary, missionStyles.secondaryButton]}
+                  onPress={() => navigation.navigate('MissionActions', { missionId, siteId: site.id })}
+                >
+                  <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Actions</Text>
+                </TouchableOpacity>
+              </View>
+              {site.last_visit_at ? (
+                <Text style={{ color: COLORS.inkFaint, fontSize: 7.9, marginTop: 6 }}>
+                  Dernière occurrence : {site.last_visit_at}
+                </Text>
+              ) : null}
+            </View>
+          );
+        })}
+
+        {!visible.length ? (
+          <View style={[missionStyles.card, { padding: 14 }]}>
+            <Text style={{ color: COLORS.inkSoft, fontSize: 9.5 }}>Aucun site dans cette sélection.</Text>
           </View>
-          {site.last_visit_at ? <Text style={{ color: COLORS.inkFaint, fontSize: 7.9, marginTop: 6 }}>Dernière occurrence : {site.last_visit_at}</Text> : null}
-        </View>;
-      })}
-
-      {!visible.length ? <View style={[missionStyles.card,{padding:14}]}>
-        <Text style={{ color: COLORS.inkSoft, fontSize: 9.5 }}>Aucun site dans cette sélection.</Text>
-      </View> : null}
-    </ScrollView>
-  </View>;
+        ) : null}
+      </ScrollView>
+    </View>
+  );
 }

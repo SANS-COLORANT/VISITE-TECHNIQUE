@@ -58,5 +58,5 @@ export const migration001 = {
       id TEXT PRIMARY KEY, categorie TEXT NOT NULL, marque TEXT, modele TEXT,
       cree_le TEXT NOT NULL DEFAULT (datetime('now'))
     );
-  `,
+  `
 };

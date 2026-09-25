@@ -3,7 +3,7 @@ import { StyleSheet, processColor } from 'react-native';
 const DEFAULT_PALETTE = {
   main: '#F26426',
   dark: '#D9531A',
-  light: '#FFF1EA',
+  light: '#FFF1EA'
 };
 
 let currentPalette = { ...DEFAULT_PALETTE };
@@ -14,12 +14,12 @@ function normalizePalette(colors) {
   const value = {
     main: String(source.main || DEFAULT_PALETTE.main).toUpperCase(),
     dark: String(source.dark || DEFAULT_PALETTE.dark).toUpperCase(),
-    light: String(source.light || DEFAULT_PALETTE.light).toUpperCase(),
+    light: String(source.light || DEFAULT_PALETTE.light).toUpperCase()
   };
   return {
     main: /^#[0-9A-F]{6}$/.test(value.main) ? value.main : DEFAULT_PALETTE.main,
     dark: /^#[0-9A-F]{6}$/.test(value.dark) ? value.dark : DEFAULT_PALETTE.dark,
-    light: /^#[0-9A-F]{6}$/.test(value.light) ? value.light : DEFAULT_PALETTE.light,
+    light: /^#[0-9A-F]{6}$/.test(value.light) ? value.light : DEFAULT_PALETTE.light
   };
 }
 
@@ -61,7 +61,7 @@ export function installVisualPalettePreprocessors() {
     'borderLeftColor',
     'shadowColor',
     'textDecorationColor',
-    'tintColor',
+    'tintColor'
   ].forEach((property) => {
     StyleSheet.setStyleAttributePreprocessor(property, processVisualColor);
   });

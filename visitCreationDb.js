@@ -18,7 +18,7 @@ export async function creerVisiteProduction({
   apiRemoteLocalId = null,
   apiRemoteClientId = null,
   apiRemoteTrameId = null,
-  installationId = null,
+  installationId = null
 } = {}) {
   if (!siteId) throw new Error('Site requis pour créer une visite');
   const modeNormalise = mode === 'express' ? 'express' : 'complete';
@@ -36,8 +36,17 @@ export async function creerVisiteProduction({
         (id, site_id, date_visite, technicien, statut, progression_pct, mode_visite, trame_id,
          installation_id, api_remote_client_id, api_remote_local_id, api_remote_trame_id)
        VALUES (?, ?, date('now'), ?, 'en_cours', 0, ?, ?, ?, ?, ?, ?)`,
-      [id, siteId, technicien ? String(technicien).trim() || null : null, modeNormalise, trame.id,
-        localInstallationId, remoteClientId, remoteLocalId, remoteTrameId]
+      [
+        id,
+        siteId,
+        technicien ? String(technicien).trim() || null : null,
+        modeNormalise,
+        trame.id,
+        localInstallationId,
+        remoteClientId,
+        remoteLocalId,
+        remoteTrameId
+      ]
     );
     await db.runAsync(`INSERT OR IGNORE INTO notes (visite_id, contenu) VALUES (?, '')`, [id]);
   });
@@ -76,11 +85,12 @@ export async function creerVisiteProduction({
     pinPhotoReferencesForVisit(id),
     (async () => {
       if (await obtenirRacineMetra()) await dossierVisiteMetra(id);
-    })(),
+    })()
   ]).then((results) => {
     const [photos, stockage] = results;
     if (photos?.status === 'rejected') console.warn('Photo reference snapshot deferred', photos.reason);
-    if (stockage?.status === 'rejected') console.warn('Dossier METRA de la nouvelle visite non préparé immédiatement', stockage.reason);
+    if (stockage?.status === 'rejected')
+      console.warn('Dossier METRA de la nouvelle visite non préparé immédiatement', stockage.reason);
   });
 
   return id;

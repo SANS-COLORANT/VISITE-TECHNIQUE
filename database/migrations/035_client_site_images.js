@@ -7,5 +7,5 @@ export const migration035 = {
     -- que son URI afin de préserver une base légère et pleinement offline.
     ALTER TABLE clients ADD COLUMN image_uri TEXT;
     ALTER TABLE sites ADD COLUMN image_uri TEXT;
-  `,
+  `
 };

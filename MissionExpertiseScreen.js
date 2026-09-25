@@ -10,38 +10,48 @@ const HYPOTHESIS_STATUS = Object.freeze([
   ['under_investigation', 'En investigation'],
   ['supported', 'Étayée'],
   ['rejected', 'Écartée'],
-  ['inconclusive', 'Non concluante'],
+  ['inconclusive', 'Non concluante']
 ]);
 
 function Chip({ label, selected, onPress }) {
-  return <TouchableOpacity
-    onPress={onPress}
-    style={{
-      borderWidth: 1,
-      borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
-      backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF',
-      borderRadius: 10,
-      paddingHorizontal: 9,
-      paddingVertical: 7,
-      marginRight: 6,
-      marginBottom: 6,
-    }}
-  >
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontWeight: '900' }}>{label}</Text>
-  </TouchableOpacity>;
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={{
+        borderWidth: 1,
+        borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
+        backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF',
+        borderRadius: 10,
+        paddingHorizontal: 9,
+        paddingVertical: 7,
+        marginRight: 6,
+        marginBottom: 6
+      }}
+    >
+      <Text
+        style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontWeight: '900' }}
+      >
+        {label}
+      </Text>
+    </TouchableOpacity>
+  );
 }
 
 function Field({ label, value, onChangeText, multiline = false, placeholder = '' }) {
-  return <View style={{ marginBottom: 8 }}>
-    <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontWeight: '900', marginBottom: 4 }}>{label.toUpperCase()}</Text>
-    <TextInput
-      style={[styles.input, missionStyles.input, multiline ? { minHeight: 76, textAlignVertical: 'top' } : null]}
-      value={String(value ?? '')}
-      onChangeText={onChangeText}
-      multiline={multiline}
-      placeholder={placeholder}
-    />
-  </View>;
+  return (
+    <View style={{ marginBottom: 8 }}>
+      <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontWeight: '900', marginBottom: 4 }}>
+        {label.toUpperCase()}
+      </Text>
+      <TextInput
+        style={[styles.input, missionStyles.input, multiline ? { minHeight: 76, textAlignVertical: 'top' } : null]}
+        value={String(value ?? '')}
+        onChangeText={onChangeText}
+        multiline={multiline}
+        placeholder={placeholder}
+      />
+    </View>
+  );
 }
 
 export function MissionExpertiseScreen({ navigation, route }) {
@@ -86,7 +96,7 @@ export function MissionExpertiseScreen({ navigation, route }) {
          LEFT JOIN mission_observations o ON o.id=h.observation_id
          WHERE h.mission_id=? ORDER BY h.created_at`,
         [missionId]
-      ),
+      )
     ]);
     setSubjects(subRows || []);
     setObservations(obsRows || []);
@@ -94,7 +104,9 @@ export function MissionExpertiseScreen({ navigation, route }) {
     if (!selectedSubjectId && subRows?.[0]?.id) setSelectedSubjectId(subRows[0].id);
   }, [missionId, selectedSubjectId]);
 
-  React.useEffect(() => { load(); }, [load]);
+  React.useEffect(() => {
+    load();
+  }, [load]);
 
   const selectedSubject = useMemo(
     () => subjects.find((row) => row.id === selectedSubjectId) || null,
@@ -109,7 +121,9 @@ export function MissionExpertiseScreen({ navigation, route }) {
     [hypotheses, selectedSubjectId]
   );
   const supported = hypothesesForSubject.filter((row) => row.status === 'supported').length;
-  const open = hypothesesForSubject.filter((row) => !['supported','rejected','inconclusive'].includes(row.status)).length;
+  const open = hypothesesForSubject.filter(
+    (row) => !['supported', 'rejected', 'inconclusive'].includes(row.status)
+  ).length;
 
   const ensureSubject = async () => {
     if (selectedSubjectId) return selectedSubjectId;
@@ -118,7 +132,7 @@ export function MissionExpertiseScreen({ navigation, route }) {
       missionId,
       label: 'Expertise / sinistre',
       description: 'Sujet principal créé par le moteur Expertise.',
-      priority: 'Investigation',
+      priority: 'Investigation'
     });
     setSelectedSubjectId(id);
     return id;
@@ -132,7 +146,7 @@ export function MissionExpertiseScreen({ navigation, route }) {
         missionId,
         label: subjectDraft.label,
         description: subjectDraft.description,
-        priority: 'Investigation',
+        priority: 'Investigation'
       });
       setSelectedSubjectId(id);
       setSubjectVisible(false);
@@ -157,7 +171,7 @@ export function MissionExpertiseScreen({ navigation, route }) {
         content: factDraft.content,
         sourceType: factDraft.sourceType || 'terrain',
         confidence: factDraft.confidence || 'confirmed',
-        observedAt: new Date().toISOString(),
+        observedAt: new Date().toISOString()
       });
       setFactVisible(false);
       setFactDraft({ content: '', sourceType: 'terrain', confidence: 'confirmed' });
@@ -179,7 +193,7 @@ export function MissionExpertiseScreen({ navigation, route }) {
         subjectId,
         label: hypothesisDraft.label,
         rationale: hypothesisDraft.rationale,
-        status: 'untested',
+        status: 'untested'
       });
       setHypothesisVisible(false);
       setHypothesisDraft({ label: '', rationale: '' });
@@ -193,10 +207,11 @@ export function MissionExpertiseScreen({ navigation, route }) {
 
   const setHypothesisStatus = async (row, status) => {
     const db = await getDb();
-    await db.runAsync(
-      "UPDATE mission_hypotheses SET status=?,updated_at=datetime('now') WHERE id=? AND mission_id=?",
-      [status,row.id,missionId]
-    );
+    await db.runAsync("UPDATE mission_hypotheses SET status=?,updated_at=datetime('now') WHERE id=? AND mission_id=?", [
+      status,
+      row.id,
+      missionId
+    ]);
     await load();
   };
 
@@ -212,7 +227,7 @@ export function MissionExpertiseScreen({ navigation, route }) {
       const db = await getDb();
       await db.runAsync(
         "UPDATE mission_hypotheses SET conclusion=?,updated_at=datetime('now') WHERE id=? AND mission_id=?",
-        [String(conclusionDraft || '').trim() || null,conclusionHypothesis.id,missionId]
+        [String(conclusionDraft || '').trim() || null, conclusionHypothesis.id, missionId]
       );
       setConclusionHypothesis(null);
       setConclusionDraft('');
@@ -224,140 +239,317 @@ export function MissionExpertiseScreen({ navigation, route }) {
     }
   };
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
-    <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
-      <Text style={[styles.sectionTitle, missionStyles.title]}>Expertise / sinistre</Text>
-      <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
-        METRA sépare strictement le fait observé, l’hypothèse de travail et la conclusion. Une hypothèse n’est jamais présentée comme un fait tant qu’elle n’est pas étayée.
-      </Text>
+  return (
+    <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+      <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
+        <Text style={[styles.sectionTitle, missionStyles.title]}>Expertise / sinistre</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
+          METRA sépare strictement le fait observé, l’hypothèse de travail et la conclusion. Une hypothèse n’est jamais
+          présentée comme un fait tant qu’elle n’est pas étayée.
+        </Text>
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setFactVisible(true)}>
-          <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Fait horodaté</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setHypothesisVisible(true)}>
-          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Hypothèse</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setSubjectVisible(true)}>
-          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Sujet d’investigation</Text>
-        </TouchableOpacity>
-      </View>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
+          <TouchableOpacity
+            style={[styles.btnPrimary, missionStyles.primaryButton]}
+            onPress={() => setFactVisible(true)}
+          >
+            <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Fait horodaté</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnSecondary, missionStyles.secondaryButton]}
+            onPress={() => setHypothesisVisible(true)}
+          >
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Hypothèse</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnSecondary, missionStyles.secondaryButton]}
+            onPress={() => setSubjectVisible(true)}
+          >
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Sujet d’investigation</Text>
+          </TouchableOpacity>
+        </View>
 
-      <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-        {[
-          [facts.length,'faits'],
-          [hypothesesForSubject.length,'hypothèses'],
-          [open,'à investiguer'],
-          [supported,'étayées'],
-        ].map(([value,label]) => <View key={label} style={[missionStyles.statBox, { flex: 1, padding: 9, borderRadius: 11 }]}>
-          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13.5, fontWeight: '900' }}>{value}</Text>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 2 }}>{label}</Text>
-        </View>)}
-      </View>
+        <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
+          {[
+            [facts.length, 'faits'],
+            [hypothesesForSubject.length, 'hypothèses'],
+            [open, 'à investiguer'],
+            [supported, 'étayées']
+          ].map(([value, label]) => (
+            <View key={label} style={[missionStyles.statBox, { flex: 1, padding: 9, borderRadius: 11 }]}>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13.5, fontWeight: '900' }}>{value}</Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 2 }}>{label}</Text>
+            </View>
+          ))}
+        </View>
 
-      <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 17 }]}>Sujets d’investigation</Text>
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 92 }}>
-        {subjects.map((row) => <TouchableOpacity
-          key={row.id}
-          onPress={() => setSelectedSubjectId(row.id)}
-          style={{
-            width: 205, minHeight: 70, marginRight: 7, padding: 9, borderRadius: 11, borderWidth: 1,
-            borderColor: selectedSubjectId === row.id ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
-            backgroundColor: selectedSubjectId === row.id ? MISSION_COLORS.accentSoft : '#FFFFFF',
-          }}
-        >
-          <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }} numberOfLines={2}>{row.label}</Text>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 8, marginTop: 3 }}>{[row.site_name,row.status].filter(Boolean).join(' · ') || 'Investigation'}</Text>
-        </TouchableOpacity>)}
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 17 }]}>Sujets d’investigation</Text>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 92 }}>
+          {subjects.map((row) => (
+            <TouchableOpacity
+              key={row.id}
+              onPress={() => setSelectedSubjectId(row.id)}
+              style={{
+                width: 205,
+                minHeight: 70,
+                marginRight: 7,
+                padding: 9,
+                borderRadius: 11,
+                borderWidth: 1,
+                borderColor: selectedSubjectId === row.id ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
+                backgroundColor: selectedSubjectId === row.id ? MISSION_COLORS.accentSoft : '#FFFFFF'
+              }}
+            >
+              <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }} numberOfLines={2}>
+                {row.label}
+              </Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 8, marginTop: 3 }}>
+                {[row.site_name, row.status].filter(Boolean).join(' · ') || 'Investigation'}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
+          <TouchableOpacity
+            style={[styles.btnSecondary, missionStyles.secondaryButton]}
+            onPress={() => navigation.navigate('MissionMeasurements', { missionId })}
+          >
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Mesures</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnSecondary, missionStyles.secondaryButton]}
+            onPress={() => navigation.navigate('MissionDocuments', { missionId })}
+          >
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Documents</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnSecondary, missionStyles.secondaryButton]}
+            onPress={() => navigation.navigate('MissionPhotoAnnotations', { missionId })}
+          >
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Photos / preuves</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnSecondary, missionStyles.secondaryButton]}
+            onPress={() => navigation.navigate('MissionPlan', { missionId })}
+          >
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Plan / localisation</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Chronologie factuelle</Text>
+        {facts.map((row, index) => (
+          <View key={row.id} style={[missionStyles.card, { padding: 10, marginBottom: 7 }]}>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, fontWeight: '900' }}>
+              FAIT {String(index + 1).padStart(2, '0')} · {row.observed_at || row.created_at || ''}
+            </Text>
+            <Text style={{ color: COLORS.ink, fontSize: 9.8, lineHeight: 14, marginTop: 3 }}>{row.content}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8, marginTop: 4 }}>
+              {[row.source_type, row.confidence].filter(Boolean).join(' · ')}
+            </Text>
+          </View>
+        ))}
+        {!facts.length ? (
+          <Text style={{ color: COLORS.inkFaint, fontSize: 9.3 }}>Aucun fait enregistré pour ce sujet.</Text>
+        ) : null}
+
+        <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>
+          Hypothèses & conclusions
+        </Text>
+        {hypothesesForSubject.map((row) => (
+          <View key={row.id} style={[missionStyles.card, { padding: 11, marginBottom: 8 }]}>
+            <Text style={{ color: COLORS.ink, fontSize: 10.3, fontWeight: '900' }}>{row.label}</Text>
+            {row.rationale ? (
+              <Text style={{ color: COLORS.inkSoft, fontSize: 9, lineHeight: 13, marginTop: 4 }}>{row.rationale}</Text>
+            ) : null}
+            {row.source_fact ? (
+              <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, marginTop: 4 }}>
+                Rattachée au fait : {row.source_fact}
+              </Text>
+            ) : null}
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 7 }}>
+              {HYPOTHESIS_STATUS.map(([key, label]) => (
+                <Chip
+                  key={key}
+                  label={label}
+                  selected={row.status === key}
+                  onPress={() => setHypothesisStatus(row, key)}
+                />
+              ))}
+            </View>
+            {row.conclusion ? (
+              <View style={{ backgroundColor: MISSION_COLORS.accentSoft, borderRadius: 9, padding: 8, marginTop: 4 }}>
+                <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, fontWeight: '900' }}>CONCLUSION</Text>
+                <Text style={{ color: COLORS.ink, fontSize: 9, lineHeight: 13, marginTop: 3 }}>{row.conclusion}</Text>
+              </View>
+            ) : null}
+            <TouchableOpacity onPress={() => openConclusion(row)} style={{ alignSelf: 'flex-start', marginTop: 7 }}>
+              <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.4, fontWeight: '900' }}>
+                {row.conclusion ? 'Modifier la conclusion' : '＋ Conclusion'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        ))}
+        {!hypothesesForSubject.length ? (
+          <Text style={{ color: COLORS.inkFaint, fontSize: 9.3 }}>Aucune hypothèse enregistrée.</Text>
+        ) : null}
+
+        <View style={[missionStyles.card, { padding: 10, marginTop: 13, borderColor: '#D7DDD9' }]}>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8, fontWeight: '900' }}>RÈGLE EXPERTISE</Text>
+          <Text style={{ color: COLORS.inkSoft, fontSize: 8.7, lineHeight: 12, marginTop: 3 }}>
+            Les faits restent inchangés dans la chronologie. Les hypothèses peuvent évoluer, être écartées ou étayées.
+            La conclusion est enregistrée séparément.
+          </Text>
+        </View>
       </ScrollView>
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
-        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionMeasurements',{missionId})}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Mesures</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionDocuments',{missionId})}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Documents</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionPhotoAnnotations',{missionId})}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Photos / preuves</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionPlan',{missionId})}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Plan / localisation</Text></TouchableOpacity>
-      </View>
-
-      <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Chronologie factuelle</Text>
-      {facts.map((row,index) => <View key={row.id} style={[missionStyles.card,{padding:10,marginBottom:7}]}>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, fontWeight: '900' }}>FAIT {String(index + 1).padStart(2,'0')} · {row.observed_at || row.created_at || ''}</Text>
-        <Text style={{ color: COLORS.ink, fontSize: 9.8, lineHeight: 14, marginTop: 3 }}>{row.content}</Text>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8, marginTop: 4 }}>{[row.source_type,row.confidence].filter(Boolean).join(' · ')}</Text>
-      </View>)}
-      {!facts.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 9.3 }}>Aucun fait enregistré pour ce sujet.</Text> : null}
-
-      <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Hypothèses & conclusions</Text>
-      {hypothesesForSubject.map((row) => <View key={row.id} style={[missionStyles.card,{padding:11,marginBottom:8}]}>
-        <Text style={{ color: COLORS.ink, fontSize: 10.3, fontWeight: '900' }}>{row.label}</Text>
-        {row.rationale ? <Text style={{ color: COLORS.inkSoft, fontSize: 9, lineHeight: 13, marginTop: 4 }}>{row.rationale}</Text> : null}
-        {row.source_fact ? <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, marginTop: 4 }}>Rattachée au fait : {row.source_fact}</Text> : null}
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 7 }}>
-          {HYPOTHESIS_STATUS.map(([key,label]) => <Chip key={key} label={label} selected={row.status === key} onPress={() => setHypothesisStatus(row,key)} />)}
+      <Modal visible={subjectVisible} transparent animationType="fade" onRequestClose={() => setSubjectVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, missionStyles.modalSheet]}>
+            <Text style={[styles.modalTitle, missionStyles.title]}>Sujet d’investigation</Text>
+            <Field
+              label="Sujet"
+              value={subjectDraft.label}
+              onChangeText={(v) => setSubjectDraft((d) => ({ ...d, label: v }))}
+              placeholder="Ex. Dégradation échangeur, fuite réseau…"
+            />
+            <Field
+              label="Contexte"
+              value={subjectDraft.description}
+              onChangeText={(v) => setSubjectDraft((d) => ({ ...d, description: v }))}
+              multiline
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.btnSecondary, missionStyles.secondaryButton]}
+                onPress={() => setSubjectVisible(false)}
+              >
+                <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnPrimary, missionStyles.primaryButton]}
+                disabled={busy}
+                onPress={createSubject}
+              >
+                <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-        {row.conclusion ? <View style={{ backgroundColor: MISSION_COLORS.accentSoft, borderRadius: 9, padding: 8, marginTop: 4 }}>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, fontWeight: '900' }}>CONCLUSION</Text>
-          <Text style={{ color: COLORS.ink, fontSize: 9, lineHeight: 13, marginTop: 3 }}>{row.conclusion}</Text>
-        </View> : null}
-        <TouchableOpacity onPress={() => openConclusion(row)} style={{ alignSelf: 'flex-start', marginTop: 7 }}>
-          <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.4, fontWeight: '900' }}>{row.conclusion ? 'Modifier la conclusion' : '＋ Conclusion'}</Text>
-        </TouchableOpacity>
-      </View>)}
-      {!hypothesesForSubject.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 9.3 }}>Aucune hypothèse enregistrée.</Text> : null}
+      </Modal>
 
-      <View style={[missionStyles.card,{padding:10,marginTop:13,borderColor:'#D7DDD9'}]}>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8, fontWeight: '900' }}>RÈGLE EXPERTISE</Text>
-        <Text style={{ color: COLORS.inkSoft, fontSize: 8.7, lineHeight: 12, marginTop: 3 }}>
-          Les faits restent inchangés dans la chronologie. Les hypothèses peuvent évoluer, être écartées ou étayées. La conclusion est enregistrée séparément.
-        </Text>
-      </View>
-    </ScrollView>
-
-    <Modal visible={subjectVisible} transparent animationType="fade" onRequestClose={() => setSubjectVisible(false)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalSheet,missionStyles.modalSheet]}>
-        <Text style={[styles.modalTitle,missionStyles.title]}>Sujet d’investigation</Text>
-        <Field label="Sujet" value={subjectDraft.label} onChangeText={(v)=>setSubjectDraft((d)=>({...d,label:v}))} placeholder="Ex. Dégradation échangeur, fuite réseau…" />
-        <Field label="Contexte" value={subjectDraft.description} onChangeText={(v)=>setSubjectDraft((d)=>({...d,description:v}))} multiline />
-        <View style={styles.modalActions}>
-          <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={()=>setSubjectVisible(false)}><Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busy} onPress={createSubject}><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
+      <Modal visible={factVisible} transparent animationType="fade" onRequestClose={() => setFactVisible(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, missionStyles.modalSheet]}>
+            <Text style={[styles.modalTitle, missionStyles.title]}>Fait horodaté</Text>
+            <Field
+              label="Fait observé"
+              value={factDraft.content}
+              onChangeText={(v) => setFactDraft((d) => ({ ...d, content: v }))}
+              multiline
+              placeholder="Décrire uniquement ce qui est observé / mesuré / documenté."
+            />
+            <Field
+              label="Source"
+              value={factDraft.sourceType}
+              onChangeText={(v) => setFactDraft((d) => ({ ...d, sourceType: v }))}
+              placeholder="terrain, document, mesure, tiers…"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.btnSecondary, missionStyles.secondaryButton]}
+                onPress={() => setFactVisible(false)}
+              >
+                <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnPrimary, missionStyles.primaryButton]}
+                disabled={busy}
+                onPress={createFact}
+              >
+                <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer le fait</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-      </View></View>
-    </Modal>
+      </Modal>
 
-    <Modal visible={factVisible} transparent animationType="fade" onRequestClose={() => setFactVisible(false)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalSheet,missionStyles.modalSheet]}>
-        <Text style={[styles.modalTitle,missionStyles.title]}>Fait horodaté</Text>
-        <Field label="Fait observé" value={factDraft.content} onChangeText={(v)=>setFactDraft((d)=>({...d,content:v}))} multiline placeholder="Décrire uniquement ce qui est observé / mesuré / documenté." />
-        <Field label="Source" value={factDraft.sourceType} onChangeText={(v)=>setFactDraft((d)=>({...d,sourceType:v}))} placeholder="terrain, document, mesure, tiers…" />
-        <View style={styles.modalActions}>
-          <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={()=>setFactVisible(false)}><Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busy} onPress={createFact}><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Enregistrer le fait</Text></TouchableOpacity>
+      <Modal
+        visible={hypothesisVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setHypothesisVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, missionStyles.modalSheet]}>
+            <Text style={[styles.modalTitle, missionStyles.title]}>Hypothèse de travail</Text>
+            <Field
+              label="Hypothèse"
+              value={hypothesisDraft.label}
+              onChangeText={(v) => setHypothesisDraft((d) => ({ ...d, label: v }))}
+            />
+            <Field
+              label="Raisonnement / éléments à vérifier"
+              value={hypothesisDraft.rationale}
+              onChangeText={(v) => setHypothesisDraft((d) => ({ ...d, rationale: v }))}
+              multiline
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.btnSecondary, missionStyles.secondaryButton]}
+                onPress={() => setHypothesisVisible(false)}
+              >
+                <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnPrimary, missionStyles.primaryButton]}
+                disabled={busy}
+                onPress={createHypothesis}
+              >
+                <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer l’hypothèse</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-      </View></View>
-    </Modal>
+      </Modal>
 
-    <Modal visible={hypothesisVisible} transparent animationType="fade" onRequestClose={() => setHypothesisVisible(false)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalSheet,missionStyles.modalSheet]}>
-        <Text style={[styles.modalTitle,missionStyles.title]}>Hypothèse de travail</Text>
-        <Field label="Hypothèse" value={hypothesisDraft.label} onChangeText={(v)=>setHypothesisDraft((d)=>({...d,label:v}))} />
-        <Field label="Raisonnement / éléments à vérifier" value={hypothesisDraft.rationale} onChangeText={(v)=>setHypothesisDraft((d)=>({...d,rationale:v}))} multiline />
-        <View style={styles.modalActions}>
-          <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={()=>setHypothesisVisible(false)}><Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busy} onPress={createHypothesis}><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer l’hypothèse</Text></TouchableOpacity>
+      <Modal
+        visible={!!conclusionHypothesis}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setConclusionHypothesis(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, missionStyles.modalSheet]}>
+            <Text style={[styles.modalTitle, missionStyles.title]}>Conclusion de l’hypothèse</Text>
+            <Text style={{ color: COLORS.inkSoft, fontSize: 9.2, lineHeight: 13, marginBottom: 8 }}>
+              {conclusionHypothesis?.label || ''}
+            </Text>
+            <Field
+              label="Conclusion distincte du fait"
+              value={conclusionDraft}
+              onChangeText={setConclusionDraft}
+              multiline
+              placeholder="Conclusion, résultat des investigations, limites restantes…"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.btnSecondary, missionStyles.secondaryButton]}
+                onPress={() => setConclusionHypothesis(null)}
+              >
+                <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.btnPrimary, missionStyles.primaryButton]}
+                disabled={busy}
+                onPress={saveConclusion}
+              >
+                <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-      </View></View>
-    </Modal>
-
-    <Modal visible={!!conclusionHypothesis} transparent animationType="fade" onRequestClose={() => setConclusionHypothesis(null)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalSheet,missionStyles.modalSheet]}>
-        <Text style={[styles.modalTitle,missionStyles.title]}>Conclusion de l’hypothèse</Text>
-        <Text style={{ color: COLORS.inkSoft, fontSize: 9.2, lineHeight: 13, marginBottom: 8 }}>{conclusionHypothesis?.label || ''}</Text>
-        <Field label="Conclusion distincte du fait" value={conclusionDraft} onChangeText={setConclusionDraft} multiline placeholder="Conclusion, résultat des investigations, limites restantes…" />
-        <View style={styles.modalActions}>
-          <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={()=>setConclusionHypothesis(null)}><Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busy} onPress={saveConclusion}><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
-        </View>
-      </View></View>
-    </Modal>
-  </View>;
+      </Modal>
+    </View>
+  );
 }

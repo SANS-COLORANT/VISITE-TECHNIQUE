@@ -586,5 +586,5 @@ export const migration041 = {
     CREATE INDEX IF NOT EXISTS idx_mission_import_batches_mission ON mission_import_batches(mission_id, created_at DESC);
     CREATE INDEX IF NOT EXISTS idx_mission_provenance_entity ON mission_provenance(mission_id, entity_type, entity_id);
     CREATE INDEX IF NOT EXISTS idx_mission_report_outputs_mission ON mission_report_outputs(mission_id, generated_at DESC);
-  `,
+  `
 };

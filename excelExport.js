@@ -51,20 +51,30 @@ function supprimerDoublonsAvisCommentaire(sheet) {
   for (let r = plage.s.r; r <= plage.e.r; r += 1) {
     const refD = XLSX.utils.encode_cell({ r, c: 3 });
     const refE = XLSX.utils.encode_cell({ r, c: 4 });
-    const d = String(sheet[refD]?.v ?? '').trim().toLowerCase();
-    const e = String(sheet[refE]?.v ?? '').trim().toLowerCase();
+    const d = String(sheet[refD]?.v ?? '')
+      .trim()
+      .toLowerCase();
+    const e = String(sheet[refE]?.v ?? '')
+      .trim()
+      .toLowerCase();
     if (d === 'avis') viderCellule(sheet, refD);
     if (e === 'commentaire') viderCellule(sheet, refE);
   }
 }
 
 function nomLocalDepuisChamps(champs = []) {
-  const lire = (cle) => String((champs.find((row) => row.cle === cle)?.valeur) || '').trim();
+  const lire = (cle) => String(champs.find((row) => row.cle === cle)?.valeur || '').trim();
   return lire('Nom du local') || lire('Type de LT') || '';
 }
 
 function slugFichier(valeur) {
-  return String(valeur || 'site').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'site';
+  return (
+    String(valeur || 'site')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9]+/g, '_')
+      .replace(/^_+|_+$/g, '') || 'site'
+  );
 }
 
 function formaterDateReserve(valeur) {
@@ -90,7 +100,11 @@ function ajouterReseauxComplementaires(wb, reseaux, config) {
   if (!overflow || reseaux.length <= starts.length) return 0;
   const supplementaires = reseaux.slice(starts.length);
   const colonnes = overflow.columns || [];
-  const aoa = [[`Réseaux complémentaires — non prévus dans les ${starts.length} blocs de la trame`], colonnes.map((c) => c.label || c.exportKey), ...supplementaires.map((reseau) => colonnes.map((c) => reseau[c.exportKey] ?? ''))];
+  const aoa = [
+    [`Réseaux complémentaires — non prévus dans les ${starts.length} blocs de la trame`],
+    colonnes.map((c) => c.label || c.exportKey),
+    ...supplementaires.map((reseau) => colonnes.map((c) => reseau[c.exportKey] ?? ''))
+  ];
   const sheet = XLSX.utils.aoa_to_sheet(aoa);
   sheet['!cols'] = colonnes.map((c) => ({ wch: Math.max(16, Math.min(45, String(c.label || '').length + 6)) }));
   if (wb.Sheets[overflow.sheet]) wb.Sheets[overflow.sheet] = sheet;
@@ -140,14 +154,22 @@ function exporterCompteurs(sheet, compteurs = []) {
 }
 
 function normaliserMaterielPourExport(materiel = []) {
-  return materiel.map((m) => ({ ...m, nombre: m.nombre ?? m.nb ?? 1, numero_materiel: m.numero_materiel ?? m.numero ?? '', reseau_desservi: m.reseau_desservi ?? m.reseau ?? '', caracteristiques: m.caracteristiques ?? '', categorie: m.categorie || m.type_code || 'Équipement', designation: m.designation || m.categorie || 'Équipement' }));
+  return materiel.map((m) => ({
+    ...m,
+    nombre: m.nombre ?? m.nb ?? 1,
+    numero_materiel: m.numero_materiel ?? m.numero ?? '',
+    reseau_desservi: m.reseau_desservi ?? m.reseau ?? '',
+    caracteristiques: m.caracteristiques ?? '',
+    categorie: m.categorie || m.type_code || 'Équipement',
+    designation: m.designation || m.categorie || 'Équipement'
+  }));
 }
 
 function normaliserRemarquesPourExport(remarques = [], trameId = '') {
   return remarques.map((r) => ({
     ...r,
     poste: trameId === 'vmc' && String(r.reference_libelle || '').trim() ? String(r.reference_libelle).trim() : r.poste,
-    date_reserve: formaterDateReserve(r.cree_le),
+    date_reserve: formaterDateReserve(r.cree_le)
   }));
 }
 
@@ -159,7 +181,13 @@ function ajouterFeuillePreAllumageModulaire(wb, modele, champsMap, controlesMap)
       const key = `${rubrique.section_code}||${champ.cle_stockage}`;
       const saisie = champsMap.get(key);
       const controle = controlesMap.get(key);
-      lignes.push([rubrique.panel_id, rubrique.nom, champ.libelle, champ.type_code === 'controle' ? (controle?.avis || '') : '', champ.type_code === 'controle' ? (controle?.commentaire || '') : (saisie?.valeur || '')]);
+      lignes.push([
+        rubrique.panel_id,
+        rubrique.nom,
+        champ.libelle,
+        champ.type_code === 'controle' ? controle?.avis || '' : '',
+        champ.type_code === 'controle' ? controle?.commentaire || '' : saisie?.valeur || ''
+      ]);
     }
   }
   const feuille = XLSX.utils.aoa_to_sheet(lignes);
@@ -177,13 +205,18 @@ async function construireClasseur(visiteId) {
   const cfg = trame.excel;
   if (!cfg?.templateBase64) throw new Error(`Aucun modèle Excel configuré pour la trame ${trame.nom}.`);
 
-  const [champs, controles, reseaux, compteurs, materielBrut, remarquesBrutes, note, aliases, modelePreAllumage] = await Promise.all([
-    db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id = ?`, [visiteId]),
-    db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id = ?`, [visiteId]),
-    listerReseaux(visiteId), listerCompteurs(visiteId), listerMateriel(visiteId), listerRemarques(visiteId), getNote(visiteId),
-    trame.id === 'pre_allumage' ? listerAliasesPreAllumage(visiteId) : Promise.resolve({}),
-    trame.id === 'pre_allumage' ? chargerPreAllumageModulaire(visiteId) : Promise.resolve(null),
-  ]);
+  const [champs, controles, reseaux, compteurs, materielBrut, remarquesBrutes, note, aliases, modelePreAllumage] =
+    await Promise.all([
+      db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id = ?`, [visiteId]),
+      db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id = ?`, [visiteId]),
+      listerReseaux(visiteId),
+      listerCompteurs(visiteId),
+      listerMateriel(visiteId),
+      listerRemarques(visiteId),
+      getNote(visiteId),
+      trame.id === 'pre_allumage' ? listerAliasesPreAllumage(visiteId) : Promise.resolve({}),
+      trame.id === 'pre_allumage' ? chargerPreAllumageModulaire(visiteId) : Promise.resolve(null)
+    ]);
 
   const materiel = normaliserMaterielPourExport(materielBrut);
   const remarques = normaliserRemarquesPourExport(remarquesBrutes, trame.id);
@@ -197,8 +230,15 @@ async function construireClasseur(visiteId) {
 
   const meta = cfg.metadata || {};
   const nomLocal = nomLocalDepuisChamps(champs);
-  const dateGenerale = String(champs.find((row) => row.cle === 'Date de la visite')?.valeur || champs.find((row) => row.cle === 'Date de visite')?.valeur || visite.date_visite || '').trim();
-  [meta.client, meta.site, meta.adresse, meta.dateVisite, 'C1', 'C2', 'C3', 'C5'].filter((ref, index, refs) => ref && !['B1', 'B2', 'B3', 'B5'].includes(ref) && refs.indexOf(ref) === index).forEach((ref) => viderCellule(sheetPrincipale, ref));
+  const dateGenerale = String(
+    champs.find((row) => row.cle === 'Date de la visite')?.valeur ||
+      champs.find((row) => row.cle === 'Date de visite')?.valeur ||
+      visite.date_visite ||
+      ''
+  ).trim();
+  [meta.client, meta.site, meta.adresse, meta.dateVisite, 'C1', 'C2', 'C3', 'C5']
+    .filter((ref, index, refs) => ref && !['B1', 'B2', 'B3', 'B5'].includes(ref) && refs.indexOf(ref) === index)
+    .forEach((ref) => viderCellule(sheetPrincipale, ref));
   setCell(sheetPrincipale, 'B1', visite.nom_client || '');
   setCell(sheetPrincipale, 'B2', visite.nom_site || '');
   setCell(sheetPrincipale, 'B3', nomLocal);
@@ -212,12 +252,22 @@ async function construireClasseur(visiteId) {
       const ligne = XLSX.utils.decode_cell(mapping.valueCell).r + 1;
       const rubrique = rubriquesParCode.get(mapping.sectionCode);
       const champModulaire = rubrique?.champs?.find((c) => c.cle_stockage === mapping.cle);
-      setCell(sheetPrincipale, `A${ligne}`, champModulaire?.libelle || libelleChamp(mapping.sectionCode, mapping.cle, aliases));
-      if (!premieresLignes.has(mapping.sectionCode) || ligne < premieresLignes.get(mapping.sectionCode).ligne) premieresLignes.set(mapping.sectionCode, { ligne, mapping });
+      setCell(
+        sheetPrincipale,
+        `A${ligne}`,
+        champModulaire?.libelle || libelleChamp(mapping.sectionCode, mapping.cle, aliases)
+      );
+      if (!premieresLignes.has(mapping.sectionCode) || ligne < premieresLignes.get(mapping.sectionCode).ligne)
+        premieresLignes.set(mapping.sectionCode, { ligne, mapping });
     }
     for (const { ligne, mapping } of premieresLignes.values()) {
       const rubrique = rubriquesParCode.get(mapping.sectionCode);
-      if (ligne > 3) setCell(sheetPrincipale, `A${ligne - 3}`, rubrique?.nom || libelleSection(mapping.panelId, mapping.section, aliases));
+      if (ligne > 3)
+        setCell(
+          sheetPrincipale,
+          `A${ligne - 3}`,
+          rubrique?.nom || libelleSection(mapping.panelId, mapping.section, aliases)
+        );
     }
   }
 
@@ -227,9 +277,16 @@ async function construireClasseur(visiteId) {
     const lookup = `${mapping.sectionCode}||${mapping.cle}`;
     const champ = champsMap.get(lookup);
     const controle = controlesMap.get(lookup);
-    if (mapping.type === 'champ') { if (champ) setCell(sheetPrincipale, mapping.valueCell, champ.valeur); continue; }
-    if (controle) { setCell(sheetPrincipale, mapping.valueCell, controle.avis); setCell(sheetPrincipale, mapping.commentCell, controle.commentaire); }
-    if (mapping.panelId === 'p-releves' && champ) setCell(sheetPrincipale, mapping.commentCell || mapping.valueCell, champ.valeur);
+    if (mapping.type === 'champ') {
+      if (champ) setCell(sheetPrincipale, mapping.valueCell, champ.valeur);
+      continue;
+    }
+    if (controle) {
+      setCell(sheetPrincipale, mapping.valueCell, controle.avis);
+      setCell(sheetPrincipale, mapping.commentCell, controle.commentaire);
+    }
+    if (mapping.panelId === 'p-releves' && champ)
+      setCell(sheetPrincipale, mapping.commentCell || mapping.valueCell, champ.valeur);
   }
 
   const reseauxCfg = cfg.networks;
@@ -238,7 +295,9 @@ async function construireClasseur(visiteId) {
     const colonne = reseauxCfg.exportColumn || 'C';
     reseaux.slice(0, (reseauxCfg.starts || []).length).forEach((r, i) => {
       const debut = reseauxCfg.starts[i];
-      Object.entries(reseauxCfg.exportOffsets || {}).forEach(([champ, offset]) => setCell(sheetReseaux, `${colonne}${debut + offset}`, r[champ]));
+      Object.entries(reseauxCfg.exportOffsets || {}).forEach(([champ, offset]) =>
+        setCell(sheetReseaux, `${colonne}${debut + offset}`, r[champ])
+      );
     });
   }
   const reseauxSupplementaires = reseauxCfg ? ajouterReseauxComplementaires(wb, reseaux, reseauxCfg) : 0;
@@ -249,17 +308,35 @@ async function construireClasseur(visiteId) {
   const noteCfg = tables.note;
   if (noteCfg) setCell(wb.Sheets[noteCfg.sheet], noteCfg.cell, note?.contenu || '');
 
-  return { wb, visite, trame, stats: { champs: champs.length, controles: controles.length, reseaux: reseaux.length, compteurs: compteurs.length, reseauxSupplementaires, materiel: materiel.length, remarques: remarques.length } };
+  return {
+    wb,
+    visite,
+    trame,
+    stats: {
+      champs: champs.length,
+      controles: controles.length,
+      reseaux: reseaux.length,
+      compteurs: compteurs.length,
+      reseauxSupplementaires,
+      materiel: materiel.length,
+      remarques: remarques.length
+    }
+  };
 }
 
 async function preparerExport(visiteId) {
   const { wb, visite, trame, stats } = await construireClasseur(visiteId);
   let base64;
-  try { base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx', compression: true }); }
-  catch (e) { throw new Error(`Impossible de générer le classeur Excel : ${e?.message || e}`); }
+  try {
+    base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx', compression: true });
+  } catch (e) {
+    throw new Error(`Impossible de générer le classeur Excel : ${e?.message || e}`);
+  }
   if (!base64 || base64.length < 100) throw new Error('Le fichier Excel généré est vide ou invalide.');
   const db = await getDb();
-  const nomLocal = nomLocalDepuisChamps(await db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id = ?`, [visiteId]));
+  const nomLocal = nomLocalDepuisChamps(
+    await db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id = ?`, [visiteId])
+  );
   const morceauxNom = ['Visite', slugFichier(visite.nom_site)];
   if (nomLocal) morceauxNom.push(slugFichier(nomLocal));
   const nomFichier = `${morceauxNom.join('_')}.xlsx`;
@@ -284,14 +361,23 @@ async function partagerExcel(visiteId) {
   if (!dossier) throw new Error('Stockage local Android indisponible');
   const chemin = dossier + nomFichier;
   await FileSystem.writeAsStringAsync(chemin, base64, { encoding: FileSystem.EncodingType.Base64 });
-  if (!(await Sharing.isAvailableAsync())) throw new Error('Le partage de fichiers n’est pas disponible sur cet appareil.');
-  await Sharing.shareAsync(chemin, { mimeType: XLSX_MIME, dialogTitle: `Partager la visite — ${trame.nom}`, UTI: 'org.openxmlformats.spreadsheetml.sheet' });
+  if (!(await Sharing.isAvailableAsync()))
+    throw new Error('Le partage de fichiers n’est pas disponible sur cet appareil.');
+  await Sharing.shareAsync(chemin, {
+    mimeType: XLSX_MIME,
+    dialogTitle: `Partager la visite — ${trame.nom}`,
+    UTI: 'org.openxmlformats.spreadsheetml.sheet'
+  });
   return { nomFichier, trameId: trame.id, trameNom: trame.nom, stats, chemin };
 }
 
 async function exporterEtPartager(visiteId) {
-  try { return await enregistrerExcelSurAppareil(visiteId); }
-  catch (e) { if (/Documents\/METRA|dossier METRA/i.test(String(e?.message || e))) return partagerExcel(visiteId); throw e; }
+  try {
+    return await enregistrerExcelSurAppareil(visiteId);
+  } catch (e) {
+    if (/Documents\/METRA|dossier METRA/i.test(String(e?.message || e))) return partagerExcel(visiteId);
+    throw e;
+  }
 }
 
 export { construireClasseur, preparerExport, enregistrerExcelSurAppareil, partagerExcel, exporterEtPartager };

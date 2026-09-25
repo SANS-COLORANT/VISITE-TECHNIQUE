@@ -6,12 +6,15 @@ import { getDb } from './db.js';
 const PDF_MIME = 'application/pdf';
 
 function safe(value = 'Mission') {
-  return String(value || 'Mission')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9._-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^[_\.-]+|[_\.-]+$/g, '')
-    .slice(0, 100) || 'Mission';
+  return (
+    String(value || 'Mission')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^[_\.-]+|[_\.-]+$/g, '')
+      .slice(0, 100) || 'Mission'
+  );
 }
 
 function clean(value) {
@@ -60,8 +63,12 @@ async function embedPhoto(pdf, row) {
     if (lower.endsWith('.png')) return pdf.embedPng(base64);
     return pdf.embedJpg(base64);
   } catch {
-    try { return await pdf.embedJpg(base64); } catch {}
-    try { return await pdf.embedPng(base64); } catch {}
+    try {
+      return await pdf.embedJpg(base64);
+    } catch {}
+    try {
+      return await pdf.embedPng(base64);
+    } catch {}
     return null;
   }
 }
@@ -94,12 +101,13 @@ async function loadAlbumData(missionId, mode = 'all') {
 
   let photos = rows;
   if (mode === 'report') {
-    photos = rows.filter((row) => ['report','client'].includes(String(row.visibility || '')));
+    photos = rows.filter((row) => ['report', 'client'].includes(String(row.visibility || '')));
   } else if (mode === 'issues') {
-    photos = rows.filter((row) =>
-      Boolean(row.point_id || row.action_id)
-      || ['before','after'].includes(String(row.phase_role || ''))
-      || ['reserve','control','action'].includes(String(row.point_type || ''))
+    photos = rows.filter(
+      (row) =>
+        Boolean(row.point_id || row.action_id) ||
+        ['before', 'after'].includes(String(row.phase_role || '')) ||
+        ['reserve', 'control', 'action'].includes(String(row.point_type || ''))
     );
   }
 
@@ -110,16 +118,20 @@ function contextText(row) {
   return [
     row.site_name,
     row.location_label,
-    [row.equipment_type,row.equipment_brand,row.equipment_model].filter(Boolean).join(' · '),
-  ].filter(Boolean).join(' › ');
+    [row.equipment_type, row.equipment_brand, row.equipment_model].filter(Boolean).join(' · ')
+  ]
+    .filter(Boolean)
+    .join(' › ');
 }
 
 function linkedText(row) {
   return [
     row.point_label ? 'Point : ' + row.point_label : null,
     row.action_label ? 'Action : ' + row.action_label : null,
-    row.phase_role ? 'Rôle : ' + row.phase_role : null,
-  ].filter(Boolean).join(' · ');
+    row.phase_role ? 'Rôle : ' + row.phase_role : null
+  ]
+    .filter(Boolean)
+    .join(' · ');
 }
 
 export async function preparerAlbumPhotosMission(missionId, { mode = 'all' } = {}) {
@@ -135,23 +147,49 @@ export async function preparerAlbumPhotosMission(missionId, { mode = 'all' } = {
   const slotHeight = 355;
 
   if (!photos.length) {
-    const page = pdf.addPage([pageWidth,pageHeight]);
-    page.drawText('Album photos Mission', { x: margin, y: pageHeight - 70, size: 18, font: bold, color: rgb(0.12,0.22,0.17) });
-    page.drawText(mission.label || mission.reference || mission.id, { x: margin, y: pageHeight - 96, size: 11, font: regular, color: rgb(0.25,0.32,0.29) });
-    page.drawText('Aucune photo dans cette sélection.', { x: margin, y: pageHeight - 140, size: 11, font: regular, color: rgb(0.35,0.40,0.38) });
+    const page = pdf.addPage([pageWidth, pageHeight]);
+    page.drawText('Album photos Mission', {
+      x: margin,
+      y: pageHeight - 70,
+      size: 18,
+      font: bold,
+      color: rgb(0.12, 0.22, 0.17)
+    });
+    page.drawText(mission.label || mission.reference || mission.id, {
+      x: margin,
+      y: pageHeight - 96,
+      size: 11,
+      font: regular,
+      color: rgb(0.25, 0.32, 0.29)
+    });
+    page.drawText('Aucune photo dans cette sélection.', {
+      x: margin,
+      y: pageHeight - 140,
+      size: 11,
+      font: regular,
+      color: rgb(0.35, 0.4, 0.38)
+    });
   }
 
   for (let index = 0; index < photos.length; index += 1) {
     const slot = index % 2;
     let page;
     if (slot === 0) {
-      page = pdf.addPage([pageWidth,pageHeight]);
+      page = pdf.addPage([pageWidth, pageHeight]);
       page.drawText('Album photos · ' + (mission.label || mission.reference || 'Mission'), {
-        x: margin, y: pageHeight - 32, size: 10, font: bold, color: rgb(0.12,0.30,0.21),
+        x: margin,
+        y: pageHeight - 32,
+        size: 10,
+        font: bold,
+        color: rgb(0.12, 0.3, 0.21)
       });
       page.drawText(
-        mode === 'report' ? 'Sélection rapport/client' : mode === 'issues' ? 'Photos liées aux points / actions' : 'Toutes les photos',
-        { x: margin, y: pageHeight - 47, size: 7.5, font: regular, color: rgb(0.40,0.45,0.43) }
+        mode === 'report'
+          ? 'Sélection rapport/client'
+          : mode === 'issues'
+            ? 'Photos liées aux points / actions'
+            : 'Toutes les photos',
+        { x: margin, y: pageHeight - 47, size: 7.5, font: regular, color: rgb(0.4, 0.45, 0.43) }
       );
     } else {
       page = pdf.getPages()[pdf.getPageCount() - 1];
@@ -161,19 +199,23 @@ export async function preparerAlbumPhotosMission(missionId, { mode = 'all' } = {
     const top = pageHeight - 65 - slot * slotHeight;
     const image = await embedPhoto(pdf, row);
 
-    page.drawText(String(index + 1).padStart(3,'0') + ' · ' + (row.label || row.type || 'Photo'), {
-      x: margin, y: top, size: 10, font: bold, color: rgb(0.12,0.22,0.17),
+    page.drawText(String(index + 1).padStart(3, '0') + ' · ' + (row.label || row.type || 'Photo'), {
+      x: margin,
+      y: top,
+      size: 10,
+      font: bold,
+      color: rgb(0.12, 0.22, 0.17)
     });
 
     let metaY = top - 15;
     const contextLines = wrapText(contextText(row), 88);
     for (const line of contextLines) {
-      page.drawText(line, { x: margin, y: metaY, size: 7.2, font: regular, color: rgb(0.35,0.40,0.38) });
+      page.drawText(line, { x: margin, y: metaY, size: 7.2, font: regular, color: rgb(0.35, 0.4, 0.38) });
       metaY -= 10;
     }
     const linkedLines = wrapText(linkedText(row), 88);
     for (const line of linkedLines) {
-      page.drawText(line, { x: margin, y: metaY, size: 7.2, font: regular, color: rgb(0.18,0.38,0.27) });
+      page.drawText(line, { x: margin, y: metaY, size: 7.2, font: regular, color: rgb(0.18, 0.38, 0.27) });
       metaY -= 10;
     }
 
@@ -189,20 +231,32 @@ export async function preparerAlbumPhotosMission(missionId, { mode = 'all' } = {
         x: margin + (usableWidth - w) / 2,
         y: imageTop - h,
         width: w,
-        height: h,
+        height: h
       });
     } else {
       page.drawRectangle({
-        x: margin, y: imageBottom, width: usableWidth, height: maxHeight,
-        borderWidth: 0.8, borderColor: rgb(0.75,0.78,0.77),
+        x: margin,
+        y: imageBottom,
+        width: usableWidth,
+        height: maxHeight,
+        borderWidth: 0.8,
+        borderColor: rgb(0.75, 0.78, 0.77)
       });
       page.drawText('Image indisponible dans le stockage local.', {
-        x: margin + 12, y: imageBottom + maxHeight / 2, size: 8, font: regular, color: rgb(0.45,0.48,0.47),
+        x: margin + 12,
+        y: imageBottom + maxHeight / 2,
+        size: 8,
+        font: regular,
+        color: rgb(0.45, 0.48, 0.47)
       });
     }
 
     page.drawText(clean(row.taken_at || row.created_at), {
-      x: margin, y: top - 319, size: 6.7, font: regular, color: rgb(0.48,0.50,0.49),
+      x: margin,
+      y: top - 319,
+      size: 6.7,
+      font: regular,
+      color: rgb(0.48, 0.5, 0.49)
     });
   }
 
@@ -212,7 +266,7 @@ export async function preparerAlbumPhotosMission(missionId, { mode = 'all' } = {
     base64,
     name: 'Album_photos_' + safe(mission.label || mission.reference || mission.id) + '_' + suffix + '.pdf',
     count: photos.length,
-    mission,
+    mission
   };
 }
 
@@ -222,7 +276,7 @@ export async function exporterAlbumPhotosMission(missionId, { mode = 'all', shar
   if (!root) throw new Error('Stockage temporaire indisponible.');
   const uri = root + out.name;
   await FileSystem.writeAsStringAsync(uri, out.base64, { encoding: FileSystem.EncodingType.Base64 });
-  if (share && await Sharing.isAvailableAsync()) {
+  if (share && (await Sharing.isAvailableAsync())) {
     await Sharing.shareAsync(uri, { mimeType: PDF_MIME, dialogTitle: 'Exporter l’album photos de la Mission' });
   }
   return { ...out, uri };

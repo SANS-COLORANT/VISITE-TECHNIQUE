@@ -1,11 +1,18 @@
 const fs = require('fs');
 
-function read(path) { return fs.readFileSync(path, 'utf8'); }
+function read(path) {
+  return fs.readFileSync(path, 'utf8');
+}
+// Compare en ignorant les espaces/retours à la ligne : le contrôle vérifie une
+// structure de code, pas un formatage exact (survit à un passage Prettier).
+function norm(s) {
+  return s.replace(/\s+/g, '');
+}
 function requireText(text, needle, label) {
-  if (!text.includes(needle)) throw new Error(`SITE/LOCAL navigation: ${label} manquant (${needle})`);
+  if (!norm(text).includes(norm(needle))) throw new Error(`SITE/LOCAL navigation: ${label} manquant (${needle})`);
 }
 function forbidText(text, needle, label) {
-  if (text.includes(needle)) throw new Error(`SITE/LOCAL navigation: ${label} interdit (${needle})`);
+  if (norm(text).includes(norm(needle))) throw new Error(`SITE/LOCAL navigation: ${label} interdit (${needle})`);
 }
 
 const app = read('App.js');
@@ -34,10 +41,18 @@ requireText(locals, '+ Nouveau local', 'création locale au niveau Locaux');
 requireText(navigationPrewarm, 'listerVisitesLocal', 'historique filtré au local');
 requireText(visits, 'peekLocalVisits', 'historique local stale-while-revalidate');
 requireText(visits, 'installationId', 'identité locale conservée');
-requireText(visits, 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId, installationId })', 'nouvelle visite rattachée au local');
+requireText(
+  visits,
+  'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId, installationId })',
+  'nouvelle visite rattachée au local'
+);
 requireText(db, 'async function listerVisitesLocal', 'repository visites par local');
 
-forbidText(cache, 'SELECT id FROM sites WHERE client_id=? AND lower(trim(nom_site))=lower(trim(?))', 'fusion SITE par libellé');
+forbidText(
+  cache,
+  'SELECT id FROM sites WHERE client_id=? AND lower(trim(nom_site))=lower(trim(?))',
+  'fusion SITE par libellé'
+);
 forbidText(preparation, 'sameName.length === 1', 'fusion LOCAL par libellé en préparation');
 forbidText(latest, 'sameName.length === 1', 'fusion LOCAL par libellé historique');
 requireText(latest, "reason: 'no_latest_visit', installationId", 'local matérialisé même sans ancienne visite');
@@ -62,4 +77,6 @@ for (const file of fs.readdirSync('.').filter((name) => name.endsWith('.js'))) {
   }
 }
 
-console.log('Contrat SITE/LOCAL validé: Client -> Sites -> Locaux -> Visites, sans modifier la synthèse ni le pipeline Intranet.');
+console.log(
+  'Contrat SITE/LOCAL validé: Client -> Sites -> Locaux -> Visites, sans modifier la synthèse ni le pipeline Intranet.'
+);

@@ -9,5 +9,5 @@ export const migration010 = {
     CREATE INDEX IF NOT EXISTS idx_specs_lookup ON caracteristiques_equipement(variante_id, cle, ordre);
     CREATE INDEX IF NOT EXISTS idx_docs_lookup ON documents_equipement(variante_id, type, nom);
     CREATE INDEX IF NOT EXISTS idx_curves_lookup ON courbes_equipement(variante_id, nom);
-  `,
+  `
 };

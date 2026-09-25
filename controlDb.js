@@ -14,7 +14,9 @@ export async function upsertControlePartiel(visiteId, sectionCode, cle, patch = 
   );
 
   const avis = Object.prototype.hasOwnProperty.call(patch, 'avis') ? patch.avis : (actuel?.avis ?? null);
-  const commentaire = Object.prototype.hasOwnProperty.call(patch, 'commentaire') ? patch.commentaire : (actuel?.commentaire ?? null);
+  const commentaire = Object.prototype.hasOwnProperty.call(patch, 'commentaire')
+    ? patch.commentaire
+    : (actuel?.commentaire ?? null);
 
   await db.runAsync(
     `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)

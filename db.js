@@ -3,10 +3,16 @@
 import { openAppDatabase } from './database/index.js';
 import { createId } from './database/ids.js';
 
-function chargerDonneesLegacy(){return require('./data.js');}
-function chargerMaterielPersistant(){return require('./persistentEquipmentDb.js');}
+function chargerDonneesLegacy() {
+  return require('./data.js');
+}
+function chargerMaterielPersistant() {
+  return require('./persistentEquipmentDb.js');
+}
 
-export function uuidv4() { return createId(); }
+export function uuidv4() {
+  return createId();
+}
 
 let dbInstance = null;
 let dbInitPromise = null;
@@ -28,49 +34,570 @@ async function getDb() {
   return dbInitPromise;
 }
 
-async function seedDemoSiNecessaire(db) { const deja=await db.getFirstAsync(`SELECT value FROM _meta WHERE key = 'demo_seeded'`); if(deja)return; const clientId=uuidv4(),siteId=uuidv4(); await db.runAsync(`INSERT INTO clients (id, nom, code_exploitant, adresse) VALUES (?, ?, ?, ?)`,[clientId,'Résidence Les Pins','RLP01','12 rue des Tilleuls']); await db.runAsync(`INSERT INTO sites (id, client_id, nom_site, adresse, statut) VALUES (?, ?, ?, ?, ?)`,[siteId,clientId,'Chaufferie centrale','12 rue des Tilleuls','Actif']); await db.runAsync(`INSERT INTO clients (id, nom, code_exploitant, adresse) VALUES (?, ?, ?, ?)`,[uuidv4(),'Office HLM Colombes','OHC08','5 avenue de la République']); await db.runAsync(`INSERT INTO _meta (key, value) VALUES ('demo_seeded', '1')`); }
-async function seedBibliothequeSiNecessaire(db){const deja=await db.getFirstAsync(`SELECT value FROM _meta WHERE key = 'biblio_seeded'`);if(deja)return;const {PRESCRIPTIONS}=chargerDonneesLegacy();for(const[cle,options]of Object.entries(PRESCRIPTIONS))for(const opt of options){const nom=cle+(opt.critere?' — '+opt.critere:'');await db.runAsync(`INSERT INTO reserves_bibliotheque (id, nom, description, prix, poste, delai) VALUES (?, ?, ?, ?, ?, ?)`,[uuidv4(),nom,opt.prestation,opt.estimatif??null,opt.poste??null,opt.delai??null]);}await db.runAsync(`INSERT INTO _meta (key, value) VALUES ('biblio_seeded', '1')`);}
-const EQUIPEMENTS_SEED=[{categorie:'Chaudière',marque:'De Dietrich',modele:'C310 ECO'},{categorie:'Chaudière',marque:'Viessmann',modele:'Vitodens 200-W'},{categorie:'Chaudière',marque:'Atlantic',modele:'Alfea Excellia'},{categorie:'Pompe',marque:'Grundfos',modele:'Alpha2'},{categorie:'Pompe',marque:'Grundfos',modele:'Magna3'},{categorie:'Pompe',marque:'Wilo',modele:'Stratos PICO'},{categorie:'Circulateur',marque:'Grundfos',modele:'UPS2'},{categorie:'Échangeur',marque:'Alfa Laval',modele:'M6'}];
-async function seedEquipementsBibliothequeSiNecessaire(db){const deja=await db.getFirstAsync(`SELECT value FROM _meta WHERE key = 'equip_biblio_seeded'`);if(deja)return;for(const e of EQUIPEMENTS_SEED)await db.runAsync(`INSERT INTO equipements_bibliotheque (id, categorie, marque, modele) VALUES (?, ?, ?, ?)`,[uuidv4(),e.categorie,e.marque,e.modele]);await db.runAsync(`INSERT INTO _meta (key, value) VALUES ('equip_biblio_seeded', '1')`);}
+async function seedDemoSiNecessaire(db) {
+  const deja = await db.getFirstAsync(`SELECT value FROM _meta WHERE key = 'demo_seeded'`);
+  if (deja) return;
+  const clientId = uuidv4(),
+    siteId = uuidv4();
+  await db.runAsync(`INSERT INTO clients (id, nom, code_exploitant, adresse) VALUES (?, ?, ?, ?)`, [
+    clientId,
+    'Résidence Les Pins',
+    'RLP01',
+    '12 rue des Tilleuls'
+  ]);
+  await db.runAsync(`INSERT INTO sites (id, client_id, nom_site, adresse, statut) VALUES (?, ?, ?, ?, ?)`, [
+    siteId,
+    clientId,
+    'Chaufferie centrale',
+    '12 rue des Tilleuls',
+    'Actif'
+  ]);
+  await db.runAsync(`INSERT INTO clients (id, nom, code_exploitant, adresse) VALUES (?, ?, ?, ?)`, [
+    uuidv4(),
+    'Office HLM Colombes',
+    'OHC08',
+    '5 avenue de la République'
+  ]);
+  await db.runAsync(`INSERT INTO _meta (key, value) VALUES ('demo_seeded', '1')`);
+}
+async function seedBibliothequeSiNecessaire(db) {
+  const deja = await db.getFirstAsync(`SELECT value FROM _meta WHERE key = 'biblio_seeded'`);
+  if (deja) return;
+  const { PRESCRIPTIONS } = chargerDonneesLegacy();
+  for (const [cle, options] of Object.entries(PRESCRIPTIONS))
+    for (const opt of options) {
+      const nom = cle + (opt.critere ? ' — ' + opt.critere : '');
+      await db.runAsync(
+        `INSERT INTO reserves_bibliotheque (id, nom, description, prix, poste, delai) VALUES (?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), nom, opt.prestation, opt.estimatif ?? null, opt.poste ?? null, opt.delai ?? null]
+      );
+    }
+  await db.runAsync(`INSERT INTO _meta (key, value) VALUES ('biblio_seeded', '1')`);
+}
+const EQUIPEMENTS_SEED = [
+  { categorie: 'Chaudière', marque: 'De Dietrich', modele: 'C310 ECO' },
+  { categorie: 'Chaudière', marque: 'Viessmann', modele: 'Vitodens 200-W' },
+  { categorie: 'Chaudière', marque: 'Atlantic', modele: 'Alfea Excellia' },
+  { categorie: 'Pompe', marque: 'Grundfos', modele: 'Alpha2' },
+  { categorie: 'Pompe', marque: 'Grundfos', modele: 'Magna3' },
+  { categorie: 'Pompe', marque: 'Wilo', modele: 'Stratos PICO' },
+  { categorie: 'Circulateur', marque: 'Grundfos', modele: 'UPS2' },
+  { categorie: 'Échangeur', marque: 'Alfa Laval', modele: 'M6' }
+];
+async function seedEquipementsBibliothequeSiNecessaire(db) {
+  const deja = await db.getFirstAsync(`SELECT value FROM _meta WHERE key = 'equip_biblio_seeded'`);
+  if (deja) return;
+  for (const e of EQUIPEMENTS_SEED)
+    await db.runAsync(`INSERT INTO equipements_bibliotheque (id, categorie, marque, modele) VALUES (?, ?, ?, ?)`, [
+      uuidv4(),
+      e.categorie,
+      e.marque,
+      e.modele
+    ]);
+  await db.runAsync(`INSERT INTO _meta (key, value) VALUES ('equip_biblio_seeded', '1')`);
+}
 
-async function listerClients(){return(await getDb()).getAllAsync(`SELECT * FROM clients ORDER BY nom`);} async function creerClient({nom,codeExploitant,adresse}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO clients (id, nom, code_exploitant, adresse) VALUES (?, ?, ?, ?)`,[id,nom,codeExploitant||null,adresse||null]);return id;} async function listerSitesClient(clientId){return(await getDb()).getAllAsync(`SELECT * FROM sites WHERE client_id = ? ORDER BY nom_site`,[clientId]);} async function creerSite({clientId,nomSite,adresse}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO sites (id, client_id, nom_site, adresse) VALUES (?, ?, ?, ?)`,[id,clientId,nomSite,adresse||null]);return id;}
-async function listerVisitesEnCours(){return(await getDb()).getAllAsync(`SELECT v.id, v.date_visite, v.progression_pct, s.nom_site, c.nom AS nom_client FROM visites v JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id WHERE v.statut='en_cours' ORDER BY v.modifie_le DESC`);} async function listerVisitesSite(siteId){return(await getDb()).getAllAsync(`SELECT v.*,o.status AS intranet_sync_status,o.remote_visit_id AS intranet_remote_visit_id,o.error_code AS intranet_sync_error, CASE WHEN EXISTS(SELECT 1 FROM provenances p WHERE p.entite_type='visite' AND p.entite_id=v.id AND p.origine='api_symfony' AND p.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%') THEN 1 ELSE 0 END AS api_is_historical FROM visites v LEFT JOIN api_visit_outbox o ON o.visite_id=v.id WHERE v.site_id=? ORDER BY v.date_visite DESC, v.modifie_le DESC`,[siteId]);} async function listerVisitesLocal(siteId,installationId,{legacyOnly=false}={}){const db=await getDb();const base=`SELECT v.*,o.status AS intranet_sync_status,o.remote_visit_id AS intranet_remote_visit_id,o.error_code AS intranet_sync_error, CASE WHEN EXISTS(SELECT 1 FROM provenances p WHERE p.entite_type='visite' AND p.entite_id=v.id AND p.origine='api_symfony' AND p.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%') THEN 1 ELSE 0 END AS api_is_historical FROM visites v LEFT JOIN api_visit_outbox o ON o.visite_id=v.id WHERE v.site_id=? AND `;return legacyOnly?db.getAllAsync(base+`v.installation_id IS NULL ORDER BY v.date_visite DESC,v.modifie_le DESC`,[siteId]):db.getAllAsync(base+`v.installation_id=? ORDER BY v.date_visite DESC,v.modifie_le DESC`,[siteId,installationId]);} async function compterVisites(){const row=await(await getDb()).getFirstAsync(`SELECT SUM(CASE WHEN statut='en_cours' THEN 1 ELSE 0 END) en_cours,SUM(CASE WHEN statut='terminee' THEN 1 ELSE 0 END) terminees FROM visites`);return{enCours:Number(row?.en_cours||0),terminees:Number(row?.terminees||0)};}
-const DEFAULT_VALEURS_CLASSIQUES={'Matériaux tuyauterie':'Acier noir','Type de distribution':'Bitube','Equipement sur aller':'Vanne papillon','Equipement sur retour':'Vanne 1/4 de tour',"Type d'émetteur":'Radiateurs','Type de robinetterie':'Robinet thermostatique','Calorifuge (type / état)':'Laine de roche + revêtement PVC','Variation de vitesse':'Variable','Présence mitigeur':'Oui','Type de régulation':'Sonde extérieure','Cycle anti-légionellose':'Hebdomadaire','Production primaire':'Chaudière gaz','Production ECS':'Ballon','Type de LT':'Chaufferie gaz'};
-async function preremplirValeursClassiques(visiteId){const db=await getDb(),inserts=[];const {TRAME_DATA}=chargerDonneesLegacy();Object.entries(TRAME_DATA).forEach(([panelId,sections])=>Object.entries(sections).forEach(([sub,fields])=>{const sectionCode=panelId.replace('p-','')+'.'+sub.toLowerCase().replace(/[^a-z0-9]+/g,'_');fields.forEach(f=>{if(f.type==='champ'&&DEFAULT_VALEURS_CLASSIQUES[f.cle])inserts.push([visiteId,sectionCode,f.cle,DEFAULT_VALEURS_CLASSIQUES[f.cle]]);});}));for(const p of inserts)await db.runAsync(`INSERT INTO champs_visite (visite_id, section_code, cle, valeur) VALUES (?, ?, ?, ?) ON CONFLICT(visite_id, section_code, cle) DO NOTHING`,p);}
-async function creerVisite({siteId,technicien,mode='complete'}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO visites (id, site_id, date_visite, technicien, statut, progression_pct, mode_visite) VALUES (?, ?, date('now'), ?, 'en_cours', 0, ?)`,[id,siteId,technicien||null,mode]);await db.runAsync(`INSERT OR IGNORE INTO notes (visite_id, contenu) VALUES (?, '')`,[id]);await preremplirValeursClassiques(id);return id;}
-async function supprimerVisite(id){await(await getDb()).runAsync(`DELETE FROM visites WHERE id=?`,[id]);} async function getVisite(id){return(await getDb()).getFirstAsync(`SELECT v.*,s.nom_site,s.adresse,c.nom nom_client,i.nom nom_installation,i.type_code type_installation, CASE WHEN EXISTS(SELECT 1 FROM provenances p WHERE p.entite_type='visite' AND p.entite_id=v.id AND p.origine='api_symfony' AND p.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%') THEN 1 ELSE 0 END AS api_is_historical FROM visites v JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id LEFT JOIN installations i ON i.id=v.installation_id WHERE v.id=?`,[id]);} async function toucherVisite(id){await(await getDb()).runAsync(`UPDATE visites SET modifie_le=datetime('now') WHERE id=?`,[id]);}
-async function getChampsVisite(id){return(await getDb()).getAllAsync(`SELECT * FROM champs_visite WHERE visite_id=?`,[id]);} async function upsertChamp(visiteId,sectionCode,cle,valeur){await(await getDb()).runAsync(`INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?) ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur`,[visiteId,sectionCode,cle,valeur]);} async function getControlesVisite(id){return(await getDb()).getAllAsync(`SELECT * FROM controles_visite WHERE visite_id=?`,[id]);} async function upsertControle(visiteId,sectionCode,cle,avis,commentaire){await(await getDb()).runAsync(`INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire) VALUES(?,?,?,?,?) ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET avis=excluded.avis,commentaire=excluded.commentaire`,[visiteId,sectionCode,cle,avis,commentaire||null]);} async function recalculerProgression(){return 0;}
-async function listerReseaux(id){return(await getDb()).getAllAsync(`SELECT * FROM reseaux WHERE visite_id=? ORDER BY ordre`,[id]);} async function ajouterReseau(visiteId){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO reseaux(id,visite_id,ordre,nom_reseau) VALUES(?,?,0,'Réseau')`,[id,visiteId]);return id;} async function upsertReseauChamp(id,cle,valeur){await(await getDb()).runAsync(`UPDATE reseaux SET ${cle}=? WHERE id=?`,[valeur,id]);} async function supprimerReseau(id){await(await getDb()).runAsync(`DELETE FROM reseaux WHERE id=?`,[id]);}
-async function listerCompteurs(id){return(await getDb()).getAllAsync(`SELECT * FROM compteurs WHERE visite_id=?`,[id]);}
-async function ajouterCompteur(visiteId,label='Compteur'){
-  const db=await getDb(),id=uuidv4();
-  const libelle=String(label||'').trim()||'Compteur';
-  await db.runAsync(`INSERT INTO compteurs(id,visite_id,label) VALUES(?,?,?)`,[id,visiteId,libelle]);
+async function listerClients() {
+  return (await getDb()).getAllAsync(`SELECT * FROM clients ORDER BY nom`);
+}
+async function creerClient({ nom, codeExploitant, adresse }) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(`INSERT INTO clients (id, nom, code_exploitant, adresse) VALUES (?, ?, ?, ?)`, [
+    id,
+    nom,
+    codeExploitant || null,
+    adresse || null
+  ]);
   return id;
 }
-async function upsertCompteurChamp(id,cle,valeur){await(await getDb()).runAsync(`UPDATE compteurs SET ${cle}=? WHERE id=?`,[valeur,id]);} async function supprimerCompteur(id){await(await getDb()).runAsync(`DELETE FROM compteurs WHERE id=?`,[id]);}
-async function listerMateriel(id){return chargerMaterielPersistant().listerMaterielPersistant(id);} async function ajouterMateriel(visiteId){return chargerMaterielPersistant().ajouterMaterielPersistant(visiteId);} async function upsertMaterielChamp(id,cle,valeur){return chargerMaterielPersistant().upsertMaterielPersistant(id,cle,valeur);} async function supprimerMateriel(id){return chargerMaterielPersistant().retirerMaterielPersistant(id);}
-async function listerHistoriqueEquipement(...args){return chargerMaterielPersistant().listerHistoriqueEquipement(...args);}
-async function listerRemarques(id){return(await getDb()).getAllAsync(`SELECT * FROM remarques WHERE visite_id=?`,[id]);} async function upsertRemarqueDepuisPrescription(){} async function supprimerRemarqueParControle(){} async function ajouterRemarqueManuelle(visiteId,data={}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO remarques(id,visite_id,poste,prestation,origine) VALUES(?,?,?,?,?)`,[id,visiteId,data.poste||'Observation',data.prestation||data.description||'',data.origine||'Manuelle']);return id;} async function ajouterAnomalieRapide(visiteId,data){return ajouterRemarqueManuelle(visiteId,data);} async function rattacherRemarque(){}
-async function getNote(id){return(await getDb()).getFirstAsync(`SELECT * FROM notes WHERE visite_id=?`,[id]);} async function upsertNote(id,contenu){await(await getDb()).runAsync(`INSERT INTO notes(visite_id,contenu) VALUES(?,?) ON CONFLICT(visite_id) DO UPDATE SET contenu=excluded.contenu`,[id,contenu]);}
-async function listerPhotos(visiteId,entiteKey=null){
-  const db=await getDb();
-  if(entiteKey===null||entiteKey===undefined||entiteKey==='') return db.getAllAsync(`SELECT * FROM photos WHERE visite_id=? ORDER BY cree_le,id`,[visiteId]);
-  return db.getAllAsync(`SELECT * FROM photos WHERE visite_id=? AND entite_key=? ORDER BY cree_le,id`,[visiteId,entiteKey]);
+async function listerSitesClient(clientId) {
+  return (await getDb()).getAllAsync(`SELECT * FROM sites WHERE client_id = ? ORDER BY nom_site`, [clientId]);
 }
-async function ajouterPhoto(visiteId,entiteKey,uri,label){
-  const db=await getDb(),id=uuidv4();
-  await db.runAsync(`INSERT INTO photos(id,visite_id,entite_key,uri,label) VALUES(?,?,?,?,?)`,[id,visiteId,entiteKey||null,uri,label||null]);
+async function creerSite({ clientId, nomSite, adresse }) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(`INSERT INTO sites (id, client_id, nom_site, adresse) VALUES (?, ?, ?, ?)`, [
+    id,
+    clientId,
+    nomSite,
+    adresse || null
+  ]);
   return id;
 }
-async function remplacerPhoto(id,uri){
-  await(await getDb()).runAsync(`UPDATE photos SET uri=? WHERE id=?`,[uri,id]);
+async function listerVisitesEnCours() {
+  return (await getDb()).getAllAsync(
+    `SELECT v.id, v.date_visite, v.progression_pct, s.nom_site, c.nom AS nom_client FROM visites v JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id WHERE v.statut='en_cours' ORDER BY v.modifie_le DESC`
+  );
 }
-async function listerBibliothequeReserves(){return(await getDb()).getAllAsync(`SELECT * FROM reserves_bibliotheque ORDER BY nom`);} async function ajouterReserveBiblio({nom,description,prix,poste,delai}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO reserves_bibliotheque(id,nom,description,prix,poste,delai) VALUES(?,?,?,?,?,?)`,[id,nom,description||null,prix??null,poste||null,delai??null]);return id;} async function modifierReserveBiblio(id,d){await(await getDb()).runAsync(`UPDATE reserves_bibliotheque SET nom=?,description=?,prix=?,poste=?,delai=? WHERE id=?`,[d.nom,d.description||null,d.prix??null,d.poste||null,d.delai??null,id]);} async function supprimerReserveBiblio(id){await(await getDb()).runAsync(`DELETE FROM reserves_bibliotheque WHERE id=?`,[id]);} async function ajouterRemarqueDepuisBiblio(visiteId,b){return ajouterRemarqueManuelle(visiteId,{poste:b.poste,prestation:b.description||b.nom,origine:'Bibliothèque personnalisée'});}
-async function listerBibliothequeEquipements(){return rechercherModelesEquipement();} async function ajouterEquipementBiblio({categorie,marque,modele}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO equipements_bibliotheque(id,categorie,marque,modele) VALUES(?,?,?,?)`,[id,categorie,marque||null,modele||null]);return id;} async function modifierEquipementBiblio(id,d){await(await getDb()).runAsync(`UPDATE equipements_bibliotheque SET categorie=?,marque=?,modele=? WHERE id=?`,[d.categorie,d.marque||null,d.modele||null,id]);} async function supprimerEquipementBiblio(id){const db=await getDb();const c=await db.getFirstAsync(`SELECT id FROM modeles_equipement WHERE id=?`,[id]);if(c)await db.runAsync(`UPDATE modeles_equipement SET actif=0 WHERE id=?`,[id]);else await db.runAsync(`DELETE FROM equipements_bibliotheque WHERE id=?`,[id]);}
-async function listerCategoriesEquipement(){return(await getDb()).getAllAsync(`SELECT c.*,COUNT(m.id) nb_modeles FROM categories_equipement c LEFT JOIN modeles_equipement m ON m.categorie_id=c.id AND m.actif=1 WHERE c.actif=1 GROUP BY c.id ORDER BY c.ordre,c.nom`);} async function listerMarquesEquipement(){return(await getDb()).getAllAsync(`SELECT b.*,COUNT(m.id) nb_modeles FROM marques_equipement b LEFT JOIN modeles_equipement m ON m.marque_id=b.id AND m.actif=1 WHERE b.actif=1 GROUP BY b.id ORDER BY b.nom`);}
-async function rechercherModelesEquipement({recherche='',categorieId=null,marqueId=null}={}){const db=await getDb(),motif=`%${recherche.trim()}%`;return db.getAllAsync(`SELECT m.*,c.nom categorie,c.icone,b.nom marque,b.logo_uri,b.couleur,(SELECT COUNT(*) FROM variantes_equipement v WHERE v.modele_id=m.id AND v.actif=1) nb_variantes FROM modeles_equipement m JOIN categories_equipement c ON c.id=m.categorie_id JOIN marques_equipement b ON b.id=m.marque_id WHERE m.actif=1 AND c.actif=1 AND b.actif=1 AND (? IS NULL OR m.categorie_id=?) AND (? IS NULL OR m.marque_id=?) AND (?='' OR c.nom LIKE ? COLLATE NOCASE OR b.nom LIKE ? COLLATE NOCASE OR m.nom LIKE ? COLLATE NOCASE OR COALESCE(m.reference,'') LIKE ? COLLATE NOCASE) ORDER BY c.ordre,b.nom,m.nom`,[categorieId,categorieId,marqueId,marqueId,recherche.trim(),motif,motif,motif,motif]);}
-async function ajouterCategorieEquipement({nom,icone}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO categories_equipement(id,nom,icone) VALUES(?,?,?)`,[id,nom,icone||'⚙️']);return id;} async function ajouterMarqueEquipement({nom,logoUri,couleur}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO marques_equipement(id,nom,logo_uri,couleur) VALUES(?,?,?,?)`,[id,nom,logoUri||null,couleur||null]);return id;} async function ajouterModeleEquipement({categorieId,marqueId,nom,reference,caracteristiques,motsCles}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO modeles_equipement(id,categorie_id,marque_id,nom,reference,caracteristiques,mots_cles) VALUES(?,?,?,?,?,?,?)`,[id,categorieId,marqueId,nom,reference||null,caracteristiques||null,motsCles||null]);return id;} async function desactiverCategorieEquipement(id){await(await getDb()).runAsync(`UPDATE categories_equipement SET actif=0 WHERE id=?`,[id]);} async function desactiverMarqueEquipement(id){await(await getDb()).runAsync(`UPDATE marques_equipement SET actif=0 WHERE id=?`,[id]);}
-async function listerVariantesEquipement(modeleId){return(await getDb()).getAllAsync(`SELECT * FROM variantes_equipement WHERE modele_id=? AND actif=1 ORDER BY nom`,[modeleId]);} async function ajouterVarianteEquipement({modeleId,nom,reference,description}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO variantes_equipement(id,modele_id,nom,reference,description) VALUES(?,?,?,?,?)`,[id,modeleId,nom,reference||null,description||null]);return id;} async function getFicheVarianteEquipement(id){const db=await getDb();const variante=await db.getFirstAsync(`SELECT v.*,m.nom modele,c.nom categorie,b.nom marque,b.logo_uri,b.couleur FROM variantes_equipement v JOIN modeles_equipement m ON m.id=v.modele_id JOIN categories_equipement c ON c.id=m.categorie_id JOIN marques_equipement b ON b.id=m.marque_id WHERE v.id=?`,[id]);if(!variante)return null;variante.caracteristiques=await db.getAllAsync(`SELECT * FROM caracteristiques_equipement WHERE variante_id=? ORDER BY ordre,cle`,[id]);variante.courbes=await db.getAllAsync(`SELECT * FROM courbes_equipement WHERE variante_id=? ORDER BY nom`,[id]);variante.documents=await db.getAllAsync(`SELECT * FROM documents_equipement WHERE variante_id=? ORDER BY type,nom`,[id]);return variante;} async function ajouterCaracteristiqueEquipement({varianteId,cle,valeur,unite}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO caracteristiques_equipement(id,variante_id,cle,valeur,unite) VALUES(?,?,?,?,?)`,[id,varianteId,cle,valeur||null,unite||null]);return id;} async function ajouterCourbeEquipement({varianteId,nom,axeX='Débit',uniteX='m³/h',axeY='HMT',uniteY='mCE',serie='[]'}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO courbes_equipement(id,variante_id,nom,axe_x,unite_x,axe_y,unite_y,serie) VALUES(?,?,?,?,?,?,?,?)`,[id,varianteId,nom,axeX,uniteX,axeY,uniteY,serie]);return id;} async function ajouterDocumentEquipement({varianteId,type,nom,uri}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO documents_equipement(id,variante_id,type,nom,uri) VALUES(?,?,?,?,?)`,[id,varianteId,type||'Document',nom,uri]);return id;}
+async function listerVisitesSite(siteId) {
+  return (await getDb()).getAllAsync(
+    `SELECT v.*,o.status AS intranet_sync_status,o.remote_visit_id AS intranet_remote_visit_id,o.error_code AS intranet_sync_error, CASE WHEN EXISTS(SELECT 1 FROM provenances p WHERE p.entite_type='visite' AND p.entite_id=v.id AND p.origine='api_symfony' AND p.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%') THEN 1 ELSE 0 END AS api_is_historical FROM visites v LEFT JOIN api_visit_outbox o ON o.visite_id=v.id WHERE v.site_id=? ORDER BY v.date_visite DESC, v.modifie_le DESC`,
+    [siteId]
+  );
+}
+async function listerVisitesLocal(siteId, installationId, { legacyOnly = false } = {}) {
+  const db = await getDb();
+  const base = `SELECT v.*,o.status AS intranet_sync_status,o.remote_visit_id AS intranet_remote_visit_id,o.error_code AS intranet_sync_error, CASE WHEN EXISTS(SELECT 1 FROM provenances p WHERE p.entite_type='visite' AND p.entite_id=v.id AND p.origine='api_symfony' AND p.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%') THEN 1 ELSE 0 END AS api_is_historical FROM visites v LEFT JOIN api_visit_outbox o ON o.visite_id=v.id WHERE v.site_id=? AND `;
+  return legacyOnly
+    ? db.getAllAsync(base + `v.installation_id IS NULL ORDER BY v.date_visite DESC,v.modifie_le DESC`, [siteId])
+    : db.getAllAsync(base + `v.installation_id=? ORDER BY v.date_visite DESC,v.modifie_le DESC`, [
+        siteId,
+        installationId
+      ]);
+}
+async function compterVisites() {
+  const row = await (
+    await getDb()
+  ).getFirstAsync(
+    `SELECT SUM(CASE WHEN statut='en_cours' THEN 1 ELSE 0 END) en_cours,SUM(CASE WHEN statut='terminee' THEN 1 ELSE 0 END) terminees FROM visites`
+  );
+  return { enCours: Number(row?.en_cours || 0), terminees: Number(row?.terminees || 0) };
+}
+const DEFAULT_VALEURS_CLASSIQUES = {
+  'Matériaux tuyauterie': 'Acier noir',
+  'Type de distribution': 'Bitube',
+  'Equipement sur aller': 'Vanne papillon',
+  'Equipement sur retour': 'Vanne 1/4 de tour',
+  "Type d'émetteur": 'Radiateurs',
+  'Type de robinetterie': 'Robinet thermostatique',
+  'Calorifuge (type / état)': 'Laine de roche + revêtement PVC',
+  'Variation de vitesse': 'Variable',
+  'Présence mitigeur': 'Oui',
+  'Type de régulation': 'Sonde extérieure',
+  'Cycle anti-légionellose': 'Hebdomadaire',
+  'Production primaire': 'Chaudière gaz',
+  'Production ECS': 'Ballon',
+  'Type de LT': 'Chaufferie gaz'
+};
+async function preremplirValeursClassiques(visiteId) {
+  const db = await getDb(),
+    inserts = [];
+  const { TRAME_DATA } = chargerDonneesLegacy();
+  Object.entries(TRAME_DATA).forEach(([panelId, sections]) =>
+    Object.entries(sections).forEach(([sub, fields]) => {
+      const sectionCode = panelId.replace('p-', '') + '.' + sub.toLowerCase().replace(/[^a-z0-9]+/g, '_');
+      fields.forEach((f) => {
+        if (f.type === 'champ' && DEFAULT_VALEURS_CLASSIQUES[f.cle])
+          inserts.push([visiteId, sectionCode, f.cle, DEFAULT_VALEURS_CLASSIQUES[f.cle]]);
+      });
+    })
+  );
+  for (const p of inserts)
+    await db.runAsync(
+      `INSERT INTO champs_visite (visite_id, section_code, cle, valeur) VALUES (?, ?, ?, ?) ON CONFLICT(visite_id, section_code, cle) DO NOTHING`,
+      p
+    );
+}
+async function creerVisite({ siteId, technicien, mode = 'complete' }) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(
+    `INSERT INTO visites (id, site_id, date_visite, technicien, statut, progression_pct, mode_visite) VALUES (?, ?, date('now'), ?, 'en_cours', 0, ?)`,
+    [id, siteId, technicien || null, mode]
+  );
+  await db.runAsync(`INSERT OR IGNORE INTO notes (visite_id, contenu) VALUES (?, '')`, [id]);
+  await preremplirValeursClassiques(id);
+  return id;
+}
+async function supprimerVisite(id) {
+  await (await getDb()).runAsync(`DELETE FROM visites WHERE id=?`, [id]);
+}
+async function getVisite(id) {
+  return (await getDb()).getFirstAsync(
+    `SELECT v.*,s.nom_site,s.adresse,c.nom nom_client,i.nom nom_installation,i.type_code type_installation, CASE WHEN EXISTS(SELECT 1 FROM provenances p WHERE p.entite_type='visite' AND p.entite_id=v.id AND p.origine='api_symfony' AND p.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%') THEN 1 ELSE 0 END AS api_is_historical FROM visites v JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id LEFT JOIN installations i ON i.id=v.installation_id WHERE v.id=?`,
+    [id]
+  );
+}
+async function toucherVisite(id) {
+  await (await getDb()).runAsync(`UPDATE visites SET modifie_le=datetime('now') WHERE id=?`, [id]);
+}
+async function getChampsVisite(id) {
+  return (await getDb()).getAllAsync(`SELECT * FROM champs_visite WHERE visite_id=?`, [id]);
+}
+async function upsertChamp(visiteId, sectionCode, cle, valeur) {
+  await (
+    await getDb()
+  ).runAsync(
+    `INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?) ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur`,
+    [visiteId, sectionCode, cle, valeur]
+  );
+}
+async function getControlesVisite(id) {
+  return (await getDb()).getAllAsync(`SELECT * FROM controles_visite WHERE visite_id=?`, [id]);
+}
+async function upsertControle(visiteId, sectionCode, cle, avis, commentaire) {
+  await (
+    await getDb()
+  ).runAsync(
+    `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire) VALUES(?,?,?,?,?) ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET avis=excluded.avis,commentaire=excluded.commentaire`,
+    [visiteId, sectionCode, cle, avis, commentaire || null]
+  );
+}
+async function recalculerProgression() {
+  return 0;
+}
+async function listerReseaux(id) {
+  return (await getDb()).getAllAsync(`SELECT * FROM reseaux WHERE visite_id=? ORDER BY ordre`, [id]);
+}
+async function ajouterReseau(visiteId) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(`INSERT INTO reseaux(id,visite_id,ordre,nom_reseau) VALUES(?,?,0,'Réseau')`, [id, visiteId]);
+  return id;
+}
+async function upsertReseauChamp(id, cle, valeur) {
+  await (await getDb()).runAsync(`UPDATE reseaux SET ${cle}=? WHERE id=?`, [valeur, id]);
+}
+async function supprimerReseau(id) {
+  await (await getDb()).runAsync(`DELETE FROM reseaux WHERE id=?`, [id]);
+}
+async function listerCompteurs(id) {
+  return (await getDb()).getAllAsync(`SELECT * FROM compteurs WHERE visite_id=?`, [id]);
+}
+async function ajouterCompteur(visiteId, label = 'Compteur') {
+  const db = await getDb(),
+    id = uuidv4();
+  const libelle = String(label || '').trim() || 'Compteur';
+  await db.runAsync(`INSERT INTO compteurs(id,visite_id,label) VALUES(?,?,?)`, [id, visiteId, libelle]);
+  return id;
+}
+async function upsertCompteurChamp(id, cle, valeur) {
+  await (await getDb()).runAsync(`UPDATE compteurs SET ${cle}=? WHERE id=?`, [valeur, id]);
+}
+async function supprimerCompteur(id) {
+  await (await getDb()).runAsync(`DELETE FROM compteurs WHERE id=?`, [id]);
+}
+async function listerMateriel(id) {
+  return chargerMaterielPersistant().listerMaterielPersistant(id);
+}
+async function ajouterMateriel(visiteId) {
+  return chargerMaterielPersistant().ajouterMaterielPersistant(visiteId);
+}
+async function upsertMaterielChamp(id, cle, valeur) {
+  return chargerMaterielPersistant().upsertMaterielPersistant(id, cle, valeur);
+}
+async function supprimerMateriel(id) {
+  return chargerMaterielPersistant().retirerMaterielPersistant(id);
+}
+async function listerHistoriqueEquipement(...args) {
+  return chargerMaterielPersistant().listerHistoriqueEquipement(...args);
+}
+async function listerRemarques(id) {
+  return (await getDb()).getAllAsync(`SELECT * FROM remarques WHERE visite_id=?`, [id]);
+}
+async function upsertRemarqueDepuisPrescription() {}
+async function supprimerRemarqueParControle() {}
+async function ajouterRemarqueManuelle(visiteId, data = {}) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(`INSERT INTO remarques(id,visite_id,poste,prestation,origine) VALUES(?,?,?,?,?)`, [
+    id,
+    visiteId,
+    data.poste || 'Observation',
+    data.prestation || data.description || '',
+    data.origine || 'Manuelle'
+  ]);
+  return id;
+}
+async function ajouterAnomalieRapide(visiteId, data) {
+  return ajouterRemarqueManuelle(visiteId, data);
+}
+async function rattacherRemarque() {}
+async function getNote(id) {
+  return (await getDb()).getFirstAsync(`SELECT * FROM notes WHERE visite_id=?`, [id]);
+}
+async function upsertNote(id, contenu) {
+  await (
+    await getDb()
+  ).runAsync(
+    `INSERT INTO notes(visite_id,contenu) VALUES(?,?) ON CONFLICT(visite_id) DO UPDATE SET contenu=excluded.contenu`,
+    [id, contenu]
+  );
+}
+async function listerPhotos(visiteId, entiteKey = null) {
+  const db = await getDb();
+  if (entiteKey === null || entiteKey === undefined || entiteKey === '')
+    return db.getAllAsync(`SELECT * FROM photos WHERE visite_id=? ORDER BY cree_le,id`, [visiteId]);
+  return db.getAllAsync(`SELECT * FROM photos WHERE visite_id=? AND entite_key=? ORDER BY cree_le,id`, [
+    visiteId,
+    entiteKey
+  ]);
+}
+async function ajouterPhoto(visiteId, entiteKey, uri, label) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(`INSERT INTO photos(id,visite_id,entite_key,uri,label) VALUES(?,?,?,?,?)`, [
+    id,
+    visiteId,
+    entiteKey || null,
+    uri,
+    label || null
+  ]);
+  return id;
+}
+async function remplacerPhoto(id, uri) {
+  await (await getDb()).runAsync(`UPDATE photos SET uri=? WHERE id=?`, [uri, id]);
+}
+async function listerBibliothequeReserves() {
+  return (await getDb()).getAllAsync(`SELECT * FROM reserves_bibliotheque ORDER BY nom`);
+}
+async function ajouterReserveBiblio({ nom, description, prix, poste, delai }) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(`INSERT INTO reserves_bibliotheque(id,nom,description,prix,poste,delai) VALUES(?,?,?,?,?,?)`, [
+    id,
+    nom,
+    description || null,
+    prix ?? null,
+    poste || null,
+    delai ?? null
+  ]);
+  return id;
+}
+async function modifierReserveBiblio(id, d) {
+  await (
+    await getDb()
+  ).runAsync(`UPDATE reserves_bibliotheque SET nom=?,description=?,prix=?,poste=?,delai=? WHERE id=?`, [
+    d.nom,
+    d.description || null,
+    d.prix ?? null,
+    d.poste || null,
+    d.delai ?? null,
+    id
+  ]);
+}
+async function supprimerReserveBiblio(id) {
+  await (await getDb()).runAsync(`DELETE FROM reserves_bibliotheque WHERE id=?`, [id]);
+}
+async function ajouterRemarqueDepuisBiblio(visiteId, b) {
+  return ajouterRemarqueManuelle(visiteId, {
+    poste: b.poste,
+    prestation: b.description || b.nom,
+    origine: 'Bibliothèque personnalisée'
+  });
+}
+async function listerBibliothequeEquipements() {
+  return rechercherModelesEquipement();
+}
+async function ajouterEquipementBiblio({ categorie, marque, modele }) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(`INSERT INTO equipements_bibliotheque(id,categorie,marque,modele) VALUES(?,?,?,?)`, [
+    id,
+    categorie,
+    marque || null,
+    modele || null
+  ]);
+  return id;
+}
+async function modifierEquipementBiblio(id, d) {
+  await (
+    await getDb()
+  ).runAsync(`UPDATE equipements_bibliotheque SET categorie=?,marque=?,modele=? WHERE id=?`, [
+    d.categorie,
+    d.marque || null,
+    d.modele || null,
+    id
+  ]);
+}
+async function supprimerEquipementBiblio(id) {
+  const db = await getDb();
+  const c = await db.getFirstAsync(`SELECT id FROM modeles_equipement WHERE id=?`, [id]);
+  if (c) await db.runAsync(`UPDATE modeles_equipement SET actif=0 WHERE id=?`, [id]);
+  else await db.runAsync(`DELETE FROM equipements_bibliotheque WHERE id=?`, [id]);
+}
+async function listerCategoriesEquipement() {
+  return (await getDb()).getAllAsync(
+    `SELECT c.*,COUNT(m.id) nb_modeles FROM categories_equipement c LEFT JOIN modeles_equipement m ON m.categorie_id=c.id AND m.actif=1 WHERE c.actif=1 GROUP BY c.id ORDER BY c.ordre,c.nom`
+  );
+}
+async function listerMarquesEquipement() {
+  return (await getDb()).getAllAsync(
+    `SELECT b.*,COUNT(m.id) nb_modeles FROM marques_equipement b LEFT JOIN modeles_equipement m ON m.marque_id=b.id AND m.actif=1 WHERE b.actif=1 GROUP BY b.id ORDER BY b.nom`
+  );
+}
+async function rechercherModelesEquipement({ recherche = '', categorieId = null, marqueId = null } = {}) {
+  const db = await getDb(),
+    motif = `%${recherche.trim()}%`;
+  return db.getAllAsync(
+    `SELECT m.*,c.nom categorie,c.icone,b.nom marque,b.logo_uri,b.couleur,(SELECT COUNT(*) FROM variantes_equipement v WHERE v.modele_id=m.id AND v.actif=1) nb_variantes FROM modeles_equipement m JOIN categories_equipement c ON c.id=m.categorie_id JOIN marques_equipement b ON b.id=m.marque_id WHERE m.actif=1 AND c.actif=1 AND b.actif=1 AND (? IS NULL OR m.categorie_id=?) AND (? IS NULL OR m.marque_id=?) AND (?='' OR c.nom LIKE ? COLLATE NOCASE OR b.nom LIKE ? COLLATE NOCASE OR m.nom LIKE ? COLLATE NOCASE OR COALESCE(m.reference,'') LIKE ? COLLATE NOCASE) ORDER BY c.ordre,b.nom,m.nom`,
+    [categorieId, categorieId, marqueId, marqueId, recherche.trim(), motif, motif, motif, motif]
+  );
+}
+async function ajouterCategorieEquipement({ nom, icone }) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(`INSERT INTO categories_equipement(id,nom,icone) VALUES(?,?,?)`, [id, nom, icone || '⚙️']);
+  return id;
+}
+async function ajouterMarqueEquipement({ nom, logoUri, couleur }) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(`INSERT INTO marques_equipement(id,nom,logo_uri,couleur) VALUES(?,?,?,?)`, [
+    id,
+    nom,
+    logoUri || null,
+    couleur || null
+  ]);
+  return id;
+}
+async function ajouterModeleEquipement({ categorieId, marqueId, nom, reference, caracteristiques, motsCles }) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(
+    `INSERT INTO modeles_equipement(id,categorie_id,marque_id,nom,reference,caracteristiques,mots_cles) VALUES(?,?,?,?,?,?,?)`,
+    [id, categorieId, marqueId, nom, reference || null, caracteristiques || null, motsCles || null]
+  );
+  return id;
+}
+async function desactiverCategorieEquipement(id) {
+  await (await getDb()).runAsync(`UPDATE categories_equipement SET actif=0 WHERE id=?`, [id]);
+}
+async function desactiverMarqueEquipement(id) {
+  await (await getDb()).runAsync(`UPDATE marques_equipement SET actif=0 WHERE id=?`, [id]);
+}
+async function listerVariantesEquipement(modeleId) {
+  return (await getDb()).getAllAsync(`SELECT * FROM variantes_equipement WHERE modele_id=? AND actif=1 ORDER BY nom`, [
+    modeleId
+  ]);
+}
+async function ajouterVarianteEquipement({ modeleId, nom, reference, description }) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(`INSERT INTO variantes_equipement(id,modele_id,nom,reference,description) VALUES(?,?,?,?,?)`, [
+    id,
+    modeleId,
+    nom,
+    reference || null,
+    description || null
+  ]);
+  return id;
+}
+async function getFicheVarianteEquipement(id) {
+  const db = await getDb();
+  const variante = await db.getFirstAsync(
+    `SELECT v.*,m.nom modele,c.nom categorie,b.nom marque,b.logo_uri,b.couleur FROM variantes_equipement v JOIN modeles_equipement m ON m.id=v.modele_id JOIN categories_equipement c ON c.id=m.categorie_id JOIN marques_equipement b ON b.id=m.marque_id WHERE v.id=?`,
+    [id]
+  );
+  if (!variante) return null;
+  variante.caracteristiques = await db.getAllAsync(
+    `SELECT * FROM caracteristiques_equipement WHERE variante_id=? ORDER BY ordre,cle`,
+    [id]
+  );
+  variante.courbes = await db.getAllAsync(`SELECT * FROM courbes_equipement WHERE variante_id=? ORDER BY nom`, [id]);
+  variante.documents = await db.getAllAsync(
+    `SELECT * FROM documents_equipement WHERE variante_id=? ORDER BY type,nom`,
+    [id]
+  );
+  return variante;
+}
+async function ajouterCaracteristiqueEquipement({ varianteId, cle, valeur, unite }) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(`INSERT INTO caracteristiques_equipement(id,variante_id,cle,valeur,unite) VALUES(?,?,?,?,?)`, [
+    id,
+    varianteId,
+    cle,
+    valeur || null,
+    unite || null
+  ]);
+  return id;
+}
+async function ajouterCourbeEquipement({
+  varianteId,
+  nom,
+  axeX = 'Débit',
+  uniteX = 'm³/h',
+  axeY = 'HMT',
+  uniteY = 'mCE',
+  serie = '[]'
+}) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(
+    `INSERT INTO courbes_equipement(id,variante_id,nom,axe_x,unite_x,axe_y,unite_y,serie) VALUES(?,?,?,?,?,?,?,?)`,
+    [id, varianteId, nom, axeX, uniteX, axeY, uniteY, serie]
+  );
+  return id;
+}
+async function ajouterDocumentEquipement({ varianteId, type, nom, uri }) {
+  const db = await getDb(),
+    id = uuidv4();
+  await db.runAsync(`INSERT INTO documents_equipement(id,variante_id,type,nom,uri) VALUES(?,?,?,?,?)`, [
+    id,
+    varianteId,
+    type || 'Document',
+    nom,
+    uri
+  ]);
+  return id;
+}
 
-export {getDb,listerClients,creerClient,listerSitesClient,creerSite,listerVisitesEnCours,listerVisitesLocal,compterVisites,creerVisite,supprimerVisite,getVisite,toucherVisite,getChampsVisite,upsertChamp,getControlesVisite,upsertControle,recalculerProgression,listerReseaux,ajouterReseau,upsertReseauChamp,supprimerReseau,listerCompteurs,ajouterCompteur,upsertCompteurChamp,supprimerCompteur,listerMateriel,ajouterMateriel,upsertMaterielChamp,supprimerMateriel,listerHistoriqueEquipement,listerRemarques,upsertRemarqueDepuisPrescription,supprimerRemarqueParControle,ajouterRemarqueManuelle,ajouterAnomalieRapide,rattacherRemarque,getNote,upsertNote,listerPhotos,ajouterPhoto,remplacerPhoto,listerBibliothequeReserves,ajouterReserveBiblio,modifierReserveBiblio,supprimerReserveBiblio,ajouterRemarqueDepuisBiblio,listerBibliothequeEquipements,ajouterEquipementBiblio,modifierEquipementBiblio,supprimerEquipementBiblio,listerCategoriesEquipement,listerMarquesEquipement,rechercherModelesEquipement,ajouterCategorieEquipement,ajouterMarqueEquipement,ajouterModeleEquipement,desactiverCategorieEquipement,desactiverMarqueEquipement,listerVisitesSite,listerVariantesEquipement,ajouterVarianteEquipement,getFicheVarianteEquipement,ajouterCaracteristiqueEquipement,ajouterCourbeEquipement,ajouterDocumentEquipement};
+export {
+  getDb,
+  listerClients,
+  creerClient,
+  listerSitesClient,
+  creerSite,
+  listerVisitesEnCours,
+  listerVisitesLocal,
+  compterVisites,
+  creerVisite,
+  supprimerVisite,
+  getVisite,
+  toucherVisite,
+  getChampsVisite,
+  upsertChamp,
+  getControlesVisite,
+  upsertControle,
+  recalculerProgression,
+  listerReseaux,
+  ajouterReseau,
+  upsertReseauChamp,
+  supprimerReseau,
+  listerCompteurs,
+  ajouterCompteur,
+  upsertCompteurChamp,
+  supprimerCompteur,
+  listerMateriel,
+  ajouterMateriel,
+  upsertMaterielChamp,
+  supprimerMateriel,
+  listerHistoriqueEquipement,
+  listerRemarques,
+  upsertRemarqueDepuisPrescription,
+  supprimerRemarqueParControle,
+  ajouterRemarqueManuelle,
+  ajouterAnomalieRapide,
+  rattacherRemarque,
+  getNote,
+  upsertNote,
+  listerPhotos,
+  ajouterPhoto,
+  remplacerPhoto,
+  listerBibliothequeReserves,
+  ajouterReserveBiblio,
+  modifierReserveBiblio,
+  supprimerReserveBiblio,
+  ajouterRemarqueDepuisBiblio,
+  listerBibliothequeEquipements,
+  ajouterEquipementBiblio,
+  modifierEquipementBiblio,
+  supprimerEquipementBiblio,
+  listerCategoriesEquipement,
+  listerMarquesEquipement,
+  rechercherModelesEquipement,
+  ajouterCategorieEquipement,
+  ajouterMarqueEquipement,
+  ajouterModeleEquipement,
+  desactiverCategorieEquipement,
+  desactiverMarqueEquipement,
+  listerVisitesSite,
+  listerVariantesEquipement,
+  ajouterVarianteEquipement,
+  getFicheVarianteEquipement,
+  ajouterCaracteristiqueEquipement,
+  ajouterCourbeEquipement,
+  ajouterDocumentEquipement
+};

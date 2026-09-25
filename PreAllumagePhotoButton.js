@@ -20,11 +20,23 @@ export function PreAllumagePhotoButton({ visiteId, entiteKey, label, style }) {
     if (cached) apply(cached);
     const unsubscribe = subscribeVisitPhotos(visiteId, apply);
     if (!cached) loadVisitPhotos(visiteId).catch(() => {});
-    return () => { alive = false; unsubscribe(); };
+    return () => {
+      alive = false;
+      unsubscribe();
+    };
   }, [visiteId, entiteKey]);
 
-  return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
-    {photos[0]?.uri ? <PhotoVariantImage uri={photos[0].uri} variant={photos[0].pending ? 'original' : 'thumb'} style={{ width: 34, height: 34, borderRadius: 7 }} resizeMode="cover" /> : null}
-    <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={label} style={style} />
-  </View>;
+  return (
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      {photos[0]?.uri ? (
+        <PhotoVariantImage
+          uri={photos[0].uri}
+          variant={photos[0].pending ? 'original' : 'thumb'}
+          style={{ width: 34, height: 34, borderRadius: 7 }}
+          resizeMode="cover"
+        />
+      ) : null}
+      <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={label} style={style} />
+    </View>
+  );
 }

@@ -4,9 +4,14 @@ const GEOCODAGE_URL = 'https://data.geopf.fr/geocodage/search';
 
 export function coordonneeValide(latitude, longitude) {
   if (
-    latitude === null || latitude === undefined || latitude === '' ||
-    longitude === null || longitude === undefined || longitude === ''
-  ) return false;
+    latitude === null ||
+    latitude === undefined ||
+    latitude === '' ||
+    longitude === null ||
+    longitude === undefined ||
+    longitude === ''
+  )
+    return false;
   const lat = Number(latitude);
   const lng = Number(longitude);
   return Number.isFinite(lat) && Number.isFinite(lng) && lat >= -90 && lat <= 90 && lng >= -180 && lng <= 180;
@@ -39,7 +44,7 @@ async function geocoderAdresse(adresse) {
   return {
     latitude,
     longitude,
-    libelle: String(feature?.properties?.label || q).trim(),
+    libelle: String(feature?.properties?.label || q).trim()
   };
 }
 
@@ -50,14 +55,15 @@ async function geocoderAdresse(adresse) {
  */
 export async function synchroniserCoordonneesSite(siteId, adresse, { force = false } = {}) {
   const db = await getDb();
-  const site = await db.getFirstAsync(
-    `SELECT id,adresse,latitude,longitude FROM sites WHERE id=?`,
-    [siteId]
-  );
+  const site = await db.getFirstAsync(`SELECT id,adresse,latitude,longitude FROM sites WHERE id=?`, [siteId]);
   if (!site) throw new Error('Site introuvable');
   const adresseEffective = String(adresse ?? site.adresse ?? '').trim();
   if (!adresseValide(adresseEffective)) return { ok: false, raison: 'adresse_manquante' };
-  if (!force && coordonneeValide(site.latitude, site.longitude) && adresseEffective === String(site.adresse || '').trim()) {
+  if (
+    !force &&
+    coordonneeValide(site.latitude, site.longitude) &&
+    adresseEffective === String(site.adresse || '').trim()
+  ) {
     return { ok: true, cached: true, latitude: Number(site.latitude), longitude: Number(site.longitude) };
   }
 
@@ -101,18 +107,18 @@ export async function synchroniserCoordonneesClient(clientId, { force = false, m
 /** Compatibilité avec les anciennes données : ces fonctions restent internes. */
 export async function enregistrerSiteLocalisation(siteId, { latitude, longitude, precisionGps = null, note = null }) {
   if (!coordonneeValide(latitude, longitude)) throw new Error('Coordonnées invalides');
-  const precision = precisionGps === null || precisionGps === '' || precisionGps === undefined ? null : Number(precisionGps);
-  await (await getDb()).runAsync(
+  const precision =
+    precisionGps === null || precisionGps === '' || precisionGps === undefined ? null : Number(precisionGps);
+  await (
+    await getDb()
+  ).runAsync(
     `UPDATE sites SET latitude=?, longitude=?, precision_gps=?, localisation_note=?, gps_modifie_le=datetime('now') WHERE id=?`,
     [Number(latitude), Number(longitude), Number.isFinite(precision) ? precision : null, note?.trim() || null, siteId]
   );
 }
 
 export async function enregistrerNoteLocalisation(siteId, note) {
-  await (await getDb()).runAsync(
-    `UPDATE sites SET localisation_note=? WHERE id=?`,
-    [note?.trim() || null, siteId]
-  );
+  await (await getDb()).runAsync(`UPDATE sites SET localisation_note=? WHERE id=?`, [note?.trim() || null, siteId]);
 }
 
 export function sitesAvecGps(sites = []) {

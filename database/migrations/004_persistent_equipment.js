@@ -23,5 +23,5 @@ export const migration004 = {
     CREATE INDEX IF NOT EXISTS idx_materiel_equipement ON materiel(equipement_id);
     CREATE INDEX IF NOT EXISTS idx_observations_equipement ON observations_equipement(equipement_id, observe_le);
     CREATE INDEX IF NOT EXISTS idx_observations_visite ON observations_equipement(visite_id);
-  `,
+  `
 };

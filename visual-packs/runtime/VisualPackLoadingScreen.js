@@ -45,7 +45,7 @@ const styles = StyleSheet.create({
   customLogoWrap: {
     ...StyleSheet.absoluteFillObject,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'center'
   },
-  customLogo: { width: 240, height: 180 },
+  customLogo: { width: 240, height: 180 }
 });

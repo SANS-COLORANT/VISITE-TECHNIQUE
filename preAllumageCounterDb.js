@@ -2,7 +2,17 @@ import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 
 export const PREALLUMAGE_COUNTER_UNITS = Object.freeze([
-  'MWh', 'kWh', 'Wh', 'GJ', 'MJ', 'm³', 'Nm³', 'L', 'h', 'kg', 't',
+  'MWh',
+  'kWh',
+  'Wh',
+  'GJ',
+  'MJ',
+  'm³',
+  'Nm³',
+  'L',
+  'h',
+  'kg',
+  't'
 ]);
 
 export const PREALLUMAGE_COUNTER_PRESETS = Object.freeze([
@@ -15,21 +25,28 @@ export const PREALLUMAGE_COUNTER_PRESETS = Object.freeze([
   { code: 'fioul', label: 'Fioul', unit: 'L', units: ['L', 'm³'] },
   { code: 'biomasse', label: 'Biomasse', unit: 't', units: ['t', 'kg'] },
   { code: 'horaire', label: 'Compteur horaire', unit: 'h', units: ['h'] },
-  { code: 'autre', label: 'Autre compteur', unit: '', units: PREALLUMAGE_COUNTER_UNITS },
+  { code: 'autre', label: 'Autre compteur', unit: '', units: PREALLUMAGE_COUNTER_UNITS }
 ]);
 
 function options(row) {
-  try { return row?.options_json ? JSON.parse(row.options_json) : {}; }
-  catch (_) { return {}; }
+  try {
+    return row?.options_json ? JSON.parse(row.options_json) : {};
+  } catch (_) {
+    return {};
+  }
 }
 
 function sansUnite(label = '') {
-  return String(label || '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+  return String(label || '')
+    .replace(/\s*\([^)]*\)\s*$/, '')
+    .trim();
 }
 
 function preset(code) {
-  return PREALLUMAGE_COUNTER_PRESETS.find((item) => item.code === code)
-    || PREALLUMAGE_COUNTER_PRESETS[PREALLUMAGE_COUNTER_PRESETS.length - 1];
+  return (
+    PREALLUMAGE_COUNTER_PRESETS.find((item) => item.code === code) ||
+    PREALLUMAGE_COUNTER_PRESETS[PREALLUMAGE_COUNTER_PRESETS.length - 1]
+  );
 }
 
 async function rubriqueCompteurs(db, visiteId, localId) {
@@ -41,9 +58,14 @@ async function rubriqueCompteurs(db, visiteId, localId) {
   );
   if (rubrique) return rubrique;
 
-  const local = await db.getFirstAsync(`SELECT * FROM pre_allumage_locaux WHERE id=? AND visite_id=?`, [localId, visiteId]);
+  const local = await db.getFirstAsync(`SELECT * FROM pre_allumage_locaux WHERE id=? AND visite_id=?`, [
+    localId,
+    visiteId
+  ]);
   if (!local) throw new Error('Sélectionnez un local avant d’ajouter un compteur.');
-  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),0) n FROM pre_allumage_rubriques WHERE visite_id=?`, [visiteId]);
+  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),0) n FROM pre_allumage_rubriques WHERE visite_id=?`, [
+    visiteId
+  ]);
   const id = createId('pa-rubrique');
   const sectionCode = `pa.local.${localId}.compteurs`;
   await db.runAsync(
@@ -55,7 +77,11 @@ async function rubriqueCompteurs(db, visiteId, localId) {
   return rubrique;
 }
 
-export async function ajouterCompteurPreAllumage(visiteId, localId, { presetCode = 'energie_thermique', nom = '', unite = '' } = {}) {
+export async function ajouterCompteurPreAllumage(
+  visiteId,
+  localId,
+  { presetCode = 'energie_thermique', nom = '', unite = '' } = {}
+) {
   const db = await getDb();
   const rubrique = await rubriqueCompteurs(db, visiteId, localId);
   const def = preset(presetCode);
@@ -63,9 +89,13 @@ export async function ajouterCompteurPreAllumage(visiteId, localId, { presetCode
   const baseLabel = String(nom || '').trim() || def.label;
   if (!baseLabel) throw new Error('Le nom du compteur est obligatoire.');
 
-  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),-1) n FROM pre_allumage_champs WHERE rubrique_id=?`, [rubrique.id]);
+  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),-1) n FROM pre_allumage_champs WHERE rubrique_id=?`, [
+    rubrique.id
+  ]);
   const champId = createId('pa-champ');
-  const cle = `Compteur ${def.code} ${createId('ctr').replace(/[^a-zA-Z0-9]/g, '').slice(-10)}`;
+  const cle = `Compteur ${def.code} ${createId('ctr')
+    .replace(/[^a-zA-Z0-9]/g, '')
+    .slice(-10)}`;
   const libelle = unit ? `${baseLabel} (${unit})` : baseLabel;
   const unitOptions = [...new Set([...(def.units || []), ...PREALLUMAGE_COUNTER_UNITS, unit].filter(Boolean))];
   const meta = {
@@ -76,7 +106,7 @@ export async function ajouterCompteurPreAllumage(visiteId, localId, { presetCode
     counterBaseLabel: baseLabel,
     unit,
     unitEditable: true,
-    unitOptions,
+    unitOptions
   };
   await db.runAsync(
     `INSERT INTO pre_allumage_champs(id,rubrique_id,cle_stockage,libelle,type_code,ordre,options_json)
@@ -100,13 +130,14 @@ export async function mettreAJourUniteCompteurPreAllumage(champId, unite) {
     counterBaseLabel: baseLabel,
     unit,
     unitEditable: true,
-    unitOptions,
+    unitOptions
   };
   const libelle = unit ? `${baseLabel} (${unit})` : baseLabel;
-  await db.runAsync(
-    `UPDATE pre_allumage_champs SET libelle=?,options_json=? WHERE id=?`,
-    [libelle, JSON.stringify(next), champId]
-  );
+  await db.runAsync(`UPDATE pre_allumage_champs SET libelle=?,options_json=? WHERE id=?`, [
+    libelle,
+    JSON.stringify(next),
+    champId
+  ]);
   return { champId, libelle, unit };
 }
 
@@ -121,6 +152,10 @@ export async function supprimerCompteurPreAllumage(champId) {
   if (!row) return;
   const meta = options(row);
   if (!meta.dynamicCounter) throw new Error('Seuls les compteurs ajoutés manuellement peuvent être supprimés.');
-  await db.runAsync(`DELETE FROM champs_visite WHERE visite_id=? AND section_code=? AND cle=?`, [row.visite_id, row.section_code, row.cle_stockage]);
+  await db.runAsync(`DELETE FROM champs_visite WHERE visite_id=? AND section_code=? AND cle=?`, [
+    row.visite_id,
+    row.section_code,
+    row.cle_stockage
+  ]);
   await db.runAsync(`DELETE FROM pre_allumage_champs WHERE id=?`, [champId]);
 }

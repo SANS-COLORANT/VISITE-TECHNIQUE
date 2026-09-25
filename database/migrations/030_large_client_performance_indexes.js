@@ -19,5 +19,5 @@ export const migration030 = {
       ON api_site_links(remote_client_id, nom COLLATE NOCASE);
     CREATE INDEX IF NOT EXISTS idx_api_local_links_site_present
       ON api_local_links(remote_site_id, remote_present, designation COLLATE NOCASE);
-  `,
+  `
 };

@@ -1,7 +1,13 @@
 const fs = require('fs');
-function read(path) { return fs.readFileSync(path, 'utf8'); }
-function need(text, value, label) { if (!text.includes(value)) throw new Error(`${label}: missing ${value}`); }
-function forbid(text, value, label) { if (text.includes(value)) throw new Error(`${label}: forbidden ${value}`); }
+function read(path) {
+  return fs.readFileSync(path, 'utf8');
+}
+function need(text, value, label) {
+  if (!text.includes(value)) throw new Error(`${label}: missing ${value}`);
+}
+function forbid(text, value, label) {
+  if (text.includes(value)) throw new Error(`${label}: forbidden ${value}`);
+}
 
 const binding = read('intranetVisitBindingDb.js');
 need(binding, 'local_client_id=?', 'visit is locked to the imported local client relation');
@@ -47,8 +53,16 @@ forbid(sync, 'Modifier la destination Intranet', 'no cross-client destination ed
 const siteVisits = read('SiteVisitesScreen.js');
 const navigationPrewarm = read('navigationPrewarm.js');
 need(siteVisits, 'intranetClientImported', 'site knows whether its client was imported from Intranet');
-need(siteVisits, '<IntranetVisitSyncControl visite={item} onVisitChanged={charger} compact />', 'visit cards expose direct Offline Online action');
-need(navigationPrewarm, 'local_client_id=?', 'visit-card status is based on durable imported-client relation through the local prewarm repository');
+need(
+  siteVisits,
+  '<IntranetVisitSyncControl visite={item} onVisitChanged={charger} compact />',
+  'visit cards expose direct Offline Online action'
+);
+need(
+  navigationPrewarm,
+  'local_client_id=?',
+  'visit-card status is based on durable imported-client relation through the local prewarm repository'
+);
 
 const payload = read('intranetVisitPayload.js');
 const cache = read('symfonyApiCacheDb.js');
@@ -58,6 +72,12 @@ need(payload, 'preparedContext', 'explicit binding precedence over old preparati
 
 need(cache, 'cachePreparation(remoteClientId, payload, { partial = false } = {})', 'partial preparation cache mode');
 need(cache, 'if (!partial)', 'partial preparation does not invalidate full cache');
-need(api, 'cachePreparation(remoteClientId, payload, { partial: trameId != null })', 'filtered trame preparation marked partial');
+need(
+  api,
+  'cachePreparation(remoteClientId, payload, { partial: trameId != null })',
+  'filtered trame preparation marked partial'
+);
 
-console.log('Imported-client Intranet contract validated: a METRA visit can only return to its imported client/site/local, including a first visit with no prior Intranet history when the remote trame is uniquely resolvable, while preserving cached unrelated sites/locals and refusing ambiguous trame guesses.');
+console.log(
+  'Imported-client Intranet contract validated: a METRA visit can only return to its imported client/site/local, including a first visit with no prior Intranet history when the remote trame is uniquely resolvable, while preserving cached unrelated sites/locals and refusing ambiguous trame guesses.'
+);

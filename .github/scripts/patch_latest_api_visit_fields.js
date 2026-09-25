@@ -23,8 +23,10 @@ if (!text.includes('fieldImport,\n      importedRemarks')) {
   text = text.replace(anchor, '      mappedCriteria,\n      fieldImport,\n      importedRemarks,\n');
 }
 
-const oldReturn = '  return { imported: true, visiteId, remoteVisitId, mappedCriteria, sourceCriteria, importedRemarks, created: !existing?.id };\n';
-const newReturn = '  return { imported: true, visiteId, remoteVisitId, mappedCriteria, sourceCriteria, importedRemarks, fieldImport, created: !existing?.id };\n';
+const oldReturn =
+  '  return { imported: true, visiteId, remoteVisitId, mappedCriteria, sourceCriteria, importedRemarks, created: !existing?.id };\n';
+const newReturn =
+  '  return { imported: true, visiteId, remoteVisitId, mappedCriteria, sourceCriteria, importedRemarks, fieldImport, created: !existing?.id };\n';
 if (!text.includes(newReturn.trim())) {
   if (!text.includes(oldReturn)) throw new Error('latest visit return anchor not found');
   text = text.replace(oldReturn, newReturn);

@@ -4,24 +4,41 @@ import { migrateDatabase, verifyDatabaseIntegrity } from './migrate.js';
 import { repairIntranetSiteLocalIdentityOnce } from '../intranetIdentityRepairDb.js';
 let databasePromise = null;
 let catalogueEnrichmentPromise = null;
-const CORE_REFERENCE_META_KEY='reference_catalog_icpe_v2';
-const CORE_EQUIPMENT_META_KEY='equipment_catalog_core_v3';
+const CORE_REFERENCE_META_KEY = 'reference_catalog_icpe_v2';
+const CORE_EQUIPMENT_META_KEY = 'equipment_catalog_core_v3';
 
-async function assurerReferentielsBase(db){
-  const rows=await db.getAllAsync(`SELECT key FROM _meta WHERE key IN (?,?)`,[CORE_REFERENCE_META_KEY,CORE_EQUIPMENT_META_KEY]);
-  const done=new Set((rows||[]).map((row)=>row.key));
-  if(!done.has(CORE_REFERENCE_META_KEY)){await require('./referenceCatalog.js').syncReferenceCatalog(db);await db.runAsync(`INSERT OR REPLACE INTO _meta(key,value) VALUES(?,?)`,[CORE_REFERENCE_META_KEY,'1']);}
-  if(!done.has(CORE_EQUIPMENT_META_KEY)){await require('./equipmentCatalogSeed.js').seedEquipmentCatalog(db);await db.runAsync(`INSERT OR REPLACE INTO _meta(key,value) VALUES(?,?)`,[CORE_EQUIPMENT_META_KEY,'1']);}
+async function assurerReferentielsBase(db) {
+  const rows = await db.getAllAsync(`SELECT key FROM _meta WHERE key IN (?,?)`, [
+    CORE_REFERENCE_META_KEY,
+    CORE_EQUIPMENT_META_KEY
+  ]);
+  const done = new Set((rows || []).map((row) => row.key));
+  if (!done.has(CORE_REFERENCE_META_KEY)) {
+    await require('./referenceCatalog.js').syncReferenceCatalog(db);
+    await db.runAsync(`INSERT OR REPLACE INTO _meta(key,value) VALUES(?,?)`, [CORE_REFERENCE_META_KEY, '1']);
+  }
+  if (!done.has(CORE_EQUIPMENT_META_KEY)) {
+    await require('./equipmentCatalogSeed.js').seedEquipmentCatalog(db);
+    await db.runAsync(`INSERT OR REPLACE INTO _meta(key,value) VALUES(?,?)`, [CORE_EQUIPMENT_META_KEY, '1']);
+  }
 }
 
-function chargeursEnrichissementCatalogue(){return [
- ()=>require('./equipmentCatalogExtraSeed.js').seedEquipmentCatalogExtra,()=>require('./equipmentCatalogBreadthSeed.js').seedEquipmentCatalogBreadth,
- ()=>require('./equipmentCatalogDeepSeed.js').seedEquipmentCatalogDeep,()=>require('./equipmentCatalogDeepSeed2.js').seedEquipmentCatalogDeep2,
- ()=>require('./equipmentCatalogDeepSeed3.js').seedEquipmentCatalogDeep3,()=>require('./equipmentCatalogDeepSeed4.js').seedEquipmentCatalogDeep4,
- ()=>require('./equipmentCatalogAirSeed.js').seedEquipmentCatalogAir,()=>require('./equipmentCatalogVentilationSeed.js').seedEquipmentCatalogVentilation,
- ()=>require('./equipmentCatalogHydronicsSeed.js').seedEquipmentCatalogHydronics,()=>require('./equipmentCatalogPeripheralSeed.js').seedEquipmentCatalogPeripheral,
- ()=>require('./equipmentCatalogImageSeed.js').seedEquipmentCatalogImages,()=>require('./equipmentCatalogVisualSeed.js').seedEquipmentCatalogVisuals,
-];}
+function chargeursEnrichissementCatalogue() {
+  return [
+    () => require('./equipmentCatalogExtraSeed.js').seedEquipmentCatalogExtra,
+    () => require('./equipmentCatalogBreadthSeed.js').seedEquipmentCatalogBreadth,
+    () => require('./equipmentCatalogDeepSeed.js').seedEquipmentCatalogDeep,
+    () => require('./equipmentCatalogDeepSeed2.js').seedEquipmentCatalogDeep2,
+    () => require('./equipmentCatalogDeepSeed3.js').seedEquipmentCatalogDeep3,
+    () => require('./equipmentCatalogDeepSeed4.js').seedEquipmentCatalogDeep4,
+    () => require('./equipmentCatalogAirSeed.js').seedEquipmentCatalogAir,
+    () => require('./equipmentCatalogVentilationSeed.js').seedEquipmentCatalogVentilation,
+    () => require('./equipmentCatalogHydronicsSeed.js').seedEquipmentCatalogHydronics,
+    () => require('./equipmentCatalogPeripheralSeed.js').seedEquipmentCatalogPeripheral,
+    () => require('./equipmentCatalogImageSeed.js').seedEquipmentCatalogImages,
+    () => require('./equipmentCatalogVisualSeed.js').seedEquipmentCatalogVisuals
+  ];
+}
 
 function installerCompatibiliteVisite(db) {
   if (db.__visiteMapCompatInstalled) return;
@@ -32,7 +49,8 @@ function installerCompatibiliteVisite(db) {
     if (Array.isArray(rows) && requete.includes('from champs_visite')) {
       for (const row of rows) rows[`${row.section_code}||${row.cle}`] = row.valeur;
     } else if (Array.isArray(rows) && requete.includes('from controles_visite')) {
-      for (const row of rows) rows[`${row.section_code}||${row.cle}`] = { avis: row.avis, commentaire: row.commentaire };
+      for (const row of rows)
+        rows[`${row.section_code}||${row.cle}`] = { avis: row.avis, commentaire: row.commentaire };
     }
     return rows;
   };
@@ -55,7 +73,7 @@ export async function ensureEquipmentCatalogReady() {
   if (!catalogueEnrichmentPromise) {
     catalogueEnrichmentPromise = (async () => {
       const db = await openAppDatabase();
-      for(const charger of chargeursEnrichissementCatalogue()) await charger()(db);
+      for (const charger of chargeursEnrichissementCatalogue()) await charger()(db);
       return db;
     })().catch((error) => {
       catalogueEnrichmentPromise = null;

@@ -1,6 +1,8 @@
 const fs = require('fs');
 
-function read(path) { return fs.readFileSync(path, 'utf8'); }
+function read(path) {
+  return fs.readFileSync(path, 'utf8');
+}
 function requireText(text, needle, label) {
   if (!text.includes(needle)) throw new Error(`${label}: missing ${needle}`);
 }
@@ -20,11 +22,7 @@ requireText(
   'const latestImport = await importLatestApiVisitsForSite(siteId, site.remote_site_id);',
   'single-site latest visit import'
 );
-requireText(
-  directory,
-  'apiLatestImportCount: latestImport.importedCount',
-  'single-site import navigation summary'
-);
+requireText(directory, 'apiLatestImportCount: latestImport.importedCount', 'single-site import navigation summary');
 requireText(directory, 'const importSelectedSites = async () =>', 'multi-site import action');
 requireText(directory, '1, plusieurs ou tous les sites', 'multi-site selection UI');
 requireText(directory, 'batchImportProgress', 'multi-site progress state');
@@ -53,10 +51,20 @@ requireText(latest, 'sourceControlCriteria', 'source control count');
 requireText(latest, 'unmappedControlCriteria', 'unmapped control count');
 requireText(latest, 'technicalCommentsPreserved', 'technical values kept');
 requireText(latest, 'hiddenHistoricalControlComments', 'ordinary historical comments hidden');
-requireText(latest, "summaryOnly: true", 'Intranet remarks remain historical summary records');
-requireText(latest, "linkedToControl: false", 'Intranet remarks are not falsely linked');
-requireText(latest, 'created: !existing?.id,', 'latest visit creation/update return state');
-requireText(latest, 'export async function importLatestApiVisitForLocal(siteId, remoteLocalId)', 'selected-local import flow');
-requireText(latest, 'export async function importLatestApiVisitsForSite(siteId, remoteSiteId)', 'site and batch import flow');
+requireText(latest, 'summaryOnly: true', 'Intranet remarks remain historical summary records');
+requireText(latest, 'linkedToControl: false', 'Intranet remarks are not falsely linked');
+requireText(latest, 'created: !existing?.id', 'latest visit creation/update return state');
+requireText(
+  latest,
+  'export async function importLatestApiVisitForLocal(siteId, remoteLocalId)',
+  'selected-local import flow'
+);
+requireText(
+  latest,
+  'export async function importLatestApiVisitsForSite(siteId, remoteSiteId)',
+  'site and batch import flow'
+);
 
-console.log('Latest API visit runtime contract validated: selected-local, single-site and multi-site imports include the historical Intranet snapshot, S/N.S/etc. states, technical measurement values and summary-only Intranet remarks.');
+console.log(
+  'Latest API visit runtime contract validated: selected-local, single-site and multi-site imports include the historical Intranet snapshot, S/N.S/etc. states, technical measurement values and summary-only Intranet remarks.'
+);

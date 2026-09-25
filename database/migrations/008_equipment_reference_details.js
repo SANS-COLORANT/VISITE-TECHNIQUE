@@ -49,5 +49,5 @@ export const migration008 = {
     CREATE INDEX IF NOT EXISTS idx_caracteristiques_variante ON caracteristiques_equipement(variante_id);
     CREATE INDEX IF NOT EXISTS idx_courbes_variante ON courbes_equipement(variante_id);
     CREATE INDEX IF NOT EXISTS idx_documents_variante ON documents_equipement(variante_id);
-  `,
+  `
 };

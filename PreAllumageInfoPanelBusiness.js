@@ -13,9 +13,19 @@ export function PreAllumageInfoPanelBusiness(props) {
       await chargerPreAllumageModulaire(props.visiteId);
       await preparerStructurePreAllumage(props.visiteId);
       if (alive) setReady(true);
-    })().catch((e) => { console.warn('Préparation Pré-allumage impossible', e); if (alive) setReady(true); });
-    return () => { alive = false; };
+    })().catch((e) => {
+      console.warn('Préparation Pré-allumage impossible', e);
+      if (alive) setReady(true);
+    });
+    return () => {
+      alive = false;
+    };
   }, [props.visiteId]);
-  if (!ready) return <View style={{ padding: 30 }}><ActivityIndicator color={COLORS.orange} /></View>;
+  if (!ready)
+    return (
+      <View style={{ padding: 30 }}>
+        <ActivityIndicator color={COLORS.orange} />
+      </View>
+    );
   return <PreAllumageInfoPanelV3 {...props} />;
 }

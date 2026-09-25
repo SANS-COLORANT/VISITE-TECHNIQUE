@@ -1,4 +1,9 @@
-const { withDangerousMod, withMainApplication, withAppBuildGradle, withAndroidManifest } = require('@expo/config-plugins');
+const {
+  withDangerousMod,
+  withMainApplication,
+  withAppBuildGradle,
+  withAndroidManifest
+} = require('@expo/config-plugins');
 const fs = require('fs');
 const path = require('path');
 
@@ -8,15 +13,33 @@ const KOTLIN_WRAPPED = 'PackageList(this).packages.apply { add(MetraMissionTools
 const MLKIT_DEP = "implementation 'com.google.mlkit:text-recognition:16.0.1'";
 
 module.exports = function withMetraMissionTools(config) {
-  config = withDangerousMod(config, ['android', async (cfg) => {
-    const sourceDir = path.join(cfg.modRequest.projectRoot, 'native', 'metra-mission-tools');
-    const targetDir = path.join(cfg.modRequest.platformProjectRoot, 'app', 'src', 'main', 'java', 'com', 'metra', 'missiontools');
-    fs.mkdirSync(targetDir, { recursive: true });
-    for (const file of ['MetraOcrModule.kt', 'MetraSpeechModule.kt', 'MetraPdfModule.kt', 'MetraGeoPackageModule.kt', 'MetraMissionToolsPackage.kt']) {
-      fs.copyFileSync(path.join(sourceDir, file), path.join(targetDir, file));
+  config = withDangerousMod(config, [
+    'android',
+    async (cfg) => {
+      const sourceDir = path.join(cfg.modRequest.projectRoot, 'native', 'metra-mission-tools');
+      const targetDir = path.join(
+        cfg.modRequest.platformProjectRoot,
+        'app',
+        'src',
+        'main',
+        'java',
+        'com',
+        'metra',
+        'missiontools'
+      );
+      fs.mkdirSync(targetDir, { recursive: true });
+      for (const file of [
+        'MetraOcrModule.kt',
+        'MetraSpeechModule.kt',
+        'MetraPdfModule.kt',
+        'MetraGeoPackageModule.kt',
+        'MetraMissionToolsPackage.kt'
+      ]) {
+        fs.copyFileSync(path.join(sourceDir, file), path.join(targetDir, file));
+      }
+      return cfg;
     }
-    return cfg;
-  }]);
+  ]);
 
   config = withMainApplication(config, (cfg) => {
     let src = cfg.modResults.contents;
@@ -30,7 +53,10 @@ module.exports = function withMetraMissionTools(config) {
       } else {
         const javaToken = 'new PackageList(this).getPackages()';
         if (src.includes(javaToken)) {
-          src = src.replace(javaToken, 'new PackageList(this).getPackages() {{ add(new MetraMissionToolsPackage()); }}');
+          src = src.replace(
+            javaToken,
+            'new PackageList(this).getPackages() {{ add(new MetraMissionToolsPackage()); }}'
+          );
         } else {
           throw new Error('withMetraMissionTools: impossible de localiser PackageList dans MainApplication');
         }

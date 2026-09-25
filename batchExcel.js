@@ -21,7 +21,7 @@ export async function choisirEtAnalyserExcels() {
   const result = await DocumentPicker.getDocumentAsync({
     type: ['application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', 'application/vnd.ms-excel'],
     copyToCacheDirectory: true,
-    multiple: true,
+    multiple: true
   });
   if (result.canceled) return null;
 

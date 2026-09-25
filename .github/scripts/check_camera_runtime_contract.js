@@ -1,7 +1,18 @@
 const fs = require('fs');
-function read(path) { return fs.readFileSync(path, 'utf8'); }
-function need(text, value, label) { if (!text.includes(value)) throw new Error('[camera-runtime] ' + label + ': missing ' + value); }
-function forbid(text, value, label) { if (text.includes(value)) throw new Error('[camera-runtime] ' + label + ': forbidden ' + value); }
+function read(path) {
+  return fs.readFileSync(path, 'utf8');
+}
+// Compare en ignorant les espaces/retours à la ligne : le contrôle vérifie une
+// structure de code, pas un formatage exact (survit à un passage Prettier).
+function norm(s) {
+  return s.replace(/\s+/g, '');
+}
+function need(text, value, label) {
+  if (!norm(text).includes(norm(value))) throw new Error('[camera-runtime] ' + label + ': missing ' + value);
+}
+function forbid(text, value, label) {
+  if (norm(text).includes(norm(value))) throw new Error('[camera-runtime] ' + label + ': forbidden ' + value);
+}
 
 const camera = read('cameraRuntime.js');
 const button = read('PhotoButton.js');
@@ -49,6 +60,10 @@ need(patrimoineStorage, 'onCaptured?.(asset.uri)', 'patrimoine must expose immed
 need(patrimoineCard, 'onCaptured: (tempUri)', 'patrimoine UI must show capture before compression finishes');
 
 need(docs, '## Appareil photo instantané', 'instant camera architecture must be documented');
-need(docs, 'Un simple `onPressIn` ne doit jamais créer une réserve', 'side-effect-free prewarm rule must be documented');
+need(
+  docs,
+  'Un simple `onPressIn` ne doit jamais créer une réserve',
+  'side-effect-free prewarm rule must be documented'
+);
 
 console.log('[camera-runtime] OK');

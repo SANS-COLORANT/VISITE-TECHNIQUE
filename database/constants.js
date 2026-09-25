@@ -15,7 +15,7 @@ export const ENTITY_TYPES = Object.freeze({
   COMPTEUR: 'compteur',
   VISITE: 'visite',
   MESURE: 'mesure',
-  CONTROLE: 'controle',
+  CONTROLE: 'controle'
 });
 
 export const DATA_ORIGINS = Object.freeze({
@@ -24,5 +24,5 @@ export const DATA_ORIGINS = Object.freeze({
   SYMFONY_API: 'api_symfony',
   LEGACY_MIGRATION: 'migration_legacy',
   OCR: 'ocr',
-  SYSTEM: 'systeme',
+  SYSTEM: 'systeme'
 });

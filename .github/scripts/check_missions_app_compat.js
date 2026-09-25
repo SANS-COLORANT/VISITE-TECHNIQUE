@@ -4,7 +4,9 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
 const json = (file) => JSON.parse(read(file));
-const fail = (message) => { throw new Error('Compatibilité application METRA: ' + message); };
+const fail = (message) => {
+  throw new Error('Compatibilité application METRA: ' + message);
+};
 const requireText = (text, needle, label) => {
   if (!text.includes(needle)) fail(label + ' manquant (' + needle + ')');
 };
@@ -26,12 +28,14 @@ const EXPECTED = Object.freeze({
   imagePicker: '~15.1.0',
   fileSystem: '~17.0.0',
   packageId: 'com.visitetechnique.tablet',
-  dbName: 'visite_technique.db',
+  dbName: 'visite_technique.db'
 });
 
-if (pkg.dependencies?.expo !== EXPECTED.expo) fail('Expo doit rester sur ' + EXPECTED.expo + ', trouvé ' + pkg.dependencies?.expo);
+if (pkg.dependencies?.expo !== EXPECTED.expo)
+  fail('Expo doit rester sur ' + EXPECTED.expo + ', trouvé ' + pkg.dependencies?.expo);
 if (pkg.dependencies?.react !== EXPECTED.react) fail('React doit rester sur ' + EXPECTED.react);
-if (pkg.dependencies?.['react-native'] !== EXPECTED.reactNative) fail('React Native doit rester sur ' + EXPECTED.reactNative);
+if (pkg.dependencies?.['react-native'] !== EXPECTED.reactNative)
+  fail('React Native doit rester sur ' + EXPECTED.reactNative);
 if (pkg.dependencies?.['expo-sqlite'] !== EXPECTED.sqlite) fail('expo-sqlite incompatible');
 if (pkg.dependencies?.['expo-image-picker'] !== EXPECTED.imagePicker) fail('expo-image-picker incompatible');
 if (pkg.dependencies?.['expo-file-system'] !== EXPECTED.fileSystem) fail('expo-file-system incompatible');
@@ -56,17 +60,20 @@ const registered = [...migrationsIndex.matchAll(/migration(\d+)/g)].map((m) => N
 const latest = Math.max(...registered);
 if (declared !== latest) fail('schéma SQLite déclaré v' + declared + ' mais dernière migration v' + latest);
 for (let version = 1; version <= latest; version += 1) {
-  if (!registered.includes(version)) fail('migration ' + String(version).padStart(3,'0') + ' absente de la lignée');
+  if (!registered.includes(version)) fail('migration ' + String(version).padStart(3, '0') + ' absente de la lignée');
 }
 
-for (const version of [40,41,42,43]) {
-  const file = 'database/migrations/' + String(version).padStart(3,'0') + (version === 40
-    ? '_missions_core.js'
-    : version === 41
-      ? '_missions_architecture.js'
-      : version === 42
-        ? '_missions_complete_tooling.js'
-        : '_missions_measurement_campaigns.js');
+for (const version of [40, 41, 42, 43]) {
+  const file =
+    'database/migrations/' +
+    String(version).padStart(3, '0') +
+    (version === 40
+      ? '_missions_core.js'
+      : version === 41
+        ? '_missions_architecture.js'
+        : version === 42
+          ? '_missions_complete_tooling.js'
+          : '_missions_measurement_campaigns.js');
   const src = read(file);
   if (/\bDROP\s+TABLE\b/i.test(src)) fail('migration Missions v' + version + ' contient DROP TABLE');
   if (/\bDELETE\s+FROM\s+(clients|sites|visites|equipements|reseaux|compteurs)\b/i.test(src)) {
@@ -76,7 +83,7 @@ for (const version of [40,41,42,43]) {
 
 requireText(appConfig, "'./plugins/withMetraDpop'", 'plugin DPoP historique');
 requireText(appConfig, "'./plugins/withMetraMissionTools'", 'plugin natif Missions');
-requireText(missionPlugin, "com.google.mlkit:text-recognition:16.0.1", 'ML Kit OCR local');
+requireText(missionPlugin, 'com.google.mlkit:text-recognition:16.0.1', 'ML Kit OCR local');
 requireText(missionPlugin, 'MetraMissionToolsPackage()', 'package natif Missions');
 requireText(missionPlugin, 'android.permission.RECORD_AUDIO', 'permission dictée locale');
 
@@ -85,7 +92,7 @@ for (const file of [
   'native/metra-mission-tools/MetraSpeechModule.kt',
   'native/metra-mission-tools/MetraPdfModule.kt',
   'native/metra-mission-tools/MetraGeoPackageModule.kt',
-  'native/metra-mission-tools/MetraMissionToolsPackage.kt',
+  'native/metra-mission-tools/MetraMissionToolsPackage.kt'
 ]) {
   if (!fs.existsSync(path.join(ROOT, file))) fail('module natif Missions manquant: ' + file);
 }
@@ -100,13 +107,18 @@ requireText(apkWorkflow, './gradlew assembleRelease', 'compilation APK release')
 const recurringTokens = ['pre_allumage', 'vmc-c'];
 const recipes = read('missionRecipes.js');
 for (const token of recurringTokens) {
-  if (recipes.includes(token)) fail('recette Mission réutilise un identifiant de Visite technique récurrente: ' + token);
+  if (recipes.includes(token))
+    fail('recette Mission réutilise un identifiant de Visite technique récurrente: ' + token);
 }
 
 console.log(
-  'Compatibilité METRA validée: Expo ' + EXPECTED.expo
-  + ', React Native ' + EXPECTED.reactNative
-  + ', applicationId ' + EXPECTED.packageId
-  + ', SQLite v' + declared
-  + ', lignée migrations complète et identité APK conservée.'
+  'Compatibilité METRA validée: Expo ' +
+    EXPECTED.expo +
+    ', React Native ' +
+    EXPECTED.reactNative +
+    ', applicationId ' +
+    EXPECTED.packageId +
+    ', SQLite v' +
+    declared +
+    ', lignée migrations complète et identité APK conservée.'
 );

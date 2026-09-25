@@ -59,8 +59,14 @@ export async function chargerMemoireVisiteMission({ missionId, visitId, siteId =
        ORDER BY m.created_at DESC LIMIT 12`,
       [missionId, previous.id]
     ),
-    db.getFirstAsync('SELECT COUNT(*) AS count FROM mission_photos WHERE mission_id=? AND visit_id=?', [missionId, previous.id]),
-    db.getFirstAsync('SELECT COUNT(*) AS count FROM mission_visit_notes WHERE mission_id=? AND visit_id=?', [missionId, previous.id]),
+    db.getFirstAsync('SELECT COUNT(*) AS count FROM mission_photos WHERE mission_id=? AND visit_id=?', [
+      missionId,
+      previous.id
+    ]),
+    db.getFirstAsync('SELECT COUNT(*) AS count FROM mission_visit_notes WHERE mission_id=? AND visit_id=?', [
+      missionId,
+      previous.id
+    ])
   ]);
 
   const values = {};
@@ -69,10 +75,13 @@ export async function chargerMemoireVisiteMission({ missionId, visitId, siteId =
     values[row.field_code] = scalar(row);
   }
 
-  const unresolved = (pointRows || []).filter((row) =>
-    !['closed','cancelled','no_follow_up'].includes(String(row.action_status || row.status || '').toLowerCase())
+  const unresolved = (pointRows || []).filter(
+    (row) =>
+      !['closed', 'cancelled', 'no_follow_up'].includes(String(row.action_status || row.status || '').toLowerCase())
   );
-  const openActions = unresolved.filter((row) => row.action_id && !['closed','cancelled'].includes(String(row.action_status || '').toLowerCase()));
+  const openActions = unresolved.filter(
+    (row) => row.action_id && !['closed', 'cancelled'].includes(String(row.action_status || '').toLowerCase())
+  );
 
   return {
     previousVisit: previous,
@@ -89,16 +98,16 @@ export async function chargerMemoireVisiteMission({ missionId, visitId, siteId =
         status: row.action_status || row.status || '',
         priority: row.priority || '',
         responsible: row.responsible_company || row.responsible_name || '',
-        due: row.due_date || row.due_text || '',
+        due: row.due_date || row.due_text || ''
       })),
       measures: (measureRows || []).map((row) => ({
         type: row.type || '',
         value: row.value_number ?? row.value_text ?? '',
         unit: row.unit || '',
         anomalyStatus: row.anomaly_status || '',
-        sourceLabel: row.source_label || '',
-      })),
-    },
+        sourceLabel: row.source_label || ''
+      }))
+    }
   };
 }
 

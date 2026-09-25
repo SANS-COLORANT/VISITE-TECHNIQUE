@@ -3,7 +3,9 @@ import { createId } from './database/ids.js';
 
 const maintenant = () => new Date().toISOString();
 
-async function db() { return openAppDatabase(); }
+async function db() {
+  return openAppDatabase();
+}
 
 export async function synchroniserReservesSite(siteId) {
   const base = await db();
@@ -82,8 +84,14 @@ export async function listerReservesSite(siteId, options = {}) {
   if (statut === 'ouvertes') where.push(`r.statut='ouverte'`);
   if (statut === 'levees') where.push(`r.statut='levee'`);
   if (statut === 'archivees') where.push(`r.statut='archivee'`);
-  if (depuis) { where.push(`date(r.cree_le)>=date(?)`); params.push(depuis); }
-  if (jusqua) { where.push(`date(r.cree_le)<=date(?)`); params.push(jusqua); }
+  if (depuis) {
+    where.push(`date(r.cree_le)>=date(?)`);
+    params.push(depuis);
+  }
+  if (jusqua) {
+    where.push(`date(r.cree_le)<=date(?)`);
+    params.push(jusqua);
+  }
   return base.getAllAsync(
     `SELECT r.*,
        v.date_visite AS date_visite_origine,
@@ -99,10 +107,9 @@ export async function listerReservesSite(siteId, options = {}) {
 
 export async function getHistoriqueReserve(reserveId) {
   const base = await db();
-  return base.getAllAsync(
-    `SELECT * FROM historique_reserves WHERE reserve_id=? ORDER BY date_evenement DESC,id DESC`,
-    [reserveId]
-  );
+  return base.getAllAsync(`SELECT * FROM historique_reserves WHERE reserve_id=? ORDER BY date_evenement DESC,id DESC`, [
+    reserveId
+  ]);
 }
 
 export async function leverReserve(reserveId, commentaire = '') {
@@ -110,7 +117,11 @@ export async function leverReserve(reserveId, commentaire = '') {
   const r = await base.getFirstAsync(`SELECT * FROM reserves_suivi WHERE id=?`, [reserveId]);
   if (!r || r.statut === 'levee') return;
   const date = maintenant();
-  await base.runAsync(`UPDATE reserves_suivi SET statut='levee',levee_le=?,modifie_le=? WHERE id=?`, [date, date, reserveId]);
+  await base.runAsync(`UPDATE reserves_suivi SET statut='levee',levee_le=?,modifie_le=? WHERE id=?`, [
+    date,
+    date,
+    reserveId
+  ]);
   await base.runAsync(
     `INSERT INTO historique_reserves(id,reserve_id,type_evenement,date_evenement,ancien_statut,nouveau_statut,commentaire)
      VALUES(?,?, 'levee', ?, ?, 'levee', ?)`,
@@ -123,7 +134,10 @@ export async function reouvrirReserve(reserveId, commentaire = '') {
   const r = await base.getFirstAsync(`SELECT * FROM reserves_suivi WHERE id=?`, [reserveId]);
   if (!r || r.statut === 'ouverte') return;
   const date = maintenant();
-  await base.runAsync(`UPDATE reserves_suivi SET statut='ouverte',levee_le=NULL,archivee_le=NULL,modifie_le=? WHERE id=?`, [date, reserveId]);
+  await base.runAsync(
+    `UPDATE reserves_suivi SET statut='ouverte',levee_le=NULL,archivee_le=NULL,modifie_le=? WHERE id=?`,
+    [date, reserveId]
+  );
   await base.runAsync(
     `INSERT INTO historique_reserves(id,reserve_id,type_evenement,date_evenement,ancien_statut,nouveau_statut,commentaire)
      VALUES(?,?, 'reouverture', ?, ?, 'ouverte', ?)`,
@@ -148,11 +162,24 @@ export async function modifierReserveSuivi(reserveId, patch = {}) {
   if (!actuelle) return;
   const poste = Object.prototype.hasOwnProperty.call(patch, 'poste') ? patch.poste : actuelle.poste;
   const prestation = Object.prototype.hasOwnProperty.call(patch, 'prestation') ? patch.prestation : actuelle.prestation;
-  await base.runAsync(`UPDATE reserves_suivi SET poste=?,prestation=?,modifie_le=? WHERE id=?`, [poste, prestation, maintenant(), reserveId]);
+  await base.runAsync(`UPDATE reserves_suivi SET poste=?,prestation=?,modifie_le=? WHERE id=?`, [
+    poste,
+    prestation,
+    maintenant(),
+    reserveId
+  ]);
   await base.runAsync(
     `INSERT INTO historique_reserves(id,reserve_id,type_evenement,date_evenement,commentaire,details_json)
      VALUES(?,?, 'modification', ?, 'Fiche de suivi modifiée', ?)`,
-    [createId(), reserveId, maintenant(), JSON.stringify({ avant: { poste: actuelle.poste, prestation: actuelle.prestation }, apres: { poste, prestation } })]
+    [
+      createId(),
+      reserveId,
+      maintenant(),
+      JSON.stringify({
+        avant: { poste: actuelle.poste, prestation: actuelle.prestation },
+        apres: { poste, prestation }
+      })
+    ]
   );
 }
 
@@ -186,7 +213,7 @@ export async function statsReservesPeriode(siteId, depuis = null, jusqua = null)
     ouvertesFin: Number(row?.ouvertes_fin || 0),
     totalDepuisOrigine: Number(row?.total_depuis_origine || 0),
     depuis: debut,
-    jusqua: fin,
+    jusqua: fin
   };
 }
 
@@ -257,7 +284,18 @@ export async function remplacerEquipement(equipementId, nouveau = {}, commentair
   await base.runAsync(
     `INSERT INTO equipements(id,installation_id,type_code,designation,marque,modele,numero_serie,annee,statut,cree_le,modifie_le)
      VALUES(?,?,?,?,?,?,?,?, 'actif', ?, ?)`,
-    [nouveauId, ancien.installation_id, nouveau.type_code || ancien.type_code, nouveau.designation || ancien.designation || 'Équipement', nouveau.marque || null, nouveau.modele || null, nouveau.numero_serie || null, nouveau.annee ? Number(nouveau.annee) || null : null, date, date]
+    [
+      nouveauId,
+      ancien.installation_id,
+      nouveau.type_code || ancien.type_code,
+      nouveau.designation || ancien.designation || 'Équipement',
+      nouveau.marque || null,
+      nouveau.modele || null,
+      nouveau.numero_serie || null,
+      nouveau.annee ? Number(nouveau.annee) || null : null,
+      date,
+      date
+    ]
   );
   await base.runAsync(`UPDATE equipements SET statut='remplace',modifie_le=? WHERE id=?`, [date, equipementId]);
   await base.runAsync(
@@ -280,7 +318,8 @@ export async function getStatsSitePatrimoine(siteId) {
     `SELECT COUNT(*) AS total,
       SUM(CASE WHEN statut='ouverte' THEN 1 ELSE 0 END) AS ouvertes,
       SUM(CASE WHEN statut='levee' THEN 1 ELSE 0 END) AS levees
-     FROM reserves_suivi WHERE site_id=?`, [siteId]
+     FROM reserves_suivi WHERE site_id=?`,
+    [siteId]
   );
   const e = await base.getFirstAsync(
     `SELECT COUNT(*) AS total,
@@ -290,11 +329,17 @@ export async function getStatsSitePatrimoine(siteId) {
         (SELECT h.etat_apres FROM historique_equipements h WHERE h.equipement_id=e.id AND h.etat_apres IS NOT NULL ORDER BY h.date_evenement DESC LIMIT 1),
         (SELECT o.etat FROM observations_equipement o JOIN visites v ON v.id=o.visite_id WHERE o.equipement_id=e.id ORDER BY COALESCE(v.date_visite,'') DESC,o.observe_le DESC LIMIT 1),'')
         IN ('Vétuste','Dégradé','Hors service','À surveiller') THEN 1 ELSE 0 END) AS a_surveiller
-     FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=?`, [siteId]
+     FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=?`,
+    [siteId]
   );
   return {
     reserves: { total: Number(r?.total || 0), ouvertes: Number(r?.ouvertes || 0), levees: Number(r?.levees || 0) },
-    equipements: { total: Number(e?.total || 0), actifs: Number(e?.actifs || 0), remplaces: Number(e?.remplaces || 0), aSurveiller: Number(e?.a_surveiller || 0) },
+    equipements: {
+      total: Number(e?.total || 0),
+      actifs: Number(e?.actifs || 0),
+      remplaces: Number(e?.remplaces || 0),
+      aSurveiller: Number(e?.a_surveiller || 0)
+    }
   };
 }
 
@@ -303,12 +348,16 @@ export async function getStatsSitesPatrimoine(clientId) {
   const base = await db();
   const [sites, reserves, equipements] = await Promise.all([
     base.getAllAsync(`SELECT id FROM sites WHERE client_id=?`, [clientId]),
-    base.getAllAsync(`SELECT r.site_id,COUNT(*) AS total,
+    base.getAllAsync(
+      `SELECT r.site_id,COUNT(*) AS total,
       SUM(CASE WHEN r.statut='ouverte' THEN 1 ELSE 0 END) AS ouvertes,
       SUM(CASE WHEN r.statut='levee' THEN 1 ELSE 0 END) AS levees
       FROM reserves_suivi r JOIN sites s ON s.id=r.site_id
-      WHERE s.client_id=? GROUP BY r.site_id`, [clientId]),
-    base.getAllAsync(`SELECT i.site_id,COUNT(*) AS total,
+      WHERE s.client_id=? GROUP BY r.site_id`,
+      [clientId]
+    ),
+    base.getAllAsync(
+      `SELECT i.site_id,COUNT(*) AS total,
       SUM(CASE WHEN e.statut='actif' THEN 1 ELSE 0 END) AS actifs,
       SUM(CASE WHEN e.statut='remplace' THEN 1 ELSE 0 END) AS remplaces,
       SUM(CASE WHEN COALESCE(
@@ -316,28 +365,45 @@ export async function getStatsSitesPatrimoine(clientId) {
         (SELECT o.etat FROM observations_equipement o JOIN visites v ON v.id=o.visite_id WHERE o.equipement_id=e.id ORDER BY COALESCE(v.date_visite,'') DESC,o.observe_le DESC LIMIT 1),'')
         IN ('Vétuste','Dégradé','Hors service','À surveiller') THEN 1 ELSE 0 END) AS a_surveiller
       FROM equipements e JOIN installations i ON i.id=e.installation_id JOIN sites s ON s.id=i.site_id
-      WHERE s.client_id=? GROUP BY i.site_id`, [clientId]),
+      WHERE s.client_id=? GROUP BY i.site_id`,
+      [clientId]
+    )
   ]);
-  const map = new Map((sites || []).map((site) => [site.id, {
-    reserves: { total: 0, ouvertes: 0, levees: 0 },
-    equipements: { total: 0, actifs: 0, remplaces: 0, aSurveiller: 0 },
-  }]));
+  const map = new Map(
+    (sites || []).map((site) => [
+      site.id,
+      {
+        reserves: { total: 0, ouvertes: 0, levees: 0 },
+        equipements: { total: 0, actifs: 0, remplaces: 0, aSurveiller: 0 }
+      }
+    ])
+  );
   for (const row of reserves || []) {
-    const current = map.get(row.site_id); if (!current) continue;
-    current.reserves = { total: Number(row.total || 0), ouvertes: Number(row.ouvertes || 0), levees: Number(row.levees || 0) };
+    const current = map.get(row.site_id);
+    if (!current) continue;
+    current.reserves = {
+      total: Number(row.total || 0),
+      ouvertes: Number(row.ouvertes || 0),
+      levees: Number(row.levees || 0)
+    };
   }
   for (const row of equipements || []) {
-    const current = map.get(row.site_id); if (!current) continue;
-    current.equipements = { total: Number(row.total || 0), actifs: Number(row.actifs || 0), remplaces: Number(row.remplaces || 0), aSurveiller: Number(row.a_surveiller || 0) };
+    const current = map.get(row.site_id);
+    if (!current) continue;
+    current.equipements = {
+      total: Number(row.total || 0),
+      actifs: Number(row.actifs || 0),
+      remplaces: Number(row.remplaces || 0),
+      aSurveiller: Number(row.a_surveiller || 0)
+    };
   }
   return map;
 }
 
-
 function statsPatrimoineVides() {
   return {
     reserves: { total: 0, ouvertes: 0, levees: 0 },
-    equipements: { total: 0, actifs: 0, remplaces: 0, aSurveiller: 0 },
+    equipements: { total: 0, actifs: 0, remplaces: 0, aSurveiller: 0 }
   };
 }
 
@@ -345,7 +411,7 @@ function totaliserStatsPatrimoine(stats) {
   const total = {
     sites: stats.size,
     reserves: { total: 0, ouvertes: 0, levees: 0 },
-    equipements: { total: 0, actifs: 0, remplaces: 0, aSurveiller: 0 },
+    equipements: { total: 0, actifs: 0, remplaces: 0, aSurveiller: 0 }
   };
   for (const value of stats.values()) {
     total.reserves.total += Number(value.reserves?.total || 0);
@@ -367,7 +433,7 @@ export async function getStatsPatrimoineSelection({
   clientId,
   siteIds = [],
   installationIds = [],
-  scope = 'sites',
+  scope = 'sites'
 } = {}) {
   if (!clientId) return { scope: 'sites', stats: new Map(), totals: totaliserStatsPatrimoine(new Map()) };
 
@@ -421,7 +487,7 @@ export async function getStatsPatrimoineSelection({
        WHERE s.client_id=? AND i.id IN (${placeholders})
        GROUP BY i.site_id`,
       [clientId, ...wantedInstallations]
-    ),
+    )
   ]);
 
   const stats = new Map();
@@ -433,7 +499,7 @@ export async function getStatsPatrimoineSelection({
     stats.get(row.site_id).reserves = {
       total: Number(row.total || 0),
       ouvertes: Number(row.ouvertes || 0),
-      levees: Number(row.levees || 0),
+      levees: Number(row.levees || 0)
     };
   }
   for (const row of equipementRows || []) {
@@ -442,7 +508,7 @@ export async function getStatsPatrimoineSelection({
       total: Number(row.total || 0),
       actifs: Number(row.actifs || 0),
       remplaces: Number(row.remplaces || 0),
-      aSurveiller: Number(row.a_surveiller || 0),
+      aSurveiller: Number(row.a_surveiller || 0)
     };
   }
 
@@ -454,7 +520,7 @@ export async function getStatsClientPatrimoine(clientId) {
   const total = {
     sites: stats.size,
     reserves: { total: 0, ouvertes: 0, levees: 0 },
-    equipements: { total: 0, actifs: 0, remplaces: 0 },
+    equipements: { total: 0, actifs: 0, remplaces: 0 }
   };
   for (const value of stats.values()) {
     total.reserves.total += Number(value.reserves?.total || 0);

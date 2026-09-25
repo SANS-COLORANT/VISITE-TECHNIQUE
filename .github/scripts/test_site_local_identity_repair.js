@@ -8,7 +8,11 @@ const readline = require('node:readline');
 
 const root = path.resolve(__dirname, '../..');
 let checks = 0;
-function check(condition, label) { assert.ok(condition, label); checks += 1; console.log(`OK ${checks}: ${label}`); }
+function check(condition, label) {
+  assert.ok(condition, label);
+  checks += 1;
+  console.log(`OK ${checks}: ${label}`);
+}
 
 function load(file, dependencies = {}) {
   const source = fs.readFileSync(path.join(root, file), 'utf8');
@@ -23,8 +27,11 @@ function load(file, dependencies = {}) {
 }
 
 function databaseProcess(filename) {
-  const child = spawn('python3', [path.join(__dirname, 'photo_sqlite_harness.py'), filename], { stdio: ['pipe', 'pipe', 'inherit'] });
-  const pending = new Map(); let seq = 0;
+  const child = spawn('python3', [path.join(__dirname, 'photo_sqlite_harness.py'), filename], {
+    stdio: ['pipe', 'pipe', 'inherit']
+  });
+  const pending = new Map();
+  let seq = 0;
   readline.createInterface({ input: child.stdout }).on('line', (line) => {
     const response = JSON.parse(line);
     const waiter = pending.get(response.id);
@@ -33,16 +40,17 @@ function databaseProcess(filename) {
     if (response.error) waiter.reject(new Error(response.error));
     else waiter.resolve(response.result);
   });
-  const send = (method, sql = '', params = []) => new Promise((resolve, reject) => {
-    const id = ++seq;
-    pending.set(id, { resolve, reject });
-    child.stdin.write(JSON.stringify({ id, method, sql, params }) + '\n');
-  });
+  const send = (method, sql = '', params = []) =>
+    new Promise((resolve, reject) => {
+      const id = ++seq;
+      pending.set(id, { resolve, reject });
+      child.stdin.write(JSON.stringify({ id, method, sql, params }) + '\n');
+    });
   const db = {
     getAllAsync: (sql, params) => send('all', sql, params),
     getFirstAsync: async (sql, params) => (await send('all', sql, params))[0] || null,
     runAsync: (sql, params) => send('run', sql, params),
-    execAsync: (sql) => send('exec', sql),
+    execAsync: (sql) => send('exec', sql)
   };
   db.withExclusiveTransactionAsync = async (fn) => {
     await send('run', 'BEGIN');
@@ -113,17 +121,22 @@ async function main() {
     `);
 
     const repair = load('intranetIdentityRepairDb.js', {
-      createId: () => `repair-id-${++id}`,
+      createId: () => `repair-id-${++id}`
     });
 
     const first = await repair.repairIntranetSiteLocalIdentityOnce(server.db);
     const markerAfterFirst = await server.db.getFirstAsync(
       `SELECT value FROM _meta WHERE key='intranet_identity_repair_build424_v1'`
     );
-    check(Boolean(markerAfterFirst?.value), 'startup repair persists a non-NULL _meta marker with Expo transaction semantics');
+    check(
+      Boolean(markerAfterFirst?.value),
+      'startup repair persists a non-NULL _meta marker with Expo transaction semantics'
+    );
     const storedSummary = JSON.parse(markerAfterFirst.value);
-    check(storedSummary.siteSplits === 1 && storedSummary.localSplits === 1,
-      'stored _meta repair summary matches the first repair result');
+    check(
+      storedSummary.siteSplits === 1 && storedSummary.localSplits === 1,
+      'stored _meta repair summary matches the first repair result'
+    );
     check(first.siteSplits === 1, 'two distinct remote sites sharing one local site are split once');
     check(first.localSplits === 1, 'two distinct remote locals sharing one installation are split once');
 
@@ -131,15 +144,19 @@ async function main() {
       `SELECT remote_site_id,local_site_id FROM api_site_links
        WHERE remote_site_id IN ('100','101') ORDER BY remote_site_id`
     );
-    check(siteLinks.length === 2 && siteLinks[0].local_site_id !== siteLinks[1].local_site_id,
-      'remote_site_id remains the authoritative site identity even for case-only name differences');
+    check(
+      siteLinks.length === 2 && siteLinks[0].local_site_id !== siteLinks[1].local_site_id,
+      'remote_site_id remains the authoritative site identity even for case-only name differences'
+    );
 
     const localLinks = await server.db.getAllAsync(
       `SELECT remote_local_id,remote_site_id,local_installation_id FROM api_local_links
        WHERE remote_local_id IN ('500','501') ORDER BY remote_local_id`
     );
-    check(localLinks.length === 2 && localLinks[0].local_installation_id !== localLinks[1].local_installation_id,
-      'remote_local_id remains the authoritative local identity even with identical designations');
+    check(
+      localLinks.length === 2 && localLinks[0].local_installation_id !== localLinks[1].local_installation_id,
+      'remote_local_id remains the authoritative local identity even with identical designations'
+    );
 
     for (const link of localLinks) {
       const visit = await server.db.getFirstAsync(
@@ -147,8 +164,10 @@ async function main() {
         [link.remote_local_id]
       );
       const site = siteLinks.find((row) => row.remote_site_id === link.remote_site_id);
-      check(visit?.site_id === site?.local_site_id && visit?.installation_id === link.local_installation_id,
-        `visit for remote local ${link.remote_local_id} follows the repaired site/local pair`);
+      check(
+        visit?.site_id === site?.local_site_id && visit?.installation_id === link.local_installation_id,
+        `visit for remote local ${link.remote_local_id} follows the repaired site/local pair`
+      );
     }
 
     const equipmentA = await server.db.getFirstAsync(`SELECT installation_id FROM equipements WHERE id='equipment-a'`);
@@ -156,17 +175,20 @@ async function main() {
     const local500 = localLinks.find((row) => row.remote_local_id === '500');
     const local501 = localLinks.find((row) => row.remote_local_id === '501');
     check(
-      equipmentA?.installation_id === local500?.local_installation_id
-      && equipmentB?.installation_id === local501?.local_installation_id,
+      equipmentA?.installation_id === local500?.local_installation_id &&
+        equipmentB?.installation_id === local501?.local_installation_id,
       'remote equipment provenance follows the corresponding repaired local'
     );
 
     const legacy = await server.db.getFirstAsync(`SELECT installation_id FROM visites WHERE id='visit-legacy'`);
-    check(Boolean(legacy?.installation_id), 'legacy visit is attached only when its remaining site has one unambiguous active local');
+    check(
+      Boolean(legacy?.installation_id),
+      'legacy visit is attached only when its remaining site has one unambiguous active local'
+    );
 
     const afterFirstCounts = {
       sites: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM sites`))?.n || 0),
-      installations: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM installations`))?.n || 0),
+      installations: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM installations`))?.n || 0)
     };
 
     // Reproduit exactement l'etat laisse par le build 429: l'ancienne
@@ -174,49 +196,54 @@ async function main() {
     // essayant d'ecrire undefined dans _meta.value. La base utilisateur peut
     // donc etre reparee mais sans marqueur. Le build suivant doit reprendre
     // sans dupliquer ni perdre de donnees.
-    await server.db.runAsync(
-      `DELETE FROM _meta WHERE key='intranet_identity_repair_build424_v1'`
-    );
+    await server.db.runAsync(`DELETE FROM _meta WHERE key='intranet_identity_repair_build424_v1'`);
     const recovered = await repair.repairIntranetSiteLocalIdentityOnce(server.db);
     const afterRecoveryCounts = {
       sites: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM sites`))?.n || 0),
-      installations: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM installations`))?.n || 0),
+      installations: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM installations`))?.n || 0)
     };
     check(
-      afterFirstCounts.sites === afterRecoveryCounts.sites
-      && afterFirstCounts.installations === afterRecoveryCounts.installations,
+      afterFirstCounts.sites === afterRecoveryCounts.sites &&
+        afterFirstCounts.installations === afterRecoveryCounts.installations,
       'recovery from build 429 committed-without-marker state does not duplicate sites or locals'
     );
-    check(recovered.siteSplits === 0 && recovered.localSplits === 0,
-      'recovery recognizes already repaired SITE/LOCAL identities without replaying splits');
+    check(
+      recovered.siteSplits === 0 && recovered.localSplits === 0,
+      'recovery recognizes already repaired SITE/LOCAL identities without replaying splits'
+    );
 
     const recoveredMarker = await server.db.getFirstAsync(
       `SELECT value FROM _meta WHERE key='intranet_identity_repair_build424_v1'`
     );
-    check(Boolean(recoveredMarker?.value),
-      'recovery from build 429 state persists the missing non-NULL _meta marker');
+    check(Boolean(recoveredMarker?.value), 'recovery from build 429 state persists the missing non-NULL _meta marker');
 
     const beforeSecond = {
       sites: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM sites`))?.n || 0),
-      installations: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM installations`))?.n || 0),
+      installations: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM installations`))?.n || 0)
     };
     const second = await repair.repairIntranetSiteLocalIdentityOnce(server.db);
     const afterSecond = {
       sites: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM sites`))?.n || 0),
-      installations: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM installations`))?.n || 0),
+      installations: Number((await server.db.getFirstAsync(`SELECT COUNT(*) AS n FROM installations`))?.n || 0)
     };
-    check(beforeSecond.sites === afterSecond.sites && beforeSecond.installations === afterSecond.installations,
-      'repair is idempotent and does not duplicate sites or locals on next startup');
-    check(second.siteSplits === recovered.siteSplits && second.localSplits === recovered.localSplits,
-      'next startup reads the stored recovery summary instead of repairing again');
+    check(
+      beforeSecond.sites === afterSecond.sites && beforeSecond.installations === afterSecond.installations,
+      'repair is idempotent and does not duplicate sites or locals on next startup'
+    );
+    check(
+      second.siteSplits === recovered.siteSplits && second.localSplits === recovered.localSplits,
+      'next startup reads the stored recovery summary instead of repairing again'
+    );
 
     const audit = await server.db.getFirstAsync(
       `SELECT COUNT(*) AS n FROM journal_modifications
        WHERE auteur='METRA identity repair'`
     );
     check(Number(audit?.n || 0) >= 2, 'repair actions are auditable in the existing modification journal');
-    check((await server.db.getAllAsync('PRAGMA foreign_key_check')).length === 0,
-      'identity repair leaves SQLite foreign keys valid');
+    check(
+      (await server.db.getAllAsync('PRAGMA foreign_key_check')).length === 0,
+      'identity repair leaves SQLite foreign keys valid'
+    );
 
     console.log(`\n${checks} SITE/LOCAL identity repair checks passed on real SQLite.`);
   } finally {
@@ -225,4 +252,7 @@ async function main() {
   }
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1; });
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

@@ -12,7 +12,7 @@ export const CAMPAIGN_POINT_STATUSES = Object.freeze([
   ['refusal', 'Refus'],
   ['inaccessible', 'Inaccessible'],
   ['reschedule', 'À replanifier'],
-  ['not_applicable', 'Non applicable'],
+  ['not_applicable', 'Non applicable']
 ]);
 
 function clean(value) {
@@ -28,7 +28,8 @@ function num(value) {
 
 function normalized(value) {
   return String(value || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
@@ -61,7 +62,7 @@ export async function creerCampagneMesuresMission({
   toleranceAbs = null,
   tolerancePct = null,
   comparisonGroup = null,
-  properties = null,
+  properties = null
 } = {}) {
   if (!missionId) throw new Error('Mission requise.');
   if (!clean(label)) throw new Error('Nom de campagne requis.');
@@ -69,10 +70,10 @@ export async function creerCampagneMesuresMission({
   const db = await getDb();
   const id = createId('mcamp');
   if (siteId) {
-    const linked = await db.getFirstAsync(
-      'SELECT 1 AS ok FROM mission_site_links WHERE mission_id=? AND site_id=?',
-      [missionId, siteId]
-    );
+    const linked = await db.getFirstAsync('SELECT 1 AS ok FROM mission_site_links WHERE mission_id=? AND site_id=?', [
+      missionId,
+      siteId
+    ]);
     if (!linked) throw new Error('Le Site ne correspond pas à cette Mission.');
   }
   await db.runAsync(
@@ -81,9 +82,21 @@ export async function creerCampagneMesuresMission({
       default_expected_value,default_expected_text,tolerance_abs,tolerance_pct,comparison_group,properties_json
     ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      id, missionId, clean(siteId), clean(label), clean(measureType), clean(unit), 'planned',
-      clean(referenceSourceType), clean(referenceSourceLabel), num(defaultExpectedValue), clean(defaultExpectedText),
-      num(toleranceAbs), num(tolerancePct), clean(comparisonGroup), properties ? JSON.stringify(properties) : null,
+      id,
+      missionId,
+      clean(siteId),
+      clean(label),
+      clean(measureType),
+      clean(unit),
+      'planned',
+      clean(referenceSourceType),
+      clean(referenceSourceLabel),
+      num(defaultExpectedValue),
+      clean(defaultExpectedText),
+      num(toleranceAbs),
+      num(tolerancePct),
+      clean(comparisonGroup),
+      properties ? JSON.stringify(properties) : null
     ]
   );
   return id;
@@ -131,22 +144,34 @@ export async function ajouterPointCampagneMesures({
   expectedValue = null,
   expectedText = null,
   metadata = null,
-  sortOrder = null,
+  sortOrder = null
 } = {}) {
   const db = await getDb();
   const campaign = await requireCampaign(db, campaignId);
   const id = createId('mcampp');
   const finalSiteId = clean(siteId) || campaign.site_id || null;
-  const order = sortOrder === null || sortOrder === undefined ? await nextSortOrder(db, campaignId) : Number(sortOrder) || 0;
+  const order =
+    sortOrder === null || sortOrder === undefined ? await nextSortOrder(db, campaignId) : Number(sortOrder) || 0;
   await db.runAsync(
     `INSERT INTO mission_measure_campaign_points(
       id,campaign_id,mission_id,site_id,location_id,equipment_id,external_ref,label,point_type,sort_order,status,
       expected_value,expected_text,metadata_json
     ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      id,campaignId,campaign.mission_id,finalSiteId,clean(locationId),clean(equipmentId),clean(externalRef),
-      clean(label) || 'Point de mesure',clean(pointType),order,'planned',num(expectedValue),clean(expectedText),
-      metadata ? JSON.stringify(metadata) : null,
+      id,
+      campaignId,
+      campaign.mission_id,
+      finalSiteId,
+      clean(locationId),
+      clean(equipmentId),
+      clean(externalRef),
+      clean(label) || 'Point de mesure',
+      clean(pointType),
+      order,
+      'planned',
+      num(expectedValue),
+      clean(expectedText),
+      metadata ? JSON.stringify(metadata) : null
     ]
   );
   return id;
@@ -162,7 +187,7 @@ export async function ajouterPointsCampagneDepuisStructure(campaignId, source = 
        FROM mission_equipment e JOIN mission_site_links ml ON ml.site_id=e.site_id
        WHERE ml.mission_id=? AND (? IS NULL OR e.site_id=?)
        ORDER BY e.type,e.brand,e.model`,
-      [campaign.mission_id,campaign.site_id,campaign.site_id]
+      [campaign.mission_id, campaign.site_id, campaign.site_id]
     );
   } else {
     rows = await db.getAllAsync(
@@ -170,15 +195,17 @@ export async function ajouterPointsCampagneDepuisStructure(campaignId, source = 
        FROM mission_locations l JOIN mission_site_links ml ON ml.site_id=l.site_id
        WHERE ml.mission_id=? AND (? IS NULL OR l.site_id=?)
        ORDER BY l.sort_order,l.label`,
-      [campaign.mission_id,campaign.site_id,campaign.site_id]
+      [campaign.mission_id, campaign.site_id, campaign.site_id]
     );
   }
 
   const existing = new Set(
-    (await db.getAllAsync(
-      "SELECT external_ref FROM mission_measure_campaign_points WHERE campaign_id=? AND external_ref IS NOT NULL",
-      [campaignId]
-    )).map((row) => row.external_ref)
+    (
+      await db.getAllAsync(
+        'SELECT external_ref FROM mission_measure_campaign_points WHERE campaign_id=? AND external_ref IS NOT NULL',
+        [campaignId]
+      )
+    ).map((row) => row.external_ref)
   );
   let added = 0;
   let order = await nextSortOrder(db, campaignId);
@@ -186,18 +213,26 @@ export async function ajouterPointsCampagneDepuisStructure(campaignId, source = 
     for (const row of rows) {
       const externalRef = source === 'equipment' ? 'equipment:' + row.id : 'location:' + row.id;
       if (existing.has(externalRef)) continue;
-      const label = source === 'equipment'
-        ? [row.type,row.brand,row.model].filter(Boolean).join(' · ') || 'Équipement'
-        : row.label || 'Localisation';
+      const label =
+        source === 'equipment'
+          ? [row.type, row.brand, row.model].filter(Boolean).join(' · ') || 'Équipement'
+          : row.label || 'Localisation';
       await db.runAsync(
         `INSERT INTO mission_measure_campaign_points(
           id,campaign_id,mission_id,site_id,location_id,equipment_id,external_ref,label,point_type,sort_order,status
         ) VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
         [
-          createId('mcampp'),campaignId,campaign.mission_id,row.site_id || campaign.site_id || null,
+          createId('mcampp'),
+          campaignId,
+          campaign.mission_id,
+          row.site_id || campaign.site_id || null,
           source === 'equipment' ? row.location_id || null : row.id,
           source === 'equipment' ? row.id : null,
-          externalRef,label,source === 'equipment' ? 'equipment' : row.kind || 'location',order,'planned',
+          externalRef,
+          label,
+          source === 'equipment' ? 'equipment' : row.kind || 'location',
+          order,
+          'planned'
         ]
       );
       order += 1;
@@ -217,10 +252,10 @@ export async function importerPointsCampagneMesuresExcel(campaignId) {
       'text/csv',
       'application/vnd.ms-excel',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      'text/plain',
+      'text/plain'
     ],
     copyToCacheDirectory: true,
-    multiple: false,
+    multiple: false
   });
   if (picked?.canceled) return null;
   const asset = picked?.assets?.[0];
@@ -241,9 +276,19 @@ export async function importerPointsCampagneMesuresExcel(campaignId) {
   if (!rows.length) throw new Error('Aucune ligne à importer.');
 
   const keys = [...new Set(rows.flatMap((row) => Object.keys(row || {})))];
-  const labelKey = detectColumn(keys, [
-    /^point$/, /^libelle$/, /^designation$/, /^nom$/, /^logement$/, /^local$/, /^zone$/, /^bouche$/, /^terminal$/, /^repere$/,
-  ]) || keys[0];
+  const labelKey =
+    detectColumn(keys, [
+      /^point$/,
+      /^libelle$/,
+      /^designation$/,
+      /^nom$/,
+      /^logement$/,
+      /^local$/,
+      /^zone$/,
+      /^bouche$/,
+      /^terminal$/,
+      /^repere$/
+    ]) || keys[0];
   const externalRefKey = detectColumn(keys, [/^id$/, /^reference$/, /^ref$/, /^numero$/, /^n $/, /^repere$/]);
   const typeKey = detectColumn(keys, [/^type$/, /type point/, /piece/, /localisation/]);
   const expectedKey = detectColumn(keys, [/attendu/, /consigne/, /reference/, /objectif/, /theorique/]);
@@ -257,7 +302,8 @@ export async function importerPointsCampagneMesuresExcel(campaignId) {
       const row = rows[index] || {};
       const label = clean(row[labelKey]);
       if (!label) continue;
-      const externalRef = clean(externalRefKey ? row[externalRefKey] : null) || 'excel:' + sheetName + ':' + String(index + 2);
+      const externalRef =
+        clean(externalRefKey ? row[externalRefKey] : null) || 'excel:' + sheetName + ':' + String(index + 2);
       const existing = await db.getFirstAsync(
         'SELECT id FROM mission_measure_campaign_points WHERE campaign_id=? AND external_ref=?',
         [campaignId, externalRef]
@@ -270,10 +316,18 @@ export async function importerPointsCampagneMesuresExcel(campaignId) {
           id,campaign_id,mission_id,site_id,external_ref,label,point_type,sort_order,status,expected_value,expected_text,metadata_json
         ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
-          createId('mcampp'),campaignId,campaign.mission_id,campaign.site_id || null,externalRef,label,
-          clean(typeKey ? row[typeKey] : null),order,'planned',
-          expectedNumber,expectedNumber === null ? clean(expectedRaw) : null,
-          JSON.stringify({ sourceFile: asset.name, sourceSheet: sheetName, sourceRow: index + 2, raw: row }),
+          createId('mcampp'),
+          campaignId,
+          campaign.mission_id,
+          campaign.site_id || null,
+          externalRef,
+          label,
+          clean(typeKey ? row[typeKey] : null),
+          order,
+          'planned',
+          expectedNumber,
+          expectedNumber === null ? clean(expectedRaw) : null,
+          JSON.stringify({ sourceFile: asset.name, sourceSheet: sheetName, sourceRow: index + 2, raw: row })
         ]
       );
       order += 1;
@@ -283,15 +337,18 @@ export async function importerPointsCampagneMesuresExcel(campaignId) {
   return { added, totalRows: rows.length, sourceName: asset.name, sheetName };
 }
 
-export async function enregistrerPointCampagneMesures(pointId, {
-  status = 'measured',
-  value = null,
-  valueText = null,
-  comment = null,
-  measuredAt = null,
-  sourceType = 'terrain',
-  sourceLabel = null,
-} = {}) {
+export async function enregistrerPointCampagneMesures(
+  pointId,
+  {
+    status = 'measured',
+    value = null,
+    valueText = null,
+    comment = null,
+    measuredAt = null,
+    sourceType = 'terrain',
+    sourceLabel = null
+  } = {}
+) {
   const db = await getDb();
   const point = await db.getFirstAsync(
     `SELECT p.*,c.measure_type,c.unit,c.reference_source_type,c.reference_source_label,c.default_expected_value,c.default_expected_text,
@@ -313,9 +370,10 @@ export async function enregistrerPointCampagneMesures(pointId, {
     measuredValue = num(value);
     measuredText = measuredValue === null ? clean(valueText ?? value) : null;
     if (measuredValue === null && !measuredText) throw new Error('Valeur requise pour un point mesuré.');
-    const expectedValue = point.expected_value !== null && point.expected_value !== undefined
-      ? point.expected_value
-      : point.default_expected_value;
+    const expectedValue =
+      point.expected_value !== null && point.expected_value !== undefined
+        ? point.expected_value
+        : point.default_expected_value;
     const expectedText = clean(point.expected_text) || clean(point.default_expected_text);
     const result = await enregistrerMesureCompleteMission({
       missionId: point.mission_id,
@@ -335,7 +393,7 @@ export async function enregistrerPointCampagneMesures(pointId, {
       sourceType,
       sourceLabel: sourceLabel || 'Campagne · ' + point.label,
       measuredAt: measuredAt || new Date().toISOString(),
-      comment,
+      comment
     });
     measureId = result?.id || null;
     anomalyStatus = result?.anomalyStatus || null;
@@ -352,8 +410,8 @@ export async function enregistrerPointCampagneMesures(pointId, {
         finalStatus === 'measured' ? measuredText : null,
         finalStatus === 'measured' ? measureId : null,
         clean(comment),
-        finalStatus === 'measured' ? (measuredAt || new Date().toISOString()) : null,
-        pointId,
+        finalStatus === 'measured' ? measuredAt || new Date().toISOString() : null,
+        pointId
       ]
     );
     await db.runAsync(
@@ -388,15 +446,27 @@ export async function dupliquerCampagneMesuresMission(campaignId, { label = null
         default_expected_value,default_expected_text,tolerance_abs,tolerance_pct,comparison_group,properties_json
       ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
       [
-        targetId,source.mission_id,source.site_id,clean(label) || source.label + ' · nouvelle campagne',
-        source.measure_type,source.unit,'planned',source.reference_source_type,source.reference_source_label,
-        source.default_expected_value,source.default_expected_text,source.tolerance_abs,source.tolerance_pct,group,source.properties_json,
+        targetId,
+        source.mission_id,
+        source.site_id,
+        clean(label) || source.label + ' · nouvelle campagne',
+        source.measure_type,
+        source.unit,
+        'planned',
+        source.reference_source_type,
+        source.reference_source_label,
+        source.default_expected_value,
+        source.default_expected_text,
+        source.tolerance_abs,
+        source.tolerance_pct,
+        group,
+        source.properties_json
       ]
     );
     if (!source.comparison_group) {
       await db.runAsync(
         "UPDATE mission_measure_campaigns SET comparison_group=?,updated_at=datetime('now') WHERE id=?",
-        [group,campaignId]
+        [group, campaignId]
       );
     }
     for (const point of sourcePoints) {
@@ -406,8 +476,20 @@ export async function dupliquerCampagneMesuresMission(campaignId, { label = null
           expected_value,expected_text,metadata_json
         ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
         [
-          createId('mcampp'),targetId,source.mission_id,point.site_id,point.location_id,point.equipment_id,
-          point.external_ref,point.label,point.point_type,point.sort_order,'planned',point.expected_value,point.expected_text,point.metadata_json,
+          createId('mcampp'),
+          targetId,
+          source.mission_id,
+          point.site_id,
+          point.location_id,
+          point.equipment_id,
+          point.external_ref,
+          point.label,
+          point.point_type,
+          point.sort_order,
+          'planned',
+          point.expected_value,
+          point.expected_text,
+          point.metadata_json
         ]
       );
     }
@@ -424,7 +506,7 @@ export async function comparerCampagneMesures(campaignId) {
     `SELECT * FROM mission_measure_campaigns
      WHERE mission_id=? AND comparison_group=? AND id<>?
      ORDER BY CASE WHEN created_at < ? THEN 0 ELSE 1 END,created_at DESC LIMIT 1`,
-    [campaign.mission_id,campaign.comparison_group,campaign.id,campaign.created_at]
+    [campaign.mission_id, campaign.comparison_group, campaign.id, campaign.created_at]
   );
   if (!previous) return { previousCampaign: null, rows: [] };
 
@@ -440,17 +522,20 @@ export async function comparerCampagneMesures(campaignId) {
       )
      WHERE current.campaign_id=?
      ORDER BY current.sort_order,current.label`,
-    [previous.id,campaignId]
+    [previous.id, campaignId]
   );
   return {
     previousCampaign: previous,
     rows: rows.map((row) => ({
       ...row,
-      delta: row.measured_value !== null && row.measured_value !== undefined
-        && row.previous_value !== null && row.previous_value !== undefined
-        ? Number(row.measured_value) - Number(row.previous_value)
-        : null,
-    })),
+      delta:
+        row.measured_value !== null &&
+        row.measured_value !== undefined &&
+        row.previous_value !== null &&
+        row.previous_value !== undefined
+          ? Number(row.measured_value) - Number(row.previous_value)
+          : null
+    }))
   };
 }
 

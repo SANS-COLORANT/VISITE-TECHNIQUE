@@ -11,7 +11,9 @@ function ensureAppStateFlushListener() {
   appStateSubscription = AppState.addEventListener('change', (nextState) => {
     if (nextState !== 'inactive' && nextState !== 'background') return;
     for (const flush of [...activeFlushers]) {
-      try { Promise.resolve(flush()).catch(() => {}); } catch {}
+      try {
+        Promise.resolve(flush()).catch(() => {});
+      } catch {}
     }
   });
 }
@@ -51,7 +53,9 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
   const activityKeyRef = useRef(null);
   if (!activityKeyRef.current) activityKeyRef.current = `autosave:${++autosaveSequence}`;
 
-  useEffect(() => { saveRef.current = sauvegarder; }, [sauvegarder]);
+  useEffect(() => {
+    saveRef.current = sauvegarder;
+  }, [sauvegarder]);
 
   useEffect(() => {
     const prochaine = valeurInitiale == null ? '' : String(valeurInitiale);
@@ -94,26 +98,32 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
     return queueRef.current;
   }, []);
 
-  const setValeur = useCallback((prochaine) => {
-    const texte = prochaine == null ? '' : String(prochaine);
-    valeurRef.current = texte;
-    setValeurState(texte);
-    if (texte !== persisteeRef.current) markDraftDirty(activityKeyRef.current);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => {
-      executerSauvegarde().catch(() => {});
-    }, delai);
-  }, [delai, executerSauvegarde]);
+  const setValeur = useCallback(
+    (prochaine) => {
+      const texte = prochaine == null ? '' : String(prochaine);
+      valeurRef.current = texte;
+      setValeurState(texte);
+      if (texte !== persisteeRef.current) markDraftDirty(activityKeyRef.current);
+      if (timerRef.current) clearTimeout(timerRef.current);
+      timerRef.current = setTimeout(() => {
+        executerSauvegarde().catch(() => {});
+      }, delai);
+    },
+    [delai, executerSauvegarde]
+  );
 
   const flush = useCallback(() => executerSauvegarde(), [executerSauvegarde]);
 
-  const setImmediate = useCallback((prochaine) => {
-    const texte = prochaine == null ? '' : String(prochaine);
-    valeurRef.current = texte;
-    setValeurState(texte);
-    if (texte !== persisteeRef.current) markDraftDirty(activityKeyRef.current);
-    return executerSauvegarde(true);
-  }, [executerSauvegarde]);
+  const setImmediate = useCallback(
+    (prochaine) => {
+      const texte = prochaine == null ? '' : String(prochaine);
+      valeurRef.current = texte;
+      setValeurState(texte);
+      if (texte !== persisteeRef.current) markDraftDirty(activityKeyRef.current);
+      return executerSauvegarde(true);
+    },
+    [executerSauvegarde]
+  );
 
   // À utiliser lorsqu'une action métier vient elle-même de persister la valeur
   // (preset, changement S/N.S, etc.). Cela annule le debounce devenu inutile
@@ -132,15 +142,18 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
 
   useEffect(() => registerFlusher(flush), [flush]);
 
-  useEffect(() => () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    if (valeurRef.current !== persisteeRef.current) {
-      // React ne peut pas attendre un cleanup asynchrone, mais l'écriture est
-      // mise en file immédiatement. Le listener AppState couvre aussi le cas
-      // où l'utilisateur quitte METRA avant le blur.
-      executerSauvegarde().catch(() => {});
-    }
-  }, [executerSauvegarde]);
+  useEffect(
+    () => () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      if (valeurRef.current !== persisteeRef.current) {
+        // React ne peut pas attendre un cleanup asynchrone, mais l'écriture est
+        // mise en file immédiatement. Le listener AppState couvre aussi le cas
+        // où l'utilisateur quitte METRA avant le blur.
+        executerSauvegarde().catch(() => {});
+      }
+    },
+    [executerSauvegarde]
+  );
 
   return [valeur, setValeur, flush, setImmediate, adopterValeurPersistee];
 }

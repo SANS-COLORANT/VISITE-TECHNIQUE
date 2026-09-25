@@ -60,5 +60,5 @@ export const migration017 = {
       ON historique_equipements(equipement_id, date_evenement);
     CREATE INDEX IF NOT EXISTS idx_historique_equipements_visite
       ON historique_equipements(source_visite_id);
-  `,
+  `
 };

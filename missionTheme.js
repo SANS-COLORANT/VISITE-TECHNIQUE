@@ -9,7 +9,7 @@ export const MISSION_COLORS = Object.freeze({
   accentLine: '#CDE2D5',
   accentLineStrong: '#AFCFBD',
   bg: '#F7FAF8',
-  card: '#FFFFFF',
+  card: '#FFFFFF'
 });
 
 export const missionStyles = StyleSheet.create({
@@ -30,5 +30,5 @@ export const missionStyles = StyleSheet.create({
   chipSelectedText: { color: MISSION_COLORS.accentDark },
   modalSheet: { borderWidth: 1, borderColor: MISSION_COLORS.accentLine },
   accentText: { color: MISSION_COLORS.accentDark },
-  statBox: { backgroundColor: MISSION_COLORS.accentSoft },
+  statBox: { backgroundColor: MISSION_COLORS.accentSoft }
 });

@@ -1,22 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
-import {
-  ActivityIndicator,
-  Alert,
-  Modal,
-  ScrollView,
-  Text,
-  TouchableOpacity,
-  View,
-} from 'react-native';
+import { ActivityIndicator, Alert, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from '../../styles.js';
 import { ParametresScreen } from '../../ParametresScreen.js';
 import { LabMetraPanel } from '../../LabMetraPanel.js';
 import { setRuntimeVisualPalette } from './visualPaletteRuntime.js';
-import {
-  activateVisualPack,
-  importVisualPackZip,
-  listVisualPacks,
-} from './visualPackManager.js';
+import { activateVisualPack, importVisualPackZip, listVisualPacks } from './visualPackManager.js';
 
 const LONG_PRESS_MS = 2500;
 
@@ -36,7 +24,7 @@ function PackChoice({ active, pack, disabled, onPress }) {
         paddingHorizontal: 13,
         paddingVertical: 11,
         marginBottom: 8,
-        opacity: disabled ? 0.55 : 1,
+        opacity: disabled ? 0.55 : 1
       }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -49,7 +37,7 @@ function PackChoice({ active, pack, disabled, onPress }) {
             borderColor: active ? accent : COLORS.line,
             alignItems: 'center',
             justifyContent: 'center',
-            marginRight: 10,
+            marginRight: 10
           }}
         >
           {active ? <View style={{ width: 9, height: 9, borderRadius: 5, backgroundColor: accent }} /> : null}
@@ -62,9 +50,7 @@ function PackChoice({ active, pack, disabled, onPress }) {
             {pack?.description || 'Personnalisation de l’interface METRA.'}
           </Text>
         </View>
-        <Text style={{ marginLeft: 10, fontSize: 9.5, color: COLORS.inkFaint }}>
-          v{pack?.version || 1}
-        </Text>
+        <Text style={{ marginLeft: 10, fontSize: 9.5, color: COLORS.inkFaint }}>v{pack?.version || 1}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -78,7 +64,7 @@ function CompactToggle({ animationOn, activeName, accent, disabled, onOff, onOn,
         paddingVertical: 10,
         backgroundColor: COLORS.white,
         borderBottomWidth: 1,
-        borderBottomColor: COLORS.line,
+        borderBottomColor: COLORS.line
       }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -92,16 +78,14 @@ function CompactToggle({ animationOn, activeName, accent, disabled, onOff, onOn,
             backgroundColor: animationOn ? `${accent}14` : COLORS.bg,
             borderWidth: 1,
             borderColor: animationOn ? `${accent}55` : COLORS.line,
-            marginRight: 10,
+            marginRight: 10
           }}
         >
           <Text style={{ fontSize: 15, color: animationOn ? accent : COLORS.inkSoft }}>✦</Text>
         </View>
 
         <View style={{ flex: 1, paddingRight: 10 }}>
-          <Text style={{ fontSize: 11.5, fontWeight: '800', color: COLORS.ink }}>
-            Animations visuelles
-          </Text>
+          <Text style={{ fontSize: 11.5, fontWeight: '800', color: COLORS.ink }}>Animations visuelles</Text>
           <Text style={{ marginTop: 1, fontSize: 9.5, color: COLORS.inkSoft }} numberOfLines={1}>
             {animationOn ? activeName : 'Désactivées'}
           </Text>
@@ -114,7 +98,7 @@ function CompactToggle({ animationOn, activeName, accent, disabled, onOff, onOn,
             borderWidth: 1,
             borderColor: COLORS.line,
             backgroundColor: COLORS.bg,
-            padding: 2,
+            padding: 2
           }}
         >
           <TouchableOpacity
@@ -127,7 +111,7 @@ function CompactToggle({ animationOn, activeName, accent, disabled, onOff, onOn,
               paddingVertical: 7,
               borderRadius: 7,
               alignItems: 'center',
-              backgroundColor: !animationOn ? COLORS.white : 'transparent',
+              backgroundColor: !animationOn ? COLORS.white : 'transparent'
             }}
           >
             <Text style={{ fontSize: 10, fontWeight: '800', color: !animationOn ? COLORS.ink : COLORS.inkSoft }}>
@@ -147,7 +131,7 @@ function CompactToggle({ animationOn, activeName, accent, disabled, onOff, onOn,
               paddingVertical: 7,
               borderRadius: 7,
               alignItems: 'center',
-              backgroundColor: animationOn ? accent : 'transparent',
+              backgroundColor: animationOn ? accent : 'transparent'
             }}
           >
             <Text style={{ fontSize: 10, fontWeight: '800', color: animationOn ? '#FFFFFF' : COLORS.inkSoft }}>
@@ -180,15 +164,27 @@ function LabSettingsEntry({ open, onPress }) {
         borderColor: open ? '#F2A875' : COLORS.line,
         backgroundColor: open ? '#FFF6EF' : COLORS.white,
         flexDirection: 'row',
-        alignItems: 'center',
+        alignItems: 'center'
       }}
     >
-      <View style={{ width: 34, height: 34, borderRadius: 11, backgroundColor: '#FFF1E8', alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
+      <View
+        style={{
+          width: 34,
+          height: 34,
+          borderRadius: 11,
+          backgroundColor: '#FFF1E8',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginRight: 11
+        }}
+      >
         <Text style={{ color: COLORS.orangeDark, fontSize: 16, fontWeight: '900' }}>LAB</Text>
       </View>
       <View style={{ flex: 1 }}>
         <Text style={{ color: COLORS.ink, fontSize: 12.5, fontWeight: '900' }}>LAB METRA</Text>
-        <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 9.5 }}>Fonctionnalités expérimentales · accès uniquement depuis Paramètres</Text>
+        <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 9.5 }}>
+          Fonctionnalités expérimentales · accès uniquement depuis Paramètres
+        </Text>
       </View>
       <Text style={{ color: COLORS.orangeDark, fontSize: 18 }}>{open ? '⌃' : '⌄'}</Text>
     </TouchableOpacity>
@@ -215,34 +211,39 @@ export function VisualPacksSettingsScreen({ visualPack, onVisualPackChanged }) {
     }
   }, []);
 
-  useEffect(() => { reloadPacks(); }, [reloadPacks]);
+  useEffect(() => {
+    reloadPacks();
+  }, [reloadPacks]);
 
   useEffect(() => {
     if (visualPack?.id && visualPack.id !== 'classic') setLastAnimatedPackId(visualPack.id);
   }, [visualPack?.id]);
 
-  const appliquer = useCallback(async (pack, { closeSelector = false } = {}) => {
-    if (saving || !pack) return null;
-    if (pack.id === visualPack?.id) {
-      if (closeSelector) setSelectorVisible(false);
-      return pack;
-    }
+  const appliquer = useCallback(
+    async (pack, { closeSelector = false } = {}) => {
+      if (saving || !pack) return null;
+      if (pack.id === visualPack?.id) {
+        if (closeSelector) setSelectorVisible(false);
+        return pack;
+      }
 
-    setSaving(true);
-    try {
-      const selected = await activateVisualPack(pack.id);
-      setRuntimeVisualPalette(selected.colors);
-      if (selected.id !== 'classic') setLastAnimatedPackId(selected.id);
-      onVisualPackChanged?.(selected);
-      if (closeSelector) setSelectorVisible(false);
-      return selected;
-    } catch (e) {
-      Alert.alert('Pack non modifié', String(e.message || e));
-      return null;
-    } finally {
-      setSaving(false);
-    }
-  }, [onVisualPackChanged, saving, visualPack?.id]);
+      setSaving(true);
+      try {
+        const selected = await activateVisualPack(pack.id);
+        setRuntimeVisualPalette(selected.colors);
+        if (selected.id !== 'classic') setLastAnimatedPackId(selected.id);
+        onVisualPackChanged?.(selected);
+        if (closeSelector) setSelectorVisible(false);
+        return selected;
+      } catch (e) {
+        Alert.alert('Pack non modifié', String(e.message || e));
+        return null;
+      } finally {
+        setSaving(false);
+      }
+    },
+    [onVisualPackChanged, saving, visualPack?.id]
+  );
 
   const turnOff = useCallback(() => {
     const classic = packs.find((pack) => pack.id === 'classic');
@@ -324,7 +325,7 @@ export function VisualPacksSettingsScreen({ visualPack, onVisualPackChanged }) {
             backgroundColor: 'rgba(20,20,20,0.42)',
             alignItems: 'center',
             justifyContent: 'center',
-            padding: 24,
+            padding: 24
           }}
         >
           <View
@@ -336,7 +337,7 @@ export function VisualPacksSettingsScreen({ visualPack, onVisualPackChanged }) {
               borderRadius: 16,
               borderWidth: 1,
               borderColor: COLORS.line,
-              overflow: 'hidden',
+              overflow: 'hidden'
             }}
           >
             <View
@@ -346,7 +347,7 @@ export function VisualPacksSettingsScreen({ visualPack, onVisualPackChanged }) {
                 paddingHorizontal: 16,
                 paddingVertical: 13,
                 borderBottomWidth: 1,
-                borderBottomColor: COLORS.line,
+                borderBottomColor: COLORS.line
               }}
             >
               <View style={{ flex: 1 }}>
@@ -392,12 +393,10 @@ export function VisualPacksSettingsScreen({ visualPack, onVisualPackChanged }) {
                     paddingHorizontal: 13,
                     paddingVertical: 11,
                     alignItems: 'center',
-                    opacity: saving ? 0.55 : 1,
+                    opacity: saving ? 0.55 : 1
                   }}
                 >
-                  <Text style={{ fontSize: 11.5, fontWeight: '800', color: accent }}>
-                    ＋ Ajouter un thème (.zip)
-                  </Text>
+                  <Text style={{ fontSize: 11.5, fontWeight: '800', color: accent }}>＋ Ajouter un thème (.zip)</Text>
                 </TouchableOpacity>
 
                 <Text style={{ marginTop: 10, textAlign: 'center', fontSize: 8.5, color: COLORS.inkFaint }}>

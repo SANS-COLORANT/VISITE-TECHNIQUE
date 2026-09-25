@@ -3,18 +3,16 @@ import { createId } from './database/ids.js';
 import { ajouterLocalPreAllumage } from './preAllumageModularDb.js';
 import { ajouterEquipementControlePreAllumage } from './preAllumageBusinessDb.js';
 
-const norm = (value) => String(value || '')
-  .normalize('NFD')
-  .replace(/[\u0300-\u036f]/g, '')
-  .toLowerCase();
+const norm = (value) =>
+  String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
 
 function typeEquipementControle(equipement) {
-  const texte = norm([
-    equipement?.type_code,
-    equipement?.designation,
-    equipement?.marque,
-    equipement?.modele,
-  ].filter(Boolean).join(' '));
+  const texte = norm(
+    [equipement?.type_code, equipement?.designation, equipement?.marque, equipement?.modele].filter(Boolean).join(' ')
+  );
 
   if (/chaudiere/.test(texte)) return 'chaudiere';
   if (/bruleur/.test(texte)) return 'bruleur';
@@ -29,7 +27,8 @@ function typeEquipementControle(equipement) {
   if (/pompe/.test(texte) && /chauffage/.test(texte)) return 'pompe_chauffage';
   if (/pompe/.test(texte)) return 'pompe';
   if (/vanne/.test(texte) && /(3|trois).*voies/.test(texte) && /ecs/.test(texte)) return 'vanne_3_voies_ecs';
-  if (/vanne/.test(texte) && /(3|trois).*voies/.test(texte) && /chauffage/.test(texte)) return 'vanne_3_voies_chauffage';
+  if (/vanne/.test(texte) && /(3|trois).*voies/.test(texte) && /chauffage/.test(texte))
+    return 'vanne_3_voies_chauffage';
   if (/vanne/.test(texte) && /(3|trois).*voies/.test(texte)) return 'vanne_3_voies';
   if (/servomoteur/.test(texte)) return 'servomoteur';
   if (/regulat/.test(texte) && /ecs/.test(texte)) return 'regulation_ecs';
@@ -83,7 +82,9 @@ async function cloneRubriquesEquipements(db, visiteId, sourceLocalId, cibleLocal
     const rubriqueId = createId('pa-rubrique');
     const match = String(source.section_code || '').match(/\.equip\.([^.]+)/);
     const typeCode = match?.[1] || 'autre';
-    const sectionCode = `pa.local.${cibleLocalId}.equip.${typeCode}.${createId('eq').replace(/[^a-zA-Z0-9]/g, '').slice(-10)}`;
+    const sectionCode = `pa.local.${cibleLocalId}.equip.${typeCode}.${createId('eq')
+      .replace(/[^a-zA-Z0-9]/g, '')
+      .slice(-10)}`;
     await db.runAsync(
       `INSERT INTO pre_allumage_rubriques(id,visite_id,local_id,panel_id,section_code,nom,ordre,supprimable)
        VALUES(?,?,?,?,?,?,?,1)`,
@@ -93,7 +94,15 @@ async function cloneRubriquesEquipements(db, visiteId, sourceLocalId, cibleLocal
       await db.runAsync(
         `INSERT INTO pre_allumage_champs(id,rubrique_id,cle_stockage,libelle,type_code,ordre,options_json)
          VALUES(?,?,?,?,?,?,?)`,
-        [createId('pa-champ'), rubriqueId, champ.cle_stockage, champ.libelle, champ.type_code, champ.ordre, champ.options_json]
+        [
+          createId('pa-champ'),
+          rubriqueId,
+          champ.cle_stockage,
+          champ.libelle,
+          champ.type_code,
+          champ.ordre,
+          champ.options_json
+        ]
       );
     }
     copies += 1;
@@ -113,10 +122,9 @@ async function restaurerDepuisVisitePrecedente(db, visiteId, siteId) {
   );
   if (!precedente?.id) return 0;
 
-  const sources = await db.getAllAsync(
-    `SELECT * FROM pre_allumage_locaux WHERE visite_id=? ORDER BY ordre,cree_le`,
-    [precedente.id]
-  );
+  const sources = await db.getAllAsync(`SELECT * FROM pre_allumage_locaux WHERE visite_id=? ORDER BY ordre,cree_le`, [
+    precedente.id
+  ]);
   let crees = 0;
   for (const source of sources || []) {
     const cibleId = await ajouterLocalPreAllumage(visiteId, {
@@ -124,14 +132,15 @@ async function restaurerDepuisVisitePrecedente(db, visiteId, siteId) {
       typeCode: source.type_code || 'sous_station',
       chauffage: Number(source.chauffage) !== 0,
       ecs: Number(source.ecs) !== 0,
-      primaire: source.type_code === 'chaufferie' && Number(source.primaire) !== 0,
+      primaire: source.type_code === 'chaufferie' && Number(source.primaire) !== 0
     });
     const copies = await cloneRubriquesEquipements(db, visiteId, source.id, cibleId);
     if (source.type_code === 'chaufferie' && copies > 0) {
-      await db.runAsync(
-        `DELETE FROM pre_allumage_rubriques WHERE visite_id=? AND local_id=? AND section_code=?`,
-        [visiteId, cibleId, `pa.local.${cibleId}.tests`]
-      );
+      await db.runAsync(`DELETE FROM pre_allumage_rubriques WHERE visite_id=? AND local_id=? AND section_code=?`, [
+        visiteId,
+        cibleId,
+        `pa.local.${cibleId}.tests`
+      ]);
     }
     crees += 1;
   }
@@ -139,24 +148,32 @@ async function restaurerDepuisVisitePrecedente(db, visiteId, siteId) {
 }
 
 function siteSembleChaufferie(contexte, equipements) {
-  const texte = norm([
-    contexte?.nom_site,
-    ...(equipements || []).flatMap((e) => [
-      e.installation_type,
-      e.installation_nom,
-      e.installation_description,
-      e.type_code,
-      e.designation,
-    ]),
-  ].filter(Boolean).join(' '));
+  const texte = norm(
+    [
+      contexte?.nom_site,
+      ...(equipements || []).flatMap((e) => [
+        e.installation_type,
+        e.installation_nom,
+        e.installation_description,
+        e.type_code,
+        e.designation
+      ])
+    ]
+      .filter(Boolean)
+      .join(' ')
+  );
   return /chauffer|chaudiere|bruleur/.test(texte);
 }
 
 function siteSembleSousStation(contexte, equipements) {
-  const texte = norm([
-    contexte?.nom_site,
-    ...(equipements || []).flatMap((e) => [e.installation_type, e.installation_nom, e.installation_description]),
-  ].filter(Boolean).join(' '));
+  const texte = norm(
+    [
+      contexte?.nom_site,
+      ...(equipements || []).flatMap((e) => [e.installation_type, e.installation_nom, e.installation_description])
+    ]
+      .filter(Boolean)
+      .join(' ')
+  );
   return /sous[ -]?station|\bsst\b/.test(texte);
 }
 
@@ -165,13 +182,7 @@ async function ajouterEquipementsPatrimoine(visiteId, localId, equipements) {
   for (const equipement of equipements || []) {
     const typeCode = typeEquipementControle(equipement);
     if (!typeCode) continue;
-    await ajouterEquipementControlePreAllumage(
-      visiteId,
-      localId,
-      typeCode,
-      nomEquipement(equipement, typeCode),
-      null
-    );
+    await ajouterEquipementControlePreAllumage(visiteId, localId, typeCode, nomEquipement(equipement, typeCode), null);
     ajoutes += 1;
   }
   return ajoutes;
@@ -196,7 +207,15 @@ async function assurerControlesChaufferie(db, visiteId, siteId, local) {
   await db.runAsync(
     `INSERT INTO pre_allumage_rubriques(id,visite_id,local_id,panel_id,section_code,nom,ordre,supprimable)
      VALUES(?,?,?,?,?,?,?,0)`,
-    [rubriqueId, visiteId, local.id, 'p-pa-chaufferie', code, `${local.nom || 'Chaufferie'} — Contrôles généraux`, Date.now()]
+    [
+      rubriqueId,
+      visiteId,
+      local.id,
+      'p-pa-chaufferie',
+      code,
+      `${local.nom || 'Chaufferie'} — Contrôles généraux`,
+      Date.now()
+    ]
   );
   for (const [ordre, cle] of ['Test allumage', 'Fonctionnement de la régulation'].entries()) {
     await db.runAsync(
@@ -214,10 +233,9 @@ export async function assurerStructureSitePreAllumage(visiteId) {
   const contexte = await contexteSite(db, visiteId);
   if (!contexte || contexte.trame_id !== 'pre_allumage') return { locauxCrees: 0, controlesCrees: 0 };
 
-  let locaux = await db.getAllAsync(
-    `SELECT * FROM pre_allumage_locaux WHERE visite_id=? ORDER BY ordre,cree_le`,
-    [visiteId]
-  );
+  let locaux = await db.getAllAsync(`SELECT * FROM pre_allumage_locaux WHERE visite_id=? ORDER BY ordre,cree_le`, [
+    visiteId
+  ]);
   let locauxCrees = 0;
 
   if (!locaux.length) {
@@ -231,7 +249,7 @@ export async function assurerStructureSitePreAllumage(visiteId) {
           typeCode: 'chaufferie',
           chauffage: true,
           ecs: /ecs|ballon|echangeur|adouc|doseuse|traitement/.test(texteEcs),
-          primaire: false,
+          primaire: false
         });
         await ajouterEquipementsPatrimoine(visiteId, localId, equipements);
         locauxCrees = 1;
@@ -241,15 +259,14 @@ export async function assurerStructureSitePreAllumage(visiteId) {
           typeCode: 'sous_station',
           chauffage: true,
           ecs: /ecs|ballon|echangeur/.test(norm(equipements.map((e) => e.designation).join(' '))),
-          primaire: false,
+          primaire: false
         });
         locauxCrees = 1;
       }
     }
-    locaux = await db.getAllAsync(
-      `SELECT * FROM pre_allumage_locaux WHERE visite_id=? ORDER BY ordre,cree_le`,
-      [visiteId]
-    );
+    locaux = await db.getAllAsync(`SELECT * FROM pre_allumage_locaux WHERE visite_id=? ORDER BY ordre,cree_le`, [
+      visiteId
+    ]);
   }
 
   let controlesCrees = 0;

@@ -11,7 +11,7 @@ const STEPS = [
   { at: 4750, phase: 'erwann' },
   { at: 5650, phase: 'diag' },
   { at: 7600, phase: 'final' },
-  { at: 8850, phase: 'out' },
+  { at: 8850, phase: 'out' }
 ];
 
 export function R1EasterEgg({ visible, onFinish }) {
@@ -39,13 +39,13 @@ export function R1EasterEgg({ visible, onFinish }) {
 
     Animated.parallel([
       Animated.timing(opacity, { toValue: 1, duration: 320, useNativeDriver: true }),
-      Animated.spring(scale, { toValue: 1, damping: 18, stiffness: 150, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, damping: 18, stiffness: 150, useNativeDriver: true })
     ]).start();
 
     Animated.timing(progress, {
       toValue: 0.8,
       duration: 1350,
-      useNativeDriver: false,
+      useNativeDriver: false
     }).start();
 
     STEPS.slice(1).forEach((step) => {
@@ -81,13 +81,13 @@ export function R1EasterEgg({ visible, onFinish }) {
 
   const progressWidth = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: ['0%', '100%'],
+    outputRange: ['0%', '100%']
   });
 
   return (
     <Modal visible transparent animationType="none" statusBarTranslucent onRequestClose={() => {}}>
       <Pressable style={styles.backdrop} onPress={() => {}}>
-        <Animated.View style={[styles.stage, { opacity, transform: [{ scale }] }]}> 
+        <Animated.View style={[styles.stage, { opacity, transform: [{ scale }] }]}>
           {showBoot && (
             <View style={styles.centered}>
               <Text style={styles.symbol}>◢◣</Text>
@@ -108,7 +108,9 @@ export function R1EasterEgg({ visible, onFinish }) {
 
           {showModule && (
             <View style={styles.centered}>
-              <Text style={styles.module}>MODULE : <Text style={styles.moduleStrong}>R1</Text></Text>
+              <Text style={styles.module}>
+                MODULE : <Text style={styles.moduleStrong}>R1</Text>
+              </Text>
             </View>
           )}
 
@@ -121,9 +123,13 @@ export function R1EasterEgg({ visible, onFinish }) {
           {showDiag && (
             <View style={styles.centered}>
               <Text style={styles.diagTitle}>ERWANN MODULE</Text>
-              <Text style={styles.diagLine}>Status ............. <Text style={styles.ok}>ONLINE</Text></Text>
+              <Text style={styles.diagLine}>
+                Status ............. <Text style={styles.ok}>ONLINE</Text>
+              </Text>
               <Text style={styles.diagLine}>Technical expertise .... 100%</Text>
-              <Text style={styles.diagLine}>Coffee level ........ <Text style={styles.warn}>CRITICAL</Text></Text>
+              <Text style={styles.diagLine}>
+                Coffee level ........ <Text style={styles.warn}>CRITICAL</Text>
+              </Text>
               <Text style={styles.diagLine}>Bad faith ............ 100%</Text>
             </View>
           )}
@@ -161,5 +167,5 @@ const styles = StyleSheet.create({
   warn: { color: '#E0764F', fontWeight: '700' },
   finalR1: { color: '#FFFFFF', fontSize: 56, fontWeight: '700', letterSpacing: 4 },
   tagline: { color: '#7B7B7B', fontSize: 12, marginTop: 12 },
-  classified: { color: '#4A4A4A', fontSize: 9, letterSpacing: 2.2, marginTop: 7 },
+  classified: { color: '#4A4A4A', fontSize: 9, letterSpacing: 2.2, marginTop: 7 }
 });

@@ -2,7 +2,11 @@ import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 
 function parse(value, fallback = {}) {
-  try { return value ? JSON.parse(value) : fallback; } catch { return fallback; }
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch {
+    return fallback;
+  }
 }
 
 export async function listerPhotosAvecAnnotationsMission(missionId) {
@@ -19,20 +23,35 @@ export async function listerPhotosAvecAnnotationsMission(missionId) {
   );
   return photos.map((photo) => ({
     ...photo,
-    annotations: annotations.filter((a) => a.photo_id === photo.id).map((a) => ({
-      ...a,
-      geometry: parse(a.geometry_json, {}),
-      style: parse(a.style_json, {}),
-    })),
+    annotations: annotations
+      .filter((a) => a.photo_id === photo.id)
+      .map((a) => ({
+        ...a,
+        geometry: parse(a.geometry_json, {}),
+        style: parse(a.style_json, {})
+      }))
   }));
 }
 
-export async function ajouterAnnotationPhotoMission({ photoId, annotationType, geometry, text = null, style = null } = {}) {
+export async function ajouterAnnotationPhotoMission({
+  photoId,
+  annotationType,
+  geometry,
+  text = null,
+  style = null
+} = {}) {
   const db = await getDb();
   const id = createId('mphotoann');
   await db.runAsync(
     'INSERT INTO mission_photo_annotations(id,photo_id,annotation_type,geometry_json,text,style_json) VALUES(?,?,?,?,?,?)',
-    [id, photoId, annotationType || 'circle', JSON.stringify(geometry || {}), text ? String(text) : null, style ? JSON.stringify(style) : null]
+    [
+      id,
+      photoId,
+      annotationType || 'circle',
+      JSON.stringify(geometry || {}),
+      text ? String(text) : null,
+      style ? JSON.stringify(style) : null
+    ]
   );
   return id;
 }

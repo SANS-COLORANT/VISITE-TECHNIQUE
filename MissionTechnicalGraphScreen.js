@@ -21,9 +21,16 @@ function subLabel(row) {
 }
 
 function categoryBadge(row) {
-  const key = resolveEquipmentCategory(row.type, (() => {
-    try { return JSON.parse(row.properties_json || '{}')?.categoryKey || null; } catch { return null; }
-  })())?.key;
+  const key = resolveEquipmentCategory(
+    row.type,
+    (() => {
+      try {
+        return JSON.parse(row.properties_json || '{}')?.categoryKey || null;
+      } catch {
+        return null;
+      }
+    })()
+  )?.key;
   const badges = {
     boiler: 'CH',
     burner: 'BR',
@@ -47,7 +54,7 @@ function categoryBadge(row) {
     actuator: 'A',
     gateway: 'GW',
     meter: 'C',
-    water_treatment: 'TE',
+    water_treatment: 'TE'
   };
   return badges[key] || 'EQ';
 }
@@ -65,21 +72,31 @@ const RELATION_PRESETS = Object.freeze([
   ['controls', 'Commande'],
   ['measures', 'Mesure / sonde'],
   ['return', 'Retour'],
-  ['connected_to', 'Raccordé à'],
+  ['connected_to', 'Raccordé à']
 ]);
 
 function equipmentCategoryKey(row) {
-  return resolveEquipmentCategory(row?.type, (() => {
-    try { return JSON.parse(row?.properties_json || '{}')?.categoryKey || null; } catch { return null; }
-  })())?.key || 'other';
+  return (
+    resolveEquipmentCategory(
+      row?.type,
+      (() => {
+        try {
+          return JSON.parse(row?.properties_json || '{}')?.categoryKey || null;
+        } catch {
+          return null;
+        }
+      })()
+    )?.key || 'other'
+  );
 }
 
 function suggestedRelation(source, target) {
   const a = equipmentCategoryKey(source);
   const b = equipmentCategoryKey(target);
   if (a === 'outdoor_unit' && b === 'indoor_unit') return ['serves', 'UE → UI'];
-  if (a === 'sensor' && ['plc','actuator','valve'].includes(b)) return ['measures', 'Mesure / information'];
-  if (['plc','gateway'].includes(a) && ['actuator','valve','pump','boiler','heat_pump','indoor_unit'].includes(b)) return ['controls', 'Commande'];
+  if (a === 'sensor' && ['plc', 'actuator', 'valve'].includes(b)) return ['measures', 'Mesure / information'];
+  if (['plc', 'gateway'].includes(a) && ['actuator', 'valve', 'pump', 'boiler', 'heat_pump', 'indoor_unit'].includes(b))
+    return ['controls', 'Commande'];
   if (a === 'actuator' && b === 'valve') return ['controls', 'Actionne'];
   if (a === 'meter') return ['measures', 'Mesure'];
   return ['feeds', 'Alimente'];
@@ -137,7 +154,7 @@ function buildLayout(equipment, relations) {
       nodes.set(item.id, {
         ...item,
         x: 20 + l * (NODE_W + X_GAP),
-        y: 20 + row * (NODE_H + Y_GAP),
+        y: 20 + row * (NODE_H + Y_GAP)
       });
     });
   }
@@ -146,7 +163,7 @@ function buildLayout(equipment, relations) {
   return {
     nodes,
     width: Math.max(360, 40 + (maxLevel + 1) * (NODE_W + X_GAP)),
-    height: Math.max(320, 40 + maxRows * (NODE_H + Y_GAP)),
+    height: Math.max(320, 40 + maxRows * (NODE_H + Y_GAP))
   };
 }
 
@@ -175,7 +192,7 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
           'SELECT e.*,s.name AS site_name,l.label AS location_label FROM mission_equipment e JOIN mission_site_links ml ON ml.site_id=e.site_id LEFT JOIN mission_sites s ON s.id=e.site_id LEFT JOIN mission_locations l ON l.id=e.location_id WHERE ml.mission_id=? ORDER BY s.name,e.type,e.brand,e.model',
           [missionId]
         ),
-        db.getAllAsync('SELECT * FROM mission_equipment_relations WHERE mission_id=? ORDER BY created_at', [missionId]),
+        db.getAllAsync('SELECT * FROM mission_equipment_relations WHERE mission_id=? ORDER BY created_at', [missionId])
       ]);
       setEquipment(eq || []);
       setRelations(rel || []);
@@ -186,7 +203,9 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
     }
   }, [missionId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => {
+    load();
+  }, [load]);
 
   const onNodePress = (node) => {
     if (!linkMode) {
@@ -218,7 +237,7 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
         sourceEquipmentId: linkSource.id,
         targetEquipmentId: linkTarget.id,
         relationType: relationType || 'linked_to',
-        label: relationLabel || null,
+        label: relationLabel || null
       });
       setRelationModal(false);
       setLinkSource(null);
@@ -243,8 +262,11 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
     return equipment.filter((row) => {
       if (siteFilter !== 'all' && row.site_id !== siteFilter) return false;
       if (!q) return true;
-      return [row.type,row.brand,row.model,row.location_label,row.site_name]
-        .some((value) => String(value || '').toLowerCase().includes(q));
+      return [row.type, row.brand, row.model, row.location_label, row.site_name].some((value) =>
+        String(value || '')
+          .toLowerCase()
+          .includes(q)
+      );
     });
   }, [equipment, siteFilter, query]);
 
@@ -256,189 +278,330 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
   const layout = useMemo(() => buildLayout(visibleEquipment, visibleRelations), [visibleEquipment, visibleRelations]);
 
   if (loading) {
-    return <View style={styles.center}><ActivityIndicator color={MISSION_COLORS.accent} /><Text style={{ marginTop: 8, color: COLORS.muted }}>Construction du synoptique…</Text></View>;
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator color={MISSION_COLORS.accent} />
+        <Text style={{ marginTop: 8, color: COLORS.muted }}>Construction du synoptique…</Text>
+      </View>
+    );
   }
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
-    <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
-      <Text style={[styles.sectionTitle, missionStyles.title]}>Relations techniques</Text>
-      <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
-        Les traits représentent de vraies relations structurées entre équipements. Touchez un équipement pour afficher son contexte.
-      </Text>
-      <TextInput
-        style={[styles.input, missionStyles.input, { marginTop: 9 }]}
-        value={query}
-        onChangeText={setQuery}
-        placeholder="Rechercher chaudière, pompe, CTA, UE, UI, local…"
-      />
-      <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 44, marginTop: 7 }}>
-        <TouchableOpacity
-          onPress={() => setSiteFilter('all')}
-          style={{ borderWidth: 1, borderColor: siteFilter === 'all' ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: siteFilter === 'all' ? MISSION_COLORS.accentLight : '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6 }}
-        >
-          <Text style={{ color: siteFilter === 'all' ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>Tous les sites</Text>
-        </TouchableOpacity>
-        {sites.map((site) => <TouchableOpacity
-          key={site.id}
-          onPress={() => setSiteFilter(site.id)}
-          style={{ borderWidth: 1, borderColor: siteFilter === site.id ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: siteFilter === site.id ? MISSION_COLORS.accentLight : '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6 }}
-        >
-          <Text style={{ color: siteFilter === site.id ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{site.label}</Text>
-        </TouchableOpacity>)}
-      </ScrollView>
-      <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 5 }}>{visibleEquipment.length} équipement(s) · {visibleRelations.length} liaison(s) affichée(s)</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 9 }}>
-        <TouchableOpacity
-          onPress={() => { setLinkMode((v) => !v); setLinkSource(null); setLinkTarget(null); setSelected(null); }}
-          style={[styles.btnSecondary, missionStyles.secondaryButton, linkMode ? { backgroundColor: MISSION_COLORS.accentLight, borderColor: MISSION_COLORS.accent } : null]}
-        >
-          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{linkMode ? 'Terminer les liaisons' : '＋ Relier des équipements'}</Text>
-        </TouchableOpacity>
-        {linkMode ? <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, alignSelf: 'center' }}>{linkSource ? 'Source : ' + nodeLabel(linkSource) + ' → choisissez la cible' : 'Choisissez l’équipement source'}</Text> : null}
-      </View>
-    </View>
-
-    {!visibleEquipment.length ? <View style={{ padding: 16 }}>
-      <View style={[styles.card, missionStyles.card]}>
-        <Text style={{ color: COLORS.inkSoft, fontSize: 11, lineHeight: 16 }}>
-          Aucun équipement Mission n’est encore disponible. Importez un inventaire Excel ou créez les équipements nécessaires à la Mission.
+  return (
+    <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+      <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
+        <Text style={[styles.sectionTitle, missionStyles.title]}>Relations techniques</Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
+          Les traits représentent de vraies relations structurées entre équipements. Touchez un équipement pour afficher
+          son contexte.
         </Text>
-      </View>
-    </View> : null}
-
-    {visibleEquipment.length ? <ScrollView horizontal style={{ flex: 1 }} contentContainerStyle={{ minWidth: layout.width }}>
-      <ScrollView contentContainerStyle={{ width: layout.width, minHeight: layout.height }}>
-        <Svg width={layout.width} height={layout.height}>
-          {visibleRelations.map((rel) => {
-            const a = layout.nodes.get(rel.source_equipment_id);
-            const b = layout.nodes.get(rel.target_equipment_id);
-            if (!a || !b) return null;
-            const presentation = relationPresentation(rel);
-            const x1 = a.x + NODE_W;
-            const y1 = a.y + NODE_H / 2;
-            const x2 = b.x;
-            const y2 = b.y + NODE_H / 2;
-            const angle = Math.atan2(y2 - y1, x2 - x1);
-            const arrow = 9;
-            return <G key={rel.id}>
-              <Line
-                x1={x1}
-                y1={y1}
-                x2={x2}
-                y2={y2}
-                stroke={MISSION_COLORS.accentLineStrong}
-                strokeWidth={presentation.width}
-                strokeDasharray={presentation.dash || undefined}
-              />
-              <Line
-                x1={x2}
-                y1={y2}
-                x2={x2 - arrow * Math.cos(angle - Math.PI / 6)}
-                y2={y2 - arrow * Math.sin(angle - Math.PI / 6)}
-                stroke={MISSION_COLORS.accentLineStrong}
-                strokeWidth={presentation.width}
-              />
-              <Line
-                x1={x2}
-                y1={y2}
-                x2={x2 - arrow * Math.cos(angle + Math.PI / 6)}
-                y2={y2 - arrow * Math.sin(angle + Math.PI / 6)}
-                stroke={MISSION_COLORS.accentLineStrong}
-                strokeWidth={presentation.width}
-              />
-              <SvgText
-                x={(a.x + NODE_W + b.x) / 2}
-                y={(a.y + b.y) / 2 + NODE_H / 2 - 5}
-                fontSize="8"
-                fill={MISSION_COLORS.accentDark}
-                textAnchor="middle"
-              >
-                {String(rel.label || rel.relation_type || '').slice(0, 28)}
-              </SvgText>
-            </G>;
-          })}
-          {[...layout.nodes.values()].map((node) => {
-            const active = selected?.id === node.id;
-            return <G key={node.id} onPress={() => onNodePress(node)}>
-              <Rect
-                x={node.x}
-                y={node.y}
-                rx="12"
-                ry="12"
-                width={NODE_W}
-                height={NODE_H}
-                fill={active ? MISSION_COLORS.accentLight : '#FFFFFF'}
-                stroke={active ? MISSION_COLORS.accent : MISSION_COLORS.accentLineStrong}
-                strokeWidth={active ? '2.5' : '1.5'}
-              />
-              <Circle cx={node.x + 19} cy={node.y + 19} r="11" fill={MISSION_COLORS.accentSoft} stroke={MISSION_COLORS.accentLineStrong} strokeWidth="1" />
-              <SvgText x={node.x + 19} y={node.y + 22} textAnchor="middle" fontSize="7" fontWeight="900" fill={MISSION_COLORS.accentStrong}>
-                {categoryBadge(node)}
-              </SvgText>
-              <SvgText x={node.x + 36} y={node.y + 22} fontSize="10" fontWeight="700" fill={MISSION_COLORS.accentStrong}>
-                {nodeLabel(node).slice(0, 19)}
-              </SvgText>
-              <SvgText x={node.x + 10} y={node.y + 39} fontSize="8.5" fill={COLORS.inkSoft}>
-                {subLabel(node).slice(0, 28)}
-              </SvgText>
-              <SvgText x={node.x + 10} y={node.y + 52} fontSize="7.5" fill={COLORS.inkFaint}>
-                {(node.location_label || node.site_name || '').slice(0, 31)}
-              </SvgText>
-            </G>;
-          })}
-        </Svg>
-      </ScrollView>
-    </ScrollView> : null}
-
-    {selected ? <View style={[styles.card, missionStyles.card, { margin: 16, marginTop: 8 }]}>
-      <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-        <View style={{ flex: 1 }}>
-          <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 13 }}>{nodeLabel(selected)}</Text>
-          <Text style={{ color: COLORS.inkSoft, fontSize: 10, marginTop: 3 }}>{subLabel(selected) || 'Caractéristiques à compléter'}</Text>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 9.5, marginTop: 3 }}>{selected.site_name || ''}{selected.location_label ? ' · ' + selected.location_label : ''}</Text>
+        <TextInput
+          style={[styles.input, missionStyles.input, { marginTop: 9 }]}
+          value={query}
+          onChangeText={setQuery}
+          placeholder="Rechercher chaudière, pompe, CTA, UE, UI, local…"
+        />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 44, marginTop: 7 }}>
           <TouchableOpacity
-            style={[styles.btnSecondary, missionStyles.secondaryButton, { alignSelf: 'flex-start', marginTop: 8 }]}
-            onPress={() => navigation.navigate('MissionEquipment', { missionId, equipmentId: selected.id, siteId: selected.site_id })}
+            onPress={() => setSiteFilter('all')}
+            style={{
+              borderWidth: 1,
+              borderColor: siteFilter === 'all' ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
+              backgroundColor: siteFilter === 'all' ? MISSION_COLORS.accentLight : '#FFFFFF',
+              borderRadius: 10,
+              paddingHorizontal: 9,
+              paddingVertical: 7,
+              marginRight: 6
+            }}
           >
-            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Ouvrir la fiche équipement</Text>
+            <Text
+              style={{
+                color: siteFilter === 'all' ? MISSION_COLORS.accentStrong : COLORS.inkSoft,
+                fontSize: 9,
+                fontWeight: '800'
+              }}
+            >
+              Tous les sites
+            </Text>
           </TouchableOpacity>
-        </View>
-        <TouchableOpacity onPress={() => setSelected(null)} style={{ padding: 5 }}><Text style={{ color: COLORS.inkFaint }}>✕</Text></TouchableOpacity>
-      </View>
-    </View> : null}
-    <Modal visible={relationModal} transparent animationType="fade" onRequestClose={() => setRelationModal(false)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
-        <Text style={[styles.modalTitle, missionStyles.title]}>Créer la relation</Text>
-        <Text style={{ color: COLORS.inkSoft, fontSize: 10, lineHeight: 14, marginBottom: 10 }}>
-          {linkSource ? nodeLabel(linkSource) : ''} → {linkTarget ? nodeLabel(linkTarget) : ''}
-        </Text>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '900', marginBottom: 5 }}>RELATION RAPIDE</Text>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 43, marginBottom: 8 }}>
-          {RELATION_PRESETS.map(([key,label]) => {
-            const selectedPreset = relationType === key;
-            return <TouchableOpacity
-              key={key}
-              onPress={() => { setRelationType(key); setRelationLabel(label); }}
+          {sites.map((site) => (
+            <TouchableOpacity
+              key={site.id}
+              onPress={() => setSiteFilter(site.id)}
               style={{
                 borderWidth: 1,
-                borderColor: selectedPreset ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
-                backgroundColor: selectedPreset ? MISSION_COLORS.accentLight : '#FFFFFF',
+                borderColor: siteFilter === site.id ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
+                backgroundColor: siteFilter === site.id ? MISSION_COLORS.accentLight : '#FFFFFF',
                 borderRadius: 10,
                 paddingHorizontal: 9,
                 paddingVertical: 7,
-                marginRight: 6,
+                marginRight: 6
               }}
             >
-              <Text style={{ color: selectedPreset ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.6, fontWeight: '900' }}>{label}</Text>
-            </TouchableOpacity>;
-          })}
+              <Text
+                style={{
+                  color: siteFilter === site.id ? MISSION_COLORS.accentStrong : COLORS.inkSoft,
+                  fontSize: 9,
+                  fontWeight: '800'
+                }}
+              >
+                {site.label}
+              </Text>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
-        <TextInput style={[styles.input, missionStyles.input]} value={relationLabel} onChangeText={setRelationLabel} placeholder="Libellé de la relation" />
-        <View style={styles.modalActions}>
-          <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => { setRelationModal(false); setLinkTarget(null); }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveRelation}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Relier</Text></TouchableOpacity>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 5 }}>
+          {visibleEquipment.length} équipement(s) · {visibleRelations.length} liaison(s) affichée(s)
+        </Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 9 }}>
+          <TouchableOpacity
+            onPress={() => {
+              setLinkMode((v) => !v);
+              setLinkSource(null);
+              setLinkTarget(null);
+              setSelected(null);
+            }}
+            style={[
+              styles.btnSecondary,
+              missionStyles.secondaryButton,
+              linkMode ? { backgroundColor: MISSION_COLORS.accentLight, borderColor: MISSION_COLORS.accent } : null
+            ]}
+          >
+            <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>
+              {linkMode ? 'Terminer les liaisons' : '＋ Relier des équipements'}
+            </Text>
+          </TouchableOpacity>
+          {linkMode ? (
+            <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, alignSelf: 'center' }}>
+              {linkSource
+                ? 'Source : ' + nodeLabel(linkSource) + ' → choisissez la cible'
+                : 'Choisissez l’équipement source'}
+            </Text>
+          ) : null}
         </View>
-      </View></View>
-    </Modal>
-  </View>;
+      </View>
+
+      {!visibleEquipment.length ? (
+        <View style={{ padding: 16 }}>
+          <View style={[styles.card, missionStyles.card]}>
+            <Text style={{ color: COLORS.inkSoft, fontSize: 11, lineHeight: 16 }}>
+              Aucun équipement Mission n’est encore disponible. Importez un inventaire Excel ou créez les équipements
+              nécessaires à la Mission.
+            </Text>
+          </View>
+        </View>
+      ) : null}
+
+      {visibleEquipment.length ? (
+        <ScrollView horizontal style={{ flex: 1 }} contentContainerStyle={{ minWidth: layout.width }}>
+          <ScrollView contentContainerStyle={{ width: layout.width, minHeight: layout.height }}>
+            <Svg width={layout.width} height={layout.height}>
+              {visibleRelations.map((rel) => {
+                const a = layout.nodes.get(rel.source_equipment_id);
+                const b = layout.nodes.get(rel.target_equipment_id);
+                if (!a || !b) return null;
+                const presentation = relationPresentation(rel);
+                const x1 = a.x + NODE_W;
+                const y1 = a.y + NODE_H / 2;
+                const x2 = b.x;
+                const y2 = b.y + NODE_H / 2;
+                const angle = Math.atan2(y2 - y1, x2 - x1);
+                const arrow = 9;
+                return (
+                  <G key={rel.id}>
+                    <Line
+                      x1={x1}
+                      y1={y1}
+                      x2={x2}
+                      y2={y2}
+                      stroke={MISSION_COLORS.accentLineStrong}
+                      strokeWidth={presentation.width}
+                      strokeDasharray={presentation.dash || undefined}
+                    />
+                    <Line
+                      x1={x2}
+                      y1={y2}
+                      x2={x2 - arrow * Math.cos(angle - Math.PI / 6)}
+                      y2={y2 - arrow * Math.sin(angle - Math.PI / 6)}
+                      stroke={MISSION_COLORS.accentLineStrong}
+                      strokeWidth={presentation.width}
+                    />
+                    <Line
+                      x1={x2}
+                      y1={y2}
+                      x2={x2 - arrow * Math.cos(angle + Math.PI / 6)}
+                      y2={y2 - arrow * Math.sin(angle + Math.PI / 6)}
+                      stroke={MISSION_COLORS.accentLineStrong}
+                      strokeWidth={presentation.width}
+                    />
+                    <SvgText
+                      x={(a.x + NODE_W + b.x) / 2}
+                      y={(a.y + b.y) / 2 + NODE_H / 2 - 5}
+                      fontSize="8"
+                      fill={MISSION_COLORS.accentDark}
+                      textAnchor="middle"
+                    >
+                      {String(rel.label || rel.relation_type || '').slice(0, 28)}
+                    </SvgText>
+                  </G>
+                );
+              })}
+              {[...layout.nodes.values()].map((node) => {
+                const active = selected?.id === node.id;
+                return (
+                  <G key={node.id} onPress={() => onNodePress(node)}>
+                    <Rect
+                      x={node.x}
+                      y={node.y}
+                      rx="12"
+                      ry="12"
+                      width={NODE_W}
+                      height={NODE_H}
+                      fill={active ? MISSION_COLORS.accentLight : '#FFFFFF'}
+                      stroke={active ? MISSION_COLORS.accent : MISSION_COLORS.accentLineStrong}
+                      strokeWidth={active ? '2.5' : '1.5'}
+                    />
+                    <Circle
+                      cx={node.x + 19}
+                      cy={node.y + 19}
+                      r="11"
+                      fill={MISSION_COLORS.accentSoft}
+                      stroke={MISSION_COLORS.accentLineStrong}
+                      strokeWidth="1"
+                    />
+                    <SvgText
+                      x={node.x + 19}
+                      y={node.y + 22}
+                      textAnchor="middle"
+                      fontSize="7"
+                      fontWeight="900"
+                      fill={MISSION_COLORS.accentStrong}
+                    >
+                      {categoryBadge(node)}
+                    </SvgText>
+                    <SvgText
+                      x={node.x + 36}
+                      y={node.y + 22}
+                      fontSize="10"
+                      fontWeight="700"
+                      fill={MISSION_COLORS.accentStrong}
+                    >
+                      {nodeLabel(node).slice(0, 19)}
+                    </SvgText>
+                    <SvgText x={node.x + 10} y={node.y + 39} fontSize="8.5" fill={COLORS.inkSoft}>
+                      {subLabel(node).slice(0, 28)}
+                    </SvgText>
+                    <SvgText x={node.x + 10} y={node.y + 52} fontSize="7.5" fill={COLORS.inkFaint}>
+                      {(node.location_label || node.site_name || '').slice(0, 31)}
+                    </SvgText>
+                  </G>
+                );
+              })}
+            </Svg>
+          </ScrollView>
+        </ScrollView>
+      ) : null}
+
+      {selected ? (
+        <View style={[styles.card, missionStyles.card, { margin: 16, marginTop: 8 }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+            <View style={{ flex: 1 }}>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 13 }}>
+                {nodeLabel(selected)}
+              </Text>
+              <Text style={{ color: COLORS.inkSoft, fontSize: 10, marginTop: 3 }}>
+                {subLabel(selected) || 'Caractéristiques à compléter'}
+              </Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 9.5, marginTop: 3 }}>
+                {selected.site_name || ''}
+                {selected.location_label ? ' · ' + selected.location_label : ''}
+              </Text>
+              <TouchableOpacity
+                style={[styles.btnSecondary, missionStyles.secondaryButton, { alignSelf: 'flex-start', marginTop: 8 }]}
+                onPress={() =>
+                  navigation.navigate('MissionEquipment', {
+                    missionId,
+                    equipmentId: selected.id,
+                    siteId: selected.site_id
+                  })
+                }
+              >
+                <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>
+                  Ouvrir la fiche équipement
+                </Text>
+              </TouchableOpacity>
+            </View>
+            <TouchableOpacity onPress={() => setSelected(null)} style={{ padding: 5 }}>
+              <Text style={{ color: COLORS.inkFaint }}>✕</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      ) : null}
+      <Modal visible={relationModal} transparent animationType="fade" onRequestClose={() => setRelationModal(false)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, missionStyles.modalSheet]}>
+            <Text style={[styles.modalTitle, missionStyles.title]}>Créer la relation</Text>
+            <Text style={{ color: COLORS.inkSoft, fontSize: 10, lineHeight: 14, marginBottom: 10 }}>
+              {linkSource ? nodeLabel(linkSource) : ''} → {linkTarget ? nodeLabel(linkTarget) : ''}
+            </Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '900', marginBottom: 5 }}>
+              RELATION RAPIDE
+            </Text>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 43, marginBottom: 8 }}>
+              {RELATION_PRESETS.map(([key, label]) => {
+                const selectedPreset = relationType === key;
+                return (
+                  <TouchableOpacity
+                    key={key}
+                    onPress={() => {
+                      setRelationType(key);
+                      setRelationLabel(label);
+                    }}
+                    style={{
+                      borderWidth: 1,
+                      borderColor: selectedPreset ? MISSION_COLORS.accent : MISSION_COLORS.accentLine,
+                      backgroundColor: selectedPreset ? MISSION_COLORS.accentLight : '#FFFFFF',
+                      borderRadius: 10,
+                      paddingHorizontal: 9,
+                      paddingVertical: 7,
+                      marginRight: 6
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: selectedPreset ? MISSION_COLORS.accentStrong : COLORS.inkSoft,
+                        fontSize: 8.6,
+                        fontWeight: '900'
+                      }}
+                    >
+                      {label}
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+            <TextInput
+              style={[styles.input, missionStyles.input]}
+              value={relationLabel}
+              onChangeText={setRelationLabel}
+              placeholder="Libellé de la relation"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity
+                style={[styles.btnSecondary, missionStyles.secondaryButton]}
+                onPress={() => {
+                  setRelationModal(false);
+                  setLinkTarget(null);
+                }}
+              >
+                <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveRelation}>
+                <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Relier</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
+    </View>
+  );
 }

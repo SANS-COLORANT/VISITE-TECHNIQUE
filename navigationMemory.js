@@ -22,7 +22,7 @@ function normaliseState(value = {}) {
   return {
     ...state,
     scrollY: Number.isFinite(Number(state.scrollY)) ? Math.max(0, Number(state.scrollY)) : 0,
-    updatedAt: Number(state.updatedAt || Date.now()),
+    updatedAt: Number(state.updatedAt || Date.now())
   };
 }
 
@@ -63,7 +63,7 @@ function remember(key, next, persist = true) {
 
 export function getNavigationState(key) {
   const id = keyOf(key);
-  return id ? (states.get(id) || null) : null;
+  return id ? states.get(id) || null : null;
 }
 
 export function setNavigationState(key, patch = {}, { persist = true } = {}) {
@@ -155,14 +155,16 @@ export async function flushNavigationMemory() {
         [INDEX_KEY, JSON.stringify(index)]
       );
     });
-  })().catch((error) => {
-    // Une écriture de contexte UI ne doit jamais bloquer une visite.
-    for (const key of keys) dirty.add(key);
-    throw error;
-  }).finally(() => {
-    flushPromise = null;
-    if (dirty.size) scheduleFlush();
-  });
+  })()
+    .catch((error) => {
+      // Une écriture de contexte UI ne doit jamais bloquer une visite.
+      for (const key of keys) dirty.add(key);
+      throw error;
+    })
+    .finally(() => {
+      flushPromise = null;
+      if (dirty.size) scheduleFlush();
+    });
 
   return flushPromise;
 }

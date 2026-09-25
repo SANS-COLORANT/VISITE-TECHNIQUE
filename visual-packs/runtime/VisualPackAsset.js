@@ -25,7 +25,9 @@ export function VisualPackAsset({ uri, style, resizeMode = 'contain' }) {
       .catch(() => {
         if (!cancelled) setFailed(true);
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [svg, uri]);
 
   if (!uri || failed) return null;

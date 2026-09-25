@@ -21,11 +21,20 @@ export function PreAllumageInstallationPanelBusiness(props) {
       console.warn('Préparation des locaux Pré-allumage impossible', e);
       if (alive) setReady(true);
     });
-    return () => { alive = false; };
+    return () => {
+      alive = false;
+    };
   }, [props.visiteId]);
-  if (!ready) return <View style={{ padding: 30 }}><ActivityIndicator color={COLORS.orange} /></View>;
-  return <View style={{ flex: 1 }}>
-    <PreAllumagePlanCard visiteId={props.visiteId} onSaved={props.onSaved} />
-    <PreAllumageInstallationPanelV3 {...props} />
-  </View>;
+  if (!ready)
+    return (
+      <View style={{ padding: 30 }}>
+        <ActivityIndicator color={COLORS.orange} />
+      </View>
+    );
+  return (
+    <View style={{ flex: 1 }}>
+      <PreAllumagePlanCard visiteId={props.visiteId} onSaved={props.onSaved} />
+      <PreAllumageInstallationPanelV3 {...props} />
+    </View>
+  );
 }

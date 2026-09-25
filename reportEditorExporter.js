@@ -19,17 +19,20 @@ const REPORT_ASSETS = Object.freeze({
     require('./assets/report/spiral-red-orange.jpg'),
     require('./assets/report/spiral-yellow-green.jpg'),
     require('./assets/report/spiral-green-red.jpg'),
-    require('./assets/report/spiral-multicolor-alt.jpg'),
-  ],
+    require('./assets/report/spiral-multicolor-alt.jpg')
+  ]
 });
 
 function propre(v = 'Rapport') {
-  return String(v || 'Rapport')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9._-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 80) || 'Rapport';
+  return (
+    String(v || 'Rapport')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 80) || 'Rapport'
+  );
 }
 
 function dateFr(v) {
@@ -38,8 +41,12 @@ function dateFr(v) {
   return m.length === 3 ? `${m[2]}/${m[1]}/${m[0]}` : String(v);
 }
 
-function dataUriBase64(dataUri) { return String(dataUri || '').split(',')[1] || ''; }
-function sectionKey(visiteId, panelId) { return `${visiteId}||${panelId}`; }
+function dataUriBase64(dataUri) {
+  return String(dataUri || '').split(',')[1] || '';
+}
+function sectionKey(visiteId, panelId) {
+  return `${visiteId}||${panelId}`;
+}
 
 function titreMarque(titre, taille) {
   const clean = String(titre || '');
@@ -61,7 +68,7 @@ function preparerDatasMiseEnPage(datas, layout = {}) {
           title: titreMarque(titre, ov.titleSize || 'normal'),
           banner: section.banner || Boolean(ov.title),
           breakBefore: ov.breakBefore ?? section.breakBefore,
-          __ordreRapport: ordre,
+          __ordreRapport: ordre
         };
       })
       .filter(Boolean)
@@ -74,11 +81,11 @@ function preparerDatasMiseEnPage(datas, layout = {}) {
 async function imageDataUri(uri, width = 1400, compress = 0.78) {
   if (!uri) return null;
   try {
-    const r = await ImageManipulator.manipulateAsync(
-      uri,
-      [{ resize: { width } }],
-      { compress, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-    );
+    const r = await ImageManipulator.manipulateAsync(uri, [{ resize: { width } }], {
+      compress,
+      format: ImageManipulator.SaveFormat.JPEG,
+      base64: true
+    });
     return r.base64 ? `data:image/jpeg;base64,${r.base64}` : null;
   } catch {
     return null;
@@ -94,7 +101,8 @@ function poidsPhoto(size) {
 
 function grouperCartes(cartes) {
   const pages = [];
-  let page = [], charge = 0;
+  let page = [],
+    charge = 0;
   for (const carte of cartes) {
     const poids = poidsPhoto(carte.photo?.size || 'medium');
     if (page.length && charge + poids > 12) {
@@ -121,12 +129,16 @@ function classesCartePhoto(photo) {
 }
 
 function personnaliserPhotosArticle(article, data, photosConfig) {
-  const photoSections = [...article.matchAll(/<section class="photoPage pageBreakBefore">[\s\S]*?<\/section>/g)].map((m) => ({ texte: m[0], index: m.index }));
+  const photoSections = [...article.matchAll(/<section class="photoPage pageBreakBefore">[\s\S]*?<\/section>/g)].map(
+    (m) => ({ texte: m[0], index: m.index })
+  );
   if (!photoSections.length) return article;
 
   const cards = [];
   for (const section of photoSections) {
-    const found = [...section.texte.matchAll(/<div class="photoCard">[\s\S]*?<div class="photoCaption">[\s\S]*?<\/div><\/div>/g)];
+    const found = [
+      ...section.texte.matchAll(/<div class="photoCard">[\s\S]*?<div class="photoCaption">[\s\S]*?<\/div><\/div>/g)
+    ];
     found.forEach((m) => cards.push(m[0]));
   }
   if (!cards.length) return article;
@@ -140,7 +152,12 @@ function personnaliserPhotosArticle(article, data, photosConfig) {
     return { photo, html: card.replace('class="photoCard"', `class="${classesCartePhoto(photo)}"`) };
   });
   const pages = grouperCartes(cartes);
-  const rebuilt = pages.map((page) => `<section class="photoPage pageBreakBefore"><div class="sectionBanner">PHOTOGRAPHIES</div><div class="photoGrid">${page.map((x) => x.html).join('')}</div></section>`).join('');
+  const rebuilt = pages
+    .map(
+      (page) =>
+        `<section class="photoPage pageBreakBefore"><div class="sectionBanner">PHOTOGRAPHIES</div><div class="photoGrid">${page.map((x) => x.html).join('')}</div></section>`
+    )
+    .join('');
 
   const firstIndex = photoSections[0].index;
   let sansPhotos = article;
@@ -192,17 +209,26 @@ async function construireHtmlEdite(datas, config, photosConfig, output) {
   html = html.replace('</style>', `${cssEditeur(layout)}</style>`);
   html = personnaliserPhotosHtml(html, preparedDatas, photosConfig);
   if (coverDataUri) {
-    html = html.replace(/<div class="coverVisual"><img src="[^"]+" alt="Energie & Service"\/><\/div>/, `<div class="coverVisual"><img src="${coverDataUri}" alt="Couverture du rapport"/></div>`);
-    html = html.replace(/<img src="[^"]+" alt="Couverture du rapport"([^>]*)\/>/, `<img src="${coverDataUri}" alt="Couverture du rapport"$1/>`);
+    html = html.replace(
+      /<div class="coverVisual"><img src="[^"]+" alt="Energie & Service"\/><\/div>/,
+      `<div class="coverVisual"><img src="${coverDataUri}" alt="Couverture du rapport"/></div>`
+    );
+    html = html.replace(
+      /<img src="[^"]+" alt="Couverture du rapport"([^>]*)\/>/,
+      `<img src="${coverDataUri}" alt="Couverture du rapport"$1/>`
+    );
   }
   return { html, coverDataUri, preparedDatas };
 }
 
 async function choisirDossier() {
   const SAF = FileSystem.StorageAccessFramework;
-  if (!SAF?.requestDirectoryPermissionsAsync || !SAF?.createFileAsync) throw new Error("L'enregistrement dans Documents n'est pas disponible sur cet appareil.");
+  if (!SAF?.requestDirectoryPermissionsAsync || !SAF?.createFileAsync)
+    throw new Error("L'enregistrement dans Documents n'est pas disponible sur cet appareil.");
   let initial = null;
-  try { initial = SAF.getUriForDirectoryInRoot ? SAF.getUriForDirectoryInRoot('Documents') : null; } catch {}
+  try {
+    initial = SAF.getUriForDirectoryInRoot ? SAF.getUriForDirectoryInRoot('Documents') : null;
+  } catch {}
   const p = await SAF.requestDirectoryPermissionsAsync(initial || undefined);
   return p?.granted ? p.directoryUri : null;
 }
@@ -217,7 +243,10 @@ async function copierPdfVersDossier(uriSource, dossier, nom) {
 
 async function ecrireWordHtml(dossier, nom, html) {
   const SAF = FileSystem.StorageAccessFramework;
-  const wordHtml = html.replace('<html>', '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">');
+  const wordHtml = html.replace(
+    '<html>',
+    '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+  );
   const uri = await SAF.createFileAsync(dossier, nom, MIME_WORD);
   await FileSystem.writeAsStringAsync(uri, wordHtml, { encoding: FileSystem.EncodingType.UTF8 });
   return uri;
@@ -226,20 +255,23 @@ async function ecrireWordHtml(dossier, nom, html) {
 async function lireAssetBinaire(moduleId) {
   const asset = Asset.fromModule(moduleId);
   const lisible = (uri) => /^(file|content):\/\//i.test(String(uri || ''));
-  if (lisible(asset.localUri)) return FileSystem.readAsStringAsync(asset.localUri, { encoding: FileSystem.EncodingType.Base64 });
+  if (lisible(asset.localUri))
+    return FileSystem.readAsStringAsync(asset.localUri, { encoding: FileSystem.EncodingType.Base64 });
   try {
     const charge = await Promise.race([
       asset.downloadAsync(),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout asset PDF')), 5000)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout asset PDF')), 5000))
     ]);
     const localUri = charge?.localUri || asset.localUri;
     if (lisible(localUri)) return FileSystem.readAsStringAsync(localUri, { encoding: FileSystem.EncodingType.Base64 });
-  } catch (error) { console.warn('Asset PDF non matérialisé', error); }
+  } catch (error) {
+    console.warn('Asset PDF non matérialisé', error);
+  }
   const uri = String(asset.uri || '');
   if (/^https?:/i.test(uri)) {
     const response = await Promise.race([
       fetch(uri),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout lecture asset PDF')), 5000)),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout lecture asset PDF')), 5000))
     ]);
     if (response.ok) {
       const buffer = await response.arrayBuffer();
@@ -255,13 +287,22 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
   const pages = pdf.getPages();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
-  const mm = (value) => value * 72 / 25.4;
-  const embedJpgSafe = async (base64) => { try { return base64 ? await pdf.embedJpg(base64) : null; } catch { return null; } };
+  const mm = (value) => (value * 72) / 25.4;
+  const embedJpgSafe = async (base64) => {
+    try {
+      return base64 ? await pdf.embedJpg(base64) : null;
+    } catch {
+      return null;
+    }
+  };
   const embedBundledSafe = async (moduleId, format) => {
     try {
       const bytes = await lireAssetBinaire(moduleId);
       return format === 'png' ? await pdf.embedPng(bytes) : await pdf.embedJpg(bytes);
-    } catch (error) { console.warn('Asset PDF embarqué non chargé', error); return null; }
+    } catch (error) {
+      console.warn('Asset PDF embarqué non chargé', error);
+      return null;
+    }
   };
 
   const [coverExact, logoExact, certExact, pageMarkImage, ...businessSpiralImages] = await Promise.all([
@@ -269,7 +310,7 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
     embedBundledSafe(REPORT_ASSETS.logo, 'png'),
     embedBundledSafe(REPORT_ASSETS.cert, 'png'),
     embedBundledSafe(REPORT_ASSETS.pageMark, 'png'),
-    ...REPORT_ASSETS.businessSpirals.map((moduleId) => embedBundledSafe(moduleId, 'jpg')),
+    ...REPORT_ASSETS.businessSpirals.map((moduleId) => embedBundledSafe(moduleId, 'jpg'))
   ]);
   const customCover = coverDataUri ? await embedJpgSafe(dataUriBase64(coverDataUri)) : null;
   const coverFallback = !coverExact && !customCover ? await embedJpgSafe(dataUriBase64(REPORT_COVER)) : null;
@@ -282,8 +323,12 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
   const fit = (image, maxWidth, maxHeight) => {
     if (!image) return { width: 0, height: 0 };
     const ratio = image.width / image.height;
-    let width = maxWidth, height = width / ratio;
-    if (height > maxHeight) { height = maxHeight; width = height * ratio; }
+    let width = maxWidth,
+      height = width / ratio;
+    if (height > maxHeight) {
+      height = maxHeight;
+      width = height * ratio;
+    }
     return { width, height };
   };
 
@@ -291,41 +336,93 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
   pages.forEach((page, index) => {
     const { width, height } = page.getSize();
     if (index === 0) {
-      const orange = rgb(0.94, 0.45, 0.05), grey = rgb(0.35, 0.35, 0.35), dark = rgb(0.12, 0.12, 0.12), white = rgb(1, 1, 1);
+      const orange = rgb(0.94, 0.45, 0.05),
+        grey = rgb(0.35, 0.35, 0.35),
+        dark = rgb(0.12, 0.12, 0.12),
+        white = rgb(1, 1, 1);
       page.drawRectangle({ x: 0, y: 0, width, height, color: white });
       if (coverLogoImage) {
         const sLogo = fit(coverLogoImage, mm(86), mm(21));
-        page.drawImage(coverLogoImage, { x: mm(16.5), y: height - mm(12) - sLogo.height, width: sLogo.width, height: sLogo.height });
+        page.drawImage(coverLogoImage, {
+          x: mm(16.5),
+          y: height - mm(12) - sLogo.height,
+          width: sLogo.width,
+          height: sLogo.height
+        });
       }
       const dateLine = `VERSAILLES, LE ${String(config.dateRapport ? dateFr(config.dateRapport) : dateFr(new Date().toISOString().slice(0, 10))).toUpperCase()}`;
-      const dateSize = 7.2, dateWidth = bold.widthOfTextAtSize(dateLine, dateSize);
-      page.drawText(dateLine, { x: width - mm(19) - dateWidth, y: height - mm(25), size: dateSize, font: bold, color: dark });
-      page.drawText(`Nos réf. : ${config.chrono || ''}`, { x: mm(20), y: height - mm(48), size: 7.4, font: bold, color: dark });
-      page.drawLine({ start: { x: mm(20), y: height - mm(49) }, end: { x: mm(54), y: height - mm(49) }, thickness: 0.6, color: dark });
+      const dateSize = 7.2,
+        dateWidth = bold.widthOfTextAtSize(dateLine, dateSize);
+      page.drawText(dateLine, {
+        x: width - mm(19) - dateWidth,
+        y: height - mm(25),
+        size: dateSize,
+        font: bold,
+        color: dark
+      });
+      page.drawText(`Nos réf. : ${config.chrono || ''}`, {
+        x: mm(20),
+        y: height - mm(48),
+        size: 7.4,
+        font: bold,
+        color: dark
+      });
+      page.drawLine({
+        start: { x: mm(20), y: height - mm(49) },
+        end: { x: mm(54), y: height - mm(49) },
+        thickness: 0.6,
+        color: dark
+      });
 
       const clientLabel = String(clientCover || '').trim() || 'Rapport de visite technique';
-      const boxX = mm(30), boxY = height - mm(80), boxW = mm(150), boxH = mm(18), radius = boxH / 2;
+      const boxX = mm(30),
+        boxY = height - mm(80),
+        boxW = mm(150),
+        boxH = mm(18),
+        radius = boxH / 2;
       page.drawRectangle({ x: boxX + radius, y: boxY, width: boxW - 2 * radius, height: boxH, color: orange });
       page.drawCircle({ x: boxX + radius, y: boxY + radius, size: radius, color: orange });
       page.drawCircle({ x: boxX + boxW - radius, y: boxY + radius, size: radius, color: orange });
       let clientSize = 14.5;
       while (clientSize > 8 && bold.widthOfTextAtSize(clientLabel, clientSize) > boxW - mm(12)) clientSize -= 0.5;
       const clientWidth = bold.widthOfTextAtSize(clientLabel, clientSize);
-      page.drawText(clientLabel, { x: boxX + (boxW - clientWidth) / 2, y: boxY + boxH / 2 - clientSize * 0.34, size: clientSize, font: bold, color: white });
+      page.drawText(clientLabel, {
+        x: boxX + (boxW - clientWidth) / 2,
+        y: boxY + boxH / 2 - clientSize * 0.34,
+        size: clientSize,
+        font: bold,
+        color: white
+      });
 
       if (coverVisualImage) {
-        const maxW = mm(148), maxH = mm(92);
+        const maxW = mm(148),
+          maxH = mm(92);
         const sCover = fit(coverVisualImage, maxW, maxH);
-        page.drawImage(coverVisualImage, { x: (width - sCover.width) / 2, y: height - mm(96) - sCover.height, width: sCover.width, height: sCover.height });
+        page.drawImage(coverVisualImage, {
+          x: (width - sCover.width) / 2,
+          y: height - mm(96) - sCover.height,
+          width: sCover.width,
+          height: sCover.height
+        });
       }
       const objectText = String(config.objet || 'Compte rendu de visite technique');
       let objectSize = 11.4;
       while (objectSize > 8 && bold.widthOfTextAtSize(objectText, objectSize) > mm(160)) objectSize -= 0.4;
       const objectWidth = bold.widthOfTextAtSize(objectText, objectSize);
-      page.drawText(objectText, { x: (width - objectWidth) / 2, y: height - mm(194), size: objectSize, font: bold, color: dark });
+      page.drawText(objectText, {
+        x: (width - objectWidth) / 2,
+        y: height - mm(194),
+        size: objectSize,
+        font: bold,
+        color: dark
+      });
 
       const business = ['COPROPRIÉTÉS', 'BAILLEURS SOCIAUX', 'COLLECTIVITÉS', 'TERTIAIRE'];
-      const businessY = height - mm(207), businessSize = 5.2, iconSize = mm(5.2), gap = mm(0.9), itemGap = mm(3.0);
+      const businessY = height - mm(207),
+        businessSize = 5.2,
+        iconSize = mm(5.2),
+        gap = mm(0.9),
+        itemGap = mm(3.0);
       const widths = business.map((label) => iconSize + gap + bold.widthOfTextAtSize(label, businessSize));
       const businessTotal = widths.reduce((sum, value) => sum + value, 0) + itemGap * (business.length - 1);
       let businessX = (width - businessTotal) / 2;
@@ -337,54 +434,117 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
         businessX += bold.widthOfTextAtSize(label, businessSize) + itemGap;
       });
 
-      const cities = [['PARIS', true], ['NANTES', false], ['TOURS', false], ['RENNES', false], ['BORDEAUX', false], ['LYON', false], ['CHERBOURG', false], ['NÎMES', false]];
-      const citySize = 4.65, cityGap = mm(3.0), cityWidths = cities.map(([label]) => font.widthOfTextAtSize(label, citySize));
+      const cities = [
+        ['PARIS', true],
+        ['NANTES', false],
+        ['TOURS', false],
+        ['RENNES', false],
+        ['BORDEAUX', false],
+        ['LYON', false],
+        ['CHERBOURG', false],
+        ['NÎMES', false]
+      ];
+      const citySize = 4.65,
+        cityGap = mm(3.0),
+        cityWidths = cities.map(([label]) => font.widthOfTextAtSize(label, citySize));
       const cityTotal = cityWidths.reduce((sum, value) => sum + value, 0) + cityGap * (cities.length - 1);
       let cityX = (width - cityTotal) / 2;
       cities.forEach(([label, active], i) => {
-        page.drawText(label, { x: cityX, y: mm(25.5), size: citySize, font: active ? bold : font, color: active ? orange : grey });
+        page.drawText(label, {
+          x: cityX,
+          y: mm(25.5),
+          size: citySize,
+          font: active ? bold : font,
+          color: active ? orange : grey
+        });
         cityX += cityWidths[i] + cityGap;
       });
 
-      const barY = mm(14.2), barH = mm(7.7), websiteW = mm(48);
+      const barY = mm(14.2),
+        barH = mm(7.7),
+        websiteW = mm(48);
       page.drawRectangle({ x: 0, y: barY, width: width - websiteW, height: barH, color: orange });
       page.drawRectangle({ x: width - websiteW, y: barY, width: websiteW, height: barH, color: grey });
-      const contact = 'Tél. 01 39 55 17 20 - 143 rue Yves Le Coz - 78000 VERSAILLES - contact.versailles@energieetservice.fr';
+      const contact =
+        'Tél. 01 39 55 17 20 - 143 rue Yves Le Coz - 78000 VERSAILLES - contact.versailles@energieetservice.fr';
       let contactSize = 4.65;
-      while (contactSize > 3.8 && font.widthOfTextAtSize(contact, contactSize) > width - websiteW - mm(8)) contactSize -= 0.15;
+      while (contactSize > 3.8 && font.widthOfTextAtSize(contact, contactSize) > width - websiteW - mm(8))
+        contactSize -= 0.15;
       page.drawText(contact, { x: mm(5), y: barY + mm(2.65), size: contactSize, font, color: white });
-      const website = 'energieetservice.fr', websiteSize = 8.2, websiteTextW = bold.widthOfTextAtSize(website, websiteSize);
-      page.drawText(website, { x: width - websiteW + (websiteW - websiteTextW) / 2, y: barY + mm(2.25), size: websiteSize, font: bold, color: white });
+      const website = 'energieetservice.fr',
+        websiteSize = 8.2,
+        websiteTextW = bold.widthOfTextAtSize(website, websiteSize);
+      page.drawText(website, {
+        x: width - websiteW + (websiteW - websiteTextW) / 2,
+        y: barY + mm(2.25),
+        size: websiteSize,
+        font: bold,
+        color: white
+      });
       if (coverOpqibiImage) {
         const sOpqibi = fit(coverOpqibiImage, mm(23), mm(8.5));
         page.drawImage(coverOpqibiImage, { x: mm(4.5), y: mm(3.9), width: sOpqibi.width, height: sOpqibi.height });
       }
-      const legal = 'SAS au capital de 292 500€ - Siège social : 143 rue Yves Le Coz - 78000 Versailles - RCS Versailles B 338 335 201 / NAF 7112B';
+      const legal =
+        'SAS au capital de 292 500€ - Siège social : 143 rue Yves Le Coz - 78000 Versailles - RCS Versailles B 338 335 201 / NAF 7112B';
       let legalSize = 4.45;
       while (legalSize > 3.5 && font.widthOfTextAtSize(legal, legalSize) > width - mm(35)) legalSize -= 0.15;
       page.drawText(legal, { x: mm(31), y: mm(6.0), size: legalSize, font, color: grey });
       return;
     }
 
-    const left = 50, footerY = 20, grey = rgb(0.35, 0.35, 0.35), orange = rgb(0.94, 0.45, 0.05);
+    const left = 50,
+      footerY = 20,
+      grey = rgb(0.35, 0.35, 0.35),
+      orange = rgb(0.94, 0.45, 0.05);
     if (pageMarkImage) {
       const s = fit(pageMarkImage, mm(6), mm(6));
       page.drawImage(pageMarkImage, { x: mm(4.5), y: height - mm(4.5) - s.height, width: s.width, height: s.height });
     }
     const running = String(config.objet || 'Compte rendu de visite technique').toUpperCase();
-    const runSize = 7.2, runWidth = bold.widthOfTextAtSize(running, runSize);
-    page.drawText(running, { x: Math.max(left + 90, width - 50 - runWidth), y: height - 24, size: runSize, font: bold, color: rgb(0.15, 0.15, 0.15) });
+    const runSize = 7.2,
+      runWidth = bold.widthOfTextAtSize(running, runSize);
+    page.drawText(running, {
+      x: Math.max(left + 90, width - 50 - runWidth),
+      y: height - 24,
+      size: runSize,
+      font: bold,
+      color: rgb(0.15, 0.15, 0.15)
+    });
     const meta = [`Nos réf. : ${config.chrono || ''}`, `Site : ${siteFooter || ''}`, `Objet : ${config.objet || ''}`];
-    meta.forEach((line, i) => page.drawText(String(line), { x: left, y: footerY + 15 - i * 7, size: 5.8, font, color: grey }));
-    const pageText = `${index + 1}/${total}`, arrowW = 23, numW = 38, boxH = 17, x = width - arrowW - numW;
+    meta.forEach((line, i) =>
+      page.drawText(String(line), { x: left, y: footerY + 15 - i * 7, size: 5.8, font, color: grey })
+    );
+    const pageText = `${index + 1}/${total}`,
+      arrowW = 23,
+      numW = 38,
+      boxH = 17,
+      x = width - arrowW - numW;
     page.drawRectangle({ x, y: footerY - 1, width: arrowW, height: boxH, color: grey });
     page.drawRectangle({ x: x + arrowW, y: footerY - 1, width: numW, height: boxH, color: orange });
-    const arrowColor = rgb(1, 1, 1), arrowY = footerY + 7.5;
+    const arrowColor = rgb(1, 1, 1),
+      arrowY = footerY + 7.5;
     page.drawLine({ start: { x: x + 6, y: arrowY }, end: { x: x + 16, y: arrowY }, thickness: 1.2, color: arrowColor });
-    page.drawLine({ start: { x: x + 12.5, y: arrowY + 3.2 }, end: { x: x + 16, y: arrowY }, thickness: 1.2, color: arrowColor });
-    page.drawLine({ start: { x: x + 12.5, y: arrowY - 3.2 }, end: { x: x + 16, y: arrowY }, thickness: 1.2, color: arrowColor });
+    page.drawLine({
+      start: { x: x + 12.5, y: arrowY + 3.2 },
+      end: { x: x + 16, y: arrowY },
+      thickness: 1.2,
+      color: arrowColor
+    });
+    page.drawLine({
+      start: { x: x + 12.5, y: arrowY - 3.2 },
+      end: { x: x + 16, y: arrowY },
+      thickness: 1.2,
+      color: arrowColor
+    });
     const tW = bold.widthOfTextAtSize(pageText, 6.6);
-    page.drawText(pageText, { x: x + arrowW + (numW - tW) / 2, y: footerY + 4, size: 6.6, font: bold, color: rgb(1, 1, 1) });
+    page.drawText(pageText, {
+      x: x + arrowW + (numW - tW) / 2,
+      y: footerY + 4,
+      size: 6.6,
+      font: bold,
+      color: rgb(1, 1, 1)
+    });
   });
 
   const outBase64 = await pdf.saveAsBase64({ dataUri: false });
@@ -396,11 +556,16 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
 async function exporterUnFormatEdite({ datas, config, photosConfig, format, dossier }) {
   const clientNom = datas[0]?.visite?.nom_client || 'Rapport';
   const localNom = datas[0]?.visite?.nom_local || datas[0]?.visite?.type_local || null;
-  const base = propre(datas.length > 1
-    ? `${clientNom}_${config.chrono || 'Rapport'}_${config.objet || 'CRV'}`
-    : `${config.chrono || 'Rapport'}_${datas[0]?.visite?.nom_site || clientNom}${localNom ? `_${localNom}` : ''}_${config.objet || 'CRV'}`);
+  const base = propre(
+    datas.length > 1
+      ? `${clientNom}_${config.chrono || 'Rapport'}_${config.objet || 'CRV'}`
+      : `${config.chrono || 'Rapport'}_${datas[0]?.visite?.nom_site || clientNom}${localNom ? `_${localNom}` : ''}_${config.objet || 'CRV'}`
+  );
   const sites = [...new Set(datas.map((d) => d.visite.nom_site).filter(Boolean))];
-  const siteFooter = sites.length === 1 ? [sites[0], datas.length === 1 ? localNom : null].filter(Boolean).join(' · ') : `${sites.length} sites sélectionnés`;
+  const siteFooter =
+    sites.length === 1
+      ? [sites[0], datas.length === 1 ? localNom : null].filter(Boolean).join(' · ')
+      : `${sites.length} sites sélectionnés`;
   const clientCover = datas[0]?.visite?.nom_client || 'Rapport';
   const rendered = await construireHtmlEdite(datas, config, photosConfig, format === 'word' ? 'word' : 'pdf');
 
@@ -428,7 +593,13 @@ export async function exporterRapportEdite({ datas, config, photosConfig, format
   return { annule: false, ...(await exporterUnFormatEdite({ datas, config, photosConfig, format, dossier })) };
 }
 
-export async function exporterRapportsParSiteEdites({ datas, config, photosConfig, format = 'pdf', dossiersParSite = true }) {
+export async function exporterRapportsParSiteEdites({
+  datas,
+  config,
+  photosConfig,
+  format = 'pdf',
+  dossiersParSite = true
+}) {
   const clientNom = datas?.[0]?.visite?.nom_client || null;
   const dossierClient = clientNom ? await dossierRapportsClientMetra(clientNom) : await choisirDossier();
   if (!dossierClient) return { annule: true, resultats: [] };
@@ -441,20 +612,33 @@ export async function exporterRapportsParSiteEdites({ datas, config, photosConfi
   const resultats = [];
   for (const siteDatas of groupes.values()) {
     const visiteId = siteDatas[0]?.visite?.id;
-    const siteConfig = config.coverVisiteId && config.coverVisiteId !== visiteId
-      ? { ...config, coverUri: null, coverLabel: 'Image standard METRA', coverVisiteId: null }
-      : config;
+    const siteConfig =
+      config.coverVisiteId && config.coverVisiteId !== visiteId
+        ? { ...config, coverUri: null, coverLabel: 'Image standard METRA', coverVisiteId: null }
+        : config;
     const siteNom = siteDatas[0]?.visite?.nom_site || 'Site';
-    const dossierSite = dossiersParSite === false || !clientNom
-      ? dossierClient
-      : await dossierRapportsSiteMetra({ clientNom, siteNom });
-    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossierSite }));
+    const dossierSite =
+      dossiersParSite === false || !clientNom ? dossierClient : await dossierRapportsSiteMetra({ clientNom, siteNom });
+    resultats.push(
+      await exporterRapportEdite({
+        datas: siteDatas,
+        config: siteConfig,
+        photosConfig,
+        format,
+        dossierUri: dossierSite
+      })
+    );
   }
   return { annule: false, resultats };
 }
 
-
-export async function exporterRapportsParLocalEdites({ datas, config, photosConfig, format = 'pdf', dossiersParLocal = true }) {
+export async function exporterRapportsParLocalEdites({
+  datas,
+  config,
+  photosConfig,
+  format = 'pdf',
+  dossiersParLocal = true
+}) {
   const clientNom = datas?.[0]?.visite?.nom_client || null;
   const dossierClient = clientNom ? await dossierRapportsClientMetra(clientNom) : await choisirDossier();
   if (!dossierClient) return { annule: true, resultats: [] };
@@ -469,9 +653,10 @@ export async function exporterRapportsParLocalEdites({ datas, config, photosConf
   const resultats = [];
   for (const localDatas of groupes.values()) {
     const visiteId = localDatas[0]?.visite?.id;
-    const localConfig = config.coverVisiteId && config.coverVisiteId !== visiteId
-      ? { ...config, coverUri: null, coverLabel: 'Image standard METRA', coverVisiteId: null }
-      : config;
+    const localConfig =
+      config.coverVisiteId && config.coverVisiteId !== visiteId
+        ? { ...config, coverUri: null, coverLabel: 'Image standard METRA', coverVisiteId: null }
+        : config;
     const siteNom = localDatas[0]?.visite?.nom_site || 'Site';
     const localNom = localDatas[0]?.visite?.nom_local || localDatas[0]?.visite?.type_local || 'Visite non rattachée';
     let dossier = dossierClient;
@@ -480,7 +665,9 @@ export async function exporterRapportsParLocalEdites({ datas, config, photosConf
     } else if (clientNom) {
       dossier = await dossierRapportsSiteMetra({ clientNom, siteNom });
     }
-    resultats.push(await exporterRapportEdite({ datas: localDatas, config: localConfig, photosConfig, format, dossierUri: dossier }));
+    resultats.push(
+      await exporterRapportEdite({ datas: localDatas, config: localConfig, photosConfig, format, dossierUri: dossier })
+    );
   }
   return { annule: false, resultats };
 }

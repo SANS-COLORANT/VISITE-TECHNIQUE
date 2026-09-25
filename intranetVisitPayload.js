@@ -6,13 +6,35 @@ export const INTRANET_AVIS = Object.freeze(['S.O', 'S', 'N.S', 'N.R', 'N.V']);
 export const INTRANET_PROGRESS = Object.freeze(['Non réalisé', 'Devis émis', 'En cours', 'Terminé', 'Annulé']);
 export const INTRANET_MATERIAL_STATES = Object.freeze(['Hors service', 'Vétuste', 'Moyen', 'Bon', 'Neuf']);
 
-function clean(value) { return value == null ? '' : String(value).trim(); }
-function nullable(value) { const v = clean(value); return v || null; }
-function normalize(value) {
-  return clean(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+function clean(value) {
+  return value == null ? '' : String(value).trim();
 }
-function sectionCode(panelId, section) { return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_'); }
-function dateOnly(value) { const v = clean(value); const m = v.match(/^(\d{4}-\d{2}-\d{2})/); return m ? m[1] : null; }
+function nullable(value) {
+  const v = clean(value);
+  return v || null;
+}
+function normalize(value) {
+  return clean(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
+}
+function sectionCode(panelId, section) {
+  return (
+    panelId.replace('p-', '') +
+    '.' +
+    String(section)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+  );
+}
+function dateOnly(value) {
+  const v = clean(value);
+  const m = v.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : null;
+}
 function validDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return false;
   const [y, m, d] = String(value).split('-').map(Number);
@@ -21,9 +43,15 @@ function validDate(value) {
 }
 function apiId(value, label, issues) {
   const raw = clean(value);
-  if (!/^\d+$/.test(raw)) { issues.push(`${label} : identifiant Intranet invalide.`); return null; }
+  if (!/^\d+$/.test(raw)) {
+    issues.push(`${label} : identifiant Intranet invalide.`);
+    return null;
+  }
   const n = Number(raw);
-  if (!Number.isSafeInteger(n) || n <= 0) { issues.push(`${label} : identifiant Intranet hors plage.`); return null; }
+  if (!Number.isSafeInteger(n) || n <= 0) {
+    issues.push(`${label} : identifiant Intranet hors plage.`);
+    return null;
+  }
   return n;
 }
 function utf8ByteLength(value) {
@@ -33,8 +61,16 @@ function utf8ByteLength(value) {
     const code = s.charCodeAt(i);
     if (code < 0x80) bytes += 1;
     else if (code < 0x800) bytes += 2;
-    else if (code >= 0xD800 && code <= 0xDBFF && i + 1 < s.length && s.charCodeAt(i + 1) >= 0xDC00 && s.charCodeAt(i + 1) <= 0xDFFF) { bytes += 4; i += 1; }
-    else bytes += 3;
+    else if (
+      code >= 0xd800 &&
+      code <= 0xdbff &&
+      i + 1 < s.length &&
+      s.charCodeAt(i + 1) >= 0xdc00 &&
+      s.charCodeAt(i + 1) <= 0xdfff
+    ) {
+      bytes += 4;
+      i += 1;
+    } else bytes += 3;
   }
   return bytes;
 }
@@ -51,7 +87,10 @@ function exactComment(value, issues, path) {
   // Une chaîne non nulle est donc systématique afin de ne perdre aucun avis.
   return v || '/';
 }
-function meaningfulRemote(value) { const v = clean(value); return !v || v === '/' ? null : v; }
+function meaningfulRemote(value) {
+  const v = clean(value);
+  return !v || v === '/' ? null : v;
+}
 
 function buildStaticCandidates(localTrameId) {
   const definition = obtenirTrame(localTrameId);
@@ -60,9 +99,17 @@ function buildStaticCandidates(localTrameId) {
     for (const [section, fields] of Object.entries(sections || {})) {
       for (const field of fields || []) {
         if (!field?.cle || field.hiddenInApp === true) continue;
-        candidates.push({ panelId, section, sectionCode: sectionCode(panelId, section), cle: field.cle,
-          label: field.cle, type: field.type || 'champ', key: normalize(field.cle),
-          sectionKey: normalize(section), panelKey: normalize(definition?.ui?.labels?.[panelId] || panelId) });
+        candidates.push({
+          panelId,
+          section,
+          sectionCode: sectionCode(panelId, section),
+          cle: field.cle,
+          label: field.cle,
+          type: field.type || 'champ',
+          key: normalize(field.cle),
+          sectionKey: normalize(section),
+          panelKey: normalize(definition?.ui?.labels?.[panelId] || panelId)
+        });
       }
     }
   }
@@ -72,15 +119,27 @@ function buildStaticCandidates(localTrameId) {
 async function buildCandidates(db, visite) {
   const candidates = buildStaticCandidates(visite.trame_id);
   if (visite.trame_id !== 'pre_allumage') return candidates;
-  const rows = await db.getAllAsync(`
+  const rows = await db.getAllAsync(
+    `
     SELECT r.panel_id,r.section_code,r.nom AS section_name,c.cle_stockage,c.libelle,c.type_code
     FROM pre_allumage_champs c JOIN pre_allumage_rubriques r ON r.id=c.rubrique_id
-    WHERE r.visite_id=? ORDER BY r.ordre,c.ordre`, [visite.id]);
+    WHERE r.visite_id=? ORDER BY r.ordre,c.ordre`,
+    [visite.id]
+  );
   const definition = obtenirTrame(visite.trame_id);
   for (const row of rows || []) {
-    candidates.push({ panelId: row.panel_id, section: row.section_name, sectionCode: row.section_code,
-      cle: row.cle_stockage, label: row.libelle, type: row.type_code || 'champ', key: normalize(row.libelle || row.cle_stockage),
-      sectionKey: normalize(row.section_name), panelKey: normalize(definition?.ui?.labels?.[row.panel_id] || row.panel_id), dynamic: true });
+    candidates.push({
+      panelId: row.panel_id,
+      section: row.section_name,
+      sectionCode: row.section_code,
+      cle: row.cle_stockage,
+      label: row.libelle,
+      type: row.type_code || 'champ',
+      key: normalize(row.libelle || row.cle_stockage),
+      sectionKey: normalize(row.section_name),
+      panelKey: normalize(definition?.ui?.labels?.[row.panel_id] || row.panel_id),
+      dynamic: true
+    });
   }
   return candidates;
 }
@@ -90,7 +149,7 @@ const ICPE_PANEL_CATEGORY_CONTEXTS = Object.freeze({
   'p-conf-energie': ['energie'],
   'p-conf-chauffage': ['chauffage'],
   'p-conf-ecs': ['ecs', 'eau chaude sanitaire', 'sanitaire'],
-  'p-conf-adouc': ['adoucisseur', 'adoucissement'],
+  'p-conf-adouc': ['adoucisseur', 'adoucissement']
 });
 
 function categoryPanelBonus(candidate, categoryName) {
@@ -101,7 +160,9 @@ function categoryPanelBonus(candidate, categoryName) {
   return tokens.some((token) => category.includes(normalize(token))) ? 40 : 0;
 }
 
-function preferredType(criterion) { return criterion?.avisApplicable === true ? 'controle' : 'champ'; }
+function preferredType(criterion) {
+  return criterion?.avisApplicable === true ? 'controle' : 'champ';
+}
 function candidateScore(candidate, criterion, categoryName, subCategoryName) {
   let score = candidate.type === preferredType(criterion) ? 8 : 0;
   // Plusieurs conformités ICPE portent volontairement le même libellé local
@@ -112,9 +173,11 @@ function candidateScore(candidate, criterion, categoryName, subCategoryName) {
   const contexts = [normalize(subCategoryName), normalize(categoryName)].filter(Boolean);
   for (const token of contexts) {
     if (candidate.sectionKey === token) score += 20;
-    else if (candidate.sectionKey && (candidate.sectionKey.includes(token) || token.includes(candidate.sectionKey))) score += 9;
+    else if (candidate.sectionKey && (candidate.sectionKey.includes(token) || token.includes(candidate.sectionKey)))
+      score += 9;
     if (candidate.panelKey === token) score += 7;
-    else if (candidate.panelKey && (candidate.panelKey.includes(token) || token.includes(candidate.panelKey))) score += 3;
+    else if (candidate.panelKey && (candidate.panelKey.includes(token) || token.includes(candidate.panelKey)))
+      score += 3;
   }
   if (candidate.dynamic) score += 1;
   return score;
@@ -124,7 +187,8 @@ function findCandidate(candidates, criterion, categoryName, subCategoryName) {
   if (!key) return null;
   const exact = candidates.filter((candidate) => candidate.key === key);
   if (!exact.length) return null;
-  const ranked = exact.map((candidate) => ({ candidate, score: candidateScore(candidate, criterion, categoryName, subCategoryName) }))
+  const ranked = exact
+    .map((candidate) => ({ candidate, score: candidateScore(candidate, criterion, categoryName, subCategoryName) }))
     .sort((a, b) => b.score - a.score);
   if (ranked.length === 1 || ranked[0].score > ranked[1].score) return ranked[0].candidate;
   const same = ranked.filter((r) => r.score === ranked[0].score);
@@ -136,36 +200,61 @@ export function inspectIntranetCriterionCandidate(localTrameId, criterion, categ
   const candidates = buildStaticCandidates(localTrameId);
   const key = normalize(criterion?.nom);
   const exact = candidates.filter((candidate) => candidate.key === key);
-  const ranked = exact.map((candidate) => ({
-    panelId: candidate.panelId,
-    section: candidate.section,
-    sectionCode: candidate.sectionCode,
-    cle: candidate.cle,
-    type: candidate.type,
-    score: candidateScore(candidate, criterion, categoryName, subCategoryName),
-  })).sort((a, b) => b.score - a.score);
+  const ranked = exact
+    .map((candidate) => ({
+      panelId: candidate.panelId,
+      section: candidate.section,
+      sectionCode: candidate.sectionCode,
+      cle: candidate.cle,
+      type: candidate.type,
+      score: candidateScore(candidate, criterion, categoryName, subCategoryName)
+    }))
+    .sort((a, b) => b.score - a.score);
   const resolved = findCandidate(candidates, criterion, categoryName, subCategoryName);
   return {
-    resolved: resolved ? { panelId: resolved.panelId, section: resolved.section, sectionCode: resolved.sectionCode, cle: resolved.cle, type: resolved.type } : null,
-    candidates: ranked,
+    resolved: resolved
+      ? {
+          panelId: resolved.panelId,
+          section: resolved.section,
+          sectionCode: resolved.sectionCode,
+          cle: resolved.cle,
+          type: resolved.type
+        }
+      : null,
+    candidates: ranked
   };
 }
 
 const NETWORK_COLUMNS = Object.freeze({
-  't ext c': 't_ext_c', 't dep c': 't_dep_c', 'nom reseau': 'nom_reseau',
-  'courbe de chauffe': 'courbe_de_chauffe', tnc: 'tnc', 'consigne et programme horaire': 'consigne_programme_horaire',
+  't ext c': 't_ext_c',
+  't dep c': 't_dep_c',
+  'nom reseau': 'nom_reseau',
+  'courbe de chauffe': 'courbe_de_chauffe',
+  tnc: 'tnc',
+  'consigne et programme horaire': 'consigne_programme_horaire'
 });
-function networkColumn(name) { return NETWORK_COLUMNS[normalize(name)] || null; }
-function fixedRegulation(name) { const n = normalize(name); return n === 'cascade chaudieres' || n === 'reseau ecs'; }
+function networkColumn(name) {
+  return NETWORK_COLUMNS[normalize(name)] || null;
+}
+function fixedRegulation(name) {
+  const n = normalize(name);
+  return n === 'cascade chaudieres' || n === 'reseau ecs';
+}
 function isNetworkGroup(subCategory) {
   if (fixedRegulation(subCategory?.nom)) return false;
   const criteria = Array.isArray(subCategory?.criteres) ? subCategory.criteres : [];
   const count = criteria.filter((criterion) => networkColumn(criterion?.nom)).length;
   return count >= 2 || (count >= 1 && /^(circuit|reseau)(\s|$)/.test(normalize(subCategory?.nom)));
 }
-function cleanCounterLabel(value) { return normalize(String(value || '').replace(/\s*\([^)]*\)\s*$/, '')); }
+function cleanCounterLabel(value) {
+  return normalize(String(value || '').replace(/\s*\([^)]*\)\s*$/, ''));
+}
 function counterValue(counters, criterion, candidate) {
-  const keys = new Set([cleanCounterLabel(criterion?.nom), cleanCounterLabel(candidate?.label), cleanCounterLabel(candidate?.cle)].filter(Boolean));
+  const keys = new Set(
+    [cleanCounterLabel(criterion?.nom), cleanCounterLabel(candidate?.label), cleanCounterLabel(candidate?.cle)].filter(
+      Boolean
+    )
+  );
   const exact = counters.filter((counter) => keys.has(cleanCounterLabel(counter.label)));
   if (exact.length === 1) return { status: 'matched', value: exact[0].valeur };
   if (exact.length === 0) return { status: 'missing', value: null };
@@ -184,14 +273,18 @@ function applicableAvis(value, issues, path) {
   }
   return current;
 }
-function remoteNetworkKey(categoryId, subCategoryId) { return `${clean(categoryId)}:${clean(subCategoryId)}`; }
+function remoteNetworkKey(categoryId, subCategoryId) {
+  return `${clean(categoryId)}:${clean(subCategoryId)}`;
+}
 function mapNetworksToRemoteGroups(networks, groups, provenanceRows, issues) {
   const assignments = new Map();
   const used = new Set();
   const provenanceByRemote = new Map();
   for (const row of provenanceRows || []) {
     let details = null;
-    try { details = JSON.parse(row.details_json || 'null'); } catch {}
+    try {
+      details = JSON.parse(row.details_json || 'null');
+    } catch {}
     const key = remoteNetworkKey(details?.remoteCategoryId, details?.remoteSubCategoryId);
     if (key === ':') continue;
     if (!provenanceByRemote.has(key)) provenanceByRemote.set(key, []);
@@ -201,30 +294,49 @@ function mapNetworksToRemoteGroups(networks, groups, provenanceRows, issues) {
     const key = remoteNetworkKey(group.category?.id, group.subCategory?.id);
     const ids = [...new Set(provenanceByRemote.get(key) || [])];
     const matches = networks.filter((network) => ids.includes(network.id));
-    if (matches.length === 1 && !used.has(matches[0].id)) { assignments.set(key, matches[0]); used.add(matches[0].id); }
-    else if (matches.length > 1) issues.push(`Réseau « ${clean(group.subCategory?.nom) || key} » : plusieurs réseaux locaux portent la même référence Intranet.`);
+    if (matches.length === 1 && !used.has(matches[0].id)) {
+      assignments.set(key, matches[0]);
+      used.add(matches[0].id);
+    } else if (matches.length > 1)
+      issues.push(
+        `Réseau « ${clean(group.subCategory?.nom) || key} » : plusieurs réseaux locaux portent la même référence Intranet.`
+      );
   }
   for (const group of groups) {
     const key = remoteNetworkKey(group.category?.id, group.subCategory?.id);
     if (assignments.has(key)) continue;
-    const matches = networks.filter((network) => !used.has(network.id) && normalize(network.nom_reseau) === normalize(group.subCategory?.nom));
-    if (matches.length === 1) { assignments.set(key, matches[0]); used.add(matches[0].id); }
+    const matches = networks.filter(
+      (network) => !used.has(network.id) && normalize(network.nom_reseau) === normalize(group.subCategory?.nom)
+    );
+    if (matches.length === 1) {
+      assignments.set(key, matches[0]);
+      used.add(matches[0].id);
+    }
   }
-  const remainingGroups = groups.filter((group) => !assignments.has(remoteNetworkKey(group.category?.id, group.subCategory?.id)));
+  const remainingGroups = groups.filter(
+    (group) => !assignments.has(remoteNetworkKey(group.category?.id, group.subCategory?.id))
+  );
   const remainingNetworks = networks.filter((network) => !used.has(network.id));
   if (remainingNetworks.length && remainingNetworks.length === remainingGroups.length) {
-    remainingGroups.forEach((group, index) => assignments.set(remoteNetworkKey(group.category?.id, group.subCategory?.id), remainingNetworks[index]));
+    remainingGroups.forEach((group, index) =>
+      assignments.set(remoteNetworkKey(group.category?.id, group.subCategory?.id), remainingNetworks[index])
+    );
     remainingNetworks.length = 0;
   }
   if (remainingNetworks.length) {
-    issues.push(`${remainingNetworks.length} réseau(x) METRA ne peuvent pas être rattachés sans ambiguïté à la trame Intranet. Reprépare la visite depuis l’Intranet.`);
+    issues.push(
+      `${remainingNetworks.length} réseau(x) METRA ne peuvent pas être rattachés sans ambiguïté à la trame Intranet. Reprépare la visite depuis l’Intranet.`
+    );
   }
   return assignments;
 }
 
 async function frozenContext(db, visite) {
-  const rows = await db.getAllAsync(`SELECT details_json,reference_externe,importe_le FROM provenances
-    WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le DESC`, [visite.id]);
+  const rows = await db.getAllAsync(
+    `SELECT details_json,reference_externe,importe_le FROM provenances
+    WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le DESC`,
+    [visite.id]
+  );
   let preparedContext = null;
   for (const row of rows || []) {
     try {
@@ -233,7 +345,8 @@ async function frozenContext(db, visite) {
       // An explicit send-time destination must win over an older preparation
       // reference, including when SQLite timestamps fall in the same second.
       if (details?.sourceType === 'upload_binding') return { historical: false, details };
-      if (details?.sourceType === 'preparation_visite' && !preparedContext) preparedContext = { historical: false, details };
+      if (details?.sourceType === 'preparation_visite' && !preparedContext)
+        preparedContext = { historical: false, details };
     } catch {}
   }
   return preparedContext;
@@ -242,15 +355,29 @@ async function frozenContext(db, visite) {
 async function resolveRemoteClientId(db, visite, details, issues) {
   if (nullable(visite.api_remote_client_id)) return apiId(visite.api_remote_client_id, 'Client', issues);
   const remoteSiteId = nullable(details?.site?.id);
-  if (!remoteSiteId) { issues.push('Client : site Intranet d’origine absent de la référence figée.'); return null; }
-  const own = await db.getAllAsync(`
+  if (!remoteSiteId) {
+    issues.push('Client : site Intranet d’origine absent de la référence figée.');
+    return null;
+  }
+  const own = await db.getAllAsync(
+    `
     SELECT cs.remote_client_id FROM api_client_site_links cs
     JOIN api_client_links c ON c.remote_client_id=cs.remote_client_id
     JOIN sites s ON s.id=?
-    WHERE cs.remote_site_id=? AND c.local_client_id=s.client_id AND cs.remote_present=1`, [visite.site_id, remoteSiteId]);
-  const rows = own.length === 1 ? own : await db.getAllAsync(
-    `SELECT remote_client_id FROM api_client_site_links WHERE remote_site_id=? AND remote_present=1`, [remoteSiteId]);
-  if (rows.length !== 1) { issues.push('Client : association Intranet ambiguë. Reprépare cette visite depuis le client Intranet.'); return null; }
+    WHERE cs.remote_site_id=? AND c.local_client_id=s.client_id AND cs.remote_present=1`,
+    [visite.site_id, remoteSiteId]
+  );
+  const rows =
+    own.length === 1
+      ? own
+      : await db.getAllAsync(
+          `SELECT remote_client_id FROM api_client_site_links WHERE remote_site_id=? AND remote_present=1`,
+          [remoteSiteId]
+        );
+  if (rows.length !== 1) {
+    issues.push('Client : association Intranet ambiguë. Reprépare cette visite depuis le client Intranet.');
+    return null;
+  }
   return apiId(rows[0].remote_client_id, 'Client', issues);
 }
 
@@ -265,26 +392,44 @@ function remoteTrameId(visite, details, issues) {
 function countRemoteCriteria(trame) {
   return (Array.isArray(trame?.categories) ? trame.categories : []).reduce((total, category) => {
     const subs = Array.isArray(category?.sousCategories) ? category.sousCategories : [];
-    return total + subs.reduce((subtotal, subCategory) => subtotal + (Array.isArray(subCategory?.criteres) ? subCategory.criteres.length : 0), 0);
+    return (
+      total +
+      subs.reduce(
+        (subtotal, subCategory) => subtotal + (Array.isArray(subCategory?.criteres) ? subCategory.criteres.length : 0),
+        0
+      )
+    );
   }, 0);
 }
 
 async function buildCriteria(db, visite, details, issues) {
   const remoteTrame = details?.trame;
   const categories = Array.isArray(remoteTrame?.categories) ? remoteTrame.categories : [];
-  if (!categories.length) { issues.push('Trame Intranet : aucun critère de référence figé pour cette visite.'); return []; }
+  if (!categories.length) {
+    issues.push('Trame Intranet : aucun critère de référence figé pour cette visite.');
+    return [];
+  }
   const [candidates, fields, controls, networks, counters, networkProvenances] = await Promise.all([
     buildCandidates(db, visite),
     db.getAllAsync(`SELECT section_code,cle,valeur FROM champs_visite WHERE visite_id=?`, [visite.id]),
     db.getAllAsync(`SELECT section_code,cle,avis,commentaire FROM controles_visite WHERE visite_id=?`, [visite.id]),
     db.getAllAsync(`SELECT * FROM reseaux WHERE visite_id=? ORDER BY ordre,id`, [visite.id]),
     db.getAllAsync(`SELECT * FROM compteurs WHERE visite_id=? ORDER BY id`, [visite.id]),
-    db.getAllAsync(`SELECT p.entite_id,p.details_json FROM provenances p JOIN reseaux r ON r.id=p.entite_id WHERE p.entite_type='reseau' AND p.origine='api_symfony' AND r.visite_id=? ORDER BY p.importe_le DESC`, [visite.id]),
+    db.getAllAsync(
+      `SELECT p.entite_id,p.details_json FROM provenances p JOIN reseaux r ON r.id=p.entite_id WHERE p.entite_type='reseau' AND p.origine='api_symfony' AND r.visite_id=? ORDER BY p.importe_le DESC`,
+      [visite.id]
+    )
   ]);
   const fieldMap = new Map(fields.map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
   const controlMap = new Map(controls.map((row) => [`${row.section_code}||${row.cle}`, row]));
-  const remoteNetworkGroups = visite.trame_id === 'icpe_v1'
-    ? categories.flatMap((category) => (Array.isArray(category?.sousCategories) ? category.sousCategories : []).filter(isNetworkGroup).map((subCategory) => ({ category, subCategory }))) : [];
+  const remoteNetworkGroups =
+    visite.trame_id === 'icpe_v1'
+      ? categories.flatMap((category) =>
+          (Array.isArray(category?.sousCategories) ? category.sousCategories : [])
+            .filter(isNetworkGroup)
+            .map((subCategory) => ({ category, subCategory }))
+        )
+      : [];
   const networkAssignments = mapNetworksToRemoteGroups(networks, remoteNetworkGroups, networkProvenances, issues);
   const result = [];
   const seenRemoteBranches = new Set();
@@ -303,7 +448,10 @@ async function buildCriteria(db, visite, details, issues) {
         const critereId = apiId(criterion?.id, `${path} / identifiant`, issues);
         if (categorieId && sousCategorieId && critereId) {
           const remoteBranch = `${categorieId}:${sousCategorieId}:${critereId}`;
-          if (seenRemoteBranches.has(remoteBranch)) issues.push(`${path} : branche Intranet dupliquée (${remoteBranch}). Actualise la préparation avant l’envoi.`);
+          if (seenRemoteBranches.has(remoteBranch))
+            issues.push(
+              `${path} : branche Intranet dupliquée (${remoteBranch}). Actualise la préparation avant l’envoi.`
+            );
           else seenRemoteBranches.add(remoteBranch);
         }
         const applicable = criterion?.avisApplicable === true;
@@ -314,7 +462,8 @@ async function buildCriteria(db, visite, details, issues) {
 
         if (column) {
           if (network) commentaire = exactComment(network[column], issues, `${path} / commentaire`);
-          if (applicable) issues.push(`${path} : critère réseau déclaré avec avis, mapping non supporté sans ambiguïté.`);
+          if (applicable)
+            issues.push(`${path} : critère réseau déclaré avec avis, mapping non supporté sans ambiguïté.`);
         } else if (!candidate) {
           issues.push(`${path} : aucun champ METRA correspondant de façon sûre.`);
         } else if (applicable) {
@@ -323,9 +472,16 @@ async function buildCriteria(db, visite, details, issues) {
           commentaire = exactComment(control?.commentaire, issues, `${path} / commentaire`);
         } else {
           let value;
-          if (visite.trame_id === 'icpe_v1' && candidate.panelId === 'p-releves' && /^index\b/.test(normalize(candidate.label))) {
+          if (
+            visite.trame_id === 'icpe_v1' &&
+            candidate.panelId === 'p-releves' &&
+            /^index\b/.test(normalize(candidate.label))
+          ) {
             const counter = counterValue(counters, criterion, candidate);
-            if (counter.status === 'ambiguous') issues.push(`${path} : plusieurs compteurs correspondent ; METRA refuse de choisir une valeur au hasard.`);
+            if (counter.status === 'ambiguous')
+              issues.push(
+                `${path} : plusieurs compteurs correspondent ; METRA refuse de choisir une valeur au hasard.`
+              );
             value = counter.value;
           } else value = fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`);
           commentaire = exactComment(value, issues, `${path} / commentaire`);
@@ -356,22 +512,27 @@ async function buildRemarks(db, visiteId, issues) {
       dateReserve,
       delai,
       etatAvancement: progress,
-      estimatif: limited(row.estimatif, 128, `${prefix} / estimatif`, issues),
+      estimatif: limited(row.estimatif, 128, `${prefix} / estimatif`, issues)
     };
   });
 }
 
 async function buildMaterials(db, visiteId, sourceMaterialCount, issues) {
-  const rows = await db.getAllAsync(`SELECT m.*,
+  const rows = await db.getAllAsync(
+    `SELECT m.*,
       (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=m.equipement_id AND a.cle='api_symfony.etat_reference' ORDER BY a.modifie_le DESC LIMIT 1) AS intranet_reference_state
-    FROM materiel m WHERE m.visite_id=? ORDER BY m.cree_le,m.id`, [visiteId]);
+    FROM materiel m WHERE m.visite_id=? ORDER BY m.cree_le,m.id`,
+    [visiteId]
+  );
   const result = rows.map((row, index) => {
     const prefix = `Matériel ${index + 1}`;
     const currentState = nullable(row.etat);
     const referenceState = nullable(row.intranet_reference_state);
     const state = currentState || (INTRANET_MATERIAL_STATES.includes(referenceState) ? referenceState : null);
     if (state && !INTRANET_MATERIAL_STATES.includes(state)) {
-      issues.push(`${prefix} / état « ${state} » non accepté par l’Intranet. Choisir ${INTRANET_MATERIAL_STATES.join(', ')} ou laisser vide.`);
+      issues.push(
+        `${prefix} / état « ${state} » non accepté par l’Intranet. Choisir ${INTRANET_MATERIAL_STATES.join(', ')} ou laisser vide.`
+      );
     }
     return {
       categorie: limited(row.categorie, 255, `${prefix} / catégorie`, issues, { required: true }),
@@ -383,7 +544,7 @@ async function buildMaterials(db, visiteId, sourceMaterialCount, issues) {
       modele: limited(row.modele, 255, `${prefix} / modèle`, issues),
       caracteristiques: limited(row.caracteristiques, 255, `${prefix} / caractéristiques`, issues),
       annee: limited(row.annee, 128, `${prefix} / année`, issues),
-      etat: state && INTRANET_MATERIAL_STATES.includes(state) ? state : state,
+      etat: state && INTRANET_MATERIAL_STATES.includes(state) ? state : state
     };
   });
   const sourceCount = Number(sourceMaterialCount || 0);
@@ -393,7 +554,7 @@ async function buildMaterials(db, visiteId, sourceMaterialCount, issues) {
     destructiveMaterialChange: removedSourceMaterialCount > 0,
     destructiveMaterialClear: result.length === 0 && sourceCount > 0,
     removedSourceMaterialCount,
-    sourceMaterialCount: sourceCount,
+    sourceMaterialCount: sourceCount
   };
 }
 
@@ -418,16 +579,33 @@ export class IntranetVisitValidationError extends Error {
 export async function buildIntranetVisitPayload(visiteId, envoiId) {
   const issues = [];
   const db = await getDb();
-  const visite = await db.getFirstAsync(`SELECT v.*,s.client_id FROM visites v JOIN sites s ON s.id=v.site_id WHERE v.id=?`, [visiteId]);
+  const visite = await db.getFirstAsync(
+    `SELECT v.*,s.client_id FROM visites v JOIN sites s ON s.id=v.site_id WHERE v.id=?`,
+    [visiteId]
+  );
   if (!visite) throw new IntranetVisitValidationError(['Visite introuvable.']);
-  if (!visite.api_remote_local_id) throw new IntranetVisitValidationError(['Cette visite n’est pas encore rattachée à une destination Intranet. Choisis le client, le site et le local depuis le bloc Synchronisation Intranet.']);
+  if (!visite.api_remote_local_id)
+    throw new IntranetVisitValidationError([
+      'Cette visite n’est pas encore rattachée à une destination Intranet. Choisis le client, le site et le local depuis le bloc Synchronisation Intranet.'
+    ]);
   const context = await frozenContext(db, visite);
-  if (context?.historical) throw new IntranetVisitValidationError(['Une visite historique importée depuis l’Intranet ne peut jamais être renvoyée comme nouvelle visite.']);
-  if (!context?.details) throw new IntranetVisitValidationError(['Référence Intranet figée absente. Associe ou réassocie cette visite à un local Intranet disposant d’une préparation à jour.']);
+  if (context?.historical)
+    throw new IntranetVisitValidationError([
+      'Une visite historique importée depuis l’Intranet ne peut jamais être renvoyée comme nouvelle visite.'
+    ]);
+  if (!context?.details)
+    throw new IntranetVisitValidationError([
+      'Référence Intranet figée absente. Associe ou réassocie cette visite à un local Intranet disposant d’une préparation à jour.'
+    ]);
   const details = context.details;
   if (visite.trame_id === 'pre_allumage') {
-    const localCount = await db.getFirstAsync(`SELECT COUNT(*) AS n FROM pre_allumage_locaux WHERE visite_id=?`, [visite.id]);
-    if (Number(localCount?.n || 0) > 1) issues.push('Pré-allumage : cette visite METRA contient plusieurs locaux alors que l’API Intranet exige une visite par local. Aucun rapprochement automatique n’est effectué.');
+    const localCount = await db.getFirstAsync(`SELECT COUNT(*) AS n FROM pre_allumage_locaux WHERE visite_id=?`, [
+      visite.id
+    ]);
+    if (Number(localCount?.n || 0) > 1)
+      issues.push(
+        'Pré-allumage : cette visite METRA contient plusieurs locaux alors que l’API Intranet exige une visite par local. Aucun rapprochement automatique n’est effectué.'
+      );
   }
   const remoteClientId = await resolveRemoteClientId(db, visite, details, issues);
   const localId = apiId(visite.api_remote_local_id, 'Local', issues);
@@ -438,41 +616,75 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
   const status = visite.statut === 'terminee' || visite.statut === 'exportee' ? 'Terminé' : 'En cours';
   const sourceMaterials = Array.isArray(details?.materiels)
     ? details.materiels.length
-    : Number(details?.preparationMeta?.materialCount ?? ((await db.getFirstAsync(
-      `SELECT material_count FROM api_local_links WHERE remote_local_id=?`, [String(visite.api_remote_local_id)]
-    ))?.material_count ?? 0));
+    : Number(
+        details?.preparationMeta?.materialCount ??
+          (
+            await db.getFirstAsync(`SELECT material_count FROM api_local_links WHERE remote_local_id=?`, [
+              String(visite.api_remote_local_id)
+            ])
+          )?.material_count ??
+          0
+      );
   const [criteres, remarques, materialData, notes] = await Promise.all([
-    buildCriteria(db, visite, details, issues), buildRemarks(db, visite.id, issues),
-    buildMaterials(db, visite.id, sourceMaterials, issues), buildNotes(db, visite.id, issues),
+    buildCriteria(db, visite, details, issues),
+    buildRemarks(db, visite.id, issues),
+    buildMaterials(db, visite.id, sourceMaterials, issues),
+    buildNotes(db, visite.id, issues)
   ]);
   const expectedCriteria = countRemoteCriteria(details?.trame);
-  if (criteres.length !== expectedCriteria) issues.push(`Critères : ${criteres.length}/${expectedCriteria}, la trame Intranet doit être envoyée intégralement.`);
+  if (criteres.length !== expectedCriteria)
+    issues.push(
+      `Critères : ${criteres.length}/${expectedCriteria}, la trame Intranet doit être envoyée intégralement.`
+    );
   if (criteres.length > 2000) issues.push(`Critères : ${criteres.length}, maximum 2000 par visite.`);
   if (remarques.length > 500) issues.push(`Réserves : ${remarques.length}, maximum 500 par visite.`);
-  if (materialData.materiels.length > 1000) issues.push(`Matériels : ${materialData.materiels.length}, maximum 1000 par visite.`);
+  if (materialData.materiels.length > 1000)
+    issues.push(`Matériels : ${materialData.materiels.length}, maximum 1000 par visite.`);
   if (notes.length > 100) issues.push(`Notes : ${notes.length}, maximum 100 par visite.`);
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(envoiId || ''))) issues.push('envoiId : UUID v4 requis.');
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(envoiId || '')))
+    issues.push('envoiId : UUID v4 requis.');
 
-  const visitWire = { localId, trameId, derniereVisiteIdSource, date, statut: status, criteres, remarques, materiels: materialData.materiels, notes };
+  const visitWire = {
+    localId,
+    trameId,
+    derniereVisiteIdSource,
+    date,
+    statut: status,
+    criteres,
+    remarques,
+    materiels: materialData.materiels,
+    notes
+  };
   const payload = { envoiId: String(envoiId || ''), visites: [visitWire] };
   const serialized = JSON.stringify(payload);
   const payloadBytes = utf8ByteLength(serialized);
-  if (payloadBytes > INTRANET_MAX_BODY_BYTES) issues.push(`Envoi trop volumineux : ${(payloadBytes / 1048576).toFixed(2)} Mio, maximum 5 Mio.`);
-  if (issues.length) throw new IntranetVisitValidationError(issues, {
-    destructiveMaterialChange: materialData.destructiveMaterialChange,
-    destructiveMaterialClear: materialData.destructiveMaterialClear,
-    removedSourceMaterialCount: materialData.removedSourceMaterialCount,
-    sourceMaterialCount: materialData.sourceMaterialCount,
-    remoteClientId,
-  });
+  if (payloadBytes > INTRANET_MAX_BODY_BYTES)
+    issues.push(`Envoi trop volumineux : ${(payloadBytes / 1048576).toFixed(2)} Mio, maximum 5 Mio.`);
+  if (issues.length)
+    throw new IntranetVisitValidationError(issues, {
+      destructiveMaterialChange: materialData.destructiveMaterialChange,
+      destructiveMaterialClear: materialData.destructiveMaterialClear,
+      removedSourceMaterialCount: materialData.removedSourceMaterialCount,
+      sourceMaterialCount: materialData.sourceMaterialCount,
+      remoteClientId
+    });
   return {
-    remoteClientId: String(remoteClientId), payload, serialized, payloadBytes,
+    remoteClientId: String(remoteClientId),
+    payload,
+    serialized,
+    payloadBytes,
     destructiveMaterialChange: materialData.destructiveMaterialChange,
     destructiveMaterialClear: materialData.destructiveMaterialClear,
     removedSourceMaterialCount: materialData.removedSourceMaterialCount,
     sourceMaterialCount: materialData.sourceMaterialCount,
-    summary: { criteria: criteres.length, remarks: remarques.length, materials: materialData.materiels.length, notes: notes.length,
-      photosExcluded: true, conclusionExcluded: true },
+    summary: {
+      criteria: criteres.length,
+      remarks: remarques.length,
+      materials: materialData.materiels.length,
+      notes: notes.length,
+      photosExcluded: true,
+      conclusionExcluded: true
+    }
   };
 }
 

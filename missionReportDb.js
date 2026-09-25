@@ -29,17 +29,59 @@ async function loadMissionReportData(db, missionId) {
   if (!mission) throw new Error('Mission introuvable.');
 
   const [
-    sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components, workstreams, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations,
+    sites,
+    visits,
+    points,
+    actions,
+    measures,
+    tests,
+    scenarios,
+    calculations,
+    expectedDocuments,
+    photos,
+    equipment,
+    locations,
+    installations,
+    systems,
+    networks,
+    components,
+    workstreams,
+    subjects,
+    observations,
+    hypotheses,
+    decisions,
+    lifecycle,
+    actionHistory,
+    validations
   ] = await Promise.all([
-    db.getAllAsync('SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name', [missionId]),
-    db.getAllAsync('SELECT v.*,s.name AS site_name FROM mission_visits v LEFT JOIN mission_sites s ON s.id=v.site_id WHERE v.mission_id=? ORDER BY COALESCE(v.visit_date,v.created_at)', [missionId]),
-    db.getAllAsync('SELECT p.*,s.name AS site_name,a.company AS responsible_company,a.name AS responsible_name,d.cost_estimate,d.allocation,d.requested_action FROM mission_points p LEFT JOIN mission_sites s ON s.id=p.site_id LEFT JOIN mission_actors a ON a.id=p.responsible_actor_id LEFT JOIN mission_point_details d ON d.point_id=p.id WHERE p.mission_id=? ORDER BY p.created_at', [missionId]),
-    db.getAllAsync('SELECT a.*,s.name AS site_name,ma.company AS responsible_company,ma.name AS responsible_name FROM mission_actions a LEFT JOIN mission_sites s ON s.id=a.site_id LEFT JOIN mission_actors ma ON ma.id=a.responsible_actor_id WHERE a.mission_id=? ORDER BY a.created_at', [missionId]),
-    db.getAllAsync('SELECT m.*,d.source_type,d.source_label,d.quality,d.delta_number,d.delta_percent,d.anomaly_status,r.value_number AS reference_number,r.value_text AS reference_text FROM mission_measures m LEFT JOIN mission_measure_details d ON d.measure_id=m.id LEFT JOIN mission_references r ON r.id=d.reference_id WHERE m.mission_id=? ORDER BY m.created_at', [missionId]),
-    db.getAllAsync('SELECT tr.*,p.label AS protocol_label,e.type AS equipment_type FROM mission_test_runs tr JOIN mission_test_protocols p ON p.id=tr.protocol_id LEFT JOIN mission_equipment e ON e.id=tr.equipment_id WHERE tr.mission_id=? ORDER BY tr.created_at', [missionId]),
+    db.getAllAsync(
+      'SELECT s.* FROM mission_sites s JOIN mission_site_links l ON l.site_id=s.id WHERE l.mission_id=? ORDER BY s.name',
+      [missionId]
+    ),
+    db.getAllAsync(
+      'SELECT v.*,s.name AS site_name FROM mission_visits v LEFT JOIN mission_sites s ON s.id=v.site_id WHERE v.mission_id=? ORDER BY COALESCE(v.visit_date,v.created_at)',
+      [missionId]
+    ),
+    db.getAllAsync(
+      'SELECT p.*,s.name AS site_name,a.company AS responsible_company,a.name AS responsible_name,d.cost_estimate,d.allocation,d.requested_action FROM mission_points p LEFT JOIN mission_sites s ON s.id=p.site_id LEFT JOIN mission_actors a ON a.id=p.responsible_actor_id LEFT JOIN mission_point_details d ON d.point_id=p.id WHERE p.mission_id=? ORDER BY p.created_at',
+      [missionId]
+    ),
+    db.getAllAsync(
+      'SELECT a.*,s.name AS site_name,ma.company AS responsible_company,ma.name AS responsible_name FROM mission_actions a LEFT JOIN mission_sites s ON s.id=a.site_id LEFT JOIN mission_actors ma ON ma.id=a.responsible_actor_id WHERE a.mission_id=? ORDER BY a.created_at',
+      [missionId]
+    ),
+    db.getAllAsync(
+      'SELECT m.*,d.source_type,d.source_label,d.quality,d.delta_number,d.delta_percent,d.anomaly_status,r.value_number AS reference_number,r.value_text AS reference_text FROM mission_measures m LEFT JOIN mission_measure_details d ON d.measure_id=m.id LEFT JOIN mission_references r ON r.id=d.reference_id WHERE m.mission_id=? ORDER BY m.created_at',
+      [missionId]
+    ),
+    db.getAllAsync(
+      'SELECT tr.*,p.label AS protocol_label,e.type AS equipment_type FROM mission_test_runs tr JOIN mission_test_protocols p ON p.id=tr.protocol_id LEFT JOIN mission_equipment e ON e.id=tr.equipment_id WHERE tr.mission_id=? ORDER BY tr.created_at',
+      [missionId]
+    ),
     db.getAllAsync('SELECT * FROM mission_scenarios WHERE mission_id=? ORDER BY created_at', [missionId]),
-    db.getAllAsync("SELECT * FROM mission_calculations WHERE mission_id=? AND status='active' ORDER BY created_at", [missionId]),
+    db.getAllAsync("SELECT * FROM mission_calculations WHERE mission_id=? AND status='active' ORDER BY created_at", [
+      missionId
+    ]),
     db.getAllAsync('SELECT * FROM mission_expected_documents WHERE mission_id=? ORDER BY created_at', [missionId]),
     db.getAllAsync(
       `SELECT p.*,s.name AS site_name,l.label AS location_label,
@@ -170,12 +212,35 @@ async function loadMissionReportData(db, missionId) {
        LEFT JOIN mission_actors a ON a.id=v.reviewer_actor_id
        WHERE v.mission_id=? ORDER BY COALESCE(v.validated_at,v.created_at)`,
       [missionId]
-    ),
+    )
   ]);
 
   return {
-    mission, sites, visits, points, actions, measures, tests, scenarios, calculations, expectedDocuments, photos,
-    equipment, locations, installations, systems, networks, components, workstreams, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations,
+    mission,
+    sites,
+    visits,
+    points,
+    actions,
+    measures,
+    tests,
+    scenarios,
+    calculations,
+    expectedDocuments,
+    photos,
+    equipment,
+    locations,
+    installations,
+    systems,
+    networks,
+    components,
+    workstreams,
+    subjects,
+    observations,
+    hypotheses,
+    decisions,
+    lifecycle,
+    actionHistory,
+    validations
   };
 }
 
@@ -189,37 +254,54 @@ function makeAutoSections(data) {
     title: 'Contexte de la Mission',
     content: [
       blockParagraph(m.description || ''),
-      blockTable(['Élément', 'Valeur'], [
-        ['Client', m.client_name || '/'],
-        ['Mission', m.label || m.type || '/'],
-        ['Référence', m.reference || '/'],
-        ['Responsable', m.responsible_name || '/'],
-        ['Période', [m.start_date, m.end_date].filter(Boolean).join(' → ') || '/'],
-        ['Sites', data.sites.map((s) => s.name).join(', ') || '/'],
-      ]),
-    ],
+      blockTable(
+        ['Élément', 'Valeur'],
+        [
+          ['Client', m.client_name || '/'],
+          ['Mission', m.label || m.type || '/'],
+          ['Référence', m.reference || '/'],
+          ['Responsable', m.responsible_name || '/'],
+          ['Période', [m.start_date, m.end_date].filter(Boolean).join(' → ') || '/'],
+          ['Sites', data.sites.map((s) => s.name).join(', ') || '/']
+        ]
+      )
+    ]
   });
 
   if (data.equipment?.length) {
     sections.push({
       key: 'inventaire',
       title: 'Inventaire et état des équipements',
-      content: [blockTable(
-        ['Site', 'Local', 'Équipement', 'Marque', 'Modèle', 'État', 'Vérification', 'Cycle projet', 'Année', 'Coût renouvellement', 'Année cible'],
-        data.equipment.map((e) => [
-          e.site_name || '',
-          e.location_label || '',
-          e.type || '',
-          e.brand || '',
-          e.model || '',
-          e.state || '',
-          e.verification_status || '',
-          e.lifecycle_status || '',
-          e.installation_year || '',
-          e.replacement_cost ?? '',
-          e.replacement_year ?? '',
-        ])
-      )],
+      content: [
+        blockTable(
+          [
+            'Site',
+            'Local',
+            'Équipement',
+            'Marque',
+            'Modèle',
+            'État',
+            'Vérification',
+            'Cycle projet',
+            'Année',
+            'Coût renouvellement',
+            'Année cible'
+          ],
+          data.equipment.map((e) => [
+            e.site_name || '',
+            e.location_label || '',
+            e.type || '',
+            e.brand || '',
+            e.model || '',
+            e.state || '',
+            e.verification_status || '',
+            e.lifecycle_status || '',
+            e.installation_year || '',
+            e.replacement_cost ?? '',
+            e.replacement_year ?? ''
+          ])
+        )
+      ]
     });
   }
 
@@ -229,7 +311,13 @@ function makeAutoSections(data) {
     for (const equipment of data.equipment) {
       const targetYear = Number(equipment.replacement_year);
       const cost = Number(equipment.replacement_cost) || 0;
-      if (!targetYear || equipment.replacement_cost === null || equipment.replacement_cost === undefined || !equipment.expected_lifetime_years) incomplete += 1;
+      if (
+        !targetYear ||
+        equipment.replacement_cost === null ||
+        equipment.replacement_cost === undefined ||
+        !equipment.expected_lifetime_years
+      )
+        incomplete += 1;
       if (!targetYear) continue;
       const current = byYear.get(targetYear) || { count: 0, cost: 0 };
       current.count += 1;
@@ -237,16 +325,18 @@ function makeAutoSections(data) {
       byYear.set(targetYear, current);
     }
     const rows = [...byYear.entries()]
-      .sort((a,b) => a[0] - b[0])
-      .map(([year,values]) => [year, values.count, values.cost]);
+      .sort((a, b) => a[0] - b[0])
+      .map(([year, values]) => [year, values.count, values.cost]);
     if (incomplete) rows.push(['À compléter', incomplete, '']);
     sections.push({
       key: 'projection_p3',
       title: 'Projection indicative des renouvellements',
       content: [
-        blockParagraph('Projection construite à partir des durées de vie, coûts et années cibles renseignés dans la Mission. Elle ne constitue pas automatiquement une décision contractuelle P3.'),
-        blockTable(['Année / statut', 'Équipements', 'Coût renseigné'], rows),
-      ],
+        blockParagraph(
+          'Projection construite à partir des durées de vie, coûts et années cibles renseignés dans la Mission. Elle ne constitue pas automatiquement une décision contractuelle P3.'
+        ),
+        blockTable(['Année / statut', 'Équipements', 'Coût renseigné'], rows)
+      ]
     });
   }
 
@@ -259,7 +349,7 @@ function makeAutoSections(data) {
         'Installation',
         installation.label || '',
         installation.type || '',
-        installation.status || '',
+        installation.status || ''
       ]);
     }
     for (const system of data.systems || []) {
@@ -269,7 +359,7 @@ function makeAutoSections(data) {
         'Système',
         system.label || '',
         [system.installation_label, system.type].filter(Boolean).join(' · '),
-        system.status || '',
+        system.status || ''
       ]);
     }
     for (const network of data.networks || []) {
@@ -279,13 +369,13 @@ function makeAutoSections(data) {
         'Réseau / circuit',
         network.label || '',
         [network.installation_label, network.system_label, network.type].filter(Boolean).join(' · '),
-        network.status || '',
+        network.status || ''
       ]);
     }
     sections.push({
       key: 'architecture',
       title: 'Architecture technique',
-      content: [blockTable(['Site', 'Local', 'Niveau', 'Nom', 'Rattachement / type', 'Statut'], rows)],
+      content: [blockTable(['Site', 'Local', 'Niveau', 'Nom', 'Rattachement / type', 'Statut'], rows)]
     });
   }
 
@@ -293,18 +383,20 @@ function makeAutoSections(data) {
     sections.push({
       key: 'volets',
       title: 'Volets / axes de la Mission',
-      content: [blockTable(
-        ['Volet', 'Type', 'Statut', 'Sujets', 'Sujets ouverts', 'Actions ouvertes', 'Description'],
-        data.workstreams.map((row) => [
-          row.label || '',
-          row.kind || '',
-          row.status || '',
-          row.subject_count ?? 0,
-          row.open_subject_count ?? 0,
-          row.open_action_count ?? 0,
-          row.description || '',
-        ])
-      )],
+      content: [
+        blockTable(
+          ['Volet', 'Type', 'Statut', 'Sujets', 'Sujets ouverts', 'Actions ouvertes', 'Description'],
+          data.workstreams.map((row) => [
+            row.label || '',
+            row.kind || '',
+            row.status || '',
+            row.subject_count ?? 0,
+            row.open_subject_count ?? 0,
+            row.open_action_count ?? 0,
+            row.description || ''
+          ])
+        )
+      ]
     });
   }
 
@@ -317,7 +409,7 @@ function makeAutoSections(data) {
         subject.status || '',
         subject.priority || '',
         subject.open_actions_count ?? 0,
-        subject.description || '',
+        subject.description || ''
       ]);
       for (const observation of (data.observations || []).filter((row) => row.subject_id === subject.id)) {
         rows.push([
@@ -326,7 +418,9 @@ function makeAutoSections(data) {
           '',
           '',
           '',
-          [observation.observed_at || observation.created_at || '', observation.content || ''].filter(Boolean).join(' · '),
+          [observation.observed_at || observation.created_at || '', observation.content || '']
+            .filter(Boolean)
+            .join(' · ')
         ]);
       }
       for (const decision of (data.decisions || []).filter((row) => row.subject_id === subject.id)) {
@@ -336,21 +430,25 @@ function makeAutoSections(data) {
           decision.status || '',
           '',
           '',
-          [decision.decided_at || decision.created_at || '', decision.label || '', decision.description || ''].filter(Boolean).join(' · '),
+          [decision.decided_at || decision.created_at || '', decision.label || '', decision.description || '']
+            .filter(Boolean)
+            .join(' · ')
         ]);
       }
     }
     sections.push({
       key: 'sujets',
       title: 'Sujets, constats et décisions',
-      content: [blockTable(
-        ['Site', 'Sujet / événement', 'Statut', 'Priorité', 'Actions ouvertes', 'Historique / détail'],
-        rows
-      )],
+      content: [
+        blockTable(['Site', 'Sujet / événement', 'Statut', 'Priorité', 'Actions ouvertes', 'Historique / détail'], rows)
+      ]
     });
   }
 
-  if (data.mission?.type === 'expertise_sinistre' && ((data.observations || []).length || (data.hypotheses || []).length)) {
+  if (
+    data.mission?.type === 'expertise_sinistre' &&
+    ((data.observations || []).length || (data.hypotheses || []).length)
+  ) {
     const rows = [];
     for (const observation of data.observations || []) {
       rows.push([
@@ -358,8 +456,8 @@ function makeAutoSections(data) {
         observation.subject_label || '',
         'FAIT',
         observation.content || '',
-        [observation.source_type,observation.confidence].filter(Boolean).join(' · '),
-        '',
+        [observation.source_type, observation.confidence].filter(Boolean).join(' · '),
+        ''
       ]);
     }
     for (const hypothesis of data.hypotheses || []) {
@@ -369,17 +467,14 @@ function makeAutoSections(data) {
         'HYPOTHÈSE',
         hypothesis.label || '',
         hypothesis.status || '',
-        hypothesis.conclusion || '',
+        hypothesis.conclusion || ''
       ]);
     }
-    rows.sort((a,b) => String(a[0] || '').localeCompare(String(b[0] || '')));
+    rows.sort((a, b) => String(a[0] || '').localeCompare(String(b[0] || '')));
     sections.push({
       key: 'expertise',
       title: 'Chronologie factuelle, hypothèses et conclusions',
-      content: [blockTable(
-        ['Date', 'Sujet', 'Nature', 'Élément', 'Source / statut', 'Conclusion'],
-        rows
-      )],
+      content: [blockTable(['Date', 'Sujet', 'Nature', 'Élément', 'Source / statut', 'Conclusion'], rows)]
     });
   }
 
@@ -387,17 +482,19 @@ function makeAutoSections(data) {
     sections.push({
       key: 'cycle_projet',
       title: 'Historique du cycle projet des ouvrages',
-      content: [blockTable(
-        ['Date', 'Site', 'Équipement', 'État précédent', 'Nouvel état', 'Commentaire'],
-        data.lifecycle.map((row) => [
-          row.effective_date || row.created_at || '',
-          row.site_name || '',
-          [row.equipment_type,row.equipment_brand,row.equipment_model].filter(Boolean).join(' · '),
-          row.from_state || '',
-          row.to_state || '',
-          row.comment || '',
-        ])
-      )],
+      content: [
+        blockTable(
+          ['Date', 'Site', 'Équipement', 'État précédent', 'Nouvel état', 'Commentaire'],
+          data.lifecycle.map((row) => [
+            row.effective_date || row.created_at || '',
+            row.site_name || '',
+            [row.equipment_type, row.equipment_brand, row.equipment_model].filter(Boolean).join(' · '),
+            row.from_state || '',
+            row.to_state || '',
+            row.comment || ''
+          ])
+        )
+      ]
     });
   }
 
@@ -405,10 +502,12 @@ function makeAutoSections(data) {
     sections.push({
       key: 'visites',
       title: 'Visites et interventions',
-      content: [blockTable(
-        ['Date', 'Site', 'Type', 'Statut'],
-        data.visits.map((v) => [v.visit_date || '', v.site_name || '', v.visit_type || 'Visite', v.status || ''])
-      )],
+      content: [
+        blockTable(
+          ['Date', 'Site', 'Type', 'Statut'],
+          data.visits.map((v) => [v.visit_date || '', v.site_name || '', v.visit_type || 'Visite', v.status || ''])
+        )
+      ]
     });
   }
 
@@ -416,20 +515,32 @@ function makeAutoSections(data) {
     sections.push({
       key: 'points',
       title: 'Constats, réserves et points à suivre',
-      content: [blockTable(
-        ['Type', 'Site', 'Point', 'Statut', 'Résultat / qualification', 'Responsable', 'Échéance', 'Coût', 'Imputation'],
-        data.points.map((p) => [
-          p.type || '',
-          p.site_name || '',
-          p.label || p.description || '',
-          p.status || '',
-          p.qualification || '',
-          p.responsible_company || p.responsible_name || '',
-          p.due_date || p.due_text || '',
-          p.cost_estimate ?? '',
-          p.allocation || '',
-        ])
-      )],
+      content: [
+        blockTable(
+          [
+            'Type',
+            'Site',
+            'Point',
+            'Statut',
+            'Résultat / qualification',
+            'Responsable',
+            'Échéance',
+            'Coût',
+            'Imputation'
+          ],
+          data.points.map((p) => [
+            p.type || '',
+            p.site_name || '',
+            p.label || p.description || '',
+            p.status || '',
+            p.qualification || '',
+            p.responsible_company || p.responsible_name || '',
+            p.due_date || p.due_text || '',
+            p.cost_estimate ?? '',
+            p.allocation || ''
+          ])
+        )
+      ]
     });
   }
 
@@ -437,20 +548,24 @@ function makeAutoSections(data) {
     sections.push({
       key: 'historique_actions',
       title: 'Historique des évolutions d’actions',
-      content: [blockTable(
-        ['Date', 'Action', 'Champ', 'Avant', 'Après'],
-        data.actionHistory.map((row) => {
-          let change = {};
-          try { change = JSON.parse(row.source_value || '{}'); } catch {}
-          return [
-            row.created_at || '',
-            row.action_label || '',
-            row.field_name || '',
-            change.before ?? '',
-            change.after ?? '',
-          ];
-        })
-      )],
+      content: [
+        blockTable(
+          ['Date', 'Action', 'Champ', 'Avant', 'Après'],
+          data.actionHistory.map((row) => {
+            let change = {};
+            try {
+              change = JSON.parse(row.source_value || '{}');
+            } catch {}
+            return [
+              row.created_at || '',
+              row.action_label || '',
+              row.field_name || '',
+              change.before ?? '',
+              change.after ?? ''
+            ];
+          })
+        )
+      ]
     });
   }
 
@@ -458,18 +573,20 @@ function makeAutoSections(data) {
     sections.push({
       key: 'actions',
       title: 'Plan d’actions',
-      content: [blockTable(
-        ['Action', 'Site', 'Responsable', 'Priorité', 'Échéance', 'Coût', 'Statut'],
-        data.actions.map((a) => [
-          a.label || '',
-          a.site_name || '',
-          a.responsible_company || a.responsible_name || '',
-          a.priority || '',
-          a.due_date || a.due_text || '',
-          a.cost_estimate ?? '',
-          a.status || '',
-        ])
-      )],
+      content: [
+        blockTable(
+          ['Action', 'Site', 'Responsable', 'Priorité', 'Échéance', 'Coût', 'Statut'],
+          data.actions.map((a) => [
+            a.label || '',
+            a.site_name || '',
+            a.responsible_company || a.responsible_name || '',
+            a.priority || '',
+            a.due_date || a.due_text || '',
+            a.cost_estimate ?? '',
+            a.status || ''
+          ])
+        )
+      ]
     });
   }
 
@@ -477,21 +594,25 @@ function makeAutoSections(data) {
     sections.push({
       key: 'mesures',
       title: 'Mesures et comparaisons',
-      content: [blockTable(
-        ['Mesure', 'Valeur', 'Référence', 'Écart', 'Source', 'Statut'],
-        data.measures.map((row) => [
-          row.type || '',
-          measureValue(row),
-          row.reference_number !== null && row.reference_number !== undefined
-            ? String(row.reference_number) + (row.unit ? ' ' + row.unit : '')
-            : (row.reference_text || ''),
-          row.delta_percent !== null && row.delta_percent !== undefined
-            ? Number(row.delta_percent).toFixed(1) + ' %'
-            : (row.delta_number !== null && row.delta_number !== undefined ? String(row.delta_number) : ''),
-          row.source_label || row.source_type || '',
-          row.anomaly_status === 'to_check' ? 'À contrôler' : '',
-        ])
-      )],
+      content: [
+        blockTable(
+          ['Mesure', 'Valeur', 'Référence', 'Écart', 'Source', 'Statut'],
+          data.measures.map((row) => [
+            row.type || '',
+            measureValue(row),
+            row.reference_number !== null && row.reference_number !== undefined
+              ? String(row.reference_number) + (row.unit ? ' ' + row.unit : '')
+              : row.reference_text || '',
+            row.delta_percent !== null && row.delta_percent !== undefined
+              ? Number(row.delta_percent).toFixed(1) + ' %'
+              : row.delta_number !== null && row.delta_number !== undefined
+                ? String(row.delta_number)
+                : '',
+            row.source_label || row.source_type || '',
+            row.anomaly_status === 'to_check' ? 'À contrôler' : ''
+          ])
+        )
+      ]
     });
   }
 
@@ -499,16 +620,18 @@ function makeAutoSections(data) {
     sections.push({
       key: 'essais',
       title: 'Essais et mise en service',
-      content: [blockTable(
-        ['Protocole', 'Équipement', 'Statut', 'Début', 'Fin'],
-        data.tests.map((t) => [
-          t.protocol_label || '',
-          t.equipment_type || '',
-          t.status || '',
-          t.started_at || '',
-          t.completed_at || '',
-        ])
-      )],
+      content: [
+        blockTable(
+          ['Protocole', 'Équipement', 'Statut', 'Début', 'Fin'],
+          data.tests.map((t) => [
+            t.protocol_label || '',
+            t.equipment_type || '',
+            t.status || '',
+            t.started_at || '',
+            t.completed_at || ''
+          ])
+        )
+      ]
     });
   }
 
@@ -516,15 +639,17 @@ function makeAutoSections(data) {
     sections.push({
       key: 'calculs',
       title: 'Calculs',
-      content: [blockTable(
-        ['Calcul', 'Résultat', 'Unité', 'Formule'],
-        data.calculations.map((c) => [
-          c.label || '',
-          c.result_number ?? c.result_text ?? '',
-          c.unit || '',
-          c.formula || '',
-        ])
-      )],
+      content: [
+        blockTable(
+          ['Calcul', 'Résultat', 'Unité', 'Formule'],
+          data.calculations.map((c) => [
+            c.label || '',
+            c.result_number ?? c.result_text ?? '',
+            c.unit || '',
+            c.formula || ''
+          ])
+        )
+      ]
     });
   }
 
@@ -532,17 +657,19 @@ function makeAutoSections(data) {
     sections.push({
       key: 'scenarios',
       title: 'Scénarios',
-      content: [blockTable(
-        ['Scénario', 'Investissement', 'Économie annuelle', 'Énergie', 'CO₂', 'TRB'],
-        data.scenarios.map((sc) => [
-          sc.label || '',
-          sc.investment ?? '',
-          sc.annual_saving ?? '',
-          sc.energy_saving_kwh ?? '',
-          sc.co2_saving_kg ?? '',
-          sc.payback_years ?? '',
-        ])
-      )],
+      content: [
+        blockTable(
+          ['Scénario', 'Investissement', 'Économie annuelle', 'Énergie', 'CO₂', 'TRB'],
+          data.scenarios.map((sc) => [
+            sc.label || '',
+            sc.investment ?? '',
+            sc.annual_saving ?? '',
+            sc.energy_saving_kwh ?? '',
+            sc.co2_saving_kg ?? '',
+            sc.payback_years ?? ''
+          ])
+        )
+      ]
     });
   }
 
@@ -550,17 +677,19 @@ function makeAutoSections(data) {
     sections.push({
       key: 'revue_documents',
       title: 'Historique des revues documentaires / VISA',
-      content: [blockTable(
-        ['Date', 'Document', 'Version', 'Statut', 'Relecteur', 'Commentaire'],
-        data.validations.map((row) => [
-          row.validated_at || row.created_at || '',
-          row.document_name || '',
-          row.version_label || '',
-          row.status || '',
-          row.reviewer_company || row.reviewer_name || '',
-          row.comment || '',
-        ])
-      )],
+      content: [
+        blockTable(
+          ['Date', 'Document', 'Version', 'Statut', 'Relecteur', 'Commentaire'],
+          data.validations.map((row) => [
+            row.validated_at || row.created_at || '',
+            row.document_name || '',
+            row.version_label || '',
+            row.status || '',
+            row.reviewer_company || row.reviewer_name || '',
+            row.comment || ''
+          ])
+        )
+      ]
     });
   }
 
@@ -568,15 +697,17 @@ function makeAutoSections(data) {
     sections.push({
       key: 'documents',
       title: 'Documents attendus / validation',
-      content: [blockTable(
-        ['Document', 'Statut', 'Échéance', 'Commentaire'],
-        data.expectedDocuments.map((d) => [
-          d.label || '',
-          d.status || '',
-          d.due_date || d.due_text || '',
-          d.comment || '',
-        ])
-      )],
+      content: [
+        blockTable(
+          ['Document', 'Statut', 'Échéance', 'Commentaire'],
+          data.expectedDocuments.map((d) => [
+            d.label || '',
+            d.status || '',
+            d.due_date || d.due_text || '',
+            d.comment || ''
+          ])
+        )
+      ]
     });
   }
 
@@ -584,20 +715,24 @@ function makeAutoSections(data) {
     sections.push({
       key: 'photos',
       title: 'Index photographique',
-      content: [blockTable(
-        ['Date', 'Type', 'Libellé', 'Contexte', 'Rôle'],
-        data.photos.map((photo) => [
-          photo.taken_at || photo.created_at || '',
-          photo.type || '',
-          photo.label || '',
-          [
-            photo.site_name,
-            photo.location_label,
-            [photo.equipment_type, photo.equipment_brand, photo.equipment_model].filter(Boolean).join(' · '),
-          ].filter(Boolean).join(' · '),
-          photo.phase_role || '',
-        ])
-      )],
+      content: [
+        blockTable(
+          ['Date', 'Type', 'Libellé', 'Contexte', 'Rôle'],
+          data.photos.map((photo) => [
+            photo.taken_at || photo.created_at || '',
+            photo.type || '',
+            photo.label || '',
+            [
+              photo.site_name,
+              photo.location_label,
+              [photo.equipment_type, photo.equipment_brand, photo.equipment_model].filter(Boolean).join(' · ')
+            ]
+              .filter(Boolean)
+              .join(' · '),
+            photo.phase_role || ''
+          ])
+        )
+      ]
     });
   }
 
@@ -631,19 +766,31 @@ export async function construireRapportMissionPortee(missionId, { siteId = null 
       equipment: data.equipment.filter((row) => row.site_id === siteId),
       locations: data.locations.filter((row) => row.site_id === siteId),
       installations: data.installations.filter((row) => !row.site_id || row.site_id === siteId),
-      systems: data.systems.filter((row) => !row.site_name || data.installations.some((installation) => installation.id === row.installation_id && installation.site_id === siteId)),
+      systems: data.systems.filter(
+        (row) =>
+          !row.site_name ||
+          data.installations.some(
+            (installation) => installation.id === row.installation_id && installation.site_id === siteId
+          )
+      ),
       networks: data.networks.filter((row) => !row.site_id || row.site_id === siteId),
-      components: data.components.filter((row) => data.equipment.some((equipment) => equipment.id === row.equipment_id && equipment.site_id === siteId)),
+      components: data.components.filter((row) =>
+        data.equipment.some((equipment) => equipment.id === row.equipment_id && equipment.site_id === siteId)
+      ),
       subjects: data.subjects.filter((row) => !row.site_id || row.site_id === siteId),
       observations: data.observations.filter((row) => !row.site_id || row.site_id === siteId),
       hypotheses: data.hypotheses.filter((row) => {
         if (!row.subject_id) return true;
-        return data.subjects.some((subject) => subject.id === row.subject_id && (!subject.site_id || subject.site_id === siteId));
+        return data.subjects.some(
+          (subject) => subject.id === row.subject_id && (!subject.site_id || subject.site_id === siteId)
+        );
       }),
       decisions: data.decisions.filter((row) => {
         if (!row.subject_id) return true;
-        return data.subjects.some((subject) => subject.id === row.subject_id && (!subject.site_id || subject.site_id === siteId));
-      }),
+        return data.subjects.some(
+          (subject) => subject.id === row.subject_id && (!subject.site_id || subject.site_id === siteId)
+        );
+      })
     };
   }
   const profile = await db.getFirstAsync(
@@ -663,10 +810,10 @@ export async function construireRapportMissionPortee(missionId, { siteId = null 
       content_text: null,
       sort_order: index,
       hidden: 0,
-      source_type: 'auto_scope',
+      source_type: 'auto_scope'
     })),
     data: scoped,
-    scope: { type: siteId ? 'site' : 'mission', id: siteId },
+    scope: { type: siteId ? 'site' : 'mission', id: siteId }
   };
 }
 
@@ -683,7 +830,15 @@ export async function initialiserRapportMission(missionId, { forceRefresh = fals
     const reportRecipe = getMissionReportRecipe(data.mission.type);
     await db.runAsync(
       'INSERT INTO mission_report_profiles(id,mission_id,type,label,scope,is_default,config_json) VALUES(?,?,?,?,?,?,?)',
-      [id, missionId, data.mission.type || 'mission', reportRecipe.label, 'mission', 1, JSON.stringify({ version: 2, recipe: reportRecipe.group })]
+      [
+        id,
+        missionId,
+        data.mission.type || 'mission',
+        reportRecipe.label,
+        'mission',
+        1,
+        JSON.stringify({ version: 2, recipe: reportRecipe.group })
+      ]
     );
     profile = await db.getFirstAsync('SELECT * FROM mission_report_profiles WHERE id=?', [id]);
   }
@@ -707,7 +862,17 @@ export async function initialiserRapportMission(missionId, { forceRefresh = fals
     if (existingKeys.has(section.key)) continue;
     await db.runAsync(
       'INSERT INTO mission_report_sections(id,mission_id,profile_id,scope_type,section_key,title,content_json,sort_order,source_type) VALUES(?,?,?,?,?,?,?,?,?)',
-      [createId('mrsec'), missionId, profile.id, 'mission', section.key, section.title, JSON.stringify(section.content), nextOrder++, 'auto']
+      [
+        createId('mrsec'),
+        missionId,
+        profile.id,
+        'mission',
+        section.key,
+        section.title,
+        JSON.stringify(section.content),
+        nextOrder++,
+        'auto'
+      ]
     );
   }
 
@@ -725,7 +890,7 @@ export async function modifierSectionRapportMission(sectionId, changes = {}) {
     contentText: 'content_text',
     contentJson: 'content_json',
     sortOrder: 'sort_order',
-    hidden: 'hidden',
+    hidden: 'hidden'
   };
   const entries = Object.entries(changes).filter(([key]) => allowed[key]);
   if (!entries.length) return;
@@ -741,7 +906,13 @@ export async function modifierSectionRapportMission(sectionId, changes = {}) {
   await db.runAsync('UPDATE mission_report_sections SET ' + setters.join(',') + ' WHERE id=?', values);
 }
 
-export async function ajouterSectionRapportMission({ missionId, profileId, title = 'Nouvelle section', contentText = '', sortOrder = 999 } = {}) {
+export async function ajouterSectionRapportMission({
+  missionId,
+  profileId,
+  title = 'Nouvelle section',
+  contentText = '',
+  sortOrder = 999
+} = {}) {
   const db = await getDb();
   const id = createId('mrsec');
   await db.runAsync(
@@ -764,8 +935,11 @@ export async function chargerRapportMission(missionId) {
   );
   if (!profile) return initialiserRapportMission(missionId);
   const [sections, data] = await Promise.all([
-    db.getAllAsync('SELECT * FROM mission_report_sections WHERE mission_id=? AND profile_id=? ORDER BY sort_order,created_at', [missionId, profile.id]),
-    loadMissionReportData(db, missionId),
+    db.getAllAsync(
+      'SELECT * FROM mission_report_sections WHERE mission_id=? AND profile_id=? ORDER BY sort_order,created_at',
+      [missionId, profile.id]
+    ),
+    loadMissionReportData(db, missionId)
   ]);
   return { profile, sections, data };
 }

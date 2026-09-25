@@ -4,7 +4,9 @@ const listeners = new Set();
 
 function notifier(type, id, uri) {
   for (const listener of [...listeners]) {
-    try { listener({ type, id, uri: uri || null }); } catch {}
+    try {
+      listener({ type, id, uri: uri || null });
+    } catch {}
   }
 }
 
@@ -16,18 +18,16 @@ export function onPatrimoineImageChanged(listener) {
 
 export async function getClientPatrimoine(clientId) {
   if (!clientId) return null;
-  return (await getDb()).getFirstAsync(
-    `SELECT id,nom,code_exploitant,adresse,image_uri FROM clients WHERE id=?`,
-    [clientId]
-  );
+  return (await getDb()).getFirstAsync(`SELECT id,nom,code_exploitant,adresse,image_uri FROM clients WHERE id=?`, [
+    clientId
+  ]);
 }
 
 export async function getSitePatrimoine(siteId) {
   if (!siteId) return null;
-  return (await getDb()).getFirstAsync(
-    `SELECT id,client_id,nom_site,adresse,statut,image_uri FROM sites WHERE id=?`,
-    [siteId]
-  );
+  return (await getDb()).getFirstAsync(`SELECT id,client_id,nom_site,adresse,statut,image_uri FROM sites WHERE id=?`, [
+    siteId
+  ]);
 }
 
 export async function enregistrerImageClient(clientId, uri) {

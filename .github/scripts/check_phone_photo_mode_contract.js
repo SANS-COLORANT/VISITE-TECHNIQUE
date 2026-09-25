@@ -1,6 +1,8 @@
 const fs = require('fs');
 
-function read(path) { return fs.readFileSync(path, 'utf8'); }
+function read(path) {
+  return fs.readFileSync(path, 'utf8');
+}
 function need(text, value, label) {
   if (!text.includes(value)) throw new Error('[phone-photo-mode] ' + label + ': missing ' + value);
 }
@@ -31,13 +33,14 @@ for (const token of [
   "module.id === 'equipment'",
   "module.id === 'remarks'",
   'Plaque signalétique',
-  'Nouvelle remarque',
-]) need(photo, token, 'photo mode runtime');
+  'Nouvelle remarque'
+])
+  need(photo, token, 'photo mode runtime');
 
 need(parser, 'extraireValeurOcr', 'local OCR value parser');
 need(parser, 'extraireChampsPlaque', 'nameplate parser');
 need(photoButton, 'useWindowDimensions', 'photo button must adapt to phone');
-need(photoButton, '<CvcIcon name={hasPhotos ? \'eye\' : \'camera\'}', 'phone photo control must be icon-first');
+need(photoButton, "<CvcIcon name={hasPhotos ? 'eye' : 'camera'}", 'phone photo control must be icon-first');
 forbid(photoButton, '📷 Photo', 'legacy emoji photo label must be removed');
 forbid(photoButton, '📷 Reprendre', 'legacy emoji retake label must be removed');
 
@@ -45,7 +48,7 @@ for (const icon of ["key === 'home'", "key === 'plate'", "key === 'microphone'",
   need(icons, icon, 'vector icon family');
 }
 
-need(missionPlugin, "com.google.mlkit:text-recognition:16.0.1", 'offline ML Kit OCR must remain bundled');
+need(missionPlugin, 'com.google.mlkit:text-recognition:16.0.1', 'offline ML Kit OCR must remain bundled');
 need(nativeOcr, 'TextRecognition.getClient', 'native OCR must stay local');
 need(nativeOcr, 'TextRecognizerOptions.DEFAULT_OPTIONS', 'latin OCR model must stay configured');
 

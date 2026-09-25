@@ -7,7 +7,8 @@ import { createId } from './database/ids.js';
 
 function safe(value, fallback = 'item') {
   const out = String(value || fallback)
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9._-]+/g, '_')
     .replace(/_+/g, '_')
     .replace(/^[_\.-]+|[_\.-]+$/g, '')
@@ -40,16 +41,19 @@ async function copyDurable(sourceUri, destination) {
   return destination;
 }
 
-async function resolveMissionContext(db, {
-  missionId,
-  siteId = null,
-  visitId = null,
-  pointId = null,
-  equipmentId = null,
-  locationId = null,
-  actionId = null,
-  geometryId = null,
-} = {}) {
+async function resolveMissionContext(
+  db,
+  {
+    missionId,
+    siteId = null,
+    visitId = null,
+    pointId = null,
+    equipmentId = null,
+    locationId = null,
+    actionId = null,
+    geometryId = null
+  } = {}
+) {
   if (!missionId) throw new Error('Mission requise.');
   const mission = await db.getFirstAsync('SELECT id,label FROM missions WHERE id=?', [missionId]);
   if (!mission) throw new Error('Mission introuvable.');
@@ -62,7 +66,7 @@ async function resolveMissionContext(db, {
     equipmentId: clean(equipmentId),
     locationId: clean(locationId),
     actionId: clean(actionId),
-    geometryId: clean(geometryId),
+    geometryId: clean(geometryId)
   };
 
   if (ctx.geometryId) {
@@ -129,7 +133,10 @@ async function resolveMissionContext(db, {
   }
 
   if (ctx.siteId) {
-    const linked = await db.getFirstAsync('SELECT 1 AS ok FROM mission_site_links WHERE mission_id=? AND site_id=?', [missionId, ctx.siteId]);
+    const linked = await db.getFirstAsync('SELECT 1 AS ok FROM mission_site_links WHERE mission_id=? AND site_id=?', [
+      missionId,
+      ctx.siteId
+    ]);
     if (!linked) throw new Error('Le Site ne correspond pas à cette Mission.');
   }
 
@@ -147,7 +154,7 @@ export async function capturerPhotoMission({
   geometryId = null,
   phaseRole = null,
   label = 'Photo',
-  type = 'terrain',
+  type = 'terrain'
 } = {}) {
   const permission = await ImagePicker.requestCameraPermissionsAsync();
   if (!permission.granted) throw new Error("L'accès à l'appareil photo est nécessaire.");
@@ -155,7 +162,16 @@ export async function capturerPhotoMission({
   if (result.canceled || !result.assets?.[0]?.uri) return null;
 
   const db = await getDb();
-  const ctx = await resolveMissionContext(db, { missionId, siteId, visitId, pointId, equipmentId, locationId, actionId, geometryId });
+  const ctx = await resolveMissionContext(db, {
+    missionId,
+    siteId,
+    visitId,
+    pointId,
+    equipmentId,
+    locationId,
+    actionId,
+    geometryId
+  });
 
   const id = createId('mphoto');
   const base = `${safe(label, 'Photo')}__${stamp()}__${safe(id)}`;
@@ -165,9 +181,15 @@ export async function capturerPhotoMission({
   let previewUri = null;
   let thumbnailUri = null;
   try {
-    const preview = await ImageManipulator.manipulateAsync(originalUri, [{ resize: { width: 1280 } }], { compress: 0.72, format: ImageManipulator.SaveFormat.JPEG });
+    const preview = await ImageManipulator.manipulateAsync(originalUri, [{ resize: { width: 1280 } }], {
+      compress: 0.72,
+      format: ImageManipulator.SaveFormat.JPEG
+    });
     previewUri = await copyDurable(preview.uri, `${folder}${base}__preview.jpg`);
-    const thumb = await ImageManipulator.manipulateAsync(originalUri, [{ resize: { width: 360 } }], { compress: 0.62, format: ImageManipulator.SaveFormat.JPEG });
+    const thumb = await ImageManipulator.manipulateAsync(originalUri, [{ resize: { width: 360 } }], {
+      compress: 0.62,
+      format: ImageManipulator.SaveFormat.JPEG
+    });
     thumbnailUri = await copyDurable(thumb.uri, `${folder}${base}__thumb.jpg`);
   } catch {
     previewUri = originalUri;
@@ -181,8 +203,22 @@ export async function capturerPhotoMission({
       label,type,file_uri,preview_uri,thumbnail_uri,taken_at
     ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      id, missionId, ctx.siteId, ctx.visitId, ctx.pointId, ctx.equipmentId, ctx.locationId, ctx.geometryId, ctx.actionId, clean(phaseRole),
-      label, type, originalUri, previewUri, thumbnailUri, now,
+      id,
+      missionId,
+      ctx.siteId,
+      ctx.visitId,
+      ctx.pointId,
+      ctx.equipmentId,
+      ctx.locationId,
+      ctx.geometryId,
+      ctx.actionId,
+      clean(phaseRole),
+      label,
+      type,
+      originalUri,
+      previewUri,
+      thumbnailUri,
+      now
     ]
   );
   return {
@@ -199,8 +235,8 @@ export async function capturerPhotoMission({
       locationId: ctx.locationId,
       actionId: ctx.actionId,
       geometryId: ctx.geometryId,
-      phaseRole: clean(phaseRole),
-    },
+      phaseRole: clean(phaseRole)
+    }
   };
 }
 
@@ -213,18 +249,39 @@ export async function listerPhotosMission({
   equipmentId = null,
   actionId = null,
   phaseRole = null,
-  limit = 200,
+  limit = 200
 } = {}) {
   const db = await getDb();
   const where = ['mission_id=?'];
   const params = [missionId];
-  if (visitId) { where.push('visit_id=?'); params.push(visitId); }
-  if (siteId) { where.push('site_id=?'); params.push(siteId); }
-  if (locationId) { where.push('location_id=?'); params.push(locationId); }
-  if (pointId) { where.push('point_id=?'); params.push(pointId); }
-  if (equipmentId) { where.push('equipment_id=?'); params.push(equipmentId); }
-  if (actionId) { where.push('action_id=?'); params.push(actionId); }
-  if (phaseRole) { where.push('phase_role=?'); params.push(phaseRole); }
+  if (visitId) {
+    where.push('visit_id=?');
+    params.push(visitId);
+  }
+  if (siteId) {
+    where.push('site_id=?');
+    params.push(siteId);
+  }
+  if (locationId) {
+    where.push('location_id=?');
+    params.push(locationId);
+  }
+  if (pointId) {
+    where.push('point_id=?');
+    params.push(pointId);
+  }
+  if (equipmentId) {
+    where.push('equipment_id=?');
+    params.push(equipmentId);
+  }
+  if (actionId) {
+    where.push('action_id=?');
+    params.push(actionId);
+  }
+  if (phaseRole) {
+    where.push('phase_role=?');
+    params.push(phaseRole);
+  }
   params.push(Math.max(1, Math.min(1000, Number(limit) || 200)));
   return db.getAllAsync(
     `SELECT * FROM mission_photos WHERE ${where.join(' AND ')} ORDER BY COALESCE(taken_at,created_at) DESC LIMIT ?`,
@@ -239,7 +296,9 @@ export async function supprimerPhotoMission(photoId) {
   await db.runAsync('DELETE FROM mission_photos WHERE id=?', [photoId]);
   for (const uri of [photo.file_uri, photo.preview_uri, photo.thumbnail_uri]) {
     if (!uri || !FileSystem.documentDirectory || !String(uri).startsWith(FileSystem.documentDirectory)) continue;
-    try { await FileSystem.deleteAsync(uri, { idempotent: true }); } catch {}
+    try {
+      await FileSystem.deleteAsync(uri, { idempotent: true });
+    } catch {}
   }
 }
 
@@ -249,10 +308,10 @@ export async function modifierVisibilitePhotoMission(photoId, visibility = 'inte
   const db = await getDb();
   const photo = await db.getFirstAsync('SELECT id FROM mission_photos WHERE id=?', [photoId]);
   if (!photo) throw new Error('Photo Mission introuvable.');
-  await db.runAsync(
-    "UPDATE mission_photos SET visibility=?,updated_at=datetime('now') WHERE id=?",
-    [finalVisibility, photoId]
-  );
+  await db.runAsync("UPDATE mission_photos SET visibility=?,updated_at=datetime('now') WHERE id=?", [
+    finalVisibility,
+    photoId
+  ]);
   return finalVisibility;
 }
 
@@ -264,7 +323,7 @@ export async function choisirEtAjouterDocumentMission({
   equipmentId = null,
   locationId = null,
   type = 'source',
-  visibility = 'internal',
+  visibility = 'internal'
 } = {}) {
   const picked = await DocumentPicker.getDocumentAsync({ type: '*/*', copyToCacheDirectory: true, multiple: false });
   if (picked?.canceled) return null;
@@ -282,8 +341,20 @@ export async function choisirEtAjouterDocumentMission({
       id,mission_id,site_id,visit_id,point_id,location_id,equipment_id,type,name,source,file_uri,visibility,offline_state,document_date
     ) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      id, missionId, ctx.siteId, ctx.visitId, ctx.pointId, ctx.locationId, ctx.equipmentId,
-      type, asset.name || filename, 'terrain', destination, visibility, 'available_offline', new Date().toISOString().slice(0, 10),
+      id,
+      missionId,
+      ctx.siteId,
+      ctx.visitId,
+      ctx.pointId,
+      ctx.locationId,
+      ctx.equipmentId,
+      type,
+      asset.name || filename,
+      'terrain',
+      destination,
+      visibility,
+      'available_offline',
+      new Date().toISOString().slice(0, 10)
     ]
   );
   return {
@@ -295,8 +366,8 @@ export async function choisirEtAjouterDocumentMission({
       visitId: ctx.visitId,
       pointId: ctx.pointId,
       equipmentId: ctx.equipmentId,
-      locationId: ctx.locationId,
-    },
+      locationId: ctx.locationId
+    }
   };
 }
 
@@ -307,16 +378,31 @@ export async function listerDocumentsMission({
   locationId = null,
   pointId = null,
   equipmentId = null,
-  limit = 200,
+  limit = 200
 } = {}) {
   const db = await getDb();
   const where = ['mission_id=?'];
   const params = [missionId];
-  if (visitId) { where.push('visit_id=?'); params.push(visitId); }
-  if (siteId) { where.push('site_id=?'); params.push(siteId); }
-  if (locationId) { where.push('location_id=?'); params.push(locationId); }
-  if (pointId) { where.push('point_id=?'); params.push(pointId); }
-  if (equipmentId) { where.push('equipment_id=?'); params.push(equipmentId); }
+  if (visitId) {
+    where.push('visit_id=?');
+    params.push(visitId);
+  }
+  if (siteId) {
+    where.push('site_id=?');
+    params.push(siteId);
+  }
+  if (locationId) {
+    where.push('location_id=?');
+    params.push(locationId);
+  }
+  if (pointId) {
+    where.push('point_id=?');
+    params.push(pointId);
+  }
+  if (equipmentId) {
+    where.push('equipment_id=?');
+    params.push(equipmentId);
+  }
   params.push(Math.max(1, Math.min(1000, Number(limit) || 200)));
   return db.getAllAsync(
     `SELECT * FROM mission_documents WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT ?`,

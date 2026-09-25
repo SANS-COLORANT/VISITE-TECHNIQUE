@@ -1,8 +1,16 @@
 const fs = require('fs');
-function read(path) { return fs.readFileSync(path, 'utf8'); }
-function requireText(text, needle, label) { if (!text.includes(needle)) throw new Error(`${label}: missing ${needle}`); }
-function requireRegex(text, pattern, label) { if (!pattern.test(text)) throw new Error(`${label}: pattern missing ${pattern}`); }
-function forbidText(text, needle, label) { if (text.includes(needle)) throw new Error(`${label}: forbidden ${needle}`); }
+function read(path) {
+  return fs.readFileSync(path, 'utf8');
+}
+function requireText(text, needle, label) {
+  if (!text.includes(needle)) throw new Error(`${label}: missing ${needle}`);
+}
+function requireRegex(text, pattern, label) {
+  if (!pattern.test(text)) throw new Error(`${label}: pattern missing ${pattern}`);
+}
+function forbidText(text, needle, label) {
+  if (text.includes(needle)) throw new Error(`${label}: forbidden ${needle}`);
+}
 const api = read('symfonyApi.js');
 requireText(api, "protectedRequest('POST', `/api/clients/${id}/visites`", 'POST visits route');
 requireText(api, "'Content-Type': 'application/json'", 'JSON content type');
@@ -19,25 +27,29 @@ requireText(payload, 'seenRemoteBranches', 'duplicate remote criterion branch pr
 requireText(payload, 'countRemoteCriteria', 'malformed frozen trame protection');
 requireText(payload, 'remoteNetworkGroups', 'network current-value mapping');
 requireText(payload, 'remoteCategoryId', 'network provenance mapping');
-requireText(payload, "pre_allumage_locaux", 'multi-local PRE upload guard');
-requireText(payload, "maximum 2000 par visite", 'criterion count guard');
+requireText(payload, 'pre_allumage_locaux', 'multi-local PRE upload guard');
+requireText(payload, 'maximum 2000 par visite', 'criterion count guard');
 requireText(payload, 'counterValue', 'counter current-value mapping');
 requireText(payload, "return 'N.V';", 'empty applicable controls become non-verified instead of blocking');
 requireText(payload, "status: 'missing'", 'missing counter value is distinguishable from ambiguity');
-requireText(payload, "plusieurs compteurs correspondent", 'ambiguous counters remain fail-safe');
+requireText(payload, 'plusieurs compteurs correspondent', 'ambiguous counters remain fail-safe');
 forbidText(payload, 'avis obligatoire', 'empty applicable control must not block upload');
 forbidText(payload, 'photos:', 'photos excluded from visit JSON contract');
 forbidText(payload, 'conclusion:', 'conclusion excluded from JSON contract');
 const outbox = read('intranetVisitOutboxDb.js');
 requireText(outbox, 'api_visit_outbox', 'persistent visit outbox');
 requireText(outbox, "status='retry'", 'offline retry state');
-requireText(outbox, "status === 429", 'Retry-After handling');
+requireText(outbox, 'status === 429', 'Retry-After handling');
 requireText(outbox, 'seconds * 1000', 'Retry-After is not shortened');
-requireText(outbox, "status === 409", 'conflict handling');
+requireText(outbox, 'status === 409', 'conflict handling');
 requireText(outbox, 'row.payload_json', 'idempotent serialized retry');
 requireText(outbox, "error?.code === 'invalid_ack'", 'ambiguous acknowledgement terminal guard');
 requireText(outbox, 'LOCAL_AUTH_ERRORS', 'local reactivation errors are not treated as network retries');
-requireText(outbox, "'material_replacement_confirmation_required'", 'partial material replacement requires confirmation');
+requireText(
+  outbox,
+  "'material_replacement_confirmation_required'",
+  'partial material replacement requires confirmation'
+);
 requireText(outbox, 'assertRowTargetsImportedClient', 'outbox verifies imported-client ownership before HTTP');
 requireText(outbox, "code: 'wrong_imported_client'", 'legacy cross-client outbox is blocked before HTTP');
 
@@ -57,14 +69,18 @@ requireText(photoOutbox, "form.append('sousCategorieId'", 'criterion subcategory
 requireText(photoOutbox, "form.append('critereId'", 'criterion link');
 requireText(photoOutbox, 'criterionIds.every', 'criterion fields omitted unless complete triple exists');
 requireText(photoOutbox, '/visites/${visitId}/photos', 'separate photo upload route');
-requireText(photoOutbox, "status === 429", 'photo Retry-After handling');
-requireText(photoOutbox, "response?.rejoue", 'photo idempotent replay acknowledgement');
+requireText(photoOutbox, 'status === 429', 'photo Retry-After handling');
+requireText(photoOutbox, 'response?.rejoue', 'photo idempotent replay acknowledgement');
 requireText(photoOutbox, 'canonicalPhotoEntityKey', 'reserve/control photo canonical mapping');
 requireText(photoOutbox, 'inspectIntranetCriterionCandidate', 'photo criterion mapping reuses visit mapping');
 requireText(photoOutbox, 'Premier lot immédiat', 'manual visit sync sends only first photo part immediately');
 
 requireText(read('visitCarryForwardDb.js'), "entite_type='reseau'", 'network provenance carry-forward');
-requireText(read('persistentEquipmentDb.js'), "'1', 'Équipement', 'Bon'", 'new local equipment has server-required quantity');
+requireText(
+  read('persistentEquipmentDb.js'),
+  "'1', 'Équipement', 'Bon'",
+  'new local equipment has server-required quantity'
+);
 const migration = read('database/migrations/033_intranet_visit_outbox.js');
 requireText(migration, 'api_source_remote_visit_id', 'frozen source visit');
 requireText(migration, 'payload_json TEXT NOT NULL', 'immutable queued JSON');
@@ -72,7 +88,11 @@ requireText(migration, 'intranet_delai', 'explicit due date field');
 const photoMigration = read('database/migrations/036_intranet_visit_photo_outbox.js');
 requireText(photoMigration, 'envoi_photo_id TEXT NOT NULL UNIQUE', 'persistent stable photo upload id');
 requireText(photoMigration, 'remote_visit_id TEXT NOT NULL', 'photo targets acknowledged remote visit');
-requireText(photoMigration, 'FOREIGN KEY (photo_id) REFERENCES photos(id) ON DELETE CASCADE', 'deleted local photo clears unsent outbox state');
+requireText(
+  photoMigration,
+  'FOREIGN KEY (photo_id) REFERENCES photos(id) ON DELETE CASCADE',
+  'deleted local photo clears unsent outbox state'
+);
 const ui = read('IntranetVisitSync.js');
 requireText(ui, "online ? 'Online' : 'Offline'", 'compact Online/Offline status');
 requireText(ui, 'syncVisitPhotosNow', 'visit success continues with photo upload');
@@ -91,4 +111,6 @@ requireText(read('VisiteScreen.js'), '<IntranetVisitSyncControl visite={visite}'
 const app = read('App.js');
 requireRegex(app, /<IntranetVisitSyncRuntime\s*\/>/, 'foreground retry runtime');
 requireRegex(app, /<IntranetVisitSyncBanner\s*\/>/, 'global pending status');
-console.log('Intranet visit upload contract validated: exact visit POST plus separate idempotent multipart photo upload in resumable parts of 10, DPoP retries, persistent outboxes, partial visit values encoded as N.V or slash, conflicts, structural mapping validation and full material safeguards.');
+console.log(
+  'Intranet visit upload contract validated: exact visit POST plus separate idempotent multipart photo upload in resumable parts of 10, DPoP retries, persistent outboxes, partial visit values encoded as N.V or slash, conflicts, structural mapping validation and full material safeguards.'
+);

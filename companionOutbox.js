@@ -41,11 +41,20 @@ async function enqueueCompanionPhoto({ uri, meta }) {
   return serialiseMutation(async () => {
     await ensureRoot();
     const transferId = id();
-    const extension = String(uri || '').toLowerCase().includes('.png') ? '.png' : '.jpg';
+    const extension = String(uri || '')
+      .toLowerCase()
+      .includes('.png')
+      ? '.png'
+      : '.jpg';
     const destination = `${ROOT}${transferId}${extension}`;
     await FileSystem.copyAsync({ from: uri, to: destination });
     const items = await readQueue();
-    const item = { transferId, uri: destination, meta: { ...(meta || {}), transferId }, createdAt: new Date().toISOString() };
+    const item = {
+      transferId,
+      uri: destination,
+      meta: { ...(meta || {}), transferId },
+      createdAt: new Date().toISOString()
+    };
     items.push(item);
     await writeQueue(items);
     return item;

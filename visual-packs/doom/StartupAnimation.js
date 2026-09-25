@@ -12,7 +12,7 @@ const ASSETS = {
   wingLeft: require('../shared/assets/wing-left-trim.png'),
   wingRight: require('../shared/assets/wing-right-trim.png'),
   head: require('../shared/assets/head-trim.png'),
-  body: require('../shared/assets/body-trim.png'),
+  body: require('../shared/assets/body-trim.png')
 };
 
 function TintedLayer({ source, baseStyle, animatedStyle, tintColor, opacityStyle }) {
@@ -33,7 +33,7 @@ export function DoomStartupAnimation() {
       toValue: 1,
       duration: DOOM_STARTUP_DURATION_MS,
       easing: Easing.linear,
-      useNativeDriver: true,
+      useNativeDriver: true
     });
     animation.start();
     return () => animation.stop();
@@ -44,12 +44,18 @@ export function DoomStartupAnimation() {
     const leftX = progress.interpolate({ inputRange: [0, 1100 / 2600, 1], outputRange: [-52, 0, 0] });
     const rightX = progress.interpolate({ inputRange: [0, 1100 / 2600, 1], outputRange: [52, 0, 0] });
     const wingY = progress.interpolate({ inputRange: [0, 1100 / 2600, 1], outputRange: [-26, 0, 0] });
-    const centerScale = progress.interpolate({ inputRange: [0, 100 / 2600, 1100 / 2600, 1], outputRange: [0.5, 0.5, 1, 1] });
+    const centerScale = progress.interpolate({
+      inputRange: [0, 100 / 2600, 1100 / 2600, 1],
+      outputRange: [0.5, 0.5, 1, 1]
+    });
     const wordOpacity = progress.interpolate({ inputRange: [0, 1200 / 2600, 1], outputRange: [0, 1, 1] });
     const wordY = progress.interpolate({ inputRange: [0, 1200 / 2600, 1], outputRange: [12, 0, 0] });
     const orangeOpacity = progress.interpolate({ inputRange: [0, 1800 / 2600, 1], outputRange: [1, 1, 0] });
     const greenOpacity = progress.interpolate({ inputRange: [0, 1800 / 2600, 1], outputRange: [0, 0, 1] });
-    const doomOpacity = progress.interpolate({ inputRange: [0, 1800 / 2600, 2300 / 2600, 1], outputRange: [0, 0, 1, 1] });
+    const doomOpacity = progress.interpolate({
+      inputRange: [0, 1800 / 2600, 2300 / 2600, 1],
+      outputRange: [0, 0, 1, 1]
+    });
 
     return {
       wingLeft: { opacity: wingOpacity, transform: [{ translateX: leftX }, { translateY: wingY }] },
@@ -58,22 +64,70 @@ export function DoomStartupAnimation() {
       word: { opacity: wordOpacity, transform: [{ translateY: wordY }] },
       orangeOpacity: { opacity: orangeOpacity },
       greenOpacity: { opacity: greenOpacity },
-      doom: { opacity: doomOpacity },
+      doom: { opacity: doomOpacity }
     };
   }, [progress]);
 
   return (
     <View style={styles.screen} accessibilityLabel={`Chargement de METRA ${appVersionLabel()} - pack Doom`}>
       <View style={styles.canvas}>
-        <TintedLayer source={ASSETS.wingLeft} baseStyle={styles.wingLeft} animatedStyle={a.wingLeft} tintColor={ORANGE} opacityStyle={a.orangeOpacity} />
-        <TintedLayer source={ASSETS.wingRight} baseStyle={styles.wingRight} animatedStyle={a.wingRight} tintColor={ORANGE} opacityStyle={a.orangeOpacity} />
-        <TintedLayer source={ASSETS.head} baseStyle={styles.head} animatedStyle={a.center} tintColor={ORANGE} opacityStyle={a.orangeOpacity} />
-        <TintedLayer source={ASSETS.body} baseStyle={styles.body} animatedStyle={a.center} tintColor={ORANGE} opacityStyle={a.orangeOpacity} />
+        <TintedLayer
+          source={ASSETS.wingLeft}
+          baseStyle={styles.wingLeft}
+          animatedStyle={a.wingLeft}
+          tintColor={ORANGE}
+          opacityStyle={a.orangeOpacity}
+        />
+        <TintedLayer
+          source={ASSETS.wingRight}
+          baseStyle={styles.wingRight}
+          animatedStyle={a.wingRight}
+          tintColor={ORANGE}
+          opacityStyle={a.orangeOpacity}
+        />
+        <TintedLayer
+          source={ASSETS.head}
+          baseStyle={styles.head}
+          animatedStyle={a.center}
+          tintColor={ORANGE}
+          opacityStyle={a.orangeOpacity}
+        />
+        <TintedLayer
+          source={ASSETS.body}
+          baseStyle={styles.body}
+          animatedStyle={a.center}
+          tintColor={ORANGE}
+          opacityStyle={a.orangeOpacity}
+        />
 
-        <TintedLayer source={ASSETS.wingLeft} baseStyle={styles.wingLeft} animatedStyle={a.wingLeft} tintColor={GREEN} opacityStyle={a.greenOpacity} />
-        <TintedLayer source={ASSETS.wingRight} baseStyle={styles.wingRight} animatedStyle={a.wingRight} tintColor={GREEN} opacityStyle={a.greenOpacity} />
-        <TintedLayer source={ASSETS.head} baseStyle={styles.head} animatedStyle={a.center} tintColor={GREEN} opacityStyle={a.greenOpacity} />
-        <TintedLayer source={ASSETS.body} baseStyle={styles.body} animatedStyle={a.center} tintColor={GREEN} opacityStyle={a.greenOpacity} />
+        <TintedLayer
+          source={ASSETS.wingLeft}
+          baseStyle={styles.wingLeft}
+          animatedStyle={a.wingLeft}
+          tintColor={GREEN}
+          opacityStyle={a.greenOpacity}
+        />
+        <TintedLayer
+          source={ASSETS.wingRight}
+          baseStyle={styles.wingRight}
+          animatedStyle={a.wingRight}
+          tintColor={GREEN}
+          opacityStyle={a.greenOpacity}
+        />
+        <TintedLayer
+          source={ASSETS.head}
+          baseStyle={styles.head}
+          animatedStyle={a.center}
+          tintColor={GREEN}
+          opacityStyle={a.greenOpacity}
+        />
+        <TintedLayer
+          source={ASSETS.body}
+          baseStyle={styles.body}
+          animatedStyle={a.center}
+          tintColor={GREEN}
+          opacityStyle={a.greenOpacity}
+        />
 
         <Animated.View pointerEvents="none" style={[styles.layer, styles.doomFigure, a.doom]}>
           <DoomMaskVector />
@@ -81,7 +135,9 @@ export function DoomStartupAnimation() {
 
         <Animated.View style={[styles.wordmarkWrap, a.word]}>
           <Animated.Text style={[styles.wordmark, { color: ORANGE }, a.orangeOpacity]}>METRA</Animated.Text>
-          <Animated.Text style={[styles.wordmark, styles.wordmarkOverlay, { color: GREEN }, a.greenOpacity]}>METRA</Animated.Text>
+          <Animated.Text style={[styles.wordmark, styles.wordmarkOverlay, { color: GREEN }, a.greenOpacity]}>
+            METRA
+          </Animated.Text>
           <Text style={styles.version}>{appVersionLabel()}</Text>
         </Animated.View>
       </View>
@@ -101,5 +157,12 @@ const styles = StyleSheet.create({
   wordmarkWrap: { position: 'absolute', left: 0, right: 0, top: 218, alignItems: 'center' },
   wordmark: { fontFamily: 'sans-serif', fontSize: 20, fontWeight: '700', letterSpacing: 3.2 },
   wordmarkOverlay: { position: 'absolute', top: 0 },
-  version: { marginTop: 8, color: '#7A665C', fontFamily: 'sans-serif', fontSize: 11, fontWeight: '600', letterSpacing: 0.5 },
+  version: {
+    marginTop: 8,
+    color: '#7A665C',
+    fontFamily: 'sans-serif',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.5
+  }
 });

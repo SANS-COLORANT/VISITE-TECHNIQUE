@@ -13,5 +13,5 @@ export const migration019 = {
     );
     CREATE INDEX IF NOT EXISTS idx_equipement_trames_trame
       ON equipement_trames(trame_id, actif, equipement_id);
-  `,
+  `
 };

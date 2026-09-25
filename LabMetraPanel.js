@@ -7,32 +7,76 @@ import {
   getMissionsLabUnlocked,
   setLabFeatureEnabled,
   setMissionsVisible,
-  unlockMissionsLab,
+  unlockMissionsLab
 } from './featureSettings.js';
 
 function FeatureRow({ feature, enabled, disabled, onChange }) {
   return (
-    <View style={{ backgroundColor: COLORS.white, borderWidth: 1, borderColor: enabled ? COLORS.orange : COLORS.line, borderRadius: 14, padding: 14, marginBottom: 10 }}>
+    <View
+      style={{
+        backgroundColor: COLORS.white,
+        borderWidth: 1,
+        borderColor: enabled ? COLORS.orange : COLORS.line,
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 10
+      }}
+    >
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-        <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: enabled ? COLORS.orangeLight : COLORS.bg, alignItems: 'center', justifyContent: 'center' }}>
+        <View
+          style={{
+            width: 38,
+            height: 38,
+            borderRadius: 12,
+            backgroundColor: enabled ? COLORS.orangeLight : COLORS.bg,
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
           <Text style={{ fontSize: 19, color: enabled ? COLORS.orangeDark : COLORS.inkSoft }}>{feature.icon}</Text>
         </View>
         <View style={{ flex: 1 }}>
           <Text style={{ fontSize: 14, fontWeight: '900', color: COLORS.ink }}>{feature.title}</Text>
-          <Text style={{ marginTop: 4, fontSize: 11, lineHeight: 15, color: COLORS.inkSoft }}>{feature.description}</Text>
+          <Text style={{ marginTop: 4, fontSize: 11, lineHeight: 15, color: COLORS.inkSoft }}>
+            {feature.description}
+          </Text>
         </View>
         <TouchableOpacity
           disabled={disabled}
           onPress={() => onChange(!enabled)}
           activeOpacity={0.75}
-          style={{ width: 68, height: 34, borderRadius: 17, padding: 3, justifyContent: 'center', backgroundColor: enabled ? COLORS.orange : COLORS.line, opacity: disabled ? 0.55 : 1 }}
+          style={{
+            width: 68,
+            height: 34,
+            borderRadius: 17,
+            padding: 3,
+            justifyContent: 'center',
+            backgroundColor: enabled ? COLORS.orange : COLORS.line,
+            opacity: disabled ? 0.55 : 1
+          }}
         >
-          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.white, alignSelf: enabled ? 'flex-end' : 'flex-start', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 9, fontWeight: '900', color: enabled ? COLORS.orange : COLORS.inkSoft }}>{enabled ? 'ON' : 'OFF'}</Text>
+          <View
+            style={{
+              width: 28,
+              height: 28,
+              borderRadius: 14,
+              backgroundColor: COLORS.white,
+              alignSelf: enabled ? 'flex-end' : 'flex-start',
+              alignItems: 'center',
+              justifyContent: 'center'
+            }}
+          >
+            <Text style={{ fontSize: 9, fontWeight: '900', color: enabled ? COLORS.orange : COLORS.inkSoft }}>
+              {enabled ? 'ON' : 'OFF'}
+            </Text>
           </View>
         </TouchableOpacity>
       </View>
-      {enabled ? <Text style={{ marginTop: 9, fontSize: 10, color: COLORS.orangeDark, fontWeight: '800' }}>Fonction expérimentale active</Text> : null}
+      {enabled ? (
+        <Text style={{ marginTop: 9, fontSize: 10, color: COLORS.orangeDark, fontWeight: '800' }}>
+          Fonction expérimentale active
+        </Text>
+      ) : null}
     </View>
   );
 }
@@ -56,7 +100,9 @@ export function LabMetraPanel() {
     }
   }, []);
 
-  useEffect(() => { reload(); }, [reload]);
+  useEffect(() => {
+    reload();
+  }, [reload]);
 
   const visibleFeatures = useMemo(
     () => LAB_FEATURES.filter((feature) => !feature.hiddenUntilUnlocked || missionsUnlocked),
@@ -71,28 +117,40 @@ export function LabMetraPanel() {
       // Le déverrouillage rend seulement le choix visible. Missions reste OFF.
       setStates((current) => ({ ...current, missions: false }));
       await setMissionsVisible(false);
-      Alert.alert('LAB METRA', 'Le réglage Missions est maintenant disponible. La fonctionnalité reste désactivée tant que tu ne l’actives pas explicitement.');
+      Alert.alert(
+        'LAB METRA',
+        'Le réglage Missions est maintenant disponible. La fonctionnalité reste désactivée tant que tu ne l’actives pas explicitement.'
+      );
     } catch (error) {
       Alert.alert('LAB METRA', String(error?.message || error));
     }
   }, [missionsUnlocked, savingKey]);
 
-  const toggle = useCallback(async (key, enabled) => {
-    if (savingKey) return;
-    setSavingKey(key);
-    setStates((current) => ({ ...current, [key]: enabled }));
-    try {
-      if (key === 'missions') await setMissionsVisible(enabled);
-      else await setLabFeatureEnabled(key, enabled);
-    } catch (error) {
-      setStates((current) => ({ ...current, [key]: !enabled }));
-      Alert.alert('Réglage non enregistré', String(error?.message || error));
-    } finally {
-      setSavingKey(null);
-    }
-  }, [savingKey]);
+  const toggle = useCallback(
+    async (key, enabled) => {
+      if (savingKey) return;
+      setSavingKey(key);
+      setStates((current) => ({ ...current, [key]: enabled }));
+      try {
+        if (key === 'missions') await setMissionsVisible(enabled);
+        else await setLabFeatureEnabled(key, enabled);
+      } catch (error) {
+        setStates((current) => ({ ...current, [key]: !enabled }));
+        Alert.alert('Réglage non enregistré', String(error?.message || error));
+      } finally {
+        setSavingKey(null);
+      }
+    },
+    [savingKey]
+  );
 
-  if (loading) return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 }}><ActivityIndicator color={COLORS.orange} size="large"/><Text style={{ marginTop: 10, color: COLORS.inkSoft }}>Chargement du LAB METRA…</Text></View>;
+  if (loading)
+    return (
+      <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', padding: 30 }}>
+        <ActivityIndicator color={COLORS.orange} size="large" />
+        <Text style={{ marginTop: 10, color: COLORS.inkSoft }}>Chargement du LAB METRA…</Text>
+      </View>
+    );
 
   return (
     <View style={styles.content}>
@@ -100,11 +158,19 @@ export function LabMetraPanel() {
         activeOpacity={1}
         delayLongPress={2000}
         onLongPress={unlockMissions}
-        style={{ borderRadius: 15, backgroundColor: '#FFF7F1', borderWidth: 1, borderColor: '#F6C7AD', padding: 14, marginBottom: 16 }}
+        style={{
+          borderRadius: 15,
+          backgroundColor: '#FFF7F1',
+          borderWidth: 1,
+          borderColor: '#F6C7AD',
+          padding: 14,
+          marginBottom: 16
+        }}
       >
         <Text style={{ fontSize: 17, fontWeight: '900', color: COLORS.ink }}>LAB METRA</Text>
         <Text style={{ marginTop: 5, color: COLORS.inkSoft, fontSize: 11.5, lineHeight: 16 }}>
-          Active uniquement les fonctions que tu veux essayer. Une fonction désactivée reste masquée dans l'application et n'altère pas le fonctionnement normal des visites.
+          Active uniquement les fonctions que tu veux essayer. Une fonction désactivée reste masquée dans l'application
+          et n'altère pas le fonctionnement normal des visites.
         </Text>
       </TouchableOpacity>
       {visibleFeatures.map((feature) => (

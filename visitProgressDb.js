@@ -56,7 +56,7 @@ async function calculerProgression(db, visiteId) {
   const [champsRows, controlesRows, visite] = await Promise.all([
     db.getAllAsync(`SELECT section_code,cle,valeur FROM champs_visite WHERE visite_id=?`, [visiteId]),
     db.getAllAsync(`SELECT section_code,cle,avis FROM controles_visite WHERE visite_id=?`, [visiteId]),
-    db.getFirstAsync(`SELECT progression_pct,trame_id FROM visites WHERE id=?`, [visiteId]),
+    db.getFirstAsync(`SELECT progression_pct,trame_id FROM visites WHERE id=?`, [visiteId])
   ]);
 
   const trame = obtenirTrame(visite?.trame_id || DEFAULT_TRAME_ID);
@@ -80,10 +80,7 @@ async function calculerProgression(db, visiteId) {
   const ancienPct = Number(visite?.progression_pct ?? -1);
 
   if (pct !== ancienPct) {
-    await db.runAsync(
-      `UPDATE visites SET progression_pct=?, modifie_le=datetime('now') WHERE id=?`,
-      [pct, visiteId]
-    );
+    await db.runAsync(`UPDATE visites SET progression_pct=?, modifie_le=datetime('now') WHERE id=?`, [pct, visiteId]);
   }
   return pct;
 }

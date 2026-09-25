@@ -7,7 +7,8 @@ const pending = new Map();
 
 function nettoyerNomFichier(valeur = '', fallback = 'Photo') {
   const propre = String(valeur || fallback)
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[’']/g, '')
     .replace(/[^a-zA-Z0-9._-]+/g, '_')
     .replace(/_+/g, '_')
@@ -40,7 +41,7 @@ async function buildContext(visiteId) {
     site,
     siteName: visite?.nom_site || 'Site',
     directory,
-    loadedAt: Date.now(),
+    loadedAt: Date.now()
   };
 }
 

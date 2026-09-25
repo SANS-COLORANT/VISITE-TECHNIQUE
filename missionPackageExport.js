@@ -6,15 +6,23 @@ import { preparerExportMission } from './missionExcelExport.js';
 import { preparerExportMissionClient, preparerSyntheseActionsMission } from './missionClientExcelExport.js';
 import { preparerAlbumPhotosMission } from './missionPhotoAlbumExport.js';
 import { exporterRapportMissionDocx, exporterRapportMissionPdf } from './missionReportExporter.js';
-import { exporterGeoJsonMission, exporterGeoPackageMission, exporterPlanPdfAnnote, listerPlansMission } from './missionPlanDb.js';
+import {
+  exporterGeoJsonMission,
+  exporterGeoPackageMission,
+  exporterPlanPdfAnnote,
+  listerPlansMission
+} from './missionPlanDb.js';
 
 function safe(value = 'item') {
-  return String(value || 'item')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9._-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^[_\.-]+|[_\.-]+$/g, '')
-    .slice(0, 110) || 'item';
+  return (
+    String(value || 'item')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^[_\.-]+|[_\.-]+$/g, '')
+      .slice(0, 110) || 'item'
+  );
 }
 
 function native(uri) {
@@ -78,7 +86,7 @@ export const DEFAULT_MISSION_PACKAGE_OPTIONS = Object.freeze({
   sigGeoPackage: true,
   offlineMapLayers: true,
   synopticData: true,
-  manifest: true,
+  manifest: true
 });
 
 export async function exporterPackageMission(missionId, options = DEFAULT_MISSION_PACKAGE_OPTIONS) {
@@ -106,10 +114,10 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
       reference: mission.reference,
       client: mission.client_name,
       family: mission.family,
-      type: mission.type,
+      type: mission.type
     },
     options: cfg,
-    files: [],
+    files: []
   };
 
   if (cfg.reportPdf || cfg.reportDocx) {
@@ -134,12 +142,12 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
         for (const site of sites) {
           if (cfg.reportPdf) {
             const out = await exporterRapportMissionPdf(missionId, { share: false, siteId: site.id });
-            const name = safe(out.name || ('Rapport_' + site.name + '.pdf'));
+            const name = safe(out.name || 'Rapport_' + site.name + '.pdf');
             if (await copyIfFile(out.uri, siteFolder + name)) manifest.files.push('Rapport/Sites/' + name);
           }
           if (cfg.reportDocx) {
             const out = await exporterRapportMissionDocx(missionId, { share: false, siteId: site.id });
-            const name = safe(out.name || ('Rapport_' + site.name + '.docx'));
+            const name = safe(out.name || 'Rapport_' + site.name + '.docx');
             if (await copyIfFile(out.uri, siteFolder + name)) manifest.files.push('Rapport/Sites/' + name);
           }
         }
@@ -159,10 +167,13 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
     db.getAllAsync('SELECT * FROM mission_photos WHERE mission_id=? ORDER BY created_at', [missionId]),
     db.getAllAsync('SELECT * FROM mission_documents WHERE mission_id=? ORDER BY created_at', [missionId]),
     db.getAllAsync('SELECT * FROM mission_equipment_relations WHERE mission_id=? ORDER BY created_at', [missionId]),
-    db.getAllAsync('SELECT e.* FROM mission_equipment e JOIN mission_site_links l ON l.site_id=e.site_id WHERE l.mission_id=? ORDER BY e.type', [missionId]),
+    db.getAllAsync(
+      'SELECT e.* FROM mission_equipment e JOIN mission_site_links l ON l.site_id=e.site_id WHERE l.mission_id=? ORDER BY e.type',
+      [missionId]
+    ),
     db.getAllAsync('SELECT * FROM mission_actions WHERE mission_id=? ORDER BY created_at', [missionId]),
     db.getAllAsync('SELECT * FROM mission_points WHERE mission_id=? ORDER BY created_at', [missionId]),
-    db.getAllAsync('SELECT * FROM mission_map_layers WHERE mission_id=? ORDER BY created_at', [missionId]),
+    db.getAllAsync('SELECT * FROM mission_map_layers WHERE mission_id=? ORDER BY created_at', [missionId])
   ]);
 
   const packagePhotoPathById = {};
@@ -210,14 +221,16 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
     const albumModes = [
       ['photoAlbumAll', 'all'],
       ['photoAlbumReport', 'report'],
-      ['photoAlbumIssues', 'issues'],
+      ['photoAlbumIssues', 'issues']
     ];
     for (const [optionKey, mode] of albumModes) {
       if (!cfg[optionKey]) continue;
       try {
         const out = await preparerAlbumPhotosMission(missionId, { mode });
-        const name = safe(out.name || ('Album_' + mode + '.pdf'));
-        await FileSystem.writeAsStringAsync(albumFolder + name, out.base64, { encoding: FileSystem.EncodingType.Base64 });
+        const name = safe(out.name || 'Album_' + mode + '.pdf');
+        await FileSystem.writeAsStringAsync(albumFolder + name, out.base64, {
+          encoding: FileSystem.EncodingType.Base64
+        });
         manifest.files.push('Photos/Albums/' + name);
       } catch {}
     }
@@ -231,7 +244,11 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
       index += 1;
       const extension = String(doc.name || '').includes('.') ? '.' + String(doc.name).split('.').pop() : '';
       const baseName = safe(doc.name || doc.id);
-      const name = String(index).padStart(3, '0') + '__' + baseName + (extension && !baseName.toLowerCase().endsWith(extension.toLowerCase()) ? extension : '');
+      const name =
+        String(index).padStart(3, '0') +
+        '__' +
+        baseName +
+        (extension && !baseName.toLowerCase().endsWith(extension.toLowerCase()) ? extension : '');
       const copied = await copyIfFile(doc.file_uri, folder + name);
       if (copied) {
         manifest.files.push('Documents_sources/' + name);
@@ -267,7 +284,7 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
     if (cfg.annotatedPlans) {
       const folder = await ensure(root + 'Plans/Annotes/');
       let index = 0;
-      for (const plan of plans.filter((p) => ['plan_pdf','plan_image','plan_source'].includes(p.type))) {
+      for (const plan of plans.filter((p) => ['plan_pdf', 'plan_image', 'plan_source'].includes(p.type))) {
         try {
           const out = await exporterPlanPdfAnnote({ missionId, documentId: plan.id, share: false });
           index += 1;
@@ -291,9 +308,10 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
         layerIndex.push({ ...layer, package_file: null });
         continue;
       }
-      const packageName = layer.type === 'xyz_tiles'
-        ? safe(layer.id + '__' + (layer.label || 'tiles')) + '/'
-        : safe(layer.id + '__' + (layer.label || 'layer'));
+      const packageName =
+        layer.type === 'xyz_tiles'
+          ? safe(layer.id + '__' + (layer.label || 'tiles')) + '/'
+          : safe(layer.id + '__' + (layer.label || 'layer'));
       const destination = folder + packageName;
       const copied = await copyPath(layer.source_uri, destination);
       if (copied) {
@@ -344,13 +362,17 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
       relations: relations.length,
       actions: actions.length,
       points: points.length,
-      mapLayers: mapLayers.length,
+      mapLayers: mapLayers.length
     };
-    await FileSystem.writeAsStringAsync(root + 'manifest.json', JSON.stringify(manifest, null, 2), { encoding: FileSystem.EncodingType.UTF8 });
+    await FileSystem.writeAsStringAsync(root + 'manifest.json', JSON.stringify(manifest, null, 2), {
+      encoding: FileSystem.EncodingType.UTF8
+    });
   }
 
   const zipUri = rootBase + packageName + '.zip';
-  try { await FileSystem.deleteAsync(zipUri, { idempotent: true }); } catch {}
+  try {
+    await FileSystem.deleteAsync(zipUri, { idempotent: true });
+  } catch {}
   await zip(native(root), native(zipUri));
 
   if (await Sharing.isAvailableAsync()) {

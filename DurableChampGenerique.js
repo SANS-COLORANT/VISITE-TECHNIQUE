@@ -22,8 +22,16 @@ const FIELD_OPTIONS = {
   'Production primaire': ['Chaudière gaz', 'Chaudière fioul', 'Chaudière bois', 'PAC', 'Réseau de chaleur'],
   'Production ECS': ['Ballon', 'Échangeur à plaques', 'Instantané', 'Semi-instantané'],
   'Type de LT': ['Chaufferie gaz', 'Chaufferie fioul', 'Sous-station', 'Chaufferie bois'],
-  'Type de ventilation': ['VMC simple flux autoréglable', 'VMC simple flux hygroréglable', 'VMC double flux', 'VMC gaz', 'Ventilation naturelle', 'Ventilation hybride', 'Extraction mécanique'],
-  'Type de bouche': ['Autoréglable', 'Hygroréglable', 'Extraction gaz', 'Extraction sanitaire', 'Insufflation', 'Mixte'],
+  'Type de ventilation': [
+    'VMC simple flux autoréglable',
+    'VMC simple flux hygroréglable',
+    'VMC double flux',
+    'VMC gaz',
+    'Ventilation naturelle',
+    'Ventilation hybride',
+    'Extraction mécanique'
+  ],
+  'Type de bouche': ['Autoréglable', 'Hygroréglable', 'Extraction gaz', 'Extraction sanitaire', 'Insufflation', 'Mixte']
 };
 
 function dateAujourdhuiFr() {
@@ -41,7 +49,9 @@ function normaliserDateInitiale(value) {
 }
 
 function masquerDate(value) {
-  const chiffres = String(value || '').replace(/\D/g, '').slice(0, 8);
+  const chiffres = String(value || '')
+    .replace(/\D/g, '')
+    .slice(0, 8);
   if (chiffres.length <= 2) return chiffres.length === 2 ? `${chiffres}/` : chiffres;
   if (chiffres.length <= 4) return `${chiffres.slice(0, 2)}/${chiffres.slice(2)}${chiffres.length === 4 ? '/' : ''}`;
   return `${chiffres.slice(0, 2)}/${chiffres.slice(2, 4)}/${chiffres.slice(4)}`;
@@ -58,7 +68,9 @@ function dateFrValide(value) {
 }
 
 function normaliserIndex(value) {
-  const brut = String(value || '').replace(/\./g, ',').replace(/[^0-9,]/g, '');
+  const brut = String(value || '')
+    .replace(/\./g, ',')
+    .replace(/[^0-9,]/g, '');
   const [entier, ...decimales] = brut.split(',');
   return decimales.length ? `${entier},${decimales.join('')}` : entier;
 }
@@ -71,21 +83,30 @@ function getDurableNumericConfig(cle) {
       min: 0,
       max: cle === 'Nombre de logements' ? 5000 : cle === 'Nombre de caissons' ? 12 : 200,
       step: 1,
-      unit: '',
+      unit: ''
     };
   }
   return null;
 }
 
-export const DurableChampGenerique = React.memo(function DurableChampGenerique({ visiteId, sectionCode, field, valeurInitiale, onSaved, displayLabel, onRename }) {
+export const DurableChampGenerique = React.memo(function DurableChampGenerique({
+  visiteId,
+  sectionCode,
+  field,
+  valeurInitiale,
+  onSaved,
+  displayLabel,
+  onRename
+}) {
   const unit = extractUnit(field.cle);
   const label = cleanLabel(field.cle);
   const entiteKey = `${sectionCode}||${field.cle}`;
   const numericConfig = getDurableNumericConfig(field.cle);
   const chipOptions = FIELD_OPTIONS[field.cle];
-  const sansPhoto = sectionCode === 'infos.g_n_ral'
-    || sectionCode === 'infos.informations_g_n_rales'
-    || sectionCode === 'vmc-infos.informations_g_n_rales';
+  const sansPhoto =
+    sectionCode === 'infos.g_n_ral' ||
+    sectionCode === 'infos.informations_g_n_rales' ||
+    sectionCode === 'vmc-infos.informations_g_n_rales';
   const estDateVisite = sansPhoto && /date\s*(de\s*)?(la\s*)?visite/i.test(String(field.cle || ''));
 
   const sauvegarder = async (nouvelleValeur) => {
@@ -98,7 +119,9 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
   const [dateErreur, setDateErreur] = useState(false);
   const [nomAffiche, setNomAffiche] = useState(displayLabel || field.cle);
 
-  useEffect(() => { setNomAffiche(displayLabel || field.cle); }, [displayLabel, field.cle]);
+  useEffect(() => {
+    setNomAffiche(displayLabel || field.cle);
+  }, [displayLabel, field.cle]);
 
   useEffect(() => {
     if (!estDateVisite) return;
@@ -128,8 +151,25 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
   return (
     <View style={styles.fieldBlock}>
       <View style={styles.fieldTop}>
-        {field.renamable && onRename ? <TextInput style={[styles.fieldLabel, { flex: 1, paddingVertical: 2, borderBottomWidth: 1, borderBottomColor: '#D0D5DD' }]} value={nomAffiche} onChangeText={setNomAffiche} onBlur={() => onRename(nomAffiche)} /> : <Text style={styles.fieldLabel}>{label}{unit && !numericConfig ? ` (${unit})` : ''}</Text>}
-        {!sansPhoto && <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={field.renamable ? nomAffiche : label} />}
+        {field.renamable && onRename ? (
+          <TextInput
+            style={[
+              styles.fieldLabel,
+              { flex: 1, paddingVertical: 2, borderBottomWidth: 1, borderBottomColor: '#D0D5DD' }
+            ]}
+            value={nomAffiche}
+            onChangeText={setNomAffiche}
+            onBlur={() => onRename(nomAffiche)}
+          />
+        ) : (
+          <Text style={styles.fieldLabel}>
+            {label}
+            {unit && !numericConfig ? ` (${unit})` : ''}
+          </Text>
+        )}
+        {!sansPhoto && (
+          <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={field.renamable ? nomAffiche : label} />
+        )}
       </View>
       {estDateVisite ? (
         <>
@@ -142,25 +182,49 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
             maxLength={10}
             placeholder="JJ/MM/AAAA"
           />
-          {dateErreur ? <Text style={{ color: '#B42318', fontSize: 11, marginTop: 5 }}>Date obligatoire au format JJ/MM/AAAA.</Text> : null}
+          {dateErreur ? (
+            <Text style={{ color: '#B42318', fontSize: 11, marginTop: 5 }}>Date obligatoire au format JJ/MM/AAAA.</Text>
+          ) : null}
         </>
       ) : field.numericIndex ? (
         <TextInput
           style={styles.input}
           value={valeur}
           onChangeText={(texte) => setValeur(normaliserIndex(texte))}
-          onBlur={() => { flush().catch(() => {}); }}
+          onBlur={() => {
+            flush().catch(() => {});
+          }}
           keyboardType="decimal-pad"
           inputMode="decimal"
           maxLength={32}
           placeholder="0,00"
         />
       ) : numericConfig ? (
-        <StepperNumerique valeur={valeur} config={numericConfig} onChange={(v) => { setImmediate(v).catch(() => {}); }} />
+        <StepperNumerique
+          valeur={valeur}
+          config={numericConfig}
+          onChange={(v) => {
+            setImmediate(v).catch(() => {});
+          }}
+        />
       ) : chipOptions ? (
-        <ChipSelector valeur={valeur} options={chipOptions} onChange={(v) => { setImmediate(v).catch(() => {}); }} />
+        <ChipSelector
+          valeur={valeur}
+          options={chipOptions}
+          onChange={(v) => {
+            setImmediate(v).catch(() => {});
+          }}
+        />
       ) : (
-        <TextInput style={styles.input} value={valeur} onChangeText={setValeur} onBlur={() => { flush().catch(() => {}); }} placeholder="Saisir..." />
+        <TextInput
+          style={styles.input}
+          value={valeur}
+          onChangeText={setValeur}
+          onBlur={() => {
+            flush().catch(() => {});
+          }}
+          placeholder="Saisir..."
+        />
       )}
     </View>
   );

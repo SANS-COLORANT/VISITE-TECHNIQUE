@@ -7,36 +7,74 @@ import { getDb } from './db.js';
  * caisson VMC apparaisse à la fois en Sécurité, Accessibilité et VMC.
  */
 export const MATRIX_CATEGORIES = Object.freeze([
-  { key: 'safety', label: 'Sécurité', match: /garde[- ]?corps|ligne de vie|risque de chute|\bchute\b|danger immediat|electrocution|incendie|monoxyde|mise en securite|securite/i },
-  { key: 'access', label: 'Accessibilité', match: /acces|echelle|skydome|trappe|cheminement|passerelle|escabeau|echelle crinoline/i },
+  {
+    key: 'safety',
+    label: 'Sécurité',
+    match:
+      /garde[- ]?corps|ligne de vie|risque de chute|\bchute\b|danger immediat|electrocution|incendie|monoxyde|mise en securite|securite/i
+  },
+  {
+    key: 'access',
+    label: 'Accessibilité',
+    match: /acces|echelle|skydome|trappe|cheminement|passerelle|escabeau|echelle crinoline/i
+  },
   { key: 'sleeves', label: 'Manchettes', trames: ['vmc'], match: /manchette|raccord souple/i },
   { key: 'leaks', label: 'Fuites · étanchéité', match: /fuite|etancheite|non etanche|suintement|infiltration/i },
-  { key: 'electrical', label: 'Électricité', match: /electri|armoire electrique|tableau electrique|disjonct|cablage|cable|connexion electrique/i },
-  { key: 'regulation', label: 'Régulation', match: /regulation|pressostat|telegestion|automate|sonde|thermostat|programmation/i },
-  { key: 'smoke', label: 'Fumisterie', match: /fumisterie|cheminee|conduit de fumee|evacuation des fumees|carneau|tirage/i },
-  { key: 'water', label: 'Traitement d’eau', match: /traitement d.?eau|adoucisseur|adoucissement|pot a boue|degazeur|qualite d.?eau/i },
+  {
+    key: 'electrical',
+    label: 'Électricité',
+    match: /electri|armoire electrique|tableau electrique|disjonct|cablage|cable|connexion electrique/i
+  },
+  {
+    key: 'regulation',
+    label: 'Régulation',
+    match: /regulation|pressostat|telegestion|automate|sonde|thermostat|programmation/i
+  },
+  {
+    key: 'smoke',
+    label: 'Fumisterie',
+    match: /fumisterie|cheminee|conduit de fumee|evacuation des fumees|carneau|tirage/i
+  },
+  {
+    key: 'water',
+    label: 'Traitement d’eau',
+    match: /traitement d.?eau|adoucisseur|adoucissement|pot a boue|degazeur|qualite d.?eau/i
+  },
   { key: 'insulation', label: 'Isolation', match: /isolant|isolation|calorifuge|calorifugeage/i },
-  { key: 'maintenance', label: 'Entretien · état', match: /encrass|nettoy|proprete|corrosion|rouille|degrad|use|usure|vibration|fixation|supportage/i },
+  {
+    key: 'maintenance',
+    label: 'Entretien · état',
+    match: /encrass|nettoy|proprete|corrosion|rouille|degrad|use|usure|vibration|fixation|supportage/i
+  },
   { key: 'expansion', label: 'Expansion', match: /vase d.?expansion|expansion|maintien de pression|appoint d.?eau/i },
   { key: 'metering', label: 'Comptage', match: /compteur|comptage|index|energie thermique|calorie/i },
   { key: 'ecs', label: 'ECS', match: /\becs\b|eau chaude sanitaire|bouclage ecs|ballon ecs|preparateur ecs/i },
-  { key: 'air_network', label: 'Réseau aéraulique', trames: ['vmc'], match: /gaine|reseau aeraul|aeraulique|bouche|entree d.?air|extraction|rejet/i },
+  {
+    key: 'air_network',
+    label: 'Réseau aéraulique',
+    trames: ['vmc'],
+    match: /gaine|reseau aeraul|aeraulique|bouche|entree d.?air|extraction|rejet/i
+  },
   { key: 'boiler', label: 'Chaudière · brûleur', match: /chaudi|bruleur|bruleur|generateur/i },
   { key: 'exchanger', label: 'Échangeur', match: /echangeur/i },
   { key: 'pumps', label: 'Pompes', match: /pompe|circulateur/i },
   { key: 'vmc', label: 'VMC · caisson', trames: ['vmc'], match: /caisson|ventilation|\bvmc\b|extracteur|tourelle/i },
-  { key: 'other', label: 'Autres constats', match: /.*/i },
+  { key: 'other', label: 'Autres constats', match: /.*/i }
 ]);
 
 function texteNormalise(value = '') {
   return String(value || '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[’']/g, "'")
     .toLowerCase();
 }
 
 export function normAvis(value) {
-  const v = String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+  const v = String(value || '')
+    .trim()
+    .toUpperCase()
+    .replace(/\s+/g, '');
   return v === 'NS' ? 'N.S' : v;
 }
 
@@ -48,15 +86,19 @@ export function matrixStateFor(stats) {
 }
 
 function categoryFor(row) {
-  const text = texteNormalise([
-    row.cle,
-    row.commentaire,
-    row.reference_libelle,
-    row.prestation,
-    row.poste,
-    row.origine,
-    ...(row.issues || []).flatMap((issue) => [issue.reference_libelle, issue.prestation, issue.poste, issue.origine]),
-  ].filter(Boolean).join(' '));
+  const text = texteNormalise(
+    [
+      row.cle,
+      row.commentaire,
+      row.reference_libelle,
+      row.prestation,
+      row.poste,
+      row.origine,
+      ...(row.issues || []).flatMap((issue) => [issue.reference_libelle, issue.prestation, issue.poste, issue.origine])
+    ]
+      .filter(Boolean)
+      .join(' ')
+  );
 
   for (const category of MATRIX_CATEGORIES) {
     if (category.trames && !category.trames.includes(row.trame_id)) continue;
@@ -89,7 +131,8 @@ export function buildMatrixCells(records = [], categories = MATRIX_CATEGORIES) {
       cell.maxSeverity = Math.max(cell.maxSeverity, Number(record.criticite || 2));
       const candidates = record.issues?.length ? record.issues : [record];
       for (const issue of candidates) {
-        const key = issue.remarque_id || `${issue.visit_id || issue.id}||${issue.section_code || ''}||${issue.cle || ''}`;
+        const key =
+          issue.remarque_id || `${issue.visit_id || issue.id}||${issue.section_code || ''}||${issue.cle || ''}`;
         const seen = issueKeys.get(categoryKey) || issueKeys.get('other');
         if (seen?.has(key)) continue;
         seen?.add(key);
@@ -112,13 +155,23 @@ function trameLabel(id) {
 }
 
 function sortRemarks(items = []) {
-  return [...items].sort((a, b) => Number(b.criticite || 2) - Number(a.criticite || 2) || String(a.cree_le || '').localeCompare(String(b.cree_le || '')));
+  return [...items].sort(
+    (a, b) =>
+      Number(b.criticite || 2) - Number(a.criticite || 2) ||
+      String(a.cree_le || '').localeCompare(String(b.cree_le || ''))
+  );
 }
 
 export async function getClientTechnicalMatrix(clientId) {
   const db = await getDb();
-  const sites = await db.getAllAsync(`SELECT id,nom_site,adresse FROM sites WHERE client_id=? ORDER BY nom_site COLLATE NOCASE`, [clientId]);
-  const visits = await db.getAllAsync(`SELECT v.id,v.site_id,v.trame_id,v.date_visite FROM visites v JOIN sites s ON s.id=v.site_id WHERE s.client_id=? ORDER BY COALESCE(v.date_visite,'') DESC,v.rowid DESC`, [clientId]);
+  const sites = await db.getAllAsync(
+    `SELECT id,nom_site,adresse FROM sites WHERE client_id=? ORDER BY nom_site COLLATE NOCASE`,
+    [clientId]
+  );
+  const visits = await db.getAllAsync(
+    `SELECT v.id,v.site_id,v.trame_id,v.date_visite FROM visites v JOIN sites s ON s.id=v.site_id WHERE s.client_id=? ORDER BY COALESCE(v.date_visite,'') DESC,v.rowid DESC`,
+    [clientId]
+  );
   const latest = new Map();
   for (const visit of visits) {
     const key = `${visit.site_id}||${visit.trame_id || 'default'}`;
@@ -133,11 +186,23 @@ export async function getClientTechnicalMatrix(clientId) {
   if (ids.length) {
     const placeholders = ids.map(() => '?').join(',');
     const [allControls, allRemarks] = await Promise.all([
-      db.getAllAsync(`SELECT visite_id,section_code,cle,avis,commentaire FROM controles_visite WHERE visite_id IN (${placeholders}) ORDER BY visite_id,section_code,cle`, ids),
-      db.getAllAsync(`SELECT visite_id,id remarque_id,controle_key,poste,prestation,delai,estimatif,origine,reference_type,reference_id,reference_libelle,COALESCE(criticite,2) criticite,COALESCE(criticite_defaut,2) criticite_defaut,COALESCE(criticite_modifiee,0) criticite_modifiee,cree_le FROM remarques WHERE visite_id IN (${placeholders}) ORDER BY visite_id,criticite DESC,cree_le,id`, ids),
+      db.getAllAsync(
+        `SELECT visite_id,section_code,cle,avis,commentaire FROM controles_visite WHERE visite_id IN (${placeholders}) ORDER BY visite_id,section_code,cle`,
+        ids
+      ),
+      db.getAllAsync(
+        `SELECT visite_id,id remarque_id,controle_key,poste,prestation,delai,estimatif,origine,reference_type,reference_id,reference_libelle,COALESCE(criticite,2) criticite,COALESCE(criticite_defaut,2) criticite_defaut,COALESCE(criticite_modifiee,0) criticite_modifiee,cree_le FROM remarques WHERE visite_id IN (${placeholders}) ORDER BY visite_id,criticite DESC,cree_le,id`,
+        ids
+      )
     ]);
-    for (const row of allControls || []) { if (!controlsByVisit.has(row.visite_id)) controlsByVisit.set(row.visite_id, []); controlsByVisit.get(row.visite_id).push(row); }
-    for (const row of allRemarks || []) { if (!remarksByVisit.has(row.visite_id)) remarksByVisit.set(row.visite_id, []); remarksByVisit.get(row.visite_id).push(row); }
+    for (const row of allControls || []) {
+      if (!controlsByVisit.has(row.visite_id)) controlsByVisit.set(row.visite_id, []);
+      controlsByVisit.get(row.visite_id).push(row);
+    }
+    for (const row of allRemarks || []) {
+      if (!remarksByVisit.has(row.visite_id)) remarksByVisit.set(row.visite_id, []);
+      remarksByVisit.get(row.visite_id).push(row);
+    }
   }
   for (const visit of latestVisits) {
     const controls = controlsByVisit.get(visit.id) || [];
@@ -167,7 +232,7 @@ export async function getClientTechnicalMatrix(clientId) {
         section_code: control.section_code,
         cle: control.cle,
         avis: control.avis,
-        commentaire: control.commentaire,
+        commentaire: control.commentaire
       }));
       const row = {
         ...visit,
@@ -183,10 +248,15 @@ export async function getClientTechnicalMatrix(clientId) {
         criticite: Number(dominant?.criticite ?? 2),
         criticite_defaut: Number(dominant?.criticite_defaut ?? 2),
         criticite_modifiee: Number(dominant?.criticite_modifiee ?? 0),
-        issues,
+        issues
       };
       const category = categoryFor(row);
-      rows.push({ ...row, category_key: category.key, category_label: category.label, trame_label: trameLabel(visit.trame_id) });
+      rows.push({
+        ...row,
+        category_key: category.key,
+        category_label: category.label,
+        trame_label: trameLabel(visit.trame_id)
+      });
     }
 
     // Les remarques manuelles/orphelines doivent aussi apparaître, une seule fois.
@@ -203,10 +273,27 @@ export async function getClientTechnicalMatrix(clientId) {
         criticite: Number(remark.criticite ?? 2),
         criticite_defaut: Number(remark.criticite_defaut ?? 2),
         criticite_modifiee: Number(remark.criticite_modifiee ?? 0),
-        issues: [{ ...remark, id: visit.id, visit_id: visit.id, site_id: visit.site_id, trame_id: visit.trame_id, date_visite: visit.date_visite, section_code: 'remarque', cle: remark.reference_libelle || remark.poste || 'Remarque', avis: 'N.S' }],
+        issues: [
+          {
+            ...remark,
+            id: visit.id,
+            visit_id: visit.id,
+            site_id: visit.site_id,
+            trame_id: visit.trame_id,
+            date_visite: visit.date_visite,
+            section_code: 'remarque',
+            cle: remark.reference_libelle || remark.poste || 'Remarque',
+            avis: 'N.S'
+          }
+        ]
       };
       const category = categoryFor(row);
-      rows.push({ ...row, category_key: category.key, category_label: category.label, trame_label: trameLabel(visit.trame_id) });
+      rows.push({
+        ...row,
+        category_key: category.key,
+        category_label: category.label,
+        trame_label: trameLabel(visit.trame_id)
+      });
     }
   }
 
@@ -223,7 +310,7 @@ export async function getClientTechnicalMatrix(clientId) {
   return {
     categories,
     sites: bySite,
-    trames: trameIds.map((id) => ({ id, label: trameLabel(id) })),
+    trames: trameIds.map((id) => ({ id, label: trameLabel(id) }))
   };
 }
 
@@ -232,6 +319,10 @@ export async function getMatrixCellPhotos(issue) {
   if (!visiteId) return [];
   const db = await getDb();
   const key = issue.remarque_id ? `remarque||${issue.remarque_id}` : '';
-  const controlKey = issue.section_code && issue.cle && issue.section_code !== 'remarque' ? `${issue.section_code}||${issue.cle}` : '';
-  return db.getAllAsync(`SELECT id,uri,label,entite_key FROM photos WHERE visite_id=? AND entite_key IN (?,?) ORDER BY cree_le,id`, [visiteId, key, controlKey]);
+  const controlKey =
+    issue.section_code && issue.cle && issue.section_code !== 'remarque' ? `${issue.section_code}||${issue.cle}` : '';
+  return db.getAllAsync(
+    `SELECT id,uri,label,entite_key FROM photos WHERE visite_id=? AND entite_key IN (?,?) ORDER BY cree_le,id`,
+    [visiteId, key, controlKey]
+  );
 }

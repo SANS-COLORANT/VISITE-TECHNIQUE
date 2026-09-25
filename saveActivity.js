@@ -12,7 +12,7 @@ function snapshot() {
     saving: saving.size,
     pending: dirty.size + saving.size,
     lastSavedAt,
-    lastError,
+    lastError
   };
 }
 
@@ -20,7 +20,9 @@ function emit() {
   revision += 1;
   const state = snapshot();
   for (const listener of [...listeners]) {
-    try { listener(state); } catch {}
+    try {
+      listener(state);
+    } catch {}
   }
 }
 

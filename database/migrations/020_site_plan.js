@@ -3,5 +3,5 @@ export const migration020 = {
   name: 'site_plan',
   sql: `
     ALTER TABLE sites ADD COLUMN plan_uri TEXT;
-  `,
+  `
 };

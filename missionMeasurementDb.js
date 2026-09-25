@@ -29,7 +29,7 @@ const BUILTIN_MEASURE_TYPES = Object.freeze([
   ['co2', 'CO₂ combustion', '%'],
   ['co', 'CO combustion', 'ppm'],
   ['flue_temperature', 'Température fumées', '°C'],
-  ['combustion_efficiency', 'Rendement combustion', '%'],
+  ['combustion_efficiency', 'Rendement combustion', '%']
 ]);
 
 function clean(value) {
@@ -44,7 +44,13 @@ function num(value) {
 }
 
 function safe(value = 'series') {
-  return String(value || 'series').normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 90) || 'series';
+  return (
+    String(value || 'series')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]+/g, '_')
+      .slice(0, 90) || 'series'
+  );
 }
 
 export async function listerTypesMesureMission(missionId, family = null, missionType = null) {
@@ -58,17 +64,36 @@ export async function listerTypesMesureMission(missionId, family = null, mission
     [missionId, family, family, missionType, missionType]
   );
   return [
-    ...BUILTIN_MEASURE_TYPES.map(([key,label,unit]) => ({ id: 'builtin_' + key, key, label, unit, builtin: true })),
-    ...custom.map((row) => ({ ...row, key: row.id, builtin: false })),
+    ...BUILTIN_MEASURE_TYPES.map(([key, label, unit]) => ({ id: 'builtin_' + key, key, label, unit, builtin: true })),
+    ...custom.map((row) => ({ ...row, key: row.id, builtin: false }))
   ];
 }
 
-export async function creerTypeMesureMission({ missionId, family = null, missionType = null, label, unit = null, dataType = 'number', expectedMin = null, expectedMax = null } = {}) {
+export async function creerTypeMesureMission({
+  missionId,
+  family = null,
+  missionType = null,
+  label,
+  unit = null,
+  dataType = 'number',
+  expectedMin = null,
+  expectedMax = null
+} = {}) {
   const db = await getDb();
   const id = createId('mmeasuretype');
   await db.runAsync(
     'INSERT INTO mission_custom_measure_types(id,mission_id,family,mission_type,label,unit,data_type,expected_min,expected_max) VALUES(?,?,?,?,?,?,?,?,?)',
-    [id, missionId, clean(family), clean(missionType), clean(label) || 'Mesure personnalisée', clean(unit), dataType, num(expectedMin), num(expectedMax)]
+    [
+      id,
+      missionId,
+      clean(family),
+      clean(missionType),
+      clean(label) || 'Mesure personnalisée',
+      clean(unit),
+      dataType,
+      num(expectedMin),
+      num(expectedMax)
+    ]
   );
   return id;
 }
@@ -78,12 +103,29 @@ export async function listerInstrumentsMission(missionId) {
   return db.getAllAsync('SELECT * FROM mission_measurement_instruments WHERE mission_id=? ORDER BY label', [missionId]);
 }
 
-export async function creerInstrumentMission({ missionId, label, brand = null, model = null, serialNumber = null, calibrationDate = null, calibrationDueDate = null } = {}) {
+export async function creerInstrumentMission({
+  missionId,
+  label,
+  brand = null,
+  model = null,
+  serialNumber = null,
+  calibrationDate = null,
+  calibrationDueDate = null
+} = {}) {
   const db = await getDb();
   const id = createId('minstr');
   await db.runAsync(
     'INSERT INTO mission_measurement_instruments(id,mission_id,label,brand,model,serial_number,calibration_date,calibration_due_date) VALUES(?,?,?,?,?,?,?,?)',
-    [id, missionId, clean(label) || 'Instrument', clean(brand), clean(model), clean(serialNumber), clean(calibrationDate), clean(calibrationDueDate)]
+    [
+      id,
+      missionId,
+      clean(label) || 'Instrument',
+      clean(brand),
+      clean(model),
+      clean(serialNumber),
+      clean(calibrationDate),
+      clean(calibrationDueDate)
+    ]
   );
   return id;
 }
@@ -109,11 +151,11 @@ export async function enregistrerMesureCompleteMission({
   sourceLabel = null,
   instrumentId = null,
   measuredAt = null,
-  comment = null,
+  comment = null
 } = {}) {
   const db = await getDb();
   let referenceId = null;
-  if (referenceValue !== null && referenceValue !== undefined && referenceValue !== '' || clean(referenceText)) {
+  if ((referenceValue !== null && referenceValue !== undefined && referenceValue !== '') || clean(referenceText)) {
     referenceId = await creerReferenceMission({
       missionId,
       siteId,
@@ -126,10 +168,12 @@ export async function enregistrerMesureCompleteMission({
       sourceType: referenceSourceType || 'manual',
       sourceLabel: referenceSourceLabel || 'Référence Mission',
       toleranceAbs,
-      tolerancePct,
+      tolerancePct
     });
   }
-  const instrument = instrumentId ? await db.getFirstAsync('SELECT * FROM mission_measurement_instruments WHERE id=?', [instrumentId]) : null;
+  const instrument = instrumentId
+    ? await db.getFirstAsync('SELECT * FROM mission_measurement_instruments WHERE id=?', [instrumentId])
+    : null;
   return enregistrerMesureMission({
     missionId,
     visitId,
@@ -146,8 +190,10 @@ export async function enregistrerMesureCompleteMission({
     sourceLabel,
     quality: sourceType === 'calculation' ? 'calculated' : sourceType === 'estimate' ? 'estimated' : 'measured',
     measuredAt,
-    instrumentLabel: instrument ? [instrument.label,instrument.brand,instrument.model,instrument.serial_number].filter(Boolean).join(' · ') : null,
-    comment,
+    instrumentLabel: instrument
+      ? [instrument.label, instrument.brand, instrument.model, instrument.serial_number].filter(Boolean).join(' · ')
+      : null,
+    comment
   });
 }
 
@@ -164,7 +210,10 @@ function detectColumns(rows) {
   const timeKey = keys.find((k) => /(date|time|heure|timestamp)/i.test(k)) || keys[0] || null;
   let valueKey = keys.find((k) => /(value|valeur|temp|debit|débit|pression|niveau|mesure)/i.test(k) && k !== timeKey);
   if (!valueKey) {
-    valueKey = keys.find((k) => rows.some((r) => num(r[k]) !== null) && k !== timeKey) || keys.find((k) => k !== timeKey) || null;
+    valueKey =
+      keys.find((k) => rows.some((r) => num(r[k]) !== null) && k !== timeKey) ||
+      keys.find((k) => k !== timeKey) ||
+      null;
   }
   return { timeKey, valueKey };
 }
@@ -177,11 +226,24 @@ function downsample(points, max = 500) {
   return out;
 }
 
-export async function importerSerieMesuresMission({ missionId, visitId = null, siteId = null, locationId = null, equipmentId = null, type = 'serie', unit = null } = {}) {
+export async function importerSerieMesuresMission({
+  missionId,
+  visitId = null,
+  siteId = null,
+  locationId = null,
+  equipmentId = null,
+  type = 'serie',
+  unit = null
+} = {}) {
   const picked = await DocumentPicker.getDocumentAsync({
-    type: ['text/csv','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet','text/plain'],
+    type: [
+      'text/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/plain'
+    ],
     copyToCacheDirectory: true,
-    multiple: false,
+    multiple: false
   });
   if (picked?.canceled) return null;
   const asset = picked?.assets?.[0];
@@ -201,18 +263,20 @@ export async function importerSerieMesuresMission({ missionId, visitId = null, s
   const { timeKey, valueKey } = detectColumns(rows);
   if (!valueKey) throw new Error('Aucune colonne numérique détectée.');
 
-  const points = rows.map((row, index) => {
-    const value = num(row[valueKey]);
-    if (value === null) return null;
-    const rawTime = timeKey ? row[timeKey] : index;
-    return { x: index, time: rawTime === null || rawTime === undefined ? index : String(rawTime), value };
-  }).filter(Boolean);
+  const points = rows
+    .map((row, index) => {
+      const value = num(row[valueKey]);
+      if (value === null) return null;
+      const rawTime = timeKey ? row[timeKey] : index;
+      return { x: index, time: rawTime === null || rawTime === undefined ? index : String(rawTime), value };
+    })
+    .filter(Boolean);
   if (!points.length) throw new Error('Aucune valeur numérique exploitable.');
 
   const values = points.map((p) => p.value);
   const minValue = Math.min(...values);
   const maxValue = Math.max(...values);
-  const avgValue = values.reduce((a,b) => a+b, 0) / values.length;
+  const avgValue = values.reduce((a, b) => a + b, 0) / values.length;
 
   const root = FileSystem.documentDirectory;
   const folder = root + 'metra-missions/' + safe(missionId) + '/series/';
@@ -238,9 +302,20 @@ export async function importerSerieMesuresMission({ missionId, visitId = null, s
     `INSERT INTO mission_measure_series(id,mission_id,visit_id,site_id,location_id,equipment_id,type,unit,sample_count,min_value,max_value,avg_value,source_file_uri,summary_json)
      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      id, missionId, clean(visitId), effectiveSiteId, effectiveLocationId, clean(equipmentId), clean(type) || 'serie', clean(unit),
-      points.length, minValue, maxValue, avgValue, dest,
-      JSON.stringify({ sourceName: asset.name, sheetName, timeKey, valueKey, points: downsample(points) }),
+      id,
+      missionId,
+      clean(visitId),
+      effectiveSiteId,
+      effectiveLocationId,
+      clean(equipmentId),
+      clean(type) || 'serie',
+      clean(unit),
+      points.length,
+      minValue,
+      maxValue,
+      avgValue,
+      dest,
+      JSON.stringify({ sourceName: asset.name, sheetName, timeKey, valueKey, points: downsample(points) })
     ]
   );
   return { id, sampleCount: points.length, minValue, maxValue, avgValue, sourceName: asset.name };
@@ -258,7 +333,19 @@ export async function listerMesuresMission(missionId) {
        WHERE m.mission_id=? ORDER BY COALESCE(d.measured_at,m.created_at) DESC LIMIT 2000`,
       [missionId]
     ),
-    db.getAllAsync('SELECT * FROM mission_measure_series WHERE mission_id=? ORDER BY created_at DESC', [missionId]),
+    db.getAllAsync('SELECT * FROM mission_measure_series WHERE mission_id=? ORDER BY created_at DESC', [missionId])
   ]);
-  return { measures, series: series.map((s) => ({ ...s, summary: (() => { try { return JSON.parse(s.summary_json || '{}'); } catch { return {}; } })() })) };
+  return {
+    measures,
+    series: series.map((s) => ({
+      ...s,
+      summary: (() => {
+        try {
+          return JSON.parse(s.summary_json || '{}');
+        } catch {
+          return {};
+        }
+      })()
+    }))
+  };
 }

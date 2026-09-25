@@ -14,19 +14,40 @@ export async function enregistrerNoteVocaleMission({
   equipmentId = null,
   pointId = null,
   transcript,
-  locale = 'fr-FR',
+  locale = 'fr-FR'
 } = {}) {
   if (!missionId || !clean(transcript)) return null;
   const db = await getDb();
   const id = createId('mvoice');
   await db.runAsync(
     'INSERT INTO mission_voice_notes(id,mission_id,visit_id,site_id,location_id,equipment_id,point_id,transcript,locale,status) VALUES(?,?,?,?,?,?,?,?,?,?)',
-    [id, missionId, clean(visitId), clean(siteId), clean(locationId), clean(equipmentId), clean(pointId), clean(transcript), clean(locale) || 'fr-FR', 'final']
+    [
+      id,
+      missionId,
+      clean(visitId),
+      clean(siteId),
+      clean(locationId),
+      clean(equipmentId),
+      clean(pointId),
+      clean(transcript),
+      clean(locale) || 'fr-FR',
+      'final'
+    ]
   );
   return id;
 }
 
-async function pushCheck(db, missionId, visitId, checkKey, label, severity, entityType = null, entityId = null, message = null) {
+async function pushCheck(
+  db,
+  missionId,
+  visitId,
+  checkKey,
+  label,
+  severity,
+  entityType = null,
+  entityId = null,
+  message = null
+) {
   const id = createId('mvcheck');
   await db.runAsync(
     `INSERT INTO mission_visit_checks(id,mission_id,visit_id,check_key,label,status,severity,entity_type,entity_id,message)
@@ -39,7 +60,10 @@ async function pushCheck(db, missionId, visitId, checkKey, label, severity, enti
 
 export async function genererChecklistFinVisite(missionId, visitId) {
   const db = await getDb();
-  const visit = await db.getFirstAsync('SELECT v.*,m.type AS mission_type FROM mission_visits v JOIN missions m ON m.id=v.mission_id WHERE v.id=? AND v.mission_id=?', [visitId, missionId]);
+  const visit = await db.getFirstAsync(
+    'SELECT v.*,m.type AS mission_type FROM mission_visits v JOIN missions m ON m.id=v.mission_id WHERE v.id=? AND v.mission_id=?',
+    [visitId, missionId]
+  );
   if (!visit) throw new Error('Visite Mission introuvable.');
 
   await db.runAsync("DELETE FROM mission_visit_checks WHERE visit_id=? AND status='open'", [visitId]);
@@ -52,7 +76,7 @@ export async function genererChecklistFinVisite(missionId, visitId) {
     openPointsNoDue,
     unfinishedTests,
     campaignRemaining,
-    emptyVisit,
+    emptyVisit
   ] = await Promise.all([
     db.getAllAsync(
       `SELECT e.id,e.type,e.brand,e.model FROM mission_equipment e
@@ -129,57 +153,121 @@ export async function genererChecklistFinVisite(missionId, visitId) {
         (SELECT COUNT(*) FROM mission_photos WHERE visit_id=?) AS photos_count,
         (SELECT COUNT(*) FROM mission_notes WHERE visit_id=?) AS notes_count`,
       [visitId, visitId, visitId, visitId, visitId]
-    ),
+    )
   ]);
 
   for (const e of equipmentWithoutState) {
     await pushCheck(
-      db, missionId, visitId, 'equipment_state_missing', 'État équipement non évalué', 'info',
-      'equipment', e.id, [e.type, e.brand, e.model].filter(Boolean).join(' · ')
+      db,
+      missionId,
+      visitId,
+      'equipment_state_missing',
+      'État équipement non évalué',
+      'info',
+      'equipment',
+      e.id,
+      [e.type, e.brand, e.model].filter(Boolean).join(' · ')
     );
   }
   for (const e of equipmentWithoutPhoto) {
     await pushCheck(
-      db, missionId, visitId, 'equipment_photo_missing', 'Équipement sans photo', 'info',
-      'equipment', e.id, [e.type, e.brand, e.model].filter(Boolean).join(' · ')
+      db,
+      missionId,
+      visitId,
+      'equipment_photo_missing',
+      'Équipement sans photo',
+      'info',
+      'equipment',
+      e.id,
+      [e.type, e.brand, e.model].filter(Boolean).join(' · ')
     );
   }
   for (const e of importedUnverified) {
     await pushCheck(
-      db, missionId, visitId, 'imported_unverified', 'Équipement importé non vérifié sur le terrain', 'warning',
-      'equipment', e.id, [e.type, e.brand, e.model].filter(Boolean).join(' · ')
+      db,
+      missionId,
+      visitId,
+      'imported_unverified',
+      'Équipement importé non vérifié sur le terrain',
+      'warning',
+      'equipment',
+      e.id,
+      [e.type, e.brand, e.model].filter(Boolean).join(' · ')
     );
   }
   for (const p of openPointsNoResponsible) {
     await pushCheck(
-      db, missionId, visitId, 'point_responsible_missing', 'Point ouvert sans responsable', 'warning',
-      'point', p.id, p.label || p.description || 'Point'
+      db,
+      missionId,
+      visitId,
+      'point_responsible_missing',
+      'Point ouvert sans responsable',
+      'warning',
+      'point',
+      p.id,
+      p.label || p.description || 'Point'
     );
   }
   for (const p of openPointsNoDue) {
     await pushCheck(
-      db, missionId, visitId, 'point_due_missing', 'Point ouvert sans échéance', 'info',
-      'point', p.id, p.label || p.description || 'Point'
+      db,
+      missionId,
+      visitId,
+      'point_due_missing',
+      'Point ouvert sans échéance',
+      'info',
+      'point',
+      p.id,
+      p.label || p.description || 'Point'
     );
   }
 
   for (const run of unfinishedTests) {
     await pushCheck(
-      db, missionId, visitId, 'test_run_unfinished', 'Essai commencé non terminé', 'warning',
-      'test_run', run.id, [run.protocol_label,run.equipment_type].filter(Boolean).join(' · ')
+      db,
+      missionId,
+      visitId,
+      'test_run_unfinished',
+      'Essai commencé non terminé',
+      'warning',
+      'test_run',
+      run.id,
+      [run.protocol_label, run.equipment_type].filter(Boolean).join(' · ')
     );
   }
 
   if (Number(campaignRemaining?.remaining || 0) > 0) {
     await pushCheck(
-      db, missionId, visitId, 'campaign_points_remaining', 'Campagne de mesures encore incomplète', 'info',
-      'measurement_campaign', null, String(campaignRemaining.remaining) + ' point(s) restent au statut « À mesurer » sur ce site / cette Mission.'
+      db,
+      missionId,
+      visitId,
+      'campaign_points_remaining',
+      'Campagne de mesures encore incomplète',
+      'info',
+      'measurement_campaign',
+      null,
+      String(campaignRemaining.remaining) + ' point(s) restent au statut « À mesurer » sur ce site / cette Mission.'
     );
   }
 
-  const total = Number(emptyVisit?.fields_count || 0) + Number(emptyVisit?.points_count || 0) + Number(emptyVisit?.measures_count || 0) + Number(emptyVisit?.photos_count || 0) + Number(emptyVisit?.notes_count || 0);
+  const total =
+    Number(emptyVisit?.fields_count || 0) +
+    Number(emptyVisit?.points_count || 0) +
+    Number(emptyVisit?.measures_count || 0) +
+    Number(emptyVisit?.photos_count || 0) +
+    Number(emptyVisit?.notes_count || 0);
   if (!total) {
-    await pushCheck(db, missionId, visitId, 'visit_empty', 'Visite sans donnée saisie', 'warning', null, null, 'La visite peut être terminée malgré tout.');
+    await pushCheck(
+      db,
+      missionId,
+      visitId,
+      'visit_empty',
+      'Visite sans donnée saisie',
+      'warning',
+      null,
+      null,
+      'La visite peut être terminée malgré tout.'
+    );
   }
 
   return db.getAllAsync(
@@ -191,13 +279,14 @@ export async function genererChecklistFinVisite(missionId, visitId) {
 
 export async function listerChecklistVisite(visitId) {
   const db = await getDb();
-  return db.getAllAsync(
-    'SELECT * FROM mission_visit_checks WHERE visit_id=? ORDER BY status,severity,created_at',
-    [visitId]
-  );
+  return db.getAllAsync('SELECT * FROM mission_visit_checks WHERE visit_id=? ORDER BY status,severity,created_at', [
+    visitId
+  ]);
 }
 
 export async function ignorerCheckVisite(checkId) {
   const db = await getDb();
-  await db.runAsync("UPDATE mission_visit_checks SET status='ignored',updated_at=datetime('now') WHERE id=?", [checkId]);
+  await db.runAsync("UPDATE mission_visit_checks SET status='ignored',updated_at=datetime('now') WHERE id=?", [
+    checkId
+  ]);
 }

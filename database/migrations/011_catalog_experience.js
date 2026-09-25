@@ -20,5 +20,5 @@ export const migration011 = {
 
     CREATE INDEX IF NOT EXISTS idx_catalogue_usage_favori ON catalogue_usage(favori, dernier_acces);
     CREATE INDEX IF NOT EXISTS idx_models_lifecycle ON modeles_equipement(lifecycle_status, actif);
-  `,
+  `
 };

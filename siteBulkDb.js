@@ -1,12 +1,15 @@
 import { getDb, uuidv4 } from './db.js';
 
 function normaliserTexte(v = '') {
-  return String(v ?? '').trim().replace(/\s+/g, ' ');
+  return String(v ?? '')
+    .trim()
+    .replace(/\s+/g, ' ');
 }
 
 function cleNom(v = '') {
   return normaliserTexte(v)
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase();
 }
 
@@ -86,7 +89,7 @@ export async function preparerImportSites(clientId, lignes = []) {
       nomSite,
       adresse,
       note,
-      changements,
+      changements
     });
   }
   return apercu;
@@ -94,10 +97,15 @@ export async function preparerImportSites(clientId, lignes = []) {
 
 export async function appliquerImportSites(clientId, apercu = []) {
   const db = await getDb();
-  let crees = 0, modifies = 0, ignores = 0;
+  let crees = 0,
+    modifies = 0,
+    ignores = 0;
   const siteIds = [];
   for (const item of apercu) {
-    if (item.action === 'erreur' || item.action === 'identique') { ignores += 1; continue; }
+    if (item.action === 'erreur' || item.action === 'identique') {
+      ignores += 1;
+      continue;
+    }
     if (item.action === 'creer') {
       const id = uuidv4();
       await db.runAsync(

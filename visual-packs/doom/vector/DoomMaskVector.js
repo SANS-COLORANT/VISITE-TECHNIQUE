@@ -17,7 +17,7 @@ const MASK_PATHS = [
   ...DOOM_MASK_PATHS_5,
   ...DOOM_MASK_PATHS_6,
   ...DOOM_MASK_PATHS_7,
-  ...DOOM_MASK_PATHS_8,
+  ...DOOM_MASK_PATHS_8
 ];
 
 export function DoomMaskVector({ width = '100%', height = '100%' }) {

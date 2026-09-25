@@ -3,11 +3,14 @@ const path = require('path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
 const read = (file) => fs.readFileSync(path.join(ROOT, file), 'utf8');
+// Compare en ignorant les espaces/retours à la ligne : le contrôle vérifie une
+// structure de code, pas un formatage exact (survit à un passage Prettier).
+const norm = (s) => s.replace(/\s+/g, '');
 const requireText = (text, needle, label) => {
-  if (!text.includes(needle)) throw new Error(`Contrat Missions manquant: ${label} (${needle})`);
+  if (!norm(text).includes(norm(needle))) throw new Error(`Contrat Missions manquant: ${label} (${needle})`);
 };
 const forbidText = (text, needle, label) => {
-  if (text.includes(needle)) throw new Error(`Contrat Missions violé: ${label} (${needle})`);
+  if (norm(text).includes(norm(needle))) throw new Error(`Contrat Missions violé: ${label} (${needle})`);
 };
 
 const constants = read('database/constants.js');
@@ -72,13 +75,19 @@ requireText(migration40, 'CREATE TABLE IF NOT EXISTS mission_template_values', '
 requireText(migration40, "status TEXT NOT NULL DEFAULT 'draft'", 'draft visit persistence');
 
 for (const forbidden of ['api_remote_', 'remote_client_id', 'remote_site_id', 'api_structure_outbox']) {
-  if (migration40.includes(forbidden) || migration41.includes(forbidden) || migration42.includes(forbidden) || migration43.includes(forbidden)) throw new Error(`Le schéma Missions ne doit pas dépendre de l'Intranet: ${forbidden}`);
+  if (
+    migration40.includes(forbidden) ||
+    migration41.includes(forbidden) ||
+    migration42.includes(forbidden) ||
+    migration43.includes(forbidden)
+  )
+    throw new Error(`Le schéma Missions ne doit pas dépendre de l'Intranet: ${forbidden}`);
 }
 
 requireText(settings, "key: 'missions'", 'missions feature flag');
 requireText(settings, 'hiddenUntilUnlocked: true', 'missions hidden before unlock');
 requireText(settings, "const LAB_MISSIONS_UNLOCKED_KEY = 'lab_missions_unlocked'", 'local unlock key');
-requireText(settings, "if (!row) return false", 'LAB defaults to disabled');
+requireText(settings, 'if (!row) return false', 'LAB defaults to disabled');
 requireText(settings, 'getMissionsLabUnlocked()', 'unlock guard');
 requireText(lab, 'delayLongPress={2000}', '2 second LAB long press');
 requireText(lab, 'setMissionsVisible(false)', 'unlock does not activate Missions');
@@ -117,10 +126,10 @@ forbidText(recipes, 'pre_allumage', 'Missions must not reuse recurring pre-allum
 forbidText(recipes, 'vmc-c', 'Missions must not reuse recurring VMC recipe point identifiers');
 requireText(recipes, 'getMissionCapabilities', 'mission-specific feature capabilities');
 requireText(missionScreen, 'getMissionCapabilities', 'Mission screen uses contextual capabilities');
-requireText(recipes, "diagnostic_chaufferie_ss", 'boiler room/substation dedicated recipe');
-requireText(recipes, "diagnostic_ventilation_cta", 'ventilation/CTA dedicated recipe');
-requireText(recipes, "assistance_p2_p3", 'P2/P3 dedicated recipe');
-requireText(recipes, "preallumage_reprise_saison", 'season restart dedicated recipe');
+requireText(recipes, 'diagnostic_chaufferie_ss', 'boiler room/substation dedicated recipe');
+requireText(recipes, 'diagnostic_ventilation_cta', 'ventilation/CTA dedicated recipe');
+requireText(recipes, 'assistance_p2_p3', 'P2/P3 dedicated recipe');
+requireText(recipes, 'preallumage_reprise_saison', 'season restart dedicated recipe');
 
 const typeBlock = db.match(/export const MISSION_FAMILIES = Object\.freeze\(\[([\s\S]*?)\]\);/);
 if (!typeBlock) throw new Error('Impossible de lire MISSION_FAMILIES.');
@@ -128,17 +137,28 @@ const missionTypes = [...typeBlock[1].matchAll(/\['([a-z0-9_]+)'\s*,\s*'[^']+'\]
 const recipeBlock = recipes.match(/const TYPE_RECIPES = Object\.freeze\(\{([\s\S]*?)\n\}\);/);
 if (!recipeBlock) throw new Error('Impossible de lire TYPE_RECIPES.');
 const missingRecipes = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + type + ':\\s*\\{').test(recipeBlock[1]));
-if (missingRecipes.length) throw new Error('Types de Mission sans recette Rapide/Standard/Expert: ' + missingRecipes.join(', '));
+if (missingRecipes.length)
+  throw new Error('Types de Mission sans recette Rapide/Standard/Expert: ' + missingRecipes.join(', '));
 
-const missingFieldPlaybooks = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + type + ':\\s*\\{').test(fieldPlaybooks));
-if (missingFieldPlaybooks.length) throw new Error('Types de Mission sans parcours terrain ergonomique: ' + missingFieldPlaybooks.join(', '));
+const missingFieldPlaybooks = missionTypes.filter(
+  (type) => !new RegExp('\\n\\s{2}' + type + ':\\s*\\{').test(fieldPlaybooks)
+);
+if (missingFieldPlaybooks.length)
+  throw new Error('Types de Mission sans parcours terrain ergonomique: ' + missingFieldPlaybooks.join(', '));
 
-const missingReportRecipes = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + type + ":\\s*'").test(reportRecipes));
-if (missingReportRecipes.length) throw new Error('Types de Mission sans recette de rapport: ' + missingReportRecipes.join(', '));
+const missingReportRecipes = missionTypes.filter(
+  (type) => !new RegExp('\\n\\s{2}' + type + ":\\s*'").test(reportRecipes)
+);
+if (missingReportRecipes.length)
+  throw new Error('Types de Mission sans recette de rapport: ' + missingReportRecipes.join(', '));
 
 requireText(fieldPlaybooks, 'getMissionFieldPlaybook', 'mission field playbook API');
 requireText(read('MissionVisitScreen.js'), 'Mode terrain · {playbook.label}', 'mission-specific field mode');
-requireText(read('MissionVisitScreen.js'), 'DÉJÀ CONNU PAR METRA · PAS DE RESSAISIE', 'no-retyping structured autofill UX');
+requireText(
+  read('MissionVisitScreen.js'),
+  'DÉJÀ CONNU PAR METRA · PAS DE RESSAISIE',
+  'no-retyping structured autofill UX'
+);
 requireText(visitAutofill, 'chargerContexteAutoVisiteMission', 'structured Mission autofill engine');
 requireText(visitAutofill, 'valeurAutoPourChampMission', 'field autofill resolver');
 requireText(read('missionVisitMemoryDb.js'), 'chargerMemoireVisiteMission', 'previous visit memory engine');
@@ -150,20 +170,32 @@ requireText(reportRecipes, 'getMissionReportRecipe', 'mission-specific report re
 requireText(read('missionReportDb.js'), "key: 'inventaire'", 'automatic inventory report section');
 requireText(read('missionReportDb.js'), "key: 'architecture'", 'automatic technical architecture report section');
 
-requireText(app, "MissionEquipment", 'equipment workspace route');
-requireText(app, "MissionStructure", 'patrimony hierarchy route');
-requireText(app, "MissionTechnicalStructure", 'technical architecture route');
+requireText(app, 'MissionEquipment', 'equipment workspace route');
+requireText(app, 'MissionStructure', 'patrimony hierarchy route');
+requireText(app, 'MissionTechnicalStructure', 'technical architecture route');
 requireText(read('missionTechnicalStructureDb.js'), 'creerInstallationMission', 'installation creation');
 requireText(read('missionTechnicalStructureDb.js'), 'creerSystemeMission', 'system creation');
 requireText(read('missionTechnicalStructureDb.js'), 'creerReseauTechniqueMission', 'network creation');
-requireText(read('missionTechnicalStructureDb.js'), 'rattacherEquipementArchitectureMission', 'equipment architecture binding');
-requireText(read('MissionTechnicalStructureScreen.js'), 'Installation → Système → Réseau / circuit → Équipement', 'technical hierarchy UX');
-requireText(read('MissionStructureScreen.js'), 'Site → Bâtiment → Niveau → Local / local technique → Équipement', 'indoor hierarchy UX');
+requireText(
+  read('missionTechnicalStructureDb.js'),
+  'rattacherEquipementArchitectureMission',
+  'equipment architecture binding'
+);
+requireText(
+  read('MissionTechnicalStructureScreen.js'),
+  'Installation → Système → Réseau / circuit → Équipement',
+  'technical hierarchy UX'
+);
+requireText(
+  read('MissionStructureScreen.js'),
+  'Site → Bâtiment → Niveau → Local / local technique → Équipement',
+  'indoor hierarchy UX'
+);
 requireText(read('missionStructureDb.js'), 'parent_location_id', 'hierarchical locations storage');
-requireText(app, "MissionPlan", 'plans workspace route');
-requireText(app, "MissionMeasurements", 'measurements workspace route');
-requireText(app, "MissionMeasurementCampaign", 'measurement campaign workspace route');
-requireText(app, "MissionReserveClearance", 'dedicated reserve clearance route');
+requireText(app, 'MissionPlan', 'plans workspace route');
+requireText(app, 'MissionMeasurements', 'measurements workspace route');
+requireText(app, 'MissionMeasurementCampaign', 'measurement campaign workspace route');
+requireText(app, 'MissionReserveClearance', 'dedicated reserve clearance route');
 requireText(read('MissionReserveClearanceScreen.js'), 'Photo initiale', 'reserve before evidence');
 requireText(read('MissionReserveClearanceScreen.js'), 'Photo après', 'reserve after evidence');
 requireText(read('MissionReserveClearanceScreen.js'), 'Partielle', 'partial reserve clearance state');
@@ -171,11 +203,15 @@ requireText(read('MissionReserveClearanceScreen.js'), 'Inaccessible', 'inaccessi
 requireText(read('MissionReserveClearanceScreen.js'), 'mission_reserve_clearance', 'reserve clearance history trace');
 requireText(recipes, 'reserveClearance: true', 'reserve clearance capability on dedicated mission type');
 requireText(read('MissionMeasurementCampaignScreen.js'), 'Enregistrer → suivant', 'ultra-fast value-next campaign UX');
-requireText(read('missionMeasurementCampaignDb.js'), 'importerPointsCampagneMesuresExcel', 'prepared campaign list import');
+requireText(
+  read('missionMeasurementCampaignDb.js'),
+  'importerPointsCampagneMesuresExcel',
+  'prepared campaign list import'
+);
 requireText(read('missionMeasurementCampaignDb.js'), 'dupliquerCampagneMesuresMission', 'before after repeat campaign');
 requireText(read('missionMeasurementCampaignDb.js'), 'comparerCampagneMesures', 'point-by-point campaign comparison');
-requireText(app, "MissionDocumentInbox", 'document inbox route');
-requireText(app, "MissionPackage", 'complete package route');
+requireText(app, 'MissionDocumentInbox', 'document inbox route');
+requireText(app, 'MissionPackage', 'complete package route');
 requireText(read('MissionEquipmentScreen.js'), 'Plaque signalétique · photo + OCR local', 'offline plate OCR UX');
 requireText(read('missionEquipmentCatalog.js'), 'EQUIPMENT_CATEGORIES', 'structured CVC equipment catalog');
 requireText(read('missionEquipmentCatalog.js'), 'MISSION_OVERLAYS', 'mission-specific equipment overlays');
@@ -206,7 +242,7 @@ requireText(read('missionClientExcelExport.js'), "'05_Inventaire'", 'client inve
 requireText(read('missionClientExcelExport.js'), "'06_Mesures'", 'client measures worksheet');
 requireText(read('MissionScreen.js'), 'Excel client simplifié', 'direct client Excel export UX');
 requireText(read('MissionActionsScreen.js'), 'Synthèse Excel', 'direct actions summary export UX');
-requireText(app, "MissionSubjects", 'persistent subject history route');
+requireText(app, 'MissionSubjects', 'persistent subject history route');
 requireText(read('MissionSubjectsScreen.js'), 'Sujets · constats · décisions', 'subject timeline workspace');
 requireText(read('MissionSubjectsScreen.js'), '＋ Constat', 'subject finding capture');
 requireText(read('MissionSubjectsScreen.js'), '＋ Décision', 'subject decision capture');
@@ -220,67 +256,131 @@ requireText(read('missionReportDb.js'), "key: 'volets'", 'AMO workstream report 
 requireText(read('missionClientExcelExport.js'), "'01C_Volets_AMO'", 'AMO workstream client Excel sheet');
 requireText(read('missionReportDb.js'), "key: 'sujets'", 'subject history report section');
 requireText(read('missionClientExcelExport.js'), "'02_Sujets'", 'subject history client Excel worksheet');
-requireText(app, "MissionP3Dashboard", 'P2 P3 projection route');
+requireText(app, 'MissionP3Dashboard', 'P2 P3 projection route');
 requireText(read('MissionP3DashboardScreen.js'), 'projection patrimoniale', 'P2 P3 projection workspace');
-requireText(read('MissionP3DashboardScreen.js'), 'METRA ne transforme pas cette projection en décision contractuelle automatique.', 'non-automatic P3 decision wording');
+requireText(
+  read('MissionP3DashboardScreen.js'),
+  'METRA ne transforme pas cette projection en décision contractuelle automatique.',
+  'non-automatic P3 decision wording'
+);
 requireText(read('missionClientExcelExport.js'), "'11_Projection_P3'", 'P3 projection client Excel worksheet');
 requireText(recipes, 'p3Dashboard: true', 'P2 P3 projection capability on dedicated mission type');
-requireText(app, "MissionExpertise", 'expertise incident route');
-requireText(read('MissionExpertiseScreen.js'), 'METRA sépare strictement le fait observé, l’hypothèse de travail et la conclusion.', 'fact hypothesis conclusion separation');
+requireText(app, 'MissionExpertise', 'expertise incident route');
+requireText(
+  read('MissionExpertiseScreen.js'),
+  'METRA sépare strictement le fait observé, l’hypothèse de travail et la conclusion.',
+  'fact hypothesis conclusion separation'
+);
 requireText(read('MissionExpertiseScreen.js'), '＋ Fait horodaté', 'timestamped expertise fact capture');
 requireText(read('MissionExpertiseScreen.js'), '＋ Hypothèse', 'expertise hypothesis capture');
 requireText(read('MissionExpertiseScreen.js'), 'CONCLUSION', 'separate expertise conclusion');
 requireText(read('missionReportDb.js'), "key: 'expertise'", 'expertise report chronology');
 requireText(read('missionClientExcelExport.js'), "'02B_Expertise'", 'expertise client Excel sheet');
 requireText(recipes, 'expertiseBoard: true', 'dedicated expertise capability');
-requireText(app, "MissionCampaignDashboard", 'multi-site campaign cockpit route');
-requireText(read('MissionCampaignDashboardScreen.js'), 'Cockpit léger pour 5 comme pour plusieurs centaines de sites', 'large campaign cockpit UX');
+requireText(app, 'MissionCampaignDashboard', 'multi-site campaign cockpit route');
+requireText(
+  read('MissionCampaignDashboardScreen.js'),
+  'Cockpit léger pour 5 comme pour plusieurs centaines de sites',
+  'large campaign cockpit UX'
+);
 requireText(read('MissionCampaignDashboardScreen.js'), 'Continuer · ', 'next site continuation UX');
 requireText(read('MissionCampaignDashboardScreen.js'), 'Accès / replanifier', 'campaign access exception status');
-requireText(read('missionClientExcelExport.js'), "'01B_Progression_sites'", 'multi-site campaign client Excel progress');
+requireText(
+  read('missionClientExcelExport.js'),
+  "'01B_Progression_sites'",
+  'multi-site campaign client Excel progress'
+);
 requireText(recipes, 'campaignDashboard: true', 'campaign dashboard family capability');
-requireText(app, "MissionAmoDashboard", 'long-running AMO dashboard route');
+requireText(app, 'MissionAmoDashboard', 'long-running AMO dashboard route');
 requireText(read('MissionAmoDashboardScreen.js'), 'Pilotage AMO / exploitation', 'AMO long-duration dashboard UX');
 requireText(read('MissionAmoDashboardScreen.js'), 'P3, PPI, réunions et réception', 'AMO workstream continuity');
 requireText(read('MissionAmoDashboardScreen.js'), 'Bilan {selectedYear}', 'annual AMO view');
 requireText(recipes, 'amoDashboard: true', 'AMO dashboard capability');
-requireText(app, "MissionReceptionBoard", 'OPR commissioning handover board route');
-requireText(read('MissionReceptionBoardScreen.js'), 'Ouvrages · statut en 1 geste', 'one-tap reception equipment board');
-requireText(read('MissionReceptionBoardScreen.js'), 'Aucun inventaire n’est recréé pour cette phase.', 'reception reuses Mission inventory');
+requireText(app, 'MissionReceptionBoard', 'OPR commissioning handover board route');
+requireText(
+  read('MissionReceptionBoardScreen.js'),
+  'Ouvrages · statut en 1 geste',
+  'one-tap reception equipment board'
+);
+requireText(
+  read('MissionReceptionBoardScreen.js'),
+  'Aucun inventaire n’est recréé pour cette phase.',
+  'reception reuses Mission inventory'
+);
 requireText(read('MissionReceptionBoardScreen.js'), 'MODES OPR · CUMULABLES', 'cumulative OPR modes');
 requireText(read('MissionReceptionBoardScreen.js'), 'OPR statique', 'static OPR mode');
 requireText(read('MissionReceptionBoardScreen.js'), 'OPR dynamique', 'dynamic OPR mode');
 requireText(read('MissionReceptionBoardScreen.js'), 'Levée / recontrôle', 'reserve clearance OPR mode');
 requireText(read('MissionReceptionBoardScreen.js'), 'PV DE PASSATION · CONTRADICTOIRE', 'formal handover PV workspace');
 requireText(read('MissionReceptionBoardScreen.js'), 'Documents remis / disponibles', 'handover documents control');
-requireText(read('MissionReceptionBoardScreen.js'), 'Stocks, index et relevés utiles', 'handover stocks and index control');
+requireText(
+  read('MissionReceptionBoardScreen.js'),
+  'Stocks, index et relevés utiles',
+  'handover stocks and index control'
+);
 requireText(read('MissionReceptionBoardScreen.js'), 'Clés, badges, codes et moyens d’accès', 'handover access control');
 requireText(read('MissionReceptionBoardScreen.js'), 'Conformité inventaire ↔ terrain', 'handover inventory comparison');
-requireText(read('MissionReceptionBoardScreen.js'), 'Essais fonctionnels représentatifs', 'handover functional tests control');
-requireText(read('MissionReceptionBoardScreen.js'), 'ne vaut pas contrôle réglementaire de conformité', 'handover regulatory disclaimer');
+requireText(
+  read('MissionReceptionBoardScreen.js'),
+  'Essais fonctionnels représentatifs',
+  'handover functional tests control'
+);
+requireText(
+  read('MissionReceptionBoardScreen.js'),
+  'ne vaut pas contrôle réglementaire de conformité',
+  'handover regulatory disclaimer'
+);
 requireText(read('MissionReceptionBoardScreen.js'), 'mission_passation_pv', 'handover PV history trace');
-requireText(app, "MissionControlBoard", 'structured control board route');
-requireText(read('MissionControlBoardScreen.js'), 'Référence → contrôle → preuve → écart éventuel → action → recontrôle.', 'control workflow continuity');
-requireText(read('MissionControlBoardScreen.js'), 'METRA aide à structurer le constat sans se substituer à un organisme de contrôle', 'non-certification wording');
+requireText(app, 'MissionControlBoard', 'structured control board route');
+requireText(
+  read('MissionControlBoardScreen.js'),
+  'Référence → contrôle → preuve → écart éventuel → action → recontrôle.',
+  'control workflow continuity'
+);
+requireText(
+  read('MissionControlBoardScreen.js'),
+  'METRA aide à structurer le constat sans se substituer à un organisme de contrôle',
+  'non-certification wording'
+);
 requireText(read('MissionControlBoardScreen.js'), 'mission_control_board', 'control result history trace');
-requireText(read('MissionControlBoardScreen.js'), "qualification === 'ecart'", 'automatic follow-up action on control gap');
+requireText(
+  read('MissionControlBoardScreen.js'),
+  "qualification === 'ecart'",
+  'automatic follow-up action on control gap'
+);
 requireText(recipes, 'controlBoard: true', 'control board capability');
 requireText(recipes, 'receptionBoard: true', 'reception board capability on OPR commissioning handover');
-requireText(read('missionFieldPlaybooks.js'), 'equipmentLifecycleStatuses', 'mission-specific one-tap lifecycle states');
+requireText(
+  read('missionFieldPlaybooks.js'),
+  'equipmentLifecycleStatuses',
+  'mission-specific one-tap lifecycle states'
+);
 requireText(read('MissionVisitScreen.js'), 'CYCLE PROJET · 1 GESTE', 'one-tap project lifecycle field UX');
 requireText(read('missionEquipmentDb.js'), "'receptionne'", 'equipment reception lifecycle state');
 requireText(read('missionEquipmentDb.js'), "'avec_reserve'", 'equipment lifecycle reserve state');
-requireText(read('missionPackageImport.js'), 'importerMissionDepuisExcelUri', 'structured Mission restore from package');
+requireText(
+  read('missionPackageImport.js'),
+  'importerMissionDepuisExcelUri',
+  'structured Mission restore from package'
+);
 requireText(read('missionPackageImport.js'), 'restorePhotos', 'package photo restoration');
 requireText(read('missionPackageImport.js'), 'restoreDocuments', 'package document restoration');
 requireText(read('missionPackageImport.js'), 'restorePlans', 'package plan restoration');
 requireText(read('missionPackageImport.js'), 'restoreMapLayers', 'package offline map restoration');
 requireText(read('MissionsHomeScreen.js'), 'Restaurer ZIP', 'complete Mission ZIP restore UX');
 requireText(read('missionMediaDb.js'), 'resolveMissionContext', 'automatic media context inheritance');
-requireText(read('missionMediaDb.js'), 'modifierVisibilitePhotoMission', 'photo selection for report/client deliverables');
+requireText(
+  read('missionMediaDb.js'),
+  'modifierVisibilitePhotoMission',
+  'photo selection for report/client deliverables'
+);
 requireText(read('missionPhotoAlbumExport.js'), "mode === 'report'", 'report photo album filter');
 requireText(read('missionPhotoAlbumExport.js'), "mode === 'issues'", 'issues photo album filter');
-requireText(read('MissionPhotoAnnotationScreen.js'), 'Inclure dans le rapport / livrable client', 'report photo selection UX');
+requireText(
+  read('MissionPhotoAnnotationScreen.js'),
+  'Inclure dans le rapport / livrable client',
+  'report photo selection UX'
+);
 requireText(read('MissionPhotoAnnotationScreen.js'), 'Album complet', 'all photos album UX');
 requireText(read('MissionPhotoAnnotationScreen.js'), 'Sélection rapport', 'report selection album UX');
 requireText(read('MissionPhotoAnnotationScreen.js'), 'Points / actions', 'issue photo album UX');
@@ -295,28 +395,76 @@ requireText(read('MissionTestsScreen.js'), 'Protocoles recommandés', 'mission-a
 requireText(read('missionTestDb.js'), 'previousRun', 'previous test execution comparison');
 requireText(read('MissionTestsScreen.js'), 'Rejouer · nouveau passage', 'repeat test pass UX');
 requireText(read('MissionTestsScreen.js'), 'PASSAGE PRÉCÉDENT', 'previous test values UX');
-requireText(read('MissionTestsScreen.js'), 'les anciennes valeurs restent visibles sans être recopiées', 'no stale test value copy rule');
-requireText(read('missionDocumentPresets.js'), 'getMissionExpectedDocumentPresets', 'mission-specific expected document presets');
+requireText(
+  read('MissionTestsScreen.js'),
+  'les anciennes valeurs restent visibles sans être recopiées',
+  'no stale test value copy rule'
+);
+requireText(
+  read('missionDocumentPresets.js'),
+  'getMissionExpectedDocumentPresets',
+  'mission-specific expected document presets'
+);
 requireText(read('MissionDocumentsScreen.js'), 'Préparer attendus', 'expected document preparation UX');
 requireText(read('missionCalculationAssist.js'), 'sortFormulasForMission', 'mission-aware calculation recommendations');
-requireText(read('missionCalculationAssist.js'), 'getCalculationAutoValues', 'calculation input autofill from Mission data');
+requireText(
+  read('missionCalculationAssist.js'),
+  'getCalculationAutoValues',
+  'calculation input autofill from Mission data'
+);
 requireText(read('MissionCalculationScreen.js'), 'PRÉREMPLI', 'calculation autofill provenance UX');
 requireText(read('MissionCalculationScreen.js'), 'Recommandées · ', 'recommended formula filter UX');
-requireText(read('missionScenarioPresets.js'), 'getMissionScenarioPresets', 'neutral mission-specific scenario starters');
+requireText(
+  read('missionScenarioPresets.js'),
+  'getMissionScenarioPresets',
+  'neutral mission-specific scenario starters'
+);
 requireText(read('MissionScenarioScreen.js'), 'Préparer scénarios', 'scenario starter UX');
-requireText(read('MissionScenarioScreen.js'), 'Créer / ouvrir phase Travaux', 'retained scenario continuity into Works');
+requireText(
+  read('MissionScenarioScreen.js'),
+  'Créer / ouvrir phase Travaux',
+  'retained scenario continuity into Works'
+);
 requireText(read('MissionVisitScreen.js'), 'creerActionMission', 'automatic action creation from field reserves');
-requireText(read('MissionVisitScreen.js'), 'Créer un point à contrôler', 'non-automatic atypical measurement point proposal');
-requireText(read('MissionTestsScreen.js'), 'Le résultat d’essai, le point et l’action restent liés.', 'test deviation point action linkage');
-requireText(read('MissionTestsScreen.js'), "lifecycleStatus: 'avec_reserve'", 'test deviation updates project lifecycle');
-requireText(read('MissionTestsScreen.js'), "missionType === 'commissioning' ? 'mis_en_service' : 'controle'", 'successful test lifecycle progression');
+requireText(
+  read('MissionVisitScreen.js'),
+  'Créer un point à contrôler',
+  'non-automatic atypical measurement point proposal'
+);
+requireText(
+  read('MissionTestsScreen.js'),
+  'Le résultat d’essai, le point et l’action restent liés.',
+  'test deviation point action linkage'
+);
+requireText(
+  read('MissionTestsScreen.js'),
+  "lifecycleStatus: 'avec_reserve'",
+  'test deviation updates project lifecycle'
+);
+requireText(
+  read('MissionTestsScreen.js'),
+  "missionType === 'commissioning' ? 'mis_en_service' : 'controle'",
+  'successful test lifecycle progression'
+);
 requireText(read('missionPlanDb.js'), "type: 'subject'", 'subjects available as plan link targets');
 requireText(read('MissionPlanScreen.js'), 'Sujet chantier / suivi', 'plan subject linking UX');
-requireText(read('MissionSubjectsScreen.js'), 'À traiter avant le prochain point', 'open action preview before next meeting');
-requireText(read('MissionReceptionBoardScreen.js'), 'Documents de réception / passation · statut rapide', 'one-tap reception document status');
+requireText(
+  read('MissionSubjectsScreen.js'),
+  'À traiter avant le prochain point',
+  'open action preview before next meeting'
+);
+requireText(
+  read('MissionReceptionBoardScreen.js'),
+  'Documents de réception / passation · statut rapide',
+  'one-tap reception document status'
+);
 requireText(read('MissionReceptionBoardScreen.js'), "['received','Reçu']", 'received document status shortcut');
 requireText(read('missionEquipmentDb.js'), 'mission_equipment_lifecycle', 'equipment lifecycle history writes');
-requireText(read('missionEquipmentDb.js'), "source_kind,source_value,confidence", 'equipment verification provenance trace');
+requireText(
+  read('missionEquipmentDb.js'),
+  'source_kind,source_value,confidence',
+  'equipment verification provenance trace'
+);
 requireText(read('missionReportDb.js'), "key: 'cycle_projet'", 'project lifecycle report history');
 requireText(read('missionClientExcelExport.js'), "'12_Historique_cycle'", 'project lifecycle client Excel history');
 requireText(read('missionReportDb.js'), "key: 'projection_p3'", 'P2 P3 renewal projection report section');
@@ -330,11 +478,20 @@ requireText(read('MissionDocumentsScreen.js'), 'HISTORIQUE DES REVUES', 'version
 requireText(read('MissionDocumentsScreen.js'), 'VERSION / RÉVISION', 'document revision label UX');
 requireText(read('missionReportDb.js'), "key: 'revue_documents'", 'document review report chronology');
 requireText(read('missionClientExcelExport.js'), "'14_Revue_documents'", 'document review client Excel worksheet');
-requireText(read('MissionVisitScreen.js'), "changeComment: 'Réserve créée depuis la visite Mission'", 'OPR reserve lifecycle linkage');
+requireText(
+  read('MissionVisitScreen.js'),
+  "changeComment: 'Réserve créée depuis la visite Mission'",
+  'OPR reserve lifecycle linkage'
+);
 requireText(recipes, 'reserveClearance: true', 'OPR and reserve-lifting continuity capability');
 
 const documentPresetTypes = read('missionDocumentPresets.js');
-const missingDocumentPresets = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + type + ":\\s*'").test(documentPresetTypes));
-if (missingDocumentPresets.length) throw new Error('Types de Mission sans groupe de documents suggérés: ' + missingDocumentPresets.join(', '));
+const missingDocumentPresets = missionTypes.filter(
+  (type) => !new RegExp('\\n\\s{2}' + type + ":\\s*'").test(documentPresetTypes)
+);
+if (missingDocumentPresets.length)
+  throw new Error('Types de Mission sans groupe de documents suggérés: ' + missingDocumentPresets.join(', '));
 
-console.log('Missions LAB contract validated: schema v43, strict Intranet isolation, offline mission tooling, complete Excel round-trip, plans/SIG, campaigns, OCR, measurements, reports and packages.');
+console.log(
+  'Missions LAB contract validated: schema v43, strict Intranet isolation, offline mission tooling, complete Excel round-trip, plans/SIG, campaigns, OCR, measurements, reports and packages.'
+);

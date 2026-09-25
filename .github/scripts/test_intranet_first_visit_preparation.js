@@ -8,7 +8,11 @@ const readline = require('node:readline');
 
 const root = path.resolve(__dirname, '../..');
 let checks = 0;
-function check(condition, label) { assert.ok(condition, label); checks += 1; console.log(`OK ${checks}: ${label}`); }
+function check(condition, label) {
+  assert.ok(condition, label);
+  checks += 1;
+  console.log(`OK ${checks}: ${label}`);
+}
 
 function load(file, dependencies = {}) {
   const source = fs.readFileSync(path.join(root, file), 'utf8');
@@ -23,8 +27,11 @@ function load(file, dependencies = {}) {
 }
 
 function databaseProcess(filename) {
-  const child = spawn('python3', [path.join(__dirname, 'photo_sqlite_harness.py'), filename], { stdio: ['pipe', 'pipe', 'inherit'] });
-  const pending = new Map(); let seq = 0;
+  const child = spawn('python3', [path.join(__dirname, 'photo_sqlite_harness.py'), filename], {
+    stdio: ['pipe', 'pipe', 'inherit']
+  });
+  const pending = new Map();
+  let seq = 0;
   readline.createInterface({ input: child.stdout }).on('line', (line) => {
     const response = JSON.parse(line);
     const waiter = pending.get(response.id);
@@ -33,16 +40,17 @@ function databaseProcess(filename) {
     if (response.error) waiter.reject(new Error(response.error));
     else waiter.resolve(response.result);
   });
-  const send = (method, sql = '', params = []) => new Promise((resolve, reject) => {
-    const id = ++seq;
-    pending.set(id, { resolve, reject });
-    child.stdin.write(JSON.stringify({ id, method, sql, params }) + '\n');
-  });
+  const send = (method, sql = '', params = []) =>
+    new Promise((resolve, reject) => {
+      const id = ++seq;
+      pending.set(id, { resolve, reject });
+      child.stdin.write(JSON.stringify({ id, method, sql, params }) + '\n');
+    });
   const db = {
     getAllAsync: (sql, params) => send('all', sql, params),
     getFirstAsync: async (sql, params) => (await send('all', sql, params))[0] || null,
     runAsync: (sql, params) => send('run', sql, params),
-    execAsync: (sql) => send('exec', sql),
+    execAsync: (sql) => send('exec', sql)
   };
   db.withExclusiveTransactionAsync = async (fn) => {
     await send('run', 'BEGIN');
@@ -62,22 +70,35 @@ function databaseProcess(filename) {
 const remoteTrame = {
   id: '3',
   nom: 'ICPE',
-  categories: [{
-    id: '10',
-    nom: 'Contrôles',
-    sousCategories: [{
-      id: '20',
-      nom: 'Sous',
-      criteres: [{ id: '100', nom: 'Contrôle A', avisApplicable: true }],
-    }],
-  }],
+  categories: [
+    {
+      id: '10',
+      nom: 'Contrôles',
+      sousCategories: [
+        {
+          id: '20',
+          nom: 'Sous',
+          criteres: [{ id: '100', nom: 'Contrôle A', avisApplicable: true }]
+        }
+      ]
+    }
+  ]
 };
 
 function mapRemoteTrameToLocal(remote) {
-  const value = String(remote?.nom || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  const value = String(remote?.nom || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
   if (value.includes('vmc') || value.includes('ventilation')) return 'vmc';
   if (value.includes('pre') && value.includes('allum')) return 'pre_allumage';
-  if (value.includes('chauffer') || value.includes('sous-station') || value.includes('sous station') || value.includes('icpe')) return 'icpe_v1';
+  if (
+    value.includes('chauffer') ||
+    value.includes('sous-station') ||
+    value.includes('sous station') ||
+    value.includes('icpe')
+  )
+    return 'icpe_v1';
   return null;
 }
 
@@ -111,20 +132,22 @@ async function main() {
 
     const cache = load('symfonyApiCacheDb.js', {
       openAppDatabase: async () => server.db,
-      createId: () => 'unused-id',
+      createId: () => 'unused-id'
     });
 
     const filteredPayload = {
       client: { id: '12', nom: 'Client Alpha' },
-      visites: [{
-        local: { id: '501', designation: 'Local sans visite' },
-        site: { id: '45', nom: 'Site A' },
-        derniereVisite: null,
-        trame: remoteTrame,
-        remarques: [],
-        materiels: [],
-        notes: [],
-      }],
+      visites: [
+        {
+          local: { id: '501', designation: 'Local sans visite' },
+          site: { id: '45', nom: 'Site A' },
+          derniereVisite: null,
+          trame: remoteTrame,
+          remarques: [],
+          materiels: [],
+          notes: []
+        }
+      ]
     };
 
     await cache.cachePreparation('12', filteredPayload, { partial: true });
@@ -134,8 +157,14 @@ async function main() {
       FROM api_local_links WHERE remote_local_id='501'
     `);
     const targetReference = JSON.parse(target.reference_json);
-    check(target.remote_trame_id === '3' && target.remote_trame_nom === 'ICPE', 'filtered first-visit preparation stores the selected remote trame');
-    check(Number(target.criteria_count) === 1 && targetReference.derniereVisite == null, 'first-visit preparation keeps criteria with no fabricated historical visit');
+    check(
+      target.remote_trame_id === '3' && target.remote_trame_nom === 'ICPE',
+      'filtered first-visit preparation stores the selected remote trame'
+    );
+    check(
+      Number(target.criteria_count) === 1 && targetReference.derniereVisite == null,
+      'first-visit preparation keeps criteria with no fabricated historical visit'
+    );
     check(Number(target.remote_present) === 1, 'target local remains present after filtered preparation');
 
     const unrelatedSite = await server.db.getFirstAsync(`
@@ -144,34 +173,41 @@ async function main() {
     const unrelatedLocal = await server.db.getFirstAsync(`
       SELECT remote_present FROM api_local_links WHERE remote_local_id='502'
     `);
-    check(Number(unrelatedSite.remote_present) === 1 && Number(unrelatedLocal.remote_present) === 1,
-      'filtered ?trame preparation never hides unrelated cached sites or locals');
+    check(
+      Number(unrelatedSite.remote_present) === 1 && Number(unrelatedLocal.remote_present) === 1,
+      'filtered ?trame preparation never hides unrelated cached sites or locals'
+    );
 
     const fullCache = await server.db.getFirstAsync(`
       SELECT payload_json FROM api_preparation_cache WHERE remote_client_id='12'
     `);
-    check(JSON.parse(fullCache.payload_json).marker === 'full-client-cache',
-      'filtered ?trame preparation never overwrites the complete client preparation cache');
+    check(
+      JSON.parse(fullCache.payload_json).marker === 'full-client-cache',
+      'filtered ?trame preparation never overwrites the complete client preparation cache'
+    );
 
     const binding = load('intranetVisitBindingDb.js', {
       getDb: async () => server.db,
       createId: () => 'unused-binding-id',
-      mapRemoteTrameToLocal,
+      mapRemoteTrameToLocal
     });
     const resolved = binding.resolveFirstVisitRemoteTrame(
       { trames: [remoteTrame, { ...remoteTrame, id: '4', nom: 'ICPE Chaufferie' }] },
       'icpe_v1',
       'ICPE'
     );
-    check(resolved.remoteTrameId === '3' && resolved.matchedBy === 'visit_field',
-      'Informations > Trame utilisée selects the exact remote trame even when several trames belong to the ICPE family');
+    check(
+      resolved.remoteTrameId === '3' && resolved.matchedBy === 'visit_field',
+      'Informations > Trame utilisée selects the exact remote trame even when several trames belong to the ICPE family'
+    );
 
     assert.throws(
-      () => binding.resolveFirstVisitRemoteTrame(
-        { trames: [remoteTrame, { ...remoteTrame, id: '4', nom: 'ICPE' }] },
-        'icpe_v1',
-        'ICPE'
-      ),
+      () =>
+        binding.resolveFirstVisitRemoteTrame(
+          { trames: [remoteTrame, { ...remoteTrame, id: '4', nom: 'ICPE' }] },
+          'icpe_v1',
+          'ICPE'
+        ),
       (error) => error?.code === 'intranet_first_visit_trame_name_ambiguous'
     );
     checks += 1;
@@ -185,11 +221,15 @@ async function main() {
     console.log(`OK ${checks}: missing exact Trame utilisée name is explicit`);
 
     const legacyResolved = binding.resolveFirstVisitRemoteTrame({ trames: [remoteTrame] }, 'icpe_v1', null);
-    check(legacyResolved.remoteTrameId === '3' && legacyResolved.matchedBy === 'legacy_family',
-      'legacy visit without Trame utilisée still works only when the family match is unique');
+    check(
+      legacyResolved.remoteTrameId === '3' && legacyResolved.matchedBy === 'legacy_family',
+      'legacy visit without Trame utilisée still works only when the family match is unique'
+    );
 
-    check((await server.db.getAllAsync('PRAGMA foreign_key_check')).length === 0,
-      'first-visit filtered preparation leaves SQLite foreign keys valid');
+    check(
+      (await server.db.getAllAsync('PRAGMA foreign_key_check')).length === 0,
+      'first-visit filtered preparation leaves SQLite foreign keys valid'
+    );
 
     console.log(`\n${checks} first-visit Intranet preparation checks passed.`);
   } finally {
@@ -198,4 +238,7 @@ async function main() {
   }
 }
 
-main().catch((error) => { console.error(error); process.exitCode = 1; });
+main().catch((error) => {
+  console.error(error);
+  process.exitCode = 1;
+});

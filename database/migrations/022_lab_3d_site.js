@@ -78,5 +78,5 @@ export const migration022 = {
     CREATE INDEX IF NOT EXISTS idx_lab3d_objects_equipment ON lab3d_objects(equipment_id);
     CREATE INDEX IF NOT EXISTS idx_lab3d_networks_scene ON lab3d_networks(scene_id);
     CREATE INDEX IF NOT EXISTS idx_lab3d_views_scene ON lab3d_views(scene_id);
-  `,
+  `
 };

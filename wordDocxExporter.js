@@ -6,14 +6,18 @@ import { getStatsPatrimoineSelection } from './patrimoineDb.js';
 
 export const MIME_DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 
-const esc = (value = '') => String(value ?? '')
-  .replace(/&/g, '&amp;')
-  .replace(/</g, '&lt;')
-  .replace(/>/g, '&gt;')
-  .replace(/"/g, '&quot;')
-  .replace(/'/g, '&apos;');
+const esc = (value = '') =>
+  String(value ?? '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&apos;');
 const nativePath = (uri) => String(uri || '').replace(/^file:\/\//, '');
-const cleanText = (value = '') => String(value ?? '').replace(/\r/g, '').trim();
+const cleanText = (value = '') =>
+  String(value ?? '')
+    .replace(/\r/g, '')
+    .trim();
 const dataUriBase64 = (value) => String(value || '').split(',')[1] || '';
 const dateFr = (value) => {
   if (!value) return '';
@@ -27,7 +31,10 @@ function run(text, { bold = false, size = 20, color = '1A1A18' } = {}) {
   return `<w:r><w:rPr>${bold ? '<w:b/>' : ''}<w:sz w:val="${size}"/><w:szCs w:val="${size}"/><w:color w:val="${color}"/></w:rPr><w:t xml:space="preserve">${safe}</w:t></w:r>`;
 }
 
-function paragraph(text = '', { bold = false, size = 20, color = '1A1A18', align = 'left', after = 100, before = 0, pageBreakBefore = false } = {}) {
+function paragraph(
+  text = '',
+  { bold = false, size = 20, color = '1A1A18', align = 'left', after = 100, before = 0, pageBreakBefore = false } = {}
+) {
   return `<w:p><w:pPr><w:jc w:val="${align}"/><w:spacing w:before="${before}" w:after="${after}"/>${pageBreakBefore ? '<w:pageBreakBefore/>' : ''}</w:pPr>${run(text, { bold, size, color })}</w:p>`;
 }
 
@@ -40,8 +47,14 @@ function cell(text, { bold = false, width = 2400, shade = null, align = 'left' }
 }
 
 function table(rows, widths = []) {
-  const borders = '<w:tblBorders><w:top w:val="single" w:sz="5" w:color="777777"/><w:left w:val="single" w:sz="5" w:color="777777"/><w:bottom w:val="single" w:sz="5" w:color="777777"/><w:right w:val="single" w:sz="5" w:color="777777"/><w:insideH w:val="single" w:sz="4" w:color="AAAAAA"/><w:insideV w:val="single" w:sz="4" w:color="AAAAAA"/></w:tblBorders>';
-  const body = rows.map((row, rowIndex) => `<w:tr>${row.map((value, index) => cell(value, { bold: rowIndex === 0, width: widths[index] || 2600, shade: rowIndex === 0 ? 'F4E5D8' : null, align: index === 1 && row.length === 3 ? 'center' : 'left' })).join('')}</w:tr>`).join('');
+  const borders =
+    '<w:tblBorders><w:top w:val="single" w:sz="5" w:color="777777"/><w:left w:val="single" w:sz="5" w:color="777777"/><w:bottom w:val="single" w:sz="5" w:color="777777"/><w:right w:val="single" w:sz="5" w:color="777777"/><w:insideH w:val="single" w:sz="4" w:color="AAAAAA"/><w:insideV w:val="single" w:sz="4" w:color="AAAAAA"/></w:tblBorders>';
+  const body = rows
+    .map(
+      (row, rowIndex) =>
+        `<w:tr>${row.map((value, index) => cell(value, { bold: rowIndex === 0, width: widths[index] || 2600, shade: rowIndex === 0 ? 'F4E5D8' : null, align: index === 1 && row.length === 3 ? 'center' : 'left' })).join('')}</w:tr>`
+    )
+    .join('');
   return `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblLayout w:type="fixed"/>${borders}</w:tblPr><w:tblGrid>${widths.map((width) => `<w:gridCol w:w="${width}"/>`).join('')}</w:tblGrid>${body}</w:tbl>${paragraph('', { after: 40 })}`;
 }
 
@@ -52,9 +65,19 @@ function imageParagraph(relId, widthEmu, heightEmu, docPrId, name, align = 'cent
 async function preparePhoto(photo, index) {
   if (!photo?.uri) return null;
   try {
-    const result = await ImageManipulator.manipulateAsync(photo.uri, [{ resize: { width: 1100 } }], { compress: 0.72, format: ImageManipulator.SaveFormat.JPEG, base64: true });
+    const result = await ImageManipulator.manipulateAsync(photo.uri, [{ resize: { width: 1100 } }], {
+      compress: 0.72,
+      format: ImageManipulator.SaveFormat.JPEG,
+      base64: true
+    });
     if (!result.base64) return null;
-    return { base64: result.base64, width: result.width || 1100, height: result.height || 750, filename: `photo_${index + 1}.jpeg`, label: photo.label || `Photo ${index + 1}` };
+    return {
+      base64: result.base64,
+      width: result.width || 1100,
+      height: result.height || 750,
+      filename: `photo_${index + 1}.jpeg`,
+      label: photo.label || `Photo ${index + 1}`
+    };
   } catch (error) {
     console.warn('Photo Word non intégrée', error);
     return null;
@@ -75,31 +98,53 @@ async function patrimoineSummaryXml(datas, config) {
   const scope = config.patrimoineScope === 'locals' && installationIds.length ? 'locals' : 'sites';
   const synthese = await getStatsPatrimoineSelection({ clientId, siteIds, installationIds, scope });
   const nomsSites = new Map();
-  for (const data of datas) if (data.visite?.site_id && !nomsSites.has(data.visite.site_id)) nomsSites.set(data.visite.site_id, data.visite.nom_site || 'Site');
+  for (const data of datas)
+    if (data.visite?.site_id && !nomsSites.has(data.visite.site_id))
+      nomsSites.set(data.visite.site_id, data.visite.nom_site || 'Site');
   const t = synthese.totals || {};
   const out = [];
   out.push(paragraph('SYNTHÈSE DU PATRIMOINE', { bold: true, size: 28, color: 'F26426', align: 'center', after: 90 }));
-  out.push(paragraph(scope === 'locals' ? 'Périmètre : locaux sélectionnés uniquement' : 'Périmètre : sites concernés par le rapport', { size: 17, color: '666666', align: 'center', after: 90 }));
+  out.push(
+    paragraph(
+      scope === 'locals' ? 'Périmètre : locaux sélectionnés uniquement' : 'Périmètre : sites concernés par le rapport',
+      { size: 17, color: '666666', align: 'center', after: 90 }
+    )
+  );
   if (scope === 'locals') {
     const locaux = [...new Set(datas.map((data) => data.visite?.nom_local).filter(Boolean))].join(' · ');
     if (locaux) out.push(paragraph(locaux, { size: 16, color: '777777', align: 'center', after: 100 }));
   }
-  out.push(table([
-    ['Sites', 'Réserves à traiter', 'Équipements actifs', 'À surveiller'],
-    [t.sites || 0, t.reserves?.ouvertes || 0, t.equipements?.actifs || 0, t.equipements?.aSurveiller || 0],
-  ], [1900, 2500, 2500, 2000]));
+  out.push(
+    table(
+      [
+        ['Sites', 'Réserves à traiter', 'Équipements actifs', 'À surveiller'],
+        [t.sites || 0, t.reserves?.ouvertes || 0, t.equipements?.actifs || 0, t.equipements?.aSurveiller || 0]
+      ],
+      [1900, 2500, 2500, 2000]
+    )
+  );
   const rows = [...(synthese.stats || new Map()).entries()].map(([siteId, stats]) => [
     nomsSites.get(siteId) || 'Site',
     stats.reserves?.ouvertes || 0,
     stats.reserves?.levees || 0,
     stats.equipements?.actifs || 0,
-    stats.equipements?.aSurveiller || 0,
+    stats.equipements?.aSurveiller || 0
   ]);
-  out.push(table([
-    ['Site', 'Réserves ouvertes', 'Réserves levées', 'Équipements actifs', 'À surveiller'],
-    ...(rows.length ? rows : [['Aucune donnée', '', '', '', '']]),
-  ], [2600, 1700, 1700, 1900, 1500]));
-  out.push(paragraph("Synthèse calculée au moment de l’export à partir des mêmes données locales que l’écran Synthèse patrimoine.", { size: 15, color: '777777', after: 120 }));
+  out.push(
+    table(
+      [
+        ['Site', 'Réserves ouvertes', 'Réserves levées', 'Équipements actifs', 'À surveiller'],
+        ...(rows.length ? rows : [['Aucune donnée', '', '', '', '']])
+      ],
+      [2600, 1700, 1700, 1900, 1500]
+    )
+  );
+  out.push(
+    paragraph(
+      'Synthèse calculée au moment de l’export à partir des mêmes données locales que l’écran Synthèse patrimoine.',
+      { size: 15, color: '777777', after: 120 }
+    )
+  );
   return out.join('');
 }
 
@@ -111,9 +156,22 @@ function siteDocumentXml(data, config, imageByPhotoId) {
   out.push(paragraph(local, { bold: true, size: 25, align: 'center', after: 180 }));
 
   for (const section of data.sections || []) {
-    const groups = (section.groups || []).map((group) => ({ group, rows: reportRows(group, config.afficherLignesVides) })).filter((item) => item.rows.length);
+    const groups = (section.groups || [])
+      .map((group) => ({ group, rows: reportRows(group, config.afficherLignesVides) }))
+      .filter((item) => item.rows.length);
     if (!groups.length) continue;
-    if (section.title) out.push(paragraph(section.title, { bold: true, size: 25, color: 'F26426', align: 'center', before: 130, after: 100, pageBreakBefore: section.breakBefore === true }));
+    if (section.title)
+      out.push(
+        paragraph(section.title, {
+          bold: true,
+          size: 25,
+          color: 'F26426',
+          align: 'center',
+          before: 130,
+          after: 100,
+          pageBreakBefore: section.breakBefore === true
+        })
+      );
     groups.forEach(({ group, rows }) => {
       out.push(paragraph(group.title || '', { bold: true, size: 21, align: 'center', before: 80, after: 70 }));
       out.push(table([['Intitulé', 'Avis', 'Commentaire'], ...rows], [3300, 900, 4700]));
@@ -121,24 +179,90 @@ function siteDocumentXml(data, config, imageByPhotoId) {
   }
 
   if (config.remarques !== false && (data.remarques || []).length) {
-    out.push(paragraph('REMARQUES PARTICULIÈRES', { bold: true, size: 25, color: 'F26426', align: 'center', pageBreakBefore: true, after: 100 }));
-    out.push(table([['Poste', 'Prestation', 'Date'], ...(data.remarques || []).map((item) => [item.poste || 'Remarque', item.prestation || '', dateFr(item.cree_le)])], [2500, 5000, 1400]));
+    out.push(
+      paragraph('REMARQUES PARTICULIÈRES', {
+        bold: true,
+        size: 25,
+        color: 'F26426',
+        align: 'center',
+        pageBreakBefore: true,
+        after: 100
+      })
+    );
+    out.push(
+      table(
+        [
+          ['Poste', 'Prestation', 'Date'],
+          ...(data.remarques || []).map((item) => [
+            item.poste || 'Remarque',
+            item.prestation || '',
+            dateFr(item.cree_le)
+          ])
+        ],
+        [2500, 5000, 1400]
+      )
+    );
   }
 
   if (config.materiel !== false && (data.materiel || []).length) {
-    out.push(paragraph('LISTING MATÉRIEL', { bold: true, size: 25, color: 'F26426', align: 'center', pageBreakBefore: true, after: 100 }));
-    out.push(table([['Catégorie', 'Nb', 'Désignation', 'Marque', 'Modèle', 'Année'], ...(data.materiel || []).map((item) => [item.categorie || '', item.nombre || 1, item.designation || '', item.marque || '', item.modele || '', item.annee || ''])], [1500, 650, 2500, 1500, 1800, 800]));
+    out.push(
+      paragraph('LISTING MATÉRIEL', {
+        bold: true,
+        size: 25,
+        color: 'F26426',
+        align: 'center',
+        pageBreakBefore: true,
+        after: 100
+      })
+    );
+    out.push(
+      table(
+        [
+          ['Catégorie', 'Nb', 'Désignation', 'Marque', 'Modèle', 'Année'],
+          ...(data.materiel || []).map((item) => [
+            item.categorie || '',
+            item.nombre || 1,
+            item.designation || '',
+            item.marque || '',
+            item.modele || '',
+            item.annee || ''
+          ])
+        ],
+        [1500, 650, 2500, 1500, 1800, 800]
+      )
+    );
   }
 
   const note = cleanText(data.note);
   if (note) {
-    out.push(paragraph('NOTE DE VISITE', { bold: true, size: 25, color: 'F26426', align: 'center', pageBreakBefore: true, after: 100 }));
-    note.split(/\n+/).filter(Boolean).forEach((line) => out.push(paragraph(line, { size: 19, after: 80 })));
+    out.push(
+      paragraph('NOTE DE VISITE', {
+        bold: true,
+        size: 25,
+        color: 'F26426',
+        align: 'center',
+        pageBreakBefore: true,
+        after: 100
+      })
+    );
+    note
+      .split(/\n+/)
+      .filter(Boolean)
+      .forEach((line) => out.push(paragraph(line, { size: 19, after: 80 })));
   }
 
   const photos = [...imageByPhotoId.values()].filter((image) => image.visiteId === data.visite.id);
   if (config.photos !== false && photos.length) {
-    out.push(paragraph('PHOTOGRAPHIES', { bold: true, size: 25, color: 'F26426', align: 'center', pageBreakBefore: true, after: 120 }));
+    out.push(
+      paragraph('PHOTOGRAPHIES', {
+        bold: true,
+        size: 25,
+        color: 'F26426',
+        align: 'center',
+        pageBreakBefore: true,
+        after: 120
+      })
+    );
     photos.forEach((image) => {
       out.push(imageParagraph(image.relId, image.widthEmu, image.heightEmu, image.docPrId, image.filename));
       out.push(paragraph(image.label, { bold: true, size: 17, align: 'center', after: 150 }));
@@ -158,13 +282,23 @@ function stylesXml() {
 async function createDocxPackage({ datas, config, photosConfig = [], title = null }) {
   const stamp = `${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
   const root = `${FileSystem.cacheDirectory}metra-docx-${stamp}/`;
-  const word = `${root}word/`, rels = `${root}_rels/`, wordRels = `${word}_rels/`, media = `${word}media/`, props = `${root}docProps/`;
+  const word = `${root}word/`,
+    rels = `${root}_rels/`,
+    wordRels = `${word}_rels/`,
+    media = `${word}media/`,
+    props = `${root}docProps/`;
   await FileSystem.makeDirectoryAsync(wordRels, { intermediates: true });
   await FileSystem.makeDirectoryAsync(media, { intermediates: true });
   await FileSystem.makeDirectoryAsync(rels, { intermediates: true });
   await FileSystem.makeDirectoryAsync(props, { intermediates: true });
 
-  const relationships = [{ id: 'rIdStyles', type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles', target: 'styles.xml' }];
+  const relationships = [
+    {
+      id: 'rIdStyles',
+      type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles',
+      target: 'styles.xml'
+    }
+  ];
   const images = [];
   let nextRel = 2;
   let nextDocPr = 1;
@@ -174,13 +308,23 @@ async function createDocxPackage({ datas, config, photosConfig = [], title = nul
     const relId = `rId${nextRel++}`;
     const docPrId = nextDocPr++;
     await FileSystem.writeAsStringAsync(`${media}${filename}`, base64, { encoding: FileSystem.EncodingType.Base64 });
-    relationships.push({ id: relId, type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image', target: `media/${filename}` });
+    relationships.push({
+      id: relId,
+      type: 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/image',
+      target: `media/${filename}`
+    });
     const image = { relId, docPrId, filename, widthEmu, heightEmu, label, visiteId };
     images.push(image);
     return image;
   };
 
-  const logo = await addBase64Image(dataUriBase64(REPORT_LOGO), 'brand_logo.jpeg', 2500000, 650000, 'Energie & Service');
+  const logo = await addBase64Image(
+    dataUriBase64(REPORT_LOGO),
+    'brand_logo.jpeg',
+    2500000,
+    650000,
+    'Energie & Service'
+  );
   const cover = await addBase64Image(dataUriBase64(REPORT_COVER), 'cover.jpeg', 5200000, 2850000, 'Couverture');
 
   const enabledPhotos = (photosConfig || []).filter((photo) => photo.include !== false);
@@ -204,7 +348,8 @@ async function createDocxPackage({ datas, config, photosConfig = [], title = nul
     perVisit.get(image.visiteId).push(image);
   });
   const imageMap = new Map();
-  for (const [visiteId, visitImages] of perVisit.entries()) visitImages.forEach((image, index) => imageMap.set(`${visiteId}||${index}`, image));
+  for (const [visiteId, visitImages] of perVisit.entries())
+    visitImages.forEach((image, index) => imageMap.set(`${visiteId}||${index}`, image));
   const imagesForSite = new Map();
   for (const image of photoImages) imagesForSite.set(`${image.relId}`, image);
 
@@ -214,22 +359,34 @@ async function createDocxPackage({ datas, config, photosConfig = [], title = nul
   if (logo) body.push(imageParagraph(logo.relId, logo.widthEmu, logo.heightEmu, logo.docPrId, logo.filename, 'left'));
   body.push(paragraph(client, { bold: true, size: 38, color: 'F26426', align: 'center', before: 220, after: 140 }));
   body.push(paragraph(documentTitle, { bold: true, size: 28, align: 'center', after: 90 }));
-  body.push(paragraph(`Date du rapport : ${dateFr(config.dateRapport || new Date().toISOString().slice(0, 10))}`, { size: 18, align: 'center', after: 50 }));
+  body.push(
+    paragraph(`Date du rapport : ${dateFr(config.dateRapport || new Date().toISOString().slice(0, 10))}`, {
+      size: 18,
+      align: 'center',
+      after: 50
+    })
+  );
   if (config.chrono) body.push(paragraph(`Référence : ${config.chrono}`, { size: 18, align: 'center', after: 100 }));
   if (cover) body.push(imageParagraph(cover.relId, cover.widthEmu, cover.heightEmu, cover.docPrId, cover.filename));
   const patrimoineXml = await patrimoineSummaryXml(datas, config);
-  if (patrimoineXml) { body.push(pageBreak()); body.push(patrimoineXml); }
+  if (patrimoineXml) {
+    body.push(pageBreak());
+    body.push(patrimoineXml);
+  }
   body.push(pageBreak());
 
   for (let index = 0; index < (datas || []).length; index += 1) {
     const data = datas[index];
     const siteImages = new Map();
-    for (const image of photoImages.filter((item) => item.visiteId === data.visite.id)) siteImages.set(image.relId, image);
+    for (const image of photoImages.filter((item) => item.visiteId === data.visite.id))
+      siteImages.set(image.relId, image);
     body.push(siteDocumentXml(data, config, siteImages));
     if (index < datas.length - 1) body.push(pageBreak());
   }
 
-  body.push('<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="850" w:right="850" w:bottom="850" w:left="850" w:header="360" w:footer="360" w:gutter="0"/></w:sectPr>');
+  body.push(
+    '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="850" w:right="850" w:bottom="850" w:left="850" w:header="360" w:footer="360" w:gutter="0"/></w:sectPr>'
+  );
   const documentXml = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>${body.join('')}</w:body></w:document>`;
   const documentRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${relationships.map((rel) => `<Relationship Id="${rel.id}" Type="${rel.type}" Target="${rel.target}"/>`).join('')}</Relationships>`;
   const packageRels = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/><Relationship Id="rId3" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/extended-properties" Target="docProps/app.xml"/></Relationships>`;
@@ -243,7 +400,7 @@ async function createDocxPackage({ datas, config, photosConfig = [], title = nul
     FileSystem.writeAsStringAsync(`${word}styles.xml`, stylesXml()),
     FileSystem.writeAsStringAsync(`${wordRels}document.xml.rels`, documentRels),
     FileSystem.writeAsStringAsync(`${props}core.xml`, core),
-    FileSystem.writeAsStringAsync(`${props}app.xml`, app),
+    FileSystem.writeAsStringAsync(`${props}app.xml`, app)
   ]);
 
   const zipUri = `${FileSystem.cacheDirectory}METRA_${stamp}.docx`;

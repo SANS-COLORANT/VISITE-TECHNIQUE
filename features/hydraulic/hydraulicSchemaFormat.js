@@ -14,11 +14,16 @@ function ensureObject(value, label) {
 
 function normalizeEndpoint(endpoint, nodeId, portId) {
   if (endpoint && typeof endpoint === 'object') {
-    const free = endpoint.free === true || (!endpoint.equipmentId && !endpoint.nodeId && Number.isFinite(Number(endpoint.x)) && Number.isFinite(Number(endpoint.y)));
+    const free =
+      endpoint.free === true ||
+      (!endpoint.equipmentId &&
+        !endpoint.nodeId &&
+        Number.isFinite(Number(endpoint.x)) &&
+        Number.isFinite(Number(endpoint.y)));
     if (free) return { free: true, x: asNumber(endpoint.x, 0), y: asNumber(endpoint.y, 0) };
     return {
       equipmentId: asText(endpoint.equipmentId || endpoint.nodeId || endpoint.id),
-      portId: asText(endpoint.portId || endpoint.port || endpoint.connector),
+      portId: asText(endpoint.portId || endpoint.port || endpoint.connector)
     };
   }
   return { equipmentId: asText(nodeId), portId: asText(portId) };
@@ -49,21 +54,24 @@ function normalizeEquipment(raw, index) {
     materialId: raw?.materialId ?? null,
     networkId: raw?.networkId ?? null,
     source: raw?.source || null,
-    metadata: raw?.metadata && typeof raw.metadata === 'object' ? raw.metadata : {},
+    metadata: raw?.metadata && typeof raw.metadata === 'object' ? raw.metadata : {}
   };
 }
 
 function normalizeConnection(raw, index) {
   const from = normalizeEndpoint(raw?.from, raw?.fromNodeId, raw?.fromPort);
   const to = normalizeEndpoint(raw?.to, raw?.toNodeId, raw?.toPort);
-  if (!endpointValid(from) || !endpointValid(to)) throw new Error(`Liaison ${index + 1} : extrémité de départ ou d'arrivée invalide.`);
+  if (!endpointValid(from) || !endpointValid(to))
+    throw new Error(`Liaison ${index + 1} : extrémité de départ ou d'arrivée invalide.`);
   const mediumRaw = asText(raw?.medium || raw?.flowType || raw?.fluidType).toLowerCase();
-  const medium = mediumRaw === 'cold' || mediumRaw === 'retour' || mediumRaw === 'return' ? 'cold'
-    : mediumRaw === 'air' || mediumRaw === 'vmc' ? 'air'
-      : 'hot';
-  const via = raw?.via && typeof raw.via === 'object'
-    ? { x: asNumber(raw.via.x, 0), y: asNumber(raw.via.y, 0) }
-    : undefined;
+  const medium =
+    mediumRaw === 'cold' || mediumRaw === 'retour' || mediumRaw === 'return'
+      ? 'cold'
+      : mediumRaw === 'air' || mediumRaw === 'vmc'
+        ? 'air'
+        : 'hot';
+  const via =
+    raw?.via && typeof raw.via === 'object' ? { x: asNumber(raw.via.x, 0), y: asNumber(raw.via.y, 0) } : undefined;
   return {
     ...raw,
     id: asText(raw?.id) || `co_import_${index + 1}`,
@@ -73,15 +81,23 @@ function normalizeConnection(raw, index) {
     direction: Number(raw?.direction) === -1 ? -1 : 1,
     ...(via ? { via } : {}),
     networkId: raw?.networkId ?? null,
-    metadata: raw?.metadata && typeof raw.metadata === 'object' ? raw.metadata : {},
+    metadata: raw?.metadata && typeof raw.metadata === 'object' ? raw.metadata : {}
   };
 }
 
 export function normalizeHydraulicSchema(input) {
   const root = ensureObject(input, 'Le fichier METRA');
   const payload = root.schema && typeof root.schema === 'object' ? root.schema : root;
-  const rawEquipment = Array.isArray(payload.equipment) ? payload.equipment : Array.isArray(payload.nodes) ? payload.nodes : null;
-  const rawConnections = Array.isArray(payload.connections) ? payload.connections : Array.isArray(payload.edges) ? payload.edges : null;
+  const rawEquipment = Array.isArray(payload.equipment)
+    ? payload.equipment
+    : Array.isArray(payload.nodes)
+      ? payload.nodes
+      : null;
+  const rawConnections = Array.isArray(payload.connections)
+    ? payload.connections
+    : Array.isArray(payload.edges)
+      ? payload.edges
+      : null;
   if (!rawEquipment) throw new Error('Le fichier ne contient pas de liste « equipment » ou « nodes ».');
   if (!rawConnections) throw new Error('Le fichier ne contient pas de liste « connections » ou « edges ».');
 
@@ -95,7 +111,8 @@ export function normalizeHydraulicSchema(input) {
   const connections = rawConnections.map(normalizeConnection);
   connections.forEach((connection, index) => {
     for (const endpoint of [connection.from, connection.to]) {
-      if (!endpoint.free && !idSet.has(endpoint.equipmentId)) throw new Error(`Liaison ${index + 1} : elle référence un équipement absent du fichier.`);
+      if (!endpoint.free && !idSet.has(endpoint.equipmentId))
+        throw new Error(`Liaison ${index + 1} : elle référence un équipement absent du fichier.`);
     }
   });
 
@@ -105,12 +122,20 @@ export function normalizeHydraulicSchema(input) {
     connections,
     networks: Array.isArray(payload.networks) ? payload.networks : [],
     annotations: Array.isArray(payload.annotations) ? payload.annotations : [],
-    source: payload.source && typeof payload.source === 'object' ? payload.source : root.source && typeof root.source === 'object' ? root.source : null,
+    source:
+      payload.source && typeof payload.source === 'object'
+        ? payload.source
+        : root.source && typeof root.source === 'object'
+          ? root.source
+          : null
   };
 }
 
 function uniqueId(base, used) {
-  if (!used.has(base)) { used.add(base); return base; }
+  if (!used.has(base)) {
+    used.add(base);
+    return base;
+  }
   let i = 2;
   while (used.has(`${base}_${i}`)) i += 1;
   const next = `${base}_${i}`;
@@ -140,7 +165,7 @@ export function mergeHydraulicSchemas(currentInput, incomingInput) {
     id: uniqueId(connection.id, usedConnections),
     from: shiftedEndpoint(connection.from, idMap),
     to: shiftedEndpoint(connection.to, idMap),
-    ...(connection.via ? { via: { x: asNumber(connection.via.x, 0) + 32, y: asNumber(connection.via.y, 0) + 32 } } : {}),
+    ...(connection.via ? { via: { x: asNumber(connection.via.x, 0) + 32, y: asNumber(connection.via.y, 0) + 32 } } : {})
   }));
 
   const networksById = new Map();
@@ -155,7 +180,7 @@ export function mergeHydraulicSchemas(currentInput, incomingInput) {
     connections: [...current.connections, ...importedConnections],
     networks: [...networksById.values()],
     annotations: [...(current.annotations || []), ...(incoming.annotations || [])],
-    source: incoming.source || current.source || null,
+    source: incoming.source || current.source || null
   };
 }
 
@@ -166,7 +191,7 @@ export function buildHydraulicExchange(schemaInput, metadata = {}) {
     version: METRA_HYDRAULIC_VERSION,
     exportedAt: new Date().toISOString(),
     metadata,
-    schema,
+    schema
   };
 }
 
@@ -175,8 +200,11 @@ export function summarizeHydraulicSchema(schemaInput) {
   return {
     equipment: schema.equipment.length,
     connections: schema.connections.length,
-    freeEndpoints: schema.connections.reduce((count, connection) => count + Number(Boolean(connection.from?.free)) + Number(Boolean(connection.to?.free)), 0),
+    freeEndpoints: schema.connections.reduce(
+      (count, connection) => count + Number(Boolean(connection.from?.free)) + Number(Boolean(connection.to?.free)),
+      0
+    ),
     networks: schema.networks.length,
-    annotations: schema.annotations.length,
+    annotations: schema.annotations.length
   };
 }

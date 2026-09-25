@@ -7,15 +7,21 @@ export const HEALTH_DIMENSIONS = Object.freeze([
   { key: 'reserves', label: 'Réserves', weight: 25 },
   { key: 'equipements', label: 'État des équipements', weight: 20 },
   { key: 'suivi', label: 'Suivi / exploitation', weight: 10 },
-  { key: 'donnees', label: 'Qualité des données', weight: 10 },
+  { key: 'donnees', label: 'Qualité des données', weight: 10 }
 ]);
 
 async function mapHealthAvecConcurrence(items, limite, worker) {
-  const resultats = new Array(items.length); let curseur = 0;
+  const resultats = new Array(items.length);
+  let curseur = 0;
   const workers = Array.from({ length: Math.min(Math.max(1, limite), items.length) }, async () => {
-    while (true) { const index = curseur++; if (index >= items.length) return; resultats[index] = await worker(items[index], index); }
+    while (true) {
+      const index = curseur++;
+      if (index >= items.length) return;
+      resultats[index] = await worker(items[index], index);
+    }
   });
-  await Promise.all(workers); return resultats;
+  await Promise.all(workers);
+  return resultats;
 }
 
 const clampScore = (value) => {
@@ -84,9 +90,14 @@ async function latestVisit(db, siteId, forcedVisitId = null) {
 async function controlStats(db, visiteId) {
   if (!visiteId) return { s: 0, ns: 0, neutral: 0, total: 0, score: null };
   const rows = await db.getAllAsync(`SELECT avis FROM controles_visite WHERE visite_id=?`, [visiteId]);
-  let s = 0, ns = 0, neutral = 0;
+  let s = 0,
+    ns = 0,
+    neutral = 0;
   for (const row of rows) {
-    const value = String(row?.avis || '').trim().toUpperCase().replace(/\s+/g, '');
+    const value = String(row?.avis || '')
+      .trim()
+      .toUpperCase()
+      .replace(/\s+/g, '');
     if (value === 'S') s += 1;
     else if (value === 'NS' || value === 'N.S') ns += 1;
     else if (value) neutral += 1;
@@ -115,16 +126,17 @@ export async function computeAutomaticSiteHealth(siteId, forcedVisitId = null, p
   const db = await getDb();
   const [visite, patrimoine] = await Promise.all([
     latestVisit(db, siteId, forcedVisitId),
-    patrimoineOverride ? Promise.resolve(patrimoineOverride) : getStatsSitePatrimoine(siteId),
+    patrimoineOverride ? Promise.resolve(patrimoineOverride) : getStatsSitePatrimoine(siteId)
   ]);
   const controles = await controlStats(db, visite?.id);
   const reserves = patrimoine?.reserves || {};
   const equipements = patrimoine?.equipements || {};
   const ageDays = daysSince(visite?.date_visite);
   const recent = recencyScore(ageDays);
-  const closure = Number(reserves.total || 0) > 0
-    ? clampScore((Number(reserves.levees || 0) / Number(reserves.total || 1)) * 100)
-    : 100;
+  const closure =
+    Number(reserves.total || 0) > 0
+      ? clampScore((Number(reserves.levees || 0) / Number(reserves.total || 1)) * 100)
+      : 100;
   const suivi = recent === null ? null : clampScore(recent * 0.65 + closure * 0.35);
   const donnees = visite ? clampScore(visite.progression_pct) : null;
 
@@ -133,7 +145,7 @@ export async function computeAutomaticSiteHealth(siteId, forcedVisitId = null, p
     reserves: reserveScore(reserves),
     equipements: equipmentScore(equipements),
     suivi,
-    donnees,
+    donnees
   };
   const overall = weightedScore(scores);
 
@@ -144,27 +156,29 @@ export async function computeAutomaticSiteHealth(siteId, forcedVisitId = null, p
     level: healthLevel(overall),
     scores,
     dimensions: HEALTH_DIMENSIONS.map((dimension) => ({ ...dimension, score: scores[dimension.key] })),
-    source: visite ? {
-      visitId: visite.id,
-      date: visite.date_visite || null,
-      status: visite.statut || null,
-      trameId: visite.trame_id || null,
-      progression: clampScore(visite.progression_pct),
-    } : null,
+    source: visite
+      ? {
+          visitId: visite.id,
+          date: visite.date_visite || null,
+          status: visite.statut || null,
+          trameId: visite.trame_id || null,
+          progression: clampScore(visite.progression_pct)
+        }
+      : null,
     details: {
       controles,
       reserves: {
         total: Number(reserves.total || 0),
         ouvertes: Number(reserves.ouvertes || 0),
-        levees: Number(reserves.levees || 0),
+        levees: Number(reserves.levees || 0)
       },
       equipements: {
         actifs: Number(equipements.actifs || 0),
         aSurveiller: Number(equipements.aSurveiller || 0),
-        remplaces: Number(equipements.remplaces || 0),
+        remplaces: Number(equipements.remplaces || 0)
       },
-      visitAgeDays: ageDays,
-    },
+      visitAgeDays: ageDays
+    }
   };
 }
 
@@ -177,7 +191,7 @@ function normalizeManualScores(scores = {}) {
 export async function getSiteHealth(siteId, forcedVisitId = null, patrimoineOverride = null) {
   const [automatic, settings] = await Promise.all([
     computeAutomaticSiteHealth(siteId, forcedVisitId, patrimoineOverride),
-    getSiteHealthManualSettings(siteId),
+    getSiteHealthManualSettings(siteId)
   ]);
   if (settings.mode !== 'manual') return { ...automatic, settings, automatic };
 
@@ -192,7 +206,7 @@ export async function getSiteHealth(siteId, forcedVisitId = null, patrimoineOver
     dimensions: HEALTH_DIMENSIONS.map((dimension) => ({ ...dimension, score: scores[dimension.key] })),
     settings,
     automatic,
-    manualComment: settings.comment || '',
+    manualComment: settings.comment || ''
   };
 }
 
@@ -200,7 +214,7 @@ export async function saveSiteHealthMode(siteId, mode, scores = {}, comment = ''
   return setSiteHealthManualSettings(siteId, {
     mode: mode === 'manual' ? 'manual' : 'auto',
     scores: normalizeManualScores(scores),
-    comment,
+    comment
   });
 }
 
@@ -209,10 +223,14 @@ export function aggregateSiteHealth(siteHealthList = []) {
   const dimensions = {};
   for (const dimension of HEALTH_DIMENSIONS) {
     const values = valid.map((item) => clampScore(item?.scores?.[dimension.key])).filter((value) => value !== null);
-    dimensions[dimension.key] = values.length ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length) : null;
+    dimensions[dimension.key] = values.length
+      ? Math.round(values.reduce((sum, value) => sum + value, 0) / values.length)
+      : null;
   }
   const overallValues = valid.map((item) => clampScore(item?.overall)).filter((value) => value !== null);
-  const overall = overallValues.length ? Math.round(overallValues.reduce((sum, value) => sum + value, 0) / overallValues.length) : null;
+  const overall = overallValues.length
+    ? Math.round(overallValues.reduce((sum, value) => sum + value, 0) / overallValues.length)
+    : null;
   const ranked = valid.filter((item) => clampScore(item?.overall) !== null).sort((a, b) => a.overall - b.overall);
   return {
     overall,
@@ -224,13 +242,16 @@ export function aggregateSiteHealth(siteHealthList = []) {
     satisfaisants: overallValues.filter((value) => value >= 80).length,
     aSurveiller: overallValues.filter((value) => value >= 60 && value < 80).length,
     prioritaires: overallValues.filter((value) => value < 60).length,
-    lowest: ranked[0] || null,
+    lowest: ranked[0] || null
   };
 }
 
 export async function getClientHealth(clientId, statsBySite = null) {
   const db = await getDb();
-  const sites = await db.getAllAsync(`SELECT id,nom_site,adresse FROM sites WHERE client_id=? ORDER BY nom_site COLLATE NOCASE`, [clientId]);
+  const sites = await db.getAllAsync(
+    `SELECT id,nom_site,adresse FROM sites WHERE client_id=? ORDER BY nom_site COLLATE NOCASE`,
+    [clientId]
+  );
   const health = await mapHealthAvecConcurrence(sites || [], 6, async (site) => {
     const override = statsBySite?.get ? statsBySite.get(site.id) : null;
     const item = await getSiteHealth(site.id, null, override || null);

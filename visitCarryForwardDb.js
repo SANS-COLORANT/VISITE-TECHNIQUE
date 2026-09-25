@@ -1,9 +1,17 @@
 import { createId } from './database/ids.js';
 import { DEFAULT_TRAME_ID, obtenirTrame } from './trameRegistry.js';
 
-function clean(value) { return value == null ? '' : String(value).trim(); }
+function clean(value) {
+  return value == null ? '' : String(value).trim();
+}
 function sectionCode(panelId, section) {
-  return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  return (
+    panelId.replace('p-', '') +
+    '.' +
+    String(section)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+  );
 }
 
 const CURRENT_METADATA_KEYS = new Set([
@@ -15,7 +23,7 @@ const CURRENT_METADATA_KEYS = new Set([
   'Date de la visite',
   'Date de visite',
   'Heure de visite',
-  'Adresse',
+  'Adresse'
 ]);
 
 function canCarryField(trame, field) {
@@ -161,14 +169,28 @@ async function copyNetworkValues(db, visiteId, previousVisitId) {
     await db.runAsync(
       `INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id)
        VALUES(?,?,?,?,?,?,?,?,?,?)`,
-      [newId, visiteId, Number(row.ordre || 0), row.nom_reseau || 'Réseau', row.t_ext_c ?? null,
-        row.t_dep_c ?? null, row.courbe_de_chauffe ?? null, row.tnc ?? null,
-        row.consigne_programme_horaire ?? null, row.reseau_site_id || null]
+      [
+        newId,
+        visiteId,
+        Number(row.ordre || 0),
+        row.nom_reseau || 'Réseau',
+        row.t_ext_c ?? null,
+        row.t_dep_c ?? null,
+        row.courbe_de_chauffe ?? null,
+        row.tnc ?? null,
+        row.consigne_programme_horaire ?? null,
+        row.reseau_site_id || null
+      ]
     );
-    const provenance = await db.getAllAsync(`SELECT reference_externe,details_json FROM provenances WHERE entite_type='reseau' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le`, [row.id]);
+    const provenance = await db.getAllAsync(
+      `SELECT reference_externe,details_json FROM provenances WHERE entite_type='reseau' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le`,
+      [row.id]
+    );
     for (const source of provenance || []) {
-      await db.runAsync(`INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json) VALUES(?, 'reseau', ?, 'api_symfony', ?, ?)`,
-        [createId(), newId, source.reference_externe ?? null, source.details_json ?? null]);
+      await db.runAsync(
+        `INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json) VALUES(?, 'reseau', ?, 'api_symfony', ?, ?)`,
+        [createId(), newId, source.reference_externe ?? null, source.details_json ?? null]
+      );
     }
     copied += 1;
   }
@@ -185,10 +207,14 @@ async function copyMeterValues(db, visiteId, previousVisitId) {
   );
   let copied = 0;
   for (const row of previous || []) {
-    await db.runAsync(
-      `INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id) VALUES(?,?,?,?,?,?)`,
-      [createId(), visiteId, row.label || 'Compteur', row.valeur ?? null, row.unite || null, row.compteur_site_id || null]
-    );
+    await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id) VALUES(?,?,?,?,?,?)`, [
+      createId(),
+      visiteId,
+      row.label || 'Compteur',
+      row.valeur ?? null,
+      row.unite || null,
+      row.compteur_site_id || null
+    ]);
     copied += 1;
   }
   return copied;
@@ -204,7 +230,7 @@ async function remoteLocalForInstallation(db, installationId) {
 }
 
 async function bindInstallation(db, contexte, visiteId, installationId, remoteLocalId = null) {
-  const finalRemoteLocalId = clean(remoteLocalId) || await remoteLocalForInstallation(db, installationId);
+  const finalRemoteLocalId = clean(remoteLocalId) || (await remoteLocalForInstallation(db, installationId));
   const installation = await db.getFirstAsync(`SELECT nom FROM installations WHERE id=? LIMIT 1`, [installationId]);
   await db.runAsync(
     `UPDATE visites SET installation_id=?,api_remote_local_id=COALESCE(api_remote_local_id,?),modifie_le=datetime('now') WHERE id=?`,
@@ -214,7 +240,7 @@ async function bindInstallation(db, contexte, visiteId, installationId, remoteLo
     ...contexte,
     installation_id: installationId,
     api_remote_local_id: contexte.api_remote_local_id || finalRemoteLocalId,
-    nom_installation: contexte.nom_installation || installation?.nom || null,
+    nom_installation: contexte.nom_installation || installation?.nom || null
   };
 }
 
@@ -243,7 +269,11 @@ async function inferUniqueInstallation(db, contexte, visiteId, trameId) {
 
   if (installationIds.length === 1) {
     const installationId = installationIds[0];
-    const remoteLocalId = clean((history || []).find((row) => clean(row.installation_id) === installationId && clean(row.api_remote_local_id))?.api_remote_local_id) || null;
+    const remoteLocalId =
+      clean(
+        (history || []).find((row) => clean(row.installation_id) === installationId && clean(row.api_remote_local_id))
+          ?.api_remote_local_id
+      ) || null;
     return { contexte: await bindInstallation(db, contexte, visiteId, installationId, remoteLocalId), canCarry: true };
   }
 
@@ -266,14 +296,30 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
   // Ouvrir une ancienne visite terminée/importée ne doit jamais la modifier à
   // partir d'une autre visite historique.
   if (clean(contexte?.statut) !== 'en_cours') {
-    return { contexte, previousVisitId: null, copiedFields: 0, copiedControls: 0, copiedNetworks: 0, copiedMeters: 0, skippedHistoricalVisit: true };
+    return {
+      contexte,
+      previousVisitId: null,
+      copiedFields: 0,
+      copiedControls: 0,
+      copiedNetworks: 0,
+      copiedMeters: 0,
+      skippedHistoricalVisit: true
+    };
   }
 
   const trame = obtenirTrame(contexte.trame_id || DEFAULT_TRAME_ID);
   const resolution = await inferUniqueInstallation(db, contexte, visiteId, trame.id);
   const resolved = resolution.contexte;
   if (!resolution.canCarry) {
-    return { contexte: resolved, previousVisitId: null, copiedFields: 0, copiedControls: 0, copiedNetworks: 0, copiedMeters: 0, ambiguousLocal: true };
+    return {
+      contexte: resolved,
+      previousVisitId: null,
+      copiedFields: 0,
+      copiedControls: 0,
+      copiedNetworks: 0,
+      copiedMeters: 0,
+      ambiguousLocal: true
+    };
   }
 
   const previous = await db.getFirstAsync(
@@ -283,7 +329,15 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
      ORDER BY COALESCE(date_visite,'') DESC,modifie_le DESC LIMIT 1`,
     [resolved.site_id, visiteId, DEFAULT_TRAME_ID, trame.id, resolved.installation_id, resolved.installation_id]
   );
-  if (!previous?.id) return { contexte: resolved, previousVisitId: null, copiedFields: 0, copiedControls: 0, copiedNetworks: 0, copiedMeters: 0 };
+  if (!previous?.id)
+    return {
+      contexte: resolved,
+      previousVisitId: null,
+      copiedFields: 0,
+      copiedControls: 0,
+      copiedNetworks: 0,
+      copiedMeters: 0
+    };
 
   const copiedFields = await copyReusableFields(db, visiteId, previous.id, trame);
   const copiedControls = await copyReusableControls(db, visiteId, previous.id, trame);
@@ -297,6 +351,6 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
     copiedControls,
     copiedNetworks,
     copiedMeters,
-    ambiguousLocal: false,
+    ambiguousLocal: false
   };
 }

@@ -12,7 +12,14 @@ import { beginExternalSave, endExternalSave } from './saveActivity.js';
 import { useListScrollMemory } from './useListScrollMemory.js';
 import { prewarmCameraRuntime } from './cameraRuntime.js';
 import { prewarmPhotoCaptureContext } from './photoCaptureContext.js';
-import { loadVisitPhotos, peekVisitPhotos, removeRuntimePhoto, replaceRuntimePhoto, subscribeVisitPhotos, upsertRuntimePhoto } from './photoRuntimeCache.js';
+import {
+  loadVisitPhotos,
+  peekVisitPhotos,
+  removeRuntimePhoto,
+  replaceRuntimePhoto,
+  subscribeVisitPhotos,
+  upsertRuntimePhoto
+} from './photoRuntimeCache.js';
 
 const PhotoTile = memo(function PhotoTile({ photo, taille, onPress }) {
   return (
@@ -58,7 +65,10 @@ function OptimizedPhotoPanel({ visiteId }) {
     if (!cached) loadVisitPhotos(visiteId).catch(() => {});
     prewarmCameraRuntime().catch(() => {});
     prewarmPhotoCaptureContext(visiteId).catch(() => {});
-    return () => { alive = false; unsubscribe(); };
+    return () => {
+      alive = false;
+      unsubscribe();
+    };
   }, [visiteId]);
 
   const colonnes = width >= 1200 ? 5 : width >= 900 ? 4 : width >= 600 ? 3 : 2;
@@ -92,7 +102,7 @@ function OptimizedPhotoPanel({ visiteId }) {
       uri: captureUri,
       label: 'Photo générale',
       cree_le: new Date().toISOString(),
-      pending: true,
+      pending: true
     };
     upsertRuntimePhoto(visiteId, optimistic);
 
@@ -107,7 +117,7 @@ function OptimizedPhotoPanel({ visiteId }) {
           visiteId,
           entiteKey: null,
           label: 'Photo générale',
-          uri: captureUri,
+          uri: captureUri
         });
         if (!photo.uri) throw new Error('Photo non préparée');
         const labelDb = photo.nom ? `Photo générale||${photo.nom}` : 'Photo générale';
@@ -117,7 +127,7 @@ function OptimizedPhotoPanel({ visiteId }) {
           id: tempId,
           uri: photo.uri,
           label: labelDb,
-          pending: true,
+          pending: true
         });
 
         journalKey = await journaliserPhotoEnAttente({ visiteId, entiteKey: null, uri: photo.uri, labelDb });
@@ -132,7 +142,7 @@ function OptimizedPhotoPanel({ visiteId }) {
           uri: photo.uri,
           label: labelDb,
           cree_le: new Date().toISOString(),
-          pending: false,
+          pending: false
         });
         endExternalSave(saveKey);
       } catch (e) {
@@ -163,31 +173,41 @@ function OptimizedPhotoPanel({ visiteId }) {
               upsertRuntimePhoto(visiteId, photo);
               Alert.alert('Suppression impossible', String(e?.message || e));
             }
-          },
-        },
+          }
+        }
       ]
     );
   }, [viewerPhoto, visiteId]);
 
-  const header = useMemo(() => (
-    <View>
-      <Text style={styles.sectionTitle}>Toutes les photos de la visite · {photos.length}</Text>
-      <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 10 }}>
-        Galerie virtualisée : seules les images proches de l’écran restent montées pour préserver la mémoire de la tablette.
-      </Text>
-    </View>
-  ), [photos.length]);
+  const header = useMemo(
+    () => (
+      <View>
+        <Text style={styles.sectionTitle}>Toutes les photos de la visite · {photos.length}</Text>
+        <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 10 }}>
+          Galerie virtualisée : seules les images proches de l’écran restent montées pour préserver la mémoire de la
+          tablette.
+        </Text>
+      </View>
+    ),
+    [photos.length]
+  );
 
-  const footer = useMemo(() => (
-    <TouchableOpacity
-      style={[styles.addBtn, cameraEnCours && { opacity: 0.55 }]}
-      onPressIn={() => { prewarmCameraRuntime().catch(() => {}); prewarmPhotoCaptureContext(visiteId).catch(() => {}); }}
-      onPress={onAjouter}
-      disabled={cameraEnCours}
-    >
-      <Text style={styles.addBtnText}>{cameraEnCours ? 'Appareil photo…' : '+ Ajouter une photo générale'}</Text>
-    </TouchableOpacity>
-  ), [cameraEnCours, onAjouter, visiteId]);
+  const footer = useMemo(
+    () => (
+      <TouchableOpacity
+        style={[styles.addBtn, cameraEnCours && { opacity: 0.55 }]}
+        onPressIn={() => {
+          prewarmCameraRuntime().catch(() => {});
+          prewarmPhotoCaptureContext(visiteId).catch(() => {});
+        }}
+        onPress={onAjouter}
+        disabled={cameraEnCours}
+      >
+        <Text style={styles.addBtnText}>{cameraEnCours ? 'Appareil photo…' : '+ Ajouter une photo générale'}</Text>
+      </TouchableOpacity>
+    ),
+    [cameraEnCours, onAjouter, visiteId]
+  );
 
   return (
     <View style={{ flex: 1 }}>
@@ -199,12 +219,28 @@ function OptimizedPhotoPanel({ visiteId }) {
         key={`photos-${colonnes}`}
         numColumns={colonnes}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <PhotoTile photo={item} taille={taille} onPress={(photo) => { setViewerHd(false); setViewerPhoto(photo); }} />}
+        renderItem={({ item }) => (
+          <PhotoTile
+            photo={item}
+            taille={taille}
+            onPress={(photo) => {
+              setViewerHd(false);
+              setViewerPhoto(photo);
+            }}
+          />
+        )}
         columnWrapperStyle={colonnes > 1 ? { gap: espace } : undefined}
         contentContainerStyle={styles.panelContent}
         ListHeaderComponent={header}
         ListFooterComponent={footer}
-        ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucune photo pour cette visite.</Text><Text style={styles.emptySub}>Les photos prises depuis les équipements, réserves et compteurs apparaîtront aussi ici.</Text></View>}
+        ListEmptyComponent={
+          <View style={styles.empty}>
+            <Text style={styles.emptyText}>Aucune photo pour cette visite.</Text>
+            <Text style={styles.emptySub}>
+              Les photos prises depuis les équipements, réserves et compteurs apparaîtront aussi ici.
+            </Text>
+          </View>
+        }
         initialNumToRender={8}
         maxToRenderPerBatch={8}
         updateCellsBatchingPeriod={50}
@@ -215,14 +251,35 @@ function OptimizedPhotoPanel({ visiteId }) {
 
       <Modal visible={!!viewerPhoto} transparent animationType="fade" onRequestClose={() => setViewerPhoto(null)}>
         <View style={styles.viewerOverlay}>
-          <TouchableOpacity style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} onPress={() => setViewerPhoto(null)} activeOpacity={1} />
-          {viewerPhoto ? <PhotoVariantImage uri={viewerPhoto.uri} variant={viewerPhoto.pending || viewerHd ? 'original' : 'preview'} style={styles.viewerImg} resizeMode="contain" /> : null}
+          <TouchableOpacity
+            style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }}
+            onPress={() => setViewerPhoto(null)}
+            activeOpacity={1}
+          />
+          {viewerPhoto ? (
+            <PhotoVariantImage
+              uri={viewerPhoto.uri}
+              variant={viewerPhoto.pending || viewerHd ? 'original' : 'preview'}
+              style={styles.viewerImg}
+              resizeMode="contain"
+            />
+          ) : null}
           <View style={{ position: 'absolute', top: 24, right: 24 }}>
             <TouchableOpacity style={styles.photoViewerSecondary} onPress={() => setViewerHd((v) => !v)}>
               <Text style={styles.photoViewerSecondaryText}>{viewerHd ? 'Aperçu léger' : 'HD'}</Text>
             </TouchableOpacity>
           </View>
-          <View style={{ position: 'absolute', bottom: 26, left: 24, right: 24, flexDirection: 'row', justifyContent: 'center', gap: 12 }}>
+          <View
+            style={{
+              position: 'absolute',
+              bottom: 26,
+              left: 24,
+              right: 24,
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: 12
+            }}
+          >
             <TouchableOpacity style={styles.photoViewerSecondary} onPress={supprimerSelection}>
               <Text style={styles.photoViewerSecondaryText}>Supprimer</Text>
             </TouchableOpacity>

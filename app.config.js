@@ -6,9 +6,12 @@ module.exports = ({ config }) => {
   const android = config.android || {};
   const androidConfig = android.config || {};
   const plugins = [...(config.plugins || [])];
-  if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === './plugins/withMetraDpop')) plugins.push('./plugins/withMetraDpop');
-  if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === './plugins/withMetraMissionTools')) plugins.push('./plugins/withMetraMissionTools');
-  if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === './plugins/withMetraCompanion')) plugins.push('./plugins/withMetraCompanion');
+  if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === './plugins/withMetraDpop'))
+    plugins.push('./plugins/withMetraDpop');
+  if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === './plugins/withMetraMissionTools'))
+    plugins.push('./plugins/withMetraMissionTools');
+  if (!plugins.some((entry) => (Array.isArray(entry) ? entry[0] : entry) === './plugins/withMetraCompanion'))
+    plugins.push('./plugins/withMetraCompanion');
 
   // Keep JavaScript and the generated Android manifest on the exact same
   // source of truth. The file is also committed with `false` as a safe
@@ -27,11 +30,11 @@ module.exports = ({ config }) => {
       ...android,
       config: key
         ? { ...androidConfig, googleMaps: { ...(androidConfig.googleMaps || {}), apiKey: key } }
-        : androidConfig,
+        : androidConfig
     },
     extra: {
       ...(config.extra || {}),
-      googleMapsConfigured: Boolean(key),
-    },
+      googleMapsConfigured: Boolean(key)
+    }
   };
 };

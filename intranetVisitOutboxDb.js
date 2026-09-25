@@ -8,14 +8,25 @@ let processorPromise = null;
 
 function notify() {
   revision += 1;
-  for (const listener of listeners) { try { listener(revision); } catch {} }
+  for (const listener of listeners) {
+    try {
+      listener(revision);
+    } catch {}
+  }
 }
-export function subscribeVisitOutbox(listener) { listeners.add(listener); return () => listeners.delete(listener); }
-export function getVisitOutboxRevision() { return revision; }
+export function subscribeVisitOutbox(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+export function getVisitOutboxRevision() {
+  return revision;
+}
 
 const RETRYABLE_HTTP = new Set([500, 502, 503, 504]);
 const LOCAL_AUTH_ERRORS = new Set(['reactivation_required', 'dpop_key_missing', 'invalid_grant']);
-function isoAfter(milliseconds) { return new Date(Date.now() + Math.max(1000, milliseconds)).toISOString(); }
+function isoAfter(milliseconds) {
+  return new Date(Date.now() + Math.max(1000, milliseconds)).toISOString();
+}
 function retryAfterMs(value) {
   if (value == null || value === '') return 60_000;
   const seconds = Number(value);
@@ -26,8 +37,12 @@ function retryAfterMs(value) {
   const at = Date.parse(String(value));
   return Number.isFinite(at) ? Math.max(1000, at - Date.now()) : 60_000;
 }
-function exponentialRetry(attempt) { return Math.min(15 * 60_000, Math.max(15_000, 15_000 * 2 ** Math.min(6, Math.max(0, attempt - 1)))); }
-function violationsJson(error) { return error?.violations?.length ? JSON.stringify(error.violations) : null; }
+function exponentialRetry(attempt) {
+  return Math.min(15 * 60_000, Math.max(15_000, 15_000 * 2 ** Math.min(6, Math.max(0, attempt - 1))));
+}
+function violationsJson(error) {
+  return error?.violations?.length ? JSON.stringify(error.violations) : null;
+}
 
 export async function getVisitUploadState(visiteId) {
   const db = await getDb();
@@ -59,17 +74,22 @@ export async function previewVisitUpload(visiteId) {
   return buildIntranetVisitPayload(visiteId, '00000000-0000-4000-8000-000000000000');
 }
 
-export async function queueVisitUpload(visiteId, {
-  confirmMaterialReplacement = false,
-  // Compatibilité avec le nom utilisé par le premier build de l'upload.
-  confirmMaterialClear = false,
-  replaceTerminal = false,
-} = {}) {
+export async function queueVisitUpload(
+  visiteId,
+  {
+    confirmMaterialReplacement = false,
+    // Compatibilité avec le nom utilisé par le premier build de l'upload.
+    confirmMaterialClear = false,
+    replaceTerminal = false
+  } = {}
+) {
   const db = await getDb();
   const visit = await db.getFirstAsync(`SELECT id,statut FROM visites WHERE id=?`, [visiteId]);
   if (!visit) throw new IntranetVisitValidationError(['Visite introuvable.']);
   if (!['terminee', 'exportee'].includes(visit.statut)) {
-    throw new IntranetVisitValidationError(['Finalise la visite avant de l’envoyer. Le POST Intranet crée une nouvelle visite serveur et ne permet pas de mettre à jour progressivement une visite déjà créée.']);
+    throw new IntranetVisitValidationError([
+      'Finalise la visite avant de l’envoyer. Le POST Intranet crée une nouvelle visite serveur et ne permet pas de mettre à jour progressivement une visite déjà créée.'
+    ]);
   }
   const existing = await getVisitUploadState(visiteId);
   if (existing) {
@@ -81,8 +101,8 @@ export async function queueVisitUpload(visiteId, {
   if (prepared.destructiveMaterialChange && !confirmMaterialReplacement && !confirmMaterialClear) {
     const removed = Number(prepared.removedSourceMaterialCount || 0);
     const error = new Error(
-      `Le listing Intranet de référence contient ${prepared.sourceMaterialCount} matériel(s) et METRA en enverra ${prepared.summary.materials}. `
-      + `Le POST remplace le listing complet : ${removed} matériel(s) au minimum disparaîtront du local si cet envoi est confirmé.`
+      `Le listing Intranet de référence contient ${prepared.sourceMaterialCount} matériel(s) et METRA en enverra ${prepared.summary.materials}. ` +
+        `Le POST remplace le listing complet : ${removed} matériel(s) au minimum disparaîtront du local si cet envoi est confirmé.`
     );
     error.code = prepared.destructiveMaterialClear
       ? 'material_clear_confirmation_required'
@@ -91,10 +111,12 @@ export async function queueVisitUpload(visiteId, {
     throw error;
   }
   if (existing && replaceTerminal) await db.runAsync(`DELETE FROM api_visit_outbox WHERE visite_id=?`, [visiteId]);
-  await db.runAsync(`INSERT INTO api_visit_outbox(
+  await db.runAsync(
+    `INSERT INTO api_visit_outbox(
       envoi_id,visite_id,remote_client_id,payload_json,payload_bytes,status,attempt_count,next_attempt_at
     ) VALUES(?,?,?,?,?,'pending',0,NULL)`,
-    [envoiId, String(visiteId), prepared.remoteClientId, prepared.serialized, prepared.payloadBytes]);
+    [envoiId, String(visiteId), prepared.remoteClientId, prepared.serialized, prepared.payloadBytes]
+  );
   notify();
   return getVisitUploadState(visiteId);
 }
@@ -109,18 +131,42 @@ export async function discardTerminalVisitUpload(visiteId) {
 }
 
 async function markRetry(db, row, error, delay) {
-  await db.runAsync(`UPDATE api_visit_outbox SET status='retry',next_attempt_at=?,http_status=?,error_code=?,error_message=?,violations_json=?,updated_at=datetime('now') WHERE envoi_id=?`,
-    [isoAfter(delay), error?.status || null, error?.code || null, String(error?.message || 'Connexion indisponible'), violationsJson(error), row.envoi_id]);
+  await db.runAsync(
+    `UPDATE api_visit_outbox SET status='retry',next_attempt_at=?,http_status=?,error_code=?,error_message=?,violations_json=?,updated_at=datetime('now') WHERE envoi_id=?`,
+    [
+      isoAfter(delay),
+      error?.status || null,
+      error?.code || null,
+      String(error?.message || 'Connexion indisponible'),
+      violationsJson(error),
+      row.envoi_id
+    ]
+  );
 }
 async function markTerminal(db, row, status, error) {
-  await db.runAsync(`UPDATE api_visit_outbox SET status=?,next_attempt_at=NULL,http_status=?,error_code=?,error_message=?,violations_json=?,updated_at=datetime('now') WHERE envoi_id=?`,
-    [status, error?.status || null, error?.code || null, String(error?.message || 'Envoi refusé'), violationsJson(error), row.envoi_id]);
+  await db.runAsync(
+    `UPDATE api_visit_outbox SET status=?,next_attempt_at=NULL,http_status=?,error_code=?,error_message=?,violations_json=?,updated_at=datetime('now') WHERE envoi_id=?`,
+    [
+      status,
+      error?.status || null,
+      error?.code || null,
+      String(error?.message || 'Envoi refusé'),
+      violationsJson(error),
+      row.envoi_id
+    ]
+  );
 }
 
 async function assertRowTargetsImportedClient(db, row) {
   let payloadLocalId = null;
-  try { payloadLocalId = JSON.parse(row.payload_json)?.visites?.[0]?.localId ?? null; } catch {}
-  const linked = payloadLocalId == null ? null : await db.getFirstAsync(`SELECT l.remote_local_id
+  try {
+    payloadLocalId = JSON.parse(row.payload_json)?.visites?.[0]?.localId ?? null;
+  } catch {}
+  const linked =
+    payloadLocalId == null
+      ? null
+      : await db.getFirstAsync(
+          `SELECT l.remote_local_id
     FROM visites v
     JOIN sites local_site ON local_site.id=v.site_id
     JOIN api_client_links c ON c.local_client_id=local_site.client_id
@@ -129,11 +175,16 @@ async function assertRowTargetsImportedClient(db, row) {
     JOIN api_local_links l ON l.remote_site_id=remote_site.remote_site_id AND l.remote_present=1
     WHERE v.id=? AND c.remote_client_id=?
       AND COALESCE(remote_site.local_site_id,cs.local_site_id)=local_site.id
-      AND l.remote_local_id=? LIMIT 1`, [String(row.visite_id), String(row.remote_client_id), String(payloadLocalId)]);
+      AND l.remote_local_id=? LIMIT 1`,
+          [String(row.visite_id), String(row.remote_client_id), String(payloadLocalId)]
+        );
   if (linked) return null;
-  const error = Object.assign(new Error(
-    'Cet envoi ne correspond plus au client, au site ou au local Intranet importé lié à la visite. METRA bloque cet ancien envoi avant tout appel réseau.'
-  ), { code: 'wrong_imported_client' });
+  const error = Object.assign(
+    new Error(
+      'Cet envoi ne correspond plus au client, au site ou au local Intranet importé lié à la visite. METRA bloque cet ancien envoi avant tout appel réseau.'
+    ),
+    { code: 'wrong_imported_client' }
+  );
   await markTerminal(db, row, 'rejected', error);
   notify();
   return error;
@@ -141,7 +192,9 @@ async function assertRowTargetsImportedClient(db, row) {
 
 export async function recoverInterruptedVisitUploads() {
   const db = await getDb();
-  const result = await db.runAsync(`UPDATE api_visit_outbox SET status='retry',next_attempt_at=datetime('now'),error_code='interrupted',error_message='Envoi interrompu avant confirmation : reprise idempotente.',updated_at=datetime('now') WHERE status='sending'`);
+  const result = await db.runAsync(
+    `UPDATE api_visit_outbox SET status='retry',next_attempt_at=datetime('now'),error_code='interrupted',error_message='Envoi interrompu avant confirmation : reprise idempotente.',updated_at=datetime('now') WHERE status='sending'`
+  );
   if (Number(result?.changes || 0) > 0) notify();
 }
 
@@ -149,19 +202,38 @@ async function sendRow(db, row) {
   const ownershipError = await assertRowTargetsImportedClient(db, row);
   if (ownershipError) return { status: 'error', row: await getVisitUploadState(row.visite_id), error: ownershipError };
 
-  await db.runAsync(`UPDATE api_visit_outbox SET status='sending',attempt_count=attempt_count+1,last_attempt_at=datetime('now'),error_code=NULL,error_message=NULL,violations_json=NULL,updated_at=datetime('now') WHERE envoi_id=?`, [row.envoi_id]);
+  await db.runAsync(
+    `UPDATE api_visit_outbox SET status='sending',attempt_count=attempt_count+1,last_attempt_at=datetime('now'),error_code=NULL,error_message=NULL,violations_json=NULL,updated_at=datetime('now') WHERE envoi_id=?`,
+    [row.envoi_id]
+  );
   notify();
   try {
     const response = await sendClientVisits(row.remote_client_id, row.payload_json);
-    if (String(response?.envoiId || '') !== String(row.envoi_id)) throw Object.assign(new Error('Accusé de réception Intranet incohérent : envoiId différent.'), { code: 'invalid_ack' });
+    if (String(response?.envoiId || '') !== String(row.envoi_id))
+      throw Object.assign(new Error('Accusé de réception Intranet incohérent : envoiId différent.'), {
+        code: 'invalid_ack'
+      });
     const visits = Array.isArray(response?.visites) ? response.visites : [];
-    if (typeof response?.rejoue !== 'boolean') throw Object.assign(new Error('Accusé de réception Intranet incomplet : indicateur rejoue absent.'), { code: 'invalid_ack' });
-    if (visits.length !== 1 || visits[0]?.index !== 0 || visits[0]?.id == null || visits[0]?.localId == null) throw Object.assign(new Error('Accusé de réception Intranet incomplet : visite, index ou local absent.'), { code: 'invalid_ack' });
+    if (typeof response?.rejoue !== 'boolean')
+      throw Object.assign(new Error('Accusé de réception Intranet incomplet : indicateur rejoue absent.'), {
+        code: 'invalid_ack'
+      });
+    if (visits.length !== 1 || visits[0]?.index !== 0 || visits[0]?.id == null || visits[0]?.localId == null)
+      throw Object.assign(new Error('Accusé de réception Intranet incomplet : visite, index ou local absent.'), {
+        code: 'invalid_ack'
+      });
     let expectedLocalId = null;
-    try { expectedLocalId = JSON.parse(row.payload_json)?.visites?.[0]?.localId; } catch {}
-    if (String(visits[0].localId) !== String(expectedLocalId)) throw Object.assign(new Error('Accusé de réception Intranet incohérent : localId différent.'), { code: 'invalid_ack' });
-    await db.runAsync(`UPDATE api_visit_outbox SET status='synced',next_attempt_at=NULL,http_status=?,error_code=NULL,error_message=NULL,violations_json=NULL,remote_visit_id=?,replayed=?,synced_at=datetime('now'),updated_at=datetime('now') WHERE envoi_id=?`,
-      [response?.rejoue ? 200 : 201, String(visits[0].id), response?.rejoue ? 1 : 0, row.envoi_id]);
+    try {
+      expectedLocalId = JSON.parse(row.payload_json)?.visites?.[0]?.localId;
+    } catch {}
+    if (String(visits[0].localId) !== String(expectedLocalId))
+      throw Object.assign(new Error('Accusé de réception Intranet incohérent : localId différent.'), {
+        code: 'invalid_ack'
+      });
+    await db.runAsync(
+      `UPDATE api_visit_outbox SET status='synced',next_attempt_at=NULL,http_status=?,error_code=NULL,error_message=NULL,violations_json=NULL,remote_visit_id=?,replayed=?,synced_at=datetime('now'),updated_at=datetime('now') WHERE envoi_id=?`,
+      [response?.rejoue ? 200 : 201, String(visits[0].id), response?.rejoue ? 1 : 0, row.envoi_id]
+    );
     notify();
     return { status: 'synced', row: await getVisitUploadState(row.visite_id), response };
   } catch (error) {
@@ -169,9 +241,11 @@ async function sendRow(db, row) {
     const localAuthFailure = LOCAL_AUTH_ERRORS.has(String(error?.code || ''));
     if (error?.code === 'invalid_ack') await markTerminal(db, row, 'rejected', error);
     else if (localAuthFailure || status === 401) await markTerminal(db, row, 'auth_error', error);
-    else if (!status || RETRYABLE_HTTP.has(status)) await markRetry(db, row, error, exponentialRetry(Number(row.attempt_count || 0) + 1));
+    else if (!status || RETRYABLE_HTTP.has(status))
+      await markRetry(db, row, error, exponentialRetry(Number(row.attempt_count || 0) + 1));
     else if (status === 429) await markRetry(db, row, error, retryAfterMs(error.retryAfter));
-    else if (status === 409 && error?.code === 'synchronization_conflict') await markTerminal(db, row, 'conflict', error);
+    else if (status === 409 && error?.code === 'synchronization_conflict')
+      await markTerminal(db, row, 'conflict', error);
     else if (status === 409) await markTerminal(db, row, 'rejected', error);
     else if (status === 422) await markTerminal(db, row, 'validation_error', error);
     else await markTerminal(db, row, 'rejected', error);
@@ -185,9 +259,12 @@ export async function processVisitOutbox({ limit = 3 } = {}) {
   processorPromise = (async () => {
     const db = await getDb();
     await recoverInterruptedVisitUploads();
-    const rows = await db.getAllAsync(`SELECT * FROM api_visit_outbox
+    const rows = await db.getAllAsync(
+      `SELECT * FROM api_visit_outbox
       WHERE status IN ('pending','retry') AND (next_attempt_at IS NULL OR datetime(next_attempt_at)<=datetime('now'))
-      ORDER BY queued_at LIMIT ?`, [Math.max(1, Math.min(10, Number(limit || 3)))]);
+      ORDER BY queued_at LIMIT ?`,
+      [Math.max(1, Math.min(10, Number(limit || 3)))]
+    );
     const results = [];
     // Sequential by design: safely below the server's 10 visit-send requests/minute
     // and simpler idempotent recovery after an uncertain mobile connection.
@@ -196,10 +273,13 @@ export async function processVisitOutbox({ limit = 3 } = {}) {
       results.push(result);
       const http = Number(result?.error?.status || 0);
       const auth = LOCAL_AUTH_ERRORS.has(String(result?.error?.code || ''));
-      if (result?.status === 'error' && (auth || !http || http === 401 || http === 429 || RETRYABLE_HTTP.has(http))) break;
+      if (result?.status === 'error' && (auth || !http || http === 401 || http === 429 || RETRYABLE_HTTP.has(http)))
+        break;
     }
     return results;
-  })().finally(() => { processorPromise = null; });
+  })().finally(() => {
+    processorPromise = null;
+  });
   return processorPromise;
 }
 
@@ -207,7 +287,10 @@ export async function retryVisitUploadNow(visiteId) {
   const db = await getDb();
   const row = await getVisitUploadState(visiteId);
   if (!row || !['retry', 'pending', 'auth_error'].includes(row.status)) return row;
-  await db.runAsync(`UPDATE api_visit_outbox SET next_attempt_at=NULL,status='pending',updated_at=datetime('now') WHERE visite_id=?`, [visiteId]);
+  await db.runAsync(
+    `UPDATE api_visit_outbox SET next_attempt_at=NULL,status='pending',updated_at=datetime('now') WHERE visite_id=?`,
+    [visiteId]
+  );
   notify();
   await processVisitOutbox({ limit: 1 });
   return getVisitUploadState(visiteId);

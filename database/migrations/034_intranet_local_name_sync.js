@@ -48,5 +48,5 @@ export const migration034 = {
           modifie_le = datetime('now')
       WHERE id = NEW.local_installation_id;
     END;
-  `,
+  `
 };

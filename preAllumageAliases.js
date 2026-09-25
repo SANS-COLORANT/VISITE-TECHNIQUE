@@ -4,7 +4,12 @@ import { createId } from './database/ids.js';
 const PREFIX = 'pre_allumage.alias.';
 
 function slug(value) {
-  return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+  return String(value || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '');
 }
 
 export function sectionAliasDescriptor(panelId, title) {
@@ -45,7 +50,10 @@ export async function enregistrerAliasPreAllumage(visiteId, key, valeur, valeurP
   const propre = String(valeur || '').trim();
   const cle = `${PREFIX}${key}`;
   if (!propre || propre === String(valeurParDefaut || '').trim()) {
-    await db.runAsync(`DELETE FROM attributs_libres WHERE entite_type='site' AND entite_id=? AND cle=?`, [contexte.site_id, cle]);
+    await db.runAsync(`DELETE FROM attributs_libres WHERE entite_type='site' AND entite_id=? AND cle=?`, [
+      contexte.site_id,
+      cle
+    ]);
     return '';
   }
   await db.runAsync(

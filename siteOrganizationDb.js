@@ -1,6 +1,10 @@
 import { getDb, uuidv4 } from './db.js';
 
-function texte(v = '') { return String(v ?? '').trim().replace(/\s+/g, ' '); }
+function texte(v = '') {
+  return String(v ?? '')
+    .trim()
+    .replace(/\s+/g, ' ');
+}
 
 async function insererClone(db, table, source, overrides = {}, exclusions = []) {
   const colonnes = await db.getAllAsync(`PRAGMA table_info(${table})`);
@@ -19,7 +23,10 @@ async function insererClone(db, table, source, overrides = {}, exclusions = []) 
 }
 
 async function clonerAttributs(db, type, sourceId, cibleId) {
-  const rows = await db.getAllAsync(`SELECT * FROM attributs_libres WHERE entite_type=? AND entite_id=?`, [type, sourceId]);
+  const rows = await db.getAllAsync(`SELECT * FROM attributs_libres WHERE entite_type=? AND entite_id=?`, [
+    type,
+    sourceId
+  ]);
   for (const row of rows) {
     await insererClone(db, 'attributs_libres', row, { id: uuidv4(), entite_id: cibleId }, ['cree_le', 'modifie_le']);
   }
@@ -54,10 +61,18 @@ export async function creerGroupeSite(clientId, nom, description = null) {
   const propre = texte(nom);
   if (!propre) throw new Error('Le nom du groupe est requis.');
   const db = await getDb();
-  const existant = await db.getFirstAsync(`SELECT id FROM site_groupes WHERE client_id=? AND lower(nom)=lower(?)`, [clientId, propre]);
+  const existant = await db.getFirstAsync(`SELECT id FROM site_groupes WHERE client_id=? AND lower(nom)=lower(?)`, [
+    clientId,
+    propre
+  ]);
   if (existant?.id) return existant.id;
   const id = uuidv4();
-  await db.runAsync(`INSERT INTO site_groupes(id,client_id,nom,description) VALUES(?,?,?,?)`, [id, clientId, propre, texte(description) || null]);
+  await db.runAsync(`INSERT INTO site_groupes(id,client_id,nom,description) VALUES(?,?,?,?)`, [
+    id,
+    clientId,
+    propre,
+    texte(description) || null
+  ]);
   return id;
 }
 
@@ -75,11 +90,15 @@ export async function supprimerGroupeSite(groupeId) {
 
 export async function definirSiteDansGroupe(siteId, groupeId, actif) {
   const db = await getDb();
-  if (actif) await db.runAsync(`INSERT OR IGNORE INTO site_groupe_membres(groupe_id,site_id) VALUES(?,?)`, [groupeId, siteId]);
+  if (actif)
+    await db.runAsync(`INSERT OR IGNORE INTO site_groupe_membres(groupe_id,site_id) VALUES(?,?)`, [groupeId, siteId]);
   else await db.runAsync(`DELETE FROM site_groupe_membres WHERE groupe_id=? AND site_id=?`, [groupeId, siteId]);
 }
 
-export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrimoine = true, copierLab3d = true } = {}) {
+export async function dupliquerSite(
+  sourceSiteId,
+  { nomSite = null, copierPatrimoine = true, copierLab3d = true } = {}
+) {
   const db = await getDb();
   const source = await db.getFirstAsync(`SELECT * FROM sites WHERE id=?`, [sourceSiteId]);
   if (!source) throw new Error('Site source introuvable.');
@@ -90,39 +109,76 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
   try {
     await insererClone(db, 'sites', source, { id: cibleId, nom_site: nomCible, statut: 'Actif' }, ['cree_le']);
 
-    const memberships = await db.getAllAsync(`SELECT groupe_id FROM site_groupe_membres WHERE site_id=?`, [sourceSiteId]);
-    for (const membre of memberships) await db.runAsync(`INSERT OR IGNORE INTO site_groupe_membres(groupe_id,site_id) VALUES(?,?)`, [membre.groupe_id, cibleId]);
+    const memberships = await db.getAllAsync(`SELECT groupe_id FROM site_groupe_membres WHERE site_id=?`, [
+      sourceSiteId
+    ]);
+    for (const membre of memberships)
+      await db.runAsync(`INSERT OR IGNORE INTO site_groupe_membres(groupe_id,site_id) VALUES(?,?)`, [
+        membre.groupe_id,
+        cibleId
+      ]);
     await clonerAttributs(db, 'site', sourceSiteId, cibleId);
 
     const equipmentMap = new Map();
     if (copierPatrimoine) {
-      const installations = await db.getAllAsync(`SELECT * FROM installations WHERE site_id=? ORDER BY cree_le,id`, [sourceSiteId]);
+      const installations = await db.getAllAsync(`SELECT * FROM installations WHERE site_id=? ORDER BY cree_le,id`, [
+        sourceSiteId
+      ]);
       for (const installation of installations) {
         const newInstallationId = uuidv4();
-        await insererClone(db, 'installations', installation, { id: newInstallationId, site_id: cibleId }, ['cree_le', 'modifie_le']);
+        await insererClone(db, 'installations', installation, { id: newInstallationId, site_id: cibleId }, [
+          'cree_le',
+          'modifie_le'
+        ]);
         await clonerAttributs(db, 'installation', installation.id, newInstallationId);
 
-        const equipements = await db.getAllAsync(`SELECT * FROM equipements WHERE installation_id=? ORDER BY cree_le,id`, [installation.id]);
+        const equipements = await db.getAllAsync(
+          `SELECT * FROM equipements WHERE installation_id=? ORDER BY cree_le,id`,
+          [installation.id]
+        );
         for (const equipement of equipements) {
           const newEquipmentId = uuidv4();
           equipmentMap.set(equipement.id, newEquipmentId);
-          await insererClone(db, 'equipements', equipement, { id: newEquipmentId, installation_id: newInstallationId }, ['cree_le', 'modifie_le']);
+          await insererClone(
+            db,
+            'equipements',
+            equipement,
+            { id: newEquipmentId, installation_id: newInstallationId },
+            ['cree_le', 'modifie_le']
+          );
           await clonerAttributs(db, 'equipement', equipement.id, newEquipmentId);
           const trames = await db.getAllAsync(`SELECT * FROM equipement_trames WHERE equipement_id=?`, [equipement.id]);
-          for (const trame of trames) await insererClone(db, 'equipement_trames', trame, { equipement_id: newEquipmentId }, ['cree_le', 'modifie_le']);
+          for (const trame of trames)
+            await insererClone(db, 'equipement_trames', trame, { equipement_id: newEquipmentId }, [
+              'cree_le',
+              'modifie_le'
+            ]);
         }
 
-        const reseaux = await db.getAllAsync(`SELECT * FROM reseaux_site WHERE installation_id=? ORDER BY ordre,id`, [installation.id]);
+        const reseaux = await db.getAllAsync(`SELECT * FROM reseaux_site WHERE installation_id=? ORDER BY ordre,id`, [
+          installation.id
+        ]);
         for (const reseau of reseaux) {
           const newReseauId = uuidv4();
-          await insererClone(db, 'reseaux_site', reseau, { id: newReseauId, installation_id: newInstallationId }, ['cree_le', 'modifie_le']);
+          await insererClone(db, 'reseaux_site', reseau, { id: newReseauId, installation_id: newInstallationId }, [
+            'cree_le',
+            'modifie_le'
+          ]);
           await clonerAttributs(db, 'reseau', reseau.id, newReseauId);
         }
 
-        const compteurs = await db.getAllAsync(`SELECT * FROM compteurs_site WHERE installation_id=? ORDER BY id`, [installation.id]);
+        const compteurs = await db.getAllAsync(`SELECT * FROM compteurs_site WHERE installation_id=? ORDER BY id`, [
+          installation.id
+        ]);
         for (const compteur of compteurs) {
           const newCompteurId = uuidv4();
-          await insererClone(db, 'compteurs_site', compteur, { id: newCompteurId, installation_id: newInstallationId }, ['cree_le', 'modifie_le']);
+          await insererClone(
+            db,
+            'compteurs_site',
+            compteur,
+            { id: newCompteurId, installation_id: newInstallationId },
+            ['cree_le', 'modifie_le']
+          );
           await clonerAttributs(db, 'compteur', compteur.id, newCompteurId);
         }
       }
@@ -138,16 +194,31 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
         for (const object of objects) {
           const newObjectId = uuidv4();
           objectMap.set(object.id, newObjectId);
-          await insererClone(db, 'lab3d_objects', object, {
-            id: newObjectId,
-            scene_id: newSceneId,
-            equipment_id: object.equipment_id ? (equipmentMap.get(object.equipment_id) || null) : null,
-          }, ['cree_le', 'modifie_le']);
+          await insererClone(
+            db,
+            'lab3d_objects',
+            object,
+            {
+              id: newObjectId,
+              scene_id: newSceneId,
+              equipment_id: object.equipment_id ? equipmentMap.get(object.equipment_id) || null : null
+            },
+            ['cree_le', 'modifie_le']
+          );
         }
         const networks = await db.getAllAsync(`SELECT * FROM lab3d_networks WHERE scene_id=?`, [scene.id]);
-        for (const network of networks) await insererClone(db, 'lab3d_networks', network, { id: uuidv4(), scene_id: newSceneId }, ['cree_le', 'modifie_le']);
+        for (const network of networks)
+          await insererClone(db, 'lab3d_networks', network, { id: uuidv4(), scene_id: newSceneId }, [
+            'cree_le',
+            'modifie_le'
+          ]);
         const openings = await db.getAllAsync(`SELECT * FROM lab3d_openings WHERE scene_id=?`, [scene.id]);
-        for (const opening of openings) await insererClone(db, 'lab3d_openings', opening, { id: uuidv4(), scene_id: newSceneId, wall_id: opening.wall_id ? (objectMap.get(opening.wall_id) || null) : null });
+        for (const opening of openings)
+          await insererClone(db, 'lab3d_openings', opening, {
+            id: uuidv4(),
+            scene_id: newSceneId,
+            wall_id: opening.wall_id ? objectMap.get(opening.wall_id) || null : null
+          });
         const views = await db.getAllAsync(`SELECT * FROM lab3d_views WHERE scene_id=?`, [scene.id]);
         for (const view of views) await insererClone(db, 'lab3d_views', view, { id: uuidv4(), scene_id: newSceneId });
       }

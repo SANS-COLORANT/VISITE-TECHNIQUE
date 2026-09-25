@@ -36,5 +36,5 @@ export const migration037 = {
       ON api_site_links(ville, code_postal, remote_present);
     CREATE INDEX IF NOT EXISTS idx_api_local_site_order
       ON api_local_links(remote_site_id, remote_present, ordre, designation);
-  `,
+  `
 };

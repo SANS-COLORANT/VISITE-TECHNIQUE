@@ -1,78 +1,804 @@
-import React,{useCallback,useEffect,useMemo,useState}from'react';
-import{Alert,Image,SectionList,ScrollView,Text,TextInput,TouchableOpacity,View}from'react-native';
-import * as ImagePicker from'expo-image-picker';
-import{COLORS,styles}from'./styles.js';
-import{chargerDonneesVisiteRapport,finaliserVisiteRapport,listerVisitesRapportClient,preparerPhotosRapport}from'./reportBuilder.js';
-import{ReportLayoutEditor}from'./ReportLayoutEditor.js';
-import{exporterRapportEdite,exporterRapportsParSiteEdites,exporterRapportsParLocalEdites}from'./reportEditorExporter.js';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Alert, Image, SectionList, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
+import { COLORS, styles } from './styles.js';
+import {
+  chargerDonneesVisiteRapport,
+  finaliserVisiteRapport,
+  listerVisitesRapportClient,
+  preparerPhotosRapport
+} from './reportBuilder.js';
+import { ReportLayoutEditor } from './ReportLayoutEditor.js';
+import {
+  exporterRapportEdite,
+  exporterRapportsParSiteEdites,
+  exporterRapportsParLocalEdites
+} from './reportEditorExporter.js';
 
-const DEFAULT_COVER=require('./assets/report/cover-building.png');
-const PHOTO_SIZES=[['small','Petite'],['medium','Moyenne'],['large','Grande'],['full','Pleine largeur']];
-const CAPTION_SIZES=[['small','Petit texte'],['normal','Texte normal'],['large','Grand texte']];
+const DEFAULT_COVER = require('./assets/report/cover-building.png');
+const PHOTO_SIZES = [
+  ['small', 'Petite'],
+  ['medium', 'Moyenne'],
+  ['large', 'Grande'],
+  ['full', 'Pleine largeur']
+];
+const CAPTION_SIZES = [
+  ['small', 'Petit texte'],
+  ['normal', 'Texte normal'],
+  ['large', 'Grand texte']
+];
 
-function Toggle({label,value,onChange,sub}){return <TouchableOpacity onPress={()=>onChange(!value)} style={{flexDirection:'row',alignItems:'center',gap:10,paddingVertical:9}}><View style={{width:24,height:24,borderRadius:6,borderWidth:2,borderColor:value?COLORS.orange:COLORS.line,backgroundColor:value?COLORS.orange:'#fff',alignItems:'center',justifyContent:'center'}}><Text style={{color:'#fff',fontWeight:'900'}}>{value?'✓':''}</Text></View><View style={{flex:1}}><Text style={{fontWeight:'700',color:COLORS.ink}}>{label}</Text>{sub?<Text style={{fontSize:11,color:COLORS.inkSoft,marginTop:2}}>{sub}</Text>:null}</View></TouchableOpacity>}
-function Chip({label,active,onPress}){return <TouchableOpacity onPress={onPress} style={{paddingHorizontal:9,paddingVertical:6,borderRadius:9,borderWidth:1,borderColor:active?COLORS.orange:COLORS.line,backgroundColor:active?'#FFF3E8':'#fff'}}><Text style={{fontSize:11,fontWeight:'800',color:active?COLORS.orange:COLORS.ink}}>{label}</Text></TouchableOpacity>}
-function SmallButton({label,onPress,disabled=false}){return <TouchableOpacity disabled={disabled} onPress={onPress} style={{paddingHorizontal:10,paddingVertical:7,borderRadius:9,borderWidth:1,borderColor:COLORS.line,backgroundColor:'#fff',opacity:disabled?0.35:1}}><Text style={{fontWeight:'800',fontSize:12,color:COLORS.ink}}>{label}</Text></TouchableOpacity>}
-
-function PhotoRow({photo,index,total,onPatch,onMove,onCover,isCover}){return <View style={{padding:10,borderWidth:isCover?2:1,borderColor:isCover?COLORS.orange:COLORS.line,borderRadius:12,marginBottom:9,backgroundColor:'#fff',opacity:photo.include?1:.52}}><View style={{flexDirection:'row',gap:10}}><Image source={{uri:photo.uri}} style={{width:78,height:78,borderRadius:8,backgroundColor:'#eee'}} resizeMode="cover"/><View style={{flex:1}}><TextInput style={[styles.input,{minHeight:42}]} value={photo.label} onChangeText={v=>onPatch(photo.id,{label:v})} placeholder="Libellé court de la photo"/><View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:7}}><TouchableOpacity onPress={()=>onPatch(photo.id,{include:!photo.include})}><Text style={{color:photo.include?COLORS.orange:COLORS.inkSoft,fontWeight:'800'}}>{photo.include?'Incluse':'Exclue'}</Text></TouchableOpacity><TouchableOpacity disabled={index===0} onPress={()=>onMove(index,index-1)}><Text style={{color:index===0?COLORS.line:COLORS.ink,fontWeight:'900'}}>↑</Text></TouchableOpacity><TouchableOpacity disabled={index===total-1} onPress={()=>onMove(index,index+1)}><Text style={{color:index===total-1?COLORS.line:COLORS.ink,fontWeight:'900'}}>↓</Text></TouchableOpacity><TouchableOpacity onPress={()=>onCover(photo)}><Text style={{color:isCover?COLORS.orange:COLORS.ink,fontWeight:'900'}}>{isCover?'Couverture ✓':'Utiliser en couverture'}</Text></TouchableOpacity></View></View></View><Text style={[styles.fieldLabel,{marginTop:9}]}>Taille dans le rapport</Text><View style={{flexDirection:'row',flexWrap:'wrap',gap:6}}>{PHOTO_SIZES.map(([value,label])=><Chip key={value} label={label} active={(photo.size||'medium')===value} onPress={()=>onPatch(photo.id,{size:value})}/>)}</View><Text style={[styles.fieldLabel,{marginTop:8}]}>Taille du libellé</Text><View style={{flexDirection:'row',flexWrap:'wrap',gap:6}}>{CAPTION_SIZES.map(([value,label])=><Chip key={value} label={label} active={(photo.captionSize||'normal')===value} onPress={()=>onPatch(photo.id,{captionSize:value})}/>)}</View></View>}
-
-function garderDerniereVisiteParPerimetre(liste=[]){const seen=new Set();return liste.filter(v=>{const key=v.installation_id?`local:${v.installation_id}`:`legacy:${v.site_id||v.nom_site}`;if(seen.has(key))return false;seen.add(key);return true});}
-function libelleTrame(data){return data?.trame?.nom||data?.visite?.trame_id||'Visite technique';}
-
-async function chargerDonneesRapportParLots(ids, limite=4) {
- const resultats=new Array(ids.length);let curseur=0;
- const workers=Array.from({length:Math.min(Math.max(1,limite),ids.length)},async()=>{while(true){const index=curseur++;if(index>=ids.length)return;resultats[index]=await chargerDonneesVisiteRapport(ids[index]);}});
- await Promise.all(workers);return resultats;
+function Toggle({ label, value, onChange, sub }) {
+  return (
+    <TouchableOpacity
+      onPress={() => onChange(!value)}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 10, paddingVertical: 9 }}
+    >
+      <View
+        style={{
+          width: 24,
+          height: 24,
+          borderRadius: 6,
+          borderWidth: 2,
+          borderColor: value ? COLORS.orange : COLORS.line,
+          backgroundColor: value ? COLORS.orange : '#fff',
+          alignItems: 'center',
+          justifyContent: 'center'
+        }}
+      >
+        <Text style={{ color: '#fff', fontWeight: '900' }}>{value ? '✓' : ''}</Text>
+      </View>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontWeight: '700', color: COLORS.ink }}>{label}</Text>
+        {sub ? <Text style={{ fontSize: 11, color: COLORS.inkSoft, marginTop: 2 }}>{sub}</Text> : null}
+      </View>
+    </TouchableOpacity>
+  );
+}
+function Chip({ label, active, onPress }) {
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      style={{
+        paddingHorizontal: 9,
+        paddingVertical: 6,
+        borderRadius: 9,
+        borderWidth: 1,
+        borderColor: active ? COLORS.orange : COLORS.line,
+        backgroundColor: active ? '#FFF3E8' : '#fff'
+      }}
+    >
+      <Text style={{ fontSize: 11, fontWeight: '800', color: active ? COLORS.orange : COLORS.ink }}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+function SmallButton({ label, onPress, disabled = false }) {
+  return (
+    <TouchableOpacity
+      disabled={disabled}
+      onPress={onPress}
+      style={{
+        paddingHorizontal: 10,
+        paddingVertical: 7,
+        borderRadius: 9,
+        borderWidth: 1,
+        borderColor: COLORS.line,
+        backgroundColor: '#fff',
+        opacity: disabled ? 0.35 : 1
+      }}
+    >
+      <Text style={{ fontWeight: '800', fontSize: 12, color: COLORS.ink }}>{label}</Text>
+    </TouchableOpacity>
+  );
 }
 
-export function ReportScreen({route,onBack}){
- const p=route.params||{};
- const[visites,setVisites]=useState([]),[selected,setSelected]=useState(()=>new Set(p.visiteIds||[]));
- const[datas,setDatas]=useState([]),[photos,setPhotos]=useState([]),[etape,setEtape]=useState('config'),[busy,setBusy]=useState(false);
- const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique');
- const[dossiersParSite,setDossiersParSite]=useState(true),[dossiersParLocal,setDossiersParLocal]=useState(true);
- const[dateRapport,setDateRapport]=useState(new Date().toISOString().slice(0,10));
- const[afficherLignesVides,setAfficherLignesVides]=useState(false),[materiel,setMateriel]=useState(true),[remarques,setRemarques]=useState(true),[inclurePhotos,setInclurePhotos]=useState(true);
- const[inclurePatrimoine,setInclurePatrimoine]=useState(false),[patrimoineScope,setPatrimoineScope]=useState('sites');
- const[format,setFormat]=useState('pdf');
- const[layout,setLayout]=useState({textScale:'normal',sections:{}});
- const[coverUri,setCoverUri]=useState(null),[coverLabel,setCoverLabel]=useState('Image standard METRA'),[coverVisiteId,setCoverVisiteId]=useState(null);
+function PhotoRow({ photo, index, total, onPatch, onMove, onCover, isCover }) {
+  return (
+    <View
+      style={{
+        padding: 10,
+        borderWidth: isCover ? 2 : 1,
+        borderColor: isCover ? COLORS.orange : COLORS.line,
+        borderRadius: 12,
+        marginBottom: 9,
+        backgroundColor: '#fff',
+        opacity: photo.include ? 1 : 0.52
+      }}
+    >
+      <View style={{ flexDirection: 'row', gap: 10 }}>
+        <Image
+          source={{ uri: photo.uri }}
+          style={{ width: 78, height: 78, borderRadius: 8, backgroundColor: '#eee' }}
+          resizeMode="cover"
+        />
+        <View style={{ flex: 1 }}>
+          <TextInput
+            style={[styles.input, { minHeight: 42 }]}
+            value={photo.label}
+            onChangeText={(v) => onPatch(photo.id, { label: v })}
+            placeholder="Libellé court de la photo"
+          />
+          <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 7 }}>
+            <TouchableOpacity onPress={() => onPatch(photo.id, { include: !photo.include })}>
+              <Text style={{ color: photo.include ? COLORS.orange : COLORS.inkSoft, fontWeight: '800' }}>
+                {photo.include ? 'Incluse' : 'Exclue'}
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity disabled={index === 0} onPress={() => onMove(index, index - 1)}>
+              <Text style={{ color: index === 0 ? COLORS.line : COLORS.ink, fontWeight: '900' }}>↑</Text>
+            </TouchableOpacity>
+            <TouchableOpacity disabled={index === total - 1} onPress={() => onMove(index, index + 1)}>
+              <Text style={{ color: index === total - 1 ? COLORS.line : COLORS.ink, fontWeight: '900' }}>↓</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => onCover(photo)}>
+              <Text style={{ color: isCover ? COLORS.orange : COLORS.ink, fontWeight: '900' }}>
+                {isCover ? 'Couverture ✓' : 'Utiliser en couverture'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+      <Text style={[styles.fieldLabel, { marginTop: 9 }]}>Taille dans le rapport</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        {PHOTO_SIZES.map(([value, label]) => (
+          <Chip
+            key={value}
+            label={label}
+            active={(photo.size || 'medium') === value}
+            onPress={() => onPatch(photo.id, { size: value })}
+          />
+        ))}
+      </View>
+      <Text style={[styles.fieldLabel, { marginTop: 8 }]}>Taille du libellé</Text>
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>
+        {CAPTION_SIZES.map(([value, label]) => (
+          <Chip
+            key={value}
+            label={label}
+            active={(photo.captionSize || 'normal') === value}
+            onPress={() => onPatch(photo.id, { captionSize: value })}
+          />
+        ))}
+      </View>
+    </View>
+  );
+}
 
- const chargerListe=useCallback(async()=>{if(p.clientId){const all=await listerVisitesRapportClient(p.clientId);const latest=garderDerniereVisiteParPerimetre(all);setVisites(latest);const idsAutorises=new Set(latest.map(v=>v.id));setSelected(s=>{const conserves=[...s].filter(id=>idsAutorises.has(id));if(conserves.length)return new Set(conserves);return new Set()});}else if(p.visiteIds?.length){const ds=[];for(const id of p.visiteIds)ds.push(await chargerDonneesVisiteRapport(id));const latest=garderDerniereVisiteParPerimetre(ds.map(d=>d.visite));const latestIds=new Set(latest.map(v=>v.id));setVisites(latest);setSelected(new Set((p.visiteIds||[]).filter(id=>latestIds.has(id))));}},[p.clientId,JSON.stringify(p.visiteIds||[])]);
- useEffect(()=>{chargerListe().catch(e=>Alert.alert('Rapport',String(e?.message||e)))},[chargerListe]);
- const selectedRows=useMemo(()=>visites.filter(v=>selected.has(v.id)),[visites,selected]);
- const clientNomRapport=useMemo(()=>visites[0]?.nom_client||'Nom du client',[visites]);
- const groupeInterdit=false;
- const selectableIds=useMemo(()=>visites.filter(v=>v.statut==='terminee').map(v=>v.id),[visites]);
- const toutSelectionner=()=>setSelected(new Set(selectableIds));
- const toutDeselectionner=()=>setSelected(new Set());
- const toggle=id=>setSelected(s=>{const n=new Set(s);n.has(id)?n.delete(id):n.add(id);return n});
- const sitesGroupes=useMemo(()=>{const map=new Map();for(const v of visites){const key=v.site_id||v.nom_site;if(!map.has(key))map.set(key,{id:key,nom:v.nom_site||'Site',visites:[]});map.get(key).visites.push(v)}return [...map.values()]},[visites]);
- const selectionnerSite=(site,select=true)=>setSelected(actuel=>{const n=new Set(actuel);for(const v of site.visites){if(v.statut!=='terminee')continue;select?n.add(v.id):n.delete(v.id)}return n});
- const nbSitesSelectionnes=useMemo(()=>new Set(selectedRows.map(v=>v.site_id||v.nom_site)).size,[selectedRows]);
- const nbLocauxSelectionnes=useMemo(()=>new Set(selectedRows.map(v=>v.installation_id||v.id)).size,[selectedRows]);
- const finaliser=async v=>{const faire=async()=>{try{await finaliserVisiteRapport(v.id);await chargerListe();setSelected(s=>new Set([...s,v.id]))}catch(e){Alert.alert('Finalisation impossible',String(e?.message||e))}};if(Number(v.progression_pct||0)<100){Alert.alert('Finaliser la dernière visite ?',`La dernière visite de ce site est renseignée à ${v.progression_pct||0} %. Les lignes non remplies pourront rester masquées dans le rapport.`,[{text:'Annuler',style:'cancel'},{text:'Finaliser',onPress:faire}])}else await faire()};
+function garderDerniereVisiteParPerimetre(liste = []) {
+  const seen = new Set();
+  return liste.filter((v) => {
+    const key = v.installation_id ? `local:${v.installation_id}` : `legacy:${v.site_id || v.nom_site}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+function libelleTrame(data) {
+  return data?.trame?.nom || data?.visite?.trame_id || 'Visite technique';
+}
 
- const preparer=useCallback(async()=>{if(!selected.size)return Alert.alert('Rapport','Sélectionne au moins un site dont la dernière visite est finalisée.');const nonFinal=selectedRows.filter(v=>v.statut!=='terminee');if(nonFinal.length)return Alert.alert('Dernière visite non finalisée',`${nonFinal.length} dernière(s) visite(s) sélectionnée(s) ne sont pas finalisées.`);const idsAutorises=new Set(visites.map(v=>v.id));const ids=visites.filter(v=>selected.has(v.id)&&idsAutorises.has(v.id)).map(v=>v.id);if(!ids.length)return Alert.alert('Rapport','Aucune dernière visite valide sélectionnée.');setBusy(true);try{const ds=await chargerDonneesRapportParLots(ids,4);const ph=ds.flatMap(d=>preparerPhotosRapport(d,[]).map(x=>({...x,size:x.size||'medium',captionSize:x.captionSize||'normal'})));setDatas(ds);setPhotos(ph);setLayout({textScale:'normal',sections:{}});setCoverUri(null);setCoverLabel('Image standard METRA');setCoverVisiteId(null);setEtape('photos')}catch(e){Alert.alert('Préparation impossible',String(e?.message||e))}finally{setBusy(false)}},[selected,selectedRows,visites]);
+async function chargerDonneesRapportParLots(ids, limite = 4) {
+  const resultats = new Array(ids.length);
+  let curseur = 0;
+  const workers = Array.from({ length: Math.min(Math.max(1, limite), ids.length) }, async () => {
+    while (true) {
+      const index = curseur++;
+      if (index >= ids.length) return;
+      resultats[index] = await chargerDonneesVisiteRapport(ids[index]);
+    }
+  });
+  await Promise.all(workers);
+  return resultats;
+}
 
- const patchPhoto=(id,patch)=>setPhotos(a=>a.map(x=>x.id===id?{...x,...patch}:x));
- const movePhoto=(visiteId,from,to)=>setPhotos(a=>{const site=a.filter(x=>x.visiteId===visiteId).sort((x,y)=>x.ordre-y.ordre);if(from<0||to<0||from>=site.length||to>=site.length)return a;const n=[...site];const[x]=n.splice(from,1);n.splice(to,0,x);const ordres=new Map(n.map((photo,i)=>[photo.id,i]));return a.map(photo=>photo.visiteId===visiteId?{...photo,ordre:ordres.get(photo.id)}:photo)});
- const moveSite=(from,to)=>setDatas(a=>{if(from<0||to<0||from>=a.length||to>=a.length)return a;const n=[...a];const[x]=n.splice(from,1);n.splice(to,0,x);return n});
- const choisirPhotoCouverture=photo=>{setCoverUri(photo.uri);setCoverLabel(`${photo.siteLabel} — ${photo.label||'Photo'}`);setCoverVisiteId(photo.visiteId)};
- const couvertureStandard=()=>{setCoverUri(null);setCoverLabel('Image standard METRA');setCoverVisiteId(null)};
- const choisirGalerie=async()=>{try{const permission=await ImagePicker.requestMediaLibraryPermissionsAsync();if(!permission.granted)return Alert.alert('Permission requise',"L'accès aux photos est nécessaire pour choisir une couverture.");const r=await ImagePicker.launchImageLibraryAsync({mediaTypes:ImagePicker.MediaTypeOptions.Images,quality:.8,allowsEditing:false});if(r.canceled)return;setCoverUri(r.assets[0].uri);setCoverLabel('Image choisie dans la galerie');setCoverVisiteId(null)}catch(e){Alert.alert('Couverture',String(e?.message||e))}};
- const prendreCouverture=async()=>{try{const permission=await ImagePicker.requestCameraPermissionsAsync();if(!permission.granted)return Alert.alert('Permission requise',"L'accès à l'appareil photo est nécessaire pour prendre une couverture.");const r=await ImagePicker.launchCameraAsync({quality:.8,allowsEditing:false});if(r.canceled)return;setCoverUri(r.assets[0].uri);setCoverLabel('Photo prise pour la couverture');setCoverVisiteId(null)}catch(e){Alert.alert('Couverture',String(e?.message||e))}};
+export function ReportScreen({ route, onBack }) {
+  const p = route.params || {};
+  const [visites, setVisites] = useState([]),
+    [selected, setSelected] = useState(() => new Set(p.visiteIds || []));
+  const [datas, setDatas] = useState([]),
+    [photos, setPhotos] = useState([]),
+    [etape, setEtape] = useState('config'),
+    [busy, setBusy] = useState(false);
+  const [mode, setMode] = useState('groupe'),
+    [chrono, setChrono] = useState(''),
+    [objet, setObjet] = useState('Compte rendu de visite technique');
+  const [dossiersParSite, setDossiersParSite] = useState(true),
+    [dossiersParLocal, setDossiersParLocal] = useState(true);
+  const [dateRapport, setDateRapport] = useState(new Date().toISOString().slice(0, 10));
+  const [afficherLignesVides, setAfficherLignesVides] = useState(false),
+    [materiel, setMateriel] = useState(true),
+    [remarques, setRemarques] = useState(true),
+    [inclurePhotos, setInclurePhotos] = useState(true);
+  const [inclurePatrimoine, setInclurePatrimoine] = useState(false),
+    [patrimoineScope, setPatrimoineScope] = useState('sites');
+  const [format, setFormat] = useState('pdf');
+  const [layout, setLayout] = useState({ textScale: 'normal', sections: {} });
+  const [coverUri, setCoverUri] = useState(null),
+    [coverLabel, setCoverLabel] = useState('Image standard METRA'),
+    [coverVisiteId, setCoverVisiteId] = useState(null);
 
- const config={chrono,objet,dateRapport,afficherLignesVides,materiel,remarques,photos:inclurePhotos,coverUri,coverLabel,coverVisiteId,layout};
- const configRapport={...config,patrimoine:inclurePatrimoine,patrimoineScope};
- const generer=async()=>{if(!chrono.trim()||!objet.trim())return Alert.alert('Champs requis','Renseigne le numéro de chrono et l’objet du rapport.');setBusy(true);try{const modeEffectif=mode;const r=modeEffectif==='local'?await exporterRapportsParLocalEdites({datas,config:configRapport,photosConfig:photos,format,dossiersParLocal}):modeEffectif==='site'?await exporterRapportsParSiteEdites({datas,config:configRapport,photosConfig:photos,format,dossiersParSite}):await exporterRapportEdite({datas,config:configRapport,photosConfig:photos,format});if(!r?.annule)Alert.alert('Rapport généré',modeEffectif==='local'?`${r.resultats?.length||0} rapport(s) par local enregistré(s) dans METRA.`:modeEffectif==='site'?`${r.resultats?.length||0} rapport(s) par site enregistré(s) dans METRA.`:`${r.nom||'Le rapport'} a été enregistré dans le dossier Rapports du client.`)}catch(e){Alert.alert('Génération impossible',String(e?.message||e))}finally{setBusy(false)}};
- const photoSections=useMemo(()=>{const byVisit=new Map();for(const photo of photos){if(!byVisit.has(photo.visiteId))byVisit.set(photo.visiteId,[]);byVisit.get(photo.visiteId).push(photo)}return datas.map((d,siteIndex)=>{const items=[...(byVisit.get(d.visite.id)||[])].sort((a,b)=>a.ordre-b.ordre);return{key:d.visite.id,data:items,visiteData:d,siteIndex}})},[datas,photos]);
- const retour=()=>{if(etape==='layout')setEtape('photos');else if(etape==='photos')setEtape('config');else onBack();};
- const titre=etape==='config'?'Nouveau rapport':etape==='photos'?'Photos et couverture':'Mise en page du rapport';
+  const chargerListe = useCallback(async () => {
+    if (p.clientId) {
+      const all = await listerVisitesRapportClient(p.clientId);
+      const latest = garderDerniereVisiteParPerimetre(all);
+      setVisites(latest);
+      const idsAutorises = new Set(latest.map((v) => v.id));
+      setSelected((s) => {
+        const conserves = [...s].filter((id) => idsAutorises.has(id));
+        if (conserves.length) return new Set(conserves);
+        return new Set();
+      });
+    } else if (p.visiteIds?.length) {
+      const ds = [];
+      for (const id of p.visiteIds) ds.push(await chargerDonneesVisiteRapport(id));
+      const latest = garderDerniereVisiteParPerimetre(ds.map((d) => d.visite));
+      const latestIds = new Set(latest.map((v) => v.id));
+      setVisites(latest);
+      setSelected(new Set((p.visiteIds || []).filter((id) => latestIds.has(id))));
+    }
+  }, [p.clientId, JSON.stringify(p.visiteIds || [])]);
+  useEffect(() => {
+    chargerListe().catch((e) => Alert.alert('Rapport', String(e?.message || e)));
+  }, [chargerListe]);
+  const selectedRows = useMemo(() => visites.filter((v) => selected.has(v.id)), [visites, selected]);
+  const clientNomRapport = useMemo(() => visites[0]?.nom_client || 'Nom du client', [visites]);
+  const groupeInterdit = false;
+  const selectableIds = useMemo(() => visites.filter((v) => v.statut === 'terminee').map((v) => v.id), [visites]);
+  const toutSelectionner = () => setSelected(new Set(selectableIds));
+  const toutDeselectionner = () => setSelected(new Set());
+  const toggle = (id) =>
+    setSelected((s) => {
+      const n = new Set(s);
+      n.has(id) ? n.delete(id) : n.add(id);
+      return n;
+    });
+  const sitesGroupes = useMemo(() => {
+    const map = new Map();
+    for (const v of visites) {
+      const key = v.site_id || v.nom_site;
+      if (!map.has(key)) map.set(key, { id: key, nom: v.nom_site || 'Site', visites: [] });
+      map.get(key).visites.push(v);
+    }
+    return [...map.values()];
+  }, [visites]);
+  const selectionnerSite = (site, select = true) =>
+    setSelected((actuel) => {
+      const n = new Set(actuel);
+      for (const v of site.visites) {
+        if (v.statut !== 'terminee') continue;
+        select ? n.add(v.id) : n.delete(v.id);
+      }
+      return n;
+    });
+  const nbSitesSelectionnes = useMemo(
+    () => new Set(selectedRows.map((v) => v.site_id || v.nom_site)).size,
+    [selectedRows]
+  );
+  const nbLocauxSelectionnes = useMemo(
+    () => new Set(selectedRows.map((v) => v.installation_id || v.id)).size,
+    [selectedRows]
+  );
+  const finaliser = async (v) => {
+    const faire = async () => {
+      try {
+        await finaliserVisiteRapport(v.id);
+        await chargerListe();
+        setSelected((s) => new Set([...s, v.id]));
+      } catch (e) {
+        Alert.alert('Finalisation impossible', String(e?.message || e));
+      }
+    };
+    if (Number(v.progression_pct || 0) < 100) {
+      Alert.alert(
+        'Finaliser la dernière visite ?',
+        `La dernière visite de ce site est renseignée à ${v.progression_pct || 0} %. Les lignes non remplies pourront rester masquées dans le rapport.`,
+        [
+          { text: 'Annuler', style: 'cancel' },
+          { text: 'Finaliser', onPress: faire }
+        ]
+      );
+    } else await faire();
+  };
 
- return <View style={{flex:1,backgroundColor:COLORS.bg}}><View style={styles.simpleHeader}><TouchableOpacity style={styles.simpleHeaderBack} onPress={retour}><Text style={styles.simpleHeaderBackText}>←</Text></TouchableOpacity><Text style={styles.simpleHeaderTitle}>{titre}</Text><View style={styles.simpleHeaderBack}/></View>
- {etape==='config'?<ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled"><Text style={styles.sectionTitle}>Paramètres du rapport</Text><Text style={styles.fieldLabel}>Nos réf. / Chrono</Text><TextInput style={styles.input} value={chrono} onChangeText={setChrono} placeholder="Ex. 2026-0147"/><Text style={[styles.fieldLabel,{marginTop:10}]}>Objet du rapport</Text><TextInput style={styles.input} value={objet} onChangeText={setObjet}/><Text style={[styles.fieldLabel,{marginTop:10}]}>Date du rapport</Text><TextInput style={styles.input} value={dateRapport} onChangeText={setDateRapport} placeholder="AAAA-MM-JJ"/><Text style={[styles.fieldLabel,{marginTop:16}]}>Organisation du rapport</Text><View style={{gap:8}}><TouchableOpacity disabled={groupeInterdit} style={[styles.btnSecondary,mode==='groupe'&&{borderColor:COLORS.orange,backgroundColor:'#FFF3E8'}]} onPress={()=>setMode('groupe')}><Text style={styles.btnSecondaryText}>Un seul document · {clientNomRapport}</Text></TouchableOpacity><View style={{flexDirection:'row',gap:8}}><TouchableOpacity style={[styles.btnSecondary,{flex:1},mode==='site'&&{borderColor:COLORS.orange,backgroundColor:'#FFF3E8'}]} onPress={()=>setMode('site')}><Text style={styles.btnSecondaryText}>Un document par site</Text></TouchableOpacity><TouchableOpacity style={[styles.btnSecondary,{flex:1},mode==='local'&&{borderColor:COLORS.orange,backgroundColor:'#FFF3E8'}]} onPress={()=>setMode('local')}><Text style={styles.btnSecondaryText}>Un document par local</Text></TouchableOpacity></View></View>{mode==='site'?<View style={{marginTop:10,padding:10,borderRadius:11,borderWidth:1,borderColor:COLORS.line,backgroundColor:'#fff'}}><Toggle label="Créer un dossier pour chaque site" value={dossiersParSite} onChange={setDossiersParSite} sub="Sinon les rapports restent ensemble dans le dossier Rapports du client."/></View>:mode==='local'?<View style={{marginTop:10,padding:10,borderRadius:11,borderWidth:1,borderColor:COLORS.line,backgroundColor:'#fff'}}><Toggle label="Créer un dossier pour chaque local" value={dossiersParLocal} onChange={setDossiersParLocal} sub="Classement : Client / Rapports / Site / Local."/></View>:<Text style={{marginTop:9,color:COLORS.inkSoft,fontSize:11.5}}>Un seul fichier regroupera les {nbSitesSelectionnes||0} site(s) et {nbLocauxSelectionnes||0} local(aux) sélectionné(s).</Text>}<Text style={[styles.fieldLabel,{marginTop:16}]}>Contenu</Text><Toggle label="Afficher les lignes vides" value={afficherLignesVides} onChange={setAfficherLignesVides}/><Toggle label="Équipements / matériel" value={materiel} onChange={setMateriel}/><Toggle label="Réserves / remarques" value={remarques} onChange={setRemarques}/><Toggle label="Photographies" value={inclurePhotos} onChange={setInclurePhotos} sub="Les originaux restent intacts ; seules les copies de travail du rapport sont compressées."/><Toggle label="Synthèse du patrimoine en début de rapport" value={inclurePatrimoine} onChange={setInclurePatrimoine} sub="Réutilise les mêmes agrégats locaux que l’écran Synthèse patrimoine et les recalcule au moment de l’export." />{inclurePatrimoine?<View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginBottom:8}}><Chip label="Sites concernés" active={patrimoineScope==='sites'} onPress={()=>setPatrimoineScope('sites')}/><Chip label="Locaux sélectionnés uniquement" active={patrimoineScope==='locals'} onPress={()=>setPatrimoineScope('locals')}/></View>:null}<Text style={[styles.fieldLabel,{marginTop:16}]}>Sites et locaux — dernière visite par local</Text><Text style={[styles.importHint,{marginBottom:10}]}>Chaque local peut être sélectionné séparément. Tu peux aussi sélectionner ou retirer tous les locaux finalisés d’un site.</Text><View style={{flexDirection:'row',alignItems:'center',flexWrap:'wrap',gap:8,marginBottom:10}}><Text style={{color:COLORS.inkSoft,fontSize:11.5,fontWeight:'800',marginRight:4}}>{selected.size}/{selectableIds.length} local(aux) sélectionné(s)</Text><SmallButton label="Tout sélectionner" disabled={!selectableIds.length||busy} onPress={toutSelectionner}/><SmallButton label="Tout désélectionner" disabled={!selected.size||busy} onPress={toutDeselectionner}/></View><TouchableOpacity style={[styles.btnPrimary,{marginBottom:14,opacity:busy||!selected.size?0.55:1}]} disabled={busy||!selected.size} onPress={preparer}><Text style={styles.btnPrimaryText}>{busy?'Préparation…':'Choisir les photos et la couverture'}</Text></TouchableOpacity>{sitesGroupes.map(site=><View key={site.id} style={{marginBottom:12}}><View style={{flexDirection:'row',alignItems:'center',gap:8,marginBottom:6}}><Text style={[styles.sectionLabel,{flex:1,marginBottom:0}]}>{site.nom}</Text><SmallButton label="Tout le site" disabled={busy||!site.visites.some(v=>v.statut==='terminee')} onPress={()=>selectionnerSite(site,true)}/><SmallButton label="Retirer" disabled={busy||!site.visites.some(v=>selected.has(v.id))} onPress={()=>selectionnerSite(site,false)}/></View>{site.visites.map(v=><View key={v.id} style={[styles.card,{borderWidth:selected.has(v.id)?2:1,borderColor:selected.has(v.id)?COLORS.orange:COLORS.line,opacity:v.statut==='terminee'?1:.8}]}><TouchableOpacity disabled={v.statut!=='terminee'} onPress={()=>toggle(v.id)} style={{flex:1,flexDirection:'row',alignItems:'center'}}><View style={{flex:1}}><Text style={styles.cardTitle}>{v.nom_local||v.type_local||'Visite non rattachée'}</Text><Text style={styles.cardSub}>Dernière visite : {v.date_visite||'—'} · {v.statut==='terminee'?'Finalisée':'À finaliser'} · {v.progression_pct||0}%</Text></View>{v.statut==='terminee'?<Text style={{fontSize:20,color:selected.has(v.id)?COLORS.orange:COLORS.line}}>{selected.has(v.id)?'✓':'○'}</Text>:null}</TouchableOpacity>{v.statut!=='terminee'?<TouchableOpacity onPress={()=>finaliser(v)} style={{marginLeft:10,paddingHorizontal:10,paddingVertical:8,borderRadius:9,backgroundColor:'#FFF3E8'}}><Text style={{color:COLORS.orange,fontWeight:'800'}}>Finaliser cette visite</Text></TouchableOpacity>:null}</View>)}</View>)}</ScrollView>:null}
- {etape==='photos'?<SectionList sections={photoSections} keyExtractor={item=>item.id} contentContainerStyle={[styles.content,{paddingBottom:34}]} keyboardShouldPersistTaps="handled" stickySectionHeadersEnabled={false} ListHeaderComponent={<View><Text style={styles.sectionTitle}>Photo centrale de couverture</Text><View style={[styles.card,{padding:12,flexDirection:'column',alignItems:'stretch',justifyContent:'flex-start'}]}><Image source={coverUri?{uri:coverUri}:DEFAULT_COVER} style={{width:'100%',height:180,borderRadius:10,backgroundColor:'#eee'}} resizeMode="cover"/><Text style={[styles.cardTitle,{marginTop:10}]}>{coverLabel}</Text><Text style={styles.cardSub}>La couverture est indépendante du reportage photo : une photo choisie ici peut rester incluse dans sa visite.</Text><View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:12}}><SmallButton label="Image standard METRA" onPress={couvertureStandard}/><SmallButton label="Galerie" onPress={choisirGalerie}/><SmallButton label="Prendre une photo" onPress={prendreCouverture}/></View></View><Text style={[styles.sectionTitle,{marginTop:18}]}>Photos par visite</Text><Text style={styles.importHint}>Les photos restent séparées par site/local. Tu peux changer l’ordre des sites, puis l’ordre et la taille des photos à l’intérieur de chaque visite.</Text></View>} renderSectionHeader={({section})=>{const d=section.visiteData;return <View style={[styles.card,{marginTop:16,borderLeftWidth:4,borderLeftColor:COLORS.orange}]}><View style={{flexDirection:'row',alignItems:'center',gap:10}}><View style={{flex:1}}><Text style={styles.cardTitle}>{d.visite.nom_site||'Site'}</Text><Text style={styles.cardSub}>{d.visite.nom_local||d.visite.type_local||'Installation technique'} · {libelleTrame(d)} · {d.visite.date_visite||''}</Text><Text style={[styles.cardSub,{marginTop:3}]}>{section.data.filter(x=>x.include).length}/{section.data.length} photo(s) incluse(s)</Text></View><View style={{flexDirection:'row',gap:6}}><SmallButton label="↑ Local" disabled={section.siteIndex===0} onPress={()=>moveSite(section.siteIndex,section.siteIndex-1)}/><SmallButton label="↓ Local" disabled={section.siteIndex===datas.length-1} onPress={()=>moveSite(section.siteIndex,section.siteIndex+1)}/></View></View></View>}} renderItem={({item,index,section})=><PhotoRow photo={item} index={index} total={section.data.length} onPatch={patchPhoto} onMove={(from,to)=>movePhoto(item.visiteId,from,to)} onCover={choisirPhotoCouverture} isCover={coverUri===item.uri&&coverVisiteId===item.visiteId}/>} ListEmptyComponent={<Text style={styles.emptyText}>Aucune photo dans les visites sélectionnées. Tu peux tout de même choisir une image de couverture puis mettre le rapport en page.</Text>} ListFooterComponent={<TouchableOpacity style={[styles.btnPrimary,{marginTop:18,opacity:busy?0.55:1}]} disabled={busy} onPress={()=>setEtape('layout')}><Text style={styles.btnPrimaryText}>Aperçu PDF et mise en page</Text></TouchableOpacity>}/>:null}
- {etape==='layout'?<ReportLayoutEditor datas={datas} photos={photos} config={configRapport} layout={layout} onLayoutChange={setLayout} onMoveSite={moveSite} onPatchPhoto={patchPhoto} onGenerate={generer} busy={busy} format={format} onFormatChange={setFormat}/>:null}
- </View>;
+  const preparer = useCallback(async () => {
+    if (!selected.size)
+      return Alert.alert('Rapport', 'Sélectionne au moins un site dont la dernière visite est finalisée.');
+    const nonFinal = selectedRows.filter((v) => v.statut !== 'terminee');
+    if (nonFinal.length)
+      return Alert.alert(
+        'Dernière visite non finalisée',
+        `${nonFinal.length} dernière(s) visite(s) sélectionnée(s) ne sont pas finalisées.`
+      );
+    const idsAutorises = new Set(visites.map((v) => v.id));
+    const ids = visites.filter((v) => selected.has(v.id) && idsAutorises.has(v.id)).map((v) => v.id);
+    if (!ids.length) return Alert.alert('Rapport', 'Aucune dernière visite valide sélectionnée.');
+    setBusy(true);
+    try {
+      const ds = await chargerDonneesRapportParLots(ids, 4);
+      const ph = ds.flatMap((d) =>
+        preparerPhotosRapport(d, []).map((x) => ({
+          ...x,
+          size: x.size || 'medium',
+          captionSize: x.captionSize || 'normal'
+        }))
+      );
+      setDatas(ds);
+      setPhotos(ph);
+      setLayout({ textScale: 'normal', sections: {} });
+      setCoverUri(null);
+      setCoverLabel('Image standard METRA');
+      setCoverVisiteId(null);
+      setEtape('photos');
+    } catch (e) {
+      Alert.alert('Préparation impossible', String(e?.message || e));
+    } finally {
+      setBusy(false);
+    }
+  }, [selected, selectedRows, visites]);
+
+  const patchPhoto = (id, patch) => setPhotos((a) => a.map((x) => (x.id === id ? { ...x, ...patch } : x)));
+  const movePhoto = (visiteId, from, to) =>
+    setPhotos((a) => {
+      const site = a.filter((x) => x.visiteId === visiteId).sort((x, y) => x.ordre - y.ordre);
+      if (from < 0 || to < 0 || from >= site.length || to >= site.length) return a;
+      const n = [...site];
+      const [x] = n.splice(from, 1);
+      n.splice(to, 0, x);
+      const ordres = new Map(n.map((photo, i) => [photo.id, i]));
+      return a.map((photo) => (photo.visiteId === visiteId ? { ...photo, ordre: ordres.get(photo.id) } : photo));
+    });
+  const moveSite = (from, to) =>
+    setDatas((a) => {
+      if (from < 0 || to < 0 || from >= a.length || to >= a.length) return a;
+      const n = [...a];
+      const [x] = n.splice(from, 1);
+      n.splice(to, 0, x);
+      return n;
+    });
+  const choisirPhotoCouverture = (photo) => {
+    setCoverUri(photo.uri);
+    setCoverLabel(`${photo.siteLabel} — ${photo.label || 'Photo'}`);
+    setCoverVisiteId(photo.visiteId);
+  };
+  const couvertureStandard = () => {
+    setCoverUri(null);
+    setCoverLabel('Image standard METRA');
+    setCoverVisiteId(null);
+  };
+  const choisirGalerie = async () => {
+    try {
+      const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      if (!permission.granted)
+        return Alert.alert('Permission requise', "L'accès aux photos est nécessaire pour choisir une couverture.");
+      const r = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        quality: 0.8,
+        allowsEditing: false
+      });
+      if (r.canceled) return;
+      setCoverUri(r.assets[0].uri);
+      setCoverLabel('Image choisie dans la galerie');
+      setCoverVisiteId(null);
+    } catch (e) {
+      Alert.alert('Couverture', String(e?.message || e));
+    }
+  };
+  const prendreCouverture = async () => {
+    try {
+      const permission = await ImagePicker.requestCameraPermissionsAsync();
+      if (!permission.granted)
+        return Alert.alert(
+          'Permission requise',
+          "L'accès à l'appareil photo est nécessaire pour prendre une couverture."
+        );
+      const r = await ImagePicker.launchCameraAsync({ quality: 0.8, allowsEditing: false });
+      if (r.canceled) return;
+      setCoverUri(r.assets[0].uri);
+      setCoverLabel('Photo prise pour la couverture');
+      setCoverVisiteId(null);
+    } catch (e) {
+      Alert.alert('Couverture', String(e?.message || e));
+    }
+  };
+
+  const config = {
+    chrono,
+    objet,
+    dateRapport,
+    afficherLignesVides,
+    materiel,
+    remarques,
+    photos: inclurePhotos,
+    coverUri,
+    coverLabel,
+    coverVisiteId,
+    layout
+  };
+  const configRapport = { ...config, patrimoine: inclurePatrimoine, patrimoineScope };
+  const generer = async () => {
+    if (!chrono.trim() || !objet.trim())
+      return Alert.alert('Champs requis', 'Renseigne le numéro de chrono et l’objet du rapport.');
+    setBusy(true);
+    try {
+      const modeEffectif = mode;
+      const r =
+        modeEffectif === 'local'
+          ? await exporterRapportsParLocalEdites({
+              datas,
+              config: configRapport,
+              photosConfig: photos,
+              format,
+              dossiersParLocal
+            })
+          : modeEffectif === 'site'
+            ? await exporterRapportsParSiteEdites({
+                datas,
+                config: configRapport,
+                photosConfig: photos,
+                format,
+                dossiersParSite
+              })
+            : await exporterRapportEdite({ datas, config: configRapport, photosConfig: photos, format });
+      if (!r?.annule)
+        Alert.alert(
+          'Rapport généré',
+          modeEffectif === 'local'
+            ? `${r.resultats?.length || 0} rapport(s) par local enregistré(s) dans METRA.`
+            : modeEffectif === 'site'
+              ? `${r.resultats?.length || 0} rapport(s) par site enregistré(s) dans METRA.`
+              : `${r.nom || 'Le rapport'} a été enregistré dans le dossier Rapports du client.`
+        );
+    } catch (e) {
+      Alert.alert('Génération impossible', String(e?.message || e));
+    } finally {
+      setBusy(false);
+    }
+  };
+  const photoSections = useMemo(() => {
+    const byVisit = new Map();
+    for (const photo of photos) {
+      if (!byVisit.has(photo.visiteId)) byVisit.set(photo.visiteId, []);
+      byVisit.get(photo.visiteId).push(photo);
+    }
+    return datas.map((d, siteIndex) => {
+      const items = [...(byVisit.get(d.visite.id) || [])].sort((a, b) => a.ordre - b.ordre);
+      return { key: d.visite.id, data: items, visiteData: d, siteIndex };
+    });
+  }, [datas, photos]);
+  const retour = () => {
+    if (etape === 'layout') setEtape('photos');
+    else if (etape === 'photos') setEtape('config');
+    else onBack();
+  };
+  const titre =
+    etape === 'config' ? 'Nouveau rapport' : etape === 'photos' ? 'Photos et couverture' : 'Mise en page du rapport';
+
+  return (
+    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+      <View style={styles.simpleHeader}>
+        <TouchableOpacity style={styles.simpleHeaderBack} onPress={retour}>
+          <Text style={styles.simpleHeaderBackText}>←</Text>
+        </TouchableOpacity>
+        <Text style={styles.simpleHeaderTitle}>{titre}</Text>
+        <View style={styles.simpleHeaderBack} />
+      </View>
+      {etape === 'config' ? (
+        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
+          <Text style={styles.sectionTitle}>Paramètres du rapport</Text>
+          <Text style={styles.fieldLabel}>Nos réf. / Chrono</Text>
+          <TextInput style={styles.input} value={chrono} onChangeText={setChrono} placeholder="Ex. 2026-0147" />
+          <Text style={[styles.fieldLabel, { marginTop: 10 }]}>Objet du rapport</Text>
+          <TextInput style={styles.input} value={objet} onChangeText={setObjet} />
+          <Text style={[styles.fieldLabel, { marginTop: 10 }]}>Date du rapport</Text>
+          <TextInput style={styles.input} value={dateRapport} onChangeText={setDateRapport} placeholder="AAAA-MM-JJ" />
+          <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Organisation du rapport</Text>
+          <View style={{ gap: 8 }}>
+            <TouchableOpacity
+              disabled={groupeInterdit}
+              style={[
+                styles.btnSecondary,
+                mode === 'groupe' && { borderColor: COLORS.orange, backgroundColor: '#FFF3E8' }
+              ]}
+              onPress={() => setMode('groupe')}
+            >
+              <Text style={styles.btnSecondaryText}>Un seul document · {clientNomRapport}</Text>
+            </TouchableOpacity>
+            <View style={{ flexDirection: 'row', gap: 8 }}>
+              <TouchableOpacity
+                style={[
+                  styles.btnSecondary,
+                  { flex: 1 },
+                  mode === 'site' && { borderColor: COLORS.orange, backgroundColor: '#FFF3E8' }
+                ]}
+                onPress={() => setMode('site')}
+              >
+                <Text style={styles.btnSecondaryText}>Un document par site</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.btnSecondary,
+                  { flex: 1 },
+                  mode === 'local' && { borderColor: COLORS.orange, backgroundColor: '#FFF3E8' }
+                ]}
+                onPress={() => setMode('local')}
+              >
+                <Text style={styles.btnSecondaryText}>Un document par local</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          {mode === 'site' ? (
+            <View
+              style={{
+                marginTop: 10,
+                padding: 10,
+                borderRadius: 11,
+                borderWidth: 1,
+                borderColor: COLORS.line,
+                backgroundColor: '#fff'
+              }}
+            >
+              <Toggle
+                label="Créer un dossier pour chaque site"
+                value={dossiersParSite}
+                onChange={setDossiersParSite}
+                sub="Sinon les rapports restent ensemble dans le dossier Rapports du client."
+              />
+            </View>
+          ) : mode === 'local' ? (
+            <View
+              style={{
+                marginTop: 10,
+                padding: 10,
+                borderRadius: 11,
+                borderWidth: 1,
+                borderColor: COLORS.line,
+                backgroundColor: '#fff'
+              }}
+            >
+              <Toggle
+                label="Créer un dossier pour chaque local"
+                value={dossiersParLocal}
+                onChange={setDossiersParLocal}
+                sub="Classement : Client / Rapports / Site / Local."
+              />
+            </View>
+          ) : (
+            <Text style={{ marginTop: 9, color: COLORS.inkSoft, fontSize: 11.5 }}>
+              Un seul fichier regroupera les {nbSitesSelectionnes || 0} site(s) et {nbLocauxSelectionnes || 0}{' '}
+              local(aux) sélectionné(s).
+            </Text>
+          )}
+          <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Contenu</Text>
+          <Toggle label="Afficher les lignes vides" value={afficherLignesVides} onChange={setAfficherLignesVides} />
+          <Toggle label="Équipements / matériel" value={materiel} onChange={setMateriel} />
+          <Toggle label="Réserves / remarques" value={remarques} onChange={setRemarques} />
+          <Toggle
+            label="Photographies"
+            value={inclurePhotos}
+            onChange={setInclurePhotos}
+            sub="Les originaux restent intacts ; seules les copies de travail du rapport sont compressées."
+          />
+          <Toggle
+            label="Synthèse du patrimoine en début de rapport"
+            value={inclurePatrimoine}
+            onChange={setInclurePatrimoine}
+            sub="Réutilise les mêmes agrégats locaux que l’écran Synthèse patrimoine et les recalcule au moment de l’export."
+          />
+          {inclurePatrimoine ? (
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 8 }}>
+              <Chip
+                label="Sites concernés"
+                active={patrimoineScope === 'sites'}
+                onPress={() => setPatrimoineScope('sites')}
+              />
+              <Chip
+                label="Locaux sélectionnés uniquement"
+                active={patrimoineScope === 'locals'}
+                onPress={() => setPatrimoineScope('locals')}
+              />
+            </View>
+          ) : null}
+          <Text style={[styles.fieldLabel, { marginTop: 16 }]}>Sites et locaux — dernière visite par local</Text>
+          <Text style={[styles.importHint, { marginBottom: 10 }]}>
+            Chaque local peut être sélectionné séparément. Tu peux aussi sélectionner ou retirer tous les locaux
+            finalisés d’un site.
+          </Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flexWrap: 'wrap', gap: 8, marginBottom: 10 }}>
+            <Text style={{ color: COLORS.inkSoft, fontSize: 11.5, fontWeight: '800', marginRight: 4 }}>
+              {selected.size}/{selectableIds.length} local(aux) sélectionné(s)
+            </Text>
+            <SmallButton
+              label="Tout sélectionner"
+              disabled={!selectableIds.length || busy}
+              onPress={toutSelectionner}
+            />
+            <SmallButton label="Tout désélectionner" disabled={!selected.size || busy} onPress={toutDeselectionner} />
+          </View>
+          <TouchableOpacity
+            style={[styles.btnPrimary, { marginBottom: 14, opacity: busy || !selected.size ? 0.55 : 1 }]}
+            disabled={busy || !selected.size}
+            onPress={preparer}
+          >
+            <Text style={styles.btnPrimaryText}>{busy ? 'Préparation…' : 'Choisir les photos et la couverture'}</Text>
+          </TouchableOpacity>
+          {sitesGroupes.map((site) => (
+            <View key={site.id} style={{ marginBottom: 12 }}>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 6 }}>
+                <Text style={[styles.sectionLabel, { flex: 1, marginBottom: 0 }]}>{site.nom}</Text>
+                <SmallButton
+                  label="Tout le site"
+                  disabled={busy || !site.visites.some((v) => v.statut === 'terminee')}
+                  onPress={() => selectionnerSite(site, true)}
+                />
+                <SmallButton
+                  label="Retirer"
+                  disabled={busy || !site.visites.some((v) => selected.has(v.id))}
+                  onPress={() => selectionnerSite(site, false)}
+                />
+              </View>
+              {site.visites.map((v) => (
+                <View
+                  key={v.id}
+                  style={[
+                    styles.card,
+                    {
+                      borderWidth: selected.has(v.id) ? 2 : 1,
+                      borderColor: selected.has(v.id) ? COLORS.orange : COLORS.line,
+                      opacity: v.statut === 'terminee' ? 1 : 0.8
+                    }
+                  ]}
+                >
+                  <TouchableOpacity
+                    disabled={v.statut !== 'terminee'}
+                    onPress={() => toggle(v.id)}
+                    style={{ flex: 1, flexDirection: 'row', alignItems: 'center' }}
+                  >
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.cardTitle}>{v.nom_local || v.type_local || 'Visite non rattachée'}</Text>
+                      <Text style={styles.cardSub}>
+                        Dernière visite : {v.date_visite || '—'} ·{' '}
+                        {v.statut === 'terminee' ? 'Finalisée' : 'À finaliser'} · {v.progression_pct || 0}%
+                      </Text>
+                    </View>
+                    {v.statut === 'terminee' ? (
+                      <Text style={{ fontSize: 20, color: selected.has(v.id) ? COLORS.orange : COLORS.line }}>
+                        {selected.has(v.id) ? '✓' : '○'}
+                      </Text>
+                    ) : null}
+                  </TouchableOpacity>
+                  {v.statut !== 'terminee' ? (
+                    <TouchableOpacity
+                      onPress={() => finaliser(v)}
+                      style={{
+                        marginLeft: 10,
+                        paddingHorizontal: 10,
+                        paddingVertical: 8,
+                        borderRadius: 9,
+                        backgroundColor: '#FFF3E8'
+                      }}
+                    >
+                      <Text style={{ color: COLORS.orange, fontWeight: '800' }}>Finaliser cette visite</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+              ))}
+            </View>
+          ))}
+        </ScrollView>
+      ) : null}
+      {etape === 'photos' ? (
+        <SectionList
+          sections={photoSections}
+          keyExtractor={(item) => item.id}
+          contentContainerStyle={[styles.content, { paddingBottom: 34 }]}
+          keyboardShouldPersistTaps="handled"
+          stickySectionHeadersEnabled={false}
+          ListHeaderComponent={
+            <View>
+              <Text style={styles.sectionTitle}>Photo centrale de couverture</Text>
+              <View
+                style={[
+                  styles.card,
+                  { padding: 12, flexDirection: 'column', alignItems: 'stretch', justifyContent: 'flex-start' }
+                ]}
+              >
+                <Image
+                  source={coverUri ? { uri: coverUri } : DEFAULT_COVER}
+                  style={{ width: '100%', height: 180, borderRadius: 10, backgroundColor: '#eee' }}
+                  resizeMode="cover"
+                />
+                <Text style={[styles.cardTitle, { marginTop: 10 }]}>{coverLabel}</Text>
+                <Text style={styles.cardSub}>
+                  La couverture est indépendante du reportage photo : une photo choisie ici peut rester incluse dans sa
+                  visite.
+                </Text>
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
+                  <SmallButton label="Image standard METRA" onPress={couvertureStandard} />
+                  <SmallButton label="Galerie" onPress={choisirGalerie} />
+                  <SmallButton label="Prendre une photo" onPress={prendreCouverture} />
+                </View>
+              </View>
+              <Text style={[styles.sectionTitle, { marginTop: 18 }]}>Photos par visite</Text>
+              <Text style={styles.importHint}>
+                Les photos restent séparées par site/local. Tu peux changer l’ordre des sites, puis l’ordre et la taille
+                des photos à l’intérieur de chaque visite.
+              </Text>
+            </View>
+          }
+          renderSectionHeader={({ section }) => {
+            const d = section.visiteData;
+            return (
+              <View style={[styles.card, { marginTop: 16, borderLeftWidth: 4, borderLeftColor: COLORS.orange }]}>
+                <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                  <View style={{ flex: 1 }}>
+                    <Text style={styles.cardTitle}>{d.visite.nom_site || 'Site'}</Text>
+                    <Text style={styles.cardSub}>
+                      {d.visite.nom_local || d.visite.type_local || 'Installation technique'} · {libelleTrame(d)} ·{' '}
+                      {d.visite.date_visite || ''}
+                    </Text>
+                    <Text style={[styles.cardSub, { marginTop: 3 }]}>
+                      {section.data.filter((x) => x.include).length}/{section.data.length} photo(s) incluse(s)
+                    </Text>
+                  </View>
+                  <View style={{ flexDirection: 'row', gap: 6 }}>
+                    <SmallButton
+                      label="↑ Local"
+                      disabled={section.siteIndex === 0}
+                      onPress={() => moveSite(section.siteIndex, section.siteIndex - 1)}
+                    />
+                    <SmallButton
+                      label="↓ Local"
+                      disabled={section.siteIndex === datas.length - 1}
+                      onPress={() => moveSite(section.siteIndex, section.siteIndex + 1)}
+                    />
+                  </View>
+                </View>
+              </View>
+            );
+          }}
+          renderItem={({ item, index, section }) => (
+            <PhotoRow
+              photo={item}
+              index={index}
+              total={section.data.length}
+              onPatch={patchPhoto}
+              onMove={(from, to) => movePhoto(item.visiteId, from, to)}
+              onCover={choisirPhotoCouverture}
+              isCover={coverUri === item.uri && coverVisiteId === item.visiteId}
+            />
+          )}
+          ListEmptyComponent={
+            <Text style={styles.emptyText}>
+              Aucune photo dans les visites sélectionnées. Tu peux tout de même choisir une image de couverture puis
+              mettre le rapport en page.
+            </Text>
+          }
+          ListFooterComponent={
+            <TouchableOpacity
+              style={[styles.btnPrimary, { marginTop: 18, opacity: busy ? 0.55 : 1 }]}
+              disabled={busy}
+              onPress={() => setEtape('layout')}
+            >
+              <Text style={styles.btnPrimaryText}>Aperçu PDF et mise en page</Text>
+            </TouchableOpacity>
+          }
+        />
+      ) : null}
+      {etape === 'layout' ? (
+        <ReportLayoutEditor
+          datas={datas}
+          photos={photos}
+          config={configRapport}
+          layout={layout}
+          onLayoutChange={setLayout}
+          onMoveSite={moveSite}
+          onPatchPhoto={patchPhoto}
+          onGenerate={generer}
+          busy={busy}
+          format={format}
+          onFormatChange={setFormat}
+        />
+      ) : null}
+    </View>
+  );
 }

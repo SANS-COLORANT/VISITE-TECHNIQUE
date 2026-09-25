@@ -25,7 +25,9 @@ function emit(visiteId) {
   if (!subs?.size) return;
   const snapshot = value ? cloneRows(value.rows) : [];
   for (const fn of [...subs]) {
-    try { fn(snapshot); } catch {}
+    try {
+      fn(snapshot);
+    } catch {}
   }
 }
 
@@ -68,7 +70,7 @@ export async function loadVisitPhotos(visiteId, { force = false, prewarm = true 
 }
 
 export async function prewarmVisitPhotoVariants(visiteId, rows = null) {
-  const all = rows || peekVisitPhotos(visiteId) || await loadVisitPhotos(visiteId, { prewarm: false });
+  const all = rows || peekVisitPhotos(visiteId) || (await loadVisitPhotos(visiteId, { prewarm: false }));
   // On borne le travail de fond : les 24 premières miniatures sont les plus
   // probables à être affichées, et seulement 4 aperçus sont préparés.
   const thumbs = all.slice(0, 24).map((photo) => getPhotoVariant(photo.uri, 'thumb'));
@@ -104,7 +106,10 @@ export function removeRuntimePhoto(visiteId, photoId) {
   if (!key) return;
   const current = peekVisitPhotos(key);
   if (!current) return;
-  write(key, current.filter((row) => String(row.id || '') !== String(photoId || '')));
+  write(
+    key,
+    current.filter((row) => String(row.id || '') !== String(photoId || ''))
+  );
 }
 
 export function subscribeVisitPhotos(visiteId, listener) {
@@ -114,7 +119,9 @@ export function subscribeVisitPhotos(visiteId, listener) {
   listeners.get(key).add(listener);
   const current = cache.get(key);
   if (current) {
-    try { listener(cloneRows(current.rows)); } catch {}
+    try {
+      listener(cloneRows(current.rows));
+    } catch {}
   }
   return () => {
     const set = listeners.get(key);
@@ -134,6 +141,6 @@ export function photoRuntimeStats() {
     visits: cache.size,
     pendingLoads: pending.size,
     subscriptions: [...listeners.values()].reduce((n, set) => n + set.size, 0),
-    visitLimit: 3,
+    visitLimit: 3
   };
 }

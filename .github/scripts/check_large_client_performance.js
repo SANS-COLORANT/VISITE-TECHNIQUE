@@ -1,11 +1,18 @@
 const fs = require('fs');
 
-function read(path) { return fs.readFileSync(path, 'utf8'); }
+function read(path) {
+  return fs.readFileSync(path, 'utf8');
+}
+// Compare en ignorant les espaces/retours à la ligne : le contrôle vérifie une
+// structure de code, pas un formatage exact (survit à un passage Prettier).
+function norm(s) {
+  return s.replace(/\s+/g, '');
+}
 function requireText(text, needle, label) {
-  if (!text.includes(needle)) throw new Error(`${label}: missing ${needle}`);
+  if (!norm(text).includes(norm(needle))) throw new Error(`${label}: missing ${needle}`);
 }
 function forbidText(text, needle, label) {
-  if (text.includes(needle)) throw new Error(`${label}: forbidden regression ${needle}`);
+  if (norm(text).includes(norm(needle))) throw new Error(`${label}: forbidden regression ${needle}`);
 }
 
 const report = read('ReportScreen.js');
@@ -43,7 +50,9 @@ requireText(directoryDb, 'const snapshot = directorySnapshot ||', 'Intranet in-m
 const groups = read('SiteGroupsManager.js');
 requireText(groups, 'function SiteGroupVirtualList', 'site group virtualization');
 requireText(groups, '<FlatList', 'site group FlatList');
-forbidText(groups, 'await charger();\n      await onChanged?.();', 'site group full reload');
+if (/await\s+charger\(\);\s*await\s+onChanged\?\.\(\);/.test(groups)) {
+  throw new Error('site group full reload: forbidden regression — sequential full reload after a group action');
+}
 
 const patrimoine = read('patrimoineDb.js');
 requireText(patrimoine, 'export async function getStatsSitesPatrimoine', 'bulk patrimoine stats');
@@ -70,10 +79,13 @@ requireText(database, "SUM(CASE WHEN statut='en_cours' THEN 1 ELSE 0 END)", 'sin
 const constants = read('database/constants.js');
 const schemaMatch = constants.match(/DATABASE_SCHEMA_VERSION\s*=\s*(\d+)/);
 const schemaVersion = Number(schemaMatch?.[1] || 0);
-if (!Number.isInteger(schemaVersion) || schemaVersion < 30) throw new Error(`performance schema version: invalid ${schemaVersion}`);
+if (!Number.isInteger(schemaVersion) || schemaVersion < 30)
+  throw new Error(`performance schema version: invalid ${schemaVersion}`);
 const migration = read('database/migrations/030_large_client_performance_indexes.js');
 requireText(migration, 'idx_sites_client_nom', 'site navigation index');
 requireText(migration, 'idx_visites_site_trame_install_date', 'visit carry-forward index');
 requireText(migration, 'idx_api_client_site_client_present', 'API client/site index');
 
-console.log('Large-client performance contract validated: report UX, lazy storage, bounded prewarm caches, virtualized lists, batched queries and SQLite indexes.');
+console.log(
+  'Large-client performance contract validated: report UX, lazy storage, bounded prewarm caches, virtualized lists, batched queries and SQLite indexes.'
+);

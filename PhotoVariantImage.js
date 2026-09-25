@@ -19,37 +19,51 @@ const PhotoVariantImage = memo(function PhotoVariantImage({
     setFailed(false);
     if (!uri) {
       setResolved(null);
-      return () => { alive = false; };
+      return () => {
+        alive = false;
+      };
     }
     if (variant === 'original') {
       setResolved(uri);
-      return () => { alive = false; };
+      return () => {
+        alive = false;
+      };
     }
     setResolved(null);
     getPhotoVariant(uri, variant)
-      .then((next) => { if (alive) setResolved(next || (fallbackToOriginal ? uri : null)); })
-      .catch(() => { if (alive) setResolved(fallbackToOriginal ? uri : null); });
-    return () => { alive = false; };
+      .then((next) => {
+        if (alive) setResolved(next || (fallbackToOriginal ? uri : null));
+      })
+      .catch(() => {
+        if (alive) setResolved(fallbackToOriginal ? uri : null);
+      });
+    return () => {
+      alive = false;
+    };
   }, [uri, variant, fallbackToOriginal]);
 
   if (!resolved || failed) {
-    return <View style={[{ backgroundColor: '#EEF1F3', alignItems: 'center', justifyContent: 'center' }, style]}>
-      <Text style={{ color: '#7B8790', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 }}>{placeholderLabel}</Text>
-    </View>;
+    return (
+      <View style={[{ backgroundColor: '#EEF1F3', alignItems: 'center', justifyContent: 'center' }, style]}>
+        <Text style={{ color: '#7B8790', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 }}>{placeholderLabel}</Text>
+      </View>
+    );
   }
 
-  return <Image
-    {...props}
-    source={{ uri: resolved }}
-    style={style}
-    resizeMode={resizeMode}
-    resizeMethod="resize"
-    fadeDuration={0}
-    onError={() => {
-      if (resolved !== uri && fallbackToOriginal) setResolved(uri);
-      else setFailed(true);
-    }}
-  />;
+  return (
+    <Image
+      {...props}
+      source={{ uri: resolved }}
+      style={style}
+      resizeMode={resizeMode}
+      resizeMethod="resize"
+      fadeDuration={0}
+      onError={() => {
+        if (resolved !== uri && fallbackToOriginal) setResolved(uri);
+        else setFailed(true);
+      }}
+    />
+  );
 });
 
 export { PhotoVariantImage };

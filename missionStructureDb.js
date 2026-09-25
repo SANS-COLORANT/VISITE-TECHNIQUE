@@ -17,7 +17,7 @@ export const MISSION_LOCATION_KINDS = Object.freeze([
   ['zone', 'Zone'],
   ['roof', 'Toiture / terrasse'],
   ['exterior', 'Extérieur'],
-  ['other', 'Autre'],
+  ['other', 'Autre']
 ]);
 
 function clean(value) {
@@ -35,7 +35,9 @@ async function requireMissionSite(db, missionId, siteId) {
 
 async function requireParent(db, siteId, parentLocationId) {
   if (!parentLocationId) return null;
-  const row = await db.getFirstAsync('SELECT id,site_id,parent_location_id FROM mission_locations WHERE id=?', [parentLocationId]);
+  const row = await db.getFirstAsync('SELECT id,site_id,parent_location_id FROM mission_locations WHERE id=?', [
+    parentLocationId
+  ]);
   if (!row) throw new Error('Localisation parente introuvable.');
   if (String(row.site_id) !== String(siteId)) throw new Error('La localisation parente appartient à un autre Site.');
   return row;
@@ -46,7 +48,7 @@ export async function creerLocalisationMission({
   siteId,
   parentLocationId = null,
   kind = 'room',
-  label,
+  label
 } = {}) {
   if (!missionId || !siteId) throw new Error('Mission et Site requis.');
   const finalLabel = clean(label);
@@ -80,19 +82,34 @@ export async function modifierLocalisationMission(locationId, { label, kind, par
       let cursor = parent;
       const visited = new Set([locationId]);
       while (cursor?.parent_location_id) {
-        if (visited.has(cursor.parent_location_id)) throw new Error('Cette modification créerait une boucle dans la hiérarchie.');
+        if (visited.has(cursor.parent_location_id))
+          throw new Error('Cette modification créerait une boucle dans la hiérarchie.');
         visited.add(cursor.parent_location_id);
-        cursor = await db.getFirstAsync('SELECT id,parent_location_id FROM mission_locations WHERE id=?', [cursor.parent_location_id]);
+        cursor = await db.getFirstAsync('SELECT id,parent_location_id FROM mission_locations WHERE id=?', [
+          cursor.parent_location_id
+        ]);
       }
     }
   }
 
   const setters = [];
   const values = [];
-  if (label !== undefined) { setters.push('label=?'); values.push(clean(label) || current.label); }
-  if (kind !== undefined) { setters.push('kind=?'); values.push(clean(kind) || current.kind); }
-  if (parentLocationId !== undefined) { setters.push('parent_location_id=?'); values.push(clean(parentLocationId)); }
-  if (sortOrder !== undefined) { setters.push('sort_order=?'); values.push(Number(sortOrder) || 0); }
+  if (label !== undefined) {
+    setters.push('label=?');
+    values.push(clean(label) || current.label);
+  }
+  if (kind !== undefined) {
+    setters.push('kind=?');
+    values.push(clean(kind) || current.kind);
+  }
+  if (parentLocationId !== undefined) {
+    setters.push('parent_location_id=?');
+    values.push(clean(parentLocationId));
+  }
+  if (sortOrder !== undefined) {
+    setters.push('sort_order=?');
+    values.push(Number(sortOrder) || 0);
+  }
   if (!setters.length) return;
   setters.push("updated_at=datetime('now')");
   values.push(locationId);
@@ -113,16 +130,16 @@ export async function listerStructureMission(missionId) {
     ),
     db.getAllAsync(
       'SELECT l.*, (SELECT COUNT(*) FROM mission_equipment e WHERE e.location_id=l.id) AS direct_equipment_count ' +
-      'FROM mission_locations l JOIN mission_site_links ml ON ml.site_id=l.site_id ' +
-      'WHERE ml.mission_id=? ORDER BY l.site_id,l.sort_order,l.label',
+        'FROM mission_locations l JOIN mission_site_links ml ON ml.site_id=l.site_id ' +
+        'WHERE ml.mission_id=? ORDER BY l.site_id,l.sort_order,l.label',
       [missionId]
     ),
     db.getAllAsync(
       'SELECT e.id,e.site_id,e.location_id,e.type,e.brand,e.model,e.state,e.verification_status ' +
-      'FROM mission_equipment e JOIN mission_site_links ml ON ml.site_id=e.site_id ' +
-      'WHERE ml.mission_id=? ORDER BY e.site_id,e.location_id,e.type,e.brand,e.model',
+        'FROM mission_equipment e JOIN mission_site_links ml ON ml.site_id=e.site_id ' +
+        'WHERE ml.mission_id=? ORDER BY e.site_id,e.location_id,e.type,e.brand,e.model',
       [missionId]
-    ),
+    )
   ]);
 
   return { sites, locations, equipment };
@@ -137,7 +154,9 @@ export function construireArbreLocalisations({ sites = [], locations = [], equip
     byParent.set(key, list);
   }
   for (const list of byParent.values()) {
-    list.sort((a, b) => (Number(a.sort_order || 0) - Number(b.sort_order || 0)) || String(a.label).localeCompare(String(b.label)));
+    list.sort(
+      (a, b) => Number(a.sort_order || 0) - Number(b.sort_order || 0) || String(a.label).localeCompare(String(b.label))
+    );
   }
 
   const equipmentByLocation = new Map();
@@ -160,14 +179,14 @@ export function construireArbreLocalisations({ sites = [], locations = [], equip
       ...loc,
       depth,
       equipment: equipmentByLocation.get(loc.id) || [],
-      children: buildChildren(siteId, loc.id, depth + 1),
+      children: buildChildren(siteId, loc.id, depth + 1)
     }));
   };
 
   return sites.map((site) => ({
     ...site,
     locations: buildChildren(site.id),
-    unlocatedEquipment: unlocatedBySite.get(site.id) || [],
+    unlocatedEquipment: unlocatedBySite.get(site.id) || []
   }));
 }
 

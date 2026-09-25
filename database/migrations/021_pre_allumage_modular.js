@@ -51,5 +51,5 @@ export const migration021 = {
       ON pre_allumage_rubriques(visite_id, panel_id, ordre);
     CREATE INDEX IF NOT EXISTS idx_pa_champs_rubrique
       ON pre_allumage_champs(rubrique_id, ordre);
-  `,
+  `
 };

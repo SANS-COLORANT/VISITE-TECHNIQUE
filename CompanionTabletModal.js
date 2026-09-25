@@ -6,7 +6,7 @@ import {
   assertVisitBelongsToCompanionClient,
   buildCompanionClientSnapshot,
   buildCompanionVisitSnapshot,
-  importCompanionPhoto,
+  importCompanionPhoto
 } from './companionData.js';
 import { buildCompanionQrPayload } from './companionProtocol.js';
 import {
@@ -14,7 +14,7 @@ import {
   sendCompanionMessage,
   startCompanionHost,
   stopCompanion,
-  subscribeCompanion,
+  subscribeCompanion
 } from './companionNative.js';
 import { getRuntimeAccent } from './visual-packs/runtime/visualPaletteRuntime.js';
 
@@ -24,7 +24,7 @@ function withTimeout(promise, ms, message) {
     promise,
     new Promise((_, reject) => {
       timer = setTimeout(() => reject(new Error(message)), ms);
-    }),
+    })
   ]).finally(() => {
     if (timer) clearTimeout(timer);
   });
@@ -43,7 +43,9 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
   const accent = getRuntimeAccent();
 
   const stop = useCallback(async () => {
-    try { await stopCompanion(); } catch {}
+    try {
+      await stopCompanion();
+    } catch {}
   }, []);
 
   const buildScopeSnapshot = useCallback(async () => {
@@ -76,7 +78,7 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
           visitId: visiteId || null,
           clientId: clientId || nextSnapshot?.client?.id || null,
           site: nextSnapshot?.visit?.site || '',
-          client: nextSnapshot?.visit?.client || nextSnapshot?.client?.name || nomClient || '',
+          client: nextSnapshot?.visit?.client || nextSnapshot?.client?.name || nomClient || ''
         }),
         10000,
         'Impossible de démarrer la liaison locale. Utilise le même Wi‑Fi, ou connecte la tablette au partage de connexion du téléphone.'
@@ -86,16 +88,13 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
         ...host,
         scope,
         scopeId,
-        label: scope === 'client'
-          ? (nextSnapshot?.client?.name || nomClient || 'Client')
-          : (nextSnapshot?.visit?.site || 'Visite'),
+        label:
+          scope === 'client'
+            ? nextSnapshot?.client?.name || nomClient || 'Client'
+            : nextSnapshot?.visit?.site || 'Visite'
       });
 
-      const uri = await withTimeout(
-        generateCompanionQr(payload, 720),
-        8000,
-        'Le QR code n’a pas pu être généré.'
-      );
+      const uri = await withTimeout(generateCompanionQr(payload, 720), 8000, 'Le QR code n’a pas pu être généré.');
 
       if (!mountedRef.current) return;
       setSnapshot(nextSnapshot);
@@ -110,36 +109,48 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
     }
   }, [visible, scopeId, scope, visiteId, clientId, nomClient, buildScopeSnapshot, stop]);
 
-  const refreshSnapshot = useCallback(async ({ notify = true } = {}) => {
-    try {
-      const next = await buildScopeSnapshot();
-      setSnapshot(next);
-      if (notify) await sendCompanionMessage(next);
-      setLastEvent(scope === 'client' ? 'Patrimoine client actualisé sur le téléphone' : 'Données de visite actualisées sur le téléphone');
+  const refreshSnapshot = useCallback(
+    async ({ notify = true } = {}) => {
+      try {
+        const next = await buildScopeSnapshot();
+        setSnapshot(next);
+        if (notify) await sendCompanionMessage(next);
+        setLastEvent(
+          scope === 'client'
+            ? 'Patrimoine client actualisé sur le téléphone'
+            : 'Données de visite actualisées sur le téléphone'
+        );
+        return next;
+      } catch (e) {
+        Alert.alert('Actualisation impossible', String(e?.message || e));
+        return null;
+      }
+    },
+    [buildScopeSnapshot, scope]
+  );
+
+  const sendVisitToPhone = useCallback(
+    async (requestedVisitId) => {
+      const id = String(requestedVisitId || '').trim();
+      if (!id) throw new Error('Visite non sélectionnée');
+      if (scope === 'client') await assertVisitBelongsToCompanionClient(clientId, id);
+      else if (String(visiteId) !== id) throw new Error('Cette session est liée à une autre visite.');
+
+      const next = await buildCompanionVisitSnapshot(id);
+      setPhoneVisitId(id);
+      await sendCompanionMessage(next);
+      setLastEvent(`Visite ouverte sur le téléphone · ${next?.visit?.site || ''}`);
       return next;
-    } catch (e) {
-      Alert.alert('Actualisation impossible', String(e?.message || e));
-      return null;
-    }
-  }, [buildScopeSnapshot, scope]);
-
-  const sendVisitToPhone = useCallback(async (requestedVisitId) => {
-    const id = String(requestedVisitId || '').trim();
-    if (!id) throw new Error('Visite non sélectionnée');
-    if (scope === 'client') await assertVisitBelongsToCompanionClient(clientId, id);
-    else if (String(visiteId) !== id) throw new Error('Cette session est liée à une autre visite.');
-
-    const next = await buildCompanionVisitSnapshot(id);
-    setPhoneVisitId(id);
-    await sendCompanionMessage(next);
-    setLastEvent(`Visite ouverte sur le téléphone · ${next?.visit?.site || ''}`);
-    return next;
-  }, [scope, clientId, visiteId]);
+    },
+    [scope, clientId, visiteId]
+  );
 
   useEffect(() => {
     mountedRef.current = true;
     if (visible) launch();
-    return () => { mountedRef.current = false; };
+    return () => {
+      mountedRef.current = false;
+    };
   }, [visible, launch]);
 
   useEffect(() => {
@@ -156,7 +167,7 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
           setConnection('Téléphone connecté');
           setLastEvent('Connexion locale établie');
           try {
-            const next = snapshot || await buildScopeSnapshot();
+            const next = snapshot || (await buildScopeSnapshot());
             if (!snapshot) setSnapshot(next);
             await sendCompanionMessage(next);
           } catch (e) {
@@ -192,7 +203,7 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
             await sendCompanionMessage({
               type: 'visitSelectionError',
               visitId: message.visitId || null,
-              message: String(e?.message || e),
+              message: String(e?.message || e)
             }).catch(() => {});
             setLastEvent(`Visite non ouverte : ${String(e?.message || e)}`);
           }
@@ -208,13 +219,13 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
             const next = await applyCompanionTargetUpdate({
               visiteId: targetVisitId,
               edit: message.edit || null,
-              value: message.value,
+              value: message.value
             });
             setPhoneVisitId(targetVisitId);
             await sendCompanionMessage({
               type: 'targetUpdated',
               requestId: message.requestId || null,
-              visitId: targetVisitId,
+              visitId: targetVisitId
             }).catch(() => {});
             await sendCompanionMessage(next);
             setLastEvent('Valeur mise à jour depuis le téléphone');
@@ -223,7 +234,7 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
               type: 'targetUpdateError',
               requestId: message.requestId || null,
               visitId: targetVisitId || null,
-              message: String(e?.message || e),
+              message: String(e?.message || e)
             }).catch(() => {});
             setLastEvent(`Modification refusée : ${String(e?.message || e)}`);
           }
@@ -233,9 +244,8 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
 
       if (event?.type === 'fileReceived') {
         const meta = event.meta || {};
-        const targetVisitId = scope === 'client'
-          ? String(meta.visitId || phoneVisitId || '').trim()
-          : String(visiteId || '').trim();
+        const targetVisitId =
+          scope === 'client' ? String(meta.visitId || phoneVisitId || '').trim() : String(visiteId || '').trim();
         try {
           if (!targetVisitId) throw new Error('Choisis une visite sur le téléphone avant d’envoyer une photo.');
           if (scope === 'client') await assertVisitBelongsToCompanionClient(clientId, targetVisitId);
@@ -246,7 +256,7 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
             photoId: imported.id,
             targetKey: imported.entiteKey,
             label: imported.label,
-            visitId: targetVisitId,
+            visitId: targetVisitId
           });
           setLastEvent(`Photo reçue · ${imported.label || 'élément'}`);
 
@@ -257,7 +267,7 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
           await sendCompanionMessage({
             type: 'photoImportError',
             transferId: meta.transferId || null,
-            message: String(e?.message || e),
+            message: String(e?.message || e)
           }).catch(() => {});
           setLastEvent(`Photo non importée : ${String(e?.message || e)}`);
         }
@@ -265,7 +275,18 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
     });
 
     return () => unsubscribe();
-  }, [visible, visiteId, clientId, phoneVisitId, scope, snapshot, buildScopeSnapshot, refreshSnapshot, sendVisitToPhone, stop]);
+  }, [
+    visible,
+    visiteId,
+    clientId,
+    phoneVisitId,
+    scope,
+    snapshot,
+    buildScopeSnapshot,
+    refreshSnapshot,
+    sendVisitToPhone,
+    stop
+  ]);
 
   const close = useCallback(async () => {
     await stop();
@@ -273,9 +294,7 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
   }, [onClose, stop]);
 
   const moduleSummary = useMemo(
-    () => snapshot?.type === 'visitSnapshot'
-      ? (snapshot?.modules || []).filter((m) => Number(m.count || 0) > 0)
-      : [],
+    () => (snapshot?.type === 'visitSnapshot' ? (snapshot?.modules || []).filter((m) => Number(m.count || 0) > 0) : []),
     [snapshot]
   );
 
@@ -320,33 +339,80 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
             {phase === 'ready' ? (
               <>
                 <View style={{ alignItems: 'center', paddingVertical: 8 }}>
-                  {qrUri ? <Image source={{ uri: qrUri }} style={{ width: 300, height: 300, backgroundColor: '#FFF', borderRadius: 18 }} resizeMode="contain" /> : null}
-                  <Text style={{ marginTop: 10, fontSize: 15, fontWeight: '900', color: COLORS.ink }}>{connection}</Text>
+                  {qrUri ? (
+                    <Image
+                      source={{ uri: qrUri }}
+                      style={{ width: 300, height: 300, backgroundColor: '#FFF', borderRadius: 18 }}
+                      resizeMode="contain"
+                    />
+                  ) : null}
+                  <Text style={{ marginTop: 10, fontSize: 15, fontWeight: '900', color: COLORS.ink }}>
+                    {connection}
+                  </Text>
                   <Text style={{ marginTop: 4, fontSize: 12, color: COLORS.inkSoft, textAlign: 'center' }}>
                     Sur le téléphone : Compagnon → Scanner le QR de la tablette
                   </Text>
-                  <Text style={{ marginTop: 5, fontSize: 10.5, color: COLORS.inkFaint, textAlign: 'center', lineHeight: 15 }}>
-                    Même Wi-Fi, ou tablette connectée au partage de connexion du téléphone. Internet n’est pas nécessaire.
+                  <Text
+                    style={{
+                      marginTop: 5,
+                      fontSize: 10.5,
+                      color: COLORS.inkFaint,
+                      textAlign: 'center',
+                      lineHeight: 15
+                    }}
+                  >
+                    Même Wi-Fi, ou tablette connectée au partage de connexion du téléphone. Internet n’est pas
+                    nécessaire.
                   </Text>
                 </View>
 
-                <View style={{ marginTop: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.bg }}>
+                <View
+                  style={{
+                    marginTop: 10,
+                    padding: 12,
+                    borderRadius: 12,
+                    borderWidth: 1,
+                    borderColor: COLORS.line,
+                    backgroundColor: COLORS.bg
+                  }}
+                >
                   {snapshot?.type === 'clientSnapshot' ? (
                     <>
-                      <Text style={{ fontWeight: '900', color: COLORS.ink }}>{snapshot?.client?.name || nomClient || 'Client'}</Text>
-                      <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 12 }}>
-                        {clientCounts?.sites || 0} sites · {clientCounts?.locals || 0} locaux · {clientCounts?.visits || 0} visites
+                      <Text style={{ fontWeight: '900', color: COLORS.ink }}>
+                        {snapshot?.client?.name || nomClient || 'Client'}
                       </Text>
-                      {phoneVisitId ? <Text style={{ marginTop: 7, color: accent, fontSize: 11.5, fontWeight: '800' }}>Une visite est actuellement ouverte sur le téléphone.</Text> : null}
+                      <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 12 }}>
+                        {clientCounts?.sites || 0} sites · {clientCounts?.locals || 0} locaux ·{' '}
+                        {clientCounts?.visits || 0} visites
+                      </Text>
+                      {phoneVisitId ? (
+                        <Text style={{ marginTop: 7, color: accent, fontSize: 11.5, fontWeight: '800' }}>
+                          Une visite est actuellement ouverte sur le téléphone.
+                        </Text>
+                      ) : null}
                     </>
                   ) : (
                     <>
                       <Text style={{ fontWeight: '900', color: COLORS.ink }}>{snapshot?.visit?.site || 'Visite'}</Text>
-                      <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 12 }}>{snapshot?.visit?.client || ''} · {snapshot?.visit?.date || ''}</Text>
+                      <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 12 }}>
+                        {snapshot?.visit?.client || ''} · {snapshot?.visit?.date || ''}
+                      </Text>
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 }}>
                         {moduleSummary.map((m) => (
-                          <View key={m.id} style={{ paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line }}>
-                            <Text style={{ fontSize: 11, fontWeight: '800', color: COLORS.ink }}>{m.label} · {m.count}</Text>
+                          <View
+                            key={m.id}
+                            style={{
+                              paddingHorizontal: 9,
+                              paddingVertical: 6,
+                              borderRadius: 999,
+                              backgroundColor: COLORS.white,
+                              borderWidth: 1,
+                              borderColor: COLORS.line
+                            }}
+                          >
+                            <Text style={{ fontSize: 11, fontWeight: '800', color: COLORS.ink }}>
+                              {m.label} · {m.count}
+                            </Text>
                           </View>
                         ))}
                       </View>
@@ -354,7 +420,11 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
                   )}
                 </View>
 
-                {lastEvent ? <Text style={{ marginTop: 10, textAlign: 'center', color: COLORS.inkSoft, fontSize: 12 }}>{lastEvent}</Text> : null}
+                {lastEvent ? (
+                  <Text style={{ marginTop: 10, textAlign: 'center', color: COLORS.inkSoft, fontSize: 12 }}>
+                    {lastEvent}
+                  </Text>
+                ) : null}
 
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                   <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => refreshSnapshot()}>

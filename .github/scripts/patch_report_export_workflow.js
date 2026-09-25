@@ -1,8 +1,14 @@
 const fs = require('fs');
 
-function read(path) { return fs.readFileSync(path, 'utf8'); }
-function write(path, text) { fs.writeFileSync(path, text); }
-function requireAnchor(text, needle, label) { if (!text.includes(needle)) throw new Error(`${label}: anchor not found`); }
+function read(path) {
+  return fs.readFileSync(path, 'utf8');
+}
+function write(path, text) {
+  fs.writeFileSync(path, text);
+}
+function requireAnchor(text, needle, label) {
+  if (!text.includes(needle)) throw new Error(`${label}: anchor not found`);
+}
 
 function patchClientDocuments() {
   const path = 'ClientDocumentsScreen.js';
@@ -12,16 +18,20 @@ function patchClientDocuments() {
     "import { garantirRacineMetra, initialiserArborescenceClient, obtenirRacineMetra } from './metraStorage.js';",
     "import { garantirRacineMetra, obtenirRacineMetra } from './metraStorage.js';"
   );
-  text = text.replace(/\n\s*\/\/ Matérialise immédiatement l'arborescence[\s\S]*?await initialiserArborescenceClient\(clientId\);\n/g, '\n');
+  text = text.replace(
+    /\n\s*\/\/ Matérialise immédiatement l'arborescence[\s\S]*?await initialiserArborescenceClient\(clientId\);\n/g,
+    '\n'
+  );
   text = text.replace(/\n\s*await initialiserArborescenceClient\(clientId\);/g, '');
-  if (text.includes('initialiserArborescenceClient')) throw new Error('ClientDocuments still creates the whole client tree eagerly');
+  if (text.includes('initialiserArborescenceClient'))
+    throw new Error('ClientDocuments still creates the whole client tree eagerly');
 
   // Before the historical typed-export pass, ReportScreen can be opened directly.
   // After that pass, ouvrirRapports already routes through demanderTypeExport and
   // storage is deferred there by patch_visit_creation_export_type_v2.py.
   const oldOpen = `  const ouvrirRapports = async () => {\n    const uri = await garantirStockageClient();\n    if (!uri) return;\n    navigation.navigate('Report', { clientId });\n  };`;
   const newOpen = `  const ouvrirRapports = () => {\n    navigation.navigate('Report', { clientId });\n  };`;
-  if (!text.includes("const ouvrirRapports = () =>")) {
+  if (!text.includes('const ouvrirRapports = () =>')) {
     requireAnchor(text, oldOpen, 'lazy report opening');
     text = text.replace(oldOpen, newOpen);
   }
@@ -68,8 +78,9 @@ function patchExporter() {
     text = text.replace(brandImport, `${brandImport}\n${storageImport}`);
   }
 
-  const oldBase = "  const base = propre(`${config.chrono || 'Rapport'}_${datas.length === 1 ? datas[0].visite.nom_site : datas[0].visite.nom_client}_${config.objet || 'CRV'}`);";
-  const newBase = `  const clientNom = datas[0]?.visite?.nom_client || 'Rapport';\n  const base = propre(datas.length > 1\n    ? \`${'${clientNom}'}_${'${config.chrono || \'Rapport\'}'}_${'${config.objet || \'CRV\'}'}\`\n    : \`${'${config.chrono || \'Rapport\'}'}_${'${datas[0]?.visite?.nom_site || clientNom}'}_${'${config.objet || \'CRV\'}'}\`);`;
+  const oldBase =
+    "  const base = propre(`${config.chrono || 'Rapport'}_${datas.length === 1 ? datas[0].visite.nom_site : datas[0].visite.nom_client}_${config.objet || 'CRV'}`);";
+  const newBase = `  const clientNom = datas[0]?.visite?.nom_client || 'Rapport';\n  const base = propre(datas.length > 1\n    ? \`${'${clientNom}'}_${"${config.chrono || 'Rapport'}"}_${"${config.objet || 'CRV'}"}\`\n    : \`${"${config.chrono || 'Rapport'}"}_${'${datas[0]?.visite?.nom_site || clientNom}'}_${"${config.objet || 'CRV'}"}\`);`;
   if (!text.includes("const clientNom = datas[0]?.visite?.nom_client || 'Rapport';")) {
     requireAnchor(text, oldBase, 'report filename base');
     text = text.replace(oldBase, newBase);
@@ -79,7 +90,7 @@ function patchExporter() {
   const storageSingle = `export async function exporterRapportEdite({ datas, config, photosConfig, format = 'pdf', dossierUri = null }) {\n  const dossier = dossierUri || await choisirDossier(datas);\n  if (!dossier) return { annule: true };\n  return { annule: false, ...(await exporterUnFormatEdite({ datas, config, photosConfig, format, dossier })) };\n}`;
   const newSingle = `export async function exporterRapportEdite({ datas, config, photosConfig, format = 'pdf', dossierUri = null }) {\n  const clientNom = datas?.[0]?.visite?.nom_client || null;\n  const dossier = dossierUri || (clientNom ? await dossierRapportsClientMetra(clientNom) : await choisirDossier());\n  if (!dossier) return { annule: true };\n  return { annule: false, ...(await exporterUnFormatEdite({ datas, config, photosConfig, format, dossier })) };\n}`;
   if (!text.includes('clientNom ? await dossierRapportsClientMetra(clientNom)')) {
-    const singleAnchor = text.includes(oldSingle) ? oldSingle : (text.includes(storageSingle) ? storageSingle : null);
+    const singleAnchor = text.includes(oldSingle) ? oldSingle : text.includes(storageSingle) ? storageSingle : null;
     if (!singleAnchor) throw new Error('single/grouped report destination: anchor not found');
     text = text.replace(singleAnchor, newSingle);
   }
@@ -101,10 +112,12 @@ function patchExporter() {
       throw new Error('per-site report destination: anchor not found');
     }
 
-    const oldPush = '    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossier }));';
-    const storagePush = '    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format }));';
+    const oldPush =
+      '    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossier }));';
+    const storagePush =
+      '    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format }));';
     const newPush = `    const siteNom = siteDatas[0]?.visite?.nom_site || 'Site';\n    const dossierSite = dossiersParSite === false || !clientNom\n      ? dossierClient\n      : await dossierRapportsSiteMetra({ clientNom, siteNom });\n    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossierSite }));`;
-    const pushAnchor = fn.includes(oldPush) ? oldPush : (fn.includes(storagePush) ? storagePush : null);
+    const pushAnchor = fn.includes(oldPush) ? oldPush : fn.includes(storagePush) ? storagePush : null;
     if (!pushAnchor) throw new Error('per-site folder selection: anchor not found');
     fn = fn.replace(pushAnchor, newPush);
   }
@@ -124,49 +137,64 @@ function patchReportScreen() {
 
   // Keep the historical mode/chrono/objet chain untouched. Depending on whether
   // the VMC compatibility pass already ran, the same line may also contain sousTitre.
-  const stateBase = " const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique');";
-  const stateVmc = " const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique'),[sousTitre,setSousTitre]=useState('Présentation de la trame de visite technique');";
-  const extraState = " const[dossiersParSite,setDossiersParSite]=useState(true);";
+  const stateBase =
+    " const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique');";
+  const stateVmc =
+    " const[mode,setMode]=useState('groupe'),[chrono,setChrono]=useState(''),[objet,setObjet]=useState('Compte rendu de visite technique'),[sousTitre,setSousTitre]=useState('Présentation de la trame de visite technique');";
+  const extraState = ' const[dossiersParSite,setDossiersParSite]=useState(true);';
   if (!text.includes('[dossiersParSite,setDossiersParSite]')) {
-    const stateAnchor = text.includes(stateVmc) ? stateVmc : (text.includes(stateBase) ? stateBase : null);
+    const stateAnchor = text.includes(stateVmc) ? stateVmc : text.includes(stateBase) ? stateBase : null;
     if (!stateAnchor) throw new Error('report output state: anchor not found');
     text = text.replace(stateAnchor, `${stateAnchor}\n${extraState}`);
   }
 
   // A client report starts with an explicit site choice.
-  text = text.replace(
-    "return new Set(latest.filter(v=>v.statut==='terminee').map(v=>v.id))",
-    'return new Set()'
-  );
+  text = text.replace("return new Set(latest.filter(v=>v.statut==='terminee').map(v=>v.id))", 'return new Set()');
 
-  const selectedRowsAnchor = ' const selectedRows=useMemo(()=>visites.filter(v=>selected.has(v.id)),[visites,selected]);';
+  const selectedRowsAnchor =
+    ' const selectedRows=useMemo(()=>visites.filter(v=>selected.has(v.id)),[visites,selected]);';
   if (!text.includes('const clientNomRapport=')) {
     requireAnchor(text, selectedRowsAnchor, 'report client label');
-    text = text.replace(selectedRowsAnchor, `${selectedRowsAnchor}\n const clientNomRapport=useMemo(()=>visites[0]?.nom_client||'Nom du client',[visites]);`);
+    text = text.replace(
+      selectedRowsAnchor,
+      `${selectedRowsAnchor}\n const clientNomRapport=useMemo(()=>visites[0]?.nom_client||'Nom du client',[visites]);`
+    );
   }
 
   text = text.replace('>Rapport groupé</Text>', '>Un seul document · {clientNomRapport}</Text>');
   text = text.replace('>Un rapport par site</Text>', '>Un PDF par site</Text>');
 
-  const contentAnchor = "</View><Text style={[styles.fieldLabel,{marginTop:16}]}>Contenu</Text>";
+  const contentAnchor = '</View><Text style={[styles.fieldLabel,{marginTop:16}]}>Contenu</Text>';
   if (!text.includes('Créer un dossier pour chaque site')) {
-    const modeIndex = text.indexOf("<Text style={[styles.fieldLabel,{marginTop:16}]}>Mode</Text>");
+    const modeIndex = text.indexOf('<Text style={[styles.fieldLabel,{marginTop:16}]}>Mode</Text>');
     const contentIndex = text.indexOf(contentAnchor, modeIndex);
     if (modeIndex < 0 || contentIndex < 0) throw new Error('report mode block anchor not found');
     const insert = `</View>{mode==='site'?<View style={{marginTop:10,padding:10,borderRadius:11,borderWidth:1,borderColor:COLORS.line,backgroundColor:'#fff'}}><Toggle label=\"Créer un dossier pour chaque site\" value={dossiersParSite} onChange={setDossiersParSite} sub=\"Uniquement pour les sites sélectionnés. Si désactivé, les PDF par site sont rangés ensemble dans le dossier Rapports du client.\"/></View>:<Text style={{marginTop:9,color:COLORS.inkSoft,fontSize:11.5}}>Un seul fichier sera généré pour tous les sites sélectionnés, avec le nom du client.</Text>}<Text style={[styles.fieldLabel,{marginTop:16}]}>Contenu</Text>`;
     text = text.slice(0, contentIndex) + text.slice(contentIndex).replace(contentAnchor, insert);
   }
 
-  const perSiteCall = "await exporterRapportsParSiteEdites({datas,config,photosConfig:photos,format})";
+  const perSiteCall = 'await exporterRapportsParSiteEdites({datas,config,photosConfig:photos,format})';
   if (!text.includes('photosConfig:photos,format,dossiersParSite')) {
     requireAnchor(text, perSiteCall, 'per-site report generation arguments');
-    text = text.replace(perSiteCall, "await exporterRapportsParSiteEdites({datas,config,photosConfig:photos,format,dossiersParSite})");
+    text = text.replace(
+      perSiteCall,
+      'await exporterRapportsParSiteEdites({datas,config,photosConfig:photos,format,dossiersParSite})'
+    );
   }
 
   text = text.replace('rapport(s) enregistré(s) dans le dossier choisi.', 'rapport(s) enregistré(s) dans METRA.');
-  text = text.replace('rapport(s) classé(s) automatiquement dans Documents/METRA.', 'rapport(s) enregistré(s) dans METRA.');
-  text = text.replace("a été enregistré dans le dossier choisi.", "a été enregistré dans le dossier Rapports du client.");
-  text = text.replace("a été classé automatiquement dans Documents/METRA.", "a été enregistré dans le dossier Rapports du client.");
+  text = text.replace(
+    'rapport(s) classé(s) automatiquement dans Documents/METRA.',
+    'rapport(s) enregistré(s) dans METRA.'
+  );
+  text = text.replace(
+    'a été enregistré dans le dossier choisi.',
+    'a été enregistré dans le dossier Rapports du client.'
+  );
+  text = text.replace(
+    'a été classé automatiquement dans Documents/METRA.',
+    'a été enregistré dans le dossier Rapports du client.'
+  );
   write(path, text);
 }
 
@@ -174,4 +202,6 @@ patchClientDocuments();
 patchStorage();
 patchExporter();
 patchReportScreen();
-console.log('Report export workflow fixed: explicit site selection, no eager site folders, grouped client document or optional folder per selected site.');
+console.log(
+  'Report export workflow fixed: explicit site selection, no eager site folders, grouped client document or optional folder per selected site.'
+);

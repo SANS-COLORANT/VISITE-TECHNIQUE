@@ -5,7 +5,28 @@ import { exporterDernieresVisitesClient } from './clientBatchExport.js';
 import { garantirRacineMetra, obtenirRacineMetra } from './metraStorage.js';
 
 function ActionCard({ title, text, action, secondary = false, disabled = false }) {
-  return <View style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, padding: 14, marginBottom: 10 }}><Text style={{ fontSize: 15, fontWeight: '900', color: COLORS.ink }}>{title}</Text><Text style={{ marginTop: 5, color: COLORS.muted, fontSize: 11.5, lineHeight: 17 }}>{text}</Text><TouchableOpacity disabled={disabled} onPress={action} style={[secondary ? styles.btnSecondary : styles.btnPrimary, { marginTop: 12 }, disabled && { opacity: 0.45 }]}><Text style={secondary ? styles.btnSecondaryText : styles.btnPrimaryText}>{title}</Text></TouchableOpacity></View>;
+  return (
+    <View
+      style={{
+        backgroundColor: '#fff',
+        borderWidth: 1,
+        borderColor: COLORS.line,
+        borderRadius: 14,
+        padding: 14,
+        marginBottom: 10
+      }}
+    >
+      <Text style={{ fontSize: 15, fontWeight: '900', color: COLORS.ink }}>{title}</Text>
+      <Text style={{ marginTop: 5, color: COLORS.muted, fontSize: 11.5, lineHeight: 17 }}>{text}</Text>
+      <TouchableOpacity
+        disabled={disabled}
+        onPress={action}
+        style={[secondary ? styles.btnSecondary : styles.btnPrimary, { marginTop: 12 }, disabled && { opacity: 0.45 }]}
+      >
+        <Text style={secondary ? styles.btnSecondaryText : styles.btnPrimaryText}>{title}</Text>
+      </TouchableOpacity>
+    </View>
+  );
 }
 
 export function ClientDocumentsScreen({ route, navigation }) {
@@ -14,7 +35,9 @@ export function ClientDocumentsScreen({ route, navigation }) {
   const [racine, setRacine] = useState(null);
 
   const chargerStockage = useCallback(async () => setRacine(await obtenirRacineMetra()), []);
-  useEffect(() => { chargerStockage(); }, [chargerStockage]);
+  useEffect(() => {
+    chargerStockage();
+  }, [chargerStockage]);
 
   const preparerStockage = async () => {
     try {
@@ -22,14 +45,19 @@ export function ClientDocumentsScreen({ route, navigation }) {
       const uri = await garantirRacineMetra();
       setRacine(uri);
       if (!uri) {
-        Alert.alert('Stockage METRA', "L'autorisation du dossier Documents est nécessaire une seule fois pour classer automatiquement les fichiers.");
+        Alert.alert(
+          'Stockage METRA',
+          "L'autorisation du dossier Documents est nécessaire une seule fois pour classer automatiquement les fichiers."
+        );
         return null;
       }
       return uri;
     } catch (e) {
       Alert.alert('Stockage METRA', String(e?.message || e));
       return null;
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const garantirStockageClient = async () => {
@@ -42,7 +70,9 @@ export function ClientDocumentsScreen({ route, navigation }) {
       return uri;
     } catch {
       return preparerStockage();
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const ouvrirRapports = () => {
@@ -58,25 +88,69 @@ export function ClientDocumentsScreen({ route, navigation }) {
       if (resultat?.annule) return;
       const ok = resultat?.enregistres?.length || 0;
       const erreurs = resultat?.erreurs?.length || 0;
-      Alert.alert('Export terminé', `${ok} fichier(s) Excel classé(s) automatiquement dans METRA${erreurs ? ` · ${erreurs} erreur(s)` : ''}.`);
+      Alert.alert(
+        'Export terminé',
+        `${ok} fichier(s) Excel classé(s) automatiquement dans METRA${erreurs ? ` · ${erreurs} erreur(s)` : ''}.`
+      );
     } catch (e) {
       Alert.alert('Export impossible', String(e?.message || e));
-    } finally { setBusy(false); }
+    } finally {
+      setBusy(false);
+    }
   };
 
-  return <ScrollView style={{ flex: 1, backgroundColor: COLORS.bg }} contentContainerStyle={styles.content}>
-    <Text style={styles.sectionTitle}>Documents & exports</Text>
-    <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 14 }}>{nomClient || 'Client'} · rapports et fichiers de traitement regroupés au même endroit</Text>
+  return (
+    <ScrollView style={{ flex: 1, backgroundColor: COLORS.bg }} contentContainerStyle={styles.content}>
+      <Text style={styles.sectionTitle}>Documents & exports</Text>
+      <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 14 }}>
+        {nomClient || 'Client'} · rapports et fichiers de traitement regroupés au même endroit
+      </Text>
 
-    <View style={{ padding: 12, borderRadius: 12, backgroundColor: racine ? '#EEF8F1' : '#FFF8E7', borderWidth: 1, borderColor: racine ? '#B7DEC2' : '#F0D99B', marginBottom: 14 }}>
-      <Text style={{ fontWeight: '900', color: racine ? '#1E6A36' : '#7A5700' }}>{racine ? '✓ Classement automatique actif' : 'Classement automatique à autoriser'}</Text>
-      <Text style={{ marginTop: 4, fontSize: 11, color: COLORS.muted }}>{racine ? 'Les dossiers de rapport sont créés uniquement au moment de l’export, pour les sites réellement sélectionnés.' : "Android demandera une seule fois l'accès au dossier Documents. Aucun dossier de site n'est créé avant ton choix d'export."}</Text>
-      {!racine ? <TouchableOpacity disabled={busy} style={[styles.btnSecondary, { marginTop: 9 }]} onPress={preparerStockage}><Text style={styles.btnSecondaryText}>Autoriser Documents/METRA</Text></TouchableOpacity> : null}
-    </View>
+      <View
+        style={{
+          padding: 12,
+          borderRadius: 12,
+          backgroundColor: racine ? '#EEF8F1' : '#FFF8E7',
+          borderWidth: 1,
+          borderColor: racine ? '#B7DEC2' : '#F0D99B',
+          marginBottom: 14
+        }}
+      >
+        <Text style={{ fontWeight: '900', color: racine ? '#1E6A36' : '#7A5700' }}>
+          {racine ? '✓ Classement automatique actif' : 'Classement automatique à autoriser'}
+        </Text>
+        <Text style={{ marginTop: 4, fontSize: 11, color: COLORS.muted }}>
+          {racine
+            ? 'Les dossiers de rapport sont créés uniquement au moment de l’export, pour les sites réellement sélectionnés.'
+            : "Android demandera une seule fois l'accès au dossier Documents. Aucun dossier de site n'est créé avant ton choix d'export."}
+        </Text>
+        {!racine ? (
+          <TouchableOpacity disabled={busy} style={[styles.btnSecondary, { marginTop: 9 }]} onPress={preparerStockage}>
+            <Text style={styles.btnSecondaryText}>Autoriser Documents/METRA</Text>
+          </TouchableOpacity>
+        ) : null}
+      </View>
 
-    <ActionCard disabled={busy} title="Créer un rapport PDF / Word" text="Sélectionner d’abord les sites, puis choisir un document unique au nom du client ou un PDF par site. Les dossiers ne sont créés qu’au moment de la génération." action={ouvrirRapports} />
-    <ActionCard disabled={busy} secondary title="Exporter les dernières visites en Excel" text="Un fichier Excel par dernière visite, classé automatiquement par client, site et visite pour transmission ou traitement." action={exporterExcel} />
+      <ActionCard
+        disabled={busy}
+        title="Créer un rapport PDF / Word"
+        text="Sélectionner d’abord les sites, puis choisir un document unique au nom du client ou un PDF par site. Les dossiers ne sont créés qu’au moment de la génération."
+        action={ouvrirRapports}
+      />
+      <ActionCard
+        disabled={busy}
+        secondary
+        title="Exporter les dernières visites en Excel"
+        text="Un fichier Excel par dernière visite, classé automatiquement par client, site et visite pour transmission ou traitement."
+        action={exporterExcel}
+      />
 
-    {busy ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}><ActivityIndicator color={COLORS.orange}/><Text style={{ color: COLORS.muted }}>Traitement en cours…</Text></View> : null}
-  </ScrollView>;
+      {busy ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}>
+          <ActivityIndicator color={COLORS.orange} />
+          <Text style={{ color: COLORS.muted }}>Traitement en cours…</Text>
+        </View>
+      ) : null}
+    </ScrollView>
+  );
 }

@@ -319,5 +319,5 @@ export const migration040 = {
     CREATE INDEX IF NOT EXISTS idx_mission_documents_context ON mission_documents(mission_id, site_id, point_id);
     CREATE INDEX IF NOT EXISTS idx_mission_photos_context ON mission_photos(mission_id, visit_id, point_id);
     CREATE INDEX IF NOT EXISTS idx_mission_template_visit ON mission_template_values(visit_id, field_code);
-  `,
+  `
 };

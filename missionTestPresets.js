@@ -13,9 +13,9 @@ const GENERIC = Object.freeze({
         step('Identifier le point contrôlé', 'Repère / équipement / zone confirmé'),
         step('Vérifier l’état ou le fonctionnement', 'État observé et traçable'),
         step('Rattacher une preuve si utile', 'Photo / mesure / document disponible'),
-        step('Qualifier le résultat', 'OK, écart, non testé ou impossible'),
-      ],
-    },
+        step('Qualifier le résultat', 'OK, écart, non testé ou impossible')
+      ]
+    }
   ],
   commissioning: [
     {
@@ -28,10 +28,10 @@ const GENERIC = Object.freeze({
         step('Commande locale', 'Commande prise en compte'),
         step('Réponse de l’équipement', 'Réponse conforme à la commande'),
         step('Retour d’état / information', 'Retour cohérent ou écart identifié'),
-        step('Réglage final', 'Consigne / réglage final tracé'),
-      ],
-    },
-  ],
+        step('Réglage final', 'Consigne / réglage final tracé')
+      ]
+    }
+  ]
 });
 
 const PRESETS = Object.freeze({
@@ -46,8 +46,8 @@ const PRESETS = Object.freeze({
         step('Retour marche / défaut', 'Retour cohérent avec la commande'),
         step('Vibration / bruit visible', 'Aucune anomalie manifeste'),
         step('Fréquence / vitesse', 'Valeur relevée si disponible', null, 'Hz'),
-        step('Pression / débit disponible', 'Valeur relevée si disponible'),
-      ],
+        step('Pression / débit disponible', 'Valeur relevée si disponible')
+      ]
     },
     {
       key: 'vanne_motorisee',
@@ -58,8 +58,8 @@ const PRESETS = Object.freeze({
         step('Commande ouverture', 'La vanne s’ouvre'),
         step('Commande fermeture', 'La vanne se ferme'),
         step('Retour de position', 'Retour cohérent si disponible'),
-        step('Effet sur le circuit', 'Variation cohérente observée'),
-      ],
+        step('Effet sur le circuit', 'Variation cohérente observée')
+      ]
     },
     {
       key: 'regulation_chauffage',
@@ -70,9 +70,9 @@ const PRESETS = Object.freeze({
         step('Consigne affichée', 'Consigne identifiée'),
         step('Valeur sonde', 'Valeur cohérente / écart tracé'),
         step('Commande actionneur', 'Commande cohérente'),
-        step('Réponse installation', 'Effet observé ou non vérifiable'),
-      ],
-    },
+        step('Réponse installation', 'Effet observé ou non vérifiable')
+      ]
+    }
   ],
 
   diagnostic_climatisation_pac: [
@@ -87,9 +87,9 @@ const PRESETS = Object.freeze({
         step('Démarrage unité extérieure', 'UE en fonctionnement'),
         step('Soufflage / reprise', 'Écart de température observé'),
         step('Condensats', 'Évacuation observée sans anomalie manifeste'),
-        step('Défaut / alarme', 'Aucun défaut ou défaut tracé'),
-      ],
-    },
+        step('Défaut / alarme', 'Aucun défaut ou défaut tracé')
+      ]
+    }
   ],
 
   diagnostic_gtb: [
@@ -103,8 +103,8 @@ const PRESETS = Object.freeze({
         step('Consigne régulateur', 'Consigne identifiée'),
         step('Sortie / commande', 'Commande cohérente'),
         step('Actionneur / vanne', 'Mouvement observé ou retour disponible'),
-        step('Effet process', 'Réponse observée ou non vérifiable'),
-      ],
+        step('Effet process', 'Réponse observée ou non vérifiable')
+      ]
     },
     {
       key: 'communication_gtb',
@@ -116,9 +116,9 @@ const PRESETS = Object.freeze({
         step('Équipement communicant', 'Communication disponible ou écart tracé'),
         step('Valeurs remontées', 'Valeurs utiles disponibles'),
         step('Commande distante', 'Testée uniquement si autorisée'),
-        step('Alarmes', 'Alarmes visibles / acquittements tracés'),
-      ],
-    },
+        step('Alarmes', 'Alarmes visibles / acquittements tracés')
+      ]
+    }
   ],
 
   commissioning: [
@@ -132,9 +132,9 @@ const PRESETS = Object.freeze({
         step('Condition de départ', 'Condition initiale tracée'),
         step('Déclenchement / sollicitation', 'Sollicitation réalisée ou impossible'),
         step('Réaction attendue', 'Réponse conforme à l’attendu'),
-        step('Réarmement', 'Retour à l’état normal'),
-      ],
-    },
+        step('Réarmement', 'Retour à l’état normal')
+      ]
+    }
   ],
 
   opr_reception: [
@@ -148,8 +148,8 @@ const PRESETS = Object.freeze({
         step('Conformité au prévu', 'Conforme, différent ou à contrôler'),
         step('État / finition', 'État observable acceptable ou réserve créée'),
         step('Essai fonctionnel', 'Fonctionnement vérifié ou statut tracé'),
-        step('Document / repérage', 'Document / étiquetage disponible si attendu'),
-      ],
+        step('Document / repérage', 'Document / étiquetage disponible si attendu')
+      ]
     },
     {
       key: 'opr_regulation',
@@ -160,9 +160,9 @@ const PRESETS = Object.freeze({
         step('Commande', 'Commande prise en compte'),
         step('Réponse équipement', 'Réponse cohérente'),
         step('Retour / information', 'Retour disponible ou écart tracé'),
-        step('Consigne finale', 'Consigne finale tracée'),
-      ],
-    },
+        step('Consigne finale', 'Consigne finale tracée')
+      ]
+    }
   ],
 
   levee_reserves: [
@@ -176,9 +176,9 @@ const PRESETS = Object.freeze({
         step('Correction observée', 'Correction réalisée ou non'),
         step('Essai si nécessaire', 'Essai réalisé ou non applicable'),
         step('Photo après', 'Preuve après disponible si utile'),
-        step('Statut final', 'Levée, maintenue, partielle ou inaccessible'),
-      ],
-    },
+        step('Statut final', 'Levée, maintenue, partielle ou inaccessible')
+      ]
+    }
   ],
 
   passation_travaux_exploitant: [
@@ -192,9 +192,9 @@ const PRESETS = Object.freeze({
         step('Commande / fonctionnement', 'Fonctionnement démontré'),
         step('Régulation / consignes', 'Réglages accessibles et expliqués'),
         step('Alarmes / défauts', 'État des alarmes tracé'),
-        step('Documents / accès', 'Éléments remis ou manquants tracés'),
-      ],
-    },
+        step('Documents / accès', 'Éléments remis ou manquants tracés')
+      ]
+    }
   ],
 
   controle_exploitation: [
@@ -208,9 +208,9 @@ const PRESETS = Object.freeze({
         step('Réglages / consignes', 'Valeurs relevées'),
         step('Entretien visible', 'État observé'),
         step('Actions connues', 'Actions en cours / à lancer tracées'),
-        step('Documents / relevés', 'Éléments disponibles ou manquants'),
-      ],
-    },
+        step('Documents / relevés', 'Éléments disponibles ou manquants')
+      ]
+    }
   ],
 
   assistance_p2_p3: [
@@ -224,9 +224,9 @@ const PRESETS = Object.freeze({
         step('Périmètre / inventaire', 'Présence dans l’inventaire contractuel vérifiée'),
         step('État / vétusté', 'État tracé'),
         step('Disponibilité pièces', 'Information disponible ou à récupérer'),
-        step('Renouvellement', 'Besoin / échéance / coût à analyser'),
-      ],
-    },
+        step('Renouvellement', 'Besoin / échéance / coût à analyser')
+      ]
+    }
   ],
 
   preallumage_reprise_saison: [
@@ -240,16 +240,16 @@ const PRESETS = Object.freeze({
         step('Mise en fonctionnement', 'Démarrage possible ou écart tracé'),
         step('Pression / température', 'Valeurs relevées si disponibles'),
         step('Régulation / consigne', 'Consigne et réponse observées'),
-        step('Réserve avant exploitation', 'Aucune réserve ou réserve Mission créée'),
-      ],
-    },
+        step('Réserve avant exploitation', 'Aucune réserve ou réserve Mission créée')
+      ]
+    }
   ],
 
   controle_reglementaire: GENERIC.control,
   securite_accessibilite: GENERIC.control,
   controle_sanitaire: GENERIC.control,
   controle_technique: GENERIC.control,
-  diagnostic_cible: GENERIC.control,
+  diagnostic_cible: GENERIC.control
 });
 
 export function getMissionTestPresets(missionType) {

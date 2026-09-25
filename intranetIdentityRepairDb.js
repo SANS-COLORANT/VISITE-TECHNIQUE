@@ -4,7 +4,11 @@ const META_KEY = 'intranet_identity_repair_build424_v1';
 const clean = (value) => String(value ?? '').trim();
 
 function parseJson(value) {
-  try { return JSON.parse(value || 'null'); } catch { return null; }
+  try {
+    return JSON.parse(value || 'null');
+  } catch {
+    return null;
+  }
 }
 
 async function journal(db, entityType, entityId, action, before, after) {
@@ -19,7 +23,7 @@ async function journal(db, entityType, entityId, action, before, after) {
       action,
       before == null ? null : JSON.stringify(before),
       after == null ? null : JSON.stringify(after),
-      'METRA identity repair',
+      'METRA identity repair'
     ]
   );
 }
@@ -42,10 +46,9 @@ async function boundVisitCountForSite(db, remoteSiteId) {
 }
 
 async function boundVisitCountForLocal(db, remoteLocalId) {
-  const row = await db.getFirstAsync(
-    `SELECT COUNT(*) AS n FROM visites WHERE api_remote_local_id=?`,
-    [String(remoteLocalId)]
-  );
+  const row = await db.getFirstAsync(`SELECT COUNT(*) AS n FROM visites WHERE api_remote_local_id=?`, [
+    String(remoteLocalId)
+  ]);
   return Number(row?.n || 0);
 }
 
@@ -77,18 +80,18 @@ async function splitMergedSites(db) {
     const site = await db.getFirstAsync(`SELECT * FROM sites WHERE id=?`, [oldSiteId]);
     if (!site) continue;
 
-    const remotes = await db.getAllAsync(
-      `SELECT * FROM api_site_links WHERE local_site_id=? ORDER BY remote_site_id`,
-      [oldSiteId]
-    );
+    const remotes = await db.getAllAsync(`SELECT * FROM api_site_links WHERE local_site_id=? ORDER BY remote_site_id`, [
+      oldSiteId
+    ]);
     for (const row of remotes) {
       row.__visits = await boundVisitCountForSite(db, row.remote_site_id);
       row.__exactName = clean(row.nom) === clean(site.nom_site) ? 1 : 0;
     }
-    remotes.sort((a, b) =>
-      (b.__visits - a.__visits)
-      || (b.__exactName - a.__exactName)
-      || String(a.remote_site_id).localeCompare(String(b.remote_site_id))
+    remotes.sort(
+      (a, b) =>
+        b.__visits - a.__visits ||
+        b.__exactName - a.__exactName ||
+        String(a.remote_site_id).localeCompare(String(b.remote_site_id))
     );
     const keeper = remotes[0];
     if (!keeper) continue;
@@ -107,18 +110,18 @@ async function splitMergedSites(db) {
           clientId,
           clean(remote.nom) || site.nom_site || `Site ${remoteSiteId}`,
           remoteSiteAddress(remote, site.adresse),
-          site.statut || 'Actif',
+          site.statut || 'Actif'
         ]
       );
 
-      await db.runAsync(
-        `UPDATE api_site_links SET local_site_id=?,cree_localement=1 WHERE remote_site_id=?`,
-        [newSiteId, remoteSiteId]
-      );
-      await db.runAsync(
-        `UPDATE api_client_site_links SET local_site_id=?,cree_localement=1 WHERE remote_site_id=?`,
-        [newSiteId, remoteSiteId]
-      );
+      await db.runAsync(`UPDATE api_site_links SET local_site_id=?,cree_localement=1 WHERE remote_site_id=?`, [
+        newSiteId,
+        remoteSiteId
+      ]);
+      await db.runAsync(`UPDATE api_client_site_links SET local_site_id=?,cree_localement=1 WHERE remote_site_id=?`, [
+        newSiteId,
+        remoteSiteId
+      ]);
 
       const uniqueInstallations = await db.getAllAsync(
         `SELECT DISTINCT l.local_installation_id
@@ -128,10 +131,11 @@ async function splitMergedSites(db) {
         [remoteSiteId]
       );
       for (const item of uniqueInstallations) {
-        await db.runAsync(
-          `UPDATE installations SET site_id=?,modifie_le=datetime('now') WHERE id=? AND site_id=?`,
-          [newSiteId, item.local_installation_id, oldSiteId]
-        );
+        await db.runAsync(`UPDATE installations SET site_id=?,modifie_le=datetime('now') WHERE id=? AND site_id=?`, [
+          newSiteId,
+          item.local_installation_id,
+          oldSiteId
+        ]);
       }
 
       await db.runAsync(
@@ -142,15 +146,22 @@ async function splitMergedSites(db) {
         [newSiteId, remoteSiteId]
       );
 
-      await journal(db, 'site', oldSiteId, 'split_remote_site_identity', {
-        remoteSiteId,
-        localSiteId: oldSiteId,
-        keeperRemoteSiteId: keeper.remote_site_id,
-      }, {
-        remoteSiteId,
-        localSiteId: newSiteId,
-        name: remote.nom || null,
-      });
+      await journal(
+        db,
+        'site',
+        oldSiteId,
+        'split_remote_site_identity',
+        {
+          remoteSiteId,
+          localSiteId: oldSiteId,
+          keeperRemoteSiteId: keeper.remote_site_id
+        },
+        {
+          remoteSiteId,
+          localSiteId: newSiteId,
+          name: remote.nom || null
+        }
+      );
       split += 1;
     }
   }
@@ -170,10 +181,10 @@ async function moveRemoteEquipment(db, oldInstallationId, newInstallationId, rem
   for (const row of rows) {
     const details = parseJson(row.details_json);
     if (clean(details?.remoteLocalId) !== clean(remoteLocalId)) continue;
-    await db.runAsync(
-      `UPDATE equipements SET installation_id=?,modifie_le=datetime('now') WHERE id=?`,
-      [newInstallationId, row.entite_id]
-    );
+    await db.runAsync(`UPDATE equipements SET installation_id=?,modifie_le=datetime('now') WHERE id=?`, [
+      newInstallationId,
+      row.entite_id
+    ]);
     moved += 1;
   }
   return moved;
@@ -204,8 +215,8 @@ async function ensureInstallationProvenance(db, installationId, remoteLocal) {
         remoteLocalId,
         remoteSiteId: clean(remoteLocal?.remote_site_id) || null,
         designation: remoteLocal?.designation || null,
-        repaired: true,
-      }),
+        repaired: true
+      })
     ]
   );
 }
@@ -222,10 +233,7 @@ async function splitMergedLocals(db) {
 
   for (const group of groups) {
     const oldInstallationId = clean(group.local_installation_id);
-    const installation = await db.getFirstAsync(
-      `SELECT * FROM installations WHERE id=?`,
-      [oldInstallationId]
-    );
+    const installation = await db.getFirstAsync(`SELECT * FROM installations WHERE id=?`, [oldInstallationId]);
     if (!installation) continue;
 
     const locals = await db.getAllAsync(
@@ -241,21 +249,22 @@ async function splitMergedLocals(db) {
       local.__sameSite = clean(local.target_site_id) === clean(installation.site_id) ? 1 : 0;
       local.__exactName = clean(local.designation) === clean(installation.nom) ? 1 : 0;
     }
-    locals.sort((a, b) =>
-      (b.__visits - a.__visits)
-      || (b.__sameSite - a.__sameSite)
-      || (b.__exactName - a.__exactName)
-      || String(a.remote_local_id).localeCompare(String(b.remote_local_id))
+    locals.sort(
+      (a, b) =>
+        b.__visits - a.__visits ||
+        b.__sameSite - a.__sameSite ||
+        b.__exactName - a.__exactName ||
+        String(a.remote_local_id).localeCompare(String(b.remote_local_id))
     );
 
     const keeper = locals[0];
     if (!keeper) continue;
     const keeperSiteId = clean(keeper.target_site_id) || clean(installation.site_id);
     if (keeperSiteId && keeperSiteId !== clean(installation.site_id)) {
-      await db.runAsync(
-        `UPDATE installations SET site_id=?,modifie_le=datetime('now') WHERE id=?`,
-        [keeperSiteId, oldInstallationId]
-      );
+      await db.runAsync(`UPDATE installations SET site_id=?,modifie_le=datetime('now') WHERE id=?`, [
+        keeperSiteId,
+        oldInstallationId
+      ]);
     }
     await db.runAsync(
       `UPDATE visites SET site_id=COALESCE(?,site_id),installation_id=?,modifie_le=datetime('now')
@@ -276,35 +285,37 @@ async function splitMergedLocals(db) {
           targetSiteId,
           installation.type_code || 'installation_technique',
           clean(local.designation) || installation.nom || 'Local technique',
-          installation.description || 'Local technique Intranet',
+          installation.description || 'Local technique Intranet'
         ]
       );
-      await db.runAsync(
-        `UPDATE api_local_links SET local_installation_id=? WHERE remote_local_id=?`,
-        [newInstallationId, String(local.remote_local_id)]
-      );
+      await db.runAsync(`UPDATE api_local_links SET local_installation_id=? WHERE remote_local_id=?`, [
+        newInstallationId,
+        String(local.remote_local_id)
+      ]);
       await db.runAsync(
         `UPDATE visites SET site_id=?,installation_id=?,modifie_le=datetime('now')
          WHERE api_remote_local_id=?`,
         [targetSiteId, newInstallationId, String(local.remote_local_id)]
       );
-      const equipmentMoved = await moveRemoteEquipment(
-        db,
-        oldInstallationId,
-        newInstallationId,
-        local.remote_local_id
-      );
+      const equipmentMoved = await moveRemoteEquipment(db, oldInstallationId, newInstallationId, local.remote_local_id);
       await ensureInstallationProvenance(db, newInstallationId, local);
-      await journal(db, 'installation', oldInstallationId, 'split_remote_local_identity', {
-        remoteLocalId: local.remote_local_id,
-        localInstallationId: oldInstallationId,
-        keeperRemoteLocalId: keeper.remote_local_id,
-      }, {
-        remoteLocalId: local.remote_local_id,
-        localInstallationId: newInstallationId,
-        targetSiteId,
-        equipmentMoved,
-      });
+      await journal(
+        db,
+        'installation',
+        oldInstallationId,
+        'split_remote_local_identity',
+        {
+          remoteLocalId: local.remote_local_id,
+          localInstallationId: oldInstallationId,
+          keeperRemoteLocalId: keeper.remote_local_id
+        },
+        {
+          remoteLocalId: local.remote_local_id,
+          localInstallationId: newInstallationId,
+          targetSiteId,
+          equipmentMoved
+        }
+      );
       split += 1;
     }
   }
@@ -321,16 +332,15 @@ async function alignMappedLocalsToSites(db) {
   );
   let aligned = 0;
   for (const row of rows) {
-    const shared = await db.getFirstAsync(
-      `SELECT COUNT(*) AS n FROM api_local_links WHERE local_installation_id=?`,
-      [row.local_installation_id]
-    );
+    const shared = await db.getFirstAsync(`SELECT COUNT(*) AS n FROM api_local_links WHERE local_installation_id=?`, [
+      row.local_installation_id
+    ]);
     if (Number(shared?.n || 0) !== 1) continue;
     if (clean(row.site_id) !== clean(row.local_site_id)) {
-      await db.runAsync(
-        `UPDATE installations SET site_id=?,modifie_le=datetime('now') WHERE id=?`,
-        [row.local_site_id, row.local_installation_id]
-      );
+      await db.runAsync(`UPDATE installations SET site_id=?,modifie_le=datetime('now') WHERE id=?`, [
+        row.local_site_id,
+        row.local_installation_id
+      ]);
       aligned += 1;
     }
     await db.runAsync(
@@ -368,7 +378,7 @@ async function attachUnambiguousLegacyVisits(db) {
     );
     await journal(db, 'site', site.id, 'attach_unambiguous_legacy_visits', null, {
       installationId: site.only_local_id,
-      visitCount: count,
+      visitCount: count
     });
     attached += count;
   }
@@ -378,7 +388,11 @@ async function attachUnambiguousLegacyVisits(db) {
 export async function repairIntranetSiteLocalIdentityOnce(db) {
   const done = await db.getFirstAsync(`SELECT value FROM _meta WHERE key=?`, [META_KEY]);
   if (done?.value) {
-    try { return JSON.parse(done.value); } catch { return { alreadyDone: true }; }
+    try {
+      return JSON.parse(done.value);
+    } catch {
+      return { alreadyDone: true };
+    }
   }
 
   // Expo SQLite ne relaie pas la valeur retournee par le callback de
@@ -390,7 +404,7 @@ export async function repairIntranetSiteLocalIdentityOnce(db) {
     siteSplits: 0,
     localSplits: 0,
     alignedLocals: 0,
-    legacyVisitsAttached: 0,
+    legacyVisitsAttached: 0
   };
 
   await db.withTransactionAsync(async () => {
@@ -398,17 +412,14 @@ export async function repairIntranetSiteLocalIdentityOnce(db) {
       siteSplits: await splitMergedSites(db),
       localSplits: await splitMergedLocals(db),
       alignedLocals: await alignMappedLocalsToSites(db),
-      legacyVisitsAttached: await attachUnambiguousLegacyVisits(db),
+      legacyVisitsAttached: await attachUnambiguousLegacyVisits(db)
     };
 
     const metaValue = JSON.stringify(summary);
     if (!metaValue) {
       throw new Error('Impossible de serialiser le resume de reparation SITE/LOCAL.');
     }
-    await db.runAsync(
-      `INSERT OR REPLACE INTO _meta(key,value) VALUES(?,?)`,
-      [META_KEY, metaValue]
-    );
+    await db.runAsync(`INSERT OR REPLACE INTO _meta(key,value) VALUES(?,?)`, [META_KEY, metaValue]);
   });
 
   return summary;

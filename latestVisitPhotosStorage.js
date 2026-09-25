@@ -7,7 +7,7 @@ import {
   getCachedLatestVisitPhotosManifest,
   markLatestVisitPhotoDownloaded,
   markLatestVisitPhotoError,
-  markLatestVisitPhotoMissingLocally,
+  markLatestVisitPhotoMissingLocally
 } from './latestVisitPhotosDb.js';
 
 import { mapLatestVisitPhotos, photoFileKey, photoSummary } from './latestVisitPhotoModel.js';
@@ -18,7 +18,8 @@ const MAX_RATE_LIMIT_RETRIES = 2;
 
 function safeSegment(value, fallback) {
   const result = String(value ?? '')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[^a-zA-Z0-9._-]+/g, '_')
     .replace(/^[_\.\-]+|[_\.\-]+$/g, '')
     .slice(0, 80);
@@ -70,7 +71,12 @@ async function ensureDestination(photo, remoteClientId) {
   if (!FileSystem.documentDirectory) throw new Error('Stockage privé Android indisponible.');
   const directory = `${FileSystem.documentDirectory}${ROOT_DIRECTORY}${safeSegment(remoteClientId, 'client')}/${safeSegment(photo.site?.id, 'site')}/${safeSegment(photo.local?.id, 'local')}/${safeSegment(photo.derniereVisite?.id, 'visite')}/`;
   await FileSystem.makeDirectoryAsync(directory, { intermediates: true });
-  const revision = [photo.tailleOctets || 0, photo.largeurPixels || 0, photo.hauteurPixels || 0, safeSegment(photo.typeMime, 'image')].join('-');
+  const revision = [
+    photo.tailleOctets || 0,
+    photo.largeurPixels || 0,
+    photo.hauteurPixels || 0,
+    safeSegment(photo.typeMime, 'image')
+  ].join('-');
   const filename = `${safeSegment(photo.id, 'photo')}-${revision}${extensionFor(photo)}`;
   return { finalUri: `${directory}${filename}`, temporaryUri: `${directory}.${filename}.part` };
 }
@@ -79,31 +85,54 @@ async function existingLocalPhoto(photo) {
   if (!photo?.localUri) return false;
   try {
     const info = await FileSystem.getInfoAsync(photo.localUri);
-    const size = Number(info?.size || 0), expected = Number(photo.tailleOctets || photo.downloadedBytes || 0);
+    const size = Number(info?.size || 0),
+      expected = Number(photo.tailleOctets || photo.downloadedBytes || 0);
     return Boolean(info?.exists && size > 0 && (!expected || expected === size));
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 export async function hydrateLatestVisitPhotosCache(remoteClientId, manifest = null) {
-  const hydrated = manifest ? await hydratePhotoMetadata(remoteClientId, manifest) : await getCachedLatestVisitPhotosManifest(remoteClientId);
+  const hydrated = manifest
+    ? await hydratePhotoMetadata(remoteClientId, manifest)
+    : await getCachedLatestVisitPhotosManifest(remoteClientId);
   if (!hydrated) return null;
-  const photos = flattenLatestVisitPhotos(hydrated), availability = new Map();
+  const photos = flattenLatestVisitPhotos(hydrated),
+    availability = new Map();
   let cursor = 0;
-  await Promise.all(Array.from({ length: Math.min(8, photos.length) }, async () => {
-    while (cursor < photos.length) {
-      const photo = photos[cursor++];
-      const localAvailable = await existingLocalPhoto(photo);
-      availability.set(photoFileKey(photo), localAvailable);
-      if (photo.localUri && !localAvailable) await markLatestVisitPhotoMissingLocally(remoteClientId, photo);
-    }
-  }));
+  await Promise.all(
+    Array.from({ length: Math.min(8, photos.length) }, async () => {
+      while (cursor < photos.length) {
+        const photo = photos[cursor++];
+        const localAvailable = await existingLocalPhoto(photo);
+        availability.set(photoFileKey(photo), localAvailable);
+        if (photo.localUri && !localAvailable) await markLatestVisitPhotoMissingLocally(remoteClientId, photo);
+      }
+    })
+  );
   const result = mapLatestVisitPhotos(hydrated, (photo) => {
     const localAvailable = Boolean(availability.get(photoFileKey(photo)));
-    return { ...photo, localAvailable, localUri: localAvailable ? photo.localUri : null,
-      downloadStatus: localAvailable ? 'downloaded' : photo.downloadStatus === 'downloaded' ? (photo.disponible ? 'pending' : 'unavailable') : photo.downloadStatus };
+    return {
+      ...photo,
+      localAvailable,
+      localUri: localAvailable ? photo.localUri : null,
+      downloadStatus: localAvailable
+        ? 'downloaded'
+        : photo.downloadStatus === 'downloaded'
+          ? photo.disponible
+            ? 'pending'
+            : 'unavailable'
+          : photo.downloadStatus
+    };
   });
   const summary = photoSummary(result);
-  return { ...result, localPhotoCount: summary.saved, missingDownloadCount: summary.missing, unavailablePhotoCount: summary.unavailable };
+  return {
+    ...result,
+    localPhotoCount: summary.saved,
+    missingDownloadCount: summary.missing,
+    unavailablePhotoCount: summary.unavailable
+  };
 }
 
 export async function loadCachedLatestVisitPhotos(remoteClientId) {
@@ -120,7 +149,11 @@ export async function syncLatestVisitPhotosManifest(remoteClientId) {
     return hydrateLatestVisitPhotosCache(id, manifest);
   })();
   manifestRequests.set(id, request);
-  try { return await request; } finally { if (manifestRequests.get(id) === request) manifestRequests.delete(id); }
+  try {
+    return await request;
+  } finally {
+    if (manifestRequests.get(id) === request) manifestRequests.delete(id);
+  }
 }
 
 async function waitUnlessPaused(milliseconds, control) {
@@ -152,7 +185,9 @@ async function downloadOne(remoteClientId, photo, rateLimit, control) {
         throw new Error('Le serveur n’a pas renvoyé une image valide.');
       }
       const receivedMime = contentType.split(';')[0].trim().toLowerCase();
-      const expectedMime = String(photo.typeMime || '').trim().toLowerCase();
+      const expectedMime = String(photo.typeMime || '')
+        .trim()
+        .toLowerCase();
       if (expectedMime && receivedMime !== expectedMime) {
         throw new Error(`Type d’image inattendu (${receivedMime}).`);
       }
@@ -185,13 +220,20 @@ async function downloadOne(remoteClientId, photo, rateLimit, control) {
   }
 }
 
-export async function downloadClientLatestVisitPhotos(remoteClientId, manifest, onProgress = null, control = { paused: false }) {
+export async function downloadClientLatestVisitPhotos(
+  remoteClientId,
+  manifest,
+  onProgress = null,
+  control = { paused: false }
+) {
   manifest = await hydrateLatestVisitPhotosCache(remoteClientId, manifest);
   const candidates = flattenLatestVisitPhotos(manifest).filter((photo) => photo.disponible && !photo.localAvailable);
   const summary = { total: candidates.length, completed: 0, downloaded: 0, cached: 0, failed: 0, errors: [] };
   const expectedBytes = candidates.reduce((n, p) => n + Number(p.tailleOctets || 0), 0);
   let freeBytes = null;
-  try { freeBytes = await FileSystem.getFreeDiskStorageAsync(); } catch {}
+  try {
+    freeBytes = await FileSystem.getFreeDiskStorageAsync();
+  } catch {}
   if (Number.isFinite(freeBytes) && expectedBytes + 16 * 1024 * 1024 > freeBytes) {
     throw new Error('Espace insuffisant sur la tablette. Libère du stockage ou choisis moins de photos.');
   }
@@ -203,16 +245,20 @@ export async function downloadClientLatestVisitPhotos(remoteClientId, manifest, 
 
   const worker = async () => {
     while (!control.paused && cursor < candidates.length) {
-      const photo = candidates[cursor]; cursor += 1;
+      const photo = candidates[cursor];
+      cursor += 1;
       const result = await downloadOne(remoteClientId, photo, rateLimit, control);
       if (result.status === 'paused') break;
       summary.completed += 1;
-      if (result.status === 'downloaded') { summary.downloaded += 1; consecutiveErrors = 0; }
-      else if (result.status === 'cached') summary.cached += 1;
+      if (result.status === 'downloaded') {
+        summary.downloaded += 1;
+        consecutiveErrors = 0;
+      } else if (result.status === 'cached') summary.cached += 1;
       else if (result.status === 'error') {
         summary.failed += 1;
         consecutiveErrors += 1;
-        if (consecutiveErrors >= 3 || result.error?.status === 401 || result.error?.status === 403) control.paused = true;
+        if (consecutiveErrors >= 3 || result.error?.status === 401 || result.error?.status === 403)
+          control.paused = true;
         summary.errors.push({ photoId: photo.id, message: String(result.error?.message || result.error) });
       }
       notify(photo);
@@ -221,7 +267,11 @@ export async function downloadClientLatestVisitPhotos(remoteClientId, manifest, 
   await Promise.all(Array.from({ length: Math.min(MAX_CONCURRENT_DOWNLOADS, Math.max(1, candidates.length)) }, worker));
   // Recharge depuis SQLite pour fournir de nouvelles références React et faire
   // apparaître immédiatement les miniatures qui viennent d'être téléchargées.
-  return { ...summary, paused: Boolean(control.paused), manifest: await hydrateLatestVisitPhotosCache(remoteClientId, manifest) };
+  return {
+    ...summary,
+    paused: Boolean(control.paused),
+    manifest: await hydrateLatestVisitPhotosCache(remoteClientId, manifest)
+  };
 }
 
 export { MAX_CONCURRENT_DOWNLOADS };

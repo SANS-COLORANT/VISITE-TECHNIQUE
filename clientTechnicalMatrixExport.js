@@ -32,42 +32,101 @@ export const PILOTAGE_EXPORT_COLUMNS = Object.freeze([
   { key: 'echeance', label: 'Échéance' },
   { key: 'statut_traitement', label: 'Statut traitement' },
   { key: 'date_traitement', label: 'Date de traitement' },
-  { key: 'suivi', label: 'Commentaire de suivi' },
+  { key: 'suivi', label: 'Commentaire de suivi' }
 ]);
 
 export const PILOTAGE_EXPORT_PRESETS = Object.freeze({
   reserves: {
     label: 'Réserves à traiter',
     statuses: ['N.S'],
-    columns: ['site', 'adresse', 'groupes', 'metier', 'date', 'categorie', 'point', 'avis', 'criticite', 'criticite_libelle', 'constat', 'precision', 'photos', 'action', 'responsable', 'entreprise', 'priorite', 'echeance', 'statut_traitement', 'date_traitement', 'suivi'],
+    columns: [
+      'site',
+      'adresse',
+      'groupes',
+      'metier',
+      'date',
+      'categorie',
+      'point',
+      'avis',
+      'criticite',
+      'criticite_libelle',
+      'constat',
+      'precision',
+      'photos',
+      'action',
+      'responsable',
+      'entreprise',
+      'priorite',
+      'echeance',
+      'statut_traitement',
+      'date_traitement',
+      'suivi'
+    ]
   },
   ns: {
     label: 'N.S uniquement',
     statuses: ['N.S'],
-    columns: ['site', 'metier', 'date', 'categorie', 'section', 'point', 'avis', 'criticite', 'criticite_libelle', 'constat', 'precision', 'origine'],
+    columns: [
+      'site',
+      'metier',
+      'date',
+      'categorie',
+      'section',
+      'point',
+      'avis',
+      'criticite',
+      'criticite_libelle',
+      'constat',
+      'precision',
+      'origine'
+    ]
   },
   non_releves: {
     label: 'Points non relevés',
     statuses: ['N.R', 'N.V'],
-    columns: ['site', 'adresse', 'metier', 'date', 'categorie', 'section', 'point', 'avis', 'precision'],
+    columns: ['site', 'adresse', 'metier', 'date', 'categorie', 'section', 'point', 'avis', 'precision']
   },
   photos: {
     label: 'Photos et réserves',
     statuses: ['N.S'],
-    columns: ['site', 'metier', 'date', 'categorie', 'point', 'criticite', 'constat', 'precision', 'photos'],
+    columns: ['site', 'metier', 'date', 'categorie', 'point', 'criticite', 'constat', 'precision', 'photos']
   },
   suivi: {
     label: 'Suivi traitement',
     statuses: ['N.S'],
-    columns: ['site', 'adresse', 'groupes', 'metier', 'categorie', 'point', 'criticite', 'criticite_libelle', 'constat', 'action', 'responsable', 'entreprise', 'priorite', 'echeance', 'statut_traitement', 'date_traitement', 'suivi'],
-  },
+    columns: [
+      'site',
+      'adresse',
+      'groupes',
+      'metier',
+      'categorie',
+      'point',
+      'criticite',
+      'criticite_libelle',
+      'constat',
+      'action',
+      'responsable',
+      'entreprise',
+      'priorite',
+      'echeance',
+      'statut_traitement',
+      'date_traitement',
+      'suivi'
+    ]
+  }
 });
 
 export const PILOTAGE_DEFAULT_COLUMNS = Object.freeze(PILOTAGE_EXPORT_PRESETS.reserves.columns);
 
-function unique(values = []) { return [...new Set(values.filter(Boolean))]; }
-function text(value) { return String(value ?? '').trim(); }
-function dateIso(value) { return text(value).slice(0, 10); }
+function unique(values = []) {
+  return [...new Set(values.filter(Boolean))];
+}
+function text(value) {
+  return String(value ?? '').trim();
+}
+function dateIso(value) {
+  return text(value).slice(0, 10);
+}
 
 async function photoLabels(record) {
   const issues = record.issues?.length ? record.issues : [record];
@@ -95,7 +154,10 @@ function valeur(record, key, context, photos = '') {
   if (key === 'criticite') return avis === 'N.S' ? Number(record.criticite ?? 2) : '';
   if (key === 'criticite_libelle') return avis === 'N.S' ? reserveSeverityLabel(record.criticite) : '';
   if (key === 'constat') return record.prestation || record.commentaire || '';
-  if (key === 'precision') return record.prestation && record.commentaire && text(record.prestation) !== text(record.commentaire) ? record.commentaire : '';
+  if (key === 'precision')
+    return record.prestation && record.commentaire && text(record.prestation) !== text(record.commentaire)
+      ? record.commentaire
+      : '';
   if (key === 'origine') return record.origine || '';
   if (key === 'delai') return record.delai ?? '';
   if (key === 'estimatif') return record.estimatif ?? '';
@@ -139,9 +201,13 @@ function buildSummary(records, context, viewLabel) {
     ['N.V', statuses['N.V']],
     ['Criticité 4–5', prioritaires],
     [],
-    ['Catégorie', 'S', 'N.S', 'N.R', 'S.O', 'N.V', 'Total'],
+    ['Catégorie', 'S', 'N.S', 'N.R', 'S.O', 'N.V', 'Total']
   ];
-  return top.concat([...byCategory.values()].sort((a, b) => a.categorie.localeCompare(b.categorie, 'fr')).map((r) => [r.categorie, r.S, r.NS, r.NR, r.SO, r.NV, r.total]));
+  return top.concat(
+    [...byCategory.values()]
+      .sort((a, b) => a.categorie.localeCompare(b.categorie, 'fr'))
+      .map((r) => [r.categorie, r.S, r.NS, r.NR, r.SO, r.NV, r.total])
+  );
 }
 
 export async function exporterPilotageExcel({
@@ -153,7 +219,7 @@ export async function exporterPilotageExcel({
   columns = PILOTAGE_DEFAULT_COLUMNS,
   presetStatuses = [],
   viewLabel = 'Vue courante',
-  partager = true,
+  partager = true
 } = {}) {
   const selectedColumns = PILOTAGE_EXPORT_COLUMNS.filter((c) => columns.includes(c.key));
   if (!selectedColumns.length) throw new Error('Sélectionnez au moins une colonne à exporter.');
@@ -174,7 +240,13 @@ export async function exporterPilotageExcel({
   const wsSummary = XLSX.utils.aoa_to_sheet(buildSummary(exportedRecords, context, viewLabel));
   const wsDetail = XLSX.utils.json_to_sheet(detailRows, { header: selectedColumns.map((c) => c.label) });
   wsSummary['!cols'] = [{ wch: 28 }, { wch: 34 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
-  wsDetail['!cols'] = selectedColumns.map((c) => ({ wch: ['constat', 'precision', 'suivi', 'action'].includes(c.key) ? 42 : ['site', 'adresse', 'point', 'photos'].includes(c.key) ? 28 : 16 }));
+  wsDetail['!cols'] = selectedColumns.map((c) => ({
+    wch: ['constat', 'precision', 'suivi', 'action'].includes(c.key)
+      ? 42
+      : ['site', 'adresse', 'point', 'photos'].includes(c.key)
+        ? 28
+        : 16
+  }));
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Synthèse');
   XLSX.utils.book_append_sheet(wb, wsDetail, 'Détail');
 

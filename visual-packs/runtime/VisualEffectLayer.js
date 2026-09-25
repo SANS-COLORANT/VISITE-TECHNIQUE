@@ -48,7 +48,7 @@ function Particle({ index, effect, width, height, symbol }) {
       duration: durationMin + random() * (durationMax - durationMin),
       delay: random() * Math.min(1600, durationMin),
       drift: (random() * 2 - 1) * Math.abs(wind || 18) + wind * 0.45,
-      rotation: 120 + random() * 360,
+      rotation: 120 + random() * 360
     };
   }, [effect, random, width]);
 
@@ -60,13 +60,13 @@ function Particle({ index, effect, width, height, symbol }) {
           toValue: 1,
           duration: settings.duration,
           easing: Easing.linear,
-          useNativeDriver: true,
+          useNativeDriver: true
         }),
         Animated.timing(progress, {
           toValue: 0,
           duration: 0,
-          useNativeDriver: true,
-        }),
+          useNativeDriver: true
+        })
       ])
     );
     animation.start();
@@ -75,11 +75,14 @@ function Particle({ index, effect, width, height, symbol }) {
 
   const translateY = progress.interpolate({
     inputRange: [0, 1],
-    outputRange: [-40 - settings.size, height + 50],
+    outputRange: [-40 - settings.size, height + 50]
   });
   const translateX = progress.interpolate({ inputRange: [0, 1], outputRange: [0, settings.drift] });
   const rotate = progress.interpolate({ inputRange: [0, 1], outputRange: ['0deg', `${settings.rotation}deg`] });
-  const fade = progress.interpolate({ inputRange: [0, 0.08, 0.9, 1], outputRange: [0, settings.opacity, settings.opacity, 0] });
+  const fade = progress.interpolate({
+    inputRange: [0, 0.08, 0.9, 1],
+    outputRange: [0, settings.opacity, settings.opacity, 0]
+  });
 
   return (
     <Animated.View
@@ -89,8 +92,8 @@ function Particle({ index, effect, width, height, symbol }) {
         {
           left: settings.x,
           opacity: fade,
-          transform: [{ translateY }, { translateX }, { rotate }],
-        },
+          transform: [{ translateY }, { translateX }, { rotate }]
+        }
       ]}
     >
       <Text
@@ -99,7 +102,7 @@ function Particle({ index, effect, width, height, symbol }) {
           fontSize: settings.size,
           lineHeight: settings.size * 1.15,
           textShadowColor: effect?.shadowColor || 'rgba(0,0,0,0.12)',
-          textShadowRadius: Number(effect?.shadowRadius || 1),
+          textShadowRadius: Number(effect?.shadowRadius || 1)
         }}
       >
         {symbol}
@@ -118,7 +121,12 @@ export function VisualEffectLayer({ effect }) {
   if (!enabled || count <= 0) return null;
 
   return (
-    <View pointerEvents="none" style={StyleSheet.absoluteFill} accessibilityElementsHidden importantForAccessibility="no-hide-descendants">
+    <View
+      pointerEvents="none"
+      style={StyleSheet.absoluteFill}
+      accessibilityElementsHidden
+      importantForAccessibility="no-hide-descendants"
+    >
       {Array.from({ length: count }, (_, index) => (
         <Particle
           key={`${type}-${index}`}
@@ -136,6 +144,6 @@ export function VisualEffectLayer({ effect }) {
 const styles = StyleSheet.create({
   particle: {
     position: 'absolute',
-    top: 0,
-  },
+    top: 0
+  }
 });

@@ -7,11 +7,7 @@ import { PRESCRIPTIONS } from './data.js';
 import { fusionnerPrescriptions } from './reserveExtensions.js';
 import { upsertChamp, listerBibliothequeReserves } from './db.js';
 import { upsertControlePartiel } from './controlDb.js';
-import {
-  upsertRemarquePrescription,
-  supprimerRemarqueControle,
-  modifierRemarqueVisite,
-} from './remarkDb.js';
+import { upsertRemarquePrescription, supprimerRemarqueControle, modifierRemarqueVisite } from './remarkDb.js';
 import { PhotoButton } from './PhotoButton.js';
 import { useDurableAutosave } from './durableAutosave.js';
 
@@ -30,8 +26,12 @@ function useSaisieAvecAutoSave(valeurInitiale, sauvegarderFn, delai = 700) {
     sauvegarderFn,
     delai
   );
-  const surBlurFinal = () => { flush().catch(() => {}); };
-  const setValeurImmediate = (t) => { setImmediate(t).catch(() => {}); };
+  const surBlurFinal = () => {
+    flush().catch(() => {});
+  };
+  const setValeurImmediate = (t) => {
+    setImmediate(t).catch(() => {});
+  };
   return [valeur, setValeur, surBlurFinal, setValeurImmediate];
 }
 
@@ -47,17 +47,17 @@ const FIELD_OPTIONS = {
   'Matériaux tuyauterie': ['Acier noir', 'Cuivre', 'PVC HTA', 'Multicouche', 'Acier galvanisé'],
   'Type de distribution': ['Monotube', 'Bitube', 'Plancher chauffant'],
   'Equipement sur aller': ['Vanne papillon', 'Vanne 1/4 de tour', 'Vanne 3 voies', 'Pompe double'],
-  'Equipement sur retour': ['Vanne d\'équilibrage', 'Vanne 1/4 de tour', 'Té de mélange'],
+  'Equipement sur retour': ["Vanne d'équilibrage", 'Vanne 1/4 de tour', 'Té de mélange'],
   "Type d'émetteur": ['Radiateurs', 'Panneau de sol', 'Convecteurs', 'Ventilo-convecteurs'],
   'Type de robinetterie': ['Robinet thermostatique', 'Vanne 1/4 de tour', 'Vanne de régulation'],
   'Calorifuge (type / état)': ['Laine de roche + revêtement PVC', 'Armaflex', 'Laine de verre', 'Absent'],
   'Variation de vitesse': ['Fixe', 'Variable', 'Auto-adaptatif'],
   'Présence mitigeur': ['Oui', 'Non'],
-  'Type de régulation': ['Loi d\'eau', 'Thermostat d\'ambiance', 'Sonde extérieure', 'Programmable'],
+  'Type de régulation': ["Loi d'eau", "Thermostat d'ambiance", 'Sonde extérieure', 'Programmable'],
   'Cycle anti-légionellose': ['Hebdomadaire', 'Quotidien', 'Absent'],
   'Production primaire': ['Chaudière gaz', 'Chaudière fioul', 'Chaudière bois', 'PAC', 'Réseau de chaleur'],
   'Production ECS': ['Ballon', 'Échangeur à plaques', 'Instantané', 'Semi-instantané'],
-  'Type de LT': ['Chaufferie gaz', 'Chaufferie fioul', 'Sous-station', 'Chaufferie bois'],
+  'Type de LT': ['Chaufferie gaz', 'Chaufferie fioul', 'Sous-station', 'Chaufferie bois']
 };
 
 function getNumericConfig(cle) {
@@ -117,8 +117,17 @@ const StepperNumerique = React.memo(function StepperNumerique({ valeur, config, 
       <TouchableOpacity style={styles.stepperBtn} onPress={dec}>
         <Text style={styles.stepperBtnText}>−</Text>
       </TouchableOpacity>
-      <TouchableOpacity style={styles.stepperValBox} onPress={() => { setTexteLibre(valeur || ''); setModeLibre(true); }}>
-        <Text style={styles.stepperValText}>{valeur || '—'}{config.unit ? ` ${config.unit}` : ''}</Text>
+      <TouchableOpacity
+        style={styles.stepperValBox}
+        onPress={() => {
+          setTexteLibre(valeur || '');
+          setModeLibre(true);
+        }}
+      >
+        <Text style={styles.stepperValText}>
+          {valeur || '—'}
+          {config.unit ? ` ${config.unit}` : ''}
+        </Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.stepperBtn} onPress={inc}>
         <Text style={styles.stepperBtnText}>+</Text>
@@ -155,10 +164,16 @@ const ChipSelector = React.memo(function ChipSelector({ valeur, options, onChang
   }
   return (
     <View style={styles.chipRowWithArrows}>
-      <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(-1)}><Text style={styles.chipArrowBtnText}>‹</Text></TouchableOpacity>
+      <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(-1)}>
+        <Text style={styles.chipArrowBtnText}>‹</Text>
+      </TouchableOpacity>
       <View style={styles.chipSelectRow}>
         {options.map((opt) => (
-          <TouchableOpacity key={opt} style={[styles.chipOpt, valeur === opt && styles.chipOptPicked]} onPress={() => choisir(opt)}>
+          <TouchableOpacity
+            key={opt}
+            style={[styles.chipOpt, valeur === opt && styles.chipOptPicked]}
+            onPress={() => choisir(opt)}
+          >
             <Text style={[styles.chipOptText, valeur === opt && styles.chipOptTextPicked]}>{opt}</Text>
           </TouchableOpacity>
         ))}
@@ -166,7 +181,9 @@ const ChipSelector = React.memo(function ChipSelector({ valeur, options, onChang
           <Text style={styles.chipOptAddNewText}>+ Autre</Text>
         </TouchableOpacity>
       </View>
-      <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(1)}><Text style={styles.chipArrowBtnText}>›</Text></TouchableOpacity>
+      <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(1)}>
+        <Text style={styles.chipArrowBtnText}>›</Text>
+      </TouchableOpacity>
     </View>
   );
 });
@@ -188,7 +205,10 @@ const ChampGenerique = React.memo(function ChampGenerique({ visiteId, sectionCod
   return (
     <View style={styles.fieldBlock}>
       <View style={styles.fieldTop}>
-        <Text style={styles.fieldLabel}>{label}{unit && !numericConfig ? ` (${unit})` : ''}</Text>
+        <Text style={styles.fieldLabel}>
+          {label}
+          {unit && !numericConfig ? ` (${unit})` : ''}
+        </Text>
         {!sansPhoto && <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={label} />}
       </View>
       {numericConfig ? (
@@ -196,7 +216,13 @@ const ChampGenerique = React.memo(function ChampGenerique({ visiteId, sectionCod
       ) : chipOptions ? (
         <ChipSelector valeur={valeur} options={chipOptions} onChange={setValeurImmediate} />
       ) : (
-        <TextInput style={styles.input} value={valeur} onChangeText={setValeur} onBlur={surBlur} placeholder="Saisir..." />
+        <TextInput
+          style={styles.input}
+          value={valeur}
+          onChangeText={setValeur}
+          onBlur={surBlur}
+          placeholder="Saisir..."
+        />
       )}
     </View>
   );
@@ -222,13 +248,17 @@ const CATEGORIE_SECTION_MAP = {
   'conf-energie.coupure_ext_rieure_combustible||Type (2 électrovannes minimum)': 'Coupure combustible - Type',
   'conf-energie.coupure_ext_rieure_combustible||Coffret': 'Coupure combustible - Coffret',
   'conf-energie.coupure_ext_rieure_combustible||Verre dormant': 'Coupure combustible - Verre dormant',
-  'conf-energie.coupure_ext_rieure_combustible||Signalétique "Coupure combustible extérieure"': 'Coupure combustible - Signalétique',
+  'conf-energie.coupure_ext_rieure_combustible||Signalétique "Coupure combustible extérieure"':
+    'Coupure combustible - Signalétique',
   'conf-energie.coupure_ext_rieure_lectrique||Présence à chaque accès': 'Coupure électrique - Présence',
   'conf-energie.coupure_ext_rieure_lectrique||Coffret': 'Coupure électrique - Coffret',
   'conf-energie.coupure_ext_rieure_lectrique||Verre dormant': 'Coupure électrique - Verre dormant',
-  'conf-energie.coupure_ext_rieure_lectrique||Signalétique "Coupure électrique extérieure"': 'Coupure électrique - Signalétique',
-  'conf-energie.coupure_ext_rieure_lectrique||Séparation Force/Lumière/Relevage': 'Coupure électrique - Séparation F/L/R',
-  'conf-energie.coupure_ext_rieure_lectrique||Signalétique Force/Lumière/Relevage': 'Coupure électrique - Signalétique F/L/R',
+  'conf-energie.coupure_ext_rieure_lectrique||Signalétique "Coupure électrique extérieure"':
+    'Coupure électrique - Signalétique',
+  'conf-energie.coupure_ext_rieure_lectrique||Séparation Force/Lumière/Relevage':
+    'Coupure électrique - Séparation F/L/R',
+  'conf-energie.coupure_ext_rieure_lectrique||Signalétique Force/Lumière/Relevage':
+    'Coupure électrique - Signalétique F/L/R',
   'conf-energie.armoire_lectrique||Schéma électrique': 'Armoire - Schéma électrique',
   'conf-energie.armoire_lectrique||Câblage': 'Armoire - Câblage',
   'conf-energie.armoire_lectrique||Protection': 'Armoire - Protection',
@@ -238,7 +268,7 @@ const CATEGORIE_SECTION_MAP = {
   'conf-energie.baes||Présence': 'BAES - Presence',
   'conf-energie.baes||Visible partout': 'BAES - Visibilité',
   'conf-energie.baes||Signalétique': 'BAES - Signalétique',
-  'conf-energie.baes||Veilleuse': 'BAES - Veilleuse',
+  'conf-energie.baes||Veilleuse': 'BAES - Veilleuse'
 };
 
 function getCategorieKey(cle, sectionCode) {
@@ -265,26 +295,32 @@ async function chargerCriteresPersonnalises(categorieKey) {
       poste: item.poste,
       prestation: item.description,
       delai: item.delai,
-      estimatif: item.prix,
+      estimatif: item.prix
     }));
 }
 
 function EditionReserveSelectionnee({ remarqueId, option, onSaved }) {
-  const [prestation, setPrestation, blurPrestation] = useSaisieAvecAutoSave(
-    option?.prestation || '',
-    async (v) => { if (remarqueId) await modifierRemarqueVisite(remarqueId, { prestation: v }); onSaved && onSaved(); }
-  );
-  const [poste, setPoste, blurPoste] = useSaisieAvecAutoSave(
-    option?.poste || '',
-    async (v) => { if (remarqueId) await modifierRemarqueVisite(remarqueId, { poste: v }); onSaved && onSaved(); }
-  );
+  const [prestation, setPrestation, blurPrestation] = useSaisieAvecAutoSave(option?.prestation || '', async (v) => {
+    if (remarqueId) await modifierRemarqueVisite(remarqueId, { prestation: v });
+    onSaved && onSaved();
+  });
+  const [poste, setPoste, blurPoste] = useSaisieAvecAutoSave(option?.poste || '', async (v) => {
+    if (remarqueId) await modifierRemarqueVisite(remarqueId, { poste: v });
+    onSaved && onSaved();
+  });
   const [prix, setPrix, blurPrix] = useSaisieAvecAutoSave(
     option?.estimatif == null ? '' : String(option.estimatif),
-    async (v) => { if (remarqueId) await modifierRemarqueVisite(remarqueId, { estimatif: v }); onSaved && onSaved(); }
+    async (v) => {
+      if (remarqueId) await modifierRemarqueVisite(remarqueId, { estimatif: v });
+      onSaved && onSaved();
+    }
   );
   const [delai, setDelai, blurDelai] = useSaisieAvecAutoSave(
     option?.delai == null ? '' : String(option.delai),
-    async (v) => { if (remarqueId) await modifierRemarqueVisite(remarqueId, { delai: v }); onSaved && onSaved(); }
+    async (v) => {
+      if (remarqueId) await modifierRemarqueVisite(remarqueId, { delai: v });
+      onSaved && onSaved();
+    }
   );
 
   useEffect(() => {
@@ -330,7 +366,13 @@ function EditionReserveSelectionnee({ remarqueId, option, onSaved }) {
   );
 }
 
-const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved }) {
+const ControleGenerique = React.memo(function ControleGenerique({
+  visiteId,
+  sectionCode,
+  field,
+  etatInitial,
+  onSaved
+}) {
   const controleKey = `${sectionCode}||${field.cle}`;
   const [avis, setAvis] = useState(etatInitial?.avis || null);
   const [commentaire, setCommentaire] = useState(etatInitial?.commentaire || '');
@@ -355,7 +397,9 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
       const persoInedits = perso.filter((o) => !critieresBase.has((o.critere || '').trim().toLowerCase()));
       if (persoInedits.length) setOptions([...base, ...persoInedits]);
     });
-    return () => { actif = false; };
+    return () => {
+      actif = false;
+    };
   }, [categorieKey, field.cle, sectionCode]);
 
   const choisirAvis = async (val) => {
@@ -438,7 +482,11 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
                 ))}
                 <TouchableOpacity
                   style={[styles.critereChip, styles.critereChipCustom, modeLibre && styles.critereChipPicked]}
-                  onPress={() => { setModeLibre(true); setCritereChoisi(null); setRemarqueId(null); }}
+                  onPress={() => {
+                    setModeLibre(true);
+                    setCritereChoisi(null);
+                    setRemarqueId(null);
+                  }}
                 >
                   <Text style={[styles.critereChipText, modeLibre && styles.critereChipTextPicked]}>Autre</Text>
                 </TouchableOpacity>
@@ -477,7 +525,9 @@ const TypeAheadInput = React.memo(function TypeAheadInput({ valeur, options, pla
   const [focus, setFocus] = useState(false);
   const blurTimer = React.useRef(null);
 
-  useEffect(() => { setTexte(valeur || ''); }, [valeur]);
+  useEffect(() => {
+    setTexte(valeur || '');
+  }, [valeur]);
 
   const suggestions = texte.trim()
     ? options.filter((o) => o.toLowerCase().includes(texte.trim().toLowerCase())).slice(0, 6)
@@ -506,9 +556,20 @@ const TypeAheadInput = React.memo(function TypeAheadInput({ valeur, options, pla
   return (
     <View>
       <View style={styles.typeaheadRow}>
-        <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(-1)}><Text style={styles.chipArrowBtnText}>‹</Text></TouchableOpacity>
-        <TextInput style={[styles.input, { flex: 1 }]} value={texte} onChangeText={setTexte} onFocus={() => setFocus(true)} onBlur={surBlur} placeholder={placeholder} />
-        <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(1)}><Text style={styles.chipArrowBtnText}>›</Text></TouchableOpacity>
+        <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(-1)}>
+          <Text style={styles.chipArrowBtnText}>‹</Text>
+        </TouchableOpacity>
+        <TextInput
+          style={[styles.input, { flex: 1 }]}
+          value={texte}
+          onChangeText={setTexte}
+          onFocus={() => setFocus(true)}
+          onBlur={surBlur}
+          placeholder={placeholder}
+        />
+        <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(1)}>
+          <Text style={styles.chipArrowBtnText}>›</Text>
+        </TouchableOpacity>
       </View>
       {focus && suggestions.length > 0 && (
         <View style={styles.typeaheadSuggestions}>
@@ -547,7 +608,7 @@ const CategorieCritereSelector = React.memo(function CategorieCritereSelector({ 
       description: opt.prestation,
       poste: opt.poste,
       delai: opt.delai,
-      prix: opt.estimatif,
+      prix: opt.estimatif
     });
   };
 
@@ -555,25 +616,44 @@ const CategorieCritereSelector = React.memo(function CategorieCritereSelector({ 
     setCritereIdx(null);
     onRempli({
       nom: categorie + (nouveauCritere.trim() ? ' — ' + nouveauCritere.trim() : ''),
-      description: '', poste: null, delai: null, prix: null,
+      description: '',
+      poste: null,
+      delai: null,
+      prix: null
     });
   };
 
   return (
     <View>
       <Text style={styles.fieldLabel}>Catégorie</Text>
-      <TypeAheadInput valeur={categorie} options={categories} placeholder="Ex: Adoucisseur - Filtre / Bypass..." onChange={choisirCategorie} />
+      <TypeAheadInput
+        valeur={categorie}
+        options={categories}
+        placeholder="Ex: Adoucisseur - Filtre / Bypass..."
+        onChange={choisirCategorie}
+      />
       {!!categorie && (
         <View style={{ marginTop: 10 }}>
           <Text style={styles.fieldLabel}>Cause / critère</Text>
           <View style={styles.chipSelectRow}>
             {(options || []).map((opt, idx) => (
-              <TouchableOpacity key={idx} style={[styles.chipOpt, critereIdx === idx && styles.chipOptPicked]} onPress={() => choisirCritere(idx)}>
-                <Text style={[styles.chipOptText, critereIdx === idx && styles.chipOptTextPicked]}>{opt.critere || 'Non conforme'}</Text>
+              <TouchableOpacity
+                key={idx}
+                style={[styles.chipOpt, critereIdx === idx && styles.chipOptPicked]}
+                onPress={() => choisirCritere(idx)}
+              >
+                <Text style={[styles.chipOptText, critereIdx === idx && styles.chipOptTextPicked]}>
+                  {opt.critere || 'Non conforme'}
+                </Text>
               </TouchableOpacity>
             ))}
-            <TouchableOpacity style={[styles.chipOpt, styles.chipOptAddNew, modeNouveauCritere && styles.chipOptPicked]} onPress={() => setModeNouveauCritere(true)}>
-              <Text style={[styles.chipOptAddNewText, modeNouveauCritere && styles.chipOptTextPicked]}>+ Nouveau critère</Text>
+            <TouchableOpacity
+              style={[styles.chipOpt, styles.chipOptAddNew, modeNouveauCritere && styles.chipOptPicked]}
+              onPress={() => setModeNouveauCritere(true)}
+            >
+              <Text style={[styles.chipOptAddNewText, modeNouveauCritere && styles.chipOptTextPicked]}>
+                + Nouveau critère
+              </Text>
             </TouchableOpacity>
           </View>
           {modeNouveauCritere && (
@@ -593,4 +673,16 @@ const CategorieCritereSelector = React.memo(function CategorieCritereSelector({ 
   );
 });
 
-export { extractUnit, cleanLabel, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, ChampGenerique, ControleGenerique, AVIS_OPTIONS, CategorieCritereSelector, useSaisieAvecAutoSave };
+export {
+  extractUnit,
+  cleanLabel,
+  getNumericConfig,
+  StepperNumerique,
+  ChipSelector,
+  TypeAheadInput,
+  ChampGenerique,
+  ControleGenerique,
+  AVIS_OPTIONS,
+  CategorieCritereSelector,
+  useSaisieAvecAutoSave
+};

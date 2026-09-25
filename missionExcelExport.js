@@ -78,7 +78,7 @@ const QUERIES = Object.freeze({
   mission_voice_notes: `SELECT * FROM mission_voice_notes WHERE mission_id=? ORDER BY created_at`,
   mission_visit_checks: `SELECT * FROM mission_visit_checks WHERE mission_id=? ORDER BY visit_id,severity,created_at`,
   mission_document_extractions: `SELECT * FROM mission_document_extractions WHERE mission_id=? ORDER BY document_id,page_number,created_at`,
-  mission_document_review_items: `SELECT * FROM mission_document_review_items WHERE mission_id=? ORDER BY document_id,status,created_at`,
+  mission_document_review_items: `SELECT * FROM mission_document_review_items WHERE mission_id=? ORDER BY document_id,status,created_at`
 });
 
 async function chargerExportMission(missionId) {
@@ -98,26 +98,44 @@ async function chargerExportMission(missionId) {
 export async function construireClasseurMission(missionId) {
   const data = await chargerExportMission(missionId);
   const wb = XLSX.utils.book_new();
-  appendJsonSheet(wb, '00_Meta', [{
-    format: MISSION_EXCEL_FORMAT,
-    schema_version: MISSION_EXCEL_SCHEMA_VERSION,
-    mission_id: missionId,
-    exported_at: new Date().toISOString(),
-    note: 'Classeur relationnel METRA Missions. Les identifiants assurent les liaisons entre feuilles. Les médias restent référencés par URI.',
-  }]);
+  appendJsonSheet(wb, '00_Meta', [
+    {
+      format: MISSION_EXCEL_FORMAT,
+      schema_version: MISSION_EXCEL_SCHEMA_VERSION,
+      mission_id: missionId,
+      exported_at: new Date().toISOString(),
+      note: 'Classeur relationnel METRA Missions. Les identifiants assurent les liaisons entre feuilles. Les médias restent référencés par URI.'
+    }
+  ]);
   appendJsonSheet(wb, '00_LisezMoi', [
-    { regle: 'Import / export', detail: 'Toutes les données structurées de la Mission peuvent être réimportées depuis ce classeur.' },
+    {
+      regle: 'Import / export',
+      detail: 'Toutes les données structurées de la Mission peuvent être réimportées depuis ce classeur.'
+    },
     { regle: 'Identifiants', detail: 'Ne pas supprimer les colonnes id et *_id si le classeur doit être réimporté.' },
-    { regle: 'Médias', detail: 'Photos, PDF et fichiers lourds ne sont pas incorporés physiquement : leurs chemins/URI sont exportés.' },
-    { regle: 'Isolation', detail: 'Ce classeur ne contient aucune donnée du référentiel Intranet ni des Visites techniques récurrentes.' },
-    { regle: 'Excel externe', detail: 'Un classeur non METRA peut aussi être importé : ses lignes sont conservées intégralement comme source brute avant mapping.' },
+    {
+      regle: 'Médias',
+      detail: 'Photos, PDF et fichiers lourds ne sont pas incorporés physiquement : leurs chemins/URI sont exportés.'
+    },
+    {
+      regle: 'Isolation',
+      detail: 'Ce classeur ne contient aucune donnée du référentiel Intranet ni des Visites techniques récurrentes.'
+    },
+    {
+      regle: 'Excel externe',
+      detail:
+        'Un classeur non METRA peut aussi être importé : ses lignes sont conservées intégralement comme source brute avant mapping.'
+    }
   ]);
   for (const [sheet, table] of MISSION_EXCEL_SHEETS) appendJsonSheet(wb, sheet, data.tables[table] || []);
   return { wb, data };
 }
 
 function filename(data) {
-  const base = nettoyerSegment(data?.mission?.label || data?.mission?.reference || data?.mission?.id || 'Mission', 'Mission').replace(/\s+/g, '_');
+  const base = nettoyerSegment(
+    data?.mission?.label || data?.mission?.reference || data?.mission?.id || 'Mission',
+    'Mission'
+  ).replace(/\s+/g, '_');
   return `Mission_${base}.xlsx`;
 }
 
@@ -132,7 +150,12 @@ export async function exporterMissionExcel(missionId) {
   const { base64, name, data } = await preparerExportMission(missionId);
   const clientRows = data.tables?.mission_clients || [];
   const clientName = clientRows?.[0]?.name || 'Sans_client';
-  const folder = await garantirCheminMetra(['Missions', nettoyerSegment(clientName), nettoyerSegment(data.mission.label || data.mission.id), 'Exports']);
+  const folder = await garantirCheminMetra([
+    'Missions',
+    nettoyerSegment(clientName),
+    nettoyerSegment(data.mission.label || data.mission.id),
+    'Exports'
+  ]);
   if (folder) {
     const uri = await creerFichierSaf(folder, name, XLSX_MIME, base64);
     return { uri, name, shared: false };

@@ -21,12 +21,15 @@ function esc(v = '') {
 }
 
 function propre(v = 'Rapport') {
-  return String(v || 'Rapport')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9._-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .slice(0, 90) || 'Rapport';
+  return (
+    String(v || 'Rapport')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 90) || 'Rapport'
+  );
 }
 
 function dateFr(v) {
@@ -50,11 +53,11 @@ function infoValue(data, label) {
 async function imageDataUri(uri) {
   if (!uri) return null;
   try {
-    const r = await ImageManipulator.manipulateAsync(
-      uri,
-      [{ resize: { width: 1800 } }],
-      { compress: 0.88, format: ImageManipulator.SaveFormat.JPEG, base64: true }
-    );
+    const r = await ImageManipulator.manipulateAsync(uri, [{ resize: { width: 1800 } }], {
+      compress: 0.88,
+      format: ImageManipulator.SaveFormat.JPEG,
+      base64: true
+    });
     return r.base64 ? `data:image/jpeg;base64,${r.base64}` : null;
   } catch (e) {
     console.warn('Plan non converti pour le rapport Pré-allumage', e);
@@ -113,7 +116,7 @@ async function construireHtml(visiteId) {
   const config = {
     chrono,
     dateRapport: new Date().toISOString().slice(0, 10),
-    afficherLignesVides: false,
+    afficherLignesVides: false
   };
   const corps = construireSitePreAllumageHtml(data, config, planSrc);
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${cssDocument()}</style></head><body>${coverHtml(data, config)}${corps}</body></html>`;
@@ -122,9 +125,12 @@ async function construireHtml(visiteId) {
 
 async function choisirDossier() {
   const SAF = FileSystem.StorageAccessFramework;
-  if (!SAF?.requestDirectoryPermissionsAsync || !SAF?.createFileAsync) throw new Error("L'enregistrement dans Documents n'est pas disponible sur cet appareil.");
+  if (!SAF?.requestDirectoryPermissionsAsync || !SAF?.createFileAsync)
+    throw new Error("L'enregistrement dans Documents n'est pas disponible sur cet appareil.");
   let initial = null;
-  try { initial = SAF.getUriForDirectoryInRoot ? SAF.getUriForDirectoryInRoot('Documents') : null; } catch {}
+  try {
+    initial = SAF.getUriForDirectoryInRoot ? SAF.getUriForDirectoryInRoot('Documents') : null;
+  } catch {}
   const p = await SAF.requestDirectoryPermissionsAsync(initial || undefined);
   return p?.granted ? p.directoryUri : null;
 }
@@ -153,7 +159,7 @@ function dessinerImageCouverte(page, image, x, y, width, height) {
     x: x + (width - imageWidth) / 2,
     y: y + (height - imageHeight) / 2,
     width: imageWidth,
-    height: imageHeight,
+    height: imageHeight
   });
   page.pushOperators(popGraphicsState());
 }
@@ -170,17 +176,17 @@ async function integrerImagesPageGarde(uriSource) {
   const [logo, visual, opqibi] = await Promise.all([
     pdf.embedJpg(base64DepuisDataUri(REPORT_LOGO)),
     pdf.embedJpg(base64DepuisDataUri(REPORT_COVER)),
-    pdf.embedJpg(base64DepuisDataUri(REPORT_OPQIBI)),
+    pdf.embedJpg(base64DepuisDataUri(REPORT_OPQIBI))
   ]);
   const { width: pageWidth, height: pageHeight } = page.getSize();
-  const mm = (value) => value * 72 / 25.4;
+  const mm = (value) => (value * 72) / 25.4;
 
   const logoSize = dimensionsContenues(logo, mm(72), mm(20));
   page.drawImage(logo, {
     x: mm(15),
     y: pageHeight - mm(13) - logoSize.height,
     width: logoSize.width,
-    height: logoSize.height,
+    height: logoSize.height
   });
 
   const visualWidth = mm(174);
@@ -199,7 +205,7 @@ async function integrerImagesPageGarde(uriSource) {
     x: mm(5),
     y: mm(1),
     width: opqibiSize.width,
-    height: opqibiSize.height,
+    height: opqibiSize.height
   });
 
   const uri = `${FileSystem.cacheDirectory}pre_allumage_couverture_${Date.now()}.pdf`;
@@ -226,7 +232,10 @@ async function ecrirePdf(dossier, nom, html) {
 }
 
 async function ecrireWord(dossier, nom, html) {
-  const wordHtml = html.replace('<html>', '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">');
+  const wordHtml = html.replace(
+    '<html>',
+    '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">'
+  );
   const uri = await FileSystem.StorageAccessFramework.createFileAsync(dossier, nom, MIME_WORD);
   await FileSystem.writeAsStringAsync(uri, wordHtml, { encoding: FileSystem.EncodingType.UTF8 });
   return uri;

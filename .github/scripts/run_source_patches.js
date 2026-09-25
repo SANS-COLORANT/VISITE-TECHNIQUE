@@ -37,7 +37,7 @@ const CONTRACT_CHECKS = [
   ['navigation + site sort contract', '.github/scripts/check_navigation_sort_contract.js'],
   ['durable visit data contract', '.github/scripts/check_durable_visit_data_contract.js'],
   ['field runtime foundation', '.github/scripts/check_field_runtime_foundation.js'],
-  ['instant camera runtime', '.github/scripts/check_camera_runtime_contract.js'],
+  ['instant camera runtime', '.github/scripts/check_camera_runtime_contract.js']
 ];
 
 const JS_SYNTAX_FILES = [
@@ -221,7 +221,7 @@ const JS_SYNTAX_FILES = [
   'app.config.js',
   'symfonyApi.js',
   'database/migrations/031_latest_visit_photos.js',
-  'database/migrations/032_photo_reference_workflow.js',
+  'database/migrations/032_photo_reference_workflow.js'
 ];
 
 function runNode(args, label) {
@@ -230,7 +230,7 @@ function runNode(args, label) {
   const result = spawnSync(process.execPath, args, {
     cwd: ROOT,
     stdio: 'inherit',
-    env: process.env,
+    env: process.env
   });
   if (result.error) {
     console.error(`[METRA verify] ${label} could not start: ${result.error.message}`);
@@ -238,7 +238,9 @@ function runNode(args, label) {
   }
   if (result.status !== 0) {
     console.error(`[METRA verify] ${label} failed with exit code ${result.status}.`);
-    console.error('[METRA verify] Runtime source is not in the committed prepared state. Do not repair it during install; update the source and its contracts in a dedicated PR.');
+    console.error(
+      '[METRA verify] Runtime source is not in the committed prepared state. Do not repair it during install; update the source and its contracts in a dedicated PR.'
+    );
     process.exit(result.status || 1);
   }
   console.log(`[METRA verify] ${label} OK (${Date.now() - startedAt} ms)`);

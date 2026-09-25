@@ -15,5 +15,5 @@ export const migration015 = {
 
     CREATE INDEX IF NOT EXISTS idx_champs_visite_lookup ON champs_visite(visite_id, section_code, cle);
     CREATE INDEX IF NOT EXISTS idx_controles_visite_lookup ON controles_visite(visite_id, section_code, cle);
-  `,
+  `
 };

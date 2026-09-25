@@ -65,5 +65,5 @@ export const migration027 = {
     CREATE INDEX IF NOT EXISTS idx_api_site_client ON api_site_links(remote_client_id);
     CREATE INDEX IF NOT EXISTS idx_api_site_local ON api_site_links(local_site_id);
     CREATE INDEX IF NOT EXISTS idx_api_local_site ON api_local_links(remote_site_id);
-  `,
+  `
 };

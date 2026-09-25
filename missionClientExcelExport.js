@@ -23,7 +23,7 @@ const STATUS = Object.freeze({
   non_retrouve: 'Non retrouvé',
   remplace: 'Remplacé',
   inaccessible: 'Inaccessible',
-  a_verifier: 'À vérifier',
+  a_verifier: 'À vérifier'
 });
 
 function clean(value) {
@@ -68,7 +68,24 @@ async function loadClientData(missionId) {
   if (!mission) throw new Error('Mission introuvable.');
 
   const [
-    sites, visits, actions, points, equipment, measures, photos, documents, scenarios, workstreams, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations, campaignSiteProgress,
+    sites,
+    visits,
+    actions,
+    points,
+    equipment,
+    measures,
+    photos,
+    documents,
+    scenarios,
+    workstreams,
+    subjects,
+    observations,
+    hypotheses,
+    decisions,
+    lifecycle,
+    actionHistory,
+    validations,
+    campaignSiteProgress
   ] = await Promise.all([
     db.getAllAsync(
       `SELECT s.*
@@ -168,7 +185,7 @@ async function loadClientData(missionId) {
       [missionId]
     ),
     db.getAllAsync(
-      'SELECT * FROM mission_scenarios WHERE mission_id=? ORDER BY CASE status WHEN \'retained\' THEN 0 ELSE 1 END,created_at',
+      "SELECT * FROM mission_scenarios WHERE mission_id=? ORDER BY CASE status WHEN 'retained' THEN 0 ELSE 1 END,created_at",
       [missionId]
     ),
     db.getAllAsync(
@@ -249,11 +266,31 @@ async function loadClientData(missionId) {
        FROM mission_sites s
        JOIN mission_site_links ml ON ml.site_id=s.id
        WHERE ml.mission_id=? ORDER BY s.name`,
-      [missionId,missionId,missionId,missionId,missionId,missionId,missionId,missionId,missionId]
-    ),
+      [missionId, missionId, missionId, missionId, missionId, missionId, missionId, missionId, missionId]
+    )
   ]);
 
-  return { mission, sites, visits, actions, points, equipment, measures, photos, documents, scenarios, workstreams, subjects, observations, hypotheses, decisions, lifecycle, actionHistory, validations, campaignSiteProgress };
+  return {
+    mission,
+    sites,
+    visits,
+    actions,
+    points,
+    equipment,
+    measures,
+    photos,
+    documents,
+    scenarios,
+    workstreams,
+    subjects,
+    observations,
+    hypotheses,
+    decisions,
+    lifecycle,
+    actionHistory,
+    validations,
+    campaignSiteProgress
+  };
 }
 
 function photoPath(photo, photoPathById) {
@@ -266,13 +303,15 @@ function actionRows(data, photoPathById = null) {
   const historyByAction = new Map();
   for (const row of data.actionHistory || []) {
     let change = {};
-    try { change = JSON.parse(row.source_value || '{}'); } catch {}
+    try {
+      change = JSON.parse(row.source_value || '{}');
+    } catch {}
     const list = historyByAction.get(row.entity_id) || [];
-    list.push([
-      row.created_at || '',
-      row.field_name || '',
-      String(change.before ?? '—') + ' → ' + String(change.after ?? '—'),
-    ].filter(Boolean).join(' · '));
+    list.push(
+      [row.created_at || '', row.field_name || '', String(change.before ?? '—') + ' → ' + String(change.after ?? '—')]
+        .filter(Boolean)
+        .join(' · ')
+    );
     historyByAction.set(row.entity_id, list);
   }
   for (const photo of data.photos) {
@@ -288,7 +327,7 @@ function actionRows(data, photoPathById = null) {
     return {
       Site: a.site_name || '',
       Localisation: a.location_label || '',
-      Equipement: [a.equipment_type,a.equipment_brand,a.equipment_model].filter(Boolean).join(' · '),
+      Equipement: [a.equipment_type, a.equipment_brand, a.equipment_model].filter(Boolean).join(' · '),
       Action: a.label || '',
       Description: a.description || '',
       Origine: a.source_point_label || '',
@@ -303,7 +342,7 @@ function actionRows(data, photoPathById = null) {
       Photo_apres: after ? photoPath(after, photoPathById) : '',
       Creee_le: a.created_at || '',
       Cloturee_le: a.closed_at || '',
-      Historique: (historyByAction.get(a.id) || []).join(' | '),
+      Historique: (historyByAction.get(a.id) || []).join(' | ')
     };
   });
 }
@@ -312,7 +351,8 @@ function reserveRows(data, photoPathById = null) {
   const reservePoints = data.points.filter((p) => p.type === 'reserve');
   const actionsByPoint = new Map();
   for (const action of data.actions) {
-    if (action.source_point_id && !actionsByPoint.has(action.source_point_id)) actionsByPoint.set(action.source_point_id, action);
+    if (action.source_point_id && !actionsByPoint.has(action.source_point_id))
+      actionsByPoint.set(action.source_point_id, action);
   }
   const pointPhotos = new Map();
   for (const photo of data.photos) {
@@ -330,13 +370,14 @@ function reserveRows(data, photoPathById = null) {
     return {
       Site: p.site_name || '',
       Localisation: p.location_label || '',
-      Equipement: [p.equipment_type,p.equipment_brand,p.equipment_model].filter(Boolean).join(' · '),
+      Equipement: [p.equipment_type, p.equipment_brand, p.equipment_model].filter(Boolean).join(' · '),
       Reserve: p.label || '',
       Description: p.description || '',
       Statut: labelStatus(p.status),
       Resultat_recontrole: labelStatus(p.qualification),
       Priorite: p.priority || '',
-      Responsable: p.responsible_company || p.responsible_name || action?.responsible_company || action?.responsible_name || '',
+      Responsable:
+        p.responsible_company || p.responsible_name || action?.responsible_company || action?.responsible_name || '',
       Action_demandee: p.requested_action || action?.label || '',
       Echeance: p.due_date || p.due_text || action?.due_date || action?.due_text || '',
       Cout_estime_EUR: formatNumber(p.cost_estimate ?? action?.cost_estimate),
@@ -344,7 +385,7 @@ function reserveRows(data, photoPathById = null) {
       Photo_initiale: before ? photoPath(before, photoPathById) : '',
       Photo_apres: after ? photoPath(after, photoPathById) : '',
       Creee_le: p.created_at || '',
-      Cloturee_le: p.closed_at || '',
+      Cloturee_le: p.closed_at || ''
     };
   });
 }
@@ -366,7 +407,7 @@ function inventoryRows(data) {
     Duree_vie_indicative_ans: formatNumber(e.expected_lifetime_years),
     Cout_renouvellement_EUR: formatNumber(e.replacement_cost),
     Annee_renouvellement_indicative: e.replacement_year || '',
-    Provenance: e.source_type || '',
+    Provenance: e.source_type || ''
   }));
 }
 
@@ -375,7 +416,7 @@ function measureRows(data) {
     Date: m.measured_at || m.created_at || '',
     Site: m.site_name || '',
     Localisation: m.location_label || '',
-    Equipement: [m.equipment_type,m.equipment_brand,m.equipment_model].filter(Boolean).join(' · '),
+    Equipement: [m.equipment_type, m.equipment_brand, m.equipment_model].filter(Boolean).join(' · '),
     Mesure: m.type || '',
     Valeur: m.value_number ?? m.value_text ?? '',
     Unite: m.unit || '',
@@ -385,7 +426,7 @@ function measureRows(data) {
     Ecart_pct: formatNumber(m.delta_percent),
     Signalement: m.anomaly_status === 'to_check' ? 'Valeur à contrôler' : '',
     Source_mesure: m.source_label || m.source_type || '',
-    Commentaire: m.comment || '',
+    Commentaire: m.comment || ''
   }));
 }
 
@@ -394,23 +435,23 @@ function photoRows(data, photoPathById = null) {
     Date: p.taken_at || p.created_at || '',
     Site: p.site_name || '',
     Localisation: p.location_label || '',
-    Equipement: [p.equipment_type,p.equipment_brand,p.equipment_model].filter(Boolean).join(' · '),
+    Equipement: [p.equipment_type, p.equipment_brand, p.equipment_model].filter(Boolean).join(' · '),
     Type: p.type || '',
     Libelle: p.label || '',
     Role: p.phase_role || '',
     Point: p.point_label || '',
     Action: p.action_label || '',
-    Fichier: photoPath(p, photoPathById),
+    Fichier: photoPath(p, photoPathById)
   }));
 }
 
 function summaryRows(data) {
-  const openActions = data.actions.filter((a) => !['closed','cancelled'].includes(a.status));
-  const openPoints = data.points.filter((p) => !['closed','no_follow_up','cancelled'].includes(p.status));
+  const openActions = data.actions.filter((a) => !['closed', 'cancelled'].includes(a.status));
+  const openPoints = data.points.filter((p) => !['closed', 'no_follow_up', 'cancelled'].includes(p.status));
   const reserves = data.points.filter((p) => p.type === 'reserve');
-  const openReserves = reserves.filter((p) => !['closed','no_follow_up','cancelled'].includes(p.status));
+  const openReserves = reserves.filter((p) => !['closed', 'no_follow_up', 'cancelled'].includes(p.status));
   const atypical = data.measures.filter((m) => m.anomaly_status === 'to_check');
-  const totalCost = openActions.reduce((sum,a) => sum + (Number(a.cost_estimate) || 0), 0);
+  const totalCost = openActions.reduce((sum, a) => sum + (Number(a.cost_estimate) || 0), 0);
   return [
     { Indicateur: 'Client', Valeur: data.mission.client_name || '' },
     { Indicateur: 'Mission', Valeur: data.mission.label || '' },
@@ -429,7 +470,7 @@ function summaryRows(data) {
     { Indicateur: 'Photos', Valeur: data.photos.length },
     { Indicateur: 'Documents', Valeur: data.documents.length },
     { Indicateur: 'Scenarios', Valeur: data.scenarios.length },
-    { Indicateur: 'Exporte le', Valeur: new Date().toISOString() },
+    { Indicateur: 'Exporte le', Valeur: new Date().toISOString() }
   ];
 }
 
@@ -438,62 +479,93 @@ export async function construireClasseurClientMission(missionId, { photoPathById
   const wb = XLSX.utils.book_new();
 
   addSheet(wb, '00_Synthese', summaryRows(data), [34, 55], false);
-  addSheet(wb, '01_Sites', data.sites.map((s) => ({
-    Site: s.name || '',
-    Adresse: s.address || '',
-    Ville: s.city || '',
-    Code_postal: s.postal_code || '',
-    Reference: s.reference || '',
-  })), [32,42,24,14,22]);
+  addSheet(
+    wb,
+    '01_Sites',
+    data.sites.map((s) => ({
+      Site: s.name || '',
+      Adresse: s.address || '',
+      Ville: s.city || '',
+      Code_postal: s.postal_code || '',
+      Reference: s.reference || ''
+    })),
+    [32, 42, 24, 14, 22]
+  );
   if (data.campaignSiteProgress?.length > 1) {
-    addSheet(wb, '01B_Progression_sites', data.campaignSiteProgress.map((site) => {
-      const total = Number(site.campaign_total || 0);
-      const done = Number(site.campaign_done || 0);
-      const planned = Number(site.campaign_planned || 0);
-      const measured = Number(site.campaign_measured || 0);
-      const exception = Number(site.campaign_exception || 0);
-      let status = 'À faire';
-      if (total > 0 && planned === 0) status = 'Terminé';
-      else if (total > 0 && done > 0) status = 'En cours';
-      else if (Number(site.visit_count || 0) > 0) status = 'En cours';
-      if (exception > 0 && measured === 0 && planned === 0) status = 'Accès / exception';
-      return {
-        Site: site.name || '',
-        Ville: site.city || '',
-        Reference: site.reference || '',
-        Statut: status,
-        Progression_pct: total ? Math.round((done / total) * 100) : '',
-        Visites: Number(site.visit_count || 0),
-        Derniere_occurrence: site.last_visit_at || '',
-        Points_campagne: total,
-        Mesures: measured,
-        Restant_a_traiter: planned,
-        Exceptions: exception,
-        Actions_ouvertes: Number(site.open_actions || 0),
-      };
-    }), [30,22,22,18,16,12,22,18,14,18,14,18]);
+    addSheet(
+      wb,
+      '01B_Progression_sites',
+      data.campaignSiteProgress.map((site) => {
+        const total = Number(site.campaign_total || 0);
+        const done = Number(site.campaign_done || 0);
+        const planned = Number(site.campaign_planned || 0);
+        const measured = Number(site.campaign_measured || 0);
+        const exception = Number(site.campaign_exception || 0);
+        let status = 'À faire';
+        if (total > 0 && planned === 0) status = 'Terminé';
+        else if (total > 0 && done > 0) status = 'En cours';
+        else if (Number(site.visit_count || 0) > 0) status = 'En cours';
+        if (exception > 0 && measured === 0 && planned === 0) status = 'Accès / exception';
+        return {
+          Site: site.name || '',
+          Ville: site.city || '',
+          Reference: site.reference || '',
+          Statut: status,
+          Progression_pct: total ? Math.round((done / total) * 100) : '',
+          Visites: Number(site.visit_count || 0),
+          Derniere_occurrence: site.last_visit_at || '',
+          Points_campagne: total,
+          Mesures: measured,
+          Restant_a_traiter: planned,
+          Exceptions: exception,
+          Actions_ouvertes: Number(site.open_actions || 0)
+        };
+      }),
+      [30, 22, 22, 18, 16, 12, 22, 18, 14, 18, 14, 18]
+    );
   }
   if (data.workstreams?.length) {
-    addSheet(wb, '01C_Volets_AMO', data.workstreams.map((row) => ({
-      Volet: row.label || '',
-      Type: row.kind || '',
-      Statut: row.status || '',
-      Sujets: Number(row.subject_count || 0),
-      Sujets_ouverts: Number(row.open_subject_count || 0),
-      Actions_ouvertes: Number(row.open_action_count || 0),
-      Description: row.description || '',
-    })), [34,22,18,12,16,18,70]);
+    addSheet(
+      wb,
+      '01C_Volets_AMO',
+      data.workstreams.map((row) => ({
+        Volet: row.label || '',
+        Type: row.kind || '',
+        Statut: row.status || '',
+        Sujets: Number(row.subject_count || 0),
+        Sujets_ouverts: Number(row.open_subject_count || 0),
+        Actions_ouvertes: Number(row.open_action_count || 0),
+        Description: row.description || ''
+      })),
+      [34, 22, 18, 12, 16, 18, 70]
+    );
   }
-  addSheet(wb, '02_Sujets', data.subjects.map((subject) => ({
-    Site: subject.site_name || '',
-    Sujet: subject.label || '',
-    Description: subject.description || '',
-    Statut: labelStatus(subject.status),
-    Priorite: subject.priority || '',
-    Constats: data.observations.filter((row) => row.subject_id === subject.id).map((row) => [row.observed_at || row.created_at || '', row.content || ''].filter(Boolean).join(' · ')).join(' | '),
-    Decisions: data.decisions.filter((row) => row.subject_id === subject.id).map((row) => [row.decided_at || row.created_at || '', row.label || '', row.description || ''].filter(Boolean).join(' · ')).join(' | '),
-    Actions_ouvertes: data.actions.filter((row) => row.subject_id === subject.id && !['closed','cancelled'].includes(row.status)).map((row) => row.label).join(' | '),
-  })), [24,36,54,16,16,70,70,60]);
+  addSheet(
+    wb,
+    '02_Sujets',
+    data.subjects.map((subject) => ({
+      Site: subject.site_name || '',
+      Sujet: subject.label || '',
+      Description: subject.description || '',
+      Statut: labelStatus(subject.status),
+      Priorite: subject.priority || '',
+      Constats: data.observations
+        .filter((row) => row.subject_id === subject.id)
+        .map((row) => [row.observed_at || row.created_at || '', row.content || ''].filter(Boolean).join(' · '))
+        .join(' | '),
+      Decisions: data.decisions
+        .filter((row) => row.subject_id === subject.id)
+        .map((row) =>
+          [row.decided_at || row.created_at || '', row.label || '', row.description || ''].filter(Boolean).join(' · ')
+        )
+        .join(' | '),
+      Actions_ouvertes: data.actions
+        .filter((row) => row.subject_id === subject.id && !['closed', 'cancelled'].includes(row.status))
+        .map((row) => row.label)
+        .join(' | ')
+    })),
+    [24, 36, 54, 16, 16, 70, 70, 60]
+  );
   if (data.mission.type === 'expertise_sinistre' && (data.observations.length || data.hypotheses.length)) {
     const expertiseRows = [
       ...data.observations.map((row) => ({
@@ -501,8 +573,8 @@ export async function construireClasseurClientMission(missionId, { photoPathById
         Sujet: row.subject_label || '',
         Nature: 'FAIT',
         Element: row.content || '',
-        Source_ou_statut: [row.source_type,row.confidence].filter(Boolean).join(' · '),
-        Conclusion: '',
+        Source_ou_statut: [row.source_type, row.confidence].filter(Boolean).join(' · '),
+        Conclusion: ''
       })),
       ...data.hypotheses.map((row) => ({
         Date: row.created_at || '',
@@ -510,103 +582,150 @@ export async function construireClasseurClientMission(missionId, { photoPathById
         Nature: 'HYPOTHESE',
         Element: row.label || '',
         Source_ou_statut: row.status || '',
-        Conclusion: row.conclusion || '',
-      })),
-    ].sort((a,b) => String(a.Date || '').localeCompare(String(b.Date || '')));
-    addSheet(wb, '02B_Expertise', expertiseRows, [22,34,16,70,32,70]);
+        Conclusion: row.conclusion || ''
+      }))
+    ].sort((a, b) => String(a.Date || '').localeCompare(String(b.Date || '')));
+    addSheet(wb, '02B_Expertise', expertiseRows, [22, 34, 16, 70, 32, 70]);
   }
-  addSheet(wb, '03_Actions', actionRows(data, photoPathById), [24,26,32,38,46,30,16,16,30,18,15,18,20,34,34,21,21]);
-  addSheet(wb, '04_Reserves', reserveRows(data, photoPathById), [24,26,32,38,46,16,16,30,38,18,18,20,34,34,21,21]);
-  addSheet(wb, '05_Inventaire', inventoryRows(data), [24,26,30,28,28,30,22,26,18,18,22,18,20,22,18]);
-  addSheet(wb, '06_Mesures', measureRows(data), [21,24,26,32,30,16,12,18,28,14,14,20,28,36]);
-  addSheet(wb, '07_Visites', data.visits.map((v) => ({
-    Date: v.visit_date || v.created_at || '',
-    Site: v.site_name || '',
-    Type_visite: v.visit_type || '',
-    Statut: labelStatus(v.status),
-    Commentaire: v.comment || '',
-  })), [21,28,30,16,55]);
-  addSheet(wb, '08_Photos', photoRows(data, photoPathById), [21,24,26,32,20,34,18,34,34,60]);
-  addSheet(wb, '09_Documents', data.documents.map((d) => ({
-    Date: d.document_date || d.created_at || '',
-    Site: d.site_name || '',
-    Localisation: d.location_label || '',
-    Equipement: [d.equipment_type,d.equipment_brand,d.equipment_model].filter(Boolean).join(' · '),
-    Nom: d.name || '',
-    Type: d.type || '',
-    Fichier: d.file_uri || '',
-  })), [21,24,26,32,42,20,60]);
+  addSheet(
+    wb,
+    '03_Actions',
+    actionRows(data, photoPathById),
+    [24, 26, 32, 38, 46, 30, 16, 16, 30, 18, 15, 18, 20, 34, 34, 21, 21]
+  );
+  addSheet(
+    wb,
+    '04_Reserves',
+    reserveRows(data, photoPathById),
+    [24, 26, 32, 38, 46, 16, 16, 30, 38, 18, 18, 20, 34, 34, 21, 21]
+  );
+  addSheet(wb, '05_Inventaire', inventoryRows(data), [24, 26, 30, 28, 28, 30, 22, 26, 18, 18, 22, 18, 20, 22, 18]);
+  addSheet(wb, '06_Mesures', measureRows(data), [21, 24, 26, 32, 30, 16, 12, 18, 28, 14, 14, 20, 28, 36]);
+  addSheet(
+    wb,
+    '07_Visites',
+    data.visits.map((v) => ({
+      Date: v.visit_date || v.created_at || '',
+      Site: v.site_name || '',
+      Type_visite: v.visit_type || '',
+      Statut: labelStatus(v.status),
+      Commentaire: v.comment || ''
+    })),
+    [21, 28, 30, 16, 55]
+  );
+  addSheet(wb, '08_Photos', photoRows(data, photoPathById), [21, 24, 26, 32, 20, 34, 18, 34, 34, 60]);
+  addSheet(
+    wb,
+    '09_Documents',
+    data.documents.map((d) => ({
+      Date: d.document_date || d.created_at || '',
+      Site: d.site_name || '',
+      Localisation: d.location_label || '',
+      Equipement: [d.equipment_type, d.equipment_brand, d.equipment_model].filter(Boolean).join(' · '),
+      Nom: d.name || '',
+      Type: d.type || '',
+      Fichier: d.file_uri || ''
+    })),
+    [21, 24, 26, 32, 42, 20, 60]
+  );
 
   if (data.scenarios.length) {
-    addSheet(wb, '10_Scenarios', data.scenarios.map((s) => ({
-      Scenario: s.label || '',
-      Statut: labelStatus(s.status),
-      Description: s.description || '',
-      Investissement_EUR: formatNumber(s.investment),
-      Economie_annuelle_EUR: formatNumber(s.annual_saving),
-      Economie_energie_kWh: formatNumber(s.energy_saving_kwh),
-      Gain_CO2_kg: formatNumber(s.co2_saving_kg),
-      Retour_simple_ans: formatNumber(s.payback_years),
-      Avantages: s.benefits_text || '',
-      Contraintes: s.constraints_text || '',
-    })), [34,16,55,20,22,22,18,18,48,48]);
+    addSheet(
+      wb,
+      '10_Scenarios',
+      data.scenarios.map((s) => ({
+        Scenario: s.label || '',
+        Statut: labelStatus(s.status),
+        Description: s.description || '',
+        Investissement_EUR: formatNumber(s.investment),
+        Economie_annuelle_EUR: formatNumber(s.annual_saving),
+        Economie_energie_kWh: formatNumber(s.energy_saving_kwh),
+        Gain_CO2_kg: formatNumber(s.co2_saving_kg),
+        Retour_simple_ans: formatNumber(s.payback_years),
+        Avantages: s.benefits_text || '',
+        Contraintes: s.constraints_text || ''
+      })),
+      [34, 16, 55, 20, 22, 22, 18, 18, 48, 48]
+    );
   }
 
   if (data.equipment.some((row) => row.replacement_year || row.replacement_cost || row.expected_lifetime_years)) {
-    addSheet(wb, '11_Projection_P3', data.equipment
-      .filter((row) => row.replacement_year || row.replacement_cost || row.expected_lifetime_years)
-      .sort((a,b) => (Number(a.replacement_year) || 9999) - (Number(b.replacement_year) || 9999))
-      .map((row) => ({
-        Site: row.site_name || '',
-        Localisation: row.location_label || '',
-        Equipement: row.type || '',
-        Marque: row.brand || '',
-        Modele: row.model || '',
-        Etat: row.state || '',
-        Duree_vie_indicative_ans: formatNumber(row.expected_lifetime_years),
-        Annee_renouvellement_indicative: row.replacement_year || '',
-        Cout_renouvellement_EUR: formatNumber(row.replacement_cost),
-        Statut_cycle_vie: row.lifecycle_status || '',
-        Verification_terrain: labelStatus(row.verification_status),
-      })), [24,26,30,22,26,18,22,26,24,22,22]);
+    addSheet(
+      wb,
+      '11_Projection_P3',
+      data.equipment
+        .filter((row) => row.replacement_year || row.replacement_cost || row.expected_lifetime_years)
+        .sort((a, b) => (Number(a.replacement_year) || 9999) - (Number(b.replacement_year) || 9999))
+        .map((row) => ({
+          Site: row.site_name || '',
+          Localisation: row.location_label || '',
+          Equipement: row.type || '',
+          Marque: row.brand || '',
+          Modele: row.model || '',
+          Etat: row.state || '',
+          Duree_vie_indicative_ans: formatNumber(row.expected_lifetime_years),
+          Annee_renouvellement_indicative: row.replacement_year || '',
+          Cout_renouvellement_EUR: formatNumber(row.replacement_cost),
+          Statut_cycle_vie: row.lifecycle_status || '',
+          Verification_terrain: labelStatus(row.verification_status)
+        })),
+      [24, 26, 30, 22, 26, 18, 22, 26, 24, 22, 22]
+    );
   }
 
   if (data.lifecycle?.length) {
-    addSheet(wb, '12_Historique_cycle', data.lifecycle.map((row) => ({
-      Date: row.effective_date || row.created_at || '',
-      Site: row.site_name || '',
-      Localisation: row.location_label || '',
-      Equipement: [row.equipment_type,row.equipment_brand,row.equipment_model].filter(Boolean).join(' · '),
-      Etat_precedent: row.from_state || '',
-      Nouvel_etat: row.to_state || '',
-      Commentaire: row.comment || '',
-    })), [22,24,26,34,22,22,55]);
+    addSheet(
+      wb,
+      '12_Historique_cycle',
+      data.lifecycle.map((row) => ({
+        Date: row.effective_date || row.created_at || '',
+        Site: row.site_name || '',
+        Localisation: row.location_label || '',
+        Equipement: [row.equipment_type, row.equipment_brand, row.equipment_model].filter(Boolean).join(' · '),
+        Etat_precedent: row.from_state || '',
+        Nouvel_etat: row.to_state || '',
+        Commentaire: row.comment || ''
+      })),
+      [22, 24, 26, 34, 22, 22, 55]
+    );
   }
 
   if (data.actionHistory?.length) {
-    addSheet(wb, '13_Historique_actions', data.actionHistory.map((row) => {
-      let change = {};
-      try { change = JSON.parse(row.source_value || '{}'); } catch {}
-      return {
-        Date: row.created_at || '',
-        Action: row.action_label || '',
-        Champ: row.field_name || '',
-        Avant: change.before ?? '',
-        Apres: change.after ?? '',
-        Source: change.source || '',
-      };
-    }), [22,38,24,32,32,22]);
+    addSheet(
+      wb,
+      '13_Historique_actions',
+      data.actionHistory.map((row) => {
+        let change = {};
+        try {
+          change = JSON.parse(row.source_value || '{}');
+        } catch {}
+        return {
+          Date: row.created_at || '',
+          Action: row.action_label || '',
+          Champ: row.field_name || '',
+          Avant: change.before ?? '',
+          Apres: change.after ?? '',
+          Source: change.source || ''
+        };
+      }),
+      [22, 38, 24, 32, 32, 22]
+    );
   }
 
   if (data.validations?.length) {
-    addSheet(wb, '14_Revue_documents', data.validations.map((row) => ({
-      Date: row.validated_at || row.created_at || '',
-      Document: row.document_name || '',
-      Version_revision: row.version_label || '',
-      Statut: row.status || '',
-      Relecteur: row.reviewer_company || row.reviewer_name || '',
-      Commentaire: row.comment || '',
-    })), [22,42,24,24,30,70]);
+    addSheet(
+      wb,
+      '14_Revue_documents',
+      data.validations.map((row) => ({
+        Date: row.validated_at || row.created_at || '',
+        Document: row.document_name || '',
+        Version_revision: row.version_label || '',
+        Statut: row.status || '',
+        Relecteur: row.reviewer_company || row.reviewer_name || '',
+        Commentaire: row.comment || ''
+      })),
+      [22, 42, 24, 24, 30, 70]
+    );
   }
 
   return { wb, data };
@@ -619,22 +738,32 @@ export async function preparerExportMissionClient(missionId, options = {}) {
   return {
     base64,
     name: 'Mission_' + fileNamePart(data.mission.label || data.mission.reference || data.mission.id) + '_Client.xlsx',
-    data,
+    data
   };
 }
 
 export async function preparerSyntheseActionsMission(missionId, { photoPathById = null } = {}) {
   const data = await loadClientData(missionId);
   const wb = XLSX.utils.book_new();
-  addSheet(wb, '00_Synthese', summaryRows(data), [34,55], false);
-  addSheet(wb, '01_Actions', actionRows(data, photoPathById), [24,26,32,38,46,30,16,16,30,18,15,18,20,34,34,21,21]);
-  addSheet(wb, '02_Reserves', reserveRows(data, photoPathById), [24,26,32,38,46,16,16,30,38,18,18,20,34,34,21,21]);
+  addSheet(wb, '00_Synthese', summaryRows(data), [34, 55], false);
+  addSheet(
+    wb,
+    '01_Actions',
+    actionRows(data, photoPathById),
+    [24, 26, 32, 38, 46, 30, 16, 16, 30, 18, 15, 18, 20, 34, 34, 21, 21]
+  );
+  addSheet(
+    wb,
+    '02_Reserves',
+    reserveRows(data, photoPathById),
+    [24, 26, 32, 38, 46, 16, 16, 30, 38, 18, 18, 20, 34, 34, 21, 21]
+  );
   const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx', compression: true });
   if (!base64 || base64.length < 100) throw new Error('La synthèse actions générée est vide.');
   return {
     base64,
     name: 'Synthese_actions_' + fileNamePart(data.mission.label || data.mission.reference || data.mission.id) + '.xlsx',
-    data,
+    data
   };
 }
 
@@ -644,7 +773,7 @@ async function writeOrShare(prepared, dialogTitle) {
     'Missions',
     nettoyerSegment(clientName),
     nettoyerSegment(prepared.data.mission.label || prepared.data.mission.id),
-    'Exports',
+    'Exports'
   ]);
   if (folder) {
     const uri = await creerFichierSaf(folder, prepared.name, XLSX_MIME, prepared.base64);

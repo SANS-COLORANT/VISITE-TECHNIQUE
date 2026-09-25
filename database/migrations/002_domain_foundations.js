@@ -171,5 +171,5 @@ export const migration002 = {
     CREATE INDEX IF NOT EXISTS idx_attributs_entite ON attributs_libres(entite_type, entite_id);
     CREATE INDEX IF NOT EXISTS idx_provenances_entite ON provenances(entite_type, entite_id);
     CREATE INDEX IF NOT EXISTS idx_journal_entite ON journal_modifications(entite_type, entite_id);
-  `,
+  `
 };

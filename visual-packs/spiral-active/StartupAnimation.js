@@ -22,7 +22,7 @@ export function SpiralActiveStartupAnimation() {
       toValue: 1,
       duration: SPIRAL_ACTIVE_STARTUP_DURATION_MS,
       easing: Easing.bezier(0.2, 0.82, 0.22, 1),
-      useNativeDriver: false,
+      useNativeDriver: false
     });
     animation.start();
     return () => animation.stop();
@@ -32,65 +32,65 @@ export function SpiralActiveStartupAnimation() {
     const centerDashOffset = progress.interpolate({
       inputRange: [0, 0.07, 0.38, 0.5, 1],
       outputRange: [SPIRAL_PATH_LENGTH, SPIRAL_PATH_LENGTH, 0, SPIRAL_PATH_LENGTH * 0.52, SPIRAL_PATH_LENGTH],
-      extrapolate: 'clamp',
+      extrapolate: 'clamp'
     });
     const centerOpacity = progress.interpolate({
       inputRange: [0, 0.05, 0.12, 0.44, 0.62, 1],
       outputRange: [0, 1, 1, 1, 0, 0],
-      extrapolate: 'clamp',
+      extrapolate: 'clamp'
     });
     const centerScale = progress.interpolate({
       inputRange: [0, 0.1, 0.42, 0.62, 1],
       outputRange: [0.72, 0.82, 1, 0.62, 0.62],
-      extrapolate: 'clamp',
+      extrapolate: 'clamp'
     });
     const centerRotate = progress.interpolate({
       inputRange: [0, 0.42, 0.62, 1],
       outputRange: ['-18deg', '0deg', '24deg', '24deg'],
-      extrapolate: 'clamp',
+      extrapolate: 'clamp'
     });
 
     const wordOpacity = progress.interpolate({
       inputRange: [0, 0.24, 0.36, 0.49, 0.6, 1],
       outputRange: [0, 0, 1, 1, 0, 0],
-      extrapolate: 'clamp',
+      extrapolate: 'clamp'
     });
     const wordY = progress.interpolate({
       inputRange: [0, 0.3, 0.45, 0.6, 1],
       outputRange: [8, 8, 0, -8, -8],
-      extrapolate: 'clamp',
+      extrapolate: 'clamp'
     });
 
     const pointOpacity = progress.interpolate({
       inputRange: [0, 0.035, 0.08, 0.78, 0.9, 1],
       outputRange: [0, 0, 1, 1, 0.35, 0],
-      extrapolate: 'clamp',
+      extrapolate: 'clamp'
     });
     const pointScale = progress.interpolate({
       inputRange: [0, 0.05, 0.11, 0.45, 0.72, 0.82, 1],
       outputRange: [0.2, 0.2, 1, 1, 1.18, 0.72, 0.72],
-      extrapolate: 'clamp',
+      extrapolate: 'clamp'
     });
 
     const bottomDashOffset = progress.interpolate({
       inputRange: [0, 0.58, 0.66, 0.93, 1],
       outputRange: [SPIRAL_PATH_LENGTH, SPIRAL_PATH_LENGTH, SPIRAL_PATH_LENGTH, 0, 0],
-      extrapolate: 'clamp',
+      extrapolate: 'clamp'
     });
     const bottomOpacity = progress.interpolate({
       inputRange: [0, 0.58, 0.66, 0.86, 1],
       outputRange: [0, 0, 1, 1, 1],
-      extrapolate: 'clamp',
+      extrapolate: 'clamp'
     });
     const bottomScale = progress.interpolate({
       inputRange: [0, 0.62, 0.9, 0.965, 1],
       outputRange: [0.78, 0.78, 1.03, 0.985, 1],
-      extrapolate: 'clamp',
+      extrapolate: 'clamp'
     });
     const bottomRotate = progress.interpolate({
       inputRange: [0, 0.63, 0.9, 1],
       outputRange: ['-34deg', '-34deg', '6deg', '0deg'],
-      extrapolate: 'clamp',
+      extrapolate: 'clamp'
     });
 
     return {
@@ -105,21 +105,21 @@ export function SpiralActiveStartupAnimation() {
       bottomDashOffset,
       bottomOpacity,
       bottomScale,
-      bottomRotate,
+      bottomRotate
     };
   }, [progress]);
 
-  const travelY = clampTarget((height / 2) - 28, 180, 520);
+  const travelY = clampTarget(height / 2 - 28, 180, 520);
   const travelX = clampTarget(width * 0.12, 28, 74);
   const pointX = progress.interpolate({
     inputRange: [0, 0.45, 0.53, 0.64, 0.74, 0.82, 1],
     outputRange: [0, 0, -travelX, travelX * 0.72, -travelX * 0.28, 0, 0],
-    extrapolate: 'clamp',
+    extrapolate: 'clamp'
   });
   const pointY = progress.interpolate({
     inputRange: [0, 0.45, 0.53, 0.64, 0.74, 0.82, 1],
     outputRange: [0, 0, travelY * 0.16, travelY * 0.48, travelY * 0.8, travelY, travelY],
-    extrapolate: 'clamp',
+    extrapolate: 'clamp'
   });
 
   return (
@@ -133,14 +133,17 @@ export function SpiralActiveStartupAnimation() {
           styles.centerSpiral,
           {
             opacity: animated.centerOpacity,
-            transform: [{ scale: animated.centerScale }, { rotate: animated.centerRotate }],
-          },
+            transform: [{ scale: animated.centerScale }, { rotate: animated.centerRotate }]
+          }
         ]}
       >
         <SpiralSvg size={208} strokeWidth={7.2} dashOffset={animated.centerDashOffset} showCenter={false} />
       </Animated.View>
 
-      <Animated.View pointerEvents="none" style={[styles.wordmark, { opacity: animated.wordOpacity, transform: [{ translateY: animated.wordY }] }]}>
+      <Animated.View
+        pointerEvents="none"
+        style={[styles.wordmark, { opacity: animated.wordOpacity, transform: [{ translateY: animated.wordY }] }]}
+      >
         <Text style={styles.wordmarkText}>METRA</Text>
         <Text style={styles.versionText}>{appVersionLabel()}</Text>
       </Animated.View>
@@ -151,8 +154,8 @@ export function SpiralActiveStartupAnimation() {
           styles.travellingPoint,
           {
             opacity: animated.pointOpacity,
-            transform: [{ translateX: pointX }, { translateY: pointY }, { scale: animated.pointScale }],
-          },
+            transform: [{ translateX: pointX }, { translateY: pointY }, { scale: animated.pointScale }]
+          }
         ]}
       >
         <View style={styles.pointCore} />
@@ -165,8 +168,8 @@ export function SpiralActiveStartupAnimation() {
           styles.bottomSpiral,
           {
             opacity: animated.bottomOpacity,
-            transform: [{ scale: animated.bottomScale }, { rotate: animated.bottomRotate }],
-          },
+            transform: [{ scale: animated.bottomScale }, { rotate: animated.bottomRotate }]
+          }
         ]}
       >
         <SpiralSvg size={FINAL_DOCK_SIZE} strokeWidth={9.2} dashOffset={animated.bottomDashOffset} showCenter={false} />
@@ -179,7 +182,7 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     overflow: 'hidden',
-    backgroundColor: BG,
+    backgroundColor: BG
   },
   angularShardA: {
     position: 'absolute',
@@ -189,7 +192,7 @@ const styles = StyleSheet.create({
     height: 300,
     backgroundColor: '#DDF0F3',
     opacity: 0.68,
-    transform: [{ rotate: '18deg' }, { skewX: '-12deg' }],
+    transform: [{ rotate: '18deg' }, { skewX: '-12deg' }]
   },
   angularShardB: {
     position: 'absolute',
@@ -199,7 +202,7 @@ const styles = StyleSheet.create({
     height: 92,
     backgroundColor: '#E6EDDF',
     opacity: 0.76,
-    transform: [{ rotate: '-14deg' }, { skewX: '22deg' }],
+    transform: [{ rotate: '-14deg' }, { skewX: '22deg' }]
   },
   centerSpiral: {
     position: 'absolute',
@@ -210,7 +213,7 @@ const styles = StyleSheet.create({
     width: 208,
     height: 208,
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'center'
   },
   travellingPoint: {
     position: 'absolute',
@@ -222,14 +225,14 @@ const styles = StyleSheet.create({
     height: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 20,
+    zIndex: 20
   },
   pointCore: {
     position: 'absolute',
     width: 11,
     height: 11,
     borderRadius: 5.5,
-    backgroundColor: ORANGE,
+    backgroundColor: ORANGE
   },
   pointHalo: {
     width: 22,
@@ -237,27 +240,27 @@ const styles = StyleSheet.create({
     borderRadius: 11,
     borderWidth: 1,
     borderColor: '#F5B51B',
-    opacity: 0.5,
+    opacity: 0.5
   },
   wordmark: {
     position: 'absolute',
     left: 0,
     right: 0,
     top: '63%',
-    alignItems: 'center',
+    alignItems: 'center'
   },
   wordmarkText: {
     color: INK,
     fontSize: 20,
     fontWeight: '900',
-    letterSpacing: 4.2,
+    letterSpacing: 4.2
   },
   versionText: {
     marginTop: 6,
     color: '#68737D',
     fontSize: 10,
     fontWeight: '700',
-    letterSpacing: 0.8,
+    letterSpacing: 0.8
   },
   bottomSpiral: {
     position: 'absolute',
@@ -265,6 +268,6 @@ const styles = StyleSheet.create({
     marginLeft: -(FINAL_DOCK_SIZE / 2),
     bottom: -84,
     width: FINAL_DOCK_SIZE,
-    height: FINAL_DOCK_SIZE,
-  },
+    height: FINAL_DOCK_SIZE
+  }
 });

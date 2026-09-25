@@ -28,10 +28,10 @@ async function insererRubrique(db, { visiteId, localId, panelId, code, nom, ordr
 }
 
 async function synchroniserNombreSst(db, visiteId) {
-  const row = await db.getFirstAsync(
-    `SELECT COUNT(*) n FROM pre_allumage_locaux WHERE visite_id=? AND type_code=?`,
-    [visiteId, SST]
-  );
+  const row = await db.getFirstAsync(`SELECT COUNT(*) n FROM pre_allumage_locaux WHERE visite_id=? AND type_code=?`, [
+    visiteId,
+    SST
+  ]);
   await db.runAsync(
     `INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)
      ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur`,
@@ -42,10 +42,14 @@ async function synchroniserNombreSst(db, visiteId) {
 function nomCopie(nom, locaux) {
   const match = String(nom || '').match(/^SST\s+(\d+)/i);
   if (match) {
-    const utilises = new Set((locaux || []).map((l) => {
-      const m = String(l.nom || '').match(/^SST\s+(\d+)/i);
-      return m ? Number(m[1]) : null;
-    }).filter(Number.isFinite));
+    const utilises = new Set(
+      (locaux || [])
+        .map((l) => {
+          const m = String(l.nom || '').match(/^SST\s+(\d+)/i);
+          return m ? Number(m[1]) : null;
+        })
+        .filter(Number.isFinite)
+    );
     let n = 1;
     while (utilises.has(n)) n += 1;
     return `SST ${n}`;
@@ -67,25 +71,53 @@ export async function dupliquerLocalPreAllumage(localId) {
   const db = await getDb();
   const local = await db.getFirstAsync(`SELECT * FROM pre_allumage_locaux WHERE id=?`, [localId]);
   if (!local) throw new Error('Installation introuvable.');
-  const locaux = await db.getAllAsync(`SELECT * FROM pre_allumage_locaux WHERE visite_id=? ORDER BY ordre`, [local.visite_id]);
+  const locaux = await db.getAllAsync(`SELECT * FROM pre_allumage_locaux WHERE visite_id=? ORDER BY ordre`, [
+    local.visite_id
+  ]);
   const nouveauNom = nomCopie(local.nom, locaux);
-  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),-1) n FROM pre_allumage_locaux WHERE visite_id=?`, [local.visite_id]);
+  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),-1) n FROM pre_allumage_locaux WHERE visite_id=?`, [
+    local.visite_id
+  ]);
   const nouveauId = createId('pa-local');
   await db.runAsync(
     `INSERT INTO pre_allumage_locaux(id,visite_id,nom,type_code,ordre,chauffage,ecs,primaire) VALUES(?,?,?,?,?,?,?,?)`,
-    [nouveauId, local.visite_id, nouveauNom, local.type_code, Number(max?.n || -1) + 1, local.chauffage, local.ecs, Number(local.primaire) || 0]
+    [
+      nouveauId,
+      local.visite_id,
+      nouveauNom,
+      local.type_code,
+      Number(max?.n || -1) + 1,
+      local.chauffage,
+      local.ecs,
+      Number(local.primaire) || 0
+    ]
   );
 
-  const rubriques = await db.getAllAsync(`SELECT * FROM pre_allumage_rubriques WHERE local_id=? ORDER BY ordre,cree_le`, [localId]);
+  const rubriques = await db.getAllAsync(
+    `SELECT * FROM pre_allumage_rubriques WHERE local_id=? ORDER BY ordre,cree_le`,
+    [localId]
+  );
   for (let i = 0; i < rubriques.length; i += 1) {
     const r = rubriques[i];
-    const champs = await db.getAllAsync(`SELECT * FROM pre_allumage_champs WHERE rubrique_id=? ORDER BY ordre,cree_le`, [r.id]);
+    const champs = await db.getAllAsync(
+      `SELECT * FROM pre_allumage_champs WHERE rubrique_id=? ORDER BY ordre,cree_le`,
+      [r.id]
+    );
     const code = `pa.local.${nouveauId}.${String(r.panel_id || 'bloc').replace(/^p-pa-/, '')}.${i}`;
     const nouveauRubriqueId = createId('pa-rubrique');
     await db.runAsync(
       `INSERT INTO pre_allumage_rubriques(id,visite_id,local_id,panel_id,section_code,nom,ordre,supprimable)
        VALUES(?,?,?,?,?,?,?,?)`,
-      [nouveauRubriqueId, local.visite_id, nouveauId, r.panel_id, code, remplacerNomDansLibelle(r.nom, local.nom, nouveauNom), Number(r.ordre || 0), r.supprimable]
+      [
+        nouveauRubriqueId,
+        local.visite_id,
+        nouveauId,
+        r.panel_id,
+        code,
+        remplacerNomDansLibelle(r.nom, local.nom, nouveauNom),
+        Number(r.ordre || 0),
+        r.supprimable
+      ]
     );
     for (const c of champs) {
       const nouvelleCle = remplacerNomDansLibelle(c.cle_stockage, local.nom, nouveauNom);
@@ -127,11 +159,21 @@ async function assurerChampCompteurEcs(db, local) {
     [r.id]
   );
   if (existe) return;
-  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),-1) n FROM pre_allumage_champs WHERE rubrique_id=?`, [r.id]);
+  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),-1) n FROM pre_allumage_champs WHERE rubrique_id=?`, [
+    r.id
+  ]);
   await db.runAsync(
     `INSERT INTO pre_allumage_champs(id,rubrique_id,cle_stockage,libelle,type_code,ordre,options_json)
      VALUES(?,?,?,?,?,?,?)`,
-    [createId('pa-champ'), r.id, `${local.nom} — ECS (m³)`, `${local.nom} — ECS (m³)`, 'champ', Number(max?.n || -1) + 1, JSON.stringify({ numericIndex: true, renamable: true })]
+    [
+      createId('pa-champ'),
+      r.id,
+      `${local.nom} — ECS (m³)`,
+      `${local.nom} — ECS (m³)`,
+      'champ',
+      Number(max?.n || -1) + 1,
+      JSON.stringify({ numericIndex: true, renamable: true })
+    ]
   );
 }
 
@@ -143,8 +185,11 @@ async function assurerSectionControle(db, local, nature) {
     [local.id, ecs ? '%ecs%' : '%chauffage%']
   );
   if (existe) return;
-  const reference = PREALLUMAGE_PANELS['p-pa-sst']?.[ecs ? 'SST 1 — ECS / traitement d’eau' : 'SST 1 — Chauffage'] || [];
-  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),0) n FROM pre_allumage_rubriques WHERE visite_id=?`, [local.visite_id]);
+  const reference =
+    PREALLUMAGE_PANELS['p-pa-sst']?.[ecs ? 'SST 1 — ECS / traitement d’eau' : 'SST 1 — Chauffage'] || [];
+  const max = await db.getFirstAsync(`SELECT COALESCE(MAX(ordre),0) n FROM pre_allumage_rubriques WHERE visite_id=?`, [
+    local.visite_id
+  ]);
   await insererRubrique(db, {
     visiteId: local.visite_id,
     localId: local.id,
@@ -152,7 +197,7 @@ async function assurerSectionControle(db, local, nature) {
     code: `pa.local.${local.id}.${nature}.${Date.now()}`,
     nom,
     ordre: Number(max?.n || 0) + 1,
-    fields: reference.map((f) => ({ ...f })),
+    fields: reference.map((f) => ({ ...f }))
   });
 }
 
@@ -190,8 +235,14 @@ export async function deplacerLocalPreAllumage(localId, direction) {
   );
   if (!voisin) return false;
   await db.withTransactionAsync(async () => {
-    await db.runAsync(`UPDATE pre_allumage_locaux SET ordre=?,modifie_le=datetime('now') WHERE id=?`, [voisin.ordre, local.id]);
-    await db.runAsync(`UPDATE pre_allumage_locaux SET ordre=?,modifie_le=datetime('now') WHERE id=?`, [local.ordre, voisin.id]);
+    await db.runAsync(`UPDATE pre_allumage_locaux SET ordre=?,modifie_le=datetime('now') WHERE id=?`, [
+      voisin.ordre,
+      local.id
+    ]);
+    await db.runAsync(`UPDATE pre_allumage_locaux SET ordre=?,modifie_le=datetime('now') WHERE id=?`, [
+      local.ordre,
+      voisin.id
+    ]);
   });
   return true;
 }
@@ -202,7 +253,7 @@ const CLES_REGLAGES = [
   'Courbe de chauffe — Pour 19°C (°C)',
   'Température de non chauffe (°C)',
   'Réduit de jour (°C d’eau)',
-  'Horaires',
+  'Horaires'
 ];
 
 export async function copierReglagesPreAllumage(localId) {
@@ -220,7 +271,8 @@ export async function copierReglagesPreAllumage(localId) {
       `SELECT valeur FROM champs_visite WHERE visite_id=? AND section_code=? AND cle=?`,
       [local.visite_id, source.section_code, cle]
     );
-    if (row?.valeur !== null && row?.valeur !== undefined && String(row.valeur).trim() !== '') valeurs[cle] = String(row.valeur);
+    if (row?.valeur !== null && row?.valeur !== undefined && String(row.valeur).trim() !== '')
+      valeurs[cle] = String(row.valeur);
   }
   if (!Object.keys(valeurs).length) throw new Error('Aucun réglage renseigné sur cette installation.');
 

@@ -16,7 +16,9 @@ export function IntranetStructureRuntime() {
     };
     const startup = setTimeout(run, 700);
     const interval = setInterval(run, 60_000);
-    const subscription = AppState.addEventListener('change', (state) => { if (state === 'active') run(); });
+    const subscription = AppState.addEventListener('change', (state) => {
+      if (state === 'active') run();
+    });
     return () => {
       alive = false;
       clearTimeout(startup);

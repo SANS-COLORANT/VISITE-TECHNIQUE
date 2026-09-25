@@ -1,6 +1,20 @@
 /** Écran Visite — pager natif, swipe interactif et panneaux gardés chauds. */
 import React, { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions, Animated, Easing } from 'react-native';
+import {
+  View,
+  Text,
+  ScrollView,
+  TextInput,
+  TouchableOpacity,
+  Modal,
+  ActivityIndicator,
+  PanResponder,
+  Alert,
+  Keyboard,
+  useWindowDimensions,
+  Animated,
+  Easing
+} from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
@@ -8,18 +22,31 @@ import { getVisite, getNote, upsertNote, getDb } from './db.js';
 import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { recalculerProgressionVisite } from './visitProgressDb.js';
-import { OptimizedRegulationPanel, prechargerRegulation, invaliderCacheRegulation } from './OptimizedRegulationPanel.js';
+import {
+  OptimizedRegulationPanel,
+  prechargerRegulation,
+  invaliderCacheRegulation
+} from './OptimizedRegulationPanel.js';
 import { OptimizedRelevesPanel } from './OptimizedRelevesPanel.js';
 import { OptimizedPhotoPanel } from './OptimizedPhotoPanel.js';
 import { GuidedEquipmentPanel } from './GuidedEquipmentPanel.js';
 import { OptimizedRemarksPanel } from './OptimizedRemarksPanel.js';
-import { TrameGenericPanel, prechargerDonneesTrameGenerique, invaliderCacheTrameGenerique } from './TrameGenericPanel.js';
+import {
+  TrameGenericPanel,
+  prechargerDonneesTrameGenerique,
+  invaliderCacheTrameGenerique
+} from './TrameGenericPanel.js';
 import { VmcCaissonManager, chargerCaissonsVmc } from './VmcCaissonManager.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { CompanionTabletModal } from './CompanionTabletModal.js';
 import { flushDurableAutosaves } from './durableAutosave.js';
 import { recupererPhotosEnAttente } from './photoPersistenceJournal.js';
-import { flushNavigationMemory, getNavigationState, hydrateNavigationState, setNavigationState } from './navigationMemory.js';
+import {
+  flushNavigationMemory,
+  getNavigationState,
+  hydrateNavigationState,
+  setNavigationState
+} from './navigationMemory.js';
 import { getVisitRuntime, markVisitHot, patchVisitUiState } from './visitRuntimeCache.js';
 import { getSaveActivity, subscribeSaveActivity } from './saveActivity.js';
 import { prewarmCameraRuntime } from './cameraRuntime.js';
@@ -27,8 +54,12 @@ import { prewarmPhotoCaptureContext } from './photoCaptureContext.js';
 import { loadVisitPhotos } from './photoRuntimeCache.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-function chargerExcelExportModule(){return require('./excelExport.js');}
-function chargerPreAllumageReportModule(){return require('./preAllumageReportExporter.js');}
+function chargerExcelExportModule() {
+  return require('./excelExport.js');
+}
+function chargerPreAllumageReportModule() {
+  return require('./preAllumageReportExporter.js');
+}
 const SPECIAL_PANEL_DEFAULTS = ['p-regulation', 'p-releves', 'p-equip', 'p-remarques', 'p-photos'];
 const HEAVY_LAZY_PANELS = new Set(['p-equip', 'p-releves']);
 const PAGER_PRUNE_DELAY_MS = 700;
@@ -43,16 +74,33 @@ const VisitPanelHost = memo(function VisitPanelHost({
   panelLabels,
   panels,
   intranetLinked,
-  onRegisterLocalSwipe,
+  onRegisterLocalSwipe
 }) {
   if (special) {
     if (panelId === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
     if (panelId === 'p-releves') return <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} />;
     if (panelId === 'p-equip') return <GuidedEquipmentPanel visiteId={visiteId} />;
-    if (panelId === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} intranetLinked={intranetLinked} />;
+    if (panelId === 'p-remarques')
+      return (
+        <OptimizedRemarksPanel
+          visiteId={visiteId}
+          tabOrder={tabOrder}
+          panelLabels={panelLabels}
+          panels={panels}
+          intranetLinked={intranetLinked}
+        />
+      );
     if (panelId === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
   }
-  return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} />;
+  return (
+    <TrameGenericPanel
+      visiteId={visiteId}
+      panelId={panelId}
+      sections={sections}
+      onSaved={onSaved}
+      onRegisterLocalSwipe={onRegisterLocalSwipe}
+    />
+  );
 });
 
 function VisiteScreen({ route, onBack }) {
@@ -68,7 +116,9 @@ function VisiteScreen({ route, onBack }) {
   const pagerWidthRef = useRef(pagerWidth);
   pagerWidthRef.current = pagerWidth;
 
-  const [visite, setVisite] = useState(() => initialPreview ? { ...initialPreview, progression_pct: Number(initialPreview.progression_pct || 0) } : null);
+  const [visite, setVisite] = useState(() =>
+    initialPreview ? { ...initialPreview, progression_pct: Number(initialPreview.progression_pct || 0) } : null
+  );
   const [chargementErreur, setChargementErreur] = useState(null); // VISIT_OPEN_FAIL_SAFE_V1 · VISIT_OPEN_FAST_V2
   const [vmcCaissons, setVmcCaissons] = useState([]);
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -102,21 +152,38 @@ function VisiteScreen({ route, onBack }) {
   const tabOrderBase = trame.ui?.tabOrder || [];
   const panelLabelsBase = trame.ui?.labels || {};
   const panels = trame.ui?.panels || {};
-  const specialPanels = useMemo(() => new Set(trame.ui?.specialPanels || SPECIAL_PANEL_DEFAULTS), [trame.id, trame.ui?.specialPanels]);
-  const vmcActifs = useMemo(() => new Set(
-    trame.id === 'vmc'
-      ? (vmcCaissons.length ? vmcCaissons.filter((c) => c.actif).map((c) => c.panelId) : ['p-vmc-c1'])
-      : []
-  ), [trame.id, vmcCaissons]);
-  const tabOrder = useMemo(() => trame.id === 'vmc'
-    ? tabOrderBase.filter((pid) => !/^p-vmc-c[1-6]$/.test(pid) || vmcActifs.has(pid))
-    : tabOrderBase, [trame.id, tabOrderBase, vmcActifs]);
-  const panelLabels = useMemo(() => trame.id === 'vmc'
-    ? {
-        ...panelLabelsBase,
-        ...Object.fromEntries(vmcCaissons.filter((c) => c.actif).map((c) => [c.panelId, `N°${c.index} · ${c.nom}`])),
-      }
-    : panelLabelsBase, [trame.id, panelLabelsBase, vmcCaissons]);
+  const specialPanels = useMemo(
+    () => new Set(trame.ui?.specialPanels || SPECIAL_PANEL_DEFAULTS),
+    [trame.id, trame.ui?.specialPanels]
+  );
+  const vmcActifs = useMemo(
+    () =>
+      new Set(
+        trame.id === 'vmc'
+          ? vmcCaissons.length
+            ? vmcCaissons.filter((c) => c.actif).map((c) => c.panelId)
+            : ['p-vmc-c1']
+          : []
+      ),
+    [trame.id, vmcCaissons]
+  );
+  const tabOrder = useMemo(
+    () =>
+      trame.id === 'vmc'
+        ? tabOrderBase.filter((pid) => !/^p-vmc-c[1-6]$/.test(pid) || vmcActifs.has(pid))
+        : tabOrderBase,
+    [trame.id, tabOrderBase, vmcActifs]
+  );
+  const panelLabels = useMemo(
+    () =>
+      trame.id === 'vmc'
+        ? {
+            ...panelLabelsBase,
+            ...Object.fromEntries(vmcCaissons.filter((c) => c.actif).map((c) => [c.panelId, `N°${c.index} · ${c.nom}`]))
+          }
+        : panelLabelsBase,
+    [trame.id, panelLabelsBase, vmcCaissons]
+  );
   const tabsReels = useMemo(() => tabOrder.filter((t) => t !== 'SEP'), [tabOrder]);
   const tabsSignature = tabsReels.join('|');
 
@@ -126,7 +193,10 @@ function VisiteScreen({ route, onBack }) {
     for (const raw of ids || []) {
       const id = String(raw || '');
       if (!id) continue;
-      if (!next.has(id)) { next.add(id); changed = true; }
+      if (!next.has(id)) {
+        next.add(id);
+        changed = true;
+      }
       if (stickyHeavy && HEAVY_LAZY_PANELS.has(id)) stickyHeavyPanelsRef.current.add(id);
     }
     if (changed) {
@@ -144,7 +214,8 @@ function VisiteScreen({ route, onBack }) {
     if (index >= 0) {
       const candidates = [tabs[index - 1], tabs[index], tabs[index + 1]].filter(Boolean);
       for (const panelId of candidates) {
-        if (panelId === tabId || !HEAVY_LAZY_PANELS.has(panelId) || stickyHeavyPanelsRef.current.has(panelId)) desired.add(panelId);
+        if (panelId === tabId || !HEAVY_LAZY_PANELS.has(panelId) || stickyHeavyPanelsRef.current.has(panelId))
+          desired.add(panelId);
       }
     }
     for (const panelId of stickyHeavyPanelsRef.current) {
@@ -153,52 +224,66 @@ function VisiteScreen({ route, onBack }) {
     return desired;
   }, []);
 
-  const warmPagerWindow = useCallback((tabId) => {
-    if (pagerPruneTimerRef.current) clearTimeout(pagerPruneTimerRef.current);
-    const desired = desiredPagerPanels(tabId);
-    addMountedPanels([...desired]);
-    pagerPruneTimerRef.current = setTimeout(() => {
-      const keep = desiredPagerPanels(activeTabRef.current);
-      mountedPanelIdsRef.current = keep;
-      setMountedPanelIds(keep);
-      pagerPruneTimerRef.current = null;
-    }, PAGER_PRUNE_DELAY_MS);
-  }, [addMountedPanels, desiredPagerPanels]);
+  const warmPagerWindow = useCallback(
+    (tabId) => {
+      if (pagerPruneTimerRef.current) clearTimeout(pagerPruneTimerRef.current);
+      const desired = desiredPagerPanels(tabId);
+      addMountedPanels([...desired]);
+      pagerPruneTimerRef.current = setTimeout(() => {
+        const keep = desiredPagerPanels(activeTabRef.current);
+        mountedPanelIdsRef.current = keep;
+        setMountedPanelIds(keep);
+        pagerPruneTimerRef.current = null;
+      }, PAGER_PRUNE_DELAY_MS);
+    },
+    [addMountedPanels, desiredPagerPanels]
+  );
 
   useEffect(() => subscribeSaveActivity(setSaveActivity), []);
 
   useEffect(() => {
     let alive = true;
-    hydrateNavigationState(visitNavKey).then((state) => {
-      if (!alive || !state?.activeTab) return;
-      desiredRestoreTabRef.current = state.activeTab;
-      const tabs = tabOrderRef.current;
-      const idx = tabs.indexOf(state.activeTab);
-      if (idx < 0) return;
-      activeTabRef.current = state.activeTab;
-      setActiveTab(state.activeTab);
-      addMountedPanels([state.activeTab], { stickyHeavy: true });
-      pagerX.stopAnimation();
-      pagerX.setValue(-idx * pagerWidthRef.current);
-      warmPagerWindow(state.activeTab);
-    }).catch(() => {});
-    return () => { alive = false; };
+    hydrateNavigationState(visitNavKey)
+      .then((state) => {
+        if (!alive || !state?.activeTab) return;
+        desiredRestoreTabRef.current = state.activeTab;
+        const tabs = tabOrderRef.current;
+        const idx = tabs.indexOf(state.activeTab);
+        if (idx < 0) return;
+        activeTabRef.current = state.activeTab;
+        setActiveTab(state.activeTab);
+        addMountedPanels([state.activeTab], { stickyHeavy: true });
+        pagerX.stopAnimation();
+        pagerX.setValue(-idx * pagerWidthRef.current);
+        warmPagerWindow(state.activeTab);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
   }, [visitNavKey, addMountedPanels, pagerX, warmPagerWindow]);
 
   useEffect(() => {
     markVisitHot(visiteId, { preview: visite || initialPreview || null, ui: { activeTab: activeTabRef.current } });
   }, [visiteId]);
 
-  useEffect(() => { activeTabRef.current = activeTab; }, [activeTab]);
-  useEffect(() => { tabOrderRef.current = tabsReels; }, [tabsSignature]);
-  useEffect(() => () => {
-    if (progressionTimerRef.current) clearTimeout(progressionTimerRef.current);
-    if (pagerPruneTimerRef.current) clearTimeout(pagerPruneTimerRef.current);
-    pagerX.stopAnimation();
-    preAllumageLocalX.stopAnimation();
-    // Les trois dernières visites restent chaudes en mémoire. Ne pas vider les
-    // caches ici : revenir dans une visite doit être instantané.
-  }, [pagerX, preAllumageLocalX]);
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+  useEffect(() => {
+    tabOrderRef.current = tabsReels;
+  }, [tabsSignature]);
+  useEffect(
+    () => () => {
+      if (progressionTimerRef.current) clearTimeout(progressionTimerRef.current);
+      if (pagerPruneTimerRef.current) clearTimeout(pagerPruneTimerRef.current);
+      pagerX.stopAnimation();
+      preAllumageLocalX.stopAnimation();
+      // Les trois dernières visites restent chaudes en mémoire. Ne pas vider les
+      // caches ici : revenir dans une visite doit être instantané.
+    },
+    [pagerX, preAllumageLocalX]
+  );
 
   useEffect(() => {
     if (!visite || tabsReels.length === 0) return;
@@ -219,135 +304,155 @@ function VisiteScreen({ route, onBack }) {
     warmPagerWindow(current);
   }, [visite?.trame_id, tabsSignature, pagerWidth, addMountedPanels, warmPagerWindow, pagerX, preAllumageLocalX]);
 
-  const completeTabChange = useCallback((prochain) => {
-    flushDurableAutosaves().catch(() => {});
-    activeTabRef.current = prochain;
-    setActiveTab(prochain);
-    patchVisitUiState(visiteId, { activeTab: prochain });
-    setNavigationState(visitNavKey, { activeTab: prochain });
-    transitionRef.current = false;
-    requestAnimationFrame(() => warmPagerWindow(prochain));
-  }, [visiteId, visitNavKey, warmPagerWindow]);
+  const completeTabChange = useCallback(
+    (prochain) => {
+      flushDurableAutosaves().catch(() => {});
+      activeTabRef.current = prochain;
+      setActiveTab(prochain);
+      patchVisitUiState(visiteId, { activeTab: prochain });
+      setNavigationState(visitNavKey, { activeTab: prochain });
+      transitionRef.current = false;
+      requestAnimationFrame(() => warmPagerWindow(prochain));
+    },
+    [visiteId, visitNavKey, warmPagerWindow]
+  );
 
-  const animateToTab = useCallback((prochain, duration = 145) => {
-    const tabs = tabOrderRef.current;
-    const targetIndex = tabs.indexOf(prochain);
-    if (targetIndex < 0) { transitionRef.current = false; return; }
-    const wasMounted = mountedPanelIdsRef.current.has(prochain);
-    addMountedPanels([prochain], { stickyHeavy: true });
-    const start = () => {
-      Animated.timing(pagerX, {
-        toValue: -targetIndex * pagerWidthRef.current,
-        duration,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }).start(({ finished }) => {
-        if (finished) completeTabChange(prochain);
-        else transitionRef.current = false;
-      });
-    };
-    if (wasMounted) start(); else requestAnimationFrame(start);
-  }, [addMountedPanels, completeTabChange, pagerX]);
-
-  const changerOnglet = useCallback((prochain, anime = true) => {
-    if (!prochain || prochain === activeTabRef.current || transitionRef.current) return;
-    Keyboard.dismiss();
-    const tabs = tabOrderRef.current;
-    const from = tabs.indexOf(activeTabRef.current);
-    const to = tabs.indexOf(prochain);
-    if (from < 0 || to < 0) return;
-    const wasMounted = mountedPanelIdsRef.current.has(prochain);
-    addMountedPanels([prochain], { stickyHeavy: true });
-
-    if (!anime || Math.abs(to - from) !== 1 || pagerWidthRef.current <= 0) {
-      transitionRef.current = true;
-      const commit = () => {
-        pagerX.stopAnimation();
-        pagerX.setValue(-to * pagerWidthRef.current);
-        completeTabChange(prochain);
+  const animateToTab = useCallback(
+    (prochain, duration = 145) => {
+      const tabs = tabOrderRef.current;
+      const targetIndex = tabs.indexOf(prochain);
+      if (targetIndex < 0) {
+        transitionRef.current = false;
+        return;
+      }
+      const wasMounted = mountedPanelIdsRef.current.has(prochain);
+      addMountedPanels([prochain], { stickyHeavy: true });
+      const start = () => {
+        Animated.timing(pagerX, {
+          toValue: -targetIndex * pagerWidthRef.current,
+          duration,
+          easing: Easing.out(Easing.cubic),
+          useNativeDriver: true
+        }).start(({ finished }) => {
+          if (finished) completeTabChange(prochain);
+          else transitionRef.current = false;
+        });
       };
-      if (wasMounted) commit(); else requestAnimationFrame(commit);
-      return;
-    }
+      if (wasMounted) start();
+      else requestAnimationFrame(start);
+    },
+    [addMountedPanels, completeTabChange, pagerX]
+  );
 
-    transitionRef.current = true;
-    animateToTab(prochain, 155);
-  }, [addMountedPanels, animateToTab, completeTabChange, pagerX]);
+  const changerOnglet = useCallback(
+    (prochain, anime = true) => {
+      if (!prochain || prochain === activeTabRef.current || transitionRef.current) return;
+      Keyboard.dismiss();
+      const tabs = tabOrderRef.current;
+      const from = tabs.indexOf(activeTabRef.current);
+      const to = tabs.indexOf(prochain);
+      if (from < 0 || to < 0) return;
+      const wasMounted = mountedPanelIdsRef.current.has(prochain);
+      addMountedPanels([prochain], { stickyHeavy: true });
+
+      if (!anime || Math.abs(to - from) !== 1 || pagerWidthRef.current <= 0) {
+        transitionRef.current = true;
+        const commit = () => {
+          pagerX.stopAnimation();
+          pagerX.setValue(-to * pagerWidthRef.current);
+          completeTabChange(prochain);
+        };
+        if (wasMounted) commit();
+        else requestAnimationFrame(commit);
+        return;
+      }
+
+      transitionRef.current = true;
+      animateToTab(prochain, 155);
+    },
+    [addMountedPanels, animateToTab, completeTabChange, pagerX]
+  );
 
   const retourSecurise = useCallback(() => {
     Keyboard.dismiss();
     setNavigationState(visitNavKey, { activeTab: activeTabRef.current });
-    Promise.allSettled([flushDurableAutosaves(), flushNavigationMemory()])
-      .finally(() => setTimeout(() => onBack?.(), 0));
+    Promise.allSettled([flushDurableAutosaves(), flushNavigationMemory()]).finally(() =>
+      setTimeout(() => onBack?.(), 0)
+    );
   }, [onBack, visitNavKey]);
 
-  const charger = useCallback(async ({ forceCaches = false } = {}) => {
-    setChargementErreur(null);
+  const charger = useCallback(
+    async ({ forceCaches = false } = {}) => {
+      setChargementErreur(null);
 
-    let v = null;
-    try {
-      // Lecture minimale : site + client + local arrivent dans une seule requête.
-      // Si un preview a été transmis par la liste, l'écran est déjà visible avant
-      // même cette lecture.
-      v = await getVisite(visiteId);
-      if (!v) throw new Error('Visite introuvable dans la base locale.');
-      setVisite((courante) => {
-        const next = {
-          ...(courante || {}),
-          ...v,
-          progression_pct: Number(courante?.progression_pct ?? v.progression_pct ?? 0),
-        };
-        markVisitHot(visiteId, { preview: next, ui: { activeTab: activeTabRef.current } });
-        return next;
-      });
-    } catch (e) {
-      console.warn('Ouverture visite impossible', e);
-      setChargementErreur(String(e?.message || e || 'Erreur inconnue'));
-      return;
-    }
-
-    // Tout le reste se prépare sans bloquer l'affichage. Le préremplissage est
-    // marqué durablement : pour une visite déjà préparée, ce passage coûte une
-    // simple lecture _meta. Les caches chauds ne sont rechargés que si nécessaire.
-    void (async () => {
+      let v = null;
       try {
-        const db = await getDb();
-        let prefillEffectif = false;
-        try {
-          const resultatPrefill = await preremplirVisiteDepuisContexte(db, visiteId);
-          prefillEffectif = resultatPrefill !== undefined;
-        } catch (e) {
-          console.warn('Préremplissage visite incomplet', e);
-        }
-
-        if (forceCaches || prefillEffectif) {
-          invaliderCacheTrameGenerique(visiteId);
-          invaliderCacheRegulation(visiteId);
-        }
-
-        const estVmc = (v?.trame_id || DEFAULT_TRAME_ID) === 'vmc';
-        const [caissons] = await Promise.all([
-          estVmc ? chargerCaissonsVmc(visiteId).catch(() => []) : Promise.resolve([]),
-          prechargerDonneesTrameGenerique(visiteId, forceCaches || prefillEffectif),
-          prechargerRegulation(visiteId, forceCaches || prefillEffectif),
-        ]);
-        setVmcCaissons(caissons || []);
-
-        try {
-          const progression = await recalculerProgressionVisite(db, visiteId);
-          setVisite((courante) => {
-            const next = courante ? { ...courante, ...v, progression_pct: progression } : { ...v, progression_pct: progression };
-            markVisitHot(visiteId, { preview: next, ui: { activeTab: activeTabRef.current } });
-            return next;
-          });
-        } catch (e) {
-          console.warn('Progression initiale non recalculée', e);
-        }
+        // Lecture minimale : site + client + local arrivent dans une seule requête.
+        // Si un preview a été transmis par la liste, l'écran est déjà visible avant
+        // même cette lecture.
+        v = await getVisite(visiteId);
+        if (!v) throw new Error('Visite introuvable dans la base locale.');
+        setVisite((courante) => {
+          const next = {
+            ...(courante || {}),
+            ...v,
+            progression_pct: Number(courante?.progression_pct ?? v.progression_pct ?? 0)
+          };
+          markVisitHot(visiteId, { preview: next, ui: { activeTab: activeTabRef.current } });
+          return next;
+        });
       } catch (e) {
-        console.warn('Initialisation secondaire de la visite incomplète', e);
+        console.warn('Ouverture visite impossible', e);
+        setChargementErreur(String(e?.message || e || 'Erreur inconnue'));
+        return;
       }
-    })();
-  }, [visiteId]);
+
+      // Tout le reste se prépare sans bloquer l'affichage. Le préremplissage est
+      // marqué durablement : pour une visite déjà préparée, ce passage coûte une
+      // simple lecture _meta. Les caches chauds ne sont rechargés que si nécessaire.
+      void (async () => {
+        try {
+          const db = await getDb();
+          let prefillEffectif = false;
+          try {
+            const resultatPrefill = await preremplirVisiteDepuisContexte(db, visiteId);
+            prefillEffectif = resultatPrefill !== undefined;
+          } catch (e) {
+            console.warn('Préremplissage visite incomplet', e);
+          }
+
+          if (forceCaches || prefillEffectif) {
+            invaliderCacheTrameGenerique(visiteId);
+            invaliderCacheRegulation(visiteId);
+          }
+
+          const estVmc = (v?.trame_id || DEFAULT_TRAME_ID) === 'vmc';
+          const [caissons] = await Promise.all([
+            estVmc ? chargerCaissonsVmc(visiteId).catch(() => []) : Promise.resolve([]),
+            prechargerDonneesTrameGenerique(visiteId, forceCaches || prefillEffectif),
+            prechargerRegulation(visiteId, forceCaches || prefillEffectif)
+          ]);
+          setVmcCaissons(caissons || []);
+
+          try {
+            const progression = await recalculerProgressionVisite(db, visiteId);
+            setVisite((courante) => {
+              const next = courante
+                ? { ...courante, ...v, progression_pct: progression }
+                : { ...v, progression_pct: progression };
+              markVisitHot(visiteId, { preview: next, ui: { activeTab: activeTabRef.current } });
+              return next;
+            });
+          } catch (e) {
+            console.warn('Progression initiale non recalculée', e);
+          }
+        } catch (e) {
+          console.warn('Initialisation secondaire de la visite incomplète', e);
+        }
+      })();
+    },
+    [visiteId]
+  );
 
   useEffect(() => {
     let actif = true;
@@ -361,7 +466,9 @@ function VisiteScreen({ route, onBack }) {
       console.warn('Chargement visite interrompu', e);
       setChargementErreur(String(e?.message || e || 'Erreur inconnue'));
     });
-    return () => { actif = false; };
+    return () => {
+      actif = false;
+    };
   }, [charger, visiteId]);
 
   const onSaved = useCallback(() => {
@@ -384,74 +491,91 @@ function VisiteScreen({ route, onBack }) {
     }, 1200);
   }, [visiteId]);
 
-  const onCaissonsChange = useCallback((next) => {
-    setVmcCaissons(next || []);
-    invaliderCacheTrameGenerique(visiteId);
-    onSaved();
-  }, [visiteId, onSaved]);
+  const onCaissonsChange = useCallback(
+    (next) => {
+      setVmcCaissons(next || []);
+      invaliderCacheTrameGenerique(visiteId);
+      onSaved();
+    },
+    [visiteId, onSaved]
+  );
 
   const enregistrerSwipeLocalPreAllumage = useCallback((handler) => {
     preAllumageLocalSwipeRef.current = typeof handler === 'function' ? handler : null;
   }, []);
 
-  const terminerSwipeLocalPreAllumage = useCallback((g) => {
-    const w = pagerWidthRef.current;
-    const threshold = Math.max(44, w * 0.065);
-    const versSuivant = g.dx < -threshold || g.vx < -0.42;
-    const versPrecedent = g.dx > threshold || g.vx > 0.42;
-    const direction = versSuivant ? 1 : versPrecedent ? -1 : 0;
-    const peutChanger = direction ? preAllumageLocalSwipeRef.current?.(direction, false) : false;
-    if (!peutChanger) {
-      Animated.spring(preAllumageLocalX, { toValue: 0, speed: 28, bounciness: 0, useNativeDriver: true }).start(() => {
-        transitionRef.current = false;
-      });
-      return;
-    }
-    Animated.timing(preAllumageLocalX, {
-      toValue: direction > 0 ? -w : w,
-      duration: 115,
-      easing: Easing.out(Easing.cubic),
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (!finished) { transitionRef.current = false; return; }
-      const changed = preAllumageLocalSwipeRef.current?.(direction, true);
-      if (!changed) {
-        preAllumageLocalX.setValue(0);
-        transitionRef.current = false;
+  const terminerSwipeLocalPreAllumage = useCallback(
+    (g) => {
+      const w = pagerWidthRef.current;
+      const threshold = Math.max(44, w * 0.065);
+      const versSuivant = g.dx < -threshold || g.vx < -0.42;
+      const versPrecedent = g.dx > threshold || g.vx > 0.42;
+      const direction = versSuivant ? 1 : versPrecedent ? -1 : 0;
+      const peutChanger = direction ? preAllumageLocalSwipeRef.current?.(direction, false) : false;
+      if (!peutChanger) {
+        Animated.spring(preAllumageLocalX, { toValue: 0, speed: 28, bounciness: 0, useNativeDriver: true }).start(
+          () => {
+            transitionRef.current = false;
+          }
+        );
         return;
       }
-      preAllumageLocalX.setValue(direction > 0 ? w : -w);
-      requestAnimationFrame(() => {
-        Animated.timing(preAllumageLocalX, {
-          toValue: 0,
-          duration: 165,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }).start(() => { transitionRef.current = false; });
+      Animated.timing(preAllumageLocalX, {
+        toValue: direction > 0 ? -w : w,
+        duration: 115,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true
+      }).start(({ finished }) => {
+        if (!finished) {
+          transitionRef.current = false;
+          return;
+        }
+        const changed = preAllumageLocalSwipeRef.current?.(direction, true);
+        if (!changed) {
+          preAllumageLocalX.setValue(0);
+          transitionRef.current = false;
+          return;
+        }
+        preAllumageLocalX.setValue(direction > 0 ? w : -w);
+        requestAnimationFrame(() => {
+          Animated.timing(preAllumageLocalX, {
+            toValue: 0,
+            duration: 165,
+            easing: Easing.out(Easing.cubic),
+            useNativeDriver: true
+          }).start(() => {
+            transitionRef.current = false;
+          });
+        });
       });
-    });
-  }, [preAllumageLocalX]);
+    },
+    [preAllumageLocalX]
+  );
   finishLocalSwipeRef.current = terminerSwipeLocalPreAllumage;
 
-  const terminerSwipe = useCallback((g) => {
-    const tabs = tabOrderRef.current;
-    const idx = Math.max(0, Math.min(tabs.length - 1, gestureStartIndexRef.current));
-    const w = pagerWidthRef.current;
-    const threshold = Math.max(54, w * 0.12);
-    const versSuivant = g.dx < -threshold || g.vx < -0.48;
-    const versPrecedent = g.dx > threshold || g.vx > 0.48;
-    const prochain = versSuivant && idx < tabs.length - 1 ? tabs[idx + 1] : versPrecedent && idx > 0 ? tabs[idx - 1] : null;
+  const terminerSwipe = useCallback(
+    (g) => {
+      const tabs = tabOrderRef.current;
+      const idx = Math.max(0, Math.min(tabs.length - 1, gestureStartIndexRef.current));
+      const w = pagerWidthRef.current;
+      const threshold = Math.max(54, w * 0.12);
+      const versSuivant = g.dx < -threshold || g.vx < -0.48;
+      const versPrecedent = g.dx > threshold || g.vx > 0.48;
+      const prochain =
+        versSuivant && idx < tabs.length - 1 ? tabs[idx + 1] : versPrecedent && idx > 0 ? tabs[idx - 1] : null;
 
-    if (!prochain) {
-      Animated.spring(pagerX, { toValue: -idx * w, speed: 28, bounciness: 0, useNativeDriver: true }).start(() => {
-        transitionRef.current = false;
-        warmPagerWindow(activeTabRef.current);
-      });
-      return;
-    }
+      if (!prochain) {
+        Animated.spring(pagerX, { toValue: -idx * w, speed: 28, bounciness: 0, useNativeDriver: true }).start(() => {
+          transitionRef.current = false;
+          warmPagerWindow(activeTabRef.current);
+        });
+        return;
+      }
 
-    animateToTab(prochain, 135);
-  }, [animateToTab, pagerX, warmPagerWindow]);
+      animateToTab(prochain, 135);
+    },
+    [animateToTab, pagerX, warmPagerWindow]
+  );
   finishSwipeRef.current = terminerSwipe;
 
   const swipeHandlers = useRef(null);
@@ -464,7 +588,10 @@ function VisiteScreen({ route, onBack }) {
       },
       onPanResponderGrant: () => {
         Keyboard.dismiss();
-        const localMode = trameIdRef.current === 'pre_allumage' && activeTabRef.current === 'p-pa-batiments' && typeof preAllumageLocalSwipeRef.current === 'function';
+        const localMode =
+          trameIdRef.current === 'pre_allumage' &&
+          activeTabRef.current === 'p-pa-batiments' &&
+          typeof preAllumageLocalSwipeRef.current === 'function';
         gestureModeRef.current = localMode ? 'preallumage-local' : 'tabs';
         transitionRef.current = true;
         if (localMode) {
@@ -479,7 +606,7 @@ function VisiteScreen({ route, onBack }) {
         if (gestureModeRef.current === 'preallumage-local') {
           const direction = g.dx < 0 ? 1 : -1;
           const peutChanger = preAllumageLocalSwipeRef.current?.(direction, false);
-          preAllumageLocalX.setValue(peutChanger ? g.dx : g.dx * 0.20);
+          preAllumageLocalX.setValue(peutChanger ? g.dx : g.dx * 0.2);
           return;
         }
         const tabs = tabOrderRef.current;
@@ -497,17 +624,24 @@ function VisiteScreen({ route, onBack }) {
       },
       onPanResponderTerminate: () => {
         if (gestureModeRef.current === 'preallumage-local') {
-          Animated.spring(preAllumageLocalX, { toValue: 0, speed: 28, bounciness: 0, useNativeDriver: true }).start(() => {
-            transitionRef.current = false;
-          });
+          Animated.spring(preAllumageLocalX, { toValue: 0, speed: 28, bounciness: 0, useNativeDriver: true }).start(
+            () => {
+              transitionRef.current = false;
+            }
+          );
           return;
         }
         const idx = Math.max(0, gestureStartIndexRef.current);
-        Animated.spring(pagerX, { toValue: -idx * pagerWidthRef.current, speed: 28, bounciness: 0, useNativeDriver: true }).start(() => {
+        Animated.spring(pagerX, {
+          toValue: -idx * pagerWidthRef.current,
+          speed: 28,
+          bounciness: 0,
+          useNativeDriver: true
+        }).start(() => {
           transitionRef.current = false;
         });
       },
-      onPanResponderTerminationRequest: () => false,
+      onPanResponderTerminationRequest: () => false
     });
   }
 
@@ -539,11 +673,16 @@ function VisiteScreen({ route, onBack }) {
       await attendre(180);
       const resultat = await chargerExcelExportModule().exporterEtPartager(visiteId);
       if (resultat?.stats?.reseauxSupplementaires > 0) {
-        Alert.alert('Export complet', `${resultat.stats.reseauxSupplementaires} réseau(x) supplémentaire(s) ont été placés dans la feuille « RESEAUX COMPLEMENTAIRES » afin de ne perdre aucune donnée.`);
+        Alert.alert(
+          'Export complet',
+          `${resultat.stats.reseauxSupplementaires} réseau(x) supplémentaire(s) ont été placés dans la feuille « RESEAUX COMPLEMENTAIRES » afin de ne perdre aucune donnée.`
+        );
       }
     } catch (e) {
       Alert.alert('Erreur export', String(e.message || e));
-    } finally { setExporting(false); }
+    } finally {
+      setExporting(false);
+    }
   };
 
   const genererRapportPreAllumage = async (format) => {
@@ -553,10 +692,13 @@ function VisiteScreen({ route, onBack }) {
       Keyboard.dismiss();
       await attendre(120);
       const resultat = await chargerPreAllumageReportModule().exporterRapportPreAllumage(visiteId, format);
-      if (!resultat?.annule) Alert.alert('Rapport Pré-allumage généré', `${resultat.nom} a été enregistré dans le dossier choisi.`);
+      if (!resultat?.annule)
+        Alert.alert('Rapport Pré-allumage généré', `${resultat.nom} a été enregistré dans le dossier choisi.`);
     } catch (e) {
       Alert.alert('Génération impossible', String(e?.message || e));
-    } finally { setReportExporting(false); }
+    } finally {
+      setReportExporting(false);
+    }
   };
 
   const choisirFormatRapportPreAllumage = () => {
@@ -564,7 +706,7 @@ function VisiteScreen({ route, onBack }) {
     Alert.alert('Rapport Pré-allumage', 'Choisis le format à générer.', [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Word', onPress: () => genererRapportPreAllumage('word') },
-      { text: 'PDF', onPress: () => genererRapportPreAllumage('pdf') },
+      { text: 'PDF', onPress: () => genererRapportPreAllumage('pdf') }
     ]);
   };
 
@@ -577,15 +719,31 @@ function VisiteScreen({ route, onBack }) {
     if (tabsReels.includes('p-remarques')) changerOnglet('p-remarques');
   };
 
-  if (!visite && chargementErreur) return <View style={[styles.center, { paddingHorizontal: 24 }]}>
-    <Text style={{ color: COLORS.ink, fontSize: 17, fontWeight: '900', textAlign: 'center' }}>Impossible d’ouvrir la visite</Text>
-    <Text style={{ color: COLORS.inkSoft, fontSize: 12, marginTop: 8, textAlign: 'center' }}>{chargementErreur}</Text>
-    <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
-      <TouchableOpacity style={styles.btnSecondary} onPress={retourSecurise}><Text style={styles.btnSecondaryText}>Retour</Text></TouchableOpacity>
-      <TouchableOpacity style={styles.btnPrimary} onPress={() => charger({ forceCaches: true })}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity>
-    </View>
-  </View>;
-  if (!visite) return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.orange} /></View>;
+  if (!visite && chargementErreur)
+    return (
+      <View style={[styles.center, { paddingHorizontal: 24 }]}>
+        <Text style={{ color: COLORS.ink, fontSize: 17, fontWeight: '900', textAlign: 'center' }}>
+          Impossible d’ouvrir la visite
+        </Text>
+        <Text style={{ color: COLORS.inkSoft, fontSize: 12, marginTop: 8, textAlign: 'center' }}>
+          {chargementErreur}
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
+          <TouchableOpacity style={styles.btnSecondary} onPress={retourSecurise}>
+            <Text style={styles.btnSecondaryText}>Retour</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.btnPrimary} onPress={() => charger({ forceCaches: true })}>
+            <Text style={styles.btnPrimaryText}>Réessayer</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  if (!visite)
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" color={COLORS.orange} />
+      </View>
+    );
 
   const intranetLinked = Boolean(visite?.api_remote_local_id) && Number(visite?.api_is_historical) !== 1;
   const pagerPanels = tabsReels.filter((panelId) => panelId === activeTab || mountedPanelIds.has(panelId));
@@ -593,26 +751,41 @@ function VisiteScreen({ route, onBack }) {
     <View style={{ flex: 1, overflow: 'hidden' }} {...swipeHandlers.current.panHandlers}>
       {pagerPanels.map((panelId) => {
         const index = tabsReels.indexOf(panelId);
-        return <Animated.View
-          key={panelId}
-          pointerEvents={panelId === activeTab ? 'auto' : 'none'}
-          style={{ position: 'absolute', top: 0, bottom: 0, left: index * pagerWidth, width: pagerWidth, transform: [{ translateX: pagerX }] }}
-        >
-          <Animated.View style={{ flex: 1, transform: panelId === 'p-pa-batiments' ? [{ translateX: preAllumageLocalX }] : [] }}>
-            <VisitPanelHost
-              visiteId={visiteId}
-              panelId={panelId}
-              sections={panels[panelId]}
-              special={specialPanels.has(panelId)}
-              onSaved={onSaved}
-              tabOrder={tabOrder}
-              panelLabels={panelLabels}
-              panels={panels}
-              intranetLinked={intranetLinked}
-              onRegisterLocalSwipe={trame.id === 'pre_allumage' && panelId === 'p-pa-batiments' ? enregistrerSwipeLocalPreAllumage : undefined}
-            />
+        return (
+          <Animated.View
+            key={panelId}
+            pointerEvents={panelId === activeTab ? 'auto' : 'none'}
+            style={{
+              position: 'absolute',
+              top: 0,
+              bottom: 0,
+              left: index * pagerWidth,
+              width: pagerWidth,
+              transform: [{ translateX: pagerX }]
+            }}
+          >
+            <Animated.View
+              style={{ flex: 1, transform: panelId === 'p-pa-batiments' ? [{ translateX: preAllumageLocalX }] : [] }}
+            >
+              <VisitPanelHost
+                visiteId={visiteId}
+                panelId={panelId}
+                sections={panels[panelId]}
+                special={specialPanels.has(panelId)}
+                onSaved={onSaved}
+                tabOrder={tabOrder}
+                panelLabels={panelLabels}
+                panels={panels}
+                intranetLinked={intranetLinked}
+                onRegisterLocalSwipe={
+                  trame.id === 'pre_allumage' && panelId === 'p-pa-batiments'
+                    ? enregistrerSwipeLocalPreAllumage
+                    : undefined
+                }
+              />
+            </Animated.View>
           </Animated.View>
-        </Animated.View>;
+        );
       })}
     </View>
   );
@@ -621,56 +794,203 @@ function VisiteScreen({ route, onBack }) {
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <View style={styles.visiteTopbar}>
         <View style={styles.visiteHeaderRow}>
-          <TouchableOpacity style={styles.visiteBackBtn} onPress={retourSecurise}><Text style={styles.visiteBackBtnText}>←</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.visiteBackBtn} onPress={retourSecurise}>
+            <Text style={styles.visiteBackBtnText}>←</Text>
+          </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>{visite.nom_site}</Text>
-            <Text style={styles.cardSub}>{[visite.nom_client, visite.nom_installation, visite.date_visite, trame.nom, visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'].filter(Boolean).join(' · ')}</Text>
+            <Text style={styles.cardSub}>
+              {[
+                visite.nom_client,
+                visite.nom_installation,
+                visite.date_visite,
+                trame.nom,
+                visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'
+              ]
+                .filter(Boolean)
+                .join(' · ')}
+            </Text>
           </View>
-          {appareilTablette ? <TouchableOpacity style={styles.noteBtn} onPress={() => setCompanionVisible(true)}><Text style={styles.noteBtnText}>Téléphone</Text></TouchableOpacity> : null}
-          <TouchableOpacity style={styles.noteBtn} onPress={ouvrirNote}><Text style={styles.noteBtnText}>Note libre</Text></TouchableOpacity>
-          {trame.id === 'pre_allumage' ? <TouchableOpacity style={styles.noteBtn} onPress={choisirFormatRapportPreAllumage} disabled={reportExporting}><Text style={styles.noteBtnText}>{reportExporting ? 'Rapport…' : 'PDF / Word'}</Text></TouchableOpacity> : null}
-          <TouchableOpacity style={styles.exportBtn} onPress={exporter} disabled={exporting}><Text style={styles.exportBtnText}>{exporting ? '...' : `Excel ${trame.nom}`}</Text></TouchableOpacity>
+          {appareilTablette ? (
+            <TouchableOpacity style={styles.noteBtn} onPress={() => setCompanionVisible(true)}>
+              <Text style={styles.noteBtnText}>Téléphone</Text>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity style={styles.noteBtn} onPress={ouvrirNote}>
+            <Text style={styles.noteBtnText}>Note libre</Text>
+          </TouchableOpacity>
+          {trame.id === 'pre_allumage' ? (
+            <TouchableOpacity
+              style={styles.noteBtn}
+              onPress={choisirFormatRapportPreAllumage}
+              disabled={reportExporting}
+            >
+              <Text style={styles.noteBtnText}>{reportExporting ? 'Rapport…' : 'PDF / Word'}</Text>
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity style={styles.exportBtn} onPress={exporter} disabled={exporting}>
+            <Text style={styles.exportBtnText}>{exporting ? '...' : `Excel ${trame.nom}`}</Text>
+          </TouchableOpacity>
         </View>
         <View style={styles.progressRow}>
-          <View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${visite.progression_pct}%` }]} /></View>
+          <View style={styles.progressBarBg}>
+            <View style={[styles.progressBarFill, { width: `${visite.progression_pct}%` }]} />
+          </View>
           <Text style={styles.progressPct}>{visite.progression_pct}%</Text>
           <Text
             accessibilityLiveRegion="polite"
-            style={{ marginLeft: 9, fontSize: 10.5, fontWeight: '800', color: saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32' }}
+            style={{
+              marginLeft: 9,
+              fontSize: 10.5,
+              fontWeight: '800',
+              color: saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32'
+            }}
           >
-            {saveActivity.lastError ? '⚠ Sauvegarde à reprendre' : saveActivity.pending ? `${saveActivity.pending} en attente` : '✓ Enregistré'}
+            {saveActivity.lastError
+              ? '⚠ Sauvegarde à reprendre'
+              : saveActivity.pending
+                ? `${saveActivity.pending} en attente`
+                : '✓ Enregistré'}
           </Text>
         </View>
-        {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? <PhotoReferenceAccess visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} /> : null}
+        {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? (
+          <PhotoReferenceAccess visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} />
+        ) : null}
         <IntranetVisitSyncControl visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />
-        <TouchableOpacity style={styles.anomalyBtn} onPress={() => setAnomalieVisible(true)}><Text style={styles.anomalyBtnText}>⚠ Ajouter une anomalie, une remarque ou une réserve</Text></TouchableOpacity>
-        {visite.mode_visite === 'express' && <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>}
-        {trame.id === 'vmc' && vmcCaissons.length > 0 ? <VmcCaissonManager visiteId={visiteId} caissons={vmcCaissons} onChange={onCaissonsChange} onNavigate={changerOnglet} /> : null}
-        {!modeTablette && <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.tabStrip}>
-          {tabOrder.map((pid, i) => pid === 'SEP' ? <View key={`sep-${i}`} style={styles.tabSep} /> : <TouchableOpacity key={pid} style={styles.tabItem} onPress={() => changerOnglet(pid)}><Text style={[styles.tabItemText, activeTab === pid && styles.tabItemTextActive]}>{panelLabels[pid] || pid}</Text>{activeTab === pid && <View style={styles.tabUnderline} />}</TouchableOpacity>)}
-        </ScrollView>}
+        <TouchableOpacity style={styles.anomalyBtn} onPress={() => setAnomalieVisible(true)}>
+          <Text style={styles.anomalyBtnText}>⚠ Ajouter une anomalie, une remarque ou une réserve</Text>
+        </TouchableOpacity>
+        {visite.mode_visite === 'express' && (
+          <Text style={styles.expressHint}>
+            ⚡ Données reprises de la visite précédente · index et mesures variables à actualiser
+          </Text>
+        )}
+        {trame.id === 'vmc' && vmcCaissons.length > 0 ? (
+          <VmcCaissonManager
+            visiteId={visiteId}
+            caissons={vmcCaissons}
+            onChange={onCaissonsChange}
+            onNavigate={changerOnglet}
+          />
+        ) : null}
+        {!modeTablette && (
+          <ScrollView
+            keyboardShouldPersistTaps="handled"
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            style={styles.tabStrip}
+          >
+            {tabOrder.map((pid, i) =>
+              pid === 'SEP' ? (
+                <View key={`sep-${i}`} style={styles.tabSep} />
+              ) : (
+                <TouchableOpacity key={pid} style={styles.tabItem} onPress={() => changerOnglet(pid)}>
+                  <Text style={[styles.tabItemText, activeTab === pid && styles.tabItemTextActive]}>
+                    {panelLabels[pid] || pid}
+                  </Text>
+                  {activeTab === pid && <View style={styles.tabUnderline} />}
+                </TouchableOpacity>
+              )
+            )}
+          </ScrollView>
+        )}
       </View>
 
-      {modeTablette ? <View style={{ flex: 1, flexDirection: 'row' }}>
-        <View style={{ width: 205, backgroundColor: '#FFFFFF', borderRightWidth: 1, borderRightColor: COLORS.line }}>
-          <ScrollView contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: 9 }} showsVerticalScrollIndicator={false}>
-            {tabOrder.map((pid, i) => pid === 'SEP' ? <View key={`side-sep-${i}`} style={{ height: 1, backgroundColor: COLORS.line, marginVertical: 8 }} /> : <TouchableOpacity key={pid} onPress={() => changerOnglet(pid)} style={{ minHeight: 43, paddingHorizontal: 11, paddingVertical: 10, borderRadius: 10, marginVertical: 2, justifyContent: 'center', backgroundColor: activeTab === pid ? '#FFF3E8' : 'transparent', borderWidth: activeTab === pid ? 1 : 0, borderColor: activeTab === pid ? '#F3C89B' : 'transparent' }}><Text style={{ fontSize: 13, fontWeight: activeTab === pid ? '800' : '600', color: activeTab === pid ? COLORS.primary : COLORS.text }}>{panelLabels[pid] || pid}</Text></TouchableOpacity>)}
-          </ScrollView>
+      {modeTablette ? (
+        <View style={{ flex: 1, flexDirection: 'row' }}>
+          <View style={{ width: 205, backgroundColor: '#FFFFFF', borderRightWidth: 1, borderRightColor: COLORS.line }}>
+            <ScrollView
+              contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: 9 }}
+              showsVerticalScrollIndicator={false}
+            >
+              {tabOrder.map((pid, i) =>
+                pid === 'SEP' ? (
+                  <View key={`side-sep-${i}`} style={{ height: 1, backgroundColor: COLORS.line, marginVertical: 8 }} />
+                ) : (
+                  <TouchableOpacity
+                    key={pid}
+                    onPress={() => changerOnglet(pid)}
+                    style={{
+                      minHeight: 43,
+                      paddingHorizontal: 11,
+                      paddingVertical: 10,
+                      borderRadius: 10,
+                      marginVertical: 2,
+                      justifyContent: 'center',
+                      backgroundColor: activeTab === pid ? '#FFF3E8' : 'transparent',
+                      borderWidth: activeTab === pid ? 1 : 0,
+                      borderColor: activeTab === pid ? '#F3C89B' : 'transparent'
+                    }}
+                  >
+                    <Text
+                      style={{
+                        fontSize: 13,
+                        fontWeight: activeTab === pid ? '800' : '600',
+                        color: activeTab === pid ? COLORS.primary : COLORS.text
+                      }}
+                    >
+                      {panelLabels[pid] || pid}
+                    </Text>
+                  </TouchableOpacity>
+                )
+              )}
+            </ScrollView>
+          </View>
+          <View style={{ flex: 1, minWidth: 0 }}>{animatedContent}</View>
         </View>
-        <View style={{ flex: 1, minWidth: 0 }}>{animatedContent}</View>
-      </View> : animatedContent}
+      ) : (
+        animatedContent
+      )}
 
-      <Modal visible={noteVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}>
-        <Text style={styles.modalTitle}>Note libre — {trame.nom}</Text>
-        <TextInput style={[styles.input, { height: 160, textAlignVertical: 'top' }]} multiline value={noteTxt} onChangeText={onChangeNoteTxt} placeholder="Notes générales sur la visite..." />
-        <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
-      </View></View></Modal>
+      <Modal visible={noteVisible} transparent animationType="fade">
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Note libre — {trame.nom}</Text>
+            <TextInput
+              style={[styles.input, { height: 160, textAlignVertical: 'top' }]}
+              multiline
+              value={noteTxt}
+              onChangeText={onChangeNoteTxt}
+              placeholder="Notes générales sur la visite..."
+            />
+            <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}>
+              <Text style={styles.btnPrimaryText}>Fermer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
       <CompanionTabletModal visible={companionVisible} visiteId={visiteId} onClose={() => setCompanionVisible(false)} />
-      <Modal visible={anomalieVisible} transparent animationType="fade" onRequestClose={() => setAnomalieVisible(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}>
-        <Text style={styles.modalTitle}>Ajouter une anomalie</Text><Text style={styles.importHint}>Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.</Text>
-        <TextInput style={[styles.input, { minHeight: 100, marginTop: 12, textAlignVertical: 'top' }]} multiline autoFocus value={anomalieTxt} onChangeText={setAnomalieTxt} placeholder="Ex. Pompe défaillante, température de départ trop basse…" />
-        <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setAnomalieVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerAnomalie}><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity></View>
-      </View></View></Modal>
+      <Modal
+        visible={anomalieVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setAnomalieVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalSheet}>
+            <Text style={styles.modalTitle}>Ajouter une anomalie</Text>
+            <Text style={styles.importHint}>
+              Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.
+            </Text>
+            <TextInput
+              style={[styles.input, { minHeight: 100, marginTop: 12, textAlignVertical: 'top' }]}
+              multiline
+              autoFocus
+              value={anomalieTxt}
+              onChangeText={setAnomalieTxt}
+              placeholder="Ex. Pompe défaillante, température de départ trop basse…"
+            />
+            <View style={styles.modalActions}>
+              <TouchableOpacity style={styles.btnSecondary} onPress={() => setAnomalieVisible(false)}>
+                <Text style={styles.btnSecondaryText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.btnPrimary} onPress={enregistrerAnomalie}>
+                <Text style={styles.btnPrimaryText}>Ajouter</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }

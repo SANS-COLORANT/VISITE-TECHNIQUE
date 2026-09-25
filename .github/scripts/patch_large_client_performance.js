@@ -1,7 +1,11 @@
 const fs = require('fs');
 
-function read(path) { return fs.readFileSync(path, 'utf8'); }
-function write(path, text) { fs.writeFileSync(path, text); }
+function read(path) {
+  return fs.readFileSync(path, 'utf8');
+}
+function write(path, text) {
+  fs.writeFileSync(path, text);
+}
 function replaceOnce(text, from, to, label) {
   if (text.includes(to)) return text;
   if (!text.includes(from)) throw new Error(`${label}: anchor not found`);
@@ -24,22 +28,26 @@ function patchClientDocuments() {
   const oldEnsure = `  const garantirStockageClient = async () => {\n    if (!racine) return preparerStockage();\n    try {\n      setBusy(true);\n      await initialiserArborescenceClient(clientId);\n      return racine;\n    } catch (e) {\n      // Une autorisation SAF peut avoir été révoquée par Android. Le service\n      // central la redemandera proprement au prochain passage si nécessaire.\n      return preparerStockage();\n    } finally { setBusy(false); }\n  };`;
   const newEnsure = `  const garantirStockageClient = async () => {\n    // Ne jamais matérialiser ici les centaines de dossiers du client :\n    // les chemins Site/Visite sont créés paresseusement au moment de l'export.\n    try {\n      setBusy(true);\n      const uri = await garantirRacineMetra();\n      setRacine(uri);\n      return uri;\n    } catch {\n      return preparerStockage();\n    } finally { setBusy(false); }\n  };`;
   text = replaceOnce(text, oldEnsure, newEnsure, 'ClientDocuments lazy storage');
-  text = text.replace("Android demandera une seule fois l'accès au dossier Documents. Ensuite METRA crée et utilise automatiquement toute l'arborescence.", "Android demandera une seule fois l'accès au dossier Documents. Ensuite METRA crée uniquement les dossiers nécessaires au moment de l'export.");
+  text = text.replace(
+    "Android demandera une seule fois l'accès au dossier Documents. Ensuite METRA crée et utilise automatiquement toute l'arborescence.",
+    "Android demandera une seule fois l'accès au dossier Documents. Ensuite METRA crée uniquement les dossiers nécessaires au moment de l'export."
+  );
   write(path, text);
 }
 
 function patchHome() {
   const path = 'HomeScreen.js';
   let text = read(path);
-  const marker = "const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null };";
+  const marker = 'const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null };';
   if (!text.includes(marker)) {
     const anchor = "import { choisirEtAnalyserExcels, importerAnalysesExcel } from './batchExcel.js';\n";
     if (!text.includes(anchor)) throw new Error('Home cache import anchor not found');
     text = text.replace(anchor, `${anchor}\n${marker}\n`);
   }
-  text = replaceOnce(text,
-    "  const [clients, setClients] = useState([]);\n  const [visitesEnCours, setVisitesEnCours] = useState([]);\n  const [stats, setStats] = useState({ enCours: 0, terminees: 0 });",
-    "  const [clients, setClients] = useState(() => HOME_FAST_CACHE.clients || []);\n  const [visitesEnCours, setVisitesEnCours] = useState(() => HOME_FAST_CACHE.visitesEnCours || []);\n  const [stats, setStats] = useState(() => HOME_FAST_CACHE.stats || { enCours: 0, terminees: 0 });",
+  text = replaceOnce(
+    text,
+    '  const [clients, setClients] = useState([]);\n  const [visitesEnCours, setVisitesEnCours] = useState([]);\n  const [stats, setStats] = useState({ enCours: 0, terminees: 0 });',
+    '  const [clients, setClients] = useState(() => HOME_FAST_CACHE.clients || []);\n  const [visitesEnCours, setVisitesEnCours] = useState(() => HOME_FAST_CACHE.visitesEnCours || []);\n  const [stats, setStats] = useState(() => HOME_FAST_CACHE.stats || { enCours: 0, terminees: 0 });',
     'Home cached state'
   );
   const oldLoad = `  const charger = useCallback(async () => {\n    const [c, v, s] = await Promise.all([listerClients(), listerVisitesEnCours(), compterVisites()]);\n    setClients(c);\n    setVisitesEnCours(v);\n    setStats(s);\n  }, []);`;
@@ -57,12 +65,14 @@ function patchClientSites() {
     if (!text.includes(anchor)) throw new Error('ClientSites cache anchor not found');
     text = text.replace(anchor, `${anchor}\n${marker}\n`);
   }
-  text = replaceOnce(text,
+  text = replaceOnce(
+    text,
     '  const [sites, setSites] = useState([]);',
     "  const [sites, setSites] = useState(() => CLIENT_SITES_FAST_CACHE.get(String(clientId || '')) || []);",
     'ClientSites cached state'
   );
-  text = replaceOnce(text,
+  text = replaceOnce(
+    text,
     `    const liste = await listerSitesClient(clientId);\n    setSites(Array.isArray(liste) ? liste : []);\n    return liste;`,
     `    const liste = await listerSitesClient(clientId);\n    const normalisee = Array.isArray(liste) ? liste : [];\n    CLIENT_SITES_FAST_CACHE.set(String(clientId), normalisee);\n    setSites(normalisee);\n    return normalisee;`,
     'ClientSites cached load'
@@ -99,9 +109,13 @@ function patchSiteGroups() {
   text = text.replace(/\n\s*await onChanged\?\.\(\);/g, '');
 
   if (!text.includes('<SiteGroupVirtualList groupes={groupes}')) {
-    const re = /        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle=\{\{ paddingTop: 12, paddingBottom: 8 \}\}>[\s\S]*?        <\/ScrollView>/;
+    const re =
+      /        <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle=\{\{ paddingTop: 12, paddingBottom: 8 \}\}>[\s\S]*?        <\/ScrollView>/;
     if (!re.test(text)) throw new Error('SiteGroups ScrollView list anchor not found');
-    text = text.replace(re, '        <SiteGroupVirtualList groupes={groupes} sites={sites} membershipSet={membershipSet} onToggle={basculer} onDelete={supprimer}/>');
+    text = text.replace(
+      re,
+      '        <SiteGroupVirtualList groupes={groupes} sites={sites} membershipSet={membershipSet} onToggle={basculer} onDelete={supprimer}/>'
+    );
   }
   write(path, text);
 }
@@ -111,26 +125,37 @@ function patchReport() {
   let text = read(path);
   const helperMarker = 'async function chargerDonneesRapportParLots(ids, limite=4) {';
   if (!text.includes(helperMarker)) {
-    const anchor = "function libelleTrame(data){return data?.trame?.nom||data?.visite?.trame_id||'Visite technique';}\n";
+    const anchor =
+      "function libelleTrame(data){return data?.trame?.nom||data?.visite?.trame_id||'Visite technique';}\n";
     if (!text.includes(anchor)) throw new Error('Report batch helper anchor not found');
     const helper = `\nasync function chargerDonneesRapportParLots(ids, limite=4) {\n const resultats=new Array(ids.length);let curseur=0;\n const workers=Array.from({length:Math.min(Math.max(1,limite),ids.length)},async()=>{while(true){const index=curseur++;if(index>=ids.length)return;resultats[index]=await chargerDonneesVisiteRapport(ids[index]);}});\n await Promise.all(workers);return resultats;\n}\n`;
     text = text.replace(anchor, anchor + helper);
   }
 
-  const selectMarker = ' const selectableIds=useMemo(()=>visites.filter(v=>v.statut===\'terminee\').map(v=>v.id),[visites]);';
+  const selectMarker =
+    " const selectableIds=useMemo(()=>visites.filter(v=>v.statut==='terminee').map(v=>v.id),[visites]);";
   if (!text.includes(selectMarker)) {
     const anchor = ' const groupeInterdit=selected.size<=1;\n';
     if (!text.includes(anchor)) throw new Error('Report select all anchor not found');
-    text = text.replace(anchor, anchor + " const selectableIds=useMemo(()=>visites.filter(v=>v.statut==='terminee').map(v=>v.id),[visites]);\n const toutSelectionner=()=>setSelected(new Set(selectableIds));\n const toutDeselectionner=()=>setSelected(new Set());\n");
+    text = text.replace(
+      anchor,
+      anchor +
+        " const selectableIds=useMemo(()=>visites.filter(v=>v.statut==='terminee').map(v=>v.id),[visites]);\n const toutSelectionner=()=>setSelected(new Set(selectableIds));\n const toutDeselectionner=()=>setSelected(new Set());\n"
+    );
   }
 
   if (!text.includes('chargerDonneesRapportParLots(ids,4)')) {
-    const re = /try\{const ds=\[\];let ph=\[\];for\(const id of ids\)\{const d=await chargerDonneesVisiteRapport\(id\);ds\.push\(d\);ph=\[\.\.\.ph,\.\.\.preparerPhotosRapport\(d,ph\)\.map\(x=>\(\{\.\.\.x,size:x\.size\|\|'medium',captionSize:x\.captionSize\|\|'normal'\}\)\)\]\}setDatas\(ds\);/;
+    const re =
+      /try\{const ds=\[\];let ph=\[\];for\(const id of ids\)\{const d=await chargerDonneesVisiteRapport\(id\);ds\.push\(d\);ph=\[\.\.\.ph,\.\.\.preparerPhotosRapport\(d,ph\)\.map\(x=>\(\{\.\.\.x,size:x\.size\|\|'medium',captionSize:x\.captionSize\|\|'normal'\}\)\)\]\}setDatas\(ds\);/;
     if (!re.test(text)) throw new Error('Report sequential preparation anchor not found');
-    text = text.replace(re, "try{const ds=await chargerDonneesRapportParLots(ids,4);const ph=ds.flatMap(d=>preparerPhotosRapport(d,[]).map(x=>({...x,size:x.size||'medium',captionSize:x.captionSize||'normal'})));setDatas(ds);");
+    text = text.replace(
+      re,
+      "try{const ds=await chargerDonneesRapportParLots(ids,4);const ph=ds.flatMap(d=>preparerPhotosRapport(d,[]).map(x=>({...x,size:x.size||'medium',captionSize:x.captionSize||'normal'})));setDatas(ds);"
+    );
   }
 
-  const hint = '<Text style={[styles.importHint,{marginBottom:10}]}>Pour chaque site, seule la visite la plus récente peut entrer dans le rapport. Les visites précédentes restent dans l’historique.</Text>';
+  const hint =
+    '<Text style={[styles.importHint,{marginBottom:10}]}>Pour chaque site, seule la visite la plus récente peut entrer dans le rapport. Les visites précédentes restent dans l’historique.</Text>';
   const topMarker = 'Tout désélectionner';
   if (!text.includes(topMarker)) {
     const target = `${hint}{visites.map`;
@@ -144,8 +169,10 @@ function patchReport() {
   const occurrences = text.split(bottomButton).length - 1;
   if (occurrences > 0) text = text.replace(bottomButton, '');
 
-  const oldPhotoSections = " const photoSections=useMemo(()=>datas.map((d,siteIndex)=>{const items=photos.filter(x=>x.visiteId===d.visite.id).sort((a,b)=>a.ordre-b.ordre);return{key:d.visite.id,data:items,visiteData:d,siteIndex}}),[datas,photos]);";
-  const newPhotoSections = " const photoSections=useMemo(()=>{const byVisit=new Map();for(const photo of photos){if(!byVisit.has(photo.visiteId))byVisit.set(photo.visiteId,[]);byVisit.get(photo.visiteId).push(photo)}return datas.map((d,siteIndex)=>{const items=[...(byVisit.get(d.visite.id)||[])].sort((a,b)=>a.ordre-b.ordre);return{key:d.visite.id,data:items,visiteData:d,siteIndex}})},[datas,photos]);";
+  const oldPhotoSections =
+    ' const photoSections=useMemo(()=>datas.map((d,siteIndex)=>{const items=photos.filter(x=>x.visiteId===d.visite.id).sort((a,b)=>a.ordre-b.ordre);return{key:d.visite.id,data:items,visiteData:d,siteIndex}}),[datas,photos]);';
+  const newPhotoSections =
+    ' const photoSections=useMemo(()=>{const byVisit=new Map();for(const photo of photos){if(!byVisit.has(photo.visiteId))byVisit.set(photo.visiteId,[]);byVisit.get(photo.visiteId).push(photo)}return datas.map((d,siteIndex)=>{const items=[...(byVisit.get(d.visite.id)||[])].sort((a,b)=>a.ordre-b.ordre);return{key:d.visite.id,data:items,visiteData:d,siteIndex}})},[datas,photos]);';
   text = replaceOnce(text, oldPhotoSections, newPhotoSections, 'Report photo grouping');
   write(path, text);
 }
@@ -155,12 +182,14 @@ function patchPilotage() {
   let text = read(path);
   const helperMarker = 'async function mapAvecConcurrence(items, limite, worker) {';
   if (!text.includes(helperMarker)) {
-    const anchor = "function normalize(value = '') { return String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase(); }\n";
+    const anchor =
+      "function normalize(value = '') { return String(value || '').normalize('NFD').replace(/[\\u0300-\\u036f]/g, '').toLowerCase(); }\n";
     if (!text.includes(anchor)) throw new Error('Pilotage concurrency anchor not found');
     const helper = `\nasync function mapAvecConcurrence(items, limite, worker) {\n  const resultats = new Array(items.length); let curseur = 0;\n  const workers = Array.from({ length: Math.min(Math.max(1, limite), items.length) }, async () => {\n    while (true) { const index = curseur++; if (index >= items.length) return; resultats[index] = await worker(items[index], index); }\n  });\n  await Promise.all(workers); return resultats;\n}\n`;
     text = text.replace(anchor, anchor + helper);
   }
-  text = replaceOnce(text,
+  text = replaceOnce(
+    text,
     `      const nextStats = new Map();\n      for (const site of m?.sites || []) nextStats.set(site.id, await getStatsSitePatrimoine(site.id));`,
     `      const statsEntries = await mapAvecConcurrence(m?.sites || [], 6, async (site) => [site.id, await getStatsSitePatrimoine(site.id)]);\n      const nextStats = new Map(statsEntries);`,
     'Pilotage bounded stats'
@@ -188,4 +217,6 @@ patchSiteGroups();
 patchReport();
 patchPilotage();
 patchMetraDirectory();
-console.log('Large-client performance UX patch applied: lazy storage, cached navigation, virtualized lists, report bulk controls and bounded loading.');
+console.log(
+  'Large-client performance UX patch applied: lazy storage, cached navigation, virtualized lists, report bulk controls and bounded loading.'
+);

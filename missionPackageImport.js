@@ -12,12 +12,15 @@ function clean(value) {
 }
 
 function safe(value = 'item') {
-  return String(value || 'item')
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-zA-Z0-9._-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^[_\.-]+|[_\.-]+$/g, '')
-    .slice(0, 110) || 'item';
+  return (
+    String(value || 'item')
+      .normalize('NFD')
+      .replace(/[\u0300-\u036f]/g, '')
+      .replace(/[^a-zA-Z0-9._-]+/g, '_')
+      .replace(/_+/g, '_')
+      .replace(/^[_\.-]+|[_\.-]+$/g, '')
+      .slice(0, 110) || 'item'
+  );
 }
 
 function native(uri) {
@@ -67,12 +70,14 @@ async function locatePackageRoot(extractRoot) {
   if (!manifestUri) throw new Error('manifest.json absent du dossier METRA.');
   return {
     root: manifestUri.slice(0, manifestUri.length - 'manifest.json'.length),
-    manifestUri,
+    manifestUri
   };
 }
 
 function validatedPackageUri(root, relativePath) {
-  const rel = String(relativePath || '').replace(/\\/g, '/').replace(/^\/+/, '');
+  const rel = String(relativePath || '')
+    .replace(/\\/g, '/')
+    .replace(/^\/+/, '');
   if (!rel || rel.includes('../') || rel.includes('/..') || /^[a-zA-Z]+:/.test(rel)) {
     throw new Error('Chemin de fichier non sûr dans le dossier Mission.');
   }
@@ -156,7 +161,17 @@ async function restoreDocuments(db, missionId, packageRoot) {
     if (!row?.id || !row?.package_file) continue;
     const source = validatedPackageUri(packageRoot, row.package_file);
     const ext = extensionFromName(row.name || row.package_file, '');
-    const destination = folder + safe(row.id) + '__' + safe(row.name || 'document') + (ext && !safe(row.name || '').toLowerCase().endsWith(ext.toLowerCase()) ? ext : '');
+    const destination =
+      folder +
+      safe(row.id) +
+      '__' +
+      safe(row.name || 'document') +
+      (ext &&
+      !safe(row.name || '')
+        .toLowerCase()
+        .endsWith(ext.toLowerCase())
+        ? ext
+        : '');
     if (await copyFileDurable(source, destination)) {
       await db.runAsync(
         "UPDATE mission_documents SET file_uri=?,offline_state='available_offline',updated_at=datetime('now') WHERE id=? AND mission_id=?",
@@ -182,7 +197,17 @@ async function restorePlans(db, missionId, packageRoot) {
     if (!row?.id || !row?.package_file) continue;
     const source = validatedPackageUri(packageRoot, row.package_file);
     const ext = extensionFromName(row.name || row.package_file, '');
-    const destination = folder + safe(row.id) + '__' + safe(row.name || 'plan') + (ext && !safe(row.name || '').toLowerCase().endsWith(ext.toLowerCase()) ? ext : '');
+    const destination =
+      folder +
+      safe(row.id) +
+      '__' +
+      safe(row.name || 'plan') +
+      (ext &&
+      !safe(row.name || '')
+        .toLowerCase()
+        .endsWith(ext.toLowerCase())
+        ? ext
+        : '');
     if (await copyFileDurable(source, destination)) {
       await db.runAsync(
         "UPDATE mission_documents SET file_uri=?,offline_state='available_offline',updated_at=datetime('now') WHERE id=? AND mission_id=?",
@@ -227,7 +252,18 @@ async function restoreMapLayers(db, missionId, packageRoot) {
       const destinationRoot = folder + 'tiles/' + safe(row.id) + '/';
       await FileSystem.makeDirectoryAsync(destinationRoot, { intermediates: true });
       if (await copyDirectoryDurable(source, destinationRoot)) {
-        const data = updateTileTemplate(typeof row.data_json === 'string' ? (() => { try { return JSON.parse(row.data_json); } catch { return {}; } })() : row.data, destinationRoot);
+        const data = updateTileTemplate(
+          typeof row.data_json === 'string'
+            ? (() => {
+                try {
+                  return JSON.parse(row.data_json);
+                } catch {
+                  return {};
+                }
+              })()
+            : row.data,
+          destinationRoot
+        );
         await db.runAsync(
           "UPDATE mission_map_layers SET source_uri=?,data_json=?,offline_available=1,updated_at=datetime('now') WHERE id=? AND mission_id=?",
           [destinationRoot, JSON.stringify(data), row.id, missionId]
@@ -258,12 +294,13 @@ async function restoreMapLayers(db, missionId, packageRoot) {
 
 async function copyReferenceOutputs(missionId, packageRoot, manifest) {
   const folder = await ensureMissionFolder(missionId, 'restored_outputs');
-  const candidates = (manifest?.files || []).filter((rel) => (
-    String(rel).startsWith('Rapport/')
-    || String(rel).startsWith('Plans/Annotes/')
-    || String(rel).startsWith('Export_SIG/')
-    || String(rel).startsWith('Synoptiques/')
-  ));
+  const candidates = (manifest?.files || []).filter(
+    (rel) =>
+      String(rel).startsWith('Rapport/') ||
+      String(rel).startsWith('Plans/Annotes/') ||
+      String(rel).startsWith('Export_SIG/') ||
+      String(rel).startsWith('Synoptiques/')
+  );
   let copied = 0;
   for (const rel of candidates) {
     if (String(rel).endsWith('/')) continue;
@@ -300,11 +337,11 @@ export async function importerPackageMissionUri({ uri, name = 'Mission_METRA.zip
     const excelRel = canonicalExcelRelativePath(manifest);
     if (!excelRel) throw new Error('Export Excel structuré absent du dossier Mission.');
     const excelUri = validatedPackageUri(located.root, excelRel);
-    if (!await exists(excelUri)) throw new Error('Le fichier Excel structuré annoncé dans le manifeste est absent.');
+    if (!(await exists(excelUri))) throw new Error('Le fichier Excel structuré annoncé dans le manifeste est absent.');
 
     const imported = await importerMissionDepuisExcelUri({
       uri: excelUri,
-      name: String(excelRel).split('/').pop() || 'Export_METRA.xlsx',
+      name: String(excelRel).split('/').pop() || 'Export_METRA.xlsx'
     });
     if (!imported?.canonical || !imported?.missionId) {
       throw new Error('Le classeur du dossier n’est pas un export relationnel METRA valide.');
@@ -316,7 +353,7 @@ export async function importerPackageMissionUri({ uri, name = 'Mission_METRA.zip
       restorePhotos(db, missionId, located.root),
       restoreDocuments(db, missionId, located.root),
       restorePlans(db, missionId, located.root),
-      restoreMapLayers(db, missionId, located.root),
+      restoreMapLayers(db, missionId, located.root)
     ]);
     const referenceOutputs = await copyReferenceOutputs(missionId, located.root, manifest);
 
@@ -328,13 +365,15 @@ export async function importerPackageMissionUri({ uri, name = 'Mission_METRA.zip
       documents,
       plans,
       mapLayers,
-      referenceOutputs,
+      referenceOutputs
     };
 
     const mission = await db.getFirstAsync('SELECT id,label,reference FROM missions WHERE id=?', [missionId]);
     return { ...summary, mission };
   } finally {
-    try { await FileSystem.deleteAsync(extractRoot, { idempotent: true }); } catch {}
+    try {
+      await FileSystem.deleteAsync(extractRoot, { idempotent: true });
+    } catch {}
   }
 }
 
@@ -342,7 +381,7 @@ export async function choisirEtImporterPackageMission() {
   const picked = await DocumentPicker.getDocumentAsync({
     type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'],
     copyToCacheDirectory: true,
-    multiple: false,
+    multiple: false
   });
   if (picked?.canceled) return null;
   const asset = picked?.assets?.[0];

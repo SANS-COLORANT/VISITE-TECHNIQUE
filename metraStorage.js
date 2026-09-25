@@ -7,7 +7,8 @@ const ROOT_FOLDER = 'METRA';
 
 function nettoyerSegment(value, fallback = 'Sans_nom') {
   const clean = String(value || fallback)
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .replace(/[’']/g, '')
     .replace(/[^a-zA-Z0-9 _.-]+/g, ' ')
     .replace(/\s+/g, ' ')
@@ -40,7 +41,9 @@ function uriSeTerminePar(uri, nom) {
   try {
     const decoded = decodeURIComponent(String(uri || ''));
     return decoded.endsWith(`/${nom}`) || decoded.endsWith(`:${nom}`);
-  } catch { return false; }
+  } catch {
+    return false;
+  }
 }
 
 async function trouverOuCreerSousDossier(parentUri, nom) {
@@ -55,8 +58,12 @@ async function trouverOuCreerSousDossier(parentUri, nom) {
   return SAF.makeDirectoryAsync(parentUri, safeName);
 }
 
-export async function obtenirRacineMetra() { return lireMeta(ROOT_META_KEY); }
-export async function oublierRacineMetra() { await supprimerMeta(ROOT_META_KEY); }
+export async function obtenirRacineMetra() {
+  return lireMeta(ROOT_META_KEY);
+}
+export async function oublierRacineMetra() {
+  await supprimerMeta(ROOT_META_KEY);
+}
 
 export async function garantirRacineMetra() {
   const existante = await obtenirRacineMetra();
@@ -64,13 +71,19 @@ export async function garantirRacineMetra() {
     try {
       await FileSystem.StorageAccessFramework.readDirectoryAsync(existante);
       return existante;
-    } catch { await oublierRacineMetra().catch(() => {}); }
+    } catch {
+      await oublierRacineMetra().catch(() => {});
+    }
   }
 
   const SAF = FileSystem.StorageAccessFramework;
   if (!SAF?.requestDirectoryPermissionsAsync || !SAF?.makeDirectoryAsync) return null;
   let initialUri;
-  try { initialUri = SAF.getUriForDirectoryInRoot?.('Documents'); } catch { initialUri = undefined; }
+  try {
+    initialUri = SAF.getUriForDirectoryInRoot?.('Documents');
+  } catch {
+    initialUri = undefined;
+  }
   const permission = await SAF.requestDirectoryPermissionsAsync(initialUri);
   if (!permission?.granted || !permission?.directoryUri) return null;
   const racine = await trouverOuCreerSousDossier(permission.directoryUri, ROOT_FOLDER);
@@ -111,16 +124,24 @@ export async function dossierClientMetra(clientNom) {
 }
 
 export async function dossierSiteMetra({ clientNom, siteNom }) {
-  return garantirCheminMetra(['Clients', nettoyerSegment(clientNom, 'Client'), 'Sites', nettoyerSegment(siteNom, 'Site')]);
+  return garantirCheminMetra([
+    'Clients',
+    nettoyerSegment(clientNom, 'Client'),
+    'Sites',
+    nettoyerSegment(siteNom, 'Site')
+  ]);
 }
 
 export async function dossierVisiteMetra(visiteId, sousDossier = null) {
   const ctx = await contexteVisiteStockage(visiteId);
   return garantirCheminMetra([
-    'Clients', nettoyerSegment(ctx.nom_client, 'Client'),
-    'Sites', nettoyerSegment(ctx.nom_site, 'Site'),
-    'Visites', libelleVisite(ctx),
-    sousDossier,
+    'Clients',
+    nettoyerSegment(ctx.nom_client, 'Client'),
+    'Sites',
+    nettoyerSegment(ctx.nom_site, 'Site'),
+    'Visites',
+    libelleVisite(ctx),
+    sousDossier
   ]);
 }
 
@@ -129,10 +150,16 @@ export async function initialiserArborescenceClient(clientId) {
   const client = await db.getFirstAsync(`SELECT id,nom FROM clients WHERE id=?`, [clientId]);
   if (!client) throw new Error('Client introuvable.');
   await dossierClientMetra(client.nom);
-  const sites = await db.getAllAsync(`SELECT id,nom_site FROM sites WHERE client_id=? ORDER BY nom_site COLLATE NOCASE`, [clientId]);
+  const sites = await db.getAllAsync(
+    `SELECT id,nom_site FROM sites WHERE client_id=? ORDER BY nom_site COLLATE NOCASE`,
+    [clientId]
+  );
   for (const site of sites) {
     await dossierSiteMetra({ clientNom: client.nom, siteNom: site.nom_site });
-    const visites = await db.getAllAsync(`SELECT id FROM visites WHERE site_id=? ORDER BY COALESCE(date_visite,''),cree_le`, [site.id]);
+    const visites = await db.getAllAsync(
+      `SELECT id FROM visites WHERE site_id=? ORDER BY COALESCE(date_visite,''),cree_le`,
+      [site.id]
+    );
     for (const visite of visites) await dossierVisiteMetra(visite.id);
   }
   return { client: client.nom, sites: sites.length };
@@ -144,16 +171,20 @@ export async function dossierRapportsClientMetra(clientNom) {
 
 export async function dossierRapportsSiteMetra({ clientNom, siteNom }) {
   return garantirCheminMetra([
-    'Clients', nettoyerSegment(clientNom, 'Client'),
-    'Rapports', nettoyerSegment(siteNom, 'Site'),
+    'Clients',
+    nettoyerSegment(clientNom, 'Client'),
+    'Rapports',
+    nettoyerSegment(siteNom, 'Site')
   ]);
 }
 
 export async function dossierRapportsLocalMetra({ clientNom, siteNom, localNom }) {
   return garantirCheminMetra([
-    'Clients', nettoyerSegment(clientNom, 'Client'),
-    'Rapports', nettoyerSegment(siteNom, 'Site'),
-    nettoyerSegment(localNom, 'Local'),
+    'Clients',
+    nettoyerSegment(clientNom, 'Client'),
+    'Rapports',
+    nettoyerSegment(siteNom, 'Site'),
+    nettoyerSegment(localNom, 'Local')
   ]);
 }
 
@@ -163,7 +194,8 @@ export async function dossierRapportMetra(datas = []) {
   const clients = new Set(datas.map((d) => d?.visite?.client_id).filter(Boolean));
   const sites = new Set(datas.map((d) => d?.visite?.site_id).filter(Boolean));
   if (sites.size === 1 && premiere.id) return dossierVisiteMetra(premiere.id, 'Rapports');
-  if (clients.size <= 1) return garantirCheminMetra(['Clients', nettoyerSegment(premiere.nom_client, 'Client'), 'Rapports']);
+  if (clients.size <= 1)
+    return garantirCheminMetra(['Clients', nettoyerSegment(premiere.nom_client, 'Client'), 'Rapports']);
   return garantirCheminMetra(['Rapports multi-clients']);
 }
 

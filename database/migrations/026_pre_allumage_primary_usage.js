@@ -4,5 +4,5 @@ export const migration026 = {
   sql: `
     ALTER TABLE pre_allumage_locaux
       ADD COLUMN primaire INTEGER NOT NULL DEFAULT 0;
-  `,
+  `
 };

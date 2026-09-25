@@ -33,7 +33,9 @@ function nomFichierDepuisUri(uri) {
 
 function visiteIdDepuisUriInterne(uri) {
   try {
-    const morceaux = decodeURIComponent(String(uri || '')).split('/').filter(Boolean);
+    const morceaux = decodeURIComponent(String(uri || ''))
+      .split('/')
+      .filter(Boolean);
     const dossierVisite = morceaux[morceaux.length - 2] || '';
     const sep = dossierVisite.indexOf('__');
     return sep >= 0 ? dossierVisite.slice(sep + 2) : null;
@@ -73,8 +75,11 @@ export async function supprimerCopiePhotoDocuments(uriInterneOuNom) {
   const uriExterne = await lireMeta(key);
   if (!uriExterne) return false;
 
-  try { await FileSystem.deleteAsync(uriExterne, { idempotent: true }); }
-  catch (error) { console.warn('Suppression copie Documents impossible', error); }
+  try {
+    await FileSystem.deleteAsync(uriExterne, { idempotent: true });
+  } catch (error) {
+    console.warn('Suppression copie Documents impossible', error);
+  }
   await supprimerMeta(key).catch(() => {});
   return true;
 }

@@ -2,7 +2,13 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { activateTablet, getActivationStatus, syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';
-import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory } from './symfonyApiCacheDb.js';
+import {
+  getCachedClient,
+  listCachedLocals,
+  listCachedSites,
+  materializeCachedSite,
+  searchCachedDirectory
+} from './symfonyApiCacheDb.js';
 import { syncStructureReferential } from './intranetStructureDb.js';
 import { importLatestApiVisitsForSite } from './apiLatestVisitImportDb.js';
 import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
@@ -29,70 +35,151 @@ function humanSyncDate(value) {
 }
 
 function trameLabels(value) {
-  return [...new Set(String(value || '').split(',').map((x) => x.trim()).filter(Boolean))].slice(0, 3);
+  return [
+    ...new Set(
+      String(value || '')
+        .split(',')
+        .map((x) => x.trim())
+        .filter(Boolean)
+    )
+  ].slice(0, 3);
 }
 
 function SmallPill({ children, tone = 'neutral' }) {
-  const palette = tone === 'success'
-    ? { bg: '#EAF8F1', fg: SUCCESS, border: '#CDEEDF' }
-    : tone === 'warning'
-      ? { bg: '#FFF4E8', fg: '#9A4C0A', border: '#F3D9B8' }
-      : { bg: '#F4F6F8', fg: '#475467', border: '#E5E7EB' };
-  return <View style={{ paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border }}>
-    <Text style={{ color: palette.fg, fontSize: 11, fontWeight: '800' }}>{children}</Text>
-  </View>;
+  const palette =
+    tone === 'success'
+      ? { bg: '#EAF8F1', fg: SUCCESS, border: '#CDEEDF' }
+      : tone === 'warning'
+        ? { bg: '#FFF4E8', fg: '#9A4C0A', border: '#F3D9B8' }
+        : { bg: '#F4F6F8', fg: '#475467', border: '#E5E7EB' };
+  return (
+    <View
+      style={{
+        paddingHorizontal: 9,
+        paddingVertical: 5,
+        borderRadius: 999,
+        backgroundColor: palette.bg,
+        borderWidth: 1,
+        borderColor: palette.border
+      }}
+    >
+      <Text style={{ color: palette.fg, fontSize: 11, fontWeight: '800' }}>{children}</Text>
+    </View>
+  );
 }
 
 function DirectoryRow({ item, onPress }) {
   const isSite = item.kind === 'site';
   const labels = trameLabels(item.trames);
-  return <TouchableOpacity activeOpacity={0.82} onPress={onPress} style={{ backgroundColor: SURFACE, borderWidth: 1, borderColor: BORDER, borderRadius: 16, padding: 15, marginBottom: 9, flexDirection: 'row', alignItems: 'center' }}>
-    <View style={{ flex: 1, paddingRight: 12 }}>
-      <Text style={{ color: isSite ? ACCENT : MUTED, fontSize: 10, fontWeight: '900', letterSpacing: 0.8, marginBottom: 4 }}>{isSite ? 'SITE' : 'CLIENT'}</Text>
-      <Text numberOfLines={1} style={{ color: INK, fontSize: 15.5, fontWeight: '900' }}>{item.nom}</Text>
-      <Text numberOfLines={1} style={{ color: MUTED, fontSize: 12.5, marginTop: 3 }}>
-        {isSite ? [item.client_nom, item.client_ville].filter(Boolean).join(' · ') : [item.code_everwin, item.ville, item.categorie].filter(Boolean).join(' · ') || 'Client autorisé'}
-      </Text>
-      {isSite ? <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 9 }}>
-        <SmallPill>{Number(item.local_count || 0)} installation{Number(item.local_count || 0) > 1 ? 's' : ''}</SmallPill>
-        {labels.slice(0, 2).map((label) => <SmallPill key={label}>{label}</SmallPill>)}
-      </View> : null}
-    </View>
-    <Text style={{ color: '#98A2B3', fontSize: 25 }}>›</Text>
-  </TouchableOpacity>;
+  return (
+    <TouchableOpacity
+      activeOpacity={0.82}
+      onPress={onPress}
+      style={{
+        backgroundColor: SURFACE,
+        borderWidth: 1,
+        borderColor: BORDER,
+        borderRadius: 16,
+        padding: 15,
+        marginBottom: 9,
+        flexDirection: 'row',
+        alignItems: 'center'
+      }}
+    >
+      <View style={{ flex: 1, paddingRight: 12 }}>
+        <Text
+          style={{
+            color: isSite ? ACCENT : MUTED,
+            fontSize: 10,
+            fontWeight: '900',
+            letterSpacing: 0.8,
+            marginBottom: 4
+          }}
+        >
+          {isSite ? 'SITE' : 'CLIENT'}
+        </Text>
+        <Text numberOfLines={1} style={{ color: INK, fontSize: 15.5, fontWeight: '900' }}>
+          {item.nom}
+        </Text>
+        <Text numberOfLines={1} style={{ color: MUTED, fontSize: 12.5, marginTop: 3 }}>
+          {isSite
+            ? [item.client_nom, item.client_ville].filter(Boolean).join(' · ')
+            : [item.code_everwin, item.ville, item.categorie].filter(Boolean).join(' · ') || 'Client autorisé'}
+        </Text>
+        {isSite ? (
+          <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 9 }}>
+            <SmallPill>
+              {Number(item.local_count || 0)} installation{Number(item.local_count || 0) > 1 ? 's' : ''}
+            </SmallPill>
+            {labels.slice(0, 2).map((label) => (
+              <SmallPill key={label}>{label}</SmallPill>
+            ))}
+          </View>
+        ) : null}
+      </View>
+      <Text style={{ color: '#98A2B3', fontSize: 25 }}>›</Text>
+    </TouchableOpacity>
+  );
 }
 
 function SiteSelectionRow({ item, selected, onPress, disabled }) {
   const labels = trameLabels(item.trames);
-  return <TouchableOpacity
-    activeOpacity={0.82}
-    disabled={disabled}
-    onPress={onPress}
-    style={{
-      backgroundColor: selected ? '#FFF7F1' : SURFACE,
-      borderWidth: selected ? 2 : 1,
-      borderColor: selected ? ACCENT : BORDER,
-      borderRadius: 15,
-      paddingHorizontal: 12,
-      paddingVertical: 11,
-      marginBottom: 7,
-      flexDirection: 'row',
-      alignItems: 'center',
-      opacity: disabled ? 0.62 : 1,
-    }}
-  >
-    <View style={{ width: 26, height: 26, borderRadius: 8, borderWidth: 2, borderColor: selected ? ACCENT : '#C9CDD3', backgroundColor: selected ? ACCENT : '#FFF', alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
-      {selected ? <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '900' }}>✓</Text> : null}
-    </View>
-    <View style={{ flex: 1, paddingRight: 8 }}>
-      <Text numberOfLines={1} style={{ color: INK, fontSize: 15, fontWeight: '900' }}>{item.nom}</Text>
-      <Text numberOfLines={1} style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>{[item.client_ville, item.derniere_visite_date ? `dernière visite ${String(item.derniere_visite_date).slice(0, 10)}` : null].filter(Boolean).join(' · ') || 'Site disponible'}</Text>
-      <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
-        <SmallPill>{Number(item.local_count || 0)} installation{Number(item.local_count || 0) > 1 ? 's' : ''}</SmallPill>
-        {labels.slice(0, 2).map((label) => <SmallPill key={label}>{label}</SmallPill>)}
+  return (
+    <TouchableOpacity
+      activeOpacity={0.82}
+      disabled={disabled}
+      onPress={onPress}
+      style={{
+        backgroundColor: selected ? '#FFF7F1' : SURFACE,
+        borderWidth: selected ? 2 : 1,
+        borderColor: selected ? ACCENT : BORDER,
+        borderRadius: 15,
+        paddingHorizontal: 12,
+        paddingVertical: 11,
+        marginBottom: 7,
+        flexDirection: 'row',
+        alignItems: 'center',
+        opacity: disabled ? 0.62 : 1
+      }}
+    >
+      <View
+        style={{
+          width: 26,
+          height: 26,
+          borderRadius: 8,
+          borderWidth: 2,
+          borderColor: selected ? ACCENT : '#C9CDD3',
+          backgroundColor: selected ? ACCENT : '#FFF',
+          alignItems: 'center',
+          justifyContent: 'center',
+          marginRight: 11
+        }}
+      >
+        {selected ? <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '900' }}>✓</Text> : null}
       </View>
-    </View>
-  </TouchableOpacity>;
+      <View style={{ flex: 1, paddingRight: 8 }}>
+        <Text numberOfLines={1} style={{ color: INK, fontSize: 15, fontWeight: '900' }}>
+          {item.nom}
+        </Text>
+        <Text numberOfLines={1} style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>
+          {[
+            item.client_ville,
+            item.derniere_visite_date ? `dernière visite ${String(item.derniere_visite_date).slice(0, 10)}` : null
+          ]
+            .filter(Boolean)
+            .join(' · ') || 'Site disponible'}
+        </Text>
+        <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
+          <SmallPill>
+            {Number(item.local_count || 0)} installation{Number(item.local_count || 0) > 1 ? 's' : ''}
+          </SmallPill>
+          {labels.slice(0, 2).map((label) => (
+            <SmallPill key={label}>{label}</SmallPill>
+          ))}
+        </View>
+      </View>
+    </TouchableOpacity>
+  );
 }
 
 function MetraDirectoryScreen({ navigation, route }) {
@@ -125,20 +212,30 @@ function MetraDirectoryScreen({ navigation, route }) {
     return next;
   }, []);
 
-  const search = useCallback(async (text = query) => {
-    const next = await searchCachedDirectory(text);
-    METRA_DIRECTORY_FAST_CACHE = next;
-    setDirectory(next);
-  }, [query]);
+  const search = useCallback(
+    async (text = query) => {
+      const next = await searchCachedDirectory(text);
+      METRA_DIRECTORY_FAST_CACHE = next;
+      setDirectory(next);
+    },
+    [query]
+  );
 
-  useEffect(() => { refreshStatus().catch(() => {}); }, [refreshStatus]);
   useEffect(() => {
-    const timer = setTimeout(() => { search(query).catch(() => {}); }, 80);
+    refreshStatus().catch(() => {});
+  }, [refreshStatus]);
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      search(query).catch(() => {});
+    }, 80);
     return () => clearTimeout(timer);
   }, [query, search]);
 
   const sync = async () => {
-    if (!status.activated) { setActivationVisible(true); return; }
+    if (!status.activated) {
+      setActivationVisible(true);
+      return;
+    }
     if (syncing) return;
     setSyncing(true);
     try {
@@ -146,8 +243,13 @@ function MetraDirectoryScreen({ navigation, route }) {
       await Promise.all([search(query), refreshStatus()]);
     } catch (e) {
       await refreshStatus().catch(() => {});
-      Alert.alert('Synchronisation indisponible', `${String(e.message || e)}\n\nLes données déjà présentes restent utilisables hors connexion.`);
-    } finally { setSyncing(false); }
+      Alert.alert(
+        'Synchronisation indisponible',
+        `${String(e.message || e)}\n\nLes données déjà présentes restent utilisables hors connexion.`
+      );
+    } finally {
+      setSyncing(false);
+    }
   };
 
   const activate = async () => {
@@ -159,8 +261,11 @@ function MetraDirectoryScreen({ navigation, route }) {
       setActivationVisible(false);
       await syncAuthorizedClients();
       await Promise.all([search(query), refreshStatus()]);
-    } catch (e) { Alert.alert('Activation impossible', String(e.message || e)); }
-    finally { setActivating(false); }
+    } catch (e) {
+      Alert.alert('Activation impossible', String(e.message || e));
+    } finally {
+      setActivating(false);
+    }
   };
 
   const refreshClientPreparation = async (remoteClientId) => {
@@ -175,13 +280,21 @@ function MetraDirectoryScreen({ navigation, route }) {
       setSites(await listCachedSites(remoteClientId));
       await Promise.all([search(query), refreshStatus()]);
     } catch (e) {
-      Alert.alert('Actualisation impossible', `${String(e.message || e)}\n\nLa préparation déjà enregistrée reste disponible.`);
-    } finally { setClientRefreshing(false); }
+      Alert.alert(
+        'Actualisation impossible',
+        `${String(e.message || e)}\n\nLa préparation déjà enregistrée reste disponible.`
+      );
+    } finally {
+      setClientRefreshing(false);
+    }
   };
 
   const openClient = async (remoteClientId) => {
     try {
-      const [client, cachedSites] = await Promise.all([getCachedClient(remoteClientId), listCachedSites(remoteClientId)]);
+      const [client, cachedSites] = await Promise.all([
+        getCachedClient(remoteClientId),
+        listCachedSites(remoteClientId)
+      ]);
       setSelectedSite(null);
       setSiteClient(null);
       setSelectedClient(client);
@@ -191,7 +304,9 @@ function MetraDirectoryScreen({ navigation, route }) {
       setSelectedSiteIds(new Set());
       setBatchImportProgress(null);
       if (status.activated) refreshClientPreparation(remoteClientId).catch(() => {});
-    } catch (e) { Alert.alert('Ouverture impossible', String(e.message || e)); }
+    } catch (e) {
+      Alert.alert('Ouverture impossible', String(e.message || e));
+    }
   };
 
   const openClientLatestPhotos = () => {
@@ -210,7 +325,8 @@ function MetraDirectoryScreen({ navigation, route }) {
     const id = String(remoteSiteId);
     setSelectedSiteIds((current) => {
       const next = new Set(current);
-      if (next.has(id)) next.delete(id); else next.add(id);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
@@ -232,9 +348,9 @@ function MetraDirectoryScreen({ navigation, route }) {
 
   const toggleAllSites = () => {
     if (batchImportBusy) return;
-    setSelectedSiteIds((current) => current.size === sites.length
-      ? new Set()
-      : new Set(sites.map((site) => String(site.remote_site_id))));
+    setSelectedSiteIds((current) =>
+      current.size === sites.length ? new Set() : new Set(sites.map((site) => String(site.remote_site_id)))
+    );
   };
 
   const importSelectedSites = async () => {
@@ -246,7 +362,10 @@ function MetraDirectoryScreen({ navigation, route }) {
     }
 
     if (includePhotos && !photoPlan?.ready) {
-      Alert.alert('Photos non prêtes', 'Attends la vérification des photos, réessaie ou désactive leur inclusion pour importer les données seules.');
+      Alert.alert(
+        'Photos non prêtes',
+        'Attends la vérification des photos, réessaie ou désactive leur inclusion pour importer les données seules.'
+      );
       return;
     }
     const selectedPhotoManifest = includePhotos ? photoPlan.manifest : null;
@@ -277,7 +396,12 @@ function MetraDirectoryScreen({ navigation, route }) {
       if (selectedPhotoManifest && importedRemoteIds.length) {
         const selectedPhotos = filterLatestVisitPhotos(selectedPhotoManifest, { siteIds: importedRemoteIds });
         photosScheduled = photoSummary(selectedPhotos).missing;
-        if (photosScheduled) startPhotoDownload({ clientId: selectedClient.remote_client_id, manifest: selectedPhotos, label: `${selectedClient.nom} · ${importedRemoteIds.length} site(s) préparé(s)` });
+        if (photosScheduled)
+          startPhotoDownload({
+            clientId: selectedClient.remote_client_id,
+            manifest: selectedPhotos,
+            label: `${selectedClient.nom} · ${importedRemoteIds.length} site(s) préparé(s)`
+          });
       }
       await search(query).catch(() => {});
       setSiteSelectionMode(false);
@@ -286,11 +410,17 @@ function MetraDirectoryScreen({ navigation, route }) {
 
       const lines = [
         `${importedSites} site${importedSites > 1 ? 's' : ''} importé${importedSites > 1 ? 's' : ''} dans METRA.`,
-        `${importedVisits} dernière${importedVisits > 1 ? 's' : ''} visite${importedVisits > 1 ? 's' : ''} intégrée${importedVisits > 1 ? 's' : ''}.`,
+        `${importedVisits} dernière${importedVisits > 1 ? 's' : ''} visite${importedVisits > 1 ? 's' : ''} intégrée${importedVisits > 1 ? 's' : ''}.`
       ];
-      if (photosScheduled) lines.push(`${photosScheduled} photo(s) en cours de téléchargement. Tu peux continuer dans METRA et consulter le suivi.`);
+      if (photosScheduled)
+        lines.push(
+          `${photosScheduled} photo(s) en cours de téléchargement. Tu peux continuer dans METRA et consulter le suivi.`
+        );
       if (errors.length) lines.push(`${errors.length} site${errors.length > 1 ? 's' : ''} en erreur.`);
-      Alert.alert(errors.length ? 'Import multiple terminé avec réserves' : 'Import multiple terminé', lines.join('\n'));
+      Alert.alert(
+        errors.length ? 'Import multiple terminé avec réserves' : 'Import multiple terminé',
+        lines.join('\n')
+      );
     } finally {
       setBatchImportBusy(false);
     }
@@ -298,12 +428,17 @@ function MetraDirectoryScreen({ navigation, route }) {
 
   const openSite = async (site, { keepClientSheet = false } = {}) => {
     try {
-      const [client, cachedLocals] = await Promise.all([getCachedClient(site.remote_client_id), listCachedLocals(site.remote_site_id)]);
+      const [client, cachedLocals] = await Promise.all([
+        getCachedClient(site.remote_client_id),
+        listCachedLocals(site.remote_site_id)
+      ]);
       if (!keepClientSheet) setSelectedClient(null);
       setSiteClient(client);
       setSelectedSite(site);
       setLocals(cachedLocals);
-    } catch (e) { Alert.alert('Ouverture impossible', String(e.message || e)); }
+    } catch (e) {
+      Alert.alert('Ouverture impossible', String(e.message || e));
+    }
   };
 
   const refreshSite = async () => {
@@ -312,14 +447,21 @@ function MetraDirectoryScreen({ navigation, route }) {
     setSiteRefreshing(true);
     try {
       await syncClientPreparation(remoteClientId);
-      const [freshSites, freshLocals] = await Promise.all([listCachedSites(remoteClientId), listCachedLocals(selectedSite.remote_site_id)]);
-      setSelectedSite(freshSites.find((row) => String(row.remote_site_id) === String(selectedSite.remote_site_id)) || selectedSite);
+      const [freshSites, freshLocals] = await Promise.all([
+        listCachedSites(remoteClientId),
+        listCachedLocals(selectedSite.remote_site_id)
+      ]);
+      setSelectedSite(
+        freshSites.find((row) => String(row.remote_site_id) === String(selectedSite.remote_site_id)) || selectedSite
+      );
       setLocals(freshLocals);
       if (selectedClient) setSites(freshSites);
       await Promise.all([search(query), refreshStatus()]);
     } catch (e) {
       Alert.alert('Actualisation impossible', `${String(e.message || e)}\n\nLa fiche locale reste disponible.`);
-    } finally { setSiteRefreshing(false); }
+    } finally {
+      setSiteRefreshing(false);
+    }
   };
 
   const openInMetra = async (site) => {
@@ -337,10 +479,13 @@ function MetraDirectoryScreen({ navigation, route }) {
         nomSite: site.nom,
         clientId: refreshedClient?.local_client_id || null,
         nomClient: refreshedClient?.nom || siteClient?.nom || null,
-        apiLatestImportCount: latestImport.importedCount,
+        apiLatestImportCount: latestImport.importedCount
       });
-    } catch (e) { Alert.alert('Ouverture impossible', String(e.message || e)); }
-    finally { setSiteActionBusy(false); }
+    } catch (e) {
+      Alert.alert('Ouverture impossible', String(e.message || e));
+    } finally {
+      setSiteActionBusy(false);
+    }
   };
 
   const openPreparedVisit = async (local) => {
@@ -360,200 +505,649 @@ function MetraDirectoryScreen({ navigation, route }) {
         apiRemoteLocalDesignation: local.designation || 'Local technique',
         apiRemoteTrameId: local.remote_trame_id || null,
         apiRemoteTrameNom: local.remote_trame_nom || null,
-        openNewVisit: true,
+        openNewVisit: true
       };
       setSelectedSite(null);
       setSelectedClient(null);
       navigation.navigate('SiteVisites', params);
-    } catch (e) { Alert.alert('Préparation impossible', String(e.message || e)); }
-    finally { setSiteActionBusy(false); }
+    } catch (e) {
+      Alert.alert('Préparation impossible', String(e.message || e));
+    } finally {
+      setSiteActionBusy(false);
+    }
   };
 
   const rows = useMemo(() => {
-    const siteRows = directory.sites.map((x) => ({ kind: 'site', id: `s-${x.remote_client_id}-${x.remote_site_id}`, ...x }));
+    const siteRows = directory.sites.map((x) => ({
+      kind: 'site',
+      id: `s-${x.remote_client_id}-${x.remote_site_id}`,
+      ...x
+    }));
     const clientRows = directory.clients.map((x) => ({ kind: 'client', id: `c-${x.remote_client_id}`, ...x }));
     return query.trim() ? [...siteRows, ...clientRows] : [...clientRows, ...siteRows];
   }, [directory, query]);
 
   const lastSync = humanSyncDate(status.lastSyncAt);
-  const resultLabel = query.trim() ? `${rows.length} résultat${rows.length > 1 ? 's' : ''}` : 'Clients et sites disponibles';
+  const resultLabel = query.trim()
+    ? `${rows.length} résultat${rows.length > 1 ? 's' : ''}`
+    : 'Clients et sites disponibles';
   const siteTrames = [...new Set(locals.map((local) => local.remote_trame_nom).filter(Boolean))];
-  const latestVisit = locals.map((local) => local.derniere_visite_date).filter(Boolean).sort().reverse()[0] || selectedSite?.derniere_visite_date || null;
+  const latestVisit =
+    locals
+      .map((local) => local.derniere_visite_date)
+      .filter(Boolean)
+      .sort()
+      .reverse()[0] ||
+    selectedSite?.derniere_visite_date ||
+    null;
 
-  return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-    <FlatList
-      style={{ flex: 1 }}
-      contentContainerStyle={[styles.content, { paddingBottom: 34 }]}
-      keyboardShouldPersistTaps="handled"
-      data={rows}
-      initialNumToRender={16}
-      maxToRenderPerBatch={12}
-      updateCellsBatchingPeriod={24}
-      windowSize={7}
-      removeClippedSubviews={false}
-      keyExtractor={(x) => x.id}
-      ListHeaderComponent={<>
-        <View style={{ backgroundColor: SURFACE, borderRadius: 18, borderWidth: 1, borderColor: BORDER, padding: 12, marginBottom: 10 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ flex: 1, minHeight: 48, borderRadius: 13, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: '#ECEEF1', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13 }}>
-              <Text style={{ fontSize: 20, color: '#98A2B3', marginRight: 9 }}>⌕</Text>
-              <TextInput value={query} onChangeText={setQuery} placeholder="Client, site, ville, adresse, équipement…" placeholderTextColor="#98A2B3" style={{ flex: 1, color: INK, fontSize: 14.5, paddingVertical: 12 }} autoCorrect={false} autoCapitalize="none" returnKeyType="search" />
-              {query ? <TouchableOpacity onPress={() => setQuery('')} style={{ minWidth: 34, minHeight: 34, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#98A2B3', fontSize: 17 }}>✕</Text></TouchableOpacity> : null}
+  return (
+    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+      <FlatList
+        style={{ flex: 1 }}
+        contentContainerStyle={[styles.content, { paddingBottom: 34 }]}
+        keyboardShouldPersistTaps="handled"
+        data={rows}
+        initialNumToRender={16}
+        maxToRenderPerBatch={12}
+        updateCellsBatchingPeriod={24}
+        windowSize={7}
+        removeClippedSubviews={false}
+        keyExtractor={(x) => x.id}
+        ListHeaderComponent={
+          <>
+            <View
+              style={{
+                backgroundColor: SURFACE,
+                borderRadius: 18,
+                borderWidth: 1,
+                borderColor: BORDER,
+                padding: 12,
+                marginBottom: 10
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                <View
+                  style={{
+                    flex: 1,
+                    minHeight: 48,
+                    borderRadius: 13,
+                    backgroundColor: '#F7F8FA',
+                    borderWidth: 1,
+                    borderColor: '#ECEEF1',
+                    flexDirection: 'row',
+                    alignItems: 'center',
+                    paddingHorizontal: 13
+                  }}
+                >
+                  <Text style={{ fontSize: 20, color: '#98A2B3', marginRight: 9 }}>⌕</Text>
+                  <TextInput
+                    value={query}
+                    onChangeText={setQuery}
+                    placeholder="Client, site, ville, adresse, équipement…"
+                    placeholderTextColor="#98A2B3"
+                    style={{ flex: 1, color: INK, fontSize: 14.5, paddingVertical: 12 }}
+                    autoCorrect={false}
+                    autoCapitalize="none"
+                    returnKeyType="search"
+                  />
+                  {query ? (
+                    <TouchableOpacity
+                      onPress={() => setQuery('')}
+                      style={{ minWidth: 34, minHeight: 34, alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <Text style={{ color: '#98A2B3', fontSize: 17 }}>✕</Text>
+                    </TouchableOpacity>
+                  ) : null}
+                </View>
+                <TouchableOpacity
+                  onPress={sync}
+                  disabled={syncing}
+                  style={{
+                    width: 48,
+                    height: 48,
+                    borderRadius: 13,
+                    backgroundColor: status.activated ? '#F7F8FA' : ACCENT,
+                    borderWidth: status.activated ? 1 : 0,
+                    borderColor: BORDER,
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  {syncing ? (
+                    <ActivityIndicator size="small" />
+                  ) : (
+                    <Text
+                      style={{
+                        color: status.activated ? INK : '#FFF',
+                        fontSize: status.activated ? 21 : 12,
+                        fontWeight: '900'
+                      }}
+                    >
+                      {status.activated ? '↻' : 'Activer'}
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 7, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
+                <SmallPill tone={status.activated ? 'success' : 'warning'}>
+                  {status.activated ? 'Tablette activée' : 'Activation requise'}
+                </SmallPill>
+                <Text style={{ color: MUTED, fontSize: 11.5 }}>
+                  {lastSync ? `Synchro ${lastSync}` : 'Cache local disponible hors connexion'}
+                </Text>
+              </View>
+              {status.lastError ? (
+                <Text numberOfLines={2} style={{ color: '#9A4C0A', fontSize: 11.5, marginTop: 8 }}>
+                  Dernière synchro incomplète · les données locales restent disponibles.
+                </Text>
+              ) : null}
             </View>
-            <TouchableOpacity onPress={sync} disabled={syncing} style={{ width: 48, height: 48, borderRadius: 13, backgroundColor: status.activated ? '#F7F8FA' : ACCENT, borderWidth: status.activated ? 1 : 0, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' }}>
-              {syncing ? <ActivityIndicator size="small" /> : <Text style={{ color: status.activated ? INK : '#FFF', fontSize: status.activated ? 21 : 12, fontWeight: '900' }}>{status.activated ? '↻' : 'Activer'}</Text>}
-            </TouchableOpacity>
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: 8,
+                marginBottom: 9
+              }}
+            >
+              <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>{resultLabel}</Text>
+              {query.trim() ? <Text style={{ color: MUTED, fontSize: 11.5 }}>Sites en premier</Text> : null}
+            </View>
+          </>
+        }
+        renderItem={({ item }) => (
+          <DirectoryRow
+            item={item}
+            onPress={() => (item.kind === 'client' ? openClient(item.remote_client_id) : openSite(item))}
+          />
+        )}
+        ListEmptyComponent={
+          <View style={[styles.empty, { paddingVertical: 38 }]}>
+            <Text style={styles.emptyText}>{query.trim() ? 'Aucun résultat' : 'Aucune donnée synchronisée'}</Text>
+            <Text style={styles.emptySub}>
+              {query.trim()
+                ? 'Essaie le client, la ville, le site, une installation ou une trame.'
+                : 'Active la tablette puis synchronise une première fois. Les données resteront ensuite disponibles hors connexion.'}
+            </Text>
           </View>
-          <View style={{ flexDirection: 'row', gap: 7, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
-            <SmallPill tone={status.activated ? 'success' : 'warning'}>{status.activated ? 'Tablette activée' : 'Activation requise'}</SmallPill>
-            <Text style={{ color: MUTED, fontSize: 11.5 }}>{lastSync ? `Synchro ${lastSync}` : 'Cache local disponible hors connexion'}</Text>
-          </View>
-          {status.lastError ? <Text numberOfLines={2} style={{ color: '#9A4C0A', fontSize: 11.5, marginTop: 8 }}>Dernière synchro incomplète · les données locales restent disponibles.</Text> : null}
-        </View>
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 9 }}>
-          <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>{resultLabel}</Text>
-          {query.trim() ? <Text style={{ color: MUTED, fontSize: 11.5 }}>Sites en premier</Text> : null}
-        </View>
-      </>}
-      renderItem={({ item }) => <DirectoryRow item={item} onPress={() => item.kind === 'client' ? openClient(item.remote_client_id) : openSite(item)} />}
-      ListEmptyComponent={<View style={[styles.empty, { paddingVertical: 38 }]}>
-        <Text style={styles.emptyText}>{query.trim() ? 'Aucun résultat' : 'Aucune donnée synchronisée'}</Text>
-        <Text style={styles.emptySub}>{query.trim() ? 'Essaie le client, la ville, le site, une installation ou une trame.' : 'Active la tablette puis synchronise une première fois. Les données resteront ensuite disponibles hors connexion.'}</Text>
-      </View>}
-    />
+        }
+      />
 
-    <Modal visible={!!selectedClient && !selectedSite} transparent animationType="fade" onRequestClose={() => setSelectedClient(null)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { height: '92%', maxHeight: '92%', borderTopLeftRadius: 22, borderTopRightRadius: 22, overflow: 'hidden' }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-          <View style={{ flex: 1, paddingRight: 10 }}>
-            <Text style={{ color: MUTED, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>CLIENT</Text>
-            <Text style={[styles.modalTitle, { marginTop: 4 }]}>{selectedClient?.nom || 'Client'}</Text>
-            <Text style={styles.cardSub}>{[selectedClient?.code_everwin, selectedClient?.ville, selectedClient?.agence_libelle].filter(Boolean).join(' · ')}</Text>
-          </View>
-          <TouchableOpacity onPress={() => setSelectedClient(null)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: MUTED, fontSize: 19 }}>✕</Text></TouchableOpacity>
-        </View>
-        {!siteSelectionMode ? <TouchableOpacity
-          activeOpacity={0.82}
-          disabled={batchImportBusy}
-          onPress={openClientLatestPhotos}
-          style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF7F1', borderWidth: 1, borderColor: '#F1C9AD', borderRadius: 14, padding: 12, marginTop: 14 }}
-        >
-          <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center', marginRight: 11 }}><Text style={{ color: '#FFF', fontSize: 19, fontWeight: '900' }}>▧</Text></View>
-          <View style={{ flex: 1, paddingRight: 8 }}><Text style={{ color: INK, fontSize: 13.5, fontWeight: '900' }}>Charger les photos des dernières visites</Text><Text style={{ color: MUTED, fontSize: 11.5, lineHeight: 16, marginTop: 2 }}>Manifeste, volume à télécharger et galerie disponible hors connexion.</Text></View>
-          <Text style={{ color: ACCENT, fontSize: 22, fontWeight: '800' }}>›</Text>
-        </TouchableOpacity> : null}
-        <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8, gap: 8 }}>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.sectionLabel}>{sites.length} site{sites.length > 1 ? 's' : ''}</Text>
-            <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 2 }}>{siteSelectionMode ? `${selectedSiteIds.size} sélectionné${selectedSiteIds.size > 1 ? 's' : ''}` : 'Touchez un site pour consulter sa fiche, ou utilisez Sélectionner pour en importer plusieurs.'}</Text>
-          </View>
-          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            {!siteSelectionMode && status.activated ? <TouchableOpacity disabled={clientRefreshing || batchImportBusy} onPress={() => refreshClientPreparation(selectedClient.remote_client_id)} style={{ paddingHorizontal: 8, paddingVertical: 7 }}><Text style={{ color: ACCENT, fontWeight: '800', fontSize: 12 }}>{clientRefreshing ? 'Actualisation…' : '↻ Actualiser'}</Text></TouchableOpacity> : null}
-            {sites.length ? <TouchableOpacity disabled={batchImportBusy} onPress={siteSelectionMode ? cancelSiteSelection : enterSiteSelection} style={{ paddingHorizontal: 9, paddingVertical: 7, borderRadius: 9, borderWidth: 1, borderColor: siteSelectionMode ? BORDER : ACCENT, backgroundColor: siteSelectionMode ? '#F7F8FA' : '#FFF7F1' }}><Text style={{ color: siteSelectionMode ? MUTED : ACCENT, fontWeight: '900', fontSize: 12 }}>{siteSelectionMode ? 'Annuler' : 'Sélectionner'}</Text></TouchableOpacity> : null}
-          </View>
-        </View>
-        {siteSelectionMode ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, backgroundColor: '#F8F9FB', borderWidth: 1, borderColor: '#ECEEF1', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 9 }}>
-          <TouchableOpacity disabled={batchImportBusy} onPress={toggleAllSites} style={{ paddingVertical: 5, paddingHorizontal: 4 }}><Text style={{ color: ACCENT, fontSize: 12, fontWeight: '900' }}>{selectedSiteIds.size === sites.length && sites.length ? 'Tout désélectionner' : 'Tout sélectionner'}</Text></TouchableOpacity>
-          <Text style={{ color: MUTED, fontSize: 11.5 }}>1, plusieurs ou tous les sites</Text>
-        </View> : null}
-        <FlatList
-          style={{ flex: 1 }}
-          contentContainerStyle={{ paddingBottom: siteSelectionMode ? 4 : 10 }}
-          data={sites}
-          initialNumToRender={14}
-          maxToRenderPerBatch={10}
-          updateCellsBatchingPeriod={24}
-          windowSize={7}
-          removeClippedSubviews={false}
-          keyExtractor={(x) => `${x.remote_client_id}-${x.remote_site_id}`}
-          keyboardShouldPersistTaps="handled"
-          renderItem={({ item }) => siteSelectionMode
-            ? <SiteSelectionRow item={{ ...item, client_ville: selectedClient?.ville }} selected={selectedSiteIds.has(String(item.remote_site_id))} disabled={batchImportBusy} onPress={() => toggleSiteSelection(item.remote_site_id)} />
-            : <DirectoryRow item={{ ...item, kind: 'site', client_nom: selectedClient?.nom, client_ville: selectedClient?.ville }} onPress={() => openSite(item, { keepClientSheet: true })} />}
-          ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 22 }]}>Aucun site encore disponible dans la préparation de ce client.</Text>}
-        />
-        {siteSelectionMode ? <View style={{ flexShrink: 0, borderTopWidth: 1, borderTopColor: '#EEF0F2', paddingTop: 11, marginTop: 4, backgroundColor: SURFACE }}>
-          <SitePhotoPreparationOption clientId={selectedClient?.remote_client_id} siteIds={[...selectedSiteIds]} enabled={includePhotos} onEnabledChange={setIncludePhotos} onPlanChange={setPhotoPlan} activated={status.activated} disabled={batchImportBusy} />
-          {batchImportProgress ? <Text style={{ color: MUTED, fontSize: 11.5, textAlign: 'center', marginBottom: 8 }}>Import {batchImportProgress.current}/{batchImportProgress.total}{batchImportProgress.site ? ` · ${batchImportProgress.site}` : ''}</Text> : null}
-          <TouchableOpacity
-            disabled={batchImportBusy || selectedSiteIds.size === 0 || (includePhotos && !photoPlan?.ready)}
-            onPress={importSelectedSites}
-            style={[styles.btnPrimary, { flex: 0, minHeight: 48, alignItems: 'center', justifyContent: 'center', opacity: batchImportBusy || selectedSiteIds.size === 0 ? 0.5 : 1 }]}
+      <Modal
+        visible={!!selectedClient && !selectedSite}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setSelectedClient(null)}
+      >
+        <View style={styles.modalOverlay}>
+          <View
+            style={[
+              styles.modalSheet,
+              {
+                height: '92%',
+                maxHeight: '92%',
+                borderTopLeftRadius: 22,
+                borderTopRightRadius: 22,
+                overflow: 'hidden'
+              }
+            ]}
           >
-            {batchImportBusy ? <ActivityIndicator color="#FFF" /> : <Text style={styles.btnPrimaryText}>Importer {selectedSiteIds.size || ''} site{selectedSiteIds.size > 1 ? 's' : ''} dans METRA</Text>}
-          </TouchableOpacity>
-        </View> : null}
-      </View></View>
-    </Modal>
-
-    <Modal visible={!!selectedSite} transparent animationType="fade" onRequestClose={() => setSelectedSite(null)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxHeight: '90%', borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>
-        <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
-          <View style={{ flex: 1, paddingRight: 10 }}>
-            <Text style={{ color: ACCENT, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>SITE</Text>
-            <Text style={[styles.modalTitle, { marginTop: 4 }]}>{selectedSite?.nom}</Text>
-            <Text style={styles.cardSub}>{[siteClient?.nom, siteClient?.ville].filter(Boolean).join(' · ')}</Text>
-          </View>
-          <TouchableOpacity onPress={() => setSelectedSite(null)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: MUTED, fontSize: 19 }}>✕</Text></TouchableOpacity>
-        </View>
-        <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 15 }}>
-          <SmallPill tone="success">Données enregistrées</SmallPill>
-          <SmallPill>{locals.length} installation{locals.length > 1 ? 's' : ''}</SmallPill>
-          {latestVisit ? <SmallPill>Dernière visite {String(latestVisit).slice(0, 10)}</SmallPill> : null}
-        </View>
-        <View style={{ marginTop: 18, backgroundColor: '#F8F9FB', borderRadius: 15, borderWidth: 1, borderColor: '#ECEEF1', padding: 13 }}>
-          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
-            <View style={{ flex: 1 }}>
-              <Text style={{ color: INK, fontSize: 13.5, fontWeight: '900' }}>Préparation de visite</Text>
-              <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 3 }}>{locals.length ? 'Choisis le local technique : METRA gardera son patrimoine et son historique séparés.' : 'Aucune installation détaillée encore synchronisée.'}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={{ color: MUTED, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>CLIENT</Text>
+                <Text style={[styles.modalTitle, { marginTop: 4 }]}>{selectedClient?.nom || 'Client'}</Text>
+                <Text style={styles.cardSub}>
+                  {[selectedClient?.code_everwin, selectedClient?.ville, selectedClient?.agence_libelle]
+                    .filter(Boolean)
+                    .join(' · ')}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setSelectedClient(null)}
+                style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Text style={{ color: MUTED, fontSize: 19 }}>✕</Text>
+              </TouchableOpacity>
             </View>
-            {status.activated ? <TouchableOpacity onPress={refreshSite} disabled={siteRefreshing} style={{ minWidth: 88, alignItems: 'flex-end', paddingVertical: 8 }}>{siteRefreshing ? <ActivityIndicator size="small" /> : <Text style={{ color: ACCENT, fontSize: 12, fontWeight: '900' }}>↻ Actualiser</Text>}</TouchableOpacity> : null}
+            {!siteSelectionMode ? (
+              <TouchableOpacity
+                activeOpacity={0.82}
+                disabled={batchImportBusy}
+                onPress={openClientLatestPhotos}
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#FFF7F1',
+                  borderWidth: 1,
+                  borderColor: '#F1C9AD',
+                  borderRadius: 14,
+                  padding: 12,
+                  marginTop: 14
+                }}
+              >
+                <View
+                  style={{
+                    width: 38,
+                    height: 38,
+                    borderRadius: 11,
+                    backgroundColor: ACCENT,
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    marginRight: 11
+                  }}
+                >
+                  <Text style={{ color: '#FFF', fontSize: 19, fontWeight: '900' }}>▧</Text>
+                </View>
+                <View style={{ flex: 1, paddingRight: 8 }}>
+                  <Text style={{ color: INK, fontSize: 13.5, fontWeight: '900' }}>
+                    Charger les photos des dernières visites
+                  </Text>
+                  <Text style={{ color: MUTED, fontSize: 11.5, lineHeight: 16, marginTop: 2 }}>
+                    Manifeste, volume à télécharger et galerie disponible hors connexion.
+                  </Text>
+                </View>
+                <Text style={{ color: ACCENT, fontSize: 22, fontWeight: '800' }}>›</Text>
+              </TouchableOpacity>
+            ) : null}
+            <View
+              style={{
+                flexDirection: 'row',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: 16,
+                marginBottom: 8,
+                gap: 8
+              }}
+            >
+              <View style={{ flex: 1 }}>
+                <Text style={styles.sectionLabel}>
+                  {sites.length} site{sites.length > 1 ? 's' : ''}
+                </Text>
+                <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 2 }}>
+                  {siteSelectionMode
+                    ? `${selectedSiteIds.size} sélectionné${selectedSiteIds.size > 1 ? 's' : ''}`
+                    : 'Touchez un site pour consulter sa fiche, ou utilisez Sélectionner pour en importer plusieurs.'}
+                </Text>
+              </View>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+                {!siteSelectionMode && status.activated ? (
+                  <TouchableOpacity
+                    disabled={clientRefreshing || batchImportBusy}
+                    onPress={() => refreshClientPreparation(selectedClient.remote_client_id)}
+                    style={{ paddingHorizontal: 8, paddingVertical: 7 }}
+                  >
+                    <Text style={{ color: ACCENT, fontWeight: '800', fontSize: 12 }}>
+                      {clientRefreshing ? 'Actualisation…' : '↻ Actualiser'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+                {sites.length ? (
+                  <TouchableOpacity
+                    disabled={batchImportBusy}
+                    onPress={siteSelectionMode ? cancelSiteSelection : enterSiteSelection}
+                    style={{
+                      paddingHorizontal: 9,
+                      paddingVertical: 7,
+                      borderRadius: 9,
+                      borderWidth: 1,
+                      borderColor: siteSelectionMode ? BORDER : ACCENT,
+                      backgroundColor: siteSelectionMode ? '#F7F8FA' : '#FFF7F1'
+                    }}
+                  >
+                    <Text style={{ color: siteSelectionMode ? MUTED : ACCENT, fontWeight: '900', fontSize: 12 }}>
+                      {siteSelectionMode ? 'Annuler' : 'Sélectionner'}
+                    </Text>
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+            </View>
+            {siteSelectionMode ? (
+              <View
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: 8,
+                  backgroundColor: '#F8F9FB',
+                  borderWidth: 1,
+                  borderColor: '#ECEEF1',
+                  borderRadius: 12,
+                  paddingHorizontal: 10,
+                  paddingVertical: 8,
+                  marginBottom: 9
+                }}
+              >
+                <TouchableOpacity
+                  disabled={batchImportBusy}
+                  onPress={toggleAllSites}
+                  style={{ paddingVertical: 5, paddingHorizontal: 4 }}
+                >
+                  <Text style={{ color: ACCENT, fontSize: 12, fontWeight: '900' }}>
+                    {selectedSiteIds.size === sites.length && sites.length
+                      ? 'Tout désélectionner'
+                      : 'Tout sélectionner'}
+                  </Text>
+                </TouchableOpacity>
+                <Text style={{ color: MUTED, fontSize: 11.5 }}>1, plusieurs ou tous les sites</Text>
+              </View>
+            ) : null}
+            <FlatList
+              style={{ flex: 1 }}
+              contentContainerStyle={{ paddingBottom: siteSelectionMode ? 4 : 10 }}
+              data={sites}
+              initialNumToRender={14}
+              maxToRenderPerBatch={10}
+              updateCellsBatchingPeriod={24}
+              windowSize={7}
+              removeClippedSubviews={false}
+              keyExtractor={(x) => `${x.remote_client_id}-${x.remote_site_id}`}
+              keyboardShouldPersistTaps="handled"
+              renderItem={({ item }) =>
+                siteSelectionMode ? (
+                  <SiteSelectionRow
+                    item={{ ...item, client_ville: selectedClient?.ville }}
+                    selected={selectedSiteIds.has(String(item.remote_site_id))}
+                    disabled={batchImportBusy}
+                    onPress={() => toggleSiteSelection(item.remote_site_id)}
+                  />
+                ) : (
+                  <DirectoryRow
+                    item={{
+                      ...item,
+                      kind: 'site',
+                      client_nom: selectedClient?.nom,
+                      client_ville: selectedClient?.ville
+                    }}
+                    onPress={() => openSite(item, { keepClientSheet: true })}
+                  />
+                )
+              }
+              ListEmptyComponent={
+                <Text style={[styles.emptySub, { marginVertical: 22 }]}>
+                  Aucun site encore disponible dans la préparation de ce client.
+                </Text>
+              }
+            />
+            {siteSelectionMode ? (
+              <View
+                style={{
+                  flexShrink: 0,
+                  borderTopWidth: 1,
+                  borderTopColor: '#EEF0F2',
+                  paddingTop: 11,
+                  marginTop: 4,
+                  backgroundColor: SURFACE
+                }}
+              >
+                <SitePhotoPreparationOption
+                  clientId={selectedClient?.remote_client_id}
+                  siteIds={[...selectedSiteIds]}
+                  enabled={includePhotos}
+                  onEnabledChange={setIncludePhotos}
+                  onPlanChange={setPhotoPlan}
+                  activated={status.activated}
+                  disabled={batchImportBusy}
+                />
+                {batchImportProgress ? (
+                  <Text style={{ color: MUTED, fontSize: 11.5, textAlign: 'center', marginBottom: 8 }}>
+                    Import {batchImportProgress.current}/{batchImportProgress.total}
+                    {batchImportProgress.site ? ` · ${batchImportProgress.site}` : ''}
+                  </Text>
+                ) : null}
+                <TouchableOpacity
+                  disabled={batchImportBusy || selectedSiteIds.size === 0 || (includePhotos && !photoPlan?.ready)}
+                  onPress={importSelectedSites}
+                  style={[
+                    styles.btnPrimary,
+                    {
+                      flex: 0,
+                      minHeight: 48,
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      opacity: batchImportBusy || selectedSiteIds.size === 0 ? 0.5 : 1
+                    }
+                  ]}
+                >
+                  {batchImportBusy ? (
+                    <ActivityIndicator color="#FFF" />
+                  ) : (
+                    <Text style={styles.btnPrimaryText}>
+                      Importer {selectedSiteIds.size || ''} site{selectedSiteIds.size > 1 ? 's' : ''} dans METRA
+                    </Text>
+                  )}
+                </TouchableOpacity>
+              </View>
+            ) : null}
           </View>
-          {siteTrames.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 11 }}>{siteTrames.slice(0, 4).map((label) => <SmallPill key={label}>{label}</SmallPill>)}</View> : null}
         </View>
-        <PhotoReferenceAccess remoteClientId={selectedSite?.remote_client_id || siteClient?.remote_client_id} remoteSiteId={selectedSite?.remote_site_id} clientName={siteClient?.nom} contextTitle={selectedSite?.nom} />
-        <FlatList style={{ marginTop: 12, maxHeight: 300 }} data={locals} keyExtractor={(item) => String(item.remote_local_id)} renderItem={({ item }) => <TouchableOpacity activeOpacity={0.78} onPress={() => openPreparedVisit(item)} style={{ paddingVertical: 11, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: '#EEF0F2', flexDirection: 'row', alignItems: 'center' }}>
-          <View style={{ flex: 1, paddingRight: 10 }}>
-            <Text style={{ color: INK, fontSize: 13.5, fontWeight: '800' }}>{item.designation || 'Local technique'}</Text>
-            <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 3 }}>{[item.remote_trame_nom, item.derniere_visite_date ? `dernière visite ${String(item.derniere_visite_date).slice(0, 10)}` : null].filter(Boolean).join(' · ')}</Text>
-            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 7 }}>
-              {Number(item.material_count || 0) > 0 ? <SmallPill>{Number(item.material_count)} matériel{Number(item.material_count) > 1 ? 's' : ''}</SmallPill> : null}
-              {Number(item.criteria_count || 0) > 0 ? <SmallPill>{Number(item.criteria_count)} critères en référence</SmallPill> : null}
-              {Number(item.historical_criteria_count || 0) > 0 ? <SmallPill tone="warning">{Number(item.historical_criteria_count)} issus d’une visite antérieure</SmallPill> : null}
+      </Modal>
+
+      <Modal visible={!!selectedSite} transparent animationType="fade" onRequestClose={() => setSelectedSite(null)}>
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { maxHeight: '90%', borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>
+            <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
+              <View style={{ flex: 1, paddingRight: 10 }}>
+                <Text style={{ color: ACCENT, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>SITE</Text>
+                <Text style={[styles.modalTitle, { marginTop: 4 }]}>{selectedSite?.nom}</Text>
+                <Text style={styles.cardSub}>{[siteClient?.nom, siteClient?.ville].filter(Boolean).join(' · ')}</Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => setSelectedSite(null)}
+                style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}
+              >
+                <Text style={{ color: MUTED, fontSize: 19 }}>✕</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 15 }}>
+              <SmallPill tone="success">Données enregistrées</SmallPill>
+              <SmallPill>
+                {locals.length} installation{locals.length > 1 ? 's' : ''}
+              </SmallPill>
+              {latestVisit ? <SmallPill>Dernière visite {String(latestVisit).slice(0, 10)}</SmallPill> : null}
+            </View>
+            <View
+              style={{
+                marginTop: 18,
+                backgroundColor: '#F8F9FB',
+                borderRadius: 15,
+                borderWidth: 1,
+                borderColor: '#ECEEF1',
+                padding: 13
+              }}
+            >
+              <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ color: INK, fontSize: 13.5, fontWeight: '900' }}>Préparation de visite</Text>
+                  <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 3 }}>
+                    {locals.length
+                      ? 'Choisis le local technique : METRA gardera son patrimoine et son historique séparés.'
+                      : 'Aucune installation détaillée encore synchronisée.'}
+                  </Text>
+                </View>
+                {status.activated ? (
+                  <TouchableOpacity
+                    onPress={refreshSite}
+                    disabled={siteRefreshing}
+                    style={{ minWidth: 88, alignItems: 'flex-end', paddingVertical: 8 }}
+                  >
+                    {siteRefreshing ? (
+                      <ActivityIndicator size="small" />
+                    ) : (
+                      <Text style={{ color: ACCENT, fontSize: 12, fontWeight: '900' }}>↻ Actualiser</Text>
+                    )}
+                  </TouchableOpacity>
+                ) : null}
+              </View>
+              {siteTrames.length ? (
+                <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 11 }}>
+                  {siteTrames.slice(0, 4).map((label) => (
+                    <SmallPill key={label}>{label}</SmallPill>
+                  ))}
+                </View>
+              ) : null}
+            </View>
+            <PhotoReferenceAccess
+              remoteClientId={selectedSite?.remote_client_id || siteClient?.remote_client_id}
+              remoteSiteId={selectedSite?.remote_site_id}
+              clientName={siteClient?.nom}
+              contextTitle={selectedSite?.nom}
+            />
+            <FlatList
+              style={{ marginTop: 12, maxHeight: 300 }}
+              data={locals}
+              keyExtractor={(item) => String(item.remote_local_id)}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  activeOpacity={0.78}
+                  onPress={() => openPreparedVisit(item)}
+                  style={{
+                    paddingVertical: 11,
+                    paddingHorizontal: 2,
+                    borderBottomWidth: 1,
+                    borderBottomColor: '#EEF0F2',
+                    flexDirection: 'row',
+                    alignItems: 'center'
+                  }}
+                >
+                  <View style={{ flex: 1, paddingRight: 10 }}>
+                    <Text style={{ color: INK, fontSize: 13.5, fontWeight: '800' }}>
+                      {item.designation || 'Local technique'}
+                    </Text>
+                    <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 3 }}>
+                      {[
+                        item.remote_trame_nom,
+                        item.derniere_visite_date
+                          ? `dernière visite ${String(item.derniere_visite_date).slice(0, 10)}`
+                          : null
+                      ]
+                        .filter(Boolean)
+                        .join(' · ')}
+                    </Text>
+                    <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 7 }}>
+                      {Number(item.material_count || 0) > 0 ? (
+                        <SmallPill>
+                          {Number(item.material_count)} matériel{Number(item.material_count) > 1 ? 's' : ''}
+                        </SmallPill>
+                      ) : null}
+                      {Number(item.criteria_count || 0) > 0 ? (
+                        <SmallPill>{Number(item.criteria_count)} critères en référence</SmallPill>
+                      ) : null}
+                      {Number(item.historical_criteria_count || 0) > 0 ? (
+                        <SmallPill tone="warning">
+                          {Number(item.historical_criteria_count)} issus d’une visite antérieure
+                        </SmallPill>
+                      ) : null}
+                    </View>
+                  </View>
+                  <View style={{ alignItems: 'flex-end' }}>
+                    <Text style={{ color: ACCENT, fontWeight: '900', fontSize: 12 }}>Préparer</Text>
+                    <Text style={{ color: '#98A2B3', fontSize: 21, marginTop: 2 }}>›</Text>
+                  </View>
+                </TouchableOpacity>
+              )}
+              ListEmptyComponent={
+                <Text style={[styles.emptySub, { marginVertical: 12 }]}>
+                  Le site peut déjà être ouvert dans METRA. Les installations apparaîtront après synchronisation de sa
+                  préparation.
+                </Text>
+              }
+            />
+            <TouchableOpacity
+              style={[
+                styles.btnSecondary,
+                { marginTop: 16, minHeight: 48, alignItems: 'center', justifyContent: 'center' }
+              ]}
+              disabled={siteActionBusy}
+              onPress={() => openInMetra(selectedSite)}
+            >
+              <Text style={styles.btnSecondaryText}>
+                {siteActionBusy ? 'Import en cours…' : 'Importer le site dans METRA'}
+              </Text>
+            </TouchableOpacity>
+            <Text style={{ color: MUTED, fontSize: 11.5, textAlign: 'center', marginTop: 8 }}>
+              Patrimoine · dernière visite disponible · équipements · remarques · LAB
+            </Text>
+          </View>
+        </View>
+      </Modal>
+
+      <ClientLatestVisitPhotosModal
+        visible={!!latestPhotosClient}
+        client={latestPhotosClient}
+        activated={status.activated}
+        onClose={closeClientLatestPhotos}
+      />
+
+      <Modal
+        visible={activationVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActivationVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={[styles.modalSheet, { borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>
+            <Text style={{ color: ACCENT, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>
+              CONNEXION SÉCURISÉE
+            </Text>
+            <Text style={[styles.modalTitle, { marginTop: 5 }]}>Activer cette tablette</Text>
+            <Text style={[styles.cardSub, { marginBottom: 14, lineHeight: 18 }]}>
+              Colle le code de 48 caractères généré dans l’administration Énergie & Service. La clé privée reste
+              protégée dans Android Keystore.
+            </Text>
+            <View
+              style={{
+                borderRadius: 13,
+                borderWidth: 1,
+                borderColor: activationCode.length === 48 ? '#B7E4CF' : BORDER,
+                backgroundColor: '#F8F9FB',
+                paddingHorizontal: 12
+              }}
+            >
+              <TextInput
+                style={{ minHeight: 50, color: INK, fontSize: 15, letterSpacing: 0.4 }}
+                value={activationCode}
+                onChangeText={(v) => setActivationCode(v.replace(/\s/g, '').slice(0, 48))}
+                placeholder="Code d’activation"
+                placeholderTextColor="#98A2B3"
+                autoCapitalize="none"
+                autoCorrect={false}
+                autoFocus
+              />
+            </View>
+            <Text
+              style={{
+                alignSelf: 'flex-end',
+                color: activationCode.length === 48 ? SUCCESS : MUTED,
+                fontSize: 11.5,
+                fontWeight: '800',
+                marginTop: 6
+              }}
+            >
+              {activationCode.length} / 48
+            </Text>
+            <View style={[styles.modalActions, { marginTop: 16 }]}>
+              <TouchableOpacity
+                style={styles.btnSecondary}
+                onPress={() => setActivationVisible(false)}
+                disabled={activating}
+              >
+                <Text style={styles.btnSecondaryText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.btnPrimary}
+                onPress={activate}
+                disabled={activating || activationCode.length !== 48}
+              >
+                <Text style={styles.btnPrimaryText}>{activating ? 'Activation…' : 'Activer'}</Text>
+              </TouchableOpacity>
             </View>
           </View>
-          <View style={{ alignItems: 'flex-end' }}><Text style={{ color: ACCENT, fontWeight: '900', fontSize: 12 }}>Préparer</Text><Text style={{ color: '#98A2B3', fontSize: 21, marginTop: 2 }}>›</Text></View>
-        </TouchableOpacity>} ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 12 }]}>Le site peut déjà être ouvert dans METRA. Les installations apparaîtront après synchronisation de sa préparation.</Text>} />
-        <TouchableOpacity style={[styles.btnSecondary, { marginTop: 16, minHeight: 48, alignItems: 'center', justifyContent: 'center' }]} disabled={siteActionBusy} onPress={() => openInMetra(selectedSite)}>
-          <Text style={styles.btnSecondaryText}>{siteActionBusy ? 'Import en cours…' : 'Importer le site dans METRA'}</Text>
-        </TouchableOpacity>
-        <Text style={{ color: MUTED, fontSize: 11.5, textAlign: 'center', marginTop: 8 }}>Patrimoine · dernière visite disponible · équipements · remarques · LAB</Text>
-      </View></View>
-    </Modal>
-
-    <ClientLatestVisitPhotosModal
-      visible={!!latestPhotosClient}
-      client={latestPhotosClient}
-      activated={status.activated}
-      onClose={closeClientLatestPhotos}
-    />
-
-    <Modal visible={activationVisible} transparent animationType="fade" onRequestClose={() => setActivationVisible(false)}>
-      <View style={styles.modalOverlay}><View style={[styles.modalSheet, { borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>
-        <Text style={{ color: ACCENT, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>CONNEXION SÉCURISÉE</Text>
-        <Text style={[styles.modalTitle, { marginTop: 5 }]}>Activer cette tablette</Text>
-        <Text style={[styles.cardSub, { marginBottom: 14, lineHeight: 18 }]}>Colle le code de 48 caractères généré dans l’administration Énergie & Service. La clé privée reste protégée dans Android Keystore.</Text>
-        <View style={{ borderRadius: 13, borderWidth: 1, borderColor: activationCode.length === 48 ? '#B7E4CF' : BORDER, backgroundColor: '#F8F9FB', paddingHorizontal: 12 }}>
-          <TextInput style={{ minHeight: 50, color: INK, fontSize: 15, letterSpacing: 0.4 }} value={activationCode} onChangeText={(v) => setActivationCode(v.replace(/\s/g, '').slice(0, 48))} placeholder="Code d’activation" placeholderTextColor="#98A2B3" autoCapitalize="none" autoCorrect={false} autoFocus />
         </View>
-        <Text style={{ alignSelf: 'flex-end', color: activationCode.length === 48 ? SUCCESS : MUTED, fontSize: 11.5, fontWeight: '800', marginTop: 6 }}>{activationCode.length} / 48</Text>
-        <View style={[styles.modalActions, { marginTop: 16 }]}>
-          <TouchableOpacity style={styles.btnSecondary} onPress={() => setActivationVisible(false)} disabled={activating}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.btnPrimary} onPress={activate} disabled={activating || activationCode.length !== 48}><Text style={styles.btnPrimaryText}>{activating ? 'Activation…' : 'Activer'}</Text></TouchableOpacity>
-        </View>
-      </View></View>
-    </Modal>
-  </View>;
+      </Modal>
+    </View>
+  );
 }
 
 export { MetraDirectoryScreen };

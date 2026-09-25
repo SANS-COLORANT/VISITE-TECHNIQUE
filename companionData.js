@@ -1,5 +1,19 @@
 import * as FileSystem from 'expo-file-system';
-import { getVisite, getChampsVisite, getControlesVisite, listerCompteurs, listerMateriel, listerPhotos, listerReseaux, listerSitesClient, toucherVisite, upsertChamp, upsertCompteurChamp, upsertMaterielChamp, upsertReseauChamp } from './db.js';
+import {
+  getVisite,
+  getChampsVisite,
+  getControlesVisite,
+  listerCompteurs,
+  listerMateriel,
+  listerPhotos,
+  listerReseaux,
+  listerSitesClient,
+  toucherVisite,
+  upsertChamp,
+  upsertCompteurChamp,
+  upsertMaterielChamp,
+  upsertReseauChamp
+} from './db.js';
 import { openAppDatabase } from './database/index.js';
 import { listerRemarquesVisite, modifierRemarqueVisite, supprimerRemarqueControle } from './remarkDb.js';
 import { upsertControlePartiel } from './controlDb.js';
@@ -17,11 +31,15 @@ const MODULES = Object.freeze([
   { id: 'regulation', label: 'Régulation', icon: 'regulation' },
   { id: 'remarks', label: 'Remarques', icon: 'remark' },
   { id: 'controls', label: 'Contrôles', icon: 'control' },
-  { id: 'photos', label: 'Photos', icon: 'photo' },
+  { id: 'photos', label: 'Photos', icon: 'photo' }
 ]);
 
 const clean = (v) => String(v == null ? '' : v).trim();
-const norm = (v) => clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+const norm = (v) =>
+  clean(v)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase();
 
 function uniqueTargets(items = []) {
   const seen = new Set();
@@ -34,7 +52,12 @@ function uniqueTargets(items = []) {
 }
 
 function target(id, label, targetKey, extra = {}) {
-  return { id: String(id || targetKey || label), label: clean(label) || 'Élément', targetKey: targetKey || null, ...extra };
+  return {
+    id: String(id || targetKey || label),
+    label: clean(label) || 'Élément',
+    targetKey: targetKey || null,
+    ...extra
+  };
 }
 
 function companionField(id, label, value, edit, extra = {}) {
@@ -46,7 +69,7 @@ function companionField(id, label, value, edit, extra = {}) {
     unit: clean(extra.unit),
     multiline: Boolean(extra.multiline),
     options: Array.isArray(extra.options) ? extra.options.map(String) : null,
-    edit,
+    edit
   };
 }
 
@@ -66,7 +89,6 @@ function champEditField(sectionCode, cle, value, extra = {}) {
     { input: extra.input || inferInput(cle), unit: extra.unit || '' }
   );
 }
-
 
 async function buildCompanionClientSnapshot(clientId) {
   const db = await openAppDatabase();
@@ -92,7 +114,7 @@ async function buildCompanionClientSnapshot(clientId) {
         ORDER BY CASE WHEN v.statut='en_cours' THEN 0 ELSE 1 END,
                  COALESCE(v.modifie_le,v.date_visite,'') DESC`,
       [id]
-    ),
+    )
   ]);
 
   if (!client?.id) throw new Error('Client introuvable');
@@ -104,7 +126,7 @@ async function buildCompanionClientSnapshot(clientId) {
     localBySite.get(siteId).push({
       id: String(local.id),
       name: clean(local.nom) || clean(local.type_code) || 'Local technique',
-      type: clean(local.type_code),
+      type: clean(local.type_code)
     });
   }
 
@@ -118,7 +140,7 @@ async function buildCompanionClientSnapshot(clientId) {
       date: clean(visite.date_visite),
       status: clean(visite.statut),
       template: clean(visite.trame_id || 'icpe_v1'),
-      progress: Number(visite.progression_pct || 0),
+      progress: Number(visite.progression_pct || 0)
     });
   }
 
@@ -128,7 +150,9 @@ async function buildCompanionClientSnapshot(clientId) {
     const localNameById = new Map(locals.map((local) => [String(local.id), local.name]));
     const siteVisits = (visitsBySite.get(siteId) || []).map((visite) => ({
       ...visite,
-      local: visite.installationId ? (localNameById.get(String(visite.installationId)) || 'Local technique') : 'Visite site',
+      local: visite.installationId
+        ? localNameById.get(String(visite.installationId)) || 'Local technique'
+        : 'Visite site'
     }));
     return {
       id: siteId,
@@ -137,7 +161,7 @@ async function buildCompanionClientSnapshot(clientId) {
       locals,
       visits: siteVisits,
       visitCount: siteVisits.length,
-      activeVisitCount: siteVisits.filter((visite) => visite.status === 'en_cours').length,
+      activeVisitCount: siteVisits.filter((visite) => visite.status === 'en_cours').length
     };
   });
 
@@ -149,16 +173,16 @@ async function buildCompanionClientSnapshot(clientId) {
       id: String(client.id),
       name: clean(client.nom) || 'Client',
       code: clean(client.code_exploitant),
-      address: clean(client.adresse),
+      address: clean(client.adresse)
     },
     sites: resultSites,
     counts: {
       sites: resultSites.length,
       locals: resultSites.reduce((sum, site) => sum + site.locals.length, 0),
       visits: resultSites.reduce((sum, site) => sum + site.visits.length, 0),
-      activeVisits: resultSites.reduce((sum, site) => sum + site.activeVisitCount, 0),
+      activeVisits: resultSites.reduce((sum, site) => sum + site.activeVisitCount, 0)
     },
-    generatedAt: new Date().toISOString(),
+    generatedAt: new Date().toISOString()
   };
 }
 
@@ -190,153 +214,266 @@ async function buildCompanionVisitSnapshot(visiteId) {
     listerPhotos(visiteId),
     getChampsVisite(visiteId),
     getControlesVisite(visiteId),
-    db.getAllAsync(`SELECT id,nom,type_code FROM installations WHERE site_id=? AND actif=1 ORDER BY nom`, [visite.site_id]),
+    db.getAllAsync(`SELECT id,nom,type_code FROM installations WHERE site_id=? AND actif=1 ORDER BY nom`, [
+      visite.site_id
+    ])
   ]);
 
-  const equipTargets = uniqueTargets((equipements || []).map((e) => target(
-    e.equipement_id || e.id,
-    [e.designation || e.categorie || 'Équipement', e.marque, e.modele].filter(Boolean).join(' · '),
-    e.equipement_id ? `equipement||${e.equipement_id}` : `materiel||${e.id}`,
-    {
-      subtitle: clean(e.reseau_desservi),
-      fields: [
-        companionField('designation', 'Désignation', e.designation, { kind: 'equipment', id: e.id, key: 'designation' }),
-        companionField('marque', 'Marque', e.marque, { kind: 'equipment', id: e.id, key: 'marque' }),
-        companionField('modele', 'Modèle / référence', e.modele, { kind: 'equipment', id: e.id, key: 'modele' }),
-        companionField('nombre', 'Nombre', e.nombre, { kind: 'equipment', id: e.id, key: 'nombre' }, { input: 'numeric' }),
-        companionField('annee', 'Année', e.annee, { kind: 'equipment', id: e.id, key: 'annee' }, { input: 'numeric' }),
-        companionField('numero_materiel', 'N° matériel', e.numero_materiel, { kind: 'equipment', id: e.id, key: 'numero_materiel' }),
-        companionField('reseau_desservi', 'Réseau desservi', e.reseau_desservi, { kind: 'equipment', id: e.id, key: 'reseau_desservi' }),
-        companionField('caracteristiques', 'Caractéristiques', e.caracteristiques, { kind: 'equipment', id: e.id, key: 'caracteristiques' }, { multiline: true }),
-      ],
-    }
-  )));
+  const equipTargets = uniqueTargets(
+    (equipements || []).map((e) =>
+      target(
+        e.equipement_id || e.id,
+        [e.designation || e.categorie || 'Équipement', e.marque, e.modele].filter(Boolean).join(' · '),
+        e.equipement_id ? `equipement||${e.equipement_id}` : `materiel||${e.id}`,
+        {
+          subtitle: clean(e.reseau_desservi),
+          fields: [
+            companionField('designation', 'Désignation', e.designation, {
+              kind: 'equipment',
+              id: e.id,
+              key: 'designation'
+            }),
+            companionField('marque', 'Marque', e.marque, { kind: 'equipment', id: e.id, key: 'marque' }),
+            companionField('modele', 'Modèle / référence', e.modele, { kind: 'equipment', id: e.id, key: 'modele' }),
+            companionField(
+              'nombre',
+              'Nombre',
+              e.nombre,
+              { kind: 'equipment', id: e.id, key: 'nombre' },
+              { input: 'numeric' }
+            ),
+            companionField(
+              'annee',
+              'Année',
+              e.annee,
+              { kind: 'equipment', id: e.id, key: 'annee' },
+              { input: 'numeric' }
+            ),
+            companionField('numero_materiel', 'N° matériel', e.numero_materiel, {
+              kind: 'equipment',
+              id: e.id,
+              key: 'numero_materiel'
+            }),
+            companionField('reseau_desservi', 'Réseau desservi', e.reseau_desservi, {
+              kind: 'equipment',
+              id: e.id,
+              key: 'reseau_desservi'
+            }),
+            companionField(
+              'caracteristiques',
+              'Caractéristiques',
+              e.caracteristiques,
+              { kind: 'equipment', id: e.id, key: 'caracteristiques' },
+              { multiline: true }
+            )
+          ]
+        }
+      )
+    )
+  );
 
-  const meterTargets = uniqueTargets((compteurs || []).map((c) => target(
-    c.compteur_site_id || c.id,
-    c.label || 'Compteur',
-    c.compteur_site_id ? `compteur_site||${c.compteur_site_id}` : `compteur||${c.id}`,
-    {
-      value: clean(c.valeur),
-      unit: clean(c.unite),
-      fields: [
-        companionField('valeur', 'Valeur relevée', c.valeur, { kind: 'counter', id: c.id, key: 'valeur' }, { input: 'numeric', unit: c.unite }),
-        companionField('label', 'Nom du compteur', c.label, { kind: 'counter', id: c.id, key: 'label' }),
-        companionField('unite', 'Unité', c.unite, { kind: 'counter', id: c.id, key: 'unite' }),
-      ],
-    }
-  )));
+  const meterTargets = uniqueTargets(
+    (compteurs || []).map((c) =>
+      target(
+        c.compteur_site_id || c.id,
+        c.label || 'Compteur',
+        c.compteur_site_id ? `compteur_site||${c.compteur_site_id}` : `compteur||${c.id}`,
+        {
+          value: clean(c.valeur),
+          unit: clean(c.unite),
+          fields: [
+            companionField(
+              'valeur',
+              'Valeur relevée',
+              c.valeur,
+              { kind: 'counter', id: c.id, key: 'valeur' },
+              { input: 'numeric', unit: c.unite }
+            ),
+            companionField('label', 'Nom du compteur', c.label, { kind: 'counter', id: c.id, key: 'label' }),
+            companionField('unite', 'Unité', c.unite, { kind: 'counter', id: c.id, key: 'unite' })
+          ]
+        }
+      )
+    )
+  );
 
-  const networkTargets = uniqueTargets((reseaux || []).map((r) => target(
-    r.reseau_site_id || r.id,
-    r.nom_reseau || 'Réseau',
-    r.reseau_site_id ? `reseau_site||${r.reseau_site_id}` : `reseau||${r.id}`,
-    {
-      fields: [
-        companionField('nom_reseau', 'Nom du réseau', r.nom_reseau, { kind: 'network', id: r.id, key: 'nom_reseau' }),
-      ],
-    }
-  )));
+  const networkTargets = uniqueTargets(
+    (reseaux || []).map((r) =>
+      target(
+        r.reseau_site_id || r.id,
+        r.nom_reseau || 'Réseau',
+        r.reseau_site_id ? `reseau_site||${r.reseau_site_id}` : `reseau||${r.id}`,
+        {
+          fields: [
+            companionField('nom_reseau', 'Nom du réseau', r.nom_reseau, {
+              kind: 'network',
+              id: r.id,
+              key: 'nom_reseau'
+            })
+          ]
+        }
+      )
+    )
+  );
 
-  const remarkTargets = uniqueTargets((remarques || []).map((r) => target(
-    r.id,
-    r.reference_libelle || r.prestation || r.poste || 'Remarque',
-    `remarque||${r.id}`,
-    {
-      subtitle: clean(r.poste),
-      severity: Number(r.criticite || 0),
-      fields: [
-        companionField('prestation', 'Observation / prestation', r.prestation, { kind: 'remark', id: r.id, key: 'prestation' }, { multiline: true }),
-        companionField('poste', 'Poste', r.poste, { kind: 'remark', id: r.id, key: 'poste' }),
-        companionField('criticite', 'Criticité', r.criticite, { kind: 'remark', id: r.id, key: 'criticite' }, { options: ['1', '2', '3', '4', '5'] }),
-      ],
-    }
-  )));
+  const remarkTargets = uniqueTargets(
+    (remarques || []).map((r) =>
+      target(r.id, r.reference_libelle || r.prestation || r.poste || 'Remarque', `remarque||${r.id}`, {
+        subtitle: clean(r.poste),
+        severity: Number(r.criticite || 0),
+        fields: [
+          companionField(
+            'prestation',
+            'Observation / prestation',
+            r.prestation,
+            { kind: 'remark', id: r.id, key: 'prestation' },
+            { multiline: true }
+          ),
+          companionField('poste', 'Poste', r.poste, { kind: 'remark', id: r.id, key: 'poste' }),
+          companionField(
+            'criticite',
+            'Criticité',
+            r.criticite,
+            { kind: 'remark', id: r.id, key: 'criticite' },
+            { options: ['1', '2', '3', '4', '5'] }
+          )
+        ]
+      })
+    )
+  );
 
-  const localTargets = uniqueTargets((installations || []).map((i) => target(
-    i.id,
-    i.nom || i.type_code || 'Local technique',
-    `installation||${i.id}`,
-    { subtitle: clean(i.type_code) }
-  )));
+  const localTargets = uniqueTargets(
+    (installations || []).map((i) =>
+      target(i.id, i.nom || i.type_code || 'Local technique', `installation||${i.id}`, {
+        subtitle: clean(i.type_code)
+      })
+    )
+  );
 
-  const codeSection = (panelId, section) => panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  const codeSection = (panelId, section) =>
+    panelId.replace('p-', '') +
+    '.' +
+    String(section)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_');
   const templateRows = Object.entries(trame?.ui?.panels || {}).flatMap(([panelId, sections]) =>
     Object.entries(sections || {}).flatMap(([section, fields]) =>
-      (fields || []).filter((field) => field?.hiddenInApp !== true).map((field) => ({
-        panelId,
-        section,
-        sectionCode: codeSection(panelId, section),
-        field,
-      }))
+      (fields || [])
+        .filter((field) => field?.hiddenInApp !== true)
+        .map((field) => ({
+          panelId,
+          section,
+          sectionCode: codeSection(panelId, section),
+          field
+        }))
     )
   );
 
   const valuesByKey = new Map((champs || []).map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
   const controlsByKey = new Map((controles || []).map((row) => [`${row.section_code}||${row.cle}`, row]));
 
-  const tempFromDb = (champs || []).filter((row) => {
-    const txt = norm(`${row.section_code} ${row.cle}`);
-    return txt.includes('temp') || txt.includes('ph');
-  }).map((row) => target(
-    `${row.section_code}||${row.cle}`,
-    row.cle,
-    `${row.section_code}||${row.cle}`,
-    { value: clean(row.valeur), fields: [champEditField(row.section_code, row.cle, row.valeur)] }
-  ));
-  const tempFromTemplate = templateRows.filter(({ section, field }) => {
-    const txt = norm(`${section} ${field?.cle}`);
-    return field?.type === 'champ' && (txt.includes('temp') || txt.includes('ph'));
-  }).map(({ sectionCode, field }) => {
-    const key = `${sectionCode}||${field.cle}`;
-    return target(key, field.cle, key, { value: clean(valuesByKey.get(key)), fields: [champEditField(sectionCode, field.cle, valuesByKey.get(key))] });
-  });
+  const tempFromDb = (champs || [])
+    .filter((row) => {
+      const txt = norm(`${row.section_code} ${row.cle}`);
+      return txt.includes('temp') || txt.includes('ph');
+    })
+    .map((row) =>
+      target(`${row.section_code}||${row.cle}`, row.cle, `${row.section_code}||${row.cle}`, {
+        value: clean(row.valeur),
+        fields: [champEditField(row.section_code, row.cle, row.valeur)]
+      })
+    );
+  const tempFromTemplate = templateRows
+    .filter(({ section, field }) => {
+      const txt = norm(`${section} ${field?.cle}`);
+      return field?.type === 'champ' && (txt.includes('temp') || txt.includes('ph'));
+    })
+    .map(({ sectionCode, field }) => {
+      const key = `${sectionCode}||${field.cle}`;
+      return target(key, field.cle, key, {
+        value: clean(valuesByKey.get(key)),
+        fields: [champEditField(sectionCode, field.cle, valuesByKey.get(key))]
+      });
+    });
   const temperatureTargets = uniqueTargets([...tempFromDb, ...tempFromTemplate]);
 
-  const regulationFromDb = (champs || []).filter((row) => {
-    const txt = norm(`${row.section_code} ${row.cle}`);
-    return txt.includes('regul') || txt.includes('consigne') || txt.includes('sonde') || txt.includes('automate');
-  }).map((row) => target(
-    `${row.section_code}||${row.cle}`,
-    row.cle,
-    `${row.section_code}||${row.cle}`,
-    { value: clean(row.valeur), fields: [champEditField(row.section_code, row.cle, row.valeur)] }
-  ));
-  const regulationFromTemplate = templateRows.filter(({ section, field }) => {
-    const txt = norm(`${section} ${field?.cle}`);
-    return field?.type === 'champ' && (txt.includes('regul') || txt.includes('consigne') || txt.includes('sonde') || txt.includes('automate'));
-  }).map(({ sectionCode, field }) => {
-    const key = `${sectionCode}||${field.cle}`;
-    return target(key, field.cle, key, { value: clean(valuesByKey.get(key)), fields: [champEditField(sectionCode, field.cle, valuesByKey.get(key))] });
-  });
+  const regulationFromDb = (champs || [])
+    .filter((row) => {
+      const txt = norm(`${row.section_code} ${row.cle}`);
+      return txt.includes('regul') || txt.includes('consigne') || txt.includes('sonde') || txt.includes('automate');
+    })
+    .map((row) =>
+      target(`${row.section_code}||${row.cle}`, row.cle, `${row.section_code}||${row.cle}`, {
+        value: clean(row.valeur),
+        fields: [champEditField(row.section_code, row.cle, row.valeur)]
+      })
+    );
+  const regulationFromTemplate = templateRows
+    .filter(({ section, field }) => {
+      const txt = norm(`${section} ${field?.cle}`);
+      return (
+        field?.type === 'champ' &&
+        (txt.includes('regul') || txt.includes('consigne') || txt.includes('sonde') || txt.includes('automate'))
+      );
+    })
+    .map(({ sectionCode, field }) => {
+      const key = `${sectionCode}||${field.cle}`;
+      return target(key, field.cle, key, {
+        value: clean(valuesByKey.get(key)),
+        fields: [champEditField(sectionCode, field.cle, valuesByKey.get(key))]
+      });
+    });
   const regulationTargets = uniqueTargets([...regulationFromDb, ...regulationFromTemplate]);
 
   const controlTargets = uniqueTargets([
-    ...(controles || []).map((control) => target(
-      `${control.section_code}||${control.cle}`,
-      control.cle,
-      `${control.section_code}||${control.cle}`,
-      {
+    ...(controles || []).map((control) =>
+      target(`${control.section_code}||${control.cle}`, control.cle, `${control.section_code}||${control.cle}`, {
         value: clean(control.avis),
         subtitle: clean(control.commentaire),
         fields: [
-          companionField('avis', 'Avis', control.avis, { kind: 'control', sectionCode: control.section_code, cle: control.cle, key: 'avis' }, { options: ['S', 'N.S', 'N.R', 'S.O', 'N.V'] }),
-          companionField('commentaire', 'Commentaire', control.commentaire, { kind: 'control', sectionCode: control.section_code, cle: control.cle, key: 'commentaire' }, { multiline: true }),
-        ],
-      }
-    )),
-    ...templateRows.filter(({ field }) => field?.type !== 'champ').map(({ sectionCode, field }) => {
-      const key = `${sectionCode}||${field.cle}`;
-      const current = controlsByKey.get(key);
-      return target(key, field.cle, key, {
-        value: clean(current?.avis),
-        subtitle: clean(current?.commentaire),
-        fields: [
-          companionField('avis', 'Avis', current?.avis, { kind: 'control', sectionCode, cle: field.cle, key: 'avis' }, { options: ['S', 'N.S', 'N.R', 'S.O', 'N.V'] }),
-          companionField('commentaire', 'Commentaire', current?.commentaire, { kind: 'control', sectionCode, cle: field.cle, key: 'commentaire' }, { multiline: true }),
-        ],
-      });
-    }),
+          companionField(
+            'avis',
+            'Avis',
+            control.avis,
+            { kind: 'control', sectionCode: control.section_code, cle: control.cle, key: 'avis' },
+            { options: ['S', 'N.S', 'N.R', 'S.O', 'N.V'] }
+          ),
+          companionField(
+            'commentaire',
+            'Commentaire',
+            control.commentaire,
+            { kind: 'control', sectionCode: control.section_code, cle: control.cle, key: 'commentaire' },
+            { multiline: true }
+          )
+        ]
+      })
+    ),
+    ...templateRows
+      .filter(({ field }) => field?.type !== 'champ')
+      .map(({ sectionCode, field }) => {
+        const key = `${sectionCode}||${field.cle}`;
+        const current = controlsByKey.get(key);
+        return target(key, field.cle, key, {
+          value: clean(current?.avis),
+          subtitle: clean(current?.commentaire),
+          fields: [
+            companionField(
+              'avis',
+              'Avis',
+              current?.avis,
+              { kind: 'control', sectionCode, cle: field.cle, key: 'avis' },
+              { options: ['S', 'N.S', 'N.R', 'S.O', 'N.V'] }
+            ),
+            companionField(
+              'commentaire',
+              'Commentaire',
+              current?.commentaire,
+              { kind: 'control', sectionCode, cle: field.cle, key: 'commentaire' },
+              { multiline: true }
+            )
+          ]
+        });
+      })
   ]);
 
   const modules = MODULES.map((module) => {
@@ -352,7 +489,7 @@ async function buildCompanionVisitSnapshot(visiteId) {
     return {
       ...module,
       count: module.id === 'photos' ? (photos || []).length : targets.length,
-      targets,
+      targets
     };
   });
 
@@ -366,10 +503,10 @@ async function buildCompanionVisitSnapshot(visiteId) {
       client: clean(visite.nom_client),
       site: clean(visite.nom_site),
       date: clean(visite.date_visite),
-      template: clean(visite.trame_id || 'icpe_v1'),
+      template: clean(visite.trame_id || 'icpe_v1')
     },
     modules,
-    generatedAt: new Date().toISOString(),
+    generatedAt: new Date().toISOString()
   };
 }
 
@@ -377,7 +514,10 @@ async function assertRowBelongsToVisit(table, id, visiteId) {
   const allowed = new Set(['compteurs', 'materiel', 'reseaux', 'remarques']);
   if (!allowed.has(table)) throw new Error('Cible Compagnon non autorisée');
   const db = await openAppDatabase();
-  const row = await db.getFirstAsync(`SELECT id FROM ${table} WHERE id=? AND visite_id=? LIMIT 1`, [String(id || ''), String(visiteId || '')]);
+  const row = await db.getFirstAsync(`SELECT id FROM ${table} WHERE id=? AND visite_id=? LIMIT 1`, [
+    String(id || ''),
+    String(visiteId || '')
+  ]);
   if (!row?.id) throw new Error('Cet élément ne fait pas partie de la visite ouverte.');
 }
 
@@ -393,7 +533,8 @@ async function applyCompanionTargetUpdate({ visiteId, edit, value }) {
       break;
 
     case 'control':
-      if (!edit.sectionCode || !edit.cle || !['avis', 'commentaire'].includes(edit.key)) throw new Error('Contrôle visite invalide');
+      if (!edit.sectionCode || !edit.cle || !['avis', 'commentaire'].includes(edit.key))
+        throw new Error('Contrôle visite invalide');
       await upsertControlePartiel(id, edit.sectionCode, edit.cle, { [edit.key]: nextValue });
       if (edit.key === 'avis' && nextValue !== 'N.S') {
         await supprimerRemarqueControle(id, `${edit.sectionCode}||${edit.cle}`).catch(() => {});
@@ -407,7 +548,18 @@ async function applyCompanionTargetUpdate({ visiteId, edit, value }) {
       break;
 
     case 'equipment':
-      if (!['designation', 'marque', 'modele', 'nombre', 'annee', 'numero_materiel', 'reseau_desservi', 'caracteristiques'].includes(edit.key)) {
+      if (
+        ![
+          'designation',
+          'marque',
+          'modele',
+          'nombre',
+          'annee',
+          'numero_materiel',
+          'reseau_desservi',
+          'caracteristiques'
+        ].includes(edit.key)
+      ) {
         throw new Error('Champ équipement non autorisé');
       }
       await assertRowBelongsToVisit('materiel', edit.id, id);
@@ -423,7 +575,9 @@ async function applyCompanionTargetUpdate({ visiteId, edit, value }) {
     case 'remark':
       if (!['prestation', 'poste', 'criticite'].includes(edit.key)) throw new Error('Champ remarque non autorisé');
       await assertRowBelongsToVisit('remarques', edit.id, id);
-      await modifierRemarqueVisite(edit.id, { [edit.key]: edit.key === 'criticite' ? Number(nextValue || 0) : nextValue });
+      await modifierRemarqueVisite(edit.id, {
+        [edit.key]: edit.key === 'criticite' ? Number(nextValue || 0) : nextValue
+      });
       break;
 
     default:
@@ -439,11 +593,21 @@ async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
   const db = await openAppDatabase();
   const transferId = clean(meta?.transferId);
   if (transferId) {
-    const existing = await db.getFirstAsync(`SELECT value FROM _meta WHERE key=?`, [`companion_transfer_${transferId}`]);
+    const existing = await db.getFirstAsync(`SELECT value FROM _meta WHERE key=?`, [
+      `companion_transfer_${transferId}`
+    ]);
     if (existing?.value) {
       const photo = await db.getFirstAsync(`SELECT * FROM photos WHERE id=? LIMIT 1`, [existing.value]);
-      if (Boolean(FileSystem.cacheDirectory) && String(uri).startsWith(FileSystem.cacheDirectory)) FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
-      if (photo?.id) return { id: photo.id, uri: photo.uri, entiteKey: photo.entite_key, label: clean(photo.label).split('||')[0] || clean(meta?.label) || 'Photo téléphone', duplicate: true };
+      if (Boolean(FileSystem.cacheDirectory) && String(uri).startsWith(FileSystem.cacheDirectory))
+        FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+      if (photo?.id)
+        return {
+          id: photo.id,
+          uri: photo.uri,
+          entiteKey: photo.entite_key,
+          label: clean(photo.label).split('||')[0] || clean(meta?.label) || 'Photo téléphone',
+          duplicate: true
+        };
     }
   }
 
@@ -451,16 +615,16 @@ async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
   const label = clean(meta?.label) || 'Photo téléphone';
   const prepared = await preparerPhotoNommee({ visiteId, entiteKey, label, uri });
   if (!prepared?.uri) throw new Error('Impossible de préparer la photo reçue');
-  const labelDb = prepared.nom ? `${prepared.label || label}||${prepared.nom}` : (prepared.label || label);
+  const labelDb = prepared.nom ? `${prepared.label || label}||${prepared.nom}` : prepared.label || label;
   const cibleKey = prepared.entiteKey || entiteKey;
   const journalKey = await journaliserPhotoEnAttente({ visiteId, entiteKey: cibleKey, uri: prepared.uri, labelDb });
   const photoId = await ajouterPhoto(visiteId, cibleKey, prepared.uri, labelDb);
   await confirmerPhotoJournalisee(journalKey).catch(() => {});
   if (transferId) {
-    await db.runAsync(
-      `INSERT INTO _meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
-      [`companion_transfer_${transferId}`, photoId]
-    );
+    await db.runAsync(`INSERT INTO _meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, [
+      `companion_transfer_${transferId}`,
+      photoId
+    ]);
   }
   if (Boolean(FileSystem.cacheDirectory) && String(uri).startsWith(FileSystem.cacheDirectory)) {
     FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
@@ -468,4 +632,11 @@ async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
   return { id: photoId, uri: prepared.uri, entiteKey: cibleKey, label: prepared.label || label };
 }
 
-export { MODULES as COMPANION_MODULES, applyCompanionTargetUpdate, buildCompanionClientSnapshot, buildCompanionVisitSnapshot, assertVisitBelongsToCompanionClient, importCompanionPhoto };
+export {
+  MODULES as COMPANION_MODULES,
+  applyCompanionTargetUpdate,
+  buildCompanionClientSnapshot,
+  buildCompanionVisitSnapshot,
+  assertVisitBelongsToCompanionClient,
+  importCompanionPhoto
+};

@@ -18,55 +18,96 @@ const CLE_TO_COL = {
   'T°dép(°C)': 't_dep_c',
   'Courbe de chauffe': 'courbe_de_chauffe',
   TNC: 'tnc',
-  'Consigne et Programme horaire': 'consigne_programme_horaire',
+  'Consigne et Programme horaire': 'consigne_programme_horaire'
 };
 
 export async function prechargerRegulation(visiteId, force = false) {
   const actuel = cacheRegulation.get(visiteId);
   if (!force && actuel?.data) return actuel.data;
   if (!force && actuel?.promise) return actuel.promise;
-  const promise = Promise.all([
-    prechargerDonneesTrameGenerique(visiteId, force),
-    listerReseaux(visiteId),
-  ]).then(([trame, reseaux]) => {
-    const data = { champsMap: trame?.champsMap || {}, reseaux: reseaux || [] };
-    cacheRegulation.set(visiteId, { data, promise: null });
-    return data;
-  }).catch((e) => { cacheRegulation.delete(visiteId); throw e; });
+  const promise = Promise.all([prechargerDonneesTrameGenerique(visiteId, force), listerReseaux(visiteId)])
+    .then(([trame, reseaux]) => {
+      const data = { champsMap: trame?.champsMap || {}, reseaux: reseaux || [] };
+      cacheRegulation.set(visiteId, { data, promise: null });
+      return data;
+    })
+    .catch((e) => {
+      cacheRegulation.delete(visiteId);
+      throw e;
+    });
   cacheRegulation.set(visiteId, { data: actuel?.data || null, promise });
   return promise;
 }
 
-export function invaliderCacheRegulation(visiteId) { cacheRegulation.delete(visiteId); }
+export function invaliderCacheRegulation(visiteId) {
+  cacheRegulation.delete(visiteId);
+}
 
 const ReseauCard = memo(function ReseauCard({ reseau, visiteId, onRemove }) {
   const fields = useMemo(() => RESEAU_TEMPLATE.filter((f) => f.cle !== 'Nom réseau'), []);
-  const [nom, setNom, flushNom] = useDurableAutosave(reseau.nom_reseau || '', async (v) => {
-    await upsertReseauChamp(reseau.id, 'nom_reseau', v.trim() || 'Réseau');
-  }, 450);
-  const [values, setValues] = useState(() => Object.fromEntries(fields.map((f) => [f.cle, reseau[CLE_TO_COL[f.cle]] ?? ''])));
+  const [nom, setNom, flushNom] = useDurableAutosave(
+    reseau.nom_reseau || '',
+    async (v) => {
+      await upsertReseauChamp(reseau.id, 'nom_reseau', v.trim() || 'Réseau');
+    },
+    450
+  );
+  const [values, setValues] = useState(() =>
+    Object.fromEntries(fields.map((f) => [f.cle, reseau[CLE_TO_COL[f.cle]] ?? '']))
+  );
 
-  const saveField = useCallback((cle, value) => {
-    setValues((old) => ({ ...old, [cle]: value }));
-    const col = CLE_TO_COL[cle];
-    if (col) upsertReseauChamp(reseau.id, col, value).catch(console.warn);
-  }, [reseau.id]);
+  const saveField = useCallback(
+    (cle, value) => {
+      setValues((old) => ({ ...old, [cle]: value }));
+      const col = CLE_TO_COL[cle];
+      if (col) upsertReseauChamp(reseau.id, col, value).catch(console.warn);
+    },
+    [reseau.id]
+  );
 
-  return <View style={styles.formCard}>
-    <View style={styles.reseauHeaderRow}>
-      <TextInput style={styles.reseauNomInput} value={nom} onChangeText={setNom} onBlur={() => { flushNom().catch(() => {}); }} />
-      <PhotoButton visiteId={visiteId} entiteKey={reseau.reseau_site_id ? `reseau_site||${reseau.reseau_site_id}` : `reseau||${reseau.id}`} label={nom} />
-      <TouchableOpacity onPress={() => onRemove(reseau.id)}><Text style={styles.removeLink}>Retirer</Text></TouchableOpacity>
+  return (
+    <View style={styles.formCard}>
+      <View style={styles.reseauHeaderRow}>
+        <TextInput
+          style={styles.reseauNomInput}
+          value={nom}
+          onChangeText={setNom}
+          onBlur={() => {
+            flushNom().catch(() => {});
+          }}
+        />
+        <PhotoButton
+          visiteId={visiteId}
+          entiteKey={reseau.reseau_site_id ? `reseau_site||${reseau.reseau_site_id}` : `reseau||${reseau.id}`}
+          label={nom}
+        />
+        <TouchableOpacity onPress={() => onRemove(reseau.id)}>
+          <Text style={styles.removeLink}>Retirer</Text>
+        </TouchableOpacity>
+      </View>
+      {fields.map((f) => {
+        const cfg = getNumericConfig(f.cle);
+        return (
+          <View key={f.cle} style={styles.fieldBlock}>
+            <Text style={styles.fieldLabel}>
+              {cleanLabel(f.cle)}
+              {extractUnit(f.cle) && !cfg ? ` (${extractUnit(f.cle)})` : ''}
+            </Text>
+            {cfg ? (
+              <StepperNumerique valeur={values[f.cle]} config={cfg} onChange={(v) => saveField(f.cle, v)} />
+            ) : (
+              <TextInput
+                style={styles.input}
+                value={String(values[f.cle] ?? '')}
+                onChangeText={(t) => setValues((v) => ({ ...v, [f.cle]: t }))}
+                onBlur={() => saveField(f.cle, values[f.cle])}
+              />
+            )}
+          </View>
+        );
+      })}
     </View>
-    {fields.map((f) => {
-      const cfg = getNumericConfig(f.cle);
-      return <View key={f.cle} style={styles.fieldBlock}>
-        <Text style={styles.fieldLabel}>{cleanLabel(f.cle)}{extractUnit(f.cle) && !cfg ? ` (${extractUnit(f.cle)})` : ''}</Text>
-        {cfg ? <StepperNumerique valeur={values[f.cle]} config={cfg} onChange={(v) => saveField(f.cle, v)} /> :
-          <TextInput style={styles.input} value={String(values[f.cle] ?? '')} onChangeText={(t) => setValues((v) => ({ ...v, [f.cle]: t }))} onBlur={() => saveField(f.cle, values[f.cle])} />}
-      </View>;
-    })}
-  </View>;
+  );
 });
 
 export function OptimizedRegulationPanel({ visiteId, onSaved }) {
@@ -78,22 +119,38 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
 
   useEffect(() => {
     let alive = true;
-    prechargerRegulation(visiteId).then((d) => { if (alive) { setChampsMap(d.champsMap); setReseaux(d.reseaux); } }).catch(console.warn);
-    return () => { alive = false; };
+    prechargerRegulation(visiteId)
+      .then((d) => {
+        if (alive) {
+          setChampsMap(d.champsMap);
+          setReseaux(d.reseaux);
+        }
+      })
+      .catch(console.warn);
+    return () => {
+      alive = false;
+    };
   }, [visiteId]);
 
-  const patchCache = useCallback((next) => {
-    const c = cacheRegulation.get(visiteId)?.data;
-    if (c) cacheRegulation.set(visiteId, { data: { ...c, reseaux: next }, promise: null });
-  }, [visiteId]);
+  const patchCache = useCallback(
+    (next) => {
+      const c = cacheRegulation.get(visiteId)?.data;
+      if (c) cacheRegulation.set(visiteId, { data: { ...c, reseaux: next }, promise: null });
+    },
+    [visiteId]
+  );
 
-  const saveTrameField = useCallback((key, valeur) => {
-    setChampsMap((old) => ({ ...old, [key]: valeur }));
-    mettreAJourCacheChamp(visiteId, key, valeur);
-    const c = cacheRegulation.get(visiteId)?.data;
-    if (c) cacheRegulation.set(visiteId, { data: { ...c, champsMap: { ...c.champsMap, [key]: valeur } }, promise: null });
-    onSaved?.();
-  }, [onSaved, visiteId]);
+  const saveTrameField = useCallback(
+    (key, valeur) => {
+      setChampsMap((old) => ({ ...old, [key]: valeur }));
+      mettreAJourCacheChamp(visiteId, key, valeur);
+      const c = cacheRegulation.get(visiteId)?.data;
+      if (c)
+        cacheRegulation.set(visiteId, { data: { ...c, champsMap: { ...c.champsMap, [key]: valeur } }, promise: null });
+      onSaved?.();
+    },
+    [onSaved, visiteId]
+  );
 
   const add = useCallback(async () => {
     if (adding) return;
@@ -102,51 +159,83 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
       const n = reseaux.length + 1;
       const id = await ajouterReseau(visiteId, `Réseau ${n}`);
       const row = { id, visite_id: visiteId, ordre: reseaux.length, nom_reseau: `Réseau ${n}` };
-      setReseaux((old) => { const next = [...old, row]; patchCache(next); return next; });
-    } finally { setAdding(false); }
+      setReseaux((old) => {
+        const next = [...old, row];
+        patchCache(next);
+        return next;
+      });
+    } finally {
+      setAdding(false);
+    }
   }, [adding, patchCache, reseaux.length, visiteId]);
 
-  const remove = useCallback(async (id) => {
-    await supprimerReseau(id);
-    setReseaux((old) => { const next = old.filter((r) => r.id !== id); patchCache(next); return next; });
-  }, [patchCache]);
+  const remove = useCallback(
+    async (id) => {
+      await supprimerReseau(id);
+      setReseaux((old) => {
+        const next = old.filter((r) => r.id !== id);
+        patchCache(next);
+        return next;
+      });
+    },
+    [patchCache]
+  );
 
   const renderTrameField = (f, sectionCode) => {
     const key = `${sectionCode}||${f.cle}`;
-    return <DurableChampGenerique key={f.cle} visiteId={visiteId} sectionCode={sectionCode} field={f} valeurInitiale={champsMap[key]} onSaved={(v) => saveTrameField(key, v)} />;
+    return (
+      <DurableChampGenerique
+        key={f.cle}
+        visiteId={visiteId}
+        sectionCode={sectionCode}
+        field={f}
+        valeurInitiale={champsMap[key]}
+        onSaved={(v) => saveTrameField(key, v)}
+      />
+    );
   };
 
-  const header = <>
-    <Text style={styles.sectionTitle}>Cascade chaudières</Text>
-    <View style={styles.formCard}>
-      {(TRAME_DATA['p-regulation']?.['Cascade chaudières'] || []).map((f) => renderTrameField(f, 'regulation.cascade'))}
-    </View>
-    <Text style={styles.sectionTitle}>Réseaux · {reseaux.length}</Text>
-  </>;
+  const header = (
+    <>
+      <Text style={styles.sectionTitle}>Cascade chaudières</Text>
+      <View style={styles.formCard}>
+        {(TRAME_DATA['p-regulation']?.['Cascade chaudières'] || []).map((f) =>
+          renderTrameField(f, 'regulation.cascade')
+        )}
+      </View>
+      <Text style={styles.sectionTitle}>Réseaux · {reseaux.length}</Text>
+    </>
+  );
 
-  const footer = <>
-    <TouchableOpacity style={styles.addBtn} onPress={add} disabled={adding}><Text style={styles.addBtnText}>{adding ? 'Ajout…' : '+ Ajouter un réseau'}</Text></TouchableOpacity>
-    <Text style={styles.sectionTitle}>Réseau ECS</Text>
-    <View style={styles.formCard}>
-      {(TRAME_DATA['p-regulation']?.['Réseau ECS'] || []).map((f) => renderTrameField(f, 'regulation.reseau_ecs'))}
-    </View>
-  </>;
+  const footer = (
+    <>
+      <TouchableOpacity style={styles.addBtn} onPress={add} disabled={adding}>
+        <Text style={styles.addBtnText}>{adding ? 'Ajout…' : '+ Ajouter un réseau'}</Text>
+      </TouchableOpacity>
+      <Text style={styles.sectionTitle}>Réseau ECS</Text>
+      <View style={styles.formCard}>
+        {(TRAME_DATA['p-regulation']?.['Réseau ECS'] || []).map((f) => renderTrameField(f, 'regulation.reseau_ecs'))}
+      </View>
+    </>
+  );
 
-  return <FlatList
-    ref={listRef}
-    data={reseaux}
-    onScroll={onScroll}
-    scrollEventThrottle={100}
-    keyExtractor={(item) => item.id}
-    renderItem={({ item }) => <ReseauCard reseau={item} visiteId={visiteId} onRemove={remove} />}
-    ListHeaderComponent={header}
-    ListFooterComponent={footer}
-    contentContainerStyle={styles.panelContent}
-    keyboardShouldPersistTaps="handled"
-    initialNumToRender={1}
-    maxToRenderPerBatch={2}
-    windowSize={3}
-    updateCellsBatchingPeriod={80}
-    removeClippedSubviews
-  />;
+  return (
+    <FlatList
+      ref={listRef}
+      data={reseaux}
+      onScroll={onScroll}
+      scrollEventThrottle={100}
+      keyExtractor={(item) => item.id}
+      renderItem={({ item }) => <ReseauCard reseau={item} visiteId={visiteId} onRemove={remove} />}
+      ListHeaderComponent={header}
+      ListFooterComponent={footer}
+      contentContainerStyle={styles.panelContent}
+      keyboardShouldPersistTaps="handled"
+      initialNumToRender={1}
+      maxToRenderPerBatch={2}
+      windowSize={3}
+      updateCellsBatchingPeriod={80}
+      removeClippedSubviews
+    />
+  );
 }

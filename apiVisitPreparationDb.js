@@ -2,9 +2,19 @@ import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { getCachedLocalReference } from './symfonyApiCacheDb.js';
 
-function normalize(v) { return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
-function text(v) { return v == null || v === '' ? null : String(v).trim() || null; }
-function sourceId(v) { return v == null || v === '' ? null : String(v).trim() || null; }
+function normalize(v) {
+  return String(v || '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .trim();
+}
+function text(v) {
+  return v == null || v === '' ? null : String(v).trim() || null;
+}
+function sourceId(v) {
+  return v == null || v === '' ? null : String(v).trim() || null;
+}
 function yearAsInteger(v) {
   const raw = text(v);
   if (!raw || !/^\d{4}$/.test(raw)) return null;
@@ -17,7 +27,8 @@ export function mapRemoteTrameToLocal(remote) {
   if (!t) return null;
   if (t.includes('vmc') || t.includes('ventilation')) return 'vmc';
   if (t.includes('pre') && t.includes('allum')) return 'pre_allumage';
-  if (t.includes('chauffer') || t.includes('sous-station') || t.includes('sous station') || t.includes('icpe')) return 'icpe_v1';
+  if (t.includes('chauffer') || t.includes('sous-station') || t.includes('sous station') || t.includes('icpe'))
+    return 'icpe_v1';
   return null;
 }
 
@@ -28,7 +39,10 @@ async function upsertProvenance(db, entiteType, entiteId, referenceExterne, deta
     [entiteType, entiteId, ref]
   );
   if (existing?.id) {
-    await db.runAsync(`UPDATE provenances SET details_json=?,importe_le=datetime('now') WHERE id=?`, [JSON.stringify(details ?? null), existing.id]);
+    await db.runAsync(`UPDATE provenances SET details_json=?,importe_le=datetime('now') WHERE id=?`, [
+      JSON.stringify(details ?? null),
+      existing.id
+    ]);
     return existing.id;
   }
   const id = createId();
@@ -76,20 +90,26 @@ async function ensureInstallationForRemoteLocal(db, siteId, remoteLocalId, ref) 
 
   if (!installationId) {
     installationId = createId();
-    await db.runAsync(
-      `INSERT INTO installations(id,site_id,type_code,nom,description,actif) VALUES(?,?,?,?,?,1)`,
-      [installationId, siteId, 'installation_technique', designation, 'Local technique associé au patrimoine Intranet']
-    );
+    await db.runAsync(`INSERT INTO installations(id,site_id,type_code,nom,description,actif) VALUES(?,?,?,?,?,1)`, [
+      installationId,
+      siteId,
+      'installation_technique',
+      designation,
+      'Local technique associé au patrimoine Intranet'
+    ]);
   }
 
-  await db.runAsync(`UPDATE api_local_links SET local_installation_id=? WHERE remote_local_id=?`, [installationId, remoteLocalId]);
+  await db.runAsync(`UPDATE api_local_links SET local_installation_id=? WHERE remote_local_id=?`, [
+    installationId,
+    remoteLocalId
+  ]);
   await upsertProvenance(db, 'installation', installationId, remoteLocalId, {
     sourceType: 'local',
     remoteLocalId,
     remoteSiteId: sourceId(ref?.site?.id),
     designation: text(ref?.local?.designation),
     remoteTrameId: sourceId(ref?.trame?.id),
-    remoteTrameNom: text(ref?.trame?.nom),
+    remoteTrameNom: text(ref?.trame?.nom)
   });
   return installationId;
 }
@@ -149,7 +169,10 @@ async function ensureEquipmentFromCurrentListing(db, siteId, installationId, mat
   const wasRemoteLinked = Boolean(equipmentId);
 
   if (equipmentId && linked.installation_id !== installationId) {
-    await db.runAsync(`UPDATE equipements SET installation_id=?,modifie_le=datetime('now') WHERE id=?`, [installationId, equipmentId]);
+    await db.runAsync(`UPDATE equipements SET installation_id=?,modifie_le=datetime('now') WHERE id=?`, [
+      installationId,
+      equipmentId
+    ]);
   }
 
   if (!equipmentId) equipmentId = await findConservativeEquipmentMatch(db, installationId, material);
@@ -159,8 +182,15 @@ async function ensureEquipmentFromCurrentListing(db, siteId, installationId, mat
     await db.runAsync(
       `INSERT INTO equipements(id,installation_id,type_code,designation,marque,modele,annee,statut)
        VALUES(?,?,?,?,?,?,?, 'actif')`,
-      [equipmentId, installationId, text(material?.categorie) || 'equipement', text(material?.designation) || 'Équipement',
-        text(material?.marque), text(material?.modele), yearAsInteger(material?.annee)]
+      [
+        equipmentId,
+        installationId,
+        text(material?.categorie) || 'equipement',
+        text(material?.designation) || 'Équipement',
+        text(material?.marque),
+        text(material?.modele),
+        yearAsInteger(material?.annee)
+      ]
     );
   } else if (wasRemoteLinked) {
     await db.runAsync(
@@ -168,8 +198,14 @@ async function ensureEquipmentFromCurrentListing(db, siteId, installationId, mat
          type_code=COALESCE(?,type_code),designation=COALESCE(?,designation),marque=COALESCE(?,marque),
          modele=COALESCE(?,modele),annee=COALESCE(?,annee),modifie_le=datetime('now')
        WHERE id=?`,
-      [text(material?.categorie), text(material?.designation), text(material?.marque), text(material?.modele),
-        yearAsInteger(material?.annee), equipmentId]
+      [
+        text(material?.categorie),
+        text(material?.designation),
+        text(material?.marque),
+        text(material?.modele),
+        yearAsInteger(material?.annee),
+        equipmentId
+      ]
     );
   }
 
@@ -178,7 +214,7 @@ async function ensureEquipmentFromCurrentListing(db, siteId, installationId, mat
     remoteMaterialId,
     remoteLocalId: sourceId(material?.remoteLocalId),
     currentLocalListing: true,
-    payload: material,
+    payload: material
   });
   await upsertAttribute(db, 'equipement', equipmentId, 'api_symfony.numero_materiel', material?.numeroMateriel);
   await upsertAttribute(db, 'equipement', equipmentId, 'api_symfony.annee_source', material?.annee);
@@ -190,15 +226,30 @@ async function ensureEquipmentFromCurrentListing(db, siteId, installationId, mat
 }
 
 async function linkEquipmentToVisit(db, visiteId, equipmentId, material) {
-  const existing = await db.getFirstAsync(`SELECT id FROM materiel WHERE visite_id=? AND equipement_id=?`, [visiteId, equipmentId]);
+  const existing = await db.getFirstAsync(`SELECT id FROM materiel WHERE visite_id=? AND equipement_id=?`, [
+    visiteId,
+    equipmentId
+  ]);
   if (existing?.id) return existing.id;
   const id = createId();
   await db.runAsync(
     `INSERT INTO materiel(id,visite_id,categorie,nombre,designation,numero_materiel,reseau_desservi,marque,modele,caracteristiques,annee,etat,equipement_id)
      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [id, visiteId, text(material?.categorie), text(material?.nombre), text(material?.designation), text(material?.numeroMateriel),
-      text(material?.reseauDesservi), text(material?.marque), text(material?.modele), text(material?.caracteristiques),
-      text(material?.annee), null, equipmentId]
+    [
+      id,
+      visiteId,
+      text(material?.categorie),
+      text(material?.nombre),
+      text(material?.designation),
+      text(material?.numeroMateriel),
+      text(material?.reseauDesservi),
+      text(material?.marque),
+      text(material?.modele),
+      text(material?.caracteristiques),
+      text(material?.annee),
+      null,
+      equipmentId
+    ]
   );
   return id;
 }
@@ -227,13 +278,13 @@ function buildReferenceDetails(ref, remoteLocalId) {
       materialsAreCurrentLocalPatrimoine: true,
       materialStateIsReferenceOnly: true,
       previousRemarksMustNotSeedCurrentVisit: true,
-      previousMaterialStateMustNotSeedCurrentVisit: true,
+      previousMaterialStateMustNotSeedCurrentVisit: true
     },
     unavailableHistory: {
       photographies: true,
       notes: true,
-      conclusion: true,
-    },
+      conclusion: true
+    }
   };
 }
 
@@ -259,11 +310,20 @@ export async function importApiReferenceForVisit(visiteId, remoteLocalId, remote
         [visit.site_id, sourceId(ref?.site?.id)]
       );
       const own = candidates.filter((row) => Number(row.same_local_client) === 1);
-      resolvedClientId = sourceId(own.length === 1 ? own[0].remote_client_id : (candidates.length === 1 ? candidates[0].remote_client_id : null));
+      resolvedClientId = sourceId(
+        own.length === 1 ? own[0].remote_client_id : candidates.length === 1 ? candidates[0].remote_client_id : null
+      );
     }
     await db.runAsync(
       `UPDATE visites SET installation_id=?,api_remote_local_id=?,api_remote_client_id=?,api_remote_trame_id=?,api_source_remote_visit_id=?,modifie_le=datetime('now') WHERE id=?`,
-      [installationId, remoteId, resolvedClientId, sourceId(ref?.trame?.id), sourceId(ref?.derniereVisite?.id), visiteId]
+      [
+        installationId,
+        remoteId,
+        resolvedClientId,
+        sourceId(ref?.trame?.id),
+        sourceId(ref?.derniereVisite?.id),
+        visiteId
+      ]
     );
     let importedMaterials = 0;
 
@@ -293,7 +353,7 @@ export async function importApiReferenceForVisit(visiteId, remoteLocalId, remote
       suggestedTrameId: mapRemoteTrameToLocal(ref?.trame),
       latestRemoteVisitId: sourceId(ref?.derniereVisite?.id),
       remoteClientId: resolvedClientId,
-      remoteTrameId: sourceId(ref?.trame?.id),
+      remoteTrameId: sourceId(ref?.trame?.id)
     };
   });
 

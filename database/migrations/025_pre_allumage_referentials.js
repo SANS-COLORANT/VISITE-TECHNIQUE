@@ -28,5 +28,5 @@ export const migration025 = {
       ('pa-ref-ca-sbo','charge_affaires','SBO','SBO',30),
       ('pa-ref-red-nma','redacteur','NMA','NMA',10),
       ('pa-ref-red-abo','redacteur','ABO','ABO',20);
-  `,
+  `
 };

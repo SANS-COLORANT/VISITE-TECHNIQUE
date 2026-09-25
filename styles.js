@@ -3,12 +3,21 @@
 import { Platform, StyleSheet } from 'react-native';
 
 export const COLORS = {
-  orange: '#F26426', orangeDark: '#D9531A', orangeLight: '#FFF1EA',
-  ink: '#1A1A18', inkSoft: '#6B6B66', inkFaint: '#A3A39D',
-  line: '#EAE8E2', bg: '#FAFAF8', white: '#FFFFFF',
-  green: '#2E7D32', greenBg: '#E8F5E9',
-  red: '#B91C1C', redBg: '#FDECEC',
-  amber: '#B45309', amberBg: '#FEF3E2',
+  orange: '#F26426',
+  orangeDark: '#D9531A',
+  orangeLight: '#FFF1EA',
+  ink: '#1A1A18',
+  inkSoft: '#6B6B66',
+  inkFaint: '#A3A39D',
+  line: '#EAE8E2',
+  bg: '#FAFAF8',
+  white: '#FFFFFF',
+  green: '#2E7D32',
+  greenBg: '#E8F5E9',
+  red: '#B91C1C',
+  redBg: '#FDECEC',
+  amber: '#B45309',
+  amberBg: '#FEF3E2'
 };
 
 export const styles = StyleSheet.create({
@@ -20,21 +29,64 @@ export const styles = StyleSheet.create({
 
   statRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   statCard: {
-    flex: 1, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, paddingVertical: 14, alignItems: 'center',
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    flex: 1,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2
   },
   statNum: { fontSize: 22, fontWeight: '700', color: COLORS.ink },
   statLabel: { fontSize: 11.5, color: COLORS.inkSoft, marginTop: 3 },
 
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, marginBottom: 9 },
-  sectionLabel: { fontSize: 12, fontWeight: '700', color: COLORS.inkFaint, textTransform: 'uppercase', letterSpacing: 0.5 },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginTop: 18,
+    marginBottom: 9
+  },
+  sectionLabel: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.inkFaint,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5
+  },
   addLink: { fontSize: 12.5, fontWeight: '700', color: COLORS.orangeDark },
 
   card: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, padding: 14, marginBottom: 9, gap: 10,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 13,
+    padding: 14,
+    marginBottom: 9,
+    gap: 10,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2
   },
-  deleteVisiteBtn: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.redBg, marginLeft: 4 },
+  deleteVisiteBtn: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.redBg,
+    marginLeft: 4
+  },
   deleteVisiteBtnText: { color: COLORS.red, fontSize: 13, fontWeight: '700' },
   cardTitle: { fontSize: 14.5, fontWeight: '600', color: COLORS.ink },
   cardSub: { fontSize: 12, color: COLORS.inkSoft, marginTop: 2 },
@@ -54,7 +106,15 @@ export const styles = StyleSheet.create({
   modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' },
   modalSheet: { backgroundColor: COLORS.white, borderRadius: 16, padding: 20, width: '85%' },
   modalTitle: { fontSize: 16, fontWeight: '600', color: COLORS.ink, marginBottom: 14 },
-  input: { borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, paddingHorizontal: 12, paddingVertical: 10, fontSize: 14, color: COLORS.ink },
+  input: {
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 9,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: COLORS.ink
+  },
   modalActions: { flexDirection: 'row', gap: 10, marginTop: 16 },
   fabBar: {
     paddingTop: 12,
@@ -62,27 +122,83 @@ export const styles = StyleSheet.create({
     paddingBottom: Platform.OS === 'android' ? 32 : 16,
     backgroundColor: COLORS.white,
     borderTopWidth: 1,
-    borderTopColor: COLORS.line,
+    borderTopColor: COLORS.line
   },
   fabButton: { flex: 0, minHeight: 48, justifyContent: 'center' },
-  paramTabs: { flexDirection: 'row', backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line, paddingHorizontal: 20 },
-  paramTab: { paddingVertical: 12, paddingHorizontal: 4, marginRight: 24, borderBottomWidth: 2.5, borderBottomColor: 'transparent' },
+  paramTabs: {
+    flexDirection: 'row',
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.line,
+    paddingHorizontal: 20
+  },
+  paramTab: {
+    paddingVertical: 12,
+    paddingHorizontal: 4,
+    marginRight: 24,
+    borderBottomWidth: 2.5,
+    borderBottomColor: 'transparent'
+  },
   paramTabActive: { borderBottomColor: COLORS.orange },
   paramTabText: { fontSize: 13.5, color: COLORS.inkSoft, fontWeight: '600' },
   paramTabTextActive: { color: COLORS.orangeDark },
   catalogueSearchBox: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8, backgroundColor: COLORS.white },
-  catalogueSearchInput: { backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 13.5, color: COLORS.ink },
-  catalogueTabs: { flexDirection: 'row', paddingHorizontal: 20, paddingBottom: 10, backgroundColor: COLORS.white, gap: 8 },
-  catalogueTab: { flex: 1, alignItems: 'center', paddingVertical: 8, borderRadius: 9, backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.line },
+  catalogueSearchInput: {
+    backgroundColor: COLORS.bg,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    paddingVertical: 10,
+    fontSize: 13.5,
+    color: COLORS.ink
+  },
+  catalogueTabs: {
+    flexDirection: 'row',
+    paddingHorizontal: 20,
+    paddingBottom: 10,
+    backgroundColor: COLORS.white,
+    gap: 8
+  },
+  catalogueTab: {
+    flex: 1,
+    alignItems: 'center',
+    paddingVertical: 8,
+    borderRadius: 9,
+    backgroundColor: COLORS.bg,
+    borderWidth: 1,
+    borderColor: COLORS.line
+  },
   catalogueTabActive: { backgroundColor: COLORS.orangeLight, borderColor: COLORS.orange },
   catalogueTabText: { fontSize: 12, color: COLORS.inkSoft, fontWeight: '600' },
   catalogueTabTextActive: { color: COLORS.orangeDark },
   catalogueFilters: { flexDirection: 'row', flexWrap: 'wrap', paddingHorizontal: 20, paddingVertical: 10, gap: 7 },
-  catalogueFilter: { width: '31.5%', minHeight: 38, paddingHorizontal: 6, paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
+  catalogueFilter: {
+    width: '31.5%',
+    minHeight: 38,
+    paddingHorizontal: 6,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   catalogueFilterActive: { backgroundColor: COLORS.orange, borderColor: COLORS.orange },
   catalogueFilterText: { fontSize: 11, color: COLORS.inkSoft, fontWeight: '600', textAlign: 'center' },
   catalogueFilterTextActive: { color: COLORS.white },
-  catalogueCard: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, padding: 13, marginBottom: 9 },
+  catalogueCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 13,
+    padding: 13,
+    marginBottom: 9
+  },
   catalogueDescription: { fontSize: 11, color: COLORS.inkFaint, marginTop: 4 },
   equipmentIcon: { width: 38, textAlign: 'center', fontSize: 24 },
   brandLogo: { width: 42, height: 34 },
@@ -90,37 +206,118 @@ export const styles = StyleSheet.create({
   brandFallbackCompact: { width: 42, height: 28, borderRadius: 7 },
   equipmentBrandHeader: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 8 },
   equipmentLibraryRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  visitModeCard: { flexDirection: 'row', alignItems: 'center', gap: 13, borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, padding: 14, marginBottom: 10, backgroundColor: COLORS.white },
+  visitModeCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 13,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 13,
+    padding: 14,
+    marginBottom: 10,
+    backgroundColor: COLORS.white
+  },
   visitModeIcon: { fontSize: 25 },
   visitModeTitle: { fontSize: 14, fontWeight: '800', color: COLORS.ink, marginBottom: 3 },
   visitModeText: { fontSize: 11, lineHeight: 16, color: COLORS.inkSoft },
-  anomalyBtn: { marginHorizontal: 18, marginBottom: 7, paddingHorizontal: 11, paddingVertical: 7, borderRadius: 9, backgroundColor: '#FFF0EE', alignItems: 'center' },
+  anomalyBtn: {
+    marginHorizontal: 18,
+    marginBottom: 7,
+    paddingHorizontal: 11,
+    paddingVertical: 7,
+    borderRadius: 9,
+    backgroundColor: '#FFF0EE',
+    alignItems: 'center'
+  },
   anomalyBtnText: { fontSize: 11, fontWeight: '800', color: '#B42318' },
-  expressHint: { marginHorizontal: 20, marginBottom: 6, fontSize: 9.5, lineHeight: 13, color: COLORS.inkSoft, textAlign: 'center' },
-  brandFallback: { width: 38, height: 38, borderRadius: 10, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.orangeLight },
+  expressHint: {
+    marginHorizontal: 20,
+    marginBottom: 6,
+    fontSize: 9.5,
+    lineHeight: 13,
+    color: COLORS.inkSoft,
+    textAlign: 'center'
+  },
+  brandFallback: {
+    width: 38,
+    height: 38,
+    borderRadius: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: COLORS.orangeLight
+  },
   brandFallbackText: { fontSize: 12, fontWeight: '800', color: COLORS.orangeDark },
   catalogueChoiceGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 },
-  catalogueChoice: { width: '48%', minHeight: 38, paddingHorizontal: 8, paddingVertical: 7, borderRadius: 10, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
+  catalogueChoice: {
+    width: '48%',
+    minHeight: 38,
+    paddingHorizontal: 8,
+    paddingVertical: 7,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   catalogueChoiceActive: { borderColor: COLORS.orange, backgroundColor: COLORS.orangeLight },
   btnPrimary: { flex: 1, backgroundColor: COLORS.orange, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
   btnPrimaryText: { color: COLORS.white, fontWeight: '600', fontSize: 13.5 },
-  btnSecondary: { flex: 1, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 10, paddingVertical: 12, alignItems: 'center' },
+  btnSecondary: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center'
+  },
   btnSecondaryText: { color: COLORS.ink, fontWeight: '600', fontSize: 13.5 },
 
   // ---- Écran Visite : topbar + onglets ----
-  visiteTopbar: { backgroundColor: COLORS.white, paddingTop: 50, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: COLORS.line },
+  visiteTopbar: {
+    backgroundColor: COLORS.white,
+    paddingTop: 50,
+    paddingHorizontal: 20,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.line
+  },
   visiteHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   noteBtn: { borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
-  visiteBackBtn: { width: 32, height: 32, borderRadius: 9, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  visiteBackBtn: {
+    width: 32,
+    height: 32,
+    borderRadius: 9,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 10
+  },
   visiteBackBtnText: { fontSize: 16, color: COLORS.ink },
 
   // ---- Header simple (navigation maison, sans @react-navigation) ----
-  simpleHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, paddingTop: 50, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: COLORS.line },
+  simpleHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: COLORS.white,
+    paddingTop: 50,
+    paddingHorizontal: 16,
+    paddingBottom: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.line
+  },
   simpleHeaderBack: { width: 36, alignItems: 'flex-start', justifyContent: 'center' },
   simpleHeaderBackText: { fontSize: 20, color: COLORS.ink },
   simpleHeaderTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '600', color: COLORS.ink },
   noteBtnText: { fontSize: 12, color: COLORS.inkSoft, fontWeight: '600' },
-  exportBtn: { backgroundColor: COLORS.ink, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, marginLeft: 8 },
+  exportBtn: {
+    backgroundColor: COLORS.ink,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    marginLeft: 8
+  },
   exportBtnText: { fontSize: 12, color: COLORS.white, fontWeight: '600' },
   progressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   progressBarBg: { flex: 1, height: 6, backgroundColor: COLORS.line, borderRadius: 3, overflow: 'hidden' },
@@ -136,19 +333,41 @@ export const styles = StyleSheet.create({
   panelContent: { padding: 18, paddingBottom: 60 },
   sectionTitle: { fontSize: 14, fontWeight: '600', color: COLORS.ink, marginBottom: 10, marginTop: 4 },
   formCard: {
-    backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, padding: 16, marginBottom: 14,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 13,
+    padding: 16,
+    marginBottom: 14,
+    shadowColor: '#000',
+    shadowOpacity: 0.05,
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 2
   },
 
   fieldBlock: { marginBottom: 14 },
   fieldTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: COLORS.ink, flex: 1 },
 
-  photoBtn: { borderWidth: 1, borderColor: COLORS.line, borderRadius: 15, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: COLORS.white },
+  photoBtn: {
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 15,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    backgroundColor: COLORS.white
+  },
   photoBtnText: { fontSize: 10.5, fontWeight: '600', color: COLORS.inkFaint },
   photoBtnTaken: { backgroundColor: COLORS.greenBg, borderColor: COLORS.green },
   photoBtnTextTaken: { color: COLORS.green },
-  photoViewerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.94)', paddingTop: 48, paddingHorizontal: 18, paddingBottom: 28 },
+  photoViewerOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.94)',
+    paddingTop: 48,
+    paddingHorizontal: 18,
+    paddingBottom: 28
+  },
   photoViewerHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 },
   photoViewerTitle: { flex: 1, color: COLORS.white, fontSize: 14, fontWeight: '600' },
   photoViewerClose: { color: COLORS.white, fontSize: 22, paddingHorizontal: 10, paddingVertical: 4 },
@@ -157,9 +376,24 @@ export const styles = StyleSheet.create({
   photoViewerNavBtn: { paddingVertical: 8, paddingHorizontal: 10 },
   photoViewerNavText: { color: COLORS.white, fontSize: 12.5, fontWeight: '600' },
   photoViewerActions: { flexDirection: 'row', gap: 10, marginTop: 12 },
-  photoViewerSecondary: { flex: 1, minHeight: 46, borderRadius: 10, borderWidth: 1, borderColor: COLORS.white, alignItems: 'center', justifyContent: 'center' },
+  photoViewerSecondary: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   photoViewerSecondaryText: { color: COLORS.white, fontSize: 13, fontWeight: '600' },
-  photoViewerPrimary: { flex: 1, minHeight: 46, borderRadius: 10, backgroundColor: COLORS.orange, alignItems: 'center', justifyContent: 'center' },
+  photoViewerPrimary: {
+    flex: 1,
+    minHeight: 46,
+    borderRadius: 10,
+    backgroundColor: COLORS.orange,
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   photoViewerPrimaryText: { color: COLORS.white, fontSize: 13, fontWeight: '700' },
   photoRequiredBox: { marginTop: 8, alignSelf: 'flex-start' },
 
@@ -167,13 +401,41 @@ export const styles = StyleSheet.create({
   controlTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 7 },
   controlLabel: { fontSize: 13, fontWeight: '500', color: COLORS.ink, flex: 1 },
   avisGroup: { flexDirection: 'row', gap: 4 },
-  avisChip: { width: 42, alignItems: 'center', paddingVertical: 7, borderRadius: 7, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white },
+  avisChip: {
+    width: 42,
+    alignItems: 'center',
+    paddingVertical: 7,
+    borderRadius: 7,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.white
+  },
   avisChipText: { fontSize: 10.5, fontWeight: '700', color: COLORS.inkSoft },
 
-  criterePanel: { backgroundColor: COLORS.redBg, borderWidth: 1, borderColor: '#F4C7C7', borderRadius: 9, padding: 10, marginTop: 4 },
-  criterePanelLabel: { fontSize: 10, fontWeight: '700', color: COLORS.red, textTransform: 'uppercase', marginBottom: 6 },
+  criterePanel: {
+    backgroundColor: COLORS.redBg,
+    borderWidth: 1,
+    borderColor: '#F4C7C7',
+    borderRadius: 9,
+    padding: 10,
+    marginTop: 4
+  },
+  criterePanelLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: COLORS.red,
+    textTransform: 'uppercase',
+    marginBottom: 6
+  },
   critereChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
-  critereChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 18, borderWidth: 1, borderColor: COLORS.red, backgroundColor: COLORS.white },
+  critereChip: {
+    paddingHorizontal: 11,
+    paddingVertical: 6,
+    borderRadius: 18,
+    borderWidth: 1,
+    borderColor: COLORS.red,
+    backgroundColor: COLORS.white
+  },
   critereChipPicked: { backgroundColor: COLORS.red },
   critereChipCustom: { borderStyle: 'dashed' },
   critereChipText: { fontSize: 11, fontWeight: '600', color: COLORS.red },
@@ -184,15 +446,38 @@ export const styles = StyleSheet.create({
   prestationMetaTxt: { fontSize: 10, color: COLORS.inkSoft },
   bold: { color: COLORS.ink, fontWeight: '700' },
 
-  addBtn: { borderWidth: 1.5, borderColor: COLORS.orange, borderStyle: 'dashed', backgroundColor: COLORS.orangeLight, borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 14 },
+  addBtn: {
+    borderWidth: 1.5,
+    borderColor: COLORS.orange,
+    borderStyle: 'dashed',
+    backgroundColor: COLORS.orangeLight,
+    borderRadius: 10,
+    padding: 12,
+    alignItems: 'center',
+    marginBottom: 14
+  },
   addBtnText: { fontSize: 12.5, fontWeight: '600', color: COLORS.orangeDark },
   removeLink: { fontSize: 11, color: COLORS.inkFaint, fontWeight: '500' },
 
   reseauHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
-  reseauNomInput: { flex: 1, fontSize: 12, fontWeight: '700', color: COLORS.orangeDark, textTransform: 'uppercase', padding: 0 },
+  reseauNomInput: {
+    flex: 1,
+    fontSize: 12,
+    fontWeight: '700',
+    color: COLORS.orangeDark,
+    textTransform: 'uppercase',
+    padding: 0
+  },
 
   // ---- Sélecteur numérique +/- ----
-  stepperRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, overflow: 'hidden' },
+  stepperRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 9,
+    overflow: 'hidden'
+  },
   stepperBtn: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bg },
   stepperBtnText: { fontSize: 20, fontWeight: '700', color: COLORS.orangeDark },
   stepperValBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
@@ -200,38 +485,117 @@ export const styles = StyleSheet.create({
 
   // ---- Sélecteur par chips ----
   chipSelectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chipOpt: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white },
+  chipOpt: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.white
+  },
   chipOptPicked: { backgroundColor: COLORS.orange, borderColor: COLORS.orange },
   chipOptText: { fontSize: 12, color: COLORS.ink, fontWeight: '500' },
   chipOptTextPicked: { color: COLORS.white, fontWeight: '600' },
   chipOptAddNew: { borderStyle: 'dashed', borderColor: COLORS.orange, backgroundColor: COLORS.orangeLight },
   chipOptAddNewText: { fontSize: 12, color: COLORS.orangeDark, fontWeight: '600' },
   chipRowWithArrows: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
-  chipArrowBtn: { width: 34, height: 34, borderRadius: 8, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  chipArrowBtn: {
+    width: 34,
+    height: 34,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0
+  },
   chipArrowBtnText: { fontSize: 18, color: COLORS.orangeDark, fontWeight: '700' },
   typeaheadRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 
-  compteurRow: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, padding: 12, marginBottom: 10 },
+  compteurRow: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 11,
+    padding: 12,
+    marginBottom: 10
+  },
   compteurRowTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
-  compteurCatInput: { flex: 1, fontWeight: '600', borderWidth: 1, borderColor: COLORS.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 12.5 },
+  compteurCatInput: {
+    flex: 1,
+    fontWeight: '600',
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    fontSize: 12.5
+  },
   compteurRowBody: { gap: 8 },
-  compteurValInput: { borderWidth: 1, borderColor: COLORS.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 12.5 },
+  compteurValInput: {
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 7,
+    fontSize: 12.5
+  },
   uniteRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
-  uniteChip: { paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white },
+  uniteChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    backgroundColor: COLORS.white
+  },
   uniteChipSelected: { backgroundColor: COLORS.orange, borderColor: COLORS.orange },
   uniteChipText: { fontSize: 11, color: COLORS.inkSoft, fontWeight: '600' },
   uniteChipTextSelected: { color: COLORS.white },
 
   // ---- Molette numérique : saisie clavier directe ----
-  stepperInputLibre: { flex: 1, textAlign: 'center', fontSize: 14, fontWeight: '700', color: COLORS.ink, borderWidth: 1, borderColor: COLORS.orange, borderRadius: 9, paddingVertical: 8 },
+  stepperInputLibre: {
+    flex: 1,
+    textAlign: 'center',
+    fontSize: 14,
+    fontWeight: '700',
+    color: COLORS.ink,
+    borderWidth: 1,
+    borderColor: COLORS.orange,
+    borderRadius: 9,
+    paddingVertical: 8
+  },
 
   // ---- Autocomplétion (TypeAheadInput) ----
-  typeaheadSuggestions: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, marginTop: 4, overflow: 'hidden' },
-  typeaheadSuggestionRow: { paddingHorizontal: 12, paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: COLORS.line },
+  typeaheadSuggestions: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 9,
+    marginTop: 4,
+    overflow: 'hidden'
+  },
+  typeaheadSuggestionRow: {
+    paddingHorizontal: 12,
+    paddingVertical: 9,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.line
+  },
   typeaheadSuggestionText: { fontSize: 13, color: COLORS.ink },
 
   // ---- Accueil : bouton Paramètres ----
-  homeTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 50, paddingBottom: 6, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line },
+  homeTopRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: 20,
+    paddingTop: 50,
+    paddingBottom: 6,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.line
+  },
   importExcelBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: COLORS.orangeLight },
   importExcelBtnText: { fontSize: 12.5, color: COLORS.orangeDark, fontWeight: '700' },
   parametresBtn: { paddingHorizontal: 12, paddingVertical: 6 },
@@ -248,28 +612,72 @@ export const styles = StyleSheet.create({
   biblioRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.line },
   biblioRowTitle: { fontSize: 13.5, fontWeight: '600', color: COLORS.ink },
   biblioRowSub: { fontSize: 11.5, color: COLORS.inkSoft, marginTop: 2 },
-  biblioShortcutBtn: { backgroundColor: COLORS.orangeLight, borderRadius: 9, paddingVertical: 9, alignItems: 'center', marginBottom: 12 },
+  biblioShortcutBtn: {
+    backgroundColor: COLORS.orangeLight,
+    borderRadius: 9,
+    paddingVertical: 9,
+    alignItems: 'center',
+    marginBottom: 12
+  },
   biblioShortcutBtnText: { fontSize: 12.5, color: COLORS.orangeDark, fontWeight: '600' },
 
   materielTopRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  persistentEquipmentBadge: { alignSelf: 'flex-start', marginTop: 7, marginBottom: 4, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 14, backgroundColor: COLORS.greenBg },
+  persistentEquipmentBadge: {
+    alignSelf: 'flex-start',
+    marginTop: 7,
+    marginBottom: 4,
+    paddingHorizontal: 9,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: COLORS.greenBg
+  },
   persistentEquipmentBadgeText: { fontSize: 10.5, fontWeight: '700', color: COLORS.green },
 
   totalsBar: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  totalsCard: { flex: 1, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, padding: 12, alignItems: 'center' },
+  totalsCard: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 11,
+    padding: 12,
+    alignItems: 'center'
+  },
   totalsNum: { fontSize: 18, fontWeight: '700', color: COLORS.ink },
   totalsLabel: { fontSize: 10, color: COLORS.inkSoft, marginTop: 2 },
-  remarqueCard: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, padding: 14, marginBottom: 10 },
+  remarqueCard: {
+    backgroundColor: COLORS.white,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10
+  },
   remarqueTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   remarquePoste: { fontSize: 10, fontWeight: '700', color: COLORS.orangeDark, textTransform: 'uppercase' },
   remarqueEstim: { fontSize: 14, fontWeight: '700', color: COLORS.ink },
   remarqueTxt: { fontSize: 12.5, color: COLORS.ink, lineHeight: 18, marginBottom: 8 },
   remarqueMeta: { flexDirection: 'row', gap: 14, flexWrap: 'wrap' },
   remarqueMetaTxt: { fontSize: 11, color: COLORS.inkSoft },
-  remarqueLinkBtn: { marginTop: 11, paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, backgroundColor: COLORS.orangeLight, alignSelf: 'flex-start' },
+  remarqueLinkBtn: {
+    marginTop: 11,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 8,
+    backgroundColor: COLORS.orangeLight,
+    alignSelf: 'flex-start'
+  },
   remarqueLinkBtnText: { fontSize: 11, color: COLORS.orangeDark, fontWeight: '700' },
   remarqueTabsScroll: { marginVertical: 12, flexGrow: 0 },
-  remarqueTabChoice: { paddingHorizontal: 11, paddingVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: COLORS.line, marginRight: 7, backgroundColor: COLORS.white },
+  remarqueTabChoice: {
+    paddingHorizontal: 11,
+    paddingVertical: 8,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.line,
+    marginRight: 7,
+    backgroundColor: COLORS.white
+  },
   remarqueTabChoiceActive: { borderColor: COLORS.orange, backgroundColor: COLORS.orangeLight },
   remarqueTabChoiceText: { fontSize: 11, color: COLORS.inkSoft },
   remarqueTabChoiceTextActive: { color: COLORS.orangeDark, fontWeight: '700' },
@@ -277,8 +685,17 @@ export const styles = StyleSheet.create({
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   photoThumb: { width: '18%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', backgroundColor: COLORS.line },
   photoThumbImg: { width: '100%', height: '100%' },
-  photoAddTile: { width: '18%', aspectRatio: 1, borderRadius: 10, borderWidth: 1.5, borderColor: COLORS.line, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  photoAddTile: {
+    width: '18%',
+    aspectRatio: 1,
+    borderRadius: 10,
+    borderWidth: 1.5,
+    borderColor: COLORS.line,
+    borderStyle: 'dashed',
+    alignItems: 'center',
+    justifyContent: 'center'
+  },
   photoAddTileText: { fontSize: 22, color: COLORS.inkFaint },
   viewerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' },
-  viewerImg: { width: '100%', height: '80%' },
+  viewerImg: { width: '100%', height: '80%' }
 });

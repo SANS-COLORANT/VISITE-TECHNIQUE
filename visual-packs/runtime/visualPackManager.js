@@ -18,7 +18,7 @@ const PRESET_DURATIONS = { 'metra-classic': 2300, 'metra-doom': 2600, 'metra-spi
 const BUILTIN_PACKS = [CLASSIC_MANIFEST, DOOM_MANIFEST, NOEL_MANIFEST, SPIRAL_ACTIVE_MANIFEST].map((manifest) => ({
   ...normalizeManifest(manifest),
   _builtin: true,
-  _baseUri: null,
+  _baseUri: null
 }));
 
 function cleanRelativePath(value) {
@@ -46,31 +46,35 @@ function normalizeManifest(manifest, { builtin = false, baseUri = null } = {}) {
     ...manifest,
     schemaVersion: Number(manifest?.schemaVersion || 1),
     version: Number(manifest?.version || 1),
-    id: String(manifest?.id || '').trim().toLowerCase(),
+    id: String(manifest?.id || '')
+      .trim()
+      .toLowerCase(),
     name: String(manifest?.name || manifest?.id || '').trim(),
     description: String(manifest?.description || '').trim(),
     colors: {
       main: String(manifest?.colors?.main || '#F26426'),
       dark: String(manifest?.colors?.dark || '#D9531A'),
-      light: String(manifest?.colors?.light || '#FFF1EA'),
+      light: String(manifest?.colors?.light || '#FFF1EA')
     },
     startup: {
       ...startup,
       preset: normalizePreset(startup),
-      durationMs: Math.max(0, Number(startup?.durationMs || 0)),
+      durationMs: Math.max(0, Number(startup?.durationMs || 0))
     },
     interface: { ...(manifest?.interface || {}) },
     _builtin: builtin,
-    _baseUri: baseUri,
+    _baseUri: baseUri
   };
 }
 
 export function validateVisualPackManifest(rawManifest) {
   const manifest = normalizeManifest(rawManifest);
   if (manifest.schemaVersion !== 1) throw new Error(`Version de manifest non supportée: ${manifest.schemaVersion}`);
-  if (!/^[a-z0-9][a-z0-9_-]{1,39}$/.test(manifest.id)) throw new Error('Identifiant de pack invalide. Utiliser 2 à 40 caractères: a-z, 0-9, _ ou -.');
+  if (!/^[a-z0-9][a-z0-9_-]{1,39}$/.test(manifest.id))
+    throw new Error('Identifiant de pack invalide. Utiliser 2 à 40 caractères: a-z, 0-9, _ ou -.');
   if (!manifest.name) throw new Error('Le nom du pack est obligatoire.');
-  if (!Number.isFinite(manifest.version) || manifest.version < 1) throw new Error('La version du pack doit être supérieure ou égale à 1.');
+  if (!Number.isFinite(manifest.version) || manifest.version < 1)
+    throw new Error('La version du pack doit être supérieure ou égale à 1.');
 
   ['main', 'dark', 'light'].forEach((key) => {
     if (!/^#[0-9A-F]{6}$/i.test(manifest.colors[key])) throw new Error(`Couleur ${key} invalide dans le manifest.`);
@@ -88,8 +92,10 @@ export function validateVisualPackManifest(rawManifest) {
   (manifest.startup.layers || []).forEach((layer, index) => {
     if (!layer?.asset) throw new Error(`Asset manquant pour startup.layers[${index}].`);
     cleanRelativePath(layer.asset);
-    if (layer.startMs !== undefined && !Number.isFinite(Number(layer.startMs))) throw new Error(`startMs invalide pour startup.layers[${index}].`);
-    if (layer.durationMs !== undefined && !Number.isFinite(Number(layer.durationMs))) throw new Error(`durationMs invalide pour startup.layers[${index}].`);
+    if (layer.startMs !== undefined && !Number.isFinite(Number(layer.startMs)))
+      throw new Error(`startMs invalide pour startup.layers[${index}].`);
+    if (layer.durationMs !== undefined && !Number.isFinite(Number(layer.durationMs)))
+      throw new Error(`durationMs invalide pour startup.layers[${index}].`);
   });
 
   const effect = manifest.startup.effect;
@@ -154,7 +160,9 @@ export async function listVisualPacks() {
 }
 
 export async function getVisualPackById(id) {
-  const wanted = String(id || '').trim().toLowerCase();
+  const wanted = String(id || '')
+    .trim()
+    .toLowerCase();
   const builtin = BUILTIN_PACKS.find((pack) => pack.id === wanted);
   if (builtin) return { ...builtin };
   const custom = await listCustomVisualPacks();
@@ -218,7 +226,7 @@ async function findImportedPackDirectory(tempRootUri) {
     const info = await FileSystem.getInfoAsync(candidate);
     if (info.exists && info.isDirectory) directories.push(candidate);
   }
-  if (directories.length === 1 && await pathExists(`${directories[0]}manifest.json`)) return directories[0];
+  if (directories.length === 1 && (await pathExists(`${directories[0]}manifest.json`))) return directories[0];
   throw new Error('Le ZIP doit contenir manifest.json à sa racine ou dans un unique dossier de premier niveau.');
 }
 
@@ -227,7 +235,7 @@ async function assertDeclaredAssetsExist(pack, directoryUri) {
     pack.startup?.logo,
     pack.interface?.headerLogo,
     pack.interface?.homeBackground,
-    ...(Array.isArray(pack.startup?.layers) ? pack.startup.layers.map((layer) => layer?.asset) : []),
+    ...(Array.isArray(pack.startup?.layers) ? pack.startup.layers.map((layer) => layer?.asset) : [])
   ].filter(Boolean);
   for (const relativePath of paths) {
     const clean = cleanRelativePath(relativePath);
@@ -247,7 +255,7 @@ export async function importVisualPackZip() {
   const picked = await DocumentPicker.getDocumentAsync({
     type: ['application/zip', 'application/x-zip-compressed', 'application/octet-stream'],
     multiple: false,
-    copyToCacheDirectory: true,
+    copyToCacheDirectory: true
   });
   if (picked.canceled || !picked.assets?.[0]?.uri) return null;
 

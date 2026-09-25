@@ -3,7 +3,9 @@ import { getEquipmentBrandLogoUri } from '../equipmentVisuals.js';
 const META_KEY = 'equipment_catalog_visuals_v1';
 
 function estUriImage(uri = '') {
-  const value = String(uri || '').trim().toLowerCase();
+  const value = String(uri || '')
+    .trim()
+    .toLowerCase();
   return /\.(png|jpe?g|webp|gif)(\?|#|$)/.test(value);
 }
 
@@ -35,7 +37,8 @@ export async function seedEquipmentCatalogVisuals(db) {
       AND source_uri IS NOT NULL AND TRIM(source_uri)<>''
   `);
   for (const row of directModelSources) {
-    if (estUriImage(row.source_uri)) await db.runAsync(`UPDATE modeles_equipement SET image_uri=? WHERE id=?`, [row.source_uri, row.id]);
+    if (estUriImage(row.source_uri))
+      await db.runAsync(`UPDATE modeles_equipement SET image_uri=? WHERE id=?`, [row.source_uri, row.id]);
   }
 
   const directVariantSources = await db.getAllAsync(`
@@ -44,7 +47,8 @@ export async function seedEquipmentCatalogVisuals(db) {
       AND source_uri IS NOT NULL AND TRIM(source_uri)<>''
   `);
   for (const row of directVariantSources) {
-    if (estUriImage(row.source_uri)) await db.runAsync(`UPDATE variantes_equipement SET image_uri=? WHERE id=?`, [row.source_uri, row.id]);
+    if (estUriImage(row.source_uri))
+      await db.runAsync(`UPDATE variantes_equipement SET image_uri=? WHERE id=?`, [row.source_uri, row.id]);
   }
 
   // Si une référence précise possède déjà une vraie image, elle devient aussi
@@ -98,13 +102,13 @@ export async function seedEquipmentCatalogVisuals(db) {
     FROM modeles_equipement WHERE actif=1
   `);
 
-  await db.runAsync(
-    `INSERT OR REPLACE INTO _meta(key,value) VALUES(?,?)`,
-    [META_KEY, JSON.stringify({
+  await db.runAsync(`INSERT OR REPLACE INTO _meta(key,value) VALUES(?,?)`, [
+    META_KEY,
+    JSON.stringify({
       marques: Number(logoStats?.total || 0),
       marquesAvecLogo: Number(logoStats?.avec_logo || 0),
       modeles: Number(imageStats?.total || 0),
-      modelesAvecImage: Number(imageStats?.avec_image || 0),
-    })]
-  );
+      modelesAvecImage: Number(imageStats?.avec_image || 0)
+    })
+  ]);
 }

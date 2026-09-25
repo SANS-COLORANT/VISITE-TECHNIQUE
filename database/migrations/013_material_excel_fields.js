@@ -6,5 +6,5 @@ export const migration013 = {
     ALTER TABLE materiel ADD COLUMN numero_materiel TEXT;
     ALTER TABLE materiel ADD COLUMN reseau_desservi TEXT;
     ALTER TABLE materiel ADD COLUMN caracteristiques TEXT;
-  `,
+  `
 };

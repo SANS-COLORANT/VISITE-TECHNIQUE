@@ -26,5 +26,5 @@ export const migration028 = {
       ON visites(installation_id, date_visite);
     CREATE INDEX IF NOT EXISTS idx_visites_api_remote_local
       ON visites(api_remote_local_id);
-  `,
+  `
 };

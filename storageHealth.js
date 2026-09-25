@@ -13,15 +13,16 @@ export async function diagnostiquerStockageLocal() {
       db.getFirstAsync('SELECT COUNT(*) n FROM clients'),
       db.getFirstAsync('SELECT COUNT(*) n FROM sites'),
       db.getFirstAsync('SELECT COUNT(*) n FROM visites'),
-      db.getFirstAsync('SELECT COUNT(*) n FROM remarques'),
-    ]),
+      db.getFirstAsync('SELECT COUNT(*) n FROM remarques')
+    ])
   ]);
 
   let photosManquantes = 0;
   let photosGerees = 0;
   for (const photo of photos) {
     const uri = String(photo.uri || '');
-    const geree = !!FileSystem.documentDirectory && uri.startsWith(`${FileSystem.documentDirectory}visite-technique/photos/`);
+    const geree =
+      !!FileSystem.documentDirectory && uri.startsWith(`${FileSystem.documentDirectory}visite-technique/photos/`);
     if (!geree) continue;
     photosGerees += 1;
     try {
@@ -34,7 +35,11 @@ export async function diagnostiquerStockageLocal() {
 
   const versionSchema = Number(schema?.version || 0);
   const [clients, sites, visites, remarques] = stats.map((r) => Number(r?.n || 0));
-  const ok = integrite.integrityOk && integrite.foreignKeysOk && versionSchema === DATABASE_SCHEMA_VERSION && photosManquantes === 0;
+  const ok =
+    integrite.integrityOk &&
+    integrite.foreignKeysOk &&
+    versionSchema === DATABASE_SCHEMA_VERSION &&
+    photosManquantes === 0;
 
   return {
     ok,
@@ -49,6 +54,6 @@ export async function diagnostiquerStockageLocal() {
     clients,
     sites,
     visites,
-    remarques,
+    remarques
   };
 }

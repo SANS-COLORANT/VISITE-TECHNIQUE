@@ -9,28 +9,31 @@ export const LAB_FEATURES = Object.freeze([
   {
     key: 'health_dashboard',
     title: 'Santé du patrimoine',
-    description: 'Tableaux de bord site/client, calcul automatique ou saisie manuelle, et insertion optionnelle dans les rapports.',
-    icon: '♡',
+    description:
+      'Tableaux de bord site/client, calcul automatique ou saisie manuelle, et insertion optionnelle dans les rapports.',
+    icon: '♡'
   },
   {
     key: 'hydraulic_schema',
     title: 'Schéma hydraulique',
     description: 'Éditeur expérimental de schémas techniques hydrauliques. Masqué partout quand il est désactivé.',
-    icon: '⌁',
+    icon: '⌁'
   },
   {
     key: 'lab_3d',
     title: 'LAB 3D',
-    description: 'Maquette 3D des sites et équipements. Peut être totalement masquée sans supprimer les maquettes déjà enregistrées.',
-    icon: '⬡',
+    description:
+      'Maquette 3D des sites et équipements. Peut être totalement masquée sans supprimer les maquettes déjà enregistrées.',
+    icon: '⬡'
   },
   {
     key: 'missions',
     title: 'Missions',
-    description: 'Dossiers ponctuels indépendants des visites récurrentes et de l’Intranet. Activation volontaire uniquement.',
+    description:
+      'Dossiers ponctuels indépendants des visites récurrentes et de l’Intranet. Activation volontaire uniquement.',
     icon: '◎',
-    hiddenUntilUnlocked: true,
-  },
+    hiddenUntilUnlocked: true
+  }
 ]);
 
 function featureKey(key) {
@@ -49,12 +52,14 @@ export async function getLabFeatureEnabled(key) {
 export async function setLabFeatureEnabled(key, enabled) {
   const db = await getDb();
   const value = enabled ? '1' : '0';
-  await db.runAsync(
-    `INSERT INTO _meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
-    [featureKey(key), value]
-  );
+  await db.runAsync(`INSERT INTO _meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, [
+    featureKey(key),
+    value
+  ]);
   for (const listener of listeners) {
-    try { listener(String(key), !!enabled); } catch {}
+    try {
+      listener(String(key), !!enabled);
+    } catch {}
   }
   return !!enabled;
 }
@@ -73,10 +78,10 @@ export async function getMissionsLabUnlocked() {
 
 export async function unlockMissionsLab() {
   const db = await getDb();
-  await db.runAsync(
-    `INSERT INTO _meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
-    [LAB_MISSIONS_UNLOCKED_KEY, '1']
-  );
+  await db.runAsync(`INSERT INTO _meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, [
+    LAB_MISSIONS_UNLOCKED_KEY,
+    '1'
+  ]);
   return true;
 }
 
@@ -107,7 +112,8 @@ export async function getMissionsVisible() {
 }
 
 export async function setMissionsVisible(enabled) {
-  if (enabled && !(await getMissionsLabUnlocked())) throw new Error('Le module Missions doit d’abord être déverrouillé depuis LAB METRA.');
+  if (enabled && !(await getMissionsLabUnlocked()))
+    throw new Error('Le module Missions doit d’abord être déverrouillé depuis LAB METRA.');
   return setLabFeatureEnabled('missions', enabled);
 }
 
@@ -122,7 +128,7 @@ export async function getSiteHealthManualSettings(siteId) {
       mode: parsed?.mode === 'manual' ? 'manual' : 'auto',
       scores: parsed?.scores && typeof parsed.scores === 'object' ? parsed.scores : {},
       comment: String(parsed?.comment || ''),
-      updatedAt: parsed?.updatedAt || null,
+      updatedAt: parsed?.updatedAt || null
     };
   } catch {
     return { mode: 'auto', scores: {}, comment: '', updatedAt: null };
@@ -136,11 +142,11 @@ export async function setSiteHealthManualSettings(siteId, settings = {}) {
     mode: settings?.mode === 'manual' ? 'manual' : 'auto',
     scores: settings?.scores && typeof settings.scores === 'object' ? settings.scores : {},
     comment: String(settings?.comment || '').trim(),
-    updatedAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString()
   };
-  await db.runAsync(
-    `INSERT INTO _meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
-    [`${SITE_HEALTH_PREFIX}${siteId}`, JSON.stringify(payload)]
-  );
+  await db.runAsync(`INSERT INTO _meta(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`, [
+    `${SITE_HEALTH_PREFIX}${siteId}`,
+    JSON.stringify(payload)
+  ]);
   return payload;
 }

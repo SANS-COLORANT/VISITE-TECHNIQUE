@@ -68,5 +68,5 @@ export const migration043 = {
 
     CREATE INDEX IF NOT EXISTS idx_mission_measure_campaign_points_external
       ON mission_measure_campaign_points(campaign_id,external_ref);
-  `,
+  `
 };

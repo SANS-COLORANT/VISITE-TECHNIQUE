@@ -3,7 +3,8 @@ const fs = require('fs');
 const path = 'MetraDirectoryScreen.js';
 let text = fs.readFileSync(path, 'utf8');
 
-const importNeedle = "import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory } from './symfonyApiCacheDb.js';\n";
+const importNeedle =
+  "import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory } from './symfonyApiCacheDb.js';\n";
 const importLine = "import { importLatestApiVisitsForSite } from './apiLatestVisitImportDb.js';\n";
 if (!text.includes(importLine)) {
   if (!text.includes(importNeedle)) throw new Error('MetraDirectoryScreen import anchor not found');

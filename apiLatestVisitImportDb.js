@@ -5,16 +5,29 @@ import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { DEFAULT_TRAME_ID, obtenirTrame } from './trameRegistry.js';
 import { enrichLatestImportedVisitFields } from './apiLatestVisitFieldEnrichmentDb.js';
 
-function clean(value) { return value == null ? '' : String(value).trim(); }
-function text(value) { const v = clean(value); return v || null; }
+function clean(value) {
+  return value == null ? '' : String(value).trim();
+}
+function text(value) {
+  const v = clean(value);
+  return v || null;
+}
 function meaningfulRemoteValue(value) {
   const v = clean(value);
   return !v || v === '/' ? null : v;
 }
 function normalize(value) {
-  return clean(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  return clean(value)
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, ' ')
+    .trim();
 }
-function remoteId(value) { const v = clean(value); return v || null; }
+function remoteId(value) {
+  const v = clean(value);
+  return v || null;
+}
 function criterionSourceRelation(criterion, latestVisitId) {
   const sourceId = remoteId(criterion?.visiteSourceId);
   if (!sourceId) return 'without_source';
@@ -22,12 +35,31 @@ function criterionSourceRelation(criterion, latestVisitId) {
 }
 
 const CONTEXT_STOP_WORDS = new Set([
-  'a', 'au', 'aux', 'de', 'des', 'du', 'd', 'et', 'la', 'le', 'les', 'l',
-  'conf', 'conformite', 'conformites', 'relatif', 'relative', 'relatifs', 'relatives',
+  'a',
+  'au',
+  'aux',
+  'de',
+  'des',
+  'du',
+  'd',
+  'et',
+  'la',
+  'le',
+  'les',
+  'l',
+  'conf',
+  'conformite',
+  'conformites',
+  'relatif',
+  'relative',
+  'relatifs',
+  'relatives'
 ]);
 
 function contextTokens(value) {
-  return normalize(value).split(' ').filter((token) => token && !CONTEXT_STOP_WORDS.has(token));
+  return normalize(value)
+    .split(' ')
+    .filter((token) => token && !CONTEXT_STOP_WORDS.has(token));
 }
 
 function contextOverlap(left, right) {
@@ -41,20 +73,25 @@ function contextOverlap(left, right) {
 
 function sanitizeRemoteReference(ref) {
   if (!ref || typeof ref !== 'object') return ref;
-  const trame = ref.trame && typeof ref.trame === 'object' ? {
-    ...ref.trame,
-    categories: (Array.isArray(ref.trame.categories) ? ref.trame.categories : []).map((category) => ({
-      ...category,
-      sousCategories: (Array.isArray(category?.sousCategories) ? category.sousCategories : []).map((subCategory) => ({
-        ...subCategory,
-        criteres: (Array.isArray(subCategory?.criteres) ? subCategory.criteres : []).map((criterion) => ({
-          ...criterion,
-          avis: meaningfulRemoteValue(criterion?.avis),
-          commentaire: meaningfulRemoteValue(criterion?.commentaire),
-        })),
-      })),
-    })),
-  } : ref.trame;
+  const trame =
+    ref.trame && typeof ref.trame === 'object'
+      ? {
+          ...ref.trame,
+          categories: (Array.isArray(ref.trame.categories) ? ref.trame.categories : []).map((category) => ({
+            ...category,
+            sousCategories: (Array.isArray(category?.sousCategories) ? category.sousCategories : []).map(
+              (subCategory) => ({
+                ...subCategory,
+                criteres: (Array.isArray(subCategory?.criteres) ? subCategory.criteres : []).map((criterion) => ({
+                  ...criterion,
+                  avis: meaningfulRemoteValue(criterion?.avis),
+                  commentaire: meaningfulRemoteValue(criterion?.commentaire)
+                }))
+              })
+            )
+          }))
+        }
+      : ref.trame;
   return { ...ref, trame };
 }
 
@@ -65,7 +102,10 @@ async function upsertProvenance(db, entiteType, entiteId, referenceExterne, deta
     [entiteType, entiteId, ref]
   );
   if (existing?.id) {
-    await db.runAsync(`UPDATE provenances SET details_json=?,importe_le=datetime('now') WHERE id=?`, [JSON.stringify(details ?? null), existing.id]);
+    await db.runAsync(`UPDATE provenances SET details_json=?,importe_le=datetime('now') WHERE id=?`, [
+      JSON.stringify(details ?? null),
+      existing.id
+    ]);
     return existing.id;
   }
   const id = createId();
@@ -82,7 +122,10 @@ async function ensureInstallation(db, siteId, remoteLocalId, ref) {
     [remoteLocalId]
   );
   if (localLink?.local_installation_id) {
-    const linked = await db.getFirstAsync(`SELECT id FROM installations WHERE id=? AND site_id=? AND actif=1`, [localLink.local_installation_id, siteId]);
+    const linked = await db.getFirstAsync(`SELECT id FROM installations WHERE id=? AND site_id=? AND actif=1`, [
+      localLink.local_installation_id,
+      siteId
+    ]);
     if (linked?.id) return linked.id;
   }
 
@@ -99,15 +142,24 @@ async function ensureInstallation(db, siteId, remoteLocalId, ref) {
 
   if (!installationId) {
     installationId = createId();
-    await db.runAsync(
-      `INSERT INTO installations(id,site_id,type_code,nom,description,actif) VALUES(?,?,?,?,?,1)`,
-      [installationId, siteId, 'installation_technique', designation, 'Local technique importé depuis l’Intranet']
-    );
+    await db.runAsync(`INSERT INTO installations(id,site_id,type_code,nom,description,actif) VALUES(?,?,?,?,?,1)`, [
+      installationId,
+      siteId,
+      'installation_technique',
+      designation,
+      'Local technique importé depuis l’Intranet'
+    ]);
   }
 
-  await db.runAsync(`UPDATE api_local_links SET local_installation_id=? WHERE remote_local_id=?`, [installationId, remoteLocalId]);
+  await db.runAsync(`UPDATE api_local_links SET local_installation_id=? WHERE remote_local_id=?`, [
+    installationId,
+    remoteLocalId
+  ]);
   await upsertProvenance(db, 'installation', installationId, remoteLocalId, {
-    sourceType: 'local', remoteLocalId, remoteSiteId: remoteId(ref?.site?.id), designation,
+    sourceType: 'local',
+    remoteLocalId,
+    remoteSiteId: remoteId(ref?.site?.id),
+    designation
   });
   return installationId;
 }
@@ -117,7 +169,12 @@ function localControlCandidates(trameId) {
   const candidates = [];
   for (const [panelId, sections] of Object.entries(definition?.ui?.panels || {})) {
     for (const [section, fields] of Object.entries(sections || {})) {
-      const sectionCode = panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+      const sectionCode =
+        panelId.replace('p-', '') +
+        '.' +
+        String(section)
+          .toLowerCase()
+          .replace(/[^a-z0-9]+/g, '_');
       for (const field of fields || []) {
         if (field?.type !== 'controle' || !field?.cle) continue;
         candidates.push({
@@ -128,7 +185,7 @@ function localControlCandidates(trameId) {
           key: normalize(field.cle),
           sectionKey: normalize(section),
           panelKey: normalize(definition?.ui?.labels?.[panelId] || panelId),
-          panelIdKey: normalize(panelId),
+          panelIdKey: normalize(panelId)
         });
       }
     }
@@ -177,7 +234,10 @@ function isTechnicalControlTarget(trameId, target) {
 }
 
 function remoteCriterionReference(category, subCategory, criterion) {
-  return criterion?.referencePath || [remoteId(category?.id), remoteId(subCategory?.id), remoteId(criterion?.id)].map((v) => v || '?').join(':');
+  return (
+    criterion?.referencePath ||
+    [remoteId(category?.id), remoteId(subCategory?.id), remoteId(criterion?.id)].map((v) => v || '?').join(':')
+  );
 }
 
 function latestVisitStatus(sourceStatus) {
@@ -192,8 +252,11 @@ function materialFallbackReference(remoteLocalId, material, index) {
     material?.designation,
     material?.numeroMateriel,
     material?.marque,
-    material?.modele,
-  ].map(normalize).filter(Boolean).join('|');
+    material?.modele
+  ]
+    .map(normalize)
+    .filter(Boolean)
+    .join('|');
   return `local:${remoteLocalId}:material:${fingerprint || index}`;
 }
 
@@ -211,25 +274,25 @@ async function upsertEquipmentAttribute(db, equipmentId, key, value) {
     [equipmentId, key]
   );
   if (existing?.id) {
-    await db.runAsync(
-      `UPDATE attributs_libres SET valeur=?,modifie_le=datetime('now') WHERE id=?`,
-      [normalizedValue, existing.id]
-    );
+    await db.runAsync(`UPDATE attributs_libres SET valeur=?,modifie_le=datetime('now') WHERE id=?`, [
+      normalizedValue,
+      existing.id
+    ]);
     return;
   }
-  await db.runAsync(
-    `INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur) VALUES(?,'equipement',?,?,?)`,
-    [createId(), equipmentId, key, normalizedValue]
-  );
+  await db.runAsync(`INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur) VALUES(?,'equipement',?,?,?)`, [
+    createId(),
+    equipmentId,
+    key,
+    normalizedValue
+  ]);
 }
 
 async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installationId, visiteId, trameId }) {
   const materials = Array.isArray(ref?.materiels) ? ref.materiels : [];
   if (!materials.length) return { sourceMaterials: 0, importedMaterials: 0, matchedCatalogBrands: 0 };
 
-  const brandRows = await db.getAllAsync(
-    `SELECT id,nom,logo_uri FROM marques_equipement WHERE actif=1 ORDER BY nom`
-  );
+  const brandRows = await db.getAllAsync(`SELECT id,nom,logo_uri FROM marques_equipement WHERE actif=1 ORDER BY nom`);
   const brandsByKey = new Map(brandRows.map((row) => [normalize(row.nom), row]));
   let importedMaterials = 0;
   let matchedCatalogBrands = 0;
@@ -243,9 +306,8 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
     if (catalogBrand) matchedCatalogBrands += 1;
 
     const typeCode = text(material.categorie) || 'Équipement';
-    const designation = text(material.designation)
-      || [brand, text(material.modele)].filter(Boolean).join(' ')
-      || typeCode;
+    const designation =
+      text(material.designation) || [brand, text(material.modele)].filter(Boolean).join(' ') || typeCode;
     const model = text(material.modele);
     const year = materialYear(material.annee);
 
@@ -296,7 +358,7 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
       ['api_symfony.etat', text(material.etat)],
       ['api_symfony.remote_local_id', remoteLocalId],
       ['catalogue.marque_id', catalogBrand?.id || null],
-      ['catalogue.marque_logo_uri', catalogBrand?.logo_uri || null],
+      ['catalogue.marque_logo_uri', catalogBrand?.logo_uri || null]
     ];
     // Écritures volontairement séquentielles dans la transaction SQLite :
     // éviter les finalizeAsync/statement races déjà observées sur tablette.
@@ -320,7 +382,7 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
       remoteVisitId: remoteId(ref?.derniereVisite?.id),
       canonicalBrand: brand,
       catalogBrandId: catalogBrand?.id || null,
-      payload: material,
+      payload: material
     });
 
     // Le patrimoine Intranet est courant, pas un constat historique de la
@@ -338,8 +400,16 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
           `UPDATE materiel SET categorie=?,nombre=?,designation=?,numero_materiel=?,reseau_desservi=?,marque=?,modele=?,caracteristiques=?,annee=?,etat=NULL
            WHERE id=?`,
           [
-            typeCode, quantity, designation, text(material.numeroMateriel), text(material.reseauDesservi),
-            brand, model, text(material.caracteristiques), text(material.annee), materialRow.id,
+            typeCode,
+            quantity,
+            designation,
+            text(material.numeroMateriel),
+            text(material.reseauDesservi),
+            brand,
+            model,
+            text(material.caracteristiques),
+            text(material.annee),
+            materialRow.id
           ]
         );
       } else {
@@ -347,9 +417,18 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
           `INSERT INTO materiel(id,visite_id,categorie,nombre,designation,numero_materiel,reseau_desservi,marque,modele,caracteristiques,annee,etat,equipement_id)
            VALUES(?,?,?,?,?,?,?,?,?,?,?,NULL,?)`,
           [
-            createId(), visiteId, typeCode, quantity, designation, text(material.numeroMateriel),
-            text(material.reseauDesservi), brand, model, text(material.caracteristiques),
-            text(material.annee), equipmentId,
+            createId(),
+            visiteId,
+            typeCode,
+            quantity,
+            designation,
+            text(material.numeroMateriel),
+            text(material.reseauDesservi),
+            brand,
+            model,
+            text(material.caracteristiques),
+            text(material.annee),
+            equipmentId
           ]
         );
       }
@@ -361,7 +440,7 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
   return {
     sourceMaterials: materials.length,
     importedMaterials,
-    matchedCatalogBrands,
+    matchedCatalogBrands
   };
 }
 
@@ -382,7 +461,11 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
   const remoteVisitId = remoteId(latest?.id);
   if (!remoteVisitId) {
     const materialImport = await importCurrentMaterialsForLocal(db, {
-      ref, remoteLocalId, installationId, visiteId: null, trameId,
+      ref,
+      remoteLocalId,
+      installationId,
+      visiteId: null,
+      trameId
     });
     return { imported: false, reason: 'no_latest_visit', installationId, ...materialImport };
   }
@@ -444,7 +527,7 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
               category: text(category?.nom),
               subCategory: text(subCategory?.nom),
               criterion: text(criterion?.nom),
-              avis,
+              avis
             });
           }
           continue;
@@ -467,10 +550,19 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
   }
 
   const fieldImport = await enrichLatestImportedVisitFields({
-    db, visiteId, siteId, remoteVisitId, trameId, ref,
+    db,
+    visiteId,
+    siteId,
+    remoteVisitId,
+    trameId,
+    ref
   });
   const materialImport = await importCurrentMaterialsForLocal(db, {
-    ref, remoteLocalId, installationId, visiteId, trameId,
+    ref,
+    remoteLocalId,
+    installationId,
+    visiteId,
+    trameId
   });
 
   let importedRemarks = 0;
@@ -488,13 +580,31 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
     if (linked?.id) {
       await db.runAsync(
         `UPDATE remarques SET visite_id=?,poste=?,prestation=?,delai=?,estimatif=?,origine='Intranet',controle_key=NULL,reference_type='api_symfony',reference_id=?,reference_libelle=? WHERE id=?`,
-        [visiteId, text(remark.poste) || 'Observation', text(remark.prestation) || '', text(remark.delai), remark.estimatif ?? null, remoteRemarkId, text(remark.poste) || 'Réserve Intranet', remarqueId]
+        [
+          visiteId,
+          text(remark.poste) || 'Observation',
+          text(remark.prestation) || '',
+          text(remark.delai),
+          remark.estimatif ?? null,
+          remoteRemarkId,
+          text(remark.poste) || 'Réserve Intranet',
+          remarqueId
+        ]
       );
     } else {
       await db.runAsync(
         `INSERT INTO remarques(id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,reference_type,reference_id,reference_libelle)
          VALUES(?,?,NULL,?,?,?,?, 'Intranet','api_symfony',?,?)`,
-        [remarqueId, visiteId, text(remark.poste) || 'Observation', text(remark.prestation) || '', text(remark.delai), remark.estimatif ?? null, remoteRemarkId, text(remark.poste) || 'Réserve Intranet']
+        [
+          remarqueId,
+          visiteId,
+          text(remark.poste) || 'Observation',
+          text(remark.prestation) || '',
+          text(remark.delai),
+          remark.estimatif ?? null,
+          remoteRemarkId,
+          text(remark.poste) || 'Réserve Intranet'
+        ]
       );
     }
     await upsertProvenance(db, 'remarque', remarqueId, remoteRemarkId, {
@@ -502,7 +612,7 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
       remoteVisitId,
       summaryOnly: true,
       linkedToControl: false,
-      payload: remark,
+      payload: remark
     });
     importedRemarks += 1;
   }
@@ -537,8 +647,8 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
       controlCommentRule: 'historical_conformity_comments_hidden_except_technical_measure_values',
       intranetRemarksRule: 'latest_remote_visit_summary_only_not_linked_to_controls',
       placeholderRule: 'slash_is_empty',
-      materialsRule: 'current_patrimoine_not_historical_visit',
-    },
+      materialsRule: 'current_patrimoine_not_historical_visit'
+    }
   });
 
   return {
@@ -560,7 +670,7 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
     matchedCatalogBrands: materialImport.matchedCatalogBrands,
     fieldImport,
     installationId,
-    created: !existing?.id,
+    created: !existing?.id
   };
 }
 
@@ -582,7 +692,8 @@ export async function materializeCachedLocalForSite(siteId, remoteLocalId) {
 export async function importLatestApiVisitForLocal(siteId, remoteLocalId) {
   const localSiteId = clean(siteId);
   const remoteIdLocal = clean(remoteLocalId);
-  if (!localSiteId || !remoteIdLocal) throw new Error('Site local / local Intranet requis pour importer la dernière visite.');
+  if (!localSiteId || !remoteIdLocal)
+    throw new Error('Site local / local Intranet requis pour importer la dernière visite.');
 
   const ref = await getCachedLocalReference(remoteIdLocal);
   if (!ref) return { imported: false, reason: 'no_cached_reference' };
@@ -594,9 +705,12 @@ export async function importLatestApiVisitForLocal(siteId, remoteLocalId) {
     if (existing?.id) {
       const [cacheState, importedState] = await Promise.all([
         db.getFirstAsync(`SELECT synced_at FROM api_local_links WHERE remote_local_id=? LIMIT 1`, [remoteIdLocal]),
-        db.getFirstAsync(`SELECT importe_le FROM provenances
+        db.getFirstAsync(
+          `SELECT importe_le FROM provenances
           WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony' AND reference_externe=?
-          ORDER BY importe_le DESC LIMIT 1`, [existing.id, cachedRemoteVisitId]),
+          ORDER BY importe_le DESC LIMIT 1`,
+          [existing.id, cachedRemoteVisitId]
+        )
       ]);
       const cacheStamp = String(cacheState?.synced_at || '');
       const importedStamp = String(importedState?.importe_le || '');
@@ -607,7 +721,7 @@ export async function importLatestApiVisitForLocal(siteId, remoteLocalId) {
           remoteVisitId: cachedRemoteVisitId,
           created: false,
           reused: true,
-          reason: 'cached_latest_visit_already_materialized',
+          reason: 'cached_latest_visit_already_materialized'
         };
       }
     }
@@ -623,7 +737,8 @@ export async function importLatestApiVisitForLocal(siteId, remoteLocalId) {
 export async function importLatestApiVisitsForSite(siteId, remoteSiteId) {
   const localSiteId = clean(siteId);
   const remoteIdSite = clean(remoteSiteId);
-  if (!localSiteId || !remoteIdSite) throw new Error('Site local / site Intranet requis pour importer la dernière visite.');
+  if (!localSiteId || !remoteIdSite)
+    throw new Error('Site local / site Intranet requis pour importer la dernière visite.');
 
   const locals = await listCachedLocals(remoteIdSite);
   const db = await getDb();
@@ -645,6 +760,6 @@ export async function importLatestApiVisitsForSite(siteId, remoteSiteId) {
     importedCount: results.filter((result) => result.imported).length,
     createdCount: results.filter((result) => result.imported && result.created).length,
     updatedCount: results.filter((result) => result.imported && !result.created).length,
-    results,
+    results
   };
 }

@@ -2,53 +2,73 @@ import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 
 export const MISSION_FAMILIES = Object.freeze([
-  { key: 'etude_audit', label: 'Étude / Audit', types: [
-    ['audit_energetique', 'Audit énergétique'],
-    ['audit_technique', 'Audit / diagnostic technique CVC global'],
-    ['diagnostic_chaufferie_ss', 'Diagnostic chaufferie / sous-station'],
-    ['diagnostic_ecs', 'Diagnostic / audit ECS'],
-    ['diagnostic_ventilation_cta', 'Diagnostic VMC / ventilation / CTA'],
-    ['diagnostic_climatisation_pac', 'Diagnostic climatisation / PAC'],
-    ['diagnostic_gtb', 'Diagnostic régulation / GTB / GTC'],
-    ['diagnostic_cible', 'Diagnostic problème ciblé'],
-    ['etude_cvc', 'Étude CVC / thermique'],
-    ['etude_renovation', 'Étude de rénovation / remplacement'],
-    ['etude_ecs', 'Étude ECS'],
-    ['etude_ventilation_clim', 'Étude ventilation / climatisation'],
-    ['etude_regulation_gtb', 'Étude régulation / GTB / GTC'],
-  ] },
-  { key: 'travaux_chantier', label: 'Travaux / Chantier', types: [
-    ['amo_travaux', 'AMO travaux'],
-    ['moe_travaux', 'MOE travaux'],
-    ['det_chantier', 'Suivi chantier / DET'],
-    ['commissioning', 'Mise en service / commissioning'],
-    ['opr_reception', 'OPR / réception'],
-    ['levee_reserves', 'Levée de réserves'],
-    ['passation_travaux_exploitant', 'Passation travaux → exploitant'],
-  ] },
-  { key: 'suivi_ponctuel', label: 'Suivi ponctuel', types: [
-    ['suivi_technique', 'Suivi technique ciblé'],
-    ['controle_exploitation', 'Contrôle ponctuel d’exploitation'],
-    ['assistance_p2_p3', 'Assistance exploitation / contrats P2-P3'],
-    ['plan_action', 'Plan d’action'],
-    ['suivi_sanitaire', 'Suivi sanitaire ponctuel'],
-    ['preallumage_reprise_saison', 'Pré-allumage / reprise de saison'],
-    ['expertise_sinistre', 'Expertise / sinistre'],
-  ] },
-  { key: 'campagne_multisites', label: 'Campagne / Multi-sites', types: [
-    ['campagne_technique', 'Campagne technique'],
-    ['campagne_mesures', 'Campagne de mesures'],
-    ['inventaire_patrimonial', 'Inventaire patrimonial'],
-    ['inventaire_passation', 'Inventaire / passation'],
-    ['etat_lieux_multisites', 'État des lieux multi-sites'],
-    ['audit_multisites', 'Audit multi-sites'],
-  ] },
-  { key: 'conformite_reglementaire', label: 'Contrôle / Conformité', types: [
-    ['controle_reglementaire', 'Contrôle réglementaire ponctuel'],
-    ['securite_accessibilite', 'Sécurité / accessibilité'],
-    ['controle_sanitaire', 'Contrôle sanitaire ponctuel'],
-    ['controle_technique', 'Contrôle technique ciblé'],
-  ] },
+  {
+    key: 'etude_audit',
+    label: 'Étude / Audit',
+    types: [
+      ['audit_energetique', 'Audit énergétique'],
+      ['audit_technique', 'Audit / diagnostic technique CVC global'],
+      ['diagnostic_chaufferie_ss', 'Diagnostic chaufferie / sous-station'],
+      ['diagnostic_ecs', 'Diagnostic / audit ECS'],
+      ['diagnostic_ventilation_cta', 'Diagnostic VMC / ventilation / CTA'],
+      ['diagnostic_climatisation_pac', 'Diagnostic climatisation / PAC'],
+      ['diagnostic_gtb', 'Diagnostic régulation / GTB / GTC'],
+      ['diagnostic_cible', 'Diagnostic problème ciblé'],
+      ['etude_cvc', 'Étude CVC / thermique'],
+      ['etude_renovation', 'Étude de rénovation / remplacement'],
+      ['etude_ecs', 'Étude ECS'],
+      ['etude_ventilation_clim', 'Étude ventilation / climatisation'],
+      ['etude_regulation_gtb', 'Étude régulation / GTB / GTC']
+    ]
+  },
+  {
+    key: 'travaux_chantier',
+    label: 'Travaux / Chantier',
+    types: [
+      ['amo_travaux', 'AMO travaux'],
+      ['moe_travaux', 'MOE travaux'],
+      ['det_chantier', 'Suivi chantier / DET'],
+      ['commissioning', 'Mise en service / commissioning'],
+      ['opr_reception', 'OPR / réception'],
+      ['levee_reserves', 'Levée de réserves'],
+      ['passation_travaux_exploitant', 'Passation travaux → exploitant']
+    ]
+  },
+  {
+    key: 'suivi_ponctuel',
+    label: 'Suivi ponctuel',
+    types: [
+      ['suivi_technique', 'Suivi technique ciblé'],
+      ['controle_exploitation', 'Contrôle ponctuel d’exploitation'],
+      ['assistance_p2_p3', 'Assistance exploitation / contrats P2-P3'],
+      ['plan_action', 'Plan d’action'],
+      ['suivi_sanitaire', 'Suivi sanitaire ponctuel'],
+      ['preallumage_reprise_saison', 'Pré-allumage / reprise de saison'],
+      ['expertise_sinistre', 'Expertise / sinistre']
+    ]
+  },
+  {
+    key: 'campagne_multisites',
+    label: 'Campagne / Multi-sites',
+    types: [
+      ['campagne_technique', 'Campagne technique'],
+      ['campagne_mesures', 'Campagne de mesures'],
+      ['inventaire_patrimonial', 'Inventaire patrimonial'],
+      ['inventaire_passation', 'Inventaire / passation'],
+      ['etat_lieux_multisites', 'État des lieux multi-sites'],
+      ['audit_multisites', 'Audit multi-sites']
+    ]
+  },
+  {
+    key: 'conformite_reglementaire',
+    label: 'Contrôle / Conformité',
+    types: [
+      ['controle_reglementaire', 'Contrôle réglementaire ponctuel'],
+      ['securite_accessibilite', 'Sécurité / accessibilité'],
+      ['controle_sanitaire', 'Contrôle sanitaire ponctuel'],
+      ['controle_technique', 'Contrôle technique ciblé']
+    ]
+  }
 ]);
 
 const PHASE_RECIPES = Object.freeze({
@@ -56,7 +76,7 @@ const PHASE_RECIPES = Object.freeze({
     ['preparation', 'Préparation'],
     ['visite', 'Visite terrain'],
     ['complements', 'Compléments éventuels'],
-    ['fin_terrain', 'Fin terrain'],
+    ['fin_terrain', 'Fin terrain']
   ],
   travaux_chantier: [
     ['demarrage', 'Démarrage'],
@@ -64,27 +84,27 @@ const PHASE_RECIPES = Object.freeze({
     ['opr', 'OPR'],
     ['reception', 'Réception'],
     ['levee', 'Levée de réserves'],
-    ['cloture', 'Clôture'],
+    ['cloture', 'Clôture']
   ],
   suivi_ponctuel: [
     ['ouverture', 'Ouverture du sujet'],
     ['suivi', 'Suivi'],
     ['controle', 'Contrôle'],
-    ['cloture', 'Clôture'],
+    ['cloture', 'Clôture']
   ],
   campagne_multisites: [
     ['lancement', 'Lancement'],
     ['sites', 'Visites site par site'],
     ['consolidation', 'Consolidation'],
-    ['cloture', 'Clôture'],
+    ['cloture', 'Clôture']
   ],
   conformite_reglementaire: [
     ['preparation', 'Préparation'],
     ['controle', 'Contrôle / visite'],
     ['corrections', 'Actions correctives éventuelles'],
     ['contre_visite', 'Contre-visite éventuelle'],
-    ['cloture', 'Clôture'],
-  ],
+    ['cloture', 'Clôture']
+  ]
 });
 
 function text(value) {
@@ -108,7 +128,10 @@ async function getMissionSite(db, siteId) {
 async function requireLinkedSite(db, missionId, siteId) {
   if (!siteId) return null;
   const site = await getMissionSite(db, siteId);
-  const link = await db.getFirstAsync(`SELECT 1 AS ok FROM mission_site_links WHERE mission_id=? AND site_id=?`, [missionId, siteId]);
+  const link = await db.getFirstAsync(`SELECT 1 AS ok FROM mission_site_links WHERE mission_id=? AND site_id=?`, [
+    missionId,
+    siteId
+  ]);
   if (!link) throw new Error('Ce site n’est pas rattaché à la Mission.');
   return site;
 }
@@ -123,7 +146,10 @@ async function requireVisitForMission(db, missionId, visitId) {
 
 async function requirePhaseForMission(db, missionId, phaseId) {
   if (!phaseId) return null;
-  const phase = await db.getFirstAsync(`SELECT id FROM mission_phases WHERE id=? AND mission_id=?`, [phaseId, missionId]);
+  const phase = await db.getFirstAsync(`SELECT id FROM mission_phases WHERE id=? AND mission_id=?`, [
+    phaseId,
+    missionId
+  ]);
   if (!phase) throw new Error('La phase ne correspond pas à cette Mission.');
   return phase;
 }
@@ -134,7 +160,8 @@ async function validatePointContext(db, { missionId, siteId, visitId, locationId
   let effectiveSiteId = text(siteId);
 
   if (visit?.site_id) {
-    if (effectiveSiteId && String(effectiveSiteId) !== String(visit.site_id)) throw new Error('Le site du Point ne correspond pas à la visite.');
+    if (effectiveSiteId && String(effectiveSiteId) !== String(visit.site_id))
+      throw new Error('Le site du Point ne correspond pas à la visite.');
     effectiveSiteId = String(visit.site_id);
   }
 
@@ -143,7 +170,8 @@ async function validatePointContext(db, { missionId, siteId, visitId, locationId
   if (locationId) {
     const location = await db.getFirstAsync(`SELECT id,site_id FROM mission_locations WHERE id=?`, [locationId]);
     if (!location) throw new Error('Localisation Mission introuvable.');
-    if (effectiveSiteId && String(location.site_id) !== String(effectiveSiteId)) throw new Error('La localisation ne correspond pas au site du Point.');
+    if (effectiveSiteId && String(location.site_id) !== String(effectiveSiteId))
+      throw new Error('La localisation ne correspond pas au site du Point.');
     effectiveSiteId = effectiveSiteId || String(location.site_id);
     await requireLinkedSite(db, missionId, effectiveSiteId);
   }
@@ -151,13 +179,17 @@ async function validatePointContext(db, { missionId, siteId, visitId, locationId
   if (equipmentId) {
     const equipment = await db.getFirstAsync(`SELECT id,site_id FROM mission_equipment WHERE id=?`, [equipmentId]);
     if (!equipment) throw new Error('Équipement Mission introuvable.');
-    if (effectiveSiteId && String(equipment.site_id) !== String(effectiveSiteId)) throw new Error('L’équipement ne correspond pas au site du Point.');
+    if (effectiveSiteId && String(equipment.site_id) !== String(effectiveSiteId))
+      throw new Error('L’équipement ne correspond pas au site du Point.');
     effectiveSiteId = effectiveSiteId || String(equipment.site_id);
     await requireLinkedSite(db, missionId, effectiveSiteId);
   }
 
   if (responsibleActorId) {
-    const actor = await db.getFirstAsync(`SELECT id FROM mission_actors WHERE id=? AND mission_id=?`, [responsibleActorId, missionId]);
+    const actor = await db.getFirstAsync(`SELECT id FROM mission_actors WHERE id=? AND mission_id=?`, [
+      responsibleActorId,
+      missionId
+    ]);
     if (!actor) throw new Error('Le responsable sélectionné ne correspond pas à cette Mission.');
   }
 
@@ -169,14 +201,23 @@ export async function creerMissionClient({ name, address = null, notes = null } 
   if (!nom) throw new Error('Nom du client requis.');
   const db = await getDb();
   const id = createId('mcli');
-  await db.runAsync(
-    `INSERT INTO mission_clients(id,name,address,notes) VALUES(?,?,?,?)`,
-    [id, nom, text(address), text(notes)]
-  );
+  await db.runAsync(`INSERT INTO mission_clients(id,name,address,notes) VALUES(?,?,?,?)`, [
+    id,
+    nom,
+    text(address),
+    text(notes)
+  ]);
   return id;
 }
 
-export async function creerMissionSite({ clientId = null, name, city = null, address = null, code = null, notes = null } = {}) {
+export async function creerMissionSite({
+  clientId = null,
+  name,
+  city = null,
+  address = null,
+  code = null,
+  notes = null
+} = {}) {
   const nom = text(name);
   if (!nom) throw new Error('Nom du site requis.');
   const db = await getDb();
@@ -186,10 +227,15 @@ export async function creerMissionSite({ clientId = null, name, city = null, add
     if (!client) throw new Error('Client Missions introuvable.');
   }
   const id = createId('msite');
-  await db.runAsync(
-    `INSERT INTO mission_sites(id,client_id,code,name,city,address,notes) VALUES(?,?,?,?,?,?,?)`,
-    [id, normalizedClientId, text(code), nom, text(city), text(address), text(notes)]
-  );
+  await db.runAsync(`INSERT INTO mission_sites(id,client_id,code,name,city,address,notes) VALUES(?,?,?,?,?,?,?)`, [
+    id,
+    normalizedClientId,
+    text(code),
+    nom,
+    text(city),
+    text(address),
+    text(notes)
+  ]);
   return id;
 }
 
@@ -200,11 +246,22 @@ export async function listerMissionClients() {
 
 export async function listerMissionSites(clientId = null) {
   const db = await getDb();
-  if (clientId) return db.getAllAsync(`SELECT * FROM mission_sites WHERE client_id=? ORDER BY name COLLATE NOCASE`, [clientId]);
+  if (clientId)
+    return db.getAllAsync(`SELECT * FROM mission_sites WHERE client_id=? ORDER BY name COLLATE NOCASE`, [clientId]);
   return db.getAllAsync(`SELECT * FROM mission_sites ORDER BY name COLLATE NOCASE`);
 }
 
-export async function creerMissionDraft({ family = null, type = null, label = null, reference = null, description = null, responsibleName = null, clientId = null, siteIds = [], startDate = null } = {}) {
+export async function creerMissionDraft({
+  family = null,
+  type = null,
+  label = null,
+  reference = null,
+  description = null,
+  responsibleName = null,
+  clientId = null,
+  siteIds = [],
+  startDate = null
+} = {}) {
   const db = await getDb();
   const id = createId('mis');
   const now = new Date().toISOString();
@@ -225,7 +282,20 @@ export async function creerMissionDraft({ family = null, type = null, label = nu
     await db.runAsync(
       `INSERT INTO missions(id,client_id,family,type,label,reference,description,responsible_name,status,start_date,created_at,updated_at)
        VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, normalizedClientId, text(family), text(type), text(label), text(reference), text(description), text(responsibleName), 'draft', text(startDate), now, now]
+      [
+        id,
+        normalizedClientId,
+        text(family),
+        text(type),
+        text(label),
+        text(reference),
+        text(description),
+        text(responsibleName),
+        'draft',
+        text(startDate),
+        now,
+        now
+      ]
     );
     for (const siteId of uniqueSiteIds) {
       await db.runAsync(`INSERT OR IGNORE INTO mission_site_links(mission_id,site_id) VALUES(?,?)`, [id, siteId]);
@@ -233,10 +303,14 @@ export async function creerMissionDraft({ family = null, type = null, label = nu
     const phases = PHASE_RECIPES[family] || [];
     for (let i = 0; i < phases.length; i += 1) {
       const [phaseType, phaseLabel] = phases[i];
-      await db.runAsync(
-        `INSERT INTO mission_phases(id,mission_id,type,label,status,sort_order) VALUES(?,?,?,?,?,?)`,
-        [createId('mph'), id, phaseType, phaseLabel, 'planned', i]
-      );
+      await db.runAsync(`INSERT INTO mission_phases(id,mission_id,type,label,status,sort_order) VALUES(?,?,?,?,?,?)`, [
+        createId('mph'),
+        id,
+        phaseType,
+        phaseLabel,
+        'planned',
+        i
+      ]);
     }
   });
   return id;
@@ -245,8 +319,17 @@ export async function creerMissionDraft({ family = null, type = null, label = nu
 export async function mettreAJourMission(missionId, changes = {}) {
   if (!missionId) throw new Error('Mission manquante.');
   const allowed = {
-    family: 'family', type: 'type', label: 'label', reference: 'reference', description: 'description',
-    responsibleName: 'responsible_name', status: 'status', startDate: 'start_date', endDate: 'end_date', dueText: 'due_text', clientId: 'client_id',
+    family: 'family',
+    type: 'type',
+    label: 'label',
+    reference: 'reference',
+    description: 'description',
+    responsibleName: 'responsible_name',
+    status: 'status',
+    startDate: 'start_date',
+    endDate: 'end_date',
+    dueText: 'due_text',
+    clientId: 'client_id'
   };
   const entries = Object.entries(changes).filter(([key]) => allowed[key]);
   if (!entries.length) return;
@@ -306,16 +389,31 @@ export async function getMissionDashboard(missionId) {
   const db = await getDb();
   const [mission, sites, phases, visits, points, documents] = await Promise.all([
     getMission(missionId),
-    db.getAllAsync(`SELECT s.* FROM mission_sites s JOIN mission_site_links ms ON ms.site_id=s.id WHERE ms.mission_id=? ORDER BY s.name COLLATE NOCASE`, [missionId]),
+    db.getAllAsync(
+      `SELECT s.* FROM mission_sites s JOIN mission_site_links ms ON ms.site_id=s.id WHERE ms.mission_id=? ORDER BY s.name COLLATE NOCASE`,
+      [missionId]
+    ),
     db.getAllAsync(`SELECT * FROM mission_phases WHERE mission_id=? ORDER BY sort_order,id`, [missionId]),
-    db.getAllAsync(`SELECT * FROM mission_visits WHERE mission_id=? ORDER BY COALESCE(visit_date,created_at) DESC LIMIT 20`, [missionId]),
-    db.getAllAsync(`SELECT * FROM mission_points WHERE mission_id=? ORDER BY CASE status WHEN 'to_check' THEN 0 WHEN 'open' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'waiting' THEN 3 ELSE 4 END, updated_at DESC LIMIT 100`, [missionId]),
-    db.getAllAsync(`SELECT * FROM mission_documents WHERE mission_id=? ORDER BY updated_at DESC LIMIT 30`, [missionId]),
+    db.getAllAsync(
+      `SELECT * FROM mission_visits WHERE mission_id=? ORDER BY COALESCE(visit_date,created_at) DESC LIMIT 20`,
+      [missionId]
+    ),
+    db.getAllAsync(
+      `SELECT * FROM mission_points WHERE mission_id=? ORDER BY CASE status WHEN 'to_check' THEN 0 WHEN 'open' THEN 1 WHEN 'in_progress' THEN 2 WHEN 'waiting' THEN 3 ELSE 4 END, updated_at DESC LIMIT 100`,
+      [missionId]
+    ),
+    db.getAllAsync(`SELECT * FROM mission_documents WHERE mission_id=? ORDER BY updated_at DESC LIMIT 30`, [missionId])
   ]);
   return { mission, sites, phases, visits, points, documents };
 }
 
-export async function creerVisiteMission({ missionId, siteId = null, phaseId = null, visitType = 'terrain', visitDate = null } = {}) {
+export async function creerVisiteMission({
+  missionId,
+  siteId = null,
+  phaseId = null,
+  visitType = 'terrain',
+  visitDate = null
+} = {}) {
   if (!missionId) throw new Error('Mission requise.');
   const db = await getDb();
   await requireMission(db, missionId);
@@ -334,7 +432,23 @@ export async function creerVisiteMission({ missionId, siteId = null, phaseId = n
   return id;
 }
 
-export async function creerPointMission({ missionId, siteId = null, visitId = null, locationId = null, equipmentId = null, type = 'information', label = null, description = null, status = 'open', qualification = null, responsibleActorId = null, dueDate = null, dueText = null, priority = null, visibility = 'internal' } = {}) {
+export async function creerPointMission({
+  missionId,
+  siteId = null,
+  visitId = null,
+  locationId = null,
+  equipmentId = null,
+  type = 'information',
+  label = null,
+  description = null,
+  status = 'open',
+  qualification = null,
+  responsibleActorId = null,
+  dueDate = null,
+  dueText = null,
+  priority = null,
+  visibility = 'internal'
+} = {}) {
   if (!missionId) throw new Error('Mission requise.');
   const db = await getDb();
   const context = await validatePointContext(db, {
@@ -343,7 +457,7 @@ export async function creerPointMission({ missionId, siteId = null, visitId = nu
     visitId: text(visitId),
     locationId: text(locationId),
     equipmentId: text(equipmentId),
-    responsibleActorId: text(responsibleActorId),
+    responsibleActorId: text(responsibleActorId)
   });
   const id = createId('mpt');
   const now = new Date().toISOString();
@@ -351,7 +465,26 @@ export async function creerPointMission({ missionId, siteId = null, visitId = nu
     await db.runAsync(
       `INSERT INTO mission_points(id,mission_id,site_id,visit_origin_id,location_id,equipment_id,type,label,description,status,qualification,responsible_actor_id,due_date,due_text,priority,visibility,created_at,updated_at)
        VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [id, missionId, context.effectiveSiteId, text(visitId), text(locationId), text(equipmentId), text(type) || 'information', text(label), text(description), text(status) || 'open', text(qualification), text(responsibleActorId), text(dueDate), text(dueText), text(priority), text(visibility) || 'internal', now, now]
+      [
+        id,
+        missionId,
+        context.effectiveSiteId,
+        text(visitId),
+        text(locationId),
+        text(equipmentId),
+        text(type) || 'information',
+        text(label),
+        text(description),
+        text(status) || 'open',
+        text(qualification),
+        text(responsibleActorId),
+        text(dueDate),
+        text(dueText),
+        text(priority),
+        text(visibility) || 'internal',
+        now,
+        now
+      ]
     );
     await db.runAsync(
       `INSERT INTO mission_point_history(id,point_id,visit_id,status_before,status_after,comment,source,created_at) VALUES(?,?,?,?,?,?,?,?)`,
@@ -369,7 +502,12 @@ export async function mettreAJourStatutPoint(pointId, status, { comment = null, 
   const now = new Date().toISOString();
   const closedAt = ['closed', 'no_follow_up'].includes(status) ? now : null;
   await db.withTransactionAsync(async () => {
-    await db.runAsync(`UPDATE mission_points SET status=?,updated_at=?,closed_at=? WHERE id=?`, [status, now, closedAt, pointId]);
+    await db.runAsync(`UPDATE mission_points SET status=?,updated_at=?,closed_at=? WHERE id=?`, [
+      status,
+      now,
+      closedAt,
+      pointId
+    ]);
     await db.runAsync(
       `INSERT INTO mission_point_history(id,point_id,visit_id,status_before,status_after,comment,source,created_at) VALUES(?,?,?,?,?,?,?,?)`,
       [createId('mphist'), pointId, text(visitId), point.status, status, text(comment), 'manual', now]

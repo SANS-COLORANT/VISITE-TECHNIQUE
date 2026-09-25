@@ -13,7 +13,7 @@ import {
   setMasonryBase,
   updateLab3dEquipmentData,
   updateLab3dNetwork,
-  updateLab3dObject,
+  updateLab3dObject
 } from './lab3dDb.js';
 
 export {
@@ -28,7 +28,7 @@ export {
   setMasonryBase,
   updateLab3dEquipmentData,
   updateLab3dNetwork,
-  updateLab3dObject,
+  updateLab3dObject
 };
 
 const n = (value, fallback = 0) => {
@@ -37,7 +37,11 @@ const n = (value, fallback = 0) => {
 };
 
 function parseJson(value, fallback) {
-  try { return value ? JSON.parse(value) : fallback; } catch (_) { return fallback; }
+  try {
+    return value ? JSON.parse(value) : fallback;
+  } catch (_) {
+    return fallback;
+  }
 }
 
 function parseOpening(row) {
@@ -55,41 +59,54 @@ function parseNetwork(row) {
 export const LAB3D_ARCHITECTURE_PRESETS = Object.freeze([
   { code: 'room', label: 'Pièce rectangulaire', icon: '▭' },
   { code: 'stair', label: 'Escalier droit', icon: '▟' },
-  { code: 'wall', label: 'Mur indépendant', icon: '▰' },
+  { code: 'wall', label: 'Mur indépendant', icon: '▰' }
 ]);
 
 export const LAB3D_OPENING_PRESETS = Object.freeze([
   { code: 'door', label: 'Porte', icon: '▯', width: 0.9, height: 2.05, sill: 0 },
   { code: 'window', label: 'Fenêtre', icon: '▣', width: 1.2, height: 1.0, sill: 1.0 },
   { code: 'bay', label: 'Baie / grande ouverture', icon: '▤', width: 2.0, height: 2.1, sill: 0 },
-  { code: 'grille', label: 'Grille ventilation', icon: '▦', width: 0.6, height: 0.4, sill: 1.6 },
+  { code: 'grille', label: 'Grille ventilation', icon: '▦', width: 0.6, height: 0.4, sill: 1.6 }
 ]);
 
 export async function loadLab3dExtendedSite(args = {}) {
   const base = await loadLab3dSite(args);
   const db = await openAppDatabase();
-  const openings = await db.getAllAsync(`SELECT * FROM lab3d_openings WHERE scene_id=? ORDER BY rowid`, [base.scene.id]);
+  const openings = await db.getAllAsync(`SELECT * FROM lab3d_openings WHERE scene_id=? ORDER BY rowid`, [
+    base.scene.id
+  ]);
   return { ...base, openings: openings.map(parseOpening) };
 }
 
 export async function createArchitectureObject(sceneId, subtype, values = {}) {
   const db = await openAppDatabase();
   const id = createId();
-  const defaults = subtype === 'wall'
-    ? { width: 4, depth: 0.18, height: 2.6, z: 0, anchor_type: 'floor' }
-    : subtype === 'floor'
-      ? { width: 4, depth: 4, height: 0.08, z: -0.08, anchor_type: 'floor' }
-      : subtype === 'stair'
-        ? { width: 1, depth: 2.2, height: 1.5, z: 0, anchor_type: 'floor' }
-        : { width: 1, depth: 1, height: 1, z: 0, anchor_type: 'floor' };
+  const defaults =
+    subtype === 'wall'
+      ? { width: 4, depth: 0.18, height: 2.6, z: 0, anchor_type: 'floor' }
+      : subtype === 'floor'
+        ? { width: 4, depth: 4, height: 0.08, z: -0.08, anchor_type: 'floor' }
+        : subtype === 'stair'
+          ? { width: 1, depth: 2.2, height: 1.5, z: 0, anchor_type: 'floor' }
+          : { width: 1, depth: 1, height: 1, z: 0, anchor_type: 'floor' };
   const data = { ...defaults, ...values };
   await db.runAsync(
     `INSERT INTO lab3d_objects(id,scene_id,equipment_id,kind,subtype,label,x,y,z,width,depth,height,rotation_deg,anchor_type,params_json)
      VALUES(?,?,NULL,'architecture',?,?,?,?,?,?,?,?,?,?,?)`,
     [
-      id, sceneId, subtype, data.label || subtype,
-      n(data.x), n(data.y), n(data.z), n(data.width, 1), n(data.depth, 1), n(data.height, 1),
-      n(data.rotation_deg), data.anchor_type || 'floor', JSON.stringify(data.params || {}),
+      id,
+      sceneId,
+      subtype,
+      data.label || subtype,
+      n(data.x),
+      n(data.y),
+      n(data.z),
+      n(data.width, 1),
+      n(data.depth, 1),
+      n(data.height, 1),
+      n(data.rotation_deg),
+      data.anchor_type || 'floor',
+      JSON.stringify(data.params || {})
     ]
   );
   return parseObject(await db.getFirstAsync(`SELECT * FROM lab3d_objects WHERE id=?`, [id]));
@@ -105,26 +122,62 @@ export async function createRectangularRoom(sceneId, values = {}) {
   const roomId = createId();
   const common = { roomId, roomWidth: width, roomDepth: depth, roomHeight: height, wallThickness: thickness };
   const created = [];
-  created.push(await createArchitectureObject(sceneId, 'floor', {
-    label: values.label || 'Sol du local', x: originX, y: originY, z: -0.08,
-    width, depth, height: 0.08, params: { ...common, side: 'floor' },
-  }));
-  created.push(await createArchitectureObject(sceneId, 'wall', {
-    label: 'Mur Nord', x: originX, y: originY - depth / 2, width, depth: thickness, height,
-    params: { ...common, side: 'north' },
-  }));
-  created.push(await createArchitectureObject(sceneId, 'wall', {
-    label: 'Mur Sud', x: originX, y: originY + depth / 2, width, depth: thickness, height,
-    params: { ...common, side: 'south' },
-  }));
-  created.push(await createArchitectureObject(sceneId, 'wall', {
-    label: 'Mur Ouest', x: originX - width / 2, y: originY, width: thickness, depth, height,
-    params: { ...common, side: 'west' },
-  }));
-  created.push(await createArchitectureObject(sceneId, 'wall', {
-    label: 'Mur Est', x: originX + width / 2, y: originY, width: thickness, depth, height,
-    params: { ...common, side: 'east' },
-  }));
+  created.push(
+    await createArchitectureObject(sceneId, 'floor', {
+      label: values.label || 'Sol du local',
+      x: originX,
+      y: originY,
+      z: -0.08,
+      width,
+      depth,
+      height: 0.08,
+      params: { ...common, side: 'floor' }
+    })
+  );
+  created.push(
+    await createArchitectureObject(sceneId, 'wall', {
+      label: 'Mur Nord',
+      x: originX,
+      y: originY - depth / 2,
+      width,
+      depth: thickness,
+      height,
+      params: { ...common, side: 'north' }
+    })
+  );
+  created.push(
+    await createArchitectureObject(sceneId, 'wall', {
+      label: 'Mur Sud',
+      x: originX,
+      y: originY + depth / 2,
+      width,
+      depth: thickness,
+      height,
+      params: { ...common, side: 'south' }
+    })
+  );
+  created.push(
+    await createArchitectureObject(sceneId, 'wall', {
+      label: 'Mur Ouest',
+      x: originX - width / 2,
+      y: originY,
+      width: thickness,
+      depth,
+      height,
+      params: { ...common, side: 'west' }
+    })
+  );
+  created.push(
+    await createArchitectureObject(sceneId, 'wall', {
+      label: 'Mur Est',
+      x: originX + width / 2,
+      y: originY,
+      width: thickness,
+      depth,
+      height,
+      params: { ...common, side: 'east' }
+    })
+  );
   return created;
 }
 
@@ -144,7 +197,13 @@ export async function createOpeningOnWall(sceneId, wall, kind, values = {}) {
   const x = alongX ? n(wall.x) + offset : n(wall.x);
   const y = alongX ? n(wall.y) : n(wall.y) + offset;
   const rotation = alongX ? n(wall.rotation_deg) : n(wall.rotation_deg) + 90;
-  const params = { offset, sill, side, wallThickness: Math.min(n(wall.width), n(wall.depth)), roomId: wall.params?.roomId || null };
+  const params = {
+    offset,
+    sill,
+    side,
+    wallThickness: Math.min(n(wall.width), n(wall.depth)),
+    roomId: wall.params?.roomId || null
+  };
   await db.runAsync(
     `INSERT INTO lab3d_openings(id,scene_id,wall_id,kind,x,y,z,width,height,rotation_deg,params_json)
      VALUES(?,?,?,?,?,?,?,?,?,?,?)`,
@@ -170,7 +229,7 @@ export function reflowOpeningsForWall(openings, wall) {
       x: alongX ? n(wall.x) + offset : n(wall.x),
       y: alongX ? n(wall.y) : n(wall.y) + offset,
       rotation_deg: alongX ? n(wall.rotation_deg) : n(wall.rotation_deg) + 90,
-      params: { ...(opening.params || {}), side },
+      params: { ...(opening.params || {}), side }
     };
   });
 }
@@ -181,7 +240,16 @@ export async function persistOpeningsForWall(openings, wallId) {
     if (opening.wall_id !== wallId) continue;
     await db.runAsync(
       `UPDATE lab3d_openings SET x=?,y=?,z=?,width=?,height=?,rotation_deg=?,params_json=? WHERE id=?`,
-      [n(opening.x), n(opening.y), n(opening.z), n(opening.width, 0.9), n(opening.height, 2.05), n(opening.rotation_deg), JSON.stringify(opening.params || {}), opening.id]
+      [
+        n(opening.x),
+        n(opening.y),
+        n(opening.z),
+        n(opening.width, 0.9),
+        n(opening.height, 2.05),
+        n(opening.rotation_deg),
+        JSON.stringify(opening.params || {}),
+        opening.id
+      ]
     );
   }
 }
@@ -212,7 +280,7 @@ export function getNetworkRouteMeta(network, objects = []) {
     endId,
     offsetX: n(embedded.offsetX, n(middle.x) - (n(a.x) + n(b.x)) / 2),
     offsetY: n(embedded.offsetY, n(middle.y) - (n(a.y) + n(b.y)) / 2),
-    elevation: Math.max(0.1, n(embedded.elevation, Math.max(n(a.z), n(b.z)) + 0.25)),
+    elevation: Math.max(0.1, n(embedded.elevation, Math.max(n(a.z), n(b.z)) + 0.25))
   };
 }
 
@@ -235,7 +303,7 @@ export function buildAttachedNetworkPoints(network, objects, metaPatch = {}) {
     { x: midX, y: midY, z: elevation, role: 'trunkY' },
     { x: b.x, y: midY, z: elevation, role: 'trunkX2' },
     { x: b.x, y: b.y, z: elevation, role: 'riserEnd' },
-    { ...b, role: 'end' },
+    { ...b, role: 'end' }
   ];
 }
 

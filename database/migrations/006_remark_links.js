@@ -9,5 +9,5 @@ export const migration006 = {
 
     CREATE INDEX IF NOT EXISTS idx_remarques_reference
       ON remarques(visite_id, reference_onglet, reference_type, reference_id);
-  `,
+  `
 };

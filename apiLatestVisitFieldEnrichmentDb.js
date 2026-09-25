@@ -1,8 +1,13 @@
 import { createId } from './database/ids.js';
 import { DEFAULT_TRAME_ID, obtenirTrame } from './trameRegistry.js';
 
-function clean(value) { return value == null ? '' : String(value).trim(); }
-function text(value) { const valueText = clean(value); return valueText || null; }
+function clean(value) {
+  return value == null ? '' : String(value).trim();
+}
+function text(value) {
+  const valueText = clean(value);
+  return valueText || null;
+}
 function meaningfulRemoteValue(value) {
   const valueText = clean(value);
   return !valueText || valueText === '/' ? null : valueText;
@@ -15,15 +20,24 @@ function normalize(value) {
     .replace(/[^a-z0-9]+/g, ' ')
     .trim();
 }
-function remoteId(value) { const valueText = clean(value); return valueText || null; }
+function remoteId(value) {
+  const valueText = clean(value);
+  return valueText || null;
+}
 function sectionCode(panelId, section) {
-  return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  return (
+    panelId.replace('p-', '') +
+    '.' +
+    String(section)
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '_')
+  );
 }
 function criterionReference(category, subCategory, criterion) {
   return [
     remoteId(category?.id) || normalize(category?.nom) || '?',
     remoteId(subCategory?.id) || normalize(subCategory?.nom) || '?',
-    remoteId(criterion?.id) || normalize(criterion?.nom) || '?',
+    remoteId(criterion?.id) || normalize(criterion?.nom) || '?'
   ].join(':');
 }
 function criterionSourceRelation(criterion, latestVisitId) {
@@ -47,7 +61,7 @@ function buildFieldCandidates(trameId) {
           type: field.type || 'champ',
           key: normalize(field.cle),
           sectionKey: normalize(section),
-          panelKey: normalize(definition?.ui?.labels?.[panelId] || panelId),
+          panelKey: normalize(definition?.ui?.labels?.[panelId] || panelId)
         });
       }
     }
@@ -72,16 +86,20 @@ function findFieldCandidate(candidates, criterion, categoryName, subCategoryName
 
   const context = [normalize(subCategoryName), normalize(categoryName)].filter(Boolean);
   const wantedType = preferredType(criterion);
-  const scored = exact.map((candidate) => {
-    let score = wantedType && candidate.type === wantedType ? 6 : 0;
-    for (const token of context) {
-      if (candidate.sectionKey === token) score += 10;
-      else if (candidate.sectionKey && (candidate.sectionKey.includes(token) || token.includes(candidate.sectionKey))) score += 5;
-      if (candidate.panelKey === token) score += 4;
-      else if (candidate.panelKey && (candidate.panelKey.includes(token) || token.includes(candidate.panelKey))) score += 2;
-    }
-    return { candidate, score };
-  }).sort((a, b) => b.score - a.score);
+  const scored = exact
+    .map((candidate) => {
+      let score = wantedType && candidate.type === wantedType ? 6 : 0;
+      for (const token of context) {
+        if (candidate.sectionKey === token) score += 10;
+        else if (candidate.sectionKey && (candidate.sectionKey.includes(token) || token.includes(candidate.sectionKey)))
+          score += 5;
+        if (candidate.panelKey === token) score += 4;
+        else if (candidate.panelKey && (candidate.panelKey.includes(token) || token.includes(candidate.panelKey)))
+          score += 2;
+      }
+      return { candidate, score };
+    })
+    .sort((a, b) => b.score - a.score);
 
   if (scored.length === 1) return scored[0].candidate;
   if (scored[0].score > scored[1].score) return scored[0].candidate;
@@ -103,7 +121,10 @@ async function upsertProvenance(db, entiteType, entiteId, referenceExterne, deta
     [entiteType, entiteId, ref]
   );
   if (existing?.id) {
-    await db.runAsync(`UPDATE provenances SET details_json=?,importe_le=datetime('now') WHERE id=?`, [JSON.stringify(details ?? null), existing.id]);
+    await db.runAsync(`UPDATE provenances SET details_json=?,importe_le=datetime('now') WHERE id=?`, [
+      JSON.stringify(details ?? null),
+      existing.id
+    ]);
     return existing.id;
   }
   const id = createId();
@@ -138,18 +159,21 @@ async function importMetadataFields(db, visiteId, siteId, remoteVisitId, ref, ca
     ['p-infos', 'Général', 'Date de la visite', ref?.derniereVisite?.date],
     ['p-infos', 'Informations générales', 'Date de visite', ref?.derniereVisite?.date],
     ['p-infos', 'Informations générales', 'Nom du site', site?.nom_site || ref?.site?.nom],
-    ['p-infos', 'Informations générales', 'Adresse', site?.adresse],
+    ['p-infos', 'Informations générales', 'Adresse', site?.adresse]
   ];
   let count = 0;
   for (const [panelId, section, key, value] of wanted) {
     if (text(value) == null) continue;
-    const target = candidates.find((candidate) => candidate.panelId === panelId && candidate.section === section && candidate.cle === key);
+    const target = candidates.find(
+      (candidate) => candidate.panelId === panelId && candidate.section === section && candidate.cle === key
+    );
     if (!target) continue;
     if (await upsertField(db, visiteId, target, value)) count += 1;
   }
   if (count) {
     await upsertProvenance(db, 'visite_champs_meta', visiteId, remoteVisitId, {
-      sourceType: 'latest_remote_visit_metadata', fieldCount: count,
+      sourceType: 'latest_remote_visit_metadata',
+      fieldCount: count
     });
   }
   return count;
@@ -161,10 +185,12 @@ const NETWORK_COLUMNS = Object.freeze({
   'nom reseau': 'nom_reseau',
   'courbe de chauffe': 'courbe_de_chauffe',
   tnc: 'tnc',
-  'consigne et programme horaire': 'consigne_programme_horaire',
+  'consigne et programme horaire': 'consigne_programme_horaire'
 });
 
-function networkColumn(name) { return NETWORK_COLUMNS[normalize(name)] || null; }
+function networkColumn(name) {
+  return NETWORK_COLUMNS[normalize(name)] || null;
+}
 function isFixedRegulationGroup(name) {
   const normalized = normalize(name);
   return normalized === 'cascade chaudieres' || normalized === 'reseau ecs';
@@ -178,7 +204,13 @@ function looksLikeNetworkGroup(name, criteria) {
 
 async function importNetworks(db, visiteId, remoteVisitId, ref) {
   if ((ref?.trame?.categories || []).length === 0) {
-    return { count: 0, refs: new Set(), valuesFromLatestVisit: 0, valuesFromEarlierVisits: 0, valuesWithoutSourceVisit: 0 };
+    return {
+      count: 0,
+      refs: new Set(),
+      valuesFromLatestVisit: 0,
+      valuesFromEarlierVisits: 0,
+      valuesWithoutSourceVisit: 0
+    };
   }
   const groups = [];
   const networkCriterionRefs = new Set();
@@ -191,7 +223,9 @@ async function importNetworks(db, visiteId, remoteVisitId, ref) {
     for (const subCategory of subCategories) {
       // Chaque valeur de la préparation est déjà la dernière valeur connue du
       // critère. visiteSourceId indique seulement d'où elle provient.
-      const criteria = (Array.isArray(subCategory?.criteres) ? subCategory.criteres : []).filter((criterion) => criterionValue(criterion) != null);
+      const criteria = (Array.isArray(subCategory?.criteres) ? subCategory.criteres : []).filter(
+        (criterion) => criterionValue(criterion) != null
+      );
       const groupName = text(subCategory?.nom) || text(category?.nom) || '';
       if (!looksLikeNetworkGroup(groupName, criteria)) continue;
       groups.push({ category, subCategory, groupName, criteria });
@@ -221,7 +255,7 @@ async function importNetworks(db, visiteId, remoteVisitId, ref) {
       t_dep_c: null,
       courbe_de_chauffe: null,
       tnc: null,
-      consigne_programme_horaire: null,
+      consigne_programme_horaire: null
     };
     for (const criterion of group.criteria) {
       const column = networkColumn(criterion?.nom);
@@ -232,22 +266,50 @@ async function importNetworks(db, visiteId, remoteVisitId, ref) {
     if (linked?.id) {
       await db.runAsync(
         `UPDATE reseaux SET visite_id=?,ordre=?,nom_reseau=?,t_ext_c=?,t_dep_c=?,courbe_de_chauffe=?,tnc=?,consigne_programme_horaire=? WHERE id=?`,
-        [visiteId, index, values.nom_reseau, values.t_ext_c, values.t_dep_c, values.courbe_de_chauffe, values.tnc, values.consigne_programme_horaire, reseauId]
+        [
+          visiteId,
+          index,
+          values.nom_reseau,
+          values.t_ext_c,
+          values.t_dep_c,
+          values.courbe_de_chauffe,
+          values.tnc,
+          values.consigne_programme_horaire,
+          reseauId
+        ]
       );
     } else {
       await db.runAsync(
         `INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire)
          VALUES(?,?,?,?,?,?,?,?,?)`,
-        [reseauId, visiteId, index, values.nom_reseau, values.t_ext_c, values.t_dep_c, values.courbe_de_chauffe, values.tnc, values.consigne_programme_horaire]
+        [
+          reseauId,
+          visiteId,
+          index,
+          values.nom_reseau,
+          values.t_ext_c,
+          values.t_dep_c,
+          values.courbe_de_chauffe,
+          values.tnc,
+          values.consigne_programme_horaire
+        ]
       );
     }
     await upsertProvenance(db, 'reseau', reseauId, syntheticRef, {
-      sourceType: 'latest_known_preparation_network', remoteVisitId,
-      remoteCategoryId: remoteId(group.category?.id), remoteSubCategoryId: remoteId(group.subCategory?.id),
-      payload: group,
+      sourceType: 'latest_known_preparation_network',
+      remoteVisitId,
+      remoteCategoryId: remoteId(group.category?.id),
+      remoteSubCategoryId: remoteId(group.subCategory?.id),
+      payload: group
     });
   }
-  return { count: groups.length, refs: networkCriterionRefs, valuesFromLatestVisit, valuesFromEarlierVisits, valuesWithoutSourceVisit };
+  return {
+    count: groups.length,
+    refs: networkCriterionRefs,
+    valuesFromLatestVisit,
+    valuesFromEarlierVisits,
+    valuesWithoutSourceVisit
+  };
 }
 
 function meterUnit(fieldName) {
@@ -259,7 +321,9 @@ function meterUnit(fieldName) {
   return null;
 }
 function meterLabel(fieldName) {
-  return clean(fieldName).replace(/\s*\([^)]*\)\s*$/, '').trim();
+  return clean(fieldName)
+    .replace(/\s*\([^)]*\)\s*$/, '')
+    .trim();
 }
 
 async function upsertMeterFromField(db, visiteId, remoteVisitId, criterion, target, value) {
@@ -281,21 +345,49 @@ async function upsertMeterFromField(db, visiteId, remoteVisitId, criterion, targ
   const compteurId = row?.id || createId();
   const unite = meterUnit(target.cle);
   if (row?.id) {
-    await db.runAsync(`UPDATE compteurs SET visite_id=?,label=?,valeur=?,unite=? WHERE id=?`, [visiteId, label, value, unite, compteurId]);
+    await db.runAsync(`UPDATE compteurs SET visite_id=?,label=?,valeur=?,unite=? WHERE id=?`, [
+      visiteId,
+      label,
+      value,
+      unite,
+      compteurId
+    ]);
   } else {
-    await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite) VALUES(?,?,?,?,?)`, [compteurId, visiteId, label, value, unite]);
+    await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite) VALUES(?,?,?,?,?)`, [
+      compteurId,
+      visiteId,
+      label,
+      value,
+      unite
+    ]);
   }
-  await upsertProvenance(db, 'compteur', compteurId, `${remoteVisitId}:meter:${remoteId(criterion?.id) || normalize(target.cle)}`, {
-    sourceType: 'latest_known_preparation_meter', remoteVisitId, sourceVisitId: remoteId(criterion?.visiteSourceId), criterion,
-  });
+  await upsertProvenance(
+    db,
+    'compteur',
+    compteurId,
+    `${remoteVisitId}:meter:${remoteId(criterion?.id) || normalize(target.cle)}`,
+    {
+      sourceType: 'latest_known_preparation_meter',
+      remoteVisitId,
+      sourceVisitId: remoteId(criterion?.visiteSourceId),
+      criterion
+    }
+  );
   return true;
 }
 
 export async function enrichLatestImportedVisitFields({ db, visiteId, siteId, remoteVisitId, trameId, ref }) {
   const candidates = buildFieldCandidates(trameId);
-  const networkImport = trameId === DEFAULT_TRAME_ID
-    ? await importNetworks(db, visiteId, remoteVisitId, ref)
-    : { count: 0, refs: new Set(), valuesFromLatestVisit: 0, valuesFromEarlierVisits: 0, valuesWithoutSourceVisit: 0 };
+  const networkImport =
+    trameId === DEFAULT_TRAME_ID
+      ? await importNetworks(db, visiteId, remoteVisitId, ref)
+      : {
+          count: 0,
+          refs: new Set(),
+          valuesFromLatestVisit: 0,
+          valuesFromEarlierVisits: 0,
+          valuesWithoutSourceVisit: 0
+        };
   const metadataFields = await importMetadataFields(db, visiteId, siteId, remoteVisitId, ref, candidates);
 
   let mappedFields = 0;
@@ -318,7 +410,10 @@ export async function enrichLatestImportedVisitFields({ db, visiteId, siteId, re
         if (networkImport.refs.has(criterionRef)) continue;
 
         const target = findFieldCandidate(candidates, criterion, category?.nom, subCategory?.nom);
-        if (!target) { skippedAmbiguous += 1; continue; }
+        if (!target) {
+          skippedAmbiguous += 1;
+          continue;
+        }
         if (target.type !== 'champ') continue;
         if (await upsertField(db, visiteId, target, value)) {
           mappedFields += 1;
@@ -331,7 +426,7 @@ export async function enrichLatestImportedVisitFields({ db, visiteId, siteId, re
             referencePath: criterionRef,
             sourceVisitId: remoteId(criterion?.visiteSourceId),
             remoteName: criterion?.nom,
-            target: `${target.sectionCode}||${target.cle}`,
+            target: `${target.sectionCode}||${target.cle}`
           });
           if (await upsertMeterFromField(db, visiteId, remoteVisitId, criterion, target, value)) importedMeters += 1;
         }
@@ -354,7 +449,7 @@ export async function enrichLatestImportedVisitFields({ db, visiteId, siteId, re
     networkValuesFromEarlierVisits: networkImport.valuesFromEarlierVisits,
     networkValuesWithoutSourceVisit: networkImport.valuesWithoutSourceVisit,
     imported,
-    rule: 'preparation_values_are_latest_known_visiteSourceId_is_provenance_only',
+    rule: 'preparation_values_are_latest_known_visiteSourceId_is_provenance_only'
   });
 
   return {
@@ -368,6 +463,6 @@ export async function enrichLatestImportedVisitFields({ db, visiteId, siteId, re
     valuesWithoutSourceVisit,
     networkValuesFromLatestVisit: networkImport.valuesFromLatestVisit,
     networkValuesFromEarlierVisits: networkImport.valuesFromEarlierVisits,
-    networkValuesWithoutSourceVisit: networkImport.valuesWithoutSourceVisit,
+    networkValuesWithoutSourceVisit: networkImport.valuesWithoutSourceVisit
   };
 }

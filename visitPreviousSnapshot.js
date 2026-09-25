@@ -27,27 +27,62 @@ async function loadPreviousSnapshot(visiteId) {
         AND COALESCE(v.trame_id,'icpe_v1')=COALESCE(?,'icpe_v1')
       ORDER BY COALESCE(v.date_visite,'') DESC,COALESCE(v.modifie_le,'') DESC
       LIMIT 1`,
-    [current.id, current.site_id, current.installation_id || null, current.installation_id || null, current.trame_id || null]
+    [
+      current.id,
+      current.site_id,
+      current.installation_id || null,
+      current.installation_id || null,
+      current.trame_id || null
+    ]
   );
   if (!previous?.id) {
-    return { currentVisitId: current.id, previousVisitId: null, previousDate: null, fields: {}, controls: {}, meters: {}, networks: {} };
+    return {
+      currentVisitId: current.id,
+      previousVisitId: null,
+      previousDate: null,
+      fields: {},
+      controls: {},
+      meters: {},
+      networks: {}
+    };
   }
 
   const [fields, controls, meters, networks] = await Promise.all([
     getChampsVisite(previous.id),
     getControlesVisite(previous.id),
     listerCompteurs(previous.id),
-    listerReseaux(previous.id),
+    listerReseaux(previous.id)
   ]);
 
   return {
     currentVisitId: current.id,
     previousVisitId: previous.id,
     previousDate: previous.date_visite || null,
-    fields: mapRows(fields, (row) => row?.section_code && row?.cle ? `${row.section_code}||${row.cle}` : null, (row) => row.valeur),
-    controls: mapRows(controls, (row) => row?.section_code && row?.cle ? `${row.section_code}||${row.cle}` : null, (row) => ({ avis: row.avis || null, commentaire: row.commentaire || null })),
-    meters: mapRows(meters, (row) => row?.compteur_site_id || row?.id || row?.label, (row) => ({ label: row.label || '', valeur: row.valeur ?? null, unite: row.unite || null })),
-    networks: mapRows(networks, (row) => row?.reseau_site_id || row?.id || row?.nom_reseau, (row) => ({ nom: row.nom_reseau || '', tExt: row.t_ext_c ?? null, tDep: row.t_dep_c ?? null, courbe: row.courbe_de_chauffe ?? null })),
+    fields: mapRows(
+      fields,
+      (row) => (row?.section_code && row?.cle ? `${row.section_code}||${row.cle}` : null),
+      (row) => row.valeur
+    ),
+    controls: mapRows(
+      controls,
+      (row) => (row?.section_code && row?.cle ? `${row.section_code}||${row.cle}` : null),
+      (row) => ({ avis: row.avis || null, commentaire: row.commentaire || null })
+    ),
+    meters: mapRows(
+      meters,
+      (row) => row?.compteur_site_id || row?.id || row?.label,
+      (row) => ({ label: row.label || '', valeur: row.valeur ?? null, unite: row.unite || null })
+    ),
+    networks: mapRows(
+      networks,
+      (row) => row?.reseau_site_id || row?.id || row?.nom_reseau,
+      (row) => ({
+        nom: row.nom_reseau || '',
+        tExt: row.t_ext_c ?? null,
+        tDep: row.t_dep_c ?? null,
+        courbe: row.courbe_de_chauffe ?? null
+      })
+    )
   };
 }
 

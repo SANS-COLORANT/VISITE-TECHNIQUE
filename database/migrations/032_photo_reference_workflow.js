@@ -31,5 +31,5 @@ export const migration032 = {
       PRIMARY KEY (visite_id, context_key, remote_client_id, remote_site_id),
       FOREIGN KEY (visite_id) REFERENCES visites(id) ON DELETE CASCADE
     );
-  `,
+  `
 };

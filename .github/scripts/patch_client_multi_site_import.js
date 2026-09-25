@@ -44,15 +44,16 @@ function SiteSelectionRow({ item, selected, onPress, disabled }) {
   text = text.replace(anchor, component + anchor);
 }
 
-const stateNeedle = "  const [siteActionBusy, setSiteActionBusy] = useState(false);\n";
+const stateNeedle = '  const [siteActionBusy, setSiteActionBusy] = useState(false);\n';
 const stateInsert = `  const [siteSelectionMode, setSiteSelectionMode] = useState(false);\n  const [selectedSiteIds, setSelectedSiteIds] = useState(() => new Set());\n  const [batchImportBusy, setBatchImportBusy] = useState(false);\n  const [batchImportProgress, setBatchImportProgress] = useState(null);\n`;
 if (!text.includes('const [siteSelectionMode, setSiteSelectionMode]')) {
   if (!text.includes(stateNeedle)) throw new Error('siteActionBusy state anchor not found');
   text = text.replace(stateNeedle, stateNeedle + stateInsert);
 }
 
-const openClientNeedle = "      setSites(cachedSites);\n      setLocals([]);\n";
-const openClientReplacement = "      setSites(cachedSites);\n      setLocals([]);\n      setSiteSelectionMode(false);\n      setSelectedSiteIds(new Set());\n      setBatchImportProgress(null);\n";
+const openClientNeedle = '      setSites(cachedSites);\n      setLocals([]);\n';
+const openClientReplacement =
+  '      setSites(cachedSites);\n      setLocals([]);\n      setSiteSelectionMode(false);\n      setSelectedSiteIds(new Set());\n      setBatchImportProgress(null);\n';
 if (!text.includes('setSiteSelectionMode(false);\n      setSelectedSiteIds(new Set());')) {
   if (!text.includes(openClientNeedle)) throw new Error('openClient reset anchor not found');
   text = text.replace(openClientNeedle, openClientReplacement);
@@ -194,4 +195,6 @@ if (!text.includes('1, plusieurs ou tous les sites')) {
 }
 
 fs.writeFileSync(path, text);
-console.log('Client multi-site selection/import wired into MetraDirectoryScreen with a full-height scrollable list and sticky import footer.');
+console.log(
+  'Client multi-site selection/import wired into MetraDirectoryScreen with a full-height scrollable list and sticky import footer.'
+);

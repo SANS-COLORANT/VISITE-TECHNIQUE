@@ -1,7 +1,11 @@
 const fs = require('fs');
 
-function read(path) { return fs.readFileSync(path, 'utf8'); }
-function write(path, text) { fs.writeFileSync(path, text); }
+function read(path) {
+  return fs.readFileSync(path, 'utf8');
+}
+function write(path, text) {
+  fs.writeFileSync(path, text);
+}
 function replaceOnce(text, from, to, label) {
   if (text.includes(to)) return text;
   if (!text.includes(from)) throw new Error(`${label}: anchor not found`);
@@ -11,8 +15,10 @@ function replaceOnce(text, from, to, label) {
 function patchDbCounts() {
   const path = 'db.js';
   let text = read(path);
-  const old = "async function listerVisitesEnCours(){return(await getDb()).getAllAsync(`SELECT v.id, v.date_visite, v.progression_pct, s.nom_site, c.nom AS nom_client FROM visites v JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id WHERE v.statut='en_cours' ORDER BY v.modifie_le DESC`);} async function listerVisitesSite(siteId){return(await getDb()).getAllAsync(`SELECT * FROM visites WHERE site_id=? ORDER BY date_visite DESC, modifie_le DESC`,[siteId]);} async function compterVisites(){const db=await getDb(),a=await db.getFirstAsync(`SELECT COUNT(*) n FROM visites WHERE statut='en_cours'`),b=await db.getFirstAsync(`SELECT COUNT(*) n FROM visites WHERE statut='terminee'`);return{enCours:a.n,terminees:b.n};}";
-  const next = "async function listerVisitesEnCours(){return(await getDb()).getAllAsync(`SELECT v.id, v.date_visite, v.progression_pct, s.nom_site, c.nom AS nom_client FROM visites v JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id WHERE v.statut='en_cours' ORDER BY v.modifie_le DESC`);} async function listerVisitesSite(siteId){return(await getDb()).getAllAsync(`SELECT * FROM visites WHERE site_id=? ORDER BY date_visite DESC, modifie_le DESC`,[siteId]);} async function compterVisites(){const row=await(await getDb()).getFirstAsync(`SELECT SUM(CASE WHEN statut='en_cours' THEN 1 ELSE 0 END) en_cours,SUM(CASE WHEN statut='terminee' THEN 1 ELSE 0 END) terminees FROM visites`);return{enCours:Number(row?.en_cours||0),terminees:Number(row?.terminees||0)};}";
+  const old =
+    "async function listerVisitesEnCours(){return(await getDb()).getAllAsync(`SELECT v.id, v.date_visite, v.progression_pct, s.nom_site, c.nom AS nom_client FROM visites v JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id WHERE v.statut='en_cours' ORDER BY v.modifie_le DESC`);} async function listerVisitesSite(siteId){return(await getDb()).getAllAsync(`SELECT * FROM visites WHERE site_id=? ORDER BY date_visite DESC, modifie_le DESC`,[siteId]);} async function compterVisites(){const db=await getDb(),a=await db.getFirstAsync(`SELECT COUNT(*) n FROM visites WHERE statut='en_cours'`),b=await db.getFirstAsync(`SELECT COUNT(*) n FROM visites WHERE statut='terminee'`);return{enCours:a.n,terminees:b.n};}";
+  const next =
+    "async function listerVisitesEnCours(){return(await getDb()).getAllAsync(`SELECT v.id, v.date_visite, v.progression_pct, s.nom_site, c.nom AS nom_client FROM visites v JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id WHERE v.statut='en_cours' ORDER BY v.modifie_le DESC`);} async function listerVisitesSite(siteId){return(await getDb()).getAllAsync(`SELECT * FROM visites WHERE site_id=? ORDER BY date_visite DESC, modifie_le DESC`,[siteId]);} async function compterVisites(){const row=await(await getDb()).getFirstAsync(`SELECT SUM(CASE WHEN statut='en_cours' THEN 1 ELSE 0 END) en_cours,SUM(CASE WHEN statut='terminee' THEN 1 ELSE 0 END) terminees FROM visites`);return{enCours:Number(row?.en_cours||0),terminees:Number(row?.terminees||0)};}";
   text = replaceOnce(text, old, next, 'db visit counts');
   write(path, text);
 }
@@ -40,19 +46,21 @@ function patchSiteHealth() {
   let text = read(path);
   const helperMarker = 'async function mapHealthAvecConcurrence(items, limite, worker) {';
   if (!text.includes(helperMarker)) {
-    const anchor = "const clampScore = (value) => {\n";
+    const anchor = 'const clampScore = (value) => {\n';
     if (!text.includes(anchor)) throw new Error('siteHealth helper anchor not found');
     const helper = `async function mapHealthAvecConcurrence(items, limite, worker) {\n  const resultats = new Array(items.length); let curseur = 0;\n  const workers = Array.from({ length: Math.min(Math.max(1, limite), items.length) }, async () => {\n    while (true) { const index = curseur++; if (index >= items.length) return; resultats[index] = await worker(items[index], index); }\n  });\n  await Promise.all(workers); return resultats;\n}\n\n`;
     text = text.replace(anchor, helper + anchor);
   }
-  text = replaceOnce(text,
+  text = replaceOnce(
+    text,
     'export async function computeAutomaticSiteHealth(siteId, forcedVisitId = null) {\n  const db = await getDb();\n  const [visite, patrimoine] = await Promise.all([\n    latestVisit(db, siteId, forcedVisitId),\n    getStatsSitePatrimoine(siteId),\n  ]);',
     'export async function computeAutomaticSiteHealth(siteId, forcedVisitId = null, patrimoineOverride = null) {\n  const db = await getDb();\n  const [visite, patrimoine] = await Promise.all([\n    latestVisit(db, siteId, forcedVisitId),\n    patrimoineOverride ? Promise.resolve(patrimoineOverride) : getStatsSitePatrimoine(siteId),\n  ]);',
     'siteHealth patrimoine override'
   );
-  text = replaceOnce(text,
-    "export async function getSiteHealth(siteId, forcedVisitId = null) {\n  const [automatic, settings] = await Promise.all([\n    computeAutomaticSiteHealth(siteId, forcedVisitId),",
-    "export async function getSiteHealth(siteId, forcedVisitId = null, patrimoineOverride = null) {\n  const [automatic, settings] = await Promise.all([\n    computeAutomaticSiteHealth(siteId, forcedVisitId, patrimoineOverride),",
+  text = replaceOnce(
+    text,
+    'export async function getSiteHealth(siteId, forcedVisitId = null) {\n  const [automatic, settings] = await Promise.all([\n    computeAutomaticSiteHealth(siteId, forcedVisitId),',
+    'export async function getSiteHealth(siteId, forcedVisitId = null, patrimoineOverride = null) {\n  const [automatic, settings] = await Promise.all([\n    computeAutomaticSiteHealth(siteId, forcedVisitId, patrimoineOverride),',
     'siteHealth override forwarding'
   );
   const oldClient = `export async function getClientHealth(clientId) {\n  const db = await getDb();\n  const sites = await db.getAllAsync(\`SELECT id,nom_site,adresse FROM sites WHERE client_id=? ORDER BY nom_site COLLATE NOCASE\`, [clientId]);\n  const health = [];\n  for (const site of sites) {\n    const item = await getSiteHealth(site.id);\n    health.push({ ...item, siteName: site.nom_site || 'Site', address: site.adresse || '' });\n  }\n  return { ...aggregateSiteHealth(health), items: health };\n}`;
@@ -64,7 +72,8 @@ function patchSiteHealth() {
 function patchClientPatrimoine() {
   const path = 'ClientPatrimoineScreen.js';
   let text = read(path);
-  text = replaceOnce(text,
+  text = replaceOnce(
+    text,
     "import { getStatsClientPatrimoine, getStatsSitePatrimoine } from './patrimoineDb.js';",
     "import { getStatsSitesPatrimoine } from './patrimoineDb.js';",
     'ClientPatrimoine bulk stats import'
@@ -81,17 +90,20 @@ function patchClientPatrimoine() {
 function patchPilotageBulk() {
   const path = 'ClientPilotageScreen.js';
   let text = read(path);
-  text = replaceOnce(text,
+  text = replaceOnce(
+    text,
     "import { getStatsSitePatrimoine } from './patrimoineDb.js';",
     "import { getStatsSitesPatrimoine } from './patrimoineDb.js';",
     'Pilotage bulk stats import'
   );
-  text = replaceOnce(text,
+  text = replaceOnce(
+    text,
     `      const statsEntries = await mapAvecConcurrence(m?.sites || [], 6, async (site) => [site.id, await getStatsSitePatrimoine(site.id)]);\n      const nextStats = new Map(statsEntries);`,
     `      const nextStats = await getStatsSitesPatrimoine(clientId);`,
     'Pilotage bulk stats query'
   );
-  text = replaceOnce(text,
+  text = replaceOnce(
+    text,
     `    const map = {};\n    for (const issue of cell.issues || []) map[issueKey(issue)] = await getMatrixCellPhotos(issue);\n    setPhotos(map);`,
     `    const entries = await mapAvecConcurrence(cell.issues || [], 4, async (issue) => [issueKey(issue), await getMatrixCellPhotos(issue)]);\n    setPhotos(Object.fromEntries(entries));`,
     'Pilotage photo concurrency'
@@ -117,4 +129,6 @@ patchSiteHealth();
 patchClientPatrimoine();
 patchPilotageBulk();
 patchTechnicalMatrix();
-console.log('Large-client query patch applied: bulk patrimoine stats, bounded health work and batched technical matrix reads.');
+console.log(
+  'Large-client query patch applied: bulk patrimoine stats, bounded health work and batched technical matrix reads.'
+);

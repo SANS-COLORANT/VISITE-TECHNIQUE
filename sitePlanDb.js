@@ -12,7 +12,11 @@ function extensionDepuisAsset(asset = {}) {
 }
 
 function estPlanGere(uri) {
-  return !!uri && !!FileSystem.documentDirectory && String(uri).startsWith(`${FileSystem.documentDirectory}visite-technique/site-plans/`);
+  return (
+    !!uri &&
+    !!FileSystem.documentDirectory &&
+    String(uri).startsWith(`${FileSystem.documentDirectory}visite-technique/site-plans/`)
+  );
 }
 
 async function contexteSite(visiteId) {
@@ -40,7 +44,7 @@ export async function choisirEtSauverPlanSite(visiteId) {
     mediaTypes: ImagePicker.MediaTypeOptions.Images,
     allowsEditing: false,
     quality: 1,
-    base64: false,
+    base64: false
   });
   if (result.canceled || !result.assets?.[0]?.uri) return null;
 

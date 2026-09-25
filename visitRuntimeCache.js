@@ -17,22 +17,24 @@ function compactPayload(value = {}) {
   const preview = value.preview || value.visite || value;
   return {
     id: keyOf(preview?.id || value?.id),
-    preview: preview ? {
-      id: preview.id,
-      site_id: preview.site_id,
-      installation_id: preview.installation_id || null,
-      nom_site: preview.nom_site || '',
-      nom_client: preview.nom_client || '',
-      nom_installation: preview.nom_installation || '',
-      date_visite: preview.date_visite || '',
-      trame_id: preview.trame_id || null,
-      mode_visite: preview.mode_visite || null,
-      statut: preview.statut || null,
-      progression_pct: Number(preview.progression_pct || 0),
-      api_remote_local_id: preview.api_remote_local_id || null,
-    } : null,
+    preview: preview
+      ? {
+          id: preview.id,
+          site_id: preview.site_id,
+          installation_id: preview.installation_id || null,
+          nom_site: preview.nom_site || '',
+          nom_client: preview.nom_client || '',
+          nom_installation: preview.nom_installation || '',
+          date_visite: preview.date_visite || '',
+          trame_id: preview.trame_id || null,
+          mode_visite: preview.mode_visite || null,
+          statut: preview.statut || null,
+          progression_pct: Number(preview.progression_pct || 0),
+          api_remote_local_id: preview.api_remote_local_id || null
+        }
+      : null,
     ui: value.ui ? { ...value.ui } : {},
-    touchedAt: Date.now(),
+    touchedAt: Date.now()
   };
 }
 
@@ -56,7 +58,7 @@ export function markVisitHot(id, patch = {}) {
     ...patch,
     id: key,
     preview: patch.preview ? { ...(previous.preview || {}), ...patch.preview } : previous.preview,
-    ui: { ...(previous.ui || {}), ...(patch.ui || {}) },
+    ui: { ...(previous.ui || {}), ...(patch.ui || {}) }
   });
   hot.set(key, next);
   return next;
@@ -72,7 +74,7 @@ export function markVisitWarm(id, patch = {}) {
     ...patch,
     id: key,
     preview: patch.preview ? { ...(previous.preview || {}), ...patch.preview } : previous.preview,
-    ui: { ...(previous.ui || {}), ...(patch.ui || {}) },
+    ui: { ...(previous.ui || {}), ...(patch.ui || {}) }
   });
   warm.set(key, next);
   return next;
@@ -119,7 +121,7 @@ export function visitRuntimeStats() {
     hot: hot.size,
     warm: warm.size,
     hotLimit: HOT_LIMIT,
-    warmLimit: WARM_LIMIT,
+    warmLimit: WARM_LIMIT
   };
 }
 
