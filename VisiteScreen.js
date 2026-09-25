@@ -624,8 +624,8 @@ function VisiteScreen({ route, onBack }) {
         <View style={styles.visiteHeaderRow}>
           <TouchableOpacity style={styles.visiteBackBtn} onPress={retourSecurise}><Text style={styles.visiteBackBtnText}>←</Text></TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>{visite.nom_site}</Text>
-            <Text style={styles.cardSub}>{[visite.nom_client, visite.nom_installation, visite.date_visite, trame.nom, visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'].filter(Boolean).join(' · ')}</Text>
+            <Text numberOfLines={1} style={styles.cardTitle}>{visite.nom_site}</Text>
+            <Text numberOfLines={1} style={styles.cardSub}>{[visite.nom_client, visite.nom_installation, visite.date_visite, trame.nom, visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'].filter(Boolean).join(' · ')}</Text>
           </View>
           {appareilTablette ? (
             <TouchableOpacity accessibilityLabel="Compagnon téléphone" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.iconAction, styles.iconActionNeutral]} onPress={() => setCompanionVisible(true)}>

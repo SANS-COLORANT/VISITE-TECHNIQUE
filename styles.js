@@ -139,7 +139,7 @@ export const styles = StyleSheet.create({
   tabUnderline: { height: 2.5, backgroundColor: COLORS.orange, marginTop: 6, borderRadius: 2 },
   tabSep: { width: 1, backgroundColor: COLORS.line, marginHorizontal: 6, marginVertical: 10 },
 
-  panelContent: { padding: 18, paddingBottom: 60 },
+  panelContent: { padding: 18, paddingBottom: 92 },
   sectionTitle: { fontSize: 14, fontWeight: '600', color: COLORS.ink, marginBottom: 10, marginTop: 4 },
   formCard: {
     backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, padding: 16, marginBottom: 14,
