@@ -17,7 +17,6 @@ import { SITE_SORT_OPTIONS, buildSiteGroupMap, siteGroupLabel, sortSites } from 
 import { getNavigationScrollOffset, getNavigationState, hydrateNavigationState, setNavigationScrollOffset, setNavigationState } from './navigationMemory.js';
 import { peekClientSites, prewarmClientSites, prewarmSiteLocals } from './navigationPrewarm.js';
 import { CompanionTabletModal } from './CompanionTabletModal.js';
-import { CompanionOfflineQrBatchModal } from './CompanionOfflineQrBatchModal.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { getRuntimeAccent, getRuntimePalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 
@@ -37,7 +36,6 @@ function ClientSitesScreen({ route, navigation }) {
   const [modalVisible, setModalVisible] = useState(false);
   const [intranetSiteVisible, setIntranetSiteVisible] = useState(false);
   const [clientCompanionVisible, setClientCompanionVisible] = useState(false);
-  const [clientOfflineQrVisible, setClientOfflineQrVisible] = useState(false);
   const [groupesVisible, setGroupesVisible] = useState(false);
   const [radialMenu, setRadialMenu] = useState(null);
   const [renameSite, setRenameSite] = useState(null);
@@ -216,16 +214,6 @@ function ClientSitesScreen({ route, navigation }) {
             <Text style={[styles.btnSecondaryText, { color: accent }]}>Compagnon</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={[styles.btnSecondary, { minHeight: 48, marginBottom: 12, flexDirection: 'row', gap: 8, borderColor: accent }]}
-          onPress={() => setClientOfflineQrVisible(true)}
-        >
-          <CvcIcon name="document" size={19} color={accent} />
-          <View style={{ flex: 1 }}>
-            <Text style={[styles.btnSecondaryText, { color: accent }]}>QR hors connexion · lots enregistrés</Text>
-            <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 10.5 }}>Créer, retrouver et faire défiler les QR de ce client</Text>
-          </View>
-        </TouchableOpacity>
 
         {sansAdresse > 0 ? <View style={{ backgroundColor: '#FFF8E7', borderWidth: 1, borderColor: '#F0D99B', borderRadius: 12, padding: 10, marginBottom: 14 }}><Text style={{ color: '#7A5700', fontSize: 12, fontWeight: '700' }}>{sansAdresse} site(s) sans adresse complète</Text></View> : null}
         <View style={styles.sectionHeaderRow}><Text style={styles.sectionLabel}>Sites</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>{sitesFiltres.length}/{sites.length}</Text></View>
@@ -262,13 +250,6 @@ function ClientSitesScreen({ route, navigation }) {
       clientId={clientId}
       nomClient={nomClient}
       onClose={() => setClientCompanionVisible(false)}
-    />
-
-    <CompanionOfflineQrBatchModal
-      visible={clientOfflineQrVisible}
-      clientId={clientId}
-      nomClient={nomClient}
-      onClose={() => setClientOfflineQrVisible(false)}
     />
 
     <Modal visible={!!renameSite} transparent animationType="fade" onRequestClose={() => setRenameSite(null)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Renommer le site</Text><TextInput autoFocus style={styles.input} value={renameValue} onChangeText={setRenameValue} selectTextOnFocus/><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setRenameSite(null)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerRenommage}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></View></View></Modal>
