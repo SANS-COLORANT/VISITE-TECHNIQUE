@@ -79,7 +79,7 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
           client: nextSnapshot?.visit?.client || nextSnapshot?.client?.name || nomClient || '',
         }),
         10000,
-        'Impossible de démarrer la liaison locale. Vérifie que le Wi‑Fi est actif sur la tablette.'
+        'Impossible de démarrer la liaison locale. Utilise le même Wi‑Fi, ou connecte la tablette au partage de connexion du téléphone.'
       );
 
       const payload = buildCompanionQrPayload({
@@ -324,6 +324,9 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
                   <Text style={{ marginTop: 10, fontSize: 15, fontWeight: '900', color: COLORS.ink }}>{connection}</Text>
                   <Text style={{ marginTop: 4, fontSize: 12, color: COLORS.inkSoft, textAlign: 'center' }}>
                     Sur le téléphone : Compagnon → Scanner le QR de la tablette
+                  </Text>
+                  <Text style={{ marginTop: 5, fontSize: 10.5, color: COLORS.inkFaint, textAlign: 'center', lineHeight: 15 }}>
+                    Même Wi-Fi, ou tablette connectée au partage de connexion du téléphone. Internet n’est pas nécessaire.
                   </Text>
                 </View>
 
