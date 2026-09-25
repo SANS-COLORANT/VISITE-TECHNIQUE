@@ -53,3 +53,12 @@ run_patch('.github/scripts/patch_preallumage_swipe_performance.py')
 run_patch('.github/scripts/patch_visit_creation_export_type_v2.py')
 # Doit rester après les patches qui réécrivent le loader de VisiteScreen.
 run_patch('.github/scripts/patch_visit_open_fail_safe.py')
+# Répare les régressions observées sur tablette et vérifie que les transformations
+# précédentes n'ont pas réintroduit getDb manquant, le blocage compteur ou le
+# chargement tardif des pages Pré-allumage.
+run_patch('.github/scripts/patch_runtime_regressions.py')
+# Le dump MySQL energieetservice du 14/09/2026 confirme ensuite les colonnes
+# réelles CLIENT/SITE/LOCAL et les relations SITE_LOT, photographie/local_critere
+# et compteur/conso. Cette passe conserve ces métadonnées dans le cache offline
+# sans modifier la DA METRA ni inventer de route serveur supplémentaire.
+run_patch('.github/scripts/patch_intranet_sql_cache_alignment.py')

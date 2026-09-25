@@ -234,7 +234,7 @@ export async function cacheAuthorizedClients(clients = []) {
   await updateApiSyncState({ last_clients_sync_at: new Date().toISOString(), last_success_at: new Date().toISOString(), last_error: null });
 }
 
-export async function cachePreparation(remoteClientId, payload) {
+export async function cachePreparation(remoteClientId, payload, { partial = false } = {}) {
   const clientId = clean(remoteClientId); if (!clientId) throw new Error('Client API requis');
   const database = await db();
   const normalized = normalizePreparationPayload(payload);
@@ -242,21 +242,27 @@ export async function cachePreparation(remoteClientId, payload) {
   const siteIds = [...new Set(visites.map((visite) => remoteId(visite?.site?.id)).filter(Boolean))];
 
   await database.withTransactionAsync(async () => {
-    await database.runAsync(
-      `INSERT INTO api_preparation_cache(remote_client_id,payload_json,synced_at) VALUES(?,?,datetime('now'))
-       ON CONFLICT(remote_client_id) DO UPDATE SET payload_json=excluded.payload_json,synced_at=datetime('now')`, [clientId, json(normalized)]
-    );
+    // Une préparation filtrée (?trame=...) sert notamment à préparer une
+    // première visite sur un local sans historique. Elle ne représente pas le
+    // référentiel complet du client : elle ne doit donc ni écraser le cache
+    // complet, ni marquer les autres sites/locaux comme absents.
+    if (!partial) {
+      await database.runAsync(
+        `INSERT INTO api_preparation_cache(remote_client_id,payload_json,synced_at) VALUES(?,?,datetime('now'))
+         ON CONFLICT(remote_client_id) DO UPDATE SET payload_json=excluded.payload_json,synced_at=datetime('now')`, [clientId, json(normalized)]
+      );
 
-    // Le schéma Symfony passe par LOT <-> SITE : la relation client/site est
-    // donc stockée séparément de l'identité globale du site. Une synchro d'un
-    // client ne peut plus effacer/réaffecter un site partagé par un autre.
-    await database.runAsync(`UPDATE api_client_site_links SET remote_present=0 WHERE remote_client_id=?`, [clientId]);
+      // Le schéma Symfony passe par LOT <-> SITE : la relation client/site est
+      // donc stockée séparément de l'identité globale du site. Une synchro d'un
+      // client ne peut plus effacer/réaffecter un site partagé par un autre.
+      await database.runAsync(`UPDATE api_client_site_links SET remote_present=0 WHERE remote_client_id=?`, [clientId]);
 
-    // LOCAL appartient directement à SITE. Pour chaque site réellement présent
-    // dans cette réponse complète, on marque d'abord son ancien listing local
-    // comme absent, puis les locaux reçus sont réactivés ci-dessous.
-    for (const siteId of siteIds) {
-      await database.runAsync(`UPDATE api_local_links SET remote_present=0 WHERE remote_site_id=?`, [siteId]);
+      // LOCAL appartient directement à SITE. Pour chaque site réellement présent
+      // dans cette réponse complète, on marque d'abord son ancien listing local
+      // comme absent, puis les locaux reçus sont réactivés ci-dessous.
+      for (const siteId of siteIds) {
+        await database.runAsync(`UPDATE api_local_links SET remote_present=0 WHERE remote_site_id=?`, [siteId]);
+      }
     }
 
     for (const visite of visites) {
@@ -420,20 +426,39 @@ export async function materializeCachedSite(remoteSiteId, remoteClientId = null)
   const relationClientId = relation?.remote_client_id || requestedClientId || remote.remote_client_id;
   if (!relationClientId) throw new Error('Client du site API introuvable');
   const clientId = await materializeCachedClient(relationClientId);
-  const existing = await database.getFirstAsync(`SELECT id FROM sites WHERE client_id=? AND lower(trim(nom_site))=lower(trim(?)) LIMIT 1`, [clientId, clean(remote.nom)]);
-  const localSiteId = existing?.id || createId();
-  const createdLocally = existing?.id ? 0 : 1;
-  if (!existing?.id) {
-    await database.runAsync(`INSERT INTO sites(id,client_id,nom_site,statut) VALUES(?,?,?,'Actif')`, [localSiteId, clientId, remote.nom]);
+
+  // L'identité d'un site Intranet est son remote_site_id. Le nom reste un
+  // libellé : deux sites homonymes ou différents uniquement par la casse ne
+  // doivent jamais être fusionnés automatiquement.
+  const relationLocalSiteId = clean(relation?.local_site_id);
+  if (relationLocalSiteId) {
+    const mapped = await database.getFirstAsync(`SELECT id FROM sites WHERE id=? LIMIT 1`, [relationLocalSiteId]);
+    if (mapped?.id) {
+      await database.runAsync(
+        `UPDATE api_site_links SET local_site_id=? WHERE remote_site_id=?`,
+        [relationLocalSiteId, siteRemoteId]
+      );
+      await database.runAsync(
+        `UPDATE api_client_site_links SET local_site_id=? WHERE remote_site_id=?`,
+        [relationLocalSiteId, siteRemoteId]
+      );
+      return relationLocalSiteId;
+    }
   }
 
+  const localSiteId = createId();
   await database.runAsync(
-    `UPDATE api_site_links SET local_site_id=?,cree_localement=? WHERE remote_site_id=?`,
-    [localSiteId, createdLocally, siteRemoteId]
+    `INSERT INTO sites(id,client_id,nom_site,statut) VALUES(?,?,?,'Actif')`,
+    [localSiteId, clientId, remote.nom]
+  );
+
+  await database.runAsync(
+    `UPDATE api_site_links SET local_site_id=?,cree_localement=1 WHERE remote_site_id=?`,
+    [localSiteId, siteRemoteId]
   );
   await database.runAsync(
-    `UPDATE api_client_site_links SET local_site_id=?,cree_localement=? WHERE remote_site_id=?`,
-    [localSiteId, createdLocally, siteRemoteId]
+    `UPDATE api_client_site_links SET local_site_id=?,cree_localement=1 WHERE remote_site_id=?`,
+    [localSiteId, siteRemoteId]
   );
   return localSiteId;
 }

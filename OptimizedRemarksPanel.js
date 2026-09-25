@@ -21,11 +21,13 @@ import { cleanLabel } from './GenericFields.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
+import { BoundedLruMap } from './boundedCache.js';
+import { useListScrollMemory } from './useListScrollMemory.js';
 
 // Garde la dernière version saisie en mémoire entre deux montages de l'onglet.
 // SQLite reste la source durable ; ce cache évite qu'un retour instantané sur
 // l'onglet réaffiche une valeur ancienne pendant qu'un flush est encore en cours.
-const remarksCache = new Map();
+const remarksCache = new BoundedLruMap(3);
 
 function nombreOuNull(v) {
   if (v == null || String(v).trim() === '') return null;
@@ -163,6 +165,7 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
 
 function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, panels = {}, intranetLinked = false }) {
   const [remarques, setRemarques] = useState(() => remarksCache.get(visiteId) || []);
+  const { listRef, onScroll } = useListScrollMemory(`visit-panel:${visiteId}:p-remarques`, remarques.length);
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
   const [remarqueARattacher, setRemarqueARattacher] = useState(null);
@@ -276,7 +279,10 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
   return (
     <View style={{ flex: 1 }}>
       <FlatList
+        ref={listRef}
         data={remarques}
+        onScroll={onScroll}
+        scrollEventThrottle={100}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <ReserveCard remarque={item} visiteId={visiteId} onPatch={patchLocal} onDelete={deleteLocal} onRattacher={ouvrirRattachement} panelLabels={panelLabels} intranetLinked={intranetLinked} />}
         ListHeaderComponent={header}

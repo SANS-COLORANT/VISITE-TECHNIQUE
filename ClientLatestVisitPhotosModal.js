@@ -1,5 +1,6 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, Image, Keyboard, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { PhotoVariantImage } from './PhotoVariantImage.js';
 import { COLORS, styles } from './styles.js';
 import { flattenLatestVisitPhotos, getVisitPhotoReference, readPhotoLocalChoice, savePhotoLocalChoice } from './latestVisitPhotosDb.js';
 import { hydrateLatestVisitPhotosCache, loadCachedLatestVisitPhotos, syncLatestVisitPhotosManifest } from './latestVisitPhotosStorage.js';
@@ -16,7 +17,7 @@ const PhotoThumbnail = memo(function PhotoThumbnail({ photo, onPress }) {
   const local = photo.localAvailable && photo.localUri;
   return <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${local ? 'Ouvrir' : 'Télécharger'} ${photo.description || 'la photo'}`} onPress={() => onPress(photo)} disabled={!local && !photo.disponible} style={{ width: 132, marginRight: 10 }}>
     <View style={{ width: 132, height: 96, borderRadius: 10, backgroundColor: '#E9EEF2', overflow: 'hidden', alignItems: 'center', justifyContent: 'center' }}>
-      {local ? <Image source={{ uri: photo.localUri }} resizeMode="cover" style={{ width: '100%', height: '100%' }} /> : <Text style={{ color: muted, fontSize: 12, padding: 8, textAlign: 'center' }}>{photo.disponible ? (photo.downloadStatus === 'error' ? 'À reprendre' : 'Toucher pour récupérer') : 'Indisponible'}</Text>}
+      {local ? <PhotoVariantImage uri={photo.localUri} variant="thumb" resizeMode="cover" style={{ width: '100%', height: '100%' }} /> : <Text style={{ color: muted, fontSize: 12, padding: 8, textAlign: 'center' }}>{photo.disponible ? (photo.downloadStatus === 'error' ? 'À reprendre' : 'Toucher pour récupérer') : 'Indisponible'}</Text>}
     </View>
     <Text numberOfLines={2} style={{ color: ink, fontSize: 12, lineHeight: 16, marginTop: 5 }}>{photo.description || 'Photo de référence'}</Text>
   </TouchableOpacity>;

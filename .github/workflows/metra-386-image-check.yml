@@ -1,0 +1,136 @@
+name: METRA 386 Image Check
+
+on:
+  push:
+    branches:
+      - feat/metra-classic-refresh
+  workflow_dispatch:
+
+concurrency:
+  group: metra-386-image-check-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Apply production Pre-allumage and tablet runtime patches
+        run: python .github/scripts/patch_preallumage_field_ux_build.py
+
+      - name: Validate schema 37 and migrations
+        run: |
+          python - <<'PY'
+          import re, sqlite3
+          from pathlib import Path
+          constants = Path('database/constants.js').read_text(encoding='utf-8')
+          index = Path('database/migrations/index.js').read_text(encoding='utf-8')
+          migration35 = Path('database/migrations/035_client_site_images.js').read_text(encoding='utf-8')
+          migration36 = Path('database/migrations/036_intranet_visit_photo_outbox.js').read_text(encoding='utf-8')
+          migration37 = Path('database/migrations/037_intranet_server_schema_alignment.js').read_text(encoding='utf-8')
+          version = int(re.search(r'DATABASE_SCHEMA_VERSION\s*=\s*(\d+)', constants).group(1))
+          assert version == 37, version
+          assert 'migration035' in index and 'migration036' in index and 'migration037' in index
+          sql35 = re.search(r'sql:\s*`(.*?)`', migration35, re.S).group(1)
+          sql36 = re.search(r'sql:\s*`(.*?)`', migration36, re.S).group(1)
+          sql37 = re.search(r'sql:\s*`(.*?)`', migration37, re.S).group(1)
+          db = sqlite3.connect(':memory:')
+          db.executescript('''
+            PRAGMA foreign_keys=ON;
+            CREATE TABLE clients(id TEXT PRIMARY KEY, nom TEXT);
+            CREATE TABLE sites(id TEXT PRIMARY KEY, client_id TEXT, nom_site TEXT);
+            CREATE TABLE visites(id TEXT PRIMARY KEY);
+            CREATE TABLE photos(id TEXT PRIMARY KEY, visite_id TEXT, uri TEXT NOT NULL);
+            CREATE TABLE api_client_links(remote_client_id TEXT PRIMARY KEY, payload_json TEXT, nom TEXT, autorise INTEGER DEFAULT 1, cree_localement INTEGER DEFAULT 0, synced_at TEXT);
+            CREATE TABLE api_site_links(remote_site_id TEXT PRIMARY KEY, remote_client_id TEXT, local_site_id TEXT, nom TEXT, cree_localement INTEGER DEFAULT 0, remote_present INTEGER DEFAULT 1, payload_json TEXT, synced_at TEXT);
+            CREATE TABLE api_local_links(remote_local_id TEXT PRIMARY KEY, remote_site_id TEXT, designation TEXT, remote_trame_id TEXT, remote_trame_nom TEXT, derniere_visite_id TEXT, derniere_visite_date TEXT, derniere_visite_statut TEXT, reference_json TEXT, local_installation_id TEXT, remote_present INTEGER DEFAULT 1, criteria_count INTEGER DEFAULT 0, historical_criteria_count INTEGER DEFAULT 0, remark_count INTEGER DEFAULT 0, material_count INTEGER DEFAULT 0, synced_at TEXT);
+          ''')
+          db.executescript(sql35)
+          db.executescript(sql36)
+          db.executescript(sql37)
+          for table in ('clients', 'sites'):
+              columns = {row[1] for row in db.execute(f'PRAGMA table_info({table})')}
+              assert 'image_uri' in columns, (table, columns)
+          photo_columns = {row[1] for row in db.execute('PRAGMA table_info(api_visit_photo_outbox)')}
+          for column in ('photo_id','visite_id','envoi_photo_id','remote_client_id','remote_visit_id','uri','ordre','status','remote_photo_id'):
+              assert column in photo_columns, column
+          local_columns = {row[1] for row in db.execute('PRAGMA table_info(api_local_links)')}
+          for column in ('type_local','situation','periodicite_visite','prochaine_visite','visite_planifiee','ordre','remote_type_trame_id'):
+              assert column in local_columns, column
+          print('Migrations patrimoine v35 + photos Intranet v36 + schéma serveur v37: OK')
+          PY
+
+      - name: Validate JavaScript syntax and integration
+        run: |
+          node --check patrimoineImageStorage.js
+          node --check patrimoineImageDb.js
+          node --check PatrimoineImageCard.js
+          node --check HomeScreen.js
+          node --check ClientSitesScreen.js
+          node --check PhotoReferenceAccess.js
+          node --check entityManagementDb.js
+          node --check intranetVisitPhotoOutboxDb.js
+          node --check IntranetVisitSync.js
+          node --check intranetVisitPayload.js
+          node --check apiLatestVisitImportDb.js
+          node --check visitCreationDb.js
+          node --check PreAllumageInstallationPanelV3.js
+          node --check PreAllumageInstallationPanelBusiness.js
+          node --check SiteVisitesScreen.js
+          grep -q 'entityType="client"' ClientSitesScreen.js
+          grep -q 'entityType="site"' PhotoReferenceAccess.js
+          grep -q 'PatrimoineThumbnail uri={item.image_uri}' HomeScreen.js
+          grep -q 'PatrimoineThumbnail uri={item.image_uri}' ClientSitesScreen.js
+          grep -q "visite-technique/patrimoine-images/" patrimoineImageStorage.js
+          grep -q 'api_visit_photo_outbox' intranetVisitPhotoOutboxDb.js
+          grep -q '/visites/${visitId}/photos' intranetVisitPhotoOutboxDb.js
+          grep -q 'PHOTO_UPLOAD_PART_SIZE = 10' intranetVisitPhotoOutboxDb.js
+          grep -q 'PHOTO_UPLOAD_CONCURRENCY = 3' intranetVisitPhotoOutboxDb.js
+          grep -q 'PHOTO_PART_INTERVAL_MS = 15_000' IntranetVisitSync.js
+          grep -q 'envoi par lots de 10' IntranetVisitSync.js
+          grep -q 'syncVisitPhotosNow' IntranetVisitSync.js
+          grep -q "import { listerVisitesSite, getDb } from './db.js';" SiteVisitesScreen.js
+          grep -q 'await preremplirVisiteDepuisContexte(db, id);' visitCreationDb.js
+          grep -q 'await assurerStructureSitePreAllumage(id);' visitCreationDb.js
+          grep -q 'cached_latest_visit_already_materialized' apiLatestVisitImportDb.js
+          grep -q 'counter.ambiguous' intranetVisitPayload.js
+          ! grep -q 'compteur correspondant introuvable ou ambigu' intranetVisitPayload.js
+          grep -q 'const sectionsParLocal = useMemo(() =>' PreAllumageInstallationPanelV3.js
+          grep -q 'const initialModel = await chargerPreAllumageModulaire(props.visiteId);' PreAllumageInstallationPanelBusiness.js
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: package-lock.json
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund --prefer-offline
+
+      - name: Check Expo dependencies
+        run: npx expo install --check
+
+      - name: Verify METRA source
+        run: npm run verify:metra
+
+      - name: Generate Android project
+        run: npx expo prebuild --clean --platform android --no-install
+
+      - name: Compile Android bridge
+        working-directory: android
+        run: |
+          printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\n' >> gradle.properties
+          ./gradlew :app:compileDebugKotlin --no-daemon --max-workers=2
+
+      - name: Validate Android JavaScript bundle
+        run: npx expo export --platform android --output-dir dist-check

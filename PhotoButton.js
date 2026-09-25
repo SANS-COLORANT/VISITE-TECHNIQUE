@@ -1,26 +1,22 @@
 /** Capture photo native Android + stockage durable et nommage métier. */
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { TouchableOpacity, Text, Alert, View, Image, Modal } from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
+import { TouchableOpacity, Text, Alert, View, Modal, useWindowDimensions } from 'react-native';
 import * as FileSystem from 'expo-file-system';
-import { listerPhotos, ajouterPhoto, remplacerPhoto, getVisite } from './db.js';
+import { ajouterPhoto, remplacerPhoto } from './db.js';
 import { upsertRemarquePrescription } from './remarkDb.js';
 import { openAppDatabase } from './database/index.js';
 import { supprimerPhotoComplete } from './photoDb.js';
 import { copierPhotoDansDocuments, supprimerCopiePhotoDocuments } from './photoDocumentsStorage.js';
-import { styles } from './styles.js';
-
-function nettoyerNomFichier(valeur = '', fallback = 'Photo') {
-  const propre = String(valeur || fallback)
-    .normalize('NFD').replace(/[\u0300-\u036f]/g, '')
-    .replace(/[’']/g, '')
-    .replace(/[^a-zA-Z0-9._-]+/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^[_\.\-]+|[_\.\-]+$/g, '')
-    .slice(0, 70);
-  return propre || fallback;
-}
+import { styles, COLORS } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
+import { confirmerPhotoJournalisee, journaliserPhotoEnAttente } from './photoPersistenceJournal.js';
+import { forgetPhotoVariants, preparePhotoVariants } from './photoVariantCache.js';
+import { PhotoVariantImage } from './PhotoVariantImage.js';
+import { beginExternalSave, endExternalSave } from './saveActivity.js';
+import { launchMetraCamera, prewarmCameraRuntime } from './cameraRuntime.js';
+import { nettoyerNomFichier, prewarmPhotoCaptureContext } from './photoCaptureContext.js';
+import { loadVisitPhotos, peekVisitPhotos, removeRuntimePhoto, replaceRuntimePhoto, subscribeVisitPhotos, upsertRuntimePhoto } from './photoRuntimeCache.js';
 
 function typePhotoDepuisEntite(entiteKey) {
   const type = String(entiteKey || '').split('||')[0];
@@ -94,39 +90,27 @@ async function libellePhotoMetier(visiteId, entiteKey, label) {
   return `${libelleCaissonVmc(index, nomCaisson)} · ${libelleInitial}`;
 }
 
-async function dossierPhotosVisite(visiteId) {
-  const racine = FileSystem.documentDirectory;
-  if (!racine) throw new Error('Stockage local Android indisponible');
-  let visite = null;
-  try { visite = await getVisite(visiteId); } catch {}
-  const client = nettoyerNomFichier(visite?.nom_client, 'Client');
-  const site = nettoyerNomFichier(visite?.nom_site, 'Site');
-  const date = nettoyerNomFichier(visite?.date_visite, 'Sans_date');
-  const visiteDossier = `${date}__${nettoyerNomFichier(visiteId, 'visite')}`;
-  return `${racine}visite-technique/photos/${client}/${site}/${visiteDossier}/`;
-}
-
 async function copierPhotoDurable(uriSource, visiteId, nom) {
-  const dossier = await dossierPhotosVisite(visiteId);
-  await FileSystem.makeDirectoryAsync(dossier, { intermediates: true });
-  const destination = dossier + nom;
-  const existante = await FileSystem.getInfoAsync(destination);
-  if (existante.exists) await FileSystem.deleteAsync(destination, { idempotent: true });
+  const context = await prewarmPhotoCaptureContext(visiteId);
+  if (!context?.directory) throw new Error('Stockage photo METRA indisponible');
+  const destination = context.directory + nom;
   await FileSystem.copyAsync({ from: uriSource, to: destination });
   return destination;
 }
 
 async function supprimerPhotoGeree(uri) {
   if (!uri || !FileSystem.documentDirectory || !String(uri).startsWith(`${FileSystem.documentDirectory}visite-technique/photos/`)) return;
+  forgetPhotoVariants(uri).catch(() => {});
   try { await FileSystem.deleteAsync(uri, { idempotent: true }); } catch {}
 }
 
 async function preparerPhotoNommee({ visiteId, entiteKey = null, label = 'Photo', uri }) {
   if (!uri) return { uri: null, nom: null, label: null };
-  const entiteCanonique = await clePhotoCanoniqueVmc(visiteId, entiteKey);
-  let nomSite = 'Site';
-  try { const visite = await getVisite(visiteId); nomSite = visite?.nom_site || 'Site'; } catch {}
-  const site = nettoyerNomFichier(nomSite, 'Site');
+  const [entiteCanonique, context] = await Promise.all([
+    clePhotoCanoniqueVmc(visiteId, entiteKey),
+    prewarmPhotoCaptureContext(visiteId),
+  ]);
+  const site = context?.site || nettoyerNomFichier(context?.siteName, 'Site');
   const type = typePhotoDepuisEntite(entiteCanonique);
   const labelMetier = await libellePhotoMetier(visiteId, entiteCanonique, label);
   const libelle = nettoyerNomFichier(labelMetier || type, type);
@@ -134,30 +118,34 @@ async function preparerPhotoNommee({ visiteId, entiteKey = null, label = 'Photo'
   const uriDurable = await copierPhotoDurable(uri, visiteId, nom);
   // La copie interne reste la source canonique pour le backup. Une seconde copie
   // est déposée dans Documents afin d'être directement visible par l'utilisateur.
-  await copierPhotoDansDocuments(uriDurable, nom).catch(() => null);
+  copierPhotoDansDocuments(uriDurable, nom).catch(() => null);
+  // Miniature + aperçu se génèrent en arrière-plan. L'original reste la seule
+  // source durable et n'est jamais chargé dans les listes si une variante existe.
+  preparePhotoVariants(uriDurable).catch(() => {});
   return { uri: uriDurable, nom, label: labelMetier, entiteKey: entiteCanonique };
 }
 
 async function enregistrerPhotoNommee(args) { const photo = await preparerPhotoNommee(args); return photo.uri; }
 
 async function prendrePhoto() {
-  const permission = await ImagePicker.requestCameraPermissionsAsync();
-  if (!permission.granted) {
+  const result = await launchMetraCamera({ quality: 0.5, allowsEditing: false });
+  if (result?.status === 'permission') {
     Alert.alert('Permission requise', "L'accès à l'appareil photo est nécessaire pour prendre une photo.");
     return null;
   }
-  const result = await ImagePicker.launchCameraAsync({ quality: 0.5, allowsEditing: false, base64: false });
-  if (result.canceled) return null;
-  return result.assets[0].uri;
+  return result?.uri || null;
 }
 
-async function resoudreReserveDepuisControle(visiteId, controleKey, label) {
+async function resoudreReserveDepuisControle(visiteId, controleKey, label, { create = true } = {}) {
   if (!estCleControle(controleKey)) return null;
   const db = await openAppDatabase();
   let remarque = await db.getFirstAsync(
     `SELECT * FROM remarques WHERE visite_id=? AND controle_key=? LIMIT 1`,
     [visiteId, controleKey]
   );
+  if (!remarque?.id && !create) {
+    return { entiteKey: controleKey, label: label || 'Réserve', needsReserve: true };
+  }
   if (!remarque?.id) {
     const id = await upsertRemarquePrescription(
       visiteId,
@@ -171,37 +159,69 @@ async function resoudreReserveDepuisControle(visiteId, controleKey, label) {
 }
 
 function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhotoSaved }) {
+  const { width, height } = useWindowDimensions();
+  const compactPhone = Math.min(width, height) < 600;
   const [photos, setPhotos] = useState([]);
   const [photosChargees, setPhotosChargees] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
+  const [viewerHd, setViewerHd] = useState(false);
   const [index, setIndex] = useState(0);
+  const canonicalKeyRef = useRef(String(entiteKey || ''));
+  const targetPromiseRef = useRef(null);
   const estReserve = String(entiteKey || '').startsWith('remarque||');
 
   useEffect(() => {
     setPhotos([]);
     setPhotosChargees(false);
     setViewerVisible(false);
+    setViewerHd(false);
     setIndex(0);
+    canonicalKeyRef.current = String(entiteKey || '');
+    targetPromiseRef.current = null;
   }, [visiteId, entiteKey]);
 
-  const charger = useCallback(async (cle = entiteKey) => {
-    const canonique = await clePhotoCanoniqueVmc(visiteId, cle);
-    const items = await listerPhotos(visiteId, canonique);
+  const appliquerPhotos = useCallback((rows, cle = canonicalKeyRef.current) => {
+    const wanted = String(cle || '');
+    const items = (rows || []).filter((row) => String(row.entite_key || '') === wanted);
     setPhotos(items);
     setPhotosChargees(true);
     setIndex((actuel) => Math.min(actuel, Math.max(0, items.length - 1)));
     return items;
-  }, [visiteId, entiteKey]);
+  }, []);
 
-  // Les photos sont durables pour TOUS les rattachements, pas seulement les
-  // remarques. Cela évite que le bouton redevienne « Photo » après un changement
-  // d'onglet alors que l'image est bien présente en base et dans le rapport.
+  const charger = useCallback(async (cle = entiteKey) => {
+    const canonique = await clePhotoCanoniqueVmc(visiteId, cle);
+    canonicalKeyRef.current = String(canonique || '');
+    const cached = peekVisitPhotos(visiteId);
+    if (cached) return appliquerPhotos(cached, canonique);
+    const rows = await loadVisitPhotos(visiteId);
+    return appliquerPhotos(rows, canonique);
+  }, [visiteId, entiteKey, appliquerPhotos]);
+
+  // Un seul index photo est chargé par visite. Tous les boutons se mettent à jour
+  // depuis ce cache partagé, sans requête SQLite au moment où le technicien touche
+  // l'appareil photo.
   useEffect(() => {
-    if (entiteKey) charger(entiteKey).catch(() => {});
-    else setPhotosChargees(true);
-  }, [entiteKey, charger]);
+    let alive = true;
+    let unsubscribe = () => {};
+    (async () => {
+      const reserveExistante = await resoudreReserveDepuisControle(visiteId, entiteKey, label, { create: false });
+      const cleCandidate = reserveExistante?.entiteKey || entiteKey;
+      const canonique = await clePhotoCanoniqueVmc(visiteId, cleCandidate);
+      if (!alive) return;
+      canonicalKeyRef.current = String(canonique || '');
+      const cached = peekVisitPhotos(visiteId);
+      if (cached) appliquerPhotos(cached, canonique);
+      unsubscribe = subscribeVisitPhotos(visiteId, (rows) => {
+        if (alive) appliquerPhotos(rows, canonicalKeyRef.current);
+      });
+      if (!cached) await loadVisitPhotos(visiteId).catch(() => {});
+      if (alive) setPhotosChargees(true);
+    })().catch(() => { if (alive) setPhotosChargees(true); });
+    return () => { alive = false; unsubscribe(); };
+  }, [visiteId, entiteKey, appliquerPhotos]);
 
-  const resoudreCible = useCallback(async () => {
+  const resoudreCible = useCallback(async ({ createReserve = true } = {}) => {
     let cible = null;
     if (beforeCapture) {
       const cibleAvant = await beforeCapture();
@@ -209,53 +229,164 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       else if (cibleAvant) cible = { entiteKey: cibleAvant.entiteKey || entiteKey, label: cibleAvant.label || label };
     }
     if (!cible) {
-      const reserve = await resoudreReserveDepuisControle(visiteId, entiteKey, label);
+      const reserve = await resoudreReserveDepuisControle(visiteId, entiteKey, label, { create: createReserve });
       cible = reserve || { entiteKey, label };
     }
     const canonique = await clePhotoCanoniqueVmc(visiteId, cible.entiteKey);
-    return { ...cible, entiteKey: canonique };
+    const labelMetier = await libellePhotoMetier(visiteId, canonique, cible.label || label);
+    return { ...cible, entiteKey: canonique, label: labelMetier || cible.label || label };
   }, [beforeCapture, visiteId, entiteKey, label]);
 
+  const prechaufferCapture = useCallback(() => {
+    prewarmCameraRuntime().catch(() => {});
+    prewarmPhotoCaptureContext(visiteId).catch(() => {});
+    if (!peekVisitPhotos(visiteId)) loadVisitPhotos(visiteId).catch(() => {});
+    if (!targetPromiseRef.current) {
+      targetPromiseRef.current = Promise.resolve()
+        .then(() => resoudreCible({ createReserve: false }))
+        .catch((error) => {
+          targetPromiseRef.current = null;
+          throw error;
+        });
+    }
+    return targetPromiseRef.current;
+  }, [visiteId, resoudreCible]);
+
+
   const ajouter = async () => {
+    let saveKey = null;
+    let tempId = null;
+    let journalKey = null;
     try {
-      const captureUri = await prendrePhoto(); if (!captureUri) return;
-      const cible = await resoudreCible();
+      const ciblePromise = prechaufferCapture();
+      const captureUri = await prendrePhoto();
+      if (!captureUri) return;
+      const ciblePrechauffee = await ciblePromise;
+      targetPromiseRef.current = null;
+
+      tempId = `photo-pending:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
+      const optimistic = {
+        id: tempId,
+        visite_id: visiteId,
+        entite_key: ciblePrechauffee.entiteKey || entiteKey || null,
+        uri: captureUri,
+        label: ciblePrechauffee.label || label || 'Photo',
+        cree_le: new Date().toISOString(),
+        pending: true,
+      };
+      // Retour caméra -> photo visible immédiatement. Une éventuelle création de
+      // réserve et toute la persistance restent hors du chemin visuel.
+      upsertRuntimePhoto(visiteId, optimistic);
+      setIndex(Math.max(0, photos.length));
+
+      saveKey = `photo:${visiteId}:${Date.now()}`;
+      beginExternalSave(saveKey);
+      const cible = ciblePrechauffee.needsReserve
+        ? await resoudreCible({ createReserve: true })
+        : ciblePrechauffee;
+      canonicalKeyRef.current = String(cible.entiteKey || entiteKey || '');
       const photo = await preparerPhotoNommee({ visiteId, entiteKey: cible.entiteKey, label: cible.label, uri: captureUri });
       const labelFinal = photo.label || cible.label || typePhotoDepuisEntite(cible.entiteKey);
       const labelDb = photo.nom ? `${labelFinal}||${photo.nom}` : (labelFinal || null);
       const cibleKey = photo.entiteKey || cible.entiteKey;
+
+      // Dès que la copie privée METRA existe, on remplace l'URI temporaire.
+      replaceRuntimePhoto(visiteId, tempId, {
+        ...optimistic,
+        id: tempId,
+        entite_key: cibleKey || null,
+        uri: photo.uri,
+        label: labelDb,
+        pending: true,
+      });
+
+      journalKey = await journaliserPhotoEnAttente({ visiteId, entiteKey: cibleKey, uri: photo.uri, labelDb });
       const photoId = await ajouterPhoto(visiteId, cibleKey, photo.uri, labelDb);
-      const items = await charger(cibleKey);
-      setIndex(Math.max(0, items.length - 1));
+      await confirmerPhotoJournalisee(journalKey).catch(() => {});
+      journalKey = null;
+
+      replaceRuntimePhoto(visiteId, tempId, {
+        id: photoId,
+        visite_id: visiteId,
+        entite_key: cibleKey || null,
+        uri: photo.uri,
+        label: labelDb,
+        cree_le: new Date().toISOString(),
+        pending: false,
+      });
+      endExternalSave(saveKey);
+      saveKey = null;
       onPhotoSaved?.({ id: photoId, entiteKey: cibleKey, uri: photo.uri, label: labelFinal });
-    } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
+    } catch (e) {
+      targetPromiseRef.current = null;
+      // Si la copie durable a déjà été journalisée, on laisse la ligne optimiste :
+      // la récupération au prochain accès pourra finaliser SQLite.
+      if (tempId && !journalKey) removeRuntimePhoto(visiteId, tempId);
+      if (saveKey) endExternalSave(saveKey, e);
+      Alert.alert('Erreur photo', String(e?.message || e));
+    }
   };
 
   const onPress = async () => {
     try {
-      const cible = await resoudreCible();
-      const items = photosChargees ? photos : await charger(cible.entiteKey);
-      if (items.length > 0) { setIndex(0); setViewerVisible(true); }
-      else await ajouter();
+      if (photosChargees && photos.length > 0) {
+        setIndex(0);
+        setViewerHd(false);
+        setViewerVisible(true);
+        return;
+      }
+      // onPressIn a déjà préchauffé permissions, cible, dossier et index photos.
+      // Si l'index vient juste d'arriver, on respecte encore le comportement
+      // historique "photos existantes -> visionneuse".
+      const cible = await prechaufferCapture();
+      const cached = peekVisitPhotos(visiteId, cible.entiteKey);
+      if (cached?.length) {
+        setPhotos(cached);
+        setPhotosChargees(true);
+        setIndex(0);
+        setViewerHd(false);
+        setViewerVisible(true);
+        return;
+      }
+      await ajouter();
     } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
   };
 
   const reprendre = async () => {
-    const photoExistante = photos[index]; if (!photoExistante) return;
+    const photoExistante = photos[index]; if (!photoExistante || photoExistante.pending) return;
+    const ancienne = { ...photoExistante };
+    let saveKey = null;
     try {
+      prewarmCameraRuntime().catch(() => {});
+      prewarmPhotoCaptureContext(visiteId).catch(() => {});
       const captureUri = await prendrePhoto(); if (!captureUri) return;
       const cibleKey = photoExistante.entite_key || await clePhotoCanoniqueVmc(visiteId, entiteKey);
+
+      // La nouvelle prise remplace visuellement l'ancienne dès le retour caméra.
+      upsertRuntimePhoto(visiteId, { ...photoExistante, uri: captureUri, pending: true });
+      saveKey = `photo-replace:${visiteId}:${photoExistante.id}`;
+      beginExternalSave(saveKey);
+
       const nouvelle = await preparerPhotoNommee({ visiteId, entiteKey: cibleKey, label, uri: captureUri });
+      const labelDb = nouvelle.nom ? `${nouvelle.label || label || 'Photo'}||${nouvelle.nom}` : (nouvelle.label || label || null);
+      upsertRuntimePhoto(visiteId, { ...photoExistante, uri: nouvelle.uri, label: labelDb, entite_key: nouvelle.entiteKey || cibleKey, pending: true });
+
       await remplacerPhoto(photoExistante.id, nouvelle.uri);
       if (nouvelle.label) {
         const db = await openAppDatabase();
-        await db.runAsync(`UPDATE photos SET label=?, entite_key=? WHERE id=?`, [nouvelle.nom ? `${nouvelle.label}||${nouvelle.nom}` : nouvelle.label, nouvelle.entiteKey || cibleKey, photoExistante.id]);
+        await db.runAsync(`UPDATE photos SET label=?, entite_key=? WHERE id=?`, [labelDb, nouvelle.entiteKey || cibleKey, photoExistante.id]);
       }
-      await supprimerCopiePhotoDocuments(photoExistante.uri).catch(() => {});
-      await supprimerPhotoGeree(photoExistante.uri);
-      await charger(nouvelle.entiteKey || cibleKey);
+      await supprimerCopiePhotoDocuments(ancienne.uri).catch(() => {});
+      await supprimerPhotoGeree(ancienne.uri);
+      upsertRuntimePhoto(visiteId, { ...photoExistante, uri: nouvelle.uri, label: labelDb, entite_key: nouvelle.entiteKey || cibleKey, pending: false });
+      endExternalSave(saveKey);
+      saveKey = null;
       onPhotoSaved?.({ id: photoExistante.id, entiteKey: nouvelle.entiteKey || cibleKey, uri: nouvelle.uri, label: nouvelle.label || label });
-    } catch (e) { Alert.alert('Erreur photo', String(e?.message || e)); }
+    } catch (e) {
+      upsertRuntimePhoto(visiteId, ancienne);
+      if (saveKey) endExternalSave(saveKey, e);
+      Alert.alert('Erreur photo', String(e?.message || e));
+    }
   };
 
   const demanderSuppression = () => {
@@ -270,12 +401,16 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
           text: 'Supprimer',
           style: 'destructive',
           onPress: async () => {
+            if (photo.pending) return;
+            const backup = { ...photo };
+            removeRuntimePhoto(visiteId, photo.id);
+            const restant = photos.filter((item) => item.id !== photo.id);
+            if (restant.length === 0) setViewerVisible(false);
+            else setIndex((actuel) => Math.min(actuel, restant.length - 1));
             try {
               await supprimerPhotoComplete(photo.id);
-              const items = await charger(photo.entite_key || entiteKey);
-              if (items.length === 0) setViewerVisible(false);
-              else setIndex((actuel) => Math.min(actuel, items.length - 1));
             } catch (e) {
+              upsertRuntimePhoto(visiteId, backup);
               Alert.alert('Suppression impossible', String(e?.message || e));
             }
           },
@@ -284,21 +419,48 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     );
   };
 
+  const hasPhotos = photosChargees && photos.length > 0;
+  const iconColor = hasPhotos ? COLORS.green : COLORS.inkFaint;
+
   return <>
     <TouchableOpacity
-      style={[styles.photoBtn, photosChargees && photos.length > 0 && styles.photoBtnTaken, estReserve && photos.length > 0 && { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8 }, style]}
+      accessibilityRole="button"
+      accessibilityLabel={hasPhotos ? `Voir les photos (${photos.length})` : 'Prendre une photo'}
+      style={[
+        styles.photoBtn,
+        hasPhotos && styles.photoBtnTaken,
+        compactPhone && { width: 46, minWidth: 46, height: 46, minHeight: 46, paddingHorizontal: 0, paddingVertical: 0, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+        !compactPhone && estReserve && hasPhotos && { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8 },
+        style,
+      ]}
+      onPressIn={() => { prechaufferCapture().catch(() => {}); }}
       onPress={onPress}
     >
-      {estReserve && photosChargees && photos[0]?.uri ? <Image source={{ uri: photos[0].uri }} style={{ width: 44, height: 44, borderRadius: 7 }} resizeMode="cover" /> : null}
-      <Text style={[styles.photoBtnText, photosChargees && photos.length > 0 && styles.photoBtnTextTaken]}>{photosChargees && photos.length > 0 ? `👁 ${photos.length} photo${photos.length > 1 ? 's' : ''}` : '📷 Photo'}</Text>
+      {estReserve && hasPhotos && photos[0]?.uri
+        ? <PhotoVariantImage uri={photos[0].uri} variant={photos[0].pending ? 'original' : 'thumb'} style={{ width: compactPhone ? 40 : 44, height: compactPhone ? 40 : 44, borderRadius: compactPhone ? 10 : 7 }} resizeMode="cover" />
+        : null}
+      {compactPhone ? (
+        !(estReserve && hasPhotos && photos[0]?.uri) ? <CvcIcon name={hasPhotos ? 'eye' : 'camera'} size={22} color={iconColor} /> : null
+      ) : (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <CvcIcon name={hasPhotos ? 'eye' : 'camera'} size={18} color={iconColor} />
+          <Text style={[styles.photoBtnText, hasPhotos && styles.photoBtnTextTaken]}>{hasPhotos ? String(photos.length) : 'Photo'}</Text>
+        </View>
+      )}
+      {compactPhone && hasPhotos && photos.length > 1 ? (
+        <View style={{ position: 'absolute', right: -5, top: -5, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: COLORS.green, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: COLORS.white, fontSize: 9, fontWeight: '900' }}>{photos.length}</Text>
+        </View>
+      ) : null}
     </TouchableOpacity>
     <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
       <View style={styles.photoViewerOverlay}>
         <View style={styles.photoViewerHeader}>
           <Text style={styles.photoViewerTitle}>{label || 'Photo'} · {index + 1}/{photos.length}</Text>
+          <TouchableOpacity onPress={() => setViewerHd((value) => !value)} style={{ paddingHorizontal: 12, paddingVertical: 7 }}><Text style={styles.photoViewerSecondaryText}>{viewerHd ? 'Aperçu' : 'HD'}</Text></TouchableOpacity>
           <TouchableOpacity onPress={() => setViewerVisible(false)}><Text style={styles.photoViewerClose}>✕</Text></TouchableOpacity>
         </View>
-        {photos[index] && <Image source={{ uri: photos[index].uri }} style={styles.photoViewerImage} resizeMode="contain" />}
+        {photos[index] && <PhotoVariantImage uri={photos[index].uri} variant={photos[index].pending || viewerHd ? 'original' : 'preview'} style={styles.photoViewerImage} resizeMode="contain" />}
         {photos.length > 1 && (
           <View style={styles.photoViewerNav}>
             <TouchableOpacity style={styles.photoViewerNavBtn} onPress={() => setIndex((index - 1 + photos.length) % photos.length)}><Text style={styles.photoViewerNavText}>‹ Précédente</Text></TouchableOpacity>
@@ -306,9 +468,9 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
           </View>
         )}
         <View style={styles.photoViewerActions}>
-          <TouchableOpacity style={styles.photoViewerSecondary} onPress={demanderSuppression}><Text style={styles.photoViewerSecondaryText}>Supprimer</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.photoViewerSecondary} onPress={ajouter}><Text style={styles.photoViewerSecondaryText}>+ Ajouter</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.photoViewerPrimary} onPress={reprendre}><Text style={styles.photoViewerPrimaryText}>📷 Reprendre</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.photoViewerSecondary, { flexDirection: 'row', gap: 7 }]} onPress={demanderSuppression}><CvcIcon name="trash" size={18} color={COLORS.white} /><Text style={styles.photoViewerSecondaryText}>Supprimer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.photoViewerSecondary, { flexDirection: 'row', gap: 7 }]} onPressIn={() => { prechaufferCapture().catch(() => {}); }} onPress={ajouter}><CvcIcon name="plus" size={18} color={COLORS.white} /><Text style={styles.photoViewerSecondaryText}>Ajouter</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.photoViewerPrimary, { flexDirection: 'row', gap: 7 }]} onPressIn={() => { prewarmCameraRuntime().catch(() => {}); prewarmPhotoCaptureContext(visiteId).catch(() => {}); }} onPress={reprendre}><CvcIcon name="camera" size={18} color={COLORS.white} /><Text style={styles.photoViewerPrimaryText}>Reprendre</Text></TouchableOpacity>
         </View>
       </View>
     </Modal>

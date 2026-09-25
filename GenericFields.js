@@ -13,6 +13,7 @@ import {
   modifierRemarqueVisite,
 } from './remarkDb.js';
 import { PhotoButton } from './PhotoButton.js';
+import { useDurableAutosave } from './durableAutosave.js';
 
 const PRESCRIPTIONS_COMPLETES = fusionnerPrescriptions(PRESCRIPTIONS);
 
@@ -21,29 +22,16 @@ const PRESCRIPTIONS_COMPLETES = fusionnerPrescriptions(PRESCRIPTIONS);
 // ============================================================================
 
 function useSaisieAvecAutoSave(valeurInitiale, sauvegarderFn, delai = 700) {
-  const [valeur, setValeurBrut] = useState(valeurInitiale || '');
-  const timerRef = useRef(null);
-
-  useEffect(() => {
-    setValeurBrut(valeurInitiale || '');
-  }, [valeurInitiale]);
-
-  const setValeur = (t) => {
-    setValeurBrut(t);
-    if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => sauvegarderFn(t), delai);
-  };
-  const surBlurFinal = () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    sauvegarderFn(valeur);
-  };
-  const setValeurImmediate = (t) => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    setValeurBrut(t);
-    sauvegarderFn(t);
-  };
-
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  // Compatibilité historique : tous les anciens champs qui utilisent encore
+  // ce hook bénéficient désormais du même pipeline durable que les nouveaux
+  // composants (ordre des écritures, background, swipe/unmount, brouillon local).
+  const [valeur, setValeur, flush, setImmediate] = useDurableAutosave(
+    valeurInitiale == null ? '' : String(valeurInitiale),
+    sauvegarderFn,
+    delai
+  );
+  const surBlurFinal = () => { flush().catch(() => {}); };
+  const setValeurImmediate = (t) => { setImmediate(t).catch(() => {}); };
   return [valeur, setValeur, surBlurFinal, setValeurImmediate];
 }
 

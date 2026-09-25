@@ -8,7 +8,7 @@ s = p.read_text(encoding='utf-8')
 # from the number of selected sites and lock grouped mode for a single site.
 needle = " const selectedRows=useMemo(()=>visites.filter(v=>selected.has(v.id)),[visites,selected]);\n"
 insert = " const selectedRows=useMemo(()=>visites.filter(v=>selected.has(v.id)),[visites,selected]);\n useEffect(()=>{if(selected.size===1)setMode('site');else if(selected.size>1)setMode('groupe')},[selected.size]);\n const groupeInterdit=selected.size<=1;\n"
-if "const groupeInterdit=selected.size<=1;" not in s:
+if "const groupeInterdit=" not in s:
     if needle not in s:
         raise SystemExit('selectedRows target not found')
     s = s.replace(needle, insert, 1)
@@ -27,14 +27,14 @@ old_generer = "const r=mode==='site'?await exporterRapportsParSite({datas,config
 new_generer = "const modeEffectif=datas.length<=1?'site':mode;const r=modeEffectif==='site'?await exporterRapportsParSite({datas,config,photosConfig:photos,format}):await exporterRapport({datas,config,photosConfig:photos,format});"
 if old_generer in s:
     s = s.replace(old_generer, new_generer, 1)
-elif "const modeEffectif=datas.length<=1?'site':mode;" not in s:
+elif "const modeEffectif=" not in s:
     raise SystemExit('generation target not found')
 
 old_alert = "if(!r?.annule)Alert.alert('Rapport généré',mode==='site'?`${r.resultats?.length||0} rapport(s) enregistré(s) dans le dossier choisi.`:`${r.nom||'Le rapport'} a été enregistré dans le dossier choisi.`)"
 new_alert = "if(!r?.annule)Alert.alert('Rapport généré',modeEffectif==='site'?`${r.resultats?.length||0} rapport(s) enregistré(s) dans le dossier choisi.`:`${r.nom||'Le rapport'} a été enregistré dans le dossier choisi.`)"
 if old_alert in s:
     s = s.replace(old_alert, new_alert, 1)
-elif "modeEffectif==='site'?`${r.resultats" not in s:
+elif "Alert.alert('Rapport généré'" not in s or "modeEffectif" not in s:
     raise SystemExit('generation alert target not found')
 
 p.write_text(s, encoding='utf-8')

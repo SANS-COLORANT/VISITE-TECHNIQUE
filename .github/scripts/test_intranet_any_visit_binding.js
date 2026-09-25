@@ -89,7 +89,67 @@ async function main() {
     check(options.selectedClientId === '12', 'same imported client is resolved automatically');
     check(options.selectedSiteId === '45', 'same imported site is resolved from the durable local site link');
     check(options.suggestedLocalId === '501', 'sole compatible local is resolved automatically');
-    check(options.locals.find((row) => row.remote_local_id === '503')?.compatible === false, 'local without a usable remote trame remains non-sendable');
+    check(options.locals.find((row) => row.remote_local_id === '503')?.compatible === false, 'local without a usable remote trame remains non-sendable before first-visit preparation');
+
+    const firstVisitTrame = binding.resolveFirstVisitRemoteTrame(
+      { trames: [remoteTrame, { ...remoteTrame, id: '4', nom: 'ICPE Chaufferie' }] },
+      'icpe_v1',
+      'ICPE'
+    );
+    check(firstVisitTrame.remoteTrameId === '3' && firstVisitTrame.matchedBy === 'visit_field',
+      'first visit uses Informations > Trame utilisée to disambiguate several ICPE-family Intranet trames');
+    assert.throws(
+      () => binding.resolveFirstVisitRemoteTrame(
+        { trames: [remoteTrame, { ...remoteTrame, id: '4', nom: 'ICPE' }] },
+        'icpe_v1',
+        'ICPE'
+      ),
+      /Plusieurs trames Intranet portent le nom/
+    );
+    checks++; console.log(`OK ${checks}: first visit still refuses duplicate exact Intranet trame names`);
+
+    // Simule la réponse de preparation-visites?trame=3 pour un local qui n'a
+    // encore aucune visite Intranet : trame + critères sont présents, mais
+    // derniereVisite reste null.
+    const firstReference = {
+      local: { id: '503', designation: 'Local sans trame' },
+      site: { id: '45', nom: 'Site Alpha' },
+      derniereVisite: null,
+      trame: remoteTrame,
+      materiels: [],
+      remarques: [],
+      notes: [],
+    };
+    await server.db.execAsync(`
+      INSERT INTO installations(id,site_id,type_code,nom,actif)
+        VALUES('installation-first','local-site','installation_technique','Local première visite',1);
+      UPDATE api_local_links
+        SET local_installation_id='installation-first',remote_trame_id='3',remote_trame_nom='ICPE',
+            criteria_count=1,reference_json='${JSON.stringify(firstReference).replace(/'/g, "''")}'
+        WHERE remote_local_id='503';
+      INSERT INTO visites(id,site_id,installation_id,date_visite,statut,trame_id)
+        VALUES('first-visit','local-site','installation-first','2026-09-10','terminee','icpe_v1');
+      INSERT INTO champs_visite(visite_id,section_code,cle,valeur)
+        VALUES('first-visit','p-infos.general','Trame utilisée','ICPE');
+      INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)
+        VALUES('first-visit','test.sous','Contrôle A','S','Première visite');
+    `);
+    const firstOptions = await binding.getVisitIntranetBindingOptions('first-visit');
+    check(firstOptions.visitTrameName === 'ICPE',
+      'binding reads the actual Informations > Trame utilisée value stored on the visit');
+    const firstTarget = await binding.bindVisitToImportedClientTarget('first-visit');
+    check(firstTarget.remoteLocalId === '503', 'first visit binds to the imported local after filtered trame preparation even without historical visit');
+    const firstVisitRow = await server.db.getFirstAsync(`SELECT api_remote_trame_id,api_source_remote_visit_id FROM visites WHERE id='first-visit'`);
+    check(firstVisitRow.api_remote_trame_id === '3' && firstVisitRow.api_source_remote_visit_id == null,
+      'first visit freezes remote trame id while keeping derniereVisiteIdSource null');
+
+    // Rétablit le fixture initial pour les scénarios historiques ci-dessous :
+    // la première visite reste autonome grâce à sa référence figée en provenance.
+    await server.db.runAsync(`
+      UPDATE api_local_links
+      SET local_installation_id=NULL,remote_trame_id=NULL,remote_trame_nom=NULL,criteria_count=0,reference_json=?
+      WHERE remote_local_id='503'
+    `, [JSON.stringify(reference('503', 'Local sans trame', null))]);
 
     await assert.rejects(() => binding.bindVisitToIntranetTarget('ordinary-visit', { remoteClientId: '99', remoteSiteId: '45', remoteLocalId: '501' }), /ayant été importé|client Intranet/i);
     checks++; console.log(`OK ${checks}: explicit cross-client upload is rejected even when another imported client is authorized on the tablet`);
@@ -118,6 +178,12 @@ async function main() {
     const prepared = await payload.buildIntranetVisitPayload('ordinary-visit', '11111111-1111-4111-8111-111111111111');
     check(prepared.remoteClientId === '12' && prepared.payload.visites[0].localId === 501 && prepared.payload.visites[0].trameId === 3, 'wire payload stays on the imported client/local after automatic binding');
     check(prepared.payload.visites[0].criteres[0].avis === 'S' && prepared.payload.visites[0].criteres[0].commentaire === 'Fonctionnement satisfaisant', 'wire payload sends current METRA observation');
+
+    const firstPrepared = await payload.buildIntranetVisitPayload('first-visit', '22222222-2222-4222-8222-222222222222');
+    check(firstPrepared.payload.visites[0].localId === 503 && firstPrepared.payload.visites[0].trameId === 3,
+      'first-visit wire payload uses the resolved Intranet local and trame');
+    check(firstPrepared.payload.visites[0].derniereVisiteIdSource === null,
+      'first-visit wire payload explicitly keeps derniereVisiteIdSource null when no Intranet visit exists');
 
     await server.db.execAsync(`
       INSERT INTO visites(id,site_id,date_visite,statut,trame_id) VALUES('ambiguous-visit','local-site','2026-09-10','terminee','icpe_v1');

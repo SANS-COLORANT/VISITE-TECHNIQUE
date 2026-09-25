@@ -1,0 +1,128 @@
+name: Missions SQLite QA
+
+on:
+  push:
+    branches:
+      - feat/metra-missions-lab
+      - feat/metra-missions-architecture-v2
+    paths:
+      - 'database/constants.js'
+      - 'database/migrations/**'
+      - 'missionsDb.js'
+      - 'missionVisitDb.js'
+      - 'missionExcelExport.js'
+      - 'missionClientExcelExport.js'
+      - 'missionExcelImport.js'
+      - 'missionExcelAutoMap.js'
+      - 'missionExcelSchema.js'
+      - 'missionEquipmentDb.js'
+      - 'missionEquipmentCatalog.js'
+      - 'missionStructureDb.js'
+      - 'missionTechnicalStructureDb.js'
+      - 'missionVisitQualityDb.js'
+      - 'missionPlanDb.js'
+      - 'missionMapLayerDb.js'
+      - 'missionCalculationDb.js'
+      - 'missionTestDb.js'
+      - 'missionExcelMappingDb.js'
+      - 'missionPhotoAnnotationDb.js'
+      - 'missionPhotoAlbumExport.js'
+      - 'missionMeasurementDb.js'
+      - 'missionMeasurementCampaignDb.js'
+      - 'missionDocumentExtractionDb.js'
+      - 'missionPackageExport.js'
+      - 'missionPackageImport.js'
+      - 'missionNativeTools.js'
+      - 'missionDomainDb.js'
+      - 'missionMediaDb.js'
+      - 'missionReportDb.js'
+      - 'missionReportExporter.js'
+      - 'missionTheme.js'
+      - 'Mission*.js'
+      - 'native/metra-mission-tools/**'
+      - 'plugins/withMetraMissionTools.js'
+      - 'app.config.js'
+      - 'Missions*.js'
+      - 'App.js'
+      - 'HomeScreen.js'
+      - 'featureSettings.js'
+      - 'LabMetraPanel.js'
+      - 'visual-packs/runtime/VisualPacksSettingsScreen.js'
+      - '.github/scripts/**'
+      - '.github/workflows/missions-sqlite-qa.yml'
+  pull_request:
+    paths:
+      - 'database/constants.js'
+      - 'database/migrations/**'
+      - 'missionsDb.js'
+      - 'missionVisitDb.js'
+      - 'missionExcelExport.js'
+      - 'missionExcelImport.js'
+      - 'missionExcelSchema.js'
+      - 'missionDomainDb.js'
+      - 'missionMediaDb.js'
+      - 'missionTheme.js'
+      - 'Mission*.js'
+      - 'Missions*.js'
+      - 'App.js'
+      - 'HomeScreen.js'
+      - 'featureSettings.js'
+      - 'LabMetraPanel.js'
+      - 'visual-packs/runtime/VisualPacksSettingsScreen.js'
+      - '.github/scripts/**'
+      - '.github/workflows/missions-sqlite-qa.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sqlite-and-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Validate all committed METRA runtime contracts
+        run: node .github/scripts/run_source_patches.js
+
+      - name: Validate APK build-time patch compatibility
+        run: |
+          python .github/scripts/patch_preallumage_field_ux_build.py
+          node .github/scripts/run_source_patches.js
+          node --check PreAllumageInstallationPanelV3.js
+          node --check PreAllumageCompactField.js
+          node --check PreAllumageHeatCurve.js
+          node --check VisiteScreen.js
+          grep -q "const localSwipe = useMemo" PreAllumageInstallationPanelV3.js
+          grep -q "Ajouter un compteur" PreAllumageInstallationPanelV3.js
+          grep -q "unitVisible" PreAllumageCompactField.js
+          grep -q "labelPosition" PreAllumageHeatCurve.js
+
+      - name: Validate Missions source contract
+        run: node .github/scripts/check_missions_lab_contract.js
+
+      - name: Validate compatibility with current METRA Android app
+        run: node .github/scripts/check_missions_app_compat.js
+
+      - name: Execute SQLite v40-v43 compatibility tests
+        run: python .github/scripts/test_missions_sqlite_compat.py
+
+      - name: Confirm schema lineage
+        run: |
+          grep -q "DATABASE_SCHEMA_VERSION = 43" database/constants.js
+          grep -q "migration039, migration040" database/migrations/index.js
+          grep -q "migration041" database/migrations/index.js
+          grep -q "migration042" database/migrations/index.js
+          grep -q "migration043" database/migrations/index.js

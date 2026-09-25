@@ -59,6 +59,28 @@ de limitation et est enregistré uniquement dans le stockage privé. La galerie
 hors ligne et sa visionneuse restent un historique de consultation séparé des
 observations de la visite en cours.
 
+## Téléphone et mode Compagnon
+
+La même application Android peut fonctionner en version téléphone intégrale ou en mode Compagnon. En mode Compagnon, la tablette garde la maîtrise de la visite et transmet uniquement un instantané léger au téléphone par une session locale temporaire ouverte depuis un QR code.
+
+Les captures du téléphone sont d'abord mises en file d'attente persistante, puis acquittées seulement après leur import par la tablette. Les rattachements utilisent les mêmes clés métier que les photos prises directement dans la visite.
+
+La conception détaillée et la recette matérielle sont décrites dans `docs/COMPANION.md`.
+
+## Runtime terrain durable
+
+La performance terrain suit désormais une architecture HOT / WARM / COLD strictement bornée :
+
+- HOT : 3 visites maximum avec contexte UI et caches métier récemment utilisés ;
+- WARM : métadonnées légères des visites récentes ;
+- COLD : SQLite uniquement.
+
+Les transitions Client → Site → Local → Visite préchauffent la destination au toucher, sans attendre le clic final. Le contexte de navigation récent (onglet et position) est persisté de manière bornée dans `_meta`, tandis que les photos originales restent dans le stockage privé Android et utilisent des variantes régénérables pour les miniatures et aperçus.
+
+Les sauvegardes de champs restent optimistes : rendu immédiat, écriture SQLite sérialisée, flush au blur, swipe, retour et passage en arrière-plan. Les anciennes saisies utilisant le hook historique sont raccordées au même pipeline durable.
+
+Les détails, limites mémoire et régressions historiques à éviter sont décrits dans `docs/PERFORMANCE_RUNTIME.md`.
+
 ## Build
 
 Une validation JavaScript réussie ne remplace pas une compilation Android. Les PR touchant aux dépendances ou au natif doivent passer la compilation Gradle avant fusion.

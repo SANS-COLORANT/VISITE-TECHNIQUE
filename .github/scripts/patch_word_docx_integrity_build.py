@@ -232,7 +232,20 @@ new_cover_body = r'''  if (logo) body.push(imageParagraph(logo.relId, logo.width
   body.push(paragraph('SAS au capital de 292 500 € - Siège social : 143 rue Yves Le Coz - 78000 Versailles - RCS Versailles B 338 335 201 / NAF 7112B', { size: 11, color: '777777', align: 'left', after: 30 }));
   body.push(pageBreak());
 '''
-replace_once(old_cover_body, new_cover_body, 'Word cover layout')
+old_cover_body_patrimoine = old_cover_body.replace(
+  "  body.push(pageBreak());\n",
+  "  const patrimoineXml = await patrimoineSummaryXml(datas, config);\n  if (patrimoineXml) { body.push(pageBreak()); body.push(patrimoineXml); }\n  body.push(pageBreak());\n",
+  1,
+)
+new_cover_body_patrimoine = new_cover_body.replace(
+  "  body.push(pageBreak());\n",
+  "  const patrimoineXml = await patrimoineSummaryXml(datas, config);\n  if (patrimoineXml) { body.push(pageBreak()); body.push(patrimoineXml); }\n  body.push(pageBreak());\n",
+  1,
+)
+if old_cover_body_patrimoine in s:
+    s = s.replace(old_cover_body_patrimoine, new_cover_body_patrimoine, 1)
+else:
+    replace_once(old_cover_body, new_cover_body, 'Word cover layout')
 
 old_zip = """  const zipUri = `${FileSystem.cacheDirectory}METRA_${stamp}.docx`;
   await zip(nativePath(root), nativePath(zipUri));

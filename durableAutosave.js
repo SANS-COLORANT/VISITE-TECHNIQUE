@@ -1,28 +1,68 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
+import { AppState } from 'react-native';
+import { markDraftDirty, markDraftError, markDraftSaved, markDraftSaving } from './saveActivity.js';
+
+const activeFlushers = new Set();
+let appStateSubscription = null;
+let autosaveSequence = 0;
+
+function ensureAppStateFlushListener() {
+  if (appStateSubscription || !AppState?.addEventListener) return;
+  appStateSubscription = AppState.addEventListener('change', (nextState) => {
+    if (nextState !== 'inactive' && nextState !== 'background') return;
+    for (const flush of [...activeFlushers]) {
+      try { Promise.resolve(flush()).catch(() => {}); } catch {}
+    }
+  });
+}
+
+function registerFlusher(flush) {
+  activeFlushers.add(flush);
+  ensureAppStateFlushListener();
+  return () => {
+    activeFlushers.delete(flush);
+    if (!activeFlushers.size && appStateSubscription) {
+      appStateSubscription.remove?.();
+      appStateSubscription = null;
+    }
+  };
+}
+
+export async function flushDurableAutosaves() {
+  await Promise.allSettled([...activeFlushers].map((flush) => Promise.resolve().then(flush)));
+}
 
 /**
- * Autosauvegarde adaptée aux listes virtualisées.
- * - debounce pour éviter une écriture SQLite par caractère ;
- * - flush sur blur ;
- * - flush de la dernière valeur au démontage si elle n'a pas encore été écrite.
- *
- * La fonction de sauvegarde est toujours appelée avec la valeur la plus récente,
- * même si la cellule FlatList est démontée pendant un défilement rapide.
+ * Autosauvegarde conçue pour le terrain :
+ * - saisie instantanée en mémoire pour ne jamais ralentir le clavier ;
+ * - écriture SQLite temporisée pour éviter une écriture par caractère ;
+ * - file d'écriture sérialisée pour ne pas réordonner deux sauvegardes ;
+ * - flush sur blur, démontage et passage de l'application en arrière-plan ;
+ * - une valeur externe ne peut pas écraser un brouillon local encore non persisté.
  */
-export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 500) {
+export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
   const initiale = valeurInitiale == null ? '' : String(valeurInitiale);
   const [valeur, setValeurState] = useState(initiale);
   const valeurRef = useRef(initiale);
-  const sauveeRef = useRef(initiale);
+  const persisteeRef = useRef(initiale);
   const timerRef = useRef(null);
   const saveRef = useRef(sauvegarder);
+  const queueRef = useRef(Promise.resolve());
+  const activityKeyRef = useRef(null);
+  if (!activityKeyRef.current) activityKeyRef.current = `autosave:${++autosaveSequence}`;
 
   useEffect(() => { saveRef.current = sauvegarder; }, [sauvegarder]);
 
   useEffect(() => {
     const prochaine = valeurInitiale == null ? '' : String(valeurInitiale);
+    // Si l'UI possède un brouillon plus récent que SQLite, on ne le remplace
+    // jamais par une valeur de parent/cache qui arrive avec retard.
+    if (valeurRef.current !== persisteeRef.current) {
+      if (prochaine === valeurRef.current) setValeurState(prochaine);
+      return;
+    }
     valeurRef.current = prochaine;
-    sauveeRef.current = prochaine;
+    persisteeRef.current = prochaine;
     setValeurState(prochaine);
   }, [valeurInitiale]);
 
@@ -31,20 +71,34 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 500) {
       clearTimeout(timerRef.current);
       timerRef.current = null;
     }
-    const courante = valeurRef.current;
-    if (!force && courante === sauveeRef.current) return Promise.resolve();
-    sauveeRef.current = courante;
-    return Promise.resolve(saveRef.current?.(courante)).catch((error) => {
-      // Autorise une nouvelle tentative au prochain changement/blur si l'écriture échoue.
-      sauveeRef.current = Symbol('save-failed');
-      throw error;
-    });
+
+    const run = async () => {
+      const courante = valeurRef.current;
+      if (!force && courante === persisteeRef.current) {
+        markDraftSaved(activityKeyRef.current);
+        return;
+      }
+      markDraftSaving(activityKeyRef.current);
+      try {
+        await saveRef.current?.(courante);
+        persisteeRef.current = courante;
+        markDraftSaved(activityKeyRef.current);
+      } catch (error) {
+        markDraftError(activityKeyRef.current, error);
+        throw error;
+      }
+    };
+
+    // Les écritures d'un même champ restent strictement dans l'ordre.
+    queueRef.current = queueRef.current.catch(() => {}).then(run);
+    return queueRef.current;
   }, []);
 
   const setValeur = useCallback((prochaine) => {
     const texte = prochaine == null ? '' : String(prochaine);
     valeurRef.current = texte;
     setValeurState(texte);
+    if (texte !== persisteeRef.current) markDraftDirty(activityKeyRef.current);
     if (timerRef.current) clearTimeout(timerRef.current);
     timerRef.current = setTimeout(() => {
       executerSauvegarde().catch(() => {});
@@ -57,17 +111,36 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 500) {
     const texte = prochaine == null ? '' : String(prochaine);
     valeurRef.current = texte;
     setValeurState(texte);
+    if (texte !== persisteeRef.current) markDraftDirty(activityKeyRef.current);
     return executerSauvegarde(true);
   }, [executerSauvegarde]);
 
-  useEffect(() => () => {
-    if (timerRef.current) clearTimeout(timerRef.current);
-    if (valeurRef.current !== sauveeRef.current) {
-      // Ne pas attendre ici : React ne sait pas attendre un cleanup asynchrone,
-      // mais l'écriture SQLite est tout de même déclenchée avant destruction du hook.
-      Promise.resolve(saveRef.current?.(valeurRef.current)).catch(() => {});
+  // À utiliser lorsqu'une action métier vient elle-même de persister la valeur
+  // (preset, changement S/N.S, etc.). Cela annule le debounce devenu inutile
+  // sans déclencher une seconde sauvegarde susceptible de modifier la sémantique.
+  const adopterValeurPersistee = useCallback((prochaine) => {
+    const texte = prochaine == null ? '' : String(prochaine);
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
     }
+    valeurRef.current = texte;
+    persisteeRef.current = texte;
+    setValeurState(texte);
+    markDraftSaved(activityKeyRef.current);
   }, []);
 
-  return [valeur, setValeur, flush, setImmediate];
+  useEffect(() => registerFlusher(flush), [flush]);
+
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    if (valeurRef.current !== persisteeRef.current) {
+      // React ne peut pas attendre un cleanup asynchrone, mais l'écriture est
+      // mise en file immédiatement. Le listener AppState couvre aussi le cas
+      // où l'utilisateur quitte METRA avant le blur.
+      executerSauvegarde().catch(() => {});
+    }
+  }, [executerSauvegarde]);
+
+  return [valeur, setValeur, flush, setImmediate, adopterValeurPersistee];
 }

@@ -1,15 +1,26 @@
 /** Écran Accueil. */
 
-import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView } from 'react-native';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView, PanResponder } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
 import { SpiralActiveHome } from './visual-packs/spiral-active/SpiralActiveHome.js';
+import { PatrimoineThumbnail } from './PatrimoineImageCard.js';
+import { onPatrimoineImageChanged } from './patrimoineImageDb.js';
+import { MISSION_COLORS } from './missionTheme.js';
+import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollOffset } from './navigationMemory.js';
+import { prewarmClientSites } from './navigationPrewarm.js';
+import { prewarmVisitInBackground } from './visitPrewarm.js';
+import { forgetVisitRuntime, markVisitHot } from './visitRuntimeCache.js';
+
 const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
 function chargerEntityManagementModule(){return require('./entityManagementDb.js');}
 
-function HomeScreen({ navigation, onR1LongPress, spiralPreview = false }) {
+function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missionsEnabled = false }) {
+  const listRef = useRef(null);
+  const scrollKey = 'home:clients';
   const [clients, setClients] = useState(() => HOME_FAST_CACHE.clients || []);
   const [visitesEnCours, setVisitesEnCours] = useState(() => HOME_FAST_CACHE.visitesEnCours || []);
   const [stats, setStats] = useState(() => HOME_FAST_CACHE.stats || { enCours: 0, terminees: 0 });
@@ -32,6 +43,37 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false }) {
   }, []);
 
   useEffect(() => { charger().catch((e) => console.warn('Chargement accueil impossible', e)); }, [charger]);
+  useEffect(() => {
+    let alive = true;
+    hydrateNavigationState(scrollKey).then((state) => {
+      if (!alive) return;
+      const offset = Number(state?.scrollY || 0);
+      if (offset) setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    const offset = getNavigationScrollOffset(scrollKey);
+    if (!offset || !clients.length) return undefined;
+    const timer = setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
+    return () => clearTimeout(timer);
+  }, [clients.length]);
+  useEffect(() => onPatrimoineImageChanged((change) => {
+    if (change?.type === 'client') charger().catch(() => {});
+  }), [charger]);
+
+  const missionsSwipeResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_, gesture) => (
+      missionsEnabled
+      && gesture.dx > 22
+      && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.45
+    ),
+    onPanResponderTerminationRequest: () => true,
+    onPanResponderRelease: (_, gesture) => {
+      if (missionsEnabled && gesture.dx > 85) navigation.navigate('Missions', { enteredBySwipe: true });
+    },
+  }), [missionsEnabled, navigation]);
 
   const onRefresh = async () => { setRefreshing(true); await charger(); setRefreshing(false); };
   const openDirectory = () => navigation.navigate('MetraDirectory', { query: quickSearch.trim() });
@@ -39,7 +81,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false }) {
   const confirmerSuppressionVisite = (v) => Alert.alert(
     'Supprimer cette visite ?',
     `« ${v.nom_client} — ${v.nom_site} » et toutes les données propres à cette visite seront définitivement supprimées.`,
-    [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive', onPress: async () => { await chargerEntityManagementModule().supprimerVisiteComplete(v.id); await charger(); } }]
+    [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive', onPress: async () => { await chargerEntityManagementModule().supprimerVisiteComplete(v.id); forgetVisitRuntime(v.id); await charger(); } }]
   );
 
   const confirmerSuppressionClient = async (client) => {
@@ -65,7 +107,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false }) {
     setCreationClient(true);
     try {
       const id = await creerClient({ nom, codeExploitant });
-      setClients((c) => [...c, { id, nom, code_exploitant: codeExploitant, adresse: null }].sort((a, b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr', { sensitivity: 'base' })));
+      setClients((c) => [...c, { id, nom, code_exploitant: codeExploitant, adresse: null, image_uri: null }].sort((a, b) => String(a.nom || '').localeCompare(String(b.nom || ''), 'fr', { sensitivity: 'base' })));
       setNouveauNom('');
       setNouveauCode('');
       setModalVisible(false);
@@ -135,7 +177,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false }) {
     />;
   }
 
-  return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: COLORS.bg }} {...missionsSwipeResponder.panHandlers}>
     <View style={styles.homeTopRow}>
       <TouchableOpacity style={styles.importExcelBtn} onPress={choisirExcel}><Text style={styles.importExcelBtnText}>⇧ Importer Excel(s)</Text></TouchableOpacity>
       <View style={{ flex: 1 }} />
@@ -143,11 +185,15 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false }) {
     </View>
 
     <FlatList
+      ref={listRef}
+      onScroll={(event) => setNavigationScrollOffset(scrollKey, event.nativeEvent.contentOffset.y)}
+      scrollEventThrottle={80}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.orange} />}
       data={clients}
       keyExtractor={(i) => i.id}
       ListHeaderComponent={<>
+        {missionsEnabled ? <View style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: MISSION_COLORS.accentSoft }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, fontWeight: '800' }}>Glisser vers la droite → Missions</Text></View> : null}
         <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E6E8EC', padding: 13, marginBottom: 16 }}>
           <Text style={{ color: COLORS.ink || '#17212B', fontSize: 13.5, fontWeight: '900', marginBottom: 9 }}>Accès rapide au patrimoine</Text>
           <View style={{ minHeight: 50, borderRadius: 14, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: '#ECEEF1', flexDirection: 'row', alignItems: 'center', paddingLeft: 13 }}>
@@ -156,7 +202,6 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false }) {
               value={quickSearch}
               onChangeText={setQuickSearch}
               onSubmitEditing={openDirectory}
-              onFocus={() => {}}
               placeholder="Client, site, ville, adresse, équipement…"
               placeholderTextColor="#98A2B3"
               style={{ flex: 1, color: COLORS.ink || '#17212B', fontSize: 14.5, paddingVertical: 12 }}
@@ -171,11 +216,20 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false }) {
           <Text style={{ color: COLORS.muted || '#667085', fontSize: 11.5, marginTop: 8 }}>Recherche METRA + données Intranet déjà synchronisées · utilisable hors connexion.</Text>
         </View>
 
-        <View style={styles.statRow}><StatCard num={stats.enCours} label="En cours" /><StatCard num={stats.terminees} label="Terminées" /></View>
+        <View style={{ position: 'relative' }}>
+          <View style={{ position: 'absolute', top: -34, left: -18, width: 130, height: 130, borderRadius: 65, backgroundColor: COLORS.orangeLight, opacity: 0.9 }} />
+          <View style={{ position: 'absolute', top: -14, right: -28, width: 100, height: 100, borderRadius: 50, backgroundColor: COLORS.orange, opacity: 0.16 }} />
+          <View style={styles.statRow}><StatCard num={stats.enCours} label="En cours" /><StatCard num={stats.terminees} label="Terminées" /></View>
+        </View>
 
         {visitesEnCours.length > 0 && <>
           <Text style={styles.sectionLabel}>Visites en cours</Text>
-          {visitesEnCours.map((v) => <TouchableOpacity key={v.id} style={styles.card} onPress={() => navigation.navigate('Visite', { visiteId: v.id })}>
+          {visitesEnCours.map((v) => <TouchableOpacity
+            key={v.id}
+            style={styles.card}
+            onPressIn={() => prewarmVisitInBackground(v, { preview: v })}
+            onPress={() => { markVisitHot(v.id, { preview: v }); navigation.navigate('Visite', { visiteId: v.id, visitePreview: v }); }}
+          >
             <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{v.nom_client}</Text><Text style={styles.cardSub}>{v.nom_site}</Text></View>
             <View style={styles.badge}><Text style={styles.badgeText}>{v.progression_pct}%</Text></View>
             <TouchableOpacity style={styles.deleteVisiteBtn} onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(v); }}><Text style={styles.deleteVisiteBtnText}>✕</Text></TouchableOpacity>
@@ -187,7 +241,12 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false }) {
           <TouchableOpacity onPress={() => setModalVisible(true)}><Text style={styles.addLink}>+ Ajouter</Text></TouchableOpacity>
         </View>
       </>}
-      renderItem={({ item }) => <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('ClientSites', { clientId: item.id, nomClient: item.nom })}>
+      renderItem={({ item }) => <TouchableOpacity
+        style={styles.card}
+        onPressIn={() => prewarmClientSites(item.id).catch(() => {})}
+        onPress={() => navigation.navigate('ClientSites', { clientId: item.id, nomClient: item.nom })}
+      >
+        <PatrimoineThumbnail uri={item.image_uri} size={54} radius={10} />
         <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom}</Text>{item.code_exploitant ? <Text style={styles.cardSub}>{item.code_exploitant}</Text> : null}</View>
         <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionClient(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text></TouchableOpacity>
         <Text style={styles.chevron}>›</Text>
@@ -220,6 +279,15 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false }) {
   </View>;
 }
 
-function StatCard({ num, label }) { return <View style={styles.statCard}><Text style={styles.statNum}>{num}</Text><Text style={styles.statLabel}>{label}</Text></View>; }
+function StatCard({ num, label }) {
+  return (
+    <View style={[styles.statCard, { overflow: 'hidden', backgroundColor: 'transparent', borderColor: 'rgba(234,232,226,0.6)' }]}>
+      <BlurView intensity={35} tint="light" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.45)' }} />
+      <Text style={styles.statNum}>{num}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
 
 export { HomeScreen };

@@ -1,0 +1,24 @@
+name: Trigger schema38 APK build
+
+on:
+  push:
+    branches:
+      - fix/metra-structure-schema38
+    paths:
+      - '.github/workflows/trigger-schema38-apk-build.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch APK workflow on schema38 branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh workflow run native-android-apk.yml -R SANS-COLORANT/VISITE-TECHNIQUE --ref "${GITHUB_REF_NAME}"
+
+# Re-dispatch after aligning migration 038 with the active migration.sql runner.

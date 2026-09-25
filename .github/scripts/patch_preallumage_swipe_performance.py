@@ -230,7 +230,8 @@ new = """  const charger = useCallback(async () => {
     await warmupPromise;
   }, [visiteId]);
 """
-s = replace_once(s, old, new, 'non-blocking visit warmup')
+if 'VISIT_OPEN_FAST_V2' not in s:
+    s = replace_once(s, old, new, 'non-blocking visit warmup')
 p.write_text(s, encoding='utf-8')
 
 print('Pré-allumage page swipe and loading performance applied.')

@@ -11,8 +11,63 @@ Le corps JSON est figé au moment de la mise en file et contient uniquement
 `trameId`, `derniereVisiteIdSource`, `date`, `statut`, `criteres`, `remarques`,
 `materiels`, `notes`.
 
-Les photos et la conclusion ne sont pas envoyées par cette route : le contrat
-serveur fourni les exclut explicitement et ne définit pas encore leur flux.
+Les photos restent volontairement exclues de ce JSON, car le serveur les reçoit
+séparément après la création de la visite. Une fois l'identifiant Symfony de la
+visite confirmé, METRA envoie chaque image vers :
+
+`POST /api/clients/{idclient}/visites/{idvisite}/photos`
+
+La conclusion reste hors synchronisation tant qu'aucun contrat serveur dédié ne
+la définit.
+
+## Envoi des photos de visite
+
+La réponse du POST de visite fournit l'identifiant Symfony de la visite créée.
+METRA le conserve dans `api_visit_outbox.remote_visit_id`, puis construit une
+file photo persistante `api_visit_photo_outbox`.
+
+Chaque photographie est envoyée seule en `multipart/form-data` avec :
+
+- `fichier` : JPEG, PNG, GIF ou WebP, 10 Mio maximum ;
+- `envoiPhotoId` : UUID v4 créé une seule fois et conservé à travers les retries ;
+- `description` : libellé METRA, limité à 255 caractères ;
+- `ordre` : entier positif et unique dans la visite ;
+- `grandFormat` : `true` ou `false` ;
+- `categorieId`, `sousCategorieId`, `critereId` uniquement lorsqu'un
+  rattachement unique et sûr au critère Intranet est disponible.
+
+Pour une photo générale ou une photo dont le rattachement à un critère n'est
+pas unique, les trois identifiants de critère sont entièrement omis. METRA ne
+les envoie jamais vides ou à `null`.
+
+Les photos prises sur une conformité utilisent le même mapping structurel que
+les critères du POST de visite. Une photo rattachée localement à une réserve
+issue d'un contrôle est d'abord remontée vers `remarques.controle_key`, puis
+rattachée au triplet Intranet seulement si ce triplet est univoque. Les photos
+d'équipement, réseau, compteur ou générales qui n'ont pas de triplet serveur
+certain sont envoyées comme photos générales de la visite plutôt que d'inventer
+une liaison.
+
+Pour éviter qu'une visite comportant beaucoup de photographies surcharge
+l'Intranet, METRA découpe automatiquement l'export en **lots de 10 photos**.
+Un seul lot est traité à la fois, avec au maximum trois transferts simultanés à
+l'intérieur de ce lot. Le premier lot part immédiatement après la création de
+la visite ; les lots suivants reprennent automatiquement toutes les 15 secondes
+tant que METRA reste au premier plan. Si l'application est fermée ou que le
+réseau disparaît, la file SQLite conserve exactement les photos déjà confirmées
+et celles restant à envoyer. Au prochain passage, METRA reprend le lot suivant
+sans recréer la visite Symfony et sans changer les `envoiPhotoId` déjà attribués.
+
+Chaque tentative HTTP reçoit une nouvelle preuve DPoP ; l'`envoiPhotoId`, le
+fichier et les métadonnées restent stables pour permettre le rejeu idempotent.
+Un HTTP 201 ou un HTTP 200 avec `rejoue: true` marque la photo comme synchronisée.
+
+Le bouton de la visite ne passe **Online** que lorsque la visite elle-même et
+toutes ses photos locales sont confirmées par l'Intranet. Si la visite a été
+créée mais que des photos restent à envoyer, le statut demeure **Offline** et
+l'interface affiche la progression `photos x/y · envoi par lots de 10`. Les
+lots suivants reprennent automatiquement ; un nouvel appui sur Offline permet
+aussi de relancer immédiatement le prochain lot sans recréer la visite.
 
 ## Liaison au client importé
 
@@ -38,45 +93,50 @@ sur la tablette.
 - Une visite non exportée affiche **Offline** en noir.
 - Un appui sur **Offline** prépare et envoie directement la visite vers son
   client Intranet importé ; aucun choix de client n'est demandé.
-- Après un accusé serveur valide, l'état devient **Online** en vert.
+- Après création de la visite serveur, les photos sont mises en file et envoyées
+  séparément ; une panne sur une image ne renvoie pas toute la visite.
+- Les gros ensembles sont découpés en lots de 10 photos maximum ; chaque lot
+  reprend sur l'état persistant du lot précédent.
+- Après accusé serveur valide de la visite et de toutes les photos locales,
+  l'état devient **Online** en vert.
 - Une visite historique importée depuis l'Intranet est affichée **Online** car
   elle existe déjà côté serveur, mais elle ne peut pas être recréée comme une
   nouvelle visite.
-- Android génère un UUID v4 `envoiId` via le module natif DPoP au moment de la
-  mise en file.
-- Le JSON sérialisé et cet UUID sont enregistrés dans SQLite et ne sont plus
-  reconstruits pour une tentative réseau.
-- Une coupure réseau, un HTTP 5xx ou un 429 conserve cet envoi. La tentative
-  suivante renvoie exactement le même JSON et le même `envoiId`, mais
-  `symfonyApi.js` crée une nouvelle preuve DPoP à chaque requête HTTP.
+- Android génère un UUID v4 `envoiId` pour la visite et un UUID v4
+  `envoiPhotoId` pour chaque photo via le module natif DPoP.
+- Le JSON de visite et les identifiants d'idempotence sont persistés dans SQLite.
+- Une coupure réseau, un HTTP 5xx ou un 429 conserve les files. La tentative
+  suivante réutilise les mêmes identifiants métier mais crée une nouvelle preuve
+  DPoP.
 - Une ligne restée `sending` après arrêt du processus passe en `retry` au
-  redémarrage. L'accusé 200 rejoué est traité comme un succès sans doublon.
-- La file est traitée séquentiellement, jusqu'à trois visites par réveil, pour
-  rester nettement sous la limite serveur de dix envois par minute.
+  redémarrage.
+- Les visites sont envoyées séquentiellement. Dans chaque lot de photos, trois
+  transferts au maximum sont simultanés ; le lot suivant est traité séparément.
 
-La file est persistante ; son traitement automatique est opportuniste lorsque
-METRA est au premier plan. Aucun service Android permanent n'est promis lorsque
-le système arrête réellement le processus.
+Les files sont persistantes ; leur traitement automatique est opportuniste
+lorsque METRA est au premier plan. Aucun service Android permanent n'est promis
+lorsque le système arrête réellement le processus.
 
 ## Conflits et erreurs
+
+Pour la visite :
 
 - `401` : la couche DPoP peut renouveler une seule fois le jeton. Si l'échec
   persiste, la ligne passe en `auth_error`.
 - `409 synchronization_conflict` : état `conflict`, jamais relancé
   automatiquement. Une nouvelle préparation du même client Intranet est
   nécessaire.
-- `409 idempotency_conflict` : également terminal.
+- `409 idempotency_conflict` : terminal.
 - `422` : les violations serveur sont conservées dans SQLite et affichables.
 - `400`, `404`, `413`, `415` : rejet terminal ; aucune boucle automatique.
-- Accusé `2xx` incohérent (envoiId, `rejoue`, index, visite ou local) : rejet
-  terminal local. METRA ne génère surtout pas un nouvel `envoiId`, car la visite
-  peut déjà avoir été créée côté serveur.
+- Accusé `2xx` incohérent : rejet terminal local, sans nouvel `envoiId`.
 - `429` : `Retry-After` pilote la prochaine tentative.
 - erreur réseau / `500`, `502`, `503`, `504` : nouvelle tentative différée.
 
-Le bouton reste **Offline** tant que l'Intranet n'a pas accusé l'envoi. Les
-messages d'erreur serveur sont affichés sous cet état. Un succès confirmé passe
-le bouton en **Online**.
+Pour une photo, les mêmes règles d'authentification et de reprise s'appliquent.
+Les `409`, `413`, `415` et `422` sont conservés comme erreurs à corriger ; un
+`429` respecte `Retry-After`; une erreur réseau ou un `5xx` est retenté avec le
+même `envoiPhotoId` et une nouvelle preuve DPoP.
 
 ## Construction des critères
 
@@ -86,8 +146,13 @@ et produit exactement une ligne par critère. Un mapping ambigu ou absent bloque
 l'envoi avant HTTP.
 
 - Contrôle applicable : avis courant METRA parmi `S.O`, `S`, `N.S`, `N.R`,
-  `N.V` + commentaire courant ; commentaire vide envoyé sous `/`.
-- Critère sans avis : `avis: null` + valeur courante dans `commentaire`, ou `/`.
+  `N.V` + commentaire courant. Si le contrôle n'est pas renseigné, METRA envoie
+  `N.V` (non vérifié) ; un commentaire vide est envoyé sous `/`. Une absence
+  de saisie ne bloque donc jamais l'envoi.
+- Critère sans avis : `avis: null` + valeur courante dans `commentaire`, ou `/`
+  lorsque le champ n'est pas renseigné.
+- Index compteur absent : `/`. Plusieurs compteurs correspondant au même critère
+  restent bloquants car METRA ne choisit jamais une valeur au hasard.
 - Réseaux ICPE : les valeurs sont relues dans la table `reseaux`. L'identité
   catégorie/sous-catégorie Intranet est conservée dans la provenance lors du
   report vers la nouvelle visite. Les branches Intranet sans réseau local sont
@@ -102,6 +167,13 @@ l'envoi avant HTTP.
 
 Une visite historique importée depuis Symfony est explicitement interdite à
 l'envoi afin qu'elle ne soit jamais recréée comme nouvelle visite serveur.
+
+Les blocages locaux sont réservés aux erreurs structurelles ou ambiguës (identifiants
+Intranet invalides, mapping de critère absent/ambigu, doublon de branche, valeur
+non conforme à une énumération serveur, etc.). Le simple fait qu'une visite soit
+incomplète ne constitue pas une erreur d'envoi : les valeurs non renseignées sont
+encodées avec les marqueurs prévus par le contrat (`N.V`, `/`, `null` ou tableau
+vide selon le champ).
 
 ## Remarques / réserves
 

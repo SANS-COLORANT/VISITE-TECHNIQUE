@@ -1,13 +1,16 @@
 const fs=require('fs');
 function read(path){return fs.readFileSync(path,'utf8');}
 function requireText(text,needle,label){if(!text.includes(needle))throw new Error(`${label}: missing ${needle}`);}
+function requireRegex(text,pattern,label){if(!pattern.test(text))throw new Error(`${label}: pattern missing ${pattern}`);}
 function forbidText(text,needle,label){if(text.includes(needle))throw new Error(`${label}: forbidden ${needle}`);}
 
 const app=read('App.js');
 requireText(app,'DEFERRED_SCREEN_LOADERS','deferred screen registry');
-requireText(app,"Report:()=>require('./ReportScreen.js').ReportScreen",'deferred report');
-requireText(app,"Lab3D:()=>require('./Lab3DScreen.js').Lab3DScreen",'deferred LAB3D');
-requireText(app,"ClientDocuments:()=>require('./ClientDocumentsScreen.js').ClientDocumentsScreen",'deferred client documents');
+// Le registre peut etre compacte ou formate par Prettier. Le contrat porte sur
+// le chargement differe reel, pas sur les espaces autour de ':' / '=>'.
+requireRegex(app,/\bReport\s*:\s*\(\s*\)\s*=>\s*require\(['"]\.\/ReportScreen\.js['"]\)\.ReportScreen/,'deferred report');
+requireRegex(app,/\bLab3D\s*:\s*\(\s*\)\s*=>\s*require\(['"]\.\/Lab3DScreen\.js['"]\)\.Lab3DScreen/,'deferred LAB3D');
+requireRegex(app,/\bClientDocuments\s*:\s*\(\s*\)\s*=>\s*require\(['"]\.\/ClientDocumentsScreen\.js['"]\)\.ClientDocumentsScreen/,'deferred client documents');
 requireText(app,"import { HydraulicSchemaWorkspace } from './HydraulicSchemaWorkspace.js';",'hydraulic build compatibility');
 forbidText(app,"import { ReportScreen } from './ReportScreen.js';",'eager report screen');
 forbidText(app,"import { Lab3DScreen } from './Lab3DScreen.js';",'eager LAB3D screen');
@@ -53,9 +56,12 @@ forbidText(database,"import { seedEquipmentCatalogDeep }",'eager deep catalogue 
 forbidText(database,"import { seedEquipmentCatalog }",'eager core catalogue seed');
 
 const prefill=read('visitPrefillDb.js');
-requireText(prefill,'const prefillTermines = new Set();','prefill completed cache');
+requireText(prefill,'const prefillTermines = new BoundedLruMap(3);','prefill completed cache');
 requireText(prefill,'const prefillEnCours = new Map();','prefill in-flight cache');
 requireText(prefill,'preremplirVisiteDepuisContexteInterne','prefill coalescing wrapper');
+requireText(prefill,"PREFILL_META_PREFIX = 'visit_prefill_done::'",'durable prefill completion marker');
+requireText(visit,'VISIT_OPEN_FAST_V2','instant visit opening contract');
+requireText(siteVisits,'visites.slice(0, 3)','three visit prewarm window');
 
 const overview=read('SiteOverviewPanel.js');
 requireText(overview,'}, [siteId, mode, sousMenu]);','stable site overview loader');
@@ -75,4 +81,4 @@ requireText(visual,"const DocumentPicker = require('expo-document-picker');",'la
 requireText(visual,"const { unzip } = require('react-native-zip-archive');",'lazy visual pack unzip');
 forbidText(visual,"import * as DocumentPicker from 'expo-document-picker';",'eager visual pack picker');
 
-console.log('Runtime responsiveness v4 contract validated: visit swipe uses a stable native pager with warm neighbours and memoized panels; PRE local swipes remain isolated; startup modules remain deferred, catalogue warm starts gated, prefill coalesced, map/search work bounded.');
+console.log('Runtime responsiveness v5 contract validated: three visits stay hot, visit context renders immediately, prefill completion is durable, swipe uses a stable native pager, and startup/catalogue/map work remains bounded.');

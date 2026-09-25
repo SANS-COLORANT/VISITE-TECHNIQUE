@@ -66,19 +66,24 @@ async function copyReusableFields(db, visiteId, previousVisitId, trame) {
   let copied = 0;
 
   if (trame.id !== 'pre_allumage') {
-    // Reprendre aussi les champs techniques hors registre UI (ex. vmc.config)
-    // afin de conserver le nombre réel et le nom des caissons.
-    for (const row of rows || []) {
-      if (!row?.section_code || !row?.cle || CURRENT_METADATA_KEYS.has(row.cle)) continue;
-      const result = await db.runAsync(
-        `INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)
-         ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur
-         WHERE champs_visite.valeur IS NULL OR trim(champs_visite.valeur)=''`,
-        [visiteId, row.section_code, row.cle, String(row.valeur)]
-      );
-      if (Number(result?.changes || 0) > 0) copied += 1;
-    }
-    return copied;
+    // Chemin critique d'ouverture : recopier tous les champs réutilisables en
+    // une seule instruction SQLite au lieu d'une écriture JS par champ.
+    const metadata = [...CURRENT_METADATA_KEYS];
+    const placeholders = metadata.map(() => '?').join(',');
+    const result = await db.runAsync(
+      `INSERT INTO champs_visite(visite_id,section_code,cle,valeur)
+       SELECT ?,section_code,cle,valeur
+       FROM champs_visite
+       WHERE visite_id=?
+         AND valeur IS NOT NULL AND trim(valeur)<>''
+         AND section_code IS NOT NULL AND trim(section_code)<>''
+         AND cle IS NOT NULL AND trim(cle)<>''
+         AND cle NOT IN (${placeholders})
+       ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur
+       WHERE champs_visite.valeur IS NULL OR trim(champs_visite.valeur)=''`,
+      [visiteId, previousVisitId, ...metadata]
+    );
+    return Number(result?.changes || 0);
   }
 
   const previous = new Map((rows || []).map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));

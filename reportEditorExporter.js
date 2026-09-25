@@ -5,7 +5,7 @@ import { Asset } from 'expo-asset';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { construireHtmlRapport } from './reportBuilder.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
-import { dossierRapportsClientMetra, dossierRapportsSiteMetra } from './metraStorage.js';
+import { dossierRapportsClientMetra, dossierRapportsSiteMetra, dossierRapportsLocalMetra } from './metraStorage.js';
 
 const MIME_PDF = 'application/pdf';
 const MIME_WORD = 'application/msword';
@@ -395,11 +395,12 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
 
 async function exporterUnFormatEdite({ datas, config, photosConfig, format, dossier }) {
   const clientNom = datas[0]?.visite?.nom_client || 'Rapport';
+  const localNom = datas[0]?.visite?.nom_local || datas[0]?.visite?.type_local || null;
   const base = propre(datas.length > 1
     ? `${clientNom}_${config.chrono || 'Rapport'}_${config.objet || 'CRV'}`
-    : `${config.chrono || 'Rapport'}_${datas[0]?.visite?.nom_site || clientNom}_${config.objet || 'CRV'}`);
+    : `${config.chrono || 'Rapport'}_${datas[0]?.visite?.nom_site || clientNom}${localNom ? `_${localNom}` : ''}_${config.objet || 'CRV'}`);
   const sites = [...new Set(datas.map((d) => d.visite.nom_site).filter(Boolean))];
-  const siteFooter = sites.length === 1 ? sites[0] : `${sites.length} sites sélectionnés`;
+  const siteFooter = sites.length === 1 ? [sites[0], datas.length === 1 ? localNom : null].filter(Boolean).join(' · ') : `${sites.length} sites sélectionnés`;
   const clientCover = datas[0]?.visite?.nom_client || 'Rapport';
   const rendered = await construireHtmlEdite(datas, config, photosConfig, format === 'word' ? 'word' : 'pdf');
 
@@ -448,6 +449,38 @@ export async function exporterRapportsParSiteEdites({ datas, config, photosConfi
       ? dossierClient
       : await dossierRapportsSiteMetra({ clientNom, siteNom });
     resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossierSite }));
+  }
+  return { annule: false, resultats };
+}
+
+
+export async function exporterRapportsParLocalEdites({ datas, config, photosConfig, format = 'pdf', dossiersParLocal = true }) {
+  const clientNom = datas?.[0]?.visite?.nom_client || null;
+  const dossierClient = clientNom ? await dossierRapportsClientMetra(clientNom) : await choisirDossier();
+  if (!dossierClient) return { annule: true, resultats: [] };
+
+  const groupes = new Map();
+  for (const data of datas || []) {
+    const key = data.visite?.installation_id || `visite:${data.visite?.id}`;
+    if (!groupes.has(key)) groupes.set(key, []);
+    groupes.get(key).push(data);
+  }
+
+  const resultats = [];
+  for (const localDatas of groupes.values()) {
+    const visiteId = localDatas[0]?.visite?.id;
+    const localConfig = config.coverVisiteId && config.coverVisiteId !== visiteId
+      ? { ...config, coverUri: null, coverLabel: 'Image standard METRA', coverVisiteId: null }
+      : config;
+    const siteNom = localDatas[0]?.visite?.nom_site || 'Site';
+    const localNom = localDatas[0]?.visite?.nom_local || localDatas[0]?.visite?.type_local || 'Visite non rattachée';
+    let dossier = dossierClient;
+    if (dossiersParLocal !== false && clientNom) {
+      dossier = await dossierRapportsLocalMetra({ clientNom, siteNom, localNom });
+    } else if (clientNom) {
+      dossier = await dossierRapportsSiteMetra({ clientNom, siteNom });
+    }
+    resultats.push(await exporterRapportEdite({ datas: localDatas, config: localConfig, photosConfig, format, dossierUri: dossier }));
   }
   return { annule: false, resultats };
 }

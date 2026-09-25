@@ -1,0 +1,44 @@
+name: Trigger Missions APK build
+
+# Validation APK dédiée au socle Missions. Ce déclencheur reste volontairement
+# séparé du workflow SQLite afin d'éviter une compilation Android à chaque petit
+# changement pendant la phase LAB.
+# Le build ci-dessous est relancé seulement après succès des contrats METRA et
+# du test SQLite base neuve + migrations v39 -> v40 -> v41.
+# Validation UX : accueil Missions dédié, swipe accueil -> Missions et LAB dans Paramètres.
+# Rebuild demandé après intégration du lot V2 complet au 18/09/2026.
+# Revalidation compatibilité application après sujets chantier, levée de réserves, P2/P3 et livrables client.
+# Build de validation demandé après ajout Expertise/Sinistre, cockpit multi-sites,
+# pilotage AMO longue durée, contrôles ciblés, mémoire inter-visites et OPR multi-modes.
+# Build final demandé après validation du parcours Client -> Site -> Local -> Visites et compatibilité build 424.
+# Rebuild compatibilité démarrage SQLite demandé après correctif _meta.value NOT NULL (22/09/2026).
+# Rebuild final après test de reprise du vrai état laissé par le build 429 (réparation commitée sans marqueur _meta).
+# Rebuild première visite Intranet sans historique : résolution sûre de trame + préparation filtrée non destructive.
+# Rebuild final : la trame Intranet de première visite est résolue par la valeur Informations > Trame utilisée.
+# Rebuild final : visites Intranet partielles autorisées durablement (avis vide -> N.V, valeur vide -> /, compteur absent -> /).
+# Rebuild 435 : correctif durable des patches APK obsolètes + préflight CI des patches avant compilation.
+on:
+  push:
+    branches:
+      - feat/metra-missions-lab
+      - feat/metra-missions-architecture-v2
+      - fix/metra-site-local-identity-build424
+    paths:
+      - '.github/workflows/trigger-missions-apk-build.yml'
+  workflow_dispatch:
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  dispatch:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch native Android APK workflow on Missions branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh workflow run native-android-apk.yml \
+            -R SANS-COLORANT/VISITE-TECHNIQUE \
+            --ref "${GITHUB_REF_NAME}"

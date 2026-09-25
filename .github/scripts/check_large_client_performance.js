@@ -13,8 +13,9 @@ requireText(report, 'Tout sélectionner', 'report bulk selection');
 requireText(report, 'Tout désélectionner', 'report bulk deselection');
 requireText(report, 'chargerDonneesRapportParLots(ids,4)', 'report bounded preparation');
 requireText(report, 'Choisir les photos et la couverture', 'report photo action');
-if (report.indexOf('Choisir les photos et la couverture') > report.indexOf('{visites.map')) {
-  throw new Error('report photo action must stay above the long site list');
+const reportListMarker = report.includes('{sitesGroupes.map') ? '{sitesGroupes.map' : '{visites.map';
+if (report.indexOf('Choisir les photos et la couverture') > report.indexOf(reportListMarker)) {
+  throw new Error('report photo action must stay above the long site/local list');
 }
 
 const documents = read('ClientDocumentsScreen.js');
@@ -26,7 +27,9 @@ requireText(home, 'HOME_FAST_CACHE', 'home stale-while-revalidate cache');
 requireText(home, 'const clientsPromise = listerClients()', 'home independent refresh');
 
 const sites = read('ClientSitesScreen.js');
-requireText(sites, 'CLIENT_SITES_FAST_CACHE', 'client site cache');
+const navigationPrewarm = read('navigationPrewarm.js');
+requireText(sites, 'peekClientSites(cacheKey)', 'client site stale-while-revalidate cache');
+requireText(navigationPrewarm, 'const clientSites = new BoundedLruMap(3);', 'bounded client site cache');
 requireText(sites, 'removeClippedSubviews={false}', 'client site Android clipping guard');
 
 const directoryScreen = read('MetraDirectoryScreen.js');
@@ -54,6 +57,8 @@ requireText(health, 'getClientHealth(clientId, statsBySite = null)', 'LAB stats 
 const pilotage = read('ClientPilotageScreen.js');
 requireText(pilotage, 'getStatsSitesPatrimoine(clientId)', 'pilotage bulk stats');
 requireText(pilotage, 'mapAvecConcurrence(cell.issues || [], 4', 'pilotage bounded photo reads');
+requireText(pilotage, 'function VirtualizedTechnicalMatrix', 'pilotage virtualized site rows');
+requireText(pilotage, 'maxToRenderPerBatch={8}', 'pilotage bounded render batch');
 
 const matrix = read('clientTechnicalMatrix.js');
 requireText(matrix, 'const controlsByVisit = new Map();', 'technical matrix batched controls');
@@ -71,4 +76,4 @@ requireText(migration, 'idx_sites_client_nom', 'site navigation index');
 requireText(migration, 'idx_visites_site_trame_install_date', 'visit carry-forward index');
 requireText(migration, 'idx_api_client_site_client_present', 'API client/site index');
 
-console.log('Large-client performance contract validated: report UX, lazy storage, cached navigation, virtualized lists, batched queries and SQLite indexes.');
+console.log('Large-client performance contract validated: report UX, lazy storage, bounded prewarm caches, virtualized lists, batched queries and SQLite indexes.');

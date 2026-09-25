@@ -48,9 +48,13 @@ if state_line not in s:
     s = replace_once(s, state_marker, state_marker + state_line, 'site health state')
 
 effect_marker = "  useEffect(() => { charger(); }, [charger]);\n"
+effect_marker_fast = "  useEffect(() => { charger().catch((e) => console.warn('Actualisation visites impossible', e)); }, [charger]);\n"
 effect_line = "  useEffect(() => { getLabFeatureEnabled('health_dashboard').then(setHealthLabEnabled).catch(()=>setHealthLabEnabled(false)); }, []);\n"
 if effect_line not in s:
-    s = replace_once(s, effect_marker, effect_marker + effect_line, 'site health effect')
+    if effect_marker_fast in s:
+        s = s.replace(effect_marker_fast, effect_marker_fast + effect_line, 1)
+    else:
+        s = replace_once(s, effect_marker, effect_marker + effect_line, 'site health effect')
 
 map_old = "      {SITE_TABS.map((tab) => {\n"
 map_new = "      {(healthLabEnabled ? [...SITE_TABS, { id: 'sante', label: 'Santé' }] : SITE_TABS).map((tab) => {\n"
@@ -60,13 +64,30 @@ empty_old = """        ListEmptyComponent={siteTab === 'visites'
           ? <View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>Lance la première avec le bouton ci-dessous.</Text></View>
           : <SiteOverviewPanel siteId={siteId} mode={siteTab} />}
 """
+empty_local = """        ListEmptyComponent={siteTab === 'visites'
+          ? <View style={styles.empty}><Text style={styles.emptyText}>{legacyOnly ? 'Aucune visite non rattachée.' : 'Aucune visite pour ce local.'}</Text><Text style={styles.emptySub}>{legacyOnly ? 'Les visites correctement rattachées sont disponibles depuis leur local.' : 'Lance la première visite de ce local avec le bouton ci-dessous.'}</Text></View>
+          : <SiteOverviewPanel siteId={siteId} mode={siteTab} />}
+"""
 empty_new = """        ListEmptyComponent={siteTab === 'visites'
           ? <View style={styles.empty}><Text style={styles.emptyText}>Aucune visite pour ce site pour l'instant.</Text><Text style={styles.emptySub}>Lance la première avec le bouton ci-dessous.</Text></View>
           : siteTab === 'sante'
             ? <SiteHealthPanel siteId={siteId} siteName={nomSite} />
             : <SiteOverviewPanel siteId={siteId} mode={siteTab} />}
 """
-s = replace_once(s, empty_old, empty_new, 'site health panel')
+empty_local_new = """        ListEmptyComponent={siteTab === 'visites'
+          ? <View style={styles.empty}><Text style={styles.emptyText}>{legacyOnly ? 'Aucune visite non rattachée.' : 'Aucune visite pour ce local.'}</Text><Text style={styles.emptySub}>{legacyOnly ? 'Les visites correctement rattachées sont disponibles depuis leur local.' : 'Lance la première visite de ce local avec le bouton ci-dessous.'}</Text></View>
+          : siteTab === 'sante'
+            ? <SiteHealthPanel siteId={siteId} siteName={nomSite} />
+            : <SiteOverviewPanel siteId={siteId} mode={siteTab} />}
+"""
+if empty_local_new in s or empty_new in s:
+    pass
+elif empty_local in s:
+    s = s.replace(empty_local, empty_local_new, 1)
+elif empty_old in s:
+    s = s.replace(empty_old, empty_new, 1)
+else:
+    raise SystemExit('site health panel marker not found')
 p.write_text(s, encoding='utf-8')
 
 
@@ -75,7 +96,7 @@ p.write_text(s, encoding='utf-8')
 # ---------------------------------------------------------------------------
 p = Path('ReportScreen.js')
 s = p.read_text(encoding='utf-8')
-import_marker = "import{exporterRapportEdite,exporterRapportsParSiteEdites}from'./reportEditorExporter.js';\n"
+import_marker = "import{exporterRapportEdite,exporterRapportsParSiteEdites,exporterRapportsParLocalEdites}from'./reportEditorExporter.js';\n" if "exporterRapportsParLocalEdites" in s else "import{exporterRapportEdite,exporterRapportsParSiteEdites}from'./reportEditorExporter.js';\n"
 health_import = "import{getLabFeatureEnabled}from'./featureSettings.js';\n"
 if health_import not in s:
     s = replace_once(s, import_marker, import_marker + health_import, 'report health import')

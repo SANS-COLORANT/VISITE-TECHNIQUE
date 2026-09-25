@@ -149,6 +149,14 @@ export async function dossierRapportsSiteMetra({ clientNom, siteNom }) {
   ]);
 }
 
+export async function dossierRapportsLocalMetra({ clientNom, siteNom, localNom }) {
+  return garantirCheminMetra([
+    'Clients', nettoyerSegment(clientNom, 'Client'),
+    'Rapports', nettoyerSegment(siteNom, 'Site'),
+    nettoyerSegment(localNom, 'Local'),
+  ]);
+}
+
 export async function dossierRapportMetra(datas = []) {
   const premiere = datas?.[0]?.visite;
   if (!premiere) return garantirCheminMetra(['Exports']);

@@ -7,6 +7,7 @@ import{useDurableAutosave}from'./durableAutosave.js';
 import{PhotoButton}from'./PhotoButton.js';
 import{BrandMark}from'./BrandLogo.js';
 import{COLORS,styles}from'./styles.js';
+import{useListScrollMemory}from'./useListScrollMemory.js';
 
 const TYPES=['VMC','CTA','Ventilateur','Tourelle','Adoucisseur','Armoire électrique','Ballon ECS','Chaudière','Circulateur','Compteur','Désemboueur','Détendeur','Échangeur','Filtre','Manomètre','Pompe','Soupape','Vanne',"Vase d'expansion"];
 const MARQUES=['Aldes','Atlantic','S&P Unelvent','VIM','France Air','Systemair','Swegon','FläktGroup','CIAT','Daikin','WOLF','TROX','Helios','Vortice','Komfovent','Salda','Zehnder','Nilan','Rosenberg','Nicotra Gebhardt','De Dietrich','Viessmann','Grundfos','Wilo','Saunier Duval','Frisquet','Chappée','Chaffoteaux','Elm Leblanc','Bosch','Vaillant','Alfa Laval'];
@@ -85,6 +86,11 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
  const[caracteristiques,setCaracteristiques,blurCaracteristiques]=useDurableAutosave(item.caracteristiques,v=>upsertMaterielChamp(item.id,'caracteristiques',v));
  useEffect(()=>{setCategorie(item.categorie||'');setMarque(item.marque||'');setEtat(item.etat||'')},[item.categorie,item.marque,item.etat]);
 
+ const marqueLogo=useMemo(()=>{
+  const match=catalogue.find(e=>marque&&eq(e.marque,marque)&&e.logo_uri);
+  if(match?.logo_uri)return match.logo_uri;
+  return eq(marque,item.marque)?(item.marque_logo_uri||null):null;
+ },[catalogue,marque,item.marque,item.marque_logo_uri]);
  const refsType=useMemo(()=>catalogue.filter(e=>typeCompatible(categorie,e.categorie)),[catalogue,categorie]);
  const marquesType=useMemo(()=>uniq(refsType.map(e=>e.marque)),[refsType]);
  const refsMarque=useMemo(()=>refsType.filter(e=>!marque||eq(e.marque,marque)),[refsType,marque]);
@@ -111,7 +117,7 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
 
  return <View style={styles.formCard}>
   <View style={styles.equipmentBrandHeader}>
-   <BrandMark marque={marque} compact/>
+   <BrandMark marque={{marque,logo_uri:marqueLogo}} compact/>
    <View style={{flex:1}}><Text style={styles.cardTitle}>{designation||categorie||'Nouvel équipement'}</Text><Text style={styles.cardSub}>{[marque,modele].filter(Boolean).join(' · ')||'À compléter'}</Text></View>
    <PhotoButton visiteId={visiteId} entiteKey={item.equipement_id?`equipement||${item.equipement_id}`:`materiel||${item.id}`} label={designation||categorie||'Équipement'}/>
   </View>
@@ -138,6 +144,7 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
 
 export function GuidedEquipmentPanel({visiteId}){
  const[materiel,setMateriel]=useState([]),[types,setTypes]=useState(TYPES),[marques,setMarques]=useState(MARQUES),[catalogue,setCatalogue]=useState([]);
+ const{listRef,onScroll}=useListScrollMemory(`visit-panel:${visiteId}:p-equip`,materiel.length);
  const charger=useCallback(async()=>setMateriel(await listerMateriel(visiteId)),[visiteId]);
  useEffect(()=>{charger()},[charger]);
  useEffect(()=>{let actif=true;(async()=>{
@@ -153,5 +160,5 @@ export function GuidedEquipmentPanel({visiteId}){
   }catch(e){console.warn('Catalogue équipements non chargé',e)}
  })();return()=>{actif=false}},[]);
  const ajouter=useCallback(async()=>{await ajouterMateriel(visiteId);await charger()},[visiteId,charger]);
- return <FlatList data={materiel} keyExtractor={i=>i.id} renderItem={({item})=><EquipmentCard item={item} visiteId={visiteId} onChange={charger} types={types} marques={marques} catalogue={catalogue}/>} contentContainerStyle={styles.panelContent} ListHeaderComponent={<View><Text style={styles.sectionTitle}>Équipements · {materiel.length}</Text><Text style={styles.importHint}>VMC, CTA, ventilateurs et tourelles sont inclus. Touchez Type, Marque ou Modèle : un volet tactile s’ouvre et filtre automatiquement le catalogue.</Text></View>} ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ajouter}><Text style={styles.addBtnText}>+ Ajouter un équipement</Text></TouchableOpacity>} initialNumToRender={4} maxToRenderPerBatch={4} windowSize={5} removeClippedSubviews keyboardShouldPersistTaps="handled"/>;
+ return <FlatList ref={listRef} data={materiel} onScroll={onScroll} scrollEventThrottle={100} keyExtractor={i=>i.id} renderItem={({item})=><EquipmentCard item={item} visiteId={visiteId} onChange={charger} types={types} marques={marques} catalogue={catalogue}/>} contentContainerStyle={styles.panelContent} ListHeaderComponent={<View><Text style={styles.sectionTitle}>Équipements · {materiel.length}</Text><Text style={styles.importHint}>VMC, CTA, ventilateurs et tourelles sont inclus. Touchez Type, Marque ou Modèle : un volet tactile s’ouvre et filtre automatiquement le catalogue.</Text></View>} ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ajouter}><Text style={styles.addBtnText}>+ Ajouter un équipement</Text></TouchableOpacity>} initialNumToRender={4} maxToRenderPerBatch={4} windowSize={5} removeClippedSubviews keyboardShouldPersistTaps="handled"/>;
 }

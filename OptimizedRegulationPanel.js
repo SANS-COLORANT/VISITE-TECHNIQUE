@@ -4,13 +4,15 @@ import { FlatList, Text, TextInput, TouchableOpacity, View } from 'react-native'
 import { TRAME_DATA, RESEAU_TEMPLATE } from './data.js';
 import { listerReseaux, ajouterReseau, upsertReseauChamp, supprimerReseau } from './db.js';
 import { prechargerDonneesTrameGenerique, mettreAJourCacheChamp } from './TrameGenericPanel.js';
+import { BoundedLruMap } from './boundedCache.js';
 import { DurableChampGenerique } from './DurableChampGenerique.js';
 import { cleanLabel, extractUnit, getNumericConfig, StepperNumerique } from './GenericFields.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 import { styles } from './styles.js';
+import { useListScrollMemory } from './useListScrollMemory.js';
 
-const cacheRegulation = new Map();
+const cacheRegulation = new BoundedLruMap(3);
 const CLE_TO_COL = {
   'T°ext(°C)': 't_ext_c',
   'T°dép(°C)': 't_dep_c',
@@ -72,6 +74,7 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
   const [champsMap, setChampsMap] = useState(cached?.champsMap || {});
   const [reseaux, setReseaux] = useState(cached?.reseaux || []);
   const [adding, setAdding] = useState(false);
+  const { listRef, onScroll } = useListScrollMemory(`visit-panel:${visiteId}:p-regulation`, reseaux.length + 1);
 
   useEffect(() => {
     let alive = true;
@@ -130,7 +133,10 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
   </>;
 
   return <FlatList
+    ref={listRef}
     data={reseaux}
+    onScroll={onScroll}
+    scrollEventThrottle={100}
     keyExtractor={(item) => item.id}
     renderItem={({ item }) => <ReseauCard reseau={item} visiteId={visiteId} onRemove={remove} />}
     ListHeaderComponent={header}

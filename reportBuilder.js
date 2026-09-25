@@ -8,6 +8,7 @@ import { obtenirTrame, DEFAULT_TRAME_ID, normaliserSectionCode } from './trameRe
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
 import { listerAliasesPreAllumage } from './preAllumageAliases.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
+import { getStatsPatrimoineSelection } from './patrimoineDb.js';
 
 const MIME_PDF = 'application/pdf';
 const MIME_WORD = 'application/msword';
@@ -113,13 +114,15 @@ export async function rouvrirVisiteRapport(visiteId) {
 export async function listerVisitesRapportClient(clientId) {
   const db = await getDb();
   return db.getAllAsync(
-    `SELECT v.id,v.date_visite,v.statut,v.progression_pct,v.trame_id,v.technicien,
-            s.id site_id,s.nom_site,s.adresse,c.nom nom_client
+    `SELECT v.id,v.date_visite,v.statut,v.progression_pct,v.trame_id,v.technicien,v.installation_id,
+            s.id site_id,s.nom_site,s.adresse,c.nom nom_client,
+            i.nom nom_local,i.type_code type_local
      FROM visites v
      JOIN sites s ON s.id=v.site_id
      JOIN clients c ON c.id=s.client_id
+     LEFT JOIN installations i ON i.id=v.installation_id
      WHERE c.id=?
-     ORDER BY s.nom_site COLLATE NOCASE, COALESCE(v.date_visite,'') DESC, v.modifie_le DESC`,
+     ORDER BY s.nom_site COLLATE NOCASE, COALESCE(i.nom,'') COLLATE NOCASE, COALESCE(v.date_visite,'') DESC, v.modifie_le DESC`,
     [clientId]
   );
 }
@@ -127,10 +130,12 @@ export async function listerVisitesRapportClient(clientId) {
 export async function chargerDonneesVisiteRapport(visiteId) {
   const db = await getDb();
   const visite = await db.getFirstAsync(
-    `SELECT v.*,s.nom_site,s.adresse,c.id client_id,c.nom nom_client
+    `SELECT v.*,s.nom_site,s.adresse,c.id client_id,c.nom nom_client,
+            i.nom nom_local_db,i.type_code type_local_db
      FROM visites v
      JOIN sites s ON s.id=v.site_id
      JOIN clients c ON c.id=s.client_id
+     LEFT JOIN installations i ON i.id=v.installation_id
      WHERE v.id=?`,
     [visiteId]
   );
@@ -239,8 +244,8 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     });
   }
 
-  const localName = titreLocalDepuisChamps(champs);
-  const localType = typeLocalDepuisChamps(champs);
+  const localName = court(visite.nom_local_db || titreLocalDepuisChamps(champs), 80) || 'Installation technique';
+  const localType = court(visite.type_local_db || typeLocalDepuisChamps(champs), 80);
   return {
     visite: { ...visite, nom_local: localName, type_local: localType },
     trame,
@@ -430,6 +435,7 @@ function cssRapport(output = 'pdf') {
     .reserveTable th:nth-child(1){width:26%}.reserveTable th:nth-child(2){width:55%}.reserveTable th:nth-child(3){width:19%;text-align:center}.reserveTable td:nth-child(1){background:#F6B888}.reserveTable td:nth-child(2){background:#FBE3D0}.reserveDateCell{text-align:center;white-space:nowrap;font-size:7.8pt}
     .materialTable th:nth-child(1){width:17%}.materialTable th:nth-child(2){width:9%}.materialTable th:nth-child(3){width:27%}.materialTable th:nth-child(4){width:19%}.materialTable th:nth-child(5){width:20%}.materialTable th:nth-child(6){width:8%}.materialTable td:nth-child(1),.materialTable td:nth-child(3){background:#F6B888}.materialTable td:nth-child(2),.materialTable td:nth-child(4){background:#FBE3D0}.qty,.year{text-align:center}
     .photoPage{min-height:235mm}.photoGrid{display:grid;grid-template-columns:1fr 1fr;gap:5mm 11mm}.photoCard{min-height:65mm;border:1px solid #111;break-inside:avoid-page;display:flex;flex-direction:column;background:#fff}.photoImageWrap{height:50mm;display:flex;align-items:center;justify-content:center;overflow:hidden;background:#fff}.photoImageWrap img{width:100%;height:100%;object-fit:contain;display:block}.photoCaption{min-height:13mm;background:${PEACH};border-top:1px solid #111;display:flex;align-items:center;justify-content:center;text-align:center;font-size:9pt;line-height:1.15;padding:1.5mm 2mm;overflow-wrap:anywhere}
+    .patrimoineSummary{page-break-after:always;padding-top:5mm}.patrimoineScope{text-align:center;font-size:9pt;color:#666;margin:-1mm 0 2mm}.patrimoineLocaux{text-align:center;font-size:8.2pt;color:#777;margin-bottom:4mm}.patrimoineCards{display:flex;gap:3mm;margin:4mm 0 6mm}.patrimoineCards>div{flex:1;border:1px solid #ddd;border-radius:2mm;padding:3mm;text-align:center}.patrimoineCards b{display:block;font-size:20pt;color:${ORANGE_DARK}}.patrimoineCards span{display:block;font-size:7.7pt;color:#555;margin-top:1mm}.patrimoineTable th:nth-child(1){width:30%}.patrimoineTable th:not(:first-child),.patrimoineTable td:not(:first-child){text-align:center}.patrimoineNote{font-size:7.2pt;color:#777;font-style:italic;margin-top:3mm}
     .interiorHeader{position:fixed;top:3mm;left:9mm;right:9mm;height:10mm;z-index:4}.interiorHeader img{width:20mm;height:9mm;object-fit:contain;object-position:left center}.interiorHeader span{position:absolute;right:0;top:2mm;font-size:8.5pt;font-weight:700;text-transform:uppercase}
     .interiorFooter{position:fixed;left:18mm;right:0;bottom:5mm;align-items:flex-end;justify-content:space-between;color:#777;font-size:7pt;line-height:1.25}.interiorBadge{display:flex;color:#fff}.interiorArrow{background:#666;padding:2mm 3mm}.interiorPage{background:${ORANGE};padding:2mm 5mm;min-width:18mm;text-align:center}
     ${fixedUi}
@@ -452,6 +458,37 @@ function construireToc(datas, config) {
   return `<div class="toc"><div class="tocBrand">${logoHtml('tocLogo')}<div class="tocRunning">${esc(config.objet || 'Compte rendu de visite technique')}</div></div><div class="tocTitle">Sommaire</div>${groupes.map((g) => `<div class="tocSite">${esc(g.site)}</div>${g.items.map((d) => `<div class="tocRow"><span>${esc(d.visite.nom_local || d.visite.type_local || 'Installation technique')}</span><span class="tocDots"></span><span class="tocMeta">${esc(dateFr(d.visite.date_visite))}</span></div>`).join('')}`).join('')}</div>`;
 }
 
+async function construireSynthesePatrimoineHtml(datas, config) {
+  if (!config?.patrimoine || !(datas || []).length) return '';
+  const clientId = datas[0]?.visite?.client_id;
+  if (!clientId) return '';
+  const siteIds = [...new Set(datas.map((d) => d.visite?.site_id).filter(Boolean))];
+  const installationIds = [...new Set(datas.map((d) => d.visite?.installation_id).filter(Boolean))];
+  const scope = config.patrimoineScope === 'locals' && installationIds.length ? 'locals' : 'sites';
+  const synthese = await getStatsPatrimoineSelection({ clientId, siteIds, installationIds, scope });
+  const nomsSites = new Map();
+  for (const d of datas) if (d.visite?.site_id && !nomsSites.has(d.visite.site_id)) nomsSites.set(d.visite.site_id, d.visite.nom_site || 'Site');
+
+  const rows = [...(synthese.stats || new Map()).entries()].map(([siteId, stats]) => `<tr><td>${esc(nomsSites.get(siteId) || 'Site')}</td><td>${stats.reserves?.ouvertes || 0}</td><td>${stats.reserves?.levees || 0}</td><td>${stats.equipements?.actifs || 0}</td><td>${stats.equipements?.aSurveiller || 0}</td></tr>`).join('');
+  const t = synthese.totals || {};
+  const locaux = scope === 'locals'
+    ? [...new Set(datas.map((d) => d.visite?.nom_local).filter(Boolean))].join(' · ')
+    : '';
+  return `<section class="patrimoineSummary pageBreakBefore">
+    <div class="sectionBanner">SYNTHÈSE DU PATRIMOINE</div>
+    <div class="patrimoineScope">${scope === 'locals' ? 'Périmètre : locaux sélectionnés uniquement' : 'Périmètre : sites concernés par le rapport'}</div>
+    ${locaux ? `<div class="patrimoineLocaux">${esc(locaux)}</div>` : ''}
+    <div class="patrimoineCards">
+      <div><b>${t.sites || 0}</b><span>Site(s)</span></div>
+      <div><b>${t.reserves?.ouvertes || 0}</b><span>Réserves à traiter</span></div>
+      <div><b>${t.equipements?.actifs || 0}</b><span>Équipements actifs</span></div>
+      <div><b>${t.equipements?.aSurveiller || 0}</b><span>À surveiller</span></div>
+    </div>
+    <table class="patrimoineTable"><thead><tr><th>Site</th><th>Réserves ouvertes</th><th>Réserves levées</th><th>Équipements actifs</th><th>À surveiller</th></tr></thead><tbody>${rows || '<tr><td colspan="5">Aucune donnée patrimoniale disponible sur le périmètre sélectionné.</td></tr>'}</tbody></table>
+    <div class="patrimoineNote">Synthèse calculée au moment de l’export à partir des mêmes données locales que l’écran Synthèse patrimoine.</div>
+  </section>`;
+}
+
 function wordInteriorDecor(config, siteFooter) {
   return `<div class="interiorHeader">${logoHtml('interiorLogo')}<span>${esc(config.objet || 'Compte rendu de visite technique')}</span></div><div class="interiorFooter"><div>Nos réf. : ${esc(config.chrono || '')}<br/>Site : ${esc(siteFooter)}<br/>Objet : ${esc(config.objet || '')}</div><div class="interiorBadge"><span class="interiorArrow">→</span><span class="interiorPage">Page</span></div></div>`;
 }
@@ -461,6 +498,7 @@ export async function construireHtmlRapport(datas, config, photosConfig = [], ou
   for (const d of datas) contenus.push(await siteHtml(d, config, photosConfig));
 
   const client = datas[0]?.visite?.nom_client || 'Rapport';
+  const patrimoineHtml = await construireSynthesePatrimoineHtml(datas, config);
   const dateRapport = dateFr(config.dateRapport || new Date().toISOString().slice(0, 10));
   const sites = [...new Set(datas.map((d) => d.visite.nom_site).filter(Boolean))];
   const siteFooter = sites.length === 1 ? sites[0] : `${sites.length} sites sélectionnés`;
@@ -478,6 +516,7 @@ export async function construireHtmlRapport(datas, config, photosConfig = [], ou
       <div class="coverBusiness"><span>◉ COPROPRIÉTÉS</span><span>◉ BAILLEURS SOCIAUX</span><span>◉ COLLECTIVITÉS</span><span>◉ TERTIAIRE</span></div>
       ${footerCorporateHtml()}
     </div>
+    ${patrimoineHtml}
     ${toc}
     <div class="intro">
       <div class="introTitle">Présentation de la trame de visite des installations</div>

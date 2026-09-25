@@ -3,7 +3,9 @@ import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOp
 import { COLORS, styles } from './styles.js';
 import { activateTablet, getActivationStatus, syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';
 import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory } from './symfonyApiCacheDb.js';
+import { syncStructureReferential } from './intranetStructureDb.js';
 import { importLatestApiVisitsForSite } from './apiLatestVisitImportDb.js';
+import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
 import { ClientLatestVisitPhotosModal } from './ClientLatestVisitPhotosModal.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { SitePhotoPreparationOption } from './SitePhotoPreparationOption.js';
@@ -166,6 +168,10 @@ function MetraDirectoryScreen({ navigation, route }) {
     setClientRefreshing(true);
     try {
       await syncClientPreparation(remoteClientId);
+      // Le référentiel contient notamment les identifiants de trame nécessaires
+      // à une première visite sur un local qui n'a encore aucun historique.
+      // Son échec ne doit pas empêcher l'import classique du client/site.
+      await syncStructureReferential(remoteClientId).catch(() => null);
       setSites(await listCachedSites(remoteClientId));
       await Promise.all([search(query), refreshStatus()]);
     } catch (e) {
@@ -320,13 +326,17 @@ function MetraDirectoryScreen({ navigation, route }) {
     if (siteActionBusy) return;
     setSiteActionBusy(true);
     try {
-      const siteId = await materializeCachedSite(site.remote_site_id, site.remote_client_id || siteClient?.remote_client_id);
+      const remoteClientId = site.remote_client_id || siteClient?.remote_client_id;
+      const siteId = await materializeCachedSite(site.remote_site_id, remoteClientId);
       const latestImport = await importLatestApiVisitsForSite(siteId, site.remote_site_id);
+      const refreshedClient = remoteClientId ? await getCachedClient(remoteClientId) : null;
       setSelectedSite(null);
       setSelectedClient(null);
-      navigation.navigate('SiteVisites', {
+      navigation.navigate('SiteLocals', {
         siteId,
         nomSite: site.nom,
+        clientId: refreshedClient?.local_client_id || null,
+        nomClient: refreshedClient?.nom || siteClient?.nom || null,
         apiLatestImportCount: latestImport.importedCount,
       });
     } catch (e) { Alert.alert('Ouverture impossible', String(e.message || e)); }
@@ -339,9 +349,12 @@ function MetraDirectoryScreen({ navigation, route }) {
     try {
       const remoteClientId = selectedSite.remote_client_id || siteClient?.remote_client_id;
       const siteId = await materializeCachedSite(selectedSite.remote_site_id, remoteClientId);
+      const latestImport = await importLatestApiVisitForLocal(siteId, local.remote_local_id);
       const params = {
         siteId,
         nomSite: selectedSite.nom,
+        installationId: latestImport?.installationId || local.local_installation_id || null,
+        nomLocal: local.designation || 'Local technique',
         apiRemoteLocalId: String(local.remote_local_id),
         apiRemoteClientId: String(remoteClientId),
         apiRemoteLocalDesignation: local.designation || 'Local technique',

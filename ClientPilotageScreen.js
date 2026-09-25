@@ -1,11 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { buildMatrixCells, getClientTechnicalMatrix, getMatrixCellPhotos, normAvis } from './clientTechnicalMatrix.js';
 import { getStatsSitesPatrimoine } from './patrimoineDb.js';
 import { listerAppartenancesClient, listerGroupesClient } from './siteOrganizationDb.js';
 import { reserveSeverityLabel } from './reserveSeverity.js';
 import { exporterPilotageExcel, PILOTAGE_DEFAULT_COLUMNS, PILOTAGE_EXPORT_COLUMNS, PILOTAGE_EXPORT_PRESETS } from './clientTechnicalMatrixExport.js';
+import { PhotoVariantImage } from './PhotoVariantImage.js';
+import { prewarmSiteLocals } from './navigationPrewarm.js';
 
 const STATE = {
   green: { bg: '#E8F5E9', border: '#2E7D32', text: '#1B5E20', symbol: '✓' },
@@ -46,6 +48,37 @@ function Stat({ value, label, sub }) {
 
 function Chip({ label, active, onPress, danger = false }) {
   return <TouchableOpacity onPress={onPress} style={{ minHeight: 38, paddingHorizontal: 11, borderRadius: 10, borderWidth: 1, borderColor: active ? (danger ? '#B42318' : COLORS.orange) : COLORS.line, backgroundColor: active ? (danger ? '#FDECEC' : '#FFF3E8') : '#fff', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 10.5, fontWeight: '800', color: active ? (danger ? '#B42318' : COLORS.orange) : COLORS.inkSoft }}>{label}</Text></TouchableOpacity>;
+}
+
+function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, nomClient, openCell }) {
+  const tableWidth = Math.max(280, 180 + categories.length * 98);
+  return <View style={{ height: 540 }}>
+    <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator>
+      <View style={{ width: tableWidth, flex: 1 }}>
+        <View style={{ flexDirection: 'row', backgroundColor: '#FFF' }}>
+          <View style={{ width: 180, padding: 8 }}><Text style={{ fontWeight: '900' }}>Sites</Text></View>
+          {categories.map((category) => <View key={category.key} style={{ width: 98, padding: 6, justifyContent: 'center' }}><Text style={{ textAlign: 'center', fontSize: 10, fontWeight: '800' }}>{category.label}</Text></View>)}
+        </View>
+        <FlatList
+          data={sites}
+          keyExtractor={(site) => site.id}
+          nestedScrollEnabled
+          initialNumToRender={10}
+          maxToRenderPerBatch={8}
+          windowSize={7}
+          updateCellsBatchingPeriod={36}
+          removeClippedSubviews
+          renderItem={({ item: site }) => <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: COLORS.line, alignItems: 'center', backgroundColor: '#FFF' }}>
+            <TouchableOpacity onPressIn={() => prewarmSiteLocals(site.id).catch(() => {})} onPress={() => navigation.navigate('SiteLocals', { siteId: site.id, nomSite: site.nom_site, clientId, nomClient })} style={{ width: 180, minHeight: 62, padding: 9, justifyContent: 'center' }}>
+              <Text style={{ fontWeight: '800', color: COLORS.primary }}>{site.nom_site}</Text>
+              <Text style={{ fontSize: 9.5, color: COLORS.muted }} numberOfLines={2}>{site.adresse || 'Adresse non renseignée'}</Text>
+            </TouchableOpacity>
+            {categories.map((category) => <Cell key={category.key} cell={site.cells[category.key] || { total: 0, state: 'none' }} onPress={() => openCell(site, category, site.cells[category.key])}/>)}
+          </View>}
+        />
+      </View>
+    </ScrollView>
+  </View>;
 }
 
 function recordMatches(record, site, filters) {
@@ -213,12 +246,9 @@ export function ClientPilotageScreen({ route, navigation }) {
 
     <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: COLORS.line, backgroundColor: '#fff' }}>
       <View style={{ paddingHorizontal: 14, paddingTop: 12 }}><Text style={styles.sectionLabel}>Cartographie technique</Text><Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 3 }}>Chaque constat est classé dans une seule catégorie. Rouge = criticité 4–5 · orange = N.S · gris = non relevé/non visible.</Text></View>
-      {visibleCategories.length && sites.length ? <ScrollView horizontal contentContainerStyle={{ padding: 8 }}>
-        <View>
-          <View style={{ flexDirection: 'row' }}><View style={{ width: 180, padding: 8 }}><Text style={{ fontWeight: '900' }}>Sites</Text></View>{visibleCategories.map((c) => <View key={c.key} style={{ width: 98, padding: 6, justifyContent: 'center' }}><Text style={{ textAlign: 'center', fontSize: 10, fontWeight: '800' }}>{c.label}</Text></View>)}</View>
-          {sites.map((site) => <View key={site.id} style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: COLORS.line, alignItems: 'center' }}><TouchableOpacity onPress={() => navigation.navigate('SiteVisites', { siteId: site.id, nomSite: site.nom_site })} style={{ width: 180, padding: 9 }}><Text style={{ fontWeight: '800', color: COLORS.primary }}>{site.nom_site}</Text><Text style={{ fontSize: 9.5, color: COLORS.muted }} numberOfLines={2}>{site.adresse || 'Adresse non renseignée'}</Text></TouchableOpacity>{visibleCategories.map((c) => <Cell key={c.key} cell={site.cells[c.key] || { total: 0, state: 'none' }} onPress={() => openCell(site, c, site.cells[c.key])}/>)}</View>)}
-        </View>
-      </ScrollView> : <View style={{ padding: 20 }}><Text style={{ color: COLORS.muted, textAlign: 'center' }}>Aucun constat ne correspond aux filtres.</Text></View>}
+      {visibleCategories.length && sites.length
+        ? <VirtualizedTechnicalMatrix sites={sites} categories={visibleCategories} navigation={navigation} clientId={clientId} nomClient={nomClient} openCell={openCell} />
+        : <View style={{ padding: 20 }}><Text style={{ color: COLORS.muted, textAlign: 'center' }}>Aucun constat ne correspond aux filtres.</Text></View>}
     </View>
 
     <View style={{ padding: 14 }}>
@@ -245,7 +275,7 @@ export function ClientPilotageScreen({ route, navigation }) {
       <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Colonnes</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>{PILOTAGE_EXPORT_COLUMNS.map((column) => <Chip key={column.key} label={column.label} active={exportColumns.includes(column.key)} onPress={() => toggleColumn(column.key)}/>)}</View>
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}><TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} disabled={exportBusy} onPress={() => setExportVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} disabled={exportBusy || !exportColumns.length} onPress={() => faireExport({ columns: exportColumns, presetStatuses: exportPreset === 'view' ? [] : (PILOTAGE_EXPORT_PRESETS[exportPreset]?.statuses || []), label: `${viewLabel} · ${exportPreset === 'view' ? 'Vue courante' : PILOTAGE_EXPORT_PRESETS[exportPreset]?.label || 'Extraction'}` })}><Text style={styles.btnPrimaryText}>{exportBusy ? 'Création…' : 'Créer et partager'}</Text></TouchableOpacity></View></ScrollView></View></View></Modal>
 
-    <Modal visible={!!selected} transparent animationType="fade" onRequestClose={() => setSelected(null)}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxWidth: 720, width: '94%', maxHeight: '88%' }]}>{selected ? <ScrollView><Text style={styles.modalTitle}>{selected.site.nom_site} · {selected.category.label}</Text><Text style={{ color: COLORS.muted, marginTop: 3 }}>{selected.cell.s} S · {selected.cell.ns} N.S · {selected.cell.nr} N.R · {selected.cell.so} S.O · {selected.cell.nv} N.V</Text>{selected.cell.issues.length ? selected.cell.issues.map((issue, idx) => { const pics = photos[issueKey(issue)] || []; return <View key={`${issueKey(issue)}-${idx}`} style={{ marginTop: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, padding: 11 }}><Text style={{ fontWeight: '900', color: Number(issue.criticite || 0) >= 4 ? COLORS.red : COLORS.orange }}>{issue.reference_libelle || issue.cle} · {reserveSeverityLabel(issue.criticite)}</Text><Text style={{ marginTop: 5, color: COLORS.ink }}>{issue.prestation || issue.commentaire || 'Anomalie à préciser'}</Text>{pics.length ? <ScrollView horizontal style={{ marginTop: 8 }}>{pics.map((p) => <TouchableOpacity key={p.id} onPress={() => setPhotoZoom({ ...p, issue })}><Image source={{ uri: p.uri }} style={{ width: 105, height: 78, borderRadius: 8, marginRight: 7, backgroundColor: '#eee' }}/></TouchableOpacity>)}</ScrollView> : <Text style={{ marginTop: 7, fontSize: 10, color: COLORS.muted }}>Aucune photo liée à ce problème.</Text>}</View>; }) : <Text style={{ marginTop: 12, color: COLORS.muted }}>Aucune réserve N.S dans cette cellule.</Text>}<View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}><TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => { const s = selected.site; setSelected(null); navigation.navigate('SiteVisites', { siteId: s.id, nomSite: s.nom_site }); }}><Text style={styles.btnPrimaryText}>Ouvrir le site</Text></TouchableOpacity><TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => setSelected(null)}><Text style={styles.btnSecondaryText}>Fermer</Text></TouchableOpacity></View></ScrollView> : null}</View></View></Modal>
-    <Modal visible={!!photoZoom} transparent animationType="fade" onRequestClose={() => setPhotoZoom(null)}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { width: '96%', maxWidth: 900 }]}>{photoZoom ? <><Image source={{ uri: photoZoom.uri }} resizeMode="contain" style={{ width: '100%', height: 430, backgroundColor: '#111', borderRadius: 10 }}/><Text style={{ marginTop: 9, fontWeight: '800' }}>{photoZoom.label || photoZoom.issue?.reference_libelle || photoZoom.issue?.cle}</Text><TouchableOpacity style={[styles.btnPrimary, { marginTop: 12 }]} onPress={() => setPhotoZoom(null)}><Text style={styles.btnPrimaryText}>Revenir au pilotage</Text></TouchableOpacity></> : null}</View></View></Modal>
+    <Modal visible={!!selected} transparent animationType="fade" onRequestClose={() => setSelected(null)}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxWidth: 720, width: '94%', maxHeight: '88%' }]}>{selected ? <ScrollView><Text style={styles.modalTitle}>{selected.site.nom_site} · {selected.category.label}</Text><Text style={{ color: COLORS.muted, marginTop: 3 }}>{selected.cell.s} S · {selected.cell.ns} N.S · {selected.cell.nr} N.R · {selected.cell.so} S.O · {selected.cell.nv} N.V</Text>{selected.cell.issues.length ? selected.cell.issues.map((issue, idx) => { const pics = photos[issueKey(issue)] || []; return <View key={`${issueKey(issue)}-${idx}`} style={{ marginTop: 12, borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, padding: 11 }}><Text style={{ fontWeight: '900', color: Number(issue.criticite || 0) >= 4 ? COLORS.red : COLORS.orange }}>{issue.reference_libelle || issue.cle} · {reserveSeverityLabel(issue.criticite)}</Text><Text style={{ marginTop: 5, color: COLORS.ink }}>{issue.prestation || issue.commentaire || 'Anomalie à préciser'}</Text>{pics.length ? <ScrollView horizontal style={{ marginTop: 8 }}>{pics.map((p) => <TouchableOpacity key={p.id} onPress={() => setPhotoZoom({ ...p, issue })}><PhotoVariantImage uri={p.uri} variant="thumb" style={{ width: 105, height: 78, borderRadius: 8, marginRight: 7, backgroundColor: '#eee' }} resizeMode="cover"/></TouchableOpacity>)}</ScrollView> : <Text style={{ marginTop: 7, fontSize: 10, color: COLORS.muted }}>Aucune photo liée à ce problème.</Text>}</View>; }) : <Text style={{ marginTop: 12, color: COLORS.muted }}>Aucune réserve N.S dans cette cellule.</Text>}<View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}><TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => { const s = selected.site; setSelected(null); navigation.navigate('SiteLocals', { siteId: s.id, nomSite: s.nom_site, clientId, nomClient }); }}><Text style={styles.btnPrimaryText}>Ouvrir le site</Text></TouchableOpacity><TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => setSelected(null)}><Text style={styles.btnSecondaryText}>Fermer</Text></TouchableOpacity></View></ScrollView> : null}</View></View></Modal>
+    <Modal visible={!!photoZoom} transparent animationType="fade" onRequestClose={() => setPhotoZoom(null)}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { width: '96%', maxWidth: 900 }]}>{photoZoom ? <><PhotoVariantImage uri={photoZoom.uri} variant="preview" resizeMode="contain" style={{ width: '100%', height: 430, backgroundColor: '#111', borderRadius: 10 }}/><Text style={{ marginTop: 9, fontWeight: '800' }}>{photoZoom.label || photoZoom.issue?.reference_libelle || photoZoom.issue?.cle}</Text><TouchableOpacity style={[styles.btnPrimary, { marginTop: 12 }]} onPress={() => setPhotoZoom(null)}><Text style={styles.btnPrimaryText}>Revenir au pilotage</Text></TouchableOpacity></> : null}</View></View></Modal>
   </ScrollView>;
 }

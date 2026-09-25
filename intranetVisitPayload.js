@@ -167,8 +167,22 @@ function cleanCounterLabel(value) { return normalize(String(value || '').replace
 function counterValue(counters, criterion, candidate) {
   const keys = new Set([cleanCounterLabel(criterion?.nom), cleanCounterLabel(candidate?.label), cleanCounterLabel(candidate?.cle)].filter(Boolean));
   const exact = counters.filter((counter) => keys.has(cleanCounterLabel(counter.label)));
-  if (exact.length === 1) return exact[0].valeur;
-  return undefined;
+  if (exact.length === 1) return { status: 'matched', value: exact[0].valeur };
+  if (exact.length === 0) return { status: 'missing', value: null };
+  return { status: 'ambiguous', value: null };
+}
+
+function applicableAvis(value, issues, path) {
+  const current = nullable(value);
+  // Une conformité non renseignée n'est pas une erreur de structure : le
+  // contrat Intranet prévoit explicitement N.V (non vérifié). Cela permet
+  // l'envoi d'une visite partielle sans inventer un avis favorable ou défavorable.
+  if (current == null) return 'N.V';
+  if (!INTRANET_AVIS.includes(current)) {
+    issues.push(`${path} : avis « ${current} » invalide (${INTRANET_AVIS.join(', ')}).`);
+    return null;
+  }
+  return current;
 }
 function remoteNetworkKey(categoryId, subCategoryId) { return `${clean(categoryId)}:${clean(subCategoryId)}`; }
 function mapNetworksToRemoteGroups(networks, groups, provenanceRows, issues) {
@@ -305,15 +319,14 @@ async function buildCriteria(db, visite, details, issues) {
           issues.push(`${path} : aucun champ METRA correspondant de façon sûre.`);
         } else if (applicable) {
           const control = controlMap.get(`${candidate.sectionCode}||${candidate.cle}`);
-          const currentAvis = nullable(control?.avis);
-          if (!INTRANET_AVIS.includes(currentAvis)) issues.push(`${path} : avis obligatoire (${INTRANET_AVIS.join(', ')}).`);
-          else avis = currentAvis;
+          avis = applicableAvis(control?.avis, issues, `${path} / avis`);
           commentaire = exactComment(control?.commentaire, issues, `${path} / commentaire`);
         } else {
           let value;
           if (visite.trame_id === 'icpe_v1' && candidate.panelId === 'p-releves' && /^index\b/.test(normalize(candidate.label))) {
-            value = counterValue(counters, criterion, candidate);
-            if (value === undefined) issues.push(`${path} : compteur correspondant introuvable ou ambigu.`);
+            const counter = counterValue(counters, criterion, candidate);
+            if (counter.status === 'ambiguous') issues.push(`${path} : plusieurs compteurs correspondent ; METRA refuse de choisir une valeur au hasard.`);
+            value = counter.value;
           } else value = fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`);
           commentaire = exactComment(value, issues, `${path} / commentaire`);
         }

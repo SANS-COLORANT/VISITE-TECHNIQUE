@@ -118,7 +118,11 @@ function introRapportHtml(datas, config) {
     s = s.replace(helper_marker, helpers + helper_marker, 1)
 
 # Normalize values only for rendering: stored field/control data remains untouched.
-normalise_marker = "  const localName = titreLocalDepuisChamps(champs);\n"
+normalise_marker = (
+    "  const localName = court(visite.nom_local_db || titreLocalDepuisChamps(champs), 80) || 'Installation technique';\n"
+    if "  const localName = court(visite.nom_local_db || titreLocalDepuisChamps(champs), 80) || 'Installation technique';\n" in s
+    else "  const localName = titreLocalDepuisChamps(champs);\n"
+)
 normalise_block = """  for (const section of sections) {
     for (const group of section.groups || []) {
       for (const row of group.rows || []) {
