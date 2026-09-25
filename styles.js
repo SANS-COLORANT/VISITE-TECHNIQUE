@@ -111,7 +111,7 @@ export const styles = StyleSheet.create({
   btnSecondaryText: { color: COLORS.ink, fontWeight: '600', fontFamily: FONTS.bodySemi, fontSize: 13.5 },
 
   // ---- Écran Visite : topbar + onglets ----
-  visiteTopbar: { backgroundColor: COLORS.white, paddingTop: 50, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: COLORS.line },
+  visiteTopbar: { backgroundColor: COLORS.bg, paddingTop: 50, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: COLORS.line, position: 'relative', overflow: 'hidden' },
   visiteHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   noteBtn: { borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
   visiteBackBtn: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', marginRight: 10 },

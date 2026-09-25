@@ -1,11 +1,11 @@
 /** Écran Visite — pager natif, swipe interactif et panneaux gardés chauds. */
 import React, { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions, Animated, Easing } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, FONTS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
 import { CvcIcon } from './MetraCvcIcons.js';
-import { IconOrb } from './premiumChrome.js';
+import { IconOrb, GlassCard, ProgressRing } from './premiumChrome.js';
 import { getVisite, getNote, upsertNote, getDb } from './db.js';
 import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
@@ -622,6 +622,8 @@ function VisiteScreen({ route, onBack }) {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <View style={styles.visiteTopbar}>
+        <View style={{ position: 'absolute', top: -40, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: COLORS.orange, opacity: 0.1 }} />
+        <View style={{ position: 'absolute', top: 30, left: -50, width: 120, height: 120, borderRadius: 60, backgroundColor: COLORS.orangeLight, opacity: 0.6 }} />
         <View style={styles.visiteHeaderRow}>
           <TouchableOpacity style={styles.visiteBackBtn} onPress={retourSecurise}><Text style={styles.visiteBackBtnText}>←</Text></TouchableOpacity>
           <View style={{ flex: 1 }}>
@@ -645,19 +647,30 @@ function VisiteScreen({ route, onBack }) {
             {exporting ? <ActivityIndicator size="small" color={COLORS.white} /> : <CvcIcon name="export" size={19} color={COLORS.white} />}
           </TouchableOpacity>
         </View>
-        <View style={[styles.progressRow, { justifyContent: 'space-between' }]}>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${visite.progression_pct}%` }]} /></View>
-            <Text style={styles.progressPct}>{visite.progression_pct}%</Text>
-            <CvcIcon
-              name={saveActivity.lastError ? 'cloud-off' : saveActivity.pending ? 'cloud-sync' : 'control'}
-              size={16}
-              color={saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32'}
-            />
-            {saveActivity.pending ? <Text accessibilityLiveRegion="polite" style={{ fontSize: 10.5, fontWeight: '800', color: '#A15C12' }}>{saveActivity.pending}</Text> : null}
+        <GlassCard style={{ marginBottom: 10 }}>
+          <View style={{ padding: 13, flexDirection: 'row', alignItems: 'center', gap: 13 }}>
+            <View style={{ width: 58, height: 58 }}>
+              <ProgressRing pct={visite.progression_pct} size={58} strokeWidth={6} accent={COLORS.orange} />
+              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+                <Text accessibilityLiveRegion="polite" style={{ fontFamily: FONTS.black, fontSize: 12.5, color: COLORS.ink }}>{visite.progression_pct}%</Text>
+              </View>
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text style={{ fontSize: 10, fontWeight: '700', fontFamily: FONTS.bodyBold, letterSpacing: 0.5, textTransform: 'uppercase', color: COLORS.inkFaint, marginBottom: 4 }}>Avancement</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+                <CvcIcon
+                  name={saveActivity.lastError ? 'cloud-off' : saveActivity.pending ? 'cloud-sync' : 'control'}
+                  size={15}
+                  color={saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32'}
+                />
+                <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ fontSize: 12, fontWeight: '700', fontFamily: FONTS.bodySemi, color: saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32' }}>
+                  {saveActivity.lastError ? 'Erreur de sauvegarde' : saveActivity.pending ? `${saveActivity.pending} en attente` : 'Enregistré'}
+                </Text>
+              </View>
+            </View>
+            <IntranetVisitSyncControl compact visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />
           </View>
-          <IntranetVisitSyncControl compact visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />
-        </View>
+        </GlassCard>
         {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? <PhotoReferenceAccess visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} /> : null}
         <TouchableOpacity accessibilityLabel="Ajouter une anomalie, une remarque ou une réserve" style={[styles.anomalyBtn, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={() => setAnomalieVisible(true)}>
           <CvcIcon name="remark" size={15} color="#B42318" />

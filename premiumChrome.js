@@ -9,9 +9,27 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from '@react-native-community/blur';
 import Svg, { Circle } from 'react-native-svg';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+/**
+ * Carte "verre" : flou natif réel (contrairement à expo-blur, qui ne fait
+ * jamais de vrai flou sur Android) posé derrière un voile blanc translucide,
+ * avec bordure + ombre à deux niveaux — reproduit l'effet de la maquette.
+ */
+function GlassCard({ children, style, radius = 20 }) {
+  return (
+    <View style={[styles.glassShadow, { borderRadius: radius }, style]}>
+      <View style={[styles.glassClip, { borderRadius: radius }]}>
+        <BlurView style={StyleSheet.absoluteFill} blurType="light" blurAmount={18} reducedTransparencyFallbackColor="rgba(255,255,255,0.85)" />
+        <View style={styles.glassTint} />
+        <View style={styles.glassContent}>{children}</View>
+      </View>
+    </View>
+  );
+}
 
 /**
  * Conteneur d'icône "duoton" : dégradé doux de la couleur d'accent vers
@@ -133,6 +151,25 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     overflow: 'hidden',
   },
+  glassShadow: {
+    shadowColor: '#000',
+    shadowOpacity: 0.12,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 6,
+  },
+  glassClip: {
+    overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: 'rgba(22,21,15,0.1)',
+  },
+  glassTint: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: 'rgba(255,255,255,0.38)',
+  },
+  glassContent: {
+    position: 'relative',
+  },
 });
 
-export { IconOrb, FadeUp, ProgressRing };
+export { IconOrb, FadeUp, ProgressRing, GlassCard };
