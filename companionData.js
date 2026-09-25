@@ -1,7 +1,8 @@
 import * as FileSystem from 'expo-file-system';
-import { getVisite, getChampsVisite, getControlesVisite, listerCompteurs, listerMateriel, listerPhotos, listerReseaux, listerSitesClient } from './db.js';
+import { getVisite, getChampsVisite, getControlesVisite, listerCompteurs, listerMateriel, listerPhotos, listerReseaux, listerSitesClient, toucherVisite, upsertChamp, upsertCompteurChamp, upsertMaterielChamp, upsertReseauChamp } from './db.js';
 import { openAppDatabase } from './database/index.js';
-import { listerRemarquesVisite } from './remarkDb.js';
+import { listerRemarquesVisite, modifierRemarqueVisite } from './remarkDb.js';
+import { upsertControlePartiel } from './controlDb.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { ajouterPhoto } from './db.js';
 import { preparerPhotoNommee } from './PhotoButton.js';
@@ -34,6 +35,36 @@ function uniqueTargets(items = []) {
 
 function target(id, label, targetKey, extra = {}) {
   return { id: String(id || targetKey || label), label: clean(label) || 'Élément', targetKey: targetKey || null, ...extra };
+}
+
+function companionField(id, label, value, edit, extra = {}) {
+  return {
+    id: String(id),
+    label: clean(label) || 'Valeur',
+    value: value == null ? '' : String(value),
+    input: extra.input || 'text',
+    unit: clean(extra.unit),
+    multiline: Boolean(extra.multiline),
+    options: Array.isArray(extra.options) ? extra.options.map(String) : null,
+    edit,
+  };
+}
+
+function inferInput(label) {
+  const txt = norm(label);
+  return /(temperature|t°|ph|pression|index|puissance|debit|débit|volume|annee|année|nombre|\bnb\b)/.test(txt)
+    ? 'numeric'
+    : 'text';
+}
+
+function champEditField(sectionCode, cle, value, extra = {}) {
+  return companionField(
+    `${sectionCode}||${cle}`,
+    cle,
+    value,
+    { kind: 'champ', sectionCode, cle },
+    { input: extra.input || inferInput(cle), unit: extra.unit || '' }
+  );
 }
 
 
@@ -131,35 +162,6 @@ async function buildCompanionClientSnapshot(clientId) {
   };
 }
 
-async function buildCompanionOfflineClientSnapshot(clientId) {
-  const snapshot = await buildCompanionClientSnapshot(clientId);
-  const offlineVisitSnapshots = {};
-
-  // Le lot QR hors connexion embarque la ou les visites terrain actives de
-  // chaque site. S'il n'y a aucune visite en cours, on prend uniquement la
-  // visite la plus récente afin de conserver un nombre de QR raisonnable.
-  for (const site of snapshot.sites || []) {
-    const visits = Array.isArray(site.visits) ? site.visits : [];
-    const active = visits.filter((visit) => visit.status === 'en_cours');
-    const selected = active.length ? active : visits.slice(0, 1);
-
-    for (const visit of selected) {
-      try {
-        offlineVisitSnapshots[String(visit.id)] = await buildCompanionVisitSnapshot(visit.id);
-      } catch {
-        // Un historique partiellement migré ne doit pas empêcher le reste du
-        // patrimoine d'être exporté. La référence de visite reste disponible.
-      }
-    }
-  }
-
-  return {
-    ...snapshot,
-    offlineVisitSnapshots,
-    offlineDetailVisitIds: Object.keys(offlineVisitSnapshots),
-  };
-}
-
 async function assertVisitBelongsToCompanionClient(clientId, visiteId) {
   const db = await openAppDatabase();
   const row = await db.getFirstAsync(
@@ -195,27 +197,60 @@ async function buildCompanionVisitSnapshot(visiteId) {
     e.equipement_id || e.id,
     [e.designation || e.categorie || 'Équipement', e.marque, e.modele].filter(Boolean).join(' · '),
     e.equipement_id ? `equipement||${e.equipement_id}` : `materiel||${e.id}`,
-    { subtitle: clean(e.reseau_desservi) }
+    {
+      subtitle: clean(e.reseau_desservi),
+      fields: [
+        companionField('designation', 'Désignation', e.designation, { kind: 'equipment', id: e.id, key: 'designation' }),
+        companionField('marque', 'Marque', e.marque, { kind: 'equipment', id: e.id, key: 'marque' }),
+        companionField('modele', 'Modèle / référence', e.modele, { kind: 'equipment', id: e.id, key: 'modele' }),
+        companionField('nombre', 'Nombre', e.nombre, { kind: 'equipment', id: e.id, key: 'nombre' }, { input: 'numeric' }),
+        companionField('annee', 'Année', e.annee, { kind: 'equipment', id: e.id, key: 'annee' }, { input: 'numeric' }),
+        companionField('numero_materiel', 'N° matériel', e.numero_materiel, { kind: 'equipment', id: e.id, key: 'numero_materiel' }),
+        companionField('reseau_desservi', 'Réseau desservi', e.reseau_desservi, { kind: 'equipment', id: e.id, key: 'reseau_desservi' }),
+        companionField('caracteristiques', 'Caractéristiques', e.caracteristiques, { kind: 'equipment', id: e.id, key: 'caracteristiques' }, { multiline: true }),
+      ],
+    }
   )));
 
   const meterTargets = uniqueTargets((compteurs || []).map((c) => target(
     c.compteur_site_id || c.id,
     c.label || 'Compteur',
     c.compteur_site_id ? `compteur_site||${c.compteur_site_id}` : `compteur||${c.id}`,
-    { value: clean(c.valeur), unit: clean(c.unite) }
+    {
+      value: clean(c.valeur),
+      unit: clean(c.unite),
+      fields: [
+        companionField('valeur', 'Valeur relevée', c.valeur, { kind: 'counter', id: c.id, key: 'valeur' }, { input: 'numeric', unit: c.unite }),
+        companionField('label', 'Nom du compteur', c.label, { kind: 'counter', id: c.id, key: 'label' }),
+        companionField('unite', 'Unité', c.unite, { kind: 'counter', id: c.id, key: 'unite' }),
+      ],
+    }
   )));
 
   const networkTargets = uniqueTargets((reseaux || []).map((r) => target(
     r.reseau_site_id || r.id,
     r.nom_reseau || 'Réseau',
-    r.reseau_site_id ? `reseau_site||${r.reseau_site_id}` : `reseau||${r.id}`
+    r.reseau_site_id ? `reseau_site||${r.reseau_site_id}` : `reseau||${r.id}`,
+    {
+      fields: [
+        companionField('nom_reseau', 'Nom du réseau', r.nom_reseau, { kind: 'network', id: r.id, key: 'nom_reseau' }),
+      ],
+    }
   )));
 
   const remarkTargets = uniqueTargets((remarques || []).map((r) => target(
     r.id,
     r.reference_libelle || r.prestation || r.poste || 'Remarque',
     `remarque||${r.id}`,
-    { subtitle: clean(r.poste), severity: Number(r.criticite || 0) }
+    {
+      subtitle: clean(r.poste),
+      severity: Number(r.criticite || 0),
+      fields: [
+        companionField('prestation', 'Observation / prestation', r.prestation, { kind: 'remark', id: r.id, key: 'prestation' }, { multiline: true }),
+        companionField('poste', 'Poste', r.poste, { kind: 'remark', id: r.id, key: 'poste' }),
+        companionField('criticite', 'Criticité', r.criticite, { kind: 'remark', id: r.id, key: 'criticite' }, { options: ['1', '2', '3', '4', '5'] }),
+      ],
+    }
   )));
 
   const localTargets = uniqueTargets((installations || []).map((i) => target(
@@ -247,14 +282,14 @@ async function buildCompanionVisitSnapshot(visiteId) {
     `${row.section_code}||${row.cle}`,
     row.cle,
     `${row.section_code}||${row.cle}`,
-    { value: clean(row.valeur) }
+    { value: clean(row.valeur), fields: [champEditField(row.section_code, row.cle, row.valeur)] }
   ));
   const tempFromTemplate = templateRows.filter(({ section, field }) => {
     const txt = norm(`${section} ${field?.cle}`);
     return field?.type === 'champ' && (txt.includes('temp') || txt.includes('ph'));
   }).map(({ sectionCode, field }) => {
     const key = `${sectionCode}||${field.cle}`;
-    return target(key, field.cle, key, { value: clean(valuesByKey.get(key)) });
+    return target(key, field.cle, key, { value: clean(valuesByKey.get(key)), fields: [champEditField(sectionCode, field.cle, valuesByKey.get(key))] });
   });
   const temperatureTargets = uniqueTargets([...tempFromDb, ...tempFromTemplate]);
 
@@ -281,12 +316,26 @@ async function buildCompanionVisitSnapshot(visiteId) {
       `${control.section_code}||${control.cle}`,
       control.cle,
       `${control.section_code}||${control.cle}`,
-      { value: clean(control.avis), subtitle: clean(control.commentaire) }
+      {
+        value: clean(control.avis),
+        subtitle: clean(control.commentaire),
+        fields: [
+          companionField('avis', 'Avis', control.avis, { kind: 'control', sectionCode: control.section_code, cle: control.cle, key: 'avis' }, { options: ['S', 'N.S', 'N.R', 'S.O', 'N.V'] }),
+          companionField('commentaire', 'Commentaire', control.commentaire, { kind: 'control', sectionCode: control.section_code, cle: control.cle, key: 'commentaire' }, { multiline: true }),
+        ],
+      }
     )),
     ...templateRows.filter(({ field }) => field?.type !== 'champ').map(({ sectionCode, field }) => {
       const key = `${sectionCode}||${field.cle}`;
       const current = controlsByKey.get(key);
-      return target(key, field.cle, key, { value: clean(current?.avis), subtitle: clean(current?.commentaire) });
+      return target(key, field.cle, key, {
+        value: clean(current?.avis),
+        subtitle: clean(current?.commentaire),
+        fields: [
+          companionField('avis', 'Avis', current?.avis, { kind: 'control', sectionCode, cle: field.cle, key: 'avis' }, { options: ['S', 'N.S', 'N.R', 'S.O', 'N.V'] }),
+          companionField('commentaire', 'Commentaire', current?.commentaire, { kind: 'control', sectionCode, cle: field.cle, key: 'commentaire' }, { multiline: true }),
+        ],
+      });
     }),
   ]);
 
@@ -324,6 +373,64 @@ async function buildCompanionVisitSnapshot(visiteId) {
   };
 }
 
+async function assertRowBelongsToVisit(table, id, visiteId) {
+  const allowed = new Set(['compteurs', 'materiel', 'reseaux', 'remarques']);
+  if (!allowed.has(table)) throw new Error('Cible Compagnon non autorisée');
+  const db = await openAppDatabase();
+  const row = await db.getFirstAsync(`SELECT id FROM ${table} WHERE id=? AND visite_id=? LIMIT 1`, [String(id || ''), String(visiteId || '')]);
+  if (!row?.id) throw new Error('Cet élément ne fait pas partie de la visite ouverte.');
+}
+
+async function applyCompanionTargetUpdate({ visiteId, edit, value }) {
+  const id = String(visiteId || '').trim();
+  if (!id || !edit?.kind) throw new Error('Modification Compagnon incomplète');
+
+  const nextValue = value == null ? '' : String(value);
+  switch (edit.kind) {
+    case 'champ':
+      if (!edit.sectionCode || !edit.cle) throw new Error('Champ visite invalide');
+      await upsertChamp(id, edit.sectionCode, edit.cle, nextValue);
+      break;
+
+    case 'control':
+      if (!edit.sectionCode || !edit.cle || !['avis', 'commentaire'].includes(edit.key)) throw new Error('Contrôle visite invalide');
+      await upsertControlePartiel(id, edit.sectionCode, edit.cle, { [edit.key]: nextValue });
+      break;
+
+    case 'counter':
+      if (!['valeur', 'label', 'unite'].includes(edit.key)) throw new Error('Champ compteur non autorisé');
+      await assertRowBelongsToVisit('compteurs', edit.id, id);
+      await upsertCompteurChamp(edit.id, edit.key, nextValue);
+      break;
+
+    case 'equipment':
+      if (!['designation', 'marque', 'modele', 'nombre', 'annee', 'numero_materiel', 'reseau_desservi', 'caracteristiques'].includes(edit.key)) {
+        throw new Error('Champ équipement non autorisé');
+      }
+      await assertRowBelongsToVisit('materiel', edit.id, id);
+      await upsertMaterielChamp(edit.id, edit.key, nextValue);
+      break;
+
+    case 'network':
+      if (edit.key !== 'nom_reseau') throw new Error('Champ réseau non autorisé');
+      await assertRowBelongsToVisit('reseaux', edit.id, id);
+      await upsertReseauChamp(edit.id, edit.key, nextValue);
+      break;
+
+    case 'remark':
+      if (!['prestation', 'poste', 'criticite'].includes(edit.key)) throw new Error('Champ remarque non autorisé');
+      await assertRowBelongsToVisit('remarques', edit.id, id);
+      await modifierRemarqueVisite(edit.id, { [edit.key]: edit.key === 'criticite' ? Number(nextValue || 0) : nextValue });
+      break;
+
+    default:
+      throw new Error('Type de modification Compagnon inconnu');
+  }
+
+  await toucherVisite(id).catch(() => {});
+  return buildCompanionVisitSnapshot(id);
+}
+
 async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
   if (!visiteId || !uri) throw new Error('Photo compagnon incomplète');
   const db = await openAppDatabase();
@@ -358,4 +465,4 @@ async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
   return { id: photoId, uri: prepared.uri, entiteKey: cibleKey, label: prepared.label || label };
 }
 
-export { MODULES as COMPANION_MODULES, buildCompanionClientSnapshot, buildCompanionOfflineClientSnapshot, buildCompanionVisitSnapshot, assertVisitBelongsToCompanionClient, importCompanionPhoto };
+export { MODULES as COMPANION_MODULES, applyCompanionTargetUpdate, buildCompanionClientSnapshot, buildCompanionVisitSnapshot, assertVisitBelongsToCompanionClient, importCompanionPhoto };
