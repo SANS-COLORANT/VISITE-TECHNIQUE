@@ -226,7 +226,7 @@ export function ClientPilotageScreen({ route, navigation }) {
 
   if (loading || !matrix) return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.orange}/><Text style={{ color: COLORS.muted, marginTop: 10 }}>Calcul du pilotage client…</Text></View>;
 
-  return <ScrollView style={{ flex: 1, backgroundColor: COLORS.bg }} contentContainerStyle={{ paddingBottom: 28 }} keyboardShouldPersistTaps="handled">
+  return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 28 }} keyboardShouldPersistTaps="handled">
     <View style={{ padding: 14 }}>
       <Text style={styles.sectionTitle}>Pilotage patrimoine</Text>
       <Text style={{ color: COLORS.muted, fontSize: 12 }}>{nomClient || 'Client'} · calcul local et disponible hors connexion</Text>

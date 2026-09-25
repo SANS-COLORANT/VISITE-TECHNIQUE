@@ -173,7 +173,7 @@ function ClientSitesScreen({ route, navigation }) {
     } catch (e) { Alert.alert('Renommage impossible', String(e?.message || e)); }
   };
 
-  return <View style={{ flex: 1, backgroundColor: COLORS.bg, paddingBottom: 76 }}>
+  return <View style={{ flex: 1 }}>
     <FlatList
       ref={listRef}
       style={{ flex: 1 }}

@@ -380,7 +380,7 @@ function MetraDirectoryScreen({ navigation, route }) {
   const siteTrames = [...new Set(locals.map((local) => local.remote_trame_nom).filter(Boolean))];
   const latestVisit = locals.map((local) => local.derniere_visite_date).filter(Boolean).sort().reverse()[0] || selectedSite?.derniere_visite_date || null;
 
-  return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+  return <View style={{ flex: 1 }}>
     <FlatList
       style={{ flex: 1 }}
       contentContainerStyle={[styles.content, { paddingBottom: 34 }]}

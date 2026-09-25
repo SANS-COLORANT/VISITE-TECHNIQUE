@@ -23,9 +23,13 @@ import { PhotoPhoneScreen } from './PhotoPhoneScreen.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { useAppFonts } from './AppFonts.js';
 import { LinearGradient } from 'expo-linear-gradient';
+import { AmbientBackground } from './premiumChrome.js';
+import { BottomTabBar } from './BottomTabBar.js';
 
 const SPLASH_BG = '#FBF0E1';
 const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects', 'MissionP3Dashboard', 'MissionReceptionBoard', 'MissionExpertise', 'MissionCampaignDashboard', 'MissionAmoDashboard', 'MissionControlBoard']);
+const TAB_BAR_HIDDEN_ROUTES = new Set(['Visite', 'Report', 'Lab3D', 'HydraulicSchema']);
+const CLIENT_TAB_ROUTES = new Set(['MetraDirectory', 'ClientSites', 'SiteLocals', 'SiteVisites', 'ClientMap', 'ClientPilotage', 'ClientDocuments', 'ClientPatrimoine', 'ClientTechnicalMatrix', 'IntranetStructure']);
 const BACK_SWIPE_ROUTES = new Set(['MetraDirectory', 'ClientSites', 'SiteLocals', 'SiteVisites', 'ClientPilotage', 'ClientDocuments', 'ClientPatrimoine', 'ClientTechnicalMatrix', 'IntranetStructure', 'Parametres']);
 
 const DEFERRED_SCREEN_LOADERS = Object.freeze({
@@ -105,21 +109,21 @@ function SimpleHeader({ title, onBack, visualPack, rightAction = null }) {
   }
 
   return <View style={styles.simpleHeader}>
-    {onBack ? <TouchableOpacity style={styles.simpleHeaderBack} onPress={onBack}><Text style={styles.simpleHeaderBackText}>←</Text></TouchableOpacity> : <View style={styles.simpleHeaderBack} />}
-    <Text style={styles.simpleHeaderTitle}>{title}</Text>
-    <View style={[styles.simpleHeaderBack, rightAction ? { width: 104, alignItems: 'flex-end' } : null]}>{rightAction ? <TouchableOpacity onPress={rightAction.onPress} style={{ minWidth: 78, minHeight: 32, paddingHorizontal: 9, borderRadius: 16, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}><Text style={{ fontSize: 10.5, fontWeight: '900', color: COLORS.text }}>{rightAction.label}</Text></TouchableOpacity> : (uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null)}</View>
+    {onBack ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={styles.simpleHeaderBack} onPress={onBack}><CvcIcon name="chevron-left" size={20} color={COLORS.ink} strokeWidth={2.3} /></TouchableOpacity> : null}
+    <Text numberOfLines={1} style={styles.simpleHeaderTitle}>{title}</Text>
+    {rightAction ? <TouchableOpacity onPress={rightAction.onPress} style={styles.headerPill}><Text style={styles.headerPillText}>{rightAction.label}</Text></TouchableOpacity> : (uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null)}
   </View>;
 }
 
 function MissionHeader({ title, onBack, visualPack, root = false }) {
   const uri = resolveVisualPackAssetUri(visualPack, visualPack?.interface?.headerLogo);
-  return <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: MISSION_COLORS.accentStrong, paddingTop: 50, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accent }}>
-    {onBack ? <TouchableOpacity style={{ width: 40, minHeight: 34, alignItems: 'flex-start', justifyContent: 'center' }} onPress={onBack}><Text style={{ fontSize: 21, color: '#DDF2E5', fontWeight: '800' }}>←</Text></TouchableOpacity> : <View style={{ width: 40 }} />}
-    <View style={{ flex: 1, alignItems: 'center' }}>
-      <Text style={{ fontSize: 8.5, color: '#BFE2CC', fontWeight: '900', letterSpacing: 1.1 }}>{root ? 'UNIVERS MISSIONS' : 'MISSIONS'}</Text>
-      <Text style={{ marginTop: 1, textAlign: 'center', fontSize: 15.5, fontWeight: '900', fontFamily: FONTS.black, color: '#FFFFFF' }}>{title}</Text>
+  return <View style={styles.simpleHeader}>
+    {onBack ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={styles.simpleHeaderBack} onPress={onBack}><CvcIcon name="chevron-left" size={20} color={MISSION_COLORS.accentDark} strokeWidth={2.3} /></TouchableOpacity> : null}
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <Text style={{ fontSize: 10, color: MISSION_COLORS.accentDark, fontFamily: FONTS.bodyBold, letterSpacing: 1.1 }}>{root ? 'UNIVERS MISSIONS' : 'MISSIONS'}</Text>
+      <Text numberOfLines={1} style={[styles.simpleHeaderTitle, { marginTop: 1 }]}>{title}</Text>
     </View>
-    <View style={{ width: 40, alignItems: 'flex-end', justifyContent: 'center' }}>{uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null}</View>
+    {uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null}
   </View>;
 }
 
@@ -257,6 +261,20 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
   const hasSite = !!currentParams.siteId;
   const hasVisit = !!currentParams.visiteId;
 
+  const resetToTab = (name) => {
+    Keyboard.dismiss();
+    setR1Visible(false);
+    setTimeout(() => setStack(name === 'Home' ? [{ name: 'Home', params: {} }] : [{ name: 'Home', params: {} }, { name, params: {} }]), 0);
+  };
+  const showTabBar = !spiralActive && !missionMode && !r1Visible && !TAB_BAR_HIDDEN_ROUTES.has(current.name);
+  const activeTab = current.name === 'Home' ? 'home' : current.name === 'Parametres' ? 'settings' : CLIENT_TAB_ROUTES.has(current.name) ? 'clients' : null;
+  const tabs = [
+    { key: 'home', label: 'Accueil', icon: 'home', onPress: () => resetToTab('Home') },
+    { key: 'clients', label: 'Clients', icon: 'local', onPress: () => resetToTab('MetraDirectory') },
+    missionsVisible ? { key: 'missions', label: 'Missions', icon: 'tools', onPress: goMissionsHome } : null,
+    { key: 'settings', label: 'Réglages', icon: 'settings', onPress: () => resetToTab('Parametres') },
+  ].filter(Boolean);
+
   const spiralExploreActions = [
     { icon: '⌂', label: 'Accueil', caption: 'Tableau de bord', onPress: goHome },
     { icon: '⌕', label: 'Recherche', caption: 'Clients & sites', onPress: () => navigate('MetraDirectory', {}) },
@@ -279,12 +297,13 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
   ];
 
   return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: spiralActive ? '#F4F1E8' : (missionMode ? MISSION_COLORS.bg : COLORS.bg) }} {...(backSwipeEnabled ? backSwipeResponder.panHandlers : {})}>
+    {!spiralActive ? <AmbientBackground accent={missionMode ? MISSION_COLORS.accent : COLORS.orange} /> : null}
     <IntranetStructureRuntime />
     <IntranetVisitSyncRuntime />
     <IntranetVisitSyncBanner />
     <PhotoDownloadBanner />
 
-    {current.name === 'Home' ? <><SimpleHeader title="Visite Technique" visualPack={visualPack} rightAction={phoneIntegralMode ? { label: 'Changer de mode', onPress: onPhoneModeExit } : null} /><HomeScreen navigation={navigation} route={route} spiralPreview={spiralActive} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} /></> : null}
+    {current.name === 'Home' ? <>{spiralActive ? <SimpleHeader title="Visite Technique" visualPack={visualPack} rightAction={phoneIntegralMode ? { label: 'Changer de mode', onPress: onPhoneModeExit } : null} /> : null}<HomeScreen navigation={navigation} route={route} spiralPreview={spiralActive} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} headerAction={phoneIntegralMode ? { label: 'Changer de mode', onPress: onPhoneModeExit } : null} /></> : null}
     {current.name === 'MetraDirectory' ? <><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MetraDirectory" navigation={navigation} route={route} /></> : null}
     {current.name === 'ClientSites' ? <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientSites" navigation={navigation} route={route} /></> : null}
     {current.name === 'SiteLocals' ? <><SimpleHeader title={current.params?.nomSite || 'Locaux'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="SiteLocals" navigation={navigation} route={route} /></> : null}
@@ -334,7 +353,8 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
     {current.name === 'MissionAmoDashboard' && missionsVisible ? <><MissionHeader title="Pilotage AMO" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionAmoDashboard" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionControlBoard' && missionsVisible ? <><MissionHeader title="Contrôle ciblé" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionControlBoard" navigation={navigation} route={route} /></> : null}
 
-    {current.name !== 'Home' && current.name !== 'Missions' && !spiralActive ? <GlobalHomeButton compact={phoneIntegralMode} missionMode={missionMode} onPress={missionMode ? goMissionsHome : goHome} /> : null}
+    {missionMode && current.name !== 'Missions' && !spiralActive ? <GlobalHomeButton compact={phoneIntegralMode} missionMode onPress={goMissionsHome} /> : null}
+    {showTabBar ? <BottomTabBar tabs={tabs} activeKey={activeTab} /> : null}
     {spiralActive && !r1Visible ? <SpiralActiveDock exploreActions={spiralExploreActions} actionActions={spiralActionActions} quickActions={spiralQuickActions} /> : null}
     <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
   </View>;

@@ -107,7 +107,7 @@ function SiteLocalsScreen({ route, navigation }) {
     legacyOnly: true,
   });
 
-  return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+  return <View style={{ flex: 1 }}>
     <FlatList
       ref={listRef}
       style={{ flex: 1 }}

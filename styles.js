@@ -34,7 +34,7 @@ export const styles = StyleSheet.create({
   addLink: { fontSize: 12.5, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.orangeDark },
 
   card: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.white, borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 14, marginBottom: 9, gap: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 14, marginBottom: 9, gap: 10,
     shadowColor: '#000', shadowOpacity: 0.11, shadowRadius: 18, shadowOffset: { width: 0, height: 9 }, elevation: 4,
   },
   deleteVisiteBtn: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.redBg, marginLeft: 4 },
@@ -124,10 +124,16 @@ export const styles = StyleSheet.create({
   iconActionDark: { backgroundColor: COLORS.ink },
 
   // ---- Header simple (navigation maison, sans @react-navigation) ----
-  simpleHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, paddingTop: 50, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: COLORS.line },
-  simpleHeaderBack: { width: 36, alignItems: 'flex-start', justifyContent: 'center' },
+  simpleHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'transparent', paddingTop: 50, paddingHorizontal: 16, paddingBottom: 12 },
+  simpleHeaderBack: {
+    width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: 'rgba(255,255,255,0.72)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)',
+    shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2,
+  },
   simpleHeaderBackText: { fontSize: 20, color: COLORS.ink },
-  simpleHeaderTitle: { flex: 1, textAlign: 'center', fontSize: 16, fontWeight: '600', fontFamily: FONTS.bold, color: COLORS.ink },
+  simpleHeaderTitle: { flex: 1, textAlign: 'left', fontSize: 21, fontWeight: '800', fontFamily: FONTS.black, letterSpacing: -0.3, color: COLORS.ink },
+  headerPill: { minHeight: 34, paddingHorizontal: 12, borderRadius: 17, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.72)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' },
+  headerPillText: { fontSize: 11, fontFamily: FONTS.bodyBold, color: COLORS.ink },
   noteBtnText: { fontSize: 12, color: COLORS.inkSoft, fontWeight: '600' },
   exportBtn: { backgroundColor: COLORS.ink, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, marginLeft: 8 },
   exportBtnText: { fontSize: 12, color: COLORS.white, fontWeight: '600' },
@@ -145,7 +151,7 @@ export const styles = StyleSheet.create({
   panelContent: { padding: 18, paddingBottom: 92 },
   sectionTitle: { fontSize: 14, fontWeight: '600', fontFamily: FONTS.bold, color: COLORS.ink, marginBottom: 10, marginTop: 4 },
   formCard: {
-    backgroundColor: COLORS.white, borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 18, padding: 16, marginBottom: 14,
+    backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 18, padding: 16, marginBottom: 14,
     shadowColor: '#000', shadowOpacity: 0.11, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 4,
   },
 
@@ -240,7 +246,7 @@ export const styles = StyleSheet.create({
   typeaheadSuggestionText: { fontSize: 13, color: COLORS.ink },
 
   // ---- Accueil : bouton Paramètres ----
-  homeTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 50, paddingBottom: 6, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line },
+  homeTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingTop: 50, paddingBottom: 8, backgroundColor: 'transparent' },
   importExcelBtn: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 9, backgroundColor: COLORS.orangeLight },
   importExcelBtnText: { fontSize: 12.5, color: COLORS.orangeDark, fontWeight: '700' },
   parametresBtn: { paddingHorizontal: 12, paddingVertical: 6 },
@@ -265,10 +271,10 @@ export const styles = StyleSheet.create({
   persistentEquipmentBadgeText: { fontSize: 10.5, fontWeight: '700', color: COLORS.green },
 
   totalsBar: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  totalsCard: { flex: 1, backgroundColor: COLORS.white, borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 13, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
+  totalsCard: { flex: 1, backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 13, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
   totalsNum: { fontSize: 18, fontWeight: '700', fontFamily: FONTS.black, color: COLORS.ink },
   totalsLabel: { fontSize: 10, color: COLORS.inkSoft, marginTop: 2 },
-  remarqueCard: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 14, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 2 },
+  remarqueCard: { backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 14, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 2 },
   remarqueTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   remarquePoste: { fontSize: 10, fontWeight: '700', color: COLORS.orangeDark, textTransform: 'uppercase' },
   remarqueEstim: { fontSize: 14, fontWeight: '700', color: COLORS.ink },

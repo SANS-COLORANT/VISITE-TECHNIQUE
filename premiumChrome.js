@@ -7,12 +7,40 @@
  */
 
 import React, { useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, StyleSheet, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from '@react-native-community/blur';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+
+/**
+ * Fond ambiant de la DA "Verre chaud" : deux halos de la couleur d'accent en
+ * dégradé radial (bords réellement doux, contrairement à des cercles pleins
+ * semi-transparents). Posé une seule fois à la racine, derrière les écrans.
+ */
+function AmbientBackground({ accent = '#F26426' }) {
+  const { width, height } = useWindowDimensions();
+  return (
+    <View pointerEvents="none" style={StyleSheet.absoluteFill}>
+      <Svg width={width} height={height}>
+        <Defs>
+          <RadialGradient id="ambientTop" cx={width * 0.92} cy={height * 0.02} r={width * 0.78} gradientUnits="userSpaceOnUse">
+            <Stop offset="0" stopColor={accent} stopOpacity="0.30" />
+            <Stop offset="0.55" stopColor={accent} stopOpacity="0.08" />
+            <Stop offset="1" stopColor={accent} stopOpacity="0" />
+          </RadialGradient>
+          <RadialGradient id="ambientSide" cx={-width * 0.05} cy={height * 0.46} r={width * 0.62} gradientUnits="userSpaceOnUse">
+            <Stop offset="0" stopColor={accent} stopOpacity="0.14" />
+            <Stop offset="1" stopColor={accent} stopOpacity="0" />
+          </RadialGradient>
+        </Defs>
+        <Rect x="0" y="0" width={width} height={height} fill="url(#ambientTop)" />
+        <Rect x="0" y="0" width={width} height={height} fill="url(#ambientSide)" />
+      </Svg>
+    </View>
+  );
+}
 
 /**
  * Carte "verre" : flou natif réel (contrairement à expo-blur, qui ne fait
@@ -185,4 +213,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export { IconOrb, FadeUp, ProgressRing, GlassCard };
+export { IconOrb, FadeUp, ProgressRing, GlassCard, AmbientBackground };

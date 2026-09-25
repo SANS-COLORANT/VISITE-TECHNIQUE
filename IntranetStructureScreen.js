@@ -35,7 +35,7 @@ export function IntranetStructureScreen({ route, navigation }) {
     } finally { setCreatingVisit(false); }
   };
 
-  return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+  return <View style={{ flex: 1 }}>
     <View style={[styles.content, { paddingBottom: 8 }]}> 
       <Text style={styles.sectionLabel}>Locaux techniques · {nomSite || 'Site'}</Text>
       <Text style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16, marginBottom: 12 }}>

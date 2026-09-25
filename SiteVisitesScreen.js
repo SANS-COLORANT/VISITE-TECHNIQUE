@@ -384,7 +384,7 @@ function SiteVisitesScreen({ route, navigation }) {
   );
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+    <View style={{ flex: 1 }}>
       <FlatList
         ref={listRef}
         key={`${siteTab}-${selectionExport ? 'selection' : 'normal'}`}

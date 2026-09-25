@@ -5,7 +5,7 @@ import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInpu
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, styles } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
-import { IconOrb, FadeUp } from './premiumChrome.js';
+import { IconOrb, FadeUp, GlassCard, ProgressRing } from './premiumChrome.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
 import { SpiralActiveHome } from './visual-packs/spiral-active/SpiralActiveHome.js';
 import { PatrimoineThumbnail } from './PatrimoineImageCard.js';
@@ -20,7 +20,7 @@ const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
 function chargerEntityManagementModule(){return require('./entityManagementDb.js');}
 
-function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missionsEnabled = false }) {
+function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missionsEnabled = false, headerAction = null }) {
   const listRef = useRef(null);
   const scrollKey = 'home:clients';
   const [clients, setClients] = useState(() => HOME_FAST_CACHE.clients || []);
@@ -179,18 +179,25 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
     />;
   }
 
-  return <View style={{ flex: 1, backgroundColor: COLORS.bg }} {...missionsSwipeResponder.panHandlers}>
-    <View style={[styles.homeTopRow, { justifyContent: 'space-between' }]}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-        <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={36}><CvcIcon name="tools" size={18} color={COLORS.orangeDark} /></IconOrb>
-        <Text style={{ fontSize: 15, fontWeight: '800', fontFamily: FONTS.black, color: COLORS.ink }}>Visite Technique</Text>
+  const reprise = visitesEnCours[0] || null;
+  const autresVisites = visitesEnCours.slice(1);
+  const ouvrirVisite = (v) => { markVisitHot(v.id, { preview: v }); navigation.navigate('Visite', { visiteId: v.id, visitePreview: v }); };
+
+  return <View style={{ flex: 1 }} {...missionsSwipeResponder.panHandlers}>
+    <View style={styles.homeTopRow}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, flex: 1, minWidth: 0 }}>
+        <LinearGradient colors={[COLORS.orange, COLORS.orangeDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={{ width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', shadowColor: COLORS.orange, shadowOpacity: 0.45, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 5 }}>
+          <CvcIcon name="tools" size={19} color={COLORS.white} strokeWidth={2.1} />
+        </LinearGradient>
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <Text numberOfLines={1} style={{ fontSize: 17, fontWeight: '800', fontFamily: FONTS.black, color: COLORS.ink }}>Visite Technique</Text>
+          <Text numberOfLines={1} style={{ fontSize: 11.5, fontFamily: FONTS.bodyMedium, color: COLORS.inkSoft, marginTop: 1 }}>{stats.enCours} en cours · {stats.terminees} terminée{stats.terminees > 1 ? 's' : ''}</Text>
+        </View>
       </View>
-      <View style={{ flexDirection: 'row' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+        {headerAction ? <TouchableOpacity onPress={headerAction.onPress} style={styles.headerPill}><Text style={styles.headerPillText}>{headerAction.label}</Text></TouchableOpacity> : null}
         <TouchableOpacity accessibilityLabel="Importer des fichiers Excel" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} onPress={choisirExcel}>
-          <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={36}><CvcIcon name="document" size={17} color={COLORS.orangeDark} /></IconOrb>
-        </TouchableOpacity>
-        <TouchableOpacity accessibilityLabel="Paramètres" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={() => navigation.navigate('Parametres')}>
-          <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={36}><CvcIcon name="settings" size={17} color={COLORS.orangeDark} /></IconOrb>
+          <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={38}><CvcIcon name="document" size={18} color={COLORS.orangeDark} /></IconOrb>
         </TouchableOpacity>
       </View>
     </View>
@@ -205,8 +212,8 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
       keyExtractor={(i) => i.id}
       ListHeaderComponent={<>
         {missionsEnabled ? <View style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: MISSION_COLORS.accentSoft }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, fontWeight: '800' }}>Glisser vers la droite → Missions</Text></View> : null}
-        <FadeUp style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E6E8EC', padding: 13, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 2 }}>
-          <View style={{ minHeight: 50, borderRadius: 14, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: '#ECEEF1', flexDirection: 'row', alignItems: 'center', paddingLeft: 13 }}>
+        <FadeUp style={{ marginBottom: 14 }}>
+          <View style={{ minHeight: 50, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', flexDirection: 'row', alignItems: 'center', paddingLeft: 14, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 3 }}>
             <CvcIcon name="search" size={18} color="#98A2B3" strokeWidth={2.1} />
             <TextInput
               value={quickSearch}
@@ -223,24 +230,35 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
               <Text style={{ color: COLORS.orange || '#E86F2D', fontWeight: '900', fontSize: 18 }}>→</Text>
             </TouchableOpacity>
           </View>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 11, marginTop: 8 }}>Fonctionne aussi hors connexion.</Text>
         </FadeUp>
 
-        <View style={{ position: 'relative' }}>
-          <View style={{ position: 'absolute', top: -34, left: -18, width: 130, height: 130, borderRadius: 65, backgroundColor: COLORS.orangeLight, opacity: 0.7 }} />
-          <View style={{ position: 'absolute', top: -14, right: -28, width: 100, height: 100, borderRadius: 50, backgroundColor: COLORS.orange, opacity: 0.12 }} />
-          <View style={styles.statRow}>
-            <FadeUp delay={40} style={{ flex: 1 }}><StatCard icon="clock" num={stats.enCours} label="En cours" accent={COLORS.orange} light={COLORS.orangeLight} /></FadeUp>
-            <FadeUp delay={80} style={{ flex: 1 }}><StatCard icon="control" num={stats.terminees} label="Terminées" accent={COLORS.green} light={COLORS.greenBg} /></FadeUp>
-          </View>
-        </View>
+        {reprise ? <FadeUp delay={50} style={{ marginBottom: 6 }}>
+          <TouchableOpacity activeOpacity={0.85} accessibilityLabel={`Reprendre la visite ${reprise.nom_client}`} onPressIn={() => prewarmVisitInBackground(reprise, { preview: reprise })} onPress={() => ouvrirVisite(reprise)} onLongPress={() => confirmerSuppressionVisite(reprise)}>
+            <GlassCard>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 14, padding: 14 }}>
+                <View style={{ width: 64, height: 64 }}>
+                  <ProgressRing pct={reprise.progression_pct} size={64} strokeWidth={6} accent={COLORS.orange} />
+                  <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
+                    <Text style={{ fontFamily: FONTS.black, fontSize: 14, color: COLORS.ink }}>{reprise.progression_pct}%</Text>
+                  </View>
+                </View>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text style={{ fontSize: 10, fontFamily: FONTS.bodyBold, letterSpacing: 0.6, textTransform: 'uppercase', color: COLORS.inkFaint }}>Reprendre</Text>
+                  <Text numberOfLines={1} style={{ fontSize: 15, fontFamily: FONTS.bold, color: COLORS.ink, marginTop: 2 }}>{reprise.nom_client}</Text>
+                  <Text numberOfLines={1} style={{ fontSize: 12, fontFamily: FONTS.bodyMedium, color: COLORS.inkSoft, marginTop: 2 }}>{reprise.nom_site}</Text>
+                </View>
+                <CvcIcon name="chevron-right" size={18} color={COLORS.orangeDark} strokeWidth={2.3} />
+              </View>
+            </GlassCard>
+          </TouchableOpacity>
+        </FadeUp> : null}
 
-        {visitesEnCours.length > 0 && <>
-          <Text style={styles.sectionLabel}>Visites en cours</Text>
-          {visitesEnCours.map((v, i) => <FadeUp key={v.id} delay={Math.min(i, 4) * 30}><TouchableOpacity
+        {autresVisites.length > 0 && <>
+          <Text style={[styles.sectionLabel, { marginTop: 14, marginBottom: 8 }]}>Visites en cours</Text>
+          {autresVisites.map((v, i) => <FadeUp key={v.id} delay={Math.min(i, 4) * 30}><TouchableOpacity
             style={styles.card}
             onPressIn={() => prewarmVisitInBackground(v, { preview: v })}
-            onPress={() => { markVisitHot(v.id, { preview: v }); navigation.navigate('Visite', { visiteId: v.id, visitePreview: v }); }}
+            onPress={() => ouvrirVisite(v)}
           >
             <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="clock" size={19} color={COLORS.orangeDark} /></IconOrb>
             <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{v.nom_client}</Text><Text style={styles.cardSub}>{v.nom_site}</Text></View>
@@ -292,23 +310,6 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
       </View></View>
     </Modal>
   </View>;
-}
-
-function StatCard({ icon, num, label, accent, light }) {
-  return (
-    <LinearGradient
-      colors={[light, '#FFFFFF']}
-      start={{ x: 0, y: 0 }}
-      end={{ x: 0.3, y: 1 }}
-      style={[styles.statCard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 10, paddingHorizontal: 14 }]}
-    >
-      <IconOrb accent={accent} light={light} size={38}><CvcIcon name={icon} size={18} color={accent} /></IconOrb>
-      <View>
-        <Text style={styles.statNum}>{num}</Text>
-        <Text style={styles.statLabel}>{label}</Text>
-      </View>
-    </LinearGradient>
-  );
 }
 
 export { HomeScreen };

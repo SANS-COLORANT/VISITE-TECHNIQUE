@@ -10,6 +10,7 @@ Tout agent IA intervenant dans ce dépôt doit respecter les règles de ce fichi
 - `docs/REPORTS.md`
 - `docs/ANDROID_ARCHITECTURE.md`
 - `docs/MISSIONS.md`
+- `docs/DESIGN_SYSTEM.md` (direction artistique validée : toute interface doit la suivre)
 
 Les rôles spécialisés sont décrits dans `agents/`.
 

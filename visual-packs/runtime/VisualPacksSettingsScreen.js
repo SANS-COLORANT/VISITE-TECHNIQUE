@@ -289,7 +289,7 @@ export function VisualPacksSettingsScreen({ visualPack, onVisualPackChanged }) {
   const accent = visualPack?.colors?.main || '#F26426';
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+    <View style={{ flex: 1 }}>
       <CompactToggle
         animationOn={animationOn}
         activeName={visualPack?.name || 'Thème animé'}

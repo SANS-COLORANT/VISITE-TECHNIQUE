@@ -64,7 +64,7 @@ export function ClientDocumentsScreen({ route, navigation }) {
     } finally { setBusy(false); }
   };
 
-  return <ScrollView style={{ flex: 1, backgroundColor: COLORS.bg }} contentContainerStyle={styles.content}>
+  return <ScrollView style={{ flex: 1 }} contentContainerStyle={styles.content}>
     <Text style={styles.sectionTitle}>Documents & exports</Text>
     <Text style={{ color: COLORS.muted, fontSize: 12, marginBottom: 14 }}>{nomClient || 'Client'} · rapports et fichiers de traitement regroupés au même endroit</Text>
 
