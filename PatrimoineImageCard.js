@@ -11,7 +11,7 @@ export function PatrimoineThumbnail({ uri, size = 54, radius = 10, style = null 
   return <PhotoVariantImage uri={uri} variant="thumb" resizeMode="cover" style={[{ width: size, height: size, borderRadius: radius, backgroundColor: '#F1F2F4', marginRight: 12 }, style]} />;
 }
 
-export function PatrimoineImageCard({ entityType, entityId, title, subtitle = null, onChanged = null }) {
+export function PatrimoineImageCard({ entityType, entityId, title, subtitle = null, onChanged = null, compact = false }) {
   const [uri, setUri] = useState(null);
   const [busy, setBusy] = useState(false);
   const [viewer, setViewer] = useState(false);
@@ -79,6 +79,30 @@ export function PatrimoineImageCard({ entityType, entityId, title, subtitle = nu
   };
 
   const libelleType = entityType === 'client' ? 'Image du client' : 'Image du site';
+
+  if (compact) return <View style={styles.patrimoineCompactCard}>
+    <TouchableOpacity disabled={!uri} onPress={() => setViewer(true)} accessibilityLabel={uri ? `Voir ${libelleType.toLowerCase()}` : `${libelleType} non renseignée`} style={styles.patrimoineCompactPreview}>
+      {uri ? <PhotoVariantImage uri={uri} variant="thumb" resizeMode="cover" style={{ width: 56, height: 56, borderRadius: 11 }} /> : <Text style={{ color: COLORS.orangeDark, fontSize: 24 }}>▧</Text>}
+    </TouchableOpacity>
+    <View style={{ flex: 1, minWidth: 0 }}>
+      <Text numberOfLines={1} style={styles.patrimoineCompactTitle}>{title || libelleType}</Text>
+      <Text numberOfLines={1} style={styles.patrimoineCompactSub}>{uri ? 'Photo du patrimoine' : 'Ajouter une photo'}</Text>
+    </View>
+    {busy ? <ActivityIndicator color={COLORS.orange} /> : <>
+      <TouchableOpacity disabled={busy} accessibilityLabel="Prendre une photo" onPressIn={() => prewarmCameraRuntime().catch(() => {})} onPress={() => choisir('camera')} style={styles.patrimoineCompactAction}><Text style={styles.patrimoineCompactActionText}>📷</Text></TouchableOpacity>
+      <TouchableOpacity disabled={busy} accessibilityLabel="Choisir dans la galerie" onPress={() => choisir('galerie')} style={styles.patrimoineCompactAction}><Text style={styles.patrimoineCompactActionText}>▣</Text></TouchableOpacity>
+    </>}
+    <Modal visible={viewer} transparent animationType="fade" onRequestClose={() => setViewer(false)}>
+      <View style={[styles.modalOverlay, { padding: 18 }]}><View style={{ width: '100%', maxWidth: 850, maxHeight: '88%', backgroundColor: COLORS.white, borderRadius: 18, overflow: 'hidden' }}>
+        {uri ? <PhotoVariantImage uri={uri} variant="preview" resizeMode="contain" style={{ width: '100%', height: 520, maxHeight: '75%', backgroundColor: '#111827' }} /> : null}
+        <View style={{ flexDirection: 'row', gap: 8, padding: 12 }}>
+          <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => setViewer(false)}><Text style={styles.btnSecondaryText}>Fermer</Text></TouchableOpacity>
+          {uri ? <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={demanderSuppression}><Text style={[styles.btnSecondaryText, { color: COLORS.red }]}>Supprimer</Text></TouchableOpacity> : null}
+          <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => { setViewer(false); choisir('galerie'); }}><Text style={styles.btnPrimaryText}>Remplacer</Text></TouchableOpacity>
+        </View>
+      </View></View>
+    </Modal>
+  </View>;
 
   return <View style={{ backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: '#E3E5E8', overflow: 'hidden', marginBottom: 14 }}>
     <TouchableOpacity activeOpacity={uri ? 0.86 : 1} onPress={() => { if (uri) setViewer(true); }} accessibilityRole={uri ? 'imagebutton' : undefined}>

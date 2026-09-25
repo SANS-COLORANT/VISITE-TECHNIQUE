@@ -101,7 +101,13 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved }) {
     if (!sections) return [];
     return Object.entries(sections).map(([sub, fields]) => {
       const sectionCode = codeSection(panelId, sub);
-      return { title: sub, sectionCode, data: (fields || []).filter((field) => field?.hiddenInApp !== true).map((field) => ({ field, sectionCode, key: `${sectionCode}||${field.cle}` })) };
+      const visibles = (fields || []).filter((field) => field?.hiddenInApp !== true);
+      const tailleGroupe = panelId === 'p-infos' && sub === 'Général' ? 5 : visibles.some((field) => field.type === 'controle') ? 2 : 3;
+      const data = [];
+      for (let index = 0; index < visibles.length; index += tailleGroupe) {
+        data.push({ fields: visibles.slice(index, index + tailleGroupe), sectionCode, key: `${sectionCode}||${index}` });
+      }
+      return { title: sub, sectionCode, data };
     }).filter((section) => section.data.length > 0);
   }, [panelId, sections]);
 
@@ -144,10 +150,16 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved }) {
       const d = sectionAliasDescriptor(panelId, section.title);
       return <EditableAlias valeur={aliases[d.key] || d.base} suffix={d.suffix} onSave={(v) => sauverAlias(d.key, v, d.base)} />;
     }}
-    renderItem={({ item }) => <View style={styles.formCard}>
-      {item.field.type === 'champ' ? <DurableChampGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} valeurInitiale={champsMap[item.key]} displayLabel={libelleChamp(item.sectionCode, item.field.cle, aliases)} onRename={item.field.renamable ? (v) => sauverAlias(fieldAliasKey(item.sectionCode, item.field.cle), v, item.field.cle) : null} onSaved={(valeur) => {
-        setChampsMap((courant) => ({ ...courant, [item.key]: valeur })); mettreAJourCacheChamp(visiteId, item.key, valeur); onSaved?.();
-      }} /> : item.field.vmc === true ? <VmcControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={(patch) => patchControle(item.key, patch)} onSaved={onSaved} /> : item.field.presets ? <PresetControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={(patch) => patchControle(item.key, patch)} onSaved={onSaved} /> : <PersistentControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={(patch) => patchControle(item.key, patch)} onSaved={onSaved} />}
+    renderItem={({ item }) => <View style={[styles.formCard, panelId === 'p-infos' && item.sectionCode === 'infos.g_n_ral' && { flexDirection: 'row', flexWrap: 'wrap', columnGap: 10 }]}>
+      {item.fields.map((field, index) => {
+        const fieldKey = `${item.sectionCode}||${field.cle}`;
+        const grid = panelId === 'p-infos' && item.sectionCode === 'infos.g_n_ral';
+        return <View key={fieldKey} style={grid ? { width: index === item.fields.length - 1 && item.fields.length % 2 ? '100%' : '48%' } : index < item.fields.length - 1 ? styles.compactFieldDivider : null}>
+          {field.type === 'champ' ? <DurableChampGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={field} valeurInitiale={champsMap[fieldKey]} displayLabel={libelleChamp(item.sectionCode, field.cle, aliases)} onRename={field.renamable ? (v) => sauverAlias(fieldAliasKey(item.sectionCode, field.cle), v, field.cle) : null} onSaved={(valeur) => {
+            setChampsMap((courant) => ({ ...courant, [fieldKey]: valeur })); mettreAJourCacheChamp(visiteId, fieldKey, valeur); onSaved?.();
+          }} /> : field.vmc === true ? <VmcControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={field} etatInitial={controlesMap[fieldKey]} onEtatChange={(patch) => patchControle(fieldKey, patch)} onSaved={onSaved} /> : field.presets ? <PresetControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={field} etatInitial={controlesMap[fieldKey]} onEtatChange={(patch) => patchControle(fieldKey, patch)} onSaved={onSaved} /> : <PersistentControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={field} etatInitial={controlesMap[fieldKey]} onEtatChange={(patch) => patchControle(fieldKey, patch)} onSaved={onSaved} />}
+        </View>;
+      })}
     </View>}
     contentContainerStyle={styles.panelContent}
     keyboardShouldPersistTaps="handled"

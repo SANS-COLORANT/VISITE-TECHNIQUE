@@ -16,28 +16,41 @@ export const styles = StyleSheet.create({
   errorTitle: { fontSize: 16, fontWeight: '600', color: COLORS.red, marginBottom: 8 },
   errorText: { fontSize: 13, color: COLORS.inkSoft, textAlign: 'center' },
 
-  content: { padding: 20 },
+  content: { padding: 16 },
 
-  statRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
+  statRow: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   statCard: {
-    flex: 1, backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, paddingVertical: 14, alignItems: 'center',
+    flex: 1, backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: COLORS.line, borderRadius: 14, paddingVertical: 9, alignItems: 'center',
     shadowColor: '#302A1E', shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3,
   },
-  statNum: { fontSize: 22, fontWeight: '700', color: COLORS.ink },
-  statLabel: { fontSize: 11.5, color: COLORS.inkSoft, marginTop: 3 },
+  statNum: { fontSize: 17, fontWeight: '700', color: COLORS.ink },
+  statLabel: { fontSize: 10.5, color: COLORS.inkSoft, marginTop: 1 },
 
-  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 18, marginBottom: 9 },
+  sectionHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, marginBottom: 8 },
   sectionLabel: { fontSize: 12, fontWeight: '700', color: COLORS.inkFaint, textTransform: 'uppercase', letterSpacing: 0.5 },
   addLink: { fontSize: 12.5, fontWeight: '700', color: COLORS.orangeDark },
 
   card: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, padding: 14, marginBottom: 9, gap: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: COLORS.line, borderRadius: 16, padding: 11, marginBottom: 8, gap: 8,
     shadowColor: '#302A1E', shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3,
   },
   deleteVisiteBtn: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.redBg, marginLeft: 4 },
   deleteVisiteBtnText: { color: COLORS.red, fontSize: 13, fontWeight: '700' },
   cardTitle: { fontSize: 14.5, fontWeight: '600', color: COLORS.ink },
   cardSub: { fontSize: 12, color: COLORS.inkSoft, marginTop: 2 },
+  patrimoineCompactCard: { flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 16, padding: 9, marginBottom: 10 },
+  patrimoineCompactPreview: { width: 56, height: 56, borderRadius: 11, backgroundColor: COLORS.orangeLight, alignItems: 'center', justifyContent: 'center' },
+  patrimoineCompactTitle: { fontSize: 14, fontWeight: '800', color: COLORS.ink },
+  patrimoineCompactSub: { fontSize: 11, color: COLORS.inkSoft, marginTop: 2 },
+  patrimoineCompactAction: { width: 40, height: 44, borderRadius: 11, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center' },
+  patrimoineCompactActionText: { fontSize: 19, color: COLORS.orangeDark },
+  clientOverviewCard: { flexDirection: 'row', flexWrap: 'wrap', gap: 12, alignItems: 'center', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, paddingHorizontal: 12, paddingVertical: 9, marginBottom: 9 },
+  clientOverviewText: { fontSize: 11.5, color: COLORS.inkSoft },
+  clientOverviewNumber: { fontSize: 15, fontWeight: '800', color: COLORS.ink },
+  clientPrimaryActions: { flexDirection: 'row', gap: 7, marginBottom: 7 },
+  clientQuickActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginBottom: 10 },
+  clientQuickAction: { flexGrow: 1, flexBasis: '22%', minHeight: 42, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, paddingHorizontal: 5 },
+  clientQuickActionText: { fontSize: 10.5, fontWeight: '700', color: COLORS.ink },
   chevron: { color: COLORS.inkFaint, fontSize: 20 },
 
   badge: { backgroundColor: COLORS.orangeLight, borderRadius: 20, paddingHorizontal: 10, paddingVertical: 4 },
@@ -139,14 +152,15 @@ export const styles = StyleSheet.create({
   tabUnderline: { height: 2.5, backgroundColor: COLORS.orange, marginTop: 6, borderRadius: 2 },
   tabSep: { width: 1, backgroundColor: COLORS.line, marginHorizontal: 6, marginVertical: 10 },
 
-  panelContent: { padding: 18, paddingBottom: 92 },
+  panelContent: { padding: 14, paddingBottom: 72 },
   sectionTitle: { fontSize: 14, fontWeight: '600', color: COLORS.ink, marginBottom: 10, marginTop: 4 },
   formCard: {
-    backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, padding: 16, marginBottom: 14,
+    backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: COLORS.line, borderRadius: 16, padding: 13, marginBottom: 10,
     shadowColor: '#302A1E', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 2,
   },
 
-  fieldBlock: { marginBottom: 14 },
+  fieldBlock: { marginBottom: 9 },
+  compactFieldDivider: { borderBottomWidth: 1, borderBottomColor: COLORS.line, marginBottom: 9 },
   fieldTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: COLORS.ink, flex: 1 },
 
