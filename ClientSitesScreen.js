@@ -1,6 +1,6 @@
 /** Écran Sites d'un client + accès pilotage, carte et documents. */
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, ScrollView } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { creerSite } from './db.js';
 import { getResumeSuppressionSite, supprimerSiteComplet } from './entityManagementDb.js';
@@ -105,6 +105,11 @@ function ClientSitesScreen({ route, navigation }) {
   const accent = getRuntimeAccent();
   const palette = getRuntimePalette();
   const patchNouvelleAdresse = (patch) => setNouvelleAdresse((prev) => ({ ...prev, ...patch }));
+  const ouvrirAjoutSite = () => Alert.alert('Ajouter un site', 'Où créer le site ?', [
+    { text: 'Annuler', style: 'cancel' },
+    { text: '+ Site local', onPress: () => setModalVisible(true) },
+    { text: '+ Site Intranet', onPress: () => setIntranetSiteVisible(true) },
+  ]);
 
   const ajouterSiteFn = async () => {
     if (!nouveauNom.trim()) return Alert.alert('Nom requis', 'Merci de saisir le nom du site.');
@@ -173,7 +178,7 @@ function ClientSitesScreen({ route, navigation }) {
     } catch (e) { Alert.alert('Renommage impossible', String(e?.message || e)); }
   };
 
-  return <View style={{ flex: 1, backgroundColor: COLORS.bg, paddingBottom: 76 }}>
+  return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
     <FlatList
       ref={listRef}
       style={{ flex: 1 }}
@@ -189,33 +194,22 @@ function ClientSitesScreen({ route, navigation }) {
       keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.id}
       ListHeaderComponent={<View>
-        <PatrimoineImageCard entityType="client" entityId={clientId} title={nomClient || 'Client'} subtitle="Image du client · disponible hors connexion" />
-        <Text style={styles.sectionLabel}>Patrimoine client</Text>
-        <View style={{ marginTop: 8, marginBottom: 12, padding: 14, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E3E5E8' }}>
-          <View style={{ flexDirection: 'row', gap: 10 }}><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{sites.length}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>sites</Text></View><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{avecAdresse}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>adresses renseignées</Text></View><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{sansAdresse}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>à compléter</Text></View></View>
+        <PatrimoineImageCard compact entityType="client" entityId={clientId} title={nomClient || 'Client'} />
+        <View style={styles.clientOverviewCard}>
+          <Text style={styles.clientOverviewText}><Text style={styles.clientOverviewNumber}>{sites.length}</Text> site{sites.length > 1 ? 's' : ''}</Text>
+          <Text style={styles.clientOverviewText}><Text style={styles.clientOverviewNumber}>{avecAdresse}</Text> avec adresse</Text>
+          {sansAdresse > 0 ? <Text style={[styles.clientOverviewText, { color: COLORS.amber }]}><Text style={styles.clientOverviewNumber}>{sansAdresse}</Text> à compléter</Text> : null}
         </View>
-
-        <TouchableOpacity style={[styles.btnPrimary, { marginBottom: 8 }]} onPress={() => navigation.navigate('ClientPilotage', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnPrimaryText}>▦ Pilotage patrimoine</Text></TouchableOpacity>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => navigation.navigate('ClientMap', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>🗺 Carte</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => setGroupesVisible(true)} disabled={!sites.length}><Text style={styles.btnSecondaryText}>▦ Groupes</Text></TouchableOpacity>
+        <View style={styles.clientPrimaryActions}>
+          <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => navigation.navigate('ClientPilotage', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnPrimaryText}>▦ Patrimoine</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={ouvrirAjoutSite}><Text style={styles.btnPrimaryText}>+ Ajouter un site</Text></TouchableOpacity>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setModalVisible(true)}><Text style={styles.btnPrimaryText}>+ Site local</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setIntranetSiteVisible(true)}><Text style={styles.btnPrimaryText}>+ Site Intranet</Text></TouchableOpacity>
+        <View style={styles.clientQuickActions}>
+          <TouchableOpacity style={styles.clientQuickAction} onPress={() => navigation.navigate('ClientMap', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.clientQuickActionText}>Carte</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.clientQuickAction} onPress={() => setGroupesVisible(true)} disabled={!sites.length}><Text style={styles.clientQuickActionText}>Groupes</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.clientQuickAction} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.clientQuickActionText}>Documents</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.clientQuickAction, { borderColor: accent, backgroundColor: palette.light }]} onPress={() => setClientCompanionVisible(true)}><Text style={[styles.clientQuickActionText, { color: accent }]}>Compagnon</Text></TouchableOpacity>
         </View>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>📄 Documents</Text></TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', gap: 7, borderColor: accent, backgroundColor: palette.light }]}
-            onPress={() => setClientCompanionVisible(true)}
-          >
-            <CvcIcon name="camera" size={19} color={accent} />
-            <Text style={[styles.btnSecondaryText, { color: accent }]}>Compagnon</Text>
-          </TouchableOpacity>
-        </View>
-
-        {sansAdresse > 0 ? <View style={{ backgroundColor: '#FFF8E7', borderWidth: 1, borderColor: '#F0D99B', borderRadius: 12, padding: 10, marginBottom: 14 }}><Text style={{ color: '#7A5700', fontSize: 12, fontWeight: '700' }}>{sansAdresse} site(s) sans adresse complète</Text></View> : null}
         <View style={styles.sectionHeaderRow}><Text style={styles.sectionLabel}>Sites</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>{sitesFiltres.length}/{sites.length}</Text></View>
         <TextInput
           style={[styles.input, { marginTop: 8, marginBottom: 8 }]}
@@ -224,19 +218,22 @@ function ClientSitesScreen({ route, navigation }) {
           placeholder="Rechercher un site, une adresse, un lot…"
           autoCorrect={false}
         />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 1, marginBottom: 12 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ flexDirection: 'row', gap: 7, paddingBottom: 12 }}>
           {SITE_SORT_OPTIONS.map((option) => {
             const active = sortMode === option.id;
             return <TouchableOpacity key={option.id} onPress={() => changerTri(option.id)} style={{ minHeight: 36, paddingHorizontal: 11, borderRadius: 18, borderWidth: 1, borderColor: active ? COLORS.orange : COLORS.line, backgroundColor: active ? '#FFF3E8' : '#FFF', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 11, fontWeight: '900', color: active ? COLORS.orange : COLORS.inkSoft }}>{option.label}</Text></TouchableOpacity>;
           })}
-        </View>
+        </ScrollView>
       </View>}
-      renderItem={({ item }) => <TouchableOpacity style={styles.card} activeOpacity={0.7} onPressIn={() => prewarmSiteLocals(item.id).catch(() => {})} onPress={() => ouvrirSite(item)}>
-        <PatrimoineThumbnail uri={item.image_uri} size={60} radius={10} />
-        <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom_site}</Text>{siteGroupLabel(item.id, groupMap) ? <Text style={{ color: COLORS.primary, fontSize: 10.5, fontWeight: '800', marginTop: 2 }}>{siteGroupLabel(item.id, groupMap)}</Text> : null}{item.adresse ? <Text style={styles.cardSub}>{item.adresse}</Text> : <Text style={{ color: '#A26A00', fontSize: 12 }}>Adresse à renseigner</Text>}{item.localisation_note ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 4 }}>{item.localisation_note}</Text> : null}</View>
-        <TouchableOpacity onPress={(e) => ouvrirStructure(e, item)} style={{ minHeight: 38, paddingHorizontal: 9, borderRadius: 10, borderWidth: 1, borderColor: COLORS.line, justifyContent: 'center', marginRight: 6 }}><Text style={{ color: COLORS.primary, fontSize: 10.5, fontWeight: '900' }}>Locaux Intranet</Text></TouchableOpacity>
-        <View style={[styles.badge, item.statut === 'Actif' ? styles.badgeActif : styles.badgeInactif]}><Text style={[styles.badgeText, item.statut === 'Actif' ? styles.badgeTextActif : styles.badgeTextInactif]}>{item.statut || 'Actif'}</Text></View>
-        <TouchableOpacity onPress={(e) => ouvrirMenuSite(e, item)} style={{ minWidth: 46, minHeight: 46, alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}><Text style={{ color: COLORS.inkSoft, fontSize: 22, fontWeight: '900' }}>⋯</Text></TouchableOpacity>
+      renderItem={({ item }) => <TouchableOpacity style={[styles.card, { alignItems: 'flex-start' }]} activeOpacity={0.7} onPressIn={() => prewarmSiteLocals(item.id).catch(() => {})} onPress={() => ouvrirSite(item)}>
+        <PatrimoineThumbnail uri={item.image_uri} size={48} radius={10} />
+        <View style={{ flex: 1, minWidth: 0 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}><Text numberOfLines={1} style={[styles.cardTitle, { flex: 1 }]}>{item.nom_site}</Text><View style={[styles.badge, item.statut === 'Actif' ? styles.badgeActif : styles.badgeInactif]}><Text style={[styles.badgeText, item.statut === 'Actif' ? styles.badgeTextActif : styles.badgeTextInactif]}>{item.statut || 'Actif'}</Text></View></View>
+          <Text numberOfLines={2} style={item.adresse ? styles.cardSub : { color: COLORS.amber, fontSize: 11.5 }}>{item.adresse || 'Adresse à renseigner'}</Text>
+          {siteGroupLabel(item.id, groupMap) ? <Text numberOfLines={1} style={{ color: COLORS.orangeDark, fontSize: 10.5, fontWeight: '700', marginTop: 3 }}>{siteGroupLabel(item.id, groupMap)}</Text> : null}
+          <TouchableOpacity accessibilityLabel={`Ouvrir les locaux Intranet de ${item.nom_site}`} onPress={(e) => ouvrirStructure(e, item)} style={{ alignSelf: 'flex-start', minHeight: 32, justifyContent: 'center', marginTop: 5 }}><Text style={{ color: COLORS.orangeDark, fontSize: 11, fontWeight: '700' }}>Locaux Intranet →</Text></TouchableOpacity>
+        </View>
+        <TouchableOpacity accessibilityLabel={`Actions du site ${item.nom_site}`} onPress={(e) => ouvrirMenuSite(e, item)} style={{ minWidth: 36, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.inkSoft, fontSize: 22, fontWeight: '900' }}>⋯</Text></TouchableOpacity>
       </TouchableOpacity>}
       ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucun site pour ce client.</Text></View>}
     />

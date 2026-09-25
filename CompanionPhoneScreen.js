@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { IconOrb } from './premiumChrome.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { prendrePhoto } from './PhotoButton.js';
 import {
@@ -267,6 +268,7 @@ function VisitChoiceRow({ visit, onPress, busy, accent, light }) {
 }
 
 function CompanionPhoneScreen({ onExit }) {
+  const headerTopInset = Math.max(48, (StatusBar.currentHeight || 24) + 16);
   const palette = getRuntimePalette();
   const accent = getRuntimeAccent();
   const light = palette.light || COLORS.orangeLight;
@@ -582,14 +584,12 @@ function CompanionPhoneScreen({ onExit }) {
     const fields = Array.isArray(selectedTarget.fields) ? selectedTarget.fields : [];
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+        <View style={{ paddingTop: headerTopInset, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <TouchableOpacity onPress={() => setSelectedTargetId(null)} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}>
               <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.ink }}>←</Text>
             </TouchableOpacity>
-            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}>
-              <CvcIcon name={selectedModule.icon} size={28} color={accent} />
-            </View>
+            <IconOrb accent={accent} light={light} size={44}><CvcIcon name={selectedModule.icon} size={26} color={accent} /></IconOrb>
             <View style={{ flex: 1 }}>
               <Text numberOfLines={2} style={{ fontSize: 18, fontWeight: '900', color: COLORS.ink }}>{selectedTarget.label}</Text>
               <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 11.5 }}>{selectedModule.label}</Text>
@@ -647,14 +647,12 @@ function CompanionPhoneScreen({ onExit }) {
     const targets = selectedModule.targets || [];
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+        <View style={{ paddingTop: headerTopInset, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <TouchableOpacity onPress={() => { setSelectedTargetId(null); setSelectedModuleId(null); }} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}>
               <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.ink }}>←</Text>
             </TouchableOpacity>
-            <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}>
-              <CvcIcon name={selectedModule.icon} size={28} color={accent} />
-            </View>
+            <IconOrb accent={accent} light={light} size={44}><CvcIcon name={selectedModule.icon} size={26} color={accent} /></IconOrb>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 19, fontWeight: '900', color: COLORS.ink }}>{selectedModule.label}</Text>
               <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 12 }}>{targets.length} élément{targets.length > 1 ? 's' : ''} · toucher pour ouvrir</Text>
@@ -679,7 +677,7 @@ function CompanionPhoneScreen({ onExit }) {
     if (selectedSite) {
       return (
         <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-          <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+          <View style={{ paddingTop: headerTopInset, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <TouchableOpacity onPress={() => setSelectedSiteId(null)} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center' }}>
                 <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.ink }}>←</Text>
@@ -708,7 +706,7 @@ function CompanionPhoneScreen({ onExit }) {
 
     return (
       <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+        <View style={{ paddingTop: headerTopInset, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <TouchableOpacity onPress={quit} style={{ width: 40, height: 40, borderRadius: 13, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 20, color: COLORS.ink }}>←</Text></TouchableOpacity>
             <View style={{ flex: 1 }}>
@@ -738,7 +736,7 @@ function CompanionPhoneScreen({ onExit }) {
 
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-      <ScrollView contentContainerStyle={{ paddingTop: 50, paddingHorizontal: 14, paddingBottom: 40 }}>
+      <ScrollView contentContainerStyle={{ paddingTop: headerTopInset + 2, paddingHorizontal: 14, paddingBottom: 40 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
           <TouchableOpacity onPress={quit} style={{ width: 40, height: 40, borderRadius: 13, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 20, color: COLORS.ink }}>←</Text></TouchableOpacity>
           <View style={{ flex: 1 }}>

@@ -1,7 +1,7 @@
 /** Panneaux de l'écran Visite : générique, Régulation, Relevés, Équipements, Réserves, Photos. */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, Image } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, Image, useWindowDimensions } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { TRAME_DATA, RESEAU_TEMPLATE } from './data.js';
 import {
@@ -23,6 +23,7 @@ import {
 import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, useSaisieAvecAutoSave } from './GenericFields.js';
 import { PhotoButton, prendrePhoto } from './PhotoButton.js';
 import { BrandMark } from './BrandLogo.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 // ============================================================================
 // 5. PANNEAUX DE L'ÉCRAN VISITE
@@ -337,7 +338,7 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
     <View style={styles.formCard}>
       <View style={styles.equipmentBrandHeader}>
         <BrandMark marque={marque} compact />
-        <TouchableOpacity style={[styles.biblioShortcutBtn, { flex: 1 }]} onPress={ouvrirBiblio}><Text style={styles.biblioShortcutBtnText}>📚 Choisir dans la bibliothèque</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityLabel="Choisir dans la bibliothèque d’équipements" style={[styles.biblioShortcutBtn, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={ouvrirBiblio}><CvcIcon name="document" size={17} color={COLORS.orangeDark} /><Text style={styles.biblioShortcutBtnText}>Bibliothèque</Text></TouchableOpacity>
       </View>
       <View style={styles.materielTopRow}>
         <View style={{ flex: 1 }}><TypeAheadInput valeur={categorie} options={optionsCategories} placeholder="Catégorie (ex: Chaudière, Pompe, Adoucisseur...)" onChange={sauverCategorie} /></View>
@@ -528,6 +529,8 @@ function PanelRemarques({ visiteId, refreshKey }) {
 }
 
 function PanelPhotos({ visiteId, refreshKey }) {
+  const { width } = useWindowDimensions();
+  const photoTileWidth = width >= 700 ? '18%' : '30.5%';
   const [photos, setPhotos] = useState([]);
   const [viewerUri, setViewerUri] = useState(null);
   useEffect(useCallback(() => { listerPhotos(visiteId).then(setPhotos); }, [visiteId, refreshKey]));
@@ -540,8 +543,8 @@ function PanelPhotos({ visiteId, refreshKey }) {
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
       <Text style={styles.sectionTitle}>Toutes les photos de la visite · {photos.length}</Text>
       <View style={styles.photoGrid}>
-        {photos.map((p) => <TouchableOpacity key={p.id} style={styles.photoThumb} onPress={() => setViewerUri(p.uri)}><Image source={{ uri: p.uri }} style={styles.photoThumbImg} /></TouchableOpacity>)}
-        <TouchableOpacity style={styles.photoAddTile} onPress={onAjouter}><Text style={styles.photoAddTileText}>+</Text></TouchableOpacity>
+        {photos.map((p) => <TouchableOpacity key={p.id} style={[styles.photoThumb, { width: photoTileWidth }]} onPress={() => setViewerUri(p.uri)}><Image source={{ uri: p.uri }} style={styles.photoThumbImg} /></TouchableOpacity>)}
+        <TouchableOpacity accessibilityLabel="Ajouter une photo" style={[styles.photoAddTile, { width: photoTileWidth }]} onPress={onAjouter}><CvcIcon name="plus" size={25} color={COLORS.orangeDark} /></TouchableOpacity>
       </View>
       <Modal visible={!!viewerUri} transparent animationType="fade"><TouchableOpacity style={styles.viewerOverlay} onPress={() => setViewerUri(null)} activeOpacity={1}>{viewerUri && <Image source={{ uri: viewerUri }} style={styles.viewerImg} resizeMode="contain" />}</TouchableOpacity></Modal>
     </ScrollView>

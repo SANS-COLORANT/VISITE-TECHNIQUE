@@ -205,8 +205,8 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
       keyExtractor={(i) => i.id}
       ListHeaderComponent={<>
         {missionsEnabled ? <View style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: MISSION_COLORS.accentSoft }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, fontWeight: '800' }}>Glisser vers la droite → Missions</Text></View> : null}
-        <FadeUp style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E6E8EC', padding: 13, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 2 }}>
-          <View style={{ minHeight: 50, borderRadius: 14, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: '#ECEEF1', flexDirection: 'row', alignItems: 'center', paddingLeft: 13 }}>
+        <FadeUp style={{ backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, paddingHorizontal: 10, marginBottom: 9 }}>
+          <View style={{ minHeight: 48, flexDirection: 'row', alignItems: 'center', paddingLeft: 4 }}>
             <CvcIcon name="search" size={18} color="#98A2B3" strokeWidth={2.1} />
             <TextInput
               value={quickSearch}
@@ -223,12 +223,9 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
               <Text style={{ color: COLORS.orange || '#E86F2D', fontWeight: '900', fontSize: 18 }}>→</Text>
             </TouchableOpacity>
           </View>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 11, marginTop: 8 }}>Fonctionne aussi hors connexion.</Text>
         </FadeUp>
 
-        <View style={{ position: 'relative' }}>
-          <View style={{ position: 'absolute', top: -34, left: -18, width: 130, height: 130, borderRadius: 65, backgroundColor: COLORS.orangeLight, opacity: 0.7 }} />
-          <View style={{ position: 'absolute', top: -14, right: -28, width: 100, height: 100, borderRadius: 50, backgroundColor: COLORS.orange, opacity: 0.12 }} />
+        <View>
           <View style={styles.statRow}>
             <FadeUp delay={40} style={{ flex: 1 }}><StatCard icon="clock" num={stats.enCours} label="En cours" accent={COLORS.orange} light={COLORS.orangeLight} /></FadeUp>
             <FadeUp delay={80} style={{ flex: 1 }}><StatCard icon="control" num={stats.terminees} label="Terminées" accent={COLORS.green} light={COLORS.greenBg} /></FadeUp>
@@ -300,9 +297,9 @@ function StatCard({ icon, num, label, accent, light }) {
       colors={[light, '#FFFFFF']}
       start={{ x: 0, y: 0 }}
       end={{ x: 0.3, y: 1 }}
-      style={[styles.statCard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 10, paddingHorizontal: 14 }]}
+      style={[styles.statCard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 8, paddingHorizontal: 10 }]}
     >
-      <IconOrb accent={accent} light={light} size={38}><CvcIcon name={icon} size={18} color={accent} /></IconOrb>
+      <IconOrb accent={accent} light={light} size={30}><CvcIcon name={icon} size={15} color={accent} /></IconOrb>
       <View>
         <Text style={styles.statNum}>{num}</Text>
         <Text style={styles.statLabel}>{label}</Text>
