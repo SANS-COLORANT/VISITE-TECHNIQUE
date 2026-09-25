@@ -4,6 +4,7 @@ import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityInd
 import { COLORS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 import { getVisite, getNote, upsertNote, getDb } from './db.js';
 import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
@@ -626,24 +627,41 @@ function VisiteScreen({ route, onBack }) {
             <Text style={styles.cardTitle}>{visite.nom_site}</Text>
             <Text style={styles.cardSub}>{[visite.nom_client, visite.nom_installation, visite.date_visite, trame.nom, visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'].filter(Boolean).join(' · ')}</Text>
           </View>
-          {appareilTablette ? <TouchableOpacity style={styles.noteBtn} onPress={() => setCompanionVisible(true)}><Text style={styles.noteBtnText}>Téléphone</Text></TouchableOpacity> : null}
-          <TouchableOpacity style={styles.noteBtn} onPress={ouvrirNote}><Text style={styles.noteBtnText}>Note libre</Text></TouchableOpacity>
-          {trame.id === 'pre_allumage' ? <TouchableOpacity style={styles.noteBtn} onPress={choisirFormatRapportPreAllumage} disabled={reportExporting}><Text style={styles.noteBtnText}>{reportExporting ? 'Rapport…' : 'PDF / Word'}</Text></TouchableOpacity> : null}
-          <TouchableOpacity style={styles.exportBtn} onPress={exporter} disabled={exporting}><Text style={styles.exportBtnText}>{exporting ? '...' : `Excel ${trame.nom}`}</Text></TouchableOpacity>
+          {appareilTablette ? (
+            <TouchableOpacity accessibilityLabel="Compagnon téléphone" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.iconAction, styles.iconActionNeutral]} onPress={() => setCompanionVisible(true)}>
+              <CvcIcon name="device" size={19} color={COLORS.ink} />
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity accessibilityLabel="Note libre" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.iconAction, styles.iconActionNeutral]} onPress={ouvrirNote}>
+            <CvcIcon name="note" size={19} color={COLORS.ink} />
+          </TouchableOpacity>
+          {trame.id === 'pre_allumage' ? (
+            <TouchableOpacity accessibilityLabel="Exporter en PDF ou Word" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.iconAction, styles.iconActionNeutral]} onPress={choisirFormatRapportPreAllumage} disabled={reportExporting}>
+              {reportExporting ? <ActivityIndicator size="small" color={COLORS.ink} /> : <CvcIcon name="document" size={19} color={COLORS.ink} />}
+            </TouchableOpacity>
+          ) : null}
+          <TouchableOpacity accessibilityLabel={`Exporter en Excel ${trame.nom}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.iconAction, styles.iconActionDark]} onPress={exporter} disabled={exporting}>
+            {exporting ? <ActivityIndicator size="small" color={COLORS.white} /> : <CvcIcon name="export" size={19} color={COLORS.white} />}
+          </TouchableOpacity>
         </View>
-        <View style={styles.progressRow}>
-          <View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${visite.progression_pct}%` }]} /></View>
-          <Text style={styles.progressPct}>{visite.progression_pct}%</Text>
-          <Text
-            accessibilityLiveRegion="polite"
-            style={{ marginLeft: 9, fontSize: 10.5, fontWeight: '800', color: saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32' }}
-          >
-            {saveActivity.lastError ? '⚠ Sauvegarde à reprendre' : saveActivity.pending ? `${saveActivity.pending} en attente` : '✓ Enregistré'}
-          </Text>
+        <View style={[styles.progressRow, { justifyContent: 'space-between' }]}>
+          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+            <View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${visite.progression_pct}%` }]} /></View>
+            <Text style={styles.progressPct}>{visite.progression_pct}%</Text>
+            <CvcIcon
+              name={saveActivity.lastError ? 'cloud-off' : saveActivity.pending ? 'cloud-sync' : 'control'}
+              size={16}
+              color={saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32'}
+            />
+            {saveActivity.pending ? <Text accessibilityLiveRegion="polite" style={{ fontSize: 10.5, fontWeight: '800', color: '#A15C12' }}>{saveActivity.pending}</Text> : null}
+          </View>
+          <IntranetVisitSyncControl compact visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />
         </View>
         {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? <PhotoReferenceAccess visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} /> : null}
-        <IntranetVisitSyncControl visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />
-        <TouchableOpacity style={styles.anomalyBtn} onPress={() => setAnomalieVisible(true)}><Text style={styles.anomalyBtnText}>⚠ Ajouter une anomalie, une remarque ou une réserve</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityLabel="Ajouter une anomalie, une remarque ou une réserve" style={[styles.anomalyBtn, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={() => setAnomalieVisible(true)}>
+          <CvcIcon name="remark" size={15} color="#B42318" />
+          <Text style={styles.anomalyBtnText}>Anomalie / Réserve</Text>
+        </TouchableOpacity>
         {visite.mode_visite === 'express' && <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>}
         {trame.id === 'vmc' && vmcCaissons.length > 0 ? <VmcCaissonManager visiteId={visiteId} caissons={vmcCaissons} onChange={onCaissonsChange} onNavigate={changerOnglet} /> : null}
         {!modeTablette && <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.tabStrip}>

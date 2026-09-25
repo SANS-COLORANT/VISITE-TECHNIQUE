@@ -22,7 +22,6 @@
   "dependencies": {
     "expo": "51.0.39",
     "expo-asset": "~10.0.10",
-    "expo-blur": "~13.0.2",
     "expo-document-picker": "~12.0.2",
     "expo-file-system": "~17.0.0",
     "expo-image-manipulator": "~12.0.5",

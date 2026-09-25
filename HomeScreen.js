@@ -2,8 +2,10 @@
 
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView, PanResponder } from 'react-native';
-import { BlurView } from 'expo-blur';
+import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, styles } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
+import { IconOrb, FadeUp } from './premiumChrome.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
 import { SpiralActiveHome } from './visual-packs/spiral-active/SpiralActiveHome.js';
 import { PatrimoineThumbnail } from './PatrimoineImageCard.js';
@@ -178,10 +180,19 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
   }
 
   return <View style={{ flex: 1, backgroundColor: COLORS.bg }} {...missionsSwipeResponder.panHandlers}>
-    <View style={styles.homeTopRow}>
-      <TouchableOpacity style={styles.importExcelBtn} onPress={choisirExcel}><Text style={styles.importExcelBtnText}>⇧ Importer Excel(s)</Text></TouchableOpacity>
-      <View style={{ flex: 1 }} />
-      <TouchableOpacity style={styles.parametresBtn} onPress={() => navigation.navigate('Parametres')}><Text style={styles.parametresBtnText}>⚙ Paramètres</Text></TouchableOpacity>
+    <View style={[styles.homeTopRow, { justifyContent: 'space-between' }]}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+        <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={36}><CvcIcon name="tools" size={18} color={COLORS.orangeDark} /></IconOrb>
+        <Text style={{ fontSize: 15, fontWeight: '800', color: COLORS.ink }}>Visite Technique</Text>
+      </View>
+      <View style={{ flexDirection: 'row' }}>
+        <TouchableOpacity accessibilityLabel="Importer des fichiers Excel" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.iconAction, styles.iconActionNeutral, { marginLeft: 0 }]} onPress={choisirExcel}>
+          <CvcIcon name="document" size={18} color={COLORS.ink} />
+        </TouchableOpacity>
+        <TouchableOpacity accessibilityLabel="Paramètres" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.iconAction, styles.iconActionNeutral]} onPress={() => navigation.navigate('Parametres')}>
+          <CvcIcon name="settings" size={18} color={COLORS.ink} />
+        </TouchableOpacity>
+      </View>
     </View>
 
     <FlatList
@@ -194,51 +205,55 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
       keyExtractor={(i) => i.id}
       ListHeaderComponent={<>
         {missionsEnabled ? <View style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: MISSION_COLORS.accentSoft }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, fontWeight: '800' }}>Glisser vers la droite → Missions</Text></View> : null}
-        <View style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E6E8EC', padding: 13, marginBottom: 16 }}>
-          <Text style={{ color: COLORS.ink || '#17212B', fontSize: 13.5, fontWeight: '900', marginBottom: 9 }}>Accès rapide au patrimoine</Text>
+        <FadeUp style={{ backgroundColor: '#FFFFFF', borderRadius: 18, borderWidth: 1, borderColor: '#E6E8EC', padding: 13, marginBottom: 16, shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 12, shadowOffset: { width: 0, height: 5 }, elevation: 2 }}>
           <View style={{ minHeight: 50, borderRadius: 14, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: '#ECEEF1', flexDirection: 'row', alignItems: 'center', paddingLeft: 13 }}>
-            <Text style={{ fontSize: 21, color: '#98A2B3', marginRight: 9 }}>⌕</Text>
+            <CvcIcon name="search" size={18} color="#98A2B3" strokeWidth={2.1} />
             <TextInput
               value={quickSearch}
               onChangeText={setQuickSearch}
               onSubmitEditing={openDirectory}
               placeholder="Client, site, ville, adresse, équipement…"
               placeholderTextColor="#98A2B3"
-              style={{ flex: 1, color: COLORS.ink || '#17212B', fontSize: 14.5, paddingVertical: 12 }}
+              style={{ flex: 1, color: COLORS.ink || '#17212B', fontSize: 14.5, paddingVertical: 12, marginLeft: 9 }}
               autoCorrect={false}
               autoCapitalize="none"
               returnKeyType="search"
             />
-            <TouchableOpacity onPress={openDirectory} style={{ minWidth: 50, minHeight: 48, alignItems: 'center', justifyContent: 'center' }}>
+            <TouchableOpacity accessibilityLabel="Lancer la recherche" onPress={openDirectory} style={{ minWidth: 50, minHeight: 48, alignItems: 'center', justifyContent: 'center' }}>
               <Text style={{ color: COLORS.orange || '#E86F2D', fontWeight: '900', fontSize: 18 }}>→</Text>
             </TouchableOpacity>
           </View>
-          <Text style={{ color: COLORS.muted || '#667085', fontSize: 11.5, marginTop: 8 }}>Recherche METRA + données Intranet déjà synchronisées · utilisable hors connexion.</Text>
-        </View>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 11, marginTop: 8 }}>Fonctionne aussi hors connexion.</Text>
+        </FadeUp>
 
         <View style={{ position: 'relative' }}>
-          <View style={{ position: 'absolute', top: -34, left: -18, width: 130, height: 130, borderRadius: 65, backgroundColor: COLORS.orangeLight, opacity: 0.9 }} />
-          <View style={{ position: 'absolute', top: -14, right: -28, width: 100, height: 100, borderRadius: 50, backgroundColor: COLORS.orange, opacity: 0.16 }} />
-          <View style={styles.statRow}><StatCard num={stats.enCours} label="En cours" /><StatCard num={stats.terminees} label="Terminées" /></View>
+          <View style={{ position: 'absolute', top: -34, left: -18, width: 130, height: 130, borderRadius: 65, backgroundColor: COLORS.orangeLight, opacity: 0.7 }} />
+          <View style={{ position: 'absolute', top: -14, right: -28, width: 100, height: 100, borderRadius: 50, backgroundColor: COLORS.orange, opacity: 0.12 }} />
+          <View style={styles.statRow}>
+            <FadeUp delay={40} style={{ flex: 1 }}><StatCard icon="clock" num={stats.enCours} label="En cours" accent={COLORS.orange} light={COLORS.orangeLight} /></FadeUp>
+            <FadeUp delay={80} style={{ flex: 1 }}><StatCard icon="control" num={stats.terminees} label="Terminées" accent={COLORS.green} light={COLORS.greenBg} /></FadeUp>
+          </View>
         </View>
 
         {visitesEnCours.length > 0 && <>
           <Text style={styles.sectionLabel}>Visites en cours</Text>
-          {visitesEnCours.map((v) => <TouchableOpacity
-            key={v.id}
+          {visitesEnCours.map((v, i) => <FadeUp key={v.id} delay={Math.min(i, 4) * 30}><TouchableOpacity
             style={styles.card}
             onPressIn={() => prewarmVisitInBackground(v, { preview: v })}
             onPress={() => { markVisitHot(v.id, { preview: v }); navigation.navigate('Visite', { visiteId: v.id, visitePreview: v }); }}
           >
+            <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="clock" size={19} color={COLORS.orangeDark} /></IconOrb>
             <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{v.nom_client}</Text><Text style={styles.cardSub}>{v.nom_site}</Text></View>
             <View style={styles.badge}><Text style={styles.badgeText}>{v.progression_pct}%</Text></View>
-            <TouchableOpacity style={styles.deleteVisiteBtn} onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(v); }}><Text style={styles.deleteVisiteBtnText}>✕</Text></TouchableOpacity>
-          </TouchableOpacity>)}
+            <TouchableOpacity accessibilityLabel="Supprimer cette visite" style={styles.deleteVisiteBtn} onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(v); }}><CvcIcon name="trash" size={13} color={COLORS.red} /></TouchableOpacity>
+          </TouchableOpacity></FadeUp>)}
         </>}
 
         <View style={styles.sectionHeaderRow}>
           <TouchableOpacity activeOpacity={1} delayLongPress={4000} onLongPress={onR1LongPress}><Text style={styles.sectionLabel}>Clients locaux</Text></TouchableOpacity>
-          <TouchableOpacity onPress={() => setModalVisible(true)}><Text style={styles.addLink}>+ Ajouter</Text></TouchableOpacity>
+          <TouchableOpacity accessibilityLabel="Ajouter un client" onPress={() => setModalVisible(true)} style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
+            <CvcIcon name="plus" size={13} color={COLORS.orangeDark} strokeWidth={2.2} /><Text style={styles.addLink}>Ajouter</Text>
+          </TouchableOpacity>
         </View>
       </>}
       renderItem={({ item }) => <TouchableOpacity
@@ -248,7 +263,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
       >
         <PatrimoineThumbnail uri={item.image_uri} size={54} radius={10} />
         <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom}</Text>{item.code_exploitant ? <Text style={styles.cardSub}>{item.code_exploitant}</Text> : null}</View>
-        <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionClient(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityLabel={`Supprimer ${item.nom}`} onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionClient(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="trash" size={15} color={COLORS.red} /></TouchableOpacity>
         <Text style={styles.chevron}>›</Text>
       </TouchableOpacity>}
       ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucun client local</Text><Text style={styles.emptySub}>Utilise la recherche ci-dessus pour retrouver un client ou un site synchronisé, ou crée un client manuellement.</Text></View>}
@@ -279,14 +294,20 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
   </View>;
 }
 
-function StatCard({ num, label }) {
+function StatCard({ icon, num, label, accent, light }) {
   return (
-    <View style={[styles.statCard, { overflow: 'hidden', backgroundColor: 'transparent', borderColor: 'rgba(234,232,226,0.6)' }]}>
-      <BlurView intensity={35} tint="light" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
-      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.45)' }} />
-      <Text style={styles.statNum}>{num}</Text>
-      <Text style={styles.statLabel}>{label}</Text>
-    </View>
+    <LinearGradient
+      colors={[light, '#FFFFFF']}
+      start={{ x: 0, y: 0 }}
+      end={{ x: 0.3, y: 1 }}
+      style={[styles.statCard, { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 10, paddingHorizontal: 14 }]}
+    >
+      <IconOrb accent={accent} light={light} size={38}><CvcIcon name={icon} size={18} color={accent} /></IconOrb>
+      <View>
+        <Text style={styles.statNum}>{num}</Text>
+        <Text style={styles.statLabel}>{label}</Text>
+      </View>
+    </LinearGradient>
   );
 }
 

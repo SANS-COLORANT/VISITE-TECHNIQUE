@@ -74,7 +74,7 @@ requireText(photoMigration, 'envoi_photo_id TEXT NOT NULL UNIQUE', 'persistent s
 requireText(photoMigration, 'remote_visit_id TEXT NOT NULL', 'photo targets acknowledged remote visit');
 requireText(photoMigration, 'FOREIGN KEY (photo_id) REFERENCES photos(id) ON DELETE CASCADE', 'deleted local photo clears unsent outbox state');
 const ui = read('IntranetVisitSync.js');
-requireText(ui, "online ? 'Online' : 'Offline'", 'compact Online/Offline status');
+requireText(ui, "iconName = online ? 'cloud-check' : detailIsError ? 'cloud-off' : 'cloud-sync'", 'icon-driven online/offline/error status');
 requireText(ui, 'syncVisitPhotosNow', 'visit success continues with photo upload');
 requireText(ui, 'photoSummaryComplete', 'Online waits for all local photos');
 requireText(ui, 'PHOTO_PART_INTERVAL_MS = 15_000', 'remaining photo parts resume automatically');
@@ -87,7 +87,7 @@ requireText(docs, 'POST /api/clients/{idclient}/visites/{idvisite}/photos', 'sep
 requireText(docs, 'envoiPhotoId', 'photo idempotency documented');
 requireText(docs, 'lots de 10', 'photo part upload documented');
 requireText(docs, 'La conclusion reste hors synchronisation', 'unsupported conclusion disclosure remains documented');
-requireText(read('VisiteScreen.js'), '<IntranetVisitSyncControl visite={visite}', 'visit sync control');
+requireRegex(read('VisiteScreen.js'), /<IntranetVisitSyncControl\b[^>]*\bvisite=\{visite\}/, 'visit sync control');
 const app = read('App.js');
 requireRegex(app, /<IntranetVisitSyncRuntime\s*\/>/, 'foreground retry runtime');
 requireRegex(app, /<IntranetVisitSyncBanner\s*\/>/, 'global pending status');

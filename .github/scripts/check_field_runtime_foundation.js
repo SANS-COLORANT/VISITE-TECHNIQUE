@@ -65,7 +65,7 @@ for (const [name, source] of [['Relevés', releves], ['Régulation', regulation]
 expect(generic.includes('useDurableAutosave'), 'Les anciens champs doivent utiliser le pipeline autosave durable.');
 expect(autosave.includes('markDraftDirty') && autosave.includes('markDraftSaved'), 'L’autosave doit exposer son état sans bloquer le clavier.');
 expect(save.includes('dirty.has(id)'), 'Le statut de sauvegarde ne doit pas rerendre à chaque caractère.');
-expect(visit.includes("'✓ Enregistré'") && visit.includes('saveActivity.pending'), 'La visite doit afficher un statut de sauvegarde discret.');
+expect(visit.includes("saveActivity.lastError ? 'cloud-off' : saveActivity.pending ? 'cloud-sync' : 'control'") && visit.includes('saveActivity.pending'), 'La visite doit afficher un statut de sauvegarde discret.');
 
 expect(photoCache.includes("thumb: { width: 320") && photoCache.includes("preview: { width: 1280"), 'Les niveaux miniature / aperçu doivent rester distincts.');
 expect(photoCache.includes('while (active < 2'), 'La génération photo doit rester limitée à deux jobs simultanés.');

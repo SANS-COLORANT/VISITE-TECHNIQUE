@@ -103,6 +103,63 @@ function CvcIcon({ name, size = 36, color = '#10384B', strokeWidth = 1.9 }) {
       <Line x1="10" y1="17" x2="18" y2="17" />
       <Line x1="10" y1="21" x2="16" y2="21" />
     </G>;
+  } else if (key === 'cloud-check' || key === 'cloud-online') {
+    body = <G {...p}>
+      <Path d="M8.5 21.5h11.5a4.8 4.8 0 0 0 .4-9.6A6.5 6.5 0 0 0 7.8 11.55 5 5 0 0 0 8.5 21.5Z" />
+      <Polyline points="10.5,16.5 13,19 18,13.5" />
+    </G>;
+  } else if (key === 'cloud-sync' || key === 'cloud-pending') {
+    body = <G {...p}>
+      <Path d="M8.5 21.5h11.5a4.8 4.8 0 0 0 .4-9.6A6.5 6.5 0 0 0 7.8 11.55 5 5 0 0 0 8.5 21.5Z" />
+      <Path d="M11 15.3a3.3 3.3 0 0 1 5.6-1.7M17 12.4v2h-2" />
+      <Path d="M17 17.7a3.3 3.3 0 0 1-5.6 1.7M11 20.6v-2h2" />
+    </G>;
+  } else if (key === 'cloud-off') {
+    body = <G {...p}>
+      <Path d="M8.5 21.5h11.5a4.8 4.8 0 0 0 .4-9.6A6.5 6.5 0 0 0 7.8 11.55 5 5 0 0 0 8.5 21.5Z" />
+      <Line x1="4" y1="4" x2="24" y2="24" />
+    </G>;
+  } else if (key === 'device' || key === 'phone') {
+    body = <G {...p}>
+      <Rect x="8" y="3.5" width="12" height="21" rx="2.5" />
+      <Line x1="8" y1="19.5" x2="20" y2="19.5" />
+      <Circle cx="14" cy="21.7" r=".9" fill={color} stroke="none" />
+    </G>;
+  } else if (key === 'note' || key === 'edit') {
+    body = <G {...p}>
+      <Path d="M18.4 4.6a2.3 2.3 0 0 1 3.3 3.3L9.5 20.1l-4.4 1.1 1.1-4.4Z" />
+      <Line x1="16.2" y1="6.8" x2="19.5" y2="10.1" />
+    </G>;
+  } else if (key === 'export' || key === 'download') {
+    body = <G {...p}>
+      <Path d="M14 4v13" />
+      <Polyline points="9,12.5 14,17.5 19,12.5" />
+      <Path d="M5 20h18" />
+    </G>;
+  } else if (key === 'clock' || key === 'pending') {
+    body = <G {...p}>
+      <Circle cx="14" cy="14" r="10" />
+      <Line x1="14" y1="14" x2="14" y2="8" />
+      <Line x1="14" y1="14" x2="18.5" y2="16.5" />
+    </G>;
+  } else if (key === 'settings' || key === 'gear') {
+    body = <G {...p}>
+      <Circle cx="14" cy="14" r="8" />
+      <Circle cx="14" cy="14" r="1.3" fill={color} stroke="none" />
+      <Line x1="14" y1="2" x2="14" y2="5" />
+      <Line x1="14" y1="23" x2="14" y2="26" />
+      <Line x1="2" y1="14" x2="5" y2="14" />
+      <Line x1="23" y1="14" x2="26" y2="14" />
+      <Line x1="5.5" y1="5.5" x2="7.6" y2="7.6" />
+      <Line x1="20.4" y1="20.4" x2="22.5" y2="22.5" />
+      <Line x1="5.5" y1="22.5" x2="7.6" y2="20.4" />
+      <Line x1="20.4" y1="7.6" x2="22.5" y2="5.5" />
+    </G>;
+  } else if (key === 'search') {
+    body = <G {...p}>
+      <Circle cx="12.5" cy="12.5" r="7.5" />
+      <Line x1="17.8" y1="17.8" x2="24.5" y2="24.5" />
+    </G>;
   } else if (key === 'control' || key === 'check') {
     body = <G {...p}>
       <Rect x="6" y="5.5" width="16" height="19" rx="2.5" />

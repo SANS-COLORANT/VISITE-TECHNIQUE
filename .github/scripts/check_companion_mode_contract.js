@@ -26,7 +26,7 @@ const config = read('app.config.js');
 
 expect(app.includes("phoneMode === 'companion'"), 'App.js doit exposer le mode téléphone Compagnon.');
 expect(app.includes("phoneMode === 'integral'"), 'App.js doit exposer la version téléphone intégrale.');
-expect(visit.includes('CompanionTabletModal') && visit.includes('Téléphone'), 'La visite tablette doit ouvrir l’appairage téléphone.');
+expect(visit.includes('CompanionTabletModal') && /téléphone/i.test(visit), 'La visite tablette doit ouvrir l’appairage téléphone.');
 expect(tablet.includes('buildCompanionQrPayload') && tablet.includes('startCompanionHost'), 'La tablette doit créer une session locale et un QR.');
 expect(tablet.includes("scope === 'client'") && tablet.includes('buildCompanionClientSnapshot'), 'Le QR doit pouvoir associer un client complet, pas seulement une visite.');
 expect(clientSites.includes('Compagnon') && clientSites.includes('CompanionTabletModal'), 'La fiche client doit exposer directement le mode Compagnon.');

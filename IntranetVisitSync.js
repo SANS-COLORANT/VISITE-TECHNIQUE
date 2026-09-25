@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, AppState, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 import {
   discardTerminalVisitUpload, finalizeVisitForUpload, getVisitUploadState, listVisitOutbox,
   processVisitOutbox, queueVisitUpload, retryVisitUploadNow, subscribeVisitOutbox,
@@ -369,20 +370,26 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
               : serverFeedback(row) || 'Non exportée sur l’Intranet. Appuie sur Offline pour l’envoyer au client importé.';
   const detailIsError = !online && ((row && ['validation_error', 'rejected', 'conflict', 'auth_error'].includes(row.status)) || photoSummary.failed > 0);
 
-  return <View style={compact ? { alignItems: 'flex-end' } : { borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, backgroundColor: '#F8FAFC', padding: 10, marginVertical: 7 }}>
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 9 }}>
-      {!compact ? <Text style={{ flex: 1, color: COLORS.ink, fontSize: 12.5, fontWeight: '900' }}>Intranet</Text> : null}
-      {busy || row?.status === 'sending' || photoSummary.sending > 0 ? <ActivityIndicator size="small" color={online ? ONLINE : OFFLINE} /> : null}
-      <TouchableOpacity
-        accessibilityRole="button"
-        accessibilityLabel={online ? 'Online, visite et photos présentes sur l’Intranet' : 'Offline, appuyer pour envoyer ou reprendre la visite et ses photos sur l’Intranet'}
-        disabled={loading || photoLoading || busy || online || row?.status === 'sending'}
-        onPress={(event) => { event?.stopPropagation?.(); prepareAndSend().catch(() => {}); }}
-        style={{ minWidth: 82, minHeight: 36, paddingHorizontal: 14, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: online ? ONLINE : OFFLINE, opacity: loading || photoLoading ? 0.55 : 1 }}
-      >
-        <Text style={{ color: '#FFFFFF', fontSize: 12, fontWeight: '900', letterSpacing: 0.3 }}>{online ? 'Online' : 'Offline'}</Text>
-      </TouchableOpacity>
-    </View>
-    {!compact ? <Text accessibilityLiveRegion="polite" style={{ color: detailIsError ? ERROR : COLORS.muted, fontSize: 10.5, lineHeight: 15, marginTop: 6 }}>{loading || photoLoading ? 'Lecture de l’état Intranet…' : detail}</Text> : null}
+  const sending = busy || row?.status === 'sending' || photoSummary.sending > 0;
+  const iconName = online ? 'cloud-check' : detailIsError ? 'cloud-off' : 'cloud-sync';
+  const tint = online ? ONLINE : detailIsError ? ERROR : OFFLINE;
+  const tintSoft = online ? '#E4F5EC' : detailIsError ? '#FBEAE8' : '#F1F1EF';
+  // Une seule icône colorée porte le statut (vert = synchronisé, gris = en attente,
+  // rouge = à corriger) — le mot "Intranet" et le texte de détail systématique
+  // n'apportent rien que la couleur ne dise déjà ; le détail ne s'affiche que
+  // quand il y a vraiment quelque chose à lire (erreur ou envoi en cours).
+  const showDetail = !compact && (detailIsError || sending || (!online && !loading && !photoLoading));
+
+  return <View style={compact ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }}>
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel={online ? 'Synchronisé avec l’Intranet' : detailIsError ? 'Erreur de synchronisation, appuyer pour réessayer' : 'Non synchronisé, appuyer pour envoyer'}
+      disabled={loading || photoLoading || busy || online || row?.status === 'sending'}
+      onPress={(event) => { event?.stopPropagation?.(); prepareAndSend().catch(() => {}); }}
+      style={{ width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: tintSoft, opacity: loading || photoLoading ? 0.55 : 1 }}
+    >
+      {sending ? <ActivityIndicator size="small" color={tint} /> : <CvcIcon name={iconName} size={22} color={tint} />}
+    </TouchableOpacity>
+    {showDetail ? <Text accessibilityLiveRegion="polite" style={{ color: detailIsError ? ERROR : COLORS.muted, fontSize: 10, lineHeight: 14, marginTop: 4, maxWidth: 150, textAlign: compact ? 'right' : 'left' }}>{loading || photoLoading ? 'Lecture…' : detail}</Text> : null}
   </View>;
 }

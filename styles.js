@@ -111,8 +111,14 @@ export const styles = StyleSheet.create({
   visiteTopbar: { backgroundColor: COLORS.white, paddingTop: 50, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: COLORS.line },
   visiteHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   noteBtn: { borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
-  visiteBackBtn: { width: 32, height: 32, borderRadius: 9, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
-  visiteBackBtnText: { fontSize: 16, color: COLORS.ink },
+  visiteBackBtn: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  visiteBackBtnText: { fontSize: 18, color: COLORS.ink },
+  iconAction: {
+    width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
+    backgroundColor: COLORS.orangeLight, marginLeft: 8,
+  },
+  iconActionNeutral: { backgroundColor: COLORS.bg, borderWidth: 1, borderColor: COLORS.line },
+  iconActionDark: { backgroundColor: COLORS.ink },
 
   // ---- Header simple (navigation maison, sans @react-navigation) ----
   simpleHeader: { flexDirection: 'row', alignItems: 'center', backgroundColor: COLORS.white, paddingTop: 50, paddingHorizontal: 16, paddingBottom: 12, borderBottomWidth: 1, borderBottomColor: COLORS.line },

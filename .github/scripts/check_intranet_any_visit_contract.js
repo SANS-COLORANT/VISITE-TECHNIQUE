@@ -27,7 +27,7 @@ need(binding, 'intranet_first_visit_trame_missing', 'first-visit missing trame g
 const sync = read('IntranetVisitSync.js');
 need(sync, "const OFFLINE = '#111111'", 'black Offline state');
 need(sync, "const ONLINE = '#16794B'", 'green Online state');
-need(sync, "online ? 'Online' : 'Offline'", 'single Online/Offline status button');
+need(sync, "iconName = online ? 'cloud-check' : detailIsError ? 'cloud-off' : 'cloud-sync'", 'single icon-driven online/offline status button');
 need(sync, 'bindVisitToImportedClientTarget', 'one-click same-client binding');
 need(sync, 'syncClientPreparation(error.remoteClientId)', 'automatic refresh of the same imported client');
 need(sync, 'hydrateFirstVisitReference', 'first-visit reference hydration');
