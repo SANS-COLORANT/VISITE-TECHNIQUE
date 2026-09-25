@@ -756,7 +756,7 @@ function CompanionPhoneScreen({ onExit }) {
             </View>
             <Text style={{ marginTop: 16, fontSize: 18, fontWeight: '900', color: COLORS.ink }}>Associer la tablette</Text>
             <Text style={{ marginTop: 7, color: COLORS.inkSoft, textAlign: 'center', lineHeight: 19 }}>
-              Scanne le QR d’une visite ou directement le QR d’un client. Avec un QR client, tu peux changer de site et de visite sans refaire l’association.
+              Scanne le QR d’une visite ou directement le QR d’un client. Avec un QR client, tu peux changer de site et de visite sans refaire l’association. Même Wi-Fi, ou tablette connectée au partage de connexion de ce téléphone.
             </Text>
 
             {!nativeAvailable ? (
