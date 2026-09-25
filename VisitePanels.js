@@ -15,6 +15,7 @@ import {
 import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, useSaisieAvecAutoSave } from './GenericFields.js';
 import { PhotoButton, prendrePhoto } from './PhotoButton.js';
 import { BrandMark } from './BrandLogo.js';
+import { CATEGORIES_EQUIPEMENT, MARQUES_EQUIPEMENT } from './ParametresScreen.js';
 
 // ============================================================================
 // 5. PANNEAUX DE L'ÉCRAN VISITE
@@ -38,10 +39,10 @@ function PanelGenerique({ visiteId, panelId, refreshKey, onSaved }) {
   const [controlesMap, setControlesMap] = useState({});
   const sections = TRAME_DATA[panelId];
 
-  useEffect(useCallback(() => {
+  useEffect(() => {
     getChampsVisite(visiteId).then(setChampsMap);
     getControlesVisite(visiteId).then(setControlesMap);
-  }, [visiteId, refreshKey]));
+  }, [visiteId, refreshKey]);
 
   if (!sections) return null;
 
@@ -93,7 +94,7 @@ function PanelRegulation({ visiteId, refreshKey, onSaved }) {
     setReseaux(await listerReseaux(visiteId));
   }, [visiteId]);
 
-  useEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
+  useEffect(() => { charger(); }, [charger, refreshKey]);
 
   const onAjouterReseau = async () => {
     await ajouterReseau(visiteId, `Réseau ${reseaux.length + 1}`);
@@ -205,7 +206,7 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
     setCompteurs(await listerCompteurs(visiteId));
   }, [visiteId]);
 
-  useEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
+  useEffect(() => { charger(); }, [charger, refreshKey]);
 
   const onAjouterCompteur = async () => {
     await ajouterCompteur(visiteId, '');
@@ -348,7 +349,7 @@ function PanelEquipements({ visiteId }) {
     setOptionsMarques([...new Set([...MARQUES_EQUIPEMENT, ...marquesBiblio])].sort((a, b) => a.localeCompare(b)));
   }, [visiteId]);
 
-  useEffect(useCallback(() => { charger(); }, [charger]));
+  useEffect(() => { charger(); }, [charger]);
 
   const onAjouter = async () => { await ajouterMateriel(visiteId); charger(); };
 
@@ -367,8 +368,6 @@ function PanelEquipements({ visiteId }) {
     </ScrollView>
   );
 }
-
-import { CATEGORIES_EQUIPEMENT, MARQUES_EQUIPEMENT } from './ParametresScreen.js';
 
 function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarques }) {
   const [categorie, setCategorie] = useState(item.categorie || '');
@@ -513,9 +512,9 @@ function PanelRemarques({ visiteId, refreshKey }) {
   const [ongletChoisi, setOngletChoisi] = useState(null);
   const [cibles, setCibles] = useState([]);
 
-  useEffect(useCallback(() => {
+  useEffect(() => {
     listerRemarques(visiteId).then(setRemarques);
-  }, [visiteId, refreshKey]));
+  }, [visiteId, refreshKey]);
 
   const total = remarques.length;
   const sumEstim = remarques.reduce((s, r) => s + (r.estimatif || 0), 0);
@@ -687,9 +686,9 @@ function PanelPhotos({ visiteId, refreshKey }) {
   const [photos, setPhotos] = useState([]);
   const [viewerUri, setViewerUri] = useState(null);
 
-  useEffect(useCallback(() => {
+  useEffect(() => {
     listerPhotos(visiteId).then(setPhotos);
-  }, [visiteId, refreshKey]));
+  }, [visiteId, refreshKey]);
 
   const onAjouter = async () => {
     const uri = await prendrePhoto();

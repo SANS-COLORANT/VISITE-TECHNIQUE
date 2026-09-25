@@ -17,7 +17,7 @@ function ClientSitesScreen({ route, navigation }) {
   const [nouvelleAdresse, setNouvelleAdresse] = useState('');
 
   const charger = useCallback(() => { listerSitesClient(clientId).then(setSites); }, [clientId]);
-  useEffect(useCallback(() => { charger(); }, [charger]));
+  useEffect(() => { charger(); }, [charger]);
 
   const ajouterSiteFn = async () => {
     if (!nouveauNom.trim()) { Alert.alert('Nom requis', 'Merci de saisir le nom du site.'); return; }

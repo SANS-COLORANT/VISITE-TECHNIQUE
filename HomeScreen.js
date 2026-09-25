@@ -26,7 +26,7 @@ function HomeScreen({ navigation }) {
     setClients(c); setVisitesEnCours(v); setStats(s);
   }, []);
 
-  useEffect(useCallback(() => { charger(); }, [charger]));
+  useEffect(() => { charger(); }, [charger]);
 
   const onRefresh = async () => { setRefreshing(true); await charger(); setRefreshing(false); };
 

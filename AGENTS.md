@@ -1,3 +1,27 @@
+# ÉTAT DU PROJET — DEUX VERSIONS DE METRA VISITE TECHNIQUE
+
+Ce dépôt contient la version **"classique"** de METRA Visite Technique : une
+application autonome et volontairement simple (une quinzaine de fichiers),
+sans backend, avec une navigation maison et un modèle SQLite direct
+(`champs_visite`/`controles_visite`). C'est la base historique du produit.
+
+Il existe par ailleurs, sur la branche distante
+`feat/metra-phone-companion-cross-device` (non fusionnée ici), une version
+**"Missions / Companion / Intranet"** beaucoup plus large (~200 fichiers) :
+modules Missions, synchronisation avec un backend Symfony, mode Companion
+téléphone↔tablette, modules natifs Android (OCR, géolocalisation de
+patrimoine, signature électronique, PDF), et un schéma SQLite étendu à 44
+migrations. C'est cette branche qui produit les builds APK numérotés côté
+EAS (ex. build #615).
+
+**Avant de démarrer une tâche sur ce dépôt**, vérifie sur quelle branche/quel
+état du produit elle porte : un correctif fait ici (branche
+`claude/gallant-ramanujan-v4hg3s` ou équivalente "classique") ne s'applique
+pas automatiquement à la version Missions/Companion, et inversement. Les
+deux bases ont divergé sur des points structurels (schéma DB, navigation,
+présence ou non d'un backend) — ne pas supposer qu'un fichier du même nom
+a le même contenu des deux côtés.
+
 # CONTEXT7 — POLITIQUE METRA
 
 Context7 doit être utilisé uniquement comme source documentaire ponctuelle.

@@ -38,9 +38,9 @@ function PhotoButton({ visiteId, entiteKey, label, style }) {
     return items;
   }, [visiteId, entiteKey]);
 
-  useEffect(useCallback(() => {
+  useEffect(() => {
     charger();
-  }, [charger]));
+  }, [charger]);
 
   const ajouter = async () => {
     const uri = await prendrePhoto();

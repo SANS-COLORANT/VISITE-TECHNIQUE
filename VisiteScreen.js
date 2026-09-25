@@ -26,7 +26,7 @@ function VisiteScreen({ route, onBack }) {
     setVisite(v);
   }, [visiteId]);
 
-  useEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
+  useEffect(() => { charger(); }, [charger, refreshKey]);
 
   const onSaved = () => setRefreshKey((k) => k + 1);
 
