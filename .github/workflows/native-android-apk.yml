@@ -6,6 +6,7 @@ on:
     branches:
       - native-android
       - feat/report-local-patrimoine-apk435
+      - feat/metra-phone-companion-cross-device
     paths:
       - '**/*.js'
       - '**/*.json'

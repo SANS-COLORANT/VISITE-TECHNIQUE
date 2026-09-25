@@ -45,9 +45,10 @@ forbid(sync, 'Choisir la destination Intranet', 'no arbitrary client chooser');
 forbid(sync, 'Modifier la destination Intranet', 'no cross-client destination edit');
 
 const siteVisits = read('SiteVisitesScreen.js');
+const navigationPrewarm = read('navigationPrewarm.js');
 need(siteVisits, 'intranetClientImported', 'site knows whether its client was imported from Intranet');
 need(siteVisits, '<IntranetVisitSyncControl visite={item} onVisitChanged={charger} compact />', 'visit cards expose direct Offline Online action');
-need(siteVisits, 'local_client_id=?', 'visit-card status is based on durable imported-client relation');
+need(navigationPrewarm, 'local_client_id=?', 'visit-card status is based on durable imported-client relation through the local prewarm repository');
 
 const payload = read('intranetVisitPayload.js');
 const cache = read('symfonyApiCacheDb.js');

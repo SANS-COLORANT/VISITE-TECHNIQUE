@@ -1,8 +1,8 @@
 /** Écran Sites d'un client + accès pilotage, carte et documents. */
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { COLORS, styles } from './styles.js';
-import { listerSitesClient, creerSite } from './db.js';
+import { creerSite } from './db.js';
 import { getResumeSuppressionSite, supprimerSiteComplet } from './entityManagementDb.js';
 import { synchroniserCoordonneesSite } from './siteGeoDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
@@ -13,16 +13,29 @@ import { SiteRadialActionMenu } from './SiteRadialActionMenu.js';
 import { PatrimoineImageCard, PatrimoineThumbnail } from './PatrimoineImageCard.js';
 import { onPatrimoineImageChanged } from './patrimoineImageDb.js';
 import { IntranetSiteCreationModal } from './IntranetStructureUi.js';
+import { SITE_SORT_OPTIONS, buildSiteGroupMap, siteGroupLabel, sortSites } from './siteSort.js';
+import { getNavigationScrollOffset, getNavigationState, hydrateNavigationState, setNavigationScrollOffset, setNavigationState } from './navigationMemory.js';
+import { peekClientSites, prewarmClientSites, prewarmSiteLocals } from './navigationPrewarm.js';
+import { CompanionTabletModal } from './CompanionTabletModal.js';
+import { CvcIcon } from './MetraCvcIcons.js';
+import { getRuntimeAccent, getRuntimePalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 
 const adresseVide = () => ({ numero: '', voie: '', complement: '', codePostal: '', ville: '' });
 
-const CLIENT_SITES_FAST_CACHE = new Map();
 
 function ClientSitesScreen({ route, navigation }) {
   const { clientId, nomClient } = route?.params || {};
-  const [sites, setSites] = useState(() => CLIENT_SITES_FAST_CACHE.get(String(clientId || '')) || []);
+  const cacheKey = String(clientId || '');
+  const scrollKey = `client-sites:${cacheKey}`;
+  const listRef = useRef(null);
+  const initialBundle = peekClientSites(cacheKey);
+  const [sites, setSites] = useState(() => initialBundle?.sites || []);
+  const [memberships, setMemberships] = useState(() => initialBundle?.memberships || []);
+  const [sortMode, setSortMode] = useState(() => getNavigationState(scrollKey)?.sortMode || 'alpha');
+  const [search, setSearch] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [intranetSiteVisible, setIntranetSiteVisible] = useState(false);
+  const [clientCompanionVisible, setClientCompanionVisible] = useState(false);
   const [groupesVisible, setGroupesVisible] = useState(false);
   const [radialMenu, setRadialMenu] = useState(null);
   const [renameSite, setRenameSite] = useState(null);
@@ -31,12 +44,11 @@ function ClientSitesScreen({ route, navigation }) {
   const [nouvelleAdresse, setNouvelleAdresse] = useState(adresseVide);
 
   const charger = useCallback(async () => {
-    if (!clientId) { setSites([]); return []; }
-    const liste = await listerSitesClient(clientId);
-    const normalisee = Array.isArray(liste) ? liste : [];
-    CLIENT_SITES_FAST_CACHE.set(String(clientId), normalisee);
-    setSites(normalisee);
-    return normalisee;
+    if (!clientId) { setSites([]); setMemberships([]); return []; }
+    const bundle = await prewarmClientSites(clientId, { force: true });
+    setSites(bundle?.sites || []);
+    setMemberships(bundle?.memberships || []);
+    return bundle?.sites || [];
   }, [clientId]);
 
   useEffect(() => {
@@ -52,8 +64,46 @@ function ClientSitesScreen({ route, navigation }) {
     if (change?.type === 'site') charger().catch(() => {});
   }), [charger]);
 
+  const groupMap = useMemo(() => buildSiteGroupMap(memberships), [memberships]);
+  const sitesTries = useMemo(() => sortSites(sites, sortMode, groupMap), [sites, sortMode, groupMap]);
+  const sitesFiltres = useMemo(() => {
+    const q = String(search || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
+    if (!q) return sitesTries;
+    return sitesTries.filter((site) => {
+      const haystack = [site.nom_site, site.adresse, site.localisation_note, siteGroupLabel(site.id, groupMap)]
+        .filter(Boolean).join(' ').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [sitesTries, search, groupMap]);
+
+  useEffect(() => {
+    let alive = true;
+    hydrateNavigationState(scrollKey).then((state) => {
+      if (!alive || !state) return;
+      if (state.sortMode) setSortMode(state.sortMode);
+      const offset = Number(state.scrollY || 0);
+      if (offset) setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, [scrollKey]);
+
+  useEffect(() => {
+    const offset = getNavigationScrollOffset(scrollKey);
+    if (!offset || !sitesFiltres.length) return undefined;
+    const timer = setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
+    return () => clearTimeout(timer);
+  }, [scrollKey, sitesFiltres.length]);
+
+  const changerTri = useCallback((mode) => {
+    setSortMode(mode);
+    setNavigationState(scrollKey, { sortMode: mode, scrollY: 0 });
+    requestAnimationFrame(() => listRef.current?.scrollToOffset({ offset: 0, animated: false }));
+  }, [scrollKey]);
+
   const sansAdresse = sites.filter((s) => !String(s.adresse || '').trim()).length;
   const avecAdresse = sites.length - sansAdresse;
+  const accent = getRuntimeAccent();
+  const palette = getRuntimePalette();
   const patchNouvelleAdresse = (patch) => setNouvelleAdresse((prev) => ({ ...prev, ...patch }));
 
   const ajouterSiteFn = async () => {
@@ -125,9 +175,12 @@ function ClientSitesScreen({ route, navigation }) {
 
   return <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
     <FlatList
+      ref={listRef}
       style={{ flex: 1 }}
+      onScroll={(event) => setNavigationScrollOffset(scrollKey, event.nativeEvent.contentOffset.y)}
+      scrollEventThrottle={80}
       contentContainerStyle={[styles.content, { paddingBottom: 34 }]}
-      data={sites}
+      data={sitesFiltres}
       initialNumToRender={16}
       maxToRenderPerBatch={12}
       updateCellsBatchingPeriod={24}
@@ -151,14 +204,36 @@ function ClientSitesScreen({ route, navigation }) {
           <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setModalVisible(true)}><Text style={styles.btnPrimaryText}>+ Site local</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setIntranetSiteVisible(true)}><Text style={styles.btnPrimaryText}>+ Site Intranet</Text></TouchableOpacity>
         </View>
-        <TouchableOpacity style={[styles.btnSecondary, { marginBottom: 12 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>📄 Documents</Text></TouchableOpacity>
+        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
+          <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>📄 Documents</Text></TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', gap: 7, borderColor: accent, backgroundColor: palette.light }]}
+            onPress={() => setClientCompanionVisible(true)}
+          >
+            <CvcIcon name="camera" size={19} color={accent} />
+            <Text style={[styles.btnSecondaryText, { color: accent }]}>Compagnon</Text>
+          </TouchableOpacity>
+        </View>
 
         {sansAdresse > 0 ? <View style={{ backgroundColor: '#FFF8E7', borderWidth: 1, borderColor: '#F0D99B', borderRadius: 12, padding: 10, marginBottom: 14 }}><Text style={{ color: '#7A5700', fontSize: 12, fontWeight: '700' }}>{sansAdresse} site(s) sans adresse complète</Text></View> : null}
-        <View style={styles.sectionHeaderRow}><Text style={styles.sectionLabel}>Sites</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>{sites.length}</Text></View>
+        <View style={styles.sectionHeaderRow}><Text style={styles.sectionLabel}>Sites</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>{sitesFiltres.length}/{sites.length}</Text></View>
+        <TextInput
+          style={[styles.input, { marginTop: 8, marginBottom: 8 }]}
+          value={search}
+          onChangeText={setSearch}
+          placeholder="Rechercher un site, une adresse, un lot…"
+          autoCorrect={false}
+        />
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 1, marginBottom: 12 }}>
+          {SITE_SORT_OPTIONS.map((option) => {
+            const active = sortMode === option.id;
+            return <TouchableOpacity key={option.id} onPress={() => changerTri(option.id)} style={{ minHeight: 36, paddingHorizontal: 11, borderRadius: 18, borderWidth: 1, borderColor: active ? COLORS.orange : COLORS.line, backgroundColor: active ? '#FFF3E8' : '#FFF', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 11, fontWeight: '900', color: active ? COLORS.orange : COLORS.inkSoft }}>{option.label}</Text></TouchableOpacity>;
+          })}
+        </View>
       </View>}
-      renderItem={({ item }) => <TouchableOpacity style={styles.card} activeOpacity={0.7} onPress={() => ouvrirSite(item)}>
+      renderItem={({ item }) => <TouchableOpacity style={styles.card} activeOpacity={0.7} onPressIn={() => prewarmSiteLocals(item.id).catch(() => {})} onPress={() => ouvrirSite(item)}>
         <PatrimoineThumbnail uri={item.image_uri} size={60} radius={10} />
-        <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom_site}</Text>{item.adresse ? <Text style={styles.cardSub}>{item.adresse}</Text> : <Text style={{ color: '#A26A00', fontSize: 12 }}>Adresse à renseigner</Text>}{item.localisation_note ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 4 }}>{item.localisation_note}</Text> : null}</View>
+        <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom_site}</Text>{siteGroupLabel(item.id, groupMap) ? <Text style={{ color: COLORS.primary, fontSize: 10.5, fontWeight: '800', marginTop: 2 }}>{siteGroupLabel(item.id, groupMap)}</Text> : null}{item.adresse ? <Text style={styles.cardSub}>{item.adresse}</Text> : <Text style={{ color: '#A26A00', fontSize: 12 }}>Adresse à renseigner</Text>}{item.localisation_note ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 4 }}>{item.localisation_note}</Text> : null}</View>
         <TouchableOpacity onPress={(e) => ouvrirStructure(e, item)} style={{ minHeight: 38, paddingHorizontal: 9, borderRadius: 10, borderWidth: 1, borderColor: COLORS.line, justifyContent: 'center', marginRight: 6 }}><Text style={{ color: COLORS.primary, fontSize: 10.5, fontWeight: '900' }}>Locaux Intranet</Text></TouchableOpacity>
         <View style={[styles.badge, item.statut === 'Actif' ? styles.badgeActif : styles.badgeInactif]}><Text style={[styles.badgeText, item.statut === 'Actif' ? styles.badgeTextActif : styles.badgeTextInactif]}>{item.statut || 'Actif'}</Text></View>
         <TouchableOpacity onPress={(e) => ouvrirMenuSite(e, item)} style={{ minWidth: 46, minHeight: 46, alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}><Text style={{ color: COLORS.inkSoft, fontSize: 22, fontWeight: '900' }}>⋯</Text></TouchableOpacity>
@@ -170,9 +245,16 @@ function ClientSitesScreen({ route, navigation }) {
 
     <IntranetSiteCreationModal visible={intranetSiteVisible} clientId={clientId} onClose={() => setIntranetSiteVisible(false)} onCreated={charger} />
 
+    <CompanionTabletModal
+      visible={clientCompanionVisible}
+      clientId={clientId}
+      nomClient={nomClient}
+      onClose={() => setClientCompanionVisible(false)}
+    />
+
     <Modal visible={!!renameSite} transparent animationType="fade" onRequestClose={() => setRenameSite(null)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Renommer le site</Text><TextInput autoFocus style={styles.input} value={renameValue} onChangeText={setRenameValue} selectTextOnFocus/><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setRenameSite(null)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerRenommage}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></View></View></Modal>
 
-    <SiteGroupsManager visible={groupesVisible} clientId={clientId} sites={sites} onClose={() => setGroupesVisible(false)} onChanged={charger}/>
+    <SiteGroupsManager visible={groupesVisible} clientId={clientId} sites={sites} onClose={() => { setGroupesVisible(false); charger().catch(() => {}); }} onChanged={charger}/>
     <SiteRadialActionMenu menu={radialMenu} onClose={() => setRadialMenu(null)} onAction={actionMenuSite}/>
   </View>;
 }

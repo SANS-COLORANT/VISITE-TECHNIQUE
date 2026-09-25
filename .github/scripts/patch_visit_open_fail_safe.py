@@ -125,7 +125,50 @@ loader_new = """  const charger = useCallback(async () => {
     });
   }, [charger]);
 """
-s = replace_once(s, loader_old, loader_new, 'fail-safe visit loader')
+loader_old_recovery = loader_old.replace(
+    "  useEffect(() => { charger(); }, [charger]);\n",
+    """  useEffect(() => {
+    let actif = true;
+    recupererPhotosEnAttente(visiteId)
+      .catch((e) => console.warn('Récupération photo interrompue', e))
+      .finally(() => { if (actif) charger(); });
+    return () => { actif = false; };
+  }, [charger, visiteId]);
+"""
+)
+
+loader_new_recovery = loader_new.replace(
+    """  useEffect(() => {
+    charger().catch((e) => {
+      console.warn('Chargement visite interrompu', e);
+      setChargementErreur(String(e?.message || e || 'Erreur inconnue'));
+    });
+  }, [charger]);
+""",
+    """  useEffect(() => {
+    let actif = true;
+    recupererPhotosEnAttente(visiteId)
+      .catch((e) => console.warn('Récupération photo interrompue', e))
+      .finally(() => {
+        if (!actif) return;
+        charger().catch((e) => {
+          console.warn('Chargement visite interrompu', e);
+          setChargementErreur(String(e?.message || e || 'Erreur inconnue'));
+        });
+      });
+    return () => { actif = false; };
+  }, [charger, visiteId]);
+"""
+)
+
+if loader_new in s or loader_new_recovery in s:
+    pass
+elif loader_old_recovery in s:
+    s = s.replace(loader_old_recovery, loader_new_recovery, 1)
+elif loader_old in s:
+    s = s.replace(loader_old, loader_new, 1)
+else:
+    raise SystemExit('fail-safe visit loader: marker not found')
 
 # 3. Même en cas de visite incohérente/import partiel, l'utilisateur récupère la
 #    main et peut revenir ou retenter au lieu de devoir forcer l'arrêt de METRA.

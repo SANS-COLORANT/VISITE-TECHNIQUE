@@ -1,5 +1,5 @@
 /** Contrôle de conformité persistant : restaure la réserve liée après virtualisation/swipe. */
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { PRESCRIPTIONS } from './data.js';
@@ -14,10 +14,11 @@ import {
 } from './remarkDb.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
+import { BoundedLruMap } from './boundedCache.js';
 
 const PRESCRIPTIONS_COMPLETES = fusionnerPrescriptions(PRESCRIPTIONS);
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
-const remarquesCache = new Map();
+const remarquesCache = new BoundedLruMap(3);
 let biblioReservePromise = null;
 let biblioReserveCache = null;
 
@@ -151,13 +152,15 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
   const baseOptions = useMemo(() => PRESCRIPTIONS_COMPLETES[categorieKey] || PRESCRIPTIONS_COMPLETES[field.cle] || [], [categorieKey, field.cle]);
   const [options, setOptions] = useState(baseOptions);
   const [avis, setAvis] = useState(etatInitial?.avis || null);
+  const avisRef = useRef(etatInitial?.avis || null);
   const [commentaire, setCommentaire] = useState(etatInitial?.commentaire || '');
   const [remarque, setRemarque] = useState(null);
   const [critereChoisi, setCritereChoisi] = useState(null);
   const [modeLibre, setModeLibre] = useState(false);
 
   useEffect(() => {
-    setAvis(etatInitial?.avis || null);
+    avisRef.current = etatInitial?.avis || null;
+    setAvis(avisRef.current);
     setCommentaire(etatInitial?.commentaire || '');
   }, [etatInitial?.avis, etatInitial?.commentaire]);
 
@@ -204,6 +207,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
   const choisirAvis = useCallback(async (val) => {
     if (val === avis) return;
     const commentaireConserve = val === 'N.S' ? String(commentaire || '') : '';
+    avisRef.current = val;
     setAvis(val);
     setCritereChoisi(null);
     setModeLibre(false);
@@ -253,9 +257,10 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
   const sauverCommentaireSimple = useCallback(async (texte) => {
     const v = String(texte || '');
     setCommentaire(v);
-    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis, commentaire: v });
-    notifierEtat({ avis, commentaire: v });
-  }, [visiteId, sectionCode, field.cle, avis, notifierEtat]);
+    const avisCourant = avisRef.current;
+    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: avisCourant, commentaire: v });
+    notifierEtat({ avis: avisCourant, commentaire: v });
+  }, [visiteId, sectionCode, field.cle, notifierEtat]);
 
   const [libre, setLibre, flushLibre] = useDurableAutosave(commentaire, sauverLibre, 450);
   const [commentaireSimple, setCommentaireSimple, flushCommentaireSimple] = useDurableAutosave(commentaire, sauverCommentaireSimple, 450);
@@ -300,7 +305,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
         style={[styles.input, { minHeight: 60, textAlignVertical: 'top', backgroundColor: '#fff' }]}
         multiline
         value={commentaireSimple}
-        onChangeText={setCommentaireSimple}
+        onChangeText={(v) => { setCommentaire(v); setCommentaireSimple(v); onEtatChange?.({ avis, commentaire: v }); }}
         onBlur={() => flushCommentaireSimple().catch(() => {})}
         placeholder="Ajouter un commentaire si nécessaire…"
       />
@@ -319,7 +324,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
         </View>
       </>}
       {critereChoisi !== null && remarque ? <EditionReserve remarque={remarque} onPatch={patchReserve} /> : null}
-      {(critereChoisi === null || modeLibre || options.length === 0) && <TextInput style={[styles.input, { marginTop: 8, height: 60 }]} placeholder="Décrivez le problème constaté..." multiline value={libre} onChangeText={setLibre} onBlur={() => flushLibre().catch(() => {})} />}
+      {(critereChoisi === null || modeLibre || options.length === 0) && <TextInput style={[styles.input, { marginTop: 8, height: 60 }]} placeholder="Décrivez le problème constaté..." multiline value={libre} onChangeText={(v) => { setCommentaire(v); setLibre(v); onEtatChange?.({ avis: 'N.S', commentaire: v }); }} onBlur={() => flushLibre().catch(() => {})} />}
       <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={field.cle} style={styles.photoRequiredBox} />
     </View>}
   </View>;

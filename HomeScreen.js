@@ -1,18 +1,24 @@
 /** Écran Accueil. */
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView, PanResponder } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
 import { PatrimoineThumbnail } from './PatrimoineImageCard.js';
 import { onPatrimoineImageChanged } from './patrimoineImageDb.js';
 import { MISSION_COLORS } from './missionTheme.js';
+import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollOffset } from './navigationMemory.js';
+import { prewarmClientSites } from './navigationPrewarm.js';
+import { prewarmVisitInBackground } from './visitPrewarm.js';
+import { forgetVisitRuntime, markVisitHot } from './visitRuntimeCache.js';
 
 const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
 function chargerEntityManagementModule(){return require('./entityManagementDb.js');}
 
 function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
+  const listRef = useRef(null);
+  const scrollKey = 'home:clients';
   const [clients, setClients] = useState(() => HOME_FAST_CACHE.clients || []);
   const [visitesEnCours, setVisitesEnCours] = useState(() => HOME_FAST_CACHE.visitesEnCours || []);
   const [stats, setStats] = useState(() => HOME_FAST_CACHE.stats || { enCours: 0, terminees: 0 });
@@ -35,6 +41,22 @@ function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
   }, []);
 
   useEffect(() => { charger().catch((e) => console.warn('Chargement accueil impossible', e)); }, [charger]);
+  useEffect(() => {
+    let alive = true;
+    hydrateNavigationState(scrollKey).then((state) => {
+      if (!alive) return;
+      const offset = Number(state?.scrollY || 0);
+      if (offset) setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  useEffect(() => {
+    const offset = getNavigationScrollOffset(scrollKey);
+    if (!offset || !clients.length) return undefined;
+    const timer = setTimeout(() => listRef.current?.scrollToOffset({ offset, animated: false }), 40);
+    return () => clearTimeout(timer);
+  }, [clients.length]);
   useEffect(() => onPatrimoineImageChanged((change) => {
     if (change?.type === 'client') charger().catch(() => {});
   }), [charger]);
@@ -57,7 +79,7 @@ function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
   const confirmerSuppressionVisite = (v) => Alert.alert(
     'Supprimer cette visite ?',
     `« ${v.nom_client} — ${v.nom_site} » et toutes les données propres à cette visite seront définitivement supprimées.`,
-    [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive', onPress: async () => { await chargerEntityManagementModule().supprimerVisiteComplete(v.id); await charger(); } }]
+    [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive', onPress: async () => { await chargerEntityManagementModule().supprimerVisiteComplete(v.id); forgetVisitRuntime(v.id); await charger(); } }]
   );
 
   const confirmerSuppressionClient = async (client) => {
@@ -131,6 +153,9 @@ function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
     </View>
 
     <FlatList
+      ref={listRef}
+      onScroll={(event) => setNavigationScrollOffset(scrollKey, event.nativeEvent.contentOffset.y)}
+      scrollEventThrottle={80}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.orange} />}
       data={clients}
@@ -163,7 +188,12 @@ function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
 
         {visitesEnCours.length > 0 && <>
           <Text style={styles.sectionLabel}>Visites en cours</Text>
-          {visitesEnCours.map((v) => <TouchableOpacity key={v.id} style={styles.card} onPress={() => navigation.navigate('Visite', { visiteId: v.id })}>
+          {visitesEnCours.map((v) => <TouchableOpacity
+            key={v.id}
+            style={styles.card}
+            onPressIn={() => prewarmVisitInBackground(v, { preview: v })}
+            onPress={() => { markVisitHot(v.id, { preview: v }); navigation.navigate('Visite', { visiteId: v.id, visitePreview: v }); }}
+          >
             <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{v.nom_client}</Text><Text style={styles.cardSub}>{v.nom_site}</Text></View>
             <View style={styles.badge}><Text style={styles.badgeText}>{v.progression_pct}%</Text></View>
             <TouchableOpacity style={styles.deleteVisiteBtn} onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(v); }}><Text style={styles.deleteVisiteBtnText}>✕</Text></TouchableOpacity>
@@ -175,7 +205,11 @@ function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
           <TouchableOpacity onPress={() => setModalVisible(true)}><Text style={styles.addLink}>+ Ajouter</Text></TouchableOpacity>
         </View>
       </>}
-      renderItem={({ item }) => <TouchableOpacity style={styles.card} onPress={() => navigation.navigate('ClientSites', { clientId: item.id, nomClient: item.nom })}>
+      renderItem={({ item }) => <TouchableOpacity
+        style={styles.card}
+        onPressIn={() => prewarmClientSites(item.id).catch(() => {})}
+        onPress={() => navigation.navigate('ClientSites', { clientId: item.id, nomClient: item.nom })}
+      >
         <PatrimoineThumbnail uri={item.image_uri} size={54} radius={10} />
         <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom}</Text>{item.code_exploitant ? <Text style={styles.cardSub}>{item.code_exploitant}</Text> : null}</View>
         <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionClient(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text></TouchableOpacity>

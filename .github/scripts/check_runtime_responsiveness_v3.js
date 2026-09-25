@@ -56,9 +56,12 @@ forbidText(database,"import { seedEquipmentCatalogDeep }",'eager deep catalogue 
 forbidText(database,"import { seedEquipmentCatalog }",'eager core catalogue seed');
 
 const prefill=read('visitPrefillDb.js');
-requireText(prefill,'const prefillTermines = new Set();','prefill completed cache');
+requireText(prefill,'const prefillTermines = new BoundedLruMap(3);','prefill completed cache');
 requireText(prefill,'const prefillEnCours = new Map();','prefill in-flight cache');
 requireText(prefill,'preremplirVisiteDepuisContexteInterne','prefill coalescing wrapper');
+requireText(prefill,"PREFILL_META_PREFIX = 'visit_prefill_done::'",'durable prefill completion marker');
+requireText(visit,'VISIT_OPEN_FAST_V2','instant visit opening contract');
+requireText(siteVisits,'visites.slice(0, 3)','three visit prewarm window');
 
 const overview=read('SiteOverviewPanel.js');
 requireText(overview,'}, [siteId, mode, sousMenu]);','stable site overview loader');
@@ -78,4 +81,4 @@ requireText(visual,"const DocumentPicker = require('expo-document-picker');",'la
 requireText(visual,"const { unzip } = require('react-native-zip-archive');",'lazy visual pack unzip');
 forbidText(visual,"import * as DocumentPicker from 'expo-document-picker';",'eager visual pack picker');
 
-console.log('Runtime responsiveness v4 contract validated: visit swipe uses a stable native pager with warm neighbours and memoized panels; PRE local swipes remain isolated; startup modules remain deferred, catalogue warm starts gated, prefill coalesced, map/search work bounded.');
+console.log('Runtime responsiveness v5 contract validated: three visits stay hot, visit context renders immediately, prefill completion is durable, swipe uses a stable native pager, and startup/catalogue/map work remains bounded.');

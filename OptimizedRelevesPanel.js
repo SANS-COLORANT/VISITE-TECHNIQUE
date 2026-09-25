@@ -13,6 +13,7 @@ import {
 import { cleanLabel, useSaisieAvecAutoSave } from './GenericFields.js';
 import { DurableChampGenerique } from './DurableChampGenerique.js';
 import { PhotoButton } from './PhotoButton.js';
+import { useListScrollMemory } from './useListScrollMemory.js';
 
 const COMPTEUR_TYPES = [
   'Compteur gaz', 'Compteur énergie chauffage', 'Compteur énergie ECS', 'Compteur eau appoint chauffage',
@@ -146,9 +147,14 @@ export function OptimizedRelevesPanel({ visiteId, onSaved }) {
     return result;
   }, [champsPression, champsTemp, compteurs]);
 
+  const { listRef, onScroll } = useListScrollMemory(`visit-panel:${visiteId}:p-releves`, rows.length);
+
   return <>
     <FlatList
+      ref={listRef}
       data={rows}
+      onScroll={onScroll}
+      scrollEventThrottle={100}
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.panelContent}
       keyboardShouldPersistTaps="handled"

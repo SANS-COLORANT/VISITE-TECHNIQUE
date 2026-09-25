@@ -48,9 +48,13 @@ if state_line not in s:
     s = replace_once(s, state_marker, state_marker + state_line, 'site health state')
 
 effect_marker = "  useEffect(() => { charger(); }, [charger]);\n"
+effect_marker_fast = "  useEffect(() => { charger().catch((e) => console.warn('Actualisation visites impossible', e)); }, [charger]);\n"
 effect_line = "  useEffect(() => { getLabFeatureEnabled('health_dashboard').then(setHealthLabEnabled).catch(()=>setHealthLabEnabled(false)); }, []);\n"
 if effect_line not in s:
-    s = replace_once(s, effect_marker, effect_marker + effect_line, 'site health effect')
+    if effect_marker_fast in s:
+        s = s.replace(effect_marker_fast, effect_marker_fast + effect_line, 1)
+    else:
+        s = replace_once(s, effect_marker, effect_marker + effect_line, 'site health effect')
 
 map_old = "      {SITE_TABS.map((tab) => {\n"
 map_new = "      {(healthLabEnabled ? [...SITE_TABS, { id: 'sante', label: 'Santé' }] : SITE_TABS).map((tab) => {\n"

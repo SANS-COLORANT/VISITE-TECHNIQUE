@@ -1,7 +1,7 @@
 /** VISITE TECHNIQUE — point d'entrée natif Android. */
 
-import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, TouchableOpacity, BackHandler, Keyboard } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { View, Text, TouchableOpacity, BackHandler, Keyboard, PanResponder, useWindowDimensions } from 'react-native';
 import { PhotoDownloadBanner } from './PhotoDownloadStatus.js';
 import { IntranetVisitSyncBanner, IntranetVisitSyncRuntime } from './IntranetVisitSync.js';
 import { IntranetStructureRuntime } from './IntranetStructureRuntime.js';
@@ -17,9 +17,13 @@ import { VisualPackLoadingScreen } from './visual-packs/runtime/VisualPackLoadin
 import { VisualPackAsset } from './visual-packs/runtime/VisualPackAsset.js';
 import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 import { getActiveVisualPack, getVisualPackStartupDuration, resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
+import { CompanionPhoneScreen } from './CompanionPhoneScreen.js';
+import { PhotoPhoneScreen } from './PhotoPhoneScreen.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 const SPLASH_BG = '#FBF0E1';
 const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects', 'MissionP3Dashboard', 'MissionReceptionBoard', 'MissionExpertise', 'MissionCampaignDashboard', 'MissionAmoDashboard', 'MissionControlBoard']);
+const BACK_SWIPE_ROUTES = new Set(['MetraDirectory', 'ClientSites', 'SiteLocals', 'SiteVisites', 'ClientPilotage', 'ClientDocuments', 'ClientPatrimoine', 'ClientTechnicalMatrix', 'IntranetStructure', 'Parametres']);
 
 const DEFERRED_SCREEN_LOADERS = Object.freeze({
   MetraDirectory: () => require('./MetraDirectoryScreen.js').MetraDirectoryScreen,
@@ -75,12 +79,12 @@ function DeferredScreen({ name, ...props }) {
   return Component ? <Component {...props} /> : null;
 }
 
-function SimpleHeader({ title, onBack, visualPack }) {
+function SimpleHeader({ title, onBack, visualPack, rightAction = null }) {
   const uri = resolveVisualPackAssetUri(visualPack, visualPack?.interface?.headerLogo);
   return <View style={styles.simpleHeader}>
     {onBack ? <TouchableOpacity style={styles.simpleHeaderBack} onPress={onBack}><Text style={styles.simpleHeaderBackText}>←</Text></TouchableOpacity> : <View style={styles.simpleHeaderBack} />}
     <Text style={styles.simpleHeaderTitle}>{title}</Text>
-    <View style={styles.simpleHeaderBack}>{uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null}</View>
+    <View style={[styles.simpleHeaderBack, rightAction ? { width: 104, alignItems: 'flex-end' } : null]}>{rightAction ? <TouchableOpacity onPress={rightAction.onPress} style={{ minWidth: 78, minHeight: 32, paddingHorizontal: 9, borderRadius: 16, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}><Text style={{ fontSize: 10.5, fontWeight: '900', color: COLORS.text }}>{rightAction.label}</Text></TouchableOpacity> : (uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null)}</View>
   </View>;
 }
 
@@ -96,10 +100,15 @@ function MissionHeader({ title, onBack, visualPack, root = false }) {
   </View>;
 }
 
-function GlobalHomeButton({ onPress, missionMode = false }) {
+function GlobalHomeButton({ onPress, missionMode = false, compact = false }) {
   const accent = missionMode ? MISSION_COLORS.accent : COLORS.orange;
+  if (compact) {
+    return <TouchableOpacity accessibilityRole="button" accessibilityLabel={missionMode ? 'Missions' : 'Accueil'} onPress={onPress} style={{ position: 'absolute', left: 12, bottom: 12, width: 48, height: 48, borderRadius: 16, backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: accent, alignItems: 'center', justifyContent: 'center', elevation: 9, zIndex: 260 }}>
+      <CvcIcon name={missionMode ? 'tools' : 'home'} size={25} color={accent} />
+    </TouchableOpacity>;
+  }
   return <TouchableOpacity onPress={onPress} style={{ position: 'absolute', left: 18, bottom: 20, minHeight: 46, paddingHorizontal: 15, borderRadius: 23, backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, elevation: 9, zIndex: 260 }}>
-    <Text style={{ color: accent, fontSize: 20, fontWeight: '900' }}>{missionMode ? '◎' : '⌂'}</Text><Text style={{ color: missionMode ? MISSION_COLORS.accentStrong : COLORS.ink, fontSize: 11.5, fontWeight: '900' }}>{missionMode ? 'Missions' : 'Accueil'}</Text>
+    <CvcIcon name={missionMode ? 'tools' : 'home'} size={20} color={accent} /><Text style={{ color: missionMode ? MISSION_COLORS.accentStrong : COLORS.ink, fontSize: 11.5, fontWeight: '900' }}>{missionMode ? 'Missions' : 'Accueil'}</Text>
   </TouchableOpacity>;
 }
 
@@ -107,7 +116,7 @@ function Lab3DFab({ onPress, bottom = 82, label = '⬡ LAB 3D' }) {
   return <TouchableOpacity onPress={onPress} style={{ position: 'absolute', right: 18, bottom, minHeight: 48, paddingHorizontal: 17, borderRadius: 24, backgroundColor: '#10384B', borderWidth: 2, borderColor: '#5DD8FF', alignItems: 'center', justifyContent: 'center', elevation: 9, zIndex: 205 }}><Text style={{ color: '#F5FBFF', fontWeight: '900', fontSize: 12.5 }}>{label}</Text></TouchableOpacity>;
 }
 
-function AppContent() {
+function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(null);
   const [visualPack, setVisualPack] = useState(null);
@@ -150,6 +159,20 @@ function AppContent() {
     Keyboard.dismiss();
     setTimeout(() => setStack((current) => current.length > 1 ? current.slice(0, -1) : current), 0);
   }, []);
+
+  const currentName = stack[stack.length - 1]?.name || 'Home';
+  const backSwipeEnabled = stack.length > 1 && BACK_SWIPE_ROUTES.has(currentName);
+  const backSwipeResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, gesture) => (
+      backSwipeEnabled
+      && gesture.dx < -18
+      && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.45
+    ),
+    onPanResponderTerminationRequest: () => true,
+    onPanResponderRelease: (_event, gesture) => {
+      if (backSwipeEnabled && (gesture.dx < -82 || gesture.vx < -0.55)) goBack();
+    },
+  }), [backSwipeEnabled, goBack]);
 
   const goHome = useCallback(() => {
     Keyboard.dismiss();
@@ -200,13 +223,13 @@ function AppContent() {
   const route = { params: current.params };
   const missionMode = MISSION_ROUTES.has(current.name);
 
-  return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: missionMode ? MISSION_COLORS.bg : COLORS.bg }}>
+  return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: missionMode ? MISSION_COLORS.bg : COLORS.bg }} {...(backSwipeEnabled ? backSwipeResponder.panHandlers : {})}>
     <IntranetStructureRuntime />
     <IntranetVisitSyncRuntime />
     <IntranetVisitSyncBanner />
     <PhotoDownloadBanner />
 
-    {current.name === 'Home' ? <><SimpleHeader title="Visite Technique" visualPack={visualPack} /><HomeScreen navigation={navigation} route={route} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} /></> : null}
+    {current.name === 'Home' ? <><SimpleHeader title="Visite Technique" visualPack={visualPack} rightAction={phoneIntegralMode ? { label: 'Changer de mode', onPress: onPhoneModeExit } : null} /><HomeScreen navigation={navigation} route={route} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} /></> : null}
     {current.name === 'MetraDirectory' ? <><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MetraDirectory" navigation={navigation} route={route} /></> : null}
     {current.name === 'ClientSites' ? <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientSites" navigation={navigation} route={route} /></> : null}
     {current.name === 'SiteLocals' ? <><SimpleHeader title={current.params?.nomSite || 'Locaux'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="SiteLocals" navigation={navigation} route={route} /></> : null}
@@ -256,11 +279,67 @@ function AppContent() {
     {current.name === 'MissionAmoDashboard' && missionsVisible ? <><MissionHeader title="Pilotage AMO" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionAmoDashboard" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionControlBoard' && missionsVisible ? <><MissionHeader title="Contrôle ciblé" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionControlBoard" navigation={navigation} route={route} /></> : null}
 
-    {current.name !== 'Home' && current.name !== 'Missions' ? <GlobalHomeButton missionMode={missionMode} onPress={missionMode ? goMissionsHome : goHome} /> : null}
+    {current.name !== 'Home' && current.name !== 'Missions' ? <GlobalHomeButton compact={phoneIntegralMode} missionMode={missionMode} onPress={missionMode ? goMissionsHome : goHome} /> : null}
     <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
   </View>;
 }
 
+function PhoneModeChooser({ onChoose }) {
+  const [palette, setPalette] = useState(() => ({ main: COLORS.orange, dark: COLORS.orangeDark, light: COLORS.orangeLight }));
+  const [pack, setPack] = useState(null);
+
+  useEffect(() => {
+    let alive = true;
+    getActiveVisualPack().then((activePack) => {
+      if (!alive) return;
+      setRuntimeVisualPalette(activePack?.colors);
+      setPack(activePack || null);
+      setPalette({
+        main: activePack?.colors?.main || COLORS.orange,
+        dark: activePack?.colors?.dark || COLORS.orangeDark,
+        light: activePack?.colors?.light || COLORS.orangeLight,
+      });
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
+
+  const logoUri = resolveVisualPackAssetUri(pack, pack?.interface?.headerLogo);
+  const card = { minHeight: 128, padding: 15, borderRadius: 18, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, marginBottom: 10 };
+  const mode = (id, icon, title, description, featured = false) => (
+    <TouchableOpacity key={id} onPress={() => onChoose(id)} activeOpacity={0.84} style={[card, featured ? { borderWidth: 1.5, borderColor: palette.main, backgroundColor: palette.light } : null]}>
+      <View style={{ width: 48, height: 48, borderRadius: 15, backgroundColor: featured ? COLORS.white : palette.light, alignItems: 'center', justifyContent: 'center', borderWidth: featured ? 1 : 0, borderColor: palette.main }}>
+        <CvcIcon name={icon} size={30} color={palette.main} />
+      </View>
+      <Text style={{ marginTop: 12, fontSize: 17, fontWeight: '900', color: COLORS.ink }}>{title}</Text>
+      <Text style={{ marginTop: 4, color: COLORS.inkSoft, lineHeight: 17, fontSize: 11.5 }}>{description}</Text>
+    </TouchableOpacity>
+  );
+
+  return <ScrollView style={{ flex: 1, backgroundColor: COLORS.bg }} contentContainerStyle={{ paddingTop: 54, paddingHorizontal: 16, paddingBottom: 30 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
+      <View style={{ flex: 1 }}>
+        <Text style={{ fontSize: 23, fontWeight: '900', color: COLORS.ink }}>Choisir le mode téléphone</Text>
+        <Text style={{ marginTop: 6, color: COLORS.inkSoft, lineHeight: 18 }}>Interface complète, capture terrain rapide ou compagnon de la tablette.</Text>
+      </View>
+      {logoUri ? <VisualPackAsset uri={logoUri} style={{ width: 46, height: 36 }} /> : null}
+    </View>
+    {mode('photo', 'camera', 'Mode Photo', 'Accès direct aux relevés, équipements, plaques signalétiques et remarques. OCR local hors ligne.', true)}
+    {mode('integral', 'tools', 'Version intégrale', 'Clients, sites, visites, saisies et exports dans l’interface complète.')}
+    {mode('companion', 'camera', 'Compagnon', 'Associer ce téléphone à une visite ouverte sur tablette pour capturer et renseigner à distance.')}
+  </ScrollView>;
+}
+
 export default function App() {
-  return <AppErrorBoundary><AppContent /></AppErrorBoundary>;
+  const { width, height } = useWindowDimensions();
+  const phone = Math.min(width, height) < 600;
+  const [phoneMode, setPhoneMode] = useState(null);
+
+  useEffect(() => {
+    if (!phone) setPhoneMode(null);
+  }, [phone]);
+
+  if (phone && !phoneMode) return <AppErrorBoundary><PhoneModeChooser onChoose={setPhoneMode} /></AppErrorBoundary>;
+  if (phone && phoneMode === 'photo') return <AppErrorBoundary><PhotoPhoneScreen onExit={() => setPhoneMode(null)} /></AppErrorBoundary>;
+  if (phone && phoneMode === 'companion') return <AppErrorBoundary><CompanionPhoneScreen onExit={() => setPhoneMode(null)} /></AppErrorBoundary>;
+  return <AppErrorBoundary><AppContent phoneIntegralMode={phone && phoneMode === 'integral'} onPhoneModeExit={() => setPhoneMode(null)} /></AppErrorBoundary>;
 }
