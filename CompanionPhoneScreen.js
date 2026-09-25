@@ -409,55 +409,6 @@ function CompanionPhoneScreen({ onExit }) {
     return () => unsubscribe();
   }, [flushOutbox, refreshPending, nativeAvailable]);
 
-  const scanOfflineSequence = useCallback(async (firstRaw, expectedBatchId = null) => {
-    let raw = firstRaw || '';
-    let activeBatchId = expectedBatchId ? String(expectedBatchId) : null;
-    if (!raw) {
-      raw = await withTimeout(
-        decodeCompanionQr(),
-        45000,
-        'Le scanner QR ne répond pas. Ferme puis réessaie.'
-      );
-    }
-
-    while (raw) {
-      if (!isOfflineClientQr(raw)) {
-        Alert.alert('QR différent', 'Ce QR ne fait pas partie d’un lot client MÉTRA hors connexion.');
-        break;
-      }
-
-      const frame = decodeOfflineClientQrFrame(raw);
-      if (activeBatchId && String(frame.b) !== activeBatchId) {
-        Alert.alert('Mauvais lot QR', 'Ce QR appartient à un autre lot. La progression actuelle est conservée.');
-        break;
-      }
-      if (!activeBatchId) activeBatchId = String(frame.b);
-
-      const saved = await savePhoneOfflineQrFrame(raw);
-      connectedRef.current = false;
-      connectionRef.current = null;
-      setClientSnapshot(saved.snapshot);
-      setSnapshot(saved.snapshot);
-      setSelectedSiteId(null);
-      setSelectedModuleId(null);
-      setPhase('offline');
-
-      const progress = saved.snapshot?.offlineProgress || {};
-      setStatus(progress.complete
-        ? `Client enregistré · ${saved.snapshot?.counts?.sites || 0} sites`
-        : `${progress.scanned || 0}/${progress.total || 0} QR enregistrés · scanner le suivant`);
-      await refreshSavedQrClients();
-
-      if (progress.complete) break;
-
-      raw = await withTimeout(
-        decodeCompanionQr(),
-        45000,
-        'Le scanner QR ne répond pas. Tu pourras reprendre plus tard depuis ce client.'
-      );
-    }
-  }, [refreshSavedQrClients]);
-
   const scan = useCallback(async () => {
     if (!nativeAvailable) {
       Alert.alert('Mode Compagnon indisponible', 'Installe le dernier build Android contenant le module Compagnon.');
@@ -472,16 +423,11 @@ function CompanionPhoneScreen({ onExit }) {
       const raw = await withTimeout(
         decodeCompanionQr(),
         45000,
-        'Le scanner QR ne répond pas. Ferme puis réessaie, ou vérifie les services Google Play.'
+        'Le scanner QR ne répond pas. Ferme puis réessaie.'
       );
       if (!raw) {
-        setPhase(snapshot?.offlineQr ? 'offline' : 'idle');
-        setStatus(snapshot?.offlineQr ? 'Scan interrompu · progression conservée' : 'Scan annulé');
-        return;
-      }
-
-      if (isOfflineClientQr(raw)) {
-        await scanOfflineSequence(raw);
+        setPhase('idle');
+        setStatus('Scan annulé');
         return;
       }
 
@@ -495,28 +441,14 @@ function CompanionPhoneScreen({ onExit }) {
       await withTimeout(
         connectCompanion(connection),
         9000,
-        'La tablette ne répond pas. Vérifie que les deux appareils sont sur le même réseau Wi-Fi.'
+        'La tablette ne répond pas. Vérifie que les deux appareils sont sur le même Wi-Fi ou que la tablette est connectée au partage de connexion du téléphone.'
       );
     } catch (e) {
-      setPhase(snapshot?.offlineQr ? 'offline' : 'idle');
-      setStatus(snapshot?.offlineQr ? 'Scan interrompu · progression conservée' : 'Connexion non établie');
-      Alert.alert(snapshot?.offlineQr ? 'Scan interrompu' : 'Connexion impossible', String(e?.message || e));
+      setPhase('idle');
+      setStatus('Connexion non établie');
+      Alert.alert('Connexion impossible', String(e?.message || e));
     }
-  }, [nativeAvailable, phase, scanOfflineSequence, snapshot?.offlineQr]);
-
-  const continueSavedQrClient = useCallback(async (batchId) => {
-    if (!nativeAvailable) return;
-    await openSavedQrClient(batchId);
-    setPhase('scanning');
-    setStatus('Scanner le prochain QR du lot…');
-    try {
-      await scanOfflineSequence('', batchId);
-    } catch (e) {
-      setPhase('offline');
-      setStatus('Scan interrompu · progression conservée');
-      Alert.alert('Scan interrompu', String(e?.message || e));
-    }
-  }, [nativeAvailable, openSavedQrClient, scanOfflineSequence]);
+  }, [nativeAvailable, phase]);
 
   const reconnect = useCallback(async () => {
     const connection = connectionRef.current;
@@ -539,32 +471,6 @@ function CompanionPhoneScreen({ onExit }) {
 
   const selectVisit = useCallback(async (visit) => {
     if (!visit?.id || busyVisitId) return;
-
-    if (snapshot?.offlineQr && !connectedRef.current) {
-      const offlineSnapshot = visit.offlineSnapshot || null;
-      if (!offlineSnapshot) {
-        const partial = !snapshot?.offlineProgress?.complete;
-        Alert.alert(
-          partial ? 'Détails pas encore scannés' : 'Visite non embarquée dans ce lot',
-          partial
-            ? 'Les sites sont déjà disponibles, mais les QR contenant les détails de cette visite n’ont pas encore tous été scannés. Continue le lot QR puis réessaie.'
-            : 'Le lot hors connexion embarque les visites en cours de chaque site, ou la visite la plus récente lorsqu’il n’y en a aucune en cours. Pour une ancienne visite, utilise le mode Compagnon connecté.'
-        );
-        return;
-      }
-
-      setBusyVisitId(visit.id);
-      setSnapshot({
-        ...offlineSnapshot,
-        offlineQr: true,
-        offlineBatchId: snapshot.offlineBatchId,
-      });
-      setSelectedModuleId(null);
-      setStatus('Visite prête hors connexion');
-      setBusyVisitId(null);
-      return;
-    }
-
     setBusyVisitId(visit.id);
     setStatus('Ouverture de la visite…');
     try {
@@ -578,17 +484,14 @@ function CompanionPhoneScreen({ onExit }) {
       setStatus('Visite non ouverte');
       Alert.alert('Visite indisponible', String(e?.message || e));
     }
-  }, [busyVisitId, snapshot]);
+  }, [busyVisitId]);
 
   const backToClient = useCallback(async () => {
     if (!clientSnapshot) return;
     setSnapshot(clientSnapshot);
     setSelectedModuleId(null);
+    setSelectedTargetId(null);
     setSelectedSiteId(null);
-    if (clientSnapshot.offlineQr && !connectedRef.current) {
-      setStatus(clientSnapshot.offlineProgress?.complete ? 'Client QR disponible hors connexion' : 'Client QR partiellement importé');
-      return;
-    }
     setStatus('Client synchronisé');
     await sendCompanionMessage({ type: 'requestClientSnapshot' }).catch(() => {});
   }, [clientSnapshot]);
