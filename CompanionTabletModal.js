@@ -16,7 +16,6 @@ import {
   subscribeCompanion,
 } from './companionNative.js';
 import { getRuntimeAccent } from './visual-packs/runtime/visualPaletteRuntime.js';
-import { CompanionOfflineQrBatchModal } from './CompanionOfflineQrBatchModal.js';
 
 function withTimeout(promise, ms, message) {
   let timer = null;
@@ -39,7 +38,6 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
   const [connection, setConnection] = useState('En attente du téléphone');
   const [lastEvent, setLastEvent] = useState('');
   const [phoneVisitId, setPhoneVisitId] = useState(null);
-  const [offlineQrVisible, setOfflineQrVisible] = useState(false);
   const mountedRef = useRef(true);
   const accent = getRuntimeAccent();
 
@@ -323,18 +321,6 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
 
                 {lastEvent ? <Text style={{ marginTop: 10, textAlign: 'center', color: COLORS.inkSoft, fontSize: 12 }}>{lastEvent}</Text> : null}
 
-                {scope === 'client' ? (
-                  <TouchableOpacity
-                    style={[styles.btnSecondary, { marginTop: 16, minHeight: 50, borderColor: accent }]}
-                    onPress={() => setOfflineQrVisible(true)}
-                  >
-                    <Text style={[styles.btnSecondaryText, { color: accent }]}>QR hors connexion · plusieurs QR</Text>
-                    <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 10.5, textAlign: 'center' }}>
-                      À scanner à la suite ou en plusieurs fois, sans réseau entre les appareils
-                    </Text>
-                  </TouchableOpacity>
-                ) : null}
-
                 <View style={{ flexDirection: 'row', gap: 10, marginTop: 16 }}>
                   <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => refreshSnapshot()}>
                     <Text style={styles.btnSecondaryText}>Actualiser</Text>
@@ -348,12 +334,6 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
           </ScrollView>
         </View>
       </View>
-      <CompanionOfflineQrBatchModal
-        visible={offlineQrVisible}
-        clientId={clientId}
-        nomClient={nomClient || snapshot?.client?.name || null}
-        onClose={() => setOfflineQrVisible(false)}
-      />
     </Modal>
   );
 }
