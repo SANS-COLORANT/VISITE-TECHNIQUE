@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { View, Text, TextInput, TouchableOpacity } from 'react-native';
 import { COLORS, styles } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 import { PRESCRIPTIONS } from './data.js';
 import { fusionnerPrescriptions } from './reserveExtensions.js';
 import { upsertChamp, listerBibliothequeReserves } from './db.js';
@@ -155,7 +156,7 @@ const ChipSelector = React.memo(function ChipSelector({ valeur, options, onChang
   }
   return (
     <View style={styles.chipRowWithArrows}>
-      <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(-1)}><Text style={styles.chipArrowBtnText}>‹</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityLabel="Options précédentes" style={styles.chipArrowBtn} onPress={() => naviguer(-1)}><CvcIcon name="chevron-left" size={15} color={COLORS.orangeDark} strokeWidth={2.3} /></TouchableOpacity>
       <View style={styles.chipSelectRow}>
         {options.map((opt) => (
           <TouchableOpacity key={opt} style={[styles.chipOpt, valeur === opt && styles.chipOptPicked]} onPress={() => choisir(opt)}>
@@ -166,7 +167,7 @@ const ChipSelector = React.memo(function ChipSelector({ valeur, options, onChang
           <Text style={styles.chipOptAddNewText}>+ Autre</Text>
         </TouchableOpacity>
       </View>
-      <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(1)}><Text style={styles.chipArrowBtnText}>›</Text></TouchableOpacity>
+      <TouchableOpacity accessibilityLabel="Options suivantes" style={styles.chipArrowBtn} onPress={() => naviguer(1)}><CvcIcon name="chevron-right" size={15} color={COLORS.orangeDark} strokeWidth={2.3} /></TouchableOpacity>
     </View>
   );
 });
@@ -506,9 +507,9 @@ const TypeAheadInput = React.memo(function TypeAheadInput({ valeur, options, pla
   return (
     <View>
       <View style={styles.typeaheadRow}>
-        <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(-1)}><Text style={styles.chipArrowBtnText}>‹</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityLabel="Options précédentes" style={styles.chipArrowBtn} onPress={() => naviguer(-1)}><CvcIcon name="chevron-left" size={15} color={COLORS.orangeDark} strokeWidth={2.3} /></TouchableOpacity>
         <TextInput style={[styles.input, { flex: 1 }]} value={texte} onChangeText={setTexte} onFocus={() => setFocus(true)} onBlur={surBlur} placeholder={placeholder} />
-        <TouchableOpacity style={styles.chipArrowBtn} onPress={() => naviguer(1)}><Text style={styles.chipArrowBtnText}>›</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityLabel="Options suivantes" style={styles.chipArrowBtn} onPress={() => naviguer(1)}><CvcIcon name="chevron-right" size={15} color={COLORS.orangeDark} strokeWidth={2.3} /></TouchableOpacity>
       </View>
       {focus && suggestions.length > 0 && (
         <View style={styles.typeaheadSuggestions}>

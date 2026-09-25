@@ -159,6 +159,10 @@ function CvcIcon({ name, size = 36, color = '#10384B', strokeWidth = 1.9 }) {
       <Circle cx="10" cy="11" r="2.4" />
       <Path d="M4 20.5 10.5 13.5 15 17.5 19 13.5 24 19" />
     </G>;
+  } else if (key === 'chevron-left') {
+    body = <G {...p}><Path d="M17 5.5 9.5 14l7.5 8.5" /></G>;
+  } else if (key === 'chevron-right') {
+    body = <G {...p}><Path d="M11 5.5 18.5 14 11 22.5" /></G>;
   } else if (key === 'clock' || key === 'pending') {
     body = <G {...p}>
       <Circle cx="14" cy="14" r="10" />

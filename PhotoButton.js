@@ -420,7 +420,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
   };
 
   const hasPhotos = photosChargees && photos.length > 0;
-  const iconColor = hasPhotos ? COLORS.green : COLORS.inkFaint;
+  const iconColor = hasPhotos ? COLORS.green : COLORS.orangeDark;
 
   return <>
     <TouchableOpacity

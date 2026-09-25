@@ -38,16 +38,29 @@ function GlassCard({ children, style, radius = 20 }) {
  */
 function IconOrb({ accent, light, size = 44, radius, children }) {
   const r = radius ?? Math.round(size * 0.32);
+  const base = light || '#FCE4D3';
+  const ringR = size / 2 - 1;
+  const circumference = 2 * Math.PI * ringR;
   return (
     <View style={[styles.orbShadow, { width: size, height: size, borderRadius: r }]}>
       <LinearGradient
-        colors={[light || '#FFF1EA', 'rgba(255,255,255,0)']}
+        colors={[base, base + '45']}
         start={{ x: 0.15, y: 0 }}
         end={{ x: 0.9, y: 1 }}
-        style={[styles.orbFill, { width: size, height: size, borderRadius: r, borderColor: accent + '33' }]}
+        style={[styles.orbFill, { width: size, height: size, borderRadius: r, borderColor: accent + '70' }]}
       >
         {children}
       </LinearGradient>
+      {/* Anneau partiel en couleur d'accent : RN n'a pas de conic-gradient,
+          ceci approxime le fin anneau dégradé de la maquette autour de l'icône. */}
+      <Svg width={size} height={size} style={StyleSheet.absoluteFillObject} pointerEvents="none">
+        <Circle
+          cx={size / 2} cy={size / 2} r={ringR}
+          stroke={accent} strokeWidth={1.5} fill="none" strokeLinecap="round"
+          strokeDasharray={`${circumference * 0.52}, ${circumference}`}
+          rotation="-45" originX={size / 2} originY={size / 2}
+        />
+      </Svg>
     </View>
   );
 }
@@ -165,7 +178,7 @@ const styles = StyleSheet.create({
   },
   glassTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.38)',
+    backgroundColor: 'rgba(255,255,255,0.2)',
   },
   glassContent: {
     position: 'relative',

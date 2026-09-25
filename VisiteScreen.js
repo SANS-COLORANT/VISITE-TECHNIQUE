@@ -622,11 +622,12 @@ function VisiteScreen({ route, onBack }) {
   return (
     <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
       <View style={styles.visiteTopbar}>
-        <View style={{ position: 'absolute', top: -40, right: -30, width: 150, height: 150, borderRadius: 75, backgroundColor: COLORS.orange, opacity: 0.1 }} />
-        <View style={{ position: 'absolute', top: 30, left: -50, width: 120, height: 120, borderRadius: 60, backgroundColor: COLORS.orangeLight, opacity: 0.6 }} />
+        <View style={{ position: 'absolute', top: -46, right: -34, width: 170, height: 170, borderRadius: 85, backgroundColor: COLORS.orange, opacity: 0.16 }} />
+        <View style={{ position: 'absolute', top: 26, left: -56, width: 132, height: 132, borderRadius: 66, backgroundColor: COLORS.orangeLight, opacity: 0.9 }} />
         <View style={styles.visiteHeaderRow}>
           <TouchableOpacity style={styles.visiteBackBtn} onPress={retourSecurise}><Text style={styles.visiteBackBtnText}>←</Text></TouchableOpacity>
-          <View style={{ flex: 1 }}>
+          <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={34}><CvcIcon name="local" size={17} color={COLORS.orangeDark} /></IconOrb>
+          <View style={{ flex: 1, marginLeft: 9 }}>
             <Text numberOfLines={1} style={styles.cardTitle}>{visite.nom_site}</Text>
             <Text numberOfLines={1} style={styles.cardSub}>{[visite.nom_client, visite.nom_installation, visite.date_visite, trame.nom, visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'].filter(Boolean).join(' · ')}</Text>
           </View>
@@ -657,6 +658,14 @@ function VisiteScreen({ route, onBack }) {
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text style={{ fontSize: 10, fontWeight: '700', fontFamily: FONTS.bodyBold, letterSpacing: 0.5, textTransform: 'uppercase', color: COLORS.inkFaint, marginBottom: 4 }}>Avancement</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 5 }}>
+                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
+                  <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.orangeDark }}>{trame.nom}</Text>
+                </View>
+                {visite.date_visite ? <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
+                  <Text numberOfLines={1} style={{ fontSize: 11, fontFamily: FONTS.bodyMedium, color: COLORS.inkSoft }}>{visite.date_visite}</Text>
+                </View> : null}
+              </View>
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
                 <CvcIcon
                   name={saveActivity.lastError ? 'cloud-off' : saveActivity.pending ? 'cloud-sync' : 'control'}

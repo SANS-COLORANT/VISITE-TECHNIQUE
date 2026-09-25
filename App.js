@@ -22,6 +22,7 @@ import { CompanionPhoneScreen } from './CompanionPhoneScreen.js';
 import { PhotoPhoneScreen } from './PhotoPhoneScreen.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { useAppFonts } from './AppFonts.js';
+import { LinearGradient } from 'expo-linear-gradient';
 
 const SPLASH_BG = '#FBF0E1';
 const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects', 'MissionP3Dashboard', 'MissionReceptionBoard', 'MissionExpertise', 'MissionCampaignDashboard', 'MissionAmoDashboard', 'MissionControlBoard']);
@@ -124,13 +125,19 @@ function MissionHeader({ title, onBack, visualPack, root = false }) {
 
 function GlobalHomeButton({ onPress, missionMode = false, compact = false }) {
   const accent = missionMode ? MISSION_COLORS.accent : COLORS.orange;
+  const accentDark = missionMode ? MISSION_COLORS.accentDark : COLORS.orangeDark;
+  const fabShadow = { shadowColor: accent, shadowOpacity: 0.4, shadowRadius: 14, shadowOffset: { width: 0, height: 8 }, elevation: 9 };
   if (compact) {
-    return <TouchableOpacity accessibilityRole="button" accessibilityLabel={missionMode ? 'Missions' : 'Accueil'} onPress={onPress} style={{ position: 'absolute', left: 12, bottom: 12, width: 48, height: 48, borderRadius: 16, backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: accent, alignItems: 'center', justifyContent: 'center', elevation: 9, zIndex: 260 }}>
-      <CvcIcon name={missionMode ? 'tools' : 'home'} size={25} color={accent} />
+    return <TouchableOpacity accessibilityRole="button" accessibilityLabel={missionMode ? 'Missions' : 'Accueil'} onPress={onPress} style={[{ position: 'absolute', left: 14, bottom: 14, zIndex: 260 }, fabShadow]}>
+      <LinearGradient colors={[accent, accentDark]} start={{ x: 0.2, y: 0 }} end={{ x: 0.85, y: 1 }} style={{ width: 50, height: 50, borderRadius: 17, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' }}>
+        <CvcIcon name={missionMode ? 'tools' : 'home'} size={24} color={COLORS.white} />
+      </LinearGradient>
     </TouchableOpacity>;
   }
-  return <TouchableOpacity onPress={onPress} style={{ position: 'absolute', left: 18, bottom: 20, minHeight: 46, paddingHorizontal: 15, borderRadius: 23, backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, elevation: 9, zIndex: 260 }}>
-    <CvcIcon name={missionMode ? 'tools' : 'home'} size={20} color={accent} /><Text style={{ color: missionMode ? MISSION_COLORS.accentStrong : COLORS.ink, fontSize: 11.5, fontWeight: '900' }}>{missionMode ? 'Missions' : 'Accueil'}</Text>
+  return <TouchableOpacity onPress={onPress} style={[{ position: 'absolute', left: 18, bottom: 20, zIndex: 260 }, fabShadow]}>
+    <LinearGradient colors={[accent, accentDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={{ minHeight: 48, paddingHorizontal: 17, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
+      <CvcIcon name={missionMode ? 'tools' : 'home'} size={19} color={COLORS.white} /><Text style={{ color: COLORS.white, fontSize: 12, fontWeight: '900' }}>{missionMode ? 'Missions' : 'Accueil'}</Text>
+    </LinearGradient>
   </TouchableOpacity>;
 }
 

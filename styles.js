@@ -6,9 +6,9 @@ import { FONT_HEADING_BLACK, FONT_HEADING_BOLD, FONT_HEADING_SEMI, FONT_BODY_MED
 export const FONTS = { black: FONT_HEADING_BLACK, bold: FONT_HEADING_BOLD, semi: FONT_HEADING_SEMI, bodyMedium: FONT_BODY_MEDIUM, bodySemi: FONT_BODY_SEMI, bodyBold: FONT_BODY_BOLD };
 
 export const COLORS = {
-  orange: '#F26426', orangeDark: '#D9531A', orangeLight: '#FFF1EA',
+  orange: '#F26426', orangeDark: '#D9531A', orangeLight: '#FCE4D3',
   ink: '#1A1A18', inkSoft: '#6B6B66', inkFaint: '#A3A39D',
-  line: '#EAE8E2', bg: '#FAFAF8', white: '#FFFFFF',
+  line: '#EAE8E2', bg: '#F3F1EC', white: '#FFFFFF',
   green: '#2E7D32', greenBg: '#E8F5E9',
   red: '#B91C1C', redBg: '#FDECEC',
   amber: '#B45309', amberBg: '#FEF3E2',
@@ -35,7 +35,7 @@ export const styles = StyleSheet.create({
 
   card: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.white, borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 14, marginBottom: 9, gap: 10,
-    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 3,
+    shadowColor: '#000', shadowOpacity: 0.11, shadowRadius: 18, shadowOffset: { width: 0, height: 9 }, elevation: 4,
   },
   deleteVisiteBtn: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.redBg, marginLeft: 4 },
   deleteVisiteBtnText: { color: COLORS.red, fontSize: 13, fontWeight: '700' },
@@ -139,22 +139,22 @@ export const styles = StyleSheet.create({
   tabItem: { paddingHorizontal: 12, paddingVertical: 10, marginRight: 2 },
   tabItemText: { fontSize: 12, fontWeight: '500', color: COLORS.inkSoft },
   tabItemTextActive: { color: COLORS.orangeDark, fontWeight: '700' },
-  tabUnderline: { height: 2.5, backgroundColor: COLORS.orange, marginTop: 6, borderRadius: 2 },
+  tabUnderline: { height: 3.5, backgroundColor: COLORS.orange, marginTop: 6, borderRadius: 2 },
   tabSep: { width: 1, backgroundColor: COLORS.line, marginHorizontal: 6, marginVertical: 10 },
 
   panelContent: { padding: 18, paddingBottom: 92 },
-  sectionTitle: { fontSize: 14, fontWeight: '600', color: COLORS.ink, marginBottom: 10, marginTop: 4 },
+  sectionTitle: { fontSize: 14, fontWeight: '600', fontFamily: FONTS.bold, color: COLORS.ink, marginBottom: 10, marginTop: 4 },
   formCard: {
     backgroundColor: COLORS.white, borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 18, padding: 16, marginBottom: 14,
-    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 18, shadowOffset: { width: 0, height: 9 }, elevation: 3,
+    shadowColor: '#000', shadowOpacity: 0.11, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 4,
   },
 
   fieldBlock: { marginBottom: 14 },
   fieldTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: COLORS.ink, flex: 1 },
 
-  photoBtn: { borderWidth: 1, borderColor: COLORS.line, borderRadius: 15, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: COLORS.white },
-  photoBtnText: { fontSize: 10.5, fontWeight: '600', color: COLORS.inkFaint },
+  photoBtn: { borderWidth: 1, borderColor: 'rgba(242,100,38,0.35)', borderRadius: 15, paddingHorizontal: 10, paddingVertical: 5, backgroundColor: COLORS.orangeLight },
+  photoBtnText: { fontSize: 10.5, fontWeight: '600', fontFamily: FONTS.bodySemi, color: COLORS.orangeDark },
   photoBtnTaken: { backgroundColor: COLORS.greenBg, borderColor: COLORS.green },
   photoBtnTextTaken: { color: COLORS.green },
   photoViewerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.94)', paddingTop: 48, paddingHorizontal: 18, paddingBottom: 28 },
