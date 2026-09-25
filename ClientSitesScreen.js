@@ -107,8 +107,8 @@ function ClientSitesScreen({ route, navigation }) {
   const patchNouvelleAdresse = (patch) => setNouvelleAdresse((prev) => ({ ...prev, ...patch }));
   const ouvrirAjoutSite = () => Alert.alert('Ajouter un site', 'Où créer le site ?', [
     { text: 'Annuler', style: 'cancel' },
-    { text: 'Site local', onPress: () => setModalVisible(true) },
-    { text: 'Site Intranet', onPress: () => setIntranetSiteVisible(true) },
+    { text: '+ Site local', onPress: () => setModalVisible(true) },
+    { text: '+ Site Intranet', onPress: () => setIntranetSiteVisible(true) },
   ]);
 
   const ajouterSiteFn = async () => {
