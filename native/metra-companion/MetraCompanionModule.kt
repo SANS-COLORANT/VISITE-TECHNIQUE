@@ -128,6 +128,21 @@ class MetraCompanionModule(private val context: ReactApplicationContext) : React
     return routes.firstOrNull()
   }
 
+  private fun matchingInterfaceAddress(host: String): Inet4Address? {
+    val remote = try { InetAddress.getByName(host) as? Inet4Address } catch (_: Exception) { null } ?: return null
+    val enumeration = NetworkInterface.getNetworkInterfaces() ?: return null
+    for (networkInterface in Collections.list(enumeration)) {
+      if (!networkInterface.isUp || networkInterface.isLoopback) continue
+      for (interfaceAddress in networkInterface.interfaceAddresses) {
+        val local = interfaceAddress.address
+        if (local !is Inet4Address || local.isLoopbackAddress || !local.isSiteLocalAddress) continue
+        val prefixLength = interfaceAddress.networkPrefixLength.toInt().coerceIn(0, 32)
+        if (sameIpv4Subnet(local, remote, prefixLength)) return local
+      }
+    }
+    return null
+  }
+
   private fun localIpv4(): String {
     // Toujours privilégier une vraie interface Wi-Fi/Ethernet. Android peut
     // conserver le réseau cellulaire/VPN comme réseau par défaut même quand le
@@ -311,7 +326,16 @@ class MetraCompanionModule(private val context: ReactApplicationContext) : React
       try {
         disconnectInternal()
         val lanRoute = selectLanRoute(host)
-        val client = lanRoute?.network?.socketFactory?.createSocket() ?: Socket()
+        val client = lanRoute?.network?.socketFactory?.createSocket() ?: Socket().apply {
+          // Cas partage de connexion : le téléphone qui fournit le hotspot
+          // n'expose pas toujours son interface SoftAP comme un Network Android.
+          // On lie alors explicitement la socket à l'IPv4 locale qui appartient
+          // au même sous-réseau que la tablette, au lieu de laisser Android
+          // choisir le réseau cellulaire/CLAT (ex. 192.0.0.4).
+          matchingInterfaceAddress(host)?.let { local ->
+            bind(InetSocketAddress(local, 0))
+          }
+        }
         client.connect(InetSocketAddress(host, port), 5000)
         client.tcpNoDelay = true
         client.soTimeout = 0
