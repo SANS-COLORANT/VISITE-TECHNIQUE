@@ -10,16 +10,20 @@ import { prewarmCameraRuntime } from './cameraRuntime.js';
 import { demarrerDicteeLocale, dicteeLocaleDisponible, reconnaitreTexteImageLocale } from './missionNativeTools.js';
 import { ajouterRemarqueVisite, modifierRemarqueVisite } from './remarkDb.js';
 import { extraireChampsPlaque, extraireValeurOcr } from './photoModeData.js';
+import { IconOrb, FadeUp } from './premiumChrome.js';
 
 const clean = (v) => String(v == null ? '' : v).trim();
-const card = { borderWidth: 1, borderColor: COLORS.line, borderRadius: 16, backgroundColor: COLORS.white };
+const card = {
+  borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, backgroundColor: COLORS.white,
+  shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+};
 const iconBox = (light, size = 46) => ({ width: size, height: size, borderRadius: 14, backgroundColor: light, alignItems: 'center', justifyContent: 'center' });
 
 function Header({ title, subtitle, icon = 'camera', onBack, onExit, accent, light }) {
   return <View style={{ paddingTop: 47, paddingHorizontal: 14, paddingBottom: 11, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
       {onBack ? <TouchableOpacity accessibilityLabel="Retour" onPress={onBack} style={[iconBox(COLORS.white, 42), { borderWidth: 1, borderColor: COLORS.line }]}><Text style={{ fontSize: 22, color: COLORS.ink }}>←</Text></TouchableOpacity> : null}
-      <View style={iconBox(light, 44)}><CvcIcon name={icon} size={28} color={accent} /></View>
+      <IconOrb accent={accent} light={light} size={44}><CvcIcon name={icon} size={26} color={accent} /></IconOrb>
       <View style={{ flex: 1 }}><Text numberOfLines={1} style={{ fontSize: 18.5, fontWeight: '900', color: COLORS.ink }}>{title}</Text>{subtitle ? <Text numberOfLines={1} style={{ marginTop: 2, fontSize: 11.5, color: COLORS.inkSoft }}>{subtitle}</Text> : null}</View>
       {onExit ? <TouchableOpacity accessibilityLabel="Quitter le mode Photo" onPress={onExit} style={[iconBox(COLORS.white, 42), { borderWidth: 1, borderColor: COLORS.line }]}><Text style={{ fontSize: 20, color: COLORS.inkSoft }}>×</Text></TouchableOpacity> : null}
     </View>
@@ -33,8 +37,8 @@ function Status({ text, accent, light }) {
 
 function ModuleTile({ item, onPress, accent, light }) {
   const count = Number(item.count || 0);
-  return <TouchableOpacity onPress={() => onPress(item)} style={[card, { width: '48.5%', minHeight: 116, padding: 13, justifyContent: 'space-between' }]}>
-    <View style={iconBox(light)}><CvcIcon name={item.icon} size={29} color={accent} /></View>
+  return <TouchableOpacity onPress={() => onPress(item)} style={[card, { width: '100%', minHeight: 116, padding: 13, justifyContent: 'space-between' }]}>
+    <IconOrb accent={accent} light={light} size={46}><CvcIcon name={item.icon} size={27} color={accent} /></IconOrb>
     <View><Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 14 }}>{item.label}</Text><Text style={{ marginTop: 2, color: accent, fontSize: 20, fontWeight: '900' }}>{count}</Text></View>
   </TouchableOpacity>;
 }
@@ -42,7 +46,7 @@ function ModuleTile({ item, onPress, accent, light }) {
 function VisitRow({ item, onPress, accent, light }) {
   const active = clean(item.statut) === 'en_cours';
   return <TouchableOpacity onPress={() => onPress(item)} style={[card, { marginBottom: 9, minHeight: 76, padding: 12, flexDirection: 'row', alignItems: 'center', gap: 11, borderColor: active ? accent : COLORS.line }]}>
-    <View style={iconBox(light, 44)}><CvcIcon name="camera" size={27} color={accent} /></View>
+    <IconOrb accent={accent} light={light} size={44}><CvcIcon name="camera" size={25} color={accent} /></IconOrb>
     <View style={{ flex: 1 }}><Text numberOfLines={1} style={{ fontWeight: '900', color: COLORS.ink }}>{item.nom_local || item.nom_site || 'Visite'}</Text><Text numberOfLines={1} style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 11 }}>{[item.nom_client, item.nom_site].filter(Boolean).join(' · ')}</Text><Text style={{ marginTop: 3, color: active ? accent : COLORS.inkFaint, fontSize: 10.5 }}>{active ? 'EN COURS · ' : ''}{item.date_visite || ''} · {item.trame_id || 'ICPE'}</Text></View>
     <Text style={{ color: COLORS.inkFaint, fontSize: 22 }}>›</Text>
   </TouchableOpacity>;
@@ -52,7 +56,7 @@ function TargetRow({ item, module, onOpen, onCapture, busy, accent, light }) {
   const value = [clean(item.value), clean(item.unit)].filter(Boolean).join(' ');
   return <View style={[card, { marginBottom: 9, minHeight: 68, flexDirection: 'row', overflow: 'hidden' }]}>
     <TouchableOpacity onPress={() => onOpen(item)} style={{ flex: 1, padding: 11, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-      <View style={iconBox(light, 40)}><CvcIcon name={module.icon} size={24} color={accent} /></View>
+      <IconOrb accent={accent} light={light} size={40}><CvcIcon name={module.icon} size={22} color={accent} /></IconOrb>
       <View style={{ flex: 1 }}><Text numberOfLines={2} style={{ color: COLORS.ink, fontWeight: '900', fontSize: 13.5 }}>{item.label}</Text>{value ? <Text style={{ marginTop: 3, color: accent, fontWeight: '900', fontSize: 12 }}>{value}</Text> : null}{item.subtitle ? <Text numberOfLines={1} style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 10.5 }}>{item.subtitle}</Text> : null}</View>
     </TouchableOpacity>
     <TouchableOpacity accessibilityLabel={'Photographier ' + item.label} onPressIn={() => prewarmCameraRuntime().catch(() => {})} onPress={() => onCapture(item)} disabled={busy} style={{ width: 58, borderLeftWidth: 1, borderLeftColor: COLORS.line, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}>{busy ? <ActivityIndicator color={accent} /> : <CvcIcon name="camera" size={27} color={accent} />}</TouchableOpacity>
@@ -184,7 +188,7 @@ function PhotoPhoneScreen({ onExit }) {
     </View>;
   }
 
-  if (snapshot?.visit) return <View style={{ flex: 1, backgroundColor: COLORS.bg }}><Header title="Mode Photo" subtitle={[snapshot.visit.site, snapshot.visit.date].filter(Boolean).join(' · ')} onBack={() => { setSnapshot(null); setStatus(''); }} onExit={onExit} accent={accent} light={light} /><Status text={status} accent={accent} light={light} /><ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 38 }}><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>{modules.map((m) => <ModuleTile key={m.id} item={m} onPress={(row) => { setModuleId(row.id); setTargetId(null); setStatus(''); }} accent={accent} light={light} />)}</View></ScrollView></View>;
+  if (snapshot?.visit) return <View style={{ flex: 1, backgroundColor: COLORS.bg }}><Header title="Mode Photo" subtitle={[snapshot.visit.site, snapshot.visit.date].filter(Boolean).join(' · ')} onBack={() => { setSnapshot(null); setStatus(''); }} onExit={onExit} accent={accent} light={light} /><Status text={status} accent={accent} light={light} /><ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 38 }}><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>{modules.map((m, i) => <FadeUp key={m.id} delay={i * 40} style={{ width: '48.5%' }}><ModuleTile item={m} onPress={(row) => { setModuleId(row.id); setTargetId(null); setStatus(''); }} accent={accent} light={light} /></FadeUp>)}</View></ScrollView></View>;
 
   return <View style={{ flex: 1, backgroundColor: COLORS.bg }}><Header title="Mode Photo" subtitle="Capture terrain rapide · hors ligne" onExit={onExit} accent={accent} light={light} />{loading ? <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator size="large" color={accent} /></View> : <FlatList data={visits} keyExtractor={(item) => String(item.id)} contentContainerStyle={{ padding: 14, paddingBottom: 34 }} ListHeaderComponent={<Text style={{ marginBottom: 10, color: COLORS.inkSoft, fontSize: 11.5, fontWeight: '800' }}>Sélectionner la visite à renseigner</Text>} renderItem={({ item }) => <VisitRow item={item} onPress={(row) => openSnapshot(row.id, true).catch((e) => Alert.alert('Visite indisponible', String(e?.message || e)))} accent={accent} light={light} />} ListEmptyComponent={<View style={{ marginTop: 70, alignItems: 'center', paddingHorizontal: 26 }}><CvcIcon name="camera" size={52} color={accent} /><Text style={{ marginTop: 13, color: COLORS.ink, fontWeight: '900' }}>Aucune visite locale</Text><Text style={{ marginTop: 6, textAlign: 'center', color: COLORS.inkSoft }}>Le Mode Photo utilise les visites déjà présentes sur ce téléphone.</Text></View>} />}</View>;
 }

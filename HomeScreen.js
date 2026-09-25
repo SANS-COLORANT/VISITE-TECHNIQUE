@@ -2,6 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert, ScrollView, PanResponder } from 'react-native';
+import { BlurView } from 'expo-blur';
 import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites } from './db.js';
 import { PatrimoineThumbnail } from './PatrimoineImageCard.js';
@@ -184,7 +185,11 @@ function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
           <Text style={{ color: COLORS.muted || '#667085', fontSize: 11.5, marginTop: 8 }}>Recherche METRA + données Intranet déjà synchronisées · utilisable hors connexion.</Text>
         </View>
 
-        <View style={styles.statRow}><StatCard num={stats.enCours} label="En cours" /><StatCard num={stats.terminees} label="Terminées" /></View>
+        <View style={{ position: 'relative' }}>
+          <View style={{ position: 'absolute', top: -34, left: -18, width: 130, height: 130, borderRadius: 65, backgroundColor: COLORS.orangeLight, opacity: 0.9 }} />
+          <View style={{ position: 'absolute', top: -14, right: -28, width: 100, height: 100, borderRadius: 50, backgroundColor: COLORS.orange, opacity: 0.16 }} />
+          <View style={styles.statRow}><StatCard num={stats.enCours} label="En cours" /><StatCard num={stats.terminees} label="Terminées" /></View>
+        </View>
 
         {visitesEnCours.length > 0 && <>
           <Text style={styles.sectionLabel}>Visites en cours</Text>
@@ -243,6 +248,15 @@ function HomeScreen({ navigation, onR1LongPress, missionsEnabled = false }) {
   </View>;
 }
 
-function StatCard({ num, label }) { return <View style={styles.statCard}><Text style={styles.statNum}>{num}</Text><Text style={styles.statLabel}>{label}</Text></View>; }
+function StatCard({ num, label }) {
+  return (
+    <View style={[styles.statCard, { overflow: 'hidden', backgroundColor: 'transparent', borderColor: 'rgba(234,232,226,0.6)' }]}>
+      <BlurView intensity={35} tint="light" style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0 }} />
+      <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(255,255,255,0.45)' }} />
+      <Text style={styles.statNum}>{num}</Text>
+      <Text style={styles.statLabel}>{label}</Text>
+    </View>
+  );
+}
 
 export { HomeScreen };
