@@ -34,8 +34,8 @@ export const styles = StyleSheet.create({
   addLink: { fontSize: 12.5, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.orangeDark },
 
   card: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, padding: 14, marginBottom: 9, gap: 10,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.white, borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 14, marginBottom: 9, gap: 10,
+    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 3,
   },
   deleteVisiteBtn: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.redBg, marginLeft: 4 },
   deleteVisiteBtnText: { color: COLORS.red, fontSize: 13, fontWeight: '700' },
@@ -145,8 +145,8 @@ export const styles = StyleSheet.create({
   panelContent: { padding: 18, paddingBottom: 92 },
   sectionTitle: { fontSize: 14, fontWeight: '600', color: COLORS.ink, marginBottom: 10, marginTop: 4 },
   formCard: {
-    backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, padding: 16, marginBottom: 14,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    backgroundColor: COLORS.white, borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 18, padding: 16, marginBottom: 14,
+    shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 18, shadowOffset: { width: 0, height: 9 }, elevation: 3,
   },
 
   fieldBlock: { marginBottom: 14 },
@@ -193,8 +193,8 @@ export const styles = StyleSheet.create({
   prestationMetaTxt: { fontSize: 10, color: COLORS.inkSoft },
   bold: { color: COLORS.ink, fontWeight: '700' },
 
-  addBtn: { borderWidth: 1.5, borderColor: COLORS.orange, borderStyle: 'dashed', backgroundColor: COLORS.orangeLight, borderRadius: 10, padding: 12, alignItems: 'center', marginBottom: 14 },
-  addBtnText: { fontSize: 12.5, fontWeight: '600', color: COLORS.orangeDark },
+  addBtn: { borderWidth: 1.5, borderColor: COLORS.orange, borderStyle: 'dashed', backgroundColor: COLORS.orangeLight, borderRadius: 14, padding: 13, alignItems: 'center', marginBottom: 14 },
+  addBtnText: { fontSize: 12.5, fontWeight: '600', fontFamily: FONTS.bodySemi, color: COLORS.orangeDark },
   removeLink: { fontSize: 11, color: COLORS.inkFaint, fontWeight: '500' },
 
   reseauHeaderRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 12 },
@@ -203,7 +203,7 @@ export const styles = StyleSheet.create({
   // ---- Sélecteur numérique +/- ----
   stepperRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, overflow: 'hidden' },
   stepperBtn: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bg },
-  stepperBtnText: { fontSize: 20, fontWeight: '700', color: COLORS.orangeDark },
+  stepperBtnText: { fontSize: 20, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.orangeDark },
   stepperValBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   stepperValText: { fontSize: 14, fontWeight: '700', color: COLORS.ink },
 
@@ -211,10 +211,10 @@ export const styles = StyleSheet.create({
   chipSelectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chipOpt: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white },
   chipOptPicked: { backgroundColor: COLORS.orange, borderColor: COLORS.orange },
-  chipOptText: { fontSize: 12, color: COLORS.ink, fontWeight: '500' },
-  chipOptTextPicked: { color: COLORS.white, fontWeight: '600' },
+  chipOptText: { fontSize: 12, color: COLORS.ink, fontWeight: '500', fontFamily: FONTS.bodyMedium },
+  chipOptTextPicked: { color: COLORS.white, fontWeight: '600', fontFamily: FONTS.bodySemi },
   chipOptAddNew: { borderStyle: 'dashed', borderColor: COLORS.orange, backgroundColor: COLORS.orangeLight },
-  chipOptAddNewText: { fontSize: 12, color: COLORS.orangeDark, fontWeight: '600' },
+  chipOptAddNewText: { fontSize: 12, color: COLORS.orangeDark, fontWeight: '600', fontFamily: FONTS.bodySemi },
   chipRowWithArrows: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
   chipArrowBtn: { width: 34, height: 34, borderRadius: 8, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   chipArrowBtnText: { fontSize: 18, color: COLORS.orangeDark, fontWeight: '700' },
@@ -265,10 +265,10 @@ export const styles = StyleSheet.create({
   persistentEquipmentBadgeText: { fontSize: 10.5, fontWeight: '700', color: COLORS.green },
 
   totalsBar: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  totalsCard: { flex: 1, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, padding: 12, alignItems: 'center' },
-  totalsNum: { fontSize: 18, fontWeight: '700', color: COLORS.ink },
+  totalsCard: { flex: 1, backgroundColor: COLORS.white, borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 13, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
+  totalsNum: { fontSize: 18, fontWeight: '700', fontFamily: FONTS.black, color: COLORS.ink },
   totalsLabel: { fontSize: 10, color: COLORS.inkSoft, marginTop: 2 },
-  remarqueCard: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, padding: 14, marginBottom: 10 },
+  remarqueCard: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 14, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 2 },
   remarqueTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   remarquePoste: { fontSize: 10, fontWeight: '700', color: COLORS.orangeDark, textTransform: 'uppercase' },
   remarqueEstim: { fontSize: 14, fontWeight: '700', color: COLORS.ink },
@@ -284,9 +284,9 @@ export const styles = StyleSheet.create({
   remarqueTabChoiceTextActive: { color: COLORS.orangeDark, fontWeight: '700' },
 
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  photoThumb: { width: '18%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', backgroundColor: COLORS.line },
+  photoThumb: { width: '18%', aspectRatio: 1, borderRadius: 13, overflow: 'hidden', backgroundColor: COLORS.line, borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)' },
   photoThumbImg: { width: '100%', height: '100%' },
-  photoAddTile: { width: '18%', aspectRatio: 1, borderRadius: 10, borderWidth: 1.5, borderColor: COLORS.line, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  photoAddTile: { width: '18%', aspectRatio: 1, borderRadius: 13, borderWidth: 1.5, borderColor: COLORS.orange, borderStyle: 'dashed', backgroundColor: COLORS.orangeLight, alignItems: 'center', justifyContent: 'center' },
   photoAddTileText: { fontSize: 22, color: COLORS.inkFaint },
   viewerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' },
   viewerImg: { width: '100%', height: '80%' },

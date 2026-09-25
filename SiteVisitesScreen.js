@@ -3,6 +3,8 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView, InteractionManager } from 'react-native';
 import { COLORS, styles } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
+import { IconOrb } from './premiumChrome.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { creerVisiteProduction } from './visitCreationDb.js';
 import { supprimerVisiteComplete } from './entityManagementDb.js';
@@ -334,7 +336,10 @@ function SiteVisitesScreen({ route, navigation }) {
       <View style={{ padding: 14, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E3E5E8' }}>
         {site?.adresse ? (
           <>
-            <Text style={{ fontWeight: '800' }}>📍 {site.adresse}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+              <CvcIcon name="map" size={16} color={COLORS.ink} />
+              <Text style={{ fontWeight: '800', flex: 1 }}>{site.adresse}</Text>
+            </View>
             {site.localisation_note ? <Text style={{ marginTop: 7, color: '#555' }}>{site.localisation_note}</Text> : null}
             <TouchableOpacity onPress={() => ouvrirGoogleMaps()} style={{ marginTop: 10, paddingVertical: 8 }}>
               <Text style={{ color: COLORS.primary, fontWeight: '800' }}>Ouvrir dans Google Maps ↗</Text>
@@ -342,7 +347,10 @@ function SiteVisitesScreen({ route, navigation }) {
           </>
         ) : (
           <>
-            <Text style={{ fontWeight: '700' }}>📍 Adresse non renseignée</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
+              <CvcIcon name="map" size={16} color={COLORS.inkSoft} />
+              <Text style={{ fontWeight: '700' }}>Adresse non renseignée</Text>
+            </View>
             <Text style={{ color: COLORS.muted, marginTop: 5, fontSize: 12 }}>Ajoute le numéro et la rue, la ville et le code postal. L'adresse reste disponible hors connexion.</Text>
           </>
         )}
@@ -437,7 +445,7 @@ function SiteVisitesScreen({ route, navigation }) {
           <TextInput style={[styles.input, { marginTop: 10 }]} placeholder="Ville" value={ville} onChangeText={setVille} autoCapitalize="words" />
           <TextInput style={[styles.input, { marginTop: 10 }]} placeholder="Code postal" value={codePostal} onChangeText={(v) => setCodePostal(v.replace(/\D/g, '').slice(0, 5))} keyboardType="number-pad" maxLength={5} />
           <TextInput style={[styles.input, { marginTop: 10, minHeight: 70, textAlignVertical: 'top' }]} placeholder="Note d'accès : parking P2, porte chaufferie, sous-sol…" multiline value={note} onChangeText={setNote} />
-          <TouchableOpacity style={[styles.btnSecondary, { marginTop: 12 }]} disabled={localisationEnCours || !adresseRue.trim() || !ville.trim() || codePostal.length !== 5} onPress={enregistrerEtOuvrirMaps}><Text style={styles.btnSecondaryText}>{localisationEnCours ? 'Ouverture…' : '🗺️ Enregistrer et ouvrir dans Google Maps'}</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnSecondary, { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} disabled={localisationEnCours || !adresseRue.trim() || !ville.trim() || codePostal.length !== 5} onPress={enregistrerEtOuvrirMaps}>{!localisationEnCours ? <CvcIcon name="map" size={16} color={COLORS.ink} /> : null}<Text style={styles.btnSecondaryText}>{localisationEnCours ? 'Ouverture…' : 'Enregistrer et ouvrir dans Google Maps'}</Text></TouchableOpacity>
           <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setGpsVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} disabled={localisationEnCours} onPress={enregistrerAdresse}><Text style={styles.btnPrimaryText}>{localisationEnCours ? 'Enregistrement…' : 'Enregistrer'}</Text></TouchableOpacity></View>
         </View></View>
       </Modal>
@@ -454,11 +462,11 @@ function SiteVisitesScreen({ route, navigation }) {
           {apiRemoteLocalId && !apiSuggestedTrameId ? <Text style={{ color: '#9A4C0A', fontSize: 11.5, marginBottom: 8 }}>Aucune correspondance sûre détectée : sélectionne la bonne trame METRA.</Text> : null}
           {tramesDisponibles.map((trame) => {
             const selected = trameChoisie === trame.id;
-            return <TouchableOpacity key={trame.id} disabled={creationEnCours} style={[styles.visitModeCard, selected && { borderColor: COLORS.primary, backgroundColor: '#FFF7EF' }]} onPress={() => setTrameChoisie(trame.id)}><Text style={styles.visitModeIcon}>{selected ? '✓' : '📄'}</Text><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{trame.nom}</Text><Text style={styles.visitModeText}>{trame.description || `Trame ${trame.nom}`}</Text></View></TouchableOpacity>;
+            return <TouchableOpacity key={trame.id} disabled={creationEnCours} style={[styles.visitModeCard, selected && { borderColor: COLORS.primary, backgroundColor: '#FFF7EF' }]} onPress={() => setTrameChoisie(trame.id)}><IconOrb accent={selected ? COLORS.primary : COLORS.inkSoft} light={selected ? '#FFF3E8' : COLORS.bg} size={42}><CvcIcon name={selected ? 'control' : 'document'} size={20} color={selected ? COLORS.primary : COLORS.inkSoft} /></IconOrb><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{trame.nom}</Text><Text style={styles.visitModeText}>{trame.description || `Trame ${trame.nom}`}</Text></View></TouchableOpacity>;
           })}
           <Text style={[styles.fieldLabel, { marginTop: 14, marginBottom: 8 }]}>Mode</Text>
-          {!apiRemoteLocalId ? <TouchableOpacity style={[styles.visitModeCard, visites.length === 0 && { opacity: 0.45 }]} disabled={visites.length === 0 || creationEnCours} onPress={() => nouvelleVisite('express')}><Text style={styles.visitModeIcon}>⚡</Text><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite Express</Text><Text style={styles.visitModeText}>{visites.length === 0 ? 'Disponible après une première visite complète.' : 'Reprend automatiquement la trame de la dernière visite et les informations stables.'}</Text></View></TouchableOpacity> : null}
-          <TouchableOpacity style={[styles.visitModeCard, (!trameChoisie || creationEnCours) && { opacity: 0.55 }]} disabled={!trameChoisie || creationEnCours} onPress={() => nouvelleVisite('complete')}><Text style={styles.visitModeIcon}>📋</Text><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{creationEnCours ? 'Préparation…' : 'Visite complète'}</Text><Text style={styles.visitModeText}>{apiRemoteLocalId ? 'Démarre sur le local sélectionné avec son patrimoine courant, sans recopier les constats historiques.' : 'Parcourt toute la trame sélectionnée pour une première visite ou un audit détaillé.'}</Text></View></TouchableOpacity>
+          {!apiRemoteLocalId ? <TouchableOpacity style={[styles.visitModeCard, visites.length === 0 && { opacity: 0.45 }]} disabled={visites.length === 0 || creationEnCours} onPress={() => nouvelleVisite('express')}><IconOrb accent={COLORS.orangeDark} light={COLORS.orangeLight} size={42}><CvcIcon name="flash" size={20} color={COLORS.orangeDark} /></IconOrb><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite Express</Text><Text style={styles.visitModeText}>{visites.length === 0 ? 'Disponible après une première visite complète.' : 'Reprend automatiquement la trame de la dernière visite et les informations stables.'}</Text></View></TouchableOpacity> : null}
+          <TouchableOpacity style={[styles.visitModeCard, (!trameChoisie || creationEnCours) && { opacity: 0.55 }]} disabled={!trameChoisie || creationEnCours} onPress={() => nouvelleVisite('complete')}><IconOrb accent={COLORS.orangeDark} light={COLORS.orangeLight} size={42}><CvcIcon name="document" size={20} color={COLORS.orangeDark} /></IconOrb><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{creationEnCours ? 'Préparation…' : 'Visite complète'}</Text><Text style={styles.visitModeText}>{apiRemoteLocalId ? 'Démarre sur le local sélectionné avec son patrimoine courant, sans recopier les constats historiques.' : 'Parcourt toute la trame sélectionnée pour une première visite ou un audit détaillé.'}</Text></View></TouchableOpacity>
           <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10 }]} disabled={creationEnCours} onPress={() => setChoixModeVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
         </ScrollView></View></View>
       </Modal>

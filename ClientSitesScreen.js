@@ -195,17 +195,17 @@ function ClientSitesScreen({ route, navigation }) {
           <View style={{ flexDirection: 'row', gap: 10 }}><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{sites.length}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>sites</Text></View><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{avecAdresse}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>adresses renseignées</Text></View><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontWeight: '800' }}>{sansAdresse}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>à compléter</Text></View></View>
         </View>
 
-        <TouchableOpacity style={[styles.btnPrimary, { marginBottom: 8 }]} onPress={() => navigation.navigate('ClientPilotage', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnPrimaryText}>▦ Pilotage patrimoine</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnPrimary, { marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]} onPress={() => navigation.navigate('ClientPilotage', { clientId, nomClient })} disabled={!sites.length}><CvcIcon name="grid" size={17} color={COLORS.white} /><Text style={styles.btnPrimaryText}>Pilotage patrimoine</Text></TouchableOpacity>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => navigation.navigate('ClientMap', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>🗺 Carte</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => setGroupesVisible(true)} disabled={!sites.length}><Text style={styles.btnSecondaryText}>▦ Groupes</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => navigation.navigate('ClientMap', { clientId, nomClient })} disabled={!sites.length}><CvcIcon name="map" size={16} color={COLORS.ink} /><Text style={styles.btnSecondaryText}>Carte</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => setGroupesVisible(true)} disabled={!sites.length}><CvcIcon name="grid" size={16} color={COLORS.ink} /><Text style={styles.btnSecondaryText}>Groupes</Text></TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setModalVisible(true)}><Text style={styles.btnPrimaryText}>+ Site local</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => setIntranetSiteVisible(true)}><Text style={styles.btnPrimaryText}>+ Site Intranet</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => setModalVisible(true)}><CvcIcon name="plus" size={16} color={COLORS.white} strokeWidth={2.2} /><Text style={styles.btnPrimaryText}>Site local</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => setIntranetSiteVisible(true)}><CvcIcon name="plus" size={16} color={COLORS.white} strokeWidth={2.2} /><Text style={styles.btnPrimaryText}>Site Intranet</Text></TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><Text style={styles.btnSecondaryText}>📄 Documents</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><CvcIcon name="document" size={16} color={COLORS.ink} /><Text style={styles.btnSecondaryText}>Documents</Text></TouchableOpacity>
           <TouchableOpacity
             style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', gap: 7, borderColor: accent, backgroundColor: palette.light }]}
             onPress={() => setClientCompanionVisible(true)}

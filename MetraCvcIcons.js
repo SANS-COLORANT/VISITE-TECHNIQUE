@@ -136,6 +136,23 @@ function CvcIcon({ name, size = 36, color = '#10384B', strokeWidth = 1.9 }) {
       <Polyline points="9,12.5 14,17.5 19,12.5" />
       <Path d="M5 20h18" />
     </G>;
+  } else if (key === 'flash' || key === 'express') {
+    body = <G {...p}>
+      <Path d="M15.5 3.5 6 16h6.5L12.5 24.5 22 12h-6.5L15.5 3.5Z" />
+    </G>;
+  } else if (key === 'map' || key === 'location') {
+    body = <G {...p}>
+      <Path d="M9.5 5 4 7v16l5.5-2 9 2 5.5-2V5l-5.5 2-9-2Z" />
+      <Line x1="9.5" y1="5" x2="9.5" y2="21" />
+      <Line x1="18.5" y1="7" x2="18.5" y2="23" />
+    </G>;
+  } else if (key === 'grid' || key === 'groups') {
+    body = <G {...p}>
+      <Rect x="4" y="4" width="8.5" height="8.5" rx="1.8" />
+      <Rect x="15.5" y="4" width="8.5" height="8.5" rx="1.8" />
+      <Rect x="4" y="15.5" width="8.5" height="8.5" rx="1.8" />
+      <Rect x="15.5" y="15.5" width="8.5" height="8.5" rx="1.8" />
+    </G>;
   } else if (key === 'gallery' || key === 'image') {
     body = <G {...p}>
       <Rect x="3.5" y="4.5" width="21" height="19" rx="2.5" />

@@ -79,7 +79,7 @@ requireText(ui, 'IntranetSiteCreationModal', 'site creation UI');
 requireText(ui, 'IntranetSiteLocalsPanel', 'local creation UI');
 requireText(ui, 'queueMetraSiteCreation', 'site UI queues offline operation');
 requireText(ui, 'queueMetraLocalCreation', 'local UI queues offline operation');
-requireText(clientSites, '+ Site Intranet', 'client sites exposes Intranet creation');
+requireText(clientSites, 'setIntranetSiteVisible(true)', 'client sites exposes Intranet creation');
 requireText(clientSites, "navigation.navigate('IntranetStructure'", 'site structure navigation');
 requireRegex(app, /<IntranetStructureRuntime\s*\/>/, 'global structure outbox runtime');
 requireRegex(app, /\bIntranetStructure\s*:\s*\(\s*\)\s*=>\s*require\(['"]\.\/IntranetStructureScreen\.js['"]\)/, 'structure screen lazy route');

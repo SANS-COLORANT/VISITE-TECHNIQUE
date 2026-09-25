@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, Image } from 'react-native';
 import { COLORS, styles } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 import { TRAME_DATA, RESEAU_TEMPLATE } from './data.js';
 import {
   getChampsVisite, getControlesVisite, getDb,
@@ -541,7 +542,7 @@ function PanelPhotos({ visiteId, refreshKey }) {
       <Text style={styles.sectionTitle}>Toutes les photos de la visite · {photos.length}</Text>
       <View style={styles.photoGrid}>
         {photos.map((p) => <TouchableOpacity key={p.id} style={styles.photoThumb} onPress={() => setViewerUri(p.uri)}><Image source={{ uri: p.uri }} style={styles.photoThumbImg} /></TouchableOpacity>)}
-        <TouchableOpacity style={styles.photoAddTile} onPress={onAjouter}><Text style={styles.photoAddTileText}>+</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityLabel="Ajouter une photo" style={styles.photoAddTile} onPress={onAjouter}><CvcIcon name="plus" size={22} color={COLORS.orangeDark} strokeWidth={2.2} /></TouchableOpacity>
       </View>
       <Modal visible={!!viewerUri} transparent animationType="fade"><TouchableOpacity style={styles.viewerOverlay} onPress={() => setViewerUri(null)} activeOpacity={1}>{viewerUri && <Image source={{ uri: viewerUri }} style={styles.viewerImg} resizeMode="contain" />}</TouchableOpacity></Modal>
     </ScrollView>
