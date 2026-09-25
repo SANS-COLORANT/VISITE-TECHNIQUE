@@ -107,8 +107,9 @@ export function IntranetVisitSyncBanner() {
   const waiting = rows.filter((r) => ['pending', 'retry'].includes(r.status)).length;
   const blocked = rows.length - sending - waiting;
   return <View accessibilityLiveRegion="polite" style={{ minHeight: 40, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: blocked ? '#FFF1F0' : '#FFF8ED', borderBottomWidth: 1, borderBottomColor: COLORS.line, flexDirection: 'row', alignItems: 'center' }}>
-    <Text style={{ flex: 1, color: COLORS.ink, fontSize: 12, fontWeight: '800' }}>Intranet · {sending ? `${sending} envoi en cours` : `${waiting} en attente`}{blocked ? ` · ${blocked} à corriger` : ''}</Text>
-    {waiting ? <TouchableOpacity accessibilityRole="button" onPress={() => processVisitOutbox({ limit: 3 }).then(() => queueMissingSyncedVisitPhotos({ limitVisits: 40 })).then(() => processVisitPhotoOutbox({ limit: 10 })).catch(() => {})} style={{ minHeight: 40, justifyContent: 'center', paddingHorizontal: 10 }}><Text style={{ color: COLORS.primary, fontWeight: '900', fontSize: 12 }}>Synchroniser</Text></TouchableOpacity> : null}
+    <CvcIcon name={blocked ? 'cloud-off' : 'cloud-sync'} size={20} color={blocked ? ERROR : COLORS.orangeDark} />
+    <Text style={{ flex: 1, color: COLORS.ink, fontSize: 12, fontWeight: '800', marginLeft: 8 }}>Synchronisation · {[sending && `${sending} en cours`, waiting && `${waiting} en attente`, blocked && `${blocked} à corriger`].filter(Boolean).join(' · ')}</Text>
+    {waiting ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Synchroniser maintenant" onPress={() => processVisitOutbox({ limit: 3 }).then(() => queueMissingSyncedVisitPhotos({ limitVisits: 40 })).then(() => processVisitPhotoOutbox({ limit: 10 })).catch(() => {})} style={{ width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}><CvcIcon name="cloud-sync" size={20} color={COLORS.orangeDark} /></TouchableOpacity> : null}
   </View>;
 }
 

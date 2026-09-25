@@ -9,7 +9,7 @@
 import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { Circle } from 'react-native-svg';
+import Svg, { Circle, Rect } from 'react-native-svg';
 
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
 
@@ -30,6 +30,9 @@ function IconOrb({ accent, light, size = 44, radius, children }) {
       >
         {children}
       </LinearGradient>
+      <Svg pointerEvents="none" width={size} height={size} style={StyleSheet.absoluteFill}>
+        <Rect x={0.75} y={0.75} width={size - 1.5} height={size - 1.5} rx={r} fill="none" stroke={accent} strokeOpacity={0.5} strokeWidth={1.5} strokeDasharray={`${size * 1.8} ${size * 2.2}`} />
+      </Svg>
     </View>
   );
 }

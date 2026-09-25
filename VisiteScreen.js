@@ -4,6 +4,7 @@ import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityInd
 import { COLORS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
+import { ProgressRing } from './premiumChrome.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { getVisite, getNote, upsertNote, getDb } from './db.js';
 import { ajouterRemarqueVisite } from './remarkDb.js';
@@ -644,16 +645,18 @@ function VisiteScreen({ route, onBack }) {
             {exporting ? <ActivityIndicator size="small" color={COLORS.white} /> : <CvcIcon name="export" size={19} color={COLORS.white} />}
           </TouchableOpacity>
         </View>
-        <View style={[styles.progressRow, { justifyContent: 'space-between' }]}>
-          <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={styles.progressBarBg}><View style={[styles.progressBarFill, { width: `${visite.progression_pct}%` }]} /></View>
-            <Text style={styles.progressPct}>{visite.progression_pct}%</Text>
-            <CvcIcon
-              name={saveActivity.lastError ? 'cloud-off' : saveActivity.pending ? 'cloud-sync' : 'control'}
-              size={16}
-              color={saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32'}
-            />
-            {saveActivity.pending ? <Text accessibilityLiveRegion="polite" style={{ fontSize: 10.5, fontWeight: '800', color: '#A15C12' }}>{saveActivity.pending}</Text> : null}
+        <View style={styles.progressRow}>
+          <View accessible accessibilityLabel={`Progression de la visite : ${visite.progression_pct}%`} style={{ width: 56, height: 56, alignItems: 'center', justifyContent: 'center' }}>
+            <ProgressRing pct={visite.progression_pct} size={56} strokeWidth={5} accent={COLORS.orange} />
+            <Text style={{ position: 'absolute', color: COLORS.orangeDark, fontSize: 11, fontWeight: '800' }}>{visite.progression_pct}%</Text>
+          </View>
+          <View style={{ flex: 1, minWidth: 0, paddingLeft: 4 }}>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 10, fontWeight: '700', letterSpacing: 0.5, textTransform: 'uppercase' }}>Visite en cours</Text>
+            <Text numberOfLines={1} style={{ color: COLORS.ink, fontSize: 13, fontWeight: '700', marginTop: 2 }}>{visite.nom_site}</Text>
+            <View accessible accessibilityLabel={saveActivity.lastError ? 'Sauvegarde à vérifier' : saveActivity.pending ? `${saveActivity.pending} sauvegardes en attente` : 'Enregistré'} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 3 }}>
+              <CvcIcon name={saveActivity.lastError ? 'cloud-off' : saveActivity.pending ? 'cloud-sync' : 'control'} size={14} color={saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32'} />
+              {saveActivity.lastError || saveActivity.pending ? <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ flex: 1, color: saveActivity.lastError ? '#B42318' : '#A15C12', fontSize: 10 }}>{saveActivity.lastError ? 'Sauvegarde à vérifier' : `${saveActivity.pending} en attente`}</Text> : null}
+            </View>
           </View>
           <IntranetVisitSyncControl compact visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />
         </View>

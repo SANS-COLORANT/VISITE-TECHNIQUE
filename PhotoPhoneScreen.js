@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, ScrollView, StatusBar, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { COLORS } from './styles.js';
 import { getRuntimeAccent, getRuntimePalette } from './visual-packs/runtime/visualPaletteRuntime.js';
@@ -14,13 +14,13 @@ import { IconOrb, FadeUp } from './premiumChrome.js';
 
 const clean = (v) => String(v == null ? '' : v).trim();
 const card = {
-  borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, backgroundColor: COLORS.white,
-  shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+  borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.92)',
+  shadowColor: '#302A1E', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 2,
 };
 const iconBox = (light, size = 46) => ({ width: size, height: size, borderRadius: 14, backgroundColor: light, alignItems: 'center', justifyContent: 'center' });
 
 function Header({ title, subtitle, icon = 'camera', onBack, onExit, accent, light }) {
-  return <View style={{ paddingTop: 47, paddingHorizontal: 14, paddingBottom: 11, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+  return <View style={{ paddingTop: Math.max(47, (StatusBar.currentHeight || 24) + 16), paddingHorizontal: 14, paddingBottom: 11, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
       {onBack ? <TouchableOpacity accessibilityLabel="Retour" onPress={onBack} style={[iconBox(COLORS.white, 42), { borderWidth: 1, borderColor: COLORS.line }]}><Text style={{ fontSize: 22, color: COLORS.ink }}>←</Text></TouchableOpacity> : null}
       <IconOrb accent={accent} light={light} size={44}><CvcIcon name={icon} size={26} color={accent} /></IconOrb>

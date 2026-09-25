@@ -5,6 +5,8 @@ import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { listerMissions } from './missionsDb.js';
 import { choisirEtImporterMissionExcel } from './missionExcelImport.js';
 import { choisirEtImporterPackageMission } from './missionPackageImport.js';
+import { CvcIcon } from './MetraCvcIcons.js';
+import { IconOrb } from './premiumChrome.js';
 
 const STATUS_LABELS = Object.freeze({
   draft: 'Brouillon',
@@ -49,10 +51,16 @@ function MissionCard({ mission, onPress, compact = false }) {
         padding: compact ? 13 : 15,
         marginBottom: 10,
         overflow: 'hidden',
+        shadowColor: '#123D2B',
+        shadowOpacity: 0.1,
+        shadowRadius: 16,
+        shadowOffset: { width: 0, height: 7 },
+        elevation: 2,
       }}
     >
       <View style={{ position: 'absolute', left: 0, top: 0, bottom: 0, width: 4, backgroundColor: active ? MISSION_COLORS.accent : MISSION_COLORS.accentLineStrong }} />
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10 }}>
+        <IconOrb accent={MISSION_COLORS.accent} light={MISSION_COLORS.accentLight} size={40}><CvcIcon name="tools" size={19} color={MISSION_COLORS.accentDark} /></IconOrb>
         <View style={{ flex: 1 }}>
           <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: compact ? 13 : 14.5 }} numberOfLines={2}>
             {mission.label || 'Mission sans titre'}
@@ -203,7 +211,7 @@ export function MissionsHomeScreen({ navigation }) {
         <Text style={{ color: '#BFE2CC', fontSize: 9.5, fontWeight: '900', letterSpacing: 1.2 }}>ESPACE MISSIONS</Text>
         <Text style={{ color: '#FFFFFF', fontSize: 23, fontWeight: '900', marginTop: 5 }}>Piloter les dossiers ponctuels</Text>
         <Text style={{ color: '#D7EEE0', fontSize: 10.5, lineHeight: 15, marginTop: 5, maxWidth: '82%' }}>
-          Préparation, terrain, points à suivre et données exploitables sur PC — sans lien avec l’Intranet.
+          Préparation, terrain et points à suivre — des dossiers accessibles hors connexion.
         </Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 14 }}>
           <TouchableOpacity

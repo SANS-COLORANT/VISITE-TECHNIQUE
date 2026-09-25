@@ -4,8 +4,8 @@ import { Platform, StyleSheet } from 'react-native';
 
 export const COLORS = {
   orange: '#F26426', orangeDark: '#D9531A', orangeLight: '#FFF1EA',
-  ink: '#1A1A18', inkSoft: '#6B6B66', inkFaint: '#A3A39D',
-  line: '#EAE8E2', bg: '#FAFAF8', white: '#FFFFFF',
+  ink: '#16150F', inkSoft: '#66604F', inkFaint: '#9B927C',
+  line: '#EAE8E2', bg: '#F3F1EC', white: '#FFFFFF',
   green: '#2E7D32', greenBg: '#E8F5E9',
   red: '#B91C1C', redBg: '#FDECEC',
   amber: '#B45309', amberBg: '#FEF3E2',
@@ -20,8 +20,8 @@ export const styles = StyleSheet.create({
 
   statRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   statCard: {
-    flex: 1, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, paddingVertical: 14, alignItems: 'center',
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    flex: 1, backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, paddingVertical: 14, alignItems: 'center',
+    shadowColor: '#302A1E', shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3,
   },
   statNum: { fontSize: 22, fontWeight: '700', color: COLORS.ink },
   statLabel: { fontSize: 11.5, color: COLORS.inkSoft, marginTop: 3 },
@@ -31,8 +31,8 @@ export const styles = StyleSheet.create({
   addLink: { fontSize: 12.5, fontWeight: '700', color: COLORS.orangeDark },
 
   card: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, padding: 14, marginBottom: 9, gap: 10,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, padding: 14, marginBottom: 9, gap: 10,
+    shadowColor: '#302A1E', shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 8 }, elevation: 3,
   },
   deleteVisiteBtn: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.redBg, marginLeft: 4 },
   deleteVisiteBtnText: { color: COLORS.red, fontSize: 13, fontWeight: '700' },
@@ -128,7 +128,7 @@ export const styles = StyleSheet.create({
   noteBtnText: { fontSize: 12, color: COLORS.inkSoft, fontWeight: '600' },
   exportBtn: { backgroundColor: COLORS.ink, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7, marginLeft: 8 },
   exportBtnText: { fontSize: 12, color: COLORS.white, fontWeight: '600' },
-  progressRow: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
+  progressRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 10, borderRadius: 18, padding: 10, backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: COLORS.line, shadowColor: '#302A1E', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
   progressBarBg: { flex: 1, height: 6, backgroundColor: COLORS.line, borderRadius: 3, overflow: 'hidden' },
   progressBarFill: { height: '100%', backgroundColor: COLORS.orange },
   progressPct: { fontSize: 12, fontWeight: '700', color: COLORS.orangeDark },
@@ -142,8 +142,8 @@ export const styles = StyleSheet.create({
   panelContent: { padding: 18, paddingBottom: 92 },
   sectionTitle: { fontSize: 14, fontWeight: '600', color: COLORS.ink, marginBottom: 10, marginTop: 4 },
   formCard: {
-    backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, padding: 16, marginBottom: 14,
-    shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
+    backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, padding: 16, marginBottom: 14,
+    shadowColor: '#302A1E', shadowOpacity: 0.08, shadowRadius: 16, shadowOffset: { width: 0, height: 6 }, elevation: 2,
   },
 
   fieldBlock: { marginBottom: 14 },
@@ -198,18 +198,18 @@ export const styles = StyleSheet.create({
   reseauNomInput: { flex: 1, fontSize: 12, fontWeight: '700', color: COLORS.orangeDark, textTransform: 'uppercase', padding: 0 },
 
   // ---- Sélecteur numérique +/- ----
-  stepperRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, overflow: 'hidden' },
-  stepperBtn: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bg },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, overflow: 'hidden', backgroundColor: COLORS.white },
+  stepperBtn: { width: 44, height: 44, alignItems: 'center', justifyContent: 'center', backgroundColor: '#EBE8E1' },
   stepperBtnText: { fontSize: 20, fontWeight: '700', color: COLORS.orangeDark },
   stepperValBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   stepperValText: { fontSize: 14, fontWeight: '700', color: COLORS.ink },
 
   // ---- Sélecteur par chips ----
   chipSelectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-  chipOpt: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white },
-  chipOptPicked: { backgroundColor: COLORS.orange, borderColor: COLORS.orange },
+  chipOpt: { minHeight: 38, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 19, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, justifyContent: 'center' },
+  chipOptPicked: { backgroundColor: COLORS.orangeLight, borderColor: COLORS.orange },
   chipOptText: { fontSize: 12, color: COLORS.ink, fontWeight: '500' },
-  chipOptTextPicked: { color: COLORS.white, fontWeight: '600' },
+  chipOptTextPicked: { color: COLORS.orangeDark, fontWeight: '700' },
   chipOptAddNew: { borderStyle: 'dashed', borderColor: COLORS.orange, backgroundColor: COLORS.orangeLight },
   chipOptAddNewText: { fontSize: 12, color: COLORS.orangeDark, fontWeight: '600' },
   chipRowWithArrows: { flexDirection: 'row', alignItems: 'flex-start', gap: 6 },
@@ -217,7 +217,7 @@ export const styles = StyleSheet.create({
   chipArrowBtnText: { fontSize: 18, color: COLORS.orangeDark, fontWeight: '700' },
   typeaheadRow: { flexDirection: 'row', alignItems: 'center', gap: 6 },
 
-  compteurRow: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, padding: 12, marginBottom: 10 },
+  compteurRow: { backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, padding: 13, marginBottom: 10, shadowColor: '#302A1E', shadowOpacity: 0.07, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
   compteurRowTop: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 8 },
   compteurCatInput: { flex: 1, fontWeight: '600', borderWidth: 1, borderColor: COLORS.line, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 7, fontSize: 12.5 },
   compteurRowBody: { gap: 8 },
@@ -262,10 +262,10 @@ export const styles = StyleSheet.create({
   persistentEquipmentBadgeText: { fontSize: 10.5, fontWeight: '700', color: COLORS.green },
 
   totalsBar: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  totalsCard: { flex: 1, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, padding: 12, alignItems: 'center' },
+  totalsCard: { flex: 1, backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, padding: 12, alignItems: 'center' },
   totalsNum: { fontSize: 18, fontWeight: '700', color: COLORS.ink },
   totalsLabel: { fontSize: 10, color: COLORS.inkSoft, marginTop: 2 },
-  remarqueCard: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, padding: 14, marginBottom: 10 },
+  remarqueCard: { backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1, borderColor: COLORS.line, borderRadius: 18, padding: 14, marginBottom: 10, shadowColor: '#302A1E', shadowOpacity: 0.07, shadowRadius: 14, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
   remarqueTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   remarquePoste: { fontSize: 10, fontWeight: '700', color: COLORS.orangeDark, textTransform: 'uppercase' },
   remarqueEstim: { fontSize: 14, fontWeight: '700', color: COLORS.ink },
@@ -281,9 +281,9 @@ export const styles = StyleSheet.create({
   remarqueTabChoiceTextActive: { color: COLORS.orangeDark, fontWeight: '700' },
 
   photoGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
-  photoThumb: { width: '18%', aspectRatio: 1, borderRadius: 10, overflow: 'hidden', backgroundColor: COLORS.line },
+  photoThumb: { width: '30.5%', aspectRatio: 1, borderRadius: 13, overflow: 'hidden', backgroundColor: COLORS.line },
   photoThumbImg: { width: '100%', height: '100%' },
-  photoAddTile: { width: '18%', aspectRatio: 1, borderRadius: 10, borderWidth: 1.5, borderColor: COLORS.line, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center' },
+  photoAddTile: { width: '30.5%', aspectRatio: 1, borderRadius: 13, borderWidth: 1.5, borderColor: COLORS.orange, borderStyle: 'dashed', alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.orangeLight },
   photoAddTileText: { fontSize: 22, color: COLORS.inkFaint },
   viewerOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.9)', alignItems: 'center', justifyContent: 'center' },
   viewerImg: { width: '100%', height: '80%' },
