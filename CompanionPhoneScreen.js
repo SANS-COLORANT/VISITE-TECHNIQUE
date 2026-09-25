@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { ActivityIndicator, Alert, FlatList, ScrollView, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, FlatList, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { prendrePhoto } from './PhotoButton.js';
 import {
@@ -12,8 +12,6 @@ import {
   subscribeCompanion,
 } from './companionNative.js';
 import { parseCompanionQrPayload } from './companionProtocol.js';
-import { decodeOfflineClientQrFrame, isOfflineClientQr } from './companionOfflineQr.js';
-import { getPhoneQrBatch, listPhoneQrBatches, savePhoneOfflineQrFrame } from './companionQrArchive.js';
 import { enqueueCompanionPhoto, listCompanionOutbox, removeCompanionOutboxItem } from './companionOutbox.js';
 import { COLORS } from './styles.js';
 import { prewarmCameraRuntime } from './cameraRuntime.js';
@@ -70,13 +68,12 @@ function ModuleTile({ item, onPress, accent, light }) {
   );
 }
 
-function TargetRow({ item, onCapture, onWarm, busy, accent, light }) {
+function TargetRow({ item, onPress, icon, accent, light }) {
   const value = [item.value, item.unit].filter(Boolean).join(' ');
+  const editableCount = Array.isArray(item.fields) ? item.fields.length : 0;
   return (
     <TouchableOpacity
-      disabled={busy}
-      onPressIn={() => onWarm?.(item)}
-      onPress={() => onCapture(item)}
+      onPress={() => onPress(item)}
       activeOpacity={0.82}
       style={{
         marginBottom: 9,
@@ -90,19 +87,110 @@ function TargetRow({ item, onCapture, onWarm, busy, accent, light }) {
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
-        opacity: busy ? 0.62 : 1,
       }}
     >
       <View style={{ width: 42, height: 42, borderRadius: 13, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}>
-        {busy ? <ActivityIndicator color={accent} /> : <CvcIcon name="camera" size={25} color={accent} />}
+        <CvcIcon name={icon || 'document'} size={25} color={accent} />
       </View>
       <View style={{ flex: 1 }}>
         <Text numberOfLines={2} style={{ fontSize: 14, fontWeight: '900', color: COLORS.ink }}>{item.label}</Text>
         {item.subtitle ? <Text numberOfLines={1} style={{ marginTop: 3, fontSize: 11.5, color: COLORS.inkSoft }}>{item.subtitle}</Text> : null}
         {value ? <Text style={{ marginTop: 3, fontSize: 12, fontWeight: '800', color: accent }}>{value}</Text> : null}
+        <Text style={{ marginTop: 3, fontSize: 10.5, color: COLORS.inkFaint }}>
+          Photo{editableCount ? ` · ${editableCount} valeur${editableCount > 1 ? 's' : ''} modifiable${editableCount > 1 ? 's' : ''}` : ''}
+        </Text>
       </View>
       <Text style={{ fontSize: 21, color: COLORS.inkFaint }}>›</Text>
     </TouchableOpacity>
+  );
+}
+
+function QuickFieldEditor({ field, onSave, saving, accent, light }) {
+  const [value, setValue] = useState(field?.value == null ? '' : String(field.value));
+  useEffect(() => {
+    setValue(field?.value == null ? '' : String(field.value));
+  }, [field?.id, field?.value]);
+
+  if (Array.isArray(field?.options) && field.options.length) {
+    return (
+      <View style={{ marginBottom: 12 }}>
+        <Text style={{ marginBottom: 7, fontSize: 11.5, fontWeight: '900', color: COLORS.inkSoft }}>{field.label}</Text>
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
+          {field.options.map((option) => {
+            const selected = String(field.value ?? '') === String(option);
+            return (
+              <TouchableOpacity
+                key={String(option)}
+                disabled={saving}
+                onPress={() => onSave(field, option)}
+                style={{
+                  minWidth: 52,
+                  minHeight: 40,
+                  paddingHorizontal: 12,
+                  borderRadius: 12,
+                  borderWidth: 1,
+                  borderColor: selected ? accent : COLORS.line,
+                  backgroundColor: selected ? light : COLORS.white,
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                {saving && selected ? <ActivityIndicator size="small" color={accent} /> : <Text style={{ color: selected ? accent : COLORS.ink, fontWeight: '900' }}>{option}</Text>}
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={{ marginBottom: 12 }}>
+      <Text style={{ marginBottom: 6, fontSize: 11.5, fontWeight: '900', color: COLORS.inkSoft }}>
+        {field.label}{field.unit ? ` · ${field.unit}` : ''}
+      </Text>
+      <View style={{ flexDirection: field.multiline ? 'column' : 'row', gap: 8 }}>
+        <TextInput
+          value={value}
+          onChangeText={setValue}
+          keyboardType={field.input === 'numeric' ? 'decimal-pad' : 'default'}
+          multiline={Boolean(field.multiline)}
+          selectTextOnFocus
+          placeholder="Saisir…"
+          style={{
+            flex: 1,
+            minHeight: field.multiline ? 86 : 46,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: COLORS.line,
+            backgroundColor: COLORS.white,
+            paddingHorizontal: 12,
+            paddingVertical: field.multiline ? 10 : 0,
+            textAlignVertical: field.multiline ? 'top' : 'center',
+            color: COLORS.ink,
+            fontSize: 14,
+          }}
+          onSubmitEditing={() => {
+            if (!field.multiline && value !== String(field.value ?? '')) onSave(field, value);
+          }}
+        />
+        <TouchableOpacity
+          disabled={saving || value === String(field.value ?? '')}
+          onPress={() => onSave(field, value)}
+          style={{
+            minHeight: 46,
+            minWidth: field.multiline ? undefined : 92,
+            paddingHorizontal: 14,
+            borderRadius: 12,
+            backgroundColor: value === String(field.value ?? '') ? COLORS.line : accent,
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {saving ? <ActivityIndicator size="small" color={COLORS.white} /> : <Text style={{ color: value === String(field.value ?? '') ? COLORS.inkSoft : COLORS.white, fontWeight: '900', fontSize: 12 }}>Enregistrer</Text>}
+        </TouchableOpacity>
+      </View>
+    </View>
   );
 }
 
@@ -189,18 +277,21 @@ function CompanionPhoneScreen({ onExit }) {
   const [clientSnapshot, setClientSnapshot] = useState(null);
   const [selectedSiteId, setSelectedSiteId] = useState(null);
   const [selectedModuleId, setSelectedModuleId] = useState(null);
+  const [selectedTargetId, setSelectedTargetId] = useState(null);
   const [status, setStatus] = useState(nativeAvailable ? 'Aucune tablette connectée' : 'Mode Compagnon indisponible dans ce build');
   const [busyTarget, setBusyTarget] = useState(null);
   const [busyVisitId, setBusyVisitId] = useState(null);
   const [pending, setPending] = useState(0);
-  const [savedQrClients, setSavedQrClients] = useState([]);
+  const [savingFieldId, setSavingFieldId] = useState(null);
   const connectedRef = useRef(false);
   const connectionRef = useRef(null);
+  const pendingEditRef = useRef(null);
 
   const isVisitSnapshot = snapshot?.type === 'visitSnapshot';
   const isClientSnapshot = snapshot?.type === 'clientSnapshot';
   const modules = isVisitSnapshot && snapshot?.modules?.length ? snapshot.modules : FALLBACK_MODULES;
   const selectedModule = useMemo(() => modules.find((m) => m.id === selectedModuleId) || null, [modules, selectedModuleId]);
+  const selectedTarget = useMemo(() => selectedModule?.targets?.find((item) => String(item.id) === String(selectedTargetId)) || null, [selectedModule, selectedTargetId]);
   const selectedSite = useMemo(
     () => (isClientSnapshot ? (snapshot.sites || []).find((site) => String(site.id) === String(selectedSiteId)) : null),
     [isClientSnapshot, snapshot, selectedSiteId]
@@ -210,28 +301,6 @@ function CompanionPhoneScreen({ onExit }) {
     const items = await listCompanionOutbox();
     setPending(items.length);
     return items;
-  }, []);
-
-  const refreshSavedQrClients = useCallback(async () => {
-    const items = await listPhoneQrBatches();
-    setSavedQrClients(items || []);
-    return items || [];
-  }, []);
-
-  const openSavedQrClient = useCallback(async (batchId) => {
-    const saved = await getPhoneQrBatch(batchId);
-    if (!saved?.snapshot) return;
-    connectedRef.current = false;
-    connectionRef.current = null;
-    setClientSnapshot(saved.snapshot);
-    setSnapshot(saved.snapshot);
-    setSelectedSiteId(null);
-    setSelectedModuleId(null);
-    setPhase('offline');
-    const progress = saved.snapshot.offlineProgress;
-    setStatus(progress?.complete
-      ? 'Client QR disponible hors connexion'
-      : `${progress?.scanned || 0}/${progress?.total || 0} QR enregistrés · reprise possible`);
   }, []);
 
   const flushOutbox = useCallback(async (allowedVisitIds = null) => {
@@ -252,7 +321,6 @@ function CompanionPhoneScreen({ onExit }) {
   useEffect(() => {
     prewarmCameraRuntime().catch(() => {});
     refreshPending().catch(() => {});
-    refreshSavedQrClients().catch(() => {});
 
     if (!nativeAvailable) return undefined;
 
@@ -315,7 +383,7 @@ function CompanionPhoneScreen({ onExit }) {
     });
 
     return () => unsubscribe();
-  }, [flushOutbox, refreshPending, refreshSavedQrClients, nativeAvailable]);
+  }, [flushOutbox, refreshPending, nativeAvailable]);
 
   const scanOfflineSequence = useCallback(async (firstRaw, expectedBatchId = null) => {
     let raw = firstRaw || '';
