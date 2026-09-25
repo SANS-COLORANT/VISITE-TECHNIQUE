@@ -124,11 +124,11 @@ function MissionHeader({ title, onBack, visualPack, root = false }) {
 function GlobalHomeButton({ onPress, missionMode = false, compact = false }) {
   const accent = missionMode ? MISSION_COLORS.accent : COLORS.orange;
   if (compact) {
-    return <TouchableOpacity accessibilityRole="button" accessibilityLabel={missionMode ? 'Missions' : 'Accueil'} onPress={onPress} style={{ position: 'absolute', left: 12, bottom: 12, width: 48, height: 48, borderRadius: 16, backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: accent, alignItems: 'center', justifyContent: 'center', elevation: 9, zIndex: 260 }}>
+    return <TouchableOpacity accessibilityRole="button" accessibilityLabel={missionMode ? 'Missions' : 'Accueil'} onPress={onPress} style={{ width: 48, height: 48, borderRadius: 16, backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: accent, alignItems: 'center', justifyContent: 'center', elevation: 9 }}>
       <CvcIcon name={missionMode ? 'tools' : 'home'} size={25} color={accent} />
     </TouchableOpacity>;
   }
-  return <TouchableOpacity onPress={onPress} style={{ position: 'absolute', left: 18, bottom: 20, minHeight: 46, paddingHorizontal: 15, borderRadius: 23, backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, elevation: 9, zIndex: 260 }}>
+  return <TouchableOpacity accessibilityRole="button" accessibilityLabel={missionMode ? 'Missions' : 'Accueil'} onPress={onPress} style={{ minHeight: 46, paddingHorizontal: 15, borderRadius: 23, backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, elevation: 9 }}>
     <CvcIcon name={missionMode ? 'tools' : 'home'} size={20} color={accent} /><Text style={{ color: missionMode ? MISSION_COLORS.accentStrong : COLORS.ink, fontSize: 11.5, fontWeight: '900' }}>{missionMode ? 'Missions' : 'Accueil'}</Text>
   </TouchableOpacity>;
 }
@@ -326,7 +326,7 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
     {current.name === 'MissionAmoDashboard' && missionsVisible ? <><MissionHeader title="Pilotage AMO" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionAmoDashboard" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionControlBoard' && missionsVisible ? <><MissionHeader title="Contrôle ciblé" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionControlBoard" navigation={navigation} route={route} /></> : null}
 
-    {current.name !== 'Home' && current.name !== 'Missions' && !spiralActive ? <GlobalHomeButton compact={phoneIntegralMode} missionMode={missionMode} onPress={missionMode ? goMissionsHome : goHome} /> : null}
+    {current.name !== 'Home' && current.name !== 'Missions' && !spiralActive ? <View style={{ minHeight: phoneIntegralMode ? 72 : 82, paddingHorizontal: phoneIntegralMode ? 12 : 18, paddingTop: 12, paddingBottom: phoneIntegralMode ? 12 : 20, alignItems: 'flex-start', justifyContent: 'center' }}><GlobalHomeButton compact={phoneIntegralMode} missionMode={missionMode} onPress={missionMode ? goMissionsHome : goHome} /></View> : null}
     {spiralActive && !r1Visible ? <SpiralActiveDock exploreActions={spiralExploreActions} actionActions={spiralActionActions} quickActions={spiralQuickActions} /> : null}
     <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
   </View>;
