@@ -1,14 +1,15 @@
 /** Capture photo native Android + stockage durable et nommage métier. */
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
-import { TouchableOpacity, Text, Alert, View, Modal } from 'react-native';
+import { TouchableOpacity, Text, Alert, View, Modal, useWindowDimensions } from 'react-native';
 import * as FileSystem from 'expo-file-system';
 import { ajouterPhoto, remplacerPhoto } from './db.js';
 import { upsertRemarquePrescription } from './remarkDb.js';
 import { openAppDatabase } from './database/index.js';
 import { supprimerPhotoComplete } from './photoDb.js';
 import { copierPhotoDansDocuments, supprimerCopiePhotoDocuments } from './photoDocumentsStorage.js';
-import { styles } from './styles.js';
+import { styles, COLORS } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 import { confirmerPhotoJournalisee, journaliserPhotoEnAttente } from './photoPersistenceJournal.js';
 import { forgetPhotoVariants, preparePhotoVariants } from './photoVariantCache.js';
 import { PhotoVariantImage } from './PhotoVariantImage.js';
@@ -158,6 +159,8 @@ async function resoudreReserveDepuisControle(visiteId, controleKey, label, { cre
 }
 
 function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhotoSaved }) {
+  const { width, height } = useWindowDimensions();
+  const compactPhone = Math.min(width, height) < 600;
   const [photos, setPhotos] = useState([]);
   const [photosChargees, setPhotosChargees] = useState(false);
   const [viewerVisible, setViewerVisible] = useState(false);
@@ -416,14 +419,39 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     );
   };
 
+  const hasPhotos = photosChargees && photos.length > 0;
+  const iconColor = hasPhotos ? COLORS.green : COLORS.inkFaint;
+
   return <>
     <TouchableOpacity
-      style={[styles.photoBtn, photosChargees && photos.length > 0 && styles.photoBtnTaken, estReserve && photos.length > 0 && { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8 }, style]}
+      accessibilityRole="button"
+      accessibilityLabel={hasPhotos ? `Voir les photos (${photos.length})` : 'Prendre une photo'}
+      style={[
+        styles.photoBtn,
+        hasPhotos && styles.photoBtnTaken,
+        compactPhone && { width: 46, minWidth: 46, height: 46, minHeight: 46, paddingHorizontal: 0, paddingVertical: 0, borderRadius: 13, alignItems: 'center', justifyContent: 'center' },
+        !compactPhone && estReserve && hasPhotos && { minHeight: 58, flexDirection: 'row', alignItems: 'center', gap: 8 },
+        style,
+      ]}
       onPressIn={() => { prechaufferCapture().catch(() => {}); }}
       onPress={onPress}
     >
-      {estReserve && photosChargees && photos[0]?.uri ? <PhotoVariantImage uri={photos[0].uri} variant={photos[0].pending ? 'original' : 'thumb'} style={{ width: 44, height: 44, borderRadius: 7 }} resizeMode="cover" /> : null}
-      <Text style={[styles.photoBtnText, photosChargees && photos.length > 0 && styles.photoBtnTextTaken]}>{photosChargees && photos.length > 0 ? `👁 ${photos.length} photo${photos.length > 1 ? 's' : ''}` : '📷 Photo'}</Text>
+      {estReserve && hasPhotos && photos[0]?.uri
+        ? <PhotoVariantImage uri={photos[0].uri} variant={photos[0].pending ? 'original' : 'thumb'} style={{ width: compactPhone ? 40 : 44, height: compactPhone ? 40 : 44, borderRadius: compactPhone ? 10 : 7 }} resizeMode="cover" />
+        : null}
+      {compactPhone ? (
+        !(estReserve && hasPhotos && photos[0]?.uri) ? <CvcIcon name={hasPhotos ? 'eye' : 'camera'} size={22} color={iconColor} /> : null
+      ) : (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+          <CvcIcon name={hasPhotos ? 'eye' : 'camera'} size={18} color={iconColor} />
+          <Text style={[styles.photoBtnText, hasPhotos && styles.photoBtnTextTaken]}>{hasPhotos ? String(photos.length) : 'Photo'}</Text>
+        </View>
+      )}
+      {compactPhone && hasPhotos && photos.length > 1 ? (
+        <View style={{ position: 'absolute', right: -5, top: -5, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: COLORS.green, alignItems: 'center', justifyContent: 'center' }}>
+          <Text style={{ color: COLORS.white, fontSize: 9, fontWeight: '900' }}>{photos.length}</Text>
+        </View>
+      ) : null}
     </TouchableOpacity>
     <Modal visible={viewerVisible} transparent animationType="fade" onRequestClose={() => setViewerVisible(false)}>
       <View style={styles.photoViewerOverlay}>
@@ -440,9 +468,9 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
           </View>
         )}
         <View style={styles.photoViewerActions}>
-          <TouchableOpacity style={styles.photoViewerSecondary} onPress={demanderSuppression}><Text style={styles.photoViewerSecondaryText}>Supprimer</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.photoViewerSecondary} onPressIn={() => { prechaufferCapture().catch(() => {}); }} onPress={ajouter}><Text style={styles.photoViewerSecondaryText}>+ Ajouter</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.photoViewerPrimary} onPressIn={() => { prewarmCameraRuntime().catch(() => {}); prewarmPhotoCaptureContext(visiteId).catch(() => {}); }} onPress={reprendre}><Text style={styles.photoViewerPrimaryText}>📷 Reprendre</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.photoViewerSecondary, { flexDirection: 'row', gap: 7 }]} onPress={demanderSuppression}><CvcIcon name="trash" size={18} color={COLORS.white} /><Text style={styles.photoViewerSecondaryText}>Supprimer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.photoViewerSecondary, { flexDirection: 'row', gap: 7 }]} onPressIn={() => { prechaufferCapture().catch(() => {}); }} onPress={ajouter}><CvcIcon name="plus" size={18} color={COLORS.white} /><Text style={styles.photoViewerSecondaryText}>Ajouter</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.photoViewerPrimary, { flexDirection: 'row', gap: 7 }]} onPressIn={() => { prewarmCameraRuntime().catch(() => {}); prewarmPhotoCaptureContext(visiteId).catch(() => {}); }} onPress={reprendre}><CvcIcon name="camera" size={18} color={COLORS.white} /><Text style={styles.photoViewerPrimaryText}>Reprendre</Text></TouchableOpacity>
         </View>
       </View>
     </Modal>

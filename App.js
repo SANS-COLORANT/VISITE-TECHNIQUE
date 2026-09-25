@@ -18,6 +18,7 @@ import { VisualPackAsset } from './visual-packs/runtime/VisualPackAsset.js';
 import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 import { getActiveVisualPack, getVisualPackStartupDuration, resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
 import { CompanionPhoneScreen } from './CompanionPhoneScreen.js';
+import { PhotoPhoneScreen } from './PhotoPhoneScreen.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 
 const SPLASH_BG = '#FBF0E1';
@@ -99,10 +100,15 @@ function MissionHeader({ title, onBack, visualPack, root = false }) {
   </View>;
 }
 
-function GlobalHomeButton({ onPress, missionMode = false }) {
+function GlobalHomeButton({ onPress, missionMode = false, compact = false }) {
   const accent = missionMode ? MISSION_COLORS.accent : COLORS.orange;
+  if (compact) {
+    return <TouchableOpacity accessibilityRole="button" accessibilityLabel={missionMode ? 'Missions' : 'Accueil'} onPress={onPress} style={{ position: 'absolute', left: 12, bottom: 12, width: 48, height: 48, borderRadius: 16, backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: accent, alignItems: 'center', justifyContent: 'center', elevation: 9, zIndex: 260 }}>
+      <CvcIcon name={missionMode ? 'tools' : 'home'} size={25} color={accent} />
+    </TouchableOpacity>;
+  }
   return <TouchableOpacity onPress={onPress} style={{ position: 'absolute', left: 18, bottom: 20, minHeight: 46, paddingHorizontal: 15, borderRadius: 23, backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7, elevation: 9, zIndex: 260 }}>
-    <Text style={{ color: accent, fontSize: 20, fontWeight: '900' }}>{missionMode ? '◎' : '⌂'}</Text><Text style={{ color: missionMode ? MISSION_COLORS.accentStrong : COLORS.ink, fontSize: 11.5, fontWeight: '900' }}>{missionMode ? 'Missions' : 'Accueil'}</Text>
+    <CvcIcon name={missionMode ? 'tools' : 'home'} size={20} color={accent} /><Text style={{ color: missionMode ? MISSION_COLORS.accentStrong : COLORS.ink, fontSize: 11.5, fontWeight: '900' }}>{missionMode ? 'Missions' : 'Accueil'}</Text>
   </TouchableOpacity>;
 }
 
@@ -273,7 +279,7 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
     {current.name === 'MissionAmoDashboard' && missionsVisible ? <><MissionHeader title="Pilotage AMO" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionAmoDashboard" navigation={navigation} route={route} /></> : null}
     {current.name === 'MissionControlBoard' && missionsVisible ? <><MissionHeader title="Contrôle ciblé" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionControlBoard" navigation={navigation} route={route} /></> : null}
 
-    {current.name !== 'Home' && current.name !== 'Missions' ? <GlobalHomeButton missionMode={missionMode} onPress={missionMode ? goMissionsHome : goHome} /> : null}
+    {current.name !== 'Home' && current.name !== 'Missions' ? <GlobalHomeButton compact={phoneIntegralMode} missionMode={missionMode} onPress={missionMode ? goMissionsHome : goHome} /> : null}
     <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
   </View>;
 }
@@ -284,47 +290,43 @@ function PhoneModeChooser({ onChoose }) {
 
   useEffect(() => {
     let alive = true;
-    getActiveVisualPack()
-      .then((activePack) => {
-        if (!alive) return;
-        setRuntimeVisualPalette(activePack?.colors);
-        setPack(activePack || null);
-        setPalette({
-          main: activePack?.colors?.main || COLORS.orange,
-          dark: activePack?.colors?.dark || COLORS.orangeDark,
-          light: activePack?.colors?.light || COLORS.orangeLight,
-        });
-      })
-      .catch(() => {});
+    getActiveVisualPack().then((activePack) => {
+      if (!alive) return;
+      setRuntimeVisualPalette(activePack?.colors);
+      setPack(activePack || null);
+      setPalette({
+        main: activePack?.colors?.main || COLORS.orange,
+        dark: activePack?.colors?.dark || COLORS.orangeDark,
+        light: activePack?.colors?.light || COLORS.orangeLight,
+      });
+    }).catch(() => {});
     return () => { alive = false; };
   }, []);
 
   const logoUri = resolveVisualPackAssetUri(pack, pack?.interface?.headerLogo);
+  const card = { minHeight: 128, padding: 15, borderRadius: 18, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, marginBottom: 10 };
+  const mode = (id, icon, title, description, featured = false) => (
+    <TouchableOpacity key={id} onPress={() => onChoose(id)} activeOpacity={0.84} style={[card, featured ? { borderWidth: 1.5, borderColor: palette.main, backgroundColor: palette.light } : null]}>
+      <View style={{ width: 48, height: 48, borderRadius: 15, backgroundColor: featured ? COLORS.white : palette.light, alignItems: 'center', justifyContent: 'center', borderWidth: featured ? 1 : 0, borderColor: palette.main }}>
+        <CvcIcon name={icon} size={30} color={palette.main} />
+      </View>
+      <Text style={{ marginTop: 12, fontSize: 17, fontWeight: '900', color: COLORS.ink }}>{title}</Text>
+      <Text style={{ marginTop: 4, color: COLORS.inkSoft, lineHeight: 17, fontSize: 11.5 }}>{description}</Text>
+    </TouchableOpacity>
+  );
 
-  return <View style={{ flex: 1, backgroundColor: COLORS.bg, paddingTop: 58, paddingHorizontal: 18 }}>
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 26 }}>
+  return <ScrollView style={{ flex: 1, backgroundColor: COLORS.bg }} contentContainerStyle={{ paddingTop: 54, paddingHorizontal: 16, paddingBottom: 30 }}>
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 24, fontWeight: '900', color: COLORS.ink }}>Choisir le mode téléphone</Text>
-        <Text style={{ marginTop: 7, color: COLORS.inkSoft, lineHeight: 19 }}>Version complète sur téléphone ou compagnon photo de la tablette.</Text>
+        <Text style={{ fontSize: 23, fontWeight: '900', color: COLORS.ink }}>Choisir le mode téléphone</Text>
+        <Text style={{ marginTop: 6, color: COLORS.inkSoft, lineHeight: 18 }}>Interface complète, capture terrain rapide ou compagnon de la tablette.</Text>
       </View>
-      {logoUri ? <VisualPackAsset uri={logoUri} style={{ width: 48, height: 38 }} /> : null}
+      {logoUri ? <VisualPackAsset uri={logoUri} style={{ width: 46, height: 36 }} /> : null}
     </View>
-
-    <TouchableOpacity onPress={() => onChoose('integral')} activeOpacity={0.84} style={{ minHeight: 164, padding: 18, borderRadius: 18, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, marginBottom: 12 }}>
-      <View style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: palette.light, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="tools" size={34} color={palette.main} /></View>
-      <Text style={{ marginTop: 16, fontSize: 18.5, fontWeight: '900', color: COLORS.ink }}>Version intégrale</Text>
-      <Text style={{ marginTop: 5, color: COLORS.inkSoft, lineHeight: 18 }}>Clients, sites, visites, saisies, équipements, photos et exports dans l’interface complète.</Text>
-    </TouchableOpacity>
-
-    <TouchableOpacity onPress={() => onChoose('companion')} activeOpacity={0.84} style={{ minHeight: 164, padding: 18, borderRadius: 18, backgroundColor: palette.light, borderWidth: 1.5, borderColor: palette.main }}>
-      <View style={{ width: 54, height: 54, borderRadius: 16, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: palette.main }}><CvcIcon name="camera" size={34} color={palette.main} /></View>
-      <Text style={{ marginTop: 16, fontSize: 18.5, fontWeight: '900', color: COLORS.ink }}>Compagnon</Text>
-      <Text style={{ marginTop: 5, color: COLORS.inkSoft, lineHeight: 18 }}>Scanne le QR d’une visite ou d’un client puis prends les photos directement dans les bonnes rubriques.</Text>
-      <View style={{ marginTop: 12, alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 999, backgroundColor: COLORS.white }}>
-        <Text style={{ color: palette.dark, fontSize: 10.5, fontWeight: '900' }}>TABLETTE + TÉLÉPHONE</Text>
-      </View>
-    </TouchableOpacity>
-  </View>;
+    {mode('photo', 'camera', 'Mode Photo', 'Accès direct aux relevés, équipements, plaques signalétiques et remarques. OCR local hors ligne.', true)}
+    {mode('integral', 'tools', 'Version intégrale', 'Clients, sites, visites, saisies et exports dans l’interface complète.')}
+    {mode('companion', 'camera', 'Compagnon', 'Associer ce téléphone à une visite ouverte sur tablette pour capturer et renseigner à distance.')}
+  </ScrollView>;
 }
 
 export default function App() {
@@ -337,6 +339,7 @@ export default function App() {
   }, [phone]);
 
   if (phone && !phoneMode) return <AppErrorBoundary><PhoneModeChooser onChoose={setPhoneMode} /></AppErrorBoundary>;
+  if (phone && phoneMode === 'photo') return <AppErrorBoundary><PhotoPhoneScreen onExit={() => setPhoneMode(null)} /></AppErrorBoundary>;
   if (phone && phoneMode === 'companion') return <AppErrorBoundary><CompanionPhoneScreen onExit={() => setPhoneMode(null)} /></AppErrorBoundary>;
   return <AppErrorBoundary><AppContent phoneIntegralMode={phone && phoneMode === 'integral'} onPhoneModeExit={() => setPhoneMode(null)} /></AppErrorBoundary>;
 }

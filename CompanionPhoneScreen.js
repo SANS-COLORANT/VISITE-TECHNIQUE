@@ -96,9 +96,10 @@ function TargetRow({ item, onPress, icon, accent, light }) {
         <Text numberOfLines={2} style={{ fontSize: 14, fontWeight: '900', color: COLORS.ink }}>{item.label}</Text>
         {item.subtitle ? <Text numberOfLines={1} style={{ marginTop: 3, fontSize: 11.5, color: COLORS.inkSoft }}>{item.subtitle}</Text> : null}
         {value ? <Text style={{ marginTop: 3, fontSize: 12, fontWeight: '800', color: accent }}>{value}</Text> : null}
-        <Text style={{ marginTop: 3, fontSize: 10.5, color: COLORS.inkFaint }}>
-          Photo{editableCount ? ` · ${editableCount} valeur${editableCount > 1 ? 's' : ''} modifiable${editableCount > 1 ? 's' : ''}` : ''}
-        </Text>
+        <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
+          <CvcIcon name="camera" size={13} color={COLORS.inkFaint} />
+          {editableCount ? <Text style={{ fontSize: 10.5, color: COLORS.inkFaint }}>{editableCount} valeur{editableCount > 1 ? 's' : ''}</Text> : null}
+        </View>
       </View>
       <Text style={{ fontSize: 21, color: COLORS.inkFaint }}>›</Text>
     </TouchableOpacity>
@@ -604,17 +605,16 @@ function CompanionPhoneScreen({ onExit }) {
           ) : null}
 
           <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={`Photographier ${selectedTarget.label}`}
             disabled={busyTarget === selectedTarget.id}
             onPressIn={() => prewarmCameraRuntime().catch(() => {})}
             onPress={() => capture(selectedTarget)}
-            style={{ minHeight: 64, borderRadius: 17, backgroundColor: accent, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, paddingHorizontal: 18 }}
+            style={{ minHeight: 64, borderRadius: 17, backgroundColor: accent, alignItems: 'center', justifyContent: 'center' }}
           >
             {busyTarget === selectedTarget.id
               ? <ActivityIndicator color={COLORS.white} />
-              : <CvcIcon name="camera" size={28} color={COLORS.white} />}
-            <Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 15 }}>
-              {busyTarget === selectedTarget.id ? 'Ouverture appareil photo…' : 'Prendre une photo'}
-            </Text>
+              : <CvcIcon name="camera" size={32} color={COLORS.white} />}
           </TouchableOpacity>
 
           <View style={{ marginTop: 14, padding: 14, borderRadius: 17, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line }}>

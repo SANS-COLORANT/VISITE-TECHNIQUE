@@ -68,6 +68,33 @@ function CvcIcon({ name, size = 36, color = '#10384B', strokeWidth = 1.9 }) {
       <Circle cx="14" cy="16" r="4.2" />
       <Circle cx="21.3" cy="12" r=".9" fill={color} stroke="none" />
     </G>;
+  } else if (key === 'home') {
+    body = <G {...p}>
+      <Path d="M4 13.2 14 4l10 9.2" />
+      <Path d="M6.5 11.8V24h15V11.8" />
+      <Path d="M11 24v-7h6v7" />
+    </G>;
+  } else if (key === 'plate' || key === 'tag') {
+    body = <G {...p}>
+      <Rect x="4" y="6" width="20" height="16" rx="2.5" />
+      <Circle cx="8.5" cy="10.3" r="1.2" />
+      <Line x1="12" y1="10.3" x2="20.5" y2="10.3" />
+      <Line x1="7.5" y1="15" x2="20.5" y2="15" />
+      <Line x1="7.5" y1="18.7" x2="17" y2="18.7" />
+    </G>;
+  } else if (key === 'microphone' || key === 'mic') {
+    body = <G {...p}>
+      <Rect x="10" y="4" width="8" height="13" rx="4" />
+      <Path d="M7.5 13.5a6.5 6.5 0 0 0 13 0" />
+      <Line x1="14" y1="20" x2="14" y2="24" />
+      <Line x1="10.5" y1="24" x2="17.5" y2="24" />
+    </G>;
+  } else if (key === 'plus' || key === 'add') {
+    body = <G {...p}><Circle cx="14" cy="14" r="10" /><Line x1="14" y1="9" x2="14" y2="19" /><Line x1="9" y1="14" x2="19" y2="14" /></G>;
+  } else if (key === 'eye' || key === 'view') {
+    body = <G {...p}><Path d="M3.5 14s3.8-6.5 10.5-6.5S24.5 14 24.5 14 20.7 20.5 14 20.5 3.5 14 3.5 14Z" /><Circle cx="14" cy="14" r="3.2" /></G>;
+  } else if (key === 'trash' || key === 'delete') {
+    body = <G {...p}><Path d="M6.5 8h15" /><Path d="M10 8V5h8v3" /><Path d="M8.2 8 9.3 24h9.4l1.1-16" /><Line x1="12" y1="12" x2="12.6" y2="20" /><Line x1="16" y1="12" x2="15.4" y2="20" /></G>;
   } else if (key === 'document') {
     body = <G {...p}>
       <Path d="M7 3.8h9l5 5V24H7Z" />
