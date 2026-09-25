@@ -1,7 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import { getVisite, getChampsVisite, getControlesVisite, listerCompteurs, listerMateriel, listerPhotos, listerReseaux, listerSitesClient, toucherVisite, upsertChamp, upsertCompteurChamp, upsertMaterielChamp, upsertReseauChamp } from './db.js';
 import { openAppDatabase } from './database/index.js';
-import { listerRemarquesVisite, modifierRemarqueVisite } from './remarkDb.js';
+import { listerRemarquesVisite, modifierRemarqueVisite, supprimerRemarqueControle } from './remarkDb.js';
 import { upsertControlePartiel } from './controlDb.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { ajouterPhoto } from './db.js';
@@ -395,6 +395,9 @@ async function applyCompanionTargetUpdate({ visiteId, edit, value }) {
     case 'control':
       if (!edit.sectionCode || !edit.cle || !['avis', 'commentaire'].includes(edit.key)) throw new Error('Contrôle visite invalide');
       await upsertControlePartiel(id, edit.sectionCode, edit.cle, { [edit.key]: nextValue });
+      if (edit.key === 'avis' && nextValue !== 'N.S') {
+        await supprimerRemarqueControle(id, `${edit.sectionCode}||${edit.cle}`).catch(() => {});
+      }
       break;
 
     case 'counter':
