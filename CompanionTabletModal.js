@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ActivityIndicator, Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import {
+  applyCompanionTargetUpdate,
   assertVisitBelongsToCompanionClient,
   buildCompanionClientSnapshot,
   buildCompanionVisitSnapshot,
@@ -194,6 +195,37 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
               message: String(e?.message || e),
             }).catch(() => {});
             setLastEvent(`Visite non ouverte : ${String(e?.message || e)}`);
+          }
+          return;
+        }
+        if (message.type === 'updateTarget') {
+          const targetVisitId = String(message.visitId || phoneVisitId || '').trim();
+          try {
+            if (!targetVisitId) throw new Error('Aucune visite ouverte sur le téléphone.');
+            if (scope === 'client') await assertVisitBelongsToCompanionClient(clientId, targetVisitId);
+            else if (String(visiteId) !== targetVisitId) throw new Error('Cette session est liée à une autre visite.');
+
+            const next = await applyCompanionTargetUpdate({
+              visiteId: targetVisitId,
+              edit: message.edit || null,
+              value: message.value,
+            });
+            setPhoneVisitId(targetVisitId);
+            await sendCompanionMessage({
+              type: 'targetUpdated',
+              requestId: message.requestId || null,
+              visitId: targetVisitId,
+            }).catch(() => {});
+            await sendCompanionMessage(next);
+            setLastEvent('Valeur mise à jour depuis le téléphone');
+          } catch (e) {
+            await sendCompanionMessage({
+              type: 'targetUpdateError',
+              requestId: message.requestId || null,
+              visitId: targetVisitId || null,
+              message: String(e?.message || e),
+            }).catch(() => {});
+            setLastEvent(`Modification refusée : ${String(e?.message || e)}`);
           }
           return;
         }
