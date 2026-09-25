@@ -300,14 +300,14 @@ async function buildCompanionVisitSnapshot(visiteId) {
     `${row.section_code}||${row.cle}`,
     row.cle,
     `${row.section_code}||${row.cle}`,
-    { value: clean(row.valeur) }
+    { value: clean(row.valeur), fields: [champEditField(row.section_code, row.cle, row.valeur)] }
   ));
   const regulationFromTemplate = templateRows.filter(({ section, field }) => {
     const txt = norm(`${section} ${field?.cle}`);
     return field?.type === 'champ' && (txt.includes('regul') || txt.includes('consigne') || txt.includes('sonde') || txt.includes('automate'));
   }).map(({ sectionCode, field }) => {
     const key = `${sectionCode}||${field.cle}`;
-    return target(key, field.cle, key, { value: clean(valuesByKey.get(key)) });
+    return target(key, field.cle, key, { value: clean(valuesByKey.get(key)), fields: [champEditField(sectionCode, field.cle, valuesByKey.get(key))] });
   });
   const regulationTargets = uniqueTargets([...regulationFromDb, ...regulationFromTemplate]);
 
