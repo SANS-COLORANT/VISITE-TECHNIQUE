@@ -34,7 +34,9 @@ import { AttachVisitSheet } from './AttachVisitSheet.js';
 import { VisitSearchSheet } from './VisitSearchSheet.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
-import { ToastHost } from './PremiumDialogs.js';
+import { ToastHost, showToast } from './PremiumDialogs.js';
+import { getPrefSync, PREFS } from './uiPrefs.js';
+import { SignatureSheet, enregistrerSignatureVisite, lireSignatureVisite } from './visitSignature.js';
 import { SkeletonVisit } from './Skeleton.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -68,6 +70,15 @@ const VisitPanelHost = memo(function VisitPanelHost({
   return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} nextPanel={nextPanel} onNextPanel={onNextPanel} />;
 });
 
+// « Enregistré il y a 2 min » (court sur téléphone).
+function depuisSauvegarde(ts, court = false) {
+  if (!ts) return court ? '' : 'Enregistré';
+  const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+  if (s < 20) return court ? 'à l’instant' : 'Enregistré à l’instant';
+  const libelle = s < 60 ? `${s} s` : s < 3600 ? `${Math.round(s / 60)} min` : `${Math.round(s / 3600)} h`;
+  return court ? `il y a ${libelle}` : `Enregistré il y a ${libelle}`;
+}
+
 function VisiteScreen({ route, onBack }) {
   const { visiteId, visitePreview = null } = route.params;
   const visitNavKey = `visit:${String(visiteId || '')}`;
@@ -78,6 +89,13 @@ function VisiteScreen({ route, onBack }) {
   // Mode Photo : saisie rapide terrain ouverte depuis la barre d'actions.
   const [modePhotoVisible, setModePhotoVisible] = useState(false);
   const [photoRev, setPhotoRev] = useState(0);
+  const [signatureVisible, setSignatureVisible] = useState(false);
+  const [signature, setSignature] = useState(null);
+  const [apercuEnCours, setApercuEnCours] = useState(false);
+  // Onglets en bas, à portée de pouce (Réglages › Affichage terrain).
+  const ongletsEnBas = useMemo(() => getPrefSync(PREFS.ongletsEnBas, '0') === '1', []);
+  const [, setHorloge] = useState(0);
+  const repriseAnnonceeRef = useRef(false);
   const appareilTablette = Math.min(width, height) >= 600;
   const modeTablette = width >= 900;
   const pagerWidth = Math.max(1, modeTablette ? width - 205 : width);
@@ -215,6 +233,23 @@ function VisiteScreen({ route, onBack }) {
   }, [addMountedPanels, desiredPagerPanels]);
 
   useEffect(() => subscribeSaveActivity(setSaveActivity), []);
+  // « Enregistré il y a … » reste à jour.
+  useEffect(() => { const t = setInterval(() => setHorloge((n) => n + 1), 15000); return () => clearInterval(t); }, []);
+  useEffect(() => { lireSignatureVisite(visiteId).then(setSignature).catch(() => {}); }, [visiteId]);
+  // Reprise d'une visite : on rappelle où l'on reprend.
+  const panelLabelsRef = useRef(panelLabels);
+  panelLabelsRef.current = panelLabels;
+  const visiteChargee = Boolean(visite);
+  useEffect(() => {
+    if (repriseAnnonceeRef.current || !visiteChargee) return undefined;
+    const timer = setTimeout(() => {
+      repriseAnnonceeRef.current = true;
+      const tab = activeTabRef.current; const premier = tabOrderRef.current?.[0];
+      const label = panelLabelsRef.current?.[tab];
+      if (tab && premier && tab !== premier && label) showToast(`Reprise à l’onglet « ${label} »`, { duration: 2200 });
+    }, 900);
+    return () => clearTimeout(timer);
+  }, [visiteChargee]);
 
   useEffect(() => {
     let alive = true;
@@ -608,6 +643,28 @@ function VisiteScreen({ route, onBack }) {
     ]);
   };
 
+  // Fin de visite : aperçu du rapport, signature client, export Excel.
+  const apercuRapport = async () => {
+    if (apercuEnCours) return;
+    setApercuEnCours(true);
+    try { Keyboard.dismiss(); await require('./visitReportPreview.js').apercuRapportVisite(visiteId); }
+    catch (e) { Alert.alert('Aperçu impossible', String(e?.message || e)); }
+    finally { setApercuEnCours(false); }
+  };
+  const menuFinVisite = () => {
+    const boutons = [];
+    if (trame.id !== 'pre_allumage') boutons.push({ text: 'Aperçu du rapport', onPress: apercuRapport });
+    boutons.push({ text: signature ? 'Modifier la signature' : 'Signature du client', onPress: () => setSignatureVisible(true) });
+    boutons.push({ text: 'Exporter en Excel', onPress: () => verifierAvantExport(exporter) });
+    boutons.push({ text: 'Annuler', style: 'cancel' });
+    Alert.alert('Terminer la visite', signature ? `Signée par ${signature.nom || 'le client'}.` : 'Vérifie le rendu, fais signer le client, puis exporte.', boutons);
+  };
+  const enregistrerSignature = async (sig) => {
+    setSignatureVisible(false);
+    try { await enregistrerSignatureVisite(visiteId, sig); setSignature(sig); feedback('Signature enregistrée'); }
+    catch (e) { Alert.alert('Signature non enregistrée', String(e?.message || e)); }
+  };
+
   const exporter = async () => {
     if (exporting) return;
     setExporting(true);
@@ -738,8 +795,8 @@ function VisiteScreen({ route, onBack }) {
               <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}>{reportExporting ? <ActivityIndicator size="small" color={COLORS.orangeDark} /> : <CvcIcon name="document" size={19} color={COLORS.orangeDark} />}</IconOrb>
             </TouchableOpacity>
           ) : null}
-          <TouchableOpacity accessibilityLabel={`Exporter en Excel ${trame.nom}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={() => verifierAvantExport(exporter)} disabled={exporting}>
-            <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}>{exporting ? <ActivityIndicator size="small" color={COLORS.orangeDark} /> : <CvcIcon name="export" size={19} color={COLORS.orangeDark} />}</IconOrb>
+          <TouchableOpacity accessibilityLabel={`Terminer : aperçu, signature, export Excel ${trame.nom}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={menuFinVisite} disabled={exporting || apercuEnCours}>
+            <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}>{exporting || apercuEnCours ? <ActivityIndicator size="small" color={COLORS.orangeDark} /> : <CvcIcon name="export" size={19} color={COLORS.orangeDark} />}</IconOrb>
           </TouchableOpacity>
         </View>
         <TouchableOpacity activeOpacity={0.92} accessibilityLabel={heroMini ? 'Afficher le détail de l’avancement' : 'Réduire l’avancement'} onPress={() => setHeroMini((v) => !v)}>
@@ -763,9 +820,9 @@ function VisiteScreen({ route, onBack }) {
                     size={14}
                     color={saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32'}
                   />
-                  {saveActivity.lastError || saveActivity.pending || appareilTablette ? <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ fontSize: 11, fontFamily: FONTS.bodySemi, color: saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32' }}>
-                    {saveActivity.lastError ? 'Erreur' : saveActivity.pending ? `${saveActivity.pending} en attente` : 'Enregistré'}
-                  </Text> : null}
+                  <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ fontSize: 11, fontFamily: FONTS.bodySemi, color: saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32' }}>
+                    {saveActivity.lastError ? 'Erreur' : saveActivity.pending ? `${saveActivity.pending} en attente` : depuisSauvegarde(saveActivity.lastSavedAt, !appareilTablette)}
+                  </Text>
                 </View>
               </View>
             </View>
@@ -778,7 +835,7 @@ function VisiteScreen({ route, onBack }) {
         {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? <PhotoReferenceAccess visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} /> : null}
         {visite.mode_visite === 'express' && <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>}
         {trame.id === 'vmc' && vmcCaissons.length > 0 ? <VmcCaissonManager visiteId={visiteId} caissons={vmcCaissons} onChange={onCaissonsChange} onNavigate={changerOnglet} activePanelId={activeTab} tabStates={tabStatus.tabs} /> : null}
-        {!modeTablette && <SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} />}
+        {!modeTablette && !ongletsEnBas && <SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} />}
       </View>
 
       {modeTablette ? <View style={{ flex: 1, flexDirection: 'row' }}>
@@ -787,6 +844,7 @@ function VisiteScreen({ route, onBack }) {
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>{animatedContent}</View>
       </View> : animatedContent}
+      {!clavierVisible && !modeTablette && ongletsEnBas ? <View style={{ paddingHorizontal: 12, paddingTop: 8, marginBottom: -12 }}><SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} /></View> : null}
       {!clavierVisible ? <VisitActionBar onNote={ouvrirNote} onPhoto={() => setModePhotoVisible(true)} photoLabel="Mode Photo" onAnomalie={() => setAnomalieVisible(true)} /> : null}
 
       <Modal visible={noteVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}>
@@ -809,6 +867,7 @@ function VisiteScreen({ route, onBack }) {
         }}
       />
       <CompanionTabletModal visible={companionVisible} visiteId={visiteId} onClose={() => setCompanionVisible(false)} />
+      <SignatureSheet visible={signatureVisible} initial={signature} onClose={() => setSignatureVisible(false)} onSave={enregistrerSignature} />
       <Modal visible={modePhotoVisible} animationType="slide" statusBarTranslucent onRequestClose={fermerModePhoto}>
         <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
           <AmbientBackground accent={COLORS.orange} />

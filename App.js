@@ -24,6 +24,7 @@ import { CvcIcon } from './MetraCvcIcons.js';
 import { useAppFonts } from './AppFonts.js';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AmbientBackground } from './premiumChrome.js';
+import { getPrefSync, PREFS } from './uiPrefs.js';
 import { BottomTabBar } from './BottomTabBar.js';
 import { QuickVisitSheet } from './QuickVisitSheet.js';
 import { DialogHost, ToastHost, installPremiumAlert } from './PremiumDialogs.js';
@@ -33,7 +34,8 @@ installPremiumAlert();
 // Accessibilité : les tailles de police système sont respectées, dans une
 // limite qui garde les écrans lisibles (au-delà, les mises en page cassent).
 if (Text.defaultProps == null) Text.defaultProps = {};
-Text.defaultProps.maxFontSizeMultiplier = 1.35;
+// Plein soleil : la taille de police Android peut grossir davantage.
+Text.defaultProps.maxFontSizeMultiplier = getPrefSync(PREFS.pleinSoleil, '0') === '1' ? 1.7 : 1.35;
 
 // Barre de navigation Android (boutons du bas) à la couleur du fond.
 if (Platform.OS === 'android') {
@@ -204,6 +206,13 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
   }, []);
 
   useEffect(() => { initialiser(); }, [initialiser]);
+  // Sauvegarde automatique quotidienne (si un dossier a été choisi dans
+  // Réglages), lancée après le démarrage pour ne pas le ralentir.
+  useEffect(() => {
+    if (!dbReady) return undefined;
+    const timer = setTimeout(() => { require('./databaseBackup.js').sauvegardeAutoSiNecessaire().catch(() => {}); }, 25000);
+    return () => clearTimeout(timer);
+  }, [dbReady]);
 
   const navigate = useCallback((name, params = {}) => setStack((currentStack) => {
     const current = currentStack[currentStack.length - 1];

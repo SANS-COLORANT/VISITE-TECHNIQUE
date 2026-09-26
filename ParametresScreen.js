@@ -12,6 +12,9 @@ import { ensureEquipmentCatalogReady } from './database/index.js';
 import { diagnostiquerStockageLocal } from './storageHealth.js';
 import { exporterSupportDump } from './supportDump.js';
 import { ButtonGlow } from './ButtonGlow.js';
+import { choisirDossierSauvegardeAuto, desactiverSauvegardeAuto, etatSauvegardeAuto, sauvegardeAutoSiNecessaire } from './databaseBackup.js';
+import { getPrefSync, setPrefSync, PREFS } from './uiPrefs.js';
+import { reloadAppAsync } from 'expo';
 
 const CATEGORIES_EQUIPEMENT=['Adoucisseur','Armoire électrique','Ballon ECS','Chaudière','Circulateur','Coffret gaz','Compteur','Désemboueur','Détendeur','Échangeur','Extincteur','Filtre','Manomètre','Pompe','Robinetterie','Soupape','Vanne',"Vase d'expansion"];
 const MARQUES_EQUIPEMENT=['De Dietrich','Viessmann','Grundfos','Wilo','Saunier Duval','Atlantic','Frisquet','Chappée','Chaffoteaux','Elm Leblanc','Bosch','Vaillant','Fernox','Alfa Laval'];
@@ -69,7 +72,33 @@ function BoutonDonnees({label,onPress,disabled=false,secondaire=false,danger=fal
   </TouchableOpacity>;
 }
 
+function ReglageBascule({titre,description,actif,onChange}){
+  return <TouchableOpacity accessibilityRole="switch" accessibilityState={{checked:actif}} activeOpacity={0.85} onPress={()=>onChange(!actif)} style={[styles.card,{flexDirection:'row',alignItems:'center',gap:12}]}>
+    <View style={{flex:1}}>
+      <Text style={styles.cardTitle}>{titre}</Text>
+      <Text style={[styles.cardSub,{marginTop:4}]}>{description}</Text>
+    </View>
+    <View style={{width:50,height:30,borderRadius:15,padding:3,backgroundColor:actif?COLORS.orange:'#D6D1C6',alignItems:actif?'flex-end':'flex-start'}}>
+      <View style={{width:24,height:24,borderRadius:12,backgroundColor:COLORS.white}}/>
+    </View>
+  </TouchableOpacity>;
+}
+
+function dateCourte(iso){
+  if(!iso)return null;
+  const d=new Date(iso);if(Number.isNaN(d.getTime()))return null;
+  return d.toLocaleDateString('fr-FR',{day:'numeric',month:'short'})+' à '+d.toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'});
+}
+
 function GestionDonnees(){
+  const[pleinSoleil,setPleinSoleil]=useState(()=>getPrefSync(PREFS.pleinSoleil,'0')==='1');
+  const[ongletsEnBas,setOngletsEnBas]=useState(()=>getPrefSync(PREFS.ongletsEnBas,'0')==='1');
+  const[auto,setAuto]=useState(()=>etatSauvegardeAuto());
+  const basculerPleinSoleil=(v)=>{
+    setPleinSoleil(v);setPrefSync(PREFS.pleinSoleil,v?'1':'0');
+    Alert.alert('Plein soleil',v?'Contraste renforcé activé. L’application redémarre pour l’appliquer partout.':'Retour à l’affichage normal. L’application redémarre.',[{text:'Plus tard',style:'cancel'},{text:'Redémarrer',onPress:()=>{reloadAppAsync().catch(()=>{});}}]);
+  };
+  const basculerOnglets=(v)=>{setOngletsEnBas(v);setPrefSync(PREFS.ongletsEnBas,v?'1':'0');};
   const[action,setAction]=useState(null);
   const[diagnostic,setDiagnostic]=useState(null);
   const[supportVisible,setSupportVisible]=useState(false);
@@ -150,12 +179,38 @@ function GestionDonnees(){
     ]
   );
 
+  const configurerAuto=()=>executer('auto',async()=>{
+    try{const r=await choisirDossierSauvegardeAuto();setAuto(etatSauvegardeAuto());if(r)Alert.alert('Sauvegarde automatique activée','Une copie de la base est faite chaque jour dans ce dossier (7 dernières conservées). Elle reste sur le téléphone même si l’application est désinstallée.');}
+    catch(e){setAuto(etatSauvegardeAuto());Alert.alert('Sauvegarde automatique impossible',String(e.message||e));}
+  });
+  const sauverMaintenant=()=>executer('auto',async()=>{
+    try{await sauvegardeAutoSiNecessaire({force:true});setAuto(etatSauvegardeAuto());Alert.alert('Sauvegarde faite','Copie du jour enregistrée.');}
+    catch(e){Alert.alert('Sauvegarde impossible',String(e.message||e));}
+  });
+  const couperAuto=()=>Alert.alert('Désactiver la sauvegarde automatique ?','Les copies déjà faites restent dans le dossier.',[{text:'Annuler',style:'cancel'},{text:'Désactiver',style:'destructive',onPress:()=>{desactiverSauvegardeAuto();setAuto(etatSauvegardeAuto());}}]);
+
   const occupe=!!action;
   // Cartes « données » en colonne : texte en haut, boutons pleine largeur dessous
   // (styles.card est une ligne, qui écrasait le texte entre deux boutons géants).
   const dataCard={flexDirection:'column',alignItems:'stretch',justifyContent:'flex-start',gap:0};
   return <ScrollView contentContainerStyle={styles.content}>
-    <Text style={styles.sectionLabel}>Sauvegardes</Text>
+    <Text style={styles.sectionLabel}>Affichage terrain</Text>
+    <ReglageBascule titre="Plein soleil" description="Textes plus foncés, fonds plus opaques, grands caractères Android autorisés. Pour l’extérieur ou une chaufferie mal éclairée." actif={pleinSoleil} onChange={basculerPleinSoleil}/>
+    <ReglageBascule titre="Onglets en bas (une main)" description="Dans une visite, les onglets passent au-dessus de la barre d’actions, à portée de pouce. Glisser à gauche ou à droite change d’onglet." actif={ongletsEnBas} onChange={basculerOnglets}/>
+
+    <Text style={[styles.sectionLabel,{marginTop:18}]}>Sauvegardes</Text>
+    <View style={[styles.card,dataCard]}>
+      <View style={{alignSelf:'stretch'}}>
+        <Text style={styles.cardTitle}>Sauvegarde automatique</Text>
+        <Text style={[styles.cardSub,{marginTop:5}]}>{auto.actif?`Chaque jour dans : ${auto.dossier}`:'Une copie de la base chaque jour dans un dossier du téléphone de ton choix (photos non incluses).'}</Text>
+        {auto.actif?<Text style={[styles.cardSub,{marginTop:4,color:auto.derniere?'#2E7D32':COLORS.amber}]}>{auto.derniere?`Dernière copie : ${dateCourte(auto.derniere)}`:'Aucune copie pour le moment'}</Text>:null}
+      </View>
+      {auto.actif?<>
+        <BoutonDonnees label={action==='auto'?'Sauvegarde…':'Sauvegarder maintenant'} disabled={occupe} secondaire onPress={sauverMaintenant}/>
+        <BoutonDonnees label="Changer de dossier" disabled={occupe} secondaire onPress={configurerAuto}/>
+        <TouchableOpacity onPress={couperAuto} style={{marginTop:10,alignSelf:'center',padding:6}}><Text style={{color:COLORS.inkSoft,fontFamily:FONTS.bodySemi,fontSize:12.5}}>Désactiver</Text></TouchableOpacity>
+      </>:<BoutonDonnees label={action==='auto'?'Choix du dossier…':'Choisir le dossier et activer'} disabled={occupe} onPress={configurerAuto}/>}
+    </View>
     <View style={[styles.card,dataCard]}>
       <View style={{alignSelf:'stretch'}}>
         <Text style={styles.cardTitle}>Sauvegarde complète</Text>

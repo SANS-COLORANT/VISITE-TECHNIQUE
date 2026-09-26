@@ -1,6 +1,7 @@
 /** Couleurs partagées + StyleSheet complet de l'application. */
 
 import { Platform, StyleSheet } from 'react-native';
+import { getPrefSync, PREFS } from './uiPrefs.js';
 import { FONT_HEADING_BLACK, FONT_HEADING_BOLD, FONT_HEADING_SEMI, FONT_BODY_MEDIUM, FONT_BODY_SEMI, FONT_BODY_BOLD } from './AppFonts.js';
 
 export const FONTS = { black: FONT_HEADING_BLACK, bold: FONT_HEADING_BOLD, semi: FONT_HEADING_SEMI, bodyMedium: FONT_BODY_MEDIUM, bodySemi: FONT_BODY_SEMI, bodyBold: FONT_BODY_BOLD };
@@ -16,6 +17,17 @@ export const COLORS = {
   // rendus dans la couleur système par défaut).
   muted: '#6B6B66', primary: '#D9531A', text: '#1A1A18',
 };
+
+// Mode « Plein soleil » (Réglages) : textes et traits plus contrastés pour
+// l'extérieur ou une chaufferie mal éclairée. Appliqué au démarrage, avant la
+// création des styles.
+export const SUN_MODE = getPrefSync(PREFS.pleinSoleil, '0') === '1';
+if (SUN_MODE) {
+  Object.assign(COLORS, {
+    ink: '#000000', text: '#000000', inkSoft: '#2F2E2A', muted: '#2F2E2A', inkFaint: '#55544E',
+    line: '#C9C4BA', orangeDark: '#B03E0B', bg: '#F7F6F2',
+  });
+}
 
 export const styles = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bg, padding: 24 },

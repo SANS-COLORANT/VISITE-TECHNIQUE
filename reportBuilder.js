@@ -493,6 +493,21 @@ function wordInteriorDecor(config, siteFooter) {
   return `<div class="interiorHeader">${logoHtml('interiorLogo')}<span>${esc(config.objet || 'Compte rendu de visite technique')}</span></div><div class="interiorFooter"><div>Nos réf. : ${esc(config.chrono || '')}<br/>Site : ${esc(siteFooter)}<br/>Objet : ${esc(config.objet || '')}</div><div class="interiorBadge"><span class="interiorArrow">→</span><span class="interiorPage">Page</span></div></div>`;
 }
 
+// Signatures client recueillies en fin de visite (visitSignature.js).
+async function signaturesRapportHtml(datas, output) {
+  try {
+    const { lireSignatureVisite, signatureHtml } = require('./visitSignature.js');
+    const blocs = [];
+    for (const d of datas || []) {
+      const sig = await lireSignatureVisite(d?.visite?.id);
+      if (sig) blocs.push(signatureHtml(sig, { output, site: (datas || []).length > 1 ? d.visite.nom_site : '' }));
+    }
+    return blocs.join('');
+  } catch (e) {
+    return '';
+  }
+}
+
 export async function construireHtmlRapport(datas, config, photosConfig = [], output = 'pdf') {
   const contenus = [];
   for (const d of datas) contenus.push(await siteHtml(d, config, photosConfig));
@@ -526,6 +541,7 @@ export async function construireHtmlRapport(datas, config, photosConfig = [], ou
       <ul><li>S : Satisfaisant</li><li>N.S : Non satisfaisant</li><li>S.O : Sans objet</li><li>N.R : Non relevé</li><li>N.V : Non visible</li></ul>
     </div>
     ${contenus.join('')}
+    ${await signaturesRapportHtml(datas, output)}
     ${output === 'word' ? wordInteriorDecor(config, siteFooter) : ''}
   </body></html>`;
 }

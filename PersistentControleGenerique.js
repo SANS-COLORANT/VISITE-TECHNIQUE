@@ -4,7 +4,7 @@ import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { PRESCRIPTIONS } from './data.js';
 import { fusionnerPrescriptions } from './reserveExtensions.js';
-import { listerBibliothequeReserves } from './db.js';
+import { listerBibliothequeReserves, getDb } from './db.js';
 import { upsertControlePartiel } from './controlDb.js';
 import {
   listerRemarquesVisite,
@@ -16,6 +16,7 @@ import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 import { BoundedLruMap } from './boundedCache.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 const PRESCRIPTIONS_COMPLETES = fusionnerPrescriptions(PRESCRIPTIONS);
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
@@ -120,7 +121,28 @@ function patchRemarqueCache(visiteId, controleKey, remarque) {
   else entry.data.delete(controleKey);
 }
 
+// Réserve déjà rédigée pour ce même contrôle lors d'autres visites (même site
+// en priorité, sinon la plus fréquente) : proposée en un appui.
+async function reserveHabituelle(remarque) {
+  if (!remarque?.controle_key || !remarque?.visite_id) return null;
+  const db = await getDb();
+  return db.getFirstAsync(
+    `SELECT r.prestation, r.poste, r.estimatif, r.delai, COUNT(*) n,
+            MAX(CASE WHEN v.site_id=(SELECT site_id FROM visites WHERE id=?) THEN 1 ELSE 0 END) meme_site
+       FROM remarques r JOIN visites v ON v.id=r.visite_id
+      WHERE r.controle_key=? AND r.visite_id<>? AND TRIM(COALESCE(r.prestation,''))<>''
+      GROUP BY r.prestation ORDER BY meme_site DESC, n DESC LIMIT 1`,
+    [remarque.visite_id, remarque.controle_key, remarque.visite_id]
+  );
+}
+
 function EditionReserve({ remarque, onPatch }) {
+  const [suggestion, setSuggestion] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    reserveHabituelle(remarque).then((r) => { if (alive) setSuggestion(r || null); }).catch(() => {});
+    return () => { alive = false; };
+  }, [remarque?.id]);
   const [prestation, setPrestation, flushPrestation] = useDurableAutosave(remarque?.prestation || '', async (v) => {
     if (!remarque?.id) return;
     await modifierRemarqueVisite(remarque.id, { prestation: v });
@@ -145,6 +167,23 @@ function EditionReserve({ remarque, onPatch }) {
   if (!remarque?.id) return null;
   return <View style={[styles.prestationResult, { gap: 8 }]}>
     <Text style={styles.criterePanelLabel}>Réserve de cette visite — modifiable</Text>
+    {suggestion && String(suggestion.prestation).trim() !== String(prestation || '').trim() ? <TouchableOpacity
+      accessibilityRole="button"
+      activeOpacity={0.85}
+      onPress={() => {
+        const patch = { prestation: suggestion.prestation || '', poste: suggestion.poste || '', estimatif: suggestion.estimatif, delai: suggestion.delai };
+        setPrestation(patch.prestation); setPoste(patch.poste);
+        setPrix(patch.estimatif == null ? '' : String(patch.estimatif)); setDelai(patch.delai == null ? '' : String(patch.delai));
+        modifierRemarqueVisite(remarque.id, patch).then(() => { onPatch(patch); feedback('Réserve habituelle reprise'); }).catch(() => {});
+      }}
+      style={{ flexDirection: 'row', alignItems: 'center', gap: 10, padding: 11, borderRadius: 14, backgroundColor: '#FFF8F3', borderWidth: 1, borderColor: 'rgba(242,100,38,0.35)' }}
+    >
+      <CvcIcon name="refresh" size={18} color={COLORS.orangeDark} />
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text style={{ fontSize: 11, fontFamily: FONTS.bodyBold, color: COLORS.orangeDark }}>{Number(suggestion.meme_site) ? 'Déjà relevée sur ce site' : `Utilisée ${suggestion.n} fois`} · toucher pour reprendre</Text>
+        <Text numberOfLines={2} style={{ marginTop: 2, fontSize: 12.5, fontFamily: FONTS.bodySemi, color: COLORS.ink }}>{suggestion.prestation}</Text>
+      </View>
+    </TouchableOpacity> : null}
     <Text style={styles.reserveFieldLabel}>Prestation</Text>
     <TextInput style={[styles.input, { minHeight: 72, textAlignVertical: 'top' }]} multiline value={prestation} onChangeText={setPrestation} onBlur={() => flushPrestation().catch(() => {})} placeholder="Prestation / réserve" />
     <Text style={styles.reserveFieldLabel}>Poste</Text>

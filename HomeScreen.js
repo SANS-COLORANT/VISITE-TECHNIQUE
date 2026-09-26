@@ -20,7 +20,7 @@ import { AttachVisitSheet } from './AttachVisitSheet.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { EmptyIcon } from './EmptyState.js';
 
-const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null, quickIds: null };
+const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null, quickIds: null, restes: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
 function chargerEntityManagementModule(){return require('./entityManagementDb.js');}
 
@@ -40,12 +40,13 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
   const [importEnCours, setImportEnCours] = useState(false);
   const [quickSearch, setQuickSearch] = useState('');
   const [visiteARattacher, setVisiteARattacher] = useState(null);
+  const [restes, setRestes] = useState(() => HOME_FAST_CACHE.restes || {});
 
   const charger = useCallback(async () => {
     // Stale-while-revalidate : au retour Accueil on conserve le dernier rendu
     // et chaque bloc se rafraîchit dès que sa requête SQLite est terminée.
     const clientsPromise = listerClients().then((rows) => { HOME_FAST_CACHE.clients = rows || []; setClients(rows || []); });
-    const visitsPromise = listerVisitesEnCours().then((rows) => { HOME_FAST_CACHE.visitesEnCours = rows || []; setVisitesEnCours(rows || []); });
+    const visitsPromise = listerVisitesEnCours().then((rows) => { HOME_FAST_CACHE.visitesEnCours = rows || []; setVisitesEnCours(rows || []); require('./visitTodoDb.js').resumerRestesAFaire(rows || []).then((r) => { HOME_FAST_CACHE.restes = r; setRestes(r); }).catch(() => {}); });
     const statsPromise = compterVisites().then((value) => { HOME_FAST_CACHE.stats = value || { enCours: 0, terminees: 0 }; setStats(HOME_FAST_CACHE.stats); });
     const quickPromise = listerIdsVisitesARattacher().then((ids) => { HOME_FAST_CACHE.quickIds = ids; setQuickIds(ids); }).catch(() => {});
     await Promise.all([clientsPromise, visitsPromise, statsPromise, quickPromise]);
@@ -275,6 +276,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
                   <Text style={{ fontSize: 10, fontFamily: FONTS.bodyBold, letterSpacing: 0.6, textTransform: 'uppercase', color: COLORS.inkFaint }}>Reprendre</Text>
                   <Text numberOfLines={1} style={{ fontSize: 15, fontFamily: FONTS.bold, color: COLORS.ink, marginTop: 2 }}>{reprise.nom_client}</Text>
                   <Text numberOfLines={1} style={{ fontSize: 12, fontFamily: FONTS.bodyMedium, color: COLORS.inkSoft, marginTop: 2 }}>{reprise.nom_site}</Text>
+                  {restes[reprise.id] ? <Text numberOfLines={2} style={{ fontSize: 11.5, fontFamily: FONTS.bodySemi, color: COLORS.amber, marginTop: 3 }}>Reste : {restes[reprise.id]}</Text> : null}
                 </View>
                 <CvcIcon name="chevron-right" size={18} color={COLORS.orangeDark} strokeWidth={2.3} />
               </View>
@@ -290,7 +292,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
             onPress={() => ouvrirVisite(v)}
           >
             <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="clock" size={19} color={COLORS.orangeDark} /></IconOrb>
-            <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{v.nom_client}</Text><Text style={styles.cardSub}>{v.nom_site}</Text></View>
+            <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{v.nom_client}</Text><Text style={styles.cardSub}>{v.nom_site}</Text>{restes[v.id] ? <Text numberOfLines={2} style={{ fontSize: 11, fontFamily: FONTS.bodySemi, color: COLORS.amber, marginTop: 2 }}>Reste : {restes[v.id]}</Text> : null}</View>
             <View style={styles.badge}><Text style={styles.badgeText}>{v.progression_pct}%</Text></View>
             <TouchableOpacity accessibilityLabel="Supprimer cette visite" style={styles.deleteVisiteBtn} onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(v); }}><CvcIcon name="trash" size={13} color={COLORS.red} /></TouchableOpacity>
           </TouchableOpacity></FadeUp>)}

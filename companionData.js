@@ -468,4 +468,15 @@ async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
   return { id: photoId, uri: prepared.uri, entiteKey: cibleKey, label: prepared.label || label };
 }
 
-export { MODULES as COMPANION_MODULES, applyCompanionTargetUpdate, buildCompanionClientSnapshot, buildCompanionVisitSnapshot, assertVisitBelongsToCompanionClient, importCompanionPhoto };
+// Rattache après coup une photo (ex. prise en rafale) à un élément de la visite.
+async function rattacherPhotoCompanion({ visiteId, photoId, targetKey = null, label }) {
+  const db = await openAppDatabase();
+  const row = await db.getFirstAsync(`SELECT label FROM photos WHERE id=? AND visite_id=?`, [photoId, visiteId]);
+  if (!row) throw new Error('Photo introuvable');
+  const suffix = String(row.label || '').split('||')[1];
+  const base = clean(label) || 'Photo terrain';
+  await db.runAsync(`UPDATE photos SET entite_key=?, label=? WHERE id=?`, [targetKey || null, suffix ? `${base}||${suffix}` : base, photoId]);
+  await toucherVisite(visiteId).catch(() => {});
+}
+
+export { MODULES as COMPANION_MODULES, rattacherPhotoCompanion, applyCompanionTargetUpdate, buildCompanionClientSnapshot, buildCompanionVisitSnapshot, assertVisitBelongsToCompanionClient, importCompanionPhoto };

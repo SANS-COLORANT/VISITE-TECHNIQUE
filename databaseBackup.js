@@ -206,3 +206,76 @@ export async function choisirEtRestaurerSauvegardeComplete() {
     try { await FileSystem.deleteAsync(restauration, { idempotent: true }); } catch {}
   }
 }
+
+/*
+ * Sauvegarde automatique quotidienne de la base (sans les photos) dans un
+ * dossier du téléphone choisi une fois (Téléchargements, carte SD, dossier
+ * synchronisé…) : elle survit à une désinstallation de l'application.
+ * Les 7 dernières copies sont conservées.
+ */
+const AUTO_PREFIX = 'Visite_Technique_auto_';
+const AUTO_KEEP = 7;
+const AUTO_MAX_BYTES = 80 * 1024 * 1024;
+let autoEnCours = false;
+
+export async function choisirDossierSauvegardeAuto() {
+  const { getPrefSync, setPrefSync, PREFS } = require('./uiPrefs.js');
+  const saf = FileSystem.StorageAccessFramework;
+  if (!saf) throw new Error('Choix de dossier indisponible sur cet appareil.');
+  const perm = await saf.requestDirectoryPermissionsAsync();
+  if (!perm.granted) return null;
+  setPrefSync(PREFS.dossierSauvegardeAuto, perm.directoryUri);
+  setPrefSync(PREFS.derniereSauvegardeAuto, null);
+  await sauvegardeAutoSiNecessaire({ force: true });
+  return { dossier: perm.directoryUri, derniere: getPrefSync(PREFS.derniereSauvegardeAuto, null) };
+}
+
+export function desactiverSauvegardeAuto() {
+  const { setPrefSync, PREFS } = require('./uiPrefs.js');
+  setPrefSync(PREFS.dossierSauvegardeAuto, null);
+}
+
+export function etatSauvegardeAuto() {
+  const { getPrefSync, PREFS } = require('./uiPrefs.js');
+  const dossier = getPrefSync(PREFS.dossierSauvegardeAuto, null);
+  let libelle = null;
+  try { libelle = decodeURIComponent(String(dossier || '').split('/tree/')[1] || '').replace(/^primary:/, 'Stockage interne/'); } catch {}
+  return { actif: Boolean(dossier), dossier: libelle || dossier, derniere: getPrefSync(PREFS.derniereSauvegardeAuto, null) };
+}
+
+export async function sauvegardeAutoSiNecessaire({ force = false } = {}) {
+  const { getPrefSync, setPrefSync, PREFS } = require('./uiPrefs.js');
+  const dossier = getPrefSync(PREFS.dossierSauvegardeAuto, null);
+  const saf = FileSystem.StorageAccessFramework;
+  if (!dossier || !saf || autoEnCours) return { fait: false };
+  const derniere = getPrefSync(PREFS.derniereSauvegardeAuto, null);
+  if (!force && derniere && Date.now() - Date.parse(derniere) < 20 * 3600 * 1000) return { fait: false };
+  autoEnCours = true;
+  try {
+    const db = await getDb();
+    await db.execAsync('PRAGMA wal_checkpoint(TRUNCATE);');
+    const source = cheminBaseSQLite();
+    const info = await FileSystem.getInfoAsync(source, { size: true });
+    if (!info.exists) return { fait: false };
+    if (info.size > AUTO_MAX_BYTES) throw new Error('Base trop volumineuse pour la sauvegarde automatique : utilise la sauvegarde complète.');
+    const contenu = await FileSystem.readAsStringAsync(source, { encoding: FileSystem.EncodingType.Base64 });
+    const jour = horodatageSauvegarde().slice(0, 10);
+    const existants = await saf.readDirectoryAsync(dossier).catch(() => []);
+    const memeJour = existants.filter((u) => decodeURIComponent(u).includes(`${AUTO_PREFIX}${jour}`));
+    const cible = await saf.createFileAsync(dossier, `${AUTO_PREFIX}${jour}.db`, 'application/octet-stream');
+    await saf.writeAsStringAsync(cible, contenu, { encoding: FileSystem.EncodingType.Base64 });
+    for (const ancien of memeJour) await saf.deleteAsync(ancien, { idempotent: true }).catch(() => {});
+    const autos = existants
+      .filter((u) => decodeURIComponent(u).includes(AUTO_PREFIX) && !memeJour.includes(u))
+      .sort((a, b) => decodeURIComponent(b).localeCompare(decodeURIComponent(a)));
+    for (const ancien of autos.slice(AUTO_KEEP - 1)) await saf.deleteAsync(ancien, { idempotent: true }).catch(() => {});
+    setPrefSync(PREFS.derniereSauvegardeAuto, new Date().toISOString());
+    return { fait: true };
+  } catch (e) {
+    console.warn('Sauvegarde automatique impossible', e);
+    if (force) throw e;
+    return { fait: false, erreur: String(e?.message || e) };
+  } finally {
+    autoEnCours = false;
+  }
+}

@@ -12,7 +12,12 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { BlurView } from '@react-native-community/blur';
 import Svg, { Circle, Defs, RadialGradient, Rect, Stop } from 'react-native-svg';
 
+import { getPrefSync, PREFS } from './uiPrefs.js';
+
 const AnimatedCircle = Animated.createAnimatedComponent(Circle);
+// Plein soleil : halos atténués et verre plus opaque (lisibilité).
+const SUN = getPrefSync(PREFS.pleinSoleil, '0') === '1';
+const HALO = SUN ? 0.4 : 1;
 
 /**
  * Fond ambiant de la DA "Verre chaud" : deux halos de la couleur d'accent en
@@ -26,12 +31,12 @@ function AmbientBackground({ accent = '#F26426' }) {
       <Svg width={width} height={height}>
         <Defs>
           <RadialGradient id="ambientTop" cx={width * 0.92} cy={height * 0.02} r={width * 0.78} gradientUnits="userSpaceOnUse">
-            <Stop offset="0" stopColor={accent} stopOpacity="0.30" />
-            <Stop offset="0.55" stopColor={accent} stopOpacity="0.08" />
+            <Stop offset="0" stopColor={accent} stopOpacity={0.30 * HALO} />
+            <Stop offset="0.55" stopColor={accent} stopOpacity={0.08 * HALO} />
             <Stop offset="1" stopColor={accent} stopOpacity="0" />
           </RadialGradient>
           <RadialGradient id="ambientSide" cx={-width * 0.05} cy={height * 0.46} r={width * 0.62} gradientUnits="userSpaceOnUse">
-            <Stop offset="0" stopColor={accent} stopOpacity="0.14" />
+            <Stop offset="0" stopColor={accent} stopOpacity={0.14 * HALO} />
             <Stop offset="1" stopColor={accent} stopOpacity="0" />
           </RadialGradient>
         </Defs>
@@ -185,11 +190,11 @@ const styles = StyleSheet.create({
   glassClip: {
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(22,21,15,0.09)',
+    borderColor: SUN ? 'rgba(22,21,15,0.22)' : 'rgba(22,21,15,0.09)',
   },
   glassTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.45)',
+    backgroundColor: SUN ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.45)',
   },
   glassContent: {
     position: 'relative',

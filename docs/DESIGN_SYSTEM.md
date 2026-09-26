@@ -128,3 +128,23 @@ cartes de verre avec pastille d'état et compteur. Mesures : `StepperNumerique`
   de plaque → fiche pré-remplie), Remarque (photo + dictée), Photo libre ;
   puis « Tout parcourir » par module. En quittant, la visite est rechargée.
 - **Compagnon** : icône téléphone en haut de l'accueil.
+
+## Outils terrain (lot « 14 améliorations »)
+
+- Mode Photo : valeur lue (OCR) ou dictée toujours **confirmée** dans une
+  barre (valeur modifiable, visite précédente et écart ; index qui baisse en
+  orange). « Relever à la suite » enchaîne photo → validation → suivant.
+  « Dicter » : « gaz 12 458 », « départ chauffage 72 virgule 5 ». « Rafale » :
+  photos à la chaîne puis tri (rattacher à un élément).
+- Visite : reprise annoncée (« Reprise à l'onglet … »), « Enregistré il y a … »,
+  onglets en bas en option (Réglages), bouton de fin (aperçu du rapport,
+  signature client, export Excel).
+- N.S : la réserve déjà rédigée pour ce contrôle (même site en priorité) est
+  proposée en un appui.
+- Réglages › Affichage terrain : Plein soleil (contraste, redémarrage),
+  Onglets en bas. Sauvegardes : copie quotidienne de la base dans un dossier
+  du téléphone (7 conservées).
+- Accueil : « Reste : 2 N.S sans photo · 1 index à relever · à faire signer »
+  sous les visites en cours.
+- Préférences d'interface : uiPrefs.js (SQLite séparée, lecture synchrone).
+- Signature : _meta `signature_visite_<id>`, rendue en fin de rapport PDF.
