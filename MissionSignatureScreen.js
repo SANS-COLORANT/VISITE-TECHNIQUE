@@ -68,7 +68,7 @@ export function MissionSignatureScreen({ navigation, route }) {
     ]);
   };
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg, padding: 16 }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent', padding: 16 }}>
     <Text style={[styles.sectionTitle, missionStyles.title]}>Signature Mission</Text>
     <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15, marginBottom: 12 }}>
       À utiliser uniquement lorsqu’une recette l’exige : passation contradictoire, OPR/réception ou PV.
@@ -79,7 +79,7 @@ export function MissionSignatureScreen({ navigation, route }) {
     <View
       {...pan.panHandlers}
       onLayout={(e) => { canvasRef.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height }; }}
-      style={{ flex: 1, minHeight: 280, maxHeight: 440, marginTop: 14, backgroundColor: '#FFFFFF', borderWidth: 1, borderColor: MISSION_COLORS.accentLine, borderRadius: 14, overflow: 'hidden' }}
+      style={{ flex: 1, minHeight: 280, maxHeight: 440, marginTop: 14, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: MISSION_COLORS.accentLine, borderRadius: 14, overflow: 'hidden' }}
     >
       <Svg width="100%" height="100%">
         {strokes.map((stroke, index) => <Path key={index} d={pathFromPoints(stroke)} stroke={MISSION_COLORS.accentStrong} strokeWidth={3} fill="none" strokeLinecap="round" strokeLinejoin="round" />)}

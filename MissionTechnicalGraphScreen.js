@@ -2,10 +2,11 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import Svg, { Circle, G, Line, Rect, Text as SvgText } from 'react-native-svg';
 import { getDb } from './db.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { relierEquipementsMission } from './missionDomainDb.js';
 import { resolveEquipmentCategory } from './missionEquipmentCatalog.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 const NODE_W = 150;
 const NODE_H = 60;
@@ -259,7 +260,7 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
     return <View style={styles.center}><ActivityIndicator color={MISSION_COLORS.accent} /><Text style={{ marginTop: 8, color: COLORS.muted }}>Construction du synoptique…</Text></View>;
   }
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <View style={{ paddingHorizontal: 16, paddingTop: 12, paddingBottom: 8 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Relations techniques</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -276,14 +277,14 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
           onPress={() => setSiteFilter('all')}
           style={{ borderWidth: 1, borderColor: siteFilter === 'all' ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: siteFilter === 'all' ? MISSION_COLORS.accentLight : '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6 }}
         >
-          <Text style={{ color: siteFilter === 'all' ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>Tous les sites</Text>
+          <Text style={{ color: siteFilter === 'all' ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontFamily: FONTS.bold }}>Tous les sites</Text>
         </TouchableOpacity>
         {sites.map((site) => <TouchableOpacity
           key={site.id}
           onPress={() => setSiteFilter(site.id)}
           style={{ borderWidth: 1, borderColor: siteFilter === site.id ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: siteFilter === site.id ? MISSION_COLORS.accentLight : '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6 }}
         >
-          <Text style={{ color: siteFilter === site.id ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{site.label}</Text>
+          <Text style={{ color: siteFilter === site.id ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontFamily: FONTS.bold }}>{site.label}</Text>
         </TouchableOpacity>)}
       </ScrollView>
       <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 5 }}>{visibleEquipment.length} équipement(s) · {visibleRelations.length} liaison(s) affichée(s)</Text>
@@ -393,7 +394,7 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
     {selected ? <View style={[styles.card, missionStyles.card, { margin: 16, marginTop: 8 }]}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 13 }}>{nodeLabel(selected)}</Text>
+          <Text style={{ color: MISSION_COLORS.accentStrong, fontFamily: FONTS.black, fontSize: 13 }}>{nodeLabel(selected)}</Text>
           <Text style={{ color: COLORS.inkSoft, fontSize: 10, marginTop: 3 }}>{subLabel(selected) || 'Caractéristiques à compléter'}</Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 9.5, marginTop: 3 }}>{selected.site_name || ''}{selected.location_label ? ' · ' + selected.location_label : ''}</Text>
           <TouchableOpacity
@@ -403,7 +404,7 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
             <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Ouvrir la fiche équipement</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={() => setSelected(null)} style={{ padding: 5 }}><Text style={{ color: COLORS.inkFaint }}>✕</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => setSelected(null)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={COLORS.inkFaint} strokeWidth={2.1} /></TouchableOpacity>
       </View>
     </View> : null}
     <Modal visible={relationModal} transparent animationType="fade" onRequestClose={() => setRelationModal(false)}>
@@ -412,7 +413,7 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
         <Text style={{ color: COLORS.inkSoft, fontSize: 10, lineHeight: 14, marginBottom: 10 }}>
           {linkSource ? nodeLabel(linkSource) : ''} → {linkTarget ? nodeLabel(linkTarget) : ''}
         </Text>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '900', marginBottom: 5 }}>RELATION RAPIDE</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontFamily: FONTS.black, marginBottom: 5 }}>RELATION RAPIDE</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 43, marginBottom: 8 }}>
           {RELATION_PRESETS.map(([key,label]) => {
             const selectedPreset = relationType === key;
@@ -429,7 +430,7 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
                 marginRight: 6,
               }}
             >
-              <Text style={{ color: selectedPreset ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.6, fontWeight: '900' }}>{label}</Text>
+              <Text style={{ color: selectedPreset ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.6, fontFamily: FONTS.black }}>{label}</Text>
             </TouchableOpacity>;
           })}
         </ScrollView>

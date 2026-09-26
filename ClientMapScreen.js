@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Linking, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import MapView, { Marker, PROVIDER_GOOGLE } from 'react-native-maps';
 import Svg, { Circle, G, Line, Rect, Text as SvgText } from 'react-native-svg';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { listerSitesClient } from './db.js';
 import { coordonneeValide, synchroniserCoordonneesClient } from './siteGeoDb.js';
 import { GOOGLE_MAPS_BUILD_ENABLED } from './googleMapsRuntime.generated.js';
@@ -52,7 +52,7 @@ function OfflineMetraMap({ points, selection, onSelect }) {
   if (!points.length) {
     return (
       <View style={{ minHeight: 280, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
-        <Text style={{ fontWeight: '800', textAlign: 'center' }}>Aucun point cartographique disponible pour cette sélection.</Text>
+        <Text style={{ fontFamily: FONTS.bold, textAlign: 'center' }}>Aucun point cartographique disponible pour cette sélection.</Text>
         <Text style={{ color: COLORS.muted, textAlign: 'center', marginTop: 6 }}>
           Les adresses restent enregistrées et seront positionnées automatiquement dès qu’une connexion sera disponible.
         </Text>
@@ -96,7 +96,7 @@ function ModeButton({ actif, disabled, children, onPress }) {
         opacity: disabled ? 0.42 : 1,
       }}
     >
-      <Text style={{ color: actif ? '#fff' : COLORS.inkSoft, fontSize: 11.5, fontWeight: '800' }}>{children}</Text>
+      <Text style={{ color: actif ? '#fff' : COLORS.inkSoft, fontSize: 11.5, fontFamily: FONTS.bold }}>{children}</Text>
     </TouchableOpacity>
   );
 }
@@ -235,10 +235,10 @@ function ClientMapScreen({ route, navigation }) {
   const mapKey = `${modeFond}-${positionnes.map((s) => s.id).join('-')}`;
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
       <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }}>
         <View style={{ marginBottom: 12 }}>
-          <Text style={{ fontSize: 20, fontWeight: '900', color: COLORS.ink }}>Carte METRA · {nomClient || 'Client'}</Text>
+          <Text style={{ fontSize: 20, fontFamily: FONTS.black, color: COLORS.ink }}>Carte METRA · {nomClient || 'Client'}</Text>
           <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 4 }}>
             Google Maps et Satellite sont utilisés quand Internet est disponible. Sans réseau, METRA conserve les positions des sites et bascule sur son fond hors ligne sans demander la position de la tablette.
           </Text>
@@ -252,16 +252,16 @@ function ClientMapScreen({ route, navigation }) {
         />
 
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
-          <View style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.line }}>
-            <Text style={{ fontSize: 19, fontWeight: '900' }}>{positionnes.length}</Text>
+          <View style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' }}>
+            <Text style={{ fontSize: 19, fontFamily: FONTS.black }}>{positionnes.length}</Text>
             <Text style={{ color: COLORS.muted, fontSize: 11 }}>sites visibles sur la carte</Text>
           </View>
-          <View style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.line }}>
-            <Text style={{ fontSize: 19, fontWeight: '900' }}>{sansPosition.length}</Text>
+          <View style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' }}>
+            <Text style={{ fontSize: 19, fontFamily: FONTS.black }}>{sansPosition.length}</Text>
             <Text style={{ color: COLORS.muted, fontSize: 11 }}>adresses en attente de synchronisation</Text>
           </View>
-          <View style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.line }}>
-            <Text style={{ fontSize: 14, fontWeight: '900', color: online === true ? '#18794E' : online === false ? '#A26A00' : COLORS.muted }}>
+          <View style={{ flex: 1, padding: 10, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' }}>
+            <Text style={{ fontSize: 14, fontFamily: FONTS.black, color: online === true ? '#18794E' : online === false ? '#A26A00' : COLORS.muted }}>
               {online === true ? 'EN LIGNE' : online === false ? 'HORS LIGNE' : 'TEST…'}
             </Text>
             <Text style={{ color: COLORS.muted, fontSize: 11 }}>fond cartographique</Text>
@@ -285,7 +285,7 @@ function ClientMapScreen({ route, navigation }) {
         {syncing ? <ActivityIndicator style={{ marginTop: 8 }} /> : null}
         {message ? <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 8 }}>{message}</Text> : null}
 
-        <View style={{ marginTop: 14, height: 560, borderRadius: 14, overflow: 'hidden', backgroundColor: '#F5F7F8', borderWidth: 1, borderColor: COLORS.line }}>
+        <View style={{ marginTop: 14, height: 560, borderRadius: 14, overflow: 'hidden', backgroundColor: '#F5F7F8', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' }}>
           {modeFond !== 'offline' && googleAffichable ? (
             <MapView
               key={mapKey}
@@ -321,8 +321,8 @@ function ClientMapScreen({ route, navigation }) {
         </Text>
 
         {selection ? (
-          <View style={{ marginTop: 12, padding: 14, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.line }}>
-            <Text style={{ fontSize: 17, fontWeight: '900' }}>{selection.nom_site}</Text>
+          <View style={{ marginTop: 12, padding: 14, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' }}>
+            <Text style={{ fontSize: 17, fontFamily: FONTS.black }}>{selection.nom_site}</Text>
             <Text style={{ color: COLORS.inkSoft, marginTop: 4 }}>{selection.adresse || 'Adresse à renseigner'}</Text>
             {selection.localisation_note ? <Text style={{ color: COLORS.muted, marginTop: 5 }}>{selection.localisation_note}</Text> : null}
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>

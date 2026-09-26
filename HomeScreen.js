@@ -221,7 +221,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
       data={clientsVisibles}
       keyExtractor={(i) => i.id}
       ListHeaderComponent={<>
-        {missionsEnabled ? <View style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: MISSION_COLORS.accentSoft }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, fontWeight: '800' }}>Glisser vers la droite → Missions</Text></View> : null}
+        {missionsEnabled ? <View style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: MISSION_COLORS.accentSoft }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, fontFamily: FONTS.bold }}>Glisser vers la droite → Missions</Text></View> : null}
         <FadeUp style={{ marginBottom: 14 }}>
           <View style={{ minHeight: 50, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', flexDirection: 'row', alignItems: 'center', paddingLeft: 14, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 3 }}>
             <CvcIcon name="search" size={18} color="#98A2B3" strokeWidth={2.1} />
@@ -237,7 +237,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
               returnKeyType="search"
             />
             <TouchableOpacity accessibilityLabel="Lancer la recherche" onPress={openDirectory} style={{ minWidth: 50, minHeight: 48, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: COLORS.orange || '#E86F2D', fontWeight: '900', fontSize: 18 }}>→</Text>
+              <CvcIcon name="chevron-right" size={19} color={COLORS.orange || '#E86F2D'} strokeWidth={2.1} />
             </TouchableOpacity>
           </View>
         </FadeUp>
@@ -307,7 +307,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
         <PatrimoineThumbnail uri={item.image_uri} size={54} radius={10} />
         <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom}</Text>{item.code_exploitant ? <Text style={styles.cardSub}>{item.code_exploitant}</Text> : null}</View>
         <TouchableOpacity accessibilityLabel={`Supprimer ${item.nom}`} onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionClient(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="trash" size={15} color={COLORS.red} /></TouchableOpacity>
-        <Text style={styles.chevron}>›</Text>
+        <CvcIcon name="chevron-right" size={18} color={COLORS.orangeDark} strokeWidth={2.1} />
       </TouchableOpacity>}
       ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucun client local</Text><Text style={styles.emptySub}>Utilise la recherche ci-dessus pour retrouver un client ou un site synchronisé, ou crée un client manuellement.</Text></View>}
     />

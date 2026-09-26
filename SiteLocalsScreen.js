@@ -2,10 +2,11 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { getDb, uuidv4 } from './db.js';
 import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollOffset } from './navigationMemory.js';
 import { peekSiteLocals, prewarmLocalVisits, prewarmSiteLocals } from './navigationPrewarm.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 function SiteLocalsScreen({ route, navigation }) {
   const { siteId, nomSite, clientId, nomClient } = route?.params || {};
@@ -124,17 +125,17 @@ function SiteLocalsScreen({ route, navigation }) {
       ListHeaderComponent={<View>
         <View style={{ marginBottom: 16 }}>
           <Text style={styles.sectionLabel}>Site</Text>
-          <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 18 }}>{nomSite || 'Site'}</Text>
+          <Text style={{ color: COLORS.ink, fontFamily: FONTS.black, fontSize: 18 }}>{nomSite || 'Site'}</Text>
           {nomClient ? <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 3 }}>{nomClient}</Text> : null}
         </View>
 
-        <View style={{ padding: 13, borderRadius: 13, borderWidth: 1, borderColor: COLORS.line, backgroundColor: '#fff', marginBottom: 15 }}>
-          <Text style={{ color: COLORS.ink, fontWeight: '800', fontSize: 13 }}>Choisis un local</Text>
+        <View style={{ padding: 13, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.82)', marginBottom: 15 }}>
+          <Text style={{ color: COLORS.ink, fontFamily: FONTS.bold, fontSize: 13 }}>Choisis un local</Text>
           <Text style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16, marginTop: 4 }}>Chaque local possède son propre historique. Une nouvelle visite créée ensuite reste rattachée uniquement à ce local.</Text>
         </View>
 
         {legacyCount > 0 ? <TouchableOpacity onPress={ouvrirVisitesNonRattachees} style={{ padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E7C77A', backgroundColor: '#FFF8E7', marginBottom: 14 }}>
-          <Text style={{ color: '#7A5700', fontWeight: '900', fontSize: 12 }}>{legacyCount} ancienne{legacyCount > 1 ? 's' : ''} visite{legacyCount > 1 ? 's' : ''} sans local</Text>
+          <Text style={{ color: '#7A5700', fontFamily: FONTS.black, fontSize: 12 }}>{legacyCount} ancienne{legacyCount > 1 ? 's' : ''} visite{legacyCount > 1 ? 's' : ''} sans local</Text>
           <Text style={{ color: '#7A5700', fontSize: 11, marginTop: 3 }}>Elles restent accessibles sans être attribuées automatiquement à un mauvais local. ›</Text>
         </TouchableOpacity> : null}
 
@@ -159,7 +160,7 @@ function SiteLocalsScreen({ route, navigation }) {
           onPressIn={() => prewarmLocalVisits({ siteId, installationId: item.installation_id }).catch(() => {})}
           onPress={() => ouvrirLocal(item)}
         >
-          <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
+          <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.66)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
             <Text style={{ fontSize: 20 }}>▣</Text>
           </View>
           <View style={{ flex: 1 }}>
@@ -170,7 +171,7 @@ function SiteLocalsScreen({ route, navigation }) {
             {item.remote_trame_nom ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 3 }}>Trame Intranet · {item.remote_trame_nom}</Text> : null}
           </View>
           {item.remote_local_id ? <View style={[styles.badge, styles.badgeActif]}><Text style={[styles.badgeText, styles.badgeTextActif]}>Intranet</Text></View> : null}
-          <Text style={{ color: '#98A2B3', fontSize: 24, marginLeft: 8 }}>›</Text>
+          <CvcIcon name="chevron-right" size={25} color={'#98A2B3'} strokeWidth={2.1} />
         </TouchableOpacity>;
       }}
       ListEmptyComponent={loading

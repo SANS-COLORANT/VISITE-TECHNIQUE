@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { bindVisitToIntranetTarget, getVisitIntranetBindingOptions } from './intranetVisitBindingDb.js';
 import { syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 function OptionRow({ selected, disabled = false, title, subtitle, onPress }) {
   return <TouchableOpacity accessibilityRole="button" disabled={disabled} onPress={onPress} style={{
     minHeight: 48, borderRadius: 11, borderWidth: 1, borderColor: selected ? COLORS.primary : COLORS.line,
     backgroundColor: selected ? '#FFF3E8' : '#FFFFFF', paddingHorizontal: 11, paddingVertical: 9, marginBottom: 7, opacity: disabled ? 0.55 : 1,
   }}>
-    <Text style={{ color: selected ? COLORS.primary : COLORS.ink, fontSize: 12.5, fontWeight: '900' }}>{selected ? '✓ ' : ''}{title}</Text>
+    <Text style={{ color: selected ? COLORS.primary : COLORS.ink, fontSize: 12.5, fontFamily: FONTS.black }}>{selected ? '✓ ' : ''}{title}</Text>
     {subtitle ? <Text style={{ color: disabled ? '#B42318' : COLORS.muted, fontSize: 10.5, lineHeight: 15, marginTop: 2 }}>{subtitle}</Text> : null}
   </TouchableOpacity>;
 }
@@ -106,28 +107,28 @@ export function IntranetVisitDestinationPicker({ visible, visiteId, onClose, onB
     <View style={styles.modalOverlay}><View style={[styles.modalSheet, { height: '90%', maxHeight: '90%', borderTopLeftRadius: 20, borderTopRightRadius: 20, overflow: 'hidden' }]}>
       <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 8 }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: COLORS.primary, fontSize: 10, fontWeight: '900', letterSpacing: 0.7 }}>DESTINATION INTRANET</Text>
+          <Text style={{ color: COLORS.primary, fontSize: 10, fontFamily: FONTS.black, letterSpacing: 0.7 }}>DESTINATION INTRANET</Text>
           <Text style={[styles.modalTitle, { marginTop: 4 }]}>Associer cette visite avant l’envoi</Text>
           <Text style={[styles.cardSub, { lineHeight: 17 }]}>La visite peut avoir été créée normalement dans METRA. Elle n’a pas besoin d’avoir été ouverte depuis « Préparer ».</Text>
         </View>
-        <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.muted, fontSize: 19 }}>✕</Text></TouchableOpacity>
+        <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={20} color={COLORS.muted || COLORS.inkSoft} strokeWidth={2.1} /></TouchableOpacity>
       </View>
 
       <TouchableOpacity accessibilityRole="button" disabled={refreshing || busy} onPress={refreshRemote} style={[styles.btnSecondary, { minHeight: 44, marginTop: 11, marginBottom: 8 }]}>
         <Text style={styles.btnSecondaryText}>{refreshing ? 'Actualisation Intranet…' : clientId ? '↻ Actualiser clients, sites et locaux' : '↻ Actualiser les clients Intranet'}</Text>
       </TouchableOpacity>
-      {error ? <View style={{ backgroundColor: '#FFF1F0', borderWidth: 1, borderColor: '#F7C7C3', borderRadius: 10, padding: 9, marginBottom: 8 }}><Text style={{ color: '#B42318', fontSize: 11.5, lineHeight: 16, fontWeight: '700' }}>{error}</Text></View> : null}
+      {error ? <View style={{ backgroundColor: '#FFF1F0', borderWidth: 1, borderColor: '#F7C7C3', borderRadius: 10, padding: 9, marginBottom: 8 }}><Text style={{ color: '#B42318', fontSize: 11.5, lineHeight: 16, fontFamily: FONTS.bodyBold }}>{error}</Text></View> : null}
       {busy && !options ? <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={COLORS.primary} /><Text style={{ color: COLORS.muted, marginTop: 8 }}>Lecture des correspondances Intranet…</Text></View> : <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 12 }} keyboardShouldPersistTaps="handled">
-        <Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '900', marginTop: 6, marginBottom: 6 }}>1 · Client Intranet</Text>
+        <Text style={{ color: COLORS.ink, fontSize: 12, fontFamily: FONTS.black, marginTop: 6, marginBottom: 6 }}>1 · Client Intranet</Text>
         {clients.length ? clients.map((row) => <OptionRow key={row.remote_client_id} selected={String(row.remote_client_id) === String(clientId)} title={row.nom || `Client ${row.remote_client_id}`} subtitle={[row.code_everwin, row.ville, `ID ${row.remote_client_id}`].filter(Boolean).join(' · ')} onPress={() => chooseClient(row.remote_client_id)} />) : <Text style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16, marginBottom: 8 }}>Aucun client autorisé en cache. Actualise l’Intranet ou vérifie l’activation de la tablette.</Text>}
 
-        {clientId ? <><Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '900', marginTop: 8, marginBottom: 6 }}>2 · Site Intranet</Text>
+        {clientId ? <><Text style={{ color: COLORS.ink, fontSize: 12, fontFamily: FONTS.black, marginTop: 8, marginBottom: 6 }}>2 · Site Intranet</Text>
           {sites.length ? sites.map((row) => <OptionRow key={row.remote_site_id} selected={String(row.remote_site_id) === String(siteId)} title={row.nom || `Site ${row.remote_site_id}`} subtitle={`ID ${row.remote_site_id}${row.local_site_id ? ' · déjà relié à METRA' : ''}`} onPress={() => chooseSite(row.remote_site_id)} />) : <Text style={{ color: '#B42318', fontSize: 11.5, lineHeight: 16, marginBottom: 8 }}>Aucun site trouvé pour ce client. Utilise « Actualiser » : si l’Intranet ne renvoie toujours aucun site, l’envoi ne peut pas être construit avec l’API actuelle.</Text>}
         </> : null}
 
-        {siteId ? <><Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '900', marginTop: 8, marginBottom: 6 }}>3 · Local / installation Intranet</Text>
+        {siteId ? <><Text style={{ color: COLORS.ink, fontSize: 12, fontFamily: FONTS.black, marginTop: 8, marginBottom: 6 }}>3 · Local / installation Intranet</Text>
           {locals.length ? locals.map((row) => <OptionRow key={row.remote_local_id} selected={String(row.remote_local_id) === String(localId)} disabled={!row.compatible} title={row.designation || `Local ${row.remote_local_id}`} subtitle={[row.remote_trame_nom || 'Trame Intranet non renseignée', row.derniere_visite_date ? `dernière visite ${String(row.derniere_visite_date).slice(0,10)}` : null, `ID ${row.remote_local_id}`, row.compatible ? null : (row.compatibilityReason || 'Local non envoyable avec cette trame')].filter(Boolean).join(' · ')} onPress={() => setLocalId(String(row.remote_local_id))} />) : <Text style={{ color: '#B42318', fontSize: 11.5, lineHeight: 16, marginBottom: 8 }}>Aucun local trouvé sur ce site. Actualise les données du client. Le POST Intranet exige un localId : METRA ne peut pas inventer ce rattachement.</Text>}
-          {locals.length && !locals.some((row) => row.compatible) ? <View style={{ backgroundColor: '#FFF8ED', borderWidth: 1, borderColor: '#F1D2A6', borderRadius: 10, padding: 9, marginTop: 2, marginBottom: 8 }}><Text style={{ color: '#805017', fontSize: 11, lineHeight: 16, fontWeight: '700' }}>Aucun local de ce site ne fournit actuellement une trame Intranet complète et compatible. Actualise d’abord. Si le message reste affiché, la trame doit être renseignée côté Intranet avant l’envoi ; la visite METRA reste conservée.</Text></View> : null}
+          {locals.length && !locals.some((row) => row.compatible) ? <View style={{ backgroundColor: '#FFF8ED', borderWidth: 1, borderColor: '#F1D2A6', borderRadius: 10, padding: 9, marginTop: 2, marginBottom: 8 }}><Text style={{ color: '#805017', fontSize: 11, lineHeight: 16, fontFamily: FONTS.bodyBold }}>Aucun local de ce site ne fournit actuellement une trame Intranet complète et compatible. Actualise d’abord. Si le message reste affiché, la trame doit être renseignée côté Intranet avant l’envoi ; la visite METRA reste conservée.</Text></View> : null}
         </> : null}
       </ScrollView>}
 

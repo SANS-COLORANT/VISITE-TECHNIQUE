@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getDb } from './db.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import {
   chargerExecutionEssai,
@@ -16,6 +16,7 @@ import { creerPointMission } from './missionsDb.js';
 import { creerActionMission } from './missionDomainDb.js';
 import { modifierEquipementMission } from './missionEquipmentDb.js';
 import { getMissionTestPresets } from './missionTestPresets.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 const STATUS_OPTIONS = [
   ['ok', 'OK'],
@@ -38,7 +39,7 @@ function Chip({ label, selected, onPress }) {
       marginRight: 6,
       marginBottom: 6,
     }}
-  ><Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{label}</Text></TouchableOpacity>;
+  ><Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontFamily: FONTS.bold }}>{label}</Text></TouchableOpacity>;
 }
 
 function parseSteps(text) {
@@ -277,7 +278,7 @@ export function MissionTestsScreen({ route }) {
     await load();
   };
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Essais · Commissioning</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -306,7 +307,7 @@ export function MissionTestsScreen({ route }) {
       {protocols.map((p) => <View key={p.id} style={[missionStyles.card, { padding: 12, marginBottom: 8 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11.5, fontWeight: '900' }}>{p.label}</Text>
+            <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11.5, fontFamily: FONTS.black }}>{p.label}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 2 }}>{p.type || 'Protocole'} · {p.steps.length} étape(s)</Text>
             {p.description ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, marginTop: 4 }}>{p.description}</Text> : null}
           </View>
@@ -329,11 +330,11 @@ export function MissionTestsScreen({ route }) {
           <TouchableOpacity onPress={() => openRun(r.id)}>
             <View style={{ flexDirection: 'row' }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 10.8 }}>{r.protocol_label}</Text>
+                <Text style={{ color: COLORS.ink, fontFamily: FONTS.black, fontSize: 10.8 }}>{r.protocol_label}</Text>
                 <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 2 }}>{[r.site_name, r.equipment_type, passNumber ? 'Passage ' + passNumber : null].filter(Boolean).join(' · ') || 'Sans rattachement'}</Text>
               </View>
               <View style={{ alignItems: 'flex-end' }}>
-                <Text style={{ color: r.status === 'completed' ? MISSION_COLORS.accentDark : '#8A5B14', fontSize: 9, fontWeight: '900' }}>{r.status}</Text>
+                <Text style={{ color: r.status === 'completed' ? MISSION_COLORS.accentDark : '#8A5B14', fontSize: 9, fontFamily: FONTS.black }}>{r.status}</Text>
                 <Text style={{ color: Number(r.deviations_count || 0) ? '#8B3A3A' : COLORS.inkFaint, fontSize: 8.7 }}>{r.deviations_count || 0} écart(s)</Text>
               </View>
             </View>
@@ -342,7 +343,7 @@ export function MissionTestsScreen({ route }) {
             onPress={() => repeatRun(r)}
             style={{ alignSelf: 'flex-start', marginTop: 7, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6, backgroundColor: MISSION_COLORS.accentSoft }}
           >
-            <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.3, fontWeight: '900' }}>↻ Rejouer · nouveau passage</Text>
+            <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.3, fontFamily: FONTS.black }}>↻ Rejouer · nouveau passage</Text>
           </TouchableOpacity> : null}
         </View>;
       })}
@@ -390,17 +391,17 @@ export function MissionTestsScreen({ route }) {
     </Modal>
 
     <Modal visible={!!runData} animationType="slide" onRequestClose={() => setRunData(null)}>
-      <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+      <View style={{ flex: 1, backgroundColor: 'transparent' }}>
         <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 10, backgroundColor: MISSION_COLORS.accentStrong, flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => setRunData(null)} style={{ paddingRight: 12 }}><Text style={{ color: '#FFFFFF', fontSize: 21 }}>←</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setRunData(null)} style={{ paddingRight: 12 }}><CvcIcon name="chevron-left" size={22} color={'#FFFFFF'} strokeWidth={2.1} /></TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: '#BFE2CC', fontSize: 8.5, fontWeight: '900' }}>ESSAI MISSION</Text>
-            <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 14 }}>{runData?.run?.protocol_label}</Text>
+            <Text style={{ color: '#BFE2CC', fontSize: 8.5, fontFamily: FONTS.black }}>ESSAI MISSION</Text>
+            <Text style={{ color: '#FFFFFF', fontFamily: FONTS.black, fontSize: 14 }}>{runData?.run?.protocol_label}</Text>
           </View>
         </View>
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 90 }}>
           {runData?.previousRun ? <View style={[missionStyles.card, { padding: 10, marginBottom: 10, borderColor: '#D7DDD9' }]}>
-            <Text style={{ color: COLORS.inkFaint, fontSize: 8, fontWeight: '900' }}>COMPARAISON AVEC LE PASSAGE PRÉCÉDENT</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8, fontFamily: FONTS.black }}>COMPARAISON AVEC LE PASSAGE PRÉCÉDENT</Text>
             <Text style={{ color: COLORS.inkSoft, fontSize: 8.8, lineHeight: 12, marginTop: 3 }}>
               {runData.previousRun.completed_at || runData.previousRun.started_at || ''} · les anciennes valeurs restent visibles sans être recopiées.
             </Text>
@@ -408,11 +409,11 @@ export function MissionTestsScreen({ route }) {
           {(runData?.steps || []).map((step, index) => {
             const edit = stepEdits[step.id] || {};
             return <View key={step.id} style={[missionStyles.card, { padding: 12, marginBottom: 10 }]}>
-              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11.5, fontWeight: '900' }}>{index + 1}. {step.label}</Text>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11.5, fontFamily: FONTS.black }}>{index + 1}. {step.label}</Text>
               {step.expected_text ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, marginTop: 4 }}>Attendu : {step.expected_text}</Text> : null}
               {step.reference_number !== null && step.reference_number !== undefined ? <Text style={{ color: COLORS.inkFaint, fontSize: 9, marginTop: 2 }}>Référence : {step.reference_number} {step.reference_unit || ''}{step.tolerance_pct !== null && step.tolerance_pct !== undefined ? ' · ±' + step.tolerance_pct + '%' : ''}</Text> : null}
               {step.previous_status ? <View style={{ marginTop: 6, borderRadius: 9, borderWidth: 1, borderColor: '#D7DDD9', backgroundColor: '#F5F7F6', padding: 7 }}>
-                <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, fontWeight: '900' }}>PASSAGE PRÉCÉDENT · {step.previous_status}</Text>
+                <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, fontFamily: FONTS.black }}>PASSAGE PRÉCÉDENT · {step.previous_status}</Text>
                 <Text style={{ color: COLORS.inkSoft, fontSize: 8.7, marginTop: 2 }}>
                   {step.previous_number !== null && step.previous_number !== undefined
                     ? String(step.previous_number) + (step.previous_unit ? ' ' + step.previous_unit : '')

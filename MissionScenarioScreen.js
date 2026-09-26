@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { getMissionScenarioPresets } from './missionScenarioPresets.js';
 
@@ -15,7 +15,7 @@ function num(v) {
 
 function Field({ label, value, onChangeText, keyboardType = 'default', multiline = false }) {
   return <View style={{ marginBottom: 9 }}>
-    <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '800', marginBottom: 4 }}>{label.toUpperCase()}</Text>
+    <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontFamily: FONTS.bold, marginBottom: 4 }}>{label.toUpperCase()}</Text>
     <TextInput
       style={[styles.input, missionStyles.input, multiline ? { minHeight: 72, textAlignVertical: 'top' } : null]}
       value={String(value ?? '')}
@@ -219,7 +219,7 @@ export function MissionScenarioScreen({ navigation, route }) {
     await load();
   };
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Scénarios · étude / rénovation</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -247,8 +247,8 @@ export function MissionScenarioScreen({ navigation, route }) {
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Comparer</Text>
       <ScrollView horizontal showsHorizontalScrollIndicator={false}>
         {scenarios.map((s) => <TouchableOpacity key={s.id} onPress={() => setSelectedId(s.id)} style={{ width: 190, padding: 11, borderRadius: 14, borderWidth: 1, borderColor: selectedId === s.id ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selectedId === s.id ? MISSION_COLORS.accentLight : '#FFFFFF', marginRight: 8 }}>
-          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11, fontWeight: '900' }}>{s.label}</Text>
-          <Text style={{ color: s.status === 'retained' ? MISSION_COLORS.accentDark : COLORS.inkFaint, fontSize: 8.5, fontWeight: '900', marginTop: 2 }}>{s.status === 'retained' ? 'RETENU' : 'BROUILLON'}</Text>
+          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11, fontFamily: FONTS.black }}>{s.label}</Text>
+          <Text style={{ color: s.status === 'retained' ? MISSION_COLORS.accentDark : COLORS.inkFaint, fontSize: 8.5, fontFamily: FONTS.black, marginTop: 2 }}>{s.status === 'retained' ? 'RETENU' : 'BROUILLON'}</Text>
           <Text style={{ color: COLORS.inkSoft, fontSize: 9, marginTop: 7 }}>Invest. {Number(s.investment || 0).toLocaleString('fr-FR')} €</Text>
           <Text style={{ color: COLORS.inkSoft, fontSize: 9 }}>Énergie {Number(s.energy_saving_kwh || 0).toLocaleString('fr-FR')} kWh/an</Text>
           <Text style={{ color: COLORS.inkSoft, fontSize: 9 }}>CO₂ {Number(s.co2_saving_kg || 0).toLocaleString('fr-FR')} kg/an</Text>
@@ -259,7 +259,7 @@ export function MissionScenarioScreen({ navigation, route }) {
         <View style={[missionStyles.card, { padding: 13, marginTop: 14 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 14 }}>{selected.label}</Text>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontFamily: FONTS.black, fontSize: 14 }}>{selected.label}</Text>
               {selected.description ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, marginTop: 4 }}>{selected.description}</Text> : null}
             </View>
             <View style={{ alignItems: 'flex-end', gap: 6 }}>
@@ -279,7 +279,7 @@ export function MissionScenarioScreen({ navigation, route }) {
               [selected.co2_saving_kg || 0, 'kgCO₂/an'],
               [computed?.payback ?? '-', 'ans TRB'],
             ].map(([value, label]) => <View key={label} style={[missionStyles.statBox, { minWidth: 95, flexGrow: 1, borderRadius: 11, padding: 9 }]}>
-              <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 13 }}>{typeof value === 'number' ? Number(value).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) : value}</Text>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontFamily: FONTS.black, fontSize: 13 }}>{typeof value === 'number' ? Number(value).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) : value}</Text>
               <Text style={{ color: COLORS.inkFaint, fontSize: 8.3 }}>{label}</Text>
             </View>)}
           </View>
@@ -295,7 +295,7 @@ export function MissionScenarioScreen({ navigation, route }) {
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <Text style={{ width: 28, color: included ? MISSION_COLORS.accentStrong : COLORS.inkFaint, fontSize: 16 }}>{included ? '✓' : '○'}</Text>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '800' }}>{action.label}</Text>
+                <Text style={{ color: COLORS.ink, fontSize: 10.5, fontFamily: FONTS.bold }}>{action.label}</Text>
                 <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop: 2 }}>{action.cost_estimate ? Number(action.cost_estimate).toLocaleString('fr-FR') + ' €' : 'Coût non renseigné'}{action.priority ? ' · ' + action.priority : ''}</Text>
               </View>
             </View>

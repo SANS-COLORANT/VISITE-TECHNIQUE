@@ -1,7 +1,7 @@
 /** Slider tactile discret 0..5 pour la criticité des réserves. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { PanResponder, Text, View } from 'react-native';
-import { COLORS } from './styles.js';
+import { COLORS, FONTS } from './styles.js';
 import { clampReserveSeverity, reserveSeverityLabel } from './reserveSeverity.js';
 
 const MAX_SEVERITY = 5;
@@ -77,8 +77,8 @@ export function ReserveSeveritySlider({ value = 2, defaultValue = null, onChange
 
   return <View style={{ marginTop: compact ? 6 : 9 }}>
     <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 6, marginBottom: 4 }}>
-      <Text style={{ color: COLORS.ink, fontSize: compact ? 10 : 11, fontWeight: '900' }}>Criticité · {current}/5 — {reserveSeverityLabel(current)}</Text>
-      {proposed !== null ? <Text style={{ color: adjusted ? COLORS.orangeDark : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{adjusted ? `ajustée · défaut ${proposed}` : 'valeur proposée'}</Text> : null}
+      <Text style={{ color: COLORS.ink, fontSize: compact ? 10 : 11, fontFamily: FONTS.black }}>Criticité · {current}/5 — {reserveSeverityLabel(current)}</Text>
+      {proposed !== null ? <Text style={{ color: adjusted ? COLORS.orangeDark : COLORS.inkSoft, fontSize: 9, fontFamily: FONTS.bold }}>{adjusted ? `ajustée · défaut ${proposed}` : 'valeur proposée'}</Text> : null}
     </View>
 
     <View
@@ -129,7 +129,7 @@ export function ReserveSeveritySlider({ value = 2, defaultValue = null, onChange
           shadowOffset: { width: 0, height: 2 },
         }}
       >
-        <Text style={{ color: dragging ? COLORS.white : COLORS.orangeDark, fontSize: compact ? 11 : 12, fontWeight: '900' }}>{current}/5</Text>
+        <Text style={{ color: dragging ? COLORS.white : COLORS.orangeDark, fontSize: compact ? 11 : 12, fontFamily: FONTS.black }}>{current}/5</Text>
       </View> : null}
     </View>
 

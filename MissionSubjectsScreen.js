@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getDb } from './db.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import {
   ajouterConstatMission,
@@ -37,13 +37,13 @@ function Chip({ label, selected, onPress }) {
       marginBottom: 6,
     }}
   >
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontWeight: '900' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontFamily: FONTS.black }}>{label}</Text>
   </TouchableOpacity>;
 }
 
 function Field({ label, value, onChangeText, multiline = false, placeholder = '' }) {
   return <View style={{ marginBottom: 8 }}>
-    <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontWeight: '900', marginBottom: 4 }}>{label.toUpperCase()}</Text>
+    <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontFamily: FONTS.black, marginBottom: 4 }}>{label.toUpperCase()}</Text>
     <TextInput
       style={[styles.input, missionStyles.input, multiline ? { minHeight: 72, textAlignVertical: 'top' } : null]}
       value={String(value ?? '')}
@@ -298,7 +298,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
     await Promise.all([load(),loadTimeline()]);
   };
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Sujets · constats · décisions</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -324,11 +324,11 @@ export function MissionSubjectsScreen({ navigation, route }) {
               onPress={() => navigation.navigate('MissionActions', { missionId })}
               style={[missionStyles.card, { width: 235, padding: 10, marginRight: 8 }]}
             >
-              <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }} numberOfLines={2}>{action.label}</Text>
+              <Text style={{ color: COLORS.ink, fontSize: 10, fontFamily: FONTS.black }} numberOfLines={2}>{action.label}</Text>
               <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, marginTop: 3 }} numberOfLines={2}>
                 {[action.subject_label,action.site_name,action.responsible_company || action.responsible_name].filter(Boolean).join(' · ') || 'Contexte à compléter'}
               </Text>
-              <Text style={{ color: overdue ? '#8B3A3A' : MISSION_COLORS.accentDark, fontSize: 8.3, fontWeight: '900', marginTop: 5 }}>
+              <Text style={{ color: overdue ? '#8B3A3A' : MISSION_COLORS.accentDark, fontSize: 8.3, fontFamily: FONTS.black, marginTop: 5 }}>
                 {overdue ? 'ÉCHUE · ' : ''}{action.due_date || action.due_text || 'Échéance à compléter'}
               </Text>
             </TouchableOpacity>;
@@ -351,7 +351,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
             padding: 10,
           }}
         >
-          <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '900' }} numberOfLines={2}>{row.label}</Text>
+          <Text style={{ color: COLORS.ink, fontSize: 10.5, fontFamily: FONTS.black }} numberOfLines={2}>{row.label}</Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 3 }}>{[row.workstream_label,row.site_name,row.priority,row.status].filter(Boolean).join(' · ')}</Text>
           <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.1, marginTop: 5 }}>
             {row.observations_count || 0} constat(s) · {row.decisions_count || 0} décision(s) · {row.open_actions_count || 0} action(s) ouverte(s)
@@ -363,7 +363,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
         <View style={[missionStyles.card, { padding: 12, marginTop: 14 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 12.4, fontWeight: '900' }}>{selected.label}</Text>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 12.4, fontFamily: FONTS.black }}>{selected.label}</Text>
               <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop: 3 }}>{[selected.workstream_label,selected.site_name,selected.priority].filter(Boolean).join(' · ') || 'Sujet Mission'}</Text>
               {selected.description ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.3, lineHeight: 13, marginTop: 5 }}>{selected.description}</Text> : null}
             </View>
@@ -389,17 +389,17 @@ export function MissionSubjectsScreen({ navigation, route }) {
         {timeline.map((item) => <View key={item.event_kind + ':' + item.id} style={[missionStyles.card, { padding: 10, marginBottom: 7 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, fontWeight: '900', letterSpacing: 0.4 }}>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, fontFamily: FONTS.black, letterSpacing: 0.4 }}>
                 {item.event_kind === 'observation' ? 'CONSTAT' : item.event_kind === 'decision' ? 'DÉCISION' : 'ACTION'} · {item.event_date || ''}
               </Text>
-              <Text style={{ color: COLORS.ink, fontSize: 10.2, fontWeight: '800', marginTop: 3 }}>{item.title}</Text>
+              <Text style={{ color: COLORS.ink, fontSize: 10.2, fontFamily: FONTS.bold, marginTop: 3 }}>{item.title}</Text>
               {item.description ? <Text style={{ color: COLORS.inkSoft, fontSize: 9, lineHeight: 13, marginTop: 3 }}>{item.description}</Text> : null}
               {item.event_kind === 'action' ? <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 4 }}>
                 {[item.responsible_company || item.responsible_name,item.due_date || item.due_text,item.priority].filter(Boolean).join(' · ')}
               </Text> : null}
             </View>
             {item.event_kind === 'action' && !['closed','cancelled'].includes(item.status) ? <TouchableOpacity onPress={() => closeAction(item)} style={{ marginLeft: 8, borderRadius: 9, backgroundColor: MISSION_COLORS.accentSoft, paddingHorizontal: 8, paddingVertical: 6 }}>
-              <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.2, fontWeight: '900' }}>Clôturer</Text>
+              <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.2, fontFamily: FONTS.black }}>Clôturer</Text>
             </TouchableOpacity> : null}
           </View>
         </View>)}
@@ -416,12 +416,12 @@ export function MissionSubjectsScreen({ navigation, route }) {
         <Field label="Description / contexte" value={subjectDraft.description} onChangeText={(v) => setSubjectDraft((d) => ({ ...d, description: v }))} multiline />
         <Field label="Priorité" value={subjectDraft.priority} onChangeText={(v) => setSubjectDraft((d) => ({ ...d, priority: v }))} placeholder="Urgent, à suivre, information…" />
         {workstreams.length ? <>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginBottom: 5 }}>VOLET / AXE</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontFamily: FONTS.black, marginBottom: 5 }}>VOLET / AXE</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 7 }}>
             {workstreams.map((w) => <Chip key={w.id} label={w.label} selected={subjectDraft.workstreamId === w.id} onPress={() => setSubjectDraft((d) => ({ ...d, workstreamId: d.workstreamId === w.id ? '' : w.id }))} />)}
           </View>
         </> : null}
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginBottom: 5 }}>SITE</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontFamily: FONTS.black, marginBottom: 5 }}>SITE</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
           {sites.map((site) => <Chip key={site.id} label={site.name} selected={subjectDraft.siteId === site.id} onPress={() => setSubjectDraft((d) => ({ ...d, siteId: d.siteId === site.id ? '' : site.id }))} />)}
         </View>

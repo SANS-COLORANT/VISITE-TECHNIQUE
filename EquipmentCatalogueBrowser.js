@@ -10,6 +10,7 @@ import {
   ajouterVarianteEquipement, ajouterCaracteristiqueEquipement, ajouterCourbeEquipement, ajouterDocumentEquipement,
 } from './db.js';
 import { rechercherCatalogueIntelligent, enregistrerOuvertureModele, getFamilyPriorityKeys } from './catalogueAdvancedDb.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 function Gradient({ marque }) {
   const base = getBrandColor(marque);
@@ -25,7 +26,7 @@ function Gradient({ marque }) {
 
 function Header({ title, subtitle, onBack, action, onAction }) {
   return <View style={{paddingHorizontal:18,paddingTop:14,paddingBottom:10}}><View style={{flexDirection:'row',alignItems:'center',gap:10}}>
-    {onBack?<TouchableOpacity onPress={onBack} style={{paddingVertical:8,paddingRight:4}}><Text style={{fontSize:22}}>‹</Text></TouchableOpacity>:null}
+    {onBack?<TouchableOpacity onPress={onBack} style={{paddingVertical:8,paddingRight:4}}><CvcIcon name="chevron-left" size={23} color={COLORS.orangeDark} strokeWidth={2.1} /></TouchableOpacity>:null}
     <View style={{flex:1}}><Text style={{fontSize:22,fontWeight:'800',color:COLORS.text}}>{title}</Text>{subtitle?<Text style={{marginTop:2,color:COLORS.muted,fontSize:12}}>{subtitle}</Text>:null}</View>
     {action?<TouchableOpacity onPress={onAction} style={{paddingHorizontal:12,paddingVertical:8,borderRadius:10,backgroundColor:COLORS.primary}}><Text style={{color:'#fff',fontWeight:'700'}}>+ {action}</Text></TouchableOpacity>:null}
   </View></View>;
@@ -90,7 +91,7 @@ function BrandCard({ brand, onPress, tablet }) {
     <View style={{minHeight:92,flexDirection:'row',alignItems:'center',paddingHorizontal:16,gap:14}}>
       <View style={{width:108,alignItems:'center'}}><BrandMark marque={brand} onColor/></View>
       <View style={{flex:1}}><Text style={{color:'#fff',fontWeight:'900',fontSize:17}}>{brand.nom}</Text><Text style={{color:'rgba(255,255,255,.88)',marginTop:3}}>{brand.nb_modeles} modèle{brand.nb_modeles>1?'s':''}</Text></View>
-      <Text style={{fontSize:24,color:'rgba(50,50,50,.6)'}}>›</Text>
+      <CvcIcon name="chevron-right" size={25} color={'rgba(50,50,50,.6)'} strokeWidth={2.1} />
     </View>
   </TouchableOpacity>;
 }
@@ -110,7 +111,7 @@ function VariantCard({ item, model, onPress }) {
     <View style={{flexDirection:'row',alignItems:'center',gap:12}}>
       <ProductImage uri={item.image_uri||model?.image_uri} brand={model?.marque} logoUri={model?.logo_uri} size={66}/>
       <View style={{flex:1}}><Text style={{fontWeight:'800',fontSize:16}}>{item.nom}</Text>{item.reference?<Text style={{color:COLORS.muted,marginTop:2}}>Réf. {item.reference}</Text>:null}{item.description?<Text numberOfLines={2} style={{color:'#555',fontSize:12,marginTop:5}}>{item.description}</Text>:null}<QualityBadge quality={item.data_quality} verifiedAt={item.verified_at}/></View>
-      <Text style={{fontSize:22,color:'#777'}}>›</Text>
+      <CvcIcon name="chevron-right" size={23} color={'#777'} strokeWidth={2.1} />
     </View>
   </TouchableOpacity>;
 }
@@ -191,5 +192,5 @@ export function EquipmentCatalogueBrowser(){
 
   if(brand)return <View style={{flex:1}}><Header title={title} subtitle={subtitle} onBack={back} action="Modèle" onAction={actionPress}/><FlatList key={`brand-${cols}`} numColumns={cols} columnWrapperStyle={cols>1?{gap:12}:undefined} contentContainerStyle={{padding:18,paddingTop:4}} data={models} keyExtractor={x=>x.id} renderItem={({item})=><ModelCard model={item} tablet={tablet} onPress={()=>openModel(item)}/>} ListEmptyComponent={<Text style={{padding:24,color:COLORS.muted}}>Aucun modèle pour cette marque.</Text>}/><SimpleModal visible={modal==='model'} title={`Ajouter un modèle · ${brand.nom}`} fields={[{key:'nom',label:'Nom du modèle / gamme'},{key:'categorie',label:'Catégorie'},{key:'reference',label:'Référence facultative'},{key:'description',label:'Description',multiline:true}]} onClose={()=>setModal(null)} onSave={saveModal}/></View>;
 
-  return <View style={{flex:1}}><Header title="Catalogue matériel" subtitle={`${brands.length} marques · ${models.length} modèles · ${cats.length} catégories`} action={action} onAction={actionPress}/><View style={styles.catalogueSearchBox}><TextInput style={styles.catalogueSearchInput} placeholder="Rechercher une marque, un modèle, une référence…" value={search} onChangeText={setSearch}/></View><View style={styles.catalogueTabs}>{[['marques','Marques'],['modeles','Modèles'],['categories','Catégories']].map(([id,l])=><TouchableOpacity key={id} style={[styles.catalogueTab,tab===id&&styles.catalogueTabActive]} onPress={()=>setTab(id)}><Text style={[styles.catalogueTabText,tab===id&&styles.catalogueTabTextActive]}>{l}</Text></TouchableOpacity>)}</View><FlatList key={`${tab}-${cols}`} numColumns={tab==='categories'?1:cols} columnWrapperStyle={tab!=='categories'&&cols>1?{gap:12}:undefined} contentContainerStyle={{padding:18}} data={filtered} keyExtractor={x=>x.id} renderItem={({item})=>tab==='marques'?<BrandCard brand={item} tablet={tablet} onPress={()=>openBrand(item)}/>:tab==='modeles'?<ModelCard model={item} tablet={tablet} onPress={()=>openModel(item)}/>:<TouchableOpacity style={styles.catalogueCard} onPress={()=>{setTab('modeles');setModels(models.filter(m=>m.categorie_id===item.id));}}><Text style={styles.equipmentIcon}>{item.icone||'⚙️'}</Text><View style={{flex:1}}><Text style={styles.cardTitle}>{item.nom}</Text><Text style={styles.cardSub}>{item.nb_modeles} modèles</Text></View><Text>›</Text></TouchableOpacity>}/><SimpleModal visible={modal==='brand'||modal==='category'} title={modal==='brand'?'Nouvelle marque':'Nouvelle catégorie'} fields={modal==='brand'?[{key:'nom',label:'Nom de la marque'},{key:'logo',label:'URL du logo (facultatif)'}]:[{key:'nom',label:'Nom de la catégorie'},{key:'icone',label:'Icône'}]} onClose={()=>setModal(null)} onSave={saveModal}/></View>;
+  return <View style={{flex:1}}><Header title="Catalogue matériel" subtitle={`${brands.length} marques · ${models.length} modèles · ${cats.length} catégories`} action={action} onAction={actionPress}/><View style={styles.catalogueSearchBox}><TextInput style={styles.catalogueSearchInput} placeholder="Rechercher une marque, un modèle, une référence…" value={search} onChangeText={setSearch}/></View><View style={styles.catalogueTabs}>{[['marques','Marques'],['modeles','Modèles'],['categories','Catégories']].map(([id,l])=><TouchableOpacity key={id} style={[styles.catalogueTab,tab===id&&styles.catalogueTabActive]} onPress={()=>setTab(id)}><Text style={[styles.catalogueTabText,tab===id&&styles.catalogueTabTextActive]}>{l}</Text></TouchableOpacity>)}</View><FlatList key={`${tab}-${cols}`} numColumns={tab==='categories'?1:cols} columnWrapperStyle={tab!=='categories'&&cols>1?{gap:12}:undefined} contentContainerStyle={{padding:18}} data={filtered} keyExtractor={x=>x.id} renderItem={({item})=>tab==='marques'?<BrandCard brand={item} tablet={tablet} onPress={()=>openBrand(item)}/>:tab==='modeles'?<ModelCard model={item} tablet={tablet} onPress={()=>openModel(item)}/>:<TouchableOpacity style={styles.catalogueCard} onPress={()=>{setTab('modeles');setModels(models.filter(m=>m.categorie_id===item.id));}}><Text style={styles.equipmentIcon}>{item.icone||'⚙️'}</Text><View style={{flex:1}}><Text style={styles.cardTitle}>{item.nom}</Text><Text style={styles.cardSub}>{item.nb_modeles} modèles</Text></View><CvcIcon name="chevron-right" size={16} color={COLORS.orangeDark} strokeWidth={2.1} /></TouchableOpacity>}/><SimpleModal visible={modal==='brand'||modal==='category'} title={modal==='brand'?'Nouvelle marque':'Nouvelle catégorie'} fields={modal==='brand'?[{key:'nom',label:'Nom de la marque'},{key:'logo',label:'URL du logo (facultatif)'}]:[{key:'nom',label:'Nom de la catégorie'},{key:'icone',label:'Icône'}]} onClose={()=>setModal(null)} onSave={saveModal}/></View>;
 }

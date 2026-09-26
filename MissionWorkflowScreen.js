@@ -3,7 +3,7 @@ import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } fro
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { creerVisiteMission } from './missionsDb.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { getMissionWorkstreamPresets } from './missionWorkstreamPresets.js';
 
@@ -11,7 +11,7 @@ const PHASE_STATUS = [['planned','Prévue'],['active','Active'],['done','Termin�
 
 function Chip({ label, selected, onPress }) {
   return <TouchableOpacity onPress={onPress} style={{ borderWidth: 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6, marginBottom: 6 }}>
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontFamily: FONTS.bold }}>{label}</Text>
   </TouchableOpacity>;
 }
 
@@ -159,7 +159,7 @@ export function MissionWorkflowScreen({ navigation, route }) {
     navigation.navigate('MissionVisit', { missionId, visitId: id });
   };
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Workflow de la Mission</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -185,7 +185,7 @@ export function MissionWorkflowScreen({ navigation, route }) {
       {phases.map((phase, index) => <View key={phase.id} style={[missionStyles.card, { padding: 11, marginBottom: 8 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11.3, fontWeight: '900' }}>{phase.label}</Text>
+            <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11.3, fontFamily: FONTS.black }}>{phase.label}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop: 2 }}>{phase.type || 'Phase'} · {phase.status}</Text>
           </View>
           <TouchableOpacity onPress={() => movePhase(phase,-1)} disabled={index===0} style={{ padding: 6 }}><Text style={{ color: index===0 ? COLORS.inkFaint : COLORS.inkSoft }}>↑</Text></TouchableOpacity>
@@ -203,7 +203,7 @@ export function MissionWorkflowScreen({ navigation, route }) {
             <Text style={{ color: COLORS.ink, fontSize: 10.8, fontWeight:'900' }}>{w.label}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop:2 }}>{w.kind || 'Volet'} · {w.status}</Text>
           </View>
-          <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.3, fontWeight: '900' }}>
+          <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.3, fontFamily: FONTS.black }}>
             {w.open_subject_count || 0} ouvert(s) / {w.subject_count || 0} sujet(s)
           </Text>
         </View>

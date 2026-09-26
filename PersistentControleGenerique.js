@@ -1,7 +1,7 @@
 /** Contrôle de conformité persistant : restaure la réserve liée après virtualisation/swipe. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { PRESCRIPTIONS } from './data.js';
 import { fusionnerPrescriptions } from './reserveExtensions.js';
 import { listerBibliothequeReserves } from './db.js';
@@ -298,7 +298,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
 
     {avis && avis !== 'N.S' && <View style={[styles.criterePanel, { backgroundColor: palette.bg, borderColor: palette.border }]}>
       {libelleEtat ? <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: palette.text, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8 }}>
-        <Text style={{ color: palette.text, fontSize: 11, fontWeight: '800' }}>{libelleEtat}</Text>
+        <Text style={{ color: palette.text, fontSize: 11, fontFamily: FONTS.bold }}>{libelleEtat}</Text>
       </View> : null}
       <Text style={[styles.criterePanelLabel, { color: palette.text }]}>Commentaire facultatif</Text>
       <TextInput

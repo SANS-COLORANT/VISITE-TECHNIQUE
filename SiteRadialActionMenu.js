@@ -1,5 +1,7 @@
 import React from 'react';
 import { Modal, Pressable, Text, TouchableOpacity, useWindowDimensions, View } from 'react-native';
+import { FONTS } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 const SIZE = 232;
 const HALF = SIZE / 2;
@@ -32,13 +34,13 @@ export function SiteRadialActionMenu({ menu, onAction, onClose }) {
           const left = HALF + Math.cos(rad) * RADIUS - 30;
           const top = HALF + Math.sin(rad) * RADIUS - 30;
           return <TouchableOpacity key={action.key} onPress={() => onAction?.(action.key, menu.site)} style={{ position: 'absolute', left, top, width: 60, height: 60, borderRadius: 30, alignItems: 'center', justifyContent: 'center', borderWidth: 1.5, borderColor: action.danger ? '#FF7A80' : '#477186', backgroundColor: action.danger ? '#53252B' : '#143143' }}>
-            <Text style={{ color: action.danger ? '#FFB0B4' : '#F5FBFF', fontWeight: '900', fontSize: 19 }}>{action.icon}</Text>
-            <Text numberOfLines={1} style={{ color: action.danger ? '#FFB0B4' : '#D8EEF8', fontSize: 8.5, fontWeight: '800', marginTop: 1 }}>{action.label}</Text>
+            <Text style={{ color: action.danger ? '#FFB0B4' : '#F5FBFF', fontFamily: FONTS.black, fontSize: 19 }}>{action.icon}</Text>
+            <Text numberOfLines={1} style={{ color: action.danger ? '#FFB0B4' : '#D8EEF8', fontSize: 8.5, fontFamily: FONTS.bold, marginTop: 1 }}>{action.label}</Text>
           </TouchableOpacity>;
         })}
         <TouchableOpacity onPress={onClose} style={{ position: 'absolute', left: 85, top: 85, width: 62, height: 62, borderRadius: 31, backgroundColor: '#0B202D', borderWidth: 2, borderColor: '#3DC7E8', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 }}>
-          <Text numberOfLines={2} style={{ color: '#F5FBFF', fontWeight: '900', fontSize: 9.5, textAlign: 'center', maxWidth: 52 }}>{String(menu.site?.nom_site || 'Actions').slice(0, 18)}</Text>
-          <Text style={{ color: '#91A7B5', fontSize: 10 }}>×</Text>
+          <Text numberOfLines={2} style={{ color: '#F5FBFF', fontFamily: FONTS.black, fontSize: 9.5, textAlign: 'center', maxWidth: 52 }}>{String(menu.site?.nom_site || 'Actions').slice(0, 18)}</Text>
+          <CvcIcon name="close" size={12} color={'#91A7B5'} strokeWidth={2.1} />
         </TouchableOpacity>
       </View>
     </View>

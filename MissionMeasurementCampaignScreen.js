@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getDb } from './db.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import {
   CAMPAIGN_POINT_STATUSES,
@@ -50,7 +50,7 @@ function Chip({ label, selected, onPress, compact = false }) {
       marginBottom: 6,
     }}
   >
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: compact ? 8.5 : 9.3, fontWeight: '800' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: compact ? 8.5 : 9.3, fontFamily: FONTS.bold }}>{label}</Text>
   </TouchableOpacity>;
 }
 
@@ -324,7 +324,7 @@ export function MissionMeasurementCampaignScreen({ route }) {
     point.point_type,
   ].filter(Boolean).join(' · ');
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }} keyboardShouldPersistTaps="handled">
       <Text style={[styles.sectionTitle, missionStyles.title]}>Campagnes de mesures</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -356,9 +356,9 @@ export function MissionMeasurementCampaignScreen({ route }) {
             backgroundColor: selectedCampaignId === campaign.id ? MISSION_COLORS.accentLight : '#FFFFFF',
           }}
         >
-          <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '900' }} numberOfLines={2}>{campaign.label}</Text>
+          <Text style={{ color: COLORS.ink, fontSize: 10.5, fontFamily: FONTS.black }} numberOfLines={2}>{campaign.label}</Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 8.4, marginTop: 3 }} numberOfLines={1}>{[campaign.site_name,campaign.measure_type,campaign.unit].filter(Boolean).join(' · ')}</Text>
-          <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.2, fontWeight: '900', marginTop: 7 }}>
+          <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.2, fontFamily: FONTS.black, marginTop: 7 }}>
             {campaign.measured_count || 0}/{campaign.point_count || 0} mesuré(s) · {progressPct(campaign)} %
           </Text>
         </TouchableOpacity>)}
@@ -368,7 +368,7 @@ export function MissionMeasurementCampaignScreen({ route }) {
         <View style={[missionStyles.card, { padding: 12, marginTop: 14 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 12.5, fontWeight: '900' }}>{selectedCampaign.label}</Text>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 12.5, fontFamily: FONTS.black }}>{selectedCampaign.label}</Text>
               <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 3 }}>
                 {[selectedCampaign.site_name,selectedCampaign.measure_type,selectedCampaign.unit].filter(Boolean).join(' · ')}
               </Text>
@@ -377,7 +377,7 @@ export function MissionMeasurementCampaignScreen({ route }) {
               </Text>
             </View>
             {comparison.previousCampaign ? <View style={{ backgroundColor: MISSION_COLORS.accentSoft, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6 }}>
-              <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.2, fontWeight: '900' }}>COMPARÉ À</Text>
+              <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.2, fontFamily: FONTS.black }}>COMPARÉ À</Text>
               <Text style={{ color: COLORS.inkSoft, fontSize: 8.4, marginTop: 2 }} numberOfLines={1}>{comparison.previousCampaign.label}</Text>
             </View> : null}
           </View>
@@ -391,8 +391,8 @@ export function MissionMeasurementCampaignScreen({ route }) {
         </View>
 
         {currentPoint ? <View style={[missionStyles.card, { padding: 14, marginTop: 12, borderWidth: 2, borderColor: MISSION_COLORS.accentLineStrong }]}>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '900' }}>SAISIE TERRAIN · {currentIndex + 1}/{points.length}</Text>
-          <Text style={{ color: COLORS.ink, fontSize: 15, fontWeight: '900', marginTop: 5 }}>{currentPoint.label}</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontFamily: FONTS.black }}>SAISIE TERRAIN · {currentIndex + 1}/{points.length}</Text>
+          <Text style={{ color: COLORS.ink, fontSize: 15, fontFamily: FONTS.black, marginTop: 5 }}>{currentPoint.label}</Text>
           {pointContext(currentPoint) ? <Text style={{ color: COLORS.inkFaint, fontSize: 9, marginTop: 3 }}>{pointContext(currentPoint)}</Text> : null}
           {(currentPoint.expected_value !== null && currentPoint.expected_value !== undefined) || currentPoint.expected_text || selectedCampaign.default_expected_value !== null || selectedCampaign.default_expected_text ? <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.2, marginTop: 7 }}>
             Attendu : {currentPoint.expected_value ?? currentPoint.expected_text ?? selectedCampaign.default_expected_value ?? selectedCampaign.default_expected_text} {selectedCampaign.unit || ''}
@@ -400,7 +400,7 @@ export function MissionMeasurementCampaignScreen({ route }) {
 
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
             <TextInput
-              style={[styles.input, missionStyles.input, { flex: 1, fontSize: 20, fontWeight: '900', textAlign: 'center' }]}
+              style={[styles.input, missionStyles.input, { flex: 1, fontSize: 20, fontFamily: FONTS.black, textAlign: 'center' }]}
               value={quickValue}
               onChangeText={setQuickValue}
               keyboardType="decimal-pad"
@@ -408,7 +408,7 @@ export function MissionMeasurementCampaignScreen({ route }) {
               placeholder="Valeur"
             />
             <View style={{ width: 74, alignItems: 'center', justifyContent: 'center', borderRadius: 11, backgroundColor: MISSION_COLORS.accentSoft }}>
-              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 12, fontWeight: '900' }}>{selectedCampaign.unit || '—'}</Text>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 12, fontFamily: FONTS.black }}>{selectedCampaign.unit || '—'}</Text>
             </View>
           </View>
           <TextInput
@@ -433,10 +433,10 @@ export function MissionMeasurementCampaignScreen({ route }) {
 
           <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginTop: 5 }}>
             <TouchableOpacity disabled={currentIndex <= 0} onPress={() => setCurrentIndex((index) => Math.max(0, index - 1))} style={{ padding: 8 }}>
-              <Text style={{ color: currentIndex <= 0 ? COLORS.inkFaint : MISSION_COLORS.accentDark, fontWeight: '800' }}>← Précédent</Text>
+              <Text style={{ color: currentIndex <= 0 ? COLORS.inkFaint : MISSION_COLORS.accentDark, fontFamily: FONTS.bold }}>← Précédent</Text>
             </TouchableOpacity>
             <TouchableOpacity disabled={currentIndex >= points.length - 1} onPress={() => setCurrentIndex((index) => Math.min(points.length - 1, index + 1))} style={{ padding: 8 }}>
-              <Text style={{ color: currentIndex >= points.length - 1 ? COLORS.inkFaint : MISSION_COLORS.accentDark, fontWeight: '800' }}>Suivant →</Text>
+              <Text style={{ color: currentIndex >= points.length - 1 ? COLORS.inkFaint : MISSION_COLORS.accentDark, fontFamily: FONTS.bold }}>Suivant →</Text>
             </TouchableOpacity>
           </View>
         </View> : <View style={[missionStyles.card, { padding: 13, marginTop: 12 }]}>
@@ -456,14 +456,14 @@ export function MissionMeasurementCampaignScreen({ route }) {
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, width: 28 }}>{index + 1}</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: COLORS.ink, fontSize: 10.2, fontWeight: '800' }}>{point.label}</Text>
+                  <Text style={{ color: COLORS.ink, fontSize: 10.2, fontFamily: FONTS.bold }}>{point.label}</Text>
                   <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, marginTop: 2 }}>{pointContext(point) || 'Point libre'}</Text>
                 </View>
                 <View style={{ alignItems: 'flex-end' }}>
-                  <Text style={{ color: point.status === 'measured' ? MISSION_COLORS.accentDark : point.status === 'planned' ? COLORS.inkFaint : '#8A5B14', fontSize: 8.6, fontWeight: '900' }}>
+                  <Text style={{ color: point.status === 'measured' ? MISSION_COLORS.accentDark : point.status === 'planned' ? COLORS.inkFaint : '#8A5B14', fontSize: 8.6, fontFamily: FONTS.black }}>
                     {STATUS_LABELS[point.status] || point.status}
                   </Text>
-                  {point.status === 'measured' ? <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '900', marginTop: 2 }}>{point.measured_value ?? point.measured_text} {selectedCampaign.unit || ''}</Text> : null}
+                  {point.status === 'measured' ? <Text style={{ color: COLORS.ink, fontSize: 10.5, fontFamily: FONTS.black, marginTop: 2 }}>{point.measured_value ?? point.measured_text} {selectedCampaign.unit || ''}</Text> : null}
                   {compare?.delta !== null && compare?.delta !== undefined ? <Text style={{ color: COLORS.inkFaint, fontSize: 8.1, marginTop: 2 }}>Δ {Number(compare.delta) >= 0 ? '+' : ''}{Number(compare.delta).toFixed(2)}</Text> : null}
                 </View>
               </View>
@@ -477,7 +477,7 @@ export function MissionMeasurementCampaignScreen({ route }) {
     <Modal visible={createVisible} transparent animationType="fade" onRequestClose={() => setCreateVisible(false)}>
       <View style={styles.modalOverlay}><ScrollView style={[styles.modalSheet, missionStyles.modalSheet]} contentContainerStyle={{ paddingBottom: 16 }}>
         <Text style={[styles.modalTitle, missionStyles.title]}>Nouvelle campagne</Text>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '900', marginBottom: 5 }}>SITE (FACULTATIF)</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontFamily: FONTS.black, marginBottom: 5 }}>SITE (FACULTATIF)</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
           {sites.map((site) => <Chip key={site.id} label={site.name} selected={draft.siteId === site.id} onPress={() => setDraft((p) => ({ ...p, siteId: p.siteId === site.id ? '' : site.id }))} />)}
         </View>

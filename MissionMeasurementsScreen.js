@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import Svg, { Line, Polyline, Text as SvgText } from 'react-native-svg';
 import { getDb } from './db.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import {
   creerInstrumentMission,
@@ -38,13 +38,13 @@ const REFERENCE_SOURCES = [
 
 function Chip({ label, selected, onPress }) {
   return <TouchableOpacity onPress={onPress} style={{ borderWidth: 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6, marginBottom: 6 }}>
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontFamily: FONTS.bold }}>{label}</Text>
   </TouchableOpacity>;
 }
 
 function Field({ label, value, onChangeText, keyboardType = 'default', placeholder = '' }) {
   return <View style={{ marginBottom: 8 }}>
-    <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '800', marginBottom: 4 }}>{label.toUpperCase()}</Text>
+    <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontFamily: FONTS.bold, marginBottom: 4 }}>{label.toUpperCase()}</Text>
     <TextInput style={[styles.input, missionStyles.input]} value={String(value ?? '')} onChangeText={onChangeText} keyboardType={keyboardType} placeholder={placeholder} />
   </View>;
 }
@@ -198,7 +198,7 @@ export function MissionMeasurementsScreen({ navigation, route }) {
     } catch (e) { Alert.alert('Import de série impossible', String(e?.message || e)); }
   };
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Mesures · campagnes · séries</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -213,7 +213,7 @@ export function MissionMeasurementsScreen({ navigation, route }) {
       </View>
 
       <View style={[missionStyles.card, { padding: 12, marginTop: 12 }]}>
-        <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11, fontWeight: '900' }}>Importer une série / campagne</Text>
+        <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11, fontFamily: FONTS.black }}>Importer une série / campagne</Text>
         <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, marginTop: 3 }}>CSV / XLSX : METRA conserve le fichier brut, calcule min/max/moyenne et mémorise un échantillon graphique léger.</Text>
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 9 }}>
           <TextInput style={[styles.input, missionStyles.input, { flex: 1 }]} value={seriesType} onChangeText={setSeriesType} placeholder="Type série" />
@@ -226,12 +226,12 @@ export function MissionMeasurementsScreen({ navigation, route }) {
       {(data.measures || []).map((m) => <View key={m.id} style={[missionStyles.card, { padding: 11, marginBottom: 7 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '900' }}>{m.type}</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10.5, fontFamily: FONTS.black }}>{m.type}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, marginTop: 2 }}>{[m.source_label || m.source_type, m.instrument_label].filter(Boolean).join(' · ') || 'Source non précisée'}</Text>
             {m.reference_number !== null && m.reference_number !== undefined ? <Text style={{ color: COLORS.inkSoft, fontSize: 8.8, marginTop: 3 }}>Référence {m.reference_number} {m.unit || ''} · {m.reference_source_label || m.reference_source_type || ''}</Text> : null}
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13, fontWeight: '900' }}>{m.value_number ?? m.value_text ?? '/'} {m.unit || ''}</Text>
+            <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13, fontFamily: FONTS.black }}>{m.value_number ?? m.value_text ?? '/'} {m.unit || ''}</Text>
             {m.delta_percent !== null && m.delta_percent !== undefined ? <Text style={{ color: m.anomaly_status === 'to_check' ? '#8A5B14' : COLORS.inkFaint, fontSize: 8.7, marginTop: 3 }}>{Number(m.delta_percent).toFixed(1)} % {m.anomaly_status === 'to_check' ? '· À contrôler' : ''}</Text> : null}
           </View>
         </View>
@@ -239,13 +239,13 @@ export function MissionMeasurementsScreen({ navigation, route }) {
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Séries</Text>
       {(data.series || []).map((s) => <TouchableOpacity key={s.id} onPress={() => setSeriesVisible(s)} style={[missionStyles.card, { padding: 11, marginBottom: 7 }]}>
-        <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '900' }}>{s.type} · {s.sample_count} point(s)</Text>
+        <Text style={{ color: COLORS.ink, fontSize: 10.5, fontFamily: FONTS.black }}>{s.type} · {s.sample_count} point(s)</Text>
         <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, marginTop: 3 }}>Min {s.min_value} · Moy {Number(s.avg_value || 0).toFixed(2)} · Max {s.max_value} {s.unit || ''}</Text>
       </TouchableOpacity>)}
     </ScrollView>
 
     <Modal visible={measureVisible} animationType="slide" onRequestClose={() => setMeasureVisible(false)}>
-      <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+      <View style={{ flex: 1, backgroundColor: 'transparent' }}>
         <ScrollView contentContainerStyle={{ padding: 16, paddingTop: 52, paddingBottom: 90 }}>
           <Text style={[styles.sectionTitle, missionStyles.title]}>Nouvelle mesure</Text>
           <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Site</Text>

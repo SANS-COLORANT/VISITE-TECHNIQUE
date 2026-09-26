@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import {
   getStructureContextForLocalClient,
@@ -26,7 +26,7 @@ const STATUS = {
 
 function StatusPill({ status }) {
   const [label, fg, bg] = STATUS[status] || [status || 'Local', COLORS.inkSoft, '#F4F6F8'];
-  return <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: bg }}><Text style={{ color: fg, fontSize: 10, fontWeight: '900' }}>{label}</Text></View>;
+  return <View style={{ paddingHorizontal: 8, paddingVertical: 4, borderRadius: 999, backgroundColor: bg }}><Text style={{ color: fg, fontSize: 10, fontFamily: FONTS.black }}>{label}</Text></View>;
 }
 
 function ChoiceChips({ values, value, onChange, getKey = (v) => String(v), getLabel = (v) => String(v) }) {
@@ -124,9 +124,9 @@ export function IntranetSiteCreationModal({ visible, clientId, onClose, onCreate
         <Text style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16 }}>La création est enregistrée d’abord sur la tablette. Hors connexion, elle reste en attente avec le même creationId et sera rejouée sans doublon.</Text>
 
         {loading ? <Text style={{ color: COLORS.muted, marginTop: 12 }}>Lecture du référentiel…</Text> : null}
-        {context?.ambiguous ? <Text style={{ color: '#B42318', marginTop: 12, fontWeight: '800' }}>Plusieurs clients Intranet sont liés à ce client METRA. La création automatique est bloquée pour éviter un mauvais rattachement.</Text> : null}
-        {context && !context.linked ? <Text style={{ color: '#9A4C0A', marginTop: 12, fontWeight: '800' }}>Ce client est local uniquement. Importe/lie d’abord le client depuis l’Intranet.</Text> : null}
-        {context?.remoteClientId ? <View style={{ marginTop: 12, padding: 10, borderRadius: 10, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: COLORS.line }}><Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 12 }}>Client Intranet n°{context.remoteClientId}</Text><Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 3 }}>{referential?.syncedAt ? `Référentiel enregistré · ${String(referential.syncedAt).replace('T', ' ').slice(0, 16)}` : 'Référentiel non encore enregistré sur cette tablette'}</Text><TouchableOpacity onPress={refreshReferential} disabled={syncing} style={{ paddingVertical: 8, marginTop: 2 }}><Text style={{ color: COLORS.primary, fontWeight: '900', fontSize: 11 }}>{syncing ? 'Actualisation…' : '↻ Actualiser le référentiel'}</Text></TouchableOpacity></View> : null}
+        {context?.ambiguous ? <Text style={{ color: '#B42318', marginTop: 12, fontFamily: FONTS.bold }}>Plusieurs clients Intranet sont liés à ce client METRA. La création automatique est bloquée pour éviter un mauvais rattachement.</Text> : null}
+        {context && !context.linked ? <Text style={{ color: '#9A4C0A', marginTop: 12, fontFamily: FONTS.bold }}>Ce client est local uniquement. Importe/lie d’abord le client depuis l’Intranet.</Text> : null}
+        {context?.remoteClientId ? <View style={{ marginTop: 12, padding: 10, borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.66)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' }}><Text style={{ color: COLORS.ink, fontFamily: FONTS.black, fontSize: 12 }}>Client Intranet n°{context.remoteClientId}</Text><Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 3 }}>{referential?.syncedAt ? `Référentiel enregistré · ${String(referential.syncedAt).replace('T', ' ').slice(0, 16)}` : 'Référentiel non encore enregistré sur cette tablette'}</Text><TouchableOpacity onPress={refreshReferential} disabled={syncing} style={{ paddingVertical: 8, marginTop: 2 }}><Text style={{ color: COLORS.primary, fontFamily: FONTS.black, fontSize: 11 }}>{syncing ? 'Actualisation…' : '↻ Actualiser le référentiel'}</Text></TouchableOpacity></View> : null}
 
         {referential ? <>
           <SectionLabel>Lot Intranet</SectionLabel>
@@ -208,10 +208,10 @@ export function IntranetSiteLocalsPanel({ siteId, onStartVisit }) {
   if (data.context?.ambiguous) return <View style={styles.empty}><Text style={styles.emptyText}>Rattachement Intranet ambigu</Text><Text style={styles.emptySub}>Plusieurs clients Intranet correspondent à ce client METRA. Aucun local ne sera créé au hasard.</Text></View>;
 
   return <View>
-    <View style={{ padding: 12, borderRadius: 12, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: COLORS.line, marginBottom: 12 }}>
-      <Text style={{ color: COLORS.ink, fontSize: 12.5, fontWeight: '900' }}>Structure Intranet · client n°{data.context.remoteClientId}</Text>
+    <View style={{ padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.66)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', marginBottom: 12 }}>
+      <Text style={{ color: COLORS.ink, fontSize: 12.5, fontFamily: FONTS.black }}>Structure Intranet · client n°{data.context.remoteClientId}</Text>
       <Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 3 }}>{data.context.remoteSiteId ? `Site Intranet n°${data.context.remoteSiteId}` : data.context.siteOperation ? `Création du site : ${STATUS[data.context.siteOperation.status]?.[0] || data.context.siteOperation.status}` : 'Site non relié à l’Intranet'}</Text>
-      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}><TouchableOpacity onPress={refreshReferential} disabled={syncing} style={{ paddingVertical: 7, paddingRight: 8 }}><Text style={{ color: COLORS.primary, fontWeight: '900', fontSize: 11 }}>{syncing ? 'Actualisation…' : '↻ Référentiel'}</Text></TouchableOpacity><TouchableOpacity onPress={() => setModalVisible(true)} disabled={!referential || (!data.context.remoteSiteId && !data.context.siteOperation)} style={{ paddingVertical: 7 }}><Text style={{ color: COLORS.primary, fontWeight: '900', fontSize: 11 }}>+ Ajouter un local</Text></TouchableOpacity></View>
+      <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}><TouchableOpacity onPress={refreshReferential} disabled={syncing} style={{ paddingVertical: 7, paddingRight: 8 }}><Text style={{ color: COLORS.primary, fontFamily: FONTS.black, fontSize: 11 }}>{syncing ? 'Actualisation…' : '↻ Référentiel'}</Text></TouchableOpacity><TouchableOpacity onPress={() => setModalVisible(true)} disabled={!referential || (!data.context.remoteSiteId && !data.context.siteOperation)} style={{ paddingVertical: 7 }}><Text style={{ color: COLORS.primary, fontFamily: FONTS.black, fontSize: 11 }}>+ Ajouter un local</Text></TouchableOpacity></View>
     </View>
 
     {data.locals.length ? data.locals.map((local, index) => {
@@ -228,8 +228,8 @@ export function IntranetSiteLocalsPanel({ siteId, onStartVisit }) {
           localTrameId: mappedTrameId,
           designation: local.designation,
           pending: local.syncStatus !== 'synced',
-        })} style={{ minHeight: 34, justifyContent: 'center', paddingHorizontal: 9 }}><Text style={{ color: COLORS.primary, fontSize: 10.5, fontWeight: '900' }}>Nouvelle visite</Text></TouchableOpacity> : <Text style={{ color: '#9A4C0A', fontSize: 9.5, maxWidth: 110, textAlign: 'right' }}>Trame non reconnue dans METRA</Text>}
-        {local.operation_id && !['pending', 'sending', 'synced', 'conflict'].includes(local.syncStatus) ? <TouchableOpacity onPress={() => retryStructureOperation(local.operation_id).then(load).catch((e) => Alert.alert('Reprise impossible', String(e?.message || e)))}><Text style={{ color: COLORS.primary, fontSize: 10, fontWeight: '800' }}>Réessayer</Text></TouchableOpacity> : null}</View>
+        })} style={{ minHeight: 34, justifyContent: 'center', paddingHorizontal: 9 }}><Text style={{ color: COLORS.primary, fontSize: 10.5, fontFamily: FONTS.black }}>Nouvelle visite</Text></TouchableOpacity> : <Text style={{ color: '#9A4C0A', fontSize: 9.5, maxWidth: 110, textAlign: 'right' }}>Trame non reconnue dans METRA</Text>}
+        {local.operation_id && !['pending', 'sending', 'synced', 'conflict'].includes(local.syncStatus) ? <TouchableOpacity onPress={() => retryStructureOperation(local.operation_id).then(load).catch((e) => Alert.alert('Reprise impossible', String(e?.message || e)))}><Text style={{ color: COLORS.primary, fontSize: 10, fontFamily: FONTS.bold }}>Réessayer</Text></TouchableOpacity> : null}</View>
       </View>;
     }) : <View style={styles.empty}><Text style={styles.emptyText}>Aucun local relié à l’Intranet</Text><Text style={styles.emptySub}>Ajoute une chaufferie, sous-station ou autre local technique. La création peut être saisie hors connexion si le référentiel a déjà été téléchargé.</Text></View>}
 

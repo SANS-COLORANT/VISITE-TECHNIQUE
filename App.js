@@ -99,9 +99,9 @@ function SimpleHeader({ title, onBack, visualPack, rightAction = null }) {
 
   if (spiralActive) {
     return <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFDF8', paddingTop: 50, paddingHorizontal: 16, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: '#DDE2E3' }}>
-      {onBack ? <TouchableOpacity onPress={onBack} style={{ width: 44, height: 40, alignItems: 'flex-start', justifyContent: 'center' }}><Text style={{ color: '#14202C', fontSize: 22, fontWeight: '700' }}>←</Text></TouchableOpacity> : <View style={{ width: 44 }} />}
+      {onBack ? <TouchableOpacity onPress={onBack} style={{ width: 44, height: 40, alignItems: 'flex-start', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={23} color={'#14202C'} strokeWidth={2.1} /></TouchableOpacity> : <View style={{ width: 44 }} />}
       <View style={{ flex: 1, alignItems: 'center' }}>
-        <Text style={{ color: '#14202C', fontSize: 9, fontWeight: '900', letterSpacing: 2 }}>METRA</Text>
+        <Text style={{ color: '#14202C', fontSize: 9, fontFamily: FONTS.black, letterSpacing: 2 }}>METRA</Text>
         <Text numberOfLines={1} style={{ marginTop: 2, color: '#14202C', fontSize: 16, fontWeight: '900', fontFamily: FONTS.black, letterSpacing: -0.25 }}>{title}</Text>
         <View style={{ marginTop: 6, width: 34, height: 3, backgroundColor: '#F26426', transform: [{ skewX: '-18deg' }] }} />
       </View>
@@ -141,13 +141,13 @@ function GlobalHomeButton({ onPress, missionMode = false, compact = false }) {
   }
   return <TouchableOpacity onPress={onPress} style={[{ position: 'absolute', left: 18, bottom: 20, zIndex: 260 }, fabShadow]}>
     <LinearGradient colors={[accent, accentDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={{ minHeight: 48, paddingHorizontal: 17, borderRadius: 24, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)', flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }}>
-      <CvcIcon name={missionMode ? 'tools' : 'home'} size={19} color={COLORS.white} /><Text style={{ color: COLORS.white, fontSize: 12, fontWeight: '900' }}>{missionMode ? 'Missions' : 'Accueil'}</Text>
+      <CvcIcon name={missionMode ? 'tools' : 'home'} size={19} color={COLORS.white} /><Text style={{ color: COLORS.white, fontSize: 12, fontFamily: FONTS.black }}>{missionMode ? 'Missions' : 'Accueil'}</Text>
     </LinearGradient>
   </TouchableOpacity>;
 }
 
 function Lab3DFab({ onPress, bottom = 82, label = '⬡ LAB 3D' }) {
-  return <TouchableOpacity onPress={onPress} style={{ position: 'absolute', right: 18, bottom, minHeight: 48, paddingHorizontal: 17, borderRadius: 24, backgroundColor: '#10384B', borderWidth: 2, borderColor: '#5DD8FF', alignItems: 'center', justifyContent: 'center', elevation: 9, zIndex: 205 }}><Text style={{ color: '#F5FBFF', fontWeight: '900', fontSize: 12.5 }}>{label}</Text></TouchableOpacity>;
+  return <TouchableOpacity onPress={onPress} style={{ position: 'absolute', right: 18, bottom, minHeight: 48, paddingHorizontal: 17, borderRadius: 24, backgroundColor: '#10384B', borderWidth: 2, borderColor: '#5DD8FF', alignItems: 'center', justifyContent: 'center', elevation: 9, zIndex: 205 }}><Text style={{ color: '#F5FBFF', fontFamily: FONTS.black, fontSize: 12.5 }}>{label}</Text></TouchableOpacity>;
 }
 
 function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
@@ -391,21 +391,21 @@ function PhoneModeChooser({ onChoose }) {
   }, []);
 
   const logoUri = resolveVisualPackAssetUri(pack, pack?.interface?.headerLogo);
-  const card = { minHeight: 128, padding: 15, borderRadius: 18, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, marginBottom: 10 };
+  const card = { minHeight: 128, padding: 16, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 9 }, elevation: 4 };
   const mode = (id, icon, title, description, featured = false) => (
     <TouchableOpacity key={id} onPress={() => onChoose(id)} activeOpacity={0.84} style={[card, featured ? { borderWidth: 1.5, borderColor: palette.main, backgroundColor: palette.light } : null]}>
       <View style={{ width: 48, height: 48, borderRadius: 15, backgroundColor: featured ? COLORS.white : palette.light, alignItems: 'center', justifyContent: 'center', borderWidth: featured ? 1 : 0, borderColor: palette.main }}>
         <CvcIcon name={icon} size={30} color={palette.main} />
       </View>
-      <Text style={{ marginTop: 12, fontSize: 17, fontWeight: '900', color: COLORS.ink }}>{title}</Text>
+      <Text style={{ marginTop: 12, fontSize: 17, fontFamily: FONTS.black, color: COLORS.ink }}>{title}</Text>
       <Text style={{ marginTop: 4, color: COLORS.inkSoft, lineHeight: 17, fontSize: 11.5 }}>{description}</Text>
     </TouchableOpacity>
   );
 
-  return <ScrollView style={{ flex: 1, backgroundColor: COLORS.bg }} contentContainerStyle={{ paddingTop: 54, paddingHorizontal: 16, paddingBottom: 30 }}>
+  return <ScrollView style={{ flex: 1, backgroundColor: 'transparent' }} contentContainerStyle={{ paddingTop: 54, paddingHorizontal: 16, paddingBottom: 30 }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 23, fontWeight: '900', color: COLORS.ink }}>Choisir le mode téléphone</Text>
+        <Text style={{ fontSize: 23, fontFamily: FONTS.black, color: COLORS.ink }}>Choisir le mode téléphone</Text>
         <Text style={{ marginTop: 6, color: COLORS.inkSoft, lineHeight: 18 }}>Interface complète, capture terrain rapide ou compagnon de la tablette.</Text>
       </View>
       {logoUri ? <VisualPackAsset uri={logoUri} style={{ width: 46, height: 36 }} /> : null}
@@ -427,8 +427,11 @@ export default function App() {
   }, [phone]);
 
   if (!fontsReady) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
-  if (phone && !phoneMode) return <AppErrorBoundary><PhoneModeChooser onChoose={setPhoneMode} /></AppErrorBoundary>;
-  if (phone && phoneMode === 'photo') return <AppErrorBoundary><PhotoPhoneScreen onExit={() => setPhoneMode(null)} /></AppErrorBoundary>;
-  if (phone && phoneMode === 'companion') return <AppErrorBoundary><CompanionPhoneScreen onExit={() => setPhoneMode(null)} /></AppErrorBoundary>;
+  // Les modes téléphone vivent hors d'AppContent : ils reçoivent ici le même
+  // fond ambiant (halos) que le reste de l'application.
+  const ambient = (child) => <View style={{ flex: 1, backgroundColor: COLORS.bg }}><AmbientBackground accent={COLORS.orange} />{child}</View>;
+  if (phone && !phoneMode) return <AppErrorBoundary>{ambient(<PhoneModeChooser onChoose={setPhoneMode} />)}</AppErrorBoundary>;
+  if (phone && phoneMode === 'photo') return <AppErrorBoundary>{ambient(<PhotoPhoneScreen onExit={() => setPhoneMode(null)} />)}</AppErrorBoundary>;
+  if (phone && phoneMode === 'companion') return <AppErrorBoundary>{ambient(<CompanionPhoneScreen onExit={() => setPhoneMode(null)} />)}</AppErrorBoundary>;
   return <AppErrorBoundary><AppContent phoneIntegralMode={phone && phoneMode === 'integral'} onPhoneModeExit={() => setPhoneMode(null)} /></AppErrorBoundary>;
 }

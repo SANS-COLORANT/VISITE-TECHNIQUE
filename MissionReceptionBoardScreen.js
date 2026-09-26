@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { getDb } from './db.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { modifierEquipementMission } from './missionEquipmentDb.js';
 import { creerPointMission } from './missionsDb.js';
@@ -66,13 +66,13 @@ function Chip({ label, selected, onPress }) {
       marginBottom: 6,
     }}
   >
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.6, fontWeight: '900' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.6, fontFamily: FONTS.black }}>{label}</Text>
   </TouchableOpacity>;
 }
 
 function Stat({ value, label }) {
   return <View style={[missionStyles.statBox, { minWidth: '30%', flexGrow: 1, padding: 10, borderRadius: 11 }]}>
-    <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 14, fontWeight: '900' }}>{value}</Text>
+    <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 14, fontFamily: FONTS.black }}>{value}</Text>
     <Text style={{ color: COLORS.inkFaint, fontSize: 8, marginTop: 2 }}>{label}</Text>
   </View>;
 }
@@ -263,14 +263,14 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
       ? 'remis / exploitable'
       : 'contrôlé / reçu';
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>{title}</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
         Tableau terrain synthétique : l’état de chaque ouvrage, les essais, les réserves, les actions et les documents restent reliés à la même Mission. Aucun inventaire n’est recréé pour cette phase.
       </Text>
       {mission?.type === 'opr_reception' ? <View style={[missionStyles.card, { padding: 11, marginTop: 12 }]}>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontWeight: '900', letterSpacing: 0.45 }}>MODES OPR · CUMULABLES</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontFamily: FONTS.black, letterSpacing: 0.45 }}>MODES OPR · CUMULABLES</Text>
         <Text style={{ color: COLORS.inkSoft, fontSize: 8.8, lineHeight: 12, marginTop: 3 }}>
           Une même OPR peut combiner contrôle statique, essais dynamiques et recontrôle de réserves. Aucun dossier séparé n’est créé.
         </Text>
@@ -281,7 +281,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
         </View>
       </View> : null}
       {mission?.type === 'passation_travaux_exploitant' ? <View style={[missionStyles.card, { padding: 11, marginTop: 12 }]}>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontWeight: '900', letterSpacing: 0.45 }}>PV DE PASSATION · CONTRADICTOIRE</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontFamily: FONTS.black, letterSpacing: 0.45 }}>PV DE PASSATION · CONTRADICTOIRE</Text>
         <Text style={{ color: COLORS.inkSoft, fontSize: 8.8, lineHeight: 12, marginTop: 3 }}>
           Le PV organise la remise de l’exploitation : documents, stocks/index, moyens d’accès, inventaire, état des installations, essais, réserves et annexes.
         </Text>
@@ -337,7 +337,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
       </View>
       {displayedEquipment.map((row) => <View key={row.id} style={[missionStyles.card, { padding: 11, marginBottom: 8 }]}>
         <TouchableOpacity onPress={() => navigation.navigate('MissionEquipment',{ missionId,siteId:row.site_id,equipmentId:row.id })}>
-          <Text style={{ color: COLORS.ink, fontSize: 10.8, fontWeight: '900' }}>{row.type || 'Équipement'}</Text>
+          <Text style={{ color: COLORS.ink, fontSize: 10.8, fontFamily: FONTS.black }}>{row.type || 'Équipement'}</Text>
           <Text style={{ color: COLORS.inkSoft, fontSize: 8.9, marginTop: 3 }}>{[row.brand,row.model].filter(Boolean).join(' · ') || 'Caractéristiques à compléter'}</Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 3 }}>{[row.site_name,row.location_label].filter(Boolean).join(' · ')}</Text>
         </TouchableOpacity>
@@ -369,7 +369,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
       {activeModes.dynamic && mission?.type === 'opr_reception' ? <>
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>OPR dynamique · essais</Text>
         <View style={[missionStyles.card, { padding: 11 }]}>
-          <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }}>
+          <Text style={{ color: COLORS.ink, fontSize: 10, fontFamily: FONTS.black }}>
             {summary.completedTests}/{summary.tests} essai(s) terminé(s)
           </Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, lineHeight: 12, marginTop: 3 }}>
@@ -384,7 +384,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
       {mission?.type === 'opr_reception' && activeModes.clearance ? <>
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Levée / recontrôle</Text>
         <View style={[missionStyles.card, { padding: 11 }]}>
-          <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }}>{summary.openReserves} réserve(s) ouverte(s)</Text>
+          <Text style={{ color: COLORS.ink, fontSize: 10, fontFamily: FONTS.black }}>{summary.openReserves} réserve(s) ouverte(s)</Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, lineHeight: 12, marginTop: 3 }}>
             Reprendre la réserve initiale, contrôler, photographier après intervention puis qualifier : levée, maintenue, partielle, inaccessible ou non vérifiable.
           </Text>
@@ -397,7 +397,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
       {mission?.type === 'passation_travaux_exploitant' && passationChecks.length ? <>
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>PV de passation · points formels</Text>
         {passationChecks.map((row) => <View key={row.id} style={[missionStyles.card, { padding: 10, marginBottom: 7 }]}>
-          <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }}>{String(row.label || '').replace(/^PV Passation · /, '')}</Text>
+          <Text style={{ color: COLORS.ink, fontSize: 10, fontFamily: FONTS.black }}>{String(row.label || '').replace(/^PV Passation · /, '')}</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 7 }}>
             {PASSATION_RESULTS.map(([key,label,status]) => <Chip
               key={key}
@@ -412,7 +412,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
       {documents.length ? <>
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Documents de réception / passation · statut rapide</Text>
         {documents.slice(0, 16).map((row) => <View key={row.id} style={[missionStyles.card, { padding: 10, marginBottom: 7 }]}>
-          <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }}>{row.label || 'Document attendu'}</Text>
+          <Text style={{ color: COLORS.ink, fontSize: 10, fontFamily: FONTS.black }}>{row.label || 'Document attendu'}</Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 2 }}>
             {[row.type,row.due_date || row.due_text].filter(Boolean).join(' · ') || 'Document Mission'}
           </Text>

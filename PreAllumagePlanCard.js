@@ -47,9 +47,9 @@ export function PreAllumagePlanCard({ visiteId, onSaved }) {
   return <View style={[styles.formCard, { marginBottom: 12 }]}>
     <Text style={styles.cardTitle}>Plan du site</Text>
     <Text style={[styles.importHint, { marginTop: 4, marginBottom: 10 }]}>Ce plan est enregistré au niveau du site. Il sera réutilisé lors des prochaines visites Pré-allumage et placé sur la page « Plan et informations bâtiments » des exports PDF et Word.</Text>
-    {plan?.uri ? <View style={{ borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, overflow: 'hidden', backgroundColor: '#fff', marginBottom: 10 }}>
+    {plan?.uri ? <View style={{ borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 12, overflow: 'hidden', backgroundColor: 'rgba(255,255,255,0.82)', marginBottom: 10 }}>
       <Image source={{ uri: plan.uri }} style={{ width: '100%', height: 240 }} resizeMode="contain" />
-    </View> : <View style={{ minHeight: 120, borderWidth: 1, borderStyle: 'dashed', borderColor: COLORS.line, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', marginBottom: 10, padding: 16 }}>
+    </View> : <View style={{ minHeight: 120, borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(22,21,15,0.1)', borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.82)', marginBottom: 10, padding: 16 }}>
       <Text style={{ color: COLORS.muted, textAlign: 'center' }}>Aucun plan enregistré pour ce site.</Text>
     </View>}
     <View style={{ flexDirection: 'row', gap: 8 }}>

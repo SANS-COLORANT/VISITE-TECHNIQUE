@@ -1,7 +1,7 @@
 /** Contrôle à présélections générique : avis + commentaire pour chaque état, réserve uniquement si nécessaire. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { upsertControlePartiel } from './controlDb.js';
 import { listerRemarquesVisite, upsertRemarquePrescription, supprimerRemarqueControle } from './remarkDb.js';
 import { PhotoButton } from './PhotoButton.js';
@@ -157,7 +157,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
     </View>
     {avis && <View style={[styles.criterePanel, { backgroundColor: palette.bg, borderColor: palette.border }]}>
       <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: palette.text, backgroundColor: palette.bg, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8 }}>
-        <Text style={{ color: palette.text, fontWeight: '800', fontSize: 11 }}>{libelleEtat(avis)}</Text>
+        <Text style={{ color: palette.text, fontFamily: FONTS.bold, fontSize: 11 }}>{libelleEtat(avis)}</Text>
       </View>
       {options.length > 0 && <>
         <Text style={[styles.criterePanelLabel, { color: palette.text }]}>{avis === 'N.S' ? 'Anomalie constatée' : avis === 'S' ? 'Commentaire rapide' : 'Motif / commentaire rapide'}</Text>

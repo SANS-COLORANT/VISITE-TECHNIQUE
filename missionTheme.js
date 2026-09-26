@@ -1,4 +1,5 @@
 import { StyleSheet } from 'react-native';
+import { FONTS } from './styles.js';
 
 export const MISSION_COLORS = Object.freeze({
   accent: '#2F7D58',
@@ -9,26 +10,26 @@ export const MISSION_COLORS = Object.freeze({
   accentLine: '#CDE2D5',
   accentLineStrong: '#AFCFBD',
   bg: '#F7FAF8',
-  card: '#FFFFFF',
+  card: 'rgba(255,255,255,0.84)',
 });
 
 export const missionStyles = StyleSheet.create({
-  screen: { backgroundColor: MISSION_COLORS.bg },
-  header: { backgroundColor: MISSION_COLORS.accentSoft, borderBottomColor: MISSION_COLORS.accentLine },
-  headerTitle: { color: MISSION_COLORS.accentStrong, fontWeight: '800' },
+  screen: { backgroundColor: 'transparent' },
+  header: { backgroundColor: 'transparent', borderBottomColor: 'transparent' },
+  headerTitle: { color: MISSION_COLORS.accentStrong, fontFamily: FONTS.bold },
   headerBackText: { color: MISSION_COLORS.accentDark },
   title: { color: MISSION_COLORS.accentStrong },
   sectionLabel: { color: MISSION_COLORS.accentDark },
-  card: { borderColor: MISSION_COLORS.accentLine },
+  card: { borderColor: 'rgba(47,125,88,0.16)' },
   infoBox: { backgroundColor: MISSION_COLORS.accentSoft },
-  input: { borderColor: MISSION_COLORS.accentLine, backgroundColor: MISSION_COLORS.card },
-  primaryButton: { backgroundColor: MISSION_COLORS.accent },
+  input: { borderColor: 'rgba(47,125,88,0.22)', backgroundColor: '#FFFFFF' },
+  primaryButton: { backgroundColor: MISSION_COLORS.accent, shadowColor: MISSION_COLORS.accent },
   primaryButtonText: { color: '#FFFFFF' },
-  secondaryButton: { backgroundColor: '#FFFFFF', borderColor: MISSION_COLORS.accentLineStrong },
+  secondaryButton: { backgroundColor: 'rgba(255,255,255,0.85)', borderColor: 'rgba(47,125,88,0.28)' },
   secondaryButtonText: { color: MISSION_COLORS.accentDark },
   chipSelected: { borderColor: MISSION_COLORS.accent, backgroundColor: MISSION_COLORS.accentLight },
   chipSelectedText: { color: MISSION_COLORS.accentDark },
   modalSheet: { borderWidth: 1, borderColor: MISSION_COLORS.accentLine },
   accentText: { color: MISSION_COLORS.accentDark },
-  statBox: { backgroundColor: MISSION_COLORS.accentSoft },
+  statBox: { backgroundColor: 'rgba(232,245,237,0.8)' },
 });

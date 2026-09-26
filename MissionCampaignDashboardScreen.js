@@ -3,7 +3,7 @@ import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'reac
 import { getDb } from './db.js';
 import { creerVisiteMission } from './missionsDb.js';
 import { getMissionFieldPlaybook } from './missionFieldPlaybooks.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 
 const FILTERS = Object.freeze([
@@ -28,7 +28,7 @@ function Chip({ label, selected, onPress }) {
       marginBottom: 6,
     }}
   >
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontWeight: '900' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontFamily: FONTS.black }}>{label}</Text>
   </TouchableOpacity>;
 }
 
@@ -165,7 +165,7 @@ export function MissionCampaignDashboardScreen({ navigation, route }) {
     [enriched]
   );
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
       <Text style={[styles.sectionTitle, missionStyles.title]}>Campagne multi-sites</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -180,7 +180,7 @@ export function MissionCampaignDashboardScreen({ navigation, route }) {
           [summary.done,'terminés'],
           [summary.exception,'accès / replanif.'],
         ].map(([value,label]) => <View key={label} style={[missionStyles.statBox,{minWidth:'29%',flexGrow:1,padding:9,borderRadius:11}]}>
-          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 14, fontWeight: '900' }}>{value}</Text>
+          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 14, fontFamily: FONTS.black }}>{value}</Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 2 }}>{label}</Text>
         </View>)}
       </View>
@@ -222,11 +222,11 @@ export function MissionCampaignDashboardScreen({ navigation, route }) {
         return <View key={site.id} style={[missionStyles.card,{padding:11,marginBottom:8}]}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: COLORS.ink, fontSize: 10.8, fontWeight: '900' }}>{site.name}</Text>
+              <Text style={{ color: COLORS.ink, fontSize: 10.8, fontFamily: FONTS.black }}>{site.name}</Text>
               <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 2 }}>{[site.city,site.reference].filter(Boolean).join(' · ')}</Text>
             </View>
             <View style={{ borderRadius: 9, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: state === 'done' ? MISSION_COLORS.accentLight : '#FFFFFF', paddingHorizontal: 8, paddingVertical: 5 }}>
-              <Text style={{ color: state === 'done' ? MISSION_COLORS.accentDark : COLORS.inkSoft, fontSize: 8.2, fontWeight: '900' }}>{stateLabel(state)}</Text>
+              <Text style={{ color: state === 'done' ? MISSION_COLORS.accentDark : COLORS.inkSoft, fontSize: 8.2, fontFamily: FONTS.black }}>{stateLabel(state)}</Text>
             </View>
           </View>
 

@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getDb } from './db.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import {
   MISSION_EQUIPMENT_STATES,
@@ -18,6 +18,7 @@ import {
 } from './missionEquipmentDb.js';
 import { capturerPhotoMission } from './missionMediaDb.js';
 import { EQUIPMENT_CATEGORIES, EQUIPMENT_PROFILE_MODES, getEquipmentProfile, resolveEquipmentCategory } from './missionEquipmentCatalog.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 const STATE_LABELS = Object.freeze({
   non_evalue: 'Non évalué',
@@ -70,13 +71,13 @@ function Chip({ label, selected, onPress }) {
       marginBottom: 6,
     }}
   >
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9.5, fontWeight: '800' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9.5, fontFamily: FONTS.bold }}>{label}</Text>
   </TouchableOpacity>;
 }
 
 function Field({ label, value, onChangeText, keyboardType = 'default', placeholder = '' }) {
   return <View style={{ marginBottom: 9 }}>
-    <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, fontWeight: '800', marginBottom: 4 }}>{label.toUpperCase()}</Text>
+    <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, fontFamily: FONTS.bold, marginBottom: 4 }}>{label.toUpperCase()}</Text>
     <TextInput
       style={[styles.input, missionStyles.input]}
       value={String(value ?? '')}
@@ -90,7 +91,7 @@ function Field({ label, value, onChangeText, keyboardType = 'default', placehold
 function ProfileField({ field, value, onChange }) {
   if (field.type === 'choice') {
     return <View style={{ marginBottom: 9 }}>
-      <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, fontWeight: '800', marginBottom: 5 }}>{field.label.toUpperCase()}</Text>
+      <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, fontFamily: FONTS.bold, marginBottom: 5 }}>{field.label.toUpperCase()}</Text>
       <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
         {(field.options || []).map((option) => <Chip key={option} label={option} selected={value === option} onPress={() => onChange(value === option ? '' : option)} />)}
       </View>
@@ -368,7 +369,7 @@ export function MissionEquipmentScreen({ navigation, route }) {
     return <View style={styles.center}><ActivityIndicator color={MISSION_COLORS.accent} /><Text style={{ marginTop: 8, color: COLORS.muted }}>Chargement de l’inventaire…</Text></View>;
   }
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <FlatList
       data={filtered}
       keyExtractor={(item) => item.id}
@@ -395,12 +396,12 @@ export function MissionEquipmentScreen({ navigation, route }) {
       >
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 12.5 }}>{item.type || 'Équipement'}</Text>
+            <Text style={{ color: MISSION_COLORS.accentStrong, fontFamily: FONTS.black, fontSize: 12.5 }}>{item.type || 'Équipement'}</Text>
             <Text style={{ color: COLORS.inkSoft, fontSize: 10, marginTop: 3 }}>{[item.brand, item.model].filter(Boolean).join(' · ') || 'Caractéristiques à compléter'}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 9, marginTop: 4 }}>{item.site_name || ''}{item.location_label ? ' · ' + item.location_label : ''}</Text>
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9, fontWeight: '900' }}>{STATE_LABELS[item.state] || item.state || 'Non évalué'}</Text>
+            <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9, fontFamily: FONTS.black }}>{STATE_LABELS[item.state] || item.state || 'Non évalué'}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, marginTop: 4 }}>{VERIFY_LABELS[item.verification_status] || 'Non vérifié'}</Text>
           </View>
         </View>
@@ -457,12 +458,12 @@ export function MissionEquipmentScreen({ navigation, route }) {
     </Modal>
 
     <Modal visible={!!selectedId && !!details} animationType="slide" onRequestClose={() => { setSelectedId(null); setDetails(null); }}>
-      <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+      <View style={{ flex: 1, backgroundColor: 'transparent' }}>
         <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 10, backgroundColor: MISSION_COLORS.accentStrong, flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => { setSelectedId(null); setDetails(null); }} style={{ paddingRight: 12, paddingVertical: 5 }}><Text style={{ color: '#FFFFFF', fontSize: 21 }}>←</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => { setSelectedId(null); setDetails(null); }} style={{ paddingRight: 12, paddingVertical: 5 }}><CvcIcon name="chevron-left" size={22} color={'#FFFFFF'} strokeWidth={2.1} /></TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: '#BFE2CC', fontSize: 8.5, fontWeight: '900', letterSpacing: 1 }}>ÉQUIPEMENT MISSION</Text>
-            <Text style={{ color: '#FFFFFF', fontWeight: '900', fontSize: 15 }}>{details?.equipment?.type || 'Équipement'}</Text>
+            <Text style={{ color: '#BFE2CC', fontSize: 8.5, fontFamily: FONTS.black, letterSpacing: 1 }}>ÉQUIPEMENT MISSION</Text>
+            <Text style={{ color: '#FFFFFF', fontFamily: FONTS.black, fontSize: 15 }}>{details?.equipment?.type || 'Équipement'}</Text>
           </View>
         </View>
         <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 90 }}>
@@ -493,7 +494,7 @@ export function MissionEquipmentScreen({ navigation, route }) {
             }))}
           />)}
 
-          <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, fontWeight: '800', marginBottom: 5 }}>LOCALISATION</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, fontFamily: FONTS.bold, marginBottom: 5 }}>LOCALISATION</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 45, marginBottom: 12 }}>
             <Chip label="Sans localisation" selected={!edit.locationId} onPress={() => setEdit((p) => ({ ...p, locationId: '' }))} />
             {locations.filter((location) => location.site_id === details?.equipment?.site_id).map((location) => <Chip
@@ -551,12 +552,12 @@ export function MissionEquipmentScreen({ navigation, route }) {
 
           <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Composants</Text>
           {(details?.components || []).map((c) => <View key={c.id} style={{ paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
-            <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '800' }}>{c.label}</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10.5, fontFamily: FONTS.bold }}>{c.label}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 9 }}>{[c.brand, c.model, c.state].filter(Boolean).join(' · ')}</Text>
           </View>)}
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 9 }}>
             <TextInput style={[styles.input, missionStyles.input, { flex: 1 }]} value={componentLabel} onChangeText={setComponentLabel} placeholder="Ajouter sonde, filtre, vanne…" />
-            <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={addComponent}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={addComponent}><CvcIcon name="plus" size={16} color={COLORS.orangeDark} strokeWidth={2.1} /></TouchableOpacity>
           </View>
 
           <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Historique de l’équipement</Text>

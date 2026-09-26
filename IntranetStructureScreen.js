@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, Text, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { getDb } from './db.js';
 import { creerVisiteProduction } from './visitCreationDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
@@ -41,7 +41,7 @@ export function IntranetStructureScreen({ route, navigation }) {
       <Text style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16, marginBottom: 12 }}>
         Les nouveaux locaux sont enregistrés d’abord sur la tablette. Une visite peut être commencée immédiatement ; son rattachement Intranet est complété automatiquement lorsque la création du local est confirmée par le serveur.
       </Text>
-      {creatingVisit ? <Text style={{ color: COLORS.primary, fontWeight: '800', fontSize: 11, marginBottom: 8 }}>Préparation de la visite…</Text> : null}
+      {creatingVisit ? <Text style={{ color: COLORS.primary, fontFamily: FONTS.bold, fontSize: 11, marginBottom: 8 }}>Préparation de la visite…</Text> : null}
     </View>
     <View style={{ flex: 1, paddingHorizontal: 16 }}>
       <IntranetSiteLocalsPanel siteId={siteId} onStartVisit={startVisit} />

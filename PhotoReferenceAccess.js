@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Keyboard, Modal, Text, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { resolvePhotoContexts, getVisitPhotoReference, readPhotoLocalChoice } from './latestVisitPhotosDb.js';
 import { filterLatestVisitPhotos, photoSummary, photoStatusLabel } from './latestVisitPhotoModel.js';
 import { usePhotoDownloadState } from './PhotoDownloadStatus.js';
@@ -61,8 +61,8 @@ export function PhotoReferenceAccess({ siteId = null, visiteId = null, remoteLoc
   return <View>
     {siteCover}
     <View style={{ marginVertical: 6 }}>
-      <TouchableOpacity accessibilityRole="button" onPress={open} style={{ minHeight: 52, borderWidth: 1, borderColor: COLORS.line, borderRadius: 10, backgroundColor: '#F4F7FA', paddingHorizontal: 12, paddingVertical: 8, justifyContent: 'center' }}>
-        <Text style={{ color: COLORS.ink, fontSize: 13, fontWeight: '700' }}>{contextTitle ? `Photos de référence · ${contextTitle}` : 'Photos de référence Intranet'}</Text>
+      <TouchableOpacity accessibilityRole="button" onPress={open} style={{ minHeight: 52, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 10, backgroundColor: '#F4F7FA', paddingHorizontal: 12, paddingVertical: 8, justifyContent: 'center' }}>
+        <Text style={{ color: COLORS.ink, fontSize: 13, fontFamily: FONTS.bodyBold }}>{contextTitle ? `Photos de référence · ${contextTitle}` : 'Photos de référence Intranet'}</Text>
         <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 4 }}>{error || status || (contexts.length > 1 ? 'Choisir le client Intranet' : 'Consulter sans quitter la visite')}</Text>
       </TouchableOpacity>
       <Modal visible={picker} transparent animationType="fade" onRequestClose={() => setPicker(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Choisir le client de référence</Text>{contexts.map((ctx) => <TouchableOpacity key={`${ctx.client.remote_client_id}-${ctx.remoteSiteId}`} onPress={() => { setPicker(false); setSelected(ctx); }} style={{ minHeight: 48, justifyContent: 'center' }}><Text>{ctx.client.nom || ctx.client.remote_client_id}</Text></TouchableOpacity>)}<TouchableOpacity onPress={() => setPicker(false)} style={[styles.btnSecondary, { minHeight: 48 }]}><Text style={styles.btnSecondaryText}>Fermer</Text></TouchableOpacity></View></View></Modal>

@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Image, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { capturerPhotoMission } from './missionMediaDb.js';
 
@@ -38,7 +38,7 @@ function StatusChip({ label, selected, onPress }) {
       marginBottom: 6,
     }}
   >
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.7, fontWeight: '900' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.7, fontFamily: FONTS.black }}>{label}</Text>
   </TouchableOpacity>;
 }
 
@@ -183,7 +183,7 @@ export function MissionReserveClearanceScreen({ route }) {
     }
   };
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Levée de réserves</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -197,7 +197,7 @@ export function MissionReserveClearanceScreen({ route }) {
           [summary.partial, 'partielles'],
           [summary.inaccessible, 'inaccessibles'],
         ].map(([value,label]) => <View key={label} style={[missionStyles.statBox, { flex: 1, borderRadius: 11, padding: 9 }]}>
-          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 14, fontWeight: '900' }}>{value}</Text>
+          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 14, fontFamily: FONTS.black }}>{value}</Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 2 }}>{label}</Text>
         </View>)}
       </View>
@@ -214,15 +214,15 @@ export function MissionReserveClearanceScreen({ route }) {
         return <View key={reserve.id} style={[missionStyles.card, { padding: 12, marginTop: 9 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontWeight: '900' }}>RÉSERVE {String(index + 1).padStart(2,'0')}</Text>
-              <Text style={{ color: COLORS.ink, fontSize: 11.5, fontWeight: '900', marginTop: 3 }}>{reserve.label || 'Réserve'}</Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontFamily: FONTS.black }}>RÉSERVE {String(index + 1).padStart(2,'0')}</Text>
+              <Text style={{ color: COLORS.ink, fontSize: 11.5, fontFamily: FONTS.black, marginTop: 3 }}>{reserve.label || 'Réserve'}</Text>
               <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop: 3 }}>
                 {[reserve.site_name,reserve.location_label,equipmentLabel(reserve)].filter(Boolean).join(' · ') || 'Contexte à compléter'}
               </Text>
               {reserve.description ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.3, lineHeight: 13, marginTop: 5 }}>{reserve.description}</Text> : null}
             </View>
             <View style={{ borderRadius: 9, backgroundColor: reserve.status === 'closed' ? MISSION_COLORS.accentLight : '#FFFFFF', borderWidth: 1, borderColor: MISSION_COLORS.accentLine, paddingHorizontal: 7, paddingVertical: 5 }}>
-              <Text style={{ color: reserve.status === 'closed' ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.2, fontWeight: '900' }}>
+              <Text style={{ color: reserve.status === 'closed' ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.2, fontFamily: FONTS.black }}>
                 {QUALIFICATION_LABEL[reserve.qualification] || (reserve.status === 'closed' ? 'Levée' : 'À recontrôler')}
               </Text>
             </View>
@@ -237,22 +237,22 @@ export function MissionReserveClearanceScreen({ route }) {
 
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 9 }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: COLORS.inkFaint, fontSize: 8, fontWeight: '900', marginBottom: 4 }}>AVANT</Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 8, fontFamily: FONTS.black, marginBottom: 4 }}>AVANT</Text>
               {before ? <Image source={{ uri: photoUri(before) }} style={{ width: '100%', height: 105, borderRadius: 9 }} resizeMode="cover" /> : <View style={{ height: 105, borderRadius: 9, backgroundColor: MISSION_COLORS.accentSoft, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.inkFaint, fontSize: 8.5 }}>Pas de photo initiale</Text></View>}
               <TouchableOpacity disabled={busyId === reserve.id} onPress={() => capture(reserve, 'before')} style={{ paddingVertical: 7, alignItems: 'center' }}>
-                <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.5, fontWeight: '900' }}>📷 {before ? 'Remplacer / ajouter' : 'Photo initiale'}</Text>
+                <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.5, fontFamily: FONTS.black }}>📷 {before ? 'Remplacer / ajouter' : 'Photo initiale'}</Text>
               </TouchableOpacity>
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: COLORS.inkFaint, fontSize: 8, fontWeight: '900', marginBottom: 4 }}>APRÈS</Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 8, fontFamily: FONTS.black, marginBottom: 4 }}>APRÈS</Text>
               {after ? <Image source={{ uri: photoUri(after) }} style={{ width: '100%', height: 105, borderRadius: 9 }} resizeMode="cover" /> : <View style={{ height: 105, borderRadius: 9, backgroundColor: MISSION_COLORS.accentSoft, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.inkFaint, fontSize: 8.5 }}>À photographier si utile</Text></View>}
               <TouchableOpacity disabled={busyId === reserve.id} onPress={() => capture(reserve, 'after')} style={{ paddingVertical: 7, alignItems: 'center' }}>
-                <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.5, fontWeight: '900' }}>📷 Photo après</Text>
+                <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.5, fontFamily: FONTS.black }}>📷 Photo après</Text>
               </TouchableOpacity>
             </View>
           </View>
 
-          <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontWeight: '900', marginTop: 7, marginBottom: 5 }}>RÉSULTAT DU RECONTRÔLE</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontFamily: FONTS.black, marginTop: 7, marginBottom: 5 }}>RÉSULTAT DU RECONTRÔLE</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
             {CLEARANCE.map(([key,label,status]) => <StatusChip
               key={key}

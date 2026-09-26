@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { choisirEtAjouterDocumentMission } from './missionMediaDb.js';
 import {
@@ -78,7 +78,7 @@ export function MissionDocumentInboxScreen({ route }) {
     await load();
   };
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Inbox documents Mission</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -93,7 +93,7 @@ export function MissionDocumentInboxScreen({ route }) {
       {(data.documents || []).map((doc) => <View key={doc.id} style={[missionStyles.card, { padding: 11, marginBottom: 7 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.ink, fontSize: 10.7, fontWeight: '900' }}>{doc.name || 'Document'}</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10.7, fontFamily: FONTS.black }}>{doc.name || 'Document'}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop: 2 }}>{doc.type || 'source'} · {doc.extraction_count || 0} extraction(s) · {doc.review_count || 0} à revoir</Text>
           </View>
           <TouchableOpacity disabled={!!busyId} style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => analyse(doc)}>
@@ -110,18 +110,18 @@ export function MissionDocumentInboxScreen({ route }) {
           ['ignored','Ignorés'],
           ['all','Tous'],
         ].map(([key,label]) => <TouchableOpacity key={key} onPress={() => setFilter(key)} style={{ borderWidth: 1, borderColor: filter === key ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: filter === key ? MISSION_COLORS.accentLight : '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6, marginBottom: 6 }}>
-          <Text style={{ color: filter === key ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{label}</Text>
+          <Text style={{ color: filter === key ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontFamily: FONTS.bold }}>{label}</Text>
         </TouchableOpacity>)}
       </View>
 
       {review.map((item) => <View key={item.id} style={[missionStyles.card, { padding: 11, marginBottom: 8 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 8.8, fontWeight: '900' }}>{TYPE_LABELS[item.item_type] || item.item_type}</Text>
-            <Text style={{ color: COLORS.ink, fontSize: 10.2, fontWeight: '800', marginTop: 3 }}>{item.label || item.value_text || 'Information'}</Text>
+            <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 8.8, fontFamily: FONTS.black }}>{TYPE_LABELS[item.item_type] || item.item_type}</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10.2, fontFamily: FONTS.bold, marginTop: 3 }}>{item.label || item.value_text || 'Information'}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.4, marginTop: 3 }}>{item.document_name || ''}{item.source_ref ? ' · ' + item.source_ref : ''}</Text>
           </View>
-          <Text style={{ color: item.status === 'accepted' ? MISSION_COLORS.accentDark : COLORS.inkFaint, fontSize: 8.5, fontWeight: '900' }}>{item.status}</Text>
+          <Text style={{ color: item.status === 'accepted' ? MISSION_COLORS.accentDark : COLORS.inkFaint, fontSize: 8.5, fontFamily: FONTS.black }}>{item.status}</Text>
         </View>
         {item.status === 'to_review' ? <View style={{ flexDirection: 'row', gap: 8, marginTop: 9 }}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => ignore(item)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Ignorer</Text></TouchableOpacity>

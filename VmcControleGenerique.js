@@ -1,7 +1,7 @@
 /** Contrôle VMC dédié : avis, commentaires, réserve, criticité et photos. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { upsertControlePartiel } from './controlDb.js';
 import { listerRemarquesVisite, upsertRemarquePrescription, supprimerRemarqueControle, modifierCriticiteRemarque } from './remarkDb.js';
 import { PhotoButton } from './PhotoButton.js';
@@ -135,7 +135,7 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
 
   return <View style={styles.controlRow}><View style={styles.controlTop}><Text style={styles.controlLabel}>{field.cle}</Text><View style={styles.avisGroup}>{AVIS_OPTIONS.map((opt) => { const c = avisChipColor(opt); const selected = avis === opt; return <TouchableOpacity key={opt} style={[styles.avisChip, selected && { backgroundColor: c.bg, borderColor: c.border }]} onPress={() => choisirAvis(opt)}><Text style={[styles.avisChipText, selected && { color: c.text }]}>{opt}</Text></TouchableOpacity>; })}</View></View>
     {avis && <View style={[styles.criterePanel, { backgroundColor: palette.bg, borderColor: palette.border }]}>
-      {etatApplication ? <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: palette.text, backgroundColor: palette.bg, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8 }}><Text style={{ color: palette.text, fontWeight: '800', fontSize: 11 }}>{etatApplication}</Text></View> : null}
+      {etatApplication ? <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: palette.text, backgroundColor: palette.bg, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8 }}><Text style={{ color: palette.text, fontFamily: FONTS.bold, fontSize: 11 }}>{etatApplication}</Text></View> : null}
       {options.length > 0 && <><Text style={[styles.criterePanelLabel, { color: palette.text }]}>{avis === 'N.S' ? 'Anomalie constatée' : 'Commentaire rapide'}</Text><View style={styles.critereChips}>{options.map((opt, idx) => <TouchableOpacity key={`${field.cle}-${avis}-${idx}`} style={[styles.critereChip, { borderColor: palette.text }, presetChoisi === idx && { backgroundColor: palette.picked, borderColor: palette.picked }]} onPress={() => choisirPreset(opt, idx)}><Text style={[styles.critereChipText, { color: presetChoisi === idx ? COLORS.white : palette.text }]}>{opt.label}</Text></TouchableOpacity>)}</View></>}
       <TextInput
         style={[styles.input, { marginTop: 8, minHeight: 64, textAlignVertical: 'top', backgroundColor: '#fff' }]}

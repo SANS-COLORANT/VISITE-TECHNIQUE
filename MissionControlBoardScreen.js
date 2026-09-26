@@ -2,7 +2,7 @@ import React, { useCallback, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerPointMission } from './missionsDb.js';
 import { capturerPhotoMission } from './missionMediaDb.js';
@@ -34,13 +34,13 @@ function Chip({ label, selected, onPress }) {
       marginBottom: 6,
     }}
   >
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.7, fontWeight: '900' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.7, fontFamily: FONTS.black }}>{label}</Text>
   </TouchableOpacity>;
 }
 
 function Field({ label, value, onChangeText, multiline = false, placeholder = '' }) {
   return <View style={{ marginBottom: 8 }}>
-    <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontWeight: '900', marginBottom: 4 }}>{label.toUpperCase()}</Text>
+    <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontFamily: FONTS.black, marginBottom: 4 }}>{label.toUpperCase()}</Text>
     <TextInput
       style={[styles.input,missionStyles.input,multiline ? { minHeight: 72, textAlignVertical: 'top' } : null]}
       value={String(value ?? '')}
@@ -240,7 +240,7 @@ export function MissionControlBoardScreen({ navigation, route }) {
     }
   };
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
       <Text style={[styles.sectionTitle,missionStyles.title]}>Contrôle ciblé / conformité</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -254,7 +254,7 @@ export function MissionControlBoardScreen({ navigation, route }) {
           [summary.gaps,'écarts'],
           [summary.recheck,'à recontrôler'],
         ].map(([value,label]) => <View key={label} style={[missionStyles.statBox,{flex:1,padding:9,borderRadius:11}]}>
-          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13.5, fontWeight: '900' }}>{value}</Text>
+          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13.5, fontFamily: FONTS.black }}>{value}</Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 2 }}>{label}</Text>
         </View>)}
       </View>
@@ -281,19 +281,19 @@ export function MissionControlBoardScreen({ navigation, route }) {
       {visible.map((row) => <View key={row.id} style={[missionStyles.card,{padding:11,marginBottom:8}]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.ink, fontSize: 10.8, fontWeight: '900' }}>{row.label || 'Contrôle'}</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10.8, fontFamily: FONTS.black }}>{row.label || 'Contrôle'}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 3 }}>
               {[row.site_name,row.location_label,[row.equipment_type,row.equipment_brand,row.equipment_model].filter(Boolean).join(' · ')].filter(Boolean).join(' · ') || 'Contexte Mission'}
             </Text>
             {row.description ? <Text style={{ color: COLORS.inkSoft, fontSize: 8.9, lineHeight: 13, marginTop: 4 }}>{row.description}</Text> : null}
           </View>
-          <Text style={{ color: ['conforme','non_applicable'].includes(row.qualification) ? MISSION_COLORS.accentDark : '#8A5B14', fontSize: 8.4, fontWeight: '900' }}>
+          <Text style={{ color: ['conforme','non_applicable'].includes(row.qualification) ? MISSION_COLORS.accentDark : '#8A5B14', fontSize: 8.4, fontFamily: FONTS.black }}>
             {RESULTS.find(([key]) => key === row.qualification)?.[1] || 'Non qualifié'}
           </Text>
         </View>
 
         {(row.reference_text || row.reference_number !== null && row.reference_number !== undefined || row.reference_source) ? <View style={{ borderRadius: 9, backgroundColor: MISSION_COLORS.accentSoft, padding: 8, marginTop: 7 }}>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, fontWeight: '900' }}>RÉFÉRENCE / EXIGENCE</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, fontFamily: FONTS.black }}>RÉFÉRENCE / EXIGENCE</Text>
           <Text style={{ color: COLORS.ink, fontSize: 8.9, lineHeight: 13, marginTop: 2 }}>
             {row.reference_number !== null && row.reference_number !== undefined ? String(row.reference_number) + (row.reference_unit ? ' ' + row.reference_unit : '') : (row.reference_text || '')}
           </Text>
@@ -332,7 +332,7 @@ export function MissionControlBoardScreen({ navigation, route }) {
         <Field label="Référence / exigence" value={draft.reference} onChangeText={(v)=>setDraft((d)=>({...d,reference:v}))} multiline placeholder="Texte, valeur ou exigence à vérifier." />
         <Field label="Source de la référence" value={draft.source} onChangeText={(v)=>setDraft((d)=>({...d,source:v}))} placeholder="CCTP, document, texte applicable, consigne…" />
         <Field label="Action attendue en cas d’écart" value={draft.requestedAction} onChangeText={(v)=>setDraft((d)=>({...d,requestedAction:v}))} />
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontWeight: '900', marginBottom: 5 }}>SITE (FACULTATIF)</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, fontFamily: FONTS.black, marginBottom: 5 }}>SITE (FACULTATIF)</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
           {sites.map((site) => <Chip key={site.id} label={site.name} selected={draft.siteId === site.id} onPress={()=>setDraft((d)=>({...d,siteId:d.siteId===site.id?'':site.id}))} />)}
         </View>

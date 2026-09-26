@@ -1,8 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getDb } from './db.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 import {
   creerInstallationMission,
   creerReseauTechniqueMission,
@@ -26,7 +27,7 @@ function Chip({ label, selected, onPress, compact = false }) {
       marginBottom: 6,
     }}
   >
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: compact ? 8.5 : 9.2, fontWeight: '800' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: compact ? 8.5 : 9.2, fontFamily: FONTS.bold }}>{label}</Text>
   </TouchableOpacity>;
 }
 
@@ -228,19 +229,19 @@ export function MissionTechnicalStructureScreen({ navigation, route }) {
       style={{ flex: 1 }}
       onPress={() => navigation.navigate('MissionEquipment', { missionId, siteId, equipmentId: equipment.id })}
     >
-      <Text style={{ color: COLORS.ink, fontSize: 9.5, fontWeight: '800' }}>{equipmentLabel(equipment)}</Text>
+      <Text style={{ color: COLORS.ink, fontSize: 9.5, fontFamily: FONTS.bold }}>{equipmentLabel(equipment)}</Text>
       <Text style={{ color: COLORS.inkFaint, fontSize: 8.1, marginTop: 2 }}>
         {[equipment.location_label, componentsCount(equipment.id) ? componentsCount(equipment.id) + ' composant(s)' : null].filter(Boolean).join(' · ') || 'Contexte à compléter'}
       </Text>
     </TouchableOpacity>
     {allowUnlink ? <TouchableOpacity onPress={() => unlinkEquipment(equipment)} style={{ padding: 6 }}>
-      <Text style={{ color: COLORS.inkFaint, fontSize: 12 }}>×</Text>
+      <CvcIcon name="close" size={13} color={COLORS.inkFaint} strokeWidth={2.1} />
     </TouchableOpacity> : null}
   </View>;
 
   const unassigned = equipmentFor(null);
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Architecture technique</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -272,10 +273,10 @@ export function MissionTechnicalStructureScreen({ navigation, route }) {
         return <View key={installation.id} style={[missionStyles.card, { padding: 12, marginTop: 12 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 12, fontWeight: '900' }}>{installation.label}</Text>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 12, fontFamily: FONTS.black }}>{installation.label}</Text>
               <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, marginTop: 2 }}>{[installation.type,installation.location_label].filter(Boolean).join(' · ') || 'Installation'}</Text>
             </View>
-            <TouchableOpacity onPress={() => removeObject('installation', installation)} style={{ padding: 5 }}><Text style={{ color: '#8B3A3A' }}>×</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => removeObject('installation', installation)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
           </View>
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
@@ -292,11 +293,11 @@ export function MissionTechnicalStructureScreen({ navigation, route }) {
           {directNetworks.map((network) => <View key={network.id} style={{ marginTop: 9, padding: 9, borderRadius: 10, backgroundColor: MISSION_COLORS.accentSoft }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: COLORS.ink, fontSize: 9.8, fontWeight: '900' }}>Réseau · {network.label}</Text>
+                <Text style={{ color: COLORS.ink, fontSize: 9.8, fontFamily: FONTS.black }}>Réseau · {network.label}</Text>
                 <Text style={{ color: COLORS.inkFaint, fontSize: 8.1 }}>{network.type || 'Type à compléter'}</Text>
               </View>
-              <TouchableOpacity onPress={() => openAssign({ installationId: installation.id, networkId: network.id, label: network.label })} style={{ padding: 5 }}><Text style={{ color: MISSION_COLORS.accentDark, fontWeight: '900' }}>＋ EQ</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => removeObject('network', network)} style={{ padding: 5 }}><Text style={{ color: '#8B3A3A' }}>×</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => openAssign({ installationId: installation.id, networkId: network.id, label: network.label })} style={{ padding: 5 }}><Text style={{ color: MISSION_COLORS.accentDark, fontFamily: FONTS.black }}>＋ EQ</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => removeObject('network', network)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
             </View>
             {equipmentFor(installation.id, null, network.id).map((equipment) => <EquipmentBadge key={equipment.id} equipment={equipment} allowUnlink />)}
           </View>)}
@@ -304,13 +305,13 @@ export function MissionTechnicalStructureScreen({ navigation, route }) {
           {systems.map((system) => {
             const systemNetworks = networksBySystem.get(system.id) || [];
             const systemEquipment = equipmentFor(installation.id, system.id, null, true);
-            return <View key={system.id} style={{ marginTop: 10, padding: 10, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, borderRadius: 11, backgroundColor: '#FFFFFF' }}>
+            return <View key={system.id} style={{ marginTop: 10, padding: 10, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.82)' }}>
               <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: COLORS.ink, fontSize: 10.3, fontWeight: '900' }}>Système · {system.label}</Text>
+                  <Text style={{ color: COLORS.ink, fontSize: 10.3, fontFamily: FONTS.black }}>Système · {system.label}</Text>
                   <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, marginTop: 2 }}>{system.type || 'Type à compléter'}</Text>
                 </View>
-                <TouchableOpacity onPress={() => removeObject('system', system)} style={{ padding: 5 }}><Text style={{ color: '#8B3A3A' }}>×</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => removeObject('system', system)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
               </View>
 
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
@@ -323,11 +324,11 @@ export function MissionTechnicalStructureScreen({ navigation, route }) {
               {systemNetworks.map((network) => <View key={network.id} style={{ marginTop: 7, padding: 8, borderRadius: 9, backgroundColor: MISSION_COLORS.accentSoft }}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                   <View style={{ flex: 1 }}>
-                    <Text style={{ color: COLORS.ink, fontSize: 9.5, fontWeight: '900' }}>{network.label}</Text>
+                    <Text style={{ color: COLORS.ink, fontSize: 9.5, fontFamily: FONTS.black }}>{network.label}</Text>
                     <Text style={{ color: COLORS.inkFaint, fontSize: 8 }}>{network.type || 'Réseau / circuit'}</Text>
                   </View>
-                  <TouchableOpacity onPress={() => openAssign({ installationId: installation.id, systemId: system.id, networkId: network.id, label: network.label })} style={{ padding: 5 }}><Text style={{ color: MISSION_COLORS.accentDark, fontWeight: '900' }}>＋ EQ</Text></TouchableOpacity>
-                  <TouchableOpacity onPress={() => removeObject('network', network)} style={{ padding: 5 }}><Text style={{ color: '#8B3A3A' }}>×</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => openAssign({ installationId: installation.id, systemId: system.id, networkId: network.id, label: network.label })} style={{ padding: 5 }}><Text style={{ color: MISSION_COLORS.accentDark, fontFamily: FONTS.black }}>＋ EQ</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => removeObject('network', network)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
                 </View>
                 {equipmentFor(installation.id, system.id, network.id).map((equipment) => <EquipmentBadge key={equipment.id} equipment={equipment} allowUnlink />)}
               </View>)}
@@ -376,7 +377,7 @@ export function MissionTechnicalStructureScreen({ navigation, route }) {
         <TextInput style={[styles.input, missionStyles.input]} value={assignQuery} onChangeText={setAssignQuery} placeholder="Rechercher pompe, chaudière, CTA, UE, UI…" />
         <ScrollView style={{ maxHeight: 360, marginTop: 7 }}>
           {candidateEquipment.map((equipment) => <TouchableOpacity key={equipment.id} onPress={() => assignEquipment(equipment)} style={{ paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
-            <Text style={{ color: COLORS.ink, fontSize: 10.2, fontWeight: '800' }}>{equipmentLabel(equipment)}</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10.2, fontFamily: FONTS.bold }}>{equipmentLabel(equipment)}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.4, marginTop: 2 }}>{equipment.location_label || 'Sans localisation'}</Text>
           </TouchableOpacity>)}
         </ScrollView>

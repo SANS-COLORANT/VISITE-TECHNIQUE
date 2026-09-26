@@ -1,6 +1,7 @@
 import React, { memo, useEffect, useState } from 'react';
 import { Image, Text, View } from 'react-native';
 import { getPhotoVariant } from './photoVariantCache.js';
+import { FONTS } from './styles.js';
 
 const PhotoVariantImage = memo(function PhotoVariantImage({
   uri,
@@ -34,7 +35,7 @@ const PhotoVariantImage = memo(function PhotoVariantImage({
 
   if (!resolved || failed) {
     return <View style={[{ backgroundColor: '#EEF1F3', alignItems: 'center', justifyContent: 'center' }, style]}>
-      <Text style={{ color: '#7B8790', fontSize: 9, fontWeight: '800', letterSpacing: 0.5 }}>{placeholderLabel}</Text>
+      <Text style={{ color: '#7B8790', fontSize: 9, fontFamily: FONTS.bold, letterSpacing: 0.5 }}>{placeholderLabel}</Text>
     </View>;
   }
 

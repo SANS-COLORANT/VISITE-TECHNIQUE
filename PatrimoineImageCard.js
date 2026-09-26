@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Text, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { IconOrb } from './premiumChrome.js';
 import { prewarmCameraRuntime } from './cameraRuntime.js';
@@ -82,9 +82,9 @@ export function PatrimoineImageCard({ entityType, entityId, title, subtitle = nu
 
   const libelleType = entityType === 'client' ? 'Image du client' : 'Image du site';
 
-  return <View style={{ backgroundColor: '#FFFFFF', borderRadius: 14, borderWidth: 1, borderColor: '#E3E5E8', overflow: 'hidden', marginBottom: 14 }}>
+  return <View style={{ backgroundColor: 'rgba(255,255,255,0.82)', borderRadius: 14, borderWidth: 1, borderColor: '#E3E5E8', overflow: 'hidden', marginBottom: 14 }}>
     <TouchableOpacity activeOpacity={uri ? 0.86 : 1} onPress={() => { if (uri) setViewer(true); }} accessibilityRole={uri ? 'imagebutton' : undefined}>
-      {uri ? <PhotoVariantImage uri={uri} variant={busy ? 'original' : 'thumb'} resizeMode="cover" style={{ width: '100%', height: 152, backgroundColor: '#F2F3F5' }} /> : <View style={{ height: 96, backgroundColor: '#F7F8FA', alignItems: 'center', justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: '#ECEEF1' }}>
+      {uri ? <PhotoVariantImage uri={uri} variant={busy ? 'original' : 'thumb'} resizeMode="cover" style={{ width: '100%', height: 152, backgroundColor: '#F2F3F5' }} /> : <View style={{ height: 96, backgroundColor: 'rgba(255,255,255,0.66)', alignItems: 'center', justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: '#ECEEF1' }}>
         <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="gallery" size={20} color={COLORS.orangeDark} /></IconOrb>
         <Text style={{ marginTop: 7, color: COLORS.muted, fontSize: 12 }}>{libelleType} non renseignée</Text>
       </View>}
@@ -93,7 +93,7 @@ export function PatrimoineImageCard({ entityType, entityId, title, subtitle = nu
     <View style={{ padding: 12 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 10 }}>
         <View style={{ flex: 1, paddingRight: 10 }}>
-          <Text numberOfLines={1} style={{ color: COLORS.ink, fontSize: 14, fontWeight: '800' }}>{title || libelleType}</Text>
+          <Text numberOfLines={1} style={{ color: COLORS.ink, fontSize: 14, fontFamily: FONTS.bold }}>{title || libelleType}</Text>
           <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 2 }}>{subtitle || `${libelleType} · stockée hors connexion`}</Text>
         </View>
         {busy ? <ActivityIndicator color={COLORS.orange || '#F26426'} /> : null}
@@ -106,7 +106,7 @@ export function PatrimoineImageCard({ entityType, entityId, title, subtitle = nu
           <CvcIcon name="gallery" size={17} color={COLORS.ink} /><Text style={styles.btnSecondaryText}>Galerie</Text>
         </TouchableOpacity>
         {uri ? <TouchableOpacity disabled={busy} onPress={demanderSuppression} style={{ minHeight: 44, paddingHorizontal: 13, borderRadius: 10, borderWidth: 1, borderColor: '#F0D1CD', backgroundColor: '#FFF7F6', alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ color: COLORS.red || '#B42318', fontWeight: '800' }}>Supprimer</Text>
+          <Text style={{ color: COLORS.red || '#B42318', fontFamily: FONTS.bold }}>Supprimer</Text>
         </TouchableOpacity> : null}
       </View>
     </View>

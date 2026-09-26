@@ -3,7 +3,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, SectionList, Text, TextInput, useWindowDimensions, View } from 'react-native';
 import { getChampsVisite, upsertChamp } from './db.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 
 function mapChamps(rows) { return Object.fromEntries((rows || []).map((r) => [`${r.section_code}||${r.cle}`, r.valeur])); }
 function masquerDate(value) {
@@ -43,7 +43,7 @@ function InfoField({ visiteId, sectionCode, field, valeurInitiale, onSaved }) {
   };
 
   return <View style={{ flex: 1, minWidth: 0, paddingVertical: 6 }}>
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}><Text style={{ flex: 1, color: COLORS.ink, fontSize: 12, fontWeight: '800' }}>{label}</Text>{estNombre ? <Text style={{ color: COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>AUTO</Text> : null}</View>
+    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}><Text style={{ flex: 1, color: COLORS.ink, fontSize: 12, fontFamily: FONTS.bold }}>{label}</Text>{estNombre ? <Text style={{ color: COLORS.inkSoft, fontSize: 9, fontFamily: FONTS.bold }}>AUTO</Text> : null}</View>
     <TextInput
       style={[styles.input, { minHeight: multiline ? 68 : 42, textAlignVertical: multiline ? 'top' : 'center', fontSize: 12 }, erreur && { borderColor: COLORS.red }]}
       multiline={multiline}
@@ -91,8 +91,8 @@ export function PreAllumageInfoPanel({ visiteId, onSaved }) {
   return <SectionList
     sections={sections}
     keyExtractor={(r) => r.key}
-    renderSectionHeader={({ section }) => <View style={{ marginTop: 5, marginBottom: 4 }}><Text style={{ color: COLORS.ink, fontSize: 14, fontWeight: '900' }}>{section.title}</Text></View>}
-    renderItem={({ item, section }) => <View style={{ backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, paddingHorizontal: 11, paddingVertical: 3, marginBottom: 7 }}><View style={{ flexDirection: item.large || !deuxColonnes ? 'column' : 'row', gap: item.large || !deuxColonnes ? 0 : 12 }}>{item.items.map((x, i) => <View key={x.key} style={{ flex: 1, minWidth: 0, paddingLeft: deuxColonnes && !item.large && i > 0 ? 10 : 0, borderLeftWidth: deuxColonnes && !item.large && i > 0 ? 1 : 0, borderLeftColor: COLORS.line }}><InfoField visiteId={visiteId} sectionCode={section.sectionCode} field={x.field} valeurInitiale={champs[x.key]} onSaved={(v) => { setChamps((m) => ({ ...m, [x.key]: v })); onSaved?.(); }} /></View>)}</View></View>}
+    renderSectionHeader={({ section }) => <View style={{ marginTop: 5, marginBottom: 4 }}><Text style={{ color: COLORS.ink, fontSize: 14, fontFamily: FONTS.black }}>{section.title}</Text></View>}
+    renderItem={({ item, section }) => <View style={{ backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 11, paddingHorizontal: 11, paddingVertical: 3, marginBottom: 7 }}><View style={{ flexDirection: item.large || !deuxColonnes ? 'column' : 'row', gap: item.large || !deuxColonnes ? 0 : 12 }}>{item.items.map((x, i) => <View key={x.key} style={{ flex: 1, minWidth: 0, paddingLeft: deuxColonnes && !item.large && i > 0 ? 10 : 0, borderLeftWidth: deuxColonnes && !item.large && i > 0 ? 1 : 0, borderLeftColor: COLORS.line }}><InfoField visiteId={visiteId} sectionCode={section.sectionCode} field={x.field} valeurInitiale={champs[x.key]} onSaved={(v) => { setChamps((m) => ({ ...m, [x.key]: v })); onSaved?.(); }} /></View>)}</View></View>}
     contentContainerStyle={styles.panelContent}
     keyboardShouldPersistTaps="handled"
     stickySectionHeadersEnabled={false}

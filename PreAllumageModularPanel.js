@@ -5,7 +5,7 @@ import { DurableChampGenerique } from './DurableChampGenerique.js';
 import { PersistentControleGenerique } from './PersistentControleGenerique.js';
 import { PresetControleGenerique } from './PresetControleGenerique.js';
 import { PreAllumagePlanCard } from './PreAllumagePlanCard.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import {
   PREALLUMAGE_TYPES_LOCAUX,
   ajouterChampPreAllumage,
@@ -33,7 +33,7 @@ function PetitBouton({ label, onPress, danger = false, primary = false }) {
   const borderColor = danger ? COLORS.red : COLORS.orange;
   const color = danger ? COLORS.red : primary ? COLORS.white : COLORS.orangeDark;
   return <TouchableOpacity onPress={onPress} style={{ borderWidth: 1, borderColor, backgroundColor, borderRadius: 9, paddingHorizontal: 10, paddingVertical: 7 }}>
-    <Text style={{ color, fontWeight: '700', fontSize: 12 }}>{label}</Text>
+    <Text style={{ color, fontFamily: FONTS.bodyBold, fontSize: 12 }}>{label}</Text>
   </TouchableOpacity>;
 }
 
@@ -58,14 +58,14 @@ function GestionModal({ visible, mode, panelId, onClose, onSubmit }) {
         <Text style={styles.modalTitle}>{titre}</Text>
         <TextInput style={styles.input} value={nom} onChangeText={setNom} placeholder={estLocal ? 'Ex. SST 12, Chaufferie Nord…' : 'Nom'} autoFocus />
         {estLocal ? <>
-          <Text style={{ fontWeight: '700', color: COLORS.ink, marginTop: 14, marginBottom: 7 }}>Type</Text>
+          <Text style={{ fontFamily: FONTS.bodyBold, color: COLORS.ink, marginTop: 14, marginBottom: 7 }}>Type</Text>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>{PREALLUMAGE_TYPES_LOCAUX.map((t) => {
             const selected = typeCode === t.code;
-            return <TouchableOpacity key={t.code} onPress={() => setTypeCode(t.code)} style={{ paddingHorizontal: 10, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: selected ? COLORS.orange : COLORS.line, backgroundColor: selected ? COLORS.orange : COLORS.white }}><Text style={{ color: selected ? COLORS.white : COLORS.inkSoft, fontWeight: '700' }}>{t.label}</Text></TouchableOpacity>;
+            return <TouchableOpacity key={t.code} onPress={() => setTypeCode(t.code)} style={{ paddingHorizontal: 10, paddingVertical: 8, borderRadius: 20, borderWidth: 1, borderColor: selected ? COLORS.orange : COLORS.line, backgroundColor: selected ? COLORS.orange : COLORS.white }}><Text style={{ color: selected ? COLORS.white : COLORS.inkSoft, fontFamily: FONTS.bodyBold }}>{t.label}</Text></TouchableOpacity>;
           })}</View>
           {typeCode !== 'chaufferie' ? <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}>
-            <TouchableOpacity onPress={() => setChauffage(!chauffage)} style={{ flex: 1, padding: 11, borderRadius: 10, borderWidth: 1, borderColor: chauffage ? COLORS.orange : COLORS.line, backgroundColor: chauffage ? COLORS.orangeLight : COLORS.white }}><Text style={{ textAlign: 'center', fontWeight: '700', color: chauffage ? COLORS.orangeDark : COLORS.inkSoft }}>{chauffage ? '✓ ' : ''}Chauffage</Text></TouchableOpacity>
-            <TouchableOpacity onPress={() => setEcs(!ecs)} style={{ flex: 1, padding: 11, borderRadius: 10, borderWidth: 1, borderColor: ecs ? COLORS.orange : COLORS.line, backgroundColor: ecs ? COLORS.orangeLight : COLORS.white }}><Text style={{ textAlign: 'center', fontWeight: '700', color: ecs ? COLORS.orangeDark : COLORS.inkSoft }}>{ecs ? '✓ ' : ''}ECS</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setChauffage(!chauffage)} style={{ flex: 1, padding: 11, borderRadius: 10, borderWidth: 1, borderColor: chauffage ? COLORS.orange : COLORS.line, backgroundColor: chauffage ? COLORS.orangeLight : COLORS.white }}><Text style={{ textAlign: 'center', fontFamily: FONTS.bodyBold, color: chauffage ? COLORS.orangeDark : COLORS.inkSoft }}>{chauffage ? '✓ ' : ''}Chauffage</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setEcs(!ecs)} style={{ flex: 1, padding: 11, borderRadius: 10, borderWidth: 1, borderColor: ecs ? COLORS.orange : COLORS.line, backgroundColor: ecs ? COLORS.orangeLight : COLORS.white }}><Text style={{ textAlign: 'center', fontFamily: FONTS.bodyBold, color: ecs ? COLORS.orangeDark : COLORS.inkSoft }}>{ecs ? '✓ ' : ''}ECS</Text></TouchableOpacity>
           </View> : null}
         </> : null}
         <View style={styles.modalActions}>
@@ -127,10 +127,10 @@ export function PreAllumageModularPanel({ visiteId, panelId, onSaved }) {
       keyExtractor={(item) => item.key}
       ListHeaderComponent={<View>
         {panelId === 'p-pa-batiments' ? <PreAllumagePlanCard visiteId={visiteId} onSaved={onSaved} /> : null}
-        <View style={{ backgroundColor: COLORS.white, borderColor: editionStructure ? COLORS.orange : COLORS.line, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 14 }}>
+        <View style={{ backgroundColor: 'rgba(255,255,255,0.82)', borderColor: editionStructure ? COLORS.orange : COLORS.line, borderWidth: 1, borderRadius: 12, padding: 12, marginBottom: 14 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontWeight: '800', color: COLORS.ink }}>Structure de la visite</Text>
+              <Text style={{ fontFamily: FONTS.bold, color: COLORS.ink }}>Structure de la visite</Text>
               <Text style={{ color: COLORS.inkSoft, fontSize: 12, marginTop: 3 }}>Les locaux alimentent automatiquement les compteurs, la régulation et les contrôles associés.</Text>
             </View>
             <PetitBouton label={editionStructure ? 'Terminer' : 'Modifier'} primary={editionStructure} onPress={() => setEditionStructure((v) => !v)} />

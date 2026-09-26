@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Animated, Image, Modal, PanResponder, SafeAreaView, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { formatPhotoDate } from './latestVisitPhotoModel.js';
+import { FONTS } from './styles.js';
 
 const clamp = (n, min, max) => Math.max(min, Math.min(max, n));
 function ZoomablePhoto({ photo, onPrevious, onNext }) {
@@ -77,7 +78,7 @@ function ZoomablePhoto({ photo, onPrevious, onNext }) {
   </>;
 }
 function ViewerButton({ label, accessibilityLabel, onPress, disabled = false }) {
-  return <TouchableOpacity accessibilityRole="button" accessibilityLabel={accessibilityLabel || label} disabled={disabled} onPress={onPress} style={{ minWidth: 48, minHeight: 48, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center', opacity: disabled ? 0.3 : 1 }}><Text style={{ color: '#FFF', fontWeight: '700', fontSize: 14 }}>{label}</Text></TouchableOpacity>;
+  return <TouchableOpacity accessibilityRole="button" accessibilityLabel={accessibilityLabel || label} disabled={disabled} onPress={onPress} style={{ minWidth: 48, minHeight: 48, paddingHorizontal: 12, justifyContent: 'center', alignItems: 'center', opacity: disabled ? 0.3 : 1 }}><Text style={{ color: '#FFF', fontFamily: FONTS.bodyBold, fontSize: 14 }}>{label}</Text></TouchableOpacity>;
 }
 export function ReferencePhotoViewer({ photos, photoId, onClose, onSelect }) {
   const index = photos.findIndex((p) => String(p.id) === String(photoId));
@@ -86,10 +87,10 @@ export function ReferencePhotoViewer({ photos, photoId, onClose, onSelect }) {
   const next = index >= 0 && index < photos.length - 1 ? () => onSelect(photos[index + 1].id) : null;
   return <Modal visible={Boolean(photo)} animationType="fade" onRequestClose={onClose}>
     <SafeAreaView style={{ flex: 1, backgroundColor: '#101820' }}>
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Text style={{ color: '#FFF', paddingLeft: 16, fontWeight: '700' }}>Référence Intranet · {index + 1}/{photos.length}</Text><ViewerButton label="Fermer" onPress={onClose} /></View>
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}><Text style={{ color: '#FFF', paddingLeft: 16, fontFamily: FONTS.bodyBold }}>Référence Intranet · {index + 1}/{photos.length}</Text><ViewerButton label="Fermer" onPress={onClose} /></View>
       {photo ? <ZoomablePhoto key={`${photo.id}-${photo.localUri}`} photo={photo} onPrevious={previous} onNext={next} /> : null}
       <ScrollView style={{ maxHeight: 110 }} contentContainerStyle={{ paddingHorizontal: 18, paddingVertical: 8 }}>
-        <Text style={{ color: '#FFF', fontSize: 15, fontWeight: '700' }}>{photo?.description || 'Photo de référence'}</Text>
+        <Text style={{ color: '#FFF', fontSize: 15, fontFamily: FONTS.bodyBold }}>{photo?.description || 'Photo de référence'}</Text>
         <Text style={{ color: '#D0D5DD', marginTop: 5, lineHeight: 19 }}>{[photo?.site?.nom, photo?.local?.designation, `Visite du ${formatPhotoDate(photo?.derniereVisite?.date)}`].filter(Boolean).join(' · ')}</Text>
       </ScrollView>
       <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 12 }}><ViewerButton label="‹ Précédente" disabled={!previous} onPress={previous} /><ViewerButton label="Suivante ›" disabled={!next} onPress={next} /></View>

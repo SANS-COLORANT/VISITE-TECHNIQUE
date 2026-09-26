@@ -2,7 +2,7 @@
 
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView, InteractionManager } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { IconOrb } from './premiumChrome.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
@@ -329,27 +329,27 @@ function SiteVisitesScreen({ route, navigation }) {
           <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 2 }}>{site?.adresse || 'Adresse à renseigner'}</Text>
         </View>
         <TouchableOpacity onPress={() => setGpsVisible(true)} style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
-          <Text style={{ color: COLORS.primary, fontWeight: '700' }}>{site?.adresse ? 'Modifier' : '+ Adresse'}</Text>
+          <Text style={{ color: COLORS.primary, fontFamily: FONTS.bodyBold }}>{site?.adresse ? 'Modifier' : '+ Adresse'}</Text>
         </TouchableOpacity>
       </View>
 
-      <View style={{ padding: 14, borderRadius: 14, backgroundColor: '#fff', borderWidth: 1, borderColor: '#E3E5E8' }}>
+      <View style={{ padding: 14, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: '#E3E5E8' }}>
         {site?.adresse ? (
           <>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
               <CvcIcon name="map" size={16} color={COLORS.ink} />
-              <Text style={{ fontWeight: '800', flex: 1 }}>{site.adresse}</Text>
+              <Text style={{ fontFamily: FONTS.bold, flex: 1 }}>{site.adresse}</Text>
             </View>
             {site.localisation_note ? <Text style={{ marginTop: 7, color: '#555' }}>{site.localisation_note}</Text> : null}
             <TouchableOpacity onPress={() => ouvrirGoogleMaps()} style={{ marginTop: 10, paddingVertical: 8 }}>
-              <Text style={{ color: COLORS.primary, fontWeight: '800' }}>Ouvrir dans Google Maps ↗</Text>
+              <Text style={{ color: COLORS.primary, fontFamily: FONTS.bold }}>Ouvrir dans Google Maps ↗</Text>
             </TouchableOpacity>
           </>
         ) : (
           <>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
               <CvcIcon name="map" size={16} color={COLORS.inkSoft} />
-              <Text style={{ fontWeight: '700' }}>Adresse non renseignée</Text>
+              <Text style={{ fontFamily: FONTS.bodyBold }}>Adresse non renseignée</Text>
             </View>
             <Text style={{ color: COLORS.muted, marginTop: 5, fontSize: 12 }}>Ajoute le numéro et la rue, la ville et le code postal. L'adresse reste disponible hors connexion.</Text>
           </>
@@ -379,7 +379,7 @@ function SiteVisitesScreen({ route, navigation }) {
           ? <Text style={{ color: '#7A5700', fontSize: 11.5, marginTop: 4 }}>Anciennes visites sans local : consultation uniquement, aucune nouvelle visite ne sera créée ici.</Text>
           : <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 4 }}>{apiRemoteLocalId ? `Contexte : ${apiRemoteLocalDesignation || nomLocal || 'Local technique'} · préparation Intranet` : `Local : ${nomLocal || 'Local technique'}`}</Text>}
       </View>
-      {visites.length > 0 && !selectionExport ? <TouchableOpacity onPress={ouvrirSelectionExport} style={{ paddingHorizontal: 10, paddingVertical: 8 }}><Text style={{ color: COLORS.primary, fontWeight: '800' }}>Exporter plusieurs</Text></TouchableOpacity> : null}
+      {visites.length > 0 && !selectionExport ? <TouchableOpacity onPress={ouvrirSelectionExport} style={{ paddingHorizontal: 10, paddingVertical: 8 }}><Text style={{ color: COLORS.primary, fontFamily: FONTS.bold }}>Exporter plusieurs</Text></TouchableOpacity> : null}
     </View>
   );
 
@@ -409,7 +409,7 @@ function SiteVisitesScreen({ route, navigation }) {
                 navigation.navigate('Visite', { visiteId: item.id, visitePreview: preview });
               }}
             >
-              {selectionExport ? <View style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: selectionnee ? COLORS.primary : COLORS.line, backgroundColor: selectionnee ? COLORS.primary : '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}><Text style={{ color: '#fff', fontWeight: '900' }}>{selectionnee ? '✓' : ''}</Text></View> : null}
+              {selectionExport ? <View style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: selectionnee ? COLORS.primary : COLORS.line, backgroundColor: selectionnee ? COLORS.primary : '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}><Text style={{ color: '#fff', fontFamily: FONTS.black }}>{selectionnee ? '✓' : ''}</Text></View> : null}
               <View style={{ flex: 1 }}>
                 <Text style={styles.cardTitle}>{item.date_visite || 'Sans date'}</Text>
                 <Text style={styles.cardSub}>{trame.nom}{item.technicien ? ` · ${item.technicien}` : ''}</Text>
@@ -419,7 +419,7 @@ function SiteVisitesScreen({ route, navigation }) {
                 {!selectionExport && (intranetClientImported || item.api_remote_local_id) ? <IntranetVisitSyncControl visite={item} onVisitChanged={charger} compact /> : null}
               </View>
               {!selectionExport ? <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }} accessibilityLabel={`Supprimer la visite du ${item.date_visite || ''}`}>
-                <Text style={{ color: COLORS.red || '#B42318', fontSize: 18, fontWeight: '800' }}>✕</Text>
+                <CvcIcon name="close" size={19} color={COLORS.red || '#B42318'} strokeWidth={2.1} />
               </TouchableOpacity> : null}
             </TouchableOpacity>
           );
@@ -453,8 +453,8 @@ function SiteVisitesScreen({ route, navigation }) {
       <Modal visible={choixModeVisible} transparent animationType="fade" onRequestClose={() => { if (!creationEnCours) setChoixModeVisible(false); }}>
         <View style={styles.modalOverlay}><View style={styles.modalSheet}><ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Text style={styles.modalTitle}>{apiRemoteLocalId ? 'Préparer la visite' : 'Nouvelle visite'}</Text>
-          {apiRemoteLocalId ? <View style={{ padding: 12, borderRadius: 12, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: '#E6E8EC', marginBottom: 14 }}>
-            <Text style={{ color: COLORS.ink, fontWeight: '800', fontSize: 13 }}>{apiRemoteLocalDesignation || 'Local technique'}</Text>
+          {apiRemoteLocalId ? <View style={{ padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.66)', borderWidth: 1, borderColor: '#E6E8EC', marginBottom: 14 }}>
+            <Text style={{ color: COLORS.ink, fontFamily: FONTS.bold, fontSize: 13 }}>{apiRemoteLocalDesignation || 'Local technique'}</Text>
             <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 3 }}>{apiRemoteTrame?.nom ? `Trame Intranet : ${apiRemoteTrame.nom}` : 'Trame Intranet non renseignée'}</Text>
             <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 7, lineHeight: 16 }}>Le matériel courant est rattaché au patrimoine de ce local. Les anciens avis, commentaires et réserves restent seulement des références : ils ne deviennent pas les réponses de la visite du jour.</Text>
           </View> : null}

@@ -9,6 +9,7 @@ import {
   supprimerPointCourbePreAllumage,
 } from './preAllumageHeatCurveDb.js';
 import { COLORS } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 const X_MIN = -25;
 const X_MAX = 30;
@@ -54,21 +55,21 @@ function PointEditor({ point, onSave, onDelete }) {
   return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: 5, borderTopWidth: 1, borderTopColor: '#EAECF0' }}>
     <View style={{ width: 78 }}>
       <Text style={{ color: COLORS.inkSoft, fontSize: 8, fontWeight: '800', marginBottom: 2 }}>T° EXT.</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 8, backgroundColor: '#FFFFFF' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.82)' }}>
         <TextInput value={outdoor} onChangeText={setOutdoor} onBlur={save} onSubmitEditing={save} keyboardType="decimal-pad" inputMode="decimal" style={{ flex: 1, minHeight: 34, paddingHorizontal: 7, paddingVertical: 4, fontSize: 11, fontWeight: '800', color: COLORS.ink }} />
         <Text style={{ paddingRight: 6, color: COLORS.inkSoft, fontSize: 9 }}>°C</Text>
       </View>
     </View>
-    <Text style={{ color: COLORS.inkSoft, fontWeight: '900', marginTop: 12 }}>→</Text>
+    <CvcIcon name="chevron-right" size={16} color={COLORS.inkSoft} strokeWidth={2.1} />
     <View style={{ width: 78 }}>
       <Text style={{ color: COLORS.inkSoft, fontSize: 8, fontWeight: '800', marginBottom: 2 }}>T° EAU</Text>
-      <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 8, backgroundColor: '#FFFFFF' }}>
+      <View style={{ flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 8, backgroundColor: 'rgba(255,255,255,0.82)' }}>
         <TextInput value={water} onChangeText={setWater} onBlur={save} onSubmitEditing={save} keyboardType="decimal-pad" inputMode="decimal" style={{ flex: 1, minHeight: 34, paddingHorizontal: 7, paddingVertical: 4, fontSize: 11, fontWeight: '800', color: COLORS.ink }} />
         <Text style={{ paddingRight: 6, color: COLORS.inkSoft, fontSize: 9 }}>°C</Text>
       </View>
     </View>
     <View style={{ flex: 1, paddingTop: 12 }}><Text style={{ color: point.base ? COLORS.inkSoft : COLORS.orangeDark, fontSize: 9, fontWeight: '800' }}>{point.base ? 'Point historique' : 'Point ajouté'}</Text></View>
-    {!point.base ? <TouchableOpacity onPress={onDelete} style={{ width: 34, height: 34, marginTop: 12, borderRadius: 8, borderWidth: 1, borderColor: '#F4C7C7', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF6F6' }}><Text style={{ color: COLORS.red, fontWeight: '900' }}>✕</Text></TouchableOpacity> : null}
+    {!point.base ? <TouchableOpacity onPress={onDelete} style={{ width: 34, height: 34, marginTop: 12, borderRadius: 8, borderWidth: 1, borderColor: '#F4C7C7', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF6F6' }}><CvcIcon name="close" size={16} color={COLORS.red} strokeWidth={2.1} /></TouchableOpacity> : null}
   </View>;
 }
 
@@ -188,7 +189,7 @@ export function PreAllumageHeatCurve({ visiteId, sectionCode, fields = [], champ
   const tncVisible = tnc !== null && tnc >= X_MIN && tnc <= X_MAX;
 
   if (!points.length) return null;
-  return <View style={{ marginVertical: 6, borderWidth: 1, borderColor: COLORS.line, backgroundColor: '#FBFCFD', borderRadius: 12, padding: 10 }}>
+  return <View style={{ marginVertical: 6, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: '#FBFCFD', borderRadius: 12, padding: 10 }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
       <View style={{ flex: 1 }}><Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '900' }}>Courbe de chauffe</Text><Text style={{ color: COLORS.inkSoft, fontSize: 9, marginTop: 2 }}>Glissez un point horizontalement (T° extérieure) et verticalement (T° eau).</Text></View>
       <TouchableOpacity onPress={ajouter} style={{ minHeight: 34, justifyContent: 'center', paddingHorizontal: 10, borderRadius: 9, backgroundColor: COLORS.orange }}><Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 10 }}>+ Point</Text></TouchableOpacity>

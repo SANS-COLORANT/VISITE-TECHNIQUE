@@ -140,6 +140,33 @@ function CvcIcon({ name, size = 36, color = '#10384B', strokeWidth = 1.9 }) {
     body = <G {...p}>
       <Path d="M15.5 3.5 6 16h6.5L12.5 24.5 22 12h-6.5L15.5 3.5Z" />
     </G>;
+  } else if (key === 'close' || key === 'x') {
+    body = <G {...p}>
+      <Line x1="7.5" y1="7.5" x2="20.5" y2="20.5" />
+      <Line x1="20.5" y1="7.5" x2="7.5" y2="20.5" />
+    </G>;
+  } else if (key === 'copy' || key === 'duplicate') {
+    body = <G {...p}>
+      <Rect x="9.5" y="9.5" width="13" height="13" rx="2.5" />
+      <Path d="M18.5 9.5V7a2 2 0 0 0-2-2H7a2 2 0 0 0-2 2v9.5a2 2 0 0 0 2 2h2.5" />
+    </G>;
+  } else if (key === 'more' || key === 'menu') {
+    body = <G {...p}>
+      <Circle cx="7.5" cy="14" r="1.4" fill={color} stroke="none" />
+      <Circle cx="14" cy="14" r="1.4" fill={color} stroke="none" />
+      <Circle cx="20.5" cy="14" r="1.4" fill={color} stroke="none" />
+    </G>;
+  } else if (key === 'chevron-down') {
+    body = <G {...p}><Polyline points="8,11 14,17 20,11" /></G>;
+  } else if (key === 'chevron-up') {
+    body = <G {...p}><Polyline points="8,17 14,11 20,17" /></G>;
+  } else if (key === 'refresh' || key === 'sync') {
+    body = <G {...p}>
+      <Path d="M22 12.5A8.2 8.2 0 0 0 7.2 8.6" />
+      <Polyline points="6.5,4.5 6.8,9 11.2,8.6" />
+      <Path d="M6 15.5a8.2 8.2 0 0 0 14.8 3.9" />
+      <Polyline points="21.5,23.5 21.2,19 16.8,19.4" />
+    </G>;
   } else if (key === 'fan' || key === 'vmc') {
     body = <G {...p}>
       <Circle cx="14" cy="14" r="10.5" />

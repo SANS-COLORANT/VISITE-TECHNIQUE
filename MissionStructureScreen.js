@@ -1,7 +1,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 import {
   MISSION_LOCATION_KINDS,
   construireArbreLocalisations,
@@ -27,7 +28,7 @@ function Chip({ label, selected, onPress }) {
       marginBottom: 6,
     }}
   >
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontFamily: FONTS.bold }}>{label}</Text>
   </TouchableOpacity>;
 }
 
@@ -35,7 +36,7 @@ function EquipmentRow({ equipment }) {
   return <View style={{ flexDirection: 'row', alignItems: 'center', paddingVertical: 5, paddingLeft: 12 }}>
     <Text style={{ color: MISSION_COLORS.accent, fontSize: 10, marginRight: 6 }}>●</Text>
     <View style={{ flex: 1 }}>
-      <Text style={{ color: COLORS.ink, fontSize: 9.7, fontWeight: '800' }}>{equipment.type || 'Équipement'}</Text>
+      <Text style={{ color: COLORS.ink, fontSize: 9.7, fontFamily: FONTS.bold }}>{equipment.type || 'Équipement'}</Text>
       <Text style={{ color: COLORS.inkFaint, fontSize: 8.3 }}>{[equipment.brand, equipment.model, equipment.state].filter(Boolean).join(' · ') || 'À compléter'}</Text>
     </View>
   </View>;
@@ -46,20 +47,20 @@ function LocationNode({ node, onAddChild, onEdit, onDelete }) {
     <View style={[missionStyles.card, { padding: 10 }]}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={{ width: 26, height: 26, borderRadius: 8, backgroundColor: MISSION_COLORS.accentSoft, alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11, fontWeight: '900' }}>{Number(node.depth || 0) + 1}</Text>
+          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 11, fontFamily: FONTS.black }}>{Number(node.depth || 0) + 1}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: COLORS.ink, fontSize: 10.7, fontWeight: '900' }}>{node.label}</Text>
+          <Text style={{ color: COLORS.ink, fontSize: 10.7, fontFamily: FONTS.black }}>{node.label}</Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 2 }}>{KIND_LABEL[node.kind] || node.kind || 'Localisation'} · {node.equipment?.length || 0} équipement(s) direct(s)</Text>
         </View>
         <TouchableOpacity onPress={() => onAddChild(node)} style={{ paddingHorizontal: 7, paddingVertical: 5 }}>
-          <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 15, fontWeight: '900' }}>＋</Text>
+          <CvcIcon name="plus" size={16} color={MISSION_COLORS.accentDark} strokeWidth={2.1} />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => onEdit(node)} style={{ paddingHorizontal: 7, paddingVertical: 5 }}>
-          <Text style={{ color: COLORS.inkSoft, fontSize: 12 }}>✎</Text>
+          <CvcIcon name="edit" size={13} color={COLORS.inkSoft} strokeWidth={2.1} />
         </TouchableOpacity>
         <TouchableOpacity onPress={() => onDelete(node)} style={{ paddingHorizontal: 7, paddingVertical: 5 }}>
-          <Text style={{ color: '#8B3A3A', fontSize: 12 }}>×</Text>
+          <CvcIcon name="close" size={13} color={'#8B3A3A'} strokeWidth={2.1} />
         </TouchableOpacity>
       </View>
 
@@ -175,7 +176,7 @@ export function MissionStructureScreen({ navigation, route }) {
     );
   };
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Patrimoine · navigation intérieure</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -229,7 +230,7 @@ export function MissionStructureScreen({ navigation, route }) {
           placeholder="Bâtiment A, R+2, Chaufferie, Local CTA…"
           autoFocus
         />
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, fontWeight: '800', marginTop: 10, marginBottom: 5 }}>TYPE</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, fontFamily: FONTS.bold, marginTop: 10, marginBottom: 5 }}>TYPE</Text>
         <ScrollView style={{ maxHeight: 250 }}>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
             {MISSION_LOCATION_KINDS.map(([key,label]) => <Chip key={key} label={label} selected={draft.kind === key} onPress={() => setDraft((p) => ({ ...p, kind: key }))} />)}

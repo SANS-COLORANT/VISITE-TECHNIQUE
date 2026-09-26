@@ -8,7 +8,7 @@ import { upsertRemarquePrescription } from './remarkDb.js';
 import { openAppDatabase } from './database/index.js';
 import { supprimerPhotoComplete } from './photoDb.js';
 import { copierPhotoDansDocuments, supprimerCopiePhotoDocuments } from './photoDocumentsStorage.js';
-import { styles, COLORS } from './styles.js';
+import { styles, COLORS, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { confirmerPhotoJournalisee, journaliserPhotoEnAttente } from './photoPersistenceJournal.js';
 import { forgetPhotoVariants, preparePhotoVariants } from './photoVariantCache.js';
@@ -449,7 +449,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       )}
       {compactPhone && hasPhotos && photos.length > 1 ? (
         <View style={{ position: 'absolute', right: -5, top: -5, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: COLORS.green, alignItems: 'center', justifyContent: 'center' }}>
-          <Text style={{ color: COLORS.white, fontSize: 9, fontWeight: '900' }}>{photos.length}</Text>
+          <Text style={{ color: COLORS.white, fontSize: 9, fontFamily: FONTS.black }}>{photos.length}</Text>
         </View>
       ) : null}
     </TouchableOpacity>
@@ -458,7 +458,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
         <View style={styles.photoViewerHeader}>
           <Text style={styles.photoViewerTitle}>{label || 'Photo'} · {index + 1}/{photos.length}</Text>
           <TouchableOpacity onPress={() => setViewerHd((value) => !value)} style={{ paddingHorizontal: 12, paddingVertical: 7 }}><Text style={styles.photoViewerSecondaryText}>{viewerHd ? 'Aperçu' : 'HD'}</Text></TouchableOpacity>
-          <TouchableOpacity onPress={() => setViewerVisible(false)}><Text style={styles.photoViewerClose}>✕</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setViewerVisible(false)}><CvcIcon name="close" size={16} color={COLORS.orangeDark} strokeWidth={2.1} /></TouchableOpacity>
         </View>
         {photos[index] && <PhotoVariantImage uri={photos[index].uri} variant={photos[index].pending || viewerHd ? 'original' : 'preview'} style={styles.photoViewerImage} resizeMode="contain" />}
         {photos.length > 1 && (

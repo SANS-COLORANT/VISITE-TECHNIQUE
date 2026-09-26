@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { HEALTH_DIMENSIONS, getSiteHealth, saveSiteHealthMode } from './siteHealth.js';
 
 function scoreColor(score) {
@@ -25,10 +25,10 @@ function Indicator({ dimension, details }) {
   if (key === 'suivi') detail = details?.visitAgeDays === null || details?.visitAgeDays === undefined ? 'Aucune visite de référence' : `Dernière visite il y a ${details.visitAgeDays} jour(s)`;
   if (key === 'donnees') detail = 'Basé sur la progression de la visite de référence';
   return (
-    <View style={{ backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 13, padding: 13, marginBottom: 9 }}>
+    <View style={{ backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 13, padding: 13, marginBottom: 9 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-        <Text style={{ flex: 1, fontSize: 12.5, fontWeight: '800', color: COLORS.ink }}>{dimension.label}</Text>
-        <Text style={{ fontSize: 17, fontWeight: '900', color: scoreColor(score) }}>{scoreText(score)}</Text>
+        <Text style={{ flex: 1, fontSize: 12.5, fontFamily: FONTS.bold, color: COLORS.ink }}>{dimension.label}</Text>
+        <Text style={{ fontSize: 17, fontFamily: FONTS.black, color: scoreColor(score) }}>{scoreText(score)}</Text>
       </View>
       {detail ? <Text style={{ marginTop: 4, fontSize: 10.5, color: COLORS.inkSoft }}>{detail}</Text> : null}
     </View>
@@ -95,10 +95,10 @@ export function SiteHealthPanel({ siteId, siteName = 'Site' }) {
   return (
     <ScrollView contentContainerStyle={{ paddingBottom: 30 }} keyboardShouldPersistTaps="handled">
       <View style={{ backgroundColor: '#FFF7F1', borderWidth: 1, borderColor: '#F6C7AD', borderRadius: 15, padding: 15, marginBottom: 14 }}>
-        <Text style={{ fontSize: 11, fontWeight: '900', color: COLORS.orangeDark }}>LAB METRA · SANTÉ DU SITE</Text>
-        <Text style={{ marginTop: 5, fontSize: 20, fontWeight: '900', color: COLORS.ink }}>{siteName}</Text>
+        <Text style={{ fontSize: 11, fontFamily: FONTS.black, color: COLORS.orangeDark }}>LAB METRA · SANTÉ DU SITE</Text>
+        <Text style={{ marginTop: 5, fontSize: 20, fontFamily: FONTS.black, color: COLORS.ink }}>{siteName}</Text>
         <View style={{ flexDirection: 'row', alignItems: 'flex-end', marginTop: 8 }}>
-          <Text style={{ fontSize: 38, lineHeight: 42, fontWeight: '900', color: scoreColor(health?.overall) }}>{Number.isFinite(Number(health?.overall)) ? Math.round(Number(health.overall)) : '—'}</Text>
+          <Text style={{ fontSize: 38, lineHeight: 42, fontFamily: FONTS.black, color: scoreColor(health?.overall) }}>{Number.isFinite(Number(health?.overall)) ? Math.round(Number(health.overall)) : '—'}</Text>
           <Text style={{ marginLeft: 4, marginBottom: 5, fontSize: 13, color: COLORS.inkSoft }}>/ 100 · {health?.level?.label || 'Données insuffisantes'}</Text>
         </View>
         <Text style={{ marginTop: 5, fontSize: 10.5, color: COLORS.inkSoft }}>
@@ -116,14 +116,14 @@ export function SiteHealthPanel({ siteId, siteName = 'Site' }) {
       </View>
 
       {mode === 'auto' ? (
-        <View style={{ padding: 13, borderRadius: 12, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line }}>
-          <Text style={{ color: COLORS.ink, fontWeight: '800', fontSize: 12 }}>Calcul depuis la dernière visite</Text>
+        <View style={{ padding: 13, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' }}>
+          <Text style={{ color: COLORS.ink, fontFamily: FONTS.bold, fontSize: 12 }}>Calcul depuis la dernière visite</Text>
           <Text style={{ marginTop: 5, color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>Conformité : avis S/NS. Réserves : suivi patrimonial. Équipements : états à surveiller. Suivi : ancienneté de la visite et traitement des réserves. Données : progression de la visite.</Text>
           <TouchableOpacity onPress={load} style={[styles.btnSecondary, { marginTop: 10 }]}><Text style={styles.btnSecondaryText}>↻ Recalculer maintenant</Text></TouchableOpacity>
         </View>
       ) : (
-        <View style={{ padding: 13, borderRadius: 12, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line }}>
-          <Text style={{ color: COLORS.ink, fontWeight: '800', fontSize: 12, marginBottom: 8 }}>Appréciation manuelle — 0 à 100</Text>
+        <View style={{ padding: 13, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' }}>
+          <Text style={{ color: COLORS.ink, fontFamily: FONTS.bold, fontSize: 12, marginBottom: 8 }}>Appréciation manuelle — 0 à 100</Text>
           {HEALTH_DIMENSIONS.map((dimension) => (
             <View key={dimension.key} style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
               <Text style={{ flex: 1, fontSize: 11, color: COLORS.ink }}>{dimension.label}</Text>

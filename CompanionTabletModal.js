@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import {
   applyCompanionTargetUpdate,
   assertVisitBelongsToCompanionClient,
@@ -320,8 +320,8 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
             {phase === 'ready' ? (
               <>
                 <View style={{ alignItems: 'center', paddingVertical: 8 }}>
-                  {qrUri ? <Image source={{ uri: qrUri }} style={{ width: 300, height: 300, backgroundColor: '#FFF', borderRadius: 18 }} resizeMode="contain" /> : null}
-                  <Text style={{ marginTop: 10, fontSize: 15, fontWeight: '900', color: COLORS.ink }}>{connection}</Text>
+                  {qrUri ? <Image source={{ uri: qrUri }} style={{ width: 300, height: 300, backgroundColor: 'rgba(255,255,255,0.82)', borderRadius: 18 }} resizeMode="contain" /> : null}
+                  <Text style={{ marginTop: 10, fontSize: 15, fontFamily: FONTS.black, color: COLORS.ink }}>{connection}</Text>
                   <Text style={{ marginTop: 4, fontSize: 12, color: COLORS.inkSoft, textAlign: 'center' }}>
                     Sur le téléphone : Compagnon → Scanner le QR de la tablette
                   </Text>
@@ -330,23 +330,23 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
                   </Text>
                 </View>
 
-                <View style={{ marginTop: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.bg }}>
+                <View style={{ marginTop: 10, padding: 12, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: COLORS.bg }}>
                   {snapshot?.type === 'clientSnapshot' ? (
                     <>
-                      <Text style={{ fontWeight: '900', color: COLORS.ink }}>{snapshot?.client?.name || nomClient || 'Client'}</Text>
+                      <Text style={{ fontFamily: FONTS.black, color: COLORS.ink }}>{snapshot?.client?.name || nomClient || 'Client'}</Text>
                       <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 12 }}>
                         {clientCounts?.sites || 0} sites · {clientCounts?.locals || 0} locaux · {clientCounts?.visits || 0} visites
                       </Text>
-                      {phoneVisitId ? <Text style={{ marginTop: 7, color: accent, fontSize: 11.5, fontWeight: '800' }}>Une visite est actuellement ouverte sur le téléphone.</Text> : null}
+                      {phoneVisitId ? <Text style={{ marginTop: 7, color: accent, fontSize: 11.5, fontFamily: FONTS.bold }}>Une visite est actuellement ouverte sur le téléphone.</Text> : null}
                     </>
                   ) : (
                     <>
-                      <Text style={{ fontWeight: '900', color: COLORS.ink }}>{snapshot?.visit?.site || 'Visite'}</Text>
+                      <Text style={{ fontFamily: FONTS.black, color: COLORS.ink }}>{snapshot?.visit?.site || 'Visite'}</Text>
                       <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 12 }}>{snapshot?.visit?.client || ''} · {snapshot?.visit?.date || ''}</Text>
                       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 }}>
                         {moduleSummary.map((m) => (
-                          <View key={m.id} style={{ paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line }}>
-                            <Text style={{ fontSize: 11, fontWeight: '800', color: COLORS.ink }}>{m.label} · {m.count}</Text>
+                          <View key={m.id} style={{ paddingHorizontal: 9, paddingVertical: 6, borderRadius: 999, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' }}>
+                            <Text style={{ fontSize: 11, fontFamily: FONTS.bold, color: COLORS.ink }}>{m.label} · {m.count}</Text>
                           </View>
                         ))}
                       </View>

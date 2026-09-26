@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerPointMission } from './missionsDb.js';
 import { creerActionMission, creerOuTrouverActeurMission, creerReferenceMission, enregistrerDetailsPointMission, enregistrerMesureMission } from './missionDomainDb.js';
@@ -14,6 +14,7 @@ import { listerStructureMission } from './missionStructureDb.js';
 import { modifierEquipementMission } from './missionEquipmentDb.js';
 import { chargerContexteAutoVisiteMission, valeurAutoPourChampMission } from './missionVisitAutofillDb.js';
 import { chargerMemoireVisiteMission, previousVisitLabel } from './missionVisitMemoryDb.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 const POINT_TYPES = [
   ['reserve', 'Réserve'], ['action', 'Action'], ['request', 'Demande'], ['control', 'Contrôle'], ['decision', 'Décision'], ['information', 'Information'],
@@ -23,7 +24,7 @@ function ChoiceField({ field, value, onChange }) {
   return <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 7 }}>
     {(field.options || []).map((option) => {
       const selected = value === option;
-      return <TouchableOpacity key={option} onPress={() => onChange(selected ? '' : option)} style={{ borderWidth: 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : COLORS.white, borderRadius: 11, paddingHorizontal: 10, paddingVertical: 8, marginRight: 7, marginBottom: 7 }}><Text style={{ color: selected ? MISSION_COLORS.accentDark : COLORS.ink, fontSize: 10.5, fontWeight: '800' }}>{option}</Text></TouchableOpacity>;
+      return <TouchableOpacity key={option} onPress={() => onChange(selected ? '' : option)} style={{ borderWidth: 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : COLORS.white, borderRadius: 11, paddingHorizontal: 10, paddingVertical: 8, marginRight: 7, marginBottom: 7 }}><Text style={{ color: selected ? MISSION_COLORS.accentDark : COLORS.ink, fontSize: 10.5, fontFamily: FONTS.bold }}>{option}</Text></TouchableOpacity>;
     })}
   </View>;
 }
@@ -31,24 +32,24 @@ function ChoiceField({ field, value, onChange }) {
 function OptionalField({ sectionKey, field, value, autoValue = '', previousValue = '', previousLabel = '', onReusePrevious, onChange, onSave, onDictate, dictationBusy }) {
   return <View style={{ marginBottom: 14 }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 5 }}>
-      <Text style={{ flex: 1, color: COLORS.ink, fontWeight: '800', fontSize: 11.5 }}>{field.label}</Text>
-      <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.5, fontWeight: '700' }}>OPTIONNEL</Text>
+      <Text style={{ flex: 1, color: COLORS.ink, fontFamily: FONTS.bold, fontSize: 11.5 }}>{field.label}</Text>
+      <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.5, fontFamily: FONTS.bodyBold }}>OPTIONNEL</Text>
     </View>
     {autoValue ? <View style={{ marginBottom: 7, borderRadius: 10, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: MISSION_COLORS.accentSoft, padding: 9 }}>
-      <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 7.8, fontWeight: '900', letterSpacing: 0.45 }}>DÉJÀ CONNU PAR METRA · PAS DE RESSAISIE</Text>
+      <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 7.8, fontFamily: FONTS.black, letterSpacing: 0.45 }}>DÉJÀ CONNU PAR METRA · PAS DE RESSAISIE</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 9.2, lineHeight: 13, marginTop: 3 }}>{autoValue}</Text>
     </View> : null}
     {previousValue !== '' && previousValue !== null && previousValue !== undefined ? <View style={{ marginBottom: 7, borderRadius: 10, borderWidth: 1, borderColor: '#D7DDD9', backgroundColor: '#F5F7F6', padding: 9 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
         <View style={{ flex: 1 }}>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 7.7, fontWeight: '900', letterSpacing: 0.4 }}>VISITE PRÉCÉDENTE{previousLabel ? ' · ' + previousLabel : ''}</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 7.7, fontFamily: FONTS.black, letterSpacing: 0.4 }}>VISITE PRÉCÉDENTE{previousLabel ? ' · ' + previousLabel : ''}</Text>
           <Text style={{ color: COLORS.inkSoft, fontSize: 9.1, lineHeight: 13, marginTop: 3 }}>{String(previousValue)}</Text>
         </View>
         {onReusePrevious ? <TouchableOpacity
           onPress={onReusePrevious}
-          style={{ marginLeft: 8, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: '#FFFFFF', borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6 }}
+          style={{ marginLeft: 8, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: 'rgba(255,255,255,0.82)', borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6 }}
         >
-          <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.2, fontWeight: '900' }}>REPRENDRE</Text>
+          <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.2, fontFamily: FONTS.black }}>REPRENDRE</Text>
         </TouchableOpacity> : null}
       </View>
     </View> : null}
@@ -665,17 +666,17 @@ export function MissionVisitScreen({ navigation, route }) {
   const visit = data.visit;
   return <View style={[{ flex: 1 }, missionStyles.screen]}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }} keyboardShouldPersistTaps="handled">
-      <View style={[{ backgroundColor: COLORS.white, borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 14 }, missionStyles.card]}>
-        <Text style={[{ fontSize: 17, fontWeight: '900' }, missionStyles.title]}>{visit.mission_label || 'Mission'}</Text>
+      <View style={[{ backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderRadius: 16, padding: 14, marginBottom: 14 }, missionStyles.card]}>
+        <Text style={[{ fontSize: 17, fontFamily: FONTS.black }, missionStyles.title]}>{visit.mission_label || 'Mission'}</Text>
         <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, marginTop: 4 }}>{[visit.client_name, visit.site_name, visit.visit_date].filter(Boolean).join(' · ')}</Text>
-        <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 10, fontWeight: '900', marginTop: 9 }}>Aucun champ de cette visite n’est obligatoire.</Text>
+        <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 10, fontFamily: FONTS.black, marginTop: 9 }}>Aucun champ de cette visite n’est obligatoire.</Text>
       </View>
 
       <View style={[missionStyles.card, { padding: 11, marginBottom: 12 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '900', letterSpacing: 0.4 }}>CONTEXTE DE SAISIE</Text>
-            <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '900', marginTop: 3 }} numberOfLines={2}>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontFamily: FONTS.black, letterSpacing: 0.4 }}>CONTEXTE DE SAISIE</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10.5, fontFamily: FONTS.black, marginTop: 3 }} numberOfLines={2}>
               {[
                 visit.site_name,
                 selectedContextLocation?.label,
@@ -693,7 +694,7 @@ export function MissionVisitScreen({ navigation, route }) {
       </View>
 
       {selectedContextEquipment && (playbook.equipmentVerificationStatuses || []).length ? <View style={[missionStyles.card, { padding: 10, marginBottom: 12 }]}>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginBottom: 6 }}>STATUT TERRAIN · 1 GESTE</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontFamily: FONTS.black, marginBottom: 6 }}>STATUT TERRAIN · 1 GESTE</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
           {playbook.equipmentVerificationStatuses.map(([key,label]) => {
             const selected = selectedContextEquipment.verification_status === key;
@@ -711,7 +712,7 @@ export function MissionVisitScreen({ navigation, route }) {
                 marginBottom: 6,
               }}
             >
-              <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontWeight: '900' }}>{label}</Text>
+              <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontFamily: FONTS.black }}>{label}</Text>
             </TouchableOpacity>;
           })}
         </View>
@@ -721,7 +722,7 @@ export function MissionVisitScreen({ navigation, route }) {
       </View> : null}
 
       {selectedContextEquipment && (playbook.equipmentLifecycleStatuses || []).length ? <View style={[missionStyles.card, { padding: 10, marginBottom: 12 }]}>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginBottom: 6 }}>CYCLE PROJET · 1 GESTE</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontFamily: FONTS.black, marginBottom: 6 }}>CYCLE PROJET · 1 GESTE</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap' }}>
           {playbook.equipmentLifecycleStatuses.map(([key,label]) => {
             const selected = selectedContextEquipment.lifecycle_status === key;
@@ -739,7 +740,7 @@ export function MissionVisitScreen({ navigation, route }) {
                 marginBottom: 6,
               }}
             >
-              <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontWeight: '900' }}>{label}</Text>
+              <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontFamily: FONTS.black }}>{label}</Text>
             </TouchableOpacity>;
           })}
         </View>
@@ -751,8 +752,8 @@ export function MissionVisitScreen({ navigation, route }) {
       {previousMemory.previousVisit ? <View style={[missionStyles.card, { padding: 11, marginBottom: 12, borderColor: '#D7DDD9' }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.inkFaint, fontSize: 8.1, fontWeight: '900', letterSpacing: 0.45 }}>MÉMOIRE · VISITE PRÉCÉDENTE</Text>
-            <Text style={{ color: COLORS.ink, fontSize: 10.2, fontWeight: '900', marginTop: 3 }}>{previousVisitLabel(previousMemory.previousVisit)}</Text>
+            <Text style={{ color: COLORS.inkFaint, fontSize: 8.1, fontFamily: FONTS.black, letterSpacing: 0.45 }}>MÉMOIRE · VISITE PRÉCÉDENTE</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10.2, fontFamily: FONTS.black, marginTop: 3 }}>{previousVisitLabel(previousMemory.previousVisit)}</Text>
             <Text style={{ color: COLORS.inkSoft, fontSize: 8.8, lineHeight: 12, marginTop: 4 }}>
               {previousMemory.summary?.fieldsCount || 0} champ(s) · {previousMemory.summary?.measures?.length || 0} mesure(s) affichée(s) · {previousMemory.summary?.unresolvedCount || 0} point(s) non soldé(s)
             </Text>
@@ -765,8 +766,8 @@ export function MissionVisitScreen({ navigation, route }) {
           </TouchableOpacity> : null}
         </View>
         {(previousMemory.summary?.unresolved || []).length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 44, marginTop: 7 }}>
-          {previousMemory.summary.unresolved.map((item, index) => <View key={index} style={{ borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: '#FFFFFF', borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6, marginRight: 6 }}>
-            <Text style={{ color: COLORS.ink, fontSize: 8.6, fontWeight: '800' }} numberOfLines={1}>{item.label || 'Point à suivre'}</Text>
+          {previousMemory.summary.unresolved.map((item, index) => <View key={index} style={{ borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: 'rgba(255,255,255,0.82)', borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6, marginRight: 6 }}>
+            <Text style={{ color: COLORS.ink, fontSize: 8.6, fontFamily: FONTS.bold }} numberOfLines={1}>{item.label || 'Point à suivre'}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 7.7, marginTop: 2 }} numberOfLines={1}>{[item.responsible,item.due,item.priority].filter(Boolean).join(' · ') || item.status}</Text>
           </View>)}
         </ScrollView> : null}
@@ -782,7 +783,7 @@ export function MissionVisitScreen({ navigation, route }) {
           [stats?.measures_count || 0, 'mesures'],
           [stats?.photos_count || 0, 'photos'],
           [stats?.notes_count || 0, 'notes'],
-        ].map(([value, label]) => <View key={label} style={[{ minWidth: 84, flexGrow: 1, borderRadius: 12, padding: 10 }, missionStyles.statBox]}><Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 15 }}>{value}</Text><Text style={{ color: COLORS.inkSoft, fontSize: 9 }}>{label}</Text></View>)}
+        ].map(([value, label]) => <View key={label} style={[{ minWidth: 84, flexGrow: 1, borderRadius: 12, padding: 10 }, missionStyles.statBox]}><Text style={{ color: MISSION_COLORS.accentStrong, fontFamily: FONTS.black, fontSize: 15 }}>{value}</Text><Text style={{ color: COLORS.inkSoft, fontSize: 9 }}>{label}</Text></View>)}
       </View>
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Mode terrain · {playbook.label}</Text>
@@ -791,9 +792,9 @@ export function MissionVisitScreen({ navigation, route }) {
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 38, marginTop: 9 }}>
           {(playbook.steps || []).map((step, index) => <View key={step} style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ minHeight: 28, borderRadius: 9, backgroundColor: MISSION_COLORS.accentSoft, borderWidth: 1, borderColor: MISSION_COLORS.accentLine, paddingHorizontal: 8, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 8.6, fontWeight: '900' }}>{index + 1} · {step}</Text>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 8.6, fontFamily: FONTS.black }}>{index + 1} · {step}</Text>
             </View>
-            {index < playbook.steps.length - 1 ? <Text style={{ color: MISSION_COLORS.accentLineStrong, marginHorizontal: 4 }}>›</Text> : null}
+            {index < playbook.steps.length - 1 ? <CvcIcon name="chevron-right" size={16} color={MISSION_COLORS.accentLineStrong} strokeWidth={2.1} /> : null}
           </View>)}
         </ScrollView>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 10 }}>
@@ -809,28 +810,28 @@ export function MissionVisitScreen({ navigation, route }) {
         </View>
 
         {(playbook.measures || []).length ? <>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginTop: 10, marginBottom: 5 }}>MESURES COURANTES</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontFamily: FONTS.black, marginTop: 10, marginBottom: 5 }}>MESURES COURANTES</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 42 }}>
             {playbook.measures.slice(0, 8).map((preset) => <TouchableOpacity
               key={preset.type + '|' + preset.unit}
               onPress={() => openMeasurePreset(preset)}
-              style={{ borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6 }}
+              style={{ borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: 'rgba(255,255,255,0.82)', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6 }}
             >
-              <Text style={{ color: COLORS.ink, fontSize: 8.8, fontWeight: '800' }}>{preset.label}</Text>
+              <Text style={{ color: COLORS.ink, fontSize: 8.8, fontFamily: FONTS.bold }}>{preset.label}</Text>
               <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 1 }}>{preset.unit || 'Valeur'}</Text>
             </TouchableOpacity>)}
           </ScrollView>
         </> : null}
 
         {(playbook.pointPresets || []).length ? <>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginTop: 10, marginBottom: 5 }}>POINTS EN 1 GESTE</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontFamily: FONTS.black, marginTop: 10, marginBottom: 5 }}>POINTS EN 1 GESTE</Text>
           <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ maxHeight: 42 }}>
             {playbook.pointPresets.slice(0, 7).map((preset) => <TouchableOpacity
               key={preset.label}
               onPress={() => openPointPreset(preset)}
-              style={{ borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6 }}
+              style={{ borderWidth: 1, borderColor: MISSION_COLORS.accentLine, backgroundColor: 'rgba(255,255,255,0.82)', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6 }}
             >
-              <Text style={{ color: COLORS.ink, fontSize: 8.8, fontWeight: '800' }} numberOfLines={1}>{preset.label}</Text>
+              <Text style={{ color: COLORS.ink, fontSize: 8.8, fontFamily: FONTS.bold }} numberOfLines={1}>{preset.label}</Text>
             </TouchableOpacity>)}
           </ScrollView>
         </> : null}
@@ -849,7 +850,7 @@ export function MissionVisitScreen({ navigation, route }) {
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 10 }}>
         {MISSION_CAPTURE_MODES.map(([key, label]) => {
           const selected = captureMode === key;
-          return <TouchableOpacity key={key} onPress={() => changeCaptureMode(key)} style={{ borderRadius: 11, borderWidth: 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : COLORS.white, paddingHorizontal: 11, paddingVertical: 8, marginRight: 7, marginBottom: 7 }}><Text style={{ color: selected ? MISSION_COLORS.accentDark : COLORS.inkSoft, fontSize: 10, fontWeight: '900' }}>{label}</Text></TouchableOpacity>;
+          return <TouchableOpacity key={key} onPress={() => changeCaptureMode(key)} style={{ borderRadius: 11, borderWidth: 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : COLORS.white, paddingHorizontal: 11, paddingVertical: 8, marginRight: 7, marginBottom: 7 }}><Text style={{ color: selected ? MISSION_COLORS.accentDark : COLORS.inkSoft, fontSize: 10, fontFamily: FONTS.black }}>{label}</Text></TouchableOpacity>;
         })}
       </View>
       <Text style={{ color: COLORS.inkFaint, fontSize: 9.5, lineHeight: 13.5, marginBottom: 12 }}>
@@ -857,8 +858,8 @@ export function MissionVisitScreen({ navigation, route }) {
       </Text>
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel]}>Trame proposée</Text>
       {!recipe.sections.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 10.5, marginBottom: 16 }}>Mission libre : utilise les Points et Notes, ou complète la Mission plus tard.</Text> : null}
-      {recipe.sections.map((section) => <View key={section.key} style={[{ backgroundColor: COLORS.white, borderWidth: 1, borderRadius: 15, padding: 14, marginBottom: 12 }, missionStyles.card]}>
-        <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13.5, fontWeight: '900', marginBottom: 12 }}>{section.label}</Text>
+      {recipe.sections.map((section) => <View key={section.key} style={[{ backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderRadius: 15, padding: 14, marginBottom: 12 }, missionStyles.card]}>
+        <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13.5, fontFamily: FONTS.black, marginBottom: 12 }}>{section.label}</Text>
         {section.fields.map((field) => {
           const code = `${section.key}.${field.key}`;
           return <OptionalField
@@ -889,7 +890,7 @@ export function MissionVisitScreen({ navigation, route }) {
       </View>)}
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 8 }]}>Note libre</Text>
-      <View style={[{ backgroundColor: COLORS.white, borderWidth: 1, borderRadius: 14, padding: 12 }, missionStyles.card]}>
+      <View style={[{ backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderRadius: 14, padding: 12 }, missionStyles.card]}>
         <View>
           <TextInput style={[styles.input, missionStyles.input, { minHeight: 76, textAlignVertical: 'top', paddingRight: 46 }]} multiline value={note} onChangeText={setNote} placeholder="Note terrain / réunion interne…" />
           <TouchableOpacity
@@ -903,7 +904,7 @@ export function MissionVisitScreen({ navigation, route }) {
 
       {(data.points || []).length ? <>
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Points créés pendant cette visite</Text>
-        {data.points.map((point) => <View key={point.id} style={[{ backgroundColor: COLORS.white, borderWidth: 1, borderRadius: 12, padding: 11, marginBottom: 7 }, missionStyles.card]}><Text style={{ color: COLORS.ink, fontWeight: '800', fontSize: 11.5 }}>{point.label || point.description || 'Point sans titre'}</Text><Text style={{ color: MISSION_COLORS.accentDark, marginTop: 3, fontSize: 9.5 }}>{point.type} · {point.status}</Text></View>)}
+        {data.points.map((point) => <View key={point.id} style={[{ backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderRadius: 12, padding: 11, marginBottom: 7 }, missionStyles.card]}><Text style={{ color: COLORS.ink, fontFamily: FONTS.bold, fontSize: 11.5 }}>{point.label || point.description || 'Point sans titre'}</Text><Text style={{ color: MISSION_COLORS.accentDark, marginTop: 3, fontSize: 9.5 }}>{point.type} · {point.status}</Text></View>)}
       </> : null}
     </ScrollView>
 
@@ -921,7 +922,7 @@ export function MissionVisitScreen({ navigation, route }) {
         />
         <ScrollView style={{ maxHeight: 390, marginTop: 8 }}>
           <TouchableOpacity onPress={() => { clearTechnicalContext(); setContextModal(false); }} style={{ paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
-            <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 10.5, fontWeight: '900' }}>Site entier · {visit.site_name || 'Site'}</Text>
+            <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 10.5, fontFamily: FONTS.black }}>Site entier · {visit.site_name || 'Site'}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, marginTop: 2 }}>Aucun local / équipement imposé</Text>
           </TouchableOpacity>
 
@@ -962,11 +963,11 @@ export function MissionVisitScreen({ navigation, route }) {
         <ScrollView style={{ maxHeight: 340 }}>
           {checklist.map((item) => <View key={item.id} style={{ borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine, paddingVertical: 9 }}>
             <TouchableOpacity onPress={() => openChecklistItem(item)} activeOpacity={0.78}>
-              <Text style={{ color: item.severity === 'warning' ? '#8A5B14' : MISSION_COLORS.accentStrong, fontSize: 10.5, fontWeight: '900' }}>{item.label}</Text>
+              <Text style={{ color: item.severity === 'warning' ? '#8A5B14' : MISSION_COLORS.accentStrong, fontSize: 10.5, fontFamily: FONTS.black }}>{item.label}</Text>
               {item.message ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, marginTop: 3 }}>{item.message}</Text> : null}
             </TouchableOpacity>
             <TouchableOpacity onPress={() => ignoreChecklistItem(item)} style={{ alignSelf: 'flex-start', marginTop: 6, paddingVertical: 3 }}>
-              <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, fontWeight: '800' }}>Ignorer pour cette fin de visite</Text>
+              <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, fontFamily: FONTS.bold }}>Ignorer pour cette fin de visite</Text>
             </TouchableOpacity>
           </View>)}
           {!checklist.length ? <Text style={{ color: COLORS.inkSoft, fontSize: 10, lineHeight: 14, paddingVertical: 12 }}>Tous les points de vigilance ont été traités ou ignorés. Tu peux terminer la visite.</Text> : null}
@@ -1001,7 +1002,7 @@ export function MissionVisitScreen({ navigation, route }) {
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
         <Text style={[styles.modalTitle, missionStyles.title]}>{pointLabel ? 'Point · ' + pointLabel : 'Ajouter un point'}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 6 }}>
-          {POINT_TYPES.map(([key, label]) => <TouchableOpacity key={key} onPress={() => setPointType(key)} style={{ borderWidth: 1, borderColor: pointType === key ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: pointType === key ? MISSION_COLORS.accentLight : COLORS.white, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6, marginBottom: 6 }}><Text style={{ color: pointType === key ? MISSION_COLORS.accentDark : COLORS.ink, fontSize: 9.5, fontWeight: '800' }}>{label}</Text></TouchableOpacity>)}
+          {POINT_TYPES.map(([key, label]) => <TouchableOpacity key={key} onPress={() => setPointType(key)} style={{ borderWidth: 1, borderColor: pointType === key ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: pointType === key ? MISSION_COLORS.accentLight : COLORS.white, borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6, marginBottom: 6 }}><Text style={{ color: pointType === key ? MISSION_COLORS.accentDark : COLORS.ink, fontSize: 9.5, fontFamily: FONTS.bold }}>{label}</Text></TouchableOpacity>)}
         </View>
         <TextInput style={[styles.input, missionStyles.input]} value={pointLabel} onChangeText={setPointLabel} placeholder="Titre / constat (optionnel)" />
         <View style={{ marginTop: 9 }}>

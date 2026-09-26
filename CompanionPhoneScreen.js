@@ -13,7 +13,7 @@ import {
 } from './companionNative.js';
 import { parseCompanionQrPayload } from './companionProtocol.js';
 import { enqueueCompanionPhoto, listCompanionOutbox, removeCompanionOutboxItem } from './companionOutbox.js';
-import { COLORS } from './styles.js';
+import { COLORS, FONTS } from './styles.js';
 import { prewarmCameraRuntime } from './cameraRuntime.js';
 import { getRuntimeAccent, getRuntimePalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 
@@ -52,8 +52,8 @@ function ModuleTile({ item, onPress, accent, light }) {
         padding: 15,
         borderRadius: 18,
         borderWidth: 1,
-        borderColor: COLORS.line,
-        backgroundColor: COLORS.white,
+        borderColor: 'rgba(22,21,15,0.1)',
+        backgroundColor: 'rgba(255,255,255,0.82)',
         justifyContent: 'space-between',
       }}
     >
@@ -61,8 +61,8 @@ function ModuleTile({ item, onPress, accent, light }) {
         <CvcIcon name={item.icon} size={30} color={accent} />
       </View>
       <View>
-        <Text style={{ fontSize: 14.5, fontWeight: '900', color: COLORS.ink }}>{item.label}</Text>
-        <Text style={{ marginTop: 3, fontSize: 23, lineHeight: 27, fontWeight: '900', color: accent }}>{Number(item.count || 0)}</Text>
+        <Text style={{ fontSize: 14.5, fontFamily: FONTS.black, color: COLORS.ink }}>{item.label}</Text>
+        <Text style={{ marginTop: 3, fontSize: 23, lineHeight: 27, fontFamily: FONTS.black, color: accent }}>{Number(item.count || 0)}</Text>
       </View>
     </TouchableOpacity>
   );
@@ -82,8 +82,8 @@ function TargetRow({ item, onPress, icon, accent, light }) {
         minHeight: 70,
         borderRadius: 14,
         borderWidth: 1,
-        borderColor: COLORS.line,
-        backgroundColor: COLORS.white,
+        borderColor: 'rgba(22,21,15,0.1)',
+        backgroundColor: 'rgba(255,255,255,0.82)',
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
@@ -93,15 +93,15 @@ function TargetRow({ item, onPress, icon, accent, light }) {
         <CvcIcon name={icon || 'document'} size={25} color={accent} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text numberOfLines={2} style={{ fontSize: 14, fontWeight: '900', color: COLORS.ink }}>{item.label}</Text>
+        <Text numberOfLines={2} style={{ fontSize: 14, fontFamily: FONTS.black, color: COLORS.ink }}>{item.label}</Text>
         {item.subtitle ? <Text numberOfLines={1} style={{ marginTop: 3, fontSize: 11.5, color: COLORS.inkSoft }}>{item.subtitle}</Text> : null}
-        {value ? <Text style={{ marginTop: 3, fontSize: 12, fontWeight: '800', color: accent }}>{value}</Text> : null}
+        {value ? <Text style={{ marginTop: 3, fontSize: 12, fontFamily: FONTS.bold, color: accent }}>{value}</Text> : null}
         <View style={{ marginTop: 4, flexDirection: 'row', alignItems: 'center', gap: 5 }}>
           <CvcIcon name="camera" size={13} color={COLORS.inkFaint} />
           {editableCount ? <Text style={{ fontSize: 10.5, color: COLORS.inkFaint }}>{editableCount} valeur{editableCount > 1 ? 's' : ''}</Text> : null}
         </View>
       </View>
-      <Text style={{ fontSize: 21, color: COLORS.inkFaint }}>›</Text>
+      <CvcIcon name="chevron-right" size={22} color={COLORS.inkFaint} strokeWidth={2.1} />
     </TouchableOpacity>
   );
 }
@@ -115,7 +115,7 @@ function QuickFieldEditor({ field, onSave, saving, accent, light }) {
   if (Array.isArray(field?.options) && field.options.length) {
     return (
       <View style={{ marginBottom: 12 }}>
-        <Text style={{ marginBottom: 7, fontSize: 11.5, fontWeight: '900', color: COLORS.inkSoft }}>{field.label}</Text>
+        <Text style={{ marginBottom: 7, fontSize: 11.5, fontFamily: FONTS.black, color: COLORS.inkSoft }}>{field.label}</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7 }}>
           {field.options.map((option) => {
             const selected = String(field.value ?? '') === String(option);
@@ -136,7 +136,7 @@ function QuickFieldEditor({ field, onSave, saving, accent, light }) {
                   justifyContent: 'center',
                 }}
               >
-                {saving && selected ? <ActivityIndicator size="small" color={accent} /> : <Text style={{ color: selected ? accent : COLORS.ink, fontWeight: '900' }}>{option}</Text>}
+                {saving && selected ? <ActivityIndicator size="small" color={accent} /> : <Text style={{ color: selected ? accent : COLORS.ink, fontFamily: FONTS.black }}>{option}</Text>}
               </TouchableOpacity>
             );
           })}
@@ -147,7 +147,7 @@ function QuickFieldEditor({ field, onSave, saving, accent, light }) {
 
   return (
     <View style={{ marginBottom: 12 }}>
-      <Text style={{ marginBottom: 6, fontSize: 11.5, fontWeight: '900', color: COLORS.inkSoft }}>
+      <Text style={{ marginBottom: 6, fontSize: 11.5, fontFamily: FONTS.black, color: COLORS.inkSoft }}>
         {field.label}{field.unit ? ` · ${field.unit}` : ''}
       </Text>
       <View style={{ flexDirection: field.multiline ? 'column' : 'row', gap: 8 }}>
@@ -163,8 +163,8 @@ function QuickFieldEditor({ field, onSave, saving, accent, light }) {
             minHeight: field.multiline ? 86 : 46,
             borderRadius: 12,
             borderWidth: 1,
-            borderColor: COLORS.line,
-            backgroundColor: COLORS.white,
+            borderColor: 'rgba(22,21,15,0.1)',
+            backgroundColor: 'rgba(255,255,255,0.82)',
             paddingHorizontal: 12,
             paddingVertical: field.multiline ? 10 : 0,
             textAlignVertical: field.multiline ? 'top' : 'center',
@@ -188,7 +188,7 @@ function QuickFieldEditor({ field, onSave, saving, accent, light }) {
             justifyContent: 'center',
           }}
         >
-          {saving ? <ActivityIndicator size="small" color={COLORS.white} /> : <Text style={{ color: value === String(field.value ?? '') ? COLORS.inkSoft : COLORS.white, fontWeight: '900', fontSize: 12 }}>Enregistrer</Text>}
+          {saving ? <ActivityIndicator size="small" color={COLORS.white} /> : <Text style={{ color: value === String(field.value ?? '') ? COLORS.inkSoft : COLORS.white, fontFamily: FONTS.black, fontSize: 12 }}>Enregistrer</Text>}
         </TouchableOpacity>
       </View>
     </View>
@@ -206,8 +206,8 @@ function ClientSiteRow({ site, onPress, accent, light }) {
         minHeight: 76,
         borderRadius: 15,
         borderWidth: 1,
-        borderColor: COLORS.line,
-        backgroundColor: COLORS.white,
+        borderColor: 'rgba(22,21,15,0.1)',
+        backgroundColor: 'rgba(255,255,255,0.82)',
         flexDirection: 'row',
         alignItems: 'center',
         gap: 12,
@@ -217,14 +217,14 @@ function ClientSiteRow({ site, onPress, accent, light }) {
         <CvcIcon name="building" size={27} color={accent} />
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 14.5, fontWeight: '900', color: COLORS.ink }}>{site.name || 'Site'}</Text>
+        <Text style={{ fontSize: 14.5, fontFamily: FONTS.black, color: COLORS.ink }}>{site.name || 'Site'}</Text>
         {site.address ? <Text numberOfLines={1} style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 11.5 }}>{site.address}</Text> : null}
-        <Text style={{ marginTop: 4, color: accent, fontSize: 11.5, fontWeight: '800' }}>
+        <Text style={{ marginTop: 4, color: accent, fontSize: 11.5, fontFamily: FONTS.bold }}>
           {Number(site.visitCount || 0)} visite{Number(site.visitCount || 0) > 1 ? 's' : ''}
           {Number(site.activeVisitCount || 0) > 0 ? ` · ${site.activeVisitCount} en cours` : ''}
         </Text>
       </View>
-      <Text style={{ fontSize: 22, color: COLORS.inkFaint }}>›</Text>
+      <CvcIcon name="chevron-right" size={23} color={COLORS.inkFaint} strokeWidth={2.1} />
     </TouchableOpacity>
   );
 }
@@ -253,15 +253,15 @@ function VisitChoiceRow({ visit, onPress, busy, accent, light }) {
         {busy ? <ActivityIndicator color={accent} /> : <CvcIcon name="document" size={26} color={accent} />}
       </View>
       <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 14, fontWeight: '900', color: COLORS.ink }}>{visit.local || 'Visite site'}</Text>
+        <Text style={{ fontSize: 14, fontFamily: FONTS.black, color: COLORS.ink }}>{visit.local || 'Visite site'}</Text>
         <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 11.5 }}>
           {visit.date || 'Date non renseignée'} · {status}
         </Text>
-        <Text style={{ marginTop: 3, color: accent, fontSize: 11, fontWeight: '800' }}>
+        <Text style={{ marginTop: 3, color: accent, fontSize: 11, fontFamily: FONTS.bold }}>
           {Number(visit.progress || 0)}%
         </Text>
       </View>
-      <Text style={{ fontSize: 22, color: COLORS.inkFaint }}>›</Text>
+      <CvcIcon name="chevron-right" size={23} color={COLORS.inkFaint} strokeWidth={2.1} />
     </TouchableOpacity>
   );
 }
@@ -581,17 +581,17 @@ function CompanionPhoneScreen({ onExit }) {
   if (selectedModule && selectedTarget && isVisitSnapshot) {
     const fields = Array.isArray(selectedTarget.fields) ? selectedTarget.fields : [];
     return (
-      <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+      <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'rgba(255,255,255,0.55)', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <TouchableOpacity onPress={() => setSelectedTargetId(null)} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}>
-              <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.ink }}>←</Text>
+            <TouchableOpacity onPress={() => setSelectedTargetId(null)} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.82)' }}>
+              <CvcIcon name="chevron-left" size={23} color={COLORS.ink} strokeWidth={2.1} />
             </TouchableOpacity>
             <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}>
               <CvcIcon name={selectedModule.icon} size={28} color={accent} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text numberOfLines={2} style={{ fontSize: 18, fontWeight: '900', color: COLORS.ink }}>{selectedTarget.label}</Text>
+              <Text numberOfLines={2} style={{ fontSize: 18, fontFamily: FONTS.black, color: COLORS.ink }}>{selectedTarget.label}</Text>
               <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 11.5 }}>{selectedModule.label}</Text>
             </View>
           </View>
@@ -599,7 +599,7 @@ function CompanionPhoneScreen({ onExit }) {
 
         <ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
           {selectedTarget.subtitle ? (
-            <View style={{ padding: 12, borderRadius: 14, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, marginBottom: 10 }}>
+            <View style={{ padding: 12, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', marginBottom: 10 }}>
               <Text style={{ color: COLORS.inkSoft, fontSize: 12 }}>{selectedTarget.subtitle}</Text>
             </View>
           ) : null}
@@ -617,8 +617,8 @@ function CompanionPhoneScreen({ onExit }) {
               : <CvcIcon name="camera" size={32} color={COLORS.white} />}
           </TouchableOpacity>
 
-          <View style={{ marginTop: 14, padding: 14, borderRadius: 17, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line }}>
-            <Text style={{ color: COLORS.ink, fontSize: 14.5, fontWeight: '900', marginBottom: fields.length ? 12 : 2 }}>Valeurs</Text>
+          <View style={{ marginTop: 14, padding: 14, borderRadius: 17, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' }}>
+            <Text style={{ color: COLORS.ink, fontSize: 14.5, fontFamily: FONTS.black, marginBottom: fields.length ? 12 : 2 }}>Valeurs</Text>
             {fields.length ? fields.map((field) => (
               <QuickFieldEditor
                 key={String(field.id)}
@@ -646,17 +646,17 @@ function CompanionPhoneScreen({ onExit }) {
   if (selectedModule && isVisitSnapshot) {
     const targets = selectedModule.targets || [];
     return (
-      <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+      <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'rgba(255,255,255,0.55)', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <TouchableOpacity onPress={() => { setSelectedTargetId(null); setSelectedModuleId(null); }} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.white }}>
-              <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.ink }}>←</Text>
+            <TouchableOpacity onPress={() => { setSelectedTargetId(null); setSelectedModuleId(null); }} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.82)' }}>
+              <CvcIcon name="chevron-left" size={23} color={COLORS.ink} strokeWidth={2.1} />
             </TouchableOpacity>
             <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}>
               <CvcIcon name={selectedModule.icon} size={28} color={accent} />
             </View>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 19, fontWeight: '900', color: COLORS.ink }}>{selectedModule.label}</Text>
+              <Text style={{ fontSize: 19, fontFamily: FONTS.black, color: COLORS.ink }}>{selectedModule.label}</Text>
               <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 12 }}>{targets.length} élément{targets.length > 1 ? 's' : ''} · toucher pour ouvrir</Text>
             </View>
           </View>
@@ -669,7 +669,7 @@ function CompanionPhoneScreen({ onExit }) {
           maxToRenderPerBatch={10}
           windowSize={7}
           renderItem={({ item }) => <TargetRow item={item} onPress={(target) => setSelectedTargetId(target.id)} icon={selectedModule.icon} accent={accent} light={light} />}
-          ListEmptyComponent={<View style={{ marginTop: 60, alignItems: 'center', paddingHorizontal: 28 }}><CvcIcon name={selectedModule.icon} size={54} color={accent} /><Text style={{ marginTop: 14, fontWeight: '900', fontSize: 16, color: COLORS.ink }}>Aucun élément dans cette rubrique</Text><Text style={{ marginTop: 6, textAlign: 'center', color: COLORS.inkSoft }}>La tablette transmet automatiquement les éléments présents dans la visite.</Text></View>}
+          ListEmptyComponent={<View style={{ marginTop: 60, alignItems: 'center', paddingHorizontal: 28 }}><CvcIcon name={selectedModule.icon} size={54} color={accent} /><Text style={{ marginTop: 14, fontFamily: FONTS.black, fontSize: 16, color: COLORS.ink }}>Aucun élément dans cette rubrique</Text><Text style={{ marginTop: 6, textAlign: 'center', color: COLORS.inkSoft }}>La tablette transmet automatiquement les éléments présents dans la visite.</Text></View>}
         />
       </View>
     );
@@ -678,14 +678,14 @@ function CompanionPhoneScreen({ onExit }) {
   if (isClientSnapshot) {
     if (selectedSite) {
       return (
-        <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-          <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+        <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+          <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'rgba(255,255,255,0.55)', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <TouchableOpacity onPress={() => setSelectedSiteId(null)} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center' }}>
-                <Text style={{ fontSize: 22, fontWeight: '800', color: COLORS.ink }}>←</Text>
+              <TouchableOpacity onPress={() => setSelectedSiteId(null)} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+                <CvcIcon name="chevron-left" size={23} color={COLORS.ink} strokeWidth={2.1} />
               </TouchableOpacity>
               <View style={{ flex: 1 }}>
-                <Text style={{ fontSize: 18, fontWeight: '900', color: COLORS.ink }}>{selectedSite.name}</Text>
+                <Text style={{ fontSize: 18, fontFamily: FONTS.black, color: COLORS.ink }}>{selectedSite.name}</Text>
                 <Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 12 }}>
                   Choisir une visite · aucun nouveau QR nécessaire
                 </Text>
@@ -700,22 +700,22 @@ function CompanionPhoneScreen({ onExit }) {
             maxToRenderPerBatch={10}
             windowSize={7}
             renderItem={({ item }) => <VisitChoiceRow visit={item} onPress={selectVisit} busy={busyVisitId === item.id} accent={accent} light={light} />}
-            ListEmptyComponent={<View style={{ marginTop: 60, alignItems: 'center', paddingHorizontal: 28 }}><Text style={{ fontWeight: '900', fontSize: 16, color: COLORS.ink }}>Aucune visite sur ce site</Text><Text style={{ marginTop: 6, textAlign: 'center', color: COLORS.inkSoft }}>Crée ou ouvre d’abord une visite sur la tablette.</Text></View>}
+            ListEmptyComponent={<View style={{ marginTop: 60, alignItems: 'center', paddingHorizontal: 28 }}><Text style={{ fontFamily: FONTS.black, fontSize: 16, color: COLORS.ink }}>Aucune visite sur ce site</Text><Text style={{ marginTop: 6, textAlign: 'center', color: COLORS.inkSoft }}>Crée ou ouvre d’abord une visite sur la tablette.</Text></View>}
           />
         </View>
       );
     }
 
     return (
-      <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: COLORS.white, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+      <View style={{ flex: 1, backgroundColor: 'transparent' }}>
+        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'rgba(255,255,255,0.55)', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <TouchableOpacity onPress={quit} style={{ width: 40, height: 40, borderRadius: 13, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 20, color: COLORS.ink }}>←</Text></TouchableOpacity>
+            <TouchableOpacity onPress={quit} style={{ width: 40, height: 40, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.82)', alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={21} color={COLORS.ink} strokeWidth={2.1} /></TouchableOpacity>
             <View style={{ flex: 1 }}>
-              <Text style={{ fontSize: 20, fontWeight: '900', color: COLORS.ink }}>{snapshot.client?.name || 'Client'}</Text>
+              <Text style={{ fontSize: 20, fontFamily: FONTS.black, color: COLORS.ink }}>{snapshot.client?.name || 'Client'}</Text>
               <Text style={{ marginTop: 2, fontSize: 12, color: COLORS.inkSoft }}>{status}</Text>
             </View>
-            {pending > 0 ? <View style={{ minWidth: 38, height: 30, paddingHorizontal: 9, borderRadius: 15, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: accent, fontWeight: '900' }}>{pending}</Text></View> : null}
+            {pending > 0 ? <View style={{ minWidth: 38, height: 30, paddingHorizontal: 9, borderRadius: 15, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: accent, fontFamily: FONTS.black }}>{pending}</Text></View> : null}
           </View>
           <Text style={{ marginTop: 10, color: COLORS.inkSoft, fontSize: 11.5 }}>
             {snapshot.counts?.sites || 0} sites · {snapshot.counts?.locals || 0} locaux · {snapshot.counts?.visits || 0} visites
@@ -730,58 +730,58 @@ function CompanionPhoneScreen({ onExit }) {
           windowSize={7}
           renderItem={({ item }) => <ClientSiteRow site={item} onPress={(site) => setSelectedSiteId(site.id)} accent={accent} light={light} />}
           ListEmptyComponent={<View style={{ marginTop: 60, alignItems: 'center' }}><Text style={{ color: COLORS.inkSoft }}>Aucun site pour ce client.</Text></View>}
-          ListFooterComponent={phase === 'disconnected' ? <TouchableOpacity onPress={reconnect} style={{ marginTop: 8, minHeight: 50, borderRadius: 14, backgroundColor: light, borderWidth: 1, borderColor: accent, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: accent, fontWeight: '900' }}>Reconnecter à la tablette</Text></TouchableOpacity> : null}
+          ListFooterComponent={phase === 'disconnected' ? <TouchableOpacity onPress={reconnect} style={{ marginTop: 8, minHeight: 50, borderRadius: 14, backgroundColor: light, borderWidth: 1, borderColor: accent, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: accent, fontFamily: FONTS.black }}>Reconnecter à la tablette</Text></TouchableOpacity> : null}
         />
       </View>
     );
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
       <ScrollView contentContainerStyle={{ paddingTop: 50, paddingHorizontal: 14, paddingBottom: 40 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <TouchableOpacity onPress={quit} style={{ width: 40, height: 40, borderRadius: 13, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 20, color: COLORS.ink }}>←</Text></TouchableOpacity>
+          <TouchableOpacity onPress={quit} style={{ width: 40, height: 40, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.82)', alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={21} color={COLORS.ink} strokeWidth={2.1} /></TouchableOpacity>
           <View style={{ flex: 1 }}>
-            <Text style={{ fontSize: 21, fontWeight: '900', color: COLORS.ink }}>Compagnon</Text>
+            <Text style={{ fontSize: 21, fontFamily: FONTS.black, color: COLORS.ink }}>Compagnon</Text>
             <Text style={{ marginTop: 2, fontSize: 12, color: COLORS.inkSoft }}>{status}</Text>
           </View>
-          {pending > 0 ? <View style={{ minWidth: 38, height: 30, paddingHorizontal: 9, borderRadius: 15, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: accent, fontWeight: '900' }}>{pending}</Text></View> : null}
+          {pending > 0 ? <View style={{ minWidth: 38, height: 30, paddingHorizontal: 9, borderRadius: 15, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: accent, fontFamily: FONTS.black }}>{pending}</Text></View> : null}
         </View>
 
         {!snapshot ? (
           <>
-          <View style={{ marginTop: 24, padding: 22, borderRadius: 20, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center' }}>
+          <View style={{ marginTop: 24, padding: 22, borderRadius: 20, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center' }}>
             <View style={{ width: 82, height: 82, borderRadius: 26, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}>
               <CvcIcon name="camera" size={50} color={accent} />
             </View>
-            <Text style={{ marginTop: 16, fontSize: 18, fontWeight: '900', color: COLORS.ink }}>Associer la tablette</Text>
+            <Text style={{ marginTop: 16, fontSize: 18, fontFamily: FONTS.black, color: COLORS.ink }}>Associer la tablette</Text>
             <Text style={{ marginTop: 7, color: COLORS.inkSoft, textAlign: 'center', lineHeight: 19 }}>
               Scanne le QR d’une visite ou directement le QR d’un client. Avec un QR client, tu peux changer de site et de visite sans refaire l’association. Même Wi-Fi, ou tablette connectée au partage de connexion de ce téléphone.
             </Text>
 
             {!nativeAvailable ? (
               <View style={{ marginTop: 16, padding: 12, borderRadius: 12, backgroundColor: COLORS.redBg, borderWidth: 1, borderColor: COLORS.red }}>
-                <Text style={{ color: COLORS.red, textAlign: 'center', fontWeight: '800', fontSize: 12 }}>Ce build Android n’intègre pas le module Compagnon. Installe le dernier APK.</Text>
+                <Text style={{ color: COLORS.red, textAlign: 'center', fontFamily: FONTS.bold, fontSize: 12 }}>Ce build Android n’intègre pas le module Compagnon. Installe le dernier APK.</Text>
               </View>
             ) : (
               <TouchableOpacity onPress={scan} disabled={phase === 'scanning' || phase === 'connecting'} style={{ marginTop: 18, minHeight: 52, paddingHorizontal: 20, borderRadius: 15, backgroundColor: accent, minWidth: 210, alignItems: 'center', justifyContent: 'center' }}>
-                {phase === 'scanning' || phase === 'connecting' ? <ActivityIndicator color={COLORS.white} /> : <Text style={{ color: COLORS.white, fontWeight: '900', fontSize: 14 }}>Scanner le QR</Text>}
+                {phase === 'scanning' || phase === 'connecting' ? <ActivityIndicator color={COLORS.white} /> : <Text style={{ color: COLORS.white, fontFamily: FONTS.black, fontSize: 14 }}>Scanner le QR</Text>}
               </TouchableOpacity>
             )}
 
             {(phase === 'scanning' || phase === 'connecting') ? <Text style={{ marginTop: 10, color: COLORS.inkSoft, fontSize: 11.5, textAlign: 'center' }}>{phase === 'scanning' ? 'Scanner ouvert · tu peux annuler avec Retour' : 'Connexion locale en cours…'}</Text> : null}
-            {pending > 0 ? <Text style={{ marginTop: 14, color: accent, fontWeight: '800', fontSize: 12 }}>{pending} photo{pending > 1 ? 's' : ''} conservée{pending > 1 ? 's' : ''} en attente d'une tablette</Text> : null}
+            {pending > 0 ? <Text style={{ marginTop: 14, color: accent, fontFamily: FONTS.bold, fontSize: 12 }}>{pending} photo{pending > 1 ? 's' : ''} conservée{pending > 1 ? 's' : ''} en attente d'une tablette</Text> : null}
           </View>
           </>
         ) : isVisitSnapshot ? (
           <>
-            <View style={{ padding: 14, borderRadius: 16, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, marginBottom: 12 }}>
-              <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 16 }}>{snapshot.visit?.site || 'Visite'}</Text>
+            <View style={{ padding: 14, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', marginBottom: 12 }}>
+              <Text style={{ color: COLORS.ink, fontFamily: FONTS.black, fontSize: 16 }}>{snapshot.visit?.site || 'Visite'}</Text>
               <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 12 }}>{snapshot.visit?.client || ''} · {snapshot.visit?.date || ''}</Text>
-              {clientSnapshot ? <TouchableOpacity onPress={backToClient} style={{ marginTop: 10, alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 7, borderRadius: 14, backgroundColor: light }}><Text style={{ color: accent, fontSize: 11.5, fontWeight: '900' }}>← Revenir au client</Text></TouchableOpacity> : null}
+              {clientSnapshot ? <TouchableOpacity onPress={backToClient} style={{ marginTop: 10, alignSelf: 'flex-start', paddingHorizontal: 11, paddingVertical: 7, borderRadius: 14, backgroundColor: light }}><Text style={{ color: accent, fontSize: 11.5, fontFamily: FONTS.black }}>← Revenir au client</Text></TouchableOpacity> : null}
             </View>
 
-            {phase === 'disconnected' ? <TouchableOpacity onPress={reconnect} style={{ marginBottom: 12, minHeight: 50, borderRadius: 15, backgroundColor: light, borderWidth: 1, borderColor: accent, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: accent, fontWeight: '900' }}>Reconnecter à la tablette</Text><Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 10.5 }}>{pending > 0 ? `${pending} photo${pending > 1 ? 's' : ''} en attente` : 'Les nouvelles photos resteront sur le téléphone'}</Text></TouchableOpacity> : null}
+            {phase === 'disconnected' ? <TouchableOpacity onPress={reconnect} style={{ marginBottom: 12, minHeight: 50, borderRadius: 15, backgroundColor: light, borderWidth: 1, borderColor: accent, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: accent, fontFamily: FONTS.black }}>Reconnecter à la tablette</Text><Text style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 10.5 }}>{pending > 0 ? `${pending} photo${pending > 1 ? 's' : ''} en attente` : 'Les nouvelles photos resteront sur le téléphone'}</Text></TouchableOpacity> : null}
 
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 9 }}>
               {modules.map((item) => <ModuleTile key={item.id} item={item} accent={accent} light={light} onPress={(m) => {
@@ -794,8 +794,8 @@ function CompanionPhoneScreen({ onExit }) {
               }} />)}
             </View>
 
-            <TouchableOpacity onPress={() => sendCompanionMessage({ type: 'requestSnapshot' }).catch(() => {})} style={{ marginTop: 14, minHeight: 48, borderRadius: 15, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white, alignItems: 'center', justifyContent: 'center' }}>
-              <Text style={{ fontWeight: '900', color: COLORS.ink }}>Actualiser depuis la tablette</Text>
+            <TouchableOpacity onPress={() => sendCompanionMessage({ type: 'requestSnapshot' }).catch(() => {})} style={{ marginTop: 14, minHeight: 48, borderRadius: 15, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.82)', alignItems: 'center', justifyContent: 'center' }}>
+              <Text style={{ fontFamily: FONTS.black, color: COLORS.ink }}>Actualiser depuis la tablette</Text>
             </TouchableOpacity>
           </>
         ) : null}

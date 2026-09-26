@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import Svg, { Circle, Line, Polygon, Rect, Text as SvgText } from 'react-native-svg';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import {
   ajouterAnnotationPhotoMission,
@@ -15,7 +15,7 @@ const TOOLS = [['select', 'Consulter'], ['circle', 'Cercle'], ['arrow', 'Flèche
 
 function Chip({ label, selected, onPress }) {
   return <TouchableOpacity onPress={onPress} style={{ borderWidth: 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6, marginBottom: 6 }}>
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontFamily: FONTS.bold }}>{label}</Text>
   </TouchableOpacity>;
 }
 
@@ -170,7 +170,7 @@ export function MissionPhotoAnnotationScreen({ route }) {
     }
   };
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Annotations photo</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -200,7 +200,7 @@ export function MissionPhotoAnnotationScreen({ route }) {
         <View style={[missionStyles.card, { padding: 10, marginTop: 12 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'center' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }}>Inclure dans le rapport / livrable client</Text>
+              <Text style={{ color: COLORS.ink, fontSize: 10, fontFamily: FONTS.black }}>Inclure dans le rapport / livrable client</Text>
               <Text style={{ color: COLORS.inkFaint, fontSize: 8.4, lineHeight: 12, marginTop: 2 }}>
                 L’original reste conservé. Ce choix sert uniquement à constituer la sélection photo des livrables.
               </Text>
@@ -218,7 +218,7 @@ export function MissionPhotoAnnotationScreen({ route }) {
                 alignItems: 'center',
               }}
             >
-              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 8.8, fontWeight: '900' }}>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 8.8, fontFamily: FONTS.black }}>
                 {['report','client'].includes(String(selected.visibility || '')) ? 'INCLUSE ✓' : 'AJOUTER'}
               </Text>
             </TouchableOpacity>
@@ -245,7 +245,7 @@ export function MissionPhotoAnnotationScreen({ route }) {
 
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 15 }]}>Couches</Text>
         {annotations.map((a, index) => <View key={a.id} style={[missionStyles.card, { padding: 9, marginBottom: 5 }]}>
-          <Text style={{ color: COLORS.ink, fontSize: 9.8, fontWeight: '800' }}>{index + 1}. {a.annotation_type}{a.text ? ' · ' + a.text : ''}</Text>
+          <Text style={{ color: COLORS.ink, fontSize: 9.8, fontFamily: FONTS.bold }}>{index + 1}. {a.annotation_type}{a.text ? ' · ' + a.text : ''}</Text>
         </View>)}
       </> : <Text style={{ color: COLORS.inkFaint, fontSize: 10, marginTop: 15 }}>Aucune photo Mission disponible.</Text>}
     </ScrollView>

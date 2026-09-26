@@ -1,7 +1,7 @@
 import React, { useCallback, useMemo, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { getDb } from './db.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 
 function money(value) {
@@ -28,7 +28,7 @@ function Chip({ label, selected, onPress }) {
       marginBottom: 6,
     }}
   >
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontWeight: '900' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontFamily: FONTS.black }}>{label}</Text>
   </TouchableOpacity>;
 }
 
@@ -166,7 +166,7 @@ export function MissionAmoDashboardScreen({ navigation, route }) {
       .map((row) => ({ ...row, overdue: Boolean(row.due_date && row.due_date < today) }));
   }, [actions]);
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Pilotage AMO / exploitation</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -186,7 +186,7 @@ export function MissionAmoDashboardScreen({ navigation, route }) {
           [money(renewalCost), 'projection P3'],
           [overdue.length, 'échéance(s) dépassée(s)'],
         ].map(([value,label]) => <View key={label} style={[missionStyles.statBox,{minWidth:'29%',flexGrow:1,padding:9,borderRadius:11}]}>
-          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13.5, fontWeight: '900' }}>{value}</Text>
+          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13.5, fontFamily: FONTS.black }}>{value}</Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 2 }}>{label}</Text>
         </View>)}
       </View>
@@ -213,10 +213,10 @@ export function MissionAmoDashboardScreen({ navigation, route }) {
       {workstreams.length ? workstreams.map((row) => <View key={row.id} style={[missionStyles.card,{padding:11,marginBottom:7}]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.ink, fontSize: 10.6, fontWeight: '900' }}>{row.label}</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10.6, fontFamily: FONTS.black }}>{row.label}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, marginTop: 2 }}>{[row.kind,row.status].filter(Boolean).join(' · ')}</Text>
           </View>
-          <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.4, fontWeight: '900' }}>
+          <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.4, fontFamily: FONTS.black }}>
             {row.open_subject_count || 0} sujet(s) ouvert(s) · {row.open_action_count || 0} action(s)
           </Text>
         </View>
@@ -225,7 +225,7 @@ export function MissionAmoDashboardScreen({ navigation, route }) {
         style={[missionStyles.card,{padding:13}]}
         onPress={() => navigation.navigate('MissionWorkflow',{missionId})}
       >
-        <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 10, fontWeight: '900' }}>Préparer les volets métier</Text>
+        <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 10, fontFamily: FONTS.black }}>Préparer les volets métier</Text>
         <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, lineHeight: 12, marginTop: 3 }}>Exploitation · Énergie · P3 · PPI · Réunions · Réception</Text>
       </TouchableOpacity>}
 
@@ -237,10 +237,10 @@ export function MissionAmoDashboardScreen({ navigation, route }) {
       >
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.ink, fontSize: 10, fontWeight: '900' }}>{row.label}</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10, fontFamily: FONTS.black }}>{row.label}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, marginTop: 3 }}>{[row.subject_label,row.responsible_company || row.responsible_name].filter(Boolean).join(' · ') || 'Contexte à compléter'}</Text>
           </View>
-          <Text style={{ color: row.overdue ? '#8B3A3A' : MISSION_COLORS.accentDark, fontSize: 8.3, fontWeight: '900' }}>
+          <Text style={{ color: row.overdue ? '#8B3A3A' : MISSION_COLORS.accentDark, fontSize: 8.3, fontFamily: FONTS.black }}>
             {row.overdue ? 'ÉCHUE · ' : ''}{row.due_date || row.due_text || 'Sans date'}
           </Text>
         </View>

@@ -2,7 +2,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { BrandMark } from './BrandLogo.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 import {
   declarerEtatEquipement,
   getStatsSitePatrimoine,
@@ -28,11 +29,11 @@ function EtatBadge({ etat }) {
   const surveillance = valeur === 'À surveiller';
   const fond = critique ? (COLORS.redBg || '#FDECEC') : surveillance ? (COLORS.amberBg || '#FEF3E2') : (COLORS.greenBg || '#E8F5E9');
   const texte = critique ? (COLORS.red || '#B91C1C') : surveillance ? (COLORS.amber || '#B45309') : (COLORS.green || '#2E7D32');
-  return <View style={{ backgroundColor: fond, borderRadius: 16, paddingHorizontal: 9, paddingVertical: 4 }}><Text style={{ color: texte, fontSize: 11, fontWeight: '800' }}>{valeur}</Text></View>;
+  return <View style={{ backgroundColor: fond, borderRadius: 16, paddingHorizontal: 9, paddingVertical: 4 }}><Text style={{ color: texte, fontSize: 11, fontFamily: FONTS.bold }}>{valeur}</Text></View>;
 }
 
 function StatBox({ value, label }) {
-  return <View style={{ flex: 1, minWidth: 86, padding: 10, borderRadius: 11, backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.line }}><Text style={{ fontSize: 20, fontWeight: '900', color: COLORS.ink }}>{value}</Text><Text style={{ fontSize: 10.5, color: COLORS.muted, marginTop: 2 }}>{label}</Text></View>;
+  return <View style={{ flex: 1, minWidth: 86, padding: 10, borderRadius: 11, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' }}><Text style={{ fontSize: 20, fontFamily: FONTS.black, color: COLORS.ink }}>{value}</Text><Text style={{ fontSize: 10.5, color: COLORS.muted, marginTop: 2 }}>{label}</Text></View>;
 }
 
 export function SiteOverviewPanel({ siteId, mode }) {
@@ -150,7 +151,7 @@ export function SiteOverviewPanel({ siteId, mode }) {
   return <View>
     <Segment items={[{ id: 'actuels', label: 'En cours' }, { id: 'historique', label: 'Historique' }]} value={sousMenu} onChange={setSousMenu} />
     <Segment items={[{ id: 'origine', label: 'Depuis le début' }, { id: 'entre', label: 'Entre 2 visites' }]} value={periode} onChange={setPeriode} />
-    {periode === 'entre' && visites.length ? <View style={{ backgroundColor: '#fff', borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, padding: 10, marginBottom: 12 }}><Text style={{ fontWeight: '800', marginBottom: 8 }}>Comparer deux visites</Text><View style={{ gap: 7 }}><View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={{ width: 58, color: COLORS.muted, fontSize: 11 }}>Début</Text><TouchableOpacity onPress={() => changerVisite('debut', -1)} style={{ padding: 8 }}><Text>‹</Text></TouchableOpacity><Text style={{ flex: 1, textAlign: 'center', fontWeight: '700' }}>{visiteDebut?.date_visite || '—'}</Text><TouchableOpacity onPress={() => changerVisite('debut', 1)} style={{ padding: 8 }}><Text>›</Text></TouchableOpacity></View><View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={{ width: 58, color: COLORS.muted, fontSize: 11 }}>Fin</Text><TouchableOpacity onPress={() => changerVisite('fin', -1)} style={{ padding: 8 }}><Text>‹</Text></TouchableOpacity><Text style={{ flex: 1, textAlign: 'center', fontWeight: '700' }}>{visiteFin?.date_visite || '—'}</Text><TouchableOpacity onPress={() => changerVisite('fin', 1)} style={{ padding: 8 }}><Text>›</Text></TouchableOpacity></View></View>{datesValides ? <Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 7, textAlign: 'center' }}>Période : {datesValides.debut.date_visite} → {datesValides.fin.date_visite}</Text> : null}</View> : null}
+    {periode === 'entre' && visites.length ? <View style={{ backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 12, padding: 10, marginBottom: 12 }}><Text style={{ fontFamily: FONTS.bold, marginBottom: 8 }}>Comparer deux visites</Text><View style={{ gap: 7 }}><View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={{ width: 58, color: COLORS.muted, fontSize: 11 }}>Début</Text><TouchableOpacity onPress={() => changerVisite('debut', -1)} style={{ padding: 8 }}><CvcIcon name="chevron-left" size={16} color={COLORS.orangeDark} strokeWidth={2.1} /></TouchableOpacity><Text style={{ flex: 1, textAlign: 'center', fontFamily: FONTS.bodyBold }}>{visiteDebut?.date_visite || '—'}</Text><TouchableOpacity onPress={() => changerVisite('debut', 1)} style={{ padding: 8 }}><CvcIcon name="chevron-right" size={16} color={COLORS.orangeDark} strokeWidth={2.1} /></TouchableOpacity></View><View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={{ width: 58, color: COLORS.muted, fontSize: 11 }}>Fin</Text><TouchableOpacity onPress={() => changerVisite('fin', -1)} style={{ padding: 8 }}><CvcIcon name="chevron-left" size={16} color={COLORS.orangeDark} strokeWidth={2.1} /></TouchableOpacity><Text style={{ flex: 1, textAlign: 'center', fontFamily: FONTS.bodyBold }}>{visiteFin?.date_visite || '—'}</Text><TouchableOpacity onPress={() => changerVisite('fin', 1)} style={{ padding: 8 }}><CvcIcon name="chevron-right" size={16} color={COLORS.orangeDark} strokeWidth={2.1} /></TouchableOpacity></View></View>{datesValides ? <Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 7, textAlign: 'center' }}>Période : {datesValides.debut.date_visite} → {datesValides.fin.date_visite}</Text> : null}</View> : null}
     {statsPeriode ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 14 }}><StatBox value={statsPeriode.creees} label="créées sur la période"/><StatBox value={statsPeriode.levees} label="levées sur la période"/><StatBox value={statsPeriode.ouvertesFin} label="ouvertes à la fin"/><StatBox value={statsPeriode.totalDepuisOrigine} label="depuis le début"/></View> : null}
     <FlatList data={rows} keyExtractor={(item) => item.id} scrollEnabled={false}
       ListHeaderComponent={<Text style={[styles.sectionLabel, { marginBottom: 10 }]}>{sousMenu === 'historique' ? 'Réserves levées' : 'Réserves à traiter'} · {rows.length}</Text>}

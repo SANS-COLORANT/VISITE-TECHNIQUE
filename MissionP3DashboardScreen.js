@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { getDb } from './db.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 
 function amount(value) {
@@ -45,7 +45,7 @@ function Chip({ label, selected, onPress }) {
       marginBottom: 6,
     }}
   >
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontWeight: '900' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontFamily: FONTS.black }}>{label}</Text>
   </TouchableOpacity>;
 }
 
@@ -112,7 +112,7 @@ export function MissionP3DashboardScreen({ navigation, route }) {
     return [...map.values()].sort((a,b) => a.year - b.year).slice(0,12);
   }, [equipment]);
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>P2 / P3 · projection patrimoniale</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -127,7 +127,7 @@ export function MissionP3DashboardScreen({ navigation, route }) {
           [stats.next3Count + ' · ' + displayMoney(stats.next3Cost), 'sur 3 ans'],
           [stats.missingCount, 'à compléter'],
         ].map(([value,label]) => <View key={label} style={[missionStyles.statBox, { minWidth: '30%', flexGrow: 1, padding: 10, borderRadius: 11 }]}>
-          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13.5, fontWeight: '900' }}>{value}</Text>
+          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13.5, fontFamily: FONTS.black }}>{value}</Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 8.1, marginTop: 2 }}>{label}</Text>
         </View>)}
       </View>
@@ -136,7 +136,7 @@ export function MissionP3DashboardScreen({ navigation, route }) {
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Projection par année</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false}>
           {buckets.map((bucket) => <View key={bucket.year} style={[missionStyles.card, { width: 140, padding: 10, marginRight: 7 }]}>
-            <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13, fontWeight: '900' }}>{bucket.year}</Text>
+            <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 13, fontFamily: FONTS.black }}>{bucket.year}</Text>
             <Text style={{ color: COLORS.inkSoft, fontSize: 9, marginTop: 3 }}>{bucket.count} équipement(s)</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, marginTop: 2 }}>{displayMoney(bucket.cost)}</Text>
           </View>)}
@@ -166,12 +166,12 @@ export function MissionP3DashboardScreen({ navigation, route }) {
         >
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: COLORS.ink, fontSize: 10.8, fontWeight: '900' }}>{row.type || 'Équipement'}</Text>
+              <Text style={{ color: COLORS.ink, fontSize: 10.8, fontFamily: FONTS.black }}>{row.type || 'Équipement'}</Text>
               <Text style={{ color: COLORS.inkSoft, fontSize: 9, marginTop: 3 }}>{[row.brand,row.model].filter(Boolean).join(' · ') || 'Identification à compléter'}</Text>
               <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 3 }}>{[row.site_name,row.location_label,row.state].filter(Boolean).join(' · ')}</Text>
             </View>
             <View style={{ alignItems: 'flex-end', marginLeft: 8 }}>
-              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 10, fontWeight: '900' }}>{row.replacement_year || 'Année ?'}</Text>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 10, fontFamily: FONTS.black }}>{row.replacement_year || 'Année ?'}</Text>
               <Text style={{ color: COLORS.inkSoft, fontSize: 9, marginTop: 3 }}>{row.replacement_cost ? displayMoney(row.replacement_cost) : 'Coût ?'}</Text>
             </View>
           </View>

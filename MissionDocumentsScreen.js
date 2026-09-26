@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { choisirEtAjouterDocumentMission } from './missionMediaDb.js';
 import { creerOuTrouverActeurMission } from './missionDomainDb.js';
@@ -31,7 +31,7 @@ const VISA_STATUS = [
 
 function Chip({ label, selected, onPress }) {
   return <TouchableOpacity onPress={onPress} style={{ borderWidth: 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6, marginBottom: 6 }}>
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontFamily: FONTS.bold }}>{label}</Text>
   </TouchableOpacity>;
 }
 
@@ -181,7 +181,7 @@ export function MissionDocumentsScreen({ route }) {
   const latestVisa = (docId) => validations.find((v) => v.document_id === docId);
   const visaHistory = (docId) => validations.filter((v) => v.document_id === docId);
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Documents · attendus · VISA</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -207,7 +207,7 @@ export function MissionDocumentsScreen({ route }) {
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Documents attendus</Text>
       {expected.map((row) => <View key={row.id} style={[missionStyles.card, { padding: 11, marginBottom: 8 }]}>
-        <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 10.8 }}>{row.label}</Text>
+        <Text style={{ color: COLORS.ink, fontFamily: FONTS.black, fontSize: 10.8 }}>{row.label}</Text>
         <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, marginTop: 3 }}>{[row.responsible_company || row.responsible_name, row.due_date || row.due_text, row.document_name].filter(Boolean).join(' · ') || 'Contexte à compléter'}</Text>
         {row.comment ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.2, marginTop: 4 }}>{row.comment}</Text> : null}
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 8 }}>
@@ -227,12 +227,12 @@ export function MissionDocumentsScreen({ route }) {
         }} style={[missionStyles.card, { padding: 11, marginBottom: 7 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '900' }}>{doc.name || 'Document'}</Text>
+              <Text style={{ color: COLORS.ink, fontSize: 10.5, fontFamily: FONTS.black }}>{doc.name || 'Document'}</Text>
               <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop: 2 }}>
                 {doc.type || 'source'} · {doc.source || 'Mission'} · {visaHistory(doc.id).length} revue(s)
               </Text>
             </View>
-            <Text style={{ color: visa?.status === 'validated' ? MISSION_COLORS.accentDark : COLORS.inkFaint, fontSize: 8.7, fontWeight: '900' }}>{visa?.status || 'Sans VISA'}</Text>
+            <Text style={{ color: visa?.status === 'validated' ? MISSION_COLORS.accentDark : COLORS.inkFaint, fontSize: 8.7, fontFamily: FONTS.black }}>{visa?.status || 'Sans VISA'}</Text>
           </View>
         </TouchableOpacity>;
       })}
@@ -256,7 +256,7 @@ export function MissionDocumentsScreen({ route }) {
     <Modal visible={!!visaDoc} transparent animationType="fade" onRequestClose={() => setVisaDoc(null)}>
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, missionStyles.modalSheet]}>
         <Text style={[styles.modalTitle, missionStyles.title]}>VISA · {visaDoc?.name}</Text>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '900', marginBottom: 4 }}>VERSION / RÉVISION</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontFamily: FONTS.black, marginBottom: 4 }}>VERSION / RÉVISION</Text>
         <TextInput style={[styles.input, missionStyles.input, { marginBottom: 8 }]} value={visaVersion} onChangeText={setVisaVersion} placeholder="V1, indice B, PRO-DCE du 18/09…" />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 8 }}>
           {VISA_STATUS.map(([key,label]) => <Chip key={key} label={label} selected={visaStatus === key} onPress={() => setVisaStatus(key)} />)}
@@ -264,9 +264,9 @@ export function MissionDocumentsScreen({ route }) {
         <TextInput style={[styles.input, missionStyles.input, { minHeight: 90, textAlignVertical: 'top' }]} multiline value={visaComment} onChangeText={setVisaComment} placeholder="Nouvelle remarque / réserve / réponse de validation" />
 
         {visaDoc && visaHistory(visaDoc.id).length ? <View style={{ marginTop: 13 }}>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '900', marginBottom: 6 }}>HISTORIQUE DES REVUES</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontFamily: FONTS.black, marginBottom: 6 }}>HISTORIQUE DES REVUES</Text>
           {visaHistory(visaDoc.id).slice(0, 12).map((row) => <View key={row.id} style={{ opacity: 0.76, paddingVertical: 6, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
-            <Text style={{ color: COLORS.ink, fontSize: 8.9, fontWeight: '900' }}>
+            <Text style={{ color: COLORS.ink, fontSize: 8.9, fontFamily: FONTS.black }}>
               {[row.version_label,row.status].filter(Boolean).join(' · ') || 'Revue'}
             </Text>
             {row.comment ? <Text style={{ color: COLORS.inkSoft, fontSize: 8.6, lineHeight: 12, marginTop: 2 }}>{row.comment}</Text> : null}

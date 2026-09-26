@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { getDb } from './db.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import {
@@ -19,8 +19,8 @@ function parse(value, fallback = []) {
 function FormulaCard({ item, selected, recommended, onPress }) {
   return <TouchableOpacity onPress={onPress} style={[missionStyles.card, { padding: 11, marginBottom: 7, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine }]}>
     <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-      <Text style={{ flex: 1, color: MISSION_COLORS.accentStrong, fontSize: 11, fontWeight: '900' }}>{item.label}</Text>
-      {recommended ? <Text style={{ color: MISSION_COLORS.accentDark, backgroundColor: MISSION_COLORS.accentSoft, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3, fontSize: 7.7, fontWeight: '900' }}>RECOMMANDÉ</Text> : null}
+      <Text style={{ flex: 1, color: MISSION_COLORS.accentStrong, fontSize: 11, fontFamily: FONTS.black }}>{item.label}</Text>
+      {recommended ? <Text style={{ color: MISSION_COLORS.accentDark, backgroundColor: MISSION_COLORS.accentSoft, borderRadius: 8, paddingHorizontal: 6, paddingVertical: 3, fontSize: 7.7, fontFamily: FONTS.black }}>RECOMMANDÉ</Text> : null}
     </View>
     <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 2 }}>{item.family || 'Personnalisée'} · {item.unit || 'sans unité'}</Text>
     <Text style={{ color: COLORS.inkSoft, fontSize: 9.2, marginTop: 4 }}>{item.formula}</Text>
@@ -170,7 +170,7 @@ export function MissionCalculationScreen({ route }) {
     setSelectedId(id);
   };
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Calculs 🧮</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15, marginBottom: 12 }}>
@@ -189,7 +189,7 @@ export function MissionCalculationScreen({ route }) {
           onPress={() => setRecommendedOnly((value) => !value)}
           style={{ borderWidth: 1, borderColor: MISSION_COLORS.accentLine, borderRadius: 9, paddingHorizontal: 8, paddingVertical: 6, backgroundColor: recommendedOnly ? MISSION_COLORS.accentSoft : '#FFFFFF' }}
         >
-          <Text style={{ color: recommendedOnly ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.4, fontWeight: '900' }}>
+          <Text style={{ color: recommendedOnly ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.4, fontFamily: FONTS.black }}>
             {recommendedOnly ? 'Recommandées · ' + recommendedCount : 'Toutes les formules'}
           </Text>
         </TouchableOpacity> : null}
@@ -208,13 +208,13 @@ export function MissionCalculationScreen({ route }) {
       </View>
 
       {selected ? <View style={[missionStyles.card, { padding: 13, marginTop: 12 }]}>
-        <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 13 }}>{selected.label}</Text>
+        <Text style={{ color: MISSION_COLORS.accentStrong, fontFamily: FONTS.black, fontSize: 13 }}>{selected.label}</Text>
         <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, marginTop: 3 }}>{selected.formula} {selected.unit ? '→ ' + selected.unit : ''}</Text>
         <View style={{ marginTop: 12 }}>
           {schema.map((input) => <View key={input.key} style={{ marginBottom: 9 }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 4 }}>
-              <Text style={{ flex: 1, color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '800' }}>{input.label || input.key}{input.unit ? ' · ' + input.unit : ''}</Text>
-              {autoSources[input.key] ? <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 7.6, fontWeight: '900' }}>PRÉREMPLI</Text> : null}
+              <Text style={{ flex: 1, color: COLORS.inkFaint, fontSize: 8.5, fontFamily: FONTS.bold }}>{input.label || input.key}{input.unit ? ' · ' + input.unit : ''}</Text>
+              {autoSources[input.key] ? <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 7.6, fontFamily: FONTS.black }}>PRÉREMPLI</Text> : null}
             </View>
             {autoSources[input.key] ? <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, lineHeight: 11, marginBottom: 4 }}>{autoSources[input.key]}</Text> : null}
             <TextInput
@@ -236,7 +236,7 @@ export function MissionCalculationScreen({ route }) {
         </View>
         {preview !== null ? <View style={[missionStyles.statBox, { padding: 12, borderRadius: 12, marginBottom: 10 }]}>
           <Text style={{ color: COLORS.inkFaint, fontSize: 8.5 }}>RÉSULTAT · RECALCUL AUTOMATIQUE</Text>
-          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 22, fontWeight: '900', marginTop: 2 }}>{Number(preview).toLocaleString('fr-FR', { maximumFractionDigits: 3 })} {selected.unit || ''}</Text>
+          <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 22, fontFamily: FONTS.black, marginTop: 2 }}>{Number(preview).toLocaleString('fr-FR', { maximumFractionDigits: 3 })} {selected.unit || ''}</Text>
         </View> : null}
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={calculate}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Calculer</Text></TouchableOpacity>
@@ -248,10 +248,10 @@ export function MissionCalculationScreen({ route }) {
       {calculations.map((c) => <View key={c.id} style={[missionStyles.card, { padding: 11, marginBottom: 7 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 10.8 }}>{c.label}</Text>
+            <Text style={{ color: COLORS.ink, fontFamily: FONTS.black, fontSize: 10.8 }}>{c.label}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.7, marginTop: 2 }}>{c.formula}</Text>
           </View>
-          <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 12 }}>{c.result_number ?? c.result_text ?? '/'} {c.unit || ''}</Text>
+          <Text style={{ color: MISSION_COLORS.accentStrong, fontFamily: FONTS.black, fontSize: 12 }}>{c.result_number ?? c.result_text ?? '/'} {c.unit || ''}</Text>
         </View>
       </View>)}
     </ScrollView>

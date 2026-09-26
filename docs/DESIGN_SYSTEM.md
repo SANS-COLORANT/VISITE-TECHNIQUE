@@ -58,6 +58,20 @@ Pré-allumage : locaux en pastilles avec état, barre d'avancement et N.S ; rubr
 cartes de verre avec pastille d'état et compteur. Mesures : `StepperNumerique`
 (grand chiffre, boutons −/+ de 52 px).
 
+## Éléments communs (styles.js)
+
+- Boutons : `btnPrimary` pilule orange lumineuse (rayon 17, 50 px mini, halo),
+  `btnSecondary` pilule de verre. Missions : même forme, accent vert.
+- Fenêtres : `modalOverlay` voile fumé chaud, `modalSheet` feuille flottante qui
+  monte du bas (rayon 28, 92 % de hauteur maxi).
+- Champs : `input` 48 px, rayon 14, fond blanc.
+- Icônes : toujours `CvcIcon` (dessinées), jamais de caractère texte (✕ ⧉ ✎ › ⋯).
+  Icônes disponibles aussi : close, copy, more, chevron-up/down, refresh, fan, flame.
+- Typographie : toujours `FONTS` (Sora pour les titres, Inter pour le texte),
+  jamais `fontWeight` seul (qui retombe sur la police système).
+- Surfaces : blanc translucide (`rgba(255,255,255,0.8)`) pour laisser voir les
+  halos ; racines d'écran transparentes, y compris Missions et modes téléphone.
+
 ## Thèmes
 
 - Visite Technique : accent orange `#F26426` / `#D9531A`.

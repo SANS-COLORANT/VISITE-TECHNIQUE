@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Image, Modal, Pressable, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import Svg, { Circle, Line, Polygon, Rect, Text as SvgText } from 'react-native-svg';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { rendrePagePdfLocale } from './missionNativeTools.js';
 import { capturerPhotoMission } from './missionMediaDb.js';
@@ -79,7 +79,7 @@ function ToolChip({ selected, label, onPress }) {
       marginRight: 6,
       marginBottom: 6,
     }}
-  ><Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9.5, fontWeight: '800' }}>{label}</Text></TouchableOpacity>;
+  ><Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9.5, fontFamily: FONTS.bold }}>{label}</Text></TouchableOpacity>;
 }
 
 function normalizedPoints(row, width, height) {
@@ -614,7 +614,7 @@ export function MissionPlanScreen({ navigation, route }) {
 
   const draftPx = draftPoints.map((p) => ({ x: p.x * canvas.width, y: p.y * canvas.height }));
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 120 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Plans · PDF · SIG</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -665,7 +665,7 @@ export function MissionPlanScreen({ navigation, route }) {
         {pageCount > 1 ? <>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10, marginBottom: 6 }}>
             <TouchableOpacity disabled={page <= 1} onPress={() => { setPage((p) => Math.max(1, p - 1)); setDraftPoints([]); }} style={{ padding: 8 }}><Text style={{ color: page <= 1 ? COLORS.inkFaint : MISSION_COLORS.accentDark }}>← Page</Text></TouchableOpacity>
-            <Text style={{ color: COLORS.ink, fontWeight: '900' }}>{page} / {pageCount}</Text>
+            <Text style={{ color: COLORS.ink, fontFamily: FONTS.black }}>{page} / {pageCount}</Text>
             <TouchableOpacity disabled={page >= pageCount} onPress={() => { setPage((p) => Math.min(pageCount, p + 1)); setDraftPoints([]); }} style={{ padding: 8 }}><Text style={{ color: page >= pageCount ? COLORS.inkFaint : MISSION_COLORS.accentDark }}>Page →</Text></TouchableOpacity>
           </View>
           {String(selected.type).includes('pdf') ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'center', gap: 6, marginBottom: 9 }}>
@@ -696,7 +696,7 @@ export function MissionPlanScreen({ navigation, route }) {
             return <View key={a.id} style={[missionStyles.card, { padding: 10, marginBottom: 6 }]}>
               <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
                 <View style={{ flex: 1 }}>
-                  <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '800', fontSize: 10.5 }}>{a.annotation_type}{a.text ? ' · ' + a.text : ''}</Text>
+                  <Text style={{ color: MISSION_COLORS.accentStrong, fontFamily: FONTS.bold, fontSize: 10.5 }}>{a.annotation_type}{a.text ? ' · ' + a.text : ''}</Text>
                   <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 2 }}>{a.layer_label || 'Sans calque'}</Text>
                   {a.linked_entity_type ? <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.8, marginTop: 4 }}>
                     Lié : {LINK_TYPE_LABELS[a.linked_entity_type] || a.linked_entity_type} · {linked?.label || a.linked_entity_id}
@@ -751,7 +751,7 @@ export function MissionPlanScreen({ navigation, route }) {
         <TextInput style={[styles.input, missionStyles.input]} value={linkQuery} onChangeText={setLinkQuery} placeholder="Rechercher dans cette catégorie…" />
         <ScrollView style={{ maxHeight: 330, marginTop: 7 }}>
           {filteredLinkTargets.map((target) => <TouchableOpacity key={target.type + ':' + target.id} onPress={() => applyLink(target)} style={{ paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
-            <Text style={{ color: COLORS.ink, fontSize: 10.2, fontWeight: '800' }}>{target.label}</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10.2, fontFamily: FONTS.bold }}>{target.label}</Text>
             {target.subtitle ? <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, marginTop: 2 }}>{target.subtitle}</Text> : null}
           </TouchableOpacity>)}
           {!filteredLinkTargets.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 9.5, paddingVertical: 12 }}>Aucun objet dans cette catégorie.</Text> : null}
@@ -771,7 +771,7 @@ export function MissionPlanScreen({ navigation, route }) {
         </Text>
         <ScrollView style={{ maxHeight: 280 }}>
           {signatureTargets.map((target) => <TouchableOpacity key={target.id} onPress={() => placeSignature(target)} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
-            <Text style={{ color: COLORS.ink, fontSize: 10.5, fontWeight: '900' }}>{target.label}</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10.5, fontFamily: FONTS.black }}>{target.label}</Text>
             {target.subtitle ? <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop: 2 }}>{target.subtitle}</Text> : null}
           </TouchableOpacity>)}
           {!signatureTargets.length ? <View style={{ paddingVertical: 10 }}>

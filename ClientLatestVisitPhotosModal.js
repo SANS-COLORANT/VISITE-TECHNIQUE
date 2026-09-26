@@ -1,7 +1,7 @@
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Keyboard, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { PhotoVariantImage } from './PhotoVariantImage.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { flattenLatestVisitPhotos, getVisitPhotoReference, readPhotoLocalChoice, savePhotoLocalChoice } from './latestVisitPhotosDb.js';
 import { hydrateLatestVisitPhotosCache, loadCachedLatestVisitPhotos, syncLatestVisitPhotosManifest } from './latestVisitPhotosStorage.js';
 import { filterLatestVisitPhotos, photoSummary, photoStatusLabel, mapLatestVisitPhotos, photoFileKey, referenceSignature, formatPhotoBytes, formatPhotoDate } from './latestVisitPhotoModel.js';
@@ -11,7 +11,7 @@ import { ReferencePhotoViewer } from './ReferencePhotoViewer.js';
 
 const ink = COLORS.ink || '#17212B', muted = COLORS.muted || '#667085';
 function Button({ label, onPress, disabled = false, primary = false }) {
-  return <TouchableOpacity accessibilityRole="button" disabled={disabled} onPress={onPress} style={{ minHeight: 48, paddingHorizontal: 12, paddingVertical: 9, justifyContent: 'center', alignItems: 'center', borderRadius: 10, backgroundColor: primary ? COLORS.primary : '#F3F5F7', opacity: disabled ? 0.5 : 1 }}><Text style={{ color: primary ? '#FFF' : ink, fontSize: 13, fontWeight: '700', textAlign: 'center' }}>{label}</Text></TouchableOpacity>;
+  return <TouchableOpacity accessibilityRole="button" disabled={disabled} onPress={onPress} style={{ minHeight: 48, paddingHorizontal: 12, paddingVertical: 9, justifyContent: 'center', alignItems: 'center', borderRadius: 10, backgroundColor: primary ? COLORS.primary : '#F3F5F7', opacity: disabled ? 0.5 : 1 }}><Text style={{ color: primary ? '#FFF' : ink, fontSize: 13, fontFamily: FONTS.bodyBold, textAlign: 'center' }}>{label}</Text></TouchableOpacity>;
 }
 const PhotoThumbnail = memo(function PhotoThumbnail({ photo, onPress }) {
   const local = photo.localAvailable && photo.localUri;
@@ -24,9 +24,9 @@ const PhotoThumbnail = memo(function PhotoThumbnail({ photo, onPress }) {
 });
 const LocalPhotoGroup = memo(function LocalPhotoGroup({ group, onPhoto, onDownload, activated }) {
   const summary = photoSummary({ sites: [{ locaux: [group] }] });
-  return <View style={{ borderWidth: 1, borderColor: COLORS.line, borderRadius: 12, padding: 12, marginBottom: 12, backgroundColor: '#FFF' }}>
+  return <View style={{ borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 12, padding: 12, marginBottom: 12, backgroundColor: 'rgba(255,255,255,0.82)' }}>
     <Text style={{ color: muted, fontSize: 12 }}>{group.site?.nom || 'Site'}</Text>
-    <Text style={{ color: ink, fontSize: 15, fontWeight: '700', marginTop: 3 }}>{group.local?.designation || 'Aucun local recensé'}</Text>
+    <Text style={{ color: ink, fontSize: 15, fontFamily: FONTS.bodyBold, marginTop: 3 }}>{group.local?.designation || 'Aucun local recensé'}</Text>
     <Text style={{ color: muted, fontSize: 12, marginVertical: 5 }}>{group.derniereVisite ? `Visite du ${formatPhotoDate(group.derniereVisite.date)} · ${group.derniereVisite.statut || ''}` : 'Aucune visite disponible'}</Text>
     {group.photos.length ? <FlatList horizontal data={group.photos} keyExtractor={(p) => String(p.id)} renderItem={({ item }) => <PhotoThumbnail photo={item} onPress={onPhoto} />} contentContainerStyle={{ paddingVertical: 7 }} initialNumToRender={4} maxToRenderPerBatch={4} windowSize={3} /> : <Text style={{ color: muted, paddingVertical: 9 }}>Aucune photo dans cette visite.</Text>}
     <Text style={{ color: muted, fontSize: 12, marginVertical: 5 }}>{photoStatusLabel(summary)}</Text>
@@ -162,7 +162,7 @@ function ClientLatestVisitPhotosModal({ visible, client, activated, onClose, sit
     <Modal visible={visible} transparent animationType="fade" onRequestClose={close}>
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, { height: '94%', maxHeight: '94%', paddingBottom: 14 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}><View style={{ flex: 1 }}>
-          <Text style={{ color: muted, fontSize: 11, fontWeight: '700' }}>{showLatest ? 'INTRANET RÉCENT' : reference ? 'RÉFÉRENCE CONSERVÉE' : 'HISTORIQUE INTRANET'}</Text>
+          <Text style={{ color: muted, fontSize: 11, fontFamily: FONTS.bodyBold }}>{showLatest ? 'INTRANET RÉCENT' : reference ? 'RÉFÉRENCE CONSERVÉE' : 'HISTORIQUE INTRANET'}</Text>
           <Text style={[styles.modalTitle, { marginTop: 4, marginBottom: 3 }]}>Photos de référence</Text>
           <Text style={{ color: muted, fontSize: 12 }}>{contextTitle || client?.nom || 'Client'}</Text>
         </View><Button label="Fermer" onPress={close} /></View>
@@ -171,13 +171,13 @@ function ClientLatestVisitPhotosModal({ visible, client, activated, onClose, sit
         {newer ? <Button label={showLatest ? 'Revenir à la référence conservée' : 'Une version différente existe · la consulter'} onPress={() => { setShowLatest(!showLatest); setViewerPhoto(null); }} /> : null}
         {notice ? <Text accessibilityLiveRegion="polite" style={{ backgroundColor: '#FFF4E8', color: '#805017', padding: 10, fontSize: 12, lineHeight: 17, marginVertical: 7 }}>{notice}</Text> : null}
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginVertical: 6 }}>
-          <TextInput value={search} onChangeText={setSearch} placeholder="Rechercher un site, un local, une photo" accessibilityLabel="Rechercher dans les photos de référence" style={{ flex: 1, minHeight: 48, borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, paddingHorizontal: 10, fontSize: 13 }} />
+          <TextInput value={search} onChangeText={setSearch} placeholder="Rechercher un site, un local, une photo" accessibilityLabel="Rechercher dans les photos de référence" style={{ flex: 1, minHeight: 48, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 9, paddingHorizontal: 10, fontSize: 13 }} />
           <Button label={syncing ? 'Actualisation…' : 'Actualiser'} disabled={!activated || syncing || loading} onPress={refreshManifest} />
         </View>
         {manifest && !needsChoice ? <Text style={{ color: muted, fontSize: 12, marginBottom: 7 }}>{photoStatusLabel(summary)} · volume total restant {formatPhotoBytes(summary.bytes)}{summary.unknownSizes ? ' (taille partiellement inconnue)' : ''}</Text> : null}
         {requireLocalChoice && selectedLocal && !localIds ? <Button label="Changer le local de référence" onPress={() => setSelectedLocal(null)} /> : null}
         {loading || (!base && syncing) ? <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center' }}><ActivityIndicator color={COLORS.primary} /><Text style={{ color: muted, marginTop: 10 }}>Chargement des photos…</Text></View>
-          : !base ? <View style={{ flex: 1, justifyContent: 'center', padding: 20 }}><Text style={{ color: ink, fontWeight: '700', textAlign: 'center', fontSize: 16 }}>Photos non enregistrées sur cette tablette</Text><Text style={{ color: muted, textAlign: 'center', marginVertical: 12, lineHeight: 20 }}>Une connexion est nécessaire pour les récupérer. Tu peux continuer ta visite sans elles.</Text><Button label="Réessayer" disabled={!activated || syncing} onPress={refreshManifest} /></View>
+          : !base ? <View style={{ flex: 1, justifyContent: 'center', padding: 20 }}><Text style={{ color: ink, fontFamily: FONTS.bodyBold, textAlign: 'center', fontSize: 16 }}>Photos non enregistrées sur cette tablette</Text><Text style={{ color: muted, textAlign: 'center', marginVertical: 12, lineHeight: 20 }}>Une connexion est nécessaire pour les récupérer. Tu peux continuer ta visite sans elles.</Text><Button label="Réessayer" disabled={!activated || syncing} onPress={refreshManifest} /></View>
           : needsChoice ? <FlatList data={groups} keyExtractor={(g) => `${g.site.id}-${g.local.id}`} ListHeaderComponent={<Text style={{ color: ink, paddingVertical: 12 }}>Choisis le local Intranet correspondant. Aucun rapprochement n'est fait automatiquement par le nom.</Text>} renderItem={({ item }) => <View style={{ marginBottom: 7 }}><Button label={`${item.site.nom} · ${item.local.designation}`} onPress={() => chooseLocal(item.local.id)} /></View>} ListEmptyComponent={<Text style={{ color: muted, padding: 12 }}>Aucun local correspondant dans cette référence.</Text>} />
           : <FlatList style={{ flex: 1 }} data={groups} keyExtractor={(g) => `${g.site.id}-${g.local.id}`} renderItem={({ item }) => <LocalPhotoGroup group={item} activated={activated} onPhoto={onPhoto} onDownload={download} />} initialNumToRender={5} maxToRenderPerBatch={5} windowSize={5} removeClippedSubviews={false} keyboardShouldPersistTaps="handled" ListEmptyComponent={<Text style={{ color: muted, padding: 16 }}>{search ? 'Aucun résultat.' : 'Aucun local ni photo dans ce périmètre.'}</Text>} />}
         {showTasks ? <View style={{ maxHeight: 180 }}><FlatList data={[1]} keyExtractor={String} renderItem={() => <PhotoTaskList clientId={clientId} />} /></View> : null}

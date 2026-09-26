@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Image, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerOuTrouverActeurMission, enregistrerHistoriqueActionMission } from './missionDomainDb.js';
 import { capturerPhotoMission } from './missionMediaDb.js';
@@ -19,13 +19,13 @@ function num(v) {
 
 function Chip({ label, selected, onPress }) {
   return <TouchableOpacity onPress={onPress} style={{ borderWidth: 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : '#FFFFFF', borderRadius: 10, paddingHorizontal: 9, paddingVertical: 7, marginRight: 6, marginBottom: 6 }}>
-    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontWeight: '800' }}>{label}</Text>
+    <Text style={{ color: selected ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 9, fontFamily: FONTS.bold }}>{label}</Text>
   </TouchableOpacity>;
 }
 
 function Field({ label, value, onChangeText, keyboardType = 'default', multiline = false }) {
   return <View style={{ marginBottom: 8 }}>
-    <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontWeight: '800', marginBottom: 4 }}>{label.toUpperCase()}</Text>
+    <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, fontFamily: FONTS.bold, marginBottom: 4 }}>{label.toUpperCase()}</Text>
     <TextInput style={[styles.input, missionStyles.input, multiline ? { minHeight: 70, textAlignVertical: 'top' } : null]} value={String(value ?? '')} onChangeText={onChangeText} keyboardType={keyboardType} multiline={multiline} />
   </View>;
 }
@@ -217,7 +217,7 @@ export function MissionActionsScreen({ route }) {
 
   const totalCost = useMemo(() => visible.reduce((sum, a) => sum + (num(a.cost_estimate) || 0), 0), [visible]);
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <ScrollView contentContainerStyle={{ padding: 16, paddingBottom: 110 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Actions · responsables · échéances</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 10.5, lineHeight: 15 }}>
@@ -235,20 +235,20 @@ export function MissionActionsScreen({ route }) {
       </View>
 
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
-        <View style={[missionStyles.statBox, { flex: 1, padding: 10, borderRadius: 11 }]}><Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 15 }}>{visible.length}</Text><Text style={{ color: COLORS.inkFaint, fontSize: 8.5 }}>actions affichées</Text></View>
-        <View style={[missionStyles.statBox, { flex: 1, padding: 10, borderRadius: 11 }]}><Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 15 }}>{totalCost.toLocaleString('fr-FR')} €</Text><Text style={{ color: COLORS.inkFaint, fontSize: 8.5 }}>coût estimé</Text></View>
+        <View style={[missionStyles.statBox, { flex: 1, padding: 10, borderRadius: 11 }]}><Text style={{ color: MISSION_COLORS.accentStrong, fontFamily: FONTS.black, fontSize: 15 }}>{visible.length}</Text><Text style={{ color: COLORS.inkFaint, fontSize: 8.5 }}>actions affichées</Text></View>
+        <View style={[missionStyles.statBox, { flex: 1, padding: 10, borderRadius: 11 }]}><Text style={{ color: MISSION_COLORS.accentStrong, fontFamily: FONTS.black, fontSize: 15 }}>{totalCost.toLocaleString('fr-FR')} €</Text><Text style={{ color: COLORS.inkFaint, fontSize: 8.5 }}>coût estimé</Text></View>
       </View>
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 16 }]}>Liste</Text>
       {visible.map((a) => <TouchableOpacity key={a.id} onPress={() => openEdit(a)} style={[missionStyles.card, { padding: 12, marginBottom: 8 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.ink, fontWeight: '900', fontSize: 11.2 }}>{a.label}</Text>
+            <Text style={{ color: COLORS.ink, fontFamily: FONTS.black, fontSize: 11.2 }}>{a.label}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 3 }}>{[a.site_name, a.responsible_company || a.responsible_name, a.due_date || a.due_text].filter(Boolean).join(' · ') || 'Contexte à compléter'}</Text>
             {a.description ? <Text style={{ color: COLORS.inkSoft, fontSize: 9.3, marginTop: 4 }} numberOfLines={2}>{a.description}</Text> : null}
           </View>
           <View style={{ alignItems: 'flex-end' }}>
-            <Text style={{ color: ['closed','cancelled'].includes(a.status) ? COLORS.inkFaint : MISSION_COLORS.accentDark, fontSize: 8.8, fontWeight: '900' }}>{a.status}</Text>
+            <Text style={{ color: ['closed','cancelled'].includes(a.status) ? COLORS.inkFaint : MISSION_COLORS.accentDark, fontSize: 8.8, fontFamily: FONTS.black }}>{a.status}</Text>
             {a.cost_estimate !== null && a.cost_estimate !== undefined ? <Text style={{ color: COLORS.inkSoft, fontSize: 9, marginTop: 4 }}>{Number(a.cost_estimate).toLocaleString('fr-FR')} €</Text> : null}
           </View>
         </View>
@@ -262,13 +262,13 @@ export function MissionActionsScreen({ route }) {
     <Modal visible={editVisible} transparent animationType="fade" onRequestClose={() => setEditVisible(false)}>
       <View style={styles.modalOverlay}><ScrollView style={[styles.modalSheet, missionStyles.modalSheet]} contentContainerStyle={{ paddingBottom: 16 }}>
         <Text style={[styles.modalTitle, missionStyles.title]}>{editingId ? 'Modifier l’action' : 'Nouvelle action'}</Text>
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '800', marginBottom: 4 }}>SITE</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontFamily: FONTS.bold, marginBottom: 4 }}>SITE</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 7 }}>
           {sites.map((s) => <Chip key={s.id} label={s.name} selected={draft.siteId === s.id} onPress={() => setDraft((p) => ({ ...p, siteId: s.id }))} />)}
         </View>
         <Field label="Action" value={draft.label} onChangeText={(v) => setDraft((p) => ({ ...p, label: v }))} />
         <Field label="Description" value={draft.description} onChangeText={(v) => setDraft((p) => ({ ...p, description: v }))} multiline />
-        <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '800', marginBottom: 4 }}>STATUT</Text>
+        <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontFamily: FONTS.bold, marginBottom: 4 }}>STATUT</Text>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginBottom: 7 }}>
           {STATUSES.map(([key,label]) => <Chip key={key} label={label} selected={draft.status === key} onPress={() => setDraft((p) => ({ ...p, status: key }))} />)}
         </View>
@@ -281,7 +281,7 @@ export function MissionActionsScreen({ route }) {
         <Field label="Progression %" value={draft.progress} onChangeText={(v) => setDraft((p) => ({ ...p, progress: v }))} keyboardType="decimal-pad" />
 
         {editingId ? <View style={{ marginTop: 5 }}>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '800', marginBottom: 6 }}>SUIVI PHOTO AVANT / APRÈS</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontFamily: FONTS.bold, marginBottom: 6 }}>SUIVI PHOTO AVANT / APRÈS</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
             <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} onPress={() => captureActionPhoto('before')}>
               <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>📷 Avant</Text>
@@ -303,7 +303,7 @@ export function MissionActionsScreen({ route }) {
         </Text>}
 
         {editingId ? <View style={{ marginTop: 13 }}>
-          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontWeight: '800', marginBottom: 6 }}>HISTORIQUE DES MODIFICATIONS</Text>
+          <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, fontFamily: FONTS.bold, marginBottom: 6 }}>HISTORIQUE DES MODIFICATIONS</Text>
           {actionHistory.length ? actionHistory.slice(0, 12).map((row) => {
             let change = {};
             try { change = JSON.parse(row.source_value || '{}'); } catch {}
@@ -320,7 +320,7 @@ export function MissionActionsScreen({ route }) {
               description: 'Description',
             };
             return <View key={row.id} style={{ opacity: 0.72, paddingVertical: 5, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
-              <Text style={{ color: COLORS.ink, fontSize: 8.7, fontWeight: '800' }}>
+              <Text style={{ color: COLORS.ink, fontSize: 8.7, fontFamily: FONTS.bold }}>
                 {labels[row.field_name] || row.field_name} · {String(change.before ?? '—')} → {String(change.after ?? '—')}
               </Text>
               <Text style={{ color: COLORS.inkFaint, fontSize: 7.8, marginTop: 2 }}>{row.created_at || ''}</Text>

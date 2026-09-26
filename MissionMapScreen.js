@@ -3,9 +3,10 @@ import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } fro
 import MapView, { LocalTile, Marker, Overlay, Polygon, Polyline } from 'react-native-maps';
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { exporterGeoJsonMission, exporterGeoPackageMission, importerGeoJsonMission } from './missionPlanDb.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 import {
   configurerRasterMission,
   importerRasterMission,
@@ -206,7 +207,7 @@ export function MissionMapScreen({ navigation, route }) {
     ]);
   };
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <View style={{ paddingHorizontal: 14, paddingTop: 10, paddingBottom: 8 }}>
       <Text style={[styles.sectionTitle, missionStyles.title]}>Cartographie Mission</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 9.7, lineHeight: 14 }}>
@@ -217,7 +218,7 @@ export function MissionMapScreen({ navigation, route }) {
           key={site.id}
           onPress={() => setSelectedSiteId(site.id)}
           style={{ borderRadius: 10, borderWidth: 1, borderColor: selectedSiteId === site.id ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selectedSiteId === site.id ? MISSION_COLORS.accentLight : '#FFFFFF', paddingHorizontal: 9, paddingVertical: 6 }}
-        ><Text style={{ color: selectedSiteId === site.id ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontWeight: '800' }}>{site.name}</Text></TouchableOpacity>)}
+        ><Text style={{ color: selectedSiteId === site.id ? MISSION_COLORS.accentStrong : COLORS.inkSoft, fontSize: 8.8, fontFamily: FONTS.bold }}>{site.name}</Text></TouchableOpacity>)}
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={importGeo}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ GeoJSON</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={exportGeo}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>⇩ GeoJSON</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={async () => { try { await exporterGeoPackageMission(missionId); } catch (e) { Alert.alert('GeoPackage', String(e?.message || e)); } }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>⇩ GeoPackage</Text></TouchableOpacity>
@@ -279,14 +280,14 @@ export function MissionMapScreen({ navigation, route }) {
           {mapLayers.map((layer) => <View key={layer.id} style={{ paddingVertical: 9, borderBottomWidth: 1, borderBottomColor: MISSION_COLORS.accentLine }}>
             <View style={{ flexDirection: 'row', alignItems: 'center' }}>
               <TouchableOpacity onPress={() => toggleLayer(layer)} style={{ width: 28, height: 28, borderRadius: 8, borderWidth: 1, borderColor: Number(layer.visible) ? MISSION_COLORS.accent : MISSION_COLORS.accentLineStrong, backgroundColor: Number(layer.visible) ? MISSION_COLORS.accentLight : '#FFFFFF', alignItems: 'center', justifyContent: 'center', marginRight: 8 }}>
-                <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900' }}>{Number(layer.visible) ? '✓' : ''}</Text>
+                <Text style={{ color: MISSION_COLORS.accentStrong, fontFamily: FONTS.black }}>{Number(layer.visible) ? '✓' : ''}</Text>
               </TouchableOpacity>
               <View style={{ flex: 1 }}>
-                <Text style={{ color: COLORS.ink, fontSize: 10.3, fontWeight: '900' }}>{layer.label}</Text>
+                <Text style={{ color: COLORS.ink, fontSize: 10.3, fontFamily: FONTS.black }}>{layer.label}</Text>
                 <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, marginTop: 2 }}>{layer.type} · {Number(layer.offline_available) ? 'hors ligne' : 'métadonnées'}</Text>
               </View>
-              {layer.type === 'raster' ? <TouchableOpacity onPress={() => editRaster(layer)} style={{ padding: 6 }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9, fontWeight: '800' }}>Caler</Text></TouchableOpacity> : null}
-              <TouchableOpacity onPress={() => removeLayer(layer)} style={{ padding: 6 }}><Text style={{ color: '#8B3A3A', fontSize: 13 }}>×</Text></TouchableOpacity>
+              {layer.type === 'raster' ? <TouchableOpacity onPress={() => editRaster(layer)} style={{ padding: 6 }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9, fontFamily: FONTS.bold }}>Caler</Text></TouchableOpacity> : null}
+              <TouchableOpacity onPress={() => removeLayer(layer)} style={{ padding: 6 }}><CvcIcon name="close" size={14} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
             </View>
           </View>)}
           {!mapLayers.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 9.5, paddingVertical: 12 }}>Aucune couche importée.</Text> : null}
@@ -316,7 +317,7 @@ export function MissionMapScreen({ navigation, route }) {
     </Modal>
 
     <View style={{ padding: 10, borderTopWidth: 1, borderTopColor: MISSION_COLORS.accentLine, backgroundColor: '#FFFFFF' }}>
-      <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 9.5, fontWeight: '900', marginBottom: 4 }}>PROGRESSION MULTI-SITES</Text>
+      <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 9.5, fontFamily: FONTS.black, marginBottom: 4 }}>PROGRESSION MULTI-SITES</Text>
       <Text style={{ color: COLORS.inkSoft, fontSize: 9 }} numberOfLines={2}>
         {stats.map((s) => s.name + ' ' + (s.visits_done || 0) + '/' + (s.visits_total || 0) + (Number(s.open_points || 0) ? ' · ' + s.open_points + ' ouvert(s)' : '') + (Number(s.critical_points || 0) ? ' · ' + s.critical_points + ' critique(s)' : '')).join('   •   ') || 'Aucune donnée de progression.'}
       </Text>

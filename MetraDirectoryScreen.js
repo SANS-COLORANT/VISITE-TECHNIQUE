@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { activateTablet, getActivationStatus, syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';
 import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory } from './symfonyApiCacheDb.js';
 import { syncStructureReferential } from './intranetStructureDb.js';
@@ -11,6 +11,7 @@ import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { SitePhotoPreparationOption } from './SitePhotoPreparationOption.js';
 import { startPhotoDownload } from './latestVisitPhotoTasks.js';
 import { filterLatestVisitPhotos, photoSummary } from './latestVisitPhotoModel.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 const SURFACE = '#FFFFFF';
 const BORDER = '#E6E8EC';
@@ -39,7 +40,7 @@ function SmallPill({ children, tone = 'neutral' }) {
       ? { bg: '#FFF4E8', fg: '#9A4C0A', border: '#F3D9B8' }
       : { bg: '#F4F6F8', fg: '#475467', border: '#E5E7EB' };
   return <View style={{ paddingHorizontal: 9, paddingVertical: 5, borderRadius: 999, backgroundColor: palette.bg, borderWidth: 1, borderColor: palette.border }}>
-    <Text style={{ color: palette.fg, fontSize: 11, fontWeight: '800' }}>{children}</Text>
+    <Text style={{ color: palette.fg, fontSize: 11, fontFamily: FONTS.bold }}>{children}</Text>
   </View>;
 }
 
@@ -48,8 +49,8 @@ function DirectoryRow({ item, onPress }) {
   const labels = trameLabels(item.trames);
   return <TouchableOpacity activeOpacity={0.82} onPress={onPress} style={{ backgroundColor: SURFACE, borderWidth: 1, borderColor: BORDER, borderRadius: 16, padding: 15, marginBottom: 9, flexDirection: 'row', alignItems: 'center' }}>
     <View style={{ flex: 1, paddingRight: 12 }}>
-      <Text style={{ color: isSite ? ACCENT : MUTED, fontSize: 10, fontWeight: '900', letterSpacing: 0.8, marginBottom: 4 }}>{isSite ? 'SITE' : 'CLIENT'}</Text>
-      <Text numberOfLines={1} style={{ color: INK, fontSize: 15.5, fontWeight: '900' }}>{item.nom}</Text>
+      <Text style={{ color: isSite ? ACCENT : MUTED, fontSize: 10, fontFamily: FONTS.black, letterSpacing: 0.8, marginBottom: 4 }}>{isSite ? 'SITE' : 'CLIENT'}</Text>
+      <Text numberOfLines={1} style={{ color: INK, fontSize: 15.5, fontFamily: FONTS.black }}>{item.nom}</Text>
       <Text numberOfLines={1} style={{ color: MUTED, fontSize: 12.5, marginTop: 3 }}>
         {isSite ? [item.client_nom, item.client_ville].filter(Boolean).join(' · ') : [item.code_everwin, item.ville, item.categorie].filter(Boolean).join(' · ') || 'Client autorisé'}
       </Text>
@@ -58,7 +59,7 @@ function DirectoryRow({ item, onPress }) {
         {labels.slice(0, 2).map((label) => <SmallPill key={label}>{label}</SmallPill>)}
       </View> : null}
     </View>
-    <Text style={{ color: '#98A2B3', fontSize: 25 }}>›</Text>
+    <CvcIcon name="chevron-right" size={26} color={'#98A2B3'} strokeWidth={2.1} />
   </TouchableOpacity>;
 }
 
@@ -82,10 +83,10 @@ function SiteSelectionRow({ item, selected, onPress, disabled }) {
     }}
   >
     <View style={{ width: 26, height: 26, borderRadius: 8, borderWidth: 2, borderColor: selected ? ACCENT : '#C9CDD3', backgroundColor: selected ? ACCENT : '#FFF', alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
-      {selected ? <Text style={{ color: '#FFF', fontSize: 16, fontWeight: '900' }}>✓</Text> : null}
+      {selected ? <CvcIcon name="check" size={17} color={'#FFF'} strokeWidth={2.1} /> : null}
     </View>
     <View style={{ flex: 1, paddingRight: 8 }}>
-      <Text numberOfLines={1} style={{ color: INK, fontSize: 15, fontWeight: '900' }}>{item.nom}</Text>
+      <Text numberOfLines={1} style={{ color: INK, fontSize: 15, fontFamily: FONTS.black }}>{item.nom}</Text>
       <Text numberOfLines={1} style={{ color: MUTED, fontSize: 12, marginTop: 2 }}>{[item.client_ville, item.derniere_visite_date ? `dernière visite ${String(item.derniere_visite_date).slice(0, 10)}` : null].filter(Boolean).join(' · ') || 'Site disponible'}</Text>
       <View style={{ flexDirection: 'row', gap: 6, flexWrap: 'wrap', marginTop: 6 }}>
         <SmallPill>{Number(item.local_count || 0)} installation{Number(item.local_count || 0) > 1 ? 's' : ''}</SmallPill>
@@ -395,13 +396,13 @@ function MetraDirectoryScreen({ navigation, route }) {
       ListHeaderComponent={<>
         <View style={{ backgroundColor: SURFACE, borderRadius: 18, borderWidth: 1, borderColor: BORDER, padding: 12, marginBottom: 10 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-            <View style={{ flex: 1, minHeight: 48, borderRadius: 13, backgroundColor: '#F7F8FA', borderWidth: 1, borderColor: '#ECEEF1', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13 }}>
-              <Text style={{ fontSize: 20, color: '#98A2B3', marginRight: 9 }}>⌕</Text>
+            <View style={{ flex: 1, minHeight: 48, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.66)', borderWidth: 1, borderColor: '#ECEEF1', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13 }}>
+              <CvcIcon name="search" size={21} color={'#98A2B3'} strokeWidth={2.1} />
               <TextInput value={query} onChangeText={setQuery} placeholder="Client, site, ville, adresse, équipement…" placeholderTextColor="#98A2B3" style={{ flex: 1, color: INK, fontSize: 14.5, paddingVertical: 12 }} autoCorrect={false} autoCapitalize="none" returnKeyType="search" />
-              {query ? <TouchableOpacity onPress={() => setQuery('')} style={{ minWidth: 34, minHeight: 34, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: '#98A2B3', fontSize: 17 }}>✕</Text></TouchableOpacity> : null}
+              {query ? <TouchableOpacity onPress={() => setQuery('')} style={{ minWidth: 34, minHeight: 34, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={18} color={'#98A2B3'} strokeWidth={2.1} /></TouchableOpacity> : null}
             </View>
             <TouchableOpacity onPress={sync} disabled={syncing} style={{ width: 48, height: 48, borderRadius: 13, backgroundColor: status.activated ? '#F7F8FA' : ACCENT, borderWidth: status.activated ? 1 : 0, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' }}>
-              {syncing ? <ActivityIndicator size="small" /> : <Text style={{ color: status.activated ? INK : '#FFF', fontSize: status.activated ? 21 : 12, fontWeight: '900' }}>{status.activated ? '↻' : 'Activer'}</Text>}
+              {syncing ? <ActivityIndicator size="small" /> : <Text style={{ color: status.activated ? INK : '#FFF', fontSize: status.activated ? 21 : 12, fontFamily: FONTS.black }}>{status.activated ? '↻' : 'Activer'}</Text>}
             </TouchableOpacity>
           </View>
           <View style={{ flexDirection: 'row', gap: 7, alignItems: 'center', flexWrap: 'wrap', marginTop: 10 }}>
@@ -426,11 +427,11 @@ function MetraDirectoryScreen({ navigation, route }) {
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, { height: '92%', maxHeight: '92%', borderTopLeftRadius: 22, borderTopRightRadius: 22, overflow: 'hidden' }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1, paddingRight: 10 }}>
-            <Text style={{ color: MUTED, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>CLIENT</Text>
+            <Text style={{ color: MUTED, fontSize: 10, fontFamily: FONTS.black, letterSpacing: 0.8 }}>CLIENT</Text>
             <Text style={[styles.modalTitle, { marginTop: 4 }]}>{selectedClient?.nom || 'Client'}</Text>
             <Text style={styles.cardSub}>{[selectedClient?.code_everwin, selectedClient?.ville, selectedClient?.agence_libelle].filter(Boolean).join(' · ')}</Text>
           </View>
-          <TouchableOpacity onPress={() => setSelectedClient(null)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: MUTED, fontSize: 19 }}>✕</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setSelectedClient(null)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={20} color={MUTED} strokeWidth={2.1} /></TouchableOpacity>
         </View>
         {!siteSelectionMode ? <TouchableOpacity
           activeOpacity={0.82}
@@ -438,9 +439,9 @@ function MetraDirectoryScreen({ navigation, route }) {
           onPress={openClientLatestPhotos}
           style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFF7F1', borderWidth: 1, borderColor: '#F1C9AD', borderRadius: 14, padding: 12, marginTop: 14 }}
         >
-          <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center', marginRight: 11 }}><Text style={{ color: '#FFF', fontSize: 19, fontWeight: '900' }}>▧</Text></View>
-          <View style={{ flex: 1, paddingRight: 8 }}><Text style={{ color: INK, fontSize: 13.5, fontWeight: '900' }}>Charger les photos des dernières visites</Text><Text style={{ color: MUTED, fontSize: 11.5, lineHeight: 16, marginTop: 2 }}>Manifeste, volume à télécharger et galerie disponible hors connexion.</Text></View>
-          <Text style={{ color: ACCENT, fontSize: 22, fontWeight: '800' }}>›</Text>
+          <View style={{ width: 38, height: 38, borderRadius: 11, backgroundColor: ACCENT, alignItems: 'center', justifyContent: 'center', marginRight: 11 }}><Text style={{ color: '#FFF', fontSize: 19, fontFamily: FONTS.black }}>▧</Text></View>
+          <View style={{ flex: 1, paddingRight: 8 }}><Text style={{ color: INK, fontSize: 13.5, fontFamily: FONTS.black }}>Charger les photos des dernières visites</Text><Text style={{ color: MUTED, fontSize: 11.5, lineHeight: 16, marginTop: 2 }}>Manifeste, volume à télécharger et galerie disponible hors connexion.</Text></View>
+          <CvcIcon name="chevron-right" size={23} color={ACCENT} strokeWidth={2.1} />
         </TouchableOpacity> : null}
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 16, marginBottom: 8, gap: 8 }}>
           <View style={{ flex: 1 }}>
@@ -448,12 +449,12 @@ function MetraDirectoryScreen({ navigation, route }) {
             <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 2 }}>{siteSelectionMode ? `${selectedSiteIds.size} sélectionné${selectedSiteIds.size > 1 ? 's' : ''}` : 'Touchez un site pour consulter sa fiche, ou utilisez Sélectionner pour en importer plusieurs.'}</Text>
           </View>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4 }}>
-            {!siteSelectionMode && status.activated ? <TouchableOpacity disabled={clientRefreshing || batchImportBusy} onPress={() => refreshClientPreparation(selectedClient.remote_client_id)} style={{ paddingHorizontal: 8, paddingVertical: 7 }}><Text style={{ color: ACCENT, fontWeight: '800', fontSize: 12 }}>{clientRefreshing ? 'Actualisation…' : '↻ Actualiser'}</Text></TouchableOpacity> : null}
-            {sites.length ? <TouchableOpacity disabled={batchImportBusy} onPress={siteSelectionMode ? cancelSiteSelection : enterSiteSelection} style={{ paddingHorizontal: 9, paddingVertical: 7, borderRadius: 9, borderWidth: 1, borderColor: siteSelectionMode ? BORDER : ACCENT, backgroundColor: siteSelectionMode ? '#F7F8FA' : '#FFF7F1' }}><Text style={{ color: siteSelectionMode ? MUTED : ACCENT, fontWeight: '900', fontSize: 12 }}>{siteSelectionMode ? 'Annuler' : 'Sélectionner'}</Text></TouchableOpacity> : null}
+            {!siteSelectionMode && status.activated ? <TouchableOpacity disabled={clientRefreshing || batchImportBusy} onPress={() => refreshClientPreparation(selectedClient.remote_client_id)} style={{ paddingHorizontal: 8, paddingVertical: 7 }}><Text style={{ color: ACCENT, fontFamily: FONTS.bold, fontSize: 12 }}>{clientRefreshing ? 'Actualisation…' : '↻ Actualiser'}</Text></TouchableOpacity> : null}
+            {sites.length ? <TouchableOpacity disabled={batchImportBusy} onPress={siteSelectionMode ? cancelSiteSelection : enterSiteSelection} style={{ paddingHorizontal: 9, paddingVertical: 7, borderRadius: 9, borderWidth: 1, borderColor: siteSelectionMode ? BORDER : ACCENT, backgroundColor: siteSelectionMode ? '#F7F8FA' : '#FFF7F1' }}><Text style={{ color: siteSelectionMode ? MUTED : ACCENT, fontFamily: FONTS.black, fontSize: 12 }}>{siteSelectionMode ? 'Annuler' : 'Sélectionner'}</Text></TouchableOpacity> : null}
           </View>
         </View>
         {siteSelectionMode ? <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 8, backgroundColor: '#F8F9FB', borderWidth: 1, borderColor: '#ECEEF1', borderRadius: 12, paddingHorizontal: 10, paddingVertical: 8, marginBottom: 9 }}>
-          <TouchableOpacity disabled={batchImportBusy} onPress={toggleAllSites} style={{ paddingVertical: 5, paddingHorizontal: 4 }}><Text style={{ color: ACCENT, fontSize: 12, fontWeight: '900' }}>{selectedSiteIds.size === sites.length && sites.length ? 'Tout désélectionner' : 'Tout sélectionner'}</Text></TouchableOpacity>
+          <TouchableOpacity disabled={batchImportBusy} onPress={toggleAllSites} style={{ paddingVertical: 5, paddingHorizontal: 4 }}><Text style={{ color: ACCENT, fontSize: 12, fontFamily: FONTS.black }}>{selectedSiteIds.size === sites.length && sites.length ? 'Tout désélectionner' : 'Tout sélectionner'}</Text></TouchableOpacity>
           <Text style={{ color: MUTED, fontSize: 11.5 }}>1, plusieurs ou tous les sites</Text>
         </View> : null}
         <FlatList
@@ -490,11 +491,11 @@ function MetraDirectoryScreen({ navigation, route }) {
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxHeight: '90%', borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1, paddingRight: 10 }}>
-            <Text style={{ color: ACCENT, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>SITE</Text>
+            <Text style={{ color: ACCENT, fontSize: 10, fontFamily: FONTS.black, letterSpacing: 0.8 }}>SITE</Text>
             <Text style={[styles.modalTitle, { marginTop: 4 }]}>{selectedSite?.nom}</Text>
             <Text style={styles.cardSub}>{[siteClient?.nom, siteClient?.ville].filter(Boolean).join(' · ')}</Text>
           </View>
-          <TouchableOpacity onPress={() => setSelectedSite(null)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: MUTED, fontSize: 19 }}>✕</Text></TouchableOpacity>
+          <TouchableOpacity onPress={() => setSelectedSite(null)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={20} color={MUTED} strokeWidth={2.1} /></TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 15 }}>
           <SmallPill tone="success">Données enregistrées</SmallPill>
@@ -504,17 +505,17 @@ function MetraDirectoryScreen({ navigation, route }) {
         <View style={{ marginTop: 18, backgroundColor: '#F8F9FB', borderRadius: 15, borderWidth: 1, borderColor: '#ECEEF1', padding: 13 }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: INK, fontSize: 13.5, fontWeight: '900' }}>Préparation de visite</Text>
+              <Text style={{ color: INK, fontSize: 13.5, fontFamily: FONTS.black }}>Préparation de visite</Text>
               <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 3 }}>{locals.length ? 'Choisis le local technique : METRA gardera son patrimoine et son historique séparés.' : 'Aucune installation détaillée encore synchronisée.'}</Text>
             </View>
-            {status.activated ? <TouchableOpacity onPress={refreshSite} disabled={siteRefreshing} style={{ minWidth: 88, alignItems: 'flex-end', paddingVertical: 8 }}>{siteRefreshing ? <ActivityIndicator size="small" /> : <Text style={{ color: ACCENT, fontSize: 12, fontWeight: '900' }}>↻ Actualiser</Text>}</TouchableOpacity> : null}
+            {status.activated ? <TouchableOpacity onPress={refreshSite} disabled={siteRefreshing} style={{ minWidth: 88, alignItems: 'flex-end', paddingVertical: 8 }}>{siteRefreshing ? <ActivityIndicator size="small" /> : <Text style={{ color: ACCENT, fontSize: 12, fontFamily: FONTS.black }}>↻ Actualiser</Text>}</TouchableOpacity> : null}
           </View>
           {siteTrames.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 11 }}>{siteTrames.slice(0, 4).map((label) => <SmallPill key={label}>{label}</SmallPill>)}</View> : null}
         </View>
         <PhotoReferenceAccess remoteClientId={selectedSite?.remote_client_id || siteClient?.remote_client_id} remoteSiteId={selectedSite?.remote_site_id} clientName={siteClient?.nom} contextTitle={selectedSite?.nom} />
         <FlatList style={{ marginTop: 12, maxHeight: 300 }} data={locals} keyExtractor={(item) => String(item.remote_local_id)} renderItem={({ item }) => <TouchableOpacity activeOpacity={0.78} onPress={() => openPreparedVisit(item)} style={{ paddingVertical: 11, paddingHorizontal: 2, borderBottomWidth: 1, borderBottomColor: '#EEF0F2', flexDirection: 'row', alignItems: 'center' }}>
           <View style={{ flex: 1, paddingRight: 10 }}>
-            <Text style={{ color: INK, fontSize: 13.5, fontWeight: '800' }}>{item.designation || 'Local technique'}</Text>
+            <Text style={{ color: INK, fontSize: 13.5, fontFamily: FONTS.bold }}>{item.designation || 'Local technique'}</Text>
             <Text style={{ color: MUTED, fontSize: 11.5, marginTop: 3 }}>{[item.remote_trame_nom, item.derniere_visite_date ? `dernière visite ${String(item.derniere_visite_date).slice(0, 10)}` : null].filter(Boolean).join(' · ')}</Text>
             <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 7 }}>
               {Number(item.material_count || 0) > 0 ? <SmallPill>{Number(item.material_count)} matériel{Number(item.material_count) > 1 ? 's' : ''}</SmallPill> : null}
@@ -522,7 +523,7 @@ function MetraDirectoryScreen({ navigation, route }) {
               {Number(item.historical_criteria_count || 0) > 0 ? <SmallPill tone="warning">{Number(item.historical_criteria_count)} issus d’une visite antérieure</SmallPill> : null}
             </View>
           </View>
-          <View style={{ alignItems: 'flex-end' }}><Text style={{ color: ACCENT, fontWeight: '900', fontSize: 12 }}>Préparer</Text><Text style={{ color: '#98A2B3', fontSize: 21, marginTop: 2 }}>›</Text></View>
+          <View style={{ alignItems: 'flex-end' }}><Text style={{ color: ACCENT, fontFamily: FONTS.black, fontSize: 12 }}>Préparer</Text><CvcIcon name="chevron-right" size={22} color={'#98A2B3'} strokeWidth={2.1} /></View>
         </TouchableOpacity>} ListEmptyComponent={<Text style={[styles.emptySub, { marginVertical: 12 }]}>Le site peut déjà être ouvert dans METRA. Les installations apparaîtront après synchronisation de sa préparation.</Text>} />
         <TouchableOpacity style={[styles.btnSecondary, { marginTop: 16, minHeight: 48, alignItems: 'center', justifyContent: 'center' }]} disabled={siteActionBusy} onPress={() => openInMetra(selectedSite)}>
           <Text style={styles.btnSecondaryText}>{siteActionBusy ? 'Import en cours…' : 'Importer le site dans METRA'}</Text>
@@ -540,13 +541,13 @@ function MetraDirectoryScreen({ navigation, route }) {
 
     <Modal visible={activationVisible} transparent animationType="fade" onRequestClose={() => setActivationVisible(false)}>
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, { borderTopLeftRadius: 22, borderTopRightRadius: 22 }]}>
-        <Text style={{ color: ACCENT, fontSize: 10, fontWeight: '900', letterSpacing: 0.8 }}>CONNEXION SÉCURISÉE</Text>
+        <Text style={{ color: ACCENT, fontSize: 10, fontFamily: FONTS.black, letterSpacing: 0.8 }}>CONNEXION SÉCURISÉE</Text>
         <Text style={[styles.modalTitle, { marginTop: 5 }]}>Activer cette tablette</Text>
         <Text style={[styles.cardSub, { marginBottom: 14, lineHeight: 18 }]}>Colle le code de 48 caractères généré dans l’administration Énergie & Service. La clé privée reste protégée dans Android Keystore.</Text>
         <View style={{ borderRadius: 13, borderWidth: 1, borderColor: activationCode.length === 48 ? '#B7E4CF' : BORDER, backgroundColor: '#F8F9FB', paddingHorizontal: 12 }}>
           <TextInput style={{ minHeight: 50, color: INK, fontSize: 15, letterSpacing: 0.4 }} value={activationCode} onChangeText={(v) => setActivationCode(v.replace(/\s/g, '').slice(0, 48))} placeholder="Code d’activation" placeholderTextColor="#98A2B3" autoCapitalize="none" autoCorrect={false} autoFocus />
         </View>
-        <Text style={{ alignSelf: 'flex-end', color: activationCode.length === 48 ? SUCCESS : MUTED, fontSize: 11.5, fontWeight: '800', marginTop: 6 }}>{activationCode.length} / 48</Text>
+        <Text style={{ alignSelf: 'flex-end', color: activationCode.length === 48 ? SUCCESS : MUTED, fontSize: 11.5, fontFamily: FONTS.bold, marginTop: 6 }}>{activationCode.length} / 48</Text>
         <View style={[styles.modalActions, { marginTop: 16 }]}>
           <TouchableOpacity style={styles.btnSecondary} onPress={() => setActivationVisible(false)} disabled={activating}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
           <TouchableOpacity style={styles.btnPrimary} onPress={activate} disabled={activating || activationCode.length !== 48}><Text style={styles.btnPrimaryText}>{activating ? 'Activation…' : 'Activer'}</Text></TouchableOpacity>

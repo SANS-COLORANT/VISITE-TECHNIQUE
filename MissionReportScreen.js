@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Alert, ActivityIndicator, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { styles, COLORS } from './styles.js';
+import { styles, COLORS, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import {
   ajouterSectionRapportMission,
@@ -127,7 +127,7 @@ export function MissionReportScreen({ navigation, route }) {
     return <View style={styles.center}><ActivityIndicator color={MISSION_COLORS.accent} /><Text style={{ marginTop: 8, color: COLORS.muted }}>Préparation du rapport…</Text></View>;
   }
 
-  return <View style={{ flex: 1, backgroundColor: MISSION_COLORS.bg }}>
+  return <View style={{ flex: 1, backgroundColor: 'transparent' }}>
     <FlatList
       data={report?.sections || []}
       keyExtractor={(item) => item.id}
@@ -149,11 +149,11 @@ export function MissionReportScreen({ navigation, route }) {
         return <View style={[missionStyles.card, { marginBottom: 10, opacity: hidden ? 0.48 : 1 }]}>
           <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
             <View style={{ flex: 1 }}>
-              <Text style={{ color: MISSION_COLORS.accentStrong, fontWeight: '900', fontSize: 12.5 }}>{item.title || 'Section'}</Text>
+              <Text style={{ color: MISSION_COLORS.accentStrong, fontFamily: FONTS.black, fontSize: 12.5 }}>{item.title || 'Section'}</Text>
               <Text style={{ color: COLORS.inkFaint, fontSize: 8.8, marginTop: 2 }}>{item.source_type === 'edited' ? 'MODIFIÉE' : 'GÉNÉRÉE DEPUIS LES DONNÉES'}</Text>
               <SectionPreview section={item} />
             </View>
-            <TouchableOpacity onPress={() => openEdit(item)} style={{ padding: 6 }}><Text style={{ color: MISSION_COLORS.accent, fontWeight: '900' }}>Modifier</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => openEdit(item)} style={{ padding: 6 }}><Text style={{ color: MISSION_COLORS.accent, fontFamily: FONTS.black }}>Modifier</Text></TouchableOpacity>
           </View>
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', marginTop: 9, gap: 7 }}>
             <TouchableOpacity onPress={() => move(item, -1)} disabled={index === 0} style={{ padding: 6 }}><Text style={{ color: COLORS.inkSoft }}>↑</Text></TouchableOpacity>

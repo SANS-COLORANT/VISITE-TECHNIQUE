@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, Text, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import {
   LAB_FEATURES,
   getLabFeatureStates,
@@ -12,13 +12,13 @@ import {
 
 function FeatureRow({ feature, enabled, disabled, onChange }) {
   return (
-    <View style={{ backgroundColor: COLORS.white, borderWidth: 1, borderColor: enabled ? COLORS.orange : COLORS.line, borderRadius: 14, padding: 14, marginBottom: 10 }}>
+    <View style={{ backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: enabled ? COLORS.orange : COLORS.line, borderRadius: 14, padding: 14, marginBottom: 10 }}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
         <View style={{ width: 38, height: 38, borderRadius: 12, backgroundColor: enabled ? COLORS.orangeLight : COLORS.bg, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ fontSize: 19, color: enabled ? COLORS.orangeDark : COLORS.inkSoft }}>{feature.icon}</Text>
         </View>
         <View style={{ flex: 1 }}>
-          <Text style={{ fontSize: 14, fontWeight: '900', color: COLORS.ink }}>{feature.title}</Text>
+          <Text style={{ fontSize: 14, fontFamily: FONTS.black, color: COLORS.ink }}>{feature.title}</Text>
           <Text style={{ marginTop: 4, fontSize: 11, lineHeight: 15, color: COLORS.inkSoft }}>{feature.description}</Text>
         </View>
         <TouchableOpacity
@@ -27,12 +27,12 @@ function FeatureRow({ feature, enabled, disabled, onChange }) {
           activeOpacity={0.75}
           style={{ width: 68, height: 34, borderRadius: 17, padding: 3, justifyContent: 'center', backgroundColor: enabled ? COLORS.orange : COLORS.line, opacity: disabled ? 0.55 : 1 }}
         >
-          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: COLORS.white, alignSelf: enabled ? 'flex-end' : 'flex-start', alignItems: 'center', justifyContent: 'center' }}>
-            <Text style={{ fontSize: 9, fontWeight: '900', color: enabled ? COLORS.orange : COLORS.inkSoft }}>{enabled ? 'ON' : 'OFF'}</Text>
+          <View style={{ width: 28, height: 28, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.82)', alignSelf: enabled ? 'flex-end' : 'flex-start', alignItems: 'center', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 9, fontFamily: FONTS.black, color: enabled ? COLORS.orange : COLORS.inkSoft }}>{enabled ? 'ON' : 'OFF'}</Text>
           </View>
         </TouchableOpacity>
       </View>
-      {enabled ? <Text style={{ marginTop: 9, fontSize: 10, color: COLORS.orangeDark, fontWeight: '800' }}>Fonction expérimentale active</Text> : null}
+      {enabled ? <Text style={{ marginTop: 9, fontSize: 10, color: COLORS.orangeDark, fontFamily: FONTS.bold }}>Fonction expérimentale active</Text> : null}
     </View>
   );
 }
@@ -102,7 +102,7 @@ export function LabMetraPanel() {
         onLongPress={unlockMissions}
         style={{ borderRadius: 15, backgroundColor: '#FFF7F1', borderWidth: 1, borderColor: '#F6C7AD', padding: 14, marginBottom: 16 }}
       >
-        <Text style={{ fontSize: 17, fontWeight: '900', color: COLORS.ink }}>LAB METRA</Text>
+        <Text style={{ fontSize: 17, fontFamily: FONTS.black, color: COLORS.ink }}>LAB METRA</Text>
         <Text style={{ marginTop: 5, color: COLORS.inkSoft, fontSize: 11.5, lineHeight: 16 }}>
           Active uniquement les fonctions que tu veux essayer. Une fonction désactivée reste masquée dans l'application et n'altère pas le fonctionnement normal des visites.
         </Text>

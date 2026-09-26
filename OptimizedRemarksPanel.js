@@ -1,7 +1,7 @@
 /** Synthèse des réserves optimisée pour les longues visites tablette. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { styles } from './styles.js';
+import { styles, FONTS } from './styles.js';
 import {
   listerBibliothequeReserves,
   listerMateriel,
@@ -137,7 +137,7 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
         </View>
       </View>
       {intranetLinked ? <>
-      <View style={{ marginTop: 10, padding: 10, borderWidth: 1, borderColor: '#E6E8EC', borderRadius: 10, backgroundColor: '#F8FAFC' }}>
+      <View style={{ marginTop: 10, padding: 10, borderWidth: 1, borderColor: '#E6E8EC', borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.66)' }}>
         <Text style={[styles.fieldLabel, { marginBottom: 3 }]}>Suivi Intranet de la réserve</Text>
         <Text style={[styles.importHint, { marginBottom: 8 }]}>Le délai interne en mois reste inchangé. L’API Intranet attend séparément une date d’échéance.</Text>
         <View style={{ flexDirection: 'row', gap: 8 }}>
@@ -146,7 +146,7 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
         </View>
         <Text style={[styles.fieldLabel, { marginTop: 9 }]}>État d’avancement</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingVertical: 5 }}>
-          {['Non réalisé', 'Devis émis', 'En cours', 'Terminé', 'Annulé'].map((etat) => <TouchableOpacity key={etat} onPress={() => changerEtatAvancement(etat).catch(() => {})} style={{ minHeight: 38, justifyContent: 'center', paddingHorizontal: 10, borderWidth: 1, borderColor: etatAvancement === etat ? '#E86F2D' : '#D0D5DD', borderRadius: 19, backgroundColor: etatAvancement === etat ? '#FFF3E8' : '#FFF' }}><Text style={{ fontSize: 11, fontWeight: '800', color: etatAvancement === etat ? '#9A4C0A' : '#475467' }}>{etat}</Text></TouchableOpacity>)}
+          {['Non réalisé', 'Devis émis', 'En cours', 'Terminé', 'Annulé'].map((etat) => <TouchableOpacity key={etat} onPress={() => changerEtatAvancement(etat).catch(() => {})} style={{ minHeight: 38, justifyContent: 'center', paddingHorizontal: 10, borderWidth: 1, borderColor: etatAvancement === etat ? '#E86F2D' : '#D0D5DD', borderRadius: 19, backgroundColor: etatAvancement === etat ? '#FFF3E8' : '#FFF' }}><Text style={{ fontSize: 11, fontFamily: FONTS.bold, color: etatAvancement === etat ? '#9A4C0A' : '#475467' }}>{etat}</Text></TouchableOpacity>)}
         </ScrollView>
       </View>
       </> : null}

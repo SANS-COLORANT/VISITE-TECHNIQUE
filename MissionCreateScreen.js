@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import {
   MISSION_FAMILIES,
@@ -18,7 +18,7 @@ function Choice({ selected, label, onPress }) {
       activeOpacity={0.78}
       style={{ borderWidth: selected ? 2 : 1, borderColor: selected ? MISSION_COLORS.accent : MISSION_COLORS.accentLine, backgroundColor: selected ? MISSION_COLORS.accentLight : COLORS.white, borderRadius: 13, paddingHorizontal: 13, paddingVertical: 11, marginRight: 8, marginBottom: 8 }}
     >
-      <Text style={{ color: selected ? MISSION_COLORS.accentDark : COLORS.ink, fontWeight: '800', fontSize: 11.5 }}>{label}</Text>
+      <Text style={{ color: selected ? MISSION_COLORS.accentDark : COLORS.ink, fontFamily: FONTS.bold, fontSize: 11.5 }}>{label}</Text>
     </TouchableOpacity>
   );
 }
@@ -98,7 +98,7 @@ export function MissionCreateScreen({ navigation }) {
   return (
     <ScrollView style={[{ flex: 1 }, missionStyles.screen]} contentContainerStyle={{ padding: 16, paddingBottom: 110 }} keyboardShouldPersistTaps="handled">
       <View style={[{ borderRadius: 14, padding: 13, marginBottom: 18 }, missionStyles.infoBox]}>
-        <Text style={[{ fontWeight: '900', fontSize: 12.5 }, missionStyles.accentText]}>Tout est modifiable plus tard</Text>
+        <Text style={[{ fontFamily: FONTS.black, fontSize: 12.5 }, missionStyles.accentText]}>Tout est modifiable plus tard</Text>
         <Text style={{ color: COLORS.inkSoft, marginTop: 4, fontSize: 10.5, lineHeight: 15 }}>
           Tu peux créer un brouillon immédiatement. Aucun champ ci-dessous n’est exigé pour enregistrer la Mission.
         </Text>

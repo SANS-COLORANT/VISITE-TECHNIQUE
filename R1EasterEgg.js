@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Modal, Pressable, StyleSheet, Text, View } from 'react-native';
+import { FONTS } from './styles.js';
 
 const STEPS = [
   { at: 0, phase: 'boot' },
@@ -146,20 +147,20 @@ const styles = StyleSheet.create({
   stage: { width: '100%', flex: 1, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 28 },
   centered: { alignItems: 'center', justifyContent: 'center' },
   symbol: { color: '#E7E7E7', fontSize: 38, letterSpacing: 2, marginBottom: 18 },
-  kicker: { color: '#A5A5A5', fontSize: 11, letterSpacing: 4, fontWeight: '600' },
+  kicker: { color: '#A5A5A5', fontSize: 11, letterSpacing: 4, fontFamily: FONTS.bodySemi },
   muted: { color: '#666', fontSize: 11, letterSpacing: 1, marginTop: 10 },
   barTrack: { width: 160, height: 2, backgroundColor: '#1C1C1C', marginTop: 18, overflow: 'hidden' },
   barFill: { height: 2, backgroundColor: '#E7E7E7' },
   status: { color: '#9A9A9A', fontSize: 13, letterSpacing: 0.8, lineHeight: 28 },
   module: { color: '#9A9A9A', fontSize: 15, letterSpacing: 3 },
-  moduleStrong: { color: '#FFFFFF', fontWeight: '700' },
-  hero: { color: '#FFFFFF', fontSize: 64, fontWeight: '700', letterSpacing: 5 },
+  moduleStrong: { color: '#FFFFFF', fontFamily: FONTS.bodyBold },
+  hero: { color: '#FFFFFF', fontSize: 64, fontFamily: FONTS.bodyBold, letterSpacing: 5 },
   heroErwann: { fontSize: 44, letterSpacing: 4 },
-  diagTitle: { color: '#F0F0F0', fontSize: 16, letterSpacing: 5, marginBottom: 22, fontWeight: '600' },
+  diagTitle: { color: '#F0F0F0', fontSize: 16, letterSpacing: 5, marginBottom: 22, fontFamily: FONTS.bodySemi },
   diagLine: { color: '#B2B2B2', fontSize: 13, lineHeight: 27, letterSpacing: 0.5 },
-  ok: { color: '#7FD68A', fontWeight: '700' },
-  warn: { color: '#E0764F', fontWeight: '700' },
-  finalR1: { color: '#FFFFFF', fontSize: 56, fontWeight: '700', letterSpacing: 4 },
+  ok: { color: '#7FD68A', fontFamily: FONTS.bodyBold },
+  warn: { color: '#E0764F', fontFamily: FONTS.bodyBold },
+  finalR1: { color: '#FFFFFF', fontSize: 56, fontFamily: FONTS.bodyBold, letterSpacing: 4 },
   tagline: { color: '#7B7B7B', fontSize: 12, marginTop: 12 },
   classified: { color: '#4A4A4A', fontSize: 9, letterSpacing: 2.2, marginTop: 7 },
 });

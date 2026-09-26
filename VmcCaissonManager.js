@@ -276,7 +276,7 @@ export function VmcCaissonManager({ visiteId, caissons = [], onChange, onNavigat
           </Text>
           <View style={{ flexDirection: 'row', gap: 6, marginTop: 7 }}>
             <TouchableOpacity accessibilityLabel={`Renommer ${c.nom}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} onPress={() => setEdition(c.index)} style={caissonStyles.mini}><CvcIcon name="edit" size={14} color={COLORS.orangeDark} /></TouchableOpacity>
-            <TouchableOpacity accessibilityLabel={`Dupliquer ${libelleCaisson(c.index, c.nom)}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} onPress={() => dupliquer(c)} style={caissonStyles.mini}><Text style={{ color: COLORS.orangeDark, fontWeight: '800', fontSize: 13 }}>⧉</Text></TouchableOpacity>
+            <TouchableOpacity accessibilityLabel={`Dupliquer ${libelleCaisson(c.index, c.nom)}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} onPress={() => dupliquer(c)} style={caissonStyles.mini}><CvcIcon name="copy" size={14} color={COLORS.orangeDark} strokeWidth={2.1} /></TouchableOpacity>
             <TouchableOpacity accessibilityLabel={`Retirer ${c.nom}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} onPress={() => demanderRetrait(c)} style={caissonStyles.mini}><CvcIcon name="trash" size={14} color={COLORS.inkFaint} /></TouchableOpacity>
           </View>
         </TouchableOpacity>;

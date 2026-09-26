@@ -140,8 +140,8 @@ export const PreAllumageCompactField = React.memo(function PreAllumageCompactFie
     </View>
 
     <View style={{ flexDirection: 'row', alignItems: 'stretch', gap: 6 }}>
-      {numeric && !enEtat && !estHoraire ? <TouchableOpacity onPress={() => ajuster(-1)} style={{ width: 34, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, backgroundColor: COLORS.white }}><Text style={{ fontSize: 20, color: COLORS.inkSoft }}>−</Text></TouchableOpacity> : null}
-      {enEtat ? <TouchableOpacity onPress={() => choisirEtat(valeur)} style={{ flex: 1, minHeight: 42, justifyContent: 'center', borderWidth: 1, borderColor: COLORS.orange, borderRadius: 9, backgroundColor: COLORS.orangeLight, paddingHorizontal: 10 }}><Text style={{ color: COLORS.orangeDark, fontWeight: '900', fontSize: 12 }}>{valeur}</Text></TouchableOpacity> : <View style={{ flex: 1, minHeight: 42, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: warning ? '#F79009' : COLORS.line, borderRadius: 9, backgroundColor: COLORS.white }}>
+      {numeric && !enEtat && !estHoraire ? <TouchableOpacity onPress={() => ajuster(-1)} style={{ width: 34, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.82)' }}><Text style={{ fontSize: 20, color: COLORS.inkSoft }}>−</Text></TouchableOpacity> : null}
+      {enEtat ? <TouchableOpacity onPress={() => choisirEtat(valeur)} style={{ flex: 1, minHeight: 42, justifyContent: 'center', borderWidth: 1, borderColor: COLORS.orange, borderRadius: 9, backgroundColor: COLORS.orangeLight, paddingHorizontal: 10 }}><Text style={{ color: COLORS.orangeDark, fontWeight: '900', fontSize: 12 }}>{valeur}</Text></TouchableOpacity> : <View style={{ flex: 1, minHeight: 42, flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: warning ? '#F79009' : COLORS.line, borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.82)' }}>
         <TextInput
           style={[styles.input, { flex: 1, minHeight: 40, borderWidth: 0, margin: 0, paddingVertical: 7, paddingHorizontal: 10, fontSize: 13 }]}
           value={valeurAffichee}
@@ -153,7 +153,7 @@ export const PreAllumageCompactField = React.memo(function PreAllumageCompactFie
         />
         {unit ? <Text style={{ paddingRight: 9, color: COLORS.inkSoft, fontWeight: '800', fontSize: 11 }}>{unit}</Text> : null}
       </View>}
-      {numeric && !enEtat && !estHoraire ? <TouchableOpacity onPress={() => ajuster(1)} style={{ width: 34, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, backgroundColor: COLORS.white }}><Text style={{ fontSize: 20, color: COLORS.inkSoft }}>+</Text></TouchableOpacity> : null}
+      {numeric && !enEtat && !estHoraire ? <TouchableOpacity onPress={() => ajuster(1)} style={{ width: 34, minHeight: 42, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.82)' }}><Text style={{ fontSize: 20, color: COLORS.inkSoft }}>+</Text></TouchableOpacity> : null}
     </View>
 
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5, marginTop: 6 }}>

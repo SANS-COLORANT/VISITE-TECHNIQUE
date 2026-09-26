@@ -9,7 +9,7 @@ import {
   listerReferentielsPreAllumage,
   PREALLUMAGE_REFERENCE_CATEGORIES,
 } from './preAllumageReferenceDb.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 
 function mapChamps(rows) { return Object.fromEntries((rows || []).map((r) => [`${r.section_code}||${r.cle}`, r.valeur])); }
 function masquerDate(value) {
@@ -36,7 +36,7 @@ function saisonOptions(valeur) {
   return [...starts].sort((a, b) => a - b).map((y) => `${y}-${y + 1}`);
 }
 function Chip({ label, selected, onPress }) {
-  return <TouchableOpacity onPress={onPress} style={{ minHeight: 36, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 18, borderWidth: 1, borderColor: selected ? COLORS.orange : COLORS.line, backgroundColor: selected ? COLORS.orangeLight : COLORS.white }}><Text style={{ color: selected ? COLORS.orangeDark : COLORS.inkSoft, fontSize: 11, fontWeight: '900' }}>{selected ? '✓ ' : ''}{label}</Text></TouchableOpacity>;
+  return <TouchableOpacity onPress={onPress} style={{ minHeight: 36, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 18, borderWidth: 1, borderColor: selected ? COLORS.orange : COLORS.line, backgroundColor: selected ? COLORS.orangeLight : COLORS.white }}><Text style={{ color: selected ? COLORS.orangeDark : COLORS.inkSoft, fontSize: 11, fontFamily: FONTS.black }}>{selected ? '✓ ' : ''}{label}</Text></TouchableOpacity>;
 }
 
 function AddReferenceModal({ visible, title, onClose, onSave }) {
@@ -53,7 +53,7 @@ function AddReferenceModal({ visible, title, onClose, onSave }) {
 function ReferenceSingleField({ label, value, items, onSelect, onAdd }) {
   const options = [...items];
   if (value && !options.some((x) => x.code === value)) options.unshift({ id: `current-${value}`, code: value, libelle: value });
-  return <View style={{ paddingVertical: 6 }}><Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '900', marginBottom: 7 }}>{label}</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{options.map((x) => <Chip key={x.id || x.code} label={x.libelle || x.code} selected={value === x.code} onPress={() => onSelect(x.code)} />)}<TouchableOpacity onPress={onAdd} style={{ minHeight: 36, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', borderColor: COLORS.orange }}><Text style={{ color: COLORS.orangeDark, fontSize: 11, fontWeight: '900' }}>+ Ajouter</Text></TouchableOpacity></View></View>;
+  return <View style={{ paddingVertical: 6 }}><Text style={{ color: COLORS.ink, fontSize: 12, fontFamily: FONTS.black, marginBottom: 7 }}>{label}</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{options.map((x) => <Chip key={x.id || x.code} label={x.libelle || x.code} selected={value === x.code} onPress={() => onSelect(x.code)} />)}<TouchableOpacity onPress={onAdd} style={{ minHeight: 36, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 18, borderWidth: 1, borderStyle: 'dashed', borderColor: COLORS.orange }}><Text style={{ color: COLORS.orangeDark, fontSize: 11, fontFamily: FONTS.black }}>+ Ajouter</Text></TouchableOpacity></View></View>;
 }
 
 function PeopleCompositeField({ value, chargeAffaires, redacteurs, onSave, onAddCharge, onAddRedacteur }) {
@@ -64,12 +64,12 @@ function PeopleCompositeField({ value, chargeAffaires, redacteurs, onSave, onAdd
   const seconds = [...redacteurs];
   if (secondaireBrut && !seconds.some((x) => x.code === secondaireBrut)) seconds.unshift({ id: `current-red-${secondaireBrut}`, code: secondaireBrut });
   return <View style={{ paddingVertical: 6 }}>
-    <Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '900' }}>Chargé d’affaires / rédacteur</Text>
-    <Text style={{ color: COLORS.inkSoft, fontSize: 10, fontWeight: '800', marginTop: 7, marginBottom: 5 }}>1 · Chargé d’affaires</Text>
+    <Text style={{ color: COLORS.ink, fontSize: 12, fontFamily: FONTS.black }}>Chargé d’affaires / rédacteur</Text>
+    <Text style={{ color: COLORS.inkSoft, fontSize: 10, fontFamily: FONTS.bold, marginTop: 7, marginBottom: 5 }}>1 · Chargé d’affaires</Text>
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{principaux.map((x) => <Chip key={x.id || x.code} label={x.code} selected={principalBrut === x.code} onPress={() => save(x.code, secondaireBrut)} />)}<Chip label="+ Ajouter" selected={false} onPress={onAddCharge} /></View>
-    <Text style={{ color: COLORS.inkSoft, fontSize: 10, fontWeight: '800', marginTop: 9, marginBottom: 5 }}>2 · Rédacteur complémentaire (facultatif)</Text>
+    <Text style={{ color: COLORS.inkSoft, fontSize: 10, fontFamily: FONTS.bold, marginTop: 9, marginBottom: 5 }}>2 · Rédacteur complémentaire (facultatif)</Text>
     <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6 }}>{seconds.map((x) => <Chip key={x.id || x.code} label={`+ ${x.code}`} selected={secondaireBrut === x.code} onPress={() => save(principalBrut, secondaireBrut === x.code ? '' : x.code)} />)}<Chip label="+ Ajouter" selected={false} onPress={onAddRedacteur} /></View>
-    {value ? <Text style={{ color: COLORS.orangeDark, fontSize: 11, fontWeight: '900', marginTop: 8 }}>Valeur rapport : {value}</Text> : null}
+    {value ? <Text style={{ color: COLORS.orangeDark, fontSize: 11, fontFamily: FONTS.black, marginTop: 8 }}>Valeur rapport : {value}</Text> : null}
   </View>;
 }
 
@@ -87,7 +87,7 @@ function StandardField({ visiteId, sectionCode, field, value, onSaved }) {
     if (estDate) await upsertChamp(visiteId, 'pa-infos.informations_g_n_rales', 'Date de visite', propre);
     onSaved(propre);
   };
-  return <View style={{ paddingVertical: 6 }}><Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '800', marginBottom: 5 }}>{label}</Text><TextInput style={[styles.input, { minHeight: multiline ? 68 : 42, textAlignVertical: multiline ? 'top' : 'center', fontSize: 12 }, error && { borderColor: COLORS.red }]} multiline={multiline} value={texte} onChangeText={(v) => { setError(false); setTexte(estDate ? masquerDate(v) : v); }} onBlur={() => save().catch(console.warn)} keyboardType={estDate ? 'number-pad' : 'default'} placeholder={estDate ? 'JJ/MM/AAAA' : 'Saisir…'} />{error ? <Text style={{ color: COLORS.red, fontSize: 10, marginTop: 4 }}>Date attendue au format JJ/MM/AAAA.</Text> : null}</View>;
+  return <View style={{ paddingVertical: 6 }}><Text style={{ color: COLORS.ink, fontSize: 12, fontFamily: FONTS.bold, marginBottom: 5 }}>{label}</Text><TextInput style={[styles.input, { minHeight: multiline ? 68 : 42, textAlignVertical: multiline ? 'top' : 'center', fontSize: 12 }, error && { borderColor: COLORS.red }]} multiline={multiline} value={texte} onChangeText={(v) => { setError(false); setTexte(estDate ? masquerDate(v) : v); }} onBlur={() => save().catch(console.warn)} keyboardType={estDate ? 'number-pad' : 'default'} placeholder={estDate ? 'JJ/MM/AAAA' : 'Saisir…'} />{error ? <Text style={{ color: COLORS.red, fontSize: 10, marginTop: 4 }}>Date attendue au format JJ/MM/AAAA.</Text> : null}</View>;
 }
 
 function grouper(items, twoCols) {
@@ -149,15 +149,15 @@ export function PreAllumageInfoPanelV3({ visiteId, onSaved }) {
   if (!modele) return <View style={{ padding: 30 }}><ActivityIndicator color={COLORS.orange} /></View>;
   const renderField = (x, sectionCode) => {
     const value = champs[x.key] || '';
-    if (x.field.cle === 'Saison de chauffe') return <View style={{ paddingVertical: 6 }}><Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '900', marginBottom: 7 }}>Saison de chauffe</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingRight: 10 }}>{saisonOptions(value).map((s) => <Chip key={s} label={s} selected={value === s} onPress={() => saveValue(sectionCode, x.field.cle, s).catch(console.warn)} />)}</ScrollView></View>;
+    if (x.field.cle === 'Saison de chauffe') return <View style={{ paddingVertical: 6 }}><Text style={{ color: COLORS.ink, fontSize: 12, fontFamily: FONTS.black, marginBottom: 7 }}>Saison de chauffe</Text><ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 6, paddingRight: 10 }}>{saisonOptions(value).map((s) => <Chip key={s} label={s} selected={value === s} onPress={() => saveValue(sectionCode, x.field.cle, s).catch(console.warn)} />)}</ScrollView></View>;
     if (x.field.cle === 'Exploitant') return <ReferenceSingleField label="Exploitant" value={value} items={refs.exploitant} onSelect={(v) => saveValue(sectionCode, x.field.cle, v).catch(console.warn)} onAdd={() => setAddTarget({ category: PREALLUMAGE_REFERENCE_CATEGORIES.EXPLOITANT, title: 'Ajouter un exploitant', sectionCode, key: x.field.cle, mode: 'single' })} />;
     if (x.field.cle === 'Chargé d’affaires / rédacteur') return <PeopleCompositeField value={value} chargeAffaires={refs.charge_affaires} redacteurs={refs.redacteur} onSave={(v) => saveValue(sectionCode, x.field.cle, v).catch(console.warn)} onAddCharge={() => setAddTarget({ category: PREALLUMAGE_REFERENCE_CATEGORIES.CHARGE_AFFAIRES, title: 'Ajouter un chargé d’affaires' })} onAddRedacteur={() => setAddTarget({ category: PREALLUMAGE_REFERENCE_CATEGORIES.REDACTEUR, title: 'Ajouter un rédacteur' })} />;
-    if (x.field.cle === 'Nombre de sous-stations') return <View style={{ paddingVertical: 6 }}><Text style={{ color: COLORS.ink, fontSize: 12, fontWeight: '900' }}>Nb de locaux</Text><View style={{ marginTop: 6, minHeight: 42, justifyContent: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, backgroundColor: '#F9FAFB', paddingHorizontal: 12 }}><Text style={{ color: COLORS.ink, fontSize: 14, fontWeight: '900' }}>{value || '0'}</Text></View><Text style={{ color: COLORS.inkSoft, fontSize: 9, marginTop: 4 }}>Calculé automatiquement à partir des locaux ajoutés, quel que soit leur type.</Text></View>;
+    if (x.field.cle === 'Nombre de sous-stations') return <View style={{ paddingVertical: 6 }}><Text style={{ color: COLORS.ink, fontSize: 12, fontFamily: FONTS.black }}>Nb de locaux</Text><View style={{ marginTop: 6, minHeight: 42, justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 9, backgroundColor: 'rgba(255,255,255,0.66)', paddingHorizontal: 12 }}><Text style={{ color: COLORS.ink, fontSize: 14, fontFamily: FONTS.black }}>{value || '0'}</Text></View><Text style={{ color: COLORS.inkSoft, fontSize: 9, marginTop: 4 }}>Calculé automatiquement à partir des locaux ajoutés, quel que soit leur type.</Text></View>;
     return <StandardField visiteId={visiteId} sectionCode={sectionCode} field={x.field} value={value} onSaved={(v) => { setChamps((m) => ({ ...m, [x.key]: v })); onSaved?.(); }} />;
   };
 
   return <>
-    <SectionList sections={sections} keyExtractor={(r) => r.key} renderSectionHeader={({ section }) => <View style={{ marginTop: 5, marginBottom: 4 }}><Text style={{ color: COLORS.ink, fontSize: 14, fontWeight: '900' }}>{section.title}</Text></View>} renderItem={({ item, section }) => <View style={{ backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 11, paddingHorizontal: 11, paddingVertical: 3, marginBottom: 7 }}><View style={{ flexDirection: item.large || !twoCols ? 'column' : 'row', gap: item.large || !twoCols ? 0 : 12 }}>{item.items.map((x, i) => <View key={x.key} style={{ flex: 1, minWidth: 0, paddingLeft: twoCols && !item.large && i > 0 ? 10 : 0, borderLeftWidth: twoCols && !item.large && i > 0 ? 1 : 0, borderLeftColor: COLORS.line }}>{renderField(x, section.sectionCode)}</View>)}</View></View>} contentContainerStyle={styles.panelContent} keyboardShouldPersistTaps="handled" stickySectionHeadersEnabled={false} />
+    <SectionList sections={sections} keyExtractor={(r) => r.key} renderSectionHeader={({ section }) => <View style={{ marginTop: 5, marginBottom: 4 }}><Text style={{ color: COLORS.ink, fontSize: 14, fontFamily: FONTS.black }}>{section.title}</Text></View>} renderItem={({ item, section }) => <View style={{ backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 11, paddingHorizontal: 11, paddingVertical: 3, marginBottom: 7 }}><View style={{ flexDirection: item.large || !twoCols ? 'column' : 'row', gap: item.large || !twoCols ? 0 : 12 }}>{item.items.map((x, i) => <View key={x.key} style={{ flex: 1, minWidth: 0, paddingLeft: twoCols && !item.large && i > 0 ? 10 : 0, borderLeftWidth: twoCols && !item.large && i > 0 ? 1 : 0, borderLeftColor: COLORS.line }}>{renderField(x, section.sectionCode)}</View>)}</View></View>} contentContainerStyle={styles.panelContent} keyboardShouldPersistTaps="handled" stickySectionHeadersEnabled={false} />
     <AddReferenceModal visible={!!addTarget} title={addTarget?.title || 'Ajouter une valeur'} onClose={() => setAddTarget(null)} onSave={(v) => addReference(v).catch(console.warn)} />
   </>;
 }
