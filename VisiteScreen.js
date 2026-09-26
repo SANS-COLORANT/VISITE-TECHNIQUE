@@ -27,6 +27,9 @@ import { getSaveActivity, subscribeSaveActivity } from './saveActivity.js';
 import { prewarmCameraRuntime } from './cameraRuntime.js';
 import { prewarmPhotoCaptureContext } from './photoCaptureContext.js';
 import { loadVisitPhotos } from './photoRuntimeCache.js';
+import { SectionRail, SideSectionList, AvisCounters, VisitActionBar } from './VisitChrome.js';
+import { calculerEtatOnglets } from './visitTabStatusDb.js';
+import { estVisiteARattacher } from './quickVisitDb.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function chargerExcelExportModule(){return require('./excelExport.js');}
@@ -98,6 +101,27 @@ function VisiteScreen({ route, onBack }) {
   const [anomalieVisible, setAnomalieVisible] = useState(false);
   const [anomalieTxt, setAnomalieTxt] = useState('');
   const [companionVisible, setCompanionVisible] = useState(false);
+  const [tabStatus, setTabStatus] = useState({ tabs: {}, avis: null });
+  const [visiteARattacher, setVisiteARattacher] = useState(false);
+  const [clavierVisible, setClavierVisible] = useState(false);
+
+  const rafraichirEtatOnglets = useCallback(() => {
+    calculerEtatOnglets(visiteId, trameIdRef.current)
+      .then((etat) => setTabStatus(etat))
+      .catch((e) => console.warn('État des onglets non calculé', e));
+  }, [visiteId]);
+
+  useEffect(() => {
+    let alive = true;
+    estVisiteARattacher(visiteId).then((v) => { if (alive) setVisiteARattacher(v); }).catch(() => {});
+    return () => { alive = false; };
+  }, [visiteId]);
+
+  useEffect(() => {
+    const show = Keyboard.addListener('keyboardDidShow', () => setClavierVisible(true));
+    const hide = Keyboard.addListener('keyboardDidHide', () => setClavierVisible(false));
+    return () => { show.remove(); hide.remove(); };
+  }, []);
 
   const trame = obtenirTrame(visite?.trame_id || DEFAULT_TRAME_ID);
   trameIdRef.current = trame.id;
@@ -334,6 +358,7 @@ function VisiteScreen({ route, onBack }) {
           prechargerRegulation(visiteId, forceCaches || prefillEffectif),
         ]);
         setVmcCaissons(caissons || []);
+        rafraichirEtatOnglets();
 
         try {
           const progression = await recalculerProgressionVisite(db, visiteId);
@@ -349,7 +374,7 @@ function VisiteScreen({ route, onBack }) {
         console.warn('Initialisation secondaire de la visite incomplète', e);
       }
     })();
-  }, [visiteId]);
+  }, [visiteId, rafraichirEtatOnglets]);
 
   useEffect(() => {
     let actif = true;
@@ -378,13 +403,14 @@ function VisiteScreen({ route, onBack }) {
           markVisitHot(visiteId, { preview: next, ui: { activeTab: activeTabRef.current } });
           return next;
         });
+        rafraichirEtatOnglets();
       } catch (e) {
         console.warn('Progression visite non recalculée', e);
       } finally {
         progressionTimerRef.current = null;
       }
     }, 1200);
-  }, [visiteId]);
+  }, [visiteId, rafraichirEtatOnglets]);
 
   const onCaissonsChange = useCallback((next) => {
     setVmcCaissons(next || []);
@@ -619,26 +645,30 @@ function VisiteScreen({ route, onBack }) {
     </View>
   );
 
+  const totauxOnglets = tabsReels.reduce((acc, pid) => {
+    const st = tabStatus.tabs?.[pid];
+    if (st?.total) { acc.total += st.total; acc.done += st.done; }
+    return acc;
+  }, { total: 0, done: 0 });
+  const allerAuxPhotos = () => { if (tabsReels.includes('p-photos')) changerOnglet('p-photos'); };
+  const sousTitre = visiteARattacher
+    ? ['Visite rapide', trame.nom, visite.date_visite].filter(Boolean).join(' · ')
+    : [visite.nom_client, visite.nom_installation, trame.nom, visite.mode_visite === 'express' ? 'Mode Express' : null].filter(Boolean).join(' · ');
+
   return (
-    <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+    <View style={{ flex: 1, backgroundColor: 'transparent' }}>
       <View style={styles.visiteTopbar}>
-        <View style={{ position: 'absolute', top: -46, right: -34, width: 170, height: 170, borderRadius: 85, backgroundColor: COLORS.orange, opacity: 0.16 }} />
-        <View style={{ position: 'absolute', top: 26, left: -56, width: 132, height: 132, borderRadius: 66, backgroundColor: COLORS.orangeLight, opacity: 0.9 }} />
         <View style={styles.visiteHeaderRow}>
-          <TouchableOpacity style={styles.visiteBackBtn} onPress={retourSecurise}><Text style={styles.visiteBackBtnText}>←</Text></TouchableOpacity>
-          <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={34}><CvcIcon name="local" size={17} color={COLORS.orangeDark} /></IconOrb>
-          <View style={{ flex: 1, marginLeft: 9 }}>
-            <Text numberOfLines={1} style={styles.cardTitle}>{visite.nom_site}</Text>
-            <Text numberOfLines={1} style={styles.cardSub}>{[visite.nom_client, visite.nom_installation, visite.date_visite, trame.nom, visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'].filter(Boolean).join(' · ')}</Text>
+          <TouchableOpacity accessibilityLabel="Retour" style={styles.visiteBackBtn} onPress={retourSecurise}><CvcIcon name="chevron-left" size={20} color={COLORS.ink} strokeWidth={2.2} /></TouchableOpacity>
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text numberOfLines={1} style={styles.visiteTitle}>{visite.nom_site}</Text>
+            <Text numberOfLines={1} style={styles.cardSub}>{sousTitre}</Text>
           </View>
           {appareilTablette ? (
             <TouchableOpacity accessibilityLabel="Compagnon téléphone" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={() => setCompanionVisible(true)}>
               <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="device" size={19} color={COLORS.orangeDark} /></IconOrb>
             </TouchableOpacity>
           ) : null}
-          <TouchableOpacity accessibilityLabel="Note libre" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={ouvrirNote}>
-            <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="note" size={19} color={COLORS.orangeDark} /></IconOrb>
-          </TouchableOpacity>
           {trame.id === 'pre_allumage' ? (
             <TouchableOpacity accessibilityLabel="Exporter en PDF ou Word" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={choisirFormatRapportPreAllumage} disabled={reportExporting}>
               <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}>{reportExporting ? <ActivityIndicator size="small" color={COLORS.orangeDark} /> : <CvcIcon name="document" size={19} color={COLORS.orangeDark} />}</IconOrb>
@@ -649,57 +679,47 @@ function VisiteScreen({ route, onBack }) {
           </TouchableOpacity>
         </View>
         <GlassCard style={{ marginBottom: 10 }}>
-          <View style={{ padding: 13, flexDirection: 'row', alignItems: 'center', gap: 13 }}>
-            <View style={{ width: 58, height: 58 }}>
-              <ProgressRing pct={visite.progression_pct} size={58} strokeWidth={6} accent={COLORS.orange} />
+          <View style={{ padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <View style={{ width: 54, height: 54 }}>
+              <ProgressRing pct={visite.progression_pct} size={54} strokeWidth={6} accent={COLORS.orange} />
               <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
                 <Text accessibilityLiveRegion="polite" style={{ fontFamily: FONTS.black, fontSize: 12.5, color: COLORS.ink }}>{visite.progression_pct}%</Text>
               </View>
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text style={{ fontSize: 10, fontWeight: '700', fontFamily: FONTS.bodyBold, letterSpacing: 0.5, textTransform: 'uppercase', color: COLORS.inkFaint, marginBottom: 4 }}>Avancement</Text>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 5 }}>
-                <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
-                  <Text numberOfLines={1} style={{ fontSize: 12, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.orangeDark }}>{trame.nom}</Text>
-                </View>
-                {visite.date_visite ? <View style={{ flexDirection: 'row', alignItems: 'baseline', gap: 3 }}>
-                  <Text numberOfLines={1} style={{ fontSize: 11, fontFamily: FONTS.bodyMedium, color: COLORS.inkSoft }}>{visite.date_visite}</Text>
-                </View> : null}
-              </View>
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <Text numberOfLines={1} style={{ fontSize: 13.5, fontFamily: FONTS.bold, color: COLORS.ink }}>
+                {totauxOnglets.total ? `${totauxOnglets.done} sur ${totauxOnglets.total} renseignés` : [trame.nom, visite.date_visite].filter(Boolean).join(' · ')}
+              </Text>
+              <AvisCounters avis={tabStatus.avis} />
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 }}>
                 <CvcIcon
                   name={saveActivity.lastError ? 'cloud-off' : saveActivity.pending ? 'cloud-sync' : 'control'}
-                  size={15}
+                  size={14}
                   color={saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32'}
                 />
-                <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ fontSize: 12, fontWeight: '700', fontFamily: FONTS.bodySemi, color: saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32' }}>
+                <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ fontSize: 11.5, fontWeight: '700', fontFamily: FONTS.bodySemi, color: saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32' }}>
                   {saveActivity.lastError ? 'Erreur de sauvegarde' : saveActivity.pending ? `${saveActivity.pending} en attente` : 'Enregistré'}
                 </Text>
               </View>
             </View>
-            <IntranetVisitSyncControl compact visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />
+            {visiteARattacher ? (
+              <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, backgroundColor: COLORS.amberBg, borderWidth: 1, borderColor: 'rgba(180,83,9,0.3)' }}><Text style={{ fontSize: 10.5, fontFamily: FONTS.bodyBold, color: COLORS.amber }}>À rattacher</Text></View>
+            ) : <IntranetVisitSyncControl compact visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />}
           </View>
         </GlassCard>
         {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? <PhotoReferenceAccess visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} /> : null}
-        <TouchableOpacity accessibilityLabel="Ajouter une anomalie, une remarque ou une réserve" style={[styles.anomalyBtn, { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6 }]} onPress={() => setAnomalieVisible(true)}>
-          <CvcIcon name="remark" size={15} color="#B42318" />
-          <Text style={styles.anomalyBtnText}>Anomalie / Réserve</Text>
-        </TouchableOpacity>
         {visite.mode_visite === 'express' && <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>}
-        {trame.id === 'vmc' && vmcCaissons.length > 0 ? <VmcCaissonManager visiteId={visiteId} caissons={vmcCaissons} onChange={onCaissonsChange} onNavigate={changerOnglet} /> : null}
-        {!modeTablette && <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.tabStrip}>
-          {tabOrder.map((pid, i) => pid === 'SEP' ? <View key={`sep-${i}`} style={styles.tabSep} /> : <TouchableOpacity key={pid} style={styles.tabItem} onPress={() => changerOnglet(pid)}><Text style={[styles.tabItemText, activeTab === pid && styles.tabItemTextActive]}>{panelLabels[pid] || pid}</Text>{activeTab === pid && <View style={styles.tabUnderline} />}</TouchableOpacity>)}
-        </ScrollView>}
+        {trame.id === 'vmc' && vmcCaissons.length > 0 ? <VmcCaissonManager visiteId={visiteId} caissons={vmcCaissons} onChange={onCaissonsChange} onNavigate={changerOnglet} activePanelId={activeTab} tabStates={tabStatus.tabs} /> : null}
+        {!modeTablette && <SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} />}
       </View>
 
       {modeTablette ? <View style={{ flex: 1, flexDirection: 'row' }}>
-        <View style={{ width: 205, backgroundColor: '#FFFFFF', borderRightWidth: 1, borderRightColor: COLORS.line }}>
-          <ScrollView contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: 9 }} showsVerticalScrollIndicator={false}>
-            {tabOrder.map((pid, i) => pid === 'SEP' ? <View key={`side-sep-${i}`} style={{ height: 1, backgroundColor: COLORS.line, marginVertical: 8 }} /> : <TouchableOpacity key={pid} onPress={() => changerOnglet(pid)} style={{ minHeight: 43, paddingHorizontal: 11, paddingVertical: 10, borderRadius: 10, marginVertical: 2, justifyContent: 'center', backgroundColor: activeTab === pid ? '#FFF3E8' : 'transparent', borderWidth: activeTab === pid ? 1 : 0, borderColor: activeTab === pid ? '#F3C89B' : 'transparent' }}><Text style={{ fontSize: 13, fontWeight: activeTab === pid ? '800' : '600', color: activeTab === pid ? COLORS.primary : COLORS.text }}>{panelLabels[pid] || pid}</Text></TouchableOpacity>)}
-          </ScrollView>
+        <View style={{ width: 205, backgroundColor: 'rgba(255,255,255,0.55)', borderRightWidth: 1, borderRightColor: 'rgba(22,21,15,0.08)' }}>
+          <SideSectionList tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>{animatedContent}</View>
       </View> : animatedContent}
+      {!clavierVisible ? <VisitActionBar onNote={ouvrirNote} onPhoto={allerAuxPhotos} onAnomalie={() => setAnomalieVisible(true)} /> : null}
 
       <Modal visible={noteVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Note libre — {trame.nom}</Text>

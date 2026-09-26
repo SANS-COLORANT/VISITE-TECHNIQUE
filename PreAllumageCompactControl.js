@@ -6,12 +6,12 @@ import { listerRemarquesVisite, modifierCriticiteRemarque, supprimerRemarqueCont
 import { defaultSeverityForControl } from './reserveSeverity.js';
 import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
 import { PreAllumagePhotoButton } from './PreAllumagePhotoButton.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, FONTS, styles } from './styles.js';
 
 const AVIS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
 
 function palette(opt, selected) {
-  if (!selected) return { bg: COLORS.white, border: COLORS.line, text: COLORS.inkSoft };
+  if (!selected) return { bg: 'rgba(255,255,255,0.8)', border: 'rgba(22,21,15,0.1)', text: COLORS.inkSoft };
   if (opt === 'S') return { bg: COLORS.greenBg, border: COLORS.green, text: COLORS.green };
   if (opt === 'N.S') return { bg: COLORS.redBg, border: COLORS.red, text: COLORS.red };
   return { bg: '#F2F4F7', border: COLORS.inkFaint, text: COLORS.inkSoft };
@@ -127,8 +127,9 @@ export const PreAllumageCompactControl = React.memo(function PreAllumageCompactC
   const commentaireCourt = commentaire && avis !== 'N.S' ? commentaire : '';
   const afficherDetail = Boolean(avis && (avis === 'N.S' || detailOuvert || (avis !== 'S' && options.length > 1 && !commentaire)));
 
-  return <View style={{ paddingVertical: 7 }}>
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}><Text style={{ flex: 1, minWidth: 120, color: COLORS.ink, fontWeight: '800', fontSize: 12 }}>{label}</Text><View style={{ flexDirection: 'row', gap: 4 }}>{AVIS.map((opt) => { const c = palette(opt, avis === opt); return <TouchableOpacity key={opt} onPress={() => choisirAvis(opt).catch(console.warn)} style={{ minWidth: opt.length > 2 ? 37 : 31, minHeight: 31, alignItems: 'center', justifyContent: 'center', borderRadius: 8, borderWidth: 1, borderColor: c.border, backgroundColor: c.bg, paddingHorizontal: 6 }}><Text style={{ color: c.text, fontSize: 10, fontWeight: '900' }}>{opt}</Text></TouchableOpacity>; })}</View></View>
+  return <View style={{ paddingVertical: 8 }}>
+    <Text style={{ color: COLORS.ink, fontFamily: FONTS.bodySemi, fontWeight: '600', fontSize: 13.5, lineHeight: 18, marginBottom: 8 }}>{label}</Text>
+    <View style={{ flexDirection: 'row', gap: 5 }}>{AVIS.map((opt) => { const c = palette(opt, avis === opt); return <TouchableOpacity key={opt} onPress={() => choisirAvis(opt).catch(console.warn)} style={{ flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: c.border, backgroundColor: c.bg }}><Text style={{ color: c.text, fontSize: 11.5, fontFamily: FONTS.bodyBold, fontWeight: '700' }}>{opt}</Text></TouchableOpacity>; })}</View>
 
     {commentaireCourt ? <TouchableOpacity onPress={() => setDetailOuvert((v) => !v)} style={{ marginTop: 5 }}><Text numberOfLines={detailOuvert ? undefined : 2} style={{ color: avis === 'S' ? COLORS.green : COLORS.inkSoft, fontSize: 10 }}>{commentaireCourt}</Text></TouchableOpacity> : null}
 

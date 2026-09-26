@@ -123,6 +123,7 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved }) {
   }, [navKey, listeSections.length]);
 
   if (!sections) return null;
+  const extraData = { champsMap, controlesMap };
   const patchControle = (key, patch) => {
     setControlesMap((courant) => ({ ...courant, [key]: { ...(courant[key] || {}), ...patch } }));
     mettreAJourCacheControle(visiteId, key, patch);
@@ -135,12 +136,23 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved }) {
   return <SectionList
     ref={listRef}
     sections={listeSections}
+    extraData={extraData}
     onScroll={(event) => setNavigationScrollOffset(navKey, event.nativeEvent.contentOffset.y)}
     scrollEventThrottle={100}
     keyExtractor={(item) => item.key}
     ListHeaderComponent={panelId === 'p-pa-batiments' ? <PreAllumagePlanCard visiteId={visiteId} onSaved={onSaved} /> : null}
     renderSectionHeader={({ section }) => {
-      if (!panelId.startsWith('p-pa-')) return <Text style={styles.sectionTitle}>{section.title}</Text>;
+      if (!panelId.startsWith('p-pa-')) {
+        let faits = 0;
+        for (const item of section.data) {
+          if (item.field.type === 'champ') { if (String(champsMap[item.key] ?? '').trim() !== '') faits += 1; }
+          else if (String(controlesMap[item.key]?.avis ?? '').trim() !== '') faits += 1;
+        }
+        return <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+          <Text style={[styles.sectionTitle, { flex: 1 }]}>{section.title}</Text>
+          <Text style={[styles.sectionCount, faits >= section.data.length ? { color: '#227A4A' } : null]}>{faits} / {section.data.length}</Text>
+        </View>;
+      }
       const d = sectionAliasDescriptor(panelId, section.title);
       return <EditableAlias valeur={aliases[d.key] || d.base} suffix={d.suffix} onSave={(v) => sauverAlias(d.key, v, d.base)} />;
     }}

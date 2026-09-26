@@ -25,6 +25,7 @@ import { useAppFonts } from './AppFonts.js';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AmbientBackground } from './premiumChrome.js';
 import { BottomTabBar } from './BottomTabBar.js';
+import { QuickVisitSheet } from './QuickVisitSheet.js';
 
 const SPLASH_BG = '#FBF0E1';
 const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects', 'MissionP3Dashboard', 'MissionReceptionBoard', 'MissionExpertise', 'MissionCampaignDashboard', 'MissionAmoDashboard', 'MissionControlBoard']);
@@ -156,6 +157,7 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
   const [visualRevision, setVisualRevision] = useState(0);
   const [stack, setStack] = useState([{ name: 'Home', params: {} }]);
   const [r1Visible, setR1Visible] = useState(false);
+  const [quickVisitVisible, setQuickVisitVisible] = useState(false);
   const [hydraulicVisible, setHydraulicVisible] = useState(false);
   const [lab3dVisible, setLab3dVisible] = useState(false);
   const [missionsVisible, setMissionsVisibleState] = useState(false);
@@ -271,6 +273,7 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
   const tabs = [
     { key: 'home', label: 'Accueil', icon: 'home', onPress: () => resetToTab('Home') },
     { key: 'clients', label: 'Clients', icon: 'local', onPress: () => resetToTab('MetraDirectory') },
+    { key: 'quick-visit', label: 'Nouvelle visite', icon: 'plus', center: true, onPress: () => { Keyboard.dismiss(); setQuickVisitVisible(true); } },
     missionsVisible ? { key: 'missions', label: 'Missions', icon: 'tools', onPress: goMissionsHome } : null,
     { key: 'settings', label: 'Réglages', icon: 'settings', onPress: () => resetToTab('Parametres') },
   ].filter(Boolean);
@@ -314,7 +317,7 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
     {current.name === 'ClientTechnicalMatrix' ? <><SimpleHeader title="Cartographie technique" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientTechnicalMatrix" navigation={navigation} route={route} /></> : null}
     {current.name === 'IntranetStructure' ? <><SimpleHeader title={`Structure Intranet · ${current.params?.nomSite || 'Site'}`} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="IntranetStructure" navigation={navigation} route={route} /></> : null}
     {current.name === 'SiteVisites' ? <><SimpleHeader title={current.params?.nomLocal ? `${current.params?.nomSite || 'Site'} · ${current.params.nomLocal}` : (current.params?.nomSite || 'Visites')} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="SiteVisites" navigation={navigation} route={route} />{lab3dVisible ? <Lab3DFab onPress={() => navigate('Lab3D', { siteId: current.params?.siteId, nomSite: current.params?.nomSite })} label="⬡ LAB 3D du site" /> : null}</> : null}
-    {current.name === 'Visite' ? <><DeferredScreen name="Visite" navigation={navigation} route={route} onBack={goBack} />{lab3dVisible ? <Lab3DFab onPress={() => navigate('Lab3D', { visiteId: current.params?.visiteId })} bottom={hydraulicVisible ? 72 : 20} label="⬡ LAB 3D du site" /> : null}{hydraulicVisible ? <TouchableOpacity onPress={() => navigate('HydraulicSchema', { visiteId: current.params?.visiteId })} style={{ position: 'absolute', right: 18, bottom: 20, minHeight: 42, paddingHorizontal: 13, borderRadius: 21, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', elevation: 4, zIndex: 200 }}><Text>⌁ Schéma technique</Text></TouchableOpacity> : null}</> : null}
+    {current.name === 'Visite' ? <><DeferredScreen name="Visite" navigation={navigation} route={route} onBack={goBack} />{lab3dVisible ? <Lab3DFab onPress={() => navigate('Lab3D', { visiteId: current.params?.visiteId })} bottom={hydraulicVisible ? 150 : 98} label="⬡ LAB 3D du site" /> : null}{hydraulicVisible ? <TouchableOpacity onPress={() => navigate('HydraulicSchema', { visiteId: current.params?.visiteId })} style={{ position: 'absolute', right: 18, bottom: 98, minHeight: 42, paddingHorizontal: 13, borderRadius: 21, backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', elevation: 4, zIndex: 200 }}><Text>⌁ Schéma technique</Text></TouchableOpacity> : null}</> : null}
     {current.name === 'HydraulicSchema' ? <><SimpleHeader title="Schéma technique animé" onBack={goBack} visualPack={visualPack} /><HydraulicSchemaWorkspace route={route} /></> : null}
     {current.name === 'Lab3D' && lab3dVisible ? <><SimpleHeader title="LAB 3D · Maquette du site" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="Lab3D" navigation={navigation} route={route} /></> : null}
     {current.name === 'Report' ? <DeferredScreen name="Report" route={route} onBack={goBack} /> : null}
@@ -355,6 +358,14 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
 
     {missionMode && current.name !== 'Missions' && !spiralActive ? <GlobalHomeButton compact={phoneIntegralMode} missionMode onPress={goMissionsHome} /> : null}
     {showTabBar ? <BottomTabBar tabs={tabs} activeKey={activeTab} /> : null}
+    <QuickVisitSheet
+      visible={quickVisitVisible}
+      onClose={() => setQuickVisitVisible(false)}
+      onCreated={({ visiteId }) => {
+        setQuickVisitVisible(false);
+        setStack([{ name: 'Home', params: {} }, { name: 'Visite', params: { visiteId } }]);
+      }}
+    />
     {spiralActive && !r1Visible ? <SpiralActiveDock exploreActions={spiralExploreActions} actionActions={spiralActionActions} quickActions={spiralQuickActions} /> : null}
     <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
   </View>;

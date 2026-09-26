@@ -15,8 +15,9 @@ import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollO
 import { prewarmClientSites } from './navigationPrewarm.js';
 import { prewarmVisitInBackground } from './visitPrewarm.js';
 import { forgetVisitRuntime, markVisitHot } from './visitRuntimeCache.js';
+import { QUICK_VISIT_CLIENT_ID, listerIdsVisitesARattacher } from './quickVisitDb.js';
 
-const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null };
+const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null, quickIds: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
 function chargerEntityManagementModule(){return require('./entityManagementDb.js');}
 
@@ -26,6 +27,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
   const [clients, setClients] = useState(() => HOME_FAST_CACHE.clients || []);
   const [visitesEnCours, setVisitesEnCours] = useState(() => HOME_FAST_CACHE.visitesEnCours || []);
   const [stats, setStats] = useState(() => HOME_FAST_CACHE.stats || { enCours: 0, terminees: 0 });
+  const [quickIds, setQuickIds] = useState(() => HOME_FAST_CACHE.quickIds || new Set());
   const [refreshing, setRefreshing] = useState(false);
   const [modalVisible, setModalVisible] = useState(false);
   const [nouveauNom, setNouveauNom] = useState('');
@@ -41,7 +43,8 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
     const clientsPromise = listerClients().then((rows) => { HOME_FAST_CACHE.clients = rows || []; setClients(rows || []); });
     const visitsPromise = listerVisitesEnCours().then((rows) => { HOME_FAST_CACHE.visitesEnCours = rows || []; setVisitesEnCours(rows || []); });
     const statsPromise = compterVisites().then((value) => { HOME_FAST_CACHE.stats = value || { enCours: 0, terminees: 0 }; setStats(HOME_FAST_CACHE.stats); });
-    await Promise.all([clientsPromise, visitsPromise, statsPromise]);
+    const quickPromise = listerIdsVisitesARattacher().then((ids) => { HOME_FAST_CACHE.quickIds = ids; setQuickIds(ids); }).catch(() => {});
+    await Promise.all([clientsPromise, visitsPromise, statsPromise, quickPromise]);
   }, []);
 
   useEffect(() => { charger().catch((e) => console.warn('Chargement accueil impossible', e)); }, [charger]);
@@ -179,8 +182,13 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
     />;
   }
 
-  const reprise = visitesEnCours[0] || null;
-  const autresVisites = visitesEnCours.slice(1);
+  // Les visites rapides (bouton +) ont leur propre section « À rattacher » et
+  // leur client technique n'apparaît pas dans la liste des clients.
+  const visitesARattacher = visitesEnCours.filter((v) => quickIds.has(v.id));
+  const visitesClients = visitesEnCours.filter((v) => !quickIds.has(v.id));
+  const clientsVisibles = clients.filter((c) => c.id !== QUICK_VISIT_CLIENT_ID);
+  const reprise = visitesClients[0] || null;
+  const autresVisites = visitesClients.slice(1);
   const ouvrirVisite = (v) => { markVisitHot(v.id, { preview: v }); navigation.navigate('Visite', { visiteId: v.id, visitePreview: v }); };
 
   return <View style={{ flex: 1 }} {...missionsSwipeResponder.panHandlers}>
@@ -208,7 +216,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
       scrollEventThrottle={80}
       contentContainerStyle={styles.content}
       refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={COLORS.orange} />}
-      data={clients}
+      data={clientsVisibles}
       keyExtractor={(i) => i.id}
       ListHeaderComponent={<>
         {missionsEnabled ? <View style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: MISSION_COLORS.accentSoft }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, fontWeight: '800' }}>Glisser vers la droite → Missions</Text></View> : null}
@@ -231,6 +239,21 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
             </TouchableOpacity>
           </View>
         </FadeUp>
+
+        {visitesARattacher.length > 0 && <>
+          <Text style={[styles.sectionLabel, { marginBottom: 8 }]}>À rattacher</Text>
+          {visitesARattacher.map((v, i) => <FadeUp key={v.id} delay={Math.min(i, 4) * 30}><TouchableOpacity
+            style={styles.card}
+            onPressIn={() => prewarmVisitInBackground(v, { preview: v })}
+            onPress={() => ouvrirVisite(v)}
+            onLongPress={() => confirmerSuppressionVisite(v)}
+          >
+            <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="flash" size={19} color={COLORS.orangeDark} /></IconOrb>
+            <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.cardTitle}>{v.nom_site}</Text><Text style={styles.cardSub}>Visite rapide · {v.progression_pct}%</Text></View>
+            <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, backgroundColor: COLORS.amberBg, borderWidth: 1, borderColor: 'rgba(180,83,9,0.3)' }}><Text style={{ fontSize: 10.5, fontFamily: FONTS.bodyBold, color: COLORS.amber }}>À rattacher</Text></View>
+          </TouchableOpacity></FadeUp>)}
+          <View style={{ height: 12 }} />
+        </>}
 
         {reprise ? <FadeUp delay={50} style={{ marginBottom: 6 }}>
           <TouchableOpacity activeOpacity={0.85} accessibilityLabel={`Reprendre la visite ${reprise.nom_client}`} onPressIn={() => prewarmVisitInBackground(reprise, { preview: reprise })} onPress={() => ouvrirVisite(reprise)} onLongPress={() => confirmerSuppressionVisite(reprise)}>

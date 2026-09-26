@@ -111,10 +111,11 @@ export const styles = StyleSheet.create({
   btnSecondaryText: { color: COLORS.ink, fontWeight: '600', fontFamily: FONTS.bodySemi, fontSize: 13.5 },
 
   // ---- Écran Visite : topbar + onglets ----
-  visiteTopbar: { backgroundColor: COLORS.bg, paddingTop: 50, paddingHorizontal: 20, borderBottomWidth: 1, borderBottomColor: COLORS.line, position: 'relative', overflow: 'hidden' },
+  visiteTopbar: { backgroundColor: 'transparent', paddingTop: 50, paddingHorizontal: 16, position: 'relative' },
+  visiteTitle: { fontSize: 17, fontFamily: FONTS.black, color: COLORS.ink },
   visiteHeaderRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
   noteBtn: { borderWidth: 1, borderColor: COLORS.line, borderRadius: 20, paddingHorizontal: 14, paddingVertical: 7 },
-  visiteBackBtn: { width: 40, height: 40, borderRadius: 12, borderWidth: 1, borderColor: COLORS.line, alignItems: 'center', justifyContent: 'center', marginRight: 10 },
+  visiteBackBtn: { width: 40, height: 40, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.72)', alignItems: 'center', justifyContent: 'center', marginRight: 10 },
   visiteBackBtnText: { fontSize: 18, color: COLORS.ink },
   iconAction: {
     width: 40, height: 40, borderRadius: 12, alignItems: 'center', justifyContent: 'center',
@@ -150,6 +151,7 @@ export const styles = StyleSheet.create({
 
   panelContent: { padding: 18, paddingBottom: 92 },
   sectionTitle: { fontSize: 14, fontWeight: '600', fontFamily: FONTS.bold, color: COLORS.ink, marginBottom: 10, marginTop: 4 },
+  sectionCount: { fontSize: 11.5, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.inkFaint, marginBottom: 10, marginTop: 4 },
   formCard: {
     backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 18, padding: 16, marginBottom: 14,
     shadowColor: '#000', shadowOpacity: 0.11, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 4,
@@ -178,22 +180,24 @@ export const styles = StyleSheet.create({
   photoViewerPrimaryText: { color: COLORS.white, fontSize: 13, fontWeight: '700' },
   photoRequiredBox: { marginTop: 8, alignSelf: 'flex-start' },
 
-  controlRow: { paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.line },
-  controlTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginBottom: 7 },
-  controlLabel: { fontSize: 13, fontWeight: '500', color: COLORS.ink, flex: 1 },
-  avisGroup: { flexDirection: 'row', gap: 4 },
-  avisChip: { width: 42, alignItems: 'center', paddingVertical: 7, borderRadius: 7, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white },
-  avisChipText: { fontSize: 10.5, fontWeight: '700', color: COLORS.inkSoft },
+  // Contrôle (DA "Verre chaud") : libellé sur sa propre ligne, puis l'avis en
+  // segments pleine largeur faciles à toucher sur le terrain.
+  controlRow: { paddingVertical: 2 },
+  controlTop: { flexDirection: 'column', alignItems: 'stretch', gap: 10, marginBottom: 4 },
+  controlLabel: { fontSize: 14, fontWeight: '600', fontFamily: FONTS.bodySemi, color: COLORS.ink, lineHeight: 19 },
+  avisGroup: { flexDirection: 'row', gap: 5 },
+  avisChip: { flex: 1, minHeight: 40, alignItems: 'center', justifyContent: 'center', paddingVertical: 8, borderRadius: 12, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.8)' },
+  avisChipText: { fontSize: 12, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.inkSoft },
 
-  criterePanel: { backgroundColor: COLORS.redBg, borderWidth: 1, borderColor: '#F4C7C7', borderRadius: 9, padding: 10, marginTop: 4 },
-  criterePanelLabel: { fontSize: 10, fontWeight: '700', color: COLORS.red, textTransform: 'uppercase', marginBottom: 6 },
-  critereChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 5 },
-  critereChip: { paddingHorizontal: 11, paddingVertical: 6, borderRadius: 18, borderWidth: 1, borderColor: COLORS.red, backgroundColor: COLORS.white },
+  criterePanel: { backgroundColor: COLORS.redBg, borderWidth: 1, borderColor: '#F4C7C7', borderRadius: 14, padding: 12, marginTop: 8 },
+  criterePanelLabel: { fontSize: 10, fontWeight: '700', fontFamily: FONTS.bodyBold, letterSpacing: 0.5, color: COLORS.red, textTransform: 'uppercase', marginBottom: 7 },
+  critereChips: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  critereChip: { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, borderWidth: 1, borderColor: COLORS.red, backgroundColor: COLORS.white },
   critereChipPicked: { backgroundColor: COLORS.red },
   critereChipCustom: { borderStyle: 'dashed' },
-  critereChipText: { fontSize: 11, fontWeight: '600', color: COLORS.red },
+  critereChipText: { fontSize: 11.5, fontWeight: '600', fontFamily: FONTS.bodySemi, color: COLORS.red },
   critereChipTextPicked: { color: COLORS.white },
-  prestationResult: { backgroundColor: COLORS.white, borderRadius: 7, padding: 9, marginTop: 8 },
+  prestationResult: { backgroundColor: '#FFF8F6', borderRadius: 12, borderWidth: 1, borderStyle: 'dashed', borderColor: 'rgba(185,28,28,0.4)', padding: 10, marginTop: 9 },
   prestationTxt: { fontSize: 12, color: COLORS.ink, lineHeight: 17, marginBottom: 5 },
   prestationMeta: { flexDirection: 'row', flexWrap: 'wrap', gap: 10 },
   prestationMetaTxt: { fontSize: 10, color: COLORS.inkSoft },

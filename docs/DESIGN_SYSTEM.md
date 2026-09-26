@@ -30,11 +30,28 @@ Toute l'application suit cette DA. Un nouvel écran ou une retouche qui s'en éc
 
 ## Structure de navigation
 
-- Barre de navigation du bas `BottomTabBar` (Accueil, Clients, Missions si activé,
-  Réglages), dans le flux et non en surimpression. Masquée sur les écrans de saisie
+- Barre de navigation du bas `BottomTabBar` (Accueil, Clients, bouton central +,
+  Missions si activé, Réglages), dans le flux et non en surimpression. Le + ouvre
+  `QuickVisitSheet` : visite rapide sans client, rangée sous le client local
+  technique « À rattacher » (`quickVisitDb.js`), jamais proposée à l'envoi Intranet. Masquée sur les écrans de saisie
   plein écran (Visite, Rapport, LAB 3D, Schéma).
 - En-têtes : fond transparent, bouton retour en verre (`simpleHeaderBack`), grand titre
   aligné à gauche (`simpleHeaderTitle`).
+
+## Écran Visite (ICPE, VMC, Pré-allumage)
+
+Coque commune (`VisitChrome.js`) :
+- en-tête : retour en verre, nom du site, sous-titre client · trame, exports à droite ;
+- carte jauge : avancement, compteurs S · N.S · S.O (`visitTabStatusDb.js`), état de
+  sauvegarde, synchronisation Intranet (ou pastille « À rattacher ») ;
+- `SectionRail` (téléphone) / `SideSectionList` (tablette) : chaque onglet porte son
+  état (vide, entamé, terminé, anomalie) ;
+- `VisitActionBar` en bas, dans le flux : Note, Photos, Anomalie.
+
+Contrôles : libellé sur sa ligne, puis les 5 avis (S, N.S, N.R, S.O, N.V) en
+segments pleine largeur (`styles.controlTop` / `avisChip`). Aucun contrôle, avis ni
+observation prédéfinie n'est retiré : la refonte ne touche que la présentation.
+VMC : cartes de caissons avec avancement et N.S (`VmcCaissonManager`).
 
 ## Thèmes
 
@@ -51,4 +68,5 @@ Toute l'application suit cette DA. Un nouvel écran ou une retouche qui s'en éc
 | Progression | `ProgressRing` |
 | Apparition à l'écran | `FadeUp` |
 | Navigation principale | `BottomTabBar` |
+| Coque de visite | `SectionRail`, `VisitActionBar`, `AvisCounters` (`VisitChrome.js`) |
 | Carte de liste / formulaire | `styles.card`, `styles.formCard` |
