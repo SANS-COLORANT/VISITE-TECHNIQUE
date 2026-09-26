@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
-import { COLORS, styles } from './styles.js';
+import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { DEFAULT_MISSION_PACKAGE_OPTIONS, exporterPackageMission } from './missionPackageExport.js';
 import { ButtonGlow } from './ButtonGlow.js';
@@ -53,9 +53,9 @@ export function MissionPackageScreen({ route }) {
       <View style={[missionStyles.card,{padding:12,marginTop:14}]}>
         {ITEMS.map(([key,label])=><TouchableOpacity key={key} onPress={()=>toggle(key)} style={{flexDirection:'row',alignItems:'center',paddingVertical:9,borderBottomWidth:1,borderBottomColor:MISSION_COLORS.accentLine}}>
           <View style={{width:27,height:27,borderRadius:8,borderWidth:1.5,borderColor:options[key]?MISSION_COLORS.accent:MISSION_COLORS.accentLineStrong,backgroundColor:options[key]?MISSION_COLORS.accentLight:'#FFFFFF',alignItems:'center',justifyContent:'center'}}>
-            <Text style={{color:MISSION_COLORS.accentStrong,fontWeight:'900'}}>{options[key]?'✓':''}</Text>
+            <Text style={{color:MISSION_COLORS.accentStrong,fontFamily: FONTS.black}}>{options[key]?'✓':''}</Text>
           </View>
-          <Text style={{marginLeft:10,color:COLORS.ink,fontSize:10.8,fontWeight:'800'}}>{label}</Text>
+          <Text style={{marginLeft:10,color:COLORS.ink,fontSize:10.8,fontFamily: FONTS.bold}}>{label}</Text>
         </TouchableOpacity>)}
       </View>
       <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton,{marginTop:16,alignItems:'center',paddingVertical:13}]} disabled={busy} onPress={exportAll}><ButtonGlow tone="mission" />

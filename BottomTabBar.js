@@ -35,7 +35,7 @@ function BottomTabBar({ tabs, activeKey, accent = COLORS.orange, accentDark = CO
                   end={{ x: 0.9, y: 1 }}
                   style={styles.centerButton}
                 >
-                  <CvcIcon name={tab.icon} size={26} color={COLORS.white} strokeWidth={2.4} />
+                  <CvcIcon name={tab.icon} size={30} color={COLORS.white} strokeWidth={2.6} />
                 </LinearGradient>
               </TouchableOpacity>
             </View>
@@ -93,7 +93,7 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingTop: 8,
     paddingBottom: 10,
-    backgroundColor: 'rgba(255,255,255,0.88)',
+    backgroundColor: '#FDFCFA',
     borderTopWidth: 1,
     borderTopColor: 'rgba(22,21,15,0.08)',
     shadowColor: '#000',

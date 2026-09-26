@@ -198,21 +198,21 @@ function ClientSitesScreen({ route, navigation }) {
 
         <TouchableOpacity style={[styles.btnPrimary, { marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]} onPress={() => navigation.navigate('ClientPilotage', { clientId, nomClient })} disabled={!sites.length}><ButtonGlow /><CvcIcon name="grid" size={17} color={COLORS.white} /><Text style={styles.btnPrimaryText}>Pilotage patrimoine</Text></TouchableOpacity>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => navigation.navigate('ClientMap', { clientId, nomClient })} disabled={!sites.length}><CvcIcon name="map" size={16} color={COLORS.ink} /><Text style={styles.btnSecondaryText}>Carte</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => setGroupesVisible(true)} disabled={!sites.length}><CvcIcon name="grid" size={16} color={COLORS.ink} /><Text style={styles.btnSecondaryText}>Groupes</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => navigation.navigate('ClientMap', { clientId, nomClient })} disabled={!sites.length}><CvcIcon name="map" size={16} color={COLORS.orangeDark} /><Text style={styles.btnSecondaryText}>Carte</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => setGroupesVisible(true)} disabled={!sites.length}><CvcIcon name="grid" size={16} color={COLORS.orangeDark} /><Text style={styles.btnSecondaryText}>Groupes</Text></TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          <TouchableOpacity style={[styles.btnPrimary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => setModalVisible(true)}><ButtonGlow /><CvcIcon name="plus" size={16} color={COLORS.white} strokeWidth={2.2} /><Text style={styles.btnPrimaryText}>Site local</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => setIntranetSiteVisible(true)}><ButtonGlow /><CvcIcon name="plus" size={16} color={COLORS.white} strokeWidth={2.2} /><Text style={styles.btnPrimaryText}>Site Intranet</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => setModalVisible(true)}><CvcIcon name="plus" size={16} color={COLORS.orangeDark} strokeWidth={2.2} /><Text style={styles.btnSecondaryText}>Site local</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => setIntranetSiteVisible(true)}><CvcIcon name="plus" size={16} color={COLORS.orangeDark} strokeWidth={2.2} /><Text style={styles.btnSecondaryText}>Site Intranet</Text></TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><CvcIcon name="document" size={16} color={COLORS.ink} /><Text style={styles.btnSecondaryText}>Documents</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><CvcIcon name="document" size={16} color={COLORS.orangeDark} /><Text style={styles.btnSecondaryText}>Documents</Text></TouchableOpacity>
           <TouchableOpacity
-            style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', gap: 7, borderColor: accent, backgroundColor: palette.light }]}
+            style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', gap: 7 }]}
             onPress={() => setClientCompanionVisible(true)}
           >
-            <CvcIcon name="camera" size={19} color={accent} />
-            <Text style={[styles.btnSecondaryText, { color: accent }]}>Compagnon</Text>
+            <CvcIcon name="device" size={17} color={COLORS.orangeDark} />
+            <Text style={styles.btnSecondaryText}>Compagnon</Text>
           </TouchableOpacity>
         </View>
 
@@ -235,7 +235,7 @@ function ClientSitesScreen({ route, navigation }) {
       renderItem={({ item }) => <TouchableOpacity style={styles.card} activeOpacity={0.7} onPressIn={() => prewarmSiteLocals(item.id).catch(() => {})} onPress={() => ouvrirSite(item)}>
         <PatrimoineThumbnail uri={item.image_uri} size={60} radius={10} />
         <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom_site}</Text>{siteGroupLabel(item.id, groupMap) ? <Text style={{ color: COLORS.primary, fontSize: 10.5, fontFamily: FONTS.bold, marginTop: 2 }}>{siteGroupLabel(item.id, groupMap)}</Text> : null}{item.adresse ? <Text style={styles.cardSub}>{item.adresse}</Text> : <Text style={{ color: '#A26A00', fontSize: 12 }}>Adresse à renseigner</Text>}{item.localisation_note ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 4 }}>{item.localisation_note}</Text> : null}</View>
-        <TouchableOpacity onPress={(e) => ouvrirStructure(e, item)} style={{ minHeight: 38, paddingHorizontal: 9, borderRadius: 10, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', justifyContent: 'center', marginRight: 6 }}><Text style={{ color: COLORS.primary, fontSize: 10.5, fontFamily: FONTS.black }}>Locaux Intranet</Text></TouchableOpacity>
+        <TouchableOpacity onPress={(e) => ouvrirStructure(e, item)} style={{ minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(242,100,38,0.3)', backgroundColor: 'rgba(242,100,38,0.1)', marginRight: 6 }}><CvcIcon name="local" size={14} color={COLORS.orangeDark} /><Text style={{ color: COLORS.orangeDark, fontSize: 11, fontFamily: FONTS.bodyBold }}>Locaux</Text></TouchableOpacity>
         <View style={[styles.badge, item.statut === 'Actif' ? styles.badgeActif : styles.badgeInactif]}><Text style={[styles.badgeText, item.statut === 'Actif' ? styles.badgeTextActif : styles.badgeTextInactif]}>{item.statut || 'Actif'}</Text></View>
         <TouchableOpacity onPress={(e) => ouvrirMenuSite(e, item)} style={{ minWidth: 46, minHeight: 46, alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}><CvcIcon name="more" size={23} color={COLORS.inkSoft} strokeWidth={2.1} /></TouchableOpacity>
       </TouchableOpacity>}

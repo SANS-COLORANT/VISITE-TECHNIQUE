@@ -72,6 +72,15 @@ cartes de verre avec pastille d'état et compteur. Mesures : `StepperNumerique`
   jamais `fontWeight` seul (qui retombe sur la police système).
 - Surfaces : blanc translucide (`rgba(255,255,255,0.8)`) pour laisser voir les
   halos ; racines d'écran transparentes, y compris Missions et modes téléphone.
+- **Android : jamais d'`elevation` sur un fond translucide** (l'ombre se voit à
+  travers : cadre gris dans la carte). Une surface avec ombre est en blanc chaud
+  opaque `#FDFCFA` ; une surface translucide n'a pas d'elevation.
+- Barres système : barre d'état transparente (le fond va jusqu'en haut), barre de
+  navigation couleur du fond (`app.json`).
+- En-têtes : `HeaderFade` sous l'en-tête pour fondre le contenu qui défile.
+- Une seule action principale (bouton dégradé) par écran ; les autres en verre
+  avec icône orange.
+- Champs d'une même section groupés dans une carte unique (`fieldGroup*`).
 
 ## Thèmes
 

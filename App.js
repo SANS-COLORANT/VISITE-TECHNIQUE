@@ -114,7 +114,13 @@ function SimpleHeader({ title, onBack, visualPack, rightAction = null }) {
     {onBack ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={styles.simpleHeaderBack} onPress={onBack}><CvcIcon name="chevron-left" size={20} color={COLORS.ink} strokeWidth={2.3} /></TouchableOpacity> : null}
     <Text numberOfLines={1} style={styles.simpleHeaderTitle}>{title}</Text>
     {rightAction ? <TouchableOpacity onPress={rightAction.onPress} style={styles.headerPill}><Text style={styles.headerPillText}>{rightAction.label}</Text></TouchableOpacity> : (uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null)}
+    <HeaderFade />
   </View>;
+}
+
+// Fondu sous l'en-tête : le contenu qui défile s'efface au lieu d'être coupé net.
+function HeaderFade({ color = '243,241,236' }) {
+  return <LinearGradient pointerEvents="none" colors={[`rgba(${color},0.92)`, `rgba(${color},0)`]} style={{ position: 'absolute', left: 0, right: 0, top: '100%', height: 18 }} />;
 }
 
 function MissionHeader({ title, onBack, visualPack, root = false }) {
@@ -126,6 +132,7 @@ function MissionHeader({ title, onBack, visualPack, root = false }) {
       <Text numberOfLines={1} style={[styles.simpleHeaderTitle, { marginTop: 1 }]}>{title}</Text>
     </View>
     {uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null}
+    <HeaderFade color="247,250,248" />
   </View>;
 }
 
@@ -274,7 +281,7 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
   const tabs = [
     { key: 'home', label: 'Accueil', icon: 'home', onPress: () => resetToTab('Home') },
     { key: 'clients', label: 'Clients', icon: 'local', onPress: () => resetToTab('MetraDirectory') },
-    { key: 'quick-visit', label: 'Nouvelle visite', icon: 'plus', center: true, onPress: () => { Keyboard.dismiss(); setQuickVisitVisible(true); } },
+    { key: 'quick-visit', label: 'Nouvelle visite', icon: 'plus-plain', center: true, onPress: () => { Keyboard.dismiss(); setQuickVisitVisible(true); } },
     missionsVisible ? { key: 'missions', label: 'Missions', icon: 'tools', onPress: goMissionsHome } : null,
     { key: 'settings', label: 'Réglages', icon: 'settings', onPress: () => resetToTab('Parametres') },
   ].filter(Boolean);
@@ -392,7 +399,7 @@ function PhoneModeChooser({ onChoose }) {
   }, []);
 
   const logoUri = resolveVisualPackAssetUri(pack, pack?.interface?.headerLogo);
-  const card = { minHeight: 128, padding: 16, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 9 }, elevation: 4 };
+  const card = { minHeight: 128, padding: 16, borderRadius: 22, backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 9 }, elevation: 4 };
   const mode = (id, icon, title, description, featured = false) => (
     <TouchableOpacity key={id} onPress={() => onChoose(id)} activeOpacity={0.84} style={[card, featured ? { borderWidth: 1.5, borderColor: palette.main, backgroundColor: palette.light } : null]}>
       <View style={{ width: 48, height: 48, borderRadius: 15, backgroundColor: featured ? COLORS.white : palette.light, alignItems: 'center', justifyContent: 'center', borderWidth: featured ? 1 : 0, borderColor: palette.main }}>

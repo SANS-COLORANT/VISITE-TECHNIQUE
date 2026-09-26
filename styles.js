@@ -12,6 +12,9 @@ export const COLORS = {
   green: '#2E7D32', greenBg: '#E8F5E9',
   red: '#B91C1C', redBg: '#FDECEC',
   amber: '#B45309', amberBg: '#FEF3E2',
+  // Alias utilisés par des écrans plus anciens (jusqu'ici non définis, donc
+  // rendus dans la couleur système par défaut).
+  muted: '#6B6B66', primary: '#D9531A', text: '#1A1A18',
 };
 
 export const styles = StyleSheet.create({
@@ -23,7 +26,7 @@ export const styles = StyleSheet.create({
 
   statRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   statCard: {
-    flex: 1, backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 18, paddingVertical: 14, alignItems: 'center',
+    flex: 1, backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 18, paddingVertical: 14, alignItems: 'center',
     shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
   },
   statNum: { fontSize: 22, fontWeight: '700', fontFamily: FONTS.black, color: COLORS.ink },
@@ -34,7 +37,7 @@ export const styles = StyleSheet.create({
   addLink: { fontSize: 12.5, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.orangeDark },
 
   card: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 14, marginBottom: 9, gap: 10,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 14, marginBottom: 9, gap: 10,
     shadowColor: '#000', shadowOpacity: 0.11, shadowRadius: 18, shadowOffset: { width: 0, height: 9 }, elevation: 4,
   },
   deleteVisiteBtn: { width: 26, height: 26, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.redBg, marginLeft: 4 },
@@ -73,11 +76,12 @@ export const styles = StyleSheet.create({
     borderTopColor: 'rgba(22,21,15,0.08)',
   },
   fabButton: { flex: 0, minHeight: 48, justifyContent: 'center' },
-  paramTabs: { flexDirection: 'row', backgroundColor: 'transparent', borderBottomWidth: 1, borderBottomColor: 'rgba(22,21,15,0.08)', paddingHorizontal: 20 },
-  paramTab: { paddingVertical: 12, paddingHorizontal: 4, marginRight: 24, borderBottomWidth: 2.5, borderBottomColor: 'transparent' },
-  paramTabActive: { borderBottomColor: COLORS.orange },
-  paramTabText: { fontSize: 13.5, color: COLORS.inkSoft, fontWeight: '600' },
-  paramTabTextActive: { color: COLORS.orangeDark },
+  // Onglets des Réglages en pastilles (même langage que le rail de la visite).
+  paramTabs: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, backgroundColor: 'transparent', paddingHorizontal: 16, paddingTop: 6, paddingBottom: 10 },
+  paramTab: { paddingVertical: 9, paddingHorizontal: 15, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.72)' },
+  paramTabActive: { backgroundColor: COLORS.orange, borderColor: COLORS.orange },
+  paramTabText: { fontSize: 13, color: COLORS.inkSoft, fontFamily: FONTS.bodySemi },
+  paramTabTextActive: { color: COLORS.white, fontFamily: FONTS.bodyBold },
   catalogueSearchBox: { paddingHorizontal: 20, paddingTop: 14, paddingBottom: 8, backgroundColor: 'transparent' },
   catalogueSearchInput: { minHeight: 48, backgroundColor: COLORS.white, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 12, paddingHorizontal: 14, paddingVertical: 10, fontSize: 13.5, color: COLORS.ink },
   catalogueTabs: { flexDirection: 'row', paddingHorizontal: 20, paddingBottom: 10, backgroundColor: 'transparent', gap: 8 },
@@ -134,10 +138,10 @@ export const styles = StyleSheet.create({
   iconActionDark: { backgroundColor: COLORS.ink },
 
   // ---- Header simple (navigation maison, sans @react-navigation) ----
-  simpleHeader: { flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'transparent', paddingTop: 50, paddingHorizontal: 16, paddingBottom: 12 },
+  simpleHeader: { zIndex: 5, flexDirection: 'row', alignItems: 'center', gap: 12, backgroundColor: 'transparent', paddingTop: 50, paddingHorizontal: 16, paddingBottom: 12 },
   simpleHeaderBack: {
     width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center',
-    backgroundColor: 'rgba(255,255,255,0.72)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)',
+    backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)',
     shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 8, shadowOffset: { width: 0, height: 3 }, elevation: 2,
   },
   simpleHeaderBackText: { fontSize: 20, color: COLORS.ink },
@@ -162,10 +166,14 @@ export const styles = StyleSheet.create({
   sectionTitle: { fontSize: 14, fontWeight: '600', fontFamily: FONTS.bold, color: COLORS.ink, marginBottom: 10, marginTop: 4 },
   sectionCount: { fontSize: 11.5, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.inkFaint, marginBottom: 10, marginTop: 4 },
   formCard: {
-    backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 18, padding: 16, marginBottom: 14,
+    backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 18, padding: 16, marginBottom: 14,
     shadowColor: '#000', shadowOpacity: 0.11, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 4,
   },
 
+  fieldGroupItem: { backgroundColor: '#FDFCFA', borderLeftWidth: 1, borderRightWidth: 1, borderColor: 'rgba(22,21,15,0.08)', paddingHorizontal: 16, paddingTop: 12, paddingBottom: 2 },
+  fieldGroupFirst: { borderTopWidth: 1, borderTopLeftRadius: 18, borderTopRightRadius: 18, paddingTop: 16 },
+  fieldGroupLast: { borderBottomWidth: 1, borderBottomLeftRadius: 18, borderBottomRightRadius: 18, paddingBottom: 6, marginBottom: 14 },
+  fieldGroupDivider: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: 'rgba(22,21,15,0.1)' },
   fieldBlock: { marginBottom: 14 },
   fieldTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 },
   fieldLabel: { fontSize: 12, fontWeight: '600', color: COLORS.ink, flex: 1 },
@@ -228,7 +236,7 @@ export const styles = StyleSheet.create({
   stepperValText: { fontSize: 20, fontWeight: '800', fontFamily: FONTS.black, color: COLORS.ink, fontVariant: ['tabular-nums'] },
 
   // ---- Sélecteur par chips ----
-  chipSelectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  chipSelectRow: { flex: 1, flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
   chipOpt: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 16, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: COLORS.white },
   chipOptPicked: { backgroundColor: COLORS.orange, borderColor: COLORS.orange },
   chipOptText: { fontSize: 12, color: COLORS.ink, fontWeight: '500', fontFamily: FONTS.bodyMedium },
@@ -285,10 +293,10 @@ export const styles = StyleSheet.create({
   persistentEquipmentBadgeText: { fontSize: 10.5, fontWeight: '700', color: COLORS.green },
 
   totalsBar: { flexDirection: 'row', gap: 10, marginBottom: 14 },
-  totalsCard: { flex: 1, backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 13, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
+  totalsCard: { flex: 1, backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 13, alignItems: 'center', shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 12, shadowOffset: { width: 0, height: 6 }, elevation: 2 },
   totalsNum: { fontSize: 18, fontWeight: '700', fontFamily: FONTS.black, color: COLORS.ink },
   totalsLabel: { fontSize: 10, color: COLORS.inkSoft, marginTop: 2 },
-  remarqueCard: { backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 14, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 2 },
+  remarqueCard: { backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 16, padding: 14, marginBottom: 10, shadowColor: '#000', shadowOpacity: 0.06, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 2 },
   remarqueTop: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
   remarquePoste: { fontSize: 10, fontWeight: '700', color: COLORS.orangeDark, textTransform: 'uppercase' },
   remarqueEstim: { fontSize: 14, fontWeight: '700', color: COLORS.ink },

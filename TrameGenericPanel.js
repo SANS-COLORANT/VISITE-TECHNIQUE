@@ -66,6 +66,21 @@ export function mettreAJourCacheControle(visiteId, key, patch) {
   visiteDataCache.set(visiteId, { data: { ...courant.data, controlesMap: { ...courant.data.controlesMap, [key]: { ...ancien, ...patch } } }, promise: courant.promise || null });
 }
 
+// Les champs consécutifs d'une section forment une seule carte (lignes fines
+// entre eux) ; chaque contrôle garde sa propre carte.
+function styleCarteChamp(item, index, section) {
+  if (item.field.type !== 'champ') return styles.formCard;
+  const data = section?.data || [];
+  const avantChamp = index > 0 && data[index - 1]?.field?.type === 'champ';
+  const apresChamp = index < data.length - 1 && data[index + 1]?.field?.type === 'champ';
+  return [
+    styles.fieldGroupItem,
+    !avantChamp && styles.fieldGroupFirst,
+    !apresChamp && styles.fieldGroupLast,
+    avantChamp && styles.fieldGroupDivider,
+  ];
+}
+
 export function TrameGenericPanel(props) {
   if (props.panelId === 'p-pa-infos') return <PreAllumageInfoPanelBusiness {...props} />;
   if (props.panelId === 'p-pa-batiments') return <PreAllumageInstallationPanelBusiness {...props} />;
@@ -156,7 +171,7 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved }) {
       const d = sectionAliasDescriptor(panelId, section.title);
       return <EditableAlias valeur={aliases[d.key] || d.base} suffix={d.suffix} onSave={(v) => sauverAlias(d.key, v, d.base)} />;
     }}
-    renderItem={({ item }) => <View style={styles.formCard}>
+    renderItem={({ item, index, section }) => <View style={styleCarteChamp(item, index, section)}>
       {item.field.type === 'champ' ? <DurableChampGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} valeurInitiale={champsMap[item.key]} displayLabel={libelleChamp(item.sectionCode, item.field.cle, aliases)} onRename={item.field.renamable ? (v) => sauverAlias(fieldAliasKey(item.sectionCode, item.field.cle), v, item.field.cle) : null} onSaved={(valeur) => {
         setChampsMap((courant) => ({ ...courant, [item.key]: valeur })); mettreAJourCacheChamp(visiteId, item.key, valeur); onSaved?.();
       }} /> : item.field.vmc === true ? <VmcControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={(patch) => patchControle(item.key, patch)} onSaved={onSaved} /> : item.field.presets ? <PresetControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={(patch) => patchControle(item.key, patch)} onSaved={onSaved} /> : <PersistentControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={(patch) => patchControle(item.key, patch)} onSaved={onSaved} />}

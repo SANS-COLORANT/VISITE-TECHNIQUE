@@ -158,7 +158,7 @@ const s = StyleSheet.create({
   counters: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
   counter: { fontSize: 11.5, fontFamily: FONTS.bodyBold },
   barWrap: { paddingHorizontal: 12, paddingTop: 6, paddingBottom: 10 },
-  bar: { flexDirection: 'row', gap: 8, padding: 7, borderRadius: 22, backgroundColor: 'rgba(255,255,255,0.9)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+  bar: { flexDirection: 'row', gap: 8, padding: 7, borderRadius: 22, backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
   act: { flex: 1, minHeight: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 3 },
   actMain: { shadowColor: COLORS.orange, shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 5 },
   actText: { fontSize: 10.5, fontFamily: FONTS.bodyBold, color: COLORS.inkSoft },

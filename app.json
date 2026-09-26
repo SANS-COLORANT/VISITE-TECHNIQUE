@@ -42,6 +42,15 @@
     ],
     "extra": {
       "appMode": "native-tablet"
+    },
+    "androidStatusBar": {
+      "translucent": true,
+      "backgroundColor": "#00000000",
+      "barStyle": "dark-content"
+    },
+    "androidNavigationBar": {
+      "backgroundColor": "#F3F1EC",
+      "barStyle": "dark-content"
     }
   }
 }

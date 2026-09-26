@@ -156,7 +156,8 @@ const ChipSelector = React.memo(function ChipSelector({ valeur, options, onChang
   }
   return (
     <View style={styles.chipRowWithArrows}>
-      <TouchableOpacity accessibilityLabel="Options précédentes" style={styles.chipArrowBtn} onPress={() => naviguer(-1)}><CvcIcon name="chevron-left" size={15} color={COLORS.orangeDark} strokeWidth={2.3} /></TouchableOpacity>
+      {/* Toutes les options sont visibles : plus de flèches précédente / suivante,
+          qui ne faisaient que changer la sélection et débordaient de l'écran. */}
       <View style={styles.chipSelectRow}>
         {options.map((opt) => (
           <TouchableOpacity key={opt} style={[styles.chipOpt, valeur === opt && styles.chipOptPicked]} onPress={() => choisir(opt)}>
@@ -167,7 +168,6 @@ const ChipSelector = React.memo(function ChipSelector({ valeur, options, onChang
           <Text style={styles.chipOptAddNewText}>+ Autre</Text>
         </TouchableOpacity>
       </View>
-      <TouchableOpacity accessibilityLabel="Options suivantes" style={styles.chipArrowBtn} onPress={() => naviguer(1)}><CvcIcon name="chevron-right" size={15} color={COLORS.orangeDark} strokeWidth={2.3} /></TouchableOpacity>
     </View>
   );
 });

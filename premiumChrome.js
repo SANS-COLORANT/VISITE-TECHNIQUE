@@ -67,29 +67,18 @@ function GlassCard({ children, style, radius = 20 }) {
 function IconOrb({ accent, light, size = 44, radius, children }) {
   const r = radius ?? Math.round(size * 0.32);
   const base = light || '#FCE4D3';
-  const ringR = size / 2 - 1;
-  const circumference = 2 * Math.PI * ringR;
+  // Fond opaque (clair -> blanc chaud) et bordure fine : pas d'ombre Android,
+  // qui se voyait à travers un fond translucide (petit carré gris derrière
+  // l'icône) ni d'anneau partiel, qui ressemblait à un bord abîmé.
   return (
-    <View style={[styles.orbShadow, { width: size, height: size, borderRadius: r }]}>
-      <LinearGradient
-        colors={[base, base + '45']}
-        start={{ x: 0.15, y: 0 }}
-        end={{ x: 0.9, y: 1 }}
-        style={[styles.orbFill, { width: size, height: size, borderRadius: r, borderColor: accent + '70' }]}
-      >
-        {children}
-      </LinearGradient>
-      {/* Anneau partiel en couleur d'accent : RN n'a pas de conic-gradient,
-          ceci approxime le fin anneau dégradé de la maquette autour de l'icône. */}
-      <Svg width={size} height={size} style={StyleSheet.absoluteFillObject} pointerEvents="none">
-        <Circle
-          cx={size / 2} cy={size / 2} r={ringR}
-          stroke={accent} strokeWidth={1.5} fill="none" strokeLinecap="round"
-          strokeDasharray={`${circumference * 0.52}, ${circumference}`}
-          rotation="-45" originX={size / 2} originY={size / 2}
-        />
-      </Svg>
-    </View>
+    <LinearGradient
+      colors={[base, '#FFF9F4']}
+      start={{ x: 0.15, y: 0 }}
+      end={{ x: 0.9, y: 1 }}
+      style={[styles.orbFill, { width: size, height: size, borderRadius: r, borderColor: (accent || '#F26426') + '40' }]}
+    >
+      {children}
+    </LinearGradient>
   );
 }
 
@@ -179,34 +168,28 @@ function ProgressRing({ pct = 0, size = 56, strokeWidth = 6, accent, track = 'rg
 }
 
 const styles = StyleSheet.create({
-  orbShadow: {
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 6,
-    shadowOffset: { width: 0, height: 3 },
-    elevation: 2,
-  },
   orbFill: {
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden',
   },
+  // Pas d'elevation Android : l'ombre se verrait à travers le verre
+  // translucide (cadre gris). La profondeur vient de la bordure et du voile.
   glassShadow: {
     shadowColor: '#000',
     shadowOpacity: 0.12,
     shadowRadius: 18,
     shadowOffset: { width: 0, height: 10 },
-    elevation: 6,
   },
   glassClip: {
     overflow: 'hidden',
     borderWidth: 1,
-    borderColor: 'rgba(22,21,15,0.1)',
+    borderColor: 'rgba(22,21,15,0.09)',
   },
   glassTint: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: 'rgba(255,255,255,0.45)',
   },
   glassContent: {
     position: 'relative',

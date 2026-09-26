@@ -2,6 +2,8 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, BackHandler, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
+import { FONTS } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 import { CategorieCritereSelector } from './GenericFields.js';
 import { EquipmentCatalogueBrowser } from './EquipmentCatalogueBrowser.js';
 import { listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio } from './db.js';
@@ -34,18 +36,18 @@ function ParametresScreen(){
     :<View style={{flex:1,alignItems:'center',justifyContent:'center',padding:28}}>
       {catalogueErreur?
         <>
-          <Text style={{fontSize:16,fontWeight:'800',color:COLORS.text}}>Catalogue indisponible</Text>
+          <Text style={{fontSize:16,fontFamily: FONTS.bold,color:COLORS.text}}>Catalogue indisponible</Text>
           <Text style={{marginTop:8,color:COLORS.muted,textAlign:'center'}}>{catalogueErreur}</Text>
           <TouchableOpacity style={[styles.btnPrimary,{marginTop:16}]} onPress={()=>{setCatalogueErreur(null);setCataloguePret(false);setOnglet('reserves');setTimeout(()=>setOnglet('equipements'),0);}}><ButtonGlow /><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity>
         </>
         :<>
           <ActivityIndicator size="large" color={COLORS.orange}/>
-          <Text style={{marginTop:12,fontWeight:'800',color:COLORS.text}}>Préparation du catalogue…</Text>
+          <Text style={{marginTop:12,fontFamily: FONTS.bold,color:COLORS.text}}>Préparation du catalogue…</Text>
           <Text style={{marginTop:5,color:COLORS.muted,textAlign:'center'}}>Cette étape est surtout visible au premier lancement. Les ouvertures suivantes utilisent la base déjà enrichie.</Text>
         </>}
     </View>;
 
-  return <View style={{flex:1,backgroundColor:COLORS.bg}}>
+  return <View style={{flex:1,backgroundColor:'transparent'}}>
     <View style={styles.paramTabs}>
       <TouchableOpacity style={[styles.paramTab,onglet==='reserves'&&styles.paramTabActive]} onPress={()=>setOnglet('reserves')}><Text style={[styles.paramTabText,onglet==='reserves'&&styles.paramTabTextActive]}>Réserves</Text></TouchableOpacity>
       <TouchableOpacity style={[styles.paramTab,onglet==='equipements'&&styles.paramTabActive]} onPress={()=>setOnglet('equipements')}><Text style={[styles.paramTabText,onglet==='equipements'&&styles.paramTabTextActive]}>Équipements</Text></TouchableOpacity>
@@ -58,11 +60,12 @@ function ParametresScreen(){
 function BoutonDonnees({label,onPress,disabled=false,secondaire=false,danger=false}){
   const base=secondaire?styles.btnSecondary:styles.btnPrimary;
   return <TouchableOpacity
-    style={[base,{marginTop:10,alignSelf:'stretch',alignItems:'center'},disabled&&{opacity:.5},danger&&{backgroundColor:'#FFF1F0',borderWidth:1,borderColor:'#F5B7B1'}]}
+    style={[base,{flex:0,marginTop:10,alignSelf:'stretch',alignItems:'center'},disabled&&{opacity:.5},danger&&{backgroundColor:'#FFF1F0',borderWidth:1,borderColor:'#F5B7B1'}]}
     disabled={disabled}
     onPress={onPress}
   >
-    <Text style={danger?{color:'#A61B1B',fontWeight:'800'}:(secondaire?styles.btnSecondaryText:styles.btnPrimaryText)}>{label}</Text>
+    {!secondaire&&!danger?<ButtonGlow/>:null}
+    <Text style={danger?{color:'#A61B1B',fontFamily:FONTS.bodyBold}:(secondaire?styles.btnSecondaryText:styles.btnPrimaryText)}>{label}</Text>
   </TouchableOpacity>;
 }
 
@@ -148,10 +151,13 @@ function GestionDonnees(){
   );
 
   const occupe=!!action;
+  // Cartes « données » en colonne : texte en haut, boutons pleine largeur dessous
+  // (styles.card est une ligne, qui écrasait le texte entre deux boutons géants).
+  const dataCard={flexDirection:'column',alignItems:'stretch',justifyContent:'flex-start',gap:0};
   return <ScrollView contentContainerStyle={styles.content}>
     <Text style={styles.sectionLabel}>Sauvegardes</Text>
-    <View style={[styles.card,{alignItems:'flex-start'}]}>
-      <View style={{flex:1}}>
+    <View style={[styles.card,dataCard]}>
+      <View style={{alignSelf:'stretch'}}>
         <Text style={styles.cardTitle}>Sauvegarde complète</Text>
         <Text style={[styles.cardSub,{marginTop:5}]}>Archive ZIP recommandée pour le terrain : base SQLite, toutes les visites et photos gérées par l’application, plus un manifeste de version.</Text>
         <Text style={[styles.cardSub,{marginTop:6}]}>L’archive peut être enregistrée dans Drive, OneDrive, un dossier réseau ou envoyée par mail.</Text>
@@ -161,8 +167,8 @@ function GestionDonnees(){
     </View>
 
     <Text style={[styles.sectionLabel,{marginTop:18}]}>Restauration</Text>
-    <View style={[styles.card,{alignItems:'flex-start'}]}>
-      <View style={{flex:1}}>
+    <View style={[styles.card,dataCard]}>
+      <View style={{alignSelf:'stretch'}}>
         <Text style={styles.cardTitle}>Restaurer une tablette</Text>
         <Text style={[styles.cardSub,{marginTop:5}]}>Restaure une archive complète créée par l’application. La version est vérifiée avant remplacement, les chemins des photos sont automatiquement adaptés à la nouvelle tablette et l’intégrité SQLite est contrôlée après restauration.</Text>
       </View>
@@ -172,12 +178,12 @@ function GestionDonnees(){
     <TouchableOpacity activeOpacity={1} onLongPress={deverrouillerSupport} delayLongPress={1600}>
       <Text style={[styles.sectionLabel,{marginTop:18}]}>Santé des données</Text>
     </TouchableOpacity>
-    <View style={[styles.card,{alignItems:'flex-start'}]}>
-      <View style={{flex:1}}>
+    <View style={[styles.card,dataCard]}>
+      <View style={{alignSelf:'stretch'}}>
         <Text style={styles.cardTitle}>Diagnostic local</Text>
         <Text style={[styles.cardSub,{marginTop:5}]}>Vérifie l’intégrité SQLite, les relations de base, la version du schéma et la présence physique des photos.</Text>
         {diagnostic&&<View style={{marginTop:12,padding:12,borderRadius:10,backgroundColor:diagnostic.ok?'#EDF8F0':'#FFF4E5',alignSelf:'stretch'}}>
-          <Text style={{fontWeight:'900',color:diagnostic.ok?'#246B38':'#8A5400'}}>{diagnostic.ok?'✓ Données saines':'⚠ Vérification nécessaire'}</Text>
+          <Text style={{fontFamily: FONTS.black,color:diagnostic.ok?'#246B38':'#8A5400'}}>{diagnostic.ok?'✓ Données saines':'⚠ Vérification nécessaire'}</Text>
           <Text style={[styles.cardSub,{marginTop:6}]}>SQLite : {diagnostic.integrityOk?'OK':'Erreur'} · Relations : {diagnostic.foreignKeysOk?'OK':'Erreur'} · Schéma : v{diagnostic.versionSchema}/{diagnostic.versionAttendue}</Text>
           <Text style={[styles.cardSub,{marginTop:3}]}>{diagnostic.clients} clients · {diagnostic.sites} sites · {diagnostic.visites} visites · {diagnostic.remarques} réserves</Text>
           <Text style={[styles.cardSub,{marginTop:3}]}>Photos : {diagnostic.photosTotal} référencées · {diagnostic.photosManquantes} manquante(s)</Text>
@@ -188,7 +194,7 @@ function GestionDonnees(){
 
     {supportVisible&&<>
       <Text style={[styles.sectionLabel,{marginTop:18}]}>Support avancé</Text>
-      <View style={[styles.card,{alignItems:'flex-start'}]}>
+      <View style={[styles.card,dataCard]}>
         <View style={{flex:1}}>
           <Text style={styles.cardTitle}>DUMP diagnostic Intranet</Text>
           <Text style={[styles.cardSub,{marginTop:5}]}>Génère un JSON lisible par le support avec les références Intranet reçues, les catégories/sous-catégories/critères, les liaisons locales et les dernières visites concernées. Les secrets d’authentification sont exclus ou masqués.</Text>
@@ -231,10 +237,10 @@ function BibliothequeReserves(){
           <View style={{flex:1,minWidth:0}}>
             <Text style={styles.cardTitle}>{item.nom}</Text>
             {item.description?<Text style={[styles.cardSub,{marginTop:4,lineHeight:17}]}>{item.description}</Text>:null}
-            {meta?<Text style={{fontSize:10.5,color:COLORS.inkFaint,marginTop:6,fontWeight:'700'}}>{meta}</Text>:null}
-            <Text style={{fontSize:9.5,color:COLORS.orangeDark,marginTop:6,fontWeight:'800'}}>Ouvrir / modifier</Text>
+            {meta?<Text style={{fontSize:10.5,color:COLORS.inkFaint,marginTop:6,fontFamily: FONTS.bodyBold}}>{meta}</Text>:null}
+            <Text style={{fontSize:9.5,color:COLORS.orangeDark,marginTop:6,fontFamily: FONTS.bold}}>Ouvrir / modifier</Text>
           </View>
-          <TouchableOpacity onPress={()=>supprimer(item)} hitSlop={{top:10,bottom:10,left:10,right:10}}><Text style={styles.removeLink}>Suppr.</Text></TouchableOpacity>
+          <TouchableOpacity accessibilityLabel="Supprimer cette réserve" onPress={()=>supprimer(item)} hitSlop={{top:10,bottom:10,left:10,right:10}} style={{width:34,height:34,borderRadius:12,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(185,28,28,0.08)'}}><CvcIcon name="trash" size={16} color={COLORS.red}/></TouchableOpacity>
         </TouchableOpacity>;
       }}
     />

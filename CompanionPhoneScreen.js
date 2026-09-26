@@ -582,7 +582,7 @@ function CompanionPhoneScreen({ onExit }) {
     const fields = Array.isArray(selectedTarget.fields) ? selectedTarget.fields : [];
     return (
       <View style={{ flex: 1, backgroundColor: 'transparent' }}>
-        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'rgba(255,255,255,0.55)', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'transparent' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <TouchableOpacity onPress={() => setSelectedTargetId(null)} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.82)' }}>
               <CvcIcon name="chevron-left" size={23} color={COLORS.ink} strokeWidth={2.1} />
@@ -647,7 +647,7 @@ function CompanionPhoneScreen({ onExit }) {
     const targets = selectedModule.targets || [];
     return (
       <View style={{ flex: 1, backgroundColor: 'transparent' }}>
-        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'rgba(255,255,255,0.55)', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'transparent' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
             <TouchableOpacity onPress={() => { setSelectedTargetId(null); setSelectedModuleId(null); }} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.82)' }}>
               <CvcIcon name="chevron-left" size={23} color={COLORS.ink} strokeWidth={2.1} />
@@ -679,7 +679,7 @@ function CompanionPhoneScreen({ onExit }) {
     if (selectedSite) {
       return (
         <View style={{ flex: 1, backgroundColor: 'transparent' }}>
-          <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'rgba(255,255,255,0.55)', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+          <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'transparent' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
               <TouchableOpacity onPress={() => setSelectedSiteId(null)} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center' }}>
                 <CvcIcon name="chevron-left" size={23} color={COLORS.ink} strokeWidth={2.1} />
@@ -708,7 +708,7 @@ function CompanionPhoneScreen({ onExit }) {
 
     return (
       <View style={{ flex: 1, backgroundColor: 'transparent' }}>
-        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'rgba(255,255,255,0.55)', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+        <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'transparent' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
             <TouchableOpacity onPress={quit} style={{ width: 40, height: 40, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.82)', alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={21} color={COLORS.ink} strokeWidth={2.1} /></TouchableOpacity>
             <View style={{ flex: 1 }}>

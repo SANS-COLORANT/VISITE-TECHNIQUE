@@ -76,9 +76,7 @@ function CompactToggle({ animationOn, activeName, accent, disabled, onOff, onOn,
       style={{
         paddingHorizontal: 18,
         paddingVertical: 10,
-        backgroundColor: COLORS.white,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.line,
+        backgroundColor: 'transparent',
       }}
     >
       <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -175,10 +173,10 @@ function LabSettingsEntry({ open, onPress }) {
         marginBottom: open ? 8 : 12,
         minHeight: 52,
         paddingHorizontal: 14,
-        borderRadius: 14,
+        borderRadius: 18,
         borderWidth: 1,
-        borderColor: open ? '#F2A875' : COLORS.line,
-        backgroundColor: open ? '#FFF6EF' : COLORS.white,
+        borderColor: open ? '#F2A875' : 'rgba(22,21,15,0.08)',
+        backgroundColor: open ? '#FFF6EF' : 'rgba(255,255,255,0.8)',
         flexDirection: 'row',
         alignItems: 'center',
       }}

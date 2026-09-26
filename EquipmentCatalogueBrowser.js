@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Image, Linking, Modal, ScrollView, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { BrandMark, getBrandColor } from './BrandLogo.js';
-import { COLORS, styles } from './styles.js';
+import { COLORS, FONTS, styles } from './styles.js';
 import {
   listerMarquesEquipement, listerCategoriesEquipement,
   listerVariantesEquipement, getFicheVarianteEquipement,
@@ -17,19 +17,19 @@ function Gradient({ marque }) {
   const base = getBrandColor(marque);
   return <LinearGradient
     pointerEvents="none"
-    colors={[base, base, `${base}E8`, `${base}A8`, `${base}62`, '#FFFFFF']}
-    locations={[0, 0.18, 0.34, 0.56, 0.78, 1]}
+    colors={[base, base, `${base}26`, '#FDFCFA']}
+    locations={[0, 0.3, 0.46, 1]}
     start={{x:0,y:0.5}}
     end={{x:1,y:0.5}}
-    style={{position:'absolute',left:0,right:0,top:0,bottom:0,borderRadius:14}}
+    style={{position:'absolute',left:0,right:0,top:0,bottom:0,borderRadius:18}}
   />;
 }
 
 function Header({ title, subtitle, onBack, action, onAction }) {
   return <View style={{paddingHorizontal:18,paddingTop:14,paddingBottom:10}}><View style={{flexDirection:'row',alignItems:'center',gap:10}}>
     {onBack?<TouchableOpacity onPress={onBack} style={{paddingVertical:8,paddingRight:4}}><CvcIcon name="chevron-left" size={23} color={COLORS.orangeDark} strokeWidth={2.1} /></TouchableOpacity>:null}
-    <View style={{flex:1}}><Text style={{fontSize:22,fontWeight:'800',color:COLORS.text}}>{title}</Text>{subtitle?<Text style={{marginTop:2,color:COLORS.muted,fontSize:12}}>{subtitle}</Text>:null}</View>
-    {action?<TouchableOpacity onPress={onAction} style={{paddingHorizontal:12,paddingVertical:8,borderRadius:10,backgroundColor:COLORS.primary}}><Text style={{color:'#fff',fontWeight:'700'}}>+ {action}</Text></TouchableOpacity>:null}
+    <View style={{flex:1}}><Text style={{fontSize:22,fontFamily: FONTS.bold,color:COLORS.text}}>{title}</Text>{subtitle?<Text style={{marginTop:2,color:COLORS.muted,fontSize:12}}>{subtitle}</Text>:null}</View>
+    {action?<TouchableOpacity onPress={onAction} style={{flexDirection:'row',alignItems:'center',gap:5,paddingHorizontal:14,paddingVertical:10,borderRadius:16,backgroundColor:COLORS.orange,shadowColor:COLORS.orange,shadowOpacity:.4,shadowRadius:10,shadowOffset:{width:0,height:5},elevation:4}}><ButtonGlow radius={16}/><CvcIcon name="plus" size={15} color={COLORS.white} strokeWidth={2.4}/><Text style={{color:'#fff',fontFamily:FONTS.bodyBold}}>{action}</Text></TouchableOpacity>:null}
   </View></View>;
 }
 
@@ -37,10 +37,10 @@ function ProductImage({ uri, brand, logoUri, size=72, hero=false }) {
   const [failed,setFailed]=useState(false);
   useEffect(()=>setFailed(false),[uri]);
   const box=hero?{width:'100%',height:220}:{width:size,height:size};
-  if(uri&&!failed) return <View style={[box,{borderRadius:14,backgroundColor:'#fff',overflow:'hidden',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#ECEEF1'}]}>
+  if(uri&&!failed) return <View style={[box,{borderRadius:14,backgroundColor: 'rgba(255,255,255,0.82)',overflow:'hidden',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#ECEEF1'}]}>
     <Image source={{uri}} resizeMode="contain" onError={()=>setFailed(true)} style={hero?{width:'92%',height:'92%'}:{width:'88%',height:'88%'}}/>
   </View>;
-  return <View style={[box,{borderRadius:14,backgroundColor:'#F7F8FA',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#ECEEF1'}]}>
+  return <View style={[box,{borderRadius:14,backgroundColor: 'rgba(255,255,255,0.66)',alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'#ECEEF1'}]}>
     <BrandMark marque={{marque:brand,logo_uri:logoUri}} compact={!hero}/>
   </View>;
 }
@@ -50,13 +50,13 @@ function QualityBadge({ quality, verifiedAt }) {
   const verified=String(quality).startsWith('verified');
   const range=quality==='verified_range';
   return <View style={{alignSelf:'flex-start',marginTop:5,paddingHorizontal:8,paddingVertical:4,borderRadius:999,backgroundColor:verified?'#EAF7EF':'#F2F3F5'}}>
-    <Text style={{fontSize:9,fontWeight:'700',color:verified?'#287A45':'#6B7280'}}>{verified?(range?'✓ Gamme constructeur vérifiée':'✓ Données constructeur vérifiées'):'Catalogue'}{verifiedAt?` · ${verifiedAt}`:''}</Text>
+    <Text style={{fontSize:9,fontFamily: FONTS.bodyBold,color:verified?'#287A45':'#6B7280'}}>{verified?(range?'✓ Gamme constructeur vérifiée':'✓ Données constructeur vérifiées'):'Catalogue'}{verifiedAt?` · ${verifiedAt}`:''}</Text>
   </View>;
 }
 
 function InfoPill({ icon, value, label }) {
-  return <View style={{minWidth:92,flex:1,padding:10,borderRadius:12,backgroundColor:'#F7F8FA',borderWidth:1,borderColor:'#ECEEF1'}}>
-    <Text style={{fontSize:16}}>{icon}</Text><Text style={{fontWeight:'900',fontSize:16,color:COLORS.text,marginTop:3}}>{value}</Text><Text style={{fontSize:10,color:COLORS.muted,marginTop:1}}>{label}</Text>
+  return <View style={{minWidth:92,flex:1,padding:10,borderRadius:12,backgroundColor: 'rgba(255,255,255,0.66)',borderWidth:1,borderColor:'#ECEEF1'}}>
+    <Text style={{fontSize:16}}>{icon}</Text><Text style={{fontFamily: FONTS.black,fontSize:16,color:COLORS.text,marginTop:3}}>{value}</Text><Text style={{fontSize:10,color:COLORS.muted,marginTop:1}}>{label}</Text>
   </View>;
 }
 
@@ -75,43 +75,43 @@ function orderSpecs(specs=[], categorie='') {
 function SpecHighlights({ specs=[], categorie='', max=6 }) {
   const selected=orderSpecs(specs,categorie).slice(0,max);
   if(!selected.length)return null;
-  return <View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:10}}>{selected.map(s=><View key={s.id||`${s.cle}-${s.valeur}`} style={{minWidth:'31%',flexGrow:1,paddingHorizontal:10,paddingVertical:9,borderRadius:10,backgroundColor:'#F7F8FA',borderWidth:1,borderColor:'#ECEEF1'}}><Text numberOfLines={1} style={{fontSize:9,color:COLORS.muted}}>{s.cle}</Text><Text numberOfLines={2} style={{fontSize:13,fontWeight:'800',color:COLORS.text,marginTop:2}}>{s.valeur}{s.unite?` ${s.unite}`:''}</Text></View>)}</View>;
+  return <View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginTop:10}}>{selected.map(s=><View key={s.id||`${s.cle}-${s.valeur}`} style={{minWidth:'31%',flexGrow:1,paddingHorizontal:10,paddingVertical:9,borderRadius:10,backgroundColor: 'rgba(255,255,255,0.66)',borderWidth:1,borderColor:'#ECEEF1'}}><Text numberOfLines={1} style={{fontSize:9,color:COLORS.muted}}>{s.cle}</Text><Text numberOfLines={2} style={{fontSize:13,fontFamily: FONTS.bold,color:COLORS.text,marginTop:2}}>{s.valeur}{s.unite?` ${s.unite}`:''}</Text></View>)}</View>;
 }
 
 function DocumentCard({ doc }) {
   const meta=[doc.type,doc.langue,doc.version,doc.date_document].filter(Boolean).join(' · ');
   const canOpen=!!doc.uri;
-  return <TouchableOpacity disabled={!canOpen} onPress={()=>canOpen&&Linking.openURL(doc.uri).catch(()=>{})} style={{padding:12,backgroundColor:'#fff',borderRadius:10,marginTop:8,borderWidth:1,borderColor:'#EEE',flexDirection:'row',alignItems:'center',gap:10}}>
-    <Text style={{fontSize:20}}>📄</Text><View style={{flex:1}}><Text style={{fontWeight:'700'}}>{doc.nom}</Text>{meta?<Text style={{fontSize:11,color:COLORS.muted,marginTop:2}}>{meta}</Text>:null}</View>{canOpen?<Text style={{color:COLORS.primary,fontSize:18}}>↗</Text>:null}
+  return <TouchableOpacity disabled={!canOpen} onPress={()=>canOpen&&Linking.openURL(doc.uri).catch(()=>{})} style={{padding:12,backgroundColor: 'rgba(255,255,255,0.82)',borderRadius:10,marginTop:8,borderWidth:1,borderColor:'#EEE',flexDirection:'row',alignItems:'center',gap:10}}>
+    <Text style={{fontSize:20}}>📄</Text><View style={{flex:1}}><Text style={{fontFamily: FONTS.bodyBold}}>{doc.nom}</Text>{meta?<Text style={{fontSize:11,color:COLORS.muted,marginTop:2}}>{meta}</Text>:null}</View>{canOpen?<Text style={{color:COLORS.primary,fontSize:18}}>↗</Text>:null}
   </TouchableOpacity>;
 }
 
 function BrandCard({ brand, onPress, tablet }) {
-  return <TouchableOpacity onPress={onPress} activeOpacity={.82} style={{flex:tablet?1:undefined,minHeight:92,borderRadius:14,overflow:'hidden',marginBottom:12,borderWidth:1,borderColor:'rgba(0,0,0,.06)',backgroundColor:'#fff'}}>
+  return <TouchableOpacity onPress={onPress} activeOpacity={.82} style={{flex:tablet?1:undefined,minHeight:92,borderRadius:18,overflow:'hidden',marginBottom:12,borderWidth:1,borderColor:'rgba(22,21,15,0.08)',backgroundColor:'#FDFCFA'}}>
     <Gradient marque={brand.nom}/>
     <View style={{minHeight:92,flexDirection:'row',alignItems:'center',paddingHorizontal:16,gap:14}}>
       <View style={{width:108,alignItems:'center'}}><BrandMark marque={brand} onColor/></View>
-      <View style={{flex:1}}><Text style={{color:'#fff',fontWeight:'900',fontSize:17}}>{brand.nom}</Text><Text style={{color:'rgba(255,255,255,.88)',marginTop:3}}>{brand.nb_modeles} modèle{brand.nb_modeles>1?'s':''}</Text></View>
-      <CvcIcon name="chevron-right" size={25} color={'rgba(50,50,50,.6)'} strokeWidth={2.1} />
+      <View style={{flex:1}}><Text style={{color:COLORS.ink,fontFamily:FONTS.black,fontSize:17}}>{brand.nom}</Text><Text style={{color:COLORS.inkSoft,fontFamily:FONTS.bodyMedium,marginTop:3}}>{brand.nb_modeles} modèle{brand.nb_modeles>1?'s':''}</Text></View>
+      <CvcIcon name="chevron-right" size={22} color={COLORS.orangeDark} strokeWidth={2.2} />
     </View>
   </TouchableOpacity>;
 }
 
 function ModelCard({ model, onPress, tablet }) {
-  return <TouchableOpacity onPress={onPress} activeOpacity={.8} style={{flex:tablet?1:undefined,backgroundColor:'#fff',borderRadius:14,padding:12,marginBottom:12,borderWidth:1,borderColor:'#E7E7EB'}}>
+  return <TouchableOpacity onPress={onPress} activeOpacity={.8} style={{flex:tablet?1:undefined,backgroundColor: 'rgba(255,255,255,0.82)',borderRadius:14,padding:12,marginBottom:12,borderWidth:1,borderColor:'#E7E7EB'}}>
     <View style={{flexDirection:'row',alignItems:'center',gap:12}}>
       <ProductImage uri={model.image_uri} brand={model.marque} logoUri={model.logo_uri} size={78}/>
-      <View style={{flex:1}}><Text style={{fontSize:16,fontWeight:'800',color:COLORS.text}}>{model.nom}</Text><Text style={{marginTop:2,color:COLORS.muted,fontSize:12}}>{model.categorie} · {model.marque}</Text>{model.caracteristiques?<Text numberOfLines={2} style={{marginTop:5,color:'#555',fontSize:11}}>{model.caracteristiques}</Text>:null}<QualityBadge quality={model.data_quality} verifiedAt={model.verified_at}/></View>
-      <View style={{alignItems:'flex-end'}}><Text style={{fontWeight:'800',color:COLORS.primary}}>{model.nb_variantes||0}</Text><Text style={{fontSize:10,color:COLORS.muted}}>réf.</Text></View>
+      <View style={{flex:1}}><Text style={{fontSize:16,fontFamily: FONTS.bold,color:COLORS.text}}>{model.nom}</Text><Text style={{marginTop:2,color:COLORS.muted,fontSize:12}}>{model.categorie} · {model.marque}</Text>{model.caracteristiques?<Text numberOfLines={2} style={{marginTop:5,color:'#555',fontSize:11}}>{model.caracteristiques}</Text>:null}<QualityBadge quality={model.data_quality} verifiedAt={model.verified_at}/></View>
+      <View style={{alignItems:'flex-end'}}><Text style={{fontFamily: FONTS.bold,color:COLORS.primary}}>{model.nb_variantes||0}</Text><Text style={{fontSize:10,color:COLORS.muted}}>réf.</Text></View>
     </View>
   </TouchableOpacity>;
 }
 
 function VariantCard({ item, model, onPress }) {
-  return <TouchableOpacity onPress={onPress} style={{backgroundColor:'#fff',borderRadius:14,padding:12,marginBottom:10,borderWidth:1,borderColor:'#E5E7EB'}}>
+  return <TouchableOpacity onPress={onPress} style={{backgroundColor: 'rgba(255,255,255,0.82)',borderRadius:14,padding:12,marginBottom:10,borderWidth:1,borderColor:'#E5E7EB'}}>
     <View style={{flexDirection:'row',alignItems:'center',gap:12}}>
       <ProductImage uri={item.image_uri||model?.image_uri} brand={model?.marque} logoUri={model?.logo_uri} size={66}/>
-      <View style={{flex:1}}><Text style={{fontWeight:'800',fontSize:16}}>{item.nom}</Text>{item.reference?<Text style={{color:COLORS.muted,marginTop:2}}>Réf. {item.reference}</Text>:null}{item.description?<Text numberOfLines={2} style={{color:'#555',fontSize:12,marginTop:5}}>{item.description}</Text>:null}<QualityBadge quality={item.data_quality} verifiedAt={item.verified_at}/></View>
+      <View style={{flex:1}}><Text style={{fontFamily: FONTS.bold,fontSize:16}}>{item.nom}</Text>{item.reference?<Text style={{color:COLORS.muted,marginTop:2}}>Réf. {item.reference}</Text>:null}{item.description?<Text numberOfLines={2} style={{color:'#555',fontSize:12,marginTop:5}}>{item.description}</Text>:null}<QualityBadge quality={item.data_quality} verifiedAt={item.verified_at}/></View>
       <CvcIcon name="chevron-right" size={23} color={'#777'} strokeWidth={2.1} />
     </View>
   </TouchableOpacity>;
@@ -121,19 +121,19 @@ function ModelOverview({ model, preview, variants }) {
   const specs=preview?.caracteristiques||[];
   return <View style={{marginBottom:18}}>
     <ProductImage hero uri={model.image_uri||preview?.image_uri} brand={model.marque} logoUri={model.logo_uri}/>
-    <View style={{marginTop:12,flexDirection:'row',alignItems:'flex-start',gap:12}}><View style={{flex:1}}><Text style={{fontSize:21,fontWeight:'900',color:COLORS.text}}>{model.nom}</Text><Text style={{fontSize:12,color:COLORS.muted,marginTop:2}}>{model.marque} · {model.categorie}{model.reference?` · ${model.reference}`:''}</Text><QualityBadge quality={model.data_quality||preview?.data_quality} verifiedAt={model.verified_at||preview?.verified_at}/></View><BrandMark marque={{marque:model.marque,logo_uri:model.logo_uri}} compact/></View>
+    <View style={{marginTop:12,flexDirection:'row',alignItems:'flex-start',gap:12}}><View style={{flex:1}}><Text style={{fontSize:21,fontFamily: FONTS.black,color:COLORS.text}}>{model.nom}</Text><Text style={{fontSize:12,color:COLORS.muted,marginTop:2}}>{model.marque} · {model.categorie}{model.reference?` · ${model.reference}`:''}</Text><QualityBadge quality={model.data_quality||preview?.data_quality} verifiedAt={model.verified_at||preview?.verified_at}/></View><BrandMark marque={{marque:model.marque,logo_uri:model.logo_uri}} compact/></View>
     {model.caracteristiques?<Text style={{fontSize:13,color:'#555',lineHeight:19,marginTop:12}}>{model.caracteristiques}</Text>:preview?.description?<Text style={{fontSize:13,color:'#555',lineHeight:19,marginTop:12}}>{preview.description}</Text>:null}
     <View style={{flexDirection:'row',gap:8,marginTop:14}}><InfoPill icon="🏷️" value={variants.length} label="références"/><InfoPill icon="📄" value={preview?.documents?.length||0} label="documents"/><InfoPill icon="📈" value={preview?.courbes?.length||0} label="courbes"/></View>
-    {specs.length?<><Text style={{fontWeight:'800',fontSize:14,marginTop:18}}>Caractéristiques clés</Text><SpecHighlights specs={specs} categorie={model.categorie} max={6}/><Text style={{fontSize:10,color:COLORS.muted,marginTop:7}}>Aperçu basé sur {preview?.nom||'une référence de la gamme'}.</Text></>:null}
-    <View style={{height:1,backgroundColor:'#E8E9EC',marginTop:20}}/><Text style={{fontWeight:'900',fontSize:17,marginTop:18,marginBottom:10}}>Variantes / références</Text>
+    {specs.length?<><Text style={{fontFamily: FONTS.bold,fontSize:14,marginTop:18}}>Caractéristiques clés</Text><SpecHighlights specs={specs} categorie={model.categorie} max={6}/><Text style={{fontSize:10,color:COLORS.muted,marginTop:7}}>Aperçu basé sur {preview?.nom||'une référence de la gamme'}.</Text></>:null}
+    <View style={{height:1,backgroundColor:'#E8E9EC',marginTop:20}}/><Text style={{fontFamily: FONTS.black,fontSize:17,marginTop:18,marginBottom:10}}>Variantes / références</Text>
   </View>;
 }
 
 function CurvePreview({ curve }) {
   let points=[];try{points=JSON.parse(curve.serie||'[]');}catch{}
   const maxY=Math.max(1,...points.map(p=>Number(p.y)||0));
-  return <View style={{marginTop:8,backgroundColor:'#F7F8FA',borderRadius:12,padding:12}}>
-    <Text style={{fontWeight:'700'}}>{curve.nom}</Text><Text style={{fontSize:11,color:COLORS.muted}}>{curve.axe_y} ({curve.unite_y}) / {curve.axe_x} ({curve.unite_x})</Text>
+  return <View style={{marginTop:8,backgroundColor: 'rgba(255,255,255,0.66)',borderRadius:12,padding:12}}>
+    <Text style={{fontFamily: FONTS.bodyBold}}>{curve.nom}</Text><Text style={{fontSize:11,color:COLORS.muted}}>{curve.axe_y} ({curve.unite_y}) / {curve.axe_x} ({curve.unite_x})</Text>
     {points.length?<View style={{height:90,flexDirection:'row',alignItems:'flex-end',gap:4,marginTop:10,borderBottomWidth:1,borderBottomColor:'#CCC'}}>{points.map((p,i)=><View key={i} style={{flex:1,alignItems:'center',justifyContent:'flex-end'}}><View style={{width:'72%',height:`${Math.max(6,(Number(p.y)||0)/maxY*78)}%`,borderRadius:4,backgroundColor:COLORS.primary}}/><Text style={{fontSize:8,color:'#666',marginTop:2}}>{p.x}</Text></View>)}</View>:<Text style={{fontSize:11,color:COLORS.muted,marginTop:8}}>Courbe documentée sans points numériques importés.</Text>}
   </View>;
 }
@@ -180,16 +180,16 @@ export function EquipmentCatalogueBrowser(){
 
   if(sheet)return <View style={{flex:1}}><Header title={title} subtitle={subtitle} onBack={back} action="Caractéristique" onAction={actionPress}/><ScrollView contentContainerStyle={{padding:18,paddingTop:4,paddingBottom:34}}>
     <ProductImage hero uri={sheet.image_uri||sheet.modele_image_uri} brand={sheet.marque} logoUri={sheet.modele_logo_uri||sheet.logo_uri}/>
-    <View style={{marginTop:12,flexDirection:'row',alignItems:'flex-start',gap:12}}><View style={{flex:1}}><Text style={{fontSize:20,fontWeight:'900',color:COLORS.text}}>{sheet.nom}</Text>{sheet.reference?<Text style={{fontSize:12,color:COLORS.muted,marginTop:2}}>Référence constructeur · {sheet.reference}</Text>:null}<QualityBadge quality={sheet.data_quality} verifiedAt={sheet.verified_at}/></View><BrandMark marque={{marque:sheet.marque,logo_uri:sheet.modele_logo_uri||sheet.logo_uri}} compact/></View>
+    <View style={{marginTop:12,flexDirection:'row',alignItems:'flex-start',gap:12}}><View style={{flex:1}}><Text style={{fontSize:20,fontFamily: FONTS.black,color:COLORS.text}}>{sheet.nom}</Text>{sheet.reference?<Text style={{fontSize:12,color:COLORS.muted,marginTop:2}}>Référence constructeur · {sheet.reference}</Text>:null}<QualityBadge quality={sheet.data_quality} verifiedAt={sheet.verified_at}/></View><BrandMark marque={{marque:sheet.marque,logo_uri:sheet.modele_logo_uri||sheet.logo_uri}} compact/></View>
     {sheet.description?<Text style={{fontSize:13,color:'#555',lineHeight:19,marginTop:12}}>{sheet.description}</Text>:null}
-    {orderedSpecs.length?<><Text style={{fontWeight:'800',fontSize:15,marginTop:20}}>Caractéristiques essentielles</Text><SpecHighlights specs={orderedSpecs} categorie={sheet.categorie} max={6}/></>:null}
+    {orderedSpecs.length?<><Text style={{fontFamily: FONTS.bold,fontSize:15,marginTop:20}}>Caractéristiques essentielles</Text><SpecHighlights specs={orderedSpecs} categorie={sheet.categorie} max={6}/></>:null}
     <View style={{flexDirection:'row',gap:8,marginTop:16}}><InfoPill icon="⚙️" value={orderedSpecs.length} label="caractéristiques"/><InfoPill icon="📄" value={sheet.documents?.length||0} label="documents"/><InfoPill icon="📈" value={sheet.courbes?.length||0} label="courbes"/></View>
-    <Text style={{fontWeight:'900',fontSize:16,marginBottom:8,marginTop:24}}>Toutes les caractéristiques</Text>{orderedSpecs.length?orderedSpecs.map(s=><View key={s.id} style={{flexDirection:'row',paddingVertical:10,borderBottomWidth:1,borderBottomColor:'#EEE',gap:10}}><Text style={{flex:1,color:'#555'}}>{s.cle}</Text><Text style={{fontWeight:'700',textAlign:'right',maxWidth:'48%'}}>{s.valeur} {s.unite||''}</Text></View>):<Text style={{color:COLORS.muted}}>Aucune caractéristique.</Text>}
-    <View style={{flexDirection:'row',alignItems:'center',marginTop:24}}><Text style={{fontWeight:'900',fontSize:16,flex:1}}>Courbes</Text><TouchableOpacity onPress={()=>setModal('curve')}><Text style={{color:COLORS.primary,fontWeight:'700'}}>+ Ajouter</Text></TouchableOpacity></View>{sheet.courbes?.length?sheet.courbes.map(c=><CurvePreview key={c.id} curve={c}/>):<Text style={{color:COLORS.muted,marginTop:8}}>Aucune courbe documentée.</Text>}
-    <View style={{flexDirection:'row',alignItems:'center',marginTop:24}}><Text style={{fontWeight:'900',fontSize:16,flex:1}}>Documents constructeur</Text><TouchableOpacity onPress={()=>setModal('doc')}><Text style={{color:COLORS.primary,fontWeight:'700'}}>+ Ajouter</Text></TouchableOpacity></View>{sheet.documents?.length?sheet.documents.map(d=><DocumentCard key={d.id} doc={d}/>):<Text style={{color:COLORS.muted,marginTop:8}}>Aucun document.</Text>}
+    <Text style={{fontFamily: FONTS.black,fontSize:16,marginBottom:8,marginTop:24}}>Toutes les caractéristiques</Text>{orderedSpecs.length?orderedSpecs.map(s=><View key={s.id} style={{flexDirection:'row',paddingVertical:10,borderBottomWidth:1,borderBottomColor:'#EEE',gap:10}}><Text style={{flex:1,color:'#555'}}>{s.cle}</Text><Text style={{fontFamily: FONTS.bodyBold,textAlign:'right',maxWidth:'48%'}}>{s.valeur} {s.unite||''}</Text></View>):<Text style={{color:COLORS.muted}}>Aucune caractéristique.</Text>}
+    <View style={{flexDirection:'row',alignItems:'center',marginTop:24}}><Text style={{fontFamily: FONTS.black,fontSize:16,flex:1}}>Courbes</Text><TouchableOpacity onPress={()=>setModal('curve')}><Text style={{color:COLORS.primary,fontFamily: FONTS.bodyBold}}>+ Ajouter</Text></TouchableOpacity></View>{sheet.courbes?.length?sheet.courbes.map(c=><CurvePreview key={c.id} curve={c}/>):<Text style={{color:COLORS.muted,marginTop:8}}>Aucune courbe documentée.</Text>}
+    <View style={{flexDirection:'row',alignItems:'center',marginTop:24}}><Text style={{fontFamily: FONTS.black,fontSize:16,flex:1}}>Documents constructeur</Text><TouchableOpacity onPress={()=>setModal('doc')}><Text style={{color:COLORS.primary,fontFamily: FONTS.bodyBold}}>+ Ajouter</Text></TouchableOpacity></View>{sheet.documents?.length?sheet.documents.map(d=><DocumentCard key={d.id} doc={d}/>):<Text style={{color:COLORS.muted,marginTop:8}}>Aucun document.</Text>}
   </ScrollView><SimpleModal visible={!!modal} title={modal==='spec'?'Nouvelle caractéristique':modal==='curve'?'Nouvelle courbe':'Nouveau document'} fields={modal==='spec'?[{key:'cle',label:'Caractéristique'},{key:'valeur',label:'Valeur'},{key:'unite',label:'Unité'}]:modal==='curve'?[{key:'nom',label:'Nom de la courbe'},{key:'axeX',label:'Axe X'},{key:'uniteX',label:'Unité X'},{key:'axeY',label:'Axe Y'},{key:'uniteY',label:'Unité Y'},{key:'points',label:'Points : x,y;x,y;…',multiline:true}]:[{key:'type',label:'Type'},{key:'nom',label:'Nom'},{key:'uri',label:'URL'}]} onClose={()=>setModal(null)} onSave={saveModal}/></View>;
 
-  if(model)return <View style={{flex:1}}><Header title={title} subtitle={subtitle} onBack={back} action="Variante" onAction={actionPress}/><FlatList contentContainerStyle={{padding:18,paddingTop:4,paddingBottom:32}} data={variants} keyExtractor={x=>x.id} ListHeaderComponent={<ModelOverview model={model} preview={modelPreview} variants={variants}/>} renderItem={({item})=><VariantCard item={item} model={model} onPress={()=>openVariant(item)}/>} ListEmptyComponent={<View style={{paddingVertical:18,alignItems:'center'}}><Text style={{fontWeight:'700'}}>Aucune variante</Text><Text style={{color:COLORS.muted,marginTop:5,textAlign:'center'}}>Ajoute les puissances, tailles ou références de ce modèle.</Text></View>}/><SimpleModal visible={modal==='variant'} title="Nouvelle variante / référence" fields={[{key:'nom',label:'Nom'},{key:'reference',label:'Référence constructeur'},{key:'description',label:'Description',multiline:true}]} onClose={()=>setModal(null)} onSave={saveModal}/></View>;
+  if(model)return <View style={{flex:1}}><Header title={title} subtitle={subtitle} onBack={back} action="Variante" onAction={actionPress}/><FlatList contentContainerStyle={{padding:18,paddingTop:4,paddingBottom:32}} data={variants} keyExtractor={x=>x.id} ListHeaderComponent={<ModelOverview model={model} preview={modelPreview} variants={variants}/>} renderItem={({item})=><VariantCard item={item} model={model} onPress={()=>openVariant(item)}/>} ListEmptyComponent={<View style={{paddingVertical:18,alignItems:'center'}}><Text style={{fontFamily: FONTS.bodyBold}}>Aucune variante</Text><Text style={{color:COLORS.muted,marginTop:5,textAlign:'center'}}>Ajoute les puissances, tailles ou références de ce modèle.</Text></View>}/><SimpleModal visible={modal==='variant'} title="Nouvelle variante / référence" fields={[{key:'nom',label:'Nom'},{key:'reference',label:'Référence constructeur'},{key:'description',label:'Description',multiline:true}]} onClose={()=>setModal(null)} onSave={saveModal}/></View>;
 
   if(brand)return <View style={{flex:1}}><Header title={title} subtitle={subtitle} onBack={back} action="Modèle" onAction={actionPress}/><FlatList key={`brand-${cols}`} numColumns={cols} columnWrapperStyle={cols>1?{gap:12}:undefined} contentContainerStyle={{padding:18,paddingTop:4}} data={models} keyExtractor={x=>x.id} renderItem={({item})=><ModelCard model={item} tablet={tablet} onPress={()=>openModel(item)}/>} ListEmptyComponent={<Text style={{padding:24,color:COLORS.muted}}>Aucun modèle pour cette marque.</Text>}/><SimpleModal visible={modal==='model'} title={`Ajouter un modèle · ${brand.nom}`} fields={[{key:'nom',label:'Nom du modèle / gamme'},{key:'categorie',label:'Catégorie'},{key:'reference',label:'Référence facultative'},{key:'description',label:'Description',multiline:true}]} onClose={()=>setModal(null)} onSave={saveModal}/></View>;
 

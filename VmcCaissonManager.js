@@ -303,7 +303,7 @@ export function VmcCaissonManager({ visiteId, caissons = [], onChange, onNavigat
 
 const caissonStyles = StyleSheet.create({
   card: { width: 112, padding: 10, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.72)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' },
-  cardOn: { backgroundColor: 'rgba(255,255,255,0.95)', borderWidth: 1.5, borderColor: COLORS.orange, shadowColor: COLORS.orange, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 4 },
+  cardOn: { backgroundColor: '#FDFCFA', borderWidth: 1.5, borderColor: COLORS.orange, shadowColor: COLORS.orange, shadowOpacity: 0.35, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 4 },
   num: { fontSize: 13, fontFamily: FONTS.black, color: COLORS.ink },
   name: { fontSize: 11.5, fontFamily: FONTS.bodySemi, color: COLORS.ink, marginTop: 5 },
   meta: { fontSize: 10.5, fontFamily: FONTS.bodyMedium, color: COLORS.inkSoft, marginTop: 2 },

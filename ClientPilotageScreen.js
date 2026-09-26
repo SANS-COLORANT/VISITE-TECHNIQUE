@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 import { buildMatrixCells, getClientTechnicalMatrix, getMatrixCellPhotos, normAvis } from './clientTechnicalMatrix.js';
 import { getStatsSitesPatrimoine } from './patrimoineDb.js';
 import { listerAppartenancesClient, listerGroupesClient } from './siteOrganizationDb.js';
@@ -227,25 +228,26 @@ export function ClientPilotageScreen({ route, navigation }) {
 
   if (loading || !matrix) return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.orange}/><Text style={{ color: COLORS.muted, marginTop: 10 }}>Calcul du pilotage client…</Text></View>;
 
+  const pilotageAction = { flex: 0, width: '48.8%', flexDirection: 'row', gap: 7, paddingHorizontal: 10 };
   return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 28 }} keyboardShouldPersistTaps="handled">
     <View style={{ padding: 14 }}>
-      <Text style={styles.sectionTitle}>Pilotage patrimoine</Text>
-      <Text style={{ color: COLORS.muted, fontSize: 12 }}>{nomClient || 'Client'} · calcul local et disponible hors connexion</Text>
+      <Text style={{ color: COLORS.inkSoft, fontSize: 12.5, fontFamily: FONTS.bodyMedium }}>{nomClient || 'Client'} · calcul local et disponible hors connexion</Text>
       {groupes.length ? <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ marginTop: 12 }} contentContainerStyle={{ gap: 7 }}>
         <Chip label="Tous les sites" active={!groupeActif} onPress={() => setGroupeActif(null)}/>
         {groupes.map((g) => <Chip key={g.id} label={`${g.nom} · ${g.nb_sites || 0}`} active={groupeActif === g.id} onPress={() => setGroupeActif(g.id)}/>)}
       </ScrollView> : null}
 
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 11 }}>
-        <TouchableOpacity style={styles.btnSecondary} onPress={() => setFilterVisible(true)}><Text style={styles.btnSecondaryText}>⚙ Filtres{activeFilterCount ? ` · ${activeFilterCount}` : ''}</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, filters.status === 'attention' && { borderColor: COLORS.orange, backgroundColor: '#FFF3E8' }]} onPress={() => setFilters((f) => ({ ...f, status: f.status === 'attention' ? 'all' : 'attention' }))}><Text style={styles.btnSecondaryText}>⚠ Attention</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.btnPrimary} disabled={exportBusy || !filteredRecords.length} onPress={() => faireExport({})}><ButtonGlow /><Text style={styles.btnPrimaryText}>↧ Exporter cette vue</Text></TouchableOpacity>
-        <TouchableOpacity style={styles.btnSecondary} disabled={exportBusy || !filteredRecords.length} onPress={() => setExportVisible(true)}><Text style={styles.btnSecondaryText}>▤ Extraction Excel</Text></TouchableOpacity>
+      {/* Actions en grille 2 × 2 : libellés entiers, icônes dessinées. */}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between', rowGap: 8, marginTop: 12 }}>
+        <TouchableOpacity style={[styles.btnSecondary, pilotageAction]} onPress={() => setFilterVisible(true)}><CvcIcon name="settings" size={17} color={COLORS.orangeDark} /><Text numberOfLines={1} style={styles.btnSecondaryText}>Filtres{activeFilterCount ? ` · ${activeFilterCount}` : ''}</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, pilotageAction, filters.status === 'attention' && { borderColor: COLORS.orange, backgroundColor: '#FFF3E8' }]} onPress={() => setFilters((f) => ({ ...f, status: f.status === 'attention' ? 'all' : 'attention' }))}><CvcIcon name="warning" size={17} color={COLORS.orangeDark} /><Text numberOfLines={1} style={styles.btnSecondaryText}>Attention</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnPrimary, pilotageAction]} disabled={exportBusy || !filteredRecords.length} onPress={() => faireExport({})}><ButtonGlow /><CvcIcon name="export" size={17} color={COLORS.white} /><Text numberOfLines={1} style={styles.btnPrimaryText}>Exporter la vue</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnSecondary, pilotageAction]} disabled={exportBusy || !filteredRecords.length} onPress={() => setExportVisible(true)}><CvcIcon name="document" size={17} color={COLORS.orangeDark} /><Text numberOfLines={1} style={styles.btnSecondaryText}>Extraction Excel</Text></TouchableOpacity>
       </View>
       <Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 8 }}>{viewLabel} · {filteredRecords.length} ligne(s)</Text>
     </View>
 
-    <View style={{ borderTopWidth: 1, borderBottomWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.55)' }}>
+    <View style={{ marginHorizontal: 14, borderRadius: 20, overflow: 'hidden', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', backgroundColor: 'rgba(255,255,255,0.8)' }}>
       <View style={{ paddingHorizontal: 14, paddingTop: 12 }}><Text style={styles.sectionLabel}>Cartographie technique</Text><Text style={{ color: COLORS.muted, fontSize: 10.5, marginTop: 3 }}>Chaque constat est classé dans une seule catégorie. Rouge = criticité 4–5 · orange = N.S · gris = non relevé/non visible.</Text></View>
       {visibleCategories.length && sites.length
         ? <VirtualizedTechnicalMatrix sites={sites} categories={visibleCategories} navigation={navigation} clientId={clientId} nomClient={nomClient} openCell={openCell} />

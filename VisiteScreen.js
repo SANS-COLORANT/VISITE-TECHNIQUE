@@ -107,6 +107,7 @@ function VisiteScreen({ route, onBack }) {
   const [visiteARattacher, setVisiteARattacher] = useState(false);
   const [clavierVisible, setClavierVisible] = useState(false);
   const [rattachementVisible, setRattachementVisible] = useState(false);
+  const [heroMini, setHeroMini] = useState(false);
 
   const rafraichirEtatOnglets = useCallback(() => {
     calculerEtatOnglets(visiteId, trameIdRef.current)
@@ -653,6 +654,7 @@ function VisiteScreen({ route, onBack }) {
     if (st?.total) { acc.total += st.total; acc.done += st.done; }
     return acc;
   }, { total: 0, done: 0 });
+  const ringSize = heroMini ? 30 : (appareilTablette ? 54 : 44);
   const allerAuxPhotos = () => { if (tabsReels.includes('p-photos')) changerOnglet('p-photos'); };
   const sousTitre = visiteARattacher
     ? ['Visite rapide', trame.nom, visite.date_visite].filter(Boolean).join(' · ')
@@ -677,39 +679,43 @@ function VisiteScreen({ route, onBack }) {
               <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}>{reportExporting ? <ActivityIndicator size="small" color={COLORS.orangeDark} /> : <CvcIcon name="document" size={19} color={COLORS.orangeDark} />}</IconOrb>
             </TouchableOpacity>
           ) : null}
-          <TouchableOpacity accessibilityLabel={`Exporter en Excel ${trame.nom}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.iconAction, styles.iconActionDark]} onPress={exporter} disabled={exporting}>
-            {exporting ? <ActivityIndicator size="small" color={COLORS.white} /> : <CvcIcon name="export" size={19} color={COLORS.white} />}
+          <TouchableOpacity accessibilityLabel={`Exporter en Excel ${trame.nom}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={exporter} disabled={exporting}>
+            <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}>{exporting ? <ActivityIndicator size="small" color={COLORS.orangeDark} /> : <CvcIcon name="export" size={19} color={COLORS.orangeDark} />}</IconOrb>
           </TouchableOpacity>
         </View>
+        <TouchableOpacity activeOpacity={0.92} accessibilityLabel={heroMini ? 'Afficher le détail de l’avancement' : 'Réduire l’avancement'} onPress={() => setHeroMini((v) => !v)}>
         <GlassCard style={{ marginBottom: 10 }}>
-          <View style={{ padding: 12, flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <View style={{ width: 54, height: 54 }}>
-              <ProgressRing pct={visite.progression_pct} size={54} strokeWidth={6} accent={COLORS.orange} />
+          <View style={{ paddingHorizontal: 12, paddingVertical: heroMini ? 7 : (appareilTablette ? 12 : 9), flexDirection: 'row', alignItems: 'center', gap: heroMini ? 9 : 11 }}>
+            <View style={{ width: ringSize, height: ringSize }}>
+              <ProgressRing pct={visite.progression_pct} size={ringSize} strokeWidth={heroMini ? 4 : 5.5} accent={COLORS.orange} />
               <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
-                <Text accessibilityLiveRegion="polite" style={{ fontFamily: FONTS.black, fontSize: 12.5, color: COLORS.ink }}>{visite.progression_pct}%</Text>
+                <Text accessibilityLiveRegion="polite" style={{ fontFamily: FONTS.black, fontSize: heroMini ? 9.5 : 12, color: COLORS.ink }}>{visite.progression_pct}%</Text>
               </View>
             </View>
             <View style={{ flex: 1, minWidth: 0 }}>
-              <Text numberOfLines={1} style={{ fontSize: 13.5, fontFamily: FONTS.bold, color: COLORS.ink }}>
+              {heroMini ? null : <Text numberOfLines={1} style={{ fontSize: 13.5, fontFamily: FONTS.bold, color: COLORS.ink }}>
                 {totauxOnglets.total ? `${totauxOnglets.done} sur ${totauxOnglets.total} renseignés` : [trame.nom, visite.date_visite].filter(Boolean).join(' · ')}
-              </Text>
-              <AvisCounters avis={tabStatus.avis} />
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4 }}>
-                <CvcIcon
-                  name={saveActivity.lastError ? 'cloud-off' : saveActivity.pending ? 'cloud-sync' : 'control'}
-                  size={14}
-                  color={saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32'}
-                />
-                <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ fontSize: 11.5, fontWeight: '700', fontFamily: FONTS.bodySemi, color: saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32' }}>
-                  {saveActivity.lastError ? 'Erreur de sauvegarde' : saveActivity.pending ? `${saveActivity.pending} en attente` : 'Enregistré'}
-                </Text>
+              </Text>}
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                <AvisCounters avis={tabStatus.avis} />
+                <View accessibilityLabel={saveActivity.lastError ? 'Erreur de sauvegarde' : saveActivity.pending ? `${saveActivity.pending} en attente` : 'Enregistré'} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+                  <CvcIcon
+                    name={saveActivity.lastError ? 'cloud-off' : saveActivity.pending ? 'cloud-sync' : 'control'}
+                    size={14}
+                    color={saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32'}
+                  />
+                  {saveActivity.lastError || saveActivity.pending || appareilTablette ? <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ fontSize: 11, fontFamily: FONTS.bodySemi, color: saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32' }}>
+                    {saveActivity.lastError ? 'Erreur' : saveActivity.pending ? `${saveActivity.pending} en attente` : 'Enregistré'}
+                  </Text> : null}
+                </View>
               </View>
             </View>
             {visiteARattacher ? (
-              <TouchableOpacity accessibilityLabel="Rattacher cette visite à un client" onPress={() => setRattachementVisible(true)} style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14, backgroundColor: COLORS.amberBg, borderWidth: 1, borderColor: 'rgba(180,83,9,0.3)', alignItems: 'center' }}><Text style={{ fontSize: 10.5, fontFamily: FONTS.bodyBold, color: COLORS.amber }}>À rattacher</Text><Text style={{ fontSize: 9.5, fontFamily: FONTS.bodySemi, color: COLORS.amber, marginTop: 1 }}>Choisir un client</Text></TouchableOpacity>
+              <TouchableOpacity accessibilityLabel="Rattacher cette visite à un client" onPress={() => setRattachementVisible(true)} style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14, backgroundColor: COLORS.amberBg, borderWidth: 1, borderColor: 'rgba(180,83,9,0.3)', alignItems: 'center' }}><Text style={{ fontSize: 10.5, fontFamily: FONTS.bodyBold, color: COLORS.amber }}>À rattacher</Text>{heroMini ? null : <Text style={{ fontSize: 9.5, fontFamily: FONTS.bodySemi, color: COLORS.amber, marginTop: 1 }}>Choisir un client</Text>}</TouchableOpacity>
             ) : <IntranetVisitSyncControl compact visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />}
           </View>
         </GlassCard>
+        </TouchableOpacity>
         {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? <PhotoReferenceAccess visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} /> : null}
         {visite.mode_visite === 'express' && <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>}
         {trame.id === 'vmc' && vmcCaissons.length > 0 ? <VmcCaissonManager visiteId={visiteId} caissons={vmcCaissons} onChange={onCaissonsChange} onNavigate={changerOnglet} activePanelId={activeTab} tabStates={tabStatus.tabs} /> : null}

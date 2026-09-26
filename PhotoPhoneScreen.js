@@ -14,13 +14,13 @@ import { IconOrb, FadeUp } from './premiumChrome.js';
 
 const clean = (v) => String(v == null ? '' : v).trim();
 const card = {
-  borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.82)',
+  borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 18, backgroundColor: '#FDFCFA',
   shadowColor: '#000', shadowOpacity: 0.05, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 2,
 };
 const iconBox = (light, size = 46) => ({ width: size, height: size, borderRadius: 14, backgroundColor: light, alignItems: 'center', justifyContent: 'center' });
 
 function Header({ title, subtitle, icon = 'camera', onBack, onExit, accent, light }) {
-  return <View style={{ paddingTop: 47, paddingHorizontal: 14, paddingBottom: 11, backgroundColor: 'rgba(255,255,255,0.55)', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+  return <View style={{ paddingTop: 47, paddingHorizontal: 14, paddingBottom: 11, backgroundColor: 'transparent' }}>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
       {onBack ? <TouchableOpacity accessibilityLabel="Retour" onPress={onBack} style={[iconBox(COLORS.white, 42), { borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' }]}><CvcIcon name="chevron-left" size={23} color={COLORS.ink} strokeWidth={2.1} /></TouchableOpacity> : null}
       <IconOrb accent={accent} light={light} size={44}><CvcIcon name={icon} size={26} color={accent} /></IconOrb>

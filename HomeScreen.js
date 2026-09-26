@@ -206,7 +206,9 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
         </View>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        {headerAction ? <TouchableOpacity onPress={headerAction.onPress} style={styles.headerPill}><Text style={styles.headerPillText}>{headerAction.label}</Text></TouchableOpacity> : null}
+        {headerAction ? <TouchableOpacity accessibilityLabel={headerAction.label} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} onPress={headerAction.onPress}>
+          <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={38}><CvcIcon name="device" size={18} color={COLORS.orangeDark} /></IconOrb>
+        </TouchableOpacity> : null}
         <TouchableOpacity accessibilityLabel="Importer des fichiers Excel" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} onPress={choisirExcel}>
           <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={38}><CvcIcon name="document" size={18} color={COLORS.orangeDark} /></IconOrb>
         </TouchableOpacity>
@@ -224,7 +226,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
       ListHeaderComponent={<>
         {missionsEnabled ? <View style={{ alignSelf: 'flex-end', flexDirection: 'row', alignItems: 'center', marginBottom: 8, paddingHorizontal: 10, paddingVertical: 5, borderRadius: 12, backgroundColor: MISSION_COLORS.accentSoft }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, fontFamily: FONTS.bold }}>Glisser vers la droite → Missions</Text></View> : null}
         <FadeUp style={{ marginBottom: 14 }}>
-          <View style={{ minHeight: 50, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.8)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', flexDirection: 'row', alignItems: 'center', paddingLeft: 14, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 3 }}>
+          <View style={{ minHeight: 50, borderRadius: 16, backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', flexDirection: 'row', alignItems: 'center', paddingLeft: 14, shadowColor: '#000', shadowOpacity: 0.07, shadowRadius: 14, shadowOffset: { width: 0, height: 7 }, elevation: 3 }}>
             <CvcIcon name="search" size={18} color="#98A2B3" strokeWidth={2.1} />
             <TextInput
               value={quickSearch}
@@ -307,7 +309,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
       >
         <PatrimoineThumbnail uri={item.image_uri} size={54} radius={10} />
         <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom}</Text>{item.code_exploitant ? <Text style={styles.cardSub}>{item.code_exploitant}</Text> : null}</View>
-        <TouchableOpacity accessibilityLabel={`Supprimer ${item.nom}`} onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionClient(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="trash" size={15} color={COLORS.red} /></TouchableOpacity>
+        <TouchableOpacity accessibilityLabel={`Options pour ${item.nom}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} onPress={(e) => { e?.stopPropagation?.(); Alert.alert(item.nom, undefined, [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer le client…', style: 'destructive', onPress: () => confirmerSuppressionClient(item) }]); }} style={{ minWidth: 40, minHeight: 40, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="more" size={20} color={COLORS.inkSoft} /></TouchableOpacity>
         <CvcIcon name="chevron-right" size={18} color={COLORS.orangeDark} strokeWidth={2.1} />
       </TouchableOpacity>}
       ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucun client local</Text><Text style={styles.emptySub}>Utilise la recherche ci-dessus pour retrouver un client ou un site synchronisé, ou crée un client manuellement.</Text></View>}

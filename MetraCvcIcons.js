@@ -140,6 +140,11 @@ function CvcIcon({ name, size = 36, color = '#10384B', strokeWidth = 1.9 }) {
     body = <G {...p}>
       <Path d="M15.5 3.5 6 16h6.5L12.5 24.5 22 12h-6.5L15.5 3.5Z" />
     </G>;
+  } else if (key === 'plus-plain') {
+    body = <G {...p}>
+      <Line x1="14" y1="6.5" x2="14" y2="21.5" />
+      <Line x1="6.5" y1="14" x2="21.5" y2="14" />
+    </G>;
   } else if (key === 'close' || key === 'x') {
     body = <G {...p}>
       <Line x1="7.5" y1="7.5" x2="20.5" y2="20.5" />

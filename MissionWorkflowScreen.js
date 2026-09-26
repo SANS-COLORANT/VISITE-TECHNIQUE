@@ -201,7 +201,7 @@ export function MissionWorkflowScreen({ navigation, route }) {
       {workstreams.length ? workstreams.map((w) => <View key={w.id} style={[missionStyles.card,{padding:11,marginBottom:7}]}>
         <View style={{ flexDirection: 'row', alignItems: 'flex-start' }}>
           <View style={{ flex: 1 }}>
-            <Text style={{ color: COLORS.ink, fontSize: 10.8, fontWeight:'900' }}>{w.label}</Text>
+            <Text style={{ color: COLORS.ink, fontSize: 10.8, fontFamily: FONTS.black }}>{w.label}</Text>
             <Text style={{ color: COLORS.inkFaint, fontSize: 8.6, marginTop:2 }}>{w.kind || 'Volet'} · {w.status}</Text>
           </View>
           <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 8.3, fontFamily: FONTS.black }}>
@@ -213,7 +213,7 @@ export function MissionWorkflowScreen({ navigation, route }) {
 
       <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Occurrences / visites</Text>
       {visits.map((v) => <TouchableOpacity key={v.id} onPress={() => navigation.navigate('MissionVisit',{missionId,visitId:v.id})} style={[missionStyles.card,{padding:11,marginBottom:7}]}>
-        <Text style={{ color: COLORS.ink, fontSize:10.8,fontWeight:'900' }}>{v.visit_date || 'Date à préciser'} · {v.visit_type || 'Visite'}</Text>
+        <Text style={{ color: COLORS.ink, fontSize:10.8,fontFamily: FONTS.black }}>{v.visit_date || 'Date à préciser'} · {v.visit_type || 'Visite'}</Text>
         <Text style={{ color: COLORS.inkFaint, fontSize:8.7,marginTop:2 }}>{[v.phase_label,v.site_name,v.status].filter(Boolean).join(' · ')}</Text>
       </TouchableOpacity>)}
     </ScrollView>
@@ -246,9 +246,9 @@ export function MissionWorkflowScreen({ navigation, route }) {
     <Modal visible={visitModal} transparent animationType="fade" onRequestClose={() => setVisitModal(false)}>
       <View style={styles.modalOverlay}><View style={[styles.modalSheet,missionStyles.modalSheet]}>
         <Text style={[styles.modalTitle,missionStyles.title]}>Nouvelle occurrence / visite</Text>
-        <Text style={{ color:COLORS.inkFaint,fontSize:8.5,fontWeight:'800',marginBottom:4 }}>PHASE</Text>
+        <Text style={{ color:COLORS.inkFaint,fontSize:8.5,fontFamily: FONTS.bold,marginBottom:4 }}>PHASE</Text>
         <View style={{ flexDirection:'row',flexWrap:'wrap',marginBottom:7 }}>{phases.map((p)=><Chip key={p.id} label={p.label} selected={visitDraft.phaseId===p.id} onPress={()=>setVisitDraft((v)=>({...v,phaseId:v.phaseId===p.id?'':p.id}))}/>)}</View>
-        <Text style={{ color:COLORS.inkFaint,fontSize:8.5,fontWeight:'800',marginBottom:4 }}>SITE</Text>
+        <Text style={{ color:COLORS.inkFaint,fontSize:8.5,fontFamily: FONTS.bold,marginBottom:4 }}>SITE</Text>
         <View style={{ flexDirection:'row',flexWrap:'wrap',marginBottom:7 }}>{sites.map((s)=><Chip key={s.id} label={s.name} selected={visitDraft.siteId===s.id} onPress={()=>setVisitDraft((v)=>({...v,siteId:v.siteId===s.id?'':s.id}))}/>)}</View>
         <TextInput style={[styles.input,missionStyles.input]} value={visitDraft.visitType} onChangeText={(v)=>setVisitDraft((p)=>({...p,visitType:v}))} placeholder="Type : terrain, réunion, OPR, mesures…" />
         <TextInput style={[styles.input,missionStyles.input,{marginTop:8}]} value={visitDraft.visitDate} onChangeText={(v)=>setVisitDraft((p)=>({...p,visitDate:v}))} placeholder="Date AAAA-MM-JJ (vide = aujourd’hui)" />
