@@ -5,7 +5,7 @@ import { COLORS, FONTS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
 import { CvcIcon } from './MetraCvcIcons.js';
-import { IconOrb, GlassCard, ProgressRing } from './premiumChrome.js';
+import { IconOrb, GlassCard, ProgressRing, AmbientBackground } from './premiumChrome.js';
 import { getVisite, getNote, upsertNote, getDb } from './db.js';
 import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
@@ -34,6 +34,7 @@ import { AttachVisitSheet } from './AttachVisitSheet.js';
 import { VisitSearchSheet } from './VisitSearchSheet.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
+import { ToastHost } from './PremiumDialogs.js';
 import { SkeletonVisit } from './Skeleton.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
@@ -74,6 +75,9 @@ function VisiteScreen({ route, onBack }) {
   const initialPreview = visitePreview || runtimeInitial?.preview || null;
   const initialTab = runtimeInitial?.ui?.activeTab || getNavigationState(visitNavKey)?.activeTab || 'p-infos';
   const { width, height } = useWindowDimensions();
+  // Mode Photo : saisie rapide terrain ouverte depuis la barre d'actions.
+  const [modePhotoVisible, setModePhotoVisible] = useState(false);
+  const [photoRev, setPhotoRev] = useState(0);
   const appareilTablette = Math.min(width, height) >= 600;
   const modeTablette = width >= 900;
   const pagerWidth = Math.max(1, modeTablette ? width - 205 : width);
@@ -669,7 +673,7 @@ function VisiteScreen({ route, onBack }) {
       {pagerPanels.map((panelId) => {
         const index = tabsReels.indexOf(panelId);
         return <Animated.View
-          key={panelId}
+          key={`${panelId}-${photoRev}`}
           pointerEvents={panelId === activeTab ? 'auto' : 'none'}
           style={{ position: 'absolute', top: 0, bottom: 0, left: index * pagerWidth, width: pagerWidth, transform: [{ translateX: pagerX }] }}
         >
@@ -700,7 +704,14 @@ function VisiteScreen({ route, onBack }) {
     return acc;
   }, { total: 0, done: 0 });
   const ringSize = heroMini ? 30 : (appareilTablette ? 54 : 44);
-  const allerAuxPhotos = () => { if (tabsReels.includes('p-photos')) changerOnglet('p-photos'); };
+  const fermerModePhoto = () => {
+    setModePhotoVisible(false);
+    // Les saisies du Mode Photo vont directement en base : on recharge la
+    // visite et on remonte les onglets déjà ouverts.
+    invaliderCacheTrameGenerique(visiteId);
+    setPhotoRev((n) => n + 1);
+    charger({ forceCaches: true }).catch(() => {});
+  };
   const sousTitre = visiteARattacher
     ? ['Visite rapide', trame.nom, visite.date_visite].filter(Boolean).join(' · ')
     : [visite.nom_client, visite.nom_installation, trame.nom, visite.mode_visite === 'express' ? 'Mode Express' : null].filter(Boolean).join(' · ');
@@ -776,7 +787,7 @@ function VisiteScreen({ route, onBack }) {
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>{animatedContent}</View>
       </View> : animatedContent}
-      {!clavierVisible ? <VisitActionBar onNote={ouvrirNote} onPhoto={allerAuxPhotos} onAnomalie={() => setAnomalieVisible(true)} /> : null}
+      {!clavierVisible ? <VisitActionBar onNote={ouvrirNote} onPhoto={() => setModePhotoVisible(true)} photoLabel="Mode Photo" onAnomalie={() => setAnomalieVisible(true)} /> : null}
 
       <Modal visible={noteVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Note libre — {trame.nom}</Text>
@@ -798,6 +809,13 @@ function VisiteScreen({ route, onBack }) {
         }}
       />
       <CompanionTabletModal visible={companionVisible} visiteId={visiteId} onClose={() => setCompanionVisible(false)} />
+      <Modal visible={modePhotoVisible} animationType="slide" statusBarTranslucent onRequestClose={fermerModePhoto}>
+        <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
+          <AmbientBackground accent={COLORS.orange} />
+          {modePhotoVisible ? (() => { const { PhotoPhoneScreen } = require('./PhotoPhoneScreen.js'); return <PhotoPhoneScreen visiteId={visiteId} onExit={fermerModePhoto} />; })() : null}
+          {modePhotoVisible ? <ToastHost bottom={28} /> : null}
+        </View>
+      </Modal>
       <Modal visible={anomalieVisible} transparent animationType="fade" onRequestClose={() => setAnomalieVisible(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Ajouter une anomalie</Text><Text style={styles.importHint}>Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.</Text>
         <TextInput style={[styles.input, { minHeight: 100, marginTop: 12, textAlignVertical: 'top' }]} multiline autoFocus value={anomalieTxt} onChangeText={setAnomalieTxt} placeholder="Ex. Pompe défaillante, température de départ trop basse…" />

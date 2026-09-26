@@ -16,7 +16,9 @@ import { CvcIcon } from './MetraCvcIcons.js';
 const nativeAlert = Alert.alert.bind(Alert);
 const dialogQueue = [];
 let dialogListener = null;
-let toastListener = null;
+// Pile d'hôtes : un écran plein (Modal) peut monter son propre ToastHost,
+// le dernier monté reçoit les toasts.
+const toastListeners = [];
 
 function emitDialog() { dialogListener?.(dialogQueue[0] || null); }
 
@@ -36,7 +38,7 @@ export function installPremiumAlert() {
 }
 
 export function showToast(message, { tone = 'neutral', action = null, duration = 2600 } = {}) {
-  toastListener?.({ id: Date.now() + Math.random(), message: String(message || ''), tone, action, duration });
+  toastListeners[toastListeners.length - 1]?.({ id: Date.now() + Math.random(), message: String(message || ''), tone, action, duration });
 }
 
 function closeCurrent(after) {
@@ -101,14 +103,19 @@ export function ToastHost({ bottom = 104 }) {
   const timer = useRef(null);
 
   useEffect(() => {
-    toastListener = (t) => {
+    const listener = (t) => {
       if (timer.current) clearTimeout(timer.current);
       setToast(t);
       anim.setValue(0);
       Animated.timing(anim, { toValue: 1, duration: 200, easing: Easing.out(Easing.cubic), useNativeDriver: true }).start();
       timer.current = setTimeout(() => hide(), t.duration);
     };
-    return () => { toastListener = null; if (timer.current) clearTimeout(timer.current); };
+    toastListeners.push(listener);
+    return () => {
+      const i = toastListeners.lastIndexOf(listener);
+      if (i >= 0) toastListeners.splice(i, 1);
+      if (timer.current) clearTimeout(timer.current);
+    };
   }, []);
 
   const hide = () => {

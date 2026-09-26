@@ -20,7 +20,6 @@ import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRun
 import { getActiveVisualPack, getVisualPackStartupDuration, resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
 import { SpiralActiveDock } from './visual-packs/spiral-active/SpiralActiveDock.js';
 import { CompanionPhoneScreen } from './CompanionPhoneScreen.js';
-import { PhotoPhoneScreen } from './PhotoPhoneScreen.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { useAppFonts } from './AppFonts.js';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -331,7 +330,7 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
     <IntranetVisitSyncBanner />
     <PhotoDownloadBanner />
 
-    {current.name === 'Home' ? <>{spiralActive ? <SimpleHeader title="Visite Technique" visualPack={visualPack} rightAction={phoneIntegralMode ? { label: 'Changer de mode', onPress: onPhoneModeExit } : null} /> : null}<HomeScreen navigation={navigation} route={route} spiralPreview={spiralActive} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} headerAction={phoneIntegralMode ? { label: 'Changer de mode', onPress: onPhoneModeExit } : null} /></> : null}
+    {current.name === 'Home' ? <>{spiralActive ? <SimpleHeader title="Visite Technique" visualPack={visualPack} rightAction={phoneIntegralMode ? { label: 'Compagnon', onPress: onPhoneModeExit } : null} /> : null}<HomeScreen navigation={navigation} route={route} spiralPreview={spiralActive} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} headerAction={phoneIntegralMode ? { label: 'Compagnon de la tablette', onPress: onPhoneModeExit } : null} /></> : null}
     {current.name === 'MetraDirectory' ? <><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MetraDirectory" navigation={navigation} route={route} /></> : null}
     {current.name === 'ClientSites' ? <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientSites" navigation={navigation} route={route} /></> : null}
     {current.name === 'SiteLocals' ? <><SimpleHeader title={current.params?.nomSite || 'Locaux'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="SiteLocals" navigation={navigation} route={route} /></> : null}
@@ -396,59 +395,17 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
   </View>;
 }
 
-function PhoneModeChooser({ onChoose }) {
-  const [palette, setPalette] = useState(() => ({ main: COLORS.orange, dark: COLORS.orangeDark, light: COLORS.orangeLight }));
-  const [pack, setPack] = useState(null);
-
-  useEffect(() => {
-    let alive = true;
-    getActiveVisualPack().then((activePack) => {
-      if (!alive) return;
-      setRuntimeVisualPalette(activePack?.colors);
-      setPack(activePack || null);
-      setPalette({
-        main: activePack?.colors?.main || COLORS.orange,
-        dark: activePack?.colors?.dark || COLORS.orangeDark,
-        light: activePack?.colors?.light || COLORS.orangeLight,
-      });
-    }).catch(() => {});
-    return () => { alive = false; };
-  }, []);
-
-  const logoUri = resolveVisualPackAssetUri(pack, pack?.interface?.headerLogo);
-  const card = { minHeight: 128, padding: 16, borderRadius: 22, backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', marginBottom: 12, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 18, shadowOffset: { width: 0, height: 9 }, elevation: 4 };
-  const mode = (id, icon, title, description, featured = false) => (
-    <TouchableOpacity key={id} onPress={() => onChoose(id)} activeOpacity={0.84} style={[card, featured ? { borderWidth: 1.5, borderColor: palette.main, backgroundColor: palette.light } : null]}>
-      <View style={{ width: 48, height: 48, borderRadius: 15, backgroundColor: featured ? COLORS.white : palette.light, alignItems: 'center', justifyContent: 'center', borderWidth: featured ? 1 : 0, borderColor: palette.main }}>
-        <CvcIcon name={icon} size={30} color={palette.main} />
-      </View>
-      <Text style={{ marginTop: 12, fontSize: 17, fontFamily: FONTS.black, color: COLORS.ink }}>{title}</Text>
-      <Text style={{ marginTop: 4, color: COLORS.inkSoft, lineHeight: 17, fontSize: 11.5 }}>{description}</Text>
-    </TouchableOpacity>
-  );
-
-  return <ScrollView style={{ flex: 1, backgroundColor: 'transparent' }} contentContainerStyle={{ paddingTop: 54, paddingHorizontal: 16, paddingBottom: 30 }}>
-    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 20 }}>
-      <View style={{ flex: 1 }}>
-        <Text style={{ fontSize: 23, fontFamily: FONTS.black, color: COLORS.ink }}>Choisir le mode téléphone</Text>
-        <Text style={{ marginTop: 6, color: COLORS.inkSoft, lineHeight: 18 }}>Interface complète, capture terrain rapide ou compagnon de la tablette.</Text>
-      </View>
-      {logoUri ? <VisualPackAsset uri={logoUri} style={{ width: 46, height: 36 }} /> : null}
-    </View>
-    {mode('photo', 'camera', 'Mode Photo', 'Accès direct aux relevés, équipements, plaques signalétiques et remarques. OCR local hors ligne.', true)}
-    {mode('integral', 'tools', 'Version intégrale', 'Clients, sites, visites, saisies et exports dans l’interface complète.')}
-    {mode('companion', 'camera', 'Compagnon', 'Associer ce téléphone à une visite ouverte sur tablette pour capturer et renseigner à distance.')}
-  </ScrollView>;
-}
-
 export default function App() {
   const { width, height } = useWindowDimensions();
   const phone = Math.min(width, height) < 600;
-  const [phoneMode, setPhoneMode] = useState(null);
+  // Téléphone : version intégrale d'emblée. Le Mode Photo s'ouvre depuis la
+  // visite (barre d'actions) et le Compagnon depuis l'icône téléphone de
+  // l'accueil.
+  const [phoneMode, setPhoneMode] = useState('integral');
   const fontsReady = useAppFonts();
 
   useEffect(() => {
-    if (!phone) setPhoneMode(null);
+    if (!phone) setPhoneMode('integral');
   }, [phone]);
 
   if (!fontsReady) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
@@ -456,8 +413,6 @@ export default function App() {
   // fond ambiant (halos) que le reste de l'application.
   const ambient = (child) => <View style={{ flex: 1, backgroundColor: COLORS.bg }}><StatusBar translucent backgroundColor="transparent" barStyle="dark-content" /><AmbientBackground accent={COLORS.orange} />{child}</View>;
   const hosts = <><ToastHost /><DialogHost /></>;
-  if (phone && !phoneMode) return <AppErrorBoundary><View style={{ flex: 1 }}>{ambient(<PhoneModeChooser onChoose={setPhoneMode} />)}{hosts}</View></AppErrorBoundary>;
-  if (phone && phoneMode === 'photo') return <AppErrorBoundary><View style={{ flex: 1 }}>{ambient(<PhotoPhoneScreen onExit={() => setPhoneMode(null)} />)}{hosts}</View></AppErrorBoundary>;
-  if (phone && phoneMode === 'companion') return <AppErrorBoundary><View style={{ flex: 1 }}>{ambient(<CompanionPhoneScreen onExit={() => setPhoneMode(null)} />)}{hosts}</View></AppErrorBoundary>;
-  return <AppErrorBoundary><View style={{ flex: 1 }}><AppContent phoneIntegralMode={phone && phoneMode === 'integral'} onPhoneModeExit={() => setPhoneMode(null)} />{hosts}</View></AppErrorBoundary>;
+  if (phone && phoneMode === 'companion') return <AppErrorBoundary><View style={{ flex: 1 }}>{ambient(<CompanionPhoneScreen onExit={() => setPhoneMode('integral')} />)}{hosts}</View></AppErrorBoundary>;
+  return <AppErrorBoundary><View style={{ flex: 1 }}><AppContent phoneIntegralMode={phone && phoneMode === 'integral'} onPhoneModeExit={() => setPhoneMode('companion')} />{hosts}</View></AppErrorBoundary>;
 }

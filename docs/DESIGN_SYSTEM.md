@@ -116,3 +116,15 @@ cartes de verre avec pastille d'état et compteur. Mesures : `StepperNumerique`
 | Navigation principale | `BottomTabBar` |
 | Coque de visite | `SectionRail`, `VisitActionBar`, `AvisCounters` (`VisitChrome.js`) |
 | Carte de liste / formulaire | `styles.card`, `styles.formCard` |
+
+## Modes téléphone
+
+- Le téléphone démarre directement sur la version complète (plus d'écran de
+  choix de mode).
+- **Mode Photo** : s'ouvre pendant la visite, bouton central « Mode Photo »
+  de la barre d'actions (téléphone et tablette). Écran principal « Ajout
+  rapide » : + Compteur (type en 1 appui → photo de l'index lue par OCR),
+  Températures (saisie en ligne, « Suivant » enchaîne), + Équipement (photo
+  de plaque → fiche pré-remplie), Remarque (photo + dictée), Photo libre ;
+  puis « Tout parcourir » par module. En quittant, la visite est rechargée.
+- **Compagnon** : icône téléphone en haut de l'accueil.

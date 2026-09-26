@@ -16,8 +16,13 @@ const parser = read('photoModeData.js');
 const missionPlugin = read('plugins/withMetraMissionTools.js');
 const nativeOcr = read('native/metra-mission-tools/MetraOcrModule.kt');
 
-need(app, "phoneMode === 'photo'", 'phone chooser must expose dedicated photo mode');
-need(app, 'PhotoPhoneScreen', 'photo screen must be wired into App');
+const visit = read('VisiteScreen.js');
+// Le Mode Photo s'active pendant la visite (barre d'actions), plus au démarrage.
+need(visit, "require('./PhotoPhoneScreen.js')", 'photo mode must open from the visit');
+need(visit, 'photoLabel="Mode Photo"', 'visit action bar must expose the photo mode');
+need(photo, 'visiteId: visiteInitiale', 'photo mode must open directly on the current visit');
+forbid(app, 'PhoneModeChooser', 'phone must start on the full app, no mode chooser');
+need(app, "label: 'Compagnon de la tablette'", 'home must expose the companion mode');
 need(app, 'compact={phoneIntegralMode}', 'phone home button must use compact mode');
 
 for (const token of [
@@ -32,6 +37,9 @@ for (const token of [
   "module.id === 'remarks'",
   'Plaque signalétique',
   'Nouvelle remarque',
+  'ajouterCompteur',
+  'ajouterMateriel',
+  'QuickValueRow',
 ]) need(photo, token, 'photo mode runtime');
 
 need(parser, 'extraireValeurOcr', 'local OCR value parser');
