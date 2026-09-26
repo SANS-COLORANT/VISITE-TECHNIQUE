@@ -312,6 +312,7 @@ function PanelEquipements({ visiteId }) {
 
 import { CATEGORIES_EQUIPEMENT, MARQUES_EQUIPEMENT } from './ParametresScreen.js';
 import { ButtonGlow } from './ButtonGlow.js';
+import { EmptyIcon } from './EmptyState.js';
 
 function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarques }) {
   const [categorie, setCategorie] = useState(item.categorie || '');
@@ -482,7 +483,7 @@ function PanelRemarques({ visiteId, refreshKey }) {
       </View>
       <Text style={styles.sectionTitle}>Synthèse des réserves — valeurs de cette visite</Text>
       {total === 0 ? (
-        <View style={styles.empty}><Text style={styles.emptyText}>Aucune réserve pour l'instant.</Text><Text style={styles.emptySub}>Passez un point de contrôle en N.S pour en générer une.</Text></View>
+        <View style={styles.empty}><EmptyIcon name="remark" /><Text style={styles.emptyText}>Aucune réserve pour l'instant.</Text><Text style={styles.emptySub}>Passez un point de contrôle en N.S pour en générer une.</Text></View>
       ) : remarques.map((r) => (
         <RemarqueEditableCard key={r.id} remarque={r} visiteId={visiteId} onChange={chargerRemarques} onRattacher={() => { setRemarqueARattacher(r); setOngletChoisi(null); setCibles([]); }} />
       ))}

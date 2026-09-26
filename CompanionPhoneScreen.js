@@ -584,7 +584,7 @@ function CompanionPhoneScreen({ onExit }) {
       <View style={{ flex: 1, backgroundColor: 'transparent' }}>
         <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'transparent' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <TouchableOpacity onPress={() => setSelectedTargetId(null)} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.82)' }}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" onPress={() => setSelectedTargetId(null)} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.82)' }}>
               <CvcIcon name="chevron-left" size={23} color={COLORS.ink} strokeWidth={2.1} />
             </TouchableOpacity>
             <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}>
@@ -649,7 +649,7 @@ function CompanionPhoneScreen({ onExit }) {
       <View style={{ flex: 1, backgroundColor: 'transparent' }}>
         <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'transparent' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-            <TouchableOpacity onPress={() => { setSelectedTargetId(null); setSelectedModuleId(null); }} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.82)' }}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" onPress={() => { setSelectedTargetId(null); setSelectedModuleId(null); }} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(255,255,255,0.82)' }}>
               <CvcIcon name="chevron-left" size={23} color={COLORS.ink} strokeWidth={2.1} />
             </TouchableOpacity>
             <View style={{ width: 44, height: 44, borderRadius: 14, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}>
@@ -681,7 +681,7 @@ function CompanionPhoneScreen({ onExit }) {
         <View style={{ flex: 1, backgroundColor: 'transparent' }}>
           <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'transparent' }}>
             <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
-              <TouchableOpacity onPress={() => setSelectedSiteId(null)} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" onPress={() => setSelectedSiteId(null)} style={{ width: 42, height: 42, borderRadius: 14, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center' }}>
                 <CvcIcon name="chevron-left" size={23} color={COLORS.ink} strokeWidth={2.1} />
               </TouchableOpacity>
               <View style={{ flex: 1 }}>
@@ -710,7 +710,7 @@ function CompanionPhoneScreen({ onExit }) {
       <View style={{ flex: 1, backgroundColor: 'transparent' }}>
         <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 12, backgroundColor: 'transparent' }}>
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-            <TouchableOpacity onPress={quit} style={{ width: 40, height: 40, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.82)', alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={21} color={COLORS.ink} strokeWidth={2.1} /></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" onPress={quit} style={{ width: 40, height: 40, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.82)', alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={21} color={COLORS.ink} strokeWidth={2.1} /></TouchableOpacity>
             <View style={{ flex: 1 }}>
               <Text style={{ fontSize: 20, fontFamily: FONTS.black, color: COLORS.ink }}>{snapshot.client?.name || 'Client'}</Text>
               <Text style={{ marginTop: 2, fontSize: 12, color: COLORS.inkSoft }}>{status}</Text>
@@ -740,7 +740,7 @@ function CompanionPhoneScreen({ onExit }) {
     <View style={{ flex: 1, backgroundColor: 'transparent' }}>
       <ScrollView contentContainerStyle={{ paddingTop: 50, paddingHorizontal: 14, paddingBottom: 40 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 14 }}>
-          <TouchableOpacity onPress={quit} style={{ width: 40, height: 40, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.82)', alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={21} color={COLORS.ink} strokeWidth={2.1} /></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" onPress={quit} style={{ width: 40, height: 40, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.82)', alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={21} color={COLORS.ink} strokeWidth={2.1} /></TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={{ fontSize: 21, fontFamily: FONTS.black, color: COLORS.ink }}>Compagnon</Text>
             <Text style={{ marginTop: 2, fontSize: 12, color: COLORS.inkSoft }}>{status}</Text>

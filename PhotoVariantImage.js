@@ -1,5 +1,10 @@
 import React, { memo, useEffect, useState } from 'react';
-import { Image, Text, View } from 'react-native';
+import { Text, View } from 'react-native';
+import { Image } from 'expo-image';
+
+// expo-image : cache mémoire + disque et fondu d'apparition (plus de
+// clignotement quand une vignette revient à l'écran).
+const CONTENT_FIT = { cover: 'cover', contain: 'contain', stretch: 'fill', center: 'none' };
 import { getPhotoVariant } from './photoVariantCache.js';
 import { FONTS } from './styles.js';
 
@@ -34,8 +39,8 @@ const PhotoVariantImage = memo(function PhotoVariantImage({
   }, [uri, variant, fallbackToOriginal]);
 
   if (!resolved || failed) {
-    return <View style={[{ backgroundColor: '#EEF1F3', alignItems: 'center', justifyContent: 'center' }, style]}>
-      <Text style={{ color: '#7B8790', fontSize: 9, fontFamily: FONTS.bold, letterSpacing: 0.5 }}>{placeholderLabel}</Text>
+    return <View style={[{ backgroundColor: '#EFEBE4', alignItems: 'center', justifyContent: 'center' }, style]}>
+      <Text style={{ color: '#9B927C', fontSize: 9, fontFamily: FONTS.bold, letterSpacing: 0.5 }}>{placeholderLabel}</Text>
     </View>;
   }
 
@@ -43,9 +48,10 @@ const PhotoVariantImage = memo(function PhotoVariantImage({
     {...props}
     source={{ uri: resolved }}
     style={style}
-    resizeMode={resizeMode}
-    resizeMethod="resize"
-    fadeDuration={0}
+    contentFit={CONTENT_FIT[resizeMode] || 'cover'}
+    transition={160}
+    cachePolicy="memory-disk"
+    recyclingKey={resolved}
     onError={() => {
       if (resolved !== uri && fallbackToOriginal) setResolved(uri);
       else setFailed(true);

@@ -31,7 +31,10 @@ import { SectionRail, SideSectionList, AvisCounters, VisitActionBar } from './Vi
 import { calculerEtatOnglets } from './visitTabStatusDb.js';
 import { estVisiteARattacher } from './quickVisitDb.js';
 import { AttachVisitSheet } from './AttachVisitSheet.js';
+import { VisitSearchSheet } from './VisitSearchSheet.js';
 import { ButtonGlow } from './ButtonGlow.js';
+import { feedback, hapticTick } from './fieldFeedback.js';
+import { SkeletonVisit } from './Skeleton.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function chargerExcelExportModule(){return require('./excelExport.js');}
@@ -51,6 +54,8 @@ const VisitPanelHost = memo(function VisitPanelHost({
   panels,
   intranetLinked,
   onRegisterLocalSwipe,
+  nextPanel,
+  onNextPanel,
 }) {
   if (special) {
     if (panelId === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
@@ -59,7 +64,7 @@ const VisitPanelHost = memo(function VisitPanelHost({
     if (panelId === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} intranetLinked={intranetLinked} />;
     if (panelId === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
   }
-  return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} />;
+  return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} nextPanel={nextPanel} onNextPanel={onNextPanel} />;
 });
 
 function VisiteScreen({ route, onBack }) {
@@ -108,6 +113,7 @@ function VisiteScreen({ route, onBack }) {
   const [clavierVisible, setClavierVisible] = useState(false);
   const [rattachementVisible, setRattachementVisible] = useState(false);
   const [heroMini, setHeroMini] = useState(false);
+  const [rechercheVisible, setRechercheVisible] = useState(false);
 
   const rafraichirEtatOnglets = useCallback(() => {
     calculerEtatOnglets(visiteId, trameIdRef.current)
@@ -149,6 +155,15 @@ function VisiteScreen({ route, onBack }) {
     : panelLabelsBase, [trame.id, panelLabelsBase, vmcCaissons]);
   const tabsReels = useMemo(() => tabOrder.filter((t) => t !== 'SEP'), [tabOrder]);
   const tabsSignature = tabsReels.join('|');
+  // Onglet suivant de chaque panneau (objets stables : pas de rendu inutile).
+  const nextPanelById = useMemo(() => {
+    const map = {};
+    tabsReels.forEach((pid, i) => {
+      const next = tabsReels[i + 1];
+      if (next) map[pid] = { id: next, label: `Suivant : ${panelLabels[next] || next}` };
+    });
+    return map;
+  }, [tabsSignature, panelLabels]);
 
   const addMountedPanels = useCallback((ids, { stickyHeavy = false } = {}) => {
     const next = new Set(mountedPanelIdsRef.current);
@@ -563,6 +578,32 @@ function VisiteScreen({ route, onBack }) {
 
   const [exporting, setExporting] = useState(false);
   const [reportExporting, setReportExporting] = useState(false);
+  // Vérification avant export : éléments non renseignés et N.S sans photo,
+  // avec accès direct au premier onglet incomplet.
+  const verifierAvantExport = async (lancer) => {
+    let nsSansPhoto = 0;
+    try {
+      const db = await getDb();
+      const row = await db.getFirstAsync(
+        `SELECT COUNT(*) n FROM controles_visite c WHERE c.visite_id=? AND c.avis='N.S'
+         AND NOT EXISTS (SELECT 1 FROM photos p WHERE p.visite_id=c.visite_id AND p.entite_key=c.section_code || '||' || c.cle)`,
+        [visiteId]
+      );
+      nsSansPhoto = Number(row?.n || 0);
+    } catch (e) { console.warn('Vérification photos avant export', e); }
+    const manquants = Math.max(0, totauxOnglets.total - totauxOnglets.done);
+    if (!manquants && !nsSansPhoto) { lancer(); return; }
+    const premierIncomplet = tabsReels.find((pid) => ['empty', 'partial', 'alert'].includes(tabStatus.tabs?.[pid]?.state) && (tabStatus.tabs[pid].done < tabStatus.tabs[pid].total));
+    const lignes = [
+      manquants ? `• ${manquants} élément${manquants > 1 ? 's' : ''} non renseigné${manquants > 1 ? 's' : ''}` : null,
+      nsSansPhoto ? `• ${nsSansPhoto} contrôle${nsSansPhoto > 1 ? 's' : ''} N.S sans photo` : null,
+    ].filter(Boolean).join('\n');
+    Alert.alert('Avant d’exporter', `${lignes}\n\nTu peux exporter maintenant ou compléter d’abord.`, [
+      premierIncomplet ? { text: 'Compléter', style: 'cancel', onPress: () => changerOnglet(premierIncomplet) } : { text: 'Annuler', style: 'cancel' },
+      { text: 'Exporter quand même', onPress: lancer },
+    ]);
+  };
+
   const exporter = async () => {
     if (exporting) return;
     setExporting(true);
@@ -570,6 +611,7 @@ function VisiteScreen({ route, onBack }) {
       Keyboard.dismiss();
       await attendre(180);
       const resultat = await chargerExcelExportModule().exporterEtPartager(visiteId);
+      if (resultat && !resultat.annule) feedback('Export Excel prêt');
       if (resultat?.stats?.reseauxSupplementaires > 0) {
         Alert.alert('Export complet', `${resultat.stats.reseauxSupplementaires} réseau(x) supplémentaire(s) ont été placés dans la feuille « RESEAUX COMPLEMENTAIRES » afin de ne perdre aucune donnée.`);
       }
@@ -604,6 +646,7 @@ function VisiteScreen({ route, onBack }) {
     const texte = anomalieTxt.trim();
     if (!texte) return;
     await ajouterRemarqueVisite(visiteId, { poste: 'Observation', prestation: texte, origine: 'Anomalie rapide' });
+    feedback('Anomalie ajoutée aux réserves');
     setAnomalieTxt('');
     setAnomalieVisible(false);
     if (tabsReels.includes('p-remarques')) changerOnglet('p-remarques');
@@ -617,7 +660,7 @@ function VisiteScreen({ route, onBack }) {
       <TouchableOpacity style={styles.btnPrimary} onPress={() => charger({ forceCaches: true })}><ButtonGlow /><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity>
     </View>
   </View>;
-  if (!visite) return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.orange} /></View>;
+  if (!visite) return <SkeletonVisit />;
 
   const intranetLinked = Boolean(visite?.api_remote_local_id) && Number(visite?.api_is_historical) !== 1;
   const pagerPanels = tabsReels.filter((panelId) => panelId === activeTab || mountedPanelIds.has(panelId));
@@ -642,6 +685,8 @@ function VisiteScreen({ route, onBack }) {
               panels={panels}
               intranetLinked={intranetLinked}
               onRegisterLocalSwipe={trame.id === 'pre_allumage' && panelId === 'p-pa-batiments' ? enregistrerSwipeLocalPreAllumage : undefined}
+              nextPanel={nextPanelById[panelId] || null}
+              onNextPanel={changerOnglet}
             />
           </Animated.View>
         </Animated.View>;
@@ -669,17 +714,20 @@ function VisiteScreen({ route, onBack }) {
             <Text numberOfLines={1} style={styles.visiteTitle}>{visite.nom_site}</Text>
             <Text numberOfLines={1} style={styles.cardSub}>{sousTitre}</Text>
           </View>
+          <TouchableOpacity accessibilityLabel="Rechercher dans la visite" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={() => setRechercheVisible(true)}>
+            <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="search" size={19} color={COLORS.orangeDark} /></IconOrb>
+          </TouchableOpacity>
           {appareilTablette ? (
             <TouchableOpacity accessibilityLabel="Compagnon téléphone" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={() => setCompanionVisible(true)}>
               <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="device" size={19} color={COLORS.orangeDark} /></IconOrb>
             </TouchableOpacity>
           ) : null}
           {trame.id === 'pre_allumage' ? (
-            <TouchableOpacity accessibilityLabel="Exporter en PDF ou Word" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={choisirFormatRapportPreAllumage} disabled={reportExporting}>
+            <TouchableOpacity accessibilityLabel="Exporter en PDF ou Word" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={() => verifierAvantExport(choisirFormatRapportPreAllumage)} disabled={reportExporting}>
               <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}>{reportExporting ? <ActivityIndicator size="small" color={COLORS.orangeDark} /> : <CvcIcon name="document" size={19} color={COLORS.orangeDark} />}</IconOrb>
             </TouchableOpacity>
           ) : null}
-          <TouchableOpacity accessibilityLabel={`Exporter en Excel ${trame.nom}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={exporter} disabled={exporting}>
+          <TouchableOpacity accessibilityLabel={`Exporter en Excel ${trame.nom}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={() => verifierAvantExport(exporter)} disabled={exporting}>
             <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}>{exporting ? <ActivityIndicator size="small" color={COLORS.orangeDark} /> : <CvcIcon name="export" size={19} color={COLORS.orangeDark} />}</IconOrb>
           </TouchableOpacity>
         </View>
@@ -735,6 +783,7 @@ function VisiteScreen({ route, onBack }) {
         <TextInput style={[styles.input, { height: 160, textAlignVertical: 'top' }]} multiline value={noteTxt} onChangeText={onChangeNoteTxt} placeholder="Notes générales sur la visite..." />
         <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}><ButtonGlow /><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
       </View></View></Modal>
+      <VisitSearchSheet visible={rechercheVisible} onClose={() => setRechercheVisible(false)} panels={panels} tabs={tabsReels} labels={panelLabels} onOpen={changerOnglet} />
       <AttachVisitSheet
         visible={rattachementVisible}
         visiteId={visiteId}
@@ -743,6 +792,7 @@ function VisiteScreen({ route, onBack }) {
         onAttached={() => {
           setRattachementVisible(false);
           setVisiteARattacher(false);
+          feedback('Visite rattachée au client');
           invaliderCacheTrameGenerique(visiteId);
           charger({ forceCaches: true }).catch(() => {});
         }}

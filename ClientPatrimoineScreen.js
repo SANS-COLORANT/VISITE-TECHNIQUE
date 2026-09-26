@@ -7,6 +7,7 @@ import { getLabFeatureEnabled } from './featureSettings.js';
 import { HEALTH_DIMENSIONS, getClientHealth } from './siteHealth.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { EmptyIcon } from './EmptyState.js';
 
 function scoreColor(score) {
   const n = Number(score);
@@ -122,6 +123,6 @@ export function ClientPatrimoineScreen({ route, navigation }) {
         </View>
       </TouchableOpacity>;
     }}
-    ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucun site pour ce client.</Text></View>}
+    ListEmptyComponent={<View style={styles.empty}><EmptyIcon name="building" /><Text style={styles.emptyText}>Aucun site pour ce client.</Text></View>}
   />;
 }

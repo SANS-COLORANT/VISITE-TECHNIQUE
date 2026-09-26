@@ -10,6 +10,7 @@ import { exporterPilotageExcel, PILOTAGE_DEFAULT_COLUMNS, PILOTAGE_EXPORT_COLUMN
 import { PhotoVariantImage } from './PhotoVariantImage.js';
 import { prewarmSiteLocals } from './navigationPrewarm.js';
 import { ButtonGlow } from './ButtonGlow.js';
+import { SkeletonList } from './Skeleton.js';
 
 const STATE = {
   green: { bg: '#E8F5E9', border: '#2E7D32', text: '#1B5E20', symbol: '✓' },
@@ -226,7 +227,7 @@ export function ClientPilotageScreen({ route, navigation }) {
 
   const toggleColumn = (key) => setExportColumns((prev) => prev.includes(key) ? prev.filter((x) => x !== key) : [...prev, key]);
 
-  if (loading || !matrix) return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.orange}/><Text style={{ color: COLORS.muted, marginTop: 10 }}>Calcul du pilotage client…</Text></View>;
+  if (loading || !matrix) return <View style={{ flex: 1 }}><Text style={{ color: COLORS.muted, fontFamily: FONTS.bodyMedium, marginTop: 10, marginHorizontal: 16 }}>Calcul du pilotage client…</Text><SkeletonList count={5} withTitle={false} /></View>;
 
   const pilotageAction = { flex: 0, width: '48.8%', flexDirection: 'row', gap: 7, paddingHorizontal: 10 };
   return <ScrollView style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 28 }} keyboardShouldPersistTaps="handled">

@@ -288,7 +288,7 @@ export function MissionMapScreen({ navigation, route }) {
                 <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, marginTop: 2 }}>{layer.type} · {Number(layer.offline_available) ? 'hors ligne' : 'métadonnées'}</Text>
               </View>
               {layer.type === 'raster' ? <TouchableOpacity onPress={() => editRaster(layer)} style={{ padding: 6 }}><Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9, fontFamily: FONTS.bold }}>Caler</Text></TouchableOpacity> : null}
-              <TouchableOpacity onPress={() => removeLayer(layer)} style={{ padding: 6 }}><CvcIcon name="close" size={14} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => removeLayer(layer)} style={{ padding: 6 }}><CvcIcon name="close" size={14} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
             </View>
           </View>)}
           {!mapLayers.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 9.5, paddingVertical: 12 }}>Aucune couche importée.</Text> : null}

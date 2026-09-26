@@ -17,6 +17,7 @@ import { beginExternalSave, endExternalSave } from './saveActivity.js';
 import { launchMetraCamera, prewarmCameraRuntime } from './cameraRuntime.js';
 import { nettoyerNomFichier, prewarmPhotoCaptureContext } from './photoCaptureContext.js';
 import { loadVisitPhotos, peekVisitPhotos, removeRuntimePhoto, replaceRuntimePhoto, subscribeVisitPhotos, upsertRuntimePhoto } from './photoRuntimeCache.js';
+import { feedback, hapticTick } from './fieldFeedback.js';
 
 function typePhotoDepuisEntite(entiteKey) {
   const type = String(entiteKey || '').split('||')[0];
@@ -304,6 +305,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       const photoId = await ajouterPhoto(visiteId, cibleKey, photo.uri, labelDb);
       await confirmerPhotoJournalisee(journalKey).catch(() => {});
       journalKey = null;
+      feedback('Photo ajoutée');
 
       replaceRuntimePhoto(visiteId, tempId, {
         id: photoId,
@@ -458,7 +460,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
         <View style={styles.photoViewerHeader}>
           <Text style={styles.photoViewerTitle}>{label || 'Photo'} · {index + 1}/{photos.length}</Text>
           <TouchableOpacity onPress={() => setViewerHd((value) => !value)} style={{ paddingHorizontal: 12, paddingVertical: 7 }}><Text style={styles.photoViewerSecondaryText}>{viewerHd ? 'Aperçu' : 'HD'}</Text></TouchableOpacity>
-          <TouchableOpacity onPress={() => setViewerVisible(false)}><CvcIcon name="close" size={16} color={COLORS.orangeDark} strokeWidth={2.1} /></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setViewerVisible(false)}><CvcIcon name="close" size={16} color={COLORS.orangeDark} strokeWidth={2.1} /></TouchableOpacity>
         </View>
         {photos[index] && <PhotoVariantImage uri={photos[index].uri} variant={photos[index].pending || viewerHd ? 'original' : 'preview'} style={styles.photoViewerImage} resizeMode="contain" />}
         {photos.length > 1 && (

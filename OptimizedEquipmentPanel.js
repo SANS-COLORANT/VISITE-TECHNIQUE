@@ -16,6 +16,7 @@ import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 import { BrandMark } from './BrandLogo.js';
 import { styles } from './styles.js';
+import { EmptyIcon } from './EmptyState.js';
 
 const CATEGORIES_FALLBACK = ['Adoucisseur','Armoire électrique','Ballon ECS','Chaudière','Circulateur','Coffret gaz','Compteur','Désemboueur','Détendeur','Échangeur','Extincteur','Filtre','Manomètre','Pompe','Robinetterie','Soupape','Vanne',"Vase d'expansion"];
 const MARQUES_FALLBACK = ['De Dietrich','Viessmann','Grundfos','Wilo','Saunier Duval','Atlantic','Frisquet','Chappée','Chaffoteaux','Elm Leblanc','Bosch','Vaillant','Fernox','Alfa Laval'];
@@ -255,7 +256,7 @@ function OptimizedEquipmentPanel({ visiteId }) {
       contentContainerStyle={styles.panelContent}
       ListHeaderComponent={<View><Text style={styles.sectionTitle}>Équipements — feuille MATERIEL · {materiel.length}</Text><Text style={styles.importHint}>Sélectionne d’abord le type puis la marque : les modèles du catalogue sont proposés automatiquement.</Text></View>}
       ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ajouter}><Text style={styles.addBtnText}>+ Ajouter un équipement</Text></TouchableOpacity>}
-      ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucun équipement pour cette visite.</Text></View>}
+      ListEmptyComponent={<View style={styles.empty}><EmptyIcon name="equipment" /><Text style={styles.emptyText}>Aucun équipement pour cette visite.</Text></View>}
       initialNumToRender={5}
       maxToRenderPerBatch={5}
       windowSize={5}

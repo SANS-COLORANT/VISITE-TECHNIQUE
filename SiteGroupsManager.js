@@ -19,7 +19,7 @@ function SiteGroupVirtualList({ groupes, sites, membershipSet, onToggle, onDelet
     removeClippedSubviews={false}
     keyboardShouldPersistTaps="handled"
     contentContainerStyle={{ paddingTop: 12, paddingBottom: 8 }}
-    ListHeaderComponent={groupes.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 14 }}>{groupes.map((g) => <View key={g.id} style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 11, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.82)' }}><Text style={{ paddingHorizontal: 10, paddingVertical: 8, fontSize: 11, fontFamily: FONTS.bold }}>{g.nom} · {g.nb_sites || 0}</Text><TouchableOpacity onPress={() => onDelete(g)} style={{ minWidth: 34, minHeight: 36, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={18} color={COLORS.red || '#B42318'} strokeWidth={2.1} /></TouchableOpacity></View>)}</View> : <Text style={{ color: COLORS.muted, fontSize: 11, marginBottom: 14 }}>Créez un groupe puis touchez-le sur les sites concernés.</Text>}
+    ListHeaderComponent={groupes.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginBottom: 14 }}>{groupes.map((g) => <View key={g.id} style={{ flexDirection: 'row', alignItems: 'center', borderRadius: 11, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.82)' }}><Text style={{ paddingHorizontal: 10, paddingVertical: 8, fontSize: 11, fontFamily: FONTS.bold }}>{g.nom} · {g.nb_sites || 0}</Text><TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => onDelete(g)} style={{ minWidth: 34, minHeight: 36, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={18} color={COLORS.red || '#B42318'} strokeWidth={2.1} /></TouchableOpacity></View>)}</View> : <Text style={{ color: COLORS.muted, fontSize: 11, marginBottom: 14 }}>Créez un groupe puis touchez-le sur les sites concernés.</Text>}
     renderItem={({ item: site }) => <View style={{ borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.82)', borderRadius: 12, padding: 11, marginBottom: 8 }}>
       <Text style={{ fontFamily: FONTS.black, color: COLORS.ink }}>{site.nom_site}</Text>
       {groupes.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>{groupes.map((g) => {
@@ -91,7 +91,7 @@ export function SiteGroupsManager({ visible, clientId, sites = [], onClose, onCh
       <View style={[styles.modalSheet, { width: '94%', maxWidth: 720, maxHeight: '88%' }]}>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
           <View style={{ flex: 1 }}><Text style={styles.modalTitle}>Groupes de sites</Text><Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 2 }}>Classement du patrimoine uniquement.</Text></View>
-          <TouchableOpacity onPress={onClose} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={23} color={COLORS.inkSoft} strokeWidth={2.1} /></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} style={{ minWidth: 44, minHeight: 44, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={23} color={COLORS.inkSoft} strokeWidth={2.1} /></TouchableOpacity>
         </View>
 
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>

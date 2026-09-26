@@ -235,7 +235,7 @@ export function MissionTechnicalStructureScreen({ navigation, route }) {
         {[equipment.location_label, componentsCount(equipment.id) ? componentsCount(equipment.id) + ' composant(s)' : null].filter(Boolean).join(' · ') || 'Contexte à compléter'}
       </Text>
     </TouchableOpacity>
-    {allowUnlink ? <TouchableOpacity onPress={() => unlinkEquipment(equipment)} style={{ padding: 6 }}>
+    {allowUnlink ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => unlinkEquipment(equipment)} style={{ padding: 6 }}>
       <CvcIcon name="close" size={13} color={COLORS.inkFaint} strokeWidth={2.1} />
     </TouchableOpacity> : null}
   </View>;
@@ -277,7 +277,7 @@ export function MissionTechnicalStructureScreen({ navigation, route }) {
               <Text style={{ color: MISSION_COLORS.accentStrong, fontSize: 12, fontFamily: FONTS.black }}>{installation.label}</Text>
               <Text style={{ color: COLORS.inkFaint, fontSize: 8.5, marginTop: 2 }}>{[installation.type,installation.location_label].filter(Boolean).join(' · ') || 'Installation'}</Text>
             </View>
-            <TouchableOpacity onPress={() => removeObject('installation', installation)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => removeObject('installation', installation)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
           </View>
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
@@ -298,7 +298,7 @@ export function MissionTechnicalStructureScreen({ navigation, route }) {
                 <Text style={{ color: COLORS.inkFaint, fontSize: 8.1 }}>{network.type || 'Type à compléter'}</Text>
               </View>
               <TouchableOpacity onPress={() => openAssign({ installationId: installation.id, networkId: network.id, label: network.label })} style={{ padding: 5 }}><Text style={{ color: MISSION_COLORS.accentDark, fontFamily: FONTS.black }}>＋ EQ</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => removeObject('network', network)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => removeObject('network', network)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
             </View>
             {equipmentFor(installation.id, null, network.id).map((equipment) => <EquipmentBadge key={equipment.id} equipment={equipment} allowUnlink />)}
           </View>)}
@@ -312,7 +312,7 @@ export function MissionTechnicalStructureScreen({ navigation, route }) {
                   <Text style={{ color: COLORS.ink, fontSize: 10.3, fontFamily: FONTS.black }}>Système · {system.label}</Text>
                   <Text style={{ color: COLORS.inkFaint, fontSize: 8.2, marginTop: 2 }}>{system.type || 'Type à compléter'}</Text>
                 </View>
-                <TouchableOpacity onPress={() => removeObject('system', system)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
+                <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => removeObject('system', system)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
               </View>
 
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
@@ -329,7 +329,7 @@ export function MissionTechnicalStructureScreen({ navigation, route }) {
                     <Text style={{ color: COLORS.inkFaint, fontSize: 8 }}>{network.type || 'Réseau / circuit'}</Text>
                   </View>
                   <TouchableOpacity onPress={() => openAssign({ installationId: installation.id, systemId: system.id, networkId: network.id, label: network.label })} style={{ padding: 5 }}><Text style={{ color: MISSION_COLORS.accentDark, fontFamily: FONTS.black }}>＋ EQ</Text></TouchableOpacity>
-                  <TouchableOpacity onPress={() => removeObject('network', network)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
+                  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => removeObject('network', network)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={'#8B3A3A'} strokeWidth={2.1} /></TouchableOpacity>
                 </View>
                 {equipmentFor(installation.id, system.id, network.id).map((equipment) => <EquipmentBadge key={equipment.id} equipment={equipment} allowUnlink />)}
               </View>)}

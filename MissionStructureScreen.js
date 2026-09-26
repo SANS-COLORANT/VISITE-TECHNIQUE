@@ -54,13 +54,13 @@ function LocationNode({ node, onAddChild, onEdit, onDelete }) {
           <Text style={{ color: COLORS.ink, fontSize: 10.7, fontFamily: FONTS.black }}>{node.label}</Text>
           <Text style={{ color: COLORS.inkFaint, fontSize: 8.3, marginTop: 2 }}>{KIND_LABEL[node.kind] || node.kind || 'Localisation'} · {node.equipment?.length || 0} équipement(s) direct(s)</Text>
         </View>
-        <TouchableOpacity onPress={() => onAddChild(node)} style={{ paddingHorizontal: 7, paddingVertical: 5 }}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ajouter" onPress={() => onAddChild(node)} style={{ paddingHorizontal: 7, paddingVertical: 5 }}>
           <CvcIcon name="plus" size={16} color={MISSION_COLORS.accentDark} strokeWidth={2.1} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => onEdit(node)} style={{ paddingHorizontal: 7, paddingVertical: 5 }}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Modifier" onPress={() => onEdit(node)} style={{ paddingHorizontal: 7, paddingVertical: 5 }}>
           <CvcIcon name="edit" size={13} color={COLORS.inkSoft} strokeWidth={2.1} />
         </TouchableOpacity>
-        <TouchableOpacity onPress={() => onDelete(node)} style={{ paddingHorizontal: 7, paddingVertical: 5 }}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => onDelete(node)} style={{ paddingHorizontal: 7, paddingVertical: 5 }}>
           <CvcIcon name="close" size={13} color={'#8B3A3A'} strokeWidth={2.1} />
         </TouchableOpacity>
       </View>

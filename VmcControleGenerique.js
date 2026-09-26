@@ -8,6 +8,7 @@ import { PhotoButton } from './PhotoButton.js';
 import { defaultSeverityForControl } from './reserveSeverity.js';
 import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
 import { useDurableAutosave } from './durableAutosave.js';
+import { feedback, hapticTick } from './fieldFeedback.js';
 
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
 function avisChipColor(opt) { if (opt === 'S') return { bg: COLORS.greenBg, border: COLORS.green, text: COLORS.green }; if (opt === 'N.S') return { bg: COLORS.redBg, border: COLORS.red, text: COLORS.red }; return { bg: COLORS.line, border: COLORS.inkFaint, text: COLORS.inkSoft }; }
@@ -78,7 +79,7 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
     setPresetChoisi(idx >= 0 ? idx : null);
   }, [avis, commentaire, presets]);
 
-  const choisirAvis = useCallback(async (val) => {
+  const choisirAvis = useCallback(async (val) => { hapticTick();
     if (val === avis) return;
     avisRef.current = val;
     setAvis(val);

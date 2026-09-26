@@ -400,7 +400,7 @@ function MetraDirectoryScreen({ navigation, route }) {
             <View style={{ flex: 1, minHeight: 48, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.66)', borderWidth: 1, borderColor: '#ECEEF1', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13 }}>
               <CvcIcon name="search" size={21} color={'#98A2B3'} strokeWidth={2.1} />
               <TextInput value={query} onChangeText={setQuery} placeholder="Client, site, ville, adresse, équipement…" placeholderTextColor="#98A2B3" style={{ flex: 1, color: INK, fontSize: 14.5, paddingVertical: 12 }} autoCorrect={false} autoCapitalize="none" returnKeyType="search" />
-              {query ? <TouchableOpacity onPress={() => setQuery('')} style={{ minWidth: 34, minHeight: 34, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={18} color={'#98A2B3'} strokeWidth={2.1} /></TouchableOpacity> : null}
+              {query ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setQuery('')} style={{ minWidth: 34, minHeight: 34, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={18} color={'#98A2B3'} strokeWidth={2.1} /></TouchableOpacity> : null}
             </View>
             <TouchableOpacity onPress={sync} disabled={syncing} style={{ width: 48, height: 48, borderRadius: 13, backgroundColor: status.activated ? '#F7F8FA' : ACCENT, borderWidth: status.activated ? 1 : 0, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' }}>
               {syncing ? <ActivityIndicator size="small" /> : <Text style={{ color: status.activated ? INK : '#FFF', fontSize: status.activated ? 21 : 12, fontFamily: FONTS.black }}>{status.activated ? '↻' : 'Activer'}</Text>}
@@ -432,7 +432,7 @@ function MetraDirectoryScreen({ navigation, route }) {
             <Text style={[styles.modalTitle, { marginTop: 4 }]}>{selectedClient?.nom || 'Client'}</Text>
             <Text style={styles.cardSub}>{[selectedClient?.code_everwin, selectedClient?.ville, selectedClient?.agence_libelle].filter(Boolean).join(' · ')}</Text>
           </View>
-          <TouchableOpacity onPress={() => setSelectedClient(null)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={20} color={MUTED} strokeWidth={2.1} /></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setSelectedClient(null)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={20} color={MUTED} strokeWidth={2.1} /></TouchableOpacity>
         </View>
         {!siteSelectionMode ? <TouchableOpacity
           activeOpacity={0.82}
@@ -496,7 +496,7 @@ function MetraDirectoryScreen({ navigation, route }) {
             <Text style={[styles.modalTitle, { marginTop: 4 }]}>{selectedSite?.nom}</Text>
             <Text style={styles.cardSub}>{[siteClient?.nom, siteClient?.ville].filter(Boolean).join(' · ')}</Text>
           </View>
-          <TouchableOpacity onPress={() => setSelectedSite(null)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={20} color={MUTED} strokeWidth={2.1} /></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setSelectedSite(null)} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={20} color={MUTED} strokeWidth={2.1} /></TouchableOpacity>
         </View>
         <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 15 }}>
           <SmallPill tone="success">Données enregistrées</SmallPill>

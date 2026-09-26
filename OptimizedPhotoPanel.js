@@ -13,6 +13,7 @@ import { useListScrollMemory } from './useListScrollMemory.js';
 import { prewarmCameraRuntime } from './cameraRuntime.js';
 import { prewarmPhotoCaptureContext } from './photoCaptureContext.js';
 import { loadVisitPhotos, peekVisitPhotos, removeRuntimePhoto, replaceRuntimePhoto, subscribeVisitPhotos, upsertRuntimePhoto } from './photoRuntimeCache.js';
+import { EmptyIcon } from './EmptyState.js';
 
 const PhotoTile = memo(function PhotoTile({ photo, taille, onPress }) {
   return (
@@ -204,7 +205,7 @@ function OptimizedPhotoPanel({ visiteId }) {
         contentContainerStyle={styles.panelContent}
         ListHeaderComponent={header}
         ListFooterComponent={footer}
-        ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucune photo pour cette visite.</Text><Text style={styles.emptySub}>Les photos prises depuis les équipements, réserves et compteurs apparaîtront aussi ici.</Text></View>}
+        ListEmptyComponent={<View style={styles.empty}><EmptyIcon name="remark" /><Text style={styles.emptyText}>Aucune photo pour cette visite.</Text><Text style={styles.emptySub}>Les photos prises depuis les équipements, réserves et compteurs apparaîtront aussi ici.</Text></View>}
         initialNumToRender={8}
         maxToRenderPerBatch={8}
         updateCellsBatchingPeriod={50}

@@ -6,6 +6,7 @@ import { upsertControlePartiel } from './controlDb.js';
 import { listerRemarquesVisite, upsertRemarquePrescription, supprimerRemarqueControle } from './remarkDb.js';
 import { PhotoButton } from './PhotoButton.js';
 import { useDurableAutosave } from './durableAutosave.js';
+import { feedback, hapticTick } from './fieldFeedback.js';
 
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
 
@@ -115,7 +116,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
     notifier({ avis: val, commentaire: texte });
   }, [visiteId, sectionCode, field, label, trameLabel, controleKey, notifier, setCommentaire, adopterCommentairePersiste, onEtatChange]);
 
-  const choisirAvis = useCallback(async (val) => {
+  const choisirAvis = useCallback(async (val) => { hapticTick();
     if (val === avis) return;
     avisRef.current = val;
     setAvis(val);

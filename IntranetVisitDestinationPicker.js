@@ -111,7 +111,7 @@ export function IntranetVisitDestinationPicker({ visible, visiteId, onClose, onB
           <Text style={[styles.modalTitle, { marginTop: 4 }]}>Associer cette visite avant l’envoi</Text>
           <Text style={[styles.cardSub, { lineHeight: 17 }]}>La visite peut avoir été créée normalement dans METRA. Elle n’a pas besoin d’avoir été ouverte depuis « Préparer ».</Text>
         </View>
-        <TouchableOpacity onPress={onClose} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={20} color={COLORS.muted || COLORS.inkSoft} strokeWidth={2.1} /></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={onClose} style={{ width: 40, height: 40, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={20} color={COLORS.muted || COLORS.inkSoft} strokeWidth={2.1} /></TouchableOpacity>
       </View>
 
       <TouchableOpacity accessibilityRole="button" disabled={refreshing || busy} onPress={refreshRemote} style={[styles.btnSecondary, { minHeight: 44, marginTop: 11, marginBottom: 8 }]}>

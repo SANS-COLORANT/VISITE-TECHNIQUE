@@ -5,7 +5,7 @@
     "version": "1.0.0",
     "icon": "./assets/metra/app-icon.png",
     "orientation": "default",
-    "userInterfaceStyle": "automatic",
+    "userInterfaceStyle": "light",
     "jsEngine": "hermes",
     "android": {
       "package": "com.visitetechnique.tablet",

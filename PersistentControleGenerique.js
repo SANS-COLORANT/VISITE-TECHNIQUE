@@ -15,6 +15,7 @@ import {
 import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 import { BoundedLruMap } from './boundedCache.js';
+import { feedback, hapticTick } from './fieldFeedback.js';
 
 const PRESCRIPTIONS_COMPLETES = fusionnerPrescriptions(PRESCRIPTIONS);
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
@@ -213,7 +214,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
     onSaved?.();
   }, [onEtatChange, onSaved]);
 
-  const choisirAvis = useCallback(async (val) => {
+  const choisirAvis = useCallback(async (val) => { hapticTick();
     if (val === avis) return;
     const commentaireConserve = val === 'N.S' ? String(commentaire || '') : '';
     avisRef.current = val;
@@ -244,6 +245,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
     const id = await upsertRemarquePrescription(visiteId, controleKey, opt, origine);
     const next = { ...(remarque || {}), id, visite_id: visiteId, controle_key: controleKey, poste: opt.poste || 'Observation', prestation: opt.prestation || '', delai: opt.delai ?? null, estimatif: opt.estimatif ?? null, origine };
     setRemarque(next); patchRemarqueCache(visiteId, controleKey, next); onSaved?.();
+    feedback('Réserve créée');
   }, [visiteId, sectionCode, field.cle, categorieKey, controleKey, remarque, onEtatChange, onSaved]);
 
   const sauverLibre = useCallback(async (texte) => {

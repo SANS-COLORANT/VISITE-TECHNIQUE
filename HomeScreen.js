@@ -18,6 +18,7 @@ import { forgetVisitRuntime, markVisitHot } from './visitRuntimeCache.js';
 import { QUICK_VISIT_CLIENT_ID, listerIdsVisitesARattacher, nettoyerSitesARattacherVides } from './quickVisitDb.js';
 import { AttachVisitSheet } from './AttachVisitSheet.js';
 import { ButtonGlow } from './ButtonGlow.js';
+import { EmptyIcon } from './EmptyState.js';
 
 const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null, quickIds: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
@@ -312,7 +313,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
         <TouchableOpacity accessibilityLabel={`Options pour ${item.nom}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} onPress={(e) => { e?.stopPropagation?.(); Alert.alert(item.nom, undefined, [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer le client…', style: 'destructive', onPress: () => confirmerSuppressionClient(item) }]); }} style={{ minWidth: 40, minHeight: 40, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="more" size={20} color={COLORS.inkSoft} /></TouchableOpacity>
         <CvcIcon name="chevron-right" size={18} color={COLORS.orangeDark} strokeWidth={2.1} />
       </TouchableOpacity>}
-      ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucun client local</Text><Text style={styles.emptySub}>Utilise la recherche ci-dessus pour retrouver un client ou un site synchronisé, ou crée un client manuellement.</Text></View>}
+      ListEmptyComponent={<View style={styles.empty}><EmptyIcon name="local" /><Text style={styles.emptyText}>Aucun client local</Text><Text style={styles.emptySub}>Utilise la recherche ci-dessus pour retrouver un client ou un site synchronisé, ou crée un client manuellement.</Text></View>}
     />
 
     <AttachVisitSheet

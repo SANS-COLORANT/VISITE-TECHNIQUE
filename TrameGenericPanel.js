@@ -1,6 +1,6 @@
 /** Panneau de saisie générique virtualisé piloté par la définition de la trame. */
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { SectionList, Text, TextInput, View } from 'react-native';
+import { SectionList, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getChampsVisite, getControlesVisite } from './db.js';
 import { DurableChampGenerique } from './DurableChampGenerique.js';
 import { PersistentControleGenerique } from './PersistentControleGenerique.js';
@@ -15,6 +15,10 @@ import { PreAllumageInstallationPanelBusiness } from './PreAllumageInstallationP
 import { PreAllumageConclusionPanel } from './PreAllumageConclusionPanel.js';
 import { BoundedLruMap } from './boundedCache.js';
 import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollOffset } from './navigationMemory.js';
+import { upsertControlePartiel } from './controlDb.js';
+import { feedback } from './fieldFeedback.js';
+import { ButtonGlow } from './ButtonGlow.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 const visiteDataCache = new BoundedLruMap(3);
 
@@ -89,7 +93,7 @@ export function TrameGenericPanel(props) {
   return <TrameGenericStaticPanel {...props} />;
 }
 
-function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved }) {
+function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPanel = null, onNextPanel = null }) {
   const cacheInitial = visiteDataCache.get(visiteId)?.data;
   const listRef = useRef(null);
   const navKey = `visit-panel:${String(visiteId || '')}:${String(panelId || '')}`;
@@ -143,6 +147,32 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved }) {
     setControlesMap((courant) => ({ ...courant, [key]: { ...(courant[key] || {}), ...patch } }));
     mettreAJourCacheControle(visiteId, key, patch);
   };
+  // « Tout en S » : passe en S les contrôles de la section encore sans avis
+  // (le 1er commentaire S prédéfini est repris), avec annulation possible.
+  const toutEnS = async (section) => {
+    const cibles = section.data.filter((item) => item.field.type !== 'champ' && !String(controlesMap[item.key]?.avis ?? '').trim());
+    if (!cibles.length) return;
+    try {
+      for (const item of cibles) {
+        const commentaire = item.field.presets?.S?.[0]?.commentaire || '';
+        await upsertControlePartiel(visiteId, item.sectionCode, item.field.cle, { avis: 'S', commentaire });
+        patchControle(item.key, { avis: 'S', commentaire });
+      }
+      onSaved?.();
+      feedback(`${cibles.length} contrôle${cibles.length > 1 ? 's' : ''} passé${cibles.length > 1 ? 's' : ''} en S`, {
+        action: { label: 'Annuler', onPress: async () => {
+          for (const item of cibles) {
+            await upsertControlePartiel(visiteId, item.sectionCode, item.field.cle, { avis: null, commentaire: '' });
+            patchControle(item.key, { avis: null, commentaire: '' });
+          }
+          onSaved?.();
+        } },
+      });
+    } catch (e) { console.warn('Tout en S impossible', e); }
+  };
+  const restants = listeSections.reduce((n, section) => n + section.data.filter((item) => item.field.type === 'champ'
+    ? String(champsMap[item.key] ?? '').trim() === ''
+    : String(controlesMap[item.key]?.avis ?? '').trim() === '').length, 0);
   const sauverAlias = (key, valeur, defaut) => {
     setAliases((courant) => ({ ...courant, [key]: valeur }));
     enregistrerAliasPreAllumage(visiteId, key, valeur, defaut).catch((e) => console.warn('Nom personnalisé non enregistré', e));
@@ -163,8 +193,10 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved }) {
           if (item.field.type === 'champ') { if (String(champsMap[item.key] ?? '').trim() !== '') faits += 1; }
           else if (String(controlesMap[item.key]?.avis ?? '').trim() !== '') faits += 1;
         }
-        return <View style={{ flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between', gap: 10 }}>
+        const sansAvis = section.data.filter((item) => item.field.type !== 'champ' && !String(controlesMap[item.key]?.avis ?? '').trim()).length;
+        return <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10 }}>
           <Text style={[styles.sectionTitle, { flex: 1 }]}>{section.title}</Text>
+          {sansAvis > 1 ? <TouchableOpacity accessibilityLabel={`Passer ${sansAvis} contrôles en S`} onPress={() => toutEnS(section)} style={styles.allSBtn}><Text style={styles.allSBtnText}>Tout en S</Text></TouchableOpacity> : null}
           <Text style={[styles.sectionCount, faits >= section.data.length ? { color: '#227A4A' } : null]}>{faits} / {section.data.length}</Text>
         </View>;
       }
@@ -176,6 +208,12 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved }) {
         setChampsMap((courant) => ({ ...courant, [item.key]: valeur })); mettreAJourCacheChamp(visiteId, item.key, valeur); onSaved?.();
       }} /> : item.field.vmc === true ? <VmcControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={(patch) => patchControle(item.key, patch)} onSaved={onSaved} /> : item.field.presets ? <PresetControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={(patch) => patchControle(item.key, patch)} onSaved={onSaved} /> : <PersistentControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={(patch) => patchControle(item.key, patch)} onSaved={onSaved} />}
     </View>}
+    ListFooterComponent={nextPanel && onNextPanel ? <View style={styles.nextTabCard}>
+      <Text style={styles.nextTabHint}>{restants ? `${restants} élément${restants > 1 ? 's' : ''} encore à renseigner dans cet onglet` : 'Onglet complet'}</Text>
+      <TouchableOpacity accessibilityRole="button" onPress={() => onNextPanel(nextPanel.id)} activeOpacity={0.85} style={[styles.btnPrimary, { flex: 0, flexDirection: 'row', gap: 8 }]}>
+        <ButtonGlow /><Text style={styles.btnPrimaryText}>{nextPanel.label}</Text><CvcIcon name="chevron-right" size={18} color="#FFFFFF" strokeWidth={2.4} />
+      </TouchableOpacity>
+    </View> : null}
     contentContainerStyle={styles.panelContent}
     keyboardShouldPersistTaps="handled"
     stickySectionHeadersEnabled={false}

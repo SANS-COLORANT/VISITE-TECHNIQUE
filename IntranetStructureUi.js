@@ -3,6 +3,7 @@ import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } fro
 import { COLORS, styles, FONTS } from './styles.js';
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { ButtonGlow } from './ButtonGlow.js';
+import { EmptyIcon } from './EmptyState.js';
 import {
   getStructureContextForLocalClient,
   listSiteStructureLocals,
@@ -205,8 +206,8 @@ export function IntranetSiteLocalsPanel({ siteId, onStartVisit }) {
   const referential = data.context?.referential;
   const canCreate = Boolean(data.context?.remoteClientId && referential && trameId && designation.trim() && type.trim() && situation.trim().length >= 2 && (!periodiciteVisite.trim() || Number(periodiciteVisite) > 0));
 
-  if (!data.context?.linked) return <View style={styles.empty}><Text style={styles.emptyText}>Création de locaux Intranet indisponible</Text><Text style={styles.emptySub}>Ce site appartient à un client local non relié à l’Intranet.</Text></View>;
-  if (data.context?.ambiguous) return <View style={styles.empty}><Text style={styles.emptyText}>Rattachement Intranet ambigu</Text><Text style={styles.emptySub}>Plusieurs clients Intranet correspondent à ce client METRA. Aucun local ne sera créé au hasard.</Text></View>;
+  if (!data.context?.linked) return <View style={styles.empty}><EmptyIcon name="local" /><Text style={styles.emptyText}>Création de locaux Intranet indisponible</Text><Text style={styles.emptySub}>Ce site appartient à un client local non relié à l’Intranet.</Text></View>;
+  if (data.context?.ambiguous) return <View style={styles.empty}><EmptyIcon name="local" /><Text style={styles.emptyText}>Rattachement Intranet ambigu</Text><Text style={styles.emptySub}>Plusieurs clients Intranet correspondent à ce client METRA. Aucun local ne sera créé au hasard.</Text></View>;
 
   return <View>
     <View style={{ padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.66)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', marginBottom: 12 }}>
@@ -232,7 +233,7 @@ export function IntranetSiteLocalsPanel({ siteId, onStartVisit }) {
         })} style={{ minHeight: 34, justifyContent: 'center', paddingHorizontal: 9 }}><Text style={{ color: COLORS.primary, fontSize: 10.5, fontFamily: FONTS.black }}>Nouvelle visite</Text></TouchableOpacity> : <Text style={{ color: '#9A4C0A', fontSize: 9.5, maxWidth: 110, textAlign: 'right' }}>Trame non reconnue dans METRA</Text>}
         {local.operation_id && !['pending', 'sending', 'synced', 'conflict'].includes(local.syncStatus) ? <TouchableOpacity onPress={() => retryStructureOperation(local.operation_id).then(load).catch((e) => Alert.alert('Reprise impossible', String(e?.message || e)))}><Text style={{ color: COLORS.primary, fontSize: 10, fontFamily: FONTS.bold }}>Réessayer</Text></TouchableOpacity> : null}</View>
       </View>;
-    }) : <View style={styles.empty}><Text style={styles.emptyText}>Aucun local relié à l’Intranet</Text><Text style={styles.emptySub}>Ajoute une chaufferie, sous-station ou autre local technique. La création peut être saisie hors connexion si le référentiel a déjà été téléchargé.</Text></View>}
+    }) : <View style={styles.empty}><EmptyIcon name="local" /><Text style={styles.emptyText}>Aucun local relié à l’Intranet</Text><Text style={styles.emptySub}>Ajoute une chaufferie, sous-station ou autre local technique. La création peut être saisie hors connexion si le référentiel a déjà été téléchargé.</Text></View>}
 
     <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => { if (!creating) setModalVisible(false); }}>
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxHeight: '90%' }]}><ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>

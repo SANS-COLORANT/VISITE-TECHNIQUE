@@ -7,6 +7,7 @@ import { defaultSeverityForControl } from './reserveSeverity.js';
 import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
 import { PreAllumagePhotoButton } from './PreAllumagePhotoButton.js';
 import { COLORS, FONTS, styles } from './styles.js';
+import { feedback, hapticTick } from './fieldFeedback.js';
 
 const AVIS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
 
@@ -95,7 +96,7 @@ export const PreAllumageCompactControl = React.memo(function PreAllumageCompactC
     notifier({ avis: nextAvis, commentaire: texte });
   }, [visiteId, sectionCode, field, label, localName, localType, contextLabel, controleKey, notifier, rechargerRemarque]);
 
-  const choisirAvis = async (nextAvis) => {
+  const choisirAvis = async (nextAvis) => { hapticTick();
     if (nextAvis === avis) { setDetailOuvert((v) => !v); return; }
     const options = presets[nextAvis] || [];
     if (nextAvis === 'S' && options[0]) return appliquer(nextAvis, options[0], 0);

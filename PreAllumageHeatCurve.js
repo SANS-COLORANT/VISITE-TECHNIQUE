@@ -69,7 +69,7 @@ function PointEditor({ point, onSave, onDelete }) {
       </View>
     </View>
     <View style={{ flex: 1, paddingTop: 12 }}><Text style={{ color: point.base ? COLORS.inkSoft : COLORS.orangeDark, fontSize: 9, fontWeight: '800' }}>{point.base ? 'Point historique' : 'Point ajouté'}</Text></View>
-    {!point.base ? <TouchableOpacity onPress={onDelete} style={{ width: 34, height: 34, marginTop: 12, borderRadius: 8, borderWidth: 1, borderColor: '#F4C7C7', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF6F6' }}><CvcIcon name="close" size={16} color={COLORS.red} strokeWidth={2.1} /></TouchableOpacity> : null}
+    {!point.base ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={onDelete} style={{ width: 34, height: 34, marginTop: 12, borderRadius: 8, borderWidth: 1, borderColor: '#F4C7C7', alignItems: 'center', justifyContent: 'center', backgroundColor: '#FFF6F6' }}><CvcIcon name="close" size={16} color={COLORS.red} strokeWidth={2.1} /></TouchableOpacity> : null}
   </View>;
 }
 

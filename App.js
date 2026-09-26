@@ -1,7 +1,8 @@
 /** VISITE TECHNIQUE — point d'entrée natif Android. */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, BackHandler, Keyboard, PanResponder, ScrollView, StatusBar, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, BackHandler, Keyboard, PanResponder, Platform, ScrollView, StatusBar, useWindowDimensions } from 'react-native';
+import * as NavigationBar from 'expo-navigation-bar';
 import { PhotoDownloadBanner } from './PhotoDownloadStatus.js';
 import { IntranetVisitSyncBanner, IntranetVisitSyncRuntime } from './IntranetVisitSync.js';
 import { IntranetStructureRuntime } from './IntranetStructureRuntime.js';
@@ -26,6 +27,20 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { AmbientBackground } from './premiumChrome.js';
 import { BottomTabBar } from './BottomTabBar.js';
 import { QuickVisitSheet } from './QuickVisitSheet.js';
+import { DialogHost, ToastHost, installPremiumAlert } from './PremiumDialogs.js';
+
+// Toutes les alertes de l'application passent par la feuille maison (DA).
+installPremiumAlert();
+// Accessibilité : les tailles de police système sont respectées, dans une
+// limite qui garde les écrans lisibles (au-delà, les mises en page cassent).
+if (Text.defaultProps == null) Text.defaultProps = {};
+Text.defaultProps.maxFontSizeMultiplier = 1.35;
+
+// Barre de navigation Android (boutons du bas) à la couleur du fond.
+if (Platform.OS === 'android') {
+  NavigationBar.setBackgroundColorAsync('#F3F1EC').catch(() => {});
+  NavigationBar.setButtonStyleAsync('dark').catch(() => {});
+}
 import { ButtonGlow } from './ButtonGlow.js';
 
 const SPLASH_BG = '#FBF0E1';
@@ -100,7 +115,7 @@ function SimpleHeader({ title, onBack, visualPack, rightAction = null }) {
 
   if (spiralActive) {
     return <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFDF8', paddingTop: 50, paddingHorizontal: 16, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: '#DDE2E3' }}>
-      {onBack ? <TouchableOpacity onPress={onBack} style={{ width: 44, height: 40, alignItems: 'flex-start', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={23} color={'#14202C'} strokeWidth={2.1} /></TouchableOpacity> : <View style={{ width: 44 }} />}
+      {onBack ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" onPress={onBack} style={{ width: 44, height: 40, alignItems: 'flex-start', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={23} color={'#14202C'} strokeWidth={2.1} /></TouchableOpacity> : <View style={{ width: 44 }} />}
       <View style={{ flex: 1, alignItems: 'center' }}>
         <Text style={{ color: '#14202C', fontSize: 9, fontFamily: FONTS.black, letterSpacing: 2 }}>METRA</Text>
         <Text numberOfLines={1} style={{ marginTop: 2, color: '#14202C', fontSize: 16, fontWeight: '900', fontFamily: FONTS.black, letterSpacing: -0.25 }}>{title}</Text>
@@ -440,8 +455,9 @@ export default function App() {
   // Les modes téléphone vivent hors d'AppContent : ils reçoivent ici le même
   // fond ambiant (halos) que le reste de l'application.
   const ambient = (child) => <View style={{ flex: 1, backgroundColor: COLORS.bg }}><StatusBar translucent backgroundColor="transparent" barStyle="dark-content" /><AmbientBackground accent={COLORS.orange} />{child}</View>;
-  if (phone && !phoneMode) return <AppErrorBoundary>{ambient(<PhoneModeChooser onChoose={setPhoneMode} />)}</AppErrorBoundary>;
-  if (phone && phoneMode === 'photo') return <AppErrorBoundary>{ambient(<PhotoPhoneScreen onExit={() => setPhoneMode(null)} />)}</AppErrorBoundary>;
-  if (phone && phoneMode === 'companion') return <AppErrorBoundary>{ambient(<CompanionPhoneScreen onExit={() => setPhoneMode(null)} />)}</AppErrorBoundary>;
-  return <AppErrorBoundary><AppContent phoneIntegralMode={phone && phoneMode === 'integral'} onPhoneModeExit={() => setPhoneMode(null)} /></AppErrorBoundary>;
+  const hosts = <><ToastHost /><DialogHost /></>;
+  if (phone && !phoneMode) return <AppErrorBoundary><View style={{ flex: 1 }}>{ambient(<PhoneModeChooser onChoose={setPhoneMode} />)}{hosts}</View></AppErrorBoundary>;
+  if (phone && phoneMode === 'photo') return <AppErrorBoundary><View style={{ flex: 1 }}>{ambient(<PhotoPhoneScreen onExit={() => setPhoneMode(null)} />)}{hosts}</View></AppErrorBoundary>;
+  if (phone && phoneMode === 'companion') return <AppErrorBoundary><View style={{ flex: 1 }}>{ambient(<CompanionPhoneScreen onExit={() => setPhoneMode(null)} />)}{hosts}</View></AppErrorBoundary>;
+  return <AppErrorBoundary><View style={{ flex: 1 }}><AppContent phoneIntegralMode={phone && phoneMode === 'integral'} onPhoneModeExit={() => setPhoneMode(null)} />{hosts}</View></AppErrorBoundary>;
 }

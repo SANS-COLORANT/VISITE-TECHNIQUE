@@ -292,6 +292,9 @@ jobs:
           grep -q "embedExactSafe(EXACT_LOGO, 'png')" reportBuilder.js
           grep -q "EXACT_SPIRAL_4" reportBuilder.js
 
+      - name: Apply Verre chaud style to patched UI code
+        run: python .github/scripts/premium_style_pass.py
+
       - name: Validate final patched METRA runtime contracts
         run: |
           node .github/scripts/run_source_patches.js
@@ -358,6 +361,12 @@ jobs:
           # en service, arm64-v8a le reste du parc).
           sed -i 's/^reactNativeArchitectures=.*/reactNativeArchitectures=armeabi-v7a,arm64-v8a/' gradle.properties
           grep -q '^reactNativeArchitectures=armeabi-v7a,arm64-v8a$' gradle.properties
+          # Bibliothèques natives compressées dans l'APK (expo.useLegacyPackaging) :
+          # fichier à télécharger nettement plus léger, rien ne change à
+          # l'exécution (Android les décompresse une fois à l'installation).
+          sed -i '/^expo.useLegacyPackaging=/d' gradle.properties
+          printf '\nexpo.useLegacyPackaging=true\n' >> gradle.properties
+          grep -q '^expo.useLegacyPackaging=true$' gradle.properties
 
       - name: Build diagnostic debug APK
         working-directory: android
@@ -405,3 +414,46 @@ jobs:
           path: android/app/build/outputs/apk/debug/*.apk
           if-no-files-found: error
           retention-days: 7
+
+  # Captures automatiques de l'interface (émulateur tablette) : permettent de
+  # vérifier le rendu avant installation. Informatif, ne bloque jamais le build.
+  ui-screenshots:
+    needs: build-apk
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    continue-on-error: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download release APK
+        uses: actions/download-artifact@v4
+        with:
+          name: visite-technique-tablet-release
+          path: apk
+
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: Capture UI on tablet emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_c
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: bash .github/scripts/ui_screenshots.sh
+
+      - name: Upload UI screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ui-screenshots
+          path: shots/
+          if-no-files-found: warn
+          retention-days: 14

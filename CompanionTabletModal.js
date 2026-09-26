@@ -18,6 +18,7 @@ import {
 } from './companionNative.js';
 import { getRuntimeAccent } from './visual-packs/runtime/visualPaletteRuntime.js';
 import { ButtonGlow } from './ButtonGlow.js';
+import { EmptyIcon } from './EmptyState.js';
 
 function withTimeout(promise, ms, message) {
   let timer = null;
@@ -309,7 +310,7 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
             ) : null}
 
             {phase === 'error' ? (
-              <View style={styles.empty}>
+              <View style={styles.empty}><EmptyIcon name="note" />
                 <Text style={styles.emptyText}>Impossible de créer la session</Text>
                 <Text style={styles.emptySub}>{connection}</Text>
                 <TouchableOpacity style={[styles.btnPrimary, { marginTop: 14 }]} onPress={launch}><ButtonGlow />

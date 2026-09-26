@@ -163,6 +163,10 @@ export const styles = StyleSheet.create({
 
   panelContent: { padding: 18, paddingBottom: 92 },
   sectionTitle: { fontSize: 14, fontWeight: '600', fontFamily: FONTS.bold, color: COLORS.ink, marginBottom: 10, marginTop: 4 },
+  allSBtn: { paddingHorizontal: 11, paddingVertical: 5, borderRadius: 14, backgroundColor: 'rgba(46,157,91,0.1)', borderWidth: 1, borderColor: 'rgba(46,157,91,0.35)', marginBottom: 6 },
+  allSBtnText: { fontSize: 11.5, fontFamily: FONTS.bodyBold, color: '#227A4A' },
+  nextTabCard: { marginTop: 6, marginBottom: 10, gap: 10 },
+  nextTabHint: { fontSize: 12, fontFamily: FONTS.bodyMedium, color: COLORS.inkSoft, textAlign: 'center' },
   sectionCount: { fontSize: 11.5, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.inkFaint, marginBottom: 10, marginTop: 4 },
   formCard: {
     backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', borderRadius: 18, padding: 16, marginBottom: 14,

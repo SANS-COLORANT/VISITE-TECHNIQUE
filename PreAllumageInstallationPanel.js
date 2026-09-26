@@ -436,7 +436,7 @@ export function PreAllumageInstallationPanel({ visiteId, onSaved }) {
         <PetitBouton label="+ Installation" primary onPress={() => setAjoutVisible(true)} />
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', marginTop: 10, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 10, backgroundColor: 'rgba(255,255,255,0.66)', paddingHorizontal: 10 }}>
-        <CvcIcon name="search" size={16} color={COLORS.orangeDark} strokeWidth={2.1} /><TextInput value={recherche} onChangeText={setRecherche} placeholder="Rechercher SST 7, ECS, pompe, compteur…" style={{ flex: 1, minHeight: 40, fontSize: 12, color: COLORS.ink }} />{recherche ? <TouchableOpacity onPress={() => setRecherche('')}><CvcIcon name="close" size={16} color={COLORS.inkSoft} strokeWidth={2.1} /></TouchableOpacity> : null}
+        <CvcIcon name="search" size={16} color={COLORS.orangeDark} strokeWidth={2.1} /><TextInput value={recherche} onChangeText={setRecherche} placeholder="Rechercher SST 7, ECS, pompe, compteur…" style={{ flex: 1, minHeight: 40, fontSize: 12, color: COLORS.ink }} />{recherche ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setRecherche('')}><CvcIcon name="close" size={16} color={COLORS.inkSoft} strokeWidth={2.1} /></TouchableOpacity> : null}
       </View>
       {q && locauxAffiches.length === 0 ? <Text style={{ color: COLORS.inkSoft, fontSize: 11, marginTop: 8 }}>Aucune installation ne correspond à « {recherche} ».</Text> : null}
       <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 7, paddingTop: 10, paddingRight: 8 }}>

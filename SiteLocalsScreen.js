@@ -8,6 +8,7 @@ import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollO
 import { peekSiteLocals, prewarmLocalVisits, prewarmSiteLocals } from './navigationPrewarm.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { ButtonGlow } from './ButtonGlow.js';
+import { EmptyIcon } from './EmptyState.js';
 
 function SiteLocalsScreen({ route, navigation }) {
   const { siteId, nomSite, clientId, nomClient } = route?.params || {};
@@ -177,7 +178,7 @@ function SiteLocalsScreen({ route, navigation }) {
       }}
       ListEmptyComponent={loading
         ? <View style={{ paddingVertical: 36 }}><ActivityIndicator color={COLORS.orange} /></View>
-        : <View style={styles.empty}><Text style={styles.emptyText}>Aucun local sur ce site.</Text><Text style={styles.emptySub}>Crée un local METRA ou utilise « Locaux Intranet » depuis la fiche du site.</Text></View>}
+        : <View style={styles.empty}><EmptyIcon name="local" /><Text style={styles.emptyText}>Aucun local sur ce site.</Text><Text style={styles.emptySub}>Crée un local METRA ou utilise « Locaux Intranet » depuis la fiche du site.</Text></View>}
     />
 
     <View style={styles.fabBar}>

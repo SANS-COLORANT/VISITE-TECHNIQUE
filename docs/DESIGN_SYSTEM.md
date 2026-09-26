@@ -82,6 +82,23 @@ cartes de verre avec pastille d'état et compteur. Mesures : `StepperNumerique`
   avec icône orange.
 - Champs d'une même section groupés dans une carte unique (`fieldGroup*`).
 
+## Comportements (retours, chargements, alertes)
+
+- **Alertes** : `Alert.alert` est remplacé au démarrage par une feuille maison
+  (`PremiumDialogs.js`, `installPremiumAlert`) ; aucun écran n'appelle l'alerte
+  système directement. Action principale en dégradé, destructive en rouge.
+- **Retours terrain** : `feedback(message)` (`fieldFeedback.js`) = toast bref +
+  vibration légère ; `hapticTick()` sur chaque choix d'avis.
+- **Chargements** : silhouettes `SkeletonList` / `SkeletonVisit` (`Skeleton.js`),
+  pas de roue seule.
+- **États vides** : `EmptyIcon` en tête de `styles.empty`.
+- **Listes longues** : `FastList` (FlashList en une colonne).
+- **Photos** : `PhotoVariantImage` via expo-image (cache + fondu).
+- **Visite** : « Tout en S » par section (annulable), « Suivant : onglet » en
+  bas de chaque onglet, recherche dans la visite, vérification avant export.
+- **CI** : `premium_style_pass.py` applique ces règles au code injecté par les
+  patches ; le job `ui-screenshots` capture l'interface sur émulateur.
+
 ## Thèmes
 
 - Visite Technique : accent orange `#F26426` / `#D9531A`.

@@ -394,7 +394,7 @@ export function MissionTestsScreen({ route }) {
     <Modal visible={!!runData} animationType="slide" onRequestClose={() => setRunData(null)}>
       <View style={{ flex: 1, backgroundColor: 'transparent' }}>
         <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 10, backgroundColor: MISSION_COLORS.accentStrong, flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => setRunData(null)} style={{ paddingRight: 12 }}><CvcIcon name="chevron-left" size={22} color={'#FFFFFF'} strokeWidth={2.1} /></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" onPress={() => setRunData(null)} style={{ paddingRight: 12 }}><CvcIcon name="chevron-left" size={22} color={'#FFFFFF'} strokeWidth={2.1} /></TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={{ color: '#BFE2CC', fontSize: 8.5, fontFamily: FONTS.black }}>ESSAI MISSION</Text>
             <Text style={{ color: '#FFFFFF', fontFamily: FONTS.black, fontSize: 14 }}>{runData?.run?.protocol_label}</Text>

@@ -461,7 +461,7 @@ export function MissionEquipmentScreen({ navigation, route }) {
     <Modal visible={!!selectedId && !!details} animationType="slide" onRequestClose={() => { setSelectedId(null); setDetails(null); }}>
       <View style={{ flex: 1, backgroundColor: 'transparent' }}>
         <View style={{ paddingTop: 48, paddingHorizontal: 16, paddingBottom: 10, backgroundColor: MISSION_COLORS.accentStrong, flexDirection: 'row', alignItems: 'center' }}>
-          <TouchableOpacity onPress={() => { setSelectedId(null); setDetails(null); }} style={{ paddingRight: 12, paddingVertical: 5 }}><CvcIcon name="chevron-left" size={22} color={'#FFFFFF'} strokeWidth={2.1} /></TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" onPress={() => { setSelectedId(null); setDetails(null); }} style={{ paddingRight: 12, paddingVertical: 5 }}><CvcIcon name="chevron-left" size={22} color={'#FFFFFF'} strokeWidth={2.1} /></TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={{ color: '#BFE2CC', fontSize: 8.5, fontFamily: FONTS.black, letterSpacing: 1 }}>ÉQUIPEMENT MISSION</Text>
             <Text style={{ color: '#FFFFFF', fontFamily: FONTS.black, fontSize: 15 }}>{details?.equipment?.type || 'Équipement'}</Text>
@@ -558,7 +558,7 @@ export function MissionEquipmentScreen({ navigation, route }) {
           </View>)}
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 9 }}>
             <TextInput style={[styles.input, missionStyles.input, { flex: 1 }]} value={componentLabel} onChangeText={setComponentLabel} placeholder="Ajouter sonde, filtre, vanne…" />
-            <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={addComponent}><CvcIcon name="plus" size={16} color={COLORS.orangeDark} strokeWidth={2.1} /></TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ajouter" style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={addComponent}><CvcIcon name="plus" size={16} color={COLORS.orangeDark} strokeWidth={2.1} /></TouchableOpacity>
           </View>
 
           <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Historique de l’équipement</Text>

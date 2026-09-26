@@ -24,6 +24,7 @@ import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
 import { BoundedLruMap } from './boundedCache.js';
 import { useListScrollMemory } from './useListScrollMemory.js';
 import { ButtonGlow } from './ButtonGlow.js';
+import { EmptyIcon } from './EmptyState.js';
 
 // Garde la dernière version saisie en mémoire entre deux montages de l'onglet.
 // SQLite reste la source durable ; ce cache évite qu'un retour instantané sur
@@ -287,7 +288,7 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <ReserveCard remarque={item} visiteId={visiteId} onPatch={patchLocal} onDelete={deleteLocal} onRattacher={ouvrirRattachement} panelLabels={panelLabels} intranetLinked={intranetLinked} />}
         ListHeaderComponent={header}
-        ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucune réserve pour l'instant.</Text><Text style={styles.emptySub}>Passe un point de contrôle en N.S pour en générer une.</Text></View>}
+        ListEmptyComponent={<View style={styles.empty}><EmptyIcon name="remark" /><Text style={styles.emptyText}>Aucune réserve pour l'instant.</Text><Text style={styles.emptySub}>Passe un point de contrôle en N.S pour en générer une.</Text></View>}
         ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ouvrirBiblio}><Text style={styles.addBtnText}>+ Ajouter une réserve manuelle</Text></TouchableOpacity>}
         contentContainerStyle={styles.panelContent}
         keyboardShouldPersistTaps="handled"

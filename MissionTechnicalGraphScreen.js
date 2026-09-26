@@ -405,7 +405,7 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
             <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Ouvrir la fiche équipement</Text>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity onPress={() => setSelected(null)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={COLORS.inkFaint} strokeWidth={2.1} /></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setSelected(null)} style={{ padding: 5 }}><CvcIcon name="close" size={16} color={COLORS.inkFaint} strokeWidth={2.1} /></TouchableOpacity>
       </View>
     </View> : null}
     <Modal visible={relationModal} transparent animationType="fade" onRequestClose={() => setRelationModal(false)}>

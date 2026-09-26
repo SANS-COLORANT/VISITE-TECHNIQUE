@@ -15,6 +15,7 @@ import {
 } from './remarkDb.js';
 import { PhotoButton } from './PhotoButton.js';
 import { useDurableAutosave } from './durableAutosave.js';
+import { feedback, hapticTick } from './fieldFeedback.js';
 
 const PRESCRIPTIONS_COMPLETES = fusionnerPrescriptions(PRESCRIPTIONS);
 
@@ -359,7 +360,7 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
     return () => { actif = false; };
   }, [categorieKey, field.cle, sectionCode]);
 
-  const choisirAvis = async (val) => {
+  const choisirAvis = async (val) => { hapticTick();
     setAvis(val);
     await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val });
     if (val !== 'N.S') {
