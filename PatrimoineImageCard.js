@@ -101,7 +101,7 @@ export function PatrimoineImageCard({ entityType, entityId, title, subtitle = nu
       </View>
       <View style={{ flexDirection: 'row', gap: 8, flexWrap: 'wrap' }}>
         <TouchableOpacity disabled={busy} onPressIn={() => { prewarmCameraRuntime().catch(() => {}); }} onPress={() => choisir('camera')} style={[styles.btnSecondary, { flex: 1, minWidth: 145, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]}>
-          <CvcIcon name="camera" size={17} color={COLORS.ink} /><Text style={styles.btnSecondaryText}>Prendre une photo</Text>
+          <CvcIcon name="camera" size={17} color={COLORS.ink} /><Text numberOfLines={1} style={styles.btnSecondaryText}>Photo</Text>
         </TouchableOpacity>
         <TouchableOpacity disabled={busy} onPress={() => choisir('galerie')} style={[styles.btnSecondary, { flex: 1, minWidth: 130, minHeight: 44, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]}>
           <CvcIcon name="gallery" size={17} color={COLORS.ink} /><Text style={styles.btnSecondaryText}>Galerie</Text>

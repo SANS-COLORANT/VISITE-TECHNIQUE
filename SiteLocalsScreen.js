@@ -162,7 +162,7 @@ function SiteLocalsScreen({ route, navigation }) {
           onPress={() => ouvrirLocal(item)}
         >
           <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.66)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
-            <Text style={{ fontSize: 20 }}>▣</Text>
+            <CvcIcon name="local" size={21} color={COLORS.orangeDark} />
           </View>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>{label}</Text>

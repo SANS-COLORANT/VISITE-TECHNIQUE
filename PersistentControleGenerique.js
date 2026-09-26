@@ -76,6 +76,13 @@ function libelleApplicationAvis(cle, avis) {
   return null;
 }
 
+// Certains critères de la trame Excel sont tronqués (« Absen ») : on corrige
+// l'affichage seulement, la valeur stockée (origine des réserves) ne change pas.
+function libelleCritere(critere) {
+  if (!critere) return 'Non conforme';
+  return critere === 'Absen' ? 'Absent' : critere;
+}
+
 function palettePanel(avis) {
   if (avis === 'S') return { bg: COLORS.greenBg, border: COLORS.green, text: COLORS.green };
   return { bg: COLORS.bg, border: COLORS.line, text: COLORS.inkSoft };
@@ -137,11 +144,13 @@ function EditionReserve({ remarque, onPatch }) {
   if (!remarque?.id) return null;
   return <View style={[styles.prestationResult, { gap: 8 }]}>
     <Text style={styles.criterePanelLabel}>Réserve de cette visite — modifiable</Text>
+    <Text style={styles.reserveFieldLabel}>Prestation</Text>
     <TextInput style={[styles.input, { minHeight: 72, textAlignVertical: 'top' }]} multiline value={prestation} onChangeText={setPrestation} onBlur={() => flushPrestation().catch(() => {})} placeholder="Prestation / réserve" />
+    <Text style={styles.reserveFieldLabel}>Poste</Text>
     <TextInput style={styles.input} value={poste} onChangeText={setPoste} onBlur={() => flushPoste().catch(() => {})} placeholder="Poste" />
     <View style={{ flexDirection: 'row', gap: 8 }}>
-      <TextInput style={[styles.input, { flex: 1 }]} value={prix} onChangeText={setPrix} onBlur={() => flushPrix().catch(() => {})} placeholder="Prix HT (€)" keyboardType="numeric" />
-      <TextInput style={[styles.input, { flex: 1 }]} value={delai} onChangeText={setDelai} onBlur={() => flushDelai().catch(() => {})} placeholder="Délai (mois)" keyboardType="numeric" />
+      <View style={{ flex: 1 }}><Text style={styles.reserveFieldLabel}>Prix HT (€)</Text><TextInput style={styles.input} value={prix} onChangeText={setPrix} onBlur={() => flushPrix().catch(() => {})} placeholder="—" keyboardType="numeric" /></View>
+      <View style={{ flex: 1 }}><Text style={styles.reserveFieldLabel}>Délai (mois)</Text><TextInput style={styles.input} value={delai} onChangeText={setDelai} onBlur={() => flushDelai().catch(() => {})} placeholder="—" keyboardType="numeric" /></View>
     </View>
   </View>;
 }
@@ -316,7 +325,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
         <Text style={styles.criterePanelLabel}>Cause</Text>
         <View style={styles.critereChips}>
           {options.map((opt, idx) => <TouchableOpacity key={`${categorieKey}-${idx}`} style={[styles.critereChip, critereChoisi === idx && styles.critereChipPicked]} onPress={() => choisirCritere(opt, idx)}>
-            <Text style={[styles.critereChipText, critereChoisi === idx && styles.critereChipTextPicked]}>{opt.critere || 'Non conforme'}</Text>
+            <Text style={[styles.critereChipText, critereChoisi === idx && styles.critereChipTextPicked]}>{libelleCritere(opt.critere)}</Text>
           </TouchableOpacity>)}
           <TouchableOpacity style={[styles.critereChip, styles.critereChipCustom, modeLibre && styles.critereChipPicked]} onPress={() => { setModeLibre(true); setCritereChoisi(null); }}>
             <Text style={[styles.critereChipText, modeLibre && styles.critereChipTextPicked]}>Autre</Text>

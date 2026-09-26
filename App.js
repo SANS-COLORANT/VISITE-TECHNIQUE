@@ -1,7 +1,7 @@
 /** VISITE TECHNIQUE — point d'entrée natif Android. */
 
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, BackHandler, Keyboard, PanResponder, ScrollView, useWindowDimensions } from 'react-native';
+import { View, Text, TouchableOpacity, BackHandler, Keyboard, PanResponder, ScrollView, StatusBar, useWindowDimensions } from 'react-native';
 import { PhotoDownloadBanner } from './PhotoDownloadStatus.js';
 import { IntranetVisitSyncBanner, IntranetVisitSyncRuntime } from './IntranetVisitSync.js';
 import { IntranetStructureRuntime } from './IntranetStructureRuntime.js';
@@ -120,7 +120,7 @@ function SimpleHeader({ title, onBack, visualPack, rightAction = null }) {
 
 // Fondu sous l'en-tête : le contenu qui défile s'efface au lieu d'être coupé net.
 function HeaderFade({ color = '243,241,236' }) {
-  return <LinearGradient pointerEvents="none" colors={[`rgba(${color},0.92)`, `rgba(${color},0)`]} style={{ position: 'absolute', left: 0, right: 0, top: '100%', height: 18 }} />;
+  return <LinearGradient pointerEvents="none" colors={[`rgba(${color},0.92)`, `rgba(${color},0)`]} style={{ position: 'absolute', left: 0, right: 0, bottom: -18, height: 18 }} />;
 }
 
 function MissionHeader({ title, onBack, visualPack, root = false }) {
@@ -308,6 +308,8 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
   ];
 
   return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: spiralActive ? '#F4F1E8' : (missionMode ? MISSION_COLORS.bg : COLORS.bg) }} {...(backSwipeEnabled ? backSwipeResponder.panHandlers : {})}>
+    {/* Barre d'état transparente : le fond à halos monte jusqu'en haut de l'écran. */}
+    <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
     {!spiralActive ? <AmbientBackground accent={missionMode ? MISSION_COLORS.accent : COLORS.orange} /> : null}
     <IntranetStructureRuntime />
     <IntranetVisitSyncRuntime />
@@ -437,7 +439,7 @@ export default function App() {
   if (!fontsReady) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
   // Les modes téléphone vivent hors d'AppContent : ils reçoivent ici le même
   // fond ambiant (halos) que le reste de l'application.
-  const ambient = (child) => <View style={{ flex: 1, backgroundColor: COLORS.bg }}><AmbientBackground accent={COLORS.orange} />{child}</View>;
+  const ambient = (child) => <View style={{ flex: 1, backgroundColor: COLORS.bg }}><StatusBar translucent backgroundColor="transparent" barStyle="dark-content" /><AmbientBackground accent={COLORS.orange} />{child}</View>;
   if (phone && !phoneMode) return <AppErrorBoundary>{ambient(<PhoneModeChooser onChoose={setPhoneMode} />)}</AppErrorBoundary>;
   if (phone && phoneMode === 'photo') return <AppErrorBoundary>{ambient(<PhotoPhoneScreen onExit={() => setPhoneMode(null)} />)}</AppErrorBoundary>;
   if (phone && phoneMode === 'companion') return <AppErrorBoundary>{ambient(<CompanionPhoneScreen onExit={() => setPhoneMode(null)} />)}</AppErrorBoundary>;

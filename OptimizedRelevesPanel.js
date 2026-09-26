@@ -14,6 +14,7 @@ import { cleanLabel, useSaisieAvecAutoSave } from './GenericFields.js';
 import { DurableChampGenerique } from './DurableChampGenerique.js';
 import { PhotoButton } from './PhotoButton.js';
 import { useListScrollMemory } from './useListScrollMemory.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 const COMPTEUR_TYPES = [
   'Compteur gaz', 'Compteur énergie chauffage', 'Compteur énergie ECS', 'Compteur eau appoint chauffage',
@@ -56,7 +57,7 @@ const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRe
           <TextInput style={styles.input} value={label} onChangeText={setLabel} onBlur={surBlurLabel} placeholder="Nom du compteur" />
         </View>
         <PhotoButton visiteId={visiteId} entiteKey={compteur.compteur_site_id ? `compteur_site||${compteur.compteur_site_id}` : `compteur||${compteur.id}`} label={label || 'Compteur'} />
-        <TouchableOpacity onPress={retirer}><Text style={styles.removeLink}>Retirer</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityLabel="Retirer ce compteur" onPress={retirer} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(185,28,28,0.08)' }}><CvcIcon name="trash" size={17} color={COLORS.red} /></TouchableOpacity>
       </View>
       {compteur.compteur_site_id && (
         <View style={styles.persistentEquipmentBadge}>
