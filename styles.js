@@ -211,11 +211,12 @@ export const styles = StyleSheet.create({
   reseauNomInput: { flex: 1, fontSize: 12, fontWeight: '700', color: COLORS.orangeDark, textTransform: 'uppercase', padding: 0 },
 
   // ---- Sélecteur numérique +/- ----
-  stepperRow: { flexDirection: 'row', alignItems: 'center', borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, overflow: 'hidden' },
-  stepperBtn: { width: 44, height: 40, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bg },
-  stepperBtnText: { fontSize: 20, fontWeight: '700', fontFamily: FONTS.bodyBold, color: COLORS.orangeDark },
-  stepperValBox: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  stepperValText: { fontSize: 14, fontWeight: '700', color: COLORS.ink },
+  // Mesures : grand chiffre lisible et boutons −/+ larges (saisie avec des gants).
+  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  stepperBtn: { width: 52, height: 48, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(242,100,38,0.12)', borderWidth: 1, borderColor: 'rgba(242,100,38,0.3)' },
+  stepperBtnText: { fontSize: 22, fontWeight: '800', fontFamily: FONTS.bodyBold, color: COLORS.orangeDark },
+  stepperValBox: { flex: 1, minHeight: 48, alignItems: 'center', justifyContent: 'center', borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.85)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' },
+  stepperValText: { fontSize: 20, fontWeight: '800', fontFamily: FONTS.black, color: COLORS.ink, fontVariant: ['tabular-nums'] },
 
   // ---- Sélecteur par chips ----
   chipSelectRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
@@ -242,7 +243,7 @@ export const styles = StyleSheet.create({
   uniteChipTextSelected: { color: COLORS.white },
 
   // ---- Molette numérique : saisie clavier directe ----
-  stepperInputLibre: { flex: 1, textAlign: 'center', fontSize: 14, fontWeight: '700', color: COLORS.ink, borderWidth: 1, borderColor: COLORS.orange, borderRadius: 9, paddingVertical: 8 },
+  stepperInputLibre: { flex: 1, minHeight: 48, textAlign: 'center', fontSize: 20, fontWeight: '800', fontFamily: FONTS.black, color: COLORS.ink, borderWidth: 1.5, borderColor: COLORS.orange, borderRadius: 14, paddingVertical: 8, backgroundColor: COLORS.white },
 
   // ---- Autocomplétion (TypeAheadInput) ----
   typeaheadSuggestions: { backgroundColor: COLORS.white, borderWidth: 1, borderColor: COLORS.line, borderRadius: 9, marginTop: 4, overflow: 'hidden' },

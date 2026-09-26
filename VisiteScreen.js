@@ -30,6 +30,7 @@ import { loadVisitPhotos } from './photoRuntimeCache.js';
 import { SectionRail, SideSectionList, AvisCounters, VisitActionBar } from './VisitChrome.js';
 import { calculerEtatOnglets } from './visitTabStatusDb.js';
 import { estVisiteARattacher } from './quickVisitDb.js';
+import { AttachVisitSheet } from './AttachVisitSheet.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function chargerExcelExportModule(){return require('./excelExport.js');}
@@ -104,6 +105,7 @@ function VisiteScreen({ route, onBack }) {
   const [tabStatus, setTabStatus] = useState({ tabs: {}, avis: null });
   const [visiteARattacher, setVisiteARattacher] = useState(false);
   const [clavierVisible, setClavierVisible] = useState(false);
+  const [rattachementVisible, setRattachementVisible] = useState(false);
 
   const rafraichirEtatOnglets = useCallback(() => {
     calculerEtatOnglets(visiteId, trameIdRef.current)
@@ -703,7 +705,7 @@ function VisiteScreen({ route, onBack }) {
               </View>
             </View>
             {visiteARattacher ? (
-              <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, backgroundColor: COLORS.amberBg, borderWidth: 1, borderColor: 'rgba(180,83,9,0.3)' }}><Text style={{ fontSize: 10.5, fontFamily: FONTS.bodyBold, color: COLORS.amber }}>À rattacher</Text></View>
+              <TouchableOpacity accessibilityLabel="Rattacher cette visite à un client" onPress={() => setRattachementVisible(true)} style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14, backgroundColor: COLORS.amberBg, borderWidth: 1, borderColor: 'rgba(180,83,9,0.3)', alignItems: 'center' }}><Text style={{ fontSize: 10.5, fontFamily: FONTS.bodyBold, color: COLORS.amber }}>À rattacher</Text><Text style={{ fontSize: 9.5, fontFamily: FONTS.bodySemi, color: COLORS.amber, marginTop: 1 }}>Choisir un client</Text></TouchableOpacity>
             ) : <IntranetVisitSyncControl compact visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />}
           </View>
         </GlassCard>
@@ -726,6 +728,18 @@ function VisiteScreen({ route, onBack }) {
         <TextInput style={[styles.input, { height: 160, textAlignVertical: 'top' }]} multiline value={noteTxt} onChangeText={onChangeNoteTxt} placeholder="Notes générales sur la visite..." />
         <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
       </View></View></Modal>
+      <AttachVisitSheet
+        visible={rattachementVisible}
+        visiteId={visiteId}
+        nomSiteActuel={visite.nom_site}
+        onClose={() => setRattachementVisible(false)}
+        onAttached={() => {
+          setRattachementVisible(false);
+          setVisiteARattacher(false);
+          invaliderCacheTrameGenerique(visiteId);
+          charger({ forceCaches: true }).catch(() => {});
+        }}
+      />
       <CompanionTabletModal visible={companionVisible} visiteId={visiteId} onClose={() => setCompanionVisible(false)} />
       <Modal visible={anomalieVisible} transparent animationType="fade" onRequestClose={() => setAnomalieVisible(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Ajouter une anomalie</Text><Text style={styles.importHint}>Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.</Text>

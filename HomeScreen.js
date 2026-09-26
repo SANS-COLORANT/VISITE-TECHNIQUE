@@ -15,7 +15,8 @@ import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollO
 import { prewarmClientSites } from './navigationPrewarm.js';
 import { prewarmVisitInBackground } from './visitPrewarm.js';
 import { forgetVisitRuntime, markVisitHot } from './visitRuntimeCache.js';
-import { QUICK_VISIT_CLIENT_ID, listerIdsVisitesARattacher } from './quickVisitDb.js';
+import { QUICK_VISIT_CLIENT_ID, listerIdsVisitesARattacher, nettoyerSitesARattacherVides } from './quickVisitDb.js';
+import { AttachVisitSheet } from './AttachVisitSheet.js';
 
 const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null, quickIds: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
@@ -36,6 +37,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
   const [importBatch, setImportBatch] = useState(null);
   const [importEnCours, setImportEnCours] = useState(false);
   const [quickSearch, setQuickSearch] = useState('');
+  const [visiteARattacher, setVisiteARattacher] = useState(null);
 
   const charger = useCallback(async () => {
     // Stale-while-revalidate : au retour Accueil on conserve le dernier rendu
@@ -86,7 +88,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
   const confirmerSuppressionVisite = (v) => Alert.alert(
     'Supprimer cette visite ?',
     `« ${v.nom_client} — ${v.nom_site} » et toutes les données propres à cette visite seront définitivement supprimées.`,
-    [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive', onPress: async () => { await chargerEntityManagementModule().supprimerVisiteComplete(v.id); forgetVisitRuntime(v.id); await charger(); } }]
+    [{ text: 'Annuler', style: 'cancel' }, { text: 'Supprimer', style: 'destructive', onPress: async () => { await chargerEntityManagementModule().supprimerVisiteComplete(v.id); forgetVisitRuntime(v.id); await nettoyerSitesARattacherVides().catch(() => {}); await charger(); } }]
   );
 
   const confirmerSuppressionClient = async (client) => {
@@ -250,7 +252,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
           >
             <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="flash" size={19} color={COLORS.orangeDark} /></IconOrb>
             <View style={{ flex: 1, minWidth: 0 }}><Text numberOfLines={1} style={styles.cardTitle}>{v.nom_site}</Text><Text style={styles.cardSub}>Visite rapide · {v.progression_pct}%</Text></View>
-            <View style={{ paddingHorizontal: 9, paddingVertical: 4, borderRadius: 12, backgroundColor: COLORS.amberBg, borderWidth: 1, borderColor: 'rgba(180,83,9,0.3)' }}><Text style={{ fontSize: 10.5, fontFamily: FONTS.bodyBold, color: COLORS.amber }}>À rattacher</Text></View>
+            <TouchableOpacity accessibilityLabel={`Rattacher ${v.nom_site} à un client`} onPress={(e) => { e?.stopPropagation?.(); setVisiteARattacher(v); }} style={{ paddingHorizontal: 11, paddingVertical: 7, borderRadius: 14, backgroundColor: COLORS.amberBg, borderWidth: 1, borderColor: 'rgba(180,83,9,0.3)' }}><Text style={{ fontSize: 11, fontFamily: FONTS.bodyBold, color: COLORS.amber }}>Rattacher</Text></TouchableOpacity>
           </TouchableOpacity></FadeUp>)}
           <View style={{ height: 12 }} />
         </>}
@@ -308,6 +310,14 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
         <Text style={styles.chevron}>›</Text>
       </TouchableOpacity>}
       ListEmptyComponent={<View style={styles.empty}><Text style={styles.emptyText}>Aucun client local</Text><Text style={styles.emptySub}>Utilise la recherche ci-dessus pour retrouver un client ou un site synchronisé, ou crée un client manuellement.</Text></View>}
+    />
+
+    <AttachVisitSheet
+      visible={!!visiteARattacher}
+      visiteId={visiteARattacher?.id}
+      nomSiteActuel={visiteARattacher?.nom_site || ''}
+      onClose={() => setVisiteARattacher(null)}
+      onAttached={() => { if (visiteARattacher?.id) forgetVisitRuntime(visiteARattacher.id); setVisiteARattacher(null); charger().catch(() => {}); }}
     />
 
     <Modal visible={modalVisible} transparent animationType="fade">

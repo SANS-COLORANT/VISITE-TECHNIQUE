@@ -33,7 +33,9 @@ Toute l'application suit cette DA. Un nouvel écran ou une retouche qui s'en éc
 - Barre de navigation du bas `BottomTabBar` (Accueil, Clients, bouton central +,
   Missions si activé, Réglages), dans le flux et non en surimpression. Le + ouvre
   `QuickVisitSheet` : visite rapide sans client, rangée sous le client local
-  technique « À rattacher » (`quickVisitDb.js`), jamais proposée à l'envoi Intranet. Masquée sur les écrans de saisie
+  technique « À rattacher » (`quickVisitDb.js`), jamais proposée à l'envoi Intranet.
+  `AttachVisitSheet` la rattache ensuite à un vrai client (site existant ou nouveau
+  site), depuis l'accueil ou la pastille « À rattacher » de l'écran Visite. Masquée sur les écrans de saisie
   plein écran (Visite, Rapport, LAB 3D, Schéma).
 - En-têtes : fond transparent, bouton retour en verre (`simpleHeaderBack`), grand titre
   aligné à gauche (`simpleHeaderTitle`).
@@ -52,6 +54,9 @@ Contrôles : libellé sur sa ligne, puis les 5 avis (S, N.S, N.R, S.O, N.V) en
 segments pleine largeur (`styles.controlTop` / `avisChip`). Aucun contrôle, avis ni
 observation prédéfinie n'est retiré : la refonte ne touche que la présentation.
 VMC : cartes de caissons avec avancement et N.S (`VmcCaissonManager`).
+Pré-allumage : locaux en pastilles avec état, barre d'avancement et N.S ; rubriques en
+cartes de verre avec pastille d'état et compteur. Mesures : `StepperNumerique`
+(grand chiffre, boutons −/+ de 52 px).
 
 ## Thèmes
 
