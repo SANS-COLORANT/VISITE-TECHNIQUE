@@ -2,6 +2,11 @@ name: Build Native Android APK
 
 on:
   workflow_dispatch:
+    inputs:
+      test_apk_run_id:
+        description: "Captures seules : id d'un run dont on teste l'APK (vide = build complet)"
+        required: false
+        default: ''
   push:
     branches:
       - native-android
@@ -19,11 +24,12 @@ on:
       - '.github/scripts/**'
 
 concurrency:
-  group: native-android-apk-${{ github.ref }}
+  group: native-android-apk-${{ github.ref }}-${{ inputs.test_apk_run_id }}
   cancel-in-progress: true
 
 jobs:
   build-apk:
+    if: ${{ !inputs.test_apk_run_id }}
     runs-on: ubuntu-latest
     timeout-minutes: 35
     env:
@@ -419,9 +425,13 @@ jobs:
   # vérifier le rendu avant installation. Informatif, ne bloque jamais le build.
   ui-screenshots:
     needs: build-apk
+    if: ${{ always() && (needs.build-apk.result == 'success' || inputs.test_apk_run_id) }}
     runs-on: ubuntu-latest
     timeout-minutes: 30
     continue-on-error: true
+    permissions:
+      actions: read
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -431,6 +441,8 @@ jobs:
         with:
           name: visite-technique-tablet-release
           path: apk
+          run-id: ${{ inputs.test_apk_run_id || github.run_id }}
+          github-token: ${{ github.token }}
 
       - name: Enable KVM
         run: |
