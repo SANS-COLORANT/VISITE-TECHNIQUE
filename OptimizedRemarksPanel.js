@@ -23,6 +23,7 @@ import { PhotoButton } from './PhotoButton.js';
 import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
 import { BoundedLruMap } from './boundedCache.js';
 import { useListScrollMemory } from './useListScrollMemory.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 // Garde la dernière version saisie en mémoire entre deux montages de l'onglet.
 // SQLite reste la source durable ; ce cache évite qu'un retour instantané sur
@@ -319,7 +320,7 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
           />
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.btnSecondary} onPress={() => setBiblioVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.btnPrimary} onPress={ajouterVierge}><Text style={styles.btnPrimaryText}>Réserve vierge</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.btnPrimary} onPress={ajouterVierge}><ButtonGlow /><Text style={styles.btnPrimaryText}>Réserve vierge</Text></TouchableOpacity>
           </View>
         </View></View>
       </Modal>
@@ -341,7 +342,7 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
           />
           <View style={styles.modalActions}>
             {remarqueARattacher?.reference_onglet ? <TouchableOpacity style={styles.btnSecondary} onPress={retirerRattachement}><Text style={styles.btnSecondaryText}>Détacher</Text></TouchableOpacity> : null}
-            <TouchableOpacity style={styles.btnPrimary} onPress={() => setRemarqueARattacher(null)}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.btnPrimary} onPress={() => setRemarqueARattacher(null)}><ButtonGlow /><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
           </View>
         </View></View>
       </Modal>

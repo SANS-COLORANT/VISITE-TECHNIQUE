@@ -12,6 +12,7 @@ import { SitePhotoPreparationOption } from './SitePhotoPreparationOption.js';
 import { startPhotoDownload } from './latestVisitPhotoTasks.js';
 import { filterLatestVisitPhotos, photoSummary } from './latestVisitPhotoModel.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const SURFACE = '#FFFFFF';
 const BORDER = '#E6E8EC';
@@ -550,7 +551,7 @@ function MetraDirectoryScreen({ navigation, route }) {
         <Text style={{ alignSelf: 'flex-end', color: activationCode.length === 48 ? SUCCESS : MUTED, fontSize: 11.5, fontFamily: FONTS.bold, marginTop: 6 }}>{activationCode.length} / 48</Text>
         <View style={[styles.modalActions, { marginTop: 16 }]}>
           <TouchableOpacity style={styles.btnSecondary} onPress={() => setActivationVisible(false)} disabled={activating}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.btnPrimary} onPress={activate} disabled={activating || activationCode.length !== 48}><Text style={styles.btnPrimaryText}>{activating ? 'Activation…' : 'Activer'}</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.btnPrimary} onPress={activate} disabled={activating || activationCode.length !== 48}><ButtonGlow /><Text style={styles.btnPrimaryText}>{activating ? 'Activation…' : 'Activer'}</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

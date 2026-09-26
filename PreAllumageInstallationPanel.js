@@ -24,6 +24,7 @@ import {
 } from './preAllumageErgonomyDb.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const VIRTUAL_CHAUFFERIE = '__pa_chaufferie__';
 const VIRTUAL_SITE = '__pa_site__';
@@ -185,7 +186,7 @@ function AjouterInstallationModal({ visible, onClose, onSubmit }) {
         return <TouchableOpacity key={t.code} onPress={() => setTypeCode(t.code)} style={{ paddingHorizontal: 11, paddingVertical: 9, borderRadius: 18, borderWidth: 1, borderColor: selected ? COLORS.orange : COLORS.line, backgroundColor: selected ? COLORS.orange : COLORS.white }}><Text style={{ color: selected ? COLORS.white : COLORS.inkSoft, fontFamily: FONTS.bold, fontSize: 12 }}>{t.label}</Text></TouchableOpacity>;
       })}</View>
       {typeCode !== 'chaufferie' ? <View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}><Toggle label="Chauffage" value={chauffage} onPress={() => setChauffage((v) => !v)} /><Toggle label="ECS" value={ecs} onPress={() => setEcs((v) => !v)} /></View> : null}
-      <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={() => onSubmit({ nom, typeCode, chauffage, ecs })}><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity></View>
+      <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={() => onSubmit({ nom, typeCode, chauffage, ecs })}><ButtonGlow /><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity></View>
     </View></View>
   </Modal>;
 }
@@ -199,7 +200,7 @@ function ConfigurationModal({ visible, local, onClose, onSave }) {
       <Text style={styles.modalTitle}>Configurer {local?.nom || 'l’installation'}</Text>
       <Text style={[styles.importHint, { marginBottom: 12 }]}>Les rubriques qui ne s’appliquent pas disparaissent immédiatement, sans supprimer les anciennes saisies.</Text>
       <View style={{ flexDirection: 'row', gap: 8 }}><Toggle label="Chauffage" value={chauffage} onPress={() => setChauffage((v) => !v)} /><Toggle label="ECS" value={ecs} onPress={() => setEcs((v) => !v)} /></View>
-      <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={() => onSave({ chauffage, ecs })}><Text style={styles.btnPrimaryText}>Appliquer</Text></TouchableOpacity></View>
+      <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={() => onSave({ chauffage, ecs })}><ButtonGlow /><Text style={styles.btnPrimaryText}>Appliquer</Text></TouchableOpacity></View>
     </View></View>
   </Modal>;
 }

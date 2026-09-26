@@ -3,6 +3,7 @@ import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { choisirEtAjouterDocumentMission } from './missionMediaDb.js';
+import { ButtonGlow } from './ButtonGlow.js';
 import {
   accepterItemRevueMission,
   analyserDocumentMission,
@@ -85,7 +86,7 @@ export function MissionDocumentInboxScreen({ route }) {
         PDF, DOCX, images et fichiers texte restent conservés comme sources. METRA peut en extraire localement du texte et proposer des éléments à valider avant intégration.
       </Text>
 
-      <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { alignSelf: 'flex-start', marginTop: 12 }]} onPress={importDoc}>
+      <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { alignSelf: 'flex-start', marginTop: 12 }]} onPress={importDoc}><ButtonGlow tone="mission" />
         <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Ajouter un document source</Text>
       </TouchableOpacity>
 
@@ -125,7 +126,7 @@ export function MissionDocumentInboxScreen({ route }) {
         </View>
         {item.status === 'to_review' ? <View style={{ flexDirection: 'row', gap: 8, marginTop: 9 }}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => ignore(item)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Ignorer</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => accept(item)}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Valider & intégrer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => accept(item)}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Valider & intégrer</Text></TouchableOpacity>
         </View> : null}
       </View>)}
 

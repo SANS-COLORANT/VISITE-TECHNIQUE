@@ -10,6 +10,7 @@ import { getMissionDomainSummary } from './missionDomainDb.js';
 import { getMissionCapabilities } from './missionRecipes.js';
 import { getMissionFieldPlaybook } from './missionFieldPlaybooks.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const POINT_TYPES = Object.freeze([
   ['reserve', 'Réserve'],
@@ -261,7 +262,7 @@ export function MissionScreen({ navigation, route }) {
 
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 18 }]}>Aujourd’hui</Text>
         <View style={{ flexDirection: 'row', gap: 9 }}>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { flex: 1, alignItems: 'center' }]} onPress={createVisit}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Démarrer une visite</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { flex: 1, alignItems: 'center' }]} onPress={createVisit}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Démarrer une visite</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flex: 1, alignItems: 'center' }]} onPress={() => setPointModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Point libre</Text></TouchableOpacity>
         </View>
 
@@ -310,7 +311,7 @@ export function MissionScreen({ navigation, route }) {
         <TouchableOpacity
           style={[styles.btnPrimary, missionStyles.primaryButton, { marginTop: 9, alignItems: 'center' }]}
           onPress={() => navigation.navigate('MissionReport', { missionId })}
-        >
+        ><ButtonGlow tone="mission" />
           <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Rapport · éditer / Word / PDF</Text>
         </TouchableOpacity>
         <View style={{ flexDirection: 'row', gap: 9, marginTop: 9 }}>
@@ -363,7 +364,7 @@ export function MissionScreen({ navigation, route }) {
           <TextInput style={[styles.input, missionStyles.input, { marginTop: 9 }]} value={pointDueText} onChangeText={setPointDueText} placeholder="Échéance libre : fin octobre, prochaine visite…" />
           <View style={styles.modalActions}>
             <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setPointModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createPoint}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{saving ? 'Ajout…' : 'Ajouter'}</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createPoint}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{saving ? 'Ajout…' : 'Ajouter'}</Text></TouchableOpacity>
           </View>
         </View></View>
       </Modal>

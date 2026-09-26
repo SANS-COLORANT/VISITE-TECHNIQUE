@@ -3,6 +3,7 @@ import { Alert, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { DEFAULT_MISSION_PACKAGE_OPTIONS, exporterPackageMission } from './missionPackageExport.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const ITEMS = [
   ['reportPdf','Rapport PDF'],
@@ -57,7 +58,7 @@ export function MissionPackageScreen({ route }) {
           <Text style={{marginLeft:10,color:COLORS.ink,fontSize:10.8,fontWeight:'800'}}>{label}</Text>
         </TouchableOpacity>)}
       </View>
-      <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton,{marginTop:16,alignItems:'center',paddingVertical:13}]} disabled={busy} onPress={exportAll}>
+      <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton,{marginTop:16,alignItems:'center',paddingVertical:13}]} disabled={busy} onPress={exportAll}><ButtonGlow tone="mission" />
         <Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>{busy?'Création du dossier…':'Créer et partager le ZIP complet'}</Text>
       </TouchableOpacity>
       <Text style={{color:COLORS.inkFaint,fontSize:8.8,lineHeight:13,marginTop:8,textAlign:'center'}}>

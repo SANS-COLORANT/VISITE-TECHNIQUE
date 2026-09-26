@@ -7,6 +7,7 @@ import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { exporterGeoJsonMission, exporterGeoPackageMission, importerGeoJsonMission } from './missionPlanDb.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { ButtonGlow } from './ButtonGlow.js';
 import {
   configurerRasterMission,
   importerRasterMission,
@@ -293,7 +294,7 @@ export function MissionMapScreen({ navigation, route }) {
           {!mapLayers.length ? <Text style={{ color: COLORS.inkFaint, fontSize: 9.5, paddingVertical: 12 }}>Aucune couche importée.</Text> : null}
         </ScrollView>
         <View style={styles.modalActions}>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setLayersModal(false)}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setLayersModal(false)}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -311,7 +312,7 @@ export function MissionMapScreen({ navigation, route }) {
         <TextInput style={[styles.input, missionStyles.input, { marginTop: 7 }]} keyboardType="decimal-pad" value={rasterDraft.opacity} onChangeText={(v) => setRasterDraft((p) => ({ ...p, opacity: v }))} placeholder="Opacité 0 à 1" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setRasterLayer(null)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Plus tard</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveRasterBounds}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer le calage</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveRasterBounds}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer le calage</Text></TouchableOpacity>
         </View>
       </ScrollView></View>
     </Modal>

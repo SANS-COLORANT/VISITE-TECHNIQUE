@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
+import { ButtonGlow } from './ButtonGlow.js';
 import {
   getStructureContextForLocalClient,
   listSiteStructureLocals,
@@ -145,7 +146,7 @@ export function IntranetSiteCreationModal({ visible, clientId, onClose, onCreate
           <TextInput style={styles.input} value={typeBatiment} onChangeText={setTypeBatiment} placeholder="Ex. Habitation, Tertiaire" maxLength={255} />
         </> : null}
       </ScrollView>
-      <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} disabled={creating} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={[styles.btnPrimary, !canCreate && { opacity: 0.45 }]} disabled={!canCreate || creating} onPress={create}><Text style={styles.btnPrimaryText}>{creating ? 'Enregistrement…' : 'Créer'}</Text></TouchableOpacity></View>
+      <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} disabled={creating} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={[styles.btnPrimary, !canCreate && { opacity: 0.45 }]} disabled={!canCreate || creating} onPress={create}><ButtonGlow /><Text style={styles.btnPrimaryText}>{creating ? 'Enregistrement…' : 'Créer'}</Text></TouchableOpacity></View>
     </View></View>
   </Modal>;
 }
@@ -242,7 +243,7 @@ export function IntranetSiteLocalsPanel({ siteId, onStartVisit }) {
         <SectionLabel>Situation</SectionLabel><TextInput style={styles.input} value={situation} onChangeText={setSituation} maxLength={50} placeholder="Sous-sol" />
         <SectionLabel>Trame Intranet</SectionLabel><ChoiceChips values={referential?.trames || []} value={trameId} onChange={setTrameId} getKey={(trame) => String(trame.id)} getLabel={(trame) => trame.nom || `Trame ${trame.id}`} />
         <SectionLabel>Périodicité de visite (mois)</SectionLabel><TextInput style={styles.input} value={periodiciteVisite} onChangeText={(v) => setPeriodiciteVisite(v.replace(/\D/g, '').slice(0, 3))} keyboardType="number-pad" placeholder="12" />
-      </ScrollView><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} disabled={creating} onPress={() => setModalVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={[styles.btnPrimary, !canCreate && { opacity: 0.45 }]} disabled={!canCreate || creating} onPress={createLocal}><Text style={styles.btnPrimaryText}>{creating ? 'Enregistrement…' : 'Créer'}</Text></TouchableOpacity></View></View></View>
+      </ScrollView><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} disabled={creating} onPress={() => setModalVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={[styles.btnPrimary, !canCreate && { opacity: 0.45 }]} disabled={!canCreate || creating} onPress={createLocal}><ButtonGlow /><Text style={styles.btnPrimaryText}>{creating ? 'Enregistrement…' : 'Créer'}</Text></TouchableOpacity></View></View></View>
     </Modal>
   </View>;
 }

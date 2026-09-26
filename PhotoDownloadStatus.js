@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { getPhotoDownloadState, subscribePhotoDownloads, pausePhotoDownload, resumePhotoDownload, dismissPhotoDownload } from './latestVisitPhotoTasks.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 export function usePhotoDownloadState() {
   const [state, setState] = useState(getPhotoDownloadState);
@@ -44,7 +45,7 @@ export function PhotoDownloadBanner() {
         <Text style={styles.modalTitle}>Photos hors connexion</Text>
         <Text style={{ color: COLORS.muted, lineHeight: 19 }}>Tu peux continuer ta visite dans METRA. Les fichiers déjà enregistrés sont conservés même après fermeture de l'application.</Text>
         <ScrollView><PhotoTaskList /></ScrollView>
-        <TouchableOpacity onPress={() => setVisible(false)} style={[styles.btnPrimary, { flex: 0, minHeight: 48, marginTop: 12 }]}><Text style={styles.btnPrimaryText}>Continuer ma visite</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => setVisible(false)} style={[styles.btnPrimary, { flex: 0, minHeight: 48, marginTop: 12 }]}><ButtonGlow /><Text style={styles.btnPrimaryText}>Continuer ma visite</Text></TouchableOpacity>
       </View></View>
     </Modal>
   </>;

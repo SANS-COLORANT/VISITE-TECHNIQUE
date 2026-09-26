@@ -5,6 +5,7 @@ import { createId } from './database/ids.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { getMissionScenarioPresets } from './missionScenarioPresets.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 function clean(v) { const s = String(v ?? '').trim(); return s || null; }
 function num(v) {
@@ -227,7 +228,7 @@ export function MissionScenarioScreen({ navigation, route }) {
       </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setCreateVisible(true)}>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setCreateVisible(true)}><ButtonGlow tone="mission" />
           <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Scénario libre</Text>
         </TouchableOpacity>
         {scenarioPresets.length ? <TouchableOpacity
@@ -266,7 +267,7 @@ export function MissionScenarioScreen({ navigation, route }) {
               <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={setRetained}>
                 <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{selected.status === 'retained' ? 'Scénario retenu' : 'Retenir ce scénario'}</Text>
               </TouchableOpacity>
-              {selected.status === 'retained' ? <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createWorksPhaseFromScenario}>
+              {selected.status === 'retained' ? <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createWorksPhaseFromScenario}><ButtonGlow tone="mission" />
                 <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer / ouvrir phase Travaux</Text>
               </TouchableOpacity> : null}
             </View>
@@ -318,7 +319,7 @@ export function MissionScenarioScreen({ navigation, route }) {
         <Field label="Contraintes" value={draft.constraints} onChangeText={(v) => setDraft((p) => ({ ...p, constraints: v }))} multiline />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setCreateVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createScenario}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createScenario}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
         </View>
       </ScrollView></View>
     </Modal>

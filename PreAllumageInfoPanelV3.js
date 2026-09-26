@@ -10,6 +10,7 @@ import {
   PREALLUMAGE_REFERENCE_CATEGORIES,
 } from './preAllumageReferenceDb.js';
 import { COLORS, styles, FONTS } from './styles.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 function mapChamps(rows) { return Object.fromEntries((rows || []).map((r) => [`${r.section_code}||${r.cle}`, r.valeur])); }
 function masquerDate(value) {
@@ -46,7 +47,7 @@ function AddReferenceModal({ visible, title, onClose, onSave }) {
     <Text style={styles.modalTitle}>{title}</Text>
     <Text style={[styles.importHint, { marginBottom: 10 }]}>La nouvelle valeur restera disponible pour les prochaines visites.</Text>
     <TextInput autoFocus value={value} onChangeText={setValue} style={styles.input} placeholder="Code ou nom" autoCapitalize="characters" />
-    <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={() => onSave(value)}><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity></View>
+    <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={() => onSave(value)}><ButtonGlow /><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity></View>
   </View></View></Modal>;
 }
 

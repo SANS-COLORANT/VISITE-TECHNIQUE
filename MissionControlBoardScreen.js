@@ -6,6 +6,7 @@ import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerPointMission } from './missionsDb.js';
 import { capturerPhotoMission } from './missionMediaDb.js';
+import { ButtonGlow } from './ButtonGlow.js';
 import {
   creerActionMission,
   creerReferenceMission,
@@ -260,7 +261,7 @@ export function MissionControlBoardScreen({ navigation, route }) {
       </View>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
-        <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} onPress={openCreate}>
+        <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} onPress={openCreate}><ButtonGlow tone="mission" />
           <Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>＋ Contrôle</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionDocuments',{missionId})}>
@@ -338,7 +339,7 @@ export function MissionControlBoardScreen({ navigation, route }) {
         </View>
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={()=>setCreateVisible(false)}><Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busyId === 'create'} onPress={createControl}><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busyId === 'create'} onPress={createControl}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
         </View>
       </ScrollView></View>
     </Modal>

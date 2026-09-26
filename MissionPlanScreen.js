@@ -7,6 +7,7 @@ import { rendrePagePdfLocale } from './missionNativeTools.js';
 import { capturerPhotoMission } from './missionMediaDb.js';
 import { getDb } from './db.js';
 import { getMissionCapabilities } from './missionRecipes.js';
+import { ButtonGlow } from './ButtonGlow.js';
 import {
   ajouterAnnotationPlan,
   calibrerPlan,
@@ -622,7 +623,7 @@ export function MissionPlanScreen({ navigation, route }) {
       </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 11 }}>
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={importPlan}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Importer plan / PDF</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={importPlan}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Importer plan / PDF</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionMap', { missionId })}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Carte SIG</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={async () => { try { await importerGeoJsonMission({ missionId }); Alert.alert('SIG', 'Couche GeoJSON importée hors ligne.'); } catch (e) { Alert.alert('Import SIG', String(e?.message || e)); } }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Importer GeoJSON</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={async () => { try { await exporterGeoJsonMission(missionId); } catch (e) { Alert.alert('Export SIG', String(e?.message || e)); } }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Exporter GeoJSON</Text></TouchableOpacity>
@@ -642,7 +643,7 @@ export function MissionPlanScreen({ navigation, route }) {
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={deleteLast}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>↶ Dernière annotation</Text></TouchableOpacity>
           {String(selected.type).includes('pdf') ? <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={rotate}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>↻ Rotation page</Text></TouchableOpacity> : null}
           {String(selected.type).includes('pdf') ? <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={duplicatePage}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>⧉ Dupliquer page</Text></TouchableOpacity> : null}
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={exportAnnotated}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Exporter PDF annoté</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={exportAnnotated}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Exporter PDF annoté</Text></TouchableOpacity>
         </View>
 
         <Text style={[styles.sectionLabel, missionStyles.sectionLabel, { marginTop: 16 }]}>Calque</Text>
@@ -659,7 +660,7 @@ export function MissionPlanScreen({ navigation, route }) {
           <Text style={{ flex: 1, color: COLORS.inkFaint, fontSize: 9.5 }}>
             {calibration ? 'Échelle calibrée : ' + Number(calibration.real_distance || calibration.realDistance).toFixed(2) + ' ' + (calibration.unit || 'm') : 'Échelle non calibrée · utilisez « Calibrer » pour les distances/surfaces réelles.'}
           </Text>
-          {tool === 'polygon' && draftPoints.length >= 3 ? <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={finishPolygon}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer polygone</Text></TouchableOpacity> : null}
+          {tool === 'polygon' && draftPoints.length >= 3 ? <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={finishPolygon}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer polygone</Text></TouchableOpacity> : null}
         </View>
 
         {pageCount > 1 ? <>
@@ -734,7 +735,7 @@ export function MissionPlanScreen({ navigation, route }) {
         <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={networkDraft.direction} onChangeText={(v) => setNetworkDraft((p) => ({ ...p, direction: v }))} placeholder="Sens / fonction" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => { setNetworkModal(false); setNetworkPoints([]); setDraftPoints([]); }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={confirmNetwork}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer le réseau</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={confirmNetwork}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer le réseau</Text></TouchableOpacity>
         </View>
       </ScrollView></View>
     </Modal>
@@ -758,7 +759,7 @@ export function MissionPlanScreen({ navigation, route }) {
         </ScrollView>
         <View style={styles.modalActions}>
           {linkAnnotation?.linked_entity_id ? <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={clearLink}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Délier</Text></TouchableOpacity> : null}
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setLinkAnnotation(null)}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setLinkAnnotation(null)}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -783,7 +784,7 @@ export function MissionPlanScreen({ navigation, route }) {
         </ScrollView>
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={refreshLinkTargets}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Actualiser</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => { setSignatureModal(false); setSignaturePoint(null); }}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => { setSignatureModal(false); setSignaturePoint(null); }}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -803,7 +804,7 @@ export function MissionPlanScreen({ navigation, route }) {
         <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} keyboardType="decimal-pad" value={reserveDraft.cost} onChangeText={(v) => setReserveDraft((p) => ({ ...p, cost: v }))} placeholder="Coût estimé €" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setReserveAnnotation(null)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createReserve}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer point + action</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createReserve}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer point + action</Text></TouchableOpacity>
         </View>
       </ScrollView></View>
     </Modal>
@@ -814,7 +815,7 @@ export function MissionPlanScreen({ navigation, route }) {
         <TextInput style={[styles.input, missionStyles.input]} value={textValue} onChangeText={setTextValue} placeholder="Libellé / commentaire" autoFocus />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setTextModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={confirmText}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Ajouter</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={confirmText}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Ajouter</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -828,7 +829,7 @@ export function MissionPlanScreen({ navigation, route }) {
         <TextInput style={[styles.input, missionStyles.input]} value={realDistance} onChangeText={setRealDistance} keyboardType="decimal-pad" placeholder="Distance réelle en mètres" autoFocus />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => { setCalibrationModal(false); setDraftPoints([]); }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={confirmCalibration}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Calibrer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={confirmCalibration}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Calibrer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -839,7 +840,7 @@ export function MissionPlanScreen({ navigation, route }) {
         <TextInput style={[styles.input, missionStyles.input]} value={layerName} onChangeText={setLayerName} placeholder="Réseaux chauffage, réserves, équipements…" autoFocus />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setLayerModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createLayer}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createLayer}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

@@ -6,6 +6,7 @@ import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { modifierEquipementMission } from './missionEquipmentDb.js';
 import { creerPointMission } from './missionsDb.js';
 import { createId } from './database/ids.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const STATUS_BY_TYPE = Object.freeze({
   opr_reception: [
@@ -310,7 +311,7 @@ export function MissionReceptionBoardScreen({ navigation, route }) {
       </View>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 14 }}>
-        {activeModes.dynamic || mission?.type !== 'opr_reception' ? <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => navigation.navigate('MissionTests',{ missionId })}>
+        {activeModes.dynamic || mission?.type !== 'opr_reception' ? <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => navigation.navigate('MissionTests',{ missionId })}><ButtonGlow tone="mission" />
           <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Essais</Text>
         </TouchableOpacity> : null}
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionActions',{ missionId })}>

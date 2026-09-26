@@ -19,6 +19,7 @@ import {
 import { capturerPhotoMission } from './missionMediaDb.js';
 import { EQUIPMENT_CATEGORIES, EQUIPMENT_PROFILE_MODES, getEquipmentProfile, resolveEquipmentCategory } from './missionEquipmentCatalog.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const STATE_LABELS = Object.freeze({
   non_evalue: 'Non évalué',
@@ -381,7 +382,7 @@ export function MissionEquipmentScreen({ navigation, route }) {
         </Text>
         <TextInput style={[styles.input, missionStyles.input]} value={query} onChangeText={setQuery} placeholder="Rechercher équipement, marque, modèle, site…" />
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10, marginBottom: 14 }}>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setCreateVisible(true)}>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setCreateVisible(true)}><ButtonGlow tone="mission" />
             <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Équipement</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionTechnicalGraph', { missionId })}>
@@ -452,7 +453,7 @@ export function MissionEquipmentScreen({ navigation, route }) {
         <Field label="Quantité d’équipements identiques à créer" value={newQuantity} onChangeText={setNewQuantity} keyboardType="number-pad" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setCreateVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} disabled={busy} onPress={createEquipment}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{busy ? 'Création…' : 'Créer'}</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} disabled={busy} onPress={createEquipment}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{busy ? 'Création…' : 'Créer'}</Text></TouchableOpacity>
         </View>
       </ScrollView></View>
     </Modal>
@@ -580,7 +581,7 @@ export function MissionEquipmentScreen({ navigation, route }) {
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 18 }}>
             <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={duplicateSelected}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Dupliquer</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { flexGrow: 1, alignItems: 'center' }]} disabled={busy} onPress={saveEquipment}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { flexGrow: 1, alignItems: 'center' }]} disabled={busy} onPress={saveEquipment}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
           </View>
         </ScrollView>
       </View>
@@ -604,7 +605,7 @@ export function MissionEquipmentScreen({ navigation, route }) {
         <Field label="Charge fluide kg" value={ocrEdit.refrigerantChargeKg} onChangeText={(v) => setOcrEdit((p) => ({ ...p, refrigerantChargeKg: v }))} keyboardType="decimal-pad" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setOcrResult(null)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Plus tard</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={confirmOcr}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Confirmer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={confirmOcr}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Confirmer</Text></TouchableOpacity>
         </View>
       </ScrollView></View>
     </Modal>

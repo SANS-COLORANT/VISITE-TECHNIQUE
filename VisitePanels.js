@@ -311,6 +311,7 @@ function PanelEquipements({ visiteId }) {
 }
 
 import { CATEGORIES_EQUIPEMENT, MARQUES_EQUIPEMENT } from './ParametresScreen.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarques }) {
   const [categorie, setCategorie] = useState(item.categorie || '');
@@ -502,7 +503,7 @@ function PanelRemarques({ visiteId, refreshKey }) {
           </ScrollView>
           <View style={styles.modalActions}>
             <TouchableOpacity style={styles.btnSecondary} onPress={() => setBiblioVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.btnPrimary} onPress={ajouterVierge}><Text style={styles.btnPrimaryText}>Réserve vierge</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.btnPrimary} onPress={ajouterVierge}><ButtonGlow /><Text style={styles.btnPrimaryText}>Réserve vierge</Text></TouchableOpacity>
           </View>
         </View></View>
       </Modal>
@@ -520,7 +521,7 @@ function PanelRemarques({ visiteId, refreshKey }) {
           </ScrollView>
           <View style={styles.modalActions}>
             {remarqueARattacher?.reference_onglet ? <TouchableOpacity style={styles.btnSecondary} onPress={retirerRattachement}><Text style={styles.btnSecondaryText}>Détacher</Text></TouchableOpacity> : null}
-            <TouchableOpacity style={styles.btnPrimary} onPress={() => setRemarqueARattacher(null)}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.btnPrimary} onPress={() => setRemarqueARattacher(null)}><ButtonGlow /><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
           </View>
         </View></View>
       </Modal>

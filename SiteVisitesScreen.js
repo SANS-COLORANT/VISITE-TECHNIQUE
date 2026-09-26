@@ -19,6 +19,7 @@ import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
 import { peekLocalVisits, prewarmLocalVisits } from './navigationPrewarm.js';
 import { forgetVisitRuntime, markVisitHot, markVisitWarm } from './visitRuntimeCache.js';
 import { prewarmVisit } from './visitPrewarm.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const STATUT_LABELS = { en_cours: 'En cours', terminee: 'Terminée', a_completer: 'À compléter', exportee: 'Exportée' };
 const SITE_TABS = [
@@ -432,9 +433,9 @@ function SiteVisitesScreen({ route, navigation }) {
       {siteTab === 'visites' && selectionExport ? <View style={[styles.fabBar, { flexDirection: 'row', gap: 8 }]}>
         <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={annulerSelectionExport} disabled={exportLotEnCours}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={toutSelectionner} disabled={exportLotEnCours}><Text style={styles.btnSecondaryText}>{visitesSelectionnees.size === visites.length ? 'Tout désélectionner' : 'Tout sélectionner'}</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnPrimary, { flex: 1.2 }]} onPress={exporterSelection} disabled={!visitesSelectionnees.size || exportLotEnCours}><Text style={styles.btnPrimaryText}>{exportLotEnCours ? 'Export…' : `Exporter ${visitesSelectionnees.size}`}</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnPrimary, { flex: 1.2 }]} onPress={exporterSelection} disabled={!visitesSelectionnees.size || exportLotEnCours}><ButtonGlow /><Text style={styles.btnPrimaryText}>{exportLotEnCours ? 'Export…' : `Exporter ${visitesSelectionnees.size}`}</Text></TouchableOpacity>
       </View> : siteTab === 'visites' && !legacyOnly ? <View style={styles.fabBar}>
-        <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={ouvrirNouvelleVisite}><Text style={styles.btnPrimaryText}>+ Nouvelle visite</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={ouvrirNouvelleVisite}><ButtonGlow /><Text style={styles.btnPrimaryText}>+ Nouvelle visite</Text></TouchableOpacity>
       </View> : null}
 
       <Modal visible={gpsVisible} transparent animationType="fade" onRequestClose={() => setGpsVisible(false)}>
@@ -446,7 +447,7 @@ function SiteVisitesScreen({ route, navigation }) {
           <TextInput style={[styles.input, { marginTop: 10 }]} placeholder="Code postal" value={codePostal} onChangeText={(v) => setCodePostal(v.replace(/\D/g, '').slice(0, 5))} keyboardType="number-pad" maxLength={5} />
           <TextInput style={[styles.input, { marginTop: 10, minHeight: 70, textAlignVertical: 'top' }]} placeholder="Note d'accès : parking P2, porte chaufferie, sous-sol…" multiline value={note} onChangeText={setNote} />
           <TouchableOpacity style={[styles.btnSecondary, { marginTop: 12, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} disabled={localisationEnCours || !adresseRue.trim() || !ville.trim() || codePostal.length !== 5} onPress={enregistrerEtOuvrirMaps}>{!localisationEnCours ? <CvcIcon name="map" size={16} color={COLORS.ink} /> : null}<Text style={styles.btnSecondaryText}>{localisationEnCours ? 'Ouverture…' : 'Enregistrer et ouvrir dans Google Maps'}</Text></TouchableOpacity>
-          <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setGpsVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} disabled={localisationEnCours} onPress={enregistrerAdresse}><Text style={styles.btnPrimaryText}>{localisationEnCours ? 'Enregistrement…' : 'Enregistrer'}</Text></TouchableOpacity></View>
+          <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setGpsVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} disabled={localisationEnCours} onPress={enregistrerAdresse}><ButtonGlow /><Text style={styles.btnPrimaryText}>{localisationEnCours ? 'Enregistrement…' : 'Enregistrer'}</Text></TouchableOpacity></View>
         </View></View>
       </Modal>
 

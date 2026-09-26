@@ -7,6 +7,7 @@ import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { relierEquipementsMission } from './missionDomainDb.js';
 import { resolveEquipmentCategory } from './missionEquipmentCatalog.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const NODE_W = 150;
 const NODE_H = 60;
@@ -437,7 +438,7 @@ export function MissionTechnicalGraphScreen({ navigation, route }) {
         <TextInput style={[styles.input, missionStyles.input]} value={relationLabel} onChangeText={setRelationLabel} placeholder="Libellé de la relation" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => { setRelationModal(false); setLinkTarget(null); }}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveRelation}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Relier</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveRelation}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Relier</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

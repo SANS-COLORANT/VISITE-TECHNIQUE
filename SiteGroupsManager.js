@@ -3,6 +3,7 @@ import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOp
 import { COLORS, styles, FONTS } from './styles.js';
 import { creerGroupeSite, definirSiteDansGroupe, listerAppartenancesClient, listerGroupesClient, supprimerGroupeSite } from './siteOrganizationDb.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 function texte(value = '') { return String(value || '').trim(); }
 
@@ -95,7 +96,7 @@ export function SiteGroupsManager({ visible, clientId, sites = [], onClose, onCh
 
         <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
           <TextInput style={[styles.input, { flex: 1 }]} value={nouveauGroupe} placeholder="Nouveau groupe" onChangeText={setNouveauGroupe} returnKeyType="done" onSubmitEditing={creer}/>
-          <TouchableOpacity style={styles.btnPrimary} disabled={busy || !texte(nouveauGroupe)} onPress={creer}><Text style={styles.btnPrimaryText}>+ Ajouter</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.btnPrimary} disabled={busy || !texte(nouveauGroupe)} onPress={creer}><ButtonGlow /><Text style={styles.btnPrimaryText}>+ Ajouter</Text></TouchableOpacity>
         </View>
 
         {busy ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}><ActivityIndicator color={COLORS.orange}/><Text style={{ color: COLORS.muted }}>Mise à jour…</Text></View> : null}

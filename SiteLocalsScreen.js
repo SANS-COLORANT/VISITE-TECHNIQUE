@@ -7,6 +7,7 @@ import { getDb, uuidv4 } from './db.js';
 import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollOffset } from './navigationMemory.js';
 import { peekSiteLocals, prewarmLocalVisits, prewarmSiteLocals } from './navigationPrewarm.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 function SiteLocalsScreen({ route, navigation }) {
   const { siteId, nomSite, clientId, nomClient } = route?.params || {};
@@ -180,7 +181,7 @@ function SiteLocalsScreen({ route, navigation }) {
     />
 
     <View style={styles.fabBar}>
-      <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={() => setCreationVisible(true)}>
+      <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={() => setCreationVisible(true)}><ButtonGlow />
         <Text style={styles.btnPrimaryText}>+ Nouveau local</Text>
       </TouchableOpacity>
     </View>
@@ -192,7 +193,7 @@ function SiteLocalsScreen({ route, navigation }) {
         <TextInput autoFocus style={styles.input} placeholder="Ex. Chaufferie, SST 1, Local VMC…" value={nouveauNom} onChangeText={setNouveauNom} />
         <View style={styles.modalActions}>
           <TouchableOpacity style={styles.btnSecondary} disabled={creationEnCours} onPress={() => setCreationVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.btnPrimary} disabled={!nouveauNom.trim() || creationEnCours} onPress={creerLocal}><Text style={styles.btnPrimaryText}>{creationEnCours ? 'Création…' : 'Créer'}</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.btnPrimary} disabled={!nouveauNom.trim() || creationEnCours} onPress={creerLocal}><ButtonGlow /><Text style={styles.btnPrimaryText}>{creationEnCours ? 'Création…' : 'Créer'}</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

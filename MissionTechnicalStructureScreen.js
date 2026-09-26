@@ -4,6 +4,7 @@ import { getDb } from './db.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { ButtonGlow } from './ButtonGlow.js';
 import {
   creerInstallationMission,
   creerReseauTechniqueMission,
@@ -254,7 +255,7 @@ export function MissionTechnicalStructureScreen({ navigation, route }) {
       </ScrollView>
 
       {siteId ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={openCreateInstallation}>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={openCreateInstallation}><ButtonGlow tone="mission" />
           <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Installation</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionTechnicalGraph', { missionId })}>
@@ -365,7 +366,7 @@ export function MissionTechnicalStructureScreen({ navigation, route }) {
         </> : null}
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setCreateVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveCreate}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveCreate}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
         </View>
       </ScrollView></View>
     </Modal>
@@ -382,7 +383,7 @@ export function MissionTechnicalStructureScreen({ navigation, route }) {
           </TouchableOpacity>)}
         </ScrollView>
         <View style={styles.modalActions}>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setAssignTarget(null)}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setAssignTarget(null)}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

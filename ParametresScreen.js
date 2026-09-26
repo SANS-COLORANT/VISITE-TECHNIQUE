@@ -9,6 +9,7 @@ import { exporterSauvegardeBase, exporterSauvegardeComplete, choisirEtRestaurerS
 import { ensureEquipmentCatalogReady } from './database/index.js';
 import { diagnostiquerStockageLocal } from './storageHealth.js';
 import { exporterSupportDump } from './supportDump.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const CATEGORIES_EQUIPEMENT=['Adoucisseur','Armoire électrique','Ballon ECS','Chaudière','Circulateur','Coffret gaz','Compteur','Désemboueur','Détendeur','Échangeur','Extincteur','Filtre','Manomètre','Pompe','Robinetterie','Soupape','Vanne',"Vase d'expansion"];
 const MARQUES_EQUIPEMENT=['De Dietrich','Viessmann','Grundfos','Wilo','Saunier Duval','Atlantic','Frisquet','Chappée','Chaffoteaux','Elm Leblanc','Bosch','Vaillant','Fernox','Alfa Laval'];
@@ -35,7 +36,7 @@ function ParametresScreen(){
         <>
           <Text style={{fontSize:16,fontWeight:'800',color:COLORS.text}}>Catalogue indisponible</Text>
           <Text style={{marginTop:8,color:COLORS.muted,textAlign:'center'}}>{catalogueErreur}</Text>
-          <TouchableOpacity style={[styles.btnPrimary,{marginTop:16}]} onPress={()=>{setCatalogueErreur(null);setCataloguePret(false);setOnglet('reserves');setTimeout(()=>setOnglet('equipements'),0);}}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary,{marginTop:16}]} onPress={()=>{setCatalogueErreur(null);setCataloguePret(false);setOnglet('reserves');setTimeout(()=>setOnglet('equipements'),0);}}><ButtonGlow /><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity>
         </>
         :<>
           <ActivityIndicator size="large" color={COLORS.orange}/>
@@ -254,7 +255,7 @@ function BibliothequeReserves(){
             <TextInput style={[styles.input,{marginTop:10}]} placeholder="Poste" value={poste} onChangeText={setPoste}/>
             <View style={{flexDirection:'row',gap:10,marginTop:10}}><TextInput style={[styles.input,{flex:1}]} placeholder="Prix (€HT)" value={prix} onChangeText={setPrix} keyboardType="numeric"/><TextInput style={[styles.input,{flex:1}]} placeholder="Délai (mois)" value={delai} onChangeText={setDelai} keyboardType="numeric"/></View>
           </ScrollView>
-          <View style={[styles.modalActions,{paddingTop:10,borderTopWidth:1,borderTopColor:COLORS.line}]}><TouchableOpacity style={styles.btnSecondary} onPress={fermerModal}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrer}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View>
+          <View style={[styles.modalActions,{paddingTop:10,borderTopWidth:1,borderTopColor:COLORS.line}]}><TouchableOpacity style={styles.btnSecondary} onPress={fermerModal}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrer}><ButtonGlow /><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View>
         </View>
       </View>
     </Modal>

@@ -26,6 +26,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { AmbientBackground } from './premiumChrome.js';
 import { BottomTabBar } from './BottomTabBar.js';
 import { QuickVisitSheet } from './QuickVisitSheet.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const SPLASH_BG = '#FBF0E1';
 const MISSION_ROUTES = new Set(['Missions', 'MissionCreate', 'Mission', 'MissionVisit', 'MissionReport', 'MissionTechnicalGraph', 'MissionEquipment', 'MissionStructure', 'MissionTechnicalStructure', 'MissionPlan', 'MissionMap', 'MissionCalculation', 'MissionTests', 'MissionScenarios', 'MissionExcelMapping', 'MissionPhotoAnnotations', 'MissionActions', 'MissionDocuments', 'MissionSignature', 'MissionWorkflow', 'MissionPackage', 'MissionDocumentInbox', 'MissionMeasurements', 'MissionMeasurementCampaign', 'MissionReserveClearance', 'MissionSubjects', 'MissionP3Dashboard', 'MissionReceptionBoard', 'MissionExpertise', 'MissionCampaignDashboard', 'MissionAmoDashboard', 'MissionControlBoard']);
@@ -249,7 +250,7 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
     return () => sub.remove();
   }, [stack.length, goBack, r1Visible]);
 
-  if (dbError) return <View style={styles.center}><Text style={styles.errorTitle}>Erreur de démarrage</Text><Text style={styles.errorText}>{String(dbError.message || dbError)}</Text><TouchableOpacity style={[styles.btnPrimary, { marginTop: 18 }]} onPress={initialiser}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity></View>;
+  if (dbError) return <View style={styles.center}><Text style={styles.errorTitle}>Erreur de démarrage</Text><Text style={styles.errorText}>{String(dbError.message || dbError)}</Text><TouchableOpacity style={[styles.btnPrimary, { marginTop: 18 }]} onPress={initialiser}><ButtonGlow /><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity></View>;
   if (!visualPack) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
   if (!dbReady) return <VisualPackLoadingScreen pack={visualPack} />;
 

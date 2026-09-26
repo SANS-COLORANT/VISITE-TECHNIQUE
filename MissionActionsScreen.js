@@ -7,6 +7,7 @@ import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerOuTrouverActeurMission, enregistrerHistoriqueActionMission } from './missionDomainDb.js';
 import { capturerPhotoMission } from './missionMediaDb.js';
 import { exporterSyntheseActionsMission } from './missionClientExcelExport.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const STATUSES = [['open','Ouverte'],['in_progress','En cours'],['waiting','En attente'],['to_check','À contrôler'],['closed','Clôturée'],['cancelled','Annulée']];
 
@@ -225,7 +226,7 @@ export function MissionActionsScreen({ route }) {
       </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={openNew}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Action</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={openNew}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Action</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} disabled={exportingSummary} onPress={exportSummary}>
           <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>{exportingSummary ? 'Export…' : '⇩ Synthèse Excel'}</Text>
         </TouchableOpacity>
@@ -330,7 +331,7 @@ export function MissionActionsScreen({ route }) {
 
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setEditVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={save}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={save}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
         </View>
       </ScrollView></View>
     </Modal>

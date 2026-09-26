@@ -3,6 +3,7 @@ import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } fro
 import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { ButtonGlow } from './ButtonGlow.js';
 import {
   MISSION_LOCATION_KINDS,
   construireArbreLocalisations,
@@ -190,7 +191,7 @@ export function MissionStructureScreen({ navigation, route }) {
 
       {selectedSite ? <>
         <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 10 }}>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => openNewRoot(selectedSite)}>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => openNewRoot(selectedSite)}><ButtonGlow tone="mission" />
             <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Bâtiment / zone racine</Text>
           </TouchableOpacity>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionEquipment', { missionId, siteId: selectedSite.id })}>
@@ -238,7 +239,7 @@ export function MissionStructureScreen({ navigation, route }) {
         </ScrollView>
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setModalVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={save}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={save}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

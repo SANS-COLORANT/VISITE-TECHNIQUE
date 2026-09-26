@@ -5,6 +5,7 @@ import { COLORS, FONTS, styles } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { ProgressRing } from './premiumChrome.js';
 import { getDb } from './db.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const CONFIG_SECTION = 'vmc.config';
 const INFOS_SECTION = 'vmc-infos.informations_g_n_rales';
@@ -293,7 +294,7 @@ export function VmcCaissonManager({ visiteId, caissons = [], onChange, onNavigat
         <TextInput style={[styles.input, { marginTop: 12 }]} autoFocus value={nom} onChangeText={setNom} placeholder={`Caisson ${edition || ''}`} />
         <View style={styles.modalActions}>
           <TouchableOpacity style={styles.btnSecondary} onPress={() => setEdition(null)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.btnPrimary} onPress={enregistrerNom}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.btnPrimary} onPress={enregistrerNom}><ButtonGlow /><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

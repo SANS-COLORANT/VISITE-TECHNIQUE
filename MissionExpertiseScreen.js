@@ -4,6 +4,7 @@ import { getDb } from './db.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { ajouterConstatMission, creerHypotheseMission, creerSujetMission } from './missionDomainDb.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const HYPOTHESIS_STATUS = Object.freeze([
   ['untested', 'À tester'],
@@ -232,7 +233,7 @@ export function MissionExpertiseScreen({ navigation, route }) {
       </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setFactVisible(true)}>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setFactVisible(true)}><ButtonGlow tone="mission" />
           <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Fait horodaté</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setHypothesisVisible(true)}>
@@ -319,7 +320,7 @@ export function MissionExpertiseScreen({ navigation, route }) {
         <Field label="Contexte" value={subjectDraft.description} onChangeText={(v)=>setSubjectDraft((d)=>({...d,description:v}))} multiline />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={()=>setSubjectVisible(false)}><Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busy} onPress={createSubject}><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busy} onPress={createSubject}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -331,7 +332,7 @@ export function MissionExpertiseScreen({ navigation, route }) {
         <Field label="Source" value={factDraft.sourceType} onChangeText={(v)=>setFactDraft((d)=>({...d,sourceType:v}))} placeholder="terrain, document, mesure, tiers…" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={()=>setFactVisible(false)}><Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busy} onPress={createFact}><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Enregistrer le fait</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busy} onPress={createFact}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Enregistrer le fait</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -343,7 +344,7 @@ export function MissionExpertiseScreen({ navigation, route }) {
         <Field label="Raisonnement / éléments à vérifier" value={hypothesisDraft.rationale} onChangeText={(v)=>setHypothesisDraft((d)=>({...d,rationale:v}))} multiline />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={()=>setHypothesisVisible(false)}><Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busy} onPress={createHypothesis}><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer l’hypothèse</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busy} onPress={createHypothesis}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer l’hypothèse</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -355,7 +356,7 @@ export function MissionExpertiseScreen({ navigation, route }) {
         <Field label="Conclusion distincte du fait" value={conclusionDraft} onChangeText={setConclusionDraft} multiline placeholder="Conclusion, résultat des investigations, limites restantes…" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={()=>setConclusionHypothesis(null)}><Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busy} onPress={saveConclusion}><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busy} onPress={saveConclusion}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

@@ -11,6 +11,7 @@ import {
 } from './db.js';
 import { rechercherCatalogueIntelligent, enregistrerOuvertureModele, getFamilyPriorityKeys } from './catalogueAdvancedDb.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 function Gradient({ marque }) {
   const base = getBrandColor(marque);
@@ -140,7 +141,7 @@ function CurvePreview({ curve }) {
 function SimpleModal({ visible,title,fields,onClose,onSave }) {
   const [values,setValues]=useState({});
   useEffect(()=>{if(visible)setValues({});},[visible]);
-  return <Modal visible={visible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}><ScrollView keyboardShouldPersistTaps="handled"><Text style={styles.modalTitle}>{title}</Text>{fields.map(f=><TextInput key={f.key} style={[styles.input,{marginTop:10,minHeight:f.multiline?70:undefined,textAlignVertical:f.multiline?'top':undefined}]} placeholder={f.label} value={values[f.key]||''} onChangeText={v=>setValues(x=>({...x,[f.key]:v}))} multiline={!!f.multiline}/>)}<View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={()=>onSave(values)}><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></ScrollView></View></View></Modal>;
+  return <Modal visible={visible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}><ScrollView keyboardShouldPersistTaps="handled"><Text style={styles.modalTitle}>{title}</Text>{fields.map(f=><TextInput key={f.key} style={[styles.input,{marginTop:10,minHeight:f.multiline?70:undefined,textAlignVertical:f.multiline?'top':undefined}]} placeholder={f.label} value={values[f.key]||''} onChangeText={v=>setValues(x=>({...x,[f.key]:v}))} multiline={!!f.multiline}/>)}<View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={()=>onSave(values)}><ButtonGlow /><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></ScrollView></View></View></Modal>;
 }
 
 export function EquipmentCatalogueBrowser(){

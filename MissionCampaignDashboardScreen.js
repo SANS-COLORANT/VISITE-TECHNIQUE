@@ -5,6 +5,7 @@ import { creerVisiteMission } from './missionsDb.js';
 import { getMissionFieldPlaybook } from './missionFieldPlaybooks.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const FILTERS = Object.freeze([
   ['all','Tous'],
@@ -189,7 +190,7 @@ export function MissionCampaignDashboardScreen({ navigation, route }) {
         style={[styles.btnPrimary, missionStyles.primaryButton, { marginTop: 12, alignItems: 'center', paddingVertical: 11 }]}
         disabled={busySiteId === nextSite.id}
         onPress={() => openSite(nextSite)}
-      >
+      ><ButtonGlow tone="mission" />
         <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>
           {busySiteId === nextSite.id ? 'Ouverture…' : 'Continuer · ' + nextSite.name}
         </Text>
@@ -248,7 +249,7 @@ export function MissionCampaignDashboardScreen({ navigation, route }) {
           </View> : null}
 
           <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 9 }}>
-            <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busySiteId === site.id} onPress={() => openSite(site)}>
+            <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} disabled={busySiteId === site.id} onPress={() => openSite(site)}><ButtonGlow tone="mission" />
               <Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>{site.last_visit_status === 'draft' ? 'Reprendre la visite' : 'Ouvrir terrain'}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionEquipment',{missionId,siteId:site.id})}>

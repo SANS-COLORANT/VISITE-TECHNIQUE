@@ -10,6 +10,7 @@ import {
 } from './missionPhotoAnnotationDb.js';
 import { modifierVisibilitePhotoMission } from './missionMediaDb.js';
 import { exporterAlbumPhotosMission } from './missionPhotoAlbumExport.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const TOOLS = [['select', 'Consulter'], ['circle', 'Cercle'], ['arrow', 'Flèche'], ['zone', 'Zone'], ['text', 'Texte']];
 
@@ -256,7 +257,7 @@ export function MissionPhotoAnnotationScreen({ route }) {
         <TextInput style={[styles.input, missionStyles.input]} value={textValue} onChangeText={setTextValue} placeholder="Commentaire technique" autoFocus />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setTextModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={confirmText}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Ajouter</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={confirmText}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Ajouter</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

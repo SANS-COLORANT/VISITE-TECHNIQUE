@@ -4,6 +4,7 @@ import Svg, { Line, Polyline, Text as SvgText } from 'react-native-svg';
 import { getDb } from './db.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { ButtonGlow } from './ButtonGlow.js';
 import {
   creerInstrumentMission,
   creerTypeMesureMission,
@@ -206,7 +207,7 @@ export function MissionMeasurementsScreen({ navigation, route }) {
       </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setMeasureVisible(true)}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Mesure</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setMeasureVisible(true)}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Mesure</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setTypeVisible(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Type personnalisé</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setInstrumentVisible(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Instrument</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionMeasurementCampaign', { missionId })}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Campagnes terrain · valeur → suivant</Text></TouchableOpacity>
@@ -292,7 +293,7 @@ export function MissionMeasurementsScreen({ navigation, route }) {
 
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}>
             <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setMeasureVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { flex: 1, alignItems: 'center' }]} onPress={saveMeasure}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { flex: 1, alignItems: 'center' }]} onPress={saveMeasure}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
           </View>
         </ScrollView>
       </View>
@@ -309,7 +310,7 @@ export function MissionMeasurementsScreen({ navigation, route }) {
         </View>
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setTypeVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createType}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createType}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -325,7 +326,7 @@ export function MissionMeasurementsScreen({ navigation, route }) {
         <Field label="Prochain étalonnage" value={instrumentDraft.due} onChangeText={(v) => setInstrumentDraft((p) => ({ ...p, due: v }))} />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setInstrumentVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createInstrument}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createInstrument}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
         </View>
       </ScrollView></View>
     </Modal>
@@ -335,7 +336,7 @@ export function MissionMeasurementsScreen({ navigation, route }) {
         <Text style={[styles.modalTitle, missionStyles.title]}>{seriesVisible?.type || 'Série'}</Text>
         {seriesVisible ? <SeriesChart series={seriesVisible} width={Math.min(620, width - 70)} /> : null}
         <Text style={{ color: COLORS.inkSoft, fontSize: 9.5, marginTop: 5 }}>{seriesVisible?.sample_count || 0} point(s) · min {seriesVisible?.min_value} · moy {Number(seriesVisible?.avg_value || 0).toFixed(2)} · max {seriesVisible?.max_value} {seriesVisible?.unit || ''}</Text>
-        <View style={styles.modalActions}><TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setSeriesVisible(null)}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer</Text></TouchableOpacity></View>
+        <View style={styles.modalActions}><TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setSeriesVisible(null)}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Fermer</Text></TouchableOpacity></View>
       </View></View>
     </Modal>
   </View>;

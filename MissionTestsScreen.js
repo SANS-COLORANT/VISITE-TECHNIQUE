@@ -17,6 +17,7 @@ import { creerActionMission } from './missionDomainDb.js';
 import { modifierEquipementMission } from './missionEquipmentDb.js';
 import { getMissionTestPresets } from './missionTestPresets.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const STATUS_OPTIONS = [
   ['ok', 'OK'],
@@ -286,7 +287,7 @@ export function MissionTestsScreen({ route }) {
       </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setCreateVisible(true)}>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setCreateVisible(true)}><ButtonGlow tone="mission" />
           <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Protocole libre</Text>
         </TouchableOpacity>
         {recommendedPresets.length ? <TouchableOpacity
@@ -365,7 +366,7 @@ export function MissionTestsScreen({ route }) {
         />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setCreateVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveProtocol}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveProtocol}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -385,7 +386,7 @@ export function MissionTestsScreen({ route }) {
         </ScrollView>
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setStartProtocol(null)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={startRun}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Démarrer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={startRun}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Démarrer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -434,7 +435,7 @@ export function MissionTestsScreen({ route }) {
               </View>
             </View>;
           })}
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { alignItems: 'center', marginTop: 4 }]} onPress={finishRun}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Terminer l’essai</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { alignItems: 'center', marginTop: 4 }]} onPress={finishRun}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Terminer l’essai</Text></TouchableOpacity>
         </ScrollView>
       </View>
     </Modal>

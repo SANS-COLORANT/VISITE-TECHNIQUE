@@ -9,6 +9,7 @@ import {
   supprimerSectionRapportMission,
 } from './missionReportDb.js';
 import { exporterRapportMissionDocx, exporterRapportMissionPdf } from './missionReportExporter.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 function parseBlocks(section) {
   try {
@@ -141,7 +142,7 @@ export function MissionReportScreen({ navigation, route }) {
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={addSection}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Section</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => load(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>↻ Actualiser les données</Text></TouchableOpacity>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} disabled={busy} onPress={() => exportFile('docx')}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Word</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} disabled={busy} onPress={() => exportFile('pdf')}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{busy ? 'Export…' : 'PDF'}</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} disabled={busy} onPress={() => exportFile('pdf')}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{busy ? 'Export…' : 'PDF'}</Text></TouchableOpacity>
         </View>
       </View>}
       renderItem={({ item, index }) => {
@@ -182,7 +183,7 @@ export function MissionReportScreen({ navigation, route }) {
         </Text>
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setEditing(null)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveEdit}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveEdit}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

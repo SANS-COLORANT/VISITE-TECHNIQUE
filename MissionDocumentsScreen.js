@@ -7,6 +7,7 @@ import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { choisirEtAjouterDocumentMission } from './missionMediaDb.js';
 import { creerOuTrouverActeurMission } from './missionDomainDb.js';
 import { getMissionExpectedDocumentPresets } from './missionDocumentPresets.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const EXPECTED_STATUS = [
   ['expected','Attendu'],
@@ -189,7 +190,7 @@ export function MissionDocumentsScreen({ route }) {
       </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={importDoc}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Importer document</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={importDoc}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Importer document</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setAddExpectedVisible(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Document attendu</Text></TouchableOpacity>
         {recommendedDocuments.length ? <TouchableOpacity
           style={[styles.btnSecondary, missionStyles.secondaryButton]}
@@ -248,7 +249,7 @@ export function MissionDocumentsScreen({ route }) {
         <TextInput style={[styles.input, missionStyles.input, { marginTop: 8, minHeight: 65, textAlignVertical: 'top' }]} multiline value={draft.comment} onChangeText={(v) => setDraft((p) => ({ ...p, comment: v }))} placeholder="Commentaire" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setAddExpectedVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={addExpected}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Ajouter</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={addExpected}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Ajouter</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -275,7 +276,7 @@ export function MissionDocumentsScreen({ route }) {
         </View> : null}
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setVisaDoc(null)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveVisa}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer le VISA</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveVisa}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer le VISA</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

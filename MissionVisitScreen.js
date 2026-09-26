@@ -15,6 +15,7 @@ import { modifierEquipementMission } from './missionEquipmentDb.js';
 import { chargerContexteAutoVisiteMission, valeurAutoPourChampMission } from './missionVisitAutofillDb.js';
 import { chargerMemoireVisiteMission, previousVisitLabel } from './missionVisitMemoryDb.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const POINT_TYPES = [
   ['reserve', 'Réserve'], ['action', 'Action'], ['request', 'Demande'], ['control', 'Contrôle'], ['decision', 'Décision'], ['information', 'Information'],
@@ -949,7 +950,7 @@ export function MissionVisitScreen({ navigation, route }) {
         </ScrollView>
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={clearTechnicalContext}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Réinitialiser</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => { setContextModal(false); setContextQuery(''); }}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Utiliser ce contexte</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => { setContextModal(false); setContextQuery(''); }}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Utiliser ce contexte</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -974,7 +975,7 @@ export function MissionVisitScreen({ navigation, route }) {
         </ScrollView>
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setChecklistModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Revenir à la visite</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={reallyComplete}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Terminer quand même</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={reallyComplete}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Terminer quand même</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -993,7 +994,7 @@ export function MissionVisitScreen({ navigation, route }) {
         <TextInput style={[styles.input, missionStyles.input, { marginTop: 9 }]} value={measureReference} onChangeText={setMeasureReference} keyboardType="decimal-pad" placeholder="Référence attendue (facultatif)" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setMeasureModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={addMeasure}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={addMeasure}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -1032,7 +1033,7 @@ export function MissionVisitScreen({ navigation, route }) {
         </View>
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setPointModal(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={addPoint}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Ajouter</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={addPoint}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Ajouter</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

@@ -3,6 +3,7 @@ import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } fro
 import { getDb } from './db.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { ButtonGlow } from './ButtonGlow.js';
 import {
   CAMPAIGN_POINT_STATUSES,
   ajouterPointCampagneMesures,
@@ -332,7 +333,7 @@ export function MissionMeasurementCampaignScreen({ route }) {
       </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setCreateVisible(true)}>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setCreateVisible(true)}><ButtonGlow tone="mission" />
           <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Campagne</Text>
         </TouchableOpacity>
         {selectedCampaign ? <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={duplicateCampaign}>
@@ -422,7 +423,7 @@ export function MissionMeasurementCampaignScreen({ route }) {
             style={[styles.btnPrimary, missionStyles.primaryButton, { marginTop: 10, alignItems: 'center', paddingVertical: 13 }]}
             disabled={busy}
             onPress={() => recordCurrent('measured')}
-          >
+          ><ButtonGlow tone="mission" />
             <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{busy ? 'Enregistrement…' : 'Enregistrer → suivant'}</Text>
           </TouchableOpacity>
 
@@ -496,7 +497,7 @@ export function MissionMeasurementCampaignScreen({ route }) {
         <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={draft.comparisonGroup} onChangeText={(v) => setDraft((p) => ({ ...p, comparisonGroup: v }))} placeholder="Groupe comparaison (facultatif)" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setCreateVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createCampaign}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={createCampaign}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
         </View>
       </ScrollView></View>
     </Modal>
@@ -518,7 +519,7 @@ export function MissionMeasurementCampaignScreen({ route }) {
         </Text>
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setManualPointVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={addManualPoint}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Ajouter</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={addManualPoint}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Ajouter</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

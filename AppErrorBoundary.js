@@ -1,6 +1,7 @@
 import React from 'react';
 import { BackHandler, Text, TouchableOpacity, View } from 'react-native';
 import { styles } from './styles.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 /**
  * Dernier filet de sécurité UI : évite un écran blanc si un composant React
@@ -42,7 +43,7 @@ class AppErrorBoundary extends React.Component {
         <View style={{ marginTop: 12, width: '100%', maxWidth: 720, padding: 10, borderRadius: 10, backgroundColor: '#FFF4F2', borderWidth: 1, borderColor: '#F1B5AE' }}>
           <Text selectable style={[styles.errorText, { fontSize: 11, color: '#8A1C13' }]}>{detail}</Text>
         </View>
-        <TouchableOpacity style={[styles.btnPrimary, { marginTop: 20, minWidth: 180 }]} onPress={this.reessayer}>
+        <TouchableOpacity style={[styles.btnPrimary, { marginTop: 20, minWidth: 180 }]} onPress={this.reessayer}><ButtonGlow />
           <Text style={styles.btnPrimaryText}>Relancer l’interface</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10, minWidth: 180 }]} onPress={() => BackHandler.exitApp()}>

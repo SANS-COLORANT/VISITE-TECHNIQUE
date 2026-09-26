@@ -17,6 +17,7 @@ import {
   subscribeCompanion,
 } from './companionNative.js';
 import { getRuntimeAccent } from './visual-packs/runtime/visualPaletteRuntime.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 function withTimeout(promise, ms, message) {
   let timer = null;
@@ -311,7 +312,7 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
               <View style={styles.empty}>
                 <Text style={styles.emptyText}>Impossible de créer la session</Text>
                 <Text style={styles.emptySub}>{connection}</Text>
-                <TouchableOpacity style={[styles.btnPrimary, { marginTop: 14 }]} onPress={launch}>
+                <TouchableOpacity style={[styles.btnPrimary, { marginTop: 14 }]} onPress={launch}><ButtonGlow />
                   <Text style={styles.btnPrimaryText}>Réessayer</Text>
                 </TouchableOpacity>
               </View>
@@ -360,7 +361,7 @@ function CompanionTabletModal({ visible, visiteId = null, clientId = null, nomCl
                   <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => refreshSnapshot()}>
                     <Text style={styles.btnSecondaryText}>Actualiser</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={close}>
+                  <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={close}><ButtonGlow />
                     <Text style={styles.btnPrimaryText}>Fermer</Text>
                   </TouchableOpacity>
                 </View>

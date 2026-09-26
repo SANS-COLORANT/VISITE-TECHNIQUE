@@ -11,6 +11,7 @@ import {
   listerFormulesMission,
 } from './missionCalculationDb.js';
 import { getCalculationAutoValues, isFormulaRecommended, sortFormulasForMission } from './missionCalculationAssist.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 function parse(value, fallback = []) {
   try { return value ? JSON.parse(value) : fallback; } catch { return fallback; }
@@ -240,7 +241,7 @@ export function MissionCalculationScreen({ route }) {
         </View> : null}
         <View style={{ flexDirection: 'row', gap: 8 }}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={calculate}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Calculer</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { flex: 1, alignItems: 'center' }]} onPress={saveCalculation}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Calculer & enregistrer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { flex: 1, alignItems: 'center' }]} onPress={saveCalculation}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Calculer & enregistrer</Text></TouchableOpacity>
         </View>
       </View> : null}
 
@@ -266,7 +267,7 @@ export function MissionCalculationScreen({ route }) {
         <TextInput style={[styles.input, missionStyles.input, { marginTop: 8 }]} value={custom.unit} onChangeText={(v) => setCustom((p) => ({ ...p, unit: v }))} placeholder="Unité résultat" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setCustomVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveCustom}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={saveCustom}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

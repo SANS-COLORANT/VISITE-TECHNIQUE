@@ -17,6 +17,7 @@ import { prewarmVisitInBackground } from './visitPrewarm.js';
 import { forgetVisitRuntime, markVisitHot } from './visitRuntimeCache.js';
 import { QUICK_VISIT_CLIENT_ID, listerIdsVisitesARattacher, nettoyerSitesARattacherVides } from './quickVisitDb.js';
 import { AttachVisitSheet } from './AttachVisitSheet.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null, quickIds: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
@@ -327,7 +328,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
         <TextInput style={[styles.input, { marginTop: 10 }]} placeholder="Code exploitant (optionnel)" value={nouveauCode} onChangeText={setNouveauCode} />
         <View style={styles.modalActions}>
           <TouchableOpacity style={styles.btnSecondary} onPress={() => setModalVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.btnPrimary} onPress={ajouterClient}><Text style={styles.btnPrimaryText}>{creationClient ? 'Création…' : 'Créer'}</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.btnPrimary} onPress={ajouterClient}><ButtonGlow /><Text style={styles.btnPrimaryText}>{creationClient ? 'Création…' : 'Créer'}</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -338,7 +339,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
         {importBatch ? <ScrollView style={{ maxHeight: 430 }}>{importBatch.analyses.map((a, index) => <View key={`${a.sourceId || a.nomFichier}-${index}`} style={{ paddingVertical: 10, borderBottomWidth: 1, borderBottomColor: COLORS.line }}><Text style={styles.importFileName}>{a.nomFichier}</Text><Text style={styles.importSiteTitle}>{a.client} · {a.site}</Text></View>)}</ScrollView> : null}
         <View style={styles.modalActions}>
           <TouchableOpacity style={styles.btnSecondary} onPress={() => setImportBatch(null)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.btnPrimary} onPress={confirmerImport}><Text style={styles.btnPrimaryText}>{importEnCours ? 'Import…' : `Importer ${importBatch?.analyses?.length || 0}`}</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.btnPrimary} onPress={confirmerImport}><ButtonGlow /><Text style={styles.btnPrimaryText}>{importEnCours ? 'Import…' : `Importer ${importBatch?.analyses?.length || 0}`}</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

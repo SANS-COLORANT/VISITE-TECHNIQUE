@@ -3,6 +3,7 @@ import { ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { getDb } from './db.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 function money(value) {
   const n = Number(value);
@@ -192,7 +193,7 @@ export function MissionAmoDashboardScreen({ navigation, route }) {
       </View>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 13 }}>
-        <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} onPress={() => navigation.navigate('MissionWorkflow',{missionId})}>
+        <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} onPress={() => navigation.navigate('MissionWorkflow',{missionId})}><ButtonGlow tone="mission" />
           <Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Workflow / occurrences</Text>
         </TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={() => navigation.navigate('MissionSubjects',{missionId})}>

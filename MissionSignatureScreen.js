@@ -5,6 +5,7 @@ import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { COLORS, styles } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 function pathFromPoints(points = []) {
   if (!points.length) return '';
@@ -90,7 +91,7 @@ export function MissionSignatureScreen({ navigation, route }) {
 
     <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
       <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={clear}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Effacer</Text></TouchableOpacity>
-      <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { flex: 1, alignItems: 'center' }]} onPress={save}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer la signature</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { flex: 1, alignItems: 'center' }]} onPress={save}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>Enregistrer la signature</Text></TouchableOpacity>
     </View>
   </View>;
 }

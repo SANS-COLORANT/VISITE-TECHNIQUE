@@ -6,6 +6,7 @@ import { PersistentControleGenerique } from './PersistentControleGenerique.js';
 import { PresetControleGenerique } from './PresetControleGenerique.js';
 import { PreAllumagePlanCard } from './PreAllumagePlanCard.js';
 import { COLORS, styles, FONTS } from './styles.js';
+import { ButtonGlow } from './ButtonGlow.js';
 import {
   PREALLUMAGE_TYPES_LOCAUX,
   ajouterChampPreAllumage,
@@ -70,7 +71,7 @@ function GestionModal({ visible, mode, panelId, onClose, onSubmit }) {
         </> : null}
         <View style={styles.modalActions}>
           <TouchableOpacity style={styles.btnSecondary} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.btnPrimary} onPress={() => onSubmit({ nom, typeCode, chauffage, ecs })}><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity>
+          <TouchableOpacity style={styles.btnPrimary} onPress={() => onSubmit({ nom, typeCode, chauffage, ecs })}><ButtonGlow /><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity>
         </View>
       </View>
     </View>

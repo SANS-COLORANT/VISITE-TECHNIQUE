@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { ButtonGlow } from './ButtonGlow.js';
 import {
   MISSION_FAMILIES,
   creerMissionClient,
@@ -140,7 +141,7 @@ export function MissionCreateScreen({ navigation }) {
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={addSite}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Site</Text></TouchableOpacity>
       </View>
 
-      <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { alignItems: 'center', paddingVertical: 13 }]} disabled={saving} onPress={save}>
+      <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { alignItems: 'center', paddingVertical: 13 }]} disabled={saving} onPress={save}><ButtonGlow tone="mission" />
         <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{saving ? 'Création…' : 'Créer / enregistrer le brouillon'}</Text>
       </TouchableOpacity>
       <Text style={{ color: MISSION_COLORS.accentDark, fontSize: 9.5, textAlign: 'center', marginTop: 8 }}>

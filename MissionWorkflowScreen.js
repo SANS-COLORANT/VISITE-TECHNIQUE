@@ -6,6 +6,7 @@ import { creerVisiteMission } from './missionsDb.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { getMissionWorkstreamPresets } from './missionWorkstreamPresets.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const PHASE_STATUS = [['planned','Prévue'],['active','Active'],['done','Terminée'],['skipped','Non retenue']];
 
@@ -167,7 +168,7 @@ export function MissionWorkflowScreen({ navigation, route }) {
       </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 12 }}>
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setVisitModal(true)}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Occurrence / visite</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => setVisitModal(true)}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Occurrence / visite</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setPhaseModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Phase</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setWorkstreamModal(true)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Volet</Text></TouchableOpacity>
         {recommendedWorkstreams.length ? <TouchableOpacity
@@ -224,7 +225,7 @@ export function MissionWorkflowScreen({ navigation, route }) {
         <TextInput style={[styles.input,missionStyles.input,{marginTop:8}]} value={phaseDraft.type} onChangeText={(v)=>setPhaseDraft((p)=>({...p,type:v}))} placeholder="Type interne (facultatif)" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={()=>setPhaseModal(false)}><Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} onPress={addPhase}><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} onPress={addPhase}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -237,7 +238,7 @@ export function MissionWorkflowScreen({ navigation, route }) {
         <TextInput style={[styles.input,missionStyles.input,{marginTop:8,minHeight:70,textAlignVertical:'top'}]} multiline value={workstreamDraft.description} onChangeText={(v)=>setWorkstreamDraft((p)=>({...p,description:v}))} placeholder="Périmètre du volet" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={()=>setWorkstreamModal(false)}><Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} onPress={addWorkstream}><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} onPress={addWorkstream}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>
@@ -253,7 +254,7 @@ export function MissionWorkflowScreen({ navigation, route }) {
         <TextInput style={[styles.input,missionStyles.input,{marginTop:8}]} value={visitDraft.visitDate} onChangeText={(v)=>setVisitDraft((p)=>({...p,visitDate:v}))} placeholder="Date AAAA-MM-JJ (vide = aujourd’hui)" />
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary,missionStyles.secondaryButton]} onPress={()=>setVisitModal(false)}><Text style={[styles.btnSecondaryText,missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} onPress={createVisit}><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer & ouvrir</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary,missionStyles.primaryButton]} onPress={createVisit}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText,missionStyles.primaryButtonText]}>Créer & ouvrir</Text></TouchableOpacity>
         </View>
       </View></View>
     </Modal>

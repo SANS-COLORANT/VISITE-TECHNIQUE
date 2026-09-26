@@ -7,6 +7,7 @@ import { prewarmCameraRuntime } from './cameraRuntime.js';
 import { PhotoVariantImage } from './PhotoVariantImage.js';
 import { enregistrerImagePatrimoine, lireImagePatrimoine } from './patrimoineImageDb.js';
 import { importerImagePatrimoine, supprimerImagePatrimoine } from './patrimoineImageStorage.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 export function PatrimoineThumbnail({ uri, size = 54, radius = 10, style = null }) {
   if (!uri) return null;
@@ -117,7 +118,7 @@ export function PatrimoineImageCard({ entityType, entityId, title, subtitle = nu
           {uri ? <PhotoVariantImage uri={uri} variant="preview" resizeMode="contain" style={{ width: '100%', height: 520, maxHeight: '75%', backgroundColor: '#111827' }} /> : null}
           <View style={{ flexDirection: 'row', gap: 8, padding: 12 }}>
             <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => setViewer(false)}><Text style={styles.btnSecondaryText}>Fermer</Text></TouchableOpacity>
-            <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => { setViewer(false); choisir('galerie'); }}><Text style={styles.btnPrimaryText}>Remplacer</Text></TouchableOpacity>
+            <TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => { setViewer(false); choisir('galerie'); }}><ButtonGlow /><Text style={styles.btnPrimaryText}>Remplacer</Text></TouchableOpacity>
           </View>
         </View>
       </View>

@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { ButtonGlow } from './ButtonGlow.js';
 import {
   appliquerMappingImportMission,
   enregistrerMappingImportMission,
@@ -210,7 +211,7 @@ export function MissionExcelMappingScreen({ route }) {
           <Text style={{ color: COLORS.inkSoft, fontSize: 8.8, marginTop: 2 }} numberOfLines={4}>{Object.entries(row.values || {}).map(([k, v]) => k + '=' + String(v ?? '')).join(' · ')}</Text>
         </View>)}
 
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { marginTop: 14, alignItems: 'center' }]} disabled={busy} onPress={saveAndApply}>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton, { marginTop: 14, alignItems: 'center' }]} disabled={busy} onPress={saveAndApply}><ButtonGlow tone="mission" />
           <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{busy ? 'Application…' : 'Enregistrer le mapping & appliquer'}</Text>
         </TouchableOpacity>
       </View> : null}

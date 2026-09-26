@@ -3,6 +3,7 @@ import { Alert, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } fro
 import { getDb } from './db.js';
 import { COLORS, styles, FONTS } from './styles.js';
 import { MISSION_COLORS, missionStyles } from './missionTheme.js';
+import { ButtonGlow } from './ButtonGlow.js';
 import {
   ajouterConstatMission,
   creerActionMission,
@@ -306,7 +307,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
       </Text>
 
       <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 12 }}>
-        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={openNew}>
+        <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={openNew}><ButtonGlow tone="mission" />
           <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Sujet</Text>
         </TouchableOpacity>
         <Chip label="Ouverts" selected={filter === 'open'} onPress={() => setFilter('open')} />
@@ -379,7 +380,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
             <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => openEvent('decision')}>
               <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Décision</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => openEvent('action')}>
+            <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} onPress={() => openEvent('action')}><ButtonGlow tone="mission" />
               <Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>＋ Action</Text>
             </TouchableOpacity>
           </View>
@@ -427,7 +428,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
         </View>
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setNewVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} disabled={busy} onPress={saveSubject}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{busy ? 'Création…' : 'Créer'}</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} disabled={busy} onPress={saveSubject}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{busy ? 'Création…' : 'Créer'}</Text></TouchableOpacity>
         </View>
       </ScrollView></View>
     </Modal>
@@ -451,7 +452,7 @@ export function MissionSubjectsScreen({ navigation, route }) {
         </> : null}
         <View style={styles.modalActions}>
           <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton]} onPress={() => setEventVisible(false)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Annuler</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} disabled={busy} onPress={saveEvent}><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{busy ? 'Enregistrement…' : 'Enregistrer'}</Text></TouchableOpacity>
+          <TouchableOpacity style={[styles.btnPrimary, missionStyles.primaryButton]} disabled={busy} onPress={saveEvent}><ButtonGlow tone="mission" /><Text style={[styles.btnPrimaryText, missionStyles.primaryButtonText]}>{busy ? 'Enregistrement…' : 'Enregistrer'}</Text></TouchableOpacity>
         </View>
       </ScrollView></View>
     </Modal>

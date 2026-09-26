@@ -31,6 +31,7 @@ import { SectionRail, SideSectionList, AvisCounters, VisitActionBar } from './Vi
 import { calculerEtatOnglets } from './visitTabStatusDb.js';
 import { estVisiteARattacher } from './quickVisitDb.js';
 import { AttachVisitSheet } from './AttachVisitSheet.js';
+import { ButtonGlow } from './ButtonGlow.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function chargerExcelExportModule(){return require('./excelExport.js');}
@@ -612,7 +613,7 @@ function VisiteScreen({ route, onBack }) {
     <Text style={{ color: COLORS.inkSoft, fontSize: 12, marginTop: 8, textAlign: 'center' }}>{chargementErreur}</Text>
     <View style={{ flexDirection: 'row', gap: 10, marginTop: 18 }}>
       <TouchableOpacity style={styles.btnSecondary} onPress={retourSecurise}><Text style={styles.btnSecondaryText}>Retour</Text></TouchableOpacity>
-      <TouchableOpacity style={styles.btnPrimary} onPress={() => charger({ forceCaches: true })}><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity>
+      <TouchableOpacity style={styles.btnPrimary} onPress={() => charger({ forceCaches: true })}><ButtonGlow /><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity>
     </View>
   </View>;
   if (!visite) return <View style={styles.center}><ActivityIndicator size="large" color={COLORS.orange} /></View>;
@@ -726,7 +727,7 @@ function VisiteScreen({ route, onBack }) {
       <Modal visible={noteVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Note libre — {trame.nom}</Text>
         <TextInput style={[styles.input, { height: 160, textAlignVertical: 'top' }]} multiline value={noteTxt} onChangeText={onChangeNoteTxt} placeholder="Notes générales sur la visite..." />
-        <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
+        <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}><ButtonGlow /><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
       </View></View></Modal>
       <AttachVisitSheet
         visible={rattachementVisible}
@@ -744,7 +745,7 @@ function VisiteScreen({ route, onBack }) {
       <Modal visible={anomalieVisible} transparent animationType="fade" onRequestClose={() => setAnomalieVisible(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Ajouter une anomalie</Text><Text style={styles.importHint}>Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.</Text>
         <TextInput style={[styles.input, { minHeight: 100, marginTop: 12, textAlignVertical: 'top' }]} multiline autoFocus value={anomalieTxt} onChangeText={setAnomalieTxt} placeholder="Ex. Pompe défaillante, température de départ trop basse…" />
-        <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setAnomalieVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerAnomalie}><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity></View>
+        <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setAnomalieVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerAnomalie}><ButtonGlow /><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity></View>
       </View></View></Modal>
     </View>
   );

@@ -60,7 +60,8 @@ cartes de verre avec pastille d'état et compteur. Mesures : `StepperNumerique`
 
 ## Éléments communs (styles.js)
 
-- Boutons : `btnPrimary` pilule orange lumineuse (rayon 17, 50 px mini, halo),
+- Boutons : `btnPrimary` pilule orange lumineuse (rayon 17, 50 px mini, halo) avec
+  `<ButtonGlow />` en premier enfant pour le dégradé (`tone="mission"` en vert),
   `btnSecondary` pilule de verre. Missions : même forme, accent vert.
 - Fenêtres : `modalOverlay` voile fumé chaud, `modalSheet` feuille flottante qui
   monte du bas (rayon 28, 92 % de hauteur maxi).
