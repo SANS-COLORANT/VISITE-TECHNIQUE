@@ -27,5 +27,15 @@ tap "$(X 3)"; shot 04-reglages
 tap "$(X 0)"; shot 05-accueil-retour
 
 adb logcat -d -s ReactNativeJS:V ReactNative:W AndroidRuntime:E > shots/logcat.txt || true
-if grep -q "FATAL EXCEPTION" shots/logcat.txt; then echo "::warning::Plantage natif détecté au démarrage (voir logcat.txt)"; fi
+adb logcat -d > shots/logcat-full.txt || true
+# Diagnostic lisible directement dans le journal du job.
+echo "=== Application au premier plan ==="
+adb shell dumpsys activity activities | tr -d '\r' | grep -m3 -E "mResumedActivity|topResumedActivity" || true
+echo "=== Plantages (AndroidRuntime) ==="
+grep -n -A25 "FATAL EXCEPTION" shots/logcat-full.txt | head -80 || true
+echo "=== Erreurs JavaScript ==="
+grep -n -iE "ReactNativeJS.*(error|exception|warn)" shots/logcat-full.txt | head -40 || true
+if grep -q "FATAL EXCEPTION" shots/logcat-full.txt; then
+  if grep -A5 "FATAL EXCEPTION" shots/logcat-full.txt | grep -q "$PKG"; then echo "::warning::Plantage de l'application détecté (voir journal)"; else echo "::notice::Plantage d'un autre processus de l'émulateur (pas l'application)"; fi
+fi
 exit 0

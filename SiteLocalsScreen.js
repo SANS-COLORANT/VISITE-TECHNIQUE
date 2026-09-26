@@ -125,33 +125,28 @@ function SiteLocalsScreen({ route, navigation }) {
       windowSize={7}
       removeClippedSubviews={false}
       ListHeaderComponent={<View>
-        <View style={{ marginBottom: 16 }}>
-          <Text style={styles.sectionLabel}>Site</Text>
-          <Text style={{ color: COLORS.ink, fontFamily: FONTS.black, fontSize: 18 }}>{nomSite || 'Site'}</Text>
-          {nomClient ? <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 3 }}>{nomClient}</Text> : null}
-        </View>
-
-        <View style={{ padding: 13, borderRadius: 13, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: 'rgba(255,255,255,0.82)', marginBottom: 15 }}>
-          <Text style={{ color: COLORS.ink, fontFamily: FONTS.bold, fontSize: 13 }}>Choisis un local</Text>
-          <Text style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16, marginTop: 4 }}>Chaque local possède son propre historique. Une nouvelle visite créée ensuite reste rattachée uniquement à ce local.</Text>
-        </View>
+        {/* Le nom du site est déjà dans l'en-tête : ici seulement le client. */}
+        {nomClient ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: -4, marginBottom: 14 }}>
+          <CvcIcon name="building" size={15} color={COLORS.orangeDark} />
+          <Text numberOfLines={1} style={{ color: COLORS.inkSoft, fontFamily: FONTS.bodySemi, fontSize: 13 }}>{nomClient}</Text>
+        </View> : null}
 
         {legacyCount > 0 ? <TouchableOpacity onPress={ouvrirVisitesNonRattachees} style={{ padding: 12, borderRadius: 12, borderWidth: 1, borderColor: '#E7C77A', backgroundColor: '#FFF8E7', marginBottom: 14 }}>
           <Text style={{ color: '#7A5700', fontFamily: FONTS.black, fontSize: 12 }}>{legacyCount} ancienne{legacyCount > 1 ? 's' : ''} visite{legacyCount > 1 ? 's' : ''} sans local</Text>
           <Text style={{ color: '#7A5700', fontSize: 11, marginTop: 3 }}>Elles restent accessibles sans être attribuées automatiquement à un mauvais local. ›</Text>
         </TouchableOpacity> : null}
 
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionLabel}>Locaux</Text>
-          <Text style={{ color: COLORS.muted, fontSize: 12 }}>{locauxFiltres.length}/{locaux.length}</Text>
+        <View style={[styles.sectionHeaderRow, { marginTop: 0 }]}>
+          <Text style={styles.sectionLabel}>Locaux · {locauxFiltres.length}/{locaux.length}</Text>
         </View>
-        <TextInput
-          style={[styles.input, { marginTop: 8, marginBottom: 10 }]}
+        <Text style={{ color: COLORS.inkSoft, fontSize: 12, fontFamily: FONTS.bodyMedium, lineHeight: 17, marginTop: -4, marginBottom: 10 }}>Chaque local a son propre historique de visites.</Text>
+        {locaux.length > 5 || search ? <TextInput
+          style={[styles.input, { marginBottom: 10 }]}
           value={search}
           onChangeText={setSearch}
           placeholder="Rechercher un local, une trame…"
           autoCorrect={false}
-        />
+        /> : null}
       </View>}
       renderItem={({ item }) => {
         const label = item.nom || item.remote_designation || 'Local technique';
@@ -182,15 +177,15 @@ function SiteLocalsScreen({ route, navigation }) {
     />
 
     <View style={styles.fabBar}>
-      <TouchableOpacity style={[styles.btnPrimary, styles.fabButton]} onPress={() => setCreationVisible(true)}><ButtonGlow />
-        <Text style={styles.btnPrimaryText}>+ Nouveau local</Text>
+      <TouchableOpacity style={[styles.btnPrimary, styles.fabButton, { flexDirection: 'row', gap: 8 }]} onPress={() => setCreationVisible(true)}><ButtonGlow />
+        <CvcIcon name="plus-plain" size={18} color={COLORS.white} strokeWidth={2.6} /><Text style={styles.btnPrimaryText}>Nouveau local</Text>
       </TouchableOpacity>
     </View>
 
     <Modal visible={creationVisible} transparent animationType="fade" onRequestClose={() => !creationEnCours && setCreationVisible(false)}>
       <View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Nouveau local METRA</Text>
-        <Text style={{ color: COLORS.muted, fontSize: 11.5, marginBottom: 11 }}>Le local est créé uniquement dans METRA. La création d'un local Intranet reste gérée par l'écran « Locaux Intranet » existant.</Text>
+        <Text style={{ color: COLORS.muted, fontSize: 11.5, marginBottom: 11 }}>Le local est créé uniquement dans METRA. Pour un local relié à l’Intranet, passe par le bouton « Locaux » de la liste des sites.</Text>
         <TextInput autoFocus style={styles.input} placeholder="Ex. Chaufferie, SST 1, Local VMC…" value={nouveauNom} onChangeText={setNouveauNom} />
         <View style={styles.modalActions}>
           <TouchableOpacity style={styles.btnSecondary} disabled={creationEnCours} onPress={() => setCreationVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>

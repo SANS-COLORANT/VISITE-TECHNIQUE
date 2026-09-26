@@ -43,6 +43,10 @@ function composerAdresse(rue, ville, codePostal) {
   return [String(rue || '').trim(), String(ville || '').trim(), String(codePostal || '').trim()].filter(Boolean).join('\n');
 }
 
+const siteHeaderPill = { paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: 'rgba(242,100,38,0.1)', borderWidth: 1, borderColor: 'rgba(242,100,38,0.3)' };
+const siteHeaderPillText = { fontSize: 12.5, fontFamily: FONTS.bodyBold, color: COLORS.orangeDark };
+const siteHeaderIconBtn = { width: 36, height: 36, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(242,100,38,0.1)' };
+
 function SiteVisitesScreen({ route, navigation }) {
   const params = route?.params || {};
   const { siteId, nomSite } = params;
@@ -323,49 +327,26 @@ function SiteVisitesScreen({ route, navigation }) {
   };
 
   const LocalisationHeader = () => (
-    <View style={{ marginBottom: 18 }}>
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.sectionLabel}>Localisation du site</Text>
-          <Text style={{ color: COLORS.muted, fontSize: 12, marginTop: 2 }}>{site?.adresse || 'Adresse à renseigner'}</Text>
-        </View>
-        <TouchableOpacity onPress={() => setGpsVisible(true)} style={{ paddingHorizontal: 10, paddingVertical: 8 }}>
-          <Text style={{ color: COLORS.primary, fontFamily: FONTS.bodyBold }}>{site?.adresse ? 'Modifier' : '+ Adresse'}</Text>
-        </TouchableOpacity>
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12, padding: 12, borderRadius: 18, backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', marginBottom: 14 }}>
+      <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="map" size={19} color={COLORS.orangeDark} /></IconOrb>
+      <View style={{ flex: 1, minWidth: 0 }}>
+        <Text numberOfLines={2} style={{ fontFamily: FONTS.bodySemi, fontSize: 13.5, color: site?.adresse ? COLORS.ink : COLORS.amber }}>{site?.adresse || 'Adresse à renseigner'}</Text>
+        {site?.localisation_note ? <Text numberOfLines={2} style={{ marginTop: 2, color: COLORS.inkSoft, fontSize: 12 }}>{site.localisation_note}</Text> : null}
       </View>
-
-      <View style={{ padding: 14, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: '#E3E5E8' }}>
-        {site?.adresse ? (
-          <>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-              <CvcIcon name="map" size={16} color={COLORS.ink} />
-              <Text style={{ fontFamily: FONTS.bold, flex: 1 }}>{site.adresse}</Text>
-            </View>
-            {site.localisation_note ? <Text style={{ marginTop: 7, color: '#555' }}>{site.localisation_note}</Text> : null}
-            <TouchableOpacity onPress={() => ouvrirGoogleMaps()} style={{ marginTop: 10, paddingVertical: 8 }}>
-              <Text style={{ color: COLORS.primary, fontFamily: FONTS.bold }}>Ouvrir dans Google Maps ↗</Text>
-            </TouchableOpacity>
-          </>
-        ) : (
-          <>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7 }}>
-              <CvcIcon name="map" size={16} color={COLORS.inkSoft} />
-              <Text style={{ fontFamily: FONTS.bodyBold }}>Adresse non renseignée</Text>
-            </View>
-            <Text style={{ color: COLORS.muted, marginTop: 5, fontSize: 12 }}>Ajoute le numéro et la rue, la ville et le code postal. L'adresse reste disponible hors connexion.</Text>
-          </>
-        )}
-      </View>
+      {site?.adresse ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Itinéraire Google Maps" onPress={() => ouvrirGoogleMaps()} style={siteHeaderPill}><Text style={siteHeaderPillText}>Itinéraire</Text></TouchableOpacity> : null}
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={site?.adresse ? 'Modifier l’adresse' : 'Ajouter une adresse'} onPress={() => setGpsVisible(true)} style={site?.adresse ? siteHeaderIconBtn : siteHeaderPill}>
+        {site?.adresse ? <CvcIcon name="edit" size={16} color={COLORS.orangeDark} /> : <Text style={siteHeaderPillText}>+ Adresse</Text>}
+      </TouchableOpacity>
     </View>
   );
 
   const SiteTabs = () => (
-    <View style={{ flexDirection: 'row', gap: 7, marginBottom: 16 }}>
+    <View style={{ flexDirection: 'row', gap: 7, marginBottom: 14 }}>
       {SITE_TABS.map((tab) => {
         const actif = siteTab === tab.id;
         return (
-          <TouchableOpacity key={tab.id} onPress={() => { setSiteTab(tab.id); setNavigationState(scrollKey, { siteTab: tab.id }); if (tab.id !== 'visites') annulerSelectionExport(); }} style={{ flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 10, borderWidth: 1, borderColor: actif ? COLORS.orange : COLORS.line, backgroundColor: actif ? COLORS.orangeLight : COLORS.white }}>
-            <Text style={{ color: actif ? COLORS.orangeDark : COLORS.inkSoft, fontWeight: actif ? '800' : '600', fontSize: 12.5 }}>{tab.label}</Text>
+          <TouchableOpacity key={tab.id} onPress={() => { setSiteTab(tab.id); setNavigationState(scrollKey, { siteTab: tab.id }); if (tab.id !== 'visites') annulerSelectionExport(); }} style={{ flex: 1, paddingVertical: 9, alignItems: 'center', borderRadius: 18, borderWidth: 1, borderColor: actif ? COLORS.orange : 'rgba(22,21,15,0.1)', backgroundColor: actif ? COLORS.orange : 'rgba(255,255,255,0.72)' }}>
+            <Text style={{ color: actif ? COLORS.white : COLORS.inkSoft, fontFamily: actif ? FONTS.bodyBold : FONTS.bodySemi, fontSize: 12.5 }}>{tab.label}</Text>
           </TouchableOpacity>
         );
       })}
@@ -375,12 +356,12 @@ function SiteVisitesScreen({ route, navigation }) {
   const VisitesHeader = () => (
     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}>
       <View style={{ flex: 1 }}>
-        <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>Historique des visites — {nomLocal || nomSite}</Text>
+        <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>Visites · {visites.length}</Text>
         {legacyOnly
           ? <Text style={{ color: '#7A5700', fontSize: 11.5, marginTop: 4 }}>Anciennes visites sans local : consultation uniquement, aucune nouvelle visite ne sera créée ici.</Text>
           : <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 4 }}>{apiRemoteLocalId ? `Contexte : ${apiRemoteLocalDesignation || nomLocal || 'Local technique'} · préparation Intranet` : `Local : ${nomLocal || 'Local technique'}`}</Text>}
       </View>
-      {visites.length > 0 && !selectionExport ? <TouchableOpacity onPress={ouvrirSelectionExport} style={{ paddingHorizontal: 10, paddingVertical: 8 }}><Text style={{ color: COLORS.primary, fontFamily: FONTS.bold }}>Exporter plusieurs</Text></TouchableOpacity> : null}
+      {visites.length > 0 && !selectionExport ? <TouchableOpacity accessibilityRole="button" onPress={ouvrirSelectionExport} style={siteHeaderPill}><Text style={siteHeaderPillText}>Exporter</Text></TouchableOpacity> : null}
     </View>
   );
 
@@ -419,8 +400,8 @@ function SiteVisitesScreen({ route, navigation }) {
                 <View style={styles.badge}><Text style={styles.badgeText}>{STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%</Text></View>
                 {!selectionExport && (intranetClientImported || item.api_remote_local_id) ? <IntranetVisitSyncControl visite={item} onVisitChanged={charger} compact /> : null}
               </View>
-              {!selectionExport ? <TouchableOpacity onPress={(e) => { e?.stopPropagation?.(); confirmerSuppressionVisite(item); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 6 }} accessibilityLabel={`Supprimer la visite du ${item.date_visite || ''}`}>
-                <CvcIcon name="close" size={19} color={COLORS.red || '#B42318'} strokeWidth={2.1} />
+              {!selectionExport ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Options de la visite" onPress={(e) => { e?.stopPropagation?.(); Alert.alert(`Visite du ${item.date_visite || 'jour'}`, undefined, [{ text: 'Supprimer la visite…', style: 'destructive', onPress: () => confirmerSuppressionVisite(item) }, { text: 'Annuler', style: 'cancel' }]); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 2 }}>
+                <CvcIcon name="more" size={20} color={COLORS.inkSoft} />
               </TouchableOpacity> : null}
             </TouchableOpacity>
           );

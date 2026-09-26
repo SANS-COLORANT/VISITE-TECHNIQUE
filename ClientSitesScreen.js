@@ -1,6 +1,6 @@
 /** Écran Sites d'un client + accès pilotage, carte et documents. */
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, FlatList, ScrollView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { creerSite } from './db.js';
 import { getResumeSuppressionSite, supprimerSiteComplet } from './entityManagementDb.js';
@@ -24,6 +24,9 @@ import { EmptyIcon } from './EmptyState.js';
 
 const adresseVide = () => ({ numero: '', voie: '', complement: '', codePostal: '', ville: '' });
 
+
+const clientActionTile = { width: 84, height: 76, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', overflow: 'hidden' };
+const clientActionTilePrimary = { backgroundColor: COLORS.orange, borderColor: 'rgba(255,255,255,0.3)' };
 
 function ClientSitesScreen({ route, navigation }) {
   const { clientId, nomClient } = route?.params || {};
@@ -191,34 +194,37 @@ function ClientSitesScreen({ route, navigation }) {
       keyboardShouldPersistTaps="handled"
       keyExtractor={(item) => item.id}
       ListHeaderComponent={<View>
-        <PatrimoineImageCard entityType="client" entityId={clientId} title={nomClient || 'Client'} subtitle="Image du client · disponible hors connexion" />
-        <Text style={styles.sectionLabel}>Patrimoine client</Text>
-        <View style={{ marginTop: 8, marginBottom: 12, padding: 14, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.82)', borderWidth: 1, borderColor: '#E3E5E8' }}>
-          <View style={{ flexDirection: 'row', gap: 10 }}><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontFamily: FONTS.bold }}>{sites.length}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>sites</Text></View><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontFamily: FONTS.bold }}>{avecAdresse}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>adresses renseignées</Text></View><View style={{ flex: 1 }}><Text style={{ fontSize: 22, fontFamily: FONTS.bold }}>{sansAdresse}</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>à compléter</Text></View></View>
-        </View>
+        <PatrimoineImageCard compact entityType="client" entityId={clientId} title={nomClient || 'Client'}>
+          <Text style={{ marginTop: 3, color: COLORS.inkSoft, fontSize: 12.5, fontFamily: FONTS.bodyMedium }}>{sites.length} site{sites.length > 1 ? 's' : ''} · {avecAdresse} adresse{avecAdresse > 1 ? 's' : ''}</Text>
+          {sansAdresse > 0 ? <View style={{ alignSelf: 'flex-start', marginTop: 6, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 11, backgroundColor: COLORS.amberBg, borderWidth: 1, borderColor: 'rgba(180,83,9,0.25)' }}><Text style={{ color: COLORS.amber, fontSize: 11, fontFamily: FONTS.bodyBold }}>{sansAdresse} adresse{sansAdresse > 1 ? 's' : ''} à compléter</Text></View> : null}
+        </PatrimoineImageCard>
 
-        <TouchableOpacity style={[styles.btnPrimary, { marginBottom: 8, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 }]} onPress={() => navigation.navigate('ClientPilotage', { clientId, nomClient })} disabled={!sites.length}><ButtonGlow /><CvcIcon name="grid" size={17} color={COLORS.white} /><Text style={styles.btnPrimaryText}>Pilotage patrimoine</Text></TouchableOpacity>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => navigation.navigate('ClientMap', { clientId, nomClient })} disabled={!sites.length}><CvcIcon name="map" size={16} color={COLORS.orangeDark} /><Text style={styles.btnSecondaryText}>Carte</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => setGroupesVisible(true)} disabled={!sites.length}><CvcIcon name="grid" size={16} color={COLORS.orangeDark} /><Text style={styles.btnSecondaryText}>Groupes</Text></TouchableOpacity>
-        </View>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => setModalVisible(true)}><CvcIcon name="plus" size={16} color={COLORS.orangeDark} strokeWidth={2.2} /><Text style={styles.btnSecondaryText}>Site local</Text></TouchableOpacity>
-          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => setIntranetSiteVisible(true)}><CvcIcon name="plus" size={16} color={COLORS.orangeDark} strokeWidth={2.2} /><Text style={styles.btnSecondaryText}>Site Intranet</Text></TouchableOpacity>
-        </View>
-        <View style={{ flexDirection: 'row', gap: 8, marginBottom: 8 }}>
-          <TouchableOpacity style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 7 }]} onPress={() => navigation.navigate('ClientDocuments', { clientId, nomClient })} disabled={!sites.length}><CvcIcon name="document" size={16} color={COLORS.orangeDark} /><Text style={styles.btnSecondaryText}>Documents</Text></TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.btnSecondary, { flex: 1, flexDirection: 'row', gap: 7 }]}
-            onPress={() => setClientCompanionVisible(true)}
-          >
-            <CvcIcon name="device" size={17} color={COLORS.orangeDark} />
-            <Text style={styles.btnSecondaryText}>Compagnon</Text>
+        {/* Actions du client sur une seule ligne défilante (téléphone) : les
+            sites restent visibles sans faire défiler une pile de boutons. */}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ gap: 9, paddingRight: 8 }} style={{ marginBottom: 16, marginHorizontal: -2 }}>
+          {[
+            { key: 'pilotage', label: 'Pilotage', icon: 'grid', primary: true, disabled: !sites.length, onPress: () => navigation.navigate('ClientPilotage', { clientId, nomClient }) },
+            { key: 'carte', label: 'Carte', icon: 'map', disabled: !sites.length, onPress: () => navigation.navigate('ClientMap', { clientId, nomClient }) },
+            { key: 'groupes', label: 'Groupes', icon: 'groups', disabled: !sites.length, onPress: () => setGroupesVisible(true) },
+            { key: 'documents', label: 'Documents', icon: 'document', disabled: !sites.length, onPress: () => navigation.navigate('ClientDocuments', { clientId, nomClient }) },
+            { key: 'compagnon', label: 'Compagnon', icon: 'device', onPress: () => setClientCompanionVisible(true) },
+          ].map((a) => <TouchableOpacity key={a.key} accessibilityRole="button" accessibilityLabel={a.label} disabled={a.disabled} onPress={a.onPress} activeOpacity={0.85} style={[clientActionTile, a.primary && clientActionTilePrimary, a.disabled && { opacity: 0.45 }]}>
+            {a.primary ? <ButtonGlow radius={18} /> : null}
+            <CvcIcon name={a.icon} size={21} color={a.primary ? COLORS.white : COLORS.orangeDark} />
+            <Text numberOfLines={1} style={{ marginTop: 6, fontSize: 11.5, fontFamily: FONTS.bodyBold, color: a.primary ? COLORS.white : COLORS.ink }}>{a.label}</Text>
+          </TouchableOpacity>)}
+        </ScrollView>
+
+        <View style={[styles.sectionHeaderRow, { marginTop: 0 }]}>
+          <Text style={styles.sectionLabel}>Sites · {sitesFiltres.length}/{sites.length}</Text>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ajouter un site" onPress={() => Alert.alert('Ajouter un site', 'Site local : créé sur cet appareil. Site Intranet : créé et relié à l’Intranet METRA.', [
+            { text: 'Site local', onPress: () => setModalVisible(true) },
+            { text: 'Site Intranet', onPress: () => setIntranetSiteVisible(true) },
+            { text: 'Annuler', style: 'cancel' },
+          ])} style={{ flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, paddingVertical: 7, borderRadius: 16, backgroundColor: 'rgba(242,100,38,0.1)', borderWidth: 1, borderColor: 'rgba(242,100,38,0.3)' }}>
+            <CvcIcon name="plus-plain" size={14} color={COLORS.orangeDark} strokeWidth={2.6} /><Text style={{ fontSize: 12.5, fontFamily: FONTS.bodyBold, color: COLORS.orangeDark }}>Site</Text>
           </TouchableOpacity>
         </View>
-
-        {sansAdresse > 0 ? <View style={{ backgroundColor: '#FFF8E7', borderWidth: 1, borderColor: '#F0D99B', borderRadius: 12, padding: 10, marginBottom: 14 }}><Text style={{ color: '#7A5700', fontSize: 12, fontFamily: FONTS.bodyBold }}>{sansAdresse} site(s) sans adresse complète</Text></View> : null}
-        <View style={styles.sectionHeaderRow}><Text style={styles.sectionLabel}>Sites</Text><Text style={{ color: COLORS.muted, fontSize: 12 }}>{sitesFiltres.length}/{sites.length}</Text></View>
         <TextInput
           style={[styles.input, { marginTop: 8, marginBottom: 8 }]}
           value={search}
@@ -226,12 +232,12 @@ function ClientSitesScreen({ route, navigation }) {
           placeholder="Rechercher un site, une adresse, un lot…"
           autoCorrect={false}
         />
-        <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 7, marginTop: 1, marginBottom: 12 }}>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="handled" contentContainerStyle={{ gap: 7, paddingRight: 8 }} style={{ marginTop: 1, marginBottom: 12 }}>
           {SITE_SORT_OPTIONS.map((option) => {
             const active = sortMode === option.id;
-            return <TouchableOpacity key={option.id} onPress={() => changerTri(option.id)} style={{ minHeight: 36, paddingHorizontal: 11, borderRadius: 18, borderWidth: 1, borderColor: active ? COLORS.orange : COLORS.line, backgroundColor: active ? '#FFF3E8' : '#FFF', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 11, fontFamily: FONTS.black, color: active ? COLORS.orange : COLORS.inkSoft }}>{option.label}</Text></TouchableOpacity>;
+            return <TouchableOpacity key={option.id} onPress={() => changerTri(option.id)} style={{ minHeight: 36, paddingHorizontal: 13, borderRadius: 18, borderWidth: 1, borderColor: active ? COLORS.orange : 'rgba(22,21,15,0.1)', backgroundColor: active ? COLORS.orange : 'rgba(255,255,255,0.72)', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 12, fontFamily: FONTS.bodyBold, color: active ? COLORS.white : COLORS.inkSoft }}>{option.label}</Text></TouchableOpacity>;
           })}
-        </View>
+        </ScrollView>
       </View>}
       renderItem={({ item }) => <TouchableOpacity style={styles.card} activeOpacity={0.7} onPressIn={() => prewarmSiteLocals(item.id).catch(() => {})} onPress={() => ouvrirSite(item)}>
         <PatrimoineThumbnail uri={item.image_uri} size={60} radius={10} />
