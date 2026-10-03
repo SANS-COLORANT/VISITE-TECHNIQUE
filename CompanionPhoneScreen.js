@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { CvcIcon } from './MetraCvcIcons.js';
-import { prendrePhoto } from './PhotoButton.js';
+import { prendrePhoto, compacterCapture } from './PhotoButton.js';
 import {
   connectCompanion,
   decodeCompanionQr,
@@ -515,7 +515,7 @@ function CompanionPhoneScreen({ onExit }) {
     void (async () => {
       try {
         const queued = await enqueueCompanionPhoto({
-          uri,
+          uri: await compacterCapture(uri),
           meta: {
             targetKey: target.targetKey,
             label: target.label,

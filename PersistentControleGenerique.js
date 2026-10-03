@@ -11,7 +11,9 @@ import {
   upsertRemarquePrescription,
   supprimerRemarqueControle,
   modifierRemarqueVisite,
+  modifierCriticiteRemarque,
 } from './remarkDb.js';
+import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 import { BoundedLruMap } from './boundedCache.js';
@@ -192,6 +194,17 @@ function EditionReserve({ remarque, onPatch }) {
       <View style={{ flex: 1 }}><Text style={styles.reserveFieldLabel}>Prix HT (€)</Text><TextInput style={styles.input} value={prix} onChangeText={setPrix} onBlur={() => flushPrix().catch(() => {})} placeholder="—" keyboardType="numeric" /></View>
       <View style={{ flex: 1 }}><Text style={styles.reserveFieldLabel}>Délai (mois)</Text><TextInput style={styles.input} value={delai} onChangeText={setDelai} onBlur={() => flushDelai().catch(() => {})} placeholder="—" keyboardType="numeric" /></View>
     </View>
+    {/* Criticité de la réserve, réglable comme en VMC / Pré-allumage ; la
+        valeur modifiée est conservée même si la prescription change. */}
+    <ReserveSeveritySlider
+      value={remarque.criticite ?? remarque.criticite_defaut ?? 2}
+      defaultValue={remarque.criticite_defaut ?? 2}
+      onChange={(v) => {
+        modifierCriticiteRemarque(remarque.id, v)
+          .then(() => onPatch({ criticite: v, criticite_modifiee: Number(v) === Number(remarque.criticite_defaut ?? 2) ? 0 : 1 }))
+          .catch((e) => console.warn('Criticité non enregistrée', e));
+      }}
+    />
   </View>;
 }
 

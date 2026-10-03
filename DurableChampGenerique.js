@@ -5,7 +5,8 @@ import { upsertChamp } from './db.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { ChipSelector, StepperNumerique, cleanLabel, extractUnit, getNumericConfig } from './GenericFields.js';
 import { PhotoButton } from './PhotoButton.js';
-import { styles } from './styles.js';
+import { styles, FONTS } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 const FIELD_OPTIONS = {
   'Matériaux tuyauterie': ['Acier noir', 'Cuivre', 'PVC HTA', 'Multicouche', 'Acier galvanisé'],
@@ -77,7 +78,7 @@ function getDurableNumericConfig(cle) {
   return null;
 }
 
-export const DurableChampGenerique = React.memo(function DurableChampGenerique({ visiteId, sectionCode, field, valeurInitiale, onSaved, displayLabel, onRename }) {
+export const DurableChampGenerique = React.memo(function DurableChampGenerique({ visiteId, sectionCode, field, valeurInitiale, onSaved, displayLabel, onRename, picto = null }) {
   const unit = extractUnit(field.cle);
   const label = cleanLabel(field.cle);
   const entiteKey = `${sectionCode}||${field.cle}`;
@@ -128,7 +129,10 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
   return (
     <View style={styles.fieldBlock}>
       <View style={styles.fieldTop}>
-        {field.renamable && onRename ? <TextInput style={[styles.fieldLabel, { flex: 1, paddingVertical: 2, borderBottomWidth: 1, borderBottomColor: '#D0D5DD' }]} value={nomAffiche} onChangeText={setNomAffiche} onBlur={() => onRename(nomAffiche)} /> : <Text style={styles.fieldLabel}>{label}{unit && !numericConfig ? ` (${unit})` : ''}</Text>}
+        {field.renamable && onRename ? <TextInput style={[styles.fieldLabel, { flex: 1, paddingVertical: 2, borderBottomWidth: 1, borderBottomColor: '#D0D5DD' }]} value={nomAffiche} onChangeText={setNomAffiche} onBlur={() => onRename(nomAffiche)} /> : picto ? <View accessible accessibilityLabel={label} style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 9 }}>
+          <View style={{ width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: `${picto.teinte}18` }}><CvcIcon name={picto.icon} size={20} color={picto.teinte} strokeWidth={2.1} /></View>
+          <Text numberOfLines={1} style={[styles.fieldLabel, { flex: 1, fontFamily: FONTS.bold }]}>{picto.texte}{unit && !numericConfig ? ` (${unit})` : ''}</Text>
+        </View> : <Text style={styles.fieldLabel}>{label}{unit && !numericConfig ? ` (${unit})` : ''}</Text>}
         {!sansPhoto && <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={field.renamable ? nomAffiche : label} />}
       </View>
       {estDateVisite ? (

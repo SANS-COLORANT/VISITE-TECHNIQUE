@@ -148,3 +148,16 @@ cartes de verre avec pastille d'état et compteur. Mesures : `StepperNumerique`
   sous les visites en cours.
 - Préférences d'interface : uiPrefs.js (SQLite séparée, lecture synchrone).
 - Signature : _meta `signature_visite_<id>`, rendue en fin de rapport PDF.
+
+## Retours terrain tablette (post-it)
+
+- Listes de saisie : `removeClippedSubviews={false}` (sinon le clavier se
+  ferme quand la liste rétrécit à son ouverture).
+- Glissé entre onglets : 7 % de la largeur ou geste rapide, angle tolérant.
+- Catégories de conformité repliables (chevron) ; « Tout en S » : appui long
+  pour S.O / N.S / N.R / N.V, toujours annulable.
+- Catégories de 12 contrôles et plus découpées à l'écran par préfixe
+  (« Extincteurs », « Désenfumage »…) ; trame, base et rapports inchangés.
+- Relevés : pictogrammes et noms courts (index, pressions, températures par
+  circuit et sens), nom complet toujours modifiable.
+- Réserve ICPE : criticité réglable (curseur 0–5).

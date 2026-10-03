@@ -183,7 +183,7 @@ const EquipmentCard = memo(function EquipmentCard({ item, visiteId, onChange, ca
             initialNumToRender={10}
             maxToRenderPerBatch={8}
             windowSize={5}
-            removeClippedSubviews
+            removeClippedSubviews={false}
             renderItem={({ item: e }) => (
               <TouchableOpacity style={styles.biblioRow} onPress={() => choisirCatalogue(e)}>
                 <View style={styles.equipmentLibraryRow}>
@@ -261,7 +261,7 @@ function OptimizedEquipmentPanel({ visiteId }) {
       maxToRenderPerBatch={5}
       windowSize={5}
       updateCellsBatchingPeriod={60}
-      removeClippedSubviews
+      removeClippedSubviews={false}
       keyboardShouldPersistTaps="handled"
     />
   );

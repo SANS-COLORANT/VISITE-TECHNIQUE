@@ -157,6 +157,12 @@ Un retour doit remettre l'utilisateur au même endroit, sans recalculer un écra
 
 ## Appareil photo instantané
 
+Retour caméra sans réencodage : `prendrePhoto()` demande la qualité 1 à
+expo-image-picker (simple copie native au lieu d'un décodage + réencodage du
+plein capteur, plusieurs secondes sur 12–48 Mpx). La réduction (2560 px max,
+JPEG 0,6) se fait ensuite en arrière-plan dans `compacterCapture`, avant le
+rangement durable de la photo ; l'OCR du Mode Photo lit le brut, plus net.
+
 Le pipeline caméra suit la même règle que la navigation : **le geste terrain ne doit pas attendre le stockage**.
 
 Avant le clic final, METRA peut préchauffer sans effet métier :

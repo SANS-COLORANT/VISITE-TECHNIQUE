@@ -79,6 +79,27 @@ function depuisSauvegarde(ts, court = false) {
   return court ? `il y a ${libelle}` : `Enregistré il y a ${libelle}`;
 }
 
+// Statut de sauvegarde isolé : ses mises à jour (à chaque enregistrement et
+// toutes les 15 s pour « il y a … ») ne redessinent plus tout l'écran Visite.
+const SaveStatusBadge = memo(function SaveStatusBadge({ court = false }) {
+  const [saveActivity, setSaveActivity] = useState(() => getSaveActivity());
+  const [, setHorloge] = useState(0);
+  useEffect(() => subscribeSaveActivity(setSaveActivity), []);
+  useEffect(() => { const t = setInterval(() => setHorloge((n) => n + 1), 15000); return () => clearInterval(t); }, []);
+  return (
+    <View accessibilityLabel={saveActivity.lastError ? 'Erreur de sauvegarde' : saveActivity.pending ? `${saveActivity.pending} en attente` : 'Enregistré'} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
+      <CvcIcon
+        name={saveActivity.lastError ? 'cloud-off' : saveActivity.pending ? 'cloud-sync' : 'control'}
+        size={14}
+        color={saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32'}
+      />
+      <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ fontSize: 11, fontFamily: FONTS.bodySemi, color: saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32' }}>
+        {saveActivity.lastError ? 'Erreur' : saveActivity.pending ? `${saveActivity.pending} en attente` : depuisSauvegarde(saveActivity.lastSavedAt, court)}
+      </Text>
+    </View>
+  );
+});
+
 function VisiteScreen({ route, onBack }) {
   const { visiteId, visitePreview = null } = route.params;
   const visitNavKey = `visit:${String(visiteId || '')}`;
@@ -94,7 +115,6 @@ function VisiteScreen({ route, onBack }) {
   const [apercuEnCours, setApercuEnCours] = useState(false);
   // Onglets en bas, à portée de pouce (Réglages › Affichage terrain).
   const ongletsEnBas = useMemo(() => getPrefSync(PREFS.ongletsEnBas, '0') === '1', []);
-  const [, setHorloge] = useState(0);
   const repriseAnnonceeRef = useRef(false);
   const appareilTablette = Math.min(width, height) >= 600;
   const modeTablette = width >= 900;
@@ -108,7 +128,6 @@ function VisiteScreen({ route, onBack }) {
   const [activeTab, setActiveTab] = useState(initialTab);
   const activeTabRef = useRef(initialTab);
   const desiredRestoreTabRef = useRef(initialTab);
-  const [saveActivity, setSaveActivity] = useState(() => getSaveActivity());
   const tabOrderRef = useRef([]);
   const progressionTimerRef = useRef(null);
   const transitionRef = useRef(false);
@@ -232,9 +251,7 @@ function VisiteScreen({ route, onBack }) {
     }, PAGER_PRUNE_DELAY_MS);
   }, [addMountedPanels, desiredPagerPanels]);
 
-  useEffect(() => subscribeSaveActivity(setSaveActivity), []);
   // « Enregistré il y a … » reste à jour.
-  useEffect(() => { const t = setInterval(() => setHorloge((n) => n + 1), 15000); return () => clearInterval(t); }, []);
   useEffect(() => { lireSignatureVisite(visiteId).then(setSignature).catch(() => {}); }, [visiteId]);
   // Reprise d'une visite : on rappelle où l'on reprend.
   const panelLabelsRef = useRef(panelLabels);
@@ -523,9 +540,10 @@ function VisiteScreen({ route, onBack }) {
     const tabs = tabOrderRef.current;
     const idx = Math.max(0, Math.min(tabs.length - 1, gestureStartIndexRef.current));
     const w = pagerWidthRef.current;
-    const threshold = Math.max(54, w * 0.12);
-    const versSuivant = g.dx < -threshold || g.vx < -0.48;
-    const versPrecedent = g.dx > threshold || g.vx > 0.48;
+    // Changement d'onglet au glissé : court (7 % de la largeur) ou rapide.
+    const threshold = Math.max(40, w * 0.07);
+    const versSuivant = g.dx < -threshold || (g.vx < -0.3 && g.dx < -16);
+    const versPrecedent = g.dx > threshold || (g.vx > 0.3 && g.dx > 16);
     const prochain = versSuivant && idx < tabs.length - 1 ? tabs[idx + 1] : versPrecedent && idx > 0 ? tabs[idx - 1] : null;
 
     if (!prochain) {
@@ -544,7 +562,9 @@ function VisiteScreen({ route, onBack }) {
   if (!swipeHandlers.current) {
     swipeHandlers.current = PanResponder.create({
       onMoveShouldSetPanResponder: (_evt, g) => {
-        if (transitionRef.current || Math.abs(g.dx) <= 9 || Math.abs(g.dx) <= Math.abs(g.dy) * 1.35) return false;
+        // Geste horizontal accepté dès qu'il domine un peu (un glissé au pouce
+        // n'est jamais parfaitement horizontal) ; le vertical reste au défilement.
+        if (transitionRef.current || Math.abs(g.dx) <= 8 || Math.abs(g.dx) <= Math.abs(g.dy) * 1.1) return false;
         const localMode = trameIdRef.current === 'pre_allumage' && activeTabRef.current === 'p-pa-batiments';
         return localMode ? typeof preAllumageLocalSwipeRef.current === 'function' : true;
       },
@@ -573,7 +593,7 @@ function VisiteScreen({ route, onBack }) {
         const w = pagerWidthRef.current;
         let dx = g.dx;
         if ((idx === 0 && dx > 0) || (idx === tabs.length - 1 && dx < 0)) dx *= 0.24;
-        const target = dx < -36 && idx < tabs.length - 1 ? tabs[idx + 1] : dx > 36 && idx > 0 ? tabs[idx - 1] : null;
+        const target = dx < -24 && idx < tabs.length - 1 ? tabs[idx + 1] : dx > 24 && idx > 0 ? tabs[idx - 1] : null;
         if (target && !mountedPanelIdsRef.current.has(target)) ensureMountedRef.current?.([target]);
         pagerX.setValue(-idx * w + dx);
       },
@@ -814,16 +834,7 @@ function VisiteScreen({ route, onBack }) {
               </Text>}
               <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
                 <AvisCounters avis={tabStatus.avis} />
-                <View accessibilityLabel={saveActivity.lastError ? 'Erreur de sauvegarde' : saveActivity.pending ? `${saveActivity.pending} en attente` : 'Enregistré'} style={{ flexDirection: 'row', alignItems: 'center', gap: 4, marginTop: 4 }}>
-                  <CvcIcon
-                    name={saveActivity.lastError ? 'cloud-off' : saveActivity.pending ? 'cloud-sync' : 'control'}
-                    size={14}
-                    color={saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32'}
-                  />
-                  <Text accessibilityLiveRegion="polite" numberOfLines={1} style={{ fontSize: 11, fontFamily: FONTS.bodySemi, color: saveActivity.lastError ? '#B42318' : saveActivity.pending ? '#A15C12' : '#2E7D32' }}>
-                    {saveActivity.lastError ? 'Erreur' : saveActivity.pending ? `${saveActivity.pending} en attente` : depuisSauvegarde(saveActivity.lastSavedAt, !appareilTablette)}
-                  </Text>
-                </View>
+                <SaveStatusBadge court={!appareilTablette} />
               </View>
             </View>
             {visiteARattacher ? (

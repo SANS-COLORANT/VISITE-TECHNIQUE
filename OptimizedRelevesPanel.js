@@ -15,6 +15,8 @@ import { DurableChampGenerique } from './DurableChampGenerique.js';
 import { PhotoButton } from './PhotoButton.js';
 import { useListScrollMemory } from './useListScrollMemory.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { FONTS } from './styles.js';
+import { pictoReleve, pictoTemperature } from './relevePictos.js';
 
 const COMPTEUR_TYPES = [
   'Compteur gaz', 'Compteur énergie chauffage', 'Compteur énergie ECS', 'Compteur eau appoint chauffage',
@@ -37,6 +39,8 @@ const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRe
     (v) => upsertCompteurChamp(compteur.id, 'label', v)
   );
   const [unite, setUnite] = useState(compteur.unite || 'm³');
+  const [editNom, setEditNom] = useState(false);
+  const picto = pictoReleve(label);
   const [valeur, setValeur, surBlurValeur] = useSaisieAvecAutoSave(
     compteur.valeur,
     (v) => upsertCompteurChamp(compteur.id, 'valeur', v)
@@ -53,8 +57,14 @@ const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRe
   return (
     <View style={styles.compteurRow}>
       <View style={styles.compteurRowTop}>
-        <View style={{ flex: 1 }}>
-          <TextInput style={styles.input} value={label} onChangeText={setLabel} onBlur={surBlurLabel} placeholder="Nom du compteur" />
+        {/* Pictogramme + nom court ; le nom complet (rapports) reste modifiable d'un appui. */}
+        <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={{ width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: `${picto.teinte}18` }}><CvcIcon name={picto.icon} size={23} color={picto.teinte} strokeWidth={2.1} /></View>
+          {editNom || !label ? <TextInput style={[styles.input, { flex: 1 }]} value={label} onChangeText={setLabel} onBlur={() => { surBlurLabel(); setEditNom(false); }} autoFocus={editNom} placeholder="Nom du compteur" />
+            : <TouchableOpacity accessibilityLabel={`${label}, toucher pour renommer`} onPress={() => setEditNom(true)} style={{ flex: 1, minWidth: 0 }}>
+              <Text numberOfLines={1} style={{ fontSize: 15, fontFamily: FONTS.bold, color: COLORS.ink }}>{picto.court || label}</Text>
+              {picto.court ? <Text numberOfLines={1} style={{ marginTop: 1, fontSize: 11, color: COLORS.inkFaint }}>{label}</Text> : null}
+            </TouchableOpacity>}
         </View>
         <PhotoButton visiteId={visiteId} entiteKey={compteur.compteur_site_id ? `compteur_site||${compteur.compteur_site_id}` : `compteur||${compteur.id}`} label={label || 'Compteur'} />
         <TouchableOpacity accessibilityLabel="Retirer ce compteur" onPress={retirer} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(185,28,28,0.08)' }}><CvcIcon name="trash" size={17} color={COLORS.red} /></TouchableOpacity>
@@ -139,12 +149,23 @@ export function OptimizedRelevesPanel({ visiteId, onSaved }) {
 
   const rows = useMemo(() => {
     const result = [];
-    champsPression.forEach((f) => result.push({ type: 'champ', id: `pression-${f.cle}`, section: 'releves.compteurs', field: f }));
+    champsPression.forEach((f) => { const p = pictoReleve(f.cle); result.push({ type: 'champ', id: `pression-${f.cle}`, section: 'releves.compteurs', field: f, picto: p.court ? { icon: p.icon, teinte: p.teinte, texte: p.court } : null }); });
     result.push({ type: 'titre', id: 'titre-compteurs', label: 'Compteurs relevés' });
     compteurs.forEach((c) => result.push({ type: 'compteur', id: `compteur-${c.id}`, compteur: c }));
     result.push({ type: 'ajout', id: 'ajout-compteur' });
     result.push({ type: 'titre', id: 'titre-temperatures', label: 'Températures et pH' });
-    champsTemp.forEach((f) => result.push({ type: 'champ', id: `temp-${f.cle}`, section: 'releves.temperatures', field: f }));
+    // Températures groupées par circuit, chaque ligne repérée par son sens
+    // (départ, retour, stockage) : pictogrammes plutôt que libellés longs.
+    let circuitCourant = null;
+    champsTemp.forEach((f) => {
+      const t = pictoTemperature(f.cle);
+      if (t.circuit && t.circuit !== circuitCourant && t.sens !== 'pH') {
+        circuitCourant = t.circuit;
+        result.push({ type: 'circuit', id: `circuit-${t.circuit}`, label: t.circuit, icon: t.circuitIcon });
+      }
+      const texte = t.sens === 'pH' ? 'pH' : t.sens ? `${t.sens}${t.circuit ? ' · ' + t.circuit : ''}` : null;
+      result.push({ type: 'champ', id: `temp-${f.cle}`, section: 'releves.temperatures', field: f, picto: texte ? { icon: t.sensIcon, teinte: t.teinte, texte } : null });
+    });
     return result;
   }, [champsPression, champsTemp, compteurs]);
 
@@ -163,14 +184,15 @@ export function OptimizedRelevesPanel({ visiteId, onSaved }) {
       maxToRenderPerBatch={6}
       windowSize={5}
       updateCellsBatchingPeriod={50}
-      removeClippedSubviews
+      removeClippedSubviews={false}
       ListHeaderComponent={<Text style={styles.sectionTitle}>Pressions</Text>}
       renderItem={({ item }) => {
         if (item.type === 'titre') return <Text style={styles.sectionTitle}>{item.label}</Text>;
+        if (item.type === 'circuit') return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 6, marginBottom: 6 }}><CvcIcon name={item.icon} size={17} color={COLORS.orangeDark} strokeWidth={2.1} /><Text style={{ fontSize: 12, fontFamily: FONTS.bold, color: COLORS.inkSoft, letterSpacing: 0.6, textTransform: 'uppercase' }}>{item.label}</Text></View>;
         if (item.type === 'compteur') return <CompteurCard compteur={item.compteur} visiteId={visiteId} onRemove={retirerLocalement} />;
         if (item.type === 'ajout') return <TouchableOpacity style={styles.addBtn} onPress={ouvrirAjoutCompteur}><Text style={styles.addBtnText}>+ Ajouter un compteur</Text></TouchableOpacity>;
         const key = `${item.section}||${item.field.cle}`;
-        return <View style={styles.formCard}><DurableChampGenerique visiteId={visiteId} sectionCode={item.section} field={item.field} valeurInitiale={champsMap[key]} onSaved={(v) => {
+        return <View style={styles.formCard}><DurableChampGenerique visiteId={visiteId} sectionCode={item.section} field={item.field} picto={item.picto} valeurInitiale={champsMap[key]} onSaved={(v) => {
           setChampsMap((old) => ({ ...old, [key]: v }));
           onSaved?.();
         }} /></View>;

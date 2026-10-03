@@ -35,7 +35,7 @@ export function estImagePatrimoineGeree(uri) {
 
 async function choisirAsset(source) {
   if (source === 'camera') {
-    const resultat = await launchMetraCamera({ allowsEditing: false, quality: 0.9 });
+    const resultat = await launchMetraCamera({ allowsEditing: false, quality: 1 });
     if (resultat?.status === 'permission') throw new Error("L’accès à l’appareil photo est nécessaire pour prendre une photo.");
     return resultat?.uri ? (resultat.asset || { uri: resultat.uri }) : null;
   }

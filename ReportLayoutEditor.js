@@ -260,7 +260,7 @@ export function ReportLayoutEditor({
     keyExtractor={(item) => item.id}
     renderItem={renderItem}
     contentContainerStyle={[styles.content, { paddingBottom: 38 }]}
-    removeClippedSubviews
+    removeClippedSubviews={false}
     initialNumToRender={3}
     maxToRenderPerBatch={3}
     windowSize={5}

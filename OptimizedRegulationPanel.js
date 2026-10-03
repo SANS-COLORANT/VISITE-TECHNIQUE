@@ -147,6 +147,6 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
     maxToRenderPerBatch={2}
     windowSize={3}
     updateCellsBatchingPeriod={80}
-    removeClippedSubviews
+    removeClippedSubviews={false}
   />;
 }

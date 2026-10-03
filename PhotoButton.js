@@ -3,6 +3,7 @@
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { TouchableOpacity, Text, Alert, View, Modal, useWindowDimensions } from 'react-native';
 import * as FileSystem from 'expo-file-system';
+import * as ImageManipulator from 'expo-image-manipulator';
 import { ajouterPhoto, remplacerPhoto } from './db.js';
 import { upsertRemarquePrescription } from './remarkDb.js';
 import { openAppDatabase } from './database/index.js';
@@ -91,11 +92,43 @@ async function libellePhotoMetier(visiteId, entiteKey, label) {
   return `${libelleCaissonVmc(index, nomCaisson)} · ${libelleInitial}`;
 }
 
+// Capture rapide : l'appareil photo rend le fichier brut sans le réencoder
+// (qualité 1 = simple copie côté natif, retour quasi immédiat). La photo est
+// ensuite réduite (2560 px max, JPEG 0,6 : poids comparable à avant) en
+// arrière-plan, hors du chemin visuel, avant d'être rangée dans la visite.
+const CAPTURE_MAX_PX = 2560;
+const CAPTURE_JPEG = 0.6;
+const capturesBrutes = new Map();
+
+export async function compacterCapture(uri) {
+  const dims = capturesBrutes.get(uri);
+  if (!dims) return uri;
+  capturesBrutes.delete(uri);
+  try {
+    const w = Number(dims.width || 0); const h = Number(dims.height || 0);
+    const actions = w >= h
+      ? (w > CAPTURE_MAX_PX ? [{ resize: { width: CAPTURE_MAX_PX } }] : [])
+      : (h > CAPTURE_MAX_PX ? [{ resize: { height: CAPTURE_MAX_PX } }] : []);
+    const out = await ImageManipulator.manipulateAsync(uri, actions, { compress: CAPTURE_JPEG, format: ImageManipulator.SaveFormat.JPEG });
+    if (!out?.uri) return uri;
+    // Le brut peut encore être lu (OCR du Mode Photo) : suppression différée.
+    if (FileSystem.cacheDirectory && String(uri).startsWith(FileSystem.cacheDirectory)) {
+      setTimeout(() => { FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {}); }, 90000);
+    }
+    return out.uri;
+  } catch (e) {
+    console.warn('Réduction photo impossible, original conservé', e);
+    return uri;
+  }
+}
+
 async function copierPhotoDurable(uriSource, visiteId, nom) {
   const context = await prewarmPhotoCaptureContext(visiteId);
   if (!context?.directory) throw new Error('Stockage photo METRA indisponible');
   const destination = context.directory + nom;
-  await FileSystem.copyAsync({ from: uriSource, to: destination });
+  const source = await compacterCapture(uriSource);
+  await FileSystem.copyAsync({ from: source, to: destination });
+  if (source !== uriSource) FileSystem.deleteAsync(source, { idempotent: true }).catch(() => {});
   return destination;
 }
 
@@ -129,11 +162,12 @@ async function preparerPhotoNommee({ visiteId, entiteKey = null, label = 'Photo'
 async function enregistrerPhotoNommee(args) { const photo = await preparerPhotoNommee(args); return photo.uri; }
 
 async function prendrePhoto() {
-  const result = await launchMetraCamera({ quality: 0.5, allowsEditing: false });
+  const result = await launchMetraCamera({ quality: 1, allowsEditing: false });
   if (result?.status === 'permission') {
     Alert.alert('Permission requise', "L'accès à l'appareil photo est nécessaire pour prendre une photo.");
     return null;
   }
+  if (result?.uri) capturesBrutes.set(result.uri, { width: result.asset?.width, height: result.asset?.height });
   return result?.uri || null;
 }
 

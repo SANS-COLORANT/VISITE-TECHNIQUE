@@ -55,7 +55,7 @@ export function DialogHost() {
     return () => { if (dialogListener === setDialog) dialogListener = null; };
   }, []);
 
-  const buttons = (dialog?.buttons && dialog.buttons.length ? dialog.buttons : [{ text: 'OK' }]).slice(0, 4);
+  const buttons = (dialog?.buttons && dialog.buttons.length ? dialog.buttons : [{ text: 'OK' }]).slice(0, 7);
   const cancelBtn = buttons.find((b) => b.style === 'cancel');
   const cancelable = dialog?.options?.cancelable !== false || !!cancelBtn;
   const dismiss = () => {

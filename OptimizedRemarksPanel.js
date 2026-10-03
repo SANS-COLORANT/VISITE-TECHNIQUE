@@ -296,7 +296,7 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
         maxToRenderPerBatch={4}
         windowSize={5}
         updateCellsBatchingPeriod={80}
-        removeClippedSubviews
+        removeClippedSubviews={false}
       />
 
       <Modal visible={biblioVisible} transparent animationType="fade" onRequestClose={() => setBiblioVisible(false)}>

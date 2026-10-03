@@ -227,6 +227,45 @@ function CvcIcon({ name, size = 36, color = '#10384B', strokeWidth = 1.9 }) {
       <Line x1="5.5" y1="22.5" x2="7.6" y2="20.4" />
       <Line x1="20.4" y1="7.6" x2="22.5" y2="5.5" />
     </G>;
+  } else if (key === 'drop' || key === 'water') {
+    body = <G {...p}>
+      <Path d="M14 3.8c3.6 4.6 7.2 8.6 7.2 12.6a7.2 7.2 0 0 1-14.4 0c0-4 3.6-8 7.2-12.6Z" />
+      <Path d="M10.6 17.2a3.6 3.6 0 0 0 3.2 3.4" />
+    </G>;
+  } else if (key === 'bolt' || key === 'electric') {
+    body = <G {...p}>
+      <Path d="M15.6 3.5 7 15.6h6.2l-1.6 8.9 9.4-12.6h-6.4l1-8.4Z" />
+    </G>;
+  } else if (key === 'gauge' || key === 'pressure') {
+    body = <G {...p}>
+      <Circle cx="14" cy="14" r="9.5" />
+      <Path d="M8.2 17.6a6.4 6.4 0 1 1 11.6 0" />
+      <Line x1="14" y1="14.6" x2="10.4" y2="10.4" />
+      <Circle cx="14" cy="14.6" r="1.3" />
+    </G>;
+  } else if (key === 'arrow-out' || key === 'depart') {
+    body = <G {...p}>
+      <Line x1="5" y1="14" x2="21.5" y2="14" />
+      <Polyline points="16,8.5 21.5,14 16,19.5" />
+    </G>;
+  } else if (key === 'arrow-in' || key === 'retour') {
+    body = <G {...p}>
+      <Line x1="23" y1="14" x2="6.5" y2="14" />
+      <Polyline points="12,8.5 6.5,14 12,19.5" />
+    </G>;
+  } else if (key === 'tank' || key === 'storage') {
+    body = <G {...p}>
+      <Rect x="8" y="4" width="12" height="20" rx="5" />
+      <Line x1="8" y1="15" x2="20" y2="15" />
+      <Line x1="11" y1="24" x2="11" y2="25.5" />
+      <Line x1="17" y1="24" x2="17" y2="25.5" />
+    </G>;
+  } else if (key === 'ph') {
+    body = <G {...p}>
+      <Rect x="4.5" y="6" width="19" height="16" rx="4" />
+      <Path d="M9 18v-8h2.6a2.2 2.2 0 0 1 0 4.4H9" />
+      <Path d="M15.5 10v8M15.5 14h4M19.5 10v8" />
+    </G>;
   } else if (key === 'search') {
     body = <G {...p}>
       <Circle cx="12.5" cy="12.5" r="7.5" />

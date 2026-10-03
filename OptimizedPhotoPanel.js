@@ -210,7 +210,7 @@ function OptimizedPhotoPanel({ visiteId }) {
         maxToRenderPerBatch={8}
         updateCellsBatchingPeriod={50}
         windowSize={5}
-        removeClippedSubviews
+        removeClippedSubviews={false}
         keyboardShouldPersistTaps="handled"
       />
 

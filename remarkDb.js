@@ -94,7 +94,8 @@ export async function modifierRemarqueVisite(id, patch = {}) {
     else if (cle === 'criticite') value = clampReserveSeverity(value);
     else if (cle.startsWith('intranet_')) value = value == null || String(value).trim() === '' ? null : String(value).trim();
     params.push(value);
-    if (cle === 'criticite') sets.push('criticite_modifiee=1');
+    // Revenir à la criticité proposée n'est plus compté comme une modification.
+    if (cle === 'criticite') { sets.push('criticite_modifiee=CASE WHEN COALESCE(criticite_defaut,2)=? THEN 0 ELSE 1 END'); params.push(value); }
   }
   if (!sets.length) return;
   params.push(id);

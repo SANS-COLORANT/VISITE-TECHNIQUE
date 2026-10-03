@@ -22,7 +22,7 @@ import {
   rattacherRemarqueVisite,
 } from './remarkDb.js';
 import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, useSaisieAvecAutoSave } from './GenericFields.js';
-import { PhotoButton, prendrePhoto } from './PhotoButton.js';
+import { PhotoButton, prendrePhoto, compacterCapture } from './PhotoButton.js';
 import { BrandMark } from './BrandLogo.js';
 
 // ============================================================================
@@ -536,7 +536,7 @@ function PanelPhotos({ visiteId, refreshKey }) {
   useEffect(useCallback(() => { listerPhotos(visiteId).then(setPhotos); }, [visiteId, refreshKey]));
   const onAjouter = async () => {
     const uri = await prendrePhoto();
-    if (uri) { await ajouterPhoto(visiteId, null, uri, 'Photo générale'); listerPhotos(visiteId).then(setPhotos); }
+    if (uri) { await ajouterPhoto(visiteId, null, await compacterCapture(uri), 'Photo générale'); listerPhotos(visiteId).then(setPhotos); }
   };
 
   return (
