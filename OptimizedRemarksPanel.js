@@ -17,7 +17,7 @@ import {
   supprimerRemarqueVisite,
   rattacherRemarqueVisite,
 } from './remarkDb.js';
-import { cleanLabel } from './GenericFields.js';
+import { cleanLabel, ChipSelector } from './GenericFields.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
@@ -43,7 +43,7 @@ function libellePhotoRemarque(remarque, prestation) {
   return prestation || 'Anomalie';
 }
 
-function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panelLabels, intranetLinked = false }) {
+function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panelLabels, intranetLinked = false, reseauChaleur = false }) {
   const [prestation, setPrestation, blurPrestation] = useDurableAutosave(remarque.prestation, async (v) => {
     await modifierRemarqueVisite(remarque.id, { prestation: v });
   });
@@ -121,6 +121,22 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
       <Text style={styles.fieldLabel}>Poste</Text>
       <TextInput style={styles.input} value={poste} onChangeText={changerPoste} onBlur={() => { blurPoste().catch(() => {}); }} placeholder="Ex. Entretien P2, Travaux de conformité..." />
 
+      {reseauChaleur ? <View style={{ marginTop: 10 }}>
+        <Text style={styles.fieldLabel}>Périmètre{remarque.controle_key ? ' · automatique' : ' · obligatoire'}</Text>
+        {remarque.controle_key ? <View style={[styles.persistentEquipmentBadge, { alignSelf: 'flex-start', marginTop: 5 }]}>
+          <Text style={styles.persistentEquipmentBadgeText}>{remarque.perimetre || 'À classer'}</Text>
+        </View> : <View style={{ marginTop: 6 }}>
+          <ChipSelector
+            valeur={remarque.perimetre || ''}
+            options={['Primaire', 'Secondaire']}
+            onChange={async (v) => {
+              await modifierRemarqueVisite(remarque.id, { perimetre: v });
+              onPatch(remarque.id, { perimetre: v });
+            }}
+          />
+        </View>}
+      </View> : null}
+
       <ReserveSeveritySlider
         value={remarque.criticite ?? remarque.criticite_defaut ?? 2}
         defaultValue={remarque.criticite_defaut ?? 2}
@@ -165,7 +181,8 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
   );
 }
 
-function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, panels = {}, intranetLinked = false }) {
+function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, panels = {}, intranetLinked = false, trameId = 'icpe_v1' }) {
+  const reseauChaleur = trameId === 'reseau_chaleur_v1';
   const [remarques, setRemarques] = useState(() => remarksCache.get(visiteId) || []);
   const { listRef, onScroll } = useListScrollMemory(`visit-panel:${visiteId}:p-remarques`, remarques.length);
   const [biblioVisible, setBiblioVisible] = useState(false);
@@ -238,7 +255,7 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
     setOngletChoisi(panelId);
     if (panelId === 'p-equip') {
       const items = await listerMateriel(visiteId);
-      setCibles(items.map((m) => ({ id: m.equipement_id || m.id, type: 'equipement', libelle: [m.designation, m.marque, m.modele].filter(Boolean).join(' · ') || 'Équipement sans nom' })));
+      setCibles(items.map((m) => ({ id: m.equipement_id || m.id, type: 'equipement', libelle: [m.designation, m.marque, m.modele].filter(Boolean).join(' · ') || 'Équipement sans nom', perimetre: m.perimetre || null })));
     } else if (panelId === 'p-regulation') {
       const items = await listerReseaux(visiteId);
       setCibles(items.map((r) => ({ id: r.reseau_site_id || r.id, type: 'reseau', libelle: r.nom_reseau || `Réseau ${r.ordre}` })));
@@ -256,8 +273,8 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
 
   const enregistrerRattachement = async (cible) => {
     if (!remarqueARattacher) return;
-    await rattacherRemarqueVisite(remarqueARattacher.id, { onglet: ongletChoisi, type: cible.type, id: cible.id, libelle: cible.libelle });
-    patchLocal(remarqueARattacher.id, { reference_onglet: ongletChoisi, reference_type: cible.type, reference_id: cible.id, reference_libelle: cible.libelle });
+    await rattacherRemarqueVisite(remarqueARattacher.id, { onglet: ongletChoisi, type: cible.type, id: cible.id, libelle: cible.libelle, perimetre: cible.perimetre || null });
+    patchLocal(remarqueARattacher.id, { reference_onglet: ongletChoisi, reference_type: cible.type, reference_id: cible.id, reference_libelle: cible.libelle, ...(cible.perimetre ? { perimetre: cible.perimetre } : {}) });
     setRemarqueARattacher(null); setOngletChoisi(null); setCibles([]);
   };
   const retirerRattachement = async () => {
@@ -286,7 +303,7 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
         onScroll={onScroll}
         scrollEventThrottle={100}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <ReserveCard remarque={item} visiteId={visiteId} onPatch={patchLocal} onDelete={deleteLocal} onRattacher={ouvrirRattachement} panelLabels={panelLabels} intranetLinked={intranetLinked} />}
+        renderItem={({ item }) => <ReserveCard remarque={item} visiteId={visiteId} onPatch={patchLocal} onDelete={deleteLocal} onRattacher={ouvrirRattachement} panelLabels={panelLabels} intranetLinked={intranetLinked} reseauChaleur={reseauChaleur} />}
         ListHeaderComponent={header}
         ListEmptyComponent={<View style={styles.empty}><EmptyIcon name="remark" /><Text style={styles.emptyText}>Aucune réserve pour l'instant.</Text><Text style={styles.emptySub}>Passe un point de contrôle en N.S pour en générer une.</Text></View>}
         ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ouvrirBiblio}><Text style={styles.addBtnText}>+ Ajouter une réserve manuelle</Text></TouchableOpacity>}
