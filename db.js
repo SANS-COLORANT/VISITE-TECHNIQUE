@@ -280,11 +280,13 @@ async function creerVisite({ siteId, technicien, mode = 'complete', trameCode = 
  */
 async function supprimerVisite(visiteId) {
   const db = await getDb();
+  const photos = await db.getAllAsync('SELECT uri FROM photos WHERE visite_id = ?', [visiteId]);
   const tables = ['champs_visite', 'controles_visite', 'reseaux', 'compteurs', 'materiel', 'remarques', 'notes', 'photos'];
   for (const table of tables) {
     await db.runAsync(`DELETE FROM ${table} WHERE visite_id = ?`, [visiteId]);
   }
   await db.runAsync(`DELETE FROM visites WHERE id = ?`, [visiteId]);
+  return photos.map((p) => p.uri).filter(Boolean);
 }
 async function getVisite(visiteId) {
   const db = await getDb();
