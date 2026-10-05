@@ -18,10 +18,10 @@ function SiteVisitesScreen({ route, navigation }) {
 
   useEffect(() => { charger(); }, [charger]);
 
-  const nouvelleVisite = async (mode) => {
+  const nouvelleVisite = async (mode, trameCode = 'ICPE') => {
     if (mode === 'express' && visites.length === 0) return;
     setChoixModeVisible(false);
-    const visiteId = await creerVisite({ siteId, technicien: 'Moi', mode });
+    const visiteId = await creerVisite({ siteId, technicien: 'Moi', mode, trameCode });
     navigation.navigate('Visite', { visiteId });
   };
 
@@ -73,9 +73,13 @@ function SiteVisitesScreen({ route, navigation }) {
               <Text style={styles.visitModeIcon}>⚡</Text>
               <View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite Express</Text><Text style={styles.visitModeText}>{visites.length === 0 ? 'Disponible après une première visite complète.' : 'Reprend la dernière trame. Confirme les éléments inchangés et relève les nouvelles anomalies.'}</Text></View>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.visitModeCard} onPress={() => nouvelleVisite('complete')}>
+            <TouchableOpacity style={styles.visitModeCard} onPress={() => nouvelleVisite('complete', 'ICPE')}>
               <Text style={styles.visitModeIcon}>📋</Text>
-              <View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite complète</Text><Text style={styles.visitModeText}>Parcourt toute la trame pour une première visite ou un audit détaillé.</Text></View>
+              <View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite complète · ICPE</Text><Text style={styles.visitModeText}>Trame chaufferie ICPE complète.</Text></View>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.visitModeCard} onPress={() => nouvelleVisite('complete', 'RESEAU_CHALEUR')}>
+              <Text style={styles.visitModeIcon}>♨</Text>
+              <View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite complète · Réseau de chaleur</Text><Text style={styles.visitModeText}>Sous-station / réseau de chaleur avec distinction Primaire et Secondaire.</Text></View>
             </TouchableOpacity>
             <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10 }]} onPress={() => setChoixModeVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
           </View>
