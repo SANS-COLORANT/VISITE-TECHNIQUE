@@ -6,7 +6,7 @@ import { COLORS, styles } from './styles.js';
 import { getVisite, getNote, upsertNote, ajouterAnomalieRapide } from './db.js';
 import { exporterEtPartager } from './excelExport.js';
 import { PANEL_LABELS, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques, PanelPhotos } from './VisitePanels.js';
-import { getTabOrder, getTrameLabel } from './trames.js';
+import { getTabOrder, getTrameLabel, normalizeTrameCode } from './trames.js';
 
 // ============================================================================
 // 6. ÉCRAN VISITE — conteneur avec onglets horizontaux
@@ -21,6 +21,7 @@ function VisiteScreen({ route, onBack }) {
   const [noteTxt, setNoteTxt] = useState('');
   const [anomalieVisible, setAnomalieVisible] = useState(false);
   const [anomalieTxt, setAnomalieTxt] = useState('');
+  const [anomaliePerimetre, setAnomaliePerimetre] = useState('');
 
   const charger = useCallback(async () => {
     const v = await getVisite(visiteId);
@@ -80,8 +81,14 @@ function VisiteScreen({ route, onBack }) {
   };
   const enregistrerAnomalie = async () => {
     if (!anomalieTxt.trim()) return;
-    await ajouterAnomalieRapide(visiteId, anomalieTxt);
+    const estReseauChaleur = normalizeTrameCode(visite?.trame_code) === 'RESEAU_CHALEUR';
+    await ajouterAnomalieRapide(
+      visiteId,
+      anomalieTxt,
+      estReseauChaleur && anomaliePerimetre ? anomaliePerimetre : null
+    );
     setAnomalieTxt('');
+    setAnomaliePerimetre('');
     setAnomalieVisible(false);
     setActiveTab('p-remarques');
     onSaved();
@@ -171,8 +178,24 @@ function VisiteScreen({ route, onBack }) {
             <Text style={styles.modalTitle}>Ajouter une anomalie</Text>
             <Text style={styles.importHint}>Décris rapidement le constat. Tu pourras ensuite le rattacher à la pompe, au réseau, au compteur ou au contrôle concerné et ajouter une photo.</Text>
             <TextInput style={[styles.input, { minHeight: 100, marginTop: 12, textAlignVertical: 'top' }]} multiline autoFocus value={anomalieTxt} onChangeText={setAnomalieTxt} placeholder="Ex. Pompe défaillante, température de départ trop basse…" />
+            {normalizeTrameCode(visite.trame_code) === 'RESEAU_CHALEUR' && (
+              <View style={{ marginTop: 12 }}>
+                <Text style={styles.fieldLabel}>Périmètre concerné</Text>
+                <View style={styles.critereChips}>
+                  {['Primaire', 'Secondaire'].map((opt) => (
+                    <TouchableOpacity
+                      key={opt}
+                      style={[styles.critereChip, anomaliePerimetre === opt && styles.critereChipPicked]}
+                      onPress={() => setAnomaliePerimetre(opt)}
+                    >
+                      <Text style={[styles.critereChipText, anomaliePerimetre === opt && styles.critereChipTextPicked]}>{opt}</Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
             <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.btnSecondary} onPress={() => setAnomalieVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
+              <TouchableOpacity style={styles.btnSecondary} onPress={() => { setAnomalieVisible(false); setAnomaliePerimetre(''); }}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
               <TouchableOpacity style={styles.btnPrimary} onPress={enregistrerAnomalie}><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity>
             </View>
           </View>
