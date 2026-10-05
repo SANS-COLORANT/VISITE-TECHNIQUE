@@ -174,7 +174,10 @@ const RESEAU_CHALEUR = Object.freeze({
         columns: [['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero'], ['E', 'perimetre'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'], ['I', 'annee'], ['J', 'etat']],
         exportColumns: [['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero_materiel'], ['E', 'perimetre'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'], ['I', 'annee'], ['J', 'etat']],
       },
-      remarques: TABLES_STANDARD.remarques,
+      remarques: {
+        ...TABLES_STANDARD.remarques,
+        exportColumns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['D', 'delai'], ['F', 'estimatif']],
+      },
       note: TABLES_STANDARD.note,
     },
     heatNetwork: {
