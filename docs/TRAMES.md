@@ -5,6 +5,7 @@
 - ICPE
 - VMC
 - Pré-allumage
+- Réseau de chaleur
 
 Chaque trame possède ses propres contrôles, commentaires, remarques, réserves, exports et règles de présentation.
 
@@ -50,6 +51,23 @@ La visite VMC ne doit afficher que les équipements et remarques applicables à 
 ## ICPE
 
 La visite ICPE ne doit afficher que les contrôles, équipements, remarques et réserves applicables à l’ICPE.
+
+## Réseau de chaleur
+
+La trame `reseau_chaleur_v1` reprend le classeur métier « TRAME RÉSEAU DE CHALEUR ».
+
+Règles spécifiques :
+- les non-conformités issues des contrôles sont classées automatiquement en `Primaire` ou `Secondaire` suivant le point contrôlé ;
+- les températures PRIMAIRE et de production ECS sont primaires ;
+- les températures du réseau chauffage et le pH sont secondaires ;
+- les organes de production (fumées, soupapes, ligne gaz, coupure combustible, organes directement portés par le ballon ECS) sont primaires ;
+- le traitement/distribution, l'électricité, le local, l'incendie et les auxiliaires sont secondaires ;
+- les réserves manuelles doivent être classées explicitement ;
+- chaque équipement utilisé par cette trame doit être classé `Primaire` ou `Secondaire` ; ce classement est stocké sur l'association équipement/trame et n'affecte pas ICPE/VMC/Pré-allumage ;
+- l'export est refusé tant qu'un équipement ou une réserve Réseau de chaleur n'est pas classé ;
+- l'Excel final remplit automatiquement les blocs « REMARQUES SUR LE PRIMAIRE » et « REMARQUES SUR LE SECONDAIRE ».
+
+Les commentaires, photos, criticités et réserves utilisent les composants durables communs aux autres visites techniques.
 
 ## Excel
 

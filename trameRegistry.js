@@ -146,7 +146,8 @@ const RESEAU_CHALEUR = Object.freeze({
     requiredSheets: ['TRAME RÉSEAU DE CHALEUR'],
     mainSheet: 'TRAME RÉSEAU DE CHALEUR',
     metadata: { client: 'B1', site: 'B2', adresse: 'B3', type: 'B4', dateVisite: 'B5' },
-    signature: { sheet: 'TRAME RÉSEAU DE CHALEUR', cells: [{ ref: 'B4', values: ['RÉSEAU DE CHALEUR', 'RESEAU DE CHALEUR', 'Réseau de chaleur'] }] },
+    // La feuille est propre à cette trame ; aucune signature de cellule n'est
+    // imposée afin d'accepter aussi les classeurs terrain historiques non estampillés.
     fieldMappings: RESEAU_CHALEUR_FIELD_MAPPINGS,
     networks: {
       mainSheet: 'TRAME RÉSEAU DE CHALEUR',
