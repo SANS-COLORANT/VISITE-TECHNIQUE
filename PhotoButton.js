@@ -157,4 +157,4 @@ function PhotoButton({ visiteId, entiteKey, label, style }) {
 }
 
 
-export { prendrePhoto, PhotoButton };
+export { prendrePhoto, supprimerFichierPhoto, PhotoButton };
