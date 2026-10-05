@@ -43,7 +43,9 @@ export async function listerRemarquesVisite(visiteId) {
 
 export async function upsertRemarquePrescription(visiteId, controleKey, prescription = {}, origine = null) {
   const db = await openAppDatabase();
-  const existante = await db.getFirstAsync(`SELECT id,criticite,criticite_defaut,criticite_modifiee FROM remarques WHERE visite_id=? AND controle_key=? LIMIT 1`, [visiteId, controleKey]);
+  const existante = await db.getFirstAsync(`SELECT id,criticite,criticite_defaut,criticite_modifiee,perimetre FROM remarques WHERE visite_id=? AND controle_key=? LIMIT 1`, [visiteId, controleKey]);
+  const aPerimetre = Object.prototype.hasOwnProperty.call(prescription, 'perimetre');
+  const perimetre = prescription.perimetre === 'Primaire' || prescription.perimetre === 'Secondaire' ? prescription.perimetre : null;
   const poste = prescription.poste || 'Observation';
   const prestation = prescription.prestation || '';
   const delai = normaliserNombreNullable(prescription.delai);
@@ -52,11 +54,11 @@ export async function upsertRemarquePrescription(visiteId, controleKey, prescrip
   const criticite = existante?.criticite_modifiee ? clampReserveSeverity(existante.criticite) : criticiteDefaut;
   const referenceLibelle = await libelleElementControle(db, visiteId, controleKey);
   if (existante?.id) {
-    await db.runAsync(`UPDATE remarques SET poste=?,prestation=?,delai=?,estimatif=?,origine=?,criticite=?,criticite_defaut=?,reference_type=COALESCE(reference_type,'controle'),reference_id=COALESCE(reference_id,?),reference_libelle=CASE WHEN reference_libelle IS NULL OR TRIM(reference_libelle)='' THEN ? ELSE reference_libelle END WHERE id=?`, [poste, prestation, delai, estimatif, origine || null, criticite, criticiteDefaut, controleKey, referenceLibelle, existante.id]);
+    await db.runAsync(`UPDATE remarques SET poste=?,prestation=?,delai=?,estimatif=?,origine=?,criticite=?,criticite_defaut=?,reference_type=COALESCE(reference_type,'controle'),reference_id=COALESCE(reference_id,?),reference_libelle=CASE WHEN reference_libelle IS NULL OR TRIM(reference_libelle)='' THEN ? ELSE reference_libelle END,perimetre=CASE WHEN ?=1 THEN ? ELSE perimetre END WHERE id=?`, [poste, prestation, delai, estimatif, origine || null, criticite, criticiteDefaut, controleKey, referenceLibelle, aPerimetre ? 1 : 0, perimetre, existante.id]);
     return existante.id;
   }
   const id = createId();
-  await db.runAsync(`INSERT INTO remarques(id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,reference_type,reference_id,reference_libelle,criticite,criticite_defaut,criticite_modifiee) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [id, visiteId, controleKey, poste, prestation, delai, estimatif, origine || null, 'controle', controleKey, referenceLibelle, criticite, criticiteDefaut, 0]);
+  await db.runAsync(`INSERT INTO remarques(id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,reference_type,reference_id,reference_libelle,criticite,criticite_defaut,criticite_modifiee,perimetre) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [id, visiteId, controleKey, poste, prestation, delai, estimatif, origine || null, 'controle', controleKey, referenceLibelle, criticite, criticiteDefaut, 0, perimetre]);
   return id;
 }
 
@@ -78,13 +80,14 @@ export async function ajouterRemarqueVisite(visiteId, data = {}) {
   const db = await openAppDatabase();
   const id = createId();
   const criticite = clampReserveSeverity(data.criticite ?? 2);
-  await db.runAsync(`INSERT INTO remarques(id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,criticite,criticite_defaut,criticite_modifiee) VALUES(?,?,?,?,?,?,?,?,?,?,?)`, [id, visiteId, data.controleKey || null, data.poste || 'Observation', data.prestation || data.description || '', normaliserNombreNullable(data.delai), normaliserNombreNullable(data.estimatif ?? data.prix), data.origine || 'Manuelle', criticite, criticite, 0]);
+  const perimetre = data.perimetre === 'Primaire' || data.perimetre === 'Secondaire' ? data.perimetre : null;
+  await db.runAsync(`INSERT INTO remarques(id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,criticite,criticite_defaut,criticite_modifiee,perimetre) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, [id, visiteId, data.controleKey || null, data.poste || 'Observation', data.prestation || data.description || '', normaliserNombreNullable(data.delai), normaliserNombreNullable(data.estimatif ?? data.prix), data.origine || 'Manuelle', criticite, criticite, 0, perimetre]);
   return id;
 }
 
 export async function modifierRemarqueVisite(id, patch = {}) {
   const db = await openAppDatabase();
-  const autorisees = ['poste', 'prestation', 'delai', 'estimatif', 'criticite', 'intranet_date_reserve', 'intranet_delai', 'intranet_etat_avancement'];
+  const autorisees = ['poste', 'prestation', 'delai', 'estimatif', 'criticite', 'perimetre', 'intranet_date_reserve', 'intranet_delai', 'intranet_etat_avancement'];
   const sets = []; const params = [];
   for (const cle of autorisees) {
     if (!Object.prototype.hasOwnProperty.call(patch, cle)) continue;
@@ -92,6 +95,7 @@ export async function modifierRemarqueVisite(id, patch = {}) {
     let value = patch[cle];
     if (cle === 'delai' || cle === 'estimatif') value = normaliserNombreNullable(value);
     else if (cle === 'criticite') value = clampReserveSeverity(value);
+    else if (cle === 'perimetre') value = value === 'Primaire' || value === 'Secondaire' ? value : null;
     else if (cle.startsWith('intranet_')) value = value == null || String(value).trim() === '' ? null : String(value).trim();
     params.push(value);
     // Revenir à la criticité proposée n'est plus compté comme une modification.
@@ -112,7 +116,12 @@ export async function supprimerRemarqueVisite(id) {
 
 export async function rattacherRemarqueVisite(id, cible = {}) {
   const db = await openAppDatabase();
-  await db.runAsync(`UPDATE remarques SET reference_onglet=?,reference_type=?,reference_id=?,reference_libelle=? WHERE id=?`, [cible.onglet || null, cible.type || null, cible.id || null, cible.libelle || null, id]);
+  const aPerimetre = cible.perimetre === 'Primaire' || cible.perimetre === 'Secondaire';
+  await db.runAsync(
+    `UPDATE remarques SET reference_onglet=?,reference_type=?,reference_id=?,reference_libelle=?,
+      perimetre=CASE WHEN ?=1 THEN ? ELSE perimetre END WHERE id=?`,
+    [cible.onglet || null, cible.type || null, cible.id || null, cible.libelle || null, aPerimetre ? 1 : 0, aPerimetre ? cible.perimetre : null, id]
+  );
 }
 
 export async function ajouterRemarqueDepuisBibliotheque(visiteId, item = {}) {
