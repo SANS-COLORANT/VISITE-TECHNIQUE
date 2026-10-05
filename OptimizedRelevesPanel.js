@@ -6,6 +6,7 @@ import { TRAME_DATA } from './data.js';
 import {
   ajouterCompteur,
   getChampsVisite,
+  getControlesVisite,
   listerCompteurs,
   supprimerCompteur,
   upsertCompteurChamp,
@@ -17,6 +18,7 @@ import { useListScrollMemory } from './useListScrollMemory.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { FONTS } from './styles.js';
 import { pictoReleve, pictoTemperature } from './relevePictos.js';
+import { PersistentControleGenerique } from './PersistentControleGenerique.js';
 
 const COMPTEUR_TYPES = [
   'Compteur gaz', 'Compteur énergie chauffage', 'Compteur énergie ECS', 'Compteur eau appoint chauffage',
@@ -91,8 +93,9 @@ const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRe
   );
 });
 
-export function OptimizedRelevesPanel({ visiteId, onSaved }) {
+export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', panels = null }) {
   const [champsMap, setChampsMap] = useState({});
+  const [controlesMap, setControlesMap] = useState({});
   const [compteurs, setCompteurs] = useState([]);
   const [ajoutCompteurVisible, setAjoutCompteurVisible] = useState(false);
   const [nomCompteurChoisi, setNomCompteurChoisi] = useState('');
@@ -101,14 +104,16 @@ export function OptimizedRelevesPanel({ visiteId, onSaved }) {
   const [creationEnCours, setCreationEnCours] = useState(false);
   const autoSeedFaitRef = useRef(false);
 
-  const sections = TRAME_DATA['p-releves'];
+  const sections = panels?.['p-releves'] || TRAME_DATA['p-releves'];
+  const reseauChaleur = trameId === 'reseau_chaleur_v1';
   const champsTemp = useMemo(() => sections['Températures et pH'] || [], [sections]);
   const champsCompteursIndex = useMemo(() => (sections['Relevés des compteurs et manomètres'] || []).filter((f) => /^Index/i.test(f.cle)), [sections]);
   const champsPression = useMemo(() => (sections['Relevés des compteurs et manomètres'] || []).filter((f) => !/^Index/i.test(f.cle)), [sections]);
 
   const chargerInitial = useCallback(async () => {
-    const [champs, compteursDb] = await Promise.all([getChampsVisite(visiteId), listerCompteurs(visiteId)]);
+    const [champs, controles, compteursDb] = await Promise.all([getChampsVisite(visiteId), getControlesVisite(visiteId), listerCompteurs(visiteId)]);
     setChampsMap(mapperChamps(champs));
+    setControlesMap(Object.fromEntries((controles || []).map((row) => [`${row.section_code}||${row.cle}`, row])));
     setCompteurs(compteursDb);
 
     if (!autoSeedFaitRef.current && compteursDb.length === 0 && champsCompteursIndex.length > 0) {
@@ -192,6 +197,17 @@ export function OptimizedRelevesPanel({ visiteId, onSaved }) {
         if (item.type === 'compteur') return <CompteurCard compteur={item.compteur} visiteId={visiteId} onRemove={retirerLocalement} />;
         if (item.type === 'ajout') return <TouchableOpacity style={styles.addBtn} onPress={ouvrirAjoutCompteur}><Text style={styles.addBtnText}>+ Ajouter un compteur</Text></TouchableOpacity>;
         const key = `${item.section}||${item.field.cle}`;
+        if (reseauChaleur && item.field.type === 'controle') {
+          return <View style={styles.formCard}><PersistentControleGenerique
+            visiteId={visiteId}
+            sectionCode={item.section}
+            field={item.field}
+            etatInitial={controlesMap[key]}
+            trameId={trameId}
+            onEtatChange={(patch) => setControlesMap((old) => ({ ...old, [key]: { ...(old[key] || {}), ...patch } }))}
+            onSaved={onSaved}
+          /></View>;
+        }
         return <View style={styles.formCard}><DurableChampGenerique visiteId={visiteId} sectionCode={item.section} field={item.field} picto={item.picto} valeurInitiale={champsMap[key]} onSaved={(v) => {
           setChampsMap((old) => ({ ...old, [key]: v }));
           onSaved?.();
