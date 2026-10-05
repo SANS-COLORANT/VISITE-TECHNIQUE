@@ -485,9 +485,10 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
       {estReseauChaleur && (
         <>
           <View style={{ height: 10 }} />
-          <Text style={styles.fieldLabel}>Périmètre de l'équipement</Text>
+          <Text style={styles.fieldLabel}>Périmètre de l'équipement · obligatoire</Text>
           <View style={{ height: 6 }} />
           <ChipSelector valeur={perimetre} options={['Primaire', 'Secondaire']} onChange={sauverPerimetre} />
+          {!perimetre ? <Text style={[styles.importHint, { marginTop: 6 }]}>Sélectionne Primaire ou Secondaire avant l'export.</Text> : null}
         </>
       )}
       <View style={{ height: 10 }} />
@@ -642,13 +643,25 @@ function PanelRemarques({ visiteId, refreshKey, trameCode = 'ICPE' }) {
             </View>
             {estReseauChaleur && (
               <View style={{ marginTop: 8 }}>
-                <Text style={styles.remarqueMetaTxt}>Périmètre</Text>
+                <Text style={styles.remarqueMetaTxt}>
+                  Périmètre{r.controle_key ? ' · automatique' : ''}
+                </Text>
                 <View style={{ height: 6 }} />
-                <ChipSelector
-                  valeur={r.perimetre || ''}
-                  options={['Primaire', 'Secondaire']}
-                  onChange={(val) => changerPerimetre(r.id, val)}
-                />
+                {r.controle_key ? (
+                  <View style={styles.critereChips}>
+                    <View style={[styles.critereChip, r.perimetre && styles.critereChipPicked]}>
+                      <Text style={[styles.critereChipText, r.perimetre && styles.critereChipTextPicked]}>
+                        {r.perimetre || 'À classer'}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <ChipSelector
+                    valeur={r.perimetre || ''}
+                    options={['Primaire', 'Secondaire']}
+                    onChange={(val) => changerPerimetre(r.id, val)}
+                  />
+                )}
               </View>
             )}
             {!estReseauChaleur && r.perimetre ? (
