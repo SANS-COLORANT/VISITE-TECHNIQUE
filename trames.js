@@ -95,23 +95,40 @@ function defaultPerimetreForControle(trameCode, sectionCode, cle) {
   const key = String(cle || '').trim();
 
   // Règle métier Réseau de chaleur :
-  // - production / températures primaires et production ECS => PRIMAIRE ;
-  // - distribution, conformité, local, électricité et auxiliaires => SECONDAIRE.
-  // Le rapport de référence confirme notamment qu'une réserve de température
-  // retour ECS est rangée au primaire, alors que disconnecteur, BAES,
-  // extincteurs, signalétique, calorifuge de bouclage ECS, etc. sont au secondaire.
+  // PRIMAIRE = production chauffage / production ECS et organes directement
+  // liés à cette production. SECONDAIRE = distribution, traitement des
+  // réseaux, local et auxiliaires. Le rapport de référence montre notamment
+  // une température de retour ECS au primaire, mais le disconnecteur,
+  // l'extincteur, la signalétique et le calorifuge de bouclage au secondaire.
   if (section.startsWith('releves.temperatures')) {
     if (/^PRIMAIRE:/i.test(key) || /^EAU CHAUDE SANITAIRE:/i.test(key)) return 'Primaire';
     return 'Secondaire'; // pH + températures réseau chauffage
   }
 
-  if (
-    section.startsWith('conf-chauffage.') ||
-    section.startsWith('conf-ecs.') ||
-    section.startsWith('conf-adouc.') ||
-    section.startsWith('conf-energie.') ||
-    section.startsWith('conf-local.')
-  ) return 'Secondaire';
+  if (section.startsWith('conf-chauffage.')) {
+    if (section.includes('conduits_de_fum') || section.includes('soupapes')) return 'Primaire';
+    return 'Secondaire'; // disconnecteur + traitement d'eau du réseau chauffage
+  }
+
+  if (section.startsWith('conf-ecs.')) {
+    // Organes directement portés par le ballon / la production ECS.
+    if (
+      key === "Trou d'homme sur ballon ECS" ||
+      key === 'Vanne de vidange sur ballon' ||
+      key === 'Soupape'
+    ) return 'Primaire';
+    return 'Secondaire'; // traitement, manchettes, prélèvements, carnet sanitaire...
+  }
+
+  if (section.startsWith('conf-energie.')) {
+    if (
+      section.includes('coupure_ext') && section.includes('combustible') ||
+      section.includes('ligne_alimentation_gaz')
+    ) return 'Primaire';
+    return 'Secondaire';
+  }
+
+  if (section.startsWith('conf-adouc.') || section.startsWith('conf-local.')) return 'Secondaire';
 
   return 'Secondaire';
 }
