@@ -19,6 +19,7 @@ import { PhotoButton } from './PhotoButton.js';
 import { BoundedLruMap } from './boundedCache.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { perimetreControleTrame } from './trameRegistry.js';
 
 const PRESCRIPTIONS_COMPLETES = fusionnerPrescriptions(PRESCRIPTIONS);
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
@@ -169,6 +170,9 @@ function EditionReserve({ remarque, onPatch }) {
   if (!remarque?.id) return null;
   return <View style={[styles.prestationResult, { gap: 8 }]}>
     <Text style={styles.criterePanelLabel}>Réserve de cette visite — modifiable</Text>
+    {remarque.perimetre ? <View style={{ alignSelf: 'flex-start', paddingHorizontal: 10, paddingVertical: 5, borderRadius: 14, borderWidth: 1, borderColor: COLORS.orange, backgroundColor: COLORS.orangeLight }}>
+      <Text style={{ color: COLORS.orangeDark, fontFamily: FONTS.bodyBold, fontSize: 11 }}>Périmètre {remarque.perimetre} · automatique</Text>
+    </View> : null}
     {suggestion && String(suggestion.prestation).trim() !== String(prestation || '').trim() ? <TouchableOpacity
       accessibilityRole="button"
       activeOpacity={0.85}
@@ -208,9 +212,10 @@ function EditionReserve({ remarque, onPatch }) {
   </View>;
 }
 
-export const PersistentControleGenerique = React.memo(function PersistentControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, onEtatChange }) {
+export const PersistentControleGenerique = React.memo(function PersistentControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, onEtatChange, trameId = 'icpe_v1' }) {
   const controleKey = `${sectionCode}||${field.cle}`;
   const categorieKey = categoriePour(field.cle, sectionCode);
+  const perimetreAutomatique = perimetreControleTrame(trameId, sectionCode, field.cle);
   const baseOptions = useMemo(() => PRESCRIPTIONS_COMPLETES[categorieKey] || PRESCRIPTIONS_COMPLETES[field.cle] || [], [categorieKey, field.cle]);
   const [options, setOptions] = useState(baseOptions);
   const [avis, setAvis] = useState(etatInitial?.avis || null);
@@ -294,11 +299,12 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
     onEtatChange?.({ avis: 'N.S', commentaire: opt.prestation || '' });
     await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: 'N.S', commentaire: opt.prestation || '' });
     const origine = categorieKey + (opt.critere ? ' — ' + opt.critere : '');
-    const id = await upsertRemarquePrescription(visiteId, controleKey, opt, origine);
-    const next = { ...(remarque || {}), id, visite_id: visiteId, controle_key: controleKey, poste: opt.poste || 'Observation', prestation: opt.prestation || '', delai: opt.delai ?? null, estimatif: opt.estimatif ?? null, origine };
+    const prescription = perimetreAutomatique ? { ...opt, perimetre: perimetreAutomatique } : opt;
+    const id = await upsertRemarquePrescription(visiteId, controleKey, prescription, origine);
+    const next = { ...(remarque || {}), id, visite_id: visiteId, controle_key: controleKey, poste: opt.poste || 'Observation', prestation: opt.prestation || '', delai: opt.delai ?? null, estimatif: opt.estimatif ?? null, origine, perimetre: perimetreAutomatique || remarque?.perimetre || null };
     setRemarque(next); patchRemarqueCache(visiteId, controleKey, next); onSaved?.();
     feedback('Réserve créée');
-  }, [visiteId, sectionCode, field.cle, categorieKey, controleKey, remarque, onEtatChange, onSaved]);
+  }, [visiteId, sectionCode, field.cle, categorieKey, controleKey, remarque, onEtatChange, onSaved, perimetreAutomatique]);
 
   const sauverLibre = useCallback(async (texte) => {
     const v = String(texte || '');
@@ -306,7 +312,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
     onEtatChange?.({ avis: 'N.S', commentaire: v });
     await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: 'N.S', commentaire: v });
     if (v.trim()) {
-      const opt = { poste: remarque?.poste || 'Observation', prestation: v, delai: remarque?.delai ?? null, estimatif: remarque?.estimatif ?? null };
+      const opt = { poste: remarque?.poste || 'Observation', prestation: v, delai: remarque?.delai ?? null, estimatif: remarque?.estimatif ?? null, ...(perimetreAutomatique ? { perimetre: perimetreAutomatique } : {}) };
       const id = await upsertRemarquePrescription(visiteId, controleKey, opt, field.cle);
       const next = { ...(remarque || {}), ...opt, id, visite_id: visiteId, controle_key: controleKey, origine: field.cle };
       setRemarque(next); patchRemarqueCache(visiteId, controleKey, next);
@@ -315,7 +321,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
       patchRemarqueCache(visiteId, controleKey, null); setRemarque(null);
     }
     onSaved?.();
-  }, [visiteId, sectionCode, field.cle, controleKey, remarque, onEtatChange, onSaved]);
+  }, [visiteId, sectionCode, field.cle, controleKey, remarque, onEtatChange, onSaved, perimetreAutomatique]);
 
   const sauverCommentaireSimple = useCallback(async (texte) => {
     const v = String(texte || '');
