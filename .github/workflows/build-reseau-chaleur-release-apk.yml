@@ -1,0 +1,133 @@
+name: Build Reseau de chaleur RELEASE APK 644
+
+on:
+  push:
+    branches:
+      - build/reseau-chaleur-release-apk644
+    paths:
+      - '**/*.js'
+      - '**/*.json'
+      - 'database/**'
+      - '.github/workflows/build-reseau-chaleur-release-apk.yml'
+      - '.github/scripts/configure_android_release_signing.py'
+
+concurrency:
+  group: build-reseau-chaleur-release-apk644
+  cancel-in-progress: true
+
+jobs:
+  build-release-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      NODE_ENV: production
+      METRA_COMPAT_SIGNER_SHA256: FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C
+      GRADLE_OPTS: >-
+        -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+        -Dorg.gradle.workers.max=2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Validate JavaScript bundle
+        run: npx expo export --platform android --output-dir dist-ci
+
+      - name: Generate Android project
+        run: npx expo prebuild --clean --platform android --no-install
+
+      - name: Validate Android release identity
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          s = Path('android/app/build.gradle').read_text(encoding='utf-8')
+          if not re.search(r'applicationId\s+["\']com\.visitetechnique\.tablet["\']', s):
+              raise SystemExit('applicationId Android inattendu')
+          if not re.search(r'versionCode\s+644\b', s):
+              raise SystemExit('versionCode Android inattendu')
+          print('Identité Android release APK 644 validée.')
+          PY
+
+      - name: Configure update-compatible release signing
+        run: |
+          set -euo pipefail
+          LEGACY_KEYSTORE="android/app/debug.keystore"
+          test -s "$LEGACY_KEYSTORE"
+
+          ACTUAL_SHA256="$(keytool -list -v -keystore "$LEGACY_KEYSTORE" -storepass android -alias androiddebugkey | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          echo "Signer source SHA256: $ACTUAL_SHA256"
+          if [ "$ACTUAL_SHA256" != "$METRA_COMPAT_SIGNER_SHA256" ]; then
+            echo "::error::Le certificat généré par Expo ne correspond pas à l'identité historique METRA."
+            echo "::error::Attendu: $METRA_COMPAT_SIGNER_SHA256 ; obtenu: $ACTUAL_SHA256"
+            exit 1
+          fi
+
+          cp "$LEGACY_KEYSTORE" android/app/metra-release.keystore
+          {
+            echo "METRA_RELEASE_STORE_PASSWORD=android"
+            echo "METRA_RELEASE_KEY_ALIAS=androiddebugkey"
+            echo "METRA_RELEASE_KEY_PASSWORD=android"
+          } >> "$GITHUB_ENV"
+
+          export METRA_RELEASE_STORE_PASSWORD=android
+          export METRA_RELEASE_KEY_ALIAS=androiddebugkey
+          export METRA_RELEASE_KEY_PASSWORD=android
+          python .github/scripts/configure_android_release_signing.py
+
+      - name: Configure Gradle memory
+        working-directory: android
+        run: |
+          printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\n' >> gradle.properties
+
+      - name: Build standalone RELEASE APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --max-workers=2
+
+      - name: Verify RELEASE APK signature
+        run: |
+          set -euo pipefail
+          APK="$(find android/app/build/outputs/apk/release -name '*.apk' -type f -print -quit)"
+          test -n "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner"
+          VERIFY_OUTPUT="$("$APKSIGNER" verify --verbose --print-certs "$APK" 2>&1)"
+          printf '%s\n' "$VERIFY_OUTPUT"
+          ACTUAL_SHA256="$(printf '%s\n' "$VERIFY_OUTPUT" | awk -F': ' 'tolower($0) ~ /certificate sha-256 digest/{print $NF; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          if [ -z "$ACTUAL_SHA256" ]; then
+            ACTUAL_SHA256="$(keytool -printcert -jarfile "$APK" 2>/dev/null | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          fi
+          if [ -z "$ACTUAL_SHA256" ]; then
+            echo "::error::Impossible de lire l'empreinte SHA-256 du certificat de l'APK release."
+            exit 1
+          fi
+          if [ "$ACTUAL_SHA256" != "$METRA_COMPAT_SIGNER_SHA256" ]; then
+            echo "::error::L'APK release n'est pas signée avec le certificat historique METRA."
+            echo "::error::Attendu: $METRA_COMPAT_SIGNER_SHA256 ; obtenu: $ACTUAL_SHA256"
+            exit 1
+          fi
+          echo "RELEASE APK compatible avec les installations METRA existantes."
+
+      - name: Upload standalone RELEASE APK 644
+        uses: actions/upload-artifact@v4
+        with:
+          name: metra-reseau-chaleur-release-apk644
+          path: android/app/build/outputs/apk/release/*.apk
+          if-no-files-found: error
+          retention-days: 14
