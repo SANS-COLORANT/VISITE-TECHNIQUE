@@ -1,12 +1,16 @@
-/** Import d'une TRAME ICPE Excel existante avec aperçu puis intégration SQLite. */
+/** Import d'une trame Excel ICPE ou Réseau de chaleur avec aperçu puis intégration SQLite. */
 
 import * as XLSX from 'xlsx';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system/legacy';
-import { TRAME_DATA, EXCEL_ROWS } from './data.js';
 import { getDb, uuidv4 } from './db.js';
-
-const RESEAU_BLOCS_DEBUT = [66, 76, 86, 96, 106, 116];
+import {
+  getTrameData,
+  getExcelLayout,
+  findExcelRow,
+  normalizeTrameCode,
+  defaultPerimetreForControle,
+} from './trames.js';
 
 function valeurCellule(sheet, ref) {
   const cell = sheet?.[ref];
@@ -25,6 +29,36 @@ function sectionCode(panelId, section) {
 
 function nettoyerLabel(cle) {
   return cle.replace(/^Index\s*/i, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+}
+
+function lireValeurTrame(trame, row, trameCode) {
+  if (normalizeTrameCode(trameCode) === 'RESEAU_CHALEUR') {
+    return valeurCellule(trame, `C${row}`) || valeurCellule(trame, `E${row}`);
+  }
+  return valeurCellule(trame, `B${row}`);
+}
+
+function lireControleTrame(trame, row, trameCode) {
+  if (normalizeTrameCode(trameCode) === 'RESEAU_CHALEUR') {
+    return {
+      avis: valeurCellule(trame, `B${row}`) || valeurCellule(trame, `D${row}`),
+      commentaire: valeurCellule(trame, `C${row}`) || valeurCellule(trame, `E${row}`),
+    };
+  }
+  return { avis: valeurCellule(trame, `B${row}`), commentaire: valeurCellule(trame, `C${row}`) };
+}
+
+function infererPerimetreRemarque(trame, layout, prestation) {
+  if (!prestation || !layout.resumeRows) return null;
+  const needle = prestation.toLowerCase().replace(/\s+/g, ' ').trim();
+  for (const perimetre of ['Primaire', 'Secondaire']) {
+    for (const row of Object.values(layout.resumeRows[perimetre] || {})) {
+      const texte = (valeurCellule(trame, `C${row}`) || valeurCellule(trame, `E${row}`))
+        .toLowerCase().replace(/\s+/g, ' ');
+      if (needle && texte.includes(needle)) return perimetre;
+    }
+  }
+  return null;
 }
 
 export async function choisirEtAnalyserExcel() {
@@ -52,35 +86,59 @@ function empreinteLegere(texte) {
 }
 
 export function analyserClasseur(wb, nomFichier) {
-  const trame = wb.Sheets['TRAME ICPE'] || wb.Sheets[wb.SheetNames[0]];
+  const trameCode = wb.Sheets['TRAME RÉSEAU DE CHALEUR'] ? 'RESEAU_CHALEUR' : 'ICPE';
+  const layout = getExcelLayout(trameCode);
+  const trame = wb.Sheets[layout.sheetName] || wb.Sheets[wb.SheetNames[0]];
   if (!trame) throw new Error('Aucune feuille exploitable dans ce fichier.');
+
+  const trameData = getTrameData(trameCode);
   const champs = [];
   const controles = [];
   const compteurs = [];
 
-  Object.entries(TRAME_DATA).forEach(([panelId, sections]) => {
+  Object.entries(trameData).forEach(([panelId, sections]) => {
     Object.entries(sections).forEach(([section, fields]) => {
+      if (trameCode === 'RESEAU_CHALEUR' && section === 'Général') return;
+      const codeSection = sectionCode(panelId, section);
       fields.forEach((field) => {
-        const row = EXCEL_ROWS[`${section}||${field.cle}`];
+        const row = findExcelRow(trame, trameCode, panelId, section, field.cle);
         if (!row) return;
-        const valeur = valeurCellule(trame, `B${row}`);
-        const commentaire = valeurCellule(trame, `C${row}`);
-        if (!valeur && !commentaire) return;
-        const item = { sectionCode: sectionCode(panelId, section), cle: field.cle, valeur };
-        if (field.type === 'controle') controles.push({ ...item, avis: valeur, commentaire });
-        else {
-          champs.push(item);
-          if (/^Index/i.test(field.cle) && valeur) compteurs.push({ label: nettoyerLabel(field.cle), valeur, unite: (field.cle.match(/\(([^)]+)\)/) || [])[1] || '' });
+
+        if (field.type === 'controle') {
+          const { avis, commentaire } = lireControleTrame(trame, row, trameCode);
+          if (!avis && !commentaire) return;
+          controles.push({
+            sectionCode: codeSection,
+            cle: field.cle,
+            avis,
+            commentaire,
+            perimetre: avis === 'N.S' ? defaultPerimetreForControle(trameCode, codeSection, field.cle) : null,
+          });
+        } else {
+          const valeur = lireValeurTrame(trame, row, trameCode);
+          if (!valeur) return;
+          champs.push({ sectionCode: codeSection, cle: field.cle, valeur });
+          if (/^Index/i.test(field.cle)) {
+            compteurs.push({
+              label: nettoyerLabel(field.cle),
+              valeur,
+              unite: (field.cle.match(/\(([^)]+)\)/) || [])[1] || '',
+            });
+          }
         }
       });
     });
   });
 
-  const reseaux = RESEAU_BLOCS_DEBUT.map((row, index) => ({
+  const valeurReseau = (row) => lireValeurTrame(trame, row, trameCode);
+  const reseaux = layout.reseauBlocsDebut.map((row, index) => ({
     ordre: index + 1,
-    tExt: valeurCellule(trame, `B${row}`), tDep: valeurCellule(trame, `B${row + 1}`),
-    nom: valeurCellule(trame, `B${row + 2}`), courbe: valeurCellule(trame, `B${row + 3}`),
-    tnc: valeurCellule(trame, `B${row + 4}`), programme: valeurCellule(trame, `B${row + 5}`),
+    tExt: valeurReseau(row),
+    tDep: valeurReseau(row + 1),
+    nom: valeurReseau(row + 2),
+    courbe: valeurReseau(row + 3),
+    tnc: valeurReseau(row + 4),
+    programme: valeurReseau(row + 5),
   })).filter((r) => r.nom || r.tExt || r.tDep || r.courbe || r.tnc || r.programme);
 
   const materielSheet = wb.Sheets['MATERIEL'];
@@ -89,7 +147,20 @@ export function analyserClasseur(wb, nomFichier) {
     for (let row = 4; row <= 500; row++) {
       const values = 'ABCDEFGHIJ'.split('').map((col) => valeurCellule(materielSheet, `${col}${row}`));
       if (!values.some(Boolean)) continue;
-      materiel.push({ categorie: values[0], nombre: values[1], designation: values[2], numero: values[3], reseau: values[4], marque: values[5], modele: values[6], caracteristiques: values[7], annee: values[8], etat: values[9] || 'Bon' });
+      const perimetre = trameCode === 'RESEAU_CHALEUR' && ['Primaire', 'Secondaire'].includes(values[4]) ? values[4] : null;
+      materiel.push({
+        categorie: values[0],
+        nombre: values[1],
+        designation: values[2],
+        numero: values[3],
+        reseau: perimetre ? '' : values[4],
+        perimetre,
+        marque: values[5],
+        modele: values[6],
+        caracteristiques: values[7],
+        annee: values[8],
+        etat: values[9] || 'Bon',
+      });
     }
   }
 
@@ -100,7 +171,13 @@ export function analyserClasseur(wb, nomFichier) {
       const poste = valeurCellule(remarquesSheet, `A${row}`);
       const prestation = valeurCellule(remarquesSheet, `B${row}`);
       if (!poste && !prestation) continue;
-      remarques.push({ poste, prestation, delai: valeurCellule(remarquesSheet, `D${row}`), estimatif: valeurCellule(remarquesSheet, `F${row}`) });
+      remarques.push({
+        poste,
+        prestation,
+        delai: valeurCellule(remarquesSheet, `D${row}`),
+        estimatif: valeurCellule(remarquesSheet, `F${row}`),
+        perimetre: trameCode === 'RESEAU_CHALEUR' ? infererPerimetreRemarque(trame, layout, prestation) : null,
+      });
     }
   }
 
@@ -110,11 +187,17 @@ export function analyserClasseur(wb, nomFichier) {
 
   return {
     nomFichier,
+    trameCode,
     client: valeurCellule(trame, 'B1') || 'Client importé',
     site: valeurCellule(trame, 'B2') || 'Site importé',
     adresse: valeurCellule(trame, 'B3'),
     dateVisite: valeurCellule(trame, 'B5') || new Date().toISOString().slice(0, 10),
-    champs, controles, reseaux, compteurs, materiel, remarques,
+    champs,
+    controles,
+    reseaux,
+    compteurs,
+    materiel,
+    remarques,
     note: valeurCellule(wb.Sheets['NOTE'], 'A2'),
   };
 }
@@ -141,36 +224,57 @@ export async function importerAnalyseExcel(analyse) {
       site = { id: uuidv4() };
       await db.runAsync('INSERT INTO sites (id, client_id, nom_site, adresse) VALUES (?, ?, ?, ?)', [site.id, client.id, analyse.site, analyse.adresse || null]);
     }
+
     visiteId = uuidv4();
     await db.runAsync(
-      `INSERT INTO visites (id, site_id, date_visite, technicien, statut) VALUES (?, ?, ?, 'Import Excel', 'a_completer')`,
-      [visiteId, site.id, analyse.dateVisite]
+      `INSERT INTO visites (id, site_id, date_visite, technicien, statut, trame_code) VALUES (?, ?, ?, 'Import Excel', 'a_completer', ?)`,
+      [visiteId, site.id, analyse.dateVisite, normalizeTrameCode(analyse.trameCode)]
     );
+
     for (const item of analyse.champs) await db.runAsync(
       `INSERT OR REPLACE INTO champs_visite (visite_id, section_code, cle, valeur) VALUES (?, ?, ?, ?)`,
       [visiteId, item.sectionCode, item.cle, item.valeur]
     );
     for (const item of analyse.controles) await db.runAsync(
-      `INSERT OR REPLACE INTO controles_visite (visite_id, section_code, cle, avis, commentaire) VALUES (?, ?, ?, ?, ?)`,
-      [visiteId, item.sectionCode, item.cle, item.avis || null, item.commentaire || null]
+      `INSERT OR REPLACE INTO controles_visite (visite_id, section_code, cle, avis, commentaire, perimetre) VALUES (?, ?, ?, ?, ?, ?)`,
+      [visiteId, item.sectionCode, item.cle, item.avis || null, item.commentaire || null, item.perimetre || null]
     );
     await db.runAsync('INSERT INTO notes (visite_id, contenu) VALUES (?, ?)', [visiteId, analyse.note || '']);
 
     let installation = await db.getFirstAsync('SELECT id FROM installations WHERE site_id = ? AND actif = 1 LIMIT 1', [site.id]);
     if (!installation) {
       installation = { id: uuidv4() };
-      await db.runAsync(`INSERT INTO installations (id, site_id, type_code, nom) VALUES (?, ?, 'chaufferie', 'Installation principale')`, [installation.id, site.id]);
+      await db.runAsync(
+        `INSERT INTO installations (id, site_id, type_code, nom) VALUES (?, ?, ?, ?)`,
+        [installation.id, site.id, analyse.trameCode === 'RESEAU_CHALEUR' ? 'sous_station' : 'chaufferie', 'Installation principale']
+      );
     }
+
     etape = 'réseaux';
     for (const r of analyse.reseaux) {
-      let permanent = await db.getFirstAsync('SELECT id FROM reseaux_site WHERE installation_id = ? AND nom = ? COLLATE NOCASE', [installation.id, r.nom || `Réseau ${r.ordre}`]);
+      let permanent = await db.getFirstAsync(
+        'SELECT id FROM reseaux_site WHERE installation_id = ? AND nom = ? COLLATE NOCASE',
+        [installation.id, r.nom || `Réseau ${r.ordre}`]
+      );
       if (!permanent) {
         permanent = { id: uuidv4() };
-        await db.runAsync(`INSERT INTO reseaux_site (id, installation_id, type_code, nom, ordre) VALUES (?, ?, 'chauffage', ?, ?)`, [permanent.id, installation.id, r.nom || `Réseau ${r.ordre}`, r.ordre]);
+        await db.runAsync(
+          `INSERT INTO reseaux_site (id, installation_id, type_code, nom, ordre) VALUES (?, ?, 'chauffage', ?, ?)`,
+          [permanent.id, installation.id, r.nom || `Réseau ${r.ordre}`, r.ordre]
+        );
       }
-      await db.runAsync(`INSERT INTO reseaux (id, visite_id, reseau_site_id, ordre, nom_reseau, t_ext_c, t_dep_c, courbe_de_chauffe, tnc, consigne_programme_horaire) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`, [uuidv4(), visiteId, permanent.id, r.ordre, r.nom, r.tExt, r.tDep, r.courbe, r.tnc, r.programme]);
-      await db.runAsync(`INSERT OR REPLACE INTO observations_reseau (id, reseau_site_id, visite_id, t_ext_c, t_dep_c, courbe_de_chauffe, tnc, consigne_programme_horaire) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`, [uuidv4(), permanent.id, visiteId, r.tExt, r.tDep, r.courbe, r.tnc, r.programme]);
+      await db.runAsync(
+        `INSERT INTO reseaux (id, visite_id, reseau_site_id, ordre, nom_reseau, t_ext_c, t_dep_c, courbe_de_chauffe, tnc, consigne_programme_horaire)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), visiteId, permanent.id, r.ordre, r.nom, r.tExt, r.tDep, r.courbe, r.tnc, r.programme]
+      );
+      await db.runAsync(
+        `INSERT OR REPLACE INTO observations_reseau (id, reseau_site_id, visite_id, t_ext_c, t_dep_c, courbe_de_chauffe, tnc, consigne_programme_horaire)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), permanent.id, visiteId, r.tExt, r.tDep, r.courbe, r.tnc, r.programme]
+      );
     }
+
     etape = 'équipements';
     const equipementsUtilises = new Set();
     for (const m of analyse.materiel) {
@@ -185,38 +289,72 @@ export async function importerAnalyseExcel(analyse) {
          ORDER BY cree_le`,
         [installation.id, m.categorie || 'non_classe', m.designation || '', m.marque || '', m.modele || '', m.numero || '', m.numero || '']
       );
-      // Deux lignes identiques dans la même feuille représentent deux appareils.
-      // Lors d'une visite suivante, chacune retrouve le bon appareil disponible.
       let equipement = equipementsCompatibles.find((item) => !equipementsUtilises.has(item.id)) || null;
       if (!equipement) {
         equipement = { id: uuidv4() };
-        await db.runAsync(`INSERT INTO equipements (id, installation_id, type_code, designation, marque, modele, numero_serie, annee, statut) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'actif')`, [equipement.id, installation.id, m.categorie || 'non_classe', m.designation || null, m.marque || null, m.modele || null, m.numero || null, m.annee || null]);
+        await db.runAsync(
+          `INSERT INTO equipements (id, installation_id, type_code, designation, marque, modele, numero_serie, annee, statut, perimetre)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'actif', ?)`,
+          [equipement.id, installation.id, m.categorie || 'non_classe', m.designation || null, m.marque || null, m.modele || null, m.numero || null, m.annee || null, m.perimetre || null]
+        );
+      } else if (m.perimetre) {
+        await db.runAsync('UPDATE equipements SET perimetre = ? WHERE id = ?', [m.perimetre, equipement.id]);
       }
       const equipementId = equipement.id;
       equipementsUtilises.add(equipementId);
-      await db.runAsync(`INSERT INTO materiel (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`, [uuidv4(), visiteId, equipementId, m.categorie, m.designation, m.marque, m.modele, m.annee, m.etat]);
-      await db.runAsync(`INSERT OR REPLACE INTO observations_equipement (id, equipement_id, visite_id, etat) VALUES (?, ?, ?, ?)`, [uuidv4(), equipementId, visiteId, m.etat]);
+      await db.runAsync(
+        `INSERT INTO materiel (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat, perimetre)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), visiteId, equipementId, m.categorie, m.designation, m.marque, m.modele, m.annee, m.etat, m.perimetre || null]
+      );
+      await db.runAsync(
+        `INSERT OR REPLACE INTO observations_equipement (id, equipement_id, visite_id, etat) VALUES (?, ?, ?, ?)`,
+        [uuidv4(), equipementId, visiteId, m.etat]
+      );
     }
+
     etape = 'compteurs';
     for (const c of analyse.compteurs) {
-      let permanent = await db.getFirstAsync('SELECT id FROM compteurs_site WHERE installation_id = ? AND libelle = ? COLLATE NOCASE AND actif = 1', [installation.id, c.label]);
+      let permanent = await db.getFirstAsync(
+        'SELECT id FROM compteurs_site WHERE installation_id = ? AND libelle = ? COLLATE NOCASE AND actif = 1',
+        [installation.id, c.label]
+      );
       if (!permanent) {
         permanent = { id: uuidv4() };
-        await db.runAsync(`INSERT INTO compteurs_site (id, installation_id, type_code, libelle, unite) VALUES (?, ?, ?, ?, ?)`, [permanent.id, installation.id, c.label, c.label, c.unite]);
+        await db.runAsync(
+          `INSERT INTO compteurs_site (id, installation_id, type_code, libelle, unite) VALUES (?, ?, ?, ?, ?)`,
+          [permanent.id, installation.id, c.label, c.label, c.unite]
+        );
       }
       const nombre = Number(String(c.valeur).replace(',', '.'));
-      await db.runAsync(`INSERT INTO compteurs (id, visite_id, compteur_site_id, label, valeur, unite) VALUES (?, ?, ?, ?, ?, ?)`, [uuidv4(), visiteId, permanent.id, c.label, c.valeur, c.unite]);
-      await db.runAsync(`INSERT OR REPLACE INTO releves_compteur (id, compteur_site_id, visite_id, valeur_texte, valeur_nombre, unite) VALUES (?, ?, ?, ?, ?, ?)`, [uuidv4(), permanent.id, visiteId, c.valeur, Number.isFinite(nombre) ? nombre : null, c.unite]);
+      await db.runAsync(
+        `INSERT INTO compteurs (id, visite_id, compteur_site_id, label, valeur, unite) VALUES (?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), visiteId, permanent.id, c.label, c.valeur, c.unite]
+      );
+      await db.runAsync(
+        `INSERT OR REPLACE INTO releves_compteur (id, compteur_site_id, visite_id, valeur_texte, valeur_nombre, unite) VALUES (?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), permanent.id, visiteId, c.valeur, Number.isFinite(nombre) ? nombre : null, c.unite]
+      );
     }
+
     etape = 'réserves';
     for (const r of analyse.remarques) await db.runAsync(
-      `INSERT INTO remarques (id, visite_id, poste, prestation, delai, estimatif, origine) VALUES (?, ?, ?, ?, ?, ?, 'Import Excel')`,
-      [uuidv4(), visiteId, r.poste, r.prestation, Number(r.delai) || null, Number(String(r.estimatif).replace(',', '.')) || null]
+      `INSERT INTO remarques (id, visite_id, poste, prestation, delai, estimatif, origine, perimetre)
+       VALUES (?, ?, ?, ?, ?, ?, 'Import Excel', ?)`,
+      [uuidv4(), visiteId, r.poste, r.prestation, Number(r.delai) || null, Number(String(r.estimatif).replace(',', '.')) || null, r.perimetre || null]
     );
+
     etape = 'finalisation';
     await db.runAsync(
-      `INSERT INTO provenances (id, entite_type, entite_id, origine, reference_externe, details_json) VALUES (?, 'visite', ?, 'import_excel', ?, ?)`,
-      [uuidv4(), visiteId, analyse.sourceId || analyse.nomFichier, JSON.stringify({ fichier: analyse.nomFichier, client: analyse.client, site: analyse.site, dateVisite: analyse.dateVisite })]
+      `INSERT INTO provenances (id, entite_type, entite_id, origine, reference_externe, details_json)
+       VALUES (?, 'visite', ?, 'import_excel', ?, ?)`,
+      [uuidv4(), visiteId, analyse.sourceId || analyse.nomFichier, JSON.stringify({
+        fichier: analyse.nomFichier,
+        client: analyse.client,
+        site: analyse.site,
+        dateVisite: analyse.dateVisite,
+        trameCode: analyse.trameCode,
+      })]
     );
   }).catch((error) => {
     throw new Error(`Import interrompu pendant l’étape « ${etape} » : ${error.message || error}`);
