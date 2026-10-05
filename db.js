@@ -280,11 +280,13 @@ async function creerVisite({ siteId, technicien, mode = 'complete', trameCode = 
  */
 async function supprimerVisite(visiteId) {
   const db = await getDb();
+  const photos = await db.getAllAsync('SELECT uri FROM photos WHERE visite_id = ?', [visiteId]);
   const tables = ['champs_visite', 'controles_visite', 'reseaux', 'compteurs', 'materiel', 'remarques', 'notes', 'photos'];
   for (const table of tables) {
     await db.runAsync(`DELETE FROM ${table} WHERE visite_id = ?`, [visiteId]);
   }
   await db.runAsync(`DELETE FROM visites WHERE id = ?`, [visiteId]);
+  return photos.map((p) => p.uri).filter(Boolean);
 }
 async function getVisite(visiteId) {
   const db = await getDb();
@@ -333,19 +335,29 @@ async function upsertControle(visiteId, sectionCode, cle, { avis, commentaire, p
     `SELECT * FROM controles_visite WHERE visite_id = ? AND section_code = ? AND cle = ?`,
     [visiteId, sectionCode, cle]
   );
+
+  // `undefined` = ne pas toucher à la valeur existante ; `null` = effacer
+  // explicitement. C'est indispensable lorsqu'un contrôle repasse de N.S à
+  // S/S.O : l'ancien commentaire de réserve et le périmètre ne doivent pas
+  // continuer à ressortir dans l'Excel.
+  const nextAvis = avis !== undefined ? avis : (existing?.avis ?? null);
+  const nextCommentaire = commentaire !== undefined ? commentaire : (existing?.commentaire ?? null);
+  const nextPerimetre = perimetre !== undefined ? perimetre : (existing?.perimetre ?? null);
+
   if (existing) {
     await db.runAsync(
-      `UPDATE controles_visite SET avis = COALESCE(?, avis), commentaire = COALESCE(?, commentaire), perimetre = COALESCE(?, perimetre)
+      `UPDATE controles_visite SET avis = ?, commentaire = ?, perimetre = ?
        WHERE visite_id = ? AND section_code = ? AND cle = ?`,
-      [avis ?? null, commentaire ?? null, perimetre ?? null, visiteId, sectionCode, cle]
+      [nextAvis, nextCommentaire, nextPerimetre, visiteId, sectionCode, cle]
     );
   } else {
     await db.runAsync(
       `INSERT INTO controles_visite (visite_id, section_code, cle, avis, commentaire, perimetre) VALUES (?, ?, ?, ?, ?, ?)`,
-      [visiteId, sectionCode, cle, avis ?? null, commentaire ?? null, perimetre ?? null]
+      [visiteId, sectionCode, cle, nextAvis, nextCommentaire, nextPerimetre]
     );
   }
-  if (perimetre !== undefined && perimetre !== null) {
+
+  if (perimetre !== undefined) {
     await db.runAsync(
       'UPDATE remarques SET perimetre = ? WHERE visite_id = ? AND controle_key = ?',
       [perimetre, visiteId, `${sectionCode}||${cle}`]
@@ -766,34 +778,57 @@ async function supprimerRemarqueParControle(visiteId, controleKey) {
   const db = await getDb();
   await db.runAsync(`DELETE FROM remarques WHERE visite_id = ? AND controle_key = ?`, [visiteId, controleKey]);
 }
-async function ajouterRemarqueManuelle(visiteId) {
+async function ajouterRemarqueManuelle(visiteId, perimetre = null) {
   const db = await getDb();
   const id = uuidv4();
   await db.runAsync(
-    `INSERT INTO remarques (id, visite_id, controle_key, poste, prestation, origine)
-     VALUES (?, ?, NULL, 'Observation', 'Nouvelle réserve — à préciser', 'Ajout manuel')`,
-    [id, visiteId]
-  );
-}
-async function ajouterAnomalieRapide(visiteId, prestation) {
-  const db = await getDb();
-  const id = uuidv4();
-  await db.runAsync(
-    `INSERT INTO remarques (id, visite_id, poste, prestation, origine)
-     VALUES (?, ?, 'Anomalie', ?, 'Ajout rapide')`,
-    [id, visiteId, prestation.trim()]
+    `INSERT INTO remarques (id, visite_id, controle_key, poste, prestation, origine, perimetre)
+     VALUES (?, ?, NULL, 'Observation', 'Nouvelle réserve — à préciser', 'Ajout manuel', ?)`,
+    [id, visiteId, perimetre]
   );
   await toucherVisite(visiteId);
   return id;
 }
+async function ajouterAnomalieRapide(visiteId, prestation, perimetre = null) {
+  const db = await getDb();
+  const id = uuidv4();
+  await db.runAsync(
+    `INSERT INTO remarques (id, visite_id, poste, prestation, origine, perimetre)
+     VALUES (?, ?, 'Anomalie', ?, 'Ajout rapide', ?)`,
+    [id, visiteId, prestation.trim(), perimetre]
+  );
+  await toucherVisite(visiteId);
+  return id;
+}
+async function upsertRemarquePerimetre(remarqueId, perimetre) {
+  if (![null, 'Primaire', 'Secondaire'].includes(perimetre)) return;
+  const db = await getDb();
+  const remarque = await db.getFirstAsync('SELECT visite_id FROM remarques WHERE id = ?', [remarqueId]);
+  if (!remarque) return;
+  await db.runAsync('UPDATE remarques SET perimetre = ? WHERE id = ?', [perimetre, remarqueId]);
+  await toucherVisite(remarque.visite_id);
+}
 async function rattacherRemarque(remarqueId, reference) {
   const db = await getDb();
+  const remarque = await db.getFirstAsync('SELECT visite_id FROM remarques WHERE id = ?', [remarqueId]);
+  if (!remarque) return;
+  const aPerimetre = reference.perimetre === 'Primaire' || reference.perimetre === 'Secondaire';
   await db.runAsync(
     `UPDATE remarques
-     SET reference_onglet = ?, reference_type = ?, reference_id = ?, reference_libelle = ?
+     SET reference_onglet = ?, reference_type = ?, reference_id = ?, reference_libelle = ?,
+         perimetre = CASE WHEN ? = 1 THEN ? ELSE perimetre END
      WHERE id = ?`,
-    [reference.onglet || null, reference.type || null, reference.id || null, reference.libelle || null, remarqueId]
+    [
+      reference.onglet || null,
+      reference.type || null,
+      reference.id || null,
+      reference.libelle || null,
+      aPerimetre ? 1 : 0,
+      aPerimetre ? reference.perimetre : null,
+      remarqueId,
+    ]
   );
+  await toucherVisite(remarque.visite_id);
 }
 
 // ---------------- Repository : notes / photos ----------------
@@ -810,6 +845,7 @@ async function upsertNote(visiteId, contenu) {
      ON CONFLICT(visite_id) DO UPDATE SET contenu = excluded.contenu`,
     [visiteId, contenu]
   );
+  await toucherVisite(visiteId);
 }
 async function listerPhotos(visiteId, entiteKey) {
   const db = await getDb();
@@ -820,14 +856,29 @@ async function listerPhotos(visiteId, entiteKey) {
 }
 async function ajouterPhoto(visiteId, entiteKey, uri, label) {
   const db = await getDb();
+  const id = uuidv4();
   await db.runAsync(
     `INSERT INTO photos (id, visite_id, entite_key, uri, label) VALUES (?, ?, ?, ?, ?)`,
-    [uuidv4(), visiteId, entiteKey || null, uri, label || null]
+    [id, visiteId, entiteKey || null, uri, label || null]
   );
+  await toucherVisite(visiteId);
+  return id;
 }
 async function remplacerPhoto(photoId, uri) {
   const db = await getDb();
+  const photo = await db.getFirstAsync('SELECT visite_id, uri FROM photos WHERE id = ?', [photoId]);
+  if (!photo) return null;
   await db.runAsync(`UPDATE photos SET uri = ?, cree_le = datetime('now') WHERE id = ?`, [uri, photoId]);
+  await toucherVisite(photo.visite_id);
+  return photo;
+}
+async function supprimerPhoto(photoId) {
+  const db = await getDb();
+  const photo = await db.getFirstAsync('SELECT * FROM photos WHERE id = ?', [photoId]);
+  if (!photo) return null;
+  await db.runAsync('DELETE FROM photos WHERE id = ?', [photoId]);
+  await toucherVisite(photo.visite_id);
+  return photo;
 }
 
 // ---------------- Repository : bibliothèque de réserves (Paramètres) ----------------
@@ -857,13 +908,16 @@ async function supprimerReserveBiblio(id) {
   await db.runAsync(`DELETE FROM reserves_bibliotheque WHERE id = ?`, [id]);
 }
 /** Ajoute une réserve à une visite en copiant un modèle de la bibliothèque. */
-async function ajouterRemarqueDepuisBiblio(visiteId, biblioItem) {
+async function ajouterRemarqueDepuisBiblio(visiteId, biblioItem, perimetre = null) {
   const db = await getDb();
+  const id = uuidv4();
   await db.runAsync(
-    `INSERT INTO remarques (id, visite_id, controle_key, poste, prestation, delai, estimatif, origine)
-     VALUES (?, ?, NULL, ?, ?, ?, ?, 'Bibliothèque personnalisée')`,
-    [uuidv4(), visiteId, biblioItem.poste || 'Observation', biblioItem.description || biblioItem.nom, biblioItem.delai, biblioItem.prix]
+    `INSERT INTO remarques (id, visite_id, controle_key, poste, prestation, delai, estimatif, origine, perimetre)
+     VALUES (?, ?, NULL, ?, ?, ?, ?, 'Bibliothèque personnalisée', ?)`,
+    [id, visiteId, biblioItem.poste || 'Observation', biblioItem.description || biblioItem.nom, biblioItem.delai, biblioItem.prix, perimetre]
   );
+  await toucherVisite(visiteId);
+  return id;
 }
 
 // ---------------- Repository : bibliothèque d'équipements (Paramètres) ----------------
@@ -999,8 +1053,8 @@ export {
   listerReseaux, ajouterReseau, upsertReseauChamp, supprimerReseau,
   listerCompteurs, ajouterCompteur, upsertCompteurChamp, supprimerCompteur,
   listerMateriel, ajouterMateriel, upsertMaterielChamp, supprimerMateriel,
-  listerRemarques, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle, ajouterRemarqueManuelle, ajouterAnomalieRapide, rattacherRemarque,
-  getNote, upsertNote, listerPhotos, ajouterPhoto, remplacerPhoto,
+  listerRemarques, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle, ajouterRemarqueManuelle, ajouterAnomalieRapide, upsertRemarquePerimetre, rattacherRemarque,
+  getNote, upsertNote, listerPhotos, ajouterPhoto, remplacerPhoto, supprimerPhoto,
   listerBibliothequeReserves, ajouterReserveBiblio, modifierReserveBiblio, supprimerReserveBiblio, ajouterRemarqueDepuisBiblio,
   listerBibliothequeEquipements, ajouterEquipementBiblio, modifierEquipementBiblio, supprimerEquipementBiblio,
   listerCategoriesEquipement, listerMarquesEquipement, rechercherModelesEquipement,

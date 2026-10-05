@@ -5,6 +5,7 @@ import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInpu
 import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites, supprimerVisite } from './db.js';
 import { choisirEtAnalyserExcel, importerAnalyseExcel } from './excelImport.js';
+import { supprimerFichierPhoto } from './photoStorage.js';
 
 // ============================================================================
 // 7. ÉCRAN ACCUEIL
@@ -36,7 +37,15 @@ function HomeScreen({ navigation }) {
       `"${visite.nom_client} — ${visite.nom_site}" et toutes ses données (photos, réserves, relevés...) seront définitivement supprimées. Es-tu sûr ?`,
       [
         { text: 'Annuler', style: 'cancel' },
-        { text: 'Supprimer', style: 'destructive', onPress: async () => { await supprimerVisite(visite.id); charger(); } },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            const photoUris = await supprimerVisite(visite.id);
+            await Promise.all((photoUris || []).map((uri) => supprimerFichierPhoto(uri)));
+            charger();
+          },
+        },
       ]
     );
   };

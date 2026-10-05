@@ -1,7 +1,7 @@
 /** Panneaux de l'écran Visite : générique, Régulation, Relevés, Équipements, Réserves, Photos. */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, Image } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, Image, Alert } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { TRAME_DATA, RESEAU_TEMPLATE } from './data.js';
 import {
@@ -9,11 +9,12 @@ import {
   listerReseaux, ajouterReseau, upsertReseauChamp, supprimerReseau,
   listerCompteurs, ajouterCompteur, upsertCompteurChamp, supprimerCompteur,
   listerMateriel, ajouterMateriel, upsertMaterielChamp, supprimerMateriel, listerBibliothequeEquipements,
-  listerRemarques, ajouterRemarqueManuelle, listerBibliothequeReserves, ajouterRemarqueDepuisBiblio, rattacherRemarque,
-  listerPhotos, ajouterPhoto,
+  listerRemarques, ajouterRemarqueManuelle, listerBibliothequeReserves, ajouterRemarqueDepuisBiblio, upsertRemarquePerimetre, rattacherRemarque,
+  listerPhotos, ajouterPhoto, supprimerPhoto,
 } from './db.js';
 import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, useSaisieAvecAutoSave } from './GenericFields.js';
 import { PhotoButton, prendrePhoto } from './PhotoButton.js';
+import { supprimerFichierPhoto } from './photoStorage.js';
 import { BrandMark } from './BrandLogo.js';
 import { getTrameData, getTabOrder, normalizeTrameCode } from './trames.js';
 
@@ -484,9 +485,10 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
       {estReseauChaleur && (
         <>
           <View style={{ height: 10 }} />
-          <Text style={styles.fieldLabel}>Périmètre de l'équipement</Text>
+          <Text style={styles.fieldLabel}>Périmètre de l'équipement · obligatoire</Text>
           <View style={{ height: 6 }} />
           <ChipSelector valeur={perimetre} options={['Primaire', 'Secondaire']} onChange={sauverPerimetre} />
+          {!perimetre ? <Text style={[styles.importHint, { marginTop: 6 }]}>Sélectionne Primaire ou Secondaire avant l'export.</Text> : null}
         </>
       )}
       <View style={{ height: 10 }} />
@@ -535,6 +537,7 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
 /** Onglet Réserves : 100% dynamique, lit ce que les contrôles ont généré. */
 function PanelRemarques({ visiteId, refreshKey, trameCode = 'ICPE' }) {
   const [remarques, setRemarques] = useState([]);
+  const estReseauChaleur = normalizeTrameCode(trameCode) === 'RESEAU_CHALEUR';
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
   const [remarqueARattacher, setRemarqueARattacher] = useState(null);
@@ -569,7 +572,12 @@ function PanelRemarques({ visiteId, refreshKey, trameCode = 'ICPE' }) {
     setOngletChoisi(panelId);
     if (panelId === 'p-equip') {
       const items = await listerMateriel(visiteId);
-      setCibles(items.map((m) => ({ id: m.equipement_id || m.id, type: 'equipement', libelle: [m.designation, m.marque, m.modele].filter(Boolean).join(' · ') || 'Équipement sans nom' })));
+      setCibles(items.map((m) => ({
+        id: m.equipement_id || m.id,
+        type: 'equipement',
+        libelle: [m.designation, m.marque, m.modele].filter(Boolean).join(' · ') || 'Équipement sans nom',
+        perimetre: m.perimetre || null,
+      })));
     } else if (panelId === 'p-regulation') {
       const items = await listerReseaux(visiteId);
       setCibles(items.map((r) => ({ id: r.reseau_site_id || r.id, type: 'reseau', libelle: r.nom_reseau || `Réseau ${r.ordre}` })));
@@ -590,6 +598,7 @@ function PanelRemarques({ visiteId, refreshKey, trameCode = 'ICPE' }) {
       type: cible.type,
       id: cible.id,
       libelle: cible.libelle,
+      perimetre: cible.perimetre || null,
     });
     setRemarqueARattacher(null);
     setOngletChoisi(null);
@@ -601,6 +610,11 @@ function PanelRemarques({ visiteId, refreshKey, trameCode = 'ICPE' }) {
     setRemarqueARattacher(null);
     setOngletChoisi(null);
     setCibles([]);
+    setRemarques(await listerRemarques(visiteId));
+  };
+
+  const changerPerimetre = async (remarqueId, valeur) => {
+    await upsertRemarquePerimetre(remarqueId, valeur);
     setRemarques(await listerRemarques(visiteId));
   };
 
@@ -627,7 +641,34 @@ function PanelRemarques({ visiteId, refreshKey, trameCode = 'ICPE' }) {
                 <Text style={styles.remarqueEstim}>{r.estimatif ? Math.round(r.estimatif) + ' €' : '—'}</Text>
               </View>
             </View>
-            {r.perimetre ? <Text style={styles.persistentEquipmentBadgeText}>{r.perimetre}</Text> : null}
+            {estReseauChaleur && (
+              <View style={{ marginTop: 8 }}>
+                <Text style={styles.remarqueMetaTxt}>
+                  Périmètre{r.controle_key ? ' · automatique' : ''}
+                </Text>
+                <View style={{ height: 6 }} />
+                {r.controle_key ? (
+                  <View style={styles.critereChips}>
+                    <View style={[styles.critereChip, r.perimetre && styles.critereChipPicked]}>
+                      <Text style={[styles.critereChipText, r.perimetre && styles.critereChipTextPicked]}>
+                        {r.perimetre || 'À classer'}
+                      </Text>
+                    </View>
+                  </View>
+                ) : (
+                  <ChipSelector
+                    valeur={r.perimetre || ''}
+                    options={['Primaire', 'Secondaire']}
+                    onChange={(val) => changerPerimetre(r.id, val)}
+                  />
+                )}
+              </View>
+            )}
+            {!estReseauChaleur && r.perimetre ? (
+              <View style={styles.persistentEquipmentBadge}>
+                <Text style={styles.persistentEquipmentBadgeText}>{r.perimetre}</Text>
+              </View>
+            ) : null}
             <Text style={styles.remarqueTxt}>{r.prestation}</Text>
             <View style={styles.remarqueMeta}>
               <Text style={styles.remarqueMetaTxt}>Délai : <Text style={styles.bold}>{r.delai ? r.delai + ' mois' : '—'}</Text></Text>
@@ -714,18 +755,43 @@ function PanelRemarques({ visiteId, refreshKey, trameCode = 'ICPE' }) {
 /** Onglet Photos : galerie complète de la visite, avec visionneuse. */
 function PanelPhotos({ visiteId, refreshKey }) {
   const [photos, setPhotos] = useState([]);
-  const [viewerUri, setViewerUri] = useState(null);
+  const [viewerPhoto, setViewerPhoto] = useState(null);
+
+  const charger = useCallback(async () => {
+    setPhotos(await listerPhotos(visiteId));
+  }, [visiteId]);
 
   useEffect(useCallback(() => {
-    listerPhotos(visiteId).then(setPhotos);
-  }, [visiteId, refreshKey]));
+    charger();
+  }, [charger, refreshKey]));
 
   const onAjouter = async () => {
     const uri = await prendrePhoto();
     if (uri) {
       await ajouterPhoto(visiteId, null, uri, 'Photo générale');
-      listerPhotos(visiteId).then(setPhotos);
+      await charger();
     }
+  };
+
+  const supprimerDepuisGalerie = () => {
+    if (!viewerPhoto) return;
+    Alert.alert(
+      'Supprimer la photo',
+      'Cette photo sera retirée de la visite.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            const supprimee = await supprimerPhoto(viewerPhoto.id);
+            if (supprimee?.uri) await supprimerFichierPhoto(supprimee.uri);
+            setViewerPhoto(null);
+            await charger();
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -733,7 +799,7 @@ function PanelPhotos({ visiteId, refreshKey }) {
       <Text style={styles.sectionTitle}>Toutes les photos de la visite · {photos.length}</Text>
       <View style={styles.photoGrid}>
         {photos.map((p) => (
-          <TouchableOpacity key={p.id} style={styles.photoThumb} onPress={() => setViewerUri(p.uri)}>
+          <TouchableOpacity key={p.id} style={styles.photoThumb} onPress={() => setViewerPhoto(p)}>
             <Image source={{ uri: p.uri }} style={styles.photoThumbImg} />
           </TouchableOpacity>
         ))}
@@ -742,14 +808,24 @@ function PanelPhotos({ visiteId, refreshKey }) {
         </TouchableOpacity>
       </View>
 
-      <Modal visible={!!viewerUri} transparent animationType="fade">
-        <TouchableOpacity style={styles.viewerOverlay} onPress={() => setViewerUri(null)} activeOpacity={1}>
-          {viewerUri && <Image source={{ uri: viewerUri }} style={styles.viewerImg} resizeMode="contain" />}
-        </TouchableOpacity>
+      <Modal visible={!!viewerPhoto} transparent animationType="fade" onRequestClose={() => setViewerPhoto(null)}>
+        <View style={styles.photoViewerOverlay}>
+          <View style={styles.photoViewerHeader}>
+            <Text style={styles.photoViewerTitle}>{viewerPhoto?.label || 'Photo de visite'}</Text>
+            <TouchableOpacity onPress={() => setViewerPhoto(null)}>
+              <Text style={styles.photoViewerClose}>✕</Text>
+            </TouchableOpacity>
+          </View>
+          {viewerPhoto && <Image source={{ uri: viewerPhoto.uri }} style={styles.photoViewerImage} resizeMode="contain" />}
+          <View style={styles.photoViewerActions}>
+            <TouchableOpacity style={styles.photoViewerSecondary} onPress={supprimerDepuisGalerie}>
+              <Text style={styles.photoViewerSecondaryText}>Supprimer</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
       </Modal>
     </ScrollView>
   );
 }
-
 
 export { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques, PanelPhotos };

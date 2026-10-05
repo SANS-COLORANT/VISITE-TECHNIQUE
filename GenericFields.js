@@ -6,7 +6,7 @@ import { COLORS, styles } from './styles.js';
 import { PRESCRIPTIONS } from './data.js';
 import { upsertChamp, upsertControle, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle, listerBibliothequeReserves } from './db.js';
 import { PhotoButton } from './PhotoButton.js';
-import { defaultPerimetreForControle, isForcedPrimaryControle, normalizeTrameCode } from './trames.js';
+import { defaultPerimetreForControle, isAutomaticPerimetreControle, normalizeTrameCode } from './trames.js';
 
 // ============================================================================
 // 4. COMPOSANTS GÉNÉRIQUES — champ texte / contrôle de conformité
@@ -236,7 +236,7 @@ const ChampGenerique = React.memo(function ChampGenerique({ visiteId, sectionCod
   // Pas de photo sur l'en-tête (Nom client/site/local, date) ni sur les
   // informations générales basiques (adresse, nb bât...) — rien à
   // photographier de pertinent sur ces champs purement administratifs.
-  const sansPhoto = sectionCode === 'infos.g_n_ral' || sectionCode === 'infos.informations_g_n_rales';
+  const sansPhoto = sectionCode === 'infos.g_n_ral' || sectionCode.startsWith('infos.information');
 
   const sauvegarderEnBase = async (nouvelleValeur) => {
     await upsertChamp(visiteId, sectionCode, field.cle, nouvelleValeur);
@@ -338,14 +338,36 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
   const [critereChoisi, setCritereChoisi] = useState(null);
   const [modeLibre, setModeLibre] = useState(false);
   const estReseauChaleur = normalizeTrameCode(trameCode) === 'RESEAU_CHALEUR';
-  const perimetreForcePrimaire = isForcedPrimaryControle(trameCode, sectionCode);
   const perimetreDefaut = defaultPerimetreForControle(trameCode, sectionCode, field.cle);
+  const perimetreAutomatique = isAutomaticPerimetreControle(trameCode, sectionCode, field.cle);
   const [perimetre, setPerimetre] = useState(etatInitial?.perimetre || perimetreDefaut);
   const [options, setOptions] = useState(() => resoudrePrescriptions(field.cle, sectionCode) || []);
 
   useEffect(() => {
+    setAvis(etatInitial?.avis || null);
+    setCommentaire(etatInitial?.commentaire || '');
     setPerimetre(etatInitial?.perimetre || perimetreDefaut);
-  }, [etatInitial?.perimetre, perimetreDefaut]);
+  }, [etatInitial?.avis, etatInitial?.commentaire, etatInitial?.perimetre, perimetreDefaut]);
+
+  // À la réouverture d'une visite, restitue visuellement la cause déjà
+  // enregistrée. Une observation libre reste visible au lieu de disparaître
+  // derrière la liste des causes prédéfinies.
+  useEffect(() => {
+    if (etatInitial?.avis !== 'N.S') {
+      setCritereChoisi(null);
+      setModeLibre(false);
+      return;
+    }
+    const commentaireSauve = String(etatInitial?.commentaire || '').trim();
+    if (!commentaireSauve) {
+      setCritereChoisi(null);
+      setModeLibre(false);
+      return;
+    }
+    const idx = options.findIndex((opt) => String(opt.prestation || '').trim() === commentaireSauve);
+    setCritereChoisi(idx >= 0 ? idx : null);
+    setModeLibre(idx < 0);
+  }, [etatInitial?.avis, etatInitial?.commentaire, options]);
 
   const categorieKey = getCategorieKey(field.cle, sectionCode);
 
@@ -369,33 +391,55 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
 
   const choisirAvis = async (val) => {
     setAvis(val);
-    const perimetreNs = val === 'N.S' && estReseauChaleur ? (perimetreForcePrimaire ? 'Primaire' : (perimetre || perimetreDefaut || 'Secondaire')) : undefined;
-    if (perimetreNs) setPerimetre(perimetreNs);
-    await upsertControle(visiteId, sectionCode, field.cle, { avis: val, perimetre: perimetreNs });
-    if (val !== 'N.S') {
+    const estNs = val === 'N.S';
+    const perimetreNs = estNs && estReseauChaleur
+      ? (perimetreDefaut || 'Secondaire')
+      : null;
+
+    if (estNs && estReseauChaleur) setPerimetre(perimetreNs);
+    if (!estNs && estReseauChaleur) setPerimetre(perimetreDefaut);
+
+    await upsertControle(visiteId, sectionCode, field.cle, {
+      avis: val,
+      // Les champs de mesure gardent leur valeur/commentaire même lorsqu'ils
+      // sont conformes. Pour les autres contrôles, on supprime le vieux texte
+      // de réserve lorsqu'on repasse de N.S à S/S.O.
+      commentaire: !estNs && !commentaireToujoursVisible ? null : undefined,
+      perimetre: estReseauChaleur ? perimetreNs : undefined,
+    });
+
+    if (!estNs) {
       await supprimerRemarqueParControle(visiteId, controleKey);
+      if (!commentaireToujoursVisible) setCommentaire('');
       setCritereChoisi(null);
       setModeLibre(false);
     }
     onSaved && onSaved();
   };
 
-  const choisirPerimetre = async (val) => {
-    if (perimetreForcePrimaire) return;
-    setPerimetre(val);
-    await upsertControle(visiteId, sectionCode, field.cle, { perimetre: val });
-  };
-
   const choisirCritere = async (opt, idx) => {
     setCritereChoisi(idx);
     setModeLibre(false);
+    setCommentaire(opt.prestation || '');
     const origine = field.cle + (opt.critere ? ' — ' + opt.critere : '');
     await upsertControle(visiteId, sectionCode, field.cle, { commentaire: opt.prestation });
     await upsertRemarqueDepuisPrescription(visiteId, controleKey, opt, origine, perimetre);
+    onSaved && onSaved();
+  };
+
+  const choisirAutre = async () => {
+    setModeLibre(true);
+    setCritereChoisi(null);
+    setCommentaire('');
+    // Pas de refresh parent ici : tant que l'utilisateur n'a pas validé son
+    // texte, le mode libre doit rester ouvert à l'écran.
+    await upsertControle(visiteId, sectionCode, field.cle, { commentaire: null });
+    await supprimerRemarqueParControle(visiteId, controleKey);
   };
 
   const sauvegarderCommentaire = async () => {
     await upsertControle(visiteId, sectionCode, field.cle, { commentaire });
+    onSaved && onSaved();
   };
 
   const validerCommentaireLibre = async () => {
@@ -410,6 +454,7 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
     } else {
       await supprimerRemarqueParControle(visiteId, controleKey);
     }
+    onSaved && onSaved();
   };
 
   return (
@@ -446,29 +491,17 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
 
       {avis === 'N.S' && (
         <View style={styles.criterePanel}>
-          {estReseauChaleur && (
+          {estReseauChaleur && perimetreAutomatique && (
             <View style={{ marginBottom: 12 }}>
               <Text style={styles.criterePanelLabel}>Périmètre de la non-conformité</Text>
-              {perimetreForcePrimaire ? (
-                <View style={styles.critereChips}>
-                  <View style={[styles.critereChip, styles.critereChipPicked]}>
-                    <Text style={[styles.critereChipText, styles.critereChipTextPicked]}>Primaire</Text>
-                  </View>
-                  <Text style={styles.importHint}>Production chauffage / ECS : primaire</Text>
+              <View style={styles.critereChips}>
+                <View style={[styles.critereChip, styles.critereChipPicked]}>
+                  <Text style={[styles.critereChipText, styles.critereChipTextPicked]}>
+                    {perimetreDefaut}
+                  </Text>
                 </View>
-              ) : (
-                <View style={styles.critereChips}>
-                  {['Primaire', 'Secondaire'].map((opt) => (
-                    <TouchableOpacity
-                      key={opt}
-                      style={[styles.critereChip, perimetre === opt && styles.critereChipPicked]}
-                      onPress={() => choisirPerimetre(opt)}
-                    >
-                      <Text style={[styles.critereChipText, perimetre === opt && styles.critereChipTextPicked]}>{opt}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+              </View>
+              <Text style={styles.importHint}>Classement automatique selon la trame Réseau de chaleur.</Text>
             </View>
           )}
           {options.length > 0 ? (
@@ -488,7 +521,7 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
                 ))}
                 <TouchableOpacity
                   style={[styles.critereChip, styles.critereChipCustom, modeLibre && styles.critereChipPicked]}
-                  onPress={() => { setModeLibre(true); setCritereChoisi(null); }}
+                  onPress={choisirAutre}
                 >
                   <Text style={[styles.critereChipText, modeLibre && styles.critereChipTextPicked]}>Autre</Text>
                 </TouchableOpacity>

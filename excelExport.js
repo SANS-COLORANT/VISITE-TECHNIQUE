@@ -6,7 +6,7 @@
  */
 
 import * as XLSX from 'xlsx';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import { TEMPLATE_EXCEL_BASE64 } from './templateExcel.js';
@@ -58,7 +58,12 @@ function ecrireResumeReseauChaleur(sheet, remarques, resumeRows) {
         .filter((r) => categorieResume(r.poste) === categorie)
         .map((r) => r.prestation)
         .filter(Boolean);
-      setNetworkPair(sheet, row, 'S.O', textes.length ? textes.join('\n\n') : '/');
+      setNetworkPair(
+        sheet,
+        row,
+        textes.length ? 'N.S' : 'S.O',
+        textes.length ? textes.join('\n\n') : 'Sans Objet.'
+      );
     }
   }
 }
@@ -81,6 +86,24 @@ async function construireClasseur(visiteId) {
   const estReseauChaleur = trameCode === 'RESEAU_CHALEUR';
   const layout = getExcelLayout(trameCode);
   const trameData = getTrameData(trameCode);
+
+  if (estReseauChaleur) {
+    const perimetresValides = new Set(['Primaire', 'Secondaire']);
+    const materielNonClasse = materiel.filter((m) => !perimetresValides.has(m.perimetre));
+    const remarquesNonClassees = remarques.filter((r) => !perimetresValides.has(r.perimetre));
+
+    if (materielNonClasse.length) {
+      throw new Error(
+        `${materielNonClasse.length} équipement(s) Réseau de chaleur doivent être classés Primaire ou Secondaire avant l'export.`
+      );
+    }
+    if (remarquesNonClassees.length) {
+      throw new Error(
+        `${remarquesNonClassees.length} réserve(s) Réseau de chaleur doivent être classées Primaire ou Secondaire avant l'export.`
+      );
+    }
+  }
+
   const template = estReseauChaleur ? TEMPLATE_RESEAU_CHALEUR_BASE64 : TEMPLATE_EXCEL_BASE64;
 
   const wb = XLSX.read(template, {

@@ -90,17 +90,52 @@ function findExcelRow(sheet, trameCode, panelId, section, cle) {
 
 function defaultPerimetreForControle(trameCode, sectionCode, cle) {
   if (normalizeTrameCode(trameCode) !== TRAME_CODES.RESEAU_CHALEUR) return null;
-  if (sectionCode?.startsWith('conf-chauffage.') || sectionCode?.startsWith('conf-ecs.')) return 'Primaire';
-  if (
-    sectionCode?.startsWith('releves.temperatures') &&
-    (/^PRIMAIRE:/i.test(cle || '') || /^EAU CHAUDE SANITAIRE:/i.test(cle || ''))
-  ) return 'Primaire';
+
+  const section = String(sectionCode || '').toLowerCase();
+  const key = String(cle || '').trim();
+
+  // Règle métier Réseau de chaleur :
+  // PRIMAIRE = production chauffage / production ECS et organes directement
+  // liés à cette production. SECONDAIRE = distribution, traitement des
+  // réseaux, local et auxiliaires. Le rapport de référence montre notamment
+  // une température de retour ECS au primaire, mais le disconnecteur,
+  // l'extincteur, la signalétique et le calorifuge de bouclage au secondaire.
+  if (section.startsWith('releves.temperatures')) {
+    if (/^PRIMAIRE:/i.test(key) || /^EAU CHAUDE SANITAIRE:/i.test(key)) return 'Primaire';
+    return 'Secondaire'; // pH + températures réseau chauffage
+  }
+
+  if (section.startsWith('conf-chauffage.')) {
+    if (section.includes('conduits_de_fum') || section.includes('soupapes')) return 'Primaire';
+    return 'Secondaire'; // disconnecteur + traitement d'eau du réseau chauffage
+  }
+
+  if (section.startsWith('conf-ecs.')) {
+    // Organes directement portés par le ballon / la production ECS.
+    if (
+      key === "Trou d'homme sur ballon ECS" ||
+      key === 'Vanne de vidange sur ballon' ||
+      key === 'Soupape'
+    ) return 'Primaire';
+    return 'Secondaire'; // traitement, manchettes, prélèvements, carnet sanitaire...
+  }
+
+  if (section.startsWith('conf-energie.')) {
+    if (
+      section.includes('coupure_ext') && section.includes('combustible') ||
+      section.includes('ligne_alimentation_gaz')
+    ) return 'Primaire';
+    return 'Secondaire';
+  }
+
+  if (section.startsWith('conf-adouc.') || section.startsWith('conf-local.')) return 'Secondaire';
+
   return 'Secondaire';
 }
 
-function isForcedPrimaryControle(trameCode, sectionCode) {
+function isAutomaticPerimetreControle(trameCode, sectionCode, cle) {
   return normalizeTrameCode(trameCode) === TRAME_CODES.RESEAU_CHALEUR &&
-    (sectionCode?.startsWith('conf-chauffage.') || sectionCode?.startsWith('conf-ecs.'));
+    Boolean(defaultPerimetreForControle(trameCode, sectionCode, cle));
 }
 
 export {
@@ -113,5 +148,5 @@ export {
   getExcelLayout,
   findExcelRow,
   defaultPerimetreForControle,
-  isForcedPrimaryControle,
+  isAutomaticPerimetreControle,
 };
