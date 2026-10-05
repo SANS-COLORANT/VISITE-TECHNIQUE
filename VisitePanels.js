@@ -13,7 +13,8 @@ import {
   listerPhotos, ajouterPhoto, supprimerPhoto,
 } from './db.js';
 import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, useSaisieAvecAutoSave } from './GenericFields.js';
-import { PhotoButton, prendrePhoto, supprimerFichierPhoto } from './PhotoButton.js';
+import { PhotoButton, prendrePhoto } from './PhotoButton.js';
+import { supprimerFichierPhoto } from './photoStorage.js';
 import { BrandMark } from './BrandLogo.js';
 import { getTrameData, getTabOrder, normalizeTrameCode } from './trames.js';
 
