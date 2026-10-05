@@ -5,7 +5,8 @@ import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityInd
 import { COLORS, styles } from './styles.js';
 import { getVisite, getNote, upsertNote, ajouterAnomalieRapide } from './db.js';
 import { exporterEtPartager } from './excelExport.js';
-import { PANEL_LABELS, TAB_ORDER, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques, PanelPhotos } from './VisitePanels.js';
+import { PANEL_LABELS, PanelGenerique, PanelRegulation, PanelReleves, PanelEquipements, PanelRemarques, PanelPhotos } from './VisitePanels.js';
+import { getTabOrder, getTrameLabel } from './trames.js';
 
 // ============================================================================
 // 6. ÉCRAN VISITE — conteneur avec onglets horizontaux
@@ -30,8 +31,9 @@ function VisiteScreen({ route, onBack }) {
 
   const onSaved = () => setRefreshKey((k) => k + 1);
 
+  const tabOrder = getTabOrder(visite?.trame_code);
   // Liste des vrais onglets (sans les séparateurs), pour naviguer au swipe.
-  const tabsReels = TAB_ORDER.filter((t) => t !== 'SEP');
+  const tabsReels = tabOrder.filter((t) => t !== 'SEP');
   const allerVoisin = (direction) => {
     const idx = tabsReels.indexOf(activeTab);
     const suivant = idx + direction;
@@ -98,7 +100,7 @@ function VisiteScreen({ route, onBack }) {
           </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={styles.cardTitle}>{visite.nom_site}</Text>
-            <Text style={styles.cardSub}>{visite.nom_client} · {visite.date_visite} · {visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'}</Text>
+            <Text style={styles.cardSub}>{visite.nom_client} · {visite.date_visite} · {getTrameLabel(visite.trame_code)} · {visite.mode_visite === 'express' ? 'Mode Express' : 'Mode complet'}</Text>
           </View>
           <TouchableOpacity style={styles.noteBtn} onPress={ouvrirNote}>
             <Text style={styles.noteBtnText}>Note libre</Text>
@@ -120,7 +122,7 @@ function VisiteScreen({ route, onBack }) {
           <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>
         )}
         <ScrollView keyboardShouldPersistTaps="handled" horizontal showsHorizontalScrollIndicator={false} style={styles.tabStrip}>
-          {TAB_ORDER.map((pid, i) =>
+          {tabOrder.map((pid, i) =>
             pid === 'SEP' ? (
               <View key={`sep-${i}`} style={styles.tabSep} />
             ) : (
@@ -136,13 +138,13 @@ function VisiteScreen({ route, onBack }) {
       </View>
 
       <View style={{ flex: 1 }} {...swipeHandlers.panHandlers}>
-        {activeTab === 'p-regulation' && <PanelRegulation visiteId={visiteId} refreshKey={refreshKey} onSaved={onSaved} />}
-        {activeTab === 'p-releves' && <PanelReleves visiteId={visiteId} refreshKey={refreshKey} onSaved={onSaved} />}
-        {activeTab === 'p-equip' && <PanelEquipements visiteId={visiteId} />}
-        {activeTab === 'p-remarques' && <PanelRemarques visiteId={visiteId} refreshKey={refreshKey} />}
+        {activeTab === 'p-regulation' && <PanelRegulation visiteId={visiteId} refreshKey={refreshKey} onSaved={onSaved} trameCode={visite.trame_code} />}
+        {activeTab === 'p-releves' && <PanelReleves visiteId={visiteId} refreshKey={refreshKey} onSaved={onSaved} trameCode={visite.trame_code} />}
+        {activeTab === 'p-equip' && <PanelEquipements visiteId={visiteId} trameCode={visite.trame_code} />}
+        {activeTab === 'p-remarques' && <PanelRemarques visiteId={visiteId} refreshKey={refreshKey} trameCode={visite.trame_code} />}
         {activeTab === 'p-photos' && <PanelPhotos visiteId={visiteId} refreshKey={refreshKey} />}
         {!['p-regulation', 'p-releves', 'p-equip', 'p-remarques', 'p-photos'].includes(activeTab) && (
-          <PanelGenerique visiteId={visiteId} panelId={activeTab} refreshKey={refreshKey} onSaved={onSaved} />
+          <PanelGenerique visiteId={visiteId} panelId={activeTab} refreshKey={refreshKey} onSaved={onSaved} trameCode={visite.trame_code} />
         )}
       </View>
 

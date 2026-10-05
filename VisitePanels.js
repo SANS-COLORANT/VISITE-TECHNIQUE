@@ -15,6 +15,7 @@ import {
 import { ChampGenerique, ControleGenerique, cleanLabel, extractUnit, getNumericConfig, StepperNumerique, ChipSelector, TypeAheadInput, useSaisieAvecAutoSave } from './GenericFields.js';
 import { PhotoButton, prendrePhoto } from './PhotoButton.js';
 import { BrandMark } from './BrandLogo.js';
+import { getTrameData, getTabOrder, normalizeTrameCode } from './trames.js';
 
 // ============================================================================
 // 5. PANNEAUX DE L'ÉCRAN VISITE
@@ -33,10 +34,10 @@ const TAB_ORDER = [
 ];
 
 /** Panneau générique : rend toutes les sections d'un onglet depuis TRAME_DATA. */
-function PanelGenerique({ visiteId, panelId, refreshKey, onSaved }) {
+function PanelGenerique({ visiteId, panelId, refreshKey, onSaved, trameCode = 'ICPE' }) {
   const [champsMap, setChampsMap] = useState({});
   const [controlesMap, setControlesMap] = useState({});
-  const sections = TRAME_DATA[panelId];
+  const sections = getTrameData(trameCode)[panelId];
 
   useEffect(useCallback(() => {
     getChampsVisite(visiteId).then(setChampsMap);
@@ -73,6 +74,7 @@ function PanelGenerique({ visiteId, panelId, refreshKey, onSaved }) {
                   field={f}
                   etatInitial={controlesMap[`${sectionCode}||${f.cle}`]}
                   onSaved={onSaved}
+                  trameCode={trameCode}
                 />
               ))}
             </View>
@@ -84,9 +86,10 @@ function PanelGenerique({ visiteId, panelId, refreshKey, onSaved }) {
 }
 
 /** Onglet Régulation : cascade fixe + réseaux dynamiques + réseau ECS. */
-function PanelRegulation({ visiteId, refreshKey, onSaved }) {
+function PanelRegulation({ visiteId, refreshKey, onSaved, trameCode = 'ICPE' }) {
   const [champsMap, setChampsMap] = useState({});
   const [reseaux, setReseaux] = useState([]);
+  const trameData = getTrameData(trameCode);
 
   const charger = useCallback(async () => {
     setChampsMap(await getChampsVisite(visiteId));
@@ -104,7 +107,7 @@ function PanelRegulation({ visiteId, refreshKey, onSaved }) {
     <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent}>
       <Text style={styles.sectionTitle}>Cascade chaudières</Text>
       <View style={styles.formCard}>
-        {TRAME_DATA['p-regulation']['Cascade chaudières'].map((f) => (
+        {trameData['p-regulation']['Cascade chaudières'].map((f) => (
           <ChampGenerique
             key={f.cle} visiteId={visiteId} sectionCode="regulation.cascade"
             field={f} valeurInitiale={champsMap[`regulation.cascade||${f.cle}`]} onSaved={onSaved}
@@ -122,7 +125,7 @@ function PanelRegulation({ visiteId, refreshKey, onSaved }) {
 
       <Text style={styles.sectionTitle}>Réseau ECS</Text>
       <View style={styles.formCard}>
-        {TRAME_DATA['p-regulation']['Réseau ECS'].map((f) => (
+        {trameData['p-regulation']['Réseau ECS'].map((f) => (
           <ChampGenerique
             key={f.cle} visiteId={visiteId} sectionCode="regulation.reseau_ecs"
             field={f} valeurInitiale={champsMap[`regulation.reseau_ecs||${f.cle}`]} onSaved={onSaved}
@@ -195,13 +198,15 @@ function ReseauCard({ reseau, visiteId, onChange }) {
 }
 
 /** Onglet Relevés : Températures/pH génériques + compteurs dynamiques avec unité. */
-function PanelReleves({ visiteId, refreshKey, onSaved }) {
+function PanelReleves({ visiteId, refreshKey, onSaved, trameCode = 'ICPE' }) {
   const [champsMap, setChampsMap] = useState({});
+  const [controlesMap, setControlesMap] = useState({});
   const [compteurs, setCompteurs] = useState([]);
   const UNITES = ['m³', 'L', 'MWh', 'kWh', 'bar', '%'];
 
   const charger = useCallback(async () => {
     setChampsMap(await getChampsVisite(visiteId));
+    setControlesMap(await getControlesVisite(visiteId));
     setCompteurs(await listerCompteurs(visiteId));
   }, [visiteId]);
 
@@ -212,7 +217,7 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
     charger();
   };
 
-  const sections = TRAME_DATA['p-releves'];
+  const sections = getTrameData(trameCode)['p-releves'];
   const champsTemp = sections['Températures et pH'] || [];
   const champsCompteursIndex = (sections['Relevés des compteurs et manomètres'] || []).filter((f) => /^Index/i.test(f.cle));
   const champsPression = (sections['Relevés des compteurs et manomètres'] || []).filter((f) => !/^Index/i.test(f.cle));
@@ -256,7 +261,18 @@ function PanelReleves({ visiteId, refreshKey, onSaved }) {
 
       <Text style={styles.sectionTitle}>Températures et pH</Text>
       <View style={styles.formCard}>
-        {champsTemp.map((f) => (
+        {champsTemp.map((f) => f.type === 'controle' ? (
+          <ControleGenerique
+            key={f.cle}
+            visiteId={visiteId}
+            sectionCode="releves.temperatures"
+            field={f}
+            etatInitial={controlesMap[`releves.temperatures||${f.cle}`]}
+            onSaved={onSaved}
+            trameCode={trameCode}
+            commentaireToujoursVisible
+          />
+        ) : (
           <ChampGenerique
             key={f.cle} visiteId={visiteId} sectionCode="releves.temperatures"
             field={f} valeurInitiale={champsMap[`releves.temperatures||${f.cle}`]} onSaved={onSaved}
@@ -331,7 +347,7 @@ function CompteurCard({ compteur, visiteId, unites, onChange }) {
 }
 
 /** Onglet Équipements : liste éditable avec ajout dynamique. */
-function PanelEquipements({ visiteId }) {
+function PanelEquipements({ visiteId, trameCode = 'ICPE' }) {
   const [materiel, setMateriel] = useState([]);
   const [optionsCategories, setOptionsCategories] = useState(CATEGORIES_EQUIPEMENT);
   const [optionsMarques, setOptionsMarques] = useState(MARQUES_EQUIPEMENT);
@@ -359,6 +375,7 @@ function PanelEquipements({ visiteId }) {
         <MaterielCard
           key={m.id} item={m} visiteId={visiteId} onChange={charger}
           optionsCategories={optionsCategories} optionsMarques={optionsMarques}
+          trameCode={trameCode}
         />
       ))}
       <TouchableOpacity style={styles.addBtn} onPress={onAjouter}>
@@ -370,10 +387,12 @@ function PanelEquipements({ visiteId }) {
 
 import { CATEGORIES_EQUIPEMENT, MARQUES_EQUIPEMENT } from './ParametresScreen.js';
 
-function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarques }) {
+function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarques, trameCode = 'ICPE' }) {
   const [categorie, setCategorie] = useState(item.categorie || '');
   const [marque, setMarque] = useState(item.marque || '');
   const [etat, setEtat] = useState(item.etat || '');
+  const [perimetre, setPerimetre] = useState(item.perimetre || '');
+  const estReseauChaleur = normalizeTrameCode(trameCode) === 'RESEAU_CHALEUR';
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
 
@@ -390,6 +409,7 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
   const sauverCategorie = async (val) => { setCategorie(val); await upsertMaterielChamp(item.id, 'categorie', val); };
   const sauverMarque = async (val) => { setMarque(val); await upsertMaterielChamp(item.id, 'marque', val); };
   const sauverEtat = async (val) => { setEtat(val); await upsertMaterielChamp(item.id, 'etat', val); };
+  const sauverPerimetre = async (val) => { setPerimetre(val); await upsertMaterielChamp(item.id, 'perimetre', val); };
 
   const ouvrirBiblio = async () => {
     setBiblio(await listerBibliothequeEquipements());
@@ -461,6 +481,14 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
           keyboardType="numeric"
         />
       </View>
+      {estReseauChaleur && (
+        <>
+          <View style={{ height: 10 }} />
+          <Text style={styles.fieldLabel}>Périmètre de l'équipement</Text>
+          <View style={{ height: 6 }} />
+          <ChipSelector valeur={perimetre} options={['Primaire', 'Secondaire']} onChange={sauverPerimetre} />
+        </>
+      )}
       <View style={{ height: 10 }} />
       <Text style={styles.fieldLabel}>État constaté pendant cette visite</Text>
       <View style={{ height: 6 }} />
@@ -505,7 +533,7 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
 }
 
 /** Onglet Réserves : 100% dynamique, lit ce que les contrôles ont généré. */
-function PanelRemarques({ visiteId, refreshKey }) {
+function PanelRemarques({ visiteId, refreshKey, trameCode = 'ICPE' }) {
   const [remarques, setRemarques] = useState([]);
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
@@ -536,7 +564,7 @@ function PanelRemarques({ visiteId, refreshKey }) {
     listerRemarques(visiteId).then(setRemarques);
   };
 
-  const ongletsRattachables = TAB_ORDER.filter((id) => id !== 'SEP' && id !== 'p-remarques' && id !== 'p-photos');
+  const ongletsRattachables = getTabOrder(trameCode).filter((id) => id !== 'SEP' && id !== 'p-remarques' && id !== 'p-photos');
   const choisirOnglet = async (panelId) => {
     setOngletChoisi(panelId);
     if (panelId === 'p-equip') {
@@ -549,7 +577,7 @@ function PanelRemarques({ visiteId, refreshKey }) {
       const items = await listerCompteurs(visiteId);
       setCibles(items.map((c) => ({ id: c.compteur_site_id || c.id, type: 'compteur', libelle: c.label || 'Compteur sans nom' })));
     } else {
-      const sections = TRAME_DATA[panelId] || {};
+      const sections = getTrameData(trameCode)[panelId] || {};
       setCibles(Object.entries(sections).flatMap(([section, fields]) => [
         { id: `${panelId}:${section}`, type: 'section', libelle: section },
         ...fields.map((f) => ({ id: `${panelId}:${section}:${f.cle}`, type: f.type || 'champ', libelle: `${section} · ${cleanLabel(f.cle)}` })),
@@ -599,6 +627,7 @@ function PanelRemarques({ visiteId, refreshKey }) {
                 <Text style={styles.remarqueEstim}>{r.estimatif ? Math.round(r.estimatif) + ' €' : '—'}</Text>
               </View>
             </View>
+            {r.perimetre ? <Text style={styles.persistentEquipmentBadgeText}>{r.perimetre}</Text> : null}
             <Text style={styles.remarqueTxt}>{r.prestation}</Text>
             <View style={styles.remarqueMeta}>
               <Text style={styles.remarqueMetaTxt}>Délai : <Text style={styles.bold}>{r.delai ? r.delai + ' mois' : '—'}</Text></Text>

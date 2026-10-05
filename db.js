@@ -1,6 +1,7 @@
 /** Base de données SQLite locale + repository (clients/sites/visites/champs...). */
 
 import { TRAME_DATA, PRESCRIPTIONS } from './data.js';
+import { getTrameData, normalizeTrameCode } from './trames.js';
 import { openAppDatabase } from './database/index.js';
 import { createId } from './database/ids.js';
 
@@ -177,10 +178,11 @@ const DEFAULT_VALEURS_CLASSIQUES = {
  * même libellé de champ ("Type de distribution") existe par exemple à la
  * fois pour le chauffage et pour l'ECS, avec des section_code différents.
  */
-async function preremplirValeursClassiques(visiteId) {
+async function preremplirValeursClassiques(visiteId, trameCode = 'ICPE') {
   const db = await getDb();
   const inserts = [];
-  Object.entries(TRAME_DATA).forEach(([panelId, sections]) => {
+  const trameData = getTrameData(trameCode);
+  Object.entries(trameData).forEach(([panelId, sections]) => {
     Object.entries(sections).forEach(([sub, fields]) => {
       const sectionCode = panelId.replace('p-', '') + '.' + sub.toLowerCase().replace(/[^a-z0-9]+/g, '_');
       fields.forEach((f) => {
@@ -199,16 +201,17 @@ async function preremplirValeursClassiques(visiteId) {
   }
 }
 
-async function creerVisite({ siteId, technicien, mode = 'complete' }) {
+async function creerVisite({ siteId, technicien, mode = 'complete', trameCode = 'ICPE' }) {
   const db = await getDb();
   const id = uuidv4();
   const precedente = mode === 'express' ? await db.getFirstAsync(
-    `SELECT id FROM visites WHERE site_id = ? ORDER BY date_visite DESC, modifie_le DESC LIMIT 1`, [siteId]
+    `SELECT id, trame_code FROM visites WHERE site_id = ? ORDER BY date_visite DESC, modifie_le DESC LIMIT 1`, [siteId]
   ) : null;
+  const trameFinale = normalizeTrameCode(precedente?.trame_code || trameCode);
   await db.runAsync(
-    `INSERT INTO visites (id, site_id, date_visite, technicien, statut, progression_pct, mode_visite, source_visite_id)
-     VALUES (?, ?, date('now'), ?, 'en_cours', 0, ?, ?)`,
-    [id, siteId, technicien || null, mode, precedente?.id || null]
+    `INSERT INTO visites (id, site_id, date_visite, technicien, statut, progression_pct, mode_visite, source_visite_id, trame_code)
+     VALUES (?, ?, date('now'), ?, 'en_cours', 0, ?, ?, ?)`,
+    [id, siteId, technicien || null, mode, precedente?.id || null, trameFinale]
   );
   await db.runAsync(`INSERT OR IGNORE INTO notes (visite_id, contenu) VALUES (?, '')`, [id]);
   if (precedente) {
@@ -217,8 +220,8 @@ async function creerVisite({ siteId, technicien, mode = 'complete' }) {
        SELECT ?, section_code, cle, valeur FROM champs_visite WHERE visite_id = ?`, [id, precedente.id]
     );
     await db.runAsync(
-      `INSERT INTO controles_visite (visite_id, section_code, cle, avis, commentaire)
-       SELECT ?, section_code, cle, avis, commentaire FROM controles_visite WHERE visite_id = ?`, [id, precedente.id]
+      `INSERT INTO controles_visite (visite_id, section_code, cle, avis, commentaire, perimetre)
+       SELECT ?, section_code, cle, avis, commentaire, perimetre FROM controles_visite WHERE visite_id = ?`, [id, precedente.id]
     );
     const anciensReseaux = await db.getAllAsync('SELECT * FROM reseaux WHERE visite_id = ?', [precedente.id]);
     for (const r of anciensReseaux) {
@@ -239,9 +242,9 @@ async function creerVisite({ siteId, technicien, mode = 'complete' }) {
     const anciensEquipements = await db.getAllAsync('SELECT * FROM materiel WHERE visite_id = ?', [precedente.id]);
     for (const m of anciensEquipements) {
       await db.runAsync(
-        `INSERT INTO materiel (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuidv4(), id, m.equipement_id, m.categorie, m.designation, m.marque, m.modele, m.annee, m.etat]
+        `INSERT INTO materiel (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat, perimetre)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), id, m.equipement_id, m.categorie, m.designation, m.marque, m.modele, m.annee, m.etat, m.perimetre]
       );
       if (m.equipement_id) await db.runAsync(
         `INSERT OR IGNORE INTO observations_equipement (id, equipement_id, visite_id, etat)
@@ -257,14 +260,14 @@ async function creerVisite({ siteId, technicien, mode = 'complete' }) {
     for (const r of anciennesReserves) {
       await db.runAsync(
         `INSERT INTO remarques (id, visite_id, controle_key, poste, prestation, delai, estimatif, origine,
-         reference_onglet, reference_type, reference_id, reference_libelle)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'Report visite Express', ?, ?, ?, ?)`,
+         reference_onglet, reference_type, reference_id, reference_libelle, perimetre)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Report visite Express', ?, ?, ?, ?, ?)`,
         [uuidv4(), id, r.controle_key, r.poste, r.prestation, r.delai, r.estimatif,
-          r.reference_onglet, r.reference_type, r.reference_id, r.reference_libelle]
+          r.reference_onglet, r.reference_type, r.reference_id, r.reference_libelle, r.perimetre]
       );
     }
   } else {
-    await preremplirValeursClassiques(id);
+    await preremplirValeursClassiques(id, trameFinale);
   }
   await recalculerProgression(id);
   return id;
@@ -324,7 +327,7 @@ async function getControlesVisite(visiteId) {
   rows.forEach((r) => { map[`${r.section_code}||${r.cle}`] = r; });
   return map;
 }
-async function upsertControle(visiteId, sectionCode, cle, { avis, commentaire }) {
+async function upsertControle(visiteId, sectionCode, cle, { avis, commentaire, perimetre }) {
   const db = await getDb();
   const existing = await db.getFirstAsync(
     `SELECT * FROM controles_visite WHERE visite_id = ? AND section_code = ? AND cle = ?`,
@@ -332,14 +335,20 @@ async function upsertControle(visiteId, sectionCode, cle, { avis, commentaire })
   );
   if (existing) {
     await db.runAsync(
-      `UPDATE controles_visite SET avis = COALESCE(?, avis), commentaire = COALESCE(?, commentaire)
+      `UPDATE controles_visite SET avis = COALESCE(?, avis), commentaire = COALESCE(?, commentaire), perimetre = COALESCE(?, perimetre)
        WHERE visite_id = ? AND section_code = ? AND cle = ?`,
-      [avis ?? null, commentaire ?? null, visiteId, sectionCode, cle]
+      [avis ?? null, commentaire ?? null, perimetre ?? null, visiteId, sectionCode, cle]
     );
   } else {
     await db.runAsync(
-      `INSERT INTO controles_visite (visite_id, section_code, cle, avis, commentaire) VALUES (?, ?, ?, ?, ?)`,
-      [visiteId, sectionCode, cle, avis ?? null, commentaire ?? null]
+      `INSERT INTO controles_visite (visite_id, section_code, cle, avis, commentaire, perimetre) VALUES (?, ?, ?, ?, ?, ?)`,
+      [visiteId, sectionCode, cle, avis ?? null, commentaire ?? null, perimetre ?? null]
+    );
+  }
+  if (perimetre !== undefined && perimetre !== null) {
+    await db.runAsync(
+      'UPDATE remarques SET perimetre = ? WHERE visite_id = ? AND controle_key = ?',
+      [perimetre, visiteId, `${sectionCode}||${cle}`]
     );
   }
   await toucherVisite(visiteId);
@@ -348,8 +357,10 @@ async function upsertControle(visiteId, sectionCode, cle, { avis, commentaire })
 
 async function recalculerProgression(visiteId) {
   const db = await getDb();
+  const visite = await db.getFirstAsync('SELECT trame_code FROM visites WHERE id = ?', [visiteId]);
+  const trameData = getTrameData(visite?.trame_code);
   let total = 0, remplis = 0;
-  Object.values(TRAME_DATA).forEach((sections) => {
+  Object.values(trameData).forEach((sections) => {
     Object.values(sections).forEach((fields) => {
       fields.forEach((f) => { total++; });
     });
@@ -598,10 +609,10 @@ async function trouverOuCreerEquipementDepuisSnapshot(db, installationId, snapsh
   const id = uuidv4();
   await db.runAsync(
     `INSERT INTO equipements
-      (id, installation_id, type_code, designation, marque, modele, annee, statut)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'actif')`,
+      (id, installation_id, type_code, designation, marque, modele, annee, statut, perimetre)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'actif', ?)`,
     [id, installationId, snapshot.categorie || 'non_classe', snapshot.designation || null,
-      snapshot.marque || null, snapshot.modele || null, snapshot.annee || null]
+      snapshot.marque || null, snapshot.modele || null, snapshot.annee || null, snapshot.perimetre || null]
   );
   return id;
 }
@@ -637,10 +648,10 @@ async function initialiserEquipementsVisite(db, visiteId) {
     if (existe) continue;
     await db.runAsync(
       `INSERT INTO materiel
-        (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+        (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat, perimetre)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
       [uuidv4(), visiteId, equipement.id, equipement.type_code, equipement.designation,
-        equipement.marque, equipement.modele, equipement.annee]
+        equipement.marque, equipement.modele, equipement.annee, equipement.perimetre || null]
     );
   }
 }
@@ -678,7 +689,7 @@ async function ajouterMateriel(visiteId) {
   return id;
 }
 async function upsertMaterielChamp(materielId, champ, valeur) {
-  if (!['categorie', 'designation', 'marque', 'modele', 'annee', 'etat'].includes(champ)) return;
+  if (!['categorie', 'designation', 'marque', 'modele', 'annee', 'etat', 'perimetre'].includes(champ)) return;
   const db = await getDb();
   await db.runAsync(`UPDATE materiel SET ${champ} = ? WHERE id = ?`, [valeur, materielId]);
   const snapshot = await db.getFirstAsync('SELECT * FROM materiel WHERE id = ?', [materielId]);
@@ -724,7 +735,7 @@ async function listerRemarques(visiteId) {
   const db = await getDb();
   return db.getAllAsync(`SELECT * FROM remarques WHERE visite_id = ? ORDER BY cree_le`, [visiteId]);
 }
-async function upsertRemarqueDepuisPrescription(visiteId, controleKey, opt, origine) {
+async function upsertRemarqueDepuisPrescription(visiteId, controleKey, opt, origine, perimetre = null) {
   const db = await getDb();
   const sectionCode = String(controleKey || '').split('||')[0];
   const referenceOnglet = sectionCode ? `p-${sectionCode.split('.')[0]}` : null;
@@ -736,17 +747,18 @@ async function upsertRemarqueDepuisPrescription(visiteId, controleKey, opt, orig
     await db.runAsync(
       `UPDATE remarques SET poste = ?, prestation = ?, delai = ?, estimatif = ?, origine = ?,
        reference_onglet = COALESCE(reference_onglet, ?), reference_type = COALESCE(reference_type, 'controle'),
-       reference_id = COALESCE(reference_id, ?), reference_libelle = COALESCE(reference_libelle, ?)
+       reference_id = COALESCE(reference_id, ?), reference_libelle = COALESCE(reference_libelle, ?),
+       perimetre = COALESCE(?, perimetre)
        WHERE id = ?`,
-      [opt.poste, opt.prestation, opt.delai, opt.estimatif, origine, referenceOnglet, controleKey, origine, existing.id]
+      [opt.poste, opt.prestation, opt.delai, opt.estimatif, origine, referenceOnglet, controleKey, origine, perimetre, existing.id]
     );
   } else {
     await db.runAsync(
       `INSERT INTO remarques (id, visite_id, controle_key, poste, prestation, delai, estimatif, origine,
-       reference_onglet, reference_type, reference_id, reference_libelle)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'controle', ?, ?)`,
+       reference_onglet, reference_type, reference_id, reference_libelle, perimetre)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'controle', ?, ?, ?)`,
       [uuidv4(), visiteId, controleKey, opt.poste, opt.prestation, opt.delai, opt.estimatif, origine,
-        referenceOnglet, controleKey, origine]
+        referenceOnglet, controleKey, origine, perimetre]
     );
   }
 }
