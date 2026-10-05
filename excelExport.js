@@ -11,7 +11,7 @@ import * as Sharing from 'expo-sharing';
 
 import { TEMPLATE_EXCEL_BASE64 } from './templateExcel.js';
 import { TEMPLATE_RESEAU_CHALEUR_BASE64 } from './templateExcelReseauChaleur.js';
-import { getDb, getVisite, listerReseaux, listerMateriel, listerRemarques, getNote } from './db.js';
+import { getDb, getVisite, listerReseaux, listerCompteurs, listerMateriel, listerRemarques, getNote } from './db.js';
 import { getTrameData, getExcelLayout, findExcelRow, getTrameLabel, normalizeTrameCode } from './trames.js';
 
 const RESEAU_OFFSETS = {
@@ -72,6 +72,7 @@ async function construireClasseur(visiteId) {
   const champs = await db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id = ?`, [visiteId]);
   const controles = await db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id = ?`, [visiteId]);
   const reseaux = await listerReseaux(visiteId);
+  const compteurs = await listerCompteurs(visiteId);
   const materiel = await listerMateriel(visiteId);
   const remarques = await listerRemarques(visiteId);
   const note = await getNote(visiteId);
@@ -127,6 +128,20 @@ async function construireClasseur(visiteId) {
         }
       });
     });
+  });
+
+  // ---- Index des compteurs dynamiques vers les lignes officielles de la trame ----
+  const sectionCompteurs = trameData['p-releves']?.['Relevés des compteurs et manomètres'] || [];
+  sectionCompteurs.filter((field) => /^Index/i.test(field.cle)).forEach((field) => {
+    const ligne = findExcelRow(sheetTrame, trameCode, 'p-releves', 'Relevés des compteurs et manomètres', field.cle);
+    if (!ligne) return;
+    const label = field.cle.replace(/^Index\s*/i, '').replace(/\s*\([^)]*\)\s*$/, '').trim().toLowerCase();
+    const compteur = compteurs.find((c) => String(c.label || '').trim().toLowerCase() === label);
+    if (!compteur) return;
+    const valeur = [compteur.valeur, compteur.unite].filter(Boolean).join(' ');
+    const col = estReseauChaleur ? 'C' : 'B';
+    setCell(sheetTrame, `${col}${ligne}`, valeur);
+    if (estReseauChaleur) setCell(sheetTrame, `E${ligne}`, valeur);
   });
 
   // ---- Réseaux dynamiques ----
