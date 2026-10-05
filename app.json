@@ -10,9 +10,17 @@
       "package": "com.visitetechnique.tablet",
       "versionCode": 643,
       "softwareKeyboardLayoutMode": "resize",
-      "permissions": ["CAMERA"]
+      "permissions": [
+        "CAMERA"
+      ]
     },
     "plugins": [
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#FBF0E1"
+        }
+      ],
       [
         "expo-image-picker",
         {
