@@ -110,6 +110,19 @@ function lireTable(sheet, config) {
   return resultats;
 }
 
+function infererPerimetreReserveReseau(sheet, summaryRows, prestation) {
+  const needle = normaliserTexte(prestation);
+  if (!sheet || !summaryRows || !needle) return null;
+  const trouves = new Set();
+  for (const perimetre of ['Primaire', 'Secondaire']) {
+    for (const row of Object.values(summaryRows[perimetre] || {})) {
+      const texte = normaliserTexte(valeurCellule(sheet, `C${row}`) || valeurCellule(sheet, `E${row}`));
+      if (texte && texte.includes(needle)) trouves.add(perimetre);
+    }
+  }
+  return trouves.size === 1 ? [...trouves][0] : null;
+}
+
 function lireReseauxComplementaires(wb, config, ordreDepart) {
   const overflow = config?.overflow;
   const sheet = overflow ? wb.Sheets[overflow.sheet] : null;
@@ -213,6 +226,11 @@ export function analyserClasseur(wb, nomFichier) {
 
   const remarquesCfg = tables.remarques;
   const remarques = remarquesCfg ? lireTable(wb.Sheets[remarquesCfg.sheet], remarquesCfg) : [];
+  if (cfg.heatNetwork?.summaryRows) {
+    remarques.forEach((r) => {
+      r.perimetre = infererPerimetreReserveReseau(principale, cfg.heatNetwork.summaryRows, r.prestation);
+    });
+  }
 
   const noteCfg = tables.note;
   const note = noteCfg ? valeurCellule(wb.Sheets[noteCfg.sheet], noteCfg.cell) : '';
@@ -303,8 +321,8 @@ export async function importerAnalyseExcel(analyse) {
     if (!installation) {
       installation = { id: uuidv4() };
       await db.runAsync(
-        `INSERT INTO installations (id, site_id, type_code, nom) VALUES (?, ?, 'chaufferie', 'Installation principale')`,
-        [installation.id, site.id]
+        `INSERT INTO installations (id, site_id, type_code, nom) VALUES (?, ?, ?, ?)`,
+        [installation.id, site.id, analyse.trameId === 'reseau_chaleur_v1' ? 'sous_station' : 'chaufferie', analyse.trameId === 'reseau_chaleur_v1' ? 'Sous-station principale' : 'Installation principale']
       );
     }
 
@@ -355,15 +373,22 @@ export async function importerAnalyseExcel(analyse) {
       }
       const equipementId = equipement.id;
       equipementsUtilises.add(equipementId);
+      const perimetre = m.perimetre === 'Primaire' || m.perimetre === 'Secondaire' ? m.perimetre : null;
+      await db.runAsync(
+        `INSERT INTO equipement_trames(equipement_id,trame_id,actif,perimetre) VALUES(?,?,1,?)
+         ON CONFLICT(equipement_id,trame_id) DO UPDATE SET actif=1,
+           perimetre=COALESCE(excluded.perimetre,equipement_trames.perimetre),modifie_le=datetime('now')`,
+        [equipementId, analyse.trameId || 'icpe_v1', perimetre]
+      );
       await db.runAsync(
         `INSERT INTO materiel (
           id, visite_id, equipement_id, categorie, nombre, designation, numero_materiel,
-          reseau_desservi, marque, modele, caracteristiques, annee, etat
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          reseau_desservi, marque, modele, caracteristiques, annee, etat, perimetre
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [
           uuidv4(), visiteId, equipementId, m.categorie || null, m.nombre || null,
           m.designation || null, m.numero || null, m.reseau || null, m.marque || null,
-          m.modele || null, m.caracteristiques || null, m.annee || null, m.etat || 'Bon',
+          m.modele || null, m.caracteristiques || null, m.annee || null, m.etat || 'Bon', perimetre,
         ]
       );
       await db.runAsync(
@@ -398,9 +423,10 @@ export async function importerAnalyseExcel(analyse) {
 
     etape = 'réserves';
     for (const r of analyse.remarques) {
+      const perimetre = r.perimetre === 'Primaire' || r.perimetre === 'Secondaire' ? r.perimetre : null;
       await db.runAsync(
-        `INSERT INTO remarques (id, visite_id, poste, prestation, delai, estimatif, origine) VALUES (?, ?, ?, ?, ?, ?, 'Import Excel')`,
-        [uuidv4(), visiteId, r.poste, r.prestation, Number(r.delai) || null, Number(String(r.estimatif).replace(',', '.')) || null]
+        `INSERT INTO remarques (id, visite_id, poste, prestation, delai, estimatif, origine, perimetre) VALUES (?, ?, ?, ?, ?, ?, 'Import Excel', ?)`,
+        [uuidv4(), visiteId, r.poste, r.prestation, Number(r.delai) || null, Number(String(r.estimatif).replace(',', '.')) || null, perimetre]
       );
     }
 
