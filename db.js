@@ -603,10 +603,10 @@ async function trouverOuCreerEquipementDepuisSnapshot(db, installationId, snapsh
   const id = uuidv4();
   await db.runAsync(
     `INSERT INTO equipements
-      (id, installation_id, type_code, designation, marque, modele, annee, statut)
-     VALUES (?, ?, ?, ?, ?, ?, ?, 'actif')`,
+      (id, installation_id, type_code, designation, marque, modele, annee, statut, perimetre)
+     VALUES (?, ?, ?, ?, ?, ?, ?, 'actif', ?)`,
     [id, installationId, snapshot.categorie || 'non_classe', snapshot.designation || null,
-      snapshot.marque || null, snapshot.modele || null, snapshot.annee || null]
+      snapshot.marque || null, snapshot.modele || null, snapshot.annee || null, snapshot.perimetre || null]
   );
   return id;
 }
@@ -642,10 +642,10 @@ async function initialiserEquipementsVisite(db, visiteId) {
     if (existe) continue;
     await db.runAsync(
       `INSERT INTO materiel
-        (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+        (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat, perimetre)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL, ?)`,
       [uuidv4(), visiteId, equipement.id, equipement.type_code, equipement.designation,
-        equipement.marque, equipement.modele, equipement.annee]
+        equipement.marque, equipement.modele, equipement.annee, equipement.perimetre || null]
     );
   }
 }
@@ -683,7 +683,7 @@ async function ajouterMateriel(visiteId) {
   return id;
 }
 async function upsertMaterielChamp(materielId, champ, valeur) {
-  if (!['categorie', 'designation', 'marque', 'modele', 'annee', 'etat'].includes(champ)) return;
+  if (!['categorie', 'designation', 'marque', 'modele', 'annee', 'etat', 'perimetre'].includes(champ)) return;
   const db = await getDb();
   await db.runAsync(`UPDATE materiel SET ${champ} = ? WHERE id = ?`, [valeur, materielId]);
   const snapshot = await db.getFirstAsync('SELECT * FROM materiel WHERE id = ?', [materielId]);
@@ -729,7 +729,7 @@ async function listerRemarques(visiteId) {
   const db = await getDb();
   return db.getAllAsync(`SELECT * FROM remarques WHERE visite_id = ? ORDER BY cree_le`, [visiteId]);
 }
-async function upsertRemarqueDepuisPrescription(visiteId, controleKey, opt, origine) {
+async function upsertRemarqueDepuisPrescription(visiteId, controleKey, opt, origine, perimetre = null) {
   const db = await getDb();
   const sectionCode = String(controleKey || '').split('||')[0];
   const referenceOnglet = sectionCode ? `p-${sectionCode.split('.')[0]}` : null;
@@ -741,17 +741,18 @@ async function upsertRemarqueDepuisPrescription(visiteId, controleKey, opt, orig
     await db.runAsync(
       `UPDATE remarques SET poste = ?, prestation = ?, delai = ?, estimatif = ?, origine = ?,
        reference_onglet = COALESCE(reference_onglet, ?), reference_type = COALESCE(reference_type, 'controle'),
-       reference_id = COALESCE(reference_id, ?), reference_libelle = COALESCE(reference_libelle, ?)
+       reference_id = COALESCE(reference_id, ?), reference_libelle = COALESCE(reference_libelle, ?),
+       perimetre = COALESCE(?, perimetre)
        WHERE id = ?`,
-      [opt.poste, opt.prestation, opt.delai, opt.estimatif, origine, referenceOnglet, controleKey, origine, existing.id]
+      [opt.poste, opt.prestation, opt.delai, opt.estimatif, origine, referenceOnglet, controleKey, origine, perimetre, existing.id]
     );
   } else {
     await db.runAsync(
       `INSERT INTO remarques (id, visite_id, controle_key, poste, prestation, delai, estimatif, origine,
-       reference_onglet, reference_type, reference_id, reference_libelle)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'controle', ?, ?)`,
+       reference_onglet, reference_type, reference_id, reference_libelle, perimetre)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'controle', ?, ?, ?)`,
       [uuidv4(), visiteId, controleKey, opt.poste, opt.prestation, opt.delai, opt.estimatif, origine,
-        referenceOnglet, controleKey, origine]
+        referenceOnglet, controleKey, origine, perimetre]
     );
   }
 }
