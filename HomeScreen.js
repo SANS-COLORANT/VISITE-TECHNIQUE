@@ -5,7 +5,7 @@ import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInpu
 import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites, supprimerVisite } from './db.js';
 import { choisirEtAnalyserExcel, importerAnalyseExcel } from './excelImport.js';
-import { supprimerFichierPhoto } from './PhotoButton.js';
+import { supprimerFichierPhoto } from './photoStorage.js';
 
 // ============================================================================
 // 7. ÉCRAN ACCUEIL
