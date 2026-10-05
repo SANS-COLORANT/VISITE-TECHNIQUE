@@ -331,7 +331,7 @@ function getCategorieKey(cle, sectionCode) {
   return cle;
 }
 
-const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, trameCode = 'ICPE' }) {
+const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, trameCode = 'ICPE', commentaireToujoursVisible = false }) {
   const controleKey = `${sectionCode}||${field.cle}`;
   const [avis, setAvis] = useState(etatInitial?.avis || null);
   const [commentaire, setCommentaire] = useState(etatInitial?.commentaire || '');
@@ -394,6 +394,10 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
     await upsertRemarqueDepuisPrescription(visiteId, controleKey, opt, origine, perimetre);
   };
 
+  const sauvegarderCommentaire = async () => {
+    await upsertControle(visiteId, sectionCode, field.cle, { commentaire });
+  };
+
   const validerCommentaireLibre = async () => {
     await upsertControle(visiteId, sectionCode, field.cle, { commentaire });
     if (commentaire.trim()) {
@@ -428,6 +432,17 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
           })}
         </View>
       </View>
+
+      {commentaireToujoursVisible && avis !== 'N.S' && (
+        <TextInput
+          style={[styles.input, { marginTop: 8, minHeight: 52 }]}
+          placeholder="Valeur / commentaire relevé..."
+          multiline
+          value={commentaire}
+          onChangeText={setCommentaire}
+          onBlur={sauvegarderCommentaire}
+        />
+      )}
 
       {avis === 'N.S' && (
         <View style={styles.criterePanel}>
