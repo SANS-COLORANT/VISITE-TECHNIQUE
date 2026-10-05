@@ -181,6 +181,24 @@ export function analyserClasseur(wb, nomFichier) {
     }
   }
 
+  // L'export Réseau de chaleur porte le périmètre des réserves dans les
+  // blocs de synthèse Primaire / Secondaire. Au réimport, on réassocie cette
+  // information au contrôle N.S correspondant afin de conserver un aller /
+  // retour Excel -> METRA -> Excel sans perdre le classement.
+  if (trameCode === 'RESEAU_CHALEUR') {
+    const normaliser = (value) => String(value || '').toLowerCase().replace(/\s+/g, ' ').trim();
+    controles.forEach((controle) => {
+      if (controle.avis !== 'N.S' || !controle.commentaire) return;
+      const commentaire = normaliser(controle.commentaire);
+      const liee = remarques.find((r) => {
+        if (!r.perimetre || !r.prestation) return false;
+        const prestation = normaliser(r.prestation);
+        return prestation === commentaire || prestation.includes(commentaire) || commentaire.includes(prestation);
+      });
+      if (liee?.perimetre) controle.perimetre = liee.perimetre;
+    });
+  }
+
   if (!champs.length && !controles.length && !reseaux.length && !compteurs.length && !materiel.length && !remarques.length) {
     throw new Error('Le format de ce fichier n’est pas reconnu. Utilise une trame exportée par l’application.');
   }
