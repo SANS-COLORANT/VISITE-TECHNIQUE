@@ -12,6 +12,14 @@ import { EXCEL_ROWS, TRAME_DATA } from './data.js';
 import { exigerDefinitionTrameValide } from './trameValidation.js';
 import { VMC_PANELS, VMC_FIELD_MAPPINGS, VMC_TEMPLATE_BASE64 } from './vmcTrame.js';
 import { PREALLUMAGE_PANELS, PREALLUMAGE_FIELD_MAPPINGS, PREALLUMAGE_TEMPLATE_BASE64 } from './preAllumageTrame.js';
+import {
+  RESEAU_CHALEUR_ID,
+  RESEAU_CHALEUR_PANELS,
+  RESEAU_CHALEUR_FIELD_MAPPINGS,
+  RESEAU_CHALEUR_RESEAU_BLOCS,
+  RESEAU_CHALEUR_RESUME_ROWS,
+  TEMPLATE_RESEAU_CHALEUR_BASE64,
+} from './reseauChaleurTrame.js';
 
 export const DEFAULT_TRAME_ID = 'icpe_v1';
 
@@ -115,6 +123,69 @@ const VMC = Object.freeze({
   },
 });
 
+
+const RESEAU_CHALEUR = Object.freeze({
+  id: RESEAU_CHALEUR_ID,
+  version: 1,
+  nom: 'Réseau de chaleur',
+  description: 'Sous-station / réseau de chaleur avec séparation automatique Primaire / Secondaire',
+  actif: true,
+  ui: {
+    panels: RESEAU_CHALEUR_PANELS,
+    specialPanels: ['p-regulation', 'p-releves', 'p-equip', 'p-remarques', 'p-photos'],
+    tabOrder: ['p-infos', 'p-distrib', 'p-releves', 'p-regulation', 'SEP', 'p-conf-chauffage', 'p-conf-ecs', 'p-conf-adouc', 'p-conf-energie', 'p-conf-local', 'SEP', 'p-equip', 'p-remarques', 'p-photos'],
+    labels: {
+      'p-infos': 'Informations', 'p-distrib': 'Distribution', 'p-releves': 'Relevés', 'p-regulation': 'Régulation',
+      'p-conf-chauffage': 'Conf. Chauffage', 'p-conf-ecs': 'Conf. ECS', 'p-conf-adouc': 'Conf. Adoucisseur',
+      'p-conf-energie': 'Conf. Énergie', 'p-conf-local': 'Conf. Local', 'p-equip': 'Équipements',
+      'p-remarques': 'Réserves', 'p-photos': 'Photos',
+    },
+  },
+  excel: {
+    templateBase64: TEMPLATE_RESEAU_CHALEUR_BASE64,
+    requiredSheets: ['TRAME RÉSEAU DE CHALEUR'],
+    mainSheet: 'TRAME RÉSEAU DE CHALEUR',
+    metadata: { client: 'B1', site: 'B2', adresse: 'B3', type: 'B4', dateVisite: 'B5' },
+    signature: { sheet: 'TRAME RÉSEAU DE CHALEUR', cells: [{ ref: 'B4', values: ['RÉSEAU DE CHALEUR', 'RESEAU DE CHALEUR', 'Réseau de chaleur'] }] },
+    fieldMappings: RESEAU_CHALEUR_FIELD_MAPPINGS,
+    networks: {
+      mainSheet: 'TRAME RÉSEAU DE CHALEUR',
+      starts: RESEAU_CHALEUR_RESEAU_BLOCS,
+      importOffsets: { tExt: 0, tDep: 1, nom: 2, courbe: 3, tnc: 4, programme: 5 },
+      exportOffsets: { t_ext_c: 0, t_dep_c: 1, nom_reseau: 2, courbe_de_chauffe: 3, tnc: 4, consigne_programme_horaire: 5 },
+      importColumn: 'C',
+      exportColumn: 'C',
+      legacyImportColumns: ['E'],
+      overflow: {
+        sheet: 'RESEAUX COMPLEMENTAIRES', startRow: 3,
+        columns: [
+          { col: 'A', label: 'Nom réseau', importKey: 'nom', exportKey: 'nom_reseau' },
+          { col: 'B', label: 'T° extérieure (°C)', importKey: 'tExt', exportKey: 't_ext_c' },
+          { col: 'C', label: 'T° départ (°C)', importKey: 'tDep', exportKey: 't_dep_c' },
+          { col: 'D', label: 'Courbe de chauffe', importKey: 'courbe', exportKey: 'courbe_de_chauffe' },
+          { col: 'E', label: 'TNC', importKey: 'tnc', exportKey: 'tnc' },
+          { col: 'F', label: 'Consigne / programme horaire', importKey: 'programme', exportKey: 'consigne_programme_horaire' },
+        ],
+      },
+    },
+    tables: {
+      materiel: {
+        sheet: 'MATERIEL', startRow: 4, maxImportRow: 500,
+        columns: [['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero'], ['E', 'perimetre'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'], ['I', 'annee'], ['J', 'etat']],
+        exportColumns: [['A', 'categorie'], ['B', 'nombre'], ['C', 'designation'], ['D', 'numero_materiel'], ['E', 'perimetre'], ['F', 'marque'], ['G', 'modele'], ['H', 'caracteristiques'], ['I', 'annee'], ['J', 'etat']],
+      },
+      remarques: TABLES_STANDARD.remarques,
+      note: TABLES_STANDARD.note,
+    },
+    heatNetwork: {
+      mirrorControlColumns: true,
+      summaryRows: RESEAU_CHALEUR_RESUME_ROWS,
+      requireEquipmentPerimeter: true,
+      requireRemarkPerimeter: true,
+    },
+  },
+});
+
 const PRE_ALLUMAGE = Object.freeze({
   id: 'pre_allumage', version: 1, nom: 'Pré-allumage',
   description: 'Visite technique de préparation au lancement de la saison de chauffe', actif: true,
@@ -140,7 +211,7 @@ const PRE_ALLUMAGE = Object.freeze({
   },
 });
 
-const DEFINITIONS = [ICPE, VMC, PRE_ALLUMAGE];
+const DEFINITIONS = [ICPE, VMC, RESEAU_CHALEUR, PRE_ALLUMAGE];
 for (const definition of DEFINITIONS) exigerDefinitionTrameValide(definition);
 
 const REGISTRY = Object.freeze(Object.fromEntries(DEFINITIONS.map((definition) => [definition.id, definition])));
@@ -150,6 +221,20 @@ export function obtenirTrame(trameId = DEFAULT_TRAME_ID) {
   const trame = REGISTRY[trameId] || REGISTRY[DEFAULT_TRAME_ID];
   if (!trame) throw new Error(`Trame inconnue : ${trameId}`);
   return trame;
+}
+
+
+export function perimetreControleTrame(trameId, sectionCode, cle) {
+  const trame = REGISTRY[trameId];
+  if (!trame) return null;
+  const mapping = (trame.excel?.fieldMappings || []).find((m) =>
+    m.type === 'controle' && m.sectionCode === sectionCode && m.cle === cle
+  );
+  return mapping?.perimetre === 'Primaire' || mapping?.perimetre === 'Secondaire' ? mapping.perimetre : null;
+}
+
+export function estTrameReseauChaleur(trameId) {
+  return trameId === RESEAU_CHALEUR_ID;
 }
 
 export function detecterTrameDepuisClasseur(wb, lireCellule) {
@@ -168,6 +253,7 @@ export function detecterTrameDepuisClasseur(wb, lireCellule) {
   }
   if (wb.Sheets['TRAME ICPE']) return ICPE;
   if (wb.Sheets['TRAME VMC v2']) return VMC;
+  if (wb.Sheets['TRAME RÉSEAU DE CHALEUR']) return RESEAU_CHALEUR;
   if (wb.Sheets['TRAME PRE-ALLUMAGE']) return PRE_ALLUMAGE;
   return null;
 }
