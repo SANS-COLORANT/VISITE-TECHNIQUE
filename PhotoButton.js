@@ -3,12 +3,35 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { TouchableOpacity, Text, Alert, View, Image, Modal } from 'react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { listerPhotos, ajouterPhoto, remplacerPhoto } from './db.js';
+import * as FileSystem from 'expo-file-system/legacy';
+import { listerPhotos, ajouterPhoto, remplacerPhoto, supprimerPhoto } from './db.js';
 import { styles } from './styles.js';
 
 // ============================================================================
 // 3. CAPTURE PHOTO RÉELLE — via expo-image-picker, compression intégrée
 // ============================================================================
+
+const PHOTO_DIR = FileSystem.documentDirectory ? `${FileSystem.documentDirectory}metra-photos/` : null;
+
+async function rendrePhotoPersistante(uri) {
+  if (!PHOTO_DIR || !uri) return uri;
+  await FileSystem.makeDirectoryAsync(PHOTO_DIR, { intermediates: true });
+  const extension = (String(uri).match(/\.([a-zA-Z0-9]+)(?:\?|$)/) || [])[1] || 'jpg';
+  const nom = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${extension}`;
+  const destination = PHOTO_DIR + nom;
+  await FileSystem.copyAsync({ from: uri, to: destination });
+  return destination;
+}
+
+async function supprimerFichierPhoto(uri) {
+  if (!PHOTO_DIR || !uri || !String(uri).startsWith(PHOTO_DIR)) return;
+  try {
+    await FileSystem.deleteAsync(uri, { idempotent: true });
+  } catch {
+    // La ligne SQLite reste la source de vérité. Un fichier déjà absent ne
+    // doit jamais bloquer la visite.
+  }
+}
 
 async function prendrePhoto() {
   const permission = await ImagePicker.requestCameraPermissionsAsync();
@@ -22,7 +45,16 @@ async function prendrePhoto() {
     base64: false,
   });
   if (result.canceled) return null;
-  return result.assets[0].uri;
+  const uriTemporaire = result.assets[0].uri;
+  try {
+    return await rendrePhotoPersistante(uriTemporaire);
+  } catch {
+    Alert.alert(
+      'Photo enregistrée',
+      "La copie locale persistante n'a pas pu être créée. La photo reste utilisable pour cette visite."
+    );
+    return uriTemporaire;
+  }
 }
 
 /** Petit bouton photo réutilisable partout dans l'app. */
@@ -62,8 +94,31 @@ function PhotoButton({ visiteId, entiteKey, label, style }) {
     if (!photo) return;
     const uri = await prendrePhoto();
     if (!uri) return;
-    await remplacerPhoto(photo.id, uri);
+    const ancienne = await remplacerPhoto(photo.id, uri);
+    if (ancienne?.uri && ancienne.uri !== uri) await supprimerFichierPhoto(ancienne.uri);
     await charger();
+  };
+
+  const supprimerCourante = () => {
+    const photo = photos[index];
+    if (!photo) return;
+    Alert.alert(
+      'Supprimer la photo',
+      'Cette photo sera retirée de la visite.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        {
+          text: 'Supprimer',
+          style: 'destructive',
+          onPress: async () => {
+            const supprimee = await supprimerPhoto(photo.id);
+            if (supprimee?.uri) await supprimerFichierPhoto(supprimee.uri);
+            const items = await charger();
+            if (items.length === 0) setViewerVisible(false);
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -92,6 +147,7 @@ function PhotoButton({ visiteId, entiteKey, label, style }) {
           )}
           <View style={styles.photoViewerActions}>
             <TouchableOpacity style={styles.photoViewerSecondary} onPress={ajouter}><Text style={styles.photoViewerSecondaryText}>+ Ajouter</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.photoViewerSecondary} onPress={supprimerCourante}><Text style={styles.photoViewerSecondaryText}>Supprimer</Text></TouchableOpacity>
             <TouchableOpacity style={styles.photoViewerPrimary} onPress={reprendre}><Text style={styles.photoViewerPrimaryText}>📷 Reprendre</Text></TouchableOpacity>
           </View>
         </View>
