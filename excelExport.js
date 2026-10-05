@@ -6,7 +6,7 @@
  */
 
 import * as XLSX from 'xlsx';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import { TEMPLATE_EXCEL_BASE64 } from './templateExcel.js';
