@@ -6,7 +6,7 @@ import { COLORS, styles } from './styles.js';
 import { PRESCRIPTIONS } from './data.js';
 import { upsertChamp, upsertControle, upsertRemarqueDepuisPrescription, supprimerRemarqueParControle, listerBibliothequeReserves } from './db.js';
 import { PhotoButton } from './PhotoButton.js';
-import { defaultPerimetreForControle, isForcedPrimaryControle, normalizeTrameCode } from './trames.js';
+import { defaultPerimetreForControle, isAutomaticPerimetreControle, normalizeTrameCode } from './trames.js';
 
 // ============================================================================
 // 4. COMPOSANTS GÉNÉRIQUES — champ texte / contrôle de conformité
@@ -338,8 +338,8 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
   const [critereChoisi, setCritereChoisi] = useState(null);
   const [modeLibre, setModeLibre] = useState(false);
   const estReseauChaleur = normalizeTrameCode(trameCode) === 'RESEAU_CHALEUR';
-  const perimetreForcePrimaire = isForcedPrimaryControle(trameCode, sectionCode);
   const perimetreDefaut = defaultPerimetreForControle(trameCode, sectionCode, field.cle);
+  const perimetreAutomatique = isAutomaticPerimetreControle(trameCode, sectionCode, field.cle);
   const [perimetre, setPerimetre] = useState(etatInitial?.perimetre || perimetreDefaut);
   const [options, setOptions] = useState(() => resoudrePrescriptions(field.cle, sectionCode) || []);
 
@@ -393,7 +393,7 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
     setAvis(val);
     const estNs = val === 'N.S';
     const perimetreNs = estNs && estReseauChaleur
-      ? (perimetreForcePrimaire ? 'Primaire' : (perimetre || perimetreDefaut || 'Secondaire'))
+      ? (perimetreDefaut || 'Secondaire')
       : null;
 
     if (estNs && estReseauChaleur) setPerimetre(perimetreNs);
@@ -415,12 +415,6 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
       setModeLibre(false);
     }
     onSaved && onSaved();
-  };
-
-  const choisirPerimetre = async (val) => {
-    if (perimetreForcePrimaire) return;
-    setPerimetre(val);
-    await upsertControle(visiteId, sectionCode, field.cle, { perimetre: val });
   };
 
   const choisirCritere = async (opt, idx) => {
@@ -497,29 +491,17 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
 
       {avis === 'N.S' && (
         <View style={styles.criterePanel}>
-          {estReseauChaleur && (
+          {estReseauChaleur && perimetreAutomatique && (
             <View style={{ marginBottom: 12 }}>
               <Text style={styles.criterePanelLabel}>Périmètre de la non-conformité</Text>
-              {perimetreForcePrimaire ? (
-                <View style={styles.critereChips}>
-                  <View style={[styles.critereChip, styles.critereChipPicked]}>
-                    <Text style={[styles.critereChipText, styles.critereChipTextPicked]}>Primaire</Text>
-                  </View>
-                  <Text style={styles.importHint}>Production chauffage / ECS : primaire</Text>
+              <View style={styles.critereChips}>
+                <View style={[styles.critereChip, styles.critereChipPicked]}>
+                  <Text style={[styles.critereChipText, styles.critereChipTextPicked]}>
+                    {perimetreDefaut}
+                  </Text>
                 </View>
-              ) : (
-                <View style={styles.critereChips}>
-                  {['Primaire', 'Secondaire'].map((opt) => (
-                    <TouchableOpacity
-                      key={opt}
-                      style={[styles.critereChip, perimetre === opt && styles.critereChipPicked]}
-                      onPress={() => choisirPerimetre(opt)}
-                    >
-                      <Text style={[styles.critereChipText, perimetre === opt && styles.critereChipTextPicked]}>{opt}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              )}
+              </View>
+              <Text style={styles.importHint}>Classement automatique selon la trame Réseau de chaleur.</Text>
             </View>
           )}
           {options.length > 0 ? (
