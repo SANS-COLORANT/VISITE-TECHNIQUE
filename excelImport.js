@@ -181,8 +181,14 @@ export function analyserClasseur(wb, nomFichier) {
   const compteurs = [];
 
   for (const mapping of cfg.fieldMappings || []) {
-    const valeur = valeurCellule(principale, mapping.valueCell);
-    const commentaire = mapping.commentCell ? valeurCellule(principale, mapping.commentCell) : '';
+    let valeur = valeurCellule(principale, mapping.valueCell);
+    let commentaire = mapping.commentCell ? valeurCellule(principale, mapping.commentCell) : '';
+    if (cfg.heatNetwork) {
+      const rowValue = String(mapping.valueCell || '').match(/^(?:B|C)(\d+)$/)?.[1];
+      const rowComment = String(mapping.commentCell || '').match(/^C(\d+)$/)?.[1];
+      if (!valeur && rowValue) valeur = valeurCellule(principale, `${mapping.type === 'controle' ? 'D' : 'E'}${rowValue}`);
+      if (!commentaire && rowComment) commentaire = valeurCellule(principale, `E${rowComment}`);
+    }
     if (!valeur && !commentaire) continue;
     const item = { sectionCode: mapping.sectionCode, cle: mapping.cle, valeur };
     if (mapping.type === 'controle') {
