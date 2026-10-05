@@ -151,6 +151,46 @@ function normaliserRemarquesPourExport(remarques = [], trameId = '') {
   }));
 }
 
+function categorieResumeReseau(poste) {
+  const p = String(poste || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (p.includes('p2') || p.includes('entretien')) return 'P2';
+  if (p.includes('p3') || p.includes('garantie totale')) return 'P3';
+  if (p.includes('conform')) return 'Conformite';
+  if (p.includes('amelior')) return 'Amelioration';
+  return 'Remarque';
+}
+
+function ecrireResumeReseauChaleur(sheet, remarques = [], summaryRows = {}) {
+  for (const perimetre of ['Primaire', 'Secondaire']) {
+    const rows = summaryRows?.[perimetre] || {};
+    const groupe = remarques.filter((r) => r.perimetre === perimetre);
+    for (const [categorie, row] of Object.entries(rows)) {
+      const textes = groupe
+        .filter((r) => categorieResumeReseau(r.poste) === categorie)
+        .map((r) => String(r.prestation || '').trim())
+        .filter(Boolean);
+      const avis = textes.length ? 'N.S' : 'S.O';
+      const commentaire = textes.length ? textes.join('\n\n') : 'Sans Objet.';
+      setCell(sheet, `B${row}`, avis);
+      setCell(sheet, `C${row}`, commentaire);
+      setCell(sheet, `D${row}`, avis);
+      setCell(sheet, `E${row}`, commentaire);
+    }
+  }
+}
+
+function validerPerimetresReseauChaleur(materiel = [], remarques = []) {
+  const valides = new Set(['Primaire', 'Secondaire']);
+  const materielNonClasse = materiel.filter((m) => !valides.has(m.perimetre));
+  const remarquesNonClassees = remarques.filter((r) => !valides.has(r.perimetre));
+  if (materielNonClasse.length) {
+    throw new Error(`${materielNonClasse.length} équipement(s) Réseau de chaleur doivent être classés Primaire ou Secondaire avant l’export.`);
+  }
+  if (remarquesNonClassees.length) {
+    throw new Error(`${remarquesNonClassees.length} réserve(s) Réseau de chaleur doivent être classées Primaire ou Secondaire avant l’export.`);
+  }
+}
+
 function ajouterFeuillePreAllumageModulaire(wb, modele, champsMap, controlesMap) {
   if (!modele) return;
   const lignes = [['Panneau', 'Local / rubrique', 'Champ / contrôle', 'Avis', 'Valeur / commentaire']];
@@ -187,6 +227,7 @@ async function construireClasseur(visiteId) {
 
   const materiel = normaliserMaterielPourExport(materielBrut);
   const remarques = normaliserRemarquesPourExport(remarquesBrutes, trame.id);
+  if (cfg.heatNetwork) validerPerimetresReseauChaleur(materiel, remarques);
   const champsMap = indexerParCle(champs);
   const controlesMap = indexerParCle(controles);
   const wb = XLSX.read(cfg.templateBase64, { type: 'base64', cellStyles: true, cellNF: true, bookVBA: true });
@@ -227,9 +268,30 @@ async function construireClasseur(visiteId) {
     const lookup = `${mapping.sectionCode}||${mapping.cle}`;
     const champ = champsMap.get(lookup);
     const controle = controlesMap.get(lookup);
-    if (mapping.type === 'champ') { if (champ) setCell(sheetPrincipale, mapping.valueCell, champ.valeur); continue; }
-    if (controle) { setCell(sheetPrincipale, mapping.valueCell, controle.avis); setCell(sheetPrincipale, mapping.commentCell, controle.commentaire); }
-    if (mapping.panelId === 'p-releves' && champ) setCell(sheetPrincipale, mapping.commentCell || mapping.valueCell, champ.valeur);
+    if (mapping.type === 'champ') {
+      if (champ) {
+        setCell(sheetPrincipale, mapping.valueCell, champ.valeur);
+        if (cfg.heatNetwork && /^C\d+$/.test(mapping.valueCell || '')) {
+          setCell(sheetPrincipale, `E${mapping.valueCell.slice(1)}`, champ.valeur);
+        }
+      }
+      continue;
+    }
+    if (controle) {
+      setCell(sheetPrincipale, mapping.valueCell, controle.avis);
+      setCell(sheetPrincipale, mapping.commentCell, controle.commentaire);
+      if (cfg.heatNetwork?.mirrorControlColumns && /^B\d+$/.test(mapping.valueCell || '')) {
+        const row = mapping.valueCell.slice(1);
+        setCell(sheetPrincipale, `D${row}`, controle.avis);
+        setCell(sheetPrincipale, `E${row}`, controle.commentaire);
+      }
+    }
+    if (mapping.panelId === 'p-releves' && champ) {
+      setCell(sheetPrincipale, mapping.commentCell || mapping.valueCell, champ.valeur);
+      if (cfg.heatNetwork && mapping.commentCell && /^C\d+$/.test(mapping.commentCell)) {
+        setCell(sheetPrincipale, `E${mapping.commentCell.slice(1)}`, champ.valeur);
+      }
+    }
   }
 
   const reseauxCfg = cfg.networks;
@@ -246,6 +308,7 @@ async function construireClasseur(visiteId) {
   const tables = cfg.tables || {};
   if (tables.materiel) remplirTable(wb.Sheets[tables.materiel.sheet], materiel, tables.materiel);
   if (tables.remarques) remplirTable(wb.Sheets[tables.remarques.sheet], remarques, tables.remarques);
+  if (cfg.heatNetwork?.summaryRows) ecrireResumeReseauChaleur(sheetPrincipale, remarques, cfg.heatNetwork.summaryRows);
   const noteCfg = tables.note;
   if (noteCfg) setCell(wb.Sheets[noteCfg.sheet], noteCfg.cell, note?.contenu || '');
 
