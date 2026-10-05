@@ -15,6 +15,7 @@ CLIENT
        └── Visites
             ├── ICPE
             ├── VMC
+            ├── Réseau de chaleur
             └── Pré-allumage
 ```
 
@@ -40,9 +41,15 @@ Exemple : une pompe chauffage peut être visible dans ICPE et Pré-allumage mais
 Chaque équipement doit pouvoir déclarer ses usages de trame :
 - `icpe` ;
 - `vmc` ;
-- `pre_allumage`.
+- `pre_allumage` ;
+- `reseau_chaleur_v1`.
 
 Une visite ne charge que les équipements compatibles avec sa trame.
+
+Pour `reseau_chaleur_v1`, l'association `equipement_trames` porte en plus le
+`perimetre` (`Primaire` / `Secondaire`). La ligne `materiel` de la visite
+en conserve un instantané historique. Ce classement est donc propre à cette
+trame et ne modifie pas le comportement ICPE, VMC ou Pré-allumage.
 
 ## Données de visite
 
@@ -57,6 +64,11 @@ Chaque visite stocke ses propres :
 - conclusion.
 
 Ces données ne sont pas partagées entre les trames.
+
+Dans une visite Réseau de chaleur, `remarques.perimetre` conserve le classement
+Primaire / Secondaire de chaque réserve. Pour une réserve issue d'un contrôle,
+ce classement est déterminé par la définition de trame ; pour une réserve
+manuelle il est choisi par l'utilisateur.
 
 ## Historique
 
