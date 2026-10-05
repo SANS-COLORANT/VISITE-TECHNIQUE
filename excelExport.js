@@ -256,7 +256,7 @@ async function construireClasseur(visiteId) {
   [meta.client, meta.site, meta.adresse, meta.dateVisite, 'C1', 'C2', 'C3', 'C5'].filter((ref, index, refs) => ref && !['B1', 'B2', 'B3', 'B5'].includes(ref) && refs.indexOf(ref) === index).forEach((ref) => viderCellule(sheetPrincipale, ref));
   setCell(sheetPrincipale, 'B1', visite.nom_client || '');
   setCell(sheetPrincipale, 'B2', visite.nom_site || '');
-  setCell(sheetPrincipale, 'B3', nomLocal);
+  setCell(sheetPrincipale, 'B3', cfg.heatNetwork ? (visite.adresse || '') : nomLocal);
   setCell(sheetPrincipale, 'B5', dateGenerale);
   setCell(sheetPrincipale, meta.type, trame.nom);
 
