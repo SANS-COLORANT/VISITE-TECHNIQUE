@@ -17,6 +17,7 @@ function compatibleParDefaut(e, trameId) {
   const pre = ['chaudiere','bruleur','pompe','circulateur','vanne','servomoteur','regulat','echangeur','ballon','ecs','chauff','doseuse','adouc','traitement eau'].some((k) => texte.includes(k));
   if (trameId === 'vmc') return vmc;
   if (trameId === 'pre_allumage') return pre && !vmc;
+  if (trameId === 'reseau_chaleur_v1') return pre && !vmc;
   if (trameId === 'icpe_v1') return !vmc;
   return false;
 }
@@ -25,10 +26,13 @@ function equipementCompatible(e, trameId) {
   if (Number(e.nb_trames || 0) > 0) return explicites.includes(trameId);
   return compatibleParDefaut(e, trameId);
 }
-async function affecterEquipementTrame(db, equipementId, trameId) {
+async function affecterEquipementTrame(db, equipementId, trameId, perimetre = null) {
   if (!equipementId || !trameId) return;
-  await db.runAsync(`INSERT INTO equipement_trames(equipement_id,trame_id,actif) VALUES(?,?,1)
-    ON CONFLICT(equipement_id,trame_id) DO UPDATE SET actif=1,modifie_le=datetime('now')`, [equipementId, trameId]);
+  const p = perimetre === 'Primaire' || perimetre === 'Secondaire' ? perimetre : null;
+  await db.runAsync(`INSERT INTO equipement_trames(equipement_id,trame_id,actif,perimetre) VALUES(?,?,1,?)
+    ON CONFLICT(equipement_id,trame_id) DO UPDATE SET actif=1,
+      perimetre=COALESCE(excluded.perimetre,equipement_trames.perimetre),modifie_le=datetime('now')`,
+    [equipementId, trameId, p]);
 }
 async function ensureInstallation(db, siteId, preferredInstallationId = null) {
   if (preferredInstallationId) {
@@ -51,7 +55,7 @@ async function convertirMaterielLegacy(db, visiteId, installationId, trameId) {
   for (const m of lignes) {
     const equipementId = uuidv4();
     await db.runAsync(`INSERT INTO equipements(id,installation_id,type_code,designation,marque,modele,annee,statut) VALUES(?,?,?,?,?,?,?,'actif')`, [equipementId, installationId, m.categorie || 'equipement', m.designation || 'Équipement', m.marque || null, m.modele || null, m.annee ? Number(m.annee) || null : null]);
-    await affecterEquipementTrame(db, equipementId, trameId);
+    await affecterEquipementTrame(db, equipementId, trameId, m.perimetre);
     // Une ligne matériel locale représente au minimum un équipement. Les
     // anciennes versions pouvaient laisser "nombre" vide, ce que le POST
     // Intranet refuse. On corrige uniquement ce matériel legacy local.
@@ -61,6 +65,7 @@ async function convertirMaterielLegacy(db, visiteId, installationId, trameId) {
 }
 async function injecterEquipementsActifsDuSite(db, visiteId, siteId, trameId, installationId = null, referenceOnly = false) {
   const actifsBruts = await db.getAllAsync(`SELECT e.*,
+      (SELECT etp.perimetre FROM equipement_trames etp WHERE etp.equipement_id=e.id AND etp.trame_id=? AND etp.actif=1 LIMIT 1) AS perimetre_trame,
       (SELECT GROUP_CONCAT(et.trame_id) FROM equipement_trames et WHERE et.equipement_id=e.id AND et.actif=1) AS trames_explicit,
       (SELECT COUNT(*) FROM equipement_trames et2 WHERE et2.equipement_id=e.id) AS nb_trames,
       (SELECT o.etat FROM observations_equipement o JOIN visites v2 ON v2.id=o.visite_id WHERE o.equipement_id=e.id AND o.present=1 AND v2.id<>? ORDER BY COALESCE(v2.date_visite,'') DESC,o.observe_le DESC LIMIT 1) dernier_etat,
@@ -73,7 +78,7 @@ async function injecterEquipementsActifsDuSite(db, visiteId, siteId, trameId, in
      WHERE i.site_id=? AND i.actif=1 AND e.statut='actif'
        AND (? IS NULL OR e.installation_id=?)
        AND NOT EXISTS(SELECT 1 FROM materiel m WHERE m.visite_id=? AND m.equipement_id=e.id)
-     ORDER BY e.designation,e.marque,e.modele`, [visiteId, siteId, installationId, installationId, visiteId]);
+     ORDER BY e.designation,e.marque,e.modele`, [trameId, visiteId, siteId, installationId, installationId, visiteId]);
   const actifs = actifsBruts.filter((e) => equipementCompatible(e, trameId));
   for (const e of actifs) {
     const materielId = uuidv4();
@@ -82,11 +87,12 @@ async function injecterEquipementsActifsDuSite(db, visiteId, siteId, trameId, in
     // au lieu de le recopier comme constat du jour.
     const etat = referenceOnly ? null : (e.dernier_etat || 'Bon');
     const nombre = String(e.nombre_reference || '').trim() || '1';
-    await db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,nombre,designation,numero_materiel,reseau_desservi,marque,modele,caracteristiques,annee,etat,equipement_id) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
+    await db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,nombre,designation,numero_materiel,reseau_desservi,marque,modele,caracteristiques,annee,etat,equipement_id,perimetre) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, [
       materielId, visiteId, e.type_code || 'Équipement', nombre, e.designation || 'Équipement',
       e.numero_materiel_reference || null, e.reseau_desservi_reference || null,
       e.marque || null, e.modele || null, e.caracteristiques_reference || null,
-      e.annee ? String(e.annee) : null, etat, e.id
+      e.annee ? String(e.annee) : null, etat, e.id,
+      trameId === 'reseau_chaleur_v1' ? (e.perimetre_trame || null) : null
     ]);
     if (!referenceOnly) await upsertObservation(db, e.id, visiteId, { etat, present: 1 });
   }
@@ -137,11 +143,22 @@ export async function ajouterMaterielPersistant(visiteId) {
 const CHAMP_EQUIPEMENT = { categorie: 'type_code', designation: 'designation', marque: 'marque', modele: 'modele', annee: 'annee' };
 export async function upsertMaterielPersistant(materielId, cle, valeur) {
   const db = await getDb(); const m = await db.getFirstAsync(`SELECT * FROM materiel WHERE id=?`, [materielId]); if (!m) return;
-  const champsAutorises = new Set(['categorie','nombre','designation','numero_materiel','reseau_desservi','marque','modele','caracteristiques','annee','etat']);
+  const champsAutorises = new Set(['categorie','nombre','designation','numero_materiel','reseau_desservi','marque','modele','caracteristiques','annee','etat','perimetre']);
   if (!champsAutorises.has(cle)) throw new Error(`Champ matériel non autorisé: ${cle}`);
-  await db.runAsync(`UPDATE materiel SET ${cle}=? WHERE id=?`, [valeur, materielId]);
+  let valeurFinale = valeur;
+  if (cle === 'perimetre') {
+    valeurFinale = valeur === 'Primaire' || valeur === 'Secondaire' ? valeur : null;
+  }
+  await db.runAsync(`UPDATE materiel SET ${cle}=? WHERE id=?`, [valeurFinale, materielId]);
   if (!m.equipement_id) return;
   if (cle === 'etat') { await upsertObservation(db, m.equipement_id, m.visite_id, { etat: valeur || 'Bon', present: 1 }); return; }
+  if (cle === 'perimetre') {
+    const visite = await db.getFirstAsync(`SELECT COALESCE(trame_id,'icpe_v1') AS trame_id FROM visites WHERE id=?`, [m.visite_id]);
+    if (visite?.trame_id === 'reseau_chaleur_v1') {
+      await affecterEquipementTrame(db, m.equipement_id, visite.trame_id, valeurFinale);
+    }
+    return;
+  }
   const colonne = CHAMP_EQUIPEMENT[cle];
   if (!colonne) return; // champs détaillés propres à la visite / au contrat Intranet
   const persist = cle === 'annee' ? (valeur ? Number(valeur) || null : null) : (valeur || null);
