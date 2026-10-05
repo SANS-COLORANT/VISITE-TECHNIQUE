@@ -273,8 +273,9 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
 
   const enregistrerRattachement = async (cible) => {
     if (!remarqueARattacher) return;
-    await rattacherRemarqueVisite(remarqueARattacher.id, { onglet: ongletChoisi, type: cible.type, id: cible.id, libelle: cible.libelle, perimetre: cible.perimetre || null });
-    patchLocal(remarqueARattacher.id, { reference_onglet: ongletChoisi, reference_type: cible.type, reference_id: cible.id, reference_libelle: cible.libelle, ...(cible.perimetre ? { perimetre: cible.perimetre } : {}) });
+    const perimetreHerite = remarqueARattacher.controle_key ? null : (cible.perimetre || null);
+    await rattacherRemarqueVisite(remarqueARattacher.id, { onglet: ongletChoisi, type: cible.type, id: cible.id, libelle: cible.libelle, perimetre: perimetreHerite });
+    patchLocal(remarqueARattacher.id, { reference_onglet: ongletChoisi, reference_type: cible.type, reference_id: cible.id, reference_libelle: cible.libelle, ...(perimetreHerite ? { perimetre: perimetreHerite } : {}) });
     setRemarqueARattacher(null); setOngletChoisi(null); setCibles([]);
   };
   const retirerRattachement = async () => {
