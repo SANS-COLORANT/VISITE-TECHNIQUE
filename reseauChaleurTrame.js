@@ -5,7 +5,7 @@ const RESEAU_CHALEUR_ID = 'reseau_chaleur_v1';
 
 const RESEAU_CHALEUR_PANELS = Object.freeze({
   'p-infos': Object.freeze({
-    'Informations générales réseau': Object.freeze([
+    'Informations générales': Object.freeze([
       { cle: 'Date de visite', type: 'champ' },
       { cle: 'Nom du site', type: 'champ' },
       { cle: 'Adresse', type: 'champ' },
@@ -30,7 +30,7 @@ const RESEAU_CHALEUR_PANELS = Object.freeze({
 
 const SECTION_RANGES = Object.freeze({
   'p-infos': Object.freeze({
-    'Informations générales réseau': [12, 20],
+    'Informations générales': [12, 20],
     'Description des principaux équipements': [25, 31],
   }),
   'p-distrib': Object.freeze({
