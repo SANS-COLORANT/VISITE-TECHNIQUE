@@ -1,6 +1,6 @@
 /** Stockage local persistant des photos de visite. */
 
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 
 const PHOTO_DIR = FileSystem.documentDirectory ? `${FileSystem.documentDirectory}metra-photos/` : null;
 
