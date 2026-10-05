@@ -200,11 +200,13 @@ function ReseauCard({ reseau, visiteId, onChange }) {
 /** Onglet Relevés : Températures/pH génériques + compteurs dynamiques avec unité. */
 function PanelReleves({ visiteId, refreshKey, onSaved, trameCode = 'ICPE' }) {
   const [champsMap, setChampsMap] = useState({});
+  const [controlesMap, setControlesMap] = useState({});
   const [compteurs, setCompteurs] = useState([]);
   const UNITES = ['m³', 'L', 'MWh', 'kWh', 'bar', '%'];
 
   const charger = useCallback(async () => {
     setChampsMap(await getChampsVisite(visiteId));
+    setControlesMap(await getControlesVisite(visiteId));
     setCompteurs(await listerCompteurs(visiteId));
   }, [visiteId]);
 
@@ -259,7 +261,18 @@ function PanelReleves({ visiteId, refreshKey, onSaved, trameCode = 'ICPE' }) {
 
       <Text style={styles.sectionTitle}>Températures et pH</Text>
       <View style={styles.formCard}>
-        {champsTemp.map((f) => (
+        {champsTemp.map((f) => f.type === 'controle' ? (
+          <ControleGenerique
+            key={f.cle}
+            visiteId={visiteId}
+            sectionCode="releves.temperatures"
+            field={f}
+            etatInitial={controlesMap[`releves.temperatures||${f.cle}`]}
+            onSaved={onSaved}
+            trameCode={trameCode}
+            commentaireToujoursVisible
+          />
+        ) : (
           <ChampGenerique
             key={f.cle} visiteId={visiteId} sectionCode="releves.temperatures"
             field={f} valeurInitiale={champsMap[`releves.temperatures||${f.cle}`]} onSaved={onSaved}
