@@ -6,7 +6,8 @@ const PHOTO_DIR = FileSystem.documentDirectory ? `${FileSystem.documentDirectory
 
 async function rendrePhotoPersistante(uri) {
   if (!PHOTO_DIR || !uri) return uri;
-  await FileSystem.makeDirectoryAsync(PHOTO_DIR, { intermediates: true });
+  const dossier = await FileSystem.getInfoAsync(PHOTO_DIR);
+  if (!dossier.exists) await FileSystem.makeDirectoryAsync(PHOTO_DIR, { intermediates: true });
   const extension = (String(uri).match(/\.([a-zA-Z0-9]+)(?:\?|$)/) || [])[1] || 'jpg';
   const nom = `photo_${Date.now()}_${Math.random().toString(36).slice(2, 8)}.${extension}`;
   const destination = PHOTO_DIR + nom;
