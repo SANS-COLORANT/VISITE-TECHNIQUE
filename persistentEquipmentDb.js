@@ -23,6 +23,13 @@ function compatibleParDefaut(e, trameId) {
 }
 function equipementCompatible(e, trameId) {
   const explicites = String(e.trames_explicit || '').split(',').filter(Boolean);
+  // La trame Réseau de chaleur est nouvelle : elle doit pouvoir réutiliser le
+  // patrimoine chauffage déjà connu en ICPE sans dupliquer les équipements.
+  // Le premier choix Primaire / Secondaire crée ensuite son affectation
+  // explicite propre à cette trame.
+  if (trameId === 'reseau_chaleur_v1') {
+    return explicites.includes(trameId) || compatibleParDefaut(e, trameId);
+  }
   if (Number(e.nb_trames || 0) > 0) return explicites.includes(trameId);
   return compatibleParDefaut(e, trameId);
 }
