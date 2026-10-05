@@ -72,10 +72,12 @@ function PickerField({label,valeur,placeholder,onPress,disabled=false,sub}){
  </View>;
 }
 
-const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,marques,catalogue}){
+const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,marques,catalogue,trameId}){
  const[categorie,setCategorie]=useState(item.categorie||'');
  const[marque,setMarque]=useState(item.marque||'');
  const[etat,setEtat]=useState(item.etat||'');
+ const[perimetre,setPerimetre]=useState(item.perimetre||'');
+ const reseauChaleur=trameId==='reseau_chaleur_v1';
  const[picker,setPicker]=useState(null);
  const[designation,setDesignation,blurDesignation,setDesignationNow]=useDurableAutosave(item.designation,v=>upsertMaterielChamp(item.id,'designation',v));
  const[modele,setModele,blurModele,setModeleNow]=useDurableAutosave(item.modele,v=>upsertMaterielChamp(item.id,'modele',v));
@@ -84,7 +86,7 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
  const[numero,setNumero,blurNumero]=useDurableAutosave(item.numero_materiel,v=>upsertMaterielChamp(item.id,'numero_materiel',v));
  const[reseau,setReseau,blurReseau]=useDurableAutosave(item.reseau_desservi,v=>upsertMaterielChamp(item.id,'reseau_desservi',v));
  const[caracteristiques,setCaracteristiques,blurCaracteristiques]=useDurableAutosave(item.caracteristiques,v=>upsertMaterielChamp(item.id,'caracteristiques',v));
- useEffect(()=>{setCategorie(item.categorie||'');setMarque(item.marque||'');setEtat(item.etat||'')},[item.categorie,item.marque,item.etat]);
+ useEffect(()=>{setCategorie(item.categorie||'');setMarque(item.marque||'');setEtat(item.etat||'');setPerimetre(item.perimetre||'')},[item.categorie,item.marque,item.etat,item.perimetre]);
 
  const marqueLogo=useMemo(()=>{
   const match=catalogue.find(e=>marque&&eq(e.marque,marque)&&e.logo_uri);
@@ -114,6 +116,7 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
  };
  const choisirModele=async v=>{await setModeleNow(String(v||'').trim())};
  const sauverEtat=async v=>{setEtat(v);await upsertMaterielChamp(item.id,'etat',v)};
+ const sauverPerimetre=async v=>{setPerimetre(v);await upsertMaterielChamp(item.id,'perimetre',v)};
 
  return <View style={styles.formCard}>
   <View style={styles.equipmentBrandHeader}>
@@ -130,6 +133,12 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
   <View style={{marginTop:10,flexDirection:'row',gap:8}}><View style={{width:110}}><Text style={styles.fieldLabel}>Nombre</Text><TextInput style={styles.input} value={nombre} onChangeText={setNombre} onBlur={blurNombre} placeholder="Ex. 2"/></View><View style={{width:130}}><Text style={styles.fieldLabel}>Année</Text><TextInput style={styles.input} value={annee} onChangeText={setAnnee} onBlur={blurAnnee} keyboardType="numeric" placeholder="Année"/></View><View style={{flex:1}}><Text style={styles.fieldLabel}>N° matériel</Text><TextInput style={styles.input} value={numero} onChangeText={setNumero} onBlur={blurNumero} placeholder="Ex. CHA-001"/></View></View>
   <View style={{marginTop:8}}><Text style={styles.fieldLabel}>Réseau desservi</Text><TextInput style={styles.input} value={reseau} onChangeText={setReseau} onBlur={blurReseau} placeholder="Ex. Bâtiment A"/></View>
   <View style={{marginTop:8}}><Text style={styles.fieldLabel}>Caractéristiques</Text><TextInput style={styles.input} value={caracteristiques} onChangeText={setCaracteristiques} onBlur={blurCaracteristiques} placeholder="Ex. 500 kW"/></View>
+  {reseauChaleur?<View style={{marginTop:10}}>
+    <Text style={styles.fieldLabel}>Périmètre de l’équipement · obligatoire</Text>
+    <View style={{height:6}}/>
+    <ChipSelector valeur={perimetre} options={['Primaire','Secondaire']} onChange={sauverPerimetre}/>
+    {!perimetre?<Text style={[styles.importHint,{marginTop:5}]}>Choisis Primaire ou Secondaire. Ce classement est propre à la trame Réseau de chaleur.</Text>:null}
+  </View>:null}
   <View style={{height:10}}/><Text style={styles.fieldLabel}>5. État constaté</Text><View style={{height:6}}/><ChipSelector valeur={etat} options={['Neuf','Bon','Moyen','Vétuste','Hors service','À surveiller','Dégradé']} onChange={sauverEtat}/>
   {['À surveiller','Dégradé'].includes(etat)?<Text style={[styles.importHint,{marginTop:5}]}>Pour une visite liée à l’Intranet, choisis avant l’envoi un état accepté par le serveur : Neuf, Bon, Moyen, Vétuste ou Hors service.</Text>:null}
 
@@ -142,7 +151,7 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
  </View>;
 });
 
-export function GuidedEquipmentPanel({visiteId}){
+export function GuidedEquipmentPanel({visiteId,trameId='icpe_v1'}){
  const[materiel,setMateriel]=useState([]),[types,setTypes]=useState(TYPES),[marques,setMarques]=useState(MARQUES),[catalogue,setCatalogue]=useState([]);
  const{listRef,onScroll}=useListScrollMemory(`visit-panel:${visiteId}:p-equip`,materiel.length);
  const charger=useCallback(async()=>setMateriel(await listerMateriel(visiteId)),[visiteId]);
@@ -160,5 +169,5 @@ export function GuidedEquipmentPanel({visiteId}){
   }catch(e){console.warn('Catalogue équipements non chargé',e)}
  })();return()=>{actif=false}},[]);
  const ajouter=useCallback(async()=>{await ajouterMateriel(visiteId);await charger()},[visiteId,charger]);
- return <FlatList ref={listRef} data={materiel} onScroll={onScroll} scrollEventThrottle={100} keyExtractor={i=>i.id} renderItem={({item})=><EquipmentCard item={item} visiteId={visiteId} onChange={charger} types={types} marques={marques} catalogue={catalogue}/>} contentContainerStyle={styles.panelContent} ListHeaderComponent={<View><Text style={styles.sectionTitle}>Équipements · {materiel.length}</Text><Text style={styles.importHint}>VMC, CTA, ventilateurs et tourelles sont inclus. Touchez Type, Marque ou Modèle : un volet tactile s’ouvre et filtre automatiquement le catalogue.</Text></View>} ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ajouter}><Text style={styles.addBtnText}>+ Ajouter un équipement</Text></TouchableOpacity>} initialNumToRender={4} maxToRenderPerBatch={4} windowSize={5} removeClippedSubviews={false} keyboardShouldPersistTaps="handled"/>;
+ return <FlatList ref={listRef} data={materiel} onScroll={onScroll} scrollEventThrottle={100} keyExtractor={i=>i.id} renderItem={({item})=><EquipmentCard item={item} visiteId={visiteId} onChange={charger} types={types} marques={marques} catalogue={catalogue} trameId={trameId}/>} contentContainerStyle={styles.panelContent} ListHeaderComponent={<View><Text style={styles.sectionTitle}>Équipements · {materiel.length}</Text><Text style={styles.importHint}>{trameId==='reseau_chaleur_v1'?'Chaque équipement doit être classé Primaire ou Secondaire pour cette trame.':'VMC, CTA, ventilateurs et tourelles sont inclus. Touchez Type, Marque ou Modèle : un volet tactile s’ouvre et filtre automatiquement le catalogue.'}</Text></View>} ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ajouter}><Text style={styles.addBtnText}>+ Ajouter un équipement</Text></TouchableOpacity>} initialNumToRender={4} maxToRenderPerBatch={4} windowSize={5} removeClippedSubviews={false} keyboardShouldPersistTaps="handled"/>;
 }
