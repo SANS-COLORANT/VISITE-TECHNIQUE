@@ -26,7 +26,8 @@ const clientSites = read('ClientSitesScreen.js');
 
 // La migration Intranet reste figée en v39. Le schéma global peut avancer
 // (Missions utilise v40-v43 puis Réseau de chaleur ajoute v44) sans réutiliser ni modifier 35 -> 39.
-requireText(constants, 'DATABASE_SCHEMA_VERSION = 44', 'current global schema version 44');
+const schemaMatch = constants.match(/DATABASE_SCHEMA_VERSION\s*=\s*(\d+)/);
+if (!schemaMatch || Number(schemaMatch[1]) < 44) throw new Error('global schema version must be >= 44 after heat-network migration');
 requireText(migrations, "import { migration035 } from './035_client_site_images.js';", 'migration 035 historical registration');
 requireText(migrations, "import { migration036 } from './036_intranet_visit_photo_outbox.js';", 'migration 036 historical registration');
 requireText(migrations, "import { migration037 } from './037_intranet_server_schema_alignment.js';", 'migration 037 historical registration');
@@ -93,4 +94,4 @@ requireText(visitCreation, 'apiRemoteTrameId = null', 'visit keeps remote trame 
 requireText(visitCreation, 'installation_id, api_remote_client_id, api_remote_local_id, api_remote_trame_id', 'visit freezes structure identity');
 requireText(runtime, 'processStructureOutbox({ limit: 4 })', 'automatic structure retry runtime');
 
-console.log('Intranet site/local creation contract validated: immutable SQLite lineage 35->36->37->38->39 is preserved, Missions remain on v40-v43, and Réseau de chaleur advances the global schema additively to v44.');
+console.log('Intranet site/local creation contract validated: immutable SQLite lineage 35->36->37->38->39 is preserved and later additive migrations, including Réseau de chaleur v44+, are allowed.');

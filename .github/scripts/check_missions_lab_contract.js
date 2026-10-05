@@ -34,7 +34,8 @@ const fieldPlaybooks = read('missionFieldPlaybooks.js');
 const reportRecipes = read('missionReportRecipes.js');
 const visitAutofill = read('missionVisitAutofillDb.js');
 
-requireText(constants, 'DATABASE_SCHEMA_VERSION = 43', 'schema v43');
+const schemaMatch = constants.match(/DATABASE_SCHEMA_VERSION\s*=\s*(\d+)/);
+if (!schemaMatch || Number(schemaMatch[1]) < 43) throw new Error('Contrat Missions violé: schéma global < v43');
 requireText(migrations, "import { migration040 } from './040_missions_core.js';", 'migration 040 registered');
 requireText(migrations, 'migration039, migration040', 'migration ordering 39 -> 40');
 requireText(migrations, 'migration041', 'migration 041 registered');
@@ -337,4 +338,4 @@ const documentPresetTypes = read('missionDocumentPresets.js');
 const missingDocumentPresets = missionTypes.filter((type) => !new RegExp('\\n\\s{2}' + type + ":\\s*'").test(documentPresetTypes));
 if (missingDocumentPresets.length) throw new Error('Types de Mission sans groupe de documents suggérés: ' + missingDocumentPresets.join(', '));
 
-console.log('Missions LAB contract validated: schema v43, strict Intranet isolation, offline mission tooling, complete Excel round-trip, plans/SIG, campaigns, OCR, measurements, reports and packages.');
+console.log('Missions LAB contract validated: Missions migrations v40-v43 remain intact while later additive app migrations are allowed; strict Intranet isolation and offline tooling are preserved.');
