@@ -287,8 +287,9 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
 
   const copiedFields = await copyReusableFields(db, visiteId, previous.id, trame);
   const copiedControls = await copyReusableControls(db, visiteId, previous.id, trame);
-  const copiedNetworks = trame.id === DEFAULT_TRAME_ID ? await copyNetworkValues(db, visiteId, previous.id) : 0;
-  const copiedMeters = trame.id === DEFAULT_TRAME_ID ? await copyMeterValues(db, visiteId, previous.id) : 0;
+  const porteReseaux = trame.id === DEFAULT_TRAME_ID || trame.id === 'reseau_chaleur_v1';
+  const copiedNetworks = porteReseaux ? await copyNetworkValues(db, visiteId, previous.id) : 0;
+  const copiedMeters = porteReseaux ? await copyMeterValues(db, visiteId, previous.id) : 0;
 
   return {
     contexte: resolved,
