@@ -90,17 +90,35 @@ function findExcelRow(sheet, trameCode, panelId, section, cle) {
 
 function defaultPerimetreForControle(trameCode, sectionCode, cle) {
   if (normalizeTrameCode(trameCode) !== TRAME_CODES.RESEAU_CHALEUR) return null;
-  if (sectionCode?.startsWith('conf-chauffage.') || sectionCode?.startsWith('conf-ecs.')) return 'Primaire';
+
+  const section = String(sectionCode || '').toLowerCase();
+  const key = String(cle || '').trim();
+
+  // Règle métier Réseau de chaleur :
+  // - production / températures primaires et production ECS => PRIMAIRE ;
+  // - distribution, conformité, local, électricité et auxiliaires => SECONDAIRE.
+  // Le rapport de référence confirme notamment qu'une réserve de température
+  // retour ECS est rangée au primaire, alors que disconnecteur, BAES,
+  // extincteurs, signalétique, calorifuge de bouclage ECS, etc. sont au secondaire.
+  if (section.startsWith('releves.temperatures')) {
+    if (/^PRIMAIRE:/i.test(key) || /^EAU CHAUDE SANITAIRE:/i.test(key)) return 'Primaire';
+    return 'Secondaire'; // pH + températures réseau chauffage
+  }
+
   if (
-    sectionCode?.startsWith('releves.temperatures') &&
-    (/^PRIMAIRE:/i.test(cle || '') || /^EAU CHAUDE SANITAIRE:/i.test(cle || ''))
-  ) return 'Primaire';
+    section.startsWith('conf-chauffage.') ||
+    section.startsWith('conf-ecs.') ||
+    section.startsWith('conf-adouc.') ||
+    section.startsWith('conf-energie.') ||
+    section.startsWith('conf-local.')
+  ) return 'Secondaire';
+
   return 'Secondaire';
 }
 
-function isForcedPrimaryControle(trameCode, sectionCode) {
+function isAutomaticPerimetreControle(trameCode, sectionCode, cle) {
   return normalizeTrameCode(trameCode) === TRAME_CODES.RESEAU_CHALEUR &&
-    (sectionCode?.startsWith('conf-chauffage.') || sectionCode?.startsWith('conf-ecs.'));
+    Boolean(defaultPerimetreForControle(trameCode, sectionCode, cle));
 }
 
 export {
@@ -113,5 +131,5 @@ export {
   getExcelLayout,
   findExcelRow,
   defaultPerimetreForControle,
-  isForcedPrimaryControle,
+  isAutomaticPerimetreControle,
 };
