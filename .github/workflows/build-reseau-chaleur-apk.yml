@@ -1,0 +1,102 @@
+name: Build Reseau de chaleur APK 643
+
+on:
+  push:
+    branches:
+      - build/reseau-chaleur-qa-apk643
+    paths:
+      - '**/*.js'
+      - '**/*.json'
+      - '.github/workflows/build-reseau-chaleur-apk.yml'
+
+concurrency:
+  group: build-reseau-chaleur-apk643
+  cancel-in-progress: true
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      NODE_ENV: production
+      METRA_COMPAT_SIGNER_SHA256: FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C
+      GRADLE_OPTS: >-
+        -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
+        -Dorg.gradle.workers.max=2
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - name: Setup Gradle cache
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund --legacy-peer-deps
+
+      - name: Validate JavaScript bundle
+        run: npx expo export --platform android --output-dir dist-ci
+
+      - name: Generate Android project
+        run: npx expo prebuild --clean --platform android --no-install
+
+      - name: Validate Android identity
+        run: |
+          python - <<'PY'
+          import re
+          from pathlib import Path
+          s=Path('android/app/build.gradle').read_text(encoding='utf-8')
+          if not re.search(r'applicationId\s+["\']com\.visitetechnique\.tablet["\']', s):
+              raise SystemExit('applicationId Android inattendu')
+          if not re.search(r'versionCode\s+643\b', s):
+              raise SystemExit('versionCode Android inattendu')
+          print('Identité Android APK 643 validée.')
+          PY
+
+      - name: Validate historical METRA signer
+        run: |
+          set -euo pipefail
+          KEYSTORE="android/app/debug.keystore"
+          test -s "$KEYSTORE"
+          ACTUAL_SHA256="$(keytool -list -v -keystore "$KEYSTORE" -storepass android -alias androiddebugkey | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          echo "Signer SHA256: $ACTUAL_SHA256"
+          if [ "$ACTUAL_SHA256" != "$METRA_COMPAT_SIGNER_SHA256" ]; then
+            echo "::error::Le certificat de build ne correspond pas au certificat historique METRA."
+            echo "::error::Attendu: $METRA_COMPAT_SIGNER_SHA256 ; obtenu: $ACTUAL_SHA256"
+            exit 1
+          fi
+
+      - name: Configure Gradle memory
+        working-directory: android
+        run: |
+          printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\n' >> gradle.properties
+
+      - name: Build installable APK
+        working-directory: android
+        run: ./gradlew assembleDebug --no-daemon --max-workers=2
+
+      - name: Verify APK
+        run: |
+          APK="$(find android/app/build/outputs/apk/debug -name '*.apk' -type f -print -quit)"
+          test -n "$APK"
+          APKSIGNER="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner"
+          "$APKSIGNER" verify --verbose --print-certs "$APK"
+
+      - name: Upload APK 643
+        uses: actions/upload-artifact@v4
+        with:
+          name: metra-reseau-chaleur-apk643
+          path: android/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
+          retention-days: 14
