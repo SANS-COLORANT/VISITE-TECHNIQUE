@@ -345,6 +345,12 @@ async function upsertControle(visiteId, sectionCode, cle, { avis, commentaire, p
       [visiteId, sectionCode, cle, avis ?? null, commentaire ?? null, perimetre ?? null]
     );
   }
+  if (perimetre !== undefined && perimetre !== null) {
+    await db.runAsync(
+      'UPDATE remarques SET perimetre = ? WHERE visite_id = ? AND controle_key = ?',
+      [perimetre, visiteId, `${sectionCode}||${cle}`]
+    );
+  }
   await toucherVisite(visiteId);
   await recalculerProgression(visiteId);
 }
