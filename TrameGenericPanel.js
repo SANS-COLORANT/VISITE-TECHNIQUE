@@ -126,7 +126,7 @@ export function TrameGenericPanel(props) {
   return <TrameGenericStaticPanel {...props} />;
 }
 
-function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPanel = null, onNextPanel = null }) {
+function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPanel = null, onNextPanel = null, trameId = 'icpe_v1' }) {
   const cacheInitial = visiteDataCache.get(visiteId)?.data;
   const listRef = useRef(null);
   const navKey = `visit-panel:${String(visiteId || '')}:${String(panelId || '')}`;
@@ -306,7 +306,7 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
       return <EditableAlias valeur={aliases[d.key] || d.base} suffix={d.suffix} onSave={(v) => sauverAlias(d.key, v, d.base)} />;
     }}
     renderItem={({ item, index, section }) => <View style={styleCarteChamp(item, index, section)}>
-      {item.field.type === 'champ' ? <DurableChampGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} valeurInitiale={champsMap[item.key]} displayLabel={libelleChamp(item.sectionCode, item.field.cle, aliases)} onRename={item.field.renamable ? (v) => sauverAlias(fieldAliasKey(item.sectionCode, item.field.cle), v, item.field.cle) : null} onSaved={champHandler(item.key)} /> : item.field.vmc === true ? <VmcControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} /> : item.field.presets ? <PresetControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} /> : <PersistentControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} />}
+      {item.field.type === 'champ' ? <DurableChampGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} valeurInitiale={champsMap[item.key]} displayLabel={libelleChamp(item.sectionCode, item.field.cle, aliases)} onRename={item.field.renamable ? (v) => sauverAlias(fieldAliasKey(item.sectionCode, item.field.cle), v, item.field.cle) : null} onSaved={champHandler(item.key)} /> : item.field.vmc === true ? <VmcControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} /> : item.field.presets ? <PresetControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} /> : <PersistentControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} trameId={trameId} />}
     </View>}
     ListFooterComponent={nextPanel && onNextPanel ? <View style={styles.nextTabCard}>
       <Text style={styles.nextTabHint}>{restants ? `${restants} élément${restants > 1 ? 's' : ''} encore à renseigner dans cet onglet` : 'Onglet complet'}</Text>
