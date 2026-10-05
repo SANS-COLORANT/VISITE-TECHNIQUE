@@ -139,6 +139,20 @@ function exporterCompteurs(sheet, compteurs = []) {
   for (const [ligne, valeurs] of groupes.entries()) setCell(sheet, `C${ligne}`, valeurs.join(' | '));
 }
 
+function exporterCompteursReseauChaleur(sheet, compteurs = [], fieldMappings = []) {
+  const norm = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const clean = (v) => String(v || '').replace(/^Index\s*/i, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
+  const mappings = (fieldMappings || []).filter((m) => m.panelId === 'p-releves' && m.type === 'champ' && /^Index/i.test(m.cle || ''));
+  for (const mapping of mappings) {
+    const cible = norm(clean(mapping.cle));
+    const compteur = compteurs.find((c) => norm(c.label) === cible || norm(clean(c.label)) === cible);
+    if (!compteur || compteur.valeur == null || compteur.valeur === '') continue;
+    const valeur = `${compteur.valeur}${compteur.unite ? ` ${compteur.unite}` : ''}`;
+    setCell(sheet, mapping.valueCell, valeur);
+    if (/^C\d+$/.test(mapping.valueCell || '')) setCell(sheet, `E${mapping.valueCell.slice(1)}`, valeur);
+  }
+}
+
 function normaliserMaterielPourExport(materiel = []) {
   return materiel.map((m) => ({ ...m, nombre: m.nombre ?? m.nb ?? 1, numero_materiel: m.numero_materiel ?? m.numero ?? '', reseau_desservi: m.reseau_desservi ?? m.reseau ?? '', caracteristiques: m.caracteristiques ?? '', categorie: m.categorie || m.type_code || 'Équipement', designation: m.designation || m.categorie || 'Équipement' }));
 }
@@ -304,7 +318,8 @@ async function construireClasseur(visiteId) {
     });
   }
   const reseauxSupplementaires = reseauxCfg ? ajouterReseauxComplementaires(wb, reseaux, reseauxCfg) : 0;
-  exporterCompteurs(sheetPrincipale, compteurs);
+  if (cfg.heatNetwork) exporterCompteursReseauChaleur(sheetPrincipale, compteurs, cfg.fieldMappings);
+  else exporterCompteurs(sheetPrincipale, compteurs);
   const tables = cfg.tables || {};
   if (tables.materiel) remplirTable(wb.Sheets[tables.materiel.sheet], materiel, tables.materiel);
   if (tables.remarques) remplirTable(wb.Sheets[tables.remarques.sheet], remarques, tables.remarques);
