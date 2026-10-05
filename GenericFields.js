@@ -236,7 +236,7 @@ const ChampGenerique = React.memo(function ChampGenerique({ visiteId, sectionCod
   // Pas de photo sur l'en-tête (Nom client/site/local, date) ni sur les
   // informations générales basiques (adresse, nb bât...) — rien à
   // photographier de pertinent sur ces champs purement administratifs.
-  const sansPhoto = sectionCode === 'infos.g_n_ral' || sectionCode === 'infos.informations_g_n_rales';
+  const sansPhoto = sectionCode === 'infos.g_n_ral' || sectionCode.startsWith('infos.information');
 
   const sauvegarderEnBase = async (nouvelleValeur) => {
     await upsertChamp(visiteId, sectionCode, field.cle, nouvelleValeur);
