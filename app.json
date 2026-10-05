@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "METRA",
+    "slug": "visite-technique",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "automatic",
+    "jsEngine": "hermes",
+    "android": {
+      "package": "com.visitetechnique.tablet",
+      "versionCode": 642,
+      "softwareKeyboardLayoutMode": "resize",
+      "permissions": [
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "Autoriser METRA à utiliser l'appareil photo pour documenter les visites techniques.",
+          "photosPermission": "Autoriser METRA à accéder aux photos nécessaires aux visites techniques.",
+          "microphonePermission": false
+        }
+      ]
+    ]
+  }
+}
