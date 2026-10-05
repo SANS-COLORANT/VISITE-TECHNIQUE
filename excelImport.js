@@ -51,14 +51,17 @@ function lireControleTrame(trame, row, trameCode) {
 function infererPerimetreRemarque(trame, layout, prestation) {
   if (!prestation || !layout.resumeRows) return null;
   const needle = prestation.toLowerCase().replace(/\s+/g, ' ').trim();
+  const trouves = new Set();
   for (const perimetre of ['Primaire', 'Secondaire']) {
     for (const row of Object.values(layout.resumeRows[perimetre] || {})) {
       const texte = (valeurCellule(trame, `C${row}`) || valeurCellule(trame, `E${row}`))
         .toLowerCase().replace(/\s+/g, ' ');
-      if (needle && texte.includes(needle)) return perimetre;
+      if (needle && texte.includes(needle)) trouves.add(perimetre);
     }
   }
-  return null;
+  // Si le même libellé est présent dans les deux synthèses, on ne devine
+  // pas : la donnée est ambiguë et reste à classer dans METRA.
+  return trouves.size === 1 ? [...trouves][0] : null;
 }
 
 export async function choisirEtAnalyserExcel() {
@@ -190,12 +193,16 @@ export function analyserClasseur(wb, nomFichier) {
     controles.forEach((controle) => {
       if (controle.avis !== 'N.S' || !controle.commentaire) return;
       const commentaire = normaliser(controle.commentaire);
-      const liee = remarques.find((r) => {
-        if (!r.perimetre || !r.prestation) return false;
-        const prestation = normaliser(r.prestation);
-        return prestation === commentaire || prestation.includes(commentaire) || commentaire.includes(prestation);
-      });
-      if (liee?.perimetre) controle.perimetre = liee.perimetre;
+      const perimetres = [...new Set(
+        remarques
+          .filter((r) => {
+            if (!r.perimetre || !r.prestation) return false;
+            const prestation = normaliser(r.prestation);
+            return prestation === commentaire || prestation.includes(commentaire) || commentaire.includes(prestation);
+          })
+          .map((r) => r.perimetre)
+      )];
+      if (perimetres.length === 1) controle.perimetre = perimetres[0];
     });
   }
 
