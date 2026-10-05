@@ -56,18 +56,19 @@ const VisitPanelHost = memo(function VisitPanelHost({
   panelLabels,
   panels,
   intranetLinked,
+  trameId,
   onRegisterLocalSwipe,
   nextPanel,
   onNextPanel,
 }) {
   if (special) {
     if (panelId === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
-    if (panelId === 'p-releves') return <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} />;
-    if (panelId === 'p-equip') return <GuidedEquipmentPanel visiteId={visiteId} />;
-    if (panelId === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} intranetLinked={intranetLinked} />;
+    if (panelId === 'p-releves') return <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} trameId={trameId} panels={panels} />;
+    if (panelId === 'p-equip') return <GuidedEquipmentPanel visiteId={visiteId} trameId={trameId} />;
+    if (panelId === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} intranetLinked={intranetLinked} trameId={trameId} />;
     if (panelId === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
   }
-  return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} nextPanel={nextPanel} onNextPanel={onNextPanel} />;
+  return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} nextPanel={nextPanel} onNextPanel={onNextPanel} trameId={trameId} />;
 });
 
 // « Enregistré il y a 2 min » (court sur téléphone).
@@ -148,6 +149,7 @@ function VisiteScreen({ route, onBack }) {
   const [noteTxt, setNoteTxt] = useState('');
   const [anomalieVisible, setAnomalieVisible] = useState(false);
   const [anomalieTxt, setAnomalieTxt] = useState('');
+  const [anomaliePerimetre, setAnomaliePerimetre] = useState('');
   const [companionVisible, setCompanionVisible] = useState(false);
   const [tabStatus, setTabStatus] = useState({ tabs: {}, avis: null });
   const [visiteARattacher, setVisiteARattacher] = useState(false);
@@ -726,9 +728,14 @@ function VisiteScreen({ route, onBack }) {
   const enregistrerAnomalie = async () => {
     const texte = anomalieTxt.trim();
     if (!texte) return;
-    await ajouterRemarqueVisite(visiteId, { poste: 'Observation', prestation: texte, origine: 'Anomalie rapide' });
+    if (trame.id === 'reseau_chaleur_v1' && !anomaliePerimetre) {
+      Alert.alert('Périmètre requis', 'Choisis Primaire ou Secondaire pour cette anomalie.');
+      return;
+    }
+    await ajouterRemarqueVisite(visiteId, { poste: 'Observation', prestation: texte, origine: 'Anomalie rapide', perimetre: trame.id === 'reseau_chaleur_v1' ? anomaliePerimetre : null });
     feedback('Anomalie ajoutée aux réserves');
     setAnomalieTxt('');
+    setAnomaliePerimetre('');
     setAnomalieVisible(false);
     if (tabsReels.includes('p-remarques')) changerOnglet('p-remarques');
   };
@@ -765,6 +772,7 @@ function VisiteScreen({ route, onBack }) {
               panelLabels={panelLabels}
               panels={panels}
               intranetLinked={intranetLinked}
+              trameId={trame.id}
               onRegisterLocalSwipe={trame.id === 'pre_allumage' && panelId === 'p-pa-batiments' ? enregistrerSwipeLocalPreAllumage : undefined}
               nextPanel={nextPanelById[panelId] || null}
               onNextPanel={changerOnglet}
@@ -889,7 +897,15 @@ function VisiteScreen({ route, onBack }) {
       <Modal visible={anomalieVisible} transparent animationType="fade" onRequestClose={() => setAnomalieVisible(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Ajouter une anomalie</Text><Text style={styles.importHint}>Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.</Text>
         <TextInput style={[styles.input, { minHeight: 100, marginTop: 12, textAlignVertical: 'top' }]} multiline autoFocus value={anomalieTxt} onChangeText={setAnomalieTxt} placeholder="Ex. Pompe défaillante, température de départ trop basse…" />
-        <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setAnomalieVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerAnomalie}><ButtonGlow /><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity></View>
+        {trame.id === 'reseau_chaleur_v1' ? <View style={{ marginTop: 12 }}>
+          <Text style={styles.fieldLabel}>Périmètre concerné · obligatoire</Text>
+          <View style={{ flexDirection: 'row', gap: 8, marginTop: 7 }}>
+            {['Primaire','Secondaire'].map((p) => <TouchableOpacity key={p} onPress={() => setAnomaliePerimetre(p)} style={[styles.avisChip, anomaliePerimetre === p && { backgroundColor: COLORS.orangeLight, borderColor: COLORS.orange }]}>
+              <Text style={[styles.avisChipText, anomaliePerimetre === p && { color: COLORS.orangeDark }]}>{p}</Text>
+            </TouchableOpacity>)}
+          </View>
+        </View> : null}
+        <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => { setAnomalieVisible(false); setAnomaliePerimetre(''); }}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerAnomalie}><ButtonGlow /><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity></View>
       </View></View></Modal>
     </View>
   );
