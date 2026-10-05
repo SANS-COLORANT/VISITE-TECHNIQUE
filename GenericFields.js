@@ -437,9 +437,10 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
     setModeLibre(true);
     setCritereChoisi(null);
     setCommentaire('');
+    // Pas de refresh parent ici : tant que l'utilisateur n'a pas validé son
+    // texte, le mode libre doit rester ouvert à l'écran.
     await upsertControle(visiteId, sectionCode, field.cle, { commentaire: null });
     await supprimerRemarqueParControle(visiteId, controleKey);
-    onSaved && onSaved();
   };
 
   const sauvegarderCommentaire = async () => {
