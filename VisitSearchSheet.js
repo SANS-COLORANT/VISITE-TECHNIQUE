@@ -2,7 +2,7 @@
  * Recherche dans la visite : retrouve un champ ou un contrôle par son nom
  * (ex. « calorifuge ») parmi tous les onglets, et ouvre l'onglet concerné.
  */
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { COLORS, FONTS } from './styles.js';
@@ -11,6 +11,10 @@ const norm = (v) => String(v || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toL
 
 export function VisitSearchSheet({ visible, onClose, panels = {}, tabs = [], labels = {}, onOpen }) {
   const [q, setQ] = useState('');
+  const inputRef = useRef(null);
+  const focusSearch = useCallback(() => {
+    requestAnimationFrame(() => inputRef.current?.focus());
+  }, []);
   useEffect(() => { if (visible) setQ(''); }, [visible]);
 
   const index = useMemo(() => {
@@ -31,19 +35,19 @@ export function VisitSearchSheet({ visible, onClose, panels = {}, tabs = [], lab
   const results = nq.length < 2 ? [] : index.filter((r) => nq.split(/\s+/).every((w) => r.n.includes(w))).slice(0, 60);
 
   return (
-    <Modal visible={visible} transparent animationType="slide" onRequestClose={onClose}>
+    <Modal visible={visible} transparent animationType="slide" onShow={focusSearch} onRequestClose={onClose}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={{ flex: 1 }}>
         <TouchableOpacity activeOpacity={1} style={s.dim} onPress={onClose} />
         <View style={s.sheet}>
           <View style={s.grab} />
           <View style={s.search}>
             <CvcIcon name="search" size={18} color={COLORS.inkFaint} strokeWidth={2.1} />
-            <TextInput value={q} onChangeText={setQ} autoFocus placeholder="Chercher un champ ou un contrôle…" placeholderTextColor={COLORS.inkFaint} style={s.input} autoCorrect={false} />
+            <TextInput ref={inputRef} value={q} onChangeText={setQ} placeholder="Chercher un champ ou un contrôle…" placeholderTextColor={COLORS.inkFaint} style={s.input} autoCorrect={false} returnKeyType="search" blurOnSubmit={false} />
           </View>
           <FlatList
             data={results}
             keyExtractor={(r) => r.key}
-            keyboardShouldPersistTaps="handled"
+            keyboardShouldPersistTaps="always"
             style={{ maxHeight: 380 }}
             ListEmptyComponent={<Text style={s.empty}>{nq.length < 2 ? 'Tape au moins deux lettres.' : 'Aucun résultat dans cette visite.'}</Text>}
             renderItem={({ item }) => (
