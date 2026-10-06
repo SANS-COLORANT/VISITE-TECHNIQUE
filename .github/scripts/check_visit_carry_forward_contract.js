@@ -20,7 +20,7 @@ requireText(carry, 'SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe
 requireText(carry, "entite_type='reseau' AND entite_id=? AND origine='api_symfony'", 'network Intranet provenance carried forward');
 requireText(carry, 'row.t_ext_c ?? null', 'external temperature carry-forward');
 requireText(carry, 'row.t_dep_c ?? null', 'departure temperature carry-forward');
-requireText(carry, 'SELECT label,valeur,unite,compteur_site_id,destination FROM compteurs', 'meter values selected');
+requireText(carry, 'SELECT id,label,valeur,unite,compteur_site_id,destination FROM compteurs', 'meter values selected');
 requireText(carry, 'row.valeur ?? null', 'meter value carry-forward');
 requireText(carry, 'copiedControls', 'control copy summary');
 requireText(carry, 'async function copyUnresolvedReserves', 'open reserve carry-forward');
