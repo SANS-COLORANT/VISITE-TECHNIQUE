@@ -14,10 +14,8 @@ requireText(carry, "import { construireIndexSemantiqueTrame } from './trameSeman
 requireText(carry, 'async function copyReusableControls', 'control carry-forward');
 requireText(carry, 'async function listPriorLocalVisits', 'same-local history across trames');
 requireText(carry, "if (trame.id === 'pre_allumage') return 0;", 'pre-allumage controls stay blank');
-requireText(carry, 'async function isImportedHistoricalVisit', 'historical Intranet visit detection');
-requireText(carry, "details_json LIKE '%\\\"sourceType\\\":\\\"imported_latest_visit\\\"%'", 'imported historical provenance detection');
-requireText(carry, 'function technicalControlKeys(trame)', 'technical values preserved from imported history');
-requireText(carry, 'const commentaire = previousComment;', 'latest control comment is proposed in the next visit');
+requireText(carry, 'async function collectSemanticSnapshot', 'cross-trame semantic snapshot');
+requireText(carry, 'const commentaire = clean(source.commentaire) || clean(source.textValue) || null;', 'field/control values can cross representation boundaries');
 requireText(carry, 'SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id', 'network values selected');
 requireText(carry, "entite_type='reseau' AND entite_id=? AND origine='api_symfony'", 'network Intranet provenance carried forward');
 requireText(carry, 'row.t_ext_c ?? null', 'external temperature carry-forward');
@@ -44,7 +42,7 @@ requireText(latest, 'function isTechnicalControlTarget(trameId, target)', 'techn
 requireText(latest, 'const commentaire = preserveTechnicalComment ? rawComment : null;', 'historical conformity comments are hidden');
 requireText(latest, 'sourceControlCriteria', 'control import diagnostics');
 requireText(latest, 'unmappedControlCriteria', 'unmapped control diagnostics');
-requireText(latest, "controlCommentRule: 'historical_conformity_comments_hidden_except_technical_measure_values'", 'historical comment semantics');
+requireText(latest, "controlCommentRule: 'latest_known_control_comments_preserved_with_source_provenance'", 'historical comment semantics');
 requireText(latest, "intranetRemarksRule: 'latest_remote_visit_summary_only_not_linked_to_controls'", 'Intranet remarks summary-only semantics');
 requireText(latest, "controle_key=NULL", 'Intranet remarks must stay independent from controls');
 forbidText(latest, 'remoteId(criterion?.visiteSourceId) !== remoteVisitId', 'older preparation controls must not be rejected');
@@ -76,4 +74,4 @@ if (historicalImport < 0 || referenceImport < 0 || historicalImport > referenceI
   throw new Error('prepared visit must materialize the latest preparation snapshot before importing the current API reference');
 }
 
-console.log('Visit preparation contract validated: latest-known fields, S/N.S/etc. and control comments can prefill the next visit without cloning old reserves/photos/conclusions, while Pré-allumage controls remain blank.');
+console.log('Visit preparation contract validated: latest-known fields, S/N.S/etc., comments and open reserves can cross trames through canonical concepts without cloning photos/conclusions; Pré-allumage controls remain to be redone.');
