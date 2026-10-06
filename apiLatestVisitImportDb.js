@@ -412,7 +412,7 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
   let sourceControlCriteria = 0;
   let unmappedControlCriteria = 0;
   let technicalCommentsPreserved = 0;
-  let hiddenHistoricalControlComments = 0;
+  let historicalControlCommentsPreserved = 0;
   let criteriaFromLatestVisit = 0;
   let criteriaFromEarlierVisits = 0;
   let criteriaWithoutSourceVisit = 0;
@@ -432,7 +432,8 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
         else criteriaWithoutSourceVisit += 1;
 
         const avis = meaningfulRemoteValue(criterion?.avis);
-        if (!avis) continue;
+        const rawComment = meaningfulRemoteValue(criterion?.commentaire);
+        if (!avis && !rawComment) continue;
         sourceControlCriteria += 1;
 
         const target = findControlCandidate(candidates, criterion?.nom, category?.nom, subCategory?.nom);
@@ -450,11 +451,10 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
           continue;
         }
 
-        const rawComment = meaningfulRemoteValue(criterion?.commentaire);
         const preserveTechnicalComment = isTechnicalControlTarget(trameId, target);
-        const commentaire = preserveTechnicalComment ? rawComment : null;
+        const commentaire = rawComment;
         if (preserveTechnicalComment && rawComment) technicalCommentsPreserved += 1;
-        if (!preserveTechnicalComment && rawComment) hiddenHistoricalControlComments += 1;
+        if (!preserveTechnicalComment && rawComment) historicalControlCommentsPreserved += 1;
 
         await db.runAsync(
           `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire) VALUES(?,?,?,?,?)
@@ -525,7 +525,7 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
       unmappedControlCriteria,
       unmappedControlSample,
       technicalCommentsPreserved,
-      hiddenHistoricalControlComments,
+      historicalControlCommentsPreserved,
       criteriaFromLatestVisit,
       criteriaFromEarlierVisits,
       criteriaWithoutSourceVisit,
@@ -534,7 +534,7 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
       importedRemarks,
       criteriaRule: 'preparation_values_are_latest_known_visiteSourceId_is_provenance_only',
       controlIdentityRule: 'remote_branch_is_category_subcategory_criterion_context_mapping',
-      controlCommentRule: 'historical_conformity_comments_hidden_except_technical_measure_values',
+      controlCommentRule: 'latest_known_control_comments_preserved_with_source_provenance',
       intranetRemarksRule: 'latest_remote_visit_summary_only_not_linked_to_controls',
       placeholderRule: 'slash_is_empty',
       materialsRule: 'current_patrimoine_not_historical_visit',
@@ -550,7 +550,7 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
     sourceControlCriteria,
     unmappedControlCriteria,
     technicalCommentsPreserved,
-    hiddenHistoricalControlComments,
+    historicalControlCommentsPreserved,
     criteriaFromLatestVisit,
     criteriaFromEarlierVisits,
     criteriaWithoutSourceVisit,
