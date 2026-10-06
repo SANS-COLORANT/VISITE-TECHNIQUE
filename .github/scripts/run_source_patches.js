@@ -85,6 +85,7 @@ const JS_SYNTAX_FILES = [
   'supportDump.js',
   'visitPrefillDb.js',
   'visitCarryForwardDb.js',
+  'trameSemanticMesh.js',
   'visitCreationDb.js',
   'ClientMapScreen.js',
   'EquipmentCatalogueBrowser.js',
