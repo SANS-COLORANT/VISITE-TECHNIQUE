@@ -14,6 +14,7 @@ import { extraireChampsPlaque, extraireValeurOcr } from './photoModeData.js';
 import { IconOrb, FadeUp } from './premiumChrome.js';
 import { ajouterCompteur, ajouterMateriel } from './db.js';
 import { ButtonGlow } from './ButtonGlow.js';
+import { LecturePhotoButton } from './PhotoOcrReview.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
 
 const clean = (v) => String(v == null ? '' : v).trim();
@@ -301,6 +302,7 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
   const [highlightId, setHighlightId] = useState(null);
   const valueRefs = React.useRef({});
   const [ocrPending, setOcrPending] = useState(null);
+  const [platePending, setPlatePending] = useState(null);
   const [chain, setChain] = useState(false);
   const [previous, setPrevious] = useState(null);
   const [burst, setBurst] = useState(null);
@@ -369,9 +371,9 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
         setHighlightId(currentTarget?.id || null); setStatus('Photo enregistrée · saisis la valeur'); await refresh(); setTimeout(() => valueRefs.current[currentTarget?.id]?.focus?.(), 350); return 'nofound';
       }
       if (plaque && ocr?.text && currentTarget) {
-        const data = extraireChampsPlaque(ocr.text); let next = snapshot; let count = 0;
-        for (const field of currentTarget.fields || []) { const value = data?.[field.id]; if (!value || clean(field.value) || !field.edit) continue; next = await applyCompanionTargetUpdate({ visiteId: snapshot.visit.id, edit: field.edit, value }); count += 1; }
-        setSnapshot(next); setStatus(count ? '✓ Plaque lue · ' + count + ' donnée' + (count > 1 ? 's' : '') : 'Plaque enregistrée'); feedback(count ? 'Plaque lue' : 'Plaque enregistrée'); return;
+        setPlatePending({ uri, text: ocr.text, target: currentTarget });
+        setStatus('Plaque enregistrée · vérifie la lecture avant application');
+        return;
       }
       await refresh(); setStatus('✓ Photo enregistrée'); feedback('Photo ajoutée'); return 'ok';
     } catch (e) { setStatus('Capture non enregistrée'); Alert.alert('Capture impossible', String(e?.message || e)); return 'error'; }
@@ -500,6 +502,16 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
     catch (e) { Alert.alert('Dictée impossible', String(e?.message || e)); }
   }, [saveField, target]);
 
+  if (platePending && snapshot?.visit) return <View style={{flex:1,backgroundColor:'transparent'}}>
+    <Header title="Vérification de la plaque" subtitle={platePending.target?.label} onBack={()=>setPlatePending(null)} accent={accent} light={light}/>
+    <LecturePhotoButton hideCapture kind="plate" label={platePending.target?.label} pendingPhoto={platePending}
+      current={Object.fromEntries((platePending.target?.fields||[]).map(f=>[f.id,f.value]))}
+      onClose={()=>setPlatePending(null)} onApply={async values=>{
+        let next=snapshot;
+        for(const field of platePending.target?.fields||[]){if(values[field.id]&&field.edit)next=await applyCompanionTargetUpdate({visiteId:snapshot.visit.id,edit:field.edit,value:values[field.id]})}
+        setSnapshot(next);setStatus('Plaque vérifiée · fiche enregistrée');
+      }}/>
+  </View>;
   if (burst && snapshot?.visit) {
     const restantes = burst.filter((x) => !x.done).length;
     return <View style={{ flex: 1, backgroundColor: 'transparent' }}><Header title="Trier la rafale" subtitle={burst.length + ' photo' + (burst.length > 1 ? 's' : '') + (restantes ? ' · ' + restantes + ' à rattacher' : ' · toutes rattachées')} icon="photo" onBack={() => setBurst(null)} accent={accent} light={light} />

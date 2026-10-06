@@ -126,10 +126,10 @@ export function TrameGenericPanel(props) {
   return <TrameGenericStaticPanel {...props} />;
 }
 
-function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPanel = null, onNextPanel = null, trameId = 'icpe_v1' }) {
+function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPanel = null, onNextPanel = null, trameId = 'icpe_v1', navigationScope = '' }) {
   const cacheInitial = visiteDataCache.get(visiteId)?.data;
   const listRef = useRef(null);
-  const navKey = `visit-panel:${String(visiteId || '')}:${String(panelId || '')}`;
+  const navKey = `visit-panel:${String(visiteId || '')}:${String(panelId || '')}${navigationScope ? `:${navigationScope}` : ''}`;
   const [champsMap, setChampsMap] = useState(cacheInitial?.champsMap || {});
   const [controlesMap, setControlesMap] = useState(cacheInitial?.controlesMap || {});
   const [aliases, setAliases] = useState({});

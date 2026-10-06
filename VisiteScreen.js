@@ -38,6 +38,7 @@ import { ToastHost, showToast } from './PremiumDialogs.js';
 import { getPrefSync, PREFS } from './uiPrefs.js';
 import { SignatureSheet, enregistrerSignatureVisite, lireSignatureVisite } from './visitSignature.js';
 import { SkeletonVisit } from './Skeleton.js';
+import { VisitSpaces } from './VisitSpaces.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function chargerExcelExportModule(){return require('./excelExport.js');}
@@ -157,6 +158,7 @@ function VisiteScreen({ route, onBack }) {
   const [rattachementVisible, setRattachementVisible] = useState(false);
   const [heroMini, setHeroMini] = useState(false);
   const [rechercheVisible, setRechercheVisible] = useState(false);
+  const [sommaireVisible, setSommaireVisible] = useState(true);
 
   const rafraichirEtatOnglets = useCallback(() => {
     calculerEtatOnglets(visiteId, trameIdRef.current)
@@ -353,6 +355,7 @@ function VisiteScreen({ route, onBack }) {
   }, [addMountedPanels, completeTabChange, pagerX]);
 
   const changerOnglet = useCallback((prochain, anime = true) => {
+    setSommaireVisible(false);
     if (!prochain || prochain === activeTabRef.current || transitionRef.current) return;
     Keyboard.dismiss();
     const tabs = tabOrderRef.current;
@@ -857,7 +860,8 @@ function VisiteScreen({ route, onBack }) {
         {!modeTablette && !ongletsEnBas && <SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} />}
       </View>
 
-      {modeTablette ? <View style={{ flex: 1, flexDirection: 'row' }}>
+      <TouchableOpacity accessibilityLabel="Sommaire de la visite" onPress={() => setSommaireVisible(v => !v)} style={{paddingHorizontal:18,paddingVertical:8,flexDirection:'row',alignItems:'center',gap:8}}><CvcIcon name="grid" size={20} color={COLORS.orange}/><Text style={{fontFamily:FONTS.bodyBold,color:COLORS.orange}}>{sommaireVisible?'Revenir à la saisie':'Sommaire de la visite'}</Text></TouchableOpacity>
+      {sommaireVisible ? <VisitSpaces visiteId={visiteId} trameId={trame.id} panels={panels} labels={panelLabels} tabIds={tabsReels} onOpenPanel={id=>{setSommaireVisible(false);changerOnglet(id)}} onClose={()=>setSommaireVisible(false)} onSaved={onSaved}/> : modeTablette ? <View style={{ flex: 1, flexDirection: 'row' }}>
         <View style={{ width: 205, backgroundColor: 'rgba(255,255,255,0.55)', borderRightWidth: 1, borderRightColor: 'rgba(22,21,15,0.08)' }}>
           <SideSectionList tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} />
         </View>

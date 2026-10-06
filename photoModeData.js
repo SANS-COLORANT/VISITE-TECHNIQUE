@@ -103,7 +103,7 @@ export function extraireChampsPlaque(text) {
   const serial = valueAfterLabel(lines, /(?:s\/?n|serial|n[°o]?\s*de\s*s[eé]rie|s[eé]rie)\s*[:#-]?\s*(.+)$/i);
   const model = valueAfterLabel(lines, /(?:mod[eè]le|model|type|r[eé]f(?:[eé]rence)?|ref)\s*[:#-]?\s*(.+)$/i);
   const yearMatch = lines.join(' ').match(/\b(19\d{2}|20\d{2})\b/);
-  const technical = lines.filter((line) => /\b(?:kw|mw|w|v|a|hz|bar|pa|kpa|m3\/h|m³\/h|l\/h|rpm|tr\/min)\b/i.test(line));
+  const technical = lines.filter((line) => /\b(?:kw|mw|w|v|a|hz|bar|pa|kpa|m3\/h|m³\/h|l\/h|rpm|tr\/min|combustible|gaz|fioul)\b|°\s*c/i.test(line));
 
   let brand = '';
   for (const line of lines.slice(0, 4)) {
@@ -120,6 +120,6 @@ export function extraireChampsPlaque(text) {
     modele: model,
     numero_materiel: serial,
     annee: yearMatch ? yearMatch[1] : '',
-    caracteristiques: technical.slice(0, 5).join(' · '),
+    caracteristiques: technical.slice(0, 8).join(' · '),
   };
 }

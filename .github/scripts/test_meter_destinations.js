@@ -76,20 +76,20 @@ async function main() {
   function exporter(source) {
     let state = { trameId: 'icpe_v1', compteurs: [] };
     const deps = { XLSX, FileSystem: {}, Sharing: {}, obtenirTrame: registry.obtenirTrame, DEFAULT_TRAME_ID: 'icpe_v1',
-      getDb: async () => ({ getAllAsync: async (sql) => sql.includes('champs_visite') ? state.fields || [] : [], getFirstAsync: async () => null }),
+      getDb: async () => ({ getAllAsync: async (sql) => sql.includes('champs_visite') ? state.fields || [] : sql.includes('points_mesure_visite') ? state.points || [] : [], getFirstAsync: async () => null }),
       getVisite: async () => ({ id: 'v', trame_id: state.trameId, nom_client: 'Client', nom_site: 'Site', adresse: 'Adresse', date_visite: '2026-10-06' }),
       listerReseaux: async () => [], listerMateriel: async () => [], listerRemarques: async () => [],
       listerCompteurs: async () => state.compteurs, getNote: async () => null,
       libelleChamp: (x) => x, libelleSection: (x) => x, listerAliasesPreAllumage: async () => ({}), chargerPreAllumageModulaire: async () => null,
       creerFichierSaf: async () => null, dossierVisiteMetra: async () => null };
     const mod = loadSource(source, deps);
-    return async (trameId, compteurs, fields = []) => {
-      state = { trameId, compteurs, fields };
+    return async (trameId, compteurs, fields = [], points = []) => {
+      state = { trameId, compteurs, fields, points };
       const { wb, trame } = await mod.construireClasseur('v');
       const sheet = wb.Sheets[trame.excel.mainSheet];
       const values = {};
       for (const [ref, cell] of Object.entries(sheet)) if (!ref.startsWith('!')) values[ref] = cell?.v;
-      return { values, sheet };
+      return { values, sheet, annex: wb.Sheets.MESURES_COMPLEMENTAIRES };
     };
   }
   const baseline = baselineExcelSource();
@@ -165,6 +165,9 @@ async function main() {
   }
   const meterHelpers = load('meterDestinations.js');
   check(Number.isNaN(meterHelpers.nombreIndex('9'.repeat(400))), 'index non fini refusé');
+  const withPoint=await apres('reseau_chaleur_v1',[],[],[{libelle:'Primaire · départ',valeur:'72',unite:'°C'}]);
+  check(withPoint.annex?.A2?.v==='Primaire · départ' && withPoint.annex?.B2?.v==='72', 'mesure complémentaire conservée dans une annexe Excel');
+  check(diff(withPoint.values,(await apres('reseau_chaleur_v1',[])).values).length===0, 'annexe mesures : aucune cellule standard modifiée');
 
   // Intranet : fonctions de production extraites de intranetVisitPayload.js.
   const payloadSource = fs.readFileSync(path.join(root, 'intranetVisitPayload.js'), 'utf8');

@@ -25,6 +25,9 @@ import { BoundedLruMap } from './boundedCache.js';
 import { useListScrollMemory } from './useListScrollMemory.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { EmptyIcon } from './EmptyState.js';
+import { COLORS } from './styles.js';
+import { listerAnomaliesPrecedentes } from './terrainVisitDb.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 
 // Garde la dernière version saisie en mémoire entre deux montages de l'onglet.
 // SQLite reste la source durable ; ce cache évite qu'un retour instantané sur
@@ -44,6 +47,7 @@ function libellePhotoRemarque(remarque, prestation) {
 }
 
 function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panelLabels, intranetLinked = false, reseauChaleur = false }) {
+  const [expanded, setExpanded] = useState(false);
   const [prestation, setPrestation, blurPrestation] = useDurableAutosave(remarque.prestation, async (v) => {
     await modifierRemarqueVisite(remarque.id, { prestation: v });
   });
@@ -105,6 +109,11 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
 
   return (
     <View style={styles.remarqueCard}>
+      <Text style={styles.importHint}>{panelLabels[remarque.reference_onglet] || 'Anomalie de la visite'}</Text>
+      <Text style={styles.cardTitle}>{remarque.reference_libelle || remarque.poste || 'Observation'}</Text>
+      <Text style={{fontFamily:FONTS.body,color:COLORS.inkSoft,marginVertical:10}}>{prestation || 'Préconisation à compléter'}</Text>
+      <View style={{flexDirection:'row',gap:8,marginBottom:8}}><TouchableOpacity style={styles.btnSecondary} onPress={()=>setExpanded(v=>!v)}><Text style={styles.btnSecondaryText}>{expanded?'Réduire':'Modifier'}</Text></TouchableOpacity><TouchableOpacity style={[styles.btnSecondary,{flex:1,backgroundColor:remarque.intranet_etat_avancement==='Terminé'?COLORS.green:'rgba(46,157,91,0.1)'}]} onPress={async()=>{const value=remarque.intranet_etat_avancement==='Terminé'?null:'Terminé';await modifierRemarqueVisite(remarque.id,{intranet_etat_avancement:value});setEtatAvancement(value||'');onPatch(remarque.id,{intranet_etat_avancement:value})}}><CvcIcon name="check" size={18} color={remarque.intranet_etat_avancement==='Terminé'?'#fff':COLORS.green}/><Text style={[styles.btnSecondaryText,{color:remarque.intranet_etat_avancement==='Terminé'?'#fff':COLORS.green}]}>{remarque.intranet_etat_avancement==='Terminé'?'Levée · réouvrir':'Levée sur place'}</Text></TouchableOpacity></View>
+      {expanded ? <>
       <View style={styles.remarqueTop}>
         <Text style={styles.remarquePoste}>Réserve de la visite</Text>
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
@@ -177,6 +186,7 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
           {remarque.reference_onglet ? `↗ ${panelLabels[remarque.reference_onglet] || remarque.reference_onglet} · ${remarque.reference_libelle || ''}` : '+ Rattacher à un onglet ou un élément'}
         </Text>
       </TouchableOpacity>
+      </> : null}
     </View>
   );
 }
@@ -184,6 +194,11 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
 function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, panels = {}, intranetLinked = false, trameId = 'icpe_v1' }) {
   const reseauChaleur = trameId === 'reseau_chaleur_v1';
   const [remarques, setRemarques] = useState(() => remarksCache.get(visiteId) || []);
+  const [filtre, setFiltre] = useState('actuelles');
+  const [precedentes, setPrecedentes] = useState([]);
+  useEffect(()=>{let alive=true;listerAnomaliesPrecedentes(visiteId).then(rows=>{if(alive)setPrecedentes(rows)}).catch(console.warn);return()=>{alive=false}},[visiteId]);
+  const actuelles=remarques.filter(r=>r.intranet_etat_avancement!=='Terminé'), levees=remarques.filter(r=>r.intranet_etat_avancement==='Terminé');
+  const visibles=filtre==='precedentes'?precedentes:filtre==='levees'?levees:actuelles;
   const { listRef, onScroll } = useListScrollMemory(`visit-panel:${visiteId}:p-remarques`, remarques.length);
   const [biblioVisible, setBiblioVisible] = useState(false);
   const [biblio, setBiblio] = useState([]);
@@ -292,7 +307,9 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
         <View style={styles.totalsCard}><Text style={styles.totalsNum}>{Math.round(stats.estimatif)} €</Text><Text style={styles.totalsLabel}>Estimatif HT</Text></View>
         <View style={styles.totalsCard}><Text style={styles.totalsNum}>{stats.urgentes}</Text><Text style={styles.totalsLabel}>≤ 3 mois</Text></View>
       </View>
-      <Text style={styles.sectionTitle}>Synthèse des réserves — valeurs de cette visite</Text>
+        <Text style={styles.sectionTitle}>Synthèse des réserves — valeurs de cette visite</Text>
+        <View style={{flexDirection:'row',gap:4,marginBottom:12}}>{[['actuelles','À traiter',actuelles.length],['levees','Levées',levees.length],['precedentes','Précédentes',precedentes.length]].map(([key,label,count])=><TouchableOpacity key={key} style={[filtre===key?styles.btnPrimary:styles.btnSecondary,{paddingHorizontal:8}]} onPress={()=>setFiltre(key)}>{filtre===key?<ButtonGlow/>:null}<Text style={filtre===key?styles.btnPrimaryText:styles.btnSecondaryText}>{label} {count}</Text></TouchableOpacity>)}</View>
+        {filtre==='precedentes'?<Text style={styles.importHint}>Historique du même local et de la même trame. Ces réserves ne sont pas des constats de cette visite.</Text>:null}
     </View>
   );
 
@@ -300,11 +317,11 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
     <View style={{ flex: 1 }}>
       <FlatList
         ref={listRef}
-        data={remarques}
+        data={visibles}
         onScroll={onScroll}
         scrollEventThrottle={100}
         keyExtractor={(item) => item.id}
-        renderItem={({ item }) => <ReserveCard remarque={item} visiteId={visiteId} onPatch={patchLocal} onDelete={deleteLocal} onRattacher={ouvrirRattachement} panelLabels={panelLabels} intranetLinked={intranetLinked} reseauChaleur={reseauChaleur} />}
+        renderItem={({ item }) => filtre==='precedentes'?<View style={styles.remarqueCard}><Text style={styles.importHint}>Visite {item.date_source}</Text><Text style={styles.cardTitle}>{item.reference_libelle||item.poste}</Text><Text style={{fontFamily:FONTS.body,color:COLORS.inkSoft,marginTop:8}}>{item.prestation}</Text></View>:<ReserveCard remarque={item} visiteId={visiteId} onPatch={patchLocal} onDelete={deleteLocal} onRattacher={ouvrirRattachement} panelLabels={panelLabels} intranetLinked={intranetLinked} reseauChaleur={reseauChaleur} />}
         ListHeaderComponent={header}
         ListEmptyComponent={<View style={styles.empty}><EmptyIcon name="remark" /><Text style={styles.emptyText}>Aucune réserve pour l'instant.</Text><Text style={styles.emptySub}>Passe un point de contrôle en N.S pour en générer une.</Text></View>}
         ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ouvrirBiblio}><Text style={styles.addBtnText}>+ Ajouter une réserve manuelle</Text></TouchableOpacity>}
