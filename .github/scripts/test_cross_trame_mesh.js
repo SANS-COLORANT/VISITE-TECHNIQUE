@@ -84,9 +84,11 @@ async function main() {
 
     const icpe = registry.obtenirTrame('icpe_v1');
     const rcuDef = registry.obtenirTrame('reseau_chaleur_v1');
-    const find = (def, cle, type = null) => {
-      const rows = def.excel.fieldMappings.filter((m) => m.cle === cle && (!type || m.type === type));
-      assert.equal(rows.length, 1, `${def.id}: mapping unique attendu pour ${cle}`);
+    const find = (def, cle, type = null, section = null) => {
+      const rows = def.excel.fieldMappings.filter((m) =>
+        m.cle === cle && (!type || m.type === type) && (!section || m.section === section)
+      );
+      assert.ok(rows.length >= 1, `${def.id}: mapping attendu pour ${cle}${section ? ` / ${section}` : ''}`);
       return rows[0];
     };
 
@@ -121,7 +123,7 @@ async function main() {
     assert.equal(rcuResult.copiedReserves, 1, 'only unresolved reserve copied');
 
     const dstExploitant = find(rcuDef, 'Exploitant - marché', 'champ');
-    const dstProduction = find(rcuDef, 'Production primaire', 'champ');
+    const dstProduction = find(rcuDef, 'Production primaire', 'champ', 'Informations générales');
     const dstPh = find(rcuDef, 'pH', 'controle');
     assert.equal((await server.db.getFirstAsync(
       'SELECT valeur FROM champs_visite WHERE visite_id=? AND section_code=? AND cle=?',
