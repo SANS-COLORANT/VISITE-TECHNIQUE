@@ -51,6 +51,14 @@ Pour `reseau_chaleur_v1`, l'association `equipement_trames` porte en plus le
 en conserve un instantané historique. Ce classement est donc propre à cette
 trame et ne modifie pas le comportement ICPE, VMC ou Pré-allumage.
 
+## Maillage sémantique inter-trames
+
+Les trames sont des vues métier différentes sur un socle commun. Un champ ou un contrôle pouvant représenter la même information dans plusieurs trames possède une clé sémantique canonique (par exemple exploitant, nombre de logements, production primaire, type de régulation, température extérieure, pH ou index d’énergie). La dernière valeur connue d’un concept peut ainsi être proposée dans une autre trame du même local sans dépendre du libellé Excel ni de l’onglet d’origine.
+
+La donnée source reste attachée à sa visite d’origine. Le maillage ne fusionne pas les visites : il construit une projection de préremplissage vers les champs compatibles de la nouvelle trame. Une information sans équivalent sûr dans la trame cible n’est jamais injectée arbitrairement.
+
+Les réserves ouvertes sont suivies au niveau du local avec une lignée stable : elles peuvent être reprises d’une trame à l’autre jusqu’à leur état `Terminé` ou `Annulé`. Les photos et conclusions restent des références historiques et ne sont pas clonées.
+
 ## Données de visite
 
 Chaque visite stocke ses propres :
@@ -63,7 +71,7 @@ Chaque visite stocke ses propres :
 - réserves ;
 - conclusion.
 
-Ces données ne sont pas partagées entre les trames.
+Ces enregistrements restent historisés par visite/trame. Les concepts compatibles peuvent toutefois être réutilisés par le maillage sémantique comme préremplissage d’une autre trame du même local.
 
 Dans une visite Réseau de chaleur, `remarques.perimetre` conserve le classement
 Primaire / Secondaire de chaque réserve. Pour une réserve issue d'un contrôle,
