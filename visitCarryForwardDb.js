@@ -25,10 +25,9 @@ function canCarryField(trame, field) {
   // Pré-allumage est volontairement l'exception : seules les informations
   // durables explicitement marquées stable/carryForward sont reprises.
   if (trame.id === 'pre_allumage') return Boolean(field.stable || field.carryForward);
-  if (trame.id === 'reseau_chaleur_v1') return Boolean(field.carryForward);
-
-  // ICPE, VMC et les futures trames classiques repartent de la dernière
-  // visite du même local/trame. Les valeurs restent immédiatement modifiables.
+  // ICPE, VMC, Réseau de chaleur et les futures trames classiques repartent
+  // de la dernière saisie connue du même local/trame. Les valeurs sont un
+  // préremplissage immédiatement modifiable, jamais une validation du jour.
   return true;
 }
 
@@ -120,8 +119,6 @@ async function copyReusableFields(db, visiteId, previousVisitId, trame) {
 async function copyReusableControls(db, visiteId, previousVisitId, trame) {
   // Les essais de Pré-allumage doivent être refaits à chaque visite.
   if (trame.id === 'pre_allumage') return 0;
-  if (trame.id === 'reseau_chaleur_v1') return 0;
-
   const importedHistory = await isImportedHistoricalVisit(db, previousVisitId);
   const technicalKeys = importedHistory ? technicalControlKeys(trame) : new Set();
   const rows = await db.getAllAsync(
@@ -136,11 +133,10 @@ async function copyReusableControls(db, visiteId, previousVisitId, trame) {
     const key = `${row.section_code}||${row.cle}`;
     const avis = clean(row.avis) || null;
     const previousComment = clean(row.commentaire) || null;
-    // Une visite historique Intranet sert de photographie de départ : on reprend
-    // l'avis S/N.S/etc., mais pas son commentaire de conformité. Les mesures du
-    // panneau Relevés restent conservées car leur valeur métier est portée par
-    // commentaire dans le modèle Symfony.
-    const commentaire = importedHistory && !technicalKeys.has(key) ? null : previousComment;
+    // Le commentaire fait partie de la dernière saisie connue du contrôle et
+    // doit donc être proposé avec l'avis. Il reste modifiable dans la nouvelle
+    // visite et aucune réserve historique n'est dupliquée.
+    const commentaire = previousComment;
     if (!avis && !commentaire) continue;
     const result = await db.runAsync(
       `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)
@@ -345,7 +341,7 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
   const copiedFields = await copyReusableFields(db, visiteId, previous.id, trame);
   const copiedControls = await copyReusableControls(db, visiteId, previous.id, trame);
   const porteReseaux = trame.id === DEFAULT_TRAME_ID || trame.id === 'reseau_chaleur_v1';
-  const referenceOnly = trame.id === 'reseau_chaleur_v1';
+  const referenceOnly = false;
   const copiedNetworks = porteReseaux ? await copyNetworkValues(db, visiteId, previous.id, referenceOnly) : 0;
   const copiedMeters = porteReseaux ? await copyMeterValues(db, visiteId, previous.id, referenceOnly) : 0;
 
