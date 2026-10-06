@@ -21,7 +21,7 @@ Les rôles spécialisés sont décrits dans `agents/`.
 3. Équipements filtrés selon la trame.
 4. Contrôles propres à chaque trame.
 5. Un avis satisfaisant peut et doit proposer un commentaire positif.
-6. Une nouvelle visite ICPE ou VMC reprend par défaut les champs, mesures, réseaux/compteurs et avis de la dernière visite du même local et de la même trame, comme valeurs de préremplissage immédiatement modifiables. Pré-allumage ne reprend que les informations durables explicitement prévues et laisse les contrôles à refaire vides. Les réserves, photos et conclusions historiques ne deviennent jamais automatiquement de nouvelles observations.
+6. Une nouvelle visite ICPE, VMC ou Réseau de chaleur reprend par défaut les champs, mesures, réseaux/compteurs, avis, commentaires de contrôle et réserves non levées de la dernière visite du même local et de la même trame, comme données de préremplissage immédiatement modifiables. Pré-allumage ne reprend que les informations durables explicitement prévues et laisse les contrôles à refaire vides. Les réserves terminées/annulées, photos et conclusions historiques restent uniquement dans l’historique.
 7. L’application doit rester utilisable hors connexion.
 8. Une modification d’une trame ne doit pas casser les autres.
 9. Le module Missions est strictement indépendant de l'Intranet et reste désactivé par défaut derrière le verrou LAB défini dans `docs/MISSIONS.md`.
