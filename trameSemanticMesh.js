@@ -13,18 +13,27 @@ const norm = (value) => String(value || '')
   .replace(/[^a-z0-9]+/g, ' ')
   .trim();
 
-const SEMANTIC_ALIASES = Object.freeze({
-  'nbr de bat lgt': 'patrimoine.nombre_logements',
+const GLOBAL_ALIASES = Object.freeze({
+  'nbr de bat lgt': 'patrimoine.batiments_logements_resume',
   'nombre de logements': 'patrimoine.nombre_logements',
   'exploitant marche': 'patrimoine.exploitant',
   'exploitant': 'patrimoine.exploitant',
   'type de lt': 'patrimoine.type_local_technique',
-  'situation localisation': 'patrimoine.situation_local',
   'situation': 'patrimoine.situation_local',
   'production primaire': 'production.primaire.type',
   'production ecs': 'production.ecs.type',
   'type de regulation': 'regulation.type',
   'courbe de chauffe': 'regulation.courbe_chauffe',
+  'ph': 'mesure.eau.ph',
+  'pression reseau de chauffage bar': 'mesure.chauffage.pression',
+  'pression reseau d ecs bar': 'mesure.ecs.pression',
+  'index compteur energie mwh': 'compteur.energie.index',
+  'index compteur energie general mwh': 'compteur.energie.index',
+  'index compteur alimentation ef ecs m3': 'compteur.ecs.ef.index',
+  'index compteur d appoint eau chauffage m3': 'compteur.chauffage.appoint.index',
+});
+
+const SCOPED_ALIASES = Object.freeze({
   'tnc': 'regulation.temperature_non_chauffe',
   'temperature de non chauffe c': 'regulation.temperature_non_chauffe',
   't ext c': 'mesure.temperature_exterieure',
@@ -39,27 +48,32 @@ const SEMANTIC_ALIASES = Object.freeze({
   'eau chaude sanitaire t retour c': 'mesure.ecs.retour',
   'retour ecs c': 'mesure.ecs.retour',
   'eau chaude sanitaire t stockage c': 'mesure.ecs.stockage',
-  'ph': 'mesure.eau.ph',
-  'pression reseau de chauffage bar': 'mesure.chauffage.pression',
-  'pression reseau d ecs bar': 'mesure.ecs.pression',
-  'index compteur energie mwh': 'compteur.energie.index',
-  'index compteur energie general mwh': 'compteur.energie.index',
-  'index compteur alimentation ef ecs m3': 'compteur.ecs.ef.index',
-  'index compteur d appoint eau chauffage m3': 'compteur.chauffage.appoint.index',
 });
+
+function contextKey(panelId, section) {
+  return `${norm(panelId).replace(/^p /, '')}.${norm(section)}`;
+}
 
 function sectionCode(panelId, section) {
   return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
 }
 
-function semanticKey(label, section, duplicateCount = 1, explicit = null) {
+function semanticKey(label, panelId, section, duplicateCount = 1, explicit = null) {
   if (explicit) return String(explicit);
   const labelKey = norm(label);
   if (!labelKey) return null;
-  if (SEMANTIC_ALIASES[labelKey]) return SEMANTIC_ALIASES[labelKey];
-  // Un même libellé répété dans plusieurs sections de la même trame doit rester
-  // contextualisé (ex. "Matériaux tuyauterie" Chauffage vs ECS).
-  if (duplicateCount > 1) return `champ.${norm(section)}.${labelKey}`;
+  if (GLOBAL_ALIASES[labelKey]) return GLOBAL_ALIASES[labelKey];
+  if (SCOPED_ALIASES[labelKey]) {
+    // Une mesure répétée par SST/caisson ne peut pas être rabattue sur une
+    // valeur unique du local sans perdre son contexte.
+    return duplicateCount > 1
+      ? `${SCOPED_ALIASES[labelKey]}.${contextKey(panelId, section)}`
+      : SCOPED_ALIASES[labelKey];
+  }
+  // Tous les champs obtiennent une identité. Les libellés répétés sont
+  // contextualisés avec le panneau ET la section : les six caissons VMC, par
+  // exemple, ne doivent jamais se recopier les uns sur les autres.
+  if (duplicateCount > 1) return `champ.${contextKey(panelId, section)}.${labelKey}`;
   return `champ.${labelKey}`;
 }
 
@@ -85,7 +99,7 @@ export function construireIndexSemantiqueTrame(trame) {
       m.panelId === panelId && m.section === section && m.cle === field.cle
     );
     const code = mapped?.sectionCode || sectionCode(panelId, section);
-    const key = semanticKey(field.cle, section, counts.get(norm(field.cle)), field.semanticKey);
+    const key = semanticKey(field.cle, panelId, section, counts.get(norm(field.cle)), field.semanticKey);
     if (!key) continue;
     const row = { ...definition, sectionCode: code, semanticKey: key, type: field.type || mapped?.type || 'champ' };
     byStorage.set(`${code}||${field.cle}`, row);
