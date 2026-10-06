@@ -16,7 +16,7 @@ import { forgetPhotoVariants, preparePhotoVariants } from './photoVariantCache.j
 import { PhotoVariantImage } from './PhotoVariantImage.js';
 import { beginExternalSave, endExternalSave } from './saveActivity.js';
 import { launchMetraCamera, prewarmCameraRuntime } from './cameraRuntime.js';
-import { nettoyerNomFichier, prewarmPhotoCaptureContext } from './photoCaptureContext.js';
+import { prewarmPhotoCaptureContext } from './photoCaptureContext.js';
 import { loadVisitPhotos, peekVisitPhotos, removeRuntimePhoto, replaceRuntimePhoto, subscribeVisitPhotos, upsertRuntimePhoto } from './photoRuntimeCache.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
 
@@ -37,9 +37,21 @@ function estCleControle(entiteKey) {
 
 function horodatagePhoto(date = new Date()) {
   const p = (n) => String(n).padStart(2, '0');
-  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}_${p(date.getHours())}-${p(date.getMinutes())}-${p(date.getSeconds())}`;
+  return {
+    date: `${p(date.getDate())}${p(date.getMonth() + 1)}${date.getFullYear()}`,
+    heure: `${p(date.getHours())}${p(date.getMinutes())}${p(date.getSeconds())}`,
+  };
 }
-function suffixeCourt() { return Math.random().toString(36).slice(2, 6).toUpperCase(); }
+
+function segmentNomPhoto(valeur = '', fallback = 'Photo') {
+  const propre = String(valeur || fallback)
+    .replace(/[\u0000-\u001f\u007f]/g, ' ')
+    .replace(/[\\/:*?"<>|]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 80);
+  return propre || fallback;
+}
 
 function libelleCaissonVmc(index, nom) {
   const base = `Caisson n°${index}`;
@@ -144,11 +156,13 @@ async function preparerPhotoNommee({ visiteId, entiteKey = null, label = 'Photo'
     clePhotoCanoniqueVmc(visiteId, entiteKey),
     prewarmPhotoCaptureContext(visiteId),
   ]);
-  const site = context?.site || nettoyerNomFichier(context?.siteName, 'Site');
   const type = typePhotoDepuisEntite(entiteCanonique);
   const labelMetier = await libellePhotoMetier(visiteId, entiteCanonique, label);
-  const libelle = nettoyerNomFichier(labelMetier || type, type);
-  const nom = `${site}__${type}__${libelle}__${horodatagePhoto()}__${suffixeCourt()}.jpg`;
+  const client = segmentNomPhoto(context?.clientName || context?.client, 'Client');
+  const site = segmentNomPhoto(context?.siteName || context?.site, 'Site');
+  const local = segmentNomPhoto(context?.localName || context?.local, 'Local');
+  const stamp = horodatagePhoto();
+  const nom = `${client} - ${site} - ${local} - ${stamp.date} - ${stamp.heure}.jpg`;
   const uriDurable = await copierPhotoDurable(uri, visiteId, nom);
   // La copie interne reste la source canonique pour le backup. Une seconde copie
   // est déposée dans Documents afin d'être directement visible par l'utilisateur.
