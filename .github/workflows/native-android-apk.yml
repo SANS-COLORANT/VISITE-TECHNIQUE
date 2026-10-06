@@ -307,6 +307,7 @@ jobs:
           node .github/scripts/run_source_patches.js
           node .github/scripts/test_intranet_visit_upload.js
           node .github/scripts/test_intranet_first_visit_preparation.js
+          node .github/scripts/test_meter_destinations.js
 
       - name: Validate JavaScript bundle
         run: npx expo export --platform android --output-dir dist-ci
