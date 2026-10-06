@@ -1,3 +1,4 @@
+// Build trigger: field visit persistence and compact equipment UX
 // Valeurs de secours pour le developpement local.
 // Le workflow Android remplace automatiquement APK_BUILD par le numero exact du build.
 export const APP_RELEASE = 'Alpha 1';
