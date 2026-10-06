@@ -104,9 +104,10 @@ async function main() {
     const icpeSemantic=semantic.construireIndexSemantiqueTrame(registry.obtenirTrame('icpe_v1'));
     const rcuSemantic=semantic.construireIndexSemantiqueTrame(registry.obtenirTrame('reseau_chaleur_v1'));
     const vmcSemantic=semantic.construireIndexSemantiqueTrame(registry.obtenirTrame('vmc'));
-    assert.ok(icpeSemantic.bySemantic.has('patrimoine.nombre_logements') && rcuSemantic.bySemantic.has('patrimoine.nombre_logements'),'ICPE and RCU share canonical housing information');
+    assert.ok(icpeSemantic.bySemantic.has('patrimoine.batiments_logements_resume') && rcuSemantic.bySemantic.has('patrimoine.batiments_logements_resume'),'ICPE and RCU share the same canonical building/housing summary');
     assert.ok(icpeSemantic.bySemantic.has('patrimoine.exploitant') && vmcSemantic.bySemantic.has('patrimoine.exploitant'),'ICPE and VMC share canonical operator information');
     assert.ok(icpeSemantic.bySemantic.has('production.primaire.type') && rcuSemantic.bySemantic.has('production.primaire.type'),'production data is reusable across technical trames');
+    assert.notEqual(vmcSemantic.byStorage.get('vmc-c1.situation||Accès au caisson')?.semanticKey,vmcSemantic.byStorage.get('vmc-c2.situation||Accès au caisson')?.semanticKey,'repeated VMC caissons keep distinct semantic identities');
     for(const id of ['icpe_v1','reseau_chaleur_v1','vmc','pre_allumage']){
       assert.equal(model.utiliseParcoursTerrain(id),id!=='pre_allumage',`${id}: shared terrain navigation except dedicated pre-allumage`);
       const def=registry.obtenirTrame(id),panels=def.ui.panels;
