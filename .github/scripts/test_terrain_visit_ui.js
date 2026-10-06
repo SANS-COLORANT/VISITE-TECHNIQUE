@@ -100,6 +100,13 @@ async function main() {
     const data=load('data.js'), XLSX=require('xlsx');
     const rcu=load('reseauChaleurTrame.js',{TRAME_DATA:data.TRAME_DATA,TEMPLATE_RESEAU_CHALEUR_BASE64:'fixture'});
     const registry=load('trameRegistry.js',{...data,...rcu,TEMPLATE_EXCEL_BASE64:'fixture',...load('vmcTrame.js',{XLSX}),...load('preAllumageTrame.js',{XLSX}),...load('trameValidation.js')});
+    const semantic=load('trameSemanticMesh.js');
+    const icpeSemantic=semantic.construireIndexSemantiqueTrame(registry.obtenirTrame('icpe_v1'));
+    const rcuSemantic=semantic.construireIndexSemantiqueTrame(registry.obtenirTrame('reseau_chaleur_v1'));
+    const vmcSemantic=semantic.construireIndexSemantiqueTrame(registry.obtenirTrame('vmc'));
+    assert.ok(icpeSemantic.bySemantic.has('patrimoine.nombre_logements') && rcuSemantic.bySemantic.has('patrimoine.nombre_logements'),'ICPE and RCU share canonical housing information');
+    assert.ok(icpeSemantic.bySemantic.has('patrimoine.exploitant') && vmcSemantic.bySemantic.has('patrimoine.exploitant'),'ICPE and VMC share canonical operator information');
+    assert.ok(icpeSemantic.bySemantic.has('production.primaire.type') && rcuSemantic.bySemantic.has('production.primaire.type'),'production data is reusable across technical trames');
     for(const id of ['icpe_v1','reseau_chaleur_v1','vmc','pre_allumage']){
       assert.equal(model.utiliseParcoursTerrain(id),id!=='pre_allumage',`${id}: shared terrain navigation except dedicated pre-allumage`);
       const def=registry.obtenirTrame(id),panels=def.ui.panels;
