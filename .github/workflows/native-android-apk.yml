@@ -12,6 +12,7 @@ on:
       - native-android
       - feat/report-local-patrimoine-apk435
       - feat/metra-phone-companion-cross-device
+      - feat/reseau-chaleur-from-build641
     paths:
       - '**/*.js'
       - '**/*.json'
