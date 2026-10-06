@@ -16,12 +16,12 @@ Les rôles spécialisés sont décrits dans `agents/`.
 
 ## Règles non négociables
 
-1. Patrimoine partagé, observations de visite isolées.
-2. Remarques et réserves strictement liées à leur visite/trame.
-3. Équipements filtrés selon la trame.
-4. Contrôles propres à chaque trame.
+1. Patrimoine partagé et informations techniques maillées par concepts canoniques entre les trames du même local ; chaque valeur conserve sa provenance de visite.
+2. Les réserves non levées suivent le local entre les trames jusqu’à leur levée/annulation ; photos et conclusions restent historiques.
+3. Équipements patrimoniaux partagés mais filtrés selon l’applicabilité de la trame.
+4. Les contrôles restent définis par chaque trame, mais un concept équivalent peut recevoir la dernière valeur connue provenant d’une autre trame.
 5. Un avis satisfaisant peut et doit proposer un commentaire positif.
-6. Une nouvelle visite ICPE, VMC ou Réseau de chaleur reprend par défaut les champs, mesures, réseaux/compteurs, avis, commentaires de contrôle et réserves non levées de la dernière visite du même local et de la même trame, comme données de préremplissage immédiatement modifiables. Pré-allumage ne reprend que les informations durables explicitement prévues et laisse les contrôles à refaire vides. Les réserves terminées/annulées, photos et conclusions historiques restent uniquement dans l’historique.
+6. Une nouvelle visite ICPE, VMC ou Réseau de chaleur reprend par défaut les dernières valeurs compatibles du même local, toutes trames techniques confondues, via le maillage sémantique : champs, mesures, réseaux/compteurs, avis, commentaires de contrôle et réserves non levées, comme données de préremplissage immédiatement modifiables. Pré-allumage ne reprend que les informations durables explicitement prévues et laisse les contrôles à refaire vides. Les réserves terminées/annulées, photos et conclusions historiques restent uniquement dans l’historique.
 7. L’application doit rester utilisable hors connexion.
 8. Une modification d’une trame ne doit pas casser les autres.
 9. Le module Missions est strictement indépendant de l'Intranet et reste désactivé par défaut derrière le verrou LAB défini dans `docs/MISSIONS.md`.
