@@ -1,5 +1,6 @@
 import { createId } from './database/ids.js';
 import { DEFAULT_TRAME_ID, obtenirTrame } from './trameRegistry.js';
+import { construireIndexSemantiqueTrame } from './trameSemanticMesh.js';
 
 function clean(value) { return value == null ? '' : String(value).trim(); }
 function sectionCode(panelId, section) {
@@ -57,151 +58,151 @@ async function isImportedHistoricalVisit(db, visiteId) {
   return Boolean(row?.id);
 }
 
-async function copyReusableFields(db, visiteId, previousVisitId, trame) {
-  const rows = trame.id === 'reseau_chaleur_v1' ? await db.getAllAsync(
-    `SELECT c.section_code,c.cle,c.valeur FROM champs_visite c JOIN visites v ON v.id=c.visite_id
-     WHERE v.id<>? AND v.trame_id=? AND v.installation_id=(SELECT installation_id FROM visites WHERE id=?)
-       AND c.valeur IS NOT NULL AND trim(c.valeur)<>''
-     ORDER BY COALESCE(v.date_visite,'') DESC,v.modifie_le DESC`, [visiteId, trame.id, visiteId]
-  ) : await db.getAllAsync(
-    `SELECT section_code,cle,valeur FROM champs_visite
-     WHERE visite_id=? AND valeur IS NOT NULL AND trim(valeur)<>''`,
-    [previousVisitId]
-  );
-  let copied = 0;
+async function copyReusableFields(db, visiteId, sourceVisits, trame) {
+  const targetIndex = construireIndexSemantiqueTrame(trame);
+  const latest = new Map();
 
-  if (trame.id !== 'pre_allumage' && trame.id !== 'reseau_chaleur_v1') {
-    // Chemin critique d'ouverture : recopier tous les champs réutilisables en
-    // une seule instruction SQLite au lieu d'une écriture JS par champ.
-    const metadata = [...CURRENT_METADATA_KEYS];
-    const placeholders = metadata.map(() => '?').join(',');
-    const result = await db.runAsync(
-      `INSERT INTO champs_visite(visite_id,section_code,cle,valeur)
-       SELECT ?,section_code,cle,valeur
-       FROM champs_visite
-       WHERE visite_id=?
-         AND valeur IS NOT NULL AND trim(valeur)<>''
-         AND section_code IS NOT NULL AND trim(section_code)<>''
-         AND cle IS NOT NULL AND trim(cle)<>''
-         AND cle NOT IN (${placeholders})
-       ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur
-       WHERE champs_visite.valeur IS NULL OR trim(champs_visite.valeur)=''`,
-      [visiteId, previousVisitId, ...metadata]
+  for (const visit of sourceVisits) {
+    let sourceTrame;
+    try { sourceTrame = obtenirTrame(visit.trame_id || DEFAULT_TRAME_ID); } catch { continue; }
+    const sourceIndex = construireIndexSemantiqueTrame(sourceTrame);
+    const rows = await db.getAllAsync(
+      `SELECT section_code,cle,valeur FROM champs_visite
+       WHERE visite_id=? AND valeur IS NOT NULL AND trim(valeur)<>''`,
+      [visit.id]
     );
-    return Number(result?.changes || 0);
+    for (const row of rows || []) {
+      const semantic = sourceIndex.byStorage.get(`${row.section_code}||${row.cle}`)?.semanticKey;
+      if (!semantic || latest.has(semantic)) continue;
+      latest.set(semantic, { valeur: row.valeur, sourceVisitId: visit.id, sourceTrameId: visit.trame_id });
+    }
   }
 
-  const previous = new Map();
-  for (const row of rows || []) {
-    const key = `${row.section_code}||${row.cle}`;
-    if (!previous.has(key)) previous.set(key, row.valeur);
-  }
-  for (const [panelId, sections] of Object.entries(trame.ui?.panels || {})) {
-    for (const [section, fields] of Object.entries(sections || {})) {
-      const code = trame.excel?.fieldMappings?.find((m) => m.panelId === panelId && m.section === section)?.sectionCode || sectionCode(panelId, section);
-      for (const field of fields || []) {
-        if (!canCarryField(trame, field)) continue;
-        const value = previous.get(`${code}||${field.cle}`);
-        if (value == null || clean(value) === '') continue;
-        const result = await db.runAsync(
-          `INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)
-           ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur
-           WHERE champs_visite.valeur IS NULL OR trim(champs_visite.valeur)=''`,
-          [visiteId, code, field.cle, String(value)]
-        );
-        if (Number(result?.changes || 0) > 0) copied += 1;
-      }
+  let copied = 0;
+  for (const targets of targetIndex.bySemantic.values()) {
+    for (const target of targets) {
+      if (target.type !== 'champ' || !canCarryField(trame, target.field)) continue;
+      const source = latest.get(target.semanticKey);
+      if (!source || clean(source.valeur) === '') continue;
+      const result = await db.runAsync(
+        `INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)
+         ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur
+         WHERE champs_visite.valeur IS NULL OR trim(champs_visite.valeur)=''`,
+        [visiteId, target.sectionCode, target.field.cle, String(source.valeur)]
+      );
+      if (Number(result?.changes || 0) > 0) copied += 1;
     }
   }
   return copied;
 }
 
-async function copyReusableControls(db, visiteId, previousVisitId, trame) {
-  // Les essais de Pré-allumage doivent être refaits à chaque visite.
+async function copyReusableControls(db, visiteId, sourceVisits, trame) {
+  // Les essais de Pré-allumage doivent être refaits à chaque visite. Les autres
+  // trames peuvent réutiliser le dernier constat du même concept, quelle que
+  // soit la trame source.
   if (trame.id === 'pre_allumage') return 0;
-  const importedHistory = await isImportedHistoricalVisit(db, previousVisitId);
-  const technicalKeys = importedHistory ? technicalControlKeys(trame) : new Set();
-  const rows = await db.getAllAsync(
-    `SELECT section_code,cle,avis,commentaire FROM controles_visite
-     WHERE visite_id=?
-       AND (avis IS NOT NULL OR commentaire IS NOT NULL)`,
-    [previousVisitId]
-  );
-  let copied = 0;
-  for (const row of rows || []) {
-    if (!row?.section_code || !row?.cle) continue;
-    const key = `${row.section_code}||${row.cle}`;
-    const avis = clean(row.avis) || null;
-    const previousComment = clean(row.commentaire) || null;
-    // Le commentaire fait partie de la dernière saisie connue du contrôle et
-    // doit donc être proposé avec l'avis. Il reste modifiable dans la nouvelle
-    // visite et aucune réserve historique n'est dupliquée.
-    const commentaire = previousComment;
-    if (!avis && !commentaire) continue;
-    const result = await db.runAsync(
-      `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)
-       VALUES(?,?,?,?,?)
-       ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET
-         avis=excluded.avis,
-         commentaire=excluded.commentaire
-       WHERE (controles_visite.avis IS NULL OR trim(controles_visite.avis)='')
-         AND (controles_visite.commentaire IS NULL OR trim(controles_visite.commentaire)='')`,
-      [visiteId, row.section_code, row.cle, avis, commentaire]
+
+  const targetIndex = construireIndexSemantiqueTrame(trame);
+  const latest = new Map();
+  for (const visit of sourceVisits) {
+    let sourceTrame;
+    try { sourceTrame = obtenirTrame(visit.trame_id || DEFAULT_TRAME_ID); } catch { continue; }
+    const sourceIndex = construireIndexSemantiqueTrame(sourceTrame);
+    const rows = await db.getAllAsync(
+      `SELECT section_code,cle,avis,commentaire FROM controles_visite
+       WHERE visite_id=? AND (avis IS NOT NULL OR commentaire IS NOT NULL)`,
+      [visit.id]
     );
-    if (Number(result?.changes || 0) > 0) copied += 1;
+    for (const row of rows || []) {
+      const semantic = sourceIndex.byStorage.get(`${row.section_code}||${row.cle}`)?.semanticKey;
+      if (!semantic || latest.has(semantic)) continue;
+      latest.set(semantic, {
+        avis: clean(row.avis) || null,
+        commentaire: clean(row.commentaire) || null,
+        sourceVisitId: visit.id,
+        sourceTrameId: visit.trame_id,
+      });
+    }
+  }
+
+  let copied = 0;
+  for (const targets of targetIndex.bySemantic.values()) {
+    for (const target of targets) {
+      if (target.type !== 'controle') continue;
+      const source = latest.get(target.semanticKey);
+      if (!source || (!source.avis && !source.commentaire)) continue;
+      const result = await db.runAsync(
+        `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)
+         VALUES(?,?,?,?,?)
+         ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET
+           avis=excluded.avis,
+           commentaire=excluded.commentaire
+         WHERE (controles_visite.avis IS NULL OR trim(controles_visite.avis)='')
+           AND (controles_visite.commentaire IS NULL OR trim(controles_visite.commentaire)='')`,
+        [visiteId, target.sectionCode, target.field.cle, source.avis, source.commentaire]
+      );
+      if (Number(result?.changes || 0) > 0) copied += 1;
+    }
   }
   return copied;
 }
 
-async function copyUnresolvedReserves(db, visiteId, previousVisitId) {
-  const rows = await db.getAllAsync(
-    `SELECT r.*,v.date_visite AS date_source
-     FROM remarques r JOIN visites v ON v.id=r.visite_id
-     WHERE r.visite_id=?
-       AND COALESCE(r.intranet_etat_avancement,'') NOT IN ('Terminé','Annulé')
-     ORDER BY r.criticite DESC,r.cree_le,r.id`,
-    [previousVisitId]
-  );
+async function copyUnresolvedReserves(db, visiteId, sourceVisits) {
+  const seen = new Set();
   let copied = 0;
-  for (const row of rows || []) {
-    // Une réserve reprise devient une réserve active de la nouvelle visite,
-    // mais conserve une lignée stable vers sa première occurrence. Elle est
-    // volontairement détachée de controle_key : un avis S du jour ne doit pas
-    // supprimer silencieusement une réserve historique encore à traiter.
-    const lineageId = row.reference_type === 'reserve_historique' && clean(row.reference_id)
-      ? clean(row.reference_id)
-      : row.id;
-    const existing = await db.getFirstAsync(
-      `SELECT id FROM remarques
-       WHERE visite_id=? AND reference_type='reserve_historique' AND reference_id=?
-       LIMIT 1`,
-      [visiteId, lineageId]
-    );
-    if (existing?.id) continue;
 
-    const id = createId();
-    const origineSource = clean(row.origine);
-    const origine = origineSource
-      ? `Reprise visite précédente · ${origineSource}`
-      : 'Reprise visite précédente';
-    await db.runAsync(
-      `INSERT INTO remarques(
-         id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,
-         reference_onglet,reference_type,reference_id,reference_libelle,
-         criticite,criticite_defaut,criticite_modifiee,
-         intranet_date_reserve,intranet_delai,intranet_etat_avancement,perimetre
-       ) VALUES(?,?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [
-        id, visiteId,
-        row.poste ?? null, row.prestation ?? null, row.delai ?? null, row.estimatif ?? null, origine,
-        row.reference_onglet ?? null, 'reserve_historique', lineageId,
-        row.reference_libelle || row.poste || 'Réserve reprise',
-        row.criticite ?? 2, row.criticite_defaut ?? row.criticite ?? 2, row.criticite_modifiee ?? 0,
-        row.intranet_date_reserve || row.date_source || null,
-        row.intranet_delai ?? null, row.intranet_etat_avancement ?? null, row.perimetre ?? null,
-      ]
+  for (const visit of sourceVisits) {
+    const rows = await db.getAllAsync(
+      `SELECT r.*,v.date_visite AS date_source,v.trame_id AS trame_source
+       FROM remarques r JOIN visites v ON v.id=r.visite_id
+       WHERE r.visite_id=?
+       ORDER BY r.criticite DESC,r.cree_le,r.id`,
+      [visit.id]
     );
-    copied += 1;
+
+    for (const row of rows || []) {
+      const lineageId = row.reference_type === 'reserve_historique' && clean(row.reference_id)
+        ? clean(row.reference_id)
+        : row.id;
+      if (seen.has(lineageId)) continue;
+      seen.add(lineageId);
+
+      // La dernière occurrence de la lignée fait foi. Une réserve déjà levée ou
+      // annulée dans une trame ultérieure ne doit pas ressusciter.
+      if (['Terminé', 'Annulé'].includes(clean(row.intranet_etat_avancement))) continue;
+
+      const existing = await db.getFirstAsync(
+        `SELECT id FROM remarques
+         WHERE visite_id=? AND reference_type='reserve_historique' AND reference_id=?
+         LIMIT 1`,
+        [visiteId, lineageId]
+      );
+      if (existing?.id) continue;
+
+      const id = createId();
+      const origineSource = clean(row.origine);
+      const origine = origineSource
+        ? `Reprise historique · ${origineSource}`
+        : 'Reprise historique';
+      await db.runAsync(
+        `INSERT INTO remarques(
+           id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,
+           reference_onglet,reference_type,reference_id,reference_libelle,
+           criticite,criticite_defaut,criticite_modifiee,
+           intranet_date_reserve,intranet_delai,intranet_etat_avancement,perimetre
+         ) VALUES(?,?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+        [
+          id, visiteId,
+          row.poste ?? null, row.prestation ?? null, row.delai ?? null, row.estimatif ?? null, origine,
+          null, 'reserve_historique', lineageId,
+          row.reference_libelle || row.poste || 'Réserve reprise',
+          row.criticite ?? 2, row.criticite_defaut ?? row.criticite ?? 2, row.criticite_modifiee ?? 0,
+          row.intranet_date_reserve || row.date_source || null,
+          row.intranet_delai ?? null, row.intranet_etat_avancement ?? null, row.perimetre ?? null,
+        ]
+      );
+      copied += 1;
+    }
   }
   return copied;
 }
@@ -365,6 +366,33 @@ async function seedRcuLocalStructure(db, visiteId, installationId) {
   }
 }
 
+async function listPriorLocalVisits(db, visiteId, contexte) {
+  if (contexte.installation_id) {
+    return db.getAllAsync(
+      `SELECT id,trame_id,date_visite,modifie_le FROM visites
+       WHERE id<>? AND installation_id=?
+       ORDER BY COALESCE(date_visite,'') DESC,modifie_le DESC,rowid DESC`,
+      [visiteId, contexte.installation_id]
+    );
+  }
+  return db.getAllAsync(
+    `SELECT id,trame_id,date_visite,modifie_le FROM visites
+     WHERE id<>? AND site_id=? AND installation_id IS NULL
+     ORDER BY COALESCE(date_visite,'') DESC,modifie_le DESC,rowid DESC`,
+    [visiteId, contexte.site_id]
+  );
+}
+
+async function latestVisitWithRows(db, sourceVisits, table) {
+  const allowed = new Set(['reseaux', 'compteurs']);
+  if (!allowed.has(table)) return null;
+  for (const visit of sourceVisits) {
+    const row = await db.getFirstAsync(`SELECT 1 AS ok FROM ${table} WHERE visite_id=? LIMIT 1`, [visit.id]);
+    if (row?.ok) return visit;
+  }
+  return null;
+}
+
 export async function carryForwardPreviousVisit(db, visiteId, contexte) {
   // Le report automatique n'est déclenché que pour une nouvelle visite active.
   // Ouvrir une ancienne visite terminée/importée ne doit jamais la modifier à
@@ -382,22 +410,19 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
   }
   if (trame.id === 'reseau_chaleur_v1') await seedRcuLocalStructure(db, visiteId, resolved.installation_id);
 
-  const previous = await db.getFirstAsync(
-    `SELECT id FROM visites
-     WHERE site_id=? AND id<>? AND COALESCE(trame_id, ?) = ?
-       AND (? IS NULL OR installation_id=?)
-     ORDER BY COALESCE(date_visite,'') DESC,modifie_le DESC LIMIT 1`,
-    [resolved.site_id, visiteId, DEFAULT_TRAME_ID, trame.id, resolved.installation_id, resolved.installation_id]
-  );
+  const sourceVisits = await listPriorLocalVisits(db, visiteId, resolved);
+  const previous = sourceVisits[0] || null;
   if (!previous?.id) return { contexte: resolved, previousVisitId: null, copiedFields: 0, copiedControls: 0, copiedReserves: 0, copiedNetworks: 0, copiedMeters: 0 };
 
-  const copiedFields = await copyReusableFields(db, visiteId, previous.id, trame);
-  const copiedControls = await copyReusableControls(db, visiteId, previous.id, trame);
-  const copiedReserves = await copyUnresolvedReserves(db, visiteId, previous.id);
+  const copiedFields = await copyReusableFields(db, visiteId, sourceVisits, trame);
+  const copiedControls = await copyReusableControls(db, visiteId, sourceVisits, trame);
+  const copiedReserves = await copyUnresolvedReserves(db, visiteId, sourceVisits);
   const porteReseaux = trame.id === DEFAULT_TRAME_ID || trame.id === 'reseau_chaleur_v1';
   const referenceOnly = false;
-  const copiedNetworks = porteReseaux ? await copyNetworkValues(db, visiteId, previous.id, referenceOnly) : 0;
-  const copiedMeters = porteReseaux ? await copyMeterValues(db, visiteId, previous.id, referenceOnly) : 0;
+  const networkSource = porteReseaux ? await latestVisitWithRows(db, sourceVisits, 'reseaux') : null;
+  const meterSource = porteReseaux ? await latestVisitWithRows(db, sourceVisits, 'compteurs') : null;
+  const copiedNetworks = networkSource ? await copyNetworkValues(db, visiteId, networkSource.id, referenceOnly) : 0;
+  const copiedMeters = meterSource ? await copyMeterValues(db, visiteId, meterSource.id, referenceOnly) : 0;
 
   return {
     contexte: resolved,
