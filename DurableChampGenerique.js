@@ -5,6 +5,7 @@ import { upsertChamp } from './db.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { ChipSelector, StepperNumerique, cleanLabel, extractUnit, getNumericConfig } from './GenericFields.js';
 import { PhotoButton } from './PhotoButton.js';
+import { LecturePhotoButton } from './PhotoOcrReview.js';
 import { styles, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 
@@ -133,7 +134,7 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
           <View style={{ width: 34, height: 34, borderRadius: 11, alignItems: 'center', justifyContent: 'center', backgroundColor: `${picto.teinte}18` }}><CvcIcon name={picto.icon} size={20} color={picto.teinte} strokeWidth={2.1} /></View>
           <Text numberOfLines={1} style={[styles.fieldLabel, { flex: 1, fontFamily: FONTS.bold }]}>{picto.texte}{unit && !numericConfig ? ` (${unit})` : ''}</Text>
         </View> : <Text style={styles.fieldLabel}>{label}{unit && !numericConfig ? ` (${unit})` : ''}</Text>}
-        {!sansPhoto && <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={field.renamable ? nomAffiche : label} />}
+        {!sansPhoto && (numericConfig ? <LecturePhotoButton visiteId={visiteId} entiteKey={entiteKey} label={field.renamable ? nomAffiche : label} kind="temperatures" unit={unit} current={{valeur}} onApply={async values=>{if(!Number.isFinite(Number(String(values.valeur).replace(',','.'))))throw new Error('Vérifie la valeur numérique.');await setImmediate(values.valeur);}}/> : <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={field.renamable ? nomAffiche : label} />)}
       </View>
       {estDateVisite ? (
         <>

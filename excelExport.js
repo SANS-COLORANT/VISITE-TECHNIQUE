@@ -273,12 +273,13 @@ async function construireClasseur(visiteId) {
   const cfg = trame.excel;
   if (!cfg?.templateBase64) throw new Error(`Aucun modèle Excel configuré pour la trame ${trame.nom}.`);
 
-  const [champs, controles, reseaux, compteurs, materielBrut, remarquesBrutes, note, aliases, modelePreAllumage] = await Promise.all([
+  const [champs, controles, reseaux, compteurs, materielBrut, remarquesBrutes, note, aliases, modelePreAllumage, pointsLibres] = await Promise.all([
     db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id = ?`, [visiteId]),
     db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id = ?`, [visiteId]),
     listerReseaux(visiteId), listerCompteurs(visiteId), listerMateriel(visiteId), listerRemarques(visiteId), getNote(visiteId),
     trame.id === 'pre_allumage' ? listerAliasesPreAllumage(visiteId) : Promise.resolve({}),
     trame.id === 'pre_allumage' ? chargerPreAllumageModulaire(visiteId) : Promise.resolve(null),
+    db.getAllAsync('SELECT libelle,valeur,unite FROM points_mesure_visite WHERE visite_id=? ORDER BY cree_le,id', [visiteId]),
   ]);
 
   const materiel = normaliserMaterielPourExport(materielBrut);
@@ -375,6 +376,9 @@ async function construireClasseur(visiteId) {
   if (cfg.heatNetwork?.summaryRows) ecrireResumeReseauChaleur(sheetPrincipale, remarques, cfg.heatNetwork.summaryRows);
   const noteCfg = tables.note;
   if (noteCfg) setCell(wb.Sheets[noteCfg.sheet], noteCfg.cell, note?.contenu || '');
+  if (pointsLibres.length) XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    ['Point de mesure', 'Valeur', 'Unité'], ...pointsLibres.map(p => [p.libelle,p.valeur || '',p.unite]),
+  ]), 'MESURES_COMPLEMENTAIRES');
 
   return { wb, visite, trame, stats: { champs: champs.length, controles: controles.length, reseaux: reseaux.length, compteurs: compteurs.length, reseauxSupplementaires, materiel: materiel.length, remarques: remarques.length } };
 }

@@ -21,7 +21,7 @@ function compatibleParDefaut(e, trameId) {
   if (trameId === 'icpe_v1') return !vmc;
   return false;
 }
-function equipementCompatible(e, trameId) {
+export function equipementCompatible(e, trameId) {
   const explicites = String(e.trames_explicit || '').split(',').filter(Boolean);
   // La trame Réseau de chaleur est nouvelle : elle doit pouvoir réutiliser le
   // patrimoine chauffage déjà connu en ICPE sans dupliquer les équipements.

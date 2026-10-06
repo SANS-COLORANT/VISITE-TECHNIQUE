@@ -26,6 +26,58 @@ tap "$(X 1)"; shot 03-clients
 tap "$(X 3)"; shot 04-reglages
 tap "$(X 0)"; shot 05-accueil-retour
 
+# Parcours terrain de la maquette : les coordonnées viennent de l'arbre
+# Android courant, jamais d'une position fixe dans une fiche défilante.
+tap_label() {
+  adb shell uiautomator dump /sdcard/metra-ui.xml >/dev/null 2>&1 || return 1
+  adb pull /sdcard/metra-ui.xml shots/current-ui.xml >/dev/null 2>&1 || return 1
+  local coords
+  coords=$(python3 - "$1" <<'PY'
+import re,sys,xml.etree.ElementTree as ET
+for node in ET.parse('shots/current-ui.xml').iter('node'):
+    if sys.argv[1] in (node.get('text'),node.get('content-desc')):
+        nums=list(map(int,re.findall(r'\d+',node.get('bounds',''))))
+        if len(nums)==4 and nums[2]>nums[0] and nums[3]>nums[1]:
+            print((nums[0]+nums[2])//2,(nums[1]+nums[3])//2)
+            break
+PY
+  )
+  [ -n "$coords" ] || return 1
+  adb shell input tap $coords
+  sleep 5
+}
+tap "$(X 2)"
+if tap_label "Démarrer la visite"; then
+  sleep 10
+  shot 06-visite-sommaire
+  if tap_label "Équipements"; then
+    shot 07-equipements-pointage
+    if tap_label "Ajouter un équipement"; then
+      shot 08-equipement-ajout
+      if tap_label "Chaudière"; then
+        shot 09-equipement-nouveau
+        if tap_label "Chaudière, ouvrir les détails"; then
+          shot 10-equipement-fiche
+          if tap_label "Lire la plaque signalétique"; then
+            shot 10b-lecture-plaque
+            tap_label "Fermer la lecture" || true
+          fi
+          tap_label "Fermer la fiche" || true
+        fi
+      fi
+    fi
+  fi
+  tap_label "Sommaire de la visite" || true
+  if tap_label "Sécurité et secours"; then
+    shot 11-securite-secours
+    tap_label "Retour au sommaire" || true
+  fi
+  if tap_label "Anomalies"; then shot 12-anomalies; fi
+  tap_label "Sommaire de la visite" || true
+  tap_label "Tous les onglets de la trame" || true
+  if tap_label "Relevés"; then shot 13-releves-photo; fi
+fi
+
 adb logcat -d -s ReactNativeJS:V ReactNative:W AndroidRuntime:E > shots/logcat.txt || true
 adb logcat -d > shots/logcat-full.txt || true
 # Diagnostic lisible directement dans le journal du job.

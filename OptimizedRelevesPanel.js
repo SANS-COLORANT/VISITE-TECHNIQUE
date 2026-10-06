@@ -20,6 +20,9 @@ import { FONTS } from './styles.js';
 import { pictoReleve, pictoTemperature } from './relevePictos.js';
 import { PersistentControleGenerique } from './PersistentControleGenerique.js';
 import { controlerIndex, destinationDepuisLibelle, destinationsDisponibles, libelleDestination } from './meterDestinations.js';
+import { LecturePhotoButton } from './PhotoOcrReview.js';
+import { ExtraMeasurementCard } from './ExtraMeasurementCard.js';
+import { listerPointsMesureVisite, ajouterPointMesureVisite } from './terrainVisitDb.js';
 
 const COMPTEUR_TYPES = [
   'Compteur gaz', 'Compteur énergie chauffage', 'Compteur énergie ECS', 'Compteur eau appoint chauffage',
@@ -74,7 +77,7 @@ const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRe
   const [destination, setDestination] = useState(compteur.destination || null);
   const [choixDestination, setChoixDestination] = useState(false);
   const picto = pictoReleve(label);
-  const [valeur, setValeur, surBlurValeur] = useSaisieAvecAutoSave(
+  const [valeur, setValeur, surBlurValeur, setValeurImmediate] = useSaisieAvecAutoSave(
     compteur.valeur,
     (v) => upsertCompteurChamp(compteur.id, 'valeur', v)
   );
@@ -132,7 +135,7 @@ const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRe
               <CvcIcon name="edit" size={16} color={COLORS.inkFaint} strokeWidth={2} />
             </TouchableOpacity>}
         </View>
-        <PhotoButton visiteId={visiteId} entiteKey={compteur.compteur_site_id ? `compteur_site||${compteur.compteur_site_id}` : `compteur||${compteur.id}`} label={label || 'Compteur'} />
+        <LecturePhotoButton visiteId={visiteId} entiteKey={compteur.compteur_site_id ? `compteur_site||${compteur.compteur_site_id}` : `compteur||${compteur.id}`} label={label || 'Compteur'} kind="meters" unit={unite} current={{valeur}} onApply={async values=>{const check=controlerIndex(values.valeur,null);if(check?.niveau==='erreur')throw new Error(check.message);await setValeurImmediate(values.valeur);}} />
         <TouchableOpacity accessibilityLabel="Retirer ce compteur" onPress={retirer} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(185,28,28,0.08)' }}>
           <CvcIcon name="trash" size={18} color={COLORS.red} strokeWidth={2} />
         </TouchableOpacity>
@@ -148,7 +151,7 @@ const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRe
         </View>
       )}
       <View style={styles.compteurRowBody}>
-        <TextInput style={styles.compteurValInput} value={valeur} onChangeText={setValeur} onBlur={surBlurValeur} placeholder={compteur.valeur_precedente ? `Précédent : ${compteur.valeur_precedente}` : 'Index relevé'} keyboardType="decimal-pad" accessibilityLabel="Index relevé, saisie manuelle" />
+        <TextInput style={styles.compteurValInput} value={valeur} onChangeText={setValeur} onBlur={surBlurValeur} placeholder="Saisir à la main" keyboardType="decimal-pad" accessibilityLabel="Index relevé, saisie manuelle" />
         {controle ? <Text style={{ fontSize: 12, fontFamily: FONTS.bodyMedium, color: controle.niveau === 'erreur' ? COLORS.red : COLORS.amber }}>{controle.message}</Text>
           : compteur.valeur_precedente ? <Text style={{ fontSize: 11, color: COLORS.inkFaint }}>Relevé précédent : {compteur.valeur_precedente}{unite ? ` ${unite}` : ''}</Text> : null}
         <View style={styles.uniteRow}>
@@ -171,6 +174,8 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
   const [champsMap, setChampsMap] = useState({});
   const [controlesMap, setControlesMap] = useState({});
   const [compteurs, setCompteurs] = useState([]);
+  const [points,setPoints]=useState([]),[pointVisible,setPointVisible]=useState(false),[pointNom,setPointNom]=useState(''),[pointUnite,setPointUnite]=useState('°C');
+  useEffect(()=>{let alive=true;listerPointsMesureVisite(visiteId).then(p=>{if(alive)setPoints(p)}).catch(console.warn);return()=>{alive=false}},[visiteId]);
   const [ajoutCompteurVisible, setAjoutCompteurVisible] = useState(false);
   const [nomCompteurChoisi, setNomCompteurChoisi] = useState('');
   const [nomCompteurLibre, setNomCompteurLibre] = useState('');
@@ -260,13 +265,14 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
     });
     return result;
   }, [champsPression, champsTemp, compteurs]);
+  const rowsWithPoints=[...rows,{type:'ajout-point',id:'ajout-point'},...points.map(point=>({type:'point',id:point.id,point}))];
 
   const { listRef, onScroll } = useListScrollMemory(`visit-panel:${visiteId}:p-releves`, rows.length);
 
   return <>
     <FlatList
       ref={listRef}
-      data={rows}
+      data={rowsWithPoints}
       onScroll={onScroll}
       scrollEventThrottle={100}
       keyExtractor={(item) => item.id}
@@ -279,6 +285,8 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
       removeClippedSubviews={false}
       ListHeaderComponent={<Text style={styles.sectionTitle}>Pressions</Text>}
       renderItem={({ item }) => {
+        if(item.type==='point')return <ExtraMeasurementCard point={item.point} visiteId={visiteId}/>;
+        if(item.type==='ajout-point')return <TouchableOpacity style={styles.addBtn} onPress={()=>{setPointNom('');setPointVisible(true)}}><Text style={styles.addBtnText}>Ajouter un point de mesure</Text></TouchableOpacity>;
         if (item.type === 'titre') return <Text style={styles.sectionTitle}>{item.label}</Text>;
         if (item.type === 'circuit') return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 6, marginBottom: 6 }}><CvcIcon name={item.icon} size={17} color={COLORS.orangeDark} strokeWidth={2.1} /><Text style={{ fontSize: 12, fontFamily: FONTS.bold, color: COLORS.inkSoft, letterSpacing: 0.6, textTransform: 'uppercase' }}>{item.label}</Text></View>;
         if (item.type === 'compteur') return <CompteurCard compteur={item.compteur} visiteId={visiteId} onRemove={retirerLocalement} champsSection={champsSectionCompteurs} onDestinationChange={changerDestinationLocalement}
@@ -303,6 +311,7 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
       }}
     />
 
+    <Modal visible={pointVisible} transparent animationType="slide" onRequestClose={()=>setPointVisible(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Ajouter un point de mesure</Text><TextInput accessibilityLabel="Nom du point de mesure" style={styles.input} value={pointNom} onChangeText={setPointNom} placeholder="Ex. Primaire · départ"/><View style={{flexDirection:'row',gap:8,marginVertical:12}}>{['°C','bar','pH'].map(unit=><TouchableOpacity key={unit} style={pointUnite===unit?styles.btnPrimary:styles.btnSecondary} onPress={()=>setPointUnite(unit)}><Text style={pointUnite===unit?styles.btnPrimaryText:styles.btnSecondaryText}>{unit}</Text></TouchableOpacity>)}</View><Text style={styles.importHint}>Conservé dans cette visite et l’annexe Excel des mesures complémentaires.</Text><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={()=>setPointVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={async()=>{try{await ajouterPointMesureVisite(visiteId,pointNom,pointUnite);setPoints(await listerPointsMesureVisite(visiteId));setPointVisible(false)}catch(error){Alert.alert('Ajout impossible',String(error?.message||error))}}}><Text style={styles.btnPrimaryText}>Ajouter</Text></TouchableOpacity></View></View></View></Modal>
     <Modal visible={ajoutCompteurVisible} transparent animationType="fade" onRequestClose={() => setAjoutCompteurVisible(false)}>
       <View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Ajouter un compteur</Text>

@@ -101,6 +101,25 @@ cartes de verre avec pastille d'état et compteur. Mesures : `StepperNumerique`
 
 ## Thèmes
 
+### Parcours terrain issu de la maquette du 06/10/2026
+
+Le sommaire regroupe les contrôles ICPE et Réseau de chaleur par espaces
+(site/relevés, local, sécurité, énergie, production, eau). Les onglets d'origine
+restent accessibles et les clés de stockage de chaque contrôle sont conservées.
+Le pointage des équipements est explicite et propre à la visite : il ne reprend
+pas une confirmation historique et n'invente pas d'état. Les fiches détaillées
+et l'ajout rapide sont présentés en feuilles, avec historique et photos.
+La lecture de plaque passe par l'appareil photo Android ou une image locale,
+puis une vérification éditable avant application. Les relevés utilisent le
+même mécanisme de confirmation OCR. Aucun résultat ou degré de confiance
+n'est affiché comme certain sans résultat réel du moteur local.
+Les points de mesure complémentaires restent propres à leur visite et sont
+restitués dans l'annexe Excel `MESURES_COMPLEMENTAIRES`, sans modifier les
+lignes standard des modèles ni inventer de critères Intranet.
+Les réserves précédentes restent consultables en lecture seule ; « Levée sur
+place » met à jour l'avancement de la réserve courante, sans changer l'avis
+ni effacer le constat. VMC et Pré-allumage gardent leurs panneaux spécialisés.
+
 - Visite Technique : accent orange `#F26426` / `#D9531A`.
 - Missions : même DA, accent vert `MISSION_COLORS.accent` / `accentDark`.
 
