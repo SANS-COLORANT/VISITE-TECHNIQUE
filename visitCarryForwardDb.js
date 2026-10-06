@@ -298,7 +298,7 @@ async function bindLegacyExcelVisits(db, siteId, trameId) {
 
 async function seedRcuLocalStructure(db, visiteId, installationId) {
   if (!installationId) return;
-  const reseaux = await db.getAllAsync(`SELECT s.id,s.nom,s.ordre,r.courbe_de_chauffe,r.tnc,r.consigne_programme_horaire
+  const reseaux = await db.getAllAsync(`SELECT s.id,COALESCE(NULLIF(r.nom_reseau,''),s.nom) AS nom,s.ordre,r.courbe_de_chauffe,r.tnc,r.consigne_programme_horaire
     FROM reseaux_site s LEFT JOIN reseaux r ON r.id=(
       SELECT n.id FROM reseaux n JOIN visites v ON v.id=n.visite_id
       WHERE n.reseau_site_id=s.id AND v.id<>? AND v.trame_id='reseau_chaleur_v1'

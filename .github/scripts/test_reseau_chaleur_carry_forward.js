@@ -103,14 +103,14 @@ async function main() {
       importApiReferenceForVisit: async () => {}, importLatestApiVisitForLocal: async () => {}, pinPhotoReferencesForVisit: async () => {},
       assurerStructureSitePreAllumage: async () => {}, chargerPreAllumageModulaire: async () => {} });
     const next = () => creation.creerVisiteProduction({ siteId: 'site', installationId: 'local', trameId: definition.id });
-    async function verify(id) {
+    async function verify(id, nomReseau = 'Chauffage') {
       const champs = await server.db.getAllAsync('SELECT cle,valeur FROM champs_visite WHERE visite_id=?', [id]);
       assert.equal(champs.find((c) => c.cle === 'Energie - pression')?.valeur, 'RCU 8 bar');
       assert.equal(champs.find((c) => c.cle === 'Matériaux tuyauterie')?.valeur, 'Acier');
       assert.equal(champs.find((c) => c.cle === 'Paramètres cascade chaudières')?.valeur, 'Référence cascade');
       assert.ok(!champs.some((c) => c.cle === 'T°ext(°C)' || c.cle.startsWith('Index')));
       const network = await server.db.getFirstAsync('SELECT * FROM reseaux WHERE visite_id=?', [id]);
-      assert.equal(network.nom_reseau, 'Chauffage'); assert.equal(network.courbe_de_chauffe, '1.5');
+      assert.equal(network.nom_reseau, nomReseau); assert.equal(network.courbe_de_chauffe, '1.5');
       assert.equal(network.t_ext_c, null); assert.equal(network.t_dep_c, null);
       const meter = await server.db.getFirstAsync('SELECT * FROM compteurs WHERE visite_id=?', [id]);
       assert.equal(meter.label, parsed.compteurs[0].label); assert.equal(meter.unite, 'MWh'); assert.equal(meter.valeur, null);
@@ -122,11 +122,13 @@ async function main() {
       }
       assert.equal((await server.db.getFirstAsync('SELECT contenu FROM notes WHERE visite_id=?', [id])).contenu, '');
     }
-    await verify(await next());
+    const second = await next();
+    await verify(second);
+    await server.db.runAsync("UPDATE reseaux SET nom_reseau='Chauffage renommé' WHERE visite_id=?", [second]);
     // Simule une tablette existante : import non lié + dernière visite vide.
     await server.db.runAsync('UPDATE visites SET installation_id=NULL WHERE id=?', [imported.visiteId]);
     await server.db.execAsync("INSERT INTO visites(id,site_id,installation_id,trame_id,statut,date_visite) VALUES('broken','site','local','reseau_chaleur_v1','terminee','2027-01-01')");
-    await verify(await next());
+    await verify(await next(), 'Chauffage renommé');
     const other = await creation.creerVisiteProduction({ siteId: 'site', installationId: 'other', trameId: definition.id });
     assert.equal((await server.db.getAllAsync('SELECT * FROM reseaux WHERE visite_id=?', [other])).length, 0);
     assert.equal((await equipment.listerMaterielPersistant(other)).length, 0);
