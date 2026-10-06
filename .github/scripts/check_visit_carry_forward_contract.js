@@ -10,7 +10,9 @@ function forbidText(text, needle, label) {
 
 const carry = read('visitCarryForwardDb.js');
 requireText(carry, "if (trame.id === 'pre_allumage') return Boolean(field.stable || field.carryForward);", 'pre-allumage durable fields only');
+requireText(carry, "import { construireIndexSemantiqueTrame } from './trameSemanticMesh.js';", 'cross-trame semantic mesh wiring');
 requireText(carry, 'async function copyReusableControls', 'control carry-forward');
+requireText(carry, 'async function listPriorLocalVisits', 'same-local history across trames');
 requireText(carry, "if (trame.id === 'pre_allumage') return 0;", 'pre-allumage controls stay blank');
 requireText(carry, 'async function isImportedHistoricalVisit', 'historical Intranet visit detection');
 requireText(carry, "details_json LIKE '%\\\"sourceType\\\":\\\"imported_latest_visit\\\"%'", 'imported historical provenance detection');
@@ -23,7 +25,9 @@ requireText(carry, 'row.t_dep_c ?? null', 'departure temperature carry-forward')
 requireText(carry, 'SELECT label,valeur,unite,compteur_site_id,destination FROM compteurs', 'meter values selected');
 requireText(carry, 'row.valeur ?? null', 'meter value carry-forward');
 requireText(carry, 'copiedControls', 'control copy summary');
-forbidText(carry, 'FROM remarques', 'historical remarks must not be cloned');
+requireText(carry, 'async function copyUnresolvedReserves', 'open reserve carry-forward');
+requireText(carry, "reference_type='reserve_historique'", 'reserve lineage across visits/trames');
+requireText(carry, "['Terminé', 'Annulé'].includes", 'closed reserves do not reappear');
 forbidText(carry, 'FROM photos', 'historical photos must not be cloned');
 
 const latest = read('apiLatestVisitImportDb.js');
