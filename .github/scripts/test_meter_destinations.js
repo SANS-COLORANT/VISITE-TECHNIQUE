@@ -205,7 +205,8 @@ async function main() {
     await server.db.runAsync(`UPDATE compteurs SET label='Chaudière 1',destination=? WHERE id='k1'`, [GAZ]);
     await server.db.runAsync(`UPDATE compteurs_site SET libelle='Chaudière 1',destination=? WHERE id='cs1'`, [GAZ]);
     await server.db.execAsync(`INSERT INTO visites(id,site_id,date_visite,statut,trame_id,installation_id) VALUES('v2','s','2026-10-06','en_cours','icpe_v1','i');`);
-    let n = 0; const carry = load('visitCarryForwardDb.js', { createId: () => `id-${++n}`, DEFAULT_TRAME_ID: 'icpe_v1', obtenirTrame: registry.obtenirTrame });
+    let n = 0; const semantic = load('trameSemanticMesh.js');
+    const carry = load('visitCarryForwardDb.js', { createId: () => `id-${++n}`, DEFAULT_TRAME_ID: 'icpe_v1', obtenirTrame: registry.obtenirTrame, construireIndexSemantiqueTrame: semantic.construireIndexSemantiqueTrame });
     const contexte = await server.db.getFirstAsync(`SELECT * FROM visites WHERE id='v2'`);
     const result = await carry.carryForwardPreviousVisit(server.db, 'v2', contexte);
     const repris = await server.db.getFirstAsync(`SELECT label,destination,valeur FROM compteurs WHERE visite_id='v2'`);
