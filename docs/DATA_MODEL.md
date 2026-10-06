@@ -95,7 +95,7 @@ Pompe chauffage n°1 — SST7
 
 Les compteurs sont patrimoniaux ; leurs index sont des observations datées liées aux visites.
 
-Un nouvel index ne doit jamais être prérempli à partir de l’ancien. L’ancien index peut être affiché comme référence.
+Un nouvel index peut être prérempli avec la dernière valeur connue du même compteur ou du même concept afin d’éviter une ressaisie inutile. Cette valeur reste un préremplissage modifiable : la nouvelle visite conserve sa propre observation et sa propre date.
 
 ## Photos historiques Intranet
 
