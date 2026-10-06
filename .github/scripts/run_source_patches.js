@@ -13,6 +13,7 @@ const CONTRACT_CHECKS = [
   ['RCU import/local carry-forward regression', '.github/scripts/test_reseau_chaleur_carry_forward.js'],
   ['meter export destinations regression', '.github/scripts/test_meter_destinations.js'],
   ['terrain visit UI data regression', '.github/scripts/test_terrain_visit_ui.js'],
+  ['APK export patch compatibility', '.github/scripts/test_visit_export_build_patch.js'],
   ['large-client performance contract', '.github/scripts/check_large_client_performance.js'],
   ['runtime responsiveness v3 contract', '.github/scripts/check_runtime_responsiveness_v3.js'],
   ['startup dependency graph contract', '.github/scripts/check_startup_dependency_graph.js'],

@@ -101,6 +101,7 @@ async function main() {
     const rcu=load('reseauChaleurTrame.js',{TRAME_DATA:data.TRAME_DATA,TEMPLATE_RESEAU_CHALEUR_BASE64:'fixture'});
     const registry=load('trameRegistry.js',{...data,...rcu,TEMPLATE_EXCEL_BASE64:'fixture',...load('vmcTrame.js',{XLSX}),...load('preAllumageTrame.js',{XLSX}),...load('trameValidation.js')});
     for(const id of ['icpe_v1','reseau_chaleur_v1','vmc','pre_allumage']){
+      assert.equal(model.utiliseParcoursTerrain(id),id!=='pre_allumage',`${id}: shared terrain navigation except dedicated pre-allumage`);
       const def=registry.obtenirTrame(id),panels=def.ui.panels;
       const expected=Object.entries(panels).filter(([p])=>!['p-equip','p-remarques','p-photos'].includes(p)).flatMap(([p,sections])=>Object.entries(sections).flatMap(([section,fields])=>fields.filter(f=>f?.cle&&!f.hiddenInApp).map(f=>`${model.terrainSectionCode(p,section)}||${f.cle}`)));
       const actual=model.construireEspacesVisite(panels,id,def.ui.labels).flatMap(s=>s.rows.map(r=>r.key));

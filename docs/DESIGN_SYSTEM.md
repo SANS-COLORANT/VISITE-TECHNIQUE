@@ -180,3 +180,7 @@ ni effacer le constat. VMC et Pré-allumage gardent leurs panneaux spécialisés
 - Relevés : pictogrammes et noms courts (index, pressions, températures par
   circuit et sens), nom complet toujours modifiable.
 - Réserve ICPE : criticité réglable (curseur 0–5).
+
+Le parcours terrain commun s’applique à toutes les trames hors Pré-allumage. En VMC, les espaces suivent les caissons et les groupes Situation, Caisson, Distribution et Gestion, avec les mêmes cartes de progression, recherche, fiches et actions. Les codes de stockage et contrôles propres à la VMC restent ceux de sa définition. Pré-allumage conserve sa navigation spécialisée par bâtiments et locaux.
+
+Les échanges antérieurs METRA rappellent les régressions à éviter : patrimoine rattaché au local et à sa trame, réimport sans doublons ni remplacement destructeur des parents SQLite, identités locales distinctes des identités Intranet, photos limitées à leur périmètre, séparation RCU Primaire/Secondaire sans imposer ce choix aux autres trames, migrations additives et validation du release signé/uploadé. Ces règles restent indépendantes de la présentation ; un index historique, un état importé ou une ancienne anomalie ne constitue pas un nouveau constat terrain.
