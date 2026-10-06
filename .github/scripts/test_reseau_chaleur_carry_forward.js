@@ -120,7 +120,12 @@ async function main() {
       assert.equal(material[0].numero_materiel, 'SN-1'); assert.equal(material[0].caracteristiques, '200 kW'); assert.equal(material[0].etat, null);
       const control = await server.db.getFirstAsync('SELECT avis,commentaire FROM controles_visite WHERE visite_id=? AND cle=?', [id, 'pH']);
       assert.equal(control.avis, 'S'); assert.equal(control.commentaire, '7.2');
-      for (const table of ['remarques','photos','observations_equipement','releves_compteur']) {
+      const carriedReserves = await server.db.getAllAsync('SELECT poste,prestation,reference_type,intranet_etat_avancement FROM remarques WHERE visite_id=?', [id]);
+      assert.equal(carriedReserves.length, 1, 'unresolved reserve is carried into the new visit');
+      assert.equal(carriedReserves[0].poste, 'Fuite');
+      assert.equal(carriedReserves[0].prestation, 'Réparer');
+      assert.equal(carriedReserves[0].reference_type, 'reserve_historique');
+      for (const table of ['photos','observations_equipement','releves_compteur']) {
         assert.equal((await server.db.getFirstAsync(`SELECT count(*) n FROM ${table} WHERE visite_id=?`, [id])).n, 0, `${table} isolated`);
       }
       assert.equal((await server.db.getFirstAsync('SELECT contenu FROM notes WHERE visite_id=?', [id])).contenu, '');
@@ -141,7 +146,7 @@ async function main() {
     assert.ok(!data.TRAME_DATA['p-distrib']['Distribution chauffage'][0].carryForward, 'ICPE definition unchanged');
     assert.equal((await server.db.getFirstAsync('SELECT valeur FROM compteurs WHERE visite_id=?', [imported.visiteId])).valeur, '123');
     assert.deepEqual(await server.db.getAllAsync('PRAGMA foreign_key_check'), []);
-    console.log('RCU regression validated: import, close/reopen, production creation, complete prefill, isolated historical observations, local isolation.');
+    console.log('RCU regression validated: import, close/reopen, production creation, complete prefill, unresolved reserve carry-forward, isolated photos/observations, local isolation.');
   } finally { await server.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });
