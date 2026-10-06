@@ -53,8 +53,8 @@ async function listerCompteurs(id){
         AND NOT EXISTS(SELECT 1 FROM compteurs c WHERE c.visite_id=? AND c.compteur_site_id=cs.id)
       ORDER BY cs.cree_le,cs.id`,[contexte.installation_id,id]);
     for(const c of permanents){
-      await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id) VALUES(?,?,?,?,?,?)`,
-        [uuidv4(),id,c.libelle||'Compteur',null,c.unite||null,c.id]);
+      await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id,destination) VALUES(?,?,?,?,?,?,?)`,
+        [uuidv4(),id,c.libelle||'Compteur',null,c.unite||null,c.id,c.destination||null]);
     }
   }
   return db.getAllAsync(`SELECT c.id,c.visite_id,
@@ -62,6 +62,12 @@ async function listerCompteurs(id){
       COALESCE(NULLIF(c.valeur,''),r.valeur_texte,CASE WHEN r.valeur_nombre IS NOT NULL THEN CAST(r.valeur_nombre AS TEXT) END) AS valeur,
       COALESCE(NULLIF(c.unite,''),r.unite,cs.unite) AS unite,
       c.compteur_site_id,
+      COALESCE(NULLIF(c.destination,''),NULLIF(cs.destination,'')) AS destination,
+      CASE WHEN c.compteur_site_id IS NULL THEN NULL ELSE
+        (SELECT COALESCE(NULLIF(rp.valeur_texte,''),CASE WHEN rp.valeur_nombre IS NOT NULL THEN CAST(rp.valeur_nombre AS TEXT) END)
+          FROM releves_compteur rp WHERE rp.compteur_site_id=c.compteur_site_id AND rp.visite_id<>c.visite_id
+          ORDER BY rp.releve_le DESC LIMIT 1)
+      END AS valeur_precedente,
       CASE WHEN c.compteur_site_id IS NULL THEN 0 ELSE
         (SELECT COUNT(*) FROM releves_compteur rr WHERE rr.compteur_site_id=c.compteur_site_id)
       END AS nb_releves
@@ -70,22 +76,23 @@ async function listerCompteurs(id){
     LEFT JOIN releves_compteur r ON r.compteur_site_id=c.compteur_site_id AND r.visite_id=c.visite_id
     WHERE c.visite_id=? ORDER BY c.rowid`,[id]);
 }
-async function ajouterCompteur(visiteId,label='Compteur'){
+async function ajouterCompteur(visiteId,label='Compteur',destination=null){
   const db=await getDb(),id=uuidv4();
   const libelle=String(label||'').trim()||'Compteur';
+  const dest=String(destination||'').trim()||null;
   const contexte=await contexteCompteurVisite(db,visiteId);
   let compteurSiteId=null;
   if(contexte?.installation_id){
     compteurSiteId=uuidv4();
-    await db.runAsync(`INSERT INTO compteurs_site(id,installation_id,type_code,libelle,actif) VALUES(?,?,?,?,1)`,
-      [compteurSiteId,contexte.installation_id,'compteur',libelle]);
+    await db.runAsync(`INSERT INTO compteurs_site(id,installation_id,type_code,libelle,actif,destination) VALUES(?,?,?,?,1,?)`,
+      [compteurSiteId,contexte.installation_id,'compteur',libelle,dest]);
   }
-  await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,compteur_site_id) VALUES(?,?,?,?)`,
-    [id,visiteId,libelle,compteurSiteId]);
+  await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,compteur_site_id,destination) VALUES(?,?,?,?,?)`,
+    [id,visiteId,libelle,compteurSiteId,dest]);
   return id;
 }
 async function upsertCompteurChamp(id,cle,valeur){
-  const champsAutorises=new Set(['label','valeur','unite']);
+  const champsAutorises=new Set(['label','valeur','unite','destination']);
   if(!champsAutorises.has(cle))throw new Error(`Champ compteur non autorisé: ${cle}`);
   const db=await getDb();
   const compteur=await db.getFirstAsync(`SELECT * FROM compteurs WHERE id=?`,[id]);
@@ -98,6 +105,9 @@ async function upsertCompteurChamp(id,cle,valeur){
   }
   if(cle==='unite'){
     await db.runAsync(`UPDATE compteurs_site SET unite=?,modifie_le=datetime('now') WHERE id=?`,[valeur||null,compteur.compteur_site_id]);
+  }
+  if(cle==='destination'){
+    await db.runAsync(`UPDATE compteurs_site SET destination=?,modifie_le=datetime('now') WHERE id=?`,[valeur||null,compteur.compteur_site_id]);
   }
   if(cle==='valeur'||cle==='unite'){
     const actuel=await db.getFirstAsync(`SELECT valeur,unite FROM compteurs WHERE id=?`,[id]);

@@ -110,12 +110,22 @@ function remplirTable(sheet, rows, tableConfig) {
   });
 }
 
-function texteCompteur(compteur) {
-  if (compteur?.valeur === null || compteur?.valeur === undefined || compteur?.valeur === '') return '';
-  return `${compteur.label || 'Compteur'} : ${compteur.valeur}${compteur.unite ? ` ${compteur.unite}` : ''}`;
+// Destination « supplementaire » : compteur ajouté sur le terrain sans ligne
+// dédiée dans le modèle Excel. Il reste dans les rapports METRA mais n'est
+// jamais écrit dans une ligne de la trame ni envoyé à l'Intranet.
+const DESTINATION_COMPTEUR_SUPPLEMENTAIRE = 'supplementaire';
+
+function normaliserTexteCompteur(v) {
+  return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
 }
 
-function ligneCompteur(compteur) {
+/**
+ * Règle historique, conservée pour les compteurs sans destination enregistrée
+ * (visites antérieures à la migration 045 et jamais renommées).
+ * Correction : « eau » doit être un mot entier ; « réseau » ne doit plus
+ * envoyer un compteur sur la ligne EF ECS.
+ */
+function ligneCompteurParLibelle(compteur) {
   const txt = `${compteur?.label || ''} ${compteur?.unite || ''}`.toLowerCase();
   if (/gaz|fioul|cuve/.test(txt)) return 134;
   if (/énergie|energie|calorie|mwh|kwh|élect|elect/.test(txt)) return 135;
@@ -123,14 +133,36 @@ function ligneCompteur(compteur) {
   if (/(eau froide|ef)/.test(txt) && /(ecs|sanitaire)/.test(txt)) return 137;
   if (/manom|pression/.test(txt) && /chauff/.test(txt)) return 138;
   if (/manom|pression/.test(txt) && /(ecs|sanitaire)/.test(txt)) return 139;
-  if (/eau|volum/.test(txt)) return 137;
+  if (/(^|[^a-zà-ÿ])eau([^a-zà-ÿ]|$)|volum/.test(txt)) return 137;
   return null;
 }
 
-function exporterCompteurs(sheet, compteurs = []) {
+function mappingsReleveCompteurs(fieldMappings = []) {
+  return (fieldMappings || []).filter((m) => m.panelId === 'p-releves' && m.type === 'champ'
+    && /compteur|manom/i.test(`${m.section || ''} ${m.sectionCode || ''}`) && m.valueCell);
+}
+
+/** Ligne Excel d'un compteur : destination explicite d'abord, libellé ensuite. */
+function ligneCompteur(compteur, fieldMappings = []) {
+  const destination = String(compteur?.destination || '').trim();
+  if (destination === DESTINATION_COMPTEUR_SUPPLEMENTAIRE) return null;
+  if (destination) {
+    const mapping = mappingsReleveCompteurs(fieldMappings).find((m) => m.cle === destination);
+    const row = mapping && /^[A-Z]+(\d+)$/.exec(mapping.valueCell);
+    if (row) return Number(row[1]);
+  }
+  return ligneCompteurParLibelle(compteur);
+}
+
+function texteCompteur(compteur) {
+  if (compteur?.valeur === null || compteur?.valeur === undefined || compteur?.valeur === '') return '';
+  return `${compteur.label || 'Compteur'} : ${compteur.valeur}${compteur.unite ? ` ${compteur.unite}` : ''}`;
+}
+
+function exporterCompteurs(sheet, compteurs = [], fieldMappings = []) {
   const groupes = new Map();
   for (const compteur of compteurs) {
-    const ligne = ligneCompteur(compteur);
+    const ligne = ligneCompteur(compteur, fieldMappings);
     const texteLigne = texteCompteur(compteur);
     if (!ligne || !texteLigne) continue;
     if (!groupes.has(ligne)) groupes.set(ligne, []);
@@ -140,12 +172,14 @@ function exporterCompteurs(sheet, compteurs = []) {
 }
 
 function exporterCompteursReseauChaleur(sheet, compteurs = [], fieldMappings = []) {
-  const norm = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/\s+/g, ' ').trim();
+  const norm = normaliserTexteCompteur;
   const clean = (v) => String(v || '').replace(/^Index\s*/i, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
   const mappings = (fieldMappings || []).filter((m) => m.panelId === 'p-releves' && m.type === 'champ' && /^Index/i.test(m.cle || ''));
   for (const mapping of mappings) {
     const cible = norm(clean(mapping.cle));
-    const compteur = compteurs.find((c) => norm(c.label) === cible || norm(clean(c.label)) === cible);
+    // Destination explicite prioritaire : un compteur renommé reste exporté.
+    const compteur = compteurs.find((c) => c.destination === mapping.cle)
+      || compteurs.find((c) => !c.destination && (norm(c.label) === cible || norm(clean(c.label)) === cible));
     if (!compteur || compteur.valeur == null || compteur.valeur === '') continue;
     const valeur = `${compteur.valeur}${compteur.unite ? ` ${compteur.unite}` : ''}`;
     setCell(sheet, mapping.valueCell, valeur);
@@ -319,7 +353,7 @@ async function construireClasseur(visiteId) {
   }
   const reseauxSupplementaires = reseauxCfg ? ajouterReseauxComplementaires(wb, reseaux, reseauxCfg) : 0;
   if (cfg.heatNetwork) exporterCompteursReseauChaleur(sheetPrincipale, compteurs, cfg.fieldMappings);
-  else exporterCompteurs(sheetPrincipale, compteurs);
+  else exporterCompteurs(sheetPrincipale, compteurs, cfg.fieldMappings);
   const tables = cfg.tables || {};
   if (tables.materiel) remplirTable(wb.Sheets[tables.materiel.sheet], materiel, tables.materiel);
   if (tables.remarques) remplirTable(wb.Sheets[tables.remarques.sheet], remarques, tables.remarques);

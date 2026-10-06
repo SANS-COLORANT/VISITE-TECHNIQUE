@@ -266,8 +266,8 @@ async function upsertMeterFromField(db, visiteId, remoteVisitId, criterion, targ
   if (target.panelId !== 'p-releves' || !/^index/i.test(target.cle)) return false;
   const label = meterLabel(target.cle);
   let row = await db.getFirstAsync(
-    `SELECT id FROM compteurs WHERE visite_id=? AND lower(trim(COALESCE(label,'')))=lower(trim(?)) ORDER BY id LIMIT 1`,
-    [visiteId, label]
+    `SELECT id FROM compteurs WHERE visite_id=? AND (destination=? OR (destination IS NULL AND lower(trim(COALESCE(label,'')))=lower(trim(?)))) ORDER BY id LIMIT 1`,
+    [visiteId, target.cle, label]
   );
   if (!row?.id) {
     const reference = `${remoteVisitId}:meter:${remoteId(criterion?.id) || normalize(target.cle)}`;
@@ -281,9 +281,11 @@ async function upsertMeterFromField(db, visiteId, remoteVisitId, criterion, targ
   const compteurId = row?.id || createId();
   const unite = meterUnit(target.cle);
   if (row?.id) {
-    await db.runAsync(`UPDATE compteurs SET visite_id=?,label=?,valeur=?,unite=? WHERE id=?`, [visiteId, label, value, unite, compteurId]);
+    // Un compteur déjà renommé par le technicien garde son nom : seule la valeur
+    // de référence est mise à jour, la destination d'export fait le lien.
+    await db.runAsync(`UPDATE compteurs SET visite_id=?,label=CASE WHEN destination IS NULL THEN ? ELSE label END,valeur=?,unite=?,destination=COALESCE(destination,?) WHERE id=?`, [visiteId, label, value, unite, target.cle, compteurId]);
   } else {
-    await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite) VALUES(?,?,?,?,?)`, [compteurId, visiteId, label, value, unite]);
+    await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite,destination) VALUES(?,?,?,?,?,?)`, [compteurId, visiteId, label, value, unite, target.cle]);
   }
   await upsertProvenance(db, 'compteur', compteurId, `${remoteVisitId}:meter:${remoteId(criterion?.id) || normalize(target.cle)}`, {
     sourceType: 'latest_known_preparation_meter', remoteVisitId, sourceVisitId: remoteId(criterion?.visiteSourceId), criterion,

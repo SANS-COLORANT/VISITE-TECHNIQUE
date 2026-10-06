@@ -166,7 +166,14 @@ function isNetworkGroup(subCategory) {
 function cleanCounterLabel(value) { return normalize(String(value || '').replace(/\s*\([^)]*\)\s*$/, '')); }
 function counterValue(counters, criterion, candidate) {
   const keys = new Set([cleanCounterLabel(criterion?.nom), cleanCounterLabel(candidate?.label), cleanCounterLabel(candidate?.cle)].filter(Boolean));
-  const exact = counters.filter((counter) => keys.has(cleanCounterLabel(counter.label)));
+  // Destination explicite (migration 045) prioritaire : un compteur renommé
+  // reste rattaché à son critère ; « supplementaire » n'est jamais envoyé.
+  // Sans destination, la correspondance historique par libellé s'applique.
+  const exact = counters.filter((counter) => {
+    const destination = String(counter?.destination || '').trim();
+    if (destination) return destination !== 'supplementaire' && destination === candidate?.cle;
+    return keys.has(cleanCounterLabel(counter.label));
+  });
   if (exact.length === 1) return { status: 'matched', value: exact[0].valeur };
   if (exact.length === 0) return { status: 'missing', value: null };
   return { status: 'ambiguous', value: null };

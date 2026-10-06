@@ -198,6 +198,7 @@ export function analyserClasseur(wb, nomFichier) {
       if (/^Index/i.test(mapping.cle) && valeur) {
         compteurs.push({
           label: nettoyerLabel(mapping.cle),
+          destination: mapping.cle,
           valeur,
           unite: (mapping.cle.match(/\(([^)]+)\)/) || [])[1] || '',
         });
@@ -425,14 +426,14 @@ export async function importerAnalyseExcel(analyse, { installationId = null } = 
       if (!permanent) {
         permanent = { id: uuidv4() };
         await db.runAsync(
-          `INSERT INTO compteurs_site (id, installation_id, type_code, libelle, unite) VALUES (?, ?, ?, ?, ?)`,
-          [permanent.id, installation.id, c.label, c.label, c.unite]
+          `INSERT INTO compteurs_site (id, installation_id, type_code, libelle, unite, destination) VALUES (?, ?, ?, ?, ?, ?)`,
+          [permanent.id, installation.id, c.label, c.label, c.unite, c.destination || null]
         );
       }
       const nombre = Number(String(c.valeur).replace(',', '.'));
       await db.runAsync(
-        `INSERT INTO compteurs (id, visite_id, compteur_site_id, label, valeur, unite) VALUES (?, ?, ?, ?, ?, ?)`,
-        [uuidv4(), visiteId, permanent.id, c.label, c.valeur, c.unite]
+        `INSERT INTO compteurs (id, visite_id, compteur_site_id, label, valeur, unite, destination) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), visiteId, permanent.id, c.label, c.valeur, c.unite, c.destination || null]
       );
       await db.runAsync(
         `INSERT OR REPLACE INTO releves_compteur (id, compteur_site_id, visite_id, valeur_texte, valeur_nombre, unite) VALUES (?, ?, ?, ?, ?, ?)`,
