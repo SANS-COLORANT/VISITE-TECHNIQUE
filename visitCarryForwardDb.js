@@ -32,63 +32,78 @@ function canCarryField(trame, field) {
   return true;
 }
 
-function technicalControlKeys(trame) {
-  const keys = new Set();
-  // Dans l'ICPE, les contrôles du panneau Relevés portent aussi la mesure métier
-  // dans commentaire (pH, températures...). Cette valeur doit survivre au report.
-  if (trame.id !== DEFAULT_TRAME_ID) return keys;
-  const panelId = 'p-releves';
-  for (const [section, fields] of Object.entries(trame.ui?.panels?.[panelId] || {})) {
-    const code = sectionCode(panelId, section);
-    for (const field of fields || []) {
-      if (field?.type === 'controle' && field?.cle) keys.add(`${code}||${field.cle}`);
-    }
-  }
-  return keys;
-}
-
-async function isImportedHistoricalVisit(db, visiteId) {
-  const row = await db.getFirstAsync(
-    `SELECT id FROM provenances
-     WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony'
-       AND details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%'
-     ORDER BY importe_le DESC LIMIT 1`,
-    [visiteId]
-  );
-  return Boolean(row?.id);
-}
-
-async function copyReusableFields(db, visiteId, sourceVisits, trame) {
-  const targetIndex = construireIndexSemantiqueTrame(trame);
+async function collectSemanticSnapshot(db, sourceVisits) {
   const latest = new Map();
-
   for (const visit of sourceVisits) {
     let sourceTrame;
     try { sourceTrame = obtenirTrame(visit.trame_id || DEFAULT_TRAME_ID); } catch { continue; }
     const sourceIndex = construireIndexSemantiqueTrame(sourceTrame);
-    const rows = await db.getAllAsync(
+
+    const fields = await db.getAllAsync(
       `SELECT section_code,cle,valeur FROM champs_visite
        WHERE visite_id=? AND valeur IS NOT NULL AND trim(valeur)<>''`,
       [visit.id]
     );
-    for (const row of rows || []) {
+    for (const row of fields || []) {
       const semantic = sourceIndex.byStorage.get(`${row.section_code}||${row.cle}`)?.semanticKey;
-      if (!semantic || latest.has(semantic)) continue;
-      latest.set(semantic, { valeur: row.valeur, sourceVisitId: visit.id, sourceTrameId: visit.trame_id });
+      if (!semantic) continue;
+      const item = latest.get(semantic) || {};
+      if (!item.textValue) {
+        item.textValue = clean(row.valeur) || null;
+        item.textSourceVisitId = visit.id;
+        item.textSourceTrameId = visit.trame_id;
+      }
+      latest.set(semantic, item);
+    }
+
+    const controls = await db.getAllAsync(
+      `SELECT section_code,cle,avis,commentaire FROM controles_visite
+       WHERE visite_id=? AND (avis IS NOT NULL OR commentaire IS NOT NULL)`,
+      [visit.id]
+    );
+    for (const row of controls || []) {
+      const semantic = sourceIndex.byStorage.get(`${row.section_code}||${row.cle}`)?.semanticKey;
+      if (!semantic) continue;
+      const item = latest.get(semantic) || {};
+      const avis = clean(row.avis) || null;
+      const commentaire = clean(row.commentaire) || null;
+      if (!item.avis && avis) {
+        item.avis = avis;
+        item.controlSourceVisitId = visit.id;
+        item.controlSourceTrameId = visit.trame_id;
+      }
+      if (!item.commentaire && commentaire) {
+        item.commentaire = commentaire;
+        item.commentSourceVisitId = visit.id;
+        item.commentSourceTrameId = visit.trame_id;
+      }
+      // Les mesures historiques ICPE/RCU sont souvent stockées dans le
+      // commentaire d'un contrôle. Elles peuvent alimenter un champ équivalent
+      // dans une autre trame.
+      if (!item.textValue && commentaire) {
+        item.textValue = commentaire;
+        item.textSourceVisitId = visit.id;
+        item.textSourceTrameId = visit.trame_id;
+      }
+      latest.set(semantic, item);
     }
   }
+  return latest;
+}
 
+async function copyReusableFields(db, visiteId, semanticSnapshot, trame) {
+  const targetIndex = construireIndexSemantiqueTrame(trame);
   let copied = 0;
   for (const targets of targetIndex.bySemantic.values()) {
     for (const target of targets) {
       if (target.type !== 'champ' || !canCarryField(trame, target.field)) continue;
-      const source = latest.get(target.semanticKey);
-      if (!source || clean(source.valeur) === '') continue;
+      const source = semanticSnapshot.get(target.semanticKey);
+      if (!source || !clean(source.textValue)) continue;
       const result = await db.runAsync(
         `INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)
          ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur
          WHERE champs_visite.valeur IS NULL OR trim(champs_visite.valeur)=''`,
-        [visiteId, target.sectionCode, target.field.cle, String(source.valeur)]
+        [visiteId, target.sectionCode, target.field.cle, String(source.textValue)]
       );
       if (Number(result?.changes || 0) > 0) copied += 1;
     }
@@ -96,41 +111,24 @@ async function copyReusableFields(db, visiteId, sourceVisits, trame) {
   return copied;
 }
 
-async function copyReusableControls(db, visiteId, sourceVisits, trame) {
-  // Les essais de Pré-allumage doivent être refaits à chaque visite. Les autres
-  // trames peuvent réutiliser le dernier constat du même concept, quelle que
-  // soit la trame source.
+async function copyReusableControls(db, visiteId, semanticSnapshot, trame) {
+  // Les essais de Pré-allumage doivent être refaits à chaque visite : leur
+  // historique reste maillé et consultable, mais n'est pas validé à la place
+  // du technicien.
   if (trame.id === 'pre_allumage') return 0;
 
   const targetIndex = construireIndexSemantiqueTrame(trame);
-  const latest = new Map();
-  for (const visit of sourceVisits) {
-    let sourceTrame;
-    try { sourceTrame = obtenirTrame(visit.trame_id || DEFAULT_TRAME_ID); } catch { continue; }
-    const sourceIndex = construireIndexSemantiqueTrame(sourceTrame);
-    const rows = await db.getAllAsync(
-      `SELECT section_code,cle,avis,commentaire FROM controles_visite
-       WHERE visite_id=? AND (avis IS NOT NULL OR commentaire IS NOT NULL)`,
-      [visit.id]
-    );
-    for (const row of rows || []) {
-      const semantic = sourceIndex.byStorage.get(`${row.section_code}||${row.cle}`)?.semanticKey;
-      if (!semantic || latest.has(semantic)) continue;
-      latest.set(semantic, {
-        avis: clean(row.avis) || null,
-        commentaire: clean(row.commentaire) || null,
-        sourceVisitId: visit.id,
-        sourceTrameId: visit.trame_id,
-      });
-    }
-  }
-
   let copied = 0;
   for (const targets of targetIndex.bySemantic.values()) {
     for (const target of targets) {
       if (target.type !== 'controle') continue;
-      const source = latest.get(target.semanticKey);
-      if (!source || (!source.avis && !source.commentaire)) continue;
+      const source = semanticSnapshot.get(target.semanticKey);
+      if (!source) continue;
+      const avis = clean(source.avis) || null;
+      // Si la donnée vient d'un champ d'une autre trame, elle est proposée en
+      // commentaire/référence mais aucun avis S/N.S n'est inventé.
+      const commentaire = clean(source.commentaire) || clean(source.textValue) || null;
+      if (!avis && !commentaire) continue;
       const result = await db.runAsync(
         `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)
          VALUES(?,?,?,?,?)
@@ -139,7 +137,7 @@ async function copyReusableControls(db, visiteId, sourceVisits, trame) {
            commentaire=excluded.commentaire
          WHERE (controles_visite.avis IS NULL OR trim(controles_visite.avis)='')
            AND (controles_visite.commentaire IS NULL OR trim(controles_visite.commentaire)='')`,
-        [visiteId, target.sectionCode, target.field.cle, source.avis, source.commentaire]
+        [visiteId, target.sectionCode, target.field.cle, avis, commentaire]
       );
       if (Number(result?.changes || 0) > 0) copied += 1;
     }
@@ -290,15 +288,16 @@ async function inferUniqueInstallation(db, contexte, visiteId, trameId) {
   const history = await db.getAllAsync(
     `SELECT id,installation_id,api_remote_local_id,date_visite,modifie_le
      FROM visites
-     WHERE site_id=? AND id<>? AND COALESCE(trame_id, ?) = ? AND installation_id IS NOT NULL
+     WHERE site_id=? AND id<>? AND installation_id IS NOT NULL
      ORDER BY COALESCE(date_visite,'') DESC,modifie_le DESC`,
-    [contexte.site_id, visiteId, DEFAULT_TRAME_ID, trameId]
+    [contexte.site_id, visiteId]
   );
   const installationIds = [...new Set((history || []).map((row) => clean(row.installation_id)).filter(Boolean))];
 
   if (installationIds.length > 1) {
-    // Plusieurs locaux portent des visites de cette trame : il faut un choix
-    // explicite de local, sinon aucune donnée locale n'est reportée.
+    // Plusieurs locaux existent dans l'historique du site, toutes trames
+    // confondues : il faut un choix explicite de local, sinon aucune donnée
+    // locale ne peut être maillée sans risque.
     return { contexte, canCarry: false };
   }
 
@@ -414,8 +413,9 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
   const previous = sourceVisits[0] || null;
   if (!previous?.id) return { contexte: resolved, previousVisitId: null, copiedFields: 0, copiedControls: 0, copiedReserves: 0, copiedNetworks: 0, copiedMeters: 0 };
 
-  const copiedFields = await copyReusableFields(db, visiteId, sourceVisits, trame);
-  const copiedControls = await copyReusableControls(db, visiteId, sourceVisits, trame);
+  const semanticSnapshot = await collectSemanticSnapshot(db, sourceVisits);
+  const copiedFields = await copyReusableFields(db, visiteId, semanticSnapshot, trame);
+  const copiedControls = await copyReusableControls(db, visiteId, semanticSnapshot, trame);
   const copiedReserves = await copyUnresolvedReserves(db, visiteId, sourceVisits);
   const porteReseaux = trame.id === DEFAULT_TRAME_ID || trame.id === 'reseau_chaleur_v1';
   const referenceOnly = false;
