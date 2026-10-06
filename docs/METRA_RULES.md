@@ -5,18 +5,18 @@ Ce document est la référence commune pour tout développement humain ou assist
 ## Règles de données
 
 1. Le patrimoine du site est commun aux différentes trames.
-2. Les remarques, commentaires, réserves, photos de contrôle et résultats de contrôle appartiennent à une visite et à sa trame.
-3. Une visite VMC ne doit afficher ni exporter des remarques ICPE ou Pré-allumage.
-4. Une visite ICPE ne doit afficher ni exporter des remarques VMC ou Pré-allumage.
-5. Une visite Pré-allumage ne doit afficher ni exporter des remarques ICPE ou VMC.
+2. Chaque saisie conserve sa visite et sa trame d’origine, mais les concepts communs sont maillés par une identité sémantique indépendante de la trame afin d’être retrouvés et proposés dans une autre trame du même local.
+3. Une trame reste responsable de son affichage et de son export : seules les informations ayant un concept correspondant dans la trame cible sont projetées comme préremplissage ; les autres restent consultables dans l’historique.
+4. Les réserves non levées constituent un suivi du local : elles traversent les trames jusqu’à leur levée ou leur annulation, sans perdre leur visite/trame d’origine.
+5. Les photos et conclusions restent historisées dans leur visite source et peuvent être consultées comme références ; elles ne sont pas dupliquées silencieusement dans une nouvelle visite.
 6. Les équipements peuvent être communs dans le patrimoine, mais une trame n’affiche que les équipements qui lui sont applicables.
 7. Les contrôles sont propres à chaque trame, même lorsqu’ils portent sur un même équipement patrimonial.
 8. Un contrôle satisfaisant doit pouvoir générer un commentaire positif rédigé.
 9. Une réserve n’est créée que lorsqu’une action corrective est justifiée.
 10. Les données permanentes proviennent du patrimoine partagé ; les mesures et constats restent liés à leur visite d’origine.
-11. Pour ICPE et VMC, une nouvelle visite du même local et de la même trame est préremplie à partir des dernières valeurs connues : champs, avis `S` / `N.S` / `N.R` / `S.O` / `N.V`, commentaires de contrôle, températures, réseaux et relevés disponibles. Lorsque ces valeurs viennent de `GET /api/clients/{idclient}/preparation-visites`, chaque critère est déjà la dernière valeur connue de ce critère ; `visiteSourceId` indique seulement la visite d’origine et peut être antérieur à `derniereVisite.id`. Il ne doit jamais servir à exclure la valeur du préremplissage. Ce préremplissage reste modifiable immédiatement par le technicien.
+11. Pour ICPE, VMC et Réseau de chaleur, une nouvelle visite d’un local est préremplie à partir des dernières valeurs connues de chaque concept compatible, quelle que soit la trame technique qui les a produites : champs, avis `S` / `N.S` / `N.R` / `S.O` / `N.V`, commentaires de contrôle, températures, réseaux et relevés disponibles. Lorsque ces valeurs viennent de `GET /api/clients/{idclient}/preparation-visites`, chaque critère est déjà la dernière valeur connue de ce critère ; `visiteSourceId` indique seulement la visite d’origine et peut être antérieur à `derniereVisite.id`. Il ne doit jamais servir à exclure la valeur du préremplissage. Ce préremplissage reste modifiable immédiatement par le technicien.
 12. Pré-allumage est l’exception : seules les informations durables explicitement déclarées `stable` / `carryForward` et la structure patrimoniale sont reprises ; les contrôles et essais doivent être refaits et restent vides à l’ouverture de la nouvelle visite.
-13. Les réserves non levées d’une ancienne visite du même local et de la même trame sont reprises dans la nouvelle visite pour assurer leur suivi. Les réserves marquées `Terminé` ou `Annulé`, les photos et les conclusions historiques restent dans l’historique et ne sont pas recréées comme nouvelles observations.
+13. Les réserves non levées d’une ancienne visite du même local sont reprises dans la nouvelle visite pour assurer leur suivi, même lorsque la nouvelle visite utilise une autre trame. Les réserves marquées `Terminé` ou `Annulé`, les photos et les conclusions historiques restent dans l’historique et ne sont pas recréées comme nouvelles observations.
 14. Les marqueurs techniques de valeur vide reçus de l’Intranet, notamment `/`, sont traités comme vides et ne doivent pas créer de faux réseaux, compteurs, champs ou contrôles.
 15. Lorsqu’un identifiant de critère est réutilisé dans plusieurs branches d’une trame, son identité locale doit conserver le chemin catégorie / sous-catégorie / critère afin d’éviter toute collision.
 16. L’application terrain doit rester utilisable hors connexion.
