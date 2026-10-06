@@ -10,6 +10,7 @@ const CONTRACT_CHECKS = [
   ['Intranet equipment import + brand logo contract', '.github/scripts/check_intranet_equipment_import.js'],
   ['Intranet equipment import executable regression', '.github/scripts/test_intranet_equipment_import.js'],
   ['visit carry-forward contract', '.github/scripts/check_visit_carry_forward_contract.js'],
+  ['cross-trame semantic mesh', '.github/scripts/test_cross_trame_mesh.js'],
   ['RCU import/local carry-forward regression', '.github/scripts/test_reseau_chaleur_carry_forward.js'],
   ['meter export destinations regression', '.github/scripts/test_meter_destinations.js'],
   ['terrain visit UI data regression', '.github/scripts/test_terrain_visit_ui.js'],
