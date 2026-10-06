@@ -37,8 +37,11 @@ async function buildContext(visiteId) {
   return {
     visiteId: key,
     client,
+    clientName: visite?.nom_client || 'Client',
     site,
     siteName: visite?.nom_site || 'Site',
+    local: nettoyerNomFichier(visite?.nom_installation, 'Local'),
+    localName: visite?.nom_installation || 'Local',
     directory,
     loadedAt: Date.now(),
   };
