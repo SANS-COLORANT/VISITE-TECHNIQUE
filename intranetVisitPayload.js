@@ -166,7 +166,14 @@ function isNetworkGroup(subCategory) {
 function cleanCounterLabel(value) { return normalize(String(value || '').replace(/\s*\([^)]*\)\s*$/, '')); }
 function counterValue(counters, criterion, candidate) {
   const keys = new Set([cleanCounterLabel(criterion?.nom), cleanCounterLabel(candidate?.label), cleanCounterLabel(candidate?.cle)].filter(Boolean));
-  const exact = counters.filter((counter) => keys.has(cleanCounterLabel(counter.label)));
+  // Destination explicite (migration 045) prioritaire : un compteur renommé
+  // reste rattaché à son critère ; « supplementaire » n'est jamais envoyé.
+  // Sans destination, la correspondance historique par libellé s'applique.
+  const exact = counters.filter((counter) => {
+    const destination = String(counter?.destination || '').trim();
+    if (destination) return destination !== 'supplementaire' && destination === candidate?.cle;
+    return keys.has(cleanCounterLabel(counter.label));
+  });
   if (exact.length === 1) return { status: 'matched', value: exact[0].valeur };
   if (exact.length === 0) return { status: 'missing', value: null };
   return { status: 'ambiguous', value: null };
@@ -323,10 +330,11 @@ async function buildCriteria(db, visite, details, issues) {
           commentaire = exactComment(control?.commentaire, issues, `${path} / commentaire`);
         } else {
           let value;
-          if (visite.trame_id === 'icpe_v1' && candidate.panelId === 'p-releves' && /^index\b/.test(normalize(candidate.label))) {
+          if (['icpe_v1', 'reseau_chaleur_v1'].includes(visite.trame_id) && candidate.panelId === 'p-releves' && /^(index|pression)\b/.test(normalize(candidate.label))) {
             const counter = counterValue(counters, criterion, candidate);
             if (counter.status === 'ambiguous') issues.push(`${path} : plusieurs compteurs correspondent ; METRA refuse de choisir une valeur au hasard.`);
-            value = counter.value;
+            value = counter.status === 'missing' && /^pression\b/.test(normalize(candidate.label))
+              ? fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`) : counter.value;
           } else value = fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`);
           commentaire = exactComment(value, issues, `${path} / commentaire`);
         }

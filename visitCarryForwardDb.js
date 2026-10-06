@@ -191,14 +191,14 @@ async function copyMeterValues(db, visiteId, previousVisitId, referenceOnly = fa
   if (Number(existing?.n || 0) > 0) return 0;
 
   const previous = await db.getAllAsync(
-    `SELECT label,valeur,unite,compteur_site_id FROM compteurs WHERE visite_id=? ORDER BY id`,
+    `SELECT label,valeur,unite,compteur_site_id,destination FROM compteurs WHERE visite_id=? ORDER BY id`,
     [previousVisitId]
   );
   let copied = 0;
   for (const row of previous || []) {
     await db.runAsync(
-      `INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id) VALUES(?,?,?,?,?,?)`,
-      [createId(), visiteId, row.label || 'Compteur', referenceOnly ? null : row.valeur ?? null, row.unite || null, row.compteur_site_id || null]
+      `INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id,destination) VALUES(?,?,?,?,?,?,?)`,
+      [createId(), visiteId, row.label || 'Compteur', referenceOnly ? null : row.valeur ?? null, row.unite || null, row.compteur_site_id || null, row.destination || null]
     );
     copied += 1;
   }
@@ -312,7 +312,7 @@ async function seedRcuLocalStructure(db, visiteId, installationId) {
   const compteurs = await db.getAllAsync(`SELECT s.* FROM compteurs_site s WHERE s.installation_id=? AND s.actif=1
     AND NOT EXISTS(SELECT 1 FROM compteurs c WHERE c.visite_id=? AND c.compteur_site_id=s.id)`, [installationId, visiteId]);
   for (const c of compteurs) {
-    await db.runAsync('INSERT INTO compteurs(id,visite_id,compteur_site_id,label,unite) VALUES(?,?,?,?,?)', [createId(), visiteId, c.id, c.libelle, c.unite]);
+    await db.runAsync('INSERT INTO compteurs(id,visite_id,compteur_site_id,label,unite,destination) VALUES(?,?,?,?,?,?)', [createId(), visiteId, c.id, c.libelle, c.unite, c.destination || null]);
   }
 }
 
