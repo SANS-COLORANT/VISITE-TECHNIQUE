@@ -108,16 +108,19 @@ async function main() {
       assert.equal(champs.find((c) => c.cle === 'Energie - pression')?.valeur, 'RCU 8 bar');
       assert.equal(champs.find((c) => c.cle === 'Matériaux tuyauterie')?.valeur, 'Acier');
       assert.equal(champs.find((c) => c.cle === 'Paramètres cascade chaudières')?.valeur, 'Référence cascade');
-      assert.ok(!champs.some((c) => c.cle === 'T°ext(°C)' || c.cle.startsWith('Index')));
+      assert.equal(champs.find((c) => c.cle === 'T°ext(°C)')?.valeur, '4');
+      assert.equal(champs.find((c) => c.cle === 'Index compteur énergie (MWh)')?.valeur, '123');
       const network = await server.db.getFirstAsync('SELECT * FROM reseaux WHERE visite_id=?', [id]);
       assert.equal(network.nom_reseau, nomReseau); assert.equal(network.courbe_de_chauffe, '1.5');
-      assert.equal(network.t_ext_c, null); assert.equal(network.t_dep_c, null);
+      assert.equal(String(network.t_ext_c), '4'); assert.equal(String(network.t_dep_c), '70');
       const meter = await server.db.getFirstAsync('SELECT * FROM compteurs WHERE visite_id=?', [id]);
-      assert.equal(meter.label, parsed.compteurs[0].label); assert.equal(meter.unite, 'MWh'); assert.equal(meter.valeur, null);
+      assert.equal(meter.label, parsed.compteurs[0].label); assert.equal(meter.unite, 'MWh'); assert.equal(String(meter.valeur), '123');
       const material = await equipment.listerMaterielPersistant(id);
       assert.equal(material.length, 1); assert.equal(material[0].perimetre, 'Primaire'); assert.equal(material[0].nombre, '2');
       assert.equal(material[0].numero_materiel, 'SN-1'); assert.equal(material[0].caracteristiques, '200 kW'); assert.equal(material[0].etat, null);
-      for (const table of ['controles_visite','remarques','photos','observations_equipement','releves_compteur']) {
+      const control = await server.db.getFirstAsync('SELECT avis,commentaire FROM controles_visite WHERE visite_id=? AND cle=?', [id, 'pH']);
+      assert.equal(control.avis, 'S'); assert.equal(control.commentaire, '7.2');
+      for (const table of ['remarques','photos','observations_equipement','releves_compteur']) {
         assert.equal((await server.db.getFirstAsync(`SELECT count(*) n FROM ${table} WHERE visite_id=?`, [id])).n, 0, `${table} isolated`);
       }
       assert.equal((await server.db.getFirstAsync('SELECT contenu FROM notes WHERE visite_id=?', [id])).contenu, '');
@@ -126,7 +129,7 @@ async function main() {
     await verify(second);
     const meter = await server.db.getFirstAsync('SELECT destination,valeur FROM compteurs WHERE visite_id=?', [second]);
     assert.equal(meter.destination, 'Index compteur énergie (MWh)');
-    assert.equal(meter.valeur, null, 'destination survives while the new reading stays blank');
+    assert.equal(String(meter.valeur), '123', 'latest meter reading is proposed in the new visit');
     await server.db.runAsync("UPDATE reseaux SET nom_reseau='Chauffage renommé' WHERE visite_id=?", [second]);
     // Simule une tablette existante : import non lié + dernière visite vide.
     await server.db.runAsync('UPDATE visites SET installation_id=NULL WHERE id=?', [imported.visiteId]);
@@ -138,7 +141,7 @@ async function main() {
     assert.ok(!data.TRAME_DATA['p-distrib']['Distribution chauffage'][0].carryForward, 'ICPE definition unchanged');
     assert.equal((await server.db.getFirstAsync('SELECT valeur FROM compteurs WHERE visite_id=?', [imported.visiteId])).valeur, '123');
     assert.deepEqual(await server.db.getAllAsync('PRAGMA foreign_key_check'), []);
-    console.log('RCU regression validated: import, close/reopen, production creation, legacy repair, blank observations, local isolation.');
+    console.log('RCU regression validated: import, close/reopen, production creation, complete prefill, isolated historical observations, local isolation.');
   } finally { await server.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 }
 main().catch((error) => { console.error(error); process.exitCode = 1; });
