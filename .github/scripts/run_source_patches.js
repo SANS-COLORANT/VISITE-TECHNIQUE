@@ -10,6 +10,7 @@ const CONTRACT_CHECKS = [
   ['Intranet equipment import + brand logo contract', '.github/scripts/check_intranet_equipment_import.js'],
   ['Intranet equipment import executable regression', '.github/scripts/test_intranet_equipment_import.js'],
   ['visit carry-forward contract', '.github/scripts/check_visit_carry_forward_contract.js'],
+  ['RCU import/local carry-forward regression', '.github/scripts/test_reseau_chaleur_carry_forward.js'],
   ['large-client performance contract', '.github/scripts/check_large_client_performance.js'],
   ['runtime responsiveness v3 contract', '.github/scripts/check_runtime_responsiveness_v3.js'],
   ['startup dependency graph contract', '.github/scripts/check_startup_dependency_graph.js'],

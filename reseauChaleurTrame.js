@@ -3,29 +3,38 @@ import { TEMPLATE_RESEAU_CHALEUR_BASE64 } from './templateExcelReseauChaleur.js'
 
 const RESEAU_CHALEUR_ID = 'reseau_chaleur_v1';
 
+// Définition indépendante : ne jamais marquer stable les champs ICPE partagés.
+function champsDurables(sections) {
+  return Object.freeze(Object.fromEntries(Object.entries(sections).map(([section, fields]) => [section,
+    Object.freeze(fields.map((field) => Object.freeze({ ...field,
+      carryForward: field.type === 'champ' && !/^T°(?:ext|dép)/.test(field.cle) && field.cle !== 'Calorifuge (type / état)',
+    }))),
+  ])));
+}
+
 const RESEAU_CHALEUR_PANELS = Object.freeze({
   'p-infos': Object.freeze({
     'Informations générales': Object.freeze([
       { cle: 'Date de visite', type: 'champ' },
       { cle: 'Nom du site', type: 'champ' },
       { cle: 'Adresse', type: 'champ' },
-      { cle: 'Nbr de bât / lgt', type: 'champ' },
-      { cle: 'Energie - pression', type: 'champ' },
-      { cle: 'Production primaire', type: 'champ' },
-      { cle: 'Sous-Station(s) desservis', type: 'champ' },
-      { cle: 'Exploitant - marché', type: 'champ' },
-      { cle: 'Type de LT', type: 'champ' },
+      { cle: 'Nbr de bât / lgt', type: 'champ', carryForward: true },
+      { cle: 'Energie - pression', type: 'champ', carryForward: true },
+      { cle: 'Production primaire', type: 'champ', carryForward: true },
+      { cle: 'Sous-Station(s) desservis', type: 'champ', carryForward: true },
+      { cle: 'Exploitant - marché', type: 'champ', carryForward: true },
+      { cle: 'Type de LT', type: 'champ', carryForward: true },
     ]),
-    'Description des principaux équipements': TRAME_DATA['p-infos']['Description des principaux équipements'],
+    'Description des principaux équipements': champsDurables(TRAME_DATA['p-infos'])['Description des principaux équipements'],
   }),
-  'p-distrib': TRAME_DATA['p-distrib'],
+  'p-distrib': champsDurables(TRAME_DATA['p-distrib']),
   'p-releves': TRAME_DATA['p-releves'],
-  'p-regulation': TRAME_DATA['p-regulation'],
-  'p-conf-chauffage': TRAME_DATA['p-conf-chauffage'],
-  'p-conf-ecs': TRAME_DATA['p-conf-ecs'],
-  'p-conf-adouc': TRAME_DATA['p-conf-adouc'],
-  'p-conf-energie': TRAME_DATA['p-conf-energie'],
-  'p-conf-local': TRAME_DATA['p-conf-local'],
+  'p-regulation': champsDurables(TRAME_DATA['p-regulation']),
+  'p-conf-chauffage': champsDurables(TRAME_DATA['p-conf-chauffage']),
+  'p-conf-ecs': champsDurables(TRAME_DATA['p-conf-ecs']),
+  'p-conf-adouc': champsDurables(TRAME_DATA['p-conf-adouc']),
+  'p-conf-energie': champsDurables(TRAME_DATA['p-conf-energie']),
+  'p-conf-local': champsDurables(TRAME_DATA['p-conf-local']),
 });
 
 const SECTION_RANGES = Object.freeze({

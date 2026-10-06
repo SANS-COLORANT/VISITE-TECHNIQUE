@@ -22,9 +22,9 @@ requireText(latest, "visiteId: null, trameId", 'equipment is imported even witho
 requireText(latest, "for (const [key, value] of attributes)", 'SQLite equipment attribute writes stay sequential');
 
 const persistent = read('persistentEquipmentDb.js');
-requireText(persistent, "a.cle='api_symfony.numero_materiel'", 'material number survives future visits');
-requireText(persistent, "a.cle='api_symfony.reseau_desservi'", 'served network survives future visits');
-requireText(persistent, "a.cle='api_symfony.caracteristiques'", 'material characteristics survive future visits');
+requireText(persistent, "a.cle IN ('patrimoine.numero_materiel','api_symfony.numero_materiel')", 'local/imported material number survives future visits');
+requireText(persistent, "a.cle IN ('patrimoine.reseau_desservi','api_symfony.reseau_desservi')", 'local/imported served network survives future visits');
+requireText(persistent, "a.cle IN ('patrimoine.caracteristiques','api_symfony.caracteristiques')", 'local/imported material characteristics survive future visits');
 requireText(persistent, 'AS marque_logo_uri', 'visit material exposes database logo');
 
 const patrimoine = read('patrimoineDb.js');

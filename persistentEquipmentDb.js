@@ -76,10 +76,10 @@ async function injecterEquipementsActifsDuSite(db, visiteId, siteId, trameId, in
       (SELECT GROUP_CONCAT(et.trame_id) FROM equipement_trames et WHERE et.equipement_id=e.id AND et.actif=1) AS trames_explicit,
       (SELECT COUNT(*) FROM equipement_trames et2 WHERE et2.equipement_id=e.id) AS nb_trames,
       (SELECT o.etat FROM observations_equipement o JOIN visites v2 ON v2.id=o.visite_id WHERE o.equipement_id=e.id AND o.present=1 AND v2.id<>? ORDER BY COALESCE(v2.date_visite,'') DESC,o.observe_le DESC LIMIT 1) dernier_etat,
-      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=e.id AND a.cle='api_symfony.nombre' ORDER BY a.modifie_le DESC LIMIT 1) nombre_reference,
-      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=e.id AND a.cle='api_symfony.numero_materiel' ORDER BY a.modifie_le DESC LIMIT 1) numero_materiel_reference,
-      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=e.id AND a.cle='api_symfony.reseau_desservi' ORDER BY a.modifie_le DESC LIMIT 1) reseau_desservi_reference,
-      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=e.id AND a.cle='api_symfony.caracteristiques' ORDER BY a.modifie_le DESC LIMIT 1) caracteristiques_reference,
+      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=e.id AND a.cle IN ('patrimoine.nombre','api_symfony.nombre') ORDER BY a.modifie_le DESC LIMIT 1) nombre_reference,
+      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=e.id AND a.cle IN ('patrimoine.numero_materiel','api_symfony.numero_materiel') ORDER BY a.modifie_le DESC LIMIT 1) numero_materiel_reference,
+      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=e.id AND a.cle IN ('patrimoine.reseau_desservi','api_symfony.reseau_desservi') ORDER BY a.modifie_le DESC LIMIT 1) reseau_desservi_reference,
+      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=e.id AND a.cle IN ('patrimoine.caracteristiques','api_symfony.caracteristiques') ORDER BY a.modifie_le DESC LIMIT 1) caracteristiques_reference,
       (SELECT b.logo_uri FROM marques_equipement b WHERE b.actif=1 AND b.nom=e.marque COLLATE NOCASE LIMIT 1) marque_logo_uri
      FROM equipements e JOIN installations i ON i.id=e.installation_id
      WHERE i.site_id=? AND i.actif=1 AND e.statut='actif'
@@ -117,7 +117,7 @@ export async function listerMaterielPersistant(visiteId) {
     contexte.installation_id = installationId;
   }
   await convertirMaterielLegacy(db, visiteId, installationId, contexte.trame_id);
-  const apiPrepared = Boolean(contexte.api_remote_local_id);
+  const apiPrepared = Boolean(contexte.api_remote_local_id) || contexte.trame_id === 'reseau_chaleur_v1';
   await injecterEquipementsActifsDuSite(db, visiteId, contexte.site_id, contexte.trame_id, installationId, apiPrepared);
   // Les équipements purement locaux créés par METRA avant ce correctif peuvent
   // déjà avoir une ligne de visite avec quantité vide. Un équipement lié à
@@ -158,6 +158,11 @@ export async function upsertMaterielPersistant(materielId, cle, valeur) {
   }
   await db.runAsync(`UPDATE materiel SET ${cle}=? WHERE id=?`, [valeurFinale, materielId]);
   if (!m.equipement_id) return;
+  if (['nombre','numero_materiel','reseau_desservi','caracteristiques'].includes(cle)) {
+    await db.runAsync(`INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur) VALUES(?,'equipement',?,?,?)
+      ON CONFLICT(entite_type,entite_id,cle) DO UPDATE SET valeur=excluded.valeur,modifie_le=datetime('now')`,
+    [uuidv4(), m.equipement_id, `patrimoine.${cle}`, valeur || null]);
+  }
   if (cle === 'etat') { await upsertObservation(db, m.equipement_id, m.visite_id, { etat: valeur || 'Bon', present: 1 }); return; }
   if (cle === 'perimetre') {
     const visite = await db.getFirstAsync(`SELECT COALESCE(trame_id,'icpe_v1') AS trame_id FROM visites WHERE id=?`, [m.visite_id]);
