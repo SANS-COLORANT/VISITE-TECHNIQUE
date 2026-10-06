@@ -495,6 +495,11 @@ replacement = """  const cfg = trame.excel;
 
   const [champs, controles, reseaux, compteurs, materielBrut, remarquesBrutes, note, aliases, modelePreAllumage] = await Promise.all([
 """
+# The additive visit-only measurement annex extends the export read batch.
+# Preserve that query while inserting the same deferred Pré-allumage bootstrap.
+if 'modelePreAllumage, pointsLibres] = await Promise.all([' in s:
+    marker = marker.replace('modelePreAllumage]', 'modelePreAllumage, pointsLibres]')
+    replacement = replacement.replace('modelePreAllumage]', 'modelePreAllumage, pointsLibres]')
 s = replace_once(s, marker, replacement, 'Excel ensure deferred PRE structure')
 p.write_text(s, encoding='utf-8')
 

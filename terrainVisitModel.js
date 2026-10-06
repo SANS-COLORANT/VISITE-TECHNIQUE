@@ -1,5 +1,6 @@
 const norm = (v) => String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
 export const terrainSectionCode = (panel, section) => panel.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+export const utiliseParcoursTerrain = (trameId) => trameId !== 'pre_allumage';
 const SPACES = [
   ['site', 'Site et relevés', 'home'], ['local', 'Local chaufferie', 'home'],
   ['securite', 'Sécurité et secours', 'control'], ['energie', 'Gaz et électricité', 'bolt'],
