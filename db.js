@@ -41,14 +41,86 @@ async function creerVisite({siteId,technicien,mode='complete'}){const db=await g
 async function supprimerVisite(id){await(await getDb()).runAsync(`DELETE FROM visites WHERE id=?`,[id]);} async function getVisite(id){return(await getDb()).getFirstAsync(`SELECT v.*,s.nom_site,s.adresse,c.nom nom_client,i.nom nom_installation,i.type_code type_installation, CASE WHEN EXISTS(SELECT 1 FROM provenances p WHERE p.entite_type='visite' AND p.entite_id=v.id AND p.origine='api_symfony' AND p.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%') THEN 1 ELSE 0 END AS api_is_historical FROM visites v JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id LEFT JOIN installations i ON i.id=v.installation_id WHERE v.id=?`,[id]);} async function toucherVisite(id){await(await getDb()).runAsync(`UPDATE visites SET modifie_le=datetime('now') WHERE id=?`,[id]);}
 async function getChampsVisite(id){return(await getDb()).getAllAsync(`SELECT * FROM champs_visite WHERE visite_id=?`,[id]);} async function upsertChamp(visiteId,sectionCode,cle,valeur){await(await getDb()).runAsync(`INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?) ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur`,[visiteId,sectionCode,cle,valeur]);} async function getControlesVisite(id){return(await getDb()).getAllAsync(`SELECT * FROM controles_visite WHERE visite_id=?`,[id]);} async function upsertControle(visiteId,sectionCode,cle,avis,commentaire){await(await getDb()).runAsync(`INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire) VALUES(?,?,?,?,?) ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET avis=excluded.avis,commentaire=excluded.commentaire`,[visiteId,sectionCode,cle,avis,commentaire||null]);} async function recalculerProgression(){return 0;}
 async function listerReseaux(id){return(await getDb()).getAllAsync(`SELECT * FROM reseaux WHERE visite_id=? ORDER BY ordre`,[id]);} async function ajouterReseau(visiteId){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO reseaux(id,visite_id,ordre,nom_reseau) VALUES(?,?,0,'Réseau')`,[id,visiteId]);return id;} async function upsertReseauChamp(id,cle,valeur){await(await getDb()).runAsync(`UPDATE reseaux SET ${cle}=? WHERE id=?`,[valeur,id]);} async function supprimerReseau(id){await(await getDb()).runAsync(`DELETE FROM reseaux WHERE id=?`,[id]);}
-async function listerCompteurs(id){return(await getDb()).getAllAsync(`SELECT * FROM compteurs WHERE visite_id=?`,[id]);}
+async function contexteCompteurVisite(db,visiteId){
+  return db.getFirstAsync(`SELECT id,site_id,installation_id FROM visites WHERE id=?`,[visiteId]);
+}
+async function listerCompteurs(id){
+  const db=await getDb();
+  const contexte=await contexteCompteurVisite(db,id);
+  if(contexte?.installation_id){
+    const permanents=await db.getAllAsync(`SELECT cs.* FROM compteurs_site cs
+      WHERE cs.installation_id=? AND cs.actif=1
+        AND NOT EXISTS(SELECT 1 FROM compteurs c WHERE c.visite_id=? AND c.compteur_site_id=cs.id)
+      ORDER BY cs.cree_le,cs.id`,[contexte.installation_id,id]);
+    for(const c of permanents){
+      await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id) VALUES(?,?,?,?,?,?)`,
+        [uuidv4(),id,c.libelle||'Compteur',null,c.unite||null,c.id]);
+    }
+  }
+  return db.getAllAsync(`SELECT c.id,c.visite_id,
+      COALESCE(NULLIF(c.label,''),cs.libelle,'Compteur') AS label,
+      COALESCE(NULLIF(c.valeur,''),r.valeur_texte,CASE WHEN r.valeur_nombre IS NOT NULL THEN CAST(r.valeur_nombre AS TEXT) END) AS valeur,
+      COALESCE(NULLIF(c.unite,''),r.unite,cs.unite) AS unite,
+      c.compteur_site_id,
+      CASE WHEN c.compteur_site_id IS NULL THEN 0 ELSE
+        (SELECT COUNT(*) FROM releves_compteur rr WHERE rr.compteur_site_id=c.compteur_site_id)
+      END AS nb_releves
+    FROM compteurs c
+    LEFT JOIN compteurs_site cs ON cs.id=c.compteur_site_id
+    LEFT JOIN releves_compteur r ON r.compteur_site_id=c.compteur_site_id AND r.visite_id=c.visite_id
+    WHERE c.visite_id=? ORDER BY c.rowid`,[id]);
+}
 async function ajouterCompteur(visiteId,label='Compteur'){
   const db=await getDb(),id=uuidv4();
   const libelle=String(label||'').trim()||'Compteur';
-  await db.runAsync(`INSERT INTO compteurs(id,visite_id,label) VALUES(?,?,?)`,[id,visiteId,libelle]);
+  const contexte=await contexteCompteurVisite(db,visiteId);
+  let compteurSiteId=null;
+  if(contexte?.installation_id){
+    compteurSiteId=uuidv4();
+    await db.runAsync(`INSERT INTO compteurs_site(id,installation_id,type_code,libelle,actif) VALUES(?,?,?,?,1)`,
+      [compteurSiteId,contexte.installation_id,'compteur',libelle]);
+  }
+  await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,compteur_site_id) VALUES(?,?,?,?)`,
+    [id,visiteId,libelle,compteurSiteId]);
   return id;
 }
-async function upsertCompteurChamp(id,cle,valeur){await(await getDb()).runAsync(`UPDATE compteurs SET ${cle}=? WHERE id=?`,[valeur,id]);} async function supprimerCompteur(id){await(await getDb()).runAsync(`DELETE FROM compteurs WHERE id=?`,[id]);}
+async function upsertCompteurChamp(id,cle,valeur){
+  const champsAutorises=new Set(['label','valeur','unite']);
+  if(!champsAutorises.has(cle))throw new Error(`Champ compteur non autorisé: ${cle}`);
+  const db=await getDb();
+  const compteur=await db.getFirstAsync(`SELECT * FROM compteurs WHERE id=?`,[id]);
+  if(!compteur)return;
+  await db.runAsync(`UPDATE compteurs SET ${cle}=? WHERE id=?`,[valeur,id]);
+  if(!compteur.compteur_site_id)return;
+  if(cle==='label'){
+    const libelle=String(valeur||'').trim()||'Compteur';
+    await db.runAsync(`UPDATE compteurs_site SET libelle=?,modifie_le=datetime('now') WHERE id=?`,[libelle,compteur.compteur_site_id]);
+  }
+  if(cle==='unite'){
+    await db.runAsync(`UPDATE compteurs_site SET unite=?,modifie_le=datetime('now') WHERE id=?`,[valeur||null,compteur.compteur_site_id]);
+  }
+  if(cle==='valeur'||cle==='unite'){
+    const actuel=await db.getFirstAsync(`SELECT valeur,unite FROM compteurs WHERE id=?`,[id]);
+    const texteBrut=actuel?.valeur==null?'':String(actuel.valeur).trim();
+    const valeurTexte=texteBrut||null;
+    const normalisee=texteBrut.replace(/\s/g,'').replace(',','.');
+    const nombre=normalisee&&Number.isFinite(Number(normalisee))?Number(normalisee):null;
+    await db.runAsync(`INSERT INTO releves_compteur(id,compteur_site_id,visite_id,valeur_texte,valeur_nombre,unite)
+      VALUES(?,?,?,?,?,?)
+      ON CONFLICT(compteur_site_id,visite_id) DO UPDATE SET
+        valeur_texte=excluded.valeur_texte,valeur_nombre=excluded.valeur_nombre,
+        unite=excluded.unite,releve_le=datetime('now')`,
+      [uuidv4(),compteur.compteur_site_id,compteur.visite_id,valeurTexte,nombre,actuel?.unite||null]);
+  }
+}
+async function supprimerCompteur(id){
+  const db=await getDb();
+  const compteur=await db.getFirstAsync(`SELECT compteur_site_id FROM compteurs WHERE id=?`,[id]);
+  if(compteur?.compteur_site_id){
+    await db.runAsync(`UPDATE compteurs_site SET actif=0,modifie_le=datetime('now') WHERE id=?`,[compteur.compteur_site_id]);
+  }
+  await db.runAsync(`DELETE FROM compteurs WHERE id=?`,[id]);
+}
 async function listerMateriel(id){return chargerMaterielPersistant().listerMaterielPersistant(id);} async function ajouterMateriel(visiteId){return chargerMaterielPersistant().ajouterMaterielPersistant(visiteId);} async function upsertMaterielChamp(id,cle,valeur){return chargerMaterielPersistant().upsertMaterielPersistant(id,cle,valeur);} async function supprimerMateriel(id){return chargerMaterielPersistant().retirerMaterielPersistant(id);}
 async function listerHistoriqueEquipement(...args){return chargerMaterielPersistant().listerHistoriqueEquipement(...args);}
 async function listerRemarques(id){return(await getDb()).getAllAsync(`SELECT * FROM remarques WHERE visite_id=?`,[id]);} async function upsertRemarqueDepuisPrescription(){} async function supprimerRemarqueParControle(){} async function ajouterRemarqueManuelle(visiteId,data={}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO remarques(id,visite_id,poste,prestation,origine) VALUES(?,?,?,?,?)`,[id,visiteId,data.poste||'Observation',data.prestation||data.description||'',data.origine||'Manuelle']);return id;} async function ajouterAnomalieRapide(visiteId,data){return ajouterRemarqueManuelle(visiteId,data);} async function rattacherRemarque(){}
