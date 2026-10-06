@@ -95,5 +95,6 @@ Les compteurs supplémentaires ne remplissent aucune ligne standard. Les
 doublons sont conservés dans Excel et signalés comme ambigus pour l'Intranet.
 Les index enregistrés dans les compteurs font autorité sur les anciens champs
 Excel importés, y compris après effacement ou changement de destination.
-La valeur précédente affichée provient d'une visite antérieure du compteur,
-sans devenir le relevé de la nouvelle visite RCU.
+La dernière valeur connue peut être proposée dans une nouvelle visite du même
+local, quelle que soit la trame source compatible. Elle reste modifiable et la
+nouvelle visite conserve une observation distincte.
