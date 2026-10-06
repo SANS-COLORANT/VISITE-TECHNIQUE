@@ -153,6 +153,59 @@ async function copyReusableControls(db, visiteId, previousVisitId, trame) {
   return copied;
 }
 
+async function copyUnresolvedReserves(db, visiteId, previousVisitId) {
+  const rows = await db.getAllAsync(
+    `SELECT r.*,v.date_visite AS date_source
+     FROM remarques r JOIN visites v ON v.id=r.visite_id
+     WHERE r.visite_id=?
+       AND COALESCE(r.intranet_etat_avancement,'') NOT IN ('Terminé','Annulé')
+     ORDER BY r.criticite DESC,r.cree_le,r.id`,
+    [previousVisitId]
+  );
+  let copied = 0;
+  for (const row of rows || []) {
+    // Une réserve reprise devient une réserve active de la nouvelle visite,
+    // mais conserve une lignée stable vers sa première occurrence. Elle est
+    // volontairement détachée de controle_key : un avis S du jour ne doit pas
+    // supprimer silencieusement une réserve historique encore à traiter.
+    const lineageId = row.reference_type === 'reserve_historique' && clean(row.reference_id)
+      ? clean(row.reference_id)
+      : row.id;
+    const existing = await db.getFirstAsync(
+      `SELECT id FROM remarques
+       WHERE visite_id=? AND reference_type='reserve_historique' AND reference_id=?
+       LIMIT 1`,
+      [visiteId, lineageId]
+    );
+    if (existing?.id) continue;
+
+    const id = createId();
+    const origineSource = clean(row.origine);
+    const origine = origineSource
+      ? `Reprise visite précédente · ${origineSource}`
+      : 'Reprise visite précédente';
+    await db.runAsync(
+      `INSERT INTO remarques(
+         id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,
+         reference_onglet,reference_type,reference_id,reference_libelle,
+         criticite,criticite_defaut,criticite_modifiee,
+         intranet_date_reserve,intranet_delai,intranet_etat_avancement,perimetre
+       ) VALUES(?,?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      [
+        id, visiteId,
+        row.poste ?? null, row.prestation ?? null, row.delai ?? null, row.estimatif ?? null, origine,
+        row.reference_onglet ?? null, 'reserve_historique', lineageId,
+        row.reference_libelle || row.poste || 'Réserve reprise',
+        row.criticite ?? 2, row.criticite_defaut ?? row.criticite ?? 2, row.criticite_modifiee ?? 0,
+        row.intranet_date_reserve || row.date_source || null,
+        row.intranet_delai ?? null, row.intranet_etat_avancement ?? null, row.perimetre ?? null,
+      ]
+    );
+    copied += 1;
+  }
+  return copied;
+}
+
 async function copyNetworkValues(db, visiteId, previousVisitId, referenceOnly = false) {
   const existing = await db.getFirstAsync(`SELECT COUNT(*) AS n FROM reseaux WHERE visite_id=?`, [visiteId]);
   if (Number(existing?.n || 0) > 0) return 0;
@@ -317,7 +370,7 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
   // Ouvrir une ancienne visite terminée/importée ne doit jamais la modifier à
   // partir d'une autre visite historique.
   if (clean(contexte?.statut) !== 'en_cours') {
-    return { contexte, previousVisitId: null, copiedFields: 0, copiedControls: 0, copiedNetworks: 0, copiedMeters: 0, skippedHistoricalVisit: true };
+    return { contexte, previousVisitId: null, copiedFields: 0, copiedControls: 0, copiedReserves: 0, copiedNetworks: 0, copiedMeters: 0, skippedHistoricalVisit: true };
   }
 
   const trame = obtenirTrame(contexte.trame_id || DEFAULT_TRAME_ID);
@@ -325,7 +378,7 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
   const resolution = await inferUniqueInstallation(db, contexte, visiteId, trame.id);
   const resolved = resolution.contexte;
   if (!resolution.canCarry) {
-    return { contexte: resolved, previousVisitId: null, copiedFields: 0, copiedControls: 0, copiedNetworks: 0, copiedMeters: 0, ambiguousLocal: true };
+    return { contexte: resolved, previousVisitId: null, copiedFields: 0, copiedControls: 0, copiedReserves: 0, copiedNetworks: 0, copiedMeters: 0, ambiguousLocal: true };
   }
   if (trame.id === 'reseau_chaleur_v1') await seedRcuLocalStructure(db, visiteId, resolved.installation_id);
 
@@ -336,10 +389,11 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
      ORDER BY COALESCE(date_visite,'') DESC,modifie_le DESC LIMIT 1`,
     [resolved.site_id, visiteId, DEFAULT_TRAME_ID, trame.id, resolved.installation_id, resolved.installation_id]
   );
-  if (!previous?.id) return { contexte: resolved, previousVisitId: null, copiedFields: 0, copiedControls: 0, copiedNetworks: 0, copiedMeters: 0 };
+  if (!previous?.id) return { contexte: resolved, previousVisitId: null, copiedFields: 0, copiedControls: 0, copiedReserves: 0, copiedNetworks: 0, copiedMeters: 0 };
 
   const copiedFields = await copyReusableFields(db, visiteId, previous.id, trame);
   const copiedControls = await copyReusableControls(db, visiteId, previous.id, trame);
+  const copiedReserves = await copyUnresolvedReserves(db, visiteId, previous.id);
   const porteReseaux = trame.id === DEFAULT_TRAME_ID || trame.id === 'reseau_chaleur_v1';
   const referenceOnly = false;
   const copiedNetworks = porteReseaux ? await copyNetworkValues(db, visiteId, previous.id, referenceOnly) : 0;
@@ -350,6 +404,7 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
     previousVisitId: previous.id,
     copiedFields,
     copiedControls,
+    copiedReserves,
     copiedNetworks,
     copiedMeters,
     ambiguousLocal: false,
