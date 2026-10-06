@@ -15,7 +15,7 @@ requireText(carry, "if (trame.id === 'pre_allumage') return 0;", 'pre-allumage c
 requireText(carry, 'async function isImportedHistoricalVisit', 'historical Intranet visit detection');
 requireText(carry, "details_json LIKE '%\\\"sourceType\\\":\\\"imported_latest_visit\\\"%'", 'imported historical provenance detection');
 requireText(carry, 'function technicalControlKeys(trame)', 'technical values preserved from imported history');
-requireText(carry, 'const commentaire = importedHistory && !technicalKeys.has(key) ? null : previousComment;', 'historical conformity comments do not seed the next visit');
+requireText(carry, 'const commentaire = previousComment;', 'latest control comment is proposed in the next visit');
 requireText(carry, 'SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id', 'network values selected');
 requireText(carry, "entite_type='reseau' AND entite_id=? AND origine='api_symfony'", 'network Intranet provenance carried forward');
 requireText(carry, 'row.t_ext_c ?? null', 'external temperature carry-forward');
@@ -72,4 +72,4 @@ if (historicalImport < 0 || referenceImport < 0 || historicalImport > referenceI
   throw new Error('prepared visit must materialize the latest preparation snapshot before importing the current API reference');
 }
 
-console.log('Visit preparation contract validated: Intranet history imports latest-known S/N.S/etc. without ordinary conformity comments, keeps technical measurements, leaves Intranet remarks summary-only, carries avis into the next visit without cloning old reserves, and keeps Pré-allumage controls blank.');
+console.log('Visit preparation contract validated: latest-known fields, S/N.S/etc. and control comments can prefill the next visit without cloning old reserves/photos/conclusions, while Pré-allumage controls remain blank.');
