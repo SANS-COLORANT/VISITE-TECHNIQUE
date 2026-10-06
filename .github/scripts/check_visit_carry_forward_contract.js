@@ -39,7 +39,7 @@ requireText(latest, 'criteriaFromEarlierVisits', 'older criterion source diagnos
 requireText(latest, 'function contextScore(candidate, categoryName, subCategoryName)', 'branch-aware conformity matching');
 requireText(latest, 'contextOverlap(candidate.panelIdKey, categoryKey)', 'category context disambiguates duplicate criterion names');
 requireText(latest, 'function isTechnicalControlTarget(trameId, target)', 'technical control exception');
-requireText(latest, 'const commentaire = preserveTechnicalComment ? rawComment : null;', 'historical conformity comments are hidden');
+requireText(latest, 'const commentaire = rawComment;', 'historical control comments are preserved');
 requireText(latest, 'sourceControlCriteria', 'control import diagnostics');
 requireText(latest, 'unmappedControlCriteria', 'unmapped control diagnostics');
 requireText(latest, "controlCommentRule: 'latest_known_control_comments_preserved_with_source_provenance'", 'historical comment semantics');
