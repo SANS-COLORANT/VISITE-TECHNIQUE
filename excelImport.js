@@ -275,7 +275,7 @@ async function trouverSiteEquivalent(db, clientId, nom) {
   return sites.find((s) => normaliserTexte(s.nom_site) === cible) || null;
 }
 
-export async function importerAnalyseExcel(analyse) {
+export async function importerAnalyseExcel(analyse, { installationId = null } = {}) {
   const db = await getDb();
   const deja = await db.getFirstAsync(
     `SELECT entite_id FROM provenances WHERE origine = 'import_excel' AND reference_externe = ?`,
@@ -323,14 +323,21 @@ export async function importerAnalyseExcel(analyse) {
     }
     await db.runAsync('INSERT INTO notes (visite_id, contenu) VALUES (?, ?)', [visiteId, analyse.note || '']);
 
-    let installation = await db.getFirstAsync('SELECT id FROM installations WHERE site_id = ? AND actif = 1 LIMIT 1', [site.id]);
+    const locaux = await db.getAllAsync('SELECT id,nom FROM installations WHERE site_id = ? AND actif = 1', [site.id]);
+    const nomLocal = analyse.nomLocal || analyse.champs.find((c) => c.cle === 'Nom du local')?.valeur;
+    let installation = installationId
+      ? locaux.find((i) => i.id === installationId)
+      : nomLocal ? locaux.find((i) => normaliserTexte(i.nom) === normaliserTexte(nomLocal)) : locaux.length === 1 ? locaux[0] : null;
+    if (installationId && !installation) throw new Error('Local absent ou appartenant à un autre site');
+    if (!installation && !nomLocal && locaux.length > 1) throw new Error('Plusieurs locaux : sélectionner le local cible de l’import');
     if (!installation) {
       installation = { id: uuidv4() };
       await db.runAsync(
         `INSERT INTO installations (id, site_id, type_code, nom) VALUES (?, ?, ?, ?)`,
-        [installation.id, site.id, analyse.trameId === 'reseau_chaleur_v1' ? 'sous_station' : 'chaufferie', analyse.trameId === 'reseau_chaleur_v1' ? 'Sous-station principale' : 'Installation principale']
+        [installation.id, site.id, analyse.trameId === 'reseau_chaleur_v1' ? 'sous_station' : 'chaufferie', nomLocal || (analyse.trameId === 'reseau_chaleur_v1' ? 'Sous-station principale' : 'Installation principale')]
       );
     }
+    await db.runAsync('UPDATE visites SET installation_id=? WHERE id=?', [installation.id, visiteId]);
 
     etape = 'réseaux';
     for (const r of analyse.reseaux) {
@@ -379,6 +386,12 @@ export async function importerAnalyseExcel(analyse) {
       }
       const equipementId = equipement.id;
       equipementsUtilises.add(equipementId);
+      for (const [cle, valeur] of Object.entries({ nombre: m.nombre, numero_materiel: m.numero, reseau_desservi: m.reseau, caracteristiques: m.caracteristiques })) {
+        if (valeur == null || String(valeur).trim() === '') continue;
+        await db.runAsync(`INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur) VALUES(?,'equipement',?,?,?)
+          ON CONFLICT(entite_type,entite_id,cle) DO UPDATE SET valeur=excluded.valeur,modifie_le=datetime('now')`,
+        [uuidv4(), equipementId, `patrimoine.${cle}`, String(valeur)]);
+      }
       const perimetre = m.perimetre === 'Primaire' || m.perimetre === 'Secondaire' ? m.perimetre : null;
       await db.runAsync(
         `INSERT INTO equipement_trames(equipement_id,trame_id,actif,perimetre) VALUES(?,?,1,?)

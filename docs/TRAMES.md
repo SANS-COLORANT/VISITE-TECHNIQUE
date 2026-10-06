@@ -69,6 +69,20 @@ Règles spécifiques :
 
 Les commentaires, photos, criticités et réserves utilisent les composants durables communs aux autres visites techniques.
 
+Une nouvelle visite Réseau de chaleur reprend les champs de référence déclarés
+`carryForward`, le patrimoine du même local (équipements et classement
+Primaire/Secondaire, réseaux, définitions et unités des compteurs), ainsi que les
+paramètres de régulation. Les index, pressions, températures mesurées, avis,
+états observés, photos, réserves et conclusions restent dans leur visite
+d'origine. Une visite récente vide ne masque pas les références importées
+plus anciennes du même local et de cette même trame.
+
+L'import Excel rattache sa visite à l'installation qui reçoit le patrimoine.
+Les anciens imports sans rattachement sont récupérés seulement si leurs objets
+patrimoniaux liés identifient un local unique. Sur un site comportant plusieurs
+locaux, un import sans nom de local ni cible explicite est refusé pour éviter
+d'affecter les données arbitrairement au premier local.
+
 ## Excel
 
 Chaque trame conserve son modèle Excel officiel. Les mappings d’import/export sont propres à la trame et ne doivent pas être généralisés sans test explicite des trois formats.
