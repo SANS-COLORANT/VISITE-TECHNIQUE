@@ -79,6 +79,7 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
  const[perimetre,setPerimetre]=useState(item.perimetre||'');
  const reseauChaleur=trameId==='reseau_chaleur_v1';
  const[picker,setPicker]=useState(null);
+ const[expanded,setExpanded]=useState(()=>!item.designation||eq(item.designation,'Équipement'));
  const[designation,setDesignation,blurDesignation,setDesignationNow]=useDurableAutosave(item.designation,v=>upsertMaterielChamp(item.id,'designation',v));
  const[modele,setModele,blurModele,setModeleNow]=useDurableAutosave(item.modele,v=>upsertMaterielChamp(item.id,'modele',v));
  const[annee,setAnnee,blurAnnee]=useDurableAutosave(item.annee,v=>upsertMaterielChamp(item.id,'annee',v));
@@ -119,12 +120,20 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
  const sauverPerimetre=async v=>{setPerimetre(v);await upsertMaterielChamp(item.id,'perimetre',v)};
 
  return <View style={styles.formCard}>
-  <View style={styles.equipmentBrandHeader}>
-   <BrandMark marque={{marque,logo_uri:marqueLogo}} compact/>
-   <View style={{flex:1}}><Text style={styles.cardTitle}>{designation||categorie||'Nouvel équipement'}</Text><Text style={styles.cardSub}>{[marque,modele].filter(Boolean).join(' · ')||'À compléter'}</Text></View>
+  <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
+   <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${designation||categorie||'Équipement'}, ouvrir les détails`} activeOpacity={0.72} onPress={()=>setExpanded(v=>!v)} style={{flex:1,minWidth:0,paddingVertical:2}}>
+    <Text numberOfLines={1} style={[styles.cardTitle,{marginBottom:2}]}>{designation||categorie||'Nouvel équipement'}</Text>
+    {reseau?<Text numberOfLines={1} style={{fontSize:11,color:COLORS.muted,fontStyle:'italic',marginBottom:1}}>{reseau}</Text>:null}
+    <Text numberOfLines={1} style={{fontSize:11,color:COLORS.muted,fontStyle:'italic'}}>{[marque,modele].filter(Boolean).join(' - ')||'Marque - modèle à compléter'}</Text>
+   </TouchableOpacity>
    <PhotoButton visiteId={visiteId} entiteKey={item.equipement_id?`equipement||${item.equipement_id}`:`materiel||${item.id}`} label={designation||categorie||'Équipement'}/>
+   <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer cet équipement" hitSlop={{top:8,bottom:8,left:8,right:8}} onPress={async()=>{await supprimerMateriel(item.id);await onChange()}} style={{width:44,height:44,borderRadius:13,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(185,28,28,0.08)'}}>
+    <Text style={{fontSize:18}}>🗑</Text>
+   </TouchableOpacity>
   </View>
 
+  {expanded?<View style={{marginTop:12}}>
+   <View style={{flexDirection:'row',alignItems:'center',gap:10,marginBottom:8}}><BrandMark marque={{marque,logo_uri:marqueLogo}} compact/><Text style={[styles.importHint,{flex:1}]}>Détails de l’équipement</Text></View>
   <PickerField label="1. Type d’équipement" valeur={categorie} placeholder="Choisir : VMC, CTA, Ventilateur, Pompe, Chaudière…" onPress={()=>setPicker('type')}/>
   <View style={{marginTop:10}}><Text style={styles.fieldLabel}>2. Désignation</Text><TextInput style={styles.input} value={designation} onChangeText={setDesignation} onBlur={blurDesignation} placeholder={categorie?`Ex. ${categorie} double`:'Désignation'}/><Text style={[styles.importHint,{marginTop:4}]}>Préremplie avec le type, mais entièrement modifiable selon l’équipement réel.</Text></View>
   <PickerField label="3. Marque" valeur={marque} placeholder={categorie?'Choisir une marque':'Choisir d’abord le type'} disabled={!categorie} onPress={()=>setPicker('marque')} sub={categorie&&marquesType.length?`${marquesType.length} marque(s) compatibles dans le catalogue`:null}/>
@@ -143,7 +152,7 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
   {['À surveiller','Dégradé'].includes(etat)?<Text style={[styles.importHint,{marginTop:5}]}>Pour une visite liée à l’Intranet, choisis avant l’envoi un état accepté par le serveur : Neuf, Bon, Moyen, Vétuste ou Hors service.</Text>:null}
 
   {item.equipement_id?<View style={[styles.persistentEquipmentBadge,{marginTop:10}]}><Text style={styles.persistentEquipmentBadgeText}>↻ Équipement permanent · {item.nb_observations||0} observation(s)</Text></View>:null}
-  <TouchableOpacity style={{marginTop:12}} onPress={async()=>{await supprimerMateriel(item.id);await onChange()}}><Text style={styles.removeLink}>Déclarer cet équipement retiré</Text></TouchableOpacity>
+  </View>:null}
 
   <PickerSheet visible={picker==='type'} titre="Type d’équipement" options={types} valeur={categorie} onClose={()=>setPicker(null)} onPick={choisirType}/>
   <PickerSheet visible={picker==='marque'} titre="Marque" options={marquesType.length?marquesType:marques} valeur={marque} onClose={()=>setPicker(null)} onPick={choisirMarque} emptyText="Aucune marque compatible dans le catalogue"/>
@@ -153,7 +162,13 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
 
 export function GuidedEquipmentPanel({visiteId,trameId='icpe_v1'}){
  const[materiel,setMateriel]=useState([]),[types,setTypes]=useState(TYPES),[marques,setMarques]=useState(MARQUES),[catalogue,setCatalogue]=useState([]);
- const{listRef,onScroll}=useListScrollMemory(`visit-panel:${visiteId}:p-equip`,materiel.length);
+ const[recherche,setRecherche]=useState('');
+ const materielFiltres=useMemo(()=>{
+  const q=norm(recherche);
+  if(!q)return materiel;
+  return materiel.filter(item=>norm([item.designation,item.categorie,item.reseau_desservi,item.marque,item.modele,item.numero_materiel,item.caracteristiques].filter(Boolean).join(' ')).includes(q));
+ },[materiel,recherche]);
+ const{listRef,onScroll}=useListScrollMemory(`visit-panel:${visiteId}:p-equip`,materielFiltres.length);
  const charger=useCallback(async()=>setMateriel(await listerMateriel(visiteId)),[visiteId]);
  useEffect(()=>{charger()},[charger]);
  useEffect(()=>{let actif=true;(async()=>{
@@ -169,5 +184,33 @@ export function GuidedEquipmentPanel({visiteId,trameId='icpe_v1'}){
   }catch(e){console.warn('Catalogue équipements non chargé',e)}
  })();return()=>{actif=false}},[]);
  const ajouter=useCallback(async()=>{await ajouterMateriel(visiteId);await charger()},[visiteId,charger]);
- return <FlatList ref={listRef} data={materiel} onScroll={onScroll} scrollEventThrottle={100} keyExtractor={i=>i.id} renderItem={({item})=><EquipmentCard item={item} visiteId={visiteId} onChange={charger} types={types} marques={marques} catalogue={catalogue} trameId={trameId}/>} contentContainerStyle={styles.panelContent} ListHeaderComponent={<View><Text style={styles.sectionTitle}>Équipements · {materiel.length}</Text><Text style={styles.importHint}>{trameId==='reseau_chaleur_v1'?'Chaque équipement doit être classé Primaire ou Secondaire pour cette trame.':'VMC, CTA, ventilateurs et tourelles sont inclus. Touchez Type, Marque ou Modèle : un volet tactile s’ouvre et filtre automatiquement le catalogue.'}</Text></View>} ListFooterComponent={<TouchableOpacity style={styles.addBtn} onPress={ajouter}><Text style={styles.addBtnText}>+ Ajouter un équipement</Text></TouchableOpacity>} initialNumToRender={4} maxToRenderPerBatch={4} windowSize={5} removeClippedSubviews={false} keyboardShouldPersistTaps="handled"/>;
+ return <View style={{flex:1}}>
+  <FlatList
+   ref={listRef}
+   data={materielFiltres}
+   onScroll={onScroll}
+   scrollEventThrottle={100}
+   keyExtractor={i=>i.id}
+   renderItem={({item})=><EquipmentCard item={item} visiteId={visiteId} onChange={charger} types={types} marques={marques} catalogue={catalogue} trameId={trameId}/>}
+   contentContainerStyle={[styles.panelContent,{paddingBottom:126}]}
+   ListHeaderComponent={<View>
+    <Text style={styles.sectionTitle}>Équipements · {materielFiltres.length}{recherche?`/${materiel.length}`:''}</Text>
+    <TextInput style={[styles.input,{marginBottom:10}]} value={recherche} onChangeText={setRecherche} placeholder="Rechercher un équipement déjà ajouté…" autoCorrect={false}/>
+    <Text style={styles.importHint}>{trameId==='reseau_chaleur_v1'?'Touchez un équipement pour ses détails. Chaque équipement doit être classé Primaire ou Secondaire.':'Touchez un équipement pour afficher ou masquer sa fiche complète.'}</Text>
+   </View>}
+   ListEmptyComponent={<View style={{paddingVertical:24}}><Text style={{textAlign:'center',color:COLORS.muted}}>{recherche?'Aucun équipement ne correspond à la recherche.':'Aucun équipement pour cette visite.'}</Text></View>}
+   initialNumToRender={8}
+   maxToRenderPerBatch={8}
+   windowSize={6}
+   removeClippedSubviews={false}
+   keyboardShouldPersistTaps="handled"
+  />
+  <TouchableOpacity
+   accessibilityRole="button"
+   accessibilityLabel="Ajouter un équipement"
+   activeOpacity={0.78}
+   onPress={async()=>{setRecherche('');await ajouter()}}
+   style={{position:'absolute',right:18,bottom:18,width:50,height:50,borderRadius:25,backgroundColor:COLORS.orange,alignItems:'center',justifyContent:'center',elevation:10,shadowColor:'#000',shadowOpacity:0.18,shadowRadius:10,shadowOffset:{width:0,height:5}}}
+  ><Text style={{fontSize:31,lineHeight:34,color:'#fff',fontWeight:'400'}}>+</Text></TouchableOpacity>
+ </View>;
 }
