@@ -9,11 +9,13 @@
 
 Chaque trame possède ses propres contrôles, commentaires, remarques, réserves, exports et règles de présentation.
 
-## Isolation obligatoire
+## Maillage et isolation
 
-Une trame ne doit pas récupérer automatiquement les remarques, réserves ou résultats d’une autre trame.
+Les trames ne sont pas des silos de données. Lorsqu’une information existe dans plusieurs trames, elle doit être rattachée à un concept canonique commun afin que la dernière valeur connue du même local puisse être proposée dans la trame courante.
 
-Le patrimoine peut être commun, mais l’affichage est filtré selon la trame.
+L’isolation porte sur la présentation, l’export et la provenance : la nouvelle trame n’affiche que les concepts qu’elle sait représenter et chaque valeur conserve sa visite/trame source. Aucune correspondance ambiguë n’est inventée.
+
+Les réserves non levées suivent le local indépendamment de la trame et restent actives jusqu’à `Terminé` ou `Annulé`. Les photos et conclusions restent dans leur historique source.
 
 ## Contrôles
 
@@ -69,8 +71,7 @@ Règles spécifiques :
 
 Les commentaires, photos, criticités et réserves utilisent les composants durables communs aux autres visites techniques.
 
-Une nouvelle visite Réseau de chaleur reprend les champs de référence déclarés
-`carryForward`, le patrimoine du même local (équipements et classement
+Une nouvelle visite Réseau de chaleur reprend les dernières informations compatibles connues dans le maillage du même local, y compris lorsqu’elles proviennent d’une visite ICPE ou d’une autre trame, ainsi que le patrimoine du même local (équipements et classement
 Primaire/Secondaire, réseaux, définitions et unités des compteurs), ainsi que les
 paramètres de régulation. Les index, pressions, températures mesurées, avis,
 états observés, photos, réserves et conclusions restent dans leur visite
