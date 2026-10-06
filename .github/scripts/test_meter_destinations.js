@@ -1,0 +1,192 @@
+/**
+ * Non-régression : destination d'export des compteurs (migration 045).
+ *
+ * 1. Excel ICPE et Réseau de chaleur générés avec les VRAIS modèles : pour des
+ *    compteurs historiques (sans destination), le classeur produit est
+ *    identique cellule par cellule à celui du code d'avant la migration
+ *    (fichier de référence passé en argument, sinon la version Git HEAD~).
+ * 2. Un compteur renommé portant une destination reste exporté sur sa ligne ;
+ *    « supplementaire » n'est jamais écrit dans la trame.
+ * 3. Intranet : correspondance par destination, ambiguïté toujours bloquante.
+ * 4. SQLite réel : migration 045 additive, reprise de visite conservant la
+ *    destination.
+ */
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { spawn, execFileSync } = require('node:child_process');
+const readline = require('node:readline');
+const root = path.resolve(__dirname, '../..');
+let checks = 0;
+function check(condition, label) { assert.ok(condition, label); checks += 1; console.log(`OK ${checks}: ${label}`); }
+
+function loadSource(source, dependencies = {}) {
+  const names = [...source.matchAll(/export\s+(?:async\s+)?(?:function|const|let|class)\s+(\w+)/g)].map((m) => m[1]);
+  for (const match of source.matchAll(/export\s*\{([^}]+)\}/g)) names.push(...match[1].split(',').map((s) => s.trim()).filter(Boolean));
+  const script = source.replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*$/gm, '')
+    .replace(/export\s*\{[^}]+\};?/g, '').replace(/export\s+(?=(?:async\s+)?(?:function|const|let|class)\s)/g, '');
+  return new Function(...Object.keys(dependencies), `${script}\nreturn {${[...new Set(names)].join(',')}};`)(...Object.values(dependencies));
+}
+const load = (file, deps) => loadSource(fs.readFileSync(path.join(root, file), 'utf8'), deps);
+
+function extractFunction(source, name) {
+  const start = source.indexOf(`function ${name}(`);
+  assert.ok(start >= 0, `fonction ${name} introuvable`);
+  let depth = 0; let i = source.indexOf('{', start);
+  for (; i < source.length; i += 1) { if (source[i] === '{') depth += 1; else if (source[i] === '}') { depth -= 1; if (depth === 0) break; } }
+  return source.slice(start, i + 1);
+}
+
+function databaseProcess(filename) {
+  const child = spawn(process.env.PYTHON || 'python3', [path.join(__dirname, 'photo_sqlite_harness.py'), filename]);
+  const pending = new Map(); let seq = 0;
+  child.stderr.pipe(process.stderr);
+  readline.createInterface({ input: child.stdout }).on('line', (line) => {
+    const response = JSON.parse(line); const waiter = pending.get(response.id); pending.delete(response.id);
+    if (response.error) waiter.reject(new Error(response.error)); else waiter.resolve(response.result);
+  });
+  const send = (method, sql = '', params = []) => new Promise((resolve, reject) => {
+    const id = ++seq; pending.set(id, { resolve, reject }); child.stdin.write(JSON.stringify({ id, method, sql, params }) + '\n');
+  });
+  const db = { getAllAsync: (sql, params) => send('all', sql, params), getFirstAsync: async (sql, params) => (await send('all', sql, params))[0] || null,
+    runAsync: (sql, params) => send('run', sql, params), execAsync: (sql) => send('exec', sql) };
+  return { db, send, close: () => new Promise((resolve) => { child.once('exit', resolve); child.stdin.end(); }) };
+}
+
+// Référence « avant 045 » : fichier passé en argument ou révision Git
+// (METER_BASELINE_REF). En CI (clone partiel) elle peut manquer : les
+// comparaisons avec l'ancien code sont alors remplacées par des valeurs figées.
+function baselineExcelSource() {
+  const fromArg = process.argv[2];
+  if (fromArg) return fs.readFileSync(fromArg, 'utf8');
+  try { return execFileSync('git', ['show', `${process.env.METER_BASELINE_REF || 'ef7e15b'}:excelExport.js`], { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }); }
+  catch (_) { return null; }
+}
+
+async function main() {
+  const XLSX = require('xlsx');
+  const data = load('data.js');
+  const { TEMPLATE_EXCEL_BASE64 } = load('templateExcel.js');
+  const { TEMPLATE_RESEAU_CHALEUR_BASE64 } = load('templateExcelReseauChaleur.js');
+  const rcu = load('reseauChaleurTrame.js', { TRAME_DATA: data.TRAME_DATA, TEMPLATE_RESEAU_CHALEUR_BASE64 });
+  const registry = load('trameRegistry.js', { ...data, ...rcu, TEMPLATE_EXCEL_BASE64,
+    ...load('vmcTrame.js', { XLSX }), ...load('preAllumageTrame.js', { XLSX }), ...load('trameValidation.js') });
+
+  function exporter(source) {
+    let state = { trameId: 'icpe_v1', compteurs: [] };
+    const deps = { XLSX, FileSystem: {}, Sharing: {}, obtenirTrame: registry.obtenirTrame, DEFAULT_TRAME_ID: 'icpe_v1',
+      getDb: async () => ({ getAllAsync: async () => [], getFirstAsync: async () => null }),
+      getVisite: async () => ({ id: 'v', trame_id: state.trameId, nom_client: 'Client', nom_site: 'Site', adresse: 'Adresse', date_visite: '2026-10-06' }),
+      listerReseaux: async () => [], listerMateriel: async () => [], listerRemarques: async () => [],
+      listerCompteurs: async () => state.compteurs, getNote: async () => null,
+      libelleChamp: (x) => x, libelleSection: (x) => x, listerAliasesPreAllumage: async () => ({}), chargerPreAllumageModulaire: async () => null,
+      creerFichierSaf: async () => null, dossierVisiteMetra: async () => null };
+    const mod = loadSource(source, deps);
+    return async (trameId, compteurs) => {
+      state = { trameId, compteurs };
+      const { wb, trame } = await mod.construireClasseur('v');
+      const sheet = wb.Sheets[trame.excel.mainSheet];
+      const values = {};
+      for (const [ref, cell] of Object.entries(sheet)) if (!ref.startsWith('!')) values[ref] = cell?.v;
+      return { values, sheet };
+    };
+  }
+  const baseline = baselineExcelSource();
+  const avant = baseline ? exporter(baseline) : null;
+  if (!avant) console.log('Référence avant 045 indisponible : contrôle par valeurs figées.');
+  const apres = exporter(fs.readFileSync(path.join(root, 'excelExport.js'), 'utf8'));
+  const diff = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].filter((k) => String(a[k] ?? '') !== String(b[k] ?? ''));
+
+  // Compteurs historiques : libellés réels produits par l'application avant 045.
+  const historiques = [
+    { label: 'Index compteur(s) gaz(m³)/Cuve fioul', valeur: '418532', unite: 'm³' },
+    { label: 'Index compteur énergie', valeur: '2712', unite: 'MWh' },
+    { label: 'Index compteur d’appoint eau chauffage', valeur: '1204', unite: 'm³' },
+    { label: 'Index compteur alimentation EF ECS', valeur: '8377', unite: 'm³' },
+    { label: 'Compteur gaz', valeur: '1', unite: 'm³' }, { label: 'Compteur énergie chauffage', valeur: '2', unite: 'MWh' },
+    { label: 'Compteur eau appoint chauffage', valeur: '3', unite: 'm³' }, { label: 'Compteur eau froide ECS', valeur: '4', unite: 'm³' },
+    { label: 'Compteur électrique', valeur: '5', unite: 'kWh' }, { label: 'Compteur fioul', valeur: '6', unite: 'L' },
+    { label: 'Manomètre chauffage', valeur: '1,8', unite: 'bar' }, { label: 'Manomètre ECS', valeur: '3', unite: 'bar' },
+    { label: 'Compteur volumétrique', valeur: '7', unite: 'm³' }, { label: 'Sans correspondance', valeur: '9', unite: '' },
+  ];
+  // Valeurs figées produites par le code d'avant 045 (build 650) pour ces compteurs.
+  const FIGE_ICPE = {
+    C134: 'Index compteur(s) gaz(m³)/Cuve fioul : 418532 m³ | Compteur gaz : 1 m³ | Compteur fioul : 6 L',
+    C135: 'Index compteur énergie : 2712 MWh | Compteur énergie chauffage : 2 MWh | Compteur électrique : 5 kWh',
+    C136: 'Index compteur d’appoint eau chauffage : 1204 m³ | Compteur eau appoint chauffage : 3 m³',
+    C137: 'Index compteur alimentation EF ECS : 8377 m³ | Compteur eau froide ECS : 4 m³ | Compteur volumétrique : 7 m³',
+    C138: 'Manomètre chauffage : 1,8 bar', C139: 'Manomètre ECS : 3 bar',
+  };
+  const icpeHisto = await apres('icpe_v1', historiques);
+  check(Object.entries(FIGE_ICPE).every(([ref, v]) => icpeHisto.values[ref] === v), 'ICPE : compteurs historiques sur leurs lignes habituelles (valeurs du build 650)');
+  const rcuHisto = await apres('reseau_chaleur_v1', historiques);
+  check(rcuHisto.values.C60 === '418532 m³' && rcuHisto.values.C61 === '2712 MWh' && rcuHisto.values.C62 === '1204 m³' && rcuHisto.values.C63 === '8377 m³', 'Réseau de chaleur : compteurs historiques sur leurs lignes habituelles');
+  if (avant) {
+    for (const trameId of ['icpe_v1', 'reseau_chaleur_v1']) {
+      const a = await avant(trameId, historiques); const b = await apres(trameId, historiques);
+      check(diff(a.values, b.values).length === 0, `${trameId} : compteurs historiques, classeur identique cellule par cellule à l'ancien code`);
+      check(diff((await avant(trameId, [])).values, (await apres(trameId, [])).values).length === 0, `${trameId} : visite sans compteur, classeur identique`);
+    }
+    const reseauAvant = await avant('icpe_v1', [{ label: 'Compteur appoint réseau', valeur: '55', unite: 'm³' }]);
+    check(String(reseauAvant.values.C137 || '').includes('55'), 'ancien code : « réseau » envoyé à tort sur EF ECS (bug reproduit)');
+  }
+  check(!(await apres('icpe_v1', [{ label: 'Compteur appoint réseau', valeur: '55', unite: 'm³' }])).values.C137, 'nouveau code : « réseau » n’est plus envoyé sur EF ECS');
+
+  const GAZ = 'Index compteur(s) gaz(m³)/Cuve fioul (litres ou %)';
+  const NRJ = 'Index compteur énergie (MWh)';
+  const renommes = [
+    { label: 'Chaudière 1', valeur: '419816', unite: 'm³', destination: GAZ },
+    { label: 'Sous-station bât. B', valeur: '2841', unite: 'MWh', destination: NRJ },
+    { label: 'Compteur gaz cuisine', valeur: '12', unite: 'm³', destination: 'supplementaire' },
+  ];
+  const icpe = await apres('icpe_v1', renommes);
+  if (avant) check(!String((await avant('icpe_v1', renommes)).values.C134 || '').includes('419816'), 'ancien code : compteur renommé « Chaudière 1 » perdu (bug reproduit)');
+  check(icpe.values.C134 === 'Chaudière 1 : 419816 m³', 'ICPE : compteur renommé exporté sur sa ligne gaz (C134)');
+  check(icpe.values.C135 === 'Sous-station bât. B : 2841 MWh', 'ICPE : compteur renommé exporté sur sa ligne énergie (C135)');
+  check(!Object.values(icpe.values).some((v) => String(v).includes('cuisine')), 'ICPE : compteur supplémentaire jamais écrit dans la trame, même si son nom contient « gaz »');
+  const rcuApres = await apres('reseau_chaleur_v1', renommes);
+  check(rcuApres.values.C60 === '419816 m³' && rcuApres.values.E60 === '419816 m³', 'Réseau de chaleur : compteur renommé exporté sur C60/E60');
+  check(rcuApres.values.C61 === '2841 MWh', 'Réseau de chaleur : destination énergie respectée');
+  const ecrites = diff((await apres('icpe_v1', [])).values, icpe.values).filter((k) => !['C134', 'C135'].includes(k));
+  check(ecrites.length === 0, 'ICPE : aucune autre cellule touchée par les destinations');
+
+  // Intranet : fonctions de production extraites de intranetVisitPayload.js.
+  const payloadSource = fs.readFileSync(path.join(root, 'intranetVisitPayload.js'), 'utf8');
+  const { counterValue } = new Function(`${extractFunction(payloadSource, 'clean')}\n${extractFunction(payloadSource, 'normalize')}\n${extractFunction(payloadSource, 'cleanCounterLabel')}\n${extractFunction(payloadSource, 'counterValue')}\nreturn { counterValue };`)();
+  const candidate = { cle: GAZ, label: GAZ };
+  const criterion = { nom: 'Index compteur(s) gaz(m³)/Cuve fioul (litres ou %)' };
+  check(counterValue([{ label: 'Index compteur(s) gaz(m³)/Cuve fioul', valeur: '1' }], criterion, candidate).value === '1', 'Intranet : compteur historique toujours trouvé par son libellé');
+  check(counterValue([{ label: 'Chaudière 1', valeur: '419816', destination: GAZ }], criterion, candidate).value === '419816', 'Intranet : compteur renommé trouvé par sa destination');
+  check(counterValue([{ label: 'Index compteur(s) gaz(m³)/Cuve fioul', valeur: '1', destination: 'supplementaire' }], criterion, candidate).status === 'missing', 'Intranet : compteur supplémentaire jamais envoyé');
+  check(counterValue([{ label: 'A', valeur: '1', destination: GAZ }, { label: 'B', valeur: '2', destination: GAZ }], criterion, candidate).status === 'ambiguous', 'Intranet : deux compteurs sur la même ligne restent bloquants');
+  check(counterValue([{ label: 'Index compteur(s) gaz(m³)/Cuve fioul', valeur: '1', destination: NRJ }], criterion, candidate).status === 'missing', 'Intranet : la destination prime sur un libellé trompeur');
+
+  // SQLite réel : migration 045 additive + reprise de visite.
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'metra-meter-'));
+  const server = databaseProcess(path.join(dir, 'meter.db'));
+  try {
+    await server.send('migrate', '', [0, 44]);
+    await server.db.execAsync(`INSERT INTO clients(id,nom) VALUES('c','Client');
+      INSERT INTO sites(id,client_id,nom_site) VALUES('s','c','Site');
+      INSERT INTO installations(id,site_id,type_code,nom) VALUES('i','s','chaufferie','Chaufferie');
+      INSERT INTO visites(id,site_id,date_visite,statut,trame_id,installation_id) VALUES('v1','s','2026-03-01','terminee','icpe_v1','i');
+      INSERT INTO compteurs_site(id,installation_id,type_code,libelle,unite) VALUES('cs1','i','compteur','Compteur gaz','m³');
+      INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id) VALUES('k1','v1','Compteur gaz','418532','m³','cs1');`);
+    await server.send('migrate', '', [44, 45]);
+    const ancien = await server.db.getFirstAsync(`SELECT label,valeur,destination FROM compteurs WHERE id='k1'`);
+    check(ancien.label === 'Compteur gaz' && ancien.valeur === '418532' && ancien.destination === null, 'migration 044 -> 045 conserve les compteurs existants sans rien réinterpréter');
+    check((await server.db.getAllAsync('PRAGMA foreign_key_check')).length === 0, 'migration 045 préserve les clés étrangères');
+    await server.db.runAsync(`UPDATE compteurs SET label='Chaudière 1',destination=? WHERE id='k1'`, [GAZ]);
+    await server.db.runAsync(`UPDATE compteurs_site SET libelle='Chaudière 1',destination=? WHERE id='cs1'`, [GAZ]);
+    await server.db.execAsync(`INSERT INTO visites(id,site_id,date_visite,statut,trame_id,installation_id) VALUES('v2','s','2026-10-06','en_cours','icpe_v1','i');`);
+    let n = 0; const carry = load('visitCarryForwardDb.js', { createId: () => `id-${++n}`, DEFAULT_TRAME_ID: 'icpe_v1', obtenirTrame: registry.obtenirTrame });
+    const contexte = await server.db.getFirstAsync(`SELECT * FROM visites WHERE id='v2'`);
+    const result = await carry.carryForwardPreviousVisit(server.db, 'v2', contexte);
+    const repris = await server.db.getFirstAsync(`SELECT label,destination,valeur FROM compteurs WHERE visite_id='v2'`);
+    check(result.copiedMeters === 1 && repris.label === 'Chaudière 1' && repris.destination === GAZ, 'nouvelle visite : compteur renommé repris avec sa destination');
+  } finally { await server.close(); }
+  console.log(`${checks} meter destination checks passed (real templates, real SQLite).`);
+}
+
+main().catch((error) => { console.error(error); process.exit(1); });
