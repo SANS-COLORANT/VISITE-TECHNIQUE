@@ -60,9 +60,6 @@ export function VisitSpaces({ visiteId, trameId, panels, labels, tabIds, onOpenP
       })}
       <TouchableOpacity style={styles.btnSecondary} onPress={onClose}><Text style={styles.btnSecondaryText}>Tous les onglets de la trame</Text></TouchableOpacity>
     </ScrollView>
-    <View style={{ flexDirection: 'row', gap: 6, padding: 12 }}>
-      {[['p-equip', 'Équipements', 'equipment'], ['p-remarques', 'Anomalies', 'warning'], ['p-photos', 'Photos', 'camera']].filter(([id]) => tabIds.includes(id)).map(([id, label, icon]) => <TouchableOpacity key={id} style={[styles.btnSecondary, { flex: 1, gap: 5, paddingHorizontal: 8 }]} onPress={() => onOpenPanel(id)}><CvcIcon name={icon} size={20} color={COLORS.orange}/><Text style={styles.btnSecondaryText}>{label}</Text></TouchableOpacity>)}
-    </View>
     <Modal visible={Boolean(selected)} animationType="slide" onRequestClose={() => { setSelected(null); saved(); }}>
       <View style={{ flex: 1, backgroundColor: COLORS.bg, paddingTop: 24 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}><TouchableOpacity accessibilityLabel="Retour au sommaire" onPress={() => { setSelected(null); saved(); }}><CvcIcon name="chevron-left" size={24} color={COLORS.ink}/></TouchableOpacity><Text style={[styles.modalTitle, { flex: 1, marginBottom: 0 }]}>{selected?.label}</Text></View>
