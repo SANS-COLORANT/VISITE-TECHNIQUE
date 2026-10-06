@@ -107,6 +107,13 @@ async function main() {
       const actual=model.construireEspacesVisite(panels,id,def.ui.labels).flatMap(s=>s.rows.map(r=>r.key));
       assert.deepEqual(actual.slice().sort(),expected.slice().sort(),`${id}: no field removed, storage keys unchanged`);
     }
+    const spacesSource=fs.readFileSync(path.join(root,'VisitSpaces.js'),'utf8');
+    assert.doesNotMatch(spacesSource,/\[\['p-equip', 'Équipements'.*'p-remarques', 'Anomalies'.*'p-photos', 'Photos'/s,'visit summary must not duplicate permanent actions');
+    const searchSource=fs.readFileSync(path.join(root,'VisitSearchSheet.js'),'utf8');
+    assert.match(searchSource,/onShow=\{focusSearch\}/,'visit-wide search focuses after native modal presentation');
+    assert.match(searchSource,/ref=\{inputRef\}/,'visit-wide search input uses a stable ref');
+    assert.doesNotMatch(searchSource,/\sautoFocus(?:\s|=|>)/,'Android visit-wide search must not race modal animation with autoFocus');
+    assert.match(searchSource,/keyboardShouldPersistTaps="always"/,'search result taps must not dismiss the keyboard prematurely');
     const parsed=load('photoModeData.js').extraireChampsPlaque('De Dietrich\nModèle: C330\nN° de série: SN42\n2014\n100 kW');
     assert.ok(model.lignesLecturePlaque(parsed,{modele:'Autre modèle'}).find(r=>r.key==='modele').current==='Autre modèle','OCR review retains existing value for comparison');
     assert.deepEqual(await server.db.getAllAsync('PRAGMA foreign_key_check'),[]);
