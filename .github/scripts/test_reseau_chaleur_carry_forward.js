@@ -95,7 +95,8 @@ async function main() {
     assert.equal((await server.db.getFirstAsync('SELECT installation_id FROM visites WHERE id=?', [imported.visiteId])).installation_id, 'local');
     await server.db.runAsync("UPDATE visites SET statut='terminee' WHERE id=?", [imported.visiteId]);
     await server.close(); server = databaseProcess(filename);
-    const carry = load('visitCarryForwardDb.js', { createId, obtenirTrame, DEFAULT_TRAME_ID: 'icpe_v1' });
+    const semantic = load('trameSemanticMesh.js');
+    const carry = load('visitCarryForwardDb.js', { createId, obtenirTrame, DEFAULT_TRAME_ID: 'icpe_v1', construireIndexSemantiqueTrame: semantic.construireIndexSemantiqueTrame });
     const prefill = load('visitPrefillDb.js', { obtenirTrame, DEFAULT_TRAME_ID: 'icpe_v1', carryForwardPreviousVisit: carry.carryForwardPreviousVisit, BoundedLruMap: load('boundedCache.js').BoundedLruMap });
     const equipment = load('persistentEquipmentDb.js', { openAppDatabase: async () => server.db, createId });
     const creation = load('visitCreationDb.js', { getDb: async () => server.db, createId, obtenirTrame, DEFAULT_TRAME_ID: 'icpe_v1',
