@@ -206,16 +206,51 @@ async function copyUnresolvedReserves(db, visiteId, sourceVisits) {
 }
 
 async function copyNetworkValues(db, visiteId, previousVisitId, referenceOnly = false) {
-  const existing = await db.getFirstAsync(`SELECT COUNT(*) AS n FROM reseaux WHERE visite_id=?`, [visiteId]);
-  if (Number(existing?.n || 0) > 0) return 0;
-
+  const current = await db.getAllAsync(
+    `SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id
+     FROM reseaux WHERE visite_id=? ORDER BY ordre,id`,
+    [visiteId]
+  );
   const previous = await db.getAllAsync(
     `SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id
      FROM reseaux WHERE visite_id=? ORDER BY ordre,id`,
     [previousVisitId]
   );
+
+  const used = new Set();
   let copied = 0;
   for (const row of previous || []) {
+    const existing = (current || []).find((candidate) => {
+      if (used.has(candidate.id)) return false;
+      if (row.reseau_site_id && candidate.reseau_site_id) return row.reseau_site_id === candidate.reseau_site_id;
+      if (Number(candidate.ordre || 0) === Number(row.ordre || 0)) return true;
+      return clean(candidate.nom_reseau).toLowerCase() === clean(row.nom_reseau).toLowerCase();
+    }) || null;
+
+    if (existing?.id) {
+      used.add(existing.id);
+      const result = await db.runAsync(
+        `UPDATE reseaux SET
+           nom_reseau=CASE WHEN trim(COALESCE(nom_reseau,''))='' THEN ? ELSE nom_reseau END,
+           t_ext_c=CASE WHEN ?=1 THEN t_ext_c WHEN trim(COALESCE(t_ext_c,''))='' THEN ? ELSE t_ext_c END,
+           t_dep_c=CASE WHEN ?=1 THEN t_dep_c WHEN trim(COALESCE(t_dep_c,''))='' THEN ? ELSE t_dep_c END,
+           courbe_de_chauffe=CASE WHEN trim(COALESCE(courbe_de_chauffe,''))='' THEN ? ELSE courbe_de_chauffe END,
+           tnc=CASE WHEN trim(COALESCE(tnc,''))='' THEN ? ELSE tnc END,
+           consigne_programme_horaire=CASE WHEN trim(COALESCE(consigne_programme_horaire,''))='' THEN ? ELSE consigne_programme_horaire END,
+           reseau_site_id=COALESCE(reseau_site_id,?)
+         WHERE id=?`,
+        [
+          row.nom_reseau || 'Réseau',
+          referenceOnly ? 1 : 0, row.t_ext_c ?? null,
+          referenceOnly ? 1 : 0, row.t_dep_c ?? null,
+          row.courbe_de_chauffe ?? null, row.tnc ?? null, row.consigne_programme_horaire ?? null,
+          row.reseau_site_id || null, existing.id,
+        ]
+      );
+      if (Number(result?.changes || 0) > 0) copied += 1;
+      continue;
+    }
+
     const newId = createId();
     await db.runAsync(
       `INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id)
@@ -224,10 +259,18 @@ async function copyNetworkValues(db, visiteId, previousVisitId, referenceOnly = 
         referenceOnly ? null : row.t_dep_c ?? null, row.courbe_de_chauffe ?? null, row.tnc ?? null,
         row.consigne_programme_horaire ?? null, row.reseau_site_id || null]
     );
-    const provenance = await db.getAllAsync(`SELECT reference_externe,details_json FROM provenances WHERE entite_type='reseau' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le`, [row.id]);
+    const provenance = await db.getAllAsync(
+      `SELECT reference_externe,details_json FROM provenances
+       WHERE entite_type='reseau' AND entite_id=? AND origine='api_symfony'
+       ORDER BY importe_le`,
+      [row.id]
+    );
     for (const source of provenance || []) {
-      await db.runAsync(`INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json) VALUES(?, 'reseau', ?, 'api_symfony', ?, ?)`,
-        [createId(), newId, source.reference_externe ?? null, source.details_json ?? null]);
+      await db.runAsync(
+        `INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json)
+         VALUES(?, 'reseau', ?, 'api_symfony', ?, ?)`,
+        [createId(), newId, source.reference_externe ?? null, source.details_json ?? null]
+      );
     }
     copied += 1;
   }
@@ -235,15 +278,46 @@ async function copyNetworkValues(db, visiteId, previousVisitId, referenceOnly = 
 }
 
 async function copyMeterValues(db, visiteId, previousVisitId, referenceOnly = false) {
-  const existing = await db.getFirstAsync(`SELECT COUNT(*) AS n FROM compteurs WHERE visite_id=?`, [visiteId]);
-  if (Number(existing?.n || 0) > 0) return 0;
-
+  const current = await db.getAllAsync(
+    `SELECT id,label,valeur,unite,compteur_site_id,destination FROM compteurs WHERE visite_id=? ORDER BY id`,
+    [visiteId]
+  );
   const previous = await db.getAllAsync(
-    `SELECT label,valeur,unite,compteur_site_id,destination FROM compteurs WHERE visite_id=? ORDER BY id`,
+    `SELECT id,label,valeur,unite,compteur_site_id,destination FROM compteurs WHERE visite_id=? ORDER BY id`,
     [previousVisitId]
   );
+
+  const used = new Set();
   let copied = 0;
   for (const row of previous || []) {
+    const existing = (current || []).find((candidate) => {
+      if (used.has(candidate.id)) return false;
+      if (row.compteur_site_id && candidate.compteur_site_id) return row.compteur_site_id === candidate.compteur_site_id;
+      if (clean(row.destination) && clean(candidate.destination)) return clean(row.destination) === clean(candidate.destination);
+      return clean(candidate.label).toLowerCase() === clean(row.label).toLowerCase();
+    }) || null;
+
+    if (existing?.id) {
+      used.add(existing.id);
+      const result = await db.runAsync(
+        `UPDATE compteurs SET
+           label=CASE WHEN trim(COALESCE(label,''))='' THEN ? ELSE label END,
+           valeur=CASE WHEN ?=1 THEN valeur WHEN trim(COALESCE(valeur,''))='' THEN ? ELSE valeur END,
+           unite=COALESCE(NULLIF(unite,''),?),
+           compteur_site_id=COALESCE(compteur_site_id,?),
+           destination=COALESCE(NULLIF(destination,''),?)
+         WHERE id=?`,
+        [
+          row.label || 'Compteur',
+          referenceOnly ? 1 : 0, row.valeur ?? null,
+          row.unite || null, row.compteur_site_id || null, row.destination || null,
+          existing.id,
+        ]
+      );
+      if (Number(result?.changes || 0) > 0) copied += 1;
+      continue;
+    }
+
     await db.runAsync(
       `INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id,destination) VALUES(?,?,?,?,?,?,?)`,
       [createId(), visiteId, row.label || 'Compteur', referenceOnly ? null : row.valeur ?? null, row.unite || null, row.compteur_site_id || null, row.destination || null]
