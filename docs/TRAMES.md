@@ -86,3 +86,13 @@ d'affecter les données arbitrairement au premier local.
 ## Excel
 
 Chaque trame conserve son modèle Excel officiel. Les mappings d’import/export sont propres à la trame et ne doivent pas être généralisés sans test explicite des trois formats.
+
+Pour ICPE et Réseau de chaleur, la destination d'un compteur est conservée
+dans le patrimoine du local, indépendamment de son nom. Un renommage fige
+d'abord la ligne historique ; un échec de sauvegarde empêche ce renommage.
+Les compteurs supplémentaires ne remplissent aucune ligne standard. Les
+doublons sont conservés dans Excel et signalés comme ambigus pour l'Intranet.
+Les index enregistrés dans les compteurs font autorité sur les anciens champs
+Excel importés, y compris après effacement ou changement de destination.
+La valeur précédente affichée provient d'une visite antérieure du compteur,
+sans devenir le relevé de la nouvelle visite RCU.

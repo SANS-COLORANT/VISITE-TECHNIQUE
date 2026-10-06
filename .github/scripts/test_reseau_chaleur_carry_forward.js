@@ -124,6 +124,9 @@ async function main() {
     }
     const second = await next();
     await verify(second);
+    const meter = await server.db.getFirstAsync('SELECT destination,valeur FROM compteurs WHERE visite_id=?', [second]);
+    assert.equal(meter.destination, 'Index compteur énergie (MWh)');
+    assert.equal(meter.valeur, null, 'destination survives while the new reading stays blank');
     await server.db.runAsync("UPDATE reseaux SET nom_reseau='Chauffage renommé' WHERE visite_id=?", [second]);
     // Simule une tablette existante : import non lié + dernière visite vide.
     await server.db.runAsync('UPDATE visites SET installation_id=NULL WHERE id=?', [imported.visiteId]);

@@ -1,6 +1,6 @@
 /** Panneau Relevés optimisé pour Android natif. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { TRAME_DATA } from './data.js';
 import {
@@ -19,6 +19,7 @@ import { CvcIcon } from './MetraCvcIcons.js';
 import { FONTS } from './styles.js';
 import { pictoReleve, pictoTemperature } from './relevePictos.js';
 import { PersistentControleGenerique } from './PersistentControleGenerique.js';
+import { controlerIndex, destinationDepuisLibelle, destinationsDisponibles, libelleDestination } from './meterDestinations.js';
 
 const COMPTEUR_TYPES = [
   'Compteur gaz', 'Compteur énergie chauffage', 'Compteur énergie ECS', 'Compteur eau appoint chauffage',
@@ -35,25 +36,85 @@ function mapperChamps(rows = []) {
   return map;
 }
 
-const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRemove }) {
+/** Choix de la ligne du rapport (Excel + Intranet), indépendante du nom. */
+function DestinationSheet({ visible, valeur, options, onClose, onPick }) {
+  const [saving, setSaving] = useState(false);
+  const choisir = async (cle) => {
+    if (saving) return;
+    setSaving(true);
+    try { if (await onPick(cle) !== false) onClose(); }
+    finally { setSaving(false); }
+  };
+  return <Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+    <View style={styles.modalOverlay}><View style={styles.modalSheet}>
+      <Text style={styles.modalTitle}>Ligne du rapport</Text>
+      <Text style={styles.importHint}>Où ce compteur apparaît dans l’Excel et l’envoi Intranet. Son nom reste libre.</Text>
+      <ScrollView style={{ maxHeight: 360, marginTop: 10 }}>
+        {options.map((o) => (
+          <TouchableOpacity key={o.cle} disabled={saving} accessibilityRole="button" style={[styles.biblioRow, { minHeight: 52, flexDirection: 'row', alignItems: 'center' }, valeur === o.cle && { borderColor: COLORS.primary, borderWidth: 1 }]} onPress={() => choisir(o.cle)}>
+            <Text style={[styles.biblioRowTitle, { flex: 1 }]}>{o.label}</Text>
+            {valeur === o.cle ? <CvcIcon name="check" size={20} color={COLORS.primary} strokeWidth={2.4} /> : null}
+          </TouchableOpacity>
+        ))}
+      </ScrollView>
+      <View style={styles.modalActions}>
+        <TouchableOpacity style={styles.btnSecondary} onPress={onClose}><Text style={styles.btnSecondaryText}>Fermer</Text></TouchableOpacity>
+      </View>
+    </View></View>
+  </Modal>;
+}
+
+const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRemove, champsSection, doublonDestination, onDestinationChange }) {
   const [label, setLabel, surBlurLabel] = useSaisieAvecAutoSave(
     compteur.label,
     (v) => upsertCompteurChamp(compteur.id, 'label', v)
   );
   const [unite, setUnite] = useState(compteur.unite || 'm³');
   const [editNom, setEditNom] = useState(false);
+  const [destination, setDestination] = useState(compteur.destination || null);
+  const [choixDestination, setChoixDestination] = useState(false);
   const picto = pictoReleve(label);
   const [valeur, setValeur, surBlurValeur] = useSaisieAvecAutoSave(
     compteur.valeur,
     (v) => upsertCompteurChamp(compteur.id, 'valeur', v)
   );
+  const options = useMemo(() => destinationsDisponibles(champsSection), [champsSection]);
+  // Destination effective affichée : enregistrée, sinon celle que l'export
+  // déduit aujourd'hui du nom (compteur historique).
+  const destinationAffichee = destination || destinationDepuisLibelle(label, unite, champsSection);
+  const controle = controlerIndex(valeur, /^Index/i.test(destinationAffichee) ? compteur.valeur_precedente : null);
 
   useEffect(() => { setUnite(compteur.unite || 'm³'); }, [compteur.unite]);
+  useEffect(() => { setDestination(compteur.destination || null); }, [compteur.destination]);
 
-  const retirer = async () => {
-    onRemove(compteur.id);
-    try { await supprimerCompteur(compteur.id); }
-    catch (e) { console.warn('Suppression compteur impossible', e); }
+  const enregistrerDestination = useCallback(async (cle) => {
+    try {
+      await upsertCompteurChamp(compteur.id, 'destination', cle);
+      setDestination(cle);
+      onDestinationChange?.(compteur.id, cle);
+      return true;
+    } catch (e) {
+      console.warn('Destination compteur non sauvegardée', e);
+      Alert.alert('Sauvegarde impossible', 'La ligne du rapport n’a pas été enregistrée. Réessaie avant de renommer ce compteur.');
+      return false;
+    }
+  }, [compteur.id, onDestinationChange]);
+
+  // Avant le premier renommage d'un compteur historique, sa ligne actuelle est
+  // figée : le nouveau nom ne peut plus le faire disparaître du rapport.
+  const commencerRenommage = useCallback(async () => {
+    if (!destination && !await enregistrerDestination(destinationDepuisLibelle(label, unite, champsSection))) return;
+    setEditNom(true);
+  }, [destination, enregistrerDestination, label, unite, champsSection]);
+
+  const retirer = () => {
+    Alert.alert('Retirer ce compteur ?', `« ${label || 'Compteur'} » ne sera plus proposé aux prochaines visites de ce local.`, [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Retirer', style: 'destructive', onPress: async () => {
+        try { await supprimerCompteur(compteur.id); onRemove(compteur.id); }
+        catch (e) { console.warn('Suppression compteur impossible', e); Alert.alert('Suppression impossible', 'Le compteur a été conservé. Réessaie.'); }
+      } },
+    ]);
   };
 
   return (
@@ -63,21 +124,33 @@ const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRe
         <View style={{ flex: 1, flexDirection: 'row', alignItems: 'center', gap: 10 }}>
           <View style={{ width: 40, height: 40, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: `${picto.teinte}18` }}><CvcIcon name={picto.icon} size={23} color={picto.teinte} strokeWidth={2.1} /></View>
           {editNom || !label ? <TextInput style={[styles.input, { flex: 1 }]} value={label} onChangeText={setLabel} onBlur={() => { surBlurLabel(); setEditNom(false); }} autoFocus={editNom} placeholder="Nom du compteur" />
-            : <TouchableOpacity accessibilityLabel={`${label}, toucher pour renommer`} onPress={() => setEditNom(true)} style={{ flex: 1, minWidth: 0 }}>
-              <Text numberOfLines={1} style={{ fontSize: 15, fontFamily: FONTS.bold, color: COLORS.ink }}>{picto.court || label}</Text>
-              {picto.court ? <Text numberOfLines={1} style={{ marginTop: 1, fontSize: 11, color: COLORS.inkFaint }}>{label}</Text> : null}
+            : <TouchableOpacity accessibilityLabel={`${label}, toucher pour renommer`} onPress={commencerRenommage} style={{ flex: 1, minWidth: 0, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+              <View style={{ flex: 1, minWidth: 0 }}>
+                <Text numberOfLines={1} style={{ fontSize: 15, fontFamily: FONTS.bold, color: COLORS.ink }}>{picto.court || label}</Text>
+                {picto.court ? <Text numberOfLines={1} style={{ marginTop: 1, fontSize: 11, color: COLORS.inkFaint }}>{label}</Text> : null}
+              </View>
+              <CvcIcon name="edit" size={16} color={COLORS.inkFaint} strokeWidth={2} />
             </TouchableOpacity>}
         </View>
         <PhotoButton visiteId={visiteId} entiteKey={compteur.compteur_site_id ? `compteur_site||${compteur.compteur_site_id}` : `compteur||${compteur.id}`} label={label || 'Compteur'} />
-        <TouchableOpacity accessibilityLabel="Retirer ce compteur" onPress={retirer} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(185,28,28,0.08)' }}><CvcIcon name="trash" size={17} color={COLORS.red} /></TouchableOpacity>
+        <TouchableOpacity accessibilityLabel="Retirer ce compteur" onPress={retirer} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: 'rgba(185,28,28,0.08)' }}>
+          <CvcIcon name="trash" size={18} color={COLORS.red} strokeWidth={2} />
+        </TouchableOpacity>
       </View>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Ligne du rapport : ${libelleDestination(destinationAffichee)}, modifier`} onPress={() => setChoixDestination(true)} style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 34, paddingHorizontal: 10, borderRadius: 12, backgroundColor: COLORS.bg, marginBottom: 8 }}>
+        <Text style={{ fontSize: 12, fontFamily: FONTS.bodyMedium, color: COLORS.inkSoft }}>Ligne du rapport · <Text style={{ color: COLORS.ink, fontFamily: FONTS.bold }}>{libelleDestination(destinationAffichee)}</Text></Text>
+        <CvcIcon name="chevron-down" size={14} color={COLORS.inkSoft} strokeWidth={2.2} />
+      </TouchableOpacity>
+      {doublonDestination ? <Text style={{ fontSize: 12, color: COLORS.amber, fontFamily: FONTS.bodyMedium, marginBottom: 6 }}>Un autre compteur occupe déjà cette ligne : l’envoi Intranet sera bloqué tant qu’ils ne sont pas séparés.</Text> : null}
       {compteur.compteur_site_id && (
         <View style={styles.persistentEquipmentBadge}>
-          <Text style={styles.persistentEquipmentBadgeText}>↻ Compteur permanent · {compteur.nb_releves || 0} relevé{compteur.nb_releves > 1 ? 's' : ''}</Text>
+          <Text style={styles.persistentEquipmentBadgeText}>Compteur permanent · {compteur.nb_releves || 0} relevé{compteur.nb_releves > 1 ? 's' : ''}</Text>
         </View>
       )}
       <View style={styles.compteurRowBody}>
-        <TextInput style={styles.compteurValInput} value={valeur} onChangeText={setValeur} onBlur={surBlurValeur} placeholder="Valeur relevée" keyboardType="numeric" />
+        <TextInput style={styles.compteurValInput} value={valeur} onChangeText={setValeur} onBlur={surBlurValeur} placeholder={compteur.valeur_precedente ? `Précédent : ${compteur.valeur_precedente}` : 'Index relevé'} keyboardType="decimal-pad" accessibilityLabel="Index relevé, saisie manuelle" />
+        {controle ? <Text style={{ fontSize: 12, fontFamily: FONTS.bodyMedium, color: controle.niveau === 'erreur' ? COLORS.red : COLORS.amber }}>{controle.message}</Text>
+          : compteur.valeur_precedente ? <Text style={{ fontSize: 11, color: COLORS.inkFaint }}>Relevé précédent : {compteur.valeur_precedente}{unite ? ` ${unite}` : ''}</Text> : null}
         <View style={styles.uniteRow}>
           {UNITES.map((u) => (
             <TouchableOpacity key={u} style={[styles.uniteChip, unite === u && styles.uniteChipSelected]} onPress={() => {
@@ -89,6 +162,7 @@ const CompteurCard = React.memo(function CompteurCard({ compteur, visiteId, onRe
           ))}
         </View>
       </View>
+      <DestinationSheet visible={choixDestination} valeur={destinationAffichee} options={options} onClose={() => setChoixDestination(false)} onPick={enregistrerDestination} />
     </View>
   );
 });
@@ -109,6 +183,8 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
   const champsTemp = useMemo(() => sections['Températures et pH'] || [], [sections]);
   const champsCompteursIndex = useMemo(() => (sections['Relevés des compteurs et manomètres'] || []).filter((f) => /^Index/i.test(f.cle)), [sections]);
   const champsPression = useMemo(() => (sections['Relevés des compteurs et manomètres'] || []).filter((f) => !/^Index/i.test(f.cle)), [sections]);
+  const champsSectionCompteurs = useMemo(() => sections['Relevés des compteurs et manomètres'] || [], [sections]);
+  const [destinationChoisie, setDestinationChoisie] = useState(null);
 
   const chargerInitial = useCallback(async () => {
     const [champs, controles, compteursDb] = await Promise.all([getChampsVisite(visiteId), getControlesVisite(visiteId), listerCompteurs(visiteId)]);
@@ -121,10 +197,10 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
       const crees = [];
       for (const f of champsCompteursIndex) {
         const label = cleanLabel(f.cle);
-        const id = await ajouterCompteur(visiteId, label);
-        crees.push({ id, visite_id: visiteId, label, unite: null, valeur: null });
+        const id = await ajouterCompteur(visiteId, label, f.cle);
+        crees.push({ id, visite_id: visiteId, label, unite: null, valeur: null, destination: f.cle });
       }
-      if (crees.length) setCompteurs(crees);
+      if (crees.length) setCompteurs(await listerCompteurs(visiteId));
     }
   }, [visiteId, champsCompteursIndex]);
 
@@ -135,7 +211,7 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
   }, [chargerInitial]);
 
   const ouvrirAjoutCompteur = () => {
-    setNomCompteurChoisi(''); setNomCompteurLibre(''); setModeNomLibre(false); setAjoutCompteurVisible(true);
+    setNomCompteurChoisi(''); setNomCompteurLibre(''); setModeNomLibre(false); setDestinationChoisie(null); setAjoutCompteurVisible(true);
   };
 
   const creerCompteurChoisi = async () => {
@@ -143,7 +219,7 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
     if (!label || creationEnCours) return;
     setCreationEnCours(true);
     try {
-      await ajouterCompteur(visiteId, label);
+      await ajouterCompteur(visiteId, label, destinationChoisie || destinationDepuisLibelle(label, '', champsSectionCompteurs));
       setCompteurs(await listerCompteurs(visiteId));
       setAjoutCompteurVisible(false); setNomCompteurChoisi(''); setNomCompteurLibre(''); setModeNomLibre(false);
     } catch (e) { console.warn('Création compteur impossible', e); }
@@ -151,6 +227,17 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
   };
 
   const retirerLocalement = useCallback((id) => setCompteurs((courants) => courants.filter((c) => c.id !== id)), []);
+  const changerDestinationLocalement = useCallback((id, destination) => setCompteurs((courants) => courants.map((c) => c.id === id ? { ...c, destination } : c)), []);
+  // Deux compteurs sur la même ligne : l'Excel les concatène, l'Intranet refuse
+  // l'envoi (règle de sécurité existante). On le signale dès la saisie.
+  const destinationsEnDoublon = useMemo(() => {
+    const compte = new Map();
+    compteurs.forEach((c) => {
+      const d = c.destination || destinationDepuisLibelle(c.label, c.unite, champsSectionCompteurs);
+      if (d && d !== 'supplementaire') compte.set(d, (compte.get(d) || 0) + 1);
+    });
+    return new Set([...compte.entries()].filter(([, n]) => n > 1).map(([d]) => d));
+  }, [compteurs, champsSectionCompteurs]);
 
   const rows = useMemo(() => {
     const result = [];
@@ -194,7 +281,8 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
       renderItem={({ item }) => {
         if (item.type === 'titre') return <Text style={styles.sectionTitle}>{item.label}</Text>;
         if (item.type === 'circuit') return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 7, marginTop: 6, marginBottom: 6 }}><CvcIcon name={item.icon} size={17} color={COLORS.orangeDark} strokeWidth={2.1} /><Text style={{ fontSize: 12, fontFamily: FONTS.bold, color: COLORS.inkSoft, letterSpacing: 0.6, textTransform: 'uppercase' }}>{item.label}</Text></View>;
-        if (item.type === 'compteur') return <CompteurCard compteur={item.compteur} visiteId={visiteId} onRemove={retirerLocalement} />;
+        if (item.type === 'compteur') return <CompteurCard compteur={item.compteur} visiteId={visiteId} onRemove={retirerLocalement} champsSection={champsSectionCompteurs} onDestinationChange={changerDestinationLocalement}
+          doublonDestination={destinationsEnDoublon.has(item.compteur.destination || destinationDepuisLibelle(item.compteur.label, item.compteur.unite, champsSectionCompteurs))} />;
         if (item.type === 'ajout') return <TouchableOpacity style={styles.addBtn} onPress={ouvrirAjoutCompteur}><Text style={styles.addBtnText}>+ Ajouter un compteur</Text></TouchableOpacity>;
         const key = `${item.section}||${item.field.cle}`;
         if (reseauChaleur && item.field.type === 'controle') {
@@ -229,6 +317,17 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
             <Text style={styles.biblioRowTitle}>+ Autre / nom personnalisé</Text>
           </TouchableOpacity>
           {modeNomLibre && <TextInput style={[styles.input, { marginTop: 10 }]} value={nomCompteurLibre} onChangeText={setNomCompteurLibre} placeholder="Ex. Compteur primaire RCU bâtiment A" autoFocus />}
+          {(nomCompteurChoisi || nomCompteurLibre.trim()) ? <View style={{ marginTop: 14 }}>
+            <Text style={styles.fieldLabel}>Ligne du rapport</Text>
+            <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>
+              {destinationsDisponibles(champsSectionCompteurs).map((o) => {
+                const actif = (destinationChoisie || destinationDepuisLibelle(modeNomLibre ? nomCompteurLibre : nomCompteurChoisi, '', champsSectionCompteurs)) === o.cle;
+                return <TouchableOpacity key={o.cle} accessibilityRole="button" onPress={() => setDestinationChoisie(o.cle)} style={[styles.uniteChip, { minHeight: 40, justifyContent: 'center', paddingHorizontal: 12 }, actif && styles.uniteChipSelected]}>
+                  <Text style={[styles.uniteChipText, actif && styles.uniteChipTextSelected]}>{o.label}</Text>
+                </TouchableOpacity>;
+              })}
+            </View>
+          </View> : null}
         </ScrollView>
         <View style={styles.modalActions}>
           <TouchableOpacity style={styles.btnSecondary} onPress={() => setAjoutCompteurVisible(false)} disabled={creationEnCours}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
