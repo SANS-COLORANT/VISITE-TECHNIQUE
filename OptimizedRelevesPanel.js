@@ -143,8 +143,8 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
     if (!label || creationEnCours) return;
     setCreationEnCours(true);
     try {
-      const id = await ajouterCompteur(visiteId, label);
-      setCompteurs((courants) => [...courants, { id, visite_id: visiteId, label, unite: null, valeur: null }]);
+      await ajouterCompteur(visiteId, label);
+      setCompteurs(await listerCompteurs(visiteId));
       setAjoutCompteurVisible(false); setNomCompteurChoisi(''); setNomCompteurLibre(''); setModeNomLibre(false);
     } catch (e) { console.warn('Création compteur impossible', e); }
     finally { setCreationEnCours(false); }
