@@ -55,6 +55,11 @@ const CATEGORIE_SECTION_MAP = {
   'conf-energie.baes||Visible partout': 'BAES - Visibilité',
   'conf-energie.baes||Signalétique': 'BAES - Signalétique',
   'conf-energie.baes||Veilleuse': 'BAES - Veilleuse',
+  'conf-chauffage.conduits_de_fum_es||Type': 'Conduit de fumées - Type',
+  'conf-chauffage.conduits_de_fum_es||Section': 'Conduit de fumées - Section',
+  'conf-chauffage.conduits_de_fum_es||Thermomètre': 'Conduit de fumées - Thermomètre',
+  'conf-chauffage.soupapes||Canalisation d\'évacuation': 'Soupapes - Canalisation d\'évacuation',
+  'conf-chauffage.soupapes||Pression de tarage': 'Soupapes - Pression de tarage',
 };
 
 function categoriePour(cle, sectionCode) {
