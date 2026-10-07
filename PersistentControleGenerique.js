@@ -1,6 +1,6 @@
 /** Contrôle de conformité persistant : restaure la réserve liée après virtualisation/swipe. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { KeyboardAvoidingView, Modal, Platform, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { PRESCRIPTIONS } from './data.js';
 import { fusionnerPrescriptions } from './reserveExtensions.js';
@@ -23,6 +23,8 @@ import { perimetreControleTrame } from './trameRegistry.js';
 
 const PRESCRIPTIONS_COMPLETES = fusionnerPrescriptions(PRESCRIPTIONS);
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
+// Vue compacte : S et N.S en accès direct, les avis rares derrière « … ».
+const AVIS_SECONDAIRES = ['N.R', 'S.O', 'N.V'];
 const remarquesCache = new BoundedLruMap(3);
 let biblioReservePromise = null;
 let biblioReserveCache = null;
@@ -83,9 +85,14 @@ function libelleApplicationAvis(cle, avis) {
 
 // Certains critères de la trame Excel sont tronqués (« Absen ») : on corrige
 // l'affichage seulement, la valeur stockée (origine des réserves) ne change pas.
+const CRITERES_TRONQUES = {
+  Absen: 'Absent', Insuffisan: 'Insuffisant', 'Dégrad': 'Dégradé', 'Non adapt': 'Non adapté', Obsol: 'Obsolète',
+  Nettoy: 'Nettoyage', 'Déplac': 'Déplacement', Modifi: 'Modification', Identifi: 'Identification', Encombr: 'Encombrement',
+  Elev: 'Élevé', 'Dénud': 'Dénudé', Condamn: 'Condamné', 'Brûl': 'Brûlé', 'Légio': 'Légionelle', 'Repére': 'Repérage',
+};
 function libelleCritere(critere) {
   if (!critere) return 'Non conforme';
-  return critere === 'Absen' ? 'Absent' : critere;
+  return CRITERES_TRONQUES[critere] || critere;
 }
 
 function palettePanel(avis) {
@@ -224,6 +231,8 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
   const [remarque, setRemarque] = useState(null);
   const [critereChoisi, setCritereChoisi] = useState(null);
   const [modeLibre, setModeLibre] = useState(false);
+  const [fiche, setFiche] = useState(false);
+  const [autresAvis, setAutresAvis] = useState(false);
 
   useEffect(() => {
     avisRef.current = etatInitial?.avis || null;
@@ -352,18 +361,82 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
   const libelleEtat = libelleApplicationAvis(field.cle, avis);
   const palette = palettePanel(avis);
 
+  const ouvrirFiche = useCallback(() => { setAutresAvis(false); setFiche(true); }, []);
+  const fermerFiche = useCallback(() => {
+    flushLibre().catch(() => {});
+    flushCommentaireSimple().catch(() => {});
+    setFiche(false);
+  }, [flushLibre, flushCommentaireSimple]);
+  // N.S ouvre directement la fiche : une non-conformité demande une cause.
+  const choisirAvisRapide = useCallback((val) => {
+    setAutresAvis(false);
+    if (val === 'N.S') { if (avis !== 'N.S') choisirAvis(val); setFiche(true); return; }
+    choisirAvis(val);
+  }, [avis, choisirAvis]);
+
+  const causeAffichee = avis === 'N.S'
+    ? (critereChoisi !== null && options[critereChoisi] ? libelleCritere(options[critereChoisi].critere) : (String(commentaire || '').trim() ? 'Autre' : 'Cause à préciser'))
+    : null;
+  const aCommentaire = !!String(commentaire || '').trim();
+  const avisSecondaire = AVIS_SECONDAIRES.includes(avis) ? avis : null;
+
+  const boutonAvis = (opt, extraStyle, onPress) => {
+    const c = avisChipColor(opt); const selected = avis === opt;
+    return <TouchableOpacity key={opt} accessibilityRole="button" accessibilityState={{ selected }} accessibilityLabel={`${field.cle} : ${opt}`}
+      style={[styles.avisChip, { flex: 0, minHeight: 36, paddingVertical: 0, paddingHorizontal: 0, borderRadius: 10 }, extraStyle, selected && { backgroundColor: c.bg, borderColor: c.border }]}
+      onPress={onPress || (() => choisirAvisRapide(opt))}>
+      <Text style={[styles.avisChipText, { fontSize: 12.5 }, selected && { color: c.text }]}>{opt}</Text>
+    </TouchableOpacity>;
+  };
+
   return <View style={styles.controlRow}>
-    <View style={styles.controlTop}>
-      <Text style={styles.controlLabel}>{field.cle}</Text>
-      <View style={styles.avisGroup}>
-        {AVIS_OPTIONS.map((opt) => {
-          const c = avisChipColor(opt); const selected = avis === opt;
-          return <TouchableOpacity key={opt} style={[styles.avisChip, selected && { backgroundColor: c.bg, borderColor: c.border }]} onPress={() => choisirAvis(opt)}>
-            <Text style={[styles.avisChipText, selected && { color: c.text }]}>{opt}</Text>
-          </TouchableOpacity>;
-        })}
+    {/* Ligne compacte : intitulé + S / N.S / … ; le détail s'édite dans la fiche. */}
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40 }}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${field.cle}, ouvrir le détail`} onPress={ouvrirFiche} activeOpacity={0.6} style={{ flex: 1, minWidth: 0, paddingVertical: 4 }}>
+        <Text style={[styles.controlLabel, { fontSize: 14, lineHeight: 18 }]}>{field.cle}</Text>
+      </TouchableOpacity>
+      <View style={{ flexDirection: 'row', gap: 4, flexShrink: 0 }}>
+        {boutonAvis('S', { width: 40 })}
+        {boutonAvis('N.S', { width: 46 })}
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={avisSecondaire ? `${field.cle} : ${avisSecondaire}, autres avis` : 'Autres avis : N.R, S.O, N.V'}
+          onPress={() => setAutresAvis((v) => !v)}
+          style={[styles.avisChip, { flex: 0, minHeight: 36, width: avisSecondaire ? 46 : 36, paddingVertical: 0, paddingHorizontal: 0, borderRadius: 10 }, avisSecondaire && { backgroundColor: COLORS.line, borderColor: COLORS.inkFaint }]}>
+          {avisSecondaire ? <Text style={[styles.avisChipText, { fontSize: 12.5, color: COLORS.inkSoft }]}>{avisSecondaire}</Text>
+            : <CvcIcon name="more" size={16} color={COLORS.inkSoft} strokeWidth={2.2} />}
+        </TouchableOpacity>
       </View>
     </View>
+    {autresAvis ? <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginTop: 4 }}>
+      {AVIS_SECONDAIRES.map((opt) => boutonAvis(opt, { width: 50 }))}
+    </View> : null}
+    {avis === 'N.S' ? <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Non-conformité : ${causeAffichee}, modifier`} onPress={ouvrirFiche} activeOpacity={0.75}
+      style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, minHeight: 30, paddingHorizontal: 10, borderRadius: 15, borderWidth: 1, borderColor: COLORS.red, backgroundColor: COLORS.redBg }}>
+      <Text numberOfLines={1} style={{ maxWidth: 220, fontSize: 12, fontFamily: FONTS.bodyBold, color: COLORS.red }}>{causeAffichee}</Text>
+      {aCommentaire && critereChoisi !== null ? <CvcIcon name="note" size={13} color={COLORS.red} strokeWidth={2.2} /> : null}
+      <CvcIcon name="chevron-right" size={13} color={COLORS.red} strokeWidth={2.4} />
+    </TouchableOpacity> : (avis && aCommentaire ? <TouchableOpacity accessibilityRole="button" onPress={ouvrirFiche} style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, minHeight: 28 }}>
+      <CvcIcon name="note" size={13} color={COLORS.inkSoft} strokeWidth={2.2} />
+      <Text numberOfLines={1} style={{ maxWidth: 260, fontSize: 12, color: COLORS.inkSoft, fontFamily: FONTS.bodyMedium }}>{commentaire}</Text>
+    </TouchableOpacity> : null)}
+
+    <Modal visible={fiche} transparent animationType="slide" onRequestClose={fermerFiche}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
+        <View style={[styles.modalSheet, { maxHeight: '92%', width: '100%' }]}>
+          <View style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 10, marginBottom: 10 }}>
+            <Text style={{ flex: 1, fontSize: 16, lineHeight: 21, fontFamily: FONTS.bold, color: COLORS.ink }}>{field.cle}</Text>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={fermerFiche} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} style={{ width: 38, height: 38, borderRadius: 13, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.bg }}>
+              <CvcIcon name="close" size={18} color={COLORS.ink} strokeWidth={2.2} />
+            </TouchableOpacity>
+          </View>
+          <View style={styles.avisGroup}>
+            {AVIS_OPTIONS.map((opt) => {
+              const c = avisChipColor(opt); const selected = avis === opt;
+              return <TouchableOpacity key={opt} style={[styles.avisChip, selected && { backgroundColor: c.bg, borderColor: c.border }]} onPress={() => choisirAvis(opt)}>
+                <Text style={[styles.avisChipText, selected && { color: c.text }]}>{opt}</Text>
+              </TouchableOpacity>;
+            })}
+          </View>
+          <ScrollView keyboardShouldPersistTaps="handled" style={{ marginTop: 4 }}>
 
     {avis && avis !== 'N.S' && <View style={[styles.criterePanel, { backgroundColor: palette.bg, borderColor: palette.border }]}>
       {libelleEtat ? <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: palette.text, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8 }}>
@@ -396,5 +469,12 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
       {(critereChoisi === null || modeLibre || options.length === 0) && <TextInput style={[styles.input, { marginTop: 8, height: 60 }]} placeholder="Décrivez le problème constaté..." multiline value={libre} onChangeText={(v) => { setCommentaire(v); setLibre(v); onEtatChange?.({ avis: 'N.S', commentaire: v }); }} onBlur={() => flushLibre().catch(() => {})} />}
       <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={field.cle} style={styles.photoRequiredBox} />
     </View>}
+          </ScrollView>
+          <TouchableOpacity accessibilityRole="button" onPress={fermerFiche} activeOpacity={0.85} style={[styles.btnPrimary, { flex: 0, marginTop: 10 }]}>
+            <Text style={styles.btnPrimaryText}>Terminé</Text>
+          </TouchableOpacity>
+        </View>
+      </KeyboardAvoidingView>
+    </Modal>
   </View>;
 });
