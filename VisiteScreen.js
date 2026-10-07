@@ -817,6 +817,11 @@ function VisiteScreen({ route, onBack }) {
           <TouchableOpacity accessibilityLabel="Rechercher dans la visite" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={() => setRechercheVisible(true)}>
             <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="search" size={19} color={COLORS.orangeDark} /></IconOrb>
           </TouchableOpacity>
+          {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? (
+            <View style={{ marginLeft: 8 }}>
+              <PhotoReferenceAccess compact visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} />
+            </View>
+          ) : null}
           {appareilTablette ? (
             <TouchableOpacity accessibilityLabel="Compagnon téléphone" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={() => setCompanionVisible(true)}>
               <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="device" size={19} color={COLORS.orangeDark} /></IconOrb>
@@ -855,7 +860,6 @@ function VisiteScreen({ route, onBack }) {
           </View>
         </GlassCard>
         </TouchableOpacity>
-        {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? <PhotoReferenceAccess visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} /> : null}
         {visite.mode_visite === 'express' && <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>}
         {trame.id === 'vmc' && vmcCaissons.length > 0 ? <VmcCaissonManager visiteId={visiteId} caissons={vmcCaissons} onChange={onCaissonsChange} onNavigate={changerOnglet} activePanelId={activeTab} tabStates={tabStatus.tabs} /> : null}
         {!modeTablette && !ongletsEnBas && <SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} />}
@@ -876,7 +880,24 @@ function VisiteScreen({ route, onBack }) {
         <TextInput style={[styles.input, { height: 160, textAlignVertical: 'top' }]} multiline value={noteTxt} onChangeText={onChangeNoteTxt} placeholder="Notes générales sur la visite..." />
         <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}><ButtonGlow /><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
       </View></View></Modal>
-      <VisitSearchSheet visible={rechercheVisible} onClose={() => setRechercheVisible(false)} panels={panels} tabs={tabsReels} labels={panelLabels} onOpen={changerOnglet} />
+      <VisitSearchSheet
+        visible={rechercheVisible}
+        onClose={() => setRechercheVisible(false)}
+        panels={panels}
+        tabs={tabsReels}
+        labels={panelLabels}
+        onOpen={({ pid, section, fieldKey }) => {
+          setSommaireVisible(false);
+          changerOnglet(pid);
+          if (section || fieldKey) {
+            setNavigationState(`visit-panel:${String(visiteId || '')}:${String(pid || '')}`, {
+              focusSection: section || null,
+              focusFieldKey: fieldKey || null,
+              focusRequestedAt: Date.now(),
+            });
+          }
+        }}
+      />
       <AttachVisitSheet
         visible={rattachementVisible}
         visiteId={visiteId}
