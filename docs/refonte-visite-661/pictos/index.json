@@ -1,0 +1,1726 @@
+[
+ {
+  "famille": "onglets",
+  "fichier": "onglets/informations.svg",
+  "nom": "Informations",
+  "usage": "Fiche du site · trame ICPE",
+  "trames": [
+   "ICPE"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "onglets",
+  "fichier": "onglets/informations-fiche-du-site-rese.svg",
+  "nom": "Informations",
+  "usage": "Fiche du site · Réseau de chaleur",
+  "trames": [
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "onglets",
+  "fichier": "onglets/informations-fiche-du-site-vmc.svg",
+  "nom": "Informations",
+  "usage": "Fiche du site · VMC",
+  "trames": [
+   "VMC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "onglets",
+  "fichier": "onglets/informations-fiche-du-site-pre.svg",
+  "nom": "Informations",
+  "usage": "Fiche du site · Pré-allumage",
+  "trames": [
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "onglets",
+  "fichier": "onglets/distribution.svg",
+  "nom": "Distribution",
+  "usage": "Réseaux de distribution chauffage et ECS",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "onglets",
+  "fichier": "onglets/regulation.svg",
+  "nom": "Régulation",
+  "usage": "Cascade, courbes de chauffe, réseaux",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "onglets",
+  "fichier": "onglets/releves.svg",
+  "nom": "Relevés",
+  "usage": "Pressions, compteurs, températures",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "onglets",
+  "fichier": "onglets/conf-local.svg",
+  "nom": "Conf. Local",
+  "usage": "Local technique et sécurité",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "onglets",
+  "fichier": "onglets/conf-energie.svg",
+  "nom": "Conf. Énergie",
+  "usage": "Coupures, gaz, armoire électrique",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "onglets",
+  "fichier": "onglets/conf-chauffage.svg",
+  "nom": "Conf. Chauffage",
+  "usage": "Soupapes, fumées, traitement d'eau",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "onglets",
+  "fichier": "onglets/conf-ecs.svg",
+  "nom": "Conf. ECS",
+  "usage": "Eau chaude sanitaire",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "onglets",
+  "fichier": "onglets/conf-adoucisseur.svg",
+  "nom": "Conf. Adoucisseur",
+  "usage": "Réseaux alimentés, sel, bypass",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "onglets",
+  "fichier": "onglets/equipements.svg",
+  "nom": "Équipements",
+  "usage": "Patrimoine du local, pointage",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "onglets",
+  "fichier": "onglets/reserves.svg",
+  "nom": "Réserves",
+  "usage": "Réserves à lever",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "onglets",
+  "fichier": "onglets/photos.svg",
+  "nom": "Photos",
+  "usage": "Galerie de la visite",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "vmc",
+  "fichier": "vmc/caisson-1-1.svg",
+  "nom": "Caisson 1",
+  "usage": "Un onglet par caisson, jusqu'à 6",
+  "trames": [
+   "VMC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "vmc",
+  "fichier": "vmc/caisson-2-2.svg",
+  "nom": "Caisson 2",
+  "usage": "",
+  "trames": [
+   "VMC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "vmc",
+  "fichier": "vmc/caisson-3-3.svg",
+  "nom": "Caisson 3",
+  "usage": "",
+  "trames": [
+   "VMC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "vmc",
+  "fichier": "vmc/situation.svg",
+  "nom": "Situation",
+  "usage": "Implantation et accès du caisson",
+  "trames": [
+   "VMC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "vmc",
+  "fichier": "vmc/caisson.svg",
+  "nom": "Caisson",
+  "usage": "État du caisson et du ventilateur",
+  "trames": [
+   "VMC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "vmc",
+  "fichier": "vmc/distribution.svg",
+  "nom": "Distribution",
+  "usage": "Gaines, bouches, réseau aéraulique",
+  "trames": [
+   "VMC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "vmc",
+  "fichier": "vmc/gestion.svg",
+  "nom": "Gestion",
+  "usage": "Pilotage, programmation, maintenance",
+  "trames": [
+   "VMC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "pa",
+  "fichier": "pa/installations.svg",
+  "nom": "Installations",
+  "usage": "Bâtiments, sous-stations, rubriques techniques",
+  "trames": [
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "pa",
+  "fichier": "pa/compteurs.svg",
+  "nom": "Compteurs",
+  "usage": "Index de départ de saison",
+  "trames": [
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "pa",
+  "fichier": "pa/regulation.svg",
+  "nom": "Régulation",
+  "usage": "Consignes et réglages par sous-station",
+  "trames": [
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "pa",
+  "fichier": "pa/chaufferie.svg",
+  "nom": "Chaufferie",
+  "usage": "Chaudières, brûleurs, pompes",
+  "trames": [
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "pa",
+  "fichier": "pa/sous-stations.svg",
+  "nom": "Sous-stations",
+  "usage": "Échangeurs et départs",
+  "trames": [
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "pa",
+  "fichier": "pa/conclusion.svg",
+  "nom": "Conclusion",
+  "usage": "Contrôles à faire, équipements à remplacer",
+  "trames": [
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "trames",
+  "fichier": "trames/icpe.svg",
+  "nom": "ICPE",
+  "usage": "Chaufferie classée",
+  "trames": [
+   "ICPE"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "trames",
+  "fichier": "trames/vmc.svg",
+  "nom": "VMC",
+  "usage": "Ventilation mécanique",
+  "trames": [
+   "VMC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "trames",
+  "fichier": "trames/reseau-de-chaleur.svg",
+  "nom": "Réseau de chaleur",
+  "usage": "Sous-station et réseau",
+  "trames": [
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "trames",
+  "fichier": "trames/pre-allumage.svg",
+  "nom": "Pré-allumage",
+  "usage": "Lancement de la saison de chauffe",
+  "trames": [
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/partie-local.svg",
+  "nom": "Partie local",
+  "usage": "Situation, accessibilité, issue de secours",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/portes-d-acces.svg",
+  "nom": "Portes d'accès",
+  "usage": "Sens d'ouverture, coupe-feu, barre anti-panique",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/ventilation.svg",
+  "nom": "Ventilation",
+  "usage": "Ventilations haute et basse",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/lutte-contre-l-incendie.svg",
+  "nom": "Lutte contre l'incendie",
+  "usage": "Extincteurs, détection, désenfumage",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/affichages-reglementaires.svg",
+  "nom": "Affichages réglementaires",
+  "usage": "Consignes, plan de sécurité, schéma",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/evacuation-des-eaux.svg",
+  "nom": "Évacuation des eaux",
+  "usage": "Type, état, condensats, caillebotis",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/autres.svg",
+  "nom": "Autres",
+  "usage": "Rubrique de fin de liste",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/coupure-combustible.svg",
+  "nom": "Coupure combustible",
+  "usage": "Coup de poing extérieur gaz ou fioul",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/coupure-electrique.svg",
+  "nom": "Coupure électrique",
+  "usage": "Coup de poing extérieur, séparation F/L/R",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/ligne-alimentation-gaz.svg",
+  "nom": "Ligne alimentation gaz",
+  "usage": "Vannes, filtre, pressostats, manomètre",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/armoire-electrique.svg",
+  "nom": "Armoire électrique",
+  "usage": "Schéma, câblage, protection",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/baes.svg",
+  "nom": "BAES",
+  "usage": "Éclairage de sécurité",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/disconnexion-chauffage.svg",
+  "nom": "Disconnexion · chauffage",
+  "usage": "Alimentation en eau froide du circuit",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/traitement-d-eau-chauffage.svg",
+  "nom": "Traitement d'eau · chauffage",
+  "usage": "Filtration, pot d'introduction, produit",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/conduits-de-fumees.svg",
+  "nom": "Conduits de fumées",
+  "usage": "Type, section, thermomètre",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/soupapes.svg",
+  "nom": "Soupapes",
+  "usage": "Évacuation et pression de tarage",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/disconnexion-ecs.svg",
+  "nom": "Disconnexion · ECS",
+  "usage": "Alimentation en eau froide de l'ECS",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/traitement-ecs.svg",
+  "nom": "Traitement · ECS",
+  "usage": "Produit, niveau, point d'injection",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/ballon-et-points-de-controle.svg",
+  "nom": "Ballon et points de contrôle",
+  "usage": "Manchettes, trou d'homme, carnet sanitaire",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "conf",
+  "fichier": "conf/reseau-x-alimente-s.svg",
+  "nom": "Réseau(x) alimenté(s)",
+  "usage": "Adoucisseur : type, état, sel, bypass",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "inc",
+  "fichier": "inc/extincteurs.svg",
+  "nom": "Extincteurs",
+  "usage": "Nombre, type, signalétique",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "inc",
+  "fichier": "inc/gaine-pompiers.svg",
+  "nom": "Gaine pompiers",
+  "usage": "Présence, raccord, signalétique",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "inc",
+  "fichier": "inc/detection-gaz.svg",
+  "nom": "Détection gaz",
+  "usage": "Présence et nombre de cellules",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "inc",
+  "fichier": "inc/detection-incendie.svg",
+  "nom": "Détection incendie",
+  "usage": "Présence et nombre de cellules",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "inc",
+  "fichier": "inc/desenfumage.svg",
+  "nom": "Désenfumage",
+  "usage": "Déclencheurs, accès, DM",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "inc",
+  "fichier": "inc/alarme-sonore.svg",
+  "nom": "Alarme sonore",
+  "usage": "Sirènes",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "inc",
+  "fichier": "inc/alarme-visuelle.svg",
+  "nom": "Alarme visuelle",
+  "usage": "Gyrophares",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "inc",
+  "fichier": "inc/bac-a-sable-et-pelle.svg",
+  "nom": "Bac à sable et pelle",
+  "usage": "Chaufferies fioul et bois",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "inc",
+  "fichier": "inc/sprinkler.svg",
+  "nom": "Sprinkler",
+  "usage": "Chaufferies bois",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "dist",
+  "fichier": "dist/distribution-chauffage.svg",
+  "nom": "Distribution chauffage",
+  "usage": "Réseau de distribution du chauffage",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "dist",
+  "fichier": "dist/distribution-ecs.svg",
+  "nom": "Distribution ECS",
+  "usage": "Réseau de distribution de l'ECS",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "dist",
+  "fichier": "dist/reseau.svg",
+  "nom": "Réseau",
+  "usage": "Matériaux, type de distribution",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "dist",
+  "fichier": "dist/organes.svg",
+  "nom": "Organes",
+  "usage": "Vannes aller et retour, robinetterie",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "dist",
+  "fichier": "dist/emission.svg",
+  "nom": "Émission",
+  "usage": "Radiateurs, planchers, ventilo-convecteurs",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "dist",
+  "fichier": "dist/isolation.svg",
+  "nom": "Isolation",
+  "usage": "Calorifuge : type et état",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "dist",
+  "fichier": "dist/pompe.svg",
+  "nom": "Pompe",
+  "usage": "Variation de vitesse",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "dist",
+  "fichier": "dist/cascade-chaudieres.svg",
+  "nom": "Cascade chaudières",
+  "usage": "Paramètres, T° extérieure, T° départ",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "dist",
+  "fichier": "dist/reseaux.svg",
+  "nom": "Réseaux",
+  "usage": "Un circuit par réseau",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "dist",
+  "fichier": "dist/reseau-ecs.svg",
+  "nom": "Réseau ECS",
+  "usage": "Consigne et cycle anti-légionellose",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "dist",
+  "fichier": "dist/t-exterieure.svg",
+  "nom": "T° extérieure",
+  "usage": "Point bas de la courbe",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "dist",
+  "fichier": "dist/t-de-depart.svg",
+  "nom": "T° de départ",
+  "usage": "Température du départ",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "dist",
+  "fichier": "dist/t-de-retour.svg",
+  "nom": "T° de retour",
+  "usage": "Température du retour",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/pressions.svg",
+  "nom": "Pressions",
+  "usage": "Pression chauffage et ECS",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/compteurs.svg",
+  "nom": "Compteurs",
+  "usage": "Index relevés",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/temperatures-et-ph.svg",
+  "nom": "Températures et pH",
+  "usage": "Mesures des circuits",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/compteur-gaz.svg",
+  "nom": "Compteur gaz",
+  "usage": "Index gaz, cuve fioul",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/energie-chauffage.svg",
+  "nom": "Énergie chauffage",
+  "usage": "Index MWh",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/energie-ecs.svg",
+  "nom": "Énergie ECS",
+  "usage": "Index MWh ECS",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/eau-d-appoint-chauffage.svg",
+  "nom": "Eau d'appoint chauffage",
+  "usage": "Index m³",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/eau-froide-ecs.svg",
+  "nom": "Eau froide ECS",
+  "usage": "Alimentation EF de l'ECS",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/eau-froide-generale.svg",
+  "nom": "Eau froide générale",
+  "usage": "Compteur d'eau du site",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/electricite.svg",
+  "nom": "Électricité",
+  "usage": "Index kWh",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/fioul.svg",
+  "nom": "Fioul",
+  "usage": "Cuve, litres ou %",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/calories.svg",
+  "nom": "Calories",
+  "usage": "Compteur d'énergie thermique",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/volumetrique.svg",
+  "nom": "Volumétrique",
+  "usage": "Débit cumulé",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/manometre-chauffage.svg",
+  "nom": "Manomètre chauffage",
+  "usage": "Pression du circuit chauffage",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/manometre-ecs.svg",
+  "nom": "Manomètre ECS",
+  "usage": "Pression du circuit ECS",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/t-primaire.svg",
+  "nom": "T° primaire",
+  "usage": "Circuit primaire",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/t-chauffage.svg",
+  "nom": "T° chauffage",
+  "usage": "Circuit chauffage",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/t-ecs.svg",
+  "nom": "T° ECS",
+  "usage": "Circuit eau chaude",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/t-de-stockage.svg",
+  "nom": "T° de stockage",
+  "usage": "Ballon ECS",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "rel",
+  "fichier": "rel/ph.svg",
+  "nom": "pH",
+  "usage": "Eau du circuit",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/chaudiere.svg",
+  "nom": "Chaudière",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/circulateur.svg",
+  "nom": "Circulateur",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/pompe.svg",
+  "nom": "Pompe",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/echangeur.svg",
+  "nom": "Échangeur",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/vase-d-expansion.svg",
+  "nom": "Vase d'expansion",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/ballon-ecs.svg",
+  "nom": "Ballon ECS",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/adoucisseur.svg",
+  "nom": "Adoucisseur",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": true
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/armoire-electrique.svg",
+  "nom": "Armoire électrique",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/compteur.svg",
+  "nom": "Compteur",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/manometre.svg",
+  "nom": "Manomètre",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/soupape.svg",
+  "nom": "Soupape",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/vanne.svg",
+  "nom": "Vanne",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/detendeur.svg",
+  "nom": "Détendeur",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/filtre.svg",
+  "nom": "Filtre",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/desemboueur.svg",
+  "nom": "Désemboueur",
+  "usage": "",
+  "trames": [
+   "ICPE",
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/vmc.svg",
+  "nom": "VMC",
+  "usage": "",
+  "trames": [
+   "VMC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/cta.svg",
+  "nom": "CTA",
+  "usage": "",
+  "trames": [
+   "VMC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/ventilateur.svg",
+  "nom": "Ventilateur",
+  "usage": "",
+  "trames": [
+   "VMC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eq",
+  "fichier": "eq/tourelle.svg",
+  "nom": "Tourelle",
+  "usage": "",
+  "trames": [
+   "VMC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eqs",
+  "fichier": "eqs/present.svg",
+  "nom": "Présent",
+  "usage": "Présence confirmée",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eqs",
+  "fichier": "eqs/a-voir.svg",
+  "nom": "À voir",
+  "usage": "Équipement repris, à pointer",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eqs",
+  "fichier": "eqs/nouveau.svg",
+  "nom": "Nouveau",
+  "usage": "Ajouté pendant la visite",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eqs",
+  "fichier": "eqs/neuf.svg",
+  "nom": "Neuf",
+  "usage": "État constaté",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eqs",
+  "fichier": "eqs/bon.svg",
+  "nom": "Bon",
+  "usage": "État constaté",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eqs",
+  "fichier": "eqs/moyen.svg",
+  "nom": "Moyen",
+  "usage": "État constaté",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eqs",
+  "fichier": "eqs/vetuste.svg",
+  "nom": "Vétuste",
+  "usage": "État constaté",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "eqs",
+  "fichier": "eqs/hors-service.svg",
+  "nom": "Hors service",
+  "usage": "État constaté",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "res",
+  "fichier": "res/information.svg",
+  "nom": "Information",
+  "usage": "Criticité 0",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "res",
+  "fichier": "res/mineur.svg",
+  "nom": "Mineur",
+  "usage": "Criticité 1",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "res",
+  "fichier": "res/a-programmer.svg",
+  "nom": "À programmer",
+  "usage": "Criticité 2",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "res",
+  "fichier": "res/important.svg",
+  "nom": "Important",
+  "usage": "Criticité 3",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "res",
+  "fichier": "res/prioritaire.svg",
+  "nom": "Prioritaire",
+  "usage": "Criticité 4",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "res",
+  "fichier": "res/critique.svg",
+  "nom": "Critique",
+  "usage": "Criticité 5",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "res",
+  "fichier": "res/entretien-p2.svg",
+  "nom": "Entretien P2",
+  "usage": "Poste de prestation",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "res",
+  "fichier": "res/travaux-de-conformite.svg",
+  "nom": "Travaux de conformité",
+  "usage": "Poste de prestation",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "res",
+  "fichier": "res/travaux-d-amelioration.svg",
+  "nom": "Travaux d'amélioration",
+  "usage": "Poste de prestation",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "res",
+  "fichier": "res/levee.svg",
+  "nom": "Levée",
+  "usage": "Réserve traitée",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "res",
+  "fichier": "res/reprise.svg",
+  "nom": "Reprise",
+  "usage": "Réserve d'une visite précédente",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "res",
+  "fichier": "res/primaire.svg",
+  "nom": "Primaire",
+  "usage": "Périmètre · Réseau de chaleur",
+  "trames": [
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "res",
+  "fichier": "res/secondaire.svg",
+  "nom": "Secondaire",
+  "usage": "Périmètre · Réseau de chaleur",
+  "trames": [
+   "RC"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "ph",
+  "fichier": "ph/generale.svg",
+  "nom": "Générale",
+  "usage": "Vue d'ensemble, accès",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "ph",
+  "fichier": "ph/equipement.svg",
+  "nom": "Équipement",
+  "usage": "Photo liée à un équipement",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "ph",
+  "fichier": "ph/compteur.svg",
+  "nom": "Compteur",
+  "usage": "Photo d'un index",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "ph",
+  "fichier": "ph/reserve.svg",
+  "nom": "Réserve",
+  "usage": "Photo d'une non-conformité",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "ph",
+  "fichier": "ph/conformite.svg",
+  "nom": "Conformité",
+  "usage": "Photo d'un contrôle",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "ph",
+  "fichier": "ph/plaque-signaletique.svg",
+  "nom": "Plaque signalétique",
+  "usage": "Lecture de plaque",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "ph",
+  "fichier": "ph/mode-photo.svg",
+  "nom": "Mode Photo",
+  "usage": "Saisie rapide terrain",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "act",
+  "fichier": "act/rechercher.svg",
+  "nom": "Rechercher",
+  "usage": "Recherche dans la visite",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "act",
+  "fichier": "act/compagnon.svg",
+  "nom": "Compagnon",
+  "usage": "Téléphone relié à la tablette",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "act",
+  "fichier": "act/photos-de-reference.svg",
+  "nom": "Photos de référence",
+  "usage": "Photos du local de la visite précédente",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "act",
+  "fichier": "act/telecharger.svg",
+  "nom": "Télécharger",
+  "usage": "Exporter l'Excel de la visite",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "act",
+  "fichier": "act/terminer.svg",
+  "nom": "Terminer",
+  "usage": "Aperçu, signature, export",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "act",
+  "fichier": "act/note.svg",
+  "nom": "Note",
+  "usage": "Note libre",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "act",
+  "fichier": "act/anomalie.svg",
+  "nom": "Anomalie",
+  "usage": "Ajouter une anomalie, une réserve",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "act",
+  "fichier": "act/synchronisation.svg",
+  "nom": "Synchronisation",
+  "usage": "Envoi vers l'Intranet",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "act",
+  "fichier": "act/enregistre.svg",
+  "nom": "Enregistré",
+  "usage": "Sauvegarde terminée",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ },
+ {
+  "famille": "act",
+  "fichier": "act/hors-connexion.svg",
+  "nom": "Hors connexion",
+  "usage": "Données gardées sur la tablette",
+  "trames": [
+   "ICPE",
+   "RC",
+   "VMC",
+   "PA"
+  ],
+  "eau": false
+ }
+]

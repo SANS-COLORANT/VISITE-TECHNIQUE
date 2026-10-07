@@ -1,0 +1,263 @@
+<title>Pictogrammes METRA</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap">
+<style>
+/* Mise en page : catalogue en grille par famille ; chaque tuile = pictogramme, nom, usage, trames concernées. Trait encre + une touche d'accent, bleu-vert pour l'eau. */
+:root{
+  --bg:#F3F1EC; --fg:#1A1A18; --soft:#6B6B66; --line:rgba(22,21,15,.1); --card:#FDFCFA;
+  --ac:#F26426; --acf:rgba(242,100,38,.16); --orb1:#FFFFFF; --orb2:#FCE4D3; --chip:rgba(22,21,15,.06);
+  --display:'Sora','Segoe UI',system-ui,sans-serif; --body:'Inter','Segoe UI',system-ui,sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171612;--fg:#F1EEE7;--soft:#A8A59B;--line:rgba(241,238,231,.12);--card:#201F1A;--ac:#FF8A4F;--acf:rgba(255,138,79,.2);--orb1:#2B2923;--orb2:#3A2418;--chip:rgba(241,238,231,.08);color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#171612;--fg:#F1EEE7;--soft:#A8A59B;--line:rgba(241,238,231,.12);--card:#201F1A;--ac:#FF8A4F;--acf:rgba(255,138,79,.2);--orb1:#2B2923;--orb2:#3A2418;--chip:rgba(241,238,231,.08);color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);padding-inline:16px;padding-block:22px 56px}
+.wrap{max-width:1040px;margin:0 auto}
+h1{font:800 24px/1.15 var(--display);margin:0 0 6px;text-wrap:balance}
+.lead{margin:0 0 16px;color:var(--soft);font-size:13.5px;max-width:64ch;line-height:1.5}
+.leg{display:flex;gap:14px;flex-wrap:wrap;margin:0 0 14px;font-size:12px;color:var(--soft)}
+.leg span{display:inline-flex;align-items:center;gap:6px}
+.nav{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 6px;position:sticky;top:env(safe-area-inset-top,0px);background:var(--bg);padding-block:8px;z-index:5}
+.nav a{font:600 11.5px var(--body);padding:6px 11px;border-radius:999px;background:var(--chip);color:var(--fg);text-decoration:none}
+.nav a:focus-visible,.nav a:hover{outline:2px solid var(--ac);outline-offset:1px}
+section{margin-top:26px;scroll-margin-top:60px}
+h2{font:700 16px var(--display);margin:0 0 2px}
+.sub{margin:0 0 12px;font-size:12.5px;color:var(--soft)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}
+.tile{display:flex;gap:12px;align-items:center;background:var(--card);border:1px solid var(--line);border-radius:18px;padding:10px 12px 10px 10px;min-width:0}
+.orb{width:62px;height:62px;border-radius:20px;flex:none;display:grid;place-items:center;background:linear-gradient(145deg,var(--orb1),var(--orb2));border:1px solid var(--line);position:relative;color:var(--fg)}
+.orb svg{width:38px;height:38px;display:block}
+.eau .orb{--ac:#0F7C8C;--acf:rgba(15,124,140,.16);--orb2:#D8F0F2}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .eau .orb{--ac:#4CC3D3;--acf:rgba(76,195,211,.2);--orb2:#173238}}
+:root[data-theme="dark"] .eau .orb{--ac:#4CC3D3;--acf:rgba(76,195,211,.2);--orb2:#173238}
+.bd{position:absolute;right:-4px;top:-4px;min-width:18px;height:18px;border-radius:9px;background:var(--ac);color:#fff;font:700 10px/18px var(--body);text-align:center;border:2px solid var(--card)}
+.tx{min-width:0}.tx b{display:block;font:700 13px/1.25 var(--body)}.tx span{display:block;font-size:11.5px;line-height:1.35;color:var(--soft);margin-top:2px}
+.tg{display:flex;gap:4px;flex-wrap:wrap;margin-top:5px}.tg i{font:700 9px var(--body);font-style:normal;letter-spacing:.04em;padding:2px 6px;border-radius:6px;background:var(--chip);color:var(--soft)}
+.k,.a,.fa{fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round;vector-effect:non-scaling-stroke}
+.a{stroke:var(--ac)}.fa{fill:var(--acf);stroke:var(--ac)}.d{fill:var(--ac);stroke:none}
+</style>
+
+<div class="wrap">
+  <h1>Pictogrammes METRA</h1>
+  <p class="lead">Un pictogramme dessiné pour chaque onglet, rubrique, type d'équipement, compteur et statut, trame par trame. Même grille et même trait partout : l'encre pour la forme, l'orange pour l'élément qui parle, le bleu-vert pour tout ce qui touche à l'eau.</p>
+  <div class="leg"><span><svg width="18" height="18" viewBox="0 0 24 24" style="color:var(--fg)"><path class="k" d="M4 12h16"/></svg> forme</span><span><svg width="18" height="18" viewBox="0 0 24 24"><path class="a" d="M4 12h16"/></svg> accent</span><span id="cnt"></span></div>
+  <nav class="nav" id="nav" aria-label="Familles"></nav>
+  <div id="out"></div>
+</div>
+
+<script>
+const K=d=>`<path class="k" d="${d}"/>`,A=d=>`<path class="a" d="${d}"/>`,F=d=>`<path class="fa" d="${d}"/>`,
+D=(x,y,r=1.1)=>`<circle class="d" cx="${x}" cy="${y}" r="${r}"/>`,
+KC=(x,y,r)=>`<circle class="k" cx="${x}" cy="${y}" r="${r}"/>`,AC=(x,y,r)=>`<circle class="a" cx="${x}" cy="${y}" r="${r}"/>`,FC=(x,y,r)=>`<circle class="fa" cx="${x}" cy="${y}" r="${r}"/>`;
+const M=(i,cx,cy,s)=>`<g transform="translate(${cx-12*s} ${cy-12*s}) scale(${s})">${i}</g>`;
+const FLd='M12 3.2c.9 3.2 4.8 4.8 4.8 9.2a4.8 4.8 0 01-9.6 0c0-2.1 1-3.3 2.2-4.3.2 1.3.9 2.1 1.8 2.3C11 8 11.1 5.7 12 3.2z',
+DRd='M12 3.5c3 3.8 6 6.3 6 9.8a6 6 0 01-12 0c0-3.5 3-6 6-9.8z',BOd='M13 3L5.5 13.5H11L10 21l8-11h-5.5z',
+FANd='M12 10.4C11 7 12.5 4.5 15 4c1 2.5-.5 5-3 6.5zM13.6 12c3.5-1 6-.2 7 2.2-2 1.8-5 1.2-7-1.7zM12 13.6c1 3.5-.5 6-3 6.5-1-2.5.5-5 3-6.5zM10.4 12c-3.5 1-6 .2-7-2.2 2-1.8 5-1.2 7 1.7z',
+THd='M10 14V5.5a2 2 0 014 0V14a4 4 0 11-4 0z',CK='M5 12.5l4.5 4.5L19 7',
+SUd='M12 3v2M12 19v2M3 12h2M19 12h2M5.6 5.6L7 7M17 17l1.4 1.4M5.6 18.4L7 17M17 7l1.4-1.4',
+FLASK='M9 3h6M10 3v6l-5 9a2 2 0 001.8 3h10.4a2 2 0 001.8-3l-5-9V3';
+const FL=S=>S(FLd),DR=S=>S(DRd),BO=S=>S(BOd),TH=S=>S(THd),SU=S=>S(SUd)+AC(12,12,3.5),FLK=S=>S(FLASK);
+const FANA=A(FANd)+D(12,12,1.2);
+const NE=S=>{const c=S===A?AC:KC;return S('M12 7.5v4.2M12 11.7L7 16.5M12 11.7l5 4.8')+c(12,5.5,2)+c(6,18,2)+c(18,18,2)};
+const CLIP=K('M7 5h10a2 2 0 012 2v12a2 2 0 01-2 2H7a2 2 0 01-2-2V7a2 2 0 012-2z')+K('M9.5 3.5h5v3h-5z');
+const GEAR=S=>{const c=S===A?AC:KC;return S('M12 3.5v2.3M12 18.2v2.3M3.5 12h2.3M18.2 12h2.3M6 6l1.6 1.6M16.4 16.4L18 18M6 18l1.6-1.6M16.4 7.6L18 6')+c(12,12,6)};
+const CAM='M3.5 8.5h3.5l1.5-2h8l1.5 2h3.5V19.5H3.5z';
+const CTR=K('M4 7h16v10H4z')+F('M7 10h2.5v4H7z')+F('M10.8 10h2.5v4h-2.5z')+F('M14.6 10h2.5v4h-2.5z');
+const AMAN=KC(12,12,8)+A('M12 12l3.5-3.5')+D(12,12,1.3)+K('M12 4.5V6M19.5 12H18M4.5 12H6');
+const ADOUC=K('M4 7a3 1.5 0 016 0v10a3 1.5 0 01-6 0zM4 7a3 1.5 0 006 0M13 11h7v8h-7z')+A('M10 14h3')+D(15,15,.7)+D(17.5,13.5,.7)+D(17.8,16.5,.7);
+const ARM=K('M5 3h14v18H5zM12 3v18')+M(BO(A),8.5,12,.5)+D(14.5,12,.8);
+const BALL=K('M7 6.5c0-1.1 2.2-2 5-2s5 .9 5 2v11c0 1.1-2.2 2-5 2s-5-.9-5-2zM7 6.5c0 1.1 2.2 2 5 2s5-.9 5-2')+A('M7 14c1.7 1 3.3 1 5 0s3.3-1 5 0');
+const SOUP=K('M5 20h14M9 20v-5h6v5M8 15h8M10 6h4')+A('M12 15l-2-1.5 4-1.5-4-1.5 2-1.5V6');
+const VANNE=K('M3 13h5M16 13h5M12 13V7M9.5 7h5')+F('M8 9l8 8V9l-8 8z');
+const EXT=K('M9 8h6v12a1 1 0 01-1 1h-4a1 1 0 01-1-1zM10 8V5.5h4V8M14 6l3.5-1.5v3.5')+A('M9 13h6');
+const RAD=K('M4 7h16M4 19h16')+A('M7.5 9v8M12 9v8M16.5 9v8');
+const POMPE=KC(10.5,12,6.5)+F('M8.5 9l4.5 3-4.5 3z')+K('M17 12h4M10.5 5.5V3M8 3h5');
+const PRESS=KC(12,12,8)+A('M12 12l3.5-3.5')+D(12,12,1.3)+K('M12 4.5V6M19.5 12H18M4.5 12H6');
+const CAMERA=i=>K(CAM)+i;
+const TAG={ICPE:'ICPE',RC:'Réseau de chaleur',VMC:'VMC',PA:'Pré-allumage'};
+const ALL=['ICPE','RC','VMC','PA'];
+const S=[
+['onglets','Onglets de visite','Les onglets du bandeau en haut de la visite, par trame.',[
+ ['Informations','Fiche du site · trame ICPE',['ICPE'],CLIP+M(FL(A),12,14.2,.5)],
+ ['Informations','Fiche du site · Réseau de chaleur',['RC'],CLIP+M(NE(A),12,14.2,.5)],
+ ['Informations','Fiche du site · VMC',['VMC'],CLIP+M(FANA,12,14.2,.55)],
+ ['Informations','Fiche du site · Pré-allumage',['PA'],CLIP+M(SU(A),12,14.2,.5)],
+ ['Distribution','Réseaux de distribution chauffage et ECS',['ICPE','RC'],K('M12 3.5v5.5M12 9H6.5v5.5M12 9h5.5v5.5M12 9v11')+F('M4 14.5h5v5.5H4z')+F('M15 14.5h5v5.5h-5z')],
+ ['Régulation','Cascade, courbes de chauffe, réseaux',['ICPE','RC'],K('M4.5 4v15.5H20M4.5 8.5H7M4.5 13H7')+A('M7 16.5c2.8 0 3.7-3.2 5.7-5.7s4.2-2.3 5.8-2.3')+D(12.4,10.7,1.5)],
+ ['Relevés','Pressions, compteurs, températures',['ICPE','RC'],K('M4.5 17a7.5 7.5 0 1115 0M12 6.5v1.5M6.5 9l1 1M17.5 9l-1 1M5 21h14')+A('M12 17l3.8-5.2')+D(12,17,1.4)],
+ ['Conf. Local','Local technique et sécurité',['ICPE','RC'],K('M4 20V9l8-5 8 5v11M3 20h18')+F('M9.5 20v-6a2.5 2.5 0 015 0v6')+D(13.3,16.5,.7)],
+ ['Conf. Énergie','Coupures, gaz, armoire électrique',['ICPE','RC'],M(BO(K),8.5,12.5,.85)+M(FL(A),16.5,14,.7)],
+ ['Conf. Chauffage','Soupapes, fumées, traitement d\'eau',['ICPE','RC'],K('M4 9h16M4 19h16M7.5 11v6M12 11v6M16.5 11v6')+M(FL(A),12,5.2,.5)],
+ ['Conf. ECS','Eau chaude sanitaire',['ICPE','RC'],K('M4 9h9.5M8 9V6M6 6h4M13.5 9h3a2 2 0 012 2v2')+M(DR(A),17.5,18,.55),1],
+ ['Conf. Adoucisseur','Réseaux alimentés, sel, bypass',['ICPE','RC'],K('M8.5 3.5h7v3l1.5 2v10.5a1.5 1.5 0 01-1.5 1.5h-7a1.5 1.5 0 01-1.5-1.5V8.5l1.5-2z')+F('M10 13h2v2h-2z')+F('M13 15.5h2v2h-2z'),1],
+ ['Équipements','Patrimoine du local, pointage',ALL,GEAR(K)+AC(12,12,2.4)],
+ ['Réserves','Réserves à lever',ALL,K('M5 5h14v16H5z')+A('M8 9l1.5 1.5L12 8M8 14l1.5 1.5L12 13')+K('M14 9h3M14 14h3')],
+ ['Photos','Galerie de la visite',ALL,K(CAM)+AC(12,13.5,3.2)+D(17.5,10.8,.6)]
+]],
+['vmc','VMC · caissons','Les onglets propres à la trame VMC et les rubriques d\'un caisson.',[
+ ['Caisson 1','Un onglet par caisson, jusqu\'à 6',['VMC'],K('M3.5 7h17v10h-17z')+M(FANA,9.5,12,.6)+K('M15.5 10h2.5M15.5 12h2.5M15.5 14h2.5'),0,'1'],
+ ['Caisson 2','',['VMC'],K('M3.5 7h17v10h-17z')+M(FANA,9.5,12,.6)+K('M15.5 10h2.5M15.5 12h2.5M15.5 14h2.5'),0,'2'],
+ ['Caisson 3','',['VMC'],K('M3.5 7h17v10h-17z')+M(FANA,9.5,12,.6)+K('M15.5 10h2.5M15.5 12h2.5M15.5 14h2.5'),0,'3'],
+ ['Situation','Implantation et accès du caisson',['VMC'],K('M12 21s6-5.2 6-10a6 6 0 10-12 0c0 4.8 6 10 6 10z')+AC(12,11,2.2)],
+ ['Caisson','État du caisson et du ventilateur',['VMC'],K('M3.5 6h17v12h-17z')+M(FANA,12,12,.7)],
+ ['Distribution','Gaines, bouches, réseau aéraulique',['VMC'],K('M3 8h10v4h8M3 16h7v-4')+A('M17 9.5l3 2.5-3 2.5')],
+ ['Gestion','Pilotage, programmation, maintenance',['VMC'],KC(12,12,8)+A('M12 7v5l3 2')]
+]],
+['pa','Pré-allumage','Les onglets propres à la visite de préparation de la saison de chauffe.',[
+ ['Installations','Bâtiments, sous-stations, rubriques techniques',['PA'],K('M4 20V9h7v11M11 20V5h9v15M3 20h18')+D(7.5,12.5,.9)+D(7.5,16,.9)+D(15.5,9,.9)+D(15.5,12.5,.9)+D(15.5,16,.9)],
+ ['Compteurs','Index de départ de saison',['PA'],K('M3.5 8h17v8h-17zM3.5 12H2M20.5 12H22')+F('M7 10.5h2.5v3H7z')+F('M10.8 10.5h2.5v3h-2.5z')+F('M14.6 10.5h2.5v3h-2.5z')],
+ ['Régulation','Consignes et réglages par sous-station',['PA'],K('M4 7h9M17 7h3M4 17h3M11 17h9')+AC(15,7,2)+AC(9,17,2)],
+ ['Chaufferie','Chaudières, brûleurs, pompes',['PA'],K('M3 20h18M5 20V10l7-5 7 5v10M16 8V5h2.5v5')+M(FL(A),12,15,.6)],
+ ['Sous-stations','Échangeurs et départs',['PA'],K('M7 4h10v16H7zM10 4v16M12 4v16M14 4v16')+A('M2.5 8h4M4.5 6.5L6 8l-1.5 1.5M17.5 16h4M19.5 14.5L21 16l-1.5 1.5')],
+ ['Conclusion','Contrôles à faire, équipements à remplacer',['PA'],CLIP+M(A(CK),12,14.5,.6)]
+]],
+['trames','Trames','Une marque par type de visite, pour la liste des visites et la création.',[
+ ['ICPE','Chaufferie classée',['ICPE'],K('M4 20V10l5 3V10l5 3V6h4v14zM3 20h18')+D(7.5,17,.9)+D(12,17,.9)+D(16.5,17,.9)],
+ ['VMC','Ventilation mécanique',['VMC'],K('M4.5 4.5h15v15h-15z')+M(FANA,12,12,.7)],
+ ['Réseau de chaleur','Sous-station et réseau',['RC'],K('M3 20v-8h5v8M16 20V7h5v13M2 20h20')+A('M8 16h8')+D(12,16,1.4)],
+ ['Pré-allumage','Lancement de la saison de chauffe',['PA'],M(FL(K),12,13,.9)+A('M18 3.5v3M16.5 5h3M5 4v2.4M3.8 5.2h2.4')]
+]],
+['conf','Conformité · rubriques','Les rubriques des cinq onglets de conformité.',[
+ ['Partie local','Situation, accessibilité, issue de secours',['ICPE','RC'],K('M4 8l8-4 8 4v9l-8 4-8-4zM4 8l8 4 8-4')+F('M12 12l8-4v9l-8 4z')],
+ ['Portes d\'accès','Sens d\'ouverture, coupe-feu, barre anti-panique',['ICPE','RC'],K('M6 21V4h12v17M4 21h16')+A('M9 8h3')+D(15,12.5,1)],
+ ['Ventilation','Ventilations haute et basse',['ICPE','RC'],K('M4 5h16v14H4z')+A('M7 9h10M7 12h10M7 15h10')],
+ ['Lutte contre l\'incendie','Extincteurs, détection, désenfumage',['ICPE','RC'],EXT],
+ ['Affichages réglementaires','Consignes, plan de sécurité, schéma',['ICPE','RC'],K('M4 5h16v11H4zM12 16v5M9 21h6')+A('M8 9h8M8 12h5')],
+ ['Évacuation des eaux','Type, état, condensats, caillebotis',['ICPE','RC'],K('M6 4v8a6 6 0 0012 0V4')+A('M8.5 14c1.2.9 2.3.9 3.5 0s2.3-.9 3.5 0'),1],
+ ['Autres','Rubrique de fin de liste',['ICPE','RC'],K('M4 5h16v14H4z')+D(8,12,1.2)+D(12,12,1.2)+D(16,12,1.2)],
+ ['Coupure combustible','Coup de poing extérieur gaz ou fioul',['ICPE','RC'],K('M5 20h14M12 20v-4')+F('M7 16a5 3.5 0 0110 0z')+M(FL(K),12,8.2,.55)],
+ ['Coupure électrique','Coup de poing extérieur, séparation F/L/R',['ICPE','RC'],K('M5 20h14M12 20v-4')+F('M7 16a5 3.5 0 0110 0z')+M(BO(K),12,8.2,.55)],
+ ['Ligne alimentation gaz','Vannes, filtre, pressostats, manomètre',['ICPE','RC'],K('M3 15h18M3 19h18M12 11.5V15')+AC(12,8,3.5)+A('M12 8l1.5-1.5')],
+ ['Armoire électrique','Schéma, câblage, protection',['ICPE','RC'],ARM],
+ ['BAES','Éclairage de sécurité',['ICPE','RC'],K('M3 7h18v10H3zM16 9.5h2v5h-2z')+A('M6.5 12h6M10 9.5l2.5 2.5-2.5 2.5')],
+ ['Disconnexion · chauffage','Alimentation en eau froide du circuit',['ICPE','RC'],K('M4 12h5M15 12h5M9 7h6v10H9zM12 7V4')+M(DR(A),12,12,.4),1],
+ ['Traitement d\'eau · chauffage','Filtration, pot d\'introduction, produit',['ICPE','RC'],K('M8 4h8M9 4v3.5l-2 3V19a1 1 0 001 1h8a1 1 0 001-1v-8.5l-2-3V4')+F('M7 14h10v5a1 1 0 01-1 1H8a1 1 0 01-1-1z')],
+ ['Conduits de fumées','Type, section, thermomètre',['ICPE','RC'],K('M8 21V9h8v12M6 21h12M8 9l2-3h4l2 3')+A('M10 4.5c0-1 1.5-1 1.5-2M13.5 4.5c0-1 1.5-1 1.5-2')],
+ ['Soupapes','Évacuation et pression de tarage',['ICPE','RC'],SOUP],
+ ['Disconnexion · ECS','Alimentation en eau froide de l\'ECS',['ICPE','RC'],K('M4 12h5M15 12h5M9 8h6v8H9z')+M(DR(A),12,12,.45),1],
+ ['Traitement · ECS','Produit, niveau, point d\'injection',['ICPE','RC'],K('M6 9h8v11H6zM8 9V7h4v2M14 12h3a2 2 0 012 2v3')+M(DR(A),19,19.5,.4),1],
+ ['Ballon et points de contrôle','Manchettes, trou d\'homme, carnet sanitaire',['ICPE','RC'],BALL,1],
+ ['Réseau(x) alimenté(s)','Adoucisseur : type, état, sel, bypass',['ICPE','RC'],ADOUC,1]
+]],
+['inc','Lutte contre l\'incendie · sous-groupes','Les neuf familles de contrôles regroupées dans la rubrique.',[
+ ['Extincteurs','Nombre, type, signalétique',['ICPE','RC'],EXT],
+ ['Gaine pompiers','Présence, raccord, signalétique',['ICPE','RC'],K('M10 3v18M14 3v18M7 21h10')+F('M8 6h8v3H8z')],
+ ['Détection gaz','Présence et nombre de cellules',['ICPE','RC'],AC(12,12,5)+A('M3.5 12H6M18 12h2.5')+M(FL(K),12,12.3,.45)],
+ ['Détection incendie','Présence et nombre de cellules',['ICPE','RC'],K('M4 16a8 7 0 0116 0zM7 16v2.5M17 16v2.5')+A('M9 12a3.5 3.5 0 016 0')],
+ ['Désenfumage','Déclencheurs, accès, DM',['ICPE','RC'],K('M5 20V9h14v11')+A('M9 7V3.5M7 5l2-2 2 2M15 7V3.5M13 5l2-2 2 2')],
+ ['Alarme sonore','Sirènes',['ICPE','RC'],K('M4 10v4h3l5 4V6l-5 4z')+A('M15.5 9a4 4 0 010 6M18 7a7 7 0 010 10')],
+ ['Alarme visuelle','Gyrophares',['ICPE','RC'],K('M6 20h12M8 20v-6a4 4 0 018 0v6')+A('M12 4v2M5 7l1.5 1.5M19 7l-1.5 1.5')],
+ ['Bac à sable et pelle','Chaufferies fioul et bois',['ICPE','RC'],K('M5 11h10l-1 9H6z')+F('M5.6 14.5h8.8l-.4 5.5H6z')+A('M18 4l-3 8')],
+ ['Sprinkler','Chaufferies bois',['ICPE','RC'],K('M12 3v5M9 8h6M12 8v3')+A('M8 15l-1 2M12 15v3M16 15l1 2')]
+]],
+['dist','Distribution et régulation · rubriques','Les rubriques des onglets Distribution et Régulation.',[
+ ['Distribution chauffage','Réseau de distribution du chauffage',['ICPE','RC'],M(FL(A),12,8,.65)+K('M3 15h18M3 19h18')],
+ ['Distribution ECS','Réseau de distribution de l\'ECS',['ICPE','RC'],M(DR(A),12,8,.65)+K('M3 15h18M3 19h18'),1],
+ ['Réseau','Matériaux, type de distribution',['ICPE','RC'],K('M3 11h13a3 3 0 013 3v7')+A('M7 8.5v5M13 8.5v5')],
+ ['Organes','Vannes aller et retour, robinetterie',['ICPE','RC'],VANNE],
+ ['Émission','Radiateurs, planchers, ventilo-convecteurs',['ICPE','RC'],RAD],
+ ['Isolation','Calorifuge : type et état',['ICPE','RC'],K('M3 10h18M3 16h18')+A('M3 7h18M3 19h18')],
+ ['Pompe','Variation de vitesse',['ICPE','RC'],KC(12,12,7.5)+F('M10 8.5l5.5 3.5-5.5 3.5z')+K('M12 4.5V2.5M19.5 12h2')],
+ ['Cascade chaudières','Paramètres, T° extérieure, T° départ',['ICPE','RC'],K('M4 11h4v8H4zM10 11h4v8h-4zM16 11h4v8h-4z')+A('M6 11V6.5h12V11')+D(12,6.5,1.2)],
+ ['Réseaux','Un circuit par réseau',['ICPE','RC'],K('M6 7h12a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2z')+FC(12,7,2.4)],
+ ['Réseau ECS','Consigne et cycle anti-légionellose',['ICPE','RC'],K('M6 7h12a2 2 0 012 2v6a2 2 0 01-2 2H6a2 2 0 01-2-2V9a2 2 0 012-2z')+M(DR(A),12,12,.45),1],
+ ['T° extérieure','Point bas de la courbe',['ICPE','RC'],M(TH(K),9,12.5,.85)+M(SU(A),17,8.5,.6)],
+ ['T° de départ','Température du départ',['ICPE','RC'],M(TH(K),9,12.5,.85)+A('M15 8h5M17.5 5.5L20 8l-2.5 2.5')],
+ ['T° de retour','Température du retour',['ICPE','RC'],M(TH(K),9,12.5,.85)+A('M20 8h-5M17.5 5.5L15 8l2.5 2.5')]
+]],
+['rel','Relevés · compteurs et mesures','Les icônes de l\'onglet Relevés : un pictogramme par type de compteur et par mesure.',[
+ ['Pressions','Pression chauffage et ECS',['ICPE','RC'],PRESS],
+ ['Compteurs','Index relevés',['ICPE','RC'],CTR],
+ ['Températures et pH','Mesures des circuits',['ICPE','RC'],M(TH(K),9,12.5,.9)+M(A(FLASK)+K('M7.5 15h9'),17,13,.6)],
+ ['Compteur gaz','Index gaz, cuve fioul',['ICPE','RC'],K('M6 8h12v12H6zM9 8V5h6v3')+M(FL(A),12,14.2,.55)],
+ ['Énergie chauffage','Index MWh',['ICPE','RC'],KC(12,12,8)+M(FL(A),12,12.5,.55)],
+ ['Énergie ECS','Index MWh ECS',['ICPE','RC'],KC(12,12,8)+M(DR(A),12,12.5,.55),1],
+ ['Eau d\'appoint chauffage','Index m³',['ICPE','RC'],K('M3 12h3M18 12h3')+KC(12,12,6)+M(DR(A),12,12.5,.45)+A('M17 5.5v3M15.5 7h3'),1],
+ ['Eau froide ECS','Alimentation EF de l\'ECS',['ICPE','RC'],KC(12,12,8)+A('M12 6.5v11M7.3 9.2l9.4 5.6M16.7 9.2l-9.4 5.6'),1],
+ ['Eau froide générale','Compteur d\'eau du site',['ICPE','RC'],K('M3 12h3M18 12h3')+KC(12,12,6)+M(DR(A),12,12.5,.5),1],
+ ['Électricité','Index kWh',['ICPE','RC'],KC(12,12,8)+M(BO(A),12,12.5,.55)],
+ ['Fioul','Cuve, litres ou %',['ICPE','RC'],K('M7 9h9l2 2v9H7zM9 9V6h5v3')+M(DR(A),12.5,15,.45)],
+ ['Calories','Compteur d\'énergie thermique',['ICPE','RC'],K('M4 6h16v12H4z')+A('M7 14l2-3 2 3 2-3 2 3 2-3')],
+ ['Volumétrique','Débit cumulé',['ICPE','RC'],K('M5 8h14v8H5z')+A('M8 12h8M13 10l3 2-3 2')],
+ ['Manomètre chauffage','Pression du circuit chauffage',['ICPE','RC'],K('M4.5 15a7.5 7.5 0 1115 0')+A('M12 15l3-4')+D(12,15,1.2)+M(FL(A),12,19.5,.35)],
+ ['Manomètre ECS','Pression du circuit ECS',['ICPE','RC'],K('M4.5 15a7.5 7.5 0 1115 0')+A('M12 15l3-4')+D(12,15,1.2)+M(DR(A),12,19.5,.35),1],
+ ['T° primaire','Circuit primaire',['ICPE','RC'],M(TH(K),9,12.5,.85)+M(FL(A),17,9,.65)],
+ ['T° chauffage','Circuit chauffage',['ICPE','RC'],M(TH(K),9,12.5,.85)+A('M14 10v6M17 10v6M20 10v6')],
+ ['T° ECS','Circuit eau chaude',['ICPE','RC'],M(TH(K),9,12.5,.85)+M(DR(A),17,10,.65),1],
+ ['T° de stockage','Ballon ECS',['ICPE','RC'],M(TH(K),9,12.5,.85)+K('M14 8h6v10h-6z')+A('M14 13h6'),1],
+ ['pH','Eau du circuit',['ICPE','RC'],K(FLASK)+A('M7.5 15h9')]
+]],
+['eq','Équipements · types','Un pictogramme par type d\'équipement du catalogue, pour les groupes et les fiches.',[
+ ['Chaudière','',['ICPE','RC','PA'],K('M6 20V5h12v15M4 20h16M9 8h6')+M(FL(A),12,14.5,.6)],
+ ['Circulateur','',['ICPE','RC','PA'],KC(12,12,7)+F('M12 8l4 4-4 4-4-4z')+K('M12 5V3M19 12h2')],
+ ['Pompe','',['ICPE','RC','PA'],POMPE],
+ ['Échangeur','',['ICPE','RC','PA'],K('M6 4h12v16H6zM3 7h3M18 17h3')+A('M9 8l3 2 3-2M9 13l3 2 3-2')],
+ ['Vase d\'expansion','',['ICPE','RC','PA'],K('M12 3a7 7 0 017 7v5a7 7 0 01-14 0v-5a7 7 0 017-7zM12 20v2')+F('M5 12.5h14V15a7 7 0 01-14 0z')],
+ ['Ballon ECS','',['ICPE','RC'],BALL,1],
+ ['Adoucisseur','',['ICPE','RC'],ADOUC,1],
+ ['Armoire électrique','',['ICPE','RC','PA'],ARM],
+ ['Compteur','',['ICPE','RC','PA'],CTR],
+ ['Manomètre','',['ICPE','RC','PA'],PRESS],
+ ['Soupape','',['ICPE','RC','PA'],SOUP],
+ ['Vanne','',['ICPE','RC','PA'],VANNE],
+ ['Détendeur','',['ICPE','RC','PA'],K('M3 15h7M14 15h7M12 12.2V8')+KC(12,15,3)+AC(12,6,2.2)],
+ ['Filtre','',['ICPE','RC','PA'],K('M3 11h18v4H3zM12 15v5h3v-5')+A('M7.5 11v4M10 11v4')],
+ ['Désemboueur','',['ICPE','RC'],K('M9 4h6v4l2 3v9H7v-9l2-3z')+D(10.5,15,.8)+D(13.5,17,.8)+D(12,13,.8)],
+ ['VMC','',['VMC'],K('M4 5h16v14H4z')+M(FANA,12,12,.7)],
+ ['CTA','',['VMC'],K('M3 8h18v8H3zM8 8v8M13 8v8M18 8v8')+A('M4.5 12h2M9.5 12h2M14.5 12h2')],
+ ['Ventilateur','',['VMC'],KC(12,12,9)+M(FANA,12,12,.7)],
+ ['Tourelle','',['VMC'],K('M5 20h14M7 20v-6h10v6M5.5 14L12 8l6.5 6')+A('M9.5 11.5c1.5-1.5 3.5-1.5 5 0')]
+]],
+['eqs','Équipements · statuts et états','Pointage de présence et état constaté, affichés sur les lignes et dans les fiches.',[
+ ['Présent','Présence confirmée',ALL,KC(12,12,9)+A(CK)],
+ ['À voir','Équipement repris, à pointer',ALL,K('M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z')+AC(12,12,2.8)],
+ ['Nouveau','Ajouté pendant la visite',ALL,A('M12 3v5M12 16v5M3 12h5M16 12h5')+K('M6.5 6.5l2 2M15.5 15.5l2 2M17.5 6.5l-2 2M8.5 15.5l-2 2')],
+ ['Neuf','État constaté',ALL,A('M12 3.5l2.6 5.3 5.8.8-4.2 4.1 1 5.8-5.2-2.7-5.2 2.7 1-5.8-4.2-4.1 5.8-.8z')],
+ ['Bon','État constaté',ALL,KC(12,12,9)+A('M7.5 12.5l3 3 6-7')],
+ ['Moyen','État constaté',ALL,KC(12,12,9)+A('M8 12h8')],
+ ['Vétuste','État constaté',ALL,K('M7 3.5h10M7 20.5h10M8 3.5c0 5 4 5.5 4 8.5s-4 3.5-4 8.5M16 3.5c0 5-4 5.5-4 8.5s4 3.5 4 8.5')+A('M10 18h4')],
+ ['Hors service','État constaté',ALL,A('M12 3.5v8')+K('M7 6.5a8 8 0 1010 0')]
+]],
+['res','Réserves','Criticité, postes de prestation et suivi des réserves.',[
+ ['Information','Criticité 0',ALL,KC(12,12,9)+A('M12 11v5')+D(12,8,1)],
+ ['Mineur','Criticité 1',ALL,KC(12,12,9)+A('M8.5 11l3.5 3.5 3.5-3.5')],
+ ['À programmer','Criticité 2',ALL,K('M4 6h16v14H4zM4 10h16M8 3.5v4M16 3.5v4')+D(9,14.5,1)+D(13,14.5,1)],
+ ['Important','Criticité 3',ALL,K('M12 4l9 16H3z')+A('M12 10v4')+D(12,17,.9)],
+ ['Prioritaire','Criticité 4',ALL,K('M12 4l9 16H3z')+A('M9.5 13.5h5')+A('M12 9.5v7')],
+ ['Critique','Criticité 5',ALL,K('M12 3.5l9.500 16.500H2.500z')+M(FL(A),12,14.5,.5)],
+ ['Entretien P2','Poste de prestation',ALL,K('M14.5 6.5a4 4 0 005 5L10 21l-3-3 9.5-9.5zM8 8L5 5')+D(8.5,17.5,.9)],
+ ['Travaux de conformité','Poste de prestation',ALL,K('M12 3l7 3v5c0 5-3 8.5-7 10-4-1.5-7-5-7-10V6z')+A('M8.5 12l2.5 2.5 4.5-5')],
+ ['Travaux d\'amélioration','Poste de prestation',ALL,K('M4 21h16')+A('M5 18l4-4 3 3 7-8M14 9h5v5')],
+ ['Levée','Réserve traitée',ALL,K('M5 5h14v14H5z')+A('M8.5 12l2.5 2.5 4.5-5')],
+ ['Reprise','Réserve d\'une visite précédente',ALL,K('M4 12a8 8 0 108-8M4 4v4h4')+A('M12 8v4l2.5 1.5')],
+ ['Primaire','Périmètre · Réseau de chaleur',['RC'],KC(12,12,9)+M(FL(A),12,12.5,.6)],
+ ['Secondaire','Périmètre · Réseau de chaleur',['RC'],KC(12,12,9)+K('M8 9v6M12 9v6M16 9v6M7 11h10')]
+]],
+['ph','Photos · origines','D\'où vient une photo : sert aux groupes et aux légendes de la galerie.',[
+ ['Générale','Vue d\'ensemble, accès',ALL,K('M3.5 5h17v14h-17z')+AC(9,10.5,1.6)+A('M4 17l5-4.5 3.5 3 3-2.5 4.5 4')],
+ ['Équipement','Photo liée à un équipement',ALL,K(CAM)+M(GEAR(A),12,13.8,.5)],
+ ['Compteur','Photo d\'un index',ALL,K(CAM)+M(PRESS.replace(/class="k"/g,'class="a"'),12,13.8,.5)],
+ ['Réserve','Photo d\'une non-conformité',ALL,K(CAM)+M(K('M6 21V4')+F('M6 5h12l-3 4 3 4H6z'),12,13.8,.5)],
+ ['Conformité','Photo d\'un contrôle',ALL,K(CAM)+M(A('M5 12.5l4.5 4.5L19 7'),12,13.8,.6)],
+ ['Plaque signalétique','Lecture de plaque',ALL,K('M4 5h13v10H4z')+A('M7 8.5h7M7 11.5h4')+K('M13 16.5h2l1-1.3h3l1 1.3h2v5H13z')+AC(18,19,1.3)],
+ ['Mode Photo','Saisie rapide terrain',ALL,K(CAM)+AC(12,13.5,3.2)+A('M2 4h3M2 7h2')]
+]],
+['act','Actions et états','Boutons du bandeau, de la barre du bas et de la synchronisation.',[
+ ['Rechercher','Recherche dans la visite',ALL,KC(11,11,6.5)+A('M16 16l4.5 4.5')],
+ ['Compagnon','Téléphone relié à la tablette',ALL,K('M6 4h8v16H6z')+A('M17 8a5 5 0 010 8M19.5 5.5a8.5 8.5 0 010 13')],
+ ['Photos de référence','Photos du local de la visite précédente',ALL,K('M8 6h12v10H8zM4 9v11h13')+AC(12.5,10,1.2)+A('M9 15l3-3 3 2.5 2-1.5 3 3')],
+ ['Télécharger','Exporter l\'Excel de la visite',ALL,A('M12 4v11M7.5 11l4.5 4.5 4.5-4.5')+K('M5 19h14')],
+ ['Terminer','Aperçu, signature, export',ALL,K('M6 21V4')+F('M6 5h12l-3 4 3 4H6z')],
+ ['Note','Note libre',ALL,K('M6 3.5h9l4 4V20.5H6zM15 3.5v4h4')+A('M9 13h7M9 16.5h5')],
+ ['Anomalie','Ajouter une anomalie, une réserve',ALL,K('M4 5h16v11H11l-4 4v-4H4z')+A('M12 8v3')+D(12,13.2,.8)],
+ ['Synchronisation','Envoi vers l\'Intranet',ALL,K('M7 18a4 4 0 01-.5-8A5.5 5.5 0 0117 8.5 4.5 4.5 0 0117.5 18z')+A('M10 12.5h4M12.5 11l1.5 1.5-1.5 1.5')],
+ ['Enregistré','Sauvegarde terminée',ALL,K('M7 18a4 4 0 01-.5-8A5.5 5.5 0 0117 8.5 4.5 4.5 0 0117.5 18z')+A('M9.5 13l2 2 3.5-4')],
+ ['Hors connexion','Données gardées sur la tablette',ALL,K('M7 18a4 4 0 01-.5-8A5.5 5.5 0 0117 8.5 4.5 4.5 0 0117.5 18z')+A('M4 4l16 16')]
+]]
+];
+const out=document.getElementById('out'),nav=document.getElementById('nav');let n=0;
+S.forEach(([id,t,sub,items])=>{
+  n+=items.length;
+  nav.insertAdjacentHTML('beforeend',`<a href="#${id}">${id==='eq'?'Types d’équipement':id==='eqs'?'Statuts':id==='conf'?'Conformité':t.split(' · ')[0]}</a>`);
+  out.insertAdjacentHTML('beforeend',`<section id="${id}"><h2>${t} <span style="font:600 12px var(--body);color:var(--soft)">· ${items.length}</span></h2><p class="sub">${sub}</p><div class="grid">${items.map(([nm,w,tags,svg,eau,badge])=>`<article class="tile${eau?' eau':''}"><div class="orb"><svg viewBox="0 0 24 24" aria-hidden="true">${svg}</svg>${badge?`<span class="bd">${badge}</span>`:''}</div><div class="tx"><b>${nm}</b>${w?`<span>${w}</span>`:''}<div class="tg">${(tags.length===4?['Toutes trames']:tags.map(x=>x==='RC'?'Réseau de chaleur':x==='PA'?'Pré-allumage':x)).map(x=>`<i>${x}</i>`).join('')}</div></div></article>`).join('')}</div></section>`);
+});
+document.getElementById('cnt').textContent=n+' pictogrammes';
+</script>

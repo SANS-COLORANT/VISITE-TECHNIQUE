@@ -1,0 +1,913 @@
+<title>Maquettes Visite METRA</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Sora:wght@600;700;800&display=swap">
+<style>
+/* Layout : page de revue, une section par écran ; deux téléphones (avant / après) côte à côte, notes numérotées en dessous. */
+:root{
+  --bg:#F3F1EC; --fg:#1A1A18; --soft:#6B6B66; --line:#E2DFD7; --panel:#FBFAF7;
+  --accent:#F26426; --accent-d:#D9531A; --accent-l:#FCE4D3;
+  --ok:#2E7D32; --ko:#B91C1C; --warn:#B45309;
+  --display:'Sora','Segoe UI',system-ui,sans-serif; --body:'Inter','Segoe UI',system-ui,sans-serif;
+  /* Couleurs de l'appli, identiques dans les deux thèmes (ce sont des écrans de téléphone) */
+  --a-bg:#F3F1EC; --a-ink:#1A1A18; --a-soft:#6B6B66; --a-faint:#A3A39D; --a-card:#FDFCFA; --a-line:rgba(22,21,15,.09);
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#171612;--fg:#F1EEE7;--soft:#A8A59B;--line:#34322B;--panel:#201F1A;--accent-l:#3A2418;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#171612;--fg:#F1EEE7;--soft:#A8A59B;--line:#34322B;--panel:#201F1A;--accent-l:#3A2418;color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--body);padding-inline:16px;padding-block:20px 48px}
+.wrap{max-width:900px;margin:0 auto}
+h1{font:800 22px/1.2 var(--display);margin:0 0 4px}
+.sub{color:var(--soft);margin:0 0 16px;font-size:13px;max-width:62ch}
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:18px}
+.tabs button{font:600 12.5px var(--body);padding:8px 13px;border-radius:999px;border:1px solid var(--line);background:var(--panel);color:var(--fg);cursor:pointer}
+.tabs button[aria-selected="true"]{background:var(--accent);border-color:var(--accent);color:#fff}
+.tabs button:disabled{opacity:.45;cursor:default}
+.tabs button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.row{display:flex;gap:28px;flex-wrap:wrap;justify-content:center;align-items:flex-start}
+.col{display:flex;flex-direction:column;align-items:center;gap:10px;min-width:0}
+.cap{font:700 11px var(--body);letter-spacing:.08em;text-transform:uppercase;color:var(--soft)}
+.cap b{color:var(--accent)}
+.gain{font:600 12.5px var(--body);text-align:center;max-width:300px}
+.gain strong{font:800 15px var(--display);color:var(--ok)}
+.notes{margin:26px auto 0;max-width:620px;padding:0;list-style:none;display:grid;gap:10px}
+.notes li{display:grid;grid-template-columns:26px 1fr;gap:10px;font-size:13.5px;line-height:1.45}
+.notes .n{width:22px;height:22px;border-radius:50%;background:var(--accent);color:#fff;font:700 11.5px/22px var(--display);text-align:center}
+.notes b{font-weight:600}
+.q{margin:26px auto 0;max-width:620px;padding:14px 16px;border:1px solid var(--line);border-radius:14px;background:var(--panel);font-size:13.5px}
+.q h2{font:700 14px var(--display);margin:0 0 6px}.q ol{margin:0;padding-left:18px;display:grid;gap:4px}
+
+/* ---- Téléphone ---- */
+.phone{width:300px;height:600px;border-radius:34px;border:7px solid #23221E;background:radial-gradient(circle at 92% 2%,rgba(242,100,38,.30),rgba(242,100,38,.08) 42%,rgba(242,100,38,0) 72%),radial-gradient(circle at -5% 46%,rgba(242,100,38,.14),rgba(242,100,38,0) 62%),var(--a-bg);position:relative;overflow:hidden;display:flex;flex-direction:column;color:var(--a-ink);font-family:var(--body);font-size:12px;box-shadow:0 14px 30px rgba(0,0,0,.18)}
+.phone *{box-sizing:border-box}
+.status{height:22px;flex:none;display:flex;justify-content:space-between;padding:6px 16px 0;font:600 9.5px var(--body);color:var(--a-soft)}
+.chrome{flex:none;padding:0 10px}
+.hdr{display:flex;align-items:center;gap:8px;padding:4px 0 8px}
+.glassbtn{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.85);border:1px solid var(--a-line);display:grid;place-items:center;flex:none}
+.orb{width:30px;height:30px;border-radius:50%;background:var(--accent-l);display:grid;place-items:center;flex:none}
+svg{display:block}
+.ttl{flex:1;min-width:0}.ttl b{display:block;font:700 13.5px var(--display);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ttl span{display:block;font-size:10px;color:var(--a-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hero{background:rgba(255,255,255,.45);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);box-shadow:0 8px 18px rgba(0,0,0,.09);border:1px solid var(--a-line);border-radius:16px;padding:8px 10px;display:flex;align-items:center;gap:9px;margin-bottom:8px}
+.ring{width:38px;height:38px;border-radius:50%;background:conic-gradient(var(--accent) var(--p),#E5E1D8 0);display:grid;place-items:center;flex:none;position:relative}
+.ring i{position:absolute;inset:4px;border-radius:50%;background:#FBFAF7}
+.ring u{position:relative;text-decoration:none;font:800 9.5px var(--display)}
+.ring.sm{width:30px;height:30px}.ring.sm i{inset:3.5px}.ring.sm u{font-size:8px}
+.hero .t{flex:1;min-width:0}.hero .t b{display:block;font:700 11px var(--body)}
+.cnt{display:flex;gap:8px;font:700 9.5px var(--body);margin-top:2px;flex-wrap:wrap}
+.sync{padding:5px 8px;border-radius:12px;background:var(--a-card);border:1px solid var(--a-line);font:600 9px var(--body)}
+.refphoto{display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:12px;background:rgba(255,255,255,.7);border:1px solid var(--a-line);margin-bottom:8px;font:600 10.5px var(--body)}
+.rail{display:flex;gap:6px;overflow:hidden;padding-bottom:8px}
+.chip{display:flex;align-items:center;gap:5px;height:30px;padding:0 10px;border-radius:15px;background:rgba(255,255,255,.75);border:1px solid var(--a-line);font:600 10.5px var(--body);color:var(--a-soft);white-space:nowrap;flex:none}
+.chip.on{background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff;border-color:transparent;font-weight:700}
+.dot{width:7px;height:7px;border-radius:50%;background:#D6D1C6;flex:none}.dot.h{background:linear-gradient(90deg,var(--accent) 50%,#D6D1C6 50%)}.dot.f{background:#2E9D5B}.dot.w{background:#fff}
+.dot.big{width:9px;height:9px}
+.sep{width:1px;height:18px;background:rgba(22,21,15,.14);flex:none;align-self:center}
+.body{flex:1;min-height:0;overflow:hidden;padding:2px 12px 0;position:relative}
+.sec{font:700 12px var(--display);margin:8px 2px 6px;display:flex;justify-content:space-between;align-items:center}
+.sec small{font:600 10px var(--body);color:var(--a-faint)}
+.card{background:var(--a-card);border:1px solid var(--a-line);border-radius:18px;margin-bottom:12px;overflow:hidden;box-shadow:0 8px 18px rgba(0,0,0,.08)}
+.f{padding:9px 12px 10px;border-top:1px solid var(--a-line)}.f:first-child{border-top:0}
+.f label{display:flex;justify-content:space-between;align-items:center;font:600 10.5px var(--body);color:var(--a-soft);margin-bottom:5px}
+.in{height:34px;border-radius:11px;background:#fff;border:1px solid rgba(22,21,15,.12);padding:0 10px;display:flex;align-items:center;font-size:11.5px;color:var(--a-ink)}
+.in.ph{color:var(--a-faint)}
+.pair{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.pairs{display:grid;grid-template-columns:1fr 1fr}.pairs .f:nth-child(odd){border-right:1px solid var(--a-line)}.pairs .f{border-top:1px solid var(--a-line)}.pairs .f:nth-child(-n+2){border-top:0}
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.opt{padding:6px 9px;border-radius:12px;border:1px solid rgba(22,21,15,.14);background:#fff;font:600 10px var(--body)}
+.opt.on{background:var(--accent);border-color:var(--accent);color:#fff}
+.stepper{display:flex;align-items:center;gap:6px}.stepper b{width:34px;height:34px;border-radius:11px;background:var(--accent-l);color:var(--accent-d);display:grid;place-items:center;font:700 16px var(--display)}.stepper .in{flex:1;justify-content:center;font:700 14px var(--display)}
+.flag{position:absolute;right:6px;top:3px;font:700 8px var(--body);color:#fff;background:var(--ko);padding:2px 5px;border-radius:6px}
+.band{display:flex;align-items:center;gap:8px;background:rgba(255,255,255,.8);border:1px solid var(--a-line);border-radius:14px;padding:8px 10px;margin:4px 0 8px}
+.band .lock{width:22px;height:22px;border-radius:7px;background:#EFEDE6;display:grid;place-items:center;flex:none}
+.band div{min-width:0;flex:1}.band b{display:block;font:700 11px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.band span{font-size:9.5px;color:var(--a-soft)}
+.bar{flex:none;padding:6px 10px 8px;background:linear-gradient(transparent,var(--a-bg) 30%)}
+.bar .in2{display:flex;gap:6px;padding:5px;border-radius:20px;background:var(--a-card);border:1px solid var(--a-line);box-shadow:0 6px 14px rgba(0,0,0,.1)}
+.act{flex:1;height:44px;border-radius:15px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;font:700 9px var(--body);color:var(--a-soft)}
+.act.main{flex:1.25;background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff}
+.act.ko{color:#C23B2E}
+.bar.slim .in2{padding:3px;border-radius:16px}.bar.slim .act{height:34px;flex-direction:row;gap:6px;border-radius:13px}
+.nextcard{margin:2px 0 8px;font:600 10px var(--body);color:var(--a-soft);text-align:center}
+.bracket{position:absolute;left:0;width:6px;background:var(--ko);opacity:.9;z-index:4}
+
+.pop{position:absolute;left:10px;right:10px;top:98px;z-index:6;background:#FDFCFA;border:1px solid var(--a-line);border-radius:18px;padding:12px;box-shadow:0 16px 34px rgba(0,0,0,.22)}
+.pop[hidden]{display:none}
+.pop h4{margin:0 0 2px;font:800 13px var(--display)}.pop .l{font-size:10.5px;color:var(--a-soft);margin-bottom:9px}
+.pbar{height:6px;border-radius:3px;background:#E5E1D8;margin:0 0 10px;overflow:hidden}.pbar i{display:block;height:100%;width:38%;background:linear-gradient(90deg,var(--accent),var(--accent-d))}
+.grid5{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-bottom:10px}
+.grid5 div{text-align:center;border-radius:11px;padding:6px 0 5px;background:#fff;border:1px solid var(--a-line)}
+.grid5 b{display:block;font:800 15px var(--display)}.grid5 span{font:700 8.5px var(--body);color:var(--a-soft)}
+.pl{display:flex;justify-content:space-between;font:600 10.5px var(--body);padding:5px 0;border-top:1px solid var(--a-line)}
+.pl em{font-style:normal;color:var(--a-soft)}
+.plink{margin-top:7px;display:flex;justify-content:space-between;align-items:center;padding:8px 10px;border-radius:12px;background:#FCE9E6;color:#C23B2E;font:700 10.5px var(--body)}
+.badge{position:absolute;right:-3px;top:-3px;min-width:14px;height:14px;border-radius:7px;background:var(--accent);color:#fff;font:700 8px/14px var(--body);text-align:center;border:1.5px solid var(--a-bg)}
+.rail .sbtn{width:30px;height:30px;border-radius:50%;background:rgba(255,255,255,.85);border:1px solid var(--a-line);display:grid;place-items:center;flex:none}
+.ring{cursor:pointer}
+.body{overflow-y:auto;scrollbar-width:none}.body::-webkit-scrollbar{display:none}
+.sech{display:flex;align-items:center;gap:6px;margin:8px 2px 6px}.sech b{flex:1;font:700 12px var(--display)}.sech small{font:700 10px var(--body);color:var(--a-faint)}.sech small.ok{color:#227A4A}
+.mini{display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:10px;background:var(--accent-l);color:var(--accent-d);font:700 9.5px var(--body)}
+.opt.plus{border-style:dashed;color:var(--a-soft)}
+.opt.chk::before{content:'';display:inline-block;width:8px;height:8px;border-radius:2.5px;border:1.5px solid #B8B3A8;margin-right:5px;vertical-align:-1px;background:#fff}
+.opt.chk.on::before{background:#fff;border-color:#fff}
+.cr{display:flex;align-items:center;gap:8px;padding:0 12px;height:40px;border-top:1px solid var(--a-line)}.cr:first-child{border-top:0}
+.cr span{flex:1;min-width:0;font:600 10.5px var(--body);color:var(--a-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cr b{font:700 11px var(--body);color:var(--a-ink);text-align:right;max-width:55%;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cr i{width:6px;height:6px;border-radius:50%;background:var(--accent);flex:none}
+.lbl2{font:700 9px var(--body);letter-spacing:.06em;text-transform:uppercase;color:var(--a-faint);margin:6px 0 4px}
+.mq{overflow:hidden;white-space:nowrap}.mq span{display:inline-block}
+@keyframes mq{0%,18%{transform:translateX(0)}82%,100%{transform:translateX(var(--d))}}
+@media (prefers-reduced-motion:no-preference){.mq.run span{animation:mq 7s ease-in-out infinite alternate}}
+
+.banner{display:flex;align-items:center;gap:9px;padding:11px 12px;background:linear-gradient(135deg,#FFF3EA,#FDFCFA 70%)}
+.banner.eau{background:linear-gradient(135deg,#E6F4F6,#FDFCFA 70%)}
+.banner .o{width:36px;height:36px;border-radius:12px;display:grid;place-items:center;flex:none;background:linear-gradient(145deg,#F6844F,#D9531A);box-shadow:0 5px 10px rgba(217,83,26,.35)}
+.banner.eau .o{background:linear-gradient(145deg,#2FA6B5,#0F7C8C);box-shadow:0 5px 10px rgba(15,124,140,.35)}
+.banner div.t{flex:1;min-width:0}.banner b{display:block;font:800 13.5px var(--display)}.banner span.s{font:600 10px var(--body);color:var(--a-soft)}
+.banner .mini.eau{background:#D8F0F2;color:#0F7C8C}
+.gh{display:flex;align-items:center;gap:6px;padding:7px 12px;background:rgba(22,21,15,.035);border-top:1px solid var(--a-line);font:700 9px var(--body);letter-spacing:.07em;text-transform:uppercase;color:var(--a-soft)}
+.gh svg{flex:none}
+.seg{display:flex;padding:3px;border-radius:13px;background:#EFEDE6}.seg span{flex:1;text-align:center;padding:7px 2px;border-radius:10px;font:600 10px var(--body);color:var(--a-soft)}.seg span.on{background:var(--accent);color:#fff;box-shadow:0 3px 8px rgba(217,83,26,.35)}
+.banner.eau + .gh, .eau-c .seg span.on{}
+.cr b.pill{background:var(--accent-l);color:var(--accent-d);padding:3px 9px;border-radius:10px}
+.eau-c .opt.on{background:#0F7C8C;border-color:#0F7C8C}.eau-c .seg span.on{background:#0F7C8C;box-shadow:0 3px 8px rgba(15,124,140,.35)}
+.eau-c .cr b.pill{background:#D8F0F2;color:#0F7C8C}.eau-c .cr i{background:#0F7C8C}
+.cr{cursor:pointer}.cr b.pill{max-width:62%}.cr .chev{flex:none;opacity:.45}
+.lh{display:flex;align-items:center;justify-content:space-between;margin-bottom:5px}.lh label{margin:0;flex:1}
+.ok{font:700 9.5px var(--body);padding:3px 9px;border-radius:9px;background:var(--accent);color:#fff;cursor:pointer}.eau-c .ok{background:#0F7C8C}
+.hint{font:600 9px var(--body);color:var(--a-faint);margin-left:6px}
+.opt,.seg span,.mini{cursor:pointer}
+.stA{display:flex;gap:6px;align-items:center}.stA b{width:44px;height:40px;border-radius:12px;background:rgba(242,100,38,.12);border:1px solid rgba(242,100,38,.3);color:var(--accent-d);display:grid;place-items:center;font:800 18px var(--display);flex:none}.stA span{flex:1;height:40px;border-radius:12px;background:rgba(255,255,255,.85);border:1px solid rgba(22,21,15,.1);display:grid;place-items:center;font:800 16px var(--display)}
+.ah{display:flex;align-items:center;gap:8px;margin-bottom:8px}.ah b{flex:1;font:700 11px var(--body);color:var(--accent-d);text-transform:uppercase}.ah small{font:500 10px var(--body);color:var(--a-faint)}
+.addA{border:1.5px dashed var(--accent);background:var(--accent-l);color:var(--accent-d);border-radius:14px;padding:11px;text-align:center;font:600 11.5px var(--body);margin-bottom:12px}
+.tiles{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:9px 12px 11px;border-top:1px solid var(--a-line)}
+.tl{min-width:0}.tlb{display:block;font:600 9.5px var(--body);color:var(--a-soft);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.tr{display:flex;align-items:center;gap:4px;height:44px;padding:0 4px;border-radius:13px;background:#fff;border:1px solid rgba(22,21,15,.12)}
+.pm{width:28px;height:34px;border-radius:9px;background:var(--accent-l);color:var(--accent-d);display:grid;place-items:center;font:800 15px var(--display);cursor:pointer;flex:none;user-select:none}
+.tv{flex:1;text-align:center;font:800 15px var(--display);font-variant-numeric:tabular-nums;white-space:nowrap}.tv small{font:700 9px var(--body);color:var(--a-soft);margin-left:2px}.tv.nil{color:var(--a-faint)}
+.eau-c .pm{background:#D8F0F2;color:#0F7C8C}
+.nh{display:flex;align-items:center;gap:9px;padding:10px 12px;cursor:pointer;border-top:1px solid var(--a-line)}.nh:first-child{border-top:0}
+.nh .o2{width:28px;height:28px;border-radius:9px;background:var(--accent-l);display:grid;place-items:center;flex:none}
+.nt{flex:1;min-width:0}.nt b{display:block;font:700 11.5px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.nt span{font:600 9.5px var(--body);color:var(--a-soft);white-space:nowrap}
+.more{width:26px;height:26px;border-radius:9px;display:grid;place-items:center;background:rgba(22,21,15,.05);flex:none}
+.menu{display:flex;gap:6px;padding:0 12px 10px}.menu span{flex:1;text-align:center;padding:7px 4px;border-radius:11px;background:#fff;border:1px solid var(--a-line);font:700 9.5px var(--body);cursor:pointer}.menu span.ko{color:#C23B2E;border-color:#F0C9C4}
+.conf{margin:0 12px 10px;padding:9px 10px;border-radius:12px;background:#FCE9E6;font:600 10px var(--body);color:#8A2A20;display:flex;align-items:center;gap:6px}.conf span{padding:5px 9px;border-radius:9px;background:#fff;font-weight:700;cursor:pointer}.conf span.ko{background:#C23B2E;color:#fff}.conf em{flex:1;font-style:normal}
+.co{width:30px;height:30px;border-radius:10px;display:grid;place-items:center;flex:none}
+.cpt{padding:10px 12px 11px;border-top:1px solid var(--a-line)}.cpt:first-of-type{border-top:0}
+.cl1{display:flex;align-items:center;gap:9px;margin-bottom:7px}.cn{flex:1;min-width:0}.cn b{display:block;font:700 12px var(--body)}.cn .sub{font:600 9.5px var(--body);color:var(--a-soft);white-space:nowrap}.cn .sub em{font-style:normal;font-weight:700;color:#227A4A}.cn .sub.w em{color:var(--warn)}
+.cl2{display:flex;align-items:center;gap:6px}.cin{flex:1;min-width:0;height:40px;border-radius:12px;border:1px solid rgba(22,21,15,.12);background:#fff;padding:0 12px;font:800 15px var(--display);font-variant-numeric:tabular-nums;color:var(--a-ink);outline:none}.cin:focus{border-color:var(--accent)}.cin.w{border-color:var(--warn);background:#FEF3E2}
+.un{padding:0 9px;height:40px;display:grid;place-items:center;border-radius:12px;background:var(--accent-l);color:var(--accent-d);font:700 10.5px var(--body);flex:none}
+.camb{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:#fff;border:1px solid rgba(22,21,15,.12);flex:none}
+.dt{margin-left:auto;font:700 9px var(--body);letter-spacing:0;text-transform:none;color:#227A4A;background:rgba(46,157,91,.12);padding:2px 7px;border-radius:8px}
+.eau-c .dt{color:#0F7C8C;background:#D8F0F2}
+.rap{display:inline-flex;gap:5px;align-items:center;font:500 10px var(--body);color:var(--a-soft);margin-bottom:5px}.rap b{color:var(--a-ink);font-weight:700}
+.perm{display:inline-block;font:600 9.5px var(--body);color:#1D6FB8;background:rgba(29,111,184,.1);padding:2px 8px;border-radius:8px;margin-bottom:6px}
+.tlw{position:relative;margin-bottom:4px}.tlbi{border:0;background:transparent;font:600 9.5px var(--body);color:var(--a-soft);width:calc(100% - 14px);padding:0;outline:none;border-bottom:1px dashed transparent}.tlbi:focus{color:var(--accent-d);border-bottom-color:var(--accent)}.tlw svg{position:absolute;right:2px;top:1px;opacity:.45;pointer-events:none}
+.nmw{display:flex;align-items:center;gap:5px}.nmi{font:700 12px var(--body);color:var(--a-ink);border:0;background:transparent;padding:0;min-width:0;width:100%;outline:none;border-bottom:1px dashed transparent}.nmi:focus{border-bottom-color:var(--accent)}.nmw svg{flex:none;opacity:.4;pointer-events:none}
+.addT{grid-column:1/-1;text-align:center;padding:9px;border-radius:12px;border:1.5px dashed var(--accent);background:var(--accent-l);color:var(--accent-d);font:700 10.5px var(--body);cursor:pointer}.eau-c .addT{border-color:#0F7C8C;background:#D8F0F2;color:#0F7C8C}
+.xtag{font:700 8px var(--body);letter-spacing:.04em;text-transform:uppercase;color:var(--a-faint);margin-left:4px}
+.xx{position:absolute;right:-2px;top:-3px;width:16px;height:16px;border-radius:50%;background:#fff;border:1px solid var(--a-line);display:grid;place-items:center;font:700 10px var(--body);color:#C23B2E;cursor:pointer;z-index:2}
+.xc{height:44px;border-radius:13px;background:#FCE9E6;display:flex;align-items:center;justify-content:center;gap:6px;font:700 9.5px var(--body);color:#8A2A20}.xc span{padding:4px 8px;border-radius:8px;background:#fff;cursor:pointer}.xc span.ko{background:#C23B2E;color:#fff}
+.ocr{position:absolute;inset:0;z-index:9;background:#191813;color:#fff;display:flex;flex-direction:column;border-radius:27px;overflow:hidden}.ocr[hidden]{display:none}
+.oh{display:flex;align-items:center;gap:10px;padding:30px 14px 8px}.oh b{flex:1;font:700 12.5px var(--display)}.oh span{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center;cursor:pointer;font:700 13px var(--body)}
+.vf{flex:1;margin:6px 14px;border-radius:18px;background:radial-gradient(circle at 50% 40%,#3A3830,#22211C);position:relative;display:grid;place-items:center;overflow:hidden}
+.frame{width:82%;height:62px;border:2px solid var(--accent);border-radius:12px;box-shadow:0 0 0 999px rgba(0,0,0,.45);position:relative;display:grid;place-items:center}
+.frame i{position:absolute;top:-22px;left:0;font:700 10px var(--body);color:#FFB48F;font-style:normal}
+.frame .dg{font:600 22px 'Courier New',monospace;letter-spacing:3px;color:#E9E5DA}
+.tip{padding:6px 18px 4px;text-align:center;font:500 11px/1.4 var(--body);color:#D8D4C8}
+.shut{margin:8px auto 18px;width:58px;height:58px;border-radius:50%;border:4px solid #fff;display:grid;place-items:center;cursor:pointer}.shut i{width:42px;height:42px;border-radius:50%;background:var(--accent)}
+.sheet{margin-top:auto;background:#FDFCFA;color:var(--a-ink);border-radius:22px 22px 0 0;padding:14px;max-height:88%;overflow:auto}
+.sheet h5{margin:0 0 8px;font:800 13px var(--display)}
+.crop{height:62px;border-radius:12px;background:#2B2A25;display:grid;place-items:center;position:relative;margin-bottom:10px}.crop .dg{font:600 22px 'Courier New',monospace;letter-spacing:3px;color:#E9E5DA;border:2px solid var(--accent);border-radius:8px;padding:2px 8px}
+.cand{display:flex;flex-wrap:wrap;gap:6px;margin:4px 0 10px}.cand span{padding:7px 10px;border-radius:12px;border:1px solid rgba(22,21,15,.14);font:700 11px var(--body);cursor:pointer;background:#fff}.cand span small{display:block;font:500 8.5px var(--body);color:var(--a-soft)}.cand span.on{background:var(--accent);border-color:var(--accent);color:#fff}.cand span.on small{color:#FFE2D3}.cand span.no{background:#F3F1EC;color:var(--a-faint)}
+.btns{display:flex;gap:8px;margin-top:6px}.btns span{flex:1;text-align:center;padding:11px;border-radius:14px;font:700 11.5px var(--body);cursor:pointer;border:1px solid rgba(22,21,15,.14);background:#fff}.btns span.pri{background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff;border-color:transparent}
+.banner{cursor:pointer}.chvb{flex:none;width:24px;height:24px;border-radius:8px;display:grid;place-items:center;background:rgba(22,21,15,.05)}.chvb svg{transition:transform .15s}.card.closed .chvb svg{transform:rotate(-90deg)}
+.ghi{flex:1;min-width:0;border:0;background:transparent;font:700 9px var(--body);letter-spacing:.07em;text-transform:uppercase;color:var(--a-soft);padding:0;outline:none;border-bottom:1px dashed transparent}.ghi:focus{color:var(--accent-d);border-bottom-color:var(--accent)}
+.gh .pen2{opacity:.4;margin-left:-2px}
+.rw{display:flex;align-items:center;gap:8px;padding:6px 12px;min-height:42px;border-top:1px solid var(--a-line)}.rw:first-child{border-top:0}
+.rl{flex:1;min-width:0;font:600 11.5px/1.25 var(--body)}.rl.dn{color:var(--a-soft)}
+.rb{display:flex;gap:4px;flex:none}.bt{height:30px;min-width:34px;padding:0 6px;border-radius:10px;border:1px solid rgba(22,21,15,.12);background:rgba(255,255,255,.8);display:grid;place-items:center;font:700 11px var(--body);color:var(--a-soft);cursor:pointer}
+.bt.S.on{background:#E8F5E9;border-color:#2E9D5B;color:#227A4A}.bt.NS.on{background:#FDECEC;border-color:#C23B2E;color:#B91C1C}.bt.o2.on{background:#EAE8E2;border-color:var(--a-faint);color:var(--a-soft)}
+.cz{display:inline-flex;align-items:center;gap:4px;margin-top:4px;padding:3px 8px;border-radius:11px;border:1px solid #C23B2E;background:#FDECEC;color:#B91C1C;font:700 10px var(--body);cursor:pointer}
+.rx{display:flex;justify-content:flex-end;gap:4px;padding:0 12px 6px}
+.sgh{padding:6px 12px 2px;font:700 10px var(--body);color:var(--a-soft);border-top:1px solid var(--a-line);display:flex;justify-content:space-between;background:rgba(22,21,15,.025)}.sgh small{font:700 9.5px var(--body);color:var(--a-faint)}
+.cfbar{display:flex;align-items:center;gap:8px;margin:2px 0 10px}.cfbar .seg{flex:1}.cfbar small{font:700 10px var(--body);color:var(--a-soft);white-space:nowrap}
+.fch{position:absolute;inset:0;z-index:9;background:rgba(22,21,15,.5);display:flex;align-items:flex-end;border-radius:27px;overflow:hidden}.fch[hidden]{display:none}.fch .sheet{width:100%}
+.toast{position:absolute;left:12px;right:12px;bottom:76px;z-index:8;background:#23221E;color:#fff;border-radius:14px;padding:10px 12px;display:flex;align-items:center;gap:8px;font:600 10.5px var(--body)}.toast[hidden]{display:none}.toast span{flex:1}.toast b{color:#FFB48F;cursor:pointer}
+.rsv{border:1px solid rgba(242,100,38,.35);background:#FFF8F3;border-radius:14px;padding:10px;margin:8px 0;font:500 10.5px/1.4 var(--body)}.rsv b{display:block;font:700 9.5px var(--body);color:var(--accent-d);text-transform:uppercase;letter-spacing:.05em;margin-bottom:4px}
+.cmi{display:inline-grid;place-items:center;width:18px;height:18px;margin-left:3px;vertical-align:-4px;color:#A3A39D;cursor:pointer}.cmi.on{color:#D9531A}
+.cm{margin-top:3px;font:500 10px var(--body);color:var(--a-soft);display:flex;gap:4px;align-items:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer}
+.cta{width:100%;border:1px solid rgba(22,21,15,.12);border-radius:12px;padding:8px 10px;font:500 11px var(--body);resize:none;background:#fff;color:var(--a-ink);outline:none}.cta:focus{border-color:var(--accent)}
+.eq{display:flex;align-items:center;gap:9px;padding:7px 12px;min-height:54px;border-top:1px solid var(--a-line)}.eq:first-of-type{border-top:0}
+.ck{width:30px;height:30px;border-radius:50%;border:2px solid #D0CCC1;display:grid;place-items:center;flex:none;cursor:pointer;color:transparent;background:#fff}.ck.on{background:#2E9D5B;border-color:#2E9D5B;color:#fff}
+.et{flex:1;min-width:0;cursor:pointer}.et b{display:block;font:700 11.5px var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.et span{display:block;font:500 9.5px var(--body);color:var(--a-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ep{flex:none;padding:3px 8px;border-radius:9px;font:700 9.5px var(--body);background:#EFEDE6;color:var(--a-soft)}.ep.Bon,.ep.Neuf{background:#E8F5E9;color:#227A4A}.ep.Moyen{background:#FEF3E2;color:#B45309}.ep.Vétuste,.ep.Hors{background:#FDECEC;color:#B91C1C}.ep.nw{background:#E4EEF9;color:#1D6FB8}
+.ebar{display:flex;align-items:center;gap:8px;margin:0 0 8px}.ebar .pb{flex:1;height:6px;border-radius:3px;background:#E5E1D8;overflow:hidden}.ebar .pb i{display:block;height:100%;background:linear-gradient(90deg,var(--accent),var(--accent-d))}.ebar small{font:700 10px var(--body);color:var(--a-soft);white-space:nowrap}
+.sg{display:grid;gap:0;border:1px solid var(--a-line);border-radius:12px;overflow:hidden;margin:6px 0}.sg div{padding:9px 10px;font:600 10.5px var(--body);border-top:1px solid var(--a-line);background:#fff;cursor:pointer}.sg div:first-child{border-top:0}.sg small{color:var(--a-soft);font-weight:500}
+.fab{position:absolute;left:14px;right:14px;bottom:4px;height:40px;border-radius:15px;background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff;display:flex;align-items:center;justify-content:center;gap:7px;font:700 11.5px var(--body);box-shadow:0 6px 14px rgba(217,83,26,.4)}
+.fabw{height:0;position:relative;flex:none;z-index:3}
+.brandm{width:30px;height:30px;border-radius:9px;background:#fff;border:1px solid var(--a-line);display:grid;place-items:center;font:800 11px var(--display);color:var(--accent-d);flex:none}
+.pk{display:flex;align-items:center;gap:8px;padding:8px 10px;border-radius:12px;border:1px solid rgba(22,21,15,.12);background:#fff;font:600 11px var(--body);margin-bottom:6px}.pk small{font:600 9px var(--body);color:var(--a-soft);display:block}.pk div{flex:1;min-width:0}
+.sv{flex:none;padding:3px 8px;border-radius:9px;font:700 9px var(--body);color:#fff;white-space:nowrap}
+.rt{display:flex;flex-direction:column;align-items:flex-end;gap:3px;flex:none}.rt small{font:600 9px var(--body);color:var(--a-soft)}
+.tot{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-bottom:8px}.tot div{background:#FDFCFA;border:1px solid var(--a-line);border-radius:13px;padding:7px 4px;text-align:center}.tot b{display:block;font:800 13px var(--display)}.tot span{font:600 8.5px var(--body);color:var(--a-soft)}
+.svs{display:grid;grid-template-columns:repeat(6,1fr);gap:4px;margin:4px 0 10px}.svs span{padding:7px 0;border-radius:10px;text-align:center;font:700 8.5px var(--body);background:#EFEDE6;color:var(--a-soft);cursor:pointer;line-height:1.15}
+.rmenu{position:absolute;right:12px;top:8px;z-index:5;background:#FDFCFA;border:1px solid var(--a-line);border-radius:14px;box-shadow:0 10px 24px rgba(0,0,0,.2);padding:4px;min-width:200px}.rmenu div{padding:9px 10px;border-radius:10px;font:600 10.5px var(--body);cursor:pointer}.rmenu div.ko{color:#B91C1C}
+.pht{position:relative;aspect-ratio:1/1;border-radius:12px;overflow:hidden;display:grid;place-items:center;cursor:pointer;background:#555}
+.pht svg{opacity:.38}.pht .cp{position:absolute;left:0;right:0;bottom:0;padding:14px 6px 5px;background:linear-gradient(transparent,rgba(0,0,0,.72));color:#fff;font:600 8.5px/1.2 var(--body);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pht .pn{position:absolute;top:5px;right:5px;width:16px;height:16px;border-radius:50%;background:rgba(255,255,255,.9);display:grid;place-items:center}
+.pgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:8px 10px 10px}
+.pa2{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+.mth{display:flex;flex:none}.mth i{width:22px;height:22px;border-radius:7px;border:2px solid #FDFCFA;margin-left:-8px;display:block}.mth i:first-child{margin-left:0}
+.pv{position:absolute;inset:0;z-index:9;background:#0F0E0B;color:#fff;display:flex;flex-direction:column;border-radius:27px;overflow:hidden}.pv[hidden]{display:none}
+.pvh{display:flex;align-items:center;gap:8px;padding:30px 12px 8px}.pvh input{flex:1;min-width:0;background:transparent;border:0;border-bottom:1px dashed rgba(255,255,255,.25);color:#fff;font:700 12px var(--body);padding:2px 0;outline:none}.pvh span.x{width:28px;height:28px;border-radius:50%;background:rgba(255,255,255,.14);display:grid;place-items:center;cursor:pointer;flex:none}
+.pvi{flex:1;margin:4px 10px;border-radius:16px;display:grid;place-items:center;position:relative;min-height:0}.pvi svg{opacity:.35}
+.pvn{position:absolute;top:10px;left:10px;font:600 10px var(--body);background:rgba(0,0,0,.5);padding:3px 8px;border-radius:8px}
+.pvb{display:flex;gap:6px;padding:8px 10px 14px;align-items:center}.pvb span{flex:1;text-align:center;padding:10px 4px;border-radius:13px;background:rgba(255,255,255,.12);font:700 10.5px var(--body);cursor:pointer}.pvb span.ar{flex:none;width:40px;font-size:15px}.pvb span.ko{color:#FF9A8F}
+.pvc{margin:0 10px 6px;padding:8px 10px;border-radius:12px;background:rgba(194,59,46,.25);font:600 10px var(--body);display:flex;align-items:center;gap:6px}.pvc em{flex:1;font-style:normal}.pvc span{padding:5px 9px;border-radius:9px;background:#fff;color:#1A1A18;font-weight:700;cursor:pointer}.pvc span.ko{background:#C23B2E;color:#fff}
+.tinycam{position:absolute;right:10px;top:8px}
+@media (prefers-reduced-motion:no-preference){.chip,.tabs button{transition:background .15s}}
+</style>
+
+<div class="wrap">
+  <h1>Maquettes Visite METRA</h1>
+  <p class="sub">Revue écran par écran du build 661 (touchez la jauge de la maquette de droite pour ouvrir ou fermer la fenêtre d’avancement). À gauche, l'écran actuel reconstitué d'après le code ; à droite, la proposition. Ce sont des maquettes, pas des captures de l'appli.</p>
+  <div class="tabs" role="tablist" id="tabs"></div>
+  <div id="view"></div>
+</div>
+
+<script>
+const I={
+ back:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1A1A18" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>',
+ search:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D9531A" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4 4"/></svg>',
+ exp:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D9531A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15V4M8 8l4-4 4 4M5 14v5h14v-5"/></svg>',
+ check:'<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12l5 5 9-10"/></svg>',
+ cam:'<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#A3A39D" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>',
+ camW:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3v11H4z"/><circle cx="12" cy="13" r="3.2"/></svg>',
+ note:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6B6B66" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h9l4 4v14H6zM9 12h7M9 16h5"/></svg>',
+ warn:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#C23B2E" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4l9 16H3zM12 10v4M12 17v.5"/></svg>',
+ lock:'<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#6B6B66" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 018 0v3"/></svg>',
+ img:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D9531A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10.5" r="1.6"/><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4"/></svg>',
+ dl:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D9531A" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11M7.5 11l4.5 4.5 4.5-4.5M5 19h14"/></svg>',
+ flag:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 21V4M5 5h12l-2.5 4 2.5 4H5"/></svg>',
+ dev:'<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D9531A" stroke-width="2.2" stroke-linecap="round"><rect x="6" y="3" width="12" height="18" rx="2"/></svg>'
+};
+const IC=(d,c='#fff',w=22)=>`<svg width="${w}" height="${w}" viewBox="0 0 24 24" fill="none" stroke="${c}" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round">${d}</svg>`;
+const PATH={flame:'<path d="M12 3c1 3.5 5 5.5 5 10a5 5 0 01-10 0c0-2 1-3 2-4 .3 1.2 1 2 2 2-.5-3 .5-5 1-8z"/>',drop:'<path d="M12 3.5c3 4 6 6.5 6 10a6 6 0 01-12 0c0-3.5 3-6 6-10z"/>',pipe:'<path d="M4 8h8a3 3 0 013 3v8M4 12h5M15 11h5"/>',tools:'<path d="M14.5 6.5a4 4 0 005 5L10 21l-3-3 9.5-9.5zM8 8L5 5"/>',thermo:'<path d="M10 14V5a2 2 0 014 0v9a4 4 0 11-4 0z"/>',gauge:'<path d="M4 16a8 8 0 1116 0M12 16l4-5"/>',rad:'<path d="M5 6v12M9.5 6v12M14 6v12M18.5 6v12M3.5 9h17"/>'};
+PATH.tank='<ellipse cx="12" cy="5" rx="6" ry="2.200"/><path d="M6 5v14c0 1.200 2.700 2.200 6 2.200s6-1 6-2.200V5"/>';PATH.pump='<circle cx="11" cy="13" r="6"/><path d="M11 7V4h6M15 9l3-3"/>';PATH.net='<circle cx="12" cy="5" r="2"/><circle cx="5" cy="19" r="2"/><circle cx="19" cy="19" r="2"/><path d="M12 7v5M12 12l-6 5M12 12l6 5"/>';PATH.reg='<path d="M4 7h10M18 7h2M4 17h2M10 17h10"/><circle cx="16" cy="7" r="2"/><circle cx="8" cy="17" r="2"/>';PATH.more='<circle cx="6" cy="12" r="1.4"/><circle cx="12" cy="12" r="1.4"/><circle cx="18" cy="12" r="1.4"/>';
+PATH.bolt='<path d="M13 3L5 14h6l-1 7 8-11h-6z"/>';PATH.meter='<circle cx="12" cy="12" r="8"/><path d="M12 12l3.5-3.5M7 15h2"/>';PATH.ph='<path d="M9 3v6l-4 9a2 2 0 002 3h10a2 2 0 002-3l-4-9V3M8 3h8"/>';
+PATH.home='<path d="M4 11l8-7 8 7M6 10v10h12V10"/>';PATH.door='<path d="M7 21V4h10v17M5 21h14M14 12v.5"/>';PATH.fan='<circle cx="12" cy="12" r="1.6"/><path d="M12 10.4C12 6 14 4 16 4c1.5 2-.5 5.5-4 6.4zM13.6 12c4.4 0 6.4 2 6.4 4-2 1.5-5.500-.5-6.400-4zM12 13.600C12 18 10 20 8 20c-1.500-2 .5-5.500 4-6.400zM10.400 12C6 12 4 10 4 8c2-1.500 5.500.5 6.400 4z"/>';PATH.doc='<path d="M7 3h8l4 4v14H7zM10 12h6M10 16h4"/>';PATH.bulb='<path d="M9 18h6M10 21h4M12 3a6 6 0 00-3.500 10.900c.6.5 1 1.200 1 2.100h5c0-.9.4-1.600 1-2.100A6 6 0 0012 3z"/>';PATH.box='<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M9 8h6M9 12h6M9 16h3"/>';
+PATH.warn='<path d="M12 4l9 16H3zM12 10v4M12 17v.5"/>';PATH.check='<path d="M5 12l5 5 9-10"/>';PATH.img='<rect x="3.5" y="5" width="17" height="14" rx="2.5"/><circle cx="9" cy="10.5" r="1.6"/><path d="M4 17l5-4.5 3.5 3 3-2.5 4.5 4"/>';
+const gi=(k,c='#6B6B66')=>IC(PATH[k],c,12);
+const TABS=['p-infos','p-distrib','p-regulation','p-releves','p-conf-local','p-conf-energie','p-conf-chauffage','p-conf-ecs','p-conf-adouc','p-equip','p-remarques','p-photos'];
+const LAB=['Informations','Distribution','Régulation','Relevés','Conf. Local','Conf. Énergie','Conf. Chauffage','Conf. ECS','Conf. Adoucisseur','Équipements','Réserves','Photos'];
+const ST=['h','h','','','','','','','','','',''];
+function rail(big,act=0){return '<div class="rail">'+(big?`<div class="sbtn">${I.search}</div>`:'')+LAB.map((l,i)=>(i==4||i==9?'<div class="sep"></div>':'')+`<div class="chip ${i==act?'on':''}"><span class="dot ${i==act?'w':ST[i]} ${big?'big':''}"></span>${l}</div>`).join('')+'</div>'}
+function bar(slim){return `<div class="bar ${slim?'slim':''}"><div class="in2"><div class="act">${I.note}Note</div><div class="act main">${I.camW}Photos</div><div class="act ko">${I.warn}Anomalie</div></div></div>`}
+const INFOS_A=`
+  <div class="sec">Général</div>
+  <div class="card">
+   <div class="f"><label>Nom du client</label><div class="in">Habitat 21</div></div>
+   <div class="f" style="position:relative"><label>Nom du site</label><div class="in">Les Acacias</div></div>
+   <div class="f"><label>Nom du local</label><div class="in">Chaufferie</div></div>
+   <div class="f"><label>Trame utilisée</label><div class="in">ICPE</div></div>
+   <div class="f"><label>Date de la visite</label><div class="in">07/10/2026</div></div>
+  </div>
+  <div class="sec">Informations générales</div>
+  <div class="card">
+   <div class="f"><label>Date de visite</label><div class="in">07/10/2026</div></div>
+   <div class="f"><label>Heure de visite</label><div class="in ph">Saisir...</div></div>
+   <div class="f" style="position:relative"><label>Nom du site</label><div class="in">Les Acacias</div></div>
+  </div>
+ `;
+const INFOS_B=`
+  <div class="band"><div class="lock">${I.lock}</div><div><b>Habitat 21 · Les Acacias · Chaufferie</b><span>ICPE · 07/10/2026 · modifiable depuis la fiche visite</span></div></div>
+  <div class="card"><div class="banner"><div class="o">${IC('<circle cx="12" cy="12" r="9"/><path d="M12 11v5M12 8v.5"/>','#fff',20)}</div><div class="t"><b>Informations générales</b><span class="s">3 sur 9</span></div></div>
+   <div class="pairs">
+    <div class="f"><label>Heure de visite</label><div class="in">09:40</div></div>
+    <div class="f"><label>Bâtiments</label><div class="in">4</div></div>
+    <div class="f"><label>Logements</label><div class="in">186</div></div>
+    <div class="f"><label>Énergie · pression</label><div class="in">Gaz · 4 bar</div></div>
+   </div>
+   <div class="f"><label>Adresse</label><div class="in">12 rue des Lilas, 69003 Lyon</div></div>
+   <div class="f"><label>Exploitant · marché</label><div class="in ph">Saisir…</div></div>
+   <div class="f"><label>Type de LT</label><div class="chips"><span class="opt">Chaufferie gaz</span><span class="opt on">Sous-station</span><span class="opt">Chaufferie fioul</span><span class="opt">Autre…</span></div></div>
+  </div>
+  <div class="card"><div class="banner"><div class="o">${IC(PATH.flame,'#fff',20)}</div><div class="t"><b>Équipements principaux</b><span class="s">0 sur 7</span></div></div>
+   <div class="f"><label>Production primaire</label><div class="chips"><span class="opt">Chaudière gaz</span><span class="opt">PAC</span><span class="opt">Réseau de chaleur</span><span class="opt">Autre…</span></div></div>
+   <div class="f"><label>Puissance totale (kW)</label><div class="in ph">1 200</div></div>
+  </div>
+ `;
+const status='<div class="status"><span>9:41</span><span>●●● 82 %</span></div>';
+
+function avant(bA,act=0,fab=''){return `<div class="phone" id="ph-a">${status}
+ <div class="chrome" id="ch-a">
+  <div class="hdr"><div class="glassbtn">${I.back}</div><div class="ttl"><b>Résidence Les Aca…</b><span>Habitat 21 · Chaufferie princ…</span></div><div class="orb">${I.search}</div><div class="orb">${I.dev}</div><div class="orb">${I.exp}</div></div>
+  <div class="hero"><div class="ring" style="--p:38%"><i></i><u>38%</u></div><div class="t"><b>21 sur 56 renseignés</b><div class="cnt"><span style="color:#227A4A">9 S</span><span style="color:#C23B2E">2 N.S</span><span style="color:#A3A39D">1 S.O</span><span style="color:#2E7D32">● Enregistré</span></div></div><div class="sync">Intranet</div></div>
+  <div class="refphoto"><span class="orb" style="width:22px;height:22px">${I.cam}</span>Photos de référence du local</div>
+  ${rail(false,act)}
+ </div>
+ <div class="body" id="bd-a">${bA}</div>${fab}${bar(false)}</div>`}
+
+function apres(bB,act=0,pop=true){return `<div class="phone" id="ph-b" onclick="popClick(event)">${status}
+ <div class="chrome" id="ch-b">
+  <div class="hdr"><div class="glassbtn">${I.back}</div><div class="ttl"><div class="mq" style="font:700 12.5px var(--display)"><span>Résidence Les Acacias</span></div><div class="mq" style="font-size:10px;color:var(--a-soft)"><span>Chaufferie principale · Habitat 21 · ICPE · enregistré</span></div></div><div class="ring sm" id="ring-b" style="--p:38%" role="button" aria-label="Avancement de la visite"><i></i><u>38%</u></div><div class="orb" style="position:relative">${I.img}<span class="badge">3</span></div><div class="orb">${I.dl}</div><div class="orb" style="background:linear-gradient(135deg,var(--accent),var(--accent-d))">${I.flag}</div></div>
+  ${rail(true,act)}
+ </div>
+ <div class="pop" id="pop-b" ${pop?'':'hidden'}>
+  <h4>Visite à 38 %</h4><div class="l">21 sur 56 éléments renseignés</div>
+  <div class="pbar"><i></i></div>
+  <div class="grid5"><div><b style="color:#227A4A">9</b><span>S</span></div><div><b style="color:#C23B2E">2</b><span>N.S</span></div><div><b>0</b><span>N.R</span></div><div><b>1</b><span>S.O</span></div><div><b>0</b><span>N.V</span></div></div>
+  <div class="pl"><span>Reste à renseigner</span><em>35</em></div>
+  <div class="pl"><span>Sauvegarde</span><em style="color:#2E7D32">Enregistré à l’instant</em></div>
+  <div class="pl"><span>Intranet</span><em>Non envoyée</em></div>
+  <div class="plink"><span>Voir les 2 N.S dans Réserves</span><span>›</span></div>
+ </div>
+ <div class="body" id="bd-b">${bB}</div>${bar(true)}<div class="ocr" id="ocr-b" hidden></div><div class="fch" id="fch-b" hidden></div><div class="fch" id="efch-b" hidden></div><div class="fch" id="rfch-b" hidden></div><div class="pv" id="pfch-b" hidden></div><div class="toast" id="toast-b" hidden></div></div>`}
+
+
+const O=(t,c='')=>`<span class="opt ${c}">${t}</span>`;
+const chipsA=(arr,sel)=>`<div class="chips">${arr.map(x=>O(x,x===sel?'on':'')).join('')}${O('+ Autre','plus')}</div>`;
+const fA=(l,arr,sel)=>`<div class="f"><label>${l}<span>${I.cam}</span></label>${chipsA(arr,sel)}</div>`;
+const OP={mat:['Acier noir','Cuivre','PVC HTA','Multicouche','Acier galvanisé'],typ:['Monotube','Bitube','Plancher chauffant'],al:['Vanne papillon','Vanne 1/4 de tour','Vanne 3 voies','Pompe double'],re:['Vanne d’équilibrage','Vanne 1/4 de tour','Té de mélange'],em:['Radiateurs','Panneau de sol','Convecteurs','Ventilo-convecteurs'],rob:['Robinet thermostatique','Vanne 1/4 de tour','Vanne de régulation'],cal:['Laine de roche + revêtement PVC','Armaflex','Laine de verre','Absent'],var:['Fixe','Variable','Auto-adaptatif']};
+const DIST_A=`
+ <div class="sech"><b>⌄ Distribution chauffage</b><small>3 / 8</small></div>
+ <div class="card">${fA('Matériaux tuyauterie',OP.mat,'Acier noir')}${fA('Type de distribution',OP.typ,'Bitube')}${fA('Equipement sur aller',OP.al,'Vanne 3 voies')}${fA('Equipement sur retour',OP.re)}${fA('Type d’émetteur',OP.em)}${fA('Type de robinetterie',OP.rob)}${fA('Calorifuge (type / état)',OP.cal)}${fA('Variation de vitesse',OP.var)}</div>
+ <div class="sech"><b>⌄ Distribution ECS</b><small>0 / 6</small></div>
+ <div class="card">${fA('Matériaux tuyauterie',OP.mat)}${fA('Type de distribution',OP.typ)}${fA('Equipement sur aller',OP.al)}${fA('Equipement sur retour',OP.re)}${fA('Calorifuge (type / état)',OP.cal)}${fA('Présence mitigeur',['Oui','Non'])}</div>`;
+const cr=(l,v,rep)=>`<div class="cr"><span>${l}</span><b>${v}</b>${rep?'<i></i>':''}</div>`;
+const fB=(l,arr,sel,c='')=>`<div class="f"><label>${l}</label><div class="chips">${arr.map(x=>O(x,(sel||[]).includes(x)?'on '+c:c)).join('')}${O('Autre…','plus')}</div></div>`;
+const seg=(arr,sel,fid)=>`<div class="seg">${arr.map((x,i)=>`<span data-f="${fid}" data-o="${i}" class="${sel.includes(x)?'on':''}">${x}</span>`).join('')}</div>`;
+const gh=(k,t)=>`<div class="gh">${gi(k)}${t}</div>`;
+const ban=(ico,t,sub,eau,btn)=>`<div class="banner ${eau?'eau':''}"><div class="o">${IC(PATH[ico],'#fff',20)}</div><div class="t"><b>${t}</b><span class="s">${sub}</span></div>${btn}</div>`;
+const camMini=`<span class="mini">${I.cam.replace(/#A3A39D/g,'#D9531A')}</span>`;
+const CAL=['Laine de roche','Armaflex','Laine de verre','Absent'], ETAT=['Bon','Dégradé','Manquant'];
+const FD={
+ c_mat:{l:'Matériaux',o:OP.mat,m:1,sel:['Acier noir'],rep:1}, c_typ:{l:'Distribution',o:OP.typ,sel:['Bitube'],rep:1},
+ c_al:{l:'Aller',o:OP.al,sel:['Vanne 3 voies'],rep:1}, c_re:{l:'Retour',o:OP.re,m:1,sel:[]}, c_rob:{l:'Robinetterie',o:OP.rob,sel:[]},
+ c_em:{l:'Émetteur',o:OP.em,sel:[]}, c_cat:{l:'Calorifuge · type',o:CAL,sel:[]}, c_cae:{l:'Calorifuge · état',o:ETAT,sel:[]}, c_var:{l:'Variation de vitesse',o:OP.var,sel:[]},
+ e_mat:{l:'Matériaux',o:OP.mat,m:1,sel:[]}, e_typ:{l:'Distribution',o:OP.typ,sel:[]}, e_al:{l:'Aller',o:OP.al,m:1,sel:[]}, e_re:{l:'Retour',o:OP.re,m:1,sel:[]},
+ e_cat:{l:'Calorifuge · type',o:CAL,sel:[]}, e_cae:{l:'Calorifuge · état',o:ETAT,sel:[]}, e_mit:{l:'Mitigeur',o:['Oui','Non'],sel:[]}
+};
+const GCH=[['pipe','Réseau',['c_mat','c_typ']],['tools','Organes',['c_al','c_re','c_rob']],['rad','Émission',['c_em']],['thermo','Isolation',['c_cat','c_cae']],['gauge','Pompe',['c_var']]];
+const GEC=[['pipe','Réseau',['e_mat','e_typ']],['tools','Organes',['e_al','e_re']],['thermo','Isolation',['e_cat','e_cae']],['drop','Eau chaude',['e_mit']]];
+const isOpen=f=>f.open===undefined?!f.sel.length:f.open;
+const chev=d=>`<svg class="chev" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1A1A18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`;
+function fld(id){const f=FD[id];
+ if(!isOpen(f)) return `<div class="cr" data-f="${id}" data-a="tog"><span>${f.l}</span><b class="pill">${f.sel.join(' · ')}</b>${f.rep?'<i></i>':''}${chev('M6 9l6 6 6-6')}</div>`;
+ const body=(f.o.length<=3&&!f.m&&f.o.join("").length<=36)?seg(f.o,f.sel,id):`<div class="chips">${f.o.map((x,i)=>`<span data-f="${id}" data-o="${i}" class="opt ${f.m?'chk ':''}${f.sel.includes(x)?'on':''}">${x}</span>`).join('')}${f.o.length>3?'<span class="opt plus">Autre…</span>':''}</div>`;
+ const head=`<div class="lh"><label>${f.l}${f.m?'<span class="hint">plusieurs choix</span>':''}</label>${f.sel.length?`<span class="ok" data-f="${id}" data-a="ok">OK</span>`:''}</div>`;
+ return `<div class="f">${head}${body}</div>`;}
+const nb=(ids)=>ids.filter(i=>FD[i].sel.length).length;
+const CHN=['c_mat','c_typ','c_al','c_re','c_rob','c_em','c_cat','c_var'], ECN=['e_mat','e_typ','e_al','e_re','e_cat','e_mit'];
+const grp=G=>G.map(([k,t,ids])=>gh(k,t)+ids.map(fld).join('')).join('');
+function distB(){return `
+ <div class="card">${ban('flame','Chauffage',`${nb(CHN)} sur 8`,0,camMini)}${grp(GCH)}</div>
+ <div class="card eau-c">${ban('drop','ECS',`${nb(ECN)} sur 6`,1,'<span class="mini eau" data-a="idem">Idem chauffage</span>'+camMini.replace('mini','mini eau'))}${grp(GEC)}</div>`}
+
+const COL={},GN={};
+const isClosed=k=>COL[k]===undefined?!((CUR==='c'&&CV.flt!=='all')||(CUR==='p'&&PH.flt!=='all')):COL[k];
+const CHV='<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#1A1A18" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>';
+function applyDOM(){const bd=document.getElementById('bd-b');if(!bd)return;
+ bd.querySelectorAll('.card').forEach(c=>{const b=c.firstElementChild;if(!b||!b.classList.contains('banner'))return;
+  const k=b.dataset.k||b.querySelector('.t b').textContent;if(!b.querySelector('.chvb')){const s=document.createElement('span');s.className='chvb';s.innerHTML=CHV;b.appendChild(s)}
+  const col=isClosed(k);c.classList.toggle('closed',col);[...c.children].slice(1).forEach(x=>x.style.display=col?'none':'')});
+ bd.querySelectorAll('.gh').forEach(g=>{if(g.querySelector('.ghi'))return;const n=[...g.childNodes].find(x=>x.nodeType===3&&x.textContent.trim());if(!n)return;const key=n.textContent.trim();
+  const i=document.createElement('input');i.className='ghi';i.dataset.gk=key;i.value=GN[key]||key;i.setAttribute('aria-label','Nom du groupe');g.replaceChild(i,n);i.insertAdjacentHTML('afterend',pen.replace('<svg','<svg class="pen2"'))});}
+function bannerClick(e){const b=e.target.closest('.banner');if(!b||e.target.closest('.mini,.camb,input,[data-a]:not(.chvb)'))return;const k=b.dataset.k||b.querySelector('.t b').textContent;COL[k]=!isClosed(k);applyDOM();mesure()}
+function groupInput(e){const i=e.target.closest('.ghi');if(i)GN[i.dataset.gk]=i.value}
+function drawD(){const bd=document.getElementById('bd-b');if(!bd)return;const y=bd.scrollTop;bd.innerHTML=CUR==='r'?regB():CUR==='rel'?relB():CUR==='c'?convB():CUR==='e'?eqB():CUR==='res'?resB():CUR==='p'?phB():distB();bd.scrollTop=y;applyDOM();const f=bd.querySelector('input[data-nn]');if(f){f.focus();f.select()}mesure()}
+function onD(e){if(e.target.closest('input'))return;const t=e.target.closest('[data-f],[data-a]');if(!t)return;const a=t.dataset.a,id=t.dataset.f;
+ if(a==='idem'){[['mat'],['typ'],['al'],['re'],['cat'],['cae']].forEach(([k])=>{const c=FD['c_'+k],d=FD['e_'+k];if(c&&d&&c.sel.length){d.sel=[...c.sel];d.open=false}});drawD();return}
+ const f=FD[id];if(!f)return;
+ if(a==='tog'){f.open=true}
+ else if(a==='ok'){f.open=false}
+ else{const v=f.o[+t.dataset.o],had=f.sel.includes(v);
+  if(f.m){f.sel=had?f.sel.filter(x=>x!==v):[...f.sel,v];f.open=true}
+  else if(had){f.sel=[];f.open=undefined}
+  else{f.sel=[v];f.open=false;f.rep=0}}
+ drawD()}
+function bindD(){const bd=document.getElementById('bd-b');if(bd){applyDOM();bd.addEventListener('click',bannerClick);bd.addEventListener('input',groupInput);bd.addEventListener('focusout',e=>{if(e.target.closest('input[data-nn]')){R.nets.forEach(x=>x.ed=false);drawD()}});bd.onclick=CUR==='r'?onR:CUR==='rel'?onRel:CUR==='c'?onC:CUR==='e'?onE:CUR==='res'?onRes:CUR==='p'?onP:onD;bd.oninput=CUR==='rel'?onRelInput:null;const o=document.getElementById('ocr-b');if(o)o.onclick=onOcr;const pv=document.getElementById('pfch-b');if(pv){pv.onclick=onPv;pv.oninput=onPvInput}const rf=document.getElementById('rfch-b');if(rf){rf.onclick=onRf;rf.oninput=onRfInput}const ef=document.getElementById('efch-b');if(ef){ef.onclick=onEf;ef.oninput=onEfInput}const fc=document.getElementById('fch-b');if(fc){fc.onclick=onFch;fc.oninput=e=>{const t=e.target.closest('.cta');if(t&&CV.fi){const k=CV.fi.key;if(t.value.trim())CV.com[k]=t.value;else delete CV.com[k]}}}const tz=document.getElementById('toast-b');if(tz)tz.onclick=e=>{if(e.target.closest('[data-a=undo]')){if(UNDO)UNDO();else Object.keys(CV.snap||{}).forEach(k=>delete CV.ans[k]);UNDO=null;tz.hidden=true;drawD()}}}}
+
+/* ---------- Écran 3 : Régulation ---------- */
+const stA=(l,v,u,cam=1)=>`<div class="f"><label>${l}<span>${cam?I.cam:''}</span></label><div class="stA"><b>−</b><span>${v}${u?' '+u:''}</span><b>+</b></div></div>`;
+const netA=(n,v)=>`<div class="card" style="padding:12px"><div class="ah"><b>${n}</b><span>${I.cam}</span><small>Retirer</small></div>
+ ${[['T°ext',v[0],'°C'],['T°dép',v[1],'°C'],['Courbe de chauffe',v[2],''],].map(x=>`<div style="margin-bottom:9px"><div class="lbl2" style="margin:0 0 4px;text-transform:none;letter-spacing:0;font-size:10.5px;color:var(--a-ink);font-weight:600">${x[0]}</div><div class="stA"><b>−</b><span>${x[1]}${x[2]?' '+x[2]:''}</span><b>+</b></div></div>`).join('')}
+ <div style="margin-bottom:9px"><div class="lbl2" style="margin:0 0 4px;text-transform:none;letter-spacing:0;font-size:10.5px;color:var(--a-ink);font-weight:600">TNC</div><div class="in ph">${v[3]||''}</div></div>
+ <div><div class="lbl2" style="margin:0 0 4px;text-transform:none;letter-spacing:0;font-size:10.5px;color:var(--a-ink);font-weight:600">Consigne et Programme horaire</div><div class="in ph">${v[4]||''}</div></div></div>`;
+const REG_A=`
+ <div class="sech"><b>Cascade chaudières</b></div>
+ <div class="card"><div class="f"><label>Paramètres cascade chaudières<span>${I.cam}</span></label><div class="in ph">Saisir...</div></div>${stA('T°ext(°C)','7','°C')}${stA('T°dép(°C)','70','°C')}</div>
+ <div class="sech"><b>Réseaux · 2</b></div>
+ ${netA('Radiateurs',['7','62','1,4','18',''])}${netA('Plancher chauffant',['7','38','—','','Réduit 22h–6h'])}
+ <div class="addA">+ Ajouter un réseau</div>
+ <div class="sech"><b>Réseau ECS</b></div>
+ <div class="card">${stA('T° consigne (°C)','60','°C')}<div class="f"><label>Cycle anti-légionellose<span>${I.cam}</span></label>${chipsA(['Hebdomadaire','Quotidien','Absent'],'')}</div></div>`;
+
+const R={c:{par:'',ext:7,dep:70},nets:[
+ {id:1,n:'Radiateurs',ext:7,dep:62,crb:1.4,tnc:'18',prog:'',open:true,m:0},
+ {id:2,n:'Plancher chauffant',ext:7,dep:38,crb:null,tnc:'',prog:'Réduit 22h–6h',open:false,m:0}],
+ e:{cons:60,cyc:null,open:undefined},seq:3};
+const CFG={ext:[-15,35,1,7],dep:[0,100,1,60],crb:[.4,3,.1,1],cons:[0,100,1,60]};
+const fmt=(v,k)=>v==null?'—':(['crb','bar','ph'].includes(k)?String(v).replace('.',','):String(v));
+const tile=(sc,k,l,v,u)=>`<div class="tl"><span class="tlb">${l}</span><div class="tr"><b class="pm" data-r="${sc}:${k}:-1">−</b><span class="tv ${v==null?'nil':''}">${fmt(v,k)}${v!=null&&u?`<small>${u}</small>`:''}</span><b class="pm" data-r="${sc}:${k}:1">+</b></div></div>`;
+const sum=n=>`${n.ext==null?'—':n.ext+' °C'} → ${n.dep==null?'—':n.dep+' °C'}${n.crb!=null?' · courbe '+fmt(n.crb,'crb'):''}`;
+function netB(n){
+ const head=`<div class="nh" data-a="ntog" data-n="${n.id}"><div class="o2">${IC(PATH.net,'#D9531A',15)}</div><div class="nt">${n.ed?`<input class="nmi" data-nn="${n.id}" value="${n.n}" aria-label="Nom du réseau">`:`<b>${n.n}</b>`}<span>${sum(n)}</span></div><span class="more" data-a="ned" data-n="${n.id}" style="background:none">${pen.replace('width="9" height="9"','width="13" height="13"')}</span><span class="more" data-a="nmenu" data-n="${n.id}">${IC(PATH.more,'#6B6B66',15).replace('fill="none"','fill="#6B6B66"')}</span>${chev(n.open?'M6 15l6-6 6 6':'M6 9l6 6 6-6')}</div>`;
+ const menu=n.m===1?`<div class="menu"><span>Photo</span><span data-a="ndup" data-n="${n.id}">Dupliquer</span><span class="ko" data-a="nask" data-n="${n.id}">Retirer</span></div>`:n.m===2?`<div class="conf"><em>Retirer « ${n.n} » ?</em><span data-a="nmenu" data-n="${n.id}">Annuler</span><span class="ko" data-a="ndel" data-n="${n.id}">Retirer</span></div>`:'';
+ const body=n.open?`<div class="tiles">${tile('n'+n.id,'ext','T°ext (°C)',n.ext,'°C')}${tile('n'+n.id,'dep','T°dép (°C)',n.dep,'°C')}</div>
+  <div class="tiles" style="border-top:0;padding-top:0"><div class="tl"><span class="tlb">TNC</span><div class="in" style="height:44px;border-radius:13px">${n.tnc||'<span style="color:var(--a-faint)">Saisir…</span>'}</div></div>${tile('n'+n.id,'crb','Courbe de chauffe',n.crb,'')}</div>
+  <div class="f" style="border-top:0;padding-top:0"><label>Consigne et programme horaire</label><div class="in">${n.prog||'<span style="color:var(--a-faint)">Saisir…</span>'}</div></div>`:'';
+ return head+menu+body;}
+const cnt=()=>[R.c.ext!=null,R.c.dep!=null,R.c.par!==''].filter(Boolean).length;
+function regB(){const e=R.e,eo=e.open===undefined?e.cyc==null:e.open;
+ return `
+ <div class="card">${ban('flame','Cascade chaudières',`${cnt()} sur 3`,0,camMini)}
+  <div class="f"><label>Paramètres de la cascade</label><div class="in ph">Saisir…</div></div>
+  <div class="tiles" style="padding-top:0;border-top:0">${tile('c','ext','T°ext (°C)',R.c.ext,'°C')}${tile('c','dep','T°dép (°C)',R.c.dep,'°C')}</div></div>
+ <div class="card">${ban('net','Réseaux',`${R.nets.length} réseau${R.nets.length>1?'x':''}`,0,'<span class="mini" data-a="nadd">+ Ajouter</span>')}${R.nets.map(netB).join('')}</div>
+ <div class="card eau-c">${ban('drop','Réseau ECS',`${(e.cons!=null)+(e.cyc!=null)} sur 2`,1,camMini.replace('mini','mini eau'))}
+  <div class="tiles" style="border-top:0">${tile('e','cons','T° consigne (°C)',e.cons,'°C')}<div></div></div>
+  ${eo?`<div class="f" style="border-top:0;padding-top:0"><label>Cycle anti-légionellose</label>${seg(['Hebdomadaire','Quotidien','Absent'],e.cyc?[e.cyc]:[],'cyc')}</div>`:`<div class="cr" data-a="ecyc"><span>Anti-légionellose</span><b class="pill">${e.cyc}</b>${chev('M6 9l6 6 6-6')}</div>`}</div>`}
+function onR(ev){if(ev.target.closest('input'))return;const t=ev.target.closest('[data-r],[data-a],[data-f]');if(!t)return;
+ if(t.dataset.r){const [sc,k,d]=t.dataset.r.split(':');const [mn,mx,st,df]=CFG[k];const o=sc==='c'?R.c:sc==='e'?R.e:R.nets.find(x=>'n'+x.id===sc);const f=sc==='e'?'cons':k;
+  let v=o[f];v=v==null?df:Math.round((v+(+d)*st)*10)/10;o[f]=Math.min(mx,Math.max(mn,v));drawD();return}
+ const a=t.dataset.a,n=R.nets.find(x=>x.id==t.dataset.n);
+ if(t.dataset.f==='cyc'){R.e.cyc=['Hebdomadaire','Quotidien','Absent'][+t.dataset.o];R.e.open=false;drawD();return}
+ if(a==='ecyc'){R.e.open=true}
+ else if(a==='ntog'){n.open=!n.open;n.m=0}
+ else if(a==='nmenu'){n.m=n.m?0:1}
+ else if(a==='ned'){R.nets.forEach(x=>x.ed=false);n.ed=true}
+ else if(a==='nask'){n.m=2}
+ else if(a==='ndel'){R.nets=R.nets.filter(x=>x!==n)}
+ else if(a==='ndup'){R.nets.splice(R.nets.indexOf(n)+1,0,{...n,id:R.seq++,n:n.n+' (copie)',m:0,open:true});n.m=0}
+ else if(a==='nadd'){R.nets.push({id:R.seq++,n:'Réseau '+(R.nets.length+1),ext:null,dep:null,crb:null,tnc:'',prog:'',open:true,m:0})}
+ drawD()}
+
+/* ---------- Écran 4 : Relevés ---------- */
+const co=(ic,col,sz=15)=>`<div class="co" style="background:${col}1F">${IC(PATH[ic],col,sz)}</div>`;
+const cptA=(n,ic,col,perm,val,prev,u,rap)=>`<div class="card" style="padding:12px">
+ <div class="ah">${co(ic,col)}<b style="color:var(--a-ink);text-transform:none;font:700 13px var(--display)">${n}</b><span>${I.cam}</span><span>${IC('<path d="M5 7h14M10 7V4h4v3M7 7l1 13h8l1-13"/>','#B91C1C',16)}</span></div>
+ <div class="rap">Ligne du rapport · <b>${rap}</b>${chev('M6 9l6 6 6-6')}</div><br>
+ ${perm?`<div class="perm">Compteur permanent · ${perm} relevés</div>`:''}
+ <div class="in" style="font:800 15px var(--display);height:42px">${val||'<span style="font:400 11px var(--body);color:var(--a-faint)">Saisir à la main</span>'}</div>
+ <div class="lbl2" style="text-transform:none;letter-spacing:0;font-size:10px;font-weight:500;margin:5px 0">Relevé précédent : ${prev} ${u}</div>
+ <div class="chips">${['m³','L','MWh','kWh','bar','%'].map(x=>O(x,x===u?'on':'')).join('')}</div></div>`;
+const tA=(c,l,v)=>stA(`${l}<span style="color:var(--a-faint);font-weight:500"> · ${c}</span>`,v,'°C');
+const REL_A=`
+ <div class="sech"><b>Pressions</b></div>
+ <div class="card">${stA('Pression réseau de chauffage (bar)','1,8','bar')}${stA('Pression réseau d’ECS (bar)','—','bar')}</div>
+ <div class="sech"><b>Compteurs relevés</b></div>
+ ${cptA('Gaz','flame','#D9531A',12,'48 210','48 150','m³','Index compteur(s) gaz')}
+ ${cptA('Énergie chauffage','bolt','#B42318',12,'1 234,5','1 230,1','MWh','Index compteur énergie')}
+ ${cptA('Appoint chauffage','drop','#1D6FB8',12,'','86','m³','Index compteur d’appoint')}
+ ${cptA('Eau froide ECS','drop','#1D6FB8',12,'2 105','2 110','m³','Index compteur alimentation EF ECS')}
+ <div class="addA">+ Ajouter un compteur</div>
+ <div class="sech"><b>Températures et pH</b></div>
+ <div class="card">${tA('Primaire','Départ','80')}${tA('Primaire','Retour','60')}${tA('Chauffage','Départ','70')}${tA('Chauffage','Retour','—')}${tA('ECS','Départ','—')}${tA('ECS','Retour','—')}${tA('ECS','Stockage','—')}${stA('pH','—','')}</div>
+ <div class="addA">Ajouter un point de mesure</div>`;
+
+const P={c:1.8,e:null};
+const TT={pri:{dep:80,ret:60},cha:{dep:70,ret:null},ecs:{dep:null,ret:null,sto:null},ph:{v:null}};
+CFG.bar=[0,6,.1,1.5];CFG.t=[0,100,1,60];CFG.ph=[0,14,.1,7.5];
+const UN=['m³','L','MWh','kWh','bar','%'];
+const CP=[{id:1,n:'Gaz',ic:'flame',col:'#D9531A',u:'m³',prev:48150,v:'48 210',m:0},{id:2,n:'Énergie chauffage',ic:'bolt',col:'#B42318',u:'MWh',prev:1230.1,v:'1 234,5',m:0},{id:3,n:'Appoint chauffage',ic:'drop',col:'#1D6FB8',u:'m³',prev:86,v:'',m:0},{id:4,n:'Eau froide ECS',ic:'drop',col:'#1D6FB8',u:'m³',prev:2110,v:'2 105',m:0}];
+const num=v=>{const x=parseFloat(String(v).replace(/\s/g,'').replace(',','.'));return isNaN(x)?null:x};
+const nf=x=>(Math.round(x*10)/10).toLocaleString('fr-FR');
+function subHTML(c){const x=num(c.v);if(x==null)return {t:`précédent ${nf(c.prev)} ${c.u}`,w:0};const d=Math.round((x-c.prev)*10)/10;
+ return d<0?{t:`<em>Inférieur au relevé précédent (${nf(c.prev)})</em>`,w:1}:{t:`précédent ${nf(c.prev)} · <em>+${nf(d)} ${c.u}</em>`,w:0}}
+function cptB(c){const sb=subHTML(c);
+ const menu=c.m===1?`<div class="menu" style="padding:8px 0 0"><span>Photo</span><span>Ligne du rapport</span><span class="ko" data-a="cask" data-c="${c.id}">Retirer</span></div>`:c.m===2?`<div class="conf" style="margin:8px 0 0"><em>Ne sera plus proposé aux prochaines visites.</em><span data-a="cmenu" data-c="${c.id}">Annuler</span><span class="ko" data-a="cdel" data-c="${c.id}">Retirer</span></div>`:c.m===3?`<div class="chips" style="padding-top:8px">${UN.map((u,i)=>`<span class="opt ${u===c.u?'on':''}" data-a="cu" data-c="${c.id}" data-o="${i}">${u}</span>`).join('')}</div>`:'';
+ return `<div class="cpt" data-cid="${c.id}"><div class="cl1">${co(c.ic,c.col)}<div class="cn"><div class="nmw"><input class="nmi" data-cn="${c.id}" value="${c.n}" aria-label="Nom du compteur">${pen}</div><span class="sub ${sb.w?'w':''}">${sb.t}</span></div><span class="more" data-a="cmenu" data-c="${c.id}">${IC(PATH.more,'#6B6B66',15).replace('fill="none"','fill="#6B6B66"')}</span></div>
+ <div class="cl2"><input class="cin ${sb.w?'w':''}" data-c="${c.id}" value="${c.v}" inputmode="decimal" placeholder="Index" aria-label="Index ${c.n}"><span class="un" data-a="cunit" data-c="${c.id}">${c.u}</span><span class="camb" data-a="ocr" data-c="${c.id}" style="cursor:pointer">${I.cam.replace('width="14" height="14"','width="18" height="18"').replace(/#A3A39D/g,'#D9531A')}</span></div>${menu}</div>`}
+const TL={p:'Chauffage (bar)',pe:'ECS (bar)',pd:'Départ',pr:'Retour',cd:'Départ',cr:'Retour',ed:'Départ',er:'Retour',es:'Stockage',ph:'pH'};
+const XT={ch:[],ec:[]};let XS=1;const XNAMES={ch:['Départ 2','Retour 2','Mélange'],ec:['Ballon bas','Ballon haut','Bouclage']};
+const pen='<svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="#1A1A18" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l4-1 11-11-3-3L5 16zM14 6l3 3"/></svg>';
+const tileL=(sc,k,v,u,name,x)=>`<div class="tl"><div class="tlw"><input class="tlbi" data-l="${sc}" value="${name}" aria-label="Nom de la mesure">${pen}${x?`<span class="xx" data-a="xrm" data-x="${x}">×</span>`:''}</div><div class="tr"><b class="pm" data-r="${sc}:${k}:-1">−</b><span class="tv ${v==null?'nil':''}">${fmt(v,k)}${v!=null&&u?`<small>${u}</small>`:''}</span><b class="pm" data-r="${sc}:${k}:1">+</b></div></div>`;
+const xtile=e=>e.rm?`<div class="tl"><div class="tlw"><span class="tlbi" style="display:block">${e.n}</span></div><div class="xc">Retirer ?<span data-a="xno" data-x="${e.id}">Non</span><span class="ko" data-a="xdel" data-x="${e.id}">Oui</span></div></div>`:tileL('x'+e.id,'t',e.v,'°C',e.n,e.id);
+const xblock=g=>XT[g].map(xtile).join('')+`<div class="addT" data-a="xadd" data-g="${g}">+ Ajouter une température${g==='ec'?' ECS':' chauffage'}</div>`;
+const dT=(a,b)=>a!=null&&b!=null?`<span class="dt">ΔT ${a-b} °C</span>`:'';
+const tt=(sc,l,v)=>tileL(sc,'t',v,'°C',TL[sc]);
+function relB(){
+ const nbp=(P.c!=null)+(P.e!=null), nbt=[TT.pri.dep,TT.pri.ret,TT.cha.dep,TT.cha.ret,TT.ecs.dep,TT.ecs.ret,TT.ecs.sto,TT.ph.v].filter(v=>v!=null).length, nbc=CP.filter(c=>c.v!=='').length;
+ return `
+ <div class="card">${ban('gauge','Pressions',`${nbp} sur 2`,0,camMini)}
+  <div class="tiles" style="border-top:0">${tileL('p','bar',P.c,'bar',TL.p)}${tileL('pe','bar',P.e,'bar',TL.pe)}</div></div>
+ <div class="card">${ban('meter','Compteurs',`${nbc} sur ${CP.length}`,0,'<span class="mini">+ Ajouter</span>')}${CP.map(cptB).join('')}</div>
+ <div class="card">${ban('thermo','Températures et pH',`${nbt} sur 8`,0,camMini)}
+  <div class="gh">${gi('flame')}Primaire${dT(TT.pri.dep,TT.pri.ret)}</div><div class="tiles" style="border-top:0">${tt('pd','Départ',TT.pri.dep)}${tt('pr','Retour',TT.pri.ret)}</div>
+  <div class="gh">${gi('thermo')}Chauffage${dT(TT.cha.dep,TT.cha.ret)}</div><div class="tiles" style="border-top:0">${tt('cd','Départ',TT.cha.dep)}${tt('cr','Retour',TT.cha.ret)}${xblock('ch')}</div>
+  <div class="eau-c"><div class="gh">${gi('drop','#0F7C8C')}ECS${dT(TT.ecs.dep,TT.ecs.ret)}</div><div class="tiles" style="border-top:0">${tt('ed','Départ',TT.ecs.dep)}${tt('er','Retour',TT.ecs.ret)}</div><div class="tiles" style="border-top:0;padding-top:0">${tt('es','Stockage',TT.ecs.sto)}${xblock('ec')}</div></div>
+  <div class="gh">${gi('ph')}Eau</div><div class="tiles" style="border-top:0">${tileL('ph','ph',TT.ph.v,'',TL.ph)}<div></div></div>
+ </div>
+ <div class="addA" style="margin:0 0 12px">Ajouter un point de mesure</div>`}
+const relObj=sc=>{if(sc[0]==='x'){const e=[...XT.ch,...XT.ec].find(z=>'x'+z.id===sc);return [e,'v']}return RELO[sc]()};
+const RELO={p:()=>[P,'c'],pe:()=>[P,'e'],pd:()=>[TT.pri,'dep'],pr:()=>[TT.pri,'ret'],cd:()=>[TT.cha,'dep'],cr:()=>[TT.cha,'ret'],ed:()=>[TT.ecs,'dep'],er:()=>[TT.ecs,'ret'],es:()=>[TT.ecs,'sto'],ph:()=>[TT.ph,'v']};
+function onRel(ev){if(ev.target.closest('input'))return;const t=ev.target.closest('[data-r],[data-a]');if(!t)return;
+ if(t.dataset.r){const [sc,k,d]=t.dataset.r.split(':');const [o,f]=relObj(sc);const cfg=CFG[k==='t'?'t':k];const [mn,mx,st,df]=cfg;let v=o[f];v=v==null?df:Math.round((v+(+d)*st)*10)/10;o[f]=Math.min(mx,Math.max(mn,v));drawD();return}
+ const a=t.dataset.a;
+ if(a==='ocr'){OC.cid=+t.dataset.c;OC.step=1;OC.pick=0;drawOCR();return}
+ if(a==='xadd'){const g=t.dataset.g;XT[g].push({id:XS++,n:XNAMES[g][XT[g].length%3]+(XT[g].length>=3?' '+(XT[g].length+1):''),v:null,rm:0});drawD();return}
+ if(a==='xrm'||a==='xno'||a==='xdel'){const id=+t.dataset.x;const e=[...XT.ch,...XT.ec].find(z=>z.id===id);if(a==='xdel'){XT.ch=XT.ch.filter(z=>z!==e);XT.ec=XT.ec.filter(z=>z!==e)}else e.rm=a==='xrm'?1:0;drawD();return}
+ const c=CP.find(x=>x.id==t.dataset.c);
+ if(a==='cunit')c.m=c.m===3?0:3;else if(a==='cu'){c.u=UN[+t.dataset.o];c.m=0}
+ else if(a==='cmenu')c.m=c.m?0:1;else if(a==='cask')c.m=2;else if(a==='cdel')CP.splice(CP.indexOf(c),1);
+ drawD()}
+
+/* ---------- Lecture photo de l'index (OCR) ---------- */
+const OC={cid:null,step:1,pick:0};
+const dgs=v=>String(v).replace(/\s/g,' ').split('').join('').trim();
+function ocrHTML(){const c=CP.find(x=>x.id===OC.cid);if(!c)return '';
+ const idx=nf(c.prev+(c.u==='MWh'?4.4:60));const cand=[[idx,'index · '+c.u,1],['20458317','numéro de série',0],['2,5','Qn · m³/h',0],['2019','année',0]];
+ const head=`<div class="oh"><span data-a="ocrx">‹</span><b>Lecture de l’index · ${c.n}</b></div>`;
+ if(OC.step===1)return head+`<div class="vf"><div class="frame"><i>Index</i><span class="dg">${idx.replace(/\s/g,'')}</span></div></div><div class="tip">Cadrez <b>uniquement les chiffres de l’index</b>. La plaque et le numéro de série ne sont pas nécessaires.</div><div class="shut" data-a="ocrshot"><i></i></div>`;
+ const val=cand[OC.pick][0];
+ return head+`<div class="sheet"><h5>Vérification du relevé</h5><div class="crop"><span class="dg">${idx.replace(/\s/g,'')}</span></div>
+  <div style="font:600 10px var(--body);color:var(--a-soft)">Index trouvé · touchez pour corriger</div>
+  <div class="cand">${cand.map((x,i)=>`<span class="${i===OC.pick?'on':x[2]?'':'no'}" data-a="ocrpick" data-o="${i}">${x[0]}<small>${x[1]}</small></span>`).join('')}</div>
+  <div class="in" style="height:42px;font:800 15px var(--display)">${val} <span style="margin-left:6px;font:700 10.5px var(--body);color:var(--accent-d)">${c.u}</span></div>
+  <div style="font:500 10px var(--body);color:var(--a-soft);margin-top:5px">Précédent : ${nf(c.prev)} ${c.u}${OC.pick!==0?' · <b style="color:var(--warn)">ce nombre ressemble à un autre repère du compteur</b>':''}</div>
+  <div class="btns"><span data-a="ocrx">Fermer</span><span class="pri" data-a="ocrok">Appliquer à la fiche</span></div></div>`}
+function drawOCR(){const o=document.getElementById('ocr-b');if(!o)return;o.hidden=OC.cid==null;o.innerHTML=OC.cid==null?'':ocrHTML()}
+function onOcr(ev){const t=ev.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;
+ if(a==='ocrx')OC.cid=null;else if(a==='ocrshot'){OC.step=2;OC.pick=0}else if(a==='ocrpick')OC.pick=+t.dataset.o;
+ else if(a==='ocrok'){const c=CP.find(x=>x.id===OC.cid);const idx=nf(c.prev+(c.u==='MWh'?4.4:60));c.v=['','20458317','2,5','2019'][OC.pick]||idx;if(OC.pick===0)c.v=idx;OC.cid=null;drawD()}
+ drawOCR()}
+function onRelInput(ev){const l=ev.target.closest('.tlbi');if(l){const sc=l.dataset.l;if(sc[0]==='x'){const e=[...XT.ch,...XT.ec].find(z=>'x'+z.id===sc);e.n=l.value}else TL[sc]=l.value;return}const cn=ev.target.closest('.nmi');if(cn){CP.find(x=>x.id==cn.dataset.cn).n=cn.value;return}const i=ev.target.closest('.cin');if(!i)return;const c=CP.find(x=>x.id==i.dataset.c);c.v=i.value;const sb=subHTML(c);const row=i.closest('.cpt');const sub=row.querySelector('.sub');sub.innerHTML=sb.t;sub.classList.toggle('w',!!sb.w);i.classList.toggle('w',!!sb.w)}
+
+/* ---------- Écran 5 : Conformité ---------- */
+const CONF={"Local":[["Partie local",[["Situation",1],["Accessibilité",1],["Issue de secours",1]]],["Portes d'accès",[["Nb",0],["Sens d'ouverture",1],["Degré coupe-feu",1],["Barre anti panique",1],["Ferme porte",1],["Repérage chaufferie",1]]],["Ventilation",[["Ventilation basse",1],["Ventilation haute",1],["Emplacements",1],["Section",1]]],["Lutte contre l'incendie",[["Extincteurs: Nombre",1],["Extincteurs: Type",1],["Extincteurs: Signalétique",1],["Gaine pompiers: Présence",1],["Gaine pompiers: Signalétiques",1],["Gaine pompiers: Raccord ZAG & tampon",1],["Détection gaz: Présence",1],["Détection gaz: Nb cellules",1],["Détection incendie: Présence",1],["Détection incendie: Nb cellules",1],["Désenfumage: Présence",1],["Désenfumage: Nb déclencheurs",1],["Désenfumage: DM / accès",1],["Alarme sonore: Présence",1],["Alarme sonore: Nb sirènes",1],["Alarme visuelle: Présence",1],["Alarme visuelle: Nb gyrophares",1],["Degré coupe-feu des parois",1],["Bac à sable + pelle (fioul & bois)",1],["Sprinkler (bois)",1]]],["Affichages réglementaires",[["Consignes de sécurité",1],["Plan de sécurité",1],["Schéma hydraulique à jour",1]]],["Evacuations des EU du local",[["Type",1],["Etat",1],["Traitement des condensats",1],["Caillebotis",1]]],["Autres",[["Robinet de puisage: Présence",1],["Robinet de puisage: Emplacement",1],["Robinet de puisage: Clapet HA",1]]]],"Énergie":[["Coupure extérieure combustible",[["Présence à chaque accès",1],["Type (2 électrovannes minimum)",1],["Coffret",1],["Verre dormant",1],["Signalétique \"Coupure combustible extérieure\"",1]]],["Coupure extérieure électrique",[["Présence à chaque accès",1],["Coffret",1],["Verre dormant",1],["Signalétique \"Coupure électrique extérieure\"",1],["Séparation Force/Lumière/Relevage",1],["Signalétique Force/Lumière/Relevage",1]]],["Ligne alimentation gaz",[["Vanne gaz / chaudière",1],["Filtre / chaudière",1],["Pressostats / chaudière",1],["Manomètre gaz",1],["Compteur gaz (1/chaudière si Pu > 1 MW)",1]]],["Armoire électrique",[["Nb",0],["Schéma électrique",1],["Câblage",1],["Protection",1],["Espace libre suffisant (≥ 30 %)",1],["Eclairage",1],["Prise 220V protégée 30 mA",1]]],["BAES",[["Nb",0],["Présence",1],["Visible partout",1],["Signalétique",1],["Veilleuse",1]]],["Autres",[["Eclairage",1],["Chemins de câbles électriques avec liaison équipotentiel",1],["Etat du local",1],["Calorifuge",1]]]],"Chauffage":[["Disconnection et alimentation eau froide",[["Type de disconnection",1],["Compteur d'eau: Présence",1],["Compteur d'eau: Emplacement",1]]],["Traitement d'eau",[["Type de filtration",1],["Pot d'introduction",1],["Produit de traitement",1],["Bac de rétention",1]]],["Conduits de fumées",[["Nb",0],["Type",1],["Section",1],["Thermomètre",1]]],["Soupapes",[["Nb",0],["Canalisation d'évacuation",1],["Pression de tarage",1]]]],"ECS":[["Disconnection et alimentation eau froide",[["Type de disconnection",1],["Compteur d'eau: Présence",1],["Compteur d'eau: Emplacement",1]]],["Traitement",[["Type",1],["Etat",1],["Bac de rétention",1],["Niveau de produit",1],["Emplacement du point d'injection",1]]],["Autres",[["Manchettes témoin: Départ ECS",1],["Manchettes témoin: Bouclage ECS",1],["Manchettes témoin: Eau froide",1],["Trou d'homme sur ballon ECS",1],["Vanne de vidange sur ballon",1],["Carnet sanitaire",1],["Robinet de prélèvement (départ, bouclage et EF)",1],["Soupape",1]]]],"Adoucisseur":[["Réseau(x) alimenté(s)",[["Type",1],["Etat",1],["Niveau de sel",1],["Filtre / Bypass",1]]]]};
+const CTABS=Object.keys(CONF);
+let CTAB=0;const CV={com:{'Local|Partie local|Accessibilité':'Accès dégagé, badge nécessaire'},ans:{},cause:{},flt:'all',extra:null,fi:null,snap:null};
+const secIc=n=>/incendie|combustible|fumées/i.test(n)?'flame':/électrique|Armoire|BAES/i.test(n)&&/BAES/.test(n)?'bulb':/Armoire/.test(n)?'box':/électrique/i.test(n)?'bolt':/Ventilation/.test(n)?'fan':/Portes/.test(n)?'door':/Partie/.test(n)?'home':/Affichage/.test(n)?'doc':/Evacuation|Disconnection|eau/i.test(n)?'drop':/gaz/i.test(n)?'pipe':/Soupape/.test(n)?'gauge':/Traitement/.test(n)?'ph':/Réseau/.test(n)?'net':'tools';
+const CAUSES={'Ventilation basse':[['Insuffisante','Agrandir la ventilation basse à la section réglementaire','1 200 €','3 mois'],['Absente','Créer une ventilation basse','2 500 €','3 mois']],'Issue de secours':[['Absente','Créer une issue de secours (idéalement à l’opposé de la porte d’accès à la chaufferie)','6 500 €','12 mois'],['Condamnée','Rendre l’issue de secours accessible','500 €','3 mois'],['Encombrée','Rendre l’issue de secours accessible','—','1 mois']],'Extincteurs: Nombre':[['Absent','Mettre en place un extincteur','100 €','3 mois'],['Insuffisant','Mettre en place un extincteur complémentaire','100 €','3 mois']]};
+const causesOf=c=>CAUSES[c]||[['Absent','Prestation à définir (exemple)','—','3 mois'],['Dégradé','Prestation à définir (exemple)','—','3 mois']];
+const NOTE=IC(PATH.doc,'currentColor',12);const esc=t=>String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+const ak=(t,sec,cle)=>t+'|'+sec+'|'+cle;
+(function(){const a=CV.ans,c=CV.cause;const L=CONF.Local;
+ [['Partie local','Situation','S'],['Partie local','Accessibilité','S'],['Partie local','Issue de secours','N.S'],["Portes d'accès",'Sens d\'ouverture','S'],["Portes d'accès",'Degré coupe-feu','S'],['Ventilation','Ventilation basse','N.S'],['Ventilation','Ventilation haute','S']].forEach(([s_,k,v])=>a[ak('Local',s_,k)]=v);
+ c[ak('Local','Partie local','Issue de secours')]='Encombrée';c[ak('Local','Ventilation','Ventilation basse')]='Insuffisante';})();
+function splitSec(items){if(items.length<12)return [{n:null,items}];const g=[];for(const it of items){const i=it[0].indexOf(':');const n=i>0?it[0].slice(0,i).trim():'Autres points';const l=g[g.length-1];if(l&&l.n===n)l.items.push(it);else g.push({n,items:[it]})}return g.length<2?[{n:null,items}]:g}
+function stat(tab,sec,items){let f=0,ns=0,sans=0;for(const [cle,ctl] of items){if(!ctl){f++;continue}const v=CV.ans[ak(tab,sec,cle)];if(v){f++;if(v==='N.S')ns++}else sans++}return {f,ns,sans,t:items.length}}
+const btn=(cls,v,txt,i,key,on)=>`<span class="bt ${cls} ${on?'on':''}" data-a="av" data-v="${v}" data-k="${key}">${txt}</span>`;
+function rowC(tab,sec,cle,ctl,short){const key=ak(tab,sec,cle),v=CV.ans[key];const lab=short?cle.replace(/^[^:]+:\s*/,''):cle;
+ if(!ctl)return `<div class="rw"><div class="rl">${lab}</div><div class="rb"><span class="tr" style="height:30px;padding:0 10px;display:flex;align-items:center;font:800 12px var(--display)">${1}</span></div></div>`;
+ const sec2=['N.R','S.O','N.V'].includes(v)?v:null;const ex=CV.extra===key;
+ return `<div class="rw"><div class="rl ${v==='S'?'dn':''}">${lab}<span class="cmi ${CV.com[key]?'on':''}" data-a="fi" data-k="${key}" aria-label="Commentaire">${NOTE}</span>${v==='N.S'?`<br><span class="cz" data-a="fi" data-k="${key}">${CV.cause[key]||'Cause à préciser'} ${chev('M9 6l6 6-6 6')}</span>`:''}${CV.com[key]?`<div class="cm" data-a="fi" data-k="${key}"><span style="color:#D9531A;display:inline-flex">${NOTE}</span>${esc(CV.com[key])}</div>`:''}</div>
+ <div class="rb">${btn('S','S','S',0,key,v==='S')}${btn('NS','N.S','N.S',0,key,v==='N.S')}<span class="bt o2 ${sec2?'on':''}" data-a="avm" data-k="${key}">${sec2||IC(PATH.more,'#6B6B66',14).replace('fill="none"','fill="#6B6B66"')}</span></div></div>`
+ +(ex?`<div class="rx">${['N.R','S.O','N.V'].map(x=>btn('o2',x,x,0,key,v===x)).join('')}</div>`:'')}
+function convB(){const tab=CTABS[CTAB],S=CONF[tab];let tf=0,tt=0,tn=0;
+ const cards=S.map(([sec,items],si)=>{const st=stat(tab,sec,items);tf+=st.f;tt+=st.t;tn+=st.ns;
+  const vis=it=>CV.flt==='all'||!it[1]||(CV.flt==='todo'?!CV.ans[ak(tab,sec,it[0])]:CV.ans[ak(tab,sec,it[0])]==='N.S');
+  const groups=splitSec(items).map(g=>({n:g.n,items:g.items.filter(vis),all:g.items})).filter(g=>g.items.length);
+  if(CV.flt!=='all'&&!groups.length)return '';
+  const body=groups.map(g=>(g.n?`<div class="sgh"><span>${g.n}</span><small>${stat(tab,sec,g.all).f} / ${g.all.length}</small></div>`:'')+g.items.map(it=>rowC(tab,sec,it[0],it[1],!!g.n)).join('')).join('');
+  const sub=`${st.f} / ${st.t}${st.ns?` · <span style="color:#B91C1C">${st.ns} N.S</span>`:''}`;
+  const btn2=st.sans>1?`<span class="mini" data-a="alls" data-si="${si}">Tout en S</span>`:'';
+  return `<div class="card"><div class="banner" data-k="${tab}|${sec}"><div class="o">${IC(PATH[secIc(sec)],'#fff',20)}</div><div class="t"><b>${sec}</b><span class="s">${sub}</span></div>${btn2}</div>${body}</div>`}).join('');
+ const nTodo=S.reduce((n,[sec,items])=>n+items.filter(it=>it[1]&&!CV.ans[ak(tab,sec,it[0])]).length,0);
+ return `<div class="cfbar"><div class="seg">${[['todo','À faire '+nTodo],['ns','N.S '+tn],['all','Tout']].map(([k,l])=>`<span data-a="flt" data-f="${k}" class="${CV.flt===k?'on':''}">${l}</span>`).join('')}</div></div>${cards||'<div class="band" style="justify-content:center"><b>Tout est renseigné ✓</b></div>'}`}
+const avantC=()=>{const tab=CTABS[CTAB],S=CONF[tab];return S.map(([sec,items])=>{const st=stat(tab,sec,items);
+ return `<div class="sech"><b>⌄ ${sec}</b>${st.sans>1?'<span class="mini" style="background:rgba(46,157,91,.1);color:#227A4A;border:1px solid rgba(46,157,91,.35)">Tout en S ⌄</span>':''}<small class="${st.f>=st.t?'ok':''}">${st.f} / ${st.t}</small></div>`
+ +items.map(([cle,ctl])=>{if(!ctl)return `<div class="card" style="padding:10px 12px"><div class="rw" style="padding:0;border:0"><div class="rl">${cle}</div><div class="stA" style="width:110px"><b style="width:30px;height:32px">−</b><span style="height:32px;font-size:13px">1</span><b style="width:30px;height:32px">+</b></div></div></div>`;
+  const key=ak(tab,sec,cle),v=CV.ans[key];return `<div class="card" style="padding:10px 12px"><div class="rw" style="padding:0;border:0;min-height:40px"><div class="rl">${cle}</div><div class="rb">${['S','N.S'].map(x=>`<span class="bt ${x==='S'?'S':'NS'} ${v===x?'on':''}" style="height:34px;min-width:${x==='S'?40:46}px">${x}</span>`).join('')}<span class="bt o2" style="height:34px">${IC(PATH.more,'#6B6B66',14).replace('fill="none"','fill="#6B6B66"')}</span></div></div>${v==='N.S'?`<span class="cz">${CV.cause[key]||'Cause à préciser'}</span>`:''}</div>`}).join('')}).join('')};
+function ficheHTML(){const f=CV.fi;if(!f)return '';const [tab,sec,cle]=f.key.split('|');const v=CV.ans[f.key];const cs=causesOf(cle);const cur=CV.cause[f.key];const cc=cs.find(x=>x[0]===cur);
+ return `<div class="sheet"><div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:8px"><div style="flex:1;font:800 13px/1.25 var(--display)">${cle}</div><span class="more" data-a="fx">${IC('<path d="M6 6l12 12M18 6L6 18"/>','#1A1A18',14)}</span></div>
+ <div class="rb" style="margin-bottom:10px">${['S','N.S','N.R','S.O','N.V'].map(x=>`<span class="bt ${x==='S'?'S':x==='N.S'?'NS':'o2'} ${v===x?'on':''}" style="flex:1;height:34px" data-a="fav" data-v="${x}">${x}</span>`).join('')}</div>
+ ${v==='N.S'?`<div style="font:700 9.5px var(--body);color:var(--a-soft);text-transform:uppercase;letter-spacing:.06em;margin-bottom:5px">Cause</div><div class="cand" style="margin-top:0">${cs.map(x=>`<span class="${cur===x[0]?'on':''}" data-a="fc" data-c="${x[0]}">${x[0]}</span>`).join('')}<span class="no" style="background:#fff;color:var(--a-soft)">Autre</span></div>
+ ${cc?`<div class="rsv"><b>Réserve de cette visite · modifiable</b>${cc[1]}<div style="margin-top:6px;font-weight:700">Prix HT ${cc[2]} · Délai ${cc[3]}</div></div>`:''}
+ <div class="camb" style="width:auto;padding:0 12px;gap:6px;display:flex;font:700 10.5px var(--body);color:var(--accent-d)">${I.cam.replace(/#A3A39D/g,'#D9531A')} Photo de la non-conformité</div>`:''}
+ <div style="font:700 9.5px var(--body);color:var(--a-soft);text-transform:uppercase;letter-spacing:.06em;margin:10px 0 5px">Commentaire${v&&v!=='N.S'?' · facultatif':''}</div>
+ <textarea class="cta" rows="3" placeholder="${v==='N.S'?'Précision libre sur la non-conformité…':'Ajouter un commentaire, même si le contrôle est satisfaisant…'}">${esc(CV.com[f.key]||'')}</textarea>
+ <div class="btns"><span class="pri" data-a="fx">Terminé</span></div></div>`}
+function drawFi(){const o=document.getElementById('fch-b');if(!o)return;o.hidden=!CV.fi;o.innerHTML=ficheHTML()}
+function toast(msg,undo){const t=document.getElementById('toast-b');if(!t)return;t.hidden=false;t.innerHTML=`<span>${msg}</span>${undo?'<b data-a="undo">Annuler</b>':''}`;clearTimeout(toast.h);toast.h=setTimeout(()=>{t.hidden=true},6000)}
+function onC(ev){if(ev.target.closest('input'))return;const t=ev.target.closest('[data-a]');if(!t)return;const a=t.dataset.a,k=t.dataset.k;
+ if(a==='av'){const v=t.dataset.v;if(CV.ans[k]===v){delete CV.ans[k];delete CV.cause[k]}else{CV.ans[k]=v;if(v!=='N.S')delete CV.cause[k];CV.extra=null;if(v==='N.S'){CV.fi={key:k};drawFi()}}}
+ else if(a==='avm'){CV.extra=CV.extra===k?null:k}
+ else if(a==='fi'){CV.fi={key:k};drawFi();return}
+ else if(a==='flt'){CV.flt=t.dataset.f}
+ else if(a==='alls'){const tab=CTABS[CTAB],[sec,items]=CONF[tab][+t.dataset.si];const sn={};let n=0;for(const [cle,ctl] of items){const kk=ak(tab,sec,cle);if(ctl&&!CV.ans[kk]){CV.ans[kk]='S';sn[kk]=1;n++}}CV.snap=sn;UNDO=null;toast(`${n} contrôles passés en S`,1)}
+ drawD()}
+function onFch(ev){const t=ev.target.closest('[data-a]');if(!t)return;const a=t.dataset.a,k=CV.fi&&CV.fi.key;
+ if(a==='fx'){CV.fi=null}else if(a==='fav'){CV.ans[k]=t.dataset.v;if(t.dataset.v!=='N.S'){delete CV.cause[k]}}else if(a==='fc'){CV.cause[k]=t.dataset.c}
+ drawFi();drawD()}
+
+/* ---------- Écran 6 : Équipements ---------- */
+const EQT={'Chaudière':'flame','Circulateur':'pump','Échangeur':'rad',"Vase d'expansion":'tank','Ballon ECS':'drop','Compteur':'meter'};
+const EQ={flt:'a-voir',q:false,fi:null,add:false,askdel:false,seq:20,items:[
+ {id:1,t:'Chaudière',d:'Chaudière 1',m:'Viessmann',r:'Vitocrossal 300',res:'Chauffage',c:'630 kW',n:'1',etat:'Bon',conf:0,nw:0,obs:2},
+ {id:2,t:'Chaudière',d:'Chaudière 2',m:'Viessmann',r:'Vitocrossal 300',res:'Chauffage',c:'630 kW',n:'1',etat:'Bon',conf:1,nw:0,obs:2},
+ {id:3,t:'Circulateur',d:'Circulateur chauffage bât. A',m:'Grundfos',r:'Magna3 65-120',res:'Bâtiment A',c:'',n:'2',etat:'',conf:0,nw:0,obs:1},
+ {id:4,t:'Circulateur',d:'Circulateur bouclage ECS',m:'Wilo',r:'Stratos',res:'ECS',c:'',n:'1',etat:'Moyen',conf:1,nw:0,obs:0},
+ {id:5,t:'Circulateur',d:'Pompe de charge ECS',m:'',r:'',res:'ECS',c:'',n:'1',etat:'',conf:0,nw:0,obs:0},
+ {id:6,t:'Échangeur',d:'Échangeur ECS',m:'Alfa Laval',r:'M10',res:'ECS',c:'',n:'1',etat:'Bon',conf:1,nw:0,obs:1},
+ {id:7,t:"Vase d'expansion",d:'Vase chauffage 300 L',m:'Reflex',r:'N 300',res:'Chauffage',c:'300 L',n:'1',etat:'',conf:0,nw:0,obs:0},
+ {id:8,t:'Ballon ECS',d:'Ballon ECS 1500 L',m:'',r:'',res:'ECS',c:'1500 L',n:'1',etat:'',conf:0,nw:0,obs:0},
+ {id:9,t:'Compteur',d:'Compteur gaz G100',m:'Itron',r:'',res:'',c:'',n:'1',etat:'',conf:0,nw:1,obs:0}]};
+const CAT=[['Chaudière','Viessmann','Vitocrossal 300'],['Chaudière','Viessmann','Vitodens 200'],['Chaudière','De Dietrich','Evodens'],['Circulateur','Grundfos','Magna3'],['Circulateur','Wilo','Stratos'],['Échangeur','Alfa Laval','M10'],["Vase d'expansion",'Reflex','Refix'],['VMC','Aldes','InspirAIR']];
+const ESTAT=i=>i.nw?'nouveaux':i.conf?'vus':'a-voir';
+const eqIc=(t,c='#fff',z=20)=>IC(PATH[EQT[t]||'tools'],c,z);
+const EQLAB={'a-voir':'À voir',vus:'Vus',nouveaux:'Nouv.',tous:'Tous'};
+const ecnt=k=>EQ.items.filter(i=>k==='tous'||ESTAT(i)===k).length;
+const initials=m=>m?m.split(/\s+/).map(x=>x[0]).join('').slice(0,2).toUpperCase():'?';
+function eqAvant(){const its=EQ.items.filter(i=>ESTAT(i)==='a-voir');const gr=[...new Set(its.map(i=>i.t))];
+ return `<div class="card" style="padding:12px;display:flex;align-items:center;gap:10px"><div class="ring" style="--p:33%;width:46px;height:46px"><i></i><u>33%</u></div><div style="flex:1"><b style="font:700 12px var(--body)">3 sur 9 présents confirmés</b><div style="font:500 10px var(--body);color:var(--a-soft)">Touchez un équipement pour le pointer</div></div></div>
+ <div class="in ph" style="margin-bottom:10px">Rechercher un équipement déjà ajouté…</div>
+ <div style="display:flex;gap:4px;margin-bottom:8px">${['a-voir','vus','nouveaux','tous'].map(k=>`<span class="${k==='a-voir'?'addA':'bt'}" style="flex:1;margin:0;padding:10px 0;border-radius:14px;text-align:center;font:700 10.5px var(--body);${k==='a-voir'?'background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff;border-style:solid':''}">${EQLAB[k]}</span>`).join('')}</div>
+ <div style="font:500 10px var(--body);color:var(--a-soft);margin-bottom:8px">Touchez un équipement pour afficher ou masquer sa fiche complète.</div>`
+ +gr.map(g=>`<div style="display:flex;gap:8px;align-items:center;margin:12px 0 8px">${eqIc(g,'#D9531A',18)}<b style="font:700 12px var(--body);flex:1">${g} · ${its.filter(i=>i.t===g).length}</b></div>`
+ +its.filter(i=>i.t===g).map(i=>`<div class="card" style="padding:12px"><div class="rw" style="padding:0;border:0;gap:8px;align-items:center"><div style="flex:1;min-width:0"><div style="font:700 13px var(--display)">${i.d}</div><div style="font:italic 500 10px var(--body);color:var(--a-soft)">${i.res}</div><div style="font:italic 500 10px var(--body);color:var(--a-soft)">${[i.m,i.r].filter(Boolean).join(' - ')||'Marque - modèle à compléter'}</div><div style="font:500 10px var(--body);color:var(--a-faint);margin-top:4px">Repris du local · ${i.obs} observation${i.obs>1?'s':''}</div></div><span class="camb">${I.cam.replace(/#A3A39D/g,'#D9531A')}</span><span class="ck" style="width:40px;height:40px;border-radius:13px;color:#A3A39D;border-width:1.5px">${IC('<path d="M5 12l5 5 9-10"/>','currentColor',16)}</span></div></div>`).join('')).join('')+'<div style="height:60px"></div>'}
+const FABA='<div class="fabw"><div class="fab">'+IC('<path d="M12 5v14M5 12h14"/>','#fff',16)+' Ajouter un équipement</div></div>';
+function eqB(){const q=EQ.flt;const vis=i=>q==='tous'||ESTAT(i)===q;const tot=EQ.items.length,ok=EQ.items.filter(i=>i.conf).length;
+ const groups=[...new Set(EQ.items.map(i=>i.t))].map(t=>({t,all:EQ.items.filter(i=>i.t===t)})).map(g=>({...g,v:g.all.filter(vis)})).filter(g=>g.v.length);
+ const cards=groups.map(g=>{const av=g.all.filter(i=>ESTAT(i)==='a-voir').length;
+  return `<div class="card"><div class="banner" data-k="E|${g.t}"><div class="o">${eqIc(g.t)}</div><div class="t"><b>${g.t}</b><span class="s">${g.all.length} équipement${g.all.length>1?'s':''}${av?` · ${av} à voir`:' · tous vus'}</span></div>${av>1?`<span class="mini" data-a="eall" data-t="${g.t}">Tout présent</span>`:''}</div>
+  ${g.v.map(i=>`<div class="eq"><span class="ck ${i.conf||i.nw?'on':''}" data-a="pres" data-i="${i.id}" aria-label="Marquer présent">${IC('<path d="M5 12l5 5 9-10"/>','currentColor',15)}</span><div class="et" data-a="efi" data-i="${i.id}"><b>${i.d}</b><span>${[i.m,i.r].filter(Boolean).join(' ')||'Marque · modèle à compléter'}${i.res?' · '+i.res:''}</span></div>${i.nw?'<span class="ep nw">Nouveau</span>':i.etat?`<span class="ep ${i.etat.split(' ')[0]}">${i.etat}</span>`:''}${chev('M9 6l6 6-6 6')}</div>`).join('')}</div>`}).join('');
+ return `<div class="ebar"><div class="pb"><i style="width:${Math.round(100*ok/tot)}%"></i></div><small>${ok} / ${tot} présents</small><span class="glassbtn" style="width:30px;height:30px">${I.search}</span><span class="mini" data-a="eadd">+ Ajouter</span></div>
+ <div class="seg" style="margin-bottom:10px">${['a-voir','vus','nouveaux','tous'].map(k=>`<span data-a="eflt" data-f="${k}" class="${q===k?'on':''}">${EQLAB[k]} ${ecnt(k)}</span>`).join('')}</div>${cards||'<div class="band" style="justify-content:center"><b>Rien à afficher ici ✓</b></div>'}`}
+function efHTML(){
+ if(EQ.add){return `<div class="sheet"><div style="display:flex;align-items:center;margin-bottom:8px"><b style="flex:1;font:800 13px var(--display)">Ajouter un équipement</b><span class="more" data-a="eclose">${IC('<path d="M6 6l12 12M18 6L6 18"/>','#1A1A18',14)}</span></div>
+  <div class="lbl2" style="margin:0 0 5px">Le plus rapide</div>${EQ.items.slice(0,2).map(i=>`<div class="pk"><span class="co" style="background:#FCE4D3">${IC(PATH.pump,'#D9531A',14)}</span><div>Dupliquer « ${i.d} »<small>Série, année et état à vérifier</small></div></div>`).join('')}
+  <div class="pk" style="border-color:var(--accent)"><span class="co" style="background:#FCE4D3">${I.cam.replace(/#A3A39D/g,'#D9531A')}</span><div>Photographier la plaque<small>Lecture sur la tablette, hors connexion</small></div></div>
+  <div class="lbl2" style="margin:8px 0 5px">Par type</div><div class="chips">${['Chaudière','Circulateur','Échangeur',"Vase d'expansion",'VMC','Ballon ECS'].map(t=>`<span class="opt" data-a="enew" data-t="${t}">${t}</span>`).join('')}</div>
+  <div class="pk" style="margin-top:8px"><div>Autre type ou modèle du catalogue…</div></div><div class="pk"><div>Retrouvé ailleurs sur le site<small>Rattacher à ce local</small></div></div></div>`}
+ const i=EQ.items.find(x=>x.id===EQ.fi);if(!i)return '';
+ const sug=EQ.qs?CAT.filter(c=>(c[1]+' '+c[2]).toLowerCase().includes(EQ.qs.toLowerCase())).slice(0,4):[];
+ return `<div class="sheet"><div style="display:flex;gap:8px;align-items:center;margin-bottom:8px"><div class="brandm">${initials(i.m)}</div><input class="nmi" data-ef="d" value="${esc(i.d)}" style="font:800 13px var(--display)" aria-label="Désignation"><span class="more" data-a="eclose">${IC('<path d="M6 6l12 12M18 6L6 18"/>','#1A1A18',14)}</span></div>
+ <div style="display:flex;gap:6px;margin-bottom:10px"><div class="camb" style="width:58px;height:46px;background:#EFEDE6"></div><div class="camb" style="width:58px;height:46px;background:#EFEDE6"></div><div class="camb" style="flex:1;width:auto;height:46px;gap:6px;display:flex;font:700 10.5px var(--body);color:var(--accent-d)">${I.cam.replace(/#A3A39D/g,'#D9531A')} Lire la plaque</div></div>
+ <div class="rb" style="margin-bottom:10px"><span class="bt ${i.conf||i.nw?'S on':'S'}" data-a="pres" data-i="${i.id}" style="flex:1;height:34px">${i.conf||i.nw?'✓ Présent':'Marquer présent'}</span></div>
+ <div class="lbl2" style="margin:0 0 5px">État constaté</div><div class="chips" style="margin-bottom:10px">${['Neuf','Bon','Moyen','Vétuste','Hors service'].map(e=>`<span class="opt ${i.etat===e?'on':''}" data-a="eet" data-e="${e}">${e}</span>`).join('')}</div>
+ <div class="lbl2" style="margin:0 0 5px">Identification</div><div class="in" style="margin-bottom:4px"><input class="nmi esrc" placeholder="Rechercher marque ou modèle…" value="${esc(EQ.qs||'')}" style="font:500 11px var(--body)" aria-label="Catalogue"></div>
+ <div class="sg" id="sug" ${sug.length?'':'hidden'}>${sug.map((c,k)=>`<div data-a="epick" data-k="${CAT.indexOf(c)}">${c[1]} ${c[2]} <small>· ${c[0]}</small></div>`).join('')}</div>
+ <div class="pk"><span class="co" style="background:#FCE4D3">${eqIc(i.t,'#D9531A',14)}</span><div><small>Type</small>${i.t}</div><div><small>Marque</small>${i.m||'—'}</div><div><small>Modèle</small>${i.r||'—'}</div></div>
+ <div style="display:grid;grid-template-columns:70px 1fr;gap:8px"><div><div class="lbl2" style="margin:0 0 4px">Nombre</div><div class="in">${i.n}</div></div><div><div class="lbl2" style="margin:0 0 4px">Réseau desservi</div><div class="in">${i.res||'<span style="color:var(--a-faint)">Ex. Bâtiment A</span>'}</div></div></div>
+ <div style="font:600 10px var(--body);color:var(--a-soft);margin-top:8px">Historique · vu le 12/03 · état Bon ${chev('M6 9l6 6 6-6')}</div>
+ ${EQ.askdel?`<div class="conf" style="margin:10px 0 0"><em>Retirer « ${esc(i.d)} » du patrimoine de ce local ?</em><span data-a="edelno">Non</span><span class="ko" data-a="edel">Retirer</span></div>`:''}
+ <div class="btns"><span data-a="eask" style="color:#B91C1C">Retiré du site</span><span class="pri" data-a="eclose">Terminé</span></div></div>`}
+function drawEf(){const o=document.getElementById('efch-b');if(!o)return;o.hidden=!(EQ.fi||EQ.add);o.innerHTML=(EQ.fi||EQ.add)?efHTML():''}
+function onE(ev){if(ev.target.closest('input'))return;const t=ev.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;
+ if(a==='pres'){const i=EQ.items.find(x=>x.id==t.dataset.i);if(!i.nw)i.conf=i.conf?0:1}
+ else if(a==='efi'){EQ.fi=+t.dataset.i;EQ.askdel=false;EQ.qs='';drawEf();return}
+ else if(a==='eflt'){EQ.flt=t.dataset.f}
+ else if(a==='eadd'){EQ.add=true;EQ.fi=null;drawEf();return}
+ else if(a==='eall'){const ids=EQ.items.filter(i=>i.t===t.dataset.t&&ESTAT(i)==='a-voir').map(i=>i.id);ids.forEach(id=>EQ.items.find(x=>x.id===id).conf=1);UNDO=()=>ids.forEach(id=>EQ.items.find(x=>x.id===id).conf=0);toast(`${ids.length} équipements marqués présents`,1)}
+ drawD()}
+function onEf(ev){if(ev.target.closest('input'))return;const t=ev.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;const i=EQ.items.find(x=>x.id===EQ.fi);
+ if(a==='eclose'){EQ.fi=null;EQ.add=false;EQ.askdel=false;drawEf();drawD();return}
+ if(a==='enew'){const n={id:EQ.seq++,t:t.dataset.t,d:t.dataset.t,m:'',r:'',res:'',c:'',n:'1',etat:'',conf:0,nw:1,obs:0};EQ.items.push(n);EQ.add=false;EQ.fi=n.id;EQ.flt='tous';drawEf();drawD();return}
+ if(a==='pres'&&i&&!i.nw)i.conf=i.conf?0:1;
+ else if(a==='eet'&&i){i.etat=i.etat===t.dataset.e?'':t.dataset.e}
+ else if(a==='epick'&&i){const c=CAT[+t.dataset.k];i.t=c[0];i.m=c[1];i.r=c[2];if(!i.d||i.d===i.t||/^(Chaudière|Circulateur|Échangeur|VMC|Compteur)$/.test(i.d))i.d=c[0];EQ.qs=''}
+ else if(a==='eask')EQ.askdel=true;else if(a==='edelno')EQ.askdel=false;
+ else if(a==='edel'){EQ.items=EQ.items.filter(x=>x!==i);EQ.fi=null;EQ.askdel=false;drawEf();drawD();return}
+ drawEf();drawD()}
+function onEfInput(ev){const i=EQ.items.find(x=>x.id===EQ.fi);const t=ev.target;
+ if(t.matches('.esrc')){EQ.qs=t.value;const sg=document.getElementById('sug');const r=EQ.qs?CAT.filter(c=>(c[1]+' '+c[2]).toLowerCase().includes(EQ.qs.toLowerCase())).slice(0,4):[];sg.hidden=!r.length;sg.innerHTML=r.map(c=>`<div data-a="epick" data-k="${CAT.indexOf(c)}">${c[1]} ${c[2]} <small>· ${c[0]}</small></div>`).join('')}
+ else if(t.dataset.ef==='d'&&i)i.d=t.value}
+let UNDO=null;
+
+/* ---------- Écran 7 : Réserves ---------- */
+const SVL=['Information','Mineur','À programmer','Important','Prioritaire','Critique'],SVC=['#8A8A82','#5B7DA6','#B45309','#D9531A','#C23B2E','#8E1B14'];
+const ONGIC={'Conf. Local':'home','Conf. Énergie':'bolt','Conf. Chauffage':'flame','Conf. ECS':'drop','Relevés':'meter','Équipements':'tools','Manuelle':'doc'};
+const RS={flt:'actuelles',fi:null,add:false,menu:false,ask:false,askdel:false,seq:50,items:[
+ {id:1,ong:'Conf. Local',lib:'Issue de secours',pre:'Rendre l’issue de secours accessible',poste:'Entretien P2',crit:4,prix:null,del:1,lev:0,rep:0},
+ {id:2,ong:'Conf. Local',lib:'Ventilation basse',pre:'Agrandir la ventilation basse à la section réglementaire',poste:'Travaux de conformité',crit:3,prix:1200,del:3,lev:0,rep:0},
+ {id:3,ong:'Conf. Énergie',lib:'Armoire · Espace libre',pre:'Libérer l’espace dans l’armoire électrique',poste:'Entretien P2',crit:2,prix:null,del:1,lev:0,rep:0},
+ {id:4,ong:'Conf. Chauffage',lib:'Soupapes · Canalisation d’évacuation',pre:'Raccorder l’évacuation de la soupape à un point bas visible',poste:'Travaux de conformité',crit:4,prix:350,del:3,lev:0,rep:0},
+ {id:5,ong:'Conf. ECS',lib:'Carnet sanitaire',pre:'Mettre à jour le carnet sanitaire',poste:'Entretien P2',crit:2,prix:null,del:1,lev:1,rep:0},
+ {id:6,ong:'Équipements',lib:'Circulateur chauffage bât. A',pre:'Remplacer le circulateur (fuite au presse-étoupe)',poste:'Travaux d’amélioration',crit:3,prix:1850,del:6,lev:0,rep:0},
+ {id:7,ong:'Relevés',lib:'Pression réseau de chauffage',pre:'Contrôler la pression de gonflage du vase',poste:'Entretien P2',crit:2,prix:null,del:3,lev:0,rep:1,date:'12/03'},
+ {id:8,ong:'Manuelle',lib:'Fuite sur purgeur colonne 2',pre:'Remplacer le purgeur automatique de la colonne 2',poste:'Entretien P2',crit:3,prix:120,del:1,lev:0,rep:0}]};
+const POSTES=['Entretien P2','Travaux de conformité','Travaux d’amélioration'];
+const eur=n=>n==null?'—':nf(n)+' €';
+const rAct=()=>RS.items.filter(r=>!r.lev),rLev=()=>RS.items.filter(r=>r.lev);
+function rTot(){const a=RS.items;return {n:a.length,e:a.reduce((s,r)=>s+(r.prix||0),0),u:a.filter(r=>r.del>0&&r.del<=3).length}}
+function resAvant(){const t=rTot(),rep=RS.items.filter(r=>r.rep&&!r.lev).length;
+ return `<div style="display:flex;gap:6px;margin-bottom:10px">${[[t.n,'Réserves'],[Math.round(t.e)+' €','Estimatif HT'],[t.u,'≤ 3 mois']].map(x=>`<div class="card" style="flex:1;margin:0;padding:10px 4px;text-align:center"><b style="font:800 15px var(--display)">${x[0]}</b><div style="font:600 9px var(--body);color:var(--a-soft)">${x[1]}</div></div>`).join('')}</div>
+ <div class="sech"><b>Synthèse des réserves — valeurs de cette visite</b></div>
+ <div style="display:flex;gap:4px;margin-bottom:10px">${[['À traiter',rAct().length,1],['Levées',rLev().length,0],['Précédentes',0,0]].map(x=>`<span class="${x[2]?'':'bt'}" style="flex:1;padding:10px 0;border-radius:14px;text-align:center;font:700 10px var(--body);${x[2]?'background:linear-gradient(135deg,var(--accent),var(--accent-d));color:#fff':''}">${x[0]} ${x[1]}</span>`).join('')}</div>
+ <div class="bt" style="width:100%;height:40px;margin-bottom:10px;border-color:#C23B2E;color:#B91C1C">Supprimer les ${rep} réserve des visites précédentes</div>`
+ +rAct().map(r=>`<div class="card" style="padding:12px"><div style="font:500 9.5px var(--body);color:var(--a-soft)">${r.rep?'Reprise d’une visite précédente · '+r.date:r.ong}</div><div style="font:700 13px var(--display);margin:2px 0">${r.lib}</div><div style="font:500 11px/1.35 var(--body);color:var(--a-soft);margin:6px 0 8px">${r.pre}</div><div style="display:flex;gap:6px"><span class="bt" style="flex:1;height:36px">Modifier</span><span class="bt" style="flex:1;height:36px;background:rgba(46,157,91,.1);color:#227A4A;border-color:rgba(46,157,91,.3)">${IC('<path d="M5 12l5 5 9-10"/>','#227A4A',14)} Levée</span></div></div>`).join('')
+ +'<div class="addA">+ Ajouter une réserve manuelle</div>'}
+function resB(){const t=rTot(),L=RS.flt;
+ const vis=r=>L==='levees'?r.lev:L==='precedentes'?r.rep:!r.lev;
+ const ongs=[...new Set(RS.items.map(r=>r.ong))].map(o=>({o,all:RS.items.filter(r=>r.ong===o),v:RS.items.filter(r=>r.ong===o&&vis(r)).sort((a,b)=>b.crit-a.crit)})).filter(g=>g.v.length);
+ const cards=ongs.map(g=>{const e=g.v.reduce((s,r)=>s+(r.prix||0),0),mx=Math.max(...g.v.map(r=>r.crit));
+  return `<div class="card"><div class="banner" data-k="R|${g.o}"><div class="o">${IC(PATH[ONGIC[g.o]||'tools'],'#fff',20)}</div><div class="t"><b>${g.o==='Manuelle'?'Réserves manuelles':g.o}</b><span class="s">${g.v.length} réserve${g.v.length>1?'s':''}${e?' · '+eur(e)+' HT':''}</span></div><span class="sv" style="background:${SVC[mx]}">${SVL[mx]}</span></div>
+  ${g.v.map(r=>`<div class="eq"><span class="ck ${r.lev?'on':''}" data-a="rlev" data-i="${r.id}" aria-label="Marquer levée">${IC('<path d="M5 12l5 5 9-10"/>','currentColor',15)}</span><div class="et" data-a="rfi" data-i="${r.id}"><b>${r.lib}</b><span>${r.rep?'Reprise · '+r.date+' · ':''}${r.pre}</span></div><div class="rt"><span class="sv" style="background:${SVC[r.crit]}">${SVL[r.crit]}</span><small>${r.prix!=null?eur(r.prix):''}${r.prix!=null&&r.del?' · ':''}${r.del?r.del+' m':''}</small></div></div>`).join('')}</div>`}).join('');
+ const rep=RS.items.filter(r=>r.rep&&!r.lev).length;
+ return `<div class="tot"><div><b>${t.n}</b><span>Réserves</span></div><div><b>${eur(t.e)}</b><span>Estimatif HT</span></div><div><b>${t.u}</b><span>≤ 3 mois</span></div></div>
+ <div style="display:flex;gap:6px;align-items:center;margin-bottom:10px"><div class="seg" style="flex:1">${[['actuelles','À traiter',rAct().length],['levees','Levées',rLev().length],['precedentes','Précéd.',RS.items.filter(r=>r.rep).length]].map(([k,l,n])=>`<span data-a="rflt" data-f="${k}" class="${L===k?'on':''}">${l} ${n}</span>`).join('')}</div><span class="mini" data-a="radd">+ Ajouter</span><span class="more" data-a="rmenu" style="width:30px;height:30px">${IC(PATH.more,'#6B6B66',15).replace('fill="none"','fill="#6B6B66"')}</span></div>
+ ${RS.menu?`<div class="rmenu"><div data-a="rrep">${rep?`Supprimer les ${rep} réserve${rep>1?'s':''} des visites précédentes`:'Aucune réserve reprise'}</div></div>`:''}
+ ${RS.ask?`<div class="conf" style="margin:0 0 10px"><em>${rep} réserve${rep>1?'s':''} reprise${rep>1?'s':''} ne ser${rep>1?'ont':'a'} plus reprise${rep>1?'s':''} aux prochaines visites.</em><span data-a="rno">Annuler</span><span class="ko" data-a="rdel">Supprimer</span></div>`:''}
+ ${cards||'<div class="band" style="justify-content:center"><b>Aucune réserve ici ✓</b></div>'}`}
+function rfHTML(){
+ if(RS.add)return `<div class="sheet"><div style="display:flex;align-items:center;margin-bottom:8px"><b style="flex:1;font:800 13px var(--display)">Ajouter une réserve</b><span class="more" data-a="rclose">${IC('<path d="M6 6l12 12M18 6L6 18"/>','#1A1A18',14)}</span></div>
+  <div class="in" style="margin-bottom:8px;font-size:11px;color:var(--a-faint)">Rechercher dans la bibliothèque…</div>
+  ${[['Ventilation insuffisante','Agrandir la ventilation à la section réglementaire','1 200 € · 3 mois'],['Extincteur manquant','Mettre en place un extincteur','100 € · 3 mois'],['Calorifuge dégradé','Reprendre le calorifuge des canalisations','Prix libre · 3 mois']].map(x=>`<div class="pk" data-a="rnew" data-t="${x[0]}" data-p="${x[1]}" style="cursor:pointer"><div>${x[0]}<small>${x[1]} · ${x[2]}</small></div></div>`).join('')}
+  <div class="btns"><span data-a="rclose">Annuler</span><span class="pri" data-a="rnew" data-t="Nouvelle réserve" data-p="">Réserve vierge</span></div></div>`;
+ const r=RS.items.find(x=>x.id===RS.fi);if(!r)return '';
+ return `<div class="sheet"><div style="display:flex;gap:8px;align-items:flex-start;margin-bottom:6px"><div style="flex:1"><div style="font:800 13px/1.25 var(--display)">${r.lib}</div><div style="font:500 9.5px var(--body);color:var(--a-soft);margin-top:2px">${r.rep?'Reprise d’une visite précédente · '+r.date:'Origine : '+r.ong}</div></div><span class="more" data-a="rclose">${IC('<path d="M6 6l12 12M18 6L6 18"/>','#1A1A18',14)}</span></div>
+ <div class="lbl2" style="margin:8px 0 4px">Criticité · ${SVL[r.crit]}</div><div class="svs">${SVL.map((l,i)=>`<span data-a="rsv" data-v="${i}" style="${r.crit===i?`background:${SVC[i]};color:#fff`:''}">${l.replace('À programmer','À prog.')}</span>`).join('')}</div>
+ <div class="lbl2" style="margin:0 0 4px">Prestation</div><textarea class="cta" rows="3" data-rf="pre">${esc(r.pre)}</textarea>
+ <div class="lbl2" style="margin:10px 0 4px">Poste</div><div class="chips">${POSTES.map(x=>`<span class="opt ${r.poste===x?'on':''}" data-a="rpo" data-p="${x}">${x}</span>`).join('')}<span class="opt plus">Autre…</span></div>
+ <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px"><div><div class="lbl2" style="margin:0 0 4px">Prix estimatif HT</div><div class="in"><input class="nmi" data-rf="prix" value="${r.prix==null?'':r.prix}" inputmode="numeric" placeholder="€ HT" style="font:700 12px var(--body)"></div></div><div><div class="lbl2" style="margin:0 0 4px">Délai interne</div><div class="in"><input class="nmi" data-rf="del" value="${r.del||''}" inputmode="numeric" placeholder="Mois" style="font:700 12px var(--body)"></div></div></div>
+ <div style="display:flex;gap:6px;margin-top:10px"><div class="camb" style="flex:1;width:auto;gap:6px;display:flex;font:700 10.5px var(--body);color:var(--accent-d)">${I.cam.replace(/#A3A39D/g,'#D9531A')} Photo</div><div class="camb" style="flex:1.4;width:auto;font:600 10px var(--body);color:var(--a-soft)">↗ ${r.ong}</div></div>
+ <div style="font:600 10px var(--body);color:var(--a-soft);margin-top:10px">Suivi Intranet · état d’avancement ${chev('M6 9l6 6 6-6')}</div>
+ <div style="font:500 9.5px var(--body);color:var(--a-faint);margin-top:4px">Modification locale à cette visite : la bibliothèque reste inchangée.</div>
+ ${RS.askdel?`<div class="conf" style="margin:10px 0 0"><em>Supprimer cette réserve ?</em><span data-a="rdno">Non</span><span class="ko" data-a="rdelone">Supprimer</span></div>`:''}
+ <div class="btns"><span data-a="rask" style="color:#B91C1C">Supprimer</span><span class="pri" data-a="rclose">Terminé</span></div></div>`}
+function drawRf(){const o=document.getElementById('rfch-b');if(!o)return;const on=RS.fi||RS.add;o.hidden=!on;o.innerHTML=on?rfHTML():''}
+function onRes(ev){if(ev.target.closest('input'))return;const t=ev.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;
+ if(a==='rlev'){const r=RS.items.find(x=>x.id==t.dataset.i);r.lev=r.lev?0:1}
+ else if(a==='rfi'){RS.fi=+t.dataset.i;RS.askdel=false;drawRf();return}
+ else if(a==='rflt'){RS.flt=t.dataset.f}
+ else if(a==='radd'){RS.add=true;RS.fi=null;drawRf();return}
+ else if(a==='rmenu'){RS.menu=!RS.menu}
+ else if(a==='rrep'){RS.menu=false;if(RS.items.some(r=>r.rep&&!r.lev))RS.ask=true}
+ else if(a==='rno'){RS.ask=false}
+ else if(a==='rdel'){const rm=RS.items.filter(r=>r.rep&&!r.lev);RS.items=RS.items.filter(r=>!rm.includes(r));RS.ask=false;UNDO=()=>{RS.items.push(...rm)};toast(`${rm.length} réserve reprise supprimée`,1)}
+ drawD()}
+function onRf(ev){if(ev.target.closest('input,textarea'))return;const t=ev.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;const r=RS.items.find(x=>x.id===RS.fi);
+ if(a==='rclose'){RS.fi=null;RS.add=false;RS.askdel=false;drawRf();drawD();return}
+ if(a==='rnew'){const n={id:RS.seq++,ong:'Manuelle',lib:t.dataset.t,pre:t.dataset.p,poste:'Entretien P2',crit:2,prix:null,del:1,lev:0,rep:0};RS.items.push(n);RS.add=false;RS.fi=n.id;RS.flt='actuelles';drawRf();drawD();return}
+ if(a==='rsv'&&r)r.crit=+t.dataset.v;else if(a==='rpo'&&r)r.poste=t.dataset.p;else if(a==='rask')RS.askdel=true;else if(a==='rdno')RS.askdel=false;
+ else if(a==='rdelone'){RS.items=RS.items.filter(x=>x!==r);RS.fi=null;RS.askdel=false;drawRf();drawD();return}
+ drawRf();drawD()}
+function onRfInput(ev){const r=RS.items.find(x=>x.id===RS.fi);const t=ev.target;if(!r||!t.dataset.rf)return;const k=t.dataset.rf;if(k==='pre')r.pre=t.value;else if(k==='prix')r.prix=t.value.trim()===''?null:(parseFloat(t.value.replace(',','.'))||null);else if(k==='del')r.del=parseInt(t.value)||0}
+
+/* ---------- Écran 8 : Photos ---------- */
+const POG={'Générales':'img','Équipements':'tools','Compteurs':'meter','Réserves':'warn','Conformité':'check'};
+const PH={flt:'all',vi:null,ask:false,seq:30,items:[
+ {id:1,lab:'Vue d’ensemble chaufferie',og:'Générales',t:'09:05',h:28},{id:2,lab:'Accès au local',og:'Générales',t:'09:02',h:200},
+ {id:3,lab:'Chaudière 1 · plaque',og:'Équipements',t:'09:14',h:18},{id:4,lab:'Circulateur chauffage bât. A',og:'Équipements',t:'09:20',h:210},{id:5,lab:'Échangeur ECS',og:'Équipements',t:'09:26',h:160},{id:6,lab:'Ballon ECS 1500 L',og:'Équipements',t:'09:31',h:340},
+ {id:7,lab:'Compteur gaz',og:'Compteurs',t:'09:38',h:45},{id:8,lab:'Compteur énergie chauffage',og:'Compteurs',t:'09:40',h:285},
+ {id:9,lab:'Issue de secours',og:'Réserves',t:'09:47',h:355},{id:10,lab:'Ventilation basse',og:'Réserves',t:'09:51',h:300},
+ {id:11,lab:'Soupapes',og:'Conformité',t:'09:58',h:120},{id:12,lab:'Armoire électrique',og:'Conformité',t:'10:03',h:250}]};
+const phBg=h=>`linear-gradient(135deg,hsl(${h},32%,42%),hsl(${h},36%,24%))`;
+const phTile=(p,cap=true)=>`<div class="pht" style="background:${phBg(p.h)}" data-a="pview" data-i="${p.id}">${IC(PATH[POG[p.og]],'#fff',26)}${cap?`<div class="cp">${esc(p.lab)}</div>`:''}</div>`;
+function phAvant(){return `<div class="sech"><b>Toutes les photos de la visite · ${PH.items.length}</b></div>
+ <div style="font:500 10px/1.4 var(--body);color:var(--a-soft);margin-bottom:10px">Galerie virtualisée : seules les images proches de l’écran restent montées pour préserver la mémoire de la tablette.</div>
+ <div class="pa2">${PH.items.map(p=>phTile(p,false)).join('')}</div><div class="addA" style="margin-top:12px">+ Ajouter une photo générale</div>`}
+function phB(){const L=PH.flt,ogs=Object.keys(POG);
+ const cnt=o=>PH.items.filter(p=>o==='all'||p.og===o).length;
+ const cards=ogs.map(o=>({o,v:PH.items.filter(p=>p.og===o)})).filter(g=>g.v.length&&(L==='all'||L===g.o)).map(g=>{
+  const th=`<span class="mth">${g.v.slice(0,3).map(p=>`<i style="background:${phBg(p.h)}"></i>`).join('')}</span>`;
+  return `<div class="card"><div class="banner" data-k="P|${g.o}"><div class="o">${IC(PATH[POG[g.o]],'#fff',20)}</div><div class="t"><b>${g.o}</b><span class="s">${g.v.length} photo${g.v.length>1?'s':''}</span></div>${th}</div><div class="pgrid">${g.v.map(p=>phTile(p)).join('')}</div></div>`}).join('');
+ return `<div style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><b style="flex:1;font:800 13px var(--display)">${PH.items.length} photos</b><span class="mini" data-a="padd">${I.cam.replace(/#A3A39D/g,'#D9531A')} Photo générale</span></div>
+ <div class="rail" style="padding-bottom:10px;overflow-x:auto;scrollbar-width:none">${[['all','Toutes']].concat(ogs.map(o=>[o,o])).map(([k,l])=>`<span class="chip ${L===k?'on':''}" data-a="pflt" data-f="${k}" style="cursor:pointer">${l} ${cnt(k)}</span>`).join('')}</div>${cards}`}
+function pvHTML(){const p=PH.items.find(x=>x.id===PH.vi);if(!p)return '';const list=PH.items;const i=list.indexOf(p);
+ return `<div class="pvh"><span class="x" data-a="pclose">${IC('<path d="M6 6l12 12M18 6L6 18"/>','#fff',14)}</span><div style="flex:1;min-width:0"><input data-pl="1" value="${esc(p.lab)}" aria-label="Légende de la photo"><div style="font:500 9.5px var(--body);color:#B9B5A9;margin-top:3px">${p.og} · ${p.t}</div></div><span class="mini" style="background:rgba(255,255,255,.14);color:#fff">HD</span></div>
+ <div class="pvi" style="background:${phBg(p.h)}">${IC(PATH[POG[p.og]],'#fff',64)}<span class="pvn">${i+1} / ${list.length}</span></div>
+ ${PH.ask?`<div class="pvc"><em>Supprimer cette photo ? Elle sera retirée de la tablette.</em><span data-a="pno">Non</span><span class="ko" data-a="pdel">Supprimer</span></div>`:''}
+ <div class="pvb"><span class="ar" data-a="pprev">‹</span><span data-a="pgo">Aller à l’élément</span><span class="ko" data-a="pask">Supprimer</span><span class="ar" data-a="pnext">›</span></div>`}
+function drawPv(){const o=document.getElementById('pfch-b');if(!o)return;o.hidden=PH.vi==null;o.innerHTML=PH.vi==null?'':pvHTML()}
+function onP(ev){if(ev.target.closest('input'))return;const t=ev.target.closest('[data-a]');if(!t)return;const a=t.dataset.a;
+ if(a==='pview'){PH.vi=+t.dataset.i;PH.ask=false;drawPv();return}
+ else if(a==='pflt'){PH.flt=t.dataset.f}
+ else if(a==='padd'){const n={id:PH.seq++,lab:'Photo générale '+(PH.items.filter(x=>x.og==='Générales').length+1),og:'Générales',t:'10:12',h:Math.floor(Math.random()*360)};PH.items.push(n);COL['P|Générales']=false}
+ drawD()}
+function onPv(ev){if(ev.target.closest('input'))return;const t=ev.target.closest('[data-a]');if(!t)return;const a=t.dataset.a,l=PH.items,i=l.findIndex(x=>x.id===PH.vi);
+ if(a==='pclose'){PH.vi=null;PH.ask=false;drawPv();drawD();return}
+ if(a==='pprev'||a==='pnext'){PH.vi=l[(i+(a==='pnext'?1:-1)+l.length)%l.length].id;PH.ask=false}
+ else if(a==='pask')PH.ask=true;else if(a==='pno')PH.ask=false;
+ else if(a==='pdel'){const p=l[i];PH.items=l.filter(x=>x!==p);PH.vi=PH.items.length?PH.items[Math.min(i,PH.items.length-1)].id:null;PH.ask=false;UNDO=()=>{PH.items.splice(i,0,p)};toast('Photo supprimée',1)}
+ drawPv();drawD()}
+function onPvInput(ev){const t=ev.target;if(t.dataset.pl){const p=PH.items.find(x=>x.id===PH.vi);if(p)p.lab=t.value}}
+let CUR='coque';
+const DEF={coque:{a:INFOS_A,b:INFOS_B,act:0,pop:true},infos:{a:INFOS_A,b:INFOS_B,act:0,pop:true},d:{a:DIST_A,b:()=>distB(),act:1,pop:false,full:true},r:{a:REG_A,b:()=>regB(),act:2,pop:false,full:true},rel:{a:REL_A,b:()=>relB(),act:3,pop:false,full:true},p:{get a(){return phAvant()},b:()=>phB(),act:11,pop:false,full:true},res:{get a(){return resAvant()},b:()=>resB(),act:10,pop:false,full:true},e:{get a(){return eqAvant()},b:()=>eqB(),act:9,pop:false,full:true,fab:FABA},c:{get a(){return avantC()},b:()=>convB(),get act(){return 4+CTAB},pop:false,full:true}};
+const NOTES={
+ coque:[
+  ['Une seule ligne d’en-tête, uniquement des pictogrammes.','Retour, titre, jauge, photos de référence, télécharger, terminer. La recherche passe au début du rail d’onglets.'],
+  ['Touchez la jauge : une fenêtre donne l’état de la visite.','Pourcentage, éléments renseignés, nombre de S, N.S, N.R, S.O, N.V, reste à renseigner, état de sauvegarde et d’envoi Intranet, avec un raccourci vers les N.S.'],
+  ['Photos de référence : un pictogramme avec pastille de comptage.','Il remplace le bandeau. La pastille indique combien de photos existent, donc on sait d’un coup d’œil s’il y en a à consulter.'],
+  ['Deux pictogrammes d’action : télécharger (export) et terminer (drapeau).','Télécharger exporte directement. Le drapeau ouvre l’aperçu et la signature. Sans libellé, la distinction repose sur les pictogrammes : à valider à l’usage.'],
+  ['Pastilles d’état plus grosses, rail inchangé dans son ordre.','Le point d’état passe de 7 à 9 px. Rien n’est retiré des onglets.'],
+  ['Barre du bas plus fine.','Icône et libellé sur la même ligne : Note, Photos, Anomalie gardent leur place sous le pouce.']
+ ],
+
+ p:[
+  ['Le texte technique disparaît.','« Galerie virtualisée : seules les images proches de l’écran restent montées… » s’affiche aujourd’hui à l’utilisateur. Il est remplacé par le nombre de photos et des filtres.'],
+  ['Chaque photo porte sa légende.','Aujourd’hui la grille ne montre aucun nom : toutes les photos (équipements, compteurs, réserves, contrôles) sont mélangées sans repère. La légende est déjà enregistrée ; je l’affiche en bas de la vignette.'],
+  ['Photos regroupées par origine, fermées au départ.','Générales, Équipements, Compteurs, Réserves, Conformité, chacune avec ses trois dernières vignettes dans la bannière. Les filtres du haut ouvrent directement un groupe.'],
+  ['Trois colonnes au lieu de deux sur téléphone.','Les vignettes sont plus petites, mais on voit environ 50 % de photos en plus par écran, avec leur légende.'],
+  ['Visionneuse : légende modifiable, photo suivante / précédente, « Aller à l’élément ».','On corrige la légende sur place, on passe d’une photo à l’autre avec les flèches, et « Aller à l’élément » ouvre l’équipement, le compteur ou la réserve concerné. La suppression garde sa confirmation et gagne un « Annuler ».'],
+  ['« Photo générale » reste accessible en tête d’onglet.','La caméra du bas (Mode Photo) est inchangée. Essayez d’ajouter une photo générale dans la maquette.']
+ ],
+ res:[
+  ['Les réserves sont regroupées par onglet d’origine, fermées au départ.','« Conf. Local · 2 réserves · 1 200 € HT », avec la criticité la plus haute. Les réserves manuelles ont leur groupe. À l’intérieur, tri par criticité décroissante.'],
+  ['Une ligne par réserve (environ 54 px) au lieu d’une carte avec le texte entier.','Rond de levée à gauche, titre, début de la prestation, pastille de criticité colorée, prix et délai. Aujourd’hui la prestation est affichée en entier et deux boutons occupent une ligne.'],
+  ['Le formulaire de modification s’ouvre dans une fenêtre, pas dans la liste.','Criticité en 6 pastilles colorées (à la place du curseur de 64 px), prestation, poste en choix (avec « Autre… »), prix et délai, photo, rattachement. Le suivi Intranet reste replié.'],
+  ['Les trois totaux tiennent sur une ligne.','Réserves, estimatif HT et « ≤ 3 mois » se recalculent en direct, par exemple quand vous levez une réserve.'],
+  ['« Supprimer les réserves des visites précédentes » passe dans le menu « ⋯ ».','Action rare et destructrice : elle garde sa confirmation et gagne un « Annuler ». Les réserves reprises sont repérées dans leur ligne (« Reprise · 12/03 »).'],
+  ['« + Ajouter » dans l’en-tête, comme pour les équipements.','Bibliothèque en recherche, ou « Réserve vierge ». La réserve créée s’ouvre aussitôt pour la compléter et la rattacher.']
+ ],
+ e:[
+  ['Une ligne par équipement (environ 54 px) au lieu d’une carte (environ 130 px).','Nom, marque et modèle, réseau, pastille d’état (Bon, Moyen…) ou « Nouveau ». Toucher la ligne ouvre la fiche.'],
+  ['Présence confirmée en un geste.','Le rond à gauche remplace le bouton de 48 px : un toucher marque présent, un second annule. « Tout présent » dans la bannière d’un type confirme tout le groupe, avec « Annuler ».'],
+  ['Groupes par type fermés au départ, avec ce qui reste à voir.','« Chaudière · 2 équipements · 1 à voir ». Un pictogramme par type (flamme, pompe, échangeur, réservoir, goutte, compteur).'],
+  ['En-tête condensé, sans gros bouton flottant.','Progression, filtre À voir / Vus / Nouv. / Tous, recherche en icône et « + Ajouter » tiennent en deux lignes. Aujourd’hui le bouton « Ajouter un équipement » s’empile avec la barre Note / Photos / Anomalie.'],
+  ['Fiche : un seul « état constaté ».','Il apparaît deux fois aujourd’hui, en haut puis en « 5. État constaté », avec des listes différentes. Je garde une seule ligne avec les valeurs acceptées par l’Intranet.'],
+  ['Fiche : « Lire la plaque » en premier et une recherche unique marque + modèle.','Elle remplace les trois sélecteurs en cascade Type → Marque → Modèle. Tapez « Viessmann » : le type, la marque et le modèle se remplissent depuis le catalogue. Essayez-le.']
+ ],
+ c:[
+  ['Toutes les sections sont fermées au départ.','Chaque bannière indique son avancement (« 3 / 3 · 1 N.S »), on ouvre celles qu’on veut. Sur Conformité, le filtre « À faire » ou « N.S » ouvre ce qu’il faut afficher.'],
+  ['Un commentaire est possible sur tous les avis : S, N.S, N.R, S.O, N.V.','Une petite icône de note suit chaque libellé ; elle s’orange quand un commentaire existe, et le texte s’affiche sous la ligne. La fiche contient un champ « Commentaire facultatif », y compris pour S. Essayez : touchez l’icône de « Situation ».'],
+  ['Chaque section devient une carte avec pictogramme, avancement et « Tout en S ».','Le compteur s’affiche dans la bannière : « 12 / 20 · 1 N.S ». « Tout en S » reste disponible, avec le message « Annuler » qui existe déjà. Toucher le nom replie la section.'],
+  ['Les contrôles deviennent des lignes au lieu d’une carte chacun.','Aujourd’hui chaque contrôle est une carte séparée (environ 86 px avec ses marges). En ligne, 42 px : l’onglet Conf. Local passe d’environ 11 écrans à 6 (mesuré sur la maquette). Aucun contrôle, avis ni réserve n’est retiré.'],
+  ['Un filtre « À faire / N.S / Tout » en haut.','« À faire » n’affiche que les contrôles sans avis : on avance sans relire ce qui est fait. « N.S » regroupe les non-conformités à préciser.'],
+  ['Sous-groupes plus lisibles.','Pour « Lutte contre l’incendie » (20 contrôles), le titre du groupe porte le préfixe (Extincteurs…) et les lignes ne gardent que « Nombre », « Type »…'],
+  ['La fiche N.S reste une fenêtre, mise en page plus compacte.','Avis, cause (chacune crée la réserve avec sa prestation, son prix et son délai, modifiables), photo. C’est le comportement actuel ; je ne touche pas aux prescriptions.'],
+  ['Les cinq onglets de conformité suivent la même structure.','Choisissez Local, Énergie, Chauffage, ECS ou Adoucisseur au-dessus des téléphones : les 104 contrôles réels de la trame sont chargés.']
+ ],
+ rel:[
+  ['Toutes les sections sont fermées au départ.','Chaque bannière indique son avancement (« 3 / 3 · 1 N.S »), on ouvre celles qu’on veut. Sur Conformité, le filtre « À faire » ou « N.S » ouvre ce qu’il faut afficher.'],
+  ['Toucher le nom d’une section la replie ou la déplie, sur tous les onglets.','Chauffage, ECS, Cascade, Réseaux, Compteurs, Températures, Informations générales… La flèche à droite indique l’état. La position de défilement est conservée.'],
+  ['Unités et noms modifiables partout.','Toucher l’unité d’un compteur (m³) ouvre la liste (m³, L, MWh, kWh, bar, %). Les noms de compteurs, de mesures, de groupes (Primaire, Chauffage, ECS…) et de réseaux (crayon) se modifient d’un toucher.'],
+  ['Lecture photo de l’index : on cadre uniquement les chiffres.','Le cadre guide la prise de vue et l’appli ne lit que cette zone, pas la plaque. Les autres nombres (numéro de série, Qn, année) sont proposés grisés, jamais appliqués d’office. Essayez : touchez la caméra d’un compteur.'],
+  ['Tous les noms se renomment d’un toucher.','Nom d’un compteur, d’une température, d’une pression ou du pH : on touche le nom, un petit crayon l’indique, on tape. Essayez-le dans la maquette.'],
+  ['On peut ajouter des températures au chauffage et à l’ECS.','Un bouton « + Ajouter une température » à la fin de chaque groupe crée une tuile nommée (Départ 2, Retour 2, Mélange en chauffage ; Ballon bas, Ballon haut, Bouclage en ECS), à renommer. Retirer demande « Retirer ? Oui / Non ».'],
+  ['Compteur sur deux lignes, au lieu d’une carte entière.','Nom et résumé en haut, index en gros dessous. L’unité devient une seule pastille, déduite du type de compteur (m³, MWh…), modifiable. Environ 90 px au lieu de 230 px par compteur.'],
+  ['« Ligne du rapport » et « Compteur permanent » passent dans le menu « ⋯ ».','Ils ne changent pas. Seule l’alerte reste visible : si deux compteurs occupent la même ligne, un bandeau l’indique, car l’envoi Intranet serait bloqué.'],
+  ['La consommation depuis le relevé précédent s’affiche en direct.','Tapez un index : « +60 m³ » apparaît. Si l’index est inférieur au précédent, le champ passe en ambre. Le contrôle existe déjà ; je le rends plus visible.'],
+  ['Températures par circuit, départ et retour côte à côte, avec ΔT calculé.','Primaire, chauffage, ECS, eau (pH). L’écart départ − retour est un nouveau repère. Le premier « + » part d’une valeur utile au lieu de 0.']
+ ],
+ r:[
+  ['Toutes les sections sont fermées au départ.','Chaque bannière indique son avancement (« 3 / 3 · 1 N.S »), on ouvre celles qu’on veut. Sur Conformité, le filtre « À faire » ou « N.S » ouvre ce qu’il faut afficher.'],
+  ['Toucher le nom d’une section la replie ou la déplie, sur tous les onglets.','Chauffage, ECS, Cascade, Réseaux, Compteurs, Températures, Informations générales… La flèche à droite indique l’état. La position de défilement est conservée.'],
+  ['Unités et noms modifiables partout.','Toucher l’unité d’un compteur (m³) ouvre la liste (m³, L, MWh, kWh, bar, %). Les noms de compteurs, de mesures, de groupes (Primaire, Chauffage, ECS…) et de réseaux (crayon) se modifient d’un toucher.'],
+  ['Température extérieure et température de départ côte à côte.','Ce sont les deux points d’un même relevé. Chaque valeur tient dans une tuile avec − et + de chaque côté, et reste un chiffre bien lisible. Un toucher sur le chiffre garde la saisie au clavier.'],
+  ['Le premier toucher sur « + » part d’une valeur utile.','Aujourd’hui un champ vide démarre à 0 : pour 62 °C, il faut taper 62 fois ou passer par le clavier. Je propose la dernière valeur connue, sinon une valeur courante (7 °C, 60 °C, courbe 1,0).'],
+  ['Chaque réseau devient une ligne repliable avec son résumé.','Nom, « 7 °C → 62 °C · courbe 1,4 » et une flèche. Avec 3 à 6 réseaux, l’onglet reste lisible ; on ouvre celui qu’on renseigne.'],
+  ['Photo, dupliquer et retirer passent dans un menu « ⋯ ».','Dupliquer est nouveau : les réseaux se ressemblent, on copie puis on ajuste.'],
+  ['Retirer demande une confirmation.','Dans le build 661, « Retirer » supprime le réseau et ses valeurs immédiatement, sans confirmation. C’est un risque de perte de données sur le terrain.'],
+  ['Bannières avec pictogramme, comme Distribution.','Flamme pour la cascade, réseau pour les circuits, goutte bleu-vert pour l’ECS. Le cycle anti-légionellose se replie sur sa valeur une fois choisi.']
+ ],
+ d:[
+  ['Toutes les sections sont fermées au départ.','Chaque bannière indique son avancement (« 3 / 3 · 1 N.S »), on ouvre celles qu’on veut. Sur Conformité, le filtre « À faire » ou « N.S » ouvre ce qu’il faut afficher.'],
+  ['Toucher le nom d’une section la replie ou la déplie, sur tous les onglets.','Chauffage, ECS, Cascade, Réseaux, Compteurs, Températures, Informations générales… La flèche à droite indique l’état. La position de défilement est conservée.'],
+  ['Unités et noms modifiables partout.','Toucher l’unité d’un compteur (m³) ouvre la liste (m³, L, MWh, kWh, bar, %). Les noms de compteurs, de mesures, de groupes (Primaire, Chauffage, ECS…) et de réseaux (crayon) se modifient d’un toucher.'],
+  ['Un paramètre choisi se referme sur sa valeur.','Elle s’affiche dans une pastille orange (bleu-vert en ECS). Un toucher rouvre le paramètre : on retouche la valeur cochée pour la retirer, ou on en choisit une autre. À tester sur la maquette de droite.'],
+  ['Plusieurs choix : le paramètre reste ouvert jusqu’à « OK ».','Pour Matériaux, Aller et Retour, chaque toucher coche ou décoche une puce. « OK » referme et affiche les valeurs sélectionnées.'],
+  ['Chaque section a sa bannière avec un pictogramme.','Flamme orange pour le chauffage, goutte bleu-vert pour l’ECS. Le pictogramme, l’avancement (« 3 sur 8 ») et l’accès photo sont réunis en tête de section. Le compteur se met à jour à chaque choix.'],
+  ['Les champs sont rangés en sous-groupes avec leur pictogramme.','Réseau, Organes, Émission, Isolation, Pompe. Le regroupement est seulement visuel : les champs et leurs clés ne changent pas, donc ni la base ni l’export.'],
+  ['Trois présentations selon le champ, pour casser la monotonie.','Ligne compacte pour une valeur reprise ; interrupteur segmenté pour 2 à 3 choix (distribution, variation de vitesse, mitigeur) ; puces cochables quand plusieurs réponses sont possibles (matériaux, aller, retour).'],
+  ['Calorifuge en deux temps : type, puis état.','Aujourd’hui un seul choix mélange les deux. Les états Bon, Dégradé, Manquant sont ma proposition, à ajuster.'],
+  ['« Idem chauffage » dans la bannière ECS.','Un geste copie matériaux, distribution, aller, retour et calorifuge, modifiables ensuite.'],
+  ['Un pictogramme photo par section et libellés raccourcis.','Il remplace les 14 boutons caméra. « Equipement sur aller » devient « Aller » sous le groupe Organes. Les clés internes restent identiques.']
+ ],
+ infos:[
+  ['Toutes les sections sont fermées au départ.','Chaque bannière indique son avancement (« 3 / 3 · 1 N.S »), on ouvre celles qu’on veut. Sur Conformité, le filtre « À faire » ou « N.S » ouvre ce qu’il faut afficher.'],
+  ['Toucher le nom d’une section la replie ou la déplie, sur tous les onglets.','Chauffage, ECS, Cascade, Réseaux, Compteurs, Températures, Informations générales… La flèche à droite indique l’état. La position de défilement est conservée.'],
+  ['Unités et noms modifiables partout.','Toucher l’unité d’un compteur (m³) ouvre la liste (m³, L, MWh, kWh, bar, %). Les noms de compteurs, de mesures, de groupes (Primaire, Chauffage, ECS…) et de réseaux (crayon) se modifient d’un toucher.'],
+  ['Un bandeau « Visite » en lecture seule remplace tout le bloc « Général ».','Client, site, local, trame et date existent déjà à la création. Ils s’affichent sur une ligne et se modifient depuis la fiche visite, pas à chaque saisie.'],
+  ['Les doublons disparaissent.','« Nom du site » et la date n’apparaissent plus qu’une fois. À confirmer sur votre APK : je les déduis des données de la trame.'],
+  ['Champs courts côte à côte.','Heure, bâtiments, logements, énergie et pression tiennent sur deux colonnes. « Nbr de bât / lgt » devient deux champs numériques.'],
+  ['Choix rapides, avec « + Autre » conservé.','Les listes de choix existent déjà dans l’appli (« + Autre » ouvre la saisie libre). Je les garde, donc rien n’est perdu.'],
+  ['Puissance en saisie directe, pas en stepper.','Un clavier numérique avec l’unité en suffixe est plus rapide que − / + pour des valeurs comme 1 200 kW.'],
+  ['Boutons photo retirés des champs administratifs.','Ils restent sur les contrôles et les mesures, où ils servent.']
+ ]
+};
+const QS={
+ p:['Le regroupement par origine vous convient-il, ou préférez-vous une galerie unique triée par heure ?','Faut-il pouvoir sélectionner plusieurs photos pour les supprimer ou les rattacher ensemble ?','« Aller à l’élément » vous est-il utile depuis la visionneuse ?','La légende d’une photo doit-elle apparaître dans les exports et le rapport ?'],
+ res:['Le regroupement par onglet d’origine vous convient-il, ou préférez-vous un tri par criticité ou par poste (Entretien P2, Travaux…) ?','Le rond de levée doit-il demander une confirmation, ou le toucher suffit-il (annulable) ?','Utilisez-vous le suivi Intranet (date, échéance, état d’avancement) sur le terrain, ou seulement au bureau ?','Sur la trame Réseau de chaleur, le périmètre Primaire / Secondaire reste obligatoire : voulez-vous en faire un second regroupement ?'],
+ e:['La photo par équipement doit-elle rester sur la ligne ou passer dans la fiche ?','« Tout présent » par type vous paraît-il sûr, ou seulement le pointage un par un ?','Le classement par type convient-il, ou préférez-vous par réseau (Chauffage, ECS) ?','Sur la trame Réseau de chaleur, le choix Primaire / Secondaire doit rester obligatoire dans la fiche : voulez-vous aussi le voir sur la ligne ?'],
+ c:['Les sous-groupes (Extincteurs, Gaine pompiers…) doivent-ils eux aussi être fermés quand on ouvre une section ?','Au démarrage, préférez-vous voir « Tout » ou « À faire » ?','« Tout en S » doit-il demander une confirmation, ou le message « Annuler » suffit-il ?','Un contrôle satisfaisant (S) doit proposer un commentaire positif (règle du projet) : voulez-vous un commentaire suggéré en un geste ?','Les champs « Nb » (nombre de portes, de BAES…) vous conviennent-ils en ligne avec − et + ?'],
+ rel:['Pouvez-vous m’envoyer 5 à 10 photos de compteurs (gaz, eau, énergie) avec le « texte brut lu » affiché par l’appli ? Elles serviront à régler et tester la lecture.','Renommer une mesure existante ne change que son nom à l’écran, pas sa ligne dans le rapport Excel (comme pour les compteurs). Cela vous convient-il ?','Les températures ajoutées vont dans l’annexe « mesures complémentaires » de l’Excel, pas dans les lignes fixes. Est-ce suffisant, ou faut-il les rattacher à une ligne du rapport ?','Quelles températures complémentaires proposer d’emblée en chauffage et en ECS ?','L’écart ΔT départ − retour vous est-il utile à l’écran ?','L’unité par défaut déduite du type de compteur vous convient-elle (changement possible via la pastille) ?','Voulez-vous une valeur de départ pour les températures (60 °C) ou la dernière valeur connue uniquement ?'],
+ coque:['Fenêtre d’avancement : manque-t-il une information (par onglet, par catégorie) ?','Où voulez-vous les onglets : en haut (comme ici) ou en bas, à portée de pouce ?','Le drapeau pour « Terminer » vous parle-t-il, ou préférez-vous une coche ?'],
+ r:['Quelles valeurs de départ proposer pour T°ext, T°dép, courbe et consigne ECS (dernière visite, sinon valeur courante) ?','Les réseaux d’un même site sont-ils souvent presque identiques (donc « Dupliquer » utile) ?','Le programme horaire est-il toujours du texte libre, ou existe-t-il des cas types (réduit nuit, week-end) à proposer en choix ?'],
+ d:['Le « OK » des choix multiples vous convient-il, ou préférez-vous qu’ils se referment tout seuls après un délai ?','Les photos par champ de Distribution servent-elles, ou une photo par section suffit-elle ?','Les valeurs reprises de la visite précédente doivent-elles se distinguer (point orange) ou rester neutres ?','D’autres choix manquent-ils dans les listes (matériaux, équipements, émetteurs) ?'],
+ infos:['Quels champs d’Informations voulez-vous en choix rapides (type de LT, production, ECS) plutôt qu’en saisie libre ?','Y a-t-il des champs d’Informations que vous ne remplissez jamais sur le terrain ?']
+};
+
+function popClick(e){const p=document.getElementById('pop-b');if(!p)return;if(e.target.closest('#ring-b'))p.hidden=!p.hidden;else if(!e.target.closest('.pop'))p.hidden=true}
+function tog(){const p=document.getElementById('pop-b');if(p)p.hidden=!p.hidden}
+function mesure(){document.querySelectorAll('.mq').forEach(m=>{const t=m.firstElementChild,d=m.clientWidth-t.scrollWidth;if(d<0){m.style.setProperty('--d',d+'px');m.classList.add('run')}});
+ for(const k of ['a','b']){
+  const ph=document.getElementById('ph-'+k); if(!ph) continue;
+  const top=document.getElementById('ch-'+k).getBoundingClientRect().bottom-ph.getBoundingClientRect().top;
+  const bot=ph.querySelector('.bar').getBoundingClientRect().height;
+  const H=ph.clientHeight, utile=Math.round((H-top-bot)/H*100);
+  document.getElementById('g-'+k).textContent=utile;const le=document.getElementById('l-'+k);if(le){const b=ph.querySelector('.body');const hid=[...b.querySelectorAll('.card.closed')].flatMap(c=>[...c.children].slice(1));hid.forEach(x=>x.style.display='');const sh=b.scrollHeight;hid.forEach(x=>x.style.display='none');le.textContent=(sh/b.clientHeight).toFixed(1).replace('.',',')}
+ }
+}
+function render(id){
+ const v=document.getElementById('view');const D=DEF[id];CUR=id;
+ const notes=NOTES[id].map((n,i)=>`<li><span class="n">${i+1}</span><div><b>${n[0]}</b><br><span style="color:var(--soft)">${n[1]}</span></div></li>`).join('');
+ v.innerHTML=(id==='c'?`<div class="tabs" id="ctabs" style="justify-content:center">${CTABS.map((n,i)=>`<button role="tab" aria-selected="${i===CTAB}" data-ct="${i}">Conf. ${n}</button>`).join('')}</div>`:'')+`<div class="row">
+  <div class="col"><div class="cap">Avant · <b>build 661</b></div>${avant(D.a,D.act,D.fab||'')}<div class="gain">Zone de saisie : <strong id="g-a"></strong> % de l’écran${D.full?`<br>Onglet complet : <strong id="l-a"></strong> écrans`:''}</div></div>
+  <div class="col"><div class="cap">Après · <b>proposition</b></div>${apres(typeof D.b==='function'?D.b():D.b,D.act,D.pop)}<div class="gain">Zone de saisie : <strong id="g-b"></strong> % de l’écran${D.full?`<br>Onglet complet : <strong id="l-b"></strong> écrans`:''}</div></div>
+ </div>
+ <ol class="notes" style="padding:0">${notes}</ol>
+ <div class="q"><h2>À trancher ensemble</h2><ol>${QS[id].map(q=>`<li>${q}</li>`).join('')}</ol></div>`;
+ requestAnimationFrame(()=>{mesure();bindD()});if(id==='c')document.querySelectorAll('#ctabs button').forEach(b=>b.onclick=()=>{CTAB=+b.dataset.ct;CV.flt='all';CV.extra=null;CV.fi=null;render('c')});
+ try{history.replaceState(null,'','#'+id)}catch(e){}
+}
+const SCREENS=[['coque','0 · Coque commune'],['infos','1 · Informations'],['d','2 · Distribution'],['r','3 · Régulation'],['rel','4 · Relevés'],['c','5 · Conformité'],['e','6 · Équipements'],['res','7 · Réserves'],['p','8 · Photos']];
+const T=document.getElementById('tabs');
+SCREENS.forEach(([id,l],i)=>{
+ const b=document.createElement('button'); b.textContent=l; b.setAttribute('role','tab');
+ if(!NOTES[id]) b.disabled=true;
+ b.onclick=()=>{[...T.children].forEach(x=>x.setAttribute('aria-selected','false'));b.setAttribute('aria-selected','true');render(id)};
+ T.appendChild(b);
+});
+const start=(location.hash||'').slice(1); const first=NOTES[start]?start:'coque';
+[...T.children][SCREENS.findIndex(s=>s[0]===first)].click();
+</script>
