@@ -1,5 +1,5 @@
-import React, { useEffect, useMemo, useState } from 'react';
-import { Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
+import { Modal, PanResponder, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getChampsVisite, getControlesVisite, listerCompteurs } from './db.js';
 import { construireEspacesVisite, utiliseParcoursTerrain } from './terrainVisitModel.js';
 import { TrameGenericPanel } from './TrameGenericPanel.js';
@@ -46,29 +46,74 @@ export function VisitSpaces({ visiteId, trameId, panels, labels, tabIds, onOpenP
     return [...out.values()];
   }, [selected]);
   const active = groups.find(g => g.key === sub) || groups[0];
+  const queryNorm = query.trim().toLocaleLowerCase('fr');
+  const searchResults = useMemo(() => {
+    if (!queryNorm) return [];
+    const out = [];
+    for (const space of spaces) {
+      for (const row of space.rows) {
+        const haystack = `${space.label} ${row.section} ${row.field?.cle || ''}`.toLocaleLowerCase('fr');
+        if (haystack.includes(queryNorm)) out.push({ space, row });
+      }
+    }
+    return out.slice(0, 80);
+  }, [spaces, queryNorm]);
+  const openExactResult = (space, row) => {
+    setSelected({ ...space, rows: [row], label: row.field?.cle || space.label });
+    setSub(null);
+  };
+  const swipeRef = useRef(null);
+  if (!swipeRef.current) {
+    swipeRef.current = PanResponder.create({
+      onMoveShouldSetPanResponder: (_evt, g) => Math.abs(g.dx) > 18 && Math.abs(g.dx) > Math.abs(g.dy) * 1.25,
+      onPanResponderRelease: (_evt, g) => {
+        if (!groups.length || !active) return;
+        const index = groups.findIndex((item) => item.key === active.key);
+        if (index < 0) return;
+        if (g.dx < -42 && index < groups.length - 1) setSub(groups[index + 1].key);
+        else if (g.dx > 42 && index > 0) setSub(groups[index - 1].key);
+      },
+    });
+  }
   const saved = () => { setRevision(v => v + 1); onSaved?.(); };
   return <View style={{ flex: 1 }}>
     <ScrollView contentContainerStyle={styles.panelContent} keyboardShouldPersistTaps="handled">
       <TextInput accessibilityLabel="Trouver un point de contrôle" style={[styles.input, { marginBottom: 14 }]} placeholder="BAES, extincteur, soupape, pH…" value={query} onChangeText={setQuery} autoCorrect={false} />
-      {spaces.filter(s => !query || [s.label, ...s.rows.map(r => `${r.section} ${r.field.cle}`)].join(' ').toLocaleLowerCase('fr').includes(query.toLocaleLowerCase('fr'))).map(space => {
+      {queryNorm ? searchResults.map(({ space, row }) => (
+        <TouchableOpacity
+          key={row.key}
+          style={[styles.formCard, { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 62 }]}
+          onPress={() => openExactResult(space, row)}
+        >
+          <CvcIcon name={space.icon} size={23} color={COLORS.orange} />
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text style={styles.cardTitle}>{row.field?.cle || row.section}</Text>
+            <Text numberOfLines={1} style={styles.importHint}>{space.label} · {row.section}</Text>
+          </View>
+          <CvcIcon name="chevron-right" size={18} color={COLORS.orangeDark} />
+        </TouchableOpacity>
+      )) : spaces.map(space => {
         const count = counts(space.rows);
-        return <TouchableOpacity key={space.id} style={[styles.formCard, { flexDirection: 'row', alignItems: 'center', gap: 12 }]} onPress={() => { if (!utiliseParcoursTerrain(trameId)) { onOpenPanel(space.id); return; } setSelected(space); setSub(null); }}>
+        return <TouchableOpacity key={space.id} style={[styles.formCard, { flexDirection: 'row', alignItems: 'center', gap: 12, minHeight: 68 }]} onPress={() => { if (!utiliseParcoursTerrain(trameId)) { onOpenPanel(space.id); return; } setSelected(space); setSub(null); }}>
           <CvcIcon name={space.icon} size={26} color={COLORS.orange} />
-          <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{space.label}</Text><Text numberOfLines={1} style={styles.importHint}>{[...new Set(space.rows.map(r => r.section))].join(', ')}</Text>{count.ns ? <Text style={{ fontFamily: FONTS.bodyBold, color: COLORS.red, marginTop: 4 }}>{count.ns} N.S</Text> : null}</View>
+          <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{space.label}</Text><Text numberOfLines={2} style={styles.importHint}>{[...new Set(space.rows.map(r => r.section))].join(', ')}</Text>{count.ns ? <Text style={{ fontFamily: FONTS.bodyBold, color: COLORS.red, marginTop: 4 }}>{count.ns} N.S</Text> : null}</View>
           <View style={{ alignItems: 'center' }}><ProgressRing pct={count.total ? 100 * count.done / count.total : 0} size={38} strokeWidth={4} /><Text style={{ fontFamily: FONTS.body, fontSize: 11, color: COLORS.inkSoft }}>{count.done}/{count.total}</Text></View>
         </TouchableOpacity>;
       })}
+      {queryNorm && !searchResults.length ? <Text style={[styles.importHint, { textAlign: 'center', paddingVertical: 24 }]}>Aucun objet correspondant.</Text> : null}
       <TouchableOpacity style={styles.btnSecondary} onPress={onClose}><Text style={styles.btnSecondaryText}>Tous les onglets de la trame</Text></TouchableOpacity>
     </ScrollView>
     <Modal visible={Boolean(selected)} animationType="slide" onRequestClose={() => { setSelected(null); saved(); }}>
       <View style={{ flex: 1, backgroundColor: COLORS.bg, paddingTop: 24 }}>
         <View style={{ flexDirection: 'row', alignItems: 'center', padding: 16, gap: 12 }}><TouchableOpacity accessibilityLabel="Retour au sommaire" onPress={() => { setSelected(null); saved(); }}><CvcIcon name="chevron-left" size={24} color={COLORS.ink}/></TouchableOpacity><Text style={[styles.modalTitle, { flex: 1, marginBottom: 0 }]}>{selected?.label}</Text></View>
-        <ScrollView horizontal style={{ flexGrow: 0, paddingHorizontal: 12 }} contentContainerStyle={{ gap: 7, paddingBottom: 10 }}>
-          {groups.map(g => { const n = counts(g.rows); const chosen = g.key === active?.key; return <TouchableOpacity key={g.key} onPress={() => setSub(g.key)} style={[chosen ? styles.btnPrimary : styles.btnSecondary, { minHeight: 44, paddingHorizontal: 12 }]}>{chosen ? <ButtonGlow/> : null}<Text style={chosen ? styles.btnPrimaryText : styles.btnSecondaryText}>{g.label} · {n.ns ? `${n.ns} N.S` : `${n.done}/${n.total}`}</Text></TouchableOpacity>; })}
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={{ flexGrow: 0 }} contentContainerStyle={{ gap: 7, paddingHorizontal: 12, paddingBottom: 10, alignItems: 'stretch' }}>
+          {groups.map(g => { const n = counts(g.rows); const chosen = g.key === active?.key; return <TouchableOpacity key={g.key} onPress={() => setSub(g.key)} style={[chosen ? styles.btnPrimary : styles.btnSecondary, { flex: 0, flexGrow: 0, flexShrink: 0, minHeight: 48, paddingVertical: 10, paddingHorizontal: 13, alignSelf: 'stretch' }]}>{chosen ? <ButtonGlow/> : null}<Text numberOfLines={2} style={[chosen ? styles.btnPrimaryText : styles.btnSecondaryText, { lineHeight: 18, textAlign: 'center' }]}>{g.label} · {n.ns ? `${n.ns} N.S` : `${n.done}/${n.total}`}</Text></TouchableOpacity>; })}
         </ScrollView>
-        {active?.panelId === 'p-releves' ? <OptimizedRelevesPanel visiteId={visiteId} onSaved={saved} trameId={trameId} panels={panels}/>
-          : active?.panelId === 'p-regulation' ? <OptimizedRegulationPanel visiteId={visiteId} onSaved={saved}/>
-          : active ? <TrameGenericPanel key={active.key} visiteId={visiteId} panelId={active.panelId} sections={{ [active.section]: active.rows.map(r => r.field) }} onSaved={saved} trameId={trameId} navigationScope={active.key} /> : null}
+        <View style={{ flex: 1 }} {...swipeRef.current.panHandlers}>
+          {active?.panelId === 'p-releves' ? <OptimizedRelevesPanel visiteId={visiteId} onSaved={saved} trameId={trameId} panels={panels}/>
+            : active?.panelId === 'p-regulation' ? <OptimizedRegulationPanel visiteId={visiteId} onSaved={saved}/>
+            : active ? <TrameGenericPanel key={active.key} visiteId={visiteId} panelId={active.panelId} sections={{ [active.section]: active.rows.map(r => r.field) }} onSaved={saved} trameId={trameId} navigationScope={active.key} /> : null}
+        </View>
       </View>
     </Modal>
   </View>;
