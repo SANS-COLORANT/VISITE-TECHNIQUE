@@ -1,6 +1,6 @@
 /** Synthèse des réserves optimisée pour les longues visites tablette. */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { styles, FONTS } from './styles.js';
 import {
   listerBibliothequeReserves,
@@ -15,6 +15,7 @@ import {
   modifierRemarqueVisite,
   modifierCriticiteRemarque,
   supprimerRemarqueVisite,
+  supprimerReservesReprises,
   rattacherRemarqueVisite,
 } from './remarkDb.js';
 import { cleanLabel, ChipSelector } from './GenericFields.js';
@@ -109,7 +110,7 @@ function ReserveCard({ remarque, visiteId, onPatch, onDelete, onRattacher, panel
 
   return (
     <View style={styles.remarqueCard}>
-      <Text style={styles.importHint}>{panelLabels[remarque.reference_onglet] || 'Anomalie de la visite'}</Text>
+      <Text style={styles.importHint}>{remarque.reference_type === 'reserve_historique' ? `Reprise d'une visite précédente${remarque.intranet_date_reserve ? ` · ${remarque.intranet_date_reserve}` : ''}` : (panelLabels[remarque.reference_onglet] || 'Anomalie de la visite')}</Text>
       <Text style={styles.cardTitle}>{remarque.reference_libelle || remarque.poste || 'Observation'}</Text>
       <Text style={{fontFamily:FONTS.body,color:COLORS.inkSoft,marginVertical:10}}>{prestation || 'Préconisation à compléter'}</Text>
       <View style={{flexDirection:'row',gap:8,marginBottom:8}}><TouchableOpacity style={styles.btnSecondary} onPress={()=>setExpanded(v=>!v)}><Text style={styles.btnSecondaryText}>{expanded?'Réduire':'Modifier'}</Text></TouchableOpacity><TouchableOpacity style={[styles.btnSecondary,{flex:1,backgroundColor:remarque.intranet_etat_avancement==='Terminé'?COLORS.green:'rgba(46,157,91,0.1)'}]} onPress={async()=>{const value=remarque.intranet_etat_avancement==='Terminé'?null:'Terminé';await modifierRemarqueVisite(remarque.id,{intranet_etat_avancement:value});setEtatAvancement(value||'');onPatch(remarque.id,{intranet_etat_avancement:value})}}><CvcIcon name="check" size={18} color={remarque.intranet_etat_avancement==='Terminé'?'#fff':COLORS.green}/><Text style={[styles.btnSecondaryText,{color:remarque.intranet_etat_avancement==='Terminé'?'#fff':COLORS.green}]}>{remarque.intranet_etat_avancement==='Terminé'?'Levée · réouvrir':'Levée sur place'}</Text></TouchableOpacity></View>
@@ -243,6 +244,28 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
     });
   }, [visiteId]);
 
+  const reprises = useMemo(() => remarques.filter((r) => r.reference_type === 'reserve_historique' && r.intranet_etat_avancement !== 'Terminé'), [remarques]);
+  const retirerReprises = useCallback(() => {
+    const n = reprises.length;
+    if (!n) return;
+    Alert.alert(
+      'Supprimer les anciennes réserves ?',
+      `${n} réserve${n > 1 ? 's' : ''} reprise${n > 1 ? 's' : ''} des visites précédentes ${n > 1 ? 'seront retirées' : 'sera retirée'} de cette visite et ne ${n > 1 ? 'seront' : 'sera'} plus reprise${n > 1 ? 's' : ''} aux prochaines visites. Les réserves créées ou levées pendant cette visite sont conservées.`,
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Supprimer', style: 'destructive', onPress: async () => {
+          try {
+            await supprimerReservesReprises(visiteId);
+          } catch (e) {
+            Alert.alert('Suppression incomplète', String(e?.message || e));
+          }
+          remarksCache.delete(visiteId);
+          await charger().catch(console.warn);
+        } },
+      ]
+    );
+  }, [reprises.length, visiteId, charger]);
+
   const ouvrirBiblio = async () => {
     setBiblio(await listerBibliothequeReserves());
     setBiblioVisible(true);
@@ -309,6 +332,7 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
       </View>
         <Text style={styles.sectionTitle}>Synthèse des réserves — valeurs de cette visite</Text>
         <View style={{flexDirection:'row',gap:4,marginBottom:12}}>{[['actuelles','À traiter',actuelles.length],['levees','Levées',levees.length],['precedentes','Précédentes',precedentes.length]].map(([key,label,count])=><TouchableOpacity key={key} style={[filtre===key?styles.btnPrimary:styles.btnSecondary,{paddingHorizontal:8}]} onPress={()=>setFiltre(key)}>{filtre===key?<ButtonGlow/>:null}<Text style={filtre===key?styles.btnPrimaryText:styles.btnSecondaryText}>{label} {count}</Text></TouchableOpacity>)}</View>
+        {filtre==='actuelles'&&reprises.length?<TouchableOpacity accessibilityRole="button" onPress={retirerReprises} style={[styles.btnSecondary,{marginBottom:12,borderColor:COLORS.red}]}><Text style={[styles.btnSecondaryText,{color:COLORS.red}]}>Supprimer les {reprises.length} réserve{reprises.length>1?'s':''} des visites précédentes</Text></TouchableOpacity>:null}
         {filtre==='precedentes'?<Text style={styles.importHint}>Historique du même local et de la même trame. Ces réserves ne sont pas des constats de cette visite.</Text>:null}
     </View>
   );

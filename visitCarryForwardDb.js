@@ -169,6 +169,16 @@ async function copyUnresolvedReserves(db, visiteId, sourceVisits) {
       // annulée dans une trame ultérieure ne doit pas ressusciter.
       if (['Terminé', 'Annulé'].includes(clean(row.intranet_etat_avancement))) continue;
 
+      // Réserve retirée par l'utilisateur dans une visite ultérieure : elle ne
+      // revient pas depuis une visite plus ancienne.
+      const retiree = await db.getFirstAsync(
+        `SELECT 1 AS ok FROM provenances
+         WHERE entite_type='reserve_lignee' AND entite_id=? AND origine='retrait_visite'
+         LIMIT 1`,
+        [lineageId]
+      );
+      if (retiree?.ok) continue;
+
       const existing = await db.getFirstAsync(
         `SELECT id FROM remarques
          WHERE visite_id=? AND reference_type='reserve_historique' AND reference_id=?

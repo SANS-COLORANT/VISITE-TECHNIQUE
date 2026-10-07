@@ -106,12 +106,48 @@ export async function modifierRemarqueVisite(id, patch = {}) {
   await db.runAsync(`UPDATE remarques SET ${sets.join(', ')} WHERE id=?`, params);
 }
 
+// Une réserve reprise d'une visite précédente qu'on supprime est retirée du
+// suivi du local : sa lignée est marquée pour que la reprise des visites
+// suivantes ne la recopie pas depuis une visite plus ancienne.
+export const RETRAIT_RESERVE_ENTITE = 'reserve_lignee';
+export const RETRAIT_RESERVE_ORIGINE = 'retrait_visite';
+
+async function marquerLigneeRetiree(db, remarque) {
+  const lignee = String(remarque?.reference_id || '').trim();
+  if (remarque?.reference_type !== 'reserve_historique' || !lignee) return;
+  const existe = await db.getFirstAsync(
+    `SELECT id FROM provenances WHERE entite_type=? AND entite_id=? AND origine=? LIMIT 1`,
+    [RETRAIT_RESERVE_ENTITE, lignee, RETRAIT_RESERVE_ORIGINE]
+  );
+  if (existe?.id) return;
+  await db.runAsync(
+    `INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json) VALUES(?,?,?,?,?,?)`,
+    [createId(), RETRAIT_RESERVE_ENTITE, lignee, RETRAIT_RESERVE_ORIGINE, remarque.visite_id, JSON.stringify({ prestation: remarque.prestation || null })]
+  );
+}
+
+async function supprimerRemarque(db, remarque) {
+  await marquerLigneeRetiree(db, remarque);
+  await supprimerPhotosEntiteComplete(remarque.visite_id, `remarque||${remarque.id}`);
+  await db.runAsync(`DELETE FROM remarques WHERE id=?`, [remarque.id]);
+}
+
 export async function supprimerRemarqueVisite(id) {
   const db = await openAppDatabase();
-  const remarque = await db.getFirstAsync(`SELECT id,visite_id FROM remarques WHERE id=?`, [id]);
+  const remarque = await db.getFirstAsync(`SELECT id,visite_id,reference_type,reference_id,prestation FROM remarques WHERE id=?`, [id]);
   if (!remarque) return;
-  await supprimerPhotosEntiteComplete(remarque.visite_id, `remarque||${id}`);
-  await db.runAsync(`DELETE FROM remarques WHERE id=?`, [id]);
+  await supprimerRemarque(db, remarque);
+}
+
+/** Retire les réserves reprises des visites précédentes ; garde celles créées ou levées pendant la visite. */
+export async function supprimerReservesReprises(visiteId) {
+  const db = await openAppDatabase();
+  const reprises = await db.getAllAsync(
+    `SELECT id,visite_id,reference_type,reference_id,prestation FROM remarques WHERE visite_id=? AND reference_type='reserve_historique' AND COALESCE(intranet_etat_avancement,'')<>'Terminé'`,
+    [visiteId]
+  );
+  for (const remarque of reprises || []) await supprimerRemarque(db, remarque);
+  return (reprises || []).length;
 }
 
 export async function rattacherRemarqueVisite(id, cible = {}) {
