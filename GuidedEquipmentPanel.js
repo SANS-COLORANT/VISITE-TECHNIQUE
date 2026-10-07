@@ -136,16 +136,13 @@ const EquipmentCard=memo(function EquipmentCard({item,visiteId,onChange,types,ma
  return <View style={styles.formCard}>
   <View style={{flexDirection:'row',alignItems:'center',gap:8}}>
    <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${designation||categorie||'Équipement'}, ouvrir les détails`} activeOpacity={0.72} onPress={()=>setExpanded(v=>!v)} style={{flex:1,minWidth:0,paddingVertical:2}}>
-    <Text numberOfLines={1} style={[styles.cardTitle,{marginBottom:2}]}>{designation||categorie||'Nouvel équipement'}</Text>
+    <Text numberOfLines={2} style={[styles.cardTitle,{marginBottom:2}]}>{designation||categorie||'Nouvel équipement'}</Text>
     {reseau?<Text numberOfLines={1} style={{fontSize:11,color:COLORS.muted,fontStyle:'italic',marginBottom:1}}>{reseau}</Text>:null}
     <Text numberOfLines={1} style={{fontSize:11,color:COLORS.muted,fontStyle:'italic'}}>{[marque,modele].filter(Boolean).join(' - ')||'Marque - modèle à compléter'}</Text>
-    <Text style={{fontFamily:FONTS.body,fontSize:11,color:item.confirme_le?COLORS.green:COLORS.inkFaint,marginTop:4}}>{item.confirme_le?'Présence confirmée':item.deja_reference?`Repris du local · ${item.nb_observations||0} observation(s)`:'Nouvel équipement à vérifier'}</Text>
+    <Text style={{fontFamily:FONTS.body,fontSize:11,color:item.confirme_le?COLORS.green:COLORS.inkFaint,marginTop:4}}>{item.confirme_le?'Présence confirmée':item.deja_reference?(Number(item.nb_observations)>0?`Repris du local · ${item.nb_observations} observation${Number(item.nb_observations)>1?'s':''}`:'Repris du local · à pointer'):'Nouvel équipement à vérifier'}</Text>
    </TouchableOpacity>
    <PhotoButton visiteId={visiteId} entiteKey={item.equipement_id?`equipement||${item.equipement_id}`:`materiel||${item.id}`} label={designation||categorie||'Équipement'}/>
    <TouchableOpacity accessibilityRole="button" accessibilityLabel={item.confirme_le?'Présence confirmée':'Marquer présent'} onPress={confirmer} style={{width:48,height:48,borderRadius:15,alignItems:'center',justifyContent:'center',backgroundColor:item.confirme_le?COLORS.green:'rgba(242,100,38,0.09)'}}><CvcIcon name="check" size={22} color={item.confirme_le?'#fff':COLORS.orange}/></TouchableOpacity>
-   <TouchableOpacity accessibilityRole="button" accessibilityLabel="Supprimer cet équipement" hitSlop={{top:8,bottom:8,left:8,right:8}} onPress={retirer} style={{width:44,height:44,borderRadius:13,alignItems:'center',justifyContent:'center',backgroundColor:'rgba(185,28,28,0.08)'}}>
-    <CvcIcon name="trash" size={18} color={COLORS.red}/>
-   </TouchableOpacity>
   </View>
 
   <Modal visible={expanded} transparent animationType="slide" onRequestClose={fermer}><View style={styles.modalOverlay}><View style={styles.modalSheet}>
@@ -218,7 +215,7 @@ export function GuidedEquipmentPanel({visiteId,trameId='icpe_v1'}){
    scrollEventThrottle={100}
    keyExtractor={i=>i.id}
    renderItem={({item})=>item.items?<View style={{flexDirection:'row',alignItems:'center',marginVertical:12,gap:8}}><CvcIcon name="equipment" size={22} color={COLORS.orange}/><Text style={[styles.fieldLabel,{flex:1}]}>{item.titre} · {item.items.length}</Text><TouchableOpacity onPress={async()=>{try{for(const i of item.items)await confirmerEquipementVisite(visiteId,i.id);await charger()}catch(e){await charger();Alert.alert('Pointage incomplet',String(e?.message||e))}}}><Text style={{fontFamily:FONTS.bodyBold,color:COLORS.orange}}>Tout présent</Text></TouchableOpacity></View>:<EquipmentCard item={item} visiteId={visiteId} onChange={charger} types={types} marques={marques} catalogue={catalogue} trameId={trameId}/>}
-   contentContainerStyle={[styles.panelContent,{paddingBottom:126}]}
+   contentContainerStyle={[styles.panelContent,{paddingBottom:200}]}
    ListHeaderComponent={<View>
     <View style={[styles.formCard,{flexDirection:'row',alignItems:'center',gap:12}]}><ProgressRing pct={materiel.length?100*materiel.filter(i=>i.confirme_le).length/materiel.length:0} size={54} strokeWidth={5}/><View style={{flex:1}}><Text style={styles.cardTitle}>{materiel.filter(i=>i.confirme_le).length} sur {materiel.length} pointés</Text><Text style={styles.importHint}>{comptes['a-voir']} équipement(s) repris à confirmer</Text></View></View>
     <TextInput style={[styles.input,{marginBottom:10}]} value={recherche} onChangeText={setRecherche} placeholder="Rechercher un équipement déjà ajouté…" autoCorrect={false}/>
