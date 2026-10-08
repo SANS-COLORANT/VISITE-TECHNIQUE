@@ -58,6 +58,22 @@ Corrections (`extraireIndexCompteur`) :
 
 Limite constatée : sur la photo du MULTICAL 21, ML Kit ne lit jamais les gros chiffres (il ne sort que les décimales `519`). Le lecteur par segments part des lignes de ML Kit et n'a alors rien à lire. Il faut un localisateur d'afficheur indépendant ou un cadrage guidé.
 
+## Classifieur entraîné (essai, désactivé)
+
+Pour remplacer les seuils réglés à la main, un petit réseau (24x40 -> 11 classes, 132 Ko) a été entraîné sur 240 000 chiffres synthétiques (flou, segments éteints, inclinaison, bruit, voisins, cadres, barres horizontales plus pâles). Il est embarqué mais **opt-in** (`-Dseg.model=true`), outils dans `tools/ocr-seven-segment/`.
+
+Chiffres exacts, photo entière + boîte de ligne (trois jeux : réglage, validation, photos de la tablette) :
+
+| Lecteur | 8 photos de réglage | 5 photos de validation | 3 photos tablette |
+| --- | --- | --- | --- |
+| Segments (défaut) | 121/129 | 49/99 | 28/85 |
+| Réseau v1 | 129/129 | 78/99 | 28/85 |
+| Réseau v2 (barres pâles) | 109/129 | 52/99 | 16/85 |
+
+Aucun n'est meilleur partout, et les jeux sont trop petits pour trancher. Le réseau est parfois très sûr de lui sur une erreur (un 7 lu comme 1 avec une confiance de 100 %) : ses marges ne sont pas calibrées et ne doivent pas piloter le pré-remplissage. Les erreurs restantes sont surtout des chiffres perdus aux extrémités de la ligne et des imagettes mal cadrées, pas seulement des confusions entre chiffres.
+
+Constat sur les photos de la tablette : la lecture proposée était fausse (`7.2727067`, `98.583`, `444486.8`) parce que le lecteur partait de lignes de texte imprimé (numéros de série) autant que de l'afficheur ; le champ est resté vide grâce aux garde-fous.
+
 ## Ce qui n'est pas validé
 
 - **Rien n'a été compilé ni exécuté sur Android** : `MeterSegmentReader.java` et le bloc ajouté à `MetraOcrModule.kt` n'ont pas pu être compilés ici (pas de SDK Android). ML Kit n'a pas été exécuté non plus : les boîtes de ligne ont été simulées à partir de la position réelle des chiffres, avec du bruit. Le comportement réel dépend de la qualité des boîtes de ML Kit.
