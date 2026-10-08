@@ -581,8 +581,12 @@ export function MarqueeText({ text, style, speed = 28 }) {
   }, [overflow, boxW, reduce, speed, x]);
   return (
     <View style={{ overflow: 'hidden', flexShrink: 1 }} onLayout={(e) => setBoxW(e.nativeEvent.layout.width)}>
+      {/* Mesure de la largeur naturelle du texte, hors du cadre visible. */}
+      <View pointerEvents="none" style={s.marqueeMeasure}>
+        <Text style={style} onLayout={(e) => setTextW(e.nativeEvent.layout.width)}>{text}</Text>
+      </View>
       <Animated.View style={{ flexDirection: 'row', transform: [{ translateX: x }], width: reduce || overflow <= 4 ? undefined : textW + 2 }}>
-        <Text numberOfLines={1} style={style} onLayout={(e) => setTextW(e.nativeEvent.layout.width)}>{text}</Text>
+        <Text numberOfLines={1} style={style}>{text}</Text>
       </Animated.View>
     </View>
   );
@@ -676,5 +680,6 @@ const s = StyleSheet.create({
   unitPill: { borderWidth: 1, borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4, minWidth: 40, alignItems: 'center' },
   unitText: { fontSize: 12, fontFamily: FONTS.bodyBold },
   unitChip: { minWidth: 64, justifyContent: 'center' },
+  marqueeMeasure: { position: 'absolute', left: 0, top: 0, width: 4000, flexDirection: 'row', opacity: 0 },
   empty: { fontSize: 12.5, fontFamily: FONTS.bodyMedium, color: COLORS.inkFaint, paddingVertical: 10, textAlign: 'center' },
 });

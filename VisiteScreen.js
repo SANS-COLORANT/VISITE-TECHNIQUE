@@ -1,11 +1,15 @@
 /** Écran Visite — pager natif, swipe interactif et panneaux gardés chauds. */
 import React, { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions, Animated, Easing } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions, Animated, Easing, StyleSheet } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
 import { CvcIcon } from './MetraCvcIcons.js';
-import { IconOrb, GlassCard, ProgressRing, AmbientBackground } from './premiumChrome.js';
+import { ProgressRing, AmbientBackground } from './premiumChrome.js';
+import { Picto, ACTION_PICTOS } from './MetraPictos.js';
+import { MarqueeText } from './VisitKit.js';
+import { VisitStatusSheet } from './VisitStatusSheet.js';
 import { getVisite, getNote, upsertNote, getDb } from './db.js';
 import { ajouterRemarqueVisite } from './remarkDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
@@ -27,7 +31,7 @@ import { getSaveActivity, subscribeSaveActivity } from './saveActivity.js';
 import { prewarmCameraRuntime } from './cameraRuntime.js';
 import { prewarmPhotoCaptureContext } from './photoCaptureContext.js';
 import { loadVisitPhotos } from './photoRuntimeCache.js';
-import { SectionRail, SideSectionList, AvisCounters, VisitActionBar } from './VisitChrome.js';
+import { SectionRail, SideSectionList, VisitActionBar } from './VisitChrome.js';
 import { calculerEtatOnglets } from './visitTabStatusDb.js';
 import { estVisiteARattacher } from './quickVisitDb.js';
 import { AttachVisitSheet } from './AttachVisitSheet.js';
@@ -157,7 +161,8 @@ function VisiteScreen({ route, onBack }) {
   const [visiteARattacher, setVisiteARattacher] = useState(false);
   const [clavierVisible, setClavierVisible] = useState(false);
   const [rattachementVisible, setRattachementVisible] = useState(false);
-  const [heroMini, setHeroMini] = useState(false);
+  // Feuille d'état ouverte en touchant la jauge de l'en-tête (remplace la carte d'avancement).
+  const [statutVisible, setStatutVisible] = useState(false);
   const [rechercheVisible, setRechercheVisible] = useState(false);
   const [sommaireVisible, setSommaireVisible] = useState(true);
 
@@ -792,7 +797,12 @@ function VisiteScreen({ route, onBack }) {
     if (st?.total) { acc.total += st.total; acc.done += st.done; }
     return acc;
   }, { total: 0, done: 0 });
-  const ringSize = heroMini ? 30 : (appareilTablette ? 54 : 44);
+  // En-tête sur une ligne : boutons ronds en pictogrammes, jauge ~30 px.
+  const headerBtn = appareilTablette ? 42 : 35;
+  const headerPicto = appareilTablette ? 22 : 19;
+  const btnSize = { width: headerBtn, height: headerBtn, borderRadius: headerBtn / 2 };
+  const ringSize = appareilTablette ? 38 : 31;
+  const ouvrirRecherche = () => setRechercheVisible(true);
   const fermerModePhoto = () => {
     setModePhotoVisible(false);
     // Les saisies du Mode Photo vont directement en base : on recharge la
@@ -801,74 +811,69 @@ function VisiteScreen({ route, onBack }) {
     setPhotoRev((n) => n + 1);
     charger({ forceCaches: true }).catch(() => {});
   };
+  // Seconde ligne : local · client · trame (défile si elle est trop longue).
   const sousTitre = visiteARattacher
     ? ['Visite rapide', trame.nom, visite.date_visite].filter(Boolean).join(' · ')
-    : [visite.nom_client, visite.nom_installation, trame.nom, visite.mode_visite === 'express' ? 'Mode Express' : null].filter(Boolean).join(' · ');
+    : [visite.nom_installation, visite.nom_client, trame.nom, visite.mode_visite === 'express' ? 'Mode Express' : null].filter(Boolean).join(' · ');
+  const ouvrirRattachement = () => {
+    setStatutVisible(false);
+    setTimeout(() => setRattachementVisible(true), 260);
+  };
 
   return (
     <View style={{ flex: 1, backgroundColor: 'transparent' }}>
       <View style={styles.visiteTopbar}>
-        <View style={styles.visiteHeaderRow}>
-          <TouchableOpacity accessibilityLabel="Retour" style={styles.visiteBackBtn} onPress={retourSecurise}><CvcIcon name="chevron-left" size={20} color={COLORS.ink} strokeWidth={2.2} /></TouchableOpacity>
-          <View style={{ flex: 1, minWidth: 0 }}>
-            <Text numberOfLines={1} style={styles.visiteTitle}>{visite.nom_site}</Text>
-            <Text numberOfLines={1} style={styles.cardSub}>{sousTitre}</Text>
+        <View style={hs.row}>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" hitSlop={HEADER_HIT} style={[hs.btn, btnSize]} onPress={retourSecurise}><CvcIcon name="chevron-left" size={appareilTablette ? 21 : 19} color={COLORS.ink} strokeWidth={2.2} /></TouchableOpacity>
+          <View style={hs.titleBlock}>
+            <Text numberOfLines={1} style={[hs.title, appareilTablette && { fontSize: 17 }]}>{visite.nom_site}</Text>
+            <MarqueeText text={sousTitre} style={[hs.subtitle, appareilTablette && { fontSize: 12.5 }]} />
           </View>
-          <TouchableOpacity accessibilityLabel="Rechercher dans la visite" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={() => setRechercheVisible(true)}>
-            <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="search" size={19} color={COLORS.orangeDark} /></IconOrb>
+          <TouchableOpacity
+            accessibilityRole="button"
+            accessibilityLabel={`Avancement de la visite : ${visite.progression_pct} %${visiteARattacher ? ', visite à rattacher' : ''}. Ouvrir l’état de la visite`}
+            hitSlop={HEADER_HIT}
+            onPress={() => setStatutVisible(true)}
+            style={[hs.ring, { width: ringSize, height: ringSize, borderRadius: ringSize / 2 }]}
+          >
+            <ProgressRing pct={visite.progression_pct} size={ringSize} strokeWidth={3.5} accent={COLORS.orange} />
+            <View style={hs.ringLabel} pointerEvents="none">
+              <Text accessibilityLiveRegion="polite" style={[hs.ringText, { fontSize: ringSize > 34 ? 10 : 8.5 }]}>{visite.progression_pct}%</Text>
+            </View>
+            {visiteARattacher ? <View style={hs.ringAlert} /> : null}
           </TouchableOpacity>
+          {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? <PhotoReferenceAccess visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} variant="icon" iconSize={headerBtn} /> : null}
           {appareilTablette ? (
-            <TouchableOpacity accessibilityLabel="Compagnon téléphone" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={() => setCompanionVisible(true)}>
-              <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}><CvcIcon name="device" size={19} color={COLORS.orangeDark} /></IconOrb>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Compagnon téléphone" hitSlop={HEADER_HIT} style={[hs.btn, btnSize]} onPress={() => setCompanionVisible(true)}>
+              <Picto name={ACTION_PICTOS.compagnon} size={headerPicto} />
             </TouchableOpacity>
           ) : null}
           {trame.id === 'pre_allumage' ? (
-            <TouchableOpacity accessibilityLabel="Exporter en PDF ou Word" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={() => verifierAvantExport(choisirFormatRapportPreAllumage)} disabled={reportExporting}>
-              <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}>{reportExporting ? <ActivityIndicator size="small" color={COLORS.orangeDark} /> : <CvcIcon name="document" size={19} color={COLORS.orangeDark} />}</IconOrb>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Exporter le rapport Pré-allumage en PDF ou Word" hitSlop={HEADER_HIT} style={[hs.btn, btnSize]} onPress={() => verifierAvantExport(choisirFormatRapportPreAllumage)} disabled={reportExporting}>
+              {reportExporting ? <ActivityIndicator size="small" color={COLORS.orangeDark} /> : <CvcIcon name="document" size={headerPicto - 2} color={COLORS.orangeDark} />}
             </TouchableOpacity>
           ) : null}
-          <TouchableOpacity accessibilityLabel={`Terminer : aperçu, signature, export Excel ${trame.nom}`} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={{ marginLeft: 8 }} onPress={menuFinVisite} disabled={exporting || apercuEnCours}>
-            <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={40}>{exporting || apercuEnCours ? <ActivityIndicator size="small" color={COLORS.orangeDark} /> : <CvcIcon name="export" size={19} color={COLORS.orangeDark} />}</IconOrb>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Télécharger l’export Excel ${trame.nom}`} hitSlop={HEADER_HIT} style={[hs.btn, btnSize]} onPress={() => verifierAvantExport(exporter)} disabled={exporting}>
+            {exporting ? <ActivityIndicator size="small" color={COLORS.orangeDark} /> : <Picto name={ACTION_PICTOS.telecharger} size={headerPicto} />}
+          </TouchableOpacity>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Terminer la visite : aperçu, signature, export Excel ${trame.nom}`} hitSlop={HEADER_HIT} onPress={menuFinVisite} disabled={exporting || apercuEnCours}>
+            <LinearGradient colors={[COLORS.orange, COLORS.orangeDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={[hs.btnMain, btnSize]}>
+              {apercuEnCours ? <ActivityIndicator size="small" color={COLORS.white} /> : <Picto name={ACTION_PICTOS.terminer} size={headerPicto} mono={COLORS.white} strokeWidth={2} />}
+            </LinearGradient>
           </TouchableOpacity>
         </View>
-        <TouchableOpacity activeOpacity={0.92} accessibilityLabel={heroMini ? 'Afficher le détail de l’avancement' : 'Réduire l’avancement'} onPress={() => setHeroMini((v) => !v)}>
-        <GlassCard style={{ marginBottom: 10 }}>
-          <View style={{ paddingHorizontal: 12, paddingVertical: heroMini ? 7 : (appareilTablette ? 12 : 9), flexDirection: 'row', alignItems: 'center', gap: heroMini ? 9 : 11 }}>
-            <View style={{ width: ringSize, height: ringSize }}>
-              <ProgressRing pct={visite.progression_pct} size={ringSize} strokeWidth={heroMini ? 4 : 5.5} accent={COLORS.orange} />
-              <View style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' }}>
-                <Text accessibilityLiveRegion="polite" style={{ fontFamily: FONTS.black, fontSize: heroMini ? 9.5 : 12, color: COLORS.ink }}>{visite.progression_pct}%</Text>
-              </View>
-            </View>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              {heroMini ? null : <Text numberOfLines={1} style={{ fontSize: 13.5, fontFamily: FONTS.bold, color: COLORS.ink }}>
-                {totauxOnglets.total ? `${totauxOnglets.done} sur ${totauxOnglets.total} renseignés` : [trame.nom, visite.date_visite].filter(Boolean).join(' · ')}
-              </Text>}
-              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
-                <AvisCounters avis={tabStatus.avis} />
-                <SaveStatusBadge court={!appareilTablette} />
-              </View>
-            </View>
-            {visiteARattacher ? (
-              <TouchableOpacity accessibilityLabel="Rattacher cette visite à un client" onPress={() => setRattachementVisible(true)} style={{ paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14, backgroundColor: COLORS.amberBg, borderWidth: 1, borderColor: 'rgba(180,83,9,0.3)', alignItems: 'center' }}><Text style={{ fontSize: 10.5, fontFamily: FONTS.bodyBold, color: COLORS.amber }}>À rattacher</Text>{heroMini ? null : <Text style={{ fontSize: 9.5, fontFamily: FONTS.bodySemi, color: COLORS.amber, marginTop: 1 }}>Choisir un client</Text>}</TouchableOpacity>
-            ) : <IntranetVisitSyncControl compact visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />}
-          </View>
-        </GlassCard>
-        </TouchableOpacity>
-        {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? <PhotoReferenceAccess visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} /> : null}
-        {visite.mode_visite === 'express' && <Text style={styles.expressHint}>⚡ Données reprises de la visite précédente · index et mesures variables à actualiser</Text>}
         {trame.id === 'vmc' && vmcCaissons.length > 0 ? <VmcCaissonManager visiteId={visiteId} caissons={vmcCaissons} onChange={onCaissonsChange} onNavigate={changerOnglet} activePanelId={activeTab} tabStates={tabStatus.tabs} /> : null}
-        {!modeTablette && !ongletsEnBas && <SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} />}
+        {!modeTablette && !ongletsEnBas && <SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} />}
       </View>
 
       {utiliseParcoursTerrain(trame.id) ? <TouchableOpacity accessibilityLabel="Sommaire de la visite" onPress={() => setSommaireVisible(v => !v)} style={{paddingHorizontal:18,paddingVertical:8,flexDirection:'row',alignItems:'center',gap:8}}><CvcIcon name="grid" size={20} color={COLORS.orange}/><Text style={{fontFamily:FONTS.bodyBold,color:COLORS.orange}}>{sommaireVisible?'Revenir à la saisie':'Sommaire de la visite'}</Text></TouchableOpacity> : null}
       {sommaireVisible && utiliseParcoursTerrain(trame.id) ? <VisitSpaces visiteId={visiteId} trameId={trame.id} panels={panels} labels={panelLabels} tabIds={tabsReels} onOpenPanel={id=>{setSommaireVisible(false);changerOnglet(id)}} onClose={()=>setSommaireVisible(false)} onSaved={onSaved}/> : modeTablette ? <View style={{ flex: 1, flexDirection: 'row' }}>
         <View style={{ width: 205, backgroundColor: 'rgba(255,255,255,0.55)', borderRightWidth: 1, borderRightColor: 'rgba(22,21,15,0.08)' }}>
-          <SideSectionList tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} />
+          <SideSectionList tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>{animatedContent}</View>
       </View> : animatedContent}
-      {!clavierVisible && !modeTablette && ongletsEnBas ? <View style={{ paddingHorizontal: 12, paddingTop: 8, marginBottom: -12 }}><SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} /></View> : null}
+      {!clavierVisible && !modeTablette && ongletsEnBas ? <View style={{ paddingHorizontal: 12, paddingTop: 8, marginBottom: -12 }}><SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} /></View> : null}
       {!clavierVisible ? <VisitActionBar onNote={ouvrirNote} onPhoto={() => setModePhotoVisible(true)} photoLabel="Mode Photo" onAnomalie={() => setAnomalieVisible(true)} /> : null}
 
       <Modal visible={noteVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}>
@@ -876,6 +881,25 @@ function VisiteScreen({ route, onBack }) {
         <TextInput style={[styles.input, { height: 160, textAlignVertical: 'top' }]} multiline value={noteTxt} onChangeText={onChangeNoteTxt} placeholder="Notes générales sur la visite..." />
         <TouchableOpacity style={[styles.btnPrimary, { marginTop: 16 }]} onPress={fermerNote}><ButtonGlow /><Text style={styles.btnPrimaryText}>Fermer</Text></TouchableOpacity>
       </View></View></Modal>
+      <VisitStatusSheet
+        visible={statutVisible}
+        onClose={() => setStatutVisible(false)}
+        pct={visite.progression_pct}
+        done={totauxOnglets.done}
+        total={totauxOnglets.total}
+        avis={tabStatus.avis}
+        trameId={trame.id}
+        trameNom={[trame.nom, visite.date_visite].filter(Boolean).join(' · ')}
+        express={visite.mode_visite === 'express'}
+        saveStatus={<SaveStatusBadge />}
+        intranet={visiteARattacher ? (
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Rattacher cette visite à un client" onPress={ouvrirRattachement} style={hs.attach}>
+            <Text style={hs.attachTitle}>À rattacher</Text>
+            <Text style={hs.attachSub}>Choisir un client</Text>
+          </TouchableOpacity>
+        ) : <IntranetVisitSyncControl visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />}
+        onVoirReserves={tabsReels.includes('p-remarques') ? () => { setStatutVisible(false); changerOnglet('p-remarques'); } : null}
+      />
       <VisitSearchSheet visible={rechercheVisible} onClose={() => setRechercheVisible(false)} panels={panels} tabs={tabsReels} labels={panelLabels} onOpen={changerOnglet} />
       <AttachVisitSheet
         visible={rattachementVisible}
@@ -915,5 +939,23 @@ function VisiteScreen({ route, onBack }) {
     </View>
   );
 }
+
+const HEADER_HIT = { top: 6, bottom: 6, left: 3, right: 3 };
+
+const hs = StyleSheet.create({
+  row: { flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 8 },
+  btn: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' },
+  btnMain: { alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' },
+  titleBlock: { flex: 1, minWidth: 0, marginLeft: 2, marginRight: 2 },
+  title: { fontSize: 15, fontFamily: FONTS.black, color: COLORS.ink },
+  subtitle: { fontSize: 11.5, fontFamily: FONTS.bodyMedium, color: COLORS.inkSoft, marginTop: 1 },
+  ring: { backgroundColor: '#FDFCFA' },
+  ringLabel: { position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, alignItems: 'center', justifyContent: 'center' },
+  ringText: { fontFamily: FONTS.black, color: COLORS.ink },
+  ringAlert: { position: 'absolute', top: -1, right: -1, width: 10, height: 10, borderRadius: 5, backgroundColor: COLORS.amber, borderWidth: 1.5, borderColor: '#FDFCFA' },
+  attach: { paddingHorizontal: 10, paddingVertical: 7, borderRadius: 14, backgroundColor: COLORS.amberBg, borderWidth: 1, borderColor: 'rgba(180,83,9,0.3)', alignItems: 'center' },
+  attachTitle: { fontSize: 11, fontFamily: FONTS.bodyBold, color: COLORS.amber },
+  attachSub: { fontSize: 10, fontFamily: FONTS.bodySemi, color: COLORS.amber, marginTop: 1 },
+});
 
 export { VisiteScreen };

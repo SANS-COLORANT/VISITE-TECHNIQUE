@@ -2,14 +2,17 @@
  * Coque de l'écran Visite (DA "Verre chaud"), commune aux trames ICPE, VMC et
  * Pré-allumage :
  * - SectionRail : rail de sections avec l'état de chaque onglet
- *   (vide, entamé, terminé, anomalie) ;
- * - VisitActionBar : barre d'actions à portée de pouce (Note, Photo, Anomalie) ;
- * - AvisCounters : compteurs S · N.S · S.O de l'en-tête.
+ *   (vide, entamé, terminé, anomalie), pictogramme d'onglet et bouton de
+ *   recherche en tête (refonte 661, §5.0) ;
+ * - SideSectionList : la même liste en colonne (tablette ≥ 900 dp) ;
+ * - VisitActionBar : barre d'actions fine à portée de pouce (Note, Mode Photo,
+ *   Anomalie) ;
+ * - AvisCounters : compteurs S · N.S · S.O.
  */
 import React, { useEffect, useRef } from 'react';
 import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CvcIcon } from './MetraCvcIcons.js';
+import { Picto, pictoOnglet, ACTION_PICTOS } from './MetraPictos.js';
 import { COLORS, FONTS } from './styles.js';
 
 export const STATE_COLORS = {
@@ -30,7 +33,22 @@ function StateDot({ state, onGradient = false }) {
   return <View style={[s.dot, { backgroundColor: STATE_COLORS[state] }]} />;
 }
 
-export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, tabStates = {} }) {
+function SearchButton({ onPress, size = 38 }) {
+  return (
+    <TouchableOpacity
+      accessibilityRole="button"
+      accessibilityLabel="Rechercher dans la visite"
+      hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+      activeOpacity={0.8}
+      onPress={onPress}
+      style={[s.searchBtn, { width: size, height: size, borderRadius: size / 2 }]}
+    >
+      <Picto name={ACTION_PICTOS.rechercher} size={Math.round(size * 0.5)} />
+    </TouchableOpacity>
+  );
+}
+
+export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, tabStates = {}, trameId, onSearch }) {
   const scrollRef = useRef(null);
   const positions = useRef({});
   const viewportWidth = useRef(0);
@@ -43,9 +61,12 @@ export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, t
   }, [activeTab]);
 
   return (
+    <View style={s.railRow}>
+    {onSearch ? <SearchButton onPress={onSearch} /> : null}
     <ScrollView
       ref={scrollRef}
       horizontal
+      style={{ flex: 1 }}
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       onLayout={(e) => { viewportWidth.current = e.nativeEvent.layout.width; }}
@@ -56,8 +77,10 @@ export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, t
         const on = pid === activeTab;
         const state = tabStates[pid]?.state || null;
         const label = labels[pid] || pid;
+        const picto = pictoOnglet(pid, trameId);
         const content = <>
           <StateDot state={state} onGradient={on} />
+          {picto ? <Picto name={picto} size={17} mono={on ? COLORS.white : undefined} /> : null}
           <Text numberOfLines={1} style={[s.chipText, on && s.chipTextOn]}>{label}</Text>
         </>;
         return (
@@ -79,20 +102,30 @@ export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, t
         );
       })}
     </ScrollView>
+    </View>
   );
 }
 
-export function SideSectionList({ tabOrder = [], labels = {}, activeTab, onSelect, tabStates = {} }) {
+export function SideSectionList({ tabOrder = [], labels = {}, activeTab, onSelect, tabStates = {}, trameId, onSearch }) {
   return (
     <ScrollView contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: 9 }} showsVerticalScrollIndicator={false}>
+      {onSearch ? (
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Rechercher dans la visite" onPress={onSearch} activeOpacity={0.85} style={[s.side, s.sideSearch]}>
+          <Picto name={ACTION_PICTOS.rechercher} size={20} />
+          <Text numberOfLines={1} style={s.sideText}>Rechercher</Text>
+        </TouchableOpacity>
+      ) : null}
       {tabOrder.map((pid, i) => {
         if (pid === 'SEP') return <View key={`side-sep-${i}`} style={{ height: 1, backgroundColor: 'rgba(22,21,15,0.08)', marginVertical: 8 }} />;
         const on = pid === activeTab;
         const st = tabStates[pid];
+        const picto = pictoOnglet(pid, trameId);
+        const label = labels[pid] || pid;
         return (
-          <TouchableOpacity key={pid} onPress={() => onSelect?.(pid)} activeOpacity={0.85} style={[s.side, on && s.sideOn]}>
+          <TouchableOpacity key={pid} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={label} onPress={() => onSelect?.(pid)} activeOpacity={0.85} style={[s.side, on && s.sideOn]}>
             <StateDot state={st?.state || null} />
-            <Text numberOfLines={2} style={[s.sideText, on && s.sideTextOn]}>{labels[pid] || pid}</Text>
+            {picto ? <Picto name={picto} size={20} /> : null}
+            <Text numberOfLines={2} style={[s.sideText, on && s.sideTextOn]}>{label}</Text>
             {st?.total ? <Text style={[s.sideCount, on && { color: COLORS.orangeDark }]}>{st.done}/{st.total}</Text> : null}
           </TouchableOpacity>
         );
@@ -124,18 +157,18 @@ export function VisitActionBar({ onNote, onPhoto, onAnomalie, photoLabel = 'Phot
     <View style={s.barWrap}>
       <View style={s.bar}>
         <TouchableOpacity accessibilityLabel="Note libre" onPress={onNote} activeOpacity={0.8} style={s.act}>
-          <CvcIcon name="note" size={20} color={COLORS.inkSoft} />
-          <Text style={s.actText}>Note</Text>
+          <Picto name={ACTION_PICTOS.note} size={19} />
+          <Text numberOfLines={1} style={s.actText}>Note</Text>
         </TouchableOpacity>
         <TouchableOpacity accessibilityLabel={photoLabel} onPress={onPhoto} activeOpacity={0.85} style={{ flex: 1.25 }}>
           <LinearGradient colors={[COLORS.orange, COLORS.orangeDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={[s.act, s.actMain]}>
-            <CvcIcon name="camera" size={20} color={COLORS.white} strokeWidth={2.1} />
-            <Text style={[s.actText, { color: COLORS.white }]}>{photoLabel}</Text>
+            <Picto name={ACTION_PICTOS.modePhoto} size={19} mono={COLORS.white} strokeWidth={1.9} />
+            <Text numberOfLines={1} style={[s.actText, { color: COLORS.white }]}>{photoLabel}</Text>
           </LinearGradient>
         </TouchableOpacity>
         <TouchableOpacity accessibilityLabel="Ajouter une anomalie, une remarque ou une réserve" onPress={onAnomalie} activeOpacity={0.8} style={s.act}>
-          <CvcIcon name="remark" size={20} color="#C23B2E" />
-          <Text style={[s.actText, { color: '#C23B2E' }]}>Anomalie</Text>
+          <Picto name={ACTION_PICTOS.anomalie} size={19} mono="#C23B2E" />
+          <Text numberOfLines={1} style={[s.actText, { color: "#C23B2E" }]}>Anomalie</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -143,23 +176,26 @@ export function VisitActionBar({ onNote, onPhoto, onAnomalie, photoLabel = 'Phot
 }
 
 const s = StyleSheet.create({
-  rail: { gap: 7, paddingBottom: 12, paddingRight: 8, alignItems: 'center' },
+  railRow: { flexDirection: 'row', alignItems: 'center', gap: 7, paddingBottom: 10 },
+  searchBtn: { alignItems: 'center', justifyContent: 'center', backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' },
+  rail: { gap: 7, paddingRight: 8, alignItems: 'center' },
   sep: { width: 1, height: 20, backgroundColor: 'rgba(22,21,15,0.12)', marginHorizontal: 3 },
   chip: { flexDirection: 'row', alignItems: 'center', gap: 6, minHeight: 36, paddingHorizontal: 12, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.72)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)' },
   chipOn: { borderColor: 'rgba(255,255,255,0.35)', shadowColor: COLORS.orange, shadowOpacity: 0.45, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 4 },
   chipText: { fontSize: 12, fontFamily: FONTS.bodySemi, color: COLORS.inkSoft, maxWidth: 190 },
   chipTextOn: { color: COLORS.white, fontFamily: FONTS.bodyBold },
-  dot: { width: 8, height: 8, borderRadius: 4 },
+  dot: { width: 9, height: 9, borderRadius: 4.5 },
   side: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 11, paddingVertical: 9, borderRadius: 12, marginVertical: 2 },
+  sideSearch: { borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: '#FDFCFA', marginBottom: 6 },
   sideOn: { backgroundColor: 'rgba(255,255,255,0.92)', borderWidth: 1.5, borderColor: COLORS.orange },
   sideText: { flex: 1, fontSize: 13, fontFamily: FONTS.bodySemi, color: COLORS.ink },
   sideTextOn: { fontFamily: FONTS.bodyBold, color: COLORS.orangeDark },
   sideCount: { fontSize: 10.5, fontFamily: FONTS.bodySemi, color: COLORS.inkFaint },
   counters: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginTop: 4 },
   counter: { fontSize: 11.5, fontFamily: FONTS.bodyBold },
-  barWrap: { paddingHorizontal: 12, paddingTop: 6, paddingBottom: 10 },
-  bar: { flexDirection: 'row', gap: 8, padding: 7, borderRadius: 22, backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
-  act: { flex: 1, minHeight: 50, borderRadius: 16, alignItems: 'center', justifyContent: 'center', gap: 3 },
+  barWrap: { paddingHorizontal: 12, paddingTop: 4, paddingBottom: 8 },
+  bar: { flexDirection: 'row', gap: 6, padding: 4, borderRadius: 18, backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.08)', shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 16, shadowOffset: { width: 0, height: 8 }, elevation: 8 },
+  act: { flex: 1, flexDirection: 'row', minHeight: 42, borderRadius: 14, alignItems: 'center', justifyContent: 'center', gap: 7, paddingHorizontal: 6 },
   actMain: { shadowColor: COLORS.orange, shadowOpacity: 0.5, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 5 },
-  actText: { fontSize: 10.5, fontFamily: FONTS.bodyBold, color: COLORS.inkSoft },
+  actText: { fontSize: 12.5, fontFamily: FONTS.bodyBold, color: COLORS.inkSoft },
 });
