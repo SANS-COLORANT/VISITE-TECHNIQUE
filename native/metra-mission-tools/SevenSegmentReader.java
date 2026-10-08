@@ -28,6 +28,8 @@ public final class SevenSegmentReader {
   /** Likelihood model, tuned on the labelled photo set (docs/QA_OCR_SEVEN_SEGMENT.md). */
   static final double GHOST = 0.2, SD_LIT = 0.55, SD_UNLIT = 0.5;
   static final int WORK_WIDTH = 700;
+  /** Trained digit classifier: opt-in (-Dseg.model=true) until it is calibrated; see docs/QA_OCR_SEVEN_SEGMENT.md. */
+  static final boolean USE_MODEL = Boolean.getBoolean("seg.model");
   static final double[] SHEARS = {-0.05, 0.0, 0.05, 0.1, 0.15, 0.2, 0.3};
   static final double[] COARSE_STEPS = {-1, 0, 1};
   static final double[] FINE_STEPS = {-1, -0.66, -0.33, 0, 0.33, 0.66, 1};
@@ -351,6 +353,33 @@ public final class SevenSegmentReader {
     return out;
   }
 
+
+  /** 24x40 area-averaged darkness patch of the cell (+-10 % sides, +-8 % rows), classified by the trained model. */
+  private static double[] modelLogProbabilities(double[] integral, int w, int h, double xa, double xb, int top, int bot) {
+    double cell = xb - xa, height = bot - top;
+    double x0 = xa - 0.1 * cell, x1 = xb + 0.1 * cell, y0 = top - 0.08 * height, y1 = bot + 0.08 * height;
+    int pw = SevenSegmentModel.PATCH_WIDTH, ph = SevenSegmentModel.PATCH_HEIGHT;
+    int[][] xs = patchEdges(x0, x1, pw, w), ys = patchEdges(y0, y1, ph, h);
+    float[] patch = new float[pw * ph];
+    for (int j = 0; j < ph; j++) for (int i = 0; i < pw; i++) {
+      int xl = xs[0][i], xh = xs[1][i], yl = ys[0][j], yh = ys[1][j];
+      double sum = integral[yh * (w + 1) + xh] - integral[yl * (w + 1) + xh] - integral[yh * (w + 1) + xl] + integral[yl * (w + 1) + xl];
+      patch[j * pw + i] = (float) (sum / ((double) (xh - xl) * (yh - yl)));
+    }
+    return SevenSegmentModel.logProbabilities(patch);
+  }
+
+  private static int[][] patchEdges(double a, double b, int n, int limit) {
+    int[][] out = new int[2][n];
+    for (int i = 0; i < n; i++) {
+      int lo = (int) (a + i * (b - a) / n), hi = (int) (a + (i + 1) * (b - a) / n);
+      lo = Math.max(0, Math.min(limit, lo)); hi = Math.max(0, Math.min(limit, hi));
+      if (hi <= lo) { if (lo >= limit) lo = limit - 1; hi = lo + 1; }
+      out[0][i] = lo; out[1][i] = hi;
+    }
+    return out;
+  }
+
   private static double[] likelihoods(double[] values, double lit) {
     double ghost = GHOST * lit, sdLit = SD_LIT * lit, sdUnlit = SD_UNLIT * lit;
     double[] ll = new double[PAT.length];
@@ -434,7 +463,8 @@ public final class SevenSegmentReader {
           if (above >= 0.12 * height || below >= 0.12 * height) continue;
         }
         if (wd < 0.78 * digitWidth || wd > 1.3 * digitWidth) xa = xb - digitWidth;
-        double[] ll = likelihoods(segmentValues(integral, w, h, xa, xb, top, bot), lit);
+        double[] ll = USE_MODEL ? modelLogProbabilities(integral, w, h, xa, xb, top, bot)
+            : likelihoods(segmentValues(integral, w, h, xa, xb, top, bot), lit);
         Integer[] order = new Integer[ll.length];
         for (int i = 0; i < order.length; i++) order[i] = i;
         final double[] scores = ll;
@@ -523,6 +553,7 @@ public final class SevenSegmentReader {
     }
     return dots;
   }
+
 
   private static double coefficientOfVariation(List<Double> values) {
     double mean = 0;

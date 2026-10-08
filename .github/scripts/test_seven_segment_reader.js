@@ -14,7 +14,7 @@ if (javac.error) {
 }
 const out = fs.mkdtempSync(path.join(os.tmpdir(), 'seven-segment-'));
 try {
-  const build = spawnSync('javac', ['-nowarn', '-d', out, path.join(dir, 'SevenSegmentReader.java'),
+  const build = spawnSync('javac', ['-nowarn', '-d', out, path.join(dir, 'SevenSegmentReader.java'), path.join(dir, 'SevenSegmentModel.java'), path.join(dir, 'SevenSegmentWeights.java'),
     path.join(dir, 'tests/SevenSegmentReaderCheck.java')], { encoding: 'utf8' });
   if (build.status !== 0) { console.error(build.stdout + build.stderr); process.exit(1); }
   const real = process.argv.indexOf('--real');

@@ -95,7 +95,7 @@ const plugin = fs.readFileSync(path.join(root, 'plugins/withMetraMissionTools.js
 assert.ok(kotlin.includes('MeterSegmentReader.read('), 'bridge must call the seven-segment reader');
 assert.ok(/try \{[\s\S]*MeterSegmentReader\.read[\s\S]*catch \(skipped: Throwable\)/.test(kotlin), 'a reader failure must not discard text readings');
 assert.ok(kotlin.indexOf('payload.putArray("passes", passes)') < kotlin.indexOf('MeterSegmentReader.read('), 'text passes are filled first');
-assert.ok(plugin.includes("'SevenSegmentReader.java'") && plugin.includes("'MeterSegmentReader.java'"), 'plugin must copy the reader sources');
+for (const file of ['SevenSegmentReader.java', 'SevenSegmentModel.java', 'SevenSegmentWeights.java', 'MeterSegmentReader.java']) assert.ok(plugin.includes(`'${file}'`), `plugin must copy ${file}`);
 for (const file of ['SevenSegmentReader.java', 'MeterSegmentReader.java']) assert.ok(fs.existsSync(path.join(root, 'native/metra-mission-tools', file)));
 const reader = fs.readFileSync(path.join(root, 'native/metra-mission-tools/SevenSegmentReader.java'), 'utf8');
 assert.ok(!/android\./.test(reader), 'the reader stays pure Java so the JVM regression can run it');
