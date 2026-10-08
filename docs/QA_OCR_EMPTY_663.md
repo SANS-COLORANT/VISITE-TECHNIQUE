@@ -23,6 +23,7 @@ Le pont `MetraOcrModule.recognizeMeter` divisait la dimension de l'image par `Bi
 - Régression index : unités, décimales, recadrages tronqués, ambiguïtés et six anciennes erreurs testées. Tests des trois témoins du vrai pont intégrés aux contrats runtime.
 - Bundle Android Expo généré ; syntaxe des quatre fichiers JavaScript modifiés vérifiée.
 - 36 contrôles des destinations des compteurs réussis avec vraies trames et SQLite ; contrats interface terrain, Mode Photo et isolation Missions réussis.
+- Parcours photo sous Windows : les 39 assertions SQLite réussissent, puis le nettoyage temporaire échoue avec `EPERM`, comme avant ce correctif. Aucun test désactivé ; validation Linux de la chaîne complète requise.
 
 Le défaut qui empêchait toute lecture est **VALIDÉ comme corrigé** sur ces essais. Le critère plus exigeant « chaque photo donne son index complet avec décimales » reste **BLOQUÉ** sur les six photos terrain ; le retour de texte n'est pas compté comme un index réussi.
 

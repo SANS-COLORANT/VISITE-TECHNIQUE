@@ -46,7 +46,7 @@ export function LecturePhotoButton({ visiteId, entiteKey, label, kind = 'meter',
           : kind !== 'plate' && !found && rawText ? `Du texte a été lu, mais ${isMeter ? 'l’index' : 'la valeur'} reste à vérifier sur la photo. Le texte reconnu est affiché ci-dessous.`
           : kind !== 'plate' && !found ? 'Aucun texte lisible. Vérifie la photo ou saisis la valeur.'
           : found?.requiresReview ? 'Index proposé à vérifier sur la photo, notamment la décimale et l’unité.'
-          : !text ? 'Aucun texte lisible. Vérifie la photo ou saisis les valeurs.' : 'Vérifie chaque valeur, notamment les chiffres et les unités.' });
+          : !rawText ? 'Aucun texte lisible. Vérifie la photo ou saisis les valeurs.' : 'Vérifie chaque valeur, notamment les chiffres et les unités.' });
     } catch (error) {
       if (request !== readRequest.current) return;
       setReview({ uri: photo.uri, rows: kind === 'plate' ? lignesLecturePlaque({}, current) : [{ key: 'valeur', label, value: '', current: String(current.valeur || '') }], text: '', loading: false, hint: 'La photo est enregistrée. Lecture impossible ; la saisie manuelle reste disponible.' });
