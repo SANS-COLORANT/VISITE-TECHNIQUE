@@ -160,3 +160,24 @@ async function ajouterCategorieEquipement({nom,icone}){const db=await getDb(),id
 async function listerVariantesEquipement(modeleId){return(await getDb()).getAllAsync(`SELECT * FROM variantes_equipement WHERE modele_id=? AND actif=1 ORDER BY nom`,[modeleId]);} async function ajouterVarianteEquipement({modeleId,nom,reference,description}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO variantes_equipement(id,modele_id,nom,reference,description) VALUES(?,?,?,?,?)`,[id,modeleId,nom,reference||null,description||null]);return id;} async function getFicheVarianteEquipement(id){const db=await getDb();const variante=await db.getFirstAsync(`SELECT v.*,m.nom modele,c.nom categorie,b.nom marque,b.logo_uri,b.couleur FROM variantes_equipement v JOIN modeles_equipement m ON m.id=v.modele_id JOIN categories_equipement c ON c.id=m.categorie_id JOIN marques_equipement b ON b.id=m.marque_id WHERE v.id=?`,[id]);if(!variante)return null;variante.caracteristiques=await db.getAllAsync(`SELECT * FROM caracteristiques_equipement WHERE variante_id=? ORDER BY ordre,cle`,[id]);variante.courbes=await db.getAllAsync(`SELECT * FROM courbes_equipement WHERE variante_id=? ORDER BY nom`,[id]);variante.documents=await db.getAllAsync(`SELECT * FROM documents_equipement WHERE variante_id=? ORDER BY type,nom`,[id]);return variante;} async function ajouterCaracteristiqueEquipement({varianteId,cle,valeur,unite}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO caracteristiques_equipement(id,variante_id,cle,valeur,unite) VALUES(?,?,?,?,?)`,[id,varianteId,cle,valeur||null,unite||null]);return id;} async function ajouterCourbeEquipement({varianteId,nom,axeX='Débit',uniteX='m³/h',axeY='HMT',uniteY='mCE',serie='[]'}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO courbes_equipement(id,variante_id,nom,axe_x,unite_x,axe_y,unite_y,serie) VALUES(?,?,?,?,?,?,?,?)`,[id,varianteId,nom,axeX,uniteX,axeY,uniteY,serie]);return id;} async function ajouterDocumentEquipement({varianteId,type,nom,uri}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO documents_equipement(id,variante_id,type,nom,uri) VALUES(?,?,?,?,?)`,[id,varianteId,type||'Document',nom,uri]);return id;}
 
 export {getDb,listerClients,creerClient,listerSitesClient,creerSite,listerVisitesEnCours,listerVisitesLocal,compterVisites,creerVisite,supprimerVisite,getVisite,toucherVisite,getChampsVisite,upsertChamp,getControlesVisite,upsertControle,recalculerProgression,listerReseaux,ajouterReseau,upsertReseauChamp,supprimerReseau,listerCompteurs,ajouterCompteur,upsertCompteurChamp,supprimerCompteur,listerMateriel,ajouterMateriel,upsertMaterielChamp,supprimerMateriel,listerHistoriqueEquipement,listerRemarques,upsertRemarqueDepuisPrescription,supprimerRemarqueParControle,ajouterRemarqueManuelle,ajouterAnomalieRapide,rattacherRemarque,getNote,upsertNote,listerPhotos,ajouterPhoto,remplacerPhoto,listerBibliothequeReserves,ajouterReserveBiblio,modifierReserveBiblio,supprimerReserveBiblio,ajouterRemarqueDepuisBiblio,listerBibliothequeEquipements,ajouterEquipementBiblio,modifierEquipementBiblio,supprimerEquipementBiblio,listerCategoriesEquipement,listerMarquesEquipement,rechercherModelesEquipement,ajouterCategorieEquipement,ajouterMarqueEquipement,ajouterModeleEquipement,desactiverCategorieEquipement,desactiverMarqueEquipement,listerVisitesSite,listerVariantesEquipement,ajouterVarianteEquipement,getFicheVarianteEquipement,ajouterCaracteristiqueEquipement,ajouterCourbeEquipement,ajouterDocumentEquipement};
+
+/**
+ * Duplique un réseau de régulation dans la même visite (refonte build 661,
+ * README §5.3). La copie est un NOUVEAU réseau : elle reprend les valeurs
+ * saisies mais pas reseau_site_id, pour que le réseau persistant du local
+ * reste unique (historique et reprise de visite inchangés). Placée en fin de
+ * liste (ordre max + 1).
+ */
+export async function dupliquerReseau(reseauId) {
+  const db = await getDb();
+  const source = await db.getFirstAsync(`SELECT * FROM reseaux WHERE id=?`, [reseauId]);
+  if (!source) throw new Error('Réseau introuvable.');
+  const max = await db.getFirstAsync(`SELECT MAX(ordre) AS m FROM reseaux WHERE visite_id=?`, [source.visite_id]);
+  const id = uuidv4();
+  const nom = `${String(source.nom_reseau || '').trim() || 'Réseau'} (copie)`;
+  await db.runAsync(
+    `INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire) VALUES(?,?,?,?,?,?,?,?,?)`,
+    [id, source.visite_id, Number(max?.m ?? 0) + 1, nom, source.t_ext_c ?? null, source.t_dep_c ?? null, source.courbe_de_chauffe ?? null, source.tnc ?? null, source.consigne_programme_horaire ?? null]
+  );
+  return id;
+}
