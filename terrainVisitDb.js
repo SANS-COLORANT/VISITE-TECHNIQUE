@@ -17,6 +17,15 @@ export async function creerEquipementVisite(visiteId) {
   await db.runAsync('DELETE FROM observations_equipement WHERE visite_id=? AND equipement_id=(SELECT equipement_id FROM materiel WHERE id=?)', [visiteId,id]);
   return id;
 }
+/** Annule le pointage « présent » de cette visite (geste « Annuler » ou second toucher). */
+export async function annulerPresenceEquipements(visiteId, materielIds) {
+  if (!materielIds?.length) return;
+  const db = await getDb();
+  for (const id of materielIds) {
+    await db.runAsync('UPDATE materiel SET confirme_le=NULL WHERE id=? AND visite_id=?', [id, visiteId]);
+  }
+}
+
 export async function confirmerEquipementVisite(visiteId, materielId) {
   const db = await getDb();
   const item = await db.getFirstAsync('SELECT id,perimetre FROM materiel WHERE id=? AND visite_id=?', [materielId, visiteId]);
