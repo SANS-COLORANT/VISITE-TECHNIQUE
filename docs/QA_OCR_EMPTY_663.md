@@ -23,7 +23,7 @@ Le pont `MetraOcrModule.recognizeMeter` divisait la dimension de l'image par `Bi
 - Régression index : unités, décimales, recadrages tronqués, ambiguïtés et six anciennes erreurs testées. Tests des trois témoins du vrai pont intégrés aux contrats runtime.
 - Bundle Android Expo généré ; syntaxe des quatre fichiers JavaScript modifiés vérifiée.
 - 36 contrôles des destinations des compteurs réussis avec vraies trames et SQLite ; contrats interface terrain, Mode Photo et isolation Missions réussis.
-- Parcours photo sous Windows : les 39 assertions SQLite réussissent, puis le nettoyage temporaire échoue avec `EPERM`, comme avant ce correctif. Aucun test désactivé ; validation Linux de la chaîne complète requise.
+- Parcours photo sous Windows : les 39 assertions SQLite réussissent, puis le nettoyage temporaire échoue avec `EPERM`, comme avant ce correctif. Aucun test désactivé. Les contrats runtime complets passent ensuite sous Linux dans le build 665.
 
 Le défaut qui empêchait toute lecture est **VALIDÉ comme corrigé** sur ces essais. Le critère plus exigeant « chaque photo donne son index complet avec décimales » reste **BLOQUÉ** sur les six photos terrain ; le retour de texte n'est pas compté comme un index réussi.
 
@@ -42,3 +42,13 @@ adb -s emulator-5554 shell am instrument -w com.visitetechnique.tablet/com.metra
 ```
 
 Le script prépare uniquement la source et le manifeste **debug** générés pour le test. La release ne contient pas l'instrumentation. Les fixtures enregistrent des résultats réellement obtenus ; après une modification native, rejouer l'instrumentation au lieu de se contenter des fixtures JavaScript.
+
+## APK corrigée
+
+Build **665**, source applicative `e097d1aabf5de44aed8e668a850e22e366b64ceb`, [exécution GitHub](https://github.com/SANS-COLORANT/VISITE-TECHNIQUE/actions/runs/37759238535).
+
+Le job `build-apk` réussit : dépendances, contrats runtime, bundle JavaScript, compilation Android debug et release, vérification de signature et publication des deux APK. Les captures de l'interface sont un job distinct.
+
+Fichier livré : `METRA-665-correction-OCR.apk`, 58 139 764 octets. Vérification locale par `aapt` : paquet `com.visitetechnique.tablet`, `versionCode=665`. `apksigner verify --print-certs` réussit ; certificat SHA-256 `fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c`, identique à la signature attendue pour les mises à jour. SHA-256 du fichier APK : `07d74e83cc23c51e49fa28bb7e4a46c87ac84d4153bdab04c875ede95dde3214`.
+
+**VALIDÉ** : correction de l'arrêt avant OCR et retour de texte hors connexion sur les six photos testées. **BLOQUÉ** : index complet avec décimales sur ces mêmes six photos (0/6) ; cette APK ne doit pas être présentée comme une lecture parfaite.
