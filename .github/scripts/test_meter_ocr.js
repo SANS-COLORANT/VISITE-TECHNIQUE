@@ -17,6 +17,21 @@ for(const [text,unit,value] of [['23501.54 MWh','MWh','23501.54'],['07928.519 mÂ
 }
 assert.equal(extraireValeurOcr('955.67 MWh',{kind:'meter',unit:'mÂ³'}).unitMismatch,true);
 assert.equal(extraireValeurOcr('23501.54MWh',meter).value,'23501.54');
+// Synthetic geometry reproduces a unit glyph read as a digit; no private image.
+for (const glyph of ['1Wh', '7Wh']) {
+ const main = {text:'86420', box:{left:40,top:40,right:290,bottom:100}};
+ const unit = {text:glyph, box:{left:200,top:120,right:280,bottom:145}};
+ assert.equal(extraireValeurOcr({passes:[
+  {lines:[main,{...unit,text:'HWh'}]}, {lines:[unit]}, {lines:[unit]}
+ ]},meter),null,'a small corrupted unit below large digits is not a separate index');
+}
+assert.equal(extraireValeurOcr({lines:[{text:'1Wh',box:{left:40,top:40,right:180,bottom:100}}]},
+ {kind:'meter',unit:'Wh'}).value,'1','a genuine small index remains readable');
+assert.equal(extraireValeurOcr({lines:[
+ {text:'984321',box:{left:40,top:10,right:180,bottom:30}},
+ {text:'42.5 MWh',box:{left:40,top:50,right:290,bottom:110}}
+]},meter).value,'42.5','a smaller serial above the actual display does not hide its index');
+
 assert.equal(extraireValeurOcr({passes:[{text:'23501.54MWh'},{text:'23501.54MWh'}]},meter).value,'23501.54');
 assert.equal(extraireValeurOcr({passes:[{text:'23501.54 MWh'},{text:''},{text:''}]},meter).value,'23501.54', 'a clear full-photo reading survives empty enhancements');
 assert.equal(extraireValeurOcr({passes:[{text:''},{text:'23501.54 MWh'}]},meter),null,'a lone enhanced reading stays unconfirmed');

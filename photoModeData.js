@@ -98,6 +98,10 @@ export function extraireIndexCompteur(input, context = {}) {
   const passes = result.passes?.length ? result.passes : [result];
   const expected = clean(context.unit).toLowerCase().replace('³', '3');
   const technical = /\b(?:s\/?n|serial|serie|type|cfg|cfa|prog|classe|multical|cf\s*800|h71|en\s*\d|pt\s*\d|ip\s*\d|q[pst]|imp|poids|position|coefficient|tension)\b|\d\s*(?:v|hz|°c|m[³3]\s*\/\s*h)\b|\d{1,2}\/\d{1,2}\/\d{2,4}/i;
+  // Keep full-photo geometry even when an enhancement loses the main digits.
+  // A small unit label misread as "1Wh" must not become a separate index.
+  const displayNumbers = passes.flatMap(pass => pass.lines || []).filter(line =>
+    line.box && /^\d{2,}(?:[.,]\d+)?$/.test(clean(line.text)));
   const candidates = [];
   for (let passIndex = 0; passIndex < passes.length; passIndex++) {
     const pass = passes[passIndex];
@@ -129,6 +133,12 @@ export function extraireIndexCompteur(input, context = {}) {
       }
       if (!detectedUnit) continue;
       const numberText = ownUnit ? text.slice(0, ownUnit.index).trim() : text;
+      if (ownUnit && line.box && displayNumbers.some(other => {
+        const a = other.box, b = line.box;
+        const height = a.bottom - a.top;
+        return height > 1.6 * (b.bottom - b.top) && b.top >= a.bottom
+          && b.top - a.bottom < 2 * height && b.left < a.right && b.right > a.left;
+      })) continue;
       // Reject damaged digits and ambiguous whitespace, never reconstruct them.
       if (!/^\d+(?:[.,]\d+)?$/.test(numberText.replace(/(?<=\d)[ \u00a0](?=\d{3}(?:[.,]|$))/g, ''))) continue;
       const value = preserveReading(numberText);
