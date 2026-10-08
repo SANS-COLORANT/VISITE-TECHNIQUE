@@ -32,6 +32,8 @@ Le critère demandé « une photo donne le bon index complet » n'est pas attein
 - `expo export --platform android` : bundle généré.
 - Régressions destinations compteurs : 36 contrôles SQLite réussis ; parcours photo : 39 assertions réussies ; contrat Mode Photo réussi.
 - `npm ci` / `verify:metra` sous Windows : échec du nettoyage de dossier temporaire avec EPERM après les 17 assertions SQLite SITE/LOCAL réussies. Même échec après les 39 assertions du parcours photo. Aucun test n'a été désactivé ni modifié pour masquer ces échecs. Validation Linux nécessaire.
+- Serveur GitHub Actions Linux, run 663 `37750920918` : installation `npm ci` avec postinstall, validation Expo et contrats runtime finaux réussis. Le blocage EPERM est propre au nettoyage des tests sous Windows.
+- Réexécution des neuf essais sans connexion, `dumpsys connectivity` indiquant `Active default network: none` : six abstentions terrain et trois témoins exacts, mêmes résultats.
 
 Un essai séparé de Tesseract4Android 4.9.0 avec modèles `ssd_int` et `7seg` retrouve parfois la suite de chiffres mais perd la décimale et propose aussi des suites incorrectes à forte confiance. Il n'est pas intégré au produit. Le prototype de lecture directe des segments ne généralise pas suffisamment ; il n'est pas intégré non plus.
 
