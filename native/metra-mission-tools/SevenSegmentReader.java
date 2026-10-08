@@ -391,7 +391,15 @@ public final class SevenSegmentReader {
     double lit = 0.8 * bandPercentile(dark, w, top, bot, 0.96f);
     if (lit <= 1e-4) return null;
     List<Cell> cells = new ArrayList<>();
-    double digitWidth = 0.55 * height;
+    // Digit width differs a lot between displays (0.5 H on a MULTICAL 601, 0.75 H on a MULTICAL 21):
+    // take it from the clusters that look like single digits instead of assuming it.
+    List<Double> plausibleWidths = new ArrayList<>();
+    for (int[] run : merged) {
+      double span = run[1] - run[0], center = (run[0] + run[1]) / 2.0;
+      if (center >= left && center <= right && span >= 0.38 * height && span <= 0.95 * height) plausibleWidths.add(span);
+    }
+    java.util.Collections.sort(plausibleWidths);
+    double digitWidth = plausibleWidths.isEmpty() ? 0.55 * height : plausibleWidths.get(plausibleWidths.size() / 2);
     for (int[] run0 : merged) {
       int[] run = run0;
       double center = (run[0] + run[1]) / 2.0;
@@ -399,8 +407,8 @@ public final class SevenSegmentReader {
       double span = run[1] - run[0];
       if (span < 0.08 * height) continue;
       List<double[]> parts = new ArrayList<>();
-      if (span > 0.85 * height) {
-        int n = Math.max(2, (int) Math.round(span / (0.62 * height)));
+      if (span > 1.45 * digitWidth) {
+        int n = Math.max(2, (int) Math.round(span / (1.12 * digitWidth)));
         double step = span / n;
         for (int i = 0; i < n; i++) parts.add(new double[]{run[0] + i * step, run[0] + (i + 1) * step});
       } else parts.add(new double[]{run[0], run[1]});
@@ -425,7 +433,7 @@ public final class SevenSegmentReader {
           }
           if (above >= 0.12 * height || below >= 0.12 * height) continue;
         }
-        if (wd < 0.5 * height || wd > 0.75 * height) xa = xb - digitWidth;
+        if (wd < 0.78 * digitWidth || wd > 1.3 * digitWidth) xa = xb - digitWidth;
         double[] ll = likelihoods(segmentValues(integral, w, h, xa, xb, top, bot), lit);
         Integer[] order = new Integer[ll.length];
         for (int i = 0; i < order.length; i++) order[i] = i;
