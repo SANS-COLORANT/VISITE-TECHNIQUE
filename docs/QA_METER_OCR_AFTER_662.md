@@ -28,15 +28,21 @@ Le critère demandé « une photo donne le bon index complet » n'est pas attein
 - Sorties natives et empreintes SHA-256 conservées dans `.github/scripts/fixtures/meter-ocr-android-captures.json`. Photos non publiées.
 - `node .github/scripts/test_meter_ocr.js` : filtres, décimales, unités, ambiguïtés, fenêtres tronquées et témoins natifs.
 - `node .github/scripts/test_meter_ocr.js --require-exact-photos` : **échec attendu**, bloque explicitement le critère de lecture des six photos réelles.
-- `:app:compileDebugKotlin` dans le projet Android complet : compilation réussie. Ce résultat n'est pas une compilation release signée.
+- `:app:compileDebugKotlin` dans le projet Android complet : compilation réussie.
 - `expo export --platform android` : bundle généré.
 - Régressions destinations compteurs : 36 contrôles SQLite réussis ; parcours photo : 39 assertions réussies ; contrat Mode Photo réussi.
 - `npm ci` / `verify:metra` sous Windows : échec du nettoyage de dossier temporaire avec EPERM après les 17 assertions SQLite SITE/LOCAL réussies. Même échec après les 39 assertions du parcours photo. Aucun test n'a été désactivé ni modifié pour masquer ces échecs. Validation Linux nécessaire.
 - Serveur GitHub Actions Linux, run 663 `37750920918` : installation `npm ci` avec postinstall, validation Expo et contrats runtime finaux réussis. Le blocage EPERM est propre au nettoyage des tests sous Windows.
 - Réexécution des neuf essais sans connexion, `dumpsys connectivity` indiquant `Active default network: none` : six abstentions terrain et trois témoins exacts, mêmes résultats.
+- Run 663 `37750920918` terminé : APK debug et standalone release compilés, signature vérifiée, validations Linux réussies. Le code embarqué correspond à `efbcd218ca15ec79fa7e0c43c978e0c8f569372e`.
+- APK téléchargée et vérifiée : paquet `com.visitetechnique.tablet`, versionCode `663`, certificat SHA-256 `FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C` compatible avec la chaîne de mises à jour. SHA-256 du fichier : `3504ec5227654521b5f0f2b726e16ce85088df8281b794f13021631f8cdcb4d5`.
 
 Un essai séparé de Tesseract4Android 4.9.0 avec modèles `ssd_int` et `7seg` retrouve parfois la suite de chiffres mais perd la décimale et propose aussi des suites incorrectes à forte confiance. Il n'est pas intégré au produit. Le prototype de lecture directe des segments ne généralise pas suffisamment ; il n'est pas intégré non plus.
 
+Après choix explicite d'un fonctionnement entièrement hors connexion, essais complémentaires de redressement LCD (contours, transformation de perspective et orientation des traits), puis lecture réelle Android de neuf zones par les deux modèles spécialisés, deux modes de segmentation et trois traitements de contraste. Les sorties restent incorrectes ou incomplètes ; un cadre peut ajouter un faux premier ou dernier chiffre. Aucun de ces résultats n'est utilisé comme index fiable. La demande « une seule photo, index complet » reste **BLOQUÉE**, sans service IA ni clé API ajoutés.
+
 ## Livraison
 
-Branche dédiée basée sur la 662, PR en brouillon vers `native-android`. Ne pas fusionner ou annoncer un OCR parfait tant que le critère des photos réelles échoue. Un APK de validation éventuel sert à vérifier la correction des fausses propositions, sans certifier la lecture automatique complète.
+Branche dédiée basée sur la 662, PR en brouillon vers `native-android` : https://github.com/SANS-COLORANT/VISITE-TECHNIQUE/pull/101. Ne pas fusionner ou annoncer un OCR parfait tant que le critère des photos réelles échoue. L'APK 663 est une version de validation de la correction des fausses propositions ; elle ne certifie pas la lecture automatique complète.
+
+Compilation : https://github.com/SANS-COLORANT/VISITE-TECHNIQUE/actions/runs/37750920918.
