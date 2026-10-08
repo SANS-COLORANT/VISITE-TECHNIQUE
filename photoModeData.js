@@ -93,7 +93,7 @@ export function extraireValeurOcr(text, context = {}) {
 
 // An index needs evidence from the display. A long number on a nameplate is
 // never a fallback. Keep the image geometry and every pass from the native OCR.
-export function extraireIndexCompteur(input, context = {}) {
+function extraireIndexTexte(input, context = {}) {
   const result = typeof input === 'string' ? { text: input } : (input || {});
   const passes = result.passes?.length ? result.passes : [result];
   const expected = clean(context.unit).toLowerCase().replace('³', '3');
@@ -165,6 +165,71 @@ export function extraireIndexCompteur(input, context = {}) {
   if (ranked.length > 1 && ranked[0].votes.size < ranked[1].votes.size + 2) return null;
   const best = ranked[0];
   return { ...best, observations: best.votes.size, requiresReview: best.votes.size < 2, votes: undefined };
+}
+
+// Seven-segment second opinion. ML Kit locates the digit row reliably but mistakes
+// lit/unlit LCD segments (0/8, 4/9, 1/7) and drops the decimal point; the native
+// SevenSegmentReader decides each digit from its segments. It is only ever a
+// suggestion: digits whose likelihood margin is small are reported for confirmation.
+const SEGMENT_UNIT = /(?<![A-Za-z])([km]?wh)(?![A-Za-z])|(?<![A-Za-z])m\s*[³3](?!\s*\/)/i;
+const DECIMAL_CONFIDENT = 0.6;
+
+export function extraireIndexSegments(input, context = {}) {
+  const segments = (input?.segments || []).filter(segment => segment?.plausible
+    && Array.isArray(segment.digits) && segment.digits.length >= 3 && segment.digits.length <= 10
+    && segment.digits.every(digit => /^\d$/.test(String(digit?.key))));
+  if (!segments.length) return null;
+  const best = [...segments].sort((a, b) => (b.score || 0) - (a.score || 0))[0];
+  const length = best.digits.length;
+  // The line ML Kit boxed must contain about as many digits as we decoded.
+  if (best.mlKitDigits && Math.abs(best.mlKitDigits - length) > 1) return null;
+  const digits = best.digits.map(digit => String(digit.key)).join('');
+  const dot = Number.isInteger(best.dotAfter) && best.dotAfter >= 0 && best.dotAfter < length - 1 ? best.dotAfter : -1;
+  const value = dot >= 0 ? `${digits.slice(0, dot + 1)}.${digits.slice(dot + 1)}` : digits;
+  const numeric = parseNumber(value);
+  if (numeric == null) return null;
+  const expected = clean(context.unit).toLowerCase().replace('³', '3');
+  const passTexts = [input?.text, ...(input?.passes || []).map(pass => pass?.text)].map(clean).filter(Boolean);
+  let detected = null;
+  for (const text of passTexts) {
+    const found = text.match(SEGMENT_UNIT);
+    if (found) { detected = found[0].toLowerCase().replace(/\s/g, '').replace('³', '3'); break; }
+  }
+  const unitLabel = (unit) => unit === 'm3' ? 'm³' : unit === 'mwh' ? 'MWh' : unit === 'kwh' ? 'kWh' : unit === 'wh' ? 'Wh' : clean(context.unit);
+  const uncertain = best.digits.map((digit, index) => digit.uncertain ? { position: index + 1, chosen: String(digit.key),
+    alternatives: String(digit.alternatives || '').split('').filter(alt => alt !== String(digit.key)) } : null).filter(Boolean);
+  const decimalUncertain = dot < 0 || (best.dotStrength || 0) < DECIMAL_CONFIDENT;
+  // Pre-fill the field only when nothing is in doubt: every digit decided with margin,
+  // a decimal point actually seen, and the digit count agreeing with ML Kit's own line.
+  // Otherwise the reading stays a hint: the user keys the value after looking at the photo.
+  const confident = !uncertain.length && !decimalUncertain && best.mlKitDigits === length;
+  return {
+    value: confident ? value : '', suggestion: value, prefill: confident, numeric: confident ? numeric : null,
+    digits, source: 'seven-segment',
+    unit: detected ? unitLabel(detected) : clean(context.unit), unitFromField: !detected,
+    unitMismatch: Boolean(detected && expected && expected !== detected),
+    decimalUncertain, uncertainDigits: uncertain, line: best.mlKitText || '', box: best.box || null,
+    observations: 1, requiresReview: true,
+  };
+}
+
+export function resumeIncertitudesSegments(found) {
+  if (found?.source !== 'seven-segment') return '';
+  const parts = [];
+  if (!found.prefill) parts.push(`lecture proposée ${found.suggestion} (non reportée)`);
+  if (found.uncertainDigits?.length) {
+    parts.push(`chiffre${found.uncertainDigits.length > 1 ? 's' : ''} à confirmer : ${found.uncertainDigits.map(item =>
+      `n°${item.position} (${[item.chosen, ...item.alternatives.slice(0, 2)].join(' ou ')})`).join(', ')}`);
+  }
+  if (found.decimalUncertain) parts.push('position de la virgule');
+  return parts.join(' ; ');
+}
+
+export function extraireIndexCompteur(input, context = {}) {
+  const text = extraireIndexTexte(input, context);
+  // A strict text reading keeps priority; segments only fill in when the text parser has nothing safe.
+  if (text) return text;
+  return extraireIndexSegments(input, context);
 }
 
 function valueAfterLabel(lines, pattern) {

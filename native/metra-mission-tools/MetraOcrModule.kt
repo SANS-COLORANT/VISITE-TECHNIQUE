@@ -72,6 +72,42 @@ class MetraOcrModule(private val context: ReactApplicationContext) : ReactContex
         val payload = Arguments.createMap()
         payload.putString("text", results.firstOrNull()?.result?.text ?: "")
         payload.putArray("passes", passes)
+        // Second opinion on LCD digits. Never allowed to break the text readings above.
+        val segments = Arguments.createArray()
+        try {
+          results.firstOrNull()?.let { first ->
+            MeterSegmentReader.read(bitmap!!, first.result, 3).forEach { candidate ->
+              val reading = candidate.result
+              val item = Arguments.createMap()
+              item.putString("text", reading.digits())
+              val digits = Arguments.createArray()
+              reading.cells.forEach { cell ->
+                val digit = Arguments.createMap()
+                digit.putString("key", cell.key.toString())
+                digit.putDouble("margin", cell.margin)
+                digit.putString("alternatives", cell.alternatives)
+                digit.putBoolean("uncertain", cell.uncertain())
+                digits.pushMap(digit)
+              }
+              item.putArray("digits", digits)
+              item.putInt("dotAfter", reading.dotAfter)
+              item.putDouble("dotStrength", reading.dotStrength)
+              item.putDouble("score", reading.score)
+              item.putDouble("regularity", reading.regularity)
+              item.putBoolean("plausible", reading.plausible())
+              item.putInt("mlKitDigits", candidate.mlKitDigitCount)
+              item.putString("mlKitText", candidate.mlKitText)
+              val box = Arguments.createMap()
+              box.putInt("left", candidate.lineBox.left); box.putInt("top", candidate.lineBox.top)
+              box.putInt("right", candidate.lineBox.right); box.putInt("bottom", candidate.lineBox.bottom)
+              item.putMap("box", box)
+              segments.pushMap(item)
+            }
+          }
+        } catch (skipped: Throwable) {
+          android.util.Log.w("MetraMeterOcr", "Seven-segment reader skipped", skipped)
+        }
+        payload.putArray("segments", segments)
         payload.putDouble("durationMs", (System.currentTimeMillis() - started).toDouble())
         promise.resolve(payload)
       } catch (error: Exception) { promise.reject("METRA_METER_OCR_ERROR", error.message, error) }

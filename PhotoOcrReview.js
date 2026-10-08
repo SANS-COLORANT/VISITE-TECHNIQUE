@@ -4,7 +4,7 @@ import { COLORS, FONTS, styles } from './styles.js';
 import { PhotoButton } from './PhotoButton.js';
 import { PhotoVariantImage } from './PhotoVariantImage.js';
 import { reconnaitreTexteImageLocale } from './missionNativeTools.js';
-import { extraireChampsPlaque, extraireValeurOcr } from './photoModeData.js';
+import { extraireChampsPlaque, extraireValeurOcr, resumeIncertitudesSegments } from './photoModeData.js';
 import { lignesLecturePlaque } from './terrainVisitModel.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { CvcIcon } from './MetraCvcIcons.js';
@@ -45,6 +45,7 @@ export function LecturePhotoButton({ visiteId, entiteKey, label, kind = 'meter',
           : found?.unitMismatch ? `L’afficheur indique ${found.unit}, mais ce champ attend ${unit}. Vérifie le compteur sélectionné.`
           : kind !== 'plate' && !found && rawText ? `Du texte a été lu, mais ${isMeter ? 'l’index' : 'la valeur'} reste à vérifier sur la photo. Le texte reconnu est affiché ci-dessous.`
           : kind !== 'plate' && !found ? 'Aucun texte lisible. Vérifie la photo ou saisis la valeur.'
+          : found?.source === 'seven-segment' ? `Lecture par segments, à confirmer sur la photo${resumeIncertitudesSegments(found) ? ` — ${resumeIncertitudesSegments(found)}` : ''}.${found.prefill ? '' : ' Saisis la valeur après vérification.'}${found.unitFromField ? ' Unité non lue : celle du champ est utilisée.' : ''}`
           : found?.requiresReview ? 'Index proposé à vérifier sur la photo, notamment la décimale et l’unité.'
           : !rawText ? 'Aucun texte lisible. Vérifie la photo ou saisis les valeurs.' : 'Vérifie chaque valeur, notamment les chiffres et les unités.' });
     } catch (error) {
