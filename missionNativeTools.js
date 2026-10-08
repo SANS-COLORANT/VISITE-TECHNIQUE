@@ -6,11 +6,12 @@ export function ocrLocalDisponible() {
   return Platform.OS === 'android' && Boolean(MetraOcr?.recognize);
 }
 
-export async function reconnaitreTexteImageLocale(uri) {
+export async function reconnaitreTexteImageLocale(uri, options = {}) {
   if (!uri) throw new Error('Image manquante.');
   if (!ocrLocalDisponible()) {
     return { text: '', blocks: [], durationMs: 0, unavailable: true };
   }
+  if (options.meter && MetraOcr?.recognizeMeter) return MetraOcr.recognizeMeter(uri);
   return MetraOcr.recognize(uri);
 }
 

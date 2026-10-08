@@ -366,7 +366,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       });
       endExternalSave(saveKey);
       saveKey = null;
-      onPhotoSaved?.({ id: photoId, entiteKey: cibleKey, uri: photo.uri, label: labelFinal });
+      onPhotoSaved?.({ id: photoId, entiteKey: cibleKey, uri: photo.uri, ocrUri: captureUri, label: labelFinal });
     } catch (e) {
       targetPromiseRef.current = null;
       // Si la copie durable a déjà été journalisée, on laisse la ligne optimiste :
@@ -431,7 +431,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       upsertRuntimePhoto(visiteId, { ...photoExistante, uri: nouvelle.uri, label: labelDb, entite_key: nouvelle.entiteKey || cibleKey, pending: false });
       endExternalSave(saveKey);
       saveKey = null;
-      onPhotoSaved?.({ id: photoExistante.id, entiteKey: nouvelle.entiteKey || cibleKey, uri: nouvelle.uri, label: nouvelle.label || label });
+      onPhotoSaved?.({ id: photoExistante.id, entiteKey: nouvelle.entiteKey || cibleKey, uri: nouvelle.uri, ocrUri: captureUri, label: nouvelle.label || label });
     } catch (e) {
       upsertRuntimePhoto(visiteId, ancienne);
       if (saveKey) endExternalSave(saveKey, e);

@@ -356,12 +356,13 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
     try {
       const uri = await prendrePhoto(); if (!uri) return 'cancel';
       const wantsOcr = plaque || currentModule?.id === 'meters' || currentModule?.id === 'temperatures';
-      const ocrPromise = wantsOcr ? reconnaitreTexteImageLocale(uri).catch(() => null) : Promise.resolve(null);
+      const ocrPromise = wantsOcr ? reconnaitreTexteImageLocale(uri, { meter: currentModule?.id === 'meters' && !plaque }).catch(() => null) : Promise.resolve(null);
       const storePromise = importCompanionPhoto({ visiteId: snapshot.visit.id, uri, meta: { targetKey: currentTarget?.targetKey || null, label: label || (plaque ? 'Plaque signalétique' : currentTarget?.label || 'Photo terrain'), moduleId: currentModule?.id || 'photos' } });
       const [ocr] = await Promise.all([ocrPromise, storePromise]);
-      if ((currentModule?.id === 'meters' || currentModule?.id === 'temperatures') && ocr?.text) {
+      if (!plaque && (currentModule?.id === 'meters' || currentModule?.id === 'temperatures')) {
         const field = numericField(currentModule.id, currentTarget);
-        const found = extraireValeurOcr(ocr.text, { kind: currentModule.id, unit: field?.unit || currentTarget?.unit, label: currentTarget?.label });
+        const found = extraireValeurOcr(ocr, { kind: currentModule.id, unit: field?.unit || currentTarget?.unit, label: currentTarget?.label });
+        if (found?.unitMismatch) { setStatus(`Photo enregistrée · unité ${found.unit} incompatible avec ce compteur`); await refresh(); return 'nofound'; }
         if (found && field?.edit) {
           // Valeur lue : confirmation avant enregistrement (évite une erreur de lecture silencieuse).
           setHighlightId(currentTarget?.id || null); setStatus('');

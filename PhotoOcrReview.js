@@ -24,14 +24,17 @@ export function LecturePhotoButton({ visiteId, entiteKey, label, kind = 'meter',
     setRawVisible(false);
     setReview({ uri: photo.uri, rows: [], text: '', loading: true });
     try {
-      const result = photo.text != null ? { text: photo.text } : await reconnaitreTexteImageLocale(photo.uri);
+      const isMeter = /^(meter|counter|meters)$/.test(kind);
+      const result = photo.text != null ? { text: photo.text } : await reconnaitreTexteImageLocale(isMeter ? (photo.ocrUri || photo.uri) : photo.uri, { meter: isMeter });
       if (request !== readRequest.current) return;
       const text = String(result?.text || '');
-      const found = kind === 'plate' ? null : extraireValeurOcr(text, { kind, unit, label });
+      const found = kind === 'plate' ? null : extraireValeurOcr(result, { kind, unit, label });
       const rows = kind === 'plate' ? lignesLecturePlaque(extraireChampsPlaque(text), current)
         : [{ key: 'valeur', label: `${label}${unit ? ` (${unit})` : ''}`, value: found ? String(found.value) : '', current: String(current.valeur || '') }];
-      setReview({ uri: photo.uri, rows, text, loading: false,
+      setReview({ uri: photo.uri, rows, text: (result?.passes || [{ text }]).map(p => p.text).join('\n\n'), loading: false, unitMismatch: found?.unitMismatch, detectedUnit: found?.unit,
         hint: result?.unavailable ? 'Lecture automatique indisponible sur cet appareil. Tu peux saisir les valeurs ci-dessous.'
+          : found?.unitMismatch ? `L’afficheur indique ${found.unit}, mais ce champ attend ${unit}. Vérifie le compteur sélectionné.`
+          : kind !== 'plate' && !found ? `${isMeter ? 'Index' : 'Valeur'} non reconnu avec certitude. Vérifie l’afficheur ou saisis la valeur.`
           : !text ? 'Aucun texte lisible. Vérifie la photo ou saisis les valeurs.' : 'Vérifie chaque valeur, notamment les chiffres et les unités.' });
     } catch (error) {
       if (request !== readRequest.current) return;
@@ -40,6 +43,7 @@ export function LecturePhotoButton({ visiteId, entiteKey, label, kind = 'meter',
   };
   const appliquer = async () => {
     if (busy || review?.loading) return;
+    if (review?.unitMismatch) { Alert.alert('Unité incompatible', `Cette photo indique ${review.detectedUnit}. Sélectionne un compteur avec cette unité avant d’appliquer le relevé.`); return; }
     setBusy(true);
     try {
       const values = Object.fromEntries(review.rows.filter((r) => String(r.value).trim()).map((r) => [r.key, String(r.value).trim()]));

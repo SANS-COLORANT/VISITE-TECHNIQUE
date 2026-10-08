@@ -43,7 +43,10 @@ function preserveReading(raw) {
 }
 
 export function extraireValeurOcr(text, context = {}) {
-  const source = clean(text);
+  if (/^(meter|counter|meters)$/.test(clean(context.kind).toLowerCase())) {
+    return extraireIndexCompteur(text, context);
+  }
+  const source = clean(typeof text === 'string' ? text : text?.text);
   if (!source) return null;
   const kind = clean(context.kind).toLowerCase();
   const unit = stripAccents(clean(context.unit)).toLowerCase();
@@ -86,6 +89,70 @@ export function extraireValeurOcr(text, context = {}) {
   const best = candidates[0];
   if (!best || best.score < 3) return null;
   return best;
+}
+
+// An index needs evidence from the display. A long number on a nameplate is
+// never a fallback. Keep the image geometry and every pass from the native OCR.
+export function extraireIndexCompteur(input, context = {}) {
+  const result = typeof input === 'string' ? { text: input } : (input || {});
+  const passes = result.passes?.length ? result.passes : [result];
+  const expected = clean(context.unit).toLowerCase().replace('³', '3');
+  const technical = /\b(?:s\/?n|serial|serie|type|cfg|cfa|prog|classe|multical|cf\s*800|h71|en\s*\d|pt\s*\d|ip\s*\d|q[pst]|imp|poids|position|coefficient|tension)\b|\d\s*(?:v|hz|°c|m[³3]\s*\/\s*h)\b|\d{1,2}\/\d{1,2}\/\d{2,4}/i;
+  const candidates = [];
+  for (let passIndex = 0; passIndex < passes.length; passIndex++) {
+    const pass = passes[passIndex];
+    const lines = pass.lines?.length ? pass.lines : clean(pass.text).split(/\r?\n/).map(text => ({ text }));
+    for (let index = 0; index < lines.length; index++) {
+      const line = lines[index];
+      const text = clean(line.text);
+      // A fallback window can cut the leading digit while still producing a
+      // plausible number. Such lines cannot vote against the complete display.
+      if (line.box && pass.crop) {
+        const a = line.box, c = pass.crop, margin = (a.bottom - a.top) * 0.5;
+        if (a.left - c.left < margin || c.right - a.right < margin
+          || a.top - c.top < margin || c.bottom - a.bottom < margin) continue;
+      }
+      if (technical.test(stripAccents(text))) continue;
+      const ownUnit = text.match(/(kwh|mwh|wh)(?![A-Za-z])|m\s*[³3](?!\s*\/)/i);
+      let detectedUnit = ownUnit?.[0].toLowerCase().replace(/\s/g, '').replace('³', '3');
+      // A unit on its own line may be associated only with an adjacent number.
+      if (!detectedUnit && /^[\d\s.,]+$/.test(text)) {
+        const next = lines[index + 1];
+        const nextText = clean(next?.text);
+        if (/^(m\s*[³3]|[km]?wh)$/i.test(nextText)) {
+          const a = line.box, b = next?.box;
+          if (!a || !b || (b.top >= a.top && b.top - a.bottom < 2 * (a.bottom - a.top)
+            && b.left < a.right + (a.right - a.left) && b.right > a.left)) {
+            detectedUnit = nextText.toLowerCase().replace(/\s/g, '').replace('³', '3');
+          }
+        }
+      }
+      if (!detectedUnit) continue;
+      const numberText = ownUnit ? text.slice(0, ownUnit.index).trim() : text;
+      // Reject damaged digits and ambiguous whitespace, never reconstruct them.
+      if (!/^\d+(?:[.,]\d+)?$/.test(numberText.replace(/(?<=\d)[ \u00a0](?=\d{3}(?:[.,]|$))/g, ''))) continue;
+      const value = preserveReading(numberText);
+      if (value.replace(/\D/g, '').length > 10) continue;
+      const numeric = parseNumber(value);
+      if (numeric == null) continue;
+      candidates.push({ value, numeric, unit: detectedUnit === 'm3' ? 'm³' : detectedUnit === 'mwh' ? 'MWh' : detectedUnit === 'kwh' ? 'kWh' : 'Wh',
+        unitMismatch: Boolean(expected && expected !== detectedUnit), line: text, box: line.box || null,
+        passIndex, score: 10 + (/[.,]/.test(value) ? 2 : 0) });
+    }
+  }
+  const groups = new Map();
+  for (const candidate of candidates) {
+    const key = `${candidate.numeric}:${candidate.unit}`;
+    const group = groups.get(key) || { ...candidate, votes: new Set() };
+    group.votes.add(candidate.passIndex); groups.set(key, group);
+  }
+  const ranked = [...groups.values()].sort((a, b) => b.votes.size - a.votes.size || b.score - a.score);
+  if (!ranked.length) return null;
+  if (result.passes?.length > 1 && ranked[0].votes.size < 2) return null;
+  // Disagreement cannot be resolved by picking the longest number.
+  if (ranked.length > 1 && ranked[0].votes.size < ranked[1].votes.size + 2) return null;
+  const best = ranked[0];
+  return { ...best, observations: best.votes.size, votes: undefined };
 }
 
 function valueAfterLabel(lines, pattern) {

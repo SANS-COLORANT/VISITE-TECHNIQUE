@@ -4,6 +4,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const CONTRACT_CHECKS = [
+  ['meter OCR index selection regression', '.github/scripts/test_meter_ocr.js'],
   ['Spiral Active UI contract', '.github/scripts/check_spiral_active_ui.js'],
   ['N.S comment persistence contract', '.github/scripts/check_ns_comment_persistence.js'],
   ['latest API visit runtime contract', '.github/scripts/check_api_latest_visit_runtime.js'],
