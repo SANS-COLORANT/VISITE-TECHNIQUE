@@ -1,7 +1,6 @@
 package com.metra.missiontools
 
 import android.net.Uri
-import android.graphics.BitmapFactory
 import android.graphics.Bitmap
 import android.graphics.Matrix
 import androidx.exifinterface.media.ExifInterface
@@ -27,12 +26,7 @@ class MetraOcrModule(private val context: ReactApplicationContext) : ReactContex
       var bitmap: Bitmap? = null
       try {
         val uri = Uri.parse(fileUri)
-        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-        context.contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it, null, bounds) }
-        val options = BitmapFactory.Options()
-        while (maxOf(bounds.outWidth, bounds.outHeight) / options.inSampleSize > 3200) options.inSampleSize *= 2
-        bitmap = context.contentResolver.openInputStream(uri).use { BitmapFactory.decodeStream(it, null, options) }
-          ?: throw IllegalArgumentException("Image illisible")
+        bitmap = MeterImageDecoder.decode(context.contentResolver, uri)
         val orientation = context.contentResolver.openInputStream(uri).use { input ->
           if (input == null) ExifInterface.ORIENTATION_NORMAL else ExifInterface(input).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL)
         }

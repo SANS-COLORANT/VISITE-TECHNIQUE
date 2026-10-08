@@ -113,7 +113,7 @@ export function extraireIndexCompteur(input, context = {}) {
           || a.top - c.top < margin || c.bottom - a.bottom < margin) continue;
       }
       if (technical.test(stripAccents(text))) continue;
-      const ownUnit = text.match(/(kwh|mwh|wh)(?![A-Za-z])|m\s*[³3](?!\s*\/)/i);
+      const ownUnit = text.match(/(?<![A-Za-z])([km]?wh)(?![A-Za-z])|(?<![A-Za-z])m\s*[³3](?!\s*\/)/i);
       let detectedUnit = ownUnit?.[0].toLowerCase().replace(/\s/g, '').replace('³', '3');
       // A unit on its own line may be associated only with an adjacent number.
       if (!detectedUnit && /^[\d\s.,]+$/.test(text)) {
@@ -148,11 +148,13 @@ export function extraireIndexCompteur(input, context = {}) {
   }
   const ranked = [...groups.values()].sort((a, b) => b.votes.size - a.votes.size || b.score - a.score);
   if (!ranked.length) return null;
-  if (result.passes?.length > 1 && ranked[0].votes.size < 2) return null;
+  // A clear full-photo reading remains useful if enhancements find nothing.
+  // A lone enhanced/cropped result can invent or omit digits: keep its guard.
+  if (result.passes?.length > 1 && ranked[0].votes.size < 2 && !ranked[0].votes.has(0)) return null;
   // Disagreement cannot be resolved by picking the longest number.
   if (ranked.length > 1 && ranked[0].votes.size < ranked[1].votes.size + 2) return null;
   const best = ranked[0];
-  return { ...best, observations: best.votes.size, votes: undefined };
+  return { ...best, observations: best.votes.size, requiresReview: best.votes.size < 2, votes: undefined };
 }
 
 function valueAfterLabel(lines, pattern) {

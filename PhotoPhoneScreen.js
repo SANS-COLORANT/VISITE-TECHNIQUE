@@ -238,11 +238,12 @@ function CounterTypeSheet({ visible, onClose, onPick, accent, light }) {
 // Confirmation d'une valeur lue sur photo ou dictée.
 function ConfirmBar({ pending, previous, chain, onValidate, onRetake, onCancel, accent, light }) {
   const [value, setValue] = useState(pending.value);
-  useEffect(() => setValue(pending.value), [pending]);
+  const [rawVisible, setRawVisible] = useState(!pending.value && Boolean(pending.rawText));
+  useEffect(() => { setValue(pending.value); setRawVisible(!pending.value && Boolean(pending.rawText)); }, [pending]);
   const e = ecartPrecedent(pending.moduleId, value, previous);
   const unit = clean(pending.field?.unit || pending.target?.unit);
   return <View style={{ position: 'absolute', left: 10, right: 10, bottom: 12, padding: 14, borderRadius: 24, backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 14 }}>
-    <Text numberOfLines={1} style={{ color: COLORS.inkSoft, fontSize: 11, fontFamily: FONTS.bodyBold, textTransform: 'uppercase', letterSpacing: 0.5 }}>{pending.source === 'dictée' ? 'Valeur dictée' : 'Valeur lue sur la photo'} · à vérifier</Text>
+    <Text numberOfLines={1} style={{ color: COLORS.inkSoft, fontSize: 11, fontFamily: FONTS.bodyBold, textTransform: 'uppercase', letterSpacing: 0.5 }}>{pending.source === 'dictée' ? 'Valeur dictée' : pending.value ? 'Valeur lue sur la photo' : `Photo enregistrée · ${pending.moduleId === 'meters' ? 'index' : 'valeur'} à renseigner`} · à vérifier</Text>
     <Text numberOfLines={1} style={{ marginTop: 2, color: COLORS.ink, fontSize: 15, fontFamily: FONTS.black }}>{pending.target?.label}</Text>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}>
       <TextInput value={value} onChangeText={setValue} keyboardType="decimal-pad" selectTextOnFocus style={{ flex: 1, minHeight: 56, paddingHorizontal: 14, borderRadius: 16, backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: accent, fontSize: 26, fontFamily: FONTS.black, color: COLORS.ink }} />
@@ -250,6 +251,10 @@ function ConfirmBar({ pending, previous, chain, onValidate, onRetake, onCancel, 
     </View>
     {previous ? <Text style={{ marginTop: 7, fontSize: 12, fontFamily: FONTS.bodySemi, color: e?.warn ? '#B45309' : COLORS.inkSoft }}>{'Visite précédente : ' + previous.value + (previous.unit ? ' ' + previous.unit : '') + (e ? ' · ' + e.text : '')}</Text> : null}
     {pending.heard ? <Text numberOfLines={2} style={{ marginTop: 4, fontSize: 11, fontFamily: FONTS.bodyMedium, color: COLORS.inkFaint }}>Entendu : « {pending.heard} »</Text> : null}
+    {pending.rawText ? <>
+      <TouchableOpacity accessibilityRole="button" onPress={() => setRawVisible(v => !v)} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={{ color: accent, fontFamily: FONTS.bodyBold }}>{rawVisible ? 'Masquer le texte reconnu' : 'Voir le texte reconnu'}</Text></TouchableOpacity>
+      {rawVisible ? <ScrollView style={{ maxHeight: 110 }} keyboardShouldPersistTaps="handled"><Text selectable style={{ color: COLORS.inkSoft, fontFamily: FONTS.body, fontSize: 12 }}>{pending.rawText}</Text></ScrollView> : null}
+    </> : pending.source === 'photo' && !pending.value ? <Text style={{ marginTop: 7, color: COLORS.inkSoft, fontFamily: FONTS.body, fontSize: 12 }}>Aucun texte lisible. Vérifie la photo ou saisis la valeur.</Text> : null}
     <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
       <TouchableOpacity accessibilityRole="button" onPress={onCancel} style={{ minHeight: 50, paddingHorizontal: 14, borderRadius: 16, backgroundColor: COLORS.white, borderWidth: 1, borderColor: 'rgba(22,21,15,0.12)', alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.ink, fontFamily: FONTS.bodyBold }}>Ignorer</Text></TouchableOpacity>
       {onRetake ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Reprendre la photo" onPress={onRetake} style={{ minHeight: 50, width: 54, borderRadius: 16, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="camera" size={22} color={accent} /></TouchableOpacity> : null}
@@ -363,10 +368,11 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
         const field = numericField(currentModule.id, currentTarget);
         const found = extraireValeurOcr(ocr, { kind: currentModule.id, unit: field?.unit || currentTarget?.unit, label: currentTarget?.label });
         if (found?.unitMismatch) { setStatus(`Photo enregistrée · unité ${found.unit} incompatible avec ce compteur`); await refresh(); return 'nofound'; }
-        if (found && field?.edit) {
+        if (field?.edit) {
           // Valeur lue : confirmation avant enregistrement (évite une erreur de lecture silencieuse).
           setHighlightId(currentTarget?.id || null); setStatus('');
-          setOcrPending({ moduleId: currentModule.id, target: currentTarget, field, value: String(found.value), source: 'photo' });
+          const rawText = [...new Set([ocr?.text, ...(ocr?.passes || []).map(p => p.text)].map(t => clean(t)).filter(Boolean))].join('\n\n');
+          setOcrPending({ moduleId: currentModule.id, target: currentTarget, field, value: found ? String(found.value) : '', rawText, source: 'photo' });
           hapticTick(); return 'ocr';
         }
         setHighlightId(currentTarget?.id || null); setStatus('Photo enregistrée · saisis la valeur'); await refresh(); setTimeout(() => valueRefs.current[currentTarget?.id]?.focus?.(), 350); return 'nofound';

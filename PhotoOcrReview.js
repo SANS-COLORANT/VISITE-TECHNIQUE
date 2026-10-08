@@ -25,16 +25,27 @@ export function LecturePhotoButton({ visiteId, entiteKey, label, kind = 'meter',
     setReview({ uri: photo.uri, rows: [], text: '', loading: true });
     try {
       const isMeter = /^(meter|counter|meters)$/.test(kind);
-      const result = photo.text != null ? { text: photo.text } : await reconnaitreTexteImageLocale(isMeter ? (photo.ocrUri || photo.uri) : photo.uri, { meter: isMeter });
+      let result = photo.ocrResult || (photo.text != null ? { text: photo.text } : null);
+      if (!result) {
+        try { result = await reconnaitreTexteImageLocale(isMeter ? (photo.ocrUri || photo.uri) : photo.uri, { meter: isMeter }); }
+        catch (error) {
+          if (!isMeter || !photo.ocrUri || photo.ocrUri === photo.uri) throw error;
+          result = await reconnaitreTexteImageLocale(photo.uri, { meter: true });
+        }
+      }
       if (request !== readRequest.current) return;
       const text = String(result?.text || '');
       const found = kind === 'plate' ? null : extraireValeurOcr(result, { kind, unit, label });
       const rows = kind === 'plate' ? lignesLecturePlaque(extraireChampsPlaque(text), current)
         : [{ key: 'valeur', label: `${label}${unit ? ` (${unit})` : ''}`, value: found ? String(found.value) : '', current: String(current.valeur || '') }];
-      setReview({ uri: photo.uri, rows, text: (result?.passes || [{ text }]).map(p => p.text).join('\n\n'), loading: false, unitMismatch: found?.unitMismatch, detectedUnit: found?.unit,
+      const rawText = [...new Set([text, ...(result?.passes || []).map(p => p.text)].map(t => String(t || '').trim()).filter(Boolean))].join('\n\n');
+      setRawVisible(kind !== 'plate' && !found && Boolean(rawText));
+      setReview({ uri: photo.uri, rows, text: rawText, loading: false, unitMismatch: found?.unitMismatch, detectedUnit: found?.unit,
         hint: result?.unavailable ? 'Lecture automatique indisponible sur cet appareil. Tu peux saisir les valeurs ci-dessous.'
           : found?.unitMismatch ? `L’afficheur indique ${found.unit}, mais ce champ attend ${unit}. Vérifie le compteur sélectionné.`
-          : kind !== 'plate' && !found ? `${isMeter ? 'Index' : 'Valeur'} non reconnu avec certitude. Vérifie l’afficheur ou saisis la valeur.`
+          : kind !== 'plate' && !found && rawText ? `Du texte a été lu, mais ${isMeter ? 'l’index' : 'la valeur'} reste à vérifier sur la photo. Le texte reconnu est affiché ci-dessous.`
+          : kind !== 'plate' && !found ? 'Aucun texte lisible. Vérifie la photo ou saisis la valeur.'
+          : found?.requiresReview ? 'Index proposé à vérifier sur la photo, notamment la décimale et l’unité.'
           : !text ? 'Aucun texte lisible. Vérifie la photo ou saisis les valeurs.' : 'Vérifie chaque valeur, notamment les chiffres et les unités.' });
     } catch (error) {
       if (request !== readRequest.current) return;

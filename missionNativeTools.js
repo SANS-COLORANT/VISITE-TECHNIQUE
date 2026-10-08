@@ -11,7 +11,16 @@ export async function reconnaitreTexteImageLocale(uri, options = {}) {
   if (!ocrLocalDisponible()) {
     return { text: '', blocks: [], durationMs: 0, unavailable: true };
   }
-  if (options.meter && MetraOcr?.recognizeMeter) return MetraOcr.recognizeMeter(uri);
+  if (options.meter && MetraOcr?.recognizeMeter) {
+    let result;
+    try {
+      result = await MetraOcr.recognizeMeter(uri);
+    } catch { /* The ordinary offline reader remains available below. */ }
+    if (result?.text?.trim() || result?.passes?.some(pass => pass.text?.trim())) return result;
+    // Preserve the ordinary offline reader if a specialised pass fails/empties.
+    const fallback = await MetraOcr.recognize(uri);
+    return fallback?.text?.trim() || !result ? { ...fallback, meterFallback: true } : result;
+  }
   return MetraOcr.recognize(uri);
 }
 

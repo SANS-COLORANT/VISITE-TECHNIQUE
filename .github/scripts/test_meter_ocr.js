@@ -4,6 +4,10 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const src=fs.readFileSync(path.join(root,'photoModeData.js'),'utf8').replace(/export /g,'');
 const {extraireValeurOcr}=new Function(src+'; return {extraireValeurOcr};')();
+const decoder=fs.readFileSync(path.join(root,'native/metra-mission-tools/MeterImageDecoder.java'),'utf8');
+const bridge=fs.readFileSync(path.join(root,'native/metra-mission-tools/MetraOcrModule.kt'),'utf8');
+assert.ok(decoder.includes('options.inSampleSize = 1;'),'initialize Android sample size before arithmetic');
+assert.ok(bridge.includes('MeterImageDecoder.decode(context.contentResolver, uri)'),'the real bridge must use the tested decoder');
 const meter={kind:'meter',unit:'MWh'};
 assert.equal(extraireValeurOcr('MULTICAL 601\n2350 54\nTHWh\n7238502\nProg\n44478478\nCfa 21015272700',meter),null);
 assert.equal(extraireValeurOcr('15 203 B 293\nD9289\nMULTICAL\n74679398\n2031',{kind:'meter',unit:'m³'}),null);
@@ -14,6 +18,9 @@ for(const [text,unit,value] of [['23501.54 MWh','MWh','23501.54'],['07928.519 m�
 assert.equal(extraireValeurOcr('955.67 MWh',{kind:'meter',unit:'m³'}).unitMismatch,true);
 assert.equal(extraireValeurOcr('23501.54MWh',meter).value,'23501.54');
 assert.equal(extraireValeurOcr({passes:[{text:'23501.54MWh'},{text:'23501.54MWh'}]},meter).value,'23501.54');
+assert.equal(extraireValeurOcr({passes:[{text:'23501.54 MWh'},{text:''},{text:''}]},meter).value,'23501.54', 'a clear full-photo reading survives empty enhancements');
+assert.equal(extraireValeurOcr({passes:[{text:''},{text:'23501.54 MWh'}]},meter),null,'a lone enhanced reading stays unconfirmed');
+assert.equal(extraireValeurOcr('23501.54 THWh',meter),null,'do not mistake the suffix of a damaged unit for Wh');
 assert.equal(extraireValeurOcr({passes:[{text:'23501.54MWh'},{text:'73501.54MWh'}]},meter),null);
 assert.equal(extraireValeurOcr({passes:[{text:'23501.54 MWh'},{text:'23501.54 MWh'},
  {crop:{left:150,top:0,right:1000,bottom:500},lines:[{text:'3501.54 MWh',box:{left:151,top:100,right:900,bottom:200}}]}]},meter).value,'23501.54');
