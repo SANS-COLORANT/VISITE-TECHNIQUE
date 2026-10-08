@@ -100,6 +100,15 @@ function libelleCritere(critere) {
   return CRITERES_TRONQUES[critere] || critere;
 }
 
+// Règle AGENTS n°5 : un avis satisfaisant propose un commentaire positif en un
+// geste. Suggestions courtes et génériques, la première suit le contrôle.
+const SUGGESTIONS_POSITIVES = ['Conforme', 'Bon état', 'RAS', 'Conforme à la réglementation'];
+function suggestionsCommentaire(cle, avis) {
+  if (avis !== 'S') return [];
+  const propre = libelleApplicationAvis(cle, 'S');
+  return [...new Set([propre, ...SUGGESTIONS_POSITIVES].filter(Boolean))];
+}
+
 function palettePanel(avis) {
   if (avis === 'S') return { bg: COLORS.greenBg, border: COLORS.green, text: COLORS.green };
   return { bg: COLORS.bg, border: COLORS.line, text: COLORS.inkSoft };
@@ -224,7 +233,8 @@ function EditionReserve({ remarque, onPatch }) {
   </View>;
 }
 
-export const PersistentControleGenerique = React.memo(function PersistentControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, onEtatChange, trameId = 'icpe_v1' }) {
+export const PersistentControleGenerique = React.memo(function PersistentControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, onEtatChange, trameId = 'icpe_v1', displayLabel }) {
+  const libelle = displayLabel || field.cle;
   const controleKey = `${sectionCode}||${field.cle}`;
   const categorieKey = categoriePour(field.cle, sectionCode);
   const perimetreAutomatique = perimetreControleTrame(trameId, sectionCode, field.cle);
@@ -288,6 +298,10 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
   const choisirAvis = useCallback(async (val) => { hapticTick();
     if (val === avis) return;
     const commentaireConserve = val === 'N.S' ? String(commentaire || '') : '';
+    // Le commentaire d'un avis S / N.R / S.O / N.V suit le changement d'avis ;
+    // celui d'un N.S (texte de la réserve) n'est pas recopié.
+    const commentaireActuel = avis && avis !== 'N.S' ? String(commentaire || '') : '';
+    const commentaireSimpleConserve = val !== 'S' && suggestionsCommentaire(field.cle, 'S').includes(commentaireActuel.trim()) ? '' : commentaireActuel;
     avisRef.current = val;
     setAvis(val);
     setCritereChoisi(null);
@@ -300,12 +314,12 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
       return;
     }
 
-    setCommentaire('');
+    setCommentaire(commentaireSimpleConserve);
     await supprimerRemarqueControle(visiteId, controleKey);
     patchRemarqueCache(visiteId, controleKey, null);
     setRemarque(null);
-    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: '' });
-    notifierEtat({ avis: val, commentaire: '' });
+    await upsertControlePartiel(visiteId, sectionCode, field.cle, { avis: val, commentaire: commentaireSimpleConserve });
+    notifierEtat({ avis: val, commentaire: commentaireSimpleConserve });
   }, [avis, commentaire, visiteId, sectionCode, field.cle, controleKey, notifierEtat]);
 
   const choisirCritere = useCallback(async (opt, idx) => {
@@ -394,35 +408,48 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
     </TouchableOpacity>;
   };
 
+  const suggestions = suggestionsCommentaire(field.cle, avis);
+  const appliquerSuggestion = (texte) => {
+    hapticTick();
+    const v = String(commentaireSimple || '').trim() === texte ? '' : texte;
+    setCommentaire(v); setCommentaireSimple(v); onEtatChange?.({ avis, commentaire: v });
+    flushCommentaireSimple().catch(() => {});
+  };
+  // Commentaire affiché sous la ligne : tous les avis ; pour un N.S, seulement
+  // la précision libre (une cause choisie porte déjà le texte de la réserve).
+  const commentaireLigne = aCommentaire && avis && (avis !== 'N.S' || critereChoisi === null) ? String(commentaire).trim() : '';
+  const noteActive = !!commentaireLigne;
+
   return <View style={styles.controlRow}>
-    {/* Ligne compacte : intitulé + S / N.S / … ; le détail s'édite dans la fiche. */}
-    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 40 }}>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${field.cle}, ouvrir le détail`} onPress={ouvrirFiche} activeOpacity={0.6} style={{ flex: 1, minWidth: 0, paddingVertical: 4 }}>
-        <Text style={[styles.controlLabel, { fontSize: 14, lineHeight: 18 }]}>{field.cle}</Text>
+    {/* Ligne compacte (~42 px) : intitulé + note + S / N.S / … ; le détail s'édite dans la fiche. */}
+    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 42 }}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${field.cle}, ouvrir le détail${noteActive ? ', commentaire présent' : ''}`} onPress={ouvrirFiche} activeOpacity={0.6} style={{ flex: 1, minWidth: 0, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+        <Text style={[styles.controlLabel, { flexShrink: 1, fontSize: 14, lineHeight: 18 }, avis === 'S' && { color: COLORS.inkSoft }]}>{libelle}</Text>
+        <CvcIcon name="note" size={14} color={noteActive ? COLORS.orange : COLORS.inkFaint} strokeWidth={2.1} />
       </TouchableOpacity>
       <View style={{ flexDirection: 'row', gap: 4, flexShrink: 0 }}>
         {boutonAvis('S', { width: 40 })}
         {boutonAvis('N.S', { width: 46 })}
         <TouchableOpacity accessibilityRole="button" accessibilityLabel={avisSecondaire ? `${field.cle} : ${avisSecondaire}, autres avis` : 'Autres avis : N.R, S.O, N.V'}
           onPress={() => setAutresAvis((v) => !v)}
-          style={[styles.avisChip, { flex: 0, minHeight: 36, width: avisSecondaire ? 46 : 36, paddingVertical: 0, paddingHorizontal: 0, borderRadius: 10 }, avisSecondaire && { backgroundColor: COLORS.line, borderColor: COLORS.inkFaint }]}>
+          style={[styles.avisChip, { flex: 0, minHeight: 34, width: avisSecondaire ? 46 : 36, paddingVertical: 0, paddingHorizontal: 0, borderRadius: 10 }, avisSecondaire && { backgroundColor: COLORS.line, borderColor: COLORS.inkFaint }]}>
           {avisSecondaire ? <Text style={[styles.avisChipText, { fontSize: 12.5, color: COLORS.inkSoft }]}>{avisSecondaire}</Text>
             : <CvcIcon name="more" size={16} color={COLORS.inkSoft} strokeWidth={2.2} />}
         </TouchableOpacity>
       </View>
     </View>
-    {autresAvis ? <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginTop: 4 }}>
+    {autresAvis ? <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginBottom: 4 }}>
       {AVIS_SECONDAIRES.map((opt) => boutonAvis(opt, { width: 50 }))}
     </View> : null}
     {avis === 'N.S' ? <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Non-conformité : ${causeAffichee}, modifier`} onPress={ouvrirFiche} activeOpacity={0.75}
-      style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 4, minHeight: 30, paddingHorizontal: 10, borderRadius: 15, borderWidth: 1, borderColor: COLORS.red, backgroundColor: COLORS.redBg }}>
+      style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4, minHeight: 28, paddingHorizontal: 10, borderRadius: 14, borderWidth: 1, borderColor: COLORS.red, backgroundColor: COLORS.redBg }}>
       <Text numberOfLines={1} style={{ maxWidth: 220, fontSize: 12, fontFamily: FONTS.bodyBold, color: COLORS.red }}>{causeAffichee}</Text>
-      {aCommentaire && critereChoisi !== null ? <CvcIcon name="note" size={13} color={COLORS.red} strokeWidth={2.2} /> : null}
       <CvcIcon name="chevron-right" size={13} color={COLORS.red} strokeWidth={2.4} />
-    </TouchableOpacity> : (avis && aCommentaire ? <TouchableOpacity accessibilityRole="button" onPress={ouvrirFiche} style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 5, marginTop: 4, minHeight: 28 }}>
-      <CvcIcon name="note" size={13} color={COLORS.inkSoft} strokeWidth={2.2} />
-      <Text numberOfLines={1} style={{ maxWidth: 260, fontSize: 12, color: COLORS.inkSoft, fontFamily: FONTS.bodyMedium }}>{commentaire}</Text>
-    </TouchableOpacity> : null)}
+    </TouchableOpacity> : null}
+    {commentaireLigne ? <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Commentaire : ${commentaireLigne}, modifier`} onPress={ouvrirFiche} activeOpacity={0.7} style={{ flexDirection: 'row', alignItems: 'flex-start', gap: 5, marginBottom: 6, paddingRight: 8 }}>
+      <View style={{ marginTop: 2 }}><CvcIcon name="note" size={12} color={COLORS.orangeDark} strokeWidth={2.2} /></View>
+      <Text numberOfLines={2} style={{ flex: 1, fontSize: 12, lineHeight: 16, color: COLORS.inkSoft, fontFamily: FONTS.bodyMedium }}>{commentaireLigne}</Text>
+    </TouchableOpacity> : null}
 
     <Modal visible={fiche} transparent animationType="slide" onRequestClose={fermerFiche}>
       <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={styles.modalOverlay}>
@@ -447,6 +474,15 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
       {libelleEtat ? <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: palette.text, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8 }}>
         <Text style={{ color: palette.text, fontSize: 11, fontFamily: FONTS.bold }}>{libelleEtat}</Text>
       </View> : null}
+      {suggestions.length ? <View style={[styles.critereChips, { marginBottom: 8 }]}>
+        {suggestions.map((texte) => {
+          const pris = String(commentaireSimple || '').trim() === texte;
+          return <TouchableOpacity key={texte} accessibilityRole="button" accessibilityState={{ selected: pris }} onPress={() => appliquerSuggestion(texte)}
+            style={[styles.critereChip, { borderColor: COLORS.green, backgroundColor: pris ? COLORS.green : '#FFFFFF' }]}>
+            <Text style={[styles.critereChipText, { color: pris ? COLORS.white : COLORS.green }]}>{texte}</Text>
+          </TouchableOpacity>;
+        })}
+      </View> : null}
       <Text style={[styles.criterePanelLabel, { color: palette.text }]}>Commentaire facultatif</Text>
       <TextInput
         style={[styles.input, { minHeight: 60, textAlignVertical: 'top', backgroundColor: '#fff' }]}
@@ -454,7 +490,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
         value={commentaireSimple}
         onChangeText={(v) => { setCommentaire(v); setCommentaireSimple(v); onEtatChange?.({ avis, commentaire: v }); }}
         onBlur={() => flushCommentaireSimple().catch(() => {})}
-        placeholder="Ajouter un commentaire si nécessaire…"
+        placeholder="Ajouter un commentaire, même si le contrôle est satisfaisant…"
       />
     </View>}
 
@@ -471,7 +507,8 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
         </View>
       </>}
       {critereChoisi !== null && remarque ? <EditionReserve remarque={remarque} onPatch={patchReserve} /> : null}
-      {(critereChoisi === null || modeLibre || options.length === 0) && <TextInput style={[styles.input, { marginTop: 8, height: 60 }]} placeholder="Décrivez le problème constaté..." multiline value={libre} onChangeText={(v) => { setCommentaire(v); setLibre(v); onEtatChange?.({ avis: 'N.S', commentaire: v }); }} onBlur={() => flushLibre().catch(() => {})} />}
+      {(critereChoisi === null || modeLibre || options.length === 0) && <Text style={[styles.criterePanelLabel, { marginTop: 8 }]}>Précision libre</Text>}
+      {(critereChoisi === null || modeLibre || options.length === 0) && <TextInput style={[styles.input, { height: 60 }]} placeholder="Précision libre sur la non-conformité…" multiline value={libre} onChangeText={(v) => { setCommentaire(v); setLibre(v); onEtatChange?.({ avis: 'N.S', commentaire: v }); }} onBlur={() => flushLibre().catch(() => {})} />}
       <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={field.cle} style={styles.photoRequiredBox} />
     </View>}
           </ScrollView>

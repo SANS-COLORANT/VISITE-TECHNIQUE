@@ -63,14 +63,16 @@ const FIELD_OPTIONS = {
 };
 
 function getNumericConfig(cle) {
+  // `start` = valeur du premier appui sur un champ vide (valeurs « utiles »
+  // proposées par la refonte, README §5.3 : à valider sur le terrain).
   if (/°C/.test(cle) || /^T°/.test(cle)) {
     const isExt = /ext/i.test(cle);
-    return { min: isExt ? -15 : 0, max: isExt ? 35 : 100, step: 1, unit: '°C' };
+    return { min: isExt ? -15 : 0, max: isExt ? 35 : 100, step: 1, unit: '°C', start: isExt ? 7 : 60 };
   }
-  if (cle === 'pH') return { min: 0, max: 14, step: 0.1, unit: '' };
-  if (/\(bar\)/.test(cle)) return { min: 0, max: 6, step: 0.1, unit: 'bar' };
+  if (cle === 'pH') return { min: 0, max: 14, step: 0.1, unit: '', start: 7 };
+  if (/\(bar\)/.test(cle)) return { min: 0, max: 6, step: 0.1, unit: 'bar', start: 1.5 };
   if (/\(kW\)/.test(cle)) return { min: 0, max: 2000, step: 10, unit: 'kW' };
-  if (cle === 'Courbe de chauffe') return { min: 0.4, max: 3, step: 0.1, unit: '' };
+  if (cle === 'Courbe de chauffe') return { min: 0.4, max: 3, step: 0.1, unit: '', start: 1 };
   if (/Nb /.test(cle) || cle === 'Nb') return { min: 0, max: 50, step: 1, unit: '' };
   return null;
 }
@@ -80,14 +82,26 @@ function arrondirSelonPas(valeur, step) {
   return parseFloat(valeur.toFixed(decimales));
 }
 
-const StepperNumerique = React.memo(function StepperNumerique({ valeur, config, onChange }) {
+// Valeur du premier appui quand le champ est vide (README refonte §8, défaut
+// n°2) : la valeur utile `start` (paramètre ou config), sinon le minimum,
+// au lieu de partir de 0 (60 appuis pour 60 °C).
+function valeurDepart(config, start) {
+  const candidat = start ?? config?.start;
+  const n = candidat == null || candidat === '' ? NaN : Number(String(candidat).replace(',', '.'));
+  if (Number.isFinite(n)) return n;
+  return Number.isFinite(config?.min) ? config.min : 0;
+}
+
+const StepperNumerique = React.memo(function StepperNumerique({ valeur, config, onChange, start }) {
   const [modeLibre, setModeLibre] = useState(false);
   const [texteLibre, setTexteLibre] = useState(valeur || '');
-  const num = parseFloat(valeur);
-  const val = isNaN(num) ? 0 : num;
+  const num = parseFloat(String(valeur ?? '').replace(',', '.'));
+  const vide = isNaN(num);
+  const val = vide ? 0 : num;
+  const borner = (n) => Math.min(config.max, Math.max(config.min, arrondirSelonPas(n, config.step)));
 
-  const dec = () => onChange(String(Math.max(config.min, arrondirSelonPas(val - config.step, config.step))));
-  const inc = () => onChange(String(Math.min(config.max, arrondirSelonPas(val + config.step, config.step))));
+  const dec = () => onChange(String(vide ? borner(valeurDepart(config, start)) : Math.max(config.min, arrondirSelonPas(val - config.step, config.step))));
+  const inc = () => onChange(String(vide ? borner(valeurDepart(config, start)) : Math.min(config.max, arrondirSelonPas(val + config.step, config.step))));
 
   const validerLibre = () => {
     let n = parseFloat(texteLibre.replace(',', '.'));
