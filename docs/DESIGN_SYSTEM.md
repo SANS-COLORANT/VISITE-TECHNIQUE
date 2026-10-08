@@ -184,3 +184,36 @@ ni effacer le constat. VMC et Pré-allumage gardent leurs panneaux spécialisés
 Le parcours terrain commun s’applique à toutes les trames hors Pré-allumage. En VMC, les espaces suivent les caissons et les groupes Situation, Caisson, Distribution et Gestion, avec les mêmes cartes de progression, recherche, fiches et actions. Les codes de stockage et contrôles propres à la VMC restent ceux de sa définition. Pré-allumage conserve sa navigation spécialisée par bâtiments et locaux.
 
 Les échanges antérieurs METRA rappellent les régressions à éviter : patrimoine rattaché au local et à sa trame, réimport sans doublons ni remplacement destructeur des parents SQLite, identités locales distinctes des identités Intranet, photos limitées à leur périmètre, séparation RCU Primaire/Secondaire sans imposer ce choix aux autres trames, migrations additives et validation du release signé/uploadé. Ces règles restent indépendantes de la présentation ; un index historique, un état importé ou une ancienne anomalie ne constitue pas un nouveau constat terrain.
+
+## Refonte des onglets de visite (build 661 → refonte, 10/2026)
+
+Conçue écran par écran avec le porteur du projet ; dossier complet, maquettes
+et captures : `docs/refonte-visite-661/`. Règles désormais communes à tous les
+onglets de visite :
+
+- **Rubrique = carte à bannière** (`SectionCard` / `SectionBanner`, `VisitKit.js`) :
+  pictogramme sur pastille, titre, avancement « x/y », badge « n N.S »,
+  action éventuelle (« Tout en S », « Idem chauffage », « + Ajouter »).
+  Toucher le titre replie / déplie. **Tout est fermé à l'ouverture**
+  (`useSectionsOuvertes`), sauf ce qu'un filtre actif doit montrer.
+- **Paramètre à choix** (`ChoiceField`) : il se referme sur la valeur choisie
+  (pastille orange, bleu-vert pour l'eau) ; on le rouvre d'un toucher pour
+  retirer ou changer ; choix multiples validés par « OK » ; « + Autre »
+  conservé ; 2–3 choix courts en interrupteur à segments.
+- **Valeurs numériques en tuiles** (`ValueTile`) : − / + autour d'un chiffre
+  lisible, deux tuiles côte à côte quand elles vont ensemble ; le premier
+  appui part d'une valeur utile, jamais de 0.
+- **Noms et unités modifiables** (`InlineRename`, `UnitPill`) : noms
+  d'affichage seulement, la ligne du rapport et les clés ne changent pas.
+- **Édition dans une feuille du bas** (`BottomSheet`), menu « ⋯ »
+  (`ActionMenu`) pour les actions rares ; toute suppression est confirmée,
+  les actions groupées proposent « Annuler ».
+- **Pictogrammes** : jeu dédié de 151 dessins (`MetraPictos.js`, données
+  générées dans `MetraPictos.data.js` depuis `docs/refonte-visite-661/pictos/`
+  par `outils/generer_pictos_rn.py`) : encre pour la forme, accent orange pour
+  l'élément qui parle, **bleu-vert `#0F7C8C` pour l'eau** (seule exception à
+  l'accent orange, réservée à l'ECS, l'eau froide et l'adoucisseur). Un
+  pictogramme par onglet, rubrique, type de compteur, d'équipement, état,
+  criticité et origine de photo ; correspondances par libellé
+  (`pictoOnglet`, `pictoSection`, `pictoCompteur`…). `CvcIcon` reste utilisé
+  pour les icônes d'interface (chevrons, fermer, plus, note…).
