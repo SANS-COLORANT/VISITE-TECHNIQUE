@@ -61,10 +61,28 @@ assert.equal(extraireValeurOcr({ segments: [{ ...row('2350154'), digits: [...'23
 assert.equal(extraireValeurOcr({ text: '2350154', segments: [] }, meter), null, 'a bare number without unit stays rejected');
 assert.equal(extraireValeurOcr({ segments: [] }, meter), null);
 
-// The text parser keeps priority when it has a strict, confirmed reading.
-found = extraireValeurOcr({ passes: [{ text: '23501.54 MWh' }, { text: '23501.54 MWh' }], segments: [row('7777777')] }, meter);
+// Text and segments agree on every digit: ML Kit loses the point, the segments supply it.
+found = extraireValeurOcr({ passes: [{ text: '2350 154\nWh.' }, { text: '2350 154 MWh' }, { text: '2350 154 MWh' }],
+  segments: [row('2350154', { dotAfter: 4, dotStrength: 1 })] }, meter);
 assert.equal(found.value, '23501.54');
-assert.notEqual(found.source, 'seven-segment');
+assert.equal(found.corroborated, true);
+
+// ML Kit repeating the same wrong digits across passes (real case: 955,67 read "9555 wh") is not proof.
+const wrong = { passes: [{ text: '9555 wh' }, { text: '9555 wh' }, { text: '9555 wh' }, { text: '9555 wh' }] };
+found = extraireValeurOcr(wrong, meter);
+assert.equal(found.value, '', 'an integer MWh read from text alone is never pre-filled');
+assert.equal(found.prefill, false);
+assert.equal(found.suggestion, '9555');
+assert.match(resumeIncertitudesSegments(found), /sans virgule/);
+// ...and when the segments disagree, nothing is filled and both readings are shown.
+found = extraireValeurOcr({ ...wrong, segments: [row('95567', { dotAfter: 2, dotStrength: 1 })] }, meter);
+assert.equal(found.value, '');
+assert.equal(found.conflict, '9555');
+assert.equal(found.suggestion, '955.67');
+assert.match(resumeIncertitudesSegments(found), /divergent/);
+// A strict text reading with a real decimal and no segment reading is unchanged.
+found = extraireValeurOcr({ passes: [{ text: '23501.54 MWh' }, { text: '23501.54 MWh' }] }, meter);
+assert.equal(found.value, '23501.54');
 
 // Never invents a dot inside a display that has none decoded, and the best-scoring row wins.
 found = extraireIndexSegments({ segments: [row('11111', { score: 5 }), row('86420', { score: 30, dotAfter: 2, dotStrength: 1 })] }, meter);

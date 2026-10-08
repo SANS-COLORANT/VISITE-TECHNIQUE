@@ -47,6 +47,17 @@ Ce que montre la validation :
 - Les erreurs viennent surtout de la structure (chiffre en trop ou manquant aux extrémités), pas seulement des chiffres confondus.
 - L'échantillon est petit (13 photos, un seul site). Les pourcentages sont des ordres de grandeur, pas des garanties.
 
+## Retour de test sur tablette (APK 667)
+
+Trois photos testées : deux sont restées vides (voulu : lecture incertaine ou pas d'ancre), la troisième a été remplie avec `9555` au lieu de `955,67`. Cause : pas le lecteur par segments, mais le parseur de texte historique. ML Kit répète la même erreur sur plusieurs passes (`9555 wh`) et ces passes se « confirment » entre elles.
+
+Corrections (`extraireIndexCompteur`) :
+- Un index MWh/kWh **sans virgule** lu uniquement par le texte n'est plus jamais reporté dans le champ (les compteurs d'énergie affichent des décimales) ; il reste une indication.
+- Si le texte et les segments donnent exactement les mêmes chiffres, la lecture est **corroborée** : la virgule vue par les segments est utilisée et le champ est rempli.
+- Si les deux divergent, rien n'est rempli et les deux lectures sont affichées.
+
+Limite constatée : sur la photo du MULTICAL 21, ML Kit ne lit jamais les gros chiffres (il ne sort que les décimales `519`). Le lecteur par segments part des lignes de ML Kit et n'a alors rien à lire. Il faut un localisateur d'afficheur indépendant ou un cadrage guidé.
+
 ## Ce qui n'est pas validé
 
 - **Rien n'a été compilé ni exécuté sur Android** : `MeterSegmentReader.java` et le bloc ajouté à `MetraOcrModule.kt` n'ont pas pu être compilés ici (pas de SDK Android). ML Kit n'a pas été exécuté non plus : les boîtes de ligne ont été simulées à partir de la position réelle des chiffres, avec du bruit. Le comportement réel dépend de la qualité des boîtes de ML Kit.

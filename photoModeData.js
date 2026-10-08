@@ -214,9 +214,11 @@ export function extraireIndexSegments(input, context = {}) {
 }
 
 export function resumeIncertitudesSegments(found) {
+  if (found?.source === 'text-no-decimal') return `lecture ${found.suggestion} sans virgule (non reportée)`;
   if (found?.source !== 'seven-segment') return '';
   const parts = [];
-  if (!found.prefill) parts.push(`lecture proposée ${found.suggestion} (non reportée)`);
+  if (found.conflict) parts.push(`les deux lectures divergent (texte ${found.conflict}, segments ${found.suggestion})`);
+  else if (!found.prefill) parts.push(`lecture proposée ${found.suggestion} (non reportée)`);
   if (found.uncertainDigits?.length) {
     parts.push(`chiffre${found.uncertainDigits.length > 1 ? 's' : ''} à confirmer : ${found.uncertainDigits.map(item =>
       `n°${item.position} (${[item.chosen, ...item.alternatives.slice(0, 2)].join(' ou ')})`).join(', ')}`);
@@ -227,9 +229,29 @@ export function resumeIncertitudesSegments(found) {
 
 export function extraireIndexCompteur(input, context = {}) {
   const text = extraireIndexTexte(input, context);
-  // A strict text reading keeps priority; segments only fill in when the text parser has nothing safe.
-  if (text) return text;
-  return extraireIndexSegments(input, context);
+  const segments = extraireIndexSegments(input, context);
+  if (!text) return segments;
+  const expected = clean(context.unit).toLowerCase().replace('³', '3');
+  const textDigits = String(text.value).replace(/\D/g, '');
+  if (segments) {
+    if (textDigits === segments.digits) {
+      // Two independent readers (ML Kit text, LCD segments) agree on every digit.
+      // The text reader loses the decimal point, so use the one the segments saw.
+      if (!segments.decimalUncertain) return { ...segments, value: segments.suggestion, numeric: parseNumber(segments.suggestion),
+        prefill: true, corroborated: true, uncertainDigits: [], unit: text.unit || segments.unit,
+        unitMismatch: Boolean(text.unitMismatch), unitFromField: !text.unit };
+      return { ...text, corroborated: true, requiresReview: true, decimalUncertain: /^[\d]+$/.test(String(text.value)) };
+    }
+    // The readers disagree: ML Kit repeats the same wrong digits across its passes,
+    // so a text-only vote is not proof. Offer both, fill nothing.
+    return { ...segments, value: '', numeric: null, prefill: false, conflict: String(text.value), uncertainDigits: segments.uncertainDigits };
+  }
+  // Heat meters always show decimals. ML Kit drops the point; an integer MWh/kWh read
+  // from text alone is the usual wrong index (e.g. 955,67 read as 9555), never pre-filled.
+  if (/^[km]wh$/.test(expected || String(text.unit || '').toLowerCase()) && /^\d+$/.test(String(text.value))) {
+    return { ...text, suggestion: String(text.value), value: '', numeric: null, prefill: false, decimalUncertain: true, requiresReview: true, source: 'text-no-decimal' };
+  }
+  return text;
 }
 
 function valueAfterLabel(lines, pattern) {
