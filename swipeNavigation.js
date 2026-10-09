@@ -49,15 +49,44 @@ export const SWIPE_NEIGHBOUR_OPACITY = 0.6;
 export const SWIPE_NEIGHBOUR_SCALE = 0.975;
 
 /**
- * Remplissage de la bulle d'un onglet, piloté par la position du pager (même
- * valeur animée que les pages, donc strictement synchrone avec le doigt) :
- * l'orange quitte l'onglet de départ et remplit l'onglet d'arrivée du côté d'où
- * il vient ; arrêté à mi-chemin, chaque bulle est à moitié remplie.
+ * Barre d'onglets liquide. Chaque bulle est un liquide dont le bord ondule :
+ * `d` = position du geste par rapport à l'onglet (0 : plein, -1 : vide à gauche,
+ * +1 : vide à droite), `vel` = vitesse du doigt en onglets par seconde (signée).
+ * Le creux de la vague et l'arc du bord croissent avec la vitesse et retombent
+ * à l'arrêt. Retourne le tracé SVG de la zone orange (largeur W, hauteur H).
  */
-export function remplissageOnglet(pagerX, pagerWidth, pageIndex, largeur) {
-  const entree = [(-pageIndex - 1) * pagerWidth, -pageIndex * pagerWidth, (-pageIndex + 1) * pagerWidth];
+export const WAVE_SPEED_GAIN = 5.5;
+export const WAVE_AMPLITUDE = 7;
+export const WAVE_BOW = 10;
+export const WAVE_REST = 0.015;
+
+export function cheminVague(d, W, H, vel, phase, dir = 1) {
+  if (Math.abs(d) < 0.001) return `M-2,-2H${W + 2}V${H + 2}H-2Z`;
+  if (Math.abs(d) >= 0.999) return 'M0,0Z';
+  const force = Math.min(1, Math.abs(vel) * WAVE_SPEED_GAIN);
+  const amp = force * WAVE_AMPLITUDE;
+  const bow = force * WAVE_BOW * (vel < 0 ? -1 : vel > 0 ? 1 : dir);
+  const xe = d >= 0 ? W * d : W * (1 + d);
+  const pts = [];
+  for (let y = 0; y <= H + 2; y += 2) {
+    const k = Math.sin(Math.PI * Math.min(y, H) / H);
+    const x = xe + bow * k + amp * Math.sin((y / H) * 6.28 * 1.1 + phase) * k;
+    pts.push(`${Math.max(-12, Math.min(W + 12, x)).toFixed(1)},${y}`);
+  }
+  return d > 0
+    ? `M${pts.join('L')}L${W + 3},${H + 2}L${W + 3},0Z`
+    : `M${pts.join('L')}L-3,${H + 2}L-3,0Z`;
+}
+
+/**
+ * Opacités natives (thread UI) des deux couches d'une bulle : la couche fixe
+ * (orange plein, au repos) et la couche vague (pendant le mouvement).
+ */
+export function couchesOnglet(pagerX, pagerWidth, pageIndex) {
+  const e = WAVE_REST * pagerWidth;
+  const entree = [-pageIndex * pagerWidth - e, -pageIndex * pagerWidth, -pageIndex * pagerWidth + e];
   return {
-    bulle: pagerX.interpolate({ inputRange: entree, outputRange: [largeur, 0, -largeur], extrapolate: 'clamp' }),
-    texte: pagerX.interpolate({ inputRange: entree, outputRange: [-largeur, 0, largeur], extrapolate: 'clamp' }),
+    repos: pagerX.interpolate({ inputRange: entree, outputRange: [0, 1, 0], extrapolate: 'clamp' }),
+    mouvement: pagerX.interpolate({ inputRange: entree, outputRange: [1, 0, 1], extrapolate: 'clamp' }),
   };
 }

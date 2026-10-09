@@ -61,6 +61,13 @@ function PictoBase({ name, size = 24, ink = PICTO_COLORS.ink, accent = PICTO_COL
 
 export const Picto = memo(PictoBase);
 
+/** Éléments SVG d'un pictogramme en une seule couleur, pour les dessiner dans un autre <Svg> (viewBox 24). */
+export function pictoElements(name, mono, strokeWidth = 1.7) {
+  const data = PICTO_DATA[name];
+  if (!data) return null;
+  return rendre(data, { ink: mono, accent: mono, water: mono }, strokeWidth, 'w');
+}
+
 export function hasPicto(name) { return Boolean(name && PICTO_DATA[name]); }
 
 // ---------------------------------------------------------------------------

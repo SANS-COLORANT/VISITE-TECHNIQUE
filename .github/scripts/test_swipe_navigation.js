@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const src = fs.readFileSync(path.join(root, 'swipeNavigation.js'), 'utf8').replace(/export /g, '');
-const S = new Function(src + '; return {shouldStartSwipe, swipeDirection, rubberBand, settleSpring, remplissageOnglet, SWIPE_COMMIT_MIN};')();
+const S = new Function(src + '; return {shouldStartSwipe, swipeDirection, rubberBand, settleSpring, cheminVague, couchesOnglet, SWIPE_COMMIT_MIN};')();
 
 // Start: a slightly diagonal thumb swipe is a swipe; vertical scrolling is not.
 assert.equal(S.shouldStartSwipe(12, 8), true);
@@ -50,19 +50,28 @@ assert.ok(/useNativeDriver: true/.test(visit));
 assert.ok(visit.includes('SWIPE_NEIGHBOUR_OPACITY'), 'neighbour pages fade while dragging');
 console.log('Swipe navigation: light gesture, flick, projection, cancel, edge resistance and native spring verified.');
 
-// Barre d'onglets : la bulle suit exactement le geste (valeur animée partagée avec le pager).
-const interp = (v) => ({ interpolate: ({ inputRange, outputRange }) => {
+// Barre d'onglets liquide : bulle pleine au repos, vide hors geste, vague selon la vitesse.
+const W = 120; const H = 36;
+assert.equal(S.cheminVague(0, W, H, 0, 0), `M-2,-2H${W + 2}V${H + 2}H-2Z`, 'au repos : bulle pleine');
+assert.equal(S.cheminVague(1, W, H, 0, 0), 'M0,0Z');
+assert.equal(S.cheminVague(-1.4, W, H, 0, 0), 'M0,0Z', 'onglet lointain : jamais rempli');
+const calme = S.cheminVague(0.5, W, H, 0, 0);
+const rapide = S.cheminVague(0.5, W, H, 0.4, 1.3);
+assert.notEqual(calme, rapide, 'la vague change avec la vitesse');
+assert.ok(calme.startsWith('M') && calme.endsWith('Z'));
+const xs = (d) => [...d.matchAll(/(-?\d+(?:\.\d+)?),\d+/g)].map((m) => Number(m[1]));
+assert.ok(xs(calme).slice(0, 18).every((x) => Math.abs(x - 60) < 0.01), 'sans vitesse : bord droit au milieu');
+assert.ok(Math.max(...xs(rapide).slice(0, 18)) - Math.min(...xs(rapide).slice(0, 18)) > 4, 'avec vitesse : bord ondulé');
+assert.ok(S.cheminVague(0.5, W, H, 0.4, 1.3).includes(`L${W + 3},${H + 2}L${W + 3},0Z`), 'orange à droite du bord quand le doigt avance');
+assert.ok(S.cheminVague(-0.5, W, H, -0.4, 1.3).includes(`L-3,${H + 2}L-3,0Z`), 'orange à gauche du bord quand l’onglet arrive');
+// Couches natives : fixe au repos, vague en mouvement, bascule en 1,5 % de la largeur de page.
+const ip = (v) => ({ interpolate: ({ inputRange, outputRange }) => {
   const [a, b, c] = inputRange; const [oa, ob, oc] = outputRange;
   if (v <= a) return oa; if (v >= c) return oc;
   return v <= b ? oa + (ob - oa) * (v - a) / (b - a) : ob + (oc - ob) * (v - b) / (c - b);
 } });
-const W = 1000; const tabW = 120;
-const at = (progress, index) => S.remplissageOnglet(interp(-progress * W), W, index, tabW);
-assert.equal(at(2, 2).bulle, 0, 'onglet actif : bulle pleine');
-assert.equal(at(2, 3).bulle, -tabW, 'onglet suivant, page au repos : bulle vide');
-assert.equal(at(2.5, 2).bulle, tabW / 2, 'mi-chemin vers la droite : l’onglet quitté est à moitié vidé');
-assert.equal(at(2.5, 3).bulle, -tabW / 2, 'mi-chemin : l’onglet d’arrivée est à moitié rempli, côté gauche');
-assert.equal(at(2.5, 2).texte, -tabW / 2, 'le texte blanc reste fixe (contre-translation)');
-assert.equal(at(1.5, 2).bulle, -tabW / 2, 'vers la gauche : l’arrivée se remplit par la droite');
-assert.equal(at(0, 5).bulle, -tabW, 'onglet lointain : jamais rempli');
-console.log('barre d’onglets synchronisée : OK');
+const c0 = S.couchesOnglet(ip(-2000), 1000, 2);
+assert.equal(c0.repos, 1); assert.equal(c0.mouvement, 0);
+const c1 = S.couchesOnglet(ip(-2500), 1000, 2);
+assert.equal(c1.repos, 0); assert.equal(c1.mouvement, 1);
+console.log('barre d’onglets liquide : OK');

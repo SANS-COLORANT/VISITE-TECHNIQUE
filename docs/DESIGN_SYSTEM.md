@@ -223,3 +223,8 @@ onglets de visite :
   criticité et origine de photo ; correspondances par libellé
   (`pictoOnglet`, `pictoSection`, `pictoCompteur`…). `CvcIcon` reste utilisé
   pour les icônes d'interface (chevrons, fermer, plus, note…).
+
+
+## Barre d'onglets de la visite : bulle liquide
+
+La bulle orange de l'onglet actif suit le doigt sans retard : elle se vide de l'onglet quitté et remplit l'onglet visé du côté d'où vient le geste, le texte blanc restant fixe sous le liquide. Le bord est une vague qui se creuse selon la vitesse du doigt et se calme à l'arrêt (`cheminVague`, `swipeNavigation.js`). Au repos, la bulle est un rendu natif plein, identique à l'ancien onglet actif ; la vague (SVG) n'apparaît que pendant le mouvement.
