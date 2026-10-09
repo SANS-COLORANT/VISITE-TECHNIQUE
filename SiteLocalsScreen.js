@@ -43,7 +43,7 @@ function SiteLocalsScreen({ route, navigation }) {
 
   const chargerCibles = useCallback(async () => {
     if (!siteId) return;
-    try { setCibles(await listerTourneeSite(siteId)); } catch (e) { console.warn('Tournée du site non chargée', e); }
+    try { setCibles(await listerTourneeSite(siteId)); } catch (e) { console.warn('Itinéraire du site non chargé', e); }
   }, [siteId]);
   useEffect(() => {
     chargerCibles();
@@ -56,7 +56,7 @@ function SiteLocalsScreen({ route, navigation }) {
       if (cibleParLocal.has(installationId)) await retirerCiblesTournee(clientId, [{ siteId, installationId }]);
       else await ajouterCiblesTournee(clientId, [{ siteId, installationId }]);
       await chargerCibles();
-    } catch (e) { Alert.alert('Tournée', String(e?.message || e)); }
+    } catch (e) { Alert.alert('Itinéraire', String(e?.message || e)); }
   };
 
   useEffect(() => {
@@ -190,7 +190,7 @@ function SiteLocalsScreen({ route, navigation }) {
           {clientId ? (() => {
             const cible = cibleParLocal.get(item.installation_id);
             const fait = cible && Number(cible.fait) === 1;
-            return <TouchableOpacity accessibilityRole="button" accessibilityLabel={cible ? (fait ? 'Local fait, retirer de la tournée' : 'Local à faire, retirer de la tournée') : 'Ajouter ce local à la tournée'}
+            return <TouchableOpacity accessibilityRole="button" accessibilityLabel={cible ? (fait ? 'Local fait, retirer de l’itinéraire' : 'Local à faire, retirer de l’itinéraire') : 'Ajouter ce local à l’itinéraire'}
               onPress={() => basculerCible(item.installation_id)} hitSlop={6}
               style={{ minHeight: 36, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 18, marginRight: 6, borderWidth: 1, borderStyle: cible ? 'solid' : 'dashed', borderColor: fait ? COLORS.green : COLORS.orange + (cible ? '' : '66'), backgroundColor: fait ? COLORS.greenBg : cible ? COLORS.orangeLight : 'transparent' }}>
               <Text style={{ fontSize: 11.5, fontFamily: FONTS.bodyBold, color: fait ? COLORS.green : COLORS.orangeDark }}>{fait ? 'Fait' : cible ? 'À faire' : '+ À faire'}</Text>

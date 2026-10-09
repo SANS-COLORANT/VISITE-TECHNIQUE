@@ -79,7 +79,7 @@ function ClientSitesScreen({ route, navigation }) {
       setTourneeRows(await listerTourneeClient(clientId));
       const { aEnvoyer: liste } = await listerVisitesAEnvoyerClient(clientId);
       setAEnvoyer(liste.length);
-    } catch (e) { console.warn('Tournée client non chargée', e); }
+    } catch (e) { console.warn('Itinéraire client non chargé', e); }
   }, [clientId]);
   useEffect(() => {
     chargerTournee();
@@ -264,7 +264,7 @@ function ClientSitesScreen({ route, navigation }) {
             { key: 'groupes', label: 'Groupes', icon: 'groups', disabled: !sites.length, onPress: () => setGroupesVisible(true) },
             { key: 'documents', label: 'Documents', icon: 'document', disabled: !sites.length, onPress: () => navigation.navigate('ClientDocuments', { clientId, nomClient }) },
             { key: 'envoyer', label: envoiEnCours ? `${envoiEnCours.rang}/${envoiEnCours.total}` : aEnvoyer ? `Envoyer · ${aEnvoyer}` : 'Envoyer', icon: 'cloud-sync', disabled: !!envoiEnCours, onPress: demanderEnvoiTout },
-            { key: 'tournee', label: 'Tournée', icon: 'check', disabled: !sites.length, onPress: () => setTourneeVisible(true) },
+            { key: 'tournee', label: 'Itinéraire', icon: 'check', disabled: !sites.length, onPress: () => setTourneeVisible(true) },
             { key: 'compagnon', label: 'Compagnon', icon: 'device', onPress: () => setClientCompanionVisible(true) },
           ].map((a) => <TouchableOpacity key={a.key} accessibilityRole="button" accessibilityLabel={a.label} disabled={a.disabled} onPress={a.onPress} activeOpacity={0.85} style={[clientActionTile, a.primary && clientActionTilePrimary, a.disabled && { opacity: 0.45 }]}>
             {a.primary ? <ButtonGlow radius={18} /> : null}
@@ -275,7 +275,7 @@ function ClientSitesScreen({ route, navigation }) {
 
         {tourneeRows.length ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Filtrer les sites à faire" onPress={() => setFiltreAFaire((v) => !v)} activeOpacity={0.8}
           style={{ marginBottom: 12, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: filtreAFaire ? COLORS.orange : 'rgba(22,21,15,0.1)', backgroundColor: filtreAFaire ? COLORS.orangeLight : 'rgba(255,255,255,0.72)' }}>
-          <Text style={{ fontSize: 13.5, fontFamily: FONTS.bold, color: COLORS.ink }}>Tournée · {bilanSites.total ? `${bilanSites.faits}/${bilanSites.total} site${bilanSites.total > 1 ? 's' : ''} faits` : null}{bilanSites.total && bilanLocaux.total ? ' · ' : ''}{bilanLocaux.total ? `${bilanLocaux.faits}/${bilanLocaux.total} local${bilanLocaux.total > 1 ? 'aux' : ''} faits` : null}</Text>
+          <Text style={{ fontSize: 13.5, fontFamily: FONTS.bold, color: COLORS.ink }}>Itinéraire · {bilanSites.total ? `${bilanSites.faits}/${bilanSites.total} site${bilanSites.total > 1 ? 's' : ''} faits` : null}{bilanSites.total && bilanLocaux.total ? ' · ' : ''}{bilanLocaux.total ? `${bilanLocaux.faits}/${bilanLocaux.total} local${bilanLocaux.total > 1 ? 'aux' : ''} faits` : null}</Text>
           <View style={{ height: 6, borderRadius: 3, backgroundColor: 'rgba(22,21,15,0.08)', marginTop: 8, overflow: 'hidden' }}>
             <View style={{ height: 6, borderRadius: 3, backgroundColor: COLORS.green, width: `${Math.round(100 * (bilanSites.faits + bilanLocaux.faits) / Math.max(1, bilanSites.total + bilanLocaux.total))}%` }} />
           </View>

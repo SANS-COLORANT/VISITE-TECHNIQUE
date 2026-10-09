@@ -9,11 +9,12 @@
  *   Anomalie) ;
  * - AvisCounters : compteurs S · N.S · S.O.
  */
-import React, { useEffect, useRef } from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import React, { useEffect, useRef, useState } from 'react';
+import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { Picto, pictoOnglet, ACTION_PICTOS } from './MetraPictos.js';
 import { COLORS, FONTS } from './styles.js';
+import { remplissageOnglet } from './swipeNavigation.js';
 
 export const STATE_COLORS = {
   empty: '#D6D1C6',
@@ -48,8 +49,9 @@ function SearchButton({ onPress, size = 38 }) {
   );
 }
 
-export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, tabStates = {}, trameId, onSearch }) {
+export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, tabStates = {}, trameId, onSearch, pagerX = null, pagerWidth = 0, pageOrder = null }) {
   const scrollRef = useRef(null);
+  const [largeurs, setLargeurs] = useState({});
   const positions = useRef({});
   const viewportWidth = useRef(0);
 
@@ -83,6 +85,15 @@ export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, t
           {picto ? <Picto name={picto} size={17} mono={on ? COLORS.white : undefined} /> : null}
           <Text numberOfLines={1} style={[s.chipText, on && s.chipTextOn]}>{label}</Text>
         </>;
+        const pageIndex = pageOrder ? pageOrder.indexOf(pid) : -1;
+        const largeur = largeurs[pid];
+        const synchro = Boolean(pagerX && pagerWidth > 0 && pageIndex >= 0 && largeur > 0);
+        const fill = synchro ? remplissageOnglet(pagerX, pagerWidth, pageIndex, largeur) : null;
+        const contentBlanc = <>
+          <StateDot state={state} onGradient />
+          {picto ? <Picto name={picto} size={17} mono={COLORS.white} /> : null}
+          <Text numberOfLines={1} style={[s.chipText, s.chipTextOn]}>{label}</Text>
+        </>;
         return (
           <TouchableOpacity
             key={pid}
@@ -91,9 +102,29 @@ export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, t
             accessibilityLabel={label}
             activeOpacity={0.85}
             onPress={() => onSelect?.(pid)}
-            onLayout={(e) => { positions.current[pid] = { x: e.nativeEvent.layout.x, width: e.nativeEvent.layout.width }; }}
+            onLayout={(e) => {
+              const { x, width } = e.nativeEvent.layout;
+              positions.current[pid] = { x, width };
+              if (pagerX) setLargeurs((old) => (Math.abs((old[pid] || 0) - width) < 0.5 ? old : { ...old, [pid]: width }));
+            }}
           >
-            {on ? (
+            {synchro ? (
+              <View>
+                <View style={s.chip}>
+                  <StateDot state={state} />
+                  {picto ? <Picto name={picto} size={17} /> : null}
+                  <Text numberOfLines={1} style={s.chipText}>{label}</Text>
+                </View>
+                <View pointerEvents="none" style={[StyleSheet.absoluteFill, s.chipMasque]}>
+                  <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX: fill.bulle }] }]}>
+                    <LinearGradient colors={[COLORS.orange, COLORS.orangeDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={StyleSheet.absoluteFill} />
+                    <Animated.View style={[StyleSheet.absoluteFill, { transform: [{ translateX: fill.texte }] }]}>
+                      <View style={[s.chip, s.chipBlanc]}>{contentBlanc}</View>
+                    </Animated.View>
+                  </Animated.View>
+                </View>
+              </View>
+            ) : on ? (
               <LinearGradient colors={[COLORS.orange, COLORS.orangeDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={[s.chip, s.chipOn]}>{content}</LinearGradient>
             ) : (
               <View style={s.chip}>{content}</View>
@@ -184,6 +215,8 @@ const s = StyleSheet.create({
   chipOn: { borderColor: 'rgba(255,255,255,0.35)', shadowColor: COLORS.orange, shadowOpacity: 0.45, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 4 },
   chipText: { fontSize: 12, fontFamily: FONTS.bodySemi, color: COLORS.inkSoft, maxWidth: 190 },
   chipTextOn: { color: COLORS.white, fontFamily: FONTS.bodyBold },
+  chipMasque: { borderRadius: 18, overflow: 'hidden' },
+  chipBlanc: { backgroundColor: 'transparent', borderColor: 'transparent' },
   dot: { width: 9, height: 9, borderRadius: 4.5 },
   side: { flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 44, paddingHorizontal: 11, paddingVertical: 9, borderRadius: 12, marginVertical: 2 },
   sideSearch: { borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', backgroundColor: '#FDFCFA', marginBottom: 6 },

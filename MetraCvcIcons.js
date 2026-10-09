@@ -172,6 +172,11 @@ function CvcIcon({ name, size = 36, color = '#10384B', strokeWidth = 1.9 }) {
       <Path d="M6 15.5a8.2 8.2 0 0 0 14.8 3.9" />
       <Polyline points="21.5,23.5 21.2,19 16.8,19.4" />
     </G>;
+  } else if (key === 'undo') {
+    body = <G {...p}>
+      <Polyline points="8,6.5 4.5,10 8,13.5" />
+      <Path d="M5 10h10.5a6 6 0 0 1 0 12H10" />
+    </G>;
   } else if (key === 'fan' || key === 'vmc') {
     body = <G {...p}>
       <Circle cx="14" cy="14" r="10.5" />

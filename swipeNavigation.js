@@ -47,3 +47,17 @@ export function settleSpring(vx = 0) {
 /** Pages voisines légèrement estompées pendant le glissé (interpolation native). */
 export const SWIPE_NEIGHBOUR_OPACITY = 0.6;
 export const SWIPE_NEIGHBOUR_SCALE = 0.975;
+
+/**
+ * Remplissage de la bulle d'un onglet, piloté par la position du pager (même
+ * valeur animée que les pages, donc strictement synchrone avec le doigt) :
+ * l'orange quitte l'onglet de départ et remplit l'onglet d'arrivée du côté d'où
+ * il vient ; arrêté à mi-chemin, chaque bulle est à moitié remplie.
+ */
+export function remplissageOnglet(pagerX, pagerWidth, pageIndex, largeur) {
+  const entree = [(-pageIndex - 1) * pagerWidth, -pageIndex * pagerWidth, (-pageIndex + 1) * pagerWidth];
+  return {
+    bulle: pagerX.interpolate({ inputRange: entree, outputRange: [largeur, 0, -largeur], extrapolate: 'clamp' }),
+    texte: pagerX.interpolate({ inputRange: entree, outputRange: [-largeur, 0, largeur], extrapolate: 'clamp' }),
+  };
+}

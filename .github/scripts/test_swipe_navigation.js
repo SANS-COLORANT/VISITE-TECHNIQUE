@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const src = fs.readFileSync(path.join(root, 'swipeNavigation.js'), 'utf8').replace(/export /g, '');
-const S = new Function(src + '; return {shouldStartSwipe, swipeDirection, rubberBand, settleSpring, SWIPE_COMMIT_MIN};')();
+const S = new Function(src + '; return {shouldStartSwipe, swipeDirection, rubberBand, settleSpring, remplissageOnglet, SWIPE_COMMIT_MIN};')();
 
 // Start: a slightly diagonal thumb swipe is a swipe; vertical scrolling is not.
 assert.equal(S.shouldStartSwipe(12, 8), true);
@@ -49,3 +49,20 @@ assert.ok(!/Animated\.timing\(pagerX/.test(visit), 'the pager settles with a spr
 assert.ok(/useNativeDriver: true/.test(visit));
 assert.ok(visit.includes('SWIPE_NEIGHBOUR_OPACITY'), 'neighbour pages fade while dragging');
 console.log('Swipe navigation: light gesture, flick, projection, cancel, edge resistance and native spring verified.');
+
+// Barre d'onglets : la bulle suit exactement le geste (valeur animée partagée avec le pager).
+const interp = (v) => ({ interpolate: ({ inputRange, outputRange }) => {
+  const [a, b, c] = inputRange; const [oa, ob, oc] = outputRange;
+  if (v <= a) return oa; if (v >= c) return oc;
+  return v <= b ? oa + (ob - oa) * (v - a) / (b - a) : ob + (oc - ob) * (v - b) / (c - b);
+} });
+const W = 1000; const tabW = 120;
+const at = (progress, index) => S.remplissageOnglet(interp(-progress * W), W, index, tabW);
+assert.equal(at(2, 2).bulle, 0, 'onglet actif : bulle pleine');
+assert.equal(at(2, 3).bulle, -tabW, 'onglet suivant, page au repos : bulle vide');
+assert.equal(at(2.5, 2).bulle, tabW / 2, 'mi-chemin vers la droite : l’onglet quitté est à moitié vidé');
+assert.equal(at(2.5, 3).bulle, -tabW / 2, 'mi-chemin : l’onglet d’arrivée est à moitié rempli, côté gauche');
+assert.equal(at(2.5, 2).texte, -tabW / 2, 'le texte blanc reste fixe (contre-translation)');
+assert.equal(at(1.5, 2).bulle, -tabW / 2, 'vers la gauche : l’arrivée se remplit par la droite');
+assert.equal(at(0, 5).bulle, -tabW, 'onglet lointain : jamais rempli');
+console.log('barre d’onglets synchronisée : OK');

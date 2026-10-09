@@ -209,11 +209,22 @@ const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, ch
     }
   }, [compteur.id, compteur.valeur, precedentTexte, setValeurImmediate, onLive]);
   const inchange = Boolean(precedentTexte) && String(valeur ?? '').trim() === precedentTexte;
+  // La croix efface et mémorise l'index effacé : elle devient alors un bouton
+  // de retour en arrière, jusqu'à la première saisie d'un nouvel index.
+  const [indexEfface, setIndexEfface] = useState(null);
   const effacerIndex = () => {
     prefillFait.current = true;
+    setIndexEfface(String(valeur ?? ''));
     setValeurImmediate('');
     onLive?.(compteur.id, '');
     champIndex.current?.focus?.();
+  };
+  const annulerEffacement = () => {
+    const ancien = indexEfface;
+    setIndexEfface(null);
+    if (ancien == null) return;
+    setValeurImmediate(ancien);
+    onLive?.(compteur.id, ancien);
   };
   const champIndex = useRef(null);
   useEffect(() => { setUnite(compteur.unite || 'm³'); }, [compteur.unite]);
@@ -244,7 +255,7 @@ const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, ch
     catch (e) { console.warn('Suppression compteur impossible', e); Alert.alert('Suppression impossible', 'Le compteur a été conservé. Réessaie.'); }
   };
 
-  const changerValeur = (t) => { setValeur(t); onLive?.(compteur.id, t); };
+  const changerValeur = (t) => { setIndexEfface(null); setValeur(t); onLive?.(compteur.id, t); };
   const changerUnite = (u) => {
     setUnite(u);
     upsertCompteurChamp(compteur.id, 'unite', u).catch((e) => console.warn('Unité compteur non sauvegardée', e));
@@ -298,6 +309,10 @@ const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, ch
         {String(valeur ?? '').length ? (
           <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Effacer l’index ${nomAffiche}`} onPress={effacerIndex} hitSlop={6} style={st.cptClear}>
             <CvcIcon name="close" size={18} color={COLORS.inkSoft} />
+          </TouchableOpacity>
+        ) : indexEfface ? (
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Rétablir l’index ${indexEfface}`} onPress={annulerEffacement} hitSlop={6} style={[st.cptClear, st.cptUndo]}>
+            <CvcIcon name="undo" size={18} color={COLORS.orangeDark} />
           </TouchableOpacity>
         ) : null}
         <UnitPill value={unite} onChange={changerUnite} water={picto.water} />
@@ -685,6 +700,7 @@ const st = StyleSheet.create({
     paddingHorizontal: 12, fontSize: 20, fontFamily: FONTS.black, color: COLORS.ink,
   },
   cptClear: { width: 44, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.line + '55' },
+  cptUndo: { backgroundColor: COLORS.orangeLight },
   cptInputWarn: { borderColor: KIT.amber, backgroundColor: KIT.amberBg },
   cptInputErr: { borderColor: KIT.red, backgroundColor: KIT.redBg },
   cptMsg: { fontSize: 11.5, fontFamily: FONTS.bodyMedium, marginTop: 5 },
