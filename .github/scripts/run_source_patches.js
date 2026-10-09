@@ -4,6 +4,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const CONTRACT_CHECKS = [
+  ['client tour checklist (sites/locals to do)', '.github/scripts/test_tournee.js'],
   ['multi-line meter and temperature cells (import/export)', '.github/scripts/test_releve_multiligne.js'],
   ['horizontal swipe navigation (light, native spring)', '.github/scripts/test_swipe_navigation.js'],
   ['Spiral Active UI contract', '.github/scripts/check_spiral_active_ui.js'],

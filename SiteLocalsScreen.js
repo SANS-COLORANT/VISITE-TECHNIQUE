@@ -9,6 +9,7 @@ import { peekSiteLocals, prewarmLocalVisits, prewarmSiteLocals } from './navigat
 import { CvcIcon } from './MetraCvcIcons.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { EmptyIcon } from './EmptyState.js';
+import { ajouterCiblesTournee, listerTourneeSite, retirerCiblesTournee } from './tourneeDb.js';
 
 function SiteLocalsScreen({ route, navigation }) {
   const { siteId, nomSite, clientId, nomClient } = route?.params || {};
@@ -22,6 +23,7 @@ function SiteLocalsScreen({ route, navigation }) {
   const [creationVisible, setCreationVisible] = useState(false);
   const [nouveauNom, setNouveauNom] = useState('');
   const [creationEnCours, setCreationEnCours] = useState(false);
+  const [cibles, setCibles] = useState([]);
 
   const charger = useCallback(async () => {
     if (!siteId) return;
@@ -38,6 +40,24 @@ function SiteLocalsScreen({ route, navigation }) {
   }, [siteId]);
 
   useEffect(() => { charger(); }, [charger]);
+
+  const chargerCibles = useCallback(async () => {
+    if (!siteId) return;
+    try { setCibles(await listerTourneeSite(siteId)); } catch (e) { console.warn('Tournée du site non chargée', e); }
+  }, [siteId]);
+  useEffect(() => {
+    chargerCibles();
+    return navigation?.addListener?.('focus', () => { chargerCibles(); });
+  }, [chargerCibles, navigation]);
+  const cibleParLocal = useMemo(() => new Map(cibles.map((c) => [c.installation_id, c])), [cibles]);
+  const basculerCible = async (installationId) => {
+    if (!clientId) return;
+    try {
+      if (cibleParLocal.has(installationId)) await retirerCiblesTournee(clientId, [{ siteId, installationId }]);
+      else await ajouterCiblesTournee(clientId, [{ siteId, installationId }]);
+      await chargerCibles();
+    } catch (e) { Alert.alert('Tournée', String(e?.message || e)); }
+  };
 
   useEffect(() => {
     let alive = true;
@@ -167,6 +187,15 @@ function SiteLocalsScreen({ route, navigation }) {
             </Text>
             {item.remote_trame_nom ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 3 }}>Trame Intranet · {item.remote_trame_nom}</Text> : null}
           </View>
+          {clientId ? (() => {
+            const cible = cibleParLocal.get(item.installation_id);
+            const fait = cible && Number(cible.fait) === 1;
+            return <TouchableOpacity accessibilityRole="button" accessibilityLabel={cible ? (fait ? 'Local fait, retirer de la tournée' : 'Local à faire, retirer de la tournée') : 'Ajouter ce local à la tournée'}
+              onPress={() => basculerCible(item.installation_id)} hitSlop={6}
+              style={{ minHeight: 36, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 18, marginRight: 6, borderWidth: 1, borderStyle: cible ? 'solid' : 'dashed', borderColor: fait ? COLORS.green : COLORS.orange + (cible ? '' : '66'), backgroundColor: fait ? COLORS.greenBg : cible ? COLORS.orangeLight : 'transparent' }}>
+              <Text style={{ fontSize: 11.5, fontFamily: FONTS.bodyBold, color: fait ? COLORS.green : COLORS.orangeDark }}>{fait ? 'Fait' : cible ? 'À faire' : '+ À faire'}</Text>
+            </TouchableOpacity>;
+          })() : null}
           {item.remote_local_id ? <View style={[styles.badge, styles.badgeActif]}><Text style={[styles.badgeText, styles.badgeTextActif]}>Intranet</Text></View> : null}
           <CvcIcon name="chevron-right" size={25} color={'#98A2B3'} strokeWidth={2.1} />
         </TouchableOpacity>;

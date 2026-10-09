@@ -195,6 +195,27 @@ const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, ch
   const nomAffiche = (/^index\b/i.test(String(label || '')) && court) ? court : (label || 'Compteur');
   const entiteKey = compteur.compteur_site_id ? `compteur_site||${compteur.compteur_site_id}` : `compteur||${compteur.id}`;
 
+  // On repart de l'ancien index : à l'ouverture d'un compteur sans relevé, le
+  // dernier index connu est repris (modifiable) ; la croix l'efface d'un geste.
+  const prefillFait = useRef(false);
+  const precedentTexte = nombreIndex(compteur.valeur_precedente) !== null && !Number.isNaN(nombreIndex(compteur.valeur_precedente))
+    ? String(compteur.valeur_precedente).trim() : '';
+  useEffect(() => {
+    if (prefillFait.current) return;
+    prefillFait.current = true;
+    if (!String(compteur.valeur ?? '').trim() && precedentTexte) {
+      setValeurImmediate(precedentTexte);
+      onLive?.(compteur.id, precedentTexte);
+    }
+  }, [compteur.id, compteur.valeur, precedentTexte, setValeurImmediate, onLive]);
+  const inchange = Boolean(precedentTexte) && String(valeur ?? '').trim() === precedentTexte;
+  const effacerIndex = () => {
+    prefillFait.current = true;
+    setValeurImmediate('');
+    onLive?.(compteur.id, '');
+    champIndex.current?.focus?.();
+  };
+  const champIndex = useRef(null);
   useEffect(() => { setUnite(compteur.unite || 'm³'); }, [compteur.unite]);
   useEffect(() => { setDestination(compteur.destination || null); }, [compteur.destination]);
 
@@ -238,7 +259,8 @@ const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, ch
   let resume = null;
   if (precOk) {
     resume = `précédent ${fmtNombre(nPrec)} ${unite}`;
-    if (suiviIndex && valOk && !baisse) resume += ` · +${fmtNombre(nVal - nPrec)} ${unite}`;
+    if (inchange) resume += ' · à mettre à jour';
+    else if (suiviIndex && valOk && !baisse) resume += ` · +${fmtNombre(nVal - nPrec)} ${unite}`;
   } else if (compteur.compteur_site_id) {
     resume = `Compteur permanent · ${compteur.nb_releves || 0} relevé${compteur.nb_releves > 1 ? 's' : ''}`;
   }
@@ -249,7 +271,7 @@ const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, ch
         <PictoOrb picto={picto.name} water={picto.water} size={34} />
         <View style={{ flex: 1, minWidth: 0 }}>
           <InlineRename value={nomAffiche} onSubmit={renommer} style={st.cptName} placeholder="Nom du compteur" />
-          {resume ? <Text numberOfLines={1} style={[st.cptSub, baisse && { color: KIT.amber }]}>{resume}</Text> : null}
+          {resume ? <Text numberOfLines={1} style={[st.cptSub, (baisse || inchange) && { color: KIT.amber }]}>{resume}</Text> : null}
         </View>
         <ActionMenu label={`Actions du compteur ${nomAffiche}`} items={[
           { label: 'Photo', icon: 'camera', onPress: () => setPhotoVisible(true) },
@@ -262,7 +284,9 @@ const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, ch
       </View>
       <View style={st.cptLine2}>
         <TextInput
+          ref={champIndex}
           style={[st.cptInput, baisse && st.cptInputWarn, controle?.niveau === 'erreur' && st.cptInputErr]}
+          selectTextOnFocus
           value={valeur}
           onChangeText={changerValeur}
           onBlur={surBlurValeur}
@@ -271,6 +295,11 @@ const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, ch
           keyboardType="decimal-pad"
           accessibilityLabel={`Index ${nomAffiche}`}
         />
+        {String(valeur ?? '').length ? (
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Effacer l’index ${nomAffiche}`} onPress={effacerIndex} hitSlop={6} style={st.cptClear}>
+            <CvcIcon name="close" size={18} color={COLORS.inkSoft} />
+          </TouchableOpacity>
+        ) : null}
         <UnitPill value={unite} onChange={changerUnite} water={picto.water} />
         <LecturePhotoButton visiteId={visiteId} entiteKey={entiteKey} label={label || 'Compteur'} kind="meters" unit={unite} current={{ valeur }}
           onApply={async (values) => {
@@ -281,7 +310,7 @@ const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, ch
           }} />
       </View>
       {controle ? <Text style={[st.cptMsg, { color: controle.niveau === 'erreur' ? KIT.red : KIT.amber }]}>{controle.message}</Text> : null}
-      {doublonDestination ? <Text style={[st.cptMsg, { color: KIT.amber }]}>Un autre compteur occupe déjà cette ligne du rapport : l’envoi Intranet sera bloqué tant qu’ils ne sont pas séparés.</Text> : null}
+      {doublonDestination ? <Text style={[st.cptMsg, { color: KIT.amber }]}>Plusieurs compteurs du même type : ils seront regroupés dans une seule cellule du rapport et de l’Intranet, une ligne chacun.</Text> : null}
       <DestinationSheet visible={choixDestination} valeur={destinationAffichee} options={options} onClose={() => setChoixDestination(false)} onPick={enregistrerDestination} />
       <PhotoSheet visible={photoVisible} onClose={() => setPhotoVisible(false)} visiteId={visiteId} entiteKey={entiteKey} label={label || 'Compteur'} />
     </View>
@@ -655,6 +684,7 @@ const st = StyleSheet.create({
     flex: 1, minWidth: 0, height: 46, borderRadius: 12, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white,
     paddingHorizontal: 12, fontSize: 20, fontFamily: FONTS.black, color: COLORS.ink,
   },
+  cptClear: { width: 44, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.line + '55' },
   cptInputWarn: { borderColor: KIT.amber, backgroundColor: KIT.amberBg },
   cptInputErr: { borderColor: KIT.red, backgroundColor: KIT.redBg },
   cptMsg: { fontSize: 11.5, fontFamily: FONTS.bodyMedium, marginTop: 5 },

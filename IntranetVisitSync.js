@@ -12,6 +12,7 @@ import {
 } from './intranetVisitPhotoOutboxDb.js';
 import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions, resolveFirstVisitRemoteTrame } from './intranetVisitBindingDb.js';
 import { syncClientPreparation } from './symfonyApi.js';
+import { getDb } from './db.js';
 import { getCachedStructureReferential, syncStructureReferential } from './intranetStructureDb.js';
 
 const OFFLINE = '#111111';
@@ -392,4 +393,82 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
     </TouchableOpacity>
     {showDetail ? <Text accessibilityLiveRegion="polite" style={{ color: detailIsError ? ERROR : COLORS.muted, fontSize: 10, lineHeight: 14, marginTop: 4, maxWidth: 150, textAlign: compact ? 'right' : 'left' }}>{loading || photoLoading ? 'Lecture…' : detail}</Text> : null}
   </View>;
+}
+
+const HISTORICAL_SQL = `EXISTS(SELECT 1 FROM provenances p WHERE p.entite_type='visite' AND p.entite_id=v.id AND p.origine='api_symfony' AND p.details_json LIKE '%"sourceType":"imported_latest_visit"%')`;
+
+/**
+ * Visites d'un client qui restent à envoyer à l'Intranet : terminées, reliées à
+ * l'Intranet (local lié ou client importé), jamais confirmées. Les visites en
+ * cours sont comptées à part : l'envoi crée une visite serveur, elles doivent
+ * d'abord être terminées.
+ */
+export async function listerVisitesAEnvoyerClient(clientId) {
+  const db = await getDb();
+  const rows = await db.getAllAsync(`
+    SELECT v.id, v.statut, s.nom_site, i.nom AS nom_local, v.date_visite, o.status AS envoi
+    FROM visites v
+    JOIN sites s ON s.id=v.site_id
+    LEFT JOIN installations i ON i.id=v.installation_id
+    LEFT JOIN api_visit_outbox o ON o.visite_id=v.id
+    WHERE s.client_id=? AND NOT ${HISTORICAL_SQL}
+      AND (v.api_remote_local_id IS NOT NULL OR EXISTS(
+        SELECT 1 FROM api_local_links l WHERE l.local_installation_id=v.installation_id AND l.remote_present=1))
+    ORDER BY s.nom_site, i.nom, v.date_visite`, [String(clientId)]);
+  const aEnvoyer = rows.filter((r) => ['terminee', 'exportee'].includes(r.statut) && r.envoi !== 'synced');
+  const enCours = rows.filter((r) => !['terminee', 'exportee'].includes(r.statut));
+  const dejaEnvoyees = rows.filter((r) => ['terminee', 'exportee'].includes(r.statut) && r.envoi === 'synced');
+  return { aEnvoyer, enCours, dejaEnvoyees };
+}
+
+const nomVisite = (v) => [v.nom_site, v.nom_local].filter(Boolean).join(' · ') || 'Visite';
+
+/**
+ * Envoie en une fois toutes les visites terminées du client, une par une, avec
+ * les mêmes garde-fous que l'envoi visite par visite (même client Intranet
+ * imposé, aucun doublon, confirmation matériel conservée). Ce qui demande une
+ * décision humaine est remis à la visite concernée et listé dans le bilan.
+ */
+export async function envoyerVisitesClient(clientId, { onProgress = null } = {}) {
+  const { aEnvoyer, enCours } = await listerVisitesAEnvoyerClient(clientId);
+  const bilan = { envoyees: [], aConfirmer: [], enErreur: [], enCours: enCours.length, total: aEnvoyer.length };
+  let rang = 0;
+  for (const visite of aEnvoyer) {
+    rang += 1;
+    onProgress?.({ rang, total: aEnvoyer.length, nom: nomVisite(visite) });
+    try {
+      const row = await getVisitUploadState(visite.id);
+      if (row?.status === 'synced') { await syncVisitPhotosNow(visite.id).catch(() => {}); bilan.envoyees.push(nomVisite(visite)); continue; }
+      if (row?.error_code === 'idempotency_conflict' || row?.error_code === 'invalid_ack') {
+        bilan.aConfirmer.push(`${nomVisite(visite)} : envoi verrouillé, à traiter depuis la visite.`); continue;
+      }
+      if (row && ['pending', 'retry', 'auth_error'].includes(row.status)) {
+        await assertQueuedClientStillMatchesImportedClient(visite.id, row);
+        await retryVisitUploadNow(visite.id);
+      } else {
+        if (row && ['validation_error', 'rejected', 'conflict'].includes(row.status)) {
+          if (!await discardTerminalVisitUpload(visite.id)) { bilan.aConfirmer.push(`${nomVisite(visite)} : à renvoyer depuis la visite (risque de doublon).`); continue; }
+        }
+        await bindSameImportedClient(visite.id);
+        await queueVisitUpload(visite.id, { confirmMaterialReplacement: false });
+        await processVisitOutbox({ limit: 1 }).catch(() => {});
+      }
+      const final = await getVisitUploadState(visite.id);
+      if (final?.status === 'synced') {
+        await syncVisitPhotosNow(visite.id).catch(() => {});
+        bilan.envoyees.push(nomVisite(visite));
+      } else if (final && ['validation_error', 'rejected', 'conflict', 'auth_error'].includes(final.status)) {
+        bilan.enErreur.push(`${nomVisite(visite)} : ${serverFeedback(final) || 'refusée par l’Intranet'}`);
+      } else {
+        bilan.envoyees.push(`${nomVisite(visite)} (en attente de connexion)`);
+      }
+    } catch (error) {
+      if (['material_replacement_confirmation_required', 'material_clear_confirmation_required'].includes(error?.code)) {
+        bilan.aConfirmer.push(`${nomVisite(visite)} : confirmation du listing matériel requise, à faire depuis la visite.`);
+      } else {
+        bilan.enErreur.push(`${nomVisite(visite)} : ${localBindingFeedback(error).split('\n')[0]}`);
+      }
+    }
+  }
+  return bilan;
 }
