@@ -5,6 +5,7 @@ import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
+import { formaterReleves, formaterTemperatureGroupee } from './releveMultiligne.js';
 import { getDb, getVisite, listerReseaux, listerMateriel, listerRemarques, listerCompteurs, getNote } from './db.js';
 import { libelleChamp, libelleSection, listerAliasesPreAllumage } from './preAllumageAliases.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
@@ -164,12 +165,12 @@ function exporterCompteurs(sheet, compteurs = [], fieldMappings = []) {
   const groupes = new Map();
   for (const compteur of compteurs) {
     const ligne = ligneCompteur(compteur, fieldMappings);
-    const texteLigne = texteCompteur(compteur);
-    if (!ligne || !texteLigne) continue;
+    if (!ligne || !texteCompteur(compteur)) continue;
     if (!groupes.has(ligne)) groupes.set(ligne, []);
-    groupes.get(ligne).push(texteLigne);
+    groupes.get(ligne).push(compteur);
   }
-  for (const [ligne, valeurs] of groupes.entries()) setCell(sheet, `C${ligne}`, valeurs.join(' | '));
+  // Compteurs du même type : une seule cellule, une ligne « nom : index unité » chacun.
+  for (const [ligne, liste] of groupes.entries()) setCell(sheet, `C${ligne}`, formaterReleves(liste, { avecNomSeul: true }));
 }
 
 function exporterCompteursReseauChaleur(sheet, compteurs = [], fieldMappings = []) {
@@ -187,9 +188,7 @@ function exporterCompteursReseauChaleur(sheet, compteurs = [], fieldMappings = [
     const selection = explicites.length ? [...explicites, ...historiques] : historiques.slice(0, 1);
     const renseignes = selection.filter((c) => c.valeur != null && c.valeur !== '');
     if (!renseignes.length) continue;
-    const valeur = renseignes.length === 1
-      ? `${renseignes[0].valeur}${renseignes[0].unite ? ` ${renseignes[0].unite}` : ''}`
-      : renseignes.map(texteCompteur).join(' | ');
+    const valeur = formaterReleves(renseignes);
     setCell(sheet, mapping.valueCell, valeur);
     if (/^C\d+$/.test(mapping.valueCell || '')) setCell(sheet, `E${mapping.valueCell.slice(1)}`, valeur);
   }
@@ -342,16 +341,18 @@ async function construireClasseur(visiteId) {
       continue;
     }
     if (controle) {
+      const commentaire = /temperature/i.test(mapping.sectionCode || '') ? formaterTemperatureGroupee(mapping.cle, controle.commentaire, pointsLibres) : controle.commentaire;
       setCell(sheetPrincipale, mapping.valueCell, controle.avis);
-      setCell(sheetPrincipale, mapping.commentCell, controle.commentaire);
+      setCell(sheetPrincipale, mapping.commentCell, commentaire);
       if (cfg.heatNetwork?.mirrorControlColumns && /^B\d+$/.test(mapping.valueCell || '')) {
         const row = mapping.valueCell.slice(1);
         setCell(sheetPrincipale, `D${row}`, controle.avis);
-        setCell(sheetPrincipale, `E${row}`, controle.commentaire);
+        setCell(sheetPrincipale, `E${row}`, commentaire);
       }
     }
     if (mapping.panelId === 'p-releves' && champ) {
-      setCell(sheetPrincipale, mapping.commentCell || mapping.valueCell, champ.valeur);
+      const valeurReleve = /temperature/i.test(mapping.sectionCode || '') ? formaterTemperatureGroupee(mapping.cle, champ.valeur, pointsLibres) : champ.valeur;
+      setCell(sheetPrincipale, mapping.commentCell || mapping.valueCell, valeurReleve);
       if (cfg.heatNetwork && mapping.commentCell && /^C\d+$/.test(mapping.commentCell)) {
         setCell(sheetPrincipale, `E${mapping.commentCell.slice(1)}`, champ.valeur);
       }

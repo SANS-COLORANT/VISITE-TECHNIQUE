@@ -5,6 +5,7 @@ import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { detecterTrameDepuisClasseur } from './trameRegistry.js';
 import { getDb, uuidv4 } from './db.js';
+import { compteursDepuisCellule, temperaturesDepuisCellule } from './releveMultiligne.js';
 
 function valeurCellule(sheet, ref) {
   const cell = sheet?.[ref];
@@ -179,6 +180,7 @@ export function analyserClasseur(wb, nomFichier) {
   const champs = [];
   const controles = [];
   const compteurs = [];
+  const pointsMesure = [];
 
   for (const mapping of cfg.fieldMappings || []) {
     let valeur = valeurCellule(principale, mapping.valueCell);
@@ -192,16 +194,31 @@ export function analyserClasseur(wb, nomFichier) {
     if (!valeur && !commentaire) continue;
     const item = { sectionCode: mapping.sectionCode, cle: mapping.cle, valeur };
     if (mapping.type === 'controle') {
-      controles.push({ ...item, avis: valeur, commentaire });
+      // Températures : la mesure est dans la cellule commentaire ; plusieurs
+      // lignes = plusieurs points de mesure du même circuit.
+      if (/temperature/i.test(mapping.sectionCode || '') && /[\n\r]/.test(commentaire)) {
+        const lecture = temperaturesDepuisCellule({ cle: mapping.cle, texte: commentaire });
+        pointsMesure.push(...lecture.points);
+        controles.push({ ...item, avis: valeur, commentaire: lecture.valeur });
+      } else {
+        controles.push({ ...item, avis: valeur, commentaire });
+      }
     } else {
-      champs.push(item);
-      if (/^Index/i.test(mapping.cle) && valeur) {
-        compteurs.push({
-          label: nettoyerLabel(mapping.cle),
-          destination: mapping.cle,
-          valeur,
-          unite: (mapping.cle.match(/\(([^)]+)\)/) || [])[1] || '',
-        });
+      // Une cellule de relevé peut contenir plusieurs lignes (un compteur ou
+      // une température par ligne, lignes vides ignorées).
+      const estIndex = /^Index/i.test(mapping.cle) && valeur;
+      const estTemperature = !estIndex && /temperature/i.test(mapping.sectionCode || '') && /\n|\r/.test(valeur);
+      if (estIndex) {
+        const unite = (mapping.cle.match(/\(([^)]+)\)/) || [])[1] || '';
+        const releves = compteursDepuisCellule({ base: nettoyerLabel(mapping.cle), destination: mapping.cle, unite, texte: valeur });
+        champs.push({ ...item, valeur: releves[0]?.valeur ?? valeur });
+        compteurs.push(...releves);
+      } else if (estTemperature) {
+        const lecture = temperaturesDepuisCellule({ cle: mapping.cle, texte: valeur });
+        champs.push({ ...item, valeur: lecture.valeur });
+        pointsMesure.push(...lecture.points);
+      } else {
+        champs.push(item);
       }
     }
   }
@@ -260,7 +277,7 @@ export function analyserClasseur(wb, nomFichier) {
     site: siteDetecte || 'Site importé',
     adresse: adresseDetectee,
     dateVisite: dateDetectee || new Date().toISOString().slice(0, 10),
-    champs, controles, reseaux, compteurs, materiel, remarques, note,
+    champs, controles, reseaux, compteurs, pointsMesure, materiel, remarques, note,
   };
 }
 
@@ -440,6 +457,14 @@ export async function importerAnalyseExcel(analyse, { installationId = null } = 
       await db.runAsync(
         `INSERT OR REPLACE INTO releves_compteur (id, compteur_site_id, visite_id, valeur_texte, valeur_nombre, unite) VALUES (?, ?, ?, ?, ?, ?)`,
         [uuidv4(), permanent.id, visiteId, c.valeur, Number.isFinite(nombre) ? nombre : null, c.unite]
+      );
+    }
+
+    etape = 'températures';
+    for (const p of analyse.pointsMesure || []) {
+      await db.runAsync(
+        'INSERT INTO points_mesure_visite(id,visite_id,libelle,unite,valeur) VALUES(?,?,?,?,?)',
+        [uuidv4(), visiteId, p.libelle, p.unite || '°C', p.valeur]
       );
     }
 

@@ -103,7 +103,7 @@ async function main() {
     await server.send('migrate', '', [0, 33]);
     check((await server.db.getAllAsync("SELECT name FROM sqlite_master WHERE name='api_visit_outbox'")).length === 1, 'fresh database migrates through version 033');
     await seed(server.db);
-    const payloadModule = load('intranetVisitPayload.js', { getDb: async () => server.db, obtenirTrame: () => localTrame });
+    const payloadModule = load('intranetVisitPayload.js', { ...load('releveMultiligne.js', { pictoTemperature: load('relevePictos.js').pictoTemperature }), getDb: async () => server.db, obtenirTrame: () => localTrame });
     const prepared = await payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111');
     check(Object.keys(prepared.payload).join(',') === 'envoiId,visites', 'root contains only the exact contract keys');
     const wire = prepared.payload.visites[0];
@@ -177,11 +177,10 @@ async function main() {
 
     await seed(server.db, 'ambiguous-counter');
     await server.db.runAsync(`INSERT INTO compteurs(id,visite_id,label,unite,valeur) VALUES('meter-ambiguous-2','ambiguous-counter','Index Gaz','m³','999')`);
-    await assert.rejects(
-      () => payloadModule.buildIntranetVisitPayload('ambiguous-counter', '55555555-5555-4555-8555-555555555555'),
-      /plusieurs compteurs/i
-    );
-    checks++; console.log(`OK ${checks}: ambiguous counter mapping is still blocked rather than guessed`);
+    const grouped = await payloadModule.buildIntranetVisitPayload('ambiguous-counter', '55555555-5555-4555-8555-555555555555');
+    assert.ok(grouped.payload.visites[0].criteres.some((c) => /\n/.test(c.commentaire) && c.commentaire.includes('Index Gaz : ') && c.commentaire.includes('999 m³')),
+      'deux compteurs du même type sont regroupés : une ligne « nom : index unité » chacun');
+    checks++; console.log(`OK ${checks}: same-type counters are grouped in one cell, one line each`);
 
     await seed(server.db, 'pre-multi');
     await server.db.runAsync(`UPDATE visites SET trame_id='pre_allumage' WHERE id='pre-multi'`);

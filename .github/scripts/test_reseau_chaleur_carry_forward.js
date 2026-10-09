@@ -59,7 +59,7 @@ async function main() {
     await server.db.execAsync(`INSERT INTO clients(id,nom) VALUES('client','Client Alpha');
       INSERT INTO sites(id,client_id,nom_site) VALUES('site','client','Site Alpha');
       INSERT INTO installations(id,site_id,type_code,nom) VALUES('local','site','sous_station','SST 1'),('other','site','sous_station','SST 2');`);
-    const importer = load('excelImport.js', { XLSX, DocumentPicker: {}, FileSystem: {}, detecterTrameDepuisClasseur: registry.detecterTrameDepuisClasseur, getDb: async () => server.db, uuidv4: createId });
+    const importer = load('excelImport.js', { ...load('releveMultiligne.js', { pictoTemperature: load('relevePictos.js').pictoTemperature }), XLSX, DocumentPicker: {}, FileSystem: {}, detecterTrameDepuisClasseur: registry.detecterTrameDepuisClasseur, getDb: async () => server.db, uuidv4: createId });
     const analyse = { client: 'Client', site: 'Site', trameId: definition.id, nomFichier: 'RCU.xlsx', dateVisite: '2026-01-01',
       champs: [
         { sectionCode: 'infos.informations_g_n_rales', cle: 'Energie - pression', valeur: 'RCU 8 bar' },

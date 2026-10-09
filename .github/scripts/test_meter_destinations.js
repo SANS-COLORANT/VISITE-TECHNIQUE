@@ -75,7 +75,7 @@ async function main() {
 
   function exporter(source) {
     let state = { trameId: 'icpe_v1', compteurs: [] };
-    const deps = { XLSX, FileSystem: {}, Sharing: {}, obtenirTrame: registry.obtenirTrame, DEFAULT_TRAME_ID: 'icpe_v1',
+    const deps = { ...load('releveMultiligne.js', { pictoTemperature: load('relevePictos.js').pictoTemperature }), XLSX, FileSystem: {}, Sharing: {}, obtenirTrame: registry.obtenirTrame, DEFAULT_TRAME_ID: 'icpe_v1',
       getDb: async () => ({ getAllAsync: async (sql) => sql.includes('champs_visite') ? state.fields || [] : sql.includes('points_mesure_visite') ? state.points || [] : [], getFirstAsync: async () => null }),
       getVisite: async () => ({ id: 'v', trame_id: state.trameId, nom_client: 'Client', nom_site: 'Site', adresse: 'Adresse', date_visite: '2026-10-06' }),
       listerReseaux: async () => [], listerMateriel: async () => [], listerRemarques: async () => [],
@@ -96,7 +96,9 @@ async function main() {
   const avant = baseline ? exporter(baseline) : null;
   if (!avant) console.log('Référence avant 045 indisponible : contrôle par valeurs figées.');
   const apres = exporter(fs.readFileSync(path.join(root, 'excelExport.js'), 'utf8'));
-  const diff = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].filter((k) => String(a[k] ?? '') !== String(b[k] ?? ''));
+  // Compteurs du même type : un saut de ligne remplace l'ancien séparateur « | ».
+  const unifier = (v) => String(v ?? '').replace(/\n/g, ' | ');
+  const diff = (a, b) => [...new Set([...Object.keys(a), ...Object.keys(b)])].filter((k) => unifier(a[k]) !== unifier(b[k]));
 
   // Compteurs historiques : libellés réels produits par l'application avant 045.
   const historiques = [
@@ -112,10 +114,10 @@ async function main() {
   ];
   // Valeurs figées produites par le code d'avant 045 (build 650) pour ces compteurs.
   const FIGE_ICPE = {
-    C134: 'Index compteur(s) gaz(m³)/Cuve fioul : 418532 m³ | Compteur gaz : 1 m³ | Compteur fioul : 6 L',
-    C135: 'Index compteur énergie : 2712 MWh | Compteur énergie chauffage : 2 MWh | Compteur électrique : 5 kWh',
-    C136: 'Index compteur d’appoint eau chauffage : 1204 m³ | Compteur eau appoint chauffage : 3 m³',
-    C137: 'Index compteur alimentation EF ECS : 8377 m³ | Compteur eau froide ECS : 4 m³ | Compteur volumétrique : 7 m³',
+    C134: 'Index compteur(s) gaz(m³)/Cuve fioul : 418532 m³\nCompteur gaz : 1 m³\nCompteur fioul : 6 L',
+    C135: 'Index compteur énergie : 2712 MWh\nCompteur énergie chauffage : 2 MWh\nCompteur électrique : 5 kWh',
+    C136: 'Index compteur d’appoint eau chauffage : 1204 m³\nCompteur eau appoint chauffage : 3 m³',
+    C137: 'Index compteur alimentation EF ECS : 8377 m³\nCompteur eau froide ECS : 4 m³\nCompteur volumétrique : 7 m³',
     C138: 'Manomètre chauffage : 1,8 bar', C139: 'Manomètre ECS : 3 bar',
   };
   const icpeHisto = await apres('icpe_v1', historiques);
@@ -154,7 +156,7 @@ async function main() {
   const pressionMapping = registry.obtenirTrame('reseau_chaleur_v1').excel.fieldMappings.find((m) => m.cle === PRESSION);
   check((await apres('reseau_chaleur_v1', [{ label: 'Manomètre primaire', valeur: '1,8', unite: 'bar', destination: PRESSION }])).values[pressionMapping.valueCell] === '1,8 bar', 'RCU : destination pression exportée');
   const multiples = await apres('reseau_chaleur_v1', [{ label: 'A', valeur: '1', destination: GAZ }, { label: 'B', valeur: '2', destination: GAZ }]);
-  check(multiples.values.C60 === 'A : 1 | B : 2', 'RCU : tous les compteurs d’une destination sont conservés dans Excel');
+  check(multiples.values.C60 === 'A : 1\nB : 2', 'RCU : tous les compteurs d’une destination sont conservés dans Excel');
   check(!(await apres('icpe_v1', [{ label: 'Compteur gaz', valeur: '666', destination: 'inconnue' }])).values.C134, 'destination inconnue : aucun repli vers un libellé trompeur');
   for (const trameId of ['icpe_v1', 'reseau_chaleur_v1']) {
     const mapping = registry.obtenirTrame(trameId).excel.fieldMappings.find((m) => m.cle === GAZ);
@@ -171,13 +173,14 @@ async function main() {
 
   // Intranet : fonctions de production extraites de intranetVisitPayload.js.
   const payloadSource = fs.readFileSync(path.join(root, 'intranetVisitPayload.js'), 'utf8');
-  const { counterValue } = new Function(`${extractFunction(payloadSource, 'clean')}\n${extractFunction(payloadSource, 'normalize')}\n${extractFunction(payloadSource, 'cleanCounterLabel')}\n${extractFunction(payloadSource, 'counterValue')}\nreturn { counterValue };`)();
+  const groupSource = `${fs.readFileSync(path.join(root, 'relevePictos.js'), 'utf8')}\n${fs.readFileSync(path.join(root, 'releveMultiligne.js'), 'utf8').replace(/^import .*$/m, '')}`.replace(/export /g, '');
+  const { counterValue } = new Function(`${groupSource}\n${extractFunction(payloadSource, 'clean')}\n${extractFunction(payloadSource, 'normalize')}\n${extractFunction(payloadSource, 'cleanCounterLabel')}\n${extractFunction(payloadSource, 'counterValue')}\nreturn { counterValue };`)();
   const candidate = { cle: GAZ, label: GAZ };
   const criterion = { nom: 'Index compteur(s) gaz(m³)/Cuve fioul (litres ou %)' };
   check(counterValue([{ label: 'Index compteur(s) gaz(m³)/Cuve fioul', valeur: '1' }], criterion, candidate).value === '1', 'Intranet : compteur historique toujours trouvé par son libellé');
   check(counterValue([{ label: 'Chaudière 1', valeur: '419816', destination: GAZ }], criterion, candidate).value === '419816', 'Intranet : compteur renommé trouvé par sa destination');
   check(counterValue([{ label: 'Index compteur(s) gaz(m³)/Cuve fioul', valeur: '1', destination: 'supplementaire' }], criterion, candidate).status === 'missing', 'Intranet : compteur supplémentaire jamais envoyé');
-  check(counterValue([{ label: 'A', valeur: '1', destination: GAZ }, { label: 'B', valeur: '2', destination: GAZ }], criterion, candidate).status === 'ambiguous', 'Intranet : deux compteurs sur la même ligne restent bloquants');
+  check(counterValue([{ label: 'A', valeur: '1', unite: 'm³', destination: GAZ }, { label: 'B', valeur: '2', unite: 'm³', destination: GAZ }], criterion, candidate).value === 'A : 1 m³\nB : 2 m³', 'Intranet : deux compteurs du même type sont regroupés dans une cellule, une ligne chacun');
   check(counterValue([{ label: 'Index compteur(s) gaz(m³)/Cuve fioul', valeur: '1', destination: NRJ }], criterion, candidate).status === 'missing', 'Intranet : la destination prime sur un libellé trompeur');
   const criteriaModule = loadSource(payloadSource + '\nexport { buildCriteria };', { obtenirTrame: registry.obtenirTrame, getDb: async () => null });
   const remote = { trame: { categories: [{ id: 1, nom: 'Relevés', sousCategories: [{ id: 2, nom: 'Relevés des compteurs et manomètres', criteres: [{ id: 3, nom: GAZ, avisApplicable: false }, { id: 4, nom: PRESSION, avisApplicable: false }] }] }] } };

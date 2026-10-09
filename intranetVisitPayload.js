@@ -1,5 +1,6 @@
 import { getDb } from './db.js';
 import { obtenirTrame } from './trameRegistry.js';
+import { formaterReleves, formaterTemperatureGroupee } from './releveMultiligne.js';
 
 export const INTRANET_MAX_BODY_BYTES = 5 * 1024 * 1024;
 export const INTRANET_AVIS = Object.freeze(['S.O', 'S', 'N.S', 'N.R', 'N.V']);
@@ -176,7 +177,9 @@ function counterValue(counters, criterion, candidate) {
   });
   if (exact.length === 1) return { status: 'matched', value: exact[0].valeur };
   if (exact.length === 0) return { status: 'missing', value: null };
-  return { status: 'ambiguous', value: null };
+  // Plusieurs compteurs du même type : une seule cellule, une ligne
+  // « nom : index unité » par compteur (lignes sans index ignorées).
+  return { status: 'matched', value: formaterReleves(exact) || null };
 }
 
 function applicableAvis(value, issues, path) {
@@ -280,14 +283,16 @@ async function buildCriteria(db, visite, details, issues) {
   const remoteTrame = details?.trame;
   const categories = Array.isArray(remoteTrame?.categories) ? remoteTrame.categories : [];
   if (!categories.length) { issues.push('Trame Intranet : aucun critère de référence figé pour cette visite.'); return []; }
-  const [candidates, fields, controls, networks, counters, networkProvenances] = await Promise.all([
+  const [candidates, fields, controls, networks, counters, networkProvenances, measurePoints] = await Promise.all([
     buildCandidates(db, visite),
     db.getAllAsync(`SELECT section_code,cle,valeur FROM champs_visite WHERE visite_id=?`, [visite.id]),
     db.getAllAsync(`SELECT section_code,cle,avis,commentaire FROM controles_visite WHERE visite_id=?`, [visite.id]),
     db.getAllAsync(`SELECT * FROM reseaux WHERE visite_id=? ORDER BY ordre,id`, [visite.id]),
     db.getAllAsync(`SELECT * FROM compteurs WHERE visite_id=? ORDER BY id`, [visite.id]),
     db.getAllAsync(`SELECT p.entite_id,p.details_json FROM provenances p JOIN reseaux r ON r.id=p.entite_id WHERE p.entite_type='reseau' AND p.origine='api_symfony' AND r.visite_id=? ORDER BY p.importe_le DESC`, [visite.id]),
+    db.getAllAsync(`SELECT libelle,valeur,unite FROM points_mesure_visite WHERE visite_id=? ORDER BY cree_le,id`, [visite.id]).catch(() => []),
   ]);
+  const isTemperature = (candidate) => candidate.panelId === 'p-releves' && /temperature/.test(String(candidate.sectionCode || ''));
   const fieldMap = new Map(fields.map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
   const controlMap = new Map(controls.map((row) => [`${row.section_code}||${row.cle}`, row]));
   const remoteNetworkGroups = visite.trame_id === 'icpe_v1'
@@ -327,15 +332,19 @@ async function buildCriteria(db, visite, details, issues) {
         } else if (applicable) {
           const control = controlMap.get(`${candidate.sectionCode}||${candidate.cle}`);
           avis = applicableAvis(control?.avis, issues, `${path} / avis`);
-          commentaire = exactComment(control?.commentaire, issues, `${path} / commentaire`);
+          const temperature = isTemperature(candidate)
+            ? formaterTemperatureGroupee(candidate.cle, control?.commentaire, measurePoints) : control?.commentaire;
+          commentaire = exactComment(temperature, issues, `${path} / commentaire`);
         } else {
           let value;
           if (['icpe_v1', 'reseau_chaleur_v1'].includes(visite.trame_id) && candidate.panelId === 'p-releves' && /^(index|pression)\b/.test(normalize(candidate.label))) {
             const counter = counterValue(counters, criterion, candidate);
-            if (counter.status === 'ambiguous') issues.push(`${path} : plusieurs compteurs correspondent ; METRA refuse de choisir une valeur au hasard.`);
             value = counter.status === 'missing' && /^pression\b/.test(normalize(candidate.label))
               ? fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`) : counter.value;
-          } else value = fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`);
+          } else {
+            value = fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`);
+            if (isTemperature(candidate)) value = formaterTemperatureGroupee(candidate.cle, value, measurePoints);
+          }
           commentaire = exactComment(value, issues, `${path} / commentaire`);
         }
         result.push({ categorieId, sousCategorieId, critereId, avis: applicable ? avis : null, commentaire });
