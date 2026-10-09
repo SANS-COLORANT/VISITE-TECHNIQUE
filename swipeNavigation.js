@@ -96,3 +96,23 @@ export function profilIcone(xCentre, W) {
 export function entreesPager(pageIndex, pagerWidth) {
   return echantillonsD().map((d) => -(pageIndex + d) * pagerWidth);
 }
+
+/**
+ * Défilement de la barre d'onglets pendant le geste : la barre suit la position
+ * fractionnaire du pager (p = -pagerX / largeur de page) pour que l'onglet visé
+ * soit déjà en vue quand la page arrive. `cibles[i]` = décalage de la barre qui
+ * centre l'onglet de la page i ; interpolation linéaire, bornée aux extrémités.
+ */
+export function decalageBarre(p, cibles) {
+  const n = cibles.length;
+  if (!n) return 0;
+  const pos = Math.max(0, Math.min(n - 1, p));
+  const i0 = Math.floor(pos);
+  const i1 = Math.min(n - 1, i0 + 1);
+  return cibles[i0] + (cibles[i1] - cibles[i0]) * (pos - i0);
+}
+
+/** Décalage qui centre un onglet (x, largeur) dans la fenêtre visible, borné au contenu. */
+export function centrerOnglet(x, largeur, fenetre, contenu) {
+  return Math.max(0, Math.min(Math.max(0, contenu - fenetre), x - Math.max(0, (fenetre - largeur) / 2)));
+}

@@ -14,7 +14,7 @@ import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from '
 import { LinearGradient } from 'expo-linear-gradient';
 import { Picto, pictoOnglet, ACTION_PICTOS } from './MetraPictos.js';
 import { COLORS, FONTS } from './styles.js';
-import { WAVE_EDGE, WAVE_ROWS, entreesPager, profilBande, profilIcone } from './swipeNavigation.js';
+import { WAVE_EDGE, WAVE_ROWS, centrerOnglet, decalageBarre, entreesPager, profilBande, profilIcone } from './swipeNavigation.js';
 import { ouvrirAideReglementaire } from './AideReglementaire.js';
 import { APPUI_LONG_MS } from './aideReglementaire.js';
 
@@ -127,6 +127,7 @@ export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, t
   const indexActif = pageOrder ? pageOrder.indexOf(activeTab) : -1;
   const positions = useRef({});
   const viewportWidth = useRef(0);
+  const contentWidth = useRef(0);
 
   useEffect(() => {
     const pos = positions.current[activeTab];
@@ -134,6 +135,25 @@ export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, t
     const target = Math.max(0, pos.x - Math.max(0, (viewportWidth.current - pos.width) / 2));
     scrollRef.current.scrollTo({ x: target, animated: true });
   }, [activeTab]);
+
+  // La barre défile avec le doigt : l'onglet visé est déjà en vue quand la page arrive.
+  useEffect(() => {
+    if (!pagerX || !(pagerWidth > 0) || !pageOrder?.length) return undefined;
+    let raf = null; let derniere = null;
+    const cible = (pid) => {
+      const pos = positions.current[pid];
+      return pos ? centrerOnglet(pos.x, pos.width, viewportWidth.current, contentWidth.current) : null;
+    };
+    const appliquer = () => {
+      raf = null;
+      if (derniere == null || !scrollRef.current) return;
+      const cibles = pageOrder.map(cible);
+      if (cibles.some((c) => c == null)) return;
+      scrollRef.current.scrollTo({ x: decalageBarre(-derniere / pagerWidth, cibles), animated: false });
+    };
+    const id = pagerX.addListener(({ value }) => { derniere = value; if (!raf) raf = requestAnimationFrame(appliquer); });
+    return () => { pagerX.removeListener(id); if (raf) cancelAnimationFrame(raf); };
+  }, [pagerX, pagerWidth, pageOrder]);
 
   return (
     <View style={s.railRow}>
@@ -145,6 +165,7 @@ export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, t
       showsHorizontalScrollIndicator={false}
       keyboardShouldPersistTaps="handled"
       onLayout={(e) => { viewportWidth.current = e.nativeEvent.layout.width; }}
+      onContentSizeChange={(w) => { contentWidth.current = w; }}
       contentContainerStyle={s.rail}
     >
       {tabOrder.map((pid, i) => {

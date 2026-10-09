@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const src = fs.readFileSync(path.join(root, 'swipeNavigation.js'), 'utf8').replace(/export /g, '');
-const S = new Function(src + '; return {shouldStartSwipe, swipeDirection, rubberBand, settleSpring, echantillonsD, bordBande, profilBande, profilIcone, entreesPager, WAVE_ROWS, WAVE_EDGE, WAVE_AMP, SWIPE_COMMIT_MIN};')();
+const S = new Function(src + '; return {shouldStartSwipe, swipeDirection, rubberBand, settleSpring, decalageBarre, centrerOnglet, echantillonsD, bordBande, profilBande, profilIcone, entreesPager, WAVE_ROWS, WAVE_EDGE, WAVE_AMP, SWIPE_COMMIT_MIN};')();
 
 // Start: a slightly diagonal thumb swipe is a swipe; vertical scrolling is not.
 assert.equal(S.shouldStartSwipe(12, 8), true);
@@ -87,4 +87,15 @@ assert.equal(ic.length, ds.length); assert.ok(ic.every((v) => v >= 0 && v <= 1))
 assert.equal(ic[ds.indexOf(0)], 1, 'icône blanche quand la bulle est pleine');
 assert.equal(ic[0], 0, 'icône grise quand la bulle est vide à droite');
 assert.equal(ic[ic.length - 1], 0, 'icône grise quand la bulle est vide à gauche');
+// Défilement de la barre pendant le geste.
+const cibles = [0, 100, 260, 400];
+assert.equal(S.decalageBarre(0, cibles), 0);
+assert.equal(S.decalageBarre(1, cibles), 100);
+assert.equal(S.decalageBarre(1.5, cibles), 180, 'à mi-geste, la barre est à mi-chemin des deux onglets');
+assert.equal(S.decalageBarre(-0.3, cibles), 0, 'bornée avant le premier');
+assert.equal(S.decalageBarre(3.4, cibles), 400, 'bornée après le dernier');
+assert.equal(S.decalageBarre(0.25, []), 0);
+assert.equal(S.centrerOnglet(500, 100, 300, 900), 400, 'onglet centré dans la fenêtre');
+assert.equal(S.centrerOnglet(20, 100, 300, 900), 0, 'jamais avant le début');
+assert.equal(S.centrerOnglet(850, 100, 300, 900), 600, 'jamais après la fin du contenu');
 console.log('barre d’onglets liquide native : OK');

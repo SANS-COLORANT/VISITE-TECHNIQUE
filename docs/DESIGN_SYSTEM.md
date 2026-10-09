@@ -230,3 +230,5 @@ onglets de visite :
 La bulle orange de l'onglet actif suit le doigt sans retard : elle se vide de l'onglet quitté et remplit l'onglet visé du côté d'où vient le geste, le texte blanc restant fixe sous le liquide. Le bord est une vague qui ondule au maximum à mi-remplissage et se calme quand la bulle est pleine ou vide.
 
 Réalisation 100 % native : la bulle est découpée en bandes horizontales (`WAVE_ROWS`), chaque bande est décalée par une interpolation de la valeur animée du pager (`bordBande`, `profilBande`, `swipeNavigation.js`). Aucun calcul JavaScript pendant le geste, donc aucun retard, même quand le thread JavaScript est occupé à monter la page voisine. Seules la bulle active et ses voisines portent le liquide. Un premier essai redessinait le bord depuis JavaScript (SVG) : il prenait du retard et l'ondulation ne s'affichait pas ; il a été abandonné.
+
+La barre défile aussi avec le geste : sa position suit celle du pager (`decalageBarre`, `centrerOnglet`), de sorte que l'onglet visé est déjà en vue, centré, quand la page arrive. Le défilement manuel de la barre reste libre hors geste.
