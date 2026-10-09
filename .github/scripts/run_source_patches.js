@@ -4,6 +4,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const CONTRACT_CHECKS = [
+  ['long-press regulatory help sheets', '.github/scripts/test_aide_reglementaire.js'],
   ['equipment screen: exceptions, swipe, + menu', '.github/scripts/check_equipment_exception_ui.js'],
   ['client tour checklist (sites/locals to do)', '.github/scripts/test_tournee.js'],
   ['multi-line meter and temperature cells (import/export)', '.github/scripts/test_releve_multiligne.js'],

@@ -41,6 +41,7 @@ import { VisitSearchSheet } from './VisitSearchSheet.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
 import { ToastHost, showToast } from './PremiumDialogs.js';
+import { AideReglementaireHost } from './AideReglementaire.js';
 import { getPrefSync, PREFS } from './uiPrefs.js';
 import { SignatureSheet, enregistrerSignatureVisite, lireSignatureVisite } from './visitSignature.js';
 import { SkeletonVisit } from './Skeleton.js';
@@ -854,16 +855,17 @@ function VisiteScreen({ route, onBack }) {
           </TouchableOpacity>
         </View>
         {trame.id === 'vmc' && vmcCaissons.length > 0 ? <VmcCaissonManager visiteId={visiteId} caissons={vmcCaissons} onChange={onCaissonsChange} onNavigate={changerOnglet} activePanelId={activeTab} tabStates={tabStatus.tabs} /> : null}
-        {!modeTablette && !ongletsEnBas && <SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} pagerX={pagerX} pagerWidth={pagerWidth} pageOrder={tabsReels} />}
+        {!modeTablette && !ongletsEnBas && <SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} pagerX={pagerX} pagerWidth={pagerWidth} pageOrder={tabsReels} visiteId={visiteId} />}
       </View>
 
       {modeTablette ? <View style={{ flex: 1, flexDirection: 'row' }}>
         <View style={{ width: 205, backgroundColor: 'rgba(255,255,255,0.55)', borderRightWidth: 1, borderRightColor: 'rgba(22,21,15,0.08)' }}>
-          <SideSectionList tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} />
+          <SideSectionList tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} visiteId={visiteId} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>{animatedContent}</View>
       </View> : animatedContent}
-      {!clavierVisible && !modeTablette && ongletsEnBas ? <View style={{ paddingHorizontal: 12, paddingTop: 8, marginBottom: -12 }}><SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} pagerX={pagerX} pagerWidth={pagerWidth} pageOrder={tabsReels} /></View> : null}
+      {!clavierVisible && !modeTablette && ongletsEnBas ? <View style={{ paddingHorizontal: 12, paddingTop: 8, marginBottom: -12 }}><SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} pagerX={pagerX} pagerWidth={pagerWidth} pageOrder={tabsReels} visiteId={visiteId} /></View> : null}
+      <AideReglementaireHost />
       {!clavierVisible ? <VisitActionBar onNote={ouvrirNote} onPhoto={() => setModePhotoVisible(true)} photoLabel="Mode Photo" onAnomalie={() => setAnomalieVisible(true)} /> : null}
 
       <Modal visible={noteVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}>

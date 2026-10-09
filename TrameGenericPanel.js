@@ -460,8 +460,8 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
         photo={mode !== 'distrib' && mode !== 'infos'}
       />;
     }
-    if (item.field.vmc === true) return <VmcControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} />;
-    if (item.field.presets) return <PresetControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} displayLabel={label || undefined} />;
+    if (item.field.vmc === true) return <VmcControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} trameId={trameId} />;
+    if (item.field.presets) return <PresetControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} displayLabel={label || undefined} trameId={trameId} />;
     return <PersistentControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} trameId={trameId} displayLabel={label || undefined} />;
   };
 

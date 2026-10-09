@@ -9,13 +9,14 @@ import { defaultSeverityForControl } from './reserveSeverity.js';
 import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
+import { ouvrirAideReglementaire } from './AideReglementaire.js';
 
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
 function avisChipColor(opt) { if (opt === 'S') return { bg: COLORS.greenBg, border: COLORS.green, text: COLORS.green }; if (opt === 'N.S') return { bg: COLORS.redBg, border: COLORS.red, text: COLORS.red }; return { bg: COLORS.line, border: COLORS.inkFaint, text: COLORS.inkSoft }; }
 function palettePanel(avis) { if (avis === 'S') return { bg: COLORS.greenBg, border: COLORS.green, text: COLORS.green, picked: COLORS.green }; if (avis === 'N.S') return { bg: COLORS.redBg, border: '#F4C7C7', text: COLORS.red, picked: COLORS.red }; return { bg: COLORS.bg, border: COLORS.line, text: COLORS.inkSoft, picked: COLORS.inkSoft }; }
 function libelleEtat(avis) { if (avis === 'S') return 'Correct / présent'; if (avis === 'S.O') return 'Sans objet'; if (avis === 'N.R') return 'Non relevé'; if (avis === 'N.V') return 'Non visible'; return null; }
 
-export const VmcControleGenerique = React.memo(function VmcControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, onEtatChange }) {
+export const VmcControleGenerique = React.memo(function VmcControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, onEtatChange, trameId = 'vmc' }) {
   const controleKey = `${sectionCode}||${field.cle}`;
   const [avis, setAvis] = useState(etatInitial?.avis || null);
   const avisRef = useRef(etatInitial?.avis || null);
@@ -134,7 +135,7 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
     notifier({ criticite: value });
   }, [remarque?.id, notifier]);
 
-  return <View style={styles.controlRow}><View style={styles.controlTop}><Text style={styles.controlLabel}>{field.cle}</Text><View style={styles.avisGroup}>{AVIS_OPTIONS.map((opt) => { const c = avisChipColor(opt); const selected = avis === opt; return <TouchableOpacity key={opt} style={[styles.avisChip, selected && { backgroundColor: c.bg, borderColor: c.border }]} onPress={() => choisirAvis(opt)}><Text style={[styles.avisChipText, selected && { color: c.text }]}>{opt}</Text></TouchableOpacity>; })}</View></View>
+  return <View style={styles.controlRow}><View style={styles.controlTop}><Text style={styles.controlLabel} onLongPress={() => ouvrirAideReglementaire({ trameId, visiteId, sectionCode, cle: field.cle })}>{field.cle}</Text><View style={styles.avisGroup}>{AVIS_OPTIONS.map((opt) => { const c = avisChipColor(opt); const selected = avis === opt; return <TouchableOpacity key={opt} style={[styles.avisChip, selected && { backgroundColor: c.bg, borderColor: c.border }]} onPress={() => choisirAvis(opt)}><Text style={[styles.avisChipText, selected && { color: c.text }]}>{opt}</Text></TouchableOpacity>; })}</View></View>
     {avis && <View style={[styles.criterePanel, { backgroundColor: palette.bg, borderColor: palette.border }]}>
       {etatApplication ? <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: palette.text, backgroundColor: palette.bg, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8 }}><Text style={{ color: palette.text, fontFamily: FONTS.bold, fontSize: 11 }}>{etatApplication}</Text></View> : null}
       {options.length > 0 && <><Text style={[styles.criterePanelLabel, { color: palette.text }]}>{avis === 'N.S' ? 'Anomalie constatée' : 'Commentaire rapide'}</Text><View style={styles.critereChips}>{options.map((opt, idx) => <TouchableOpacity key={`${field.cle}-${avis}-${idx}`} style={[styles.critereChip, { borderColor: palette.text }, presetChoisi === idx && { backgroundColor: palette.picked, borderColor: palette.picked }]} onPress={() => choisirPreset(opt, idx)}><Text style={[styles.critereChipText, { color: presetChoisi === idx ? COLORS.white : palette.text }]}>{opt.label}</Text></TouchableOpacity>)}</View></>}

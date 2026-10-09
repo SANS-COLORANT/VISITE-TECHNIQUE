@@ -15,6 +15,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { Picto, pictoOnglet, ACTION_PICTOS } from './MetraPictos.js';
 import { COLORS, FONTS } from './styles.js';
 import { WAVE_EDGE, WAVE_ROWS, entreesPager, profilBande, profilIcone } from './swipeNavigation.js';
+import { ouvrirAideReglementaire } from './AideReglementaire.js';
+import { APPUI_LONG_MS } from './aideReglementaire.js';
 
 export const STATE_COLORS = {
   empty: '#D6D1C6',
@@ -119,7 +121,7 @@ function WaveChip({ label, picto, state, pageIndex, size, pagerX, pagerWidth }) 
   );
 }
 
-export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, tabStates = {}, trameId, onSearch, pagerX = null, pagerWidth = 0, pageOrder = null }) {
+export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, tabStates = {}, trameId, onSearch, pagerX = null, pagerWidth = 0, pageOrder = null, visiteId = null }) {
   const scrollRef = useRef(null);
   const [largeurs, setLargeurs] = useState({});
   const indexActif = pageOrder ? pageOrder.indexOf(activeTab) : -1;
@@ -168,6 +170,8 @@ export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, t
             accessibilityLabel={label}
             activeOpacity={0.85}
             onPress={() => onSelect?.(pid)}
+            onLongPress={() => ouvrirAideReglementaire({ trameId, visiteId, panelId: pid, titreOnglet: label })}
+            delayLongPress={APPUI_LONG_MS}
             onLayout={(e) => {
               const { x, width, height } = e.nativeEvent.layout;
               positions.current[pid] = { x, width };
@@ -189,7 +193,7 @@ export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, t
   );
 }
 
-export function SideSectionList({ tabOrder = [], labels = {}, activeTab, onSelect, tabStates = {}, trameId, onSearch }) {
+export function SideSectionList({ tabOrder = [], labels = {}, activeTab, onSelect, tabStates = {}, trameId, onSearch, visiteId = null }) {
   return (
     <ScrollView contentContainerStyle={{ paddingVertical: 10, paddingHorizontal: 9 }} showsVerticalScrollIndicator={false}>
       {onSearch ? (
@@ -205,7 +209,7 @@ export function SideSectionList({ tabOrder = [], labels = {}, activeTab, onSelec
         const picto = pictoOnglet(pid, trameId);
         const label = labels[pid] || pid;
         return (
-          <TouchableOpacity key={pid} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={label} onPress={() => onSelect?.(pid)} activeOpacity={0.85} style={[s.side, on && s.sideOn]}>
+          <TouchableOpacity key={pid} accessibilityRole="tab" accessibilityState={{ selected: on }} accessibilityLabel={label} onPress={() => onSelect?.(pid)} onLongPress={() => ouvrirAideReglementaire({ trameId, visiteId, panelId: pid, titreOnglet: label })} delayLongPress={APPUI_LONG_MS} activeOpacity={0.85} style={[s.side, on && s.sideOn]}>
             <StateDot state={st?.state || null} />
             {picto ? <Picto name={picto} size={20} /> : null}
             <Text numberOfLines={2} style={[s.sideText, on && s.sideTextOn]}>{label}</Text>

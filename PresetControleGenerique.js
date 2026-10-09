@@ -7,6 +7,7 @@ import { listerRemarquesVisite, upsertRemarquePrescription, supprimerRemarqueCon
 import { PhotoButton } from './PhotoButton.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
+import { ouvrirAideReglementaire } from './AideReglementaire.js';
 
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
 
@@ -31,7 +32,7 @@ function libelleEtat(avis) {
   return null;
 }
 
-export const PresetControleGenerique = React.memo(function PresetControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, onEtatChange, displayLabel }) {
+export const PresetControleGenerique = React.memo(function PresetControleGenerique({ visiteId, sectionCode, field, etatInitial, onSaved, onEtatChange, displayLabel, trameId = 'icpe_v1' }) {
   const controleKey = `${sectionCode}||${field.cle}`;
   const label = displayLabel || field.cle;
   const trameLabel = field.trameLabel || (field.preAllumage ? 'Pré-allumage' : 'Visite');
@@ -146,7 +147,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
 
   return <View style={styles.controlRow}>
     <View style={styles.controlTop}>
-      <Text style={styles.controlLabel}>{label}</Text>
+      <Text style={styles.controlLabel} onLongPress={() => ouvrirAideReglementaire({ trameId, visiteId, sectionCode, cle: field.cle })}>{label}</Text>
       <View style={styles.avisGroup}>
         {AVIS_OPTIONS.map((opt) => {
           const c = avisChipColor(opt); const selected = avis === opt;

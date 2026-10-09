@@ -20,6 +20,8 @@ import { BoundedLruMap } from './boundedCache.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { perimetreControleTrame } from './trameRegistry.js';
+import { ouvrirAideReglementaire } from './AideReglementaire.js';
+import { APPUI_LONG_MS } from './aideReglementaire.js';
 
 const PRESCRIPTIONS_COMPLETES = fusionnerPrescriptions(PRESCRIPTIONS);
 const AVIS_OPTIONS = ['S', 'N.S', 'N.R', 'S.O', 'N.V'];
@@ -423,7 +425,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
   return <View style={styles.controlRow}>
     {/* Ligne compacte (~42 px) : intitulé + note + S / N.S / … ; le détail s'édite dans la fiche. */}
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 42 }}>
-      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${field.cle}, ouvrir le détail${noteActive ? ', commentaire présent' : ''}`} onPress={ouvrirFiche} activeOpacity={0.6} style={{ flex: 1, minWidth: 0, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${field.cle}, ouvrir le détail${noteActive ? ', commentaire présent' : ''}`} onPress={ouvrirFiche} onLongPress={() => ouvrirAideReglementaire({ trameId, visiteId, sectionCode, cle: field.cle })} delayLongPress={APPUI_LONG_MS} activeOpacity={0.6} style={{ flex: 1, minWidth: 0, paddingVertical: 4, flexDirection: 'row', alignItems: 'center', gap: 6 }}>
         <Text style={[styles.controlLabel, { flexShrink: 1, fontSize: 14, lineHeight: 18 }, avis === 'S' && { color: COLORS.inkSoft }]}>{libelle}</Text>
         <CvcIcon name="note" size={14} color={noteActive ? COLORS.orange : COLORS.inkFaint} strokeWidth={2.1} />
       </TouchableOpacity>
