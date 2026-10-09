@@ -4,7 +4,7 @@ import { COLORS, FONTS, styles } from './styles.js';
 import { PhotoButton } from './PhotoButton.js';
 import { PhotoVariantImage } from './PhotoVariantImage.js';
 import { reconnaitreTexteImageLocale } from './missionNativeTools.js';
-import { extraireChampsPlaque, extraireValeurOcr, resumeIncertitudesSegments } from './photoModeData.js';
+import { extraireChampsPlaque } from './photoModeData.js';
 import { lignesLecturePlaque } from './terrainVisitModel.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { CvcIcon } from './MetraCvcIcons.js';
@@ -22,40 +22,31 @@ export function LecturePhotoButton({ visiteId, entiteKey, label, kind = 'meter',
     const request = ++readRequest.current;
     setGuide(false);
     setRawVisible(false);
+    // Compteurs et températures : aucune lecture automatique. La photo est déjà enregistrée,
+    // l'utilisateur saisit la valeur qu'il lit sur l'afficheur.
+    if (kind !== 'plate') {
+      setReview({ uri: photo.uri, loading: false, text: '',
+        rows: [{ key: 'valeur', label: `${label}${unit ? ` (${unit})` : ''}`, value: '', current: String(current.valeur || '') }],
+        hint: 'Photo enregistrée. Saisis la valeur lue sur l’afficheur.' });
+      return;
+    }
     setReview({ uri: photo.uri, rows: [], text: '', loading: true });
     try {
-      const isMeter = /^(meter|counter|meters)$/.test(kind);
       let result = photo.ocrResult || (photo.text != null ? { text: photo.text } : null);
-      if (!result) {
-        try { result = await reconnaitreTexteImageLocale(isMeter ? (photo.ocrUri || photo.uri) : photo.uri, { meter: isMeter }); }
-        catch (error) {
-          if (!isMeter || !photo.ocrUri || photo.ocrUri === photo.uri) throw error;
-          result = await reconnaitreTexteImageLocale(photo.uri, { meter: true });
-        }
-      }
+      if (!result) result = await reconnaitreTexteImageLocale(photo.uri);
       if (request !== readRequest.current) return;
       const text = String(result?.text || '');
-      const found = kind === 'plate' ? null : extraireValeurOcr(result, { kind, unit, label });
-      const rows = kind === 'plate' ? lignesLecturePlaque(extraireChampsPlaque(text), current)
-        : [{ key: 'valeur', label: `${label}${unit ? ` (${unit})` : ''}`, value: found ? String(found.value) : '', current: String(current.valeur || '') }];
-      const rawText = [...new Set([text, ...(result?.passes || []).map(p => p.text)].map(t => String(t || '').trim()).filter(Boolean))].join('\n\n');
-      setRawVisible(kind !== 'plate' && !found && Boolean(rawText));
-      setReview({ uri: photo.uri, rows, text: rawText, loading: false, unitMismatch: found?.unitMismatch, detectedUnit: found?.unit,
+      const rows = lignesLecturePlaque(extraireChampsPlaque(text), current);
+      setReview({ uri: photo.uri, rows, text: '', loading: false,
         hint: result?.unavailable ? 'Lecture automatique indisponible sur cet appareil. Tu peux saisir les valeurs ci-dessous.'
-          : found?.unitMismatch ? `L’afficheur indique ${found.unit}, mais ce champ attend ${unit}. Vérifie le compteur sélectionné.`
-          : kind !== 'plate' && !found && rawText ? `Du texte a été lu, mais ${isMeter ? 'l’index' : 'la valeur'} reste à vérifier sur la photo. Le texte reconnu est affiché ci-dessous.`
-          : kind !== 'plate' && !found ? 'Aucun texte lisible. Vérifie la photo ou saisis la valeur.'
-          : (found?.source === 'seven-segment' || found?.source === 'text-no-decimal') ? `Lecture par segments, à confirmer sur la photo${resumeIncertitudesSegments(found) ? ` — ${resumeIncertitudesSegments(found)}` : ''}.${found.prefill ? '' : ' Saisis la valeur après vérification.'}${found.unitFromField ? ' Unité non lue : celle du champ est utilisée.' : ''}`
-          : found?.requiresReview ? 'Index proposé à vérifier sur la photo, notamment la décimale et l’unité.'
-          : !rawText ? 'Aucun texte lisible. Vérifie la photo ou saisis les valeurs.' : 'Vérifie chaque valeur, notamment les chiffres et les unités.' });
+          : !text.trim() ? 'Aucun texte lisible. Vérifie la photo ou saisis les valeurs.' : 'Vérifie chaque valeur, notamment les chiffres et les unités.' });
     } catch (error) {
       if (request !== readRequest.current) return;
-      setReview({ uri: photo.uri, rows: kind === 'plate' ? lignesLecturePlaque({}, current) : [{ key: 'valeur', label, value: '', current: String(current.valeur || '') }], text: '', loading: false, hint: 'La photo est enregistrée. Lecture impossible ; la saisie manuelle reste disponible.' });
+      setReview({ uri: photo.uri, rows: lignesLecturePlaque({}, current), text: '', loading: false, hint: 'La photo est enregistrée. Lecture impossible ; la saisie manuelle reste disponible.' });
     }
   };
   const appliquer = async () => {
     if (busy || review?.loading) return;
-    if (review?.unitMismatch) { Alert.alert('Unité incompatible', `Cette photo indique ${review.detectedUnit}. Sélectionne un compteur avec cette unité avant d’appliquer le relevé.`); return; }
     setBusy(true);
     try {
       const values = Object.fromEntries(review.rows.filter((r) => String(r.value).trim()).map((r) => [r.key, String(r.value).trim()]));
@@ -91,7 +82,7 @@ export function LecturePhotoButton({ visiteId, entiteKey, label, kind = 'meter',
     </View></Modal>
     <Modal visible={Boolean(review)} transparent animationType="slide" onRequestClose={fermer}>
       <View style={styles.modalOverlay}><View style={styles.modalSheet}>
-        <Text style={styles.modalTitle}>{kind === 'plate' ? 'Vérification de la plaque' : 'Vérification du relevé'}</Text>
+        <Text style={styles.modalTitle}>{kind === 'plate' ? 'Vérification de la plaque' : 'Saisie du relevé'}</Text>
         <Text style={styles.importHint}>{review?.loading ? 'Lecture sur la tablette…' : review?.hint}</Text>
         {review?.uri ? <PhotoVariantImage uri={review.uri} style={{ height: 130, borderRadius: 16, marginVertical: 12 }} resizeMode="contain" /> : null}
         <ScrollView keyboardShouldPersistTaps="handled">

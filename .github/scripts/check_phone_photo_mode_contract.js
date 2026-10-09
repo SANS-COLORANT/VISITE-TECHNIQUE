@@ -29,7 +29,6 @@ for (const token of [
   'buildCompanionVisitSnapshot',
   'importCompanionPhoto',
   'reconnaitreTexteImageLocale',
-  'extraireValeurOcr',
   'extraireChampsPlaque',
   'ajouterRemarqueVisite',
   'demarrerDicteeLocale',
@@ -42,8 +41,18 @@ for (const token of [
   'QuickValueRow',
 ]) need(photo, token, 'photo mode runtime');
 
-need(parser, 'extraireValeurOcr', 'local OCR value parser');
 need(parser, 'extraireChampsPlaque', 'nameplate parser');
+// Lecture automatique des index retirée (docs/DECISION_OCR_COMPTEURS.md) : compteurs et températures = photo + saisie.
+forbid(parser, 'extraireValeurOcr', 'meter/temperature OCR parser must stay removed');
+forbid(parser, 'extraireIndexCompteur', 'meter index parser must stay removed');
+forbid(photo, 'extraireValeurOcr', 'photo mode must not read meter/temperature values');
+need(photo, 'const ocrPromise = plaque ?', 'only the nameplate may be read');
+forbid(read('PhotoOcrReview.js'), 'extraireValeurOcr', 'review sheet must not read meter/temperature values');
+need(read('PhotoOcrReview.js'), "if (kind !== 'plate') {", 'meters/temperatures must skip automatic reading');
+forbid(read('missionNativeTools.js'), 'recognizeMeter', 'no native meter reader');
+forbid(nativeOcr, 'recognizeMeter', 'no native meter reader');
+forbid(missionPlugin, 'MeterOcrProcessor', 'meter OCR sources must not be packaged');
+forbid(missionPlugin, 'SevenSegment', 'seven-segment reader must not be packaged');
 need(photoButton, 'useWindowDimensions', 'photo button must adapt to phone');
 need(photoButton, '<CvcIcon name={hasPhotos ? \'eye\' : \'camera\'}', 'phone photo control must be icon-first');
 forbid(photoButton, '📷 Photo', 'legacy emoji photo label must be removed');

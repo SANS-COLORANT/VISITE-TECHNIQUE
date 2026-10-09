@@ -10,7 +10,7 @@ import { prendrePhoto } from './PhotoButton.js';
 import { prewarmCameraRuntime } from './cameraRuntime.js';
 import { demarrerDicteeLocale, dicteeLocaleDisponible, reconnaitreTexteImageLocale } from './missionNativeTools.js';
 import { ajouterRemarqueVisite, modifierRemarqueVisite } from './remarkDb.js';
-import { extraireChampsPlaque, extraireValeurOcr } from './photoModeData.js';
+import { extraireChampsPlaque } from './photoModeData.js';
 import { IconOrb, FadeUp } from './premiumChrome.js';
 import { ajouterCompteur, ajouterMateriel } from './db.js';
 import { ButtonGlow } from './ButtonGlow.js';
@@ -160,7 +160,7 @@ function QuickTile({ icon, label, hint, onPress, busy, accent, light, primary = 
 }
 
 // Ligne de relevé : valeur saisie directement (clavier numérique, « Suivant »
-// enchaîne sur la ligne suivante) ou lue sur photo (OCR local).
+// enchaîne sur la ligne suivante) ou saisie après une photo.
 const QuickValueRow = React.forwardRef(function QuickValueRow({ item, module, onSave, onCapture, onOpen, onNext, busy, highlight, previous, accent, light }, ref) {
   const field = numericField(module.id, item);
   const unitField = (item.fields || []).find((f) => f?.edit?.kind === 'counter' && f?.edit?.key === 'unite');
@@ -207,7 +207,7 @@ const QuickValueRow = React.forwardRef(function QuickValueRow({ item, module, on
       {unitField ? <TouchableOpacity accessibilityLabel={'Unité ' + (unit || 'à choisir')} onPress={cycleUnit} style={{ minWidth: 40, minHeight: 36, paddingHorizontal: 7, borderRadius: 10, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: accent, fontFamily: FONTS.black, fontSize: 11.5 }}>{unit || 'Unité'}</Text></TouchableOpacity>
         : unit ? <Text style={{ color: COLORS.inkSoft, fontFamily: FONTS.bodySemi, fontSize: 11.5 }}>{unit}</Text> : null}
     </View>
-    <TouchableOpacity accessibilityLabel={'Lire la valeur sur photo : ' + item.label} onPressIn={() => prewarmCameraRuntime().catch(() => {})} onPress={() => onCapture(item)} disabled={busy} style={{ width: 54, alignSelf: 'stretch', marginLeft: 8, borderLeftWidth: 1, borderLeftColor: COLORS.line, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}>
+    <TouchableOpacity accessibilityLabel={'Photographier : ' + item.label} onPressIn={() => prewarmCameraRuntime().catch(() => {})} onPress={() => onCapture(item)} disabled={busy} style={{ width: 54, alignSelf: 'stretch', marginLeft: 8, borderLeftWidth: 1, borderLeftColor: COLORS.line, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}>
       {busy ? <ActivityIndicator color={accent} /> : <CvcIcon name="camera" size={24} color={accent} />}
     </TouchableOpacity>
   </View>;
@@ -235,7 +235,7 @@ function CounterTypeSheet({ visible, onClose, onPick, accent, light }) {
   </Modal>;
 }
 
-// Confirmation d'une valeur lue sur photo ou dictée.
+// Confirmation d'une valeur saisie après photo ou dictée.
 function ConfirmBar({ pending, previous, chain, onValidate, onRetake, onCancel, accent, light }) {
   const [value, setValue] = useState(pending.value);
   const [rawVisible, setRawVisible] = useState(!pending.value && Boolean(pending.rawText));
@@ -243,7 +243,7 @@ function ConfirmBar({ pending, previous, chain, onValidate, onRetake, onCancel, 
   const e = ecartPrecedent(pending.moduleId, value, previous);
   const unit = clean(pending.field?.unit || pending.target?.unit);
   return <View style={{ position: 'absolute', left: 10, right: 10, bottom: 12, padding: 14, borderRadius: 24, backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: 10 }, elevation: 14 }}>
-    <Text numberOfLines={1} style={{ color: COLORS.inkSoft, fontSize: 11, fontFamily: FONTS.bodyBold, textTransform: 'uppercase', letterSpacing: 0.5 }}>{pending.source === 'dictée' ? 'Valeur dictée' : pending.value ? 'Valeur lue sur la photo' : `Photo enregistrée · ${pending.moduleId === 'meters' ? 'index' : 'valeur'} à renseigner`} · à vérifier</Text>
+    <Text numberOfLines={1} style={{ color: COLORS.inkSoft, fontSize: 11, fontFamily: FONTS.bodyBold, textTransform: 'uppercase', letterSpacing: 0.5 }}>{pending.source === 'dictée' ? 'Valeur dictée' : pending.value ? 'Valeur à confirmer' : `Photo enregistrée · ${pending.moduleId === 'meters' ? 'index' : 'valeur'} à renseigner`} · à vérifier</Text>
     <Text numberOfLines={1} style={{ marginTop: 2, color: COLORS.ink, fontSize: 15, fontFamily: FONTS.black }}>{pending.target?.label}</Text>
     <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 10 }}>
       <TextInput value={value} onChangeText={setValue} keyboardType="decimal-pad" selectTextOnFocus style={{ flex: 1, minHeight: 56, paddingHorizontal: 14, borderRadius: 16, backgroundColor: COLORS.white, borderWidth: 1.5, borderColor: accent, fontSize: 26, fontFamily: FONTS.black, color: COLORS.ink }} />
@@ -254,7 +254,7 @@ function ConfirmBar({ pending, previous, chain, onValidate, onRetake, onCancel, 
     {pending.rawText ? <>
       <TouchableOpacity accessibilityRole="button" onPress={() => setRawVisible(v => !v)} style={{ minHeight: 44, justifyContent: 'center' }}><Text style={{ color: accent, fontFamily: FONTS.bodyBold }}>{rawVisible ? 'Masquer le texte reconnu' : 'Voir le texte reconnu'}</Text></TouchableOpacity>
       {rawVisible ? <ScrollView style={{ maxHeight: 110 }} keyboardShouldPersistTaps="handled"><Text selectable style={{ color: COLORS.inkSoft, fontFamily: FONTS.body, fontSize: 12 }}>{pending.rawText}</Text></ScrollView> : null}
-    </> : pending.source === 'photo' && !pending.value ? <Text style={{ marginTop: 7, color: COLORS.inkSoft, fontFamily: FONTS.body, fontSize: 12 }}>Aucun texte lisible. Vérifie la photo ou saisis la valeur.</Text> : null}
+    </> : pending.source === 'photo' && !pending.value ? <Text style={{ marginTop: 7, color: COLORS.inkSoft, fontFamily: FONTS.body, fontSize: 12 }}>Saisis la valeur lue sur l’afficheur.</Text> : null}
     <View style={{ flexDirection: 'row', gap: 8, marginTop: 12 }}>
       <TouchableOpacity accessibilityRole="button" onPress={onCancel} style={{ minHeight: 50, paddingHorizontal: 14, borderRadius: 16, backgroundColor: COLORS.white, borderWidth: 1, borderColor: 'rgba(22,21,15,0.12)', alignItems: 'center', justifyContent: 'center' }}><Text style={{ color: COLORS.ink, fontFamily: FONTS.bodyBold }}>Ignorer</Text></TouchableOpacity>
       {onRetake ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Reprendre la photo" onPress={onRetake} style={{ minHeight: 50, width: 54, borderRadius: 16, backgroundColor: light, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="camera" size={22} color={accent} /></TouchableOpacity> : null}
@@ -360,19 +360,16 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
     setBusy(key);
     try {
       const uri = await prendrePhoto(); if (!uri) return 'cancel';
-      const wantsOcr = plaque || currentModule?.id === 'meters' || currentModule?.id === 'temperatures';
-      const ocrPromise = wantsOcr ? reconnaitreTexteImageLocale(uri, { meter: currentModule?.id === 'meters' && !plaque }).catch(() => null) : Promise.resolve(null);
+      // Seule la plaque signalétique (texte imprimé) est lue. Compteurs et températures : photo + saisie.
+      const ocrPromise = plaque ? reconnaitreTexteImageLocale(uri).catch(() => null) : Promise.resolve(null);
       const storePromise = importCompanionPhoto({ visiteId: snapshot.visit.id, uri, meta: { targetKey: currentTarget?.targetKey || null, label: label || (plaque ? 'Plaque signalétique' : currentTarget?.label || 'Photo terrain'), moduleId: currentModule?.id || 'photos' } });
       const [ocr] = await Promise.all([ocrPromise, storePromise]);
       if (!plaque && (currentModule?.id === 'meters' || currentModule?.id === 'temperatures')) {
         const field = numericField(currentModule.id, currentTarget);
-        const found = extraireValeurOcr(ocr, { kind: currentModule.id, unit: field?.unit || currentTarget?.unit, label: currentTarget?.label });
-        if (found?.unitMismatch) { setStatus(`Photo enregistrée · unité ${found.unit} incompatible avec ce compteur`); await refresh(); return 'nofound'; }
         if (field?.edit) {
-          // Valeur lue : confirmation avant enregistrement (évite une erreur de lecture silencieuse).
+          // Photo enregistrée : l'utilisateur saisit la valeur lue, confirmée avant enregistrement.
           setHighlightId(currentTarget?.id || null); setStatus('');
-          const rawText = [...new Set([ocr?.text, ...(ocr?.passes || []).map(p => p.text)].map(t => clean(t)).filter(Boolean))].join('\n\n');
-          setOcrPending({ moduleId: currentModule.id, target: currentTarget, field, value: found ? String(found.value) : '', rawText, source: 'photo' });
+          setOcrPending({ moduleId: currentModule.id, target: currentTarget, field, value: '', rawText: '', source: 'photo' });
           hapticTick(); return 'ocr';
         }
         setHighlightId(currentTarget?.id || null); setStatus('Photo enregistrée · saisis la valeur'); await refresh(); setTimeout(() => valueRefs.current[currentTarget?.id]?.focus?.(), 350); return 'nofound';
@@ -399,7 +396,7 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
     return { mod, row };
   };
 
-  // + Compteur : type choisi → compteur créé → photo de l'index (OCR).
+  // + Compteur : type choisi → compteur créé → photo de l'index, puis saisie de la valeur.
   const addCounter = useCallback(async (label) => {
     setCounterSheet(false);
     if (!snapshot?.visit?.id || !clean(label)) return;
@@ -574,7 +571,7 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
     return <View style={{ flex: 1, backgroundColor: 'transparent' }}><Header title="Mode Photo" subtitle={[snapshot.visit.site, snapshot.visit.date].filter(Boolean).join(' · ')} onBack={visiteInitiale ? null : () => { setSnapshot(null); setStatus(''); }} onExit={onExit} accent={accent} light={light} /><Status text={status} accent={accent} light={light} /><ScrollView contentContainerStyle={{ padding: 14, paddingBottom: 38 }}>
       <Text style={{ marginBottom: 8, color: COLORS.inkSoft, fontSize: 11, fontFamily: FONTS.bodyBold, letterSpacing: 0.6, textTransform: 'uppercase' }}>Ajout rapide</Text>
       <View style={{ flexDirection: 'row', gap: 9 }}>
-        <QuickTile primary icon="meter" label="Compteur" hint={count('meters') + ' relevé' + (count('meters') > 1 ? 's' : '') + ' · photo OCR'} onPress={() => setCounterSheet(true)} busy={Boolean(busy)} accent={accent} light={light} />
+        <QuickTile primary icon="meter" label="Compteur" hint={count('meters') + ' relevé' + (count('meters') > 1 ? 's' : '') + ' · photo'} onPress={() => setCounterSheet(true)} busy={Boolean(busy)} accent={accent} light={light} />
         <QuickTile icon="temperature" label="Températures" hint={count('temperatures') + ' mesures'} onPress={() => openModule('temperatures')} accent={accent} light={light} />
       </View>
       <View style={{ flexDirection: 'row', gap: 9, marginTop: 9 }}>

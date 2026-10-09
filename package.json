@@ -17,8 +17,7 @@
     "check:native": "npx expo install --check && npx --yes expo-doctor@1.20.4",
     "prebuild:android": "npx expo prebuild --clean --platform android",
     "build:apk": "npx eas-cli build -p android --profile preview",
-    "build:aab": "npx eas-cli build -p android --profile production",
-    "verify:seven-segment": "node .github/scripts/test_seven_segment_reader.js"
+    "build:aab": "npx eas-cli build -p android --profile production"
   },
   "dependencies": {
     "@expo-google-fonts/inter": "^0.4.2",
