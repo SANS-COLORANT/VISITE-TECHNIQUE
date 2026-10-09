@@ -1,22 +1,23 @@
 /**
- * Onglet Équipements (refonte du build 661, docs/refonte-visite-661/README.md §5.6).
+ * Onglet Équipements : on signale l'exception, pas de pointage systématique.
  *
- * - en-tête condensé sur une ligne : jauge « x / y vus », recherche en icône,
- *   « Ajouter » ; puis le filtre À voir / Vus / Nouv. / Tous ;
- * - groupes par type (`categorie`) en cartes à bannière, FERMÉS au départ,
- *   « Tout présent » avec « Annuler » ;
- * - une ligne par équipement : rond de présence (un toucher = présent, un
- *   second = annule), nom, « marque modèle · réseau », pastille d'état ;
- * - la fiche s'ouvre en feuille du bas : photos et « Lire la plaque » en
- *   premier, présence, UN SEUL état constaté (valeurs Intranet), recherche
- *   unique marque + modèle dans le catalogue (remplit aussi le type).
+ * - tout équipement reste tel quel (état de la dernière visite, repris par
+ *   l'envoi Intranet) ; on ne touche que vétuste, HS, retiré, remplacé ;
+ * - bandeau « x à surveiller · y nouveaux », filtre Tous / À surveiller /
+ *   Nouveaux, groupes par type (ouverts seuls s'ils contiennent un équipement
+ *   à surveiller ou nouveau) ;
+ * - une ligne : glisser vers la droite = Vétuste / HS, vers la gauche = Retiré
+ *   / Remplacé ; toucher = mêmes actions en gros boutons + fiche complète ;
+ * - bouton + : plaque, dupliquer, remplacer, catalogue, quantité, types,
+ *   création libre d'un équipement introuvable, équipements d'autres locaux ;
+ * - la fiche (feuille du bas) garde photos, plaque, état, identification.
  *
  * Les clés stockées (table `materiel`, champs autorisés par
  * `upsertMaterielPersistant`, `confirme_le`) ne changent pas.
  */
-import React,{memo,useCallback,useEffect,useMemo,useState}from'react';
-import{Alert,FlatList,StyleSheet,Text,TextInput,TouchableOpacity,View}from'react-native';
-import{upsertMaterielChamp,supprimerMateriel,listerBibliothequeEquipements,listerCategoriesEquipement,listerHistoriqueEquipement,listerPhotos}from'./db.js';
+import React,{memo,useCallback,useEffect,useMemo,useRef,useState}from'react';
+import{Alert,Animated,FlatList,PanResponder,StyleSheet,Text,TextInput,TouchableOpacity,View}from'react-native';
+import{getDb,upsertMaterielChamp,supprimerMateriel,listerBibliothequeEquipements,listerCategoriesEquipement,listerHistoriqueEquipement,listerPhotos}from'./db.js';
 import{ensureEquipmentCatalogReady}from'./database/index.js';
 import{useDurableAutosave,flushDurableAutosaves}from'./durableAutosave.js';
 import{PhotoButton}from'./PhotoButton.js';
@@ -28,7 +29,6 @@ import{etatPointageEquipement}from'./terrainVisitModel.js';
 import{LecturePhotoButton}from'./PhotoOcrReview.js';
 import{PhotoVariantImage}from'./PhotoVariantImage.js';
 import{CvcIcon}from'./MetraCvcIcons.js';
-import{ProgressRing}from'./premiumChrome.js';
 import{ButtonGlow}from'./ButtonGlow.js';
 import{Picto,pictoEquipement,pictoEtatEquipement}from'./MetraPictos.js';
 import{BottomSheet,ChoiceField,FilterSeg,KIT,SectionCard,SmallButton,confirmer as demanderConfirmation,useSectionsOuvertes}from'./VisitKit.js';
@@ -40,7 +40,13 @@ const TYPES=['VMC','CTA','Ventilateur','Tourelle','Adoucisseur','Armoire électr
 // reste affichée par ChoiceField et peut être retirée ou remplacée.
 const ETATS=['Neuf','Bon','Moyen','Vétuste','Hors service'];
 const TYPES_RAPIDES=['Chaudière','Circulateur','Échangeur',"Vase d'expansion",'VMC','Ballon ECS'];
-const FILTRES=[['a-voir','À voir'],['vus','Vus'],['nouveaux','Nouv.'],['tous','Tous']];
+// Pas de pointage systématique : un équipement reste tel quel (état de la
+// dernière visite). On signale l'exception : vétuste, HS, retiré, remplacé.
+const FILTRES=[['tous','Tous'],['surveiller','À surveiller'],['nouveaux','Nouveaux']];
+const ETAT_VETUSTE='Vétuste',ETAT_HS='Hors service';
+const LARG_ACTIONS=168;
+const surveille=i=>{const e=norm(i?.etat);return e==='vetuste'||e==='hors service'};
+const estHS=i=>norm(i?.etat)==='hors service';
 const RC='reseau_chaleur_v1';
 const HIT={top:10,bottom:10,left:10,right:10};
 const norm=v=>String(v||'').normalize('NFD').replace(/[̀-ͯ]/g,'').trim().toLowerCase();
@@ -70,7 +76,7 @@ function typeCompatible(typeChoisi,typeCatalogue){
 
 /**
  * Annule le pointage « présent » de cette visite (second toucher sur le rond,
- * ou « Annuler » après « Tout présent »). Inverse exact de
+ * ou « Annuler » après pointage groupé). Inverse exact de
  * `confirmerEquipementVisite` : seule la colonne `confirme_le` de la ligne de
  * visite est remise à NULL, l'état constaté et l'historique ne bougent pas.
  */
@@ -107,25 +113,58 @@ function PickerSheet({visible,titre,options,valeur,onClose,onPick,emptyText='Auc
  </BottomSheet>;
 }
 
-/** Une ligne d'équipement (≈ 54 px). */
-const EquipmentRow=memo(function EquipmentRow({item,first,reseauChaleur,onTogglePresence,onOpen}){
+/**
+ * Une ligne d'équipement. Glisser vers la droite : Vétuste / HS ; vers la
+ * gauche : Retiré / Remplacé ; toucher : mêmes actions en gros boutons + fiche.
+ */
+const EquipmentRow=memo(function EquipmentRow({item,first,reseauChaleur,plateauOuvert,ferme,onPlateau,onSwipe,onAction,onOpen}){
  const nouveau=etatPointageEquipement(item)==='nouveaux';
- const present=estPresent(item);
- const plein=present||nouveau;
  const sous=[[item.marque,item.modele].filter(Boolean).join(' ')||'Marque · modèle à compléter',item.reseau_desservi].filter(Boolean).join(' · ');
  const nom=nomEquipement(item);
- return <View style={[s.row,!first&&s.rowSep]}>
-  <TouchableOpacity accessibilityRole="checkbox" accessibilityState={{checked:plein}} accessibilityLabel={nouveau?`${nom}, ajouté pendant cette visite`:present?`${nom}, présent. Toucher pour annuler`:`${nom}, marquer présent`} onPress={()=>onTogglePresence(item)} hitSlop={HIT} style={[s.circle,plein&&{backgroundColor:nouveau&&!present?COLORS.orange:KIT.green,borderColor:'transparent'}]}>
-   {plein?<CvcIcon name="check" size={16} color={COLORS.white} strokeWidth={2.8}/>:null}
-  </TouchableOpacity>
-  <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${nom}, ouvrir la fiche`} activeOpacity={0.7} onPress={()=>onOpen(item.id)} style={s.rowMain}>
-   <View style={{flex:1,minWidth:0}}>
-    <Text numberOfLines={1} style={s.rowTitle}>{nom}</Text>
-    <Text numberOfLines={1} style={s.rowSub}>{sous}{reseauChaleur?<Text style={item.perimetre?null:{color:KIT.amber}}>{` · ${item.perimetre||'Primaire / Secondaire à choisir'}`}</Text>:null}</Text>
-   </View>
-   <EtatPill etat={item.etat} nouveau={nouveau}/>
-   <CvcIcon name="chevron-right" size={17} color={COLORS.inkFaint} strokeWidth={2.2}/>
-  </TouchableOpacity>
+ const x=useRef(new Animated.Value(0)).current;
+ const cote=useRef(0),base=useRef(0);
+ const aller=useCallback(to=>{cote.current=Math.sign(to);Animated.spring(x,{toValue:to,stiffness:520,damping:42,mass:1,overshootClamping:true,useNativeDriver:true}).start()},[x]);
+ useEffect(()=>{if(ferme&&cote.current)aller(0)},[ferme,aller]);
+ const pan=useMemo(()=>{
+  const fin=(_,g)=>{const v=base.current+g.dx;aller(v>46?LARG_ACTIONS:v<-46?-LARG_ACTIONS:0)};
+  return PanResponder.create({
+   onMoveShouldSetPanResponder:(_,g)=>Math.abs(g.dx)>10&&Math.abs(g.dx)>Math.abs(g.dy)*1.3,
+   onPanResponderGrant:()=>{x.stopAnimation(v=>{base.current=v});onSwipe(item.id)},
+   onPanResponderMove:(_,g)=>x.setValue(Math.max(-LARG_ACTIONS,Math.min(LARG_ACTIONS,base.current+g.dx))),
+   onPanResponderRelease:fin,onPanResponderTerminate:fin,
+   onPanResponderTerminationRequest:()=>false,
+  });
+ },[x,aller,onSwipe,item.id]);
+ const agir=a=>{aller(0);onAction(item,a)};
+ return <View style={[s.rowWrap,!first&&s.rowSep]}>
+  <View style={s.underL} pointerEvents="box-none">
+   <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${nom} : vétuste`} onPress={()=>agir('vet')} style={[s.underBtn,{backgroundColor:'#D9731A'}]}><Text style={s.underText}>Vétuste</Text></TouchableOpacity>
+   <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${nom} : hors service`} onPress={()=>agir('hs')} style={[s.underBtn,{backgroundColor:KIT.red}]}><Text style={s.underText}>HS</Text></TouchableOpacity>
+  </View>
+  <View style={s.underR} pointerEvents="box-none">
+   <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${nom} : retiré du site`} onPress={()=>agir('ret')} style={[s.underBtn,{backgroundColor:'#6B665A'}]}><Text style={s.underText}>Retiré</Text></TouchableOpacity>
+   <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${nom} : remplacé`} onPress={()=>agir('rep')} style={[s.underBtn,{backgroundColor:COLORS.orange}]}><Text style={s.underText}>Remplacé</Text></TouchableOpacity>
+  </View>
+  <Animated.View style={[s.rowFront,{transform:[{translateX:x}]}]} {...pan.panHandlers}>
+   <TouchableOpacity accessibilityRole="button" accessibilityLabel={`${nom}, actions`} activeOpacity={0.7} onPress={()=>onPlateau(item.id)} style={s.rowMain}>
+    <View style={{flex:1,minWidth:0}}>
+     <Text numberOfLines={1} style={s.rowTitle}>{nom}</Text>
+     <Text numberOfLines={1} style={s.rowSub}>{sous}{reseauChaleur?<Text style={item.perimetre?null:{color:KIT.amber}}>{` · ${item.perimetre||'Primaire / Secondaire à choisir'}`}</Text>:null}</Text>
+    </View>
+    {estHS(item)?<View style={[s.pill,{backgroundColor:KIT.redBg}]}><Text style={[s.pillText,{color:KIT.red}]}>HS</Text></View>:surveille(item)?<View style={[s.pill,{backgroundColor:KIT.amberBg}]}><Text style={[s.pillText,{color:KIT.amber}]}>Vétuste</Text></View>:<EtatPill etat={null} nouveau={nouveau}/>}
+    <CvcIcon name={plateauOuvert?'chevron-up':'chevron-down'} size={17} color={COLORS.inkFaint} strokeWidth={2.2}/>
+   </TouchableOpacity>
+   {plateauOuvert?<View style={s.plateau}>
+    <View style={s.plateauRow}>
+     <TouchableOpacity accessibilityRole="button" onPress={()=>agir('vet')} style={[s.plateauBtn,{backgroundColor:KIT.amberBg}]}><Text style={[s.plateauText,{color:KIT.amber}]}>Vétuste</Text></TouchableOpacity>
+     <TouchableOpacity accessibilityRole="button" onPress={()=>agir('hs')} style={[s.plateauBtn,{backgroundColor:KIT.redBg}]}><Text style={[s.plateauText,{color:KIT.red}]}>HS</Text></TouchableOpacity>
+     <TouchableOpacity accessibilityRole="button" onPress={()=>agir('rep')} style={[s.plateauBtn,{backgroundColor:COLORS.orangeLight}]}><Text style={[s.plateauText,{color:COLORS.orangeDark}]}>Remplacé</Text></TouchableOpacity>
+     <TouchableOpacity accessibilityRole="button" onPress={()=>agir('ret')} style={[s.plateauBtn,{backgroundColor:'rgba(22,21,15,0.07)'}]}><Text style={s.plateauText}>Retiré</Text></TouchableOpacity>
+    </View>
+    {surveille(item)?<TouchableOpacity accessibilityRole="button" onPress={()=>agir('bon')} style={s.plateauLien}><Text style={s.plateauLienText}>Remettre en Bon</Text></TouchableOpacity>:null}
+    <TouchableOpacity accessibilityRole="button" onPress={()=>onOpen(item.id)} style={s.plateauLien}><Text style={s.plateauLienText}>Ouvrir la fiche complète ›</Text></TouchableOpacity>
+   </View>:null}
+  </Animated.View>
  </View>;
 });
 
@@ -298,17 +337,20 @@ export function GuidedEquipmentPanel({visiteId,trameId='icpe_v1'}){
  const reseauChaleur=trameId===RC;
  const[materiel,setMateriel]=useState([]),[types,setTypes]=useState(TYPES),[catalogue,setCatalogue]=useState([]);
  const[recherche,setRecherche]=useState(''),[rechercheOuverte,setRechercheOuverte]=useState(false);
- const[filtre,setFiltre]=useState('a-voir'),[ajoutVisible,setAjoutVisible]=useState(false),[creation,setCreation]=useState(false);
+ const[filtre,setFiltre]=useState('tous'),[ajoutVisible,setAjoutVisible]=useState(false),[creation,setCreation]=useState(false);
+ const[plateauId,setPlateauId]=useState(null),[swipeId,setSwipeId]=useState(null);
+ const[ajout,setAjout]=useState({vue:'menu',qte:1,q:'',nom:'',type:''});
+ const autoOuvert=useRef(false);
  const[ficheId,setFicheId]=useState(null);
  const[autresLocaux,setAutresLocaux]=useState([]);
  const sections=useSectionsOuvertes(`visit-equip:${visiteId}`);
  useEffect(()=>{if(!ajoutVisible)return;let alive=true;listerEquipementsAutresLocaux(visiteId).then(rows=>{if(alive)setAutresLocaux(rows)}).catch(console.warn);return()=>{alive=false}},[ajoutVisible,visiteId]);
- const comptes=useMemo(()=>({'a-voir':materiel.filter(i=>etatPointageEquipement(i)==='a-voir').length,vus:materiel.filter(i=>etatPointageEquipement(i)==='vus').length,nouveaux:materiel.filter(i=>etatPointageEquipement(i)==='nouveaux').length,tous:materiel.length}),[materiel]);
+ const comptes=useMemo(()=>({tous:materiel.length,surveiller:materiel.filter(surveille).length,nouveaux:materiel.filter(i=>etatPointageEquipement(i)==='nouveaux').length}),[materiel]);
  const q=norm(recherche);
  const groupes=useMemo(()=>{
   const map=new Map();
   for(const i of materiel){const key=String(i.categorie||'').trim()||'Équipements';if(!map.has(key))map.set(key,{titre:key,tous:[],visibles:[]});map.get(key).tous.push(i)}
-  for(const g of map.values())g.visibles=g.tous.filter(item=>(filtre==='tous'||etatPointageEquipement(item)===filtre)&&(!q||norm([item.designation,item.categorie,item.reseau_desservi,item.marque,item.modele,item.numero_materiel,item.caracteristiques].filter(Boolean).join(' ')).includes(q)));
+  for(const g of map.values())g.visibles=g.tous.filter(item=>(filtre==='tous'||(filtre==='surveiller'?surveille(item):etatPointageEquipement(item)==='nouveaux'))&&(!q||norm([item.designation,item.categorie,item.reseau_desservi,item.marque,item.modele,item.numero_materiel,item.caracteristiques].filter(Boolean).join(' ')).includes(q)));
   return [...map.values()].filter(g=>g.visibles.length).map(g=>({...g,id:`type:${g.titre}`}));
  },[materiel,filtre,q]);
  const nbVisibles=useMemo(()=>groupes.reduce((n,g)=>n+g.visibles.length,0),[groupes]);
@@ -316,6 +358,12 @@ export function GuidedEquipmentPanel({visiteId,trameId='icpe_v1'}){
  const{listRef,onScroll}=useListScrollMemory(`visit-panel:${visiteId}:p-equip`,nbVisibles);
  const charger=useCallback(async()=>setMateriel(await listerEquipementsPointage(visiteId)),[visiteId]);
  useEffect(()=>{charger()},[charger]);
+ // Les groupes qui contiennent un équipement à surveiller ou nouveau s'ouvrent seuls.
+ useEffect(()=>{
+  if(autoOuvert.current||!materiel.length)return;
+  autoOuvert.current=true;
+  sections.open(materiel.filter(i=>surveille(i)||etatPointageEquipement(i)==='nouveaux').map(i=>`type:${String(i.categorie||'').trim()||'Équipements'}`));
+ },[materiel,sections]);
  useEffect(()=>{let actif=true;(async()=>{
   try{
    // Le gros catalogue VMC/CTA est enrichi à la demande pour rester offline-first
@@ -354,7 +402,7 @@ export function GuidedEquipmentPanel({visiteId,trameId='icpe_v1'}){
   try{
    await flushDurableAutosaves();
    await confirmerEquipementVisite(visiteId,item.id);
-   if(filtre==='a-voir'&&!depuisFiche)showToast(`${nomEquipement(item)} : présent`,{tone:'success',duration:4000,action:{label:'Annuler',onPress:async()=>{try{await annulerPresenceEquipements(visiteId,[item.id])}finally{await charger()}}}});
+   if(!depuisFiche)showToast(`${nomEquipement(item)} : présent`,{tone:'success',duration:4000,action:{label:'Annuler',onPress:async()=>{try{await annulerPresenceEquipements(visiteId,[item.id])}finally{await charger()}}}});
   }catch(e){
    // Hors de la fiche, on l'ouvre pour classer Primaire / Secondaire ; dans
    // la fiche (fenêtre modale), un toast serait masqué : alerte native.
@@ -362,48 +410,108 @@ export function GuidedEquipmentPanel({visiteId,trameId='icpe_v1'}){
    else{showToast(String(e?.message||e),{tone:'error',duration:4000});setFicheId(item.id)}
   }
   await charger();
- },[visiteId,charger,filtre,reseauChaleur]);
-
- /** « Tout présent » d'un type ; en Réseau de chaleur, seuls ceux qui ont un périmètre. */
- const toutPresent=useCallback(async groupe=>{
-  const aVoir=groupe.tous.filter(i=>etatPointageEquipement(i)==='a-voir');
-  const sansPerimetre=reseauChaleur?aVoir.filter(i=>!i.perimetre):[];
-  const cibles=aVoir.filter(i=>!sansPerimetre.includes(i));
-  const confirmes=[],refus=[];
-  try{await flushDurableAutosaves()}catch(e){}
-  for(const i of cibles){try{await confirmerEquipementVisite(visiteId,i.id);confirmes.push(i.id)}catch(e){refus.push(i)}}
-  await charger();
-  const bloques=sansPerimetre.length+refus.length;
-  if(!confirmes.length){
-   showToast(bloques?`Choisis Primaire ou Secondaire dans la fiche de ${pluriel(bloques,'équipement')} avant de confirmer.`:'Rien à confirmer dans ce groupe.',{tone:bloques?'error':'neutral',duration:5000});
-   return;
-  }
-  hapticSuccess();
-  const msg=`${pluriel(confirmes.length,'équipement')} marqué${confirmes.length>1?'s':''} présent${confirmes.length>1?'s':''}`+(bloques?` · ${bloques} sans Primaire / Secondaire, à classer dans la fiche`:'');
-  showToast(msg,{tone:bloques?'neutral':'success',duration:6000,action:{label:'Annuler',onPress:async()=>{try{await annulerPresenceEquipements(visiteId,confirmes)}catch(e){Alert.alert('Annulation impossible',String(e?.message||e))}finally{await charger()}}}});
  },[visiteId,charger,reseauChaleur]);
 
- const creer=async(type,sourceId=null)=>{if(creation)return;setCreation(true);try{const id=sourceId?await dupliquerEquipementVisite(visiteId,sourceId):await creerEquipementVisite(visiteId);if(type){await upsertMaterielChamp(id,'categorie',type);await upsertMaterielChamp(id,'designation',type)}setRecherche('');setRechercheOuverte(false);setFiltre('nouveaux');setAjoutVisible(false);await charger();if(id)setTimeout(()=>setFicheId(id),260)}catch(e){Alert.alert('Ajout impossible',String(e?.message||e))}finally{setCreation(false)}};
 
- const vus=comptes.tous-comptes['a-voir'];
- const extraData=`${groupes.map(g=>sections.isOpen(g.id)?1:0).join('')}|${q}|${filtre}`;
+ const typesFrequents=useMemo(()=>{
+  const n=new Map();for(const i of materiel){const t=String(i.categorie||'').trim();if(t)n.set(t,(n.get(t)||0)+1)}
+  const tries=[...n.entries()].sort((a,b)=>b[1]-a[1]).map(([t])=>t);
+  return uniq([...tries.slice(0,4),...(tries.length<4?TYPES_RAPIDES.slice(0,4-tries.length):[])]);
+ },[materiel]);
+
+ /** État vétuste / HS en un geste, avec « Annuler » (retour à l'état précédent). */
+ const appliquerEtat=useCallback(async(item,etat,libelle)=>{
+  const avant=item.etat||null;
+  hapticTick();
+  setMateriel(l=>l.map(i=>i.id===item.id?{...i,etat}:i));
+  try{
+   await flushDurableAutosaves();
+   await upsertMaterielChamp(item.id,'etat',etat);
+   showToast(`${nomEquipement(item)} : ${libelle}`,{tone:'success',duration:5000,action:{label:'Annuler',onPress:async()=>{
+    try{if(avant)await upsertMaterielChamp(item.id,'etat',avant);else await(await getDb()).runAsync('UPDATE materiel SET etat=NULL WHERE id=?',[item.id])}
+    catch(e){Alert.alert('Annulation impossible',String(e?.message||e))}finally{await charger()}}}});
+  }catch(e){Alert.alert('Enregistrement impossible',String(e?.message||e))}
+  await charger();
+ },[charger]);
+
+ const retirerEquipement=useCallback(item=>demanderConfirmation({title:'Retiré du site ?',message:`Confirmer le retrait de « ${nomEquipement(item)} » du patrimoine de ce local. Les visites précédentes gardent leur historique.`,label:'Retirer',onConfirm:async()=>{
+  try{await flushDurableAutosaves();await supprimerMateriel(item.id);hapticSuccess();showToast(`${nomEquipement(item)} : retiré du site`,{tone:'success',duration:4000})}
+  catch(e){Alert.alert('Retrait impossible',String(e?.message||e))}
+  await charger();
+ }}),[charger]);
+
+ /** Remplacé : le nouvel équipement reprend type, réseau et périmètre ; l'ancien est retiré. */
+ const remplacerEquipement=useCallback(item=>demanderConfirmation({title:'Remplacer cet équipement ?',message:`« ${nomEquipement(item)} » sera retiré du site et un nouvel équipement du même type et du même réseau sera créé. Il restera à lire sa plaque.`,label:'Remplacer',onConfirm:async()=>{
+  try{
+   await flushDurableAutosaves();
+   const id=await creerEquipementVisite(visiteId);
+   for(const[cle,val]of[['categorie',item.categorie],['designation',item.designation||item.categorie],['reseau_desservi',item.reseau_desservi],['perimetre',item.perimetre],['nombre',item.nombre]])if(val)await upsertMaterielChamp(id,cle,val);
+   await supprimerMateriel(item.id);
+   hapticSuccess();setFiltre('tous');
+   await charger();
+   showToast(`${nomEquipement(item)} remplacé : nouvel équipement créé`,{tone:'success',duration:4000});
+   setTimeout(()=>setFicheId(id),260);
+  }catch(e){Alert.alert('Remplacement impossible',String(e?.message||e));await charger()}
+ }}),[visiteId,charger]);
+
+ const agirSurLigne=useCallback((item,a)=>{
+  setSwipeId(null);setPlateauId(null);
+  if(a==='vet')appliquerEtat(item,ETAT_VETUSTE,'vétuste');
+  else if(a==='hs')appliquerEtat(item,ETAT_HS,'hors service');
+  else if(a==='bon')appliquerEtat(item,'Bon','remis en bon état');
+  else if(a==='ret')retirerEquipement(item);
+  else if(a==='rep')remplacerEquipement(item);
+ },[appliquerEtat,retirerEquipement,remplacerEquipement]);
+
+ /** Création (1 à 9 équipements) : plaque, type, nom libre, copie d'un existant. */
+ const creerEquipements=async({type=null,nom=null,sourceId=null,qte=1}={})=>{
+  if(creation)return;setCreation(true);
+  try{
+   const ids=[];
+   for(let k=0;k<qte;k++){
+    const id=sourceId?await dupliquerEquipementVisite(visiteId,sourceId):await creerEquipementVisite(visiteId);
+    const t=String(type||'').trim(),n=String(nom||'').trim();
+    if(t)await upsertMaterielChamp(id,'categorie',t);
+    if(n||t&&!sourceId)await upsertMaterielChamp(id,'designation',qte>1?`${n||t} ${k+1}`:(n||t));
+    ids.push(id);
+   }
+   setRecherche('');setRechercheOuverte(false);setFiltre('nouveaux');setAjoutVisible(false);
+   await charger();
+   if(ids.length===1)setTimeout(()=>setFicheId(ids[0]),260);else showToast(`${ids.length} équipements créés`,{tone:'success',duration:3500});
+  }catch(e){Alert.alert('Ajout impossible',String(e?.message||e))}finally{setCreation(false)}
+ };
+ const ouvrirAjout=()=>{setAjout({vue:'menu',qte:1,q:'',nom:'',type:''});setAjoutVisible(true)};
+ const basculerPlateau=useCallback(id=>{setSwipeId(null);setPlateauId(p=>p===id?null:id)},[]);
+
+
+ const extraData=`${groupes.map(g=>sections.isOpen(g.id)?1:0).join('')}|${q}|${filtre}|${plateauId}|${swipeId}|${materiel.map(i=>i.etat||'').join(',')}`;
  const fiche=ficheId?materiel.find(i=>i.id===ficheId):null;
  const enTete=<View>
   <View style={s.head}>
-   <ProgressRing pct={comptes.tous?100*vus/comptes.tous:0} size={30} strokeWidth={4}/>
-   <Text style={s.headText} numberOfLines={1}>{vus} / {comptes.tous} vus</Text>
-   <TouchableOpacity accessibilityRole="button" accessibilityLabel={rechercheOuverte?'Fermer la recherche':'Rechercher un équipement'} onPress={()=>{if(rechercheOuverte){setRecherche('');setRechercheOuverte(false)}else setRechercheOuverte(true)}} hitSlop={HIT} style={[s.iconBtn,(rechercheOuverte||recherche)&&{borderColor:COLORS.orange+'66',backgroundColor:COLORS.orangeLight}]}>
+   <View style={s.chips}>
+    <View style={[s.chip,comptes.surveiller?{backgroundColor:KIT.amberBg}:s.chipZero]}><Text style={[s.chipText,comptes.surveiller?{color:KIT.amber}:null]}>{comptes.surveiller} à surveiller</Text></View>
+    <View style={[s.chip,comptes.nouveaux?{backgroundColor:COLORS.orangeLight}:s.chipZero]}><Text style={[s.chipText,comptes.nouveaux?{color:COLORS.orangeDark}:null]}>{comptes.nouveaux} {comptes.nouveaux>1?'nouveaux':'nouveau'}</Text></View>
+   </View>
+   <TouchableOpacity accessibilityRole="button" accessibilityLabel={rechercheOuverte?'Fermer la recherche':'Rechercher un équipement'} onPress={()=>{if(rechercheOuverte){setRecherche('');setRechercheOuverte(false)}else setRechercheOuverte(true)}} hitSlop={HIT} style={[s.iconBtn,(rechercheOuverte||recherche)&&{borderColor:COLORS.orange}]}>
     <CvcIcon name="search" size={17} color={rechercheOuverte||recherche?COLORS.orangeDark:COLORS.inkSoft} strokeWidth={2.2}/>
    </TouchableOpacity>
-   <SmallButton label="Ajouter" icon="plus" onPress={()=>setAjoutVisible(true)}/>
   </View>
   {rechercheOuverte||recherche?<View style={[s.searchBox,{marginBottom:10}]}>
    <CvcIcon name="search" size={17} color={COLORS.inkFaint} strokeWidth={2.2}/>
-   <TextInput style={s.searchInput} value={recherche} onChangeText={setRecherche} placeholder="Rechercher un équipement déjà ajouté…" placeholderTextColor={COLORS.inkFaint} autoCorrect={false} autoFocus={!recherche}/>
+   <TextInput style={s.searchInput} value={recherche} onChangeText={setRecherche} placeholder="Rechercher marque, modèle, n° de série…" placeholderTextColor={COLORS.inkFaint} autoCorrect={false} autoFocus={!recherche}/>
    {recherche?<TouchableOpacity accessibilityLabel="Effacer la recherche" onPress={()=>setRecherche('')} hitSlop={HIT}><CvcIcon name="close" size={16} color={COLORS.inkSoft} strokeWidth={2.2}/></TouchableOpacity>:null}
   </View>:null}
   <FilterSeg options={FILTRES.map(([key,label])=>({key,label,count:comptes[key]}))} value={filtre} onChange={setFiltre}/>
  </View>;
+
+ const typesAffiches=useMemo(()=>{
+  const qq=norm(ajout.q);
+  const base=qq?types.filter(t=>norm(t).includes(qq)):uniq([...typesFrequents,...TYPES,...types]);
+  return base.slice(0,qq?40:18);
+ },[types,typesFrequents,ajout.q]);
+ const typeExact=useMemo(()=>types.some(t=>eq(t,ajout.q)),[types,ajout.q]);
+ const aVue=vue=>setAjout(a=>({...a,vue}));
+ const Tuile=({titre,onPress,icone})=><TouchableOpacity accessibilityRole="button" disabled={creation} style={s.tuile} onPress={onPress}><CvcIcon name={icone} size={20} color={COLORS.orangeDark} strokeWidth={2}/><Text style={s.tuileText}>{titre}</Text></TouchableOpacity>;
 
  return <View style={{flex:1}}>
   <FlatList
@@ -414,22 +522,22 @@ export function GuidedEquipmentPanel({visiteId,trameId='icpe_v1'}){
    scrollEventThrottle={100}
    keyExtractor={g=>g.id}
    renderItem={({item:g})=>{
-    const aVoir=g.tous.filter(i=>etatPointageEquipement(i)==='a-voir').length;
+    const nbHS=g.tous.filter(estHS).length,nbVet=g.tous.filter(i=>surveille(i)&&!estHS(i)).length,nbNew=g.tous.filter(i=>etatPointageEquipement(i)==='nouveaux').length;
+    const detail=[nbHS?`${nbHS} HS`:null,nbVet?`${nbVet} vétuste${nbVet>1?'s':''}`:null,nbNew?`${nbNew} nouveau${nbNew>1?'x':''}`:null].filter(Boolean).join(' · ');
     return <SectionCard
      open={sections.isOpen(g.id)||!!q}
      onToggle={()=>sections.toggle(g.id)}
      picto={pictoEquipement(g.titre)}
      title={g.titre}
-     subtitle={`${pluriel(g.tous.length,'équipement')} · ${aVoir?`${aVoir} à voir`:'tous vus'}`}
-     actionLabel={aVoir>1?'Tout présent':null}
-     onAction={()=>toutPresent(g)}
+     subtitle={`${pluriel(g.tous.length,'équipement')}${detail?` · ${detail}`:''}`}
     >
-     {g.visibles.map((item,index)=><EquipmentRow key={item.id} item={item} first={index===0} reseauChaleur={reseauChaleur} onTogglePresence={basculerPresence} onOpen={ouvrirFiche}/>)}
+     {g.visibles.map((item,index)=><EquipmentRow key={item.id} item={item} first={index===0} reseauChaleur={reseauChaleur} plateauOuvert={plateauId===item.id} ferme={swipeId!==item.id} onPlateau={basculerPlateau} onSwipe={setSwipeId} onAction={agirSurLigne} onOpen={id=>{setPlateauId(null);ouvrirFiche(id)}}/>)}
     </SectionCard>;
    }}
-   contentContainerStyle={styles.panelContent}
+   contentContainerStyle={[styles.panelContent,{paddingBottom:96}]}
    ListHeaderComponent={enTete}
-   ListEmptyComponent={<View style={s.emptyBox}><CvcIcon name={recherche||filtre!=='a-voir'?'search':'check'} size={22} color={COLORS.inkFaint} strokeWidth={2}/><Text style={s.empty}>{recherche?'Aucun équipement ne correspond à la recherche.':!materiel.length?'Aucun équipement pour cette visite.':filtre==='a-voir'?'Rien à voir ici : tous les équipements repris sont pointés.':'Aucun équipement dans ce filtre.'}</Text></View>}
+   ListFooterComponent={materiel.length?<Text style={s.note}>Tout équipement non touché reste tel quel, avec l’état de la dernière visite.</Text>:null}
+   ListEmptyComponent={<View style={s.emptyBox}><CvcIcon name={recherche||filtre!=='tous'?'search':'check'} size={22} color={COLORS.inkFaint} strokeWidth={2}/><Text style={s.empty}>{recherche?'Aucun équipement ne correspond à la recherche.':!materiel.length?'Aucun équipement pour cette visite. Le bouton + permet d’en créer.':filtre==='surveiller'?'Rien à surveiller : aucun équipement vétuste ou HS.':'Aucun équipement nouveau pour cette visite.'}</Text></View>}
    initialNumToRender={8}
    maxToRenderPerBatch={8}
    windowSize={6}
@@ -437,32 +545,76 @@ export function GuidedEquipmentPanel({visiteId,trameId='icpe_v1'}){
    keyboardShouldPersistTaps="handled"
   />
 
+  <TouchableOpacity accessibilityRole="button" accessibilityLabel="Ajouter un équipement" activeOpacity={0.85} onPress={ouvrirAjout} style={s.fab}><CvcIcon name="plus-plain" size={26} color={COLORS.white} strokeWidth={2.6}/></TouchableOpacity>
+
   {fiche?<EquipmentSheet key={fiche.id} item={fiche} visiteId={visiteId} onChange={charger} onClose={fermerFiche} onTogglePresence={basculerPresence} types={types} catalogue={catalogue} catalogueIndex={catalogueIndex} trameId={trameId}/>:null}
 
-  <BottomSheet visible={ajoutVisible} onClose={()=>setAjoutVisible(false)} title="Ajouter un équipement" picto="onglets/equipements">
-   {materiel.length?<Text style={styles.fieldLabel}>Le plus rapide</Text>:null}
-   {materiel.slice(0,3).map(i=><TouchableOpacity key={i.id} disabled={creation} style={s.addRow} onPress={()=>creer(null,i.id)}>
-    <Picto name={pictoEquipement(i.categorie)} size={24}/>
-    <View style={{flex:1,minWidth:0}}><Text numberOfLines={1} style={s.addTitle}>Dupliquer {nomEquipement(i)}</Text><Text style={styles.importHint}>Même marque et modèle · série et état à vérifier</Text></View>
-    <CvcIcon name="copy" size={20} color={COLORS.orangeDark} strokeWidth={2}/>
-   </TouchableOpacity>)}
-   <TouchableOpacity disabled={creation} style={[s.addRow,{borderColor:COLORS.orange+'66'}]} onPress={()=>creer(null)}>
-    <Picto name="ph/plaque-signaletique" size={24}/>
-    <View style={{flex:1,minWidth:0}}><Text style={s.addTitle}>Lire la plaque signalétique</Text><Text style={styles.importHint}>Crée la fiche, puis « Lire la plaque » en haut de la fiche</Text></View>
-    <CvcIcon name="camera" size={20} color={COLORS.orangeDark} strokeWidth={2}/>
-   </TouchableOpacity>
-   <Text style={[styles.fieldLabel,{marginTop:12}]}>Par type</Text>
-   <View style={s.typeGrid}>{TYPES_RAPIDES.map(t=><TouchableOpacity key={t} disabled={creation} style={s.typeChip} onPress={()=>creer(t)}><Picto name={pictoEquipement(t)} size={18}/><Text style={s.typeChipText}>{t}</Text></TouchableOpacity>)}</View>
-   <TouchableOpacity disabled={creation} style={[s.addRow,{marginTop:10}]} onPress={()=>creer(null)}>
-    <CvcIcon name="search" size={20} color={COLORS.orangeDark} strokeWidth={2}/>
-    <View style={{flex:1,minWidth:0}}><Text style={s.addTitle}>Autre type ou modèle du catalogue…</Text><Text style={styles.importHint}>Recherche marque + modèle dans la fiche</Text></View>
-    <CvcIcon name="chevron-right" size={18} color={COLORS.inkFaint} strokeWidth={2.2}/>
-   </TouchableOpacity>
-   {autresLocaux.length?<View style={{marginTop:12}}><Text style={styles.fieldLabel}>Retrouvé ailleurs sur le site</Text>{autresLocaux.map(e=><TouchableOpacity key={e.id} style={s.addRow} onPress={()=>Alert.alert('Rattacher au local actuel ?',`« ${e.designation||e.type_code} » sera déplacé depuis ${e.nom_local} vers le local de cette visite. Les anciennes visites garderont leur historique.`,[{text:'Annuler',style:'cancel'},{text:'Rattacher',onPress:async()=>{try{await rattacherEquipementAuLocal(visiteId,e.id);setFiltre('a-voir');setAjoutVisible(false);await charger()}catch(err){Alert.alert('Rattachement impossible',String(err?.message||err))}}}])}>
-    <Picto name={pictoEquipement(e.type_code||e.designation)} size={24}/>
-    <View style={{flex:1,minWidth:0}}><Text numberOfLines={1} style={s.addTitle}>{e.designation||e.type_code}</Text><Text numberOfLines={1} style={styles.importHint}>{[e.nom_local,[e.marque,e.modele].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}</Text></View>
-    <CvcIcon name="chevron-right" size={18} color={COLORS.inkFaint} strokeWidth={2.2}/>
-   </TouchableOpacity>)}</View>:null}
+  <BottomSheet visible={ajoutVisible} onClose={()=>setAjoutVisible(false)} title={ajout.vue==='menu'?'Nouvel équipement':ajout.vue==='libre'?'Créer un équipement':ajout.vue==='dup'?'Quel équipement dupliquer ?':ajout.vue==='rep'?'Quel équipement remplacer ?':'Retrouvé ailleurs sur le site'} picto="onglets/equipements" maxHeight="90%">
+   {ajout.vue==='menu'?<>
+    <TouchableOpacity accessibilityRole="button" disabled={creation} activeOpacity={0.85} onPress={()=>creerEquipements({qte:ajout.qte})} style={s.plaque}>
+     <Picto name="ph/plaque-signaletique" size={28} mono={COLORS.white}/>
+     <View style={{flex:1,minWidth:0}}><Text style={s.plaqueTitre}>Photographier la plaque</Text><Text style={s.plaqueSub}>Crée la fiche, puis « Lire la plaque » remplit marque, modèle et année</Text></View>
+    </TouchableOpacity>
+    <View style={s.tuiles}>
+     <Tuile titre="Dupliquer" icone="copy" onPress={()=>aVue('dup')}/>
+     <Tuile titre="Remplacer" icone="refresh" onPress={()=>aVue('rep')}/>
+     <Tuile titre="Catalogue" icone="search" onPress={()=>creerEquipements({qte:ajout.qte})}/>
+    </View>
+    <View style={s.qte}>
+     <View style={{flex:1,minWidth:0}}><Text style={s.addTitle}>Nombre à créer</Text><Text style={styles.importHint}>2 circulateurs identiques ? Crée-les d’un coup</Text></View>
+     <TouchableOpacity accessibilityLabel="Moins" onPress={()=>setAjout(a=>({...a,qte:Math.max(1,a.qte-1)}))} style={s.qteBtn}><Text style={s.qteBtnText}>−</Text></TouchableOpacity>
+     <Text style={s.qteVal}>{ajout.qte}</Text>
+     <TouchableOpacity accessibilityLabel="Plus" onPress={()=>setAjout(a=>({...a,qte:Math.min(9,a.qte+1)}))} style={s.qteBtn}><Text style={s.qteBtnText}>+</Text></TouchableOpacity>
+    </View>
+    <Text style={[styles.fieldLabel,{marginTop:12}]}>Par type</Text>
+    <TextInput style={styles.input} value={ajout.q} onChangeText={v=>setAjout(a=>({...a,q:v}))} placeholder="Rechercher un type ou un nom…" placeholderTextColor={COLORS.inkFaint} autoCorrect={false}/>
+    <View style={[s.typeGrid,{marginTop:8}]}>
+     {typesAffiches.map(t=><TouchableOpacity key={t} disabled={creation} style={[s.typeChip,typesFrequents.includes(t)&&!ajout.q&&{backgroundColor:COLORS.orangeLight,borderColor:'transparent'}]} onPress={()=>creerEquipements({type:t,qte:ajout.qte})}><Picto name={pictoEquipement(t)} size={18}/><Text style={s.typeChipText}>{t}</Text></TouchableOpacity>)}
+    </View>
+    {ajout.q.trim()&&!typeExact?<TouchableOpacity accessibilityRole="button" disabled={creation} style={[s.addRow,{borderColor:COLORS.orange+'66'}]} onPress={()=>creerEquipements({type:ajout.q.trim(),nom:ajout.q.trim(),qte:ajout.qte})}>
+     <CvcIcon name="plus-plain" size={20} color={COLORS.orangeDark} strokeWidth={2.4}/>
+     <View style={{flex:1,minWidth:0}}><Text numberOfLines={1} style={s.addTitle}>Créer « {ajout.q.trim()} »</Text><Text style={styles.importHint}>Introuvable ? Il est créé tel quel, à compléter dans la fiche</Text></View>
+    </TouchableOpacity>:null}
+    <TouchableOpacity accessibilityRole="button" style={[s.addRow,{marginTop:10}]} onPress={()=>setAjout(a=>({...a,vue:'libre',nom:a.q.trim(),type:''}))}>
+     <CvcIcon name="edit" size={20} color={COLORS.orangeDark} strokeWidth={2}/>
+     <View style={{flex:1,minWidth:0}}><Text style={s.addTitle}>Autre équipement : lui donner un nom…</Text><Text style={styles.importHint}>Nom et type au choix, pour un équipement absent des listes</Text></View>
+     <CvcIcon name="chevron-right" size={18} color={COLORS.inkFaint} strokeWidth={2.2}/>
+    </TouchableOpacity>
+    <TouchableOpacity accessibilityRole="button" style={s.addRow} onPress={()=>aVue('ailleurs')}>
+     <CvcIcon name="local" size={20} color={COLORS.orangeDark} strokeWidth={2}/>
+     <View style={{flex:1,minWidth:0}}><Text style={s.addTitle}>Retrouvé ailleurs sur le site</Text><Text style={styles.importHint}>{autresLocaux.length?`${pluriel(autresLocaux.length,'équipement')} d’autres locaux à rattacher`:'Équipements déjà connus dans les autres locaux'}</Text></View>
+     <CvcIcon name="chevron-right" size={18} color={COLORS.inkFaint} strokeWidth={2.2}/>
+    </TouchableOpacity>
+   </>:null}
+
+   {ajout.vue==='libre'?<>
+    <TouchableOpacity onPress={()=>aVue('menu')} style={s.retour}><Text style={s.plateauLienText}>‹ Retour</Text></TouchableOpacity>
+    <Text style={styles.fieldLabel}>Nom de l’équipement</Text>
+    <TextInput style={styles.input} value={ajout.nom} onChangeText={v=>setAjout(a=>({...a,nom:v}))} placeholder="Ex. Pompe de relevage nord" placeholderTextColor={COLORS.inkFaint} autoFocus/>
+    <Text style={[styles.fieldLabel,{marginTop:10}]}>Type (facultatif)</Text>
+    <TextInput style={styles.input} value={ajout.type} onChangeText={v=>setAjout(a=>({...a,type:v}))} placeholder="Ex. Pompe, Vanne… ou un type libre" placeholderTextColor={COLORS.inkFaint} autoCorrect={false}/>
+    <View style={[s.typeGrid,{marginTop:8}]}>{uniq(types).filter(t=>ajout.type&&norm(t).includes(norm(ajout.type))&&!eq(t,ajout.type)).slice(0,6).map(t=><TouchableOpacity key={t} style={s.typeChip} onPress={()=>setAjout(a=>({...a,type:t}))}><Text style={s.typeChipText}>{t}</Text></TouchableOpacity>)}</View>
+    <Text style={styles.importHint}>Marque, modèle, réseau et état se complètent ensuite dans la fiche ou par la plaque.</Text>
+    <TouchableOpacity accessibilityRole="button" disabled={creation||!ajout.nom.trim()} style={[styles.btnPrimary,{marginTop:14},!ajout.nom.trim()&&{opacity:0.45}]} onPress={()=>creerEquipements({type:ajout.type.trim()||ajout.nom.trim(),nom:ajout.nom.trim(),qte:ajout.qte})}><ButtonGlow/><Text style={styles.btnPrimaryText}>Créer l’équipement</Text></TouchableOpacity>
+   </>:null}
+
+   {ajout.vue==='dup'||ajout.vue==='rep'?<>
+    <TouchableOpacity onPress={()=>aVue('menu')} style={s.retour}><Text style={s.plateauLienText}>‹ Retour</Text></TouchableOpacity>
+    <Text style={styles.importHint}>{ajout.vue==='rep'?'L’ancien équipement est retiré du site ; le nouveau reprend son type et son réseau.':'Même marque et modèle · série et état à vérifier.'}</Text>
+    {materiel.map(i=><TouchableOpacity key={i.id} disabled={creation} style={s.addRow} onPress={()=>{if(ajout.vue==='dup')creerEquipements({sourceId:i.id,qte:ajout.qte});else{setAjoutVisible(false);setTimeout(()=>remplacerEquipement(i),280)}}}>
+     <Picto name={pictoEquipement(i.categorie)} size={24}/>
+     <View style={{flex:1,minWidth:0}}><Text numberOfLines={1} style={s.addTitle}>{nomEquipement(i)}</Text><Text numberOfLines={1} style={styles.importHint}>{[[i.marque,i.modele].filter(Boolean).join(' '),i.reseau_desservi].filter(Boolean).join(' · ')||i.categorie}</Text></View>
+    </TouchableOpacity>)}
+   </>:null}
+
+   {ajout.vue==='ailleurs'?<>
+    <TouchableOpacity onPress={()=>aVue('menu')} style={s.retour}><Text style={s.plateauLienText}>‹ Retour</Text></TouchableOpacity>
+    {autresLocaux.length?autresLocaux.map(e=><TouchableOpacity key={e.id} style={s.addRow} onPress={()=>Alert.alert('Rattacher au local actuel ?',`« ${e.designation||e.type_code} » sera déplacé depuis ${e.nom_local} vers le local de cette visite. Les anciennes visites garderont leur historique.`,[{text:'Annuler',style:'cancel'},{text:'Rattacher',onPress:async()=>{try{await rattacherEquipementAuLocal(visiteId,e.id);setFiltre('tous');setAjoutVisible(false);await charger()}catch(err){Alert.alert('Rattachement impossible',String(err?.message||err))}}}])}>
+     <Picto name={pictoEquipement(e.type_code||e.designation)} size={24}/>
+     <View style={{flex:1,minWidth:0}}><Text numberOfLines={1} style={s.addTitle}>{e.designation||e.type_code}</Text><Text numberOfLines={1} style={styles.importHint}>{[e.nom_local,[e.marque,e.modele].filter(Boolean).join(' ')].filter(Boolean).join(' · ')}</Text></View>
+     <CvcIcon name="chevron-right" size={18} color={COLORS.inkFaint} strokeWidth={2.2}/>
+    </TouchableOpacity>):<Text style={s.empty}>Aucun équipement à rattacher depuis les autres locaux de ce site.</Text>}
+   </>:null}
   </BottomSheet>
  </View>;
 }
@@ -476,6 +628,35 @@ const s=StyleSheet.create({
 
  row:{flexDirection:'row',alignItems:'center',gap:10,minHeight:54},
  rowSep:{borderTopWidth:StyleSheet.hairlineWidth,borderTopColor:COLORS.line},
+ rowWrap:{position:'relative',overflow:'hidden'},
+ rowFront:{backgroundColor:KIT.card},
+ underL:{position:'absolute',left:0,top:0,bottom:0,width:LARG_ACTIONS,flexDirection:'row'},
+ underR:{position:'absolute',right:0,top:0,bottom:0,width:LARG_ACTIONS,flexDirection:'row'},
+ underBtn:{flex:1,alignItems:'center',justifyContent:'center'},
+ underText:{color:'#FFFFFF',fontSize:13,fontFamily:FONTS.bodyBold},
+ plateau:{paddingBottom:10,gap:8},
+ plateauRow:{flexDirection:'row',gap:8},
+ plateauBtn:{flex:1,minHeight:50,borderRadius:14,alignItems:'center',justifyContent:'center'},
+ plateauText:{fontSize:12.5,fontFamily:FONTS.bodyBold,color:COLORS.ink},
+ plateauLien:{minHeight:40,alignItems:'center',justifyContent:'center'},
+ plateauLienText:{fontSize:12.5,fontFamily:FONTS.bodyBold,color:COLORS.orangeDark},
+ retour:{minHeight:40,justifyContent:'center',alignSelf:'flex-start'},
+ chips:{flex:1,flexDirection:'row',gap:8,flexWrap:'wrap'},
+ chip:{minHeight:30,paddingHorizontal:12,borderRadius:15,justifyContent:'center'},
+ chipZero:{backgroundColor:'rgba(22,21,15,0.05)'},
+ chipText:{fontSize:12,fontFamily:FONTS.bodyBold,color:COLORS.inkSoft},
+ note:{textAlign:'center',fontSize:12,fontFamily:FONTS.bodyMedium,color:COLORS.inkFaint,paddingVertical:14},
+ fab:{position:'absolute',right:16,bottom:16,width:58,height:58,borderRadius:20,backgroundColor:COLORS.orange,alignItems:'center',justifyContent:'center',borderWidth:1,borderColor:'rgba(255,255,255,0.4)',shadowColor:COLORS.orange,shadowOpacity:0.45,shadowRadius:14,shadowOffset:{width:0,height:8},elevation:9},
+ plaque:{flexDirection:'row',alignItems:'center',gap:12,minHeight:68,borderRadius:18,paddingHorizontal:16,paddingVertical:10,backgroundColor:COLORS.orange},
+ plaqueTitre:{fontSize:15,fontFamily:FONTS.bodyBold,color:'#FFFFFF'},
+ plaqueSub:{fontSize:11.5,fontFamily:FONTS.bodyMedium,color:'rgba(255,255,255,0.9)',marginTop:2},
+ tuiles:{flexDirection:'row',gap:8,marginTop:8},
+ tuile:{flex:1,minHeight:74,borderRadius:16,borderWidth:1,borderColor:KIT.border,backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center',gap:6,padding:8},
+ tuileText:{fontSize:12.5,fontFamily:FONTS.bodyBold,color:COLORS.ink},
+ qte:{flexDirection:'row',alignItems:'center',gap:8,marginTop:8,borderRadius:16,borderWidth:1,borderColor:KIT.border,backgroundColor:'#FFFFFF',paddingLeft:14,paddingRight:8,paddingVertical:8},
+ qteBtn:{width:44,height:44,borderRadius:14,borderWidth:1,borderColor:KIT.border,backgroundColor:KIT.card,alignItems:'center',justifyContent:'center'},
+ qteBtnText:{fontSize:20,fontFamily:FONTS.bodyBold,color:COLORS.ink},
+ qteVal:{minWidth:26,textAlign:'center',fontSize:17,fontFamily:FONTS.bodyBold,color:COLORS.ink},
  circle:{width:30,height:30,borderRadius:15,borderWidth:2,borderColor:'rgba(22,21,15,0.18)',backgroundColor:'#FFFFFF',alignItems:'center',justifyContent:'center'},
  rowMain:{flex:1,minWidth:0,flexDirection:'row',alignItems:'center',gap:8,paddingVertical:8},
  rowTitle:{fontSize:13.5,fontFamily:FONTS.bodyBold,color:COLORS.ink},
