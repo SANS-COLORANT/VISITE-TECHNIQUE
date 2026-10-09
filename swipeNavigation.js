@@ -49,44 +49,50 @@ export const SWIPE_NEIGHBOUR_OPACITY = 0.6;
 export const SWIPE_NEIGHBOUR_SCALE = 0.975;
 
 /**
- * Barre d'onglets liquide. Chaque bulle est un liquide dont le bord ondule :
- * `d` = position du geste par rapport à l'onglet (0 : plein, -1 : vide à gauche,
- * +1 : vide à droite), `vel` = vitesse du doigt en onglets par seconde (signée).
- * Le creux de la vague et l'arc du bord croissent avec la vitesse et retombent
- * à l'arrêt. Retourne le tracé SVG de la zone orange (largeur W, hauteur H).
+ * Barre d'onglets liquide, 100 % native : la bulle est découpée en bandes
+ * horizontales ; chaque bande est un liquide dont le bord est décalé selon la
+ * position du geste. Tout est interpolé sur la valeur animée du pager (thread
+ * natif) : aucun calcul JavaScript pendant le geste, donc aucun retard.
+ *
+ * `d` = position du geste par rapport à l'onglet (0 : plein, -1 : vide à
+ * gauche, +1 : vide à droite). La vague est calme quand la bulle est pleine ou
+ * vide et ondule au maximum à mi-remplissage.
  */
-export const WAVE_SPEED_GAIN = 5.5;
-export const WAVE_AMPLITUDE = 7;
-export const WAVE_BOW = 10;
-export const WAVE_REST = 0.015;
+export const WAVE_ROWS = 16;
+export const WAVE_AMP = 7;
+export const WAVE_EDGE = WAVE_AMP + 4;       // marge du liquide de part et d'autre de la bulle
+export const WAVE_SAMPLES = 80;               // échantillons de d entre +1 et -1
+const WAVE_BLEND = 0.04;                      // zone où le liquide passe d'un bord à l'autre
 
-export function cheminVague(d, W, H, vel, phase, dir = 1) {
-  if (Math.abs(d) < 0.001) return `M-2,-2H${W + 2}V${H + 2}H-2Z`;
-  if (Math.abs(d) >= 0.999) return 'M0,0Z';
-  const force = Math.min(1, Math.abs(vel) * WAVE_SPEED_GAIN);
-  const amp = force * WAVE_AMPLITUDE;
-  const bow = force * WAVE_BOW * (vel < 0 ? -1 : vel > 0 ? 1 : dir);
-  const xe = d >= 0 ? W * d : W * (1 + d);
-  const pts = [];
-  for (let y = 0; y <= H + 2; y += 2) {
-    const k = Math.sin(Math.PI * Math.min(y, H) / H);
-    const x = xe + bow * k + amp * Math.sin((y / H) * 6.28 * 1.1 + phase) * k;
-    pts.push(`${Math.max(-12, Math.min(W + 12, x)).toFixed(1)},${y}`);
-  }
-  return d > 0
-    ? `M${pts.join('L')}L${W + 3},${H + 2}L${W + 3},0Z`
-    : `M${pts.join('L')}L-3,${H + 2}L-3,0Z`;
+export function echantillonsD() {
+  const out = [];
+  for (let j = 0; j <= WAVE_SAMPLES; j += 1) out.push(Math.round((1 - (2 * j) / WAVE_SAMPLES) * 10000) / 10000);
+  return out;
 }
 
-/**
- * Opacités natives (thread UI) des deux couches d'une bulle : la couche fixe
- * (orange plein, au repos) et la couche vague (pendant le mouvement).
- */
-export function couchesOnglet(pagerX, pagerWidth, pageIndex) {
-  const e = WAVE_REST * pagerWidth;
-  const entree = [-pageIndex * pagerWidth - e, -pageIndex * pagerWidth, -pageIndex * pagerWidth + e];
-  return {
-    repos: pagerX.interpolate({ inputRange: entree, outputRange: [0, 1, 0], extrapolate: 'clamp' }),
-    mouvement: pagerX.interpolate({ inputRange: entree, outputRange: [1, 0, 1], extrapolate: 'clamp' }),
-  };
+/** Bord gauche du liquide de la bande k, dans le repère de la bulle (largeur W). */
+export function bordBande(d, k, W, rows = WAVE_ROWS, amp = WAVE_AMP, edge = WAVE_EDGE) {
+  const ad = Math.min(1, Math.abs(d));
+  const enveloppe = Math.sin(Math.PI * ad);
+  const onde = amp * enveloppe * Math.sin(2 * Math.PI * 1.1 * ((k + 0.5) / rows) + 2 * Math.PI * 2.2 * d);
+  const bascule = Math.max(0, Math.min(1, (WAVE_BLEND - d) / (2 * WAVE_BLEND)));
+  return W * Math.max(-1, Math.min(1, d)) + onde - 2 * edge * bascule;
+}
+
+/** Valeurs de sortie (translation du liquide) pour chaque échantillon de d. */
+export function profilBande(k, W, rows = WAVE_ROWS) {
+  return echantillonsD().map((d) => bordBande(d, k, W, rows));
+}
+
+/** Opacité de la icône blanche (point, pictogramme) : visible quand l'orange la recouvre. */
+export function profilIcone(xCentre, W) {
+  const c = xCentre / W;
+  return echantillonsD().map((d) => (d >= 0
+    ? Math.max(0, Math.min(1, (c + 0.05 - d) / 0.1))
+    : Math.max(0, Math.min(1, (d - (c - 1) + 0.05) / 0.1))));
+}
+
+/** Plages d'entrée du pager (croissantes) correspondant aux échantillons de d. */
+export function entreesPager(pageIndex, pagerWidth) {
+  return echantillonsD().map((d) => -(pageIndex + d) * pagerWidth);
 }

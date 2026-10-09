@@ -3,7 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
 const src = fs.readFileSync(path.join(root, 'swipeNavigation.js'), 'utf8').replace(/export /g, '');
-const S = new Function(src + '; return {shouldStartSwipe, swipeDirection, rubberBand, settleSpring, cheminVague, couchesOnglet, SWIPE_COMMIT_MIN};')();
+const S = new Function(src + '; return {shouldStartSwipe, swipeDirection, rubberBand, settleSpring, echantillonsD, bordBande, profilBande, profilIcone, entreesPager, WAVE_ROWS, WAVE_EDGE, WAVE_AMP, SWIPE_COMMIT_MIN};')();
 
 // Start: a slightly diagonal thumb swipe is a swipe; vertical scrolling is not.
 assert.equal(S.shouldStartSwipe(12, 8), true);
@@ -50,28 +50,41 @@ assert.ok(/useNativeDriver: true/.test(visit));
 assert.ok(visit.includes('SWIPE_NEIGHBOUR_OPACITY'), 'neighbour pages fade while dragging');
 console.log('Swipe navigation: light gesture, flick, projection, cancel, edge resistance and native spring verified.');
 
-// Barre d'onglets liquide : bulle pleine au repos, vide hors geste, vague selon la vitesse.
-const W = 120; const H = 36;
-assert.equal(S.cheminVague(0, W, H, 0, 0), `M-2,-2H${W + 2}V${H + 2}H-2Z`, 'au repos : bulle pleine');
-assert.equal(S.cheminVague(1, W, H, 0, 0), 'M0,0Z');
-assert.equal(S.cheminVague(-1.4, W, H, 0, 0), 'M0,0Z', 'onglet lointain : jamais rempli');
-const calme = S.cheminVague(0.5, W, H, 0, 0);
-const rapide = S.cheminVague(0.5, W, H, 0.4, 1.3);
-assert.notEqual(calme, rapide, 'la vague change avec la vitesse');
-assert.ok(calme.startsWith('M') && calme.endsWith('Z'));
-const xs = (d) => [...d.matchAll(/(-?\d+(?:\.\d+)?),\d+/g)].map((m) => Number(m[1]));
-assert.ok(xs(calme).slice(0, 18).every((x) => Math.abs(x - 60) < 0.01), 'sans vitesse : bord droit au milieu');
-assert.ok(Math.max(...xs(rapide).slice(0, 18)) - Math.min(...xs(rapide).slice(0, 18)) > 4, 'avec vitesse : bord ondulé');
-assert.ok(S.cheminVague(0.5, W, H, 0.4, 1.3).includes(`L${W + 3},${H + 2}L${W + 3},0Z`), 'orange à droite du bord quand le doigt avance');
-assert.ok(S.cheminVague(-0.5, W, H, -0.4, 1.3).includes(`L-3,${H + 2}L-3,0Z`), 'orange à gauche du bord quand l’onglet arrive');
-// Couches natives : fixe au repos, vague en mouvement, bascule en 1,5 % de la largeur de page.
-const ip = (v) => ({ interpolate: ({ inputRange, outputRange }) => {
-  const [a, b, c] = inputRange; const [oa, ob, oc] = outputRange;
-  if (v <= a) return oa; if (v >= c) return oc;
-  return v <= b ? oa + (ob - oa) * (v - a) / (b - a) : ob + (oc - ob) * (v - b) / (c - b);
-} });
-const c0 = S.couchesOnglet(ip(-2000), 1000, 2);
-assert.equal(c0.repos, 1); assert.equal(c0.mouvement, 0);
-const c1 = S.couchesOnglet(ip(-2500), 1000, 2);
-assert.equal(c1.repos, 0); assert.equal(c1.mouvement, 1);
-console.log('barre d’onglets liquide : OK');
+// Barre d'onglets liquide 100 % native : profils d'interpolation.
+const W = 120;
+const ds = S.echantillonsD();
+assert.equal(ds[0], 1); assert.equal(ds[ds.length - 1], -1); assert.ok(ds.every((d, j) => j === 0 || d < ds[j - 1]), 'd décroît strictement');
+const entrees = S.entreesPager(2, 1000);
+assert.ok(entrees.every((e, j) => j === 0 || e > entrees[j - 1]), 'plage d’entrée du pager strictement croissante (exigence d’interpolate)');
+assert.equal(entrees[0], -3000); assert.equal(entrees[entrees.length - 1], -1000);
+// Au repos (d = 0) : toutes les bandes couvrent entièrement la bulle.
+for (let k = 0; k < S.WAVE_ROWS; k += 1) {
+  const gauche = S.bordBande(0, k, W); const droite = gauche + W + 2 * S.WAVE_EDGE;
+  assert.ok(gauche <= 0 && droite >= W, `bande ${k} : bulle pleine au repos`);
+  // Onglet vide à droite : le liquide est entièrement sorti.
+  assert.ok(S.bordBande(1, k, W) >= W - 0.001, `bande ${k} : vide à droite`);
+  // Onglet vide à gauche : le bord droit du liquide est à 0.
+  assert.ok(S.bordBande(-1, k, W) + W + 2 * S.WAVE_EDGE <= 0.001, `bande ${k} : vide à gauche`);
+}
+// Couverture continue autour du repos et jamais de trou pendant le mouvement (d entre 0,04 et 0,96).
+for (let d = 0.04; d <= 0.96; d += 0.02) for (let k = 0; k < S.WAVE_ROWS; k += 1) {
+  const gauche = S.bordBande(d, k, W);
+  assert.ok(gauche + W + 2 * S.WAVE_EDGE >= W, `d=${d.toFixed(2)} bande ${k} : liquide jusqu’au bord droit`);
+}
+for (let d = -0.96; d <= -0.04; d += 0.02) for (let k = 0; k < S.WAVE_ROWS; k += 1) {
+  assert.ok(S.bordBande(d, k, W) <= 0, `d=${d.toFixed(2)} bande ${k} : liquide depuis le bord gauche`);
+}
+// La vague ondule à mi-remplissage, est calme quand la bulle est pleine ou vide.
+const bords = (d) => Array.from({ length: S.WAVE_ROWS }, (_, k) => S.bordBande(d, k, W));
+const ecart = (d) => Math.max(...bords(d)) - Math.min(...bords(d));
+assert.ok(ecart(0.5) > 8, 'bord ondulé à mi-remplissage');
+assert.ok(ecart(0.5) <= 2 * S.WAVE_AMP + 0.001);
+assert.ok(ecart(0.96) < ecart(0.5) && ecart(0.04) < ecart(0.5), 'vague calme près du plein et du vide');
+// Profil complet : une valeur par échantillon et par bande ; icône blanche entre 0 et 1.
+assert.equal(S.profilBande(3, W).length, ds.length);
+const ic = S.profilIcone(20, W);
+assert.equal(ic.length, ds.length); assert.ok(ic.every((v) => v >= 0 && v <= 1));
+assert.equal(ic[ds.indexOf(0)], 1, 'icône blanche quand la bulle est pleine');
+assert.equal(ic[0], 0, 'icône grise quand la bulle est vide à droite');
+assert.equal(ic[ic.length - 1], 0, 'icône grise quand la bulle est vide à gauche');
+console.log('barre d’onglets liquide native : OK');

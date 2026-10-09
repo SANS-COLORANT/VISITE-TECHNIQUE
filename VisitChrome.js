@@ -9,13 +9,12 @@
  *   Anomalie) ;
  * - AvisCounters : compteurs S · N.S · S.O.
  */
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
-import Svg, { ClipPath, Circle, Defs, G, LinearGradient as SvgGradient, Path as SvgPath, Rect, Stop, Text as SvgText } from 'react-native-svg';
-import { Picto, pictoElements, pictoOnglet, ACTION_PICTOS } from './MetraPictos.js';
+import { Picto, pictoOnglet, ACTION_PICTOS } from './MetraPictos.js';
 import { COLORS, FONTS } from './styles.js';
-import { cheminVague, couchesOnglet } from './swipeNavigation.js';
+import { WAVE_EDGE, WAVE_ROWS, entreesPager, profilBande, profilIcone } from './swipeNavigation.js';
 
 export const STATE_COLORS = {
   empty: '#D6D1C6',
@@ -50,66 +49,44 @@ function SearchButton({ onPress, size = 38 }) {
   );
 }
 
-/**
- * Pilote des vagues : écoute la position du pager (même valeur que les pages),
- * mesure la vitesse du doigt et redessine le bord des deux bulles concernées.
- * Une boucle d'images calme la vague après l'arrêt du geste.
- */
-function useWaveDriver(pagerX, pagerWidth) {
-  const driver = useRef({ chips: new Map(), p: 0, vel: 0, dir: 1, phase: 0, t: 0, raf: null }).current;
-  useEffect(() => {
-    if (!pagerX || !(pagerWidth > 0)) return undefined;
-    const draw = () => driver.chips.forEach((draw1) => draw1(driver));
-    const loop = () => {
-      driver.raf = null;
-      const now = Date.now();
-      const dt = Math.min(0.05, Math.max(0.001, (now - driver.t) / 1000));
-      driver.t = now;
-      driver.vel *= Math.exp(-dt * 9);
-      if (Math.abs(driver.vel) < 0.02) driver.vel = 0;
-      driver.phase += dt * (6 + Math.abs(driver.vel) * 14);
-      draw();
-      if (driver.vel !== 0) driver.raf = requestAnimationFrame(loop);
-    };
-    const onValue = ({ value }) => {
-      const p = -value / pagerWidth;
-      const now = Date.now();
-      const dt = Math.max(0.004, (now - driver.t) / 1000);
-      const inst = (p - driver.p) / dt;
-      if (driver.t) driver.vel += (inst - driver.vel) * 0.3;
-      if (Math.abs(inst) > 1e-4) driver.dir = inst > 0 ? 1 : -1;
-      driver.p = p; driver.t = now;
-      draw();
-      if (!driver.raf) driver.raf = requestAnimationFrame(loop);
-    };
-    try { driver.p = -(pagerX.__getValue?.() ?? 0) / pagerWidth; } catch { driver.p = 0; }
-    const id = pagerX.addListener(onValue);
-    draw();
-    return () => { pagerX.removeListener(id); if (driver.raf) cancelAnimationFrame(driver.raf); driver.raf = null; };
-  }, [pagerX, pagerWidth, driver]);
-  return driver;
-}
-
 const MARGE_X = 13; // bordure 1 + padding 12
-function WaveChip({ pid, label, picto, state, pageIndex, size, driver, pagerX, pagerWidth }) {
-  const [chemin, setChemin] = useState('M0,0Z');
+const COULEUR_HAUT = [242, 100, 38];
+const COULEUR_BAS = [217, 83, 26];
+const mix = (t) => `rgb(${COULEUR_HAUT.map((c, i) => Math.round(c + (COULEUR_BAS[i] - c) * t)).join(',')})`;
+
+/**
+ * Bulle liquide : bandes horizontales décalées selon la position du pager.
+ * Toutes les valeurs sont interpolées sur le thread natif (même valeur que les
+ * pages) : le remplissage suit le doigt sans aucun calcul JavaScript.
+ */
+function WaveChip({ label, picto, state, pageIndex, size, pagerX, pagerWidth }) {
   const { w: W, h: H } = size;
-  const couches = couchesOnglet(pagerX, pagerWidth, pageIndex);
-  useEffect(() => {
-    const dessiner = (st) => {
-      const d = st.p - pageIndex;
-      // Rendu par état React (fiable) : seules les deux bulles concernées se redessinent.
-      setChemin(cheminVague(d, W, H, st.vel, st.phase, st.dir));
-    };
-    driver.chips.set(pid, dessiner);
-    dessiner(driver);
-    return () => { driver.chips.delete(pid); };
-  }, [driver, pid, pageIndex, W, H]);
-  const aDot = state && state !== null;
+  const rows = WAVE_ROWS;
+  const hRow = H / rows;
+  const aDot = Boolean(state);
   const xPicto = MARGE_X + (aDot ? 15 : 0);
-  const xTexte = xPicto + (picto ? 23 : 0);
-  const iconeBlanche = picto ? pictoElements(picto, '#FFFFFF') : null;
-  const gid = `vg-${pid}`; const cid = `vc-${pid}`;
+  const entrees = useMemo(() => entreesPager(pageIndex, pagerWidth), [pageIndex, pagerWidth]);
+  const bandes = useMemo(() => Array.from({ length: rows }, (_, k) => {
+    const sortie = profilBande(k, W, rows);
+    return {
+      blob: pagerX.interpolate({ inputRange: entrees, outputRange: sortie, extrapolate: 'clamp' }),
+      texte: pagerX.interpolate({ inputRange: entrees, outputRange: sortie.map((v) => -v), extrapolate: 'clamp' }),
+      couleur: mix((k + 0.5) / rows),
+    };
+  }), [pagerX, entrees, W, rows]);
+  const iconeBlanche = useMemo(() => {
+    if (!aDot && !picto) return null;
+    // Le point et le pictogramme basculent en blanc quand l'orange recouvre leur centre.
+    const finIcones = picto ? xPicto + 17 : MARGE_X + 9;
+    return pagerX.interpolate({ inputRange: entrees, outputRange: profilIcone((MARGE_X + finIcones) / 2, W), extrapolate: 'clamp' });
+  }, [pagerX, entrees, W, aDot, picto, xPicto]);
+  const contenuBlanc = (decalage) => (
+    <View style={[s.chip, s.chipBlanc, { position: 'absolute', left: 0, top: decalage, width: W, height: H }]}>
+      {aDot ? <View style={{ width: 9, height: 9 }} /> : null}
+      {picto ? <View style={{ width: 17, height: 17 }} /> : null}
+      <Text numberOfLines={1} style={[s.chipText, s.chipTextBlanc]}>{label}</Text>
+    </View>
+  );
   return (
     <View>
       <View style={s.chip}>
@@ -117,34 +94,27 @@ function WaveChip({ pid, label, picto, state, pageIndex, size, driver, pagerX, p
         {picto ? <Picto name={picto} size={17} /> : null}
         <Text numberOfLines={1} style={s.chipText}>{label}</Text>
       </View>
-      {/* Couche fixe : bulle pleine au repos (rendu identique à l'ancien onglet actif). */}
-      <Animated.View pointerEvents="none" style={[s.vague, { width: W, height: H, opacity: couches.repos }]}>
-        <LinearGradient colors={[COLORS.orange, COLORS.orangeDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={[StyleSheet.absoluteFill, s.chipMasque]}>
-          <View style={[s.chip, s.chipBlanc]}>
+      {/* Liquide : une bande = un décalage ; le texte blanc reste fixe sous le liquide. */}
+      <View pointerEvents="none" style={[s.vague, s.chipMasque, { width: W, height: H }]}>
+        {bandes.map((b, k) => (
+          <View key={k} style={{ position: 'absolute', left: 0, top: k * hRow, width: W, height: hRow + 0.6, overflow: 'hidden' }}>
+            <Animated.View style={{ position: 'absolute', left: 0, top: 0, width: W + 2 * WAVE_EDGE, height: hRow + 0.6, backgroundColor: b.couleur, overflow: 'hidden', transform: [{ translateX: b.blob }] }}>
+              <Animated.View style={{ position: 'absolute', left: 0, top: 0, width: W, height: hRow + 0.6, overflow: 'hidden', transform: [{ translateX: b.texte }] }}>
+                {contenuBlanc(-k * hRow)}
+              </Animated.View>
+            </Animated.View>
+          </View>
+        ))}
+      </View>
+      {iconeBlanche ? (
+        <Animated.View pointerEvents="none" style={[s.vague, { width: W, height: H, opacity: iconeBlanche }]}>
+          <View style={[s.chip, s.chipBlanc, { width: W, height: H }]}>
             <StateDot state={state} onGradient />
             {picto ? <Picto name={picto} size={17} mono={COLORS.white} /> : null}
-            <Text numberOfLines={1} style={[s.chipText, s.chipTextBlanc]}>{label}</Text>
+            <Text numberOfLines={1} style={[s.chipText, { opacity: 0 }]}>{label}</Text>
           </View>
-        </LinearGradient>
-      </Animated.View>
-      {/* Couche vague : le bord ondule pendant le geste, le texte blanc reste fixe sous le liquide. */}
-      <Animated.View pointerEvents="none" style={[s.vague, { width: W, height: H, opacity: couches.mouvement }]}>
-        <Svg width={W} height={H}>
-          <Defs>
-            <SvgGradient id={gid} x1="0.15" y1="0" x2="0.9" y2="1">
-              <Stop offset="0" stopColor={COLORS.orange} />
-              <Stop offset="1" stopColor={COLORS.orangeDark} />
-            </SvgGradient>
-            <ClipPath id={cid}><SvgPath d={chemin} /></ClipPath>
-          </Defs>
-          <G clipPath={`url(#${cid})`}>
-            <Rect x="0" y="0" width={W} height={H} fill={`url(#${gid})`} />
-            {aDot ? <Circle cx={MARGE_X + 4.5} cy={H / 2} r={4.5} fill="#FFFFFF" fillOpacity={state === 'empty' ? 0.55 : 1} /> : null}
-            {iconeBlanche ? <G transform={`translate(${xPicto} ${(H - 17) / 2}) scale(${17 / 24})`}>{iconeBlanche}</G> : null}
-            <SvgText x={xTexte} y={H / 2 + 4.2} fontSize={12} fontFamily={FONTS.bodySemi} fill="#FFFFFF">{label}</SvgText>
-          </G>
-        </Svg>
-      </Animated.View>
+        </Animated.View>
+      ) : null}
     </View>
   );
 }
@@ -152,7 +122,7 @@ function WaveChip({ pid, label, picto, state, pageIndex, size, driver, pagerX, p
 export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, tabStates = {}, trameId, onSearch, pagerX = null, pagerWidth = 0, pageOrder = null }) {
   const scrollRef = useRef(null);
   const [largeurs, setLargeurs] = useState({});
-  const vagues = useWaveDriver(pagerX, pagerWidth);
+  const indexActif = pageOrder ? pageOrder.indexOf(activeTab) : -1;
   const positions = useRef({});
   const viewportWidth = useRef(0);
 
@@ -188,7 +158,8 @@ export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, t
         </>;
         const pageIndex = pageOrder ? pageOrder.indexOf(pid) : -1;
         const taille = largeurs[pid];
-        const synchro = Boolean(pagerX && pagerWidth > 0 && pageIndex >= 0 && taille?.w > 0);
+        // Seules la bulle active et ses voisines portent le liquide (un geste ne change que d'un onglet).
+        const synchro = Boolean(pagerX && pagerWidth > 0 && pageIndex >= 0 && taille?.w > 0 && Math.abs(pageIndex - indexActif) <= 1);
         return (
           <TouchableOpacity
             key={pid}
@@ -204,7 +175,7 @@ export function SectionRail({ tabOrder = [], labels = {}, activeTab, onSelect, t
             }}
           >
             {synchro ? (
-              <WaveChip pid={pid} label={label} picto={picto} state={state} pageIndex={pageIndex} size={taille} driver={vagues} pagerX={pagerX} pagerWidth={pagerWidth} />
+              <WaveChip label={label} picto={picto} state={state} pageIndex={pageIndex} size={taille} pagerX={pagerX} pagerWidth={pagerWidth} />
             ) : on ? (
               <LinearGradient colors={[COLORS.orange, COLORS.orangeDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={[s.chip, s.chipOn]}>{content}</LinearGradient>
             ) : (

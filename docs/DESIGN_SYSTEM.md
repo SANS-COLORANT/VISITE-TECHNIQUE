@@ -227,4 +227,6 @@ onglets de visite :
 
 ## Barre d'onglets de la visite : bulle liquide
 
-La bulle orange de l'onglet actif suit le doigt sans retard : elle se vide de l'onglet quitté et remplit l'onglet visé du côté d'où vient le geste, le texte blanc restant fixe sous le liquide. Le bord est une vague qui se creuse selon la vitesse du doigt et se calme à l'arrêt (`cheminVague`, `swipeNavigation.js`). Au repos, la bulle est un rendu natif plein, identique à l'ancien onglet actif ; la vague (SVG) n'apparaît que pendant le mouvement.
+La bulle orange de l'onglet actif suit le doigt sans retard : elle se vide de l'onglet quitté et remplit l'onglet visé du côté d'où vient le geste, le texte blanc restant fixe sous le liquide. Le bord est une vague qui ondule au maximum à mi-remplissage et se calme quand la bulle est pleine ou vide.
+
+Réalisation 100 % native : la bulle est découpée en bandes horizontales (`WAVE_ROWS`), chaque bande est décalée par une interpolation de la valeur animée du pager (`bordBande`, `profilBande`, `swipeNavigation.js`). Aucun calcul JavaScript pendant le geste, donc aucun retard, même quand le thread JavaScript est occupé à monter la page voisine. Seules la bulle active et ses voisines portent le liquide. Un premier essai redessinait le bord depuis JavaScript (SVG) : il prenait du retard et l'ondulation ne s'affichait pas ; il a été abandonné.
