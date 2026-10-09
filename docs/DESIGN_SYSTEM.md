@@ -103,9 +103,15 @@ cartes de verre avec pastille d'état et compteur. Mesures : `StepperNumerique`
 
 ### Parcours terrain issu de la maquette du 06/10/2026
 
-Le sommaire regroupe les contrôles ICPE et Réseau de chaleur par espaces
-(site/relevés, local, sécurité, énergie, production, eau). Les onglets d'origine
-restent accessibles et les clés de stockage de chaque contrôle sont conservées.
+Le sommaire de la visite a été retiré le 9 octobre 2026 (il ralentissait la saisie) :
+la visite s'ouvre directement sur les onglets de la trame, dont les clés de
+stockage sont inchangées.
+
+Le balayage horizontal entre onglets est court et vif : il démarre dès que le
+geste est un peu plus horizontal que vertical, la page suit le doigt (les pages
+voisines s'estompent légèrement), un geste d'environ 3,5 % de la largeur ou un
+petit coup de doigt suffit, et la fin du geste est un ressort critique sans
+rebond qui reprend la vitesse du doigt (`swipeNavigation.js`, pilote natif).
 Le pointage des équipements est explicite et propre à la visite : il ne reprend
 pas une confirmation historique et n'invente pas d'état. Les fiches détaillées
 et l'ajout rapide sont présentés en feuilles, avec historique et photos.

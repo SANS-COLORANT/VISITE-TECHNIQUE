@@ -4,6 +4,7 @@ const path = require('path');
 const ROOT = path.resolve(__dirname, '..', '..');
 
 const CONTRACT_CHECKS = [
+  ['horizontal swipe navigation (light, native spring)', '.github/scripts/test_swipe_navigation.js'],
   ['Spiral Active UI contract', '.github/scripts/check_spiral_active_ui.js'],
   ['N.S comment persistence contract', '.github/scripts/check_ns_comment_persistence.js'],
   ['latest API visit runtime contract', '.github/scripts/check_api_latest_visit_runtime.js'],

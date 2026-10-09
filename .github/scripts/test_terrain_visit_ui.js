@@ -109,14 +109,14 @@ async function main() {
     assert.ok(icpeSemantic.bySemantic.has('production.primaire.type') && rcuSemantic.bySemantic.has('production.primaire.type'),'production data is reusable across technical trames');
     assert.notEqual(vmcSemantic.byStorage.get('vmc-c1.situation||Accès au caisson')?.semanticKey,vmcSemantic.byStorage.get('vmc-c2.situation||Accès au caisson')?.semanticKey,'repeated VMC caissons keep distinct semantic identities');
     for(const id of ['icpe_v1','reseau_chaleur_v1','vmc','pre_allumage']){
-      assert.equal(model.utiliseParcoursTerrain(id),id!=='pre_allumage',`${id}: shared terrain navigation except dedicated pre-allumage`);
-      const def=registry.obtenirTrame(id),panels=def.ui.panels;
-      const expected=Object.entries(panels).filter(([p])=>!['p-equip','p-remarques','p-photos'].includes(p)).flatMap(([p,sections])=>Object.entries(sections).flatMap(([section,fields])=>fields.filter(f=>f?.cle&&!f.hiddenInApp).map(f=>`${model.terrainSectionCode(p,section)}||${f.cle}`)));
-      const actual=model.construireEspacesVisite(panels,id,def.ui.labels).flatMap(s=>s.rows.map(r=>r.key));
-      assert.deepEqual(actual.slice().sort(),expected.slice().sort(),`${id}: no field removed, storage keys unchanged`);
+      assert.equal(typeof registry.obtenirTrame(id).ui.panels,'object',`${id}: trame panels stay available`);
     }
-    const spacesSource=fs.readFileSync(path.join(root,'VisitSpaces.js'),'utf8');
-    assert.doesNotMatch(spacesSource,/\[\['p-equip', 'Équipements'.*'p-remarques', 'Anomalies'.*'p-photos', 'Photos'/s,'visit summary must not duplicate permanent actions');
+    // Le sommaire de la visite a été retiré : la visite s'ouvre directement sur la saisie.
+    assert.equal(model.construireEspacesVisite,undefined,'visit summary model removed');
+    assert.equal(model.utiliseParcoursTerrain,undefined,'visit summary switch removed');
+    assert.ok(!fs.existsSync(path.join(root,'VisitSpaces.js')),'visit summary screen removed');
+    const visitSource=fs.readFileSync(path.join(root,'VisiteScreen.js'),'utf8');
+    assert.doesNotMatch(visitSource,/Sommaire de la visite|VisitSpaces|sommaireVisible/,'visit screen opens directly on the input panels');
     const searchSource=fs.readFileSync(path.join(root,'VisitSearchSheet.js'),'utf8');
     assert.match(searchSource,/onShow=\{focusSearch\}/,'visit-wide search focuses after native modal presentation');
     assert.match(searchSource,/ref=\{inputRef\}/,'visit-wide search input uses a stable ref');

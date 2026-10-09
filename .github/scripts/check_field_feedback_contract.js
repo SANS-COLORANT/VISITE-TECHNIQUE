@@ -13,7 +13,7 @@ for (const file of ['TrameGenericPanel.js', 'OptimizedRelevesPanel.js', 'Optimiz
 
 const visit = read('VisiteScreen.js');
 // 2. Glissé horizontal entre onglets : seuil court.
-need(visit, 'Math.max(40, w * 0.07)', 'tab swipe threshold');
+need(visit, 'swipeDirection(g.dx, g.vx, w)', 'tab swipe: short light gesture (swipeNavigation.js)');
 // 3. Statut de sauvegarde isolé (pas de rendu complet de la visite).
 need(visit, 'const SaveStatusBadge = memo(', 'isolated save status');
 

@@ -1,7 +1,8 @@
 /** Écran Visite — pager natif, swipe interactif et panneaux gardés chauds. */
 import React, { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions, Animated, Easing } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions, Animated } from 'react-native';
 import { StyleSheet } from 'react-native';
+import { SWIPE_NEIGHBOUR_OPACITY, SWIPE_NEIGHBOUR_SCALE, rubberBand, settleSpring, shouldStartSwipe, swipeDirection } from './swipeNavigation.js';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
@@ -43,8 +44,6 @@ import { ToastHost, showToast } from './PremiumDialogs.js';
 import { getPrefSync, PREFS } from './uiPrefs.js';
 import { SignatureSheet, enregistrerSignatureVisite, lireSignatureVisite } from './visitSignature.js';
 import { SkeletonVisit } from './Skeleton.js';
-import { VisitSpaces } from './VisitSpaces.js';
-import { utiliseParcoursTerrain } from './terrainVisitModel.js';
 
 const attendre = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 function chargerExcelExportModule(){return require('./excelExport.js');}
@@ -165,7 +164,6 @@ function VisiteScreen({ route, onBack }) {
   // Feuille d'état ouverte en touchant la jauge de l'en-tête (remplace la carte d'avancement).
   const [statutVisible, setStatutVisible] = useState(false);
   const [rechercheVisible, setRechercheVisible] = useState(false);
-  const [sommaireVisible, setSommaireVisible] = useState(true);
 
   const rafraichirEtatOnglets = useCallback(() => {
     calculerEtatOnglets(visiteId, trameIdRef.current)
@@ -341,17 +339,17 @@ function VisiteScreen({ route, onBack }) {
     requestAnimationFrame(() => warmPagerWindow(prochain));
   }, [visiteId, visitNavKey, warmPagerWindow]);
 
-  const animateToTab = useCallback((prochain, duration = 145) => {
+  const animateToTab = useCallback((prochain, velocityX = 0) => {
     const tabs = tabOrderRef.current;
     const targetIndex = tabs.indexOf(prochain);
     if (targetIndex < 0) { transitionRef.current = false; return; }
     const wasMounted = mountedPanelIdsRef.current.has(prochain);
     addMountedPanels([prochain], { stickyHeavy: true });
     const start = () => {
-      Animated.timing(pagerX, {
+      // Ressort critique (sans rebond) qui reprend la vitesse du doigt : fluide et vif.
+      Animated.spring(pagerX, {
         toValue: -targetIndex * pagerWidthRef.current,
-        duration,
-        easing: Easing.out(Easing.cubic),
+        ...settleSpring(velocityX),
         useNativeDriver: true,
       }).start(({ finished }) => {
         if (finished) completeTabChange(prochain);
@@ -362,7 +360,6 @@ function VisiteScreen({ route, onBack }) {
   }, [addMountedPanels, completeTabChange, pagerX]);
 
   const changerOnglet = useCallback((prochain, anime = true) => {
-    setSommaireVisible(false);
     if (!prochain || prochain === activeTabRef.current || transitionRef.current) return;
     Keyboard.dismiss();
     const tabs = tabOrderRef.current;
@@ -384,7 +381,7 @@ function VisiteScreen({ route, onBack }) {
     }
 
     transitionRef.current = true;
-    animateToTab(prochain, 155);
+    animateToTab(prochain, 0);
   }, [addMountedPanels, animateToTab, completeTabChange, pagerX]);
 
   const retourSecurise = useCallback(() => {
@@ -511,21 +508,17 @@ function VisiteScreen({ route, onBack }) {
 
   const terminerSwipeLocalPreAllumage = useCallback((g) => {
     const w = pagerWidthRef.current;
-    const threshold = Math.max(44, w * 0.065);
-    const versSuivant = g.dx < -threshold || g.vx < -0.42;
-    const versPrecedent = g.dx > threshold || g.vx > 0.42;
-    const direction = versSuivant ? 1 : versPrecedent ? -1 : 0;
+    const direction = swipeDirection(g.dx, g.vx, w);
     const peutChanger = direction ? preAllumageLocalSwipeRef.current?.(direction, false) : false;
     if (!peutChanger) {
-      Animated.spring(preAllumageLocalX, { toValue: 0, speed: 28, bounciness: 0, useNativeDriver: true }).start(() => {
+      Animated.spring(preAllumageLocalX, { toValue: 0, ...settleSpring(g.vx), useNativeDriver: true }).start(() => {
         transitionRef.current = false;
       });
       return;
     }
-    Animated.timing(preAllumageLocalX, {
+    Animated.spring(preAllumageLocalX, {
       toValue: direction > 0 ? -w : w,
-      duration: 115,
-      easing: Easing.out(Easing.cubic),
+      ...settleSpring(g.vx),
       useNativeDriver: true,
     }).start(({ finished }) => {
       if (!finished) { transitionRef.current = false; return; }
@@ -537,12 +530,7 @@ function VisiteScreen({ route, onBack }) {
       }
       preAllumageLocalX.setValue(direction > 0 ? w : -w);
       requestAnimationFrame(() => {
-        Animated.timing(preAllumageLocalX, {
-          toValue: 0,
-          duration: 165,
-          easing: Easing.out(Easing.cubic),
-          useNativeDriver: true,
-        }).start(() => { transitionRef.current = false; });
+        Animated.spring(preAllumageLocalX, { toValue: 0, ...settleSpring(0), useNativeDriver: true }).start(() => { transitionRef.current = false; });
       });
     });
   }, [preAllumageLocalX]);
@@ -552,21 +540,19 @@ function VisiteScreen({ route, onBack }) {
     const tabs = tabOrderRef.current;
     const idx = Math.max(0, Math.min(tabs.length - 1, gestureStartIndexRef.current));
     const w = pagerWidthRef.current;
-    // Changement d'onglet au glissé : court (7 % de la largeur) ou rapide.
-    const threshold = Math.max(40, w * 0.07);
-    const versSuivant = g.dx < -threshold || (g.vx < -0.3 && g.dx < -16);
-    const versPrecedent = g.dx > threshold || (g.vx > 0.3 && g.dx > 16);
-    const prochain = versSuivant && idx < tabs.length - 1 ? tabs[idx + 1] : versPrecedent && idx > 0 ? tabs[idx - 1] : null;
+    // Un geste court ou un petit coup de doigt suffit (voir swipeNavigation.js).
+    const direction = swipeDirection(g.dx, g.vx, w);
+    const prochain = direction > 0 && idx < tabs.length - 1 ? tabs[idx + 1] : direction < 0 && idx > 0 ? tabs[idx - 1] : null;
 
     if (!prochain) {
-      Animated.spring(pagerX, { toValue: -idx * w, speed: 28, bounciness: 0, useNativeDriver: true }).start(() => {
+      Animated.spring(pagerX, { toValue: -idx * w, ...settleSpring(g.vx), useNativeDriver: true }).start(() => {
         transitionRef.current = false;
         warmPagerWindow(activeTabRef.current);
       });
       return;
     }
 
-    animateToTab(prochain, 135);
+    animateToTab(prochain, g.vx);
   }, [animateToTab, pagerX, warmPagerWindow]);
   finishSwipeRef.current = terminerSwipe;
 
@@ -576,7 +562,7 @@ function VisiteScreen({ route, onBack }) {
       onMoveShouldSetPanResponder: (_evt, g) => {
         // Geste horizontal accepté dès qu'il domine un peu (un glissé au pouce
         // n'est jamais parfaitement horizontal) ; le vertical reste au défilement.
-        if (transitionRef.current || Math.abs(g.dx) <= 8 || Math.abs(g.dx) <= Math.abs(g.dy) * 1.1) return false;
+        if (transitionRef.current || !shouldStartSwipe(g.dx, g.dy)) return false;
         const localMode = trameIdRef.current === 'pre_allumage' && activeTabRef.current === 'p-pa-batiments';
         return localMode ? typeof preAllumageLocalSwipeRef.current === 'function' : true;
       },
@@ -597,15 +583,15 @@ function VisiteScreen({ route, onBack }) {
         if (gestureModeRef.current === 'preallumage-local') {
           const direction = g.dx < 0 ? 1 : -1;
           const peutChanger = preAllumageLocalSwipeRef.current?.(direction, false);
-          preAllumageLocalX.setValue(peutChanger ? g.dx : g.dx * 0.20);
+          preAllumageLocalX.setValue(rubberBand(g.dx, !peutChanger));
           return;
         }
         const tabs = tabOrderRef.current;
         const idx = Math.max(0, Math.min(tabs.length - 1, gestureStartIndexRef.current));
         const w = pagerWidthRef.current;
-        let dx = g.dx;
-        if ((idx === 0 && dx > 0) || (idx === tabs.length - 1 && dx < 0)) dx *= 0.24;
-        const target = dx < -24 && idx < tabs.length - 1 ? tabs[idx + 1] : dx > 24 && idx > 0 ? tabs[idx - 1] : null;
+        const dx = rubberBand(g.dx, (idx === 0 && g.dx > 0) || (idx === tabs.length - 1 && g.dx < 0));
+        // La page voisine est montée dès le début du geste : pas d'à-coup au premier pixel.
+        const target = dx < -10 && idx < tabs.length - 1 ? tabs[idx + 1] : dx > 10 && idx > 0 ? tabs[idx - 1] : null;
         if (target && !mountedPanelIdsRef.current.has(target)) ensureMountedRef.current?.([target]);
         pagerX.setValue(-idx * w + dx);
       },
@@ -615,13 +601,13 @@ function VisiteScreen({ route, onBack }) {
       },
       onPanResponderTerminate: () => {
         if (gestureModeRef.current === 'preallumage-local') {
-          Animated.spring(preAllumageLocalX, { toValue: 0, speed: 28, bounciness: 0, useNativeDriver: true }).start(() => {
+          Animated.spring(preAllumageLocalX, { toValue: 0, ...settleSpring(0), useNativeDriver: true }).start(() => {
             transitionRef.current = false;
           });
           return;
         }
         const idx = Math.max(0, gestureStartIndexRef.current);
-        Animated.spring(pagerX, { toValue: -idx * pagerWidthRef.current, speed: 28, bounciness: 0, useNativeDriver: true }).start(() => {
+        Animated.spring(pagerX, { toValue: -idx * pagerWidthRef.current, ...settleSpring(0), useNativeDriver: true }).start(() => {
           transitionRef.current = false;
         });
       },
@@ -769,7 +755,11 @@ function VisiteScreen({ route, onBack }) {
         return <Animated.View
           key={`${panelId}-${photoRev}`}
           pointerEvents={panelId === activeTab ? 'auto' : 'none'}
-          style={{ position: 'absolute', top: 0, bottom: 0, left: index * pagerWidth, width: pagerWidth, transform: [{ translateX: pagerX }] }}
+          style={{
+            position: 'absolute', top: 0, bottom: 0, left: index * pagerWidth, width: pagerWidth,
+            opacity: pagerX.interpolate({ inputRange: [(-index - 1) * pagerWidth, -index * pagerWidth, (-index + 1) * pagerWidth], outputRange: [SWIPE_NEIGHBOUR_OPACITY, 1, SWIPE_NEIGHBOUR_OPACITY], extrapolate: 'clamp' }),
+            transform: [{ translateX: pagerX }, { scale: pagerX.interpolate({ inputRange: [(-index - 1) * pagerWidth, -index * pagerWidth, (-index + 1) * pagerWidth], outputRange: [SWIPE_NEIGHBOUR_SCALE, 1, SWIPE_NEIGHBOUR_SCALE], extrapolate: 'clamp' }) }],
+          }}
         >
           <Animated.View style={{ flex: 1, transform: panelId === 'p-pa-batiments' ? [{ translateX: preAllumageLocalX }] : [] }}>
             <VisitPanelHost
@@ -867,8 +857,7 @@ function VisiteScreen({ route, onBack }) {
         {!modeTablette && !ongletsEnBas && <SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} />}
       </View>
 
-      {utiliseParcoursTerrain(trame.id) ? <TouchableOpacity accessibilityLabel="Sommaire de la visite" onPress={() => setSommaireVisible(v => !v)} style={{paddingHorizontal:18,paddingVertical:8,flexDirection:'row',alignItems:'center',gap:8}}><CvcIcon name="grid" size={20} color={COLORS.orange}/><Text style={{fontFamily:FONTS.bodyBold,color:COLORS.orange}}>{sommaireVisible?'Revenir à la saisie':'Sommaire de la visite'}</Text></TouchableOpacity> : null}
-      {sommaireVisible && utiliseParcoursTerrain(trame.id) ? <VisitSpaces visiteId={visiteId} trameId={trame.id} panels={panels} labels={panelLabels} tabIds={tabsReels} onOpenPanel={id=>{setSommaireVisible(false);changerOnglet(id)}} onClose={()=>setSommaireVisible(false)} onSaved={onSaved}/> : modeTablette ? <View style={{ flex: 1, flexDirection: 'row' }}>
+      {modeTablette ? <View style={{ flex: 1, flexDirection: 'row' }}>
         <View style={{ width: 205, backgroundColor: 'rgba(255,255,255,0.55)', borderRightWidth: 1, borderRightColor: 'rgba(22,21,15,0.08)' }}>
           <SideSectionList tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} />
         </View>
