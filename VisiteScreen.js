@@ -1,6 +1,6 @@
 /** Écran Visite — pager natif, swipe interactif et panneaux gardés chauds. */
 import React, { memo, useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions, Animated } from 'react-native';
+import { View, Text, ScrollView, TextInput, TouchableOpacity, Modal, ActivityIndicator, PanResponder, Alert, Keyboard, useWindowDimensions, Animated, Easing } from 'react-native';
 import { StyleSheet } from 'react-native';
 import { SWIPE_NEIGHBOUR_OPACITY, SWIPE_NEIGHBOUR_SCALE, rubberBand, settleSpring, shouldStartSwipe, swipeDirection } from './swipeNavigation.js';
 import { LinearGradient } from 'expo-linear-gradient';
