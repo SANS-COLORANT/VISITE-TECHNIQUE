@@ -19,6 +19,8 @@ import { QUICK_VISIT_CLIENT_ID, listerIdsVisitesARattacher, nettoyerSitesARattac
 import { AttachVisitSheet } from './AttachVisitSheet.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { EmptyIcon } from './EmptyState.js';
+import { MaJourneeCard } from './MaJourneeCard.js';
+import { RechercheGlobaleResultats } from './RechercheGlobaleResultats.js';
 
 const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null, quickIds: null, restes: null };
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
@@ -234,7 +236,7 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
               value={quickSearch}
               onChangeText={setQuickSearch}
               onSubmitEditing={openDirectory}
-              placeholder="Client, site, ville, adresse, équipement…"
+              placeholder="Client, site, local, règle…"
               placeholderTextColor="#98A2B3"
               style={{ flex: 1, color: COLORS.ink || '#17212B', fontSize: 14.5, paddingVertical: 12, marginLeft: 9 }}
               autoCorrect={false}
@@ -246,6 +248,8 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
             </TouchableOpacity>
           </View>
         </FadeUp>
+
+        {quickSearch.trim().length >= 2 ? <RechercheGlobaleResultats requete={quickSearch} clients={clientsVisibles} navigation={navigation} onAnnuler={() => setQuickSearch('')} /> : <MaJourneeCard navigation={navigation} refreshKey={visitesEnCours.length + stats.terminees} />}
 
         {visitesARattacher.length > 0 && <>
           <Text style={[styles.sectionLabel, { marginBottom: 8 }]}>À rattacher</Text>

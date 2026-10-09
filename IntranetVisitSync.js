@@ -212,7 +212,7 @@ async function assertQueuedClientStillMatchesImportedClient(visiteId, row) {
   }
 }
 
-export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compact = false }) {
+export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compact = false, beforeSend = null }) {
   const visiteId = visite?.id;
   const { row, loading, refresh } = useVisitUploadState(visiteId);
   const { summary: photoSummary, loading: photoLoading, refresh: refreshPhotos } = useVisitPhotoUploadSummary(visiteId);
@@ -329,6 +329,9 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
 
       await bindSameImportedClient(visiteId);
       await onVisitChanged?.();
+
+      // Relecture avant envoi : une aide, jamais un blocage (« Envoyer quand même »).
+      if (beforeSend && !(await beforeSend())) return;
 
       const final = ['terminee', 'exportee'].includes(visite?.statut);
       if (!final) {

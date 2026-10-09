@@ -35,6 +35,7 @@ import { pictoReleve, pictoTemperature } from './relevePictos.js';
 import { PersistentControleGenerique } from './PersistentControleGenerique.js';
 import { controlerIndex, destinationDepuisLibelle, destinationsDisponibles, libelleDestination, nombreIndex } from './meterDestinations.js';
 import { LecturePhotoButton } from './PhotoOcrReview.js';
+import { CourbeReleves } from './CourbeReleves.js';
 import { ChampMesureTile, ExtraMeasurementCard, nombreMesure } from './ExtraMeasurementCard.js';
 import { listerPointsMesureVisite, ajouterPointMesureVisite, modifierPointMesureVisite } from './terrainVisitDb.js';
 import {
@@ -325,6 +326,7 @@ const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, ch
           }} />
       </View>
       {controle ? <Text style={[st.cptMsg, { color: controle.niveau === 'erreur' ? KIT.red : KIT.amber }]}>{controle.message}</Text> : null}
+      {suiviIndex && compteur.compteur_site_id ? <CourbeReleves compteurSiteId={compteur.compteur_site_id} visiteId={visiteId} valeur={valeur} unite={unite} /> : null}
       {doublonDestination ? <Text style={[st.cptMsg, { color: KIT.amber }]}>Plusieurs compteurs du même type : ils seront regroupés dans une seule cellule du rapport et de l’Intranet, une ligne chacun.</Text> : null}
       <DestinationSheet visible={choixDestination} valeur={destinationAffichee} options={options} onClose={() => setChoixDestination(false)} onPick={enregistrerDestination} />
       <PhotoSheet visible={photoVisible} onClose={() => setPhotoVisible(false)} visiteId={visiteId} entiteKey={entiteKey} label={label || 'Compteur'} />

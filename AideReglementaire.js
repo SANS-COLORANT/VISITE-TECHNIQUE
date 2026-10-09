@@ -309,6 +309,7 @@ export function AideReglementaireHost() {
     const l = (d) => {
       if (!d) return;
       setDemande(d);
+      if (d.themeId) { setVue({ type: 'fiche', themeId: d.themeId, action: '', depuisOnglet: false }); return; }
       if (d.sectionCode) {
         const f = ficheDeLaLigne(d.trameId, d.sectionCode, d.cle);
         if (f) setVue({ type: 'fiche', themeId: f.theme.id, action: f.action, depuisOnglet: false });

@@ -1,5 +1,6 @@
 /** Écran d'un site : visites, équipements, remarques + localisation par adresse. */
 
+import { DepuisDerniereVisiteCard } from './DepuisDerniereVisiteCard.js';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView, InteractionManager } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
@@ -375,7 +376,7 @@ function SiteVisitesScreen({ route, navigation }) {
         contentContainerStyle={styles.content}
         data={siteTab === 'visites' ? visites : []}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={<View><PhotoReferenceAccess siteId={siteId} remoteLocalId={apiRemoteLocalId} contextTitle={nomLocal || nomSite} /><LocalisationHeader /><SiteTabs />{siteTab === 'visites' ? <VisitesHeader /> : null}</View>}
+        ListHeaderComponent={<View><PhotoReferenceAccess siteId={siteId} remoteLocalId={apiRemoteLocalId} contextTitle={nomLocal || nomSite} /><LocalisationHeader />{siteTab === 'visites' && installationId ? <DepuisDerniereVisiteCard siteId={siteId} installationId={installationId} refreshKey={visites.length} /> : null}<SiteTabs />{siteTab === 'visites' ? <VisitesHeader /> : null}</View>}
         renderItem={({ item }) => {
           const trame = obtenirTrame(item.trame_id || DEFAULT_TRAME_ID);
           const selectionnee = visitesSelectionnees.has(item.id);

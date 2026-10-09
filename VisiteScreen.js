@@ -7,6 +7,8 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS, FONTS, styles } from './styles.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
+import { useRelecture } from './RelectureSheet.js';
+import { appliquerMotif, motifActif, motifsPourOnglet } from './motifsReserve.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { ProgressRing, AmbientBackground } from './premiumChrome.js';
 import { Picto, ACTION_PICTOS } from './MetraPictos.js';
@@ -723,7 +725,7 @@ function VisiteScreen({ route, onBack }) {
   };
 
   const enregistrerAnomalie = async () => {
-    const texte = anomalieTxt.trim();
+    const texte = anomalieTxt.trim().replace(/\s*:\s*$/, '');
     if (!texte) return;
     if (trame.id === 'reseau_chaleur_v1' && !anomaliePerimetre) {
       Alert.alert('Périmètre requis', 'Choisis Primaire ou Secondaire pour cette anomalie.');
@@ -736,6 +738,12 @@ function VisiteScreen({ route, onBack }) {
     setAnomalieVisible(false);
     if (tabsReels.includes('p-remarques')) changerOnglet('p-remarques');
   };
+
+  const tabStatusRef = useRef(tabStatus);
+  tabStatusRef.current = tabStatus;
+  const getOngletsRelecture = useCallback(() => tabStatusRef.current?.tabs || {}, []);
+  const motifsAnomalie = useMemo(() => motifsPourOnglet(panelLabels?.[activeTab] || ''), [panelLabels, activeTab]);
+  const relecture = useRelecture({ visiteId, getOnglets: getOngletsRelecture, labels: panelLabels, ordre: tabsReels, onOpenOnglet: changerOnglet });
 
   if (!visite && chargementErreur) return <View style={[styles.center, { paddingHorizontal: 24 }]}>
     <Text style={{ color: COLORS.ink, fontSize: 17, fontWeight: '900', textAlign: 'center' }}>Impossible d’ouvrir la visite</Text>
@@ -889,9 +897,10 @@ function VisiteScreen({ route, onBack }) {
             <Text style={hs.attachTitle}>À rattacher</Text>
             <Text style={hs.attachSub}>Choisir un client</Text>
           </TouchableOpacity>
-        ) : <IntranetVisitSyncControl visite={visite} onVisitChanged={() => charger({ forceCaches: true })} />}
+        ) : <IntranetVisitSyncControl visite={visite} onVisitChanged={() => charger({ forceCaches: true })} beforeSend={relecture.demander} />}
         onVoirReserves={tabsReels.includes('p-remarques') ? () => { setStatutVisible(false); changerOnglet('p-remarques'); } : null}
       />
+      {relecture.sheet}
       <VisitSearchSheet visible={rechercheVisible} onClose={() => setRechercheVisible(false)} panels={panels} tabs={tabsReels} labels={panelLabels} onOpen={changerOnglet} />
       <AttachVisitSheet
         visible={rattachementVisible}
@@ -917,7 +926,12 @@ function VisiteScreen({ route, onBack }) {
       </Modal>
       <Modal visible={anomalieVisible} transparent animationType="fade" onRequestClose={() => setAnomalieVisible(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Ajouter une anomalie</Text><Text style={styles.importHint}>Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.</Text>
-        <TextInput style={[styles.input, { minHeight: 100, marginTop: 12, textAlignVertical: 'top' }]} multiline autoFocus value={anomalieTxt} onChangeText={setAnomalieTxt} placeholder="Ex. Pompe défaillante, température de départ trop basse…" />
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" style={{ marginTop: 12, flexGrow: 0 }} contentContainerStyle={{ gap: 8 }}>
+          {motifsAnomalie.map((motif) => { const on = motifActif(anomalieTxt, motifsAnomalie) === motif; return <TouchableOpacity key={motif} accessibilityRole="button" accessibilityState={{ selected: on }} onPress={() => setAnomalieTxt(appliquerMotif(anomalieTxt, motif, motifsAnomalie))} style={[styles.avisChip, { flex: 0, paddingHorizontal: 12 }, on && { backgroundColor: COLORS.orangeLight, borderColor: COLORS.orange }]}>
+            <Text style={[styles.avisChipText, on && { color: COLORS.orangeDark }]}>{motif}</Text>
+          </TouchableOpacity>; })}
+        </ScrollView>
+        <TextInput style={[styles.input, { minHeight: 100, marginTop: 10, textAlignVertical: 'top' }]} multiline autoFocus value={anomalieTxt} onChangeText={setAnomalieTxt} placeholder="Ex. Pompe défaillante, température de départ trop basse…" />
         {trame.id === 'reseau_chaleur_v1' ? <View style={{ marginTop: 12 }}>
           <Text style={styles.fieldLabel}>Périmètre concerné · obligatoire</Text>
           <View style={{ flexDirection: 'row', gap: 8, marginTop: 7 }}>
