@@ -308,12 +308,14 @@ export function preparerPhotosRapport(data, existantes = []) {
   })).sort((a, b) => a.ordre - b.ordre);
 }
 
-async function imageRapportBase64(uri) {
+async function imageRapportBase64(uri, output = 'pdf') {
   try {
+    // JPEG scaled for A4 print; original image stays untouched in local storage.
+    const pdf = output === 'pdf';
     const r = await ImageManipulator.manipulateAsync(
       uri,
-      [{ resize: { width: 900 } }],
-      { compress: 0.55, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      [{ resize: { width: pdf ? 720 : 900 } }],
+      { compress: pdf ? 0.46 : 0.55, format: ImageManipulator.SaveFormat.JPEG, base64: true }
     );
     return r.base64 ? `data:image/jpeg;base64,${r.base64}` : null;
   } catch {
@@ -357,7 +359,7 @@ function materielHtml(data, config) {
   return `<section class="reportSection pageBreakBefore"><div class="sectionBanner">LISTING MATÉRIEL</div><table class="materialTable"><thead><tr><th>Catégorie</th><th class="qty">Nombre</th><th>Désignation</th><th>Marque</th><th>Modèle</th><th class="year">Année</th></tr></thead><tbody>${rows.map((m) => `<tr><td>${esc(m.categorie || '')}</td><td class="qty">${esc(m.nombre || 1)}</td><td>${esc(m.designation || '')}</td><td>${esc(m.marque || '')}</td><td>${esc(m.modele || '')}</td><td class="year">${esc(m.annee || '')}</td></tr>`).join('')}</tbody></table></section>`;
 }
 
-async function photosHtml(data, config, photosConfig) {
+async function photosHtml(data, config, photosConfig, output = 'pdf') {
   if (!config.photos) return '';
   const items = (photosConfig || [])
     .filter((p) => p.visiteId === data.visite.id && p.include)
@@ -366,7 +368,7 @@ async function photosHtml(data, config, photosConfig) {
 
   const prepared = [];
   for (const p of items) {
-    const src = await imageRapportBase64(p.uri);
+    const src = await imageRapportBase64(p.uri, output);
     if (src) prepared.push({ ...p, src });
   }
   if (!prepared.length) return '';
@@ -374,10 +376,10 @@ async function photosHtml(data, config, photosConfig) {
   return chunk(prepared, 6).map((page) => `<section class="photoPage pageBreakBefore"><div class="sectionBanner">PHOTOGRAPHIES</div><div class="photoGrid">${page.map((p) => `<div class="photoCard"><div class="photoImageWrap"><img src="${p.src}"/></div><div class="photoCaption">${esc(p.label || 'Photo')}</div></div>`).join('')}</div></section>`).join('');
 }
 
-async function siteHtml(data, config, photosConfig) {
+async function siteHtml(data, config, photosConfig, output = 'pdf') {
   const sections = (data.sections || []).map((s) => sectionHtml(s, config)).join('');
   const reserves = reservesHtml(data, config);
-  const photos = await photosHtml(data, config, photosConfig);
+  const photos = await photosHtml(data, config, photosConfig, output);
   const materiel = materielHtml(data, config);
   const local = data.visite.nom_local || data.visite.type_local || 'Installation technique';
   return `<article class="siteReport"><div class="siteStart"><h1>${esc(data.visite.nom_site || 'Site')}</h1><h4>${esc(local)}</h4></div>${sections}${reserves}${photos}${materiel}</article>`;
@@ -510,7 +512,7 @@ async function signaturesRapportHtml(datas, output) {
 
 export async function construireHtmlRapport(datas, config, photosConfig = [], output = 'pdf') {
   const contenus = [];
-  for (const d of datas) contenus.push(await siteHtml(d, config, photosConfig));
+  for (const d of datas) contenus.push(await siteHtml(d, config, photosConfig, output));
 
   const client = datas[0]?.visite?.nom_client || 'Rapport';
   const patrimoineHtml = await construireSynthesePatrimoineHtml(datas, config);
