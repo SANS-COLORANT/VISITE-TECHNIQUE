@@ -4,6 +4,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { Asset } from 'expo-asset';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { construireHtmlRapport } from './reportBuilder.js';
+import { decouperRapportPdf, extraireEnteteRapport, composerHtmlFragment } from './reportPdfFragments.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
 import { dossierRapportsClientMetra, dossierRapportsSiteMetra, dossierRapportsLocalMetra } from './metraStorage.js';
 
@@ -393,6 +394,49 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
   return outUri;
 }
 
+
+async function imprimerPdfParFragments({ datas, config, photosConfig, onProgress }) {
+  const fragments = decouperRapportPdf(datas, photosConfig, config.photos !== false);
+  const sansPhotos = await construireHtmlEdite(datas, { ...config, photos: false }, [], 'pdf');
+  const entete = extraireEnteteRapport(sansPhotos.html);
+  const final = await PDFDocument.create();
+  let count = 0;
+  try {
+    for (const fragment of fragments) {
+      const rendered = await construireHtmlEdite(
+        [fragment.data],
+        { ...config, patrimoine: false },
+        fragment.photosConfig,
+        'pdf'
+      );
+      // Every Android print job contains at most 8 photos; keep only one cover.
+      const html = composerHtmlFragment(rendered.html, entete, fragment);
+      let printed = null;
+      try {
+        printed = await Print.printToFileAsync({ html, base64: false });
+        const content = await FileSystem.readAsStringAsync(printed.uri, {
+          encoding: FileSystem.EncodingType.Base64,
+        });
+        const chunk = await PDFDocument.load(content);
+        const pages = await final.copyPages(chunk, chunk.getPageIndices());
+        for (const page of pages) final.addPage(page);
+      } finally {
+        if (printed?.uri) await FileSystem.deleteAsync(printed.uri, { idempotent: true }).catch(() => {});
+      }
+      count += 1;
+      onProgress?.(count, fragments.length);
+    }
+    const destination = FileSystem.cacheDirectory + 'rapport_fragments_' + Date.now() + '.pdf';
+    const encoded = await final.saveAsBase64({ dataUri: false });
+    await FileSystem.writeAsStringAsync(destination, encoded, {
+      encoding: FileSystem.EncodingType.Base64,
+    });
+    return destination;
+  } catch (error) {
+    throw new Error('Génération PDF par lots interrompue (' + count + '/' + fragments.length + ') : ' + String(error?.message || error));
+  }
+}
+
 async function exporterUnFormatEdite({ datas, config, photosConfig, format, dossier }) {
   const clientNom = datas[0]?.visite?.nom_client || 'Rapport';
   const localNom = datas[0]?.visite?.nom_local || datas[0]?.visite?.type_local || null;
@@ -402,14 +446,19 @@ async function exporterUnFormatEdite({ datas, config, photosConfig, format, doss
   const sites = [...new Set(datas.map((d) => d.visite.nom_site).filter(Boolean))];
   const siteFooter = sites.length === 1 ? [sites[0], datas.length === 1 ? localNom : null].filter(Boolean).join(' · ') : `${sites.length} sites sélectionnés`;
   const clientCover = datas[0]?.visite?.nom_client || 'Rapport';
-  const rendered = await construireHtmlEdite(datas, config, photosConfig, format === 'word' ? 'word' : 'pdf');
+  const nombreusesPhotos = format !== 'word' && config.photos !== false && (photosConfig || []).filter(p => p.include && datas.some(d => String(d.visite.id) === String(p.visiteId))).length > 8;
+  const rendered = nombreusesPhotos
+    ? { coverDataUri: config.coverUri ? await imageDataUri(config.coverUri) : null }
+    : await construireHtmlEdite(datas, config, photosConfig, format === 'word' ? 'word' : 'pdf');
 
   if (format === 'word') {
     const nom = `${base}.doc`;
     return { format, uri: await ecrireWordHtml(dossier, nom, rendered.html), nom };
   }
 
-  const printed = await Print.printToFileAsync({ html: rendered.html, base64: false });
+  const printed = nombreusesPhotos
+    ? { uri: await imprimerPdfParFragments({ datas, config, photosConfig, onProgress: config.onPdfProgress }) }
+    : await Print.printToFileAsync({ html: rendered.html, base64: false });
   let habille = null;
   const nom = `${base}.pdf`;
   try {
