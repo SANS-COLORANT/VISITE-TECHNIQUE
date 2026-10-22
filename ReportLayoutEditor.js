@@ -216,7 +216,7 @@ function PhotoPreviewPage({ item, onPatchPhoto }) {
 
 export function ReportLayoutEditor({
   datas, photos, config, layout, onLayoutChange, onMoveSite, onPatchPhoto,
-  onGenerate, busy, format, onFormatChange,
+  onGenerate, busy, pdfProgress, format, onFormatChange,
 }) {
   const items = useMemo(() => buildPreviewItems(datas, photos, config, layout), [datas, photos, config, layout]);
   const totalReserves = useMemo(() => datas.reduce((n, d) => n + (d.remarques || []).length, 0), [datas]);
@@ -282,7 +282,7 @@ export function ReportLayoutEditor({
         <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }, format === 'pdf' && { borderColor: COLORS.orange, backgroundColor: '#FFF3E8' }]} onPress={() => onFormatChange('pdf')}><Text style={styles.btnSecondaryText}>PDF</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }, format === 'word' && { borderColor: COLORS.orange, backgroundColor: '#FFF3E8' }]} onPress={() => onFormatChange('word')}><Text style={styles.btnSecondaryText}>Word</Text></TouchableOpacity>
       </View>
-      <TouchableOpacity style={[styles.btnPrimary, { opacity: busy ? 0.55 : 1 }]} disabled={busy} onPress={onGenerate}><Text style={styles.btnPrimaryText}>{busy ? 'Génération…' : `Générer ${format === 'pdf' ? 'le PDF' : 'le Word'}`}</Text></TouchableOpacity>
+      <TouchableOpacity style={[styles.btnPrimary, { opacity: busy ? 0.55 : 1 }]} disabled={busy} onPress={onGenerate}><Text style={styles.btnPrimaryText}>{busy ? (pdfProgress || 'Génération…') : `Générer ${format === 'pdf' ? 'le PDF' : 'le Word'}`}</Text></TouchableOpacity>
     </View>}
   />;
 }
