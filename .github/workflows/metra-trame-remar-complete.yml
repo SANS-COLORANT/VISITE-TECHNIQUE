@@ -1,0 +1,153 @@
+name: METRA complete - TRAME REMAR
+on:
+  push:
+    branches: [feat/trame-remar-complete]
+    paths: ['**/*.js', '**/*.json', '**/*.mjs', 'native/**', 'plugins/**', '.github/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: metra-remar-complete-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+      METRA_RELEASE_STORE_PASSWORD: android
+      METRA_RELEASE_KEY_ALIAS: androiddebugkey
+      METRA_RELEASE_KEY_PASSWORD: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install verified committed source
+        run: |
+          npm ci --no-audit --no-fund --prefer-offline
+          git diff --exit-code
+      - name: Test REMAR, editable trames and real SQLite round trips
+        run: node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
+      - name: Preserve large PDF report regression (457 photos)
+        run: node tests/reportPdfFragments.test.mjs
+      - name: Stamp Android update version (packaging only)
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, os, time
+          p = Path('app.json')
+          data = json.loads(p.read_text())
+          assert data['expo']['android']['package'] == 'com.visitetechnique.tablet'
+          data['expo']['android']['versionCode'] = int(time.time())
+          p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
+          version = Path('appVersion.js')
+          version.write_text(version.read_text().replace("APK_BUILD = 'DEV'", "APK_BUILD = 'REMAR-" + os.environ['BUILD_NUMBER'] + "'"))
+          Path('/tmp/metra-version-code').write_text(str(data['expo']['android']['versionCode']))
+          PY
+      - name: Validate complete Android bundle
+        run: npx expo export --platform android --max-workers 2 --output-dir dist-remar-ci
+      - name: Generate native project without runtime patches
+        run: |
+          npx expo prebuild --clean --platform android --no-install --skip-dependency-update react,react-native
+          test -s android/gradlew
+          git diff --exit-code -- '*.js' ':!appVersion.js' ':!googleMapsRuntime.generated.js'
+      - name: Preserve historical METRA signing identity
+        run: |
+          set -euo pipefail
+          actual="$(keytool -list -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          test "$actual" = FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C
+          cp android/app/debug.keystore android/app/metra-release.keystore
+          python3 .github/scripts/configure_android_release_signing.py
+      - name: Build complete standalone release
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx4g -Pkotlin.compiler.execution.strategy=in-process -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64
+      - name: Verify Android update identity and signature
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp android/app/build/outputs/apk/release/app-release.apk release/METRA-TRAME-REMAR-complet.apk
+          tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$tools/apksigner" verify --verbose --print-certs release/METRA-TRAME-REMAR-complet.apk > /tmp/metra-signer.txt
+          cat /tmp/metra-signer.txt
+          grep -qi 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c' /tmp/metra-signer.txt
+          "$tools/aapt" dump badging release/METRA-TRAME-REMAR-complet.apk > /tmp/metra-badging.txt
+          head -1 /tmp/metra-badging.txt | grep "name='com.visitetechnique.tablet'"
+          grep "versionCode='$(cat /tmp/metra-version-code)'" /tmp/metra-badging.txt
+          git diff --exit-code -- '*.js' ':!appVersion.js' ':!googleMapsRuntime.generated.js'
+          cd release
+          sha256sum METRA-TRAME-REMAR-complet.apk > METRA-TRAME-REMAR-complet.apk.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: metra-remar-complete-release
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
+  android-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: metra-remar-complete-release
+          path: apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Launch the actual signed APK and exercise REMAR and its editor
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_c
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: python3 .github/scripts/smoke_remar_android.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: metra-remar-android-smoke
+          path: shots/
+          if-no-files-found: warn
+          retention-days: 30
+  publish:
+    needs: [build, android-smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: metra-remar-complete-release
+          path: release
+      - name: Publish the complete METRA APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          cat > /tmp/release-notes.md <<'NOTES'
+          Application METRA complète issue de la version APK 678 et conservant le correctif PDF récent, avec ajout de TRAME REMAR et de Réglages > Trames.
+
+          Même identité Android com.visitetechnique.tablet et même certificat historique METRA ; versionCode incrémenté pour permettre une mise à jour. Sauvegarder ses données avant l'installation d'une nouvelle version. La base conserve le schéma 47 : aucun effacement ni retour à un schéma ancien.
+
+          Trames : modèle REMAR natif, commentaires par avis, import de modèles Excel ou de fichiers METRA, édition des points/choix/mesures/commentaires, versions conservées pour les anciennes visites et export des définitions avec les classeurs.
+
+          Contrôles : npm ci/postinstall sans mutation de code, contrats METRA existants, tests SQLite et aller-retour Excel, non-régression PDF 457 photos, release Gradle signé, lancement et parcours REMAR/Réglages sur émulateur tablette. Les essais terrain sur tablette physique, caméra, OCR et serveur Intranet restent à réaliser avec des données réelles.
+          NOTES
+          gh release create "metra-remar-complet-${BUILD_NUMBER}" release/* --target "$GITHUB_SHA" --title "METRA complet — TRAME REMAR — ${BUILD_NUMBER}" --notes-file /tmp/release-notes.md --prerelease

@@ -1,3 +1,4 @@
+import { REMAR } from './remarTrame.js';
 /**
  * Registre générique des trames de visite.
  *
@@ -215,17 +216,46 @@ const PRE_ALLUMAGE = Object.freeze({
   },
 });
 
-const DEFINITIONS = [ICPE, VMC, RESEAU_CHALEUR, PRE_ALLUMAGE];
+const DEFINITIONS = [ICPE, VMC, RESEAU_CHALEUR, PRE_ALLUMAGE, REMAR];
 for (const definition of DEFINITIONS) exigerDefinitionTrameValide(definition);
 
 const REGISTRY = Object.freeze(Object.fromEntries(DEFINITIONS.map((definition) => [definition.id, definition])));
 
-export function listerTramesDisponibles() { return Object.values(REGISTRY).filter((t) => t.actif !== false); }
+const LOCAL_REGISTRY = new Map();
+export function clearLocalTrames() { LOCAL_REGISTRY.clear(); }
+export function registerLocalTrame(definition) {
+  exigerDefinitionTrameValide(definition);
+  if (REGISTRY[definition.id]) {
+    // Les définitions livrées restent immuables. Un classeur embarqué identique
+    // peut les référencer, mais ne peut pas remplacer leur code de stockage.
+    if (JSON.stringify(REGISTRY[definition.id]) !== JSON.stringify(definition)) throw new Error('Identifiant réservé à une trame intégrée.');
+    return REGISTRY[definition.id];
+  }
+  LOCAL_REGISTRY.set(definition.id, definition);
+  return definition;
+}
+export function listerTramesCatalogue() {
+  const families = new Map();
+  for (const definition of [...Object.values(REGISTRY), ...LOCAL_REGISTRY.values()]) {
+    const family = definition.familyId || definition.id;
+    const current = families.get(family);
+    if (!current || Number(definition.version) > Number(current.version)) families.set(family, definition);
+  }
+  return [...families.values()];
+}
+export function listerTramesDisponibles() { return listerTramesCatalogue().filter((t) => t.actif !== false); }
 export function obtenirTrame(trameId = DEFAULT_TRAME_ID) {
-  const trame = REGISTRY[trameId] || REGISTRY[DEFAULT_TRAME_ID];
+  if (String(trameId).startsWith('local_') && !LOCAL_REGISTRY.has(trameId)) throw new Error('Modèle de cette visite absent : restaurer sa bibliothèque de trames.');
+  const trame = LOCAL_REGISTRY.get(trameId) || REGISTRY[trameId] || REGISTRY[DEFAULT_TRAME_ID];
   if (!trame) throw new Error(`Trame inconnue : ${trameId}`);
   return trame;
 }
+export function tramePourNouvelleVisite(id = DEFAULT_TRAME_ID) {
+  const requested = obtenirTrame(id);
+  const family = requested.familyId || requested.id;
+  return listerTramesDisponibles().find((t) => (t.familyId || t.id) === family) || listerTramesDisponibles()[0];
+}
+
 
 
 export function perimetreControleTrame(trameId, sectionCode, cle) {
@@ -242,7 +272,8 @@ export function estTrameReseauChaleur(trameId) {
 }
 
 export function detecterTrameDepuisClasseur(wb, lireCellule) {
-  const disponibles = listerTramesDisponibles();
+  if (wb.Sheets['TRAME REMAR CLASSIQUE']) return REMAR;
+  const disponibles = [...LOCAL_REGISTRY.values()].reverse().concat(Object.values(REGISTRY));
   for (const trame of disponibles) {
     const cfg = trame.excel;
     if (!cfg?.requiredSheets?.every((nom) => !!wb.Sheets[nom])) continue;

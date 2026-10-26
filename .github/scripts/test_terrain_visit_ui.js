@@ -99,7 +99,7 @@ async function main() {
     await assert.rejects(terrain.modifierPointMesureVisite('v',point,'valeur','12 bar'),/numérique/);
     const data=load('data.js'), XLSX=require('xlsx');
     const rcu=load('reseauChaleurTrame.js',{TRAME_DATA:data.TRAME_DATA,TEMPLATE_RESEAU_CHALEUR_BASE64:'fixture'});
-    const registry=load('trameRegistry.js',{...data,...rcu,TEMPLATE_EXCEL_BASE64:'fixture',...load('vmcTrame.js',{XLSX}),...load('preAllumageTrame.js',{XLSX}),...load('trameValidation.js')});
+    const registry=load('trameRegistry.js',{...load('remarTrame.js',load('templateExcelRemar.js')),...data,...rcu,TEMPLATE_EXCEL_BASE64:'fixture',...load('vmcTrame.js',{XLSX}),...load('preAllumageTrame.js',{XLSX}),...load('trameValidation.js')});
     const semantic=load('trameSemanticMesh.js');
     const icpeSemantic=semantic.construireIndexSemantiqueTrame(registry.obtenirTrame('icpe_v1'));
     const rcuSemantic=semantic.construireIndexSemantiqueTrame(registry.obtenirTrame('reseau_chaleur_v1'));

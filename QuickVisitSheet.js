@@ -4,12 +4,12 @@
  * démarre sous le client local « À rattacher » (voir quickVisitDb.js).
  */
 import React, { useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, Keyboard, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { IconOrb } from './premiumChrome.js';
 import { COLORS, FONTS } from './styles.js';
-import { listerTramesDisponibles, DEFAULT_TRAME_ID } from './trameRegistry.js';
+import { listerTramesDisponibles, tramePourNouvelleVisite, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { creerVisiteRapide } from './quickVisitDb.js';
 
 const TRAME_PRESENTATION = {
@@ -26,6 +26,7 @@ function QuickVisitSheet({ visible, onClose, onCreated }) {
 
   useEffect(() => {
     if (!visible) return;
+    setTrameId((id) => tramePourNouvelleVisite(id)?.id || DEFAULT_TRAME_ID);
     setNom('');
     setBusy(false);
   }, [visible]);
@@ -51,6 +52,7 @@ function QuickVisitSheet({ visible, onClose, onCreated }) {
           <View style={s.grab} />
           <Text style={s.title}>Nouvelle visite</Text>
           <Text style={s.sub}>Sans client pour l’instant. Elle reste sur cet appareil, rangée dans « À rattacher » sur l’accueil.</Text>
+          <ScrollView style={{ maxHeight: 320 }} keyboardShouldPersistTaps="handled">
           {trames.map((t) => {
             const on = t.id === trameId;
             const pres = TRAME_PRESENTATION[t.id] || { icon: 'document', sub: t.description || '' };
@@ -65,6 +67,7 @@ function QuickVisitSheet({ visible, onClose, onCreated }) {
               </TouchableOpacity>
             );
           })}
+          </ScrollView>
           <TextInput
             value={nom}
             onChangeText={setNom}
@@ -87,7 +90,7 @@ function QuickVisitSheet({ visible, onClose, onCreated }) {
 
 const s = StyleSheet.create({
   dim: { flex: 1, backgroundColor: 'rgba(22,21,15,0.32)' },
-  sheet: { backgroundColor: '#FBFAF7', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 24, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: -8 }, elevation: 16 },
+  sheet: { maxHeight: '92%', backgroundColor: '#FBFAF7', borderTopLeftRadius: 26, borderTopRightRadius: 26, paddingHorizontal: 18, paddingTop: 10, paddingBottom: 24, shadowColor: '#000', shadowOpacity: 0.2, shadowRadius: 20, shadowOffset: { width: 0, height: -8 }, elevation: 16 },
   grab: { alignSelf: 'center', width: 42, height: 5, borderRadius: 3, backgroundColor: '#D6D1C6', marginBottom: 14 },
   title: { fontSize: 19, fontFamily: FONTS.black, color: COLORS.ink },
   sub: { fontSize: 12.5, lineHeight: 18, fontFamily: FONTS.bodyMedium, color: COLORS.inkSoft, marginTop: 4, marginBottom: 14 },

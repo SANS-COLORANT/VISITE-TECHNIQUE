@@ -1,6 +1,8 @@
 /** Import Excel générique : détecte la trame, analyse via son mapping puis intègre SQLite. */
 
 import * as XLSX from 'xlsx';
+import { readTrameManifest } from './trameLibrary.js';
+import { importLocalTrame } from './trameLibraryDb.js';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
 import { detecterTrameDepuisClasseur } from './trameRegistry.js';
@@ -169,12 +171,12 @@ function empreinteLegere(texte) {
 }
 
 export function analyserClasseur(wb, nomFichier) {
-  const definition = detecterTrameDepuisClasseur(wb, valeurCellule);
+  const definition = wb.Sheets.METRA_TRAME ? readTrameManifest(wb) : detecterTrameDepuisClasseur(wb, valeurCellule);
   if (!definition) {
     throw new Error('Le format de ce fichier n’est associé à aucune trame connue de l’application.');
   }
   const cfg = definition.excel;
-  const principale = wb.Sheets[cfg.mainSheet];
+  const principale = wb.Sheets[cfg.mainSheet] || (cfg.legacyMainSheets || []).map((name) => wb.Sheets[name]).find(Boolean);
   if (!principale) throw new Error(`Feuille principale « ${cfg.mainSheet} » absente du fichier.`);
 
   const champs = [];
@@ -183,8 +185,9 @@ export function analyserClasseur(wb, nomFichier) {
   const pointsMesure = [];
 
   for (const mapping of cfg.fieldMappings || []) {
-    let valeur = valeurCellule(principale, mapping.valueCell);
-    let commentaire = mapping.commentCell ? valeurCellule(principale, mapping.commentCell) : '';
+    const mappingSheet = mapping.sheet ? wb.Sheets[mapping.sheet] : principale;
+    let valeur = valeurCellule(mappingSheet, mapping.valueCell);
+    let commentaire = mapping.commentCell ? valeurCellule(mappingSheet, mapping.commentCell) : '';
     if (cfg.heatNetwork) {
       const rowValue = String(mapping.valueCell || '').match(/^(?:B|C)(\d+)$/)?.[1];
       const rowComment = String(mapping.commentCell || '').match(/^C(\d+)$/)?.[1];
@@ -272,6 +275,7 @@ export function analyserClasseur(wb, nomFichier) {
   return {
     trameId: definition.id,
     trameNom: definition.nom,
+    definitionLocale: definition.libraryManaged ? definition : null,
     nomFichier,
     client: clientDetecte || 'Client importé',
     site: siteDetecte || 'Site importé',
@@ -301,6 +305,7 @@ export async function importerAnalyseExcel(analyse, { installationId = null } = 
   );
   if (deja) return { visiteId: deja.entite_id, dejaImporte: true };
 
+  if (analyse.definitionLocale) await importLocalTrame(analyse.definitionLocale);
   let visiteId;
   let etape = 'initialisation';
   await db.withTransactionAsync(async () => {
@@ -472,8 +477,8 @@ export async function importerAnalyseExcel(analyse, { installationId = null } = 
     for (const r of analyse.remarques) {
       const perimetre = r.perimetre === 'Primaire' || r.perimetre === 'Secondaire' ? r.perimetre : null;
       await db.runAsync(
-        `INSERT INTO remarques (id, visite_id, poste, prestation, delai, estimatif, origine, perimetre) VALUES (?, ?, ?, ?, ?, ?, 'Import Excel', ?)`,
-        [uuidv4(), visiteId, r.poste, r.prestation, Number(r.delai) || null, Number(String(r.estimatif).replace(',', '.')) || null, perimetre]
+        `INSERT INTO remarques (id, visite_id, poste, prestation, delai, estimatif, origine, perimetre, intranet_date_reserve, intranet_etat_avancement) VALUES (?, ?, ?, ?, ?, ?, 'Import Excel', ?, ?, ?)`,
+        [uuidv4(), visiteId, r.poste, r.prestation, Number(r.delai) || null, Number(String(r.estimatif).replace(',', '.')) || null, perimetre, r.date_reserve || null, r.intranet_etat_avancement || null]
       );
     }
 

@@ -100,6 +100,11 @@ export function pictoOnglet(panelId, trameId) {
   if (id === 'p-vmc-infos') return 'onglets/informations-fiche-du-site-vmc';
   if (id === 'p-pa-infos') return 'onglets/informations-fiche-du-site-pre';
   if (id === 'p-infos') return /reseau/.test(norm(trameId)) ? 'onglets/informations-fiche-du-site-rese' : 'onglets/informations';
+  if (/remar.*(cta|filtres)/.test(id)) return 'vmc/caisson';
+  if (/remar.*vmc/.test(id)) return 'trames/vmc';
+  if (/remar.*froid/.test(id)) return 'onglets/regulation';
+  if (/remar.*releves/.test(id)) return 'onglets/releves';
+  if (/remar/.test(id)) return 'onglets/distribution';
   const caisson = id.match(/^p-vmc-c(\d)$/);
   if (caisson) {
     const n = Number(caisson[1]);

@@ -72,6 +72,11 @@ async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
       ['p-pa-infos','Informations générales','Chargé d’affaires / rédacteur',contexte.technicien],
     ];
     for (const [p,s,c,v] of fixesPa) await insertIfEmpty(db, visiteId, p, s, c, v);
+  } else if (trame.libraryManaged) {
+    const values = { client: contexte.nom_client, site: contexte.nom_site, local: nomLocal, type: trame.nom, dateVisite, adresse: contexte.adresse };
+    for (const [panel, sections] of Object.entries(trame.ui.panels)) for (const [section, fields] of Object.entries(sections)) {
+      for (const field of fields) if (field.meta) await insertIfEmpty(db, visiteId, panel, section, field.cle, values[field.meta]);
+    }
   } else {
     const fixes = [
       ['p-infos','Général','Nom du client',contexte.nom_client],['p-infos','Général','Nom du site',contexte.nom_site],['p-infos','Général','Nom du local',nomLocal],['p-infos','Général','Trame utilisée',trame.nom],['p-infos','Général','Date de la visite',dateVisite],
@@ -84,7 +89,7 @@ async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
   // préparée depuis Symfony, on ne résume donc que l'installation associée à
   // ce local ; les visites historiques non rattachées gardent le comportement
   // site complet pour compatibilité.
-  if (trame.id !== 'pre_allumage') {
+  if (trame.id !== 'pre_allumage' && !trame.libraryManaged) {
     const equipements = contexte.installation_id
       ? await db.getAllAsync(`SELECT e.* FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=? AND i.id=? AND i.actif=1 AND e.statut='actif'`, [contexte.site_id, contexte.installation_id])
       : await db.getAllAsync(`SELECT e.* FROM equipements e JOIN installations i ON i.id=e.installation_id WHERE i.site_id=? AND i.actif=1 AND e.statut='actif'`, [contexte.site_id]);
@@ -104,7 +109,7 @@ async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
     ORDER BY COALESCE(date_visite,'') DESC, modifie_le DESC LIMIT 1`,
   [contexte.site_id, visiteId, DEFAULT_TRAME_ID, trame.id, contexte.installation_id, contexte.installation_id]);
   if (precedente) {
-    if (trame.id === 'pre_allumage') {
+    if (trame.id === 'pre_allumage' || trame.libraryManaged) {
       await copierChampsPersistantsMemeTrame(db, visiteId, precedente.id, trame);
     } else {
       const clesStables = [['p-infos','Informations générales','Nbr de bât / lgt'],['p-infos','Informations générales','Exploitant - marché'],['p-infos','Informations générales','Type de LT'],['p-infos','Description des principaux équipements','Production primaire'],['p-infos','Description des principaux équipements','Type de régulation'],['p-infos','Description des principaux équipements','Production ECS']];

@@ -1,6 +1,7 @@
 /** Export Excel natif Android piloté par le registre générique de trames. */
 
 import * as XLSX from 'xlsx';
+import { writeTrameManifest } from './trameLibrary.js';
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
@@ -202,7 +203,7 @@ function normaliserRemarquesPourExport(remarques = [], trameId = '') {
   return remarques.map((r) => ({
     ...r,
     poste: trameId === 'vmc' && String(r.reference_libelle || '').trim() ? String(r.reference_libelle).trim() : r.poste,
-    date_reserve: formaterDateReserve(r.cree_le),
+    date_reserve: formaterDateReserve(r.intranet_date_reserve || r.cree_le),
   }));
 }
 
@@ -321,6 +322,7 @@ async function construireClasseur(visiteId) {
   ajouterFeuillePreAllumageModulaire(wb, modelePreAllumage, champsMap, controlesMap);
 
   for (const mapping of cfg.fieldMappings || []) {
+    const mappingSheet = wb.Sheets[mapping.sheet || cfg.mainSheet];
     const lookup = `${mapping.sectionCode}||${mapping.cle}`;
     const champ = champsMap.get(lookup);
     const controle = controlesMap.get(lookup);
@@ -328,33 +330,33 @@ async function construireClasseur(visiteId) {
       // Dès que des compteurs existent, leurs relevés font autorité. Ne pas
       // ressusciter l'ancien index Excel après effacement ou réaffectation.
       if (mapping.panelId === 'p-releves' && ((compteurs.length && /^Index/i.test(mapping.cle || '')) || compteurs.some((c) => c.destination === mapping.cle))) {
-        setCell(sheetPrincipale, mapping.valueCell, '');
-        if (cfg.heatNetwork && /^C\d+$/.test(mapping.valueCell || '')) setCell(sheetPrincipale, `E${mapping.valueCell.slice(1)}`, '');
+        setCell(mappingSheet, mapping.valueCell, '');
+        if (cfg.heatNetwork && /^C\d+$/.test(mapping.valueCell || '')) setCell(mappingSheet, `E${mapping.valueCell.slice(1)}`, '');
         continue;
       }
       if (champ) {
-        setCell(sheetPrincipale, mapping.valueCell, champ.valeur);
+        setCell(mappingSheet, mapping.valueCell, champ.valeur);
         if (cfg.heatNetwork && /^C\d+$/.test(mapping.valueCell || '')) {
-          setCell(sheetPrincipale, `E${mapping.valueCell.slice(1)}`, champ.valeur);
+          setCell(mappingSheet, `E${mapping.valueCell.slice(1)}`, champ.valeur);
         }
       }
       continue;
     }
     if (controle) {
       const commentaire = /temperature/i.test(mapping.sectionCode || '') ? formaterTemperatureGroupee(mapping.cle, controle.commentaire, pointsLibres) : controle.commentaire;
-      setCell(sheetPrincipale, mapping.valueCell, controle.avis);
-      setCell(sheetPrincipale, mapping.commentCell, commentaire);
+      setCell(mappingSheet, mapping.valueCell, controle.avis);
+      setCell(mappingSheet, mapping.commentCell, commentaire);
       if (cfg.heatNetwork?.mirrorControlColumns && /^B\d+$/.test(mapping.valueCell || '')) {
         const row = mapping.valueCell.slice(1);
-        setCell(sheetPrincipale, `D${row}`, controle.avis);
-        setCell(sheetPrincipale, `E${row}`, commentaire);
+        setCell(mappingSheet, `D${row}`, controle.avis);
+        setCell(mappingSheet, `E${row}`, commentaire);
       }
     }
     if (mapping.panelId === 'p-releves' && champ) {
       const valeurReleve = /temperature/i.test(mapping.sectionCode || '') ? formaterTemperatureGroupee(mapping.cle, champ.valeur, pointsLibres) : champ.valeur;
-      setCell(sheetPrincipale, mapping.commentCell || mapping.valueCell, valeurReleve);
+      setCell(mappingSheet, mapping.commentCell || mapping.valueCell, valeurReleve);
       if (cfg.heatNetwork && mapping.commentCell && /^C\d+$/.test(mapping.commentCell)) {
-        setCell(sheetPrincipale, `E${mapping.commentCell.slice(1)}`, champ.valeur);
+        setCell(mappingSheet, `E${mapping.commentCell.slice(1)}`, champ.valeur);
       }
     }
   }
@@ -381,6 +383,7 @@ async function construireClasseur(visiteId) {
     ['Point de mesure', 'Valeur', 'Unité'], ...pointsLibres.map(p => [p.libelle,p.valeur || '',p.unite]),
   ]), 'MESURES_COMPLEMENTAIRES');
 
+  if (trame.libraryManaged) writeTrameManifest(wb, trame);
   return { wb, visite, trame, stats: { champs: champs.length, controles: controles.length, reseaux: reseaux.length, compteurs: compteurs.length, reseauxSupplementaires, materiel: materiel.length, remarques: remarques.length } };
 }
 

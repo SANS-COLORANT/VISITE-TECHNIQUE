@@ -192,6 +192,9 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
     setVisualPack(null);
     try {
       await getDb();
+      const { loadLocalTrames } = require('./trameLibraryDb.js');
+      const trameErrors = await loadLocalTrames();
+      if (trameErrors.length) console.warn('Trames locales non chargées', trameErrors);
       const [pack, schemaVisible, lab3dEnabled, missionsEnabled] = await Promise.all([
         getActiveVisualPack(), getHydraulicSchemaVisible(), getLab3DVisible(), getMissionsVisible(),
       ]);

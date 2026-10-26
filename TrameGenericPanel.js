@@ -451,18 +451,18 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
         sectionCode={item.sectionCode}
         field={item.field}
         valeurInitiale={champsMap[item.key]}
-        displayLabel={estPreAllumage ? libelleChamp(item.sectionCode, item.field.cle, aliases) : (label || undefined)}
+        displayLabel={item.field.label || (estPreAllumage ? libelleChamp(item.sectionCode, item.field.cle, aliases) : (label || undefined))}
         onRename={item.field.renamable ? (v) => sauverAlias(fieldAliasKey(item.sectionCode, item.field.cle), v, item.field.cle) : null}
         onSaved={champHandler(item.key)}
-        choix={mode === 'distrib' || mode === 'infos'}
+        choix={mode === 'distrib' || mode === 'infos' || Boolean(item.field.options)}
         compact={mode === 'infos'}
         water={mode === 'distrib' && /ecs/i.test(item.sectionCode)}
         photo={mode !== 'distrib' && mode !== 'infos'}
       />;
     }
     if (item.field.vmc === true) return <VmcControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} trameId={trameId} />;
-    if (item.field.presets) return <PresetControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} displayLabel={label || undefined} trameId={trameId} />;
-    return <PersistentControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} trameId={trameId} displayLabel={label || undefined} />;
+    if (item.field.presets) return <PresetControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} displayLabel={item.field.label || label || undefined} trameId={trameId} />;
+    return <PersistentControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} trameId={trameId} displayLabel={item.field.label || label || undefined} />;
   };
 
   const actionsBanniere = (section) => {

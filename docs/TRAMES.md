@@ -6,6 +6,7 @@
 - VMC
 - Pré-allumage
 - Réseau de chaleur
+- TRAME REMAR
 
 Chaque trame possède ses propres contrôles, commentaires, remarques, réserves, exports et règles de présentation.
 
@@ -98,3 +99,10 @@ Excel importés, y compris après effacement ou changement de destination.
 La dernière valeur connue peut être proposée dans une nouvelle visite du même
 local, quelle que soit la trame source compatible. Elle reste modifiable et la
 nouvelle visite conserve une observation distincte.
+
+## TRAME REMAR et bibliothèque locale
+
+Voir [REMAR_LIBRARY.md](REMAR_LIBRARY.md) pour le modèle intégré, la gestion des
+versions et le parcours Réglages > Trames. Les anciennes visites conservent leur
+définition exacte ; une nouvelle version ne remplace pas rétroactivement leurs
+contrôles ou mappings Excel.

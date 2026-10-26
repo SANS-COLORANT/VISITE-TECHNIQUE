@@ -10,7 +10,7 @@ import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { creerVisiteProduction } from './visitCreationDb.js';
 import { supprimerVisiteComplete } from './entityManagementDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
-import { listerTramesDisponibles, obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
+import { listerTramesDisponibles, obtenirTrame, tramePourNouvelleVisite, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { SiteOverviewPanel } from './SiteOverviewPanel.js';
 import { exporterVisitesExcelEnLot } from './batchExcel.js';
@@ -180,7 +180,7 @@ function SiteVisitesScreen({ route, navigation }) {
       setTrameChoisie(apiSuggestedTrameId);
     } else {
       const derniereTrame = visites[0]?.trame_id;
-      setTrameChoisie(derniereTrame || DEFAULT_TRAME_ID);
+      setTrameChoisie(tramePourNouvelleVisite(derniereTrame || DEFAULT_TRAME_ID)?.id || DEFAULT_TRAME_ID);
     }
     setChoixModeVisible(true);
   };

@@ -49,7 +49,7 @@ async function main() {
   const data = load('data.js');
   const rcu = load('reseauChaleurTrame.js', { TRAME_DATA: data.TRAME_DATA, TEMPLATE_RESEAU_CHALEUR_BASE64: 'fixture' });
   const XLSX = require('xlsx');
-  const registry = load('trameRegistry.js', { ...data, ...rcu, TEMPLATE_EXCEL_BASE64: 'fixture',
+  const registry = load('trameRegistry.js', { ...load('remarTrame.js', load('templateExcelRemar.js')), ...data, ...rcu, TEMPLATE_EXCEL_BASE64: 'fixture',
     ...load('vmcTrame.js', { XLSX }), ...load('preAllumageTrame.js', { XLSX }), ...load('trameValidation.js') });
   const { obtenirTrame } = registry;
   const definition = obtenirTrame('reseau_chaleur_v1');

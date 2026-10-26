@@ -21,7 +21,7 @@ const CURRENT_METADATA_KEYS = new Set([
 
 function canCarryField(trame, field) {
   if (!field?.cle || field.type !== 'champ') return false;
-  if (CURRENT_METADATA_KEYS.has(field.cle)) return false;
+  if (CURRENT_METADATA_KEYS.has(field.cle) || field.meta) return false;
 
   // Pré-allumage est volontairement l'exception : seules les informations
   // durables explicitement marquées stable/carryForward sont reprises.

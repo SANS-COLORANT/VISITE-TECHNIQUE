@@ -70,7 +70,7 @@ async function main() {
   const { TEMPLATE_EXCEL_BASE64 } = load('templateExcel.js');
   const { TEMPLATE_RESEAU_CHALEUR_BASE64 } = load('templateExcelReseauChaleur.js');
   const rcu = load('reseauChaleurTrame.js', { TRAME_DATA: data.TRAME_DATA, TEMPLATE_RESEAU_CHALEUR_BASE64 });
-  const registry = load('trameRegistry.js', { ...data, ...rcu, TEMPLATE_EXCEL_BASE64,
+  const registry = load('trameRegistry.js', { ...load('remarTrame.js', load('templateExcelRemar.js')), ...data, ...rcu, TEMPLATE_EXCEL_BASE64,
     ...load('vmcTrame.js', { XLSX }), ...load('preAllumageTrame.js', { XLSX }), ...load('trameValidation.js') });
 
   function exporter(source) {

@@ -152,10 +152,10 @@ function getDurableNumericConfig(cle) {
  */
 export const DurableChampGenerique = React.memo(function DurableChampGenerique({ visiteId, sectionCode, field, valeurInitiale, onSaved, displayLabel, onRename, picto = null, choix = false, compact = false, water = false, photo = true }) {
   const unit = extractUnit(field.cle);
-  const label = cleanLabel(field.cle);
+  const label = field.label || cleanLabel(field.cle);
   const entiteKey = `${sectionCode}||${field.cle}`;
-  const numericConfig = getDurableNumericConfig(field.cle);
-  const chipOptions = FIELD_OPTIONS[field.cle];
+  const numericConfig = field.textOnly ? null : field.numeric || getDurableNumericConfig(field.cle);
+  const chipOptions = field.options || FIELD_OPTIONS[field.cle];
   const sansPhoto = !photo
     || sectionCode === 'infos.g_n_ral'
     || sectionCode === 'infos.informations_g_n_rales'
