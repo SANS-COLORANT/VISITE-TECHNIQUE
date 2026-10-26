@@ -1,0 +1,85 @@
+name: Build REMAR CROUS preview APK
+on:
+  push:
+    branches: [feat/remar-crous-template]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: remar-crous-preview-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    permissions:
+      contents: write
+    env:
+      EXPO_NO_TELEMETRY: '1'
+      CI: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install declared dependencies
+        run: npm install --package-lock=false --no-audit --no-fund
+      - name: Verify migrations and Excel round trips
+        run: node --experimental-test-module-mocks --test tests/remar.test.mjs
+      - name: Set preview build version
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          node <<'JS'
+          const fs = require('fs');
+          const app = JSON.parse(fs.readFileSync('app.json'));
+          if (app.expo.android.package !== 'com.visitetechnique.remarcrous.preview') throw new Error('Preview application ID changed');
+          app.expo.android.versionCode = Number(process.env.BUILD_NUMBER);
+          fs.writeFileSync('app.json', JSON.stringify(app, null, 2) + '\n');
+          JS
+      - name: Validate Android bundle
+        run: npx expo export --platform android --max-workers 2 --output-dir dist-ci
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --no-install --skip-dependency-update react,react-native
+      - name: Build standalone preview APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx4g
+      - name: Verify and name APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp android/app/build/outputs/apk/release/app-release.apk release/METRA-REMAR-CROUS-preview.apk
+          build_tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$build_tools/apksigner" verify --verbose release/METRA-REMAR-CROUS-preview.apk
+          "$build_tools/aapt" dump badging release/METRA-REMAR-CROUS-preview.apk > /tmp/remar-badging.txt
+          head -1 /tmp/remar-badging.txt | grep "name='com.visitetechnique.remarcrous.preview'"
+          cd release
+          sha256sum METRA-REMAR-CROUS-preview.apk > METRA-REMAR-CROUS-preview.apk.sha256
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: METRA-REMAR-CROUS-preview-${{ github.run_number }}
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
+      - name: Publish preview release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          cat > /tmp/release-notes.md <<'NOTES'
+          Aperçu installable de la trame REMAR · CROUS : chaufferie, CTA, VMC, froid, personnalisation par visite et import/export Excel.
+
+          Identifiant Android distinct : com.visitetechnique.remarcrous.preview. Cette application s'installe à côté de METRA existant, avec une base de données séparée. Elle ne constitue pas une mise à jour des autres APK du dépôt.
+
+          APK autonome compilé en mode release avec la signature de développement générée par Expo. Validation : tests SQLite/Excel et compilation Android. Caméra, partage et ergonomie tactile restent à vérifier sur appareil.
+          NOTES
+          gh release create "remar-crous-preview-${BUILD_NUMBER}" release/* --target "$GITHUB_SHA" --title "METRA REMAR · CROUS — aperçu ${BUILD_NUMBER}" --notes-file /tmp/release-notes.md --prerelease

@@ -1,0 +1,22 @@
+{
+  "expo": {
+    "name": "METRA REMAR - Aperçu",
+    "slug": "metra-remar-crous-preview",
+    "version": "1.0.0",
+    "orientation": "default",
+    "userInterfaceStyle": "light",
+    "android": {
+      "package": "com.visitetechnique.remarcrous.preview",
+      "versionCode": 1
+    },
+    "plugins": [
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Autoriser METRA REMAR à joindre des photos aux visites.",
+          "cameraPermission": "Autoriser METRA REMAR à photographier les équipements et les constats."
+        }
+      ]
+    ]
+  }
+}

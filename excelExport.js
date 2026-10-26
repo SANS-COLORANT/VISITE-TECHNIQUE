@@ -1,18 +1,20 @@
+import { getVisitTrameData, sectionCodeFor } from './visitFields.js';
+import { TEMPLATE_REMAR_BASE64 } from './templateExcelRemar.js';
 /**
  * Export Excel — conserve les modèles métier d'origine et n'écrit que les
- * valeurs de la visite. ICPE et Réseau de chaleur utilisent chacun leur
+ * valeurs de la visite. ICPE, Réseau de chaleur et REMAR utilisent chacun leur
  * propre classeur source afin de préserver mise en forme, validations,
  * fusions et organisation des feuilles.
  */
 
 import * as XLSX from 'xlsx';
-import * as FileSystem from 'expo-file-system/legacy';
+import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
 import { TEMPLATE_EXCEL_BASE64 } from './templateExcel.js';
 import { TEMPLATE_RESEAU_CHALEUR_BASE64 } from './templateExcelReseauChaleur.js';
 import { getDb, getVisite, listerReseaux, listerCompteurs, listerMateriel, listerRemarques, getNote } from './db.js';
-import { getTrameData, getExcelLayout, findExcelRow, getTrameLabel, normalizeTrameCode } from './trames.js';
+import { getExcelLayout, findExcelRow, getTrameLabel, normalizeTrameCode } from './trames.js';
 
 const RESEAU_OFFSETS = {
   t_ext_c: 0,
@@ -80,8 +82,10 @@ async function construireClasseur(visiteId) {
   const trameCode = normalizeTrameCode(visite.trame_code);
   const estReseauChaleur = trameCode === 'RESEAU_CHALEUR';
   const layout = getExcelLayout(trameCode);
-  const trameData = getTrameData(trameCode);
-  const template = estReseauChaleur ? TEMPLATE_RESEAU_CHALEUR_BASE64 : TEMPLATE_EXCEL_BASE64;
+  const estRemar = trameCode === 'REMAR_CROUS';
+  const overrides = await db.getAllAsync('SELECT * FROM personnalisation_champs WHERE visite_id = ? ORDER BY rowid', [visiteId]);
+  const trameData = getVisitTrameData(trameCode, overrides);
+  const template = estRemar ? TEMPLATE_REMAR_BASE64 : estReseauChaleur ? TEMPLATE_RESEAU_CHALEUR_BASE64 : TEMPLATE_EXCEL_BASE64;
 
   const wb = XLSX.read(template, {
     type: 'base64',
@@ -98,8 +102,8 @@ async function construireClasseur(visiteId) {
   // ---- En-tête ----
   setCell(sheetTrame, 'B1', visite.nom_client);
   setCell(sheetTrame, 'B2', visite.nom_site);
-  setCell(sheetTrame, 'B3', visite.site_adresse || '');
-  setCell(sheetTrame, 'B4', estReseauChaleur ? 'RÉSEAU DE CHALEUR' : 'ICPE');
+  setCell(sheetTrame, 'B3', estRemar ? '' : visite.site_adresse || '');
+  setCell(sheetTrame, 'B4', estRemar ? 'REMAR CLASSIQUE' : estReseauChaleur ? 'RÉSEAU DE CHALEUR' : 'ICPE');
   setCell(sheetTrame, 'B5', visite.date_visite);
 
   // ---- Champs et contrôles génériques ----
@@ -114,13 +118,13 @@ async function construireClasseur(visiteId) {
         if (field.type === 'champ') {
           const row = champs.find((c) => c.section_code === sectionCode && c.cle === field.cle);
           if (!row) return;
-          const col = layout.fieldColumn || 'B';
+          const col = estRemar && sub === 'Général' ? 'B' : layout.fieldColumn || 'B';
           setCell(sheetTrame, `${col}${ligne}`, row.valeur);
-          if (estReseauChaleur) setCell(sheetTrame, `E${ligne}`, row.valeur);
+          if ((estReseauChaleur || estRemar) && sub !== 'Général') setCell(sheetTrame, `E${ligne}`, row.valeur);
         } else {
           const row = controles.find((c) => c.section_code === sectionCode && c.cle === field.cle);
           if (!row) return;
-          if (estReseauChaleur) setNetworkPair(sheetTrame, ligne, row.avis, row.commentaire);
+          if (estReseauChaleur || estRemar) setNetworkPair(sheetTrame, ligne, row.avis, row.commentaire);
           else {
             setCell(sheetTrame, `B${ligne}`, row.avis);
             setCell(sheetTrame, `C${ligne}`, row.commentaire);
@@ -177,13 +181,34 @@ async function construireClasseur(visiteId) {
     const ligne = 4 + i;
     setCell(sheetRemarques, `A${ligne}`, r.poste);
     setCell(sheetRemarques, `B${ligne}`, r.prestation);
+    setCell(sheetRemarques, `C${ligne}`, r.date_reserve);
+    setCell(sheetRemarques, `E${ligne}`, r.etat_avancement);
     setCell(sheetRemarques, `D${ligne}`, r.delai);
     setCell(sheetRemarques, `F${ligne}`, r.estimatif);
   });
 
+  for (const [sheet, lastRow, lastCol] of [[sheetMateriel, 3 + materiel.length, 9], [sheetRemarques, 3 + remarques.length, 5], [sheetNote, 2, 0]]) {
+    const range = XLSX.utils.decode_range(sheet['!ref'] || 'A1');
+    range.e.r = Math.max(range.e.r, lastRow - 1);
+    range.e.c = Math.max(range.e.c, lastCol);
+    sheet['!ref'] = XLSX.utils.encode_range(range);
+  }
+
   // ---- Synthèse Primaire / Secondaire du modèle Réseau de chaleur ----
   if (estReseauChaleur) {
     ecrireResumeReseauChaleur(sheetTrame, remarques, layout.resumeRows);
+  }
+
+  // Additional/removed points retain their values without altering the original layout.
+  if (estRemar && overrides.length) {
+    const rows = [['Onglet', 'Section', 'Intitulé', 'Type', 'Retiré', 'Valeur', 'Avis', 'Commentaire']];
+    for (const r of overrides) {
+      const code = sectionCodeFor(r.panel_id, r.section);
+      const champ = champs.find((c) => c.section_code === code && c.cle === r.cle);
+      const controle = controles.find((c) => c.section_code === code && c.cle === r.cle);
+      rows.push([r.panel_id, r.section, r.cle, r.type, r.masque, champ?.valeur || '', controle?.avis || '', controle?.commentaire || '']);
+    }
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), 'PERSONNALISATION');
   }
 
   // ---- Feuille NOTE ----
@@ -195,7 +220,7 @@ async function construireClasseur(visiteId) {
 async function exporterEtPartager(visiteId) {
   const { wb, visite } = await construireClasseur(visiteId);
   const base64 = XLSX.write(wb, { type: 'base64', bookType: 'xlsx' });
-  const suffixe = normalizeTrameCode(visite.trame_code) === 'RESEAU_CHALEUR' ? '_Reseau_Chaleur' : '';
+  const suffixe = normalizeTrameCode(visite.trame_code) === 'REMAR_CROUS' ? '_REMAR_CROUS' : normalizeTrameCode(visite.trame_code) === 'RESEAU_CHALEUR' ? '_Reseau_Chaleur' : '';
   const nomFichier = `Visite_${(visite.nom_site || 'site').replace(/[^a-zA-Z0-9]+/g, '')}${suffixe}_${visite.date_visite || ''}.xlsx`;
   const chemin = FileSystem.cacheDirectory + nomFichier;
 

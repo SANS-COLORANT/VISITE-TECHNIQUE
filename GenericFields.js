@@ -21,20 +21,27 @@ import { defaultPerimetreForControle, isForcedPrimaryControle, normalizeTrameCod
 function useSaisieAvecAutoSave(valeurInitiale, sauvegarderFn, delai = 700) {
   const [valeur, setValeurBrut] = useState(valeurInitiale || '');
   const timerRef = useRef(null);
+  const pendingRef = useRef(null);
 
   // Les données SQLite arrivent après le premier rendu : resynchronise le
   // composant dès que la valeur réellement enregistrée devient disponible.
   useEffect(() => {
-    setValeurBrut(valeurInitiale || '');
+    if (!pendingRef.current) setValeurBrut(valeurInitiale || '');
   }, [valeurInitiale]);
 
   const setValeur = (t) => {
     setValeurBrut(t);
     if (timerRef.current) clearTimeout(timerRef.current);
-    timerRef.current = setTimeout(() => sauvegarderFn(t), delai);
+    pendingRef.current = () => sauvegarderFn(t);
+    timerRef.current = setTimeout(() => {
+      const save = pendingRef.current;
+      pendingRef.current = null;
+      save?.();
+    }, delai);
   };
   const surBlurFinal = () => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    pendingRef.current = null;
     sauvegarderFn(valeur);
   };
 
@@ -43,11 +50,17 @@ function useSaisieAvecAutoSave(valeurInitiale, sauvegarderFn, delai = 700) {
   // garantirait l'enregistrement avant un changement d'onglet.
   const setValeurImmediate = (t) => {
     if (timerRef.current) clearTimeout(timerRef.current);
+    pendingRef.current = null;
     setValeurBrut(t);
     sauvegarderFn(t);
   };
 
-  useEffect(() => () => { if (timerRef.current) clearTimeout(timerRef.current); }, []);
+  useEffect(() => () => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    const save = pendingRef.current;
+    pendingRef.current = null;
+    save?.();
+  }, []);
 
   return [valeur, setValeur, surBlurFinal, setValeurImmediate];
 }
@@ -79,6 +92,11 @@ const FIELD_OPTIONS = {
   'Type de régulation': ['Loi d\'eau', 'Thermostat d\'ambiance', 'Sonde extérieure', 'Programmable'],
   'Cycle anti-légionellose': ['Hebdomadaire', 'Quotidien', 'Absent'],
   'Production primaire': ['Chaudière gaz', 'Chaudière fioul', 'Chaudière bois', 'PAC', 'Réseau de chaleur'],
+  'Production chauffage': ['Chaudière gaz', 'Chaudière fioul', 'PAC', 'Réseau de chaleur', 'Électrique'],
+  'Type de ventilation': ['Simple flux', 'Double flux', 'Naturelle', 'Hygroréglable'],
+  'Type de filtre': ['G4', 'M5', 'F7', 'F9', 'HEPA', 'ePM1', 'ePM2,5', 'ePM10'],
+  "Type traitement d'air": ['Simple flux', 'Double flux', 'Tout air neuf', 'Recyclage'],
+  'Production froid': ['Groupe frigorifique', 'PAC réversible', 'Réseau de froid', 'Détente directe'],
   'Production ECS': ['Ballon', 'Échangeur à plaques', 'Instantané', 'Semi-instantané'],
   'Type de LT': ['Chaufferie gaz', 'Chaufferie fioul', 'Sous-station', 'Chaufferie bois'],
 };
@@ -231,8 +249,8 @@ const ChampGenerique = React.memo(function ChampGenerique({ visiteId, sectionCod
   const label = cleanLabel(field.cle);
   const entiteKey = `${sectionCode}||${field.cle}`;
 
-  const numericConfig = getNumericConfig(field.cle);
-  const chipOptions = FIELD_OPTIONS[field.cle];
+  const numericConfig = field.numeric || getNumericConfig(field.cle);
+  const chipOptions = field.options || FIELD_OPTIONS[field.cle];
   // Pas de photo sur l'en-tête (Nom client/site/local, date) ni sur les
   // informations générales basiques (adresse, nb bât...) — rien à
   // photographier de pertinent sur ces champs purement administratifs.
@@ -261,6 +279,7 @@ const ChampGenerique = React.memo(function ChampGenerique({ visiteId, sectionCod
           value={valeur}
           onChangeText={setValeur}
           onBlur={surBlur}
+          keyboardType={field.keyboardType || 'default'}
           placeholder="Saisir..."
         />
       )}

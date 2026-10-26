@@ -1,9 +1,10 @@
-/** Import d'une trame Excel ICPE ou Réseau de chaleur avec aperçu puis intégration SQLite. */
+import { validateVisitField, sectionCodeFor } from './visitFields.js';
+/** Import des trames Excel ICPE, Réseau de chaleur et REMAR avec aperçu. */
 
 import * as XLSX from 'xlsx';
 import * as DocumentPicker from 'expo-document-picker';
-import * as FileSystem from 'expo-file-system/legacy';
-import { getDb, uuidv4 } from './db.js';
+import * as FileSystem from 'expo-file-system';
+import { getDb, uuidv4, recalculerProgression } from './db.js';
 import {
   getTrameData,
   getExcelLayout,
@@ -32,14 +33,14 @@ function nettoyerLabel(cle) {
 }
 
 function lireValeurTrame(trame, row, trameCode) {
-  if (normalizeTrameCode(trameCode) === 'RESEAU_CHALEUR') {
+  if (['RESEAU_CHALEUR', 'REMAR_CROUS'].includes(normalizeTrameCode(trameCode))) {
     return valeurCellule(trame, `C${row}`) || valeurCellule(trame, `E${row}`);
   }
   return valeurCellule(trame, `B${row}`);
 }
 
 function lireControleTrame(trame, row, trameCode) {
-  if (normalizeTrameCode(trameCode) === 'RESEAU_CHALEUR') {
+  if (['RESEAU_CHALEUR', 'REMAR_CROUS'].includes(normalizeTrameCode(trameCode))) {
     return {
       avis: valeurCellule(trame, `B${row}`) || valeurCellule(trame, `D${row}`),
       commentaire: valeurCellule(trame, `C${row}`) || valeurCellule(trame, `E${row}`),
@@ -86,7 +87,7 @@ function empreinteLegere(texte) {
 }
 
 export function analyserClasseur(wb, nomFichier) {
-  const trameCode = wb.Sheets['TRAME RÉSEAU DE CHALEUR'] ? 'RESEAU_CHALEUR' : 'ICPE';
+  const trameCode = wb.Sheets['TRAME REMAR CLASSIQUE'] ? 'REMAR_CROUS' : wb.Sheets['TRAME RÉSEAU DE CHALEUR'] ? 'RESEAU_CHALEUR' : 'ICPE';
   const layout = getExcelLayout(trameCode);
   const trame = wb.Sheets[layout.sheetName] || wb.Sheets[wb.SheetNames[0]];
   if (!trame) throw new Error('Aucune feuille exploitable dans ce fichier.');
@@ -115,7 +116,7 @@ export function analyserClasseur(wb, nomFichier) {
             perimetre: avis === 'N.S' ? defaultPerimetreForControle(trameCode, codeSection, field.cle) : null,
           });
         } else {
-          const valeur = lireValeurTrame(trame, row, trameCode);
+          const valeur = trameCode === 'REMAR_CROUS' && section === 'Général' ? valeurCellule(trame, `B${row}`) : lireValeurTrame(trame, row, trameCode);
           if (!valeur) return;
           champs.push({ sectionCode: codeSection, cle: field.cle, valeur });
           if (/^Index/i.test(field.cle)) {
@@ -174,6 +175,8 @@ export function analyserClasseur(wb, nomFichier) {
       remarques.push({
         poste,
         prestation,
+        dateReserve: valeurCellule(remarquesSheet, `C${row}`),
+        etatAvancement: valeurCellule(remarquesSheet, `E${row}`),
         delai: valeurCellule(remarquesSheet, `D${row}`),
         estimatif: valeurCellule(remarquesSheet, `F${row}`),
         perimetre: trameCode === 'RESEAU_CHALEUR' ? infererPerimetreRemarque(trame, layout, prestation) : null,
@@ -181,7 +184,29 @@ export function analyserClasseur(wb, nomFichier) {
     }
   }
 
-  if (!champs.length && !controles.length && !reseaux.length && !compteurs.length && !materiel.length && !remarques.length) {
+  const personnalisations = [];
+  if (trameCode === 'REMAR_CROUS' && wb.Sheets['PERSONNALISATION']) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets['PERSONNALISATION'], { header: 1, defval: '' }).slice(1);
+    for (const values of rows) {
+      if (!values.some((v) => v !== '')) continue;
+      const r = validateVisitField(trameCode, {
+        panel_id: values[0], section: values[1], cle: values[2], type: values[3], masque: Number(values[4]) === 1,
+      });
+      if (personnalisations.some((p) => p.panel_id === r.panel_id && p.section === r.section && p.cle === r.cle)) {
+        throw new Error('Point personnalisé présent plusieurs fois dans le classeur.');
+      }
+      personnalisations.push(r);
+      const code = sectionCodeFor(r.panel_id, r.section);
+      const existingChamp = champs.findIndex((c) => c.sectionCode === code && c.cle === r.cle);
+      const existingControle = controles.findIndex((c) => c.sectionCode === code && c.cle === r.cle);
+      if (existingChamp >= 0) champs.splice(existingChamp, 1);
+      if (existingControle >= 0) controles.splice(existingControle, 1);
+      if (r.type === 'champ') champs.push({ sectionCode: code, cle: r.cle, valeur: String(values[5] ?? '') });
+      else controles.push({ sectionCode: code, cle: r.cle, avis: String(values[6] ?? ''), commentaire: String(values[7] ?? '') });
+    }
+  }
+
+  if (trameCode !== 'REMAR_CROUS' && !champs.length && !controles.length && !reseaux.length && !compteurs.length && !materiel.length && !remarques.length) {
     throw new Error('Le format de ce fichier n’est pas reconnu. Utilise une trame exportée par l’application.');
   }
 
@@ -190,10 +215,11 @@ export function analyserClasseur(wb, nomFichier) {
     trameCode,
     client: valeurCellule(trame, 'B1') || 'Client importé',
     site: valeurCellule(trame, 'B2') || 'Site importé',
-    adresse: valeurCellule(trame, 'B3'),
+    adresse: trameCode === 'REMAR_CROUS' ? valeurCellule(trame, 'C14') : valeurCellule(trame, 'B3'),
     dateVisite: valeurCellule(trame, 'B5') || new Date().toISOString().slice(0, 10),
     champs,
     controles,
+    personnalisations,
     reseaux,
     compteurs,
     materiel,
@@ -231,6 +257,10 @@ export async function importerAnalyseExcel(analyse) {
       [visiteId, site.id, analyse.dateVisite, normalizeTrameCode(analyse.trameCode)]
     );
 
+    for (const r of analyse.personnalisations || []) await db.runAsync(
+      'INSERT INTO personnalisation_champs (visite_id, panel_id, section, cle, type, masque) VALUES (?, ?, ?, ?, ?, ?)',
+      [visiteId, r.panel_id, r.section, r.cle, r.type, r.masque]
+    );
     for (const item of analyse.champs) await db.runAsync(
       `INSERT OR REPLACE INTO champs_visite (visite_id, section_code, cle, valeur) VALUES (?, ?, ?, ?)`,
       [visiteId, item.sectionCode, item.cle, item.valeur]
@@ -303,9 +333,9 @@ export async function importerAnalyseExcel(analyse) {
       const equipementId = equipement.id;
       equipementsUtilises.add(equipementId);
       await db.runAsync(
-        `INSERT INTO materiel (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat, perimetre)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuidv4(), visiteId, equipementId, m.categorie, m.designation, m.marque, m.modele, m.annee, m.etat, m.perimetre || null]
+        `INSERT INTO materiel (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat, perimetre, nombre, numero_materiel, reseau_desservi, caracteristiques)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), visiteId, equipementId, m.categorie, m.designation, m.marque, m.modele, m.annee, m.etat, m.perimetre || null, m.nombre || null, m.numero || null, m.reseau || null, m.caracteristiques || null]
       );
       await db.runAsync(
         `INSERT OR REPLACE INTO observations_equipement (id, equipement_id, visite_id, etat) VALUES (?, ?, ?, ?)`,
@@ -339,9 +369,9 @@ export async function importerAnalyseExcel(analyse) {
 
     etape = 'réserves';
     for (const r of analyse.remarques) await db.runAsync(
-      `INSERT INTO remarques (id, visite_id, poste, prestation, delai, estimatif, origine, perimetre)
-       VALUES (?, ?, ?, ?, ?, ?, 'Import Excel', ?)`,
-      [uuidv4(), visiteId, r.poste, r.prestation, Number(r.delai) || null, Number(String(r.estimatif).replace(',', '.')) || null, r.perimetre || null]
+      `INSERT INTO remarques (id, visite_id, poste, prestation, delai, estimatif, origine, perimetre, date_reserve, etat_avancement)
+       VALUES (?, ?, ?, ?, ?, ?, 'Import Excel', ?, ?, ?)`,
+      [uuidv4(), visiteId, r.poste, r.prestation, Number(r.delai) || null, Number(String(r.estimatif).replace(',', '.')) || null, r.perimetre || null, r.dateReserve || null, r.etatAvancement || null]
     );
 
     etape = 'finalisation';
@@ -359,5 +389,6 @@ export async function importerAnalyseExcel(analyse) {
   }).catch((error) => {
     throw new Error(`Import interrompu pendant l’étape « ${etape} » : ${error.message || error}`);
   });
+  await recalculerProgression(visiteId);
   return { visiteId, dejaImporte: false };
 }

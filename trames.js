@@ -1,3 +1,4 @@
+import { TRAME_REMAR_CROUS, REMAR_SECTION_RANGES } from './remarData.js';
 import { TRAME_DATA, EXCEL_ROWS } from './data.js';
 import {
   TRAME_RESEAU_CHALEUR,
@@ -8,11 +9,13 @@ import {
 
 const TRAME_CODES = Object.freeze({
   ICPE: 'ICPE',
+  REMAR_CROUS: 'REMAR_CROUS',
   RESEAU_CHALEUR: 'RESEAU_CHALEUR',
 });
 
 const TRAME_LABELS = Object.freeze({
   [TRAME_CODES.ICPE]: 'ICPE',
+  [TRAME_CODES.REMAR_CROUS]: 'REMAR · CROUS',
   [TRAME_CODES.RESEAU_CHALEUR]: 'Réseau de chaleur',
 });
 
@@ -30,6 +33,7 @@ const TAB_ORDER_RESEAU_CHALEUR = Object.freeze([
 
 function normalizeTrameCode(code) {
   const value = String(code || '').trim().toUpperCase();
+  if (['REMAR_CROUS', 'REMAR CLASSIQUE', 'REMAR', 'CROUS'].includes(value)) return TRAME_CODES.REMAR_CROUS;
   if (value === TRAME_CODES.RESEAU_CHALEUR || value === 'RÉSEAU DE CHALEUR' || value === 'RESEAU DE CHALEUR') {
     return TRAME_CODES.RESEAU_CHALEUR;
   }
@@ -37,6 +41,7 @@ function normalizeTrameCode(code) {
 }
 
 function getTrameData(code) {
+  if (normalizeTrameCode(code) === TRAME_CODES.REMAR_CROUS) return TRAME_REMAR_CROUS;
   return normalizeTrameCode(code) === TRAME_CODES.RESEAU_CHALEUR ? TRAME_RESEAU_CHALEUR : TRAME_DATA;
 }
 
@@ -45,10 +50,20 @@ function getTrameLabel(code) {
 }
 
 function getTabOrder(code) {
+  if (normalizeTrameCode(code) === TRAME_CODES.REMAR_CROUS) return [
+    'p-infos', 'p-remar-reseaux', 'p-conf-local', 'p-conf-chauffage', 'p-conf-ecs', 'p-distrib', 'p-remar-releves', 'p-remar-energie', 'SEP',
+    'p-remar-cta', 'p-remar-filtres', 'p-remar-cta-mesures', 'p-remar-cta-energie', 'SEP', 'p-remar-vmc', 'p-remar-froid', 'SEP',
+    'p-equip', 'p-remarques', 'p-photos',
+  ];
   return normalizeTrameCode(code) === TRAME_CODES.RESEAU_CHALEUR ? TAB_ORDER_RESEAU_CHALEUR : TAB_ORDER_ICPE;
 }
 
 function getExcelLayout(code) {
+  if (normalizeTrameCode(code) === TRAME_CODES.REMAR_CROUS) return {
+    sheetName: 'TRAME REMAR CLASSIQUE', fieldColumn: 'C', headerFieldColumn: 'B',
+    controlAvisColumn: 'B', controlCommentColumn: 'C',
+    sectionRanges: REMAR_SECTION_RANGES, reseauBlocsDebut: [], resumeRows: null,
+  };
   if (normalizeTrameCode(code) === TRAME_CODES.RESEAU_CHALEUR) {
     return {
       sheetName: 'TRAME RÉSEAU DE CHALEUR',

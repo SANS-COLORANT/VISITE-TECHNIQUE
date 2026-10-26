@@ -1,7 +1,7 @@
 /** Écran Historique des visites d'un site — remplace la création automatique. */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, Modal } from 'react-native';
+import { View, Text, FlatList, ScrollView, TouchableOpacity, Modal } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { listerVisitesSite, creerVisite } from './db.js';
 
@@ -67,7 +67,7 @@ function SiteVisitesScreen({ route, navigation }) {
       </View>
       <Modal visible={choixModeVisible} transparent animationType="fade" onRequestClose={() => setChoixModeVisible(false)}>
         <View style={styles.modalOverlay}>
-          <View style={styles.modalSheet}>
+          <View style={[styles.modalSheet, { maxHeight: '90%' }]}><ScrollView keyboardShouldPersistTaps="handled">
             <Text style={styles.modalTitle}>Choisir le type de visite</Text>
             <TouchableOpacity style={[styles.visitModeCard, visites.length === 0 && { opacity: 0.45 }]} disabled={visites.length === 0} onPress={() => nouvelleVisite('express')}>
               <Text style={styles.visitModeIcon}>⚡</Text>
@@ -81,8 +81,12 @@ function SiteVisitesScreen({ route, navigation }) {
               <Text style={styles.visitModeIcon}>♨</Text>
               <View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite complète · Réseau de chaleur</Text><Text style={styles.visitModeText}>Sous-station / réseau de chaleur avec distinction Primaire et Secondaire.</Text></View>
             </TouchableOpacity>
+            <TouchableOpacity style={styles.visitModeCard} onPress={() => nouvelleVisite('complete', 'REMAR_CROUS')}>
+              <Text style={styles.visitModeIcon}>📋</Text>
+              <View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite complète · REMAR · CROUS</Text><Text style={styles.visitModeText}>Chaufferie, CTA, VMC et production de froid. Points de visite personnalisables.</Text></View>
+            </TouchableOpacity>
             <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10 }]} onPress={() => setChoixModeVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
-          </View>
+          </ScrollView></View>
         </View>
       </Modal>
     </View>

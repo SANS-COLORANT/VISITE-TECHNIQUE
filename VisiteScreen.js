@@ -27,7 +27,7 @@ function VisiteScreen({ route, onBack }) {
     setVisite(v);
   }, [visiteId]);
 
-  useEffect(useCallback(() => { charger(); }, [charger, refreshKey]));
+  useEffect(() => { charger(); }, [charger, refreshKey]);
 
   const onSaved = () => setRefreshKey((k) => k + 1);
 
@@ -39,12 +39,14 @@ function VisiteScreen({ route, onBack }) {
     const suivant = idx + direction;
     if (suivant >= 0 && suivant < tabsReels.length) setActiveTab(tabsReels[suivant]);
   };
+  const allerVoisinRef = useRef(allerVoisin);
+  allerVoisinRef.current = allerVoisin;
   const swipeHandlers = React.useRef(
     PanResponder.create({
       onMoveShouldSetPanResponder: (evt, g) => Math.abs(g.dx) > 30 && Math.abs(g.dx) > Math.abs(g.dy) * 1.5,
       onPanResponderRelease: (evt, g) => {
-        if (g.dx < -30) allerVoisin(1);       // glisse vers la gauche → onglet suivant
-        else if (g.dx > 30) allerVoisin(-1);  // glisse vers la droite → onglet précédent
+        if (g.dx < -30) allerVoisinRef.current(1);       // glisse vers la gauche → onglet suivant
+        else if (g.dx > 30) allerVoisinRef.current(-1);  // glisse vers la droite → onglet précédent
       },
     })
   ).current;
@@ -144,7 +146,7 @@ function VisiteScreen({ route, onBack }) {
         {activeTab === 'p-remarques' && <PanelRemarques visiteId={visiteId} refreshKey={refreshKey} trameCode={visite.trame_code} />}
         {activeTab === 'p-photos' && <PanelPhotos visiteId={visiteId} refreshKey={refreshKey} />}
         {!['p-regulation', 'p-releves', 'p-equip', 'p-remarques', 'p-photos'].includes(activeTab) && (
-          <PanelGenerique visiteId={visiteId} panelId={activeTab} refreshKey={refreshKey} onSaved={onSaved} trameCode={visite.trame_code} />
+          <PanelGenerique key={activeTab} visiteId={visiteId} panelId={activeTab} refreshKey={refreshKey} onSaved={onSaved} trameCode={visite.trame_code} />
         )}
       </View>
 

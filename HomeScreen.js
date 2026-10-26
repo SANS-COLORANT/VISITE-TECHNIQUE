@@ -4,6 +4,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import { View, Text, FlatList, TouchableOpacity, RefreshControl, Modal, TextInput, Alert } from 'react-native';
 import { COLORS, styles } from './styles.js';
 import { listerClients, creerClient, listerVisitesEnCours, compterVisites, supprimerVisite } from './db.js';
+import { getTrameLabel } from './trames.js';
 import { choisirEtAnalyserExcel, importerAnalyseExcel } from './excelImport.js';
 
 // ============================================================================
@@ -154,7 +155,7 @@ function HomeScreen({ navigation }) {
             <Text style={styles.modalTitle}>Aperçu de l’import Excel</Text>
             {importPreview && (
               <>
-                <Text style={styles.importFileName}>{importPreview.nomFichier}</Text>
+                <Text style={styles.importFileName}>{importPreview.nomFichier} · {getTrameLabel(importPreview.trameCode)}</Text>
                 <Text style={styles.importSiteTitle}>{importPreview.client} · {importPreview.site}</Text>
                 <Text style={styles.cardSub}>{importPreview.adresse || 'Adresse non renseignée'} · {importPreview.dateVisite}</Text>
                 <View style={styles.importStatsGrid}>

@@ -1,3 +1,4 @@
+import { getVisitTrameData, sectionCodeFor } from './visitFields.js';
 /** Base de données SQLite locale + repository (clients/sites/visites/champs...). */
 
 import { TRAME_DATA, PRESCRIPTIONS } from './data.js';
@@ -216,6 +217,10 @@ async function creerVisite({ siteId, technicien, mode = 'complete', trameCode = 
   await db.runAsync(`INSERT OR IGNORE INTO notes (visite_id, contenu) VALUES (?, '')`, [id]);
   if (precedente) {
     await db.runAsync(
+      `INSERT INTO personnalisation_champs (visite_id, panel_id, section, cle, type, masque)
+       SELECT ?, panel_id, section, cle, type, masque FROM personnalisation_champs WHERE visite_id = ?`, [id, precedente.id]
+    );
+    await db.runAsync(
       `INSERT INTO champs_visite (visite_id, section_code, cle, valeur)
        SELECT ?, section_code, cle, valeur FROM champs_visite WHERE visite_id = ?`, [id, precedente.id]
     );
@@ -242,9 +247,9 @@ async function creerVisite({ siteId, technicien, mode = 'complete', trameCode = 
     const anciensEquipements = await db.getAllAsync('SELECT * FROM materiel WHERE visite_id = ?', [precedente.id]);
     for (const m of anciensEquipements) {
       await db.runAsync(
-        `INSERT INTO materiel (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat, perimetre)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuidv4(), id, m.equipement_id, m.categorie, m.designation, m.marque, m.modele, m.annee, m.etat, m.perimetre]
+        `INSERT INTO materiel (id, visite_id, equipement_id, categorie, designation, marque, modele, annee, etat, perimetre, nombre, numero_materiel, reseau_desservi, caracteristiques)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        [uuidv4(), id, m.equipement_id, m.categorie, m.designation, m.marque, m.modele, m.annee, m.etat, m.perimetre, m.nombre, m.numero_materiel, m.reseau_desservi, m.caracteristiques]
       );
       if (m.equipement_id) await db.runAsync(
         `INSERT OR IGNORE INTO observations_equipement (id, equipement_id, visite_id, etat)
@@ -260,14 +265,28 @@ async function creerVisite({ siteId, technicien, mode = 'complete', trameCode = 
     for (const r of anciennesReserves) {
       await db.runAsync(
         `INSERT INTO remarques (id, visite_id, controle_key, poste, prestation, delai, estimatif, origine,
-         reference_onglet, reference_type, reference_id, reference_libelle, perimetre)
-         VALUES (?, ?, ?, ?, ?, ?, ?, 'Report visite Express', ?, ?, ?, ?, ?)`,
+         reference_onglet, reference_type, reference_id, reference_libelle, perimetre, date_reserve, etat_avancement)
+         VALUES (?, ?, ?, ?, ?, ?, ?, 'Report visite Express', ?, ?, ?, ?, ?, ?, ?)`,
         [uuidv4(), id, r.controle_key, r.poste, r.prestation, r.delai, r.estimatif,
-          r.reference_onglet, r.reference_type, r.reference_id, r.reference_libelle, r.perimetre]
+          r.reference_onglet, r.reference_type, r.reference_id, r.reference_libelle, r.perimetre, r.date_reserve, r.etat_avancement]
       );
     }
   } else {
     await preremplirValeursClassiques(id, trameFinale);
+  }
+  if (trameFinale === 'REMAR_CROUS') {
+    // Measurements belong to the new visit; installation descriptions/consignes persist.
+    if (precedente) await db.runAsync(
+      `DELETE FROM champs_visite WHERE visite_id = ? AND
+       (section_code LIKE 'remar-releves.%' OR section_code = 'remar-cta-mesures.temp_ratures')`, [id]
+    );
+    const visite = await getVisite(id);
+    for (const [cle, valeur] of [['Date de visite', visite.date_visite], ['Nom du site', visite.nom_site], ['Adresse', visite.site_adresse]]) {
+      await db.runAsync(
+        `INSERT INTO champs_visite (visite_id, section_code, cle, valeur) VALUES (?, 'infos.informations_du_site', ?, ?)
+         ON CONFLICT(visite_id, section_code, cle) DO UPDATE SET valeur = excluded.valeur`, [id, cle, valeur || '']
+      );
+    }
   }
   await recalculerProgression(id);
   return id;
@@ -358,17 +377,26 @@ async function upsertControle(visiteId, sectionCode, cle, { avis, commentaire, p
 async function recalculerProgression(visiteId) {
   const db = await getDb();
   const visite = await db.getFirstAsync('SELECT trame_code FROM visites WHERE id = ?', [visiteId]);
-  const trameData = getTrameData(visite?.trame_code);
+  const overrides = await db.getAllAsync('SELECT * FROM personnalisation_champs WHERE visite_id = ?', [visiteId]);
+  const trameData = getVisitTrameData(visite?.trame_code, overrides);
+  const champs = await db.getAllAsync('SELECT section_code, cle, valeur FROM champs_visite WHERE visite_id = ?', [visiteId]);
+  const controles = await db.getAllAsync('SELECT section_code, cle, avis FROM controles_visite WHERE visite_id = ?', [visiteId]);
   let total = 0, remplis = 0;
-  Object.values(trameData).forEach((sections) => {
-    Object.values(sections).forEach((fields) => {
-      fields.forEach((f) => { total++; });
-    });
-  });
-  const champs = await db.getAllAsync(`SELECT valeur FROM champs_visite WHERE visite_id = ?`, [visiteId]);
-  const controles = await db.getAllAsync(`SELECT avis FROM controles_visite WHERE visite_id = ?`, [visiteId]);
-  remplis = champs.filter((c) => c.valeur && c.valeur.trim() !== '').length
-          + controles.filter((c) => c.avis).length;
+  if (visite?.trame_code === 'REMAR_CROUS') {
+    for (const [panel, sections] of Object.entries(trameData)) {
+      for (const [section, fields] of Object.entries(sections)) {
+        for (const field of fields) {
+          total++;
+          const rows = field.type === 'champ' ? champs : controles;
+          const row = rows.find((r) => r.section_code === sectionCodeFor(panel, section) && r.cle === field.cle);
+          if (String(field.type === 'champ' ? row?.valeur || '' : row?.avis || '').trim()) remplis++;
+        }
+      }
+    }
+  } else {
+    total = Object.values(trameData).flatMap((sections) => Object.values(sections).flat()).length;
+    remplis = champs.filter((c) => c.valeur && c.valeur.trim() !== '').length + controles.filter((c) => c.avis).length;
+  }
   const pct = total > 0 ? Math.min(100, Math.round((remplis / total) * 100)) : 0;
   await db.runAsync(`UPDATE visites SET progression_pct = ? WHERE id = ?`, [pct, visiteId]);
 }
@@ -689,11 +717,11 @@ async function ajouterMateriel(visiteId) {
   return id;
 }
 async function upsertMaterielChamp(materielId, champ, valeur) {
-  if (!['categorie', 'designation', 'marque', 'modele', 'annee', 'etat', 'perimetre'].includes(champ)) return;
+  if (!['categorie', 'designation', 'marque', 'modele', 'annee', 'etat', 'perimetre', 'nombre', 'numero_materiel', 'reseau_desservi', 'caracteristiques'].includes(champ)) return;
   const db = await getDb();
   await db.runAsync(`UPDATE materiel SET ${champ} = ? WHERE id = ?`, [valeur, materielId]);
   const snapshot = await db.getFirstAsync('SELECT * FROM materiel WHERE id = ?', [materielId]);
-  if (!snapshot?.equipement_id) return;
+  if (!snapshot?.equipement_id || ['nombre', 'numero_materiel', 'reseau_desservi', 'caracteristiques'].includes(champ)) return;
   if (champ === 'etat') {
     await db.runAsync(
       `INSERT INTO observations_equipement (id, equipement_id, visite_id, etat)

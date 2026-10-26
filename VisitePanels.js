@@ -1,3 +1,4 @@
+import { RemarPanel } from './RemarPanel.js';
 /** Panneaux de l'écran Visite : générique, Régulation, Relevés, Équipements, Réserves, Photos. */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -22,6 +23,10 @@ import { getTrameData, getTabOrder, normalizeTrameCode } from './trames.js';
 // ============================================================================
 
 const PANEL_LABELS = {
+  'p-remar-reseaux': 'Réseaux chauffage', 'p-remar-releves': 'Compteurs et températures',
+  'p-remar-energie': 'Améliorations chauffage', 'p-remar-cta': 'CTA', 'p-remar-filtres': 'Filtration CTA',
+  'p-remar-cta-mesures': 'Mesures CTA', 'p-remar-cta-energie': 'Améliorations CTA',
+  'p-remar-vmc': 'VMC', 'p-remar-froid': 'Production de froid',
   'p-infos': 'Informations', 'p-distrib': 'Distribution', 'p-regulation': 'Régulation',
   'p-releves': 'Relevés', 'p-conf-local': 'Conf. Local', 'p-conf-energie': 'Conf. Énergie',
   'p-conf-chauffage': 'Conf. Chauffage', 'p-conf-ecs': 'Conf. ECS', 'p-conf-adouc': 'Conf. Adoucisseur',
@@ -34,7 +39,11 @@ const TAB_ORDER = [
 ];
 
 /** Panneau générique : rend toutes les sections d'un onglet depuis TRAME_DATA. */
-function PanelGenerique({ visiteId, panelId, refreshKey, onSaved, trameCode = 'ICPE' }) {
+function PanelGenerique(props) {
+  return normalizeTrameCode(props.trameCode) === 'REMAR_CROUS' ? <RemarPanel {...props} /> : <PanelGeneriqueStandard {...props} />;
+}
+
+function PanelGeneriqueStandard({ visiteId, panelId, refreshKey, onSaved, trameCode = 'ICPE' }) {
   const [champsMap, setChampsMap] = useState({});
   const [controlesMap, setControlesMap] = useState({});
   const sections = getTrameData(trameCode)[panelId];
@@ -387,6 +396,14 @@ function PanelEquipements({ visiteId, trameCode = 'ICPE' }) {
 
 import { CATEGORIES_EQUIPEMENT, MARQUES_EQUIPEMENT } from './ParametresScreen.js';
 
+function MaterielExtraField({ item, champ, label, numeric = false }) {
+  const [value, setValue, onBlur] = useSaisieAvecAutoSave(item[champ], (v) => upsertMaterielChamp(item.id, champ, v));
+  return <View style={{ marginTop: 8 }}>
+    <Text style={styles.fieldLabel}>{label}</Text>
+    <TextInput style={styles.input} value={value} onChangeText={setValue} onBlur={onBlur} keyboardType={numeric ? 'numeric' : 'default'} />
+  </View>;
+}
+
 function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarques, trameCode = 'ICPE' }) {
   const [categorie, setCategorie] = useState(item.categorie || '');
   const [marque, setMarque] = useState(item.marque || '');
@@ -481,6 +498,12 @@ function MaterielCard({ item, visiteId, onChange, optionsCategories, optionsMarq
           keyboardType="numeric"
         />
       </View>
+      {normalizeTrameCode(trameCode) === 'REMAR_CROUS' && <>
+        <MaterielExtraField item={item} champ="nombre" label="Nombre" numeric />
+        <MaterielExtraField item={item} champ="numero_materiel" label="N° matériel" />
+        <MaterielExtraField item={item} champ="reseau_desservi" label="Réseau desservi" />
+        <MaterielExtraField item={item} champ="caracteristiques" label="Caractéristiques" />
+      </>}
       {estReseauChaleur && (
         <>
           <View style={{ height: 10 }} />
