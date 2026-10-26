@@ -59,6 +59,13 @@ const CONTRACT_CHECKS = [
 ];
 
 const JS_SYNTAX_FILES = [
+  'TrameLibraryPanel.js',
+  'TrameGenericPanel.js',
+  'trameLibrary.js',
+  'trameLibraryDb.js',
+  'trameWorkbookImport.js',
+  'tramePointPresets.js',
+  'remarTrame.js',
   'PersistentControleGenerique.js',
   'VmcControleGenerique.js',
   'PresetControleGenerique.js',
@@ -267,6 +274,6 @@ console.log('[METRA verify] Verifying committed runtime source without modifying
 for (const [label, script] of CONTRACT_CHECKS) runNode([script], `contract: ${label}`);
 
 console.log('\n[METRA verify] Validating JavaScript syntax.');
-for (const file of JS_SYNTAX_FILES) runNode(['--check', file], `syntax: ${file}`);
+for (const file of JS_SYNTAX_FILES) runNode(['.github/scripts/check_js_syntax.js', file], `syntax: ${file}`);
 
 console.log('\n[METRA verify] Committed runtime source is valid. No source patch was applied.');
