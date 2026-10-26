@@ -17,6 +17,9 @@
           "cameraPermission": "Autoriser METRA REMAR à photographier les équipements et les constats."
         }
       ]
-    ]
+    ],
+    "splash": {
+      "backgroundColor": "#ffffff"
+    }
   }
 }

@@ -45,7 +45,10 @@ jobs:
       - name: Validate Android bundle
         run: npx expo export --platform android --max-workers 2 --output-dir dist-ci
       - name: Generate Android project
-        run: npx expo prebuild --platform android --no-install --skip-dependency-update react,react-native
+        run: |
+          npx expo prebuild --platform android --no-install --skip-dependency-update react,react-native
+          test -s android/gradlew
+          grep -q 'name="splashscreen_background"' android/app/src/main/res/values/colors.xml
       - name: Build standalone preview APK
         working-directory: android
         run: ./gradlew assembleRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx4g
