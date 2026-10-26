@@ -21,8 +21,9 @@ def tree():
 
 def find(label, root=None):
     for node in (root if root is not None else tree()).iter('node'):
-        labels = (node.get('text', ''), node.get('content-desc', ''))
-        if any(value == label or value.startswith(label + ',') for value in labels):
+        labels = (node.get('text', '').casefold(), node.get('content-desc', '').casefold())
+        wanted = label.casefold()
+        if any(value == wanted or value.startswith(wanted + ',') for value in labels):
             values = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
             if len(values) == 4 and values[2] > values[0] and values[3] > values[1]:
                 return ((values[0] + values[2]) // 2, (values[1] + values[3]) // 2)

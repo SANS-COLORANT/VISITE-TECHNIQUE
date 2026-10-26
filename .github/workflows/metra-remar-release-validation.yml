@@ -1,0 +1,106 @@
+name: Validate and publish compiled METRA REMAR release
+on:
+  push:
+    branches: [feat/trame-remar-complete]
+    paths: ['.github/scripts/smoke_remar_android.py', '.github/workflows/metra-remar-release-validation.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: metra-remar-release-validation
+  cancel-in-progress: true
+env:
+  SOURCE_RUN: '40317425743'
+  SOURCE_SHA: d0d1747b55141aaf453e95cade6219c381e745c8
+jobs:
+  android-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify successful signed build and unchanged application source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN" > /tmp/metra-source-run.json
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$SOURCE_RUN/jobs" > /tmp/metra-source-jobs.json
+          python3 - <<'PY'
+          import json, os
+          run = json.load(open('/tmp/metra-source-run.json'))
+          jobs = json.load(open('/tmp/metra-source-jobs.json'))['jobs']
+          assert run['head_sha'] == os.environ['SOURCE_SHA'], 'Unexpected APK source SHA'
+          assert any(j['name'] == 'build' and j['conclusion'] == 'success' for j in jobs), 'Signed APK build did not succeed'
+          PY
+          git fetch --depth=1 origin "$SOURCE_SHA"
+          git diff --name-only "$SOURCE_SHA" HEAD > /tmp/metra-test-only-diff.txt
+          python3 - <<'PY'
+          from pathlib import Path
+          allowed = {'.github/scripts/smoke_remar_android.py', '.github/workflows/metra-remar-release-validation.yml', '.github/workflows/metra-trame-remar-complete.yml', 'docs/QA_REMAR.md'}
+          changed = set(Path('/tmp/metra-test-only-diff.txt').read_text().splitlines())
+          assert changed <= allowed, f'Runtime source changed; rebuild required: {changed - allowed}'
+          print('Application source unchanged: reusing the verified release APK')
+          PY
+      - uses: actions/download-artifact@v4
+        with:
+          name: metra-remar-complete-release
+          run-id: ${{ env.SOURCE_RUN }}
+          github-token: ${{ github.token }}
+          path: apk
+      - name: Verify APK checksum
+        working-directory: apk
+        run: sha256sum -c METRA-TRAME-REMAR-complet.apk.sha256
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Exercise complete METRA APK on tablet emulator
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_c
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: python3 .github/scripts/smoke_remar_android.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: metra-remar-validated-ui
+          path: shots/
+          if-no-files-found: warn
+          retention-days: 30
+  publish:
+    needs: android-smoke
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      actions: read
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: metra-remar-complete-release
+          run-id: ${{ env.SOURCE_RUN }}
+          github-token: ${{ github.token }}
+          path: release
+      - name: Publish complete METRA APK after actual Android smoke test
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          cd release
+          sha256sum -c METRA-TRAME-REMAR-complet.apk.sha256
+          cat > /tmp/metra-release-notes.md <<'NOTES'
+          METRA complet avec TRAME REMAR et Réglages > Trames : import de modèles, édition des points et commentaires, choix/mesures, versions conservées pour les anciennes visites et modèles embarqués dans les exports Excel.
+
+          Base complète : APK 678 et correctif PDF/Photos récent. Identité Android com.visitetechnique.tablet, certificat historique conservé, versionCode croissant ; schéma SQLite 47 conservé. Sauvegarder les données avant une mise à jour.
+
+          Validation : contrats METRA, 13 tests REMAR/bibliothèque avec SQLite réel, test PDF 457 photos, bundle Android, Gradle release, signature et identifiant Android, parcours du même APK sur émulateur tablette (bibliothèque, création REMAR, champs, redémarrage). La correction du scénario de test ne modifie pas le code de l’APK : SHA source d0d1747b55141aaf453e95cade6219c381e745c8, build 40317425743.
+
+          Les essais caméra/OCR sur tablette physique, Intranet authentifié et gros PDF réels restent à effectuer avec des données terrain.
+          NOTES
+          gh release create metra-remar-complet-2 ./* --target "$SOURCE_SHA" --title "METRA complet — TRAME REMAR — 2" --notes-file /tmp/metra-release-notes.md --prerelease
