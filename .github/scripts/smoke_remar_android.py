@@ -71,6 +71,26 @@ try:
     wait('Bibliothèque de trames')
     scroll_to('TRAME REMAR')
     shot('02-bibliotheque-remar')
+    scroll_to('Modifier la trame')
+    tap('Modifier la trame')
+    wait('Modifier une trame')
+    scroll_to('Conf. Local')
+    tap('Conf. Local')
+    scroll_to('BAES')
+    tap('BAES')
+    wait('Modifier le point')
+    wait('Commentaire proposé pour S')
+    shot('02b-editeur-point-remar')
+    tap('Fermer')
+    for _ in range(8):
+        if find('Fermer le brouillon'):
+            break
+        size = list(map(int, re.findall(r'\d+', adb('shell', 'wm', 'size').decode())))
+        width, height = size[-2:]
+        adb('shell', 'input', 'swipe', str(width // 2), str(height // 3), str(width // 2), str(height * 3 // 4), '350')
+        time.sleep(1)
+    tap('Fermer le brouillon')
+    tap('Abandonner le brouillon')
     tap('Accueil')
     tap('Nouvelle visite')
     scroll_to('TRAME REMAR')
@@ -91,7 +111,7 @@ try:
     logs = adb('logcat', '-d').decode(errors='replace')
     crash_log = adb('logcat', '-d', '-b', 'crash').decode(errors='replace')
     assert f'Process: {PKG}' not in crash_log, 'METRA Android crash during smoke test'
-    (shots / 'result.json').write_text(json.dumps({'status': 'passed', 'package': PKG, 'checks': ['launch', 'settings-library', 'remar-creation', 'native-field-screen', 'restart']}, indent=2))
+    (shots / 'result.json').write_text(json.dumps({'status': 'passed', 'package': PKG, 'checks': ['launch', 'settings-library', 'point-editor', 'remar-creation', 'native-field-screen', 'restart']}, indent=2))
     print('METRA complete Android smoke passed')
 finally:
     try:
