@@ -119,7 +119,7 @@ export function TrameLibraryPanel() {
     [order[from], order[target]] = [order[target], order[from]]; setDraft(next);
   };
   return <>
-    <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent} removeClippedSubviews={false}>
+    <ScrollView key={draft ? 'edition-trame' : 'catalogue-trames'} keyboardShouldPersistTaps="handled" contentContainerStyle={styles.panelContent} removeClippedSubviews={false}>
       {!draft ? <>
         <Text style={styles.sectionLabel}>Bibliothèque de trames</Text>
         <Text style={local.hint}>Importer un modèle Excel, ajuster ses points puis enregistrer une version. Les trames restent disponibles hors connexion et sont conservées avec la sauvegarde de METRA.</Text>
