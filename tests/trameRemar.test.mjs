@@ -87,6 +87,43 @@ test('all REMAR values survive serialized Excel export and native database impor
   assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk, true);
 });
 
+test('multipoint curve and weekday schedule survive spreadsheet export and import without legacy overwrite', async () => {
+  const model = await import('../networkProgramming.js');
+  assert.deepEqual(model.pointsFromLegacy('-15\n-7\n0', '75\n65\n52'),
+    [{ext:'-15',dep:'75'},{ext:'-7',dep:'65'},{ext:'0',dep:'52'}]);
+  assert.throws(() => model.validateNetworkPoints([{ext:'3',dep:'55'},{ext:'3',dep:'56'}]), /même température/);
+  const id = await newVisit();
+  const reseauId = 'regulation-structuree-test';
+  await db.runAsync("INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,consigne_programme_horaire) VALUES(?,?,1,'Radiateurs','7','62','1.4','Ancien programme libre')", [reseauId,id]);
+  const points = [{ext:'-12',dep:'78'},{ext:'0',dep:'55'},{ext:'15',dep:'32'}];
+  const schedule = model.emptyWeeklySchedule();
+  schedule.allDays = true;
+  schedule.days.Lun = [{start:'06:00',end:'22:00',comfort:'20',reduced:'16'}];
+  for(const [key,value] of [[model.NETWORK_POINTS_KEY,points],[model.NETWORK_SCHEDULE_KEY,schedule]]) {
+    await db.runAsync("INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur,type_valeur) VALUES(?,'reseau',?,?,?,'json')",
+      ['attr-'+key,reseauId,key,JSON.stringify(value)]);
+  }
+  const { wb } = await construireClasseur(id);
+  assert.equal(wb.Sheets.RESEAUX_DETAIL.C2.v,'-12\n0\n15');
+  assert.equal(wb.Sheets.RESEAUX_DETAIL.D2.v,'78\n55\n32');
+  assert.match(wb.Sheets.RESEAUX_DETAIL.G2.v,/Tous les jours/);
+  assert.equal(wb.Sheets.PROGRAMMATION_RESEAUX.C2.v,JSON.stringify(points));
+  const restored=analyserClasseur(roundtrip(wb),'regulation-structuree.xlsx');
+  assert.equal(restored.reseaux.length,1);
+  assert.deepEqual(restored.reseaux[0].points,points);
+  assert.equal(restored.reseaux[0].schedule.allDays,true);
+  const imported=await importerAnalyseExcel(restored);
+  const newNetwork=await db.getFirstAsync('SELECT id,courbe_de_chauffe FROM reseaux WHERE visite_id=?',[imported.visiteId]);
+  assert.equal(newNetwork.courbe_de_chauffe,'1.4','legacy slope remains available');
+  const attrs=await db.getAllAsync("SELECT cle,valeur FROM attributs_libres WHERE entite_type='reseau' AND entite_id=?", [newNetwork.id]);
+  assert.equal(attrs.length,2,'both independent structured values remain linked to imported network');
+  const parsed=Object.fromEntries(attrs.map(a=>[a.cle,JSON.parse(a.valeur)]));
+  assert.deepEqual(parsed[model.NETWORK_POINTS_KEY],points);
+  assert.equal(parsed[model.NETWORK_SCHEDULE_KEY].days.Dim[0].comfort,'20',
+    'same daily schedule expands with no loss of day semantics');
+  assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk,true);
+});
+
 test('REMAR exports and reimports dynamic network/meter annexes without losing original points', async () => {
   const id = await newVisit();
   await db.runAsync(`INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire)
