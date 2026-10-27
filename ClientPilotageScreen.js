@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, ScrollView, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
@@ -58,38 +58,66 @@ function Chip({ label, active, onPress, danger = false }) {
  * de défilement horizontal ; la vue parente scrolle verticalement les deux
  * colonnes ensemble (pas de FlatList verticale imbriquée, ni de désalignement).
  */
+/**
+ * Deux listes verticales virtualisées synchronisées pour les grands clients :
+ * la colonne sites/locaux reste fixe et toutes les catégories défilent ensemble.
+ * Hauteurs fixes + getItemLayout évitent tout décalage pendant les gestes.
+ */
 function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, nomClient, openCell }) {
   const [collapsed, setCollapsed] = useState({});
+  const leftRef = useRef(null);
+  const rightRef = useRef(null);
+  const scrollOffset = useRef(0);
   const rowHeight = 72;
-  const firstWidth = 210;
+  const leftWidth = 210;
   const cellWidth = 98;
   const lignes = [];
   for (const site of sites) {
     lignes.push({ key: `s:${site.id}`, kind: 'site', site });
-    if (!collapsed[site.id]) {
-      for (const local of site.locals || []) lignes.push({ key: `l:${site.id}:${local.id}`, kind: 'local', site, local });
+    if (!collapsed[site.id]) for (const local of site.locals || []) {
+      lignes.push({ key: `l:${site.id}:${local.id}`, kind: 'local', site, local });
     }
   }
+  const height = Math.min(610, Math.max(166, 58 + lignes.length * rowHeight));
+  const layout = (_data, index) => ({ length: rowHeight, offset: rowHeight * index, index });
+  const synchronize = (otherRef) => (event) => {
+    const offset = Math.max(0, event.nativeEvent.contentOffset.y);
+    if (Math.abs(offset - scrollOffset.current) < 2) return;
+    scrollOffset.current = offset;
+    otherRef.current?.scrollToOffset?.({ offset, animated: false });
+  };
   const ouvrirSite = (site) => navigation.navigate('SiteLocals', {
     siteId: site.id, nomSite: site.nom_site, clientId, nomClient,
   });
   const choisirCellule = (ligne, category) => {
-    const target = ligne.kind === 'local' ? ligne.local : ligne.site;
-    const cell = target.cells?.[category.key];
+    const cible = ligne.kind === 'site' ? ligne.site : ligne.local;
+    const cell = cible.cells?.[category.key];
     if (!cell?.total) return;
-    const scope = ligne.kind === 'local'
+    const site = ligne.kind === 'local'
       ? { ...ligne.site, nom_site: `${ligne.site.nom_site} · ${ligne.local.nom}` }
       : ligne.site;
-    openCell(scope, category, cell);
+    openCell(site, category, cell);
+  };
+  const listProps = {
+    data: lignes,
+    keyExtractor: (item) => item.key,
+    getItemLayout: layout,
+    nestedScrollEnabled: true,
+    initialNumToRender: 8,
+    windowSize: 7,
+    removeClippedSubviews: false,
+    scrollEventThrottle: 32,
   };
 
-  return <View style={{ flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#fff' }}>
-    <View style={{ width: firstWidth, flexShrink: 0, borderRightWidth: 1, borderRightColor: COLORS.line }}>
-      <View style={{ height: 58, paddingHorizontal: 10, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+  return <View style={{ height, flexDirection: 'row', backgroundColor: '#fff' }}>
+    <View style={{ width: leftWidth, flexShrink: 0, borderRightWidth: 1, borderRightColor: COLORS.line }}>
+      <View style={{ height: 58, paddingHorizontal: 9, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
         <Text style={{ fontFamily: FONTS.black }}>Sites / locaux</Text>
       </View>
-      {lignes.map((ligne) => (
-        <TouchableOpacity key={ligne.key} accessibilityRole="button"
+      <FlatList {...listProps} ref={leftRef} style={{ flex: 1 }}
+        maxToRenderPerBatch={8}
+        onScroll={synchronize(rightRef)}
+        renderItem={({ item: ligne }) => <TouchableOpacity accessibilityRole="button"
           accessibilityLabel={ligne.kind === 'site'
             ? `Afficher ou masquer les locaux de ${ligne.site.nom_site}`
             : `Ouvrir ${ligne.local.nom} du site ${ligne.site.nom_site}`}
@@ -99,41 +127,39 @@ function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, n
           onLongPress={ligne.kind === 'site' ? () => ouvrirSite(ligne.site) : undefined}
           style={{ height: rowHeight, paddingHorizontal: 8, paddingLeft: ligne.kind === 'site' ? 8 : 23,
             borderBottomWidth: 1, borderBottomColor: COLORS.line, justifyContent: 'center',
-            backgroundColor: ligne.kind === 'site' ? '#FFF4E9' : '#FFFFFF' }}>
+            backgroundColor: ligne.kind === 'site' ? '#FFF4E9' : '#fff' }}>
           <Text numberOfLines={2} style={{ color: ligne.kind === 'site' ? COLORS.primary : COLORS.inkSoft,
             fontFamily: FONTS.bold, fontSize: ligne.kind === 'site' ? 12 : 11 }}>
-            {ligne.kind === 'site'
-              ? `${collapsed[ligne.site.id] ? '▸' : '▾'} ${ligne.site.nom_site}`
-              : `↳ ${ligne.local.nom}`}
+            {ligne.kind === 'site' ? `${collapsed[ligne.site.id] ? '▸' : '▾'} ${ligne.site.nom_site}` : `↳ ${ligne.local.nom}`}
           </Text>
           <Text numberOfLines={1} style={{ color: COLORS.muted, fontSize: 10, marginTop: 3 }}>
             {ligne.kind === 'site'
               ? `${(ligne.site.locals || []).length} local(aux) · ${ligne.site.adresse || 'Adresse non renseignée'}`
               : `${ligne.local.records.length} constat(s)`}
           </Text>
-        </TouchableOpacity>
-      ))}
+        </TouchableOpacity>} />
     </View>
-    <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator contentContainerStyle={{ flexGrow: 0 }}>
-      <View style={{ width: Math.max(98, categories.length * cellWidth) }}>
-        <View style={{ flexDirection: 'row', height: 58, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
-          {categories.map((category) => (
-            <View key={category.key} style={{ width: cellWidth, justifyContent: 'center', paddingHorizontal: 5 }}>
-              <Text style={{ textAlign: 'center', fontSize: 10, fontFamily: FONTS.bold }}>{category.label}</Text>
-            </View>
-          ))}
+    <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator>
+      <View style={{ width: Math.max(98, categories.length * cellWidth), flex: 1 }}>
+        <View style={{ height: 58, flexDirection: 'row', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+          {categories.map((category) => <View key={category.key}
+            style={{ width: cellWidth, justifyContent: 'center', paddingHorizontal: 5 }}>
+            <Text style={{ textAlign: 'center', fontSize: 10, fontFamily: FONTS.bold }}>{category.label}</Text>
+          </View>)}
         </View>
-        {lignes.map((ligne) => {
-          const scope = ligne.kind === 'local' ? ligne.local : ligne.site;
-          return <View key={ligne.key} style={{ height: rowHeight, flexDirection: 'row',
-            borderBottomWidth: 1, borderBottomColor: COLORS.line,
-            backgroundColor: ligne.kind === 'site' ? '#FFF4E9' : '#fff', alignItems: 'center' }}>
-            {categories.map((category) => (
-              <Cell key={category.key} cell={scope.cells?.[category.key] || { total: 0, state: 'none' }}
-                onPress={() => choisirCellule(ligne, category)} />
-            ))}
-          </View>;
-        })}
+        <FlatList {...listProps} ref={rightRef} style={{ flex: 1 }}
+          maxToRenderPerBatch={8}
+          onScroll={synchronize(leftRef)}
+          renderItem={({ item: ligne }) => {
+            const cible = ligne.kind === 'local' ? ligne.local : ligne.site;
+            return <View style={{ height: rowHeight, flexDirection: 'row',
+              borderBottomWidth: 1, borderBottomColor: COLORS.line, alignItems: 'center',
+              backgroundColor: ligne.kind === 'site' ? '#FFF4E9' : '#fff' }}>
+              {categories.map((category) => <Cell key={category.key}
+                cell={cible.cells?.[category.key] || { total: 0, state: 'none' }}
+                onPress={() => choisirCellule(ligne, category)} />)}
+            </View>;
+          }} />
       </View>
     </ScrollView>
   </View>;
