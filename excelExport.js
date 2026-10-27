@@ -372,6 +372,15 @@ async function construireClasseur(visiteId) {
     const champ = champsMap.get(lookup);
     const controle = controlesMap.get(lookup);
     if (mapping.type === 'champ') {
+      // Les emplacements fixes « Réseau 1...5 » restent compatibles avec
+      // les fichiers REMAR : lorsque l'utilisateur ne les a pas saisis
+      // séparément, ils reflètent les noms de réseaux du module dynamique.
+      // Les champs déjà renseignés ne sont jamais écrasés.
+      if (!champ && trame.ui?.dynamicPanels?.[mapping.panelId] === 'networks') {
+        const position = /^Réseau ([1-9][0-9]*)$/i.exec(String(mapping.cle || ''));
+        const reseau = position ? reseaux[Number(position[1]) - 1] : null;
+        if (reseau?.nom_reseau) setCell(mappingSheet, mapping.valueCell, reseau.nom_reseau);
+      }
       // Dès que des compteurs existent, leurs relevés font autorité. Ne pas
       // ressusciter l'ancien index Excel après effacement ou réaffectation.
       if (mapping.panelId === 'p-releves' && ((compteurs.length && /^Index/i.test(mapping.cle || '')) || compteurs.some((c) => c.destination === mapping.cle))) {
