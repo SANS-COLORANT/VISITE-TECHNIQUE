@@ -206,7 +206,7 @@ function cleanCounterLabel(value) { return normalize(String(value || '').replace
 function isMeterCandidate(candidate, capabilities) {
   return capabilities.meters && candidate?.type === 'champ' &&
     (candidate.numericIndex === true || candidate.meterSource === true ||
-      (candidate.specialPanel && /^(index|pression)\b/.test(candidate.key)));
+      (candidate.specialPanel && /^(index|compteur|pression)\b/.test(candidate.key)));
 }
 function isTemperatureCandidate(candidate) {
   return candidate?.temperature === true || /temperature/.test(candidate?.sectionKey || '');
