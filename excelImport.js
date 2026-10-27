@@ -245,7 +245,26 @@ export function analyserClasseur(wb, nomFichier) {
   const reseauxComplementaires = reseauxCfg
     ? lireReseauxComplementaires(wb, reseauxCfg, reseauxPrincipaux.length + 1)
     : [];
-  const reseaux = [...reseauxPrincipaux, ...reseauxComplementaires].map((r, index) => ({ ...r, ordre: index + 1 }));
+  let reseaux = [...reseauxPrincipaux, ...reseauxComplementaires].map((r, index) => ({ ...r, ordre: index + 1 }));
+  // Les annexes dynamiques font autorité lorsqu'elles existent : un seul
+  // exemplaire de chaque réseau/compteur, sans doublon avec les cases fixes.
+  const modules = new Set(Object.values(definition.ui?.dynamicPanels || {}));
+  if (modules.has('networks') && wb.Sheets.RESEAUX_DETAIL) {
+    reseaux = XLSX.utils.sheet_to_json(wb.Sheets.RESEAUX_DETAIL, { header: 1, defval: '' })
+      .slice(1).filter((row) => String(row[1] || '').trim()).map((row, index) => ({
+        ordre: index + 1, nom: String(row[1]), tExt: String(row[2] ?? ''),
+        tDep: String(row[3] ?? ''), courbe: String(row[4] ?? ''),
+        tnc: String(row[5] ?? ''), programme: String(row[6] ?? ''),
+      }));
+  }
+  if (modules.has('meters') && wb.Sheets.COMPTEURS_DETAIL) {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets.COMPTEURS_DETAIL, { header: 1, defval: '' })
+      .slice(1).filter((row) => String(row[0] || '').trim()).map((row) => ({
+        label: String(row[0]), valeur: String(row[1] ?? ''),
+        unite: String(row[2] ?? ''), destination: String(row[3] || 'supplementaire'),
+      }));
+    compteurs.splice(0, compteurs.length, ...rows);
+  }
 
   const tables = cfg.tables || {};
   const materielCfg = tables.materiel;
