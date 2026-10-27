@@ -5,8 +5,8 @@ const path = require('node:path');
 const { DatabaseSync } = require('node:sqlite');
 const root = path.resolve(__dirname, '../..');
 const source = fs.readFileSync(path.join(root, 'remarkVerificationDb.js'), 'utf8')
-  .replace(/^import\\s+[\\s\\S]*?from\\s+['"][^'"]+['"];?\\s*$/gm, '')
-  .replace(/export\\s+(?=(?:async\\s+)?(?:function|const|let|class)\\s)/g, '');
+  .replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*$/gm, '')
+  .replace(/export\s+(?=(?:async\s+)?(?:function|const|let|class)\s)/g, '');
 const sql = new DatabaseSync(':memory:');
 sql.exec(`CREATE TABLE remarques(id TEXT PRIMARY KEY,visite_id TEXT NOT NULL,intranet_etat_avancement TEXT,poste TEXT);
 CREATE TABLE attributs_libres(id TEXT PRIMARY KEY,entite_type TEXT NOT NULL,entite_id TEXT NOT NULL,
@@ -22,14 +22,14 @@ const db = {
   runAsync: async (q,p=[]) => sql.prepare(q).run(...p),
 };
 let seq = 0;
-const m = new Function('getDb','createId',source + '\\nreturn { listerVerificationsRemarques, marquerRemarqueVerifiee };')(
+const m = new Function('getDb','createId',source + '\nreturn { listerVerificationsRemarques, marquerRemarqueVerifiee };')(
   async () => db, () => 'test-verif-' + ++seq);
 async function test() {
   assert.deepEqual(await m.listerVerificationsRemarques('v1'), {});
   const date = await m.marquerRemarqueVerifiee('v1','r1',true);
-  assert.match(date, /^20\\d{2}-/);
+  assert.match(date, /^20\d{2}-/);
   assert.deepEqual(Object.keys(await m.listerVerificationsRemarques('v1')), ['r1']);
-  assert.deepEqual(await m.listerVerificationsRemarques('v2'), [], 'the other visit has no check');
+  assert.deepEqual(await m.listerVerificationsRemarques('v2'), {}, 'the other visit has no check');
   await m.marquerRemarqueVerifiee('v1','r1',true);
   assert.equal(sql.prepare("SELECT COUNT(*) AS n FROM attributs_libres WHERE entite_id='r1'").get().n, 1,
     'repeat taps are idempotent');
