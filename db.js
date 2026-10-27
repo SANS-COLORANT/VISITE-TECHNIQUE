@@ -227,12 +227,14 @@ export async function dupliquerReseau(reseauId) {
   const db = await getDb();
   const source = await db.getFirstAsync(`SELECT * FROM reseaux WHERE id=?`, [reseauId]);
   if (!source) throw new Error('Réseau introuvable.');
-  const max = await db.getFirstAsync(`SELECT MAX(ordre) AS m FROM reseaux WHERE visite_id=?`, [source.visite_id]);
-  const id = uuidv4();
   const nom = `${String(source.nom_reseau || '').trim() || 'Réseau'} (copie)`;
+  // La duplication crée sa PROPRE identité permanente : elle ne réutilise
+  // pas le réseau d'origine et ne déplace ni historique ni photos.
+  const id = await ajouterReseau(source.visite_id, nom);
   await db.runAsync(
-    `INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire) VALUES(?,?,?,?,?,?,?,?,?)`,
-    [id, source.visite_id, Number(max?.m ?? 0) + 1, nom, source.t_ext_c ?? null, source.t_dep_c ?? null, source.courbe_de_chauffe ?? null, source.tnc ?? null, source.consigne_programme_horaire ?? null]
+    `UPDATE reseaux SET t_ext_c=?,t_dep_c=?,courbe_de_chauffe=?,tnc=?,consigne_programme_horaire=? WHERE id=?`,
+    [source.t_ext_c ?? null, source.t_dep_c ?? null, source.courbe_de_chauffe ?? null, source.tnc ?? null,
+      source.consigne_programme_horaire ?? null, id]
   );
   return id;
 }
