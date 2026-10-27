@@ -16,6 +16,12 @@ const defs = {
   reseau_chaleur_v1: standardNetwork('reseau_chaleur_v1'),
   local_reseaux: { id: 'local_reseaux', excel: { networks: { exportOffsets: { nom_reseau: 2 } } }, ui: { panels: {} } },
   trame_autre_reseaux: { id: 'trame_autre_reseaux', intranet: { networks: true }, ui: { panels: {} } },
+  trame_remar_dynamique: { id: 'trame_remar_dynamique', ui: {
+    dynamicPanels: { 'p-remar-reseaux': 'networks', 'p-remar-releves': 'meters' },
+    panels: { 'p-remar-releves': { 'Compteur': [
+      { cle: 'Compteur Gaz (m³)', type: 'champ', intranetAliases: ['Compteur principal gaz'] },
+    ] } },
+  } },
   trame_sans_reseaux: { id: 'trame_sans_reseaux', ui: { panels: { 'p-test': { 'Controle': [
     { cle: 'Contrôle A', type: 'champ' },
   ] } } } },
@@ -79,7 +85,24 @@ async function main() {
       result.values[1].commentaire === '0.8' && result.values[4].commentaire === '1.0',
       'numbered networks map correctly without trame ID exceptions: ' + id);
   }
-  check(payload.inspectIntranetTrameCapabilities('trame_sans_reseaux').networks === false,
+  const remarCaps = payload.inspectIntranetTrameCapabilities('trame_remar_dynamique');
+  check(remarCaps.networks === true && remarCaps.meters === true,
+    'REMAR-style dynamic panels enable network and meter capabilities without whitelist');
+  const remarNetwork = await build('trame_remar_dynamique', networkRemote, { networkRows: networks });
+  check(remarNetwork.issues.length === 0 && remarNetwork.values[0].commentaire === 'Réseau 1',
+    'REMAR-style dynamic network values serialize into the correct Intranet group');
+  const remarMeterRemote = { categories: [{ id: 11, nom: 'Relevés', sousCategories: [
+    { id: 23, nom: 'Compteur', criteres: [
+      { id: 110, nom: 'Compteur principal gaz', avisApplicable: false },
+    ] },
+  ] }] };
+  const remarCounter = await build('trame_remar_dynamique', remarMeterRemote, {
+    fields: [{ section_code: 'remar-releves.compteur', cle: 'Compteur Gaz (m³)', valeur: '9999' }],
+    meters: [{ label: 'Compteur gaz', destination: 'Compteur Gaz (m³)', valeur: '2468', unite: 'm³' }],
+  });
+  check(remarCounter.issues.length === 0 && remarCounter.values[0].commentaire === '2468',
+    'REMAR-style meter takes fresh index, never the outdated generic prefill');
+    check(payload.inspectIntranetTrameCapabilities('trame_sans_reseaux').networks === false,
     'trame without network capability does not acquire it');
   const renamed = networks.map((row, i) => ({ ...row, nom_reseau: 'Bâtiment ' + (i + 1) }));
   const ambiguous = await build('local_reseaux', networkRemote, { networkRows: renamed });
