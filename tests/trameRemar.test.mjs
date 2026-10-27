@@ -87,6 +87,36 @@ test('all REMAR values survive serialized Excel export and native database impor
   assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk, true);
 });
 
+test('REMAR exports and reimports dynamic network/meter annexes without losing original points', async () => {
+  const id = await newVisit();
+  await db.runAsync(`INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire)
+    VALUES('remar-r1',?,1,'Circuit radiateurs','7','61','1.2','18','Confort 6h-22h')`, [id]);
+  await db.runAsync(`INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe)
+    VALUES('remar-r2',?,2,'Circuit plancher','7','38','0.7')`, [id]);
+  await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite,destination)
+    VALUES('remar-c1',?,'Compteur gaz chaufferie','12545.6','m³','Compteur Gaz (m³)')`, [id]);
+  await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite,destination)
+    VALUES('remar-c2',?,'Sous-compteur annexe','63.4','MWh','supplementaire')`, [id]);
+  await db.runAsync(`INSERT INTO photos(id,visite_id,entite_key,uri,label)
+    VALUES('remar-photo',?,'reseau||remar-r1','file:///test-photo.jpg','Photo circuit radiateurs')`, [id]);
+  const { wb } = await construireClasseur(id);
+  assert.ok(wb.Sheets['TRAME REMAR']);
+  assert.equal(wb.Sheets['TRAME REMAR'].C101.v, 'Compteur gaz chaufferie : 12545.6 m³');
+  assert.equal(wb.Sheets.RESEAUX_DETAIL.B2.v, 'Circuit radiateurs');
+  assert.equal(wb.Sheets.RESEAUX_DETAIL.H2.v, 'Photo circuit radiateurs');
+  assert.equal(wb.Sheets.RESEAUX_DETAIL.B3.v, 'Circuit plancher');
+  assert.equal(wb.Sheets.COMPTEURS_DETAIL.A3.v, 'Sous-compteur annexe');
+  const analysis = analyserClasseur(roundtrip(wb), 'remar-reseaux-compteurs.xlsx');
+  assert.equal(analysis.reseaux.length, 2);
+  assert.equal(analysis.reseaux[0].tDep, '61');
+  assert.equal(analysis.compteurs.length, 2);
+  assert.equal(analysis.compteurs[1].destination, 'supplementaire');
+  const imported = await importerAnalyseExcel(analysis);
+  assert.equal((await db.getAllAsync('SELECT * FROM reseaux WHERE visite_id=?', [imported.visiteId])).length, 2);
+  assert.equal((await db.getAllAsync('SELECT * FROM compteurs WHERE visite_id=?', [imported.visiteId])).length, 2);
+  assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk, true);
+});
+
 test('library edits create an immutable version and preserve old visits and mappings', async () => {
   const sourceId = await newVisit();
   let draft = editableTrameCopy(REMAR);
