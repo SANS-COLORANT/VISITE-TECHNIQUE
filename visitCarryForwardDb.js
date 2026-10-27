@@ -230,11 +230,21 @@ async function copyNetworkValues(db, visiteId, previousVisitId, referenceOnly = 
   const used = new Set();
   let copied = 0;
   for (const row of previous || []) {
+    // Les anciens réseaux retirés restent consultables, mais ne reviennent pas.
+    if (row.reseau_site_id) {
+      const permanent = await db.getFirstAsync('SELECT actif FROM reseaux_site WHERE id=?', [row.reseau_site_id]);
+      if (permanent && Number(permanent.actif) === 0) continue;
+    }
     const existing = (current || []).find((candidate) => {
       if (used.has(candidate.id)) return false;
       if (row.reseau_site_id && candidate.reseau_site_id) return row.reseau_site_id === candidate.reseau_site_id;
-      if (Number(candidate.ordre || 0) === Number(row.ordre || 0)) return true;
-      return clean(candidate.nom_reseau).toLowerCase() === clean(row.nom_reseau).toLowerCase();
+      // L'ordre ne prouve pas l'identité. Le nom est exploitable seulement
+      // s'il est unique des deux côtés.
+      const nom = clean(row.nom_reseau).toLowerCase();
+      if (!nom || nom === 'reseau') return false;
+      return previous.filter((n) => clean(n.nom_reseau).toLowerCase() === nom).length === 1 &&
+        current.filter((n) => clean(n.nom_reseau).toLowerCase() === nom).length === 1 &&
+        clean(candidate.nom_reseau).toLowerCase() === nom;
     }) || null;
 
     if (existing?.id) {
@@ -300,11 +310,19 @@ async function copyMeterValues(db, visiteId, previousVisitId, referenceOnly = fa
   const used = new Set();
   let copied = 0;
   for (const row of previous || []) {
+    if (row.compteur_site_id) {
+      const permanent = await db.getFirstAsync('SELECT actif FROM compteurs_site WHERE id=?', [row.compteur_site_id]);
+      if (permanent && Number(permanent.actif) === 0) continue;
+    }
     const existing = (current || []).find((candidate) => {
       if (used.has(candidate.id)) return false;
       if (row.compteur_site_id && candidate.compteur_site_id) return row.compteur_site_id === candidate.compteur_site_id;
-      if (clean(row.destination) && clean(candidate.destination)) return clean(row.destination) === clean(candidate.destination);
-      return clean(candidate.label).toLowerCase() === clean(row.label).toLowerCase();
+      // Une destination Excel peut être partagée par plusieurs compteurs.
+      const nom = clean(row.label).toLowerCase();
+      if (!nom || nom === 'compteur') return false;
+      return previous.filter((c) => clean(c.label).toLowerCase() === nom).length === 1 &&
+        current.filter((c) => clean(c.label).toLowerCase() === nom).length === 1 &&
+        clean(candidate.label).toLowerCase() === nom;
     }) || null;
 
     if (existing?.id) {
@@ -501,10 +519,19 @@ export async function carryForwardPreviousVisit(db, visiteId, contexte) {
   const copiedFields = await copyReusableFields(db, visiteId, semanticSnapshot, trame);
   const copiedControls = await copyReusableControls(db, visiteId, semanticSnapshot, trame);
   const copiedReserves = await copyUnresolvedReserves(db, visiteId, sourceVisits);
-  const porteReseaux = trame.id === DEFAULT_TRAME_ID || trame.id === 'reseau_chaleur_v1';
+  // Réutiliser les données du local selon les capacités de la trame, jamais
+  // d'après une liste blanche ICPE/RCU. Les relevés du jour restent modifiables.
+  const modules = new Set(Object.values(trame.ui?.dynamicPanels || {}));
+  const specials = new Set(trame.ui?.specialPanels || []);
+  const porteReseaux = Boolean(trame.excel?.networks?.exportOffsets ||
+    specials.has('p-regulation') || modules.has('networks'));
+  const porteCompteurs = Boolean(specials.has('p-releves') || modules.has('meters') ||
+    Object.values(trame.ui?.panels || {}).some((sections) =>
+      Object.values(sections || {}).some((fields) =>
+        (fields || []).some((field) => field?.numericIndex === true))));
   const referenceOnly = false;
   const networkSource = porteReseaux ? await latestVisitWithRows(db, sourceVisits, 'reseaux') : null;
-  const meterSource = porteReseaux ? await latestVisitWithRows(db, sourceVisits, 'compteurs') : null;
+  const meterSource = porteCompteurs ? await latestVisitWithRows(db, sourceVisits, 'compteurs') : null;
   const copiedNetworks = networkSource ? await copyNetworkValues(db, visiteId, networkSource.id, referenceOnly) : 0;
   const copiedMeters = meterSource ? await copyMeterValues(db, visiteId, meterSource.id, referenceOnly) : 0;
 
