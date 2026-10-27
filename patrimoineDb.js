@@ -50,19 +50,21 @@ async function synchroniserReservesClient(clientId) {
     [clientId]
   );
   if (!sources.length) return;
-  await base.withTransactionAsync(async () => {
+  // Use an isolated SQLite transaction: the shared handle can be serving
+  // background synchronization while Pilotage loads its reserve statistics.
+  await base.withExclusiveTransactionAsync(async (tx) => {
     for (const r of sources) {
       const reserveId = createId();
       const date = r.date_visite || r.cree_le || maintenant();
-      await base.runAsync(
+      await tx.runAsync(
         `INSERT OR IGNORE INTO reserves_suivi
          (id,site_id,source_visite_id,source_remarque_id,poste,prestation,statut,cree_le,modifie_le)
          VALUES(?,?,?,?,?,?,'ouverte',?,?)`,
         [reserveId, r.site_id, r.visite_id, r.id, r.poste || 'Observation', r.prestation || '', date, maintenant()]
       );
-      const creee = await base.getFirstAsync(`SELECT id FROM reserves_suivi WHERE source_remarque_id=?`, [r.id]);
+      const creee = await tx.getFirstAsync(`SELECT id FROM reserves_suivi WHERE source_remarque_id=?`, [r.id]);
       if (creee?.id === reserveId) {
-        await base.runAsync(
+        await tx.runAsync(
           `INSERT INTO historique_reserves
            (id,reserve_id,type_evenement,date_evenement,nouveau_statut,commentaire,source_visite_id)
            VALUES(?,?, 'creation', ?, 'ouverte', ?, ?)`,

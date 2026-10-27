@@ -55,8 +55,15 @@ export function resolveFirstVisitRemoteTrame(referential, localTrameId, visitTra
       return { remoteTrameId: named[0].id, remoteTrameName: named[0].nom, candidates: named, matchedBy: 'visit_field' };
     }
     if (!named.length) {
+      // "Réseau de chaleur" and "TRAME RÉSEAU DE CHALEUR" may be
+      // different names for the same server family. Only use an explicit,
+      // unique match: never send RCU under an ICPE model.
+      const candidates = trames.filter((trame) => mapRemoteTrameToLocal(trame) === localTrameId);
+      if (mapRemoteTrameToLocal({ nom: requestedName }) === localTrameId && candidates.length === 1) {
+        return { remoteTrameId: candidates[0].id, remoteTrameName: candidates[0].nom, candidates, matchedBy: 'unique_family' };
+      }
       throw bindingError(
-        `Aucune trame Intranet nommée « ${requestedName} » n'est disponible dans le référentiel de ce client.`,
+        `Aucune trame Intranet compatible nommée « ${requestedName} » pour cette visite. Vérifie les trames disponibles dans le référentiel du client ; METRA ne remplacera pas Réseau de chaleur par ICPE.`,
         'intranet_first_visit_trame_name_missing',
         { localTrameId, visitTrameName: requestedName, candidates: trames }
       );

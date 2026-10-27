@@ -13,8 +13,10 @@ function yearAsInteger(v) {
 }
 
 export function mapRemoteTrameToLocal(remote) {
-  const t = normalize(remote?.nom || '');
+  const t = normalize(remote?.nom || '').replace(/[^a-z0-9]+/g, ' ').trim();
   if (!t) return null;
+  // RCU is distinct from ICPE: check explicit heat-network names first.
+  if (/(^| )(reseau (de )?chaleur|reseau (de )?chauffage urbain|rcu)( |$)/.test(t)) return 'reseau_chaleur_v1';
   if (t.includes('vmc') || t.includes('ventilation')) return 'vmc';
   if (t.includes('pre') && t.includes('allum')) return 'pre_allumage';
   if (t.includes('chauffer') || t.includes('sous-station') || t.includes('sous station') || t.includes('icpe')) return 'icpe_v1';
