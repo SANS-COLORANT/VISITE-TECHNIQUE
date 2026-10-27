@@ -17,9 +17,12 @@ const missionPlugin = read('plugins/withMetraMissionTools.js');
 const nativeOcr = read('native/metra-mission-tools/MetraOcrModule.kt');
 
 const visit = read('VisiteScreen.js');
-// Le Mode Photo s'active pendant la visite (barre d'actions), plus au démarrage.
-need(visit, "require('./PhotoPhoneScreen.js')", 'photo mode must open from the visit');
-need(visit, 'photoLabel="Mode Photo"', 'visit action bar must expose the photo mode');
+// The legacy phone capture tool stays reusable, but the visit action now
+// opens the Photos tab for a free photo as explicitly requested.
+need(visit, 'photoLabel="Photo libre"', 'visit action bar must offer private free photos');
+need(visit, "const ouvrirPhotoLibre = () => changerOnglet('p-photos')", 'free-photo action opens Photos');
+need(visit, 'onPhoto={ouvrirPhotoLibre}', 'free-photo action no longer opens Mode Photo');
+forbid(visit, "require('./PhotoPhoneScreen.js')", 'retired photo mode must not reappear in the visit');
 need(photo, 'visiteId: visiteInitiale', 'photo mode must open directly on the current visit');
 forbid(app, 'PhoneModeChooser', 'phone must start on the full app, no mode chooser');
 need(app, "label: 'Compagnon de la tablette'", 'home must expose the companion mode');
