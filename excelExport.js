@@ -100,6 +100,48 @@ function ajouterReseauxComplementaires(wb, reseaux, config) {
   return supplementaires.length;
 }
 
+// Les modules déclaratifs partagent l'export, sans branchement REMAR/ICPE.
+function modulesDynamiques(trame) {
+  const modules = Object.values(trame.ui?.dynamicPanels || {});
+  return { networks: modules.includes('networks'), meters: modules.includes('meters') };
+}
+function ajouterAnnexeDynamique(wb, feuille, entetes, lignes) {
+  if (!lignes.length) return;
+  const sheet = XLSX.utils.aoa_to_sheet([entetes, ...lignes]);
+  sheet['!cols'] = entetes.map((value) => ({ wch: Math.min(48, Math.max(16, String(value).length + 8)) }));
+  if (wb.Sheets[feuille]) wb.Sheets[feuille] = sheet;
+  else XLSX.utils.book_append_sheet(wb, sheet, feuille);
+}
+function exporterAnnexesDynamiques(wb, trame, reseaux, compteurs, photos) {
+  const modules = modulesDynamiques(trame);
+  const byKey = new Map();
+  for (const p of photos || []) {
+    const key = String(p.entite_key || '');
+    byKey.set(key, [...(byKey.get(key) || []), p.label || 'Photo']);
+  }
+  if (modules.networks) ajouterAnnexeDynamique(wb, 'RESEAUX_DETAIL',
+    ['N°', 'Réseau', 'T° ext (°C)', 'T° départ (°C)', 'Courbe de chauffe', 'TNC', 'Programme', 'Photos'],
+    reseaux.map((r, i) => [i + 1, r.nom_reseau || '', r.t_ext_c ?? '', r.t_dep_c ?? '',
+      r.courbe_de_chauffe ?? '', r.tnc ?? '', r.consigne_programme_horaire ?? '',
+      (byKey.get(r.reseau_site_id ? `reseau_site||${r.reseau_site_id}` : `reseau||${r.id}`) || []).join(' | ')]));
+  if (modules.meters) ajouterAnnexeDynamique(wb, 'COMPTEURS_DETAIL',
+    ['Compteur', 'Index', 'Unité', 'Destination trame', 'Précédent', 'Photos'],
+    compteurs.map((c) => [c.label || '', c.valeur ?? '', c.unite || '',
+      c.destination || 'supplementaire', c.valeur_precedente ?? '',
+      (byKey.get(c.compteur_site_id ? `compteur_site||${c.compteur_site_id}` : `compteur||${c.id}`) || []).join(' | ')]));
+}
+function exporterCompteursDynamiques(sheet, compteurs, mappings, panelIds) {
+  for (const m of mappings || []) {
+    if (!panelIds.has(m.panelId) || m.type !== 'champ' ||
+      !/compteur|index|manom/i.test(`${m.section || ''} ${m.cle || ''}`)) continue;
+    const valeurs = compteurs.filter((c) => {
+      const destination = String(c.destination || '').trim();
+      return destination ? destination === m.cle :
+        normaliserTexteCompteur(c.label) === normaliserTexteCompteur(m.cle);
+    }).filter((c) => String(c.valeur ?? '').trim());
+    if (valeurs.length) setCell(sheet, m.valueCell, formaterReleves(valeurs, { avecNomSeul: true }));
+  }
+}
 function remplirTable(sheet, rows, tableConfig) {
   if (!sheet || !tableConfig) return;
   const startRow = Number(tableConfig.startRow || 1);
@@ -273,13 +315,16 @@ async function construireClasseur(visiteId) {
   const cfg = trame.excel;
   if (!cfg?.templateBase64) throw new Error(`Aucun modèle Excel configuré pour la trame ${trame.nom}.`);
 
-  const [champs, controles, reseaux, compteurs, materielBrut, remarquesBrutes, note, aliases, modelePreAllumage, pointsLibres] = await Promise.all([
+  const [champs, controles, reseaux, compteurs, materielBrut, remarquesBrutes, note, aliases, modelePreAllumage, pointsLibres, photosDynamiques] = await Promise.all([
     db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id = ?`, [visiteId]),
     db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id = ?`, [visiteId]),
     listerReseaux(visiteId), listerCompteurs(visiteId), listerMateriel(visiteId), listerRemarques(visiteId), getNote(visiteId),
     trame.id === 'pre_allumage' ? listerAliasesPreAllumage(visiteId) : Promise.resolve({}),
     trame.id === 'pre_allumage' ? chargerPreAllumageModulaire(visiteId) : Promise.resolve(null),
     db.getAllAsync('SELECT libelle,valeur,unite FROM points_mesure_visite WHERE visite_id=? ORDER BY cree_le,id', [visiteId]),
+    modulesDynamiques(trame).networks || modulesDynamiques(trame).meters
+      ? db.getAllAsync('SELECT entite_key,label FROM photos WHERE visite_id=? ORDER BY cree_le,id', [visiteId])
+      : Promise.resolve([]),
   ]);
 
   const materiel = normaliserMaterielPourExport(materielBrut);
@@ -371,8 +416,18 @@ async function construireClasseur(visiteId) {
     });
   }
   const reseauxSupplementaires = reseauxCfg ? ajouterReseauxComplementaires(wb, reseaux, reseauxCfg) : 0;
+  const dyn = modulesDynamiques(trame);
   if (cfg.heatNetwork) exporterCompteursReseauChaleur(sheetPrincipale, compteurs, cfg.fieldMappings);
-  else exporterCompteurs(sheetPrincipale, compteurs, cfg.fieldMappings);
+  else if (dyn.meters) {
+    const panelIds = new Set(Object.entries(trame.ui.dynamicPanels || {})
+      .filter(([, type]) => type === 'meters').map(([id]) => id));
+    exporterCompteursDynamiques(sheetPrincipale, compteurs, cfg.fieldMappings, panelIds);
+  } else if ((cfg.fieldMappings || []).some((m) =>
+    m.panelId === 'p-releves' && /compteur|manom/i.test(m.section || ''))) {
+    exporterCompteurs(sheetPrincipale, compteurs, cfg.fieldMappings);
+  }
+  // On n'écrase aucune case officielle ni aucun autre onglet métier.
+  exporterAnnexesDynamiques(wb, trame, reseaux, compteurs, photosDynamiques);
   const tables = cfg.tables || {};
   if (tables.materiel) remplirTable(wb.Sheets[tables.materiel.sheet], materiel, tables.materiel);
   if (tables.remarques) remplirTable(wb.Sheets[tables.remarques.sheet], remarques, tables.remarques);
