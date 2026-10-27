@@ -3,6 +3,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { Alert, SectionList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getChampsVisite, getControlesVisite, getVisite, upsertChamp } from './db.js';
 import { DurableChampGenerique } from './DurableChampGenerique.js';
+import { RemarMeterField } from './RemarMeterField.js';
 import { PersistentControleGenerique } from './PersistentControleGenerique.js';
 import { VmcControleGenerique } from './VmcControleGenerique.js';
 import { PresetControleGenerique } from './PresetControleGenerique.js';
@@ -446,6 +447,10 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
   };
 
   const rendreChampOuControle = (item, label) => {
+    if (estRemar && panelId === 'p-remar-releves' && item.field.type === 'champ' && item.field.numericIndex) {
+      return <RemarMeterField visiteId={visiteId} field={item.field} sectionCode={item.sectionCode}
+        legacyValue={champsMap[item.key]} onLegacySaved={champHandler(item.key)} />;
+    }
     if (item.field.type === 'champ') {
       return <DurableChampGenerique
         visiteId={visiteId}

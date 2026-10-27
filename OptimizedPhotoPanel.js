@@ -13,10 +13,12 @@
  */
 
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ajouterPhoto } from './db.js';
-import { supprimerPhotoComplete } from './photoDb.js';
+import { supprimerPhotoComplete, renommerPhotoVisite, reglerPublicationPhotoLibre } from './photoDb.js';
+import { capturerPhotoLibre } from './photoLibreCapture.js';
+import { estPhotoLibre, photoIncluseDansExports, legendePhotoEditable } from './photoExportPolicy.js';
 import { prendrePhoto, preparerPhotoNommee } from './PhotoButton.js';
 import { COLORS, FONTS, styles } from './styles.js';
 import { PhotoVariantImage } from './PhotoVariantImage.js';
@@ -41,8 +43,7 @@ const DELAI_ANNULATION_MS = 4500;
 const suppressionsEnAttente = new Map();
 
 function legendePhoto(photo) {
-  const brut = String(photo?.label || '').split('||')[0].trim();
-  return brut || 'Photo';
+  return legendePhotoEditable(photo);
 }
 
 function libelleOrigine(key) {
@@ -91,6 +92,9 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
   const [photos, setPhotos] = useState(() => peekVisitPhotos(visiteId) || []);
   const [viewerPhoto, setViewerPhoto] = useState(null);
   const [viewerHd, setViewerHd] = useState(false);
+  const [editionLibelle, setEditionLibelle] = useState(false);
+  const [libelleSaisi, setLibelleSaisi] = useState('');
+  const [savingMetadata, setSavingMetadata] = useState(false);
   const [cameraEnCours, setCameraEnCours] = useState(false);
   const [filtre, setFiltre] = useState('toutes');
   const sections = useSectionsOuvertes(`${visiteId}:p-photos`);
@@ -162,87 +166,71 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
   }, [visibles, groupes, viewerPhoto]);
   const viewerIndex = viewerPhoto ? navigation.findIndex((p) => String(p.id) === String(viewerPhoto.id)) : -1;
 
-  const ouvrir = useCallback((photo) => { setViewerHd(false); setViewerPhoto(photo); }, []);
+  const ouvrir = useCallback((photo) => {
+    setViewerHd(false); setEditionLibelle(false);
+    setLibelleSaisi(legendePhotoEditable(photo)); setViewerPhoto(photo);
+  }, []);
   const deplacer = useCallback((dir) => {
     if (!navigation.length) return;
     const base = viewerIndex < 0 ? 0 : viewerIndex;
     const next = navigation[(base + dir + navigation.length) % navigation.length];
-    if (next) { setViewerHd(false); setViewerPhoto(next); }
+    if (next) { setViewerHd(false); setEditionLibelle(false); setLibelleSaisi(legendePhotoEditable(next)); setViewerPhoto(next); }
   }, [navigation, viewerIndex]);
 
   const onAjouter = useCallback(async () => {
     if (cameraEnCours) return;
     setCameraEnCours(true);
-    prewarmPhotoCaptureContext(visiteId).catch(() => {});
-    let captureUri = null;
     try {
-      captureUri = await prendrePhoto();
-    } catch (e) {
-      Alert.alert('Erreur photo', String(e?.message || e));
+      await capturerPhotoLibre(visiteId, (error) => Alert.alert('Erreur photo libre', String(error?.message || error)));
+    } catch (error) {
+      Alert.alert('Erreur photo libre', String(error?.message || error));
     } finally {
-      // Le bouton redevient disponible dès le retour de l'appareil photo.
       setCameraEnCours(false);
     }
-    if (!captureUri) return;
-
-    const tempId = `photo-pending:${Date.now()}:${Math.random().toString(36).slice(2, 7)}`;
-    const optimistic = {
-      id: tempId,
-      visite_id: visiteId,
-      entite_key: null,
-      uri: captureUri,
-      label: 'Photo générale',
-      cree_le: new Date().toISOString(),
-      pending: true,
-    };
-    upsertRuntimePhoto(visiteId, optimistic);
-
-    // Toute la persistance est découplée du retour caméra pour permettre une
-    // nouvelle prise immédiatement, y compris en série.
-    void (async () => {
-      const saveKey = `photo-panel:${visiteId}:${Date.now()}`;
-      let journalKey = null;
-      beginExternalSave(saveKey);
-      try {
-        const photo = await preparerPhotoNommee({
-          visiteId,
-          entiteKey: null,
-          label: 'Photo générale',
-          uri: captureUri,
-        });
-        if (!photo.uri) throw new Error('Photo non préparée');
-        const labelDb = photo.nom ? `Photo générale||${photo.nom}` : 'Photo générale';
-
-        replaceRuntimePhoto(visiteId, tempId, {
-          ...optimistic,
-          id: tempId,
-          uri: photo.uri,
-          label: labelDb,
-          pending: true,
-        });
-
-        journalKey = await journaliserPhotoEnAttente({ visiteId, entiteKey: null, uri: photo.uri, labelDb });
-        const photoId = await ajouterPhoto(visiteId, null, photo.uri, labelDb);
-        await confirmerPhotoJournalisee(journalKey).catch(() => {});
-        journalKey = null;
-
-        replaceRuntimePhoto(visiteId, tempId, {
-          id: photoId,
-          visite_id: visiteId,
-          entite_key: null,
-          uri: photo.uri,
-          label: labelDb,
-          cree_le: new Date().toISOString(),
-          pending: false,
-        });
-        endExternalSave(saveKey);
-      } catch (e) {
-        if (!journalKey) removeRuntimePhoto(visiteId, tempId);
-        endExternalSave(saveKey, e);
-        Alert.alert('Erreur photo', String(e?.message || e));
-      }
-    })();
   }, [cameraEnCours, visiteId]);
+
+  const enregistrerLibelle = useCallback(async () => {
+    if (!viewerPhoto || viewerPhoto.pending || savingMetadata) return;
+    setSavingMetadata(true);
+    try {
+      const resultat = await renommerPhotoVisite(visiteId, viewerPhoto.id, libelleSaisi);
+      upsertRuntimePhoto(visiteId, { id: viewerPhoto.id, label: resultat.label });
+      setEditionLibelle(false);
+      if (resultat.dejaEnvoyee) Alert.alert('Photo déjà envoyée',
+        'Le nouveau libellé s’affichera dans les prochains rapports locaux. La version déjà envoyée sur l’Intranet ne peut pas être renommée sans une API de modification côté serveur.');
+      else showToast('Libellé enregistré pour le rapport et l’Intranet');
+    } catch (e) {
+      Alert.alert('Libellé non enregistré', String(e?.message || e));
+    } finally {
+      setSavingMetadata(false);
+    }
+  }, [viewerPhoto, libelleSaisi, savingMetadata, visiteId]);
+
+  const changerPublication = useCallback(async () => {
+    if (!viewerPhoto || viewerPhoto.pending || savingMetadata || !estPhotoLibre(viewerPhoto)) return;
+    const inclure = !photoIncluseDansExports(viewerPhoto);
+    const appliquer = async () => {
+      setSavingMetadata(true);
+      try {
+        const patch = await reglerPublicationPhotoLibre(visiteId, viewerPhoto.id, inclure);
+        upsertRuntimePhoto(visiteId, { id: viewerPhoto.id, ...patch });
+        showToast(inclure ? 'Photo libre intégrée aux rapports et au prochain envoi Intranet' : 'Photo locale uniquement');
+      } catch (e) {
+        Alert.alert('Choix de publication impossible', String(e?.message || e));
+      } finally {
+        setSavingMetadata(false);
+      }
+    };
+    if (inclure) {
+      Alert.alert('Intégrer cette photo libre ?',
+        'Elle pourra apparaître dans les rapports et sera envoyée à l’Intranet lors de la prochaine synchronisation. Son libellé sera transmis.',
+        [{ text: 'Rester en local', style: 'cancel' }, { text: 'Intégrer', onPress: appliquer }]);
+    } else {
+      Alert.alert('Garder cette photo en local ?',
+        'Elle sera exclue des prochains rapports et des envois Intranet non encore réalisés.',
+        [{ text: 'Annuler', style: 'cancel' }, { text: 'Garder en local', onPress: appliquer }]);
+    }
+  }, [viewerPhoto, savingMetadata, visiteId]);
 
   // Suppression confirmée, puis différée de quelques secondes pour permettre « Annuler ».
   const supprimerSelection = useCallback(() => {
@@ -293,10 +281,10 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
           onPress={onAjouter}
           disabled={cameraEnCours}
           accessibilityRole="button"
-          accessibilityLabel="Ajouter une photo générale"
+          accessibilityLabel="Ajouter une photo libre"
         >
           <CvcIcon name="camera" size={16} color={t.dark} strokeWidth={2.2} />
-          <Text style={[st.addBtnText, { color: t.dark }]}>{cameraEnCours ? 'Appareil photo…' : 'Photo générale'}</Text>
+          <Text style={[st.addBtnText, { color: t.dark }]}>{cameraEnCours ? 'Appareil photo…' : 'Photo libre'}</Text>
         </TouchableOpacity>
       </View>
       {groupes.length ? (
@@ -385,8 +373,37 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
               <Text style={[st.viewerPillText, viewerHd && { color: COLORS.ink }]}>HD</Text>
             </TouchableOpacity>
           </View>
+          {viewerPhoto && estPhotoLibre(viewerPhoto) ? (
+            <Text style={st.localOnlyStatus}>{photoIncluseDansExports(viewerPhoto)
+              ? 'Libre · intégrée aux rapports et à l’Intranet'
+              : 'Libre · locale uniquement · exclue des rapports et de l’Intranet'}</Text>
+          ) : null}
+          {editionLibelle ? <View style={st.editCaption}>
+            <TextInput accessibilityLabel="Modifier le libellé de la photo" style={st.captionInput}
+              autoFocus maxLength={160} value={libelleSaisi} onChangeText={setLibelleSaisi}
+              placeholder="Libellé affiché dans les rapports et l’Intranet" />
+            <TouchableOpacity accessibilityRole="button" disabled={savingMetadata} onPress={enregistrerLibelle} style={st.editAction}>
+              <Text style={st.editActionText}>{savingMetadata ? '…' : 'Enregistrer'}</Text>
+            </TouchableOpacity>
+          </View> : null}
           <View style={st.viewerImgWrap}>
             {viewerPhoto ? <PhotoVariantImage uri={viewerPhoto.uri} variant={viewerPhoto.pending || viewerHd ? 'original' : 'preview'} style={st.viewerImg} resizeMode="contain" /> : null}
+          </View>
+          <View style={st.viewerTools}>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Modifier le libellé de la photo"
+              disabled={!viewerPhoto || viewerPhoto.pending || savingMetadata}
+              onPress={() => { setLibelleSaisi(legendePhotoEditable(viewerPhoto)); setEditionLibelle((v) => !v); }}
+              style={[st.viewerBtn, { flex: 1 }]}>
+              <Text numberOfLines={1} style={st.viewerBtnText}>Libellé</Text>
+            </TouchableOpacity>
+            {viewerPhoto && estPhotoLibre(viewerPhoto) ? (
+              <TouchableOpacity accessibilityRole="button"
+                accessibilityLabel={photoIncluseDansExports(viewerPhoto) ? 'Garder la photo uniquement en local' : 'Intégrer la photo aux rapports et à l’Intranet'}
+                disabled={viewerPhoto.pending || savingMetadata}
+                onPress={changerPublication} style={[st.viewerBtn, { flex: 1 }]}>
+                <Text numberOfLines={2} style={st.viewerBtnText}>{photoIncluseDansExports(viewerPhoto) ? 'Exclure' : 'Intégrer'}</Text>
+              </TouchableOpacity>
+            ) : null}
           </View>
           <View style={st.viewerBar}>
             <TouchableOpacity accessibilityLabel="Photo précédente" disabled={navigation.length < 2} onPress={() => deplacer(-1)} style={[st.viewerNav, navigation.length < 2 && { opacity: 0.35 }]}>
@@ -443,7 +460,13 @@ const st = StyleSheet.create({
   viewerPillText: { fontSize: 12.5, fontFamily: FONTS.bodyBold, color: COLORS.white },
   viewerImgWrap: { flex: 1, borderRadius: 18, overflow: 'hidden' },
   viewerImg: { width: '100%', height: '100%' },
-  viewerBar: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 12 },
+  viewerBar: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingTop: 12 },
+  viewerTools: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingTop: 7 },
+  localOnlyStatus: { color: '#F5D7AE', fontSize: 12, fontFamily: FONTS.bodySemi, paddingVertical: 6 },
+  editCaption: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 9 },
+  captionInput: { flex: 1, minWidth: 0, backgroundColor: '#FFFFFF', borderRadius: 10, paddingHorizontal: 11, minHeight: 44, color: COLORS.ink },
+  editAction: { minHeight: 44, borderRadius: 10, backgroundColor: COLORS.orange, paddingHorizontal: 10, justifyContent: 'center' },
+  editActionText: { color: COLORS.white, fontFamily: FONTS.bold, fontSize: 11.5 },
   viewerNav: { width: 52, height: 50, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center' },
   viewerBtn: { flex: 1, flexDirection: 'row', gap: 7, minHeight: 50, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.14)', alignItems: 'center', justifyContent: 'center', paddingHorizontal: 8 },
   viewerBtnText: { fontSize: 13.5, fontFamily: FONTS.bodyBold, color: COLORS.white },

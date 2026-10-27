@@ -109,7 +109,7 @@ export async function getVisitPhotoUploadSummary(visiteId) {
       SUM(CASE WHEN o.status='sending' THEN 1 ELSE 0 END) AS sending,
       SUM(CASE WHEN o.status='synced' THEN 1 ELSE 0 END) AS synced,
       SUM(CASE WHEN o.status IN ('validation_error','rejected','auth_error') THEN 1 ELSE 0 END) AS failed
-    FROM photos p LEFT JOIN api_visit_photo_outbox o ON o.photo_id=p.id WHERE p.visite_id=?`, [String(visiteId)]);
+    FROM photos p LEFT JOIN api_visit_photo_outbox o ON o.photo_id=p.id WHERE p.visite_id=? AND p.inclure_export=1`, [String(visiteId)]);
   return Object.fromEntries(['total','queued','unscheduled','pending','sending','synced','failed'].map((key) => [key, Number(row?.[key] || 0)]));
 }
 
@@ -124,7 +124,7 @@ export async function queueMissingVisitPhotos(visiteId) {
   if (!visitUpload || visitUpload.status !== 'synced' || !visitUpload.remote_visit_id) return 0;
   const visite = await db.getFirstAsync(`SELECT * FROM visites WHERE id=?`, [String(visiteId)]);
   if (!visite) return 0;
-  const photos = await db.getAllAsync(`SELECT * FROM photos WHERE visite_id=? ORDER BY cree_le,id`, [String(visiteId)]);
+  const photos = await db.getAllAsync(`SELECT * FROM photos WHERE visite_id=? AND inclure_export=1 ORDER BY cree_le,id`, [String(visiteId)]);
   const existing = await db.getAllAsync(`SELECT photo_id,ordre FROM api_visit_photo_outbox WHERE visite_id=?`, [String(visiteId)]);
   const existingIds = new Set((existing || []).map((row) => String(row.photo_id)));
   let ordre = Math.max(0, ...(existing || []).map((row) => Number(row.ordre || 0)));
@@ -173,6 +173,13 @@ export async function recoverInterruptedVisitPhotoUploads() {
 }
 
 async function sendPhotoRow(db, row) {
+  // Check again immediately before upload: an opt-out may have occurred
+  // after a previous queueing attempt or a network outage.
+  const authorized = await db.getFirstAsync('SELECT inclure_export FROM photos WHERE id=?', [row.photo_id]);
+  if (!authorized || Number(authorized.inclure_export) !== 1) {
+    await db.runAsync("DELETE FROM api_visit_photo_outbox WHERE photo_id=? AND status<>'synced'", [row.photo_id]);
+    return { status: 'skipped_local_only' };
+  }
   await db.runAsync(`UPDATE api_visit_photo_outbox SET status='sending',attempt_count=attempt_count+1,last_attempt_at=datetime('now'),error_code=NULL,error_message=NULL,violations_json=NULL,updated_at=datetime('now') WHERE photo_id=?`, [row.photo_id]);
   notify();
   try {
@@ -241,7 +248,12 @@ export async function processVisitPhotoOutbox({ limit = PHOTO_UPLOAD_PART_SIZE, 
     // volontairement limité à une seule partie de 10 photos maximum.
     const requested = Math.max(1, Math.min(PHOTO_UPLOAD_PART_SIZE, Number(limit || PHOTO_UPLOAD_PART_SIZE)));
     params.push(requested);
-    const rows = await db.getAllAsync(`SELECT * FROM api_visit_photo_outbox WHERE ${filter} ORDER BY queued_at,ordre LIMIT ?`, params);
+    // Use a subquery so the legacy filter remains unchanged and unambiguous.
+    const rows = await db.getAllAsync(`SELECT * FROM api_visit_photo_outbox
+      WHERE ${filter} AND EXISTS(
+        SELECT 1 FROM photos WHERE photos.id=api_visit_photo_outbox.photo_id
+          AND photos.inclure_export=1
+      ) ORDER BY queued_at,ordre LIMIT ?`, params);
     const results = [];
     for (let i = 0; i < rows.length; i += PHOTO_UPLOAD_CONCURRENCY) {
       const batch = await Promise.all(rows.slice(i, i + PHOTO_UPLOAD_CONCURRENCY).map((row) => sendPhotoRow(db, row)));

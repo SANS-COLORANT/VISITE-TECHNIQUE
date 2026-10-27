@@ -140,8 +140,9 @@ function ligneCompteurParLibelle(compteur) {
 }
 
 function mappingsReleveCompteurs(fieldMappings = []) {
-  return (fieldMappings || []).filter((m) => m.panelId === 'p-releves' && m.type === 'champ'
-    && /compteur|manom/i.test(`${m.section || ''} ${m.sectionCode || ''}`) && m.valueCell);
+  return (fieldMappings || []).filter((m) =>
+    (m.panelId === 'p-releves' || (m.panelId === 'p-remar-releves' && m.section === 'Compteur')) &&
+    m.type === 'champ' && /compteur|manom/i.test(`${m.section || ''} ${m.sectionCode || ''} ${m.cle || ''}`) && m.valueCell);
 }
 
 /** Ligne Excel d'un compteur : destination explicite d'abord, libellé ensuite. */
@@ -154,6 +155,9 @@ function ligneCompteur(compteur, fieldMappings = []) {
     if (row) return Number(row[1]);
     return null;
   }
+  // REMAR can contain pre-existing ICPE meters for the same local. Without a
+  // matching explicit destination do not guess and overwrite a REMAR cell.
+  if (fieldMappings.some((m) => m.panelId === 'p-remar-releves')) return null;
   return ligneCompteurParLibelle(compteur);
 }
 
@@ -329,7 +333,9 @@ async function construireClasseur(visiteId) {
     if (mapping.type === 'champ') {
       // Dès que des compteurs existent, leurs relevés font autorité. Ne pas
       // ressusciter l'ancien index Excel après effacement ou réaffectation.
-      if (mapping.panelId === 'p-releves' && ((compteurs.length && /^Index/i.test(mapping.cle || '')) || compteurs.some((c) => c.destination === mapping.cle))) {
+      const remarMeter = mapping.panelId === 'p-remar-releves' && mapping.section === 'Compteur';
+      if ((mapping.panelId === 'p-releves' || remarMeter) &&
+          ((compteurs.length && /^Index/i.test(mapping.cle || '')) || compteurs.some((c) => c.destination === mapping.cle))) {
         setCell(mappingSheet, mapping.valueCell, '');
         if (cfg.heatNetwork && /^C\d+$/.test(mapping.valueCell || '')) setCell(mappingSheet, `E${mapping.valueCell.slice(1)}`, '');
         continue;

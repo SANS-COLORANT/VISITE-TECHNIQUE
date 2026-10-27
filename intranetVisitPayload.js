@@ -337,9 +337,23 @@ async function buildCriteria(db, visite, details, issues) {
           commentaire = exactComment(temperature, issues, `${path} / commentaire`);
         } else {
           let value;
-          if (['icpe_v1', 'reseau_chaleur_v1'].includes(visite.trame_id) && candidate.panelId === 'p-releves' && /^(index|pression)\b/.test(normalize(candidate.label))) {
+          const meterCriterion = (
+            ['icpe_v1', 'reseau_chaleur_v1'].includes(visite.trame_id) &&
+            candidate.panelId === 'p-releves' && /^(index|pression)\b/.test(normalize(candidate.label))
+          ) || (
+            candidate.panelId === 'p-remar-releves' &&
+            /compteur/.test(normalize(candidate.label)) &&
+            // A custom REMAR version can rename its overall trame but not
+            // silently send unrelated local fields to another criterion.
+            String(candidate.cle || '').toLowerCase().includes('compteur')
+          );
+          if (meterCriterion) {
             const counter = counterValue(counters, criterion, candidate);
-            value = counter.status === 'missing' && /^pression\b/.test(normalize(candidate.label))
+            // REMAR may still contain a historical single index solely in
+            // champs_visite. Preserve it until the meter is explicitly split.
+            const legacyField = candidate.panelId === 'p-remar-releves' ||
+              /^pression\b/.test(normalize(candidate.label));
+            value = counter.status === 'missing' && legacyField
               ? fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`) : counter.value;
           } else {
             value = fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`);

@@ -1,3 +1,4 @@
+import { formaterReleves } from './releveMultiligne.js';
 import * as FileSystem from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -203,7 +204,10 @@ export async function chargerDonneesVisiteRapport(visiteId) {
             label: f.cle,
             type: f.type,
             avis: f.type === 'controle' ? (controle?.avis || '') : '',
-            comment: f.type === 'controle' ? (controle?.commentaire || '') : (champMap.get(`${code}||${f.cle}`) || ''),
+            comment: f.type === 'controle' ? (controle?.commentaire || '')
+              : (panelId === 'p-remar-releves' && f.numericIndex && compteurs.some((c) => c.destination === f.cle)
+                ? formaterReleves(compteurs.filter((c) => c.destination === f.cle))
+                : (champMap.get(`${code}||${f.cle}`) || '')),
           };
         }),
       });
@@ -268,6 +272,10 @@ function libelleReserveCourt(remarque) {
 }
 
 function libellePhoto(photo, data) {
+  // A caption edited in the Photos viewer takes precedence over the
+  // equipment/reserve inferred name; the trailing ||filename is internal.
+  const personnalisee = String(photo.label || '').split('||')[0].trim();
+  if (personnalisee) return court(personnalisee, 160);
   const key = String(photo.entite_key || '');
   const [type, id] = key.split('||');
 
@@ -302,7 +310,8 @@ export function preparerPhotosRapport(data, existantes = []) {
     siteLabel: data.visite.nom_site || 'Site',
     localLabel: data.visite.nom_local || data.visite.type_local || 'Installation technique',
     label: ancien.get(p.id)?.label || libellePhoto(p, data),
-    include: ancien.get(p.id)?.include !== false,
+    exportAllowed: Number(p.inclure_export ?? (p.entite_key ? 1 : 0)) === 1,
+    include: Number(p.inclure_export ?? (p.entite_key ? 1 : 0)) === 1 && ancien.get(p.id)?.include !== false,
     ordre: ancien.get(p.id)?.ordre ?? i,
     entiteKey: p.entite_key || null,
   })).sort((a, b) => a.ordre - b.ordre);
@@ -362,7 +371,7 @@ function materielHtml(data, config) {
 async function photosHtml(data, config, photosConfig, output = 'pdf') {
   if (!config.photos) return '';
   const items = (photosConfig || [])
-    .filter((p) => p.visiteId === data.visite.id && p.include)
+    .filter((p) => p.visiteId === data.visite.id && p.include && p.exportAllowed !== false)
     .sort((a, b) => a.ordre - b.ordre);
   if (!items.length) return '';
 
