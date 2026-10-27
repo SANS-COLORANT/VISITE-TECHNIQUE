@@ -43,6 +43,11 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
   const presets = useMemo(() => field?.presets || {}, [field]);
   const options = avis ? (presets[avis] || []) : [];
   const palette = palettePanel(avis);
+  // Keep the VMC behaviour for other trames; REMAR alone gets a short S card
+  // and capture on satisfactory or non-applicable observations.
+  const isRemar = trameId === 'remar_v1' || field?.trameLabel === 'TRAME REMAR';
+  const [remarSExpanded, setRemarSExpanded] = useState(false);
+  const satisfiedFolded = isRemar && avis === 'S' && !remarSExpanded;
 
   const notifier = useCallback((patch) => {
     onEtatChange?.(patch);
@@ -119,6 +124,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
 
   const choisirAvis = useCallback(async (val) => { hapticTick();
     if (val === avis) return;
+    setRemarSExpanded(false);
     avisRef.current = val;
     setAvis(val);
     setPresetChoisi(null);
@@ -158,6 +164,18 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
       </View>
     </View>
     {avis && <View style={[styles.criterePanel, { backgroundColor: palette.bg, borderColor: palette.border }]}>
+      {satisfiedFolded ? (
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 35 }}>
+          <Text numberOfLines={2} style={{ flex: 1, minWidth: 0, fontSize: 11.5, fontFamily: FONTS.bodyMedium, color: COLORS.green }}>
+            {commentaire || 'Satisfaisant · commentaire à renseigner'}
+          </Text>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Modifier le commentaire : ${label}`}
+            onPress={() => setRemarSExpanded(true)} hitSlop={8}
+            style={{ paddingHorizontal: 10, paddingVertical: 8, borderWidth: 1, borderRadius: 12, borderColor: COLORS.green }}>
+            <Text style={{ color: COLORS.green, fontFamily: FONTS.bold, fontSize: 11 }}>Modifier</Text>
+          </TouchableOpacity>
+        </View>
+      ) : <>
       <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: palette.text, backgroundColor: palette.bg, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8 }}>
         <Text style={{ color: palette.text, fontFamily: FONTS.bold, fontSize: 11 }}>{libelleEtat(avis)}</Text>
       </View>
@@ -178,7 +196,14 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
         placeholder="Commentaire technique…"
       />
       {avis === 'N.S' && remarque ? <View style={styles.prestationResult}><Text style={styles.criterePanelLabel}>Réserve de cette visite</Text><Text style={styles.prestationText}>{remarque.prestation}</Text></View> : null}
-      {avis === 'N.S' ? <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={label} style={styles.photoRequiredBox} /> : null}
+      {isRemar && avis === 'S' ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Replier le commentaire satisfaisant"
+        onPress={() => setRemarSExpanded(false)} style={{ paddingVertical: 8 }}>
+        <Text style={{ color: COLORS.green, fontFamily: FONTS.bodySemi, fontSize: 11 }}>Replier le commentaire</Text>
+      </TouchableOpacity> : null}
+      </>}
+      {(isRemar || avis === 'N.S') ? <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={label}
+        beforeCapture={isRemar && avis !== 'N.S' ? () => ({ entiteKey: controleKey, label }) : undefined}
+        style={avis === 'N.S' ? styles.photoRequiredBox : undefined} /> : null}
     </View>}
   </View>;
 });

@@ -253,3 +253,52 @@ test('the original REMAR CLASSIQUE workbook remains importable after the display
   assert.equal(analysis.trameNom, 'TRAME REMAR');
   assert.equal(analysis.champs.find((c) => c.cle === 'Compteur Gaz (m³)').valeur, '12.4');
 });
+
+
+test('REMAR exports and reimports multiple named meters in one unchanged Excel cell', async () => {
+  const id = await newVisit();
+  const mapping = REMAR.excel.fieldMappings.find((m) =>
+    m.panelId === 'p-remar-releves' && m.cle === 'Compteur Gaz (m³)');
+  assert.ok(mapping && /^C\d+$/.test(mapping.valueCell), 'official REMAR meter value cell exists');
+  const records = [
+    ['gaz-a', 'Gaz chaudière A', '12345,6'],
+    ['gaz-b', 'Gaz chaudière B', '987'],
+  ];
+  for (const [meterId, label, valeur] of records) {
+    await db.runAsync('INSERT INTO compteurs(id,visite_id,label,valeur,unite,destination) VALUES(?,?,?,?,?,?)',
+      [meterId, id, label, valeur, 'm³', mapping.cle]);
+  }
+  await db.runAsync('INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)',
+    [id, mapping.sectionCode, mapping.cle, 'VALEUR_HISTORIQUE_OBSOLETE']);
+  const exported = roundtrip((await construireClasseur(id)).wb);
+  const original = exported.Sheets[REMAR.excel.mainSheet][mapping.valueCell].v;
+  assert.equal(original, 'Gaz chaudière A : 12345,6 m³\nGaz chaudière B : 987 m³');
+  assert.equal((original.match(/\n/g) || []).length, 1);
+  const analysed = analyserClasseur(exported, 'remar-compteurs-multi.xlsx');
+  const readings = analysed.compteurs.filter((m) => m.destination === mapping.cle);
+  assert.deepEqual(readings.map((r) => [r.label, r.valeur]),
+    [['Gaz chaudière A', '12345,6'], ['Gaz chaudière B', '987']]);
+  // Explicit local binding is required once prior tests created several
+  // installations. Keep the production guard against an unsafe guess.
+  const imported = await importerAnalyseExcel(analysed, { installationId: 'local' });
+  const rows = await db.getAllAsync('SELECT label,valeur,destination FROM compteurs WHERE visite_id=? AND destination=? ORDER BY rowid',
+    [imported.visiteId, mapping.cle]);
+  assert.deepEqual(rows.map((r) => [r.label, r.valeur]),
+    [['Gaz chaudière A', '12345,6'], ['Gaz chaudière B', '987']]);
+  const roundtripped = (await construireClasseur(imported.visiteId)).wb;
+  assert.equal(roundtripped.Sheets[REMAR.excel.mainSheet][mapping.valueCell].v, original);
+  assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk, true);
+});
+
+test('REMAR Excel importer ignores blank lines and creates separate meters', () => {
+  const wb = workbook();
+  const mapping = REMAR.excel.fieldMappings.find((m) =>
+    m.panelId === 'p-remar-releves' && m.cle === "Compteur d'énergie (MWh)");
+  assert.ok(mapping);
+  wb.Sheets[REMAR.excel.mainSheet][mapping.valueCell] = { t: 's', v: 'Énergie A : 52,3 MWh\n\n\nÉnergie B : 100 MWh' };
+  const analysed = analyserClasseur(roundtrip(wb), 'remar-comptage-ancienne-visite.xlsx');
+  const readings = analysed.compteurs.filter((m) => m.destination === mapping.cle);
+  assert.equal(readings.length, 2);
+  assert.deepEqual(readings.map((m) => [m.label, m.valeur, m.unite]),
+    [['Énergie A', '52,3', 'MWh'], ['Énergie B', '100', 'MWh']]);
+});

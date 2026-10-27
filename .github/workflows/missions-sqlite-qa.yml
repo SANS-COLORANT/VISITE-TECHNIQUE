@@ -87,28 +87,27 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
 
       - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
+      - name: Install dependencies and verify the committed source
+        run: |
+          npm ci --no-audit --no-fund --prefer-offline
+          git diff --exit-code
+
       - name: Validate all committed METRA runtime contracts
         run: node .github/scripts/run_source_patches.js
 
-      - name: Validate APK build-time patch compatibility
+      - name: Verify Pre-allumage source without legacy runtime mutations
         run: |
-          python .github/scripts/patch_preallumage_field_ux_build.py
-          node .github/scripts/run_source_patches.js
-          node --check PreAllumageInstallationPanelV3.js
-          node --check PreAllumageCompactField.js
-          node --check PreAllumageHeatCurve.js
-          node --check VisiteScreen.js
-          grep -q "const localSwipe = useMemo" PreAllumageInstallationPanelV3.js
-          grep -q "Ajouter un compteur" PreAllumageInstallationPanelV3.js
-          grep -q "unitVisible" PreAllumageCompactField.js
-          grep -q "labelPosition" PreAllumageHeatCurve.js
+          node .github/scripts/check_js_syntax.js PreAllumageInstallationPanelV3.js
+          node .github/scripts/check_js_syntax.js PreAllumageCompactField.js
+          node .github/scripts/check_js_syntax.js PreAllumageHeatCurve.js
+          node .github/scripts/test_releve_multiligne.js
 
       - name: Validate Missions source contract
         run: node .github/scripts/check_missions_lab_contract.js
@@ -121,7 +120,8 @@ jobs:
 
       - name: Confirm schema lineage
         run: |
-          grep -q "DATABASE_SCHEMA_VERSION = 43" database/constants.js
+          grep -q "DATABASE_SCHEMA_VERSION = 48" database/constants.js
+          grep -q "migration047, migration048" database/migrations/index.js
           grep -q "migration039, migration040" database/migrations/index.js
           grep -q "migration041" database/migrations/index.js
           grep -q "migration042" database/migrations/index.js

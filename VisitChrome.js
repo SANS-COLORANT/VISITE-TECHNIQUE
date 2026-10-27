@@ -260,7 +260,7 @@ export function AvisCounters({ avis }) {
   );
 }
 
-export function VisitActionBar({ onNote, onPhoto, onAnomalie, photoLabel = 'Photos' }) {
+export function VisitActionBar({ onNote, onPhoto, onAnomalie, photoLabel = 'Photo libre' }) {
   return (
     <View style={s.barWrap}>
       <View style={s.bar}>
@@ -270,7 +270,7 @@ export function VisitActionBar({ onNote, onPhoto, onAnomalie, photoLabel = 'Phot
         </TouchableOpacity>
         <TouchableOpacity accessibilityLabel={photoLabel} onPress={onPhoto} activeOpacity={0.85} style={{ flex: 1.25 }}>
           <LinearGradient colors={[COLORS.orange, COLORS.orangeDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={[s.act, s.actMain]}>
-            <Picto name={ACTION_PICTOS.modePhoto} size={19} mono={COLORS.white} strokeWidth={1.9} />
+            <Picto name={ACTION_PICTOS.photoLibre} size={19} mono={COLORS.white} strokeWidth={1.9} />
             <Text numberOfLines={1} style={[s.actText, { color: COLORS.white }]}>{photoLabel}</Text>
           </LinearGradient>
         </TouchableOpacity>

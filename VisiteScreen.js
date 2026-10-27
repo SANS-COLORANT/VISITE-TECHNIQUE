@@ -10,7 +10,8 @@ import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
 import { useRelecture } from './RelectureSheet.js';
 import { appliquerMotif, motifActif, motifsPourOnglet } from './motifsReserve.js';
 import { CvcIcon } from './MetraCvcIcons.js';
-import { ProgressRing, AmbientBackground } from './premiumChrome.js';
+import { ProgressRing } from './premiumChrome.js';
+import { capturerPhotoLibre } from './photoLibreCapture.js';
 import { Picto, ACTION_PICTOS } from './MetraPictos.js';
 import { MarqueeText } from './VisitKit.js';
 import { VisitStatusSheet } from './VisitStatusSheet.js';
@@ -40,9 +41,10 @@ import { calculerEtatOnglets } from './visitTabStatusDb.js';
 import { estVisiteARattacher } from './quickVisitDb.js';
 import { AttachVisitSheet } from './AttachVisitSheet.js';
 import { VisitSearchSheet } from './VisitSearchSheet.js';
+import { RemarJourneySheet } from './RemarJourneySheet.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
-import { ToastHost, showToast } from './PremiumDialogs.js';
+import { showToast } from './PremiumDialogs.js';
 import { AideReglementaireHost } from './AideReglementaire.js';
 import { getPrefSync, PREFS } from './uiPrefs.js';
 import { SignatureSheet, enregistrerSignatureVisite, lireSignatureVisite } from './visitSignature.js';
@@ -117,9 +119,8 @@ function VisiteScreen({ route, onBack }) {
   const initialPreview = visitePreview || runtimeInitial?.preview || null;
   const initialTab = runtimeInitial?.ui?.activeTab || getNavigationState(visitNavKey)?.activeTab || 'p-infos';
   const { width, height } = useWindowDimensions();
-  // Mode Photo : saisie rapide terrain ouverte depuis la barre d'actions.
-  const [modePhotoVisible, setModePhotoVisible] = useState(false);
-  const [photoRev, setPhotoRev] = useState(0);
+  // Capture libre depuis la barre : la photographie reste locale par défaut.
+  const [captureLibreEnCours, setCaptureLibreEnCours] = useState(false);
   const [signatureVisible, setSignatureVisible] = useState(false);
   const [signature, setSignature] = useState(null);
   const [apercuEnCours, setApercuEnCours] = useState(false);
@@ -167,6 +168,7 @@ function VisiteScreen({ route, onBack }) {
   // Feuille d'état ouverte en touchant la jauge de l'en-tête (remplace la carte d'avancement).
   const [statutVisible, setStatutVisible] = useState(false);
   const [rechercheVisible, setRechercheVisible] = useState(false);
+  const [remarJourneyVisible, setRemarJourneyVisible] = useState(false);
 
   const rafraichirEtatOnglets = useCallback(() => {
     calculerEtatOnglets(visiteId, trameIdRef.current)
@@ -187,6 +189,7 @@ function VisiteScreen({ route, onBack }) {
   }, []);
 
   const trame = obtenirTrame(visite?.trame_id || DEFAULT_TRAME_ID);
+  const estParcoursRemar = trame.id === 'remar_v1' || trame.familyId === 'remar_v1';
   trameIdRef.current = trame.id;
   const tabOrderBase = trame.ui?.tabOrder || [];
   const panelLabelsBase = trame.ui?.labels || {};
@@ -762,7 +765,7 @@ function VisiteScreen({ route, onBack }) {
       {pagerPanels.map((panelId) => {
         const index = tabsReels.indexOf(panelId);
         return <Animated.View
-          key={`${panelId}-${photoRev}`}
+          key={panelId}
           pointerEvents={panelId === activeTab ? 'auto' : 'none'}
           style={{
             position: 'absolute', top: 0, bottom: 0, left: index * pagerWidth, width: pagerWidth,
@@ -803,18 +806,38 @@ function VisiteScreen({ route, onBack }) {
   const btnSize = { width: headerBtn, height: headerBtn, borderRadius: headerBtn / 2 };
   const ringSize = appareilTablette ? 38 : 31;
   const ouvrirRecherche = () => setRechercheVisible(true);
-  const fermerModePhoto = () => {
-    setModePhotoVisible(false);
-    // Les saisies du Mode Photo vont directement en base : on recharge la
-    // visite et on remonte les onglets déjà ouverts.
-    invaliderCacheTrameGenerique(visiteId);
-    setPhotoRev((n) => n + 1);
-    charger({ forceCaches: true }).catch(() => {});
+  const prendrePhotoLibre = async () => {
+    if (captureLibreEnCours) return;
+    setCaptureLibreEnCours(true);
+    try {
+      // The photo appears in Photos via the shared runtime cache, and never
+      // creates a reserve. Moving first avoids an extra navigation step.
+      changerOnglet('p-photos');
+      await capturerPhotoLibre(visiteId, (error) => Alert.alert('Photo libre', String(error?.message || error)));
+    } catch (error) {
+      Alert.alert('Photo libre', String(error?.message || error));
+    } finally {
+      setCaptureLibreEnCours(false);
+    }
   };
   // Seconde ligne : local · client · trame (défile si elle est trop longue).
   const sousTitre = visiteARattacher
     ? ['Visite rapide', trame.nom, visite.date_visite].filter(Boolean).join(' · ')
     : [visite.nom_installation, visite.nom_client, trame.nom, visite.mode_visite === 'express' ? 'Mode Express' : null].filter(Boolean).join(' · ');
+  // The 17 REMAR tabs need a direct métier index; keep the existing native
+  // pager and navigation memory untouched. No additional database state.
+  const boutonSommaireRemar = estParcoursRemar ? (
+    <TouchableOpacity accessibilityRole="button"
+      accessibilityLabel={`Sommaire REMAR, onglet actuel : ${panelLabels[activeTab] || activeTab}`}
+      onPress={() => setRemarJourneyVisible(true)}
+      activeOpacity={0.8}
+      style={{ minHeight: 45, paddingHorizontal: 12, paddingVertical: 7, flexDirection: 'row', alignItems: 'center', gap: 9, backgroundColor: 'rgba(255,255,255,0.80)', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+      <CvcIcon name="menu" size={19} color={COLORS.orangeDark} />
+      <Text style={{ fontFamily: FONTS.bold, fontSize: 12.5, color: COLORS.orangeDark }}>Parcours</Text>
+      <Text style={{ flex: 1, minWidth: 0, fontFamily: FONTS.bodyMedium, fontSize: 11.5, color: COLORS.inkSoft, textAlign: 'right' }} numberOfLines={1}>{panelLabels[activeTab] || activeTab}</Text>
+      <CvcIcon name="chevron-down" size={17} color={COLORS.orangeDark} />
+    </TouchableOpacity>
+  ) : null;
   const ouvrirRattachement = () => {
     setStatutVisible(false);
     setTimeout(() => setRattachementVisible(true), 260);
@@ -862,19 +885,21 @@ function VisiteScreen({ route, onBack }) {
             </LinearGradient>
           </TouchableOpacity>
         </View>
+        {estParcoursRemar && !modeTablette ? boutonSommaireRemar : null}
         {trame.id === 'vmc' && vmcCaissons.length > 0 ? <VmcCaissonManager visiteId={visiteId} caissons={vmcCaissons} onChange={onCaissonsChange} onNavigate={changerOnglet} activePanelId={activeTab} tabStates={tabStatus.tabs} /> : null}
         {!modeTablette && !ongletsEnBas && <SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} pagerX={pagerX} pagerWidth={pagerWidth} pageOrder={tabsReels} visiteId={visiteId} />}
       </View>
 
       {modeTablette ? <View style={{ flex: 1, flexDirection: 'row' }}>
         <View style={{ width: 205, backgroundColor: 'rgba(255,255,255,0.55)', borderRightWidth: 1, borderRightColor: 'rgba(22,21,15,0.08)' }}>
+          {estParcoursRemar ? boutonSommaireRemar : null}
           <SideSectionList tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} visiteId={visiteId} />
         </View>
         <View style={{ flex: 1, minWidth: 0 }}>{animatedContent}</View>
       </View> : animatedContent}
       {!clavierVisible && !modeTablette && ongletsEnBas ? <View style={{ paddingHorizontal: 12, paddingTop: 8, marginBottom: -12 }}><SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} pagerX={pagerX} pagerWidth={pagerWidth} pageOrder={tabsReels} visiteId={visiteId} /></View> : null}
       <AideReglementaireHost />
-      {!clavierVisible ? <VisitActionBar onNote={ouvrirNote} onPhoto={() => setModePhotoVisible(true)} photoLabel="Mode Photo" onAnomalie={() => setAnomalieVisible(true)} /> : null}
+      {!clavierVisible ? <VisitActionBar onNote={ouvrirNote} onPhoto={prendrePhotoLibre} photoLabel="Photo libre" onAnomalie={() => setAnomalieVisible(true)} /> : null}
 
       <Modal visible={noteVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Note libre — {trame.nom}</Text>
@@ -902,6 +927,10 @@ function VisiteScreen({ route, onBack }) {
       />
       {relecture.sheet}
       <VisitSearchSheet visible={rechercheVisible} onClose={() => setRechercheVisible(false)} panels={panels} tabs={tabsReels} labels={panelLabels} onOpen={changerOnglet} />
+      {estParcoursRemar && remarJourneyVisible ? (
+        <RemarJourneySheet activeTab={activeTab} tabOrder={tabsReels} labels={panelLabels}
+          tabStates={tabStatus.tabs} onClose={() => setRemarJourneyVisible(false)} onSelect={changerOnglet} />
+      ) : null}
       <AttachVisitSheet
         visible={rattachementVisible}
         visiteId={visiteId}
@@ -917,13 +946,6 @@ function VisiteScreen({ route, onBack }) {
       />
       <CompanionTabletModal visible={companionVisible} visiteId={visiteId} onClose={() => setCompanionVisible(false)} />
       <SignatureSheet visible={signatureVisible} initial={signature} onClose={() => setSignatureVisible(false)} onSave={enregistrerSignature} />
-      <Modal visible={modePhotoVisible} animationType="slide" statusBarTranslucent onRequestClose={fermerModePhoto}>
-        <View style={{ flex: 1, backgroundColor: COLORS.bg }}>
-          <AmbientBackground accent={COLORS.orange} />
-          {modePhotoVisible ? (() => { const { PhotoPhoneScreen } = require('./PhotoPhoneScreen.js'); return <PhotoPhoneScreen visiteId={visiteId} onExit={fermerModePhoto} />; })() : null}
-          {modePhotoVisible ? <ToastHost bottom={28} /> : null}
-        </View>
-      </Modal>
       <Modal visible={anomalieVisible} transparent animationType="fade" onRequestClose={() => setAnomalieVisible(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Ajouter une anomalie</Text><Text style={styles.importHint}>Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.</Text>
         <ScrollView horizontal showsHorizontalScrollIndicator={false} keyboardShouldPersistTaps="always" style={{ marginTop: 12, flexGrow: 0 }} contentContainerStyle={{ gap: 8 }}>

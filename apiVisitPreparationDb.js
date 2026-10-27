@@ -15,6 +15,8 @@ function yearAsInteger(v) {
 export function mapRemoteTrameToLocal(remote) {
   const t = normalize(remote?.nom || '').replace(/[^a-z0-9]+/g, ' ').trim();
   if (!t) return null;
+  // REMAR has its own workbook and control keys: never import it as ICPE.
+  if (/(^| )(trame )?remar( |$)/.test(t)) return 'remar_v1';
   // RCU is distinct from ICPE: check explicit heat-network names first.
   if (/(^| )(reseau (de )?chaleur|reseau (de )?chauffage urbain|rcu)( |$)/.test(t)) return 'reseau_chaleur_v1';
   if (t.includes('vmc') || t.includes('ventilation')) return 'vmc';
