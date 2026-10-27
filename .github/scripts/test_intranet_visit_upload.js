@@ -34,7 +34,11 @@ function databaseProcess(filename) {
   db.withTransactionAsync = (fn) => db.withExclusiveTransactionAsync(() => fn());
   return { db, send, close: () => child.stdin.end() };
 }
-const localTrame = { id: 'icpe_v1', ui: { labels: { 'p-test': 'Contrôles', 'p-releves': 'Relevés' }, panels: {
+const localTrame = { id: 'icpe_v1',
+  // Fixture réaliste : les trames ICPE/RCU déclarent leurs réseaux et le
+  // relevé spécialisé. Le moteur Intranet n'infère plus ces options de l'id.
+  excel: { networks: { exportOffsets: { t_ext_c: 0, t_dep_c: 1, nom_reseau: 2 } } },
+  ui: { specialPanels: ['p-regulation', 'p-releves'], labels: { 'p-test': 'Contrôles', 'p-releves': 'Relevés' }, panels: {
   'p-test': { Sous: [{ cle: 'Contrôle A', type: 'controle' }, { cle: 'Champ B', type: 'champ' }] },
   'p-releves': { 'Relevés': [{ cle: 'Index Gaz (m³)', type: 'champ' }] },
 } } };
