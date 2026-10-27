@@ -43,6 +43,7 @@ const CONTRACT_CHECKS = [
   ['Intranet LOCAL name sync executable tests', '.github/scripts/test_intranet_local_name_sync.js'],
   ['Intranet mapping/support dump executable tests', '.github/scripts/test_intranet_mapping_support_dump.js'],
   ['Intranet visit upload executable tests', '.github/scripts/test_intranet_visit_upload.js'],
+  ['Intranet cross-trame feature mapping regression', '.github/scripts/test_intranet_capability_mapping.js'],
   ['Intranet any-visit binding executable tests', '.github/scripts/test_intranet_any_visit_binding.js'],
   ['Intranet first-visit preparation executable tests', '.github/scripts/test_intranet_first_visit_preparation.js'],
   ['Intranet focused upload audit', '.github/scripts/test_intranet_visit_upload_audit.js'],

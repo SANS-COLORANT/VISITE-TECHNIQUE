@@ -151,15 +151,26 @@ l'envoi avant HTTP.
   de saisie ne bloque donc jamais l'envoi.
 - Critère sans avis : `avis: null` + valeur courante dans `commentaire`, ou `/`
   lorsque le champ n'est pas renseigné.
-- Index compteur absent : `/`. Plusieurs compteurs correspondant au même critère
-  restent bloquants car METRA ne choisit jamais une valeur au hasard.
-- Réseaux ICPE : les valeurs sont relues dans la table `reseaux`. L'identité
+- Index compteur absent : `/`. Plusieurs compteurs du même type sont
+  regroupés dans une cellule avec une ligne par compteur. Les destinations
+  explicites des compteurs restent prioritaires sur les noms affichés.
+- Réseaux : toute trame déclarant le panneau spécialisé de régulation,
+  un export Excel de réseaux ou la capacité `intranet.networks` utilise la
+  table `reseaux`, sans sélection par identifiant de trame. L'identité
   catégorie/sous-catégorie Intranet est conservée dans la provenance lors du
-  report vers la nouvelle visite. Les branches Intranet sans réseau local sont
-  tout de même envoyées avec `/`; un réseau local impossible à rattacher sans
-  ambiguïté bloque l'envoi plutôt que d'être placé au hasard.
-- Index compteurs ICPE : la valeur est relue dans `compteurs`, et non dans un
-  ancien champ de préremplissage.
+  report vers la nouvelle visite. La correspondance peut également être
+  prouvée par le nom ou un numéro de réseau explicite des deux côtés.
+  Les branches Intranet sans réseau local sont tout de même envoyées avec
+  `/`; plusieurs réseaux impossibles à rattacher sans ambiguïté bloquent
+  l'envoi : l'ordre seul ne justifie jamais une permutation.
+- Index compteurs : toute trame utilisant un panneau de relevés spécialisé,
+  des champs `numericIndex` ou `intranet.meters` relit les mesures dans
+  `compteurs`, avec destination persistante prioritaire. Le compteur d'un
+  panneau spécialisé fait autorité sur une ancienne valeur préremplie ; un
+  champ générique conserve sa valeur manuelle sans compteur correspondant.
+- Les `intranetAliases` déclarés dans un champ peuvent relier des libellés
+  différents. Ils ne sont utilisés qu'en l'absence de correspondance exacte,
+  et toute ambiguïté reste bloquante (aucune association floue).
 - Pré-allumage : les rubriques dynamiques de la visite complètent les candidats
   de la trame officielle. Une visite Pré-allumage contenant plusieurs locaux
   METRA est bloquée pour l'envoi tant que l'API ne fournit pas un mapping

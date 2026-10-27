@@ -26,6 +26,17 @@ export function validerDefinitionTrame(trame) {
     if (!String(ui.labels?.[id] || '').trim()) erreurs.push(erreur(trame, `libellé manquant pour l’onglet « ${id} »`));
   }
 
+  // Les alias Intranet sont des noms déclaratifs bornés, jamais du code.
+  for (const sections of Object.values(panels)) for (const fields of Object.values(sections || {})) {
+    for (const field of Array.isArray(fields) ? fields : []) {
+      if (field.intranetAliases != null && (!Array.isArray(field.intranetAliases) ||
+        field.intranetAliases.length > 20 || field.intranetAliases.some((alias) =>
+          typeof alias !== 'string' || !alias.trim() || alias.length > 200))) {
+        erreurs.push(erreur(trame, `alias Intranet invalide pour « ${field.cle || '?'} »`));
+      }
+    }
+  }
+
   const cfg = trame.excel || {};
   if (!String(cfg.templateBase64 || '').trim()) erreurs.push(erreur(trame, 'modèle Excel absent'));
   if (!String(cfg.mainSheet || '').trim()) erreurs.push(erreur(trame, 'excel.mainSheet requis'));

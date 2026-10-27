@@ -54,15 +54,40 @@ function exactComment(value, issues, path) {
 }
 function meaningfulRemote(value) { const v = clean(value); return !v || v === '/' ? null : v; }
 
+/**
+ * Le référentiel de trame, et non son id, déclare les sous-systèmes disponibles.
+ * La même règle fonctionne pour une trame intégrée, nouvelle ou personnalisée.
+ */
+function mappingCapabilities(definition) {
+  const specials = new Set(definition?.ui?.specialPanels || []);
+  const fields = Object.values(definition?.ui?.panels || {}).flatMap((sections) =>
+    Object.values(sections || {}).flatMap((items) => Array.isArray(items) ? items : []));
+  return {
+    networks: Boolean(definition?.intranet?.networks === true ||
+      definition?.excel?.networks?.exportOffsets || specials.has('p-regulation')),
+    meters: Boolean(definition?.intranet?.meters === true || specials.has('p-releves') ||
+      fields.some((field) => field?.numericIndex === true || field?.intranetSource === 'compteur')),
+  };
+}
+export function inspectIntranetTrameCapabilities(trameId) {
+  return mappingCapabilities(obtenirTrame(trameId));
+}
+
 function buildStaticCandidates(localTrameId) {
   const definition = obtenirTrame(localTrameId);
   const candidates = [];
+  const specialPanels = new Set(definition?.ui?.specialPanels || []);
   for (const [panelId, sections] of Object.entries(definition?.ui?.panels || {})) {
     for (const [section, fields] of Object.entries(sections || {})) {
       for (const field of fields || []) {
         if (!field?.cle || field.hiddenInApp === true) continue;
+        const aliases = [field.label, ...(Array.isArray(field.intranetAliases) ? field.intranetAliases : [])]
+          .filter((value) => typeof value === 'string').map(normalize).filter(Boolean);
         candidates.push({ panelId, section, sectionCode: sectionCode(panelId, section), cle: field.cle,
-          label: field.cle, type: field.type || 'champ', key: normalize(field.cle),
+          label: field.label || field.cle, type: field.type || 'champ', key: normalize(field.cle),
+          aliases: [...new Set(aliases)], numericIndex: field.numericIndex === true,
+          meterSource: field.intranetSource === 'compteur', specialPanel: specialPanels.has(panelId),
+          temperature: normalize(field.numeric?.unit) === 'c' || /temperature/.test(normalize(section)),
           sectionKey: normalize(section), panelKey: normalize(definition?.ui?.labels?.[panelId] || panelId) });
       }
     }
@@ -72,12 +97,13 @@ function buildStaticCandidates(localTrameId) {
 
 async function buildCandidates(db, visite) {
   const candidates = buildStaticCandidates(visite.trame_id);
-  if (visite.trame_id !== 'pre_allumage') return candidates;
+  const definition = obtenirTrame(visite.trame_id);
+  // Les formulaires à rubriques modulaires sont reconnus par leur structure.
+  if (!Object.keys(definition?.ui?.panels || {}).some((id) => id.startsWith('p-pa-'))) return candidates;
   const rows = await db.getAllAsync(`
     SELECT r.panel_id,r.section_code,r.nom AS section_name,c.cle_stockage,c.libelle,c.type_code
     FROM pre_allumage_champs c JOIN pre_allumage_rubriques r ON r.id=c.rubrique_id
     WHERE r.visite_id=? ORDER BY r.ordre,c.ordre`, [visite.id]);
-  const definition = obtenirTrame(visite.trame_id);
   for (const row of rows || []) {
     candidates.push({ panelId: row.panel_id, section: row.section_name, sectionCode: row.section_code,
       cle: row.cle_stockage, label: row.libelle, type: row.type_code || 'champ', key: normalize(row.libelle || row.cle_stockage),
@@ -86,7 +112,7 @@ async function buildCandidates(db, visite) {
   return candidates;
 }
 
-const ICPE_PANEL_CATEGORY_CONTEXTS = Object.freeze({
+const PANEL_CATEGORY_CONTEXTS = Object.freeze({
   'p-conf-local': ['local'],
   'p-conf-energie': ['energie'],
   'p-conf-chauffage': ['chauffage'],
@@ -95,7 +121,7 @@ const ICPE_PANEL_CATEGORY_CONTEXTS = Object.freeze({
 });
 
 function categoryPanelBonus(candidate, categoryName) {
-  const tokens = ICPE_PANEL_CATEGORY_CONTEXTS[candidate?.panelId];
+  const tokens = PANEL_CATEGORY_CONTEXTS[candidate?.panelId];
   if (!tokens?.length) return 0;
   const category = normalize(categoryName);
   if (!category) return 0;
@@ -105,8 +131,8 @@ function categoryPanelBonus(candidate, categoryName) {
 function preferredType(criterion) { return criterion?.avisApplicable === true ? 'controle' : 'champ'; }
 function candidateScore(candidate, criterion, categoryName, subCategoryName) {
   let score = candidate.type === preferredType(criterion) ? 8 : 0;
-  // Plusieurs conformités ICPE portent volontairement le même libellé local
-  // (ex. « Type de disconnection » en Chauffage et en ECS). La catégorie
+  // Des panneaux métier de différentes trames peuvent partager un libellé
+  // (chauffage, ECS, etc.). La catégorie
   // Intranet est alors le discriminant métier fort. En son absence on conserve
   // le fail-safe historique et METRA refuse de deviner.
   score += categoryPanelBonus(candidate, categoryName);
@@ -124,8 +150,11 @@ function findCandidate(candidates, criterion, categoryName, subCategoryName) {
   const key = normalize(criterion?.nom);
   if (!key) return null;
   const exact = candidates.filter((candidate) => candidate.key === key);
-  if (!exact.length) return null;
-  const ranked = exact.map((candidate) => ({ candidate, score: candidateScore(candidate, criterion, categoryName, subCategoryName) }))
+  // Priorité aux clés exactes. En leur absence, seuls les alias explicites
+  // sont autorisés : jamais de rapprochement flou ou arbitraire.
+  const matches = exact.length ? exact : candidates.filter((candidate) => candidate.aliases?.includes(key));
+  if (!matches.length) return null;
+  const ranked = matches.map((candidate) => ({ candidate, score: candidateScore(candidate, criterion, categoryName, subCategoryName) }))
     .sort((a, b) => b.score - a.score);
   if (ranked.length === 1 || ranked[0].score > ranked[1].score) return ranked[0].candidate;
   const same = ranked.filter((r) => r.score === ranked[0].score);
@@ -137,7 +166,8 @@ export function inspectIntranetCriterionCandidate(localTrameId, criterion, categ
   const candidates = buildStaticCandidates(localTrameId);
   const key = normalize(criterion?.nom);
   const exact = candidates.filter((candidate) => candidate.key === key);
-  const ranked = exact.map((candidate) => ({
+  const matches = exact.length ? exact : candidates.filter((candidate) => candidate.aliases?.includes(key));
+  const ranked = matches.map((candidate) => ({
     panelId: candidate.panelId,
     section: candidate.section,
     sectionCode: candidate.sectionCode,
@@ -153,8 +183,12 @@ export function inspectIntranetCriterionCandidate(localTrameId, criterion, categ
 }
 
 const NETWORK_COLUMNS = Object.freeze({
-  't ext c': 't_ext_c', 't dep c': 't_dep_c', 'nom reseau': 'nom_reseau',
-  'courbe de chauffe': 'courbe_de_chauffe', tnc: 'tnc', 'consigne et programme horaire': 'consigne_programme_horaire',
+  't ext c': 't_ext_c', 't ext': 't_ext_c', 'temperature exterieure': 't_ext_c',
+  't dep c': 't_dep_c', 't dep': 't_dep_c', 'temperature depart': 't_dep_c',
+  'nom reseau': 'nom_reseau', 'nom du reseau': 'nom_reseau',
+  'courbe de chauffe': 'courbe_de_chauffe', tnc: 'tnc',
+  'consigne et programme horaire': 'consigne_programme_horaire',
+  'consigne programme horaire': 'consigne_programme_horaire',
 });
 function networkColumn(name) { return NETWORK_COLUMNS[normalize(name)] || null; }
 function fixedRegulation(name) { const n = normalize(name); return n === 'cascade chaudieres' || n === 'reseau ecs'; }
@@ -165,6 +199,14 @@ function isNetworkGroup(subCategory) {
   return count >= 2 || (count >= 1 && /^(circuit|reseau)(\s|$)/.test(normalize(subCategory?.nom)));
 }
 function cleanCounterLabel(value) { return normalize(String(value || '').replace(/\s*\([^)]*\)\s*$/, '')); }
+function isMeterCandidate(candidate, capabilities) {
+  return capabilities.meters && candidate?.type === 'champ' &&
+    (candidate.numericIndex === true || candidate.meterSource === true ||
+      (candidate.specialPanel && /^(index|pression)\b/.test(candidate.key)));
+}
+function isTemperatureCandidate(candidate) {
+  return candidate?.temperature === true || /temperature/.test(candidate?.sectionKey || '');
+}
 function counterValue(counters, criterion, candidate) {
   const keys = new Set([cleanCounterLabel(criterion?.nom), cleanCounterLabel(candidate?.label), cleanCounterLabel(candidate?.cle)].filter(Boolean));
   // Destination explicite (migration 045) prioritaire : un compteur renommé
@@ -195,6 +237,10 @@ function applicableAvis(value, issues, path) {
   return current;
 }
 function remoteNetworkKey(categoryId, subCategoryId) { return `${clean(categoryId)}:${clean(subCategoryId)}`; }
+function numberedNetwork(name) {
+  const match = normalize(name).match(/^(?:reseau|circuit) (?:n |no |numero )?([1-9]\d*)$/);
+  return match ? Number(match[1]) : null;
+}
 function mapNetworksToRemoteGroups(networks, groups, provenanceRows, issues) {
   const assignments = new Map();
   const used = new Set();
@@ -217,13 +263,20 @@ function mapNetworksToRemoteGroups(networks, groups, provenanceRows, issues) {
   for (const group of groups) {
     const key = remoteNetworkKey(group.category?.id, group.subCategory?.id);
     if (assignments.has(key)) continue;
-    const matches = networks.filter((network) => !used.has(network.id) && normalize(network.nom_reseau) === normalize(group.subCategory?.nom));
+    const expectedName = normalize(group.subCategory?.nom);
+    const expectedNumber = numberedNetwork(group.subCategory?.nom);
+    const matches = networks.filter((network) => !used.has(network.id) &&
+      (normalize(network.nom_reseau) === expectedName ||
+        (expectedNumber !== null && numberedNetwork(network.nom_reseau) === expectedNumber)));
     if (matches.length === 1) { assignments.set(key, matches[0]); used.add(matches[0].id); }
+    else if (matches.length > 1) issues.push(`Réseau « ${clean(group.subCategory?.nom) || key} » : plusieurs noms de réseaux locaux correspondent.`);
   }
   const remainingGroups = groups.filter((group) => !assignments.has(remoteNetworkKey(group.category?.id, group.subCategory?.id)));
   const remainingNetworks = networks.filter((network) => !used.has(network.id));
-  if (remainingNetworks.length && remainingNetworks.length === remainingGroups.length) {
-    remainingGroups.forEach((group, index) => assignments.set(remoteNetworkKey(group.category?.id, group.subCategory?.id), remainingNetworks[index]));
+  // Plusieurs réseaux de noms inconnus ne doivent jamais être associés
+  // d'après leur simple position. Une seule paire restante reste univoque.
+  if (remainingNetworks.length === 1 && remainingGroups.length === 1) {
+    assignments.set(remoteNetworkKey(remainingGroups[0].category?.id, remainingGroups[0].subCategory?.id), remainingNetworks[0]);
     remainingNetworks.length = 0;
   }
   if (remainingNetworks.length) {
@@ -292,18 +345,21 @@ async function buildCriteria(db, visite, details, issues) {
     db.getAllAsync(`SELECT p.entite_id,p.details_json FROM provenances p JOIN reseaux r ON r.id=p.entite_id WHERE p.entite_type='reseau' AND p.origine='api_symfony' AND r.visite_id=? ORDER BY p.importe_le DESC`, [visite.id]),
     db.getAllAsync(`SELECT libelle,valeur,unite FROM points_mesure_visite WHERE visite_id=? ORDER BY cree_le,id`, [visite.id]).catch(() => []),
   ]);
-  const isTemperature = (candidate) => candidate.panelId === 'p-releves' && /temperature/.test(String(candidate.sectionCode || ''));
+  const capabilities = mappingCapabilities(obtenirTrame(visite.trame_id));
+  const isTemperature = isTemperatureCandidate;
   const fieldMap = new Map(fields.map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
   const controlMap = new Map(controls.map((row) => [`${row.section_code}||${row.cle}`, row]));
-  const remoteNetworkGroups = ['icpe_v1', 'reseau_chaleur_v1'].includes(visite.trame_id)
+  const remoteNetworkGroups = capabilities.networks
     ? categories.flatMap((category) => (Array.isArray(category?.sousCategories) ? category.sousCategories : []).filter(isNetworkGroup).map((subCategory) => ({ category, subCategory }))) : [];
-  const networkAssignments = mapNetworksToRemoteGroups(networks, remoteNetworkGroups, networkProvenances, issues);
+  const networkAssignments = capabilities.networks
+    ? mapNetworksToRemoteGroups(networks, remoteNetworkGroups, networkProvenances, issues)
+    : new Map();
   const result = [];
   const seenRemoteBranches = new Set();
   let ordinal = 0;
   for (const category of categories) {
     for (const subCategory of Array.isArray(category?.sousCategories) ? category.sousCategories : []) {
-      const networkGroup = ['icpe_v1', 'reseau_chaleur_v1'].includes(visite.trame_id) && isNetworkGroup(subCategory);
+      const networkGroup = capabilities.networks && isNetworkGroup(subCategory);
       const network = networkGroup ? networkAssignments.get(remoteNetworkKey(category?.id, subCategory?.id)) : null;
       for (const criterion of Array.isArray(subCategory?.criteres) ? subCategory.criteres : []) {
         const criterionName = clean(criterion?.nom) || criterion?.id || ordinal + 1;
@@ -337,9 +393,13 @@ async function buildCriteria(db, visite, details, issues) {
           commentaire = exactComment(temperature, issues, `${path} / commentaire`);
         } else {
           let value;
-          if (['icpe_v1', 'reseau_chaleur_v1'].includes(visite.trame_id) && candidate.panelId === 'p-releves' && /^(index|pression)\b/.test(normalize(candidate.label))) {
+          if (isMeterCandidate(candidate, capabilities)) {
             const counter = counterValue(counters, criterion, candidate);
-            value = counter.status === 'missing' && /^pression\b/.test(normalize(candidate.label))
+            // Dans les panneaux spécialisés, l'index courant remplace
+            // l'ancienne valeur de préremplissage. Les champs génériques
+            // restent utilisables s'ils n'ont aucun compteur dynamique.
+            const manualFallback = !candidate.specialPanel || /^pression\b/.test(candidate.key);
+            value = counter.status === 'missing' && manualFallback
               ? fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`) : counter.value;
           } else {
             value = fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`);
