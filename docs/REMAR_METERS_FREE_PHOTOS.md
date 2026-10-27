@@ -23,7 +23,7 @@ Cette évolution est isolée sur la branche `feat/remar-meters-free-photos-20261
 
 ## Migration SQLite non destructive
 
-- `048_photo_local_visibility` ajoute une seule colonne `photos.inclure_export` (0/1).
+- `048_photo_local_visibility` ajoute deux indicateurs non destructifs : `photos.inclure_export` (0/1) et `photos.libelle_personnalise` (0/1). Seuls les libellés réellement modifiés par l’utilisateur remplacent les légendes déduites auparavant, pour préserver les anciens rapports.
 - Les anciennes photos sans `entite_key` deviennent locales par défaut ; les photos rattachées restent exportables.
 - Les fichiers originaux et URI ne sont pas modifiés. Les tâches d'envoi de photos libres non synchronisées sont retirées ; les reçus déjà synchronisés sont conservés.
 - Les photos capturées à partir de maintenant enregistrent elles-mêmes le choix initial (0 si Libre, 1 si rattachée).
