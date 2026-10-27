@@ -48,8 +48,11 @@ async function run() {
   ok(exportExcel.includes("m.panelId === 'p-remar-releves' && m.section === 'Compteur'") &&
     exportExcel.includes('formaterReleves(liste, { avecNomSeul: true })'),
     'native Excel export groups multiple REMAR meters in original mapped cell');
+  // L'export Intranet est maintenant commun aux trames déclarant la capacité
+  // compteur ; la conservation de l'ancien champ REMAR reste obligatoire.
   ok(intranet.includes("candidate.panelId === 'p-remar-releves'") &&
-    intranet.includes('legacyField') && intranet.includes('counterValue(counters'),
+    (intranet.includes('legacyField') || intranet.includes('manualFallback')) &&
+    intranet.includes('counterValue(counters'),
     'Intranet groups REMAR meters and preserves the untouched old field');
   ok(apiLatest.includes('compteursDepuisCellule') && apiLatest.includes('totalLines: readings.length'),
     'Intranet multiline import creates independent provenance-linked meter rows');
