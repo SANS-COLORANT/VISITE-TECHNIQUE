@@ -168,7 +168,7 @@ function ChampChoix({ visiteId, sectionCode, field, valeurInitiale, onSaved, wat
     onChange={(v) => { setImmediate(v).catch(() => {}); }} />;
 }
 
-export function OptimizedRegulationPanel({ visiteId, onSaved }) {
+export function OptimizedRegulationPanel({ visiteId, onSaved, embedded = false, networksOnly = false }) {
   const cached = cacheRegulation.get(visiteId)?.data;
   const [champsMap, setChampsMap] = useState(cached?.champsMap || {});
   const [reseaux, setReseaux] = useState(cached?.reseaux || []);
@@ -195,7 +195,8 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
     const c = cacheRegulation.get(visiteId)?.data;
     if (!c) return;
     cacheRegulation.set(visiteId, { data: { ...c, reseaux: c.reseaux.map((r) => (r.id === id ? { ...r, [col]: valeur } : r)) }, promise: null });
-  }, [visiteId]);
+    onSaved?.();
+  }, [visiteId, onSaved]);
 
   const saveTrameField = useCallback((key, valeur) => {
     setChampsMap((old) => (old[key] === valeur ? old : { ...old, [key]: valeur }));
@@ -220,6 +221,7 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
       const row = { id, visite_id: visiteId, ordre, nom_reseau: `Réseau ${n}` };
       setReseaux((old) => { const next = [...old, row]; patchCache(next); return next; });
       ouvertes.open([`reseau:${id}`]);
+      onSaved?.();
     } catch (e) { Alert.alert('Ajout impossible', String(e?.message || e)); }
     finally { setAdding(false); }
   }, [adding, patchCache, reseaux, visiteId, ouvertes]);
@@ -228,6 +230,7 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
     try {
       await supprimerReseau(id);
       setReseaux((old) => { const next = old.filter((r) => r.id !== id); patchCache(next); return next; });
+      onSaved?.();
     } catch (e) { Alert.alert('Suppression impossible', String(e?.message || e)); }
   }, [patchCache]);
 
@@ -281,7 +284,7 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
   const cascade = TRAME_DATA['p-regulation']?.['Cascade chaudières'] || [];
   const ecs = TRAME_DATA['p-regulation']?.['Réseau ECS'] || [];
 
-  const header = (
+  const header = networksOnly ? null : (
     <SectionCard picto="dist/cascade-chaudieres" title="Cascade chaudières" open={ouvertes.isOpen('cascade')} onToggle={() => ouvertes.toggle('cascade')}
       done={nbRemplis(cascade, 'regulation.cascade')} total={cascade.length}>
       {renderSection(cascade, 'regulation.cascade')}
@@ -293,11 +296,22 @@ export function OptimizedRegulationPanel({ visiteId, onSaved }) {
       <CvcIcon name="plus" size={16} color={COLORS.orangeDark} strokeWidth={2.4} />
       <Text style={st.addReseauText}>{adding ? 'Ajout…' : 'Ajouter un réseau'}</Text>
     </TouchableOpacity>
-    <SectionCard picto="dist/reseau-ecs" water title="Réseau ECS" open={ouvertes.isOpen('ecs')} onToggle={() => ouvertes.toggle('ecs')}
+    {!networksOnly ? <SectionCard picto="dist/reseau-ecs" water title="Réseau ECS" open={ouvertes.isOpen('ecs')} onToggle={() => ouvertes.toggle('ecs')}
       done={nbRemplis(ecs, 'regulation.reseau_ecs')} total={ecs.length}>
       {renderSection(ecs, 'regulation.reseau_ecs', { water: true })}
-    </SectionCard>
+    </SectionCard> : null}
   </>;
+
+  if (embedded) return <View style={{ paddingBottom: 8 }}>
+    {header}
+    {reseaux.map((item) => (
+      <ReseauCard key={item.id} reseau={item} visiteId={visiteId}
+        open={ouvertes.isOpen(`reseau:${item.id}`)} onToggle={() => ouvertes.toggle(`reseau:${item.id}`)}
+        onRemove={remove} onDuplicate={duplicate} onPatch={patchReseau}
+        precedent={reseauPrecedent(precedent, item)} />
+    ))}
+    {footer}
+  </View>;
 
   return <FlatList
     ref={listRef}

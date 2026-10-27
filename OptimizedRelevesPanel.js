@@ -188,7 +188,7 @@ const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, ch
   // Destination effective affichée : enregistrée, sinon celle que l'export
   // déduit aujourd'hui du nom (compteur historique).
   const destinationAffichee = destination || destinationDepuisLibelle(label, unite, champsSection);
-  const suiviIndex = /^Index/i.test(destinationAffichee);
+  const suiviIndex = /^(Index|Compteur)/i.test(destinationAffichee);
   const controle = controlerIndex(valeur, suiviIndex ? compteur.valeur_precedente : null);
   const picto = pictoCompteur(label);
   const court = pictoReleve(label).court;
@@ -345,7 +345,10 @@ function departParDefaut(t) {
   return 60;
 }
 
-export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', panels = null }) {
+export function OptimizedRelevesPanel({
+  visiteId, onSaved, trameId = 'icpe_v1', panels = null,
+  meterPanelId = 'p-releves', embedded = false, metersOnly = false,
+}) {
   const [champsMap, setChampsMap] = useState({});
   const [controlesMap, setControlesMap] = useState({});
   const [compteurs, setCompteurs] = useState([]);
@@ -364,12 +367,13 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
   const autoSeedFaitRef = useRef(false);
   const ouvertes = useSectionsOuvertes(`releves:${visiteId}`);
 
-  const sections = panels?.['p-releves'] || TRAME_DATA['p-releves'];
+  const sections = panels?.[meterPanelId] || TRAME_DATA['p-releves'];
   const reseauChaleur = trameId === 'reseau_chaleur_v1';
   const champsTemp = useMemo(() => sections['Températures et pH'] || [], [sections]);
-  const champsCompteursIndex = useMemo(() => (sections['Relevés des compteurs et manomètres'] || []).filter((f) => /^Index/i.test(f.cle)), [sections]);
+  const compteursSection = sections['Relevés des compteurs et manomètres'] || sections['Compteur'] || [];
+  const champsCompteursIndex = useMemo(() => compteursSection.filter((f) => /^Index/i.test(f.cle)), [compteursSection]);
   const champsPression = useMemo(() => (sections['Relevés des compteurs et manomètres'] || []).filter((f) => !/^Index/i.test(f.cle)), [sections]);
-  const champsSectionCompteurs = useMemo(() => sections['Relevés des compteurs et manomètres'] || [], [sections]);
+  const champsSectionCompteurs = compteursSection;
 
   const chargerInitial = useCallback(async () => {
     const [champs, controles, compteursDb, pointsDb, nomsDb] = await Promise.all([
@@ -622,7 +626,7 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
   const nomEnCours = modeNomLibre ? nomCompteurLibre : nomCompteurChoisi;
 
   return <>
-    <FlatList
+    {embedded && metersOnly ? <View style={{ paddingBottom: 10 }}>{renderCompteurs()}</View> : <FlatList
       ref={listRef}
       data={data}
       extraData={[champsMap, controlesMap, compteurs, points, noms, precedent, destinationsEnDoublon]}
@@ -642,7 +646,7 @@ export function OptimizedRelevesPanel({ visiteId, onSaved, trameId = 'icpe_v1', 
         if (item.id === 'temperatures') return renderTemperatures();
         return renderMesures();
       }}
-    />
+    />}
 
     <BottomSheet visible={pointVisible} onClose={() => setPointVisible(false)} title="Ajouter une mesure" picto="rel/temperatures-et-ph"
       subtitle="Conservée dans cette visite et l’annexe Excel des mesures complémentaires."

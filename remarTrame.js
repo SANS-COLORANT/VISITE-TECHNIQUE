@@ -3333,6 +3333,10 @@ const definition = {
       "p-remarques",
       "p-photos"
     ],
+    "dynamicPanels": {
+      "p-remar-reseaux": "networks",
+      "p-remar-releves": "meters"
+    },
     "tabOrder": [
       "p-infos",
       "p-remar-reseaux",
