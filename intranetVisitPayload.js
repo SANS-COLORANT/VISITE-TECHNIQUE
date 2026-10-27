@@ -60,12 +60,15 @@ function meaningfulRemote(value) { const v = clean(value); return !v || v === '/
  */
 function mappingCapabilities(definition) {
   const specials = new Set(definition?.ui?.specialPanels || []);
+  const dynamic = new Set(Object.values(definition?.ui?.dynamicPanels || {}));
   const fields = Object.values(definition?.ui?.panels || {}).flatMap((sections) =>
     Object.values(sections || {}).flatMap((items) => Array.isArray(items) ? items : []));
   return {
     networks: Boolean(definition?.intranet?.networks === true ||
-      definition?.excel?.networks?.exportOffsets || specials.has('p-regulation')),
+      definition?.excel?.networks?.exportOffsets || specials.has('p-regulation') ||
+      dynamic.has('networks')),
     meters: Boolean(definition?.intranet?.meters === true || specials.has('p-releves') ||
+      dynamic.has('meters') ||
       fields.some((field) => field?.numericIndex === true || field?.intranetSource === 'compteur')),
   };
 }
