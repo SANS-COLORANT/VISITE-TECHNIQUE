@@ -626,7 +626,10 @@ export function OptimizedRelevesPanel({
   const nomEnCours = modeNomLibre ? nomCompteurLibre : nomCompteurChoisi;
 
   return <>
-    {embedded && metersOnly ? <View style={{ paddingBottom: 10 }}>{renderCompteurs()}</View> : <FlatList
+    {embedded && metersOnly ? <View style={{ paddingBottom: 10 }}>
+      {renderCompteurs()}
+      {renderMesures()}
+    </View> : <FlatList
       ref={listRef}
       data={data}
       extraData={[champsMap, controlesMap, compteurs, points, noms, precedent, destinationsEnDoublon]}
