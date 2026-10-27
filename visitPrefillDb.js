@@ -36,6 +36,18 @@ async function copierChampsPersistantsMemeTrame(db, visiteId, precedenteId, tram
   }
 }
 
+export function typedSiteCounts(site) {
+  const numberValue = (value) => {
+    if (value == null || String(value).trim() === '') return null;
+    const number = Number(value);
+    return Number.isSafeInteger(number) && number >= 0 ? String(number) : null;
+  };
+  return {
+    logements: numberValue(site?.nombre_logements ?? site?.nombreLogements),
+    batiments: numberValue(site?.nombre_batiments ?? site?.nombreBatiments),
+  };
+}
+
 async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
   let contexte = await db.getFirstAsync(`SELECT v.id,v.date_visite,v.technicien,v.mode_visite,v.statut,v.trame_id,v.installation_id,v.api_remote_local_id,
             s.id site_id,s.nom_site,s.adresse,s.localisation_note,
@@ -55,6 +67,12 @@ async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
   contexte = carryForward?.contexte || contexte;
 
   const trame = obtenirTrame(contexte.trame_id || DEFAULT_TRAME_ID);
+  const linkedSite = await db.getFirstAsync(
+    'SELECT payload_json FROM api_site_links WHERE local_site_id=? ORDER BY synced_at DESC LIMIT 1',
+    [contexte.site_id]);
+  let remoteSite = null;
+  try { remoteSite = JSON.parse(linkedSite?.payload_json || 'null'); } catch {}
+  const counts = typedSiteCounts(remoteSite);
   const maintenant = new Date();
   const dateVisite = contexte.date_visite || maintenant.toISOString().slice(0,10);
   const nomLocal = contexte.nom_installation || contexte.localisation_note || null;
@@ -81,6 +99,8 @@ async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
     const fixes = [
       ['p-infos','Général','Nom du client',contexte.nom_client],['p-infos','Général','Nom du site',contexte.nom_site],['p-infos','Général','Nom du local',nomLocal],['p-infos','Général','Trame utilisée',trame.nom],['p-infos','Général','Date de la visite',dateVisite],
       ['p-infos','Informations générales','Date de visite',dateVisite],['p-infos','Informations générales','Heure de visite',formatHeure(maintenant)],['p-infos','Informations générales','Nom du site',contexte.nom_site],['p-infos','Informations générales','Adresse',contexte.adresse],
+      ['p-infos','Informations générales','Nombre de bâtiments',counts.batiments],
+      ['p-infos','Informations générales','Nombre de logements',counts.logements],
     ];
     for (const [p,s,c,v] of fixes) await insertIfEmpty(db, visiteId, p, s, c, v);
   }
