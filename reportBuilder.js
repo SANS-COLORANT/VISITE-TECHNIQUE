@@ -274,7 +274,7 @@ function libelleReserveCourt(remarque) {
 function libellePhoto(photo, data) {
   // A caption edited in the Photos viewer takes precedence over the
   // equipment/reserve inferred name; the trailing ||filename is internal.
-  const personnalisee = String(photo.label || '').split('||')[0].trim();
+  const personnalisee = Number(photo.libelle_personnalise || 0) === 1 ? String(photo.label || '').split('||')[0].trim() : '';
   if (personnalisee) return court(personnalisee, 160);
   const key = String(photo.entite_key || '');
   const [type, id] = key.split('||');
@@ -296,7 +296,7 @@ function libellePhoto(photo, data) {
     return court(r?.nom_reseau || 'Réseau', 60);
   }
 
-  const saved = court(photo.label || '', 60);
+  const saved = court(String(photo.label || '').split('||')[0], 60);
   return saved || 'Photo générale';
 }
 
