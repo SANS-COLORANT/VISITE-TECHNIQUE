@@ -236,5 +236,13 @@ export async function dupliquerReseau(reseauId) {
     [source.t_ext_c ?? null, source.t_dep_c ?? null, source.courbe_de_chauffe ?? null, source.tnc ?? null,
       source.consigne_programme_horaire ?? null, id]
   );
+  // Dupliquer aussi la programmation structurée du réseau courant,
+  // sous la nouvelle identité permanente ; l'original reste inchangé.
+  const attributes = await db.getAllAsync(
+    "SELECT cle,valeur FROM attributs_libres WHERE entite_type='reseau' AND entite_id=? AND cle IN (?,?)",
+    [reseauId,'regulation.courbe_points_v1','regulation.programme_hebdomadaire_v1']);
+  for (const attr of attributes) await db.runAsync(
+    "INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur,type_valeur) VALUES(?,'reseau',?,?,?,'json') ON CONFLICT(entite_type,entite_id,cle) DO NOTHING",
+    [uuidv4(),id,attr.cle,attr.valeur]);
   return id;
 }
