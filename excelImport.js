@@ -8,6 +8,7 @@ import * as FileSystem from 'expo-file-system';
 import { detecterTrameDepuisClasseur } from './trameRegistry.js';
 import { getDb, uuidv4 } from './db.js';
 import { compteursDepuisCellule, temperaturesDepuisCellule } from './releveMultiligne.js';
+import { NETWORK_POINTS_KEY, NETWORK_SCHEDULE_KEY, parseNetworkPoints, pointsFromLegacy, validateNetworkPoints, validateWeeklySchedule } from './networkProgramming.js';
 
 function valeurCellule(sheet, ref) {
   const cell = sheet?.[ref];
@@ -269,6 +270,31 @@ export function analyserClasseur(wb, nomFichier) {
     compteurs.splice(0, compteurs.length, ...rows);
   }
 
+  // L'onglet additionnel vient uniquement de METRA ; des lignes mal
+  // identifiées ne peuvent pas être rattachées au mauvais réseau.
+  const annexeRegulation = wb.Sheets.PROGRAMMATION_RESEAUX;
+  if (annexeRegulation) {
+    const records = XLSX.utils.sheet_to_json(annexeRegulation,{header:1,defval:''}).slice(1);
+    for (const line of records) {
+      if (!line[2] && !line[3]) continue;
+      const ordinal = Number(line[0]);
+      const row = reseaux.find(r=>Number(r.ordre)===ordinal && String(r.nom||'').trim()===String(line[1]||'').trim());
+      if (!row) throw new Error('Annexe PROGRAMMATION_RESEAUX : réseau introuvable ou déplacé ('+String(line[1]||ordinal)+').');
+      try {
+        if (line[2]) row.points = validateNetworkPoints(parseNetworkPoints(String(line[2])));
+        if (line[3]) row.schedule = validateWeeklySchedule(String(line[3]));
+      } catch(error) {
+        throw new Error('Programmation du réseau « '+row.nom+' » : '+String(error?.message||error));
+      }
+    }
+  }
+  // Compatibilité avec une ancienne trame Excel qui stockait plusieurs
+  // températures, ligne par ligne, sans annexe JSON.
+  for (const row of reseaux) if (!row.points?.length) {
+    const inferred = pointsFromLegacy(row.tExt,row.tDep);
+    if (inferred.length>=2) row.points=inferred;
+  }
+
   const tables = cfg.tables || {};
   const materielCfg = tables.materiel;
   const materiel = materielCfg ? lireTable(wb.Sheets[materielCfg.sheet], materielCfg).map((m) => ({ ...m, etat: m.etat || 'Bon' })) : [];
@@ -397,10 +423,20 @@ export async function importerAnalyseExcel(analyse, { installationId = null } = 
           [permanent.id, installation.id, r.nom || `Réseau ${r.ordre}`, r.ordre]
         );
       }
+      const idReseau = uuidv4();
       await db.runAsync(
         `INSERT INTO reseaux (id, visite_id, reseau_site_id, ordre, nom_reseau, t_ext_c, t_dep_c, courbe_de_chauffe, tnc, consigne_programme_horaire) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [uuidv4(), visiteId, permanent.id, r.ordre, r.nom, r.tExt, r.tDep, r.courbe, r.tnc, r.programme]
+        [idReseau, visiteId, permanent.id, r.ordre, r.nom, r.tExt, r.tDep, r.courbe, r.tnc, r.programme]
       );
+      for (const [key,value] of [
+        [NETWORK_POINTS_KEY,r.points?.length?JSON.stringify(validateNetworkPoints(r.points)):null],
+        [NETWORK_SCHEDULE_KEY,r.schedule?JSON.stringify(validateWeeklySchedule(r.schedule)):null],
+      ]) {
+        if (!value) continue;
+        await db.runAsync(
+          "INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur,type_valeur) VALUES(?,'reseau',?,?,?,'json') ON CONFLICT(entite_type,entite_id,cle) DO UPDATE SET valeur=excluded.valeur",
+          [uuidv4(),idReseau,key,value]);
+      }
       await db.runAsync(
         `INSERT OR REPLACE INTO observations_reseau (id, reseau_site_id, visite_id, t_ext_c, t_dep_c, courbe_de_chauffe, tnc, consigne_programme_horaire) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [uuidv4(), permanent.id, visiteId, r.tExt, r.tDep, r.courbe, r.tnc, r.programme]
