@@ -100,7 +100,9 @@ try:
             break
         size = list(map(int, re.findall(r'\d+', adb('shell', 'wm', 'size').decode())))
         width, height = size[-2:]
-        adb('shell', 'input', 'swipe', str(width // 2), str(height // 3), str(width // 2), str(height * 3 // 4), '350')
+        # Start inside the scrolling content (on Pixel C it begins below y=605);
+        # height/3 starts in the fixed settings tab header, so no scroll occurs.
+        adb('shell', 'input', 'swipe', str(width // 2), str(height // 2), str(width // 2), str(height * 3 // 4), '350')
         time.sleep(1)
     tap('Fermer le brouillon')
     tap('Abandonner le brouillon')
