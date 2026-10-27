@@ -92,7 +92,7 @@ function valeurDepart(config, start) {
   return Number.isFinite(config?.min) ? config.min : 0;
 }
 
-const StepperNumerique = React.memo(function StepperNumerique({ valeur, config, onChange, start }) {
+const StepperNumerique = React.memo(function StepperNumerique({ valeur, config, onChange, start, compactValue = false }) {
   const [modeLibre, setModeLibre] = useState(false);
   const [texteLibre, setTexteLibre] = useState(valeur || '');
   const num = parseFloat(String(valeur ?? '').replace(',', '.'));
@@ -116,7 +116,8 @@ const StepperNumerique = React.memo(function StepperNumerique({ valeur, config, 
     return (
       <View style={styles.stepperRow}>
         <TextInput
-          style={styles.stepperInputLibre}
+          style={[styles.stepperInputLibre, compactValue && { fontSize: 16 }]}
+          maxFontSizeMultiplier={compactValue ? 1.25 : undefined}
           value={texteLibre}
           onChangeText={setTexteLibre}
           onBlur={validerLibre}
@@ -134,7 +135,9 @@ const StepperNumerique = React.memo(function StepperNumerique({ valeur, config, 
         <Text style={styles.stepperBtnText}>−</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.stepperValBox} onPress={() => { setTexteLibre(valeur || ''); setModeLibre(true); }}>
-        <Text style={styles.stepperValText}>{valeur || '—'}{config.unit ? ` ${config.unit}` : ''}</Text>
+        <Text style={[styles.stepperValText, compactValue && { fontSize: 16, flexShrink: 1, textAlign: 'center' }]}
+          numberOfLines={compactValue ? 1 : undefined} adjustsFontSizeToFit={compactValue}
+          minimumFontScale={compactValue ? 0.75 : undefined}>{valeur || '—'}{config.unit ? ` ${config.unit}` : ''}</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.stepperBtn} onPress={inc}>
         <Text style={styles.stepperBtnText}>+</Text>
