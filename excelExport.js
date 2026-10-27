@@ -11,6 +11,8 @@ import { getDb, getVisite, listerReseaux, listerMateriel, listerRemarques, liste
 import { libelleChamp, libelleSection, listerAliasesPreAllumage } from './preAllumageAliases.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
 import { creerFichierSaf, dossierVisiteMetra } from './metraStorage.js';
+import { readNetworkProgrammingForVisit } from './networkProgrammingDb.js';
+import { networkTemperatureSeries, formatWeeklySchedule, validateWeeklySchedule } from './networkProgramming.js';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
@@ -331,12 +333,49 @@ async function construireClasseur(visiteId) {
       : Promise.resolve([]),
   ]);
 
+  const programmed = await readNetworkProgrammingForVisit(db, visiteId);
+  const reseauxExport = reseaux.map((row) => {
+    const extra = programmed.get(row.id);
+    if (!extra) return row;
+    const output = { ...row };
+    if (extra.points?.length) {
+      let temperatures;
+      try { temperatures = networkTemperatureSeries(extra.points); }
+      catch (error) { throw new Error('Courbe du réseau « ' + (row.nom_reseau || row.id) + ' » invalide : ' + error.message); }
+      output.t_ext_c = temperatures.ext;
+      output.t_dep_c = temperatures.dep;
+    }
+    const hasSchedule = extra.schedule && Object.values(extra.schedule.days || {})
+      .some(periods=>Array.isArray(periods) && periods.length > 0);
+    if (hasSchedule) {
+      try { validateWeeklySchedule(extra.schedule); output.consigne_programme_horaire = formatWeeklySchedule(extra.schedule); }
+      catch (error) { throw new Error('Programme du réseau « ' + (row.nom_reseau || row.id) + ' » invalide : ' + error.message); }
+    }
+    return output;
+  });
+  const structured = reseaux.flatMap((row,index) => {
+    const extra = programmed.get(row.id);
+    if (!extra?.points?.length && !extra?.schedule) return [];
+    const hasSchedule = extra.schedule && Object.values(extra.schedule.days || {})
+      .some(periods=>Array.isArray(periods) && periods.length > 0);
+    if (!extra?.points?.length && !hasSchedule) return [];
+    return [[index+1,row.nom_reseau || '',extra?.points?.length ? JSON.stringify(extra.points) : '',
+      hasSchedule ? JSON.stringify(extra.schedule) : '']];
+  });
   const materiel = normaliserMaterielPourExport(materielBrut);
   const remarques = normaliserRemarquesPourExport(remarquesBrutes, trame.id);
   if (cfg.heatNetwork) validerPerimetresReseauChaleur(materiel, remarques);
   const champsMap = indexerParCle(champs);
   const controlesMap = indexerParCle(controles);
   const wb = XLSX.read(cfg.templateBase64, { type: 'base64', cellStyles: true, cellNF: true, bookVBA: true });
+  if (structured.length) {
+    const programming = XLSX.utils.aoa_to_sheet([
+      ['N° réseau', 'Nom du réseau', 'Courbe points JSON', 'Programme hebdomadaire JSON'],
+      ...structured,
+    ]);
+    programming['!cols'] = [{wch:14},{wch:30},{wch:65},{wch:75}];
+    XLSX.utils.book_append_sheet(wb, programming, 'PROGRAMMATION_RESEAUX');
+  }
   const sheetPrincipale = wb.Sheets[cfg.mainSheet];
   if (!sheetPrincipale) throw new Error(`Feuille principale « ${cfg.mainSheet} » absente du modèle ${trame.nom}.`);
 
@@ -382,7 +421,7 @@ async function construireClasseur(visiteId) {
       // Les champs déjà renseignés ne sont jamais écrasés.
       if (!champ && trame.ui?.dynamicPanels?.[mapping.panelId] === 'networks') {
         const position = /^Réseau ([1-9][0-9]*)$/i.exec(String(mapping.cle || ''));
-        const reseau = position ? reseaux[Number(position[1]) - 1] : null;
+        const reseau = position ? reseauxExport[Number(position[1]) - 1] : null;
         if (reseau?.nom_reseau) setCell(mappingSheet, mapping.valueCell, reseau.nom_reseau);
       }
       // Dès que des compteurs existent, leurs relevés font autorité. Ne pas
@@ -425,12 +464,12 @@ async function construireClasseur(visiteId) {
   if (reseauxCfg) {
     const sheetReseaux = wb.Sheets[reseauxCfg.mainSheet || cfg.mainSheet] || sheetPrincipale;
     const colonne = reseauxCfg.exportColumn || 'C';
-    reseaux.slice(0, (reseauxCfg.starts || []).length).forEach((r, i) => {
+    reseauxExport.slice(0, (reseauxCfg.starts || []).length).forEach((r, i) => {
       const debut = reseauxCfg.starts[i];
       Object.entries(reseauxCfg.exportOffsets || {}).forEach(([champ, offset]) => setCell(sheetReseaux, `${colonne}${debut + offset}`, r[champ]));
     });
   }
-  const reseauxSupplementaires = reseauxCfg ? ajouterReseauxComplementaires(wb, reseaux, reseauxCfg) : 0;
+  const reseauxSupplementaires = reseauxCfg ? ajouterReseauxComplementaires(wb, reseauxExport, reseauxCfg) : 0;
   const dyn = modulesDynamiques(trame);
   if (cfg.heatNetwork) exporterCompteursReseauChaleur(sheetPrincipale, compteurs, cfg.fieldMappings);
   else if (dyn.meters) {
@@ -442,7 +481,7 @@ async function construireClasseur(visiteId) {
     exporterCompteurs(sheetPrincipale, compteurs, cfg.fieldMappings);
   }
   // On n'écrase aucune case officielle ni aucun autre onglet métier.
-  exporterAnnexesDynamiques(wb, trame, reseaux, compteurs, photosDynamiques);
+  exporterAnnexesDynamiques(wb, trame, reseauxExport, compteurs, photosDynamiques);
   const tables = cfg.tables || {};
   if (tables.materiel) remplirTable(wb.Sheets[tables.materiel.sheet], materiel, tables.materiel);
   if (tables.remarques) remplirTable(wb.Sheets[tables.remarques.sheet], remarques, tables.remarques);
