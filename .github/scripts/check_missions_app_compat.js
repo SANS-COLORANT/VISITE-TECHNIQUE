@@ -90,12 +90,32 @@ for (const file of [
   if (!fs.existsSync(path.join(ROOT, file))) fail('module natif Missions manquant: ' + file);
 }
 
-requireText(apkWorkflow, "expected_package = 'com.visitetechnique.tablet'", 'verrou applicationId APK');
-requireText(apkWorkflow, "android['versionCode'] = int('${{ github.run_number }}')", 'incrément versionCode APK');
-requireText(apkWorkflow, "APK_BUILD = '${{ github.run_number }}'", 'numéro de build visible');
-requireText(apkWorkflow, 'METRA_COMPAT_SIGNER_SHA256', 'certificat historique de mise à jour');
+// Two generations of the native build exist: the historical run-number
+// stamping and the versioned REMAR release pipeline. Both must explicitly
+// protect the same package, monotonically increasing versionCode, build label,
+// historical certificate, Expo prebuild, and signed Gradle release.
+const requireAnyText = (text, patterns, label) => {
+  if (!patterns.some((pattern) => text.includes(pattern))) fail(label + ' manquant');
+};
+requireAnyText(apkWorkflow, [
+  "expected_package = 'com.visitetechnique.tablet'",
+  "assert data['expo']['android']['package'] == 'com.visitetechnique.tablet'",
+], 'verrou applicationId APK');
+requireAnyText(apkWorkflow, [
+  "android['versionCode'] = int('${{ github.run_number }}')",
+  "data['expo']['android']['versionCode'] = int(time.time())",
+], 'incrément versionCode APK');
+requireAnyText(apkWorkflow, [
+  "APK_BUILD = '${{ github.run_number }}'",
+  "APK_BUILD = 'REMAR-",
+], 'numéro de build visible');
+requireAnyText(apkWorkflow, [
+  'METRA_COMPAT_SIGNER_SHA256',
+  'FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C',
+], 'certificat historique de mise à jour');
 requireText(apkWorkflow, 'npx expo prebuild --clean --platform android --no-install', 'prébuild Expo Android');
 requireText(apkWorkflow, './gradlew assembleRelease', 'compilation APK release');
+requireAnyText(apkWorkflow, ['apksigner', 'Verify release APK signature'], 'vérification de la signature APK');
 
 const recurringTokens = ['pre_allumage', 'vmc-c'];
 const recipes = read('missionRecipes.js');
