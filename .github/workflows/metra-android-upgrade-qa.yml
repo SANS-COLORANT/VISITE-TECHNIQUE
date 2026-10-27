@@ -1,0 +1,53 @@
+name: METRA Android in-place upgrade QA
+on:
+  push:
+    branches:
+      - release/metra-remar-photos-rc-20261027
+    paths:
+      - '.github/scripts/upgrade_apk_47_to_48_android.py'
+      - '.github/workflows/metra-android-upgrade-qa.yml'
+permissions:
+  contents: read
+  actions: read
+jobs:
+  android-upgrade:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: visite-technique-tablet-release
+          repository: ${{ github.repository }}
+          run-id: 40480321131
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: old
+      - uses: actions/download-artifact@v4
+        with:
+          name: visite-technique-tablet-release
+          repository: ${{ github.repository }}
+          run-id: 40487014610
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          path: new
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install old METRA, create REMAR visit, update in place, verify persistence
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_c
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: python3 .github/scripts/upgrade_apk_47_to_48_android.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: metra-android-upgrade-regression
+          path: upgrade-shots/
+          if-no-files-found: warn
+          retention-days: 30
