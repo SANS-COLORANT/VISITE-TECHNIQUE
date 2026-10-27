@@ -51,7 +51,9 @@ const remarksCache = new BoundedLruMap(3);
 
 const GROUPE_MANUELLES = '__manuelles';
 const GROUPE_REPRISES = '__reprises';
-const POSTES = ['Entretien P2', 'Entretien / P3', 'Travaux de conformité', 'Travaux d’amélioration'];
+// La création utilisait déjà "Observation" ; exposer la même valeur lors
+// de la modification pour conserver les réserves et exports historiques.
+const POSTES = ['Observation', 'Entretien P2', 'Entretien / P3', 'Travaux de conformité', 'Travaux d’amélioration'];
 const ETATS_AVANCEMENT = ['Non réalisé', 'Devis émis', 'En cours', 'Terminé', 'Annulé'];
 
 // Couleur de chaque niveau de criticité (0 Information → 5 Critique).
