@@ -1,0 +1,35 @@
+name: REMAR terrain ergonomics QA
+on:
+  push:
+    branches:
+      - feat/remar-ergonomie-terrain-20261027
+  pull_request:
+    branches:
+      - feat/trame-remar-complete
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Verify the committed source and all existing contracts
+        run: |
+          npm ci --no-audit --no-fund --prefer-offline
+          git diff --exit-code
+      - name: Exercise REMAR-specific field ergonomics
+        run: node .github/scripts/test_remar_ergonomics.js
+      - name: Verify REMAR Excel and real SQLite round trips
+        run: node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
+      - name: Preserve PDF report with 457 photos
+        run: node tests/reportPdfFragments.test.mjs
+      - name: Validate Android JavaScript bundle (not an APK)
+        run: npx expo export --platform android --max-workers 2 --output-dir dist-remar-ergonomie-ci

@@ -50,6 +50,7 @@ const CONTRACT_CHECKS = [
   ['Missions LAB isolation contract', '.github/scripts/check_missions_lab_contract.js'],
   ['Missions app compatibility contract', '.github/scripts/check_missions_app_compat.js'],
   ['Pilotage SQLite, RCU Intranet and numeric field regressions', '.github/scripts/test_terrain_bugfixes.js'],
+  ['REMAR métier navigator and compact field UX', '.github/scripts/test_remar_ergonomics.js'],
   ['phone companion contract', '.github/scripts/check_companion_mode_contract.js'],
   ['phone photo mode contract', '.github/scripts/check_phone_photo_mode_contract.js'],
   ['navigation + site sort contract', '.github/scripts/check_navigation_sort_contract.js'],
@@ -62,6 +63,9 @@ const CONTRACT_CHECKS = [
 const JS_SYNTAX_FILES = [
   'TrameLibraryPanel.js',
   'TrameGenericPanel.js',
+  'RemarJourneySheet.js',
+  'remarJourneyPlan.js',
+  'GenericFields.js',
   'trameLibrary.js',
   'trameLibraryDb.js',
   'trameWorkbookImport.js',

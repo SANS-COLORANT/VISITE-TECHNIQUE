@@ -227,9 +227,10 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
   const champRef = useRef(null);
   const handlersRef = useRef({});
   const estPreAllumage = panelId.startsWith('p-pa-');
+  const estRemar = trameId === 'remar_v1' || obtenirTrame(trameId)?.familyId === 'remar_v1';
   const mode = panelId === 'p-distrib' ? 'distrib' : (panelId === 'p-infos' || panelId === 'p-vmc-infos') ? 'infos' : 'conf';
   const scopeOuvertes = `${visiteId}|${panelId}|${navigationScope || ''}`;
-  const { isOpen, toggle, open } = useSectionsOuvertes(scopeOuvertes);
+  const { isOpen, toggle, open, closeAll } = useSectionsOuvertes(scopeOuvertes);
   const [filtre, setFiltreState] = useState(() => FILTRES_PAR_PANNEAU.get(scopeOuvertes) || 'all');
   const [visite, setVisite] = useState(null);
   const [ficheVisite, setFicheVisite] = useState(false);
@@ -456,6 +457,7 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
         onSaved={champHandler(item.key)}
         choix={mode === 'distrib' || mode === 'infos' || Boolean(item.field.options)}
         compact={mode === 'infos'}
+        compactStepper={estRemar}
         water={mode === 'distrib' && /ecs/i.test(item.sectionCode)}
         photo={mode !== 'distrib' && mode !== 'infos'}
       />;
@@ -496,6 +498,18 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
 
   const enTeteListe = panelId === 'p-pa-batiments' ? <PreAllumagePlanCard visiteId={visiteId} onSaved={onSaved} /> : <>
     {mode === 'infos' ? <BandeauVisite lignes={lignesBandeau} trameId={trameId} editable={Boolean(sectionGenerale)} onPress={() => setFicheVisite(true)} /> : null}
+    {estRemar && structure.length > 1 ? <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 10 }}>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Déplier toutes les rubriques REMAR"
+        onPress={() => open(structure.map((sec) => sec.sectionCode))}
+        style={{ minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: COLORS.orangeLight, borderRadius: 12 }}>
+        <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 11.5, color: COLORS.orangeDark }}>Tout déplier</Text>
+      </TouchableOpacity>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Replier toutes les rubriques REMAR"
+        onPress={closeAll}
+        style={{ minHeight: 40, paddingHorizontal: 12, justifyContent: 'center', backgroundColor: KIT.card, borderRadius: 12, borderWidth: 1, borderColor: KIT.border }}>
+        <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 11.5, color: COLORS.inkSoft }}>Tout replier</Text>
+      </TouchableOpacity>
+    </View> : null}
     {aDesControles ? (() => {
       let aFaire = 0; let ns = 0;
       for (const sec of listeSections) for (const item of sec.data) {
