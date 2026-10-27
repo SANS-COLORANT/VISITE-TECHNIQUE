@@ -19,16 +19,20 @@ export function resumerItineraire(cibles = []) {
   const clients = [...parClient.values()]
     .filter((c) => c.faits < c.total)
     .sort((a, b) => (b.total - b.faits) - (a.total - a.faits) || a.nomClient.localeCompare(b.nomClient, 'fr', { sensitivity: 'base' }));
-  const prochaine = restantes[0] || null;
+  const ciblesRestantes = restantes.map((cible) => ({
+    id: String(cible.id || [cible.site_id, cible.installation_id || 'site'].join(':')),
+    clientId: String(cible.client_id), nomClient: cible.nom_client || '',
+    siteId: String(cible.site_id), nomSite: cible.nom_site || '',
+    installationId: cible.installation_id ? String(cible.installation_id) : null,
+    nomLocal: cible.nom_local || '',
+  }));
   return {
     total, faits, restants: total - faits,
     pct: total ? Math.round((faits / total) * 100) : 0,
-    prochain: prochaine ? {
-      clientId: String(prochaine.client_id), nomClient: prochaine.nom_client || '',
-      siteId: String(prochaine.site_id), nomSite: prochaine.nom_site || '',
-      installationId: prochaine.installation_id ? String(prochaine.installation_id) : null,
-      nomLocal: prochaine.nom_local || '',
-    } : null,
+    // Le bouton historique continue de viser la première cible, mais
+    // l'accueil expose désormais toutes les visites en attente.
+    prochain: ciblesRestantes[0] || null,
+    cibles: ciblesRestantes,
     clients,
   };
 }
