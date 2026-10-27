@@ -53,6 +53,7 @@ const CONTRACT_CHECKS = [
   ['Pilotage SQLite, RCU Intranet and numeric field regressions', '.github/scripts/test_terrain_bugfixes.js'],
   ['REMAR métier navigator and compact field UX', '.github/scripts/test_remar_ergonomics.js'],
   ['REMAR meter multi-line and free photos privacy', '.github/scripts/test_remar_meters_free_photos.js'],
+  ['Terrain reserve verification is independent from lifted state', '.github/scripts/test_reserve_verification_terrain.js'],
   ['phone companion contract', '.github/scripts/check_companion_mode_contract.js'],
   ['phone photo mode contract', '.github/scripts/check_phone_photo_mode_contract.js'],
   ['navigation + site sort contract', '.github/scripts/check_navigation_sort_contract.js'],
