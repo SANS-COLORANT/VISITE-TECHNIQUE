@@ -39,7 +39,7 @@ export async function renommerPhotoVisite(visiteId, photoId, libelle) {
   if (!photo) throw new Error('Photo introuvable dans cette visite.');
   const { photoLabelAvecNomFichier, legendePhotoEditable } = require('./photoExportPolicy.js');
   const label = photoLabelAvecNomFichier(photo, libelle);
-  await db.runAsync('UPDATE photos SET label=? WHERE id=? AND visite_id=?', [label, photoId, visiteId]);
+  await db.runAsync('UPDATE photos SET label=?,libelle_personnalise=1 WHERE id=? AND visite_id=?', [label, photoId, visiteId]);
   await db.runAsync(`UPDATE api_visit_photo_outbox SET description=?,updated_at=datetime('now')
     WHERE photo_id=? AND status NOT IN ('synced','sending')`,
     [legendePhotoEditable({ label }).slice(0, 255), photoId]);
