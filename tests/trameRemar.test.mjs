@@ -101,6 +101,8 @@ test('REMAR exports and reimports dynamic network/meter annexes without losing o
     VALUES('remar-photo',?,'reseau||remar-r1','file:///test-photo.jpg','Photo circuit radiateurs')`, [id]);
   const { wb } = await construireClasseur(id);
   assert.ok(wb.Sheets['TRAME REMAR']);
+  assert.equal(wb.Sheets['TRAME REMAR'].C25.v, 'Circuit radiateurs');
+  assert.equal(wb.Sheets['TRAME REMAR'].C26.v, 'Circuit plancher');
   assert.equal(wb.Sheets['TRAME REMAR'].C101.v, 'Compteur gaz chaufferie : 12545.6 m³');
   assert.equal(wb.Sheets.RESEAUX_DETAIL.B2.v, 'Circuit radiateurs');
   assert.equal(wb.Sheets.RESEAUX_DETAIL.H2.v, 'Photo circuit radiateurs');
