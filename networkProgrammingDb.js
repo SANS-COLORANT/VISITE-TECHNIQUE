@@ -51,8 +51,17 @@ export async function readNetworkProgrammingForVisit(db, visiteId) {
   const result = new Map();
   for (const row of rows) {
     const entry = result.get(row.reseau_id) || {};
-    if (row.cle === NETWORK_POINTS_KEY) entry.points = parseNetworkPoints(row.valeur);
-    else if (row.cle === NETWORK_SCHEDULE_KEY) entry.schedule = parseWeeklySchedule(row.valeur);
+    let raw;
+    try { raw = JSON.parse(row.valeur); }
+    catch { throw new Error('Programme de réseau endommagé : JSON illisible, export refusé.'); }
+    if (row.cle === NETWORK_POINTS_KEY) {
+      if (!Array.isArray(raw)) throw new Error('Courbe de réseau endommagée : liste de points absente.');
+      entry.points = parseNetworkPoints(raw);
+    } else if (row.cle === NETWORK_SCHEDULE_KEY) {
+      if (!raw || typeof raw !== 'object' || Array.isArray(raw))
+        throw new Error('Programme de réseau endommagé : objet absent.');
+      entry.schedule = parseWeeklySchedule(raw);
+    }
     result.set(row.reseau_id, entry);
   }
   return result;

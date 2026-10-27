@@ -281,8 +281,17 @@ export function analyserClasseur(wb, nomFichier) {
       const row = reseaux.find(r=>Number(r.ordre)===ordinal && String(r.nom||'').trim()===String(line[1]||'').trim());
       if (!row) throw new Error('Annexe PROGRAMMATION_RESEAUX : réseau introuvable ou déplacé ('+String(line[1]||ordinal)+').');
       try {
-        if (line[2]) row.points = validateNetworkPoints(parseNetworkPoints(String(line[2])));
-        if (line[3]) row.schedule = validateWeeklySchedule(String(line[3]));
+        if (line[2]) {
+          const parsed = JSON.parse(String(line[2]));
+          if (!Array.isArray(parsed)) throw new Error('La courbe attend une liste JSON de points.');
+          row.points = validateNetworkPoints(parsed);
+        }
+        if (line[3]) {
+          const parsed = JSON.parse(String(line[3]));
+          if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed))
+            throw new Error('Le programme attend un objet JSON.');
+          row.schedule = validateWeeklySchedule(parsed);
+        }
       } catch(error) {
         throw new Error('Programmation du réseau « '+row.nom+' » : '+String(error?.message||error));
       }
