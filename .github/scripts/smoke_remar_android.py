@@ -90,8 +90,12 @@ try:
     wait('Commentaire proposé pour S')
     shot('02b-editeur-point-remar')
     tap('Fermer')
-    wait('Modifier une trame', 30)
-    for _ in range(8):
+    # The editor title is above the scroll viewport at this point; asserting
+    # it is visible wrongly fails even though the point modal is now closed.
+    if find('Modifier le point'):
+        raise AssertionError('REMAR point editor remains open after Fermer')
+    shot('02c-editeur-ferme')
+    for _ in range(16):
         if find('Fermer le brouillon'):
             break
         size = list(map(int, re.findall(r'\d+', adb('shell', 'wm', 'size').decode())))
