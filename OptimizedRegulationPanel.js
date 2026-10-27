@@ -26,6 +26,7 @@ import { ChampMesureTile, nombreMesure, versAffichage, versStockage } from './Ex
 import { CvcIcon } from './MetraCvcIcons.js';
 import { feedback } from './fieldFeedback.js';
 import { getPreviousVisitSnapshot, prewarmPreviousVisitSnapshot } from './visitPreviousSnapshot.js';
+import { NetworkProgrammingEditor } from './NetworkProgrammingEditor.js';
 
 const cacheRegulation = new BoundedLruMap(3);
 const OPTIONS_CHOIX = { 'Cycle anti-légionellose': ['Hebdomadaire', 'Quotidien', 'Absent'] };
@@ -140,6 +141,7 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, open, onToggle, 
         <Text style={st.textLabel}>Consigne et programme horaire</Text>
         <TextInput style={[st.textInput, { minHeight: 44 }]} value={String(prog ?? '')} onChangeText={setProg} onBlur={() => { flushProg().catch(() => {}); }} placeholder="Saisir…" placeholderTextColor={COLORS.inkFaint} multiline accessibilityLabel="Consigne et programme horaire" />
       </View>
+      <NetworkProgrammingEditor reseau={reseau} />
       <BottomSheet visible={nomEdite !== null} onClose={() => setNomEdite(null)} title="Nom du réseau" picto="dist/reseaux" maxHeight="45%"
         footer={<View style={st.sheetActions}>
           <SmallButton label="Annuler" onPress={() => setNomEdite(null)} />
