@@ -54,6 +54,16 @@ async function run() {
   ok(apiLatest.includes('compteursDepuisCellule') && apiLatest.includes('totalLines: readings.length'),
     'Intranet multiline import creates independent provenance-linked meter rows');
 
+  const api = load('apiVisitPreparationDb.js', {}, ['mapRemoteTrameToLocal']);
+  ok(api.mapRemoteTrameToLocal({ nom: 'TRAME REMAR' }) === 'remar_v1',
+    'Intranet reference explicitly recognizes TRAME REMAR instead of defaulting to ICPE');
+  ok(api.mapRemoteTrameToLocal({ nom: 'TRAME REMAR CLASSIQUE' }) === 'remar_v1',
+    'historic REMAR server label is mapped conservatively');
+  ok(api.mapRemoteTrameToLocal({ nom: 'ICPE Chaufferie' }) === 'icpe_v1' &&
+    api.mapRemoteTrameToLocal({ nom: 'Réseau de chaleur' }) === 'reseau_chaleur_v1',
+    'ICPE and RCU Intranet families remain isolated');
+
+
   // Real migration from the previous photo schema: previously general photos
   // are made private even if their photo was already queued for upload.
   const sql = new DatabaseSync(':memory:');
