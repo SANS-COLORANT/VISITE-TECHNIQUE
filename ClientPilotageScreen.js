@@ -53,51 +53,87 @@ function Chip({ label, active, onPress, danger = false }) {
   return <TouchableOpacity onPress={onPress} style={{ minHeight: 38, paddingHorizontal: 11, borderRadius: 10, borderWidth: 1, borderColor: active ? (danger ? '#B42318' : COLORS.orange) : COLORS.line, backgroundColor: active ? (danger ? '#FDECEC' : '#FFF3E8') : '#fff', alignItems: 'center', justifyContent: 'center' }}><Text style={{ fontSize: 10.5, fontFamily: FONTS.bold, color: active ? (danger ? '#B42318' : COLORS.orange) : COLORS.inkSoft }}>{label}</Text></TouchableOpacity>;
 }
 
+/**
+ * Première colonne non défilante. Les cellules de droite ont une seule zone
+ * de défilement horizontal ; la vue parente scrolle verticalement les deux
+ * colonnes ensemble (pas de FlatList verticale imbriquée, ni de désalignement).
+ */
 function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, nomClient, openCell }) {
   const [collapsed, setCollapsed] = useState({});
-  const tableWidth = Math.max(300, 210 + categories.length * 98);
-  const visibleLocalCount = sites.reduce((total, site) => total + (collapsed[site.id] ? 0 : (site.locals || []).length), 0);
-  const tableHeight = Math.max(155, Math.min(610, 52 + sites.length * 68 + visibleLocalCount * 54));
-  const ouvrirSite = (site) => navigation.navigate('SiteLocals', { siteId: site.id, nomSite: site.nom_site, clientId, nomClient });
-  return <View style={{ height: tableHeight }}>
-    <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator>
-      <View style={{ width: tableWidth, flex: 1 }}>
-        <View style={{ flexDirection: 'row', backgroundColor: '#FFF' }}>
-          <View style={{ width: 210, padding: 8 }}><Text style={{ fontFamily: FONTS.black }}>Sites / locaux</Text></View>
-          {categories.map((category) => <View key={category.key} style={{ width: 98, padding: 6, justifyContent: 'center' }}><Text style={{ textAlign: 'center', fontSize: 10, fontFamily: FONTS.bold }}>{category.label}</Text></View>)}
-        </View>
-        <FlatList
-          data={sites}
-          keyExtractor={(site) => site.id}
-          nestedScrollEnabled
-          initialNumToRender={8}
-          maxToRenderPerBatch={8}
-          windowSize={7}
-          updateCellsBatchingPeriod={36}
-          removeClippedSubviews={false}
-          renderItem={({ item: site }) => <View>
-            <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: COLORS.line, alignItems: 'center', backgroundColor: '#FFF4E9' }}>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Déplier ou replier les locaux de ${site.nom_site}`}
-                onPress={() => setCollapsed((prev) => ({ ...prev, [site.id]: !prev[site.id] }))}
-                onLongPress={() => ouvrirSite(site)}
-                style={{ width: 210, minHeight: 64, padding: 9, justifyContent: 'center' }}>
-                <Text style={{ fontFamily: FONTS.bold, color: COLORS.primary }}>{collapsed[site.id] ? '▸' : '▾'} {site.nom_site}</Text>
-                <Text style={{ fontSize: 10, color: COLORS.muted }} numberOfLines={2}>{(site.locals || []).length} local(aux) · {site.adresse || 'Adresse non renseignée'}</Text>
-              </TouchableOpacity>
-              {categories.map((category) => <Cell key={category.key} cell={site.cells[category.key] || { total: 0, state: 'none' }} onPress={() => openCell(site, category, site.cells[category.key])}/>)}
+  const rowHeight = 72;
+  const firstWidth = 210;
+  const cellWidth = 98;
+  const lignes = [];
+  for (const site of sites) {
+    lignes.push({ key: `s:${site.id}`, kind: 'site', site });
+    if (!collapsed[site.id]) {
+      for (const local of site.locals || []) lignes.push({ key: `l:${site.id}:${local.id}`, kind: 'local', site, local });
+    }
+  }
+  const ouvrirSite = (site) => navigation.navigate('SiteLocals', {
+    siteId: site.id, nomSite: site.nom_site, clientId, nomClient,
+  });
+  const choisirCellule = (ligne, category) => {
+    const target = ligne.kind === 'local' ? ligne.local : ligne.site;
+    const cell = target.cells?.[category.key];
+    if (!cell?.total) return;
+    const scope = ligne.kind === 'local'
+      ? { ...ligne.site, nom_site: `${ligne.site.nom_site} · ${ligne.local.nom}` }
+      : ligne.site;
+    openCell(scope, category, cell);
+  };
+
+  return <View style={{ flexDirection: 'row', alignItems: 'flex-start', backgroundColor: '#fff' }}>
+    <View style={{ width: firstWidth, flexShrink: 0, borderRightWidth: 1, borderRightColor: COLORS.line }}>
+      <View style={{ height: 58, paddingHorizontal: 10, justifyContent: 'center', borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+        <Text style={{ fontFamily: FONTS.black }}>Sites / locaux</Text>
+      </View>
+      {lignes.map((ligne) => (
+        <TouchableOpacity key={ligne.key} accessibilityRole="button"
+          accessibilityLabel={ligne.kind === 'site'
+            ? `Afficher ou masquer les locaux de ${ligne.site.nom_site}`
+            : `Ouvrir ${ligne.local.nom} du site ${ligne.site.nom_site}`}
+          onPress={() => ligne.kind === 'site'
+            ? setCollapsed((state) => ({ ...state, [ligne.site.id]: !state[ligne.site.id] }))
+            : ouvrirSite(ligne.site)}
+          onLongPress={ligne.kind === 'site' ? () => ouvrirSite(ligne.site) : undefined}
+          style={{ height: rowHeight, paddingHorizontal: 8, paddingLeft: ligne.kind === 'site' ? 8 : 23,
+            borderBottomWidth: 1, borderBottomColor: COLORS.line, justifyContent: 'center',
+            backgroundColor: ligne.kind === 'site' ? '#FFF4E9' : '#FFFFFF' }}>
+          <Text numberOfLines={2} style={{ color: ligne.kind === 'site' ? COLORS.primary : COLORS.inkSoft,
+            fontFamily: FONTS.bold, fontSize: ligne.kind === 'site' ? 12 : 11 }}>
+            {ligne.kind === 'site'
+              ? `${collapsed[ligne.site.id] ? '▸' : '▾'} ${ligne.site.nom_site}`
+              : `↳ ${ligne.local.nom}`}
+          </Text>
+          <Text numberOfLines={1} style={{ color: COLORS.muted, fontSize: 10, marginTop: 3 }}>
+            {ligne.kind === 'site'
+              ? `${(ligne.site.locals || []).length} local(aux) · ${ligne.site.adresse || 'Adresse non renseignée'}`
+              : `${ligne.local.records.length} constat(s)`}
+          </Text>
+        </TouchableOpacity>
+      ))}
+    </View>
+    <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator contentContainerStyle={{ flexGrow: 0 }}>
+      <View style={{ width: Math.max(98, categories.length * cellWidth) }}>
+        <View style={{ flexDirection: 'row', height: 58, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+          {categories.map((category) => (
+            <View key={category.key} style={{ width: cellWidth, justifyContent: 'center', paddingHorizontal: 5 }}>
+              <Text style={{ textAlign: 'center', fontSize: 10, fontFamily: FONTS.bold }}>{category.label}</Text>
             </View>
-            {!collapsed[site.id] && (site.locals || []).map((local) => <View key={local.id} style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: COLORS.line, backgroundColor: '#FFFFFF' }}>
-              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Local ${local.nom} du site ${site.nom_site}`}
-                onPress={() => ouvrirSite(site)}
-                style={{ width: 210, minHeight: 52, paddingLeft: 23, paddingRight: 8, justifyContent: 'center' }}>
-                <Text numberOfLines={2} style={{ fontSize: 11, fontFamily: FONTS.bold, color: COLORS.inkSoft }}>↳ {local.nom}</Text>
-                <Text style={{ fontSize: 9, color: COLORS.muted }}>{local.records.length} constat(s)</Text>
-              </TouchableOpacity>
-              {categories.map((category) => <Cell key={category.key} cell={local.cells[category.key] || { total: 0, state: 'none' }}
-                onPress={() => openCell({ ...site, nom_site: `${site.nom_site} · ${local.nom}` }, category, local.cells[category.key])}/>)}
-            </View>)}
-          </View>}
-        />
+          ))}
+        </View>
+        {lignes.map((ligne) => {
+          const scope = ligne.kind === 'local' ? ligne.local : ligne.site;
+          return <View key={ligne.key} style={{ height: rowHeight, flexDirection: 'row',
+            borderBottomWidth: 1, borderBottomColor: COLORS.line,
+            backgroundColor: ligne.kind === 'site' ? '#FFF4E9' : '#fff', alignItems: 'center' }}>
+            {categories.map((category) => (
+              <Cell key={category.key} cell={scope.cells?.[category.key] || { total: 0, state: 'none' }}
+                onPress={() => choisirCellule(ligne, category)} />
+            ))}
+          </View>;
+        })}
       </View>
     </ScrollView>
   </View>;
