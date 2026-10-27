@@ -99,6 +99,13 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
   const [filtre, setFiltre] = useState('toutes');
   const sections = useSectionsOuvertes(`${visiteId}:p-photos`);
   const { listRef, onScroll } = useListScrollMemory(`visit-panel:${visiteId}:p-photos`, photos.length);
+  // A free photo captured from the visit action bar appears in the Photos
+  // gallery immediately, without requiring an extra tap to expand Libres.
+  useEffect(() => {
+    if (photos.some((photo) => !photo.entite_key && photo.pending)) {
+      sections.open(['libre']);
+    }
+  }, [photos, sections.open]);
 
   useEffect(() => {
     let alive = true;
@@ -181,13 +188,14 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
     if (cameraEnCours) return;
     setCameraEnCours(true);
     try {
-      await capturerPhotoLibre(visiteId, (error) => Alert.alert('Erreur photo libre', String(error?.message || error)));
+      const captured = await capturerPhotoLibre(visiteId, (error) => Alert.alert('Erreur photo libre', String(error?.message || error)));
+      if (captured) sections.open(['libre']);
     } catch (error) {
       Alert.alert('Erreur photo libre', String(error?.message || error));
     } finally {
       setCameraEnCours(false);
     }
-  }, [cameraEnCours, visiteId]);
+  }, [cameraEnCours, visiteId, sections.open]);
 
   const enregistrerLibelle = useCallback(async () => {
     if (!viewerPhoto || viewerPhoto.pending || savingMetadata) return;
