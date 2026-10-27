@@ -295,7 +295,7 @@ async function buildCriteria(db, visite, details, issues) {
   const isTemperature = (candidate) => candidate.panelId === 'p-releves' && /temperature/.test(String(candidate.sectionCode || ''));
   const fieldMap = new Map(fields.map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
   const controlMap = new Map(controls.map((row) => [`${row.section_code}||${row.cle}`, row]));
-  const remoteNetworkGroups = visite.trame_id === 'icpe_v1'
+  const remoteNetworkGroups = ['icpe_v1', 'reseau_chaleur_v1'].includes(visite.trame_id)
     ? categories.flatMap((category) => (Array.isArray(category?.sousCategories) ? category.sousCategories : []).filter(isNetworkGroup).map((subCategory) => ({ category, subCategory }))) : [];
   const networkAssignments = mapNetworksToRemoteGroups(networks, remoteNetworkGroups, networkProvenances, issues);
   const result = [];
@@ -303,7 +303,7 @@ async function buildCriteria(db, visite, details, issues) {
   let ordinal = 0;
   for (const category of categories) {
     for (const subCategory of Array.isArray(category?.sousCategories) ? category.sousCategories : []) {
-      const networkGroup = visite.trame_id === 'icpe_v1' && isNetworkGroup(subCategory);
+      const networkGroup = ['icpe_v1', 'reseau_chaleur_v1'].includes(visite.trame_id) && isNetworkGroup(subCategory);
       const network = networkGroup ? networkAssignments.get(remoteNetworkKey(category?.id, subCategory?.id)) : null;
       for (const criterion of Array.isArray(subCategory?.criteres) ? subCategory.criteres : []) {
         const criterionName = clean(criterion?.nom) || criterion?.id || ordinal + 1;

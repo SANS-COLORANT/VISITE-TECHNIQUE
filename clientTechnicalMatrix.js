@@ -115,13 +115,39 @@ function sortRemarks(items = []) {
   return [...items].sort((a, b) => Number(b.criticite || 2) - Number(a.criticite || 2) || String(a.cree_le || '').localeCompare(String(b.cree_le || '')));
 }
 
+export function matrixLocalKey(visit) {
+  const installation = String(visit?.installation_id || '').trim();
+  if (installation) return `installation:${installation}`;
+  const remote = String(visit?.api_remote_local_id || '').trim();
+  return remote ? `intranet:${remote}` : 'sans-local';
+}
+
 export async function getClientTechnicalMatrix(clientId) {
   const db = await getDb();
   const sites = await db.getAllAsync(`SELECT id,nom_site,adresse FROM sites WHERE client_id=? ORDER BY nom_site COLLATE NOCASE`, [clientId]);
-  const visits = await db.getAllAsync(`SELECT v.id,v.site_id,v.trame_id,v.date_visite FROM visites v JOIN sites s ON s.id=v.site_id WHERE s.client_id=? ORDER BY COALESCE(v.date_visite,'') DESC,v.rowid DESC`, [clientId]);
+  const visits = await db.getAllAsync(`SELECT v.id,v.site_id,v.installation_id,v.api_remote_local_id,v.trame_id,v.date_visite
+    FROM visites v JOIN sites s ON s.id=v.site_id WHERE s.client_id=? ORDER BY COALESCE(v.date_visite,'') DESC,v.rowid DESC`, [clientId]);
+  const siteIds = sites.map((site) => site.id);
+  const installationRows = siteIds.length
+    ? await db.getAllAsync(`SELECT id,site_id,nom FROM installations WHERE site_id IN (${siteIds.map(() => '?').join(',')}) ORDER BY nom COLLATE NOCASE`, siteIds)
+    : [];
+  const remoteIds = [...new Set(visits.map((visit) => String(visit.api_remote_local_id || '').trim()).filter(Boolean))];
+  const remoteRows = remoteIds.length
+    ? await db.getAllAsync(`SELECT remote_local_id,designation FROM api_local_links WHERE remote_local_id IN (${remoteIds.map(() => '?').join(',')})`, remoteIds)
+    : [];
+  const installationNames = new Map(installationRows.map((row) => [String(row.id), row.nom]));
+  const remoteNames = new Map(remoteRows.map((row) => [String(row.remote_local_id), row.designation]));
+  for (const visit of visits) {
+    visit.local_id = matrixLocalKey(visit);
+    visit.local_name = (visit.installation_id && installationNames.get(String(visit.installation_id)))
+      || (visit.api_remote_local_id && remoteNames.get(String(visit.api_remote_local_id)))
+      || 'Local non renseigné';
+  }
+  // La dernière visite est déterminée par site + local + trame, jamais par
+  // site + trame uniquement : plusieurs locaux doivent rester visibles.
   const latest = new Map();
   for (const visit of visits) {
-    const key = `${visit.site_id}||${visit.trame_id || 'default'}`;
+    const key = `${visit.site_id}||${visit.local_id}||${visit.trame_id || 'default'}`;
     if (!latest.has(key)) latest.set(key, visit);
   }
 
@@ -216,7 +242,20 @@ export async function getClientTechnicalMatrix(clientId) {
 
   const bySite = sites.map((site) => {
     const records = rows.filter((row) => row.site_id === site.id);
-    return { ...site, records, cells: buildMatrixCells(records, categories) };
+    const localMap = new Map();
+    for (const installation of installationRows.filter((item) => item.site_id === site.id)) {
+      const id = `installation:${installation.id}`;
+      localMap.set(id, { id, nom: installation.nom || 'Local sans nom', records: [] });
+    }
+    for (const record of records) {
+      const id = record.local_id || 'sans-local';
+      if (!localMap.has(id)) localMap.set(id, { id, nom: record.local_name || 'Local non renseigné', records: [] });
+      localMap.get(id).records.push(record);
+    }
+    const locals = [...localMap.values()].map((local) => ({
+      ...local, cells: buildMatrixCells(local.records, categories),
+    }));
+    return { ...site, records, locals, cells: buildMatrixCells(records, categories) };
   });
 
   const trameIds = [...new Set(rows.map((row) => row.trame_id).filter(Boolean))];

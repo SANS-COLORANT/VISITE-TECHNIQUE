@@ -54,36 +54,54 @@ function Chip({ label, active, onPress, danger = false }) {
 }
 
 function VirtualizedTechnicalMatrix({ sites, categories, navigation, clientId, nomClient, openCell }) {
-  const tableWidth = Math.max(280, 180 + categories.length * 98);
-  return <View style={{ height: 540 }}>
+  const [collapsed, setCollapsed] = useState({});
+  const tableWidth = Math.max(300, 210 + categories.length * 98);
+  const visibleLocalCount = sites.reduce((total, site) => total + (collapsed[site.id] ? 0 : (site.locals || []).length), 0);
+  const tableHeight = Math.max(155, Math.min(610, 52 + sites.length * 68 + visibleLocalCount * 54));
+  const ouvrirSite = (site) => navigation.navigate('SiteLocals', { siteId: site.id, nomSite: site.nom_site, clientId, nomClient });
+  return <View style={{ height: tableHeight }}>
     <ScrollView horizontal nestedScrollEnabled showsHorizontalScrollIndicator>
       <View style={{ width: tableWidth, flex: 1 }}>
         <View style={{ flexDirection: 'row', backgroundColor: '#FFF' }}>
-          <View style={{ width: 180, padding: 8 }}><Text style={{ fontFamily: FONTS.black }}>Sites</Text></View>
+          <View style={{ width: 210, padding: 8 }}><Text style={{ fontFamily: FONTS.black }}>Sites / locaux</Text></View>
           {categories.map((category) => <View key={category.key} style={{ width: 98, padding: 6, justifyContent: 'center' }}><Text style={{ textAlign: 'center', fontSize: 10, fontFamily: FONTS.bold }}>{category.label}</Text></View>)}
         </View>
         <FlatList
           data={sites}
           keyExtractor={(site) => site.id}
           nestedScrollEnabled
-          initialNumToRender={10}
+          initialNumToRender={8}
           maxToRenderPerBatch={8}
           windowSize={7}
           updateCellsBatchingPeriod={36}
-          removeClippedSubviews
-          renderItem={({ item: site }) => <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: COLORS.line, alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.55)' }}>
-            <TouchableOpacity onPressIn={() => prewarmSiteLocals(site.id).catch(() => {})} onPress={() => navigation.navigate('SiteLocals', { siteId: site.id, nomSite: site.nom_site, clientId, nomClient })} style={{ width: 180, minHeight: 62, padding: 9, justifyContent: 'center' }}>
-              <Text style={{ fontFamily: FONTS.bold, color: COLORS.primary }}>{site.nom_site}</Text>
-              <Text style={{ fontSize: 9.5, color: COLORS.muted }} numberOfLines={2}>{site.adresse || 'Adresse non renseignée'}</Text>
-            </TouchableOpacity>
-            {categories.map((category) => <Cell key={category.key} cell={site.cells[category.key] || { total: 0, state: 'none' }} onPress={() => openCell(site, category, site.cells[category.key])}/>)}
+          removeClippedSubviews={false}
+          renderItem={({ item: site }) => <View>
+            <View style={{ flexDirection: 'row', borderTopWidth: 1, borderTopColor: COLORS.line, alignItems: 'center', backgroundColor: '#FFF4E9' }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Déplier ou replier les locaux de ${site.nom_site}`}
+                onPress={() => setCollapsed((prev) => ({ ...prev, [site.id]: !prev[site.id] }))}
+                onLongPress={() => ouvrirSite(site)}
+                style={{ width: 210, minHeight: 64, padding: 9, justifyContent: 'center' }}>
+                <Text style={{ fontFamily: FONTS.bold, color: COLORS.primary }}>{collapsed[site.id] ? '▸' : '▾'} {site.nom_site}</Text>
+                <Text style={{ fontSize: 10, color: COLORS.muted }} numberOfLines={2}>{(site.locals || []).length} local(aux) · {site.adresse || 'Adresse non renseignée'}</Text>
+              </TouchableOpacity>
+              {categories.map((category) => <Cell key={category.key} cell={site.cells[category.key] || { total: 0, state: 'none' }} onPress={() => openCell(site, category, site.cells[category.key])}/>)}
+            </View>
+            {!collapsed[site.id] && (site.locals || []).map((local) => <View key={local.id} style={{ flexDirection: 'row', alignItems: 'center', borderTopWidth: 1, borderTopColor: COLORS.line, backgroundColor: '#FFFFFF' }}>
+              <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Local ${local.nom} du site ${site.nom_site}`}
+                onPress={() => ouvrirSite(site)}
+                style={{ width: 210, minHeight: 52, paddingLeft: 23, paddingRight: 8, justifyContent: 'center' }}>
+                <Text numberOfLines={2} style={{ fontSize: 11, fontFamily: FONTS.bold, color: COLORS.inkSoft }}>↳ {local.nom}</Text>
+                <Text style={{ fontSize: 9, color: COLORS.muted }}>{local.records.length} constat(s)</Text>
+              </TouchableOpacity>
+              {categories.map((category) => <Cell key={category.key} cell={local.cells[category.key] || { total: 0, state: 'none' }}
+                onPress={() => openCell({ ...site, nom_site: `${site.nom_site} · ${local.nom}` }, category, local.cells[category.key])}/>)}
+            </View>)}
           </View>}
         />
       </View>
     </ScrollView>
   </View>;
 }
-
 function recordMatches(record, site, filters) {
   const avis = normAvis(record.avis);
   if (filters.trame !== 'all' && record.trame_id !== filters.trame) return false;
@@ -93,7 +111,7 @@ function recordMatches(record, site, filters) {
   if (Number(filters.minSeverity || 0) > 0 && !(avis === 'N.S' && Number(record.criticite || 0) >= Number(filters.minSeverity))) return false;
   const q = normalize(filters.search).trim();
   if (q) {
-    const haystack = normalize([site.nom_site, site.adresse, record.trame_label, record.category_label, record.section_code, record.cle, record.reference_libelle, record.commentaire, record.prestation, record.poste].filter(Boolean).join(' '));
+    const haystack = normalize([site.nom_site, site.adresse, record.local_name, record.trame_label, record.category_label, record.section_code, record.cle, record.reference_libelle, record.commentaire, record.prestation, record.poste].filter(Boolean).join(' '));
     if (!haystack.includes(q)) return false;
   }
   return true;
@@ -160,7 +178,11 @@ export function ClientPilotageScreen({ route, navigation }) {
 
   const sites = useMemo(() => scopedSites.map((site) => {
     const records = filteredRecordsBySite.get(site.id) || [];
-    return { ...site, records, cells: buildMatrixCells(records, visibleCategories) };
+    const locals = (site.locals || []).map((local) => {
+      const localRecords = records.filter((record) => record.local_id === local.id);
+      return { ...local, records: localRecords, cells: buildMatrixCells(localRecords, visibleCategories) };
+    }).filter((local) => local.records.length > 0 || (!filters.search.trim() && filters.status === 'all' && filters.category === 'all' && filters.trame === 'all' && filters.minSeverity === 0));
+    return { ...site, records, locals, cells: buildMatrixCells(records, visibleCategories) };
   }).filter((site) => site.records.length > 0 || Object.values(filters).every((v) => v === 'all' || v === 0 || v === '')), [scopedSites, filteredRecordsBySite, visibleCategories, filters]);
 
   const filteredRecords = useMemo(() => sites.flatMap((site) => site.records || []), [sites]);
@@ -267,7 +289,7 @@ export function ClientPilotageScreen({ route, navigation }) {
     </View>
 
     <Modal visible={filterVisible} transparent animationType="fade" onRequestClose={() => setFilterVisible(false)}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { width: '94%', maxWidth: 720, maxHeight: '90%' }]}><ScrollView keyboardShouldPersistTaps="handled"><View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={[styles.modalTitle, { flex: 1 }]}>Filtres cartographie</Text><TouchableOpacity onPress={() => setFilters(DEFAULT_FILTERS)}><Text style={{ color: COLORS.primary, fontFamily: FONTS.bold }}>Réinitialiser</Text></TouchableOpacity></View>
-      <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Recherche</Text><TextInput style={styles.input} value={filters.search} placeholder="Site, réserve, équipement, commentaire…" onChangeText={(v) => setFilters((f) => ({ ...f, search: v }))}/>
+      <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Recherche</Text><TextInput style={styles.input} value={filters.search} placeholder="Site, local, réserve, équipement, commentaire…" onChangeText={(v) => setFilters((f) => ({ ...f, search: v }))}/>
       <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Métier</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}><Chip label="Tous" active={filters.trame === 'all'} onPress={() => setFilters((f) => ({ ...f, trame: 'all' }))}/>{(matrix.trames || []).map((t) => <Chip key={t.id} label={t.label} active={filters.trame === t.id} onPress={() => setFilters((f) => ({ ...f, trame: t.id }))}/>)}</View>
       <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Avis</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>{STATUS_OPTIONS.map((o) => <Chip key={o.id} label={o.label} active={filters.status === o.id} onPress={() => setFilters((f) => ({ ...f, status: o.id }))}/>)}</View>
       <Text style={[styles.fieldLabel, { marginTop: 12 }]}>Criticité minimale</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>{[0, 1, 2, 3, 4, 5].map((v) => <Chip key={v} label={v === 0 ? 'Toutes' : `≥ ${v}`} active={Number(filters.minSeverity) === v} danger={v >= 4} onPress={() => setFilters((f) => ({ ...f, minSeverity: v }))}/>)}</View>

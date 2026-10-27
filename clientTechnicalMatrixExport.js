@@ -9,6 +9,7 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 
 export const PILOTAGE_EXPORT_COLUMNS = Object.freeze([
   { key: 'site', label: 'Site' },
+  { key: 'local', label: 'Local' },
   { key: 'adresse', label: 'Adresse' },
   { key: 'groupes', label: 'Groupe(s)' },
   { key: 'metier', label: 'Métier' },
@@ -39,27 +40,27 @@ export const PILOTAGE_EXPORT_PRESETS = Object.freeze({
   reserves: {
     label: 'Réserves à traiter',
     statuses: ['N.S'],
-    columns: ['site', 'adresse', 'groupes', 'metier', 'date', 'categorie', 'point', 'avis', 'criticite', 'criticite_libelle', 'constat', 'precision', 'photos', 'action', 'responsable', 'entreprise', 'priorite', 'echeance', 'statut_traitement', 'date_traitement', 'suivi'],
+    columns: ['site', 'local', 'adresse', 'groupes', 'metier', 'date', 'categorie', 'point', 'avis', 'criticite', 'criticite_libelle', 'constat', 'precision', 'photos', 'action', 'responsable', 'entreprise', 'priorite', 'echeance', 'statut_traitement', 'date_traitement', 'suivi'],
   },
   ns: {
     label: 'N.S uniquement',
     statuses: ['N.S'],
-    columns: ['site', 'metier', 'date', 'categorie', 'section', 'point', 'avis', 'criticite', 'criticite_libelle', 'constat', 'precision', 'origine'],
+    columns: ['site', 'local', 'metier', 'date', 'categorie', 'section', 'point', 'avis', 'criticite', 'criticite_libelle', 'constat', 'precision', 'origine'],
   },
   non_releves: {
     label: 'Points non relevés',
     statuses: ['N.R', 'N.V'],
-    columns: ['site', 'adresse', 'metier', 'date', 'categorie', 'section', 'point', 'avis', 'precision'],
+    columns: ['site', 'local', 'adresse', 'metier', 'date', 'categorie', 'section', 'point', 'avis', 'precision'],
   },
   photos: {
     label: 'Photos et réserves',
     statuses: ['N.S'],
-    columns: ['site', 'metier', 'date', 'categorie', 'point', 'criticite', 'constat', 'precision', 'photos'],
+    columns: ['site', 'local', 'metier', 'date', 'categorie', 'point', 'criticite', 'constat', 'precision', 'photos'],
   },
   suivi: {
     label: 'Suivi traitement',
     statuses: ['N.S'],
-    columns: ['site', 'adresse', 'groupes', 'metier', 'categorie', 'point', 'criticite', 'criticite_libelle', 'constat', 'action', 'responsable', 'entreprise', 'priorite', 'echeance', 'statut_traitement', 'date_traitement', 'suivi'],
+    columns: ['site', 'local', 'adresse', 'groupes', 'metier', 'categorie', 'point', 'criticite', 'criticite_libelle', 'constat', 'action', 'responsable', 'entreprise', 'priorite', 'echeance', 'statut_traitement', 'date_traitement', 'suivi'],
   },
 });
 
@@ -84,6 +85,7 @@ async function photoLabels(record) {
 function valeur(record, key, context, photos = '') {
   const avis = normAvis(record.avis);
   if (key === 'site') return context.siteNames?.get(record.site_id) || record.nom_site || '';
+  if (key === 'local') return record.local_name || 'Local non renseigné';
   if (key === 'adresse') return context.siteAddresses?.get(record.site_id) || record.adresse || '';
   if (key === 'groupes') return (context.siteGroups?.get(record.site_id) || []).join(', ');
   if (key === 'metier') return record.trame_label || record.trame_id || '';
@@ -174,7 +176,7 @@ export async function exporterPilotageExcel({
   const wsSummary = XLSX.utils.aoa_to_sheet(buildSummary(exportedRecords, context, viewLabel));
   const wsDetail = XLSX.utils.json_to_sheet(detailRows, { header: selectedColumns.map((c) => c.label) });
   wsSummary['!cols'] = [{ wch: 28 }, { wch: 34 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }, { wch: 12 }];
-  wsDetail['!cols'] = selectedColumns.map((c) => ({ wch: ['constat', 'precision', 'suivi', 'action'].includes(c.key) ? 42 : ['site', 'adresse', 'point', 'photos'].includes(c.key) ? 28 : 16 }));
+  wsDetail['!cols'] = selectedColumns.map((c) => ({ wch: ['constat', 'precision', 'suivi', 'action'].includes(c.key) ? 42 : ['site', 'local', 'adresse', 'point', 'photos'].includes(c.key) ? 28 : 16 }));
   XLSX.utils.book_append_sheet(wb, wsSummary, 'Synthèse');
   XLSX.utils.book_append_sheet(wb, wsDetail, 'Détail');
 
