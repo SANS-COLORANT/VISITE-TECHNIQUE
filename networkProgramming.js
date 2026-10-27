@@ -14,18 +14,20 @@ function validTemp(value, min, max) {
   const n = Number(raw.replace(',', '.'));
   return Number.isFinite(n) && n >= min && n <= max;
 }
-function isTime(v) {
+function timeMinutes(v) {
   const m = /^(\d{1,2}):(\d{2})$/.exec(txt(v));
-  return Boolean(m && Number(m[1]) <= 23 && Number(m[2]) <= 59);
+  return m && Number(m[1]) <= 23 && Number(m[2]) <= 59
+    ? Number(m[1]) * 60 + Number(m[2]) : null;
 }
 export function parseNetworkPoints(raw) {
   let input = raw;
   if (typeof input === 'string') { try { input = JSON.parse(input); } catch { return []; } }
   if (!Array.isArray(input)) return [];
-  return input.slice(0, 48).map((r) => ({ ext: txt(r?.ext), dep: txt(r?.dep) }));
+  return input.map((r) => ({ ext: txt(r?.ext), dep: txt(r?.dep) }));
 }
 export function validateNetworkPoints(raw) {
   const points = parseNetworkPoints(raw);
+  if (points.length > 100) throw new Error('Courbe limitée à 100 points : aucune valeur ne sera supprimée silencieusement.');
   const used = new Set();
   for (const p of points) {
     if (!validTemp(p.ext, -60, 60) || !validTemp(p.dep, -10, 150)) {
@@ -59,7 +61,7 @@ export function parseWeeklySchedule(raw) {
   result.allDays = input.allDays === true;
   for (const day of WEEK_DAYS) {
     result.days[day] = (Array.isArray(input.days?.[day]) ? input.days[day] : [])
-      .slice(0, 12).map(p=>({
+      .map(p=>({
         start: txt(p?.start), end: txt(p?.end),
         comfort: txt(p?.comfort), reduced: txt(p?.reduced),
       }));
@@ -70,14 +72,16 @@ export function validateWeeklySchedule(raw) {
   const schedule = parseWeeklySchedule(raw);
   for (const day of schedule.allDays ? [WEEK_DAYS[0]] : WEEK_DAYS) {
     const periods = schedule.days[day];
+    if (periods.length > 12) throw new Error('Plus de 12 plages sur une même journée : aucune valeur ne sera supprimée.');
     for (const period of periods) {
-      if (!isTime(period.start) || !isTime(period.end) || period.start >= period.end)
+      if (timeMinutes(period.start) === null || timeMinutes(period.end) === null ||
+          timeMinutes(period.start) >= timeMinutes(period.end))
         throw new Error('Programme : les heures doivent être HH:MM, avec un début antérieur à la fin.');
       if (!validTemp(period.comfort, -10, 50) || !validTemp(period.reduced, -10, 50))
         throw new Error('Programme : les consignes Confort et Réduit doivent être numériques.');
     }
-    const ordered = [...periods].sort((a,b)=>a.start.localeCompare(b.start));
-    for (let i=1;i<ordered.length;i++) if (ordered[i].start < ordered[i-1].end)
+    const ordered = [...periods].sort((a,b)=>timeMinutes(a.start)-timeMinutes(b.start));
+    for (let i=1;i<ordered.length;i++) if (timeMinutes(ordered[i].start) < timeMinutes(ordered[i-1].end))
       throw new Error('Programme : les plages d’une même journée ne peuvent pas se chevaucher.');
   }
   if (schedule.allDays) for (const day of WEEK_DAYS.slice(1))
