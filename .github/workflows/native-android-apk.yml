@@ -5,6 +5,7 @@ on:
     branches:
       - native-android
       - feat/trame-remar-complete
+      - release/metra-remar-photos-rc-20261027
     paths:
       - '**/*.js'
       - '**/*.json'
@@ -48,6 +49,8 @@ jobs:
           git diff --exit-code
       - name: Test REMAR, editable trames and real SQLite round trips
         run: node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
+      - name: Test REMAR counters and private free photos with real SQLite
+        run: node .github/scripts/test_remar_meters_free_photos.js
       - name: Preserve large PDF report regression (457 photos)
         run: node tests/reportPdfFragments.test.mjs
       - name: Stamp Android update version (packaging only)
@@ -153,12 +156,12 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           cat > /tmp/release-notes.md <<'NOTES'
-          Application METRA complète issue de la version APK 678 et conservant le correctif PDF récent, avec ajout de TRAME REMAR et de Réglages > Trames.
+          Application METRA complète issue de la version APK 678, avec TRAME REMAR, corrections du pilotage SQLite, Réseau de chaleur, photos libres privées par défaut, légendes modifiables, compteurs REMAR individuels et export multi-lignes.
 
-          Même identité Android com.visitetechnique.tablet et même certificat historique METRA ; versionCode incrémenté pour permettre une mise à jour. Sauvegarder ses données avant l'installation d'une nouvelle version. La base conserve le schéma 47 : aucun effacement ni retour à un schéma ancien.
+          Même identité Android com.visitetechnique.tablet et même certificat historique METRA ; versionCode incrémenté pour permettre une mise à jour. Sauvegarder ses données avant l'installation d'une nouvelle version. Migration additive SQLite 48 : aucune désinstallation, aucun effacement ni retour à un schéma ancien. Les visites/photos existantes sont conservées. Les photos libres sont exclues de l'Intranet et des rapports tant que leur integration n'est pas expressément activée.
 
           Trames : modèle REMAR natif, commentaires par avis, import de modèles Excel ou de fichiers METRA, édition des points/choix/mesures/commentaires, versions conservées pour les anciennes visites et export des définitions avec les classeurs.
 
-          Contrôles : npm ci/postinstall sans mutation de code, contrats METRA existants, tests SQLite et aller-retour Excel, non-régression PDF 457 photos, release Gradle signé, lancement et parcours REMAR/Réglages sur émulateur tablette. Les essais terrain sur tablette physique, caméra, OCR et serveur Intranet restent à réaliser avec des données réelles.
+          Contrôles : npm ci/postinstall sans mutation de code, contrats METRA existants, tests SQLite et aller-retour Excel, non-régression PDF 457 photos, release Gradle signé, lancement et parcours REMAR/Réglages sur émulateur tablette. Les essais terrain sur tablette physique, caméra, OCR et serveur Intranet restent à réaliser avec des données réelles : le smoke Android sur émulateur ne les remplace pas.
           NOTES
           gh release create "metra-remar-complet-${BUILD_NUMBER}" release/* --target "$GITHUB_SHA" --title "METRA complet — TRAME REMAR — ${BUILD_NUMBER}" --notes-file /tmp/release-notes.md --prerelease

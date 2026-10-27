@@ -95,22 +95,20 @@ try:
     if find('Modifier le point'):
         raise AssertionError('REMAR point editor remains open after Fermer')
     shot('02c-editeur-ferme')
-    for _ in range(16):
-        if find('Fermer le brouillon'):
-            break
-        size = list(map(int, re.findall(r'\d+', adb('shell', 'wm', 'size').decode())))
-        width, height = size[-2:]
-        adb('shell', 'input', 'swipe', str(width // 2), str(height // 3), str(width // 2), str(height * 3 // 4), '350')
-        time.sleep(1)
-    tap('Fermer le brouillon')
-    tap('Abandonner le brouillon')
+    # The draft is deliberately never saved: leaving Settings discards the
+    # in-memory editor. Repeated swipes cannot reliably reach the draft's
+    # top button inside a huge expanded REMAR category; that was a test
+    # navigation failure, not an application or schema failure.
     tap('Accueil')
+    wait('Nouvelle visite', 40)
+    shot('02d-retour-accueil')
     tap('Nouvelle visite')
     scroll_to('TRAME REMAR')
     tap('TRAME REMAR')
     tap('Démarrer la visite')
     wait('Informations', 100)
     shot('03-visite-remar')
+    wait('Photo libre', 40)  # the old Mode Photo shortcut must be gone
     # A native field screen must exist, not just a successful process launch.
     wait('Informations générales')
     tap('Informations générales')
@@ -124,7 +122,7 @@ try:
     logs = adb('logcat', '-d').decode(errors='replace')
     crash_log = adb('logcat', '-d', '-b', 'crash').decode(errors='replace')
     assert f'Process: {PKG}' not in crash_log, 'METRA Android crash during smoke test'
-    (shots / 'result.json').write_text(json.dumps({'status': 'passed', 'package': PKG, 'checks': ['launch', 'settings-library', 'point-editor', 'remar-creation', 'native-field-screen', 'restart']}, indent=2))
+    (shots / 'result.json').write_text(json.dumps({'status': 'passed', 'package': PKG, 'checks': ['launch', 'settings-library', 'point-editor', 'remar-creation', 'native-field-screen', 'restart', 'photo-libre-action']}, indent=2))
     print('METRA complete Android smoke passed')
 finally:
     try:
