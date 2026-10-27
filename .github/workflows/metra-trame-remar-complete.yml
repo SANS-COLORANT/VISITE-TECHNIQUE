@@ -1,8 +1,6 @@
 name: METRA complete - TRAME REMAR
+# Workflow de secours manuel. La livraison standard passe par Build Native Android APK.
 on:
-  push:
-    branches: [feat/trame-remar-complete]
-    paths: ['**/*.js', '**/*.json', '**/*.mjs', 'native/**', 'plugins/**', '.github/scripts/check_js_syntax.js', '.github/scripts/run_source_patches.js', '.github/workflows/metra-trame-remar-complete.yml']
   workflow_dispatch:
 permissions:
   contents: read

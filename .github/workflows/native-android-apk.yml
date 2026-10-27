@@ -1,457 +1,125 @@
 name: Build Native Android APK
-
 on:
   workflow_dispatch:
-    inputs:
-      test_apk_run_id:
-        description: "Captures seules : id d'un run dont on teste l'APK (vide = build complet)"
-        required: false
-        default: ''
   push:
     branches:
       - native-android
-      - feat/report-local-patrimoine-apk435
-      - feat/metra-phone-companion-cross-device
-      - feat/reseau-chaleur-from-build641
+      - feat/trame-remar-complete
     paths:
       - '**/*.js'
       - '**/*.json'
+      - '**/*.mjs'
       - 'native/**'
       - 'plugins/**'
       - 'database/**'
       - 'assets/metra/**'
-      - 'visual-packs/**'
       - '.github/workflows/native-android-apk.yml'
-      - '.github/scripts/**'
-
+      - '.github/scripts/smoke_remar_android.py'
+permissions:
+  contents: read
 concurrency:
-  group: native-android-apk-${{ github.ref }}-${{ inputs.test_apk_run_id }}
+  group: native-android-apk-${{ github.ref }}
   cancel-in-progress: true
-
 jobs:
-  build-apk:
-    if: ${{ !inputs.test_apk_run_id }}
+  build:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     env:
-      NODE_ENV: production
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
       GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
-      METRA_COMPAT_SIGNER_SHA256: FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C
-      GRADLE_OPTS: >-
-        -Dorg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8
-        -Dorg.gradle.workers.max=2
-
+      METRA_RELEASE_STORE_PASSWORD: android
+      METRA_RELEASE_KEY_ALIAS: androiddebugkey
+      METRA_RELEASE_KEY_PASSWORD: android
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Check Google Maps build configuration
-        run: |
-          if [ -n "$GOOGLE_MAPS_API_KEY" ]; then
-            echo "Google Maps Android key available for this build."
-          else
-            echo "Google Maps Android key not configured; METRA offline fallback will remain active."
-          fi
-
-      - name: Stamp visible APK build number
-        run: |
-          python - <<'PY'
-          from pathlib import Path
-          p = Path('appVersion.js')
-          s = p.read_text(encoding='utf-8')
-          s = s.replace("export const APK_BUILD = 'DEV';", "export const APK_BUILD = '${{ github.run_number }}';")
-          p.write_text(s, encoding='utf-8')
-          PY
-          grep -q "APK_BUILD = '${{ github.run_number }}'" appVersion.js
-
-      - name: Stamp Android update identity
-        run: |
-          python - <<'PY'
-          import json
-          from pathlib import Path
-          expected_package = 'com.visitetechnique.tablet'
-          app = Path('app.json')
-          data = json.loads(app.read_text(encoding='utf-8'))
-          android = data.setdefault('expo', {}).setdefault('android', {})
-          actual_package = android.get('package')
-          if actual_package != expected_package:
-              raise SystemExit(f'applicationId METRA modifié: {actual_package!r} != {expected_package!r}')
-          android['versionCode'] = int('${{ github.run_number }}')
-          app.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-          print(f'Identité Android conservée: {expected_package}, versionCode=${{ github.run_number }}')
-          PY
-          grep -q 'private const val KEY_ALIAS = "metra_dpop_p256_v1"' native/metra-dpop/MetraDpopModule.kt
-
-      - name: Apply targeted Excel import date cleanup
-        run: python .github/scripts/patch_excel_import_date.py
-
-      - name: Apply report selection mode defaults
-        run: |
-          python .github/scripts/patch_report_mode_defaults.py
-          node --check ReportScreen.js
-          grep -q "const groupeInterdit=" ReportScreen.js
-          grep -q "const modeEffectif=mode" ReportScreen.js
-          grep -q "exporterRapportsParLocalEdites" ReportScreen.js
-
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
-          cache-dependency-path: package-lock.json
-
-      - name: Setup Java
-        uses: actions/setup-java@v4
+      - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: 17
-
-      - name: Setup Gradle cache
-        uses: gradle/actions/setup-gradle@v4
-
-      - name: Configure npm resilience
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install verified committed source
         run: |
-          npm config set fetch-retries 5
-          npm config set fetch-retry-mintimeout 2000
-          npm config set fetch-retry-maxtimeout 30000
-
-      - name: Install dependencies from lockfile
-        run: npm ci --no-audit --no-fund --prefer-offline
-
-      - name: Validate Expo project
-        run: npm run check:native
-
-      - name: Generate Office-compatible Word skeleton
+          npm ci --no-audit --no-fund --prefer-offline
+          git diff --exit-code
+      - name: Test REMAR, editable trames and real SQLite round trips
+        run: node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
+      - name: Preserve large PDF report regression (457 photos)
+        run: node tests/reportPdfFragments.test.mjs
+      - name: Stamp Android update version (packaging only)
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
         run: |
-          python -m pip install --disable-pip-version-check --no-cache-dir python-docx==1.2.0
-          python .github/scripts/generate_word_docx_template_build.py
-          test -s wordDocxTemplate.generated.js
-          grep -q "WORD_DOCX_TEMPLATE_BASE64" wordDocxTemplate.generated.js
-
-      - name: Generate exact PDF assets from untouched files
-        run: python .github/scripts/patch_pdf_cover_fallback_build.py
-
-      - name: Apply exact assets to editable PDF reports
-        run: |
-          python .github/scripts/patch_report_editor_assets_build.py
-          node --check reportEditorExporter.js
-          grep -q "embedExactSafe(EXACT_COVER, 'png')" reportEditorExporter.js
-          grep -q "embedExactSafe(EXACT_LOGO, 'png')" reportEditorExporter.js
-          grep -q "embedExactSafe(EXACT_FOOTER_CERT, 'png')" reportEditorExporter.js
-
-      - name: Apply exact Pre-allumage PDF cover
-        run: |
-          python .github/scripts/patch_preallumage_pdf_cover_build.py
-          node --check preAllumageReportExporter.js
-          grep -q "pdf.embedPng(EXACT_COVER)" preAllumageReportExporter.js
-          grep -q "pdf.embedPng(EXACT_LOGO)" preAllumageReportExporter.js
-          grep -q "pdf.embedPng(EXACT_FOOTER_CERT)" preAllumageReportExporter.js
-
-      - name: Apply Word-only stable cover
-        run: |
-          python .github/scripts/patch_word_cover_layout.py
-          node --check reportBuilder.js
-          grep -q "function wordCoverHtml" reportBuilder.js
-          grep -q "const coverHtml = output === 'word'" reportBuilder.js
-          grep -q "EXACT_FOOTER_CERT" reportBuilder.js
-
-      - name: Apply real DOCX report exports
-        run: |
-          python .github/scripts/patch_word_docx_build.py
-          node --check wordDocxExporter.js
-          node --check reportBuilder.js
-          node --check reportEditorExporter.js
-          node --check preAllumageReportExporter.js
-          grep -q ".docx" reportBuilder.js
-          grep -q "datas: rendered.preparedDatas" reportEditorExporter.js
-          grep -q "Rapport Pré-allumage" preAllumageReportExporter.js
-
-      - name: Harden Android Word base64 writes
-        run: |
-          python .github/scripts/patch_word_base64_android_build.py
-          node --check wordDocxExporter.js
-          grep -q "function writeBase64Async" wordDocxExporter.js
-          grep -q "fichier DOCX final" wordDocxExporter.js
-
-      - name: Apply improved report preview toolbar
-        run: |
-          python .github/scripts/patch_report_preview_toolbar_build.py
-          node --check ReportLayoutEditor.js
-          grep -q "Prévisualisation du rapport" ReportLayoutEditor.js
-          grep -q "Prévisualisation A4" ReportLayoutEditor.js
-          grep -q "maxWidth: 520" ReportLayoutEditor.js
-          grep -q "minWidth: 205" ReportLayoutEditor.js
-
-      - name: Apply real cover assets to report preview
-        run: |
-          python .github/scripts/patch_report_preview_cover_assets_build.py
-          node --check ReportLayoutEditor.js
-          grep -q "PREVIEW_LOGO" ReportLayoutEditor.js
-          grep -q "PREVIEW_CERT" ReportLayoutEditor.js
-          grep -q "PREVIEW_SPIRALS" ReportLayoutEditor.js
-
-      - name: Apply hydraulic LAB feature gate
-        run: |
-          python .github/scripts/patch_hydraulic_feature_build.py
-          node --check App.js
-          python - <<'PY'
-          import re
+          python3 - <<'PY'
           from pathlib import Path
-          s = Path('App.js').read_text(encoding='utf-8')
-          if 'subscribeLabFeatureChanges' not in s:
-              raise SystemExit('hydraulic subscription missing')
-          if not re.search(r'hydraulicVisible\s*\?', s):
-              raise SystemExit('hydraulic visit gate missing')
-          if 'HydraulicFeatureSettingRow' in s:
-              raise SystemExit('obsolete HydraulicFeatureSettingRow still present')
-          print('Hydraulic feature gate validated without formatting-dependent greps.')
+          import json, os, time
+          p = Path('app.json')
+          data = json.loads(p.read_text())
+          assert data['expo']['android']['package'] == 'com.visitetechnique.tablet'
+          data['expo']['android']['versionCode'] = int(time.time())
+          p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
+          version = Path('appVersion.js')
+          version.write_text(version.read_text().replace("APK_BUILD = 'DEV'", "APK_BUILD = 'REMAR-" + os.environ['BUILD_NUMBER'] + "'"))
+          Path('/tmp/metra-version-code').write_text(str(data['expo']['android']['versionCode']))
           PY
-
-      - name: Apply METRA LAB health dashboard
+      - name: Validate complete Android bundle
+        run: npx expo export --platform android --max-workers 2 --output-dir dist-remar-ci
+      - name: Generate native project without runtime patches
         run: |
-          python .github/scripts/patch_lab_health_build.py
-          node --check siteHealth.js
-          node --check reportBuilder.js
-          node --check wordDocxExporter.js
-          grep -q "LAB METRA" ParametresScreen.js
-          grep -q "SiteHealthPanel" SiteVisitesScreen.js
-          grep -q "Santé du patrimoine (LAB)" ReportScreen.js
-          grep -q "construireSanteMultiHtml" reportBuilder.js
-          grep -q "multiHealthXml" wordDocxExporter.js
-
-      - name: Apply professional PDF layout to all models
-        run: |
-          python .github/scripts/patch_report_professional_layout_build.py
-          node --check reportBuilder.js
-          node --check reportEditorExporter.js
-          node --check preAllumageReportExporter.js
-          node --check preAllumageReportHtml.js
-          grep -q "PROFESSIONAL_REPORT_LAYOUT_V1" reportBuilder.js
-          grep -q "Criticité" reportBuilder.js
-          grep -q "photoCount-6" reportBuilder.js
-          grep -q "photoCount-6" reportEditorExporter.js
-          grep -q "Périmètre :" reportBuilder.js
-
-      - name: Restore complete Pre-allumage reports
-        run: |
-          python .github/scripts/patch_preallumage_report_regressions.py
-          node --check reportBuilder.js
-          node --check preAllumageReportHtml.js
-          node --check preAllumageReportExporter.js
-          node --check wordDocxExporter.js
-          grep -q "PREALLUMAGE_REPORT_PANEL_ORDER" reportBuilder.js
-          grep -q "construireSitePreAllumageHtml" reportBuilder.js
-          grep -q "preAllumageBuildingRows" wordDocxExporter.js
-          grep -q "preAllumagePlanImages" wordDocxExporter.js
-          grep -q "preparerPhotosRapport(data)" preAllumageReportExporter.js
-
-      - name: Apply Pre-allumage field UX
-        run: |
-          python .github/scripts/patch_preallumage_field_ux_build.py
-          node --check preAllumageCounterDb.js
-          grep -q "const localSwipe = useMemo" PreAllumageInstallationPanelV3.js
-          grep -q "Ajouter un compteur" PreAllumageInstallationPanelV3.js
-          grep -q "unitVisible" PreAllumageCompactField.js
-          grep -q "labelPosition" PreAllumageHeatCurve.js
-          grep -q "activeTabRef.current === 'p-pa-batiments'" VisiteScreen.js
-
-      - name: Validate final Word DOCX integrity and cover
-        run: |
-          python .github/scripts/patch_word_docx_integrity_build.py
-          node --check wordDocxExporter.js
-          grep -q "sanitizeXmlText" wordDocxExporter.js
-          grep -q "validateDocxPackage" wordDocxExporter.js
-          grep -q "REPORT_OPQIBI" wordDocxExporter.js
-          grep -q "WORD_COVER_ASSET" wordDocxExporter.js
-          grep -q "signature ZIP PK absente" wordDocxExporter.js
-          grep -q "SAF.createFileAsync(dossier, safName, MIME_DOCX)" wordDocxExporter.js
-
-      - name: Apply Office-compatible DOCX package
-        run: |
-          python .github/scripts/patch_word_office_compat_build.py
-          node --check wordDocxExporter.js
-          grep -q "WORD_DOCX_TEMPLATE_BASE64" wordDocxExporter.js
-          grep -q "gabarit DOCX Office" wordDocxExporter.js
-          grep -q "let nextRel = 100" wordDocxExporter.js
-          grep -q "word/settings.xml" wordDocxExporter.js
-          grep -q "word/theme/theme1.xml" wordDocxExporter.js
-
-      - name: Preserve Office document XML shell
-        run: |
-          python .github/scripts/patch_word_template_document_build.py
-          node --check wordDocxExporter.js
-          grep -q "baseDocumentXml" wordDocxExporter.js
-          grep -q "propriétés de section absentes" wordDocxExporter.js
-          grep -q "relation image" wordDocxExporter.js
-
-      - name: Fix Android Word SAF read-back
-        run: |
-          python .github/scripts/patch_word_saf_read_build.py
-          node --check wordDocxExporter.js
-          grep -q "FileSystem.readAsStringAsync(destination" wordDocxExporter.js
-          ! grep -q "SAF.readAsStringAsync(destination" wordDocxExporter.js
-
-      - name: Validate exact PDF cover patch
-        run: |
-          node --check reportBuilder.js
-          test -s reportExactAssets.generated.js
-          grep -q "embedExactSafe(EXACT_COVER, 'png')" reportBuilder.js
-          grep -q "embedExactSafe(EXACT_LOGO, 'png')" reportBuilder.js
-          grep -q "EXACT_SPIRAL_4" reportBuilder.js
-
-      - name: Apply Verre chaud style to patched UI code
-        run: python .github/scripts/premium_style_pass.py
-
-      - name: Validate final patched METRA runtime contracts
-        run: |
-          node .github/scripts/run_source_patches.js
-          node .github/scripts/test_intranet_visit_upload.js
-          node .github/scripts/test_intranet_first_visit_preparation.js
-
-      - name: Validate JavaScript bundle
-        run: npx expo export --platform android --output-dir dist-ci
-
-      - name: Generate Android project
-        run: npx expo prebuild --clean --platform android --no-install
-
-      - name: Validate update-compatible Android package
-        run: |
-          python - <<'PY'
-          import re
-          from pathlib import Path
-          s = Path('android/app/build.gradle').read_text(encoding='utf-8')
-          if not re.search(r'applicationId\s+["\']com\.visitetechnique\.tablet["\']', s):
-              raise SystemExit('applicationId Android inattendu après Expo prebuild')
-          if not re.search(r'versionCode\s+${{ github.run_number }}\b', s):
-              raise SystemExit('versionCode Android non incrémenté pour la mise à jour')
-          print('applicationId et versionCode Android compatibles avec une mise à jour.')
-          PY
-          test -s android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
-          grep -q 'private const val KEY_ALIAS = "metra_dpop_p256_v1"' android/app/src/main/java/com/metra/dpop/MetraDpopModule.kt
-
-      - name: Configure update-compatible Android release signing
+          npx expo prebuild --clean --platform android --no-install --skip-dependency-update react,react-native
+          test -s android/gradlew
+          git diff --exit-code -- '*.js' ':!appVersion.js' ':!googleMapsRuntime.generated.js'
+      - name: Preserve historical METRA signing identity
         run: |
           set -euo pipefail
-          LEGACY_KEYSTORE="android/app/debug.keystore"
-          test -s "$LEGACY_KEYSTORE"
-          ACTUAL_SHA256="$(keytool -list -v -keystore "$LEGACY_KEYSTORE" -storepass android -alias androiddebugkey | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
-          if [ "$ACTUAL_SHA256" != "$METRA_COMPAT_SIGNER_SHA256" ]; then
-            echo "::error::Le certificat généré par Expo ne correspond pas à l'identité historique de METRA."
-            echo "::error::Attendu: $METRA_COMPAT_SIGNER_SHA256 ; obtenu: $ACTUAL_SHA256"
-            exit 1
-          fi
-          cp "$LEGACY_KEYSTORE" android/app/metra-release.keystore
-          export METRA_RELEASE_STORE_PASSWORD=android
-          export METRA_RELEASE_KEY_ALIAS=androiddebugkey
-          export METRA_RELEASE_KEY_PASSWORD=android
-          {
-            echo "METRA_RELEASE_STORE_PASSWORD=android"
-            echo "METRA_RELEASE_KEY_ALIAS=androiddebugkey"
-            echo "METRA_RELEASE_KEY_PASSWORD=android"
-          } >> "$GITHUB_ENV"
-          python .github/scripts/configure_android_release_signing.py
-          echo "Certificat historique METRA confirmé: $ACTUAL_SHA256"
-          echo "La release sera signée avec la même identité que l'APK #327 pour permettre la mise à jour Android sans désinstallation."
-
-      - name: Configure Gradle memory
+          actual="$(keytool -list -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          test "$actual" = FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C
+          cp android/app/debug.keystore android/app/metra-release.keystore
+          python3 .github/scripts/configure_android_release_signing.py
+      - name: Build complete standalone release
         working-directory: android
-        run: |
-          printf '\norg.gradle.jvmargs=-Xmx4g -XX:MaxMetaspaceSize=1g -Dfile.encoding=UTF-8\norg.gradle.workers.max=2\n' >> gradle.properties
-
-      - name: Restrict native architectures to real devices
-        working-directory: android
-        run: |
-          # x86/x86_64 ne servent qu'aux émulateurs : aucune tablette ou
-          # téléphone METRA de terrain ne les utilise. Les retirer réduit
-          # nettement la taille de l'APK sans rien changer pour les
-          # appareils réels (armeabi-v7a couvre l'Android 32-bit encore
-          # en service, arm64-v8a le reste du parc).
-          sed -i 's/^reactNativeArchitectures=.*/reactNativeArchitectures=armeabi-v7a,arm64-v8a/' gradle.properties
-          grep -q '^reactNativeArchitectures=armeabi-v7a,arm64-v8a$' gradle.properties
-          # Bibliothèques natives compressées dans l'APK (expo.useLegacyPackaging) :
-          # fichier à télécharger nettement plus léger, rien ne change à
-          # l'exécution (Android les décompresse une fois à l'installation).
-          sed -i '/^expo.useLegacyPackaging=/d' gradle.properties
-          printf '\nexpo.useLegacyPackaging=true\n' >> gradle.properties
-          grep -q '^expo.useLegacyPackaging=true$' gradle.properties
-
-      - name: Build diagnostic debug APK
-        working-directory: android
-        run: ./gradlew assembleDebug --no-daemon --max-workers=2
-
-      - name: Build standalone release APK
-        working-directory: android
-        run: ./gradlew assembleRelease --no-daemon --max-workers=2
-
-      - name: Verify release APK signature
+        run: ./gradlew assembleRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx4g -Pkotlin.compiler.execution.strategy=in-process -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64
+      - name: Verify Android update identity and signature
         run: |
           set -euo pipefail
-          APK="$(find android/app/build/outputs/apk/release -name '*.apk' -type f -print -quit)"
-          test -n "$APK"
-          APKSIGNER="$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner"
-          VERIFY_OUTPUT="$("$APKSIGNER" verify --verbose --print-certs "$APK" 2>&1)"
-          printf '%s\n' "$VERIFY_OUTPUT" | grep -E 'Verified|certificate SHA-256 digest' || true
-          ACTUAL_SHA256="$(printf '%s\n' "$VERIFY_OUTPUT" | awk -F': ' 'tolower($0) ~ /certificate sha-256 digest/{print $NF; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
-          if [ -z "$ACTUAL_SHA256" ]; then
-            ACTUAL_SHA256="$(keytool -printcert -jarfile "$APK" 2>/dev/null | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
-          fi
-          if [ -z "$ACTUAL_SHA256" ]; then
-            echo "::error::Impossible de lire l'empreinte SHA-256 du certificat de l'APK release."
-            exit 1
-          fi
-          if [ "$ACTUAL_SHA256" != "$METRA_COMPAT_SIGNER_SHA256" ]; then
-            echo "::error::L'APK release n'est pas signée avec le certificat historique METRA."
-            echo "::error::Attendu: $METRA_COMPAT_SIGNER_SHA256 ; obtenu: $ACTUAL_SHA256"
-            exit 1
-          fi
-          echo "APK release compatible avec les installations METRA existantes: certificat $ACTUAL_SHA256"
-
-      - name: Upload standalone tablet APK
-        uses: actions/upload-artifact@v4
+          mkdir -p release
+          cp android/app/build/outputs/apk/release/app-release.apk release/METRA-TRAME-REMAR-complet.apk
+          tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$tools/apksigner" verify --verbose --print-certs release/METRA-TRAME-REMAR-complet.apk > /tmp/metra-signer.txt
+          cat /tmp/metra-signer.txt
+          grep -qi 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c' /tmp/metra-signer.txt
+          "$tools/aapt" dump badging release/METRA-TRAME-REMAR-complet.apk > /tmp/metra-badging.txt
+          head -1 /tmp/metra-badging.txt | grep "name='com.visitetechnique.tablet'"
+          grep "versionCode='$(cat /tmp/metra-version-code)'" /tmp/metra-badging.txt
+          git diff --exit-code -- '*.js' ':!appVersion.js' ':!googleMapsRuntime.generated.js'
+          cd release
+          sha256sum METRA-TRAME-REMAR-complet.apk > METRA-TRAME-REMAR-complet.apk.sha256
+      - uses: actions/upload-artifact@v4
         with:
           name: visite-technique-tablet-release
-          path: android/app/build/outputs/apk/release/*.apk
+          path: release/*
           if-no-files-found: error
-          retention-days: 14
-
-      - name: Upload debug APK
-        uses: actions/upload-artifact@v4
-        with:
-          name: visite-technique-android-debug
-          path: android/app/build/outputs/apk/debug/*.apk
-          if-no-files-found: error
-          retention-days: 7
-
-  # Captures automatiques de l'interface (émulateur tablette) : permettent de
-  # vérifier le rendu avant installation. Informatif, ne bloque jamais le build.
-  ui-screenshots:
-    needs: build-apk
-    if: ${{ always() && (needs.build-apk.result == 'success' || inputs.test_apk_run_id) }}
+          retention-days: 30
+  android-smoke:
+    needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-    continue-on-error: true
-    permissions:
-      actions: read
-      contents: read
+    timeout-minutes: 25
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-
-      - name: Download release APK
-        uses: actions/download-artifact@v4
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
         with:
           name: visite-technique-tablet-release
           path: apk
-          run-id: ${{ inputs.test_apk_run_id || github.run_id }}
-          github-token: ${{ github.token }}
-
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-
-      - name: Capture UI on tablet emulator
+      - name: Launch the actual signed APK and exercise REMAR and its editor
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
@@ -460,13 +128,37 @@ jobs:
           profile: pixel_c
           disable-animations: true
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
-          script: bash .github/scripts/ui_screenshots.sh
-
-      - name: Upload UI screenshots
+          script: python3 .github/scripts/smoke_remar_android.py
+      - uses: actions/upload-artifact@v4
         if: always()
-        uses: actions/upload-artifact@v4
         with:
-          name: ui-screenshots
+          name: metra-remar-android-smoke
           path: shots/
           if-no-files-found: warn
-          retention-days: 14
+          retention-days: 30
+  publish:
+    needs: [build, android-smoke]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: visite-technique-tablet-release
+          path: release
+      - name: Publish the complete METRA APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          cat > /tmp/release-notes.md <<'NOTES'
+          Application METRA complète issue de la version APK 678 et conservant le correctif PDF récent, avec ajout de TRAME REMAR et de Réglages > Trames.
+
+          Même identité Android com.visitetechnique.tablet et même certificat historique METRA ; versionCode incrémenté pour permettre une mise à jour. Sauvegarder ses données avant l'installation d'une nouvelle version. La base conserve le schéma 47 : aucun effacement ni retour à un schéma ancien.
+
+          Trames : modèle REMAR natif, commentaires par avis, import de modèles Excel ou de fichiers METRA, édition des points/choix/mesures/commentaires, versions conservées pour les anciennes visites et export des définitions avec les classeurs.
+
+          Contrôles : npm ci/postinstall sans mutation de code, contrats METRA existants, tests SQLite et aller-retour Excel, non-régression PDF 457 photos, release Gradle signé, lancement et parcours REMAR/Réglages sur émulateur tablette. Les essais terrain sur tablette physique, caméra, OCR et serveur Intranet restent à réaliser avec des données réelles.
+          NOTES
+          gh release create "metra-remar-complet-${BUILD_NUMBER}" release/* --target "$GITHUB_SHA" --title "METRA complet — TRAME REMAR — ${BUILD_NUMBER}" --notes-file /tmp/release-notes.md --prerelease

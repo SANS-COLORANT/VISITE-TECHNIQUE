@@ -20,14 +20,22 @@ def tree():
     return ET.fromstring(text)
 
 def find(label, root=None):
+    # React Native exposes both the overlay and its small close button
+    # as "Fermer". Click the smallest actionable element, never the backdrop.
+    matches = []
+    wanted = label.casefold()
     for node in (root if root is not None else tree()).iter('node'):
         labels = (node.get('text', '').casefold(), node.get('content-desc', '').casefold())
-        wanted = label.casefold()
-        if any(value == wanted or value.startswith(wanted + ',') for value in labels):
-            values = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
-            if len(values) == 4 and values[2] > values[0] and values[3] > values[1]:
-                return ((values[0] + values[2]) // 2, (values[1] + values[3]) // 2)
-    return None
+        if not any(value == wanted or value.startswith(wanted + ',') for value in labels):
+            continue
+        values = list(map(int, re.findall(r'\d+', node.get('bounds', ''))))
+        if len(values) != 4 or values[2] <= values[0] or values[3] <= values[1]:
+            continue
+        x1, y1, x2, y2 = values
+        area = (x2 - x1) * (y2 - y1)
+        score = (node.get('clickable') != 'true', area)
+        matches.append((score, ((x1 + x2) // 2, (y1 + y2) // 2)))
+    return min(matches, key=lambda match: match[0])[1] if matches else None
 
 def wait(label, seconds=60):
     until = time.monotonic() + seconds
@@ -82,6 +90,7 @@ try:
     wait('Commentaire proposé pour S')
     shot('02b-editeur-point-remar')
     tap('Fermer')
+    wait('Modifier une trame', 30)
     for _ in range(8):
         if find('Fermer le brouillon'):
             break
