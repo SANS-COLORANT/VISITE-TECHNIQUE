@@ -14,7 +14,12 @@ const script = `${prefix}\n${bootstrap}\n${tail}`;
 const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'metra-export-patch-'));
 try {
   const actual = fs.readFileSync(path.join(root, 'excelExport.js'), 'utf8');
-  for (const [name, source] of [['measurement annex', actual], ['legacy batch', actual.replace('modelePreAllumage, pointsLibres]', 'modelePreAllumage]')]]) {
+  const previous = actual.replace('modelePreAllumage, pointsLibres, photosDynamiques]', 'modelePreAllumage, pointsLibres]');
+  for (const [name, source] of [
+    ['dynamic photos and measurements', actual],
+    ['measurement annex', previous],
+    ['legacy batch', previous.replace('modelePreAllumage, pointsLibres]', 'modelePreAllumage]')],
+  ]) {
     const filename = path.join(dir, 'excelExport.js');
     fs.writeFileSync(filename, source);
     execFileSync(process.env.PYTHON || 'python3', ['-c', script], { cwd: dir, stdio: 'pipe' });
