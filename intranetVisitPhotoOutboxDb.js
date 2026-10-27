@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import { getDb } from './db.js';
 import { inspectIntranetCriterionCandidate } from './intranetVisitPayload.js';
+import { canPublishPhoto, listPhotoPublication } from './photoPublicationDb.js';
 import { createIntranetUploadId, protectedRequest } from './symfonyApi.js';
 
 const listeners = new Set();
@@ -127,9 +128,11 @@ export async function queueMissingVisitPhotos(visiteId) {
   const photos = await db.getAllAsync(`SELECT * FROM photos WHERE visite_id=? ORDER BY cree_le,id`, [String(visiteId)]);
   const existing = await db.getAllAsync(`SELECT photo_id,ordre FROM api_visit_photo_outbox WHERE visite_id=?`, [String(visiteId)]);
   const existingIds = new Set((existing || []).map((row) => String(row.photo_id)));
+  const publication = await listPhotoPublication(visiteId);
   let ordre = Math.max(0, ...(existing || []).map((row) => Number(row.ordre || 0)));
   let queued = 0;
   for (const photo of photos || []) {
+    if (!publication.get(String(photo.id))) continue;
     if (existingIds.has(String(photo.id))) continue;
     ordre += 1;
     if (ordre > 10000) break;
@@ -242,9 +245,15 @@ export async function processVisitPhotoOutbox({ limit = PHOTO_UPLOAD_PART_SIZE, 
     const requested = Math.max(1, Math.min(PHOTO_UPLOAD_PART_SIZE, Number(limit || PHOTO_UPLOAD_PART_SIZE)));
     params.push(requested);
     const rows = await db.getAllAsync(`SELECT * FROM api_visit_photo_outbox WHERE ${filter} ORDER BY queued_at,ordre LIMIT ?`, params);
+    const allowedByVisit = new Map();
+    const eligible = [];
+    for (const row of rows) {
+      if (!allowedByVisit.has(row.visite_id)) allowedByVisit.set(row.visite_id, await listPhotoPublication(row.visite_id));
+      if (allowedByVisit.get(row.visite_id).get(String(row.photo_id))) eligible.push(row);
+    }
     const results = [];
-    for (let i = 0; i < rows.length; i += PHOTO_UPLOAD_CONCURRENCY) {
-      const batch = await Promise.all(rows.slice(i, i + PHOTO_UPLOAD_CONCURRENCY).map((row) => sendPhotoRow(db, row)));
+    for (let i = 0; i < eligible.length; i += PHOTO_UPLOAD_CONCURRENCY) {
+      const batch = await Promise.all(eligible.slice(i, i + PHOTO_UPLOAD_CONCURRENCY).map((row) => sendPhotoRow(db, row)));
       results.push(...batch);
       if (shouldPause(batch)) break;
     }

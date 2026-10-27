@@ -13,10 +13,11 @@
  */
 
 import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ajouterPhoto } from './db.js';
 import { supprimerPhotoComplete } from './photoDb.js';
+import { isFreePhoto, listPhotoPublication, renameVisitPhoto, setPhotoPublication } from './photoPublicationDb.js';
 import { prendrePhoto, preparerPhotoNommee } from './PhotoButton.js';
 import { COLORS, FONTS, styles } from './styles.js';
 import { PhotoVariantImage } from './PhotoVariantImage.js';
@@ -91,6 +92,10 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
   const [photos, setPhotos] = useState(() => peekVisitPhotos(visiteId) || []);
   const [viewerPhoto, setViewerPhoto] = useState(null);
   const [viewerHd, setViewerHd] = useState(false);
+  const [editingLabel, setEditingLabel] = useState(false);
+  const [labelDraft, setLabelDraft] = useState('');
+  const [publication, setPublication] = useState(new Map());
+  const [changingMetadata, setChangingMetadata] = useState(false);
   const [cameraEnCours, setCameraEnCours] = useState(false);
   const [filtre, setFiltre] = useState('toutes');
   const sections = useSectionsOuvertes(`${visiteId}:p-photos`);
@@ -111,6 +116,7 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
       });
     });
     if (!cached) loadVisitPhotos(visiteId).catch(() => {});
+    listPhotoPublication(visiteId).then((map) => { if (alive) setPublication(map); }).catch(console.warn);
     prewarmCameraRuntime().catch(() => {});
     prewarmPhotoCaptureContext(visiteId).catch(() => {});
     return () => { alive = false; unsubscribe(); };
@@ -162,7 +168,27 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
   }, [visibles, groupes, viewerPhoto]);
   const viewerIndex = viewerPhoto ? navigation.findIndex((p) => String(p.id) === String(viewerPhoto.id)) : -1;
 
-  const ouvrir = useCallback((photo) => { setViewerHd(false); setViewerPhoto(photo); }, []);
+  const ouvrir = useCallback((photo) => { setViewerHd(false); setEditingLabel(false); setLabelDraft(legendePhoto(photo)); setViewerPhoto(photo); }, []);
+  const included = viewerPhoto ? (publication.get(String(viewerPhoto.id)) ?? !isFreePhoto(viewerPhoto)) : false;
+  const sauverLibelle = useCallback(async () => {
+    if (!viewerPhoto?.id || viewerPhoto.pending || changingMetadata) return;
+    setChangingMetadata(true);
+    try {
+      const result = await renameVisitPhoto(viewerPhoto.id, labelDraft);
+      upsertRuntimePhoto(visiteId, { ...viewerPhoto, label: result.label });
+      setEditingLabel(false);
+    } catch (error) { Alert.alert('Libellé non enregistré', String(error?.message || error)); }
+    finally { setChangingMetadata(false); }
+  }, [visiteId, viewerPhoto, labelDraft, changingMetadata]);
+  const changerPublication = useCallback(async () => {
+    if (!viewerPhoto?.id || viewerPhoto.pending || changingMetadata) return;
+    setChangingMetadata(true);
+    try {
+      const result = await setPhotoPublication(viewerPhoto.id, !included);
+      setPublication((old) => new Map(old).set(String(viewerPhoto.id), Boolean(result.included)));
+    } catch (error) { Alert.alert('Publication inchangée', String(error?.message || error)); }
+    finally { setChangingMetadata(false); }
+  }, [viewerPhoto, included, changingMetadata]);
   const deplacer = useCallback((dir) => {
     if (!navigation.length) return;
     const base = viewerIndex < 0 ? 0 : viewerIndex;
@@ -191,7 +217,7 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
       visite_id: visiteId,
       entite_key: null,
       uri: captureUri,
-      label: 'Photo générale',
+      label: 'Photo libre',
       cree_le: new Date().toISOString(),
       pending: true,
     };
@@ -207,11 +233,11 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
         const photo = await preparerPhotoNommee({
           visiteId,
           entiteKey: null,
-          label: 'Photo générale',
+          label: 'Photo libre',
           uri: captureUri,
         });
         if (!photo.uri) throw new Error('Photo non préparée');
-        const labelDb = photo.nom ? `Photo générale||${photo.nom}` : 'Photo générale';
+        const labelDb = photo.nom ? `Photo libre||${photo.nom}` : 'Photo libre';
 
         replaceRuntimePhoto(visiteId, tempId, {
           ...optimistic,
@@ -293,10 +319,10 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
           onPress={onAjouter}
           disabled={cameraEnCours}
           accessibilityRole="button"
-          accessibilityLabel="Ajouter une photo générale"
+          accessibilityLabel="Ajouter une photo libre"
         >
           <CvcIcon name="camera" size={16} color={t.dark} strokeWidth={2.2} />
-          <Text style={[st.addBtnText, { color: t.dark }]}>{cameraEnCours ? 'Appareil photo…' : 'Photo générale'}</Text>
+          <Text style={[st.addBtnText, { color: t.dark }]}>{cameraEnCours ? 'Appareil photo…' : 'Photo libre'}</Text>
         </TouchableOpacity>
       </View>
       {groupes.length ? (
@@ -385,6 +411,24 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
               <Text style={[st.viewerPillText, viewerHd && { color: COLORS.ink }]}>HD</Text>
             </TouchableOpacity>
           </View>
+          {viewerPhoto ? <View style={{ gap: 8, paddingVertical: 8 }}>
+            {editingLabel ? <View style={{ flexDirection: 'row', gap: 8, alignItems: 'center' }}>
+              <TextInput accessibilityLabel="Nouveau libellé de photo" style={[styles.input, { flex: 1, minWidth: 0 }]}
+                value={labelDraft} onChangeText={setLabelDraft} maxLength={240} placeholder="Libellé" />
+              <TouchableOpacity disabled={changingMetadata} accessibilityRole="button" onPress={sauverLibelle} style={st.viewerPill}>
+                <Text style={st.viewerPillText}>Valider</Text>
+              </TouchableOpacity>
+            </View> : <TouchableOpacity accessibilityRole="button" disabled={!!viewerPhoto.pending}
+                onPress={() => { setLabelDraft(legendePhoto(viewerPhoto)); setEditingLabel(true); }} style={{ paddingVertical: 6 }}>
+                <Text style={st.viewerPillText}>Modifier le libellé</Text>
+              </TouchableOpacity>}
+            {isFreePhoto(viewerPhoto) ? <TouchableOpacity accessibilityRole="button"
+              accessibilityLabel={included ? 'Exclure la photo libre du rapport et de l’Intranet' : 'Inclure la photo libre dans le rapport et sur l’Intranet'}
+              disabled={!!viewerPhoto.pending || changingMetadata} onPress={changerPublication}
+              style={[st.viewerPill, { alignSelf: 'flex-start' }]}>
+              <Text style={st.viewerPillText}>{included ? 'Incluse au rapport et Intranet · exclure' : 'Locale uniquement · intégrer au rapport et Intranet'}</Text>
+            </TouchableOpacity> : null}
+          </View> : null}
           <View style={st.viewerImgWrap}>
             {viewerPhoto ? <PhotoVariantImage uri={viewerPhoto.uri} variant={viewerPhoto.pending || viewerHd ? 'original' : 'preview'} style={st.viewerImg} resizeMode="contain" /> : null}
           </View>
