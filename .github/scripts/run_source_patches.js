@@ -49,6 +49,7 @@ const CONTRACT_CHECKS = [
   ['photo workflow executable regression tests', '.github/scripts/test_photo_workflow.js'],
   ['Missions LAB isolation contract', '.github/scripts/check_missions_lab_contract.js'],
   ['Missions app compatibility contract', '.github/scripts/check_missions_app_compat.js'],
+  ['Pilotage SQLite, RCU Intranet and numeric field regressions', '.github/scripts/test_terrain_bugfixes.js'],
   ['phone companion contract', '.github/scripts/check_companion_mode_contract.js'],
   ['phone photo mode contract', '.github/scripts/check_phone_photo_mode_contract.js'],
   ['navigation + site sort contract', '.github/scripts/check_navigation_sort_contract.js'],
