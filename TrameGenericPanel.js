@@ -501,6 +501,30 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
     return [[client, site, local].filter(Boolean).join(' · '), [trame, date].filter(Boolean).join(' · ')];
   })();
 
+  const enTeteDynamique = <>
+        {DynamicNetworks ? <View style={{ paddingTop: 12 }}>
+          <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Réseaux détaillés · ajout libre</Text>
+          <Text style={{ fontSize: 12, color: COLORS.inkSoft, marginBottom: 8 }}>
+            Les cinq cases du modèle Excel restent accessibles plus bas. Les réseaux détaillés sont conservés
+            entre visites et exportés dans une annexe, sans limite de cinq réseaux.
+          </Text>
+          <DynamicNetworks visiteId={visiteId} onSaved={onSaved} embedded networksOnly />
+        </View> : null}
+        {DynamicMeters ? <View style={{ paddingTop: 12 }}>
+          <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Compteurs et mesures · relevés durables</Text>
+          <Text style={{ fontSize: 12, color: COLORS.inkSoft, marginBottom: 8 }}>
+            Ajoutez, renommez, photographiez et affectez chaque compteur à sa ligne du rapport.
+            L'historique des index reste lié au local ; les mesures supplémentaires sont ajoutables et conservées.
+          </Text>
+          <DynamicMeters visiteId={visiteId} onSaved={onSaved} trameId={trameId}
+            panels={obtenirTrame(trameId)?.ui?.panels} meterPanelId={panelId} embedded metersOnly />
+        </View> : null}
+    {(DynamicNetworks || DynamicMeters) ? <Text style={{ fontSize: 12, fontFamily: FONTS.bold,
+      color: COLORS.inkSoft, marginTop: 10, marginBottom: 6 }}>
+      Champs fixes du modèle Excel (conservés pour compatibilité)
+    </Text> : null}
+  </>;
+
   const enTeteListe = panelId === 'p-pa-batiments' ? <PreAllumagePlanCard visiteId={visiteId} onSaved={onSaved} /> : <>
     {mode === 'infos' ? <BandeauVisite lignes={lignesBandeau} trameId={trameId} editable={Boolean(sectionGenerale)} onPress={() => setFicheVisite(true)} /> : null}
     {aDesControles ? (() => {
@@ -526,7 +550,7 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
       onScroll={(event) => setNavigationScrollOffset(navKey, event.nativeEvent.contentOffset.y)}
       scrollEventThrottle={100}
       keyExtractor={(ligne) => ligne.key}
-      ListHeaderComponent={enTeteListe}
+      ListHeaderComponent={<>{enTeteListe}{enTeteDynamique}</>}
       ListEmptyComponent={filtreActif !== 'all' ? <EmptyLine text={filtreActif === 'ns' ? 'Aucun contrôle N.S dans cet onglet' : 'Tout est renseigné dans cet onglet'} /> : null}
       renderSectionHeader={({ section }) => {
         if (estPreAllumage) {
@@ -578,23 +602,6 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
         </View>;
       }}
       ListFooterComponent={<>
-        {DynamicNetworks ? <View style={{ paddingTop: 12 }}>
-          <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Réseaux détaillés · ajout libre</Text>
-          <Text style={{ fontSize: 12, color: COLORS.inkSoft, marginBottom: 8 }}>
-            Les cases 1 à 5 du modèle Excel restent disponibles ci-dessus. Les réseaux détaillés sont conservés
-            entre visites et exportés dans une annexe, sans limite de cinq réseaux.
-          </Text>
-          <DynamicNetworks visiteId={visiteId} onSaved={onSaved} embedded networksOnly />
-        </View> : null}
-        {DynamicMeters ? <View style={{ paddingTop: 12 }}>
-          <Text style={[styles.sectionTitle, { marginBottom: 8 }]}>Compteurs personnalisés · relevés durables</Text>
-          <Text style={{ fontSize: 12, color: COLORS.inkSoft, marginBottom: 8 }}>
-            Ajoutez, renommez, photographiez et affectez chaque compteur à sa ligne du rapport.
-            L'historique des index reste lié au local.
-          </Text>
-          <DynamicMeters visiteId={visiteId} onSaved={onSaved} trameId={trameId}
-            panels={obtenirTrame(trameId)?.ui?.panels} meterPanelId={panelId} embedded metersOnly />
-        </View> : null}
         {nextPanel && onNextPanel ? <View style={styles.nextTabCard}>
         <Text style={styles.nextTabHint}>{restants ? `${restants} élément${restants > 1 ? 's' : ''} encore à renseigner dans cet onglet` : 'Onglet complet'}</Text>
         <TouchableOpacity accessibilityRole="button" onPress={() => onNextPanel(nextPanel.id)} activeOpacity={0.85} style={[styles.btnPrimary, { flex: 0, flexDirection: 'row', gap: 8 }]}>
