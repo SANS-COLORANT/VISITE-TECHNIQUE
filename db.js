@@ -40,7 +40,54 @@ async function preremplirValeursClassiques(visiteId){const db=await getDb(),inse
 async function creerVisite({siteId,technicien,mode='complete'}){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO visites (id, site_id, date_visite, technicien, statut, progression_pct, mode_visite) VALUES (?, ?, date('now'), ?, 'en_cours', 0, ?)`,[id,siteId,technicien||null,mode]);await db.runAsync(`INSERT OR IGNORE INTO notes (visite_id, contenu) VALUES (?, '')`,[id]);await preremplirValeursClassiques(id);return id;}
 async function supprimerVisite(id){await(await getDb()).runAsync(`DELETE FROM visites WHERE id=?`,[id]);} async function getVisite(id){return(await getDb()).getFirstAsync(`SELECT v.*,s.nom_site,s.adresse,c.nom nom_client,i.nom nom_installation,i.type_code type_installation, CASE WHEN EXISTS(SELECT 1 FROM provenances p WHERE p.entite_type='visite' AND p.entite_id=v.id AND p.origine='api_symfony' AND p.details_json LIKE '%\"sourceType\":\"imported_latest_visit\"%') THEN 1 ELSE 0 END AS api_is_historical FROM visites v JOIN sites s ON s.id=v.site_id JOIN clients c ON c.id=s.client_id LEFT JOIN installations i ON i.id=v.installation_id WHERE v.id=?`,[id]);} async function toucherVisite(id){await(await getDb()).runAsync(`UPDATE visites SET modifie_le=datetime('now') WHERE id=?`,[id]);}
 async function getChampsVisite(id){return(await getDb()).getAllAsync(`SELECT * FROM champs_visite WHERE visite_id=?`,[id]);} async function upsertChamp(visiteId,sectionCode,cle,valeur){await(await getDb()).runAsync(`INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?) ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur`,[visiteId,sectionCode,cle,valeur]);} async function getControlesVisite(id){return(await getDb()).getAllAsync(`SELECT * FROM controles_visite WHERE visite_id=?`,[id]);} async function upsertControle(visiteId,sectionCode,cle,avis,commentaire){await(await getDb()).runAsync(`INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire) VALUES(?,?,?,?,?) ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET avis=excluded.avis,commentaire=excluded.commentaire`,[visiteId,sectionCode,cle,avis,commentaire||null]);} async function recalculerProgression(){return 0;}
-async function listerReseaux(id){return(await getDb()).getAllAsync(`SELECT * FROM reseaux WHERE visite_id=? ORDER BY ordre`,[id]);} async function ajouterReseau(visiteId){const db=await getDb(),id=uuidv4();await db.runAsync(`INSERT INTO reseaux(id,visite_id,ordre,nom_reseau) VALUES(?,?,0,'Réseau')`,[id,visiteId]);return id;} async function upsertReseauChamp(id,cle,valeur){await(await getDb()).runAsync(`UPDATE reseaux SET ${cle}=? WHERE id=?`,[valeur,id]);} async function supprimerReseau(id){await(await getDb()).runAsync(`DELETE FROM reseaux WHERE id=?`,[id]);}
+async function listerReseaux(visiteId) {
+  return (await getDb()).getAllAsync('SELECT * FROM reseaux WHERE visite_id=? ORDER BY ordre,id', [visiteId]);
+}
+async function ajouterReseau(visiteId, nomSouhaite = '') {
+  const db = await getDb();
+  const visite = await db.getFirstAsync('SELECT installation_id FROM visites WHERE id=?', [visiteId]);
+  if (!visite) throw new Error('Visite introuvable.');
+  const rang = await db.getFirstAsync('SELECT COALESCE(MAX(ordre),0)+1 AS suivant FROM reseaux WHERE visite_id=?', [visiteId]);
+  const ordre = Number(rang?.suivant || 1);
+  const nom = String(nomSouhaite || '').trim() || `Réseau ${ordre}`;
+  const id = uuidv4();
+  const idPermanent = visite.installation_id ? uuidv4() : null;
+  // Création atomique : pas de réseau permanent orphelin si l'écriture
+  // de la visite échoue. Utilise la connexion exclusive Expo SQLite.
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    if (idPermanent) await tx.runAsync(
+      "INSERT INTO reseaux_site(id,installation_id,type_code,nom,ordre) VALUES(?,?, 'chauffage',?,?)",
+      [idPermanent, visite.installation_id, nom, ordre]);
+    await tx.runAsync(
+      'INSERT INTO reseaux(id,visite_id,reseau_site_id,ordre,nom_reseau) VALUES(?,?,?,?,?)',
+      [id, visiteId, idPermanent, ordre, nom]);
+  });
+  return id;
+}
+async function upsertReseauChamp(id, cle, valeur) {
+  const autorisees = new Set(['nom_reseau','ordre','t_ext_c','t_dep_c','courbe_de_chauffe','tnc','consigne_programme_horaire']);
+  if (!autorisees.has(cle)) throw new Error(`Champ réseau non autorisé : ${cle}`);
+  const db = await getDb();
+  const row = await db.getFirstAsync('SELECT reseau_site_id FROM reseaux WHERE id=?', [id]);
+  if (!row) throw new Error('Réseau introuvable.');
+  await db.runAsync(`UPDATE reseaux SET ${cle}=? WHERE id=?`, [valeur,id]);
+  if (row.reseau_site_id && (cle === 'nom_reseau' || cle === 'ordre')) {
+    const colonne = cle === 'nom_reseau' ? 'nom' : 'ordre';
+    await db.runAsync(`UPDATE reseaux_site SET ${colonne}=?,modifie_le=datetime('now') WHERE id=?`,
+      [valeur,row.reseau_site_id]);
+  }
+}
+async function supprimerReseau(id) {
+  const db = await getDb();
+  const row = await db.getFirstAsync('SELECT reseau_site_id FROM reseaux WHERE id=?', [id]);
+  if (!row) return;
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    if (row.reseau_site_id) await tx.runAsync(
+      "UPDATE reseaux_site SET actif=0,modifie_le=datetime('now') WHERE id=?", [row.reseau_site_id]);
+    // Ne touche ni aux anciennes visites ni à leurs photos.
+    await tx.runAsync('DELETE FROM reseaux WHERE id=?', [id]);
+  });
+}
 async function contexteCompteurVisite(db,visiteId){
   return db.getFirstAsync(`SELECT id,site_id,installation_id FROM visites WHERE id=?`,[visiteId]);
 }
@@ -53,8 +100,13 @@ async function listerCompteurs(id){
         AND NOT EXISTS(SELECT 1 FROM compteurs c WHERE c.visite_id=? AND c.compteur_site_id=cs.id)
       ORDER BY cs.cree_le,cs.id`,[contexte.installation_id,id]);
     for(const c of permanents){
-      await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id,destination) VALUES(?,?,?,?,?,?,?)`,
-        [uuidv4(),id,c.libelle||'Compteur',null,c.unite||null,c.id,c.destination||null]);
+      // INSERT ... WHERE NOT EXISTS est atomique, même si deux panneaux
+      // rechargent simultanément les compteurs après une navigation.
+      await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite,compteur_site_id,destination)
+        SELECT ?,?,?,?,?,?,? WHERE NOT EXISTS (
+          SELECT 1 FROM compteurs WHERE visite_id=? AND compteur_site_id=?
+        )`,
+        [uuidv4(),id,c.libelle||'Compteur',null,c.unite||null,c.id,c.destination||null,id,c.id]);
     }
   }
   return db.getAllAsync(`SELECT c.id,c.visite_id,
@@ -86,13 +138,14 @@ async function ajouterCompteur(visiteId,label='Compteur',destination=null){
   const dest=String(destination||'').trim()||null;
   const contexte=await contexteCompteurVisite(db,visiteId);
   let compteurSiteId=null;
-  if(contexte?.installation_id){
-    compteurSiteId=uuidv4();
-    await db.runAsync(`INSERT INTO compteurs_site(id,installation_id,type_code,libelle,actif,destination) VALUES(?,?,?,?,1,?)`,
+  if(contexte?.installation_id) compteurSiteId=uuidv4();
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    if (compteurSiteId) await tx.runAsync(
+      `INSERT INTO compteurs_site(id,installation_id,type_code,libelle,actif,destination) VALUES(?,?,?,?,1,?)`,
       [compteurSiteId,contexte.installation_id,'compteur',libelle,dest]);
-  }
-  await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,compteur_site_id,destination) VALUES(?,?,?,?,?)`,
-    [id,visiteId,libelle,compteurSiteId,dest]);
+    await tx.runAsync(`INSERT INTO compteurs(id,visite_id,label,compteur_site_id,destination) VALUES(?,?,?,?,?)`,
+      [id,visiteId,libelle,compteurSiteId,dest]);
+  });
   return id;
 }
 async function upsertCompteurChamp(id,cle,valeur){
@@ -130,10 +183,12 @@ async function upsertCompteurChamp(id,cle,valeur){
 async function supprimerCompteur(id){
   const db=await getDb();
   const compteur=await db.getFirstAsync(`SELECT compteur_site_id FROM compteurs WHERE id=?`,[id]);
-  if(compteur?.compteur_site_id){
-    await db.runAsync(`UPDATE compteurs_site SET actif=0,modifie_le=datetime('now') WHERE id=?`,[compteur.compteur_site_id]);
-  }
-  await db.runAsync(`DELETE FROM compteurs WHERE id=?`,[id]);
+  if (!compteur) return;
+  await db.withExclusiveTransactionAsync(async (tx) => {
+    if (compteur.compteur_site_id) await tx.runAsync(
+      `UPDATE compteurs_site SET actif=0,modifie_le=datetime('now') WHERE id=?`,[compteur.compteur_site_id]);
+    await tx.runAsync(`DELETE FROM compteurs WHERE id=?`,[id]);
+  });
 }
 async function listerMateriel(id){return chargerMaterielPersistant().listerMaterielPersistant(id);} async function ajouterMateriel(visiteId){return chargerMaterielPersistant().ajouterMaterielPersistant(visiteId);} async function upsertMaterielChamp(id,cle,valeur){return chargerMaterielPersistant().upsertMaterielPersistant(id,cle,valeur);} async function supprimerMateriel(id){return chargerMaterielPersistant().retirerMaterielPersistant(id);}
 async function listerHistoriqueEquipement(...args){return chargerMaterielPersistant().listerHistoriqueEquipement(...args);}
