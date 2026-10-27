@@ -6,7 +6,7 @@ on:
 permissions:
   contents: read
 concurrency:
-  group: metra-terrain-qa-${{ github.ref }
+  group: metra-terrain-qa-${{ github.ref }}
   cancel-in-progress: true
 jobs:
   build:
@@ -15,7 +15,7 @@ jobs:
     env:
       CI: '1'
       EXPO_NO_TELEMETRY: '1'
-      GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }
+      GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
       METRA_RELEASE_STORE_PASSWORD: android
       METRA_RELEASE_KEY_ALIAS: androiddebugkey
       METRA_RELEASE_KEY_PASSWORD: android
