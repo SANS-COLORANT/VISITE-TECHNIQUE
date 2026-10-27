@@ -150,7 +150,7 @@ function getDurableNumericConfig(cle) {
  *   « Nb » en tuile − / +, Bâtiments / Logements en deux tuiles) ;
  * - `water` : teinte bleu-vert (ECS) ; `photo={false}` retire le bouton photo.
  */
-export const DurableChampGenerique = React.memo(function DurableChampGenerique({ visiteId, sectionCode, field, valeurInitiale, onSaved, displayLabel, onRename, picto = null, choix = false, compact = false, compactStepper = false, water = false, photo = true }) {
+export const DurableChampGenerique = React.memo(function DurableChampGenerique({ visiteId, sectionCode, field, valeurInitiale, onSaved, displayLabel, onRename, picto = null, choix = false, compact = false, compactStepper = false, multipleCounters = false, water = false, photo = true }) {
   const unit = extractUnit(field.cle);
   const label = field.label || cleanLabel(field.cle);
   const entiteKey = `${sectionCode}||${field.cle}`;
@@ -260,6 +260,31 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
           />
           {dateErreur ? <Text style={{ color: '#B42318', fontSize: 11, marginTop: 5 }}>Date obligatoire au format JJ/MM/AAAA.</Text> : null}
         </>
+      ) : field.numericIndex && multipleCounters ? (
+        <View style={{ gap: 8 }}>
+          <Text style={{ color: COLORS.inkSoft, fontFamily: FONTS.bodyMedium, fontSize: 11 }}>
+            Un compteur par ligne : Nom : index unité. Les lignes seront regroupées dans une cellule Excel/Intranet.
+          </Text>
+          <TextInput
+            accessibilityLabel={`Compteurs ${label}, un par ligne`}
+            style={[styles.input, { minHeight: 75, textAlignVertical: 'top', fontSize: 15 }]}
+            multiline
+            value={valeur}
+            onChangeText={setValeur}
+            onBlur={() => { flush().catch(() => {}); }}
+            keyboardType="default"
+            placeholder={`${label} 1 : 12345\n${label} 2 : 67890`}
+          />
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Ajouter un compteur à ${label}`}
+            onPress={() => {
+              const actuel = String(valeur || '').replace(/\s+$/, '');
+              const nombre = actuel ? actuel.split(/\r\n|\n|\r/).filter((l) => l.trim()).length + 1 : 1;
+              setValeur(`${actuel ? actuel + '\n' : ''}${label} ${nombre} : `);
+            }}
+            style={{ alignSelf: 'flex-start', minHeight: 42, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 12, backgroundColor: COLORS.orangeLight }}>
+            <Text style={{ fontSize: 12, fontFamily: FONTS.bold, color: COLORS.orangeDark }}>+ Ajouter un compteur</Text>
+          </TouchableOpacity>
+        </View>
       ) : field.numericIndex ? (
         <TextInput
           style={styles.input}

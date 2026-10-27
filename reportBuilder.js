@@ -4,6 +4,7 @@ import * as ImageManipulator from 'expo-image-manipulator';
 import { Asset } from 'expo-asset';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { getDb, listerMateriel } from './db.js';
+import { listPhotoPublication } from './photoPublicationDb.js';
 import { obtenirTrame, DEFAULT_TRAME_ID, normaliserSectionCode } from './trameRegistry.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
 import { listerAliasesPreAllumage } from './preAllumageAliases.js';
@@ -143,7 +144,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
 
   const trame = obtenirTrame(visite.trame_id || DEFAULT_TRAME_ID);
   const modelePreAllumage = trame.id === 'pre_allumage' ? await chargerPreAllumageModulaire(visiteId) : null;
-  const [champs, controles, reseaux, compteurs, remarques, photos, materiel, note, aliases] = await Promise.all([
+  const [champs, controles, reseaux, compteurs, remarques, photos, materiel, note, aliases, photoPublication] = await Promise.all([
     db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id=?`, [visiteId]),
     db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id=?`, [visiteId]),
     db.getAllAsync(`SELECT * FROM reseaux WHERE visite_id=? ORDER BY ordre,id`, [visiteId]),
@@ -153,6 +154,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     listerMateriel(visiteId),
     db.getFirstAsync(`SELECT contenu FROM notes WHERE visite_id=?`, [visiteId]),
     trame.id === 'pre_allumage' ? listerAliasesPreAllumage(visiteId) : Promise.resolve({}),
+    listPhotoPublication(visiteId),
   ]);
 
   const champMap = new Map(champs.map((r) => [`${r.section_code}||${r.cle}`, r.valeur || '']));
@@ -252,6 +254,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     sections,
     remarques,
     photos,
+    photoPublication,
     materiel,
     reseaux,
     compteurs,
@@ -268,6 +271,8 @@ function libelleReserveCourt(remarque) {
 }
 
 function libellePhoto(photo, data) {
+  const stored = court(String(photo.label || '').split('||')[0], 60);
+  if (stored) return stored;
   const key = String(photo.entite_key || '');
   const [type, id] = key.split('||');
 
@@ -302,7 +307,7 @@ export function preparerPhotosRapport(data, existantes = []) {
     siteLabel: data.visite.nom_site || 'Site',
     localLabel: data.visite.nom_local || data.visite.type_local || 'Installation technique',
     label: ancien.get(p.id)?.label || libellePhoto(p, data),
-    include: ancien.get(p.id)?.include !== false,
+    include: Boolean(data.photoPublication?.get(String(p.id))) && ancien.get(p.id)?.include !== false,
     ordre: ancien.get(p.id)?.ordre ?? i,
     entiteKey: p.entite_key || null,
   })).sort((a, b) => a.ordre - b.ordre);

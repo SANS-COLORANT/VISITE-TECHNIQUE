@@ -458,6 +458,7 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
         choix={mode === 'distrib' || mode === 'infos' || Boolean(item.field.options)}
         compact={mode === 'infos'}
         compactStepper={estRemar}
+        multipleCounters={estRemar && panelId === 'p-remar-releves' && item.field.numericIndex === true}
         water={mode === 'distrib' && /ecs/i.test(item.sectionCode)}
         photo={mode !== 'distrib' && mode !== 'infos'}
       />;

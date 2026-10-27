@@ -1,0 +1,33 @@
+name: Free Photos and REMAR Meters QA
+on:
+  push:
+    branches: [feat/photos-libres-compteurs-multiligne-20261027]
+  pull_request:
+    branches: [feat/remar-ergonomie-terrain-20261027]
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - name: Verify all existing METRA source contracts
+        run: |
+          npm ci --no-audit --no-fund --prefer-offline
+          git diff --exit-code
+      - name: Test private photos and REMAR counters
+        run: node .github/scripts/test_photo_libre_compteurs.js
+      - name: Preserve REMAR real SQLite and Excel import-export
+        run: node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
+      - name: Preserve PDF 457-photo regression
+        run: node tests/reportPdfFragments.test.mjs
+      - name: Validate Android JS bundle
+        run: npx expo export --platform android --max-workers 2 --output-dir dist-photo-libre-ci

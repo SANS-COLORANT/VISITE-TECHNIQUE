@@ -312,7 +312,7 @@ export function originePhoto(entiteKey) {
 }
 
 export const PHOTO_ORIGINES = Object.freeze([
-  { key: 'generale', label: 'Générales', picto: 'ph/generale' },
+  { key: 'generale', label: 'Libres', picto: 'ph/generale' },
   { key: 'equipement', label: 'Équipements', picto: 'ph/equipement' },
   { key: 'compteur', label: 'Compteurs', picto: 'ph/compteur' },
   { key: 'reserve', label: 'Réserves', picto: 'ph/reserve' },
