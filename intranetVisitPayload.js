@@ -89,7 +89,8 @@ function buildStaticCandidates(localTrameId) {
         candidates.push({ panelId, section, sectionCode: sectionCode(panelId, section), cle: field.cle,
           label: field.label || field.cle, type: field.type || 'champ', key: normalize(field.cle),
           aliases: [...new Set(aliases)], numericIndex: field.numericIndex === true,
-          meterSource: field.intranetSource === 'compteur', specialPanel: specialPanels.has(panelId),
+          meterSource: field.intranetSource === 'compteur',
+          specialPanel: specialPanels.has(panelId) || definition?.ui?.dynamicPanels?.[panelId] === 'meters',
           temperature: normalize(field.numeric?.unit) === 'c' || /temperature/.test(normalize(section)),
           sectionKey: normalize(section), panelKey: normalize(definition?.ui?.labels?.[panelId] || panelId) });
       }
