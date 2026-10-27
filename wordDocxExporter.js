@@ -183,7 +183,7 @@ async function createDocxPackage({ datas, config, photosConfig = [], title = nul
   const logo = await addBase64Image(dataUriBase64(REPORT_LOGO), 'brand_logo.jpeg', 2500000, 650000, 'Energie & Service');
   const cover = await addBase64Image(dataUriBase64(REPORT_COVER), 'cover.jpeg', 5200000, 2850000, 'Couverture');
 
-  const enabledPhotos = (photosConfig || []).filter((photo) => photo.include !== false);
+  const enabledPhotos = (photosConfig || []).filter((photo) => photo.include !== false && photo.exportAllowed !== false);
   for (let index = 0; index < enabledPhotos.length; index += 1) {
     const photo = enabledPhotos[index];
     const prepared = await preparePhoto(photo, index);

@@ -6,6 +6,7 @@ function forbid(text, value, label) { if (text.includes(value)) throw new Error(
 const camera = read('cameraRuntime.js');
 const button = read('PhotoButton.js');
 const gallery = read('OptimizedPhotoPanel.js');
+const freeCapture = read('photoLibreCapture.js');
 const context = read('photoCaptureContext.js');
 const runtime = read('photoRuntimeCache.js');
 const companion = read('CompanionPhoneScreen.js');
@@ -31,7 +32,11 @@ need(runtime, 'all.slice(0, 24)', 'thumbnail prewarm must stay bounded');
 need(runtime, 'all.slice(0, 4)', 'preview prewarm must stay bounded');
 
 need(gallery, 'setCameraEnCours(false)', 'gallery camera lock must end immediately after native camera returns');
-need(gallery, 'void (async () => {', 'gallery persistence must continue behind the UI');
+need(gallery, 'capturerPhotoLibre(visiteId', 'gallery uses the shared rapid free-photo capture');
+need(freeCapture, 'void (async () => {', 'free photo persistence must continue behind the UI');
+need(freeCapture, 'upsertRuntimePhoto(visiteId, optimistic)', 'free photo must appear immediately');
+need(freeCapture, 'replaceRuntimePhoto(visiteId, tempId', 'free photo must be replaced by durable row');
+need(freeCapture, 'journaliserPhotoEnAttente', 'free photo durability journal must remain');
 need(gallery, "variant={photo.pending ? 'original' : 'thumb'}", 'pending gallery shot must display immediately');
 need(preallumage, 'photoRuntimeCache.js', 'Pre-allumage thumbnail must use the shared visit photo index');
 

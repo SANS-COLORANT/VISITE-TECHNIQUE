@@ -20,7 +20,7 @@ async function run() {
   const mapper = load('apiVisitPreparationDb.js', {}, ['mapRemoteTrameToLocal']).mapRemoteTrameToLocal;
   for (const label of ['TRAME RÉSEAU DE CHALEUR', 'Réseau de chaleur urbain', 'RCU', 'Réseau de chauffage urbain'])
     ok(mapper({ nom: label }) === 'reseau_chaleur_v1', 'RCU mapping: ' + label);
-  for (const [label, expected] of [['ICPE Chaufferie', 'icpe_v1'], ['Sous-station', 'icpe_v1'], ['VMC', 'vmc'], ['Pré-allumage', 'pre_allumage'], ['TRAME REMAR', null]])
+  for (const [label, expected] of [['ICPE Chaufferie', 'icpe_v1'], ['Sous-station', 'icpe_v1'], ['VMC', 'vmc'], ['Pré-allumage', 'pre_allumage'], ['TRAME REMAR', 'remar_v1']])
     ok(mapper({ nom: label }) === expected, 'unrelated mapping unchanged: ' + label);
 
   const resolver = load('intranetVisitBindingDb.js', { mapRemoteTrameToLocal: mapper }, ['resolveFirstVisitRemoteTrame']).resolveFirstVisitRemoteTrame;

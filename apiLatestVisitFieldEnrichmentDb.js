@@ -1,5 +1,6 @@
 import { createId } from './database/ids.js';
 import { DEFAULT_TRAME_ID, obtenirTrame } from './trameRegistry.js';
+import { compteursDepuisCellule } from './releveMultiligne.js';
 
 function clean(value) { return value == null ? '' : String(value).trim(); }
 function text(value) { const valueText = clean(value); return valueText || null; }
@@ -262,35 +263,52 @@ function meterLabel(fieldName) {
   return clean(fieldName).replace(/\s*\([^)]*\)\s*$/, '').trim();
 }
 
+function isMeterFieldTarget(target) {
+  return (target?.panelId === 'p-releves' && /^index/i.test(target.cle)) ||
+    (target?.panelId === 'p-remar-releves' && target.section === 'Compteur');
+}
+
 async function upsertMeterFromField(db, visiteId, remoteVisitId, criterion, target, value) {
-  if (target.panelId !== 'p-releves' || !/^index/i.test(target.cle)) return false;
-  const label = meterLabel(target.cle);
-  let row = await db.getFirstAsync(
-    `SELECT id FROM compteurs WHERE visite_id=? AND (destination=? OR (destination IS NULL AND lower(trim(COALESCE(label,'')))=lower(trim(?)))) ORDER BY id LIMIT 1`,
-    [visiteId, target.cle, label]
-  );
-  if (!row?.id) {
-    const reference = `${remoteVisitId}:meter:${remoteId(criterion?.id) || normalize(target.cle)}`;
-    row = await db.getFirstAsync(
+  if (!isMeterFieldTarget(target)) return 0;
+  // The Intranet criterion may contain several meters separated by newlines.
+  // Parse each into an independent visit counter, retaining the shared
+  // destination. Never create a meter with a newline in its index value.
+  const readings = compteursDepuisCellule({
+    base: meterLabel(target.cle), destination: target.cle,
+    unite: meterUnit(target.cle), texte: value,
+  });
+  const referenceBase = `${remoteVisitId}:meter:${remoteId(criterion?.id) || normalize(target.cle)}`;
+  for (let index = 0; index < readings.length; index++) {
+    const item = readings[index];
+    const reference = index === 0 ? referenceBase : `${referenceBase}:line:${index + 1}`;
+    let row = await db.getFirstAsync(
       `SELECT c.id FROM provenances p JOIN compteurs c ON c.id=p.entite_id
        WHERE p.entite_type='compteur' AND p.origine='api_symfony' AND p.reference_externe=?
-       ORDER BY p.importe_le DESC LIMIT 1`,
-      [reference]
+       ORDER BY p.importe_le DESC LIMIT 1`, [reference]
     );
+    if (!row?.id && index === 0) {
+      row = await db.getFirstAsync(
+        `SELECT id FROM compteurs WHERE visite_id=? AND
+         (destination=? OR (destination IS NULL AND lower(trim(COALESCE(label,'')))=lower(trim(?))))
+         ORDER BY id LIMIT 1`, [visiteId, target.cle, item.label]
+      );
+    }
+    const compteurId = row?.id || createId();
+    if (row?.id) {
+      await db.runAsync(`UPDATE compteurs SET visite_id=?,label=CASE WHEN destination IS NULL THEN ? ELSE label END,
+        valeur=?,unite=?,destination=COALESCE(destination,?) WHERE id=?`,
+        [visiteId, item.label, item.valeur, item.unite, target.cle, compteurId]);
+    } else {
+      await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite,destination) VALUES(?,?,?,?,?,?)`,
+        [compteurId, visiteId, item.label, item.valeur, item.unite, target.cle]);
+    }
+    await upsertProvenance(db, 'compteur', compteurId, reference, {
+      sourceType: 'latest_known_preparation_meter', remoteVisitId,
+      sourceVisitId: remoteId(criterion?.visiteSourceId), criterion,
+      line: index + 1, totalLines: readings.length,
+    });
   }
-  const compteurId = row?.id || createId();
-  const unite = meterUnit(target.cle);
-  if (row?.id) {
-    // Un compteur déjà renommé par le technicien garde son nom : seule la valeur
-    // de référence est mise à jour, la destination d'export fait le lien.
-    await db.runAsync(`UPDATE compteurs SET visite_id=?,label=CASE WHEN destination IS NULL THEN ? ELSE label END,valeur=?,unite=?,destination=COALESCE(destination,?) WHERE id=?`, [visiteId, label, value, unite, target.cle, compteurId]);
-  } else {
-    await db.runAsync(`INSERT INTO compteurs(id,visite_id,label,valeur,unite,destination) VALUES(?,?,?,?,?,?)`, [compteurId, visiteId, label, value, unite, target.cle]);
-  }
-  await upsertProvenance(db, 'compteur', compteurId, `${remoteVisitId}:meter:${remoteId(criterion?.id) || normalize(target.cle)}`, {
-    sourceType: 'latest_known_preparation_meter', remoteVisitId, sourceVisitId: remoteId(criterion?.visiteSourceId), criterion,
-  });
-  return true;
+  return readings.length;
 }
 
 export async function enrichLatestImportedVisitFields({ db, visiteId, siteId, remoteVisitId, trameId, ref }) {
@@ -322,7 +340,10 @@ export async function enrichLatestImportedVisitFields({ db, visiteId, siteId, re
         const target = findFieldCandidate(candidates, criterion, category?.nom, subCategory?.nom);
         if (!target) { skippedAmbiguous += 1; continue; }
         if (target.type !== 'champ') continue;
-        if (await upsertField(db, visiteId, target, value)) {
+        const meterCell = isMeterFieldTarget(target)
+          ? compteursDepuisCellule({ base: meterLabel(target.cle), destination: target.cle, unite: meterUnit(target.cle), texte: value })
+          : [];
+        if (await upsertField(db, visiteId, target, meterCell.length ? meterCell[0].valeur : value)) {
           mappedFields += 1;
           const relation = criterionSourceRelation(criterion, remoteVisitId);
           if (relation === 'latest_visit') valuesFromLatestVisit += 1;
@@ -335,7 +356,7 @@ export async function enrichLatestImportedVisitFields({ db, visiteId, siteId, re
             remoteName: criterion?.nom,
             target: `${target.sectionCode}||${target.cle}`,
           });
-          if (await upsertMeterFromField(db, visiteId, remoteVisitId, criterion, target, value)) importedMeters += 1;
+          importedMeters += await upsertMeterFromField(db, visiteId, remoteVisitId, criterion, target, value);
         }
       }
     }

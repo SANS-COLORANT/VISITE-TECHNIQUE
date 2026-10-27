@@ -209,7 +209,10 @@ export function analyserClasseur(wb, nomFichier) {
     } else {
       // Une cellule de relevé peut contenir plusieurs lignes (un compteur ou
       // une température par ligne, lignes vides ignorées).
-      const estIndex = /^Index/i.test(mapping.cle) && valeur;
+      const estIndex = Boolean(valeur) && (
+        /^Index/i.test(mapping.cle) ||
+        (mapping.panelId === 'p-remar-releves' && mapping.section === 'Compteur')
+      );
       const estTemperature = !estIndex && /temperature/i.test(mapping.sectionCode || '') && /\n|\r/.test(valeur);
       if (estIndex) {
         const unite = (mapping.cle.match(/\(([^)]+)\)/) || [])[1] || '';

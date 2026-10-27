@@ -146,7 +146,7 @@ async function listerPhotos(visiteId,entiteKey=null){
 }
 async function ajouterPhoto(visiteId,entiteKey,uri,label){
   const db=await getDb(),id=uuidv4();
-  await db.runAsync(`INSERT INTO photos(id,visite_id,entite_key,uri,label) VALUES(?,?,?,?,?)`,[id,visiteId,entiteKey||null,uri,label||null]);
+  await db.runAsync(`INSERT INTO photos(id,visite_id,entite_key,uri,label,inclure_export) VALUES(?,?,?,?,?,?)`,[id,visiteId,entiteKey||null,uri,label||null,entiteKey?1:0]);
   return id;
 }
 async function remplacerPhoto(id,uri){
