@@ -69,7 +69,7 @@ export const ChampMesureTile = memo(function ChampMesureTile({
     </PhotoFooter>
   ) : null;
   return (
-    <ValueTile label={label} value={versAffichage(valeur)} onChange={changer} unit={cfg.unit} step={cfg.step} min={cfg.min} max={cfg.max}
+    <ValueTile compactNumber label={label} value={versAffichage(valeur)} onChange={changer} unit={cfg.unit} step={cfg.step} min={cfg.min} max={cfg.max}
       start={start} water={water} onRenameLabel={onRenameLabel} picto={picto} footer={footer} />
   );
 });
@@ -116,7 +116,7 @@ export function ExtraMeasurementCard({ point, visiteId, displayName, onRename, o
     },
   });
   return (
-    <ValueTile label={nom} onRenameLabel={renommer} value={versAffichage(value)} onChange={(t) => setValue(versStockage(t))}
+    <ValueTile compactNumber label={nom} onRenameLabel={renommer} value={versAffichage(value)} onChange={(t) => setValue(versStockage(t))}
       unit={cfg.unit} step={cfg.step} min={cfg.min} max={cfg.max} start={start} water={water}
       footer={(
         <PhotoFooter>

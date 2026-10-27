@@ -297,6 +297,7 @@ const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, ch
       <View style={st.cptLine2}>
         <TextInput
           ref={champIndex}
+          maxFontSizeMultiplier={1.25}
           style={[st.cptInput, baisse && st.cptInputWarn, controle?.niveau === 'erreur' && st.cptInputErr]}
           selectTextOnFocus
           value={valeur}
@@ -699,7 +700,7 @@ const st = StyleSheet.create({
   cptLine2: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: 6 },
   cptInput: {
     flex: 1, minWidth: 0, height: 46, borderRadius: 12, borderWidth: 1, borderColor: COLORS.line, backgroundColor: COLORS.white,
-    paddingHorizontal: 12, fontSize: 20, fontFamily: FONTS.black, color: COLORS.ink,
+    paddingHorizontal: 8, fontSize: 16, fontFamily: FONTS.bold, color: COLORS.ink,
   },
   cptClear: { width: 44, height: 46, borderRadius: 12, alignItems: 'center', justifyContent: 'center', backgroundColor: COLORS.line + '55' },
   cptUndo: { backgroundColor: COLORS.orangeLight },

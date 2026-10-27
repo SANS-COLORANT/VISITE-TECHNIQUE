@@ -341,7 +341,7 @@ function format(n, decimals) {
  * (dernière valeur connue sinon valeur courante du métier) au lieu de 0.
  */
 export const ValueTile = memo(function ValueTile({
-  label, value, onChange, unit, step = 1, min = -Infinity, max = Infinity, start, decimals, water, onRenameLabel, picto, warn, footer,
+  label, value, onChange, unit, step = 1, min = -Infinity, max = Infinity, start, decimals, water, onRenameLabel, picto, warn, footer, compactNumber = false,
 }) {
   const t = teinte(water);
   const dec = decimals ?? (String(step).includes('.') ? String(step).split('.')[1].length : 0);
@@ -375,7 +375,8 @@ export const ValueTile = memo(function ValueTile({
             keyboardType="decimal-pad"
             placeholder={start != null ? format(start, dec) : '—'}
             placeholderTextColor="#C9C4BA"
-            style={s.tileValue}
+            style={[s.tileValue, compactNumber && s.tileValueCompact]}
+            maxFontSizeMultiplier={compactNumber ? 1.25 : undefined}
             selectTextOnFocus
             accessibilityLabel={label}
           />
@@ -653,6 +654,8 @@ const s = StyleSheet.create({
   tileBtnText: { fontSize: 22, fontFamily: FONTS.bold, lineHeight: 26 },
   tileValueWrap: { flex: 1, flexDirection: 'row', alignItems: 'baseline', justifyContent: 'center', minWidth: 0 },
   tileValue: { fontSize: 20, fontFamily: FONTS.black, color: COLORS.ink, textAlign: 'center', paddingVertical: 2, minWidth: 40, maxWidth: '78%' },
+  // Measurements fit paired fields without shrinking the 40px +/- targets.
+  tileValueCompact: { flex: 1, minWidth: 0, maxWidth: '100%', fontSize: 16, fontFamily: FONTS.bold, paddingHorizontal: 0 },
   tileUnit: { fontSize: 11.5, fontFamily: FONTS.bodySemi, color: COLORS.inkSoft, marginLeft: 2 },
   tilePair: { flexDirection: 'row', gap: 8, marginTop: 8 },
 

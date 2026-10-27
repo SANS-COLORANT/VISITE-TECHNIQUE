@@ -123,9 +123,9 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, open, onToggle, 
       ]} />}
     >
       <TileRow>
-        <ValueTile label="T°ext" unit="°C" value={versAffichage(ext)} onChange={num(setExt)} step={cfgExt.step} min={cfgExt.min} max={cfgExt.max}
+        <ValueTile compactNumber label="T°ext" unit="°C" value={versAffichage(ext)} onChange={num(setExt)} step={cfgExt.step} min={cfgExt.min} max={cfgExt.max}
           start={prec(precedent?.tExt, DEPART_DEFAUT['T°ext(°C)'])} picto="dist/t-exterieure" />
-        <ValueTile label="T°dép" unit="°C" value={versAffichage(dep)} onChange={num(setDep)} step={cfgDep.step} min={cfgDep.min} max={cfgDep.max}
+        <ValueTile compactNumber label="T°dép" unit="°C" value={versAffichage(dep)} onChange={num(setDep)} step={cfgDep.step} min={cfgDep.min} max={cfgDep.max}
           start={prec(precedent?.tDep, DEPART_DEFAUT['T°dép(°C)'])} picto="dist/t-de-depart" />
       </TileRow>
       <TileRow>
@@ -133,7 +133,7 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, open, onToggle, 
           <Text style={st.textLabel}>TNC</Text>
           <TextInput style={st.textInput} value={String(tnc ?? '')} onChangeText={setTnc} onBlur={() => { flushTnc().catch(() => {}); }} placeholder="Saisir…" placeholderTextColor={COLORS.inkFaint} accessibilityLabel="TNC" />
         </View>
-        <ValueTile label="Courbe de chauffe" value={versAffichage(courbe)} onChange={num(setCourbe)} step={cfgCourbe.step} min={cfgCourbe.min} max={cfgCourbe.max}
+        <ValueTile compactNumber label="Courbe de chauffe" value={versAffichage(courbe)} onChange={num(setCourbe)} step={cfgCourbe.step} min={cfgCourbe.min} max={cfgCourbe.max}
           start={prec(precedent?.courbe, DEPART_DEFAUT['Courbe de chauffe'])} decimals={1} />
       </TileRow>
       <View style={[st.textTile, { marginTop: 8 }]}>

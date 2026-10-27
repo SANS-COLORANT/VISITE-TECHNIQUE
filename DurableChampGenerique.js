@@ -226,7 +226,7 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
     }
     if (numericConfig) {
       return <View style={compactStyles.block}>
-        <ValueTile label={libelleCourt} value={valeur} unit={numericConfig.unit || undefined} step={numericConfig.step} min={numericConfig.min} max={numericConfig.max} start={numericConfig.start} onChange={setValeur} />
+        <ValueTile compactNumber label={libelleCourt} value={valeur} unit={numericConfig.unit || undefined} step={numericConfig.step} min={numericConfig.min} max={numericConfig.max} start={numericConfig.start} onChange={setValeur} />
       </View>;
     }
     if (chipOptions) {
