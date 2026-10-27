@@ -146,6 +146,39 @@ async function main() {
     assert.equal((await equipment.listerMaterielPersistant(other)).length, 0);
     assert.ok(!data.TRAME_DATA['p-distrib']['Distribution chauffage'][0].carryForward, 'ICPE definition unchanged');
     assert.equal((await server.db.getFirstAsync('SELECT valeur FROM compteurs WHERE visite_id=?', [imported.visiteId])).valeur, '123');
+
+    // REMAR must inherit the reusable managers' persistent local identities,
+    // not reproduce the old ICPE-only carry-forward whitelist. Retired
+    // circuits/counters and all photos of an older visit stay historical.
+    await server.db.execAsync(
+      "INSERT INTO installations(id,site_id,type_code,nom) VALUES('remar-local','site','chaufferie','Chaufferie REMAR');" +
+      "INSERT INTO visites(id,site_id,installation_id,trame_id,statut,date_visite) VALUES('remar-old','site','remar-local','remar_v1','terminee','2026-09-20');" +
+      "INSERT INTO reseaux_site(id,installation_id,type_code,nom,ordre,actif) VALUES('remar-network-live','remar-local','chauffage','Radiateurs',1,1),('remar-network-retired','remar-local','chauffage','Ancien circuit',2,0);" +
+      "INSERT INTO reseaux(id,visite_id,reseau_site_id,ordre,nom_reseau,t_dep_c) VALUES('remar-network-old','remar-old','remar-network-live',1,'Radiateurs','65'),('remar-network-old-retired','remar-old','remar-network-retired',2,'Ancien circuit','75');" +
+      "INSERT INTO compteurs_site(id,installation_id,type_code,libelle,unite,destination,actif) VALUES('remar-meter-live','remar-local','compteur','Compteur gaz','m³','Compteur Gaz (m³)',1),('remar-meter-retired','remar-local','compteur','Ancien compteur','m³','supplementaire',0);" +
+      "INSERT INTO compteurs(id,visite_id,compteur_site_id,label,valeur,unite,destination) VALUES('remar-meter-old','remar-old','remar-meter-live','Compteur gaz','1200','m³','Compteur Gaz (m³)'),('remar-meter-old-retired','remar-old','remar-meter-retired','Ancien compteur','99','m³','supplementaire');" +
+      "INSERT INTO photos(id,visite_id,entite_key,uri,label) VALUES('remar-historical-photo','remar-old','reseau_site||remar-network-live','file:///historical.jpg','Historique REMAR');"
+    );
+    const remarNew = await creation.creerVisiteProduction({
+      siteId: 'site', installationId: 'remar-local', trameId: 'remar_v1',
+    });
+    const remarNetworks = await server.db.getAllAsync('SELECT * FROM reseaux WHERE visite_id=? ORDER BY ordre', [remarNew]);
+    const remarMeters = await server.db.getAllAsync('SELECT * FROM compteurs WHERE visite_id=?', [remarNew]);
+    assert.equal(remarNetworks.length, 1, 'REMAR inherits only the active network of its exact local');
+    assert.equal(remarNetworks[0].reseau_site_id, 'remar-network-live', 'network identity survives the next REMAR visit');
+    assert.equal(remarNetworks[0].t_dep_c, '65', 'network values carry forward for editing');
+    assert.equal(remarMeters.length, 1, 'REMAR inherits only active meters, with no stale duplicate');
+    assert.equal(remarMeters[0].compteur_site_id, 'remar-meter-live', 'counter identity survives the next REMAR visit');
+    assert.equal(remarMeters[0].destination, 'Compteur Gaz (m³)', 'meter report destination stays unchanged');
+    assert.equal((await server.db.getAllAsync('SELECT * FROM photos WHERE visite_id=?', [remarNew])).length, 0, 'no old photo is duplicated into the new visit');
+    assert.equal((await server.db.getAllAsync("SELECT * FROM photos WHERE visite_id='remar-old'")).length, 1, 'historical REMAR photo remains present');
+    const isolatedRemar = await creation.creerVisiteProduction({
+      siteId: 'site', installationId: 'other', trameId: 'remar_v1',
+    });
+    assert.equal((await server.db.getAllAsync('SELECT * FROM reseaux WHERE visite_id=?', [isolatedRemar])).length, 0, 'different local has no REMAR network inheritance');
+    assert.equal((await server.db.getAllAsync('SELECT * FROM compteurs WHERE visite_id=?', [isolatedRemar])).length, 0, 'different local has no REMAR meter inheritance');
+    console.log('REMAR regression validated: independent local identities, active network/counter carry-forward, retired assets ignored, original photos preserved.');
+
     assert.deepEqual(await server.db.getAllAsync('PRAGMA foreign_key_check'), []);
     console.log('RCU regression validated: import, close/reopen, production creation, complete prefill, unresolved reserve carry-forward, isolated photos/observations, local isolation.');
   } finally { await server.close(); fs.rmSync(dir, { recursive: true, force: true }); }
