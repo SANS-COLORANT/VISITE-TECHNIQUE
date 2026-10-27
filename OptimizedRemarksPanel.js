@@ -28,6 +28,7 @@ import {
   rattacherRemarqueVisite,
 } from './remarkDb.js';
 import { cleanLabel, ChipSelector } from './GenericFields.js';
+import { listerVerificationsRemarques, marquerRemarqueVerifiee } from './remarkVerificationDb.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 import { RESERVE_SEVERITY_LEVELS, clampReserveSeverity, reserveSeverityLabel } from './reserveSeverity.js';
@@ -130,7 +131,7 @@ const SevPill = memo(function SevPill({ niveau, small }) {
 });
 
 /** Une ligne par réserve : rond de levée, titre, début de prestation, criticité, prix et délai. */
-const ReserveRow = memo(function ReserveRow({ remarque, onOpen, onToggleLevee, reseauChaleur, last }) {
+const ReserveRow = memo(function ReserveRow({ remarque, onOpen, onToggleLevee, onToggleVerifiee, verifiee, reseauChaleur, last }) {
   const levee = estLevee(remarque);
   const reprise = remarque.reference_type === 'reserve_historique';
   const prix = Number(remarque.estimatif) || 0;
@@ -152,6 +153,16 @@ const ReserveRow = memo(function ReserveRow({ remarque, onOpen, onToggleLevee, r
         style={[st.leveeRond, levee && st.leveeRondOn]}
       >
         {levee ? <CvcIcon name="check" size={15} color={COLORS.white} strokeWidth={2.8} /> : null}
+      </TouchableOpacity>
+      <TouchableOpacity accessibilityRole="checkbox" accessibilityState={{ checked: Boolean(verifiee) }}
+        accessibilityLabel={verifiee ? 'Réserve vérifiée pendant cette visite' : 'Marquer cette réserve vérifiée sans la lever'}
+        onPress={() => onToggleVerifiee(remarque)}
+        style={{ width: 38, height: 38, marginHorizontal: 7, alignItems: 'center', justifyContent: 'center',
+          backgroundColor: verifiee ? '#E6F4EC' : '#F5F5F5', borderRadius: 9,
+          borderWidth: 1, borderColor: verifiee ? '#2E9D5B' : '#D0D5DA' }}>
+        <Text style={{ color: verifiee ? '#197743' : COLORS.muted, fontFamily: FONTS.black, fontSize: 18 }}>
+          {verifiee ? '✓' : '□'}
+        </Text>
       </TouchableOpacity>
       <TouchableOpacity style={st.rowMain} activeOpacity={0.7} onPress={() => onOpen(remarque.id)} accessibilityRole="button" accessibilityHint="Ouvre la fiche de la réserve">
         <View style={{ flex: 1, minWidth: 0 }}>
@@ -354,6 +365,14 @@ function ReserveFiche({ remarque, visiteId, onPatch, onDelete, onClose, onRattac
 function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, panels = {}, intranetLinked = false, trameId = 'icpe_v1' }) {
   const reseauChaleur = trameId === 'reseau_chaleur_v1';
   const [remarques, setRemarques] = useState(() => remarksCache.get(visiteId) || []);
+  const [verifications, setVerifications] = useState({});
+  useEffect(() => {
+    let alive = true;
+    listerVerificationsRemarques(visiteId)
+      .then((rows) => { if (alive) setVerifications(rows); })
+      .catch((e) => console.warn('Pointages des réserves non chargés', e));
+    return () => { alive = false; };
+  }, [visiteId]);
   const [filtre, setFiltre] = useState('actuelles');
   const [precedentes, setPrecedentes] = useState([]);
   useEffect(() => {
@@ -443,6 +462,47 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
       },
     });
   }, [patchLocal]);
+
+  const basculerVerifiee = useCallback(async (remarque) => {
+    const ancienneDate = verifications[remarque.id] || null;
+    const suivant = !ancienneDate;
+    setVerifications((state) => {
+      const next = { ...state };
+      if (suivant) next[remarque.id] = new Date().toISOString();
+      else delete next[remarque.id];
+      return next;
+    });
+    try {
+      const date = await marquerRemarqueVerifiee(visiteId, remarque.id, suivant);
+      setVerifications((state) => {
+        const next = { ...state };
+        if (date) next[remarque.id] = date;
+        else delete next[remarque.id];
+        return next;
+      });
+    } catch (error) {
+      setVerifications((state) => {
+        const next = { ...state };
+        if (ancienneDate) next[remarque.id] = ancienneDate;
+        else delete next[remarque.id];
+        return next;
+      });
+      Alert.alert('Pointage impossible', String(error?.message || error));
+    }
+  }, [visiteId, verifications]);
+
+  const confirmerLevee = useCallback((remarque) => {
+    const estDejaLevee = estLevee(remarque);
+    Alert.alert(estDejaLevee ? 'Rouvrir cette réserve ?' : 'Confirmer la levée de la réserve ?',
+      estDejaLevee
+        ? 'La réserve redeviendra ouverte.'
+        : 'Cette action clôture la réserve. La simple vérification utilise la coche distincte.',
+      [
+        { text: 'Annuler', style: 'cancel' },
+        { text: estDejaLevee ? 'Rouvrir' : 'Lever la réserve',
+          onPress: () => { basculerLevee(remarque).catch(console.warn); } },
+      ]);
+  }, [basculerLevee]);
 
   const reprises = useMemo(() => remarques.filter((r) => r.reference_type === 'reserve_historique' && !estLevee(r)), [remarques]);
   const retirerReprises = useCallback(async () => {
@@ -617,10 +677,12 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
       right={<SevPill niveau={item.max} />}
     >
       {item.rows.map((r, i) => (
-        <ReserveRow key={r.id} remarque={r} onOpen={setFicheId} onToggleLevee={basculerLevee} reseauChaleur={reseauChaleur} last={i === item.rows.length - 1} />
+        <ReserveRow key={r.id} remarque={r} verifiee={Boolean(verifications[r.id])}
+          onOpen={setFicheId} onToggleLevee={confirmerLevee} onToggleVerifiee={basculerVerifiee}
+          reseauChaleur={reseauChaleur} last={i === item.rows.length - 1} />
       ))}
     </SectionCard>
-  ), [sections, basculerLevee, reseauChaleur]);
+  ), [sections, confirmerLevee, basculerVerifiee, verifications, reseauChaleur]);
 
   const renderPrecedente = useCallback(({ item }) => (
     <View style={st.precedente}>
@@ -636,7 +698,7 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
   const vide = filtre === 'precedentes'
     ? <View style={styles.empty}><EmptyIcon name="remark" /><Text style={styles.emptyText}>Aucune réserve dans la visite précédente.</Text></View>
     : filtre === 'levees'
-      ? <View style={styles.empty}><EmptyIcon name="remark" /><Text style={styles.emptyText}>Aucune réserve levée.</Text><Text style={styles.emptySub}>Touche le rond d’une réserve pour la lever sur place.</Text></View>
+      ? <View style={styles.empty}><EmptyIcon name="remark" /><Text style={styles.emptyText}>Aucune réserve levée.</Text><Text style={styles.emptySub}>Utilise la coche pour marquer une réserve vérifiée ; la levée se confirme séparément.</Text></View>
       : <View style={styles.empty}><EmptyIcon name="remark" /><Text style={styles.emptyText}>Aucune réserve à traiter.</Text><Text style={styles.emptySub}>Passe un point de contrôle en N.S pour en générer une, ou touche « Ajouter ».</Text></View>;
 
   return (
