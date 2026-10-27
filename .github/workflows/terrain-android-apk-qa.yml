@@ -1,0 +1,123 @@
+name: METRA terrain - signed APK and Android verification
+on:
+  push:
+    branches:
+      - feat/terrain-feedback-all-phases-20261027
+permissions:
+  contents: read
+concurrency:
+  group: metra-terrain-qa-${{ github.ref }
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 55
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }
+      METRA_RELEASE_STORE_PASSWORD: android
+      METRA_RELEASE_KEY_ALIAS: androiddebugkey
+      METRA_RELEASE_KEY_PASSWORD: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Existing contracts, SQLite and field ergonomics
+        run: |
+          npm ci --no-audit --no-fund --prefer-offline
+          node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
+          node .github/scripts/test_journee.js
+          node .github/scripts/test_reserve_verification_terrain.js
+          git diff --exit-code
+      - name: Preserve 457-photo PDF regression
+        run: node tests/reportPdfFragments.test.mjs
+      - name: Stamp higher Android version for a non-destructive update
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, time
+          p=Path('app.json')
+          data=json.loads(p.read_text())
+          assert data['expo']['android']['package']=='com.visitetechnique.tablet'
+          data['expo']['android']['versionCode']=int(time.time())
+          p.write_text(json.dumps(data,ensure_ascii=False,indent=2)+'\n')
+          Path('/tmp/metra-terrain-version').write_text(str(data['expo']['android']['versionCode']))
+          PY
+      - name: Verify complete Android JS bundle
+        run: npx expo export --platform android --max-workers 2 --output-dir dist-terrain-ci
+      - name: Generate native Android release project
+        run: |
+          npx expo prebuild --clean --platform android --no-install --skip-dependency-update react,react-native
+          test -s android/gradlew
+          git diff --exit-code -- '*.js' ':!appVersion.js' ':!googleMapsRuntime.generated.js'
+      - name: Verify historical certificate before signing
+        run: |
+          set -euo pipefail
+          actual="$(keytool -list -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          test "$actual" = FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C
+          cp android/app/debug.keystore android/app/metra-release.keystore
+          python3 .github/scripts/configure_android_release_signing.py
+      - name: Build signed Android APK
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx4g -Pkotlin.compiler.execution.strategy=in-process -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64
+      - name: Validate Android identity, version and checksum
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp android/app/build/outputs/apk/release/app-release.apk release/METRA-TERRAIN-RECETTE.apk
+          tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$tools/apksigner" verify --verbose --print-certs release/METRA-TERRAIN-RECETTE.apk > /tmp/metra-terrain-certificate.txt
+          grep -qi fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c /tmp/metra-terrain-certificate.txt
+          "$tools/aapt" dump badging release/METRA-TERRAIN-RECETTE.apk > /tmp/metra-terrain-badging.txt
+          grep "name='com.visitetechnique.tablet'" /tmp/metra-terrain-badging.txt
+          grep "versionCode='$(cat /tmp/metra-terrain-version)'" /tmp/metra-terrain-badging.txt
+          cd release && sha256sum METRA-TERRAIN-RECETTE.apk > METRA-TERRAIN-RECETTE.apk.sha256
+      - uses: actions/upload-artifact@v4
+        with:
+          name: metra-terrain-qa-signed-apk
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
+  android-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: metra-terrain-qa-signed-apk
+          path: apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Install signed APK and run Android tablet smoke tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_c
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: |
+            mkdir -p release
+            cp apk/METRA-TERRAIN-RECETTE.apk release/METRA-TRAME-REMAR-complet.apk
+            python3 .github/scripts/smoke_remar_android.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: metra-terrain-android-screens
+          path: shots/
+          if-no-files-found: warn
+          retention-days: 30
