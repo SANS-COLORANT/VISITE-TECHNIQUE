@@ -122,6 +122,12 @@ async function run() {
   const renamed = await repository.renommerPhotoVisite('visit', 'linked', 'Nouvelle légende terrain');
   ok(renamed.label === 'Nouvelle légende terrain||archive.jpg',
     'renaming preserves physical photo filename metadata');
+  ok(sql.prepare("SELECT libelle_personnalise FROM photos WHERE id='linked'").get().libelle_personnalise === 1,
+    'an explicitly edited caption is identified without reinterpreting historic photo captions');
+  ok(sql.prepare("SELECT libelle_personnalise FROM photos WHERE id='free-optin'").get().libelle_personnalise === 0,
+    'unedited photo labels remain historically consistent');
+  ok(read('reportBuilder.js').includes('Number(photo.libelle_personnalise || 0) === 1'),
+    'report only overrides an inferred legacy caption after a real user edit');
   ok(sql.prepare("SELECT description FROM api_visit_photo_outbox WHERE photo_id='linked'").get().description === 'Nouvelle légende terrain',
     'renaming updates queued Intranet caption before upload');
   const labelPrivate = await repository.renommerPhotoVisite('visit', 'free-private', 'Vue générale du local');
