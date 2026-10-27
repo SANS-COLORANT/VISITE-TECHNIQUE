@@ -246,7 +246,9 @@ test('REMAR exports and reimports multiple named meters in one unchanged Excel c
   const readings = analysed.compteurs.filter((m) => m.destination === mapping.cle);
   assert.deepEqual(readings.map((r) => [r.label, r.valeur]),
     [['Gaz chaudière A', '12345,6'], ['Gaz chaudière B', '987']]);
-  const imported = await importerAnalyseExcel(analysed);
+  // Explicit local binding is required once prior tests created several
+  // installations. Keep the production guard against an unsafe guess.
+  const imported = await importerAnalyseExcel(analysed, { installationId: 'local' });
   const rows = await db.getAllAsync('SELECT label,valeur,destination FROM compteurs WHERE visite_id=? AND destination=? ORDER BY rowid',
     [imported.visiteId, mapping.cle]);
   assert.deepEqual(rows.map((r) => [r.label, r.valeur]),
