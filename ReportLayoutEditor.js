@@ -255,7 +255,26 @@ export function ReportLayoutEditor({
     return null;
   };
 
-  return <FlatList
+  // Barre fixe hors défilement : PDF/Word accessible sans traverser les photos.
+  return <View style={{ flex: 1 }}>
+    <View style={{ paddingHorizontal: 16, paddingTop: 10, paddingBottom: 10,
+      backgroundColor: COLORS.bg, borderBottomWidth: 1, borderBottomColor: COLORS.line }}>
+      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 10 }}>
+        <TouchableOpacity accessibilityRole="radio" accessibilityState={{ checked: format === 'pdf' }}
+          accessibilityLabel="Choisir le format PDF" disabled={busy}
+          style={[styles.btnSecondary, { flex: 1 }, format === 'pdf' && { borderColor: COLORS.orange, backgroundColor: '#FFF3E8' }]}
+          onPress={() => onFormatChange('pdf')}><Text style={styles.btnSecondaryText}>PDF</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="radio" accessibilityState={{ checked: format === 'word' }}
+          accessibilityLabel="Choisir le format Word" disabled={busy}
+          style={[styles.btnSecondary, { flex: 1 }, format === 'word' && { borderColor: COLORS.orange, backgroundColor: '#FFF3E8' }]}
+          onPress={() => onFormatChange('word')}><Text style={styles.btnSecondaryText}>Word</Text></TouchableOpacity>
+      </View>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Générer le rapport ${format === 'pdf' ? 'PDF' : 'Word'}`}
+        style={[styles.btnPrimary, { opacity: busy ? 0.55 : 1 }]} disabled={busy} onPress={onGenerate}>
+        <Text style={styles.btnPrimaryText}>{busy ? (pdfProgress || 'Génération…') : `Générer ${format === 'pdf' ? 'le PDF' : 'le Word'}`}</Text>
+      </TouchableOpacity>
+    </View>
+    <FlatList style={{ flex: 1 }}
     data={items}
     keyExtractor={(item) => item.id}
     renderItem={renderItem}
@@ -277,12 +296,7 @@ export function ReportLayoutEditor({
       </View>
       <Text style={[styles.importHint, { marginVertical: 12 }]}>Sur les pages de section : modifie le titre, l’ordre, le saut de page ou masque la section. Sur les pages photos : touche directement une photo pour faire défiler Petite → Moyenne → Grande → Pleine largeur.</Text>
     </View>}
-    ListFooterComponent={<View style={{ marginTop: 6 }}>
-      <View style={{ flexDirection: 'row', gap: 8, marginBottom: 14 }}>
-        <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }, format === 'pdf' && { borderColor: COLORS.orange, backgroundColor: '#FFF3E8' }]} onPress={() => onFormatChange('pdf')}><Text style={styles.btnSecondaryText}>PDF</Text></TouchableOpacity>
-        <TouchableOpacity style={[styles.btnSecondary, { flex: 1 }, format === 'word' && { borderColor: COLORS.orange, backgroundColor: '#FFF3E8' }]} onPress={() => onFormatChange('word')}><Text style={styles.btnSecondaryText}>Word</Text></TouchableOpacity>
-      </View>
-      <TouchableOpacity style={[styles.btnPrimary, { opacity: busy ? 0.55 : 1 }]} disabled={busy} onPress={onGenerate}><Text style={styles.btnPrimaryText}>{busy ? (pdfProgress || 'Génération…') : `Générer ${format === 'pdf' ? 'le PDF' : 'le Word'}`}</Text></TouchableOpacity>
-    </View>}
-  />;
+    ListFooterComponent={null}
+    />
+  </View>;
 }

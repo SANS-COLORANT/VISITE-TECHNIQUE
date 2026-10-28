@@ -45,7 +45,7 @@ function check(condition, label) {
   console.log('OK ' + checks + ': ' + label);
 }
 const payload = new Function('getDb', 'obtenirTrame', 'formaterReleves', 'formaterTemperatureGroupee',
-  script + '\nreturn { buildCriteria, inspectIntranetTrameCapabilities, inspectIntranetCriterionCandidate };')(
+  script + '\nreturn { buildCriteria, buildRemarks, inspectIntranetTrameCapabilities, inspectIntranetCriterionCandidate };')(
     async () => { throw new Error('getDb not needed by this test'); },
     (id) => { if (!defs[id]) throw new Error('Unknown test trame ' + id); return defs[id]; },
     (items) => items.map((x) => String(x.label) + ': ' + String(x.valeur) + ' ' + String(x.unite || '')).join('\n'),
@@ -126,11 +126,26 @@ async function main() {
   const rcuEmpty = await build('reseau_chaleur_v1', rcuSummaryRemote);
   check(rcuEmpty.issues.length === 0 && rcuEmpty.values.every((x) => x.commentaire === 'Sans Objet.'),
     'RCU: an existing visit with no reserves can still serialize all ten synthesis criteria');
+  const generalRemark = { id: 'r-general', poste: 'Sécurité incendie',
+    prestation: 'Vérifier les extincteurs', perimetre: null, intranet_date_reserve: '2026-10-28' };
   const rcuUnclassified = await build('reseau_chaleur_v1', rcuSummaryRemote, {
-    remarks: [{ id: 'r-lost', poste: 'P2', prestation: 'Ne pas perdre', perimetre: null }],
+    remarks: [generalRemark],
   });
-  check(rcuUnclassified.issues.some((x) => /périmètre Primaire \/ Secondaire manquant/.test(x)),
-    'RCU: unclassified reserve blocks transmission instead of vanishing from the summary');
+  check(rcuUnclassified.issues.length === 0 &&
+    rcuUnclassified.values.every((x) => x.commentaire === 'Sans Objet.'),
+    'RCU: general legacy reserve does not fabricate a primary/secondary summary or block it');
+  const remarksIssues = [];
+  const generalWire = await payload.buildRemarks(fakeDb({ remarks: [generalRemark] }), 'test', remarksIssues);
+  check(remarksIssues.length === 0 && generalWire.length === 1 &&
+    generalWire[0].poste === 'Sécurité incendie' &&
+    generalWire[0].prestation === 'Vérifier les extincteurs',
+    'RCU: general reserve is still transmitted in the independent Intranet remarques[] array');
+  const mixed = await build('reseau_chaleur_v1', rcuSummaryRemote, {
+    remarks: [summaryRemarks[0], generalRemark],
+  });
+  check(mixed.issues.length === 0 && mixed.values[0].commentaire === 'Nettoyer les filtres' &&
+    mixed.values[4].commentaire === 'Sans Objet.',
+    'RCU: classified reserve reaches exactly its summary and general reserve remains independent');
   const rcuOversized = await build('reseau_chaleur_v1', rcuSummaryRemote, {
     remarks: [{ id: 'r-long', poste: 'P2', prestation: 'x'.repeat(1501), perimetre: 'Primaire' }],
   });

@@ -274,7 +274,7 @@ function ReserveFiche({ remarque, visiteId, onPatch, onDelete, onClose, onRattac
       <ChoiceField label="Poste" value={poste} options={POSTES} onChange={changerPoste} hint="Choisir le poste" />
 
       {reseauChaleur ? <View style={{ marginTop: 8 }}>
-        <Text style={st.ficheLabel}>Périmètre{remarque.controle_key ? ' · automatique' : ' · obligatoire'}</Text>
+        <Text style={st.ficheLabel}>Périmètre{remarque.controle_key ? ' · automatique' : ' · synthèse Primaire / Secondaire (facultatif)'}</Text>
         {remarque.controle_key ? <View style={[styles.persistentEquipmentBadge, { alignSelf: 'flex-start', marginTop: 5 }]}>
           <Text style={styles.persistentEquipmentBadgeText}>{remarque.perimetre || 'À classer'}</Text>
         </View> : <View style={{ marginTop: 6 }}>
@@ -286,6 +286,7 @@ function ReserveFiche({ remarque, visiteId, onPatch, onDelete, onClose, onRattac
               onPatch(remarque.id, { perimetre: v });
             }}
           />
+          <Text style={[st.ficheHint, { marginTop: 8 }]}>Sans périmètre, la réserve est conservée dans les remarques générales envoyées à l’Intranet et dans la feuille REMARQUES du classeur Excel. Elle n’est pas affectée aux synthèses Primaire ou Secondaire.</Text>
         </View>}
       </View> : null}
 
