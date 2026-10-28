@@ -134,7 +134,8 @@ async function main() {
     checks++; console.log(`OK ${checks}: material state outside Symfony enum blocks upload instead of being silently converted`);
     await server.db.runAsync(`UPDATE materiel SET etat='Bon' WHERE visite_id='visit-1'`);
     await server.db.runAsync(`UPDATE materiel SET nombre=NULL WHERE visite_id='visit-1'`);
-    await assert.rejects(() => payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111'), /nombre.*obligatoire/i);
+    await assert.rejects(() => payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111'),
+      (error) => error?.code === 'local_validation_failed' && error.issues.some((issue) => /nombre.*obligatoire/i.test(issue)));
     checks++; console.log(`OK ${checks}: non-nullable material fields are validated before upload`);
     await server.db.runAsync(`UPDATE materiel SET nombre='2' WHERE visite_id='visit-1'`);
     await server.db.runAsync(`UPDATE remarques SET intranet_date_reserve='2026-09-10foo' WHERE visite_id='visit-1'`);
