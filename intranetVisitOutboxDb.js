@@ -146,6 +146,26 @@ async function sendRow(db, row) {
     // Un utilisateur ne peut plus autoriser une disparition silencieuse,
     // même si la file SQLite contenait déjà un JSON dangereux.
     await validateQueuedVisitMaterialSnapshot(row.visite_id, row.payload_json);
+    if (Number(row.attempt_count || 0) === 0) {
+      // Only before the FIRST possible HTTP POST: reject a stale local snapshot.
+      // Never regenerate/recompare after an uncertain POST: replay must retain
+      // the exact envoiId and bytes to receive Symfony's idempotent ACK.
+      let current = null;
+      try { current = await buildIntranetVisitPayload(row.visite_id, row.envoi_id); }
+      catch (e) {
+        const error = new Error('Visite modifiée ou devenue invalide depuis la mise en attente. Corrige puis recrée un envoi contrôlé ; aucun POST effectué.');
+        error.code = 'queued_payload_stale';
+        error.status = 422;
+        error.issues = Array.isArray(e?.issues) ? e.issues : [String(e?.message || e)];
+        throw error;
+      }
+      if (current.serialized !== row.payload_json) {
+        const error = new Error('La visite a été modifiée après sa mise en attente offline. Cet ancien JSON ne sera pas envoyé ; aucun nouvel envoiId n est généré automatiquement.');
+        error.code = 'queued_payload_stale';
+        error.status = 422;
+        throw error;
+      }
+    }
     const response = await sendClientVisits(row.remote_client_id, row.payload_json);
     if (String(response?.envoiId || '') !== String(row.envoi_id)) throw Object.assign(new Error('Accusé de réception Intranet incohérent : envoiId différent.'), { code: 'invalid_ack' });
     const visits = Array.isArray(response?.visites) ? response.visites : [];

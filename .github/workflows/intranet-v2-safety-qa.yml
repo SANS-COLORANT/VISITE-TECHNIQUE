@@ -6,6 +6,7 @@ on:
       - 'intranetVisit*.js'
       - 'IntranetVisitSync.js'
       - 'intranetV2Catalog.js'
+      - 'intranetV1Freshness.js'
       - '.github/scripts/test_intranet*.js'
       - '.github/scripts/check_intranet_visit_upload_contract.js'
       - '.github/workflows/intranet-v2-safety-qa.yml'
@@ -17,6 +18,7 @@ on:
       - 'intranetVisit*.js'
       - 'IntranetVisitSync.js'
       - 'intranetV2Catalog.js'
+      - 'intranetV1Freshness.js'
       - '.github/scripts/test_intranet*.js'
       - '.github/scripts/check_intranet_visit_upload_contract.js'
       - '.github/workflows/intranet-v2-safety-qa.yml'
@@ -39,6 +41,8 @@ jobs:
         run: |
           node .github/scripts/check_intranet_visit_upload_contract.js
           node .github/scripts/test_intranet_v2_catalog.js
+          node .github/scripts/test_intranet_v2_fixtures.js
+          node .github/scripts/test_intranet_v1_freshness.js
           node .github/scripts/test_intranet_capability_mapping.js
           node .github/scripts/test_intranet_visit_upload.js
           node .github/scripts/test_intranet_visit_upload_audit.js

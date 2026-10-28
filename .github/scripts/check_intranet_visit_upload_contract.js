@@ -39,6 +39,8 @@ requireText(outbox, 'row.payload_json', 'idempotent serialized retry');
 requireText(outbox, "error?.code === 'invalid_ack'", 'ambiguous acknowledgement terminal guard');
 requireText(outbox, 'LOCAL_AUTH_ERRORS', 'local reactivation errors are not treated as network retries');
 requireText(outbox, 'validateQueuedVisitMaterialSnapshot', 'legacy queued payloads are rechecked before HTTP');
+requireText(outbox, "Number(row.attempt_count || 0) === 0", 'only first-attempt JSON is revalidated against local edits');
+requireText(outbox, "error.code = 'queued_payload_stale'", 'edited offline first POST is held locally');
 requireText(payload, 'inspectIntranetMaterialSnapshot', 'reference multisets are checked by all business attributes');
 forbidText(outbox, 'confirmMaterialReplacement', 'destructive material confirmations must not bypass integrity');
 forbidText(outbox, 'confirmMaterialClear', 'remote material deletion must not be authorized by confirmation');
