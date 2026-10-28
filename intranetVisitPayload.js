@@ -12,7 +12,54 @@ function nullable(value) { const v = clean(value); return v || null; }
 function normalize(value) {
   return clean(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
 }
-function sectionCode(panelId, section) { return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_'); }
+// Les panneaux spécialisés écrivent leurs champs sous des codes métier stables
+// différents des slugs de l'interface. Utilisés par ICPE, RCU et trames futures
+// reprenant ces panneaux, sans exception sur le nom de trame.
+const SPECIAL_SECTION_STORAGE_CODES = Object.freeze({
+  'p-releves': Object.freeze({
+    'releves des compteurs et manometres': 'releves.compteurs',
+    'temperatures et ph': 'releves.temperatures',
+  }),
+  'p-regulation': Object.freeze({
+    'cascade chaudieres': 'regulation.cascade',
+    'reseau ecs': 'regulation.reseau_ecs',
+  }),
+});
+function genericSectionCode(panelId, section) {
+  return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+}
+function sectionCode(panelId, section) {
+  return SPECIAL_SECTION_STORAGE_CODES[panelId]?.[normalize(section)] ||
+    genericSectionCode(panelId, section);
+}
+function candidateStorageCodes(definition, panelId, section, field) {
+  // Le modèle Excel peut déclarer le code de stockage historique : on le
+  // conserve comme compatibilité sans remplacer la clé utilisée par l'écran.
+  const excelCodes = (definition?.excel?.fieldMappings || [])
+    .filter((mapping) => mapping.panelId === panelId && mapping.section === section &&
+      mapping.cle === field.cle && mapping.type === (field.type || 'champ'))
+    .map((mapping) => mapping.sectionCode).filter(Boolean);
+  return [...new Set([sectionCode(panelId, section), ...excelCodes,
+    genericSectionCode(panelId, section)])];
+}
+function candidateStoredValue(store, candidate, issues, path) {
+  const codes = candidate?.storageCodes || [candidate?.sectionCode];
+  const present = codes.map((code) => ({ code, value: store.get(`${code}||${candidate.cle}`) }))
+    .filter((item) => item.value != null);
+  // Deux versions de la même rubrique ne doivent jamais s'écraser entre elles.
+  const significant = present.filter(({ value }) =>
+    typeof value === 'object'
+      ? clean(value.avis) !== '' || (clean(value.commentaire) !== '' && clean(value.commentaire) !== '/')
+      : clean(value) !== '' && clean(value) !== '/');
+  const fingerprints = [...new Set(significant.map(({ value }) =>
+    typeof value === 'object' ? JSON.stringify([clean(value.avis), clean(value.commentaire)])
+      : clean(value)))];
+  if (fingerprints.length > 1) {
+    issues.push(`${path} : valeurs divergentes pour la même rubrique MÉTRA (${significant.map((x) => x.code).join(' / ')}). Vérifie la source avant envoi.`);
+    return null;
+  }
+  return significant[0]?.value ?? present[0]?.value ?? null;
+}
 function dateOnly(value) { const v = clean(value); const m = v.match(/^(\d{4}-\d{2}-\d{2})/); return m ? m[1] : null; }
 function validDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(String(value || ''))) return false;
@@ -171,7 +218,39 @@ export function inspectIntranetMaterialSnapshot(reference, outgoing, declaredCou
   if (missing) {
     issues.push(`Matériel Intranet : ${missing}/${reference.length} ligne(s) anciennes absentes ou modifiées parmi ${outgoing.length} envoyées. ${samples.join(' ; ')}. L'API V1 remplace le patrimoine complet : envoi bloqué jusqu'au contrat serveur de mutation par identifiant stable.`);
   }
-  return { safe: issues.length === 0, issues, referenceCount: reference.length, outgoingCount: outgoing.length, missing, samples };
+  // Une liste V1 peut être complète mais contenir des répétitions supplémentaires
+  // du même équipement historique. Le contrôle précédent n'y voyait aucun
+  // manque et laissait partir 28 références devenues 81 lignes. Ne jamais
+  // fusionner ni supprimer sans identité stable : refuser le POST dangereux.
+  // Seule la casse / les accents de la marque sont neutralisés, jamais la
+  // désignation, le numéro, la quantité, l'état ou le modèle.
+  const comparable = (row) => JSON.stringify(MATERIAL_SNAPSHOT_FIELDS.map((field) =>
+    field === 'marque' ? normalize(materialSnapshotValue(row, field)) : materialSnapshotValue(row, field)));
+  const referenceCounts = new Map();
+  const outgoingCounts = new Map();
+  for (const row of reference) {
+    const key = comparable(row);
+    referenceCounts.set(key, (referenceCounts.get(key) || 0) + 1);
+  }
+  for (const row of outgoing) {
+    const key = comparable(row);
+    if (!outgoingCounts.has(key)) outgoingCounts.set(key, { count: 0, row });
+    outgoingCounts.get(key).count += 1;
+  }
+  const repeated = [];
+  let duplicateCount = 0;
+  for (const [key, group] of outgoingCounts.entries()) {
+    const expected = referenceCounts.get(key) || 0;
+    const maxAllowed = Math.max(1, expected); // une ligne nouvelle distincte reste admissible
+    if (group.count > maxAllowed) {
+      duplicateCount += group.count - maxAllowed;
+      repeated.push(`« ${clean(group.row.designation) || 'Équipement sans désignation'} » ×${group.count} (référence : ${expected})`);
+    }
+  }
+  if (duplicateCount) {
+    issues.push(`Matériel Intranet : ${duplicateCount} ligne(s) répétées en supplément de la référence, dont ${repeated.slice(0, 3).join(' ; ')}. Refus avant POST pour éviter une multiplication des équipements dans l'Intranet. Nettoyage uniquement après rapprochement des identifiants physiques.`);
+  }
+  return { safe: issues.length === 0, issues, referenceCount: reference.length, outgoingCount: outgoing.length, missing, samples, duplicateCount };
 }
 
 /** Contrôle des anciennes files d'attente avant leur éventuel premier POST.
@@ -291,7 +370,8 @@ function buildStaticCandidates(localTrameId) {
         if (!field?.cle || field.hiddenInApp === true) continue;
         const aliases = [field.label, ...(Array.isArray(field.intranetAliases) ? field.intranetAliases : [])]
           .filter((value) => typeof value === 'string').map(normalize).filter(Boolean);
-        candidates.push({ panelId, section, sectionCode: sectionCode(panelId, section), cle: field.cle,
+        const storageCodes = candidateStorageCodes(definition, panelId, section, field);
+        candidates.push({ panelId, section, sectionCode: storageCodes[0], storageCodes, cle: field.cle,
           label: field.label || field.cle, type: field.type || 'champ', key: normalize(field.cle),
           aliases: [...new Set(aliases)], numericIndex: field.numericIndex === true,
           meterSource: field.intranetSource === 'compteur',
@@ -316,7 +396,8 @@ async function buildCandidates(db, visite) {
   for (const row of rows || []) {
     candidates.push({ panelId: row.panel_id, section: row.section_name, sectionCode: row.section_code,
       cle: row.cle_stockage, label: row.libelle, type: row.type_code || 'champ', key: normalize(row.libelle || row.cle_stockage),
-      sectionKey: normalize(row.section_name), panelKey: normalize(definition?.ui?.labels?.[row.panel_id] || row.panel_id), dynamic: true });
+      sectionKey: normalize(row.section_name), panelKey: normalize(definition?.ui?.labels?.[row.panel_id] || row.panel_id),
+      storageCodes: [row.section_code], dynamic: true });
   }
   return candidates;
 }
@@ -616,7 +697,7 @@ async function buildCriteria(db, visite, details, issues) {
         } else if (!candidate) {
           issues.push(`${path} : aucun champ METRA correspondant de façon sûre.`);
         } else if (applicable) {
-          const control = controlMap.get(`${candidate.sectionCode}||${candidate.cle}`);
+          const control = candidateStoredValue(controlMap, candidate, issues, path);
           avis = applicableAvis(control?.avis, issues, `${path} / avis`);
           const temperature = isTemperature(candidate)
             ? formaterTemperatureGroupee(candidate.cle, control?.commentaire, measurePoints) : control?.commentaire;
@@ -630,9 +711,9 @@ async function buildCriteria(db, visite, details, issues) {
             // restent utilisables s'ils n'ont aucun compteur dynamique.
             const manualFallback = !candidate.specialPanel || candidate.panelId === 'p-remar-releves' || /^pression\b/.test(candidate.key);
             value = counter.status === 'missing' && manualFallback
-              ? fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`) : counter.value;
+              ? candidateStoredValue(fieldMap, candidate, issues, path) : counter.value;
           } else {
-            value = fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`);
+            value = candidateStoredValue(fieldMap, candidate, issues, path);
             if (isTemperature(candidate)) value = formaterTemperatureGroupee(candidate.cle, value, measurePoints);
           }
           commentaire = exactComment(value, issues, `${path} / commentaire`);

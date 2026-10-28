@@ -210,6 +210,24 @@ async function main() {
       'duplicate original entries are protected by multiset multiplicity');
     check(!payloadModule.inspectIntranetMaterialSnapshot(null, [], 3).safe,
       'missing reference listing fails closed');
+    const repeatedOriginal = payloadModule.inspectIntranetMaterialSnapshot(
+      [remoteMaterial], [remoteMaterial, { ...remoteMaterial }], 1);
+    check(!repeatedOriginal.safe && repeatedOriginal.duplicateCount === 1 &&
+      repeatedOriginal.issues.some((msg) => /répétées en supplément/.test(msg)),
+      'A2: identical original equipment repeated in a POST is rejected before destructive V1 sync');
+    const repeatedCatalogStyle = payloadModule.inspectIntranetMaterialSnapshot(
+      [remoteMaterial], [remoteMaterial, { ...remoteMaterial, marque: 'EXEMPLE' }], 1);
+    check(!repeatedCatalogStyle.safe && repeatedCatalogStyle.duplicateCount === 1,
+      'A2: duplicated source reference remains detected despite manufacturer display capitalization');
+    const legitimateSourceTwins = payloadModule.inspectIntranetMaterialSnapshot(
+      [remoteMaterial, { ...remoteMaterial }], [remoteMaterial, { ...remoteMaterial }], 2);
+    check(legitimateSourceTwins.safe && legitimateSourceTwins.duplicateCount === 0,
+      'old server baseline containing two identical physical rows is not silently rewritten');
+    const distinctAdditional = payloadModule.inspectIntranetMaterialSnapshot(
+      [remoteMaterial], [remoteMaterial, { ...remoteMaterial, numeroMateriel: 'CHA-002' }], 1);
+    check(distinctAdditional.safe,
+      'new equipment with a different stable material number remains a permitted additive case');
+
     // Auto-réconciliation : uniquement la graphie catalogue de la MARQUE.
     // Aucune autre colonne métier ne doit être restaurée silencieusement.
     const brandReference = { ...remoteMaterial, marque: 'EXEMPLE' };

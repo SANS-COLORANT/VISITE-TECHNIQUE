@@ -47,3 +47,37 @@ validation du serveur. Un correctif limité à l'écriture de la marque depuis
 le catalogue est sûr uniquement quand les 9 autres propriétés sont
 rigoureusement identiques; les véritables changements matériels restent
 bloqués. Voir le contrat V2 et le diagnostic de remise au développeur.
+
+## A2 : incident de transmission MÉTRA → Intranet — 28 octobre 2026
+
+L'Excel exporté depuis Symfony est un **témoin aval**. L'absence d'avis et de
+commentaires ne prouve pas une erreur de génération XLSX. Le sérialiseur MÉTRA
+recherchait les codes de rubriques calculés depuis les libellés d'interface
+(ex. `releves.temp_ratures_et_ph`, `regulation.r_seau_ecs`) au lieu des
+codes réellement écrits par les panneaux spécialisés dans SQLite :
+
+- `releves.temperatures` : huit contrôles pH/températures, avis + commentaires ;
+- `releves.compteurs` : pressions ;
+- `regulation.cascade` : cascade et températures associées ;
+- `regulation.reseau_ecs` : consigne et cycle anti-légionellose.
+
+Ce contrat de stockage est maintenant partagé par le sérialiseur des panneaux
+ICPE et RCU, par groupe de champs (pas par cellule Excel). Les anciens slugs
+restent lisibles en repli ; deux valeurs divergentes pour un même champ sont
+refusées avant POST plutôt que remplacées arbitrairement. Les tests reproduisent
+les 8 contrôles et 6 champs d'A2 et vérifient leurs avis/valeurs exacts.
+
+L'envoi V1 protégeait les matériels *absents*, mais autorisait des répétitions
+d'anciennes lignes. Une liste de 28 références présentes et répétées pour
+atteindre 81 lignes pouvait passer le contrôle « aucune référence manquante ».
+La prévalidation vérifie désormais aussi la **multiplicité** des signatures :
+les répétitions en excédent, même si seule la casse de marque varie, bloquent
+l'envoi. L'ajout d'un matériel réellement distinct demeure autorisé.
+
+**Ne jamais supprimer les doublons en SQLite ou dans Symfony sans rapprochement
+par identifiants d'origine.** Dans la sauvegarde fusionnée des 6–7 octobre, des
+identifiants matériels externes se retrouvent sur plusieurs équipements locaux.
+Le serveur actuel remplace intégralement son ListingMateriel : une réparation
+de ses 81 lignes ne doit pas être tentée à l'aveugle. Le POST effectivement
+envoyé et un GET de la visite Symfony sont nécessaires pour attribuer chaque
+duplication, y compris celles déjà visibles dans MÉTRA avant le POST.
