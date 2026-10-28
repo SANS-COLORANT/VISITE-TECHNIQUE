@@ -61,8 +61,11 @@ const remoteTrame = { id: '3', nom: 'ICPE', categories: [
     { id: '104', nom: 'Index Gaz (m³)', avisApplicable: false },
   ] }] },
 ] };
+const remoteMaterial = { id: 1, categorie: 'PRODUCTION CHAUD', nombre: '2', designation: 'Chaudière gaz',
+  numeroMateriel: 'CHA-001', reseauDesservi: 'Bâtiment A', marque: 'Exemple', modele: 'G500',
+  caracteristiques: '500 kW', annee: '2019', etat: 'Bon' };
 const context = { schemaVersion: 3, sourceType: 'preparation_visite', remoteLocalId: '501', site: { id: '45', nom: 'Site A' },
-  derniereVisite: { id: '812', date: '2026-09-01' }, trame: remoteTrame, materiels: [{ id: 1 }] };
+  derniereVisite: { id: '812', date: '2026-09-01' }, trame: remoteTrame, materiels: [remoteMaterial] };
 
 async function seed(db, id = 'visit-1') {
   await db.execAsync(`
@@ -139,9 +142,11 @@ async function main() {
     checks++; console.log(`OK ${checks}: malformed explicit reserve date is not silently truncated`);
     await server.db.runAsync(`UPDATE remarques SET intranet_date_reserve='2026-09-10' WHERE visite_id='visit-1'`);
     await server.db.runAsync(`DELETE FROM materiel WHERE visite_id='visit-1'`);
-    const emptyMaterial = await payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111');
-    check(emptyMaterial.destructiveMaterialClear && emptyMaterial.sourceMaterialCount === 1, 'empty local listing is flagged as destructive when remote reference had material');
-    await server.db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,nombre,designation,etat) VALUES('material-restored','visit-1','Chaudière','1','Chaudière','Bon')`);
+    await assert.rejects(() => payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111'),
+      (e) => e?.code === 'local_validation_failed' && e.issues.some((issue) => /Matériel Intranet/.test(issue)));
+    checks++; console.log(`OK ${checks}: missing historical material is a hard local validation error, not a confirmation`);
+    await server.db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,nombre,designation,numero_materiel,reseau_desservi,marque,modele,caracteristiques,annee,etat)
+      VALUES('material-restored','visit-1','PRODUCTION CHAUD','2','Chaudière gaz','CHA-001','Bâtiment A','Exemple','G500','500 kW','2019','Bon')`);
 
     await seed(server.db, 'historical');
     await server.db.runAsync(`UPDATE provenances SET details_json=? WHERE entite_id='historical'`, [JSON.stringify({ ...context, sourceType: 'imported_latest_visit' })]);
@@ -192,6 +197,18 @@ async function main() {
     await assert.rejects(() => payloadModule.buildIntranetVisitPayload('pre-multi', '33333333-3333-4333-8333-333333333333'), (error) => Array.isArray(error?.issues) && error.issues.some((issue) => /plusieurs locaux/.test(issue)));
     checks++; console.log(`OK ${checks}: multi-local PRE visit is blocked because the server contract accepts one local per visit`);
 
+    // 80 references + 1 new item: additive only; equal count with a replaced
+    // physical equipment is rejected, even when a simple length check passes.
+    const eighty = Array.from({ length: 80 }, (_, n) => ({ ...remoteMaterial, numeroMateriel: 'X-' + n }));
+    const extra = { ...remoteMaterial, numeroMateriel: 'X-new' };
+    check(payloadModule.inspectIntranetMaterialSnapshot(eighty, [...eighty].reverse().concat(extra), 80).safe,
+      '80 intact remote materials + 1 new item is an allowed additive snapshot');
+    check(!payloadModule.inspectIntranetMaterialSnapshot(eighty, eighty.slice(1).concat(extra), 80).safe,
+      '80-item snapshot with one substituted equipment is rejected despite equal counts');
+    check(!payloadModule.inspectIntranetMaterialSnapshot([remoteMaterial, remoteMaterial], [remoteMaterial], 2).safe,
+      'duplicate original entries are protected by multiset multiplicity');
+    check(!payloadModule.inspectIntranetMaterialSnapshot(null, [], 3).safe,
+      'missing reference listing fails closed');
     const calls = []; let mode = 'network';
     const uuids = ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'ffffffff-ffff-4fff-8fff-ffffffffffff', '12345678-1234-4234-8234-123456789abc', '87654321-4321-4321-8321-cba987654321'];
     let uuidIndex = 0;
@@ -210,6 +227,7 @@ async function main() {
     const outbox = load('intranetVisitOutboxDb.js', {
       getDb: async () => server.db, buildIntranetVisitPayload: payloadModule.buildIntranetVisitPayload,
       IntranetVisitValidationError: payloadModule.IntranetVisitValidationError,
+      validateQueuedVisitMaterialSnapshot: payloadModule.validateQueuedVisitMaterialSnapshot,
       createIntranetUploadId: async () => uuids[uuidIndex++], sendClientVisits: sender,
     });
     const queued = await outbox.queueVisitUpload('visit-1');
@@ -226,11 +244,28 @@ async function main() {
 
     await seed(server.db, 'clear-list');
     await server.db.runAsync(`DELETE FROM materiel WHERE visite_id='clear-list'`);
-    await assert.rejects(() => outbox.queueVisitUpload('clear-list'), (error) => error?.code === 'material_clear_confirmation_required');
-    check(!(await outbox.getVisitUploadState('clear-list')), 'destructive empty material listing is not queued before explicit confirmation');
-    const cleared = await outbox.queueVisitUpload('clear-list', { confirmMaterialClear: true });
-    check(cleared.status === 'pending', 'explicit confirmation allows intentional remote material-list clearing');
-    await server.db.runAsync(`DELETE FROM api_visit_outbox WHERE visite_id='clear-list'`);
+    await assert.rejects(() => outbox.queueVisitUpload('clear-list'),
+      (error) => error?.code === 'local_validation_failed' && error.issues.some((v) => /Matériel Intranet/.test(v)));
+    check(!(await outbox.getVisitUploadState('clear-list')), 'empty material listing cannot be queued for destructive replacement');
+    await assert.rejects(() => outbox.queueVisitUpload('clear-list', { confirmMaterialClear: true }),
+      (error) => error?.code === 'local_validation_failed');
+    checks++; console.log(`OK ${checks}: former confirmation flag cannot bypass the new hard safety policy`);
+
+    // Legacy SQLite outbox created by an older APK: reject before any HTTP,
+    // preserving its original JSON and envoiId for forensic recovery.
+    await seed(server.db, 'legacy-queued');
+    const validLegacy = await payloadModule.buildIntranetVisitPayload('legacy-queued', '33333333-3333-4333-8333-333333333333');
+    const badLegacy = JSON.parse(validLegacy.serialized);
+    badLegacy.visites[0].materiels = [];
+    const badSerialized = JSON.stringify(badLegacy);
+    await server.db.runAsync(`INSERT INTO api_visit_outbox(envoi_id,visite_id,remote_client_id,payload_json,payload_bytes,status)
+      VALUES(?,?,?, ?, ?,'pending')`, [badLegacy.envoiId, 'legacy-queued', '12', badSerialized, Buffer.byteLength(badSerialized)]);
+    mode = 'success'; const httpBefore = calls.length;
+    await outbox.processVisitOutbox({ limit: 1 });
+    const blockedLegacy = await outbox.getVisitUploadState('legacy-queued');
+    check(blockedLegacy.status === 'validation_error' && blockedLegacy.error_code === 'material_snapshot_unsafe' &&
+      calls.length === httpBefore, 'old dangerous offline payload is stopped before network, without generating a new envoiId');
+    check(blockedLegacy.payload_json === badSerialized, 'rejected legacy payload is retained byte-identical for controlled recovery');
 
     await seed(server.db, 'rate-limit'); mode = '429';
     await outbox.queueVisitUpload('rate-limit'); await outbox.processVisitOutbox({ limit: 3 });
