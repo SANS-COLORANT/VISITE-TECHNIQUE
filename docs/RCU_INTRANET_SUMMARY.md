@@ -24,3 +24,26 @@ Les réserves explicitement classées Primaire/Secondaire alimentent les dix syn
 - Exécuter `node .github/scripts/test_intranet_capability_mapping.js`, `npm run verify:metra` et le workflow APK natif complet.
 - Recette physique restant nécessaire : la visite Les Ulis sur tablette, un envoi Intranet réel authentifié et la comparaison avec l'Excel de la même visite.
 - Ne jamais désinstaller l'application ni écraser les données existantes pour appliquer ce correctif. Le build doit préserver la signature, le package Android et une version supérieure.
+
+## Durcissement de la correspondance sémantique (28 octobre 2026)
+
+Les libellés de critères serveur ne sont pas obligatoirement identiques aux
+titres Excel. Le moteur prend maintenant en charge, **uniquement dans une
+branche de synthèse RCU explicitement déclarée** par le modèle, les variantes
+homologuées des cinq catégories P2, P3, Conformité, Amélioration et Remarque,
+dont « Remarque particulière » / « Remarques particulières », au primaire et
+au secondaire. Cette règle vaut pour tous les groupes de synthèse présents et
+non pour deux cellules codées individuellement. Les variantes de casse et
+d'accents sont normalisées.
+
+Un nouveau critère inconnu, une branche hors périmètre ou deux critères
+pointant vers la même synthèse restent bloqués (fail-closed). Tests : 10
+synthèses, variantes, pluriels, doublons et trame non RCU.
+
+L'alerte terrain « 15 lignes de matériel de référence absentes ou modifiées »
+est **indépendante** des critères. L'API Symfony V1 supprime/recrée le
+ListingMateriel entier. L'APK ne peut donc pas lever cette barrière sans
+validation du serveur. Un correctif limité à l'écriture de la marque depuis
+le catalogue est sûr uniquement quand les 9 autres propriétés sont
+rigoureusement identiques; les véritables changements matériels restent
+bloqués. Voir le contrat V2 et le diagnostic de remise au développeur.

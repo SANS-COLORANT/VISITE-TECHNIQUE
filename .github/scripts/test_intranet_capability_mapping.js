@@ -123,6 +123,43 @@ async function main() {
   check(rcuSummary.values[1].commentaire === 'Sans Objet.' &&
     rcuSummary.values[4].avis === 'S.O' && rcuSummary.values[5].avis === 'S.O',
     'RCU: empty synthesis cells match Excel without inventing observations');
+  // Chaque variante homologuée passe par la même matrice métier
+  // Primaire/Secondaire × P2/P3/Conformité/Amélioration/Remarque.
+  // Les nouveaux libellés ne doivent pas générer de nouveaux correctifs ad hoc.
+  const rcuAliasRemote = structuredClone(rcuSummaryRemote);
+  for (const category of rcuAliasRemote.categories) {
+    category.nom = category.nom.replace('SUR LE', 'DU');
+    category.sousCategories[0].nom = 'Opérations à effectuer';
+    ['Entretien P2', 'Travaux P3', 'Mise en conformité',
+      'Travaux d’amélioration', 'Remarque particulière'].forEach((nom, index) => {
+      category.sousCategories[0].criteres[index].nom = nom;
+    });
+  }
+  const rcuAlias = await build('reseau_chaleur_v1', rcuAliasRemote, { remarks: summaryRemarks });
+  check(rcuAlias.issues.length === 0 && rcuAlias.values.length === 10 &&
+    rcuAlias.values[2].commentaire === 'Rétablir la sécurité' &&
+    rcuAlias.values[6].commentaire === 'Remplacer le circulateur' &&
+    rcuAlias.values[9].commentaire === 'Vérifier le compteur',
+    'RCU: all ten primary/secondary synthesis cells accept safely declared semantic aliases');
+  const rcuPluralRemote = structuredClone(rcuSummaryRemote);
+  rcuPluralRemote.categories.forEach((category) => {
+    category.sousCategories[0].criteres[4].nom = 'Remarques particulières';
+  });
+  const rcuPlural = await build('reseau_chaleur_v1', rcuPluralRemote, { remarks: summaryRemarks });
+  check(rcuPlural.issues.length === 0 && rcuPlural.values[9].commentaire === 'Vérifier le compteur',
+    'RCU: plural particular remarks map to the same canonical summary');
+  const rcuDuplicate = structuredClone(rcuSummaryRemote);
+  rcuDuplicate.categories[0].sousCategories[0].criteres.push({
+    id: 5001, nom: 'Remarque particulière', avisApplicable: false,
+  });
+  const duplicate = await build('reseau_chaleur_v1', rcuDuplicate, { remarks: summaryRemarks });
+  check(duplicate.issues.some((x) => /déjà mappée à un autre critère/.test(x)),
+    'RCU: duplicate semantically equivalent remote criteria fail closed');
+  const rcuUnpublished = structuredClone(rcuSummaryRemote);
+  rcuUnpublished.categories[0].sousCategories[0].criteres[4].nom = 'Critère métier nouveau non publié';
+  const unknown = await build('reseau_chaleur_v1', rcuUnpublished);
+  check(unknown.issues.some((x) => /Critère métier nouveau non publié.*aucun champ METRA/.test(x)),
+    'RCU: never guess semantic mapping for unknown future criteria');
   const rcuEmpty = await build('reseau_chaleur_v1', rcuSummaryRemote);
   check(rcuEmpty.issues.length === 0 && rcuEmpty.values.every((x) => x.commentaire === 'Sans Objet.'),
     'RCU: an existing visit with no reserves can still serialize all ten synthesis criteria');

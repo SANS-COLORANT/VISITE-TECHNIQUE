@@ -143,6 +143,8 @@ async function main() {
   assert.equal(db.state.materialRows[0].nombre, '2');
   assert.equal(db.state.materialRows[0].numero_materiel, 'P1');
   assert.equal(db.state.materialRows[0].reseau_desservi, 'Chauffage');
+  assert.equal(db.state.materialRows[0].marque, 'GRUNDFOS',
+    'the visit wire/source retains exact remote brand spelling even when catalog logo uses Grundfos');
   assert.equal(db.state.trames.length, 1);
   assert.equal(db.state.attributes.find((row) => row.cle === 'catalogue.marque_logo_uri')?.valeur, 'logo://grundfos');
   assert.equal(db.state.provenances[0].reference_externe, 'material-777');
