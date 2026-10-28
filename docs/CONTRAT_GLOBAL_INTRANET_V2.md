@@ -192,3 +192,21 @@ GO seulement si : tous les critères d'une trame publiée sont mappés;
 0 disparition/duplication involontaire de matériels, réserves et photos;
 idempotence après coupure; historiques maintenus; rollback documenté;
 tests de bout en bout multi-trames validés sur serveur de test et APK réel.
+
+## Versions historiques et validation stricte des nouvelles trames
+
+Le catalogue peut publier plusieurs versions simultanées pour une même
+`cleMetierStable`. Le couple `(cleMetierStable, version)` est unique.
+La version figée et son empreinte ne sont jamais remplacées implicitement.
+Une ancienne version `deprecated` reste admissible pour une visite réellement
+hors ligne uniquement si Symfony déclare `acceptsExistingOfflineVisits:true`.
+La présence de la trame ne suffit pas : il faut aussi son affectation au LOCAL.
+
+Le précontrôle MÉTRA vérifie désormais tous les critères, facultatifs compris,
+avec le triplet serveur exact et une source locale explicite :
+`{cleMetierStable, brancheId, sourceKey}`. Un simple alias/libellé ne constitue
+pas une correspondance. Il refuse les capacités serveur non implémentées.
+
+**Côté Symfony :** préciser les clés stables, les versions coexistantes,
+les trames attribuées au local, les capacités et les règles de dépréciation.
+Le précontrôle est pour le moment pur et offline : aucun endpoint V2 actif.
