@@ -233,3 +233,21 @@ explicite; sans endpoint de fusion V2 il reste en lecture seule pour cet envoi.
 Les erreurs 422 qui ne créent aucune visite conservent, elles, leur traitement
 de correction distinct. Ce verrou empêche une ancienne visite hors ligne de
 devenir un doublon suite à une nouvelle visite faite sur une autre tablette.
+
+## Instantané figé modifié avant le premier POST
+
+La file d'attente SQLite contient un `envoiId` et un JSON immuables.
+Avant un **premier** POST, MÉTRA reconstruit localement la représentation
+de la visite avec ce même `envoiId` et la compare octet pour octet au JSON
+gelé. Toute modification depuis la mise en attente (champ, critère,
+matériel, réserve, date, etc.) bloque l'envoi avec
+`queued_payload_stale` (validation locale, aucun POST).
+La visite SQLite et le JSON historique restent conservés pour correction.
+
+Après une **tentative de POST au résultat incertain**, aucune
+reconstruction ni modification du payload n'est permise pendant le rejeu :
+le même JSON et le même `envoiId` doivent pouvoir recevoir l'accusé
+idempotent d'une création qui aurait déjà réussi côté serveur.
+
+Cela ne remplace pas le verrou atomique LOCAL versionné que Symfony V2
+devra implémenter pour les modifications concurrentes de deux appareils.

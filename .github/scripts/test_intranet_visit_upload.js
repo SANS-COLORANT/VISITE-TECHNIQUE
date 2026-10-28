@@ -211,7 +211,7 @@ async function main() {
     check(!payloadModule.inspectIntranetMaterialSnapshot(null, [], 3).safe,
       'missing reference listing fails closed');
     const calls = []; let mode = 'network';
-    const uuids = ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'ffffffff-ffff-4fff-8fff-ffffffffffff', '12345678-1234-4234-8234-123456789abc', '87654321-4321-4321-8321-cba987654321'];
+    const uuids = ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'ffffffff-ffff-4fff-8fff-ffffffffffff', '12345678-1234-4234-8234-123456789abc', '87654321-4321-4321-8321-cba987654321', '99999999-9999-4999-8999-999999999999'];
     let uuidIndex = 0;
     const sender = async (_client, serialized) => {
       calls.push(serialized);
@@ -237,6 +237,7 @@ async function main() {
     let row = await outbox.getVisitUploadState('visit-1');
     check(row.status === 'retry' && calls.length === 1, 'network failure keeps immutable payload pending for retry');
     const firstPayload = calls[0];
+    await server.db.runAsync("UPDATE champs_visite SET valeur='Modification après POST incertain' WHERE visite_id='visit-1' AND cle='Champ B'");
     mode = 'success';
     await outbox.retryVisitUploadNow('visit-1');
     row = await outbox.getVisitUploadState('visit-1');
@@ -267,6 +268,19 @@ async function main() {
     check(blockedLegacy.status === 'validation_error' && blockedLegacy.error_code === 'material_snapshot_unsafe' &&
       calls.length === httpBefore, 'old dangerous offline payload is stopped before network, without generating a new envoiId');
     check(blockedLegacy.payload_json === badSerialized, 'rejected legacy payload is retained byte-identical for controlled recovery');
+
+    // This outbox has not made any POST: a subsequent edit must invalidate
+    // the old bytes instead of silently sending a stale field/remark.
+    await seed(server.db, 'edited-offline');
+    const staleQueue = await outbox.queueVisitUpload('edited-offline');
+    await server.db.runAsync("UPDATE champs_visite SET valeur='Nouvelle valeur offline' WHERE visite_id='edited-offline' AND cle='Champ B'");
+    mode = 'success'; const beforeStale = calls.length;
+    await outbox.processVisitOutbox({ limit: 1 });
+    const staleRow = await outbox.getVisitUploadState('edited-offline');
+    check(staleRow.status === 'validation_error' && staleRow.error_code === 'queued_payload_stale' &&
+      calls.length === beforeStale, 'edited first-time offline outbox blocks stale POST without calling Symfony');
+    check(staleRow.envoi_id === staleQueue.envoi_id && staleRow.payload_json === staleQueue.payload_json,
+      'stale queued JSON and UUID are retained for audit; not rewritten silently');
 
     await seed(server.db, 'rate-limit'); mode = '429';
     await outbox.queueVisitUpload('rate-limit'); await outbox.processVisitOutbox({ limit: 3 });
