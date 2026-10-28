@@ -476,13 +476,11 @@ async function buildCriteria(db, visite, details, issues) {
   const heatRemarks = heatSummaryEnabled
     ? await db.getAllAsync('SELECT id,poste,prestation,perimetre FROM remarques WHERE visite_id=? ORDER BY cree_le,id', [visite.id])
     : [];
-  // L'Excel RCU impose déjà ce classement. Éviter qu'un envoi Intranet
-  // omette silencieusement des réserves non affectées à un périmètre.
-  for (const remark of heatRemarks) {
-    if (remark.perimetre !== 'Primaire' && remark.perimetre !== 'Secondaire') {
-      issues.push(`Réserve Réseau de chaleur « ${clean(remark.poste) || clean(remark.id)} » : périmètre Primaire / Secondaire manquant. Classe cette réserve avant l’envoi.`);
-    }
-  }
+  // Une réserve générale/historique sans périmètre reste présente dans
+  // visites[].remarques (buildRemarks ci-dessous). Elle n'entre pas dans
+  // les 10 critères de synthèse Primaire/Secondaire : ne jamais lui inventer
+  // un périmètre, mais ne pas bloquer son envoi pour ce seul motif.
+  // Les critères inconnus, informations invalides ou perdues restent bloquants.
   const isTemperature = isTemperatureCandidate;
   const fieldMap = new Map(fields.map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
   const controlMap = new Map(controls.map((row) => [`${row.section_code}||${row.cle}`, row]));

@@ -40,6 +40,21 @@ requireText(report, 'Synthèse du patrimoine en début de rapport', 'patrimoine 
 requireText(report, 'patrimoineScope', 'patrimoine report scope');
 requireText(report, 'return new Set()', 'no automatic full-client report selection');
 forbidText(report, 'layout,dossiersParSite', 'legacy report config must remain compatible');
+requireText(report, 'Valider les photos · Mise en page', 'photo step action remains above the list');
+const photoStep = report.indexOf("etape==='photos'?<View style={{flex:1}}>");
+const photoScroll = report.indexOf('<SectionList sections={photoSections}');
+if (photoStep < 0 || photoScroll < photoStep || !report.slice(photoStep, photoScroll).includes('Valider les photos')) {
+  throw new Error('photo step must keep its validation action fixed above the scrolling photos');
+}
+const layoutEditor = read('ReportLayoutEditor.js');
+const finalAction = layoutEditor.indexOf('accessibilityLabel={`Générer le rapport');
+const layoutScroll = layoutEditor.indexOf('<FlatList style={{ flex: 1 }}');
+if (finalAction < 0 || layoutScroll < 0 || finalAction >= layoutScroll) {
+  throw new Error('PDF/Word generation action must stay fixed above the preview list');
+}
+requireText(layoutEditor, 'Choisir le format PDF', 'PDF format choice remains reachable from the top');
+requireText(layoutEditor, 'Choisir le format Word', 'Word format choice remains reachable from the top');
+requireText(layoutEditor, 'ListFooterComponent={null}', 'generation is no longer located after hundreds of pages');
 
 const exporter = read('reportEditorExporter.js');
 requireText(exporter, "from './metraStorage.js'", 'METRA report storage import');

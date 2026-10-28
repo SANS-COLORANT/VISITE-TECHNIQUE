@@ -51,6 +51,22 @@ before(async () => {
   await db.execAsync("PRAGMA foreign_keys=ON; INSERT INTO clients(id,nom) VALUES('client','Client témoin'); INSERT INTO sites(id,client_id,nom_site,adresse) VALUES('site','client','Site témoin','Adresse témoin'); INSERT INTO installations(id,site_id,type_code,nom) VALUES('local','site','chaufferie','Local A');");
 });
 
+test('RCU preserves historical general reserves without inventing a primary or secondary perimeter', async () => {
+  const id = await newVisit('reseau_chaleur_v1');
+  await db.runAsync(
+    'INSERT INTO remarques(id,visite_id,poste,prestation,perimetre) VALUES(?,?,?,?,?)',
+    [`remark-${++sequence}`, id, 'Sécurité incendie', 'Vérifier extincteurs', null]);
+  await db.runAsync(
+    'INSERT INTO remarques(id,visite_id,poste,prestation,perimetre) VALUES(?,?,?,?,?)',
+    [`remark-${++sequence}`, id, 'Entretien P2', 'Nettoyer échangeur', 'Primaire']);
+  const { wb } = await construireClasseur(id);
+  assert.equal(wb.Sheets.REMARQUES.A4.v, 'Sécurité incendie');
+  assert.equal(wb.Sheets.REMARQUES.B4.v, 'Vérifier extincteurs');
+  assert.equal(wb.Sheets.REMARQUES.A5.v, 'Entretien P2');
+  assert.equal(wb.Sheets['TRAME RÉSEAU DE CHALEUR'].C362.v, 'Nettoyer échangeur');
+  assert.equal(wb.Sheets['TRAME RÉSEAU DE CHALEUR'].C366.v, 'Sans Objet.');
+});
+
 test('REMAR has its requested name, native panels and every workbook point', () => {
   validateLocalTrame(REMAR);
   assert.equal(REMAR.nom, 'TRAME REMAR');

@@ -286,12 +286,10 @@ function ecrireResumeReseauChaleur(sheet, remarques = [], summaryRows = {}) {
 function validerPerimetresReseauChaleur(materiel = [], remarques = []) {
   const valides = new Set(['Primaire', 'Secondaire']);
   const materielNonClasse = materiel.filter((m) => !valides.has(m.perimetre));
-  const remarquesNonClassees = remarques.filter((r) => !valides.has(r.perimetre));
+  // Les réserves générales sans périmètre restent dans la feuille REMARQUES.
+  // Seules celles explicitement classées alimentent les dix lignes de synthèse.
   if (materielNonClasse.length) {
     throw new Error(`${materielNonClasse.length} équipement(s) Réseau de chaleur doivent être classés Primaire ou Secondaire avant l’export.`);
-  }
-  if (remarquesNonClassees.length) {
-    throw new Error(`${remarquesNonClassees.length} réserve(s) Réseau de chaleur doivent être classées Primaire ou Secondaire avant l’export.`);
   }
 }
 

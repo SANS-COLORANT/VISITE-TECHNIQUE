@@ -15,7 +15,7 @@ Le sérialiseur Intranet reconnait **uniquement** le chemin explicite suivant :
 
 Chaque cellule contient les prestations des réserves **de la visite courante seulement**, du périmètre et de la catégorie correspondants, ordonnées comme dans l'Excel, séparées par deux retours à la ligne. Cellule vide : `Sans Objet.` Avis `N.S` ou `S.O` uniquement si le serveur a déclaré `avisApplicable`. Aucune réserve n'est ajoutée, modifiée ou supprimée.
 
-La classification existante de `excelExport.js` est conservée sans réinterprétation. Si une réserve manque de périmètre, si une catégorie serveur est inconnue, ou si le commentaire groupé dépasse 1 500 caractères, l'envoi reste **bloqué avec un message explicite**, sans troncature ni rapprochement flou.
+Les réserves explicitement classées Primaire/Secondaire alimentent les dix synthèses. Une réserve ancienne ou générale sans périmètre ne doit jamais se voir attribuer artificiellement Primaire ou Secondaire : elle reste entièrement envoyée dans `visites[].remarques[]` et exportée dans la feuille détaillée `REMARQUES`. Elle est simplement absente des synthèses de périmètre, comme dans l'Excel. Un périmètre peut toujours être choisi manuellement dans la fiche de réserve, sans modification automatique des données historiques. Les erreurs serveur, critères inconnus, champs obligatoires absents, matériels non classés et commentaires groupés supérieurs à 1 500 caractères restent bloquants.
 
 ## Précautions et recette
 - Aucun changement SQLite, photos, export Excel, sécurité de rattachement Client/Site/Local ou autres trames.

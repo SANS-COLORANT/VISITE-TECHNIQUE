@@ -186,7 +186,7 @@ const RESEAU_CHALEUR = Object.freeze({
       mirrorControlColumns: true,
       summaryRows: RESEAU_CHALEUR_RESUME_ROWS,
       requireEquipmentPerimeter: true,
-      requireRemarkPerimeter: true,
+      requireRemarkPerimeter: false,
     },
   },
 });

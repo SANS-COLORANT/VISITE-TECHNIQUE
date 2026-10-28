@@ -10,6 +10,7 @@ on:
       - fix/rcu-intranet-summary-20261028
       - feat/intranet-universal-v2-safety-20261028
       - feat/intranet-v2-catalog-hardening-20261028
+      - fix/rcu-unscoped-report-sticky-20261028
     paths:
       - '**/*.js'
       - '**/*.json'
