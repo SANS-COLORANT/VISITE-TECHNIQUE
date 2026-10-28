@@ -129,7 +129,7 @@ async function main() {
   const rcuUnclassified = await build('reseau_chaleur_v1', rcuSummaryRemote, {
     remarks: [{ id: 'r-lost', poste: 'P2', prestation: 'Ne pas perdre', perimetre: null }],
   });
-  check(rcuUnclassified.issues.some((x) => /périmètre Primaire \\/ Secondaire manquant/.test(x)),
+  check(rcuUnclassified.issues.some((x) => /périmètre Primaire \/ Secondaire manquant/.test(x)),
     'RCU: unclassified reserve blocks transmission instead of vanishing from the summary');
   const rcuOversized = await build('reseau_chaleur_v1', rcuSummaryRemote, {
     remarks: [{ id: 'r-long', poste: 'P2', prestation: 'x'.repeat(1501), perimetre: 'Primaire' }],
