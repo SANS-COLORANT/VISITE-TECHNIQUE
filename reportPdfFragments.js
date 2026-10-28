@@ -8,7 +8,7 @@ export function decouperRapportPdf(datas = [], photosConfig = [], inclurePhotos 
   for (const data of datas) {
     const visiteId = String(data?.visite?.id ?? '');
     const photos = inclurePhotos
-      ? photosConfig.filter((p) => String(p.visiteId) === visiteId && p.include !== false)
+      ? photosConfig.filter((p) => String(p.visiteId) === visiteId && p.include !== false && p.exportAllowed !== false)
         .sort((a, b) => (Number(a.ordre) || 0) - (Number(b.ordre) || 0))
       : [];
     const nombre = Math.max(1, Math.ceil(photos.length / MAX_PHOTOS_PAR_FRAGMENT));

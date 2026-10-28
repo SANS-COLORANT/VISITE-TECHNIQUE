@@ -303,7 +303,7 @@ export function pictoPoste(poste) {
 /** Origine d'une photo d'après sa `entite_key`. */
 export function originePhoto(entiteKey) {
   const k = String(entiteKey || '');
-  if (!k) return 'generale';
+  if (!k) return 'libre';
   if (/^(equipement|materiel|equipement_site)\|\|/.test(k)) return 'equipement';
   if (/^(compteur|compteur_site|point_mesure)\|\|/.test(k)) return 'compteur';
   if (/^remarque\|\|/.test(k)) return 'reserve';
@@ -312,6 +312,7 @@ export function originePhoto(entiteKey) {
 }
 
 export const PHOTO_ORIGINES = Object.freeze([
+  { key: 'libre', label: 'Libres', picto: 'ph/generale' },
   { key: 'generale', label: 'Générales', picto: 'ph/generale' },
   { key: 'equipement', label: 'Équipements', picto: 'ph/equipement' },
   { key: 'compteur', label: 'Compteurs', picto: 'ph/compteur' },
@@ -331,6 +332,7 @@ export const ACTION_PICTOS = Object.freeze({
   enregistre: 'act/enregistre',
   horsConnexion: 'act/hors-connexion',
   modePhoto: 'ph/mode-photo',
+  photoLibre: 'ph/generale',
   plaque: 'ph/plaque-signaletique',
   levee: 'res/levee',
   reprise: 'res/reprise',

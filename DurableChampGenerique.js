@@ -150,7 +150,7 @@ function getDurableNumericConfig(cle) {
  *   « Nb » en tuile − / +, Bâtiments / Logements en deux tuiles) ;
  * - `water` : teinte bleu-vert (ECS) ; `photo={false}` retire le bouton photo.
  */
-export const DurableChampGenerique = React.memo(function DurableChampGenerique({ visiteId, sectionCode, field, valeurInitiale, onSaved, displayLabel, onRename, picto = null, choix = false, compact = false, water = false, photo = true }) {
+export const DurableChampGenerique = React.memo(function DurableChampGenerique({ visiteId, sectionCode, field, valeurInitiale, onSaved, displayLabel, onRename, picto = null, choix = false, compact = false, compactStepper = false, water = false, photo = true }) {
   const unit = extractUnit(field.cle);
   const label = field.label || cleanLabel(field.cle);
   const entiteKey = `${sectionCode}||${field.cle}`;
@@ -272,7 +272,7 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
           placeholder="0,00"
         />
       ) : numericConfig ? (
-        <StepperNumerique valeur={valeur} config={numericConfig} start={numericConfig.start} onChange={(v) => { setImmediate(v).catch(() => {}); }} />
+        <StepperNumerique valeur={valeur} config={numericConfig} start={numericConfig.start} compactValue={compactStepper} onChange={(v) => { setImmediate(v).catch(() => {}); }} />
       ) : chipOptions ? (
         <ChipSelector valeur={valeur} options={chipOptions} onChange={(v) => { setImmediate(v).catch(() => {}); }} />
       ) : (

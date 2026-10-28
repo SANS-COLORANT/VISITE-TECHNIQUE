@@ -25,6 +25,19 @@ async function supprimerDonneesVisite(db, visiteId) {
   // nettoyer le stockage natif une fois la transaction validée.
   const photos = await db.getAllAsync(`SELECT uri FROM photos WHERE visite_id=?`, [visiteId]);
 
+  // attributs_libres/provenances sont polymorphes, sans contrainte FK.
+  // Effacer uniquement les identités de la visite supprimée ; conserver
+  // les attributs des réseaux permanents et toutes les visites voisines.
+  for (const [type, table] of [['reseau','reseaux'], ['remarque','remarques'], ['compteur','compteurs']]) {
+    await db.runAsync(
+      `DELETE FROM attributs_libres WHERE entite_type=? AND entite_id IN (SELECT id FROM ${table} WHERE visite_id=?)`,
+      [type, visiteId]);
+    await db.runAsync(
+      `DELETE FROM provenances WHERE entite_type=? AND entite_id IN (SELECT id FROM ${table} WHERE visite_id=?)`,
+      [type, visiteId]);
+  }
+  await db.runAsync("DELETE FROM attributs_libres WHERE entite_type='visite' AND entite_id=?", [visiteId]);
+  await db.runAsync("DELETE FROM provenances WHERE entite_type='visite' AND entite_id=?", [visiteId]);
   // Tables historiques/legacy sans FK explicites : nettoyage manuel pour ne laisser aucun orphelin.
   const tables = [
     'photos', 'remarques', 'notes', 'controles_visite', 'champs_visite',

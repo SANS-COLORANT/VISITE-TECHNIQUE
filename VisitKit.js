@@ -363,6 +363,14 @@ export const ValueTile = memo(function ValueTile({
         ) : (
           <Text numberOfLines={1} style={s.tileLabel}>{label}</Text>
         )}
+        {String(value ?? '').trim() !== '' ? <TouchableOpacity accessibilityRole="button"
+          accessibilityLabel={`Effacer la valeur de ${label}`}
+          onPress={() => onChange?.('')}
+          hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }}
+          style={{ minHeight: 34, minWidth: 52, alignItems: 'center', justifyContent: 'center',
+            borderRadius: 8, marginLeft: 'auto', paddingHorizontal: 5 }}>
+          <Text style={{ fontFamily: FONTS.bodySemi, fontSize: 10.5, color: COLORS.orangeDark }}>× Effacer</Text>
+        </TouchableOpacity> : null}
       </View>
       <View style={s.tileRow}>
         <TouchableOpacity accessibilityLabel={`Diminuer ${label}`} onPress={() => bump(-1)} style={s.tileBtn} hitSlop={{ top: 6, bottom: 6, left: 4, right: 4 }}>

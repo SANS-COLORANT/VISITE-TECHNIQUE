@@ -87,6 +87,69 @@ test('all REMAR values survive serialized Excel export and native database impor
   assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk, true);
 });
 
+test('typed site building and dwelling counts survive ICPE export/import, legacy mixed cell unchanged', async () => {
+  const id = await newVisit('icpe_v1');
+  const section = 'infos.informations_g_n_rales';
+  await db.runAsync('INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)',
+    [id, section, 'Nombre de bâtiments', '2']);
+  await db.runAsync('INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)',
+    [id, section, 'Nombre de logements', '8']);
+  await db.runAsync('INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)',
+    [id, section, 'Nbr de bât / lgt', '8']);
+  const { wb } = await construireClasseur(id);
+  assert.ok(wb.Sheets.DONNEES_SITE_METRA, 'typed counts require their own reversible annex');
+  assert.equal(wb.Sheets.DONNEES_SITE_METRA.B2.v, '2');
+  assert.equal(wb.Sheets.DONNEES_SITE_METRA.B3.v, '8');
+  assert.equal(wb.Sheets['TRAME ICPE'].C16.v, '8', 'legacy mixed field is not reinterpreted');
+  const analysis = analyserClasseur(roundtrip(wb), 'icpe-nombres-distincts.xlsx');
+  const values = Object.fromEntries(analysis.champs.filter((row) =>
+    ['Nombre de bâtiments','Nombre de logements'].includes(row.cle)).map((row) => [row.cle,row.valeur]));
+  assert.deepEqual(values, {'Nombre de bâtiments':'2','Nombre de logements':'8'});
+  const imported = await importerAnalyseExcel(analysis);
+  const restored = await db.getAllAsync(
+    "SELECT cle,valeur FROM champs_visite WHERE visite_id=? AND cle IN ('Nombre de bâtiments','Nombre de logements')",
+    [imported.visiteId]);
+  assert.deepEqual(Object.fromEntries(restored.map((row) => [row.cle,row.valeur])), values);
+  assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk, true);
+});
+
+test('multipoint curve and weekday schedule survive spreadsheet export and import without legacy overwrite', async () => {
+  const model = await import('../networkProgramming.js');
+  assert.deepEqual(model.pointsFromLegacy('-15\n-7\n0', '75\n65\n52'),
+    [{ext:'-15',dep:'75'},{ext:'-7',dep:'65'},{ext:'0',dep:'52'}]);
+  assert.throws(() => model.validateNetworkPoints([{ext:'3',dep:'55'},{ext:'3',dep:'56'}]), /même température/);
+  const id = await newVisit();
+  const reseauId = 'regulation-structuree-test';
+  await db.runAsync("INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,consigne_programme_horaire) VALUES(?,?,1,'Radiateurs','7','62','1.4','Ancien programme libre')", [reseauId,id]);
+  const points = [{ext:'-12',dep:'78'},{ext:'0',dep:'55'},{ext:'15',dep:'32'}];
+  const schedule = model.emptyWeeklySchedule();
+  schedule.allDays = true;
+  schedule.days.Lun = [{start:'06:00',end:'22:00',comfort:'20',reduced:'16'}];
+  for(const [key,value] of [[model.NETWORK_POINTS_KEY,points],[model.NETWORK_SCHEDULE_KEY,schedule]]) {
+    await db.runAsync("INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur,type_valeur) VALUES(?,'reseau',?,?,?,'json')",
+      ['attr-'+key,reseauId,key,JSON.stringify(value)]);
+  }
+  const { wb } = await construireClasseur(id);
+  assert.equal(wb.Sheets.RESEAUX_DETAIL.C2.v,'-12\n0\n15');
+  assert.equal(wb.Sheets.RESEAUX_DETAIL.D2.v,'78\n55\n32');
+  assert.match(wb.Sheets.RESEAUX_DETAIL.G2.v,/Tous les jours/);
+  assert.equal(wb.Sheets.PROGRAMMATION_RESEAUX.C2.v,JSON.stringify(points));
+  const restored=analyserClasseur(roundtrip(wb),'regulation-structuree.xlsx');
+  assert.equal(restored.reseaux.length,1);
+  assert.deepEqual(restored.reseaux[0].points,points);
+  assert.equal(restored.reseaux[0].schedule.allDays,true);
+  const imported=await importerAnalyseExcel(restored);
+  const newNetwork=await db.getFirstAsync('SELECT id,courbe_de_chauffe FROM reseaux WHERE visite_id=?',[imported.visiteId]);
+  assert.equal(newNetwork.courbe_de_chauffe,'1.4','legacy slope remains available');
+  const attrs=await db.getAllAsync("SELECT cle,valeur FROM attributs_libres WHERE entite_type='reseau' AND entite_id=?", [newNetwork.id]);
+  assert.equal(attrs.length,2,'both independent structured values remain linked to imported network');
+  const parsed=Object.fromEntries(attrs.map(a=>[a.cle,JSON.parse(a.valeur)]));
+  assert.deepEqual(parsed[model.NETWORK_POINTS_KEY],points);
+  assert.equal(parsed[model.NETWORK_SCHEDULE_KEY].days.Dim[0].comfort,'20',
+    'same daily schedule expands with no loss of day semantics');
+  assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk,true);
+});
+
 test('REMAR exports and reimports dynamic network/meter annexes without losing original points', async () => {
   const id = await newVisit();
   await db.runAsync(`INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire)
@@ -252,4 +315,53 @@ test('the original REMAR CLASSIQUE workbook remains importable after the display
   const analysis = analyserClasseur(wb, 'ancien-modele.xlsx');
   assert.equal(analysis.trameNom, 'TRAME REMAR');
   assert.equal(analysis.champs.find((c) => c.cle === 'Compteur Gaz (m³)').valeur, '12.4');
+});
+
+
+test('REMAR exports and reimports multiple named meters in one unchanged Excel cell', async () => {
+  const id = await newVisit();
+  const mapping = REMAR.excel.fieldMappings.find((m) =>
+    m.panelId === 'p-remar-releves' && m.cle === 'Compteur Gaz (m³)');
+  assert.ok(mapping && /^C\d+$/.test(mapping.valueCell), 'official REMAR meter value cell exists');
+  const records = [
+    ['gaz-a', 'Gaz chaudière A', '12345,6'],
+    ['gaz-b', 'Gaz chaudière B', '987'],
+  ];
+  for (const [meterId, label, valeur] of records) {
+    await db.runAsync('INSERT INTO compteurs(id,visite_id,label,valeur,unite,destination) VALUES(?,?,?,?,?,?)',
+      [meterId, id, label, valeur, 'm³', mapping.cle]);
+  }
+  await db.runAsync('INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)',
+    [id, mapping.sectionCode, mapping.cle, 'VALEUR_HISTORIQUE_OBSOLETE']);
+  const exported = roundtrip((await construireClasseur(id)).wb);
+  const original = exported.Sheets[REMAR.excel.mainSheet][mapping.valueCell].v;
+  assert.equal(original, 'Gaz chaudière A : 12345,6 m³\nGaz chaudière B : 987 m³');
+  assert.equal((original.match(/\n/g) || []).length, 1);
+  const analysed = analyserClasseur(exported, 'remar-compteurs-multi.xlsx');
+  const readings = analysed.compteurs.filter((m) => m.destination === mapping.cle);
+  assert.deepEqual(readings.map((r) => [r.label, r.valeur]),
+    [['Gaz chaudière A', '12345,6'], ['Gaz chaudière B', '987']]);
+  // Explicit local binding is required once prior tests created several
+  // installations. Keep the production guard against an unsafe guess.
+  const imported = await importerAnalyseExcel(analysed, { installationId: 'local' });
+  const rows = await db.getAllAsync('SELECT label,valeur,destination FROM compteurs WHERE visite_id=? AND destination=? ORDER BY rowid',
+    [imported.visiteId, mapping.cle]);
+  assert.deepEqual(rows.map((r) => [r.label, r.valeur]),
+    [['Gaz chaudière A', '12345,6'], ['Gaz chaudière B', '987']]);
+  const roundtripped = (await construireClasseur(imported.visiteId)).wb;
+  assert.equal(roundtripped.Sheets[REMAR.excel.mainSheet][mapping.valueCell].v, original);
+  assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk, true);
+});
+
+test('REMAR Excel importer ignores blank lines and creates separate meters', () => {
+  const wb = workbook();
+  const mapping = REMAR.excel.fieldMappings.find((m) =>
+    m.panelId === 'p-remar-releves' && m.cle === "Compteur d'énergie (MWh)");
+  assert.ok(mapping);
+  wb.Sheets[REMAR.excel.mainSheet][mapping.valueCell] = { t: 's', v: 'Énergie A : 52,3 MWh\n\n\nÉnergie B : 100 MWh' };
+  const analysed = analyserClasseur(roundtrip(wb), 'remar-comptage-ancienne-visite.xlsx');
+  const readings = analysed.compteurs.filter((m) => m.destination === mapping.cle);
+  assert.equal(readings.length, 2);
+  assert.deepEqual(readings.map((m) => [m.label, m.valeur, m.unite]),
+    [['Énergie A', '52,3', 'MWh'], ['Énergie B', '100', 'MWh']]);
 });

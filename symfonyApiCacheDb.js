@@ -395,6 +395,28 @@ export async function materializeCachedClient(remoteClientId) {
   return id;
 }
 
+/**
+ * Le SITE possède son adresse propre : ne jamais réutiliser celle du client.
+ * Les corrections faites sur tablette restent prioritaires à la synchro.
+ */
+export function addressFromRemoteSite(source) {
+  let site = source;
+  if (typeof source === 'string') { try { site = JSON.parse(source); } catch { site = null; } }
+  if (!site || typeof site !== 'object') return null;
+  const street = clean(site.adresse ?? site.adresse_postale ?? site.adressePostale ?? site.address);
+  const postal = clean(site.code_postal ?? site.codePostal);
+  const city = clean(site.ville ?? site.city);
+  const locality = [postal, city].filter(Boolean).join(' ');
+  return [street, locality].filter(Boolean).join('\n') || null;
+}
+async function populateMissingSiteAddress(database, localSiteId, payload) {
+  const address = addressFromRemoteSite(payload);
+  if (!address || !localSiteId) return false;
+  const changed = await database.runAsync(
+    "UPDATE sites SET adresse=? WHERE id=? AND (adresse IS NULL OR trim(adresse)='')",
+    [address, localSiteId]);
+  return Number(changed?.changes || 0) > 0;
+}
 export async function materializeCachedSite(remoteSiteId, remoteClientId = null) {
   const database = await db();
   const siteRemoteId = clean(remoteSiteId);
@@ -419,6 +441,7 @@ export async function materializeCachedSite(remoteSiteId, remoteClientId = null)
   // SITE est une identité physique globale dans Symfony. Même s'il apparaît
   // via plusieurs LOT/CLIENT, METRA conserve un seul patrimoine pour ce site.
   if (remote.local_site_id) {
+    await populateMissingSiteAddress(database, remote.local_site_id, remote.payload_json);
     await database.runAsync(`UPDATE api_client_site_links SET local_site_id=? WHERE remote_site_id=?`, [remote.local_site_id, siteRemoteId]);
     return remote.local_site_id;
   }
@@ -442,14 +465,15 @@ export async function materializeCachedSite(remoteSiteId, remoteClientId = null)
         `UPDATE api_client_site_links SET local_site_id=? WHERE remote_site_id=?`,
         [relationLocalSiteId, siteRemoteId]
       );
+      await populateMissingSiteAddress(database, relationLocalSiteId, remote.payload_json);
       return relationLocalSiteId;
     }
   }
 
   const localSiteId = createId();
   await database.runAsync(
-    `INSERT INTO sites(id,client_id,nom_site,statut) VALUES(?,?,?,'Actif')`,
-    [localSiteId, clientId, remote.nom]
+    `INSERT INTO sites(id,client_id,nom_site,statut,adresse) VALUES(?,?,?,'Actif',?)`,
+    [localSiteId, clientId, remote.nom, addressFromRemoteSite(remote.payload_json)]
   );
 
   await database.runAsync(

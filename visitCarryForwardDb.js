@@ -215,6 +215,22 @@ async function copyUnresolvedReserves(db, visiteId, sourceVisits) {
   return copied;
 }
 
+async function copyStructuredNetworkSettings(db, sourceId, targetId) {
+  if (!sourceId || !targetId || sourceId === targetId) return;
+  const keys = ['regulation.courbe_points_v1', 'regulation.programme_hebdomadaire_v1'];
+  const rows = await db.getAllAsync(
+    'SELECT cle,valeur FROM attributs_libres WHERE entite_type=? AND entite_id=? AND cle IN (?,?)',
+    ['reseau', sourceId, ...keys]);
+  for (const row of rows) {
+    if (!keys.includes(row.cle)) continue;
+    // Valeurs de la visite cible prioritaires, pas d'effacement des choix
+    // réalisés sur tablette en mode hors ligne.
+    await db.runAsync(
+      "INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur,type_valeur) VALUES(?,'reseau',?,?,?,'json') ON CONFLICT(entite_type,entite_id,cle) DO NOTHING",
+      [createId(),targetId,row.cle,row.valeur]);
+  }
+}
+
 async function copyNetworkValues(db, visiteId, previousVisitId, referenceOnly = false) {
   const current = await db.getAllAsync(
     `SELECT id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire,reseau_site_id
@@ -268,6 +284,7 @@ async function copyNetworkValues(db, visiteId, previousVisitId, referenceOnly = 
         ]
       );
       if (Number(result?.changes || 0) > 0) copied += 1;
+      await copyStructuredNetworkSettings(db, row.id, existing.id);
       continue;
     }
 
@@ -279,6 +296,7 @@ async function copyNetworkValues(db, visiteId, previousVisitId, referenceOnly = 
         referenceOnly ? null : row.t_dep_c ?? null, row.courbe_de_chauffe ?? null, row.tnc ?? null,
         row.consigne_programme_horaire ?? null, row.reseau_site_id || null]
     );
+    await copyStructuredNetworkSettings(db, row.id, newId);
     const provenance = await db.getAllAsync(
       `SELECT reference_externe,details_json FROM provenances
        WHERE entite_type='reseau' AND entite_id=? AND origine='api_symfony'

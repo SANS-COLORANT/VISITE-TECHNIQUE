@@ -90,10 +90,10 @@ for (const file of [
   if (!fs.existsSync(path.join(ROOT, file))) fail('module natif Missions manquant: ' + file);
 }
 
-// Two generations of the native build exist: the historical run-number
-// stamping and the versioned REMAR release pipeline. Both must explicitly
-// protect the same package, monotonically increasing versionCode, build label,
-// historical certificate, Expo prebuild, and signed Gradle release.
+// Native build and older release pipelines must protect the same Android
+// package, increasing versionCode, visible generic METRA build number,
+// historical certificate, Expo prebuild and signed Gradle release.
+
 const requireAnyText = (text, patterns, label) => {
   if (!patterns.some((pattern) => text.includes(pattern))) fail(label + ' manquant');
 };
@@ -107,8 +107,10 @@ requireAnyText(apkWorkflow, [
 ], 'incrément versionCode APK');
 requireAnyText(apkWorkflow, [
   "APK_BUILD = '${{ github.run_number }}'",
-  "APK_BUILD = 'REMAR-",
+  'os.environ[\'BUILD_NUMBER\'] + "\'"',
 ], 'numéro de build visible');
+// The APK is the whole METRA app; the build number is never named after a trame.
+if (apkWorkflow.includes('APK_BUILD = \'REMAR-')) fail('Préfixe REMAR interdit dans le numéro de build METRA');
 requireAnyText(apkWorkflow, [
   'METRA_COMPAT_SIGNER_SHA256',
   'FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C',

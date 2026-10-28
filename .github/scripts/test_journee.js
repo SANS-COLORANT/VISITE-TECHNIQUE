@@ -59,6 +59,24 @@ async function sqlPart() {
   const r = m.resumerItineraire(cibles);
   assert.strictEqual(r.total, 4); assert.strictEqual(r.faits, 1); assert.strictEqual(r.restants, 3); assert.strictEqual(r.pct, 25);
   assert.strictEqual(r.prochain.nomLocal, 'Sous-station');
+  assert.deepStrictEqual(r.cibles.map((c) => c.siteId), ['s1', 's2', 's3'],
+    'all planned visits remain accessible regardless of selected order');
+  assert.strictEqual(r.cibles[2].nomSite, 'Annexe');
+  assert.strictEqual(r.cibles[0].installationId, 'l2');
+  const visiteUi = fs.readFileSync(path.join(root, 'MaJourneeCard.js'), 'utf8');
+  assert.ok(!visiteUi.includes("navigation.addListener('focus'") &&
+    visiteUi.includes('useEffect(() => { charger(); }, [charger, refreshKey]);'),
+    'Ma journée uses METRA custom router safely; no unsupported React Navigation listener');
+  assert.ok(visiteUi.includes('cibles.slice(0, 4).map(ligneCible)') &&
+    visiteUi.includes('Voir les {cibles.length} visites') &&
+    visiteUi.includes('onPress={() => ouvrirCible(cible)}') &&
+    visiteUi.includes('focusInstallationId: cible.installationId || null'),
+    'home opens the exact planned site/local, not the first site visit');
+  const localsUi = fs.readFileSync(path.join(root, 'SiteLocalsScreen.js'), 'utf8');
+  assert.ok(localsUi.includes('String(row.installation_id) === String(wanted)') &&
+    localsUi.includes('ouvrirLocal(target)') &&
+    localsUi.includes('Local de la tournée indisponible'),
+    'local is resolved by strict installation ID with safe fallback; no fuzzy name match');
   assert.strictEqual(m.libelleReprise(r), 'Reprendre · Bât A · Sous-station');
   assert.strictEqual(r.clients[0].nomClient, 'Horizon'); // le plus de restes en premier
   assert.strictEqual(m.libelleCible({ nomSite: 'Tour', nomLocal: '' }), 'Tour');

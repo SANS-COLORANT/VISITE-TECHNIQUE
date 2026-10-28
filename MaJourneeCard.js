@@ -4,7 +4,7 @@
  * local à faire. Masquée quand il n'y a rien à suivre.
  */
 import React, { useCallback, useEffect, useState } from 'react';
-import { Text, TouchableOpacity, View } from 'react-native';
+import { FlatList, Modal, Text, TouchableOpacity, View } from 'react-native';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { COLORS, FONTS } from './styles.js';
 import { FadeUp, GlassCard, ProgressRing } from './premiumChrome.js';
@@ -23,15 +23,39 @@ function Pastille({ valeur, libelle, alerte = false }) {
 
 export function MaJourneeCard({ navigation, refreshKey = 0 }) {
   const [data, setData] = useState(CACHE);
+  const [toutVoir, setToutVoir] = useState(false);
   const charger = useCallback(() => chargerJournee().then((d) => { CACHE = d; setData(d); }).catch(() => {}), []);
   useEffect(() => { charger(); }, [charger, refreshKey]);
+  // Navigation METRA est un routeur maison : il ne propose PAS addListener.
+  // L'écran Home est démonté lors d'une navigation vers Client/Site, puis
+  // remonté au retour. L'effet de chargement ci-dessus suffit au rafraîchissement.
+  // Un abonnement React Navigation provoquerait un plantage dès l'accueil.
   if (!data || !journeeUtile(data)) return null;
   const { itineraire, aEnvoyer, reserves } = data;
   const prochain = itineraire.prochain;
-  const reprendre = () => {
-    if (!prochain) return;
-    navigation.navigate('SiteLocals', { siteId: prochain.siteId, nomSite: prochain.nomSite, clientId: prochain.clientId, nomClient: prochain.nomClient });
+  const ouvrirCible = (cible) => {
+    if (!cible) return;
+    setToutVoir(false);
+    navigation.navigate('SiteLocals', {
+      siteId: cible.siteId, nomSite: cible.nomSite, clientId: cible.clientId, nomClient: cible.nomClient,
+      focusInstallationId: cible.installationId || null,
+      focusRequest: String(Date.now()) + ':' + String(cible.id),
+    });
   };
+  const reprendre = () => ouvrirCible(prochain);
+  const cibles = itineraire.cibles || [];
+  const ligneCible = (cible) => <TouchableOpacity key={cible.id}
+    accessibilityRole="button"
+    accessibilityLabel={`Ouvrir la visite de ${libelleCible(cible)}`}
+    onPress={() => ouvrirCible(cible)}
+    style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 42, paddingVertical: 8, paddingHorizontal: 10,
+      borderRadius: 11, borderWidth: 1, borderColor: 'rgba(22,21,15,0.10)', backgroundColor: 'rgba(255,255,255,0.78)' }}>
+    <CvcIcon name="map-pin" size={15} color={COLORS.orangeDark} />
+    <Text style={{ flex: 1, color: COLORS.ink, fontFamily: FONTS.bodySemi, fontSize: 12.5 }} numberOfLines={2}>
+      {libelleCible(cible)}{cible.nomClient ? ` · ${cible.nomClient}` : ''}
+    </Text>
+    <CvcIcon name="chevron-right" size={16} color={COLORS.orangeDark} />
+  </TouchableOpacity>;
   return <FadeUp style={{ marginBottom: 14 }}>
     <GlassCard>
       <View style={{ padding: 14, gap: 12 }}>
@@ -55,6 +79,19 @@ export function MaJourneeCard({ navigation, refreshKey = 0 }) {
           <ButtonGlow />
           <Text numberOfLines={1} style={{ color: '#fff', fontFamily: FONTS.bodyBold, fontSize: 13.5 }}>{libelleReprise(itineraire)}</Text>
         </TouchableOpacity> : null}
+        {cibles.length ? <View style={{ gap: 6 }}>
+          <Text style={{ color: COLORS.inkSoft, fontFamily: FONTS.bodyBold, fontSize: 11 }}>
+            Visites programmées · ordre libre
+          </Text>
+          {cibles.slice(0, 4).map(ligneCible)}
+          {cibles.length > 4 ? <TouchableOpacity accessibilityRole="button"
+            accessibilityLabel={`Voir toutes les ${cibles.length} visites programmées`}
+            onPress={() => setToutVoir(true)} style={{ paddingVertical: 9, alignItems: 'center' }}>
+            <Text style={{ fontFamily: FONTS.bold, color: COLORS.orangeDark, fontSize: 12.5 }}>
+              Voir les {cibles.length} visites
+            </Text>
+          </TouchableOpacity> : null}
+        </View> : null}
         <View style={{ flexDirection: 'row', gap: 10 }}>
           <Pastille valeur={aEnvoyer} libelle={aEnvoyer > 1 ? 'à envoyer' : 'à envoyer'} />
           <Pastille valeur={reserves} libelle={reserves > 1 ? 'réserves ouvertes' : 'réserve ouverte'} alerte />
@@ -70,5 +107,22 @@ export function MaJourneeCard({ navigation, refreshKey = 0 }) {
         </View> : null}
       </View>
     </GlassCard>
+    <Modal visible={toutVoir} transparent animationType="fade" onRequestClose={() => setToutVoir(false)}>
+      <View style={{ flex: 1, backgroundColor: 'rgba(10,10,10,0.5)', padding: 18, justifyContent: 'center' }}>
+        <View style={{ maxHeight: '82%', borderRadius: 20, backgroundColor: '#FFF', padding: 16, gap: 12 }}>
+          <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Text style={{ fontFamily: FONTS.black, color: COLORS.ink, fontSize: 17 }}>Ma journée · {cibles.length} visites</Text>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer la liste des visites"
+              onPress={() => setToutVoir(false)} style={{ padding: 12 }}>
+              <CvcIcon name="x" size={22} color={COLORS.ink} />
+            </TouchableOpacity>
+          </View>
+          <FlatList data={cibles} keyExtractor={(item) => item.id}
+            renderItem={({ item }) => <View style={{ marginBottom: 8 }}>{ligneCible(item)}</View>}
+            initialNumToRender={9} maxToRenderPerBatch={8} windowSize={7}
+            removeClippedSubviews={false}/>
+        </View>
+      </View>
+    </Modal>
   </FadeUp>;
 }

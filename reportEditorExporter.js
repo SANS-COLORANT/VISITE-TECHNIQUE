@@ -133,7 +133,7 @@ function personnaliserPhotosArticle(article, data, photosConfig) {
   if (!cards.length) return article;
 
   const photos = (photosConfig || [])
-    .filter((p) => p.visiteId === data.visite.id && p.include)
+    .filter((p) => p.visiteId === data.visite.id && p.include && p.exportAllowed !== false)
     .sort((a, b) => a.ordre - b.ordre);
 
   const cartes = cards.map((card, index) => {

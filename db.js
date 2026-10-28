@@ -84,6 +84,10 @@ async function supprimerReseau(id) {
   await db.withExclusiveTransactionAsync(async (tx) => {
     if (row.reseau_site_id) await tx.runAsync(
       "UPDATE reseaux_site SET actif=0,modifie_le=datetime('now') WHERE id=?", [row.reseau_site_id]);
+    // Les réglages de courbe et d'horaires sont propres à CETTE ligne
+    // reseaux. Les réseaux historiques des autres visites restent intacts.
+    await tx.runAsync("DELETE FROM attributs_libres WHERE entite_type='reseau' AND entite_id=?", [id]);
+    await tx.runAsync("DELETE FROM provenances WHERE entite_type='reseau' AND entite_id=?", [id]);
     // Ne touche ni aux anciennes visites ni à leurs photos.
     await tx.runAsync('DELETE FROM reseaux WHERE id=?', [id]);
   });
@@ -201,7 +205,7 @@ async function listerPhotos(visiteId,entiteKey=null){
 }
 async function ajouterPhoto(visiteId,entiteKey,uri,label){
   const db=await getDb(),id=uuidv4();
-  await db.runAsync(`INSERT INTO photos(id,visite_id,entite_key,uri,label) VALUES(?,?,?,?,?)`,[id,visiteId,entiteKey||null,uri,label||null]);
+  await db.runAsync(`INSERT INTO photos(id,visite_id,entite_key,uri,label,inclure_export) VALUES(?,?,?,?,?,?)`,[id,visiteId,entiteKey||null,uri,label||null,entiteKey?1:0]);
   return id;
 }
 async function remplacerPhoto(id,uri){
@@ -236,5 +240,13 @@ export async function dupliquerReseau(reseauId) {
     [source.t_ext_c ?? null, source.t_dep_c ?? null, source.courbe_de_chauffe ?? null, source.tnc ?? null,
       source.consigne_programme_horaire ?? null, id]
   );
+  // Dupliquer aussi la programmation structurée du réseau courant,
+  // sous la nouvelle identité permanente ; l'original reste inchangé.
+  const attributes = await db.getAllAsync(
+    "SELECT cle,valeur FROM attributs_libres WHERE entite_type='reseau' AND entite_id=? AND cle IN (?,?)",
+    [reseauId,'regulation.courbe_points_v1','regulation.programme_hebdomadaire_v1']);
+  for (const attr of attributes) await db.runAsync(
+    "INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur,type_valeur) VALUES(?,'reseau',?,?,?,'json') ON CONFLICT(entite_type,entite_id,cle) DO NOTHING",
+    [uuidv4(),id,attr.cle,attr.valeur]);
   return id;
 }

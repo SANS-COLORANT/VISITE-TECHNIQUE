@@ -19,6 +19,11 @@ const TRAME_DATA = {
       { cle: "Nom du site", type: "champ" },
       { cle: "Adresse", type: "champ" },
       { cle: "Nbr de bât / lgt", type: "champ" },
+      // Les deux champs servent uniquement aux données distinctes attestées
+      // par le référentiel : la valeur mixte historique n'est jamais répartie
+      // automatiquement par une hypothèse de type résidentiel.
+      { cle: "Nombre de bâtiments", type: "champ" },
+      { cle: "Nombre de logements", type: "champ" },
       { cle: "Energie - pression", type: "champ" },
       { cle: "Exploitant - marché", type: "champ" },
       { cle: "Type de LT", type: "champ" },

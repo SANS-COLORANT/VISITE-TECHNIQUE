@@ -59,7 +59,9 @@ async function main() {
     await server.db.execAsync(`INSERT INTO clients(id,nom) VALUES('client','Client Alpha');
       INSERT INTO sites(id,client_id,nom_site) VALUES('site','client','Site Alpha');
       INSERT INTO installations(id,site_id,type_code,nom) VALUES('local','site','sous_station','SST 1'),('other','site','sous_station','SST 2');`);
-    const importer = load('excelImport.js', { ...load('releveMultiligne.js', { pictoTemperature: load('relevePictos.js').pictoTemperature }), XLSX, DocumentPicker: {}, FileSystem: {}, detecterTrameDepuisClasseur: registry.detecterTrameDepuisClasseur, getDb: async () => server.db, uuidv4: createId });
+    const importer = load('excelImport.js', { ...load('releveMultiligne.js', { pictoTemperature: load('relevePictos.js').pictoTemperature }),
+      ...load('networkProgramming.js'), XLSX, DocumentPicker: {}, FileSystem: {},
+      detecterTrameDepuisClasseur: registry.detecterTrameDepuisClasseur, getDb: async () => server.db, uuidv4: createId });
     const analyse = { client: 'Client', site: 'Site', trameId: definition.id, nomFichier: 'RCU.xlsx', dateVisite: '2026-01-01',
       champs: [
         { sectionCode: 'infos.informations_g_n_rales', cle: 'Energie - pression', valeur: 'RCU 8 bar' },
@@ -178,6 +180,35 @@ async function main() {
     assert.equal((await server.db.getAllAsync('SELECT * FROM reseaux WHERE visite_id=?', [isolatedRemar])).length, 0, 'different local has no REMAR network inheritance');
     assert.equal((await server.db.getAllAsync('SELECT * FROM compteurs WHERE visite_id=?', [isolatedRemar])).length, 0, 'different local has no REMAR meter inheritance');
     console.log('REMAR regression validated: independent local identities, active network/counter carry-forward, retired assets ignored, original photos preserved.');
+
+    // Retour terrain : ancienne visite ICPE complète, visite intermédiaire
+    // Données techniques sans conformité, nouvelle visite ICPE. Rechercher
+    // la dernière VALEUR connue de chaque point, pas seulement la dernière
+    // visite. Ne jamais récupérer celle d'un autre local du même site.
+    await server.db.execAsync(
+      "INSERT INTO installations(id,site_id,type_code,nom) VALUES('icpe-local','site','chaufferie','Chaufferie historique'),('icpe-autre','site','chaufferie','Voisine');" +
+      "INSERT INTO visites(id,site_id,installation_id,trame_id,statut,date_visite) VALUES('icpe-a','site','icpe-local','icpe_v1','terminee','2025-09-01'),('tech-b','site','icpe-local','icpe_v1','terminee','2026-04-01'),('icpe-voisine','site','icpe-autre','icpe_v1','terminee','2026-04-02');" +
+      "INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire) VALUES('icpe-a','conf-local.ventilation','Ventilation haute','N.S','Section à revoir'),('icpe-a','conf-local.partie_local','Issue de secours','S','Porte conforme'),('icpe-voisine','conf-local.ventilation','Ventilation haute','S','Autre bâtiment');"
+    );
+    const retourIcpe = await creation.creerVisiteProduction({
+      siteId: 'site', installationId: 'icpe-local', trameId: 'icpe_v1',
+    });
+    const ancienAvis = await server.db.getFirstAsync(
+      "SELECT avis,commentaire FROM controles_visite WHERE visite_id=? AND section_code='conf-local.ventilation' AND cle='Ventilation haute'",
+      [retourIcpe]);
+    assert.equal(ancienAvis?.avis, 'N.S', 'historical noncompliance survives intervening stripped technical visit');
+    assert.equal(ancienAvis?.commentaire, 'Section à revoir', 'historical ICPE comment survives');
+    const issueSecours = await server.db.getFirstAsync(
+      "SELECT avis FROM controles_visite WHERE visite_id=? AND section_code='conf-local.partie_local' AND cle='Issue de secours'",
+      [retourIcpe]);
+    assert.equal(issueSecours?.avis, 'S', 'different historical criteria can come from older ICPE visit');
+    const autreRetour = await creation.creerVisiteProduction({
+      siteId: 'site', installationId: 'icpe-autre', trameId: 'icpe_v1',
+    });
+    const voisin = await server.db.getFirstAsync(
+      "SELECT commentaire FROM controles_visite WHERE visite_id=? AND cle='Ventilation haute'", [autreRetour]);
+    assert.equal(voisin?.commentaire, 'Autre bâtiment', 'each local retains its own old conformity');
+    console.log('ICPE -> Données techniques -> ICPE regression validated using SQLite history.');
 
     assert.deepEqual(await server.db.getAllAsync('PRAGMA foreign_key_check'), []);
     console.log('RCU regression validated: import, close/reopen, production creation, complete prefill, unresolved reserve carry-forward, isolated photos/observations, local isolation.');

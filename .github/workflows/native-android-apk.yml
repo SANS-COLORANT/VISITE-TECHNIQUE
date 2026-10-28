@@ -1,10 +1,12 @@
-name: Build Native Android APK
+name: Build Native APK
+run-name: "Build Native APK #${{ github.run_number }}"
 on:
   workflow_dispatch:
   push:
     branches:
       - native-android
       - feat/trame-remar-complete
+      - feat/terrain-feedback-all-phases-20261027
     paths:
       - '**/*.js'
       - '**/*.json'
@@ -46,6 +48,8 @@ jobs:
         run: |
           npm ci --no-audit --no-fund --prefer-offline
           git diff --exit-code
+      - name: Verify complete committed METRA contracts, SQLite and regressions
+        run: npm run verify:metra
       - name: Test REMAR, editable trames and real SQLite round trips
         run: node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
       - name: Preserve large PDF report regression (457 photos)
@@ -63,7 +67,7 @@ jobs:
           data['expo']['android']['versionCode'] = int(time.time())
           p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
           version = Path('appVersion.js')
-          version.write_text(version.read_text().replace("APK_BUILD = 'DEV'", "APK_BUILD = 'REMAR-" + os.environ['BUILD_NUMBER'] + "'"))
+          version.write_text(version.read_text().replace("APK_BUILD = 'DEV'", "APK_BUILD = '" + os.environ['BUILD_NUMBER'] + "'"))
           Path('/tmp/metra-version-code').write_text(str(data['expo']['android']['versionCode']))
           PY
       - name: Validate complete Android bundle
@@ -82,25 +86,45 @@ jobs:
           python3 .github/scripts/configure_android_release_signing.py
       - name: Build complete standalone release
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx4g -Pkotlin.compiler.execution.strategy=in-process -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64
+        run: |
+          set -o pipefail
+          for attempt in 1 2 3; do
+            echo "Native Gradle release attempt ${attempt}/3"
+            log="$RUNNER_TEMP/metra-native-gradle-${attempt}.log"
+            if ./gradlew assembleRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.internal.http.connectionTimeout=180000 -Dorg.gradle.internal.http.socketTimeout=240000 -Pkotlin.compiler.execution.strategy=in-process -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 2>&1 | tee "$log"; then
+              exit 0
+            fi
+            if ! grep -Eiq '(Read timed out|Connect timed out|Connection reset|Could not download .*\\.aar|Could not get resource|Temporary failure in name resolution)' "$log"; then
+              echo "::error::Gradle failure is not a transient artifact download: no automatic retry."
+              exit 1
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Maven dependency download failed after three attempts."
+              exit 1
+            fi
+            echo "::warning::Transient Maven/Gradle download timeout; retrying release with same source and signing key."
+            sleep $((attempt * 20))
+          done
       - name: Verify Android update identity and signature
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
         run: |
           set -euo pipefail
           mkdir -p release
-          cp android/app/build/outputs/apk/release/app-release.apk release/METRA-TRAME-REMAR-complet.apk
+          cp android/app/build/outputs/apk/release/app-release.apk "release/Build-Native-APK-${BUILD_NUMBER}.apk"
           tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
-          "$tools/apksigner" verify --verbose --print-certs release/METRA-TRAME-REMAR-complet.apk > /tmp/metra-signer.txt
+          "$tools/apksigner" verify --verbose --print-certs "release/Build-Native-APK-${BUILD_NUMBER}.apk" > /tmp/metra-signer.txt
           cat /tmp/metra-signer.txt
           grep -qi 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c' /tmp/metra-signer.txt
-          "$tools/aapt" dump badging release/METRA-TRAME-REMAR-complet.apk > /tmp/metra-badging.txt
+          "$tools/aapt" dump badging "release/Build-Native-APK-${BUILD_NUMBER}.apk" > /tmp/metra-badging.txt
           head -1 /tmp/metra-badging.txt | grep "name='com.visitetechnique.tablet'"
           grep "versionCode='$(cat /tmp/metra-version-code)'" /tmp/metra-badging.txt
           git diff --exit-code -- '*.js' ':!appVersion.js' ':!googleMapsRuntime.generated.js'
           cd release
-          sha256sum METRA-TRAME-REMAR-complet.apk > METRA-TRAME-REMAR-complet.apk.sha256
+          sha256sum "Build-Native-APK-${BUILD_NUMBER}.apk" > "Build-Native-APK-${BUILD_NUMBER}.apk.sha256"
       - uses: actions/upload-artifact@v4
         with:
-          name: visite-technique-tablet-release
+          name: Build-Native-APK-${{ github.run_number }}
           path: release/*
           if-no-files-found: error
           retention-days: 30
@@ -112,14 +136,14 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
-          name: visite-technique-tablet-release
+          name: Build-Native-APK-${{ github.run_number }}
           path: apk
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
-      - name: Launch the actual signed APK and exercise REMAR and its editor
+      - name: Launch signed METRA APK and check startup and trame editor
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 30
@@ -132,7 +156,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: metra-remar-android-smoke
+          name: Build-Native-APK-${{ github.run_number }}-android-smoke
           path: shots/
           if-no-files-found: warn
           retention-days: 30
@@ -144,7 +168,7 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: visite-technique-tablet-release
+          name: Build-Native-APK-${{ github.run_number }}
           path: release
       - name: Publish the complete METRA APK
         env:
@@ -153,12 +177,26 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           cat > /tmp/release-notes.md <<'NOTES'
-          Application METRA complète issue de la version APK 678 et conservant le correctif PDF récent, avec ajout de TRAME REMAR et de Réglages > Trames.
+          METRA — Visite Technique : build natif intégrant les travaux de la PR #108
+          à la suite des fonctions précédentes (ICPE, Données techniques,
+          Réseau de chaleur, REMAR, compteurs, photos, Pilotage et Intranet).
 
-          Même identité Android com.visitetechnique.tablet et même certificat historique METRA ; versionCode incrémenté pour permettre une mise à jour. Sauvegarder ses données avant l'installation d'une nouvelle version. La base conserve le schéma 47 : aucun effacement ni retour à un schéma ancien.
+          Retours terrain : récupération prudente des adresses et nombres
+          bâtiments/logements, courbes de chauffe multipoints et programmes horaires,
+          effacement des valeurs, réserve vérifiée séparée de réserve levée,
+          reprise historique ICPE et accès à toutes les visites de Ma journée.
+          Le masquage conditionnel ECS (point 2.1) est volontairement exclu.
 
-          Trames : modèle REMAR natif, commentaires par avis, import de modèles Excel ou de fichiers METRA, édition des points/choix/mesures/commentaires, versions conservées pour les anciennes visites et export des définitions avec les classeurs.
+          L'application et le numéro de build ne sont pas nommés REMAR :
+          cette trame reste intégrée comme les autres. Identité Android
+          com.visitetechnique.tablet et certificat historique inchangés.
+          VersionCode incrémenté. Installer seulement après sauvegarde de
+          l'archive SQLite/photos.
 
-          Contrôles : npm ci/postinstall sans mutation de code, contrats METRA existants, tests SQLite et aller-retour Excel, non-régression PDF 457 photos, release Gradle signé, lancement et parcours REMAR/Réglages sur émulateur tablette. Les essais terrain sur tablette physique, caméra, OCR et serveur Intranet restent à réaliser avec des données réelles.
+          Contrôles automatiques : contrats MÉTRA, SQLite, Excel, PDF volumineux,
+          JS Android, APK natif Gradle, vérification signature et parcours émulateur.
+          L'essai terrain physique, caméra et Intranet authentifié n'est pas couvert
+          par ces tests et reste à effectuer.
+
           NOTES
-          gh release create "metra-remar-complet-${BUILD_NUMBER}" release/* --target "$GITHUB_SHA" --title "METRA complet — TRAME REMAR — ${BUILD_NUMBER}" --notes-file /tmp/release-notes.md --prerelease
+          gh release create "build-native-apk-${BUILD_NUMBER}" release/* --target "$GITHUB_SHA" --title "Build Native APK #${BUILD_NUMBER}" --notes-file /tmp/release-notes.md --prerelease

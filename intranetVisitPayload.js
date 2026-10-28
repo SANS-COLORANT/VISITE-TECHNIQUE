@@ -402,7 +402,7 @@ async function buildCriteria(db, visite, details, issues) {
             // Dans les panneaux spécialisés, l'index courant remplace
             // l'ancienne valeur de préremplissage. Les champs génériques
             // restent utilisables s'ils n'ont aucun compteur dynamique.
-            const manualFallback = !candidate.specialPanel || /^pression\b/.test(candidate.key);
+            const manualFallback = !candidate.specialPanel || candidate.panelId === 'p-remar-releves' || /^pression\b/.test(candidate.key);
             value = counter.status === 'missing' && manualFallback
               ? fieldMap.get(`${candidate.sectionCode}||${candidate.cle}`) : counter.value;
           } else {

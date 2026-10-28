@@ -130,6 +130,9 @@ async function supprimerRemarque(db, remarque) {
   await marquerLigneeRetiree(db, remarque);
   await supprimerPhotosEntiteComplete(remarque.visite_id, `remarque||${remarque.id}`);
   await db.runAsync(`DELETE FROM remarques WHERE id=?`, [remarque.id]);
+  // Le pointage de vérification appartient à la réserve de cette visite.
+  // Sans FK polymorphe, l'ancien schéma laisse autrement un attribut orphelin.
+  await db.runAsync("DELETE FROM attributs_libres WHERE entite_type='remarque' AND entite_id=?", [remarque.id]);
 }
 
 export async function supprimerRemarqueVisite(id) {
