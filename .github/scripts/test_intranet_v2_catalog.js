@@ -58,6 +58,12 @@ check(!v2.inspectV2TrameCompatibility(catalog, { ...scoped, supportedCapabilitie
   'unsupported reserve capability is rejected even if fields map');
 check(!v2.inspectV2TrameCatalog({ ...catalog, schemaVersion: '2' }).valid,
   'catalogue version must be a number, not a string');
+check(!v2.inspectV2TrameCatalog({ ...catalog, trames: [{ ...rcu, version: '01' }] }).valid,
+  'noncanonical version 01 is rejected');
+check(!v2.inspectV2TrameCatalog({ ...catalog, trames: [{ ...rcu, idSymfony: true }] }).valid,
+  'boolean identity can never become Symfony ID 1');
+check(!v2.inspectV2TrameCatalog({ ...catalog, trames: [{ ...rcu, version: '1e0' }] }).valid,
+  'scientific notation version is not a stable identity');
 check(!v2.inspectV2TrameCatalog({ ...catalog, trames: [{ ...rcu, capabilities:['criteres','unknown'] }] }).valid,
   'unknown future capability cannot silently pass');
 check(!v2.inspectV2TrameCatalog({ ...catalog, trames: [{ ...rcu, criteres: [

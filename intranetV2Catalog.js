@@ -9,7 +9,13 @@ const TYPES = new Set(['champ', 'controle', 'mesure', 'synthese', 'reseau', 'com
 const STATES = new Set(['active', 'deprecated', 'retired']);
 const CAPABILITIES = new Set(['criteres', 'reserves', 'materiels', 'photos', 'reseaux', 'compteurs', 'regulations', 'notes', 'conclusion']);
 function string(value) { return String(value ?? '').trim(); }
-function positiveInteger(value) { const n = Number(value); return Number.isSafeInteger(n) && n > 0; }
+function positiveInteger(value) {
+  // Canonical numeric identifier: reject booleans, 01, 1e0 and decimals.
+  // Accept integer Symfony IDs as either JSON numbers or canonical digit strings.
+  if (typeof value === 'number') return Number.isSafeInteger(value) && value > 0;
+  if (typeof value !== 'string' || !/^[1-9]\d*$/.test(value)) return false;
+  return Number.isSafeInteger(Number(value));
+}
 function stableKey(value) { return KEY.test(string(value)); }
 
 /** La validation est exhaustive et sans effet de bord (compatible offline). */

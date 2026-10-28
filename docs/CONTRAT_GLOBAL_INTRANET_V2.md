@@ -210,3 +210,12 @@ pas une correspondance. Il refuse les capacités serveur non implémentées.
 **Côté Symfony :** préciser les clés stables, les versions coexistantes,
 les trames attribuées au local, les capacités et les règles de dépréciation.
 Le précontrôle est pour le moment pur et offline : aucun endpoint V2 actif.
+
+## Jeux de données démonstrateurs (fictifs)
+
+Les exemples machine lisibles dans `docs/fixtures/intranet_v2_catalogue_exemple.json`
+et `docs/fixtures/intranet_v2_local_exemple.json` couvrent les cinq familles
+existantes et une nouvelle trame, avec deux versions distinctes de RCU.
+Ils sont testés sans réseau dans `.github/scripts/test_intranet_v2_fixtures.js`.
+Les IDs, empreintes et clés de ces exemples sont fictifs; Symfony doit fournir
+les valeurs officielles. Ces fichiers ne sont PAS synchronisés vers l'Intranet.

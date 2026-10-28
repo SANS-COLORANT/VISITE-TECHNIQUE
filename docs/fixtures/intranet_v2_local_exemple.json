@@ -1,0 +1,19 @@
+{
+  "schemaVersion": 2,
+  "local": {
+    "id": 501,
+    "siteId": 45
+  },
+  "tramesAutorisees": [
+    {
+      "cleMetierStable": "reseau_chaleur",
+      "version": 2,
+      "empreinte": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    {
+      "cleMetierStable": "icpe",
+      "version": 1,
+      "empreinte": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  ]
+}

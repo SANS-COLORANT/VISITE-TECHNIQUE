@@ -1,0 +1,199 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-10-28T10:00:00+01:00",
+  "trames": [
+    {
+      "idSymfony": 85,
+      "cleMetierStable": "reseau_chaleur",
+      "version": 1,
+      "empreinte": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "statut": "deprecated",
+      "acceptsExistingOfflineVisits": true,
+      "capabilities": [
+        "criteres",
+        "reserves",
+        "materiels",
+        "photos",
+        "reseaux",
+        "compteurs",
+        "regulations"
+      ],
+      "criteres": [
+        {
+          "brancheId": "10:20:30",
+          "cleMetierStable": "rcu.primaire.p2",
+          "type": "synthese",
+          "obligatoire": true,
+          "avis": {
+            "applicable": false
+          }
+        },
+        {
+          "brancheId": "10:21:31",
+          "cleMetierStable": "rcu.secondaire.compteur",
+          "type": "compteur",
+          "obligatoire": false,
+          "avis": {
+            "applicable": false
+          }
+        }
+      ]
+    },
+    {
+      "idSymfony": 85,
+      "cleMetierStable": "reseau_chaleur",
+      "version": 2,
+      "empreinte": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "statut": "active",
+      "capabilities": [
+        "criteres",
+        "reserves",
+        "materiels",
+        "photos",
+        "reseaux",
+        "compteurs",
+        "regulations"
+      ],
+      "criteres": [
+        {
+          "brancheId": "11:20:30",
+          "cleMetierStable": "rcu.primaire.p2",
+          "type": "synthese",
+          "obligatoire": true,
+          "avis": {
+            "applicable": false
+          }
+        },
+        {
+          "brancheId": "11:21:31",
+          "cleMetierStable": "rcu.secondaire.compteur",
+          "type": "compteur",
+          "obligatoire": false,
+          "avis": {
+            "applicable": false
+          }
+        }
+      ]
+    },
+    {
+      "idSymfony": 101,
+      "cleMetierStable": "icpe",
+      "version": 1,
+      "empreinte": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "statut": "active",
+      "capabilities": [
+        "criteres",
+        "reserves",
+        "materiels",
+        "photos"
+      ],
+      "criteres": [
+        {
+          "brancheId": "12:30:40",
+          "cleMetierStable": "icpe.controle.ventilation",
+          "type": "controle",
+          "obligatoire": true,
+          "avis": {
+            "applicable": true
+          }
+        }
+      ]
+    },
+    {
+      "idSymfony": 102,
+      "cleMetierStable": "vmc",
+      "version": 1,
+      "empreinte": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "statut": "active",
+      "capabilities": [
+        "criteres",
+        "reserves",
+        "materiels",
+        "photos"
+      ],
+      "criteres": [
+        {
+          "brancheId": "12:31:40",
+          "cleMetierStable": "vmc.caisson.controle",
+          "type": "controle",
+          "obligatoire": true,
+          "avis": {
+            "applicable": true
+          }
+        }
+      ]
+    },
+    {
+      "idSymfony": 103,
+      "cleMetierStable": "pre_allumage",
+      "version": 1,
+      "empreinte": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "statut": "active",
+      "capabilities": [
+        "criteres",
+        "reserves",
+        "materiels",
+        "photos"
+      ],
+      "criteres": [
+        {
+          "brancheId": "13:40:50",
+          "cleMetierStable": "pre.allumage.essai",
+          "type": "controle",
+          "obligatoire": true,
+          "avis": {
+            "applicable": true
+          }
+        }
+      ]
+    },
+    {
+      "idSymfony": 104,
+      "cleMetierStable": "remar",
+      "version": 1,
+      "empreinte": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "statut": "active",
+      "capabilities": [
+        "criteres",
+        "reserves",
+        "materiels",
+        "photos",
+        "reseaux",
+        "compteurs"
+      ],
+      "criteres": [
+        {
+          "brancheId": "14:41:51",
+          "cleMetierStable": "remar.rendement.comptage",
+          "type": "compteur",
+          "obligatoire": true,
+          "avis": {
+            "applicable": false
+          }
+        }
+      ]
+    },
+    {
+      "idSymfony": 105,
+      "cleMetierStable": "future_trame_client",
+      "version": 1,
+      "empreinte": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "statut": "active",
+      "capabilities": [
+        "criteres",
+        "reserves"
+      ],
+      "criteres": [
+        {
+          "brancheId": "15:42:52",
+          "cleMetierStable": "future.custom.field",
+          "type": "champ",
+          "obligatoire": false,
+          "avis": {
+            "applicable": false
+          }
+        }
+      ]
+    }
+  ]
+}

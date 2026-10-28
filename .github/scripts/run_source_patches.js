@@ -44,6 +44,8 @@ const CONTRACT_CHECKS = [
   ['Intranet mapping/support dump executable tests', '.github/scripts/test_intranet_mapping_support_dump.js'],
   ['Intranet visit upload executable tests', '.github/scripts/test_intranet_visit_upload.js'],
   ['Intranet cross-trame feature mapping regression', '.github/scripts/test_intranet_capability_mapping.js'],
+  ['future V2 catalogue/versioned mapping offline preflight', '.github/scripts/test_intranet_v2_catalog.js'],
+  ['Intranet V2 ICPE/RCU/VMC/PRE/REMAR and future trame fixture', '.github/scripts/test_intranet_v2_fixtures.js'],
   ['Intranet any-visit binding executable tests', '.github/scripts/test_intranet_any_visit_binding.js'],
   ['Intranet first-visit preparation executable tests', '.github/scripts/test_intranet_first_visit_preparation.js'],
   ['Intranet focused upload audit', '.github/scripts/test_intranet_visit_upload_audit.js'],
