@@ -55,6 +55,44 @@ function exactComment(value, issues, path) {
 function meaningfulRemote(value) { const v = clean(value); return !v || v === '/' ? null : v; }
 
 /**
+ * Les dix « Opération à effectuer » du réseau de chaleur sont des synthèses
+ * de réserves (Primaire/Secondaire × P2/P3/Conformité/Amélioration/Remarque),
+ * et non des champs de saisie. Respecter le regroupement de l'Excel RCU.
+ */
+const HEAT_SUMMARY_CATEGORIES = Object.freeze({
+  p2: 'P2', p3: 'P3', conformite: 'Conformite', amelioration: 'Amelioration',
+  remarque: 'Remarque', remarques: 'Remarque',
+});
+function categorieResumeReseau(poste) {
+  // Même classement et même ordre de priorité que dans excelExport.js.
+  const p = normalize(poste);
+  if (p.includes('p2') || p.includes('entretien')) return 'P2';
+  if (p.includes('p3') || p.includes('garantie totale')) return 'P3';
+  if (p.includes('conform')) return 'Conformite';
+  if (p.includes('amelior')) return 'Amelioration';
+  return 'Remarque';
+}
+function criterionResumeReseau(definition, criterionName, categoryName, subCategoryName) {
+  // Chemin serveur réel : « P2 » [REMARQUES SUR LE PRIMAIRE > Opération à effectuer].
+  if (normalize(subCategoryName) !== 'operation a effectuer') return null;
+  const match = normalize(categoryName).match(/^remarques sur le (primaire|secondaire)$/);
+  if (!match) return null;
+  const perimetre = match[1] === 'primaire' ? 'Primaire' : 'Secondaire';
+  const categorie = HEAT_SUMMARY_CATEGORIES[normalize(criterionName)];
+  // Aucune correspondance sans le référentiel officiel des lignes de synthèse
+  // et sans la branche exacte du serveur (pas de rapprochement flou).
+  if (!categorie || !Number.isInteger(definition?.excel?.heatNetwork?.summaryRows?.[perimetre]?.[categorie])) return null;
+  return { perimetre, categorie };
+}
+function valueResumeReseau(remarques, mapping) {
+  const textes = (remarques || [])
+    .filter((r) => r.perimetre === mapping.perimetre && categorieResumeReseau(r.poste) === mapping.categorie)
+    .map((r) => clean(r.prestation)).filter(Boolean);
+  return { avis: textes.length ? 'N.S' : 'S.O',
+    commentaire: textes.length ? textes.join('\n\n') : 'Sans Objet.' };
+}
+
+/**
  * Le référentiel de trame, et non son id, déclare les sous-systèmes disponibles.
  * La même règle fonctionne pour une trame intégrée, nouvelle ou personnalisée.
  */
@@ -349,7 +387,19 @@ async function buildCriteria(db, visite, details, issues) {
     db.getAllAsync(`SELECT p.entite_id,p.details_json FROM provenances p JOIN reseaux r ON r.id=p.entite_id WHERE p.entite_type='reseau' AND p.origine='api_symfony' AND r.visite_id=? ORDER BY p.importe_le DESC`, [visite.id]),
     db.getAllAsync(`SELECT libelle,valeur,unite FROM points_mesure_visite WHERE visite_id=? ORDER BY cree_le,id`, [visite.id]).catch(() => []),
   ]);
-  const capabilities = mappingCapabilities(obtenirTrame(visite.trame_id));
+  const definition = obtenirTrame(visite.trame_id);
+  const capabilities = mappingCapabilities(definition);
+  const heatSummaryEnabled = Boolean(definition?.excel?.heatNetwork?.summaryRows);
+  const heatRemarks = heatSummaryEnabled
+    ? await db.getAllAsync('SELECT id,poste,prestation,perimetre FROM remarques WHERE visite_id=? ORDER BY cree_le,id', [visite.id])
+    : [];
+  // L'Excel RCU impose déjà ce classement. Éviter qu'un envoi Intranet
+  // omette silencieusement des réserves non affectées à un périmètre.
+  for (const remark of heatRemarks) {
+    if (remark.perimetre !== 'Primaire' && remark.perimetre !== 'Secondaire') {
+      issues.push(`Réserve Réseau de chaleur « ${clean(remark.poste) || clean(remark.id)} » : périmètre Primaire / Secondaire manquant. Classe cette réserve avant l’envoi.`);
+    }
+  }
   const isTemperature = isTemperatureCandidate;
   const fieldMap = new Map(fields.map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
   const controlMap = new Map(controls.map((row) => [`${row.section_code}||${row.cle}`, row]));
@@ -382,9 +432,14 @@ async function buildCriteria(db, visite, details, issues) {
         let avis = null;
         let commentaire = '/';
         const column = networkGroup ? networkColumn(criterion?.nom) : null;
-        const candidate = column ? null : findCandidate(candidates, criterion, category?.nom, subCategory?.nom);
+        const heatSummary = criterionResumeReseau(definition, criterion?.nom, category?.nom, subCategory?.nom);
+        const candidate = column || heatSummary ? null : findCandidate(candidates, criterion, category?.nom, subCategory?.nom);
 
-        if (column) {
+        if (heatSummary) {
+          const summary = valueResumeReseau(heatRemarks, heatSummary);
+          avis = applicable ? summary.avis : null;
+          commentaire = exactComment(summary.commentaire, issues, `${path} / commentaire`);
+        } else if (column) {
           if (network) commentaire = exactComment(network[column], issues, `${path} / commentaire`);
           if (applicable) issues.push(`${path} : critère réseau déclaré avec avis, mapping non supporté sans ambiguïté.`);
         } else if (!candidate) {
