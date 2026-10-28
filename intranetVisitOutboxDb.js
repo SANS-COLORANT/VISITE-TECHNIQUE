@@ -1,5 +1,5 @@
 import { getDb } from './db.js';
-import { buildIntranetVisitPayload, IntranetVisitValidationError } from './intranetVisitPayload.js';
+import { buildIntranetVisitPayload, IntranetVisitValidationError, validateQueuedVisitMaterialSnapshot } from './intranetVisitPayload.js';
 import { createIntranetUploadId, sendClientVisits } from './symfonyApi.js';
 
 const listeners = new Set();
@@ -59,12 +59,7 @@ export async function previewVisitUpload(visiteId) {
   return buildIntranetVisitPayload(visiteId, '00000000-0000-4000-8000-000000000000');
 }
 
-export async function queueVisitUpload(visiteId, {
-  confirmMaterialReplacement = false,
-  // Compatibilité avec le nom utilisé par le premier build de l'upload.
-  confirmMaterialClear = false,
-  replaceTerminal = false,
-} = {}) {
+export async function queueVisitUpload(visiteId, { replaceTerminal = false } = {}) {
   const db = await getDb();
   const visit = await db.getFirstAsync(`SELECT id,statut FROM visites WHERE id=?`, [visiteId]);
   if (!visit) throw new IntranetVisitValidationError(['Visite introuvable.']);
@@ -78,17 +73,12 @@ export async function queueVisitUpload(visiteId, {
   }
   const envoiId = await createIntranetUploadId();
   const prepared = await buildIntranetVisitPayload(visiteId, envoiId);
-  if (prepared.destructiveMaterialChange && !confirmMaterialReplacement && !confirmMaterialClear) {
-    const removed = Number(prepared.removedSourceMaterialCount || 0);
-    const error = new Error(
-      `Le listing Intranet de référence contient ${prepared.sourceMaterialCount} matériel(s) et METRA en enverra ${prepared.summary.materials}. `
-      + `Le POST remplace le listing complet : ${removed} matériel(s) au minimum disparaîtront du local si cet envoi est confirmé.`
-    );
-    error.code = prepared.destructiveMaterialClear
-      ? 'material_clear_confirmation_required'
-      : 'material_replacement_confirmation_required';
-    error.prepared = prepared;
-    throw error;
+  // Le serveur V1 ne propose pas de suppression contrôlée par identifiant.
+  // Aucune confirmation UI ne doit contourner cette barrière de patrimoine.
+  if (prepared.destructiveMaterialChange) {
+    throw new IntranetVisitValidationError([
+      'Matériel Intranet : remplacement destructif impossible en API V1. Actualise le patrimoine ou attends la mutation V2 par ID stable.',
+    ]);
   }
   if (existing && replaceTerminal) await db.runAsync(`DELETE FROM api_visit_outbox WHERE visite_id=?`, [visiteId]);
   await db.runAsync(`INSERT INTO api_visit_outbox(
@@ -152,6 +142,10 @@ async function sendRow(db, row) {
   await db.runAsync(`UPDATE api_visit_outbox SET status='sending',attempt_count=attempt_count+1,last_attempt_at=datetime('now'),error_code=NULL,error_message=NULL,violations_json=NULL,updated_at=datetime('now') WHERE envoi_id=?`, [row.envoi_id]);
   notify();
   try {
+    // Vérifie aussi les anciennes files d'attente issues d'un APK antérieur.
+    // Un utilisateur ne peut plus autoriser une disparition silencieuse,
+    // même si la file SQLite contenait déjà un JSON dangereux.
+    await validateQueuedVisitMaterialSnapshot(row.visite_id, row.payload_json);
     const response = await sendClientVisits(row.remote_client_id, row.payload_json);
     if (String(response?.envoiId || '') !== String(row.envoi_id)) throw Object.assign(new Error('Accusé de réception Intranet incohérent : envoiId différent.'), { code: 'invalid_ack' });
     const visits = Array.isArray(response?.visites) ? response.visites : [];

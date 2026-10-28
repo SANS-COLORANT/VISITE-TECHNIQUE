@@ -223,6 +223,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
   const online = historical || (visitSynced && photosComplete);
   const hardIdempotencyConflict = row?.error_code === 'idempotency_conflict';
   const invalidAck = row?.error_code === 'invalid_ack';
+  const hardSourceConflict = row?.status === 'conflict' && row?.error_code === 'synchronization_conflict';
 
   const syncPhotosAfterVisit = async () => {
     if (!visitSynced && (await getVisitUploadState(visiteId))?.status !== 'synced') return;
@@ -234,8 +235,8 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
     }
   };
 
-  const finishQueueAndSend = async (confirmMaterialReplacement = false) => {
-    await queueVisitUpload(visiteId, { confirmMaterialReplacement });
+  const finishQueueAndSend = async () => {
+    await queueVisitUpload(visiteId);
     await onVisitChanged?.();
     await refresh();
     await processVisitOutbox({ limit: 1 }).catch(() => {});
@@ -257,27 +258,9 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
   };
 
   const queueWithMaterialSafety = async () => {
-    try {
-      await finishQueueAndSend(false);
-    } catch (error) {
-      if (['material_replacement_confirmation_required', 'material_clear_confirmation_required'].includes(error?.code)) {
-        const prepared = error?.prepared;
-        const destructiveClear = Number(prepared?.summary?.materials || 0) === 0;
-        Alert.alert(
-          destructiveClear ? 'Attention : listing matériel vidé' : 'Attention : matériels supprimés de l’Intranet',
-          `${error.message}\n\nLe serveur remplace le listing matériel complet du local.`,
-          [
-            { text: 'Annuler', style: 'cancel' },
-            { text: destructiveClear ? 'Confirmer le listing vide' : 'Confirmer le remplacement', style: 'destructive', onPress: () => {
-              setBusy(true);
-              finishQueueAndSend(true).catch((e) => Alert.alert('Envoi impossible', localBindingFeedback(e))).finally(() => setBusy(false));
-            } },
-          ]
-        );
-        return;
-      }
-      throw error;
-    }
+    // Pas de confirmation destructive : un changement de patrimoine
+    // nécessite une API V2 create/update/delete par identifiant stable.
+    await finishQueueAndSend();
   };
 
   const prepareAndSend = async () => {
@@ -298,10 +281,13 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
         return;
       }
 
-      if (hardIdempotencyConflict || invalidAck) {
-        Alert.alert('Envoi Intranet verrouillé', hardIdempotencyConflict
-          ? 'Le même envoiId existe déjà avec un contenu différent. METRA ne crée pas un nouvel envoi afin d’éviter un doublon.'
-          : 'L’accusé serveur est incohérent et la visite a peut-être déjà été créée. METRA ne génère pas un nouvel envoi automatiquement.');
+      if (hardIdempotencyConflict || invalidAck || hardSourceConflict) {
+        Alert.alert('Envoi Intranet verrouillé',
+          hardSourceConflict
+            ? 'Une visite plus récente existe déjà sur ce local Intranet (conflit 409). METRA conserve la visite et son envoi gelé, sans créer de nouvel envoiId. Compare les deux visites et résous le conflit avant toute nouvelle transmission.'
+            : hardIdempotencyConflict
+              ? 'Le même envoiId existe déjà avec un contenu différent. METRA ne crée pas un nouvel envoi afin d’éviter un doublon.'
+              : 'L’accusé serveur est incohérent et la visite a peut-être déjà été créée. METRA ne génère pas un nouvel envoi automatiquement.');
         return;
       }
 

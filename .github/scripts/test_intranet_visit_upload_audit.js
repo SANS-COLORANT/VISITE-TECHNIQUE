@@ -41,7 +41,8 @@ const localTrame = { id: 'icpe_v1', ui: { labels: { 'p-test': 'Contrôles' }, pa
 const remoteTrame = { id: '3', nom: 'ICPE', categories: [{ id: '10', nom: 'Contrôles', sousCategories: [{ id: '20', nom: 'Sous', criteres: [
   { id: '100', nom: 'Contrôle A', avisApplicable: true },
 ] }] }] };
-function preparationReference({ trame = remoteTrame, materials = [{ id: 'm1' }], latest = { id: '812', date: '2026-09-01', statut: 'Terminé' } } = {}) {
+const originalMaterial = { id: 'm1', categorie: 'Production', nombre: '1', designation: 'Chaudière', etat: 'Bon' };
+function preparationReference({ trame = remoteTrame, materials = [originalMaterial], latest = { id: '812', date: '2026-09-01', statut: 'Terminé' } } = {}) {
   return { local: { id: '501', designation: 'Chaufferie' }, site: { id: '45', nom: 'Site A' }, derniereVisite: latest,
     trame, materiels: materials, remarques: [], notes: [] };
 }
@@ -78,10 +79,12 @@ async function main() {
     const payloadModule = load('intranetVisitPayload.js', { getDb: async () => server.db, obtenirTrame: () => localTrame });
 
     // Full-state material semantics: a partial reduction is destructive too.
-    await seedVisit(server.db, 'partial-material', preparationReference({ materials: [{ id: 'm1' }, { id: 'm2' }] }));
-    const partial = await payloadModule.buildIntranetVisitPayload('partial-material', '11111111-1111-4111-8111-111111111111');
-    check(partial.destructiveMaterialChange && !partial.destructiveMaterialClear && partial.removedSourceMaterialCount === 1,
-      'partial material reduction is detected before the full-state server replacement');
+    await seedVisit(server.db, 'partial-material', preparationReference({
+      materials: [originalMaterial, { ...originalMaterial, id: 'm2', designation: 'Circulateur' }],
+    }));
+    await assert.rejects(() => payloadModule.buildIntranetVisitPayload('partial-material', '11111111-1111-4111-8111-111111111111'),
+      (error) => error?.code === 'local_validation_failed' && error.issues.some((issue) => /Matériel Intranet/.test(issue)));
+    checks++; console.log(`OK ${checks}: partial material reduction is rejected before writing any outbox row`);
 
     let mode = 'success'; let uuidIndex = 0;
     const uuids = ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'];
@@ -93,13 +96,14 @@ async function main() {
     const outbox = load('intranetVisitOutboxDb.js', {
       getDb: async () => server.db, buildIntranetVisitPayload: payloadModule.buildIntranetVisitPayload,
       IntranetVisitValidationError: payloadModule.IntranetVisitValidationError,
+      validateQueuedVisitMaterialSnapshot: payloadModule.validateQueuedVisitMaterialSnapshot,
       createIntranetUploadId: async () => uuids[uuidIndex++], sendClientVisits: sender,
     });
-    await assert.rejects(() => outbox.queueVisitUpload('partial-material'), (error) => error?.code === 'material_replacement_confirmation_required');
-    checks++; console.log(`OK ${checks}: partial remote material deletion requires explicit confirmation`);
-    const partialQueued = await outbox.queueVisitUpload('partial-material', { confirmMaterialReplacement: true });
-    check(partialQueued.status === 'pending', 'explicit confirmation permits an intentional full material replacement');
-    await server.db.runAsync(`DELETE FROM api_visit_outbox WHERE visite_id='partial-material'`);
+    await assert.rejects(() => outbox.queueVisitUpload('partial-material'),
+      (error) => error?.code === 'local_validation_failed' && error.issues.some((issue) => /Matériel Intranet/.test(issue)));
+    await assert.rejects(() => outbox.queueVisitUpload('partial-material', { confirmMaterialReplacement: true }),
+      (error) => error?.code === 'local_validation_failed');
+    checks++; console.log(`OK ${checks}: partial material removal cannot be authorized by the legacy UI flag`);
 
     // Retry-After must never be shortened by a client-side maximum.
     await seedVisit(server.db, 'long-rate-limit');

@@ -1,0 +1,46 @@
+name: Intranet V2 safety / multi-trame QA
+
+on:
+  pull_request:
+    paths:
+      - 'intranetVisit*.js'
+      - 'IntranetVisitSync.js'
+      - 'intranetV2Catalog.js'
+      - '.github/scripts/test_intranet*.js'
+      - '.github/scripts/check_intranet_visit_upload_contract.js'
+      - '.github/workflows/intranet-v2-safety-qa.yml'
+      - 'docs/CONTRAT_GLOBAL_INTRANET_V2.md'
+  push:
+    branches:
+      - feat/intranet-universal-v2-safety-20261028
+    paths:
+      - 'intranetVisit*.js'
+      - 'IntranetVisitSync.js'
+      - 'intranetV2Catalog.js'
+      - '.github/scripts/test_intranet*.js'
+      - '.github/scripts/check_intranet_visit_upload_contract.js'
+      - '.github/workflows/intranet-v2-safety-qa.yml'
+      - 'docs/CONTRAT_GLOBAL_INTRANET_V2.md'
+permissions:
+  contents: read
+jobs:
+  contract-and-sqlite:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Preserve source and verify critical V1/V2 contracts
+        run: |
+          node .github/scripts/check_intranet_visit_upload_contract.js
+          node .github/scripts/test_intranet_v2_catalog.js
+          node .github/scripts/test_intranet_capability_mapping.js
+          node .github/scripts/test_intranet_visit_upload.js
+          node .github/scripts/test_intranet_visit_upload_audit.js
+          node .github/scripts/test_intranet_any_visit_binding.js
+          node .github/scripts/test_intranet_first_visit_preparation.js
