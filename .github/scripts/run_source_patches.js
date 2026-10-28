@@ -55,6 +55,7 @@ const CONTRACT_CHECKS = [
   ['REMAR meter multi-line and free photos privacy', '.github/scripts/test_remar_meters_free_photos.js'],
   ['Terrain reserve verification is independent from lifted state', '.github/scripts/test_reserve_verification_terrain.js'],
   ['Terrain site address and typed housing/building counts', '.github/scripts/test_terrain_site_address.js'],
+  ['Terrain polymorphic SQL cleanup across visits', '.github/scripts/test_terrain_data_cleanup.js'],
   ['phone companion contract', '.github/scripts/check_companion_mode_contract.js'],
   ['phone photo mode contract', '.github/scripts/check_phone_photo_mode_contract.js'],
   ['navigation + site sort contract', '.github/scripts/check_navigation_sort_contract.js'],

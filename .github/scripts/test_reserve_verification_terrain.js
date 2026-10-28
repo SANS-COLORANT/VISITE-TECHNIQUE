@@ -41,7 +41,7 @@ async function test() {
   assert.equal(sql.prepare("SELECT intranet_etat_avancement FROM remarques WHERE id='r3'").get().intranet_etat_avancement,
     'Terminé', 'historically lifted reserves stay lifted');
   const ui = fs.readFileSync(path.join(root,'OptimizedRemarksPanel.js'),'utf8');
-  assert.equal((ui.match(/onToggleLevee=\\{confirmerLevee\\}/g) || []).length, 2,
+  assert.equal((ui.match(/onToggleLevee=\{confirmerLevee\}/g) || []).length, 2,
     'both reserve list and detail use the same lift confirmation');
   assert.ok(ui.includes('onToggleVerifiee={basculerVerifiee}') &&
     ui.includes('Confirmer la levée de la réserve') &&
