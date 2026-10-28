@@ -157,8 +157,8 @@ async function main() {
     'RCU: duplicate semantically equivalent remote criteria fail closed');
   const rcuUnpublished = structuredClone(rcuSummaryRemote);
   rcuUnpublished.categories[0].sousCategories[0].criteres[4].nom = 'Critère métier nouveau non publié';
-  const unknown = await build('reseau_chaleur_v1', rcuUnpublished);
-  check(unknown.issues.some((x) => /Critère métier nouveau non publié.*aucun champ METRA/.test(x)),
+  const unknownSummary = await build('reseau_chaleur_v1', rcuUnpublished);
+  check(unknownSummary.issues.some((x) => /Critère métier nouveau non publié.*aucun champ METRA/.test(x)),
     'RCU: never guess semantic mapping for unknown future criteria');
   const rcuEmpty = await build('reseau_chaleur_v1', rcuSummaryRemote);
   check(rcuEmpty.issues.length === 0 && rcuEmpty.values.every((x) => x.commentaire === 'Sans Objet.'),
