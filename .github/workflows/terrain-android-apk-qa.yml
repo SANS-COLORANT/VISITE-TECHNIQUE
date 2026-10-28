@@ -112,7 +112,7 @@ jobs:
           emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
           script: |
             mkdir -p release
-            cp apk/METRA-TERRAIN-RECETTE.apk release/METRA-TRAME-REMAR-complet.apk
+            cp apk/METRA-TERRAIN-RECETTE.apk release/METRA-Visite-Technique.apk
             python3 .github/scripts/smoke_remar_android.py
       - uses: actions/upload-artifact@v4
         if: always()
