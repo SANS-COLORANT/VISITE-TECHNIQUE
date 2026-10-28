@@ -34,6 +34,10 @@ const defs = {
     'p-b': { B: [{ cle: 'Index eau', type: 'champ', intranetAliases: ['Index général'] }] },
   } } },
 };
+defs.reseau_chaleur_v1.excel.heatNetwork = {
+  summaryRows: { Primaire: { P2: 362, P3: 363, Conformite: 364, Amelioration: 365, Remarque: 366 },
+    Secondaire: { P2: 373, P3: 374, Conformite: 375, Amelioration: 376, Remarque: 377 } },
+};
 let checks = 0;
 function check(condition, label) {
   assert.ok(condition, label);
@@ -62,6 +66,7 @@ const networks = [
 ];
 function fakeDb(data) {
   return { getAllAsync: async (sql) => {
+    if (sql.includes('FROM remarques')) return data.remarks || [];
     if (sql.includes('FROM champs_visite')) return data.fields || [];
     if (sql.includes('FROM controles_visite')) return data.controls || [];
     if (sql.includes('FROM reseaux')) return data.networkRows || [];
@@ -85,6 +90,60 @@ async function main() {
       result.values[1].commentaire === '0.8' && result.values[4].commentaire === '1.0',
       'numbered networks map correctly without trame ID exceptions: ' + id);
   }
+  // La structure reproduit les dix blocages constatés sur la visite des Ulis :
+  // catégorie = REMARQUES SUR LE PRIMAIRE/SECONDAIRE ;
+  // sous-catégorie = Opération à effectuer ; critère = P2/P3/etc.
+  const summaryLabels = ['P2', 'P3', 'Conformité', 'Amélioration', 'Remarque'];
+  const rcuSummaryRemote = { categories: ['PRIMAIRE', 'SECONDAIRE'].map((scope, i) => ({
+    id: 80 + i, nom: 'REMARQUES SUR LE ' + scope,
+    sousCategories: [{ id: 90 + i, nom: 'Opération à effectuer',
+      criteres: summaryLabels.map((nom, j) => ({
+        id: 100 + i * 10 + j, nom, avisApplicable: j % 2 === 0,
+      })),
+    }],
+  })) };
+  const summaryRemarks = [
+    { id: 'r1', poste: 'Entretien P2', prestation: 'Nettoyer les filtres', perimetre: 'Primaire' },
+    { id: 'r2', poste: 'Entretien P2', prestation: 'Purger la boucle', perimetre: 'Primaire' },
+    { id: 'r3', poste: 'Conformité', prestation: 'Rétablir la sécurité', perimetre: 'Primaire' },
+    { id: 'r4', poste: 'Travaux P3', prestation: 'Remplacer le circulateur', perimetre: 'Secondaire' },
+    { id: 'r5', poste: 'Amélioration', prestation: 'Installer une sonde', perimetre: 'Secondaire' },
+    { id: 'r6', poste: 'Observation', prestation: 'Vérifier le compteur', perimetre: 'Secondaire' },
+  ];
+  const rcuSummary = await build('reseau_chaleur_v1', rcuSummaryRemote, { remarks: summaryRemarks });
+  check(rcuSummary.issues.length === 0 && rcuSummary.values.length === 10,
+    'RCU: ten real Intranet synthesis criteria mapped without errors');
+  check(rcuSummary.values[0].commentaire === ['Nettoyer les filtres', 'Purger la boucle'].join('\\n\\n'.replace(/\\n/g, '\n')) &&
+    rcuSummary.values[0].avis === 'N.S' && rcuSummary.values[2].commentaire === 'Rétablir la sécurité',
+    'RCU: primary P2 and conformity preserve multiple reserve descriptions, order and applicable opinion');
+  check(rcuSummary.values[6].commentaire === 'Remplacer le circulateur' &&
+    rcuSummary.values[8].commentaire === 'Installer une sonde' &&
+    rcuSummary.values[9].commentaire === 'Vérifier le compteur',
+    'RCU: secondary P3, improvements and miscellaneous remarks remain in their own categories');
+  check(rcuSummary.values[1].commentaire === 'Sans Objet.' &&
+    rcuSummary.values[4].avis === 'S.O' && rcuSummary.values[5].avis === 'S.O',
+    'RCU: empty synthesis cells match Excel without inventing observations');
+  const rcuEmpty = await build('reseau_chaleur_v1', rcuSummaryRemote);
+  check(rcuEmpty.issues.length === 0 && rcuEmpty.values.every((x) => x.commentaire === 'Sans Objet.'),
+    'RCU: an existing visit with no reserves can still serialize all ten synthesis criteria');
+  const rcuUnclassified = await build('reseau_chaleur_v1', rcuSummaryRemote, {
+    remarks: [{ id: 'r-lost', poste: 'P2', prestation: 'Ne pas perdre', perimetre: null }],
+  });
+  check(rcuUnclassified.issues.some((x) => /périmètre Primaire \/ Secondaire manquant/.test(x)),
+    'RCU: unclassified reserve blocks transmission instead of vanishing from the summary');
+  const rcuOversized = await build('reseau_chaleur_v1', rcuSummaryRemote, {
+    remarks: [{ id: 'r-long', poste: 'P2', prestation: 'x'.repeat(1501), perimetre: 'Primaire' }],
+  });
+  check(rcuOversized.issues.some((x) => /maximum 1500/.test(x)),
+    'RCU: oversized grouped comments are rejected without truncation');
+  const invalidSummaryRemote = structuredClone(rcuSummaryRemote);
+  invalidSummaryRemote.categories[0].sousCategories[0].criteres[0].nom = 'Critère inconnu';
+  const invalidSummary = await build('reseau_chaleur_v1', invalidSummaryRemote);
+  check(invalidSummary.issues.some((x) => /Critère inconnu.*aucun champ METRA/.test(x)),
+    'RCU: unknown remote criterion remains blocked');
+  const wrongTemplate = await build('icpe_v1', rcuSummaryRemote);
+  check(wrongTemplate.issues.length === 10,
+    'RCU synthesis mapping does not leak into ICPE');
   const remarCaps = payload.inspectIntranetTrameCapabilities('trame_remar_dynamique');
   check(remarCaps.networks === true && remarCaps.meters === true,
     'REMAR-style dynamic panels enable network and meter capabilities without whitelist');
