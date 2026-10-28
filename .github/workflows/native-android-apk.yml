@@ -9,6 +9,7 @@ on:
       - feat/terrain-feedback-all-phases-20261027
       - fix/rcu-intranet-summary-20261028
       - feat/intranet-universal-v2-safety-20261028
+      - feat/intranet-v2-catalog-hardening-20261028
     paths:
       - '**/*.js'
       - '**/*.json'
@@ -179,8 +180,8 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           cat > /tmp/release-notes.md <<'NOTES'
-          METRA — Visite Technique : build natif intégrant les PR #108, #109
-          et la PR #110 (sécurisation des snapshots et pré-contrat V2),
+          METRA — Visite Technique : build natif intégrant les PR #108, #109,
+          #110 et #111 (sécurité des snapshots, queue offline et contrat V2),
           à la suite des fonctions précédentes (ICPE, Données techniques,
           Réseau de chaleur, REMAR, compteurs, photos, Pilotage et Intranet).
 
