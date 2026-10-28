@@ -68,11 +68,58 @@ const MATERIAL_SNAPSHOT_FIELDS = Object.freeze([
 const MATERIAL_SNAPSHOT_ALIASES = Object.freeze({
   numeroMateriel: 'numero_materiel', reseauDesservi: 'reseau_desservi',
 });
+function materialSnapshotValue(row, key) {
+  return clean(row?.[key] ?? row?.[MATERIAL_SNAPSHOT_ALIASES[key]]).normalize('NFC');
+}
 function materialSnapshotSignature(row) {
-  return JSON.stringify(MATERIAL_SNAPSHOT_FIELDS.map((key) => {
-    const value = row?.[key] ?? row?.[MATERIAL_SNAPSHOT_ALIASES[key]];
-    return clean(value).normalize('NFC');
-  }));
+  return JSON.stringify(MATERIAL_SNAPSHOT_FIELDS.map((key) => materialSnapshotValue(row, key)));
+}
+
+/**
+ * Correction non destructive des anciennes importations : le catalogue
+ * a parfois canonisé GRUNDFOS -> Grundfos dans la ligne de visite.
+ * Reprendre STRICTEMENT la graphie d'origine Intranet si les neuf autres
+ * colonnes métier sont identiques et si la marque ne diffère que par une
+ * variante typographique (casse/accents). Aucune modification SQLite.
+ * Une véritable modification de modèle, état, quantité, numéro ou marque
+ * reste bloquante jusqu'à la mutation V2 par ID stable.
+ */
+export function restoreReferenceEquivalentBrands(reference, outgoing) {
+  if (!Array.isArray(reference) || !Array.isArray(outgoing)) return outgoing;
+  const available = new Map();
+  reference.forEach((row, i) => {
+    const signature = materialSnapshotSignature(row);
+    if (!available.has(signature)) available.set(signature, []);
+    available.get(signature).push(i);
+  });
+  const consumed = new Set();
+  const exactMatches = new Set();
+  outgoing.forEach((row, i) => {
+    const candidates = available.get(materialSnapshotSignature(row)) || [];
+    const refIndex = candidates.find((index) => !consumed.has(index));
+    if (refIndex !== undefined) { consumed.add(refIndex); exactMatches.add(i); }
+  });
+  const signatureSansMarque = (row) => JSON.stringify([
+    ...MATERIAL_SNAPSHOT_FIELDS.filter((key) => key !== 'marque').map((key) => materialSnapshotValue(row, key)),
+    normalize(materialSnapshotValue(row, 'marque')),
+  ]);
+  const compatible = new Map();
+  reference.forEach((row, index) => {
+    if (consumed.has(index) || !materialSnapshotValue(row, 'marque')) return;
+    const key = signatureSansMarque(row);
+    if (!compatible.has(key)) compatible.set(key, []);
+    compatible.get(key).push(index);
+  });
+  return outgoing.map((row, index) => {
+    if (exactMatches.has(index)) return row;
+    const candidates = compatible.get(signatureSansMarque(row)) || [];
+    const refIndex = candidates.find((i) => !consumed.has(i));
+    if (refIndex === undefined) return row;
+    const brand = materialSnapshotValue(reference[refIndex], 'marque');
+    if (!brand || normalize(brand) !== normalize(materialSnapshotValue(row, 'marque'))) return row;
+    consumed.add(refIndex);
+    return { ...row, marque: brand };
+  });
 }
 export function inspectIntranetMaterialSnapshot(reference, outgoing, declaredCount = null) {
   const issues = [];
@@ -95,16 +142,36 @@ export function inspectIntranetMaterialSnapshot(reference, outgoing, declaredCou
     const fingerprint = materialSnapshotSignature(row);
     remaining.set(fingerprint, (remaining.get(fingerprint) || 0) + 1);
   }
+  const unmatchedOutgoing = [];
   for (const row of outgoing) {
     const fingerprint = materialSnapshotSignature(row);
     const left = remaining.get(fingerprint) || 0;
     if (left > 0) remaining.set(fingerprint, left - 1);
+    else unmatchedOutgoing.push(row);
   }
-  const missing = [...remaining.values()].reduce((sum, count) => sum + count, 0);
+  const missingRows = reference.filter((row) => {
+    const fingerprint = materialSnapshotSignature(row);
+    const left = remaining.get(fingerprint) || 0;
+    if (!left) return false;
+    remaining.set(fingerprint, left - 1);
+    return true;
+  });
+  const missing = missingRows.length;
+  const samples = missingRows.slice(0, 3).map((row) => {
+    const identity = [row.designation, row.numeroMateriel || row.numero_materiel, row.marque].map(clean).filter(Boolean).join(' · ') || 'Équipement sans désignation';
+    const number = materialSnapshotValue(row, 'numeroMateriel');
+    const candidates = number
+      ? unmatchedOutgoing.filter((candidate) => materialSnapshotValue(candidate, 'numeroMateriel') === number)
+      : [];
+    const exactCandidate = candidates.length === 1 ? candidates[0] : null;
+    const changed = exactCandidate ? MATERIAL_SNAPSHOT_FIELDS.filter((field) =>
+      materialSnapshotValue(row, field) !== materialSnapshotValue(exactCandidate, field)) : [];
+    return `« ${identity} »${changed.length ? ` (écart : ${changed.join(', ')})` : ' (absent ou identité différente)'}`;
+  });
   if (missing) {
-    issues.push(`Matériel Intranet : ${missing} ligne(s) de la référence absentes ou modifiées dans l'envoi. Le serveur supprimerait ou recréerait ces équipements. Envoi bloqué jusqu'au contrat de mise à jour par identifiant stable.`);
+    issues.push(`Matériel Intranet : ${missing}/${reference.length} ligne(s) anciennes absentes ou modifiées parmi ${outgoing.length} envoyées. ${samples.join(' ; ')}. L'API V1 remplace le patrimoine complet : envoi bloqué jusqu'au contrat serveur de mutation par identifiant stable.`);
   }
-  return { safe: issues.length === 0, issues, referenceCount: reference.length, outgoingCount: outgoing.length, missing };
+  return { safe: issues.length === 0, issues, referenceCount: reference.length, outgoingCount: outgoing.length, missing, samples };
 }
 
 /** Contrôle des anciennes files d'attente avant leur éventuel premier POST.
@@ -142,10 +209,26 @@ export async function validateQueuedVisitMaterialSnapshot(visiteId, serializedPa
  * de réserves (Primaire/Secondaire × P2/P3/Conformité/Amélioration/Remarque),
  * et non des champs de saisie. Respecter le regroupement de l'Excel RCU.
  */
-const HEAT_SUMMARY_CATEGORIES = Object.freeze({
-  p2: 'P2', p3: 'P3', conformite: 'Conformite', amelioration: 'Amelioration',
-  remarque: 'Remarque', remarques: 'Remarque',
+// Les libellés de présentation Symfony peuvent changer sans changer la
+// catégorie métier. Alias stricts, cantonnés à la branche de synthèse RCU
+// déclarée par le référentiel de trame (pas de fuzzy matching global).
+const HEAT_SUMMARY_CRITERION_ALIASES = Object.freeze({
+  P2: Object.freeze(['P2', 'Entretien P2', 'Entretien']),
+  P3: Object.freeze(['P3', 'Travaux P3', 'Garantie totale']),
+  Conformite: Object.freeze(['Conformité', 'Mise en conformité', 'Travaux de conformité']),
+  Amelioration: Object.freeze(['Amélioration', 'Améliorations', 'Travaux d’amélioration']),
+  Remarque: Object.freeze([
+    'Remarque', 'Remarques', 'Remarque particulière', 'Remarques particulières',
+    'Observation', 'Observations', 'Remarque générale', 'Remarques générales',
+  ]),
 });
+function resumeReseauCategorie(criterionName, summaryRows) {
+  const nom = normalize(criterionName);
+  if (!nom || !summaryRows) return null;
+  const matches = Object.keys(summaryRows).filter((key) =>
+    (HEAT_SUMMARY_CRITERION_ALIASES[key] || [key]).some((alias) => normalize(alias) === nom));
+  return matches.length === 1 ? matches[0] : null;
+}
 function categorieResumeReseau(poste) {
   // Même classement et même ordre de priorité que dans excelExport.js.
   const p = normalize(poste);
@@ -157,14 +240,15 @@ function categorieResumeReseau(poste) {
 }
 function criterionResumeReseau(definition, criterionName, categoryName, subCategoryName) {
   // Chemin serveur réel : « P2 » [REMARQUES SUR LE PRIMAIRE > Opération à effectuer].
-  if (normalize(subCategoryName) !== 'operation a effectuer') return null;
-  const match = normalize(categoryName).match(/^remarques sur le (primaire|secondaire)$/);
+  const sub = normalize(subCategoryName);
+  if (sub !== 'operation a effectuer' && sub !== 'operations a effectuer') return null;
+  const match = normalize(categoryName).match(/^remarques? (?:sur le|du) (primaire|secondaire)$/);
   if (!match) return null;
   const perimetre = match[1] === 'primaire' ? 'Primaire' : 'Secondaire';
-  const categorie = HEAT_SUMMARY_CATEGORIES[normalize(criterionName)];
-  // Aucune correspondance sans le référentiel officiel des lignes de synthèse
-  // et sans la branche exacte du serveur (pas de rapprochement flou).
-  if (!categorie || !Number.isInteger(definition?.excel?.heatNetwork?.summaryRows?.[perimetre]?.[categorie])) return null;
+  const summaryRows = definition?.excel?.heatNetwork?.summaryRows?.[perimetre];
+  const categorie = resumeReseauCategorie(criterionName, summaryRows);
+  // Seul le modèle métier explicitement publié autorise le rapprochement.
+  if (!categorie || !Number.isInteger(summaryRows?.[categorie])) return null;
   return { perimetre, categorie };
 }
 function valueResumeReseau(remarques, mapping) {
@@ -491,6 +575,7 @@ async function buildCriteria(db, visite, details, issues) {
     : new Map();
   const result = [];
   const seenRemoteBranches = new Set();
+  const seenSummaryTargets = new Set();
   let ordinal = 0;
   for (const category of categories) {
     for (const subCategory of Array.isArray(category?.sousCategories) ? category.sousCategories : []) {
@@ -517,6 +602,11 @@ async function buildCriteria(db, visite, details, issues) {
         const candidate = column || heatSummary ? null : findCandidate(candidates, criterion, category?.nom, subCategory?.nom);
 
         if (heatSummary) {
+          const semanticTarget = `${heatSummary.perimetre}:${heatSummary.categorie}`;
+          if (seenSummaryTargets.has(semanticTarget)) {
+            issues.push(`${path} : synthèse RCU « ${semanticTarget} » déjà mappée à un autre critère. Confirme les critères Intranet avant envoi.`);
+          }
+          seenSummaryTargets.add(semanticTarget);
           const summary = valueResumeReseau(heatRemarks, heatSummary);
           avis = applicable ? summary.avis : null;
           commentaire = exactComment(summary.commentaire, issues, `${path} / commentaire`);
@@ -580,7 +670,9 @@ async function buildRemarks(db, visiteId, issues) {
 
 async function buildMaterials(db, visiteId, sourceMaterialCount, issues) {
   const rows = await db.getAllAsync(`SELECT m.*,
-      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=m.equipement_id AND a.cle='api_symfony.etat_reference' ORDER BY a.modifie_le DESC LIMIT 1) AS intranet_reference_state
+      (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=m.equipement_id
+       AND a.cle IN ('api_symfony.etat_reference','api_symfony.etat')
+       ORDER BY CASE WHEN a.cle='api_symfony.etat_reference' THEN 0 ELSE 1 END, a.modifie_le DESC LIMIT 1) AS intranet_reference_state
     FROM materiel m WHERE m.visite_id=? ORDER BY m.cree_le,m.id`, [visiteId]);
   const result = rows.map((row, index) => {
     const prefix = `Matériel ${index + 1}`;
@@ -662,8 +754,11 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
     buildCriteria(db, visite, details, issues), buildRemarks(db, visite.id, issues),
     buildMaterials(db, visite.id, sourceMaterials, issues), buildNotes(db, visite.id, issues),
   ]);
+  // Ne jamais écraser une vraie modification terrain. Ne rétablir la graphie
+  // serveur d'une marque que si les neuf autres attributs sont inchangés.
+  const outgoingMaterials = restoreReferenceEquivalentBrands(details?.materiels, materialData.materiels);
   const checkedMaterials = inspectIntranetMaterialSnapshot(
-    details?.materiels, materialData.materiels,
+    details?.materiels, outgoingMaterials,
     details?.preparationMeta?.materialCount ?? sourceMaterials
   );
   issues.push(...checkedMaterials.issues);
@@ -675,7 +770,7 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
   if (notes.length > 100) issues.push(`Notes : ${notes.length}, maximum 100 par visite.`);
   if (!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(envoiId || ''))) issues.push('envoiId : UUID v4 requis.');
 
-  const visitWire = { localId, trameId, derniereVisiteIdSource, date, statut: status, criteres, remarques, materiels: materialData.materiels, notes };
+  const visitWire = { localId, trameId, derniereVisiteIdSource, date, statut: status, criteres, remarques, materiels: outgoingMaterials, notes };
   const payload = { envoiId: String(envoiId || ''), visites: [visitWire] };
   const serialized = JSON.stringify(payload);
   const payloadBytes = utf8ByteLength(serialized);

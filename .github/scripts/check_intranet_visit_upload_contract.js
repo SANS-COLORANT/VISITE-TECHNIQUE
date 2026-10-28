@@ -42,6 +42,8 @@ requireText(outbox, 'validateQueuedVisitMaterialSnapshot', 'legacy queued payloa
 requireText(outbox, "Number(row.attempt_count || 0) === 0", 'only first-attempt JSON is revalidated against local edits');
 requireText(outbox, "error.code = 'queued_payload_stale'", 'edited offline first POST is held locally');
 requireText(payload, 'inspectIntranetMaterialSnapshot', 'reference multisets are checked by all business attributes');
+requireText(payload, 'restoreReferenceEquivalentBrands', 'legacy catalog presentation differences are repaired only with immutable reference');
+requireText(payload, "a.cle IN ('api_symfony.etat_reference','api_symfony.etat')", 'historic material state aliases are readable');
 forbidText(outbox, 'confirmMaterialReplacement', 'destructive material confirmations must not bypass integrity');
 forbidText(outbox, 'confirmMaterialClear', 'remote material deletion must not be authorized by confirmation');
 requireText(outbox, 'assertRowTargetsImportedClient', 'outbox verifies imported-client ownership before HTTP');

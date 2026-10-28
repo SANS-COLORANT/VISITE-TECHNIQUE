@@ -239,7 +239,8 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
     const explicitRemoteId = remoteId(material.id);
     const externalReference = explicitRemoteId || materialFallbackReference(remoteLocalId, material, index);
     const catalogBrand = brandsByKey.get(normalize(material.marque)) || null;
-    const brand = text(catalogBrand?.nom) || text(material.marque);
+    const sourceBrand = text(material.marque);
+    const brand = text(catalogBrand?.nom) || sourceBrand;
     if (catalogBrand) matchedCatalogBrands += 1;
 
     const typeCode = text(material.categorie) || 'Équipement';
@@ -339,7 +340,7 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
            WHERE id=?`,
           [
             typeCode, quantity, designation, text(material.numeroMateriel), text(material.reseauDesservi),
-            brand, model, text(material.caracteristiques), text(material.annee), materialRow.id,
+            sourceBrand, model, text(material.caracteristiques), text(material.annee), materialRow.id,
           ]
         );
       } else {
@@ -348,7 +349,7 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
            VALUES(?,?,?,?,?,?,?,?,?,?,?,NULL,?)`,
           [
             createId(), visiteId, typeCode, quantity, designation, text(material.numeroMateriel),
-            text(material.reseauDesservi), brand, model, text(material.caracteristiques),
+            text(material.reseauDesservi), sourceBrand, model, text(material.caracteristiques),
             text(material.annee), equipmentId,
           ]
         );

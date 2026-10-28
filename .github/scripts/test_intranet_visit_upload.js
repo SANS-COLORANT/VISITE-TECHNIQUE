@@ -210,6 +210,47 @@ async function main() {
       'duplicate original entries are protected by multiset multiplicity');
     check(!payloadModule.inspectIntranetMaterialSnapshot(null, [], 3).safe,
       'missing reference listing fails closed');
+    // Auto-réconciliation : uniquement la graphie catalogue de la MARQUE.
+    // Aucune autre colonne métier ne doit être restaurée silencieusement.
+    const brandReference = { ...remoteMaterial, marque: 'EXEMPLE' };
+    const catalogCaseOnly = { ...remoteMaterial, marque: 'Exemple' };
+    const normalizedBrand = payloadModule.restoreReferenceEquivalentBrands(
+      [brandReference], [catalogCaseOnly]);
+    check(normalizedBrand[0].marque === 'EXEMPLE' &&
+      payloadModule.inspectIntranetMaterialSnapshot([brandReference], normalizedBrand, 1).safe,
+      'legacy catalog capitalization is returned to exact Intranet spelling without loss');
+    const modifiedModel = { ...catalogCaseOnly, modele: 'G600' };
+    const noOverwrite = payloadModule.restoreReferenceEquivalentBrands([brandReference], [modifiedModel]);
+    const trueDifference = payloadModule.inspectIntranetMaterialSnapshot([brandReference], noOverwrite, 1);
+    check(noOverwrite[0].modele === 'G600' && !trueDifference.safe &&
+      trueDifference.missing === 1 && trueDifference.issues.join(' ').includes('modele'),
+      'real equipment model change stays blocked and identifies the differing attribute');
+    const similarBrand = payloadModule.restoreReferenceEquivalentBrands(
+      [brandReference], [{ ...catalogCaseOnly, marque: 'Autre marque' }]);
+    check(similarBrand[0].marque === 'Autre marque' &&
+      !payloadModule.inspectIntranetMaterialSnapshot([brandReference], similarBrand, 1).safe,
+      'different equipment manufacturer cannot be silently rewritten');
+    const similarNumbers = payloadModule.restoreReferenceEquivalentBrands(
+      [{ ...brandReference, numeroMateriel: 'X-1' }, { ...brandReference, numeroMateriel: 'X-2' }],
+      [{ ...catalogCaseOnly, numeroMateriel: 'X-2' }, { ...catalogCaseOnly, numeroMateriel: 'X-1' }]);
+    check(payloadModule.inspectIntranetMaterialSnapshot(
+      [{ ...brandReference, numeroMateriel: 'X-1' }, { ...brandReference, numeroMateriel: 'X-2' }],
+      similarNumbers, 2).safe, 'equipment reference matching does not depend on order');
+    await seed(server.db, 'brand-case');
+    await server.db.runAsync(
+      `UPDATE provenances SET details_json=? WHERE entite_type='visite' AND entite_id='brand-case'`,
+      [JSON.stringify({ ...context, materiels: [brandReference] })]);
+    const brandWire = await payloadModule.buildIntranetVisitPayload(
+      'brand-case', '78787878-7878-4878-8878-787878787878');
+    check(brandWire.payload.visites[0].materiels[0].marque === 'EXEMPLE',
+      'existing visits with catalog brand casing are repaired in the wire without a SQLite mutation');
+    await server.db.runAsync(`UPDATE materiel SET modele='G600' WHERE visite_id='brand-case'`);
+    await assert.rejects(() => payloadModule.buildIntranetVisitPayload(
+      'brand-case', '78787878-7878-4878-8878-787878787878'),
+      (e) => e?.code === 'local_validation_failed' &&
+        e.issues.some((message) => /Matériel Intranet/.test(message)));
+    checks++; console.log(`OK ${checks}: actual material change is never masked by typography reconciliation`);
+
     const calls = []; let mode = 'network';
     const uuids = ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'ffffffff-ffff-4fff-8fff-ffffffffffff', '12345678-1234-4234-8234-123456789abc', '87654321-4321-4321-8321-cba987654321', '99999999-9999-4999-8999-999999999999'];
     let uuidIndex = 0;

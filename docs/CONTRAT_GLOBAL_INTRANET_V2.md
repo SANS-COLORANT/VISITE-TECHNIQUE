@@ -176,6 +176,14 @@ F. Aucune fusion ni APK de production avant GO QA + validation de terrain.
 - T17 : test de non-régression ICPE/VMC/RCU/PRE/REMAR/SQLite/Excel/PDF.
 - T18 : APK signé avec identifiant `com.visitetechnique.tablet` inchangé,
   versionCode croissant et installation en mise à jour.
+- T19 : alias métiers des dix synthèses RCU (dont « Remarque particulière »),
+  refus des alias dupliqués et de tout critère hors référentiel.
+- T20 : 15 matériels référencés modifiés/missing, rapport d'écarts par référence
+  et refus V1 sans altérer SQLite ou le POST; restauration uniquement de la
+  graphie d'une marque importée (9 autres champs identiques).
+- T21 : le serveur V2 peut ajouter, modifier ou retirer un matériel par ID
+  versionné sans supprimer ni recréer les 80 autres équipements du local.
+  Le même POST répété ne doit ni dupliquer les matériels ni les réserves.
 
 ## 9. Blocages explicites avant GO global
 - Le dépôt Symfony n'est PAS accessible dans la connexion GitHub actuelle;
