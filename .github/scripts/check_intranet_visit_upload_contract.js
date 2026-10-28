@@ -35,6 +35,8 @@ requireText(outbox, "status='retry'", 'offline retry state');
 requireText(outbox, "status === 429", 'Retry-After handling');
 requireText(outbox, 'seconds * 1000', 'Retry-After is not shortened');
 requireText(outbox, "status === 409", 'conflict handling');
+requireText(ui, 'hardSourceConflict', 'stale source visit cannot silently get a new envoiId');
+requireText(ui, "row?.error_code === 'synchronization_conflict'", 'server source conflict is explicitly detected');
 requireText(outbox, 'row.payload_json', 'idempotent serialized retry');
 requireText(outbox, "error?.code === 'invalid_ack'", 'ambiguous acknowledgement terminal guard');
 requireText(outbox, 'LOCAL_AUTH_ERRORS', 'local reactivation errors are not treated as network retries');

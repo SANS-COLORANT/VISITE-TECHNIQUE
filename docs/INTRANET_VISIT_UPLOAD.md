@@ -222,3 +222,14 @@ visites locales demeurent possibles lorsque l'envoi est bloqué.
 Les états acceptés côté serveur sont `Hors service`, `Vétuste`, `Moyen`, `Bon`,
 `Neuf` ou `null`. Les états METRA historiques supplémentaires restent utilisables
 localement, mais bloquent l'envoi tant qu'ils n'ont pas été adaptés explicitement.
+## Conflit de visite distante (409 synchronization_conflict)
+
+La file d'attente reste immuable. Si l'Intranet annonce une visite plus récente
+que `derniereVisiteIdSource`, MÉTRA marque l'envoi comme en conflit et **ne**
+le rejoue **pas** automatiquement. Le bouton d'envoi ne doit pas supprimer
+ce conflit pour construire immédiatement une nouvelle visite avec un nouvel
+`envoiId`. Le technicien doit comparer les visites et confirmer une résolution
+explicite; sans endpoint de fusion V2 il reste en lecture seule pour cet envoi.
+Les erreurs 422 qui ne créent aucune visite conservent, elles, leur traitement
+de correction distinct. Ce verrou empêche une ancienne visite hors ligne de
+devenir un doublon suite à une nouvelle visite faite sur une autre tablette.
