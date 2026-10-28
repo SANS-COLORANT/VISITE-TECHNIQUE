@@ -219,3 +219,18 @@ existantes et une nouvelle trame, avec deux versions distinctes de RCU.
 Ils sont testés sans réseau dans `.github/scripts/test_intranet_v2_fixtures.js`.
 Les IDs, empreintes et clés de ces exemples sont fictifs; Symfony doit fournir
 les valeurs officielles. Ces fichiers ne sont PAS synchronisés vers l'Intranet.
+
+## Précontrôle du GET V1 après une période hors ligne
+
+Le module purement local `intranetV1Freshness.js` compare une préparation figée
+à une réponse fraîche du GET filtré V1. Il contrôle les identifiants de
+LOCAL, site, trame et dernière visite, le chemin ID+libellé des critères,
+ainsi que l'identité et les attributs de chaque équipement.
+Tests : `.github/scripts/test_intranet_v1_freshness.js`.
+
+**Non activé dans le POST terrain actuel.** Il manque un exemple réel du
+GET filtré confirmant la couverture du matériel et la portée de la
+dernière visite. Après validation Symfony, déclencher ce GET avant la
+première tentative POST, mais jamais avant un rejeu idempotent susceptible
+d'avoir déjà réussi sans accusé. Cette comparaison optimiste ne remplace
+pas une transaction verrouillée côté Symfony.
