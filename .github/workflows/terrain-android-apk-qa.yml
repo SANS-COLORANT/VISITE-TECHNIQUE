@@ -67,7 +67,25 @@ jobs:
           python3 .github/scripts/configure_android_release_signing.py
       - name: Build signed Android APK
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx4g -Pkotlin.compiler.execution.strategy=in-process -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64
+        run: |
+          set -o pipefail
+          for attempt in 1 2 3; do
+            echo "Native Gradle release attempt ${attempt}/3"
+            log="$RUNNER_TEMP/metra-native-gradle-${attempt}.log"
+            if ./gradlew assembleRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.internal.http.connectionTimeout=180000 -Dorg.gradle.internal.http.socketTimeout=240000 -Pkotlin.compiler.execution.strategy=in-process -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 2>&1 | tee "$log"; then
+              exit 0
+            fi
+            if ! grep -Eiq '(Read timed out|Connect timed out|Connection reset|Could not download .*\\.aar|Could not get resource|Temporary failure in name resolution)' "$log"; then
+              echo "::error::Gradle failure is not a transient artifact download: no automatic retry."
+              exit 1
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Maven dependency download failed after three attempts."
+              exit 1
+            fi
+            echo "::warning::Transient Maven/Gradle download timeout; retrying release with same source and signing key."
+            sleep $((attempt * 20))
+          done
       - name: Validate Android identity, version and checksum
         run: |
           set -euo pipefail
