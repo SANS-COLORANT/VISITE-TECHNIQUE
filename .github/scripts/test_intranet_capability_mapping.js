@@ -90,6 +90,105 @@ async function main() {
       result.values[1].commentaire === '0.8' && result.values[4].commentaire === '1.0',
       'numbered networks map correctly without trame ID exceptions: ' + id);
   }
+
+  // Reproduction de l'incident A2 : l'UI utilise des codes SQL stables
+  // distincts des slugs de rubriques. Ce contrôle est transversal ICPE/RCU.
+  const technicalPanels = {
+    'p-releves': {
+      'Températures et pH': [
+        { cle: 'pH', type: 'controle' },
+        { cle: 'PRIMAIRE: T° départ (°C)', type: 'controle' },
+        { cle: 'PRIMAIRE: T° retour (°C)', type: 'controle' },
+        { cle: 'CHAUFFAGE: T° départ (°C)', type: 'controle' },
+        { cle: 'CHAUFFAGE: T° retour (°C)', type: 'controle' },
+        { cle: 'EAU CHAUDE SANITAIRE: T° départ (°C) ', type: 'controle' },
+        { cle: 'EAU CHAUDE SANITAIRE: T° retour (°C)', type: 'controle' },
+        { cle: 'EAU CHAUDE SANITAIRE: T° stockage (°C)', type: 'controle' },
+      ],
+      'Relevés des compteurs et manomètres': [
+        { cle: 'Pression réseau d’ECS (bar)', type: 'champ' },
+      ],
+    },
+    'p-regulation': {
+      'Cascade chaudières': [
+        { cle: 'Paramètres cascade chaudières', type: 'champ' },
+        { cle: 'T°ext(°C)', type: 'champ' },
+        { cle: 'T°dép(°C)', type: 'champ' },
+      ],
+      'Réseau ECS': [
+        { cle: 'T° consigne (°C)', type: 'champ' },
+        { cle: 'Cycle anti-légionellose', type: 'champ' },
+      ],
+    },
+  };
+  const technicalRemote = { categories: [
+    { id: 80, nom: 'Relevés', sousCategories: [
+      { id: 81, nom: 'Températures et pH',
+        criteres: technicalPanels['p-releves']['Températures et pH'].map((field, i) =>
+          ({ id: 820 + i, nom: field.cle, avisApplicable: true })) },
+      { id: 82, nom: 'Relevés des compteurs et manomètres',
+        criteres: [{ id: 829, nom: 'Pression réseau d’ECS (bar)', avisApplicable: false }] },
+    ] },
+    { id: 90, nom: 'Régulation', sousCategories: [
+      { id: 91, nom: 'Cascade chaudières',
+        criteres: technicalPanels['p-regulation']['Cascade chaudières'].map((field, i) =>
+          ({ id: 920 + i, nom: field.cle, avisApplicable: false })) },
+      { id: 92, nom: 'Réseau ECS',
+        criteres: technicalPanels['p-regulation']['Réseau ECS'].map((field, i) =>
+          ({ id: 930 + i, nom: field.cle, avisApplicable: false })) },
+    ] },
+  ] };
+  const technicalControls = technicalPanels['p-releves']['Températures et pH'].map((field, i) => ({
+    section_code: 'releves.temperatures', cle: field.cle,
+    avis: i === 0 ? 'N.R' : i >= 5 ? 'N.S' : 'S',
+    commentaire: i === 0 ? 'Mesure non réalisée.' : String(40 + i) + ' °C',
+  }));
+  const technicalFields = [
+    { section_code: 'releves.compteurs', cle: 'Pression réseau d’ECS (bar)', valeur: '5,2 bar' },
+    { section_code: 'regulation.cascade', cle: 'Paramètres cascade chaudières', valeur: 'Cascade de test' },
+    { section_code: 'regulation.cascade', cle: 'T°ext(°C)', valeur: '5 °C' },
+    { section_code: 'regulation.cascade', cle: 'T°dép(°C)', valeur: '65 °C' },
+    { section_code: 'regulation.reseau_ecs', cle: 'T° consigne (°C)', valeur: '60 °C' },
+    { section_code: 'regulation.reseau_ecs', cle: 'Cycle anti-légionellose', valeur: 'Absent' },
+  ];
+  for (const id of ['icpe_v1', 'reseau_chaleur_v1']) {
+    const originalPanels = defs[id].ui.panels;
+    defs[id].ui.panels = technicalPanels;
+    try {
+      const technicalWire = await build(id, technicalRemote, {
+        fields: technicalFields, controls: technicalControls,
+      });
+      check(technicalWire.issues.length === 0 && technicalWire.values.length === 14 &&
+        technicalWire.values[0].avis === 'N.R' &&
+        technicalWire.values[0].commentaire === 'Mesure non réalisée.' &&
+        technicalWire.values[1].avis === 'S' &&
+        technicalWire.values[1].commentaire === '41 °C' &&
+        technicalWire.values[8].commentaire === '5,2 bar' &&
+        technicalWire.values[9].commentaire === 'Cascade de test' &&
+        technicalWire.values[12].commentaire === '60 °C' &&
+        technicalWire.values[13].commentaire === 'Absent',
+        'A2 regression: 8 temperature/pH controls + 6 technical fields are preserved from native SQL section codes for ' + id);
+      const archivedVariant = await build(id, technicalRemote, {
+        controls: technicalControls,
+        fields: technicalFields.map((item) => item.section_code === 'regulation.reseau_ecs'
+          ? { ...item, section_code: 'regulation.r_seau_ecs' } : item),
+      });
+      check(archivedVariant.issues.length === 0 &&
+        archivedVariant.values[12].commentaire === '60 °C' &&
+        archivedVariant.values[13].commentaire === 'Absent',
+        'legacy Excel/slug storage stays readable without overwriting runtime keys: ' + id);
+      const divergence = await build(id, technicalRemote, {
+        controls: technicalControls,
+        fields: technicalFields.concat([{
+          section_code: 'regulation.r_seau_ecs', cle: 'T° consigne (°C)', valeur: '90 °C',
+        }]),
+      });
+      check(divergence.issues.some((msg) => /valeurs divergentes/.test(msg)),
+        'A2 regression: conflicting legacy/native ECS values fail before any HTTP POST: ' + id);
+    } finally {
+      defs[id].ui.panels = originalPanels;
+    }
+  }
   // La structure reproduit les dix blocages constatés sur la visite des Ulis :
   // catégorie = REMARQUES SUR LE PRIMAIRE/SECONDAIRE ;
   // sous-catégorie = Opération à effectuer ; critère = P2/P3/etc.

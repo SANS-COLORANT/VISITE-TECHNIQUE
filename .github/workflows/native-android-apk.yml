@@ -12,6 +12,7 @@ on:
       - feat/intranet-v2-catalog-hardening-20261028
       - fix/rcu-unscoped-report-sticky-20261028
       - fix/universal-intranet-mapping-material-reconciliation-20261028
+      - fix/visit-upload-field-identity-and-equipment-dup-20261028
     paths:
       - '**/*.js'
       - '**/*.json'
