@@ -376,6 +376,21 @@ async function construireClasseur(visiteId) {
     programming['!cols'] = [{wch:14},{wch:30},{wch:65},{wch:75}];
     XLSX.utils.book_append_sheet(wb, programming, 'PROGRAMMATION_RESEAUX');
   }
+  // Ne jamais inventer la ventilation de la cellule historique « bât/lgt ».
+  // Les deux champs typés possèdent une annexe réversible plutôt que de
+  // remplacer la ligne fixe du modèle ICPE (compatible anciens classeurs).
+  const siteCountNames = ['Nombre de bâtiments', 'Nombre de logements'];
+  const typedCounts = siteCountNames.map((cle) => champs.find((row) =>
+    row.section_code === 'infos.informations_g_n_rales' && row.cle === cle)?.valeur ?? '');
+  if (typedCounts.some((value) => String(value).trim() !== '')) {
+    const countsSheet = XLSX.utils.aoa_to_sheet([
+      ['Information du site', 'Valeur'],
+      ...siteCountNames.map((cle, i) => [cle, typedCounts[i]]),
+    ]);
+    countsSheet['!cols'] = [{ wch: 32 }, { wch: 20 }];
+    if (wb.Sheets.DONNEES_SITE_METRA) wb.Sheets.DONNEES_SITE_METRA = countsSheet;
+    else XLSX.utils.book_append_sheet(wb, countsSheet, 'DONNEES_SITE_METRA');
+  }
   const sheetPrincipale = wb.Sheets[cfg.mainSheet];
   if (!sheetPrincipale) throw new Error(`Feuille principale « ${cfg.mainSheet} » absente du modèle ${trame.nom}.`);
 

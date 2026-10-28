@@ -304,6 +304,24 @@ export function analyserClasseur(wb, nomFichier) {
     if (inferred.length>=2) row.points=inferred;
   }
 
+  // Annexe additionnelle des nombres typés. L'ancienne cellule mixte
+  // « Nbr de bât / lgt » n'est ni convertie ni écrasée.
+  const siteCounts = wb.Sheets.DONNEES_SITE_METRA;
+  if (siteCounts) {
+    const authorized = definition.ui?.panels?.['p-infos']?.['Informations générales'] || [];
+    for (const [index, cle] of ['Nombre de bâtiments', 'Nombre de logements'].entries()) {
+      const row = index + 2;
+      if (valeurCellule(siteCounts, 'A' + row) !== cle)
+        throw new Error('Annexe DONNEES_SITE_METRA : libellé inattendu à la ligne ' + row + '.');
+      const valeur = valeurCellule(siteCounts, 'B' + row);
+      if (!valeur) continue;
+      if (!authorized.some((field) => field.cle === cle && field.type === 'champ'))
+        throw new Error('La trame ' + definition.nom + ' ne prend pas en charge le champ ' + cle + '.');
+      if (!/^(0|[1-9]\\d*)$/.test(valeur) || !Number.isSafeInteger(Number(valeur)))
+        throw new Error('Nombre de bâtiments/logements invalide dans DONNEES_SITE_METRA : ' + cle + '.');
+      champs.push({ sectionCode: 'infos.informations_g_n_rales', cle, valeur });
+    }
+  }
   const tables = cfg.tables || {};
   const materielCfg = tables.materiel;
   const materiel = materielCfg ? lireTable(wb.Sheets[materielCfg.sheet], materielCfg).map((m) => ({ ...m, etat: m.etat || 'Bon' })) : [];

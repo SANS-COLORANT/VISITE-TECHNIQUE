@@ -84,6 +84,10 @@ async function supprimerReseau(id) {
   await db.withExclusiveTransactionAsync(async (tx) => {
     if (row.reseau_site_id) await tx.runAsync(
       "UPDATE reseaux_site SET actif=0,modifie_le=datetime('now') WHERE id=?", [row.reseau_site_id]);
+    // Les réglages de courbe et d'horaires sont propres à CETTE ligne
+    // reseaux. Les réseaux historiques des autres visites restent intacts.
+    await tx.runAsync("DELETE FROM attributs_libres WHERE entite_type='reseau' AND entite_id=?", [id]);
+    await tx.runAsync("DELETE FROM provenances WHERE entite_type='reseau' AND entite_id=?", [id]);
     // Ne touche ni aux anciennes visites ni à leurs photos.
     await tx.runAsync('DELETE FROM reseaux WHERE id=?', [id]);
   });

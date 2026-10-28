@@ -758,7 +758,7 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
             onDelete={deleteLocal}
             onClose={fermerFiche}
             onRattacher={ouvrirRattachement}
-            onToggleLevee={basculerLevee}
+            onToggleLevee={confirmerLevee}
             panelLabels={panelLabels}
             origine={libelleGroupe(ongletOrigine(fiche, sectionVersOnglet), panelLabels)}
             intranetLinked={intranetLinked}
