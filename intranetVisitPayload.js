@@ -55,6 +55,89 @@ function exactComment(value, issues, path) {
 function meaningfulRemote(value) { const v = clean(value); return !v || v === '/' ? null : v; }
 
 /**
+ * P0 avant l'API Symfony V2 : le POST historique remplace intégralement
+ * ListingMateriel. Vérification par multiensemble de TOUTES les colonnes
+ * métier de la préparation figée, pas par simple nombre de lignes.
+ * Les champs id ne sont volontairement pas utilisés : l'API POST V1 ne
+ * transporte pas les IDs et Symfony les régénère.
+ */
+const MATERIAL_SNAPSHOT_FIELDS = Object.freeze([
+  'categorie', 'nombre', 'designation', 'numeroMateriel', 'reseauDesservi',
+  'marque', 'modele', 'caracteristiques', 'annee', 'etat',
+]);
+const MATERIAL_SNAPSHOT_ALIASES = Object.freeze({
+  numeroMateriel: 'numero_materiel', reseauDesservi: 'reseau_desservi',
+});
+function materialSnapshotSignature(row) {
+  return JSON.stringify(MATERIAL_SNAPSHOT_FIELDS.map((key) => {
+    const value = row?.[key] ?? row?.[MATERIAL_SNAPSHOT_ALIASES[key]];
+    return clean(value).normalize('NFC');
+  }));
+}
+export function inspectIntranetMaterialSnapshot(reference, outgoing, declaredCount = null) {
+  const issues = [];
+  if (!Array.isArray(reference)) {
+    issues.push('Matériel Intranet : liste de référence complète absente. Actualise la préparation du local ; envoi bloqué pour éviter un effacement.');
+    return { safe: false, issues, referenceCount: null, outgoingCount: Array.isArray(outgoing) ? outgoing.length : null };
+  }
+  if (!Array.isArray(outgoing)) {
+    issues.push('Matériel Intranet : liste à envoyer absente ou invalide.');
+    return { safe: false, issues, referenceCount: reference.length, outgoingCount: null };
+  }
+  if (declaredCount != null && String(declaredCount).trim() !== '') {
+    const declared = Number(declaredCount);
+    if (!Number.isSafeInteger(declared) || declared < 0 || declared !== reference.length) {
+      issues.push('Matériel Intranet : quantité de référence incohérente ; actualise la préparation avant envoi.');
+    }
+  }
+  const remaining = new Map();
+  for (const row of reference) {
+    const fingerprint = materialSnapshotSignature(row);
+    remaining.set(fingerprint, (remaining.get(fingerprint) || 0) + 1);
+  }
+  for (const row of outgoing) {
+    const fingerprint = materialSnapshotSignature(row);
+    const left = remaining.get(fingerprint) || 0;
+    if (left > 0) remaining.set(fingerprint, left - 1);
+  }
+  const missing = [...remaining.values()].reduce((sum, count) => sum + count, 0);
+  if (missing) {
+    issues.push(`Matériel Intranet : ${missing} ligne(s) de la référence absentes ou modifiées dans l'envoi. Le serveur supprimerait ou recréerait ces équipements. Envoi bloqué jusqu'au contrat de mise à jour par identifiant stable.`);
+  }
+  return { safe: issues.length === 0, issues, referenceCount: reference.length, outgoingCount: outgoing.length, missing };
+}
+
+/** Contrôle des anciennes files d'attente avant leur éventuel premier POST.
+ * Ne modifie JAMAIS payload_json ni envoiId : le rejeu demeure octet-identique.
+ */
+export async function validateQueuedVisitMaterialSnapshot(visiteId, serializedPayload) {
+  const db = await getDb();
+  const visit = await db.getFirstAsync('SELECT id,api_remote_local_id FROM visites WHERE id=?', [String(visiteId)]);
+  const frozen = visit ? await frozenContext(db, visit) : null;
+  let parsed = null;
+  try { parsed = JSON.parse(serializedPayload); } catch {}
+  const wire = Array.isArray(parsed?.visites) && parsed.visites.length === 1 ? parsed.visites[0] : null;
+  const issues = [];
+  if (!visit || frozen?.historical || !frozen?.details)
+    issues.push('Matériel Intranet : référence figée de la visite absente ou historique.');
+  if (!wire || String(wire.localId) !== String(visit?.api_remote_local_id))
+    issues.push('Matériel Intranet : le local du JSON gelé ne correspond plus au local de la visite.');
+  if (frozen?.details && wire) {
+    const checked = inspectIntranetMaterialSnapshot(
+      frozen.details.materiels, wire.materiels, frozen.details?.preparationMeta?.materialCount
+    );
+    issues.push(...checked.issues);
+  }
+  if (issues.length) {
+    const error = new IntranetVisitValidationError(issues);
+    error.code = 'material_snapshot_unsafe';
+    error.status = 422; // Bloquage local, jamais une réponse HTTP serveur.
+    throw error;
+  }
+  return true;
+}
+
+/**
  * Les dix « Opération à effectuer » du réseau de chaleur sont des synthèses
  * de réserves (Primaire/Secondaire × P2/P3/Conformité/Amélioration/Remarque),
  * et non des champs de saisie. Respecter le regroupement de l'Excel RCU.
@@ -581,6 +664,11 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
     buildCriteria(db, visite, details, issues), buildRemarks(db, visite.id, issues),
     buildMaterials(db, visite.id, sourceMaterials, issues), buildNotes(db, visite.id, issues),
   ]);
+  const checkedMaterials = inspectIntranetMaterialSnapshot(
+    details?.materiels, materialData.materiels,
+    details?.preparationMeta?.materialCount ?? sourceMaterials
+  );
+  issues.push(...checkedMaterials.issues);
   const expectedCriteria = countRemoteCriteria(details?.trame);
   if (criteres.length !== expectedCriteria) issues.push(`Critères : ${criteres.length}/${expectedCriteria}, la trame Intranet doit être envoyée intégralement.`);
   if (criteres.length > 2000) issues.push(`Critères : ${criteres.length}, maximum 2000 par visite.`);

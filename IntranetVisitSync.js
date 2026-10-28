@@ -234,8 +234,8 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
     }
   };
 
-  const finishQueueAndSend = async (confirmMaterialReplacement = false) => {
-    await queueVisitUpload(visiteId, { confirmMaterialReplacement });
+  const finishQueueAndSend = async () => {
+    await queueVisitUpload(visiteId);
     await onVisitChanged?.();
     await refresh();
     await processVisitOutbox({ limit: 1 }).catch(() => {});
@@ -257,27 +257,9 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
   };
 
   const queueWithMaterialSafety = async () => {
-    try {
-      await finishQueueAndSend(false);
-    } catch (error) {
-      if (['material_replacement_confirmation_required', 'material_clear_confirmation_required'].includes(error?.code)) {
-        const prepared = error?.prepared;
-        const destructiveClear = Number(prepared?.summary?.materials || 0) === 0;
-        Alert.alert(
-          destructiveClear ? 'Attention : listing matériel vidé' : 'Attention : matériels supprimés de l’Intranet',
-          `${error.message}\n\nLe serveur remplace le listing matériel complet du local.`,
-          [
-            { text: 'Annuler', style: 'cancel' },
-            { text: destructiveClear ? 'Confirmer le listing vide' : 'Confirmer le remplacement', style: 'destructive', onPress: () => {
-              setBusy(true);
-              finishQueueAndSend(true).catch((e) => Alert.alert('Envoi impossible', localBindingFeedback(e))).finally(() => setBusy(false));
-            } },
-          ]
-        );
-        return;
-      }
-      throw error;
-    }
+    // Pas de confirmation destructive : un changement de patrimoine
+    // nécessite une API V2 create/update/delete par identifiant stable.
+    await finishQueueAndSend();
   };
 
   const prepareAndSend = async () => {
