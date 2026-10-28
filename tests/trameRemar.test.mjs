@@ -87,6 +87,32 @@ test('all REMAR values survive serialized Excel export and native database impor
   assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk, true);
 });
 
+test('typed site building and dwelling counts survive ICPE export/import, legacy mixed cell unchanged', async () => {
+  const id = await newVisit('icpe_v1');
+  const section = 'infos.informations_g_n_rales';
+  await db.runAsync('INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)',
+    [id, section, 'Nombre de bâtiments', '2']);
+  await db.runAsync('INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)',
+    [id, section, 'Nombre de logements', '8']);
+  await db.runAsync('INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)',
+    [id, section, 'Nbr de bât / lgt', '8']);
+  const { wb } = await construireClasseur(id);
+  assert.ok(wb.Sheets.DONNEES_SITE_METRA, 'typed counts require their own reversible annex');
+  assert.equal(wb.Sheets.DONNEES_SITE_METRA.B2.v, '2');
+  assert.equal(wb.Sheets.DONNEES_SITE_METRA.B3.v, '8');
+  assert.equal(wb.Sheets['TRAME ICPE'].C16.v, '8', 'legacy mixed field is not reinterpreted');
+  const analysis = analyserClasseur(roundtrip(wb), 'icpe-nombres-distincts.xlsx');
+  const values = Object.fromEntries(analysis.champs.filter((row) =>
+    ['Nombre de bâtiments','Nombre de logements'].includes(row.cle)).map((row) => [row.cle,row.valeur]));
+  assert.deepEqual(values, {'Nombre de bâtiments':'2','Nombre de logements':'8'});
+  const imported = await importerAnalyseExcel(analysis);
+  const restored = await db.getAllAsync(
+    "SELECT cle,valeur FROM champs_visite WHERE visite_id=? AND cle IN ('Nombre de bâtiments','Nombre de logements')",
+    [imported.visiteId]);
+  assert.deepEqual(Object.fromEntries(restored.map((row) => [row.cle,row.valeur])), values);
+  assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk, true);
+});
+
 test('multipoint curve and weekday schedule survive spreadsheet export and import without legacy overwrite', async () => {
   const model = await import('../networkProgramming.js');
   assert.deepEqual(model.pointsFromLegacy('-15\n-7\n0', '75\n65\n52'),

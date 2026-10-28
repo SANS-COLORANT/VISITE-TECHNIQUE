@@ -50,10 +50,10 @@ async function run() {
     'native Excel export groups multiple REMAR meters in original mapped cell');
   // L'export Intranet est maintenant commun aux trames déclarant la capacité
   // compteur ; la conservation de l'ancien champ REMAR reste obligatoire.
-  ok(intranet.includes("candidate.panelId === 'p-remar-releves'") &&
-    (intranet.includes('legacyField') || intranet.includes('manualFallback')) &&
-    intranet.includes('counterValue(counters'),
-    'Intranet groups REMAR meters and preserves the untouched old field');
+  ok(intranet.includes("const manualFallback = !candidate.specialPanel || candidate.panelId === 'p-remar-releves' || /^pression\\b/.test(candidate.key)") &&
+    intranet.includes('counterValue(counters, criterion, candidate)') &&
+    intranet.includes("counter.status === 'missing' && manualFallback"),
+    'Intranet preserves historical REMAR fallback ONLY when a current meter is unavailable');
   ok(apiLatest.includes('compteursDepuisCellule') && apiLatest.includes('totalLines: readings.length'),
     'Intranet multiline import creates independent provenance-linked meter rows');
 

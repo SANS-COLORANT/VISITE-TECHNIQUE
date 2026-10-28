@@ -102,6 +102,11 @@ async function main() {
   });
   check(remarCounter.issues.length === 0 && remarCounter.values[0].commentaire === '2468',
     'REMAR-style meter takes fresh index, never the outdated generic prefill');
+  const remarFallback = await build('trame_remar_dynamique', remarMeterRemote, {
+    fields: [{ section_code: 'remar-releves.compteur', cle: 'Compteur Gaz (m³)', valeur: '9999' }],
+  });
+  check(remarFallback.issues.length === 0 && remarFallback.values[0].commentaire === '9999',
+    'REMAR retains a manual legacy meter reading only when no dynamic counter exists');
     check(payload.inspectIntranetTrameCapabilities('trame_sans_reseaux').networks === false,
     'trame without network capability does not acquire it');
   const renamed = networks.map((row, i) => ({ ...row, nom_reseau: 'Bâtiment ' + (i + 1) }));

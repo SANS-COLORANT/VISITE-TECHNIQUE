@@ -66,8 +66,14 @@ async function sqlPart() {
   const visiteUi = fs.readFileSync(path.join(root, 'MaJourneeCard.js'), 'utf8');
   assert.ok(visiteUi.includes('cibles.slice(0, 4).map(ligneCible)') &&
     visiteUi.includes('Voir les {cibles.length} visites') &&
-    visiteUi.includes('onPress={() => ouvrirCible(cible)}'),
-    'home exposes all scheduled visits with direct open and full list');
+    visiteUi.includes('onPress={() => ouvrirCible(cible)}') &&
+    visiteUi.includes('focusInstallationId: cible.installationId || null'),
+    'home opens the exact planned site/local, not the first site visit');
+  const localsUi = fs.readFileSync(path.join(root, 'SiteLocalsScreen.js'), 'utf8');
+  assert.ok(localsUi.includes('String(row.installation_id) === String(wanted)') &&
+    localsUi.includes('ouvrirLocal(target)') &&
+    localsUi.includes('Local de la tournée indisponible'),
+    'local is resolved by strict installation ID with safe fallback; no fuzzy name match');
   assert.strictEqual(m.libelleReprise(r), 'Reprendre · Bât A · Sous-station');
   assert.strictEqual(r.clients[0].nomClient, 'Horizon'); // le plus de restes en premier
   assert.strictEqual(m.libelleCible({ nomSite: 'Tour', nomLocal: '' }), 'Tour');

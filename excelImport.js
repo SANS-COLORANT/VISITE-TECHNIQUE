@@ -317,7 +317,7 @@ export function analyserClasseur(wb, nomFichier) {
       if (!valeur) continue;
       if (!authorized.some((field) => field.cle === cle && field.type === 'champ'))
         throw new Error('La trame ' + definition.nom + ' ne prend pas en charge le champ ' + cle + '.');
-      if (!/^(0|[1-9]\\d*)$/.test(valeur) || !Number.isSafeInteger(Number(valeur)))
+      if (!/^(0|[1-9]\d*)$/.test(valeur) || !Number.isSafeInteger(Number(valeur)))
         throw new Error('Nombre de bâtiments/logements invalide dans DONNEES_SITE_METRA : ' + cle + '.');
       champs.push({ sectionCode: 'infos.informations_g_n_rales', cle, valeur });
     }

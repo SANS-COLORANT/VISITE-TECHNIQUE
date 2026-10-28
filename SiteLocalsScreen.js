@@ -14,6 +14,7 @@ import { ajouterCiblesTournee, listerTourneeSite, retirerCiblesTournee } from '.
 function SiteLocalsScreen({ route, navigation }) {
   const { siteId, nomSite, clientId, nomClient } = route?.params || {};
   const listRef = useRef(null);
+  const handledFocusRequest = useRef(null);
   const scrollKey = `site-locals:${String(siteId || '')}`;
   const initialBundle = peekSiteLocals(siteId);
   const [locaux, setLocaux] = useState(() => initialBundle?.rows || []);
@@ -98,6 +99,22 @@ function SiteLocalsScreen({ route, navigation }) {
       apiRemoteTrameNom: local.remote_trame_nom || null,
     });
   };
+
+  // Accès direct depuis Ma journée : chaque cible pointe vers l'identifiant
+  // du LOCAL, jamais vers un libellé qui peut être identique sur deux sites.
+  useEffect(() => {
+    const wanted = route?.params?.focusInstallationId;
+    const request = route?.params?.focusRequest;
+    if (!wanted || !request || loading || handledFocusRequest.current === request) return;
+    const target = locaux.find((row) => String(row.installation_id) === String(wanted));
+    handledFocusRequest.current = request;
+    if (!target) {
+      Alert.alert('Local de la tournée indisponible',
+        'Le local n’est plus lié à ce site. Choisis-le manuellement, sans créer de visite dans un autre local.');
+      return;
+    }
+    ouvrirLocal(target);
+  }, [siteId, route?.params?.focusInstallationId, route?.params?.focusRequest, loading, locaux]);
 
   const creerLocal = async () => {
     const nom = String(nouveauNom || '').trim();

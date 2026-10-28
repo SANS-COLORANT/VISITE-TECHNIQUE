@@ -37,6 +37,8 @@ export function MaJourneeCard({ navigation, refreshKey = 0 }) {
     setToutVoir(false);
     navigation.navigate('SiteLocals', {
       siteId: cible.siteId, nomSite: cible.nomSite, clientId: cible.clientId, nomClient: cible.nomClient,
+      focusInstallationId: cible.installationId || null,
+      focusRequest: String(Date.now()) + ':' + String(cible.id),
     });
   };
   const reprendre = () => ouvrirCible(prochain);
