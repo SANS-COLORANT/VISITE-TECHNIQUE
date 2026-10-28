@@ -26,9 +26,10 @@ export function MaJourneeCard({ navigation, refreshKey = 0 }) {
   const [toutVoir, setToutVoir] = useState(false);
   const charger = useCallback(() => chargerJournee().then((d) => { CACHE = d; setData(d); }).catch(() => {}), []);
   useEffect(() => { charger(); }, [charger, refreshKey]);
-  // Les changements Client > À faire doivent réapparaître sans redémarrer
-  // METRA ni valider artificiellement la première étape.
-  useEffect(() => navigation.addListener('focus', charger), [navigation, charger]);
+  // Navigation METRA est un routeur maison : il ne propose PAS addListener.
+  // L'écran Home est démonté lors d'une navigation vers Client/Site, puis
+  // remonté au retour. L'effet de chargement ci-dessus suffit au rafraîchissement.
+  // Un abonnement React Navigation provoquerait un plantage dès l'accueil.
   if (!data || !journeeUtile(data)) return null;
   const { itineraire, aEnvoyer, reserves } = data;
   const prochain = itineraire.prochain;

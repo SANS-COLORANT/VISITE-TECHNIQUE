@@ -41,7 +41,14 @@ def wait(label, seconds=60):
     until = time.monotonic() + seconds
     while time.monotonic() < until:
         try:
-            pos = find(label)
+            root = tree()
+            error = find('L’écran a rencontré un problème', root)
+            if error:
+                details = [node.get('text','') for node in root.iter('node') if node.get('text','')]
+                shot('fatal-ui-error')
+                raise AssertionError('METRA affiche son écran d’erreur avant le parcours : ' +
+                    ' | '.join(details[:5]))
+            pos = find(label, root)
             if pos:
                 return pos
         except (subprocess.CalledProcessError, ET.ParseError):

@@ -64,6 +64,9 @@ async function sqlPart() {
   assert.strictEqual(r.cibles[2].nomSite, 'Annexe');
   assert.strictEqual(r.cibles[0].installationId, 'l2');
   const visiteUi = fs.readFileSync(path.join(root, 'MaJourneeCard.js'), 'utf8');
+  assert.ok(!visiteUi.includes("navigation.addListener('focus'") &&
+    visiteUi.includes('useEffect(() => { charger(); }, [charger, refreshKey]);'),
+    'Ma journée uses METRA custom router safely; no unsupported React Navigation listener');
   assert.ok(visiteUi.includes('cibles.slice(0, 4).map(ligneCible)') &&
     visiteUi.includes('Voir les {cibles.length} visites') &&
     visiteUi.includes('onPress={() => ouvrirCible(cible)}') &&
