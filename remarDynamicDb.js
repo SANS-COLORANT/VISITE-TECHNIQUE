@@ -18,10 +18,12 @@ const norm = (v) => str(v).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLo
 const sq = (v) => norm(v).replace(/[^a-z0-9]+/g, ' ').trim();
 
 export function remarFamilleEquipement(e) {
-  const category = sq(e?.type_code || e?.categorie);
-  if (/(^| )(cta|centrale traitement air)( |$)/.test(category)) return 'cta';
-  if (/(^| )(vmc|caisson vmc|caisson extraction|extracteur)( |$)/.test(category)) return 'vmc';
-  if (/(^| )(froid|production froid|groupe froid|groupe eau glacee|chiller)( |$)/.test(category)) return 'froid';
+  const base = sq(e?.type_code || e?.categorie);
+  const category = ['equipement','materiel','appareil','installation technique'].includes(base)
+    ? sq(e?.designation) : base;
+  if (/(^| )(cta|centrale (de )?traitement (d )?air)( |$)/.test(category)) return 'cta';
+  if (/(^| )(vmc|caisson vmc|caisson extraction|extracteur|tourelle extraction)( |$)/.test(category)) return 'vmc';
+  if (/(^| )(froid|production (de )?froid|groupe (de )?froid|groupe eau glacee|chiller)( |$)/.test(category)) return 'froid';
   return null;
 }
 
@@ -49,13 +51,19 @@ export async function listerRemarEquipements(visiteId, famille) {
   const db = await getDb();
   const v = await visitContext(db, visiteId);
   if (!v.installation_id) return [];
+  const active = v.statut==='en_cours'||v.statut==='a_completer'?1:0;
   const rows = await db.getAllAsync(`
-    SELECT e.*,m.id AS materiel_id
+    SELECT e.*,
+      (SELECT m.id FROM materiel m WHERE m.equipement_id=e.id AND m.visite_id=?
+       ORDER BY m.id LIMIT 1) AS materiel_id
     FROM equipements e
-    LEFT JOIN materiel m ON m.equipement_id=e.id AND m.visite_id=?
-    WHERE e.installation_id=? AND (m.id IS NOT NULL OR (e.statut='actif' AND ?=1))
+    WHERE e.installation_id=? AND (
+      (e.statut='actif' AND
+        (EXISTS(SELECT 1 FROM materiel m WHERE m.equipement_id=e.id AND m.visite_id=?) OR ?=1))
+      OR (?=0 AND EXISTS(SELECT 1 FROM materiel m WHERE m.equipement_id=e.id AND m.visite_id=?))
+    )
     ORDER BY e.cree_le,e.id
-  `, [visiteId,v.installation_id,v.statut==='en_cours'||v.statut==='a_completer'?1:0]);
+  `, [visiteId,v.installation_id,visiteId,active,active,visiteId]);
   return rows.filter(e => remarFamilleEquipement(e) === famille);
 }
 
