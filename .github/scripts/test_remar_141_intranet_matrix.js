@@ -162,14 +162,18 @@ function find(panel,cle,section=null){
   const six=await build({networks:[...networks,...[3,4,5,6].map(n=>({
     id:'n'+n,ordre:n,nom_reseau:'Circuit '+n,
   }))]});
-  check(six.issues.some(x=>x.includes('seulement cinq cases')),
-    'sixth network prevents lossy V1 POST');
+  check(six.issues.length===0,'six REMAR networks fit five Symfony cells');
+  check(outputFor(six,find('p-remar-reseaux','Réseau 5')).commentaire===
+    'Réseau 5 : Circuit 5\nRéseau 6 : Circuit 6',
+    'network six has its own line in the fifth official cell');
 
   const tooMuchNetwork=await build({networks:[
     {id:'n1',ordre:1,nom_reseau:'Circuit bureaux',tnc:'20',courbe_de_chauffe:'1.1'},
   ]});
-  check(tooMuchNetwork.issues.some(x=>x.includes('données techniques non représentables')),
-    'additional network curve/TNC is never silently dropped in V1');
+  check(tooMuchNetwork.issues.length===0,'named REMAR network technical fields fit Symfony text');
+  check(outputFor(tooMuchNetwork,find('p-remar-reseaux','Réseau 1')).commentaire===
+    'Circuit bureaux\nCourbe de chauffe : 1.1\nTNC : 20 °C',
+    'network name, curve and TNC survive in readable separate lines');
 
   const extraMeter=await build({meters:[
     {id:'extra',destination:'supplementaire',label:'Sous-compteur magasin',valeur:'345',unite:'m³'},
