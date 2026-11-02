@@ -304,8 +304,11 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'})
     catch(e){Alert.alert('Ajout impossible',String(e?.message||e));}
     finally{setBusy(false);}
   };
-  if(panelId==='p-remar-reseaux')return <OptimizedRegulationPanel
-    visiteId={visiteId} onSaved={onSaved} networksOnly />;
+  if(panelId==='p-remar-reseaux')return <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled"
+    contentContainerStyle={{paddingBottom:30,paddingHorizontal:12}}>
+    <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} embedded networksOnly />
+    <LegacyRemarReadOnly visiteId={visiteId} panelId={panelId} sections={sections}/>
+  </ScrollView>;
   if(panelId==='p-remar-releves')return <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:30}}>
     <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} trameId={trameId}
       panels={definition?.ui?.panels} meterPanelId={panelId} embedded metersOnly remarMinimal />
