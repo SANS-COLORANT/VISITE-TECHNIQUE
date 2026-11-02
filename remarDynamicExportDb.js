@@ -24,7 +24,7 @@ function addInfo(lines,owner,meta,row) {
     owner.famille,owner.parentName||'',owner.parentId||'',owner.nom,
     owner.id,owner.type,meta.panel,meta.section,meta.cle,
     row?.valeur??'',row?.avis??'',row?.commentaire??'',
-    row?.source_visite_id||'',row?.inherited?'Historique à confirmer':'Visite courante',
+    row?.source_visite_id||'',row?.inherited?'Historique à confirmer':'Visite courante',owner.unite||'',
   ]);
 }
 const temperatureCell = Object.freeze({
@@ -162,7 +162,7 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
   const temperatures=await listerRemarItems(visiteId,'temperature_chaufferie');
   for(const item of temperatures) {
     const values=await listerRemarValeurs(visiteId,'item',item.id);
-    const owner={famille:'chaufferie',parentName:'',parentId:'',nom:item.nom,id:item.id,type:'temperature_chaufferie'};
+    const owner={famille:'chaufferie',parentName:'',parentId:'',nom:item.nom,id:item.id,type:'temperature_chaufferie',unite:item.unite};
     const row=itemValue(values,'p-remar-releves','temperature_chaufferie','Valeur');
     hasDynamic=true;
     addInfo(details,owner,{panel:'p-remar-releves',section:'Température chaufferie',cle:'Valeur'},row||{valeur:''});
