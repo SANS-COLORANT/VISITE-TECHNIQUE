@@ -271,8 +271,17 @@ function MesureRapide({nom,onCreate,busy=false}) {
   </View>;
 }
 
-function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefresh, onSaved, isReference, onReference }) {
-  const [expanded,setExpanded]=useState(false);
+function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefresh, onSaved, isReference, onReference, autoOpen=false }) {
+  const [expanded,setExpanded]=useState(autoOpen);
+  const [rename,setRename]=useState(false);
+  const [equipmentName,setEquipmentName,flushEquipmentName] = useDurableAutosave(
+    equipment.designation||'',async next=>{
+      if(!clean(next))throw new Error('Nom de la CTA requis.');
+      if(clean(next)!==equipment.designation){
+        await renommerRemarEquipement(visiteId,equipment.id,clean(next));
+        onSaved?.();
+      }
+    });
   const [values,setValues]=useState({});
   const [children,setChildren]=useState([]);
   const [addChild,setAddChild]=useState(false), [busy,setBusy]=useState(false);
@@ -291,38 +300,66 @@ function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefre
     {text:'Annuler',style:'cancel'}, {text:'Retirer',style:'destructive',
       onPress:()=>retirerRemarEquipement(visiteId,equipment.id).then(onRefresh).catch(e=>Alert.alert('Retrait impossible',String(e?.message||e)))},
   ]);
-  const addItem=async nom=>{
+  const addItem=async (nom,etat=null)=>{
     if(busy)return;setBusy(true);
     try{
-      await creerRemarItem(visiteId,{typeCode:childType,nom,
-        unite:childType==='mesure_cta'?mesureUnit(nom):null,parentEquipementId:equipment.id});
+      const itemId=await creerRemarItem(visiteId,{typeCode:childType,nom,
+        unite:childType==='mesure_cta'?uniteMesureCTA(nom):null,parentEquipementId:equipment.id});
+      if(childType==='filtre_cta'){
+        const classe=classificationFiltre(nom);
+        if(classe)await enregistrerRemarValeur(visiteId,{
+          ownerType:'item',ownerId:itemId,panelId:'p-remar-filtres',
+          sectionCode:'filtre_cta',cle:'Classe de filtration',valeur:classe,
+        });
+      }
+      if(childType==='mesure_cta' && etat)await enregistrerRemarValeur(visiteId,{
+        ownerType:'item',ownerId:itemId,panelId:'p-remar-cta-mesures',
+        sectionCode:'mesure_cta',cle:'Valeur',valeur:null,avis:etat,
+        commentaire:etat==='N.R'?'Mesure non relevée.':etat==='S.O'?'Mesure sans objet pour cette CTA.':'Point inaccessible ou non visible.',
+      });
       setAddChild(false);await load();onSaved?.();
     }catch(e){Alert.alert('Ajout impossible',String(e?.message||e));}
     finally{setBusy(false);}
   };
+  const missingMeasures = childType==='mesure_cta'
+    ? MESURES_CTA_REMAR_USUELLES.filter(name=>!children.some(c=>clean(c.nom).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()===clean(name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()))
+    : [];
   const reservedFields = Object.entries(sections||{}).flatMap(([section, fields])=>
     (fields||[]).filter(f=>!(family==='froid'&&/^Réseau \d+$/i.test(f.cle)) &&
       !(family==='vmc'&&f.cle==='Nombre de caissons')).map(f=>({section,field:f})));
   const showFields = !childType || (panelId==='p-remar-froid');
   return <View style={ui.card}>
-    <TouchableOpacity onPress={()=>setExpanded(s=>!s)} style={ui.header}>
-      <Text style={ui.cardTitle}>{equipment.designation||REMAR_FAMILLES[family]?.label}</Text>
-      <Text style={ui.fold}>{expanded?'▴':'▾'}</Text>
-    </TouchableOpacity>
+    <View style={ui.header}>
+      {rename ? <TextInput autoFocus value={equipmentName} onChangeText={setEquipmentName}
+        accessibilityLabel="Nom de l'équipement"
+        onBlur={()=>flushEquipmentName().catch(e=>Alert.alert('Renommage impossible',String(e?.message||e))).finally(()=>{setRename(false);onRefresh?.();})}
+        style={[ui.input,{flex:1}]}/> :
+      <TouchableOpacity onPress={()=>setExpanded(s=>!s)} style={{flex:1,minHeight:44,justifyContent:'center'}}>
+        <Text style={ui.cardTitle}>{equipmentName||REMAR_FAMILLES[family]?.label} {expanded?'▴':'▾'}</Text>
+      </TouchableOpacity>}
+      <TouchableOpacity onPress={()=>setRename(true)} accessibilityLabel="Renommer l'équipement" style={ui.renameBtn}>
+        <Text style={ui.link}>✎ Nom</Text>
+      </TouchableOpacity>
+    </View>
     {expanded ? <>
       <View style={ui.hRow}>
-        <PhotoButton visiteId={visiteId} entiteKey={`equipement||${equipment.id}`} label={equipment.designation||'Équipement'}/>
+        <PhotoButton visiteId={visiteId} entiteKey={`equipement||${equipment.id}`} label={equipmentName||'Équipement'}/>
         <TouchableOpacity onPress={onReference} accessibilityRole="button">
           <Text style={ui.link}>{isReference?'✓ Référence du rapport':'Référence du rapport Excel'}</Text>
         </TouchableOpacity>
       </View>
       {showFields ? reservedFields.map(({section,field})=><FieldRow key={section+field.cle}
         item={field} ownerType="equipement" ownerId={equipment.id} panelId={panelId}
-        section={section} visiteId={visiteId} saved={values} onSaved={onSaved} />) : null}
+        equipmentLabel={equipmentName} section={section} visiteId={visiteId} saved={values} onSaved={onSaved} />) : null}
       {childType ? <>
         {children.map(child=><ChildRow key={child.id} visiteId={visiteId} parent={equipment}
           item={child} typeCode={childType} data={child.data}
           onRefresh={load} onSaved={onSaved} />)}
+        {missingMeasures.length ? <View style={{marginVertical:10}}>
+          <Text style={ui.groupLabel}>Mesures usuelles · à relever selon l'installation</Text>
+          <Text style={ui.note}>Les mesures sont proposées sans valeur ni avis validé. Un seul toucher pour relever, N.R, S.O ou N.V.</Text>
+          {missingMeasures.map(nom=><MesureRapide key={nom} nom={nom} busy={busy} onCreate={addItem}/>)}
+        </View> : null}
         <TouchableOpacity accessibilityRole="button" style={ui.addSmall} onPress={()=>setAddChild(true)}>
           <Text style={ui.addText}>+ {childType==='filtre_cta'?'Ajouter un filtre':childType==='mesure_cta'?'Ajouter une mesure':'Ajouter un réseau froid'}</Text>
         </TouchableOpacity>
@@ -443,6 +480,7 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'})
 }
 
 const ui=StyleSheet.create({
+  renameBtn:{marginLeft:8,alignSelf:'center',minHeight:44,justifyContent:'center'},
   missingMeasure:{borderColor:'#DDE5EC',borderWidth:1,borderRadius:12,padding:10,marginVertical:4,backgroundColor:'#FAFBFC'},
   missingLabel:{fontSize:14,color:'#203B50',fontWeight:'700'},
   saveError:{fontSize:12,color:'#A33625',marginTop:4,fontWeight:'600'},
