@@ -209,6 +209,17 @@ function construireLignes(section, mode) {
 }
 
 export function TrameGenericPanel(props) {
+  // REMAR garde ses 141 mappings Excel historiques, mais les objets physiques
+  // repetables sont exclusivement presents via leur fiche durable. Les controles
+  // fixes de conformite/informations et les autres trames ne changent pas.
+  const family = props.trameId === 'remar_v1' || obtenirTrame(props.trameId)?.familyId === 'remar_v1';
+  if (family && [
+    'p-remar-reseaux','p-remar-releves','p-remar-cta','p-remar-filtres',
+    'p-remar-cta-mesures','p-remar-cta-energie','p-remar-vmc','p-remar-froid',
+  ].includes(props.panelId)) {
+    const { RemarDynamicPanel } = require('./RemarDynamicPanel.js');
+    return <RemarDynamicPanel {...props} />;
+  }
   if (props.panelId === 'p-pa-infos') return <PreAllumageInfoPanelBusiness {...props} />;
   if (props.panelId === 'p-pa-batiments') return <PreAllumageInstallationPanelBusiness {...props} />;
   if (props.panelId === 'p-pa-conclusion') return <PreAllumageConclusionPanel {...props} />;
