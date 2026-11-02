@@ -175,6 +175,9 @@ export function OptimizedRegulationPanel({ visiteId, onSaved, embedded = false, 
   const [champsMap, setChampsMap] = useState(cached?.champsMap || {});
   const [reseaux, setReseaux] = useState(cached?.reseaux || []);
   const [adding, setAdding] = useState(false);
+  const [choixReseauVisible, setChoixReseauVisible] = useState(false);
+  const [nomReseau, setNomReseau] = useState('');
+  const [typeReseau, setTypeReseau] = useState('');
   const [precedent, setPrecedent] = useState(() => getPreviousVisitSnapshot(visiteId) || null);
   const ouvertes = useSectionsOuvertes(`regulation:${visiteId}`);
   const { listRef, onScroll } = useListScrollMemory(`visit-panel:${visiteId}:p-regulation`, reseaux.length + 1);
@@ -209,24 +212,27 @@ export function OptimizedRegulationPanel({ visiteId, onSaved, embedded = false, 
   }, [onSaved, visiteId]);
   const live = useCallback((key, valeur) => setChampsMap((old) => (old[key] === valeur ? old : { ...old, [key]: valeur })), []);
 
-  const add = useCallback(async () => {
+  const add = useCallback(async (nomChoisi = null) => {
     if (adding) return;
     setAdding(true);
     try {
       const n = reseaux.length + 1;
       const ordre = reseaux.reduce((m, r) => Math.max(m, Number(r.ordre) || 0), -1) + 1;
-      const id = await ajouterReseau(visiteId, `Réseau ${n}`);
+      const nom = networksOnly ? String(nomChoisi || '').trim() : `Réseau ${n}`;
+      if (!nom) throw new Error('Choisis un type de réseau ou un nom libre.');
+      const id = await ajouterReseau(visiteId, nom);
       // ajouterReseau crée « Réseau » en ordre 0 : on enregistre le nom et le
       // rang affichés pour qu'ils survivent à la réouverture.
-      await upsertReseauChamp(id, 'nom_reseau', `Réseau ${n}`);
+      await upsertReseauChamp(id, 'nom_reseau', nom);
       await upsertReseauChamp(id, 'ordre', ordre);
-      const row = { id, visite_id: visiteId, ordre, nom_reseau: `Réseau ${n}` };
+      const row = { id, visite_id: visiteId, ordre, nom_reseau: nom };
+      setChoixReseauVisible(false);setNomReseau('');setTypeReseau('');
       setReseaux((old) => { const next = [...old, row]; patchCache(next); return next; });
       ouvertes.open([`reseau:${id}`]);
       onSaved?.();
     } catch (e) { Alert.alert('Ajout impossible', String(e?.message || e)); }
     finally { setAdding(false); }
-  }, [adding, patchCache, reseaux, visiteId, ouvertes]);
+  }, [adding, networksOnly, patchCache, reseaux, visiteId, ouvertes]);
 
   const remove = useCallback(async (id) => {
     try {
@@ -294,7 +300,7 @@ export function OptimizedRegulationPanel({ visiteId, onSaved, embedded = false, 
   );
 
   const footer = <>
-    <TouchableOpacity accessibilityRole="button" style={st.addReseau} onPress={add} disabled={adding}>
+    <TouchableOpacity accessibilityRole="button" style={st.addReseau} onPress={() => networksOnly ? setChoixReseauVisible(true) : add()} disabled={adding}>
       <CvcIcon name="plus" size={16} color={COLORS.orangeDark} strokeWidth={2.4} />
       <Text style={st.addReseauText}>{adding ? 'Ajout…' : 'Ajouter un réseau'}</Text>
     </TouchableOpacity>
@@ -303,6 +309,23 @@ export function OptimizedRegulationPanel({ visiteId, onSaved, embedded = false, 
       {renderSection(ecs, 'regulation.reseau_ecs', { water: true })}
     </SectionCard> : null}
   </>;
+
+  const chooser = networksOnly ? <BottomSheet visible={choixReseauVisible}
+      onClose={() => setChoixReseauVisible(false)} title="Ajouter un réseau de chauffage" maxHeight="75%">
+      <Text style={{ marginBottom: 8, color: COLORS.inkSoft }}>Type courant ou nom libre</Text>
+      {['Radiateurs','Plancher chauffant','Ventilo-convecteurs','Batterie CTA','Boucle ECS'].map((type) =>
+        <TouchableOpacity key={type} accessibilityRole="button"
+          style={[st.addReseau,{marginVertical:3}]} onPress={() => {setTypeReseau(type);setNomReseau(type);}}>
+          <Text style={st.addReseauText}>{typeReseau===type?'● ':'○ '}{type}</Text>
+        </TouchableOpacity>)}
+      <TextInput placeholder="Ou nom du réseau" value={nomReseau}
+        onChangeText={v => {setNomReseau(v);setTypeReseau('');}}
+        style={[styles.input,{marginVertical:12}]} maxLength={120}/>
+      <TouchableOpacity accessibilityRole="button" style={st.addReseau}
+        disabled={adding || !nomReseau.trim()} onPress={() => add(nomReseau)}>
+        <Text style={st.addReseauText}>{adding?'Ajout…':'Créer ce réseau'}</Text>
+      </TouchableOpacity>
+    </BottomSheet> : null;
 
   if (embedded) return <View style={{ paddingBottom: 8 }}>
     {header}
@@ -313,6 +336,7 @@ export function OptimizedRegulationPanel({ visiteId, onSaved, embedded = false, 
         precedent={reseauPrecedent(precedent, item)} />
     ))}
     {footer}
+    {chooser}
   </View>;
 
   return <FlatList
@@ -325,7 +349,7 @@ export function OptimizedRegulationPanel({ visiteId, onSaved, embedded = false, 
     renderItem={({ item }) => <ReseauCard reseau={item} visiteId={visiteId} open={ouvertes.isOpen(`reseau:${item.id}`)} onToggle={() => ouvertes.toggle(`reseau:${item.id}`)}
       onRemove={remove} onDuplicate={duplicate} onPatch={patchReseau} precedent={reseauPrecedent(precedent, item)} />}
     ListHeaderComponent={header}
-    ListFooterComponent={footer}
+    ListFooterComponent={<>{footer}{chooser}</>}
     contentContainerStyle={styles.panelContent}
     keyboardShouldPersistTaps="handled"
     initialNumToRender={4}
