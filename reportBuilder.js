@@ -7,6 +7,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { getDb, listerMateriel } from './db.js';
 import { obtenirTrame, DEFAULT_TRAME_ID, normaliserSectionCode } from './trameRegistry.js';
 import { construireRemarDynamiquePourRapport } from './remarDynamicExportDb.js';
+import { lireContextePhotosRemar, contextePhotoRemar } from './remarPhotoContext.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
 import { listerAliasesPreAllumage } from './preAllumageAliases.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
@@ -157,6 +158,9 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     trame.id === 'pre_allumage' ? listerAliasesPreAllumage(visiteId) : Promise.resolve({}),
   ]);
 
+  const photosRemar = (trame.familyId || trame.id)==='remar_v1'
+    ? await lireContextePhotosRemar(visiteId)
+    : null;
   const remarDynamic = (trame.familyId || trame.id)==='remar_v1'
     ? await construireRemarDynamiquePourRapport(visiteId,trame)
     : { replacements:new Map(),details:[],hasDynamic:false };
@@ -313,6 +317,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     sections,
     remarques,
     photos,
+    photosRemar,
     materiel,
     reseaux,
     compteurs,
@@ -353,8 +358,13 @@ function libellePhoto(photo, data) {
     return court(r?.nom_reseau || 'Réseau', 60);
   }
 
-  const saved = court(String(photo.label || '').split('||')[0], 60);
-  return saved || 'Photo générale';
+  const saved = court(String(photo.label || '').split('||')[0], 100);
+  const context = data.photosRemar
+    ? contextePhotoRemar(photo.entite_key,data.photosRemar) : null;
+  if(context && saved){
+    return court(saved.includes(context.prefix)?saved:`${context.prefix} · ${saved}`,160);
+  }
+  return saved || context?.prefix || 'Photo générale';
 }
 
 export function preparerPhotosRapport(data, existantes = []) {
