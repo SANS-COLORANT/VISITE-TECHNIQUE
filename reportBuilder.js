@@ -205,7 +205,11 @@ export async function chargerDonneesVisiteRapport(visiteId) {
       // Une ancienne visite reste au format REMAR v1. Dans une visite avec
       // fiches multi-instances, ces rubriques fixes ne sont plus le formulaire :
       // les objets sont restitues plus bas par identifiant reel.
-      const replacedSections = remarDynamic.hasDynamic && dynamicPanels.has(panelId);
+      const replacedSections = dynamicPanels.has(panelId) && (
+        remarDynamic.details.some(row=>row[6]===panelId) ||
+        (panelId==='p-remar-reseaux'&&reseaux.length>0) ||
+        (panelId==='p-remar-releves'&&compteurs.length>0)
+      );
       if (panelId === 'p-infos' && section === 'Général') continue;
       const code = normaliserSectionCode(panelId, section);
       groups.push({
@@ -229,6 +233,25 @@ export async function chargerDonneesVisiteRapport(visiteId) {
       });
     }
 
+    if (panelId==='p-remar-reseaux'&&reseaux.length) {
+      reseaux.forEach((reseau,i)=>groups.push({
+        title:reseau.nom_reseau||`Réseau ${i+1}`,
+        rows:[
+          {label:'Nom réseau',type:'champ',comment:reseau.nom_reseau||''},
+          {label:'Température extérieure',type:'champ',comment:reseau.t_ext_c||''},
+          {label:'Température départ',type:'champ',comment:reseau.t_dep_c||''},
+          {label:'Courbe de chauffe',type:'champ',comment:reseau.courbe_de_chauffe||''},
+          {label:'TNC',type:'champ',comment:reseau.tnc||''},
+          {label:'Programmation',type:'champ',comment:reseau.consigne_programme_horaire||''},
+        ],
+      }));
+    }
+    if (panelId==='p-remar-releves'&&compteurs.length) {
+      groups.push({title:'Compteurs',rows:compteurs.map(c=>({
+        label:c.label||'Compteur',type:'champ',
+        comment:[c.valeur,c.unite].filter(Boolean).join(' '),
+      }))});
+    }
     if (remarDynamic.hasDynamic && dynamicPanels.has(panelId)) {
       const grouped = new Map();
       for(const line of remarDynamic.details.filter(row=>row[6]===panelId)) {
