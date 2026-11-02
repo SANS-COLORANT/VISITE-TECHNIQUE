@@ -6,6 +6,8 @@ import { Asset } from 'expo-asset';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { getDb, listerMateriel } from './db.js';
 import { obtenirTrame, DEFAULT_TRAME_ID, normaliserSectionCode } from './trameRegistry.js';
+import { construireRemarDynamiquePourRapport } from './remarDynamicExportDb.js';
+import { lireContextePhotosRemar, contextePhotoRemar } from './remarPhotoContext.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
 import { listerAliasesPreAllumage } from './preAllumageAliases.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
@@ -156,6 +158,17 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     trame.id === 'pre_allumage' ? listerAliasesPreAllumage(visiteId) : Promise.resolve({}),
   ]);
 
+  const photosRemar = (trame.familyId || trame.id)==='remar_v1'
+    ? await lireContextePhotosRemar(visiteId)
+    : null;
+  const remarDynamic = (trame.familyId || trame.id)==='remar_v1'
+    ? await construireRemarDynamiquePourRapport(visiteId,trame)
+    : { replacements:new Map(),details:[],hasDynamic:false };
+  const dynamicPanels = new Set([
+    'p-remar-cta','p-remar-filtres','p-remar-cta-mesures','p-remar-cta-energie',
+    'p-remar-vmc','p-remar-froid','p-remar-reseaux','p-remar-releves',
+  ]);
+
   const champMap = new Map(champs.map((r) => [`${r.section_code}||${r.cle}`, r.valeur || '']));
   const ctrlMap = new Map(controles.map((r) => [`${r.section_code}||${r.cle}`, r]));
   const sections = [];
@@ -193,24 +206,72 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     }
 
     for (const [section, fields] of Object.entries(trame.ui?.panels?.[panelId] || {})) {
+      // Une ancienne visite reste au format REMAR v1. Dans une visite avec
+      // fiches multi-instances, ces rubriques fixes ne sont plus le formulaire :
+      // les objets sont restitues plus bas par identifiant reel.
+      const replacedSections = dynamicPanels.has(panelId) && (
+        remarDynamic.details.some(row=>row[6]===panelId) ||
+        (panelId==='p-remar-reseaux'&&reseaux.length>0) ||
+        (panelId==='p-remar-releves'&&compteurs.length>0)
+      );
       if (panelId === 'p-infos' && section === 'Général') continue;
       const code = normaliserSectionCode(panelId, section);
       groups.push({
         title: section,
         sectionCode: code,
         rows: (fields || []).map((f) => {
-          const controle = ctrlMap.get(`${code}||${f.cle}`);
+          const remplacement = remarDynamic.replacements.get([panelId,section,f.cle].join('||'));
+          const controle = remplacement && f.type==='controle'
+            ? remplacement : ctrlMap.get(`${code}||${f.cle}`);
           return {
             label: f.cle,
             type: f.type,
             avis: f.type === 'controle' ? (controle?.avis || '') : '',
             comment: f.type === 'controle' ? (controle?.commentaire || '')
+              : (remplacement && f.type==='champ' ? (remplacement.valeur??'')
               : (panelId === 'p-remar-releves' && f.numericIndex && compteurs.some((c) => c.destination === f.cle)
                 ? formaterReleves(compteurs.filter((c) => c.destination === f.cle))
-                : (champMap.get(`${code}||${f.cle}`) || '')),
+                : (champMap.get(`${code}||${f.cle}`) || ''))),
           };
-        }),
+        }).filter((r) => !replacedSections || r.avis || r.comment),
       });
+    }
+
+    if (panelId==='p-remar-reseaux'&&reseaux.length) {
+      reseaux.forEach((reseau,i)=>groups.push({
+        title:reseau.nom_reseau||`Réseau ${i+1}`,
+        rows:[
+          {label:'Nom réseau',type:'champ',comment:reseau.nom_reseau||''},
+          {label:'Température extérieure',type:'champ',comment:reseau.t_ext_c||''},
+          {label:'Température départ',type:'champ',comment:reseau.t_dep_c||''},
+          {label:'Courbe de chauffe',type:'champ',comment:reseau.courbe_de_chauffe||''},
+          {label:'TNC',type:'champ',comment:reseau.tnc||''},
+          {label:'Programmation',type:'champ',comment:reseau.consigne_programme_horaire||''},
+        ],
+      }));
+    }
+    if (panelId==='p-remar-releves'&&compteurs.length) {
+      groups.push({title:'Compteurs',rows:compteurs.map(c=>({
+        label:c.label||'Compteur',type:'champ',
+        comment:[c.valeur,c.unite].filter(Boolean).join(' '),
+      }))});
+    }
+    if (remarDynamic.hasDynamic && dynamicPanels.has(panelId)) {
+      const grouped = new Map();
+      for(const line of remarDynamic.details.filter(row=>row[6]===panelId)) {
+        const [famille,parent,parentId,element,elementId,type,onglet,rubrique,cle,valeur,avis,commentaire,source,statut] = line;
+        const groupId = [parentId,elementId].join('::');
+        if (!grouped.has(groupId)) grouped.set(groupId,{
+          title: parent && parent!==element ? `${parent} — ${element}` : element,
+          sectionCode: `remar.dynamic.${groupId}`,rows:[],
+        });
+        grouped.get(groupId).rows.push({
+          label: cle==='Type / presence'?'Elément ajouté':cle,
+          type:avis?'controle':'champ',avis:avis||'',
+          comment:[valeur,commentaire,source?`Source : ${source}`:''].filter(Boolean).join(' · '),
+        });
+      }
+      groups.push(...grouped.values());
     }
 
     if (panelId === 'p-regulation') {
@@ -256,6 +317,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     sections,
     remarques,
     photos,
+    photosRemar,
     materiel,
     reseaux,
     compteurs,
@@ -278,14 +340,20 @@ function libellePhoto(photo, data) {
   if (personnalisee) return court(personnalisee, 160);
   const key = String(photo.entite_key || '');
   const [type, id] = key.split('||');
+  const remarContext = data.photosRemar ? contextePhotoRemar(key,data.photosRemar) : null;
+  const photoAvecOrigine = texte => {
+    const label=String(texte||'Photo');
+    return court(remarContext && !label.includes(remarContext.prefix)
+      ? `${remarContext.prefix} · ${label}` : label,160);
+  };
 
   if (type === 'remarque') {
     const r = data.remarques.find((x) => x.id === id);
-    return libelleReserveCourt(r);
+    return photoAvecOrigine(libelleReserveCourt(r));
   }
   if (type === 'materiel' || type === 'equipement') {
     const m = data.materiel.find((x) => x.id === id || x.equipement_id === id);
-    return court(m?.designation || m?.categorie || 'Équipement', 60);
+    return photoAvecOrigine(m?.designation || m?.categorie || 'Équipement');
   }
   if (type === 'compteur' || type === 'compteur_site') {
     const c = data.compteurs?.find((x) => x.id === id || x.compteur_site_id === id);
@@ -296,8 +364,8 @@ function libellePhoto(photo, data) {
     return court(r?.nom_reseau || 'Réseau', 60);
   }
 
-  const saved = court(String(photo.label || '').split('||')[0], 60);
-  return saved || 'Photo générale';
+  const saved = court(String(photo.label || '').split('||')[0], 100);
+  return photoAvecOrigine(saved || remarContext?.prefix || 'Photo générale');
 }
 
 export function preparerPhotosRapport(data, existantes = []) {

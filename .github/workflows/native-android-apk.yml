@@ -14,6 +14,7 @@ on:
       - fix/universal-intranet-mapping-material-reconciliation-20261028
       - fix/visit-upload-field-identity-and-equipment-dup-20261028
       - fix/intranet-trame-selection-20261102
+      - feat/remar-dynamic-every-tab-20261102
     paths:
       - '**/*.js'
       - '**/*.json'

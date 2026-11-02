@@ -7,6 +7,7 @@ import { RemarMeterField } from './RemarMeterField.js';
 import { PersistentControleGenerique } from './PersistentControleGenerique.js';
 import { VmcControleGenerique } from './VmcControleGenerique.js';
 import { PresetControleGenerique } from './PresetControleGenerique.js';
+import { enrichirControleRemar } from './remarControlPresets.js';
 import { PreAllumagePlanCard } from './PreAllumagePlanCard.js';
 import { COLORS, FONTS, styles } from './styles.js';
 import { enregistrerAliasPreAllumage, fieldAliasKey, libelleChamp, listerAliasesPreAllumage, sectionAliasDescriptor } from './preAllumageAliases.js';
@@ -209,6 +210,17 @@ function construireLignes(section, mode) {
 }
 
 export function TrameGenericPanel(props) {
+  // REMAR garde ses 141 mappings Excel historiques, mais les objets physiques
+  // repetables sont exclusivement presents via leur fiche durable. Les controles
+  // fixes de conformite/informations et les autres trames ne changent pas.
+  const family = props.trameId === 'remar_v1' || obtenirTrame(props.trameId)?.familyId === 'remar_v1';
+  if (family && [
+    'p-remar-reseaux','p-remar-releves','p-remar-cta','p-remar-filtres',
+    'p-remar-cta-mesures','p-remar-cta-energie','p-remar-vmc','p-remar-froid',
+  ].includes(props.panelId)) {
+    const { RemarDynamicPanel } = require('./RemarDynamicPanel.js');
+    return <RemarDynamicPanel {...props} />;
+  }
   if (props.panelId === 'p-pa-infos') return <PreAllumageInfoPanelBusiness {...props} />;
   if (props.panelId === 'p-pa-batiments') return <PreAllumageInstallationPanelBusiness {...props} />;
   if (props.panelId === 'p-pa-conclusion') return <PreAllumageConclusionPanel {...props} />;
@@ -475,7 +487,10 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
       />;
     }
     if (item.field.vmc === true) return <VmcControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} trameId={trameId} />;
-    if (item.field.presets) return <PresetControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} displayLabel={item.field.label || label || undefined} trameId={trameId} />;
+    if (item.field.presets) return <PresetControleGenerique visiteId={visiteId} sectionCode={item.sectionCode}
+      field={estRemar?enrichirControleRemar(item.field,panelId):item.field}
+      etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)}
+      onSaved={onSaved} displayLabel={item.field.label || label || undefined} trameId={trameId} />;
     return <PersistentControleGenerique visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} etatInitial={controlesMap[item.key]} onEtatChange={etatHandler(item.key)} onSaved={onSaved} trameId={trameId} displayLabel={item.field.label || label || undefined} />;
   };
 

@@ -1,5 +1,6 @@
 import { getDb } from './db.js';
 import { obtenirTrame } from './trameRegistry.js';
+import { construireRemarDynamiquePourRapport } from './remarDynamicExportDb.js';
 import { formaterReleves, formaterTemperatureGroupee } from './releveMultiligne.js';
 
 export const INTRANET_MAX_BODY_BYTES = 5 * 1024 * 1024;
@@ -649,6 +650,71 @@ async function buildCriteria(db, visite, details, issues) {
   const isTemperature = isTemperatureCandidate;
   const fieldMap = new Map(fields.map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
   const controlMap = new Map(controls.map((row) => [`${row.section_code}||${row.cle}`, row]));
+  // REMAR multi-instance: injecter seulement les fiches identifiees sans
+  // ambiguite dans les anciennes destinations officielles. Les autres points
+  // sont exposes dans l'annexe Excel mais NE DOIVENT PAS etre perdus lors d'un
+  // envoi Intranet : bloquer cet envoi tant que Symfony ne fournit pas de route
+  // structuree pour les instances supplementaires.
+  if ((definition.familyId || definition.id) === 'remar_v1') {
+    const remap = await construireRemarDynamiquePourRapport(visite.id,definition);
+    if (remap.hasDynamic) {
+      // Le formulaire CTA v1 peut contenir des valeurs copiees lors d'une
+      // precedente visite. Une nouvelle CTA multi-instance les remplace.
+      // Ne JAMAIS envoyer une ancienne valeur comme un constat du jour.
+      if (remap.familyCounts?.cta) {
+        for (const map of definition?.excel?.fieldMappings || []) {
+          if (!['p-remar-cta','p-remar-filtres','p-remar-cta-mesures','p-remar-cta-energie']
+            .includes(map.panelId)) continue;
+          const key=`${map.sectionCode}||${map.cle}`;
+          if (map.type==='controle') controlMap.set(key,{avis:null,commentaire:null});
+          else fieldMap.set(key,null);
+        }
+      }
+      for (const warning of [...remap.ambiguous,...remap.unsupported]) {
+        issues.push(`REMAR dynamique non transmissible sans perte : ${warning}`);
+      }
+      // Contrat A2: un avis non saisi ne doit PAS devenir silencieusement N.V
+      // (non visible) dans le POST. Le technicien doit choisir S/N.S/N.R/S.O/N.V.
+      if (remap.familyCounts?.cta && !remap.ambiguous.some(x=>/^CTA\b/.test(x))) {
+        for (const m of definition?.excel?.fieldMappings || []) {
+          if (m.type !== 'controle') continue;
+          const cellKey=[m.panelId,m.section,m.cle].join('||');
+          const row=remap.replacements.get(cellKey);
+          const isMain=['p-remar-cta','p-remar-cta-energie'].includes(m.panelId);
+          const activeFilter=m.panelId==='p-remar-filtres' &&
+            m.cle==='Etat du filtre' &&
+            remap.replacements.has([m.panelId,m.section,'Type de filtre'].join('||'));
+          if (isMain||activeFilter) {
+            if(!row||row.inherited||!['S','N.S','N.R','S.O','N.V'].includes(row.avis)) {
+              issues.push(`REMAR CTA / ${m.section} / ${m.cle} : avis non confirmé pendant cette visite. Sélectionne S, N.S, N.R (non vérifié), S.O ou N.V avant l'envoi ; aucun avis n'est inventé.`);
+            } else if(row.avis==='N.S' &&
+              (!String(row.commentaire||'').trim() ||
+               /^(?:anomalie|défaut) (?:constaté[ea]?[,;:]?\s*)?(?:à préciser|intervention à préciser)/i.test(String(row.commentaire).trim()) ||
+               /: anomalie constatée[,;:]?\s*(?:intervention |description )?à préciser/i.test(String(row.commentaire)))) {
+              issues.push(`REMAR CTA / ${m.section} / ${m.cle} : l'avis N.S doit préciser un défaut observé. Choisis une proposition technique ou décris le constat avant l'envoi Intranet.`);
+            }
+          }
+        }
+      }
+      const byOfficial = new Map((definition?.excel?.fieldMappings||[])
+        .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
+      for (const [key,value] of remap.replacements) {
+        const mapping = byOfficial.get(key);
+        if (!mapping) {
+          issues.push(`REMAR : correspondance officielle introuvable pour ${key}.`);
+          continue;
+        }
+        const storageKey = `${mapping.sectionCode}||${mapping.cle}`;
+        const confirmed=value.inherited!==true;
+        if (mapping.type==='controle') {
+          controlMap.set(storageKey,{avis:confirmed?(value.avis??null):null,
+            commentaire:confirmed?(value.commentaire??null):null});
+        } else {
+          fieldMap.set(storageKey,confirmed?(value.valeur??null):null);
+        }
+      }
+    }
+  }
   const remoteNetworkGroups = capabilities.networks
     ? categories.flatMap((category) => (Array.isArray(category?.sousCategories) ? category.sousCategories : []).filter(isNetworkGroup).map((subCategory) => ({ category, subCategory }))) : [];
   const networkAssignments = capabilities.networks

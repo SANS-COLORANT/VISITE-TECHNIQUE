@@ -29,12 +29,18 @@ check(fields.filter((field) => field.type === 'controle').every((field) => ['S',
 const planningSource = read('remarJourneyPlan.js').replace(/\bexport\s+/g, '');
 const { REMAR_JOURNEY_GROUPS, buildRemarJourneyGroups, firstIncompleteRemarTab } =
   new Function(planningSource + '\nreturn { REMAR_JOURNEY_GROUPS, buildRemarJourneyGroups, firstIncompleteRemarTab };')();
+// Les trois sous-onglets CTA restent dans le schema Excel et l'historique,
+// mais ne sont plus des onglets du navigateur de visite.
+const innerCta = ['p-remar-filtres','p-remar-cta-mesures','p-remar-cta-energie'];
+const visibleIds = ids.filter(id=>!innerCta.includes(id));
+check(visibleIds.length===14 && innerCta.every(id=>ids.includes(id)),
+  '14 onglets visibles et 3 etapes internes CTA sans perte des 17 IDs officiels');
 const allTabIds = REMAR_JOURNEY_GROUPS.flatMap((g) => g.ids);
 check(new Set(allTabIds).size === allTabIds.length, 'groups never duplicate panels');
-check(ids.length === allTabIds.length && ids.every((id) => allTabIds.includes(id)),
-  'all 17 REMAR panels belong to a single accessible métier group');
-const base = buildRemarJourneyGroups(ids, remar.ui.labels, {});
-check(base.length === 5 && base.flatMap((g) => g.tabs).length === ids.length, 'five concise sections cover full REMAR');
+check(visibleIds.length === allTabIds.length && visibleIds.every((id) => allTabIds.includes(id)),
+  'all 14 visible REMAR tabs have a unique navigation group');
+const base = buildRemarJourneyGroups(visibleIds, remar.ui.labels, {});
+check(base.length === 5 && base.flatMap((g) => g.tabs).length === visibleIds.length, 'five concise sections cover full REMAR');
 check(base[0].tabs[0].id === 'p-infos' && base[base.length-1].tabs.at(-1).id === 'p-photos',
   'field workflow starts with information and ends with photos');
 const currentState = {
@@ -42,17 +48,19 @@ const currentState = {
   'p-remar-reseaux': { total: 5, done: 2, ns: 0 },
   'p-conf-local': { total: 17, done: 7, ns: 2 },
 };
-const progress = buildRemarJourneyGroups(ids, remar.ui.labels, currentState);
+const progress = buildRemarJourneyGroups(visibleIds, remar.ui.labels, currentState);
 check(firstIncompleteRemarTab(progress) === 'p-remar-reseaux', 'resume targets first known incomplete section');
 check(progress[0].total === 36 && progress[0].done === 23 && progress[0].ns === 2,
   'group progress and anomaly totals are exact and read-only');
-check(firstIncompleteRemarTab(buildRemarJourneyGroups(ids, remar.ui.labels, {})) === null,
+check(firstIncompleteRemarTab(buildRemarJourneyGroups(visibleIds, remar.ui.labels, {})) === null,
   'unknown counts do not invent pending work');
-const custom = buildRemarJourneyGroups([...ids, 'p-personnel-sur-mesure'], { ...remar.ui.labels, 'p-personnel-sur-mesure': 'Mes essais' }, {});
+const custom = buildRemarJourneyGroups([...visibleIds, 'p-personnel-sur-mesure'], { ...remar.ui.labels, 'p-personnel-sur-mesure': 'Mes essais' }, {});
 check(custom.at(-1).label === 'Autres onglets' && custom.at(-1).tabs[0].label === 'Mes essais',
   'new editable-library panels are never hidden');
 
 const screen = read('VisiteScreen.js'), sheet = read('RemarJourneySheet.js');
+check(screen.includes('REMAR_CTA_ETAPES_INTERNES')&&screen.includes('estParcoursRemar ? tabOrderBase.filter'),
+  'native pager hides the three CTA sub-tabs without deleting report mappings');
 check(screen.includes("trame.id === 'remar_v1' || trame.familyId === 'remar_v1'"),
   'custom REMAR versions reuse the same index');
 check(screen.includes('estParcoursRemar && remarJourneyVisible') && screen.includes('onSelect={changerOnglet}'),

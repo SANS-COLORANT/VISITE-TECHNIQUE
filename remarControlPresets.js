@@ -1,0 +1,215 @@
+/**
+ * Bibliothèque REMAR de constats pré-rédigés, non présumés.
+ *
+ * Contrairement aux phrases automatiques « état satisfaisant » et « anomalie
+ * à préciser », les choix sont des observations techniques actionnables.
+ * Le technicien confirme chaque scénario ou modifie le texte libre.
+ *
+ * AUCUN changement des IDs de champs, des destinations Excel ou du contrat
+ * Symfony. Les contrôles VMC réutilisent directement les presets éprouvés de
+ * la trame VMC existante.
+ */
+import { VMC_PANELS } from './vmcTrame.js';
+
+const C=(positiveLabel,positiveText,negative,poste='Entretien P2')=>({
+  S:[{label:positiveLabel,commentaire:positiveText,poste}],
+  'N.S':negative.map(([label,commentaire,reserve])=>({label,commentaire,reserve,poste})),
+});
+const P={
+  'p-conf-local':{
+    'Coupure extérieure Gaz':C('Accessible et repérée',
+      "La coupure générale gaz extérieure est identifiée et accessible sans obstacle apparent.",
+      [['Accès entravé',"L'accès à la coupure générale gaz est encombré ou difficile, ce qui compromet une manœuvre rapide.","Dégager durablement et sécuriser l'accès à la coupure gaz extérieure."],
+       ['Repérage insuffisant',"La coupure générale gaz extérieure n'est pas clairement signalée ou identifiée.","Installer un repérage durable et visible de la coupure générale gaz."]],'Travaux de conformité'),
+    'Coupure extérieure électrique':C('Repérée et accessible',
+      "La coupure électrique extérieure est repérée et son accès est dégagé lors de la visite.",
+      [['Accès difficile',"La coupure électrique extérieure est difficilement accessible en cas de nécessité.","Rendre la coupure extérieure aisément accessible et maintenir l'accès libre."],
+       ['Absente ou non identifiée',"Aucune coupure électrique extérieure clairement identifiée n'a pu être localisée.","Vérifier l'existence, l'implantation et le repérage d'une coupure adaptée."]],'Travaux de conformité'),
+    "Porte d'accès":C('Accès sécurisé',"La porte du local ferme correctement et son état apparent permet un accès maîtrisé.",
+      [['Fermeture défaillante',"La porte d'accès présente un défaut de fermeture ou de verrouillage.","Réparer le dispositif de fermeture et contrôler la sécurisation du local."],
+       ['Porte dégradée',"La porte d'accès présente des dégradations susceptibles de compromettre son usage.","Remettre en état ou remplacer la porte selon son état."]],'Travaux de conformité'),
+    'BAES':C('Équipement en place',"Les BAES visibles sont présents et ne présentent pas de dégradation apparente ; essai fonctionnel à consigner séparément.",
+      [['Absent',"L'éclairage de sécurité attendu n'est pas identifié dans le local.","Vérifier le besoin et mettre en place l'éclairage de sécurité adapté."],
+       ['En défaut',"Un BAES présente un défaut apparent ou un état de maintenance insuffisant.","Contrôler et remettre en état le BAES défaillant."]],'Travaux de conformité'),
+    'Ventilation':C('Entrées et sorties dégagées',"Les ouvertures de ventilation visibles sont dégagées et ne présentent pas d'obstruction apparente.",
+      [['Grille obstruée',"Une ouverture de ventilation est partiellement ou totalement obstruée.","Dégager et nettoyer les ouvertures de ventilation concernées."],
+       ['Ventilation insuffisante suspectée',"La configuration ou l'état de la ventilation du local nécessite un contrôle de son efficacité.","Faire vérifier le dimensionnement et le fonctionnement de la ventilation du local."]],'Travaux de conformité'),
+    'Extincteurs':C('Présents et accessibles',"Les extincteurs présents sont accessibles et leur signalisation est visible ; validité à vérifier sur les étiquettes.",
+      [['Extincteur absent',"Aucun extincteur adapté n'a été identifié à l'emplacement contrôlé.","Compléter l'équipement d'extinction selon l'analyse des besoins du local."],
+       ['Extincteur non suivi',"Un extincteur présente un défaut de suivi, d'accessibilité ou de repérage.","Faire vérifier l'extincteur et rétablir son accessibilité et son repérage."]],'Travaux de conformité'),
+    'Gaine pompiers':C('Éléments identifiés',"Les éléments de la gaine pompiers visibles sont présents et repérés au point contrôlé.",
+      [['Raccordement manquant',"Le raccordement ou un composant attendu de la gaine pompiers n'est pas identifié.","Vérifier le dispositif et compléter les composants nécessaires."],
+       ['Signalisation absente',"La gaine pompiers ne dispose pas d'un repérage suffisamment visible.","Mettre en place une signalétique adaptée à la gaine pompiers."]],'Travaux de conformité'),
+    'Consignes de sécurité':C('Consignes affichées',"Les consignes de sécurité sont affichées et lisibles à l'entrée ou à l'emplacement prévu.",
+      [['Consignes absentes',"Les consignes de sécurité ne sont pas affichées dans le local.","Afficher les consignes de sécurité appropriées au local."],
+       ['Consignes illisibles ou obsolètes',"Les consignes de sécurité sont dégradées, illisibles ou à actualiser.","Mettre à jour les consignes et rétablir un affichage lisible."]],'Travaux de conformité'),
+    'Schéma hydraulique à jour':C('Schéma exploitable',"Un schéma hydraulique lisible est disponible sur site et son contenu paraît cohérent avec les installations visibles.",
+      [['Schéma absent',"Aucun schéma hydraulique exploitable n'a été présenté lors de la visite.","Établir et afficher un schéma hydraulique des installations."],
+       ['Schéma non actualisé',"Le schéma hydraulique disponible ne reflète pas les équipements ou modifications constatés.","Actualiser le schéma hydraulique à partir de l'installation réelle."]],'Travaux de conformité'),
+    'Armoire électrique':C('Armoire maintenue',"L'armoire électrique est fermée, repérée et sans dégradation apparente visible à l'extérieur.",
+      [['Armoire dégradée',"L'armoire électrique présente un défaut visible de fermeture ou d'intégrité.","Faire contrôler et remettre en état l'armoire électrique."],
+       ['Repérage déficient',"Les départs électriques ou l'armoire ne sont pas identifiés de manière suffisante.","Compléter et fiabiliser le repérage électrique."]],'Travaux de conformité'),
+    'Ligne de Gaz':C('Réseau apparent correct',"La ligne de gaz visible paraît correctement maintenue et ne présente pas de dégradation apparente.",
+      [['Corrosion ou dégradation',"La tuyauterie gaz présente des signes de corrosion ou une dégradation visible.","Faire contrôler la ligne de gaz et remettre en état les tronçons concernés."],
+       ['Fixation ou repérage insuffisant',"Le supportage ou le repérage de la ligne de gaz est insuffisant sur la zone observée.","Reprendre le supportage et le repérage des canalisations concernées."]],'Travaux de conformité'),
+    'Evacuation des EU':C('Évacuation accessible',"Le réseau d'évacuation des eaux usées visible est présent et ne présente pas de fuite apparente.",
+      [['Écoulement anormal',"Un défaut d'écoulement ou une stagnation des eaux est constaté sur l'évacuation.","Rechercher la cause et rétablir une évacuation fonctionnelle."],
+       ['Fuite constatée',"Une fuite est observée au niveau des raccordements d'évacuation.","Réparer les raccordements défectueux et vérifier l'étanchéité."]],'Entretien P2'),
+    'Eclairage':C('Éclairage utilisable',"L'éclairage du local est opérationnel au moment du contrôle et permet une intervention dans de bonnes conditions.",
+      [['Éclairage défaillant',"Un point lumineux ne fonctionne pas et réduit la visibilité dans le local.","Remettre en état l'éclairage du local."],
+       ['Éclairage insuffisant',"L'éclairage disponible ne permet pas une intervention confortable sur les équipements.","Compléter ou améliorer l'éclairage du local."]],'Entretien P2'),
+    'Chemins de câbles électriques avec liaison équipotentiel':C('Cheminements maintenus',
+      "Les chemins de câbles visibles sont correctement maintenus ; les liaisons équipotentielles visibles ne présentent pas d'anomalie apparente.",
+      [['Câbles non protégés',"Des câbles électriques sont insuffisamment protégés ou maintenus.","Mettre en sécurité et reprendre le cheminement des câbles concernés."],
+       ['Liaison à vérifier',"Une liaison équipotentielle attendue n'est pas identifiable sur la zone contrôlée.","Faire vérifier la continuité et la réalisation des liaisons équipotentielles."]],'Travaux de conformité'),
+    'Etat du local':C('Local entretenu',"Le local est propre, accessible et ne présente pas de dégradation apparente nécessitant une intervention immédiate.",
+      [['Encombrement',"Le local est encombré et gêne l'accès aux équipements et organes de sécurité.","Dégager et organiser le local pour maintenir les accès de maintenance."],
+       ['Dégradations',"Des dégradations ou infiltrations sont visibles dans le local.","Rechercher leur origine et programmer les remises en état nécessaires."]],'Entretien P2'),
+    'Point de puisage':C('Disponible',"Le point de puisage est présent, accessible et ne présente pas de fuite apparente.",
+      [['Absent ou inutilisable',"Aucun point de puisage utilisable n'est disponible à l'emplacement contrôlé.","Étudier la mise en place ou la remise en service d'un point de puisage adapté."],
+       ['Fuite',"Une fuite est constatée au point de puisage ou à son raccordement.","Réparer le point de puisage et vérifier son étanchéité."]],'Entretien P2'),
+    'Calorifuge':C('Isolation en état',"Le calorifuge visible est continu et ne présente pas de détérioration apparente.",
+      [['Isolation manquante',"Une portion de tuyauterie est dépourvue de calorifuge.","Calorifuger les parties concernées après vérification des conditions de pose."],
+       ['Isolation dégradée',"Le calorifuge présente des déchirures, écrasements ou parties décollées.","Reprendre ou remplacer les sections de calorifuge dégradées."]],'Travaux d’amélioration'),
+  },
+  'p-conf-chauffage':{
+    "Traitement d'eau":C('Dispositif suivi',"Le traitement d'eau chauffage dispose d'un équipement identifié et d'un suivi exploitable présenté lors de la visite.",
+      [['Absence de suivi',"Aucune mesure ou traçabilité récente du traitement d'eau chauffage n'est disponible.","Organiser les contrôles de qualité d'eau et consigner les résultats."],
+       ['Équipement en défaut',"Le dispositif de traitement d'eau présente un défaut apparent ou une indisponibilité.","Diagnostiquer et remettre en état le traitement d'eau chauffage."]]),
+    "Vase d'expansion":C('Vase sans anomalie visible',"Le vase d'expansion est présent, accessible et ne présente pas de fuite ou de dégradation apparente.",
+      [['Fuite ou corrosion',"Le vase d'expansion présente une fuite ou un état de corrosion anormal.","Faire contrôler et remettre en état ou remplacer le vase défectueux."],
+       ['Pression à vérifier',"La pression de gonflage ou le fonctionnement du vase n'ont pas été justifiés et nécessitent un contrôle.","Vérifier le dimensionnement et la pression de gonflage du vase d'expansion."]]),
+    'Soupape':C('Soupape en place',"La soupape de sécurité est présente, correctement raccordée et ne présente pas de fuite apparente.",
+      [['Fuite',"Un écoulement ou une fuite est constaté à la soupape de sécurité.","Contrôler la soupape et remplacer l'organe défaillant si nécessaire."],
+       ['Montage à vérifier',"Le montage ou l'évacuation de la soupape nécessite un contrôle spécifique.","Vérifier le montage et la décharge de la soupape de sécurité."]]),
+    'Désemboueur':C('Dispositif accessible',"Le désemboueur est présent et les organes nécessaires à son entretien sont accessibles.",
+      [['Encrassement',"Des indices d'encrassement ou un défaut de purge sont constatés sur le désemboueur.","Procéder à l'entretien du désemboueur et contrôler l'état du réseau."],
+       ['Entretien non tracé',"Aucun entretien récent du désemboueur n'a pu être justifié.","Programmer et tracer l'entretien du désemboueur."]]),
+    'Conduits de fumées':C('État apparent satisfaisant',"Les conduits de fumées accessibles à l'observation ne présentent pas de dégradation visible.",
+      [['Dégradation',"Le conduit de fumées présente des traces de corrosion, une déformation ou une dégradation visible.","Faire contrôler et réparer les parties dégradées du conduit."],
+       ['Étanchéité à contrôler',"Un défaut de raccordement ou d'étanchéité est suspecté sur le conduit de fumées.","Faire vérifier l'étanchéité et les raccordements par un professionnel compétent."]],'Travaux de conformité'),
+    'Disconnecteur':C('Présent et accessible',"Le disconnecteur est identifiable et accessible pour les opérations de contrôle et d'entretien.",
+      [['Absence de contrôle',"Aucun contrôle récent du disconnecteur n'a été présenté.","Faire contrôler le disconnecteur et consigner la vérification."],
+       ['Fuite ou défaut',"Une fuite ou une anomalie visible est constatée sur le disconnecteur.","Faire diagnostiquer et remettre en état ou remplacer le disconnecteur."]],'Travaux de conformité'),
+    'Adoucisseur':C('Dispositif en service',"L'adoucisseur est présent et aucune anomalie apparente de fonctionnement n'a été relevée lors du contrôle.",
+      [['En défaut',"L'adoucisseur présente un défaut de fonctionnement ou une alarme.","Diagnostiquer et remettre en service l'adoucisseur."],
+       ['Suivi insuffisant',"Le suivi du réglage, des régénérations ou de la qualité d'eau n'a pas été présenté.","Contrôler les réglages et formaliser le suivi de l'adoucisseur."]]),
+  },
+  'p-conf-ecs':{
+    'Filtres':C('Filtres accessibles',"Les filtres ECS sont identifiés, accessibles et ne présentent pas de défaut apparent.",
+      [['Encrassés',"Les filtres ECS présentent un encrassement nécessitant une intervention.","Nettoyer ou remplacer les filtres ECS concernés."],
+       ['Entretien non assuré',"La périodicité d'entretien des filtres ECS n'a pas été justifiée.","Vérifier l'état des filtres et formaliser l'entretien."]]),
+    'Produit de traitement':C('Suivi disponible',"Le traitement ECS dispose d'une identification du produit et d'un suivi d'exploitation consultable.",
+      [['Produit non identifié',"Le produit de traitement utilisé sur l'ECS n'est pas clairement identifié.","Identifier le produit utilisé et vérifier son adéquation au procédé."],
+       ['Suivi insuffisant',"Les contrôles et dosages du traitement ECS ne sont pas tracés.","Mettre en place un suivi documenté du traitement ECS."]]),
+    'Manchettes témoins':C('Dispositif présent',"Les manchettes témoins présentes sont identifiées et accessibles pour les contrôles prévus.",
+      [['Absentes',"Aucune manchette témoin n'a été identifiée au point examiné.","Vérifier le besoin et mettre en place les manchettes témoins adaptées."],
+       ['Suivi absent',"Les contrôles ou résultats des manchettes témoins ne sont pas disponibles.","Organiser et tracer le contrôle des manchettes témoins."]]),
+    'Vanne de vidange sur ballon':C('Vanne accessible',"La vanne de vidange du ballon est identifiable, accessible et ne présente pas de fuite apparente.",
+      [['Vanne grippée',"La vanne de vidange est difficile ou impossible à manœuvrer.","Réparer ou remplacer la vanne de vidange."],
+       ['Vanne absente',"Aucune vanne de vidange n'est identifiée sur le ballon contrôlé.","Étudier l'installation d'une vanne de vidange adaptée."]]),
+    'Robinet de prélèvement (départ, bouclage)':C('Prélèvements accessibles',"Les robinets de prélèvement du départ et du bouclage sont accessibles et correctement repérés.",
+      [['Point manquant',"Un point de prélèvement nécessaire au contrôle ECS n'est pas identifié.","Prévoir un point de prélèvement adapté sur le tronçon concerné."],
+       ['Point inutilisable',"Un robinet de prélèvement présente une fuite ou ne peut être utilisé.","Réparer ou remplacer le robinet de prélèvement défectueux."]]),
+    'Soupape':C('Soupape visible en état',"La soupape ECS est présente et ne présente pas de fuite ou de dégradation apparente.",
+      [['Fuite constatée',"Un écoulement anormal est observé à la soupape ECS.","Contrôler et remettre en état ou remplacer la soupape ECS."],
+       ['Évacuation inadaptée',"Le raccordement ou l'évacuation de la soupape ECS est à contrôler.","Vérifier le dispositif de décharge et son raccordement."]]),
+    'Adoucisseur':C('Suivi ECS disponible',"L'adoucisseur associé à l'ECS dispose d'un suivi d'exploitation consultable et ne présente pas d'anomalie apparente.",
+      [['Réglage à revoir',"Les réglages ou le contrôle de dureté de l'adoucisseur ECS ne sont pas documentés.","Vérifier la dureté et adapter les réglages de l'adoucisseur."],
+       ['Défaut de fonctionnement',"L'adoucisseur ECS présente une panne ou un défaut de régénération.","Diagnostiquer le défaut et remettre le dispositif en service."]]),
+  },
+  'p-remar-energie':{
+    'GTB':C('Pilotage disponible',"Les points de supervision de la chaufferie consultés ne présentent pas d'alarme apparente lors de la visite.",
+      [['Supervision indisponible',"La supervision de chaufferie est indisponible ou ne remonte pas les informations attendues.","Rétablir les communications et les remontées d'information de la GTB."],
+       ['Consignes incohérentes',"Les consignes affichées en GTB ne correspondent pas à l'exploitation attendue.","Vérifier et corriger les consignes et les scénarios de régulation."]],'Travaux d’amélioration'),
+    'Chaudière':C('Fonctionnement observé',"Le générateur observé fonctionne sans anomalie apparente dans les conditions de visite.",
+      [['Rendement à investiguer',"Le fonctionnement du générateur présente des signes de dérive ou de pertes énergétiques.","Faire analyser le fonctionnement et les réglages de la chaudière."],
+       ['Vieillissement',"La vétusté ou les dégradations du générateur justifient une étude de rénovation.","Étudier la remise en état ou le remplacement du générateur."]],'Travaux d’amélioration'),
+    'Brûleur':C('Réglages suivis',"Le brûleur est en service et son suivi de réglage/combustion a été présenté.",
+      [['Réglages non justifiés',"Aucun compte rendu récent de réglage ou d'analyse de combustion n'est disponible.","Faire contrôler la combustion et consigner les réglages du brûleur."],
+       ['Fonctionnement instable',"Le brûleur présente des arrêts ou des défauts de fonctionnement.","Rechercher l'origine des défauts et remettre en état le brûleur."]],'Travaux d’amélioration'),
+    'Condensation':C('Régime observé compatible',"Les températures de retour observées permettent d'envisager une récupération de chaleur par condensation, selon les conditions de fonctionnement.",
+      [['Retour trop chaud',"La température de retour observée limite le potentiel de condensation du générateur.","Analyser les températures de retour et optimiser les lois de chauffe."],
+       ['Récupération à améliorer',"La récupération des condensats ou l'exploitation du mode condensation présente un défaut apparent.","Contrôler le dispositif de condensation et ses conditions de fonctionnement."]],'Travaux d’amélioration'),
+    'Consignes / programmes':C('Programmation cohérente',"Les plages horaires et consignes consultées sont cohérentes avec les besoins connus du site.",
+      [['Horaires inadaptés',"La programmation de chauffe ne correspond pas aux périodes d'occupation observées.","Adapter les horaires aux besoins d'occupation du bâtiment."],
+       ['Consignes incohérentes',"Les consignes sont inadaptées au fonctionnement attendu du site.","Vérifier et ajuster les consignes de régulation."]],'Travaux d’amélioration'),
+    'Vannes 3 voies':C('Commande apparente correcte',"Les vannes trois voies observées répondent aux sollicitations vérifiées lors de la visite.",
+      [['Vanne bloquée',"Une vanne trois voies présente un blocage ou une commande sans effet observé.","Contrôler le servomoteur et remettre en état la vanne."],
+       ['Régulation instable',"Le fonctionnement de la vanne entraîne des variations non maîtrisées de température.","Vérifier le pilotage et le réglage de la vanne trois voies."]],'Travaux d’amélioration'),
+  },
+  'p-remar-cta':{
+    'Eclairage du caisson':C('Éclairage fonctionnel',"L'éclairage du caisson est opérationnel et permet l'entretien dans les conditions de visite.",
+      [['Éclairage défaillant',"L'éclairage du caisson ne fonctionne pas ou présente un défaut apparent.","Remettre en état l'éclairage du caisson afin de permettre la maintenance."],
+       ['Éclairage insuffisant',"L'éclairage du caisson est insuffisant pour intervenir correctement.","Adapter l'éclairage aux opérations d'entretien du caisson."]]),
+    'Date du dernier remplacement de filtre':C('Justificatif daté présenté',"Une date de remplacement des filtres est disponible et tracée dans le suivi d'entretien.",
+      [['Date inconnue',"La date du dernier remplacement des filtres n'a pas pu être justifiée lors de la visite.","Faire communiquer et consigner la date du dernier remplacement des filtres."],
+       ['Suivi incomplet',"Le registre d'entretien ne permet pas de retracer les derniers remplacements des filtres.","Mettre à jour la traçabilité des remplacements de filtres."]]),
+    'Date de la dernière qualification':C('Qualification tracée',"La date et le compte rendu de la dernière qualification ont été présentés pour cette CTA.",
+      [['Justificatif absent',"Aucun document récent de qualification de la CTA n'a été présenté.","Faire communiquer le dernier rapport de qualification disponible."],
+       ['Qualification à programmer',"La qualification nécessaire au suivi de l'installation n'est pas documentée.","Vérifier les exigences applicables et programmer la qualification utile."]]),
+    'Nettoyage des gaines horizontal & vertical':C('Réseau visiblement propre',"Les tronçons de gaines horizontales et verticales accessibles présentent un état de propreté satisfaisant au contrôle visuel.",
+      [['Encrassement constaté',"Des dépôts ou un encrassement sont visibles dans les gaines accessibles du réseau.","Programmer le nettoyage des gaines concernées et contrôler leur état après intervention."],
+       ['Nettoyage non tracé',"Aucun justificatif récent du nettoyage des gaines n'a été présenté.","Faire vérifier l'état du réseau et actualiser la traçabilité des nettoyages."]]),
+    'Calorifugeage':C('Isolation continue',"Le calorifugeage des sections aérauliques visibles est continu et en bon état apparent.",
+      [['Calorifuge dégradé',"Le calorifugeage du réseau aéraulique est déchiré ou partiellement décollé.","Reprendre le calorifugeage dégradé sur les tronçons concernés."],
+       ['Isolation manquante',"Une portion de gaine nécessitant une isolation en est dépourvue.","Vérifier le besoin d'isolation et calorifuger les portions concernées."]],'Travaux d’amélioration'),
+  },
+  'p-remar-filtres':{
+    'Etat du filtre':C('Filtre propre et bien posé',"Le filtre est propre, intact et correctement positionné au contrôle visuel.",
+      [['Filtre encrassé',"Le filtre présente un encrassement susceptible de dégrader le débit ou les performances de filtration.","Remplacer le filtre encrassé et contrôler son montage."],
+       ['Filtre dégradé ou mal posé',"Le média filtrant est endommagé ou le filtre est mal positionné dans son logement.","Remplacer ou repositionner le filtre et vérifier l'étanchéité périphérique."]]),
+  },
+  'p-remar-cta-energie':{
+    'GTB':C('Informations remontées',"La GTB remonte les informations attendues de la CTA sur les points consultés lors de la visite.",
+      [['Communication absente',"La CTA ne remonte pas les informations d'état attendues en GTB.","Contrôler les communications et rétablir les remontées de supervision."],
+       ['Valeurs incohérentes',"Les valeurs ou états remontés en GTB sont incohérents avec les observations locales.","Vérifier les sondes, les échanges et la configuration des points GTB."]],'Travaux d’amélioration'),
+    'Variateur':C('Commande fonctionnelle',"Le variateur répond aux commandes observées et ne présente pas d'alarme apparente lors du contrôle.",
+      [['Alarme variateur',"Une alarme ou un défaut de variateur est constaté sur la CTA.","Diagnostiquer le défaut et remettre le variateur en fonctionnement."],
+       ['Variation inefficace',"La variation de vitesse ne répond pas correctement aux consignes observées.","Contrôler le pilotage, le paramétrage et la commande du variateur."]],'Travaux d’amélioration'),
+    'Efficacité du récupérateur':C('Récupération observée',"La récupération de chaleur est observable dans les conditions de mesure disponibles ; efficacité à quantifier si nécessaire.",
+      [['Échange insuffisant',"Les températures observées suggèrent une récupération de chaleur insuffisante.","Vérifier l'état, l'encrassement et le fonctionnement du récupérateur."],
+       ['Bypass défaillant',"Le bypass ou l'entraînement du récupérateur présente un fonctionnement anormal.","Contrôler la commande de bypass et remettre en état le récupérateur."]],'Travaux d’amélioration'),
+    'Efficacité des moteurs':C('Moteurs sans défaut apparent',"Les moteurs de ventilation fonctionnent sans bruit ou vibration anormale observés lors de la visite.",
+      [['Bruit ou vibration',"Un moteur présente un bruit ou des vibrations inhabituels en fonctionnement.","Contrôler les roulements, les fixations et l'équilibrage du groupe moto-ventilateur."],
+       ['Surconsommation à investiguer',"Une dérive énergétique du moteur est suspectée au regard des données disponibles.","Contrôler les intensités, les conditions de charge et l'efficacité du moteur."]],'Travaux d’amélioration'),
+    'Consignes / programmes':C('Consignes cohérentes',"Les plages horaires et les consignes CTA consultées concordent avec les besoins d'occupation connus.",
+      [['Horaires inadaptés',"La CTA fonctionne en dehors des plages d'occupation prévues ou s'arrête pendant les besoins.","Revoir la programmation horaire de la CTA."],
+       ['Consignes contradictoires',"Les consignes de soufflage ou de reprise sont incohérentes avec la régulation attendue.","Vérifier et harmoniser les consignes de régulation de la CTA."]],'Travaux d’amélioration'),
+    'Vannes de régulation':C('Régulation responsive',"Les vannes de régulation observées répondent aux commandes vérifiées, sans défaut apparent.",
+      [['Vanne bloquée',"Une vanne de régulation ne réagit pas à une commande testée.","Vérifier la commande, l'actionneur et le corps de vanne ; réparer si nécessaire."],
+       ['Fuite ou réglage insuffisant',"Une fuite ou une régulation instable est observée sur une vanne.","Reprendre l'étanchéité et contrôler le réglage de la vanne."]],'Travaux d’amélioration'),
+  },
+};
+const vmcSource=Object.values(VMC_PANELS['p-vmc-c1']||{})
+  .flat().filter(field=>field?.type==='controle');
+const vmcByName=new Map(vmcSource.map(field=>[field.cle,field.presets]));
+export function enrichirControleRemar(field,panelId) {
+  if(field?.type!=='controle')return field;
+  const source=panelId==='p-remar-vmc' ? vmcByName.get(field.cle) : P[panelId]?.[field.cle];
+  if(!source)return field;
+  return {...field,presets:{...field.presets,S:source.S,'N.S':source['N.S']},
+    poste:source['N.S']?.[0]?.poste||field.poste};
+}
+// Propositions de champs (pas de mesure ni d'avis pré-rempli). Le champ
+// garde sa cle et son mapping Excel/Intranet, seul le rendu de saisie change.
+const CHAMPS = {
+  'p-remar-vmc':{
+    'Type de ventilation':{options:['Simple flux','Double flux','Extraction mécanique','Insufflation','Autre']},
+    'Type de bouche':{options:['Autoréglable','Hygroréglable A','Hygroréglable B','Soufflage','Extraction','Autre']},
+  },
+  'p-remar-froid':{
+    'Type de régulation':{options:['Tout ou rien','Modulante','Loi d’eau','Automate local','GTC / GTB','Autre']},
+    'Support anti-vibratile':{options:['Présent','Absent','À vérifier','Non nécessaire']},
+    'Traitement acoustique':{options:['Capotage','Écran acoustique','Silencieux','Absent','À vérifier']},
+    'Volume tampon':{label:'Volume tampon (L)',numeric:true,unite:'L'},
+  },
+};
+export function enrichirChampRemar(field,panelId){
+  if(field?.type!=='champ')return field;
+  const extra=CHAMPS[panelId]?.[field.cle];
+  return extra?{...field,...extra}:field;
+}
+export function inventaireGuidesRemar(){
+  return Object.fromEntries(Object.entries(P).map(([panel,entries])=>[panel,Object.keys(entries)]));
+}
