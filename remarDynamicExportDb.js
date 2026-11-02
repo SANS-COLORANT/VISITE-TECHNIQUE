@@ -64,11 +64,28 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
     if(parents.length)hasDynamic=true;
     const focusedId=await getRemarEquipementReference(visiteId,family,parents);
     if(parents.length>1 && !focusedId) ambiguous.push(`${family.toUpperCase()} : choisis un equipement de reference pour les cases uniques du classeur officiel.`);
+    // Même une CTA additionnelle sans valeurs est une information physique
+    // que Symfony V1 ne sait pas créer comme branche indépendante.
+    // Une référence Excel choisie n'autorise donc PAS un POST tronqué.
+    if(parents.length>1) unsupported.push(
+      `${family.toUpperCase()} : ${parents.length} équipements indépendants, une seule série de cellules officielles. Les instances supplémentaires ne sont pas transmissibles sans extension Symfony.`);
+
     for(const parent of parents) {
       const owner={famille:family,parentName:'',parentId:parent.id,nom:parent.designation||family,
         id:parent.id,type:'equipement'};
       const values=await listerRemarValeurs(visiteId,'equipement',parent.id);
       const isFocus=parent.id===focusedId;
+      // L'annexe doit toujours identifier une CTA/caisson présent, même
+      // lorsqu'aucune valeur n'a été relevée dans cette visite.
+      addInfo(details,owner,{panel:panelsForFamily[family][0],
+        section:'Équipement',cle:'Identité patrimoine'},
+        {valeur:parent.designation||family});
+      if(family==='cta'&&isFocus){
+        // Le nom de CTA est sa désignation patrimoniale éditable : pas de
+        // second formulaire ni de choix absurde 'Sans objet'.
+        addOfficial(replacements,'p-remar-cta','Informations techniques',
+          'Désignation CTA',null,{valeur:parent.designation||'CTA'});
+      }
       for(const panel of panelsForFamily[family]) {
         for(const [section,fields] of Object.entries(definition.ui?.panels?.[panel]||{})) {
           for(const field of fields||[]) {
