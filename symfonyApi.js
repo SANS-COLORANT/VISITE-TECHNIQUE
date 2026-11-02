@@ -396,12 +396,12 @@ export async function syncAuthorizedClients() {
   }
 }
 
-export async function syncClientPreparation(remoteClientId, trameId = null) {
+export async function syncClientPreparation(remoteClientId, trameId = null, { cacheResult = true } = {}) {
   const id = encodeURIComponent(String(remoteClientId));
   const suffix = trameId != null ? `?trame=${encodeURIComponent(String(trameId))}` : '';
   try {
     const payload = await protectedRequest('GET', `/api/clients/${id}/preparation-visites${suffix}`);
-    await cachePreparation(remoteClientId, payload, { partial: trameId != null });
+    if (cacheResult) await cachePreparation(remoteClientId, payload, { partial: trameId != null });
     return payload;
   } catch (error) {
     await markApiError(error);
