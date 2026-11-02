@@ -225,8 +225,8 @@ async function resolveImportedLocalId(db, visite, remoteClientId, remoteSiteId) 
   const locals = rows.map((row) => ({ ...row, ...localBindingState(row, visite.trame_id,
     frozen && clean(frozen.local?.id) === clean(row.remote_local_id) ? frozen : null) }));
   const sendable = locals.filter((row) => row.compatible);
-  const frozen = clean(visite.api_remote_local_id);
-  if (frozen && sendable.some((row) => clean(row.remote_local_id) === frozen)) return frozen;
+  const frozenLocalId = clean(visite.api_remote_local_id);
+  if (frozenLocalId && sendable.some((row) => clean(row.remote_local_id) === frozenLocalId)) return frozenLocalId;
 
   if (clean(visite.installation_id)) {
     const installed = sendable.filter((row) => clean(row.local_installation_id) === clean(visite.installation_id));
