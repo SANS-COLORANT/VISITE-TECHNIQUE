@@ -673,6 +673,23 @@ async function buildCriteria(db, visite, details, issues) {
       for (const warning of [...remap.ambiguous,...remap.unsupported]) {
         issues.push(`REMAR dynamique non transmissible sans perte : ${warning}`);
       }
+      // Contrat A2: un avis non saisi ne doit PAS devenir silencieusement N.V
+      // (non visible) dans le POST. Le technicien doit choisir S/N.S/N.R/S.O/N.V.
+      if (remap.familyCounts?.cta && !remap.ambiguous.some(x=>/^CTA\b/.test(x))) {
+        for (const m of definition?.excel?.fieldMappings || []) {
+          if (m.type !== 'controle') continue;
+          const cellKey=[m.panelId,m.section,m.cle].join('||');
+          const row=remap.replacements.get(cellKey);
+          const isMain=['p-remar-cta','p-remar-cta-energie'].includes(m.panelId);
+          const activeFilter=m.panelId==='p-remar-filtres' &&
+            m.cle==='Etat du filtre' &&
+            remap.replacements.has([m.panelId,m.section,'Type de filtre'].join('||'));
+          if ((isMain||activeFilter) &&
+              (!row||row.inherited||!['S','N.S','N.R','S.O','N.V'].includes(row.avis))) {
+            issues.push(`REMAR CTA / ${m.section} / ${m.cle} : avis non confirmé pendant cette visite. Sélectionne S, N.S, N.R (non vérifié), S.O ou N.V avant l'envoi ; aucun avis n'est inventé.`);
+          }
+        }
+      }
       const byOfficial = new Map((definition?.excel?.fieldMappings||[])
         .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
       for (const [key,value] of remap.replacements) {
