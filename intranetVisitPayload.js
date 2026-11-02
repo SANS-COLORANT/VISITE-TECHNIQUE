@@ -502,7 +502,11 @@ function remarNetworkSummaryTarget(categories) {
   const matches=[];
   for(const cat of categories||[])for(const sub of cat.sousCategories||[])
     for(const c of sub.criteres||[]) {
-      if(c.avisApplicable!==true && names.has(normalize(c.nom)))
+      const label=normalize(c.nom);
+      const context=normalize(clean(cat.nom)+' '+clean(sub.nom));
+      // « Réseaux » seul est insuffisant sans contexte chauffage/distribution.
+      const contextOk=label!=='reseaux' || /reseau|chauffage|circuit|distribution/.test(context);
+      if(c.avisApplicable!==true && names.has(label) && contextOk)
         matches.push({criterion:c,category:cat,subCategory:sub});
     }
   return matches.length===1?matches[0]:null;
