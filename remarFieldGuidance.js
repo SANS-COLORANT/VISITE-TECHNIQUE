@@ -78,15 +78,17 @@ export function uniteMesureCTA(nom) {
 
 export function commentaireRemarPropose(field, avis, titreEquipement='') {
   const libelle=String(field?.cle || 'Contrôle').trim();
-  const nom=String(titreEquipement||'').trim();
-  const prefix=nom ? nom+' — ' : '';
+  // L'identité de CTA/caisson est déjà portée par l'équipement et par
+  // les légendes du rapport. Ne pas la répéter dans chaque observation.
   const origine=field?.presets?.[avis]?.[0]?.commentaire;
-  if (origine && avis!=='N.S') return prefix+origine;
-  if (avis==='S') return prefix+libelle+' : contrôle satisfaisant.';
-  if (avis==='N.S') return prefix+libelle+' : anomalie constatée ; description à compléter.';
-  if (avis==='N.R') return prefix+libelle+' : contrôle non réalisé, motif à préciser.';
-  if (avis==='S.O') return prefix+libelle+' : sans objet pour cet équipement.';
-  if (avis==='N.V') return prefix+libelle+' : non visible ou inaccessible.';
+  if (origine && avis!=='N.S') return origine;
+  if (avis==='S') return libelle+' : contrôle satisfaisant au point examiné.';
+  // Une anomalie N.S doit être caractérisée par l'agent : aucune panne
+  // précise n'est déduite de la seule sélection N.S.
+  if (avis==='N.S') return '';
+  if (avis==='N.R') return 'Ce point n’a pas été vérifié pendant la visite ; motif à préciser.';
+  if (avis==='S.O') return 'Point non applicable à cette installation.';
+  if (avis==='N.V') return 'Point inaccessible ou non visible pendant la visite.';
   return '';
 }
 
