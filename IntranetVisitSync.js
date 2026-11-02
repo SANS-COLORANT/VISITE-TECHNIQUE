@@ -10,7 +10,9 @@ import {
   getVisitPhotoUploadSummary, processVisitPhotoOutbox, queueMissingSyncedVisitPhotos,
   retryVisitPhotoUploadsNow, subscribeVisitPhotoOutbox, syncVisitPhotosNow,
 } from './intranetVisitPhotoOutboxDb.js';
-import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions, resolveFirstVisitRemoteTrame } from './intranetVisitBindingDb.js';
+import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions, pinVerifiedRemarTrameForUpload, resolveFirstVisitRemoteTrame } from './intranetVisitBindingDb.js';
+import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
+import { chooseUniqueRemarRemoteTrame } from './remarRemoteTrameSelection.js';
 import { syncClientPreparation } from './symfonyApi.js';
 import { getDb } from './db.js';
 import { getCachedStructureReferential, syncStructureReferential } from './intranetStructureDb.js';
@@ -193,6 +195,65 @@ async function hydrateFirstVisitReference(visiteId, remoteClientId) {
   return resolved;
 }
 
+/**
+ * La préparation habituelle du local peut pointer sur « REMAR CLASSIQUE »,
+ * alors que la visite contient les 141 points REMAR enrichis.
+ * Rechercher les éventuelles autres trames de la MÊME famille sur le
+ * serveur, par ID et au même local, sans poster ni altérer le cache.
+ * Sélectionner uniquement la trame dont TOUTES les destinations METRA
+ * sont couvertes (unique), avant la création de l'envoi immuable.
+ *
+ * En l'absence d'une telle trame, laisser l'ancien précontrôle détaillé
+ * refuser les données sans destination : pas de repli en notes[].
+ */
+async function pinFullyPublishedRemarForFirstUpload(visiteId) {
+  const opts=await getVisitIntranetBindingOptions(visiteId);
+  if(opts?.visite?.trame_id!=='remar_v1')return null;
+  const clientId=String(opts?.selectedClientId||'');
+  const siteId=String(opts?.selectedSiteId||'');
+  const localId=String(opts?.visite?.api_remote_local_id||opts?.suggestedLocalId||'');
+  if(!clientId||!siteId||!localId)return null;
+  const knownLocal=(opts.locals||[]).find(l=>String(l.remote_local_id)===localId&&
+    String(l.remote_site_id)===siteId);
+  if(!knownLocal)return null;
+
+  const referential=await syncStructureReferential(clientId);
+  const trames=(referential?.trames||[]).filter(t=>
+    mapRemoteTrameToLocal(t)==='remar_v1'&&/^[1-9]\d*$/.test(String(t?.id||'')));
+  // En cas de catalogue sans trame compatible ou de catalogue excessif,
+  // ne pas en sélectionner une sur un sous-ensemble arbitraire.
+  if(!trames.length||trames.length>16)return null;
+  const candidates=[];
+  for(const trame of trames){
+    // Un GET ne constitue PAS un envoi : aucun ID d'idempotence n'est créé.
+    // cacheResult:false empêche que la recherche écrase les liens des autres
+    // visites ou le cache de préparation classique du client.
+    const payload=await syncClientPreparation(clientId,trame.id,{cacheResult:false});
+    const exact=(Array.isArray(payload?.visites)?payload.visites:[]).filter(ref=>
+      String(ref?.local?.id||'')===localId &&
+      String(ref?.site?.id||'')===siteId &&
+      String(ref?.trame?.id||'')===String(trame.id));
+    if(exact.length===1)candidates.push({reference:exact[0]});
+    else if(exact.length>1) {
+      const err=new Error('Plusieurs préparations Symfony pour le même local et la même trame REMAR. Aucune destination automatique sûre.');
+      err.code='remar_remote_trame_duplicate_local';
+      throw err;
+    }
+  }
+  const choice=chooseUniqueRemarRemoteTrame(candidates,'remar_v1');
+  if(choice.ambiguous){
+    const ids=choice.evaluated.filter(x=>x.complete).map(x=>x.name+' (#'+x.id+')');
+    const err=new Error('Plusieurs trames REMAR couvrent tous les champs. Le choix est ambigu : '+ids.join(' ; ')+'. Aucune modification de visite.');
+    err.code='remar_remote_trame_ambiguous';
+    throw err;
+  }
+  if(!choice.selected)return null;
+  return pinVerifiedRemarTrameForUpload(visiteId,{
+    remoteClientId:clientId,remoteSiteId:siteId,remoteLocalId:localId,
+    reference:choice.selected.reference,
+  });
+}
+
 async function bindSameImportedClient(visiteId) {
   try {
     return await bindVisitToImportedClientTarget(visiteId);
@@ -343,6 +404,10 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
         if (!discarded) throw new Error('Cet envoi ne peut pas encore être reconstruit sans risque de doublon.');
       }
 
+      // Ne rechercher une trame REMAR complète qu'avant le PREMIER envoi.
+      // Les files déjà créées (et les replays idempotents) restent intouchables.
+      if(visite?.trame_id==='remar_v1')
+        await pinFullyPublishedRemarForFirstUpload(visiteId);
       await bindSameImportedClient(visiteId);
       await onVisitChanged?.();
 
