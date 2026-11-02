@@ -5,6 +5,7 @@
  */
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
+import { obtenirTrame } from './trameRegistry.js';
 
 export const REMAR_FAMILLES = Object.freeze({
   cta: { label: 'CTA', type: 'CTA', ajout: 'Ajouter une CTA' },
@@ -28,7 +29,8 @@ async function visitContext(db, visiteId, edit = false) {
   const v = await db.getFirstAsync(
     'SELECT id,site_id,installation_id,trame_id,statut,date_visite FROM visites WHERE id=?', [visiteId]
   );
-  if (!v || !str(v.trame_id).startsWith('remar')) throw new Error('Visite REMAR introuvable.');
+  const definition = v ? obtenirTrame(v.trame_id) : null;
+  if (!v || (definition?.familyId || definition?.id) !== 'remar_v1') throw new Error('Visite REMAR introuvable.');
   if (edit && v.statut !== 'en_cours' && v.statut !== 'a_completer') {
     throw new Error('Une visite cloturee ne peut pas modifier le patrimoine REMAR.');
   }
@@ -209,7 +211,8 @@ export async function listerRemarValeurs(visiteId, ownerType, ownerId) {
     FROM remar_values rv JOIN visites old ON old.id=rv.visite_id
     WHERE rv.owner_type=? AND rv.owner_id=? AND old.installation_id=?
       AND (old.id=? OR old.date_visite<? OR (old.date_visite=? AND old.rowid<(SELECT rowid FROM visites WHERE id=?)))
-      AND old.trame_id LIKE 'remar%'
+      -- L'identite de l'objet et du local suffisent : les versions locales
+      -- REMAR portent un identifiant local_* et gardent leur familyId.
     ORDER BY CASE WHEN old.id=? THEN 0 ELSE 1 END,old.date_visite DESC,old.rowid DESC,rv.modifie_le DESC
   `, [ownerType,ownerId,v.installation_id,visiteId,v.date_visite,v.date_visite,visiteId,visiteId]);
   const found = {};
