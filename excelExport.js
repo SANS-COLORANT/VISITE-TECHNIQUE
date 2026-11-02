@@ -12,7 +12,7 @@ import { libelleChamp, libelleSection, listerAliasesPreAllumage } from './preAll
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
 import { creerFichierSaf, dossierVisiteMetra } from './metraStorage.js';
 import { readNetworkProgrammingForVisit } from './networkProgrammingDb.js';
-import { construireRemarDynamiquePourRapport } from './remarDynamicExportDb.js';
+import { construireRemarDynamiquePourRapport, remarDynamicOwnsMapping } from './remarDynamicExportDb.js';
 import { networkTemperatureSeries, formatWeeklySchedule, validateWeeklySchedule } from './networkProgramming.js';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -450,11 +450,31 @@ async function construireClasseur(visiteId) {
       }
       continue;
     }
+    // Une fiche REMAR dynamique remplace les anciennes cellules plates du
+    // même panneau. Une absence de valeur courante ne ressuscite pas un relevé
+    // périmé, y compris dans un Excel exporté après plusieurs visites.
+    if (remarDynamicOwnsMapping(mapping,remarDynamic)) {
+      viderCellule(mappingSheet,mapping.valueCell);
+      if(mapping.type==='controle' && mapping.commentCell)
+        viderCellule(mappingSheet,mapping.commentCell);
+      continue;
+    }
     if (mapping.type === 'champ') {
       // Les emplacements fixes « Réseau 1...5 » restent compatibles avec
       // les fichiers REMAR : lorsque l'utilisateur ne les a pas saisis
       // séparément, ils reflètent les noms de réseaux du module dynamique.
       // Les champs déjà renseignés ne sont jamais écrasés.
+      if ((trame.familyId || trame.id)==='remar_v1' &&
+          trame.ui?.dynamicPanels?.[mapping.panelId] === 'networks' &&
+          reseauxExport.length > 0) {
+        const position = /^Réseau ([1-9][0-9]*)$/i.exec(String(mapping.cle || ''));
+        if (position) {
+          const reseau = reseauxExport[Number(position[1]) - 1];
+          viderCellule(mappingSheet,mapping.valueCell);
+          if (reseau?.nom_reseau) setCell(mappingSheet,mapping.valueCell,reseau.nom_reseau);
+          continue;
+        }
+      }
       if (!champ && trame.ui?.dynamicPanels?.[mapping.panelId] === 'networks') {
         const position = /^Réseau ([1-9][0-9]*)$/i.exec(String(mapping.cle || ''));
         const reseau = position ? reseauxExport[Number(position[1]) - 1] : null;
@@ -463,6 +483,12 @@ async function construireClasseur(visiteId) {
       // Dès que des compteurs existent, leurs relevés font autorité. Ne pas
       // ressusciter l'ancien index Excel après effacement ou réaffectation.
       const remarMeter = mapping.panelId === 'p-remar-releves' && mapping.section === 'Compteur';
+      if (remarMeter && compteurs.length) {
+        // Les index actuels de compteurs font autorité, même si l'index
+        // historique du champ existe toujours dans SQLite.
+        viderCellule(mappingSheet,mapping.valueCell);
+        continue;
+      }
       if ((mapping.panelId === 'p-releves' || remarMeter) &&
           ((compteurs.length && /^Index/i.test(mapping.cle || '')) || compteurs.some((c) => c.destination === mapping.cle))) {
         setCell(mappingSheet, mapping.valueCell, '');
