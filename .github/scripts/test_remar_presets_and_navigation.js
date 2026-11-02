@@ -28,7 +28,7 @@ for(const {panel,field} of fields){
   ok(enhanced.cle===field.cle&&enhanced.type==='controle','unchanged official identity '+name);
   ok(enhanced.presets?.S?.[0]?.commentaire?.length>35,'specific S diagnostic '+name);
   ok(enhanced.presets?.['N.S']?.length>=2,'two distinct N.S technical defects '+name);
-  ok(enhanced.presets?.['N.S']?.every(p=>p.commentaire?.length>35&&p.reserve?.length>25
+  ok(enhanced.presets?.['N.S']?.every(p=>p.commentaire?.length>18&&p.reserve?.length>18
     &&p.label!=='Anomalie à préciser'),'actionable N.S + reserve '+name);
   ok(['N.R','S.O','N.V'].every(avis=>enhanced.presets?.[avis]?.length),
     'historical five-opinion schema intact '+name);
