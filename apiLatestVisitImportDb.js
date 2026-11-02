@@ -649,3 +649,65 @@ export async function importLatestApiVisitsForSite(siteId, remoteSiteId) {
     results,
   };
 }
+
+/**
+ * Projette uniquement les donnees de la trame demandee par le technicien
+ * dans une NOUVELLE visite. La correspondance historique est deja resolue
+ * par Symfony. Aucun historique local ni ancienne visite ne sont modifies.
+ * L'arbre complet (criteres vides inclus) est conserve dans la provenance
+ * par importApiReferenceForVisit.
+ */
+export async function importSelectedPreparationCriteria({ visiteId, siteId, trameId, reference }) {
+  const db = await getDb();
+  const remoteLocalId = remoteId(reference?.local?.id);
+  const remoteTrameId = remoteId(reference?.trame?.id);
+  if (!remoteLocalId || !remoteTrameId) throw new Error('Preparation de trame sans local ou trame Symfony.');
+  const visit = await db.getFirstAsync('SELECT id,trame_id,api_remote_local_id,api_remote_trame_id FROM visites WHERE id=?', [visiteId]);
+  if (!visit || visit.trame_id !== trameId || remoteId(visit.api_remote_local_id) !== remoteLocalId ||
+      remoteId(visit.api_remote_trame_id) !== remoteTrameId) {
+    throw new Error('La preparation ne correspond pas a la nouvelle visite.');
+  }
+  const candidates = localControlCandidates(trameId);
+  let mapped = 0;
+  let unresolvedWithValues = 0;
+  const ref = sanitizeRemoteReference(reference);
+  const preparationRefId = `selected:${remoteLocalId}:${remoteTrameId}:${visiteId}`;
+  await db.withTransactionAsync(async () => {
+    for (const category of Array.isArray(ref?.trame?.categories) ? ref.trame.categories : []) {
+      for (const subCategory of Array.isArray(category?.sousCategories) ? category.sousCategories : []) {
+        for (const criterion of Array.isArray(subCategory?.criteres) ? subCategory.criteres : []) {
+          const avis = meaningfulRemoteValue(criterion?.avis);
+          const commentaire = meaningfulRemoteValue(criterion?.commentaire);
+          // Un critere vide doit rester dans l'arbre de trame/provenance.
+          // Ne pas fabriquer de reponse ou de constat pour le jour de visite.
+          if (!avis && !commentaire) continue;
+          const target = findControlCandidate(candidates, criterion?.nom, category?.nom, subCategory?.nom);
+          if (!target) { unresolvedWithValues += 1; continue; }
+          await db.runAsync(
+            `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire) VALUES(?,?,?,?,?)
+             ON CONFLICT(visite_id,section_code,cle) DO NOTHING`,
+            [visiteId, target.sectionCode, target.cle, avis, commentaire]
+          );
+          mapped += 1;
+        }
+      }
+    }
+    // Les metadonnees de date doivent rester celles de la nouvelle visite.
+    // Le moteur existant projette les champs, reseaux et compteurs compatibles.
+    // Il est appele sur la nouvelle visite uniquement.
+    const fieldsRef = { ...ref, derniereVisite: null };
+    await enrichLatestImportedVisitFields({
+      db, visiteId, siteId, remoteVisitId: preparationRefId, trameId, ref: fieldsRef,
+    });
+    await upsertProvenance(db, 'visite_preparation_selectionnee', visiteId, preparationRefId, {
+      sourceType: 'selected_trame_preparation',
+      remoteLocalId, remoteTrameId, mappedControls: mapped,
+      unmappedControlsWithValues: unresolvedWithValues,
+      criterionCount: (ref.trame.categories || []).reduce((n, category) =>
+        n + (category.sousCategories || []).reduce((x, sub) => x + (sub.criteres || []).length, 0), 0),
+      // La structure integrale et les valeurs non projetables existent aussi
+      // dans la provenance api_symfony/preparation_visite de la visite.
+    });
+  });
+  return { mappedControls: mapped, unmappedControlsWithValues: unresolvedWithValues };
+}
