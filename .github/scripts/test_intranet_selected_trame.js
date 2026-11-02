@@ -6,7 +6,7 @@ const root = path.resolve(__dirname, '../..');
 function load(file, dependencies) {
   const source = fs.readFileSync(path.join(root, file), 'utf8');
   const names = [...source.matchAll(/export\s+(?:async\s+)?(?:function|const|let|class)\s+(\w+)/g)].map(m => m[1]);
-  const code = source.replace(/^import\s+[\s\\S]*?from\s+['"][^'"]+['"];?\s*$/gm, '')
+  const code = source.replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*$/gm, '')
     .replace(/export\s+(?=(?:async\s+)?(?:function|const|let|class)\s)/g, '');
   return new Function(...Object.keys(dependencies), code + '\nreturn {' + names.join(',') + '};')(...Object.values(dependencies));
 }
