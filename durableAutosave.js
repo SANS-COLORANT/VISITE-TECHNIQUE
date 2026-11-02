@@ -29,7 +29,10 @@ function registerFlusher(flush) {
 }
 
 export async function flushDurableAutosaves() {
-  await Promise.allSettled([...activeFlushers].map((flush) => Promise.resolve().then(flush)));
+  // The CTA navigator and quick opinions must receive every fulfilled/rejected
+  // result: swallowing Promise.allSettled's array caused .find(undefined) and
+  // allowed callers to bypass the save-failure navigation guard.
+  return Promise.allSettled([...activeFlushers].map((flush) => Promise.resolve().then(flush)));
 }
 
 /**
