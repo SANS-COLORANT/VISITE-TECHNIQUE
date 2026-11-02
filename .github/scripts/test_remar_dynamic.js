@@ -103,8 +103,11 @@ async function run(){
  ok((await dao.listerRemarItems('v2','filtre_cta',cta)).length===0,'retired filter disappears from active visit');
  ok((await dao.listerRemarItems('v1','filtre_cta',cta)).length===1,'old visit still shows retired filter');
  await dao.retirerRemarEquipement('v2',another);
+ ok(!(await dao.listerRemarEquipements('v2','cta')).some(e=>e.id===another),
+   'retired equipment no longer appears in active local list');
+ engine.exec("UPDATE visites SET statut='terminee' WHERE id='v2'");
  ok((await dao.listerRemarEquipements('v2','cta')).some(e=>e.id===another),
-   'retired equipment still retained by current visit inventory snapshot');
+   'retired equipment remains in closed historical visit inventory');
  const ui=read('TrameGenericPanel.js');
  ok(ui.includes("const { RemarDynamicPanel } = require('./RemarDynamicPanel.js')"),
    'dynamic REMAR is routed without rewriting other trame components');
