@@ -546,7 +546,7 @@ export function OptimizedRelevesPanel({
           doublonDestination={destinationsEnDoublon.has(c.destination || destinationDepuisLibelle(c.label, c.unite, champsSectionCompteurs))} />
       )) : <Text style={st.hint}>Aucun compteur. Touchez « + Ajouter ».</Text>}
     </SectionCard>
-  ));
+  );
 
   const renderGroupeTemp = (g) => {
     const pc = pictoCircuit(g.circuit);
