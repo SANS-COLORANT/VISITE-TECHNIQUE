@@ -4,6 +4,7 @@
  * equipements existent, une reference explicite est requise.
  */
 import { getDb } from './db.js';
+import { destinationMesureCTA, valeurOfficielleRemar } from './remarFieldGuidance.js';
 import {
   listerRemarEquipements, listerRemarItems, listerRemarValeurs,
   getRemarEquipementReference,
@@ -33,14 +34,7 @@ const temperatureCell = Object.freeze({
   'ecs bouclage':'ECS bouclage (°C)',
   'ecs stockage':'ECS stockage (°C)',
 });
-function measureDestination(name) {
-  const n=norm(name);
-  if (n.startsWith('vitesse ')) return ['Variation de vitesse',name.replace(/^vitesse\s+/i,'')];
-  if (n.startsWith('consigne ')) return ['Consignes',name.replace(/^consigne\s+/i,'')];
-  if (n==='pression') return ['Consignes','Pression'];
-  const tempNames = ['air neuf','apres recuperation','soufflage','extraction reprise'];
-  return tempNames.includes(n) ? ['Températures',name] : null;
-}
+// Les destinations sont les libellés exacts des 141 cellules REMAR officielles.
 const childTypes=Object.freeze({
   cta:['filtre_cta','mesure_cta'],
   vmc:[],
@@ -79,7 +73,8 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
             if (!row) continue;
             hasDynamic=true;
             addInfo(details,owner,{panel,section,cle:field.cle},row);
-            if(isFocus) addOfficial(replacements,panel,section,field.cle,row);
+            if(isFocus) addOfficial(replacements,panel,section,field.cle,
+              field.type==='champ'?{...row,valeur:valeurOfficielleRemar(row)}:row);
             else if(hasData(row))unsupported.push(`${owner.nom} / ${field.cle} : donnee additionnelle non representable dans une case officielle unique.`);
           }
         }
@@ -101,15 +96,21 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
           if(type==='filtre_cta') {
             if(isFocus && idx<3) {
               const sec=`Filtre n°${idx+1}`;
-              addOfficial(replacements,panel,sec,'Type de filtre',null,{valeur:child.nom});
+              // Le nom de la fiche est distinct de sa classe de filtration :
+              // un filtre nommé 'Filtre soufflage n°2' de classe F7 doit exporter F7.
+              const classe=itemValue(childValues,panel,type,'Classe de filtration');
+              addOfficial(replacements,panel,sec,'Type de filtre',null,
+                {valeur:classe?valeurOfficielleRemar(classe):child.nom});
               addOfficial(replacements,panel,sec,'Etat du filtre',
                 itemValue(childValues,panel,type,'Etat du filtre'));
             } else unsupported.push(`Filtre supplémentaire : ${dataOwner.parentName} / ${child.nom}`);
           } else if(type==='mesure_cta') {
-            const target=measureDestination(child.nom);
+            const target=destinationMesureCTA(child.nom);
             const row=itemValue(childValues,panel,type,'Valeur');
-            if(isFocus && target && row) addOfficial(replacements,panel,target[0],target[1],row);
-            else if(!isFocus || !target) unsupported.push(`Mesure CTA non representable : ${dataOwner.parentName} / ${child.nom}`);
+            if(isFocus && target && row) addOfficial(replacements,panel,target[0],target[1],
+              {...row,valeur:valeurOfficielleRemar(row)});
+            else if(hasData(row) && (!isFocus || !target))
+              unsupported.push(`Mesure CTA non representable : ${dataOwner.parentName} / ${child.nom}`);
           } else if(type==='reseau_froid') {
             if(isFocus && idx<3) addOfficial(replacements,panel,'Réseaux',`Réseau ${idx+1}`,null,{valeur:child.nom});
             else unsupported.push(`Reseau froid supplementaire : ${dataOwner.parentName} / ${child.nom}`);
@@ -130,8 +131,9 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
     hasDynamic=true;
     addInfo(details,owner,{panel:'p-remar-releves',section:'Température chaufferie',cle:'Valeur'},row||{valeur:''});
     const dest=temperatureCell[norm(item.nom)];
-    if(dest&&row) addOfficial(replacements,'p-remar-releves','Température chaufferie',dest,row);
-    else if(!dest) unsupported.push(`Temperature complementaire : ${item.nom}`);
+    if(dest&&row) addOfficial(replacements,'p-remar-releves','Température chaufferie',dest,
+      {...row,valeur:valeurOfficielleRemar(row)});
+    else if(!dest&&hasData(row)) unsupported.push(`Temperature complementaire : ${item.nom}`);
   }
   return {replacements,details,unsupported:[...new Set(unsupported)],ambiguous,hasDynamic};
 }
