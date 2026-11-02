@@ -482,6 +482,18 @@ const NETWORK_COLUMNS = Object.freeze({
   'consigne programme horaire': 'consigne_programme_horaire',
 });
 function networkColumn(name) { return NETWORK_COLUMNS[normalize(name)] || null; }
+// Sous REMAR V1, les paramètres d'un réseau peuvent rester dans la même
+// case « Réseau n » que son nom : aucune courbe/TNC n'est jetée.
+function remarNetworkText(row,index) {
+  const title=clean(row?.nom_reseau)||'Réseau '+index;
+  const attrs=[
+    ['t_ext_c','T° extérieure','°C'],['t_dep_c','T° départ','°C'],
+    ['courbe_de_chauffe','Courbe de chauffe',''],['tnc','TNC','°C'],
+    ['consigne_programme_horaire','Consigne / programme',''],
+  ].filter(([field])=>meaningfulRemote(row?.[field])!==null)
+    .map(([field,label,unite])=>label+' : '+clean(row[field])+(unite?' '+unite:''));
+  return [title,...attrs].join('\n');
+}
 function fixedRegulation(name) { const n = normalize(name); return n === 'cascade chaudieres' || n === 'reseau ecs'; }
 function isNetworkGroup(subCategory) {
   if (fixedRegulation(subCategory?.nom)) return false;
@@ -975,15 +987,10 @@ async function buildCriteria(db, visite, details, issues) {
       if (!remoteSlots.has(`Réseau ${i+1}`))
         issues.push(`Réseau REMAR ${i+1} : aucun critère Intranet officiel correspondant à cette case.`);
     }
-    if (networks.length>5)
-      issues.push(`Réseaux REMAR : ${networks.length} réseaux saisis, mais seulement cinq cases officielles Intranet V1. Les réseaux supplémentaires restent locaux/Excel jusqu'au contrat multi-réseaux Symfony.`);
-    for(const network of networks){
-      const technicalColumns=[
-        't_ext_c','t_dep_c','courbe_de_chauffe','tnc','consigne_programme_horaire',
-      ].filter(column=>meaningfulRemote(network[column])!==null);
-      if(technicalColumns.length)issues.push(
-        `Réseau REMAR « ${clean(network.nom_reseau)||network.id} » : données techniques non représentables dans les cinq cellules de noms du contrat Symfony V1 (${technicalColumns.join(', ')}). Conserver dans Excel et activer un contrat réseaux explicite.`);
-    }
+    // Les réseaux 6+ partagent la cinquième case, en conservant chaque
+    // numéro, nom et paramètre sur sa propre ligne. La taille est validée
+    // par exactComment() avant l'envoi, sans troncature.
+
   }
   let countersForWire=counters;
   if(isRemar && counters.length){
@@ -1061,8 +1068,11 @@ async function buildCriteria(db, visite, details, issues) {
           const remarNetworkSlot=remarFixedNetworks && candidate.panelId==='p-remar-reseaux'
             ? /^Réseau ([1-5])$/i.exec(String(candidate.cle||'')) : null;
           if (remarNetworkSlot && networks.length) {
-            const current=networks[Number(remarNetworkSlot[1])-1];
-            value=current?.nom_reseau||null;
+            const slot=Number(remarNetworkSlot[1]);
+            const selected=slot===5?networks.slice(4):networks.slice(slot-1,slot);
+            value=selected.length===1?remarNetworkText(selected[0],slot):
+              selected.length>1?selected.map((row,index)=>
+                'Réseau '+(slot+index)+' : '+remarNetworkText(row,slot+index)).join('\n'):null;
           } else if (isMeterCandidate(candidate, capabilities)) {
             const counter = counterValue(isRemar ? countersForWire : counters, criterion, candidate);
             // Dans les panneaux spécialisés, l'index courant remplace
