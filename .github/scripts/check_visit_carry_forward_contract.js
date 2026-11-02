@@ -69,9 +69,12 @@ forbidText(preparation, 'criteriaAreHistoricalReferenceOnly: true', 'stale refer
 const creation = read('visitCreationDb.js');
 requireText(creation, "import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';", 'prepared visit history importer wiring');
 const historicalImport = creation.indexOf('await importLatestApiVisitForLocal(siteId, apiRemoteLocalId);');
-const referenceImport = creation.indexOf('await importApiReferenceForVisit(id, apiRemoteLocalId, apiRemoteClientId);');
-if (historicalImport < 0 || referenceImport < 0 || historicalImport > referenceImport) {
-  throw new Error('prepared visit must materialize the latest preparation snapshot before importing the current API reference');
+const referenceImport = creation.indexOf('await importApiReferenceForVisit(id, apiRemoteLocalId, apiRemoteClientId, selectedPreparation?.reference || null);');
+if (historicalImport < 0 || referenceImport < 0 || historicalImport > referenceImport ||
+    !creation.includes('if (!selectedPreparation?.different) await importLatestApiVisitForLocal') ||
+    !creation.includes('selectedSymfonyTrame: selectedPreparation?.different === true') ||
+    !creation.includes('await importSelectedPreparationCriteria(')) {
+  throw new Error('Existing-trame visits must import the historical reference first; changed-trame visits must use the Symfony-selected preparation without old-history reuse.');
 }
 
 console.log('Visit preparation contract validated: latest-known fields, S/N.S/etc., comments and open reserves can cross trames through canonical concepts without cloning photos/conclusions; Pré-allumage controls remain to be redone.');
