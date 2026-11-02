@@ -241,11 +241,15 @@ function buildReferenceDetails(ref, remoteLocalId) {
   };
 }
 
-export async function importApiReferenceForVisit(visiteId, remoteLocalId, remoteClientId = null) {
+export async function importApiReferenceForVisit(visiteId, remoteLocalId, remoteClientId = null, selectedReference = null) {
   const remoteId = sourceId(remoteLocalId);
   if (!remoteId) return null;
-  const ref = await getCachedLocalReference(remoteId);
+  // Une selection ponctuelle ne remplace jamais la fiche de reference du local.
+  const ref = selectedReference || await getCachedLocalReference(remoteId);
   if (!ref) return null;
+  if (sourceId(ref?.local?.id) !== remoteId) {
+    throw new Error('La trame preparee ne correspond pas au local Intranet selectionne.');
+  }
 
   const db = await getDb();
   const visit = await db.getFirstAsync(`SELECT id,site_id,trame_id FROM visites WHERE id=?`, [visiteId]);
