@@ -54,6 +54,10 @@ export function analyserRemarDetailExcel(wb, definition, XLSX) {
     const expectedFamily=equipment ? row.famille : CHILD_FAMILIES[row.type];
     if(!expectedFamily || expectedFamily!==row.famille)
       throw new Error(label+' : famille et type incompatibles.');
+    // Les annexes REMAR antérieures portaient parfois l'ID de l'équipement
+    // dans sa propre colonne Parent ID. C'est une référence à soi-même
+    // historique, et non un rattachement à un autre équipement.
+    if(equipment && row.parentId===row.elementId)row.parentId='';
     if(equipment && (!FAMILIES[row.famille] || row.parentId))
       throw new Error(label+' : identité parent invalide.');
     if(!equipment && row.type!=='temperature_chaufferie' && !row.parentId)
