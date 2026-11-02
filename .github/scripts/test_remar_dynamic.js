@@ -39,7 +39,8 @@ const db={
  },
 };
 let ids=0; const createId=()=>`remar-id-${++ids}`;
-const dao=load('remarDynamicDb.js',{getDb:async()=>db,createId},
+const dao=load('remarDynamicDb.js',{getDb:async()=>db,createId,
+ obtenirTrame:id=>({id,familyId:'remar_v1'})},
   ['remarFamilleEquipement','creerRemarEquipement','listerRemarEquipements',
     'creerRemarItem','listerRemarItems','figerItemsRemarPourVisite',
     'enregistrerRemarValeur','listerRemarValeurs','retirerRemarItem',
