@@ -42,11 +42,16 @@ ok(presets.enrichirChampRemar({cle:'Volume tampon',type:'champ'},'p-remar-froid'
   .label==='Volume tampon (L)','froid buffer volume has explicit units');
 const namesSource=read('remarEquipmentNaming.js')
   .replace(/export\s+(?=(?:async\s+)?(?:function|const|let|class)\s)/g,'');
-const {proposerNomUniqueRemar}=new Function(namesSource+
-  '\nreturn {proposerNomUniqueRemar};')();
+const {proposerNomUniqueRemar,afficherNomEquipementRemar}=new Function(namesSource+
+  '\nreturn {proposerNomUniqueRemar,afficherNomEquipementRemar};')();
 const ctaNames=['CTA soufflage','CTA extraction','CTA 1 — CTA soufflage','CTA 1 — CTA extraction'];
 const newCta=proposerNomUniqueRemar('cta','CTA soufflage',ctaNames,['CTA soufflage','CTA extraction']);
 ok(/^CTA 5 — soufflage$/.test(newCta),'CTA numbering shared across types, not repeated CTA 1');
+ok(afficherNomEquipementRemar('cta','CTA soufflage',0)==='CTA 1 · soufflage' &&
+  afficherNomEquipementRemar('cta','CTA 1 — CTA soufflage',2)==='CTA 3 · soufflage',
+  'legacy CTA numbering duplicates disappear visually, stable original asset names remain');
+ok(afficherNomEquipementRemar('vmc','Caisson extraction',0)==='Caisson VMC 1 · extraction',
+  'VMC card has unique family-wide index without a stored rename');
 const vmcA=proposerNomUniqueRemar('vmc','Caisson extraction',
   ['Caisson extraction'],['Caisson extraction','Caisson VMC']);
 ok(vmcA==='Caisson VMC 2 — extraction','multiple identical VMC caisson types allowed');
