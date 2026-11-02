@@ -640,6 +640,193 @@ function countRemoteCriteria(trame) {
   }, 0);
 }
 
+
+/**
+ * Symfony V1 a une seule case par critère : une collection de matériels ou
+ * relevés de même rubrique devient un TEXTE multiligne, jamais plusieurs
+ * critères avec le même identifiant distant. Les IDs restent en SQLite.
+ * Les avis d'origines différentes restent visibles ligne par ligne.
+ *
+ * La matrice est tirée de REMAR_DETAIL (source multi-instance de la visite),
+ * et non des « replacements » Excel limités à l'équipement de référence.
+ */
+function groupRemarDetailsForIntranet(projection, definition, issues) {
+  if(!Array.isArray(projection?.details)||!projection.details.length)return null;
+  const mappings=new Map((definition?.excel?.fieldMappings||[])
+    .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
+  const parents=new Map(),children=new Map(),rows=[],groups=new Map();
+  const key=(p,s,c)=>[p,s,c].join('||');
+  const has=row=>[row.valeur,row.avis,row.commentaire].some(v=>meaningfulRemote(v)!==null);
+  const report=(label,reason)=>issues.push('REMAR / '+label+' : '+reason);
+  const add=(p,s,c,entry)=>{
+    const mapping=mappings.get(key(p,s,c));
+    if(!mapping){report(entry.label,'aucune case officielle pour '+p+' / '+s+' / '+c);return;}
+    if(!has(entry)&&!entry.force)return;
+    const identity=key(p,s,c);
+    if(!groups.has(identity))groups.set(identity,{mapping,entries:[]});
+    groups.get(identity).entries.push(entry);
+  };
+  for(const line of projection.details) {
+    const row={family:clean(line[0]),parentId:clean(line[2]),parentName:clean(line[1]),
+      name:clean(line[3]),id:clean(line[4]),type:clean(line[5]),
+      panel:clean(line[6]),section:clean(line[7]),cle:clean(line[8]),
+      valeur:clean(line[9]),avis:clean(line[10]),commentaire:clean(line[11]),
+      inherited:line[13]==='Historique à confirmer',unite:clean(line[14])};
+    if(!row.id||!row.type)continue;
+    if(row.type==='equipement'){
+      if(row.cle==='Identité patrimoine')parents.set(row.id,{name:row.name,family:row.family});
+      else rows.push(row);
+    }else if(['filtre_cta','mesure_cta','reseau_froid','temperature_chaufferie'].includes(row.type)){
+      const childKey=row.type+'||'+row.id;
+      if(!children.has(childKey))children.set(childKey,{
+        type:row.type,name:row.name,id:row.id,parentId:row.parentId,
+        family:row.family,unite:row.unite,values:new Map()});
+      if(row.cle!=='Type / presence')children.get(childKey).values.set(row.cle,row);
+    }else if(has(row) && !row.inherited)report(row.name,'type de donnée supplémentaire non associé à un champ officiel');
+  }
+
+  // Le nom de chaque CTA reste vérifiable, même lorsqu'aucun champ
+  // technique n'est renseigné sur la CTA supplémentaire.
+  const cta=[...parents].filter(([,p])=>p.family==='cta');
+  const vmc=[...parents].filter(([,p])=>p.family==='vmc');
+  const froid=[...parents].filter(([,p])=>p.family==='froid');
+  cta.forEach(([,p])=>add('p-remar-cta','Informations techniques',
+    'Désignation CTA',{label:p.name,valeur:p.name,force:true}));
+  if(vmc.length) {
+    const count=vmc.length;
+    add('p-remar-vmc','Informations générales','Nombre de caissons',{
+      label:'VMC',valeur:count===1?'1':count+' caissons : '+vmc.map(([,p])=>p.name).join(' ; '),force:true});
+  }
+  // Pour le froid, le champ Production froid porte déjà les observations
+  // de chaque groupe ; si aucune n'existe, y préserver au moins son nom.
+  for(const [id,p] of froid){
+    const observed=rows.some(r=>r.id===id&&r.panel==='p-remar-froid'&&r.cle==='Production froid'&&!r.inherited&&has(r));
+    if(!observed)add('p-remar-froid','Informations du site','Production froid',{
+      label:p.name,valeur:'Équipement déclaré, production non renseignée',force:true});
+  }
+
+  for(const row of rows) {
+    if(row.inherited||!has(row))continue;
+    if(row.panel==='p-remar-vmc'&&row.cle==='Nombre de caissons')continue;
+    if(row.panel==='p-remar-cta'&&row.cle==='Désignation CTA')continue;
+    if(row.panel==='p-remar-froid'&&/^Réseau [1-9]\d*$/.test(row.cle))continue;
+    const parent=parents.get(row.id);
+    const label=parent?.name||row.name||row.id;
+    if(!mappings.has(key(row.panel,row.section,row.cle))){
+      report(label,'champ additionnel '+row.cle+' absent du modèle REMAR officiel');
+      continue;
+    }
+    add(row.panel,row.section,row.cle,{...row,label});
+  }
+
+  const measureTargets={
+    'air neuf':['Températures','Air neuf'],
+    'apres recuperation':['Températures','Après récupération'],
+    'soufflage':['Températures','Soufflage'],
+    'extraction reprise':['Températures','Extraction / Reprise'],
+    'vitesse soufflage':['Variation de vitesse','Soufflage'],
+    'vitesse extraction':['Variation de vitesse','Extraction / Reprise'],
+    'consigne soufflage':['Consignes','Soufflage'],
+    'consigne extraction':['Consignes','Extraction / Reprise'],
+    'pression':['Consignes','Pression'],
+  };
+  const temperatureTargets={
+    'chauffage aller':'Chauffage aller (°C)',
+    'chauffage retour':'Chauffage retour (°C)',
+    'ecs depart':'ECS départ (°C)','ecs bouclage':'ECS bouclage (°C)',
+    'ecs stockage':'ECS stockage (°C)',
+  };
+  const counters=new Map();
+  for(const item of children.values()) {
+    const parent=parents.get(item.parentId);
+    const label=parent?parent.name+' / '+item.name:item.name;
+    const ordinalKey=item.parentId+'||'+item.type;
+    const position=(counters.get(ordinalKey)||0)+1;
+    counters.set(ordinalKey,position);
+    const read=(cle)=>item.values.get(cle);
+    const current=(cle)=>{const row=read(cle);return row&&!row.inherited?row:null;};
+    const allowed=new Set();
+    if(item.type==='filtre_cta'){
+      const section='Filtre n°'+Math.min(position,3);
+      const classe=current('Classe de filtration'),etat=current('Etat du filtre');
+      allowed.add('Classe de filtration');allowed.add('Etat du filtre');
+      add('p-remar-filtres',section,'Type de filtre',{
+        label,valeur:classe?.valeur||item.name,
+        avis:classe?.avis,commentaire:classe?.commentaire,force:true});
+      if(!etat?.avis && !etat?.commentaire)
+        report(label,'état du filtre non confirmé : choisir un avis avant synchronisation');
+      else add('p-remar-filtres',section,'Etat du filtre',{
+        label,avis:etat?.avis,commentaire:etat?.commentaire,force:true});
+    }else if(item.type==='mesure_cta'){
+      const dest=measureTargets[normalize(item.name)];
+      const v=current('Valeur');allowed.add('Valeur');
+      if(dest) {
+        if(v&&has(v))add('p-remar-cta-mesures',dest[0],dest[1],{...v,label,unite:item.unite});
+      }else if(v&&has(v))report(label,'mesure supplémentaire sans destination précise dans la trame Symfony');
+    }else if(item.type==='reseau_froid'){
+      const section='Réseaux',field='Réseau '+Math.min(position,3);
+      const observations=[...item.values.values()].filter(r=>!r.inherited&&has(r))
+        .map(r=>r.cle+' : '+[r.valeur,r.avis,r.commentaire].filter(Boolean).join(' / '));
+      item.values.forEach((v,k)=>allowed.add(k));
+      add('p-remar-froid',section,field,{
+        label,valeur:item.name+(observations.length?' — '+observations.join(' ; '):''),force:true});
+    }else if(item.type==='temperature_chaufferie'){
+      const dest=temperatureTargets[normalize(item.name)];
+      const v=current('Valeur');allowed.add('Valeur');
+      if(dest && v && has(v))
+        add('p-remar-releves','Température chaufferie',dest,{...v,label,unite:item.unite});
+      else if(!dest && v && has(v))
+        report(label,'température sans case officielle compatible');
+    }
+    for(const [cle,r] of item.values){
+      if(!allowed.has(cle)&&!r.inherited&&has(r))
+        report(label,'observation supplémentaire non rattachable : '+cle);
+    }
+  }
+
+  const result=new Map();
+  const priority=['N.S','N.R','N.V','S','S.O'];
+  const displayValue=e=>{
+    const raw=e.valeur||(!e.valeur&&['N.R','N.V','S.O'].includes(e.avis)?e.avis:'');
+    const unit=raw&&e.unite&&!['N.R','N.V','S.O'].includes(raw)?' '+e.unite:'';
+    return raw+unit;
+  };
+  for(const [target,group] of groups){
+    const {mapping,entries}=group;
+    const family=mapping.panelId.includes('cta')||mapping.panelId==='p-remar-filtres'?'cta'
+      :mapping.panelId==='p-remar-vmc'?'vmc'
+      :mapping.panelId==='p-remar-froid'?'froid':null;
+    const familyCount=family==='cta'?cta.length:family==='vmc'?vmc.length:family==='froid'?froid.length:0;
+    const multiline=entries.length>1||familyCount>1;
+    if(mapping.type==='controle'){
+      const valid=entries.filter(e=>['S','N.S','N.R','S.O','N.V'].includes(e.avis));
+      if(valid.length!==entries.length){
+        for(const e of entries.filter(e=>!['S','N.S','N.R','S.O','N.V'].includes(e.avis)))
+          report(e.label+' / '+mapping.cle,'avis absent ou non confirmé pour un contrôle');
+      }
+      const avis=priority.find(s=>valid.some(e=>e.avis===s))||null;
+      for(const e of valid) {
+        if(e.avis==='N.S'&&(!clean(e.commentaire)||/^(anomalie|défaut).*(à préciser|intervention à préciser)/i.test(clean(e.commentaire))))
+          report(e.label+' / '+mapping.cle,'constat N.S non caractérisé');
+      }
+      const commentaire=multiline?entries.map(e=>{
+        const status=e.avis||'Non renseigné';
+        return e.label+' : ['+status+']'+(e.commentaire?' '+e.commentaire:'');
+      }).join('\n'):entries[0]?.commentaire||'';
+      result.set(target,{type:'controle',avis,commentaire});
+    }else{
+      const value=multiline?entries.map(e=>{
+        const v=displayValue(e);
+        return e.label+' : '+v+(e.commentaire?' — '+e.commentaire:'')+
+          (e.avis&&v!==e.avis?' ['+e.avis+']':'');
+      }).join('\n'):entries.length===1?displayValue(entries[0])+
+        (entries[0].commentaire?' — '+entries[0].commentaire:''):'';
+      result.set(target,{type:'champ',valeur:value});
+    }
+  }
+  return result;
+}
+
 async function buildCriteria(db, visite, details, issues) {
   const remoteTrame = details?.trame;
   const categories = Array.isArray(remoteTrame?.categories) ? remoteTrame.categories : [];
