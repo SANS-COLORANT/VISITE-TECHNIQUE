@@ -38,6 +38,7 @@ import { LecturePhotoButton } from './PhotoOcrReview.js';
 import { CourbeReleves } from './CourbeReleves.js';
 import { ChampMesureTile, ExtraMeasurementCard, nombreMesure } from './ExtraMeasurementCard.js';
 import { listerPointsMesureVisite, ajouterPointMesureVisite, modifierPointMesureVisite } from './terrainVisitDb.js';
+import { COMPTEURS_REMAR_USUELS } from './remarFieldGuidance.js';
 import {
   ActionMenu, BottomSheet, ChoiceField, InlineRename, KIT, PictoOrb, SectionCard, SmallButton, SubGroupTitle, TileRow, UnitPill, useSectionsOuvertes,
 } from './VisitKit.js';
@@ -365,6 +366,9 @@ export function OptimizedRelevesPanel({
   const [creationEnCours, setCreationEnCours] = useState(false);
   const [destinationChoisie, setDestinationChoisie] = useState(null);
   const autoSeedFaitRef = useRef(false);
+  const ajoutUsuelRef = useRef(new Set());
+  const [compteurUsuelEnCours,setCompteurUsuelEnCours] = useState(null);
+  const [compteursRemarOuverts,setCompteursRemarOuverts] = useState(true);
   const ouvertes = useSectionsOuvertes(`releves:${visiteId}`);
 
   const sections = panels?.[meterPanelId] || TRAME_DATA['p-releves'];
@@ -441,6 +445,28 @@ export function OptimizedRelevesPanel({
   const retirerLocalement = useCallback((id) => setCompteurs((courants) => courants.filter((c) => c.id !== id)), []);
   const changerDestinationLocalement = useCallback((id, destination) => setCompteurs((courants) => courants.map((c) => c.id === id ? { ...c, destination } : c)), []);
   const compteurLive = useCallback((id, valeur) => setCompteurs((courants) => courants.map((c) => (c.id === id && c.valeur !== valeur ? { ...c, valeur } : c))), []);
+  // Les quatre emplacements usuels sont des raccourcis visuels tant que
+  // l'agent ne choisit pas de les relever. Ne creer aucun faux compteur du
+  // patrimoine en ouvrant seulement l'onglet.
+  const compteursRemarManquants = remarMinimal
+    ? COMPTEURS_REMAR_USUELS.filter(s =>
+        champsSectionCompteurs.some(f=>f.cle===s.destination) &&
+        !compteurs.some(c=>(c.destination||destinationDepuisLibelle(c.label,c.unite,champsSectionCompteurs))===s.destination))
+    : [];
+  const creerCompteurRemarUsuel = async modele => {
+    if(ajoutUsuelRef.current.has(modele.destination))return;
+    ajoutUsuelRef.current.add(modele.destination);setCompteurUsuelEnCours(modele.destination);
+    try{
+      const current=await listerCompteurs(visiteId);
+      if(!current.some(c=>(c.destination||destinationDepuisLibelle(c.label,c.unite,champsSectionCompteurs))===modele.destination)){
+        await ajouterCompteur(visiteId,modele.nom,modele.destination);
+      }
+      setCompteurs(await listerCompteurs(visiteId));
+      setCompteursRemarOuverts(true);
+      onSaved?.();
+    }catch(e){Alert.alert('Compteur non ajouté',String(e?.message||e));}
+    finally{ajoutUsuelRef.current.delete(modele.destination);setCompteurUsuelEnCours(null);}
+  };
   // Deux compteurs sur la même ligne : l'Excel les concatène, l'Intranet refuse
   // l'envoi (règle de sécurité existante). On le signale dès la saisie.
   const destinationsEnDoublon = useMemo(() => {
@@ -535,16 +561,28 @@ export function OptimizedRelevesPanel({
     );
   };
 
-  const renderCompteurs = () => (remarMinimal && !compteurs.length
-    ? <TouchableOpacity accessibilityRole="button" style={st.addTemp}
-        onPress={ouvrirAjoutCompteur}><Text style={st.addTempText}>+ Ajouter un compteur</Text></TouchableOpacity>
-    : <SectionCard picto="rel/compteurs" title="Compteurs" open={ouvertes.isOpen('compteurs')} onToggle={() => ouvertes.toggle('compteurs')}
-      done={nbCompteurs} total={compteurs.length} actionLabel="+ Ajouter" onAction={ouvrirAjoutCompteur}>
-      {compteurs.length ? compteurs.map((c) => (
-        <CompteurRow key={c.id} compteur={c} visiteId={visiteId} onRemove={retirerLocalement} champsSection={champsSectionCompteurs}
-          onDestinationChange={changerDestinationLocalement} onLive={compteurLive}
-          doublonDestination={destinationsEnDoublon.has(c.destination || destinationDepuisLibelle(c.label, c.unite, champsSectionCompteurs))} />
-      )) : <Text style={st.hint}>Aucun compteur. Touchez « + Ajouter ».</Text>}
+  const renderCompteurs = () => (
+    <SectionCard picto="rel/compteurs" title="Compteurs"
+      subtitle={remarMinimal?'4 relevés usuels proposés · aucun index présumé':undefined}
+      open={remarMinimal?compteursRemarOuverts:ouvertes.isOpen('compteurs')}
+      onToggle={()=>remarMinimal?setCompteursRemarOuverts(v=>!v):ouvertes.toggle('compteurs')}
+      done={nbCompteurs} total={compteurs.length}
+      actionLabel="+ Ajouter" onAction={ouvrirAjoutCompteur}>
+      {remarMinimal&&compteursRemarManquants.length ? <View style={{marginBottom:10}}>
+        {compteursRemarManquants.map(modele=><TouchableOpacity key={modele.destination}
+          accessibilityRole="button"
+          disabled={compteurUsuelEnCours===modele.destination}
+          onPress={()=>creerCompteurRemarUsuel(modele)}
+          style={st.quickMeter}>
+          <Text style={st.quickMeterTitle}>{modele.nom}</Text>
+          <Text style={st.quickMeterAction}>{compteurUsuelEnCours===modele.destination?'Ajout…':'+ Relever'}</Text>
+        </TouchableOpacity>)}
+      </View> : null}
+      {compteurs.length ? compteurs.map(c=><CompteurRow key={c.id} compteur={c}
+        visiteId={visiteId} onRemove={retirerLocalement} champsSection={champsSectionCompteurs}
+        onDestinationChange={changerDestinationLocalement} onLive={compteurLive}
+        doublonDestination={destinationsEnDoublon.has(c.destination || destinationDepuisLibelle(c.label,c.unite,champsSectionCompteurs))} />)
+        : (remarMinimal ? null : <Text style={st.hint}>Aucun compteur. Touchez « + Ajouter ».</Text>)}
     </SectionCard>
   );
 
@@ -701,6 +739,12 @@ export function OptimizedRelevesPanel({
 }
 
 const st = StyleSheet.create({
+  quickMeter:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',
+    gap:9,minHeight:48,borderWidth:1,borderRadius:10,borderColor:'#D9E2E9',
+    paddingHorizontal:12,paddingVertical:8,marginVertical:4,backgroundColor:'#F8FAFC'},
+  quickMeterTitle:{flex:1,fontSize:13,color:'#243F53',fontWeight:'600'},
+  quickMeterAction:{fontSize:12,color:'#A95625',fontWeight:'700'},
+
   hint: { fontSize: 12.5, fontFamily: FONTS.bodyMedium, color: COLORS.inkSoft, paddingVertical: 8 },
   cpt: { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: COLORS.line, paddingVertical: 8 },
   cptLine1: { flexDirection: 'row', alignItems: 'center', gap: 10 },
