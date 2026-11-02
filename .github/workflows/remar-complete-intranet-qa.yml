@@ -8,6 +8,8 @@ on:
       - 'excelExport.js'
       - 'excelImport.js'
       - 'intranetVisitPayload.js'
+      - 'intranetVisitBindingDb.js'
+      - 'remarRemoteTrameSelection.js'
       - 'IntranetVisitSync.js'
       - '.github/scripts/test_remar*.js'
       - '.github/scripts/test_intranet*.js'
@@ -38,8 +40,10 @@ jobs:
         run: |
           npm ci --no-audit --no-fund --prefer-offline
           git diff --exit-code
-      - name: Audit all 141 REMAR values to Symfony-style criteria
-        run: node .github/scripts/test_remar_141_intranet_matrix.js
+      - name: Audit all 141 REMAR values and select only a full, unique Symfony trame
+        run: |
+          node .github/scripts/test_remar_141_intranet_matrix.js
+          node .github/scripts/test_remar_remote_trame_selection.js
       - name: Real SQLite REMAR equipment, fields and data protections
         run: |
           node .github/scripts/test_remar_dynamic.js
