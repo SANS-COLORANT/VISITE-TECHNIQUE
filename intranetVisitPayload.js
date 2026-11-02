@@ -763,6 +763,7 @@ async function buildCriteria(db, visite, details, issues) {
   const result = [];
   const seenRemoteBranches = new Set();
   const seenSummaryTargets = new Set();
+  const mappedLocalRemar = new Map();
   let ordinal = 0;
   for (const category of categories) {
     for (const subCategory of Array.isArray(category?.sousCategories) ? category.sousCategories : []) {
@@ -787,6 +788,12 @@ async function buildCriteria(db, visite, details, issues) {
         const column = networkGroup ? networkColumn(criterion?.nom) : null;
         const heatSummary = criterionResumeReseau(definition, criterion?.nom, category?.nom, subCategory?.nom);
         const candidate = column || heatSummary ? null : findCandidate(candidates, criterion, category?.nom, subCategory?.nom);
+        if(isRemar && candidate){
+          const storage=[candidate.panelId,candidate.section,candidate.cle].join('||');
+          const previous=mappedLocalRemar.get(storage);
+          if(previous)issues.push(`REMAR : le point « ${candidate.cle} » (${candidate.panelId} / ${candidate.section}) est associé à plusieurs critères Intranet (${previous} et ${path}). Vérifie les IDs métier avant envoi.`);
+          else mappedLocalRemar.set(storage,path);
+        }
 
         if (heatSummary) {
           const semanticTarget = `${heatSummary.perimetre}:${heatSummary.categorie}`;
@@ -836,6 +843,21 @@ async function buildCriteria(db, visite, details, issues) {
     }
   }
   if (!result.length) issues.push('Trame Intranet : la liste des critères est vide.');
+  if(isRemar){
+    // Une correspondance par critère distant ne suffit pas : l'ancien moteur
+    // pouvait réussir le POST en ignorant une saisie locale présente, comme
+    // lors de l'incident A2. Refaire la vérification dans l'autre sens.
+    for(const mapping of definition?.excel?.fieldMappings||[]){
+      const dataKey=`${mapping.sectionCode}||${mapping.cle}`;
+      const destination=[mapping.panelId,mapping.section,mapping.cle].join('||');
+      const data=mapping.type==='controle' ? controlMap.get(dataKey) : fieldMap.get(dataKey);
+      const present=mapping.type==='controle'
+        ? meaningfulRemote(data?.avis)||meaningfulRemote(data?.commentaire)
+        : meaningfulRemote(data);
+      if(present && !mappedLocalRemar.has(destination))
+        issues.push(`REMAR : saisie locale « ${mapping.cle} » (${mapping.panelId} / ${mapping.section}) non couverte par les critères de la trame Symfony. Envoi refusé pour conserver la donnée.`);
+    }
+  }
   return result;
 }
 
