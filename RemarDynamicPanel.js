@@ -205,34 +205,69 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
 }
 
 function ChildRow({ visiteId, parent, item, typeCode, fields, data, onRefresh, onSaved }) {
-  const [editName,setEditName] = useState(false), [name,setName]=useState(item.nom);
-  const remove = () => Alert.alert('Retirer cet élément ?', 'L’historique des visites précédentes sera conservé.',[
-    {text:'Annuler',style:'cancel'}, {text:'Retirer',style:'destructive',
-      onPress:()=>retirerRemarItem(visiteId,item.id).then(onRefresh).catch(e=>Alert.alert('Retrait impossible',String(e?.message||e)))}
-  ]);
-  const namedFields = fields || (typeCode==='filtre_cta'
-    ? [{cle:'Type de filtre',type:'champ'},{cle:'Etat du filtre',type:'controle',
-       presets:{S:[{commentaire:'Filtre satisfaisant'}],'N.S':[{commentaire:'Filtre dégradé, action à préciser'}]}}]
-    : [{cle:'Valeur',type:'champ',numeric:true}]);
-  const saveName=async()=>{
-    setEditName(false);
-    if (!clean(name)||clean(name)===item.nom)return;
-    try{await renommerRemarItem(visiteId,item.id,name);onRefresh?.();}
-    catch(e){Alert.alert('Renommage impossible',String(e?.message||e));setName(item.nom);}
-  };
+  const [editName,setEditName] = useState(false);
+  const [name,setName,flushName] = useDurableAutosave(item.nom,async next=>{
+    const propre=clean(next);
+    if(!propre)throw new Error('Le nom de cet élément ne peut pas être vide.');
+    if(propre!==item.nom){await renommerRemarItem(visiteId,item.id,propre);onSaved?.();}
+  });
+  const remove=()=>Alert.alert('Retirer cet élément ?',
+    'Il disparaîtra de la visite courante et du patrimoine actif, mais restera dans les anciennes visites.',
+    [{text:'Annuler',style:'cancel'}, {text:'Retirer',style:'destructive',onPress:async()=>{
+      try{await flushDurableAutosaves();await retirerRemarItem(visiteId,item.id);
+        await onRefresh?.();onSaved?.();}
+      catch(e){Alert.alert('Retrait impossible',String(e?.message||e));}
+    }}]);
+  const filtre=typeCode==='filtre_cta';
+  const namedFields=fields || (filtre ? [
+    {cle:'Classe de filtration',type:'champ',options:CLASSES_FILTRES_REMAR},
+    {cle:'Etat du filtre',type:'controle',poste:parent?.designation||'Filtration',
+      presets:{
+        S:[{commentaire:'Filtre : propre, correctement positionné et état visuel satisfaisant.'}],
+        'N.S':[{commentaire:'Filtre : encrassement, dégradation ou défaut de montage constaté, à préciser.'}],
+        'N.R':[{commentaire:'Filtre non contrôlé, motif à préciser.'}],
+        'S.O':[{commentaire:'Filtre sans objet pour cette installation.'}],
+        'N.V':[{commentaire:'Filtre non visible ou inaccessible.'}],
+      }},
+  ] : [{cle:'Valeur',type:'champ',numeric:true}]);
   return <View style={ui.child}>
     <View style={ui.hRow}>
-      {editName ? <TextInput value={name} onChangeText={setName} onEndEditing={saveName}
-         autoFocus style={[ui.input,{flex:1}]} /> : <TouchableOpacity onPress={()=>setEditName(true)} style={{flex:1}}>
-          <Text style={ui.childTitle}>{item.nom} ✎</Text>
+      {editName ? <TextInput value={name} onChangeText={setName}
+         onBlur={()=>flushName().catch(e=>Alert.alert('Nom non enregistré',String(e?.message||e))).finally(()=>setEditName(false))}
+         onEndEditing={()=>flushName().catch(()=>{})}
+         autoFocus style={[ui.input,{flex:1}]}
+         accessibilityLabel={filtre?'Nom du filtre':'Nom de l’élément'}/> :
+        <TouchableOpacity onPress={()=>setEditName(true)} style={{flex:1}}>
+          <Text style={ui.childTitle}>{filtre?'Nom du filtre : ':''}{name}  ✎</Text>
+          {filtre ? <Text style={ui.note}>La classe G4/F7/ePM est distincte du nom et reste modifiable.</Text> : null}
+          {!filtre && item.unite ? <Text style={ui.note}>Unité : {item.unite}</Text> : null}
         </TouchableOpacity>}
       <TouchableOpacity onPress={remove} accessibilityRole="button" accessibilityLabel="Retirer cet élément">
         <Text style={ui.remove}>Retirer</Text>
       </TouchableOpacity>
     </View>
     {namedFields.map(f=><FieldRow key={f.cle} item={f} ownerType="item" ownerId={item.id}
+      equipmentLabel={parent?.designation ? parent.designation+' / '+item.nom : item.nom}
       panelId={typeCode==='filtre_cta'?'p-remar-filtres':typeCode==='mesure_cta'?'p-remar-cta-mesures':typeCode==='reseau_froid'?'p-remar-froid':'p-remar-releves'}
       section={typeCode} visiteId={visiteId} saved={data} onSaved={onSaved} />)}
+  </View>;
+}
+
+/** Raccourcis techniques visibles mais non enregistres : un clic explicite
+ * cree la fiche. Aucun materiel, valeur ni avis ne sont inventes en SQLite.
+ */
+function MesureRapide({nom,onCreate,busy=false}) {
+  return <View style={ui.missingMeasure}>
+    <Text style={ui.missingLabel}>{nom}</Text>
+    <View style={ui.quickChoices}>
+      <TouchableOpacity disabled={busy} onPress={()=>onCreate(nom,null)} style={ui.choiceChip}>
+        <Text style={ui.choiceChipText}>+ Relever</Text>
+      </TouchableOpacity>
+      {ETATS_MESURE_REMAR.map(opt=><TouchableOpacity key={opt.code}
+        disabled={busy} onPress={()=>onCreate(nom,opt.code)} style={ui.choiceChip}>
+        <Text style={ui.choiceChipText}>{opt.label}</Text>
+      </TouchableOpacity>)}
+    </View>
   </View>;
 }
 
@@ -408,6 +443,8 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'})
 }
 
 const ui=StyleSheet.create({
+  missingMeasure:{borderColor:'#DDE5EC',borderWidth:1,borderRadius:12,padding:10,marginVertical:4,backgroundColor:'#FAFBFC'},
+  missingLabel:{fontSize:14,color:'#203B50',fontWeight:'700'},
   saveError:{fontSize:12,color:'#A33625',marginTop:4,fontWeight:'600'},
   quickChoices:{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:8,marginBottom:5},
   choiceChip:{borderWidth:1,borderColor:'#D6DCE3',borderRadius:12,
