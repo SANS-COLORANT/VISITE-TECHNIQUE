@@ -30,6 +30,7 @@ import { prewarmPhotoCaptureContext } from './photoCaptureContext.js';
 import { loadVisitPhotos, peekVisitPhotos, removeRuntimePhoto, replaceRuntimePhoto, subscribeVisitPhotos, upsertRuntimePhoto } from './photoRuntimeCache.js';
 import { EmptyIcon } from './EmptyState.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { lireContextePhotosRemar, contextePhotoRemar } from './remarPhotoContext.js';
 import { Picto, originePhoto, PHOTO_ORIGINES } from './MetraPictos.js';
 import { KIT, SectionBanner, confirmer, teinte, useSectionsOuvertes } from './VisitKit.js';
 import { showToast } from './PremiumDialogs.js';
@@ -43,7 +44,12 @@ const DELAI_ANNULATION_MS = 4500;
 const suppressionsEnAttente = new Map();
 
 function legendePhoto(photo) {
-  return legendePhotoEditable(photo);
+  const original=legendePhotoEditable(photo);
+  const contexte=photo?._remarContext;
+  if(!contexte || Number(photo?.libelle_personnalise||0)===1) return original;
+  // Les anciennes photos deja enregistrees gardent leur cle durable. Le
+  // libelle est simplement enrichi en lecture, jamais ecrase dans SQLite.
+  return original.includes(contexte.prefix)?original:`${contexte.prefix} · ${original}`;
 }
 
 function libelleOrigine(key) {
@@ -90,6 +96,13 @@ const MiniVignettes = memo(function MiniVignettes({ photos }) {
 function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
   const { width } = useWindowDimensions();
   const [photos, setPhotos] = useState(() => peekVisitPhotos(visiteId) || []);
+  const [remarPhotoContext,setRemarPhotoContext] = useState({ctas:{},items:{},reserves:{}});
+  useEffect(()=>{
+    let alive=true;
+    lireContextePhotosRemar(visiteId).then(ctx=>{if(alive)setRemarPhotoContext(ctx);})
+      .catch(e=>console.warn('Classement photos REMAR indisponible',e));
+    return ()=>{alive=false};
+  },[visiteId,photos.length]);
   const [viewerPhoto, setViewerPhoto] = useState(null);
   const [viewerHd, setViewerHd] = useState(false);
   const [editionLibelle, setEditionLibelle] = useState(false);
@@ -137,17 +150,31 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
 
   const groupes = useMemo(() => {
     const parOrigine = new Map(PHOTO_ORIGINES.map((o) => [o.key, []]));
+    const parCta = new Map();
     for (const p of photos) {
-      const key = originePhoto(p.entite_key);
-      (parOrigine.get(key) || parOrigine.get('conformite')).push(p);
+      const contexte=contextePhotoRemar(p.entite_key,remarPhotoContext);
+      if (contexte) {
+        const groupKey='remar-cta:'+contexte.id;
+        const group=parCta.get(groupKey)||{
+          key:groupKey,label:contexte.nom,picto:'ph/equipement',photos:[],
+        };
+        group.photos.push({...p,_remarContext:contexte});
+        parCta.set(groupKey,group);
+      } else {
+        const key = originePhoto(p.entite_key);
+        (parOrigine.get(key) || parOrigine.get('conformite')).push(p);
+      }
     }
-    return PHOTO_ORIGINES.map((o) => ({ ...o, photos: parOrigine.get(o.key) || [] })).filter((g) => g.photos.length);
-  }, [photos]);
+    return [
+      ...[...parCta.values()].sort((a,b)=>a.label.localeCompare(b.label,'fr')),
+      ...PHOTO_ORIGINES.map(o=>({...o,photos:parOrigine.get(o.key)||[]})).filter(g=>g.photos.length),
+    ];
+  }, [photos,remarPhotoContext]);
 
   const filtreEffectif = filtre !== 'toutes' && groupes.some((g) => g.key === filtre) ? filtre : 'toutes';
 
   // Groupes fermés au départ ; l'état est gardé pendant la session (VisitKit).
-  const ouvertesSignature = PHOTO_ORIGINES.map((o) => (sections.isOpen(o.key) ? '1' : '0')).join('');
+  const ouvertesSignature = groupes.map((o) => (sections.isOpen(o.key) ? '1' : '0')).join('');
 
   // Une cellule = une bannière de groupe ou une rangée de vignettes : la liste reste virtualisée.
   const { cellules, visibles } = useMemo(() => {
@@ -155,7 +182,7 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
     const ordre = [];
     for (const g of groupes) {
       if (filtreEffectif !== 'toutes' && g.key !== filtreEffectif) continue;
-      const open = filtreEffectif !== 'toutes' || ouvertesSignature[PHOTO_ORIGINES.findIndex((o) => o.key === g.key)] === '1';
+      const open = filtreEffectif !== 'toutes' || ouvertesSignature[groupes.findIndex((o) => o.key === g.key)] === '1';
       out.push({ type: 'head', key: `h:${g.key}`, groupe: g, open });
       if (!open) continue;
       ordre.push(...g.photos);
@@ -345,7 +372,9 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
     );
   }, [taille, ouvrir, sections, filtreEffectif]);
 
-  const origineViewer = viewerPhoto ? libelleOrigine(originePhoto(viewerPhoto.entite_key)) : '';
+  const origineViewer = viewerPhoto
+    ? (contextePhotoRemar(viewerPhoto.entite_key,remarPhotoContext)?.nom ||
+        libelleOrigine(originePhoto(viewerPhoto.entite_key))) : '';
 
   return (
     <View style={{ flex: 1 }}>
