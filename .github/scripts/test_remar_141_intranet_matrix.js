@@ -174,13 +174,28 @@ function find(panel,cle,section=null){
   const extraMeter=await build({meters:[
     {id:'extra',destination:'supplementaire',label:'Sous-compteur magasin',valeur:'345',unite:'m³'},
   ]});
-  check(extraMeter.issues.some(x=>x.includes('sans destination Intranet unique')),
-    'supplementary REMAR meter requires a destination before transmission');
+  check(extraMeter.issues.some(x=>x.includes('destination Intranet ambiguë ou inconnue')),
+    'unclassifiable supplementary meter requires an explicit destination');
   const unknownMeter=await build({meters:[
     {id:'unknown',destination:null,label:'Compteur de test inconnu',valeur:'12',unite:'m³'},
   ]});
-  check(unknownMeter.issues.some(x=>x.includes('sans destination Intranet unique')),
+  check(unknownMeter.issues.some(x=>x.includes('destination Intranet ambiguë ou inconnue')),
     'unmapped manual REMAR meter cannot be silently discarded');
+
+  const groupedGas=await build({meters:[
+    {id:'gaz-a',destination:'supplementaire',label:'Compteur Gaz A',valeur:'1222',unite:'m³'},
+    {id:'gaz-b',destination:'supplementaire',label:'Compteur Gaz B',valeur:'2588899',unite:'m³'},
+  ]});
+  check(groupedGas.issues.length===0,'two supplementary named gas meters can be classified safely: '+groupedGas.issues.join(' | '));
+  check(outputFor(groupedGas,find('p-remar-releves','Compteur Gaz (m³)')).commentaire===
+    'Compteur Gaz A : 1222 m³\nCompteur Gaz B : 2588899 m³',
+    'Symfony V1 receives two independent gas meter readings in one multiline criterion');
+
+  const conflictingMeter=await build({meters:[
+    {id:'bad',destination:'supplementaire',label:'Compteur gaz ECS',valeur:'123',unite:'m³'},
+  ]});
+  check(conflictingMeter.issues.some(x=>x.includes('destination Intranet ambiguë')),
+    'a meter matching two possible destinations stays blocked, never guessed');
 
   const withMeter=await build({meters:[
     {id:'gaz',destination:'Compteur Gaz (m³)',label:'Gaz chaufferie',valeur:'15855',unite:'m³'},
