@@ -34,3 +34,20 @@ export function proposerNomUniqueRemar(family,choice,existingNames=[],presets=[]
   }while(used.has(norm(proposed)));
   return proposed;
 }
+
+/**
+ * Affichage seulement. Répare visuellement les anciens « CTA 1 — CTA ... »
+ * sans renommer les équipements ni déplacer leurs observations ou photos.
+ * Le numéro affiché est calculé sur l'ordre stable de la liste du local.
+ */
+export function afficherNomEquipementRemar(family,nom,index) {
+  const original=clean(nom);
+  const nombre=Math.max(1,(Number(index)||0)+1);
+  const prefix=family==='cta'?'CTA':family==='vmc'?'Caisson VMC':'Installation froid';
+  let suffix=original;
+  if(family==='cta')suffix=suffix.replace(/^CTA(?:\s+\d+)?\s*(?:[—–-]\s*)?(?:CTA\s+)?/i,'');
+  if(family==='vmc')suffix=suffix.replace(/^Caisson(?:\s+VMC)?(?:\s+\d+)?\s*(?:[—–-]\s*)?(?:Caisson(?:\s+VMC)?\s+)?/i,'');
+  if(family==='froid')suffix=suffix.replace(/^(?:Installation|Groupe)\s+(?:de\s+)?froid(?:\s+\d+)?\s*(?:[—–-]\s*)?/i,'');
+  const titre=`${prefix} ${nombre}`;
+  return suffix? `${titre} · ${suffix}` : titre;
+}
