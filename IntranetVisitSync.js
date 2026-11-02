@@ -533,6 +533,11 @@ export async function envoyerVisitesClient(clientId, { onProgress = null } = {})
         if (row && ['validation_error', 'rejected', 'conflict'].includes(row.status)) {
           if (!await discardTerminalVisitUpload(visite.id)) { bilan.aConfirmer.push(`${nomVisite(visite)} : à renvoyer depuis la visite (risque de doublon).`); continue; }
         }
+        // Même sélection contrôlée que l'envoi visite par visite.
+        // Sans cette étape, l'envoi groupé réutilisait systématiquement
+        // REMAR CLASSIQUE (ID 16) même lorsqu'une trame complète existait.
+        if(visite.trame_id==='remar_v1')
+          await pinFullyPublishedRemarForFirstUpload(visite.id);
         await bindSameImportedClient(visite.id);
         await queueVisitUpload(visite.id, { confirmMaterialReplacement: false });
         await processVisitOutbox({ limit: 1 }).catch(() => {});
