@@ -484,6 +484,30 @@ const NETWORK_COLUMNS = Object.freeze({
 function networkColumn(name) { return NETWORK_COLUMNS[normalize(name)] || null; }
 // Sous REMAR V1, les paramètres d'un réseau peuvent rester dans la même
 // case « Réseau n » que son nom : aucune courbe/TNC n'est jetée.
+// Les métadonnées de visite utilisent déjà les IDs et la date du POST :
+// elles ne doivent pas exiger un deuxième critère dans le tableau Symfony.
+function remarVisitMetadataCovered(definition,mapping) {
+  if(mapping?.panelId!=='p-infos'||mapping?.type!=='champ')return false;
+  const field=definition?.ui?.panels?.[mapping.panelId]?.[mapping.section]
+    ?.find(f=>f.cle===mapping.cle&&f.type===mapping.type);
+  return ['client','site','local','type','dateVisite'].includes(field?.meta);
+}
+
+// Destination de repli autorisée uniquement lorsqu'elle est nommée
+// explicitement « Réseaux de chauffage » (ou synonyme métier exact),
+// de type texte, et unique dans le référentiel réellement reçu de Symfony.
+function remarNetworkSummaryTarget(categories) {
+  const names=new Set(['reseaux','reseaux de chauffage','reseau chauffage',
+    'circuits de chauffage','reseaux chauffage']);
+  const matches=[];
+  for(const cat of categories||[])for(const sub of cat.sousCategories||[])
+    for(const c of sub.criteres||[]) {
+      if(c.avisApplicable!==true && names.has(normalize(c.nom)))
+        matches.push({criterion:c,category:cat,subCategory:sub});
+    }
+  return matches.length===1?matches[0]:null;
+}
+
 function remarNetworkText(row,index) {
   const title=clean(row?.nom_reseau)||'Réseau '+index;
   const attrs=[
@@ -973,6 +997,8 @@ async function buildCriteria(db, visite, details, issues) {
   // et non dans les sous-catégories de régulation ICPE/RCU. Ne jamais envoyer
   // ces cinq noms comme "/" ni exiger des groupes serveur inexistants.
   const remarFixedNetworks=isRemar && remoteNetworkGroups.length===0;
+  const remarNetworkSummary=remarFixedNetworks
+    ? remarNetworkSummaryTarget(categories) : null;
   const networkAssignments = capabilities.networks && !remarFixedNetworks
     ? mapNetworksToRemoteGroups(networks, remoteNetworkGroups, networkProvenances, issues)
     : new Map();
@@ -983,9 +1009,11 @@ async function buildCriteria(db, visite, details, issues) {
           findCandidate(candidates,criterion,category.nom,subCategory.nom))
         .filter(candidate=>candidate?.panelId==='p-remar-reseaux')
         .map(candidate=>candidate.cle))));
-    for (let i=0;i<Math.min(networks.length,5);i++) {
-      if (!remoteSlots.has(`Réseau ${i+1}`))
-        issues.push(`Réseau REMAR ${i+1} : aucun critère Intranet officiel correspondant à cette case.`);
+    if(!remarNetworkSummary) {
+      for (let i=0;i<Math.min(networks.length,5);i++) {
+        if (!remoteSlots.has(`Réseau ${i+1}`))
+          issues.push(`Réseau REMAR ${i+1} : aucun critère Intranet officiel correspondant à cette case.`);
+      }
     }
     // Les réseaux 6+ partagent la cinquième case, en conservant chaque
     // numéro, nom et paramètre sur sa propre ligne. La taille est validée
@@ -1036,6 +1064,10 @@ async function buildCriteria(db, visite, details, issues) {
         const column = networkGroup ? networkColumn(criterion?.nom) : null;
         const heatSummary = criterionResumeReseau(definition, criterion?.nom, category?.nom, subCategory?.nom);
         const candidate = column || heatSummary ? null : findCandidate(candidates, criterion, category?.nom, subCategory?.nom);
+        const remarSummaryHere=remarNetworkSummary &&
+          criterion===remarNetworkSummary.criterion &&
+          category===remarNetworkSummary.category &&
+          subCategory===remarNetworkSummary.subCategory;
         if(isRemar && candidate){
           const storage=[candidate.panelId,candidate.section,candidate.cle].join('||');
           const previous=mappedLocalRemar.get(storage);
@@ -1055,6 +1087,15 @@ async function buildCriteria(db, visite, details, issues) {
         } else if (column) {
           if (network) commentaire = exactComment(network[column], issues, `${path} / commentaire`);
           if (applicable) issues.push(`${path} : critère réseau déclaré avec avis, mapping non supporté sans ambiguïté.`);
+        } else if (remarSummaryHere && !candidate) {
+          const selected=networks.length?networks:
+            (definition?.excel?.fieldMappings||[])
+              .filter(m=>m.panelId==='p-remar-reseaux'&&/^Réseau [1-9]\d*$/.test(m.cle))
+              .map((m,i)=>({nom_reseau:fieldMap.get(m.sectionCode+'||'+m.cle),ordre:i+1}))
+              .filter(row=>meaningfulRemote(row.nom_reseau)!==null);
+          const lines=selected.map((network,index)=>
+            'Réseau '+(index+1)+' : '+remarNetworkText(network,index+1));
+          commentaire=exactComment(lines.join('\n')||null,issues,path+' / commentaire');
         } else if (!candidate) {
           issues.push(`${path} : aucun champ METRA correspondant de façon sûre.`);
         } else if (applicable) {
@@ -1105,7 +1146,10 @@ async function buildCriteria(db, visite, details, issues) {
       const present=mapping.type==='controle'
         ? meaningfulRemote(data?.avis)||meaningfulRemote(data?.commentaire)
         : meaningfulRemote(data);
-      if(present && !mappedLocalRemar.has(destination))
+      const networkCovered=remarNetworkSummary &&
+        mapping.panelId==='p-remar-reseaux' && /^Réseau [1-9]\d*$/.test(mapping.cle);
+      if(present && !mappedLocalRemar.has(destination) &&
+         !remarVisitMetadataCovered(definition,mapping) && !networkCovered)
         issues.push(`REMAR : saisie locale « ${mapping.cle} » (${mapping.panelId} / ${mapping.section}) non couverte par les critères de la trame Symfony. Envoi refusé pour conserver la donnée.`);
     }
   }
