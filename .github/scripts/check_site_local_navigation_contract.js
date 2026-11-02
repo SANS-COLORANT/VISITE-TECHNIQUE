@@ -35,7 +35,8 @@ requireText(locals, 'Nouveau local', 'libellé de création de local');
 requireText(navigationPrewarm, 'listerVisitesLocal', 'historique filtré au local');
 requireText(visits, 'peekLocalVisits', 'historique local stale-while-revalidate');
 requireText(visits, 'installationId', 'identité locale conservée');
-requireText(visits, 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId, installationId })', 'nouvelle visite rattachée au local');
+requireText(visits, 'creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId,', 'nouvelle visite rattachée au local');
+requireText(visits, 'apiRemoteTrameId: apiRemoteLocalId ? remoteTrameChoisie : null, installationId', 'identité de la trame Symfony transmise sans perdre le local');
 requireText(db, 'async function listerVisitesLocal', 'repository visites par local');
 
 forbidText(cache, 'SELECT id FROM sites WHERE client_id=? AND lower(trim(nom_site))=lower(trim(?))', 'fusion SITE par libellé');
