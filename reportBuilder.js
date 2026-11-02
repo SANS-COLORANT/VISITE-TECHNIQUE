@@ -6,6 +6,7 @@ import { Asset } from 'expo-asset';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { getDb, listerMateriel } from './db.js';
 import { obtenirTrame, DEFAULT_TRAME_ID, normaliserSectionCode } from './trameRegistry.js';
+import { construireRemarDynamiquePourRapport } from './remarDynamicExportDb.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
 import { listerAliasesPreAllumage } from './preAllumageAliases.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
@@ -156,6 +157,14 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     trame.id === 'pre_allumage' ? listerAliasesPreAllumage(visiteId) : Promise.resolve({}),
   ]);
 
+  const remarDynamic = (trame.familyId || trame.id)==='remar_v1'
+    ? await construireRemarDynamiquePourRapport(visiteId,trame)
+    : { replacements:new Map(),details:[],hasDynamic:false };
+  const dynamicPanels = new Set([
+    'p-remar-cta','p-remar-filtres','p-remar-cta-mesures','p-remar-cta-energie',
+    'p-remar-vmc','p-remar-froid','p-remar-reseaux','p-remar-releves',
+  ]);
+
   const champMap = new Map(champs.map((r) => [`${r.section_code}||${r.cle}`, r.valeur || '']));
   const ctrlMap = new Map(controles.map((r) => [`${r.section_code}||${r.cle}`, r]));
   const sections = [];
@@ -193,24 +202,49 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     }
 
     for (const [section, fields] of Object.entries(trame.ui?.panels?.[panelId] || {})) {
+      // Une ancienne visite reste au format REMAR v1. Dans une visite avec
+      // fiches multi-instances, ces rubriques fixes ne sont plus le formulaire :
+      // les objets sont restitues plus bas par identifiant reel.
+      const replacedSections = remarDynamic.hasDynamic && dynamicPanels.has(panelId);
       if (panelId === 'p-infos' && section === 'Général') continue;
       const code = normaliserSectionCode(panelId, section);
       groups.push({
         title: section,
         sectionCode: code,
         rows: (fields || []).map((f) => {
-          const controle = ctrlMap.get(`${code}||${f.cle}`);
+          const remplacement = remarDynamic.replacements.get([panelId,section,f.cle].join('||'));
+          const controle = remplacement && f.type==='controle'
+            ? remplacement : ctrlMap.get(`${code}||${f.cle}`);
           return {
             label: f.cle,
             type: f.type,
             avis: f.type === 'controle' ? (controle?.avis || '') : '',
             comment: f.type === 'controle' ? (controle?.commentaire || '')
+              : (remplacement && f.type==='champ' ? (remplacement.valeur??'')
               : (panelId === 'p-remar-releves' && f.numericIndex && compteurs.some((c) => c.destination === f.cle)
                 ? formaterReleves(compteurs.filter((c) => c.destination === f.cle))
-                : (champMap.get(`${code}||${f.cle}`) || '')),
+                : (champMap.get(`${code}||${f.cle}`) || ''))),
           };
-        }),
+        }).filter((r) => !replacedSections || r.avis || r.comment),
       });
+    }
+
+    if (remarDynamic.hasDynamic && dynamicPanels.has(panelId)) {
+      const grouped = new Map();
+      for(const line of remarDynamic.details.filter(row=>row[6]===panelId)) {
+        const [famille,parent,parentId,element,elementId,type,onglet,rubrique,cle,valeur,avis,commentaire,source,statut] = line;
+        const groupId = [parentId,elementId].join('::');
+        if (!grouped.has(groupId)) grouped.set(groupId,{
+          title: parent && parent!==element ? `${parent} — ${element}` : element,
+          sectionCode: `remar.dynamic.${groupId}`,rows:[],
+        });
+        grouped.get(groupId).rows.push({
+          label: cle==='Type / presence'?'Elément ajouté':cle,
+          type:avis?'controle':'champ',avis:avis||'',
+          comment:[valeur,commentaire,source?`Source : ${source}`:''].filter(Boolean).join(' · '),
+        });
+      }
+      groups.push(...grouped.values());
     }
 
     if (panelId === 'p-regulation') {
