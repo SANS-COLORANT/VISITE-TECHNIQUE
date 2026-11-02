@@ -87,10 +87,14 @@ export async function calculerEtatOnglets(visiteId, trameId = DEFAULT_TRAME_ID) 
       visit?.installation_id ? db.getAllAsync(`SELECT e.id,e.type_code,e.designation,e.statut
         FROM equipements e
         WHERE e.installation_id=? AND (
-          (e.statut='actif' AND ?=1) OR
-          EXISTS(SELECT 1 FROM materiel m WHERE m.equipement_id=e.id AND m.visite_id=?)
+          (e.statut='actif' AND (
+            ?=1 OR EXISTS(SELECT 1 FROM materiel m WHERE m.equipement_id=e.id AND m.visite_id=?)
+          )) OR (?=0 AND EXISTS(
+            SELECT 1 FROM materiel m WHERE m.equipement_id=e.id AND m.visite_id=?
+          ))
         )`,
-        [visit.installation_id,['en_cours','a_completer'].includes(visit.statut)?1:0,visiteId]) : Promise.resolve([]),
+        [visit.installation_id,['en_cours','a_completer'].includes(visit.statut)?1:0,
+         visiteId,['en_cours','a_completer'].includes(visit.statut)?1:0,visiteId]) : Promise.resolve([]),
       db.getAllAsync(`SELECT i.id,i.type_code,i.parent_equipement_id
         FROM remar_item_visits piv JOIN remar_items i ON i.id=piv.item_id
         WHERE piv.visite_id=?`,[visiteId]),
