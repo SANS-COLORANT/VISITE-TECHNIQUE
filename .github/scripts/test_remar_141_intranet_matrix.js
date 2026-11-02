@@ -233,5 +233,80 @@ function find(panel,cle,section=null){
     'current temperature blank cannot inherit old flat measure');
   check(outputFor(dynamic,find('p-conf-local','BAES')).avis==='S',
     'static compliance outside dynamic panels remains unchanged');
+  // Plusieurs fiches matérielles distinctes -> UN critère texte par case
+  // Symfony V1. Les noms, valeurs, unités et avis doivent rester lisibles.
+  const detail=[];
+  const push=(family,parentName,parentId,name,id,type,panel,section,cle,valeur='',avis='',commentaire='',status='Visite courante',unite='')=>
+    detail.push([family,parentName,parentId,name,id,type,panel,section,cle,valeur,avis,commentaire,'',status,unite]);
+  for(const [id,name] of [['cta-a','CTA bureaux'],['cta-b','CTA gymnase']]){
+    push('cta','','',name,id,'equipement','p-remar-cta','Équipement','Identité patrimoine',name);
+    push('cta','','',name,id,'equipement','p-remar-cta','Informations techniques','Année CTA',id==='cta-a'?'2019':'2025');
+    for(const m of mappings.filter(m=>['p-remar-cta','p-remar-cta-energie'].includes(m.panelId)&&m.type==='controle')){
+      const nonSatisfied=id==='cta-b'&&m.cle==='Eclairage du caisson';
+      push('cta','','',name,id,'equipement',m.panelId,m.section,m.cle,'',
+        nonSatisfied?'N.S':'S',nonSatisfied?'Éclairage du caisson défectueux.':'Point vérifié et satisfaisant.');
+    }
+    const filterId=id+'-filtre';
+    push('cta',name,id,'Filtre soufflage',filterId,'filtre_cta','p-remar-filtres','filtre_cta',
+      'Classe de filtration',id==='cta-a'?'G4':'F7');
+    push('cta',name,id,'Filtre soufflage',filterId,'filtre_cta','p-remar-filtres','filtre_cta',
+      'Etat du filtre','',id==='cta-a'?'S':'N.S',id==='cta-a'?'Filtre propre.':'Filtre à remplacer.');
+    push('cta',name,id,'Air neuf',id+'-mesure','mesure_cta','p-remar-cta-mesures','mesure_cta',
+      'Valeur',id==='cta-a'?'12,5':'18,2','','','Visite courante','°C');
+  }
+  for(const [id,name,avis] of [['vmc-a','VMC toiture','S'],['vmc-b','VMC sous-sol','N.S']]){
+    push('vmc','','',name,id,'equipement','p-remar-vmc','Équipement','Identité patrimoine',name);
+    push('vmc','','',name,id,'equipement','p-remar-vmc','Caisson','Etat du caisson','',avis,
+      avis==='S'?'Caisson en bon état.':'Corrosion sur le caisson.');
+  }
+  for(const [id,name,prod] of [['froid-a','Groupe froid A','Groupe eau glacée'],['froid-b','Groupe froid B','Groupe à condensation']]){
+    push('froid','','',name,id,'equipement','p-remar-froid','Équipement','Identité patrimoine',name);
+    push('froid','','',name,id,'equipement','p-remar-froid','Informations du site','Production froid',prod);
+  }
+  projection={hasDynamic:true,familyCounts:{cta:2,vmc:2,froid:2},temperaturesCount:0,
+    replacements:new Map(),ambiguous:['CTA : reference Excel absente'],
+    unsupported:['CTA : 2 équipements indépendants, une seule série de cases'],
+    details:detail};
+  const multilines=await build();
+  check(multilines.issues.length===0,
+    'multi-equipment official fields are safely grouped: '+multilines.issues.join(' | '));
+  const multiYear=outputFor(multilines,year).commentaire;
+  check(multiYear==='CTA bureaux : 2019\nCTA gymnase : 2025',
+    'both CTA years stored in one Symfony criterion without reference loss');
+  const multiLight=outputFor(multilines,find('p-remar-cta','Eclairage du caisson'));
+  check(multiLight.avis==='N.S'&&multiLight.commentaire.includes('CTA bureaux : [S]')&&
+      multiLight.commentaire.includes('CTA gymnase : [N.S] Éclairage du caisson défectueux.'),
+    'mixed opinions retain each CTA S/N.S in lines, conservative global N.S');
+  check(outputFor(multilines,find('p-remar-filtres','Type de filtre','Filtre n°1')).commentaire===
+    'CTA bureaux / Filtre soufflage : G4\nCTA gymnase / Filtre soufflage : F7',
+    'two CTA filters retain their own classes in one criterion');
+  const filterOpinion=outputFor(multilines,find('p-remar-filtres','Etat du filtre','Filtre n°1'));
+  check(filterOpinion.avis==='N.S'&&filterOpinion.commentaire.includes('CTA gymnase / Filtre soufflage : [N.S]'),
+    'filter status remains individually traceable');
+  check(outputFor(multilines,find('p-remar-cta-mesures','Air neuf')).commentaire===
+    'CTA bureaux / Air neuf : 12,5 °C\nCTA gymnase / Air neuf : 18,2 °C',
+    'measures keep original units and CTA ownership');
+  check(outputFor(multilines,find('p-remar-vmc','Nombre de caissons')).commentaire.includes('VMC sous-sol'),
+    'VMC equipment identities are retained even with one number criterion');
+  const vmcOpinion=outputFor(multilines,find('p-remar-vmc','Etat du caisson'));
+  check(vmcOpinion.avis==='N.S'&&vmcOpinion.commentaire.includes('VMC toiture : [S]')&&
+      vmcOpinion.commentaire.includes('VMC sous-sol : [N.S]'),
+    'independent VMC opinions survive in one Symfony criterion');
+  check(outputFor(multilines,find('p-remar-froid','Production froid')).commentaire===
+    'Groupe froid A : Groupe eau glacée\nGroupe froid B : Groupe à condensation',
+    'both cold production data survive in one criterion');
+  const incomplete=detail.filter(row=>!(row[4]==='cta-b'&&row[8]==='Eclairage du caisson'));
+  projection={...projection,details:incomplete};
+  const missingCTA=await build();
+  check(missingCTA.issues.some(x=>x.includes('CTA gymnase / Eclairage du caisson')),
+    'missing second CTA control is detected instead of inferred from first CTA');
+  projection={...projection,details:detail};
+  const oversized=detail.map(r=>r[4]==='cta-b'&&r[8]==='Année CTA'?
+    [...r.slice(0,9),'X'.repeat(1600),...r.slice(10)]:r);
+  projection={...projection,details:oversized};
+  const lengthGuard=await build();
+  check(lengthGuard.issues.some(x=>x.includes('maximum 1500')),
+    'grouped fields longer than Symfony 1500-character limit are blocked, not truncated');
+
   console.log('PASS '+checks+' REMAR field->SQL->Symfony synthetic structure checks; real Symfony GET/POST/GET still required.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
