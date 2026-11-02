@@ -4,6 +4,8 @@
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { COLORS, FONTS, styles as fieldStyles } from './styles.js';
+import { hapticTick } from './fieldFeedback.js';
 import { getChampsVisite, getControlesVisite } from './db.js';
 import { obtenirTrame } from './trameRegistry.js';
 import { BottomSheet } from './VisitKit.js';
@@ -105,6 +107,7 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
   const [avis,setAvis] = useState(source?.avis||null);
   const [busy,setBusy] = useState(false);
   const [saveError,setSaveError] = useState(null);
+  const [sExpanded,setSExpanded] = useState(false);
   const identity = {ownerType,ownerId,panelId,sectionCode:section,cle:field.cle};
   const controlKey = ['remar',ownerType,ownerId,panelId,sectionCode(section),field.cle].join('||');
 
@@ -133,6 +136,8 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
   const suggestions=valeursRapidesRemar(field);
   const choose=async next=>{
     if(busy)return;
+    hapticTick();
+    setSExpanded(false);
     setBusy(true);
     try{
       await Promise.all([flushValue(),flushComment()]);
@@ -166,6 +171,16 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
     setValue(next);
   };
   const flush=fn=>()=>fn().catch(e=>setSaveError(String(e?.message||e)));
+  const avisPalette=avis==='S'
+    ? {bg:COLORS.greenBg,border:COLORS.green,text:COLORS.green}
+    : avis==='N.S' ? {bg:COLORS.redBg,border:COLORS.red,text:COLORS.red}
+    : {bg:COLORS.bg,border:COLORS.line,text:COLORS.inkSoft};
+  const paletteChip=code=>code==='S'
+    ? {bg:COLORS.greenBg,border:COLORS.green,text:COLORS.green}
+    : code==='N.S'?{bg:COLORS.redBg,border:COLORS.red,text:COLORS.red}
+    : {bg:COLORS.line,border:COLORS.inkFaint,text:COLORS.inkSoft};
+  const pickedPresets=controls && avis ? (field.presets?.[avis]||[]) : [];
+  const photoLabel=equipmentLabel ? `${equipmentLabel} · ${field.cle}` : field.cle;
   return <View style={ui.field}>
     <Text style={ui.fieldName}>{field.cle}</Text>
     {controls ? null : <>
@@ -181,26 +196,72 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
         </TouchableOpacity>)}
       </View> : null}
     </>}
-    <View style={ui.opinions}>
-      {statuses.map(opt=><TouchableOpacity key={opt.code} accessibilityRole="button"
-        accessibilityLabel={opt.label} accessibilityState={{selected:avis===opt.code}}
-        disabled={busy} style={[ui.opinion,avis===opt.code&&ui.opinionSelected]}
-        onPress={()=>choose(opt.code)}>
-        <Text style={[ui.opinionText,avis===opt.code&&ui.opinionTextSelected]}>
-          {controls?opt.code:opt.label}
-        </Text>
-      </TouchableOpacity>)}
-      {!controls&&avis ? <TouchableOpacity onPress={async()=>{
-          try{await enregistrerRemarValeur(visiteId,{...identity,avis:null});
-            setAvis(null);onSaved?.();}catch(e){setSaveError(String(e?.message||e));}
-        }} style={ui.opinion}><Text style={ui.opinionText}>Relever</Text></TouchableOpacity> : null}
+    <View style={fieldStyles.avisGroup}>
+      {statuses.map(opt=>{
+        const tone=paletteChip(opt.code),active=avis===opt.code;
+        return <TouchableOpacity key={opt.code} accessibilityRole="button"
+          accessibilityLabel={opt.label} accessibilityState={{selected:active}}
+          activeOpacity={0.75} disabled={busy}
+          style={[fieldStyles.avisChip,
+            {minHeight:44,justifyContent:'center',minWidth:controls?50:75},
+            active&&{backgroundColor:tone.bg,borderColor:tone.border}]}
+          onPress={()=>choose(opt.code)}>
+          <Text style={[fieldStyles.avisChipText,active&&{color:tone.text,fontFamily:FONTS.bold}]}>
+            {controls?opt.code:opt.label}
+          </Text>
+        </TouchableOpacity>;
+      })}
+      {!controls&&avis ? <TouchableOpacity accessibilityRole="button"
+        accessibilityLabel="Relever cette mesure"
+        onPress={async()=>{
+          try{await enregistrerRemarValeur(visiteId,{...identity,avis:null});setAvis(null);onSaved?.();}
+          catch(e){setSaveError(String(e?.message||e));}
+        }} style={fieldStyles.avisChip}>
+        <Text style={fieldStyles.avisChipText}>Relever</Text>
+      </TouchableOpacity> : null}
     </View>
-    {(controls||avis) ? <TextInput value={comment} onChangeText={setComment}
-      onBlur={flush(flushComment)} onEndEditing={flush(flushComment)}
-      placeholder="Commentaire libre, toujours modifiable" multiline style={[ui.input,{minHeight:52}]} /> : null}
+    {avis ? <View style={[fieldStyles.criterePanel,
+      {backgroundColor:avisPalette.bg,borderColor:avisPalette.border,marginTop:7}]}>
+      <Text style={[fieldStyles.criterePanelLabel,{color:avisPalette.text}]}>
+        {avis==='S'?'Fonctionnel / satisfaisant':
+          avis==='N.S'?'Anomalie / non satisfaisant':
+          avis==='S.O'?'Sans objet / non présent':
+          avis==='N.R'?'Non réalisé / non vérifié':'Non visible / inaccessible'}
+      </Text>
+      {avis==='S'&&!sExpanded ? <View style={ui.hRow}>
+        <Text numberOfLines={2} style={[ui.note,{flex:1,color:COLORS.green}]}>
+          {comment||'Satisfaisant · commentaire disponible'}
+        </Text>
+        <TouchableOpacity onPress={()=>setSExpanded(true)} accessibilityRole="button"
+          style={[ui.choiceChip,{borderColor:COLORS.green}]}>
+          <Text style={{color:COLORS.green,fontFamily:FONTS.bold,fontSize:12}}>Modifier</Text>
+        </TouchableOpacity>
+      </View> : <>
+        {pickedPresets.length>0 ? <View style={fieldStyles.critereChips}>
+          {pickedPresets.map((p,i)=><TouchableOpacity key={i}
+            accessibilityRole="button" accessibilityLabel={p.label||'Commentaire rapide'}
+            style={[fieldStyles.critereChip,{borderColor:avisPalette.text}]}
+            onPress={()=>setCommentImmediate(p.commentaire||'')
+              .catch(e=>setSaveError(String(e?.message||e)))}>
+            <Text style={[fieldStyles.critereChipText,{color:avisPalette.text}]}>
+              {p.label||'Commentaire proposé'}
+            </Text>
+          </TouchableOpacity>)}
+        </View> : null}
+        <TextInput value={comment} onChangeText={setComment}
+          onBlur={flush(flushComment)} onEndEditing={flush(flushComment)}
+          placeholder="Commentaire technique personnalisable" multiline
+          style={[ui.input,{minHeight:60,marginTop:7,backgroundColor:COLORS.white}]}/>
+        {avis==='S' ? <TouchableOpacity accessibilityRole="button" onPress={()=>setSExpanded(false)}>
+          <Text style={{color:COLORS.green,fontFamily:FONTS.bodySemi,fontSize:11,paddingVertical:8}}>
+            Replier le commentaire
+          </Text>
+        </TouchableOpacity> : null}
+      </>}
+    </View> : null}
     {source?.inherited ? <Text style={ui.historical}>Dernière visite : {source?.date_source||'date inconnue'} · référence modifiable, non vérifiée aujourd’hui</Text> : null}
     {saveError ? <Text style={ui.saveError}>Sauvegarde à reprendre : {saveError}</Text> : null}
-    <PhotoButton visiteId={visiteId} entiteKey={controlKey} label={field.cle} />
+    <PhotoButton visiteId={visiteId} entiteKey={controlKey} label={photoLabel} />
   </View>;
 }
 
