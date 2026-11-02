@@ -44,6 +44,7 @@ function reference(localId, designation = 'Chaufferie', trame = remoteTrame) {
 }
 function mapRemoteTrameToLocal(remote) {
   const value = String(remote?.nom || '').toLowerCase();
+  if (value.includes('remar')) return 'remar_v1';
   if (value.includes('vmc') || value.includes('ventilation')) return 'vmc';
   if (value.includes('pre') && value.includes('allum')) return 'pre_allumage';
   if (value.includes('icpe') || value.includes('chauffer') || value.includes('sous-station')) return 'icpe_v1';
@@ -193,6 +194,72 @@ async function main() {
       VALUES('505','45','Sous-station','3','ICPE',1,?)`, [JSON.stringify(reference('505', 'Sous-station'))]);
     await assert.rejects(() => binding.bindVisitToImportedClientTarget('ambiguous-visit'), /Plusieurs locaux Intranet compatibles/);
     checks++; console.log(`OK ${checks}: multiple compatible locals are never guessed when the visit has no installation link`);
+
+    // Vérifier la présélection REMAR sur une vraie SQLite avant tout POST.
+    await server.db.execAsync(
+      "INSERT INTO visites(id,site_id,date_visite,statut,trame_id,"+
+      "api_remote_client_id,api_remote_local_id,api_remote_trame_id,api_source_remote_visit_id) "+
+      "VALUES('remar-preselection','local-site','2026-11-02','terminee',"+
+      "'remar_v1','12','501','16','812')");
+    const classique={...reference('501'),trame:{id:'16',nom:'REMAR CLASSIQUE',
+      categories:[{id:53,nom:'INFORMATION CHAUFFERIE',sousCategories:[
+        {id:89,nom:'Réseaux',criteres:[{id:303,nom:'Réseau 1',avisApplicable:false}]}]}]}};
+    const complete={...reference('501'),trame:{id:'92',nom:'REMAR TECHNIQUE COMPLET',
+      categories:[{id:53,nom:'INFORMATION CHAUFFERIE',sousCategories:[
+        {id:89,nom:'Réseaux',criteres:[{id:303,nom:'Réseau 1',avisApplicable:false}]}]}]}};
+    await server.db.runAsync(
+      "INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json) "+
+      "VALUES('prior-remar','visite','remar-preselection','api_symfony','501',?)",
+      [JSON.stringify({...classique,sourceType:'preparation_visite'})]);
+    const mismatched={...complete,derniereVisite:{id:'999'}};
+    await assert.rejects(
+      () => binding.pinVerifiedRemarTrameForUpload('remar-preselection',{
+        remoteClientId:'12',remoteSiteId:'45',remoteLocalId:'501',reference:mismatched,
+      }),/visite plus récente|référence différente/i);
+    checks++;console.log('OK '+checks+': stale last Symfony visit prevents wrong REMAR selection');
+    await assert.rejects(
+      () => binding.pinVerifiedRemarTrameForUpload('remar-preselection',{
+        remoteClientId:'99',remoteSiteId:'45',remoteLocalId:'501',reference:complete,
+      }),/client|site|local Intranet importé/i);
+    checks++;console.log('OK '+checks+': REMAR alternative cannot cross imported client boundary');
+    const badLocal={...complete,local:{id:'505'}};
+    await assert.rejects(
+      () => binding.pinVerifiedRemarTrameForUpload('remar-preselection',{
+        remoteClientId:'12',remoteSiteId:'45',remoteLocalId:'501',reference:badLocal,
+      }),/ne correspond pas/i);
+    checks++;console.log('OK '+checks+': REMAR alternative never crosses local IDs');
+    const pinned=await binding.pinVerifiedRemarTrameForUpload('remar-preselection',{
+      remoteClientId:'12',remoteSiteId:'45',remoteLocalId:'501',reference:complete,
+    });
+    check(pinned.remoteTrameId==='92','fully proven REMAR version pinned before upload');
+    const pinnedVisit=await server.db.getFirstAsync(
+      "SELECT api_remote_trame_id,api_source_remote_visit_id FROM visites WHERE id='remar-preselection'");
+    check(pinnedVisit.api_remote_trame_id==='92'&&pinnedVisit.api_source_remote_visit_id==='812',
+      'new trame but stable optimistic last-visit lock');
+    const localUnchanged=await server.db.getFirstAsync(
+      "SELECT remote_trame_id FROM api_local_links WHERE remote_local_id='501'");
+    check(localUnchanged.remote_trame_id==='3',
+      'alternative REMAR does not overwrite default local cache');
+    const retained=await server.db.getAllAsync(
+      "SELECT details_json FROM provenances WHERE entite_type='visite' AND entite_id='remar-preselection'");
+    check(retained.some(row=>JSON.parse(row.details_json).sourceType==='preparation_visite')&&
+      retained.some(row=>JSON.parse(row.details_json).sourceType==='remar_upload_preselection'),
+      'original visit provenance retained with verified REMAR preselection');
+    const bound=await binding.bindVisitToImportedClientTarget('remar-preselection');
+    check(bound.remoteLocalId==='501'&&bound.trameName==='REMAR TECHNIQUE COMPLET',
+      'production binding uses new verified REMAR, not cached CLASSIQUE');
+    const afterBinding=await server.db.getFirstAsync(
+      "SELECT api_remote_trame_id,api_source_remote_visit_id FROM visites WHERE id='remar-preselection'");
+    check(afterBinding.api_remote_trame_id==='92'&&afterBinding.api_source_remote_visit_id==='812',
+      'outbound binding keeps new REMAR 92 and source visit 812');
+    await server.db.runAsync(
+      "INSERT INTO api_visit_outbox(envoi_id,visite_id,remote_client_id,payload_json,payload_bytes,status) "+
+      "VALUES('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb','remar-preselection','12','{}',2,'pending')");
+    await assert.rejects(
+      () => binding.pinVerifiedRemarTrameForUpload('remar-preselection',{
+        remoteClientId:'12',remoteSiteId:'45',remoteLocalId:'501',reference:complete,
+      }),/envoi figé|changer sa trame/i);
+    checks++;console.log('OK '+checks+': REMAR selection impossible after envoiId freeze');
 
     await server.db.runAsync(`INSERT INTO api_visit_outbox(envoi_id,visite_id,remote_client_id,payload_json,payload_bytes,status) VALUES('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa','ordinary-visit','12','{}',2,'pending')`);
     await assert.rejects(() => binding.bindVisitToImportedClientTarget('ordinary-visit'), /déjà un envoi|destination ne peut plus/i);
