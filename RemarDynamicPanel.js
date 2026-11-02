@@ -3,7 +3,7 @@
  * avec choix type courant / nom libre. La definition Excel v1 reste figee.
  */
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Alert, FlatList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
+import { Alert, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { getChampsVisite, getControlesVisite } from './db.js';
 import { obtenirTrame } from './trameRegistry.js';
 import { BottomSheet } from './VisitKit.js';
@@ -306,12 +306,12 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'})
   };
   if(panelId==='p-remar-reseaux')return <OptimizedRegulationPanel
     visiteId={visiteId} onSaved={onSaved} networksOnly />;
-  if(panelId==='p-remar-releves')return <View style={{flex:1}}>
+  if(panelId==='p-remar-releves')return <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:30}}>
     <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} trameId={trameId}
       panels={definition?.ui?.panels} meterPanelId={panelId} embedded metersOnly remarMinimal />
     <RemarTemperatures visiteId={visiteId} onSaved={onSaved}/>
     <LegacyRemarReadOnly visiteId={visiteId} panelId={panelId} sections={sections}/>
-  </View>;
+  </ScrollView>;
   if(!family)return null;
   return <View style={{flex:1}}>
     <FlatList data={equipments} keyExtractor={item=>item.id}
