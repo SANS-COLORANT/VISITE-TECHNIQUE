@@ -62,7 +62,9 @@ jobs:
       - name: Test all 141 REMAR mappings, multi-line meters and multiple CTA/VMC
         run: |
           node .github/scripts/test_remar_141_intranet_matrix.js
+          node .github/scripts/test_remar_remote_trame_selection.js
           node .github/scripts/test_intranet_error_diagnostics.js
+          node .github/scripts/test_intranet_any_visit_binding.js
       - name: Test REMAR, editable trames and real SQLite round trips
         run: node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
       - name: Preserve large PDF report regression (457 photos)
@@ -193,7 +195,13 @@ jobs:
           METRA — Visite Technique : APK natif de recette (PR #118, branche de
           vérification), conservant toutes les trames et fonctionnalités précédentes.
 
-          Correctifs REMAR : synchronisation multiligne vers les cellules Symfony
+          Correctifs REMAR : vérification automatique de toutes les trames REMAR
+          publiées pour le même client/local avant le premier POST, sélection
+          uniquement d'une version complète et unique, avec provenance figée,
+          sans modifier les envois déjà préparés. Contrôle strict des 141 points,
+          des homonymes chauffage/froid et des 39 critères manquants.
+
+          Synchronisation multiligne vers les cellules Symfony
           quand plusieurs relevés de même famille partagent un critère (ex. Gaz A
           et Gaz B sur deux lignes), CTA/VMC/froid multiples, filtres, avis et
           mesures, réseaux et compteurs ; diagnostics complets de blocage,
