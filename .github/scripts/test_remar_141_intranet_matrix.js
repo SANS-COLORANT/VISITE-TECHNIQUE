@@ -149,6 +149,23 @@ function find(panel,cle,section=null){
   check(six.issues.some(x=>x.includes('seulement cinq cases')),
     'sixth network prevents lossy V1 POST');
 
+  const tooMuchNetwork=await build({networks:[
+    {id:'n1',ordre:1,nom_reseau:'Circuit bureaux',tnc:'20',courbe_de_chauffe:'1.1'},
+  ]});
+  check(tooMuchNetwork.issues.some(x=>x.includes('données techniques non représentables')),
+    'additional network curve/TNC is never silently dropped in V1');
+
+  const extraMeter=await build({meters:[
+    {id:'extra',destination:'supplementaire',label:'Sous-compteur magasin',valeur:'345',unite:'m³'},
+  ]});
+  check(extraMeter.issues.some(x=>x.includes('sans destination Intranet unique')),
+    'supplementary REMAR meter requires a destination before transmission');
+  const unknownMeter=await build({meters:[
+    {id:'unknown',destination:null,label:'Compteur de test inconnu',valeur:'12',unite:'m³'},
+  ]});
+  check(unknownMeter.issues.some(x=>x.includes('sans destination Intranet unique')),
+    'unmapped manual REMAR meter cannot be silently discarded');
+
   const withMeter=await build({meters:[
     {id:'gaz',destination:'Compteur Gaz (m³)',label:'Gaz chaufferie',valeur:'15855',unite:'m³'},
   ]});
