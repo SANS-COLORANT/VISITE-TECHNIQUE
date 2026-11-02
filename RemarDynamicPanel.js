@@ -186,7 +186,11 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
   const pickedPresets=controls && avis ? (field.presets?.[avis]||[]) : [];
   const photoLabel=equipmentLabel ? `${equipmentLabel} · ${field.cle}` : field.cle;
   return <View style={ui.field}>
-    <Text style={ui.fieldName}>{field.label||field.cle}</Text>
+    <View style={[ui.hRow,{alignItems:'center',gap:10,marginBottom:6}]}>
+      <Text style={[ui.fieldName,{flex:1,minWidth:0}]}>{field.label||field.cle}</Text>
+      <PhotoButton visiteId={visiteId} entiteKey={controlKey} label={photoLabel}
+        style={{minWidth:44,minHeight:44,paddingHorizontal:4,paddingVertical:4}}/>
+    </View>
     {controls ? null : <>
       <TextInput value={value} onChangeText={saisir} onBlur={flush(flushValue)}
         onEndEditing={flush(flushValue)}
@@ -277,7 +281,6 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
     </View> : null}
     {source?.inherited ? <Text style={ui.historical}>Historique du {source?.date_source||'jour inconnu'} · avis antérieur {source?.avis||'non renseigné'} : ne compte pas comme vérifié aujourd’hui.</Text> : null}
     {saveError ? <Text style={ui.saveError}>Sauvegarde à reprendre : {saveError}</Text> : null}
-    <PhotoButton visiteId={visiteId} entiteKey={controlKey} label={photoLabel} />
   </View>;
 }
 
