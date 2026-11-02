@@ -193,9 +193,22 @@ async function run() {
   const result = await outbox.processVisitPhotoOutbox({ visiteId: 'visit', limit: 10 });
   ok(result.length === 0 && remoteRequests === 0,
     'Intranet worker cannot send stale queued private photos even after restart');
-  ok(read('VisiteScreen.js').includes('photoLabel="Photo libre"') &&
-    !read('VisiteScreen.js').includes("require('./PhotoPhoneScreen.js')"),
-    'visit bottom bar replaces Mode Photo with a direct Photo libre action');
+  const visitScreen=read('VisiteScreen.js'), capture=read('photoLibreCapture.js');
+  ok(visitScreen.includes('onPhoto={prendrePhotoLibre}') &&
+    visitScreen.includes("? 'Photo CTA' : 'Photo libre'") &&
+    !visitScreen.includes("require('./PhotoPhoneScreen.js')"),
+    'visit bottom bar offers a contextual Photo CTA and keeps global Photo libre');
+  ok(capture.includes("inclure_export: entiteKey ? 1 : 0") &&
+    capture.includes("label: labelPhoto"),
+    'CTA photo has linked provenance and consistent export visibility, free photo remains local only');
+  const regexSource=capture.match(/const entiteKey = (\/\^equipement[^\n]+\/).test\(candidate\)/)?.[1];
+  ok(!!regexSource,'explicit equipment identity regex is present');
+  const equipmentPattern=new Function('return '+regexSource)();
+  ok(equipmentPattern.test('equipement||cta-123') &&
+    !equipmentPattern.test('remarque||r1') &&
+    !equipmentPattern.test('remar||item||filtre') &&
+    !equipmentPattern.test('prefix-equipement||cta-123'),
+    'photo identity scope cannot treat control, reserve or other global photos as a CTA');
   ok(read('OptimizedPhotoPanel.js').includes('renommerPhotoVisite') &&
     read('OptimizedPhotoPanel.js').includes('reglerPublicationPhotoLibre'),
     'Photos viewer offers caption editing and explicit per-photo inclusion');
