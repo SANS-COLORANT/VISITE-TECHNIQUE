@@ -244,7 +244,10 @@ export async function listerRemarValeurs(visiteId, ownerType, ownerId) {
   for (const r of rows) {
     const key = [r.panel_id,r.section_code,r.cle].join('||');
     if (found[key]) continue;
-    found[key] = { ...r, inherited: r.visite_id!==visiteId, source_visite_id:r.visite_id===visiteId?r.source_visite_id:r.visite_id };
+    // L'import Excel peut conserver une valeur historique dans la visite
+    // importée sans attester qu'elle a été contrôlée ce jour-là.
+    const inherited=r.visite_id!==visiteId || (!r.confirme_le && !!r.source_visite_id);
+    found[key] = { ...r, inherited, source_visite_id:r.visite_id===visiteId?r.source_visite_id:r.visite_id };
   }
   return found;
 }
