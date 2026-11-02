@@ -117,6 +117,19 @@ function find(panel,cle,section=null){
         'input value survives: '+identity(m));
   }
 
+  // Les cinq états réglementaires doivent rester des codes distincts pour
+  // les 70 contrôles, sans transformer N.R / S.O / N.V en S ni en N.S.
+  for(const avis of ['S','N.S','N.R','S.O','N.V']){
+    const variant=await build({controlRows:controls.map(row=>({...row,avis,
+      commentaire:avis+': observation technique explicitement saisie.'}))});
+    check(variant.issues.length===0,'no loss on status '+avis+': '+variant.issues.join(' | '));
+    for(const {m} of remoteIndex.filter(x=>x.m.type==='controle')){
+      const sent=outputFor(variant,m);
+      check(sent.avis===avis&&sent.commentaire===avis+': observation technique explicitement saisie.',
+        avis+' retained for '+identity(m));
+    }
+  }
+
   const networks=[
     {id:'n1',ordre:1,nom_reseau:'Circuit bureau actuel'},
     {id:'n2',ordre:2,nom_reseau:'Circuit gymnase actuel'},
