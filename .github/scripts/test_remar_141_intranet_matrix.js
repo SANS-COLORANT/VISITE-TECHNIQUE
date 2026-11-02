@@ -90,7 +90,7 @@ function dbFor({networks=[],meters=[],fieldRows=fields,controlRows=controls}={})
 async function build(extra={}){
   const issues=[];
   const values=await serializer.buildCriteria(dbFor(extra),{id:'remar-141',trame_id:'remar_v1'},
-    {trame:remote},issues);
+    {trame:extra.remote||remote},issues);
   return {values,issues};
 }
 function outputFor(result,m){
@@ -116,6 +116,22 @@ function find(panel,cle,section=null){
       check(wire.avis===null&&wire.commentaire==='CHAMP:'+identity(m),
         'input value survives: '+identity(m));
   }
+
+  // Contrôle inverse (le problème A2) : un point local saisi mais absent
+  // du catalogue Symfony ne doit pas disparaître du POST comme si de rien.
+  const oneMissing=structuredClone(remote);
+  const first=oneMissing.categories[0].sousCategories[0];
+  const removed=first.criteres.pop();
+  const missing=await build({remote:oneMissing});
+  check(missing.issues.some(x=>x.includes('non couverte par les critères') && x.includes(removed.nom)),
+    'REMAR refuses a local field that has no Symfony destination');
+  const duplicated=structuredClone(remote);
+  duplicated.categories[0].sousCategories[0].criteres.push({
+    ...duplicated.categories[0].sousCategories[0].criteres[0],id:999999,
+  });
+  const duplicateRemote=await build({remote:duplicated});
+  check(duplicateRemote.issues.some(x=>x.includes('plusieurs critères Intranet')),
+    'REMAR refuses a single local value mapped to multiple remote criteria');
 
   // Les cinq états réglementaires doivent rester des codes distincts pour
   // les 70 contrôles, sans transformer N.R / S.O / N.V en S ni en N.S.
