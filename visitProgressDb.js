@@ -1,4 +1,5 @@
 import { obtenirTrame, DEFAULT_TRAME_ID, normaliserSectionCode } from './trameRegistry.js';
+import { calculerEtatOnglets } from './visitTabStatusDb.js';
 
 const cacheClesTrame = new Map();
 const recalculsEnCours = new Map();
@@ -75,6 +76,17 @@ async function calculerProgression(db, visiteId) {
     if (clesTrame.controles.has(cle) && String(row.avis ?? '').trim() !== '') remplis += 1;
   }
 
+  // Le ring REMAR doit utiliser le même référentiel que les pastilles
+  // du parcours dynamique. Avant ce calcul, un avis S/N.S renseigné sur
+  // une CTA était invisible dans la jauge, qui restait à 5 %.
+  // Les trois étapes CTA retirées de la barre de navigation restent
+  // comptées dans le parcours de cette CTA et dans ses exports.
+  if ((trame.familyId||trame.id)==='remar_v1') {
+    const summary=await calculerEtatOnglets(visiteId,trame.id);
+    const values=Object.values(summary.tabs||{});
+    total=values.reduce((sum,v)=>sum+Math.max(0,Number(v.total)||0),0);
+    remplis=values.reduce((sum,v)=>sum+Math.max(0,Math.min(Number(v.total)||0,Number(v.done)||0)),0);
+  }
   if (total <= 0) total = 1;
   const pct = Math.max(0, Math.min(100, Math.round((remplis / total) * 100)));
   const ancienPct = Number(visite?.progression_pct ?? -1);
