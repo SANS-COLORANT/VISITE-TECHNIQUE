@@ -75,9 +75,11 @@ const missingYear=select.assessRemarRemoteTrame(partial);
 check(!missingYear.complete&&missingYear.missing.some(x=>x.includes('||Année CTA||')),
   'missing one real CTA field blocks automatic selection');
 const duplicated=structuredClone(full);
-duplicated.categories[0].sousCategories[0].criteres.push({
-  ...duplicated.categories[0].sousCategories[0].criteres[0],
-  id:990099,
+const duplicateSection=duplicated.categories.flatMap(c=>c.sousCategories)
+  .find(section=>section.criteres.some(criterion=>criterion.nom==='Année CTA'));
+assert.ok(duplicateSection,'fixture must contain an official CTA year');
+duplicateSection.criteres.push({
+  ...duplicateSection.criteres.find(c=>c.nom==='Année CTA'),id:990099,
 });
 const dup=select.assessRemarRemoteTrame(duplicated);
 check(!dup.complete&&dup.collisions.length===1,
