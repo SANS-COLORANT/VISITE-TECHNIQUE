@@ -658,6 +658,18 @@ async function buildCriteria(db, visite, details, issues) {
   if ((definition.familyId || definition.id) === 'remar_v1') {
     const remap = await construireRemarDynamiquePourRapport(visite.id,definition);
     if (remap.hasDynamic) {
+      // Le formulaire CTA v1 peut contenir des valeurs copiees lors d'une
+      // precedente visite. Une nouvelle CTA multi-instance les remplace.
+      // Ne JAMAIS envoyer une ancienne valeur comme un constat du jour.
+      if (remap.familyCounts?.cta) {
+        for (const map of definition?.excel?.fieldMappings || []) {
+          if (!['p-remar-cta','p-remar-filtres','p-remar-cta-mesures','p-remar-cta-energie']
+            .includes(map.panelId)) continue;
+          const key=`${map.sectionCode}||${map.cle}`;
+          if (map.type==='controle') controlMap.set(key,{avis:null,commentaire:null});
+          else fieldMap.set(key,null);
+        }
+      }
       for (const warning of [...remap.ambiguous,...remap.unsupported]) {
         issues.push(`REMAR dynamique non transmissible sans perte : ${warning}`);
       }
@@ -670,10 +682,12 @@ async function buildCriteria(db, visite, details, issues) {
           continue;
         }
         const storageKey = `${mapping.sectionCode}||${mapping.cle}`;
+        const confirmed=value.inherited!==true;
         if (mapping.type==='controle') {
-          controlMap.set(storageKey,{avis:value.avis??null,commentaire:value.commentaire??null});
+          controlMap.set(storageKey,{avis:confirmed?(value.avis??null):null,
+            commentaire:confirmed?(value.commentaire??null):null});
         } else {
-          fieldMap.set(storageKey,value.valeur??null);
+          fieldMap.set(storageKey,confirmed?(value.valeur??null):null);
         }
       }
     }
