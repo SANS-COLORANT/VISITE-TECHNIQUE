@@ -154,6 +154,72 @@ function find(panel,cle,section=null){
   check(duplicateRemote.issues.some(x=>x.includes('plusieurs critères Intranet')),
     'REMAR refuses a single local value mapped to multiple remote criteria');
 
+  // Recette de la véritable trame CLASSIQUE 16 du terrain 02/11/2026.
+  // L'extrait du rapport s'arrête au milieu du dernier critère ; il ne
+  // prétend pas décrire tous les critères serveur. Contrairement à notre
+  // fixture 141/141, il contient les mêmes noms « Réseau 1 » en contexte
+  // chaufferie et des compteurs techniques avisApplicable=oui.
+  const frozen=JSON.parse(read('.github/fixtures/remar_classique_16_frozen_20261102.json'));
+  check(frozen.id===16&&frozen.truncated===true&&frozen.categories.length===5,
+    'preserve true remote REMAR CLASSIQUE ID 16 excerpt and truncation marker');
+  const frozenCount=frozen.categories.reduce((n,cat)=>n+cat.sousCategories.reduce(
+    (m,sub)=>m+sub.criteres.length,0),0);
+  check(frozenCount===69,'69 complete Symfony criteria preserved from terrain (last record truncated)');
+  const heating=serializer.inspectIntranetCriterionCandidate('remar_v1',
+    {id:303,nom:'Réseau 1',avisApplicable:false},
+    'INFORMATION GÉNÉRALE CHAUFFERIE','Réseaux').resolved;
+  check(heating?.panelId==='p-remar-reseaux',
+    'real Symfony category 53 / sub 89 / criterion 303 maps HEATING, never cooling');
+  const cooling=serializer.inspectIntranetCriterionCandidate('remar_v1',
+    {id:7003,nom:'Réseau 1',avisApplicable:false},
+    'PRODUCTION DE FROID','Réseaux').resolved;
+  check(cooling?.panelId==='p-remar-froid',
+    'identically named network criterion in cooling context maps COOLING');
+  const noContext=serializer.inspectIntranetCriterionCandidate('remar_v1',
+    {id:7777,nom:'Réseau 1',avisApplicable:false},
+    'INSTALLATIONS','Réseaux').resolved;
+  check(noContext===null,'same-name network without domain context is refused');
+
+  const testNetwork=[{id:'r-1',ordre:1,nom_reseau:'Réseau chauffage bureaux',
+    courbe_de_chauffe:'1.2',tnc:'20'}];
+  const testEnergyMeters=[
+    {id:'eA',label:'Chaleur A',destination:"Compteur d'énergie (MWh)",
+      valeur:'1234',unite:'MWh'},
+    {id:'eB',label:'Chaleur B',destination:"Compteur d'énergie (MWh)",
+      valeur:'5678',unite:'MWh'},
+  ];
+  const actualRemote=await build({
+    remote:frozen,networks:testNetwork,meters:testEnergyMeters,
+  });
+  check(actualRemote.values.length===69,'one output criterion per real frozen Symfony criterion');
+  check(!actualRemote.issues.some(issue=>issue.includes('Réseau REMAR 1 : aucun critère')),
+    'the observed false network 1 blocker is eliminated');
+  const networkCriterion=actualRemote.values.find(row=>
+    row.categorieId===53&&row.sousCategorieId===89&&row.critereId===303);
+  check(networkCriterion?.commentaire==='Réseau chauffage bureaux\nCourbe de chauffe : 1.2\nTNC : 20 °C',
+    'real criterion 303 receives current heating network plus curve, never a cooling network');
+  const energy=actualRemote.values.find(row=>
+    row.categorieId===51&&row.sousCategorieId===73&&row.critereId===233);
+  check(energy?.avis==='N.V'&&energy?.commentaire===
+      'Chaleur A : 1234 MWh\nChaleur B : 5678 MWh',
+    'a meter with avisApplicable=true still exports BOTH numeric readings and explicit N.V');
+  const temperature=actualRemote.values.find(row=>
+    row.categorieId===51&&row.sousCategorieId===95&&row.critereId===228);
+  check(temperature?.avis==='N.V'&&
+    temperature?.commentaire==='CHAMP:p-remar-releves||Température chaufferie||Chauffage aller (°C)||champ',
+    'real Symfony temperature applicable avis must not erase METRA field');
+  for(const [name,panel] of [
+    ['Année CTA','p-remar-cta'],
+    ['Etat du caisson','p-remar-vmc'],
+    ['Production froid','p-remar-froid'],
+  ])check(actualRemote.issues.some(issue=>
+      issue.includes('non couverte par les critères') &&
+      issue.includes('« '+name+' »') && issue.includes('('+panel+' /')),
+    'genuinely missing family criterion remains blocked: '+panel+'/'+name);
+  check(!actualRemote.values.some(row=>row.critereId===330 &&
+      row.commentaire.includes('p-remar-cta-energie')),
+    'CTA programs are not smuggled into central heating criteria');
+
   // Les cinq états réglementaires doivent rester des codes distincts pour
   // les 70 contrôles, sans transformer N.R / S.O / N.V en S ni en N.S.
   for(const avis of ['S','N.S','N.R','S.O','N.V']){
