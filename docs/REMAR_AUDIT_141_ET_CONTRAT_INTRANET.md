@@ -42,13 +42,13 @@ Correction : `remarDynamicOwnsMapping()` définit une source d'autorité commune
 
 L'Intranet V1 REMAR présente cinq destinations de noms « Réseau 1 » à « Réseau 5 », pas les catégories réseau détaillées ICPE/RCU. Le moteur pouvait donc chercher des catégories absentes et bloquer ou omettre des valeurs.
 
-Correction : sérialisation par destination unique pour ces cinq noms, avec effacement contrôlé des noms hérités en Excel ; rejet explicite d'un sixième réseau ou de paramètres de courbe, TNC, programmation, températures qui ne tiennent pas dans les champs V1. Un compteur nommé `supplementaire`, dont la destination est inconnue ou ambiguë, ne disparaît plus silencieusement du POST : **il empêche l'envoi, sans effacer le relevé**. Les compteurs courants prennent le pas sur les anciennes valeurs de cellules figées.
+Correction : les réseaux 6+ et les paramètres techniques sont ajoutés en lignes identifiées dans les cases texte du référentiel officiel ; un dépassement de 1500 caractères reste bloquant. Un compteur nommé `supplementaire` est rapproché de sa famille sur le nom **et l'unité**, sans confusion entre gaz, énergie, ECS et appoint. Sans destination sûre, l'envoi reste bloqué sans effacer le relevé. Les compteurs courants prennent le pas sur les anciennes valeurs de cellules figées.
 
 ### 2.3. Plusieurs CTA/VMC/froid
 
-Le classeur officiel REMAR est à cases uniques, tandis que METRA autorise plusieurs instances et enfants. Le choix d'une « CTA de référence Excel » sert à présenter le classeur : ce choix **ne convertit pas** les CTA supplémentaires en données V1 transmissibles.
+Le classeur officiel REMAR est à cases uniques, tandis que METRA autorise plusieurs instances et enfants. Le choix d'une « CTA de référence Excel » sert seulement à la présentation du classeur ; il n'est **pas nécessaire pour le regroupement multiligne Intranet**, qui prend toutes les CTA identifiées.
 
-Correction : toutes les instances, leurs contrôles et enfants, sont conservés dans `REMAR_DETAIL`, et le classeur officiel conserve ses 141 destinations. Les conflits d'écriture vers une même cellule déclenchent un avertissement ; les champs dynamiques non reconnus, mesures complémentaires, observations additionnelles et filtres au-delà du format sont identifiés. La protection pré-envoi reste bloquante tant que Symfony ne sait pas conserver chaque objet.
+Correction : toutes les instances, leurs contrôles et enfants, sont conservés dans `REMAR_DETAIL`, et le classeur officiel conserve ses 141 destinations. Pour Symfony V1, les équipements partageant un critère sont présentés sous forme de lignes nommées dans son commentaire, sans conflit d'écriture. Les champs inconnus ou non attribuables à une destination, les contrôles non confirmés et les textes dépassant 1500 caractères restent bloquants. Ce mode texte ne crée pas des objets autonomes dans Symfony.
 
 ### 2.4. Import Excel `REMAR_DETAIL` manquant
 
@@ -64,7 +64,7 @@ L'alerte n'affichait que sept messages malgré 41 erreurs. Un bouton permet de *
 
 Les API Symfony V2 présentées dans `docs/CONTRAT_GLOBAL_INTRANET_V2.md` sont **des propositions**, pas des routes actives vérifiées.
 
-Le POST actuel `/api/clients/{id}/visites` sait transporter des commentaires texte multiligne pour un même critère, mais ne fournit pas de modèle structuré à plusieurs CTA indépendantes, avec filtres, contrôles et mesures interrogeables par ID. De plus, le serveur V1 réécrit le listing matériel complet de façon destructive. **Sans adaptation du serveur, on ne peut pas garantir l'envoi sans perte**. Aucun correctif ne doit inventer des ID de critères, se contenter d'une CTA référente en omettant les autres, ou ignorer le contrôle A2.
+Le POST actuel `/api/clients/{id}/visites` sait transporter des commentaires texte multiligne pour un même critère, mais ne fournit pas de modèle structuré à plusieurs CTA indépendantes, avec filtres, contrôles et mesures interrogeables par ID. De plus, le serveur V1 réécrit le listing matériel complet de façon destructive. **Sans recette authentifiée et sans API multi-instance, on ne peut pas garantir la réversibilité des identités structurées**, même lorsque toutes les valeurs restent présentes dans le commentaire texte. Aucun correctif ne doit inventer des ID de critères, se contenter d'une CTA référente en omettant les autres, ou ignorer le contrôle A2.
 
 ### Exigences à implémenter et valider côté Symfony
 
