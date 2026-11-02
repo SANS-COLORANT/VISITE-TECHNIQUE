@@ -389,6 +389,39 @@ function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefre
     (fields||[]).filter(f=>!(family==='froid'&&/^Réseau \d+$/i.test(f.cle)) &&
       !(family==='vmc'&&f.cle==='Nombre de caissons')).map(f=>({section,field:f})));
   const showFields = !childType || (panelId==='p-remar-froid');
+  const bulkAvis=async prochain=>{
+    if(busy)return;
+    setBusy(true);
+    try{
+      const flushed=await flushDurableAutosaves();
+      const failed=flushed.find(x=>x.status==='rejected');
+      if(failed)throw failed.reason;
+      const latest=await listerRemarValeurs(visiteId,'equipement',equipment.id);
+      let changed=0;
+      for(const {section,field} of reservedFields.filter(x=>x.field.type==='controle')){
+        const key=keyFor(panelId,section,field.cle),row=latest?.[key];
+        // Jamais ecraser une reponse explicite de la visite en cours :
+        // les valeurs historiques non confirmees peuvent etre repondues.
+        if(row?.avis && !row.inherited)continue;
+        const comment=commentaireRemarPropose(field,prochain,equipment.designation);
+        await enregistrerRemarValeur(visiteId,{ownerType:'equipement',
+          ownerId:equipment.id,panelId,sectionCode:section,cle:field.cle,
+          avis:prochain,commentaire:comment});
+        changed++;
+      }
+      await load();onSaved?.();
+      Alert.alert('Avis enregistrés',`${changed} contrôle(s) initialement sans réponse renseigné(s) en ${prochain}. Chaque avis et commentaire restent modifiables.`);
+    }catch(e){Alert.alert('Avis rapides non terminés',String(e?.message||e));}
+    finally{setBusy(false);}
+  };
+  const proposerAvisEnMasse=()=>{
+    Alert.alert('Renseigner les avis manquants',
+      'Les réponses déjà saisies ne seront pas modifiées. Utilise S uniquement pour les points que tu as effectivement contrôlés.',
+      [{text:'Annuler',style:'cancel'},
+        {text:'S — Vérifiés satisfaisants',onPress:()=>bulkAvis('S')},
+        {text:'N.R — Non vérifiés',onPress:()=>bulkAvis('N.R')},
+        {text:'S.O — Sans objet',onPress:()=>bulkAvis('S.O')}]);
+  };
   return <View style={ui.card}>
     <View style={ui.header}>
       {rename ? <TextInput autoFocus value={equipmentName} onChangeText={setEquipmentName}
@@ -409,6 +442,11 @@ function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefre
           <Text style={ui.link}>{isReference?'✓ Référence du rapport':'Référence du rapport Excel'}</Text>
         </TouchableOpacity>
       </View>
+      {family==='cta'&&!childType&&reservedFields.some(x=>x.field.type==='controle')
+        ? <TouchableOpacity accessibilityRole="button" disabled={busy}
+            onPress={proposerAvisEnMasse} style={ui.addSmall}>
+          <Text style={ui.addText}>Avis rapides · renseigner uniquement les contrôles sans réponse</Text>
+        </TouchableOpacity> : null}
       {showFields ? reservedFields.map(({section,field})=><FieldRow key={section+field.cle}
         item={field} ownerType="equipement" ownerId={equipment.id} panelId={panelId}
         equipmentLabel={equipmentName} section={section} visiteId={visiteId} saved={values} onSaved={onSaved} />) : null}
