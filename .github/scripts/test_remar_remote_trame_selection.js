@@ -96,4 +96,12 @@ vmc.sousCategories.find(s=>s.criteres.some(x=>x.nom==='Etat du caisson'))
   .criteres.find(x=>x.nom==='Etat du caisson').avisApplicable=false;
 check(!select.assessRemarRemoteTrame(wrongType).complete,
   'VMC control cannot be written to a text-only criterion without per-equipment avis');
+const syncSource=read('IntranetVisitSync.js');
+check(syncSource.includes('await pinFullyPublishedRemarForFirstUpload(visiteId);'),
+  'single-visit upload validates a fully published REMAR trame first');
+const bulk=syncSource.split('export async function envoyerVisitesClient')[1]||'';
+check(bulk.includes('await pinFullyPublishedRemarForFirstUpload(visite.id);') &&
+      bulk.indexOf('pinFullyPublishedRemarForFirstUpload(visite.id)') <
+      bulk.indexOf('await queueVisitUpload(visite.id'),
+  'bulk upload uses the same REMAR full-coverage preflight BEFORE queueing');
 console.log('PASS '+assertions+' REMAR remote trame selection/collision/coverage guards.');
