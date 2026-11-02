@@ -614,7 +614,7 @@ function ValidationParCTA({visiteId,equipment,definition,onSaved}) {
   </View>;
 }
 
-export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'}) {
+export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',onRemarActiveCta}) {
   const definition = obtenirTrame(trameId);
   const family = FAMILLE_PAR_ONGLET[panelId] || null;
   const cta=family==='cta';
@@ -701,6 +701,11 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'})
   </ScrollView>;
   if(!family)return null;
   const activeCta=cta?equipments.find(e=>e.id===activeCtaId)||equipments[0]||null:null;
+  useEffect(()=>{
+    if(cta)onRemarActiveCta?.(activeCta
+      ? {id:activeCta.id,designation:activeCta.designation}
+      : null);
+  },[cta,activeCta?.id,activeCta?.designation,onRemarActiveCta]);
   const stepIndex=NOMS_ETAPES_CTA.findIndex(x=>x.id===currentStep);
   const nextStep=NOMS_ETAPES_CTA[stepIndex+1];
   if(cta)return <View style={{flex:1}}>
