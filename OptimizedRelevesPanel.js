@@ -347,7 +347,7 @@ function departParDefaut(t) {
 
 export function OptimizedRelevesPanel({
   visiteId, onSaved, trameId = 'icpe_v1', panels = null,
-  meterPanelId = 'p-releves', embedded = false, metersOnly = false,
+  meterPanelId = 'p-releves', embedded = false, metersOnly = false, remarMinimal = false,
 }) {
   const [champsMap, setChampsMap] = useState({});
   const [controlesMap, setControlesMap] = useState({});
@@ -535,8 +535,10 @@ export function OptimizedRelevesPanel({
     );
   };
 
-  const renderCompteurs = () => (
-    <SectionCard picto="rel/compteurs" title="Compteurs" open={ouvertes.isOpen('compteurs')} onToggle={() => ouvertes.toggle('compteurs')}
+  const renderCompteurs = () => (remarMinimal && !compteurs.length
+    ? <TouchableOpacity accessibilityRole="button" style={st.addTemp}
+        onPress={ouvrirAjoutCompteur}><Text style={st.addTempText}>+ Ajouter un compteur</Text></TouchableOpacity>
+    : <SectionCard picto="rel/compteurs" title="Compteurs" open={ouvertes.isOpen('compteurs')} onToggle={() => ouvertes.toggle('compteurs')}
       done={nbCompteurs} total={compteurs.length} actionLabel="+ Ajouter" onAction={ouvrirAjoutCompteur}>
       {compteurs.length ? compteurs.map((c) => (
         <CompteurRow key={c.id} compteur={c} visiteId={visiteId} onRemove={retirerLocalement} champsSection={champsSectionCompteurs}
@@ -544,7 +546,7 @@ export function OptimizedRelevesPanel({
           doublonDestination={destinationsEnDoublon.has(c.destination || destinationDepuisLibelle(c.label, c.unite, champsSectionCompteurs))} />
       )) : <Text style={st.hint}>Aucun compteur. Touchez « + Ajouter ».</Text>}
     </SectionCard>
-  );
+  ));
 
   const renderGroupeTemp = (g) => {
     const pc = pictoCircuit(g.circuit);
@@ -628,7 +630,7 @@ export function OptimizedRelevesPanel({
   return <>
     {embedded && metersOnly ? <View style={{ paddingBottom: 10 }}>
       {renderCompteurs()}
-      {renderMesures()}
+      {!remarMinimal ? renderMesures() : null}
     </View> : <FlatList
       ref={listRef}
       data={data}
