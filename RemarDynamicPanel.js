@@ -207,7 +207,8 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
           accessibilityLabel={opt.label} accessibilityState={{selected:active}}
           activeOpacity={0.75} disabled={busy}
           style={[fieldStyles.avisChip,
-            {minHeight:44,justifyContent:'center',minWidth:controls?50:75},
+            {flex:0,flexGrow:1,flexShrink:0,paddingHorizontal:8,
+              minHeight:44,justifyContent:'center',minWidth:controls?50:100},
             active&&{backgroundColor:tone.bg,borderColor:tone.border}]}
           onPress={()=>choose(opt.code)}>
           <Text style={[fieldStyles.avisChipText,active&&{color:tone.text,fontFamily:FONTS.bold}]}>
@@ -220,7 +221,8 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
         onPress={async()=>{
           try{await enregistrerRemarValeur(visiteId,{...identity,avis:null});setAvis(null);onSaved?.();}
           catch(e){setSaveError(String(e?.message||e));}
-        }} style={[fieldStyles.avisChip,{minWidth:96,minHeight:44,justifyContent:'center'}]}>
+        }} style={[fieldStyles.avisChip,{flex:0,flexGrow:0,flexShrink:0,
+          minWidth:96,minHeight:44,justifyContent:'center',paddingHorizontal:12}]}>
         <Text numberOfLines={1} style={fieldStyles.avisChipText}>Relever</Text>
       </TouchableOpacity> : null}
     </View>
