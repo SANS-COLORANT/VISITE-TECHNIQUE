@@ -48,7 +48,7 @@ export function typedSiteCounts(site) {
   };
 }
 
-async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
+async function preremplirVisiteDepuisContexteInterne(db, visiteId, { selectedSymfonyTrame = false } = {}) {
   let contexte = await db.getFirstAsync(`SELECT v.id,v.date_visite,v.technicien,v.mode_visite,v.statut,v.trame_id,v.installation_id,v.api_remote_local_id,
             s.id site_id,s.nom_site,s.adresse,s.localisation_note,
             c.id client_id,c.nom nom_client,c.code_exploitant,
@@ -63,8 +63,12 @@ async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
   // ICPE et VMC repartent des champs, avis et mesures de la dernière visite du
   // même local/trame. Pré-allumage ne reprend que les informations durables et
   // garde ses contrôles vides. Les réserves/photos historiques restent isolées.
-  const carryForward = await carryForwardPreviousVisit(db, visiteId, contexte);
-  contexte = carryForward?.contexte || contexte;
+  // Symfony fournit deja les dernieres valeurs compatibles pour la nouvelle trame.
+  // Ne jamais re-projeter un ancien controle METRA d'une autre trame dessus.
+  if (!selectedSymfonyTrame) {
+    const carryForward = await carryForwardPreviousVisit(db, visiteId, contexte);
+    contexte = carryForward?.contexte || contexte;
+  }
 
   const trame = obtenirTrame(contexte.trame_id || DEFAULT_TRAME_ID);
   const linkedSite = await db.getFirstAsync(
@@ -128,7 +132,7 @@ async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
       AND (? IS NULL OR installation_id=?)
     ORDER BY COALESCE(date_visite,'') DESC, modifie_le DESC LIMIT 1`,
   [contexte.site_id, visiteId, DEFAULT_TRAME_ID, trame.id, contexte.installation_id, contexte.installation_id]);
-  if (precedente) {
+  if (precedente && !selectedSymfonyTrame) {
     if (trame.id === 'pre_allumage' || trame.libraryManaged) {
       await copierChampsPersistantsMemeTrame(db, visiteId, precedente.id, trame);
     } else {
@@ -146,7 +150,7 @@ async function preremplirVisiteDepuisContexteInterne(db, visiteId) {
   }
 }
 
-export async function preremplirVisiteDepuisContexte(db, visiteId) {
+export async function preremplirVisiteDepuisContexte(db, visiteId, options = {}) {
   const key = String(visiteId || '');
   if (!key || prefillTermines.get(key)) return;
 
@@ -163,7 +167,7 @@ export async function preremplirVisiteDepuisContexte(db, visiteId) {
 
     let resultat;
     await db.withTransactionAsync(async () => {
-      resultat = await preremplirVisiteDepuisContexteInterne(db, key);
+      resultat = await preremplirVisiteDepuisContexteInterne(db, key, options);
       await db.runAsync(
         `INSERT INTO _meta(key,value) VALUES(?, '1')
          ON CONFLICT(key) DO UPDATE SET value='1'`,
