@@ -59,6 +59,7 @@ const CONTRACT_CHECKS = [
   ['REMAR meter multi-line and free photos privacy', '.github/scripts/test_remar_meters_free_photos.js'],
   ['REMAR multi-equipment durable data, Excel and history tests', '.github/scripts/test_remar_dynamic.js'],
   ['REMAR 70 curated control opinions, CTA naming and navigation regressions', '.github/scripts/test_remar_presets_and_navigation.js'],
+  ['REMAR real SQLite progress and asset uniqueness vs A2 duplication', '.github/scripts/test_remar_progress.js'],
   ['REMAR photos by exact CTA/child/reserve and UI-only tab hiding', '.github/scripts/test_remar_photo_context.js'],
   ['Terrain reserve verification is independent from lifted state', '.github/scripts/test_reserve_verification_terrain.js'],
   ['Terrain site address and typed housing/building counts', '.github/scripts/test_terrain_site_address.js'],
