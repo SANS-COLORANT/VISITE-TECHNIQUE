@@ -7,7 +7,7 @@ import { Alert, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpac
 import { COLORS, FONTS, styles as fieldStyles } from './styles.js';
 import { hapticTick } from './fieldFeedback.js';
 import { enrichirControleRemar, enrichirChampRemar } from './remarControlPresets.js';
-import { proposerNomUniqueRemar } from './remarEquipmentNaming.js';
+import { proposerNomUniqueRemar, afficherNomEquipementRemar } from './remarEquipmentNaming.js';
 import { getChampsVisite, getControlesVisite } from './db.js';
 import { obtenirTrame } from './trameRegistry.js';
 import { BottomSheet } from './VisitKit.js';
@@ -353,7 +353,7 @@ function MesureRapide({nom,onCreate,busy=false}) {
   </View>;
 }
 
-function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefresh, onSaved, isReference, onReference, autoOpen=false }) {
+function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefresh, onSaved, isReference, onReference, autoOpen=false, displayName=null }) {
   const [expanded,setExpanded]=useState(autoOpen);
   const [rename,setRename]=useState(false);
   const [equipmentName,setEquipmentName,flushEquipmentName] = useDurableAutosave(
@@ -450,7 +450,7 @@ function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefre
         onBlur={()=>flushEquipmentName().catch(e=>Alert.alert('Renommage impossible',String(e?.message||e))).finally(()=>{setRename(false);onRefresh?.();})}
         style={[ui.input,{flex:1}]}/> :
       <TouchableOpacity onPress={()=>setExpanded(s=>!s)} style={{flex:1,minHeight:44,justifyContent:'center'}}>
-        <Text style={ui.cardTitle}>{equipmentName||REMAR_FAMILLES[family]?.label} {expanded?'▴':'▾'}</Text>
+        <Text style={ui.cardTitle}>{displayName||equipmentName||REMAR_FAMILLES[family]?.label} {expanded?'▴':'▾'}</Text>
       </TouchableOpacity>}
       <TouchableOpacity onPress={()=>setRename(true)} accessibilityLabel="Renommer l'équipement" style={ui.renameBtn}>
         <Text style={ui.link}>✎ Nom</Text>
@@ -718,13 +718,13 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',o
       <Text style={ui.note}>Choisis une CTA : ses contrôles, ses filtres, ses mesures et ses améliorations restent regroupés. Les données sont sauvegardées avant tout changement de fiche.</Text>
       {equipments.length?<View style={ui.ctaSelector}>
         {equipments.map((e,index)=><TouchableOpacity key={e.id} accessibilityRole="button"
-          accessibilityLabel={`Ouvrir CTA ${index+1}, ${e.designation}`}
+          accessibilityLabel={`Ouvrir ${afficherNomEquipementRemar('cta',e.designation,index)}`}
           accessibilityState={{selected:activeCta?.id===e.id}}
           activeOpacity={0.7} hitSlop={6}
           onPress={()=>{selectCta(e.id).catch(error=>Alert.alert('Ouverture CTA impossible',String(error?.message||error)));}}
           style={[ui.ctaSelectCard,activeCta?.id===e.id&&ui.ctaChipSelected]}>
           <Text numberOfLines={2} style={[ui.ctaChipText,activeCta?.id===e.id&&ui.ctaChipTextSelected]}>
-            {e.designation}
+            {afficherNomEquipementRemar('cta',e.designation,index)}
           </Text>
           <Text style={[ui.ctaSelectAction,activeCta?.id===e.id&&ui.ctaChipTextSelected]}>
             {activeCta?.id===e.id?'✓ CTA affichée':'Ouvrir cette CTA →'}
@@ -736,7 +736,8 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',o
       </TouchableOpacity>
       {activeCta?<>
         <View style={ui.ctaIdentity}>
-          <Text style={ui.cardTitle}>{activeCta.designation}</Text>
+          <Text style={ui.cardTitle}>{afficherNomEquipementRemar('cta',activeCta.designation,
+            equipments.findIndex(e=>e.id===activeCta.id))}</Text>
           <Text style={ui.note}>Parcours de visite individuel · {stepIndex+1} / {NOMS_ETAPES_CTA.length}</Text>
         </View>
         <View style={ui.ctaStepGrid}>
@@ -754,6 +755,8 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',o
             definition={definition} onSaved={onSaved}/>
           : <EquipmentCard key={activeCta.id+currentStep}
             equipment={activeCta} visiteId={visiteId} panelId={currentStep}
+            displayName={afficherNomEquipementRemar('cta',activeCta.designation,
+              equipments.findIndex(e=>e.id===activeCta.id))}
             sections={definition.ui?.panels?.[currentStep]||{}} family="cta"
             autoOpen onRefresh={refresh} onSaved={onSaved}
             isReference={selected===activeCta.id}
@@ -787,7 +790,8 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',o
   return <View style={{flex:1}}>
     <FlatList data={equipments} keyExtractor={item=>item.id}
       extraData={selected} contentContainerStyle={ui.list}
-      renderItem={({item})=><EquipmentCard key={item.id+panelId} equipment={item}
+      renderItem={({item,index})=><EquipmentCard key={item.id+panelId} equipment={item}
+        displayName={afficherNomEquipementRemar(family,item.designation,index)}
         visiteId={visiteId} panelId={panelId} sections={sections} family={family}
         isReference={selected===item.id}
         onReference={()=>choisirRemarEquipementReference(visiteId,family,item.id)
