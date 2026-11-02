@@ -218,7 +218,13 @@ export function OptimizedRegulationPanel({ visiteId, onSaved, embedded = false, 
     try {
       const n = reseaux.length + 1;
       const ordre = reseaux.reduce((m, r) => Math.max(m, Number(r.ordre) || 0), -1) + 1;
-      const nom = networksOnly ? String(nomChoisi || '').trim() : `Réseau ${n}`;
+      const nomBase = networksOnly ? String(nomChoisi || '').trim() : `Réseau ${n}`;
+    let nom = nomBase;
+    if (networksOnly) {
+      const deja = new Set(reseaux.map(r=>String(r.nom_reseau||'').trim().toLocaleLowerCase('fr')));
+      let numero=2;
+      while(deja.has(nom.toLocaleLowerCase('fr'))) nom=`${nomBase} ${numero++}`;
+    }
       if (!nom) throw new Error('Choisis un type de réseau ou un nom libre.');
       const id = await ajouterReseau(visiteId, nom);
       // ajouterReseau crée « Réseau » en ordre 0 : on enregistre le nom et le
@@ -312,15 +318,31 @@ export function OptimizedRegulationPanel({ visiteId, onSaved, embedded = false, 
 
   const chooser = networksOnly ? <BottomSheet visible={choixReseauVisible}
       onClose={() => setChoixReseauVisible(false)} title="Ajouter un réseau de chauffage" maxHeight="75%">
-      <Text style={{ marginBottom: 8, color: COLORS.inkSoft }}>Type courant ou nom libre</Text>
-      {['Radiateurs','Plancher chauffant','Ventilo-convecteurs','Batterie CTA','Boucle ECS'].map((type) =>
-        <TouchableOpacity key={type} accessibilityRole="button"
-          style={[st.addReseau,{marginVertical:3}]} onPress={() => {setTypeReseau(type);setNomReseau(type);}}>
-          <Text style={st.addReseauText}>{typeReseau===type?'● ':'○ '}{type}</Text>
-        </TouchableOpacity>)}
-      <TextInput placeholder="Ou nom du réseau" value={nomReseau}
-        onChangeText={v => {setNomReseau(v);setTypeReseau('');}}
-        style={[styles.input,{marginVertical:12}]} maxLength={120}/>
+      <Text style={{ marginBottom: 10, color: COLORS.inkSoft }}>Choisis un circuit ou donne-lui un nom. Plusieurs circuits du même type sont autorisés, avec un numéro distinct.</Text>
+      <View style={{flexDirection:'row',flexWrap:'wrap',gap:8,marginBottom:9}}>
+        {['Radiateurs','Plancher chauffant','Ventilo-convecteurs','Batterie CTA','Boucle ECS'].map((type) =>
+          <TouchableOpacity key={type} accessibilityRole="button"
+            accessibilityState={{selected:typeReseau===type}}
+            style={[styles.avisChip,{flexBasis:'48%',flexGrow:1,minHeight:45,justifyContent:'center'},
+              typeReseau===type&&{backgroundColor:COLORS.orangeLight,borderColor:COLORS.orange}]}
+            onPress={()=>{setTypeReseau(type);setNomReseau(type);}}>
+            <Text style={[styles.avisChipText,
+              typeReseau===type&&{color:COLORS.orangeDark}]}>{type}</Text>
+          </TouchableOpacity>)}
+      </View>
+      <TouchableOpacity accessibilityRole="button" accessibilityLabel="Saisir un nom de réseau personnalisé"
+        onPress={()=>{setTypeReseau('');setNomReseau('');}}
+        style={[styles.avisChip,{alignSelf:'flex-start',minHeight:42,paddingHorizontal:12}]}>
+        <Text style={styles.avisChipText}>✎ Autre / Nom libre</Text>
+      </TouchableOpacity>
+      {!typeReseau ? <TextInput placeholder="Nom précis du réseau" value={nomReseau}
+        onChangeText={setNomReseau} autoFocus={false}
+        style={[styles.input,{marginVertical:12}]} maxLength={120}/> :
+        <Text style={{color:COLORS.inkSoft,marginVertical:12}}>
+          {reseaux.some(r=>String(r.nom_reseau||'').trim().toLowerCase()===typeReseau.toLowerCase())
+            ? `Circuit supplémentaire · ${typeReseau} 2 (nom modifiable ensuite)`
+            :`Circuit sélectionné · ${typeReseau}`}
+        </Text>}
       <TouchableOpacity accessibilityRole="button" style={st.addReseau}
         disabled={adding || !nomReseau.trim()} onPress={() => add(nomReseau)}>
         <Text style={st.addReseauText}>{adding?'Ajout…':'Créer ce réseau'}</Text>
