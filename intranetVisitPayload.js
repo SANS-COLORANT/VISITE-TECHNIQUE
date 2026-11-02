@@ -860,6 +860,7 @@ async function buildCriteria(db, visite, details, issues) {
   // envoi Intranet : bloquer cet envoi tant que Symfony ne fournit pas de route
   // structuree pour les instances supplementaires.
   const isRemar=(definition?.familyId || definition?.id)==='remar_v1';
+  let remarGrouped=null;
   if (isRemar) {
     const remap = await construireRemarDynamiquePourRapport(visite.id,definition);
     if (remap.hasDynamic) {
@@ -871,12 +872,18 @@ async function buildCriteria(db, visite, details, issues) {
         if (map.type==='controle') controlMap.set(key,{avis:null,commentaire:null});
         else fieldMap.set(key,null);
       }
-      for (const warning of [...remap.ambiguous,...remap.unsupported]) {
-        issues.push(`REMAR dynamique non transmissible sans perte : ${warning}`);
+      remarGrouped=groupRemarDetailsForIntranet(remap,definition,issues);
+      // Les avertissements de projection Excel « 2 CTA / 1 cellule » ne
+      // s'appliquent plus si le détail est transmis sur plusieurs lignes.
+      // Le regroupement vérifie indépendamment toutes les données rejetées.
+      if(!remarGrouped) {
+        for(const warning of [...remap.ambiguous,...remap.unsupported])
+          issues.push('REMAR dynamique non transmissible sans perte : '+warning);
       }
       // Contrat A2: un avis non saisi ne doit PAS devenir silencieusement N.V
       // (non visible) dans le POST. Le technicien doit choisir S/N.S/N.R/S.O/N.V.
-      if (remap.familyCounts?.cta && !remap.ambiguous.some(x=>/^CTA\b/.test(x))) {
+      if (remap.familyCounts?.cta && (!remarGrouped||remap.familyCounts.cta===1) &&
+          !remap.ambiguous.some(x=>/^CTA\b/.test(x))) {
         for (const m of definition?.excel?.fieldMappings || []) {
           if (m.type !== 'controle') continue;
           const cellKey=[m.panelId,m.section,m.cle].join('||');
@@ -912,6 +919,20 @@ async function buildCriteria(db, visite, details, issues) {
             commentaire:confirmed?(value.commentaire??null):null});
         } else {
           fieldMap.set(storageKey,confirmed?(value.valeur??null):null);
+        }
+      }
+      // Pour Symfony seulement : les lignes de toutes les CTA/caissons
+      // écrasent la vue Excel centrée sur une seule référence.
+      if(remarGrouped) {
+        const byOfficial=new Map((definition?.excel?.fieldMappings||[])
+          .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
+        for(const [key,group] of remarGrouped){
+          const mapping=byOfficial.get(key);
+          if(!mapping){issues.push('REMAR : destination regroupée introuvable : '+key);continue;}
+          const storage=mapping.sectionCode+'||'+mapping.cle;
+          if(group.type==='controle')
+            controlMap.set(storage,{avis:group.avis,commentaire:group.commentaire});
+          else fieldMap.set(storage,group.valeur);
         }
       }
     }
