@@ -104,7 +104,10 @@ async function main() {
     const creation = load('visitCreationDb.js', { getDb: async () => server.db, createId, obtenirTrame, DEFAULT_TRAME_ID: 'icpe_v1',
       preremplirVisiteDepuisContexte: prefill.preremplirVisiteDepuisContexte, dossierVisiteMetra: async () => {}, obtenirRacineMetra: async () => null,
       importApiReferenceForVisit: async () => {}, importLatestApiVisitForLocal: async () => {}, pinPhotoReferencesForVisit: async () => {},
-      assurerStructureSitePreAllumage: async () => {}, chargerPreAllumageModulaire: async () => {} });
+      assurerStructureSitePreAllumage: async () => {}, chargerPreAllumageModulaire: async () => {},
+      // RCU fixture does not create REMAR dynamic definitions: tested by the
+      // dedicated real SQLite contract test_remar_dynamic.js.
+      figerItemsRemarPourVisite: async () => 0 });
     const next = () => creation.creerVisiteProduction({ siteId: 'site', installationId: 'local', trameId: definition.id });
     async function verify(id, nomReseau = 'Chauffage') {
       const champs = await server.db.getAllAsync('SELECT cle,valeur FROM champs_visite WHERE visite_id=?', [id]);
