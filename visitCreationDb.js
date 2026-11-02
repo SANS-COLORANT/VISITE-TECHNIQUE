@@ -10,6 +10,7 @@ import { pinPhotoReferencesForVisit } from './latestVisitPhotosDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { assurerStructureSitePreAllumage } from './preAllumageSiteBootstrap.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
+import { figerItemsRemarPourVisite } from './remarDynamicDb.js';
 
 /** Création d'une visite native de production. Le préremplissage vient uniquement de l'historique réel du même local/trame. */
 export async function creerVisiteProduction({
@@ -67,6 +68,12 @@ export async function creerVisiteProduction({
   await preremplirVisiteDepuisContexte(db, id, { selectedSymfonyTrame: selectedPreparation?.different === true });
   if (selectedPreparation?.different) {
     await importSelectedPreparationCriteria({ visiteId: id, siteId, trameId: trame.id, reference: selectedPreparation.reference });
+  }
+
+  // Capture le contenu actif du patrimoine REMAR du LOCAL au moment de la
+  // creation, jamais a l'ouverture d'une ancienne visite. Pas de duplication.
+  if (trame.id === 'remar_v1' || trame.familyId === 'remar_v1') {
+    await figerItemsRemarPourVisite(id);
   }
 
   if (trame.id === 'pre_allumage') {
