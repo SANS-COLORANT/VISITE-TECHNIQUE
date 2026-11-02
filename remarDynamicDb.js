@@ -189,7 +189,14 @@ export async function figerItemsRemarPourVisite(visiteId) {
 }
 
 /** Permet d'enregistrer les observations sans ecraser la valeur source. */
-export async function enregistrerRemarValeur(visiteId, {ownerType, ownerId, panelId, sectionCode, cle, valeur=null, avis=null, commentaire=null} = {}) {
+/**
+ * Modification partielle atomique. Les debounces simultanes d'un avis, d'une
+ * valeur et d'un commentaire ne doivent jamais se remplacer mutuellement.
+ * Une cle absente du patch preserve la colonne deja enregistree ; NULL explicite
+ * la vide (ex. S.O sur une temperature). Pas de statut implicite.
+ */
+export async function enregistrerRemarValeur(visiteId, patch = {}) {
+  const {ownerType,ownerId,panelId,sectionCode,cle} = patch;
   const db = await getDb(), v = await requireLocal(db, visiteId, true);
   if (!['equipement','item'].includes(ownerType) || !str(ownerId) || !str(panelId) || !str(sectionCode) || !str(cle)) {
     throw new Error('Identite de la mesure/du controle incomplete.');
@@ -198,13 +205,23 @@ export async function enregistrerRemarValeur(visiteId, {ownerType, ownerId, pane
     ? await db.getFirstAsync('SELECT id FROM equipements WHERE id=? AND installation_id=?', [ownerId,v.installation_id])
     : await db.getFirstAsync('SELECT id FROM remar_items WHERE id=? AND installation_id=?', [ownerId,v.installation_id]);
   if (!belongs) throw new Error('Objet hors du local de cette visite.');
-  if (avis!=null && !['S','N.S','N.R','S.O','N.V'].includes(avis)) throw new Error('Avis REMAR inconnu.');
+  const has = name => Object.prototype.hasOwnProperty.call(patch,name);
+  if (!['valeur','avis','commentaire'].some(has)) return;
+  if (has('avis') && patch.avis!=null && !['S','N.S','N.R','S.O','N.V'].includes(patch.avis)) {
+    throw new Error('Avis REMAR inconnu.');
+  }
+  const val=has('valeur')&&patch.valeur!=null?String(patch.valeur):null;
+  const note=has('commentaire')&&patch.commentaire!=null?String(patch.commentaire):null;
   await db.runAsync(`INSERT INTO remar_values(visite_id,owner_type,owner_id,panel_id,section_code,cle,valeur,avis,commentaire,confirme_le)
     VALUES(?,?,?,?,?,?,?,?,?,datetime('now'))
     ON CONFLICT(visite_id,owner_type,owner_id,panel_id,section_code,cle)
-    DO UPDATE SET valeur=excluded.valeur,avis=excluded.avis,commentaire=excluded.commentaire,
+    DO UPDATE SET
+      valeur=CASE WHEN ?=1 THEN excluded.valeur ELSE remar_values.valeur END,
+      avis=CASE WHEN ?=1 THEN excluded.avis ELSE remar_values.avis END,
+      commentaire=CASE WHEN ?=1 THEN excluded.commentaire ELSE remar_values.commentaire END,
       source_visite_id=NULL,confirme_le=datetime('now'),modifie_le=datetime('now')`,
-  [visiteId,ownerType,ownerId,panelId,sectionCode,cle,valeur==null?null:String(valeur),avis,commentaire==null?null:String(commentaire)]);
+  [visiteId,ownerType,ownerId,panelId,sectionCode,cle,val,has('avis')?patch.avis??null:null,
+   note,has('valeur')?1:0,has('avis')?1:0,has('commentaire')?1:0]);
 }
 
 /** Courant prioritaire, sinon derniere valeur compatible de la meme entite du local.
@@ -248,4 +265,26 @@ export async function getRemarEquipementReference(visiteId, famille, equipments 
   const selected = await db.getFirstAsync('SELECT equipement_id FROM remar_report_focus WHERE visite_id=? AND famille=?', [visiteId,famille]);
   if (selected?.equipement_id && rows.some(x=>x.id===selected.equipement_id)) return selected.equipement_id;
   return rows.length===1?rows[0].id:null;
+}
+
+const REMAR_CTA_FOCUS_PREFIX = 'remar_cta_parcours::';
+
+/** Le choix de la CTA active est un etat de navigation local, distinct du
+ * choix d'une fiche de reference pour l'export officiel.
+ */
+export async function lireCtaParcours(visiteId) {
+  const db=await getDb();
+  await visitContext(db,visiteId);
+  const row=await db.getFirstAsync('SELECT value FROM _meta WHERE key=?',
+    [REMAR_CTA_FOCUS_PREFIX+visiteId]);
+  return str(row?.value)||null;
+}
+export async function choisirCtaParcours(visiteId,equipementId) {
+  const db=await getDb();
+  await requireLocal(db,visiteId);
+  const options=await listerRemarEquipements(visiteId,'cta');
+  if (!options.some(x=>x.id===equipementId)) throw new Error('CTA introuvable dans ce local.');
+  await db.runAsync(`INSERT INTO _meta(key,value) VALUES(?,?)
+    ON CONFLICT(key) DO UPDATE SET value=excluded.value`,
+    [REMAR_CTA_FOCUS_PREFIX+visiteId,equipementId]);
 }
