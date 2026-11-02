@@ -64,7 +64,7 @@ L'alerte n'affichait que sept messages malgré 41 erreurs. Un bouton permet de *
 
 Les API Symfony V2 présentées dans `docs/CONTRAT_GLOBAL_INTRANET_V2.md` sont **des propositions**, pas des routes actives vérifiées.
 
-Le POST actuel `/api/clients/{id}/visites` ne fournit pas de contrat fiable pour transmettre plusieurs CTA indépendantes, leurs filtres, contrôles et mesures, unités et historique, et le serveur V1 réécrit le listing matériel complet de façon destructive. **Sans adaptation du serveur, on ne peut pas garantir l'envoi sans perte**. Aucun correctif ne doit inventer des ID de critères, se contenter d'une CTA référente en omettant les autres, ou ignorer le contrôle A2.
+Le POST actuel `/api/clients/{id}/visites` sait transporter des commentaires texte multiligne pour un même critère, mais ne fournit pas de modèle structuré à plusieurs CTA indépendantes, avec filtres, contrôles et mesures interrogeables par ID. De plus, le serveur V1 réécrit le listing matériel complet de façon destructive. **Sans adaptation du serveur, on ne peut pas garantir l'envoi sans perte**. Aucun correctif ne doit inventer des ID de critères, se contenter d'une CTA référente en omettant les autres, ou ignorer le contrôle A2.
 
 ### Exigences à implémenter et valider côté Symfony
 
@@ -82,5 +82,22 @@ Le POST actuel `/api/clients/{id}/visites` ne fournit pas de contrat fiable pour
 ## 4. Décision de déploiement
 
 - **GO limité** aux corrections locales dont la CI, les sauvegardes et les exports sont validés.
-- **NO-GO synchronisation multi-CTA de production** jusqu'à accès au contrat Symfony, vérification de toutes les 41 erreurs réelles (rapport partagé / dump support expurgé), adaptation serveur, authentification et aller-retour signé.
+- **NO-GO production tant que le serveur n'a pas confirmé un POST/GET conservant les textes multilignes, les 41 erreurs réelles n'ont pas été recoupées et les protections d'inventaire A2 n'ont pas été vérifiées.** Le regroupement permet un envoi V1 textuel des CTA multiples, mais ne transforme pas les chaînes reçues en fiches Symfony indépendantes.
 - **Pas de publication d'APK natif sur cette PR en brouillon.** Un bundle JavaScript et des tests SQLite/Excel ne remplacent pas un build Android natif signé, un démarrage sur tablette et une recette terrain.
+
+## 5. Décision métier confirmée — regroupement par saut de ligne
+
+Les destinations Symfony V1 qui sont des **champs texte** peuvent désormais recevoir plusieurs observations homogènes sans créer un critère distant supplémentaire. Pour un couple catégorie/sous-catégorie/critère, les saisies sont regroupées dans **un seul `commentaire`**, en séparant chaque objet par une nouvelle ligne. Exemple :
+
+```text
+Compteur Gaz A : 1222 m³
+Compteur Gaz B : 2588899 m³
+```
+
+- **Compteurs :** la destination explicite fait autorité. Si elle indique « supplémentaire » ou manque, le nom **et** l'unité doivent identifier sans ambiguïté gaz (m³), énergie (MWh), ECS (m³) ou appoint (m³) avant regroupement. Sinon la visite est bloquée afin de ne pas confondre gaz, ECS et appoint.
+- **CTA/VMC/froid :** chaque année, état, équipement, filtre, mesure ou avis qui a une destination officielle est préfixé par sa fiche (ex. `CTA bureaux : 2019` et `CTA gymnase : 2025`). L'identité propre est toujours conservée dans SQLite et l'annexe Excel. Une CTA supplémentaire n'est plus un motif de blocage automatique si ses données sont regroupables.
+- **Contrôles S/N.S/N.R/S.O/N.V :** la case d'avis Symfony est une **synthèse conservatrice** (`N.S` si au moins un élément est N.S, puis N.R, N.V, S ou S.O par ordre de priorité) ; chaque ligne de commentaire garde explicitement son avis original et son constat. Une CTA sans avis confirmé ne prend jamais automatiquement l'avis d'une autre CTA.
+- **Réseaux REMAR :** les réseaux 6+ sont listés dans la cinquième case, avec leur nom/numéro ; les températures, la courbe de chauffe, TNC et la consigne qui existent sont écrites à la suite sous forme de lignes identifiées.
+- **Limite :** le serveur V1 impose au maximum **1500 caractères** par commentaire : l'envoi est refusé s'il dépasse, sans troncature ni suppression silencieuse. Une mesure supplémentaire sans famille/destination certaine reste bloquée jusqu'au choix de cette destination.
+
+**Différence importante entre « valeurs visibles » et « modèle de données structuré » :** Symfony V1 reçoit un texte lisible, pas des fiches CTA/VMC indépendantes interrogeables par leurs IDs. Le regroupement répond au choix d'interopérabilité de terrain, **mais ne garantit pas** la reconstitution de tous les liens équipements/photos/dates après un export purement Symfony. Une future API multi-instance demeure souhaitable, et une recette authentifiée `POST → GET → réexport` est nécessaire pour confirmer le maintien exact des sauts de ligne et caractères accentués.
