@@ -437,6 +437,27 @@ function candidateScore(candidate, criterion, categoryName, subCategoryName) {
   if (candidate.dynamic) score += 1;
   return score;
 }
+/**
+ * REMAR CLASSIQUE (Symfony 16) expose les reseaux chauffage sous
+ * « INFORMATION GENERALE CHAUFFERIE / Réseaux / Réseau 1..5 ».
+ * Les mêmes noms existent dans la production de froid de METRA : la
+ * sous-catégorie « Réseaux » ne suffit PAS à désambiguïser, seule la
+ * catégorie métier distante permet de décider sans deviner.
+ */
+function scopeRemarNumberedNetworkCandidates(matches, criterionKey, categoryName, subCategoryName) {
+  if(!/^reseau [1-5]$/.test(criterionKey)) return matches;
+  const heating=matches.filter(c=>c.panelId==='p-remar-reseaux');
+  const cooling=matches.filter(c=>c.panelId==='p-remar-froid');
+  if(!heating.length||!cooling.length)return matches;
+  const category=normalize(categoryName);
+  const section=normalize(subCategoryName);
+  if(/(?:^| )(?:chaufferie|chauffage)(?: |$)/.test(category) ||
+    section==='reseaux chauffage')return heating;
+  if(/(?:^| )(?:froid|climatisation)(?: |$)/.test(category) ||
+    section==='reseaux froid')return cooling;
+  // Ne pas choisir au score une case frigorifique pour un chauffage.
+  return [];
+}
 function findCandidate(candidates, criterion, categoryName, subCategoryName) {
   const key = normalize(criterion?.nom);
   if (!key) return null;
@@ -444,8 +465,9 @@ function findCandidate(candidates, criterion, categoryName, subCategoryName) {
   // Priorité aux clés exactes. En leur absence, seuls les alias explicites
   // sont autorisés : jamais de rapprochement flou ou arbitraire.
   const matches = exact.length ? exact : candidates.filter((candidate) => candidate.aliases?.includes(key));
-  if (!matches.length) return null;
-  const ranked = matches.map((candidate) => ({ candidate, score: candidateScore(candidate, criterion, categoryName, subCategoryName) }))
+  const scoped=scopeRemarNumberedNetworkCandidates(matches,key,categoryName,subCategoryName);
+  if (!scoped.length) return null;
+  const ranked = scoped.map((candidate) => ({ candidate, score: candidateScore(candidate, criterion, categoryName, subCategoryName) }))
     .sort((a, b) => b.score - a.score);
   if (ranked.length === 1 || ranked[0].score > ranked[1].score) return ranked[0].candidate;
   const same = ranked.filter((r) => r.score === ranked[0].score);
@@ -1109,6 +1131,28 @@ async function buildCriteria(db, visite, details, issues) {
           commentaire=exactComment(lines.join('\n')||null,issues,path+' / commentaire');
         } else if (!candidate) {
           issues.push(`${path} : aucun champ METRA correspondant de façon sûre.`);
+        } else if (isRemar && applicable && candidate.panelId==='p-remar-releves' &&
+                   candidate.type==='champ') {
+          // Symfony CLASSIQUE 16 marque Compteur énergie/ECS/appoint et les
+          // températures « avisApplicable=oui », tandis que METRA les saisit
+          // comme champs techniques. L'ancien if(applicable) ignorait la
+          // valeur du compteur et envoyait N.V / « / » : perte silencieuse !
+          // Conserver l'avis non vérifié par défaut, sans inventer « S »,
+          // MAIS transmettre la mesure exacte dans le commentaire.
+          const control=candidateStoredValue(controlMap,candidate,issues,path);
+          avis=applicableAvis(control?.avis,issues,`${path} / avis`);
+          let value;
+          if(isMeterCandidate(candidate,capabilities)){
+            const counter=counterValue(countersForWire,criterion,candidate);
+            value=counter.status==='missing' && counters.length===0
+              ?candidateStoredValue(fieldMap,candidate,issues,path):counter.value;
+          }else{
+            value=candidateStoredValue(fieldMap,candidate,issues,path);
+            if(isTemperature(candidate))
+              value=formaterTemperatureGroupee(candidate.cle,value,measurePoints);
+          }
+          commentaire=exactComment(meaningfulRemote(value) ?? control?.commentaire,
+            issues,`${path} / commentaire`);
         } else if (applicable) {
           const control = candidateStoredValue(controlMap, candidate, issues, path);
           avis = applicableAvis(control?.avis, issues, `${path} / avis`);
