@@ -21,4 +21,10 @@ assert.match(payload, /REMAR dynamique non transmissible sans perte/);
 assert.match(src, /const fullReport = \[/);
 assert.ok(!src.includes('Share.share({ title: \'Diagnostic METRA - Intranet\', message: preview })'),
   'shared report cannot be limited to the truncated alert preview');
-console.log('9 Intranet diagnostic guards passed.');
+assert.match(payload, /function frozenRemarCriteriaDiagnostic\(trame\)/,
+  'diagnostic includes real remote structure instead of a synthetic trame');
+assert.match(payload, /remoteCriteriaDiagnostic:/,
+  'diagnostic attached to failed REMAR preflight only');
+assert.match(src, /error\?\.remoteCriteriaDiagnostic/,
+  'report includes anonymized remote criterion identities');
+console.log('12 Intranet diagnostic guards passed.');
