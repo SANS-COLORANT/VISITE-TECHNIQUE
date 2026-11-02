@@ -997,7 +997,14 @@ async function buildCriteria(db, visite, details, issues) {
   // et non dans les sous-catégories de régulation ICPE/RCU. Ne jamais envoyer
   // ces cinq noms comme "/" ni exiger des groupes serveur inexistants.
   const remarFixedNetworks=isRemar && remoteNetworkGroups.length===0;
-  const remarNetworkSummary=remarFixedNetworks
+  const directRemarNetworkSlots=remarFixedNetworks ? categories.flatMap(cat=>
+    (cat.sousCategories||[]).flatMap(sub=>(sub.criteres||[])
+      .map(criterion=>findCandidate(candidates,criterion,cat.nom,sub.nom))
+      .filter(candidate=>candidate?.panelId==='p-remar-reseaux' &&
+        /^Réseau [1-5]$/.test(candidate.cle)))) : [];
+  // Aucun doublon : un résumé n'est utilisable que si AUCUNE des cinq
+  // cases du référentiel officiel n'est présente dans la trame distante.
+  const remarNetworkSummary=remarFixedNetworks && directRemarNetworkSlots.length===0
     ? remarNetworkSummaryTarget(categories) : null;
   const networkAssignments = capabilities.networks && !remarFixedNetworks
     ? mapNetworksToRemoteGroups(networks, remoteNetworkGroups, networkProvenances, issues)
@@ -1087,7 +1094,7 @@ async function buildCriteria(db, visite, details, issues) {
         } else if (column) {
           if (network) commentaire = exactComment(network[column], issues, `${path} / commentaire`);
           if (applicable) issues.push(`${path} : critère réseau déclaré avec avis, mapping non supporté sans ambiguïté.`);
-        } else if (remarSummaryHere && !candidate) {
+        } else if (remarSummaryHere) {
           const selected=networks.length?networks:
             (definition?.excel?.fieldMappings||[])
               .filter(m=>m.panelId==='p-remar-reseaux'&&/^Réseau [1-9]\d*$/.test(m.cle))
