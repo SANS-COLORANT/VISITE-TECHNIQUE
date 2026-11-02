@@ -123,8 +123,8 @@ jobs:
           python - <<'PY'
           import re
           from pathlib import Path
-          version=int(re.search(r'DATABASE_SCHEMA_VERSION\\s*=\\s*(\\d+)',Path('database/constants.js').read_text()).group(1))
-          registered={int(n) for n in re.findall(r'migration(\\d+)',Path('database/migrations/index.js').read_text())}
+          version=int(re.search(r'DATABASE_SCHEMA_VERSION\s*=\s*(\d+)',Path('database/constants.js').read_text()).group(1))
+          registered={int(n) for n in re.findall(r'migration(\d+)',Path('database/migrations/index.js').read_text())}
           assert version==max(registered), f'Schema {version} != last migration {max(registered)}'
           assert all(i in registered for i in range(40,44)), 'Missions lineage v40-v43 missing'
           assert all(i in registered for i in range(44,49)), 'Historical additions missing'
