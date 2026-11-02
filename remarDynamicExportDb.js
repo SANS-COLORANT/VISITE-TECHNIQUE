@@ -85,7 +85,7 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
       `${family.toUpperCase()} : ${parents.length} équipements indépendants, une seule série de cellules officielles. Les instances supplémentaires ne sont pas transmissibles sans extension Symfony.`);
 
     for(const parent of parents) {
-      const owner={famille:family,parentName:'',parentId:parent.id,nom:parent.designation||family,
+      const owner={famille:family,parentName:'',parentId:'',nom:parent.designation||family,
         id:parent.id,type:'equipement'};
       const values=await listerRemarValeurs(visiteId,'equipement',parent.id);
       const accounted=new Set();
