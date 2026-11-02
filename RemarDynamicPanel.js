@@ -7,6 +7,7 @@ import { Alert, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpac
 import { COLORS, FONTS, styles as fieldStyles } from './styles.js';
 import { hapticTick } from './fieldFeedback.js';
 import { enrichirControleRemar, enrichirChampRemar } from './remarControlPresets.js';
+import { proposerNomUniqueRemar } from './remarEquipmentNaming.js';
 import { getChampsVisite, getControlesVisite } from './db.js';
 import { obtenirTrame } from './trameRegistry.js';
 import { BottomSheet } from './VisitKit.js';
@@ -636,8 +637,8 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'})
     setSelected(reportReference);
     if(family==='cta'){
       const persisted=await lireCtaParcours(visiteId);
-      setActiveCtaId(old => rows.some(e=>e.id===old)?old:
-        rows.find(e=>e.id===persisted)?.id || rows[0]?.id || null);
+      setActiveCtaId(old => rows.find(e=>e.id===persisted)?.id ||
+        (rows.some(e=>e.id===old)?old:rows[0]?.id) || null);
     }
   },[visiteId,family]);
   useEffect(()=>{refresh().catch(e=>console.warn('REMAR écran dynamique',e));},[refresh]);
@@ -670,13 +671,11 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'})
     if(busy)return;
     setBusy(true);
     try{
-      let finalName=name;
-      if(cta&&PRESETS.cta.includes(name)){
-        const present=new Set(equipments.map(e=>clean(e.designation)));
-        let number=1;
-        while(present.has(`CTA ${number} — ${name}`))number++;
-        finalName=`CTA ${number} — ${name}`;
-      }
+      // Un même type peut être présent plusieurs fois (CTA soufflage,
+      // deux caissons extraction, groupes froid). Le patrimoine reçoit
+      // toujours des IDs et noms distincts ; les anciennes fiches restent.
+      const finalName=proposerNomUniqueRemar(family,name,
+        equipments.map(e=>e.designation),PRESETS[family]);
       const id=await creerRemarEquipement(visiteId,family,finalName);
       if(cta){
         await choisirCtaParcours(visiteId,id);
