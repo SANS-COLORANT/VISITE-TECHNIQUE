@@ -340,14 +340,20 @@ function libellePhoto(photo, data) {
   if (personnalisee) return court(personnalisee, 160);
   const key = String(photo.entite_key || '');
   const [type, id] = key.split('||');
+  const remarContext = data.photosRemar ? contextePhotoRemar(key,data.photosRemar) : null;
+  const photoAvecOrigine = texte => {
+    const label=String(texte||'Photo');
+    return court(remarContext && !label.includes(remarContext.prefix)
+      ? `${remarContext.prefix} · ${label}` : label,160);
+  };
 
   if (type === 'remarque') {
     const r = data.remarques.find((x) => x.id === id);
-    return libelleReserveCourt(r);
+    return photoAvecOrigine(libelleReserveCourt(r));
   }
   if (type === 'materiel' || type === 'equipement') {
     const m = data.materiel.find((x) => x.id === id || x.equipement_id === id);
-    return court(m?.designation || m?.categorie || 'Équipement', 60);
+    return photoAvecOrigine(m?.designation || m?.categorie || 'Équipement');
   }
   if (type === 'compteur' || type === 'compteur_site') {
     const c = data.compteurs?.find((x) => x.id === id || x.compteur_site_id === id);
@@ -359,12 +365,7 @@ function libellePhoto(photo, data) {
   }
 
   const saved = court(String(photo.label || '').split('||')[0], 100);
-  const context = data.photosRemar
-    ? contextePhotoRemar(photo.entite_key,data.photosRemar) : null;
-  if(context && saved){
-    return court(saved.includes(context.prefix)?saved:`${context.prefix} · ${saved}`,160);
-  }
-  return saved || context?.prefix || 'Photo générale';
+  return photoAvecOrigine(saved || remarContext?.prefix || 'Photo générale');
 }
 
 export function preparerPhotosRapport(data, existantes = []) {
