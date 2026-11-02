@@ -23,7 +23,7 @@ const serializer=load('intranetVisitPayload.js',{
   obtenirTrame:()=>definition,
   construireRemarDynamiquePourRapport:async()=>projection,
   remarDynamicOwnsMapping:projectionTools.remarDynamicOwnsMapping,
-  formaterReleves:rows=>rows.map(x=>x.label+': '+x.valeur+' '+(x.unite||'')).join('\n'),
+  formaterReleves:load('releveMultiligne.js',{pictoTemperature:()=>({})},['formaterReleves']).formaterReleves,
   formaterTemperatureGroupee:(_name,value)=>value,
 },['buildCriteria','inspectIntranetCriterionCandidate']);
 
