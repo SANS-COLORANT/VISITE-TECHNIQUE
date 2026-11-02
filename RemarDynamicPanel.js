@@ -6,6 +6,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, FONTS, styles as fieldStyles } from './styles.js';
 import { hapticTick } from './fieldFeedback.js';
+import { enrichirControleRemar, enrichirChampRemar } from './remarControlPresets.js';
 import { getChampsVisite, getControlesVisite } from './db.js';
 import { obtenirTrame } from './trameRegistry.js';
 import { BottomSheet } from './VisitKit.js';
@@ -104,7 +105,7 @@ async function aPhotosReserveControle(visiteId,controleKey) {
 function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId, saved, onSaved, equipmentLabel='' }) {
   const storageKey = keyFor(panelId,section,field.cle);
   const source = saved?.[storageKey] || null;
-  const [avis,setAvis] = useState(source?.avis||null);
+  const [avis,setAvis] = useState(source?.inherited?null:(source?.avis||null));
   const [busy,setBusy] = useState(false);
   const [saveError,setSaveError] = useState(null);
   const [sExpanded,setSExpanded] = useState(false);
@@ -130,7 +131,7 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
       setSaveError(null);onSaved?.();
     });
 
-  useEffect(()=>{setAvis(source?.avis||null);},[source?.avis]);
+  useEffect(()=>{setAvis(source?.inherited?null:(source?.avis||null));},[source?.avis,source?.inherited]);
   const controls=field.type==='controle';
   const statuses=controls?AVIS_REMAR:ETATS_MESURE_REMAR;
   const suggestions=valeursRapidesRemar(field);
@@ -141,7 +142,9 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
     setBusy(true);
     try{
       await Promise.all([flushValue(),flushComment()]);
-      const note=commentaireRemarPropose(field,next,equipmentLabel);
+      // N.S n'invente pas de panne : l'agent choisit ensuite un motif
+      // technique précis ou décrit librement l'écart réellement observé.
+      const note=next==='N.S' ? '' : commentaireRemarPropose(field,next,equipmentLabel);
       const patch={...identity,avis:next,commentaire:note};
       if(!controls)patch.valeur=null;
       await enregistrerRemarValeur(visiteId,patch);
@@ -182,7 +185,7 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
   const pickedPresets=controls && avis ? (field.presets?.[avis]||[]) : [];
   const photoLabel=equipmentLabel ? `${equipmentLabel} · ${field.cle}` : field.cle;
   return <View style={ui.field}>
-    <Text style={ui.fieldName}>{field.cle}</Text>
+    <Text style={ui.fieldName}>{field.label||field.cle}</Text>
     {controls ? null : <>
       <TextInput value={value} onChangeText={saisir} onBlur={flush(flushValue)}
         onEndEditing={flush(flushValue)}
@@ -196,7 +199,7 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
         </TouchableOpacity>)}
       </View> : null}
     </>}
-    <View style={fieldStyles.avisGroup}>
+    <View style={[fieldStyles.avisGroup,{flexWrap:'wrap',gap:6}]}>
       {statuses.map(opt=>{
         const tone=paletteChip(opt.code),active=avis===opt.code;
         return <TouchableOpacity key={opt.code} accessibilityRole="button"
@@ -212,12 +215,12 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
         </TouchableOpacity>;
       })}
       {!controls&&avis ? <TouchableOpacity accessibilityRole="button"
-        accessibilityLabel="Relever cette mesure"
+        accessibilityLabel="Effacer le statut et relever cette mesure"
         onPress={async()=>{
           try{await enregistrerRemarValeur(visiteId,{...identity,avis:null});setAvis(null);onSaved?.();}
           catch(e){setSaveError(String(e?.message||e));}
-        }} style={fieldStyles.avisChip}>
-        <Text style={fieldStyles.avisChipText}>Relever</Text>
+        }} style={[fieldStyles.avisChip,{minWidth:96,minHeight:44,justifyContent:'center'}]}>
+        <Text numberOfLines={1} style={fieldStyles.avisChipText}>Relever</Text>
       </TouchableOpacity> : null}
     </View>
     {avis ? <View style={[fieldStyles.criterePanel,
@@ -240,17 +243,27 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
         {pickedPresets.length>0 ? <View style={fieldStyles.critereChips}>
           {pickedPresets.map((p,i)=><TouchableOpacity key={i}
             accessibilityRole="button" accessibilityLabel={p.label||'Commentaire rapide'}
-            style={[fieldStyles.critereChip,{borderColor:avisPalette.text}]}
-            onPress={()=>setCommentImmediate(p.commentaire||'')
-              .catch(e=>setSaveError(String(e?.message||e)))}>
-            <Text style={[fieldStyles.critereChipText,{color:avisPalette.text}]}>
+            style={[fieldStyles.critereChip,{borderColor:avisPalette.text},
+              comment===p.commentaire&&{backgroundColor:avisPalette.text}]}
+            onPress={async()=>{
+              try{
+                await setCommentImmediate(p.commentaire||'');
+                if(avis==='N.S')await upsertRemarquePrescription(visiteId,controlKey,
+                  {poste:p.poste||field.poste||section,
+                    prestation:p.reserve||p.commentaire||'Écart à préciser.'},
+                  'REMAR : motif de contrôle sélectionné');
+                setSaveError(null);onSaved?.();
+              }catch(e){setSaveError(String(e?.message||e));}
+            }}>
+            <Text style={[fieldStyles.critereChipText,
+              {color:comment===p.commentaire?COLORS.white:avisPalette.text}]}>
               {p.label||'Commentaire proposé'}
             </Text>
           </TouchableOpacity>)}
         </View> : null}
         <TextInput value={comment} onChangeText={setComment}
           onBlur={flush(flushComment)} onEndEditing={flush(flushComment)}
-          placeholder="Commentaire technique personnalisable" multiline
+          placeholder={avis==='N.S'?'Décrire le défaut constaté ou choisir un motif ci-dessus':'Commentaire technique personnalisable'} multiline
           style={[ui.input,{minHeight:60,marginTop:7,backgroundColor:COLORS.white}]}/>
         {avis==='S' ? <TouchableOpacity accessibilityRole="button" onPress={()=>setSExpanded(false)}>
           <Text style={{color:COLORS.green,fontFamily:FONTS.bodySemi,fontSize:11,paddingVertical:8}}>
@@ -259,7 +272,7 @@ function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId,
         </TouchableOpacity> : null}
       </>}
     </View> : null}
-    {source?.inherited ? <Text style={ui.historical}>Dernière visite : {source?.date_source||'date inconnue'} · référence modifiable, non vérifiée aujourd’hui</Text> : null}
+    {source?.inherited ? <Text style={ui.historical}>Historique du {source?.date_source||'jour inconnu'} · avis antérieur {source?.avis||'non renseigné'} : ne compte pas comme vérifié aujourd’hui.</Text> : null}
     {saveError ? <Text style={ui.saveError}>Sauvegarde à reprendre : {saveError}</Text> : null}
     <PhotoButton visiteId={visiteId} entiteKey={controlKey} label={photoLabel} />
   </View>;
@@ -280,7 +293,7 @@ function ChildRow({ visiteId, parent, item, typeCode, fields, data, onRefresh, o
       catch(e){Alert.alert('Retrait impossible',String(e?.message||e));}
     }}]);
   const filtre=typeCode==='filtre_cta';
-  const namedFields=fields || (filtre ? [
+  const namedFields=(fields || (filtre ? [
     {cle:'Classe de filtration',type:'champ',options:CLASSES_FILTRES_REMAR},
     {cle:'Etat du filtre',type:'controle',poste:parent?.designation||'Filtration',
       presets:{
@@ -290,7 +303,9 @@ function ChildRow({ visiteId, parent, item, typeCode, fields, data, onRefresh, o
         'S.O':[{commentaire:'Filtre sans objet pour cette installation.'}],
         'N.V':[{commentaire:'Filtre non visible ou inaccessible.'}],
       }},
-  ] : [{cle:'Valeur',type:'champ',numeric:true}]);
+  ] : [{cle:'Valeur',type:'champ',numeric:true}])).map(f=>
+      enrichirControleRemar(enrichirChampRemar(f,filtre?'p-remar-filtres':'p-remar-cta-mesures'),
+        filtre?'p-remar-filtres':'p-remar-cta-mesures'));
   return <View style={ui.child}>
     <View style={ui.hRow}>
       {editName ? <TextInput value={name} onChangeText={setName}
@@ -388,7 +403,11 @@ function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefre
     : [];
   const reservedFields = Object.entries(sections||{}).flatMap(([section, fields])=>
     (fields||[]).filter(f=>!(family==='froid'&&/^Réseau \d+$/i.test(f.cle)) &&
-      !(family==='vmc'&&f.cle==='Nombre de caissons')).map(f=>({section,field:f})));
+      !(family==='vmc'&&f.cle==='Nombre de caissons') &&
+      // La designation CTA est le nom editable de sa fiche patrimoine :
+      // ne pas la redemander et ne jamais la qualifier de 'sans objet'.
+      !(family==='cta'&&panelId==='p-remar-cta'&&f.cle==='Désignation CTA'))
+      .map(f=>({section,field:enrichirControleRemar(enrichirChampRemar(f,panelId),panelId)})));
   const showFields = !childType || (panelId==='p-remar-froid');
   const bulkAvis=async prochain=>{
     if(busy)return;
