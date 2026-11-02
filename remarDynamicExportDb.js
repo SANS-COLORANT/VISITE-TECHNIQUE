@@ -48,6 +48,20 @@ const panelsForFamily=Object.freeze({
 export async function construireRemarDynamiquePourRapport(visiteId, definition) {
   const replacements=new Map();
   const details=[],unsupported=[],ambiguous=[];
+  // Une cellule officielle est unique : deux sources divergentes doivent
+  // provoquer un blocage explicite, jamais un remplacement silencieux.
+  const projectOfficial=(panel,section,cle,row,extra={})=>{
+    if (!row && !('valeur' in extra)) return;
+    const officialKey=key(panel,section,cle);
+    const next={...extra,...(row||{})};
+    const previous=replacements.get(officialKey);
+    const comparable=x=>JSON.stringify([x?.valeur??null,x?.avis??null,x?.commentaire??null]);
+    if(previous && comparable(previous)!==comparable(next)){
+      unsupported.push(`Destination REMAR conflictuelle : ${panel} / ${section} / ${cle} (plusieurs saisies pour une seule cellule officielle).`);
+      return;
+    }
+    addOfficial(replacements,panel,section,cle,row,extra);
+  };
   if ((definition?.familyId || definition?.id)!=='remar_v1') {
     return {replacements,details,unsupported,ambiguous,hasDynamic:false};
   }
@@ -83,7 +97,7 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
       if(family==='cta'&&isFocus){
         // Le nom de CTA est sa désignation patrimoniale éditable : pas de
         // second formulaire ni de choix absurde 'Sans objet'.
-        addOfficial(replacements,'p-remar-cta','Informations techniques',
+        projectOfficial('p-remar-cta','Informations techniques',
           'Désignation CTA',null,{valeur:parent.designation||'CTA'});
       }
       for(const panel of panelsForFamily[family]) {
@@ -95,9 +109,9 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
             if (!row) continue;
             hasDynamic=true;
             addInfo(details,owner,{panel,section,cle:field.cle},row);
-            if(isFocus) addOfficial(replacements,panel,section,field.cle,
+            if(isFocus) projectOfficial(panel,section,field.cle,
               field.type==='champ'?{...row,valeur:valeurOfficielleRemar(row)}:row);
-            else if(hasData(row))unsupported.push(`${owner.nom} / ${field.cle} : donnee additionnelle non representable dans une case officielle unique.`);
+            else if(hasData(row) && !row.inherited)unsupported.push(`${owner.nom} / ${field.cle} : donnee additionnelle non representable dans une case officielle unique.`);
           }
         }
       }
@@ -121,27 +135,27 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
               // Le nom de la fiche est distinct de sa classe de filtration :
               // un filtre nommé 'Filtre soufflage n°2' de classe F7 doit exporter F7.
               const classe=itemValue(childValues,panel,type,'Classe de filtration');
-              addOfficial(replacements,panel,sec,'Type de filtre',null,
+              projectOfficial(panel,sec,'Type de filtre',null,
                 {valeur:classe?valeurOfficielleRemar(classe):child.nom});
-              addOfficial(replacements,panel,sec,'Etat du filtre',
+              projectOfficial(panel,sec,'Etat du filtre',
                 itemValue(childValues,panel,type,'Etat du filtre'));
             } else unsupported.push(`Filtre supplémentaire : ${dataOwner.parentName} / ${child.nom}`);
           } else if(type==='mesure_cta') {
             const target=destinationMesureCTA(child.nom);
             const row=itemValue(childValues,panel,type,'Valeur');
-            if(isFocus && target && row) addOfficial(replacements,panel,target[0],target[1],
+            if(isFocus && target && row) projectOfficial(panel,target[0],target[1],
               {...row,valeur:valeurOfficielleRemar(row)});
-            else if(hasData(row) && (!isFocus || !target))
+            else if(hasData(row) && !row.inherited && (!isFocus || !target))
               unsupported.push(`Mesure CTA non representable : ${dataOwner.parentName} / ${child.nom}`);
           } else if(type==='reseau_froid') {
-            if(isFocus && idx<3) addOfficial(replacements,panel,'Réseaux',`Réseau ${idx+1}`,null,{valeur:child.nom});
+            if(isFocus && idx<3) projectOfficial(panel,'Réseaux',`Réseau ${idx+1}`,null,{valeur:child.nom});
             else unsupported.push(`Reseau froid supplementaire : ${dataOwner.parentName} / ${child.nom}`);
           }
         }
       }
     }
     if(family==='vmc'&&focusedId) {
-      addOfficial(replacements,'p-remar-vmc','Informations générales','Nombre de caissons',
+      projectOfficial('p-remar-vmc','Informations générales','Nombre de caissons',
         null,{valeur:String(parents.length)});
     }
   }
@@ -153,9 +167,27 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
     hasDynamic=true;
     addInfo(details,owner,{panel:'p-remar-releves',section:'Température chaufferie',cle:'Valeur'},row||{valeur:''});
     const dest=temperatureCell[norm(item.nom)];
-    if(dest&&row) addOfficial(replacements,'p-remar-releves','Température chaufferie',dest,
+    if(dest&&row) projectOfficial('p-remar-releves','Température chaufferie',dest,
       {...row,valeur:valeurOfficielleRemar(row)});
-    else if(!dest&&hasData(row)) unsupported.push(`Temperature complementaire : ${item.nom}`);
+    else if(!dest&&hasData(row) && !row.inherited) unsupported.push(`Temperature complementaire : ${item.nom}`);
   }
-  return {replacements,details,unsupported:[...new Set(unsupported)],ambiguous,hasDynamic,familyCounts};
+  return {replacements,details,unsupported:[...new Set(unsupported)],ambiguous,hasDynamic,
+    familyCounts,temperaturesCount:temperatures.length};
+}
+
+/**
+ * Centralise l'autorité entre les fiches REMAR actuelles et les anciens champs
+ * plats. Appelé à l'identique par l'Excel et par la sérialisation Intranet.
+ */
+export function remarDynamicOwnsMapping(mapping, projection) {
+  if (!mapping || !projection?.hasDynamic) return false;
+  const panel=mapping.panelId;
+  const counts=projection.familyCounts || {};
+  return Boolean(
+    (counts.cta > 0 && panelsForFamily.cta.includes(panel)) ||
+    (counts.vmc > 0 && panelsForFamily.vmc.includes(panel)) ||
+    (counts.froid > 0 && panelsForFamily.froid.includes(panel)) ||
+    (projection.temperaturesCount > 0 && panel==='p-remar-releves' &&
+      mapping.section==='Température chaufferie')
+  );
 }
