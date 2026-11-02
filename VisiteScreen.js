@@ -55,6 +55,9 @@ function chargerExcelExportModule(){return require('./excelExport.js');}
 function chargerPreAllumageReportModule(){return require('./preAllumageReportExporter.js');}
 const SPECIAL_PANEL_DEFAULTS = ['p-regulation', 'p-releves', 'p-equip', 'p-remarques', 'p-photos'];
 const HEAVY_LAZY_PANELS = new Set(['p-equip', 'p-releves']);
+// CTA est une seule fiche métier. Les sous-étapes restent dans la définition
+// REMAR pour Excel, PDF, Word, Intranet et visites historiques.
+const REMAR_CTA_ETAPES_INTERNES = new Set(['p-remar-filtres','p-remar-cta-mesures','p-remar-cta-energie']);
 const PAGER_PRUNE_DELAY_MS = 700;
 
 const VisitPanelHost = memo(function VisitPanelHost({
@@ -200,9 +203,12 @@ function VisiteScreen({ route, onBack }) {
       ? (vmcCaissons.length ? vmcCaissons.filter((c) => c.actif).map((c) => c.panelId) : ['p-vmc-c1'])
       : []
   ), [trame.id, vmcCaissons]);
+  // Retrait VISUEL uniquement : la trame officielle continue à conserver
+  // toutes les correspondances de chaque sous-étape CTA, pour les exports.
   const tabOrder = useMemo(() => trame.id === 'vmc'
     ? tabOrderBase.filter((pid) => !/^p-vmc-c[1-6]$/.test(pid) || vmcActifs.has(pid))
-    : tabOrderBase, [trame.id, tabOrderBase, vmcActifs]);
+    : estParcoursRemar ? tabOrderBase.filter(pid=>!REMAR_CTA_ETAPES_INTERNES.has(pid))
+    : tabOrderBase, [trame.id, tabOrderBase, vmcActifs, estParcoursRemar]);
   const panelLabels = useMemo(() => trame.id === 'vmc'
     ? {
         ...panelLabelsBase,
