@@ -11,11 +11,18 @@ import { PhotoButton } from './PhotoButton.js';
 import { OptimizedRelevesPanel } from './OptimizedRelevesPanel.js';
 import { OptimizedRegulationPanel } from './OptimizedRegulationPanel.js';
 import { upsertRemarquePrescription, supprimerRemarqueControle } from './remarkDb.js';
+import { useDurableAutosave, flushDurableAutosaves } from './durableAutosave.js';
+import { getDb } from './db.js';
+import {
+  COMPTEURS_REMAR_USUELS, TEMPERATURES_REMAR_USUELLES, MESURES_CTA_REMAR_USUELLES,
+  CLASSES_FILTRES_REMAR, AVIS_REMAR, ETATS_MESURE_REMAR, NOMS_ETAPES_CTA,
+  classificationFiltre, uniteMesureCTA, valeursRapidesRemar, commentaireRemarPropose,
+} from './remarFieldGuidance.js';
 import {
   REMAR_FAMILLES, listerRemarEquipements, creerRemarEquipement, renommerRemarEquipement,
   retirerRemarEquipement, listerRemarItems, creerRemarItem, renommerRemarItem,
   retirerRemarItem, listerRemarValeurs, enregistrerRemarValeur,
-  choisirRemarEquipementReference, getRemarEquipementReference,
+  choisirRemarEquipementReference, getRemarEquipementReference, lireCtaParcours, choisirCtaParcours,
 } from './remarDynamicDb.js';
 
 const FAMILLE_PAR_ONGLET = Object.freeze({
@@ -78,59 +85,121 @@ function AddSheet({ visible, title, choices, onCancel, onCreate, disabled = fals
   </BottomSheet>;
 }
 
-function FieldRow({ item, ownerType, ownerId, panelId, section, visiteId, saved, onSaved }) {
-  const field = item;
-  const k = keyFor(panelId,section,field.cle);
-  const source = saved?.[k] || null;
-  const [value, setValue] = useState(clean(source?.valeur));
-  const [avis, setAvis] = useState(source?.avis || null);
-  const [comment, setComment] = useState(clean(source?.commentaire));
-  const [busy, setBusy] = useState(false);
-  useEffect(() => { setValue(clean(source?.valeur)); setAvis(source?.avis||null); setComment(clean(source?.commentaire)); },
-    [source?.valeur,source?.avis,source?.commentaire]);
+async function aPhotosReserveControle(visiteId,controleKey) {
+  const db=await getDb();
+  const reserves=await db.getAllAsync('SELECT id FROM remarques WHERE visite_id=? AND controle_key=?',
+    [visiteId,controleKey]);
+  if(!reserves.length)return false;
+  for(const reserve of reserves) {
+    const found=await db.getFirstAsync(
+      'SELECT id FROM photos WHERE visite_id=? AND entite_key=? LIMIT 1',
+      [visiteId,`remarque||${reserve.id}`]);
+    if(found)return true;
+  }
+  return false;
+}
+
+function FieldRow({ item: field, ownerType, ownerId, panelId, section, visiteId, saved, onSaved, equipmentLabel='' }) {
+  const storageKey = keyFor(panelId,section,field.cle);
+  const source = saved?.[storageKey] || null;
+  const [avis,setAvis] = useState(source?.avis||null);
+  const [busy,setBusy] = useState(false);
+  const [saveError,setSaveError] = useState(null);
+  const identity = {ownerType,ownerId,panelId,sectionCode:section,cle:field.cle};
   const controlKey = ['remar',ownerType,ownerId,panelId,sectionCode(section),field.cle].join('||');
-  const save = async (nextValue=value, nextAvis=avis, nextComment=comment) => {
-    if (busy) return;
-    setBusy(true);
-    try {
-      await enregistrerRemarValeur(visiteId, { ownerType,ownerId,panelId,sectionCode:section,
-        cle:field.cle,valeur:nextValue,avis:nextAvis,commentaire:nextComment });
-      if (field.type==='controle') {
-        if (nextAvis==='N.S') {
-          await upsertRemarquePrescription(visiteId,controlKey,{
-            poste:field.poste||section,prestation:nextComment||`${field.cle} : anomalie à préciser`,
-            referenceLibelle:`${field.cle} — ${ownerId}`}, 'REMAR : contrôle individualisé');
-        } else {
-          await supprimerRemarqueControle(visiteId,controlKey);
-        }
+
+  // Le hook terrain maintient un brouillon immediat, enregistre dans une file
+  // SQLite serialisee et force le flush au blur, au demontage, sur retour et
+  // quand Android passe en arriere-plan. Une erreur reste visible.
+  const [value,setValue,flushValue,setValueImmediate,adoptValue] = useDurableAutosave(
+    source?.valeur??'', async next => {
+      await enregistrerRemarValeur(visiteId,{...identity,valeur:next,avis:null});
+      setAvis(null);setSaveError(null);onSaved?.();
+    });
+  const [comment,setComment,flushComment,setCommentImmediate,adoptComment] = useDurableAutosave(
+    source?.commentaire??'', async next => {
+      await enregistrerRemarValeur(visiteId,{...identity,commentaire:next});
+      if (field.type==='controle' && avis==='N.S') {
+        await upsertRemarquePrescription(visiteId,controlKey,
+          {poste:field.poste||section,prestation:next||`${field.cle} : anomalie à préciser`},
+          'REMAR : contrôle individualisé');
       }
-      onSaved?.();
-    } catch(e) { Alert.alert('Enregistrement impossible',String(e?.message||e)); }
-    finally { setBusy(false); }
+      setSaveError(null);onSaved?.();
+    });
+
+  useEffect(()=>{setAvis(source?.avis||null);},[source?.avis]);
+  const controls=field.type==='controle';
+  const statuses=controls?AVIS_REMAR:ETATS_MESURE_REMAR;
+  const suggestions=valeursRapidesRemar(field);
+  const choose=async next=>{
+    if(busy)return;
+    setBusy(true);
+    try{
+      await Promise.all([flushValue(),flushComment()]);
+      const note=commentaireRemarPropose(field,next,equipmentLabel);
+      const patch={...identity,avis:next,commentaire:note};
+      if(!controls)patch.valeur=null;
+      await enregistrerRemarValeur(visiteId,patch);
+      // Les photos rattachees a une reserve N.S ne sont jamais supprimees
+      // silencieusement lorsqu'on change un avis.
+      if(controls&&next==='N.S'){
+        await upsertRemarquePrescription(visiteId,controlKey,
+          {poste:field.poste||section,prestation:note||`${field.cle} : anomalie à préciser`},
+          'REMAR : contrôle individualisé');
+      } else if (controls) {
+        const hasPhotos = await aPhotosReserveControle(visiteId,controlKey);
+        if (!hasPhotos) await supprimerRemarqueControle(visiteId,controlKey);
+        else Alert.alert('Réserve avec photos conservée',
+          'Des photographies sont liées à cette réserve. Elle reste accessible dans Réserves pour être traitée explicitement, sans suppression de photo.');
+      }
+      setAvis(next);
+      adoptComment(note);
+      if(!controls)adoptValue('');
+      setSaveError(null);onSaved?.();
+    }catch(e){
+      setSaveError(String(e?.message||e));
+      Alert.alert('Sauvegarde non terminée',String(e?.message||e));
+    }finally{setBusy(false);}
   };
-  const changeOpinion = async next => {
-    const first = field.presets?.[next]?.[0];
-    const note = first?.commentaire || (next==='N.S'?'Anomalie à préciser.':'');
-    setAvis(next);
-    setComment(note);
-    await save(value,next,note);
+  const saisir=next=>{
+    setAvis(null);
+    setValue(next);
   };
+  const flush=fn=>()=>fn().catch(e=>setSaveError(String(e?.message||e)));
   return <View style={ui.field}>
     <Text style={ui.fieldName}>{field.cle}</Text>
-    {field.type==='controle' ? <>
-      <View style={ui.opinions}>
-        {OPINIONS.map(opt=><TouchableOpacity key={opt} accessibilityRole="button"
-          disabled={busy} style={[ui.opinion,avis===opt&&ui.opinionSelected]}
-          onPress={()=>changeOpinion(opt)}>
-          <Text style={[ui.opinionText,avis===opt&&ui.opinionTextSelected]}>{opt}</Text>
+    {controls ? null : <>
+      <TextInput value={value} onChangeText={saisir} onBlur={flush(flushValue)}
+        onEndEditing={flush(flushValue)}
+        placeholder={field.numeric?'Valeur mesurée (aucune valeur par défaut)':'Saisir ou choisir une proposition'}
+        style={ui.input} keyboardType={field.numeric?'decimal-pad':'default'} />
+      {suggestions.length ? <View style={ui.quickChoices}>
+        {suggestions.map(choice=><TouchableOpacity key={choice} accessibilityRole="button"
+          style={[ui.choiceChip,value===choice&&ui.choiceChipSelected]}
+          onPress={()=>{setAvis(null);setValueImmediate(choice).catch(e=>setSaveError(String(e?.message||e)));}}>
+          <Text style={ui.choiceChipText}>{choice}</Text>
         </TouchableOpacity>)}
-      </View>
-      {avis ? <TextInput value={comment} onChangeText={setComment} onEndEditing={()=>save(value,avis,comment)}
-        placeholder="Commentaire modifiable" multiline style={[ui.input,{minHeight:52}]} /> : null}
-    </> : <TextInput value={value} onChangeText={setValue} onEndEditing={()=>save(value,null,null)}
-      placeholder={field.numeric?'Valeur / unité':'Renseigner'} style={ui.input}
-      keyboardType={field.numeric?'decimal-pad':'default'} />}
-    {source?.inherited ? <Text style={ui.historical}>Reprise modifiable de la visite {source?.date_source||'précédente'} · à confirmer</Text> : null}
+      </View> : null}
+    </>}
+    <View style={ui.opinions}>
+      {statuses.map(opt=><TouchableOpacity key={opt.code} accessibilityRole="button"
+        accessibilityLabel={opt.label} accessibilityState={{selected:avis===opt.code}}
+        disabled={busy} style={[ui.opinion,avis===opt.code&&ui.opinionSelected]}
+        onPress={()=>choose(opt.code)}>
+        <Text style={[ui.opinionText,avis===opt.code&&ui.opinionTextSelected]}>
+          {controls?opt.code:opt.label}
+        </Text>
+      </TouchableOpacity>)}
+      {!controls&&avis ? <TouchableOpacity onPress={async()=>{
+          try{await enregistrerRemarValeur(visiteId,{...identity,avis:null});
+            setAvis(null);onSaved?.();}catch(e){setSaveError(String(e?.message||e));}
+        }} style={ui.opinion}><Text style={ui.opinionText}>Relever</Text></TouchableOpacity> : null}
+    </View>
+    {(controls||avis) ? <TextInput value={comment} onChangeText={setComment}
+      onBlur={flush(flushComment)} onEndEditing={flush(flushComment)}
+      placeholder="Commentaire libre, toujours modifiable" multiline style={[ui.input,{minHeight:52}]} /> : null}
+    {source?.inherited ? <Text style={ui.historical}>Dernière visite : {source?.date_source||'date inconnue'} · référence modifiable, non vérifiée aujourd’hui</Text> : null}
+    {saveError ? <Text style={ui.saveError}>Sauvegarde à reprendre : {saveError}</Text> : null}
     <PhotoButton visiteId={visiteId} entiteKey={controlKey} label={field.cle} />
   </View>;
 }
@@ -339,6 +408,12 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'})
 }
 
 const ui=StyleSheet.create({
+  saveError:{fontSize:12,color:'#A33625',marginTop:4,fontWeight:'600'},
+  quickChoices:{flexDirection:'row',flexWrap:'wrap',gap:6,marginTop:8,marginBottom:5},
+  choiceChip:{borderWidth:1,borderColor:'#D6DCE3',borderRadius:12,
+    paddingHorizontal:10,paddingVertical:9,backgroundColor:'#F5F8FA',minHeight:39},
+  choiceChipSelected:{borderColor:'#C6531B',backgroundColor:'#FFF2E9'},
+  choiceChipText:{fontSize:12,color:'#213E53',fontWeight:'600'},
   list:{padding:12,paddingBottom:28,gap:10},
   card:{borderWidth:1,borderColor:'#D8DEE5',borderRadius:16,backgroundColor:'#FFFFFF',padding:12,marginBottom:10},
   header:{flexDirection:'row',alignItems:'center',justifyContent:'space-between',minHeight:44},
