@@ -55,8 +55,13 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
   const visit=await db.getFirstAsync('SELECT id,installation_id FROM visites WHERE id=?',[visiteId]);
   if (!visit?.installation_id) return {replacements,details,unsupported,ambiguous,hasDynamic:false};
   let hasDynamic=false;
+  const familyCounts={cta:0,vmc:0,froid:0};
   for(const family of ['cta','vmc','froid']) {
     const parents=await listerRemarEquipements(visiteId,family);
+    // La presence d'un equipement multi-instance suffit a neutraliser les
+    // anciens champs CTA fixes lors de l'envoi, meme sans mesure nouvelle.
+    familyCounts[family]=parents.length;
+    if(parents.length)hasDynamic=true;
     const focusedId=await getRemarEquipementReference(visiteId,family,parents);
     if(parents.length>1 && !focusedId) ambiguous.push(`${family.toUpperCase()} : choisis un equipement de reference pour les cases uniques du classeur officiel.`);
     for(const parent of parents) {
@@ -135,5 +140,5 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
       {...row,valeur:valeurOfficielleRemar(row)});
     else if(!dest&&hasData(row)) unsupported.push(`Temperature complementaire : ${item.nom}`);
   }
-  return {replacements,details,unsupported:[...new Set(unsupported)],ambiguous,hasDynamic};
+  return {replacements,details,unsupported:[...new Set(unsupported)],ambiguous,hasDynamic,familyCounts};
 }
