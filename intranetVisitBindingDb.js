@@ -110,8 +110,8 @@ async function loadVisitTrameUsedName(db, visiteId) {
   return clean(row?.valeur) || null;
 }
 
-function localBindingState(local, trameId) {
-  const reference = parseJson(local?.reference_json);
+function localBindingState(local, trameId, selectedReference = null) {
+  const reference = selectedReference || parseJson(local?.reference_json);
   if (!reference || typeof reference !== 'object') {
     return { compatible: false, compatibilityReason: 'Référence Intranet illisible pour ce local. Actualise les données du client.' };
   }
@@ -205,11 +205,25 @@ async function resolveImportedSiteId(db, visite, remoteClientId) {
   throw bindingError('Plusieurs sites Intranet correspondent à ce site METRA pour le client importé. METRA refuse de deviner la destination.', 'imported_site_ambiguous', { remoteClientId });
 }
 
+async function frozenVisitReference(db, visite) {
+  const expectedId = clean(visite?.api_remote_trame_id);
+  if (!expectedId || !clean(visite?.api_remote_local_id)) return null;
+  const rows = await db.getAllAsync(`SELECT details_json FROM provenances WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le DESC`, [visite.id]);
+  for (const row of rows) {
+    const details = parseJson(row.details_json);
+    if (details?.sourceType === 'preparation_visite' && clean(details?.trame?.id) === expectedId &&
+        clean(details?.local?.id) === clean(visite.api_remote_local_id)) return details;
+  }
+  return null;
+}
+
 async function resolveImportedLocalId(db, visite, remoteClientId, remoteSiteId) {
   const rows = await db.getAllAsync(`SELECT remote_local_id,remote_site_id,local_installation_id,designation,remote_trame_id,remote_trame_nom,
       derniere_visite_id,derniere_visite_date,criteria_count,material_count,reference_json
     FROM api_local_links WHERE remote_site_id=? AND remote_present=1 ORDER BY designation,remote_local_id`, [remoteSiteId]);
-  const locals = rows.map((row) => ({ ...row, ...localBindingState(row, visite.trame_id) }));
+  const frozen = await frozenVisitReference(db, visite);
+  const locals = rows.map((row) => ({ ...row, ...localBindingState(row, visite.trame_id,
+    frozen && clean(frozen.local?.id) === clean(row.remote_local_id) ? frozen : null) }));
   const sendable = locals.filter((row) => row.compatible);
   const frozen = clean(visite.api_remote_local_id);
   if (frozen && sendable.some((row) => clean(row.remote_local_id) === frozen)) return frozen;
@@ -252,7 +266,9 @@ export async function getVisitIntranetBindingOptions(visiteId) {
     const rawLocals = await db.getAllAsync(`SELECT remote_local_id,remote_site_id,local_installation_id,designation,remote_trame_id,remote_trame_nom,
       derniere_visite_id,derniere_visite_date,criteria_count,material_count,reference_json FROM api_local_links
       WHERE remote_site_id=? AND remote_present=1 ORDER BY designation,remote_local_id`, [selectedSiteId]);
-    locals = rawLocals.map((row) => ({ ...row, ...localBindingState(row, visite.trame_id) }));
+    const frozen = await frozenVisitReference(db, visite);
+    locals = rawLocals.map((row) => ({ ...row, ...localBindingState(row, visite.trame_id,
+      frozen && clean(frozen.local?.id) === clean(row.remote_local_id) ? frozen : null) }));
     suggestedLocalId = await resolveImportedLocalId(db, visite, selectedClientId, selectedSiteId).catch(() => null);
   }
   const visitTrameName = await loadVisitTrameUsedName(db, visite.id);
@@ -298,7 +314,11 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
   const local = await db.getFirstAsync(`SELECT * FROM api_local_links WHERE remote_local_id=? AND remote_site_id=? AND remote_present=1`, [localId, siteId]);
   if (!local) throw bindingError('Local Intranet introuvable sur le site importé. Actualise les données du client.', 'intranet_reference_refresh_required', { remoteClientId: clientId });
 
-  const state = localBindingState(local, visite.trame_id);
+  const frozen = await frozenVisitReference(db, visite);
+  if (frozen && (clean(frozen.local?.id) !== localId || clean(frozen.site?.id) !== siteId)) {
+    throw bindingError('La preparation selectionnee ne correspond plus au local ou site de cette visite.', 'selected_trame_binding_mismatch');
+  }
+  const state = localBindingState(local, visite.trame_id, frozen);
   if (!state.compatible) throw bindingError(state.compatibilityReason, 'intranet_reference_refresh_required', { remoteClientId: clientId });
   const reference = state.reference;
   const remoteTrameId = state.remoteTrameId;
