@@ -575,16 +575,21 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'})
     <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={ui.list}>
       <Text style={ui.groupLabel}>Parcours par CTA</Text>
       <Text style={ui.note}>Choisis une CTA : ses contrôles, ses filtres, ses mesures et ses améliorations restent regroupés. Les données sont sauvegardées avant tout changement de fiche.</Text>
-      {equipments.length?<ScrollView horizontal showsHorizontalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled" contentContainerStyle={ui.ctaPicker}>
+      {equipments.length?<View style={ui.ctaSelector}>
         {equipments.map((e,index)=><TouchableOpacity key={e.id} accessibilityRole="button"
+          accessibilityLabel={`Ouvrir CTA ${index+1}, ${e.designation}`}
           accessibilityState={{selected:activeCta?.id===e.id}}
-          onPress={()=>selectCta(e.id)} style={[ui.ctaChip,activeCta?.id===e.id&&ui.ctaChipSelected]}>
-          <Text style={[ui.ctaChipText,activeCta?.id===e.id&&ui.ctaChipTextSelected]}>
-            CTA {index+1} · {e.designation}
+          activeOpacity={0.7} hitSlop={6}
+          onPress={()=>{selectCta(e.id).catch(error=>Alert.alert('Ouverture CTA impossible',String(error?.message||error)));}}
+          style={[ui.ctaSelectCard,activeCta?.id===e.id&&ui.ctaChipSelected]}>
+          <Text numberOfLines={2} style={[ui.ctaChipText,activeCta?.id===e.id&&ui.ctaChipTextSelected]}>
+            {e.designation}
+          </Text>
+          <Text style={[ui.ctaSelectAction,activeCta?.id===e.id&&ui.ctaChipTextSelected]}>
+            {activeCta?.id===e.id?'✓ CTA affichée':'Ouvrir cette CTA →'}
           </Text>
         </TouchableOpacity>)}
-      </ScrollView>:<Text style={ui.note}>Aucune CTA constatée dans ce local. Commence par en ajouter une.</Text>}
+      </View>:<Text style={ui.note}>Aucune CTA constatée dans ce local. Commence par en ajouter une.</Text>}
       <TouchableOpacity style={ui.addSmall} accessibilityRole="button" onPress={()=>setAdding(true)}>
         <Text style={ui.addText}>+ Ajouter une CTA</Text>
       </TouchableOpacity>
@@ -593,14 +598,16 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'})
           <Text style={ui.cardTitle}>{activeCta.designation}</Text>
           <Text style={ui.note}>Parcours de visite individuel · {stepIndex+1} / {NOMS_ETAPES_CTA.length}</Text>
         </View>
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={ui.ctaPicker}>
+        <View style={ui.ctaStepGrid}>
           {NOMS_ETAPES_CTA.map((step,index)=><TouchableOpacity key={step.id}
-            accessibilityRole="button" accessibilityState={{selected:currentStep===step.id}}
-            onPress={()=>changeStep(step.id)}
+            accessibilityRole="button" accessibilityLabel={`Ouvrir l'étape ${index+1} : ${step.nom}`}
+            accessibilityState={{selected:currentStep===step.id}}
+            activeOpacity={0.7} hitSlop={4}
+            onPress={()=>{changeStep(step.id).catch(error=>Alert.alert('Navigation impossible',String(error?.message||error)));}}
             style={[ui.stepChip,currentStep===step.id&&ui.stepChipSelected]}>
             <Text style={[ui.stepText,currentStep===step.id&&ui.stepTextSelected]}>{index+1}. {step.nom}</Text>
           </TouchableOpacity>)}
-        </ScrollView>
+        </View>
         {currentStep==='validation'
           ? <ValidationParCTA key={activeCta.id} visiteId={visiteId} equipment={activeCta}
             definition={definition} onSaved={onSaved}/>
@@ -659,6 +666,16 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'})
 }
 
 const ui=StyleSheet.create({
+  // Des boutons fixes et larges évitent le conflit de gestes entre les deux
+  // ScrollView horizontales et le pager natif de la tablette.
+  ctaSelector:{flexDirection:'row',flexWrap:'wrap',gap:10,marginVertical:8},
+  ctaSelectCard:{borderWidth:1.5,borderColor:'#CBD8E2',backgroundColor:'#FFFFFF',
+    borderRadius:15,minHeight:76,paddingVertical:13,paddingHorizontal:13,
+    width:'48%',justifyContent:'space-between'},
+  ctaSelectAction:{fontSize:12,color:'#A45124',fontWeight:'700',marginTop:7},
+  ctaStepGrid:{flexDirection:'row',flexWrap:'wrap',gap:8,paddingVertical:9,
+    justifyContent:'flex-start'},
+
   ctaIdentity:{padding:12,borderRadius:12,backgroundColor:'#F3F7F9',borderColor:'#D8E3E9',borderWidth:1,marginVertical:6},
   ctaPicker:{gap:7,paddingVertical:7,paddingRight:12},
   ctaChip:{borderRadius:12,borderWidth:1,borderColor:'#D9E2EA',paddingHorizontal:12,
