@@ -563,7 +563,7 @@ export function OptimizedRelevesPanel({
 
   const renderCompteurs = () => (
     <SectionCard picto="rel/compteurs" title="Compteurs"
-      subtitle={remarMinimal?'4 relevés usuels proposés · aucun index présumé':undefined}
+      subtitle={remarMinimal?'4 types usuels · sans index présumé':undefined}
       open={remarMinimal?compteursRemarOuverts:ouvertes.isOpen('compteurs')}
       onToggle={()=>remarMinimal?setCompteursRemarOuverts(v=>!v):ouvertes.toggle('compteurs')}
       done={nbCompteurs} total={compteurs.length}
