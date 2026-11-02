@@ -46,7 +46,7 @@ const ui=read('OptimizedPhotoPanel.js');
 assert.match(ui,/contextePhotoRemar\(p.entite_key,remarPhotoContext\)/);n++;
 assert.match(ui,/remar-cta:/);n++;
 const report=read('reportBuilder.js');
-assert.match(report,/contextePhotoRemar\(photo.entite_key,data.photosRemar\)/);n++;
+assert.match(report,/contextePhotoRemar\((?:key|photo.entite_key),data.photosRemar\)/);n++;
 const field=read('RemarDynamicPanel.js');
 assert.match(field,/entiteKey=\{controlKey\} label=\{photoLabel\}/);n++;
 const visit=read('VisiteScreen.js');
