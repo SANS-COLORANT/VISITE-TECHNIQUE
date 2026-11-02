@@ -12,6 +12,7 @@ import { libelleChamp, libelleSection, listerAliasesPreAllumage } from './preAll
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
 import { creerFichierSaf, dossierVisiteMetra } from './metraStorage.js';
 import { readNetworkProgrammingForVisit } from './networkProgrammingDb.js';
+import { construireRemarDynamiquePourRapport } from './remarDynamicExportDb.js';
 import { networkTemperatureSeries, formatWeeklySchedule, validateWeeklySchedule } from './networkProgramming.js';
 
 const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
@@ -331,6 +332,10 @@ async function construireClasseur(visiteId) {
       : Promise.resolve([]),
   ]);
 
+  const remarDynamic = (trame.familyId || trame.id) === 'remar_v1'
+    ? await construireRemarDynamiquePourRapport(visiteId,trame)
+    : { replacements:new Map(),details:[],ambiguous:[],unsupported:[],hasDynamic:false };
+
   const programmed = await readNetworkProgrammingForVisit(db, visiteId);
   const reseauxExport = reseaux.map((row) => {
     const extra = programmed.get(row.id);
@@ -427,6 +432,24 @@ async function construireClasseur(visiteId) {
     const lookup = `${mapping.sectionCode}||${mapping.cle}`;
     const champ = champsMap.get(lookup);
     const controle = controlesMap.get(lookup);
+    // La nouvelle interface REMAR n'ecrit jamais dans les champs legacy :
+    // projection uniquement lors de l'export, en preservant les anciennes
+    // visites et les cellules officielles deja definies.
+    const replaceDynamic = remarDynamic.replacements.get(
+      [mapping.panelId,mapping.section,mapping.cle].join('||')
+    );
+    if (replaceDynamic) {
+      if (mapping.type==='champ') {
+        if (replaceDynamic.valeur == null || replaceDynamic.valeur === '') viderCellule(mappingSheet,mapping.valueCell);
+        else setCell(mappingSheet,mapping.valueCell,replaceDynamic.valeur);
+      } else {
+        if (replaceDynamic.avis == null || replaceDynamic.avis === '') viderCellule(mappingSheet,mapping.valueCell);
+        else setCell(mappingSheet,mapping.valueCell,replaceDynamic.avis);
+        if (replaceDynamic.commentaire == null || replaceDynamic.commentaire === '') viderCellule(mappingSheet,mapping.commentCell);
+        else setCell(mappingSheet,mapping.commentCell,replaceDynamic.commentaire);
+      }
+      continue;
+    }
     if (mapping.type === 'champ') {
       // Les emplacements fixes « Réseau 1...5 » restent compatibles avec
       // les fichiers REMAR : lorsque l'utilisateur ne les a pas saisis
@@ -495,6 +518,14 @@ async function construireClasseur(visiteId) {
   }
   // On n'écrase aucune case officielle ni aucun autre onglet métier.
   exporterAnnexesDynamiques(wb, trame, reseauxExport, compteurs, photosDynamiques);
+  // Annexe reversiblement identifiable, separee du classeur officiel REMAR.
+  // Aucun champ historique n'est supprime ni deplace.
+  if (remarDynamic.details.length) ajouterAnnexeDynamique(wb,'REMAR_DETAIL',
+    ['Famille','Parent','Parent ID','Element','Element ID','Type','Onglet','Rubrique','Champ','Valeur','Avis','Commentaire','Source visite','Statut'],
+    remarDynamic.details);
+  const remarWarnings = [...remarDynamic.ambiguous,...remarDynamic.unsupported];
+  if (remarWarnings.length) ajouterAnnexeDynamique(wb,'REMAR_AVERTISSEMENTS',
+    ['Point à vérifier'],remarWarnings.map(x=>[x]));
   const tables = cfg.tables || {};
   if (tables.materiel) remplirTable(wb.Sheets[tables.materiel.sheet], materiel, tables.materiel);
   if (tables.remarques) remplirTable(wb.Sheets[tables.remarques.sheet], remarques, tables.remarques);
