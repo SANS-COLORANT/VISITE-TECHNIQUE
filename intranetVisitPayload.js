@@ -1,6 +1,6 @@
 import { getDb } from './db.js';
 import { obtenirTrame } from './trameRegistry.js';
-import { construireRemarDynamiquePourRapport } from './remarDynamicExportDb.js';
+import { construireRemarDynamiquePourRapport, remarDynamicOwnsMapping } from './remarDynamicExportDb.js';
 import { formaterReleves, formaterTemperatureGroupee } from './releveMultiligne.js';
 
 export const INTRANET_MAX_BODY_BYTES = 5 * 1024 * 1024;
@@ -655,20 +655,17 @@ async function buildCriteria(db, visite, details, issues) {
   // sont exposes dans l'annexe Excel mais NE DOIVENT PAS etre perdus lors d'un
   // envoi Intranet : bloquer cet envoi tant que Symfony ne fournit pas de route
   // structuree pour les instances supplementaires.
-  if ((definition.familyId || definition.id) === 'remar_v1') {
+  const isRemar=(definition?.familyId || definition?.id)==='remar_v1';
+  if (isRemar) {
     const remap = await construireRemarDynamiquePourRapport(visite.id,definition);
     if (remap.hasDynamic) {
-      // Le formulaire CTA v1 peut contenir des valeurs copiees lors d'une
-      // precedente visite. Une nouvelle CTA multi-instance les remplace.
-      // Ne JAMAIS envoyer une ancienne valeur comme un constat du jour.
-      if (remap.familyCounts?.cta) {
-        for (const map of definition?.excel?.fieldMappings || []) {
-          if (!['p-remar-cta','p-remar-filtres','p-remar-cta-mesures','p-remar-cta-energie']
-            .includes(map.panelId)) continue;
-          const key=`${map.sectionCode}||${map.cle}`;
-          if (map.type==='controle') controlMap.set(key,{avis:null,commentaire:null});
-          else fieldMap.set(key,null);
-        }
+      // Une seule politique pour Excel et Intranet : aucun ancien champ plat
+      // ne peut prendre la place d'une fiche CTA, VMC, froid ou température.
+      for (const map of definition?.excel?.fieldMappings || []) {
+        if (!remarDynamicOwnsMapping(map,remap)) continue;
+        const key=`${map.sectionCode}||${map.cle}`;
+        if (map.type==='controle') controlMap.set(key,{avis:null,commentaire:null});
+        else fieldMap.set(key,null);
       }
       for (const warning of [...remap.ambiguous,...remap.unsupported]) {
         issues.push(`REMAR dynamique non transmissible sans perte : ${warning}`);
@@ -717,9 +714,27 @@ async function buildCriteria(db, visite, details, issues) {
   }
   const remoteNetworkGroups = capabilities.networks
     ? categories.flatMap((category) => (Array.isArray(category?.sousCategories) ? category.sousCategories : []).filter(isNetworkGroup).map((subCategory) => ({ category, subCategory }))) : [];
-  const networkAssignments = capabilities.networks
+  // REMAR V1 représente ses réseaux dans cinq champs nommés « Réseau 1..5 »,
+  // et non dans les sous-catégories de régulation ICPE/RCU. Ne jamais envoyer
+  // ces cinq noms comme "/" ni exiger des groupes serveur inexistants.
+  const remarFixedNetworks=isRemar && remoteNetworkGroups.length===0;
+  const networkAssignments = capabilities.networks && !remarFixedNetworks
     ? mapNetworksToRemoteGroups(networks, remoteNetworkGroups, networkProvenances, issues)
     : new Map();
+  if (remarFixedNetworks && networks.length>0) {
+    const remoteSlots=new Set(categories.flatMap(category=>
+      (category.sousCategories||[]).flatMap(subCategory=>
+        (subCategory.criteres||[]).map(criterion=>
+          findCandidate(candidates,criterion,category.nom,subCategory.nom))
+        .filter(candidate=>candidate?.panelId==='p-remar-reseaux')
+        .map(candidate=>candidate.cle))));
+    for (let i=0;i<Math.min(networks.length,5);i++) {
+      if (!remoteSlots.has(`Réseau ${i+1}`))
+        issues.push(`Réseau REMAR ${i+1} : aucun critère Intranet officiel correspondant à cette case.`);
+    }
+    if (networks.length>5)
+      issues.push(`Réseaux REMAR : ${networks.length} réseaux saisis, mais seulement cinq cases officielles Intranet V1. Les réseaux supplémentaires restent locaux/Excel jusqu'au contrat multi-réseaux Symfony.`);
+  }
   const result = [];
   const seenRemoteBranches = new Set();
   const seenSummaryTargets = new Set();
@@ -770,12 +785,18 @@ async function buildCriteria(db, visite, details, issues) {
           commentaire = exactComment(temperature, issues, `${path} / commentaire`);
         } else {
           let value;
-          if (isMeterCandidate(candidate, capabilities)) {
+          const remarNetworkSlot=remarFixedNetworks && candidate.panelId==='p-remar-reseaux'
+            ? /^Réseau ([1-5])$/i.exec(String(candidate.cle||'')) : null;
+          if (remarNetworkSlot && networks.length) {
+            const current=networks[Number(remarNetworkSlot[1])-1];
+            value=current?.nom_reseau||null;
+          } else if (isMeterCandidate(candidate, capabilities)) {
             const counter = counterValue(counters, criterion, candidate);
             // Dans les panneaux spécialisés, l'index courant remplace
             // l'ancienne valeur de préremplissage. Les champs génériques
             // restent utilisables s'ils n'ont aucun compteur dynamique.
-            const manualFallback = !candidate.specialPanel || candidate.panelId === 'p-remar-releves' || /^pression\b/.test(candidate.key);
+            const manualFallback = (!candidate.specialPanel || candidate.panelId === 'p-remar-releves' || /^pression\b/.test(candidate.key)) &&
+              !(isRemar && candidate.panelId==='p-remar-releves' && counters.length>0);
             value = counter.status === 'missing' && manualFallback
               ? candidateStoredValue(fieldMap, candidate, issues, path) : counter.value;
           } else {
