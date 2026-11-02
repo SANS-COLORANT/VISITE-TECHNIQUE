@@ -74,6 +74,7 @@ const VisitPanelHost = memo(function VisitPanelHost({
   onRegisterLocalSwipe,
   nextPanel,
   onNextPanel,
+  onRemarActiveCta,
 }) {
   if (special) {
     if (panelId === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
@@ -82,7 +83,8 @@ const VisitPanelHost = memo(function VisitPanelHost({
     if (panelId === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} intranetLinked={intranetLinked} trameId={trameId} />;
     if (panelId === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
   }
-  return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} nextPanel={nextPanel} onNextPanel={onNextPanel} trameId={trameId} />;
+  return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} nextPanel={nextPanel} onNextPanel={onNextPanel} trameId={trameId}
+    onRemarActiveCta={onRemarActiveCta} />;
 });
 
 // « Enregistré il y a 2 min » (court sur téléphone).
@@ -172,6 +174,11 @@ function VisiteScreen({ route, onBack }) {
   const [statutVisible, setStatutVisible] = useState(false);
   const [rechercheVisible, setRechercheVisible] = useState(false);
   const [remarJourneyVisible, setRemarJourneyVisible] = useState(false);
+  const [remarActiveCta, setRemarActiveCta] = useState(null);
+  const noteRemarActiveCta = useCallback((value) => {
+    setRemarActiveCta(old => old?.id===value?.id && old?.designation===value?.designation ? old : value);
+  }, []);
+  useEffect(() => setRemarActiveCta(null), [visiteId]);
 
   const rafraichirEtatOnglets = useCallback(() => {
     calculerEtatOnglets(visiteId, trameIdRef.current)
@@ -794,6 +801,8 @@ function VisiteScreen({ route, onBack }) {
               onRegisterLocalSwipe={trame.id === 'pre_allumage' && panelId === 'p-pa-batiments' ? enregistrerSwipeLocalPreAllumage : undefined}
               nextPanel={nextPanelById[panelId] || null}
               onNextPanel={changerOnglet}
+              onRemarActiveCta={estParcoursRemar && panelId==='p-remar-cta'
+                ? noteRemarActiveCta : undefined}
             />
           </Animated.View>
         </Animated.View>;
@@ -819,7 +828,10 @@ function VisiteScreen({ route, onBack }) {
       // The photo appears in Photos via the shared runtime cache, and never
       // creates a reserve. Moving first avoids an extra navigation step.
       changerOnglet('p-photos');
-      await capturerPhotoLibre(visiteId, (error) => Alert.alert('Photo libre', String(error?.message || error)));
+      await capturerPhotoLibre(visiteId, (error) => Alert.alert('Photo libre', String(error?.message || error)),
+        estParcoursRemar && activeTab==='p-remar-cta' && remarActiveCta?.id
+          ? {entiteKey:`equipement||${remarActiveCta.id}`, label:remarActiveCta.designation}
+          : null);
     } catch (error) {
       Alert.alert('Photo libre', String(error?.message || error));
     } finally {
@@ -905,7 +917,9 @@ function VisiteScreen({ route, onBack }) {
       </View> : animatedContent}
       {!clavierVisible && !modeTablette && ongletsEnBas ? <View style={{ paddingHorizontal: 12, paddingTop: 8, marginBottom: -12 }}><SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} pagerX={pagerX} pagerWidth={pagerWidth} pageOrder={tabsReels} visiteId={visiteId} /></View> : null}
       <AideReglementaireHost />
-      {!clavierVisible ? <VisitActionBar onNote={ouvrirNote} onPhoto={prendrePhotoLibre} photoLabel="Photo libre" onAnomalie={() => setAnomalieVisible(true)} /> : null}
+      {!clavierVisible ? <VisitActionBar onNote={ouvrirNote} onPhoto={prendrePhotoLibre}
+        photoLabel={estParcoursRemar && activeTab==='p-remar-cta' && remarActiveCta?.id
+          ? 'Photo CTA' : 'Photo libre'} onAnomalie={() => setAnomalieVisible(true)} /> : null}
 
       <Modal visible={noteVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Note libre — {trame.nom}</Text>
