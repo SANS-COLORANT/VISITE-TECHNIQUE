@@ -435,24 +435,124 @@ function RemarTemperatures({visiteId,onSaved}) {
   </View>;
 }
 
+function ValidationParCTA({visiteId,equipment,definition,onSaved}) {
+  const [bilan,setBilan]=useState(null);
+  const refresh=useCallback(async()=>{
+    const panels=NOMS_ETAPES_CTA.filter(step=>step.id!=='validation');
+    const [values,filters,measures]=await Promise.all([
+      listerRemarValeurs(visiteId,'equipement',equipment.id),
+      listerRemarItems(visiteId,'filtre_cta',equipment.id),
+      listerRemarItems(visiteId,'mesure_cta',equipment.id),
+    ]);
+    const rows=[];
+    for(const step of panels){
+      const fields=Object.values(definition.ui?.panels?.[step.id]||{}).flat();
+      const own=Object.values(values).filter(v=>v.panel_id===step.id &&
+        v.visite_id===visiteId&&(clean(v.valeur)||clean(v.avis)||clean(v.commentaire)));
+      if(step.id==='p-remar-filtres'||step.id==='p-remar-cta-mesures'){
+        const list=step.id==='p-remar-filtres'?filters:measures;
+        let checked=0,issues=0;
+        for(const item of list){
+          const observations=Object.values(await listerRemarValeurs(visiteId,'item',item.id))
+            .filter(row=>row.visite_id===visiteId);
+          if(observations.some(row=>clean(row.avis)||clean(row.valeur)))checked++;
+          issues+=observations.filter(row=>row.avis==='N.S').length;
+        }
+        rows.push({title:step.nom,total:list.length,done:checked,issues});
+      }else rows.push({title:step.nom,total:fields.length,done:own.length,
+        issues:own.filter(v=>v.avis==='N.S').length});
+    }
+    setBilan(rows);
+  },[visiteId,equipment.id,definition]);
+  useEffect(()=>{refresh().catch(e=>console.warn('Bilan CTA indisponible',e));},[refresh]);
+  return <View style={ui.card}>
+    <Text style={ui.cardTitle}>Vérification · {equipment.designation}</Text>
+    <Text style={ui.note}>Les dernières valeurs reprises servent de référence. Seuls les contrôles réalisés ou les choix explicites de cette visite comptent comme saisis.</Text>
+    {(bilan||[]).map(item=><View key={item.title} style={ui.validationRow}>
+      <Text style={ui.fieldName}>{item.title}</Text>
+      <Text style={ui.note}>{item.done} / {item.total} renseigné(s) pendant cette visite
+        {item.issues ? ` · ${item.issues} N.S` : ''}</Text>
+    </View>)}
+    <Text style={ui.historical}>Aucun contrôle n'est validé automatiquement en S. Vérifie les écarts avant de passer à la CTA suivante.</Text>
+    <TouchableOpacity onPress={()=>{refresh().catch(()=>{});onSaved?.();}} style={ui.addSmall}>
+      <Text style={ui.addText}>Actualiser la vérification</Text>
+    </TouchableOpacity>
+  </View>;
+}
+
 export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'}) {
   const definition = obtenirTrame(trameId);
-  const family=FAMILLE_PAR_ONGLET[panelId];
-  const [equipments,setEquipments]=useState([]),[adding,setAdding]=useState(false);
-  const [busy,setBusy]=useState(false),[selected,setSelected]=useState(null);
+  const family = FAMILLE_PAR_ONGLET[panelId] || null;
+  const cta=family==='cta';
+  const [equipments,setEquipments] = useState([]);
+  const [adding,setAdding] = useState(false);
+  const [busy,setBusy] = useState(false);
+  const [selected,setSelected] = useState(null);
+  const [activeCtaId,setActiveCtaId] = useState(null);
+  const [currentStep,setCurrentStep] = useState(
+    NOMS_ETAPES_CTA.some(x=>x.id===panelId)?panelId:'p-remar-cta'
+  );
   const sections=definition?.ui?.panels?.[panelId]||{};
+  useEffect(()=>{
+    if(cta&&NOMS_ETAPES_CTA.some(x=>x.id===panelId))setCurrentStep(panelId);
+  },[panelId,cta]);
+
   const refresh=useCallback(async()=>{
     if(!family)return;
     const rows=await listerRemarEquipements(visiteId,family);
+    const reportReference=await getRemarEquipementReference(visiteId,family,rows);
     setEquipments(rows);
-    setSelected(await getRemarEquipementReference(visiteId,family,rows));
+    setSelected(reportReference);
+    if(family==='cta'){
+      const persisted=await lireCtaParcours(visiteId);
+      setActiveCtaId(old => rows.some(e=>e.id===old)?old:
+        rows.find(e=>e.id===persisted)?.id || rows[0]?.id || null);
+    }
   },[visiteId,family]);
-  useEffect(()=>{refresh().catch(e=>console.warn('REMAR dynamic screen',e));},[refresh]);
+  useEffect(()=>{refresh().catch(e=>console.warn('REMAR écran dynamique',e));},[refresh]);
+
+  // Le flush est bloquant avant toute navigation CTA. Si SQLite refuse une
+  // ecriture, l'agent reste dans la fiche au lieu de perdre sa modification.
+  const flushAvantNavigation=async()=>{
+    const results=await flushDurableAutosaves();
+    const failure=results.find(result=>result.status==='rejected');
+    if(failure){
+      Alert.alert('Sauvegarde incomplète',
+        String(failure.reason?.message||failure.reason)+'\nRéessaie sans quitter cette fiche.');
+      return false;
+    }
+    return true;
+  };
+  const changeStep=async next=>{
+    if(!await flushAvantNavigation())return;
+    setCurrentStep(next);
+  };
+  const selectCta=async id=>{
+    if(!await flushAvantNavigation())return;
+    try{
+      await choisirCtaParcours(visiteId,id);
+      setActiveCtaId(id);
+      setCurrentStep('p-remar-cta');
+    }catch(e){Alert.alert('Choix CTA impossible',String(e?.message||e));}
+  };
   const create=async name=>{
-    if(busy)return;setBusy(true);
-    try{await creerRemarEquipement(visiteId,family,name);
-      setAdding(false);await refresh();onSaved?.();}
-    catch(e){Alert.alert('Ajout impossible',String(e?.message||e));}
+    if(busy)return;
+    setBusy(true);
+    try{
+      let finalName=name;
+      if(cta&&PRESETS.cta.includes(name)){
+        const present=new Set(equipments.map(e=>clean(e.designation)));
+        let number=1;
+        while(present.has(`CTA ${number} — ${name}`))number++;
+        finalName=`CTA ${number} — ${name}`;
+      }
+      const id=await creerRemarEquipement(visiteId,family,finalName);
+      if(cta){
+        await choisirCtaParcours(visiteId,id);
+        setActiveCtaId(id);setCurrentStep('p-remar-cta');
+      }
+      setAdding(false);await refresh();onSaved?.();
+    }catch(e){Alert.alert('Ajout impossible',String(e?.message||e));}
     finally{setBusy(false);}
   };
   if(panelId==='p-remar-reseaux')return <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled"
@@ -460,17 +560,86 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'})
     <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} embedded networksOnly />
     <LegacyRemarReadOnly visiteId={visiteId} panelId={panelId} sections={sections}/>
   </ScrollView>;
-  if(panelId==='p-remar-releves')return <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={{paddingBottom:30}}>
+  if(panelId==='p-remar-releves')return <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled"
+    contentContainerStyle={{paddingBottom:30}}>
     <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} trameId={trameId}
       panels={definition?.ui?.panels} meterPanelId={panelId} embedded metersOnly remarMinimal />
     <RemarTemperatures visiteId={visiteId} onSaved={onSaved}/>
     <LegacyRemarReadOnly visiteId={visiteId} panelId={panelId} sections={sections}/>
   </ScrollView>;
   if(!family)return null;
+  const activeCta=cta?equipments.find(e=>e.id===activeCtaId)||equipments[0]||null:null;
+  const stepIndex=NOMS_ETAPES_CTA.findIndex(x=>x.id===currentStep);
+  const nextStep=NOMS_ETAPES_CTA[stepIndex+1];
+  if(cta)return <View style={{flex:1}}>
+    <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled" contentContainerStyle={ui.list}>
+      <Text style={ui.groupLabel}>Parcours par CTA</Text>
+      <Text style={ui.note}>Choisis une CTA : ses contrôles, ses filtres, ses mesures et ses améliorations restent regroupés. Les données sont sauvegardées avant tout changement de fiche.</Text>
+      {equipments.length?<ScrollView horizontal showsHorizontalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled" contentContainerStyle={ui.ctaPicker}>
+        {equipments.map((e,index)=><TouchableOpacity key={e.id} accessibilityRole="button"
+          accessibilityState={{selected:activeCta?.id===e.id}}
+          onPress={()=>selectCta(e.id)} style={[ui.ctaChip,activeCta?.id===e.id&&ui.ctaChipSelected]}>
+          <Text style={[ui.ctaChipText,activeCta?.id===e.id&&ui.ctaChipTextSelected]}>
+            CTA {index+1} · {e.designation}
+          </Text>
+        </TouchableOpacity>)}
+      </ScrollView>:<Text style={ui.note}>Aucune CTA constatée dans ce local. Commence par en ajouter une.</Text>}
+      <TouchableOpacity style={ui.addSmall} accessibilityRole="button" onPress={()=>setAdding(true)}>
+        <Text style={ui.addText}>+ Ajouter une CTA</Text>
+      </TouchableOpacity>
+      {activeCta?<>
+        <View style={ui.ctaIdentity}>
+          <Text style={ui.cardTitle}>{activeCta.designation}</Text>
+          <Text style={ui.note}>Parcours de visite individuel · {stepIndex+1} / {NOMS_ETAPES_CTA.length}</Text>
+        </View>
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={ui.ctaPicker}>
+          {NOMS_ETAPES_CTA.map((step,index)=><TouchableOpacity key={step.id}
+            accessibilityRole="button" accessibilityState={{selected:currentStep===step.id}}
+            onPress={()=>changeStep(step.id)}
+            style={[ui.stepChip,currentStep===step.id&&ui.stepChipSelected]}>
+            <Text style={[ui.stepText,currentStep===step.id&&ui.stepTextSelected]}>{index+1}. {step.nom}</Text>
+          </TouchableOpacity>)}
+        </ScrollView>
+        {currentStep==='validation'
+          ? <ValidationParCTA key={activeCta.id} visiteId={visiteId} equipment={activeCta}
+            definition={definition} onSaved={onSaved}/>
+          : <EquipmentCard key={activeCta.id+currentStep}
+            equipment={activeCta} visiteId={visiteId} panelId={currentStep}
+            sections={definition.ui?.panels?.[currentStep]||{}} family="cta"
+            autoOpen onRefresh={refresh} onSaved={onSaved}
+            isReference={selected===activeCta.id}
+            onReference={()=>choisirRemarEquipementReference(visiteId,'cta',activeCta.id)
+              .then(()=>setSelected(activeCta.id))
+              .catch(e=>Alert.alert('Référence Excel impossible',String(e?.message||e)))}/>}
+        <View style={ui.ctaActions}>
+          {stepIndex>0?<TouchableOpacity style={ui.addSmall}
+            onPress={()=>changeStep(NOMS_ETAPES_CTA[stepIndex-1].id)}>
+            <Text style={ui.addText}>Étape précédente</Text>
+          </TouchableOpacity>:null}
+          {nextStep?<TouchableOpacity style={ui.action}
+            onPress={()=>changeStep(nextStep.id)}>
+            <Text style={ui.actionText}>Suivant · {nextStep.nom}</Text>
+          </TouchableOpacity>:<TouchableOpacity style={ui.action} onPress={()=>{
+            const index=equipments.findIndex(e=>e.id===activeCta.id);
+            if(equipments[index+1])selectCta(equipments[index+1].id);
+            else Alert.alert('Parcours CTA parcouru',
+              'Vérifie les points non renseignés. Aucune valeur ou avis n’est confirmé automatiquement.');
+          }}>
+            <Text style={ui.actionText}>Passer à la CTA suivante</Text>
+          </TouchableOpacity>}
+        </View>
+        <LegacyRemarReadOnly visiteId={visiteId} panelId={currentStep}
+          sections={definition.ui?.panels?.[currentStep]||{}}/>
+      </>:null}
+    </ScrollView>
+    <AddSheet visible={adding} title="Ajouter une CTA" disabled={busy}
+      choices={PRESETS.cta} onCancel={()=>setAdding(false)} onCreate={create}/>
+  </View>;
   return <View style={{flex:1}}>
     <FlatList data={equipments} keyExtractor={item=>item.id}
       extraData={selected} contentContainerStyle={ui.list}
-      renderItem={({item})=><EquipmentCard key={item.id+'-'+panelId} equipment={item}
+      renderItem={({item})=><EquipmentCard key={item.id+panelId} equipment={item}
         visiteId={visiteId} panelId={panelId} sections={sections} family={family}
         isReference={selected===item.id}
         onReference={()=>choisirRemarEquipementReference(visiteId,family,item.id)
@@ -490,6 +659,21 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1'})
 }
 
 const ui=StyleSheet.create({
+  ctaIdentity:{padding:12,borderRadius:12,backgroundColor:'#F3F7F9',borderColor:'#D8E3E9',borderWidth:1,marginVertical:6},
+  ctaPicker:{gap:7,paddingVertical:7,paddingRight:12},
+  ctaChip:{borderRadius:12,borderWidth:1,borderColor:'#D9E2EA',paddingHorizontal:12,
+    paddingVertical:12,backgroundColor:'#FFFFFF',minHeight:45,justifyContent:'center'},
+  ctaChipSelected:{borderColor:'#C6531B',backgroundColor:'#FFF0E5'},
+  ctaChipText:{fontSize:13,color:'#304A5D',fontWeight:'600'},
+  ctaChipTextSelected:{color:'#8D4014'},
+  stepChip:{borderWidth:1,borderColor:'#DBE4EA',borderRadius:10,
+    paddingVertical:10,paddingHorizontal:10,minHeight:42,justifyContent:'center'},
+  stepChipSelected:{backgroundColor:'#C6531B',borderColor:'#C6531B'},
+  stepText:{fontSize:12,color:'#405A6A',fontWeight:'600'},
+  stepTextSelected:{color:'#FFFFFF'},
+  ctaActions:{flexDirection:'row',flexWrap:'wrap',alignItems:'center',justifyContent:'space-between',gap:9},
+  validationRow:{paddingVertical:10,borderBottomColor:'#E3E9EC',borderBottomWidth:1},
+
   renameBtn:{marginLeft:8,alignSelf:'center',minHeight:44,justifyContent:'center'},
   missingMeasure:{borderColor:'#DDE5EC',borderWidth:1,borderRadius:12,padding:10,marginVertical:4,backgroundColor:'#FAFBFC'},
   missingLabel:{fontSize:14,color:'#203B50',fontWeight:'700'},
