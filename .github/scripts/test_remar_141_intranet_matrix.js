@@ -119,12 +119,33 @@ function find(panel,cle,section=null){
 
   // Contrôle inverse (le problème A2) : un point local saisi mais absent
   // du catalogue Symfony ne doit pas disparaître du POST comme si de rien.
+  // Les champs de métadonnées dans le panneau Informations sont transportés
+  // par les propriétés localId/trameId/date du POST, pas deux fois comme critères.
+  const metadataRemote=structuredClone(remote);
+  let removedMetadata=0;
+  for(let catIndex=0;catIndex<metadataRemote.categories.length;catIndex++){
+    const [panel,sections]=Object.entries(definition.ui.panels)[catIndex];
+    for(let subIndex=0;subIndex<metadataRemote.categories[catIndex].sousCategories.length;subIndex++){
+      const [section]=Object.entries(sections)[subIndex];
+      const sub=metadataRemote.categories[catIndex].sousCategories[subIndex];
+      const original=sub.criteres.length;
+      sub.criteres=sub.criteres.filter(c=>!sections[section].some(f=>
+        f.cle===c.nom && ['client','site','local','type','dateVisite'].includes(f.meta)));
+      removedMetadata+=original-sub.criteres.length;
+    }
+  }
+  check(removedMetadata>=5,'fixture excludes visit identity from remote criteria');
+  const withoutMetadata=await build({remote:metadataRemote});
+  check(withoutMetadata.issues.length===0,
+    'REMAR visit metadata do not require duplicate Symfony criteria: '+withoutMetadata.issues.join(' | '));
+
   const oneMissing=structuredClone(remote);
-  const first=oneMissing.categories[0].sousCategories[0];
-  const removed=first.criteres.pop();
+  const missingCriterion=remoteIndex.find(r=>r.panelId==='p-remar-cta' && r.m.cle==='Année CTA');
+  for(const cat of oneMissing.categories)for(const sub of cat.sousCategories)
+    sub.criteres=sub.criteres.filter(c=>c.id!==missingCriterion.criterion.id);
   const missing=await build({remote:oneMissing});
-  check(missing.issues.some(x=>x.includes('non couverte par les critères') && x.includes(removed.nom)),
-    'REMAR refuses a local field that has no Symfony destination');
+  check(missing.issues.some(x=>x.includes('non couverte par les critères') && x.includes('Année CTA')),
+    'REMAR refuses a genuine CTA field without any published Symfony criterion');
   const duplicated=structuredClone(remote);
   duplicated.categories[0].sousCategories[0].criteres.push({
     ...duplicated.categories[0].sousCategories[0].criteres[0],id:999999,
@@ -166,6 +187,30 @@ function find(panel,cle,section=null){
   check(outputFor(six,find('p-remar-reseaux','Réseau 5')).commentaire===
     'Réseau 5 : Circuit 5\nRéseau 6 : Circuit 6',
     'network six has its own line in the fifth official cell');
+
+  // Reproduire un serveur REMAR ne proposant pas les cinq cases « Réseau n »
+  // mais un champ texte officiel « Réseaux de chauffage » unique.
+  const oneNetworkCriterion=structuredClone(remote);
+  const netCategoryIndex=Object.keys(definition.ui.panels).indexOf('p-remar-reseaux');
+  const netCategory=oneNetworkCriterion.categories[netCategoryIndex];
+  netCategory.sousCategories.forEach(sub=>sub.criteres=[]);
+  const aggregateId=909090;
+  netCategory.sousCategories[0].criteres.push({
+    id:aggregateId,nom:'Réseaux de chauffage',avisApplicable:false,
+  });
+  const networkSummary=await build({networks,remote:oneNetworkCriterion});
+  check(networkSummary.issues.length===0,
+    'REMAR can use uniquely named Symfony network summary instead of nonexistent numbered slots: '+
+      networkSummary.issues.join(' | '));
+  check(networkSummary.values.find(v=>v.critereId===aggregateId)?.commentaire===
+    'Réseau 1 : Circuit bureau actuel\nRéseau 2 : Circuit gymnase actuel',
+    'single official network criterion groups all named networks with line breaks');
+
+  const noNetworkCriterion=structuredClone(oneNetworkCriterion);
+  noNetworkCriterion.categories[netCategoryIndex].sousCategories[0].criteres=[];
+  const noNetwork=await build({networks,remote:noNetworkCriterion});
+  check(noNetwork.issues.some(v=>v.includes('Réseau REMAR 1')),
+    'REMAR still rejects network data with no confirmed destination at all');
 
   const tooMuchNetwork=await build({networks:[
     {id:'n1',ordre:1,nom_reseau:'Circuit bureaux',tnc:'20',courbe_de_chauffe:'1.1'},
