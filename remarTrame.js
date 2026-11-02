@@ -3335,7 +3335,13 @@ const definition = {
     ],
     "dynamicPanels": {
       "p-remar-reseaux": "networks",
-      "p-remar-releves": "meters"
+      "p-remar-releves": "meters",
+      "p-remar-cta": "cta",
+      "p-remar-filtres": "cta-filters",
+      "p-remar-cta-mesures": "cta-measures",
+      "p-remar-cta-energie": "cta-energy",
+      "p-remar-vmc": "vmc",
+      "p-remar-froid": "cold"
     },
     "tabOrder": [
       "p-infos",
