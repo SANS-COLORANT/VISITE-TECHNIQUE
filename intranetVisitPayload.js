@@ -684,9 +684,15 @@ async function buildCriteria(db, visite, details, issues) {
           const activeFilter=m.panelId==='p-remar-filtres' &&
             m.cle==='Etat du filtre' &&
             remap.replacements.has([m.panelId,m.section,'Type de filtre'].join('||'));
-          if ((isMain||activeFilter) &&
-              (!row||row.inherited||!['S','N.S','N.R','S.O','N.V'].includes(row.avis))) {
-            issues.push(`REMAR CTA / ${m.section} / ${m.cle} : avis non confirmé pendant cette visite. Sélectionne S, N.S, N.R (non vérifié), S.O ou N.V avant l'envoi ; aucun avis n'est inventé.`);
+          if (isMain||activeFilter) {
+            if(!row||row.inherited||!['S','N.S','N.R','S.O','N.V'].includes(row.avis)) {
+              issues.push(`REMAR CTA / ${m.section} / ${m.cle} : avis non confirmé pendant cette visite. Sélectionne S, N.S, N.R (non vérifié), S.O ou N.V avant l'envoi ; aucun avis n'est inventé.`);
+            } else if(row.avis==='N.S' &&
+              (!String(row.commentaire||'').trim() ||
+               /^(?:anomalie|défaut) (?:constaté[ea]?[,;:]?\s*)?(?:à préciser|intervention à préciser)/i.test(String(row.commentaire).trim()) ||
+               /: anomalie constatée[,;:]?\s*(?:intervention |description )?à préciser/i.test(String(row.commentaire)))) {
+              issues.push(`REMAR CTA / ${m.section} / ${m.cle} : l'avis N.S doit préciser un défaut observé. Choisis une proposition technique ou décris le constat avant l'envoi Intranet.`);
+            }
           }
         }
       }
