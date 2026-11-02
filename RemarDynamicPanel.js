@@ -346,6 +346,7 @@ function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefre
   const [values,setValues]=useState({});
   const [children,setChildren]=useState([]);
   const [addChild,setAddChild]=useState(false), [busy,setBusy]=useState(false);
+  const [bulkVisible,setBulkVisible]=useState(false);
   const childType=ENFANT_PAR_ONGLET[panelId] || null;
   const load=useCallback(async ()=>{
     const [v,c]=await Promise.all([
@@ -414,14 +415,9 @@ function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefre
     }catch(e){Alert.alert('Avis rapides non terminés',String(e?.message||e));}
     finally{setBusy(false);}
   };
-  const proposerAvisEnMasse=()=>{
-    Alert.alert('Renseigner les avis manquants',
-      'Les réponses déjà saisies ne seront pas modifiées. Utilise S uniquement pour les points que tu as effectivement contrôlés.',
-      [{text:'Annuler',style:'cancel'},
-        {text:'S — Vérifiés satisfaisants',onPress:()=>bulkAvis('S')},
-        {text:'N.R — Non vérifiés',onPress:()=>bulkAvis('N.R')},
-        {text:'S.O — Sans objet',onPress:()=>bulkAvis('S.O')}]);
-  };
+  // Un Alert Android est limite à trois choix ; le panneau natif offre les
+  // trois avis plus Annuler sans en masquer un sur tablette.
+  const proposerAvisEnMasse=()=>setBulkVisible(true);
   return <View style={ui.card}>
     <View style={ui.header}>
       {rename ? <TextInput autoFocus value={equipmentName} onChangeText={setEquipmentName}
@@ -447,6 +443,23 @@ function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefre
             onPress={proposerAvisEnMasse} style={ui.addSmall}>
           <Text style={ui.addText}>Avis rapides · renseigner uniquement les contrôles sans réponse</Text>
         </TouchableOpacity> : null}
+      <BottomSheet visible={bulkVisible} onClose={()=>setBulkVisible(false)}
+        title="Avis rapides de cette CTA" maxHeight="65%">
+        <Text style={ui.note}>Seuls les contrôles sans avis confirmé pendant cette visite seront renseignés. Les observations déjà saisies restent intactes.</Text>
+        <Text style={ui.note}>Choisir S confirme le résultat des contrôles : ne le sélectionne que si ces points ont réellement été vérifiés.</Text>
+        {[
+          {avis:'S',label:'S · Contrôles vérifiés et satisfaisants',color:COLORS.green,bg:COLORS.greenBg},
+          {avis:'N.R',label:'N.R · Contrôles non réalisés',color:COLORS.inkSoft,bg:COLORS.bg},
+          {avis:'S.O',label:'S.O · Sans objet',color:COLORS.inkSoft,bg:COLORS.bg},
+        ].map(option=><TouchableOpacity key={option.avis} accessibilityRole="button"
+          style={[ui.choice,{borderColor:option.color,backgroundColor:option.bg}]}
+          onPress={()=>{setBulkVisible(false);bulkAvis(option.avis).catch(e=>Alert.alert('Avis rapides',String(e?.message||e)));}}>
+          <Text style={[ui.choiceText,{color:option.color}]}>{option.label}</Text>
+        </TouchableOpacity>)}
+        <TouchableOpacity onPress={()=>setBulkVisible(false)} style={ui.choice}>
+          <Text style={ui.choiceText}>Annuler</Text>
+        </TouchableOpacity>
+      </BottomSheet>
       {showFields ? reservedFields.map(({section,field})=><FieldRow key={section+field.cle}
         item={field} ownerType="equipement" ownerId={equipment.id} panelId={panelId}
         equipmentLabel={equipmentName} section={section} visiteId={visiteId} saved={values} onSaved={onSaved} />) : null}
