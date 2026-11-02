@@ -734,6 +734,31 @@ async function buildCriteria(db, visite, details, issues) {
     }
     if (networks.length>5)
       issues.push(`Réseaux REMAR : ${networks.length} réseaux saisis, mais seulement cinq cases officielles Intranet V1. Les réseaux supplémentaires restent locaux/Excel jusqu'au contrat multi-réseaux Symfony.`);
+    for(const network of networks){
+      const technicalColumns=[
+        't_ext_c','t_dep_c','courbe_de_chauffe','tnc','consigne_programme_horaire',
+      ].filter(column=>meaningfulRemote(network[column])!==null);
+      if(technicalColumns.length)issues.push(
+        `Réseau REMAR « ${clean(network.nom_reseau)||network.id} » : données techniques non représentables dans les cinq cellules de noms du contrat Symfony V1 (${technicalColumns.join(', ')}). Conserver dans Excel et activer un contrat réseaux explicite.`);
+    }
+  }
+  if(isRemar && counters.length){
+    // Le texte d'un compteur sans destination peut encore être conservé en
+    // annexe Excel, mais aucun critère de l'Intranet ne l'acceptera
+    // automatiquement. Refus au lieu d'une suppression silencieuse.
+    const destinations=(definition?.excel?.fieldMappings||[])
+      .filter(m=>m.panelId==='p-remar-releves' && m.section==='Compteur')
+      .map(m=>m.cle);
+    for(const counter of counters){
+      if(!meaningfulRemote(counter.valeur))continue;
+      const explicit=clean(counter.destination);
+      const legacyMatches=destinations.filter(dest=>
+        cleanCounterLabel(dest)===cleanCounterLabel(counter.label));
+      if(explicit==='supplementaire' ||
+         (explicit && !destinations.includes(explicit)) ||
+         (!explicit && legacyMatches.length!==1))
+        issues.push(`Compteur REMAR « ${clean(counter.label)||counter.id} » : relevé sans destination Intranet unique (${explicit||'aucune'}). Aucune valeur supplémentaire ne doit disparaître du POST.`);
+    }
   }
   const result = [];
   const seenRemoteBranches = new Set();
