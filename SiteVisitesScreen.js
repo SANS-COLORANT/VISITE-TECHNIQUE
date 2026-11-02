@@ -12,6 +12,7 @@ import { supprimerVisiteComplete } from './entityManagementDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
 import { listerTramesDisponibles, obtenirTrame, tramePourNouvelleVisite, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
+import { getCachedStructureReferential, syncStructureReferential } from './intranetStructureDb.js';
 import { SiteOverviewPanel } from './SiteOverviewPanel.js';
 import { exporterVisitesExcelEnLot } from './batchExcel.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
@@ -67,6 +68,9 @@ function SiteVisitesScreen({ route, navigation }) {
   const [choixModeVisible, setChoixModeVisible] = useState(false);
   const [trameChoisie, setTrameChoisie] = useState(() => apiRemoteLocalId ? apiSuggestedTrameId : DEFAULT_TRAME_ID);
   const [creationEnCours, setCreationEnCours] = useState(false);
+  const [remoteTrames, setRemoteTrames] = useState([]);
+  const [remoteTrameChoisie, setRemoteTrameChoisie] = useState(() => apiRemoteTrame?.id ? String(apiRemoteTrame.id) : null);
+  const [referentielEnCours, setReferentielEnCours] = useState(false);
   const [gpsVisible, setGpsVisible] = useState(false);
   const [adresseRue, setAdresseRue] = useState('');
   const [ville, setVille] = useState('');
@@ -80,6 +84,7 @@ function SiteVisitesScreen({ route, navigation }) {
   const autoOpenHandled = useRef(false);
   const listRef = useRef(null);
   const tramesDisponibles = listerTramesDisponibles();
+  const remoteTramesCompatibles = remoteTrames.filter((t) => mapRemoteTrameToLocal(t) === trameChoisie);
 
   const construirePreview = useCallback((visite = {}) => ({
     ...visite,
@@ -164,9 +169,31 @@ function SiteVisitesScreen({ route, navigation }) {
     return () => clearTimeout(timer);
   }, [scrollKey, visites.length, siteTab]);
   useEffect(() => {
+    if (!choixModeVisible || !apiRemoteLocalId || !apiRemoteClientId) return;
+    let alive = true;
+    setReferentielEnCours(true);
+    (async () => {
+      const reference = await getCachedStructureReferential(apiRemoteClientId)
+        || await syncStructureReferential(apiRemoteClientId);
+      if (!alive) return;
+      const choices = Array.isArray(reference?.trames) ? reference.trames.filter((t) => /^\d+$/.test(String(t?.id ?? '')) && Number(t.id) > 0) : [];
+      setRemoteTrames(choices);
+      setRemoteTrameChoisie((previous) => {
+        if (choices.some((t) => String(t.id) === previous && mapRemoteTrameToLocal(t) === trameChoisie)) return previous;
+        if (choices.some((t) => String(t.id) === String(apiRemoteTrame?.id) && mapRemoteTrameToLocal(t) === trameChoisie)) return String(apiRemoteTrame.id);
+        const matching = choices.filter((t) => mapRemoteTrameToLocal(t) === trameChoisie);
+        return matching.length === 1 ? String(matching[0].id) : null;
+      });
+    })().catch((error) => { if (alive) Alert.alert('Référentiel Intranet indisponible', String(error?.message || error)); })
+      .finally(() => { if (alive) setReferentielEnCours(false); });
+    return () => { alive = false; };
+  }, [choixModeVisible, apiRemoteLocalId, apiRemoteClientId]);
+
+  useEffect(() => {
     if (!params.openNewVisit || !apiRemoteLocalId || autoOpenHandled.current) return;
     autoOpenHandled.current = true;
     setTrameChoisie(apiSuggestedTrameId);
+    setRemoteTrameChoisie(apiRemoteTrame?.id ? String(apiRemoteTrame.id) : null);
     setChoixModeVisible(true);
   }, [params.openNewVisit, apiRemoteLocalId, apiSuggestedTrameId]);
 
@@ -178,6 +205,7 @@ function SiteVisitesScreen({ route, navigation }) {
     }
     if (apiRemoteLocalId) {
       setTrameChoisie(apiSuggestedTrameId);
+      setRemoteTrameChoisie(apiRemoteTrame?.id ? String(apiRemoteTrame.id) : null);
     } else {
       const derniereTrame = visites[0]?.trame_id;
       setTrameChoisie(tramePourNouvelleVisite(derniereTrame || DEFAULT_TRAME_ID)?.id || DEFAULT_TRAME_ID);
@@ -196,9 +224,15 @@ function SiteVisitesScreen({ route, navigation }) {
     const trameId = mode === 'express'
       ? (visites[0]?.trame_id || trameChoisie || DEFAULT_TRAME_ID)
       : (trameChoisie || DEFAULT_TRAME_ID);
+    if (apiRemoteLocalId && (referentielEnCours || !remoteTrameChoisie ||
+      !remoteTrames.some((t) => String(t.id) === remoteTrameChoisie && mapRemoteTrameToLocal(t) === trameId))) {
+      Alert.alert('Trame Intranet à sélectionner', 'Choisis une trame Symfony compatible dans le référentiel du client avant de créer cette visite.');
+      return;
+    }
     setCreationEnCours(true);
     try {
-      const visiteId = await creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId, installationId });
+      const visiteId = await creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId,
+        apiRemoteTrameId: apiRemoteLocalId ? remoteTrameChoisie : null, installationId });
       const previewBase = construirePreview({
         id: visiteId,
         site_id: siteId,
@@ -445,11 +479,23 @@ function SiteVisitesScreen({ route, navigation }) {
           {apiRemoteLocalId && !apiSuggestedTrameId ? <Text style={{ color: '#9A4C0A', fontSize: 11.5, marginBottom: 8 }}>Aucune correspondance sûre détectée : sélectionne la bonne trame METRA.</Text> : null}
           {tramesDisponibles.map((trame) => {
             const selected = trameChoisie === trame.id;
-            return <TouchableOpacity key={trame.id} disabled={creationEnCours} style={[styles.visitModeCard, selected && { borderColor: COLORS.primary, backgroundColor: '#FFF7EF' }]} onPress={() => setTrameChoisie(trame.id)}><IconOrb accent={selected ? COLORS.primary : COLORS.inkSoft} light={selected ? '#FFF3E8' : COLORS.bg} size={42}><CvcIcon name={selected ? 'control' : 'document'} size={20} color={selected ? COLORS.primary : COLORS.inkSoft} /></IconOrb><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{trame.nom}</Text><Text style={styles.visitModeText}>{trame.description || `Trame ${trame.nom}`}</Text></View></TouchableOpacity>;
+            return <TouchableOpacity key={trame.id} disabled={creationEnCours} style={[styles.visitModeCard, selected && { borderColor: COLORS.primary, backgroundColor: '#FFF7EF' }]} onPress={() => { setTrameChoisie(trame.id); const matching = remoteTrames.filter((t) => mapRemoteTrameToLocal(t) === trame.id); setRemoteTrameChoisie(apiRemoteLocalId ? (matching.length === 1 ? String(matching[0].id) : null) : null); }}><IconOrb accent={selected ? COLORS.primary : COLORS.inkSoft} light={selected ? '#FFF3E8' : COLORS.bg} size={42}><CvcIcon name={selected ? 'control' : 'document'} size={20} color={selected ? COLORS.primary : COLORS.inkSoft} /></IconOrb><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{trame.nom}</Text><Text style={styles.visitModeText}>{trame.description || `Trame ${trame.nom}`}</Text></View></TouchableOpacity>;
           })}
+          {apiRemoteLocalId ? <View style={{ marginTop: 12 }}>
+            <Text style={[styles.fieldLabel, { marginBottom: 6 }]}>Trame Intranet (identifiant Symfony)</Text>
+            {referentielEnCours ? <Text style={{ color: COLORS.muted }}>Chargement du référentiel…</Text> : null}
+            {!referentielEnCours && !remoteTramesCompatibles.length ? <Text style={{ color: '#9A4C0A' }}>Aucune trame Symfony compatible disponible. Actualise le référentiel du client.</Text> : null}
+            {remoteTramesCompatibles.map((remote) => {
+              const selected = remoteTrameChoisie === String(remote.id);
+              return <TouchableOpacity key={String(remote.id)} disabled={creationEnCours} onPress={() => setRemoteTrameChoisie(String(remote.id))}
+                style={[styles.visitModeCard, selected && { borderColor: COLORS.primary, backgroundColor: '#FFF7EF' }]}>
+                <Text style={{ color: COLORS.ink, fontFamily: FONTS.bodyBold }}>{selected ? '● ' : '○ '}{remote.nom} · ID {remote.id}</Text>
+              </TouchableOpacity>;
+            })}
+          </View> : null}
           <Text style={[styles.fieldLabel, { marginTop: 14, marginBottom: 8 }]}>Mode</Text>
           {!apiRemoteLocalId ? <TouchableOpacity style={[styles.visitModeCard, visites.length === 0 && { opacity: 0.45 }]} disabled={visites.length === 0 || creationEnCours} onPress={() => nouvelleVisite('express')}><IconOrb accent={COLORS.orangeDark} light={COLORS.orangeLight} size={42}><CvcIcon name="flash" size={20} color={COLORS.orangeDark} /></IconOrb><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite Express</Text><Text style={styles.visitModeText}>{visites.length === 0 ? 'Disponible après une première visite complète.' : 'Reprend automatiquement la trame de la dernière visite et les informations stables.'}</Text></View></TouchableOpacity> : null}
-          <TouchableOpacity style={[styles.visitModeCard, (!trameChoisie || creationEnCours) && { opacity: 0.55 }]} disabled={!trameChoisie || creationEnCours} onPress={() => nouvelleVisite('complete')}><IconOrb accent={COLORS.orangeDark} light={COLORS.orangeLight} size={42}><CvcIcon name="document" size={20} color={COLORS.orangeDark} /></IconOrb><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{creationEnCours ? 'Préparation…' : 'Visite complète'}</Text><Text style={styles.visitModeText}>{apiRemoteLocalId ? 'Démarre sur le local sélectionné avec son patrimoine courant, sans recopier les constats historiques.' : 'Parcourt toute la trame sélectionnée pour une première visite ou un audit détaillé.'}</Text></View></TouchableOpacity>
+          <TouchableOpacity style={[styles.visitModeCard, (!trameChoisie || creationEnCours || (apiRemoteLocalId && (!remoteTrameChoisie || referentielEnCours))) && { opacity: 0.55 }]} disabled={!trameChoisie || creationEnCours || (apiRemoteLocalId && (!remoteTrameChoisie || referentielEnCours))} onPress={() => nouvelleVisite('complete')}><IconOrb accent={COLORS.orangeDark} light={COLORS.orangeLight} size={42}><CvcIcon name="document" size={20} color={COLORS.orangeDark} /></IconOrb><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{creationEnCours ? 'Préparation…' : 'Visite complète'}</Text><Text style={styles.visitModeText}>{apiRemoteLocalId ? 'Démarre sur le local sélectionné avec son patrimoine courant, sans recopier les constats historiques.' : 'Parcourt toute la trame sélectionnée pour une première visite ou un audit détaillé.'}</Text></View></TouchableOpacity>
           <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10 }]} disabled={creationEnCours} onPress={() => setChoixModeVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
         </ScrollView></View></View>
       </Modal>
