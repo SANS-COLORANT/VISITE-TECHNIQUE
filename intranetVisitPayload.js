@@ -1,5 +1,6 @@
 import { getDb } from './db.js';
 import { obtenirTrame } from './trameRegistry.js';
+import { construireRemarDynamiquePourRapport } from './remarDynamicExportDb.js';
 import { formaterReleves, formaterTemperatureGroupee } from './releveMultiligne.js';
 
 export const INTRANET_MAX_BODY_BYTES = 5 * 1024 * 1024;
@@ -649,6 +650,34 @@ async function buildCriteria(db, visite, details, issues) {
   const isTemperature = isTemperatureCandidate;
   const fieldMap = new Map(fields.map((row) => [`${row.section_code}||${row.cle}`, row.valeur]));
   const controlMap = new Map(controls.map((row) => [`${row.section_code}||${row.cle}`, row]));
+  // REMAR multi-instance: injecter seulement les fiches identifiees sans
+  // ambiguite dans les anciennes destinations officielles. Les autres points
+  // sont exposes dans l'annexe Excel mais NE DOIVENT PAS etre perdus lors d'un
+  // envoi Intranet : bloquer cet envoi tant que Symfony ne fournit pas de route
+  // structuree pour les instances supplementaires.
+  if ((definition.familyId || definition.id) === 'remar_v1') {
+    const remap = await construireRemarDynamiquePourRapport(visite.id,definition);
+    if (remap.hasDynamic) {
+      for (const warning of [...remap.ambiguous,...remap.unsupported]) {
+        issues.push(`REMAR dynamique non transmissible sans perte : ${warning}`);
+      }
+      const byOfficial = new Map((definition?.excel?.fieldMappings||[])
+        .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
+      for (const [key,value] of remap.replacements) {
+        const mapping = byOfficial.get(key);
+        if (!mapping) {
+          issues.push(`REMAR : correspondance officielle introuvable pour ${key}.`);
+          continue;
+        }
+        const storageKey = `${mapping.sectionCode}||${mapping.cle}`;
+        if (mapping.type==='controle') {
+          controlMap.set(storageKey,{avis:value.avis??null,commentaire:value.commentaire??null});
+        } else {
+          fieldMap.set(storageKey,value.valeur??null);
+        }
+      }
+    }
+  }
   const remoteNetworkGroups = capabilities.networks
     ? categories.flatMap((category) => (Array.isArray(category?.sousCategories) ? category.sousCategories : []).filter(isNetworkGroup).map((subCategory) => ({ category, subCategory }))) : [];
   const networkAssignments = capabilities.networks
