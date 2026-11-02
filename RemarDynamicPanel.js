@@ -404,24 +404,34 @@ function RemarTemperatures({visiteId,onSaved}) {
     const rows=await listerRemarItems(visiteId,'temperature_chaufferie');
     setItems(await Promise.all(rows.map(async r=>({...r,data:await listerRemarValeurs(visiteId,'item',r.id)}))));
   },[visiteId]);
-  useEffect(()=>{refresh().catch(e=>console.warn('Temperatures REMAR',e));},[refresh]);
-  const add=async name=>{
+  useEffect(()=>{refresh().catch(e=>console.warn('Températures REMAR',e));},[refresh]);
+  const add=async (name,status=null)=>{
     if(busy)return;setBusy(true);
-    try{await creerRemarItem(visiteId,{typeCode:'temperature_chaufferie',nom:name,unite:'°C'});
-      setNewVisible(false);await refresh();onSaved?.();}
-    catch(e){Alert.alert('Ajout impossible',String(e?.message||e));}
+    try{
+      const id=await creerRemarItem(visiteId,{typeCode:'temperature_chaufferie',nom:name,unite:'°C'});
+      if(status)await enregistrerRemarValeur(visiteId,{
+        ownerType:'item',ownerId:id,panelId:'p-remar-releves',
+        sectionCode:'temperature_chaufferie',cle:'Valeur',valeur:null,avis:status,
+        commentaire:status==='N.R'?'Température non relevée.':status==='S.O'?'Mesure sans objet pour ce local.':'Point inaccessible ou non visible.',
+      });
+      setNewVisible(false);await refresh();onSaved?.();
+    }catch(e){Alert.alert('Ajout impossible',String(e?.message||e));}
     finally{setBusy(false);}
   };
+  const normalized = v => clean(v).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const missing = TEMPERATURES_REMAR_USUELLES.filter(name=>!items.some(i=>normalized(i.nom)===normalized(name)));
   return <View style={ui.group}>
-    <Text style={ui.groupLabel}>Températures</Text>
+    <Text style={ui.groupLabel}>Températures usuelles</Text>
+    <Text style={ui.note}>Primaire aller/retour, chauffage aller/retour, ECS départ/bouclage/stockage. Les lignes non relevées sont seulement des raccourcis, pas des mesures inventées.</Text>
     {items.map(item=><ChildRow key={item.id} visiteId={visiteId} item={item}
       typeCode="temperature_chaufferie" data={item.data} onRefresh={refresh} onSaved={onSaved} />)}
-    <TouchableOpacity accessibilityRole="button" style={ui.action} onPress={()=>setNewVisible(true)}>
-      <Text style={ui.actionText}>+ Ajouter une température</Text>
+    {missing.map(name=><MesureRapide key={name} nom={name} busy={busy} onCreate={add}/>)}
+    <TouchableOpacity accessibilityRole="button" style={ui.addSmall} onPress={()=>setNewVisible(true)}>
+      <Text style={ui.addText}>+ Autre température</Text>
     </TouchableOpacity>
-    <AddSheet visible={newVisible} title="Ajouter une température"
-      choices={PRESETS.temperature_chaufferie} disabled={busy}
-      onCancel={()=>setNewVisible(false)} onCreate={add}/>
+    <AddSheet visible={newVisible} title="Ajouter une autre température"
+      choices={['Température extérieure','Autre température','Ballon haut','Ballon bas']}
+      disabled={busy} onCancel={()=>setNewVisible(false)} onCreate={nom=>add(nom)}/>
   </View>;
 }
 
