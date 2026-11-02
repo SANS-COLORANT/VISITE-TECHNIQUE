@@ -784,6 +784,24 @@ function groupRemarDetailsForIntranet(projection, definition, issues) {
     }
   }
 
+  // En présence de plusieurs CTA, une case regroupée ne doit pas
+  // sous-entendre que les contrôles d'une deuxième CTA ont été réalisés.
+  // Mêmes exigences de confirmation que pour une CTA seule.
+  if(cta.length>1){
+    for(const [id,parent] of cta){
+      for(const panel of ['p-remar-cta','p-remar-cta-energie']){
+        for(const [section,items] of Object.entries(definition?.ui?.panels?.[panel]||{})){
+          for(const item of items.filter(x=>x.type==='controle')){
+            const target=key(panel,section,item.cle);
+            const rowsForParent=groups.get(target)?.entries.filter(x=>x.id===id)||[];
+            if(!rowsForParent.some(x=>['S','N.S','N.R','S.O','N.V'].includes(x.avis)))
+              report(parent.name+' / '+item.cle,'avis non confirmé lors de cette visite');
+          }
+        }
+      }
+    }
+  }
+
   const result=new Map();
   const priority=['N.S','N.R','N.V','S','S.O'];
   const displayValue=e=>{
