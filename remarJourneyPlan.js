@@ -4,9 +4,9 @@ export const REMAR_JOURNEY_GROUPS = Object.freeze([
     'p-infos', 'p-remar-reseaux', 'p-conf-local', 'p-conf-chauffage',
     'p-conf-ecs', 'p-distrib', 'p-remar-releves', 'p-remar-energie',
   ] },
-  { id: 'cta', label: 'Traitement d’air · CTA', ids: [
-    'p-remar-cta', 'p-remar-filtres', 'p-remar-cta-mesures', 'p-remar-cta-energie',
-  ] },
+  // Filtration, mesures et améliorations sont des étapes de la fiche CTA,
+  // plus des onglets au niveau de la visite.
+  { id: 'cta', label: 'Traitement d’air · CTA', ids: ['p-remar-cta'] },
   { id: 'vmc', label: 'Ventilation · VMC', ids: ['p-remar-vmc'] },
   { id: 'froid', label: 'Production de froid', ids: ['p-remar-froid'] },
   { id: 'fin', label: 'Équipements et rapport', ids: ['p-equip', 'p-remarques', 'p-photos'] },
