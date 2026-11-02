@@ -468,7 +468,11 @@ test('REMAR_DETAIL restitue 2 CTA, filtres, mesures, VMC, froid et temperatures 
   assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk,true);
 
   const invalid=roundtrip(sourceBook);
-  invalid.Sheets.REMAR_DETAIL.J3={t:'s',v:'Valeur contradictoire'};
-  assert.throws(()=>analyserClasseur(invalid,'remar-corrompu.xlsx'),/doublon contradictoire|identité d.objet change|hors définition|REMAR_DETAIL/,
-    'tampering with REMAR_DETAIL must be rejected instead of silently imported');
+  const records=XLSX.utils.sheet_to_json(invalid.Sheets.REMAR_DETAIL,{header:1,defval:''});
+  const contradict=[...records.find(row=>row[3]==='CTA gymnase'&&row[8]==='Année CTA')];
+  contradict[9]='1900';
+  records.push(contradict);
+  invalid.Sheets.REMAR_DETAIL=XLSX.utils.aoa_to_sheet(records);
+  assert.throws(()=>analyserClasseur(invalid,'remar-corrompu.xlsx'),/doublon contradictoire/,
+    'a contradicting second record with same stable identity is rejected before import');
 });
