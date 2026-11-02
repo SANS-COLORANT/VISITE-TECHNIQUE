@@ -547,7 +547,7 @@ async function construireClasseur(visiteId) {
   // Annexe reversiblement identifiable, separee du classeur officiel REMAR.
   // Aucun champ historique n'est supprime ni deplace.
   if (remarDynamic.details.length) ajouterAnnexeDynamique(wb,'REMAR_DETAIL',
-    ['Famille','Parent','Parent ID','Element','Element ID','Type','Onglet','Rubrique','Champ','Valeur','Avis','Commentaire','Source visite','Statut'],
+    ['Famille','Parent','Parent ID','Element','Element ID','Type','Onglet','Rubrique','Champ','Valeur','Avis','Commentaire','Source visite','Statut','Unité'],
     remarDynamic.details);
   const remarWarnings = [...remarDynamic.ambiguous,...remarDynamic.unsupported];
   if (remarWarnings.length) ajouterAnnexeDynamique(wb,'REMAR_AVERTISSEMENTS',
