@@ -88,6 +88,7 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
       const owner={famille:family,parentName:'',parentId:parent.id,nom:parent.designation||family,
         id:parent.id,type:'equipement'};
       const values=await listerRemarValeurs(visiteId,'equipement',parent.id);
+      const accounted=new Set();
       const isFocus=parent.id===focusedId;
       // L'annexe doit toujours identifier une CTA/caisson présent, même
       // lorsqu'aucune valeur n'a été relevée dans cette visite.
@@ -107,6 +108,7 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
             if (family==='vmc' && field.cle==='Nombre de caissons') continue;
             const row=itemValue(values,panel,section,field.cle);
             if (!row) continue;
+            accounted.add(key(panel,section,field.cle));
             hasDynamic=true;
             addInfo(details,owner,{panel,section,cle:field.cle},row);
             if(isFocus) projectOfficial(panel,section,field.cle,
@@ -114,6 +116,15 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
             else if(hasData(row) && !row.inherited)unsupported.push(`${owner.nom} / ${field.cle} : donnee additionnelle non representable dans une case officielle unique.`);
           }
         }
+      }
+      // Une trame éditable peut enregistrer des champs supplémentaires. Les
+      // restituer en annexe ET refuser une transmission V1 silencieusement
+      // incomplète ; ne pas les jeter parce qu'ils ne sont pas dans les 141.
+      for (const [storageKey,row] of Object.entries(values)) {
+        if(accounted.has(storageKey))continue;
+        addInfo(details,owner,{panel:row.panel_id,section:row.section_code,cle:row.cle},row);
+        if(hasData(row) && !row.inherited)
+          unsupported.push(`${owner.nom} : champ dynamique non présent au référentiel officiel (${row.panel_id} / ${row.cle}).`);
       }
       for(const type of childTypes[family]) {
         const items=await listerRemarItems(visiteId,type,parent.id);
@@ -125,6 +136,8 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
           hasDynamic=true;
           const panel=type==='filtre_cta'?'p-remar-filtres':type==='mesure_cta'?'p-remar-cta-mesures':'p-remar-froid';
           const rowKeys=Object.values(childValues);
+          const accepted=new Set();
+          const markAccepted=cle=>accepted.add(key(panel,type,cle));
           // Chaque enfant figure dans l'annexe meme s'il n'a pas de valeur.
           if(!rowKeys.length) addInfo(details,dataOwner,{panel,section:type,cle:'Type / presence'},
             {valeur:child.nom});
@@ -135,6 +148,8 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
               // Le nom de la fiche est distinct de sa classe de filtration :
               // un filtre nommé 'Filtre soufflage n°2' de classe F7 doit exporter F7.
               const classe=itemValue(childValues,panel,type,'Classe de filtration');
+              markAccepted('Classe de filtration');
+              markAccepted('Etat du filtre');
               projectOfficial(panel,sec,'Type de filtre',null,
                 {valeur:classe?valeurOfficielleRemar(classe):child.nom});
               projectOfficial(panel,sec,'Etat du filtre',
@@ -143,13 +158,29 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
           } else if(type==='mesure_cta') {
             const target=destinationMesureCTA(child.nom);
             const row=itemValue(childValues,panel,type,'Valeur');
-            if(isFocus && target && row) projectOfficial(panel,target[0],target[1],
-              {...row,valeur:valeurOfficielleRemar(row)});
+            if(isFocus && target && row) {
+              markAccepted('Valeur');
+              projectOfficial(panel,target[0],target[1],
+                {...row,valeur:valeurOfficielleRemar(row)});
+            }
             else if(hasData(row) && !row.inherited && (!isFocus || !target))
               unsupported.push(`Mesure CTA non representable : ${dataOwner.parentName} / ${child.nom}`);
           } else if(type==='reseau_froid') {
             if(isFocus && idx<3) projectOfficial(panel,'Réseaux',`Réseau ${idx+1}`,null,{valeur:child.nom});
             else unsupported.push(`Reseau froid supplementaire : ${dataOwner.parentName} / ${child.nom}`);
+          }
+          // Les colonnes officiellement mappées sont parfois des champs
+          // texte simples sans colonne commentaire ; si la donnée possède
+          // un constat complémentaire, celui-ci reste dans REMAR_DETAIL,
+          // mais Symfony V1 ne peut pas le représenter complètement.
+          for (const [valueKey,value] of Object.entries(childValues)) {
+            if(!hasData(value) || value.inherited)continue;
+            const hasExtra=accepted.has(valueKey) && (
+              (value.commentaire && String(value.commentaire).trim()) ||
+              (type==='filtre_cta'&&value.cle==='Classe de filtration' && value.avis)
+            );
+            if(!accepted.has(valueKey) || hasExtra)
+              unsupported.push(`${dataOwner.parentName} / ${dataOwner.nom} : valeur ou observation non représentable dans une cellule officielle (${value.cle}).`);
           }
         }
       }
@@ -167,9 +198,19 @@ export async function construireRemarDynamiquePourRapport(visiteId, definition) 
     hasDynamic=true;
     addInfo(details,owner,{panel:'p-remar-releves',section:'Température chaufferie',cle:'Valeur'},row||{valeur:''});
     const dest=temperatureCell[norm(item.nom)];
-    if(dest&&row) projectOfficial('p-remar-releves','Température chaufferie',dest,
-      {...row,valeur:valeurOfficielleRemar(row)});
-    else if(!dest&&hasData(row) && !row.inherited) unsupported.push(`Temperature complementaire : ${item.nom}`);
+    if(dest&&row) {
+      projectOfficial('p-remar-releves','Température chaufferie',dest,
+        {...row,valeur:valeurOfficielleRemar(row)});
+      if(!row.inherited && String(row.commentaire||'').trim())
+        unsupported.push(`Température ${item.nom} : commentaire impossible à transporter dans une cellule officielle de mesure.`);
+    } else if(!dest&&hasData(row) && !row.inherited)
+      unsupported.push(`Temperature complementaire : ${item.nom}`);
+    for (const other of Object.values(values)) {
+      if(other===row)continue;
+      addInfo(details,owner,{panel:other.panel_id,section:other.section_code,cle:other.cle},other);
+      if(hasData(other) && !other.inherited)
+        unsupported.push(`Température ${item.nom} : champ supplémentaire non prévu (${other.cle}).`);
+    }
   }
   return {replacements,details,unsupported:[...new Set(unsupported)],ambiguous,hasDynamic,
     familyCounts,temperaturesCount:temperatures.length};
