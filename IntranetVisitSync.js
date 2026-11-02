@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Share, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import {
@@ -47,6 +47,32 @@ function localBindingFeedback(error) {
   return issues.length
     ? `${error?.message || 'Visite non envoyable'}\n\n${issues.slice(0, 7).map((x) => `• ${x}`).join('\n')}${issues.length > 7 ? `\n• … ${issues.length - 7} autre(s)` : ''}`
     : String(error?.message || error || 'Visite non envoyable');
+}
+
+/**
+ * A local preflight may report dozens of independent field-level reasons.
+ * Android Alert truncates long text; sharing the complete diagnostic is a
+ * user-initiated action. No visit data, credentials or HTTP payload are sent.
+ */
+function showLocalBindingAlert(title, error) {
+  const issues = Array.isArray(error?.issues) ? error.issues : [];
+  const preview = localBindingFeedback(error);
+  if (!issues.length) {
+    Alert.alert(title, preview);
+    return;
+  }
+  const fullReport = [
+    title,
+    String(error?.message || 'Validation locale avant envoi'),
+    ...issues.map((issue, index) => `${index + 1}. ${String(issue)}`),
+  ].join('\n');
+  Alert.alert(title, preview, [
+    { text: 'Fermer', style: 'cancel' },
+    { text: `Partager les ${issues.length} motifs`, onPress: () => {
+      Share.share({ title: 'Diagnostic METRA - Intranet', message: fullReport })
+        .catch((shareError) => Alert.alert('Partage impossible', String(shareError?.message || shareError)));
+    } },
+  ]);
 }
 
 function photoSummaryComplete(summary) {
@@ -330,7 +356,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
               setBusy(true);
               finalizeVisitForUpload(visiteId)
                 .then(() => queueWithMaterialSafety())
-                .catch((e) => Alert.alert('Envoi impossible', localBindingFeedback(e)))
+                .catch((e) => showLocalBindingAlert('Envoi impossible', e))
                 .finally(() => setBusy(false));
             } },
           ]
@@ -340,7 +366,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
 
       await queueWithMaterialSafety();
     } catch (error) {
-      Alert.alert('Visite non envoyable', localBindingFeedback(error));
+      showLocalBindingAlert('Visite non envoyable', error);
     } finally {
       setBusy(false);
     }
