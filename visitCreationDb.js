@@ -3,7 +3,8 @@ import { createId } from './database/ids.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { dossierVisiteMetra, obtenirRacineMetra } from './metraStorage.js';
 import { importApiReferenceForVisit } from './apiVisitPreparationDb.js';
-import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
+import { importLatestApiVisitForLocal, importSelectedPreparationCriteria } from './apiLatestVisitImportDb.js';
+import { prepareIntranetSelectedTrame } from './intranetSelectedTrame.js';
 import { pinPhotoReferencesForVisit } from './latestVisitPhotosDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
 import { assurerStructureSitePreAllumage } from './preAllumageSiteBootstrap.js';
@@ -29,6 +30,10 @@ export async function creerVisiteProduction({
   const remoteLocalId = apiRemoteLocalId == null ? null : String(apiRemoteLocalId).trim() || null;
   const remoteTrameId = apiRemoteTrameId == null ? null : String(apiRemoteTrameId).trim() || null;
   const localInstallationId = installationId == null ? null : String(installationId).trim() || null;
+  // Valider le GET Symfony avant toute creation SQLite : erreur API = zero visite incorrecte.
+  const selectedPreparation = remoteLocalId && remoteClientId && remoteTrameId
+    ? await prepareIntranetSelectedTrame({ remoteClientId, remoteLocalId, remoteTrameId, localTrameId: trame.id })
+    : null;
 
   await db.withTransactionAsync(async () => {
     await db.runAsync(
@@ -46,8 +51,8 @@ export async function creerVisiteProduction({
     // Les données Intranet sont déjà en cache local. On matérialise la référence
     // AVANT d'ouvrir l'écran afin que l'utilisateur ne voie plus les champs se
     // remplir progressivement quelques instants après la navigation.
-    await importLatestApiVisitForLocal(siteId, apiRemoteLocalId);
-    await importApiReferenceForVisit(id, apiRemoteLocalId, apiRemoteClientId);
+    if (!selectedPreparation?.different) await importLatestApiVisitForLocal(siteId, apiRemoteLocalId);
+    await importApiReferenceForVisit(id, apiRemoteLocalId, apiRemoteClientId, selectedPreparation?.reference || null);
   }
 
   // Un local créé hors connexion n'a pas encore de remoteLocalId. L'identité
@@ -58,7 +63,10 @@ export async function creerVisiteProduction({
   // Le préremplissage doit être terminé avant le retour de l'identifiant :
   // SiteVisitesScreen peut alors ouvrir une visite dont les informations sont
   // immédiatement cohérentes, y compris pour un client Intranet déjà importé.
-  await preremplirVisiteDepuisContexte(db, id);
+  await preremplirVisiteDepuisContexte(db, id, { selectedSymfonyTrame: selectedPreparation?.different === true });
+  if (selectedPreparation?.different) {
+    await importSelectedPreparationCriteria({ visiteId: id, siteId, trameId: trame.id, reference: selectedPreparation.reference });
+  }
 
   if (trame.id === 'pre_allumage') {
     // Prépare tous les locaux et leurs rubriques pendant l'état « création en
