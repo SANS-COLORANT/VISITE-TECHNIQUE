@@ -49,6 +49,7 @@ const CONTRACT_CHECKS = [
   ['V1 stale preparation safety fixtures', '.github/scripts/test_intranet_v1_freshness.js'],
   ['Intranet any-visit binding executable tests', '.github/scripts/test_intranet_any_visit_binding.js'],
   ['Intranet first-visit preparation executable tests', '.github/scripts/test_intranet_first_visit_preparation.js'],
+  ['Intranet selected-trame preparation executable tests', '.github/scripts/test_intranet_selected_trame.js'],
   ['Intranet focused upload audit', '.github/scripts/test_intranet_visit_upload_audit.js'],
   ['photo workflow executable regression tests', '.github/scripts/test_photo_workflow.js'],
   ['Missions LAB isolation contract', '.github/scripts/check_missions_lab_contract.js'],
