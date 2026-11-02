@@ -103,7 +103,9 @@ export async function calculerEtatOnglets(visiteId, trameId = DEFAULT_TRAME_ID) 
     const definitions={
       'p-remar-reseaux':networks.length,
       'p-remar-releves':meters.length+countType('temperature_chaufferie'),
-      'p-remar-cta':cta*13,
+      // 'Désignation CTA' est désormais le nom de la fiche patrimoine,
+      // rempli automatiquement dans l'Excel, pas un champ redemandé.
+      'p-remar-cta':cta*12,
       'p-remar-filtres':countType('filtre_cta'),
       'p-remar-cta-mesures':countType('mesure_cta'),
       'p-remar-cta-energie':cta*6,
