@@ -1231,6 +1231,33 @@ async function buildNotes(db, visiteId, issues) {
   return [{ contenu: value }];
 }
 
+/**
+ * Export de diagnostic volontaire (bouton Partager), sans données terrain,
+ * identifiants d'authentification, photos ou valeurs individuelles. Permet
+ * de confronter le vrai référentiel Symfony aux 141 points locaux, au lieu
+ * de refaire les tests contre un catalogue synthétique toujours complet.
+ */
+function frozenRemarCriteriaDiagnostic(trame) {
+  if(!trame)return '';
+  const rows=[
+    'Catalogue de la trame Intranet effectivement liée à cette visite :',
+    'Trame : '+clean(trame.nom||'?')+' (id : '+clean(trame.id||'?')+')',
+  ];
+  for(const category of trame.categories||[]){
+    for(const sub of category.sousCategories||[]){
+      for(const criterion of sub.criteres||[]){
+        rows.push([
+          'cat '+clean(category.id)+' : '+clean(category.nom),
+          'sous-cat '+clean(sub.id)+' : '+clean(sub.nom),
+          'crit '+clean(criterion.id)+' : '+clean(criterion.nom),
+          'avisApplicable='+(criterion.avisApplicable===true?'oui':'non'),
+        ].join(' | '));
+      }
+    }
+  }
+  return rows.join('\n');
+}
+
 export class IntranetVisitValidationError extends Error {
   constructor(issues, details = {}) {
     super(issues.length === 1 ? issues[0] : `${issues.length} éléments empêchent l’envoi vers l’Intranet.`);
@@ -1298,6 +1325,9 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
     removedSourceMaterialCount: materialData.removedSourceMaterialCount,
     sourceMaterialCount: materialData.sourceMaterialCount,
     remoteClientId,
+    remoteCriteriaDiagnostic: visite.trame_id==='remar_v1' &&
+      issues.some(issue=>/non couverte par les critères|Réseau REMAR .*aucun critère/.test(issue))
+      ? frozenRemarCriteriaDiagnostic(details?.trame) : null,
   });
   return {
     remoteClientId: String(remoteClientId), payload, serialized, payloadBytes,
