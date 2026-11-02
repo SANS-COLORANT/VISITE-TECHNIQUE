@@ -690,6 +690,12 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',o
     }catch(e){Alert.alert('Ajout impossible',String(e?.message||e));}
     finally{setBusy(false);}
   };
+  const activeCta=cta?equipments.find(e=>e.id===activeCtaId)||equipments[0]||null:null;
+  useEffect(()=>{
+    if(cta)onRemarActiveCta?.(activeCta
+      ? {id:activeCta.id,designation:activeCta.designation}
+      : null);
+  },[cta,activeCta?.id,activeCta?.designation,onRemarActiveCta]);
   if(panelId==='p-remar-reseaux')return <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled"
     contentContainerStyle={{paddingBottom:30,paddingHorizontal:12}}>
     <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} embedded networksOnly />
@@ -703,12 +709,7 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',o
     <LegacyRemarReadOnly visiteId={visiteId} panelId={panelId} sections={sections}/>
   </ScrollView>;
   if(!family)return null;
-  const activeCta=cta?equipments.find(e=>e.id===activeCtaId)||equipments[0]||null:null;
-  useEffect(()=>{
-    if(cta)onRemarActiveCta?.(activeCta
-      ? {id:activeCta.id,designation:activeCta.designation}
-      : null);
-  },[cta,activeCta?.id,activeCta?.designation,onRemarActiveCta]);
+
   const stepIndex=NOMS_ETAPES_CTA.findIndex(x=>x.id===currentStep);
   const nextStep=NOMS_ETAPES_CTA[stepIndex+1];
   if(cta)return <View style={{flex:1}}>
