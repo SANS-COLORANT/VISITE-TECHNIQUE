@@ -389,14 +389,14 @@ export async function pinVerifiedRemarTrameForUpload(visiteId, {
   if(!visite || visite.trame_id!=='remar_v1'||Number(visite.api_is_historical)===1)
     throw bindingError('La présélection est réservée à une visite REMAR courante.',
       'remar_trame_preselection_wrong_visit');
-  const queued=await db.getFirstAsync('SELECT id FROM api_visit_outbox WHERE visite_id=? LIMIT 1',[String(visiteId)]);
+  const queued=await db.getFirstAsync('SELECT status FROM api_visit_outbox WHERE visite_id=? LIMIT 1',[String(visiteId)]);
   if(queued)throw bindingError('La visite possède un envoi figé : impossible de changer sa trame.',
     'remar_trame_preselection_outbox');
   const client=await db.getFirstAsync(
     'SELECT remote_client_id FROM api_client_links WHERE remote_client_id=? AND local_client_id=? AND autorise=1',
     [clientId,visite.client_id]);
   const site=await db.getFirstAsync(
-    'SELECT remote_site_id FROM api_client_site_links WHERE remote_client_id=? AND remote_site_id=? AND remote_present=1 AND local_site_id=?',
+    'SELECT cs.remote_site_id FROM api_client_site_links cs JOIN api_site_links s ON s.remote_site_id=cs.remote_site_id WHERE cs.remote_client_id=? AND cs.remote_site_id=? AND cs.remote_present=1 AND s.remote_present=1 AND COALESCE(s.local_site_id,cs.local_site_id)=?',
     [clientId,siteId,visite.site_id]);
   const local=await db.getFirstAsync(
     'SELECT * FROM api_local_links WHERE remote_local_id=? AND remote_site_id=? AND remote_present=1',
