@@ -498,6 +498,23 @@ function isMeterCandidate(candidate, capabilities) {
 function isTemperatureCandidate(candidate) {
   return candidate?.temperature === true || /temperature/.test(candidate?.sectionKey || '');
 }
+// Les compteurs REMAR supplémentaires ne rejoignent une destination officielle
+// que lorsque nom ET unité en désignent sans ambiguïté une seule famille.
+function destinationCompteurRemar(counter, destinations) {
+  const stated=clean(counter?.destination);
+  if (destinations.includes(stated)) return stated;
+  if (stated && stated!=='supplementaire') return null;
+  const label=normalize(counter?.label);
+  const unit=normalize(clean(counter?.unite).replace(/[³]/g,'3'));
+  const volume=unit==='m3', energy=unit==='mwh';
+  const matches=[];
+  const push=(name,ok)=>{if(ok&&destinations.includes(name))matches.push(name);};
+  push('Compteur Gaz (m³)',/\bgaz\b/.test(label)&&volume);
+  push("Compteur d'énergie (MWh)",/\b(energie|calorie|calorifique)\b/.test(label)&&energy);
+  push('Compteur ECS (m³)',/\b(ecs|sanitaire)\b/.test(label)&&volume);
+  push('Compteur appoint (m³)',/\bappoint\b/.test(label)&&volume);
+  return matches.length===1?matches[0]:null;
+}
 function counterValue(counters, criterion, candidate) {
   const keys = new Set([cleanCounterLabel(criterion?.nom), cleanCounterLabel(candidate?.label), cleanCounterLabel(candidate?.cle)].filter(Boolean));
   // Destination explicite (migration 045) prioritaire : un compteur renommé
@@ -742,6 +759,7 @@ async function buildCriteria(db, visite, details, issues) {
         `Réseau REMAR « ${clean(network.nom_reseau)||network.id} » : données techniques non représentables dans les cinq cellules de noms du contrat Symfony V1 (${technicalColumns.join(', ')}). Conserver dans Excel et activer un contrat réseaux explicite.`);
     }
   }
+  let countersForWire=counters;
   if(isRemar && counters.length){
     // Le texte d'un compteur sans destination peut encore être conservé en
     // annexe Excel, mais aucun critère de l'Intranet ne l'acceptera
@@ -749,16 +767,13 @@ async function buildCriteria(db, visite, details, issues) {
     const destinations=(definition?.excel?.fieldMappings||[])
       .filter(m=>m.panelId==='p-remar-releves' && m.section==='Compteur')
       .map(m=>m.cle);
-    for(const counter of counters){
-      if(!meaningfulRemote(counter.valeur))continue;
-      const explicit=clean(counter.destination);
-      const legacyMatches=destinations.filter(dest=>
-        cleanCounterLabel(dest)===cleanCounterLabel(counter.label));
-      if(explicit==='supplementaire' ||
-         (explicit && !destinations.includes(explicit)) ||
-         (!explicit && legacyMatches.length!==1))
-        issues.push(`Compteur REMAR « ${clean(counter.label)||counter.id} » : relevé sans destination Intranet unique (${explicit||'aucune'}). Aucune valeur supplémentaire ne doit disparaître du POST.`);
-    }
+    countersForWire=counters.map(counter=>{
+      const destination=destinationCompteurRemar(counter,destinations);
+      if(meaningfulRemote(counter.valeur)&&!destination)
+        issues.push('Compteur REMAR « '+(clean(counter.label)||counter.id)+
+          ' » : destination Intranet ambiguë ou inconnue. Choisis la famille officielle du compteur avant envoi.');
+      return {...counter,destination:destination||'supplementaire'};
+    });
   }
   const result = [];
   const seenRemoteBranches = new Set();
@@ -823,7 +838,7 @@ async function buildCriteria(db, visite, details, issues) {
             const current=networks[Number(remarNetworkSlot[1])-1];
             value=current?.nom_reseau||null;
           } else if (isMeterCandidate(candidate, capabilities)) {
-            const counter = counterValue(counters, criterion, candidate);
+            const counter = counterValue(isRemar ? countersForWire : counters, criterion, candidate);
             // Dans les panneaux spécialisés, l'index courant remplace
             // l'ancienne valeur de préremplissage. Les champs génériques
             // restent utilisables s'ils n'ont aucun compteur dynamique.
