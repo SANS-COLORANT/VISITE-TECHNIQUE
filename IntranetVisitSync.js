@@ -65,6 +65,10 @@ function showLocalBindingAlert(title, error) {
     title,
     String(error?.message || 'Validation locale avant envoi'),
     ...issues.map((issue, index) => `${index + 1}. ${String(issue)}`),
+    ...(error?.remoteCriteriaDiagnostic
+      ? ['','--- RÉFÉRENTIEL SYMFONY FIGÉ (CRITÈRES SEULEMENT) ---',
+          String(error.remoteCriteriaDiagnostic)]
+      : []),
   ].join('\n');
   Alert.alert(title, preview, [
     { text: 'Fermer', style: 'cancel' },
