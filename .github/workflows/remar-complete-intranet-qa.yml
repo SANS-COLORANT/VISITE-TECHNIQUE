@@ -1,0 +1,66 @@
+name: REMAR complete 141-field / Intranet regression QA
+on:
+  pull_request:
+    paths:
+      - 'remarTrame.js'
+      - 'remarDynamic*.js'
+      - 'remarFieldGuidance.js'
+      - 'excelExport.js'
+      - 'excelImport.js'
+      - 'intranetVisitPayload.js'
+      - 'intranetVisitBindingDb.js'
+      - 'remarRemoteTrameSelection.js'
+      - 'IntranetVisitSync.js'
+      - '.github/scripts/test_remar*.js'
+      - '.github/scripts/test_intranet*.js'
+      - 'tests/trameRemar.test.mjs'
+      - '.github/workflows/remar-complete-intranet-qa.yml'
+  push:
+    branches:
+      - fix/remar-intranet-diagnostics-20261102
+permissions:
+  contents: read
+jobs:
+  matrix-sqlite-excel-intranet:
+    runs-on: ubuntu-latest
+    timeout-minutes: 32
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install exact dependencies and verify no source mutation
+        run: |
+          npm ci --no-audit --no-fund --prefer-offline
+          git diff --exit-code
+      - name: Audit all 141 REMAR values and select only a full, unique Symfony trame
+        run: |
+          node .github/scripts/test_remar_141_intranet_matrix.js
+          node .github/scripts/test_remar_remote_trame_selection.js
+      - name: Real SQLite REMAR equipment, fields and data protections
+        run: |
+          node .github/scripts/test_remar_dynamic.js
+          node .github/scripts/test_remar_progress.js
+          node .github/scripts/test_remar_presets_and_navigation.js
+          node .github/scripts/test_remar_photo_context.js
+          node .github/scripts/test_remar_meters_free_photos.js
+          node .github/scripts/test_intranet_error_diagnostics.js
+      - name: Preserve A2, material listing, all other trames and outbox
+        run: |
+          node .github/scripts/check_intranet_visit_upload_contract.js
+          node .github/scripts/test_intranet_capability_mapping.js
+          node .github/scripts/test_intranet_visit_upload.js
+          node .github/scripts/test_intranet_visit_upload_audit.js
+          node .github/scripts/test_intranet_any_visit_binding.js
+          node .github/scripts/test_intranet_first_visit_preparation.js
+      - name: Native SQLite + official Excel full roundtrips
+        run: node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
+      - name: Verify Android JS bundle (not a native release APK)
+        run: npx expo export --platform android --max-workers 2 --output-dir dist-remar-141-ci

@@ -1,6 +1,6 @@
 import { getDb } from './db.js';
 import { obtenirTrame } from './trameRegistry.js';
-import { construireRemarDynamiquePourRapport } from './remarDynamicExportDb.js';
+import { construireRemarDynamiquePourRapport, remarDynamicOwnsMapping } from './remarDynamicExportDb.js';
 import { formaterReleves, formaterTemperatureGroupee } from './releveMultiligne.js';
 
 export const INTRANET_MAX_BODY_BYTES = 5 * 1024 * 1024;
@@ -437,6 +437,27 @@ function candidateScore(candidate, criterion, categoryName, subCategoryName) {
   if (candidate.dynamic) score += 1;
   return score;
 }
+/**
+ * REMAR CLASSIQUE (Symfony 16) expose les reseaux chauffage sous
+ * « INFORMATION GENERALE CHAUFFERIE / Réseaux / Réseau 1..5 ».
+ * Les mêmes noms existent dans la production de froid de METRA : la
+ * sous-catégorie « Réseaux » ne suffit PAS à désambiguïser, seule la
+ * catégorie métier distante permet de décider sans deviner.
+ */
+function scopeRemarNumberedNetworkCandidates(matches, criterionKey, categoryName, subCategoryName) {
+  if(!/^reseau [1-5]$/.test(criterionKey)) return matches;
+  const heating=matches.filter(c=>c.panelId==='p-remar-reseaux');
+  const cooling=matches.filter(c=>c.panelId==='p-remar-froid');
+  if(!heating.length||!cooling.length)return matches;
+  const category=normalize(categoryName);
+  const section=normalize(subCategoryName);
+  if(/(?:^| )(?:chaufferie|chauffage)(?: |$)/.test(category) ||
+    section==='reseaux chauffage')return heating;
+  if(/(?:^| )(?:froid|climatisation)(?: |$)/.test(category) ||
+    section==='reseaux froid')return cooling;
+  // Ne pas choisir au score une case frigorifique pour un chauffage.
+  return [];
+}
 function findCandidate(candidates, criterion, categoryName, subCategoryName) {
   const key = normalize(criterion?.nom);
   if (!key) return null;
@@ -444,8 +465,9 @@ function findCandidate(candidates, criterion, categoryName, subCategoryName) {
   // Priorité aux clés exactes. En leur absence, seuls les alias explicites
   // sont autorisés : jamais de rapprochement flou ou arbitraire.
   const matches = exact.length ? exact : candidates.filter((candidate) => candidate.aliases?.includes(key));
-  if (!matches.length) return null;
-  const ranked = matches.map((candidate) => ({ candidate, score: candidateScore(candidate, criterion, categoryName, subCategoryName) }))
+  const scoped=scopeRemarNumberedNetworkCandidates(matches,key,categoryName,subCategoryName);
+  if (!scoped.length) return null;
+  const ranked = scoped.map((candidate) => ({ candidate, score: candidateScore(candidate, criterion, categoryName, subCategoryName) }))
     .sort((a, b) => b.score - a.score);
   if (ranked.length === 1 || ranked[0].score > ranked[1].score) return ranked[0].candidate;
   const same = ranked.filter((r) => r.score === ranked[0].score);
@@ -482,6 +504,46 @@ const NETWORK_COLUMNS = Object.freeze({
   'consigne programme horaire': 'consigne_programme_horaire',
 });
 function networkColumn(name) { return NETWORK_COLUMNS[normalize(name)] || null; }
+// Sous REMAR V1, les paramètres d'un réseau peuvent rester dans la même
+// case « Réseau n » que son nom : aucune courbe/TNC n'est jetée.
+// Les métadonnées de visite utilisent déjà les IDs et la date du POST :
+// elles ne doivent pas exiger un deuxième critère dans le tableau Symfony.
+function remarVisitMetadataCovered(definition,mapping) {
+  if(mapping?.panelId!=='p-infos'||mapping?.type!=='champ')return false;
+  const field=definition?.ui?.panels?.[mapping.panelId]?.[mapping.section]
+    ?.find(f=>f.cle===mapping.cle&&f.type===mapping.type);
+  return ['client','site','local','type','dateVisite'].includes(field?.meta);
+}
+
+// Destination de repli autorisée uniquement lorsqu'elle est nommée
+// explicitement « Réseaux de chauffage » (ou synonyme métier exact),
+// de type texte, et unique dans le référentiel réellement reçu de Symfony.
+function remarNetworkSummaryTarget(categories) {
+  const names=new Set(['reseaux','reseaux de chauffage','reseau chauffage',
+    'circuits de chauffage','reseaux chauffage']);
+  const matches=[];
+  for(const cat of categories||[])for(const sub of cat.sousCategories||[])
+    for(const c of sub.criteres||[]) {
+      const label=normalize(c.nom);
+      const context=normalize(clean(cat.nom)+' '+clean(sub.nom));
+      // « Réseaux » seul est insuffisant sans contexte chauffage/distribution.
+      const contextOk=label!=='reseaux' || /reseau|chauffage|circuit|distribution/.test(context);
+      if(c.avisApplicable!==true && names.has(label) && contextOk)
+        matches.push({criterion:c,category:cat,subCategory:sub});
+    }
+  return matches.length===1?matches[0]:null;
+}
+
+function remarNetworkText(row,index) {
+  const title=clean(row?.nom_reseau)||'Réseau '+index;
+  const attrs=[
+    ['t_ext_c','T° extérieure','°C'],['t_dep_c','T° départ','°C'],
+    ['courbe_de_chauffe','Courbe de chauffe',''],['tnc','TNC','°C'],
+    ['consigne_programme_horaire','Consigne / programme',''],
+  ].filter(([field])=>meaningfulRemote(row?.[field])!==null)
+    .map(([field,label,unite])=>label+' : '+clean(row[field])+(unite?' '+unite:''));
+  return [title,...attrs].join('\n');
+}
 function fixedRegulation(name) { const n = normalize(name); return n === 'cascade chaudieres' || n === 'reseau ecs'; }
 function isNetworkGroup(subCategory) {
   if (fixedRegulation(subCategory?.nom)) return false;
@@ -497,6 +559,23 @@ function isMeterCandidate(candidate, capabilities) {
 }
 function isTemperatureCandidate(candidate) {
   return candidate?.temperature === true || /temperature/.test(candidate?.sectionKey || '');
+}
+// Les compteurs REMAR supplémentaires ne rejoignent une destination officielle
+// que lorsque nom ET unité en désignent sans ambiguïté une seule famille.
+function destinationCompteurRemar(counter, destinations) {
+  const stated=clean(counter?.destination);
+  if (destinations.includes(stated)) return stated;
+  if (stated && stated!=='supplementaire') return null;
+  const label=normalize(counter?.label);
+  const unit=normalize(clean(counter?.unite).replace(/[³]/g,'3'));
+  const volume=unit==='m3', energy=unit==='mwh';
+  const matches=[];
+  const push=(name,ok)=>{if(ok&&destinations.includes(name))matches.push(name);};
+  push('Compteur Gaz (m³)',/\bgaz\b/.test(label)&&volume);
+  push("Compteur d'énergie (MWh)",/\b(energie|calorie|calorifique)\b/.test(label)&&energy);
+  push('Compteur ECS (m³)',/\b(ecs|sanitaire)\b/.test(label)&&volume);
+  push('Compteur appoint (m³)',/\bappoint\b/.test(label)&&volume);
+  return matches.length===1?matches[0]:null;
 }
 function counterValue(counters, criterion, candidate) {
   const keys = new Set([cleanCounterLabel(criterion?.nom), cleanCounterLabel(candidate?.label), cleanCounterLabel(candidate?.cle)].filter(Boolean));
@@ -623,6 +702,211 @@ function countRemoteCriteria(trame) {
   }, 0);
 }
 
+
+/**
+ * Symfony V1 a une seule case par critère : une collection de matériels ou
+ * relevés de même rubrique devient un TEXTE multiligne, jamais plusieurs
+ * critères avec le même identifiant distant. Les IDs restent en SQLite.
+ * Les avis d'origines différentes restent visibles ligne par ligne.
+ *
+ * La matrice est tirée de REMAR_DETAIL (source multi-instance de la visite),
+ * et non des « replacements » Excel limités à l'équipement de référence.
+ */
+function groupRemarDetailsForIntranet(projection, definition, issues) {
+  if(!Array.isArray(projection?.details)||!projection.details.length)return null;
+  const mappings=new Map((definition?.excel?.fieldMappings||[])
+    .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
+  const parents=new Map(),children=new Map(),rows=[],groups=new Map();
+  const key=(p,s,c)=>[p,s,c].join('||');
+  const has=row=>[row.valeur,row.avis,row.commentaire].some(v=>meaningfulRemote(v)!==null);
+  const report=(label,reason)=>issues.push('REMAR / '+label+' : '+reason);
+  const add=(p,s,c,entry)=>{
+    const mapping=mappings.get(key(p,s,c));
+    if(!mapping){report(entry.label,'aucune case officielle pour '+p+' / '+s+' / '+c);return;}
+    if(!has(entry)&&!entry.force)return;
+    const identity=key(p,s,c);
+    if(!groups.has(identity))groups.set(identity,{mapping,entries:[]});
+    groups.get(identity).entries.push(entry);
+  };
+  for(const line of projection.details) {
+    const row={family:clean(line[0]),parentId:clean(line[2]),parentName:clean(line[1]),
+      name:clean(line[3]),id:clean(line[4]),type:clean(line[5]),
+      panel:clean(line[6]),section:clean(line[7]),cle:clean(line[8]),
+      valeur:clean(line[9]),avis:clean(line[10]),commentaire:clean(line[11]),
+      inherited:line[13]==='Historique à confirmer',unite:clean(line[14])};
+    if(!row.id||!row.type)continue;
+    if(row.type==='equipement'){
+      if(row.cle==='Identité patrimoine')parents.set(row.id,{name:row.name,family:row.family});
+      else rows.push(row);
+    }else if(['filtre_cta','mesure_cta','reseau_froid','temperature_chaufferie'].includes(row.type)){
+      const childKey=row.type+'||'+row.id;
+      if(!children.has(childKey))children.set(childKey,{
+        type:row.type,name:row.name,id:row.id,parentId:row.parentId,
+        family:row.family,unite:row.unite,values:new Map()});
+      if(row.cle!=='Type / presence')children.get(childKey).values.set(row.cle,row);
+    }else if(has(row) && !row.inherited)report(row.name,'type de donnée supplémentaire non associé à un champ officiel');
+  }
+
+  // Le nom de chaque CTA reste vérifiable, même lorsqu'aucun champ
+  // technique n'est renseigné sur la CTA supplémentaire.
+  const cta=[...parents].filter(([,p])=>p.family==='cta');
+  const vmc=[...parents].filter(([,p])=>p.family==='vmc');
+  const froid=[...parents].filter(([,p])=>p.family==='froid');
+  cta.forEach(([,p])=>add('p-remar-cta','Informations techniques',
+    'Désignation CTA',{label:p.name,valeur:p.name,force:true}));
+  if(vmc.length) {
+    const count=vmc.length;
+    add('p-remar-vmc','Informations générales','Nombre de caissons',{
+      label:'VMC',valeur:count===1?'1':count+' caissons : '+vmc.map(([,p])=>p.name).join(' ; '),force:true});
+  }
+  // Pour le froid, le champ Production froid porte déjà les observations
+  // de chaque groupe ; si aucune n'existe, y préserver au moins son nom.
+  for(const [id,p] of froid){
+    const observed=rows.some(r=>r.id===id&&r.panel==='p-remar-froid'&&r.cle==='Production froid'&&!r.inherited&&has(r));
+    if(!observed)add('p-remar-froid','Informations du site','Production froid',{
+      label:p.name,valeur:'Équipement déclaré, production non renseignée',force:true});
+  }
+
+  for(const row of rows) {
+    if(row.inherited||!has(row))continue;
+    if(row.panel==='p-remar-vmc'&&row.cle==='Nombre de caissons')continue;
+    if(row.panel==='p-remar-cta'&&row.cle==='Désignation CTA')continue;
+    if(row.panel==='p-remar-froid'&&/^Réseau [1-9]\d*$/.test(row.cle))continue;
+    const parent=parents.get(row.id);
+    const label=parent?.name||row.name||row.id;
+    if(!mappings.has(key(row.panel,row.section,row.cle))){
+      report(label,'champ additionnel '+row.cle+' absent du modèle REMAR officiel');
+      continue;
+    }
+    add(row.panel,row.section,row.cle,{...row,label});
+  }
+
+  const measureTargets={
+    'air neuf':['Températures','Air neuf'],
+    'apres recuperation':['Températures','Après récupération'],
+    'soufflage':['Températures','Soufflage'],
+    'extraction reprise':['Températures','Extraction / Reprise'],
+    'vitesse soufflage':['Variation de vitesse','Soufflage'],
+    'vitesse extraction':['Variation de vitesse','Extraction / Reprise'],
+    'consigne soufflage':['Consignes','Soufflage'],
+    'consigne extraction':['Consignes','Extraction / Reprise'],
+    'pression':['Consignes','Pression'],
+  };
+  const temperatureTargets={
+    'chauffage aller':'Chauffage aller (°C)',
+    'chauffage retour':'Chauffage retour (°C)',
+    'ecs depart':'ECS départ (°C)','ecs bouclage':'ECS bouclage (°C)',
+    'ecs stockage':'ECS stockage (°C)',
+  };
+  const counters=new Map();
+  for(const item of children.values()) {
+    const parent=parents.get(item.parentId);
+    const label=parent?parent.name+' / '+item.name:item.name;
+    const ordinalKey=item.parentId+'||'+item.type;
+    const position=(counters.get(ordinalKey)||0)+1;
+    counters.set(ordinalKey,position);
+    const read=(cle)=>item.values.get(cle);
+    const current=(cle)=>{const row=read(cle);return row&&!row.inherited?row:null;};
+    const allowed=new Set();
+    if(item.type==='filtre_cta'){
+      const section='Filtre n°'+Math.min(position,3);
+      const classe=current('Classe de filtration'),etat=current('Etat du filtre');
+      allowed.add('Classe de filtration');allowed.add('Etat du filtre');
+      add('p-remar-filtres',section,'Type de filtre',{
+        label,valeur:classe?.valeur||item.name,
+        avis:classe?.avis,commentaire:classe?.commentaire,force:true});
+      if(!etat?.avis && !etat?.commentaire)
+        report(label,'état du filtre non confirmé : choisir un avis avant synchronisation');
+      else add('p-remar-filtres',section,'Etat du filtre',{
+        label,avis:etat?.avis,commentaire:etat?.commentaire,force:true});
+    }else if(item.type==='mesure_cta'){
+      const dest=measureTargets[normalize(item.name)];
+      const v=current('Valeur');allowed.add('Valeur');
+      if(dest) {
+        if(v&&has(v))add('p-remar-cta-mesures',dest[0],dest[1],{...v,label,unite:item.unite});
+      }else if(v&&has(v))report(label,'mesure supplémentaire sans destination précise dans la trame Symfony');
+    }else if(item.type==='reseau_froid'){
+      const section='Réseaux',field='Réseau '+Math.min(position,3);
+      const observations=[...item.values.values()].filter(r=>!r.inherited&&has(r))
+        .map(r=>r.cle+' : '+[r.valeur,r.avis,r.commentaire].filter(Boolean).join(' / '));
+      item.values.forEach((v,k)=>allowed.add(k));
+      add('p-remar-froid',section,field,{
+        label,valeur:item.name+(observations.length?' — '+observations.join(' ; '):''),force:true});
+    }else if(item.type==='temperature_chaufferie'){
+      const dest=temperatureTargets[normalize(item.name)];
+      const v=current('Valeur');allowed.add('Valeur');
+      if(dest && v && has(v))
+        add('p-remar-releves','Température chaufferie',dest,{...v,label,unite:item.unite});
+      else if(!dest && v && has(v))
+        report(label,'température sans case officielle compatible');
+    }
+    for(const [cle,r] of item.values){
+      if(!allowed.has(cle)&&!r.inherited&&has(r))
+        report(label,'observation supplémentaire non rattachable : '+cle);
+    }
+  }
+
+  // En présence de plusieurs CTA, une case regroupée ne doit pas
+  // sous-entendre que les contrôles d'une deuxième CTA ont été réalisés.
+  // Mêmes exigences de confirmation que pour une CTA seule.
+  if(cta.length>1){
+    for(const [id,parent] of cta){
+      for(const panel of ['p-remar-cta','p-remar-cta-energie']){
+        for(const [section,items] of Object.entries(definition?.ui?.panels?.[panel]||{})){
+          for(const item of items.filter(x=>x.type==='controle')){
+            const target=key(panel,section,item.cle);
+            const rowsForParent=groups.get(target)?.entries.filter(x=>x.id===id)||[];
+            if(!rowsForParent.some(x=>['S','N.S','N.R','S.O','N.V'].includes(x.avis)))
+              report(parent.name+' / '+item.cle,'avis non confirmé lors de cette visite');
+          }
+        }
+      }
+    }
+  }
+
+  const result=new Map();
+  const priority=['N.S','N.R','N.V','S','S.O'];
+  const displayValue=e=>{
+    const raw=e.valeur||(!e.valeur&&['N.R','N.V','S.O'].includes(e.avis)?e.avis:'');
+    const unit=raw&&e.unite&&!['N.R','N.V','S.O'].includes(raw)?' '+e.unite:'';
+    return raw+unit;
+  };
+  for(const [target,group] of groups){
+    const {mapping,entries}=group;
+    const family=mapping.panelId.includes('cta')||mapping.panelId==='p-remar-filtres'?'cta'
+      :mapping.panelId==='p-remar-vmc'?'vmc'
+      :mapping.panelId==='p-remar-froid'?'froid':null;
+    const familyCount=family==='cta'?cta.length:family==='vmc'?vmc.length:family==='froid'?froid.length:0;
+    const multiline=entries.length>1||familyCount>1;
+    if(mapping.type==='controle'){
+      const valid=entries.filter(e=>['S','N.S','N.R','S.O','N.V'].includes(e.avis));
+      if(valid.length!==entries.length){
+        for(const e of entries.filter(e=>!['S','N.S','N.R','S.O','N.V'].includes(e.avis)))
+          report(e.label+' / '+mapping.cle,'avis absent ou non confirmé pour un contrôle');
+      }
+      const avis=priority.find(s=>valid.some(e=>e.avis===s))||null;
+      for(const e of valid) {
+        if(e.avis==='N.S'&&(!clean(e.commentaire)||/^(anomalie|défaut).*(à préciser|intervention à préciser)/i.test(clean(e.commentaire))))
+          report(e.label+' / '+mapping.cle,'constat N.S non caractérisé');
+      }
+      const commentaire=multiline?entries.map(e=>{
+        const status=e.avis||'Non renseigné';
+        return e.label+' : ['+status+']'+(e.commentaire?' '+e.commentaire:'');
+      }).join('\n'):entries[0]?.commentaire||'';
+      result.set(target,{type:'controle',avis,commentaire});
+    }else{
+      const value=multiline?entries.map(e=>{
+        const v=displayValue(e);
+        return e.label+' : '+v+(e.commentaire?' — '+e.commentaire:'')+
+          (e.avis&&v!==e.avis?' ['+e.avis+']':'');
+      }).join('\n'):entries.length===1?displayValue(entries[0])+
+        (entries[0].commentaire?' — '+entries[0].commentaire:''):'';
+      result.set(target,{type:'champ',valeur:value});
+    }
+  }
+  return result;
+}
+
 async function buildCriteria(db, visite, details, issues) {
   const remoteTrame = details?.trame;
   const categories = Array.isArray(remoteTrame?.categories) ? remoteTrame.categories : [];
@@ -655,27 +939,31 @@ async function buildCriteria(db, visite, details, issues) {
   // sont exposes dans l'annexe Excel mais NE DOIVENT PAS etre perdus lors d'un
   // envoi Intranet : bloquer cet envoi tant que Symfony ne fournit pas de route
   // structuree pour les instances supplementaires.
-  if ((definition.familyId || definition.id) === 'remar_v1') {
+  const isRemar=(definition?.familyId || definition?.id)==='remar_v1';
+  let remarGrouped=null;
+  if (isRemar) {
     const remap = await construireRemarDynamiquePourRapport(visite.id,definition);
     if (remap.hasDynamic) {
-      // Le formulaire CTA v1 peut contenir des valeurs copiees lors d'une
-      // precedente visite. Une nouvelle CTA multi-instance les remplace.
-      // Ne JAMAIS envoyer une ancienne valeur comme un constat du jour.
-      if (remap.familyCounts?.cta) {
-        for (const map of definition?.excel?.fieldMappings || []) {
-          if (!['p-remar-cta','p-remar-filtres','p-remar-cta-mesures','p-remar-cta-energie']
-            .includes(map.panelId)) continue;
-          const key=`${map.sectionCode}||${map.cle}`;
-          if (map.type==='controle') controlMap.set(key,{avis:null,commentaire:null});
-          else fieldMap.set(key,null);
-        }
+      // Une seule politique pour Excel et Intranet : aucun ancien champ plat
+      // ne peut prendre la place d'une fiche CTA, VMC, froid ou température.
+      for (const map of definition?.excel?.fieldMappings || []) {
+        if (!remarDynamicOwnsMapping(map,remap)) continue;
+        const key=`${map.sectionCode}||${map.cle}`;
+        if (map.type==='controle') controlMap.set(key,{avis:null,commentaire:null});
+        else fieldMap.set(key,null);
       }
-      for (const warning of [...remap.ambiguous,...remap.unsupported]) {
-        issues.push(`REMAR dynamique non transmissible sans perte : ${warning}`);
+      remarGrouped=groupRemarDetailsForIntranet(remap,definition,issues);
+      // Les avertissements de projection Excel « 2 CTA / 1 cellule » ne
+      // s'appliquent plus si le détail est transmis sur plusieurs lignes.
+      // Le regroupement vérifie indépendamment toutes les données rejetées.
+      if(!remarGrouped) {
+        for(const warning of [...remap.ambiguous,...remap.unsupported])
+          issues.push('REMAR dynamique non transmissible sans perte : '+warning);
       }
       // Contrat A2: un avis non saisi ne doit PAS devenir silencieusement N.V
       // (non visible) dans le POST. Le technicien doit choisir S/N.S/N.R/S.O/N.V.
-      if (remap.familyCounts?.cta && !remap.ambiguous.some(x=>/^CTA\b/.test(x))) {
+      if (remap.familyCounts?.cta && (!remarGrouped||remap.familyCounts.cta===1) &&
+          !remap.ambiguous.some(x=>/^CTA\b/.test(x))) {
         for (const m of definition?.excel?.fieldMappings || []) {
           if (m.type !== 'controle') continue;
           const cellKey=[m.panelId,m.section,m.cle].join('||');
@@ -713,16 +1001,78 @@ async function buildCriteria(db, visite, details, issues) {
           fieldMap.set(storageKey,confirmed?(value.valeur??null):null);
         }
       }
+      // Pour Symfony seulement : les lignes de toutes les CTA/caissons
+      // écrasent la vue Excel centrée sur une seule référence.
+      if(remarGrouped) {
+        const byOfficial=new Map((definition?.excel?.fieldMappings||[])
+          .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
+        for(const [key,group] of remarGrouped){
+          const mapping=byOfficial.get(key);
+          if(!mapping){issues.push('REMAR : destination regroupée introuvable : '+key);continue;}
+          const storage=mapping.sectionCode+'||'+mapping.cle;
+          if(group.type==='controle')
+            controlMap.set(storage,{avis:group.avis,commentaire:group.commentaire});
+          else fieldMap.set(storage,group.valeur);
+        }
+      }
     }
   }
   const remoteNetworkGroups = capabilities.networks
     ? categories.flatMap((category) => (Array.isArray(category?.sousCategories) ? category.sousCategories : []).filter(isNetworkGroup).map((subCategory) => ({ category, subCategory }))) : [];
-  const networkAssignments = capabilities.networks
+  // REMAR V1 représente ses réseaux dans cinq champs nommés « Réseau 1..5 »,
+  // et non dans les sous-catégories de régulation ICPE/RCU. Ne jamais envoyer
+  // ces cinq noms comme "/" ni exiger des groupes serveur inexistants.
+  const remarFixedNetworks=isRemar && remoteNetworkGroups.length===0;
+  const directRemarNetworkSlots=remarFixedNetworks ? categories.flatMap(cat=>
+    (cat.sousCategories||[]).flatMap(sub=>(sub.criteres||[])
+      .map(criterion=>findCandidate(candidates,criterion,cat.nom,sub.nom))
+      .filter(candidate=>candidate?.panelId==='p-remar-reseaux' &&
+        /^Réseau [1-5]$/.test(candidate.cle)))) : [];
+  // Aucun doublon : un résumé n'est utilisable que si AUCUNE des cinq
+  // cases du référentiel officiel n'est présente dans la trame distante.
+  const remarNetworkSummary=remarFixedNetworks && directRemarNetworkSlots.length===0
+    ? remarNetworkSummaryTarget(categories) : null;
+  const networkAssignments = capabilities.networks && !remarFixedNetworks
     ? mapNetworksToRemoteGroups(networks, remoteNetworkGroups, networkProvenances, issues)
     : new Map();
+  if (remarFixedNetworks && networks.length>0) {
+    const remoteSlots=new Set(categories.flatMap(category=>
+      (category.sousCategories||[]).flatMap(subCategory=>
+        (subCategory.criteres||[]).map(criterion=>
+          findCandidate(candidates,criterion,category.nom,subCategory.nom))
+        .filter(candidate=>candidate?.panelId==='p-remar-reseaux')
+        .map(candidate=>candidate.cle))));
+    if(!remarNetworkSummary) {
+      for (let i=0;i<Math.min(networks.length,5);i++) {
+        if (!remoteSlots.has(`Réseau ${i+1}`))
+          issues.push(`Réseau REMAR ${i+1} : aucun critère Intranet officiel correspondant à cette case.`);
+      }
+    }
+    // Les réseaux 6+ partagent la cinquième case, en conservant chaque
+    // numéro, nom et paramètre sur sa propre ligne. La taille est validée
+    // par exactComment() avant l'envoi, sans troncature.
+
+  }
+  let countersForWire=counters;
+  if(isRemar && counters.length){
+    // Le texte d'un compteur sans destination peut encore être conservé en
+    // annexe Excel, mais aucun critère de l'Intranet ne l'acceptera
+    // automatiquement. Refus au lieu d'une suppression silencieuse.
+    const destinations=(definition?.excel?.fieldMappings||[])
+      .filter(m=>m.panelId==='p-remar-releves' && m.section==='Compteur')
+      .map(m=>m.cle);
+    countersForWire=counters.map(counter=>{
+      const destination=destinationCompteurRemar(counter,destinations);
+      if(meaningfulRemote(counter.valeur)&&!destination)
+        issues.push('Compteur REMAR « '+(clean(counter.label)||counter.id)+
+          ' » : destination Intranet ambiguë ou inconnue. Choisis la famille officielle du compteur avant envoi.');
+      return {...counter,destination:destination||'supplementaire'};
+    });
+  }
   const result = [];
   const seenRemoteBranches = new Set();
   const seenSummaryTargets = new Set();
+  const mappedLocalRemar = new Map();
   let ordinal = 0;
   for (const category of categories) {
     for (const subCategory of Array.isArray(category?.sousCategories) ? category.sousCategories : []) {
@@ -747,6 +1097,16 @@ async function buildCriteria(db, visite, details, issues) {
         const column = networkGroup ? networkColumn(criterion?.nom) : null;
         const heatSummary = criterionResumeReseau(definition, criterion?.nom, category?.nom, subCategory?.nom);
         const candidate = column || heatSummary ? null : findCandidate(candidates, criterion, category?.nom, subCategory?.nom);
+        const remarSummaryHere=remarNetworkSummary &&
+          criterion===remarNetworkSummary.criterion &&
+          category===remarNetworkSummary.category &&
+          subCategory===remarNetworkSummary.subCategory;
+        if(isRemar && candidate){
+          const storage=[candidate.panelId,candidate.section,candidate.cle].join('||');
+          const previous=mappedLocalRemar.get(storage);
+          if(previous)issues.push(`REMAR : le point « ${candidate.cle} » (${candidate.panelId} / ${candidate.section}) est associé à plusieurs critères Intranet (${previous} et ${path}). Vérifie les IDs métier avant envoi.`);
+          else mappedLocalRemar.set(storage,path);
+        }
 
         if (heatSummary) {
           const semanticTarget = `${heatSummary.perimetre}:${heatSummary.categorie}`;
@@ -760,8 +1120,39 @@ async function buildCriteria(db, visite, details, issues) {
         } else if (column) {
           if (network) commentaire = exactComment(network[column], issues, `${path} / commentaire`);
           if (applicable) issues.push(`${path} : critère réseau déclaré avec avis, mapping non supporté sans ambiguïté.`);
+        } else if (remarSummaryHere) {
+          const selected=networks.length?networks:
+            (definition?.excel?.fieldMappings||[])
+              .filter(m=>m.panelId==='p-remar-reseaux'&&/^Réseau [1-9]\d*$/.test(m.cle))
+              .map((m,i)=>({nom_reseau:fieldMap.get(m.sectionCode+'||'+m.cle),ordre:i+1}))
+              .filter(row=>meaningfulRemote(row.nom_reseau)!==null);
+          const lines=selected.map((network,index)=>
+            'Réseau '+(index+1)+' : '+remarNetworkText(network,index+1));
+          commentaire=exactComment(lines.join('\n')||null,issues,path+' / commentaire');
         } else if (!candidate) {
           issues.push(`${path} : aucun champ METRA correspondant de façon sûre.`);
+        } else if (isRemar && applicable && candidate.panelId==='p-remar-releves' &&
+                   candidate.type==='champ') {
+          // Symfony CLASSIQUE 16 marque Compteur énergie/ECS/appoint et les
+          // températures « avisApplicable=oui », tandis que METRA les saisit
+          // comme champs techniques. L'ancien if(applicable) ignorait la
+          // valeur du compteur et envoyait N.V / « / » : perte silencieuse !
+          // Conserver l'avis non vérifié par défaut, sans inventer « S »,
+          // MAIS transmettre la mesure exacte dans le commentaire.
+          const control=candidateStoredValue(controlMap,candidate,issues,path);
+          avis=applicableAvis(control?.avis,issues,`${path} / avis`);
+          let value;
+          if(isMeterCandidate(candidate,capabilities)){
+            const counter=counterValue(countersForWire,criterion,candidate);
+            value=counter.status==='missing' && counters.length===0
+              ?candidateStoredValue(fieldMap,candidate,issues,path):counter.value;
+          }else{
+            value=candidateStoredValue(fieldMap,candidate,issues,path);
+            if(isTemperature(candidate))
+              value=formaterTemperatureGroupee(candidate.cle,value,measurePoints);
+          }
+          commentaire=exactComment(meaningfulRemote(value) ?? control?.commentaire,
+            issues,`${path} / commentaire`);
         } else if (applicable) {
           const control = candidateStoredValue(controlMap, candidate, issues, path);
           avis = applicableAvis(control?.avis, issues, `${path} / avis`);
@@ -770,12 +1161,21 @@ async function buildCriteria(db, visite, details, issues) {
           commentaire = exactComment(temperature, issues, `${path} / commentaire`);
         } else {
           let value;
-          if (isMeterCandidate(candidate, capabilities)) {
-            const counter = counterValue(counters, criterion, candidate);
+          const remarNetworkSlot=remarFixedNetworks && candidate.panelId==='p-remar-reseaux'
+            ? /^Réseau ([1-5])$/i.exec(String(candidate.cle||'')) : null;
+          if (remarNetworkSlot && networks.length) {
+            const slot=Number(remarNetworkSlot[1]);
+            const selected=slot===5?networks.slice(4):networks.slice(slot-1,slot);
+            value=selected.length===1?remarNetworkText(selected[0],slot):
+              selected.length>1?selected.map((row,index)=>
+                'Réseau '+(slot+index)+' : '+remarNetworkText(row,slot+index)).join('\n'):null;
+          } else if (isMeterCandidate(candidate, capabilities)) {
+            const counter = counterValue(isRemar ? countersForWire : counters, criterion, candidate);
             // Dans les panneaux spécialisés, l'index courant remplace
             // l'ancienne valeur de préremplissage. Les champs génériques
             // restent utilisables s'ils n'ont aucun compteur dynamique.
-            const manualFallback = !candidate.specialPanel || candidate.panelId === 'p-remar-releves' || /^pression\b/.test(candidate.key);
+            const manualFallback = (!candidate.specialPanel || candidate.panelId === 'p-remar-releves' || /^pression\b/.test(candidate.key)) &&
+              !(isRemar && candidate.panelId==='p-remar-releves' && counters.length>0);
             value = counter.status === 'missing' && manualFallback
               ? candidateStoredValue(fieldMap, candidate, issues, path) : counter.value;
           } else {
@@ -790,6 +1190,24 @@ async function buildCriteria(db, visite, details, issues) {
     }
   }
   if (!result.length) issues.push('Trame Intranet : la liste des critères est vide.');
+  if(isRemar){
+    // Une correspondance par critère distant ne suffit pas : l'ancien moteur
+    // pouvait réussir le POST en ignorant une saisie locale présente, comme
+    // lors de l'incident A2. Refaire la vérification dans l'autre sens.
+    for(const mapping of definition?.excel?.fieldMappings||[]){
+      const dataKey=`${mapping.sectionCode}||${mapping.cle}`;
+      const destination=[mapping.panelId,mapping.section,mapping.cle].join('||');
+      const data=mapping.type==='controle' ? controlMap.get(dataKey) : fieldMap.get(dataKey);
+      const present=mapping.type==='controle'
+        ? meaningfulRemote(data?.avis)||meaningfulRemote(data?.commentaire)
+        : meaningfulRemote(data);
+      const networkCovered=remarNetworkSummary &&
+        mapping.panelId==='p-remar-reseaux' && /^Réseau [1-9]\d*$/.test(mapping.cle);
+      if(present && !mappedLocalRemar.has(destination) &&
+         !remarVisitMetadataCovered(definition,mapping) && !networkCovered)
+        issues.push(`REMAR : saisie locale « ${mapping.cle} » (${mapping.panelId} / ${mapping.section}) non couverte par les critères de la trame Symfony. Envoi refusé pour conserver la donnée.`);
+    }
+  }
   return result;
 }
 
@@ -861,6 +1279,33 @@ async function buildNotes(db, visiteId, issues) {
   return [{ contenu: value }];
 }
 
+/**
+ * Export de diagnostic volontaire (bouton Partager), sans données terrain,
+ * identifiants d'authentification, photos ou valeurs individuelles. Permet
+ * de confronter le vrai référentiel Symfony aux 141 points locaux, au lieu
+ * de refaire les tests contre un catalogue synthétique toujours complet.
+ */
+function frozenRemarCriteriaDiagnostic(trame) {
+  if(!trame)return '';
+  const rows=[
+    'Catalogue de la trame Intranet effectivement liée à cette visite :',
+    'Trame : '+clean(trame.nom||'?')+' (id : '+clean(trame.id||'?')+')',
+  ];
+  for(const category of trame.categories||[]){
+    for(const sub of category.sousCategories||[]){
+      for(const criterion of sub.criteres||[]){
+        rows.push([
+          'cat '+clean(category.id)+' : '+clean(category.nom),
+          'sous-cat '+clean(sub.id)+' : '+clean(sub.nom),
+          'crit '+clean(criterion.id)+' : '+clean(criterion.nom),
+          'avisApplicable='+(criterion.avisApplicable===true?'oui':'non'),
+        ].join(' | '));
+      }
+    }
+  }
+  return rows.join('\n');
+}
+
 export class IntranetVisitValidationError extends Error {
   constructor(issues, details = {}) {
     super(issues.length === 1 ? issues[0] : `${issues.length} éléments empêchent l’envoi vers l’Intranet.`);
@@ -928,6 +1373,9 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
     removedSourceMaterialCount: materialData.removedSourceMaterialCount,
     sourceMaterialCount: materialData.sourceMaterialCount,
     remoteClientId,
+    remoteCriteriaDiagnostic: visite.trame_id==='remar_v1' &&
+      issues.some(issue=>/non couverte par les critères|Réseau REMAR .*aucun critère/.test(issue))
+      ? frozenRemarCriteriaDiagnostic(details?.trame) : null,
   });
   return {
     remoteClientId: String(remoteClientId), payload, serialized, payloadBytes,

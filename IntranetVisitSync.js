@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { ActivityIndicator, Alert, AppState, Text, TouchableOpacity, View } from 'react-native';
+import { ActivityIndicator, Alert, AppState, Share, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import {
@@ -10,7 +10,9 @@ import {
   getVisitPhotoUploadSummary, processVisitPhotoOutbox, queueMissingSyncedVisitPhotos,
   retryVisitPhotoUploadsNow, subscribeVisitPhotoOutbox, syncVisitPhotosNow,
 } from './intranetVisitPhotoOutboxDb.js';
-import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions, resolveFirstVisitRemoteTrame } from './intranetVisitBindingDb.js';
+import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions, pinVerifiedRemarTrameForUpload, resolveFirstVisitRemoteTrame } from './intranetVisitBindingDb.js';
+import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
+import { chooseUniqueRemarRemoteTrame } from './remarRemoteTrameSelection.js';
 import { syncClientPreparation } from './symfonyApi.js';
 import { getDb } from './db.js';
 import { getCachedStructureReferential, syncStructureReferential } from './intranetStructureDb.js';
@@ -47,6 +49,36 @@ function localBindingFeedback(error) {
   return issues.length
     ? `${error?.message || 'Visite non envoyable'}\n\n${issues.slice(0, 7).map((x) => `• ${x}`).join('\n')}${issues.length > 7 ? `\n• … ${issues.length - 7} autre(s)` : ''}`
     : String(error?.message || error || 'Visite non envoyable');
+}
+
+/**
+ * A local preflight may report dozens of independent field-level reasons.
+ * Android Alert truncates long text; sharing the complete diagnostic is a
+ * user-initiated action. No visit data, credentials or HTTP payload are sent.
+ */
+function showLocalBindingAlert(title, error) {
+  const issues = Array.isArray(error?.issues) ? error.issues : [];
+  const preview = localBindingFeedback(error);
+  if (!issues.length) {
+    Alert.alert(title, preview);
+    return;
+  }
+  const fullReport = [
+    title,
+    String(error?.message || 'Validation locale avant envoi'),
+    ...issues.map((issue, index) => `${index + 1}. ${String(issue)}`),
+    ...(error?.remoteCriteriaDiagnostic
+      ? ['','--- RÉFÉRENTIEL SYMFONY FIGÉ (CRITÈRES SEULEMENT) ---',
+          String(error.remoteCriteriaDiagnostic)]
+      : []),
+  ].join('\n');
+  Alert.alert(title, preview, [
+    { text: 'Fermer', style: 'cancel' },
+    { text: `Partager les ${issues.length} motifs`, onPress: () => {
+      Share.share({ title: 'Diagnostic METRA - Intranet', message: fullReport })
+        .catch((shareError) => Alert.alert('Partage impossible', String(shareError?.message || shareError)));
+    } },
+  ]);
 }
 
 function photoSummaryComplete(summary) {
@@ -161,6 +193,65 @@ async function hydrateFirstVisitReference(visiteId, remoteClientId) {
   // aucun autre site/local déjà importé.
   await syncClientPreparation(remoteClientId, resolved.remoteTrameId);
   return resolved;
+}
+
+/**
+ * La préparation habituelle du local peut pointer sur « REMAR CLASSIQUE »,
+ * alors que la visite contient les 141 points REMAR enrichis.
+ * Rechercher les éventuelles autres trames de la MÊME famille sur le
+ * serveur, par ID et au même local, sans poster ni altérer le cache.
+ * Sélectionner uniquement la trame dont TOUTES les destinations METRA
+ * sont couvertes (unique), avant la création de l'envoi immuable.
+ *
+ * En l'absence d'une telle trame, laisser l'ancien précontrôle détaillé
+ * refuser les données sans destination : pas de repli en notes[].
+ */
+async function pinFullyPublishedRemarForFirstUpload(visiteId) {
+  const opts=await getVisitIntranetBindingOptions(visiteId);
+  if(opts?.visite?.trame_id!=='remar_v1')return null;
+  const clientId=String(opts?.selectedClientId||'');
+  const siteId=String(opts?.selectedSiteId||'');
+  const localId=String(opts?.visite?.api_remote_local_id||opts?.suggestedLocalId||'');
+  if(!clientId||!siteId||!localId)return null;
+  const knownLocal=(opts.locals||[]).find(l=>String(l.remote_local_id)===localId&&
+    String(l.remote_site_id)===siteId);
+  if(!knownLocal)return null;
+
+  const referential=await syncStructureReferential(clientId);
+  const trames=(referential?.trames||[]).filter(t=>
+    mapRemoteTrameToLocal(t)==='remar_v1'&&/^[1-9]\d*$/.test(String(t?.id||'')));
+  // En cas de catalogue sans trame compatible ou de catalogue excessif,
+  // ne pas en sélectionner une sur un sous-ensemble arbitraire.
+  if(!trames.length||trames.length>16)return null;
+  const candidates=[];
+  for(const trame of trames){
+    // Un GET ne constitue PAS un envoi : aucun ID d'idempotence n'est créé.
+    // cacheResult:false empêche que la recherche écrase les liens des autres
+    // visites ou le cache de préparation classique du client.
+    const payload=await syncClientPreparation(clientId,trame.id,{cacheResult:false});
+    const exact=(Array.isArray(payload?.visites)?payload.visites:[]).filter(ref=>
+      String(ref?.local?.id||'')===localId &&
+      String(ref?.site?.id||'')===siteId &&
+      String(ref?.trame?.id||'')===String(trame.id));
+    if(exact.length===1)candidates.push({reference:exact[0]});
+    else if(exact.length>1) {
+      const err=new Error('Plusieurs préparations Symfony pour le même local et la même trame REMAR. Aucune destination automatique sûre.');
+      err.code='remar_remote_trame_duplicate_local';
+      throw err;
+    }
+  }
+  const choice=chooseUniqueRemarRemoteTrame(candidates,'remar_v1');
+  if(choice.ambiguous){
+    const ids=choice.evaluated.filter(x=>x.complete).map(x=>x.name+' (#'+x.id+')');
+    const err=new Error('Plusieurs trames REMAR couvrent tous les champs. Le choix est ambigu : '+ids.join(' ; ')+'. Aucune modification de visite.');
+    err.code='remar_remote_trame_ambiguous';
+    throw err;
+  }
+  if(!choice.selected)return null;
+  return pinVerifiedRemarTrameForUpload(visiteId,{
+    remoteClientId:clientId,remoteSiteId:siteId,remoteLocalId:localId,
+    reference:choice.selected.reference,
+  });
 }
 
 async function bindSameImportedClient(visiteId) {
@@ -313,6 +404,10 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
         if (!discarded) throw new Error('Cet envoi ne peut pas encore être reconstruit sans risque de doublon.');
       }
 
+      // Ne rechercher une trame REMAR complète qu'avant le PREMIER envoi.
+      // Les files déjà créées (et les replays idempotents) restent intouchables.
+      if(visite?.trame_id==='remar_v1')
+        await pinFullyPublishedRemarForFirstUpload(visiteId);
       await bindSameImportedClient(visiteId);
       await onVisitChanged?.();
 
@@ -330,7 +425,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
               setBusy(true);
               finalizeVisitForUpload(visiteId)
                 .then(() => queueWithMaterialSafety())
-                .catch((e) => Alert.alert('Envoi impossible', localBindingFeedback(e)))
+                .catch((e) => showLocalBindingAlert('Envoi impossible', e))
                 .finally(() => setBusy(false));
             } },
           ]
@@ -340,7 +435,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
 
       await queueWithMaterialSafety();
     } catch (error) {
-      Alert.alert('Visite non envoyable', localBindingFeedback(error));
+      showLocalBindingAlert('Visite non envoyable', error);
     } finally {
       setBusy(false);
     }
@@ -438,6 +533,11 @@ export async function envoyerVisitesClient(clientId, { onProgress = null } = {})
         if (row && ['validation_error', 'rejected', 'conflict'].includes(row.status)) {
           if (!await discardTerminalVisitUpload(visite.id)) { bilan.aConfirmer.push(`${nomVisite(visite)} : à renvoyer depuis la visite (risque de doublon).`); continue; }
         }
+        // Même sélection contrôlée que l'envoi visite par visite.
+        // Sans cette étape, l'envoi groupé réutilisait systématiquement
+        // REMAR CLASSIQUE (ID 16) même lorsqu'une trame complète existait.
+        if(visite.trame_id==='remar_v1')
+          await pinFullyPublishedRemarForFirstUpload(visite.id);
         await bindSameImportedClient(visite.id);
         await queueVisitUpload(visite.id, { confirmMaterialReplacement: false });
         await processVisitOutbox({ limit: 1 }).catch(() => {});

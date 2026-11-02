@@ -48,12 +48,14 @@ async function run() {
   ok(exportExcel.includes("m.panelId === 'p-remar-releves' && m.section === 'Compteur'") &&
     exportExcel.includes('formaterReleves(liste, { avecNomSeul: true })'),
     'native Excel export groups multiple REMAR meters in original mapped cell');
-  // L'export Intranet est maintenant commun aux trames déclarant la capacité
-  // compteur ; la conservation de l'ancien champ REMAR reste obligatoire.
-  ok(intranet.includes("const manualFallback = !candidate.specialPanel || candidate.panelId === 'p-remar-releves' || /^pression\\b/.test(candidate.key)") &&
-    intranet.includes('counterValue(counters, criterion, candidate)') &&
-    intranet.includes("counter.status === 'missing' && manualFallback"),
-    'Intranet preserves historical REMAR fallback ONLY when a current meter is unavailable');
+  // Aucun ancien relevé figé ne doit être réutilisé lorsqu'un compteur
+  // dynamique existe dans la visite. Sans compteur courant, la reprise V1
+  // demeure compatible pour les anciennes visites REMAR.
+  ok(intranet.includes("candidate.panelId === 'p-remar-releves'") &&
+    intranet.includes("!(isRemar && candidate.panelId==='p-remar-releves' && counters.length>0)") &&
+    intranet.includes("counter.status === 'missing' && manualFallback") &&
+    intranet.includes('counterValue(counters, criterion, candidate)'),
+    'Intranet keeps legacy fallback only when no current REMAR meter exists');
   ok(apiLatest.includes('compteursDepuisCellule') && apiLatest.includes('totalLines: readings.length'),
     'Intranet multiline import creates independent provenance-linked meter rows');
 

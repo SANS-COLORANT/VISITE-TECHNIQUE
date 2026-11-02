@@ -1,0 +1,446 @@
+{
+  "id": 16,
+  "nom": "REMAR CLASSIQUE",
+  "categories": [
+    {
+      "id": 53,
+      "nom": "INFORMATION GÉNÉRALE CHAUFFERIE",
+      "sousCategories": [
+        {
+          "id": 68,
+          "nom": "Informations du site",
+          "criteres": [
+            {
+              "id": 1,
+              "nom": "Date de visite",
+              "avisApplicable": false
+            },
+            {
+              "id": 3,
+              "nom": "Nom du site",
+              "avisApplicable": false
+            },
+            {
+              "id": 4,
+              "nom": "Adresse",
+              "avisApplicable": false
+            },
+            {
+              "id": 239,
+              "nom": "Nb bâtiment, nb logement & surface",
+              "avisApplicable": false
+            },
+            {
+              "id": 219,
+              "nom": "Production chauffage",
+              "avisApplicable": false
+            },
+            {
+              "id": 12,
+              "nom": "Type de régulation",
+              "avisApplicable": false
+            },
+            {
+              "id": 13,
+              "nom": "Production ECS",
+              "avisApplicable": false
+            },
+            {
+              "id": 48,
+              "nom": "Situation",
+              "avisApplicable": true
+            },
+            {
+              "id": 49,
+              "nom": "Accessibilité",
+              "avisApplicable": true
+            }
+          ]
+        },
+        {
+          "id": 89,
+          "nom": "Réseaux",
+          "criteres": [
+            {
+              "id": 303,
+              "nom": "Réseau 1",
+              "avisApplicable": false
+            },
+            {
+              "id": 304,
+              "nom": "Réseau 2",
+              "avisApplicable": false
+            },
+            {
+              "id": 305,
+              "nom": "Réseau 3",
+              "avisApplicable": false
+            },
+            {
+              "id": 306,
+              "nom": "Réseau 4",
+              "avisApplicable": false
+            },
+            {
+              "id": 307,
+              "nom": "Réseau 5",
+              "avisApplicable": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 49,
+      "nom": "CONFORMITÉ",
+      "sousCategories": [
+        {
+          "id": 90,
+          "nom": "Conformité Local",
+          "criteres": [
+            {
+              "id": 308,
+              "nom": "Coupure extérieure Gaz",
+              "avisApplicable": true
+            },
+            {
+              "id": 309,
+              "nom": "Coupure extérieure électrique",
+              "avisApplicable": true
+            },
+            {
+              "id": 310,
+              "nom": "Porte d'accès",
+              "avisApplicable": true
+            },
+            {
+              "id": 311,
+              "nom": "BAES",
+              "avisApplicable": true
+            },
+            {
+              "id": 312,
+              "nom": "Ventilation",
+              "avisApplicable": true
+            },
+            {
+              "id": 313,
+              "nom": "Extincteurs",
+              "avisApplicable": true
+            },
+            {
+              "id": 314,
+              "nom": "Gaine pompiers",
+              "avisApplicable": true
+            },
+            {
+              "id": 81,
+              "nom": "Consignes de sécurité",
+              "avisApplicable": true
+            },
+            {
+              "id": 83,
+              "nom": "Schéma hydraulique à jour",
+              "avisApplicable": true
+            },
+            {
+              "id": 315,
+              "nom": "Armoire électrique",
+              "avisApplicable": true
+            },
+            {
+              "id": 316,
+              "nom": "Ligne de Gaz",
+              "avisApplicable": true
+            },
+            {
+              "id": 317,
+              "nom": "Evacuation des EU",
+              "avisApplicable": true
+            },
+            {
+              "id": 108,
+              "nom": "Eclairage",
+              "avisApplicable": true
+            },
+            {
+              "id": 114,
+              "nom": "Chemins de câbles électriques avec liaison équipotentiel",
+              "avisApplicable": true
+            },
+            {
+              "id": 115,
+              "nom": "Etat du local",
+              "avisApplicable": true
+            },
+            {
+              "id": 318,
+              "nom": "Point de puisage",
+              "avisApplicable": true
+            },
+            {
+              "id": 116,
+              "nom": "Calorifuge",
+              "avisApplicable": true
+            }
+          ]
+        },
+        {
+          "id": 91,
+          "nom": "Conformité Chauffage",
+          "criteres": [
+            {
+              "id": 319,
+              "nom": "Traitement d'eau",
+              "avisApplicable": true
+            },
+            {
+              "id": 320,
+              "nom": "Vase d'expansion",
+              "avisApplicable": true
+            },
+            {
+              "id": 136,
+              "nom": "Soupape",
+              "avisApplicable": true
+            },
+            {
+              "id": 321,
+              "nom": "Désemboueur",
+              "avisApplicable": true
+            },
+            {
+              "id": 322,
+              "nom": "Conduits de fumées",
+              "avisApplicable": true
+            },
+            {
+              "id": 323,
+              "nom": "Disconnecteur",
+              "avisApplicable": true
+            },
+            {
+              "id": 211,
+              "nom": "Adoucisseur",
+              "avisApplicable": true
+            }
+          ]
+        },
+        {
+          "id": 92,
+          "nom": "Conformité ECS",
+          "criteres": [
+            {
+              "id": 324,
+              "nom": "Filtres",
+              "avisApplicable": true
+            },
+            {
+              "id": 122,
+              "nom": "Produit de traitement",
+              "avisApplicable": true
+            },
+            {
+              "id": 325,
+              "nom": "Manchettes témoins",
+              "avisApplicable": true
+            },
+            {
+              "id": 133,
+              "nom": "Vanne de vidange sur ballon",
+              "avisApplicable": true
+            },
+            {
+              "id": 225,
+              "nom": "Robinet de prélèvement (départ, bouclage)",
+              "avisApplicable": true
+            },
+            {
+              "id": 136,
+              "nom": "Soupape",
+              "avisApplicable": true
+            },
+            {
+              "id": 211,
+              "nom": "Adoucisseur",
+              "avisApplicable": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 50,
+      "nom": "RÉSEAU",
+      "sousCategories": [
+        {
+          "id": 93,
+          "nom": "Distribution Chauffage",
+          "criteres": [
+            {
+              "id": 16,
+              "nom": "Matériaux tuyauterie",
+              "avisApplicable": false
+            },
+            {
+              "id": 17,
+              "nom": "Type de distribution",
+              "avisApplicable": false
+            },
+            {
+              "id": 20,
+              "nom": "Type d'émetteur",
+              "avisApplicable": false
+            },
+            {
+              "id": 21,
+              "nom": "Type de robinetterie",
+              "avisApplicable": false
+            },
+            {
+              "id": 22,
+              "nom": "Calorifuge (type / état)",
+              "avisApplicable": false
+            },
+            {
+              "id": 23,
+              "nom": "Variation de vitesse",
+              "avisApplicable": false
+            }
+          ]
+        },
+        {
+          "id": 94,
+          "nom": "Distribution ECS",
+          "criteres": [
+            {
+              "id": 16,
+              "nom": "Matériaux tuyauterie",
+              "avisApplicable": false
+            },
+            {
+              "id": 17,
+              "nom": "Type de distribution",
+              "avisApplicable": false
+            },
+            {
+              "id": 22,
+              "nom": "Calorifuge (type / état)",
+              "avisApplicable": false
+            },
+            {
+              "id": 23,
+              "nom": "Variation de vitesse",
+              "avisApplicable": false
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 51,
+      "nom": "COMPTEUR & TEMPÉRATURE",
+      "sousCategories": [
+        {
+          "id": 73,
+          "nom": "Compteur",
+          "criteres": [
+            {
+              "id": 241,
+              "nom": "Compteur Gaz (m³)",
+              "avisApplicable": false
+            },
+            {
+              "id": 233,
+              "nom": "Compteur d'énergie (MWh)",
+              "avisApplicable": true
+            },
+            {
+              "id": 235,
+              "nom": "Compteur ECS (m³)",
+              "avisApplicable": true
+            },
+            {
+              "id": 236,
+              "nom": "Compteur appoint (m³)",
+              "avisApplicable": true
+            }
+          ]
+        },
+        {
+          "id": 95,
+          "nom": "Température chaufferie",
+          "criteres": [
+            {
+              "id": 228,
+              "nom": "Chauffage aller (°C)",
+              "avisApplicable": true
+            },
+            {
+              "id": 229,
+              "nom": "Chauffage retour (°C)",
+              "avisApplicable": true
+            },
+            {
+              "id": 230,
+              "nom": "ECS départ (°C)",
+              "avisApplicable": true
+            },
+            {
+              "id": 231,
+              "nom": "ECS bouclage (°C)",
+              "avisApplicable": true
+            },
+            {
+              "id": 232,
+              "nom": "ECS stockage (°C)",
+              "avisApplicable": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": 52,
+      "nom": "AMÉLIORATIONS ÉNERGÉTIQUE",
+      "sousCategories": [
+        {
+          "id": 96,
+          "nom": "Chaufferie",
+          "criteres": [
+            {
+              "id": 326,
+              "nom": "GTB",
+              "avisApplicable": true
+            },
+            {
+              "id": 327,
+              "nom": "Chaudière",
+              "avisApplicable": true
+            },
+            {
+              "id": 328,
+              "nom": "Brûleur",
+              "avisApplicable": true
+            },
+            {
+              "id": 329,
+              "nom": "Condensation",
+              "avisApplicable": true
+            },
+            {
+              "id": 330,
+              "nom": "Consignes / programmes",
+              "avisApplicable": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "fixtureSource": "Rapport de controle REMAR du 2026-11-02, catalogue Symfony figé. Dernière ligne tronquée lors du partage, non incluse.",
+  "truncated": true,
+  "unparsedLines": [
+    "cat 52 : AMÉLIORATIONS ÉNERGÉTIQUE | sous-cat 96 : Chaufferie | crit 331 : Vannes 3 voies | avisApplicable=ou"
+  ]
+}

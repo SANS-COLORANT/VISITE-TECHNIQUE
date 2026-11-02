@@ -80,6 +80,7 @@ async function main() {
     // viennent du vrai modèle, mais l'export doit rester bit-à-bit identique.
     const deps = { ...load('releveMultiligne.js', { pictoTemperature: load('relevePictos.js').pictoTemperature }),
       ...programming, readNetworkProgrammingForVisit: async () => new Map(),
+      remarDynamicOwnsMapping: () => false, // ICPE/RCU baseline: REMAR projection is intentionally inactive
       XLSX, FileSystem: {}, Sharing: {}, obtenirTrame: registry.obtenirTrame, DEFAULT_TRAME_ID: 'icpe_v1',
       getDb: async () => ({ getAllAsync: async (sql) => sql.includes('champs_visite') ? state.fields || [] : sql.includes('points_mesure_visite') ? state.points || [] : [], getFirstAsync: async () => null }),
       getVisite: async () => ({ id: 'v', trame_id: state.trameId, nom_client: 'Client', nom_site: 'Site', adresse: 'Adresse', date_visite: '2026-10-06' }),

@@ -2,6 +2,7 @@
 
 import * as XLSX from 'xlsx';
 import { readTrameManifest } from './trameLibrary.js';
+import { analyserRemarDetailExcel, importerRemarDetailExcel } from './remarExcelDetail.js';
 import { importLocalTrame } from './trameLibraryDb.js';
 import * as DocumentPicker from 'expo-document-picker';
 import * as FileSystem from 'expo-file-system';
@@ -322,6 +323,9 @@ export function analyserClasseur(wb, nomFichier) {
       champs.push({ sectionCode: 'infos.informations_g_n_rales', cle, valeur });
     }
   }
+  // Les fiches REMAR multi-instances ne sont pas contenues dans les 141
+  // cellules historiques : lire l'annexe sous contrôle strict, sinon refuser.
+  const remarDetail=analyserRemarDetailExcel(wb,definition,XLSX);
   const tables = cfg.tables || {};
   const materielCfg = tables.materiel;
   const materiel = materielCfg ? lireTable(wb.Sheets[materielCfg.sheet], materielCfg).map((m) => ({ ...m, etat: m.etat || 'Bon' })) : [];
@@ -337,7 +341,7 @@ export function analyserClasseur(wb, nomFichier) {
   const noteCfg = tables.note;
   const note = noteCfg ? valeurCellule(wb.Sheets[noteCfg.sheet], noteCfg.cell) : '';
 
-  if (!champs.length && !controles.length && !reseaux.length && !compteurs.length && !materiel.length && !remarques.length) {
+  if (!champs.length && !controles.length && !reseaux.length && !compteurs.length && !materiel.length && !remarques.length && !remarDetail.length) {
     throw new Error(`La trame ${definition.nom} a été reconnue, mais aucune donnée exploitable n’a été trouvée.`);
   }
 
@@ -356,7 +360,7 @@ export function analyserClasseur(wb, nomFichier) {
     site: siteDetecte || 'Site importé',
     adresse: adresseDetectee,
     dateVisite: dateDetectee || new Date().toISOString().slice(0, 10),
-    champs, controles, reseaux, compteurs, pointsMesure, materiel, remarques, note,
+    champs, controles, reseaux, compteurs, pointsMesure, materiel, remarques, remarDetail, note,
   };
 }
 
@@ -523,6 +527,13 @@ export async function importerAnalyseExcel(analyse, { installationId = null } = 
         [uuidv4(), equipementId, visiteId, m.etat]
       );
     }
+
+    // La réimportation des CTA/VMC/froid/filtres/températures est atomique
+    // avec l'ensemble de la visite, et ne remplace aucune visite historique.
+    etape = 'annexe REMAR_DETAIL';
+    if (analyse.remarDetail?.length)
+      await importerRemarDetailExcel(db,visiteId,installation.id,analyse.trameId,
+        analyse.remarDetail,uuidv4);
 
     etape = 'compteurs';
     for (const c of analyse.compteurs) {

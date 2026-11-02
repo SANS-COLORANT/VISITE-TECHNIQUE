@@ -61,6 +61,7 @@ async function main() {
       INSERT INTO installations(id,site_id,type_code,nom) VALUES('local','site','sous_station','SST 1'),('other','site','sous_station','SST 2');`);
     const importer = load('excelImport.js', { ...load('releveMultiligne.js', { pictoTemperature: load('relevePictos.js').pictoTemperature }),
       ...load('networkProgramming.js'), XLSX, DocumentPicker: {}, FileSystem: {},
+      analyserRemarDetailExcel: () => [], importerRemarDetailExcel: async () => 0, // Fixture RCU: pas d'annexe REMAR
       detecterTrameDepuisClasseur: registry.detecterTrameDepuisClasseur, getDb: async () => server.db, uuidv4: createId });
     const analyse = { client: 'Client', site: 'Site', trameId: definition.id, nomFichier: 'RCU.xlsx', dateVisite: '2026-01-01',
       champs: [

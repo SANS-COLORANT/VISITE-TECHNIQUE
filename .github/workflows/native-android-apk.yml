@@ -15,6 +15,7 @@ on:
       - fix/visit-upload-field-identity-and-equipment-dup-20261028
       - fix/intranet-trame-selection-20261102
       - feat/remar-dynamic-every-tab-20261102
+      - fix/remar-intranet-diagnostics-20261102
     paths:
       - '**/*.js'
       - '**/*.json'
@@ -58,6 +59,12 @@ jobs:
           git diff --exit-code
       - name: Verify complete committed METRA contracts, SQLite and regressions
         run: npm run verify:metra
+      - name: Test all 141 REMAR mappings, multi-line meters and multiple CTA/VMC
+        run: |
+          node .github/scripts/test_remar_141_intranet_matrix.js
+          node .github/scripts/test_remar_remote_trame_selection.js
+          node .github/scripts/test_intranet_error_diagnostics.js
+          node .github/scripts/test_intranet_any_visit_binding.js
       - name: Test REMAR, editable trames and real SQLite round trips
         run: node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
       - name: Preserve large PDF report regression (457 photos)
@@ -185,27 +192,31 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           cat > /tmp/release-notes.md <<'NOTES'
-          METRA — Visite Technique : build natif intégrant les PR #108, #109,
-          #110 et #111 (sécurité des snapshots, queue offline et contrat V2),
-          à la suite des fonctions précédentes (ICPE, Données techniques,
-          Réseau de chaleur, REMAR, compteurs, photos, Pilotage et Intranet).
+          METRA — Visite Technique : APK natif de recette (PR #118, branche de
+          vérification), conservant toutes les trames et fonctionnalités précédentes.
 
-          Retours terrain : récupération prudente des adresses et nombres
-          bâtiments/logements, courbes de chauffe multipoints et programmes horaires,
-          effacement des valeurs, réserve vérifiée séparée de réserve levée,
-          reprise historique ICPE et accès à toutes les visites de Ma journée.
-          Le masquage conditionnel ECS (point 2.1) est volontairement exclu.
+          Correctifs REMAR : vérification automatique de toutes les trames REMAR
+          publiées pour le même client/local avant le premier POST, sélection
+          uniquement d'une version complète et unique, avec provenance figée,
+          sans modifier les envois déjà préparés. Contrôle strict des 141 points,
+          des homonymes chauffage/froid et des 39 critères manquants.
 
-          L'application et le numéro de build ne sont pas nommés REMAR :
-          cette trame reste intégrée comme les autres. Identité Android
-          com.visitetechnique.tablet et certificat historique inchangés.
-          VersionCode incrémenté. Installer seulement après sauvegarde de
-          l'archive SQLite/photos.
+          Synchronisation multiligne vers les cellules Symfony
+          quand plusieurs relevés de même famille partagent un critère (ex. Gaz A
+          et Gaz B sur deux lignes), CTA/VMC/froid multiples, filtres, avis et
+          mesures, réseaux et compteurs ; diagnostics complets de blocage,
+          imports/exports Excel et protections contre les pertes SQLite.
+          Les 141 points REMAR et les 70 contrôles, ainsi que les anciennes
+          trames ICPE et Réseau de chaleur, restent vérifiés.
 
-          Contrôles automatiques : contrats MÉTRA, SQLite, Excel, PDF volumineux,
-          JS Android, APK natif Gradle, vérification signature et parcours émulateur.
-          L'essai terrain physique, caméra et Intranet authentifié n'est pas couvert
-          par ces tests et reste à effectuer.
+          Aucune suppression volontaire de données. Même identifiant Android
+          com.visitetechnique.tablet, même certificat historique et versionCode
+          croissant. Numéro natif continu, sans suffixe REMAR sur l'application.
 
+          Préversion de validation : SAUVEGARDER SQLite, photos et visites avant
+          toute installation. Les tests automatisés (SQLite/Excel/Symfony simulé,
+          compilation Gradle, signature et émulateur Android) ne remplacent pas
+          un aller-retour authentifié avec l'Intranet Symfony, qui reste à tester.
+          Ne pas utiliser comme validation de synchronisation de production.
           NOTES
           gh release create "build-native-apk-${BUILD_NUMBER}" release/* --target "$GITHUB_SHA" --title "Build Native APK #${BUILD_NUMBER}" --notes-file /tmp/release-notes.md --prerelease

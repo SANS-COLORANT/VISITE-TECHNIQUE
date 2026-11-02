@@ -211,7 +211,8 @@ async function frozenVisitReference(db, visite) {
   const rows = await db.getAllAsync(`SELECT details_json FROM provenances WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le DESC`, [visite.id]);
   for (const row of rows) {
     const details = parseJson(row.details_json);
-    if (details?.sourceType === 'preparation_visite' && clean(details?.trame?.id) === expectedId &&
+    if (['preparation_visite','remar_upload_preselection'].includes(details?.sourceType) &&
+        clean(details?.trame?.id) === expectedId &&
         clean(details?.local?.id) === clean(visite.api_remote_local_id)) return details;
   }
   return null;
@@ -363,4 +364,78 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
     localName: local.designation || reference?.local?.designation || `Local ${localId}`,
     trameName: frozenTrame.nom || null,
   };
+}
+
+
+/**
+ * Une alternative REMAR n'est épinglée qu'après GET authentifié de sa
+ * préparation, couverture complète et unique de chaque destination.
+ * Cette opération ne fabrique ni visite Symfony ni envoiId, et ne touche
+ * jamais une file d'envoi existante (même en échec). Les autres trames
+ * et les visites historiques conservent leur binding précédent.
+ */
+export async function pinVerifiedRemarTrameForUpload(visiteId, {
+  remoteClientId,remoteSiteId,remoteLocalId,reference,
+}={}) {
+  const clientId=clean(remoteClientId),siteId=clean(remoteSiteId);
+  const localId=clean(remoteLocalId),trameId=clean(reference?.trame?.id);
+  if(![clientId,siteId,localId,trameId].every(validApiId))
+    throw bindingError('Référence REMAR distante incomplète ou non validée.','remar_trame_preselection_invalid');
+  if(clean(reference?.site?.id)!==siteId || clean(reference?.local?.id)!==localId ||
+     clean(reference?.trame?.id)!==trameId)
+    throw bindingError('La préparation REMAR ne correspond pas au site, local et trame choisis.',
+      'remar_trame_preselection_mismatch');
+  const db=await getDb(),visite=await loadVisit(db,visiteId);
+  if(!visite || visite.trame_id!=='remar_v1'||Number(visite.api_is_historical)===1)
+    throw bindingError('La présélection est réservée à une visite REMAR courante.',
+      'remar_trame_preselection_wrong_visit');
+  const queued=await db.getFirstAsync('SELECT status FROM api_visit_outbox WHERE visite_id=? LIMIT 1',[String(visiteId)]);
+  if(queued)throw bindingError('La visite possède un envoi figé : impossible de changer sa trame.',
+    'remar_trame_preselection_outbox');
+  const client=await db.getFirstAsync(
+    'SELECT remote_client_id FROM api_client_links WHERE remote_client_id=? AND local_client_id=? AND autorise=1',
+    [clientId,visite.client_id]);
+  const site=await db.getFirstAsync(
+    'SELECT cs.remote_site_id FROM api_client_site_links cs JOIN api_site_links s ON s.remote_site_id=cs.remote_site_id WHERE cs.remote_client_id=? AND cs.remote_site_id=? AND cs.remote_present=1 AND s.remote_present=1 AND COALESCE(s.local_site_id,cs.local_site_id)=?',
+    [clientId,siteId,visite.site_id]);
+  const local=await db.getFirstAsync(
+    'SELECT * FROM api_local_links WHERE remote_local_id=? AND remote_site_id=? AND remote_present=1',
+    [localId,siteId]);
+  if(!client||!site||!local)
+    throw bindingError('Préparation REMAR hors du client, site ou local Intranet importé.',
+      'remar_trame_preselection_wrong_target');
+  const frozen=await frozenVisitReference(db,visite);
+  if(frozen && (clean(frozen.local?.id)!==localId||clean(frozen.site?.id)!==siteId))
+    throw bindingError('Ancienne préparation figée sur un autre local : sélection REMAR interdite.',
+      'remar_trame_preselection_frozen_target');
+  const previousLatest=clean(frozen?.derniereVisite?.id) ||
+    clean(visite.api_source_remote_visit_id) || clean(local?.derniere_visite_id);
+  const currentLatest=clean(reference?.derniereVisite?.id);
+  if(previousLatest!==currentLatest)
+    throw bindingError('Une visite plus récente ou une référence différente existe côté Symfony. Actualise puis compare les visites.',
+      'remar_trame_preselection_latest_conflict');
+  const state=localBindingState(local,visite.trame_id,reference);
+  if(!state.compatible)
+    throw bindingError(state.compatibilityReason,'remar_trame_preselection_incompatible');
+  const older=await db.getAllAsync(
+    "SELECT id,details_json FROM provenances WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony'",
+    [String(visiteId)]);
+  const removable=older.filter(x=>parseJson(x.details_json)?.sourceType==='remar_upload_preselection')
+    .map(x=>x.id);
+  const pinned={...reference,sourceType:'remar_upload_preselection',
+    provenance:'unique_full_remar_criteria_and_same_imported_client',
+    remoteLocalId:localId,remoteClientId:clientId};
+  await db.withTransactionAsync(async()=>{
+    // Conserver l'historique de première préparation ; ne remplacer que
+    // la présélection REMAR non envoyée précédemment.
+    for(const id of removable)await db.runAsync('DELETE FROM provenances WHERE id=?',[id]);
+    await db.runAsync(
+      "INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json) VALUES(?,?,?,?,?,?)",
+      [createId(),'visite',String(visiteId),'api_symfony',localId,JSON.stringify(pinned)]);
+    await db.runAsync(
+      "UPDATE visites SET api_remote_client_id=?,api_remote_local_id=?,api_remote_trame_id=?,api_source_remote_visit_id=?,modifie_le=datetime('now') WHERE id=?",
+      [clientId,localId,trameId,currentLatest||null,String(visiteId)]);
+  });
+  return {remoteClientId:clientId,remoteSiteId:siteId,remoteLocalId:localId,
+    remoteTrameId:trameId,remoteTrameName:clean(reference?.trame?.nom)};
 }
