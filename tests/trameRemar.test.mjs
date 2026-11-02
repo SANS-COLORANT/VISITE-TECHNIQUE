@@ -381,3 +381,94 @@ test('REMAR Excel importer ignores blank lines and creates separate meters', () 
   assert.deepEqual(readings.map((m) => [m.label, m.valeur, m.unite]),
     [['Énergie A', '52,3', 'MWh'], ['Énergie B', '100', 'MWh']]);
 });
+
+
+test('REMAR_DETAIL restitue 2 CTA, filtres, mesures, VMC, froid et temperatures sans perdre le contexte', async () => {
+  const localId='remar-detail-audit-local';
+  await db.runAsync(
+    "INSERT INTO installations(id,site_id,type_code,nom,actif) VALUES(?,'site','chaufferie','Audit multi CTA',1)",
+    [localId]);
+  const source=await newVisit('remar_v1',localId);
+  const equip=[
+    ['audit-cta-1','CTA','CTA des bureaux'],['audit-cta-2','CTA','CTA gymnase'],
+    ['audit-vmc','VMC','Caisson VMC toiture'],['audit-cold','Froid','Production froid local'],
+  ];
+  for(const [id,type,nom] of equip){
+    await db.runAsync(
+      "INSERT INTO equipements(id,installation_id,type_code,designation,statut) VALUES(?,?,?,?,'actif')",
+      [id,localId,type,nom]);
+    await db.runAsync(
+      'INSERT INTO equipement_trames(equipement_id,trame_id,actif) VALUES(?,?,1)',
+      [id,'remar_v1']);
+    await db.runAsync(
+      "INSERT INTO materiel(id,visite_id,equipement_id,categorie,nombre,designation,etat) VALUES(?,?,?,?,?,?,?)",
+      ['mat-'+id,source,id,type,'1',nom,'Bon']);
+  }
+  const items=[
+    ['audit-filtre-a','filtre_cta','audit-cta-1','Filtre bureaux G4',''],
+    ['audit-filtre-b','filtre_cta','audit-cta-2','Filtre gymnase F7',''],
+    ['audit-mesure-a','mesure_cta','audit-cta-1','Air neuf','°C'],
+    ['audit-mesure-b','mesure_cta','audit-cta-2','Soufflage','°C'],
+    ['audit-froid-res','reseau_froid','audit-cold','Réseau glacé',''],
+    ['audit-t-chaud','temperature_chaufferie',null,'Chauffage aller (°C)','°C'],
+  ];
+  for(const [id,type,parent,nom,unite] of items){
+    await db.runAsync(
+      'INSERT INTO remar_items(id,installation_id,parent_equipement_id,type_code,nom,unite,ordre) VALUES(?,?,?,?,?,?,?)',
+      [id,localId,parent,type,nom,unite||null,1]);
+    await db.runAsync('INSERT INTO remar_item_visits(visite_id,item_id) VALUES(?,?)',[source,id]);
+  }
+  const record=async(ownerType,ownerId,panel,section,cle,valeur,avis,commentaire,origin=null)=>{
+    await db.runAsync(
+      'INSERT INTO remar_values(visite_id,owner_type,owner_id,panel_id,section_code,cle,valeur,avis,commentaire,source_visite_id,confirme_le) '+
+      "VALUES(?,?,?,?,?,?,?,?,?,?,CASE WHEN ? IS NULL THEN datetime('now') ELSE NULL END)",
+      [source,ownerType,ownerId,panel,section,cle,valeur,avis,commentaire,origin,origin]);
+  };
+  await record('equipement','audit-cta-1','p-remar-cta','Informations techniques','Année CTA','2019',null,null);
+  await record('equipement','audit-cta-2','p-remar-cta','Informations techniques','Année CTA','2025',null,null);
+  await record('equipement','audit-vmc','p-remar-vmc','Caisson','Etat du caisson',null,'N.S','Courroie usée observée sur la toiture.');
+  await record('equipement','audit-cold','p-remar-froid','Informations du site','Production froid','Groupe eau glacée',null,null);
+  await record('item','audit-filtre-a','p-remar-filtres','filtre_cta','Classe de filtration','G4',null,null);
+  await record('item','audit-filtre-b','p-remar-filtres','filtre_cta','Classe de filtration','F7',null,null);
+  await record('item','audit-filtre-b','p-remar-filtres','filtre_cta','Etat du filtre',null,'S','Filtre propre et installé.');
+  await record('item','audit-mesure-a','p-remar-cta-mesures','mesure_cta','Valeur','12,5',null,null);
+  await record('item','audit-mesure-b','p-remar-cta-mesures','mesure_cta','Valeur','19,2',null,null);
+  await record('item','audit-t-chaud','p-remar-releves','temperature_chaufferie','Valeur','58',null,null,'visite-historique-externe');
+  await record('item','audit-froid-res','p-remar-froid','reseau_froid','Valeur','4 bar',null,null);
+
+  await db.runAsync('INSERT INTO remar_report_focus(visite_id,famille,equipement_id) VALUES(?,?,?)',
+    [source,'cta','audit-cta-1']);
+  const sourceBook=roundtrip((await construireClasseur(source)).wb);
+  assert.equal(sourceBook.Sheets['TRAME REMAR'].C133.v,'2019');
+  assert.ok(sourceBook.Sheets.REMAR_DETAIL,'independent CTA/VMC/froid captured in detail sheet');
+  assert.ok(sourceBook.Sheets.REMAR_AVERTISSEMENTS,'lossy V1 detected rather than silently flattened');
+  const detailRows=XLSX.utils.sheet_to_json(sourceBook.Sheets.REMAR_DETAIL,{header:1,defval:''});
+  assert.equal(detailRows[0][14],'Unité');
+  assert.ok(detailRows.some(row=>row[3]==='CTA gymnase'&&row[8]==='Année CTA'&&row[9]==='2025'));
+  assert.ok(detailRows.some(row=>row[3]==='Air neuf'&&row[14]==='°C'));
+  const parsed=analyserClasseur(sourceBook,'remar-audit-toutes-instances.xlsx');
+  assert.ok(parsed.remarDetail.length >= 14);
+  const imported=await importerAnalyseExcel(parsed,{installationId:localId});
+  const restored=await db.getAllAsync(
+    'SELECT rv.*, e.designation AS equipement FROM remar_values rv '+
+    'LEFT JOIN equipements e ON rv.owner_type=\'equipement\' AND e.id=rv.owner_id WHERE rv.visite_id=?',
+    [imported.visiteId]);
+  assert.ok(restored.some(row=>row.equipement==='CTA gymnase'&&row.cle==='Année CTA'&&row.valeur==='2025'));
+  assert.ok(restored.some(row=>row.equipement==='Caisson VMC toiture'&&row.avis==='N.S'&&row.commentaire.includes('Courroie')));
+  assert.ok(restored.some(row=>row.cle==='Etat du filtre'&&row.avis==='S'));
+  assert.ok(restored.some(row=>row.cle==='Valeur'&&row.valeur==='19,2'));
+  assert.ok(restored.some(row=>row.cle==='Valeur'&&row.valeur==='58'&&row.confirme_le===null&&row.source_visite_id==='visite-historique-externe'));
+  assert.equal((await db.getAllAsync("SELECT * FROM remar_items WHERE installation_id=? AND actif=1",[localId])).length,6,
+    'no duplicate durable child definitions after import');
+  const reexport=roundtrip((await construireClasseur(imported.visiteId)).wb);
+  assert.ok(reexport.Sheets.REMAR_DETAIL,'all dynamic records remain in the second export');
+  const second=XLSX.utils.sheet_to_json(reexport.Sheets.REMAR_DETAIL,{header:1,defval:''});
+  assert.ok(second.some(row=>row[3]==='CTA gymnase'&&row[8]==='Année CTA'&&row[9]==='2025'));
+  assert.ok(second.some(row=>row[3]==='Chauffage aller (°C)'&&row[13]==='Historique à confirmer'));
+  assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk,true);
+
+  const invalid=roundtrip(sourceBook);
+  invalid.Sheets.REMAR_DETAIL.J3={t:'s',v:'Valeur contradictoire'};
+  assert.throws(()=>analyserClasseur(invalid,'remar-corrompu.xlsx'),/doublon contradictoire|identité d.objet change|hors définition|REMAR_DETAIL/,
+    'tampering with REMAR_DETAIL must be rejected instead of silently imported');
+});
