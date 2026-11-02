@@ -191,6 +191,25 @@ export function enrichirControleRemar(field,panelId) {
   return {...field,presets:{...field.presets,S:source.S,'N.S':source['N.S']},
     poste:source['N.S']?.[0]?.poste||field.poste};
 }
+// Propositions de champs (pas de mesure ni d'avis pré-rempli). Le champ
+// garde sa cle et son mapping Excel/Intranet, seul le rendu de saisie change.
+const CHAMPS = {
+  'p-remar-vmc':{
+    'Type de ventilation':{options:['Simple flux','Double flux','Extraction mécanique','Insufflation','Autre']},
+    'Type de bouche':{options:['Autoréglable','Hygroréglable A','Hygroréglable B','Soufflage','Extraction','Autre']},
+  },
+  'p-remar-froid':{
+    'Type de régulation':{options:['Tout ou rien','Modulante','Loi d’eau','Automate local','GTC / GTB','Autre']},
+    'Support anti-vibratile':{options:['Présent','Absent','À vérifier','Non nécessaire']},
+    'Traitement acoustique':{options:['Capotage','Écran acoustique','Silencieux','Absent','À vérifier']},
+    'Volume tampon':{label:'Volume tampon (L)',numeric:true,unite:'L'},
+  },
+};
+export function enrichirChampRemar(field,panelId){
+  if(field?.type!=='champ')return field;
+  const extra=CHAMPS[panelId]?.[field.cle];
+  return extra?{...field,...extra}:field;
+}
 export function inventaireGuidesRemar(){
   return Object.fromEntries(Object.entries(P).map(([panel,entries])=>[panel,Object.keys(entries)]));
 }
