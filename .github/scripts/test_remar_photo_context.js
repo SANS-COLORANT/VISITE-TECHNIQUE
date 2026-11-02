@@ -56,4 +56,11 @@ const def=JSON.parse(trame.match(/const definition = (\{[\s\S]*?\});\s*definitio
 for(const step of ['p-remar-filtres','p-remar-cta-mesures','p-remar-cta-energie']){
   assert.ok(def.ui.tabOrder.includes(step),'Official mapping of '+step+' retained');n++;
 }
+const remap=read('remarDynamicExportDb.js');
+assert.match(remap,/familyCounts\[family\]=parents.length/);n++;
+const intranet=read('intranetVisitPayload.js');
+assert.match(intranet,/Sélectionne S, N.S, N.R \(non vérifié\), S.O ou N.V avant l.envoi/);n++;
+assert.match(intranet,/const confirmed=value.inherited!==true/);n++;
+assert.match(field,/const proposerAvisEnMasse/);n++;
+assert.match(field,/if\(row\?\.avis && !row.inherited\)continue/);n++;
 console.log('PASS '+n+' REMAR photo/CTA-navigation identity and historic mapping protections');
