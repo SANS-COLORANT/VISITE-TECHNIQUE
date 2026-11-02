@@ -189,7 +189,8 @@ function find(panel,cle,section=null){
   check(groupedGas.issues.length===0,'two supplementary named gas meters can be classified safely: '+groupedGas.issues.join(' | '));
   check(outputFor(groupedGas,find('p-remar-releves','Compteur Gaz (m³)')).commentaire===
     'Compteur Gaz A : 1222 m³\nCompteur Gaz B : 2588899 m³',
-    'Symfony V1 receives two independent gas meter readings in one multiline criterion');
+    'Symfony V1 receives two independent gas meter readings in one multiline criterion; actual='+
+      JSON.stringify(outputFor(groupedGas,find('p-remar-releves','Compteur Gaz (m³)')).commentaire));
 
   const conflictingMeter=await build({meters:[
     {id:'bad',destination:'supplementaire',label:'Compteur gaz ECS',valeur:'123',unite:'m³'},
