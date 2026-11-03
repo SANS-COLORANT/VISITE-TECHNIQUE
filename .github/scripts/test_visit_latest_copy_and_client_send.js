@@ -43,8 +43,9 @@ check(preferredRemarCompleteId([{id:16,nom:'REMAR CLASSIQUE'}])===null,
 check(preferredRemarCompleteId([{id:22,nom:'REMAR COMPLETE'},{id:23,nom:'REMAR COMPLETE'}])===null,
  'ambiguous published complete IDs require explicit choice');
 
-const {copyLatestSameTrameVisit,isCurrentVisitMetadata}=evalModule(
- 'visitLatestSnapshotDb.js',['copyLatestSameTrameVisit','isCurrentVisitMetadata'],{DEFAULT_TRAME_ID:'icpe_v1'});
+const {copyLatestSameTrameVisit,isCurrentVisitMetadata,restorePreAllumageSnapshot}=evalModule(
+ 'visitLatestSnapshotDb.js',['copyLatestSameTrameVisit','isCurrentVisitMetadata','restorePreAllumageSnapshot'],
+ {DEFAULT_TRAME_ID:'icpe_v1',createId:()=> 'custom-section-or-field'});
 check(isCurrentVisitMetadata('Date de la visite')&&isCurrentVisitMetadata('Date de visite')&&
  !isCurrentVisitMetadata('Date du dernier entretien'),
  'copy does not replace new visit date or current meta, but retains maintenance date');
@@ -52,14 +53,16 @@ const newId='new-visit',oldId='last-visit';
 const state={fields:[],controls:[],dynamic:[],notes:[],meta:null,previousQueries:0};
 const db={
  async getFirstAsync(sql,args){
-   if(sql.includes('FROM visites WHERE id=?')) return {id:newId,site_id:'s1',
-     installation_id:'local-A',trame_id:'remar_v1',statut:'en_cours',date_visite:'2026-11-03'};
+   // Match the previous-visit query first: its rowid subselect also contains
+   // "FROM visites WHERE id=?" and must not masquerade as the current visit.
    if(sql.includes('FROM visites')&&sql.includes('rowid <')){
      state.previousQueries++;
      check(sql.includes('installation_id=?')&&sql.includes('COALESCE(trame_id'),
        'source is restricted to the same local and same template');
      return {id:oldId,date_visite:'2026-10-25'};
    }
+   if(sql.includes('FROM visites WHERE id=?')) return {id:newId,site_id:'s1',
+     installation_id:'local-A',trame_id:'remar_v1',statut:'en_cours',date_visite:'2026-11-03'};
    if(sql.includes('FROM _meta'))return state.meta?{value:state.meta}:null;
    if(sql.includes('FROM equipements'))return args[0]==='cta-1'&&args[1]==='local-A'?{id:'cta-1'}:null;
    if(sql.includes('FROM remar_items'))return {id:args[0]};
@@ -110,6 +113,45 @@ const db={
  check(runAgain.alreadyCopied&&state.controls.length===3,
    'idempotent new-visit copy never overwrites subsequent technician corrections');
 
+
+ // Pre-allumage creates different IDs for each new local. Even though all
+ // historical opinions are in SQLite, they MUST be visible under new IDs.
+ const oldSection='pa.local.old-pa.chauffage',newSection='pa.local.new-pa.chauffage';
+ const paWrites={controls:[],fields:[],meta:0};
+ const oldPa={id:'old-pa',nom:'SST 1',type_code:'sous_station'};
+ const newPa={id:'new-pa',nom:'SST 1',type_code:'sous_station'};
+ const oldRub={id:'old-rub',local_id:oldPa.id,panel_id:'p-pa-sst',
+   section_code:oldSection,nom:'SST 1 — Chauffage',ordre:1,supprimable:1};
+ const newRub={...oldRub,id:'new-rub',local_id:newPa.id,section_code:newSection};
+ const fakePa={
+   async getFirstAsync(sql){if(sql.includes('FROM _meta'))return null;throw Error(sql);},
+   async getAllAsync(sql,args){
+     const source=args[0]==='last-visit';
+     if(sql.includes('FROM pre_allumage_locaux'))return [source?oldPa:newPa];
+     if(sql.includes('FROM pre_allumage_rubriques'))return [source?oldRub:newRub];
+     if(sql.includes('FROM pre_allumage_champs'))return [
+       {id:source?'old-f':'new-f',rubrique_id:source?'old-rub':'new-rub',
+         cle_stockage:'Calorifugeage',libelle:'Calorifugeage',type_code:'controle',ordre:0}];
+     if(sql.includes('FROM champs_visite'))return [];
+     if(sql.includes('FROM controles_visite'))return source?[
+       {section_code:oldSection,cle:'Calorifugeage',avis:'N.S',commentaire:'Isolant absent'}]:[];
+     throw Error('Unexpected pre-allumage query: '+sql);
+   },
+   async runAsync(sql,args){
+     if(sql.includes('INSERT INTO controles_visite'))paWrites.controls.push(args);
+     else if(sql.includes('INSERT INTO champs_visite'))paWrites.fields.push(args);
+     else if(sql.includes('INSERT INTO _meta'))paWrites.meta++;
+     else throw Error('Unexpected pre-allumage mutation: '+sql);
+   },
+   async withTransactionAsync(fn){await fn();}
+ };
+ const pa=await restorePreAllumageSnapshot(fakePa,'last-visit','new-visit');
+ check(pa.controls===1&&paWrites.controls.length===1&&
+   paWrites.controls[0][1]===newSection&&paWrites.controls[0][3]==='N.S',
+   'pre-allumage source N.S is remapped and displayed under current local ID');
+ check(paWrites.meta===1,
+   'pre-allumage snapshot remap completed atomically with an idempotent marker');
+
  const picker=read('ClientVisitSendPicker.js');
  check(picker.includes('new Set(visits.map(v=>String(v.id)))')&&
        picker.includes("allSelected?'Tout désélectionner':'Tout sélectionner'")&&
@@ -131,7 +173,8 @@ const db={
  check(!screen.includes('Trame Intranet non renseignée')&&
        screen.includes('preferredRemarCompleteId'),
    'old unwanted site/trame panel is absent and REMAR complete is preselected');
- check(read('visitCreationDb.js').includes('await copyLatestSameTrameVisit(db, id)'),
-   'the copy completes before opening the brand-new visit');
+ check(read('visitCreationDb.js').includes('await copyLatestSameTrameVisit(db, id)') &&
+       read('visitCreationDb.js').includes('await restorePreAllumageSnapshot('),
+   'both classic and PA dynamic control copies complete before opening new visit');
  console.log('PASS '+checks+' complete visit snapshot / REMAR complete / post-sync / bulk selection checks');
 })().catch(e=>{console.error(e);process.exitCode=1;});

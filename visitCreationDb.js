@@ -8,7 +8,7 @@ import { importSelectedPreparationCriteria } from './apiLatestVisitImportDb.js';
 import { prepareIntranetSelectedTrame } from './intranetSelectedTrame.js';
 import { pinPhotoReferencesForVisit } from './latestVisitPhotosDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
-import { copyLatestSameTrameVisit } from './visitLatestSnapshotDb.js';
+import { copyLatestSameTrameVisit, restorePreAllumageSnapshot } from './visitLatestSnapshotDb.js';
 import { assurerStructureSitePreAllumage } from './preAllumageSiteBootstrap.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
 import { figerItemsRemarPourVisite } from './remarDynamicDb.js';
@@ -75,7 +75,7 @@ export async function creerVisiteProduction({
   // mesures et valeurs de la derniere visite sont presentes immediatement,
   // y compris apres une preparation Symfony differente. La nouvelle date,
   // l'identite et l'envoiId ne sont jamais copies.
-  await copyLatestSameTrameVisit(db, id);
+  const latestSnapshot = await copyLatestSameTrameVisit(db, id);
 
   // Capture le contenu actif du patrimoine REMAR du LOCAL au moment de la
   // creation, jamais a l'ouverture d'une ancienne visite. Pas de duplication.
@@ -90,6 +90,11 @@ export async function creerVisiteProduction({
     // la construction tardive de leur structure.
     await assurerStructureSitePreAllumage(id);
     await chargerPreAllumageModulaire(id);
+    // Les ID des sous-stations et des rubriques modifiables changent d'une
+    // visite à l'autre. Mapper les anciens champs/avis vers les nouveaux ID
+    // avant ouverture ; sinon les S/N.S/S.O copiés resteraient invisibles.
+    if (latestSnapshot?.sourceVisitId)
+      await restorePreAllumageSnapshot(db, latestSnapshot.sourceVisitId, id);
   }
 
   // Les références photo et le classement Android ne sont pas nécessaires pour
