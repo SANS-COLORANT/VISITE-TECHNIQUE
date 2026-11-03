@@ -32,60 +32,85 @@ function canCarryField(trame, field) {
   return true;
 }
 
+// SQLite parameters stay under the old 999-variable limit. Keep a bounded
+// working set so clients with years of technical visits do not load the whole
+// history into the tablet's JS heap at once.
+const HISTORY_READ_BATCH = 120;
+function groupedVisitRows(rows) {
+  const grouped = new Map();
+  for (const row of rows || []) {
+    const id = String(row.visite_id);
+    const previous = grouped.get(id);
+    if (previous) previous.push(row);
+    else grouped.set(id, [row]);
+  }
+  return grouped;
+}
+
 async function collectSemanticSnapshot(db, sourceVisits) {
   const latest = new Map();
-  for (const visit of sourceVisits) {
-    let sourceTrame;
-    try { sourceTrame = obtenirTrame(visit.trame_id || DEFAULT_TRAME_ID); } catch { continue; }
-    const sourceIndex = construireIndexSemantiqueTrame(sourceTrame);
+  const indexes = new Map();
+  for (let offset = 0; offset < sourceVisits.length; offset += HISTORY_READ_BATCH) {
+    const visits = sourceVisits.slice(offset, offset + HISTORY_READ_BATCH);
+    const ids = visits.map(v => String(v.id));
+    const placeholders = ids.map(() => '?').join(',');
+    const fields = groupedVisitRows(await db.getAllAsync(
+      `SELECT visite_id,section_code,cle,valeur FROM champs_visite
+       WHERE visite_id IN (${placeholders})
+         AND valeur IS NOT NULL AND trim(valeur)<>''
+       ORDER BY visite_id,section_code,cle`, ids));
+    const controls = groupedVisitRows(await db.getAllAsync(
+      `SELECT visite_id,section_code,cle,avis,commentaire FROM controles_visite
+       WHERE visite_id IN (${placeholders})
+         AND (avis IS NOT NULL OR commentaire IS NOT NULL)
+       ORDER BY visite_id,section_code,cle`, ids));
 
-    const fields = await db.getAllAsync(
-      `SELECT section_code,cle,valeur FROM champs_visite
-       WHERE visite_id=? AND valeur IS NOT NULL AND trim(valeur)<>''`,
-      [visit.id]
-    );
-    for (const row of fields || []) {
-      const semantic = sourceIndex.byStorage.get(`${row.section_code}||${row.cle}`)?.semanticKey;
-      if (!semantic) continue;
-      const item = latest.get(semantic) || {};
-      if (!item.textValue) {
-        item.textValue = clean(row.valeur) || null;
-        item.textSourceVisitId = visit.id;
-        item.textSourceTrameId = visit.trame_id;
+    for (const visit of visits) {
+      const trameId = visit.trame_id || DEFAULT_TRAME_ID;
+      let sourceIndex = indexes.get(trameId);
+      if (!sourceIndex) {
+        try {
+          sourceIndex = construireIndexSemantiqueTrame(obtenirTrame(trameId));
+        } catch { continue; }
+        indexes.set(trameId, sourceIndex);
       }
-      latest.set(semantic, item);
-    }
 
-    const controls = await db.getAllAsync(
-      `SELECT section_code,cle,avis,commentaire FROM controles_visite
-       WHERE visite_id=? AND (avis IS NOT NULL OR commentaire IS NOT NULL)`,
-      [visit.id]
-    );
-    for (const row of controls || []) {
-      const semantic = sourceIndex.byStorage.get(`${row.section_code}||${row.cle}`)?.semanticKey;
-      if (!semantic) continue;
-      const item = latest.get(semantic) || {};
-      const avis = clean(row.avis) || null;
-      const commentaire = clean(row.commentaire) || null;
-      if (!item.avis && avis) {
-        item.avis = avis;
-        item.controlSourceVisitId = visit.id;
-        item.controlSourceTrameId = visit.trame_id;
+      for (const row of fields.get(String(visit.id)) || []) {
+        const semantic = sourceIndex.byStorage.get(`${row.section_code}||${row.cle}`)?.semanticKey;
+        if (!semantic) continue;
+        const item = latest.get(semantic) || {};
+        if (!item.textValue) {
+          item.textValue = clean(row.valeur) || null;
+          item.textSourceVisitId = visit.id;
+          item.textSourceTrameId = visit.trame_id;
+        }
+        latest.set(semantic, item);
       }
-      if (!item.commentaire && commentaire) {
-        item.commentaire = commentaire;
-        item.commentSourceVisitId = visit.id;
-        item.commentSourceTrameId = visit.trame_id;
+
+      for (const row of controls.get(String(visit.id)) || []) {
+        const semantic = sourceIndex.byStorage.get(`${row.section_code}||${row.cle}`)?.semanticKey;
+        if (!semantic) continue;
+        const item = latest.get(semantic) || {};
+        const avis = clean(row.avis) || null;
+        const commentaire = clean(row.commentaire) || null;
+        if (!item.avis && avis) {
+          item.avis = avis;
+          item.controlSourceVisitId = visit.id;
+          item.controlSourceTrameId = visit.trame_id;
+        }
+        if (!item.commentaire && commentaire) {
+          item.commentaire = commentaire;
+          item.commentSourceVisitId = visit.id;
+          item.commentSourceTrameId = visit.trame_id;
+        }
+        // Historical measurements may be stored as control commentary.
+        if (!item.textValue && commentaire) {
+          item.textValue = commentaire;
+          item.textSourceVisitId = visit.id;
+          item.textSourceTrameId = visit.trame_id;
+        }
+        latest.set(semantic, item);
       }
-      // Les mesures historiques ICPE/RCU sont souvent stockées dans le
-      // commentaire d'un contrôle. Elles peuvent alimenter un champ équivalent
-      // dans une autre trame.
-      if (!item.textValue && commentaire) {
-        item.textValue = commentaire;
-        item.textSourceVisitId = visit.id;
-        item.textSourceTrameId = visit.trame_id;
-      }
-      latest.set(semantic, item);
     }
   }
   return latest;
@@ -148,68 +173,72 @@ async function copyReusableControls(db, visiteId, semanticSnapshot, trame) {
 async function copyUnresolvedReserves(db, visiteId, sourceVisits) {
   const seen = new Set();
   let copied = 0;
+  // The destination and tombstone sets are read once, rather than querying
+  // both for every historical reserve (the old loop was O(visits+reserves)).
+  const existingRows = await db.getAllAsync(
+    `SELECT reference_id FROM remarques
+     WHERE visite_id=? AND reference_type='reserve_historique'`, [visiteId]);
+  const existing = new Set(existingRows.map(row => clean(row.reference_id)).filter(Boolean));
 
-  for (const visit of sourceVisits) {
-    const rows = await db.getAllAsync(
+  for (let offset = 0; offset < sourceVisits.length; offset += HISTORY_READ_BATCH) {
+    const batch = sourceVisits.slice(offset, offset + HISTORY_READ_BATCH);
+    const ids = batch.map(visit => String(visit.id));
+    const placeholders = ids.map(() => '?').join(',');
+    const byVisit = groupedVisitRows(await db.getAllAsync(
       `SELECT r.*,v.date_visite AS date_source,v.trame_id AS trame_source
        FROM remarques r JOIN visites v ON v.id=r.visite_id
-       WHERE r.visite_id=?
-       ORDER BY r.criticite DESC,r.cree_le,r.id`,
-      [visit.id]
-    );
+       WHERE r.visite_id IN (${placeholders})
+       ORDER BY r.visite_id,r.criticite DESC,r.cree_le,r.id`,ids));
 
-    for (const row of rows || []) {
-      const lineageId = row.reference_type === 'reserve_historique' && clean(row.reference_id)
-        ? clean(row.reference_id)
-        : row.id;
-      if (seen.has(lineageId)) continue;
-      seen.add(lineageId);
+    const lineages = [...new Set([...byVisit.values()].flatMap(rows => rows.map(row =>
+      row.reference_type === 'reserve_historique' && clean(row.reference_id)
+        ? clean(row.reference_id) : String(row.id))))];
+    const removed = new Set();
+    for (let i = 0; i < lineages.length; i += HISTORY_READ_BATCH) {
+      const group = lineages.slice(i, i + HISTORY_READ_BATCH);
+      const gone = await db.getAllAsync(
+        `SELECT entite_id FROM provenances
+         WHERE entite_type='reserve_lignee' AND origine='retrait_visite'
+           AND entite_id IN (${group.map(() => '?').join(',')})`, group);
+      for (const item of gone) removed.add(clean(item.entite_id));
+    }
 
-      // La dernière occurrence de la lignée fait foi. Une réserve déjà levée ou
-      // annulée dans une trame ultérieure ne doit pas ressusciter.
-      if (['Terminé', 'Annulé'].includes(clean(row.intranet_etat_avancement))) continue;
+    // Iterate visits in their original date order. A lifted/cancelled reserve
+    // must not be resurrected from an older occurrence of the same lineage.
+    for (const visit of batch) {
+      for (const row of byVisit.get(String(visit.id)) || []) {
+        const lineageId = row.reference_type === 'reserve_historique' && clean(row.reference_id)
+          ? clean(row.reference_id) : row.id;
+        if (seen.has(lineageId)) continue;
+        seen.add(lineageId);
+        if (['Terminé', 'Annulé'].includes(clean(row.intranet_etat_avancement))) continue;
+        if (removed.has(String(lineageId)) || existing.has(String(lineageId))) continue;
 
-      // Réserve retirée par l'utilisateur dans une visite ultérieure : elle ne
-      // revient pas depuis une visite plus ancienne.
-      const retiree = await db.getFirstAsync(
-        `SELECT 1 AS ok FROM provenances
-         WHERE entite_type='reserve_lignee' AND entite_id=? AND origine='retrait_visite'
-         LIMIT 1`,
-        [lineageId]
-      );
-      if (retiree?.ok) continue;
-
-      const existing = await db.getFirstAsync(
-        `SELECT id FROM remarques
-         WHERE visite_id=? AND reference_type='reserve_historique' AND reference_id=?
-         LIMIT 1`,
-        [visiteId, lineageId]
-      );
-      if (existing?.id) continue;
-
-      const id = createId();
-      const origineSource = clean(row.origine);
-      const origine = origineSource
-        ? `Reprise historique · ${origineSource}`
-        : 'Reprise historique';
-      await db.runAsync(
-        `INSERT INTO remarques(
-           id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,
-           reference_onglet,reference_type,reference_id,reference_libelle,
-           criticite,criticite_defaut,criticite_modifiee,
-           intranet_date_reserve,intranet_delai,intranet_etat_avancement,perimetre
-         ) VALUES(?,?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-        [
-          id, visiteId,
-          row.poste ?? null, row.prestation ?? null, row.delai ?? null, row.estimatif ?? null, origine,
-          null, 'reserve_historique', lineageId,
-          row.reference_libelle || row.poste || 'Réserve reprise',
-          row.criticite ?? 2, row.criticite_defaut ?? row.criticite ?? 2, row.criticite_modifiee ?? 0,
-          row.intranet_date_reserve || row.date_source || null,
-          row.intranet_delai ?? null, row.intranet_etat_avancement ?? null, row.perimetre ?? null,
-        ]
-      );
-      copied += 1;
+        const id = createId();
+        const origineSource = clean(row.origine);
+        const origine = origineSource
+          ? `Reprise historique · ${origineSource}`
+          : 'Reprise historique';
+        await db.runAsync(
+          `INSERT INTO remarques(
+             id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,
+             reference_onglet,reference_type,reference_id,reference_libelle,
+             criticite,criticite_defaut,criticite_modifiee,
+             intranet_date_reserve,intranet_delai,intranet_etat_avancement,perimetre
+           ) VALUES(?,?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+          [
+            id, visiteId,
+            row.poste ?? null, row.prestation ?? null, row.delai ?? null, row.estimatif ?? null, origine,
+            null, 'reserve_historique', lineageId,
+            row.reference_libelle || row.poste || 'Réserve reprise',
+            row.criticite ?? 2, row.criticite_defaut ?? row.criticite ?? 2, row.criticite_modifiee ?? 0,
+            row.intranet_date_reserve || row.date_source || null,
+            row.intranet_delai ?? null, row.intranet_etat_avancement ?? null, row.perimetre ?? null,
+          ]
+        );
+        existing.add(String(lineageId));
+        copied += 1;
+      }
     }
   }
   return copied;

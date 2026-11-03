@@ -24,6 +24,9 @@ on:
       - 'intranetVisitOutboxDb.js'
       - 'VisiteScreen.js'
       - '.github/scripts/test_visit_latest_copy_and_client_send.js'
+      - '.github/scripts/test_visit_creation_fast_sqlite.js'
+      - '.github/scripts/test_visit_history_batch_performance.js'
+      - 'visitCarryForwardDb.js'
       - 'SiteLocalsScreen.js'
       - 'SiteVisitesScreen.js'
       - 'PersistentControleGenerique.js'
@@ -44,6 +47,7 @@ on:
       - fix/remar-complete-symfony-20261103
       - feat/premium-cards-control-photos-20261103
       - fix/visit-history-remar-default-resync-selection-20261103
+      - perf/visit-create-fast-prefill-20261103
 permissions:
   contents: read
 jobs:
@@ -73,6 +77,8 @@ jobs:
           node .github/scripts/test_remar_complete_20261103.js
           node .github/scripts/test_premium_cards_control_photos.js
           node .github/scripts/test_visit_latest_copy_and_client_send.js
+          node .github/scripts/test_visit_creation_fast_sqlite.js
+          node .github/scripts/test_visit_history_batch_performance.js
       - name: Real SQLite REMAR equipment, fields and data protections
         run: |
           node .github/scripts/test_remar_dynamic.js
