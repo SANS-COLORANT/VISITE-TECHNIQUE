@@ -47,11 +47,12 @@ for(const m of mappings) {
 // par point, cat/sous-cat indépendants : jamais un ID de production inventé.
 let rid=1000, cid=10;
 const remoteIndex=[];
+const remoteCategoryName = panelId=>panelId==='p-infos'
+  ?'INFORMATION GÉNÉRALE CHAUFFERIE':panelId==='p-remar-froid'
+    ?'INFORMATION GÉNÉRALE PRODUCTION FROID':definition.ui.labels?.[panelId]||panelId;
 const categories=Object.entries(definition.ui.panels).map(([panelId,sections])=>{
   const cId=cid++;
-  return {id:cId,nom:panelId==='p-infos'
-    ?'INFORMATION GÉNÉRALE CHAUFFERIE':panelId==='p-remar-froid'
-      ?'INFORMATION GÉNÉRALE PRODUCTION FROID':definition.ui.labels?.[panelId]||panelId,
+  return {id:cId,nom:remoteCategoryName(panelId),
     sousCategories:Object.entries(sections).map(([section,fields])=>{
       const sId=cid++;
       return {id:sId,nom:section,criteres:fields.map(field=>{
@@ -66,7 +67,7 @@ const remote={categories};
 check(remoteIndex.length===141,'141 distinct Symfony-style fixture criteria');
 for(const {criterion,m,panelId,section} of remoteIndex){
   const resolved=serializer.inspectIntranetCriterionCandidate('remar_v1',criterion,
-    definition.ui.labels?.[panelId]||panelId,section).resolved;
+    remoteCategoryName(panelId),section).resolved;
   check(resolved && identity(resolved)===identity(m),
     'one-to-one deterministic candidate '+identity(m)+', found '+JSON.stringify(resolved));
 }
