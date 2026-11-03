@@ -49,7 +49,9 @@ let rid=1000, cid=10;
 const remoteIndex=[];
 const categories=Object.entries(definition.ui.panels).map(([panelId,sections])=>{
   const cId=cid++;
-  return {id:cId,nom:definition.ui.labels?.[panelId]||panelId,
+  return {id:cId,nom:panelId==='p-infos'
+    ?'INFORMATION GÉNÉRALE CHAUFFERIE':panelId==='p-remar-froid'
+      ?'INFORMATION GÉNÉRALE PRODUCTION FROID':definition.ui.labels?.[panelId]||panelId,
     sousCategories:Object.entries(sections).map(([section,fields])=>{
       const sId=cid++;
       return {id:sId,nom:section,criteres:fields.map(field=>{
@@ -179,6 +181,27 @@ function find(panel,cle,section=null){
     {id:7777,nom:'Réseau 1',avisApplicable:false},
     'INSTALLATIONS','Réseaux').resolved;
   check(noContext===null,'same-name network without domain context is refused');
+  // Actual 03/11/2026 incident: 3 criteria are published in BOTH site
+  // categories with the exact same label and subcategory. Never map the
+  // heating criterion to cold merely because the cold section has a better
+  // fuzzy score ("Informations du site").
+  for(const criterionName of ['Type de régulation','Situation','Accessibilité']){
+    const criterion={id:9100,nom:criterionName,avisApplicable:false};
+    const heating=serializer.inspectIntranetCriterionCandidate('remar_v1',criterion,
+      'INFORMATION GÉNÉRALE CHAUFFERIE','Informations du site').resolved;
+    const cooling=serializer.inspectIntranetCriterionCandidate('remar_v1',criterion,
+      'INFORMATION GÉNÉRALE PRODUCTION FROID','Informations du site').resolved;
+    const unknown=serializer.inspectIntranetCriterionCandidate('remar_v1',criterion,
+      'INFORMATION GÉNÉRALE','Informations du site').resolved;
+    const mixed=serializer.inspectIntranetCriterionCandidate('remar_v1',criterion,
+      'CHAUFFERIE ET PRODUCTION FROID','Informations du site').resolved;
+    check(heating?.panelId==='p-infos' && heating.cle===criterionName,
+      'chauffage site '+criterionName+' maps ONLY to p-infos');
+    check(cooling?.panelId==='p-remar-froid' && cooling.cle===criterionName,
+      'cold site '+criterionName+' maps ONLY to p-remar-froid');
+    check(unknown===null&&mixed===null,
+      'ambiguous server category fails closed for '+criterionName);
+  }
 
   const testNetwork=[{id:'r-1',ordre:1,nom_reseau:'Réseau chauffage bureaux',
     courbe_de_chauffe:'1.2',tnc:'20'}];

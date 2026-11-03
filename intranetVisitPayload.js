@@ -486,6 +486,37 @@ function scopeRemarNumberedNetworkCandidates(matches, criterionKey, categoryName
   // Ne pas choisir au score une case frigorifique pour un chauffage.
   return [];
 }
+/**
+ * Symfony publishes identical three site criteria in two distinct REMAR
+ * categories: INFORMATION GÉNÉRALE CHAUFFERIE and INFORMATION GÉNÉRALE
+ * PRODUCTION FROID. Their subcategory ("Informations du site") and name
+ * are insufficient to determine which SQLite field owns the observation.
+ *
+ * Only the explicit *server category* may choose p-infos vs p-remar-froid.
+ * Unknown/mixed category: return no candidate instead of silently putting
+ * chaufferie data into cold (or vice-versa).
+ * Keep this restriction limited to the three verified REMAR duplicates.
+ */
+const REMAR_DUPLICATED_SITE_CRITERIA=new Set([
+  'type de regulation','situation','accessibilite',
+]);
+function scopeRemarSiteCandidates(matches, criterionKey, categoryName) {
+  if(!REMAR_DUPLICATED_SITE_CRITERIA.has(criterionKey) ||
+     !matches.some(c=>c.panelId==='p-infos') ||
+     !matches.some(c=>c.panelId==='p-remar-froid'))return matches;
+  const category=normalize(categoryName);
+  const isHeating=/(?:^| )(?:chaufferie|chauffage)(?: |$)/.test(category);
+  const isCooling=/(?:^| )(?:froid|frigorifique)(?: |$)/.test(category);
+  if(isHeating===isCooling)return [];
+  const owner=isCooling?'p-remar-froid':'p-infos';
+  return matches.filter(c=>c.panelId===owner);
+}
+function scopeRemarCandidates(matches, criterionKey, categoryName, subCategoryName) {
+  return scopeRemarSiteCandidates(
+    scopeRemarNumberedNetworkCandidates(matches,criterionKey,categoryName,subCategoryName),
+    criterionKey,categoryName
+  );
+}
 function findCandidate(candidates, criterion, categoryName, subCategoryName) {
   const key = normalize(criterion?.nom);
   if (!key) return null;
@@ -493,7 +524,7 @@ function findCandidate(candidates, criterion, categoryName, subCategoryName) {
   // Priorité aux clés exactes. En leur absence, seuls les alias explicites
   // sont autorisés : jamais de rapprochement flou ou arbitraire.
   const matches = exact.length ? exact : candidates.filter((candidate) => candidate.aliases?.includes(key));
-  const scoped=scopeRemarNumberedNetworkCandidates(matches,key,categoryName,subCategoryName);
+  const scoped=scopeRemarCandidates(matches,key,categoryName,subCategoryName);
   if (!scoped.length) return null;
   const ranked = scoped.map((candidate) => ({ candidate, score: candidateScore(candidate, criterion, categoryName, subCategoryName) }))
     .sort((a, b) => b.score - a.score);
@@ -508,7 +539,8 @@ export function inspectIntranetCriterionCandidate(localTrameId, criterion, categ
   const key = normalize(criterion?.nom);
   const exact = candidates.filter((candidate) => candidate.key === key);
   const matches = exact.length ? exact : candidates.filter((candidate) => candidate.aliases?.includes(key));
-  const ranked = matches.map((candidate) => ({
+  const scoped=scopeRemarCandidates(matches,key,categoryName,subCategoryName);
+  const ranked = scoped.map((candidate) => ({
     panelId: candidate.panelId,
     section: candidate.section,
     sectionCode: candidate.sectionCode,
