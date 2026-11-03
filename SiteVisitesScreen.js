@@ -1,6 +1,5 @@
 /** Écran d'un site : visites, équipements, remarques + localisation par adresse. */
 
-import { DepuisDerniereVisiteCard } from './DepuisDerniereVisiteCard.js';
 import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { View, Text, FlatList, TouchableOpacity, Modal, TextInput, Alert, Linking, ScrollView, InteractionManager } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
@@ -410,13 +409,13 @@ function SiteVisitesScreen({ route, navigation }) {
         contentContainerStyle={styles.content}
         data={siteTab === 'visites' ? visites : []}
         keyExtractor={(item) => item.id}
-        ListHeaderComponent={<View><PhotoReferenceAccess siteId={siteId} remoteLocalId={apiRemoteLocalId} contextTitle={nomLocal || nomSite} /><LocalisationHeader />{siteTab === 'visites' && installationId ? <DepuisDerniereVisiteCard siteId={siteId} installationId={installationId} refreshKey={visites.length} /> : null}<SiteTabs />{siteTab === 'visites' ? <VisitesHeader /> : null}</View>}
+        ListHeaderComponent={<View><PhotoReferenceAccess siteId={siteId} remoteLocalId={apiRemoteLocalId} contextTitle={nomLocal || nomSite} /><LocalisationHeader /><SiteTabs />{siteTab === 'visites' ? <VisitesHeader /> : null}</View>}
         renderItem={({ item }) => {
           const trame = obtenirTrame(item.trame_id || DEFAULT_TRAME_ID);
           const selectionnee = visitesSelectionnees.has(item.id);
           return (
             <TouchableOpacity
-              style={[styles.card, selectionExport && selectionnee ? { borderWidth: 2, borderColor: COLORS.primary } : null]}
+              style={[styles.card, { flexDirection: 'column', alignItems: 'stretch', gap: 0, minHeight: 94 }, selectionExport && selectionnee ? { borderWidth: 2, borderColor: COLORS.primary } : null]}
               activeOpacity={0.7}
               onPressIn={() => { if (!selectionExport) prechaufferVisite(item).catch(() => {}); }}
               onPress={() => {
@@ -426,18 +425,27 @@ function SiteVisitesScreen({ route, navigation }) {
                 navigation.navigate('Visite', { visiteId: item.id, visitePreview: preview });
               }}
             >
-              {selectionExport ? <View style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: selectionnee ? COLORS.primary : COLORS.line, backgroundColor: selectionnee ? COLORS.primary : '#fff', alignItems: 'center', justifyContent: 'center', marginRight: 10 }}><Text style={{ color: '#fff', fontFamily: FONTS.black }}>{selectionnee ? '✓' : ''}</Text></View> : null}
-              <View style={{ flex: 1 }}>
-                <Text style={styles.cardTitle}>{item.date_visite || 'Sans date'}</Text>
-                <Text style={styles.cardSub}>{trame.nom}{item.technicien ? ` · ${item.technicien}` : ''}</Text>
+              <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10, minWidth: 0 }}>
+                {selectionExport ? <View style={{ width: 28, height: 28, borderRadius: 14, borderWidth: 2, borderColor: selectionnee ? COLORS.primary : COLORS.line, backgroundColor: selectionnee ? COLORS.primary : '#fff', alignItems: 'center', justifyContent: 'center' }}>
+                  <Text style={{ color: '#fff', fontFamily: FONTS.black }}>{selectionnee ? '✓' : ''}</Text>
+                </View> : null}
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text numberOfLines={1} style={[styles.cardTitle, { lineHeight: 20 }]}>{item.date_visite || 'Sans date'}</Text>
+                  <Text numberOfLines={2} ellipsizeMode="tail" style={styles.cardSub}>{trame.nom}{item.technicien ? ` · ${item.technicien}` : ''}</Text>
+                </View>
+                {!selectionExport ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Options de la visite"
+                  onPress={(e) => { e?.stopPropagation?.(); Alert.alert(`Visite du ${item.date_visite || 'jour'}`, undefined, [{ text: 'Supprimer la visite…', style: 'destructive', onPress: () => confirmerSuppressionVisite(item) }, { text: 'Annuler', style: 'cancel' }]); }}
+                  style={{ width: 40, minHeight: 42, alignItems: 'center', justifyContent: 'center' }}>
+                  <CvcIcon name="more" size={20} color={COLORS.inkSoft} />
+                </TouchableOpacity> : null}
               </View>
-              <View style={{ alignItems: 'flex-end', gap: 5 }}>
-                <View style={styles.badge}><Text style={styles.badgeText}>{STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%</Text></View>
-                {!selectionExport && (intranetClientImported || item.api_remote_local_id) ? <IntranetVisitSyncControl visite={item} onVisitChanged={charger} compact /> : null}
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: 8, marginTop: 9 }}>
+                <View style={styles.badge}>
+                  <Text numberOfLines={1} style={styles.badgeText}>{STATUT_LABELS[item.statut] || item.statut} · {item.progression_pct}%</Text>
+                </View>
+                {!selectionExport && (intranetClientImported || item.api_remote_local_id)
+                  ? <IntranetVisitSyncControl visite={item} onVisitChanged={charger} compact /> : null}
               </View>
-              {!selectionExport ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Options de la visite" onPress={(e) => { e?.stopPropagation?.(); Alert.alert(`Visite du ${item.date_visite || 'jour'}`, undefined, [{ text: 'Supprimer la visite…', style: 'destructive', onPress: () => confirmerSuppressionVisite(item) }, { text: 'Annuler', style: 'cancel' }]); }} style={{ minWidth: 42, minHeight: 42, alignItems: 'center', justifyContent: 'center', marginLeft: 2 }}>
-                <CvcIcon name="more" size={20} color={COLORS.inkSoft} />
-              </TouchableOpacity> : null}
             </TouchableOpacity>
           );
         }}

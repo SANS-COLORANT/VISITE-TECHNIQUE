@@ -4,7 +4,7 @@ import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { upsertControlePartiel } from './controlDb.js';
 import { listerRemarquesVisite, upsertRemarquePrescription, supprimerRemarqueControle } from './remarkDb.js';
-import { PhotoButton } from './PhotoButton.js';
+import { ControlPhotoAction } from './ControlPhotoAction.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
 import { ouvrirAideReglementaire } from './AideReglementaire.js';
@@ -163,6 +163,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
         })}
       </View>
     </View>
+    <ControlPhotoAction visiteId={visiteId} entiteKey={controleKey} label={label} avis={avis} />
     {avis && <View style={[styles.criterePanel, { backgroundColor: palette.bg, borderColor: palette.border }]}>
       {satisfiedFolded ? (
         <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8, minHeight: 35 }}>
@@ -201,9 +202,7 @@ export const PresetControleGenerique = React.memo(function PresetControleGeneriq
         <Text style={{ color: COLORS.green, fontFamily: FONTS.bodySemi, fontSize: 11 }}>Replier le commentaire</Text>
       </TouchableOpacity> : null}
       </>}
-      {(isRemar || avis === 'N.S') ? <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={label}
-        beforeCapture={isRemar && avis !== 'N.S' ? () => ({ entiteKey: controleKey, label }) : undefined}
-        style={avis === 'N.S' ? styles.photoRequiredBox : undefined} /> : null}
+
     </View>}
   </View>;
 });

@@ -17,6 +17,7 @@ on:
       - feat/remar-dynamic-every-tab-20261102
       - fix/remar-intranet-diagnostics-20261102
       - fix/remar-complete-symfony-20261103
+      - feat/premium-cards-control-photos-20261103
     paths:
       - '**/*.js'
       - '**/*.json'
@@ -65,6 +66,7 @@ jobs:
           node .github/scripts/test_remar_141_intranet_matrix.js
           node .github/scripts/test_remar_remote_trame_selection.js
           node .github/scripts/test_remar_complete_20261103.js
+          node .github/scripts/test_premium_cards_control_photos.js
           node .github/scripts/test_intranet_error_diagnostics.js
           node .github/scripts/test_intranet_any_visit_binding.js
       - name: Test REMAR, editable trames and real SQLite round trips

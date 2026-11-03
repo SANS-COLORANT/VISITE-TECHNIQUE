@@ -306,19 +306,51 @@ function ClientSitesScreen({ route, navigation }) {
           })}
         </ScrollView>
       </View>}
-      renderItem={({ item }) => <TouchableOpacity style={styles.card} activeOpacity={0.7} onPressIn={() => prewarmSiteLocals(item.id).catch(() => {})} onPress={() => ouvrirSite(item)}>
-        <PatrimoineThumbnail uri={item.image_uri} size={60} radius={10} />
-        <View style={{ flex: 1 }}><Text style={styles.cardTitle}>{item.nom_site}</Text>{siteGroupLabel(item.id, groupMap) ? <Text style={{ color: COLORS.primary, fontSize: 10.5, fontFamily: FONTS.bold, marginTop: 2 }}>{siteGroupLabel(item.id, groupMap)}</Text> : null}{item.adresse ? <Text style={styles.cardSub}>{item.adresse}</Text> : <Text style={{ color: '#A26A00', fontSize: 12 }}>Adresse à renseigner</Text>}{item.localisation_note ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 4 }}>{item.localisation_note}</Text> : null}{(() => {
-          const cible = tourneeIndex.sites.get(item.id);
-          const locaux = tourneeRows.filter((r) => r.site_id === item.id && r.installation_id);
-          if (!cible && !locaux.length) return null;
-          const fait = cible ? Number(cible.fait) === 1 : locaux.every((r) => Number(r.fait) === 1);
-          const detail = locaux.length ? ` · ${locaux.filter((r) => Number(r.fait) === 1).length}/${locaux.length} locaux` : '';
-          return <View style={{ alignSelf: 'flex-start', marginTop: 5, paddingHorizontal: 9, paddingVertical: 3, borderRadius: 11, backgroundColor: fait ? COLORS.greenBg : COLORS.orangeLight }}><Text style={{ fontSize: 11, fontFamily: FONTS.bodyBold, color: fait ? COLORS.green : COLORS.orangeDark }}>{fait ? 'Fait' : 'À faire'}{detail}</Text></View>;
-        })()}</View>
-        <TouchableOpacity onPress={(e) => ouvrirStructure(e, item)} style={{ minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 10, borderRadius: 18, borderWidth: 1, borderColor: 'rgba(242,100,38,0.3)', backgroundColor: 'rgba(242,100,38,0.1)', marginRight: 6 }}><CvcIcon name="local" size={14} color={COLORS.orangeDark} /><Text style={{ color: COLORS.orangeDark, fontSize: 11, fontFamily: FONTS.bodyBold }}>Locaux</Text></TouchableOpacity>
-        <View style={[styles.badge, item.statut === 'Actif' ? styles.badgeActif : styles.badgeInactif]}><Text style={[styles.badgeText, item.statut === 'Actif' ? styles.badgeTextActif : styles.badgeTextInactif]}>{item.statut || 'Actif'}</Text></View>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Plus d’options" onPress={(e) => ouvrirMenuSite(e, item)} style={{ minWidth: 46, minHeight: 46, alignItems: 'center', justifyContent: 'center', marginLeft: 4 }}><CvcIcon name="more" size={23} color={COLORS.inkSoft} strokeWidth={2.1} /></TouchableOpacity>
+      renderItem={({ item }) => <TouchableOpacity style={[styles.card, { flexDirection: 'column', alignItems: 'stretch', gap: 9, minHeight: 110 }]} activeOpacity={0.7}
+        onPressIn={() => prewarmSiteLocals(item.id).catch(() => {})} onPress={() => ouvrirSite(item)}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, minWidth: 0 }}>
+          {item.image_uri ? <PatrimoineThumbnail uri={item.image_uri} size={52} radius={12} style={{ marginRight: 0 }} /> :
+            <View style={{ width: 52, height: 52, borderRadius: 13, flexShrink: 0, borderWidth: 1,
+              borderColor: 'rgba(242,100,38,0.18)', backgroundColor: COLORS.orangeLight,
+              alignItems: 'center', justifyContent: 'center' }}>
+              <CvcIcon name="building" size={23} color={COLORS.orangeDark}/>
+            </View>}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            <Text numberOfLines={2} ellipsizeMode="tail" style={[styles.cardTitle, { lineHeight: 20 }]}>{item.nom_site}</Text>
+            {siteGroupLabel(item.id, groupMap) ? <Text numberOfLines={1} style={{ color: COLORS.primary, fontSize: 10.5, fontFamily: FONTS.bold, marginTop: 3 }}>{siteGroupLabel(item.id, groupMap)}</Text> : null}
+            {item.adresse ? <Text numberOfLines={2} ellipsizeMode="tail" style={styles.cardSub}>{item.adresse}</Text>
+              : <Text numberOfLines={1} style={{ color: '#A26A00', fontSize: 12, marginTop: 3 }}>Adresse à renseigner</Text>}
+            {item.localisation_note ? <Text numberOfLines={1} style={{ color: COLORS.muted, fontSize: 11, marginTop: 4 }}>{item.localisation_note}</Text> : null}
+          </View>
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel="Plus d’options" onPress={(e) => { e?.stopPropagation?.(); ouvrirMenuSite(e, item); }}
+            style={{ width: 42, minHeight: 44, alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <CvcIcon name="more" size={22} color={COLORS.inkSoft} strokeWidth={2.1} />
+          </TouchableOpacity>
+        </View>
+        {/* Actions sous le nom : ne compressent jamais la zone centrale. */}
+        <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+          {(() => {
+            const cible = tourneeIndex.sites.get(item.id);
+            const locaux = tourneeRows.filter((r) => r.site_id === item.id && r.installation_id);
+            if (!cible && !locaux.length) return null;
+            const fait = cible ? Number(cible.fait) === 1 : locaux.every((r) => Number(r.fait) === 1);
+            const detail = locaux.length ? ` · ${locaux.filter((r) => Number(r.fait) === 1).length}/${locaux.length} locaux` : '';
+            return <View style={{ paddingHorizontal: 10, paddingVertical: 6, borderRadius: 14, backgroundColor: fait ? COLORS.greenBg : COLORS.orangeLight }}>
+              <Text numberOfLines={1} style={{ fontSize: 11, fontFamily: FONTS.bodyBold, color: fait ? COLORS.green : COLORS.orangeDark }}>{fait ? 'Fait' : 'À faire'}{detail}</Text>
+            </View>;
+          })()}
+          <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Voir les locaux de ${item.nom_site}`}
+            onPress={(e) => { e?.stopPropagation?.(); ouvrirStructure(e, item); }}
+            style={{ minHeight: 36, flexDirection: 'row', alignItems: 'center', gap: 5, paddingHorizontal: 12, borderRadius: 18,
+              borderWidth: 1, borderColor: 'rgba(242,100,38,0.3)', backgroundColor: 'rgba(242,100,38,0.1)' }}>
+            <CvcIcon name="local" size={14} color={COLORS.orangeDark} />
+            <Text style={{ color: COLORS.orangeDark, fontSize: 11.5, fontFamily: FONTS.bodyBold }}>Locaux</Text>
+          </TouchableOpacity>
+          <View style={[styles.badge, item.statut === 'Actif' ? styles.badgeActif : styles.badgeInactif,
+            { minHeight: 36, justifyContent: 'center' }]}>
+            <Text style={[styles.badgeText, item.statut === 'Actif' ? styles.badgeTextActif : styles.badgeTextInactif]}>{item.statut || 'Actif'}</Text>
+          </View>
+        </View>
       </TouchableOpacity>}
       ListEmptyComponent={<View style={styles.empty}><EmptyIcon name="building" /><Text style={styles.emptyText}>Aucun site pour ce client.</Text></View>}
     />

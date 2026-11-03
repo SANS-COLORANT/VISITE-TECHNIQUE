@@ -4,7 +4,7 @@ import { Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { upsertControlePartiel } from './controlDb.js';
 import { listerRemarquesVisite, upsertRemarquePrescription, supprimerRemarqueControle, modifierCriticiteRemarque } from './remarkDb.js';
-import { PhotoButton } from './PhotoButton.js';
+import { ControlPhotoAction } from './ControlPhotoAction.js';
 import { defaultSeverityForControl } from './reserveSeverity.js';
 import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
 import { useDurableAutosave } from './durableAutosave.js';
@@ -136,6 +136,7 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
   }, [remarque?.id, notifier]);
 
   return <View style={styles.controlRow}><View style={styles.controlTop}><Text style={styles.controlLabel} onLongPress={() => ouvrirAideReglementaire({ trameId, visiteId, sectionCode, cle: field.cle })}>{field.cle}</Text><View style={styles.avisGroup}>{AVIS_OPTIONS.map((opt) => { const c = avisChipColor(opt); const selected = avis === opt; return <TouchableOpacity key={opt} style={[styles.avisChip, selected && { backgroundColor: c.bg, borderColor: c.border }]} onPress={() => choisirAvis(opt)}><Text style={[styles.avisChipText, selected && { color: c.text }]}>{opt}</Text></TouchableOpacity>; })}</View></View>
+    <ControlPhotoAction visiteId={visiteId} entiteKey={controleKey} label={field.cle} avis={avis} />
     {avis && <View style={[styles.criterePanel, { backgroundColor: palette.bg, borderColor: palette.border }]}>
       {etatApplication ? <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: palette.text, backgroundColor: palette.bg, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8 }}><Text style={{ color: palette.text, fontFamily: FONTS.bold, fontSize: 11 }}>{etatApplication}</Text></View> : null}
       {options.length > 0 && <><Text style={[styles.criterePanelLabel, { color: palette.text }]}>{avis === 'N.S' ? 'Anomalie constatée' : 'Commentaire rapide'}</Text><View style={styles.critereChips}>{options.map((opt, idx) => <TouchableOpacity key={`${field.cle}-${avis}-${idx}`} style={[styles.critereChip, { borderColor: palette.text }, presetChoisi === idx && { backgroundColor: palette.picked, borderColor: palette.picked }]} onPress={() => choisirPreset(opt, idx)}><Text style={[styles.critereChipText, { color: presetChoisi === idx ? COLORS.white : palette.text }]}>{opt.label}</Text></TouchableOpacity>)}</View></>}
@@ -148,7 +149,7 @@ export const VmcControleGenerique = React.memo(function VmcControleGenerique({ v
         placeholder="Commentaire technique…"
       />
       {avis === 'N.S' && remarque ? <View style={styles.prestationResult}><Text style={styles.criterePanelLabel}>Réserve proposée</Text><Text style={styles.prestationText}>{remarque.prestation}</Text><ReserveSeveritySlider value={remarque.criticite ?? 2} defaultValue={remarque.criticite_defaut ?? 2} onChange={(v) => reglerCriticite(v).catch(console.warn)} /></View> : null}
-      <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={field.cle} style={avis === 'N.S' ? styles.photoRequiredBox : undefined} />
+
     </View>}
   </View>;
 });

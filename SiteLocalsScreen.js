@@ -189,32 +189,38 @@ function SiteLocalsScreen({ route, navigation }) {
         const label = item.nom || item.remote_designation || 'Local technique';
         const visitCount = Number(item.visit_count || 0);
         return <TouchableOpacity
-          style={styles.card}
+          style={[styles.card, { flexDirection: 'column', alignItems: 'stretch', gap: 9, minHeight: 108 }]}
           activeOpacity={0.72}
           onPressIn={() => prewarmLocalVisits({ siteId, installationId: item.installation_id }).catch(() => {})}
           onPress={() => ouvrirLocal(item)}
         >
-          <View style={{ width: 44, height: 44, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.66)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center', marginRight: 11 }}>
-            <CvcIcon name="local" size={21} color={COLORS.orangeDark} />
+          {/* Une ligne pour le nom, une autre pour les actions : sur téléphone,
+              les badges ne rétrécissent plus « Chaufferie » en syllabes. */}
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, minWidth: 0 }}>
+            <View style={{ width: 44, height: 44, borderRadius: 12, flexShrink: 0, backgroundColor: 'rgba(255,255,255,0.66)', borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', alignItems: 'center', justifyContent: 'center' }}>
+              <CvcIcon name="local" size={21} color={COLORS.orangeDark} />
+            </View>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <Text numberOfLines={2} ellipsizeMode="tail" style={[styles.cardTitle, { lineHeight: 20 }]}>{label}</Text>
+              <Text numberOfLines={2} style={styles.cardSub}>
+                {visitCount ? `${visitCount} visite${visitCount > 1 ? 's' : ''}${item.latest_visit_date ? ` · dernière ${String(item.latest_visit_date).slice(0, 10)}` : ''}` : 'Aucune visite'}
+              </Text>
+              {item.remote_trame_nom ? <Text numberOfLines={2} ellipsizeMode="tail" style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16, marginTop: 3 }}>Trame Intranet · {item.remote_trame_nom}</Text> : null}
+            </View>
+            <CvcIcon name="chevron-right" size={22} color="#98A2B3" strokeWidth={2.1} />
           </View>
-          <View style={{ flex: 1 }}>
-            <Text style={styles.cardTitle}>{label}</Text>
-            <Text style={styles.cardSub}>
-              {visitCount ? `${visitCount} visite${visitCount > 1 ? 's' : ''}${item.latest_visit_date ? ` · dernière ${String(item.latest_visit_date).slice(0, 10)}` : ''}` : 'Aucune visite'}
-            </Text>
-            {item.remote_trame_nom ? <Text style={{ color: COLORS.muted, fontSize: 11, marginTop: 3 }}>Trame Intranet · {item.remote_trame_nom}</Text> : null}
-          </View>
-          {clientId ? (() => {
-            const cible = cibleParLocal.get(item.installation_id);
-            const fait = cible && Number(cible.fait) === 1;
-            return <TouchableOpacity accessibilityRole="button" accessibilityLabel={cible ? (fait ? 'Local fait, retirer de l’itinéraire' : 'Local à faire, retirer de l’itinéraire') : 'Ajouter ce local à l’itinéraire'}
-              onPress={() => basculerCible(item.installation_id)} hitSlop={6}
-              style={{ minHeight: 36, justifyContent: 'center', paddingHorizontal: 11, borderRadius: 18, marginRight: 6, borderWidth: 1, borderStyle: cible ? 'solid' : 'dashed', borderColor: fait ? COLORS.green : COLORS.orange + (cible ? '' : '66'), backgroundColor: fait ? COLORS.greenBg : cible ? COLORS.orangeLight : 'transparent' }}>
-              <Text style={{ fontSize: 11.5, fontFamily: FONTS.bodyBold, color: fait ? COLORS.green : COLORS.orangeDark }}>{fait ? 'Fait' : cible ? 'À faire' : '+ À faire'}</Text>
-            </TouchableOpacity>;
-          })() : null}
-          {item.remote_local_id ? <View style={[styles.badge, styles.badgeActif]}><Text style={[styles.badgeText, styles.badgeTextActif]}>Intranet</Text></View> : null}
-          <CvcIcon name="chevron-right" size={25} color={'#98A2B3'} strokeWidth={2.1} />
+          {clientId || item.remote_local_id ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
+            {clientId ? (() => {
+              const cible = cibleParLocal.get(item.installation_id);
+              const fait = cible && Number(cible.fait) === 1;
+              return <TouchableOpacity accessibilityRole="button" accessibilityLabel={cible ? (fait ? 'Local fait, retirer de l’itinéraire' : 'Local à faire, retirer de l’itinéraire') : 'Ajouter ce local à l’itinéraire'}
+                onPress={(e) => { e?.stopPropagation?.(); basculerCible(item.installation_id); }} hitSlop={6}
+                style={{ minHeight: 36, justifyContent: 'center', paddingHorizontal: 12, borderRadius: 18, borderWidth: 1, borderStyle: cible ? 'solid' : 'dashed', borderColor: fait ? COLORS.green : COLORS.orange + (cible ? '' : '66'), backgroundColor: fait ? COLORS.greenBg : cible ? COLORS.orangeLight : 'transparent' }}>
+                <Text style={{ fontSize: 11.5, fontFamily: FONTS.bodyBold, color: fait ? COLORS.green : COLORS.orangeDark }}>{fait ? 'Fait' : cible ? 'À faire' : '+ À faire'}</Text>
+              </TouchableOpacity>;
+            })() : null}
+            {item.remote_local_id ? <View style={[styles.badge, styles.badgeActif, { minHeight: 36, justifyContent: 'center' }]}><Text style={[styles.badgeText, styles.badgeTextActif]}>Intranet</Text></View> : null}
+          </View> : null}
         </TouchableOpacity>;
       }}
       ListEmptyComponent={loading
