@@ -9,6 +9,10 @@ import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { inspectIntranetCriterionCandidate } from './intranetVisitPayload.js';
 import { remarMappingsForRemote } from './remarSymfonyCompleteContract.js';
 
+const mappingsForRemarRemote = (definition, remote) =>
+  typeof remarMappingsForRemote === 'function'
+    ? remarMappingsForRemote(definition,remote)
+    : (definition?.excel?.fieldMappings||[]);
 const text = value => String(value ?? '').trim();
 const identity = field => [field.panelId,field.section,field.cle,field.type].join('||');
 const numericId = value => {
@@ -33,7 +37,7 @@ function compatibleAvis(criterion, mapping) {
 
 export function assessRemarRemoteTrame(remoteTrame, localTrameId='remar_v1') {
   const definition=obtenirTrame(localTrameId);
-  const all=remarMappingsForRemote(definition,remoteTrame).filter(m=>!metadataCovered(definition,m));
+  const all=mappingsForRemarRemote(definition,remoteTrame).filter(m=>!metadataCovered(definition,m));
   const byIdentity=new Map(all.map(m=>[identity(m),m]));
   const mapped=new Map(), extra=[], collisions=[], invalid=[];
   const isRemar=(definition.familyId || definition.id)==='remar_v1';

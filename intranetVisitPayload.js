@@ -9,6 +9,15 @@ export const INTRANET_AVIS = Object.freeze(['S.O', 'S', 'N.S', 'N.R', 'N.V']);
 export const INTRANET_PROGRESS = Object.freeze(['Non réalisé', 'Devis émis', 'En cours', 'Terminé', 'Annulé']);
 export const INTRANET_MATERIAL_STATES = Object.freeze(['Hors service', 'Vétuste', 'Moyen', 'Bon', 'Neuf']);
 
+// Offline historical test harnesses evaluate this module without ES imports.
+// Production always supplies the full remote-version contract.
+const isPublishedComplete = remote =>
+  typeof isRemarCompleteTrame === 'function' && isRemarCompleteTrame(remote);
+const mappingsForRemarRemote = (definition, remote) =>
+  typeof remarMappingsForRemote === 'function'
+    ? remarMappingsForRemote(definition, remote)
+    : (definition?.excel?.fieldMappings || []);
+
 function clean(value) { return value == null ? '' : String(value).trim(); }
 function nullable(value) { const v = clean(value); return v || null; }
 function normalize(value) {
@@ -385,8 +394,8 @@ function buildStaticCandidates(localTrameId, remoteTrame = null) {
   }
   // Symfony REMAR COMPLÈTE is a distinct *remote* version. Do not
   // change the historical Excel template or introduce visual fields.
-  if ((definition?.familyId || definition?.id)==='remar_v1' && isRemarCompleteTrame(remoteTrame)) {
-    const published=remarMappingsForRemote(definition,remoteTrame);
+  if ((definition?.familyId || definition?.id)==='remar_v1' && isPublishedComplete(remoteTrame)) {
+    const published=mappingsForRemarRemote(definition,remoteTrame);
     const allowed=new Set(published.map(m=>[m.panelId,m.section,m.cle].join('||')));
     const active=candidates.filter(c=>allowed.has([c.panelId,c.section,c.cle].join('||')));
     for(const m of published) {
@@ -733,7 +742,7 @@ function countRemoteCriteria(trame) {
  */
 function groupRemarDetailsForIntranet(projection, definition, issues, remoteTrame = null) {
   if(!Array.isArray(projection?.details)||!projection.details.length)return null;
-  const mappings=new Map(remarMappingsForRemote(definition,remoteTrame)
+  const mappings=new Map(mappingsForRemarRemote(definition,remoteTrame)
     .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
   const parents=new Map(),children=new Map(),rows=[],groups=new Map();
   const key=(p,s,c)=>[p,s,c].join('||');
@@ -835,7 +844,7 @@ function groupRemarDetailsForIntranet(projection, definition, issues, remoteTram
       const section='Filtre n°'+Math.min(position,3);
       const classe=current('Classe de filtration'),etat=current('Etat du filtre');
       allowed.add('Classe de filtration');allowed.add('Etat du filtre');
-      if(isRemarCompleteTrame(remoteTrame)) {
+      if(isPublishedComplete(remoteTrame)) {
         for (const field of ['Pertes de charge (Pa)',"Seuil d'alarme (Pa)"]) {
           allowed.add(field);
           const reading=current(field);
@@ -856,7 +865,7 @@ function groupRemarDetailsForIntranet(projection, definition, issues, remoteTram
         if(v&&has(v))add('p-remar-cta-mesures',dest[0],dest[1],{...v,label,unite:item.unite});
       }else if(v&&has(v))report(label,'mesure supplémentaire sans destination précise dans la trame Symfony');
     }else if(item.type==='reseau_froid'){
-      const section='Réseaux',field='Réseau '+Math.min(position,isRemarCompleteTrame(remoteTrame)?5:3);
+      const section='Réseaux',field='Réseau '+Math.min(position,isPublishedComplete(remoteTrame)?5:3);
       const observations=[...item.values.values()].filter(r=>!r.inherited&&has(r))
         .map(r=>r.cle+' : '+[r.valeur,r.avis,r.commentaire].filter(Boolean).join(' / '));
       item.values.forEach((v,k)=>allowed.add(k));
@@ -881,7 +890,7 @@ function groupRemarDetailsForIntranet(projection, definition, issues, remoteTram
   // Mêmes exigences de confirmation que pour une CTA seule.
   if(cta.length>1){
     for(const [id,parent] of cta){
-      for(const panel of (isRemarCompleteTrame(remoteTrame)?['p-remar-cta']:['p-remar-cta','p-remar-cta-energie'])){
+      for(const panel of (isPublishedComplete(remoteTrame)?['p-remar-cta']:['p-remar-cta','p-remar-cta-energie'])){
         for(const [section,items] of Object.entries(definition?.ui?.panels?.[panel]||{})){
           for(const item of items.filter(x=>x.type==='controle')){
             const target=key(panel,section,item.cle);
@@ -997,7 +1006,7 @@ async function buildCriteria(db, visite, details, issues) {
       // (non visible) dans le POST. Le technicien doit choisir S/N.S/N.R/S.O/N.V.
       if (remap.familyCounts?.cta && (!remarGrouped||remap.familyCounts.cta===1) &&
           !remap.ambiguous.some(x=>/^CTA\b/.test(x))) {
-        for (const m of remarMappingsForRemote(definition,remoteTrame)) {
+        for (const m of mappingsForRemarRemote(definition,remoteTrame)) {
           if (m.type !== 'controle') continue;
           const cellKey=[m.panelId,m.section,m.cle].join('||');
           const row=remap.replacements.get(cellKey);
@@ -1017,7 +1026,7 @@ async function buildCriteria(db, visite, details, issues) {
           }
         }
       }
-      const byOfficial = new Map(remarMappingsForRemote(definition,remoteTrame)
+      const byOfficial = new Map(mappingsForRemarRemote(definition,remoteTrame)
         .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
       for (const [key,value] of remap.replacements) {
         const mapping = byOfficial.get(key);
@@ -1037,7 +1046,7 @@ async function buildCriteria(db, visite, details, issues) {
       // Pour Symfony seulement : les lignes de toutes les CTA/caissons
       // écrasent la vue Excel centrée sur une seule référence.
       if(remarGrouped) {
-        const byOfficial=new Map(remarMappingsForRemote(definition,remoteTrame)
+        const byOfficial=new Map(mappingsForRemarRemote(definition,remoteTrame)
           .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
         for(const [key,group] of remarGrouped){
           const mapping=byOfficial.get(key);
@@ -1227,7 +1236,7 @@ async function buildCriteria(db, visite, details, issues) {
     // Une correspondance par critère distant ne suffit pas : l'ancien moteur
     // pouvait réussir le POST en ignorant une saisie locale présente, comme
     // lors de l'incident A2. Refaire la vérification dans l'autre sens.
-    for(const mapping of remarMappingsForRemote(definition,remoteTrame)){
+    for(const mapping of mappingsForRemarRemote(definition,remoteTrame)){
       const dataKey=`${mapping.sectionCode}||${mapping.cle}`;
       const destination=[mapping.panelId,mapping.section,mapping.cle].join('||');
       const data=mapping.type==='controle' ? controlMap.get(dataKey) : fieldMap.get(dataKey);
