@@ -195,5 +195,22 @@ export async function importerRemarSymfonyMultiligne({db,visiteId,installationId
   if(trameId!=='remar_v1'||!installationId)return 0;
   const rows=decodeRemarSymfonyDetail(ref,{historical});
   if(!rows.length)return 0;
-  return importerRemarDetailExcel(db,visiteId,installationId,trameId,rows,createId);
+  const sourceKey=[
+    str(visiteId),str(ref?.trame?.id),str(ref?.derniereVisite?.id)||'preparation'
+  ].join('::');
+  const already=await db.getFirstAsync(
+    "SELECT id FROM provenances WHERE entite_type='visite_remar_blocs' AND entite_id=? AND origine='api_symfony' AND reference_externe=? LIMIT 1",
+    [visiteId,sourceKey]
+  );
+  if(already?.id)return 0;
+  // The caller encloses this import in a single SQLite transaction.
+  // If any child/parent or duplicate is invalid, all rows roll back.
+  const count=await importerRemarDetailExcel(db,visiteId,installationId,trameId,rows,createId);
+  await db.runAsync(
+    "INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json) VALUES(?,?,?,?,?,?)",
+    [createId(),'visite_remar_blocs',visiteId,'api_symfony',sourceKey,
+      JSON.stringify({kind:'remar_complete_multiline_import',rowCount:rows.length,
+        remoteTrameId:str(ref?.trame?.id),remoteVisitId:str(ref?.derniereVisite?.id)})]
+  );
+  return count;
 }
