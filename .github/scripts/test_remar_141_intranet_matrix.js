@@ -120,6 +120,18 @@ function find(panel,cle,section=null){
         'input value survives: '+identity(m));
   }
 
+  // Empty business fields are allowed. Symfony still receives each criterion:
+  // unanswered applicable controls use its established N.V transport status,
+  // without creating a positive/negative opinion in local SQLite.
+  const allEmpty=await build({fieldRows:[],controlRows:[]});
+  check(allEmpty.issues.length===0,'completely blank REMAR criteria can be published');
+  check(allEmpty.values.length===141,'all 141 official destination criteria retained even when blank');
+  for(const {m} of remoteIndex){
+    const wire=outputFor(allEmpty,m);
+    check(wire.commentaire==='/' && wire.avis===(m.type==='controle'?'N.V':null),
+      'empty '+identity(m)+' preserved without invented data');
+  }
+
   // Contrôle inverse (le problème A2) : un point local saisi mais absent
   // du catalogue Symfony ne doit pas disparaître du POST comme si de rien.
   // Les champs de métadonnées dans le panneau Informations sont transportés
@@ -464,8 +476,66 @@ function find(panel,cle,section=null){
   const incomplete=detail.filter(row=>!(row[4]==='cta-b'&&row[8]==='Eclairage du caisson'));
   projection={...projection,details:incomplete};
   const missingCTA=await build();
-  check(missingCTA.issues.some(x=>x.includes('CTA gymnase / Eclairage du caisson')),
-    'missing second CTA control is detected instead of inferred from first CTA');
+  check(missingCTA.issues.length===0,'missing opinion on second CTA is not an upload blocker: '+
+    missingCTA.issues.join(' | '));
+  const missingLight=outputFor(missingCTA,find('p-remar-cta','Eclairage du caisson'));
+  check(missingLight.avis==='N.V'&&
+    missingLight.commentaire.includes('CTA bureaux : [S]')&&
+    missingLight.commentaire.includes('CTA gymnase : [Non renseigné]'),
+    'aggregate is neutral and each CTA remains individually identified, even with missing avis');
+
+  // Exact reproduction of the six non-filled controls reported in the
+  // 03/11 field test: two filter states and two CTA checks on each CTA.
+  const sixMissing=detail.filter(row=>{
+    if(row[5]==='filtre_cta'&&row[8]==='Etat du filtre')return false;
+    if(row[5]==='equipement'&&[
+      'Nettoyage des gaines horizontal & vertical','Calorifugeage'
+    ].includes(row[8]))return false;
+    return true;
+  });
+  projection={...projection,details:sixMissing};
+  const blankSix=await build();
+  check(blankSix.issues.length===0,'six missing filter/CTA opinions do not block: '+
+    blankSix.issues.join(' | '));
+  for(const cle of ['Nettoyage des gaines horizontal & vertical','Calorifugeage']){
+    const wire=outputFor(blankSix,find('p-remar-cta',cle));
+    check(wire.avis==='N.V','missing '+cle+' uses neutral N.V only on Symfony wire');
+    check(wire.commentaire.includes('CTA bureaux : [Non renseigné]')&&
+      wire.commentaire.includes('CTA gymnase : [Non renseigné]'),
+      'both unnamed confirmations remain separately visible for '+cle);
+  }
+  const missingFilter=outputFor(blankSix,find('p-remar-filtres','Etat du filtre','Filtre n°1'));
+  check(missingFilter.avis==='N.V'&&
+    missingFilter.commentaire.includes('CTA bureaux / Filtre soufflage : [Non renseigné]')&&
+    missingFilter.commentaire.includes('CTA gymnase / Filtre soufflage : [Non renseigné]'),
+    'both filter states retained with empty local avis (no inherited S)');
+
+  // User can export a newly created CTA with just its name, before filling
+  // any technical value or control. No phantom historical control appears.
+  const identityOnly=detail.filter(row=>row[0]==='cta'&&row[5]==='equipement'&&
+    row[8]==='Identité patrimoine');
+  projection={hasDynamic:true,familyCounts:{cta:2,vmc:0,froid:0},temperaturesCount:0,
+    replacements:new Map(),ambiguous:[],unsupported:[],details:identityOnly};
+  const identityVisit=await build({fieldRows:[],controlRows:[]});
+  check(identityVisit.issues.length===0,'new CTA identities can be published without inspections');
+  check(identityVisit.values.length===141,'blank CTA visit retains whole Symfony criterion contract');
+  const identityCal=outputFor(identityVisit,find('p-remar-cta','Calorifugeage'));
+  check(identityCal.avis==='N.V'&&
+    identityCal.commentaire.includes('CTA bureaux : [Non renseigné]')&&
+    identityCal.commentaire.includes('CTA gymnase : [Non renseigné]'),
+    'two new CTA names retain independent missing controls');
+
+  // The agent may explicitly record N.S but leave the free-text finding
+  // blank: that missing commentary is not a publication blocker.
+  const unannotatedNS=detail.map(row=>row[4]==='cta-b'&&
+    row[8]==='Eclairage du caisson'?[...row.slice(0,11),'',...row.slice(12)]:row);
+  projection={...projection,familyCounts:{cta:2,vmc:2,froid:2},
+    ambiguous:['CTA : reference Excel absente'],details:unannotatedNS};
+  const partialNS=await build();
+  check(partialNS.issues.length===0,'N.S opinion without free-text commentary remains publishable');
+  const partialNSWire=outputFor(partialNS,find('p-remar-cta','Eclairage du caisson'));
+  check(partialNSWire.avis==='N.S'&&partialNSWire.commentaire.includes('CTA gymnase : [N.S]'),
+    'explicit N.S is not replaced or recast when explanation is absent');
   projection={...projection,details:detail};
   const oversized=detail.map(r=>r[4]==='cta-b'&&r[8]==='Année CTA'?
     [...r.slice(0,9),'X'.repeat(1600),...r.slice(10)]:r);

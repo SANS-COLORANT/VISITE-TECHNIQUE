@@ -52,12 +52,16 @@ const ref={trame:{nom:'REMAR COMPLÈTE',categories:[
       {nom:'Année CTA',commentaire:'CTA 1 : 2019\nCTA 2 : 2022',visiteSourceId:'9'}]},
     {nom:'Avis sur l’entretien général',criteres:[
       {nom:'Calorifugeage',avis:'N.S',
-        commentaire:'CTA 1 : [S] Conforme\nCTA 2 : [N.S] Isolant détérioré',visiteSourceId:'9'}]}
+        commentaire:'CTA 1 : [S] Conforme\nCTA 2 : [N.S] Isolant détérioré',visiteSourceId:'9'},
+      {nom:'Nettoyage des gaines horizontal & vertical',avis:'N.V',
+        commentaire:'CTA 1 : [Non renseigné]\nCTA 2 : [Non renseigné]',visiteSourceId:'9'}]}
   ]},
   {nom:'Filtration CTA',sousCategories:[
     {nom:'Filtre n°1',criteres:[
       {nom:'Type de filtre',commentaire:'CTA 1 / Filtre G4 : G4',visiteSourceId:'9'},
-      {nom:'Pertes de charge (Pa)',commentaire:'CTA 1 / Filtre G4 : 130 Pa',visiteSourceId:'9'}]}
+      {nom:'Pertes de charge (Pa)',commentaire:'CTA 1 / Filtre G4 : 130 Pa',visiteSourceId:'9'},
+      {nom:'Etat du filtre',avis:'N.V',
+        commentaire:'CTA 1 / Filtre G4 : [Non renseigné]',visiteSourceId:'9'}]}
   ]}
 ]},derniereVisite:{id:'9'}};
 const rows=importer.decodeRemarSymfonyDetail(ref,{historical:true});
@@ -71,6 +75,13 @@ check(rows.some(r=>r.nom==='CTA 2'&&r.cle==='Calorifugeage'&&r.avis==='N.S'),
   'CTA 2 nonconformity');
 check(rows.some(r=>r.type==='filtre_cta'&&r.cle==='Pertes de charge (Pa)'&&r.valeur==='130'),
   'filtration pressure');
+const blankCta=rows.filter(r=>r.cle==='Nettoyage des gaines horizontal & vertical');
+check(blankCta.length===2&&blankCta.every(r=>r.avis===''&&
+  r.statut==='Historique à confirmer'),
+  'Symfony N.V aggregate with [Non renseigné] restores null CTA avis, not invented N.V');
+check(rows.some(r=>r.type==='filtre_cta'&&r.cle==='Etat du filtre'&&r.avis===''&&
+  r.statut==='Historique à confirmer'),
+  'blank named filter state round-trips without claiming it was inspected');
 check(rows.filter(r=>r.cle!=='Identité patrimoine'&&r.cle!=='Type / presence')
   .every(r=>r.statut==='Historique à confirmer'),'no historical observation confirmed');
 console.log('PASS '+count+' REMAR COMPLÈTE offline assertions.');

@@ -60,9 +60,11 @@ export function parseRemarNamedCell(raw, {family, knownNames=[], identity=false}
 function fieldBody(raw,type,remoteAvis) {
   let body=String(raw??''),avis=null,commentaire='';
   if(type==='controle') {
-    const match=/^\[(S|N\.S|N\.R|S\.O|N\.V)\](?:\s+([\s\S]*))?$/.exec(body);
-    if(!match)throw new Error('REMAR import : contrôle de bloc sans avis individuel S/N.S/N.R/S.O/N.V.');
-    return {valeur:'',avis:match[1],commentaire:match[2]||''};
+    const match=/^\[(S|N\.S|N\.R|S\.O|N\.V|Non renseigné)\](?:\s+([\s\S]*))?$/.exec(body);
+    if(!match)throw new Error('REMAR import : état individuel du contrôle inconnu.');
+    // Symfony sends a technical N.V aggregate for a partly blank group,
+    // but [Non renseigné] must round-trip as an empty local avis, not N.V.
+    return {valeur:'',avis:match[1]==='Non renseigné'?'':match[1],commentaire:match[2]||''};
   }
   const match=body.match(/\s+\[(S|N\.S|N\.R|S\.O|N\.V)\]$/);
   if(match){avis=match[1];body=body.slice(0,-match[0].length);}
