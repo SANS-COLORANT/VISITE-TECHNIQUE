@@ -30,9 +30,12 @@ function metadataCovered(definition, mapping) {
 function compatibleAvis(criterion, mapping) {
   if (mapping.type==='controle') return criterion.avisApplicable===true;
   if (criterion.avisApplicable!==true) return true;
-  // Symfony CLASSIQUE attend un avis sur certains champs de mesure.
-  // Le sérialiseur transporte la vraie valeur et un avis N.V par défaut.
-  return mapping.panelId==='p-remar-releves' && mapping.type==='champ';
+  // A Symfony criterion may require "avisApplicable=oui" for a METRA
+  // technical text/measurement field (e.g. Situation / Accessibilité,
+  // counters and temperatures). The serializer keeps its value in
+  // commentaire and emits N.V when no independent avis was recorded.
+  // Other REMAR controls remain strict S/N.S/etc.
+  return mapping.type==='champ';
 }
 
 export function assessRemarRemoteTrame(remoteTrame, localTrameId='remar_v1') {

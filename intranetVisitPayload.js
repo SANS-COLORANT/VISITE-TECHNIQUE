@@ -1205,14 +1205,14 @@ async function buildCriteria(db, visite, details, issues) {
           commentaire=exactComment(lines.join('\n')||null,issues,path+' / commentaire');
         } else if (!candidate) {
           issues.push(`${path} : aucun champ METRA correspondant de façon sûre.`);
-        } else if (isRemar && applicable && candidate.panelId==='p-remar-releves' &&
-                   candidate.type==='champ') {
-          // Symfony CLASSIQUE 16 marque Compteur énergie/ECS/appoint et les
-          // températures « avisApplicable=oui », tandis que METRA les saisit
-          // comme champs techniques. L'ancien if(applicable) ignorait la
-          // valeur du compteur et envoyait N.V / « / » : perte silencieuse !
-          // Conserver l'avis non vérifié par défaut, sans inventer « S »,
-          // MAIS transmettre la mesure exacte dans le commentaire.
+        } else if (isRemar && applicable && candidate.type==='champ') {
+          // In Symfony, "avisApplicable=oui" is not proof that the METRA
+          // storage field is a conformity control. Heating/cold "Situation"
+          // and "Accessibilité", as well as counters and temperatures, are
+          // legitimate text/measurement fields. Always preserve their actual
+          // value in commentaire, even when Symfony also requires an avis.
+          // Never manufacture S or N.S: for an unassessed technical field,
+          // retain the established N.V wire fallback only.
           const control=candidateStoredValue(controlMap,candidate,issues,path);
           avis=applicableAvis(control?.avis,issues,`${path} / avis`);
           let value;

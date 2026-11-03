@@ -106,6 +106,17 @@ for(const c of changedAvis.categories)for(const s of c.sousCategories)for(const 
 }
 check(!select.assessRemarRemoteTrame(changedAvis).complete,
   'nonapplicable remote avis cannot silently swallow local control');
+const technicalAvis=structuredClone(full);
+for(const cat of technicalAvis.categories){
+  if(!['INFORMATION GÉNÉRALE CHAUFFERIE',
+       'INFORMATION GÉNÉRALE PRODUCTION FROID'].includes(cat.nom))continue;
+  for(const sub of cat.sousCategories)for(const field of sub.criteres)
+    if(['Situation','Accessibilité'].includes(field.nom))field.avisApplicable=true;
+}
+const techReport=select.assessRemarRemoteTrame(technicalAvis);
+check(techReport.complete,
+  'published applicable avis on technical site fields remains compatible and data-preserving: '+
+  JSON.stringify({missing:techReport.missing,invalid:techReport.invalid,extra:techReport.extra}).slice(0,500));
 const wrongType=structuredClone(full);
 const vmc=wrongType.categories.find(c=>c.sousCategories.some(s=>s.criteres.some(x=>x.nom==='Etat du caisson')));
 vmc.sousCategories.find(s=>s.criteres.some(x=>x.nom==='Etat du caisson'))

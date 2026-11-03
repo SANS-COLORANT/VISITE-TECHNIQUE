@@ -142,6 +142,32 @@ function find(panel,cle,section=null){
   check(withoutMetadata.issues.length===0,
     'REMAR visit metadata do not require duplicate Symfony criteria: '+withoutMetadata.issues.join(' | '));
 
+  // Historical Symfony REMAR marks Situation/Accessibilité as
+  // avisApplicable=oui even though both METRA site/cold fields are text.
+  // Their values must survive in commentaire; otherwise the payload would
+  // silently send N.V + "/" and pass transport while losing real data.
+  const technicalWithAvis=structuredClone(remote);
+  for(const cat of technicalWithAvis.categories){
+    if(!['INFORMATION GÉNÉRALE CHAUFFERIE',
+         'INFORMATION GÉNÉRALE PRODUCTION FROID'].includes(cat.nom))continue;
+    for(const sub of cat.sousCategories)for(const criterion of sub.criteres)
+      if(['Situation','Accessibilité'].includes(criterion.nom))
+        criterion.avisApplicable=true;
+  }
+  const preservedTechnical=await build({remote:technicalWithAvis});
+  check(preservedTechnical.issues.length===0,
+    'technical REMAR fields with applicable avis transmit without structural issue: '+
+      preservedTechnical.issues.join(' | '));
+  for(const panel of ['p-infos','p-remar-froid']){
+    for(const name of ['Situation','Accessibilité']){
+      const mapping=find(panel,name);
+      const expected='CHAMP:'+identity(mapping);
+      const row=outputFor(preservedTechnical,mapping);
+      check(row.commentaire===expected&&row.avis==='N.V',
+        'Symfony avisApplicable=oui preserves actual '+panel+' / '+name+' value');
+    }
+  }
+
   const oneMissing=structuredClone(remote);
   const missingCriterion=remoteIndex.find(r=>r.panelId==='p-remar-cta' && r.m.cle==='Année CTA');
   for(const cat of oneMissing.categories)for(const sub of cat.sousCategories)
