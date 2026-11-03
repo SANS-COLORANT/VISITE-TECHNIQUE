@@ -10,6 +10,8 @@ on:
       - 'intranetVisitPayload.js'
       - 'intranetVisitBindingDb.js'
       - 'remarRemoteTrameSelection.js'
+      - 'remarSymfony*.js'
+      - 'apiLatestVisitImportDb.js'
       - 'IntranetVisitSync.js'
       - '.github/scripts/test_remar*.js'
       - '.github/scripts/test_intranet*.js'
@@ -18,6 +20,7 @@ on:
   push:
     branches:
       - fix/remar-intranet-diagnostics-20261102
+      - fix/remar-complete-symfony-20261103
 permissions:
   contents: read
 jobs:
@@ -44,6 +47,7 @@ jobs:
         run: |
           node .github/scripts/test_remar_141_intranet_matrix.js
           node .github/scripts/test_remar_remote_trame_selection.js
+          node .github/scripts/test_remar_complete_20261103.js
       - name: Real SQLite REMAR equipment, fields and data protections
         run: |
           node .github/scripts/test_remar_dynamic.js

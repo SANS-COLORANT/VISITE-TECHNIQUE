@@ -47,9 +47,12 @@ for(const m of mappings) {
 // par point, cat/sous-cat indépendants : jamais un ID de production inventé.
 let rid=1000, cid=10;
 const remoteIndex=[];
+const remoteCategoryName = panelId=>panelId==='p-infos'
+  ?'INFORMATION GÉNÉRALE CHAUFFERIE':panelId==='p-remar-froid'
+    ?'INFORMATION GÉNÉRALE PRODUCTION FROID':definition.ui.labels?.[panelId]||panelId;
 const categories=Object.entries(definition.ui.panels).map(([panelId,sections])=>{
   const cId=cid++;
-  return {id:cId,nom:definition.ui.labels?.[panelId]||panelId,
+  return {id:cId,nom:remoteCategoryName(panelId),
     sousCategories:Object.entries(sections).map(([section,fields])=>{
       const sId=cid++;
       return {id:sId,nom:section,criteres:fields.map(field=>{
@@ -64,7 +67,7 @@ const remote={categories};
 check(remoteIndex.length===141,'141 distinct Symfony-style fixture criteria');
 for(const {criterion,m,panelId,section} of remoteIndex){
   const resolved=serializer.inspectIntranetCriterionCandidate('remar_v1',criterion,
-    definition.ui.labels?.[panelId]||panelId,section).resolved;
+    remoteCategoryName(panelId),section).resolved;
   check(resolved && identity(resolved)===identity(m),
     'one-to-one deterministic candidate '+identity(m)+', found '+JSON.stringify(resolved));
 }
@@ -117,6 +120,18 @@ function find(panel,cle,section=null){
         'input value survives: '+identity(m));
   }
 
+  // Empty business fields are allowed. Symfony still receives each criterion:
+  // unanswered applicable controls use its established N.V transport status,
+  // without creating a positive/negative opinion in local SQLite.
+  const allEmpty=await build({fieldRows:[],controlRows:[]});
+  check(allEmpty.issues.length===0,'completely blank REMAR criteria can be published');
+  check(allEmpty.values.length===141,'all 141 official destination criteria retained even when blank');
+  for(const {m} of remoteIndex){
+    const wire=outputFor(allEmpty,m);
+    check(wire.commentaire==='/' && wire.avis===(m.type==='controle'?'N.V':null),
+      'empty '+identity(m)+' preserved without invented data');
+  }
+
   // Contrôle inverse (le problème A2) : un point local saisi mais absent
   // du catalogue Symfony ne doit pas disparaître du POST comme si de rien.
   // Les champs de métadonnées dans le panneau Informations sont transportés
@@ -138,6 +153,32 @@ function find(panel,cle,section=null){
   const withoutMetadata=await build({remote:metadataRemote});
   check(withoutMetadata.issues.length===0,
     'REMAR visit metadata do not require duplicate Symfony criteria: '+withoutMetadata.issues.join(' | '));
+
+  // Historical Symfony REMAR marks Situation/Accessibilité as
+  // avisApplicable=oui even though both METRA site/cold fields are text.
+  // Their values must survive in commentaire; otherwise the payload would
+  // silently send N.V + "/" and pass transport while losing real data.
+  const technicalWithAvis=structuredClone(remote);
+  for(const cat of technicalWithAvis.categories){
+    if(!['INFORMATION GÉNÉRALE CHAUFFERIE',
+         'INFORMATION GÉNÉRALE PRODUCTION FROID'].includes(cat.nom))continue;
+    for(const sub of cat.sousCategories)for(const criterion of sub.criteres)
+      if(['Situation','Accessibilité'].includes(criterion.nom))
+        criterion.avisApplicable=true;
+  }
+  const preservedTechnical=await build({remote:technicalWithAvis});
+  check(preservedTechnical.issues.length===0,
+    'technical REMAR fields with applicable avis transmit without structural issue: '+
+      preservedTechnical.issues.join(' | '));
+  for(const panel of ['p-infos','p-remar-froid']){
+    for(const name of ['Situation','Accessibilité']){
+      const mapping=find(panel,name);
+      const expected='CHAMP:'+identity(mapping);
+      const row=outputFor(preservedTechnical,mapping);
+      check(row.commentaire===expected&&row.avis==='N.V',
+        'Symfony avisApplicable=oui preserves actual '+panel+' / '+name+' value');
+    }
+  }
 
   const oneMissing=structuredClone(remote);
   const missingCriterion=remoteIndex.find(r=>r.panelId==='p-remar-cta' && r.m.cle==='Année CTA');
@@ -179,6 +220,27 @@ function find(panel,cle,section=null){
     {id:7777,nom:'Réseau 1',avisApplicable:false},
     'INSTALLATIONS','Réseaux').resolved;
   check(noContext===null,'same-name network without domain context is refused');
+  // Actual 03/11/2026 incident: 3 criteria are published in BOTH site
+  // categories with the exact same label and subcategory. Never map the
+  // heating criterion to cold merely because the cold section has a better
+  // fuzzy score ("Informations du site").
+  for(const criterionName of ['Type de régulation','Situation','Accessibilité']){
+    const criterion={id:9100,nom:criterionName,avisApplicable:false};
+    const heating=serializer.inspectIntranetCriterionCandidate('remar_v1',criterion,
+      'INFORMATION GÉNÉRALE CHAUFFERIE','Informations du site').resolved;
+    const cooling=serializer.inspectIntranetCriterionCandidate('remar_v1',criterion,
+      'INFORMATION GÉNÉRALE PRODUCTION FROID','Informations du site').resolved;
+    const unknown=serializer.inspectIntranetCriterionCandidate('remar_v1',criterion,
+      'INFORMATION GÉNÉRALE','Informations du site').resolved;
+    const mixed=serializer.inspectIntranetCriterionCandidate('remar_v1',criterion,
+      'CHAUFFERIE ET PRODUCTION FROID','Informations du site').resolved;
+    check(heating?.panelId==='p-infos' && heating.cle===criterionName,
+      'chauffage site '+criterionName+' maps ONLY to p-infos');
+    check(cooling?.panelId==='p-remar-froid' && cooling.cle===criterionName,
+      'cold site '+criterionName+' maps ONLY to p-remar-froid');
+    check(unknown===null&&mixed===null,
+      'ambiguous server category fails closed for '+criterionName);
+  }
 
   const testNetwork=[{id:'r-1',ordre:1,nom_reseau:'Réseau chauffage bureaux',
     courbe_de_chauffe:'1.2',tnc:'20'}];
@@ -414,8 +476,66 @@ function find(panel,cle,section=null){
   const incomplete=detail.filter(row=>!(row[4]==='cta-b'&&row[8]==='Eclairage du caisson'));
   projection={...projection,details:incomplete};
   const missingCTA=await build();
-  check(missingCTA.issues.some(x=>x.includes('CTA gymnase / Eclairage du caisson')),
-    'missing second CTA control is detected instead of inferred from first CTA');
+  check(missingCTA.issues.length===0,'missing opinion on second CTA is not an upload blocker: '+
+    missingCTA.issues.join(' | '));
+  const missingLight=outputFor(missingCTA,find('p-remar-cta','Eclairage du caisson'));
+  check(missingLight.avis==='N.V'&&
+    missingLight.commentaire.includes('CTA bureaux : [S]')&&
+    missingLight.commentaire.includes('CTA gymnase : [Non renseigné]'),
+    'aggregate is neutral and each CTA remains individually identified, even with missing avis');
+
+  // Exact reproduction of the six non-filled controls reported in the
+  // 03/11 field test: two filter states and two CTA checks on each CTA.
+  const sixMissing=detail.filter(row=>{
+    if(row[5]==='filtre_cta'&&row[8]==='Etat du filtre')return false;
+    if(row[5]==='equipement'&&[
+      'Nettoyage des gaines horizontal & vertical','Calorifugeage'
+    ].includes(row[8]))return false;
+    return true;
+  });
+  projection={...projection,details:sixMissing};
+  const blankSix=await build();
+  check(blankSix.issues.length===0,'six missing filter/CTA opinions do not block: '+
+    blankSix.issues.join(' | '));
+  for(const cle of ['Nettoyage des gaines horizontal & vertical','Calorifugeage']){
+    const wire=outputFor(blankSix,find('p-remar-cta',cle));
+    check(wire.avis==='N.V','missing '+cle+' uses neutral N.V only on Symfony wire');
+    check(wire.commentaire.includes('CTA bureaux : [Non renseigné]')&&
+      wire.commentaire.includes('CTA gymnase : [Non renseigné]'),
+      'both unnamed confirmations remain separately visible for '+cle);
+  }
+  const missingFilter=outputFor(blankSix,find('p-remar-filtres','Etat du filtre','Filtre n°1'));
+  check(missingFilter.avis==='N.V'&&
+    missingFilter.commentaire.includes('CTA bureaux / Filtre soufflage : [Non renseigné]')&&
+    missingFilter.commentaire.includes('CTA gymnase / Filtre soufflage : [Non renseigné]'),
+    'both filter states retained with empty local avis (no inherited S)');
+
+  // User can export a newly created CTA with just its name, before filling
+  // any technical value or control. No phantom historical control appears.
+  const identityOnly=detail.filter(row=>row[0]==='cta'&&row[5]==='equipement'&&
+    row[8]==='Identité patrimoine');
+  projection={hasDynamic:true,familyCounts:{cta:2,vmc:0,froid:0},temperaturesCount:0,
+    replacements:new Map(),ambiguous:[],unsupported:[],details:identityOnly};
+  const identityVisit=await build({fieldRows:[],controlRows:[]});
+  check(identityVisit.issues.length===0,'new CTA identities can be published without inspections');
+  check(identityVisit.values.length===141,'blank CTA visit retains whole Symfony criterion contract');
+  const identityCal=outputFor(identityVisit,find('p-remar-cta','Calorifugeage'));
+  check(identityCal.avis==='N.V'&&
+    identityCal.commentaire.includes('CTA bureaux : [Non renseigné]')&&
+    identityCal.commentaire.includes('CTA gymnase : [Non renseigné]'),
+    'two new CTA names retain independent missing controls');
+
+  // The agent may explicitly record N.S but leave the free-text finding
+  // blank: that missing commentary is not a publication blocker.
+  const unannotatedNS=detail.map(row=>row[4]==='cta-b'&&
+    row[8]==='Eclairage du caisson'?[...row.slice(0,11),'',...row.slice(12)]:row);
+  projection={...projection,familyCounts:{cta:2,vmc:2,froid:2},
+    ambiguous:['CTA : reference Excel absente'],details:unannotatedNS};
+  const partialNS=await build();
+  check(partialNS.issues.length===0,'N.S opinion without free-text commentary remains publishable');
+  const partialNSWire=outputFor(partialNS,find('p-remar-cta','Eclairage du caisson'));
+  check(partialNSWire.avis==='N.S'&&partialNSWire.commentaire.includes('CTA gymnase : [N.S]'),
+    'explicit N.S is not replaced or recast when explanation is absent');
   projection={...projection,details:detail};
   const oversized=detail.map(r=>r[4]==='cta-b'&&r[8]==='Année CTA'?
     [...r.slice(0,9),'X'.repeat(1600),...r.slice(10)]:r);

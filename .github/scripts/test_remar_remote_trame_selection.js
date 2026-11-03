@@ -38,7 +38,9 @@ check(!missing.missing.some(x=>x==='p-remar-reseaux||Réseaux chauffage||Réseau
 const full={
   id:92,nom:'REMAR TECHNIQUE COMPLET',
   categories:Object.entries(definition.ui.panels).map(([panel,sections],catIdx)=>({
-    id:400+catIdx,nom:definition.ui.labels?.[panel]||panel,
+    id:400+catIdx,nom:panel==='p-infos'
+      ?'INFORMATION GÉNÉRALE CHAUFFERIE':panel==='p-remar-froid'
+        ?'INFORMATION GÉNÉRALE PRODUCTION FROID':definition.ui.labels?.[panel]||panel,
     sousCategories:Object.entries(sections).map(([section,fields],subIdx)=>({
       id:700+catIdx*20+subIdx,nom:section,
       criteres:fields.filter(f=>f.hiddenInApp!==true).map((f,idx)=>({
@@ -52,6 +54,20 @@ const all=select.assessRemarRemoteTrame(full);
 check(all.complete,'synthetic fully published 141-criterion Symfony trame is verifiably complete: '+
   JSON.stringify({missing:all.missing,extra:all.extra,collisions:all.collisions,invalid:all.invalid}).slice(0,450));
 check(all.mappedCount===all.totalCount,'every official non-metadata REMAR field is covered');
+for(const key of ['Type de régulation','Situation','Accessibilité']){
+  const categoryFor=label=>full.categories.find(cat=>cat.nom===label);
+  const sourceA=categoryFor('INFORMATION GÉNÉRALE CHAUFFERIE');
+  const sourceB=categoryFor('INFORMATION GÉNÉRALE PRODUCTION FROID');
+  const criterionA=sourceA.sousCategories.flatMap(sub=>sub.criteres).find(c=>c.nom===key);
+  const criterionB=sourceB.sousCategories.flatMap(sub=>sub.criteres).find(c=>c.nom===key);
+  check(!!criterionA&&!!criterionB,'real server contains two distinct '+key+' criteria');
+  const mappedA=payload.inspectIntranetCriterionCandidate('remar_v1',criterionA,
+    sourceA.nom,'Informations du site').resolved;
+  const mappedB=payload.inspectIntranetCriterionCandidate('remar_v1',criterionB,
+    sourceB.nom,'Informations du site').resolved;
+  check(mappedA?.panelId==='p-infos'&&mappedB?.panelId==='p-remar-froid',
+    'simultaneous real heating + cold criteria remain distinct for '+key);
+}
 const choose=select.chooseUniqueRemarRemoteTrame([
   {reference:{trame:frozen}},{reference:{trame:full}},
 ]);
@@ -90,6 +106,17 @@ for(const c of changedAvis.categories)for(const s of c.sousCategories)for(const 
 }
 check(!select.assessRemarRemoteTrame(changedAvis).complete,
   'nonapplicable remote avis cannot silently swallow local control');
+const technicalAvis=structuredClone(full);
+for(const cat of technicalAvis.categories){
+  if(!['INFORMATION GÉNÉRALE CHAUFFERIE',
+       'INFORMATION GÉNÉRALE PRODUCTION FROID'].includes(cat.nom))continue;
+  for(const sub of cat.sousCategories)for(const field of sub.criteres)
+    if(['Situation','Accessibilité'].includes(field.nom))field.avisApplicable=true;
+}
+const techReport=select.assessRemarRemoteTrame(technicalAvis);
+check(techReport.complete,
+  'published applicable avis on technical site fields remains compatible and data-preserving: '+
+  JSON.stringify({missing:techReport.missing,invalid:techReport.invalid,extra:techReport.extra}).slice(0,500));
 const wrongType=structuredClone(full);
 const vmc=wrongType.categories.find(c=>c.sousCategories.some(s=>s.criteres.some(x=>x.nom==='Etat du caisson')));
 vmc.sousCategories.find(s=>s.criteres.some(x=>x.nom==='Etat du caisson'))
