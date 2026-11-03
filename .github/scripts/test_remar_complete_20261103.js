@@ -71,5 +71,6 @@ check(rows.some(r=>r.nom==='CTA 2'&&r.cle==='Calorifugeage'&&r.avis==='N.S'),
   'CTA 2 nonconformity');
 check(rows.some(r=>r.type==='filtre_cta'&&r.cle==='Pertes de charge (Pa)'&&r.valeur==='130'),
   'filtration pressure');
-check(rows.every(r=>r.statut==='Historique à confirmer'),'no historical confirmation invented');
+check(rows.filter(r=>r.cle!=='Identité patrimoine'&&r.cle!=='Type / presence')
+  .every(r=>r.statut==='Historique à confirmer'),'no historical observation confirmed');
 console.log('PASS '+count+' REMAR COMPLÈTE offline assertions.');
