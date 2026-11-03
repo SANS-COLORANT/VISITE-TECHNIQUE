@@ -534,9 +534,18 @@ async function listPriorLocalVisits(db, visiteId, contexte) {
 async function latestVisitWithRows(db, sourceVisits, table) {
   const allowed = new Set(['reseaux', 'compteurs']);
   if (!allowed.has(table)) return null;
-  for (const visit of sourceVisits) {
-    const row = await db.getFirstAsync(`SELECT 1 AS ok FROM ${table} WHERE visite_id=? LIMIT 1`, [visit.id]);
-    if (row?.ok) return visit;
+  // Scanner par lots la disponibilité, tout en conservant strictement le
+  // classement historique : la visite la plus récente avec des lignes gagne.
+  for(let offset=0;offset<sourceVisits.length;offset+=HISTORY_READ_BATCH){
+    const part=sourceVisits.slice(offset,offset+HISTORY_READ_BATCH);
+    const rows=await db.getAllAsync(
+      `SELECT DISTINCT visite_id FROM ${table}
+       WHERE visite_id IN (${part.map(()=>'?').join(',')})`,
+       part.map(visit=>visit.id)
+    );
+    const available=new Set((rows||[]).map(row=>String(row.visite_id)));
+    const mostRecent=part.find(visit=>available.has(String(visit.id)));
+    if(mostRecent)return mostRecent;
   }
   return null;
 }

@@ -24,13 +24,21 @@ function saisonDeChauffe(dateTexte) {
 }
 async function copierChampsPersistantsMemeTrame(db, visiteId, precedenteId, trame) {
   if (!precedenteId) return;
+  // Une seule lecture de l'ancienne visite au lieu d'une requête par champ
+  // déclaré stable ; les écritures restent conditionnelles et inchangées.
+  const oldRows = await db.getAllAsync(
+    `SELECT section_code,cle,valeur FROM champs_visite
+     WHERE visite_id=? AND valeur IS NOT NULL AND trim(valeur)<>''`,
+    [precedenteId]
+  );
+  const byKey = new Map((oldRows || []).map(row =>
+    [`${row.section_code}||${row.cle}`,row.valeur]));
   for (const [panelId, sections] of Object.entries(trame.ui?.panels || {})) {
     for (const [section, fields] of Object.entries(sections || {})) {
       for (const field of fields || []) {
         if (field.type !== 'champ' || (!field.stable && !field.carryForward)) continue;
-        const code = sectionCode(panelId, section);
-        const ancien = await db.getFirstAsync(`SELECT valeur FROM champs_visite WHERE visite_id=? AND section_code=? AND cle=?`, [precedenteId, code, field.cle]);
-        if (ancien?.valeur) await insertIfEmpty(db, visiteId, panelId, section, field.cle, ancien.valeur);
+        const value = byKey.get(`${sectionCode(panelId, section)}||${field.cle}`);
+        if (value) await insertIfEmpty(db, visiteId, panelId, section, field.cle, value);
       }
     }
   }

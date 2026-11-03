@@ -24,12 +24,54 @@ function criterionCount(trame) {
       n + (Array.isArray(sub?.criteres) ? sub.criteres.length : 0), 0), 0);
 }
 
+// Un GET ponctuel, lancé pendant le choix de trame, peut être réutilisé
+// une seule fois lors de la création, sans remplacer le cache officiel du local.
+const PREPARE_WINDOW_MS = 45000;
+const pendingPreparations = new Map();
+function preparationKey({ remoteClientId, remoteLocalId, remoteTrameId, localTrameId } = {}) {
+  if (![remoteClientId, remoteLocalId, remoteTrameId].every(validId) || !localTrameId) return null;
+  return JSON.stringify([id(remoteClientId), id(remoteLocalId), id(remoteTrameId), String(localTrameId)]);
+}
+
+/** Anticiper la préparation sans créer de visite ni écrire dans le cache local.
+ * Échec silencieux ici : le bouton Créer effectuera sa validation habituelle.
+ */
+export function prewarmIntranetSelectedTrame(args = {}) {
+  const key = preparationKey(args);
+  if (!key) return Promise.resolve(null);
+  const current = pendingPreparations.get(key);
+  if (current && Date.now() - current.startedAt < PREPARE_WINDOW_MS) return current.promise;
+  if (current) pendingPreparations.delete(key);
+  // Ne conserver que quelques choix de la modale en mémoire.
+  while (pendingPreparations.size >= 4) pendingPreparations.delete(pendingPreparations.keys().next().value);
+  const entry = { startedAt: Date.now(), promise: null };
+  entry.promise = prepareIntranetSelectedTrameFresh(args).catch(error => {
+    if (pendingPreparations.get(key) === entry) pendingPreparations.delete(key);
+    throw error;
+  });
+  pendingPreparations.set(key, entry);
+  return entry.promise;
+}
+
+/** Réutiliser seulement un GET validé datant de moins de 45 secondes.
+ * Jamais de cache persistant : trame, site et local sont revalidés par le GET.
+ */
+export async function prepareIntranetSelectedTrame(args = {}) {
+  const key = preparationKey(args);
+  const cached = key && pendingPreparations.get(key);
+  if (cached) {
+    pendingPreparations.delete(key);
+    if (Date.now() - cached.startedAt < PREPARE_WINDOW_MS) return cached.promise;
+  }
+  return prepareIntranetSelectedTrameFresh(args);
+}
+
 /**
  * Valide les identifiants client/local/trame et renvoie exactement la reference
  * demandee. Si la trame change, aucune copie locale de la derniere visite
  * n'est autorisee en cas de reseau indisponible ou de reponse ambigue.
  */
-export async function prepareIntranetSelectedTrame({ remoteClientId, remoteLocalId, remoteTrameId, localTrameId } = {}) {
+async function prepareIntranetSelectedTrameFresh({ remoteClientId, remoteLocalId, remoteTrameId, localTrameId } = {}) {
   const clientId = id(remoteClientId);
   const localId = id(remoteLocalId);
   const selectedId = id(remoteTrameId);

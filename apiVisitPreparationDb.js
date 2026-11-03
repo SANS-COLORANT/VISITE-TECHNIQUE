@@ -43,13 +43,28 @@ async function upsertProvenance(db, entiteType, entiteId, referenceExterne, deta
   return id;
 }
 
-async function upsertAttribute(db, entiteType, entiteId, key, value) {
-  const v = text(value);
-  if (v == null) return;
+// Un seul passage SQLite pour les attributs d'un équipement : les six
+// valeurs sont conservées exactement, mais sans six allers-retours natifs.
+async function upsertEquipmentAttributes(db, equipmentId, material) {
+  const entries = [
+    ['api_symfony.numero_materiel', material?.numeroMateriel],
+    ['api_symfony.annee_source', material?.annee],
+    ['api_symfony.nombre', material?.nombre],
+    ['api_symfony.reseau_desservi', material?.reseauDesservi],
+    ['api_symfony.caracteristiques', material?.caracteristiques],
+    ['api_symfony.etat_reference', material?.etat],
+  ].map(([key, value]) => [key, text(value)]).filter(([, value]) => value != null);
+  if (!entries.length) return;
+  const placeholders = entries.map(() => "(?,?,?,?,?, 'texte')").join(',');
+  const params = entries.flatMap(([key, value]) =>
+    [createId(), 'equipement', equipmentId, key, value]);
   await db.runAsync(
-    `INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur,type_valeur) VALUES(?,?,?,?,?,'texte')
-     ON CONFLICT(entite_type,entite_id,cle) DO UPDATE SET valeur=excluded.valeur,modifie_le=datetime('now')`,
-    [createId(), entiteType, entiteId, key, v]
+    `INSERT INTO attributs_libres(id,entite_type,entite_id,cle,valeur,type_valeur)
+      VALUES ${placeholders}
+      ON CONFLICT(entite_type,entite_id,cle) DO UPDATE SET
+        valeur=excluded.valeur,modifie_le=datetime('now')
+      WHERE attributs_libres.valeur IS NOT excluded.valeur`,
+    params
   );
 }
 
@@ -112,6 +127,35 @@ async function findEquipmentByRemoteId(db, siteId, installationId, remoteMateria
   return row || null;
 }
 
+/** Lookup en un lot des équipements déjà rattachés à Symfony. Les priorités
+ * (même local, puis provenance récente) sont strictement identiques au
+ * findEquipmentByRemoteId historique, mais évitent N recherches SQLite.
+ */
+async function preloadRemoteEquipmentLinks(db, siteId, installationId, materials) {
+  const ids=[...new Set((materials||[]).map(item=>sourceId(item?.id)).filter(Boolean))];
+  const matched=new Map();
+  for(let offset=0;offset<ids.length;offset+=120) {
+    const part=ids.slice(offset,offset+120);
+    const placeholders=part.map(()=>'?').join(',');
+    const rows=await db.getAllAsync(
+      `SELECT p.reference_externe AS remote_id,e.id,e.installation_id
+       FROM provenances p JOIN equipements e ON e.id=p.entite_id
+       JOIN installations i ON i.id=e.installation_id
+       WHERE p.entite_type='equipement' AND p.origine='api_symfony'
+         AND p.reference_externe IN (${placeholders})
+         AND i.site_id=? AND e.statut<>'retire'
+       ORDER BY p.reference_externe,
+         CASE WHEN e.installation_id=? THEN 0 ELSE 1 END,p.importe_le DESC`,
+       [...part,siteId,installationId]
+    );
+    for (const row of rows||[]) {
+      const key=sourceId(row.remote_id);
+      if (key&&!matched.has(key))matched.set(key,row);
+    }
+  }
+  return matched;
+}
+
 async function findByApiMaterialNumber(db, installationId, numeroMateriel) {
   const number = text(numeroMateriel);
   if (!number) return null;
@@ -146,9 +190,10 @@ async function findConservativeEquipmentMatch(db, installationId, material) {
   return fingerprint.length === 1 ? fingerprint[0].id : null;
 }
 
-async function ensureEquipmentFromCurrentListing(db, siteId, installationId, material) {
+async function ensureEquipmentFromCurrentListing(db, siteId, installationId, material, knownRemoteLinks = null) {
   const remoteMaterialId = sourceId(material?.id);
-  const linked = await findEquipmentByRemoteId(db, siteId, installationId, remoteMaterialId);
+  const linked = knownRemoteLinks ? (knownRemoteLinks.get(remoteMaterialId) || null)
+    : await findEquipmentByRemoteId(db, siteId, installationId, remoteMaterialId);
   let equipmentId = linked?.id || null;
   const wasRemoteLinked = Boolean(equipmentId);
 
@@ -184,12 +229,10 @@ async function ensureEquipmentFromCurrentListing(db, siteId, installationId, mat
     currentLocalListing: true,
     payload: material,
   });
-  await upsertAttribute(db, 'equipement', equipmentId, 'api_symfony.numero_materiel', material?.numeroMateriel);
-  await upsertAttribute(db, 'equipement', equipmentId, 'api_symfony.annee_source', material?.annee);
-  await upsertAttribute(db, 'equipement', equipmentId, 'api_symfony.nombre', material?.nombre);
-  await upsertAttribute(db, 'equipement', equipmentId, 'api_symfony.reseau_desservi', material?.reseauDesservi);
-  await upsertAttribute(db, 'equipement', equipmentId, 'api_symfony.caracteristiques', material?.caracteristiques);
-  await upsertAttribute(db, 'equipement', equipmentId, 'api_symfony.etat_reference', material?.etat);
+  await upsertEquipmentAttributes(db, equipmentId, material);
+  if (remoteMaterialId && knownRemoteLinks) {
+    knownRemoteLinks.set(remoteMaterialId,{id:equipmentId,installation_id:installationId});
+  }
   return equipmentId;
 }
 
@@ -274,10 +317,12 @@ export async function importApiReferenceForVisit(visiteId, remoteLocalId, remote
       [installationId, remoteId, resolvedClientId, sourceId(ref?.trame?.id), sourceId(ref?.derniereVisite?.id), visiteId]
     );
     let importedMaterials = 0;
+    const materials = Array.isArray(ref?.materiels) ? ref.materiels : [];
+    const knownLinks = await preloadRemoteEquipmentLinks(db, visit.site_id, installationId, materials);
 
-    for (const sourceMaterial of Array.isArray(ref?.materiels) ? ref.materiels : []) {
+    for (const sourceMaterial of materials) {
       const material = { ...sourceMaterial, remoteLocalId: remoteId };
-      const equipmentId = await ensureEquipmentFromCurrentListing(db, visit.site_id, installationId, material);
+      const equipmentId = await ensureEquipmentFromCurrentListing(db, visit.site_id, installationId, material, knownLinks);
       await db.runAsync(
         `INSERT INTO equipement_trames(equipement_id,trame_id,actif) VALUES(?,?,1)
          ON CONFLICT(equipement_id,trame_id) DO UPDATE SET actif=1,modifie_le=datetime('now')`,

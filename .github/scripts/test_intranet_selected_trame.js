@@ -19,7 +19,7 @@ const prepared = { client: { id: 12 }, visites: [
 ] };
 const calls = [];
 let payload = prepared;
-const { prepareIntranetSelectedTrame } = load('intranetSelectedTrame.js', {
+const { prepareIntranetSelectedTrame, prewarmIntranetSelectedTrame } = load('intranetSelectedTrame.js', {
   getCachedLocalReference: async () => local,
   normalizePreparationPayload: value => value,
   getCachedStructureReferential: async () => ({ trames: [selected, { id: 3, nom: 'ICPE' }] }),
@@ -38,6 +38,23 @@ const { prepareIntranetSelectedTrame } = load('intranetSelectedTrame.js', {
   await assert.rejects(() => prepareIntranetSelectedTrame({ remoteClientId: 12, remoteLocalId: 501, remoteTrameId: 4, localTrameId: 'vmc' }), { code: 'selected_trame_wrong_local' });
   payload = { ...prepared, visites: [{ ...prepared.visites[1], trame: { id: 3, nom: 'ICPE', categories: prepared.visites[1].trame.categories } }] };
   await assert.rejects(() => prepareIntranetSelectedTrame({ remoteClientId: 12, remoteLocalId: 501, remoteTrameId: 4, localTrameId: 'vmc' }), { code: 'selected_trame_incomplete' });
+  // New-visits on a DIFFERENT Symfony trame often waited for a large GET.
+  // Anticipating the GET during the modal must share the same in-flight promise,
+  // validate the exact same local/trame, and never cache across creations.
+  payload = prepared;
+  const request = { remoteClientId: 12, remoteLocalId: 501, remoteTrameId: 4, localTrameId: 'vmc' };
+  const beforePrefetch = calls.length;
+  const warmed = prewarmIntranetSelectedTrame(request);
+  const used = await prepareIntranetSelectedTrame(request);
+  const prefetched = await warmed;
+  assert.equal(used.reference.local.id,501);
+  assert.strictEqual(used,prefetched,'the creation reuses the validated prefetched result');
+  assert.equal(calls.length,beforePrefetch+1,'one Symfony filtered GET, not two');
+  await prepareIntranetSelectedTrame(request);
+  assert.equal(calls.length,beforePrefetch+2,'prefetch is consumed once, not reused for a future visit');
+  await assert.rejects(() => prewarmIntranetSelectedTrame({
+    remoteClientId:12,remoteLocalId:999,remoteTrameId:4,localTrameId:'vmc',
+  }),{code:'selected_trame_local_missing'});
   const creation = fs.readFileSync(path.join(root,'visitCreationDb.js'),'utf8');
   const screen = fs.readFileSync(path.join(root,'SiteVisitesScreen.js'),'utf8');
   const binding = fs.readFileSync(path.join(root,'intranetVisitBindingDb.js'),'utf8');
@@ -46,6 +63,7 @@ const { prepareIntranetSelectedTrame } = load('intranetSelectedTrame.js', {
   assert.ok(creation.includes('selectedSymfonyTrame: selectedPreparation?.different === true'));
   assert.ok(creation.includes('await importSelectedPreparationCriteria('));
   assert.ok(screen.includes('apiRemoteTrameId: apiRemoteLocalId ? remoteTrameChoisie : null'));
+  assert.ok(screen.includes('prewarmIntranetSelectedTrame({') && screen.includes('remoteTrameChoisie'));
   assert.ok(binding.includes('frozenVisitReference(db, visite)'));
   console.log('Selected Symfony trame checks passed (ID, local, empty criteria, fail-closed, creation, binding).');
 })().catch(error => { console.error(error); process.exitCode = 1; }); 

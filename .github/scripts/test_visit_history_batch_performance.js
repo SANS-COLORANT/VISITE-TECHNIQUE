@@ -15,7 +15,7 @@ const index={
  ])
 };
 const mod=new Function('createId','DEFAULT_TRAME_ID','obtenirTrame','construireIndexSemantiqueTrame',
- source+'\nreturn {collectSemanticSnapshot,copyUnresolvedReserves};')(
+ source+'\nreturn {collectSemanticSnapshot,copyUnresolvedReserves,latestVisitWithRows};')(
  ()=> 'carried-'+(++nextId),'icpe_v1',()=>({id:'icpe_v1'}),()=>index);
 const e=new DatabaseSync(':memory:');
 e.exec(`
@@ -32,6 +32,8 @@ e.exec(`
    intranet_date_reserve TEXT,intranet_delai TEXT,intranet_etat_avancement TEXT,
    perimetre TEXT,cree_le TEXT);
  CREATE TABLE provenances(entite_type TEXT,entite_id TEXT,origine TEXT);
+ CREATE TABLE reseaux(visite_id TEXT);
+ CREATE TABLE compteurs(visite_id TEXT);
 `);
 const insert=(sql,...args)=>e.prepare(sql).run(...args);
 const visits=[];
@@ -58,6 +60,9 @@ reserve('alreadyHere','new','rExisting');
 insert('INSERT INTO visites(id,site_id,installation_id,trame_id,statut,date_visite) VALUES(?,?,?,?,?,?)',
   'new','site','local','icpe_v1','en_cours','2026-11-03');
 insert('INSERT INTO provenances VALUES(?,?,?)','reserve_lignee','rC','retrait_visite');
+insert('INSERT INTO reseaux VALUES(?)','v121');
+insert('INSERT INTO reseaux VALUES(?)','v10');
+insert('INSERT INTO compteurs VALUES(?)','v200');
 const reads=[],writes=[];
 const db={
  getAllAsync:async(sql,args=[])=>{reads.push({sql,args});return e.prepare(sql).all(...args);},
@@ -84,6 +89,14 @@ const db={
  assert.ok(reads.length<=8,'batch reserves / tombstones, not N per-visit queries');
  const again=await mod.copyUnresolvedReserves(db,'new',visits);
  assert.equal(again,0,'idempotent carry without duplicates');
+ reads.length=0;
+ const newestNetwork=await mod.latestVisitWithRows(db,visits,'reseaux');
+ assert.equal(newestNetwork.id,'v121','newest network visit takes priority even across batches');
+ assert.equal(reads.length,2,'historical networks use two batched reads, not 129 individual checks');
+ reads.length=0;
+ const newestMeter=await mod.latestVisitWithRows(db,visits,'compteurs');
+ assert.equal(newestMeter.id,'v200','newest meter visit keeps its original value source');
+ assert.equal(reads.length,1,'historical meters use one batched read instead of fifty');
  console.log('PASS 250 historical visits: 6 semantic reads, <=8 reserve reads, S.O/N.S preserved, only open lineage copied ('+(Date.now()-began)+' ms)');
  e.close();
 })().catch(err=>{console.error(err);process.exitCode=1;});

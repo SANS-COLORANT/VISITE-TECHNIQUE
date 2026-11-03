@@ -8,6 +8,7 @@ import { IconOrb } from './premiumChrome.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { creerVisiteProduction } from './visitCreationDb.js';
 import { preferredRemarCompleteId } from './remarVisitSelection.js';
+import { prewarmIntranetSelectedTrame } from './intranetSelectedTrame.js';
 import { supprimerVisiteComplete } from './entityManagementDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
 import { listerTramesDisponibles, obtenirTrame, tramePourNouvelleVisite, DEFAULT_TRAME_ID } from './trameRegistry.js';
@@ -193,6 +194,26 @@ function SiteVisitesScreen({ route, navigation }) {
       .finally(() => { if (alive) setReferentielEnCours(false); });
     return () => { alive = false; };
   }, [choixModeVisible, apiRemoteLocalId, apiRemoteClientId]);
+
+  // Lancer le GET Symfony de la trame sélectionnée pendant que le
+  // technicien choisit son mode de visite. La création utilisera cet unique
+  // résultat validé ; jamais de copie d'un local/trame différent.
+  useEffect(() => {
+    if (!choixModeVisible || !apiRemoteLocalId || !apiRemoteClientId ||
+        !remoteTrameChoisie || !trameChoisie ||
+        !remoteTrames.some(t => String(t.id) === remoteTrameChoisie &&
+          mapRemoteTrameToLocal(t) === trameChoisie)) return undefined;
+    prewarmIntranetSelectedTrame({
+      remoteClientId: apiRemoteClientId,
+      remoteLocalId: apiRemoteLocalId,
+      remoteTrameId: remoteTrameChoisie,
+      localTrameId: trameChoisie,
+    }).catch(() => {
+      // La création affichera l'erreur réelle et retentera le GET si besoin.
+    });
+    return undefined;
+  }, [choixModeVisible, apiRemoteClientId, apiRemoteLocalId,
+      remoteTrameChoisie, trameChoisie, remoteTrames]);
 
   useEffect(() => {
     if (!params.openNewVisit || !apiRemoteLocalId || autoOpenHandled.current) return;
