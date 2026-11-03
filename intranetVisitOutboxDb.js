@@ -33,6 +33,25 @@ export async function getVisitUploadState(visiteId) {
   const db = await getDb();
   return db.getFirstAsync(`SELECT * FROM api_visit_outbox WHERE visite_id=?`, [String(visiteId)]);
 }
+
+/**
+ * Durable comparison with the exact Symfony payload acknowledged by POST.
+ * No new UUID, no POST and no mutation: changing any exported field makes
+ * a previously synced visit visibly pending correction on the tablet.
+ * A failed projection is also different (e.g. newly unmapped local data).
+ */
+export async function isSyncedVisitChangedLocally(visiteId, knownRow = null) {
+  const row = knownRow || await getVisitUploadState(visiteId);
+  if (!row || row.status !== 'synced') return false;
+  try {
+    const current = await buildIntranetVisitPayload(visiteId, row.envoi_id);
+    return current.serialized !== row.payload_json;
+  } catch {
+    // Never mark the remote visit as current if the local edited state
+    // cannot be projected safely into the known remote template.
+    return true;
+  }
+}
 export async function listVisitOutbox({ includeSynced = false } = {}) {
   const db = await getDb();
   return db.getAllAsync(`SELECT o.*,v.date_visite,s.nom_site,c.nom AS nom_client

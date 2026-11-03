@@ -5,6 +5,7 @@ import { CvcIcon } from './MetraCvcIcons.js';
 import {
   discardTerminalVisitUpload, finalizeVisitForUpload, getVisitUploadState, listVisitOutbox,
   processVisitOutbox, queueVisitUpload, retryVisitUploadNow, subscribeVisitOutbox,
+  isSyncedVisitChangedLocally,
 } from './intranetVisitOutboxDb.js';
 import {
   getVisitPhotoUploadSummary, processVisitPhotoOutbox, queueMissingSyncedVisitPhotos,
@@ -14,6 +15,7 @@ import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions, pinVer
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { chooseUniqueRemarRemoteTrame } from './remarRemoteTrameSelection.js';
 import { syncClientPreparation } from './symfonyApi.js';
+import { latestClientVisitsByLocalAndTemplate } from './clientVisitSendSelection.js';
 import { getDb } from './db.js';
 import { getCachedStructureReferential, syncStructureReferential } from './intranetStructureDb.js';
 
@@ -147,13 +149,20 @@ export function IntranetVisitSyncBanner() {
 
 export function useVisitUploadState(visiteId) {
   const [row, setRow] = useState(null);
+  const [changedSinceSync, setChangedSinceSync] = useState(false);
   const [loading, setLoading] = useState(true);
   const refresh = useCallback(async () => {
     if (!visiteId) return;
-    try { setRow(await getVisitUploadState(visiteId)); } finally { setLoading(false); }
+    try {
+      const next = await getVisitUploadState(visiteId);
+      setChangedSinceSync(next?.status === 'synced'
+        ? await isSyncedVisitChangedLocally(visiteId, next)
+        : false);
+      setRow(next);
+    } finally { setLoading(false); }
   }, [visiteId]);
   useEffect(() => { setLoading(true); refresh(); return subscribeVisitOutbox(refresh); }, [refresh]);
-  return { row, loading, refresh };
+  return { row, changedSinceSync, loading, refresh };
 }
 
 export function useVisitPhotoUploadSummary(visiteId) {
@@ -303,15 +312,20 @@ async function assertQueuedClientStillMatchesImportedClient(visiteId, row) {
   }
 }
 
-export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compact = false, beforeSend = null }) {
+export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compact = false, beforeSend = null, refreshKey = 0 }) {
   const visiteId = visite?.id;
-  const { row, loading, refresh } = useVisitUploadState(visiteId);
+  const { row, changedSinceSync, loading, refresh } = useVisitUploadState(visiteId);
+  useEffect(() => {
+    if (!refreshKey) return undefined;
+    const t = setTimeout(() => refresh().catch(() => {}), 150);
+    return () => clearTimeout(t);
+  }, [refreshKey, refresh]);
   const { summary: photoSummary, loading: photoLoading, refresh: refreshPhotos } = useVisitPhotoUploadSummary(visiteId);
   const [busy, setBusy] = useState(false);
   const historical = Number(visite?.api_is_historical) === 1;
   const visitSynced = row?.status === 'synced';
   const photosComplete = photoSummaryComplete(photoSummary);
-  const online = historical || (visitSynced && photosComplete);
+  const online = historical || (visitSynced && !changedSinceSync && photosComplete);
   const hardIdempotencyConflict = row?.error_code === 'idempotency_conflict';
   const invalidAck = row?.error_code === 'invalid_ack';
   const hardSourceConflict = row?.status === 'conflict' && row?.error_code === 'synchronization_conflict';
@@ -359,6 +373,11 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
     setBusy(true);
     try {
       if (historical) return;
+      if (changedSinceSync && visitSynced) {
+        Alert.alert('Corrections enregistrées localement',
+          'Cette visite a été modifiée depuis son dernier envoi. La synchronisation passe en gris : les nouvelles données restent sur la tablette. Le serveur Symfony actuel expose seulement POST (création), pas de mise à jour certifiée de la même visite. METRA ne crée pas de doublon : une route PATCH/PUT avec ID serveur et contrôle de version est nécessaire pour renvoyer ces corrections.');
+        return;
+      }
 
       // La visite Symfony existe déjà : ne jamais la recréer. On reprend seulement
       // les photos manquantes avec leur envoiPhotoId persistant.
@@ -445,7 +464,9 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
   const photoDetail = visitSynced && photoSummary.total > 0
     ? ` · photos ${photoSummary.synced}/${photoSummary.total}${remainingPhotos ? ' · envoi par lots de 10' : ''}${photoSummary.failed ? ` · ${photoSummary.failed} refusée(s)` : ''}`
     : '';
-  const detail = online
+  const detail = changedSinceSync && visitSynced
+    ? 'Modifications locales enregistrées · corrections non envoyées. Une API de mise à jour Symfony est nécessaire (aucun doublon créé).'
+    : online
     ? (historical ? 'Déjà présente sur l’Intranet (visite importée).' : `Export Intranet confirmé${row?.remote_visit_id ? ` · visite n°${row.remote_visit_id}` : ''}${photoSummary.total ? ` · ${photoSummary.synced} photo(s)` : ''}.`)
     : visitSynced ? `Visite n°${row?.remote_visit_id || ''} créée sur l’Intranet${photoDetail}. Les lots suivants reprennent automatiquement.`
       : row?.status === 'sending' ? 'Envoi vers le même client Intranet en cours…'
@@ -463,12 +484,12 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
   // rouge = à corriger) — le mot "Intranet" et le texte de détail systématique
   // n'apportent rien que la couleur ne dise déjà ; le détail ne s'affiche que
   // quand il y a vraiment quelque chose à lire (erreur ou envoi en cours).
-  const showDetail = !compact && (detailIsError || sending || (!online && !loading && !photoLoading));
+  const showDetail = !compact && (changedSinceSync || detailIsError || sending || (!online && !loading && !photoLoading));
 
   return <View style={compact ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }}>
     <TouchableOpacity
       accessibilityRole="button"
-      accessibilityLabel={online ? 'Synchronisé avec l’Intranet' : detailIsError ? 'Erreur de synchronisation, appuyer pour réessayer' : 'Non synchronisé, appuyer pour envoyer'}
+      accessibilityLabel={changedSinceSync ? 'Visite modifiée après synchronisation, corrections conservées localement' : online ? 'Synchronisé avec l’Intranet' : detailIsError ? 'Erreur de synchronisation, appuyer pour réessayer' : 'Non synchronisé, appuyer pour envoyer'}
       disabled={loading || photoLoading || busy || online || row?.status === 'sending'}
       onPress={(event) => { event?.stopPropagation?.(); prepareAndSend().catch(() => {}); }}
       style={{ width: 44, height: 44, borderRadius: 14, alignItems: 'center', justifyContent: 'center', backgroundColor: tintSoft, opacity: loading || photoLoading ? 0.55 : 1 }}
@@ -490,7 +511,9 @@ const HISTORICAL_SQL = `EXISTS(SELECT 1 FROM provenances p WHERE p.entite_type='
 export async function listerVisitesAEnvoyerClient(clientId) {
   const db = await getDb();
   const rows = await db.getAllAsync(`
-    SELECT v.id, v.statut, s.nom_site, i.nom AS nom_local, v.date_visite, o.status AS envoi
+    SELECT v.id,v.site_id,v.installation_id,v.api_remote_local_id,
+      v.trame_id,v.statut,v.modifie_le,v.rowid AS local_rowid,
+      s.nom_site,i.nom AS nom_local,v.date_visite,o.status AS envoi
     FROM visites v
     JOIN sites s ON s.id=v.site_id
     LEFT JOIN installations i ON i.id=v.installation_id
@@ -498,10 +521,12 @@ export async function listerVisitesAEnvoyerClient(clientId) {
     WHERE s.client_id=? AND NOT ${HISTORICAL_SQL}
       AND (v.api_remote_local_id IS NOT NULL OR EXISTS(
         SELECT 1 FROM api_local_links l WHERE l.local_installation_id=v.installation_id AND l.remote_present=1))
-    ORDER BY s.nom_site, i.nom, v.date_visite`, [String(clientId)]);
-  const aEnvoyer = rows.filter((r) => ['terminee', 'exportee'].includes(r.statut) && r.envoi !== 'synced');
-  const enCours = rows.filter((r) => !['terminee', 'exportee'].includes(r.statut));
-  const dejaEnvoyees = rows.filter((r) => ['terminee', 'exportee'].includes(r.statut) && r.envoi === 'synced');
+    ORDER BY v.date_visite DESC,v.modifie_le DESC,v.rowid DESC`, [String(clientId)]);
+  // Never post older drafts of the same local/template as extra Symfony visits.
+  const latest = latestClientVisitsByLocalAndTemplate(rows);
+  const aEnvoyer = latest.filter((r) => ['terminee', 'exportee'].includes(r.statut) && r.envoi !== 'synced');
+  const enCours = latest.filter((r) => !['terminee', 'exportee'].includes(r.statut));
+  const dejaEnvoyees = latest.filter((r) => ['terminee', 'exportee'].includes(r.statut) && r.envoi === 'synced');
   return { aEnvoyer, enCours, dejaEnvoyees };
 }
 
@@ -513,8 +538,10 @@ const nomVisite = (v) => [v.nom_site, v.nom_local].filter(Boolean).join(' · ') 
  * imposé, aucun doublon, confirmation matériel conservée). Ce qui demande une
  * décision humaine est remis à la visite concernée et listé dans le bilan.
  */
-export async function envoyerVisitesClient(clientId, { onProgress = null } = {}) {
-  const { aEnvoyer, enCours } = await listerVisitesAEnvoyerClient(clientId);
+export async function envoyerVisitesClient(clientId, { onProgress = null, visiteIds = null } = {}) {
+  const { aEnvoyer: candidats, enCours } = await listerVisitesAEnvoyerClient(clientId);
+  const autorises = Array.isArray(visiteIds) ? new Set(visiteIds.map(String)) : null;
+  const aEnvoyer = autorises ? candidats.filter(v=>autorises.has(String(v.id))) : candidats;
   const bilan = { envoyees: [], aConfirmer: [], enErreur: [], enCours: enCours.length, total: aEnvoyer.length };
   let rang = 0;
   for (const visite of aEnvoyer) {

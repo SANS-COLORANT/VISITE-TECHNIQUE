@@ -23,6 +23,7 @@ import { ButtonGlow } from './ButtonGlow.js';
 import { ClientTourneeModal } from './ClientTourneeModal.js';
 import { bilanTournee, indexerTournee, listerTourneeClient } from './tourneeDb.js';
 import { envoyerVisitesClient, listerVisitesAEnvoyerClient } from './IntranetVisitSync.js';
+import { ClientVisitSendPicker } from './ClientVisitSendPicker.js';
 import { EmptyIcon } from './EmptyState.js';
 
 const adresseVide = () => ({ numero: '', voie: '', complement: '', codePostal: '', ville: '' });
@@ -53,6 +54,8 @@ function ClientSitesScreen({ route, navigation }) {
   const [filtreAFaire, setFiltreAFaire] = useState(false);
   const [aEnvoyer, setAEnvoyer] = useState(0);
   const [envoiEnCours, setEnvoiEnCours] = useState(null);
+  const [selectionEnvoiVisible, setSelectionEnvoiVisible] = useState(false);
+  const [candidatsEnvoi, setCandidatsEnvoi] = useState([]);
   const [nouveauNom, setNouveauNom] = useState('');
   const [nouvelleAdresse, setNouvelleAdresse] = useState(adresseVide);
 
@@ -154,11 +157,14 @@ function ClientSitesScreen({ route, navigation }) {
     } catch (e) { Alert.alert('Création impossible', String(e?.message || e)); }
   };
 
-  const envoyerTout = async () => {
-    if (envoiEnCours) return;
-    setEnvoiEnCours({ rang: 0, total: aEnvoyer, nom: '' });
+  const envoyerTout = async (visiteIds) => {
+    if (envoiEnCours || !Array.isArray(visiteIds) || !visiteIds.length) return;
+    setEnvoiEnCours({ rang: 0, total: visiteIds.length, nom: '' });
     try {
-      const bilan = await envoyerVisitesClient(clientId, { onProgress: setEnvoiEnCours });
+      const bilan = await envoyerVisitesClient(clientId, {
+        visiteIds, onProgress: setEnvoiEnCours,
+      });
+      setSelectionEnvoiVisible(false);
       await chargerTournee();
       const lignes = [
         `${bilan.envoyees.length}/${bilan.total} visite(s) envoyée(s) à l’Intranet.`,
@@ -170,12 +176,19 @@ function ClientSitesScreen({ route, navigation }) {
     } catch (e) { Alert.alert('Envoi impossible', String(e?.message || e)); }
     finally { setEnvoiEnCours(null); }
   };
-  const demanderEnvoiTout = () => {
-    if (!aEnvoyer) return Alert.alert('Rien à envoyer', 'Toutes les visites terminées de ce client sont déjà sur l’Intranet. Les visites en cours doivent d’abord être terminées.');
-    Alert.alert('Envoyer à l’Intranet', `${aEnvoyer} visite${aEnvoyer > 1 ? 's' : ''} terminée${aEnvoyer > 1 ? 's' : ''} de « ${nomClient || 'ce client'} » ${aEnvoyer > 1 ? 'seront envoyées' : 'sera envoyée'} vers le même client Intranet, les photos suivent par lots.`, [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Tout envoyer', onPress: envoyerTout },
-    ]);
+  const demanderEnvoiTout = async () => {
+    if (envoiEnCours) return;
+    try {
+      const { aEnvoyer: latest } = await listerVisitesAEnvoyerClient(clientId);
+      if (!latest.length) {
+        Alert.alert('Rien à envoyer', 'Aucune dernière visite terminée de local/trame ne reste à envoyer. Les visites en cours doivent être terminées.');
+        return;
+      }
+      setCandidatsEnvoi(latest);
+      setSelectionEnvoiVisible(true);
+    } catch (e) {
+      Alert.alert('Sélection Intranet impossible', String(e?.message || e));
+    }
   };
 
   const ouvrirSite = (site) => navigation.navigate('SiteLocals', { siteId: site.id, nomSite: site.nom_site, clientId, nomClient });
@@ -359,6 +372,10 @@ function ClientSitesScreen({ route, navigation }) {
 
     <ClientTourneeModal visible={tourneeVisible} clientId={clientId} sites={sites} onClose={() => setTourneeVisible(false)} onChanged={chargerTournee} />
 
+    <ClientVisitSendPicker visible={selectionEnvoiVisible} visits={candidatsEnvoi}
+      clientName={nomClient} busy={Boolean(envoiEnCours)}
+      onCancel={() => { if (!envoiEnCours) setSelectionEnvoiVisible(false); }}
+      onSend={envoyerTout} />
     <IntranetSiteCreationModal visible={intranetSiteVisible} clientId={clientId} onClose={() => setIntranetSiteVisible(false)} onCreated={charger} />
 
     <CompanionTabletModal
