@@ -1,6 +1,7 @@
 import { getDb } from './db.js';
 import { obtenirTrame } from './trameRegistry.js';
 import { construireRemarDynamiquePourRapport, remarDynamicOwnsMapping } from './remarDynamicExportDb.js';
+import { remarMappingsForRemote, isRemarCompleteTrame } from './remarSymfonyCompleteContract.js';
 import { formaterReleves, formaterTemperatureGroupee } from './releveMultiligne.js';
 
 export const INTRANET_MAX_BODY_BYTES = 5 * 1024 * 1024;
@@ -361,7 +362,7 @@ export function inspectIntranetTrameCapabilities(trameId) {
   return mappingCapabilities(obtenirTrame(trameId));
 }
 
-function buildStaticCandidates(localTrameId) {
+function buildStaticCandidates(localTrameId, remoteTrame = null) {
   const definition = obtenirTrame(localTrameId);
   const candidates = [];
   const specialPanels = new Set(definition?.ui?.specialPanels || []);
@@ -382,11 +383,29 @@ function buildStaticCandidates(localTrameId) {
       }
     }
   }
+  // Symfony REMAR COMPLÈTE is a distinct *remote* version. Do not
+  // change the historical Excel template or introduce visual fields.
+  if ((definition?.familyId || definition?.id)==='remar_v1' && isRemarCompleteTrame(remoteTrame)) {
+    const published=remarMappingsForRemote(definition,remoteTrame);
+    const allowed=new Set(published.map(m=>[m.panelId,m.section,m.cle].join('||')));
+    const active=candidates.filter(c=>allowed.has([c.panelId,c.section,c.cle].join('||')));
+    for(const m of published) {
+      const existing=active.find(c=>c.panelId===m.panelId&&c.section===m.section&&c.cle===m.cle);
+      if(existing && m.remoteCle) existing.aliases=[...new Set([...(existing.aliases||[]),normalize(m.remoteCle)])];
+      if(!existing) active.push({panelId:m.panelId,section:m.section,
+        sectionCode:m.sectionCode,storageCodes:[m.sectionCode],cle:m.cle,
+        label:m.remoteCle||m.cle,type:m.type,key:normalize(m.remoteCle||m.cle),
+        aliases:[],specialPanel:false,temperature:false,
+        sectionKey:normalize(m.section),
+        panelKey:normalize(definition.ui?.labels?.[m.panelId]||m.panelId)});
+    }
+    return active;
+  }
   return candidates;
 }
 
-async function buildCandidates(db, visite) {
-  const candidates = buildStaticCandidates(visite.trame_id);
+async function buildCandidates(db, visite, remoteTrame = null) {
+  const candidates = buildStaticCandidates(visite.trame_id, remoteTrame);
   const definition = obtenirTrame(visite.trame_id);
   // Les formulaires à rubriques modulaires sont reconnus par leur structure.
   if (!Object.keys(definition?.ui?.panels || {}).some((id) => id.startsWith('p-pa-'))) return candidates;
@@ -475,8 +494,8 @@ function findCandidate(candidates, criterion, categoryName, subCategoryName) {
   return identity.size === 1 ? same[0].candidate : null;
 }
 
-export function inspectIntranetCriterionCandidate(localTrameId, criterion, categoryName, subCategoryName) {
-  const candidates = buildStaticCandidates(localTrameId);
+export function inspectIntranetCriterionCandidate(localTrameId, criterion, categoryName, subCategoryName, remoteTrame = null) {
+  const candidates = buildStaticCandidates(localTrameId, remoteTrame);
   const key = normalize(criterion?.nom);
   const exact = candidates.filter((candidate) => candidate.key === key);
   const matches = exact.length ? exact : candidates.filter((candidate) => candidate.aliases?.includes(key));
@@ -712,9 +731,9 @@ function countRemoteCriteria(trame) {
  * La matrice est tirée de REMAR_DETAIL (source multi-instance de la visite),
  * et non des « replacements » Excel limités à l'équipement de référence.
  */
-function groupRemarDetailsForIntranet(projection, definition, issues) {
+function groupRemarDetailsForIntranet(projection, definition, issues, remoteTrame = null) {
   if(!Array.isArray(projection?.details)||!projection.details.length)return null;
-  const mappings=new Map((definition?.excel?.fieldMappings||[])
+  const mappings=new Map(remarMappingsForRemote(definition,remoteTrame)
     .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
   const parents=new Map(),children=new Map(),rows=[],groups=new Map();
   const key=(p,s,c)=>[p,s,c].join('||');
@@ -753,18 +772,17 @@ function groupRemarDetailsForIntranet(projection, definition, issues) {
   const vmc=[...parents].filter(([,p])=>p.family==='vmc');
   const froid=[...parents].filter(([,p])=>p.family==='froid');
   cta.forEach(([,p])=>add('p-remar-cta','Informations techniques',
-    'Désignation CTA',{label:p.name,valeur:p.name,force:true}));
+    'Désignation CTA',{label:p.name,valeur:p.name,force:true,forceName:true}));
   if(vmc.length) {
-    const count=vmc.length;
-    add('p-remar-vmc','Informations générales','Nombre de caissons',{
-      label:'VMC',valeur:count===1?'1':count+' caissons : '+vmc.map(([,p])=>p.name).join(' ; '),force:true});
+    vmc.forEach(([,p])=>add('p-remar-vmc','Informations générales','Nombre de caissons',{
+      label:p.name,valeur:'1',force:true,forceName:true}));
   }
   // Pour le froid, le champ Production froid porte déjà les observations
   // de chaque groupe ; si aucune n'existe, y préserver au moins son nom.
   for(const [id,p] of froid){
     const observed=rows.some(r=>r.id===id&&r.panel==='p-remar-froid'&&r.cle==='Production froid'&&!r.inherited&&has(r));
     if(!observed)add('p-remar-froid','Informations du site','Production froid',{
-      label:p.name,valeur:'Équipement déclaré, production non renseignée',force:true});
+      label:p.name,valeur:'Équipement déclaré, production non renseignée',force:true,forceName:true});
   }
 
   for(const row of rows) {
@@ -784,6 +802,11 @@ function groupRemarDetailsForIntranet(projection, definition, issues) {
   const measureTargets={
     'air neuf':['Températures','Air neuf'],
     'apres recuperation':['Températures','Après récupération'],
+    'recuperation':['Températures','Après récupération'],
+    'batterie chaude':['Températures','Batterie chaude'],
+    'batterie froide':['Températures','Batterie froide'],
+    'batterie pre chauffage':['Températures','Batterie pré-chauffage'],
+    'commentaires':['Températures','Commentaires'],
     'soufflage':['Températures','Soufflage'],
     'extraction reprise':['Températures','Extraction / Reprise'],
     'vitesse soufflage':['Variation de vitesse','Soufflage'],
@@ -812,6 +835,13 @@ function groupRemarDetailsForIntranet(projection, definition, issues) {
       const section='Filtre n°'+Math.min(position,3);
       const classe=current('Classe de filtration'),etat=current('Etat du filtre');
       allowed.add('Classe de filtration');allowed.add('Etat du filtre');
+      if(isRemarCompleteTrame(remoteTrame)) {
+        for (const field of ['Pertes de charge (Pa)',"Seuil d'alarme (Pa)"]) {
+          allowed.add(field);
+          const reading=current(field);
+          if(reading && has(reading)) add('p-remar-filtres',section,field,{...reading,label,unite:'Pa'});
+        }
+      }
       add('p-remar-filtres',section,'Type de filtre',{
         label,valeur:classe?.valeur||item.name,
         avis:classe?.avis,commentaire:classe?.commentaire,force:true});
@@ -826,7 +856,7 @@ function groupRemarDetailsForIntranet(projection, definition, issues) {
         if(v&&has(v))add('p-remar-cta-mesures',dest[0],dest[1],{...v,label,unite:item.unite});
       }else if(v&&has(v))report(label,'mesure supplémentaire sans destination précise dans la trame Symfony');
     }else if(item.type==='reseau_froid'){
-      const section='Réseaux',field='Réseau '+Math.min(position,3);
+      const section='Réseaux',field='Réseau '+Math.min(position,isRemarCompleteTrame(remoteTrame)?5:3);
       const observations=[...item.values.values()].filter(r=>!r.inherited&&has(r))
         .map(r=>r.cle+' : '+[r.valeur,r.avis,r.commentaire].filter(Boolean).join(' / '));
       item.values.forEach((v,k)=>allowed.add(k));
@@ -851,7 +881,7 @@ function groupRemarDetailsForIntranet(projection, definition, issues) {
   // Mêmes exigences de confirmation que pour une CTA seule.
   if(cta.length>1){
     for(const [id,parent] of cta){
-      for(const panel of ['p-remar-cta','p-remar-cta-energie']){
+      for(const panel of (isRemarCompleteTrame(remoteTrame)?['p-remar-cta']:['p-remar-cta','p-remar-cta-energie'])){
         for(const [section,items] of Object.entries(definition?.ui?.panels?.[panel]||{})){
           for(const item of items.filter(x=>x.type==='controle')){
             const target=key(panel,section,item.cle);
@@ -865,6 +895,7 @@ function groupRemarDetailsForIntranet(projection, definition, issues) {
   }
 
   const result=new Map();
+  const escapeLine=value=>String(value??'').replace(/\\/g,'\\\\').replace(/\r\n|\r|\n|\u2028|\u2029/g,'\\n');
   const priority=['N.S','N.R','N.V','S','S.O'];
   const displayValue=e=>{
     const raw=e.valeur||(!e.valeur&&['N.R','N.V','S.O'].includes(e.avis)?e.avis:'');
@@ -877,7 +908,7 @@ function groupRemarDetailsForIntranet(projection, definition, issues) {
       :mapping.panelId==='p-remar-vmc'?'vmc'
       :mapping.panelId==='p-remar-froid'?'froid':null;
     const familyCount=family==='cta'?cta.length:family==='vmc'?vmc.length:family==='froid'?froid.length:0;
-    const multiline=entries.length>1||familyCount>1;
+    const multiline=entries.length>1||familyCount>0||entries.some(e=>e.forceName===true);
     if(mapping.type==='controle'){
       const valid=entries.filter(e=>['S','N.S','N.R','S.O','N.V'].includes(e.avis));
       if(valid.length!==entries.length){
@@ -891,13 +922,15 @@ function groupRemarDetailsForIntranet(projection, definition, issues) {
       }
       const commentaire=multiline?entries.map(e=>{
         const status=e.avis||'Non renseigné';
-        return e.label+' : ['+status+']'+(e.commentaire?' '+e.commentaire:'');
+        if(/[\r\n]/.test(e.label)||e.label.includes(' : '))report(e.label,'nom ambigu pour le format multiligne');
+        return e.label+' : ['+status+']'+(e.commentaire?' '+escapeLine(e.commentaire):'');
       }).join('\n'):entries[0]?.commentaire||'';
       result.set(target,{type:'controle',avis,commentaire});
     }else{
       const value=multiline?entries.map(e=>{
         const v=displayValue(e);
-        return e.label+' : '+v+(e.commentaire?' — '+e.commentaire:'')+
+        if(/[\r\n]/.test(e.label)||e.label.includes(' : '))report(e.label,'nom ambigu pour le format multiligne');
+        return e.label+' : '+escapeLine(v)+(e.commentaire?' — '+escapeLine(e.commentaire):'')+
           (e.avis&&v!==e.avis?' ['+e.avis+']':'');
       }).join('\n'):entries.length===1?displayValue(entries[0])+
         (entries[0].commentaire?' — '+entries[0].commentaire:''):'';
@@ -912,7 +945,7 @@ async function buildCriteria(db, visite, details, issues) {
   const categories = Array.isArray(remoteTrame?.categories) ? remoteTrame.categories : [];
   if (!categories.length) { issues.push('Trame Intranet : aucun critère de référence figé pour cette visite.'); return []; }
   const [candidates, fields, controls, networks, counters, networkProvenances, measurePoints] = await Promise.all([
-    buildCandidates(db, visite),
+    buildCandidates(db, visite, remoteTrame),
     db.getAllAsync(`SELECT section_code,cle,valeur FROM champs_visite WHERE visite_id=?`, [visite.id]),
     db.getAllAsync(`SELECT section_code,cle,avis,commentaire FROM controles_visite WHERE visite_id=?`, [visite.id]),
     db.getAllAsync(`SELECT * FROM reseaux WHERE visite_id=? ORDER BY ordre,id`, [visite.id]),
@@ -952,7 +985,7 @@ async function buildCriteria(db, visite, details, issues) {
         if (map.type==='controle') controlMap.set(key,{avis:null,commentaire:null});
         else fieldMap.set(key,null);
       }
-      remarGrouped=groupRemarDetailsForIntranet(remap,definition,issues);
+      remarGrouped=groupRemarDetailsForIntranet(remap,definition,issues,remoteTrame);
       // Les avertissements de projection Excel « 2 CTA / 1 cellule » ne
       // s'appliquent plus si le détail est transmis sur plusieurs lignes.
       // Le regroupement vérifie indépendamment toutes les données rejetées.
@@ -964,7 +997,7 @@ async function buildCriteria(db, visite, details, issues) {
       // (non visible) dans le POST. Le technicien doit choisir S/N.S/N.R/S.O/N.V.
       if (remap.familyCounts?.cta && (!remarGrouped||remap.familyCounts.cta===1) &&
           !remap.ambiguous.some(x=>/^CTA\b/.test(x))) {
-        for (const m of definition?.excel?.fieldMappings || []) {
+        for (const m of remarMappingsForRemote(definition,remoteTrame)) {
           if (m.type !== 'controle') continue;
           const cellKey=[m.panelId,m.section,m.cle].join('||');
           const row=remap.replacements.get(cellKey);
@@ -984,7 +1017,7 @@ async function buildCriteria(db, visite, details, issues) {
           }
         }
       }
-      const byOfficial = new Map((definition?.excel?.fieldMappings||[])
+      const byOfficial = new Map(remarMappingsForRemote(definition,remoteTrame)
         .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
       for (const [key,value] of remap.replacements) {
         const mapping = byOfficial.get(key);
@@ -1004,7 +1037,7 @@ async function buildCriteria(db, visite, details, issues) {
       // Pour Symfony seulement : les lignes de toutes les CTA/caissons
       // écrasent la vue Excel centrée sur une seule référence.
       if(remarGrouped) {
-        const byOfficial=new Map((definition?.excel?.fieldMappings||[])
+        const byOfficial=new Map(remarMappingsForRemote(definition,remoteTrame)
           .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
         for(const [key,group] of remarGrouped){
           const mapping=byOfficial.get(key);
@@ -1194,7 +1227,7 @@ async function buildCriteria(db, visite, details, issues) {
     // Une correspondance par critère distant ne suffit pas : l'ancien moteur
     // pouvait réussir le POST en ignorant une saisie locale présente, comme
     // lors de l'incident A2. Refaire la vérification dans l'autre sens.
-    for(const mapping of definition?.excel?.fieldMappings||[]){
+    for(const mapping of remarMappingsForRemote(definition,remoteTrame)){
       const dataKey=`${mapping.sectionCode}||${mapping.cle}`;
       const destination=[mapping.panelId,mapping.section,mapping.cle].join('||');
       const data=mapping.type==='controle' ? controlMap.get(dataKey) : fieldMap.get(dataKey);

@@ -7,6 +7,7 @@
 import { obtenirTrame } from './trameRegistry.js';
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { inspectIntranetCriterionCandidate } from './intranetVisitPayload.js';
+import { remarMappingsForRemote } from './remarSymfonyCompleteContract.js';
 
 const text = value => String(value ?? '').trim();
 const identity = field => [field.panelId,field.section,field.cle,field.type].join('||');
@@ -32,7 +33,7 @@ function compatibleAvis(criterion, mapping) {
 
 export function assessRemarRemoteTrame(remoteTrame, localTrameId='remar_v1') {
   const definition=obtenirTrame(localTrameId);
-  const all=(definition.excel?.fieldMappings||[]).filter(m=>!metadataCovered(definition,m));
+  const all=remarMappingsForRemote(definition,remoteTrame).filter(m=>!metadataCovered(definition,m));
   const byIdentity=new Map(all.map(m=>[identity(m),m]));
   const mapped=new Map(), extra=[], collisions=[], invalid=[];
   const isRemar=(definition.familyId || definition.id)==='remar_v1';
@@ -52,7 +53,7 @@ export function assessRemarRemoteTrame(remoteTrame, localTrameId='remar_v1') {
            seenRemote.has(path)){invalid.push('Triplet de critère distant absent ou répété : '+path);continue;}
         seenRemote.add(path);
         const resolved=inspectIntranetCriterionCandidate(localTrameId,
-          criterion,cat.nom,sub.nom).resolved;
+          criterion,cat.nom,sub.nom,remoteTrame).resolved;
         if(!resolved){
           extra.push([path,cat.nom,sub.nom,criterion.nom].map(text).join(' / '));
           continue;

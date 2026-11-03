@@ -4,6 +4,7 @@ import { getCachedLocalReference, listCachedLocals } from './symfonyApiCacheDb.j
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { DEFAULT_TRAME_ID, obtenirTrame } from './trameRegistry.js';
 import { enrichLatestImportedVisitFields } from './apiLatestVisitFieldEnrichmentDb.js';
+import { importerRemarSymfonyMultiligne } from './remarSymfonyMultilineImport.js';
 
 function clean(value) { return value == null ? '' : String(value).trim(); }
 function text(value) { const v = clean(value); return v || null; }
@@ -473,6 +474,9 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
   const materialImport = await importCurrentMaterialsForLocal(db, {
     ref, remoteLocalId, installationId, visiteId, trameId,
   });
+  const remarImported = await importerRemarSymfonyMultiligne({
+    db,visiteId,installationId,trameId,ref,historical:true,
+  });
 
   let importedRemarks = 0;
   const remarks = Array.isArray(ref?.remarques) ? ref.remarques : [];
@@ -532,6 +536,7 @@ async function importLatestVisitForLocal(db, siteId, remoteLocalId, sourceRef) {
       criteriaWithoutSourceVisit,
       fieldImport,
       materialImport,
+      remarImported,
       importedRemarks,
       criteriaRule: 'preparation_values_are_latest_known_visiteSourceId_is_provenance_only',
       controlIdentityRule: 'remote_branch_is_category_subcategory_criterion_context_mapping',
@@ -699,6 +704,11 @@ export async function importSelectedPreparationCriteria({ visiteId, siteId, tram
     await enrichLatestImportedVisitFields({
       db, visiteId, siteId, remoteVisitId: preparationRefId, trameId, ref: fieldsRef,
     });
+    if (trameId==='remar_v1') {
+      const local=await db.getFirstAsync('SELECT installation_id FROM visites WHERE id=?',[visiteId]);
+      await importerRemarSymfonyMultiligne({db,visiteId,installationId:local?.installation_id,
+        trameId,ref,historical:true});
+    }
     await upsertProvenance(db, 'visite_preparation_selectionnee', visiteId, preparationRefId, {
       sourceType: 'selected_trame_preparation',
       remoteLocalId, remoteTrameId, mappedControls: mapped,
