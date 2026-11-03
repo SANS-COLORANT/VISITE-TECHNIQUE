@@ -27,6 +27,13 @@ on:
       - '.github/scripts/test_visit_creation_fast_sqlite.js'
       - '.github/scripts/test_visit_history_batch_performance.js'
       - 'visitCarryForwardDb.js'
+      - 'intranetSelectedTrame.js'
+      - 'apiVisitPreparationDb.js'
+      - 'visitCreationDb.js'
+      - '.github/scripts/test_intranet_selected_trame.js'
+      - '.github/scripts/test_visit_creation_intranet_materials_fast.js'
+      - '.github/scripts/test_visit_prefill_single_read.js'
+      - 'visitPrefillDb.js'
       - 'SiteLocalsScreen.js'
       - 'SiteVisitesScreen.js'
       - 'PersistentControleGenerique.js'
@@ -48,6 +55,7 @@ on:
       - feat/premium-cards-control-photos-20261103
       - fix/visit-history-remar-default-resync-selection-20261103
       - perf/visit-create-fast-prefill-20261103
+      - perf/visit-create-prefetch-intranet-20261103
 permissions:
   contents: read
 jobs:
@@ -79,6 +87,9 @@ jobs:
           node .github/scripts/test_visit_latest_copy_and_client_send.js
           node .github/scripts/test_visit_creation_fast_sqlite.js
           node .github/scripts/test_visit_history_batch_performance.js
+          node .github/scripts/test_visit_creation_intranet_materials_fast.js
+          node .github/scripts/test_visit_prefill_single_read.js
+          node .github/scripts/test_intranet_selected_trame.js
       - name: Real SQLite REMAR equipment, fields and data protections
         run: |
           node .github/scripts/test_remar_dynamic.js

@@ -25,9 +25,18 @@ export async function creerVisiteProduction({
   installationId = null,
 } = {}) {
   if (!siteId) throw new Error('Site requis pour créer une visite');
+  const started = Date.now();
+  let checkpointStart = started;
+  const timings = [];
+  const checkpoint = (stage) => {
+    const now = Date.now();
+    timings.push([stage,now-checkpointStart]);
+    checkpointStart = now;
+  };
   const modeNormalise = mode === 'express' ? 'express' : 'complete';
   const trame = obtenirTrame(trameId);
   const db = await getDb();
+  checkpoint('ouverture_base');
   const id = createId();
   const remoteClientId = apiRemoteClientId == null ? null : String(apiRemoteClientId).trim() || null;
   const remoteLocalId = apiRemoteLocalId == null ? null : String(apiRemoteLocalId).trim() || null;
@@ -38,6 +47,7 @@ export async function creerVisiteProduction({
     ? await prepareIntranetSelectedTrame({ remoteClientId, remoteLocalId, remoteTrameId, localTrameId: trame.id })
     : null;
 
+  checkpoint('preparation_symfony');
   await db.withTransactionAsync(async () => {
     await db.runAsync(
       `INSERT INTO visites
@@ -49,6 +59,7 @@ export async function creerVisiteProduction({
     );
     await db.runAsync(`INSERT OR IGNORE INTO notes (visite_id, contenu) VALUES (?, '')`, [id]);
   });
+  checkpoint('creation_ligne');
 
   if (apiRemoteLocalId) {
     // Les données Intranet sont déjà en cache local. On matérialise la référence
@@ -58,6 +69,7 @@ export async function creerVisiteProduction({
     await importApiReferenceForVisit(id, apiRemoteLocalId, apiRemoteClientId, selectedPreparation?.reference || null);
   }
 
+  checkpoint('references_intranet');
   // Un local créé hors connexion n'a pas encore de remoteLocalId. L'identité
   // installation reste néanmoins figée sur la visite. Dès l'accusé serveur,
   // intranetStructureDb complète api_remote_local_id/api_remote_trame_id sur
@@ -67,6 +79,7 @@ export async function creerVisiteProduction({
   // SiteVisitesScreen peut alors ouvrir une visite dont les informations sont
   // immédiatement cohérentes, y compris pour un client Intranet déjà importé.
   await preremplirVisiteDepuisContexte(db, id, { selectedSymfonyTrame: selectedPreparation?.different === true });
+  checkpoint('historique_et_patrimoine');
   if (selectedPreparation?.different) {
     await importSelectedPreparationCriteria({ visiteId: id, siteId, trameId: trame.id, reference: selectedPreparation.reference });
   }
@@ -75,7 +88,9 @@ export async function creerVisiteProduction({
   // mesures et valeurs de la derniere visite sont presentes immediatement,
   // y compris apres une preparation Symfony differente. La nouvelle date,
   // l'identite et l'envoiId ne sont jamais copies.
+  checkpoint('criteres_symfony');
   const latestSnapshot = await copyLatestSameTrameVisit(db, id);
+  checkpoint('copie_avis_complete');
 
   // Capture le contenu actif du patrimoine REMAR du LOCAL au moment de la
   // creation, jamais a l'ouverture d'une ancienne visite. Pas de duplication.
@@ -97,6 +112,7 @@ export async function creerVisiteProduction({
       await restorePreAllumageSnapshot(db, latestSnapshot.sourceVisitId, id);
   }
 
+  checkpoint('initialisation_trame');
   // Les références photo et le classement Android ne sont pas nécessaires pour
   // afficher les données métier. Ils sont volontairement préparés en fond pour
   // raccourcir le chemin critique de création.
@@ -111,5 +127,13 @@ export async function creerVisiteProduction({
     if (stockage?.status === 'rejected') console.warn('Dossier METRA de la nouvelle visite non préparé immédiatement', stockage.reason);
   });
 
+  const totalMs = Date.now() - started;
+  if (totalMs >= 350) {
+    // Diagnostic de performance anonyme pour logcat / support technique.
+    // Aucun nom de client, local, adresse, ID Symfony ou valeur saisie.
+    console.info('[METRA][creation-visite]', JSON.stringify({
+      totalMs, trame: trame.id, remote: Boolean(remoteLocalId), etapes: timings,
+    }));
+  }
   return id;
 }
