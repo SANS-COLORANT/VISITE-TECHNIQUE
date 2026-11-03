@@ -106,6 +106,10 @@ async function main() {
       preremplirVisiteDepuisContexte: prefill.preremplirVisiteDepuisContexte, dossierVisiteMetra: async () => {}, obtenirRacineMetra: async () => null,
       importApiReferenceForVisit: async () => {}, importLatestApiVisitForLocal: async () => {}, pinPhotoReferencesForVisit: async () => {},
       assurerStructureSitePreAllumage: async () => {}, chargerPreAllumageModulaire: async () => {},
+      // RCU fixture exercises the historical semantic carry-forward in
+      // isolation. Full latest same-trame duplication is separately tested by
+      // test_visit_latest_copy_and_client_send.js.
+      copyLatestSameTrameVisit: async () => ({}),
       // RCU fixture does not create REMAR dynamic definitions: tested by the
       // dedicated real SQLite contract test_remar_dynamic.js.
       figerItemsRemarPourVisite: async () => 0 });
