@@ -72,8 +72,33 @@ export async function modifierCriticiteRemarque(id, criticite) {
 export async function supprimerRemarqueControle(visiteId, controleKey) {
   const db = await openAppDatabase();
   const remarques = await db.getAllAsync(`SELECT id FROM remarques WHERE visite_id=? AND controle_key=?`, [visiteId, controleKey]);
-  for (const remarque of remarques || []) await supprimerPhotosEntiteComplete(visiteId, `remarque||${remarque.id}`);
+  // Une réserve dépend du résultat N.S, mais ses photos sont des preuves de
+  // ce contrôle. Passer ensuite à S/S.O ne doit JAMAIS supprimer les fichiers.
+  // On rattache les anciens clichés de réserve à la clé de contrôle stable,
+  // qui est également celle des nouvelles captures. Les autres réserves
+  // (manuelles, historiques) restent strictement inchangées.
+  const moved = [];
+  for (const remarque of remarques || []) {
+    const ancienneCle = `remarque||${remarque.id}`;
+    const photos = await db.getAllAsync(
+      'SELECT * FROM photos WHERE visite_id=? AND entite_key=?', [visiteId, ancienneCle]);
+    if (!photos.length) continue;
+    await db.runAsync(
+      'UPDATE photos SET entite_key=? WHERE visite_id=? AND entite_key=?',
+      [controleKey, visiteId, ancienneCle]);
+    moved.push(...photos);
+  }
   await db.runAsync(`DELETE FROM remarques WHERE visite_id=? AND controle_key=?`, [visiteId, controleKey]);
+  if (moved.length) {
+    // Mise à jour du cache uniquement s'il est déjà complet, pour ne pas
+    // créer un faux index partiel qui masquerait les autres photos.
+    const { peekVisitPhotos, upsertRuntimePhoto } = require('./photoRuntimeCache.js');
+    if (peekVisitPhotos(visiteId)) {
+      for (const photo of moved) {
+        upsertRuntimePhoto(visiteId, { ...photo, entite_key: controleKey });
+      }
+    }
+  }
 }
 
 export async function ajouterRemarqueVisite(visiteId, data = {}) {

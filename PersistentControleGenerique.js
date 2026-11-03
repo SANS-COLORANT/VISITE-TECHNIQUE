@@ -15,7 +15,7 @@ import {
 } from './remarkDb.js';
 import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
 import { useDurableAutosave } from './durableAutosave.js';
-import { PhotoButton } from './PhotoButton.js';
+import { ControlPhotoAction } from './ControlPhotoAction.js';
 import { BoundedLruMap } from './boundedCache.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
 import { CvcIcon } from './MetraCvcIcons.js';
@@ -443,6 +443,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
     {autresAvis ? <View style={{ flexDirection: 'row', justifyContent: 'flex-end', gap: 4, marginBottom: 4 }}>
       {AVIS_SECONDAIRES.map((opt) => boutonAvis(opt, { width: 50 }))}
     </View> : null}
+    <ControlPhotoAction visiteId={visiteId} entiteKey={controleKey} label={field.cle} avis={avis} />
     {avis === 'N.S' ? <TouchableOpacity accessibilityRole="button" accessibilityLabel={`Non-conformité : ${causeAffichee}, modifier`} onPress={ouvrirFiche} activeOpacity={0.75}
       style={{ alignSelf: 'flex-start', flexDirection: 'row', alignItems: 'center', gap: 6, marginBottom: 4, minHeight: 28, paddingHorizontal: 10, borderRadius: 14, borderWidth: 1, borderColor: COLORS.red, backgroundColor: COLORS.redBg }}>
       <Text numberOfLines={1} style={{ maxWidth: 220, fontSize: 12, fontFamily: FONTS.bodyBold, color: COLORS.red }}>{causeAffichee}</Text>
@@ -471,6 +472,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
             })}
           </View>
           <ScrollView keyboardShouldPersistTaps="handled" style={{ marginTop: 4 }}>
+            <ControlPhotoAction visiteId={visiteId} entiteKey={controleKey} label={field.cle} avis={avis} />
 
     {avis && avis !== 'N.S' && <View style={[styles.criterePanel, { backgroundColor: palette.bg, borderColor: palette.border }]}>
       {libelleEtat ? <View style={{ alignSelf: 'flex-start', borderWidth: 1, borderColor: palette.text, borderRadius: 16, paddingHorizontal: 10, paddingVertical: 5, marginBottom: 8 }}>
@@ -511,7 +513,7 @@ export const PersistentControleGenerique = React.memo(function PersistentControl
       {critereChoisi !== null && remarque ? <EditionReserve remarque={remarque} onPatch={patchReserve} /> : null}
       {(critereChoisi === null || modeLibre || options.length === 0) && <Text style={[styles.criterePanelLabel, { marginTop: 8 }]}>Précision libre</Text>}
       {(critereChoisi === null || modeLibre || options.length === 0) && <TextInput style={[styles.input, { height: 60 }]} placeholder="Précision libre sur la non-conformité…" multiline value={libre} onChangeText={(v) => { setCommentaire(v); setLibre(v); onEtatChange?.({ avis: 'N.S', commentaire: v }); }} onBlur={() => flushLibre().catch(() => {})} />}
-      <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={field.cle} style={styles.photoRequiredBox} />
+
     </View>}
           </ScrollView>
           <TouchableOpacity accessibilityRole="button" onPress={fermerFiche} activeOpacity={0.85} style={[styles.btnPrimary, { flex: 0, marginTop: 10 }]}>

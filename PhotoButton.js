@@ -207,7 +207,7 @@ async function resoudreReserveDepuisControle(visiteId, controleKey, label, { cre
   return { entiteKey: `remarque||${remarque.id}`, label: remarque.prestation || label || 'Réserve' };
 }
 
-function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhotoSaved }) {
+function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhotoSaved, controlPhoto = false }) {
   const { width, height } = useWindowDimensions();
   const compactPhone = Math.min(width, height) < 600;
   const [photos, setPhotos] = useState([]);
@@ -216,6 +216,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
   const [viewerHd, setViewerHd] = useState(false);
   const [index, setIndex] = useState(0);
   const canonicalKeyRef = useRef(String(entiteKey || ''));
+  const legacyReserveKeyRef = useRef(null);
   const targetPromiseRef = useRef(null);
   const estReserve = String(entiteKey || '').startsWith('remarque||');
 
@@ -226,17 +227,22 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     setViewerHd(false);
     setIndex(0);
     canonicalKeyRef.current = String(entiteKey || '');
+    legacyReserveKeyRef.current = null;
     targetPromiseRef.current = null;
   }, [visiteId, entiteKey]);
 
   const appliquerPhotos = useCallback((rows, cle = canonicalKeyRef.current) => {
     const wanted = String(cle || '');
-    const items = (rows || []).filter((row) => String(row.entite_key || '') === wanted);
+    const legacy = controlPhoto ? String(legacyReserveKeyRef.current || '') : '';
+    const items = (rows || []).filter((row) => {
+      const linked = String(row.entite_key || '');
+      return linked === wanted || (legacy && linked === legacy);
+    });
     setPhotos(items);
     setPhotosChargees(true);
     setIndex((actuel) => Math.min(actuel, Math.max(0, items.length - 1)));
     return items;
-  }, []);
+  }, [controlPhoto]);
 
   const charger = useCallback(async (cle = entiteKey) => {
     const canonique = await clePhotoCanoniqueVmc(visiteId, cle);
@@ -254,8 +260,17 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
     let alive = true;
     let unsubscribe = () => {};
     (async () => {
-      const reserveExistante = await resoudreReserveDepuisControle(visiteId, entiteKey, label, { create: false });
-      const cleCandidate = reserveExistante?.entiteKey || entiteKey;
+      // Opt-in: generic control photographs are attached to the stable
+      // control identity, not a transient reserve. S/S.O never creates one.
+      const reserveExistante = await resoudreReserveDepuisControle(
+        visiteId, entiteKey, label, { create: false });
+      // New control photos are always saved under their stable controlKey.
+      // Still DISPLAY old photos linked to a previously created reserve.
+      legacyReserveKeyRef.current = controlPhoto &&
+        String(reserveExistante?.entiteKey || '').startsWith('remarque||')
+        ? reserveExistante.entiteKey : null;
+      const cleCandidate = controlPhoto ? entiteKey
+        : (reserveExistante?.entiteKey || entiteKey);
       const canonique = await clePhotoCanoniqueVmc(visiteId, cleCandidate);
       if (!alive) return;
       canonicalKeyRef.current = String(canonique || '');
@@ -268,7 +283,7 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       if (alive) setPhotosChargees(true);
     })().catch(() => { if (alive) setPhotosChargees(true); });
     return () => { alive = false; unsubscribe(); };
-  }, [visiteId, entiteKey, appliquerPhotos]);
+  }, [visiteId, entiteKey, appliquerPhotos, controlPhoto]);
 
   const resoudreCible = useCallback(async ({ createReserve = true } = {}) => {
     let cible = null;
@@ -278,13 +293,14 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
       else if (cibleAvant) cible = { entiteKey: cibleAvant.entiteKey || entiteKey, label: cibleAvant.label || label };
     }
     if (!cible) {
-      const reserve = await resoudreReserveDepuisControle(visiteId, entiteKey, label, { create: createReserve });
+      const reserve = controlPhoto ? null
+        : await resoudreReserveDepuisControle(visiteId, entiteKey, label, { create: createReserve });
       cible = reserve || { entiteKey, label };
     }
     const canonique = await clePhotoCanoniqueVmc(visiteId, cible.entiteKey);
     const labelMetier = await libellePhotoMetier(visiteId, canonique, cible.label || label);
     return { ...cible, entiteKey: canonique, label: labelMetier || cible.label || label };
-  }, [beforeCapture, visiteId, entiteKey, label]);
+  }, [beforeCapture, visiteId, entiteKey, label, controlPhoto]);
 
   const prechaufferCapture = useCallback(() => {
     prewarmCameraRuntime().catch(() => {});
@@ -497,7 +513,8 @@ function PhotoButton({ visiteId, entiteKey, label, style, beforeCapture, onPhoto
           <Text style={[styles.photoBtnText, hasPhotos && styles.photoBtnTextTaken]}>{hasPhotos ? String(photos.length) : 'Photo'}</Text>
         </View>
       )}
-      {compactPhone && hasPhotos && photos.length > 1 ? (
+      {/* Un seul cliché doit aussi être comptabilisé visiblement sur téléphone. */}
+      {compactPhone && hasPhotos ? (
         <View style={{ position: 'absolute', right: -5, top: -5, minWidth: 18, height: 18, paddingHorizontal: 4, borderRadius: 9, backgroundColor: COLORS.green, alignItems: 'center', justifyContent: 'center' }}>
           <Text style={{ color: COLORS.white, fontSize: 9, fontFamily: FONTS.black }}>{photos.length}</Text>
         </View>

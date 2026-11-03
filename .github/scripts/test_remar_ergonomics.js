@@ -75,11 +75,16 @@ check(controls.includes("const satisfiedFolded = isRemar && avis === 'S' && !rem
   'only REMAR satisfied opinions receive the compact display');
 check(controls.includes("onPress={() => setRemarSExpanded(true)}") && controls.includes("onPress={() => setRemarSExpanded(false)}"),
   'S comments remain editable and details can be folded again');
-check(controls.includes("isRemar || avis === 'N.S'") && controls.includes("beforeCapture={isRemar && avis !== 'N.S'"),
-  'REMAR photos are supported for every selected opinion, not only N.S');
-check(controls.includes('({ entiteKey: controleKey, label })') &&
-  read('PhotoButton.js').indexOf('if (beforeCapture)') < read('PhotoButton.js').indexOf('const reserve = await resoudreReserveDepuisControle'),
-  'non-N.S photos use the control key without creating a false reserve');
+const controlPhotoShortcut = read('ControlPhotoAction.js');
+const nativePhoto = read('PhotoButton.js');
+check(controls.includes('<ControlPhotoAction') &&
+  controlPhotoShortcut.includes("['S', 'N.S', 'S.O', 'N.R', 'N.V']"),
+  'REMAR photos remain directly available for every selected opinion, not only N.S');
+check(controls.includes('entiteKey={controleKey}') &&
+  controlPhotoShortcut.includes('controlPhoto') &&
+  nativePhoto.includes('const reserve = controlPhoto ? null') &&
+  nativePhoto.includes('legacyReserveKeyRef.current'),
+  'non-N.S photos use stable control key without creating a false reserve, historic photos stay visible');
 check(controls.includes('upsertControlePartiel') && controls.includes('upsertRemarquePrescription'),
   'the original comment and reserve persistence is retained');
 

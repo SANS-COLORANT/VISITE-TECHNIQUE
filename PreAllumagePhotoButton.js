@@ -5,7 +5,7 @@ import { PhotoVariantImage } from './PhotoVariantImage.js';
 import { loadVisitPhotos, peekVisitPhotos, subscribeVisitPhotos } from './photoRuntimeCache.js';
 
 /** Photo contextuelle Pré-allumage : zéro requête SQLite au toucher. */
-export function PreAllumagePhotoButton({ visiteId, entiteKey, label, style }) {
+export function PreAllumagePhotoButton({ visiteId, entiteKey, label, style, controlPhoto = false }) {
   const initial = peekVisitPhotos(visiteId, entiteKey) || [];
   const [photos, setPhotos] = useState(initial);
 
@@ -25,6 +25,6 @@ export function PreAllumagePhotoButton({ visiteId, entiteKey, label, style }) {
 
   return <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6 }}>
     {photos[0]?.uri ? <PhotoVariantImage uri={photos[0].uri} variant={photos[0].pending ? 'original' : 'thumb'} style={{ width: 34, height: 34, borderRadius: 7 }} resizeMode="cover" /> : null}
-    <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={label} style={style} />
+    <PhotoButton visiteId={visiteId} entiteKey={entiteKey} label={label} style={style} controlPhoto={controlPhoto} />
   </View>;
 }

@@ -14,6 +14,7 @@ import {
   modifierRemarqueVisite,
 } from './remarkDb.js';
 import { PhotoButton } from './PhotoButton.js';
+import { ControlPhotoAction } from './ControlPhotoAction.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
 
@@ -443,6 +444,7 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
         </View>
       </View>
 
+      <ControlPhotoAction visiteId={visiteId} entiteKey={controleKey} label={field.cle} avis={avis} />
       {avis === 'N.S' && (
         <View style={styles.criterePanel}>
           {options.length > 0 ? (
@@ -489,7 +491,7 @@ const ControleGenerique = React.memo(function ControleGenerique({ visiteId, sect
             />
           )}
 
-          <PhotoButton visiteId={visiteId} entiteKey={controleKey} label={field.cle} style={styles.photoRequiredBox} />
+
         </View>
       )}
     </View>

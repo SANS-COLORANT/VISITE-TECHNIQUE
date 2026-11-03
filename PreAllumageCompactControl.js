@@ -6,6 +6,7 @@ import { listerRemarquesVisite, modifierCriticiteRemarque, supprimerRemarqueCont
 import { defaultSeverityForControl } from './reserveSeverity.js';
 import { ReserveSeveritySlider } from './ReserveSeveritySlider.js';
 import { PreAllumagePhotoButton } from './PreAllumagePhotoButton.js';
+import { ControlPhotoAction } from './ControlPhotoAction.js';
 import { COLORS, FONTS, styles } from './styles.js';
 import { feedback, hapticTick } from './fieldFeedback.js';
 
@@ -132,6 +133,8 @@ export const PreAllumageCompactControl = React.memo(function PreAllumageCompactC
     <Text style={{ color: COLORS.ink, fontFamily: FONTS.bodySemi, fontWeight: '600', fontSize: 13.5, lineHeight: 18, marginBottom: 8 }}>{label}</Text>
     <View style={{ flexDirection: 'row', gap: 5 }}>{AVIS.map((opt) => { const c = palette(opt, avis === opt); return <TouchableOpacity key={opt} onPress={() => choisirAvis(opt).catch(console.warn)} style={{ flex: 1, minHeight: 38, alignItems: 'center', justifyContent: 'center', borderRadius: 12, borderWidth: 1, borderColor: c.border, backgroundColor: c.bg }}><Text style={{ color: c.text, fontSize: 11.5, fontFamily: FONTS.bodyBold, fontWeight: '700' }}>{opt}</Text></TouchableOpacity>; })}</View>
 
+    <ControlPhotoAction visiteId={visiteId} entiteKey={controleKey}
+      label={`${localName || ''} · ${label}`} avis={avis} PhotoComponent={PreAllumagePhotoButton} />
     {commentaireCourt ? <TouchableOpacity onPress={() => setDetailOuvert((v) => !v)} style={{ marginTop: 5 }}><Text numberOfLines={detailOuvert ? undefined : 2} style={{ color: avis === 'S' ? COLORS.green : COLORS.inkSoft, fontSize: 10 }}>{commentaireCourt}</Text></TouchableOpacity> : null}
 
     {afficherDetail ? <View style={{ marginTop: 8, padding: 9, borderRadius: 10, borderWidth: 1, borderColor: avis === 'N.S' ? '#F4C7C7' : avis === 'S' ? '#B7E2C0' : COLORS.line, backgroundColor: avis === 'N.S' ? COLORS.redBg : avis === 'S' ? COLORS.greenBg : '#F9FAFB' }}>
@@ -139,7 +142,7 @@ export const PreAllumageCompactControl = React.memo(function PreAllumageCompactC
       {options.length ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 5 }}>{options.map((p, idx) => <TouchableOpacity key={`${avis}-${idx}`} onPress={() => choisirPreset(p, idx).catch(console.warn)} style={{ minHeight: 30, justifyContent: 'center', borderWidth: 1, borderColor: presetChoisi === idx ? (avis === 'N.S' ? COLORS.red : avis === 'S' ? COLORS.green : COLORS.orange) : COLORS.line, backgroundColor: presetChoisi === idx ? (avis === 'N.S' ? '#FEE4E2' : avis === 'S' ? COLORS.greenBg : COLORS.orangeLight) : COLORS.white, borderRadius: 15, paddingHorizontal: 9 }}><Text style={{ fontSize: 10, fontFamily: FONTS.bold, color: presetChoisi === idx ? (avis === 'N.S' ? COLORS.red : avis === 'S' ? COLORS.green : COLORS.orangeDark) : COLORS.inkSoft }}>{p.label}</Text></TouchableOpacity>)}</View> : null}
       <TextInput style={[styles.input, { minHeight: 52, textAlignVertical: 'top', marginTop: 7, fontSize: 12 }]} multiline value={commentaire} onChangeText={(v) => { setCommentaire(v); setPresetChoisi(null); }} onBlur={() => sauverLibre().catch(console.warn)} placeholder={avis === 'S' ? 'Commentaire de conformité…' : 'Commentaire technique…'} />
       {avis === 'N.S' && remarque ? <ReserveSeveritySlider value={remarque.criticite ?? 2} defaultValue={remarque.criticite_defaut ?? 2} onChange={(v) => reglerCriticite(v).catch(console.warn)} compact /> : null}
-      {avis === 'N.S' ? <View style={{ marginTop: 7, flexDirection: 'row', alignItems: 'center', gap: 8 }}><View style={{ flex: 1 }}><Text style={{ color: COLORS.red, fontFamily: FONTS.black, fontSize: 10 }}>Réserve créée automatiquement</Text>{remarque?.prestation ? <Text numberOfLines={2} style={{ color: COLORS.inkSoft, fontSize: 10, marginTop: 2 }}>{remarque.prestation}</Text> : null}</View><PreAllumagePhotoButton visiteId={visiteId} entiteKey={controleKey} label={`${localName || ''} · ${label}`} style={{ minHeight: 38, paddingHorizontal: 9 }} /></View> : null}
+      {avis === 'N.S' ? <View style={{ marginTop: 7, flexDirection: 'row', alignItems: 'center', gap: 8 }}><View style={{ flex: 1 }}><Text style={{ color: COLORS.red, fontFamily: FONTS.black, fontSize: 10 }}>Réserve créée automatiquement</Text>{remarque?.prestation ? <Text numberOfLines={2} style={{ color: COLORS.inkSoft, fontSize: 10, marginTop: 2 }}>{remarque.prestation}</Text> : null}</View></View> : null}
     </View> : null}
 
     {avis && avis !== 'N.S' && !detailOuvert ? <TouchableOpacity onPress={() => setDetailOuvert(true)} style={{ alignSelf: 'flex-start', marginTop: 5 }}><Text style={{ color: avis === 'S' ? COLORS.green : COLORS.orangeDark, fontSize: 10, fontFamily: FONTS.bold }}>{avis === 'S' ? 'Modifier le commentaire S' : 'Modifier le motif'}</Text></TouchableOpacity> : null}
