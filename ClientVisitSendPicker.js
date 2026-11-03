@@ -66,7 +66,7 @@ export function ClientVisitSendPicker({ visible, visits = [], busy = false, clie
               borderRadius:17,backgroundColor:'#FDFCFA',padding:11,marginBottom:10}}>
               <TouchableOpacity accessibilityRole="checkbox"
                 accessibilityState={{checked:chosen===ids.length}}
-                accessibilityLabel={\`Site \${site.name}, \${chosen} sur \${ids.length} visites\`}
+                accessibilityLabel={`Site ${site.name}, ${chosen} sur ${ids.length} visites`}
                 disabled={busy} onPress={()=>toggle(ids)}
                 style={{flexDirection:'row',alignItems:'center',gap:10,minHeight:41}}>
                 {chip(chosen===ids.length,chosen>0)}
@@ -78,7 +78,7 @@ export function ClientVisitSendPicker({ visible, visits = [], busy = false, clie
                 const selectedVisit=selected.has(String(visit.id));
                 return <TouchableOpacity key={String(visit.id)}
                   accessibilityRole="checkbox" accessibilityState={{checked:selectedVisit}}
-                  accessibilityLabel={\`Local \${visit.nom_local||'sans nom'} — \${visit.trame_nom||visit.trame_id||'trame'}\`}
+                  accessibilityLabel={`Local ${visit.nom_local||'sans nom'} — ${visit.trame_nom||visit.trame_id||'trame'}`}
                   disabled={busy} onPress={()=>toggle([visit.id])}
                   style={{flexDirection:'row',alignItems:'center',gap:10,paddingVertical:10,
                     paddingHorizontal:8,borderTopWidth:1,borderTopColor:'rgba(22,21,15,0.07)'}}>
@@ -108,7 +108,7 @@ export function ClientVisitSendPicker({ visible, visits = [], busy = false, clie
             onPress={()=>onSend?.([...selected])}
             style={[styles.btnPrimary,{flex:1.35,opacity:busy||!selected.size?0.45:1}]}>
             <CvcIcon name="cloud-sync" size={16} color={COLORS.white}/>
-            <Text style={styles.btnPrimaryText}>{busy?'Envoi…':\`Envoyer \${selected.size}\`}</Text>
+            <Text style={styles.btnPrimaryText}>{busy?'Envoi…':`Envoyer ${selected.size}`}</Text>
           </TouchableOpacity>
         </View>
       </View>
