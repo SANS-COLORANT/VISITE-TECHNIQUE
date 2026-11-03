@@ -59,9 +59,13 @@ for(const step of ['p-remar-filtres','p-remar-cta-mesures','p-remar-cta-energie'
 const remap=read('remarDynamicExportDb.js');
 assert.match(remap,/familyCounts\[family\]=parents.length/);n++;
 const intranet=read('intranetVisitPayload.js');
-assert.match(intranet,/Sélectionne S, N.S, N.R \(non vérifié\), S.O ou N.V avant l.envoi/);n++;
+// Publication REMAR partielle : l'absence d'avis/description ne doit plus
+// faire échouer le POST, tout en gardant les valeurs héritées non confirmées.
+assert.doesNotMatch(intranet,/Sélectionne S, N.S, N.R \(non vérifié\), S.O ou N.V avant l.envoi/);n++;
 assert.match(intranet,/const confirmed=value.inherited!==true/);n++;
-assert.match(intranet,/l'avis N.S doit préciser un défaut observé/);n++;
+assert.match(intranet,/const hasUnfilled=entries.some\(e=>!e.avis\)/);n++;
+assert.match(intranet,/const status=e.avis\|\|'Non renseigné'/);n++;
+assert.doesNotMatch(intranet,/l'avis N.S doit préciser un défaut observé/);n++;
 const photoCapture=read('photoLibreCapture.js');
 assert.match(photoCapture,/inclure_export: entiteKey \? 1 : 0/);n++;
 assert.match(photoCapture,/ajouterPhoto\(visiteId, entiteKey, photo.uri, labelDb\)/);n++;
