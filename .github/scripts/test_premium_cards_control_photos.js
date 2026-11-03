@@ -79,7 +79,7 @@ check(marker.includes('peekVisitPhotos(visiteId)'),
 
 // Exercise the actual reserve-removal implementation with an isolated
 // in-memory DB. Both the photo DB row and camera file must survive.
-const clean=remarks.replace(/^import\s+.+?;\s*$/gm,'').replace(/export\s+(?=(?:async\s+)?function\s)/g,'');
+const clean=remarks.replace(/^import\s+.+?;\s*$/gm,'').replace(/export\s+(?=(?:async\s+)?(?:function|const|let|class)\s)/g,'');
 const photos=[
  {id:'p-old',visite_id:'v1',entite_key:'remarque||r1',uri:'file://photo-original.jpg'},
  {id:'p-independent',visite_id:'v1',entite_key:'equipement||other',uri:'file://keep.jpg'}
