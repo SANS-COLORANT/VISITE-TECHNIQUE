@@ -27,16 +27,17 @@ export async function copyLatestSameTrameVisit(db, newVisitId) {
   const visit = await db.getFirstAsync(
     'SELECT id,site_id,installation_id,trame_id,statut,date_visite FROM visites WHERE id=?', [id]);
   if (!visit || visit.statut !== 'en_cours') return { sourceVisitId: null, skipped: true };
+  // A Symfony historical visit can be imported *after* the draft row was
+  // inserted. Chronology is the dated visit, not SQLite rowid.
   const source = await db.getFirstAsync(
     `SELECT id, date_visite FROM visites
       WHERE id<>? AND site_id=? AND COALESCE(trame_id,?)=?
         AND ((? IS NOT NULL AND installation_id=?) OR (? IS NULL AND installation_id IS NULL))
         AND (date_visite IS NULL OR date_visite<=?)
-        AND rowid < (SELECT rowid FROM visites WHERE id=?)
       ORDER BY COALESCE(date_visite,'') DESC,modifie_le DESC,rowid DESC LIMIT 1`,
     [id, visit.site_id, DEFAULT_TRAME_ID, visit.trame_id || DEFAULT_TRAME_ID,
       visit.installation_id, visit.installation_id, visit.installation_id,
-      visit.date_visite, id]);
+      visit.date_visite]);
   if (!source?.id) return { sourceVisitId: null, copiedFields: 0, copiedControls: 0, copiedDynamic: 0 };
 
   // Re-copying only on first creation; a repeated call must never overwrite

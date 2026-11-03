@@ -53,12 +53,12 @@ const newId='new-visit',oldId='last-visit';
 const state={fields:[],controls:[],dynamic:[],notes:[],meta:null,previousQueries:0};
 const db={
  async getFirstAsync(sql,args){
-   // Match the previous-visit query first: its rowid subselect also contains
-   // "FROM visites WHERE id=?" and must not masquerade as the current visit.
-   if(sql.includes('FROM visites')&&sql.includes('rowid <')){
+   // Source is the previous dated visit of this local, even when Symfony
+   // imported it *after* creating the current SQLite row.
+   if(sql.includes('FROM visites')&&sql.includes('COALESCE(trame_id')){
      state.previousQueries++;
-     check(sql.includes('installation_id=?')&&sql.includes('COALESCE(trame_id'),
-       'source is restricted to the same local and same template');
+     check(sql.includes('installation_id=?')&&!sql.includes('rowid <'),
+       'source is restricted to this local/trame and not blocked by historical import rowid');
      return {id:oldId,date_visite:'2026-10-25'};
    }
    if(sql.includes('FROM visites WHERE id=?')) return {id:newId,site_id:'s1',
