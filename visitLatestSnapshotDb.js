@@ -46,70 +46,77 @@ export async function copyLatestSameTrameVisit(db, newVisitId) {
   const done = await db.getFirstAsync('SELECT value FROM _meta WHERE key=?', [metaKey]);
   if (done?.value === '1') return { sourceVisitId: source.id, alreadyCopied: true };
 
-  let copiedFields = 0, copiedControls = 0, copiedDynamic = 0;
+  // A single SQLite INSERT..SELECT copies every opinion and observation,
+  // without a JS/SQLite round trip for each historical record.
+  // All writes remain atomic and are complete before opening the visit.
+  const metadataKeys = [
+    'date de visite', 'date de la visite', 'heure de visite',
+    'nom du client', 'nom du site', 'nom du local', 'nom du local / adresse',
+    'trame utilisee', 'trame utilisée', 'adresse',
+  ];
+  const metadataSlots = metadataKeys.map(() => '?').join(',');
+  const result = { sourceVisitId: source.id, copiedFields: 0, copiedControls: 0, copiedDynamic: 0 };
   await db.withTransactionAsync(async () => {
-    const fields = await db.getAllAsync(
-      'SELECT section_code,cle,valeur FROM champs_visite WHERE visite_id=?', [source.id]);
-    for (const row of fields) {
-      if (isCurrentVisitMetadata(row.cle)) continue;
-      await db.runAsync(
-        `INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)
-         ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur`,
-        [id,row.section_code,row.cle,row.valeur ?? null]);
-      copiedFields++;
-    }
-    const controls = await db.getAllAsync(
-      'SELECT section_code,cle,avis,commentaire FROM controles_visite WHERE visite_id=?', [source.id]);
-    for (const row of controls) {
-      await db.runAsync(
-        `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)
-         VALUES(?,?,?,?,?)
-         ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET
-           avis=excluded.avis,commentaire=excluded.commentaire`,
-        [id,row.section_code,row.cle,row.avis ?? null,row.commentaire ?? null]);
-      copiedControls++;
-    }
-    // Preserve the last actual inspection status of *each* CTA/filter/VMC
-    // separately. Ownership IDs are stable within one local; never cross
-    // into another installation. Provenance remains the source visit ID.
-    const dynamic = await db.getAllAsync(
-      `SELECT r.owner_type,r.owner_id,r.panel_id,r.section_code,r.cle,
-              r.valeur,r.avis,r.commentaire,r.confirme_le
+    const copiedFields = await db.runAsync(
+      `INSERT INTO champs_visite(visite_id,section_code,cle,valeur)
+       SELECT ?, c.section_code, c.cle, c.valeur
+       FROM champs_visite c
+       WHERE c.visite_id=? AND lower(trim(c.cle)) NOT IN (${metadataSlots})
+       ON CONFLICT(visite_id,section_code,cle) DO UPDATE
+         SET valeur=excluded.valeur`,
+      [id,source.id,...metadataKeys]
+    );
+    result.copiedFields = Number(copiedFields?.changes || 0);
+
+    const copiedControls = await db.runAsync(
+      `INSERT INTO controles_visite(visite_id,section_code,cle,avis,commentaire)
+       SELECT ?, c.section_code, c.cle, c.avis, c.commentaire
+       FROM controles_visite c WHERE c.visite_id=?
+       ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET
+         avis=excluded.avis,commentaire=excluded.commentaire`,
+      [id,source.id]
+    );
+    result.copiedControls = Number(copiedControls?.changes || 0);
+
+    // Owner IDs are shared only within the same physical installation.
+    const copiedDynamic = await db.runAsync(
+      `INSERT INTO remar_values(
+          visite_id,owner_type,owner_id,panel_id,section_code,cle,
+          valeur,avis,commentaire,source_visite_id,confirme_le)
+       SELECT ?,r.owner_type,r.owner_id,r.panel_id,r.section_code,r.cle,
+         r.valeur,r.avis,r.commentaire,?,r.confirme_le
        FROM remar_values r
-       WHERE r.visite_id=?`, [source.id]);
-    for (const row of dynamic) {
-      const owner = row.owner_type === 'equipement' ? 'equipements' : 'remar_items';
-      const owned = await db.getFirstAsync(
-        `SELECT id FROM ${owner} WHERE id=? AND installation_id=?`,
-        [row.owner_id,visit.installation_id]);
-      if (!owned) continue;
-      await db.runAsync(
-        `INSERT INTO remar_values(visite_id,owner_type,owner_id,panel_id,section_code,
-            cle,valeur,avis,commentaire,source_visite_id,confirme_le)
-         VALUES(?,?,?,?,?,?,?,?,?,?,?)
-         ON CONFLICT(visite_id,owner_type,owner_id,panel_id,section_code,cle)
-         DO UPDATE SET valeur=excluded.valeur,avis=excluded.avis,
-           commentaire=excluded.commentaire,source_visite_id=excluded.source_visite_id,
-           confirme_le=excluded.confirme_le`,
-        [id,row.owner_type,row.owner_id,row.panel_id,row.section_code,row.cle,
-          row.valeur ?? null,row.avis ?? null,row.commentaire ?? null,
-          `copie_locale:${source.id}`,row.confirme_le ?? null]);
-      copiedDynamic++;
-    }
-    // Free text is part of the visit. Do not overwrite the new visit date or
-    // change the frozen client/site/trame or new remote upload identity.
-    const note = await db.getFirstAsync('SELECT contenu FROM notes WHERE visite_id=?', [source.id]);
-    if (note && String(note.contenu || '').trim()) {
-      await db.runAsync(
-        `INSERT INTO notes(visite_id,contenu) VALUES(?,?)
-         ON CONFLICT(visite_id) DO UPDATE SET contenu=excluded.contenu`,
-        [id,note.contenu]);
-    }
+       WHERE r.visite_id=?
+         AND (
+           (r.owner_type='equipement' AND EXISTS(
+             SELECT 1 FROM equipements e
+             WHERE e.id=r.owner_id AND e.installation_id=?))
+           OR (r.owner_type='item' AND EXISTS(
+             SELECT 1 FROM remar_items i
+             WHERE i.id=r.owner_id AND i.installation_id=?))
+         )
+       ON CONFLICT(visite_id,owner_type,owner_id,panel_id,section_code,cle)
+       DO UPDATE SET
+         valeur=excluded.valeur,avis=excluded.avis,
+         commentaire=excluded.commentaire,
+         source_visite_id=excluded.source_visite_id,
+         confirme_le=excluded.confirme_le`,
+      [id,`copie_locale:${source.id}`,source.id,visit.installation_id,visit.installation_id]
+    );
+    result.copiedDynamic = Number(copiedDynamic?.changes || 0);
+
+    await db.runAsync(
+      `INSERT INTO notes(visite_id,contenu)
+       SELECT ?,n.contenu FROM notes n
+       WHERE n.visite_id=? AND trim(COALESCE(n.contenu,''))<>''
+       ON CONFLICT(visite_id) DO UPDATE SET contenu=excluded.contenu`,
+      [id,source.id]
+    );
     await db.runAsync(
       `INSERT INTO _meta(key,value) VALUES(?,'1')
        ON CONFLICT(key) DO UPDATE SET value='1'`,[metaKey]);
   });
-  return { sourceVisitId:source.id,copiedFields,copiedControls,copiedDynamic };
+  return result;
 }
 
 

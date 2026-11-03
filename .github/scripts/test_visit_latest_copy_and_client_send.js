@@ -53,48 +53,46 @@ const newId='new-visit',oldId='last-visit';
 const state={fields:[],controls:[],dynamic:[],notes:[],meta:null,previousQueries:0};
 const db={
  async getFirstAsync(sql,args){
-   // Source is the previous dated visit of this local, even when Symfony
-   // imported it *after* creating the current SQLite row.
    if(sql.includes('FROM visites')&&sql.includes('COALESCE(trame_id')){
      state.previousQueries++;
      check(sql.includes('installation_id=?')&&!sql.includes('rowid <'),
-       'source is restricted to this local/trame and not blocked by historical import rowid');
+       'source is restricted to this local/trame, including later-imported history');
      return {id:oldId,date_visite:'2026-10-25'};
    }
    if(sql.includes('FROM visites WHERE id=?')) return {id:newId,site_id:'s1',
      installation_id:'local-A',trame_id:'remar_v1',statut:'en_cours',date_visite:'2026-11-03'};
    if(sql.includes('FROM _meta'))return state.meta?{value:state.meta}:null;
-   if(sql.includes('FROM equipements'))return args[0]==='cta-1'&&args[1]==='local-A'?{id:'cta-1'}:null;
-   if(sql.includes('FROM remar_items'))return {id:args[0]};
-   if(sql.includes('FROM notes'))return {contenu:'Note technique historique'};
-   throw Error('Unexpected SQL getFirstAsync '+sql);
+   throw Error('Unexpected snapshot SELECT '+sql);
  },
- async getAllAsync(sql,args){
-   if(sql.includes('FROM champs_visite'))return [
-     {section_code:'infos.generale',cle:'Date de visite',valeur:'2026-10-25'},
-     {section_code:'infos.generale',cle:'Adresse',valeur:'Ancienne adresse'},
-     {section_code:'releves.compteurs',cle:'Compteur Gaz',valeur:'123,5'},
-     {section_code:'infos.generale',cle:'Date du dernier entretien',valeur:'2024-01-10'},
-   ];
-   if(sql.includes('FROM controles_visite'))return [
-     {section_code:'conf-local.securite',cle:'BAES',avis:'S',commentaire:'Conforme'},
-     {section_code:'conf-ecs.eau',cle:'Soupape',avis:'N.S',commentaire:'À remplacer'},
-     {section_code:'conf-local.securite',cle:'Porte',avis:'S.O',commentaire:null},
-   ];
-   if(sql.includes('FROM remar_values'))return [
-     {owner_type:'equipement',owner_id:'cta-1',panel_id:'p-remar-cta',
-       section_code:'entretien',cle:'Calorifugeage',valeur:null,avis:'N.S',
-       commentaire:'Isolant détérioré',confirme_le:'2026-10-25 10:00:00'},
-   ];
-   throw Error('Unexpected getAllAsync '+sql);
- },
+ async getAllAsync(sql){ throw Error('Per-record snapshot query still used: '+sql); },
  async runAsync(sql,args){
-   if(sql.includes('INSERT INTO champs_visite'))state.fields.push(args);
-   else if(sql.includes('INSERT INTO controles_visite'))state.controls.push(args);
-   else if(sql.includes('INSERT INTO remar_values'))state.dynamic.push(args);
-   else if(sql.includes('INSERT INTO notes'))state.notes.push(args);
-   else if(sql.includes('INSERT INTO _meta'))state.meta='1';
-   else throw Error('Unexpected runAsync '+sql);
+   if(sql.includes('INSERT INTO champs_visite')){
+     check(sql.includes('SELECT')&&sql.includes('NOT IN')&&sql.includes('ON CONFLICT'),
+       'fields copied atomically without replacing current metadata');
+     state.fields.push([newId,'releves.compteurs','Compteur Gaz','123,5']);
+     state.fields.push([newId,'infos.generale','Date du dernier entretien','2024-01-10']);
+     return {changes:2};
+   }
+   if(sql.includes('INSERT INTO controles_visite')){
+     check(sql.includes('SELECT')&&sql.includes('avis=excluded.avis'),
+       'opinions copied in a single INSERT SELECT');
+     state.controls.push([newId,'conf-local.securite','BAES','S','Conforme']);
+     state.controls.push([newId,'conf-ecs.eau','Soupape','N.S','À remplacer']);
+     state.controls.push([newId,'conf-local.securite','Porte','S.O',null]);
+     return {changes:3};
+   }
+   if(sql.includes('INSERT INTO remar_values')){
+     check(sql.includes('FROM equipements')&&sql.includes('FROM remar_items')&&
+       sql.includes('installation_id=?'), 'dynamic values scoped to same local');
+     state.dynamic.push(args);
+     return {changes:1};
+   }
+   if(sql.includes('INSERT INTO notes')){
+     check(sql.includes('SELECT')&&args[1]===oldId,'notes copied from source');
+     state.notes.push([newId,'Note technique historique']); return {changes:1};
+   }
+   if(sql.includes('INSERT INTO _meta')){state.meta='1';return {changes:1};}
+   throw Error('Unexpected snapshot write '+sql);
  },
  async withTransactionAsync(callback){await callback();}
 };
@@ -107,7 +105,7 @@ const db={
  check(state.fields.every(row=>!isCurrentVisitMetadata(row[2]))&&
     state.fields.some(row=>row[2]==='Date du dernier entretien'),
    'new visit date and address are kept fresh; maintenance date stays');
- check(state.dynamic[0][9]==='copie_locale:'+oldId&&state.notes[0][1]==='Note technique historique',
+ check(state.dynamic[0][1]==='copie_locale:'+oldId&&state.notes[0][1]==='Note technique historique',
    'REMAR copy provenance and free note are preserved');
  const runAgain=await copyLatestSameTrameVisit(db,newId);
  check(runAgain.alreadyCopied&&state.controls.length===3,

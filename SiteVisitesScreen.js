@@ -254,10 +254,13 @@ function SiteVisitesScreen({ route, navigation }) {
         statut: 'en_cours',
         progression_pct: 0,
       });
-      const visitePreview = await prechaufferVisite(visiteId, true).catch(() => previewBase);
-      markVisitHot(visiteId, { preview: visitePreview || previewBase });
+      // All required fields/opinions were committed before creerVisiteProduction
+      // returned. The visit screen already loads and warms its panels itself:
+      // waiting here for a *second* full cache refresh makes creation feel
+      // slow without making the visit any safer or more complete.
+      markVisitHot(visiteId, { preview: previewBase });
       setChoixModeVisible(false);
-      navigation.navigate('Visite', { visiteId, visitePreview: visitePreview || previewBase });
+      navigation.navigate('Visite', { visiteId, visitePreview: previewBase });
     } catch (e) {
       Alert.alert('Création impossible', String(e?.message || e));
     } finally {
