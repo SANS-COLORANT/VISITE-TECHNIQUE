@@ -8,6 +8,7 @@ import { importSelectedPreparationCriteria } from './apiLatestVisitImportDb.js';
 import { prepareIntranetSelectedTrame } from './intranetSelectedTrame.js';
 import { pinPhotoReferencesForVisit } from './latestVisitPhotosDb.js';
 import { preremplirVisiteDepuisContexte } from './visitPrefillDb.js';
+import { copyLatestSameTrameVisit } from './visitLatestSnapshotDb.js';
 import { assurerStructureSitePreAllumage } from './preAllumageSiteBootstrap.js';
 import { chargerPreAllumageModulaire } from './preAllumageModularDb.js';
 import { figerItemsRemarPourVisite } from './remarDynamicDb.js';
@@ -69,6 +70,12 @@ export async function creerVisiteProduction({
   if (selectedPreparation?.different) {
     await importSelectedPreparationCriteria({ visiteId: id, siteId, trameId: trame.id, reference: selectedPreparation.reference });
   }
+
+  // Derniere visite MEME local + MEME trame : tous les avis, commentaires,
+  // mesures et valeurs de la derniere visite sont presentes immediatement,
+  // y compris apres une preparation Symfony differente. La nouvelle date,
+  // l'identite et l'envoiId ne sont jamais copies.
+  await copyLatestSameTrameVisit(db, id);
 
   // Capture le contenu actif du patrimoine REMAR du LOCAL au moment de la
   // creation, jamais a l'ouverture d'une ancienne visite. Pas de duplication.

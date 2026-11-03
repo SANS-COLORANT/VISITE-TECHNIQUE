@@ -34,7 +34,14 @@ async function visitContext(db, visiteId, edit = false) {
   const definition = v ? obtenirTrame(v.trame_id) : null;
   if (!v || (definition?.familyId || definition?.id) !== 'remar_v1') throw new Error('Visite REMAR introuvable.');
   if (edit && v.statut !== 'en_cours' && v.statut !== 'a_completer') {
-    throw new Error('Une visite cloturee ne peut pas modifier le patrimoine REMAR.');
+    // A locally completed visit may be corrected only if its actual
+    // POST was acknowledged. Such edits remain local until Symfony offers a
+    // safe update-by-remote-ID endpoint; never POST a duplicate visit.
+    const uploaded = await db.getFirstAsync(
+      "SELECT remote_visit_id FROM api_visit_outbox WHERE visite_id=? AND status='synced' AND remote_visit_id IS NOT NULL",
+      [visiteId]);
+    if (!uploaded?.remote_visit_id)
+      throw new Error('Une visite historique ou cloturée non synchronisée ne peut pas modifier le patrimoine REMAR.');
   }
   return v;
 }
@@ -246,8 +253,15 @@ export async function listerRemarValeurs(visiteId, ownerType, ownerId) {
     if (found[key]) continue;
     // L'import Excel peut conserver une valeur historique dans la visite
     // importée sans attester qu'elle a été contrôlée ce jour-là.
-    const inherited=r.visite_id!==visiteId || (!r.confirme_le && !!r.source_visite_id);
-    found[key] = { ...r, inherited, source_visite_id:r.visite_id===visiteId?r.source_visite_id:r.visite_id };
+    // A copied *local draft* keeps its previous opinion visible and exportable.
+    // The source visit stays traceable; it does not fabricate a fresh inspection
+    // timestamp. Actual historical/remote-only values remain unconfirmed.
+    const localCopy=r.visite_id===visiteId &&
+      String(r.source_visite_id||'').startsWith('copie_locale:');
+    const inherited=r.visite_id!==visiteId ||
+      (!localCopy && !r.confirme_le && !!r.source_visite_id);
+    found[key] = { ...r, inherited, localCopy,
+      source_visite_id:r.visite_id===visiteId?r.source_visite_id:r.visite_id };
   }
   return found;
 }

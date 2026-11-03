@@ -167,6 +167,7 @@ function VisiteScreen({ route, onBack }) {
   const [anomaliePerimetre, setAnomaliePerimetre] = useState('');
   const [companionVisible, setCompanionVisible] = useState(false);
   const [tabStatus, setTabStatus] = useState({ tabs: {}, avis: null });
+  const [syncRefreshKey, setSyncRefreshKey] = useState(0);
   const [visiteARattacher, setVisiteARattacher] = useState(false);
   const [clavierVisible, setClavierVisible] = useState(false);
   const [rattachementVisible, setRattachementVisible] = useState(false);
@@ -495,6 +496,9 @@ function VisiteScreen({ route, onBack }) {
   }, [charger, visiteId]);
 
   const onSaved = useCallback(() => {
+    // A previously synced visit must immediately lose its green badge when
+    // the technician changes a field, even if progress stays at 100%.
+    setSyncRefreshKey(v => v + 1);
     if (progressionTimerRef.current) clearTimeout(progressionTimerRef.current);
     progressionTimerRef.current = setTimeout(async () => {
       try {
@@ -942,7 +946,9 @@ function VisiteScreen({ route, onBack }) {
             <Text style={hs.attachTitle}>À rattacher</Text>
             <Text style={hs.attachSub}>Choisir un client</Text>
           </TouchableOpacity>
-        ) : <IntranetVisitSyncControl visite={visite} onVisitChanged={() => charger({ forceCaches: true })} beforeSend={relecture.demander} />}
+        ) : <IntranetVisitSyncControl visite={visite}
+          refreshKey={syncRefreshKey + (statutVisible ? 1 : 0)}
+          onVisitChanged={() => charger({ forceCaches: true })} beforeSend={relecture.demander} />}
         onVoirReserves={tabsReels.includes('p-remarques') ? () => { setStatutVisible(false); changerOnglet('p-remarques'); } : null}
       />
       {relecture.sheet}

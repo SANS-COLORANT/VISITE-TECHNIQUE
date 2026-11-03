@@ -7,6 +7,7 @@ import { CvcIcon } from './MetraCvcIcons.js';
 import { IconOrb } from './premiumChrome.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { creerVisiteProduction } from './visitCreationDb.js';
+import { preferredRemarCompleteId } from './remarVisitSelection.js';
 import { supprimerVisiteComplete } from './entityManagementDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
 import { listerTramesDisponibles, obtenirTrame, tramePourNouvelleVisite, DEFAULT_TRAME_ID } from './trameRegistry.js';
@@ -81,6 +82,7 @@ function SiteVisitesScreen({ route, navigation }) {
   const [exportLotEnCours, setExportLotEnCours] = useState(false);
   const [intranetClientImported, setIntranetClientImported] = useState(() => Boolean(initialBundle?.intranetClientImported));
   const autoOpenHandled = useRef(false);
+  const manualRemoteChoice = useRef(false);
   const listRef = useRef(null);
   const tramesDisponibles = listerTramesDisponibles();
   const remoteTramesCompatibles = remoteTrames.filter((t) => mapRemoteTrameToLocal(t) === trameChoisie);
@@ -178,6 +180,10 @@ function SiteVisitesScreen({ route, navigation }) {
       const choices = Array.isArray(reference?.trames) ? reference.trames.filter((t) => /^\d+$/.test(String(t?.id ?? '')) && Number(t.id) > 0) : [];
       setRemoteTrames(choices);
       setRemoteTrameChoisie((previous) => {
+        // Opening REMAR selects the published COMPLETE Symfony template first.
+        // An explicit human choice always wins afterwards.
+        if (trameChoisie === 'remar_v1' && !manualRemoteChoice.current)
+          return preferredRemarCompleteId(choices);
         if (choices.some((t) => String(t.id) === previous && mapRemoteTrameToLocal(t) === trameChoisie)) return previous;
         if (choices.some((t) => String(t.id) === String(apiRemoteTrame?.id) && mapRemoteTrameToLocal(t) === trameChoisie)) return String(apiRemoteTrame.id);
         const matching = choices.filter((t) => mapRemoteTrameToLocal(t) === trameChoisie);
@@ -191,8 +197,11 @@ function SiteVisitesScreen({ route, navigation }) {
   useEffect(() => {
     if (!params.openNewVisit || !apiRemoteLocalId || autoOpenHandled.current) return;
     autoOpenHandled.current = true;
+    manualRemoteChoice.current = false;
     setTrameChoisie(apiSuggestedTrameId);
-    setRemoteTrameChoisie(apiRemoteTrame?.id ? String(apiRemoteTrame.id) : null);
+    setRemoteTrameChoisie(apiSuggestedTrameId === 'remar_v1'
+      ? preferredRemarCompleteId(remoteTrames)
+      : (apiRemoteTrame?.id ? String(apiRemoteTrame.id) : null));
     setChoixModeVisible(true);
   }, [params.openNewVisit, apiRemoteLocalId, apiSuggestedTrameId]);
 
@@ -203,8 +212,11 @@ function SiteVisitesScreen({ route, navigation }) {
       return;
     }
     if (apiRemoteLocalId) {
+      manualRemoteChoice.current = false;
       setTrameChoisie(apiSuggestedTrameId);
-      setRemoteTrameChoisie(apiRemoteTrame?.id ? String(apiRemoteTrame.id) : null);
+      setRemoteTrameChoisie(apiSuggestedTrameId === 'remar_v1'
+        ? preferredRemarCompleteId(remoteTrames)
+        : (apiRemoteTrame?.id ? String(apiRemoteTrame.id) : null));
     } else {
       const derniereTrame = visites[0]?.trame_id;
       setTrameChoisie(tramePourNouvelleVisite(derniereTrame || DEFAULT_TRAME_ID)?.id || DEFAULT_TRAME_ID);
@@ -478,16 +490,15 @@ function SiteVisitesScreen({ route, navigation }) {
       <Modal visible={choixModeVisible} transparent animationType="fade" onRequestClose={() => { if (!creationEnCours) setChoixModeVisible(false); }}>
         <View style={styles.modalOverlay}><View style={styles.modalSheet}><ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
           <Text style={styles.modalTitle}>{apiRemoteLocalId ? 'Préparer la visite' : 'Nouvelle visite'}</Text>
-          {apiRemoteLocalId ? <View style={{ padding: 12, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.66)', borderWidth: 1, borderColor: '#E6E8EC', marginBottom: 14 }}>
-            <Text style={{ color: COLORS.ink, fontFamily: FONTS.bold, fontSize: 13 }}>{apiRemoteLocalDesignation || 'Local technique'}</Text>
-            <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 3 }}>{apiRemoteTrame?.nom ? `Trame Intranet : ${apiRemoteTrame.nom}` : 'Trame Intranet non renseignée'}</Text>
-            <Text style={{ color: COLORS.muted, fontSize: 11.5, marginTop: 7, lineHeight: 16 }}>Le matériel courant est rattaché au patrimoine de ce local. Les anciens avis, commentaires et réserves restent seulement des références : ils ne deviennent pas les réponses de la visite du jour.</Text>
-          </View> : null}
           <Text style={[styles.fieldLabel, { marginBottom: 8 }]}>Trame de visite</Text>
           {apiRemoteLocalId && !apiSuggestedTrameId ? <Text style={{ color: '#9A4C0A', fontSize: 11.5, marginBottom: 8 }}>Aucune correspondance sûre détectée : sélectionne la bonne trame METRA.</Text> : null}
           {tramesDisponibles.map((trame) => {
             const selected = trameChoisie === trame.id;
-            return <TouchableOpacity key={trame.id} disabled={creationEnCours} style={[styles.visitModeCard, selected && { borderColor: COLORS.primary, backgroundColor: '#FFF7EF' }]} onPress={() => { setTrameChoisie(trame.id); const matching = remoteTrames.filter((t) => mapRemoteTrameToLocal(t) === trame.id); setRemoteTrameChoisie(apiRemoteLocalId ? (matching.length === 1 ? String(matching[0].id) : null) : null); }}><IconOrb accent={selected ? COLORS.primary : COLORS.inkSoft} light={selected ? '#FFF3E8' : COLORS.bg} size={42}><CvcIcon name={selected ? 'control' : 'document'} size={20} color={selected ? COLORS.primary : COLORS.inkSoft} /></IconOrb><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{trame.nom}</Text><Text style={styles.visitModeText}>{trame.description || `Trame ${trame.nom}`}</Text></View></TouchableOpacity>;
+            return <TouchableOpacity key={trame.id} disabled={creationEnCours} style={[styles.visitModeCard, selected && { borderColor: COLORS.primary, backgroundColor: '#FFF7EF' }]} onPress={() => { manualRemoteChoice.current = false; setTrameChoisie(trame.id);
+              const matching = remoteTrames.filter((t) => mapRemoteTrameToLocal(t) === trame.id);
+              setRemoteTrameChoisie(!apiRemoteLocalId ? null
+                : trame.id === 'remar_v1' ? preferredRemarCompleteId(matching)
+                : matching.length === 1 ? String(matching[0].id) : null); }}><IconOrb accent={selected ? COLORS.primary : COLORS.inkSoft} light={selected ? '#FFF3E8' : COLORS.bg} size={42}><CvcIcon name={selected ? 'control' : 'document'} size={20} color={selected ? COLORS.primary : COLORS.inkSoft} /></IconOrb><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{trame.nom}</Text><Text style={styles.visitModeText}>{trame.description || `Trame ${trame.nom}`}</Text></View></TouchableOpacity>;
           })}
           {apiRemoteLocalId ? <View style={{ marginTop: 12 }}>
             <Text style={[styles.fieldLabel, { marginBottom: 6 }]}>Trame Intranet (identifiant Symfony)</Text>
@@ -495,7 +506,7 @@ function SiteVisitesScreen({ route, navigation }) {
             {!referentielEnCours && !remoteTramesCompatibles.length ? <Text style={{ color: '#9A4C0A' }}>Aucune trame Symfony compatible disponible. Actualise le référentiel du client.</Text> : null}
             {remoteTramesCompatibles.map((remote) => {
               const selected = remoteTrameChoisie === String(remote.id);
-              return <TouchableOpacity key={String(remote.id)} disabled={creationEnCours} onPress={() => setRemoteTrameChoisie(String(remote.id))}
+              return <TouchableOpacity key={String(remote.id)} disabled={creationEnCours} onPress={() => { manualRemoteChoice.current = true; setRemoteTrameChoisie(String(remote.id)); }}
                 style={[styles.visitModeCard, selected && { borderColor: COLORS.primary, backgroundColor: '#FFF7EF' }]}>
                 <Text style={{ color: COLORS.ink, fontFamily: FONTS.bodyBold }}>{selected ? '● ' : '○ '}{remote.nom} · ID {remote.id}</Text>
               </TouchableOpacity>;
@@ -503,7 +514,7 @@ function SiteVisitesScreen({ route, navigation }) {
           </View> : null}
           <Text style={[styles.fieldLabel, { marginTop: 14, marginBottom: 8 }]}>Mode</Text>
           {!apiRemoteLocalId ? <TouchableOpacity style={[styles.visitModeCard, visites.length === 0 && { opacity: 0.45 }]} disabled={visites.length === 0 || creationEnCours} onPress={() => nouvelleVisite('express')}><IconOrb accent={COLORS.orangeDark} light={COLORS.orangeLight} size={42}><CvcIcon name="flash" size={20} color={COLORS.orangeDark} /></IconOrb><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>Visite Express</Text><Text style={styles.visitModeText}>{visites.length === 0 ? 'Disponible après une première visite complète.' : 'Reprend automatiquement la trame de la dernière visite et les informations stables.'}</Text></View></TouchableOpacity> : null}
-          <TouchableOpacity style={[styles.visitModeCard, (!trameChoisie || creationEnCours || (apiRemoteLocalId && (!remoteTrameChoisie || referentielEnCours))) && { opacity: 0.55 }]} disabled={!trameChoisie || creationEnCours || (apiRemoteLocalId && (!remoteTrameChoisie || referentielEnCours))} onPress={() => nouvelleVisite('complete')}><IconOrb accent={COLORS.orangeDark} light={COLORS.orangeLight} size={42}><CvcIcon name="document" size={20} color={COLORS.orangeDark} /></IconOrb><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{creationEnCours ? 'Préparation…' : 'Visite complète'}</Text><Text style={styles.visitModeText}>{apiRemoteLocalId ? 'Démarre sur le local sélectionné avec son patrimoine courant, sans recopier les constats historiques.' : 'Parcourt toute la trame sélectionnée pour une première visite ou un audit détaillé.'}</Text></View></TouchableOpacity>
+          <TouchableOpacity style={[styles.visitModeCard, (!trameChoisie || creationEnCours || (apiRemoteLocalId && (!remoteTrameChoisie || referentielEnCours))) && { opacity: 0.55 }]} disabled={!trameChoisie || creationEnCours || (apiRemoteLocalId && (!remoteTrameChoisie || referentielEnCours))} onPress={() => nouvelleVisite('complete')}><IconOrb accent={COLORS.orangeDark} light={COLORS.orangeLight} size={42}><CvcIcon name="document" size={20} color={COLORS.orangeDark} /></IconOrb><View style={{ flex: 1 }}><Text style={styles.visitModeTitle}>{creationEnCours ? 'Préparation…' : 'Visite complète'}</Text><Text style={styles.visitModeText}>{apiRemoteLocalId ? 'Reprend les champs, avis et relevés de la dernière visite de même trame et local ; seule la date est actualisée.' : 'Parcourt toute la trame sélectionnée pour une première visite ou un audit détaillé.'}</Text></View></TouchableOpacity>
           <TouchableOpacity style={[styles.btnSecondary, { marginTop: 10 }]} disabled={creationEnCours} onPress={() => setChoixModeVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity>
         </ScrollView></View></View>
       </Modal>
