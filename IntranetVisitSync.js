@@ -511,14 +511,30 @@ export async function listerVisitesAEnvoyerClient(clientId) {
           WHERE p.entite_type='installation' AND p.entite_id=v.installation_id
             AND p.origine='api_symfony' AND p.reference_externe IS NOT NULL
             AND trim(p.reference_externe)<>'')
+        OR EXISTS(SELECT 1 FROM provenances p
+          JOIN api_local_links l ON l.remote_local_id=p.reference_externe AND l.remote_present=1
+          WHERE p.entite_type='visite' AND p.entite_id=v.id
+            AND p.origine='api_symfony'
+            AND (p.details_json LIKE '%"sourceType":"preparation_visite"%'
+              OR p.details_json LIKE '%"sourceType":"remar_upload_preselection"%'))
         THEN 0 ELSE 1 END AS needs_binding
     FROM visites v
     JOIN sites s ON s.id=v.site_id
     LEFT JOIN installations i ON i.id=v.installation_id
     LEFT JOIN api_visit_outbox o ON o.visite_id=v.id
     WHERE s.client_id=? AND NOT ${HISTORICAL_SQL}
-      AND (v.api_remote_local_id IS NOT NULL OR EXISTS(
-        SELECT 1 FROM api_local_links l WHERE l.local_installation_id=v.installation_id AND l.remote_present=1))
+      -- Le client ET le site doivent réellement appartenir au référentiel
+      -- Intranet importé. Ne pas exclure silencieusement les visites anciennes
+      -- dont le lien local s'est perdu : elles restent visibles pour réparation
+      -- et sont marquées needs_binding=1 si aucune preuve distante ne subsiste.
+      AND EXISTS (
+        SELECT 1 FROM api_client_links cl
+        JOIN api_client_site_links cs ON cs.remote_client_id=cl.remote_client_id
+        JOIN api_site_links sl ON sl.remote_site_id=cs.remote_site_id
+        WHERE cl.local_client_id=s.client_id AND cl.autorise=1
+          AND cs.remote_present=1 AND sl.remote_present=1
+          AND COALESCE(sl.local_site_id,cs.local_site_id)=v.site_id
+      )
     ORDER BY v.date_visite DESC,v.modifie_le DESC,v.rowid DESC`, [String(clientId)]);
   // Never post older drafts of the same local/template as extra Symfony visits.
   const latest = latestClientVisitsByLocalAndTemplate(rows);
