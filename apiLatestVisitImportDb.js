@@ -256,14 +256,15 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
     const model = text(material.modele);
     const year = materialYear(material.annee);
 
-    const linked = await db.getFirstAsync(
+    const linkedRows = await db.getAllAsync(
       `SELECT e.id FROM provenances p
        JOIN equipements e ON e.id=p.entite_id
        WHERE p.entite_type='equipement' AND p.origine='api_symfony'
          AND p.reference_externe=? AND e.installation_id=?
-       ORDER BY p.importe_le DESC LIMIT 1`,
+       ORDER BY p.importe_le DESC,e.id`,
       [externalReference, installationId]
     );
+    const linked = linkedRows.find(row => !seenEquipmentIds.has(String(row.id)));
 
     let equipmentId = linked?.id && !seenEquipmentIds.has(String(linked.id)) ? linked.id : null;
     if (!equipmentId && !explicitRemoteId) {
