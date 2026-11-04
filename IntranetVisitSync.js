@@ -3,7 +3,7 @@ import { ActivityIndicator, Alert, AppState, Share, Text, TouchableOpacity, View
 import { COLORS, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import {
-  discardTerminalVisitUpload, finalizeVisitForUpload, getVisitUploadState, listVisitOutbox,
+  discardTerminalVisitUpload, finalizeVisitForUpload, getVisitUploadState,
   processVisitOutbox, queueVisitUpload, retryVisitUploadNow, subscribeVisitOutbox,
   isSyncedVisitChangedLocally,
 } from './intranetVisitOutboxDb.js';
@@ -98,15 +98,19 @@ export function IntranetVisitSyncRuntime() {
     let running = false;
     let photosRunning = false;
 
-    const runPhotos = async () => {
+    // Découverte des photos manquantes lors du démarrage, du retour au premier
+    // plan et au maximum toutes les 60 s. Ne PAS relire les fichiers/SQLite
+    // de 40 visites toutes les 15 s ; seul le transfert des photos déjà
+    // en file doit être réveillé à cette fréquence.
+    const runPhotos = async ({ discover = false } = {}) => {
       if (!alive || photosRunning) return;
       photosRunning = true;
       try {
-        await queueMissingSyncedVisitPhotos({ limitVisits: 40 });
-        // Une seule partie (10 photos maximum) par passage. Le passage suivant
-        // reprend automatiquement 15 s plus tard tant que METRA reste ouvert.
+        if (discover) await queueMissingSyncedVisitPhotos({ limitVisits: 40 });
         await processVisitPhotoOutbox({ limit: 10 });
-      } catch {} finally { photosRunning = false; }
+      } catch (error) {
+        console.warn('Synchronisation photo automatique différée', error);
+      } finally { photosRunning = false; }
     };
 
     const run = async () => {
@@ -114,7 +118,7 @@ export function IntranetVisitSyncRuntime() {
       running = true;
       try {
         await processVisitOutbox({ limit: 3 });
-        await runPhotos();
+        await runPhotos({ discover: true });
       } catch {} finally { running = false; }
     };
 
@@ -131,20 +135,6 @@ export function IntranetVisitSyncRuntime() {
     };
   }, []);
   return null;
-}
-
-export function IntranetVisitSyncBanner() {
-  const [rows, setRows] = useState([]);
-  const refresh = useCallback(() => listVisitOutbox().then(setRows).catch(() => {}), []);
-  useEffect(() => { refresh(); return subscribeVisitOutbox(refresh); }, [refresh]);
-  if (!rows.length) return null;
-  const sending = rows.filter((r) => r.status === 'sending').length;
-  const waiting = rows.filter((r) => ['pending', 'retry'].includes(r.status)).length;
-  const blocked = rows.length - sending - waiting;
-  return <View accessibilityLiveRegion="polite" style={{ minHeight: 40, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: blocked ? '#FFF1F0' : '#FFF8ED', borderBottomWidth: 1, borderBottomColor: COLORS.line, flexDirection: 'row', alignItems: 'center' }}>
-    <Text style={{ flex: 1, color: COLORS.ink, fontSize: 12, fontFamily: FONTS.bold }}>Intranet · {sending ? `${sending} envoi en cours` : `${waiting} en attente`}{blocked ? ` · ${blocked} à corriger` : ''}</Text>
-    {waiting ? <TouchableOpacity accessibilityRole="button" onPress={() => processVisitOutbox({ limit: 3 }).then(() => queueMissingSyncedVisitPhotos({ limitVisits: 40 })).then(() => processVisitPhotoOutbox({ limit: 10 })).catch(() => {})} style={{ minHeight: 40, justifyContent: 'center', paddingHorizontal: 10 }}><Text style={{ color: COLORS.primary, fontFamily: FONTS.black, fontSize: 12 }}>Synchroniser</Text></TouchableOpacity> : null}
-  </View>;
 }
 
 export function useVisitUploadState(visiteId) {
