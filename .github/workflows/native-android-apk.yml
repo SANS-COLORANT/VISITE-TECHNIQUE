@@ -21,6 +21,7 @@ on:
       - fix/visit-history-remar-default-resync-selection-20261103
       - fix/intranet-text-preservation-client-progress-20261104
       - fix/metra-runtime-data-safety-20261104
+      - feat/remove-companion-add-credits-20261104
     paths:
       - '**/*.js'
       - '**/*.json'
