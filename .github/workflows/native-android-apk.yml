@@ -20,6 +20,7 @@ on:
       - feat/premium-cards-control-photos-20261103
       - fix/visit-history-remar-default-resync-selection-20261103
       - fix/intranet-text-preservation-client-progress-20261104
+      - fix/metra-runtime-data-safety-20261104
     paths:
       - '**/*.js'
       - '**/*.json'
