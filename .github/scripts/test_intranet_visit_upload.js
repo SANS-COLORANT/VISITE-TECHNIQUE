@@ -130,8 +130,11 @@ async function main() {
     check(prepared.payloadBytes === Buffer.byteLength(prepared.serialized, 'utf8'), '5 MiB guard counts UTF-8 bytes correctly');
 
     await server.db.runAsync(`UPDATE materiel SET etat='Dégradé' WHERE visite_id='visit-1'`);
-    await assert.rejects(() => payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111'), /empêchent|état/);
-    checks++; console.log(`OK ${checks}: material state outside Symfony enum blocks upload instead of being silently converted`);
+    const freeMaterial = await payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111');
+    check(freeMaterial.payload.visites[0].materiels[0].etat === 'Bon' &&
+      freeMaterial.payload.visites[0].notes.some(note => note.contenu.includes('Dégradé')),
+      'free material state is preserved verbatim in an Intranet visit note and the V1 heritage stays unchanged');
+    checks++; console.log(`OK ${checks}: non-standard material state is preserved without unsafe heritage mutation`);
     await server.db.runAsync(`UPDATE materiel SET etat='Bon' WHERE visite_id='visit-1'`);
     await server.db.runAsync(`UPDATE materiel SET nombre=NULL WHERE visite_id='visit-1'`);
     await assert.rejects(() => payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111'),
