@@ -8,7 +8,7 @@ import {
   isSyncedVisitChangedLocally,
 } from './intranetVisitOutboxDb.js';
 import {
-  getVisitPhotoUploadSummary, processVisitPhotoOutbox, queueMissingSyncedVisitPhotos,
+  getVisitPhotoUploadSummary, processVisitPhotoOutbox, queueMissingSyncedVisitPhotos, queueMissingVisitPhotos,
   retryVisitPhotoUploadsNow, subscribeVisitPhotoOutbox, syncVisitPhotosNow,
 } from './intranetVisitPhotoOutboxDb.js';
 import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions, pinVerifiedRemarTrameForUpload, resolveFirstVisitRemoteTrame } from './intranetVisitBindingDb.js';
@@ -344,7 +344,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
     await queueVisitUpload(visiteId);
     await onVisitChanged?.();
     await refresh();
-    await processVisitOutbox({ limit: 1 }).catch(() => {});
+    await processVisitOutbox({ limit: 1, visiteId }).catch(() => {});
     await refresh();
     await onVisitChanged?.();
     const finalRow = await getVisitUploadState(visiteId);
@@ -575,11 +575,19 @@ export async function envoyerVisitesClient(clientId, { onProgress = null, visite
           await pinFullyPublishedRemarForFirstUpload(visite.id);
         await bindSameImportedClient(visite.id);
         await queueVisitUpload(visite.id, { confirmMaterialReplacement: false });
-        await processVisitOutbox({ limit: 1 }).catch(() => {});
+        await processVisitOutbox({ limit: 1, visiteId: visite.id }).catch(() => {});
       }
       const final = await getVisitUploadState(visite.id);
       if (final?.status === 'synced') {
-        await syncVisitPhotosNow(visite.id).catch(() => {});
+        // Ne pas immobiliser tout le client sur 10 transferts photo à chaque
+        // visite. Ces photos restent en file SQLite jusqu'à l'accusé serveur.
+        try {
+          await queueMissingVisitPhotos(visite.id);
+          void processVisitPhotoOutbox({ limit: 10 }).catch(error =>
+            console.warn('Envoi photo différé', error));
+        } catch (photoError) {
+          bilan.enErreur.push(`${nomVisite(visite)} : photos à préparer — ${String(photoError?.message || photoError)}`);
+        }
         bilan.envoyees.push(nomVisite(visite));
       } else if (final && ['validation_error', 'rejected', 'conflict', 'auth_error'].includes(final.status)) {
         bilan.enErreur.push(`${nomVisite(visite)} : ${serverFeedback(final) || 'refusée par l’Intranet'}`);
