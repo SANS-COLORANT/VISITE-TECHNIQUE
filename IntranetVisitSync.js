@@ -513,7 +513,15 @@ export async function listerVisitesAEnvoyerClient(clientId) {
   const rows = await db.getAllAsync(`
     SELECT v.id,v.site_id,v.installation_id,v.api_remote_local_id,
       v.trame_id,v.statut,v.modifie_le,v.rowid AS local_rowid,
-      s.nom_site,i.nom AS nom_local,v.date_visite,o.status AS envoi
+      s.nom_site,i.nom AS nom_local,v.date_visite,o.status AS envoi,
+      CASE WHEN (v.api_remote_local_id IS NOT NULL AND trim(v.api_remote_local_id)<>'')
+        OR EXISTS(SELECT 1 FROM api_local_links l
+          WHERE l.local_installation_id=v.installation_id AND l.remote_present=1)
+        OR EXISTS(SELECT 1 FROM provenances p
+          WHERE p.entite_type='installation' AND p.entite_id=v.installation_id
+            AND p.origine='api_symfony' AND p.reference_externe IS NOT NULL
+            AND trim(p.reference_externe)<>'')
+        THEN 0 ELSE 1 END AS needs_binding
     FROM visites v
     JOIN sites s ON s.id=v.site_id
     LEFT JOIN installations i ON i.id=v.installation_id
