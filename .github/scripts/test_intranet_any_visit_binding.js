@@ -192,8 +192,52 @@ async function main() {
     `);
     await server.db.runAsync(`INSERT INTO api_local_links(remote_local_id,remote_site_id,designation,remote_trame_id,remote_trame_nom,criteria_count,reference_json)
       VALUES('505','45','Sous-station','3','ICPE',1,?)`, [JSON.stringify(reference('505', 'Sous-station'))]);
-    await assert.rejects(() => binding.bindVisitToImportedClientTarget('ambiguous-visit'), /Plusieurs locaux Intranet compatibles/);
+    await assert.rejects(() => binding.bindVisitToImportedClientTarget('ambiguous-visit'),
+      /Choisis explicitement son local Intranet/);
     checks++; console.log(`OK ${checks}: multiple compatible locals are never guessed when the visit has no installation link`);
+
+    // Cas réel D2 / D3 : la visite a une installation précise, mais le cache
+    // Intranet a perdu local_installation_id. Ne réparer que par provenance
+    // Symfony du MEME local, jamais par similarité du nom.
+    await server.db.execAsync(`
+      INSERT INTO installations(id,site_id,type_code,nom,actif)
+      VALUES('installation-d3','local-site','installation_technique','D3',1);
+      INSERT INTO visites(id,site_id,installation_id,date_visite,statut,trame_id)
+      VALUES('d3-visit','local-site','installation-d3','2026-11-04','terminee','icpe_v1');
+      INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json)
+      VALUES('prov-d3-install','installation','installation-d3','api_symfony','505',
+        '{"sourceType":"local","remoteLocalId":"505","remoteSiteId":"45"}');
+    `);
+    const d3Target = await binding.bindVisitToImportedClientTarget('d3-visit');
+    check(d3Target.remoteLocalId === '505', 'D3 recovers exact remote local 505 only from persisted physical installation provenance');
+    const durableD3 = await server.db.getFirstAsync(
+      "SELECT local_installation_id FROM api_local_links WHERE remote_local_id='505'");
+    check(durableD3.local_installation_id === 'installation-d3',
+      'restored physical local association is saved for subsequent visits');
+
+    await server.db.execAsync(`
+      INSERT INTO installations(id,site_id,type_code,nom,actif)
+      VALUES('installation-d2','local-site','installation_technique','D2',1);
+      INSERT INTO visites(id,site_id,installation_id,date_visite,statut,trame_id)
+      VALUES('d2-visit','local-site','installation-d2','2026-11-04','terminee','icpe_v1');
+    `);
+    await assert.rejects(() => binding.bindVisitToImportedClientTarget('d2-visit'),
+      /identifiant Intranet n’est pas établi/);
+    check((await server.db.getFirstAsync(
+      "SELECT api_remote_local_id FROM visites WHERE id='d2-visit'")).api_remote_local_id == null,
+      'D2 without source identity remains unchanged and never uploads to another local');
+    const explicitD2 = await binding.bindVisitToIntranetTarget('d2-visit', {
+      remoteClientId:'12', remoteSiteId:'45', remoteLocalId:'501',
+    });
+    check(explicitD2.remoteLocalId === '501', 'technician explicit selection links D2 to the intended server local');
+    const linkD2 = await server.db.getFirstAsync(
+      "SELECT local_installation_id FROM api_local_links WHERE remote_local_id='501'");
+    check(linkD2.local_installation_id === 'installation-d2',
+      'explicit selection persists durable 1:1 physical local identity');
+    await assert.rejects(() => binding.bindVisitToIntranetTarget('d2-visit', {
+      remoteClientId:'12', remoteSiteId:'45', remoteLocalId:'505',
+    }), /déjà un identifiant Intranet|identifiant Intranet différent|déjà associé/i);
+    checks++; console.log(`OK ${checks}: moving D2 to D3 after binding is rejected, with no cross-local mixing`);
 
     // Vérifier la présélection REMAR sur une vraie SQLite avant tout POST.
     await server.db.execAsync(
