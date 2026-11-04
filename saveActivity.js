@@ -1,16 +1,17 @@
 let revision = 0;
 let lastSavedAt = 0;
-let lastError = null;
+const errors = new Map();
 const dirty = new Set();
 const saving = new Set();
 const listeners = new Set();
 
 function snapshot() {
+  const lastError = [...errors.values()].at(-1) || null;
   return {
     revision,
     dirty: dirty.size,
     saving: saving.size,
-    pending: dirty.size + saving.size,
+    pending: new Set([...dirty, ...saving]).size,
     lastSavedAt,
     lastError,
   };
@@ -35,7 +36,7 @@ export function markDraftDirty(key) {
   const id = String(key || '').trim();
   if (!id || dirty.has(id)) return;
   dirty.add(id);
-  lastError = null;
+  // A new edit must not hide a failed save on another field.
   emit();
 }
 
@@ -50,10 +51,11 @@ export function markDraftSaving(key) {
 export function markDraftSaved(key) {
   const id = String(key || '').trim();
   if (!id) return;
-  const changed = dirty.delete(id) || saving.delete(id);
+  const wasDirty = dirty.delete(id);
+  const wasSaving = saving.delete(id);
+  const hadError = errors.delete(id);
   lastSavedAt = Date.now();
-  lastError = null;
-  if (changed) emit();
+  if (wasDirty || wasSaving || hadError) emit();
 }
 
 export function markDraftError(key, error) {
@@ -61,8 +63,9 @@ export function markDraftError(key, error) {
   if (id) {
     saving.delete(id);
     dirty.add(id);
+    errors.delete(id);
+    errors.set(id, String(error?.message || error || 'Erreur de sauvegarde'));
   }
-  lastError = String(error?.message || error || 'Erreur de sauvegarde');
   emit();
 }
 
@@ -70,7 +73,6 @@ export function beginExternalSave(key) {
   const id = String(key || '').trim();
   if (!id) return;
   saving.add(id);
-  lastError = null;
   emit();
 }
 
@@ -78,10 +80,13 @@ export function endExternalSave(key, error = null) {
   const id = String(key || '').trim();
   if (id) saving.delete(id);
   if (error) {
-    lastError = String(error?.message || error);
+    if (id) {
+      errors.delete(id);
+      errors.set(id, String(error?.message || error));
+    }
   } else {
+    if (id) errors.delete(id);
     lastSavedAt = Date.now();
-    lastError = null;
   }
   emit();
 }

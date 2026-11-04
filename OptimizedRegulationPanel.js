@@ -37,15 +37,22 @@ export async function prechargerRegulation(visiteId, force = false) {
   const actuel = cacheRegulation.get(visiteId);
   if (!force && actuel?.data) return actuel.data;
   if (!force && actuel?.promise) return actuel.promise;
+  const entry = { data: actuel?.data || null, promise: null };
   const promise = Promise.all([
     prechargerDonneesTrameGenerique(visiteId, force),
     listerReseaux(visiteId),
   ]).then(([trame, reseaux]) => {
+    if (cacheRegulation.get(visiteId) !== entry) return prechargerRegulation(visiteId);
     const data = { champsMap: trame?.champsMap || {}, reseaux: reseaux || [] };
     cacheRegulation.set(visiteId, { data, promise: null });
     return data;
-  }).catch((e) => { cacheRegulation.delete(visiteId); throw e; });
-  cacheRegulation.set(visiteId, { data: actuel?.data || null, promise });
+  }).catch((error) => {
+    if (cacheRegulation.get(visiteId) !== entry) return prechargerRegulation(visiteId);
+    cacheRegulation.delete(visiteId);
+    throw error;
+  });
+  entry.promise = promise;
+  cacheRegulation.set(visiteId, entry);
   return promise;
 }
 

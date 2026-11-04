@@ -119,7 +119,7 @@ export function PreAllumageInfoPanelV3({ visiteId, onSaved }) {
 
   useEffect(() => {
     let alive = true;
-    Promise.all([chargerPreAllumageModulaire(visiteId), getChampsVisite(visiteId), synchroniserNombreLocauxPreAllumage(visiteId), loadRefs()]).then(async ([m, c]) => {
+    Promise.all([chargerPreAllumageModulaire(visiteId), synchroniserNombreLocauxPreAllumage(visiteId), loadRefs()]).then(async ([m]) => {
       if (!alive) return;
       setModele(m); setChamps(mapChamps(await getChampsVisite(visiteId)));
     }).catch(console.warn);

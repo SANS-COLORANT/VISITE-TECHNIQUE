@@ -69,6 +69,7 @@ const CONTRACT_CHECKS = [
   ['navigation + site sort contract', '.github/scripts/check_navigation_sort_contract.js'],
   ['durable visit data contract', '.github/scripts/check_durable_visit_data_contract.js'],
   ['field runtime foundation', '.github/scripts/check_field_runtime_foundation.js'],
+  ['runtime async safety regressions', '.github/scripts/test_runtime_safety.js'],
   ['instant camera runtime', '.github/scripts/check_camera_runtime_contract.js'],
   ['field feedback (tablet post-its) contract', '.github/scripts/check_field_feedback_contract.js'],
 ];
@@ -282,6 +283,9 @@ function runNode(args, label) {
     cwd: ROOT,
     stdio: 'inherit',
     env: process.env,
+    // Fail a hung test instead of silently blocking npm ci/postinstall
+    // and every subsequent native Android build step.
+    timeout: 180_000,
   });
   if (result.error) {
     console.error(`[METRA verify] ${label} could not start: ${result.error.message}`);
