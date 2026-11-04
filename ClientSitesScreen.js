@@ -167,7 +167,8 @@ function ClientSitesScreen({ route, navigation }) {
       setSelectionEnvoiVisible(false);
       await chargerTournee();
       const lignes = [
-        `${bilan.envoyees.length}/${bilan.total} visite(s) envoyée(s) à l’Intranet.`,
+        `${bilan.envoyees.length}/${bilan.total} visite(s) confirmée(s) par l’Intranet.`,
+        bilan.enAttente.length ? `${bilan.enAttente.length} visite(s) en attente de confirmation, toujours en gris.` : null,
         bilan.enCours ? `${bilan.enCours} visite(s) encore en cours : termine-les pour les envoyer.` : null,
         bilan.aConfirmer.length ? `À confirmer visite par visite :\n${bilan.aConfirmer.slice(0, 6).map((x) => `• ${x}`).join('\n')}` : null,
         bilan.enErreur.length ? `À corriger :\n${bilan.enErreur.slice(0, 6).map((x) => `• ${x}`).join('\n')}` : null,
@@ -373,7 +374,7 @@ function ClientSitesScreen({ route, navigation }) {
     <ClientTourneeModal visible={tourneeVisible} clientId={clientId} sites={sites} onClose={() => setTourneeVisible(false)} onChanged={chargerTournee} />
 
     <ClientVisitSendPicker visible={selectionEnvoiVisible} visits={candidatsEnvoi}
-      clientName={nomClient} busy={Boolean(envoiEnCours)}
+      clientName={nomClient} busy={Boolean(envoiEnCours)} progress={envoiEnCours}
       onCancel={() => { if (!envoiEnCours) setSelectionEnvoiVisible(false); }}
       onSend={envoyerTout} />
     <IntranetSiteCreationModal visible={intranetSiteVisible} clientId={clientId} onClose={() => setIntranetSiteVisible(false)} onCreated={charger} />
