@@ -120,7 +120,7 @@ async function findByApiMaterialNumber(db, installationId, numeroMateriel, usedE
     `SELECT e.id FROM attributs_libres a
      JOIN equipements e ON e.id=a.entite_id
      WHERE a.entite_type='equipement' AND a.cle='api_symfony.numero_materiel'
-       AND e.installation_id=? AND e.statut<>'retire'
+       AND e.installation_id=?
        AND lower(trim(COALESCE(a.valeur,'')))=lower(trim(?))`,
     [installationId, number]
   );
@@ -139,7 +139,7 @@ async function findConservativeEquipmentMatch(db, installationId, material, used
   const marque = text(material?.marque) || '';
   const modele = text(material?.modele) || '';
   const fingerprint = await db.getAllAsync(
-    `SELECT id FROM equipements WHERE installation_id=? AND statut<>'retire'
+    `SELECT id FROM equipements WHERE installation_id=?
        AND lower(trim(COALESCE(designation,'')))=lower(trim(?))
        AND lower(trim(COALESCE(marque,'')))=lower(trim(?))
        AND lower(trim(COALESCE(modele,'')))=lower(trim(?))`,
