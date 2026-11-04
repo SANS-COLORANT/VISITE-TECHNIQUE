@@ -37,7 +37,7 @@ const defer = () => {
 };
 async function tick() { await new Promise((r) => setImmediate(r)); }
 
-test('save badge cannot hide a rejected field when another field saves', () => {
+test('save badge cannot hide a rejected field when another field saves', { timeout: 10000 }, () => {
   const s = load('saveActivity.js', {}, ['markDraftDirty','markDraftSaving','markDraftSaved','markDraftError','getSaveActivity','beginExternalSave','endExternalSave']);
   s.markDraftDirty('A');
   s.markDraftSaving('A');
@@ -60,7 +60,7 @@ test('save badge cannot hide a rejected field when another field saves', () => {
   assert.equal(s.getSaveActivity().lastError, null);
 });
 
-test('invalidation rejects a stale prewarm publication and preserves current worker', async () => {
+test('invalidation rejects a stale prewarm publication and preserves current worker', { timeout: 10000 }, async () => {
   const queued = [];
   const nav = load('navigationPrewarm.js', {
     BoundedLruMap,
@@ -88,7 +88,7 @@ test('invalidation rejects a stale prewarm publication and preserves current wor
   assert.equal(nav.navigationPrewarmStats().inflight, 0);
 });
 
-test('failed navigation hydration retries, rather than retaining an empty marker', async () => {
+test('failed navigation hydration retries, rather than retaining an empty marker', { timeout: 10000 }, async () => {
   let calls = 0;
   const nav = load('navigationMemory.js', {
     BoundedLruMap, AppState: { addEventListener: () => ({ remove() {} }) },

@@ -9,12 +9,15 @@ const siteLocals = new BoundedLruMap(3);
 const localVisits = new BoundedLruMap(3);
 const pending = new Map();
 
-function coalesce(key, worker, { force = false } = {}) {
+function coalesce(key, worker, { force = false, peek = () => null } = {}) {
   if (!force && pending.has(key)) return pending.get(key);
   // An invalidation or a forced refresh supersedes the old worker. The old
   // finally must never remove the newer promise, even when it finishes last.
   let promise;
-  const latest = () => pending.get(key) || coalesce(key, worker);
+  // If the newer worker has already settled, use its committed cache.
+  // Starting a third fetch here can re-trigger expensive work or leave the
+  // original caller pending forever after a superseded request completes.
+  const latest = () => pending.get(key) || peek() || coalesce(key, worker, { peek });
   promise = Promise.resolve()
     .then(() => worker(() => pending.get(key) === promise))
     .then((result) => pending.get(key) === promise ? result : latest())
@@ -46,7 +49,7 @@ export async function prewarmClientSites(clientId, { force = false } = {}) {
     const bundle = { sites: sites || [], memberships: memberships || [], loadedAt: Date.now() };
     if (isCurrent()) clientSites.set(key, bundle);
     return bundle;
-  }, { force });
+  }, { force, peek: () => clientSites.get(key) });
 }
 
 async function materialiserLocauxManquants(siteId, db) {
@@ -121,7 +124,7 @@ export async function prewarmSiteLocals(siteId, { force = false } = {}) {
     const bundle = { rows: rows || [], legacyCount: Number(legacy?.n || 0), loadedAt: Date.now() };
     if (isCurrent()) siteLocals.set(key, bundle);
     return bundle;
-  }, { force });
+  }, { force, peek: () => siteLocals.get(key) });
 }
 
 function visitScopeKey(siteId, installationId, legacyOnly) {
@@ -159,7 +162,7 @@ export async function prewarmLocalVisits({ siteId, installationId = null, legacy
     };
     if (isCurrent()) localVisits.set(key, bundle);
     return bundle;
-  }, { force });
+  }, { force, peek: () => localVisits.get(key) });
 }
 
 export function invalidateClientSites(clientId) {

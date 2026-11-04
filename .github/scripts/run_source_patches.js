@@ -283,6 +283,9 @@ function runNode(args, label) {
     cwd: ROOT,
     stdio: 'inherit',
     env: process.env,
+    // Fail a hung test instead of silently blocking npm ci/postinstall
+    // and every subsequent native Android build step.
+    timeout: 180_000,
   });
   if (result.error) {
     console.error(`[METRA verify] ${label} could not start: ${result.error.message}`);
