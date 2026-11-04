@@ -9,9 +9,20 @@ const siteLocals = new BoundedLruMap(3);
 const localVisits = new BoundedLruMap(3);
 const pending = new Map();
 
-function coalesce(key, worker) {
-  if (pending.has(key)) return pending.get(key);
-  const promise = Promise.resolve().then(worker).finally(() => pending.delete(key));
+function coalesce(key, worker, { force = false } = {}) {
+  if (!force && pending.has(key)) return pending.get(key);
+  // An invalidation or a forced refresh supersedes the old worker. The old
+  // finally must never remove the newer promise, even when it finishes last.
+  let promise;
+  const latest = () => pending.get(key) || coalesce(key, worker);
+  promise = Promise.resolve()
+    .then(() => worker(() => pending.get(key) === promise))
+    .then((result) => pending.get(key) === promise ? result : latest())
+    .catch((error) => {
+      if (pending.get(key) !== promise) return latest();
+      throw error;
+    })
+    .finally(() => { if (pending.get(key) === promise) pending.delete(key); });
   pending.set(key, promise);
   return promise;
 }
@@ -27,15 +38,15 @@ export async function prewarmClientSites(clientId, { force = false } = {}) {
     const cached = clientSites.get(key);
     if (cached) return cached;
   }
-  return coalesce(`client:${key}`, async () => {
+  return coalesce(`client:${key}`, async (isCurrent) => {
     const [sites, memberships] = await Promise.all([
       listerSitesClient(key),
       listerAppartenancesClient(key),
     ]);
     const bundle = { sites: sites || [], memberships: memberships || [], loadedAt: Date.now() };
-    clientSites.set(key, bundle);
+    if (isCurrent()) clientSites.set(key, bundle);
     return bundle;
-  });
+  }, { force });
 }
 
 async function materialiserLocauxManquants(siteId, db) {
@@ -63,7 +74,7 @@ export async function prewarmSiteLocals(siteId, { force = false } = {}) {
     const cached = siteLocals.get(key);
     if (cached) return cached;
   }
-  return coalesce(`site:${key}`, async () => {
+  return coalesce(`site:${key}`, async (isCurrent) => {
     const db = await getDb();
     await materialiserLocauxManquants(key, db);
     const [rows, legacy] = await Promise.all([
@@ -108,9 +119,9 @@ export async function prewarmSiteLocals(siteId, { force = false } = {}) {
       db.getFirstAsync(`SELECT COUNT(*) AS n FROM visites WHERE site_id=? AND installation_id IS NULL`, [key]),
     ]);
     const bundle = { rows: rows || [], legacyCount: Number(legacy?.n || 0), loadedAt: Date.now() };
-    siteLocals.set(key, bundle);
+    if (isCurrent()) siteLocals.set(key, bundle);
     return bundle;
-  });
+  }, { force });
 }
 
 function visitScopeKey(siteId, installationId, legacyOnly) {
@@ -128,7 +139,7 @@ export async function prewarmLocalVisits({ siteId, installationId = null, legacy
     const cached = localVisits.get(key);
     if (cached) return cached;
   }
-  return coalesce(`visits:${key}`, async () => {
+  return coalesce(`visits:${key}`, async (isCurrent) => {
     const visitsPromise = legacyOnly
       ? listerVisitesLocal(siteId, null, { legacyOnly: true })
       : installationId
@@ -146,21 +157,27 @@ export async function prewarmLocalVisits({ siteId, installationId = null, legacy
       intranetClientImported: Boolean(importedClient?.remote_client_id),
       loadedAt: Date.now(),
     };
-    localVisits.set(key, bundle);
+    if (isCurrent()) localVisits.set(key, bundle);
     return bundle;
-  });
+  }, { force });
 }
 
 export function invalidateClientSites(clientId) {
-  clientSites.delete(String(clientId || ''));
+  const key = String(clientId || '');
+  clientSites.delete(key);
+  pending.delete(`client:${key}`);
 }
 
 export function invalidateSiteLocals(siteId) {
-  siteLocals.delete(String(siteId || ''));
+  const key = String(siteId || '');
+  siteLocals.delete(key);
+  pending.delete(`site:${key}`);
 }
 
 export function invalidateLocalVisits(siteId, installationId = null, legacyOnly = false) {
-  localVisits.delete(visitScopeKey(siteId, installationId, legacyOnly));
+  const key = visitScopeKey(siteId, installationId, legacyOnly);
+  localVisits.delete(key);
+  pending.delete(`visits:${key}`);
 }
 
 export function navigationPrewarmStats() {

@@ -54,26 +54,54 @@ async function chargerDonneesVisite(visiteId, force = false) {
   const existant = visiteDataCache.get(visiteId);
   if (!force && existant?.data) return existant.data;
   if (!force && existant?.promise) return existant.promise;
+  const entry = { data: existant?.data || null, promise: null, champsPatches: null, controlesPatches: null };
   const promise = Promise.all([getChampsVisite(visiteId), getControlesVisite(visiteId)])
     .then(([champs, controles]) => {
-      const data = { champsMap: mapperChamps(champs), controlesMap: mapperControles(controles) };
+      // A force, invalidation or a newer worker always wins. A stale SELECT
+      // cannot publish over a recent edit or delete a replacement worker.
+      if (visiteDataCache.get(visiteId) !== entry) return chargerDonneesVisite(visiteId);
+      const data = {
+        champsMap: { ...mapperChamps(champs), ...(entry.champsPatches || {}) },
+        controlesMap: { ...mapperControles(controles), ...(entry.controlesPatches || {}) },
+      };
       visiteDataCache.set(visiteId, { data, promise: null });
       return data;
     })
-    .catch((e) => { visiteDataCache.delete(visiteId); throw e; });
-  visiteDataCache.set(visiteId, { data: existant?.data || null, promise });
+    .catch((error) => {
+      if (visiteDataCache.get(visiteId) !== entry) return chargerDonneesVisite(visiteId);
+      visiteDataCache.delete(visiteId);
+      throw error;
+    });
+  entry.promise = promise;
+  visiteDataCache.set(visiteId, entry);
   return promise;
 }
 export function prechargerDonneesTrameGenerique(visiteId, force = false) { return chargerDonneesVisite(visiteId, force); }
 export function invaliderCacheTrameGenerique(visiteId) { visiteDataCache.delete(visiteId); }
 export function mettreAJourCacheChamp(visiteId, key, valeur) {
-  const courant = visiteDataCache.get(visiteId); if (!courant?.data) return;
-  visiteDataCache.set(visiteId, { data: { ...courant.data, champsMap: { ...courant.data.champsMap, [key]: valeur } }, promise: courant.promise || null });
+  const courant = visiteDataCache.get(visiteId);
+  if (!courant) return;
+  if (courant.promise) courant.champsPatches = { ...(courant.champsPatches || {}), [key]: valeur };
+  if (courant.data) {
+    courant.data = { ...courant.data, champsMap: { ...courant.data.champsMap, [key]: valeur } };
+  }
+  visiteDataCache.set(visiteId, courant);
 }
 export function mettreAJourCacheControle(visiteId, key, patch) {
-  const courant = visiteDataCache.get(visiteId); if (!courant?.data) return;
-  const ancien = courant.data.controlesMap?.[key] || {};
-  visiteDataCache.set(visiteId, { data: { ...courant.data, controlesMap: { ...courant.data.controlesMap, [key]: { ...ancien, ...patch } } }, promise: courant.promise || null });
+  const courant = visiteDataCache.get(visiteId);
+  if (!courant) return;
+  if (courant.promise) {
+    const ancienPatch = courant.controlesPatches?.[key] || {};
+    courant.controlesPatches = { ...(courant.controlesPatches || {}), [key]: { ...ancienPatch, ...patch } };
+  }
+  if (courant.data) {
+    const ancien = courant.data.controlesMap?.[key] || {};
+    courant.data = {
+      ...courant.data,
+      controlesMap: { ...courant.data.controlesMap, [key]: { ...ancien, ...patch } },
+    };
+  }
+  visiteDataCache.set(visiteId, courant);
 }
 
 // Refonte des onglets (docs/refonte-visite-661/README.md §4, §5.1, §5.2, §5.5) :

@@ -93,12 +93,15 @@ export async function hydrateNavigationState(key) {
   const id = keyOf(key);
   if (!id) return null;
   const inMemory = states.get(id);
-  if (hydrated.has(id)) return inMemory || null;
-  hydrated.add(id);
+  // Eviction LRU or a failed SQLite read must never poison hydration.
+  if (hydrated.has(id) && inMemory) return inMemory;
+  hydrated.delete(id);
   try {
     const db = await openDbLazy();
     const row = await db.getFirstAsync('SELECT value FROM _meta WHERE key=? LIMIT 1', [PREFIX + id]);
-    if (!row?.value) return inMemory || null;
+    hydrated.add(id);
+    while (hydrated.size > HOT_UI_LIMIT) hydrated.delete(hydrated.values().next().value);
+    if (!row?.value) return states.get(id) || inMemory || null;
     const durable = normaliseState(JSON.parse(row.value));
     const current = states.get(id);
     // Une saisie/navigation mémoire plus récente gagne toujours sur SQLite.
@@ -108,7 +111,7 @@ export async function hydrateNavigationState(key) {
     }
     return current;
   } catch {
-    return inMemory || null;
+    return states.get(id) || inMemory || null;
   }
 }
 
