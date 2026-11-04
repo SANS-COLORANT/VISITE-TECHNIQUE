@@ -117,7 +117,14 @@ export async function listerMaterielPersistant(visiteId) {
   }
   await convertirMaterielLegacy(db, visiteId, installationId, contexte.trame_id);
   const apiPrepared = Boolean(contexte.api_remote_local_id) || contexte.trame_id === 'reseau_chaleur_v1';
-  await injecterEquipementsActifsDuSite(db, visiteId, contexte.site_id, contexte.trame_id, installationId, apiPrepared);
+  // Une visite rattachée à l'Intranet reçoit explicitement son listing
+  // préparé par importApiReferenceForVisit. Réinjecter ici tout le patrimoine
+  // local ferait apparaître de nouvelles lignes homonymes au prochain POST.
+  // Les équipements locaux restent accessibles depuis le patrimoine et
+  // peuvent être ajoutés explicitement par le technicien.
+  if (!contexte.api_remote_local_id) {
+    await injecterEquipementsActifsDuSite(db, visiteId, contexte.site_id, contexte.trame_id, installationId, apiPrepared);
+  }
   // Les équipements purement locaux créés par METRA avant ce correctif peuvent
   // déjà avoir une ligne de visite avec quantité vide. Un équipement lié à
   // Symfony n'est jamais corrigé silencieusement ici : sa quantité de référence
