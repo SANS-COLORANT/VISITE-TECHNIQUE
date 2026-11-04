@@ -18,7 +18,7 @@ const nativeOcr = read('native/metra-mission-tools/MetraOcrModule.kt');
 
 const visit = read('VisiteScreen.js');
 // On a removed Mode Photo from the visit bar in favour of a direct local-only
-// free photograph. The companion/phone module is preserved separately.
+// free photograph. The standalone local photo editor is retained separately.
 need(visit, 'capturerPhotoLibre', 'visit must capture free photos directly');
 // REMAR CTA has a scoped, exportable equipment photo; outside CTA, the
 // same button stays a private free photo. Both must remain reachable.
@@ -29,12 +29,12 @@ if (!visit.includes('photoLabel="Photo libre"') &&
 forbid(visit, "require('./PhotoPhoneScreen.js')", 'old visit Mode Photo modal must stay removed');
 need(photo, 'visiteId: visiteInitiale', 'photo mode must open directly on the current visit');
 forbid(app, 'PhoneModeChooser', 'phone must start on the full app, no mode chooser');
-need(app, "label: 'Compagnon de la tablette'", 'home must expose the companion mode');
+forbid(app, "CompanionPhoneScreen", 'Companion entry must not return');
 need(app, 'compact={phoneIntegralMode}', 'phone home button must use compact mode');
 
 for (const token of [
-  'buildCompanionVisitSnapshot',
-  'importCompanionPhoto',
+  'buildPhotoModeVisitSnapshot',
+  'importPhotoModePhoto',
   'reconnaitreTexteImageLocale',
   'extraireChampsPlaque',
   'ajouterRemarqueVisite',
