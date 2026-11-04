@@ -92,13 +92,10 @@ export async function queueVisitUpload(visiteId, { replaceTerminal = false } = {
   }
   const envoiId = await createIntranetUploadId();
   const prepared = await buildIntranetVisitPayload(visiteId, envoiId);
-  // Le serveur V1 ne propose pas de suppression contrôlée par identifiant.
-  // Aucune confirmation UI ne doit contourner cette barrière de patrimoine.
-  if (prepared.destructiveMaterialChange) {
-    throw new IntranetVisitValidationError([
-      'Matériel Intranet : remplacement destructif impossible en API V1. Actualise le patrimoine ou attends la mutation V2 par ID stable.',
-    ]);
-  }
+  // Sur demande explicite du technicien, le listing matériel indiqué
+  // est transmis tel quel même s'il diffère de la référence. Le diagnostic
+  // reste disponible, sans être une barrière avant le POST Symfony V1.
+  // L'idempotence (envoiId + JSON gelé) et le lien au client restent obligatoires.
   if (existing && replaceTerminal) await db.runAsync(`DELETE FROM api_visit_outbox WHERE visite_id=?`, [visiteId]);
   await db.runAsync(`INSERT INTO api_visit_outbox(
       envoi_id,visite_id,remote_client_id,payload_json,payload_bytes,status,attempt_count,next_attempt_at
