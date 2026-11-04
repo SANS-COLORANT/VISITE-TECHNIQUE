@@ -225,41 +225,41 @@ export function restoreReferenceEquivalentBrands(reference, outgoing) {
  * Le rattachement n'est possible que lorsque toutes les autres colonnes
  * identifient sans ambiguïté les mêmes lignes et la même multiplicité.
  */
+/**
+ * Symfony V1 limite le statut matériel à cinq valeurs. La désignation,
+ * la quantité et les équipements restent ceux saisis par le technicien :
+ * ne jamais les remplacer par la référence Intranet, ni dédoublonner ici.
+ * Un état libre est transmis intégralement en note structurée, et le champ
+ * enum du POST utilise l'ancien état seulement si sa correspondance est
+ * certaine; sinon null. Un état valide (même modifié) est envoyé tel quel.
+ */
 export function preserveMaterialStatesForV1(reference, outgoing, issues) {
   if (!Array.isArray(outgoing)) return outgoing;
-  const sourceGroups = new Map();
-  const outgoingCounts = new Map();
   const withoutState = (row) => JSON.stringify(
     MATERIAL_SNAPSHOT_FIELDS.filter(key => key !== 'etat').map(key => materialSnapshotValue(row, key))
   );
+  const grouped = new Map();
   for (const row of Array.isArray(reference) ? reference : []) {
     const key = withoutState(row);
-    if (!sourceGroups.has(key)) sourceGroups.set(key, []);
-    sourceGroups.get(key).push(row);
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(row);
   }
+  const counts = new Map();
   for (const row of outgoing) {
     const key = withoutState(row);
-    outgoingCounts.set(key, (outgoingCounts.get(key) || 0) + 1);
+    counts.set(key, (counts.get(key) || 0) + 1);
   }
   return outgoing.map((row, index) => {
-    const source = sourceGroups.get(withoutState(row)) || [];
-    const states = [...new Set(source.map(item => materialSnapshotValue(item, 'etat')))];
-    const sameMultiplicity = source.length > 0 && source.length === outgoingCounts.get(withoutState(row));
-    const original = materialSnapshotValue(row, 'etat');
-    const label = `Matériel ${index + 1} · ${clean(row?.designation) || 'Sans désignation'} / état constaté`;
-    if (sameMultiplicity && states.length === 1) {
-      const previous = states[0];
-      if (original !== previous) {
-        if (original) preserveFreeText(issues, label, original);
-        return { ...row, etat: previous || null };
-      }
-      return row;
-    }
-    if (original && !INTRANET_MATERIAL_STATES.includes(original)) {
-      preserveFreeText(issues, label, original);
-      return { ...row, etat: null };
-    }
-    return row;
+    const state = materialSnapshotValue(row, 'etat');
+    if (!state || INTRANET_MATERIAL_STATES.includes(state)) return row;
+    preserveFreeText(issues,
+      `Matériel ${index + 1} · ${clean(row?.designation) || 'Sans désignation'} / état saisi`, state);
+    const references = grouped.get(withoutState(row)) || [];
+    const distinctStates = [...new Set(references.map(r => materialSnapshotValue(r, 'etat')))];
+    const unchangedPhysicalGroup = references.length > 0 && references.length === counts.get(withoutState(row));
+    const canonicalState = unchangedPhysicalGroup && distinctStates.length === 1
+      && INTRANET_MATERIAL_STATES.includes(distinctStates[0]) ? distinctStates[0] : null;
+    return { ...row, etat: canonicalState };
   });
 }
 
@@ -367,7 +367,8 @@ export async function validateQueuedVisitMaterialSnapshot(visiteId, serializedPa
     const checked = inspectIntranetMaterialSnapshot(
       frozen.details.materiels, wire.materiels, frozen.details?.preparationMeta?.materialCount
     );
-    issues.push(...checked.issues);
+    // Écarts matériels conservés en diagnostic, jamais rejetés côté tablette.
+    // Le JSON gelé et son envoiId restent strictement inchangés lors d'un rejeu.
   }
   if (issues.length) {
     const error = new IntranetVisitValidationError(issues);
@@ -1388,9 +1389,9 @@ async function buildMaterials(db, visiteId, sourceMaterialCount, issues) {
     const referenceState = nullable(row.intranet_reference_state);
     const state = currentState || (INTRANET_MATERIAL_STATES.includes(referenceState) ? referenceState : null);
     return {
-      categorie: limited(row.categorie, 255, `${prefix} / catégorie`, issues, { required: true }),
-      nombre: limited(row.nombre, 255, `${prefix} / nombre`, issues, { required: true }),
-      designation: limited(row.designation, 255, `${prefix} / désignation`, issues, { required: true }),
+      categorie: limited(row.categorie, 255, `${prefix} / catégorie`, issues),
+      nombre: limited(row.nombre, 255, `${prefix} / nombre`, issues),
+      designation: limited(row.designation, 255, `${prefix} / désignation`, issues),
       numeroMateriel: limited(row.numero_materiel, 255, `${prefix} / numéro matériel`, issues),
       reseauDesservi: limited(row.reseau_desservi, 255, `${prefix} / réseau desservi`, issues),
       marque: limited(row.marque, 255, `${prefix} / marque`, issues),
@@ -1491,9 +1492,7 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
   // Ne jamais écraser une vraie modification terrain. Ne rétablir la graphie
   // serveur d'une marque que si les neuf autres attributs sont inchangés.
   const outgoingMaterials = preserveMaterialStatesForV1(
-    details?.materiels,
-    restoreReferenceEquivalentBrands(details?.materiels, materialData.materiels),
-    issues
+    details?.materiels, materialData.materiels, issues
   );
   for (const entry of issues.freeTextFallbacks) {
     notes.push(...freeTextAsVisitNotes(entry.value, entry.path));
@@ -1502,7 +1501,9 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
     details?.materiels, outgoingMaterials,
     details?.preparationMeta?.materialCount ?? sourceMaterials
   );
-  issues.push(...checkedMaterials.issues);
+  // Le listing V1 est une photographie complète. Les écarts / homonymes
+  // doivent être remontés à l'utilisateur, PAS bloquer son envoi volontaire.
+  const materialWarnings = checkedMaterials.issues;
   const expectedCriteria = countRemoteCriteria(details?.trame);
   if (criteres.length !== expectedCriteria) issues.push(`Critères : ${criteres.length}/${expectedCriteria}, la trame Intranet doit être envoyée intégralement.`);
   if (criteres.length > 2000) issues.push(`Critères : ${criteres.length}, maximum 2000 par visite.`);
@@ -1532,6 +1533,7 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
     destructiveMaterialClear: materialData.destructiveMaterialClear,
     removedSourceMaterialCount: materialData.removedSourceMaterialCount,
     sourceMaterialCount: materialData.sourceMaterialCount,
+    materialWarnings,
     summary: { criteria: criteres.length, remarks: remarques.length, materials: materialData.materiels.length, notes: notes.length,
       photosExcluded: true, conclusionExcluded: true,
       freeTextInVisitNotes: issues.freeTextFallbacks.length },
