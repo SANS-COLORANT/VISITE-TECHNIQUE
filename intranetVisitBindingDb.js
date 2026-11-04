@@ -244,6 +244,29 @@ async function resolveImportedLocalId(db, visite, remoteClientId, remoteSiteId) 
   const frozenLocalId = clean(visite.api_remote_local_id);
   if (frozenLocalId) return verifyKnownLocal(frozenLocalId, 'la visite');
 
+  // Des visites créées à partir d'une référence importée peuvent avoir perdu
+  // leur colonne api_remote_local_id au fil d'anciennes migrations. Leur
+  // provenance contient toutefois l'identité originale, immuable et complète
+  // du local ET du site Intranet. Cette preuve suffit, contrairement au nom.
+  const savedReferences = await db.getAllAsync(`SELECT details_json FROM provenances
+    WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony'
+    ORDER BY importe_le DESC`, [String(visite.id)]);
+  const sourcedIds = new Set();
+  for (const entry of savedReferences) {
+    const details = parseJson(entry.details_json);
+    if (!['preparation_visite','remar_upload_preselection'].includes(details?.sourceType)) continue;
+    const site = clean(details?.site?.id);
+    const id = clean(details?.local?.id);
+    const source = clean(details?.remoteLocalId);
+    if (site === clean(remoteSiteId) && validApiId(id) && (!source || source === id))
+      sourcedIds.add(id);
+  }
+  if (sourcedIds.size > 1) {
+    throw bindingError('Cette visite conserve plusieurs identifiants de locaux Intranet dans ses anciennes préparations. Aucune réaffectation automatique.',
+      'imported_local_identity_conflict', { remoteClientId });
+  }
+  if (sourcedIds.size === 1) return verifyKnownLocal([...sourcedIds][0], 'sa préparation Intranet d’origine');
+
   if (clean(visite.installation_id)) {
     const installed = locals.filter((row) => clean(row.local_installation_id) === clean(visite.installation_id));
     if (installed.length === 1) return verifyKnownLocal(installed[0].remote_local_id, 'son installation METRA');
