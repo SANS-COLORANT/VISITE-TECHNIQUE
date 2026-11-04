@@ -250,9 +250,17 @@ function SiteVisitesScreen({ route, navigation }) {
       // The creation service has finished its durable prefill/snapshot before
       // returning. Do one minimal real visit read, not an unconditional forced
       // reread of every field, control and network before the first screen.
-      const visite = await getVisite(visiteId);
-      if (!visite) throw new Error('Visite créée mais introuvable lors de son ouverture.');
-      const visitePreview = construirePreview(visite);
+      // A transient read failure after the INSERT must not report a creation
+      // failure: retrying that click could otherwise produce a second visit.
+      const visite = await getVisite(visiteId).catch((error) => {
+        console.warn('Lecture de la visite créée différée', error);
+        return null;
+      });
+      const visitePreview = construirePreview(visite || {
+        id: visiteId, site_id: siteId, installation_id: installationId,
+        api_remote_local_id: apiRemoteLocalId, trame_id: trameId,
+        mode_visite: mode, statut: 'en_cours', progression_pct: 0,
+      });
       markVisitHot(visiteId, { preview: visitePreview });
       setChoixModeVisible(false);
       navigation.navigate('Visite', { visiteId, visitePreview });
