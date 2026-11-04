@@ -322,7 +322,6 @@ export const PHOTO_ORIGINES = Object.freeze([
 
 export const ACTION_PICTOS = Object.freeze({
   rechercher: 'act/rechercher',
-  compagnon: 'act/compagnon',
   photosReference: 'act/photos-de-reference',
   telecharger: 'act/telecharger',
   terminer: 'act/terminer',

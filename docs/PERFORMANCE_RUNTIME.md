@@ -178,7 +178,7 @@ Au retour de l'appareil photo :
 - le bouton redevient disponible dès que la caméra est fermée ;
 - copie privée METRA, journal de récupération, SQLite, copie Documents et variantes sont traités derrière ;
 - une série de photos peut continuer pendant que les précédentes se finalisent ;
-- le mode Compagnon copie et envoie ses prises en arrière-plan, avec une outbox sérialisée.
+- la liaison native Compagnon n'est plus intégrée au build Android ; les photos et journaux de visites existants restent conservés.
 
 La première autorisation Android peut afficher le dialogue système : ce délai n'est pas masquable. Une fois l'autorisation accordée, elle est mise en cache et n'est plus redemandée à chaque prise.
 

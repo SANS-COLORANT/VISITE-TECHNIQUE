@@ -4,7 +4,7 @@ import { CvcIcon } from './MetraCvcIcons.js';
 import { COLORS, FONTS } from './styles.js';
 import { getRuntimeAccent, getRuntimePalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 import { openAppDatabase } from './database/index.js';
-import { applyCompanionTargetUpdate, buildCompanionVisitSnapshot, importCompanionPhoto, rattacherPhotoCompanion } from './companionData.js';
+import { applyPhotoModeTargetUpdate, buildPhotoModeVisitSnapshot, importPhotoModePhoto, rattacherPhotoModePhoto } from './photoModeVisitData.js';
 import { prewarmPreviousVisitSnapshot } from './visitPreviousSnapshot.js';
 import { prendrePhoto } from './PhotoButton.js';
 import { prewarmCameraRuntime } from './cameraRuntime.js';
@@ -316,7 +316,7 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
   const module = useMemo(() => modules.find((m) => m.id === moduleId) || null, [modules, moduleId]);
   const target = useMemo(() => module?.targets?.find((t) => String(t.id) === String(targetId)) || null, [module, targetId]);
 
-  const openSnapshot = useCallback(async (id, reset = false) => { const next = await buildCompanionVisitSnapshot(id); setSnapshot(next); if (reset) { setModuleId(null); setTargetId(null); } return next; }, []);
+  const openSnapshot = useCallback(async (id, reset = false) => { const next = await buildPhotoModeVisitSnapshot(id); setSnapshot(next); if (reset) { setModuleId(null); setTargetId(null); } return next; }, []);
   useEffect(() => {
     const id = snapshot?.visit?.id; if (!id) return undefined;
     let alive = true;
@@ -349,7 +349,7 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
   const saveField = useCallback(async (field, value) => {
     if (!snapshot?.visit?.id || !field?.edit) return;
     setSavingField(String(field.id));
-    try { setSnapshot(await applyCompanionTargetUpdate({ visiteId: snapshot.visit.id, edit: field.edit, value })); setStatus('✓ Enregistré'); }
+    try { setSnapshot(await applyPhotoModeTargetUpdate({ visiteId: snapshot.visit.id, edit: field.edit, value })); setStatus('✓ Enregistré'); }
     catch (e) { Alert.alert('Enregistrement impossible', String(e?.message || e)); }
     finally { setSavingField(null); }
   }, [snapshot?.visit?.id]);
@@ -362,7 +362,7 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
       const uri = await prendrePhoto(); if (!uri) return 'cancel';
       // Seule la plaque signalétique (texte imprimé) est lue. Compteurs et températures : photo + saisie.
       const ocrPromise = plaque ? reconnaitreTexteImageLocale(uri).catch(() => null) : Promise.resolve(null);
-      const storePromise = importCompanionPhoto({ visiteId: snapshot.visit.id, uri, meta: { targetKey: currentTarget?.targetKey || null, label: label || (plaque ? 'Plaque signalétique' : currentTarget?.label || 'Photo terrain'), moduleId: currentModule?.id || 'photos' } });
+      const storePromise = importPhotoModePhoto({ visiteId: snapshot.visit.id, uri, meta: { targetKey: currentTarget?.targetKey || null, label: label || (plaque ? 'Plaque signalétique' : currentTarget?.label || 'Photo terrain'), moduleId: currentModule?.id || 'photos' } });
       const [ocr] = await Promise.all([ocrPromise, storePromise]);
       if (!plaque && (currentModule?.id === 'meters' || currentModule?.id === 'temperatures')) {
         const field = numericField(currentModule.id, currentTarget);
@@ -386,7 +386,7 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
 
   const newRemark = useCallback(async () => {
     if (!snapshot?.visit?.id || busy) return; setBusy('remark:new');
-    try { const uri = await prendrePhoto(); if (!uri) return; const id = await ajouterRemarqueVisite(snapshot.visit.id, { prestation: '', poste: 'Observation', criticite: 2, origine: 'Mode Photo' }); await importCompanionPhoto({ visiteId: snapshot.visit.id, uri, meta: { targetKey: 'remarque||' + id, label: 'Remarque', moduleId: 'remarks' } }); await refresh(); setRemark({ id, text: '', criticite: 2 }); setStatus('✓ Remarque créée'); }
+    try { const uri = await prendrePhoto(); if (!uri) return; const id = await ajouterRemarqueVisite(snapshot.visit.id, { prestation: '', poste: 'Observation', criticite: 2, origine: 'Mode Photo' }); await importPhotoModePhoto({ visiteId: snapshot.visit.id, uri, meta: { targetKey: 'remarque||' + id, label: 'Remarque', moduleId: 'remarks' } }); await refresh(); setRemark({ id, text: '', criticite: 2 }); setStatus('✓ Remarque créée'); }
     catch (e) { Alert.alert('Remarque impossible', String(e?.message || e)); } finally { setBusy(null); }
   }, [busy, refresh, snapshot?.visit?.id]);
 
@@ -441,7 +441,7 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
     const p = ocrPending; setOcrPending(null);
     if (!p || !snapshot?.visit?.id) return;
     try {
-      setSnapshot(await applyCompanionTargetUpdate({ visiteId: snapshot.visit.id, edit: p.field.edit, value: clean(value).replace(',', '.') }));
+      setSnapshot(await applyPhotoModeTargetUpdate({ visiteId: snapshot.visit.id, edit: p.field.edit, value: clean(value).replace(',', '.') }));
       setStatus('✓ ' + p.target.label + ' : ' + clean(value)); hapticTick();
     } catch (e) { Alert.alert('Enregistrement impossible', String(e?.message || e)); setChain(false); return; }
     if (!chain) return;
@@ -479,7 +479,7 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
     try {
       while (shots.length < 40) {
         const uri = await prendrePhoto(); if (!uri) break;
-        const r = await importCompanionPhoto({ visiteId: snapshot.visit.id, uri, meta: { label: 'Photo terrain', moduleId: 'photos' } });
+        const r = await importPhotoModePhoto({ visiteId: snapshot.visit.id, uri, meta: { label: 'Photo terrain', moduleId: 'photos' } });
         shots.push({ id: r.id, uri: r.uri, label: 'Photo générale' }); hapticTick();
         setStatus(shots.length + ' photo' + (shots.length > 1 ? 's' : '') + ' · Retour pour trier');
       }
@@ -493,7 +493,7 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
     if (!photo || !snapshot?.visit?.id) return;
     const label = choice?.target?.label || 'Photo générale';
     try {
-      await rattacherPhotoCompanion({ visiteId: snapshot.visit.id, photoId: photo.id, targetKey: choice?.target?.targetKey || null, label });
+      await rattacherPhotoModePhoto({ visiteId: snapshot.visit.id, photoId: photo.id, targetKey: choice?.target?.targetKey || null, label });
       setBurst((list) => (list || []).map((x) => x.id === photo.id ? { ...x, label, done: true } : x)); hapticTick();
     } catch (e) { Alert.alert('Rattachement impossible', String(e?.message || e)); }
   };
@@ -512,7 +512,7 @@ function PhotoPhoneScreen({ onExit, visiteId: visiteInitiale = null }) {
       current={Object.fromEntries((platePending.target?.fields||[]).map(f=>[f.id,f.value]))}
       onClose={()=>setPlatePending(null)} onApply={async values=>{
         let next=snapshot;
-        for(const field of platePending.target?.fields||[]){if(values[field.id]&&field.edit)next=await applyCompanionTargetUpdate({visiteId:snapshot.visit.id,edit:field.edit,value:values[field.id]})}
+        for(const field of platePending.target?.fields||[]){if(values[field.id]&&field.edit)next=await applyPhotoModeTargetUpdate({visiteId:snapshot.visit.id,edit:field.edit,value:values[field.id]})}
         setSnapshot(next);setStatus('Plaque vérifiée · fiche enregistrée');
       }}/>
   </View>;
