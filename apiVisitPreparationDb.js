@@ -1,6 +1,7 @@
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { getCachedLocalReference } from './symfonyApiCacheDb.js';
+import { reconcileImportedEquipmentInventory } from './intranetMaterialImportReconcile.js';
 
 function normalize(v) { return String(v || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim(); }
 function text(v) { return v == null || v === '' ? null : String(v).trim() || null; }
@@ -105,14 +106,14 @@ async function findEquipmentByRemoteId(db, siteId, installationId, remoteMateria
      JOIN equipements e ON e.id=p.entite_id
      JOIN installations i ON i.id=e.installation_id
      WHERE p.entite_type='equipement' AND p.origine='api_symfony' AND p.reference_externe=?
-       AND i.site_id=? AND e.statut<>'retire'
+       AND i.site_id=?
      ORDER BY CASE WHEN e.installation_id=? THEN 0 ELSE 1 END,p.importe_le DESC LIMIT 1`,
     [remoteMaterialId, siteId, installationId]
   );
   return row || null;
 }
 
-async function findByApiMaterialNumber(db, installationId, numeroMateriel) {
+async function findByApiMaterialNumber(db, installationId, numeroMateriel, usedEquipmentIds = new Set()) {
   const number = text(numeroMateriel);
   if (!number) return null;
   const rows = await db.getAllAsync(
@@ -123,13 +124,14 @@ async function findByApiMaterialNumber(db, installationId, numeroMateriel) {
        AND lower(trim(COALESCE(a.valeur,'')))=lower(trim(?))`,
     [installationId, number]
   );
-  return rows.length === 1 ? rows[0].id : null;
+  const available = rows.filter(row => !usedEquipmentIds.has(String(row.id)));
+  return available.length === 1 ? available[0].id : null;
 }
 
-async function findConservativeEquipmentMatch(db, installationId, material) {
+async function findConservativeEquipmentMatch(db, installationId, material, usedEquipmentIds = new Set()) {
   // numero_materiel n'est pas documenté comme un numéro de série : on ne le
   // fusionne donc jamais implicitement avec equipements.numero_serie.
-  const byApiNumber = await findByApiMaterialNumber(db, installationId, material?.numeroMateriel);
+  const byApiNumber = await findByApiMaterialNumber(db, installationId, material?.numeroMateriel, usedEquipmentIds);
   if (byApiNumber) return byApiNumber;
 
   const designation = text(material?.designation);
@@ -143,20 +145,23 @@ async function findConservativeEquipmentMatch(db, installationId, material) {
        AND lower(trim(COALESCE(modele,'')))=lower(trim(?))`,
     [installationId, designation, marque, modele]
   );
-  return fingerprint.length === 1 ? fingerprint[0].id : null;
+  const available = fingerprint.filter(row => !usedEquipmentIds.has(String(row.id)));
+  return available[0]?.id || null;
 }
 
-async function ensureEquipmentFromCurrentListing(db, siteId, installationId, material) {
+async function ensureEquipmentFromCurrentListing(db, siteId, installationId, material, usedEquipmentIds = new Set()) {
   const remoteMaterialId = sourceId(material?.id);
   const linked = await findEquipmentByRemoteId(db, siteId, installationId, remoteMaterialId);
-  let equipmentId = linked?.id || null;
+  let equipmentId = linked?.id && !usedEquipmentIds.has(String(linked.id)) ? linked.id : null;
   const wasRemoteLinked = Boolean(equipmentId);
 
   if (equipmentId && linked.installation_id !== installationId) {
     await db.runAsync(`UPDATE equipements SET installation_id=?,modifie_le=datetime('now') WHERE id=?`, [installationId, equipmentId]);
   }
 
-  if (!equipmentId) equipmentId = await findConservativeEquipmentMatch(db, installationId, material);
+  // Si Symfony fournit un ID, ne jamais relier cet équipement à un autre
+  // homonyme. Sans ID, les lignes identiques sont rapprochées une à une.
+  if (!equipmentId && !remoteMaterialId) equipmentId = await findConservativeEquipmentMatch(db, installationId, material, usedEquipmentIds);
 
   if (!equipmentId) {
     equipmentId = createId();
@@ -177,6 +182,8 @@ async function ensureEquipmentFromCurrentListing(db, siteId, installationId, mat
     );
   }
 
+  usedEquipmentIds.add(String(equipmentId));
+  await db.runAsync("UPDATE equipements SET statut='actif',modifie_le=datetime('now') WHERE id=?", [equipmentId]);
   await upsertProvenance(db, 'equipement', equipmentId, remoteMaterialId, {
     sourceType: 'listing_materiel',
     remoteMaterialId,
@@ -195,7 +202,13 @@ async function ensureEquipmentFromCurrentListing(db, siteId, installationId, mat
 
 async function linkEquipmentToVisit(db, visiteId, equipmentId, material) {
   const existing = await db.getFirstAsync(`SELECT id FROM materiel WHERE visite_id=? AND equipement_id=?`, [visiteId, equipmentId]);
-  if (existing?.id) return existing.id;
+  if (existing?.id) {
+    await db.runAsync(`UPDATE materiel SET categorie=?,nombre=?,designation=?,numero_materiel=?,reseau_desservi=?,marque=?,modele=?,caracteristiques=?,annee=? WHERE id=?`,
+      [text(material?.categorie), text(material?.nombre), text(material?.designation), text(material?.numeroMateriel),
+        text(material?.reseauDesservi), text(material?.marque), text(material?.modele),
+        text(material?.caracteristiques), text(material?.annee), existing.id]);
+    return existing.id;
+  }
   const id = createId();
   await db.runAsync(
     `INSERT INTO materiel(id,visite_id,categorie,nombre,designation,numero_materiel,reseau_desservi,marque,modele,caracteristiques,annee,etat,equipement_id)
@@ -274,10 +287,11 @@ export async function importApiReferenceForVisit(visiteId, remoteLocalId, remote
       [installationId, remoteId, resolvedClientId, sourceId(ref?.trame?.id), sourceId(ref?.derniereVisite?.id), visiteId]
     );
     let importedMaterials = 0;
+    const retainedEquipmentIds = new Set();
 
     for (const sourceMaterial of Array.isArray(ref?.materiels) ? ref.materiels : []) {
       const material = { ...sourceMaterial, remoteLocalId: remoteId };
-      const equipmentId = await ensureEquipmentFromCurrentListing(db, visit.site_id, installationId, material);
+      const equipmentId = await ensureEquipmentFromCurrentListing(db, visit.site_id, installationId, material, retainedEquipmentIds);
       await db.runAsync(
         `INSERT INTO equipement_trames(equipement_id,trame_id,actif) VALUES(?,?,1)
          ON CONFLICT(equipement_id,trame_id) DO UPDATE SET actif=1,modifie_le=datetime('now')`,
@@ -285,6 +299,15 @@ export async function importApiReferenceForVisit(visiteId, remoteLocalId, remote
       );
       await linkEquipmentToVisit(db, visiteId, equipmentId, material);
       importedMaterials += 1;
+    }
+    // Le référentiel reçu est une photographie complète du patrimoine de ce
+    // local. Retirer les anciens équipements importés désormais absents, sans
+    // effacer les autres visites ni les saisies locales non encore expédiées.
+    if (Array.isArray(ref?.materiels)) {
+      await reconcileImportedEquipmentInventory(db, {
+        installationId, remoteLocalId: remoteId,
+        retainedEquipmentIds: [...retainedEquipmentIds], visitId: visiteId,
+      });
     }
 
     // Les critères de préparation sont les dernières valeurs connues par critère.
