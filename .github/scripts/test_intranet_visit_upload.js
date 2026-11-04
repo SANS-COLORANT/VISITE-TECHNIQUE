@@ -265,14 +265,15 @@ async function main() {
       [JSON.stringify({ ...context, materiels: [brandReference] })]);
     const brandWire = await payloadModule.buildIntranetVisitPayload(
       'brand-case', '78787878-7878-4878-8878-787878787878');
-    check(brandWire.payload.visites[0].materiels[0].marque === 'EXEMPLE',
-      'existing visits with catalog brand casing are repaired in the wire without a SQLite mutation');
+    check(brandWire.payload.visites[0].materiels[0].marque === 'Exemple',
+      'the technician spelling is authoritative, even when the Intranet reference uses another capitalization');
     await server.db.runAsync(`UPDATE materiel SET modele='G600' WHERE visite_id='brand-case'`);
-    await assert.rejects(() => payloadModule.buildIntranetVisitPayload(
-      'brand-case', '78787878-7878-4878-8878-787878787878'),
-      (e) => e?.code === 'local_validation_failed' &&
-        e.issues.some((message) => /Matériel Intranet/.test(message)));
-    checks++; console.log(`OK ${checks}: actual material change is never masked by typography reconciliation`);
+    const editedMaterial = await payloadModule.buildIntranetVisitPayload(
+      'brand-case', '78787878-7878-4878-8878-787878787878');
+    check(editedMaterial.payload.visites[0].materiels[0].modele === 'G600' &&
+      editedMaterial.materialWarnings.length > 0,
+      'real changes to models are transmitted in the complete listing, with nonblocking reference diagnostics');
+    checks++; console.log(`OK ${checks}: real material changes remain authoritative on the V1 wire`);
 
     const calls = []; let mode = 'network';
     const uuids = ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'ffffffff-ffff-4fff-8fff-ffffffffffff', '12345678-1234-4234-8234-123456789abc', '87654321-4321-4321-8321-cba987654321', '99999999-9999-4999-8999-999999999999'];
