@@ -9,8 +9,8 @@ const gallery = read('OptimizedPhotoPanel.js');
 const freeCapture = read('photoLibreCapture.js');
 const context = read('photoCaptureContext.js');
 const runtime = read('photoRuntimeCache.js');
-const companion = read('CompanionPhoneScreen.js');
-const outbox = read('companionOutbox.js');
+const localPhotoEditor = read('PhotoPhoneScreen.js');
+const localPhotoDb = read('photoModeVisitData.js');
 const prewarm = read('visitPrewarm.js');
 const preallumage = read('PreAllumagePhotoButton.js');
 const patrimoineStorage = read('patrimoineImageStorage.js');
@@ -40,10 +40,9 @@ need(freeCapture, 'journaliserPhotoEnAttente', 'free photo durability journal mu
 need(gallery, "variant={photo.pending ? 'original' : 'thumb'}", 'pending gallery shot must display immediately');
 need(preallumage, 'photoRuntimeCache.js', 'Pre-allumage thumbnail must use the shared visit photo index');
 
-need(companion, 'setBusyTarget(null)', 'companion target must unlock after camera return');
-need(companion, 'Photo capturée · classement', 'companion must acknowledge the shutter before transfer completes');
-need(outbox, 'let mutationQueue = Promise.resolve();', 'rapid companion captures must serialize queue mutations');
-need(outbox, 'serialiseMutation', 'companion outbox must remain race-safe');
+need(localPhotoEditor, 'prewarmCameraRuntime', 'standalone local photo editor must warm camera runtime');
+need(localPhotoEditor, 'importPhotoModePhoto', 'standalone local editor must preserve durable photos');
+need(localPhotoDb, 'importPhotoModePhoto', 'local photo writer must remain available without Companion');
 
 need(prewarm, 'prewarmCameraRuntime().catch(() => {})', 'visit prewarm must warm camera runtime');
 need(prewarm, 'prewarmPhotoCaptureContext(id).catch(() => {})', 'visit prewarm must warm durable photo folder');
