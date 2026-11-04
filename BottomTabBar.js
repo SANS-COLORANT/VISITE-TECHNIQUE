@@ -1,152 +1,93 @@
 /**
- * Barre de navigation du bas (DA "Verre chaud") : remplace le bouton Accueil
- * flottant. Placée dans le flux (pas en surimpression) pour ne jamais
- * recouvrir le contenu des écrans ; l'onglet actif prend la pastille dégradée.
+ * Barre de navigation METRA : un seul indicateur orange partagé (la « bulle »).
+ * Le mouvement du doigt fait glisser l'indicateur entre Accueil / Clients /
+ * Réglages avec un parcours court ; le bouton + et Missions restent séparés.
  */
-
-import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
+import React, { useRef, useState } from 'react';
+import { Animated, StyleSheet, Text, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { COLORS, FONTS } from './styles.js';
+import { ROOT_TAB_KEYS } from './rootTabSwipe.js';
 
-function BottomTabBar({ tabs, activeKey, accent = COLORS.orange, accentDark = COLORS.orangeDark }) {
+function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, accentDark = COLORS.orangeDark }) {
   const { width } = useWindowDimensions();
-  // Sur téléphone avec 5 emplacements, la pastille horizontale ne tient pas :
-  // l'onglet actif passe en pastille d'icône avec le libellé dessous.
+  const [measuredWidth, setMeasuredWidth] = useState(0);
+  const idleProgress = useRef(new Animated.Value(0)).current;
+  const progress = swipeProgress || idleProgress;
   const compact = width / Math.max(1, tabs.length) < 112;
-  return (
-    <View style={styles.bar}>
-      {tabs.map((tab) => {
-        const active = tab.key === activeKey;
-        if (tab.center) {
-          return (
-            <View key={tab.key} style={styles.slot}>
-              <TouchableOpacity
-                accessibilityRole="button"
-                accessibilityLabel={tab.label}
-                onPress={tab.onPress}
-                activeOpacity={0.85}
-                style={[styles.centerShadow, { shadowColor: accent }]}
-              >
-                <LinearGradient
-                  colors={[accent, accentDark]}
-                  start={{ x: 0.15, y: 0 }}
-                  end={{ x: 0.9, y: 1 }}
-                  style={styles.centerButton}
-                >
-                  <CvcIcon name={tab.icon} size={30} color={COLORS.white} strokeWidth={2.6} />
-                </LinearGradient>
-              </TouchableOpacity>
-            </View>
-          );
-        }
-        return (
-          <TouchableOpacity
-            key={tab.key}
-            accessibilityRole="tab"
-            accessibilityState={{ selected: active }}
-            accessibilityLabel={tab.label}
-            onPress={tab.onPress}
-            style={styles.slot}
-            activeOpacity={0.8}
-          >
-            {active && compact ? (
-              <>
-                <LinearGradient
-                  colors={[accent, accentDark]}
-                  start={{ x: 0.15, y: 0 }}
-                  end={{ x: 0.9, y: 1 }}
-                  style={[styles.activeIconPill, { shadowColor: accent }]}
-                >
-                  <CvcIcon name={tab.icon} size={18} color={COLORS.white} strokeWidth={2.1} />
-                </LinearGradient>
-                <Text numberOfLines={1} style={[styles.label, { color: accentDark, fontFamily: FONTS.bodyBold }]}>{tab.label}</Text>
-              </>
-            ) : active ? (
-              <LinearGradient
-                colors={[accent, accentDark]}
-                start={{ x: 0.15, y: 0 }}
-                end={{ x: 0.9, y: 1 }}
-                style={[styles.activePill, { shadowColor: accent }]}
-              >
-                <CvcIcon name={tab.icon} size={18} color={COLORS.white} strokeWidth={2.1} />
-                <Text numberOfLines={1} style={styles.activeLabel}>{tab.label}</Text>
-              </LinearGradient>
-            ) : (
-              <>
-                <CvcIcon name={tab.icon} size={21} color={COLORS.inkSoft} />
-                <Text numberOfLines={1} style={styles.label}>{tab.label}</Text>
-              </>
-            )}
-          </TouchableOpacity>
-        );
-      })}
-    </View>
-  );
-}
+  const slotWidth = Math.max(1, (measuredWidth - 20) / Math.max(1, tabs.length));
+  const activeIndex = tabs.findIndex((tab) => tab.key === activeKey && ROOT_TAB_KEYS.includes(tab.key));
+  const currentOrderIndex = ROOT_TAB_KEYS.indexOf(activeKey);
+  const prevKey = ROOT_TAB_KEYS[currentOrderIndex - 1];
+  const nextKey = ROOT_TAB_KEYS[currentOrderIndex + 1];
+  const prevIndex = tabs.findIndex((tab) => tab.key === prevKey);
+  const nextIndex = tabs.findIndex((tab) => tab.key === nextKey);
+  const centerFor = (idx) => 10 + (idx + 0.5) * slotWidth;
+  const bubbleWidth = compact ? 48 : Math.min(118, Math.max(76, slotWidth - 12));
+  const baseCenter = centerFor(activeIndex);
+  const bubbleLeft = baseCenter - bubbleWidth / 2;
+  const deltaToPrevious = prevIndex >= 0 ? centerFor(prevIndex) - baseCenter : 0;
+  const deltaToNext = nextIndex >= 0 ? centerFor(nextIndex) - baseCenter : 0;
+  const bubbleTranslate = progress.interpolate({
+    inputRange: [-1, 0, 1],
+    outputRange: [deltaToPrevious, 0, deltaToNext],
+    extrapolate: 'clamp',
+  });
 
+  return <View style={styles.bar} onLayout={(e) => {
+    const next = Math.round(e.nativeEvent.layout.width);
+    setMeasuredWidth((prev) => prev === next ? prev : next);
+  }}>
+    {measuredWidth > 0 && activeIndex >= 0 ? <Animated.View
+      pointerEvents="none"
+      style={[styles.movingBubble, {
+        width: bubbleWidth, height: compact ? 32 : 40,
+        top: compact ? 10 : 14, left: bubbleLeft,
+        transform: [{ translateX: bubbleTranslate }],
+        shadowColor: accent,
+      }]}
+    >
+      <LinearGradient colors={[accent, accentDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.bubbleGradient} />
+    </Animated.View> : null}
+    {tabs.map((tab) => {
+      const active = tab.key === activeKey;
+      if (tab.center) return <View key={tab.key} style={styles.slot}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={tab.label} onPress={tab.onPress} activeOpacity={0.85} style={[styles.centerShadow, { shadowColor: accent }]}>
+          <LinearGradient colors={[accent, accentDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.centerButton}>
+            <CvcIcon name={tab.icon} size={30} color={COLORS.white} strokeWidth={2.6} />
+          </LinearGradient>
+        </TouchableOpacity>
+      </View>;
+      const root = ROOT_TAB_KEYS.includes(tab.key);
+      const color = active && root ? COLORS.white : COLORS.inkSoft;
+      return <TouchableOpacity key={tab.key} accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={tab.label}
+        onPress={tab.onPress} activeOpacity={0.8} style={styles.slot}>
+        {root && !compact ? <View style={styles.wideContent}>
+          <CvcIcon name={tab.icon} size={18} color={color} strokeWidth={2.1} />
+          <Text numberOfLines={1} style={[styles.wideLabel, { color: active ? COLORS.white : COLORS.inkSoft }]}>{tab.label}</Text>
+        </View> : <>
+          {active && !root ? <LinearGradient colors={[accent, accentDark]} style={styles.activeIconPill}><CvcIcon name={tab.icon} size={18} color={COLORS.white} /></LinearGradient>
+            : <CvcIcon name={tab.icon} size={root ? 20 : 21} color={color} strokeWidth={active ? 2.2 : 2} />}
+          <Text numberOfLines={1} style={[styles.label, active && root && { color: accentDark, fontFamily: FONTS.bodyBold }]}>{tab.label}</Text>
+        </>}
+      </TouchableOpacity>;
+    })}
+  </View>;
+}
 const styles = StyleSheet.create({
-  bar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 10,
-    paddingTop: 8,
-    paddingBottom: 10,
-    backgroundColor: '#FDFCFA',
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(22,21,15,0.08)',
-    shadowColor: '#000',
-    shadowOpacity: 0.08,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: -6 },
-    elevation: 10,
-  },
+  bar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingTop: 8, paddingBottom: 10,
+    backgroundColor: '#FDFCFA', borderTopWidth: 1, borderTopColor: 'rgba(22,21,15,0.08)',
+    shadowColor: '#000', shadowOpacity: 0.08, shadowRadius: 14, shadowOffset: { width: 0, height: -6 }, elevation: 10 },
   slot: { flex: 1, minHeight: 52, alignItems: 'center', justifyContent: 'center', gap: 3 },
   label: { fontSize: 10.5, fontFamily: FONTS.bodySemi, color: COLORS.inkSoft },
-  activePill: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    height: 40,
-    paddingHorizontal: 14,
-    borderRadius: 20,
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.35)',
-    shadowOpacity: 0.45,
-    shadowRadius: 12,
-    shadowOffset: { width: 0, height: 6 },
-    elevation: 6,
-  },
-  centerShadow: {
-    marginTop: -26,
-    borderRadius: 19,
-    shadowOpacity: 0.5,
-    shadowRadius: 14,
-    shadowOffset: { width: 0, height: 8 },
-    elevation: 9,
-  },
-  centerButton: {
-    width: 56,
-    height: 56,
-    borderRadius: 19,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.4)',
-  },
-  activeIconPill: {
-    width: 44,
-    height: 28,
-    borderRadius: 14,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 4,
-  },
-  activeLabel: { fontSize: 12, fontFamily: FONTS.bodyBold, color: COLORS.white },
+  wideContent: { flexDirection: 'row', alignItems: 'center', gap: 6, height: 40 },
+  wideLabel: { fontSize: 12, fontFamily: FONTS.bodyBold },
+  movingBubble: { position: 'absolute', borderRadius: 20, shadowOpacity: 0.45, shadowRadius: 12,
+    shadowOffset: { width: 0, height: 6 }, elevation: 5 },
+  bubbleGradient: { flex: 1, borderRadius: 20, borderWidth: 1, borderColor: 'rgba(255,255,255,0.35)' },
+  centerShadow: { marginTop: -26, borderRadius: 19, shadowOpacity: 0.5, shadowRadius: 14, shadowOffset: { width: 0, height: 8 }, elevation: 9 },
+  centerButton: { width: 56, height: 56, borderRadius: 19, alignItems: 'center', justifyContent: 'center', borderWidth: 1, borderColor: 'rgba(255,255,255,0.4)' },
+  activeIconPill: { width: 44, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
 });
-
 export { BottomTabBar };
