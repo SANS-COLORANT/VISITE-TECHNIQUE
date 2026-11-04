@@ -411,7 +411,8 @@ async function main() {
     // Regression performance: previous 15-second scanner revisited the last
     // 40 synced visits whether or not they contained new photos. A photo
     // added later to visit 45 was never discovered at all.
-    await server.send('migrate', '', [33, 36]);
+    // inclure_export is introduced by schema migration 048, not 036.
+    await server.send('migrate', '', [33, 49]);
     for (let i = 0; i < 48; i++) {
       const id = `photo-scan-${i}`;
       const envoiId = `photo-envoi-${i}`;
