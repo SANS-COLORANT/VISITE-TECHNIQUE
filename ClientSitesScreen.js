@@ -27,6 +27,7 @@ import { subscribeVisitOutbox } from './intranetVisitOutboxDb.js';
 import { subscribeVisitPhotoOutbox } from './intranetVisitPhotoOutboxDb.js';
 import { getClientTransferVolume, formatTransferBytes } from './intranetTransferVolume.js';
 import { ClientVisitSendPicker } from './ClientVisitSendPicker.js';
+import { getVisitIntranetBindingOptions, bindVisitToIntranetTarget } from './intranetVisitBindingDb.js';
 import { EmptyIcon } from './EmptyState.js';
 
 const adresseVide = () => ({ numero: '', voie: '', complement: '', codePostal: '', ville: '' });
@@ -62,6 +63,7 @@ function ClientSitesScreen({ route, navigation }) {
   const [suiviEnvoiVisible, setSuiviEnvoiVisible] = useState(false);
   const [selectionEnvoiVisible, setSelectionEnvoiVisible] = useState(false);
   const [candidatsEnvoi, setCandidatsEnvoi] = useState([]);
+  const [rattachementVisite, setRattachementVisite] = useState(null);
   const [nouveauNom, setNouveauNom] = useState('');
   const [nouvelleAdresse, setNouvelleAdresse] = useState(adresseVide);
 
@@ -187,6 +189,43 @@ function ClientSitesScreen({ route, navigation }) {
     } catch (e) { Alert.alert('Création impossible', String(e?.message || e)); }
   };
 
+  const ouvrirRattachementVisite = async (visite) => {
+    if (envoiEnCours || !visite?.id) return;
+    setRattachementVisite({ visite, loading: true, options: null });
+    try {
+      const options = await getVisitIntranetBindingOptions(visite.id);
+      setRattachementVisite({ visite, loading: false, options });
+    } catch (error) {
+      setRattachementVisite(null);
+      Alert.alert('Rattachement Intranet impossible', String(error?.message || error));
+    }
+  };
+
+  const confirmerRattachementVisite = async (local) => {
+    const pending = rattachementVisite;
+    if (!pending?.visite?.id || pending.loading || !pending.options) return;
+    const { selectedClientId, selectedSiteId } = pending.options;
+    if (!selectedClientId || !selectedSiteId || !local?.compatible) {
+      Alert.alert('Local Intranet', 'Le client, le site ou la trame ne sont pas confirmés. Réimporte ce client.');
+      return;
+    }
+    setRattachementVisite({ ...pending, loading: true });
+    try {
+      await bindVisitToIntranetTarget(pending.visite.id, {
+        remoteClientId: selectedClientId,
+        remoteSiteId: selectedSiteId,
+        remoteLocalId: local.remote_local_id,
+      });
+      const { aEnvoyer } = await listerVisitesAEnvoyerClient(clientId);
+      setCandidatsEnvoi(aEnvoyer);
+      setRattachementVisite(null);
+      await chargerTournee();
+    } catch (error) {
+      setRattachementVisite({ ...pending, loading: false });
+      Alert.alert('Rattachement non enregistré', String(error?.message || error));
+    }
+  };
+
   const envoyerTout = async (visiteIds) => {
     if (envoiEnCours || !Array.isArray(visiteIds) || !visiteIds.length) return;
     setEnvoiVolume(null);
@@ -199,14 +238,19 @@ function ClientSitesScreen({ route, navigation }) {
       });
       setSelectionEnvoiVisible(false);
       await chargerTournee();
+      const unresolved = candidatsEnvoi.filter(v=>Number(v.needs_binding)===1).length;
       const lignes = [
         `${bilan.envoyees.length}/${bilan.total} visite(s) confirmée(s) par l’Intranet.`,
+        unresolved ? `${unresolved} visite(s) ont un local Intranet à choisir explicitement, avant leur premier envoi.` : null,
         bilan.enAttente.length ? `${bilan.enAttente.length} visite(s) en attente de confirmation, toujours en gris.` : null,
         bilan.enCours ? `${bilan.enCours} visite(s) encore en cours : termine-les pour les envoyer.` : null,
         bilan.aConfirmer.length ? `À confirmer visite par visite :\n${bilan.aConfirmer.slice(0, 6).map((x) => `• ${x}`).join('\n')}` : null,
         bilan.enErreur.length ? `À corriger :\n${bilan.enErreur.slice(0, 6).map((x) => `• ${x}`).join('\n')}` : null,
       ].filter(Boolean);
-      Alert.alert(bilan.enErreur.length || bilan.aConfirmer.length ? 'Envoi terminé, à vérifier' : 'Envoi terminé', lignes.join('\n\n'));
+      Alert.alert(bilan.enErreur.length || bilan.aConfirmer.length || unresolved
+        ? 'Bilan : des visites restent à vérifier'
+        : bilan.enAttente.length ? 'Envois en attente de confirmation' : 'Visites confirmées',
+        lignes.join('\n\n'));
     } catch (e) { Alert.alert('Envoi impossible', String(e?.message || e)); }
     finally { setEnvoiEnCours(null); }
   };
@@ -435,6 +479,11 @@ function ClientSitesScreen({ route, navigation }) {
 
     <ClientVisitSendPicker visible={selectionEnvoiVisible} visits={candidatsEnvoi}
       clientName={nomClient} busy={Boolean(envoiEnCours)} progress={envoiEnCours} volume={envoiVolume}
+      binding={rattachementVisite ? {
+        visit: rattachementVisite.visite, loading: rattachementVisite.loading, options: rattachementVisite.options
+      } : null}
+      onBind={ouvrirRattachementVisite} onResolveLocal={confirmerRattachementVisite}
+      onBackFromBinding={()=>setRattachementVisite(null)}
       onCancel={() => { if (!envoiEnCours) setSelectionEnvoiVisible(false); }}
       onSend={envoyerTout} />
     <IntranetSiteCreationModal visible={intranetSiteVisible} clientId={clientId} onClose={() => setIntranetSiteVisible(false)} onCreated={charger} />
