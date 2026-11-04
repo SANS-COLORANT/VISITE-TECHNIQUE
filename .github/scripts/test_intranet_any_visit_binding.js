@@ -239,6 +239,26 @@ async function main() {
     }), /déjà un identifiant Intranet|identifiant Intranet différent|déjà associé/i);
     checks++; console.log(`OK ${checks}: moving D2 to D3 after binding is rejected, with no cross-local mixing`);
 
+    // La visite D4 n'a pas de remoteLocalId, mais une visite ancienne de
+    // la MEME installation porte déjà un ID Symfony : récupération sans nom.
+    await server.db.runAsync(`INSERT INTO api_local_links(
+      remote_local_id,remote_site_id,designation,remote_trame_id,remote_trame_nom,criteria_count,reference_json)
+      VALUES('506','45','D4','3','ICPE',1,?)`, [JSON.stringify(reference('506','D4'))]);
+    await server.db.execAsync(`
+      INSERT INTO installations(id,site_id,type_code,nom,actif)
+      VALUES('installation-d4','local-site','installation_technique','D4',1);
+      INSERT INTO visites(id,site_id,installation_id,date_visite,statut,trame_id,api_remote_local_id)
+      VALUES('d4-older','local-site','installation-d4','2026-10-10','exportee','icpe_v1','506');
+      INSERT INTO visites(id,site_id,installation_id,date_visite,statut,trame_id)
+      VALUES('d4-current','local-site','installation-d4','2026-11-04','terminee','icpe_v1');
+    `);
+    const d4 = await binding.bindVisitToImportedClientTarget('d4-current');
+    check(d4.remoteLocalId === '506', 'same-installation historical server local ID restores D4 without name matching');
+    await assert.rejects(() => binding.bindVisitToIntranetTarget('d4-current', {
+      remoteClientId:'12',remoteSiteId:'45',remoteLocalId:'501'
+    }), /identifiant Intranet différent|autre local Intranet/);
+    checks++; console.log(`OK ${checks}: previous local identity cannot be overwritten by a different ID`);
+
     // Vérifier la présélection REMAR sur une vraie SQLite avant tout POST.
     await server.db.execAsync(
       "INSERT INTO visites(id,site_id,date_visite,statut,trame_id,"+
