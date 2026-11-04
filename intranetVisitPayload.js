@@ -359,17 +359,16 @@ export async function validateQueuedVisitMaterialSnapshot(visiteId, serializedPa
   try { parsed = JSON.parse(serializedPayload); } catch {}
   const wire = Array.isArray(parsed?.visites) && parsed.visites.length === 1 ? parsed.visites[0] : null;
   const issues = [];
-  if (!visit || frozen?.historical || !frozen?.details)
-    issues.push('Matériel Intranet : référence figée de la visite absente ou historique.');
+  // Refuser une destination incohérente, mais jamais le contenu métier du
+  // listing matériel : il appartient au technicien. Les JSON déjà gelés doivent
+  // rester identiques entre les replays, même après un rafraîchissement du
+  // référentiel de patrimoine.
+  if (!visit || frozen?.historical)
+    issues.push('Visite introuvable ou historique : envoi de création non autorisé.');
   if (!wire || String(wire.localId) !== String(visit?.api_remote_local_id))
-    issues.push('Matériel Intranet : le local du JSON gelé ne correspond plus au local de la visite.');
-  if (frozen?.details && wire) {
-    const checked = inspectIntranetMaterialSnapshot(
-      frozen.details.materiels, wire.materiels, frozen.details?.preparationMeta?.materialCount
-    );
-    // Écarts matériels conservés en diagnostic, jamais rejetés côté tablette.
-    // Le JSON gelé et son envoiId restent strictement inchangés lors d'un rejeu.
-  }
+    issues.push('Le local du JSON gelé ne correspond plus au local de la visite.');
+  if (wire && !Array.isArray(wire.materiels))
+    issues.push('Format matériel du JSON gelé invalide.');
   if (issues.length) {
     const error = new IntranetVisitValidationError(issues);
     error.code = 'material_snapshot_unsafe';
@@ -1389,9 +1388,9 @@ async function buildMaterials(db, visiteId, sourceMaterialCount, issues) {
     const referenceState = nullable(row.intranet_reference_state);
     const state = currentState || (INTRANET_MATERIAL_STATES.includes(referenceState) ? referenceState : null);
     return {
-      categorie: limited(row.categorie, 255, `${prefix} / catégorie`, issues),
-      nombre: limited(row.nombre, 255, `${prefix} / nombre`, issues),
-      designation: limited(row.designation, 255, `${prefix} / désignation`, issues),
+      categorie: limited(row.categorie, 255, `${prefix} / catégorie`, issues, { required: true }),
+      nombre: limited(row.nombre, 255, `${prefix} / nombre`, issues, { required: true }),
+      designation: limited(row.designation, 255, `${prefix} / désignation`, issues, { required: true }),
       numeroMateriel: limited(row.numero_materiel, 255, `${prefix} / numéro matériel`, issues),
       reseauDesservi: limited(row.reseau_desservi, 255, `${prefix} / réseau desservi`, issues),
       marque: limited(row.marque, 255, `${prefix} / marque`, issues),
