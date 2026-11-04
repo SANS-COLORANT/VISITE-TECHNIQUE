@@ -222,7 +222,7 @@ async function main() {
       VALUES('d2-visit','local-site','installation-d2','2026-11-04','terminee','icpe_v1');
     `);
     await assert.rejects(() => binding.bindVisitToImportedClientTarget('d2-visit'),
-      /identifiant Intranet n’est pas établi/);
+      /correspondance Intranet n’est pas encore retrouvée/);
     check((await server.db.getFirstAsync(
       "SELECT api_remote_local_id FROM visites WHERE id='d2-visit'")).api_remote_local_id == null,
       'D2 without source identity remains unchanged and never uploads to another local');
@@ -238,6 +238,27 @@ async function main() {
       remoteClientId:'12', remoteSiteId:'45', remoteLocalId:'505',
     }), /déjà un identifiant Intranet|identifiant Intranet différent|déjà associé/i);
     checks++; console.log(`OK ${checks}: moving D2 to D3 after binding is rejected, with no cross-local mixing`);
+
+    // Un local correct importé peut temporairement porter une trame
+    // différente du modèle de la visite (révision, cache partiel, REMAR).
+    // Cette incompatibilité ne doit JAMAIS faire choisir D2 ou 501.
+    const vmcRef=reference('505','D3',{
+      id:'9',nom:'VMC',categories:[{id:'90',nom:'VMC',sousCategories:[
+        {id:'91',nom:'Conformités',criteres:[{id:'92',nom:'Contrôle VMC'}]}]}],
+    });
+    await server.db.runAsync(`UPDATE api_local_links
+      SET remote_trame_id='9',remote_trame_nom='VMC',reference_json=?
+      WHERE remote_local_id='505'`, [JSON.stringify(vmcRef)]);
+    await assert.rejects(
+      () => binding.bindVisitToImportedClientTarget('d3-visit'),
+      /local Intranet D3.*bien identifié, mais sa trame|bien identifié, mais sa trame/
+    );
+    check((await server.db.getFirstAsync(
+      "SELECT api_remote_local_id FROM visites WHERE id='d3-visit'")).api_remote_local_id === '505',
+      'incompatible remote trame cannot silently retarget imported D3 to another compatible local');
+    await server.db.runAsync(`UPDATE api_local_links
+      SET remote_trame_id='3',remote_trame_nom='ICPE',reference_json=?
+      WHERE remote_local_id='505'`, [JSON.stringify(reference('505','D3'))]);
 
     // La visite D4 n'a pas de remoteLocalId, mais une visite ancienne de
     // la MEME installation porte déjà un ID Symfony : récupération sans nom.
