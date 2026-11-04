@@ -7,6 +7,7 @@ import { CvcIcon } from './MetraCvcIcons.js';
 import { IconOrb } from './premiumChrome.js';
 import { PhotoReferenceAccess } from './PhotoReferenceAccess.js';
 import { creerVisiteProduction } from './visitCreationDb.js';
+import { getVisite } from './db.js';
 import { preferredRemarCompleteId } from './remarVisitSelection.js';
 import { supprimerVisiteComplete } from './entityManagementDb.js';
 import { modifierSiteRapide } from './siteBulkDb.js';
@@ -68,6 +69,7 @@ function SiteVisitesScreen({ route, navigation }) {
   const [choixModeVisible, setChoixModeVisible] = useState(false);
   const [trameChoisie, setTrameChoisie] = useState(() => apiRemoteLocalId ? apiSuggestedTrameId : DEFAULT_TRAME_ID);
   const [creationEnCours, setCreationEnCours] = useState(false);
+  const creationLockRef = useRef(false);
   const [remoteTrames, setRemoteTrames] = useState([]);
   const [remoteTrameChoisie, setRemoteTrameChoisie] = useState(() => apiRemoteTrame?.id ? String(apiRemoteTrame.id) : null);
   const [referentielEnCours, setReferentielEnCours] = useState(false);
@@ -225,7 +227,7 @@ function SiteVisitesScreen({ route, navigation }) {
   };
 
   const nouvelleVisite = async (mode) => {
-    if (creationEnCours || legacyOnly) return;
+    if (creationEnCours || creationLockRef.current || legacyOnly) return;
     if (apiRemoteLocalId && mode === 'express') return;
     if (mode === 'express' && visites.length === 0) return;
     if (apiRemoteLocalId && !trameChoisie) {
@@ -240,27 +242,29 @@ function SiteVisitesScreen({ route, navigation }) {
       Alert.alert('Trame Intranet à sélectionner', 'Choisis une trame Symfony compatible dans le référentiel du client avant de créer cette visite.');
       return;
     }
+    creationLockRef.current = true;
     setCreationEnCours(true);
     try {
       const visiteId = await creerVisiteProduction({ siteId, mode, trameId, apiRemoteLocalId, apiRemoteClientId,
         apiRemoteTrameId: apiRemoteLocalId ? remoteTrameChoisie : null, installationId });
-      const previewBase = construirePreview({
-        id: visiteId,
-        site_id: siteId,
-        installation_id: installationId,
-        api_remote_local_id: apiRemoteLocalId,
-        trame_id: trameId,
-        mode_visite: mode,
-        statut: 'en_cours',
-        progression_pct: 0,
-      });
-      const visitePreview = await prechaufferVisite(visiteId, true).catch(() => previewBase);
-      markVisitHot(visiteId, { preview: visitePreview || previewBase });
+      // The creation service has finished its durable prefill/snapshot before
+      // returning. Do one minimal real visit read, not an unconditional forced
+      // reread of every field, control and network before the first screen.
+      const visite = await getVisite(visiteId);
+      if (!visite) throw new Error('Visite créée mais introuvable lors de son ouverture.');
+      const visitePreview = construirePreview(visite);
+      markVisitHot(visiteId, { preview: visitePreview });
       setChoixModeVisible(false);
-      navigation.navigate('Visite', { visiteId, visitePreview: visitePreview || previewBase });
+      navigation.navigate('Visite', { visiteId, visitePreview });
+      // Existing prewarm still prepares secondary data, off the critical path.
+      // A failed warmup is recoverable through normal screen SQLite loaders.
+      void prechaufferVisite(visiteId, false).catch((error) =>
+        console.warn('Préchauffage secondaire non bloquant', error)
+      );
     } catch (e) {
       Alert.alert('Création impossible', String(e?.message || e));
     } finally {
+      creationLockRef.current = false;
       setCreationEnCours(false);
     }
   };
