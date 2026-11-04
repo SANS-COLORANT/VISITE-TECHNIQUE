@@ -1,7 +1,7 @@
 /** VISITE TECHNIQUE — point d'entrée natif Android. */
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, TouchableOpacity, BackHandler, Keyboard, PanResponder, Platform, ScrollView, StatusBar, useWindowDimensions } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Animated, Easing, View, Text, TouchableOpacity, BackHandler, Keyboard, PanResponder, Platform, ScrollView, StatusBar, useWindowDimensions } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import { IntranetVisitSyncRuntime } from './IntranetVisitSync.js';
 import { IntranetStructureRuntime } from './IntranetStructureRuntime.js';
@@ -18,13 +18,14 @@ import { VisualPackAsset } from './visual-packs/runtime/VisualPackAsset.js';
 import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 import { getActiveVisualPack, getVisualPackStartupDuration, resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
 import { SpiralActiveDock } from './visual-packs/spiral-active/SpiralActiveDock.js';
-import { CompanionPhoneScreen } from './CompanionPhoneScreen.js';
+import { CreditsModal } from './CreditsModal.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { useAppFonts } from './AppFonts.js';
 import { LinearGradient } from 'expo-linear-gradient';
 import { AmbientBackground } from './premiumChrome.js';
 import { getPrefSync, PREFS } from './uiPrefs.js';
 import { BottomTabBar } from './BottomTabBar.js';
+import { ROUTE_ROOT_TABS, ROOT_TAB_ROUTES, canStartRootSwipe, rootSwipeProgress, rootSwipeTarget } from './rootTabSwipe.js';
 import { QuickVisitSheet } from './QuickVisitSheet.js';
 import { DialogHost, ToastHost, installPremiumAlert } from './PremiumDialogs.js';
 
@@ -109,13 +110,13 @@ function DeferredScreen({ name, ...props }) {
  * en avoir besoin, donc géré ici plutôt qu'en threadant une prop
  * supplémentaire à travers tous les appels de SimpleHeader.
  */
-function SimpleHeader({ title, onBack, visualPack, rightAction = null }) {
+function SimpleHeader({ title, onBack, visualPack, rightAction = null, onCreditsLongPress = null }) {
   const uri = resolveVisualPackAssetUri(visualPack, visualPack?.interface?.headerLogo);
   const spiralActive = visualPack?.id === 'spiral-active' || visualPack?.interface?.experimentalSpiralDock === true;
 
   if (spiralActive) {
     return <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFDF8', paddingTop: 50, paddingHorizontal: 16, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: '#DDE2E3' }}>
-      {onBack ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" onPress={onBack} style={{ width: 44, height: 40, alignItems: 'flex-start', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={23} color={'#14202C'} strokeWidth={2.1} /></TouchableOpacity> : <View style={{ width: 44 }} />}
+      {onBack ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" onPress={onBack} style={{ width: 44, height: 40, alignItems: 'flex-start', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={23} color={'#14202C'} strokeWidth={2.1} /></TouchableOpacity> : onCreditsLongPress ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Afficher les crédits" accessibilityHint="Maintenir appuyé sur la clé à molette" delayLongPress={550} onLongPress={onCreditsLongPress} style={{ width: 44, height: 40, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F26426', borderRadius: 12 }}><CvcIcon name="tools" size={23} color="#FFFFFF" /></TouchableOpacity> : <View style={{ width: 44 }} />}
       <View style={{ flex: 1, alignItems: 'center' }}>
         <Text style={{ color: '#14202C', fontSize: 9, fontFamily: FONTS.black, letterSpacing: 2 }}>METRA</Text>
         <Text numberOfLines={1} style={{ marginTop: 2, color: '#14202C', fontSize: 16, fontWeight: '900', fontFamily: FONTS.black, letterSpacing: -0.25 }}>{title}</Text>
@@ -173,13 +174,15 @@ function Lab3DFab({ onPress, bottom = 82, label = '⬡ LAB 3D' }) {
   return <TouchableOpacity onPress={onPress} style={{ position: 'absolute', right: 18, bottom, minHeight: 48, paddingHorizontal: 17, borderRadius: 24, backgroundColor: '#10384B', borderWidth: 2, borderColor: '#5DD8FF', alignItems: 'center', justifyContent: 'center', elevation: 9, zIndex: 205 }}><Text style={{ color: '#F5FBFF', fontFamily: FONTS.black, fontSize: 12.5 }}>{label}</Text></TouchableOpacity>;
 }
 
-function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
+function AppContent({ phoneIntegralMode = false }) {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(null);
   const [visualPack, setVisualPack] = useState(null);
   const [visualRevision, setVisualRevision] = useState(0);
   const [stack, setStack] = useState([{ name: 'Home', params: {} }]);
   const [r1Visible, setR1Visible] = useState(false);
+  const [creditsVisible, setCreditsVisible] = useState(false);
+  const tabSwipeProgress = useRef(new Animated.Value(0)).current;
   const [quickVisitVisible, setQuickVisitVisible] = useState(false);
   const [hydraulicVisible, setHydraulicVisible] = useState(false);
   const [lab3dVisible, setLab3dVisible] = useState(false);
@@ -229,16 +232,17 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
   }, []);
 
   const currentName = stack[stack.length - 1]?.name || 'Home';
-  const backSwipeEnabled = stack.length > 1 && BACK_SWIPE_ROUTES.has(currentName);
+  // Les racines Accueil/Clients/Réglages possèdent leur propre geste d'onglet.
+  const backSwipeEnabled = stack.length > 1 && BACK_SWIPE_ROUTES.has(currentName) && !ROUTE_ROOT_TABS[currentName];
   const backSwipeResponder = useMemo(() => PanResponder.create({
     onMoveShouldSetPanResponder: (_event, gesture) => (
       backSwipeEnabled
-      && gesture.dx < -18
+      && gesture.dx > 18
       && Math.abs(gesture.dx) > Math.abs(gesture.dy) * 1.45
     ),
     onPanResponderTerminationRequest: () => true,
     onPanResponderRelease: (_event, gesture) => {
-      if (backSwipeEnabled && (gesture.dx < -82 || gesture.vx < -0.55)) goBack();
+      if (backSwipeEnabled && (gesture.dx > 82 || gesture.vx > 0.55)) goBack();
     },
   }), [backSwipeEnabled, goBack]);
 
@@ -247,6 +251,56 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
     setR1Visible(false);
     setTimeout(() => setStack([{ name: 'Home', params: {} }]), 0);
   }, []);
+
+  const resetToTab = useCallback((name) => {
+    Keyboard.dismiss();
+    setR1Visible(false);
+    setTimeout(() => setStack(name === 'Home'
+      ? [{ name: 'Home', params: {} }]
+      : [{ name: 'Home', params: {} }, { name, params: {} }]), 0);
+  }, []);
+
+  const tabSwipeKey = ROUTE_ROOT_TABS[currentName] || null;
+  const tabSwipeEnabled = Boolean(
+    tabSwipeKey && visualPack
+    && visualPack.id !== 'spiral-active'
+    && visualPack.interface?.experimentalSpiralDock !== true
+    && !r1Visible && !creditsVisible && !quickVisitVisible
+  );
+  const tabSwipeResponder = useMemo(() => PanResponder.create({
+    onMoveShouldSetPanResponder: (_event, gesture) =>
+      tabSwipeEnabled && canStartRootSwipe(tabSwipeKey, gesture.dx, gesture.dy),
+    onPanResponderTerminationRequest: () => true,
+    onPanResponderGrant: () => {
+      tabSwipeProgress.stopAnimation();
+      tabSwipeProgress.setValue(0);
+    },
+    onPanResponderMove: (_event, gesture) => {
+      tabSwipeProgress.setValue(rootSwipeProgress(gesture.dx));
+    },
+    onPanResponderRelease: (_event, gesture) => {
+      const nextKey = tabSwipeEnabled ? rootSwipeTarget(tabSwipeKey, gesture.dx, gesture.vx) : null;
+      if (!nextKey) {
+        Animated.spring(tabSwipeProgress, { toValue: 0, speed: 22, bounciness: 1, useNativeDriver: true }).start();
+        return;
+      }
+      Animated.timing(tabSwipeProgress, {
+        toValue: gesture.dx < 0 ? 1 : -1,
+        duration: 110, easing: Easing.out(Easing.quad), useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (finished) resetToTab(ROOT_TAB_ROUTES[nextKey]);
+        requestAnimationFrame(() => tabSwipeProgress.setValue(0));
+      });
+    },
+    onPanResponderTerminate: () => {
+      Animated.spring(tabSwipeProgress, { toValue: 0, speed: 22, bounciness: 1, useNativeDriver: true }).start();
+    },
+  }), [tabSwipeEnabled, tabSwipeKey, resetToTab, tabSwipeProgress]);
+
+  useEffect(() => {
+    tabSwipeProgress.stopAnimation();
+    tabSwipeProgress.setValue(0);
+  }, [currentName, tabSwipeProgress]);
 
   const goMissionsHome = useCallback(() => {
     if (!missionsVisible) return goHome();
@@ -274,13 +328,14 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (creditsVisible) { setCreditsVisible(false); return true; }
       if (r1Visible) return true;
       if (stack.length <= 1) return false;
       goBack();
       return true;
     });
     return () => sub.remove();
-  }, [stack.length, goBack, r1Visible]);
+  }, [stack.length, goBack, r1Visible, creditsVisible]);
 
   if (dbError) return <View style={styles.center}><Text style={styles.errorTitle}>Erreur de démarrage</Text><Text style={styles.errorText}>{String(dbError.message || dbError)}</Text><TouchableOpacity style={[styles.btnPrimary, { marginTop: 18 }]} onPress={initialiser}><ButtonGlow /><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity></View>;
   if (!visualPack) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
@@ -296,11 +351,6 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
   const hasSite = !!currentParams.siteId;
   const hasVisit = !!currentParams.visiteId;
 
-  const resetToTab = (name) => {
-    Keyboard.dismiss();
-    setR1Visible(false);
-    setTimeout(() => setStack(name === 'Home' ? [{ name: 'Home', params: {} }] : [{ name: 'Home', params: {} }, { name, params: {} }]), 0);
-  };
   const showTabBar = !spiralActive && !missionMode && !r1Visible && !TAB_BAR_HIDDEN_ROUTES.has(current.name);
   const activeTab = current.name === 'Home' ? 'home' : current.name === 'Parametres' ? 'settings' : CLIENT_TAB_ROUTES.has(current.name) ? 'clients' : null;
   const tabs = [
@@ -332,14 +382,14 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
     { icon: '⚙', label: 'Réglages', caption: 'Packs visuels', onPress: () => navigate('Parametres') },
   ];
 
-  return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: spiralActive ? '#F4F1E8' : (missionMode ? MISSION_COLORS.bg : COLORS.bg) }} {...(backSwipeEnabled ? backSwipeResponder.panHandlers : {})}>
+  return <View key={`visual-${visualRevision}-${visualPack.id}`} style={{ flex: 1, backgroundColor: spiralActive ? '#F4F1E8' : (missionMode ? MISSION_COLORS.bg : COLORS.bg) }} {...(backSwipeEnabled ? backSwipeResponder.panHandlers : (tabSwipeEnabled ? tabSwipeResponder.panHandlers : {}))}>
     {/* Barre d'état transparente : le fond à halos monte jusqu'en haut de l'écran. */}
     <StatusBar translucent backgroundColor="transparent" barStyle="dark-content" />
     {!spiralActive ? <AmbientBackground accent={missionMode ? MISSION_COLORS.accent : COLORS.orange} /> : null}
     <IntranetStructureRuntime />
     <IntranetVisitSyncRuntime />
 
-    {current.name === 'Home' ? <>{spiralActive ? <SimpleHeader title="Visite Technique" visualPack={visualPack} rightAction={phoneIntegralMode ? { label: 'Compagnon', onPress: onPhoneModeExit } : null} /> : null}<HomeScreen navigation={navigation} route={route} spiralPreview={spiralActive} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} headerAction={phoneIntegralMode ? { label: 'Compagnon de la tablette', onPress: onPhoneModeExit } : null} /></> : null}
+    {current.name === 'Home' ? <>{spiralActive ? <SimpleHeader title="Visite Technique" visualPack={visualPack} onCreditsLongPress={() => setCreditsVisible(true)} /> : null}<HomeScreen navigation={navigation} route={route} spiralPreview={spiralActive} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} onCreditsLongPress={() => setCreditsVisible(true)} /></> : null}
     {current.name === 'MetraDirectory' ? <><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MetraDirectory" navigation={navigation} route={route} /></> : null}
     {current.name === 'ClientSites' ? <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientSites" navigation={navigation} route={route} /></> : null}
     {current.name === 'SiteLocals' ? <><SimpleHeader title={current.params?.nomSite || 'Locaux'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="SiteLocals" navigation={navigation} route={route} /></> : null}
@@ -390,7 +440,7 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
     {current.name === 'MissionControlBoard' && missionsVisible ? <><MissionHeader title="Contrôle ciblé" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionControlBoard" navigation={navigation} route={route} /></> : null}
 
     {missionMode && current.name !== 'Missions' && !spiralActive ? <GlobalHomeButton compact={phoneIntegralMode} missionMode onPress={goMissionsHome} /> : null}
-    {showTabBar ? <BottomTabBar tabs={tabs} activeKey={activeTab} /> : null}
+    {showTabBar ? <BottomTabBar tabs={tabs} activeKey={activeTab} swipeProgress={tabSwipeProgress} /> : null}
     <QuickVisitSheet
       visible={quickVisitVisible}
       onClose={() => setQuickVisitVisible(false)}
@@ -400,6 +450,7 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
       }}
     />
     {spiralActive && !r1Visible ? <SpiralActiveDock exploreActions={spiralExploreActions} actionActions={spiralActionActions} quickActions={spiralQuickActions} /> : null}
+    <CreditsModal visible={creditsVisible} onClose={() => setCreditsVisible(false)} />
     <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
   </View>;
 }
@@ -407,21 +458,8 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
 export default function App() {
   const { width, height } = useWindowDimensions();
   const phone = Math.min(width, height) < 600;
-  // Téléphone : version intégrale d'emblée. Le Mode Photo s'ouvre depuis la
-  // visite (barre d'actions) et le Compagnon depuis l'icône téléphone de
-  // l'accueil.
-  const [phoneMode, setPhoneMode] = useState('integral');
   const fontsReady = useAppFonts();
-
-  useEffect(() => {
-    if (!phone) setPhoneMode('integral');
-  }, [phone]);
-
   if (!fontsReady) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
-  // Les modes téléphone vivent hors d'AppContent : ils reçoivent ici le même
-  // fond ambiant (halos) que le reste de l'application.
-  const ambient = (child) => <View style={{ flex: 1, backgroundColor: COLORS.bg }}><StatusBar translucent backgroundColor="transparent" barStyle="dark-content" /><AmbientBackground accent={COLORS.orange} />{child}</View>;
   const hosts = <><ToastHost /><DialogHost /></>;
-  if (phone && phoneMode === 'companion') return <AppErrorBoundary><View style={{ flex: 1 }}>{ambient(<CompanionPhoneScreen onExit={() => setPhoneMode('integral')} />)}{hosts}</View></AppErrorBoundary>;
-  return <AppErrorBoundary><View style={{ flex: 1 }}><AppContent phoneIntegralMode={phone && phoneMode === 'integral'} onPhoneModeExit={() => setPhoneMode('companion')} />{hosts}</View></AppErrorBoundary>;
+  return <AppErrorBoundary><View style={{ flex: 1 }}><AppContent phoneIntegralMode={phone} />{hosts}</View></AppErrorBoundary>;
 }

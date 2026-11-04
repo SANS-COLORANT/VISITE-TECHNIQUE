@@ -59,13 +59,11 @@ de limitation et est enregistré uniquement dans le stockage privé. La galerie
 hors ligne et sa visionneuse restent un historique de consultation séparé des
 observations de la visite en cours.
 
-## Téléphone et mode Compagnon
+## Téléphone intégral
 
-La même application Android peut fonctionner en version téléphone intégrale ou en mode Compagnon. En mode Compagnon, la tablette garde la maîtrise de la visite et transmet uniquement un instantané léger au téléphone par une session locale temporaire ouverte depuis un QR code.
-
-Les captures du téléphone sont d'abord mises en file d'attente persistante, puis acquittées seulement après leur import par la tablette. Les rattachements utilisent les mêmes clés métier que les photos prises directement dans la visite.
-
-La conception détaillée et la recette matérielle sont décrites dans `docs/COMPANION.md`.
+L'application Android conserve la version intégrale sur téléphone, sans appairage ni serveur local Compagnon.
+Les photographies de terrain, les visites et leurs exports restent autonomes.
+Les données et photographies historiques enregistrées sur les appareils ne sont pas supprimées par cette évolution.
 
 ## Runtime terrain durable
 

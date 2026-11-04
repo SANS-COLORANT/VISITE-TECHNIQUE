@@ -300,6 +300,19 @@ export async function cachePreparation(remoteClientId, payload, { partial = fals
   await updateApiSyncState({ last_success_at: new Date().toISOString(), last_error: null });
 }
 
+/** Clients réellement importés : une ligne locale existante et une liaison Intranet autorisée.
+ * Les autres clients autorisés restent trouvables uniquement par la recherche. */
+export async function listImportedApiClients() {
+  const database = await db();
+  return database.getAllAsync(`
+    SELECT link.*
+    FROM api_client_links link
+    JOIN clients local ON local.id=link.local_client_id
+    WHERE link.autorise=1 AND link.local_client_id IS NOT NULL
+    ORDER BY link.nom COLLATE NOCASE, link.remote_client_id
+  `);
+}
+
 export async function searchCachedDirectory(query = '') {
   const q = normalize(query);
   const snapshot = directorySnapshot || await (async () => {

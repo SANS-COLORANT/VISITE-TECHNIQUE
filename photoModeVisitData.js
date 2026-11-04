@@ -37,7 +37,7 @@ function target(id, label, targetKey, extra = {}) {
   return { id: String(id || targetKey || label), label: clean(label) || 'Élément', targetKey: targetKey || null, ...extra };
 }
 
-function companionField(id, label, value, edit, extra = {}) {
+function photoModeField(id, label, value, edit, extra = {}) {
   return {
     id: String(id),
     label: clean(label) || 'Valeur',
@@ -58,7 +58,7 @@ function inferInput(label) {
 }
 
 function champEditField(sectionCode, cle, value, extra = {}) {
-  return companionField(
+  return photoModeField(
     `${sectionCode}||${cle}`,
     cle,
     value,
@@ -68,7 +68,7 @@ function champEditField(sectionCode, cle, value, extra = {}) {
 }
 
 
-async function buildCompanionClientSnapshot(clientId) {
+async function buildPhotoModeClientSnapshot(clientId) {
   const db = await openAppDatabase();
   const id = clean(clientId);
   if (!id) throw new Error('Client compagnon invalide');
@@ -162,7 +162,7 @@ async function buildCompanionClientSnapshot(clientId) {
   };
 }
 
-async function assertVisitBelongsToCompanionClient(clientId, visiteId) {
+async function assertVisitBelongsToPhotoModeClient(clientId, visiteId) {
   const db = await openAppDatabase();
   const row = await db.getFirstAsync(
     `SELECT v.id
@@ -176,7 +176,7 @@ async function assertVisitBelongsToCompanionClient(clientId, visiteId) {
   return true;
 }
 
-async function buildCompanionVisitSnapshot(visiteId) {
+async function buildPhotoModeVisitSnapshot(visiteId) {
   const db = await openAppDatabase();
   const visite = await getVisite(visiteId);
   if (!visite) throw new Error('Visite introuvable');
@@ -200,14 +200,14 @@ async function buildCompanionVisitSnapshot(visiteId) {
     {
       subtitle: clean(e.reseau_desservi),
       fields: [
-        companionField('designation', 'Désignation', e.designation, { kind: 'equipment', id: e.id, key: 'designation' }),
-        companionField('marque', 'Marque', e.marque, { kind: 'equipment', id: e.id, key: 'marque' }),
-        companionField('modele', 'Modèle / référence', e.modele, { kind: 'equipment', id: e.id, key: 'modele' }),
-        companionField('nombre', 'Nombre', e.nombre, { kind: 'equipment', id: e.id, key: 'nombre' }, { input: 'numeric' }),
-        companionField('annee', 'Année', e.annee, { kind: 'equipment', id: e.id, key: 'annee' }, { input: 'numeric' }),
-        companionField('numero_materiel', 'N° matériel', e.numero_materiel, { kind: 'equipment', id: e.id, key: 'numero_materiel' }),
-        companionField('reseau_desservi', 'Réseau desservi', e.reseau_desservi, { kind: 'equipment', id: e.id, key: 'reseau_desservi' }),
-        companionField('caracteristiques', 'Caractéristiques', e.caracteristiques, { kind: 'equipment', id: e.id, key: 'caracteristiques' }, { multiline: true }),
+        photoModeField('designation', 'Désignation', e.designation, { kind: 'equipment', id: e.id, key: 'designation' }),
+        photoModeField('marque', 'Marque', e.marque, { kind: 'equipment', id: e.id, key: 'marque' }),
+        photoModeField('modele', 'Modèle / référence', e.modele, { kind: 'equipment', id: e.id, key: 'modele' }),
+        photoModeField('nombre', 'Nombre', e.nombre, { kind: 'equipment', id: e.id, key: 'nombre' }, { input: 'numeric' }),
+        photoModeField('annee', 'Année', e.annee, { kind: 'equipment', id: e.id, key: 'annee' }, { input: 'numeric' }),
+        photoModeField('numero_materiel', 'N° matériel', e.numero_materiel, { kind: 'equipment', id: e.id, key: 'numero_materiel' }),
+        photoModeField('reseau_desservi', 'Réseau desservi', e.reseau_desservi, { kind: 'equipment', id: e.id, key: 'reseau_desservi' }),
+        photoModeField('caracteristiques', 'Caractéristiques', e.caracteristiques, { kind: 'equipment', id: e.id, key: 'caracteristiques' }, { multiline: true }),
       ],
     }
   )));
@@ -220,9 +220,9 @@ async function buildCompanionVisitSnapshot(visiteId) {
       value: clean(c.valeur),
       unit: clean(c.unite),
       fields: [
-        companionField('valeur', 'Valeur relevée', c.valeur, { kind: 'counter', id: c.id, key: 'valeur' }, { input: 'numeric', unit: c.unite }),
-        companionField('label', 'Nom du compteur', c.label, { kind: 'counter', id: c.id, key: 'label' }),
-        companionField('unite', 'Unité', c.unite, { kind: 'counter', id: c.id, key: 'unite' }),
+        photoModeField('valeur', 'Valeur relevée', c.valeur, { kind: 'counter', id: c.id, key: 'valeur' }, { input: 'numeric', unit: c.unite }),
+        photoModeField('label', 'Nom du compteur', c.label, { kind: 'counter', id: c.id, key: 'label' }),
+        photoModeField('unite', 'Unité', c.unite, { kind: 'counter', id: c.id, key: 'unite' }),
       ],
     }
   )));
@@ -233,7 +233,7 @@ async function buildCompanionVisitSnapshot(visiteId) {
     r.reseau_site_id ? `reseau_site||${r.reseau_site_id}` : `reseau||${r.id}`,
     {
       fields: [
-        companionField('nom_reseau', 'Nom du réseau', r.nom_reseau, { kind: 'network', id: r.id, key: 'nom_reseau' }),
+        photoModeField('nom_reseau', 'Nom du réseau', r.nom_reseau, { kind: 'network', id: r.id, key: 'nom_reseau' }),
       ],
     }
   )));
@@ -246,9 +246,9 @@ async function buildCompanionVisitSnapshot(visiteId) {
       subtitle: clean(r.poste),
       severity: Number(r.criticite || 0),
       fields: [
-        companionField('prestation', 'Observation / prestation', r.prestation, { kind: 'remark', id: r.id, key: 'prestation' }, { multiline: true }),
-        companionField('poste', 'Poste', r.poste, { kind: 'remark', id: r.id, key: 'poste' }),
-        companionField('criticite', 'Criticité', r.criticite, { kind: 'remark', id: r.id, key: 'criticite' }, { options: ['1', '2', '3', '4', '5'] }),
+        photoModeField('prestation', 'Observation / prestation', r.prestation, { kind: 'remark', id: r.id, key: 'prestation' }, { multiline: true }),
+        photoModeField('poste', 'Poste', r.poste, { kind: 'remark', id: r.id, key: 'poste' }),
+        photoModeField('criticite', 'Criticité', r.criticite, { kind: 'remark', id: r.id, key: 'criticite' }, { options: ['1', '2', '3', '4', '5'] }),
       ],
     }
   )));
@@ -320,8 +320,8 @@ async function buildCompanionVisitSnapshot(visiteId) {
         value: clean(control.avis),
         subtitle: clean(control.commentaire),
         fields: [
-          companionField('avis', 'Avis', control.avis, { kind: 'control', sectionCode: control.section_code, cle: control.cle, key: 'avis' }, { options: ['S', 'N.S', 'N.R', 'S.O', 'N.V'] }),
-          companionField('commentaire', 'Commentaire', control.commentaire, { kind: 'control', sectionCode: control.section_code, cle: control.cle, key: 'commentaire' }, { multiline: true }),
+          photoModeField('avis', 'Avis', control.avis, { kind: 'control', sectionCode: control.section_code, cle: control.cle, key: 'avis' }, { options: ['S', 'N.S', 'N.R', 'S.O', 'N.V'] }),
+          photoModeField('commentaire', 'Commentaire', control.commentaire, { kind: 'control', sectionCode: control.section_code, cle: control.cle, key: 'commentaire' }, { multiline: true }),
         ],
       }
     )),
@@ -332,8 +332,8 @@ async function buildCompanionVisitSnapshot(visiteId) {
         value: clean(current?.avis),
         subtitle: clean(current?.commentaire),
         fields: [
-          companionField('avis', 'Avis', current?.avis, { kind: 'control', sectionCode, cle: field.cle, key: 'avis' }, { options: ['S', 'N.S', 'N.R', 'S.O', 'N.V'] }),
-          companionField('commentaire', 'Commentaire', current?.commentaire, { kind: 'control', sectionCode, cle: field.cle, key: 'commentaire' }, { multiline: true }),
+          photoModeField('avis', 'Avis', current?.avis, { kind: 'control', sectionCode, cle: field.cle, key: 'avis' }, { options: ['S', 'N.S', 'N.R', 'S.O', 'N.V'] }),
+          photoModeField('commentaire', 'Commentaire', current?.commentaire, { kind: 'control', sectionCode, cle: field.cle, key: 'commentaire' }, { multiline: true }),
         ],
       });
     }),
@@ -381,7 +381,7 @@ async function assertRowBelongsToVisit(table, id, visiteId) {
   if (!row?.id) throw new Error('Cet élément ne fait pas partie de la visite ouverte.');
 }
 
-async function applyCompanionTargetUpdate({ visiteId, edit, value }) {
+async function applyPhotoModeTargetUpdate({ visiteId, edit, value }) {
   const id = String(visiteId || '').trim();
   if (!id || !edit?.kind) throw new Error('Modification Compagnon incomplète');
 
@@ -431,10 +431,10 @@ async function applyCompanionTargetUpdate({ visiteId, edit, value }) {
   }
 
   await toucherVisite(id).catch(() => {});
-  return buildCompanionVisitSnapshot(id);
+  return buildPhotoModeVisitSnapshot(id);
 }
 
-async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
+async function importPhotoModePhoto({ visiteId, uri, meta = {} }) {
   if (!visiteId || !uri) throw new Error('Photo compagnon incomplète');
   const db = await openAppDatabase();
   const transferId = clean(meta?.transferId);
@@ -469,7 +469,7 @@ async function importCompanionPhoto({ visiteId, uri, meta = {} }) {
 }
 
 // Rattache après coup une photo (ex. prise en rafale) à un élément de la visite.
-async function rattacherPhotoCompanion({ visiteId, photoId, targetKey = null, label }) {
+async function rattacherPhotoModePhoto({ visiteId, photoId, targetKey = null, label }) {
   const db = await openAppDatabase();
   const row = await db.getFirstAsync(`SELECT label FROM photos WHERE id=? AND visite_id=?`, [photoId, visiteId]);
   if (!row) throw new Error('Photo introuvable');
@@ -479,4 +479,4 @@ async function rattacherPhotoCompanion({ visiteId, photoId, targetKey = null, la
   await toucherVisite(visiteId).catch(() => {});
 }
 
-export { MODULES as COMPANION_MODULES, rattacherPhotoCompanion, applyCompanionTargetUpdate, buildCompanionClientSnapshot, buildCompanionVisitSnapshot, assertVisitBelongsToCompanionClient, importCompanionPhoto };
+export { MODULES as PHOTO_MODE_MODULES, rattacherPhotoModePhoto, applyPhotoModeTargetUpdate, buildPhotoModeClientSnapshot, buildPhotoModeVisitSnapshot, assertVisitBelongsToPhotoModeClient, importPhotoModePhoto };

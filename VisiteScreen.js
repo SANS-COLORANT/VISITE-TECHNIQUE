@@ -27,7 +27,6 @@ import { OptimizedRemarksPanel } from './OptimizedRemarksPanel.js';
 import { TrameGenericPanel, prechargerDonneesTrameGenerique, invaliderCacheTrameGenerique } from './TrameGenericPanel.js';
 import { VmcCaissonManager, chargerCaissonsVmc } from './VmcCaissonManager.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
-import { CompanionTabletModal } from './CompanionTabletModal.js';
 import { flushDurableAutosaves } from './durableAutosave.js';
 import { recupererPhotosEnAttente } from './photoPersistenceJournal.js';
 import { flushNavigationMemory, getNavigationState, hydrateNavigationState, setNavigationState } from './navigationMemory.js';
@@ -165,7 +164,6 @@ function VisiteScreen({ route, onBack }) {
   const [anomalieVisible, setAnomalieVisible] = useState(false);
   const [anomalieTxt, setAnomalieTxt] = useState('');
   const [anomaliePerimetre, setAnomaliePerimetre] = useState('');
-  const [companionVisible, setCompanionVisible] = useState(false);
   const [tabStatus, setTabStatus] = useState({ tabs: {}, avis: null });
   const [syncRefreshKey, setSyncRefreshKey] = useState(0);
   const [visiteARattacher, setVisiteARattacher] = useState(false);
@@ -888,11 +886,6 @@ function VisiteScreen({ route, onBack }) {
             {visiteARattacher ? <View style={hs.ringAlert} /> : null}
           </TouchableOpacity>
           {!(trame.id === 'pre_allumage' && activeTab === 'p-pa-batiments') ? <PhotoReferenceAccess visiteId={visiteId} remoteLocalId={visite.api_remote_local_id || null} variant="icon" iconSize={headerBtn} /> : null}
-          {appareilTablette ? (
-            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Compagnon téléphone" hitSlop={HEADER_HIT} style={[hs.btn, btnSize]} onPress={() => setCompanionVisible(true)}>
-              <Picto name={ACTION_PICTOS.compagnon} size={headerPicto} />
-            </TouchableOpacity>
-          ) : null}
           {trame.id === 'pre_allumage' ? (
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="Exporter le rapport Pré-allumage en PDF ou Word" hitSlop={HEADER_HIT} style={[hs.btn, btnSize]} onPress={() => verifierAvantExport(choisirFormatRapportPreAllumage)} disabled={reportExporting}>
               {reportExporting ? <ActivityIndicator size="small" color={COLORS.orangeDark} /> : <CvcIcon name="document" size={headerPicto - 2} color={COLORS.orangeDark} />}
@@ -970,7 +963,6 @@ function VisiteScreen({ route, onBack }) {
           charger({ forceCaches: true }).catch(() => {});
         }}
       />
-      <CompanionTabletModal visible={companionVisible} visiteId={visiteId} onClose={() => setCompanionVisible(false)} />
       <SignatureSheet visible={signatureVisible} initial={signature} onClose={() => setSignatureVisible(false)} onSave={enregistrerSignature} />
       <Modal visible={anomalieVisible} transparent animationType="fade" onRequestClose={() => setAnomalieVisible(false)}><View style={styles.modalOverlay}><View style={styles.modalSheet}>
         <Text style={styles.modalTitle}>Ajouter une anomalie</Text><Text style={styles.importHint}>Décris rapidement le constat. La réserve créée sera entièrement modifiable dans la synthèse.</Text>
