@@ -102,24 +102,40 @@ function ClientSitesScreen({ route, navigation }) {
   // continuer sa navigation : les uploads photo poursuivent leur cours.
   useEffect(() => {
     if (!suiviEnvoiIds.length) return undefined;
-    let live = true, reading = false, refreshAgain = false;
+    let live = true, reading = false, queued = false, timer = null;
     const refresh = async () => {
+      timer = null;
       if (!live) return;
-      if (reading) { refreshAgain = true; return; }
+      if (reading) { queued = true; return; }
       reading = true;
-      do {
-        refreshAgain = false;
-        try {
-          const volume = await getClientTransferVolume(suiviEnvoiIds);
-          if (live) setEnvoiVolume(volume);
-        } catch (error) { console.warn('Volume Intranet indisponible', error); }
-      } while (live && refreshAgain);
-      reading = false;
+      try {
+        const volume = await getClientTransferVolume(suiviEnvoiIds);
+        if (live) setEnvoiVolume(volume);
+      } catch (error) {
+        console.warn('Volume Intranet indisponible', error);
+      } finally {
+        reading = false;
+        if (queued && live) { queued = false; schedule(); }
+      }
     };
-    refresh();
-    const unsubscribeVisit = subscribeVisitOutbox(refresh);
-    const unsubscribePhoto = subscribeVisitPhotoOutbox(refresh);
-    return () => { live = false; unsubscribeVisit(); unsubscribePhoto(); };
+    // Les notifications viennent AVANT et APRÈS chaque POST photo. Faire
+    // une seule lecture toutes les 800 ms au maximum au lieu de relire les
+    // tailles et statuts de 37 visites en boucle pendant tout un envoi.
+    const schedule = () => {
+      if (!live) return;
+      if (reading) { queued = true; return; }
+      if (timer != null) return;
+      timer = setTimeout(refresh, 800);
+    };
+    void refresh();
+    const unsubscribeVisit = subscribeVisitOutbox(schedule);
+    const unsubscribePhoto = subscribeVisitPhotoOutbox(schedule);
+    return () => {
+      live = false;
+      if (timer != null) clearTimeout(timer);
+      unsubscribeVisit();
+      unsubscribePhoto();
+    };
   }, [suiviEnvoiIds]);
 
   const tourneeIndex = useMemo(() => indexerTournee(tourneeRows), [tourneeRows]);
@@ -380,7 +396,7 @@ function ClientSitesScreen({ route, navigation }) {
           <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8}}>
             <Text style={{color:COLORS.ink,fontFamily:FONTS.bold,fontSize:13}}>Synchronisation Intranet · données</Text>
             <TouchableOpacity accessibilityRole="button" accessibilityLabel="Masquer le suivi de l'envoi"
-              onPress={()=>setSuiviEnvoiVisible(false)}
+              onPress={()=>{ setSuiviEnvoiVisible(false); setSuiviEnvoiIds([]); }}
               style={{paddingVertical:4,paddingHorizontal:8}}>
               <CvcIcon name="close" size={17} color={COLORS.inkSoft} />
             </TouchableOpacity>
