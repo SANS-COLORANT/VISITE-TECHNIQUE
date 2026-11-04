@@ -5,8 +5,9 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, FONTS, styles } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
+import { formatTransferBytes } from './intranetTransferVolume.js';
 
-export function ClientVisitSendPicker({ visible, visits = [], busy = false, progress = null, clientName, onCancel, onSend }) {
+export function ClientVisitSendPicker({ visible, visits = [], busy = false, progress = null, volume = null, clientName, onCancel, onSend }) {
   const [selected,setSelected]=useState(()=>new Set());
   useEffect(()=>{
     if(visible) setSelected(new Set(visits.map(v=>String(v.id))));
@@ -102,15 +103,18 @@ export function ClientVisitSendPicker({ visible, visits = [], busy = false, prog
               {progress.phase||'Envoi en cours'} · {progress.nom||clientName||'Client'}
             </Text>
             <Text style={{color:COLORS.orangeDark,fontFamily:FONTS.black,fontSize:13}}>
-              {progress.pourcentage||0}%
+              {volume?.totalBytes > 0 ? volume.pourcentage : (progress.pourcentage||0)}%
             </Text>
           </View>
           <View style={{height:7,backgroundColor:'rgba(22,21,15,0.1)',borderRadius:10,overflow:'hidden',marginTop:10}}>
-            <View style={{height:'100%',width:`${Math.max(0,Math.min(100,Number(progress.pourcentage||0)))}%`,backgroundColor:COLORS.orange,borderRadius:10}} />
+            <View style={{height:'100%',width:`${Math.max(0,Math.min(100,Number(volume?.totalBytes > 0 ? volume.pourcentage : progress.pourcentage||0)))}%`,backgroundColor:COLORS.orange,borderRadius:10}} />
           </View>
           <Text style={{fontSize:11.5,color:COLORS.inkSoft,marginTop:8}}>
             {progress.rang||0}/{progress.total||visits.length} traitée(s) · {progress.confirmees||0} confirmée(s) · {progress.enAttente||0} en attente · {progress.erreurs||0} erreur(s)
           </Text>
+          {volume ? <Text style={{fontSize:11.5,color:COLORS.orangeDark,fontFamily:FONTS.bodyBold,marginTop:5}}>
+            {formatTransferBytes(volume.confirmedBytes)} / {formatTransferBytes(volume.totalBytes)} confirmés · visites + photos{volume.incompleteEstimate ? ' (volume connu)' : ''}
+          </Text> : null}
         </View> : null}
         <Text style={{color:COLORS.muted,fontSize:10.5,lineHeight:15,marginBottom:9}}>
           Les envois déjà mis en attente hors ligne continuent à être traités par la synchronisation automatique.
