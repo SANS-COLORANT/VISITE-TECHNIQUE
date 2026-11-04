@@ -100,5 +100,6 @@ requireText(docs, 'La conclusion reste hors synchronisation', 'unsupported concl
 requireRegex(read('VisiteScreen.js'), /<IntranetVisitSyncControl\b[^>]*\bvisite=\{visite\}/, 'visit sync control');
 const app = read('App.js');
 requireRegex(app, /<IntranetVisitSyncRuntime\s*\/>/, 'foreground retry runtime');
-requireRegex(app, /<IntranetVisitSyncBanner\s*\/>/, 'global pending status');
+forbidText(app, '<IntranetVisitSyncBanner />', 'global pending banner removed without stopping the background outbox runtime');
+forbidText(ui, 'export function IntranetVisitSyncBanner()', 'hidden banner no longer subscribes to and reloads full queued payloads');
 console.log('Intranet visit upload contract validated: exact visit POST plus separate idempotent multipart photo upload in resumable parts of 10, DPoP retries, persistent outboxes, partial visit values encoded as N.V or slash, conflicts, structural mapping validation and full material safeguards.');
