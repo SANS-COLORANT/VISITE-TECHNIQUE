@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { activateTablet, getActivationStatus, syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';
-import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory } from './symfonyApiCacheDb.js';
+import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory, listImportedApiClients } from './symfonyApiCacheDb.js';
 import { syncStructureReferential } from './intranetStructureDb.js';
 import { importLatestApiVisitsForSite } from './apiLatestVisitImportDb.js';
 import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
@@ -128,7 +128,9 @@ function MetraDirectoryScreen({ navigation, route }) {
   }, []);
 
   const search = useCallback(async (text = query) => {
-    const next = await searchCachedDirectory(text);
+    const next = String(text || '').trim()
+      ? await searchCachedDirectory(text) // Tous les clients Intranet autorisés et leurs sites.
+      : { clients: await listImportedApiClients(), sites: [] }; // Uniquement les clients déjà matérialisés dans METRA.
     METRA_DIRECTORY_FAST_CACHE = next;
     setDirectory(next);
   }, [query]);
@@ -378,7 +380,7 @@ function MetraDirectoryScreen({ navigation, route }) {
   }, [directory, query]);
 
   const lastSync = humanSyncDate(status.lastSyncAt);
-  const resultLabel = query.trim() ? `${rows.length} résultat${rows.length > 1 ? 's' : ''}` : 'Clients et sites disponibles';
+  const resultLabel = query.trim() ? `${rows.length} résultat${rows.length > 1 ? 's' : ''}` : 'Clients importés dans METRA';
   const siteTrames = [...new Set(locals.map((local) => local.remote_trame_nom).filter(Boolean))];
   const latestVisit = locals.map((local) => local.derniere_visite_date).filter(Boolean).sort().reverse()[0] || selectedSite?.derniere_visite_date || null;
 
@@ -399,7 +401,7 @@ function MetraDirectoryScreen({ navigation, route }) {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={{ flex: 1, minHeight: 48, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.66)', borderWidth: 1, borderColor: '#ECEEF1', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13 }}>
               <CvcIcon name="search" size={21} color={'#98A2B3'} strokeWidth={2.1} />
-              <TextInput value={query} onChangeText={setQuery} placeholder="Client, site, ville, adresse, équipement…" placeholderTextColor="#98A2B3" style={{ flex: 1, color: INK, fontSize: 14.5, paddingVertical: 12 }} autoCorrect={false} autoCapitalize="none" returnKeyType="search" />
+              <TextInput value={query} onChangeText={setQuery} onSubmitEditing={() => { if (query.trim() && status.activated && !syncing) void sync(); }} placeholder="Client, site, ville, adresse, équipement…" placeholderTextColor="#98A2B3" style={{ flex: 1, color: INK, fontSize: 14.5, paddingVertical: 12 }} autoCorrect={false} autoCapitalize="none" returnKeyType="search" />
               {query ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setQuery('')} style={{ minWidth: 34, minHeight: 34, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={18} color={'#98A2B3'} strokeWidth={2.1} /></TouchableOpacity> : null}
             </View>
             <TouchableOpacity onPress={sync} disabled={syncing} style={{ width: 48, height: 48, borderRadius: 13, backgroundColor: status.activated ? '#F7F8FA' : ACCENT, borderWidth: status.activated ? 1 : 0, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' }}>
@@ -414,13 +416,20 @@ function MetraDirectoryScreen({ navigation, route }) {
         </View>
         <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginTop: 8, marginBottom: 9 }}>
           <Text style={[styles.sectionLabel, { marginBottom: 0 }]}>{resultLabel}</Text>
-          {query.trim() ? <Text style={{ color: MUTED, fontSize: 11.5 }}>Sites en premier</Text> : null}
+          {query.trim() ? <Text style={{ color: MUTED, fontSize: 11.5 }}>Recherche METRA + Intranet · ↻ actualise</Text> : null}
         </View>
       </>}
-      renderItem={({ item }) => <DirectoryRow item={item} onPress={() => item.kind === 'client' ? openClient(item.remote_client_id) : openSite(item)} />}
+      renderItem={({ item }) => <DirectoryRow item={item} onPress={() => {
+        if (item.kind !== 'client') return openSite(item);
+        if (!query.trim() && item.local_client_id) {
+          navigation.navigate('ClientSites', { clientId: item.local_client_id, nomClient: item.nom });
+          return;
+        }
+        openClient(item.remote_client_id);
+      }} />}
       ListEmptyComponent={<View style={[styles.empty, { paddingVertical: 38 }]}>
-        <Text style={styles.emptyText}>{query.trim() ? 'Aucun résultat' : 'Aucune donnée synchronisée'}</Text>
-        <Text style={styles.emptySub}>{query.trim() ? 'Essaie le client, la ville, le site, une installation ou une trame.' : 'Active la tablette puis synchronise une première fois. Les données resteront ensuite disponibles hors connexion.'}</Text>
+        <Text style={styles.emptyText}>{query.trim() ? 'Aucun résultat' : 'Aucun client importé'}</Text>
+        <Text style={styles.emptySub}>{query.trim() ? 'Essaie le client, la ville, le site, une installation ou une trame.' : 'Recherche un client sur l’Intranet pour l’importer. Les clients déjà importés restent disponibles hors connexion.'}</Text>
       </View>}
     />
 
