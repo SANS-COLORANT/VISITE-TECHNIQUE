@@ -569,7 +569,11 @@ export async function envoyerVisitesClient(clientId, { onProgress = null, visite
       if (row?.error_code === 'idempotency_conflict' || row?.error_code === 'invalid_ack') {
         bilan.aConfirmer.push(`${nomVisite(visite)} : envoi verrouillé, à traiter depuis la visite.`); continue;
       }
-      if (row && ['pending', 'retry', 'auth_error'].includes(row.status)) {
+      if (row?.status === 'sending') {
+        // Le runtime a peut-être déjà lancé CET envoi. Attendre le même
+        // processeur et son ACK, sans fabriquer un second envoiId ni POST.
+        await processVisitOutbox({ limit: 1, visiteId: visite.id });
+      } else if (row && ['pending', 'retry', 'auth_error'].includes(row.status)) {
         await assertQueuedClientStillMatchesImportedClient(visite.id, row);
         await retryVisitUploadNow(visite.id);
       } else {
