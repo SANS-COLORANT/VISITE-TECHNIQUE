@@ -19,6 +19,7 @@ on:
       - fix/remar-complete-symfony-20261103
       - feat/premium-cards-control-photos-20261103
       - fix/visit-history-remar-default-resync-selection-20261103
+      - fix/intranet-text-preservation-client-progress-20261104
     paths:
       - '**/*.js'
       - '**/*.json'
@@ -198,31 +199,46 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           cat > /tmp/release-notes.md <<'NOTES'
-          METRA — Visite Technique : APK natif de recette (PR #118, branche de
-          vérification), conservant toutes les trames et fonctionnalités précédentes.
+          METRA — Visite Technique : APK natif de recette
+          Correctifs METRA du 4 novembre 2026 (PR #126), construits à la suite
+          des corrections du 3 novembre et des trames déjà intégrées.
 
-          Correctifs REMAR : vérification automatique de toutes les trames REMAR
-          publiées pour le même client/local avant le premier POST, sélection
-          uniquement d'une version complète et unique, avec provenance figée,
-          sans modifier les envois déjà préparés. Contrôle strict des 141 points,
-          des homonymes chauffage/froid et des 39 critères manquants.
+          - Import/expédition Intranet : la liste de matériel de la visite fait
+            foi (ajout, modification, suppression, inventaire vide) dans les
+            nouvelles visites, pour ICPE, REMAR, Réseau de chaleur, VMC,
+            Pré-allumage et les trames prises en charge par le même moteur.
+          - Réimport : rapprochement des équipements par local sans fusionner
+            deux appareils homonymes ; matériel retiré du patrimoine courant,
+            historique des observations/visites conservé.
+          - Client > Envoyer : sélection des dernières visites non synchronisées
+            par site et local. Suivi des confirmations (visites + photos) avec
+            volume en Ko, Mo ou Go ; tailles locales connues uniquement.
+          - Saisie hors enum Symfony (ex. état « Dégradé ») conservée dans les
+            notes de visite envoyées. L'affichage de cet état directement dans
+            le champ matériel Intranet nécessite un contrat Symfony adapté.
 
-          Synchronisation multiligne vers les cellules Symfony
-          quand plusieurs relevés de même famille partagent un critère (ex. Gaz A
-          et Gaz B sur deux lignes), CTA/VMC/froid multiples, filtres, avis et
-          mesures, réseaux et compteurs ; diagnostics complets de blocage,
-          imports/exports Excel et protections contre les pertes SQLite.
-          Les 141 points REMAR et les 70 contrôles, ainsi que les anciennes
-          trames ICPE et Réseau de chaleur, restent vérifiés.
+          Important — limites de cette version de recette :
+          - Le POST existant crée une nouvelle visite. Les changements d'une
+            visite déjà synchronisée sont détectés mais ne sont PAS renvoyés :
+            un PATCH/PUT Symfony officiel est encore nécessaire pour éviter
+            un doublon de visite.
+          - Les prévalidations locales et les tests SQLite/Android ne prouvent
+            pas que l'Intranet de production accepte le remplacement intégral
+            du patrimoine ou un listing entièrement vide. Vérifier les effets
+            sur un client/local de recette avant utilisation en production.
+          - Certaines saisies REMAR non mappées aux critères Symfony restent
+            bloquantes ; ce chantier global n'est pas déclaré terminé.
+          - Ne pas réimporter un patrimoine de production depuis une APK de
+            recette sans sauvegarde préalable du SQLite, des visites et photos.
 
-          Aucune suppression volontaire de données. Même identifiant Android
-          com.visitetechnique.tablet, même certificat historique et versionCode
-          croissant. Numéro natif continu, sans suffixe REMAR sur l'application.
+          APK natif signé avec la même identité Android
+          com.visitetechnique.tablet et le certificat historique METRA ;
+          versionCode croissant, numéro de build continu. Aucun suffixe REMAR
+          dans le nom au lancement.
 
-          Préversion de validation : SAUVEGARDER SQLite, photos et visites avant
-          toute installation. Les tests automatisés (SQLite/Excel/Symfony simulé,
-          compilation Gradle, signature et émulateur Android) ne remplacent pas
-          un aller-retour authentifié avec l'Intranet Symfony, qui reste à tester.
-          Ne pas utiliser comme validation de synchronisation de production.
+          Vérifications du workflow : contrats METRA, vrais tests SQLite,
+          exports, bundle Android, compilation Gradle, signature et tests de
+          démarrage sur émulateur. Aucune authentification ni modification
+          réelle du patrimoine Symfony de production dans cette CI.
           NOTES
           gh release create "build-native-apk-${BUILD_NUMBER}" release/* --target "$GITHUB_SHA" --title "Build Native APK #${BUILD_NUMBER}" --notes-file /tmp/release-notes.md --prerelease
