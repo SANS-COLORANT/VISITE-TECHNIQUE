@@ -35,6 +35,13 @@ function fakeDb() {
     state,
     async getAllAsync(sql, params = []) {
       if (sql.includes('SELECT id,nom,logo_uri FROM marques_equipement')) return state.brands;
+      if (sql.includes('SELECT e.id FROM provenances p')) {
+        const [reference, installationId] = params;
+        return state.provenances.filter(row => row.entite_type === 'equipement' &&
+          row.reference_externe === reference)
+          .map(row => state.equipments.find(e => e.id === row.entite_id && e.installation_id === installationId))
+          .filter(Boolean).map(e => ({ id: e.id }));
+      }
       if (sql.includes('SELECT id FROM equipements')) {
         const [installationId, designation, brand, model] = params;
         return state.equipments.filter(row =>
