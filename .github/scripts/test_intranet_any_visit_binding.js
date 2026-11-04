@@ -377,6 +377,32 @@ async function main() {
     await assert.rejects(() => binding.bindVisitToImportedClientTarget('ordinary-visit'), /déjà un envoi|destination ne peut plus/i);
     checks++; console.log(`OK ${checks}: durable queued upload cannot be rebound after its idempotent payload is frozen`);
 
+    // Le sélecteur Client doit afficher les anciennes visites d'un site
+    // réellement importé, même lorsque leur installation n'a PLUS de lien.
+    // Le bouton ne les envoie pas automatiquement : needs_binding=1.
+    await server.db.execAsync(`
+      INSERT INTO installations(id,site_id,type_code,nom,actif)
+      VALUES('installation-orphan','local-site','installation_technique','Local non lié',1);
+      INSERT INTO visites(id,site_id,installation_id,date_visite,statut,trame_id)
+      VALUES('visit-orphan','local-site','installation-orphan','2026-11-04','terminee','icpe_v1');
+    `);
+    const sendSource = fs.readFileSync(path.join(root, 'IntranetVisitSync.js'), 'utf8');
+    const functionStart = sendSource.indexOf('export async function listerVisitesAEnvoyerClient(');
+    const literalStart = sendSource.indexOf('const rows = await db.getAllAsync(`', functionStart);
+    const literalEnd = sendSource.indexOf('`, [String(clientId)]);', literalStart);
+    check(functionStart>=0 && literalStart>=0 && literalEnd>literalStart,
+      'production bulk-send SQL is located for real SQLite regression');
+    const rawSql=sendSource.slice(literalStart + 'const rows = await db.getAllAsync(`'.length,literalEnd);
+    const historicClause = `EXISTS(SELECT 1 FROM provenances p
+      WHERE p.entite_type='visite' AND p.entite_id=v.id AND p.origine='api_symfony'
+        AND p.details_json LIKE '%"sourceType":"imported_latest_visit"%')`;
+    const sql=rawSql.replace(/\$\{HISTORICAL_SQL\}/g,historicClause);
+    const listed=await server.db.getAllAsync(sql,['local-client']);
+    check(listed.some(row=>row.id==='visit-orphan' && Number(row.needs_binding)===1),
+      'imported-site orphan visit remains selectable for explicit local repair, never silently skipped');
+    check(!listed.some(row=>row.id==='unimported-visit'),
+      'visits of local-only, non-imported client/sites cannot be proposed for Symfony POST');
+
     check((await server.db.getAllAsync('PRAGMA foreign_key_check')).length === 0, 'binding leaves SQLite foreign keys valid');
     console.log(`\n${checks} imported-client binding checks passed (real SQLite, production binding/payload code).`);
   } finally {
