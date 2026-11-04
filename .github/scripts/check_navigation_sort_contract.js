@@ -20,7 +20,7 @@ const home = read('HomeScreen.js');
 const prewarm = read('navigationPrewarm.js');
 
 expect(app.includes('BACK_SWIPE_ROUTES'), 'Le geste retour doit être limité aux écrans classiques.');
-expect(app.includes('gesture.dx < -82') && app.includes('goBack()'), 'Un swipe franc vers la gauche doit revenir à l’écran précédent.');
+expect(app.includes('gesture.dx > 82') && app.includes('gesture.dx > 18') && app.includes('goBack()'), 'Un swipe franc de gauche vers droite doit revenir à l’écran précédent.');
 expect(!app.includes("'Visite', 'HydraulicSchema'"), 'Le swipe retour ne doit pas écraser le pager horizontal d’une visite.');
 
 for (const mode of ['alpha', 'alpha_desc', 'number', 'group', 'address']) {
