@@ -6,7 +6,7 @@ import { Modal, ScrollView, Text, TouchableOpacity, View } from 'react-native';
 import { COLORS, FONTS, styles } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 
-export function ClientVisitSendPicker({ visible, visits = [], busy = false, clientName, onCancel, onSend }) {
+export function ClientVisitSendPicker({ visible, visits = [], busy = false, progress = null, clientName, onCancel, onSend }) {
   const [selected,setSelected]=useState(()=>new Set());
   useEffect(()=>{
     if(visible) setSelected(new Set(visits.map(v=>String(v.id))));
@@ -96,6 +96,22 @@ export function ClientVisitSendPicker({ visible, visits = [], busy = false, clie
             </View>;
           })}
         </ScrollView>
+        {busy && progress ? <View accessibilityLiveRegion="polite" style={{borderWidth:1,borderColor:'rgba(22,21,15,0.09)',backgroundColor:COLORS.orangeLight,borderRadius:15,padding:12,marginBottom:12}}>
+          <View style={{flexDirection:'row',justifyContent:'space-between',alignItems:'center',gap:8}}>
+            <Text style={{color:COLORS.ink,fontFamily:FONTS.bold,fontSize:13,flex:1}} numberOfLines={1}>
+              {progress.phase||'Envoi en cours'} · {progress.nom||clientName||'Client'}
+            </Text>
+            <Text style={{color:COLORS.orangeDark,fontFamily:FONTS.black,fontSize:13}}>
+              {progress.pourcentage||0}%
+            </Text>
+          </View>
+          <View style={{height:7,backgroundColor:'rgba(22,21,15,0.1)',borderRadius:10,overflow:'hidden',marginTop:10}}>
+            <View style={{height:'100%',width:`${Math.max(0,Math.min(100,Number(progress.pourcentage||0)))}%`,backgroundColor:COLORS.orange,borderRadius:10}} />
+          </View>
+          <Text style={{fontSize:11.5,color:COLORS.inkSoft,marginTop:8}}>
+            {progress.rang||0}/{progress.total||visits.length} traitée(s) · {progress.confirmees||0} confirmée(s) · {progress.enAttente||0} en attente · {progress.erreurs||0} erreur(s)
+          </Text>
+        </View> : null}
         <Text style={{color:COLORS.muted,fontSize:10.5,lineHeight:15,marginBottom:9}}>
           Les envois déjà mis en attente hors ligne continuent à être traités par la synchronisation automatique.
         </Text>
