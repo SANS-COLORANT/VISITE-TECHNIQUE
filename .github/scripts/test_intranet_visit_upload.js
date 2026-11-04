@@ -407,6 +407,48 @@ async function main() {
     await assert.rejects(() => outbox.queueVisitUpload('missing-control'), /Finalise la visite/);
     checks++; console.log(`OK ${checks}: UI queue policy does not create progressive duplicate server visits`);
     check((await server.db.getAllAsync('PRAGMA foreign_key_check')).length === 0, 'outbox migration and queued rows preserve SQLite foreign keys');
+
+    // Regression performance: previous 15-second scanner revisited the last
+    // 40 synced visits whether or not they contained new photos. A photo
+    // added later to visit 45 was never discovered at all.
+    await server.send('migrate', '', [33, 36]);
+    for (let i = 0; i < 48; i++) {
+      const id = `photo-scan-${i}`;
+      const envoiId = `photo-envoi-${i}`;
+      await server.db.runAsync(
+        `INSERT INTO visites(id,site_id,date_visite,statut,trame_id) VALUES(?,'site-local','2026-10-01','terminee','icpe_v1')`,
+        [id]
+      );
+      await server.db.runAsync(
+        `INSERT INTO api_visit_outbox(envoi_id,visite_id,remote_client_id,payload_json,payload_bytes,status,remote_visit_id,synced_at)
+         VALUES(?,?,?,'{}',2,'synced',?,datetime('now',?))`,
+        [envoiId, id, '12', String(5000 + i), `-${48 - i} days`]
+      );
+    }
+    await server.db.runAsync(
+      `INSERT INTO photos(id,visite_id,uri,inclure_export) VALUES('photo-older-unqueued','photo-scan-0','file:///older.jpg',1)`
+    );
+    await server.db.runAsync(
+      `INSERT INTO photos(id,visite_id,uri,inclure_export) VALUES('photo-newer-queued','photo-scan-47','file:///newer.jpg',1)`
+    );
+    await server.db.runAsync(
+      `INSERT INTO api_visit_photo_outbox(photo_id,visite_id,envoi_photo_id,remote_client_id,remote_visit_id,uri,description,ordre,status)
+       VALUES('photo-newer-queued','photo-scan-47','photo-ack-existing','12','5047','file:///newer.jpg','Sent',1,'synced')`
+    );
+    const photoSource = fs.readFileSync(path.join(root, 'intranetVisitPhotoOutboxDb.js'), 'utf8');
+    const startPhotoScan = photoSource.indexOf('export async function queueMissingSyncedVisitPhotos(');
+    const endPhotoScan = photoSource.indexOf('\nasync function markRetry(', startPhotoScan);
+    check(startPhotoScan >= 0 && endPhotoScan > startPhotoScan, 'photo discovery uses production SQL, not a duplicate test query');
+    const scanned = [];
+    const scan = new Function('getDb', 'queueMissingVisitPhotos',
+      `${photoSource.slice(startPhotoScan, endPhotoScan).replace('export async function', 'async function')}\nreturn queueMissingSyncedVisitPhotos;`
+    )(async () => server.db, async (id) => { scanned.push(id); return 1; });
+    const found = await scan({ limitVisits: 40 });
+    check(found === 1 && scanned.length === 1 && scanned[0] === 'photo-scan-0',
+      'only older visit with genuinely unqueued photo is discovered, no 40-visit rescan or starvation');
+    check((await server.db.getAllAsync('PRAGMA foreign_key_check')).length === 0,
+      'selective photo discovery preserves all visit/photo foreign keys');
+
     console.log(`\n${checks} Intranet upload checks passed (real SQLite, production serializer/outbox, mocked HTTP/UUID).`);
   } finally { server.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 }
