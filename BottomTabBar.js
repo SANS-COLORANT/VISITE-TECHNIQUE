@@ -10,7 +10,7 @@ import { CvcIcon } from './MetraCvcIcons.js';
 import { COLORS, FONTS } from './styles.js';
 import { ROOT_TAB_KEYS } from './rootTabSwipe.js';
 
-function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, accentDark = COLORS.orangeDark }) {
+function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, accentDark = COLORS.orangeDark, dense = false }) {
   const { width } = useWindowDimensions();
   const [measuredWidth, setMeasuredWidth] = useState(0);
   const idleProgress = useRef(new Animated.Value(0)).current;
@@ -24,7 +24,7 @@ function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, 
   const prevIndex = tabs.findIndex((tab) => tab.key === prevKey);
   const nextIndex = tabs.findIndex((tab) => tab.key === nextKey);
   const centerFor = (idx) => 10 + (idx + 0.5) * slotWidth;
-  const bubbleWidth = compact ? 48 : Math.min(118, Math.max(76, slotWidth - 12));
+  const bubbleWidth = dense ? 44 : (compact ? 48 : Math.min(118, Math.max(76, slotWidth - 12)));
   const baseCenter = centerFor(activeIndex);
   const bubbleLeft = baseCenter - bubbleWidth / 2;
   const deltaToPrevious = prevIndex >= 0 ? centerFor(prevIndex) - baseCenter : 0;
@@ -35,15 +35,15 @@ function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, 
     extrapolate: 'clamp',
   });
 
-  return <View style={styles.bar} onLayout={(e) => {
+  return <View style={[styles.bar, dense && { paddingTop: 3, paddingBottom: 5, paddingHorizontal: 8 }]} onLayout={(e) => {
     const next = Math.round(e.nativeEvent.layout.width);
     setMeasuredWidth((prev) => prev === next ? prev : next);
   }}>
     {measuredWidth > 0 && activeIndex >= 0 ? <Animated.View
       pointerEvents="none"
       style={[styles.movingBubble, {
-        width: bubbleWidth, height: compact ? 32 : 40,
-        top: compact ? 10 : 14, left: bubbleLeft,
+        width: bubbleWidth, height: dense ? 30 : (compact ? 32 : 40),
+        top: dense ? 8 : (compact ? 10 : 14), left: bubbleLeft,
         transform: [{ translateX: bubbleTranslate }],
         shadowColor: accent,
       }]}
@@ -52,17 +52,17 @@ function BottomTabBar({ tabs, activeKey, swipeProgress, accent = COLORS.orange, 
     </Animated.View> : null}
     {tabs.map((tab) => {
       const active = tab.key === activeKey;
-      if (tab.center) return <View key={tab.key} style={styles.slot}>
-        <TouchableOpacity accessibilityRole="button" accessibilityLabel={tab.label} onPress={tab.onPress} activeOpacity={0.85} style={[styles.centerShadow, { shadowColor: accent }]}>
-          <LinearGradient colors={[accent, accentDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={styles.centerButton}>
-            <CvcIcon name={tab.icon} size={30} color={COLORS.white} strokeWidth={2.6} />
+      if (tab.center) return <View key={tab.key} style={[styles.slot, dense && { minHeight: 46, gap: 2 }]}>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel={tab.label} onPress={tab.onPress} activeOpacity={0.85} style={[styles.centerShadow, { shadowColor: accent }, dense && { marginTop: -10, borderRadius: 14 }]}>
+          <LinearGradient colors={[accent, accentDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={[styles.centerButton, dense && { width: 44, height: 44, borderRadius: 14 }]}>
+            <CvcIcon name={tab.icon} size={dense ? 24 : 30} color={COLORS.white} strokeWidth={2.6} />
           </LinearGradient>
         </TouchableOpacity>
       </View>;
       const root = ROOT_TAB_KEYS.includes(tab.key);
       const color = active && root ? COLORS.white : COLORS.inkSoft;
       return <TouchableOpacity key={tab.key} accessibilityRole="tab" accessibilityState={{ selected: active }} accessibilityLabel={tab.label}
-        onPress={tab.onPress} activeOpacity={0.8} style={styles.slot}>
+        onPress={tab.onPress} activeOpacity={0.8} style={[styles.slot, dense && { minHeight: 46, gap: 2 }]}>
         {root && !compact ? <View style={styles.wideContent}>
           <CvcIcon name={tab.icon} size={18} color={color} strokeWidth={2.1} />
           <Text numberOfLines={1} style={[styles.wideLabel, { color: active ? COLORS.white : COLORS.inkSoft }]}>{tab.label}</Text>

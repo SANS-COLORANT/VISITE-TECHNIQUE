@@ -42,6 +42,7 @@ export function setPrefSync(key, value) {
 
 export const PREFS = Object.freeze({
   pleinSoleil: 'ui.pleinSoleil',
+  pilotageDensity: 'ui.pilotageDensity',
   ongletsEnBas: 'ui.ongletsEnBas',
   dossierSauvegardeAuto: 'backup.autoDirUri',
   derniereSauvegardeAuto: 'backup.autoLastAt',

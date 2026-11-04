@@ -110,25 +110,25 @@ function DeferredScreen({ name, ...props }) {
  * en avoir besoin, donc géré ici plutôt qu'en threadant une prop
  * supplémentaire à travers tous les appels de SimpleHeader.
  */
-function SimpleHeader({ title, onBack, visualPack, rightAction = null, onCreditsLongPress = null }) {
+function SimpleHeader({ title, onBack, visualPack, rightAction = null, onCreditsLongPress = null, dense = false }) {
   const uri = resolveVisualPackAssetUri(visualPack, visualPack?.interface?.headerLogo);
   const spiralActive = visualPack?.id === 'spiral-active' || visualPack?.interface?.experimentalSpiralDock === true;
 
   if (spiralActive) {
-    return <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFDF8', paddingTop: 50, paddingHorizontal: 16, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: '#DDE2E3' }}>
+    return <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFDF8', paddingTop: 50, paddingHorizontal: dense ? 12 : 16, paddingBottom: dense ? 6 : 11, borderBottomWidth: 1, borderBottomColor: '#DDE2E3' }}>
       {onBack ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" onPress={onBack} style={{ width: 44, height: 40, alignItems: 'flex-start', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={23} color={'#14202C'} strokeWidth={2.1} /></TouchableOpacity> : onCreditsLongPress ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Afficher les crédits" accessibilityHint="Maintenir appuyé sur la clé à molette" delayLongPress={550} onLongPress={onCreditsLongPress} style={{ width: 44, height: 40, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F26426', borderRadius: 12 }}><CvcIcon name="tools" size={23} color="#FFFFFF" /></TouchableOpacity> : <View style={{ width: 44 }} />}
       <View style={{ flex: 1, alignItems: 'center' }}>
         <Text style={{ color: '#14202C', fontSize: 9, fontFamily: FONTS.black, letterSpacing: 2 }}>METRA</Text>
-        <Text numberOfLines={1} style={{ marginTop: 2, color: '#14202C', fontSize: 16, fontWeight: '900', fontFamily: FONTS.black, letterSpacing: -0.25 }}>{title}</Text>
+        <Text numberOfLines={1} style={{ marginTop: 2, color: '#14202C', fontSize: dense ? 15 : 16, fontWeight: '900', fontFamily: FONTS.black, letterSpacing: -0.25 }}>{title}</Text>
         <View style={{ marginTop: 6, width: 34, height: 3, backgroundColor: '#F26426', transform: [{ skewX: '-18deg' }] }} />
       </View>
       <View style={{ width: 44, alignItems: 'flex-end' }}>{uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : <View style={{ width: 10, height: 24, backgroundColor: '#DCEFF1', transform: [{ skewX: '-16deg' }] }} />}</View>
     </View>;
   }
 
-  return <View style={styles.simpleHeader}>
-    {onBack ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={styles.simpleHeaderBack} onPress={onBack}><CvcIcon name="chevron-left" size={20} color={COLORS.ink} strokeWidth={2.3} /></TouchableOpacity> : null}
-    <Text numberOfLines={1} style={styles.simpleHeaderTitle}>{title}</Text>
+  return <View style={[styles.simpleHeader, dense && { paddingHorizontal: 12, paddingBottom: 6, gap: 9 }]}>
+    {onBack ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} style={[styles.simpleHeaderBack, dense && { width: 38, height: 38, borderRadius: 11 }]} onPress={onBack}><CvcIcon name="chevron-left" size={20} color={COLORS.ink} strokeWidth={2.3} /></TouchableOpacity> : null}
+    <Text numberOfLines={1} style={[styles.simpleHeaderTitle, dense && { fontSize: 17 }]}>{title}</Text>
     {rightAction ? <TouchableOpacity onPress={rightAction.onPress} style={styles.headerPill}><Text style={styles.headerPillText}>{rightAction.label}</Text></TouchableOpacity> : (uri ? <VisualPackAsset uri={uri} style={{ width: 34, height: 26 }} /> : null)}
     <HeaderFade />
   </View>;
@@ -394,7 +394,7 @@ function AppContent({ phoneIntegralMode = false }) {
     {current.name === 'ClientSites' ? <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientSites" navigation={navigation} route={route} /></> : null}
     {current.name === 'SiteLocals' ? <><SimpleHeader title={current.params?.nomSite || 'Locaux'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="SiteLocals" navigation={navigation} route={route} /></> : null}
     {current.name === 'ClientMap' ? <><SimpleHeader title="Carte METRA des sites" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientMap" navigation={navigation} route={route} /></> : null}
-    {current.name === 'ClientPilotage' ? <><SimpleHeader title="Pilotage patrimoine" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientPilotage" navigation={navigation} route={route} /></> : null}
+    {current.name === 'ClientPilotage' ? <><SimpleHeader title="Pilotage patrimoine" onBack={goBack} visualPack={visualPack} dense /><DeferredScreen name="ClientPilotage" navigation={navigation} route={route} /></> : null}
     {current.name === 'ClientDocuments' ? <><SimpleHeader title="Documents & exports" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientDocuments" navigation={navigation} route={route} /></> : null}
     {current.name === 'ClientPatrimoine' ? <><SimpleHeader title="Synthèse patrimoine" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientPatrimoine" navigation={navigation} route={route} /></> : null}
     {current.name === 'ClientTechnicalMatrix' ? <><SimpleHeader title="Cartographie technique" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientTechnicalMatrix" navigation={navigation} route={route} /></> : null}
@@ -440,7 +440,7 @@ function AppContent({ phoneIntegralMode = false }) {
     {current.name === 'MissionControlBoard' && missionsVisible ? <><MissionHeader title="Contrôle ciblé" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MissionControlBoard" navigation={navigation} route={route} /></> : null}
 
     {missionMode && current.name !== 'Missions' && !spiralActive ? <GlobalHomeButton compact={phoneIntegralMode} missionMode onPress={goMissionsHome} /> : null}
-    {showTabBar ? <BottomTabBar tabs={tabs} activeKey={activeTab} swipeProgress={tabSwipeProgress} /> : null}
+    {showTabBar ? <BottomTabBar tabs={tabs} activeKey={activeTab} swipeProgress={tabSwipeProgress} dense={current.name === 'ClientPilotage'} /> : null}
     <QuickVisitSheet
       visible={quickVisitVisible}
       onClose={() => setQuickVisitVisible(false)}
