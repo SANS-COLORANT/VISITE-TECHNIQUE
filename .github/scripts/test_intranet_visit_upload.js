@@ -276,7 +276,10 @@ async function main() {
     checks++; console.log(`OK ${checks}: real material changes remain authoritative on the V1 wire`);
 
     const calls = []; let mode = 'network';
-    const uuids = ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'ffffffff-ffff-4fff-8fff-ffffffffffff', '12345678-1234-4234-8234-123456789abc', '87654321-4321-4321-8321-cba987654321', '99999999-9999-4999-8999-999999999999'];
+    const uuids = ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'ffffffff-ffff-4fff-8fff-ffffffffffff', '12345678-1234-4234-8234-123456789abc', '87654321-4321-4321-8321-cba987654321', '99999999-9999-4999-8999-999999999999',
+      'abababab-abab-4bab-8bab-abababababab',
+      'cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd',
+      'efefefef-efef-4fef-8fef-efefefefefef'];
     let uuidIndex = 0;
     const sender = async (_client, serialized) => {
       calls.push(serialized);
@@ -379,6 +382,26 @@ async function main() {
     check(row.status === 'rejected' && row.error_code === 'invalid_ack' && row.next_attempt_at == null, 'incoherent 2xx acknowledgement is terminal because the server may already have created the visit');
     await outbox.processVisitOutbox({ limit: 3 }); row = await outbox.getVisitUploadState('bad-ack');
     check(Number(row.attempt_count) === 1, 'invalid acknowledgement is never automatically replayed or replaced with a new envoiId');
+
+    // Regression ULIS 04/11: 37 selected visits could show 29 queued because
+    // processVisitOutbox({limit:1}) posted a GLOBAL earlier queue entry.
+    // The selected local must be confirmed before the unrelated older row.
+    await seed(server.db, 'queue-older');
+    await seed(server.db, 'queue-chosen');
+    const olderQueue = await outbox.queueVisitUpload('queue-older');
+    const chosenQueue = await outbox.queueVisitUpload('queue-chosen');
+    mode = 'success';
+    const callsBeforeSelection = calls.length;
+    await outbox.processVisitOutbox({ limit: 1, visiteId: 'queue-chosen' });
+    const selectedState = await outbox.getVisitUploadState('queue-chosen');
+    const unrelatedState = await outbox.getVisitUploadState('queue-older');
+    check(selectedState.status === 'synced' && unrelatedState.status === 'pending' &&
+      JSON.parse(calls[callsBeforeSelection]).envoiId === chosenQueue.envoi_id,
+      'targeted batch sends the explicitly selected local, not the first global pending visit');
+    await outbox.processVisitOutbox({ limit: 1, visiteId: 'queue-older' });
+    const afterOlder = await outbox.getVisitUploadState('queue-older');
+    check(afterOlder.status === 'synced' && afterOlder.envoi_id === olderQueue.envoi_id,
+      'the older queue remains intact and is sendable without duplicate POST or ID regeneration');
 
     await server.db.runAsync(`UPDATE visites SET statut='en_cours' WHERE id='missing-control'`);
     await assert.rejects(() => outbox.queueVisitUpload('missing-control'), /Finalise la visite/);
