@@ -226,12 +226,27 @@ async function resolveImportedLocalId(db, visite, remoteClientId, remoteSiteId) 
   const locals = rows.map((row) => ({ ...row, ...localBindingState(row, visite.trame_id,
     frozen && clean(frozen.local?.id) === clean(row.remote_local_id) ? frozen : null) }));
   const sendable = locals.filter((row) => row.compatible);
+  // L'identité du local importé prévaut TOUJOURS sur la compatibilité
+  // de la trame. Si la trame n'est plus valable, on répare la référence du
+  // MÊME local : on ne cherche jamais un autre local à trame compatible.
+  const verifyKnownLocal = (id, origin) => {
+    const known = locals.find((row) => clean(row.remote_local_id) === clean(id));
+    if (!known) throw bindingError(
+      `Le local Intranet ${id}, déjà lié à cette visite via ${origin}, n'est plus présent sur son site. Actualise le référentiel du client sans déplacer la visite.`,
+      'intranet_reference_refresh_required', { remoteClientId, remoteLocalId: id }
+    );
+    if (!known.compatible) throw bindingError(
+      `Le local Intranet ${known.designation || id} (ID ${id}) est bien identifié, mais sa trame ou sa préparation ne permet pas l'envoi : ${known.compatibilityReason}. Actualise la trame de CE local, sans choisir un autre local.`,
+      'intranet_reference_refresh_required', { remoteClientId, remoteLocalId: id }
+    );
+    return clean(known.remote_local_id);
+  };
   const frozenLocalId = clean(visite.api_remote_local_id);
-  if (frozenLocalId && sendable.some((row) => clean(row.remote_local_id) === frozenLocalId)) return frozenLocalId;
+  if (frozenLocalId) return verifyKnownLocal(frozenLocalId, 'la visite');
 
   if (clean(visite.installation_id)) {
-    const installed = sendable.filter((row) => clean(row.local_installation_id) === clean(visite.installation_id));
-    if (installed.length === 1) return clean(installed[0].remote_local_id);
+    const installed = locals.filter((row) => clean(row.local_installation_id) === clean(visite.installation_id));
+    if (installed.length === 1) return verifyKnownLocal(installed[0].remote_local_id, 'son installation METRA');
     if (installed.length > 1) {
       throw bindingError('Plusieurs locaux Intranet sont liés à la même installation METRA. METRA refuse de choisir au hasard.', 'imported_local_ambiguous', { remoteClientId });
     }
@@ -261,16 +276,21 @@ async function resolveImportedLocalId(db, visite, remoteClientId, remoteSiteId) 
         'imported_local_identity_conflict', { remoteClientId });
     }
     if (referenceIds.length === 1) {
-      const evidenced = sendable.filter(row => clean(row.remote_local_id) === referenceIds[0]);
-      if (evidenced.length === 1 &&
-          (!clean(evidenced[0].local_installation_id) ||
-           clean(evidenced[0].local_installation_id) === clean(visite.installation_id))) {
-        return clean(evidenced[0].remote_local_id);
+      const evidenced = locals.find(row => clean(row.remote_local_id) === referenceIds[0]);
+      if (evidenced && clean(evidenced.local_installation_id) &&
+          clean(evidenced.local_installation_id) !== clean(visite.installation_id)) {
+        throw bindingError('Ce local Intranet est déjà attribué à une autre installation METRA. Vérifie les identifiants avant toute modification.', 'imported_local_identity_conflict', { remoteClientId });
       }
-      throw bindingError('Le local Intranet enregistré pour cette installation n’est plus compatible ou est lié à une autre installation. Vérifie son rattachement.',
-        'imported_local_identity_conflict', { remoteClientId });
+      return verifyKnownLocal(referenceIds[0], 'la provenance de cette installation');
     }
+    // Dès lors que l'installation physique est connue, choisir l'unique
+    // « local compatible » d'un site ne prouve pas l'identité. C'était une
+    // source de mélanges silencieux sur les sites à plusieurs locaux.
+    throw bindingError('Cette visite a une installation METRA précise, mais la correspondance Intranet n’est pas encore retrouvée. Réimporte le local puis vérifie ses identifiants ; aucun autre local ne sera choisi automatiquement.',
+      'imported_local_ambiguous', { remoteClientId });
   }
+  // Pour une visite historique SANS installation, seulement si le site n'a
+  // qu'un seul local réellement compatible et aucun identifiant contradictoire.
   if (sendable.length === 1) return clean(sendable[0].remote_local_id);
   if (!sendable.length) {
     const reasons = [...new Set(locals.map((row) => row.compatibilityReason).filter(Boolean))];
