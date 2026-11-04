@@ -146,9 +146,11 @@ async function main() {
     checks++; console.log(`OK ${checks}: malformed explicit reserve date is not silently truncated`);
     await server.db.runAsync(`UPDATE remarques SET intranet_date_reserve='2026-09-10' WHERE visite_id='visit-1'`);
     await server.db.runAsync(`DELETE FROM materiel WHERE visite_id='visit-1'`);
-    await assert.rejects(() => payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111'),
-      (e) => e?.code === 'local_validation_failed' && e.issues.some((issue) => /Matériel Intranet/.test(issue)));
-    checks++; console.log(`OK ${checks}: missing historical material is a hard local validation error, not a confirmation`);
+    const clearedVisit = await payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111');
+    check(clearedVisit.payload.visites[0].materiels.length === 0 &&
+      clearedVisit.materialWarnings.some(issue => /anciennes absentes/.test(issue)),
+      'the technician can send a fully empty listing; missing old references are diagnostics only');
+    checks++; console.log(`OK ${checks}: full material clearing is serialized as an empty replacement`);
     await server.db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,nombre,designation,numero_materiel,reseau_desservi,marque,modele,caracteristiques,annee,etat)
       VALUES('material-restored','visit-1','PRODUCTION CHAUD','2','Chaudière gaz','CHA-001','Bâtiment A','Exemple','G500','500 kW','2019','Bon')`);
 
@@ -308,15 +310,18 @@ async function main() {
 
     await seed(server.db, 'clear-list');
     await server.db.runAsync(`DELETE FROM materiel WHERE visite_id='clear-list'`);
-    await assert.rejects(() => outbox.queueVisitUpload('clear-list'),
-      (error) => error?.code === 'local_validation_failed' && error.issues.some((v) => /Matériel Intranet/.test(v)));
-    check(!(await outbox.getVisitUploadState('clear-list')), 'empty material listing cannot be queued for destructive replacement');
-    await assert.rejects(() => outbox.queueVisitUpload('clear-list', { confirmMaterialClear: true }),
-      (error) => error?.code === 'local_validation_failed');
-    checks++; console.log(`OK ${checks}: former confirmation flag cannot bypass the new hard safety policy`);
+    const clearedQueue = await outbox.queueVisitUpload('clear-list');
+    check(clearedQueue.status === 'pending' &&
+      JSON.parse(clearedQueue.payload_json).visites[0].materiels.length === 0,
+      'an explicit empty material listing queues a complete remote replacement');
+    await outbox.processVisitOutbox({ limit: 1 });
+    const clearedAck = await outbox.getVisitUploadState('clear-list');
+    check(clearedAck.status === 'synced' && clearedAck.envoi_id === clearedQueue.envoi_id,
+      'the empty material replacement is acknowledged by a single POST, not blocked locally');
+    checks++; console.log(`OK ${checks}: deleting the last material is reflected in the exact outgoing snapshot`);
 
-    // Legacy SQLite outbox created by an older APK: reject before any HTTP,
-    // preserving its original JSON and envoiId for forensic recovery.
+    // Legacy SQLite outbox created by an older APK: a first attempt must
+    // still reject a stale snapshot, not a legitimate intentional deletion.
     await seed(server.db, 'legacy-queued');
     const validLegacy = await payloadModule.buildIntranetVisitPayload('legacy-queued', '33333333-3333-4333-8333-333333333333');
     const badLegacy = JSON.parse(validLegacy.serialized);
@@ -327,9 +332,9 @@ async function main() {
     mode = 'success'; const httpBefore = calls.length;
     await outbox.processVisitOutbox({ limit: 1 });
     const blockedLegacy = await outbox.getVisitUploadState('legacy-queued');
-    check(blockedLegacy.status === 'validation_error' && blockedLegacy.error_code === 'material_snapshot_unsafe' &&
-      calls.length === httpBefore, 'old dangerous offline payload is stopped before network, without generating a new envoiId');
-    check(blockedLegacy.payload_json === badSerialized, 'rejected legacy payload is retained byte-identical for controlled recovery');
+    check(blockedLegacy.status === 'validation_error' && blockedLegacy.error_code === 'queued_payload_stale' &&
+      calls.length === httpBefore, 'a first-time frozen legacy JSON differing from current technician data cannot overwrite it');
+    check(blockedLegacy.payload_json === badSerialized, 'stale legacy payload remains byte-identical for controlled recovery');
 
     // This outbox has not made any POST: a subsequent edit must invalidate
     // the old bytes instead of silently sending a stale field/remark.
