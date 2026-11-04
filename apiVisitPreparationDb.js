@@ -99,18 +99,18 @@ async function ensureInstallationForRemoteLocal(db, siteId, remoteLocalId, ref) 
   return installationId;
 }
 
-async function findEquipmentByRemoteId(db, siteId, installationId, remoteMaterialId) {
+async function findEquipmentByRemoteId(db, siteId, installationId, remoteMaterialId, usedEquipmentIds = new Set()) {
   if (!remoteMaterialId) return null;
-  const row = await db.getFirstAsync(
+  const rows = await db.getAllAsync(
     `SELECT e.id,e.installation_id FROM provenances p
      JOIN equipements e ON e.id=p.entite_id
      JOIN installations i ON i.id=e.installation_id
      WHERE p.entite_type='equipement' AND p.origine='api_symfony' AND p.reference_externe=?
        AND i.site_id=?
-     ORDER BY CASE WHEN e.installation_id=? THEN 0 ELSE 1 END,p.importe_le DESC LIMIT 1`,
+     ORDER BY CASE WHEN e.installation_id=? THEN 0 ELSE 1 END,p.importe_le DESC,e.id`,
     [remoteMaterialId, siteId, installationId]
   );
-  return row || null;
+  return rows.find(row => !usedEquipmentIds.has(String(row.id))) || null;
 }
 
 async function findByApiMaterialNumber(db, installationId, numeroMateriel, usedEquipmentIds = new Set()) {
@@ -151,8 +151,8 @@ async function findConservativeEquipmentMatch(db, installationId, material, used
 
 async function ensureEquipmentFromCurrentListing(db, siteId, installationId, material, usedEquipmentIds = new Set()) {
   const remoteMaterialId = sourceId(material?.id);
-  const linked = await findEquipmentByRemoteId(db, siteId, installationId, remoteMaterialId);
-  let equipmentId = linked?.id && !usedEquipmentIds.has(String(linked.id)) ? linked.id : null;
+  const linked = await findEquipmentByRemoteId(db, siteId, installationId, remoteMaterialId, usedEquipmentIds);
+  let equipmentId = linked?.id || null;
   const wasRemoteLinked = Boolean(equipmentId);
 
   if (equipmentId && linked.installation_id !== installationId) {
