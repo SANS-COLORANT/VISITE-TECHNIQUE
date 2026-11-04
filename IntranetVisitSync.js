@@ -542,14 +542,22 @@ export async function envoyerVisitesClient(clientId, { onProgress = null, visite
   const { aEnvoyer: candidats, enCours } = await listerVisitesAEnvoyerClient(clientId);
   const autorises = Array.isArray(visiteIds) ? new Set(visiteIds.map(String)) : null;
   const aEnvoyer = autorises ? candidats.filter(v=>autorises.has(String(v.id))) : candidats;
-  const bilan = { envoyees: [], aConfirmer: [], enErreur: [], enCours: enCours.length, total: aEnvoyer.length };
+  const bilan = { envoyees: [], enAttente: [], aConfirmer: [], enErreur: [], enCours: enCours.length, total: aEnvoyer.length };
+  let terminees = 0;
+  const progress = (visite, phase) => onProgress?.({
+    rang: terminees, total: aEnvoyer.length, nom: nomVisite(visite),
+    phase, pourcentage: aEnvoyer.length ? Math.round(100 * terminees / aEnvoyer.length) : 100,
+    confirmees: bilan.envoyees.length, enAttente: bilan.enAttente.length,
+    erreurs: bilan.enErreur.length + bilan.aConfirmer.length,
+  });
   let rang = 0;
   for (const visite of aEnvoyer) {
     rang += 1;
-    onProgress?.({ rang, total: aEnvoyer.length, nom: nomVisite(visite) });
+    progress(visite, 'Envoi en cours');
     try {
       const row = await getVisitUploadState(visite.id);
-      if (row?.status === 'synced') { await syncVisitPhotosNow(visite.id).catch(() => {}); bilan.envoyees.push(nomVisite(visite)); continue; }
+      // Une visite déjà synchronisée ne doit jamais être re-POSTée en masse.
+      if (row?.status === 'synced') continue;
       if (row?.error_code === 'idempotency_conflict' || row?.error_code === 'invalid_ack') {
         bilan.aConfirmer.push(`${nomVisite(visite)} : envoi verrouillé, à traiter depuis la visite.`); continue;
       }
@@ -576,7 +584,7 @@ export async function envoyerVisitesClient(clientId, { onProgress = null, visite
       } else if (final && ['validation_error', 'rejected', 'conflict', 'auth_error'].includes(final.status)) {
         bilan.enErreur.push(`${nomVisite(visite)} : ${serverFeedback(final) || 'refusée par l’Intranet'}`);
       } else {
-        bilan.envoyees.push(`${nomVisite(visite)} (en attente de connexion)`);
+        bilan.enAttente.push(nomVisite(visite));
       }
     } catch (error) {
       if (['material_replacement_confirmation_required', 'material_clear_confirmation_required'].includes(error?.code)) {
@@ -584,6 +592,9 @@ export async function envoyerVisitesClient(clientId, { onProgress = null, visite
       } else {
         bilan.enErreur.push(`${nomVisite(visite)} : ${localBindingFeedback(error).split('\n')[0]}`);
       }
+    } finally {
+      terminees += 1;
+      progress(visite, 'Traitée');
     }
   }
   return bilan;
