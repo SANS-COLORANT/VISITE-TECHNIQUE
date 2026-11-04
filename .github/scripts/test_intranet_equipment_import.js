@@ -211,6 +211,7 @@ async function main() {
   assert.notEqual(twins[0].equipement_id, twins[1].equipement_id,
     'two identical physical items have distinct persistent identities');
 
+  ref.materiels = [{ id:'material-777', categorie:'Circulateur', designation:'Pompe primaire', nombre:'2', numeroMateriel:'P1', reseauDesservi:'Chauffage', marque:'GRUNDFOS', modele:'MAGNA3', caracteristiques:'DN50', annee:'2022', etat:'Bon' }];
   const noVisitDb = fakeDb();
   const noVisitProvenance = async (_db, type, entityId, reference, details) => {
     noVisitDb.state.provenances.push({ entite_type: type, entite_id: entityId, reference_externe: reference, details });
