@@ -226,22 +226,104 @@ async function resolveImportedLocalId(db, visite, remoteClientId, remoteSiteId) 
   const locals = rows.map((row) => ({ ...row, ...localBindingState(row, visite.trame_id,
     frozen && clean(frozen.local?.id) === clean(row.remote_local_id) ? frozen : null) }));
   const sendable = locals.filter((row) => row.compatible);
+  // L'identité du local importé prévaut TOUJOURS sur la compatibilité
+  // de la trame. Si la trame n'est plus valable, on répare la référence du
+  // MÊME local : on ne cherche jamais un autre local à trame compatible.
+  const verifyKnownLocal = (id, origin) => {
+    const known = locals.find((row) => clean(row.remote_local_id) === clean(id));
+    if (!known) throw bindingError(
+      `Le local Intranet ${id}, déjà lié à cette visite via ${origin}, n'est plus présent sur son site. Actualise le référentiel du client sans déplacer la visite.`,
+      'intranet_reference_refresh_required', { remoteClientId, remoteLocalId: id }
+    );
+    if (!known.compatible) throw bindingError(
+      `Le local Intranet ${known.designation || id} (ID ${id}) est bien identifié, mais sa trame ou sa préparation ne permet pas l'envoi : ${known.compatibilityReason}. Actualise la trame de CE local, sans choisir un autre local.`,
+      'intranet_reference_refresh_required', { remoteClientId, remoteLocalId: id }
+    );
+    return clean(known.remote_local_id);
+  };
   const frozenLocalId = clean(visite.api_remote_local_id);
-  if (frozenLocalId && sendable.some((row) => clean(row.remote_local_id) === frozenLocalId)) return frozenLocalId;
+  if (frozenLocalId) return verifyKnownLocal(frozenLocalId, 'la visite');
+
+  // Des visites créées à partir d'une référence importée peuvent avoir perdu
+  // leur colonne api_remote_local_id au fil d'anciennes migrations. Leur
+  // provenance contient toutefois l'identité originale, immuable et complète
+  // du local ET du site Intranet. Cette preuve suffit, contrairement au nom.
+  const savedReferences = await db.getAllAsync(`SELECT details_json FROM provenances
+    WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony'
+    ORDER BY importe_le DESC`, [String(visite.id)]);
+  const sourcedIds = new Set();
+  for (const entry of savedReferences) {
+    const details = parseJson(entry.details_json);
+    if (!['preparation_visite','remar_upload_preselection'].includes(details?.sourceType)) continue;
+    const site = clean(details?.site?.id);
+    const id = clean(details?.local?.id);
+    const source = clean(details?.remoteLocalId);
+    if (site === clean(remoteSiteId) && validApiId(id) && (!source || source === id))
+      sourcedIds.add(id);
+  }
+  if (sourcedIds.size > 1) {
+    throw bindingError('Cette visite conserve plusieurs identifiants de locaux Intranet dans ses anciennes préparations. Aucune réaffectation automatique.',
+      'imported_local_identity_conflict', { remoteClientId });
+  }
+  if (sourcedIds.size === 1) return verifyKnownLocal([...sourcedIds][0], 'sa préparation Intranet d’origine');
 
   if (clean(visite.installation_id)) {
-    const installed = sendable.filter((row) => clean(row.local_installation_id) === clean(visite.installation_id));
-    if (installed.length === 1) return clean(installed[0].remote_local_id);
+    const installed = locals.filter((row) => clean(row.local_installation_id) === clean(visite.installation_id));
+    if (installed.length === 1) return verifyKnownLocal(installed[0].remote_local_id, 'son installation METRA');
     if (installed.length > 1) {
       throw bindingError('Plusieurs locaux Intranet sont liés à la même installation METRA. METRA refuse de choisir au hasard.', 'imported_local_ambiguous', { remoteClientId });
     }
+
+    // Récupération d'une liaison durable précédente lorsque api_local_links
+    // a perdu son local_installation_id. On exige la provenance d'identité
+    // Symfony de CETTE installation, pas une égalité de nom (D2/D3).
+    const provenances = await db.getAllAsync(
+      `SELECT DISTINCT reference_externe FROM provenances
+       WHERE entite_type='installation' AND entite_id=?
+         AND origine='api_symfony' AND reference_externe IS NOT NULL
+         AND trim(reference_externe)<>''`, [String(visite.installation_id)]
+    );
+    // Une ancienne visite du MEME identifiant d'installation constitue une
+    // autre preuve forte de son ID Symfony. Le nom « D2 » n'est jamais
+    // consulté. Plusieurs IDs différents = conflit, pas de déduction.
+    const anciennesVisites = await db.getAllAsync(
+      `SELECT DISTINCT api_remote_local_id AS reference_externe FROM visites
+       WHERE installation_id=? AND api_remote_local_id IS NOT NULL
+         AND trim(api_remote_local_id)<>''`,
+      [String(visite.installation_id)]
+    );
+    const referenceIds = [...new Set([...provenances, ...anciennesVisites]
+      .map(p => clean(p.reference_externe)).filter(Boolean))];
+    if (referenceIds.length > 1) {
+      throw bindingError('Cette installation conserve plusieurs identités de locaux Intranet différentes. Un choix explicite du local est indispensable.',
+        'imported_local_identity_conflict', { remoteClientId });
+    }
+    if (referenceIds.length === 1) {
+      const evidenced = locals.find(row => clean(row.remote_local_id) === referenceIds[0]);
+      if (evidenced && clean(evidenced.local_installation_id) &&
+          clean(evidenced.local_installation_id) !== clean(visite.installation_id)) {
+        throw bindingError('Ce local Intranet est déjà attribué à une autre installation METRA. Vérifie les identifiants avant toute modification.', 'imported_local_identity_conflict', { remoteClientId });
+      }
+      return verifyKnownLocal(referenceIds[0], 'la provenance de cette installation');
+    }
+    // Dès lors que l'installation physique est connue, choisir l'unique
+    // « local compatible » d'un site ne prouve pas l'identité. C'était une
+    // source de mélanges silencieux sur les sites à plusieurs locaux.
+    throw bindingError('Cette visite a une installation METRA précise, mais la correspondance Intranet n’est pas encore retrouvée. Réimporte le local puis vérifie ses identifiants ; aucun autre local ne sera choisi automatiquement.',
+      'imported_local_ambiguous', { remoteClientId });
   }
+  // Pour une visite historique SANS installation, seulement si le site n'a
+  // qu'un seul local réellement compatible et aucun identifiant contradictoire.
   if (sendable.length === 1) return clean(sendable[0].remote_local_id);
   if (!sendable.length) {
     const reasons = [...new Set(locals.map((row) => row.compatibilityReason).filter(Boolean))];
     throw bindingError(reasons[0] || 'Aucun local Intranet compatible n’est relié à ce site importé.', 'intranet_reference_refresh_required', { remoteClientId });
   }
-  throw bindingError('Plusieurs locaux Intranet compatibles existent sur ce site et la visite n’est liée à aucune installation précise. METRA refuse de deviner le local.', 'imported_local_ambiguous', { remoteClientId });
+  throw bindingError(
+    clean(visite.installation_id)
+      ? 'Cette visite est liée à un local METRA, mais son identifiant Intranet n’est pas établi. Choisis explicitement le local Intranet de cette visite (sans changer le site ni la trame).'
+      : 'Plusieurs locaux Intranet compatibles existent et cette visite historique n’a aucun local METRA. Choisis explicitement son local Intranet.',
+    'imported_local_ambiguous', { remoteClientId });
 }
 
 export async function getVisitIntranetBindingOptions(visiteId) {
@@ -314,6 +396,30 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
   if (!site) throw bindingError('Ce site ne correspond pas au site importé pour ce client Intranet.', 'wrong_imported_site', { remoteClientId: clientId });
   const local = await db.getFirstAsync(`SELECT * FROM api_local_links WHERE remote_local_id=? AND remote_site_id=? AND remote_present=1`, [localId, siteId]);
   if (!local) throw bindingError('Local Intranet introuvable sur le site importé. Actualise les données du client.', 'intranet_reference_refresh_required', { remoteClientId: clientId });
+  // Une sélection explicite ne peut jamais déplacer silencieusement une
+  // installation, son matériel ou ses anciennes visites vers un autre local.
+  const oldVisitLocal = clean(visite.api_remote_local_id);
+  if (oldVisitLocal && oldVisitLocal !== localId)
+    throw bindingError('Cette visite possède déjà un identifiant Intranet différent. Rattachement modifiable uniquement après audit des identités.', 'imported_local_identity_conflict');
+  if (clean(visite.installation_id)) {
+    const installationId = clean(visite.installation_id);
+    if (clean(local.local_installation_id) && clean(local.local_installation_id) !== installationId)
+      throw bindingError('Ce local Intranet est déjà associé à une autre installation METRA. Aucun mélange de patrimoine autorisé.', 'imported_local_identity_conflict');
+    const links = await db.getAllAsync(`SELECT remote_local_id FROM api_local_links
+      WHERE local_installation_id=? AND remote_present=1`, [installationId]);
+    if (links.some(link => clean(link.remote_local_id) !== localId))
+      throw bindingError('Cette installation METRA est déjà associée à un autre local Intranet. Aucune modification automatique.', 'imported_local_identity_conflict');
+    const provenances = await db.getAllAsync(`SELECT DISTINCT reference_externe FROM provenances
+      WHERE entite_type='installation' AND entite_id=? AND origine='api_symfony'
+        AND reference_externe IS NOT NULL AND trim(reference_externe)<>''`, [installationId]);
+    if (provenances.some(source => clean(source.reference_externe) !== localId))
+      throw bindingError('La provenance d’origine de cette installation est un autre local Intranet. Aucun transfert automatique.', 'imported_local_identity_conflict');
+    const existingVisitLocals = await db.getAllAsync(`SELECT DISTINCT api_remote_local_id
+      FROM visites WHERE installation_id=? AND api_remote_local_id IS NOT NULL
+        AND trim(api_remote_local_id)<>''`, [installationId]);
+    if (existingVisitLocals.some(ref => clean(ref.api_remote_local_id) !== localId))
+      throw bindingError('Une ancienne visite de cette installation est liée à un autre local Intranet. Aucun changement automatique de son identité.', 'imported_local_identity_conflict');
+  }
 
   const frozen = await frozenVisitReference(db, visite);
   if (frozen && (clean(frozen.local?.id) !== localId || clean(frozen.site?.id) !== siteId)) {
@@ -350,7 +456,21 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
       [clientId, localId, remoteTrameId, clean(reference?.derniereVisite?.id) || null, String(visiteId)]);
     await db.runAsync(`UPDATE api_site_links SET local_site_id=COALESCE(local_site_id,?) WHERE remote_site_id=?`, [visite.site_id, siteId]);
     await db.runAsync(`UPDATE api_client_site_links SET local_site_id=COALESCE(local_site_id,?) WHERE remote_client_id=? AND remote_site_id=?`, [visite.site_id, clientId, siteId]);
-    if (clean(visite.installation_id)) await db.runAsync(`UPDATE api_local_links SET local_installation_id=COALESCE(local_installation_id,?) WHERE remote_local_id=?`, [visite.installation_id, localId]);
+    if (clean(visite.installation_id)) {
+      await db.runAsync(`UPDATE api_local_links SET local_installation_id=?
+        WHERE remote_local_id=? AND (local_installation_id IS NULL OR local_installation_id='' OR local_installation_id=?)`,
+        [visite.installation_id, localId, visite.installation_id]);
+      // Conserver la correspondance d'identité : les futures visites du même
+      // local ne nécessiteront plus de sélection manuelle ni de nom heuristique.
+      const existing = await db.getFirstAsync(`SELECT id FROM provenances
+        WHERE entite_type='installation' AND entite_id=? AND origine='api_symfony'
+          AND reference_externe=? LIMIT 1`, [visite.installation_id, localId]);
+      if (!existing?.id) await db.runAsync(
+        `INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json)
+         VALUES(?,?,?,?,?,?)`,
+        [createId(), 'installation', visite.installation_id, 'api_symfony', localId,
+          JSON.stringify({ sourceType: 'local', remoteLocalId: localId, remoteSiteId: siteId, explicitTechnicianBinding: true })]);
+    }
     await db.runAsync(`INSERT INTO provenances(id,entite_type,entite_id,origine,reference_externe,details_json) VALUES(?,?,?,?,?,?)`,
       [createId(), 'visite', String(visiteId), 'api_symfony', localId, JSON.stringify(details)]);
   });

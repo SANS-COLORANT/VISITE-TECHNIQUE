@@ -155,8 +155,10 @@ const db={
  const picker=read('ClientVisitSendPicker.js');
  check(picker.includes('new Set(visits.map(v=>String(v.id)))')&&
        picker.includes("allSelected?'Tout désélectionner':'Tout sélectionner'")&&
-       picker.includes('onSend?.([...selected])'),
-   'all visits selected by default, reversible all-selection, explicit selected IDs only');
+       picker.includes('onSend?.(readySelected)') &&
+       picker.includes('onBind?.(visit)') && picker.includes('onResolveLocal?.(local)') &&
+       picker.includes('local.remote_local_id'),
+   'all visits selectable, but only visits with a confirmed Intranet local are sent; ambiguous locals require explicit ID selection');
  const uploader=read('IntranetVisitSync.js');
  check(uploader.includes('visiteIds = null')&&
        uploader.includes('candidats.filter(v=>autorises.has(String(v.id)))'),

@@ -5,6 +5,7 @@ import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { DEFAULT_TRAME_ID, obtenirTrame } from './trameRegistry.js';
 import { enrichLatestImportedVisitFields } from './apiLatestVisitFieldEnrichmentDb.js';
 import { importerRemarSymfonyMultiligne } from './remarSymfonyMultilineImport.js';
+import { reconcileImportedEquipmentInventory } from './intranetMaterialImportReconcile.js';
 
 function clean(value) { return value == null ? '' : String(value).trim(); }
 function text(value) { const v = clean(value); return v || null; }
@@ -195,7 +196,7 @@ function materialFallbackReference(remoteLocalId, material, index) {
     material?.marque,
     material?.modele,
   ].map(normalize).filter(Boolean).join('|');
-  return `local:${remoteLocalId}:material:${fingerprint || index}`;
+  return `local:${remoteLocalId}:material:${fingerprint || 'unnamed'}:${index}`;
 }
 
 function materialYear(value) {
@@ -226,19 +227,23 @@ async function upsertEquipmentAttribute(db, equipmentId, key, value) {
 
 async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installationId, visiteId, trameId }) {
   const materials = Array.isArray(ref?.materiels) ? ref.materiels : [];
-  if (!materials.length) return { sourceMaterials: 0, importedMaterials: 0, matchedCatalogBrands: 0 };
-
   const brandRows = await db.getAllAsync(
     `SELECT id,nom,logo_uri FROM marques_equipement WHERE actif=1 ORDER BY nom`
   );
   const brandsByKey = new Map(brandRows.map((row) => [normalize(row.nom), row]));
   let importedMaterials = 0;
   let matchedCatalogBrands = 0;
+  const seenEquipmentIds = new Set();
+  const ordinalByFingerprint = new Map();
 
   for (let index = 0; index < materials.length; index += 1) {
     const material = materials[index] || {};
     const explicitRemoteId = remoteId(material.id);
-    const externalReference = explicitRemoteId || materialFallbackReference(remoteLocalId, material, index);
+    const signature = [material?.categorie,material?.designation,material?.numeroMateriel,
+      material?.marque,material?.modele].map(normalize).join('|');
+    const ordinal = (ordinalByFingerprint.get(signature) || 0) + 1;
+    ordinalByFingerprint.set(signature, ordinal);
+    const externalReference = explicitRemoteId || materialFallbackReference(remoteLocalId, material, ordinal);
     const catalogBrand = brandsByKey.get(normalize(material.marque)) || null;
     const sourceBrand = text(material.marque);
     const brand = text(catalogBrand?.nom) || sourceBrand;
@@ -251,27 +256,28 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
     const model = text(material.modele);
     const year = materialYear(material.annee);
 
-    const linked = await db.getFirstAsync(
+    const linkedRows = await db.getAllAsync(
       `SELECT e.id FROM provenances p
        JOIN equipements e ON e.id=p.entite_id
        WHERE p.entite_type='equipement' AND p.origine='api_symfony'
          AND p.reference_externe=? AND e.installation_id=?
-       ORDER BY p.importe_le DESC LIMIT 1`,
+       ORDER BY p.importe_le DESC,e.id`,
       [externalReference, installationId]
     );
+    const linked = linkedRows.find(row => !seenEquipmentIds.has(String(row.id)));
 
-    let equipmentId = linked?.id || null;
+    let equipmentId = linked?.id && !seenEquipmentIds.has(String(linked.id)) ? linked.id : null;
     if (!equipmentId && !explicitRemoteId) {
-      const existing = await db.getFirstAsync(
+      const candidates = await db.getAllAsync(
         `SELECT id FROM equipements
-         WHERE installation_id=? AND statut='actif'
+         WHERE installation_id=?
            AND lower(trim(COALESCE(designation,'')))=lower(trim(?))
            AND lower(trim(COALESCE(marque,'')))=lower(trim(COALESCE(?,'')))
            AND lower(trim(COALESCE(modele,'')))=lower(trim(COALESCE(?,'')))
-         ORDER BY cree_le LIMIT 1`,
+         ORDER BY cree_le,id`,
         [installationId, designation, brand, model]
       );
-      equipmentId = existing?.id || null;
+      equipmentId = candidates.find(item => !seenEquipmentIds.has(String(item.id)))?.id || null;
     }
 
     if (equipmentId) {
@@ -290,6 +296,9 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
       );
     }
 
+    // Une ligne de référence = un identifiant d'équipement local : ne jamais
+    // regrouper deux appareils homonymes sur le même matériel.
+    seenEquipmentIds.add(String(equipmentId));
     const attributes = [
       ['api_symfony.nombre', text(material.nombre)],
       ['api_symfony.numero_materiel', text(material.numeroMateriel)],
@@ -358,6 +367,13 @@ async function importCurrentMaterialsForLocal(db, { ref, remoteLocalId, installa
     }
 
     importedMaterials += 1;
+  }
+
+  if (Array.isArray(ref?.materiels)) {
+    await reconcileImportedEquipmentInventory(db, {
+      installationId, remoteLocalId,
+      retainedEquipmentIds: [...seenEquipmentIds], visitId: visiteId || null,
+    });
   }
 
   return {

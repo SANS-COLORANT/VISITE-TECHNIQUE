@@ -130,8 +130,11 @@ async function main() {
     check(prepared.payloadBytes === Buffer.byteLength(prepared.serialized, 'utf8'), '5 MiB guard counts UTF-8 bytes correctly');
 
     await server.db.runAsync(`UPDATE materiel SET etat='Dégradé' WHERE visite_id='visit-1'`);
-    await assert.rejects(() => payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111'), /empêchent|état/);
-    checks++; console.log(`OK ${checks}: material state outside Symfony enum blocks upload instead of being silently converted`);
+    const freeMaterial = await payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111');
+    check(freeMaterial.payload.visites[0].materiels[0].etat === 'Bon' &&
+      freeMaterial.payload.visites[0].notes.some(note => note.contenu.includes('Dégradé')),
+      'free material state is preserved verbatim in an Intranet visit note and the V1 heritage stays unchanged');
+    checks++; console.log(`OK ${checks}: non-standard material state is preserved without unsafe heritage mutation`);
     await server.db.runAsync(`UPDATE materiel SET etat='Bon' WHERE visite_id='visit-1'`);
     await server.db.runAsync(`UPDATE materiel SET nombre=NULL WHERE visite_id='visit-1'`);
     await assert.rejects(() => payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111'),
@@ -143,9 +146,11 @@ async function main() {
     checks++; console.log(`OK ${checks}: malformed explicit reserve date is not silently truncated`);
     await server.db.runAsync(`UPDATE remarques SET intranet_date_reserve='2026-09-10' WHERE visite_id='visit-1'`);
     await server.db.runAsync(`DELETE FROM materiel WHERE visite_id='visit-1'`);
-    await assert.rejects(() => payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111'),
-      (e) => e?.code === 'local_validation_failed' && e.issues.some((issue) => /Matériel Intranet/.test(issue)));
-    checks++; console.log(`OK ${checks}: missing historical material is a hard local validation error, not a confirmation`);
+    const clearedVisit = await payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111');
+    check(clearedVisit.payload.visites[0].materiels.length === 0 &&
+      clearedVisit.materialWarnings.some(issue => /anciennes absentes/.test(issue)),
+      'the technician can send a fully empty listing; missing old references are diagnostics only');
+    checks++; console.log(`OK ${checks}: full material clearing is serialized as an empty replacement`);
     await server.db.runAsync(`INSERT INTO materiel(id,visite_id,categorie,nombre,designation,numero_materiel,reseau_desservi,marque,modele,caracteristiques,annee,etat)
       VALUES('material-restored','visit-1','PRODUCTION CHAUD','2','Chaudière gaz','CHA-001','Bâtiment A','Exemple','G500','500 kW','2019','Bon')`);
 
@@ -260,17 +265,21 @@ async function main() {
       [JSON.stringify({ ...context, materiels: [brandReference] })]);
     const brandWire = await payloadModule.buildIntranetVisitPayload(
       'brand-case', '78787878-7878-4878-8878-787878787878');
-    check(brandWire.payload.visites[0].materiels[0].marque === 'EXEMPLE',
-      'existing visits with catalog brand casing are repaired in the wire without a SQLite mutation');
+    check(brandWire.payload.visites[0].materiels[0].marque === 'Exemple',
+      'the technician spelling is authoritative, even when the Intranet reference uses another capitalization');
     await server.db.runAsync(`UPDATE materiel SET modele='G600' WHERE visite_id='brand-case'`);
-    await assert.rejects(() => payloadModule.buildIntranetVisitPayload(
-      'brand-case', '78787878-7878-4878-8878-787878787878'),
-      (e) => e?.code === 'local_validation_failed' &&
-        e.issues.some((message) => /Matériel Intranet/.test(message)));
-    checks++; console.log(`OK ${checks}: actual material change is never masked by typography reconciliation`);
+    const editedMaterial = await payloadModule.buildIntranetVisitPayload(
+      'brand-case', '78787878-7878-4878-8878-787878787878');
+    check(editedMaterial.payload.visites[0].materiels[0].modele === 'G600' &&
+      editedMaterial.materialWarnings.length > 0,
+      'real changes to models are transmitted in the complete listing, with nonblocking reference diagnostics');
+    checks++; console.log(`OK ${checks}: real material changes remain authoritative on the V1 wire`);
 
     const calls = []; let mode = 'network';
-    const uuids = ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'ffffffff-ffff-4fff-8fff-ffffffffffff', '12345678-1234-4234-8234-123456789abc', '87654321-4321-4321-8321-cba987654321', '99999999-9999-4999-8999-999999999999'];
+    const uuids = ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'dddddddd-dddd-4ddd-8ddd-dddddddddddd', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'ffffffff-ffff-4fff-8fff-ffffffffffff', '12345678-1234-4234-8234-123456789abc', '87654321-4321-4321-8321-cba987654321', '99999999-9999-4999-8999-999999999999',
+      'abababab-abab-4bab-8bab-abababababab',
+      'cdcdcdcd-cdcd-4dcd-8dcd-cdcdcdcdcdcd',
+      'efefefef-efef-4fef-8fef-efefefefefef'];
     let uuidIndex = 0;
     const sender = async (_client, serialized) => {
       calls.push(serialized);
@@ -305,15 +314,18 @@ async function main() {
 
     await seed(server.db, 'clear-list');
     await server.db.runAsync(`DELETE FROM materiel WHERE visite_id='clear-list'`);
-    await assert.rejects(() => outbox.queueVisitUpload('clear-list'),
-      (error) => error?.code === 'local_validation_failed' && error.issues.some((v) => /Matériel Intranet/.test(v)));
-    check(!(await outbox.getVisitUploadState('clear-list')), 'empty material listing cannot be queued for destructive replacement');
-    await assert.rejects(() => outbox.queueVisitUpload('clear-list', { confirmMaterialClear: true }),
-      (error) => error?.code === 'local_validation_failed');
-    checks++; console.log(`OK ${checks}: former confirmation flag cannot bypass the new hard safety policy`);
+    const clearedQueue = await outbox.queueVisitUpload('clear-list');
+    check(clearedQueue.status === 'pending' &&
+      JSON.parse(clearedQueue.payload_json).visites[0].materiels.length === 0,
+      'an explicit empty material listing queues a complete remote replacement');
+    await outbox.processVisitOutbox({ limit: 1 });
+    const clearedAck = await outbox.getVisitUploadState('clear-list');
+    check(clearedAck.status === 'synced' && clearedAck.envoi_id === clearedQueue.envoi_id,
+      'the empty material replacement is acknowledged by a single POST, not blocked locally');
+    checks++; console.log(`OK ${checks}: deleting the last material is reflected in the exact outgoing snapshot`);
 
-    // Legacy SQLite outbox created by an older APK: reject before any HTTP,
-    // preserving its original JSON and envoiId for forensic recovery.
+    // Legacy SQLite outbox created by an older APK: a first attempt must
+    // still reject a stale snapshot, not a legitimate intentional deletion.
     await seed(server.db, 'legacy-queued');
     const validLegacy = await payloadModule.buildIntranetVisitPayload('legacy-queued', '33333333-3333-4333-8333-333333333333');
     const badLegacy = JSON.parse(validLegacy.serialized);
@@ -324,9 +336,9 @@ async function main() {
     mode = 'success'; const httpBefore = calls.length;
     await outbox.processVisitOutbox({ limit: 1 });
     const blockedLegacy = await outbox.getVisitUploadState('legacy-queued');
-    check(blockedLegacy.status === 'validation_error' && blockedLegacy.error_code === 'material_snapshot_unsafe' &&
-      calls.length === httpBefore, 'old dangerous offline payload is stopped before network, without generating a new envoiId');
-    check(blockedLegacy.payload_json === badSerialized, 'rejected legacy payload is retained byte-identical for controlled recovery');
+    check(blockedLegacy.status === 'validation_error' && blockedLegacy.error_code === 'queued_payload_stale' &&
+      calls.length === httpBefore, 'a first-time frozen legacy JSON differing from current technician data cannot overwrite it');
+    check(blockedLegacy.payload_json === badSerialized, 'stale legacy payload remains byte-identical for controlled recovery');
 
     // This outbox has not made any POST: a subsequent edit must invalidate
     // the old bytes instead of silently sending a stale field/remark.
@@ -371,10 +383,73 @@ async function main() {
     await outbox.processVisitOutbox({ limit: 3 }); row = await outbox.getVisitUploadState('bad-ack');
     check(Number(row.attempt_count) === 1, 'invalid acknowledgement is never automatically replayed or replaced with a new envoiId');
 
+    // Regression ULIS 04/11: 37 selected visits could show 29 queued because
+    // processVisitOutbox({limit:1}) posted a GLOBAL earlier queue entry.
+    // The selected local must be confirmed before the unrelated older row.
+    await seed(server.db, 'queue-older');
+    await seed(server.db, 'queue-chosen');
+    const olderQueue = await outbox.queueVisitUpload('queue-older');
+    const chosenQueue = await outbox.queueVisitUpload('queue-chosen');
+    mode = 'success';
+    const callsBeforeSelection = calls.length;
+    await outbox.processVisitOutbox({ limit: 1, visiteId: 'queue-chosen' });
+    const selectedState = await outbox.getVisitUploadState('queue-chosen');
+    const unrelatedState = await outbox.getVisitUploadState('queue-older');
+    check(selectedState.status === 'synced' && unrelatedState.status === 'pending' &&
+      JSON.parse(calls[callsBeforeSelection]).envoiId === chosenQueue.envoi_id,
+      'targeted batch sends the explicitly selected local, not the first global pending visit');
+    await outbox.processVisitOutbox({ limit: 1, visiteId: 'queue-older' });
+    const afterOlder = await outbox.getVisitUploadState('queue-older');
+    check(afterOlder.status === 'synced' && afterOlder.envoi_id === olderQueue.envoi_id,
+      'the older queue remains intact and is sendable without duplicate POST or ID regeneration');
+
     await server.db.runAsync(`UPDATE visites SET statut='en_cours' WHERE id='missing-control'`);
     await assert.rejects(() => outbox.queueVisitUpload('missing-control'), /Finalise la visite/);
     checks++; console.log(`OK ${checks}: UI queue policy does not create progressive duplicate server visits`);
     check((await server.db.getAllAsync('PRAGMA foreign_key_check')).length === 0, 'outbox migration and queued rows preserve SQLite foreign keys');
+
+    // Regression performance: previous 15-second scanner revisited the last
+    // 40 synced visits whether or not they contained new photos. A photo
+    // added later to visit 45 was never discovered at all.
+    // inclure_export is introduced by schema migration 048, not 036.
+    await server.send('migrate', '', [33, 49]);
+    for (let i = 0; i < 48; i++) {
+      const id = `photo-scan-${i}`;
+      const envoiId = `photo-envoi-${i}`;
+      await server.db.runAsync(
+        `INSERT INTO visites(id,site_id,date_visite,statut,trame_id) VALUES(?,'site-local','2026-10-01','terminee','icpe_v1')`,
+        [id]
+      );
+      await server.db.runAsync(
+        `INSERT INTO api_visit_outbox(envoi_id,visite_id,remote_client_id,payload_json,payload_bytes,status,remote_visit_id,synced_at)
+         VALUES(?,?,?,'{}',2,'synced',?,datetime('now',?))`,
+        [envoiId, id, '12', String(5000 + i), `-${48 - i} days`]
+      );
+    }
+    await server.db.runAsync(
+      `INSERT INTO photos(id,visite_id,uri,inclure_export) VALUES('photo-older-unqueued','photo-scan-0','file:///older.jpg',1)`
+    );
+    await server.db.runAsync(
+      `INSERT INTO photos(id,visite_id,uri,inclure_export) VALUES('photo-newer-queued','photo-scan-47','file:///newer.jpg',1)`
+    );
+    await server.db.runAsync(
+      `INSERT INTO api_visit_photo_outbox(photo_id,visite_id,envoi_photo_id,remote_client_id,remote_visit_id,uri,description,ordre,status)
+       VALUES('photo-newer-queued','photo-scan-47','photo-ack-existing','12','5047','file:///newer.jpg','Sent',1,'synced')`
+    );
+    const photoSource = fs.readFileSync(path.join(root, 'intranetVisitPhotoOutboxDb.js'), 'utf8');
+    const startPhotoScan = photoSource.indexOf('export async function queueMissingSyncedVisitPhotos(');
+    const endPhotoScan = photoSource.indexOf('\nasync function markRetry(', startPhotoScan);
+    check(startPhotoScan >= 0 && endPhotoScan > startPhotoScan, 'photo discovery uses production SQL, not a duplicate test query');
+    const scanned = [];
+    const scan = new Function('getDb', 'queueMissingVisitPhotos',
+      `${photoSource.slice(startPhotoScan, endPhotoScan).replace('export async function', 'async function')}\nreturn queueMissingSyncedVisitPhotos;`
+    )(async () => server.db, async (id) => { scanned.push(id); return 1; });
+    const found = await scan({ limitVisits: 40 });
+    check(found === 1 && scanned.length === 1 && scanned[0] === 'photo-scan-0',
+      'only older visit with genuinely unqueued photo is discovered, no 40-visit rescan or starvation');
+    check((await server.db.getAllAsync('PRAGMA foreign_key_check')).length === 0,
+      'selective photo discovery preserves all visit/photo foreign keys');
+
     console.log(`\n${checks} Intranet upload checks passed (real SQLite, production serializer/outbox, mocked HTTP/UUID).`);
   } finally { server.close(); fs.rmSync(dir, { recursive: true, force: true }); }
 }

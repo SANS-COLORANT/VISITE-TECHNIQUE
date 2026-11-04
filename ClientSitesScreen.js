@@ -1,6 +1,6 @@
 /** Écran Sites d'un client + accès pilotage, carte et documents. */
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, Text, FlatList, ScrollView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, FlatList, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Share } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { creerSite } from './db.js';
 import { getResumeSuppressionSite, supprimerSiteComplet } from './entityManagementDb.js';
@@ -23,7 +23,11 @@ import { ButtonGlow } from './ButtonGlow.js';
 import { ClientTourneeModal } from './ClientTourneeModal.js';
 import { bilanTournee, indexerTournee, listerTourneeClient } from './tourneeDb.js';
 import { envoyerVisitesClient, listerVisitesAEnvoyerClient } from './IntranetVisitSync.js';
+import { subscribeVisitOutbox } from './intranetVisitOutboxDb.js';
+import { subscribeVisitPhotoOutbox } from './intranetVisitPhotoOutboxDb.js';
+import { getClientTransferVolume, formatTransferBytes } from './intranetTransferVolume.js';
 import { ClientVisitSendPicker } from './ClientVisitSendPicker.js';
+import { getVisitIntranetBindingOptions, bindVisitToIntranetTarget } from './intranetVisitBindingDb.js';
 import { EmptyIcon } from './EmptyState.js';
 
 const adresseVide = () => ({ numero: '', voie: '', complement: '', codePostal: '', ville: '' });
@@ -54,8 +58,13 @@ function ClientSitesScreen({ route, navigation }) {
   const [filtreAFaire, setFiltreAFaire] = useState(false);
   const [aEnvoyer, setAEnvoyer] = useState(0);
   const [envoiEnCours, setEnvoiEnCours] = useState(null);
+  const [suiviEnvoiIds, setSuiviEnvoiIds] = useState([]);
+  const [envoiVolume, setEnvoiVolume] = useState(null);
+  const [suiviEnvoiVisible, setSuiviEnvoiVisible] = useState(false);
   const [selectionEnvoiVisible, setSelectionEnvoiVisible] = useState(false);
   const [candidatsEnvoi, setCandidatsEnvoi] = useState([]);
+  const [rattachementVisite, setRattachementVisite] = useState(null);
+  const [bilanDetailEnvoi, setBilanDetailEnvoi] = useState(null);
   const [nouveauNom, setNouveauNom] = useState('');
   const [nouvelleAdresse, setNouvelleAdresse] = useState(adresseVide);
 
@@ -89,6 +98,46 @@ function ClientSitesScreen({ route, navigation }) {
     const unsubscribe = navigation?.addListener?.('focus', chargerTournee);
     return unsubscribe;
   }, [chargerTournee, navigation]);
+  // Relecture sur chaque accusé de réception visite / photo. Le client peut
+  // continuer sa navigation : les uploads photo poursuivent leur cours.
+  useEffect(() => {
+    if (!suiviEnvoiIds.length) return undefined;
+    let live = true, reading = false, queued = false, timer = null;
+    const refresh = async () => {
+      timer = null;
+      if (!live) return;
+      if (reading) { queued = true; return; }
+      reading = true;
+      try {
+        const volume = await getClientTransferVolume(suiviEnvoiIds);
+        if (live) setEnvoiVolume(volume);
+      } catch (error) {
+        console.warn('Volume Intranet indisponible', error);
+      } finally {
+        reading = false;
+        if (queued && live) { queued = false; schedule(); }
+      }
+    };
+    // Les notifications viennent AVANT et APRÈS chaque POST photo. Faire
+    // une seule lecture toutes les 800 ms au maximum au lieu de relire les
+    // tailles et statuts de 37 visites en boucle pendant tout un envoi.
+    const schedule = () => {
+      if (!live) return;
+      if (reading) { queued = true; return; }
+      if (timer != null) return;
+      timer = setTimeout(refresh, 800);
+    };
+    void refresh();
+    const unsubscribeVisit = subscribeVisitOutbox(schedule);
+    const unsubscribePhoto = subscribeVisitPhotoOutbox(schedule);
+    return () => {
+      live = false;
+      if (timer != null) clearTimeout(timer);
+      unsubscribeVisit();
+      unsubscribePhoto();
+    };
+  }, [suiviEnvoiIds]);
+
   const tourneeIndex = useMemo(() => indexerTournee(tourneeRows), [tourneeRows]);
   const bilanSites = useMemo(() => bilanTournee(tourneeRows.filter((r) => !r.installation_id)), [tourneeRows]);
   const bilanLocaux = useMemo(() => bilanTournee(tourneeRows.filter((r) => r.installation_id)), [tourneeRows]);
@@ -157,22 +206,76 @@ function ClientSitesScreen({ route, navigation }) {
     } catch (e) { Alert.alert('Création impossible', String(e?.message || e)); }
   };
 
+  const ouvrirRattachementVisite = async (visite) => {
+    if (envoiEnCours || !visite?.id) return;
+    setRattachementVisite({ visite, loading: true, options: null });
+    try {
+      const options = await getVisitIntranetBindingOptions(visite.id);
+      setRattachementVisite({ visite, loading: false, options });
+    } catch (error) {
+      setRattachementVisite(null);
+      Alert.alert('Rattachement Intranet impossible', String(error?.message || error));
+    }
+  };
+
+  const confirmerRattachementVisite = async (local) => {
+    const pending = rattachementVisite;
+    if (!pending?.visite?.id || pending.loading || !pending.options) return;
+    const { selectedClientId, selectedSiteId } = pending.options;
+    if (!selectedClientId || !selectedSiteId || !local?.compatible) {
+      Alert.alert('Local Intranet', 'Le client, le site ou la trame ne sont pas confirmés. Réimporte ce client.');
+      return;
+    }
+    setRattachementVisite({ ...pending, loading: true });
+    try {
+      await bindVisitToIntranetTarget(pending.visite.id, {
+        remoteClientId: selectedClientId,
+        remoteSiteId: selectedSiteId,
+        remoteLocalId: local.remote_local_id,
+      });
+      const { aEnvoyer } = await listerVisitesAEnvoyerClient(clientId);
+      setCandidatsEnvoi(aEnvoyer);
+      setRattachementVisite(null);
+      await chargerTournee();
+    } catch (error) {
+      setRattachementVisite({ ...pending, loading: false });
+      Alert.alert('Rattachement non enregistré', String(error?.message || error));
+    }
+  };
+
   const envoyerTout = async (visiteIds) => {
     if (envoiEnCours || !Array.isArray(visiteIds) || !visiteIds.length) return;
-    setEnvoiEnCours({ rang: 0, total: visiteIds.length, nom: '' });
+    setBilanDetailEnvoi(null);
+    setEnvoiVolume(null);
+    setSuiviEnvoiIds(visiteIds.map(String));
+    setSuiviEnvoiVisible(true);
+    setEnvoiEnCours({ rang: 0, total: visiteIds.length, nom: '', phase: 'Préparation', pourcentage: 0 });
     try {
       const bilan = await envoyerVisitesClient(clientId, {
         visiteIds, onProgress: setEnvoiEnCours,
       });
       setSelectionEnvoiVisible(false);
       await chargerTournee();
+      const unresolved = candidatsEnvoi.filter(v=>Number(v.needs_binding)===1).length;
       const lignes = [
-        `${bilan.envoyees.length}/${bilan.total} visite(s) envoyée(s) à l’Intranet.`,
+        `${bilan.envoyees.length}/${bilan.total} visite(s) confirmée(s) par l’Intranet.`,
+        unresolved ? `${unresolved} visite(s) ont un local Intranet à choisir explicitement, avant leur premier envoi.` : null,
+        bilan.enAttente.length ? `${bilan.enAttente.length} visite(s) en attente de confirmation, toujours en gris.` : null,
         bilan.enCours ? `${bilan.enCours} visite(s) encore en cours : termine-les pour les envoyer.` : null,
         bilan.aConfirmer.length ? `À confirmer visite par visite :\n${bilan.aConfirmer.slice(0, 6).map((x) => `• ${x}`).join('\n')}` : null,
         bilan.enErreur.length ? `À corriger :\n${bilan.enErreur.slice(0, 6).map((x) => `• ${x}`).join('\n')}` : null,
       ].filter(Boolean);
-      Alert.alert(bilan.enErreur.length || bilan.aConfirmer.length ? 'Envoi terminé, à vérifier' : 'Envoi terminé', lignes.join('\n\n'));
+      const title = bilan.enErreur.length || bilan.aConfirmer.length || unresolved
+        ? 'Bilan : des visites restent à vérifier'
+        : bilan.enAttente.length ? 'Envois en attente de confirmation' : 'Visites confirmées';
+      const detail = [
+        ...lignes.slice(0,3),
+        bilan.envoyees.length ? `Confirmées :\n${bilan.envoyees.map(v=>`• ${v}`).join('\n')}` : null,
+        bilan.enAttente.length ? `En attente d'accusé Symfony :\n${bilan.enAttente.map(v=>`• ${v}`).join('\n')}` : null,
+        bilan.aConfirmer.length ? `À confirmer :\n${bilan.aConfirmer.map(v=>`• ${v}`).join('\n')}` : null,
+        bilan.enErreur.length ? `Erreurs (liste complète) :\n${bilan.enErreur.map(v=>`• ${v}`).join('\n')}` : null,
+      ].filter(Boolean).join('\n\n');
+      setBilanDetailEnvoi({ title, detail });
     } catch (e) { Alert.alert('Envoi impossible', String(e?.message || e)); }
     finally { setEnvoiEnCours(null); }
   };
@@ -286,6 +389,33 @@ function ClientSitesScreen({ route, navigation }) {
           </TouchableOpacity>)}
         </ScrollView>
 
+        {suiviEnvoiVisible && (envoiVolume || envoiEnCours) ? <View
+          accessibilityLiveRegion="polite"
+          style={{marginHorizontal:2,marginBottom:13,padding:13,borderRadius:16,
+            borderWidth:1,borderColor:'rgba(22,21,15,0.09)',backgroundColor:COLORS.orangeLight}}>
+          <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8}}>
+            <Text style={{color:COLORS.ink,fontFamily:FONTS.bold,fontSize:13}}>Synchronisation Intranet · données</Text>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Masquer le suivi de l'envoi"
+              onPress={()=>{ setSuiviEnvoiVisible(false); setSuiviEnvoiIds([]); }}
+              style={{paddingVertical:4,paddingHorizontal:8}}>
+              <CvcIcon name="close" size={17} color={COLORS.inkSoft} />
+            </TouchableOpacity>
+          </View>
+          <Text style={{color:COLORS.orangeDark,fontFamily:FONTS.black,fontSize:13,marginTop:7}}>
+            {formatTransferBytes(envoiVolume?.confirmedBytes || 0)} / {formatTransferBytes(envoiVolume?.totalBytes || 0)} confirmés
+          </Text>
+          <View style={{height:7,backgroundColor:'rgba(22,21,15,0.12)',borderRadius:10,overflow:'hidden',marginTop:9}}>
+            <View style={{height:'100%',borderRadius:10,backgroundColor:COLORS.orange,
+              width:`${envoiVolume?.pourcentage || 0}%`}} />
+          </View>
+          <Text style={{fontSize:11.5,color:COLORS.inkSoft,marginTop:8,lineHeight:17}}>
+            {envoiVolume ? `${envoiVolume.pourcentage}% · ${envoiVolume.visitsSynced}/${envoiVolume.visitsTotal} visites · ${envoiVolume.photosSynced}/${envoiVolume.photosTotal} photos confirmées`
+              : 'Calcul du volume des visites et photos…'}
+            {envoiVolume?.incompleteEstimate ? ' · Taille de certains fichiers inconnue' : ''}
+            {envoiVolume?.visitsFailed || envoiVolume?.photosFailed ? ` · ${(envoiVolume.visitsFailed||0)+(envoiVolume.photosFailed||0)} erreur(s)` : ''}
+          </Text>
+        </View> : null}
+
         {tourneeRows.length ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Filtrer les sites à faire" onPress={() => setFiltreAFaire((v) => !v)} activeOpacity={0.8}
           style={{ marginBottom: 12, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: filtreAFaire ? COLORS.orange : 'rgba(22,21,15,0.1)', backgroundColor: filtreAFaire ? COLORS.orangeLight : 'rgba(255,255,255,0.72)' }}>
           <Text style={{ fontSize: 13.5, fontFamily: FONTS.bold, color: COLORS.ink }}>Itinéraire · {bilanSites.total ? `${bilanSites.faits}/${bilanSites.total} site${bilanSites.total > 1 ? 's' : ''} faits` : null}{bilanSites.total && bilanLocaux.total ? ' · ' : ''}{bilanLocaux.total ? `${bilanLocaux.faits}/${bilanLocaux.total} local${bilanLocaux.total > 1 ? 'aux' : ''} faits` : null}</Text>
@@ -372,8 +502,38 @@ function ClientSitesScreen({ route, navigation }) {
 
     <ClientTourneeModal visible={tourneeVisible} clientId={clientId} sites={sites} onClose={() => setTourneeVisible(false)} onChanged={chargerTournee} />
 
+    <Modal visible={!!bilanDetailEnvoi} transparent animationType="slide"
+      onRequestClose={()=>setBilanDetailEnvoi(null)}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalSheet,{width:'100%',maxHeight:'92%'}]}>
+          <Text style={styles.modalTitle}>{bilanDetailEnvoi?.title||'Bilan Intranet'}</Text>
+          <ScrollView style={{flexGrow:0,flexShrink:1,marginVertical:12}}
+            contentContainerStyle={{paddingBottom:12}}>
+            <Text selectable style={{fontSize:12,color:COLORS.ink,lineHeight:19}}>
+              {bilanDetailEnvoi?.detail||''}
+            </Text>
+          </ScrollView>
+          <View style={{flexDirection:'row',gap:10}}>
+            <TouchableOpacity accessibilityRole="button" style={[styles.btnSecondary,{flex:1}]}
+              onPress={()=>setBilanDetailEnvoi(null)}>
+              <Text style={styles.btnSecondaryText}>Fermer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" style={[styles.btnPrimary,{flex:1.3}]}
+              onPress={()=>Share.share({message:`METRA — ${bilanDetailEnvoi?.title||'Bilan'}\n\n${bilanDetailEnvoi?.detail||''}`}).catch(()=>{})}>
+              <Text style={styles.btnPrimaryText}>Partager le bilan complet</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+
     <ClientVisitSendPicker visible={selectionEnvoiVisible} visits={candidatsEnvoi}
-      clientName={nomClient} busy={Boolean(envoiEnCours)}
+      clientName={nomClient} busy={Boolean(envoiEnCours)} progress={envoiEnCours} volume={envoiVolume}
+      binding={rattachementVisite ? {
+        visit: rattachementVisite.visite, loading: rattachementVisite.loading, options: rattachementVisite.options
+      } : null}
+      onBind={ouvrirRattachementVisite} onResolveLocal={confirmerRattachementVisite}
+      onBackFromBinding={()=>setRattachementVisite(null)}
       onCancel={() => { if (!envoiEnCours) setSelectionEnvoiVisible(false); }}
       onSend={envoyerTout} />
     <IntranetSiteCreationModal visible={intranetSiteVisible} clientId={clientId} onClose={() => setIntranetSiteVisible(false)} onCreated={charger} />

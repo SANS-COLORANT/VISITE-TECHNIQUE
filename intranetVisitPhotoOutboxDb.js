@@ -151,7 +151,22 @@ export async function queueMissingVisitPhotos(visiteId) {
 
 export async function queueMissingSyncedVisitPhotos({ limitVisits = 40 } = {}) {
   const db = await getDb();
-  const visits = await db.getAllAsync(`SELECT visite_id FROM api_visit_outbox WHERE status='synced' AND remote_visit_id IS NOT NULL ORDER BY synced_at DESC LIMIT ?`, [Math.max(1, Math.min(200, Number(limitVisits || 40)))]);
+  // Chercher UNIQUEMENT les visites contenant une photo exportable non
+  // enregistrée en outbox. L'ancien balayage des 40 visites récentes faisait
+  // 80+ lectures SQLite et réindexait les mêmes photos toutes les 15 s.
+  // Une visite ancienne n'est plus exclue juste parce que 40 visites plus
+  // récentes ont été synchronisées depuis sa dernière photo.
+  const visits = await db.getAllAsync(`
+    SELECT o.visite_id FROM api_visit_outbox o
+    WHERE o.status='synced' AND o.remote_visit_id IS NOT NULL
+      AND EXISTS (
+        SELECT 1 FROM photos p
+        WHERE p.visite_id=o.visite_id AND p.inclure_export=1
+          AND NOT EXISTS (
+            SELECT 1 FROM api_visit_photo_outbox q WHERE q.photo_id=p.id
+          )
+      )
+    ORDER BY o.synced_at DESC LIMIT ?`, [Math.max(1, Math.min(200, Number(limitVisits || 40)))]);
   let queued = 0;
   for (const row of visits || []) queued += await queueMissingVisitPhotos(row.visite_id);
   return queued;

@@ -78,13 +78,16 @@ async function main() {
     await server.send('migrate', '', [0, 33]);
     const payloadModule = load('intranetVisitPayload.js', { getDb: async () => server.db, obtenirTrame: () => localTrame });
 
-    // Full-state material semantics: a partial reduction is destructive too.
+    // Le technicien décide quels équipements subsistent : le POST V1 remplace
+    // tout ListingMateriel, sans résurrection du patrimoine précédent.
     await seedVisit(server.db, 'partial-material', preparationReference({
       materials: [originalMaterial, { ...originalMaterial, id: 'm2', designation: 'Circulateur' }],
     }));
-    await assert.rejects(() => payloadModule.buildIntranetVisitPayload('partial-material', '11111111-1111-4111-8111-111111111111'),
-      (error) => error?.code === 'local_validation_failed' && error.issues.some((issue) => /Matériel Intranet/.test(issue)));
-    checks++; console.log(`OK ${checks}: partial material reduction is rejected before writing any outbox row`);
+    const partial = await payloadModule.buildIntranetVisitPayload('partial-material', '11111111-1111-4111-8111-111111111111');
+    check(partial.payload.visites[0].materiels.length === 1 &&
+      partial.materialWarnings.some(issue => /absentes/.test(issue)),
+      'partial deletion sends only the retained material and reports old items as a nonblocking diagnostic');
+    checks++; console.log(`OK ${checks}: partial material removal is a complete list replacement`);
 
     let mode = 'success'; let uuidIndex = 0;
     const uuids = ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc'];
@@ -99,11 +102,14 @@ async function main() {
       validateQueuedVisitMaterialSnapshot: payloadModule.validateQueuedVisitMaterialSnapshot,
       createIntranetUploadId: async () => uuids[uuidIndex++], sendClientVisits: sender,
     });
-    await assert.rejects(() => outbox.queueVisitUpload('partial-material'),
-      (error) => error?.code === 'local_validation_failed' && error.issues.some((issue) => /Matériel Intranet/.test(issue)));
-    await assert.rejects(() => outbox.queueVisitUpload('partial-material', { confirmMaterialReplacement: true }),
-      (error) => error?.code === 'local_validation_failed');
-    checks++; console.log(`OK ${checks}: partial material removal cannot be authorized by the legacy UI flag`);
+    const partialQueued = await outbox.queueVisitUpload('partial-material');
+    check(partialQueued.status === 'pending' &&
+      JSON.parse(partialQueued.payload_json).visites[0].materiels.length === 1,
+      'the actual technician material list is frozen and queued even after deleting prior equipment');
+    await outbox.processVisitOutbox({ limit: 1 });
+    check((await outbox.getVisitUploadState('partial-material'))?.status === 'synced',
+      'partial material replacement receives a valid Intranet acknowledgement');
+    checks++; console.log(`OK ${checks}: partial material removal is acknowledged with durable idempotency`);
 
     // Retry-After must never be shortened by a client-side maximum.
     await seedVisit(server.db, 'long-rate-limit');

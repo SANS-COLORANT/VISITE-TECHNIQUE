@@ -92,13 +92,10 @@ export async function queueVisitUpload(visiteId, { replaceTerminal = false } = {
   }
   const envoiId = await createIntranetUploadId();
   const prepared = await buildIntranetVisitPayload(visiteId, envoiId);
-  // Le serveur V1 ne propose pas de suppression contrôlée par identifiant.
-  // Aucune confirmation UI ne doit contourner cette barrière de patrimoine.
-  if (prepared.destructiveMaterialChange) {
-    throw new IntranetVisitValidationError([
-      'Matériel Intranet : remplacement destructif impossible en API V1. Actualise le patrimoine ou attends la mutation V2 par ID stable.',
-    ]);
-  }
+  // Sur demande explicite du technicien, le listing matériel indiqué
+  // est transmis tel quel même s'il diffère de la référence. Le diagnostic
+  // reste disponible, sans être une barrière avant le POST Symfony V1.
+  // L'idempotence (envoiId + JSON gelé) et le lien au client restent obligatoires.
   if (existing && replaceTerminal) await db.runAsync(`DELETE FROM api_visit_outbox WHERE visite_id=?`, [visiteId]);
   await db.runAsync(`INSERT INTO api_visit_outbox(
       envoi_id,visite_id,remote_client_id,payload_json,payload_bytes,status,attempt_count,next_attempt_at
@@ -213,14 +210,28 @@ async function sendRow(db, row) {
   }
 }
 
-export async function processVisitOutbox({ limit = 3 } = {}) {
-  if (processorPromise) return processorPromise;
+export async function processVisitOutbox({ limit = 3, visiteId = null } = {}) {
+  // L'action utilisateur doit traiter la visite demandée, et non la première
+  // ligne globale déjà en attente (origine des 29 visites grises sur 37).
+  // Un seul processeur global garde l'ordre, l'idempotence et la limite API.
+  // Si le runtime traite déjà une autre visite, attendre sa fin puis cibler
+  // la visite demandée. Ne pas conclure sur le résultat de l'autre visite.
+  if (processorPromise) {
+    const inFlight = processorPromise;
+    await inFlight;
+    if (visiteId) return processVisitOutbox({ limit, visiteId });
+    return inFlight;
+  }
   processorPromise = (async () => {
     const db = await getDb();
     await recoverInterruptedVisitUploads();
+    const selected = visiteId == null ? null : String(visiteId);
+    const args = selected ? [selected] : [];
+    args.push(Math.max(1, Math.min(10, Number(limit || 3))));
     const rows = await db.getAllAsync(`SELECT * FROM api_visit_outbox
       WHERE status IN ('pending','retry') AND (next_attempt_at IS NULL OR datetime(next_attempt_at)<=datetime('now'))
-      ORDER BY queued_at LIMIT ?`, [Math.max(1, Math.min(10, Number(limit || 3)))]);
+      ${selected ? 'AND visite_id=?' : ''}
+      ORDER BY queued_at LIMIT ?`, args);
     const results = [];
     // Sequential by design: safely below the server's 10 visit-send requests/minute
     // and simpler idempotent recovery after an uncertain mobile connection.
@@ -242,6 +253,6 @@ export async function retryVisitUploadNow(visiteId) {
   if (!row || !['retry', 'pending', 'auth_error'].includes(row.status)) return row;
   await db.runAsync(`UPDATE api_visit_outbox SET next_attempt_at=NULL,status='pending',updated_at=datetime('now') WHERE visite_id=?`, [visiteId]);
   notify();
-  await processVisitOutbox({ limit: 1 });
+  await processVisitOutbox({ limit: 1, visiteId });
   return getVisitUploadState(visiteId);
 }

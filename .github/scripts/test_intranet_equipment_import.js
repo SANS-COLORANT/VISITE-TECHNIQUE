@@ -3,6 +3,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const source = fs.readFileSync(path.join(__dirname, '../../apiLatestVisitImportDb.js'), 'utf8');
+const reconcileSource = fs.readFileSync(path.join(__dirname, '../../intranetMaterialImportReconcile.js'), 'utf8')
+  .replace(/export async function /g, 'async function ');
+const reconcileImportedEquipmentInventory = new Function(
+  reconcileSource + '\nreturn reconcileImportedEquipmentInventory;'
+)();
 const start = source.indexOf('function materialFallbackReference');
 const end = source.indexOf('async function findImportedVisit', start);
 assert.ok(start >= 0 && end > start, 'equipment import helper source is available');
@@ -28,8 +33,30 @@ function fakeDb() {
 
   return {
     state,
-    async getAllAsync(sql) {
+    async getAllAsync(sql, params = []) {
       if (sql.includes('SELECT id,nom,logo_uri FROM marques_equipement')) return state.brands;
+      if (sql.includes('SELECT e.id FROM provenances p')) {
+        const [reference, installationId] = params;
+        return state.provenances.filter(row => row.entite_type === 'equipement' &&
+          row.reference_externe === reference)
+          .map(row => state.equipments.find(e => e.id === row.entite_id && e.installation_id === installationId))
+          .filter(Boolean).map(e => ({ id: e.id }));
+      }
+      if (sql.includes('SELECT id FROM equipements')) {
+        const [installationId, designation, brand, model] = params;
+        return state.equipments.filter(row =>
+          row.installation_id === installationId &&
+          normalize(row.designation) === normalize(designation) &&
+          normalize(row.marque) === normalize(brand) &&
+          normalize(row.modele) === normalize(model)
+        ).map(row => ({ id: row.id }));
+      }
+      if (sql.includes('FROM equipements e JOIN provenances p')) {
+        const [installationId] = params;
+        return state.provenances.filter(p => p.entite_type === 'equipement')
+          .filter(p => state.equipments.some(e => e.id === p.entite_id && e.installation_id === installationId))
+          .map(p => ({ id: p.entite_id, details_json: JSON.stringify(p.details) }));
+      }
       throw new Error(`Unhandled getAllAsync: ${sql}`);
     },
     async getFirstAsync(sql, params = []) {
@@ -71,6 +98,11 @@ function fakeDb() {
         row.valeur = value;
         return;
       }
+      if (sql.includes("UPDATE equipements SET statut='retire'")) {
+        const row = state.equipments.find(item => item.id === params[0]);
+        if (row) row.statut = 'retire';
+        return { changes: 1 };
+      }
       if (sql.includes('UPDATE equipements') && sql.includes("statut='actif'")) {
         const [installationId, typeCode, designation, brand, model, year, id] = params;
         const row = state.equipments.find((item) => item.id === id);
@@ -93,6 +125,13 @@ function fakeDb() {
         Object.assign(row, { categorie, nombre, designation, numero_materiel: numero, reseau_desservi: reseau, marque, modele, caracteristiques, annee, etat: null });
         return;
       }
+      if (sql.includes('DELETE FROM materiel WHERE visite_id=? AND equipement_id=?')) {
+        const [visitId, equipmentId] = params;
+        const before = state.materialRows.length;
+        state.materialRows = state.materialRows.filter(row =>
+          !(row.visite_id === visitId && row.equipement_id === equipmentId));
+        return { changes: before - state.materialRows.length };
+      }
       if (sql.includes('INSERT INTO materiel')) {
         const [id, visiteId, categorie, nombre, designation, numero, reseau, marque, modele, caracteristiques, annee, equipmentId] = params;
         state.materialRows.push({ id, visite_id: visiteId, categorie, nombre, designation, numero_materiel: numero, reseau_desservi: reseau, marque, modele, caracteristiques, annee, etat: null, equipement_id: equipmentId });
@@ -113,8 +152,9 @@ async function main() {
 
   const importer = new Function(
     'clean', 'normalize', 'text', 'remoteId', 'createId', 'upsertProvenance',
+    'reconcileImportedEquipmentInventory',
     `${source.slice(start, end)}\nreturn importCurrentMaterialsForLocal;`
-  )(clean, normalize, text, remoteId, createId, upsertProvenance);
+  )(clean, normalize, text, remoteId, createId, upsertProvenance, reconcileImportedEquipmentInventory);
 
   const ref = {
     derniereVisite: { id: 'visit-remote-9' },
@@ -156,14 +196,38 @@ async function main() {
   assert.equal(db.state.materialRows.length, 1, 're-import does not duplicate the visit material row');
   assert.equal(db.state.equipments[0].modele, 'MAGNA3 50-100 F');
 
+  // Import distant autoritaire : la suppression locale conserve l'historique
+  // mais retire le matériel du patrimoine courant.
+  ref.materiels = [];
+  const removed = await importer(db, { ref, remoteLocalId: 'local-33', installationId: 'inst-1',
+    visiteId: 'visit-local-1', trameId: 'icpe_v1' });
+  assert.equal(removed.importedMaterials, 0);
+  assert.equal(db.state.equipments[0].statut, 'retire', 'missing remote item is retired rather than left active');
+  assert.equal(db.state.materialRows.length, 0, 'deleted remote item disappears from current visit material list');
+
+  // Deux appareils physiquement distincts peuvent porter le même modèle :
+  // ne jamais fusionner les lignes sous un seul equipement_id.
+  const twoIdentical = { ...ref, materiels: [
+    { ...ref.materiels[0], id: null, designation:'Ventilateur A', categorie:'Ventilation', marque:'GRUNDFOS', modele:'M100' },
+    { id:null, designation:'Ventilateur A', categorie:'Ventilation', marque:'GRUNDFOS', modele:'M100' },
+  ] };
+  await importer(db, { ref: twoIdentical, remoteLocalId: 'local-33', installationId: 'inst-1',
+    visiteId: 'visit-local-1', trameId: 'vmc' });
+  const twins = db.state.materialRows.filter(row => row.visite_id === 'visit-local-1');
+  assert.equal(twins.length, 2, 'two identical physical items remain separate lines');
+  assert.notEqual(twins[0].equipement_id, twins[1].equipement_id,
+    'two identical physical items have distinct persistent identities');
+
+  ref.materiels = [{ id:'material-777', categorie:'Circulateur', designation:'Pompe primaire', nombre:'2', numeroMateriel:'P1', reseauDesservi:'Chauffage', marque:'GRUNDFOS', modele:'MAGNA3', caracteristiques:'DN50', annee:'2022', etat:'Bon' }];
   const noVisitDb = fakeDb();
   const noVisitProvenance = async (_db, type, entityId, reference, details) => {
     noVisitDb.state.provenances.push({ entite_type: type, entite_id: entityId, reference_externe: reference, details });
   };
   const importNoVisit = new Function(
     'clean', 'normalize', 'text', 'remoteId', 'createId', 'upsertProvenance',
+    'reconcileImportedEquipmentInventory',
     `${source.slice(start, end)}\nreturn importCurrentMaterialsForLocal;`
-  )(clean, normalize, text, remoteId, createId, noVisitProvenance);
+  )(clean, normalize, text, remoteId, createId, noVisitProvenance, reconcileImportedEquipmentInventory);
   await importNoVisit(noVisitDb, { ref, remoteLocalId: 'local-33', installationId: 'inst-1', visiteId: null, trameId: 'icpe_v1' });
   assert.equal(noVisitDb.state.equipments.length, 1, 'equipment is permanent even without visit history');
   assert.equal(noVisitDb.state.materialRows.length, 0, 'no fake visit material row is created without a visit');

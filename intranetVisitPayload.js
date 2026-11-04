@@ -97,15 +97,53 @@ function utf8ByteLength(value) {
   }
   return bytes;
 }
+function preserveFreeText(issues, path, value) {
+  if (!Array.isArray(issues?.freeTextFallbacks)) return false;
+  issues.freeTextFallbacks.push({ path: String(path), value: String(value) });
+  return true;
+}
+function clipWithoutBreakingUnicode(value, max) {
+  let result = '';
+  for (const point of String(value)) {
+    if (result.length + point.length > max) break;
+    result += point;
+  }
+  return result;
+}
+function splitFreeText(value, maxLength) {
+  const chunks = [];
+  let part = '';
+  for (const point of String(value)) {
+    if (part.length + point.length > maxLength) { chunks.push(part); part = ''; }
+    part += point;
+  }
+  if (part || !chunks.length) chunks.push(part);
+  return chunks;
+}
+function freeTextAsVisitNotes(value, path) {
+  const label = clipWithoutBreakingUnicode(path, 110);
+  const parts = splitFreeText(value, 800);
+  return parts.map((part, index) => ({
+    contenu: `Saisie libre METRA · ${label} · ${index + 1}/${parts.length}\n${part}`,
+  }));
+}
 function limited(value, max, path, issues, { required = false } = {}) {
   const v = nullable(value);
   if (required && !v) issues.push(`${path} : valeur obligatoire.`);
-  if (v && v.length > max) issues.push(`${path} : ${v.length} caractères, maximum ${max}.`);
+  if (v && v.length > max) {
+    // V1 impose une longueur maximale : conserver l'original intégral
+    // dans les notes de visite, et n'envoyer ici qu'un aperçu compatible.
+    if (preserveFreeText(issues, path, v)) return clipWithoutBreakingUnicode(v, max);
+    issues.push(`${path} : ${v.length} caractères, maximum ${max}.`);
+  }
   return v;
 }
 function exactComment(value, issues, path) {
   const v = clean(value);
-  if (v.length > 1500) issues.push(`${path} : ${v.length} caractères, maximum 1500.`);
+  if (v.length > 1500) {
+    if (preserveFreeText(issues, path, v)) return clipWithoutBreakingUnicode(v, 1500);
+    issues.push(`${path} : ${v.length} caractères, maximum 1500.`);
+  }
   // Le serveur accepte commentaire:null mais ne crée alors pas LocalCritere.
   // Une chaîne non nulle est donc systématique afin de ne perdre aucun avis.
   return v || '/';
@@ -179,6 +217,52 @@ export function restoreReferenceEquivalentBrands(reference, outgoing) {
     return { ...row, marque: brand };
   });
 }
+/**
+ * Le POST Symfony V1 n'accepte que cinq états et remplace le listing complet.
+ * Si l'état de terrain diffère, le conserver MOT POUR MOT dans les notes
+ * de visite, tout en transmettant la valeur déjà présente au patrimoine
+ * serveur. Ne choisir ni « Moyen » ni « Vétuste » à la place du technicien.
+ * Le rattachement n'est possible que lorsque toutes les autres colonnes
+ * identifient sans ambiguïté les mêmes lignes et la même multiplicité.
+ */
+/**
+ * Symfony V1 limite le statut matériel à cinq valeurs. La désignation,
+ * la quantité et les équipements restent ceux saisis par le technicien :
+ * ne jamais les remplacer par la référence Intranet, ni dédoublonner ici.
+ * Un état libre est transmis intégralement en note structurée, et le champ
+ * enum du POST utilise l'ancien état seulement si sa correspondance est
+ * certaine; sinon null. Un état valide (même modifié) est envoyé tel quel.
+ */
+export function preserveMaterialStatesForV1(reference, outgoing, issues) {
+  if (!Array.isArray(outgoing)) return outgoing;
+  const withoutState = (row) => JSON.stringify(
+    MATERIAL_SNAPSHOT_FIELDS.filter(key => key !== 'etat').map(key => materialSnapshotValue(row, key))
+  );
+  const grouped = new Map();
+  for (const row of Array.isArray(reference) ? reference : []) {
+    const key = withoutState(row);
+    if (!grouped.has(key)) grouped.set(key, []);
+    grouped.get(key).push(row);
+  }
+  const counts = new Map();
+  for (const row of outgoing) {
+    const key = withoutState(row);
+    counts.set(key, (counts.get(key) || 0) + 1);
+  }
+  return outgoing.map((row, index) => {
+    const state = materialSnapshotValue(row, 'etat');
+    if (!state || INTRANET_MATERIAL_STATES.includes(state)) return row;
+    preserveFreeText(issues,
+      `Matériel ${index + 1} · ${clean(row?.designation) || 'Sans désignation'} / état saisi`, state);
+    const references = grouped.get(withoutState(row)) || [];
+    const distinctStates = [...new Set(references.map(r => materialSnapshotValue(r, 'etat')))];
+    const unchangedPhysicalGroup = references.length > 0 && references.length === counts.get(withoutState(row));
+    const canonicalState = unchangedPhysicalGroup && distinctStates.length === 1
+      && INTRANET_MATERIAL_STATES.includes(distinctStates[0]) ? distinctStates[0] : null;
+    return { ...row, etat: canonicalState };
+  });
+}
+
 export function inspectIntranetMaterialSnapshot(reference, outgoing, declaredCount = null) {
   const issues = [];
   if (!Array.isArray(reference)) {
@@ -275,16 +359,16 @@ export async function validateQueuedVisitMaterialSnapshot(visiteId, serializedPa
   try { parsed = JSON.parse(serializedPayload); } catch {}
   const wire = Array.isArray(parsed?.visites) && parsed.visites.length === 1 ? parsed.visites[0] : null;
   const issues = [];
-  if (!visit || frozen?.historical || !frozen?.details)
-    issues.push('Matériel Intranet : référence figée de la visite absente ou historique.');
+  // Refuser une destination incohérente, mais jamais le contenu métier du
+  // listing matériel : il appartient au technicien. Les JSON déjà gelés doivent
+  // rester identiques entre les replays, même après un rafraîchissement du
+  // référentiel de patrimoine.
+  if (!visit || frozen?.historical)
+    issues.push('Visite introuvable ou historique : envoi de création non autorisé.');
   if (!wire || String(wire.localId) !== String(visit?.api_remote_local_id))
-    issues.push('Matériel Intranet : le local du JSON gelé ne correspond plus au local de la visite.');
-  if (frozen?.details && wire) {
-    const checked = inspectIntranetMaterialSnapshot(
-      frozen.details.materiels, wire.materiels, frozen.details?.preparationMeta?.materialCount
-    );
-    issues.push(...checked.issues);
-  }
+    issues.push('Le local du JSON gelé ne correspond plus au local de la visite.');
+  if (wire && !Array.isArray(wire.materiels))
+    issues.push('Format matériel du JSON gelé invalide.');
   if (issues.length) {
     const error = new IntranetVisitValidationError(issues);
     error.code = 'material_snapshot_unsafe';
@@ -1279,13 +1363,14 @@ async function buildRemarks(db, visiteId, issues) {
     const delai = nullable(row.intranet_delai);
     if (delai && !validDate(delai)) issues.push(`${prefix} / échéance : format YYYY-MM-DD requis.`);
     const progress = nullable(row.intranet_etat_avancement);
-    if (progress && !INTRANET_PROGRESS.includes(progress)) issues.push(`${prefix} / état d’avancement invalide.`);
+    if (progress && !INTRANET_PROGRESS.includes(progress))
+      preserveFreeText(issues, `${prefix} / état d’avancement saisi`, progress);
     return {
       poste: limited(row.poste, 50, `${prefix} / poste`, issues, { required: true }),
       prestation: limited(row.prestation, 765, `${prefix} / prestation`, issues, { required: true }),
       dateReserve,
       delai,
-      etatAvancement: progress,
+      etatAvancement: INTRANET_PROGRESS.includes(progress) ? progress : null,
       estimatif: limited(row.estimatif, 128, `${prefix} / estimatif`, issues),
     };
   });
@@ -1302,9 +1387,6 @@ async function buildMaterials(db, visiteId, sourceMaterialCount, issues) {
     const currentState = nullable(row.etat);
     const referenceState = nullable(row.intranet_reference_state);
     const state = currentState || (INTRANET_MATERIAL_STATES.includes(referenceState) ? referenceState : null);
-    if (state && !INTRANET_MATERIAL_STATES.includes(state)) {
-      issues.push(`${prefix} / état « ${state} » non accepté par l’Intranet. Choisir ${INTRANET_MATERIAL_STATES.join(', ')} ou laisser vide.`);
-    }
     return {
       categorie: limited(row.categorie, 255, `${prefix} / catégorie`, issues, { required: true }),
       nombre: limited(row.nombre, 255, `${prefix} / nombre`, issues, { required: true }),
@@ -1315,7 +1397,7 @@ async function buildMaterials(db, visiteId, sourceMaterialCount, issues) {
       modele: limited(row.modele, 255, `${prefix} / modèle`, issues),
       caracteristiques: limited(row.caracteristiques, 255, `${prefix} / caractéristiques`, issues),
       annee: limited(row.annee, 128, `${prefix} / année`, issues),
-      etat: state && INTRANET_MATERIAL_STATES.includes(state) ? state : state,
+      etat: state,
     };
   });
   const sourceCount = Number(sourceMaterialCount || 0);
@@ -1333,8 +1415,9 @@ async function buildNotes(db, visiteId, issues) {
   const row = await db.getFirstAsync(`SELECT contenu FROM notes WHERE visite_id=?`, [visiteId]);
   const value = nullable(row?.contenu);
   if (!value) return [];
-  if (value.length > 1000) issues.push(`Note : ${value.length} caractères, maximum 1000.`);
-  return [{ contenu: value }];
+  if (value.length <= 1000) return [{ contenu: value }];
+  // Le texte original est intégralement transmis en plusieurs notes ordonnées.
+  return freeTextAsVisitNotes(value, 'Note de visite');
 }
 
 /**
@@ -1376,6 +1459,7 @@ export class IntranetVisitValidationError extends Error {
 
 export async function buildIntranetVisitPayload(visiteId, envoiId) {
   const issues = [];
+  issues.freeTextFallbacks = [];
   const db = await getDb();
   const visite = await db.getFirstAsync(`SELECT v.*,s.client_id FROM visites v JOIN sites s ON s.id=v.site_id WHERE v.id=?`, [visiteId]);
   if (!visite) throw new IntranetVisitValidationError(['Visite introuvable.']);
@@ -1406,12 +1490,19 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
   ]);
   // Ne jamais écraser une vraie modification terrain. Ne rétablir la graphie
   // serveur d'une marque que si les neuf autres attributs sont inchangés.
-  const outgoingMaterials = restoreReferenceEquivalentBrands(details?.materiels, materialData.materiels);
+  const outgoingMaterials = preserveMaterialStatesForV1(
+    details?.materiels, materialData.materiels, issues
+  );
+  for (const entry of issues.freeTextFallbacks) {
+    notes.push(...freeTextAsVisitNotes(entry.value, entry.path));
+  }
   const checkedMaterials = inspectIntranetMaterialSnapshot(
     details?.materiels, outgoingMaterials,
     details?.preparationMeta?.materialCount ?? sourceMaterials
   );
-  issues.push(...checkedMaterials.issues);
+  // Le listing V1 est une photographie complète. Les écarts / homonymes
+  // doivent être remontés à l'utilisateur, PAS bloquer son envoi volontaire.
+  const materialWarnings = checkedMaterials.issues;
   const expectedCriteria = countRemoteCriteria(details?.trame);
   if (criteres.length !== expectedCriteria) issues.push(`Critères : ${criteres.length}/${expectedCriteria}, la trame Intranet doit être envoyée intégralement.`);
   if (criteres.length > 2000) issues.push(`Critères : ${criteres.length}, maximum 2000 par visite.`);
@@ -1441,8 +1532,10 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
     destructiveMaterialClear: materialData.destructiveMaterialClear,
     removedSourceMaterialCount: materialData.removedSourceMaterialCount,
     sourceMaterialCount: materialData.sourceMaterialCount,
+    materialWarnings,
     summary: { criteria: criteres.length, remarks: remarques.length, materials: materialData.materiels.length, notes: notes.length,
-      photosExcluded: true, conclusionExcluded: true },
+      photosExcluded: true, conclusionExcluded: true,
+      freeTextInVisitNotes: issues.freeTextFallbacks.length },
   };
 }
 

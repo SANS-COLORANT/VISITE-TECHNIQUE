@@ -3,12 +3,12 @@ import { ActivityIndicator, Alert, AppState, Share, Text, TouchableOpacity, View
 import { COLORS, FONTS } from './styles.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import {
-  discardTerminalVisitUpload, finalizeVisitForUpload, getVisitUploadState, listVisitOutbox,
+  discardTerminalVisitUpload, finalizeVisitForUpload, getVisitUploadState,
   processVisitOutbox, queueVisitUpload, retryVisitUploadNow, subscribeVisitOutbox,
   isSyncedVisitChangedLocally,
 } from './intranetVisitOutboxDb.js';
 import {
-  getVisitPhotoUploadSummary, processVisitPhotoOutbox, queueMissingSyncedVisitPhotos,
+  getVisitPhotoUploadSummary, processVisitPhotoOutbox, queueMissingSyncedVisitPhotos, queueMissingVisitPhotos,
   retryVisitPhotoUploadsNow, subscribeVisitPhotoOutbox, syncVisitPhotosNow,
 } from './intranetVisitPhotoOutboxDb.js';
 import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions, pinVerifiedRemarTrameForUpload, resolveFirstVisitRemoteTrame } from './intranetVisitBindingDb.js';
@@ -98,15 +98,19 @@ export function IntranetVisitSyncRuntime() {
     let running = false;
     let photosRunning = false;
 
-    const runPhotos = async () => {
+    // Découverte des photos manquantes lors du démarrage, du retour au premier
+    // plan et au maximum toutes les 60 s. Ne PAS relire les fichiers/SQLite
+    // de 40 visites toutes les 15 s ; seul le transfert des photos déjà
+    // en file doit être réveillé à cette fréquence.
+    const runPhotos = async ({ discover = false } = {}) => {
       if (!alive || photosRunning) return;
       photosRunning = true;
       try {
-        await queueMissingSyncedVisitPhotos({ limitVisits: 40 });
-        // Une seule partie (10 photos maximum) par passage. Le passage suivant
-        // reprend automatiquement 15 s plus tard tant que METRA reste ouvert.
+        if (discover) await queueMissingSyncedVisitPhotos({ limitVisits: 40 });
         await processVisitPhotoOutbox({ limit: 10 });
-      } catch {} finally { photosRunning = false; }
+      } catch (error) {
+        console.warn('Synchronisation photo automatique différée', error);
+      } finally { photosRunning = false; }
     };
 
     const run = async () => {
@@ -114,7 +118,7 @@ export function IntranetVisitSyncRuntime() {
       running = true;
       try {
         await processVisitOutbox({ limit: 3 });
-        await runPhotos();
+        await runPhotos({ discover: true });
       } catch {} finally { running = false; }
     };
 
@@ -131,20 +135,6 @@ export function IntranetVisitSyncRuntime() {
     };
   }, []);
   return null;
-}
-
-export function IntranetVisitSyncBanner() {
-  const [rows, setRows] = useState([]);
-  const refresh = useCallback(() => listVisitOutbox().then(setRows).catch(() => {}), []);
-  useEffect(() => { refresh(); return subscribeVisitOutbox(refresh); }, [refresh]);
-  if (!rows.length) return null;
-  const sending = rows.filter((r) => r.status === 'sending').length;
-  const waiting = rows.filter((r) => ['pending', 'retry'].includes(r.status)).length;
-  const blocked = rows.length - sending - waiting;
-  return <View accessibilityLiveRegion="polite" style={{ minHeight: 40, paddingHorizontal: 14, paddingVertical: 7, backgroundColor: blocked ? '#FFF1F0' : '#FFF8ED', borderBottomWidth: 1, borderBottomColor: COLORS.line, flexDirection: 'row', alignItems: 'center' }}>
-    <Text style={{ flex: 1, color: COLORS.ink, fontSize: 12, fontFamily: FONTS.bold }}>Intranet · {sending ? `${sending} envoi en cours` : `${waiting} en attente`}{blocked ? ` · ${blocked} à corriger` : ''}</Text>
-    {waiting ? <TouchableOpacity accessibilityRole="button" onPress={() => processVisitOutbox({ limit: 3 }).then(() => queueMissingSyncedVisitPhotos({ limitVisits: 40 })).then(() => processVisitPhotoOutbox({ limit: 10 })).catch(() => {})} style={{ minHeight: 40, justifyContent: 'center', paddingHorizontal: 10 }}><Text style={{ color: COLORS.primary, fontFamily: FONTS.black, fontSize: 12 }}>Synchroniser</Text></TouchableOpacity> : null}
-  </View>;
 }
 
 export function useVisitUploadState(visiteId) {
@@ -344,7 +334,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
     await queueVisitUpload(visiteId);
     await onVisitChanged?.();
     await refresh();
-    await processVisitOutbox({ limit: 1 }).catch(() => {});
+    await processVisitOutbox({ limit: 1, visiteId }).catch(() => {});
     await refresh();
     await onVisitChanged?.();
     const finalRow = await getVisitUploadState(visiteId);
@@ -513,14 +503,38 @@ export async function listerVisitesAEnvoyerClient(clientId) {
   const rows = await db.getAllAsync(`
     SELECT v.id,v.site_id,v.installation_id,v.api_remote_local_id,
       v.trame_id,v.statut,v.modifie_le,v.rowid AS local_rowid,
-      s.nom_site,i.nom AS nom_local,v.date_visite,o.status AS envoi
+      s.nom_site,i.nom AS nom_local,v.date_visite,o.status AS envoi,
+      CASE WHEN (v.api_remote_local_id IS NOT NULL AND trim(v.api_remote_local_id)<>'')
+        OR EXISTS(SELECT 1 FROM api_local_links l
+          WHERE l.local_installation_id=v.installation_id AND l.remote_present=1)
+        OR EXISTS(SELECT 1 FROM provenances p
+          WHERE p.entite_type='installation' AND p.entite_id=v.installation_id
+            AND p.origine='api_symfony' AND p.reference_externe IS NOT NULL
+            AND trim(p.reference_externe)<>'')
+        OR EXISTS(SELECT 1 FROM provenances p
+          JOIN api_local_links l ON l.remote_local_id=p.reference_externe AND l.remote_present=1
+          WHERE p.entite_type='visite' AND p.entite_id=v.id
+            AND p.origine='api_symfony'
+            AND (p.details_json LIKE '%"sourceType":"preparation_visite"%'
+              OR p.details_json LIKE '%"sourceType":"remar_upload_preselection"%'))
+        THEN 0 ELSE 1 END AS needs_binding
     FROM visites v
     JOIN sites s ON s.id=v.site_id
     LEFT JOIN installations i ON i.id=v.installation_id
     LEFT JOIN api_visit_outbox o ON o.visite_id=v.id
     WHERE s.client_id=? AND NOT ${HISTORICAL_SQL}
-      AND (v.api_remote_local_id IS NOT NULL OR EXISTS(
-        SELECT 1 FROM api_local_links l WHERE l.local_installation_id=v.installation_id AND l.remote_present=1))
+      -- Le client ET le site doivent réellement appartenir au référentiel
+      -- Intranet importé. Ne pas exclure silencieusement les visites anciennes
+      -- dont le lien local s'est perdu : elles restent visibles pour réparation
+      -- et sont marquées needs_binding=1 si aucune preuve distante ne subsiste.
+      AND EXISTS (
+        SELECT 1 FROM api_client_links cl
+        JOIN api_client_site_links cs ON cs.remote_client_id=cl.remote_client_id
+        JOIN api_site_links sl ON sl.remote_site_id=cs.remote_site_id
+        WHERE cl.local_client_id=s.client_id AND cl.autorise=1
+          AND cs.remote_present=1 AND sl.remote_present=1
+          AND COALESCE(sl.local_site_id,cs.local_site_id)=v.site_id
+      )
     ORDER BY v.date_visite DESC,v.modifie_le DESC,v.rowid DESC`, [String(clientId)]);
   // Never post older drafts of the same local/template as extra Symfony visits.
   const latest = latestClientVisitsByLocalAndTemplate(rows);
@@ -542,18 +556,30 @@ export async function envoyerVisitesClient(clientId, { onProgress = null, visite
   const { aEnvoyer: candidats, enCours } = await listerVisitesAEnvoyerClient(clientId);
   const autorises = Array.isArray(visiteIds) ? new Set(visiteIds.map(String)) : null;
   const aEnvoyer = autorises ? candidats.filter(v=>autorises.has(String(v.id))) : candidats;
-  const bilan = { envoyees: [], aConfirmer: [], enErreur: [], enCours: enCours.length, total: aEnvoyer.length };
+  const bilan = { envoyees: [], enAttente: [], aConfirmer: [], enErreur: [], enCours: enCours.length, total: aEnvoyer.length };
+  let terminees = 0;
+  const progress = (visite, phase) => onProgress?.({
+    rang: terminees, total: aEnvoyer.length, nom: nomVisite(visite),
+    phase, pourcentage: aEnvoyer.length ? Math.round(100 * terminees / aEnvoyer.length) : 100,
+    confirmees: bilan.envoyees.length, enAttente: bilan.enAttente.length,
+    erreurs: bilan.enErreur.length + bilan.aConfirmer.length,
+  });
   let rang = 0;
   for (const visite of aEnvoyer) {
     rang += 1;
-    onProgress?.({ rang, total: aEnvoyer.length, nom: nomVisite(visite) });
+    progress(visite, 'Envoi en cours');
     try {
       const row = await getVisitUploadState(visite.id);
-      if (row?.status === 'synced') { await syncVisitPhotosNow(visite.id).catch(() => {}); bilan.envoyees.push(nomVisite(visite)); continue; }
+      // Une visite déjà synchronisée ne doit jamais être re-POSTée en masse.
+      if (row?.status === 'synced') continue;
       if (row?.error_code === 'idempotency_conflict' || row?.error_code === 'invalid_ack') {
         bilan.aConfirmer.push(`${nomVisite(visite)} : envoi verrouillé, à traiter depuis la visite.`); continue;
       }
-      if (row && ['pending', 'retry', 'auth_error'].includes(row.status)) {
+      if (row?.status === 'sending') {
+        // Le runtime a peut-être déjà lancé CET envoi. Attendre le même
+        // processeur et son ACK, sans fabriquer un second envoiId ni POST.
+        await processVisitOutbox({ limit: 1, visiteId: visite.id });
+      } else if (row && ['pending', 'retry', 'auth_error'].includes(row.status)) {
         await assertQueuedClientStillMatchesImportedClient(visite.id, row);
         await retryVisitUploadNow(visite.id);
       } else {
@@ -567,16 +593,24 @@ export async function envoyerVisitesClient(clientId, { onProgress = null, visite
           await pinFullyPublishedRemarForFirstUpload(visite.id);
         await bindSameImportedClient(visite.id);
         await queueVisitUpload(visite.id, { confirmMaterialReplacement: false });
-        await processVisitOutbox({ limit: 1 }).catch(() => {});
+        await processVisitOutbox({ limit: 1, visiteId: visite.id }).catch(() => {});
       }
       const final = await getVisitUploadState(visite.id);
       if (final?.status === 'synced') {
-        await syncVisitPhotosNow(visite.id).catch(() => {});
+        // Ne pas immobiliser tout le client sur 10 transferts photo à chaque
+        // visite. Ces photos restent en file SQLite jusqu'à l'accusé serveur.
+        try {
+          await queueMissingVisitPhotos(visite.id);
+          void processVisitPhotoOutbox({ limit: 10 }).catch(error =>
+            console.warn('Envoi photo différé', error));
+        } catch (photoError) {
+          bilan.enErreur.push(`${nomVisite(visite)} : photos à préparer — ${String(photoError?.message || photoError)}`);
+        }
         bilan.envoyees.push(nomVisite(visite));
       } else if (final && ['validation_error', 'rejected', 'conflict', 'auth_error'].includes(final.status)) {
         bilan.enErreur.push(`${nomVisite(visite)} : ${serverFeedback(final) || 'refusée par l’Intranet'}`);
       } else {
-        bilan.envoyees.push(`${nomVisite(visite)} (en attente de connexion)`);
+        bilan.enAttente.push(nomVisite(visite));
       }
     } catch (error) {
       if (['material_replacement_confirmation_required', 'material_clear_confirmation_required'].includes(error?.code)) {
@@ -584,6 +618,9 @@ export async function envoyerVisitesClient(clientId, { onProgress = null, visite
       } else {
         bilan.enErreur.push(`${nomVisite(visite)} : ${localBindingFeedback(error).split('\n')[0]}`);
       }
+    } finally {
+      terminees += 1;
+      progress(visite, 'Traitée');
     }
   }
   return bilan;

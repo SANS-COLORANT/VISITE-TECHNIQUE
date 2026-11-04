@@ -4,7 +4,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { View, Text, TouchableOpacity, BackHandler, Keyboard, PanResponder, Platform, ScrollView, StatusBar, useWindowDimensions } from 'react-native';
 import * as NavigationBar from 'expo-navigation-bar';
 import { PhotoDownloadBanner } from './PhotoDownloadStatus.js';
-import { IntranetVisitSyncBanner, IntranetVisitSyncRuntime } from './IntranetVisitSync.js';
+import { IntranetVisitSyncRuntime } from './IntranetVisitSync.js';
 import { IntranetStructureRuntime } from './IntranetStructureRuntime.js';
 import { getDb } from './db.js';
 import { COLORS, FONTS, styles } from './styles.js';
@@ -339,7 +339,6 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
     {!spiralActive ? <AmbientBackground accent={missionMode ? MISSION_COLORS.accent : COLORS.orange} /> : null}
     <IntranetStructureRuntime />
     <IntranetVisitSyncRuntime />
-    <IntranetVisitSyncBanner />
     <PhotoDownloadBanner />
 
     {current.name === 'Home' ? <>{spiralActive ? <SimpleHeader title="Visite Technique" visualPack={visualPack} rightAction={phoneIntegralMode ? { label: 'Compagnon', onPress: onPhoneModeExit } : null} /> : null}<HomeScreen navigation={navigation} route={route} spiralPreview={spiralActive} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} headerAction={phoneIntegralMode ? { label: 'Compagnon de la tablette', onPress: onPhoneModeExit } : null} /></> : null}
