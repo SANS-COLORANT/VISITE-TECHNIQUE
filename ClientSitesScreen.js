@@ -1,6 +1,6 @@
 /** Écran Sites d'un client + accès pilotage, carte et documents. */
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
-import { View, Text, FlatList, ScrollView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
+import { View, Text, FlatList, ScrollView, TouchableOpacity, Modal, TextInput, Alert, Share } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { creerSite } from './db.js';
 import { getResumeSuppressionSite, supprimerSiteComplet } from './entityManagementDb.js';
@@ -64,6 +64,7 @@ function ClientSitesScreen({ route, navigation }) {
   const [selectionEnvoiVisible, setSelectionEnvoiVisible] = useState(false);
   const [candidatsEnvoi, setCandidatsEnvoi] = useState([]);
   const [rattachementVisite, setRattachementVisite] = useState(null);
+  const [bilanDetailEnvoi, setBilanDetailEnvoi] = useState(null);
   const [nouveauNom, setNouveauNom] = useState('');
   const [nouvelleAdresse, setNouvelleAdresse] = useState(adresseVide);
 
@@ -228,6 +229,7 @@ function ClientSitesScreen({ route, navigation }) {
 
   const envoyerTout = async (visiteIds) => {
     if (envoiEnCours || !Array.isArray(visiteIds) || !visiteIds.length) return;
+    setBilanDetailEnvoi(null);
     setEnvoiVolume(null);
     setSuiviEnvoiIds(visiteIds.map(String));
     setSuiviEnvoiVisible(true);
@@ -247,10 +249,17 @@ function ClientSitesScreen({ route, navigation }) {
         bilan.aConfirmer.length ? `À confirmer visite par visite :\n${bilan.aConfirmer.slice(0, 6).map((x) => `• ${x}`).join('\n')}` : null,
         bilan.enErreur.length ? `À corriger :\n${bilan.enErreur.slice(0, 6).map((x) => `• ${x}`).join('\n')}` : null,
       ].filter(Boolean);
-      Alert.alert(bilan.enErreur.length || bilan.aConfirmer.length || unresolved
+      const title = bilan.enErreur.length || bilan.aConfirmer.length || unresolved
         ? 'Bilan : des visites restent à vérifier'
-        : bilan.enAttente.length ? 'Envois en attente de confirmation' : 'Visites confirmées',
-        lignes.join('\n\n'));
+        : bilan.enAttente.length ? 'Envois en attente de confirmation' : 'Visites confirmées';
+      const detail = [
+        ...lignes.slice(0,3),
+        bilan.envoyees.length ? `Confirmées :\n${bilan.envoyees.map(v=>`• ${v}`).join('\n')}` : null,
+        bilan.enAttente.length ? `En attente d'accusé Symfony :\n${bilan.enAttente.map(v=>`• ${v}`).join('\n')}` : null,
+        bilan.aConfirmer.length ? `À confirmer :\n${bilan.aConfirmer.map(v=>`• ${v}`).join('\n')}` : null,
+        bilan.enErreur.length ? `Erreurs (liste complète) :\n${bilan.enErreur.map(v=>`• ${v}`).join('\n')}` : null,
+      ].filter(Boolean).join('\n\n');
+      setBilanDetailEnvoi({ title, detail });
     } catch (e) { Alert.alert('Envoi impossible', String(e?.message || e)); }
     finally { setEnvoiEnCours(null); }
   };
@@ -476,6 +485,31 @@ function ClientSitesScreen({ route, navigation }) {
     <Modal visible={modalVisible} transparent animationType="fade"><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Nouveau site local</Text><Text style={{ color: COLORS.muted, fontSize: 11.5, marginBottom: 10 }}>Ce bouton crée uniquement un site dans la base locale METRA. Utilise « Site Intranet » pour créer aussi la structure serveur.</Text><TextInput style={styles.input} placeholder="Nom du site" value={nouveauNom} onChangeText={setNouveauNom}/><View style={{ flexDirection: 'row', gap: 8, marginTop: 10 }}><TextInput style={[styles.input, { width: 84 }]} placeholder="N°" value={nouvelleAdresse.numero} keyboardType="numbers-and-punctuation" onChangeText={(v) => patchNouvelleAdresse({ numero: v })}/><TextInput style={[styles.input, { flex: 1 }]} placeholder="Rue / avenue / voie" value={nouvelleAdresse.voie} onChangeText={(v) => patchNouvelleAdresse({ voie: v })}/></View><TextInput style={[styles.input, { marginTop: 8 }]} placeholder="Complément : bâtiment, entrée…" value={nouvelleAdresse.complement} onChangeText={(v) => patchNouvelleAdresse({ complement: v })}/><View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}><TextInput style={[styles.input, { width: 120 }]} placeholder="Code postal" value={nouvelleAdresse.codePostal} keyboardType="number-pad" maxLength={5} onChangeText={(v) => patchNouvelleAdresse({ codePostal: v.replace(/\D/g, '').slice(0, 5) })}/><TextInput style={[styles.input, { flex: 1 }]} placeholder="Ville" value={nouvelleAdresse.ville} onChangeText={(v) => patchNouvelleAdresse({ ville: v })}/></View><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setModalVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={ajouterSiteFn}><ButtonGlow /><Text style={styles.btnPrimaryText}>Créer</Text></TouchableOpacity></View></View></View></Modal>
 
     <ClientTourneeModal visible={tourneeVisible} clientId={clientId} sites={sites} onClose={() => setTourneeVisible(false)} onChanged={chargerTournee} />
+
+    <Modal visible={!!bilanDetailEnvoi} transparent animationType="slide"
+      onRequestClose={()=>setBilanDetailEnvoi(null)}>
+      <View style={styles.modalOverlay}>
+        <View style={[styles.modalSheet,{width:'100%',maxHeight:'92%'}]}>
+          <Text style={styles.modalTitle}>{bilanDetailEnvoi?.title||'Bilan Intranet'}</Text>
+          <ScrollView style={{flexGrow:0,flexShrink:1,marginVertical:12}}
+            contentContainerStyle={{paddingBottom:12}}>
+            <Text selectable style={{fontSize:12,color:COLORS.ink,lineHeight:19}}>
+              {bilanDetailEnvoi?.detail||''}
+            </Text>
+          </ScrollView>
+          <View style={{flexDirection:'row',gap:10}}>
+            <TouchableOpacity accessibilityRole="button" style={[styles.btnSecondary,{flex:1}]}
+              onPress={()=>setBilanDetailEnvoi(null)}>
+              <Text style={styles.btnSecondaryText}>Fermer</Text>
+            </TouchableOpacity>
+            <TouchableOpacity accessibilityRole="button" style={[styles.btnPrimary,{flex:1.3}]}
+              onPress={()=>Share.share({message:`METRA — ${bilanDetailEnvoi?.title||'Bilan'}\n\n${bilanDetailEnvoi?.detail||''}`}).catch(()=>{})}>
+              <Text style={styles.btnPrimaryText}>Partager le bilan complet</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
 
     <ClientVisitSendPicker visible={selectionEnvoiVisible} visits={candidatsEnvoi}
       clientName={nomClient} busy={Boolean(envoiEnCours)} progress={envoiEnCours} volume={envoiVolume}
