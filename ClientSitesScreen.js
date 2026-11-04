@@ -23,6 +23,9 @@ import { ButtonGlow } from './ButtonGlow.js';
 import { ClientTourneeModal } from './ClientTourneeModal.js';
 import { bilanTournee, indexerTournee, listerTourneeClient } from './tourneeDb.js';
 import { envoyerVisitesClient, listerVisitesAEnvoyerClient } from './IntranetVisitSync.js';
+import { subscribeVisitOutbox } from './intranetVisitOutboxDb.js';
+import { subscribeVisitPhotoOutbox } from './intranetVisitPhotoOutboxDb.js';
+import { getClientTransferVolume, formatTransferBytes } from './intranetTransferVolume.js';
 import { ClientVisitSendPicker } from './ClientVisitSendPicker.js';
 import { EmptyIcon } from './EmptyState.js';
 
@@ -54,6 +57,9 @@ function ClientSitesScreen({ route, navigation }) {
   const [filtreAFaire, setFiltreAFaire] = useState(false);
   const [aEnvoyer, setAEnvoyer] = useState(0);
   const [envoiEnCours, setEnvoiEnCours] = useState(null);
+  const [suiviEnvoiIds, setSuiviEnvoiIds] = useState([]);
+  const [envoiVolume, setEnvoiVolume] = useState(null);
+  const [suiviEnvoiVisible, setSuiviEnvoiVisible] = useState(false);
   const [selectionEnvoiVisible, setSelectionEnvoiVisible] = useState(false);
   const [candidatsEnvoi, setCandidatsEnvoi] = useState([]);
   const [nouveauNom, setNouveauNom] = useState('');
@@ -89,6 +95,30 @@ function ClientSitesScreen({ route, navigation }) {
     const unsubscribe = navigation?.addListener?.('focus', chargerTournee);
     return unsubscribe;
   }, [chargerTournee, navigation]);
+  // Relecture sur chaque accusé de réception visite / photo. Le client peut
+  // continuer sa navigation : les uploads photo poursuivent leur cours.
+  useEffect(() => {
+    if (!suiviEnvoiIds.length) return undefined;
+    let live = true, reading = false, refreshAgain = false;
+    const refresh = async () => {
+      if (!live) return;
+      if (reading) { refreshAgain = true; return; }
+      reading = true;
+      do {
+        refreshAgain = false;
+        try {
+          const volume = await getClientTransferVolume(suiviEnvoiIds);
+          if (live) setEnvoiVolume(volume);
+        } catch (error) { console.warn('Volume Intranet indisponible', error); }
+      } while (live && refreshAgain);
+      reading = false;
+    };
+    refresh();
+    const unsubscribeVisit = subscribeVisitOutbox(refresh);
+    const unsubscribePhoto = subscribeVisitPhotoOutbox(refresh);
+    return () => { live = false; unsubscribeVisit(); unsubscribePhoto(); };
+  }, [suiviEnvoiIds]);
+
   const tourneeIndex = useMemo(() => indexerTournee(tourneeRows), [tourneeRows]);
   const bilanSites = useMemo(() => bilanTournee(tourneeRows.filter((r) => !r.installation_id)), [tourneeRows]);
   const bilanLocaux = useMemo(() => bilanTournee(tourneeRows.filter((r) => r.installation_id)), [tourneeRows]);
@@ -159,7 +189,10 @@ function ClientSitesScreen({ route, navigation }) {
 
   const envoyerTout = async (visiteIds) => {
     if (envoiEnCours || !Array.isArray(visiteIds) || !visiteIds.length) return;
-    setEnvoiEnCours({ rang: 0, total: visiteIds.length, nom: '' });
+    setEnvoiVolume(null);
+    setSuiviEnvoiIds(visiteIds.map(String));
+    setSuiviEnvoiVisible(true);
+    setEnvoiEnCours({ rang: 0, total: visiteIds.length, nom: '', phase: 'Préparation', pourcentage: 0 });
     try {
       const bilan = await envoyerVisitesClient(clientId, {
         visiteIds, onProgress: setEnvoiEnCours,
@@ -287,6 +320,33 @@ function ClientSitesScreen({ route, navigation }) {
           </TouchableOpacity>)}
         </ScrollView>
 
+        {suiviEnvoiVisible && (envoiVolume || envoiEnCours) ? <View
+          accessibilityLiveRegion="polite"
+          style={{marginHorizontal:2,marginBottom:13,padding:13,borderRadius:16,
+            borderWidth:1,borderColor:'rgba(22,21,15,0.09)',backgroundColor:COLORS.orangeLight}}>
+          <View style={{flexDirection:'row',alignItems:'center',justifyContent:'space-between',gap:8}}>
+            <Text style={{color:COLORS.ink,fontFamily:FONTS.bold,fontSize:13}}>Synchronisation Intranet · données</Text>
+            <TouchableOpacity accessibilityRole="button" accessibilityLabel="Masquer le suivi de l'envoi"
+              onPress={()=>setSuiviEnvoiVisible(false)}
+              style={{paddingVertical:4,paddingHorizontal:8}}>
+              <CvcIcon name="close" size={17} color={COLORS.inkSoft} />
+            </TouchableOpacity>
+          </View>
+          <Text style={{color:COLORS.orangeDark,fontFamily:FONTS.black,fontSize:13,marginTop:7}}>
+            {formatTransferBytes(envoiVolume?.confirmedBytes || 0)} / {formatTransferBytes(envoiVolume?.totalBytes || 0)} confirmés
+          </Text>
+          <View style={{height:7,backgroundColor:'rgba(22,21,15,0.12)',borderRadius:10,overflow:'hidden',marginTop:9}}>
+            <View style={{height:'100%',borderRadius:10,backgroundColor:COLORS.orange,
+              width:`${envoiVolume?.pourcentage || 0}%`}} />
+          </View>
+          <Text style={{fontSize:11.5,color:COLORS.inkSoft,marginTop:8,lineHeight:17}}>
+            {envoiVolume ? `${envoiVolume.pourcentage}% · ${envoiVolume.visitsSynced}/${envoiVolume.visitsTotal} visites · ${envoiVolume.photosSynced}/${envoiVolume.photosTotal} photos confirmées`
+              : 'Calcul du volume des visites et photos…'}
+            {envoiVolume?.incompleteEstimate ? ' · Taille de certains fichiers inconnue' : ''}
+            {envoiVolume?.visitsFailed || envoiVolume?.photosFailed ? ` · ${(envoiVolume.visitsFailed||0)+(envoiVolume.photosFailed||0)} erreur(s)` : ''}
+          </Text>
+        </View> : null}
+
         {tourneeRows.length ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Filtrer les sites à faire" onPress={() => setFiltreAFaire((v) => !v)} activeOpacity={0.8}
           style={{ marginBottom: 12, padding: 12, borderRadius: 16, borderWidth: 1, borderColor: filtreAFaire ? COLORS.orange : 'rgba(22,21,15,0.1)', backgroundColor: filtreAFaire ? COLORS.orangeLight : 'rgba(255,255,255,0.72)' }}>
           <Text style={{ fontSize: 13.5, fontFamily: FONTS.bold, color: COLORS.ink }}>Itinéraire · {bilanSites.total ? `${bilanSites.faits}/${bilanSites.total} site${bilanSites.total > 1 ? 's' : ''} faits` : null}{bilanSites.total && bilanLocaux.total ? ' · ' : ''}{bilanLocaux.total ? `${bilanLocaux.faits}/${bilanLocaux.total} local${bilanLocaux.total > 1 ? 'aux' : ''} faits` : null}</Text>
@@ -374,7 +434,7 @@ function ClientSitesScreen({ route, navigation }) {
     <ClientTourneeModal visible={tourneeVisible} clientId={clientId} sites={sites} onClose={() => setTourneeVisible(false)} onChanged={chargerTournee} />
 
     <ClientVisitSendPicker visible={selectionEnvoiVisible} visits={candidatsEnvoi}
-      clientName={nomClient} busy={Boolean(envoiEnCours)} progress={envoiEnCours}
+      clientName={nomClient} busy={Boolean(envoiEnCours)} progress={envoiEnCours} volume={envoiVolume}
       onCancel={() => { if (!envoiEnCours) setSelectionEnvoiVisible(false); }}
       onSend={envoyerTout} />
     <IntranetSiteCreationModal visible={intranetSiteVisible} clientId={clientId} onClose={() => setIntranetSiteVisible(false)} onCreated={charger} />
