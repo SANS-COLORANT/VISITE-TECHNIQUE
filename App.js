@@ -18,7 +18,7 @@ import { VisualPackAsset } from './visual-packs/runtime/VisualPackAsset.js';
 import { setRuntimeVisualPalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 import { getActiveVisualPack, getVisualPackStartupDuration, resolveVisualPackAssetUri } from './visual-packs/runtime/visualPackManager.js';
 import { SpiralActiveDock } from './visual-packs/spiral-active/SpiralActiveDock.js';
-import { CompanionPhoneScreen } from './CompanionPhoneScreen.js';
+import { CreditsModal } from './CreditsModal.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { useAppFonts } from './AppFonts.js';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -109,13 +109,13 @@ function DeferredScreen({ name, ...props }) {
  * en avoir besoin, donc géré ici plutôt qu'en threadant une prop
  * supplémentaire à travers tous les appels de SimpleHeader.
  */
-function SimpleHeader({ title, onBack, visualPack, rightAction = null }) {
+function SimpleHeader({ title, onBack, visualPack, rightAction = null, onCreditsLongPress = null }) {
   const uri = resolveVisualPackAssetUri(visualPack, visualPack?.interface?.headerLogo);
   const spiralActive = visualPack?.id === 'spiral-active' || visualPack?.interface?.experimentalSpiralDock === true;
 
   if (spiralActive) {
     return <View style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#FFFDF8', paddingTop: 50, paddingHorizontal: 16, paddingBottom: 11, borderBottomWidth: 1, borderBottomColor: '#DDE2E3' }}>
-      {onBack ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" onPress={onBack} style={{ width: 44, height: 40, alignItems: 'flex-start', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={23} color={'#14202C'} strokeWidth={2.1} /></TouchableOpacity> : <View style={{ width: 44 }} />}
+      {onBack ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Retour" onPress={onBack} style={{ width: 44, height: 40, alignItems: 'flex-start', justifyContent: 'center' }}><CvcIcon name="chevron-left" size={23} color={'#14202C'} strokeWidth={2.1} /></TouchableOpacity> : onCreditsLongPress ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Afficher les crédits" accessibilityHint="Maintenir appuyé sur la clé à molette" delayLongPress={550} onLongPress={onCreditsLongPress} style={{ width: 44, height: 40, justifyContent: 'center', alignItems: 'center', backgroundColor: '#F26426', borderRadius: 12 }}><CvcIcon name="tools" size={23} color="#FFFFFF" /></TouchableOpacity> : <View style={{ width: 44 }} />}
       <View style={{ flex: 1, alignItems: 'center' }}>
         <Text style={{ color: '#14202C', fontSize: 9, fontFamily: FONTS.black, letterSpacing: 2 }}>METRA</Text>
         <Text numberOfLines={1} style={{ marginTop: 2, color: '#14202C', fontSize: 16, fontWeight: '900', fontFamily: FONTS.black, letterSpacing: -0.25 }}>{title}</Text>
@@ -173,13 +173,14 @@ function Lab3DFab({ onPress, bottom = 82, label = '⬡ LAB 3D' }) {
   return <TouchableOpacity onPress={onPress} style={{ position: 'absolute', right: 18, bottom, minHeight: 48, paddingHorizontal: 17, borderRadius: 24, backgroundColor: '#10384B', borderWidth: 2, borderColor: '#5DD8FF', alignItems: 'center', justifyContent: 'center', elevation: 9, zIndex: 205 }}><Text style={{ color: '#F5FBFF', fontFamily: FONTS.black, fontSize: 12.5 }}>{label}</Text></TouchableOpacity>;
 }
 
-function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
+function AppContent({ phoneIntegralMode = false }) {
   const [dbReady, setDbReady] = useState(false);
   const [dbError, setDbError] = useState(null);
   const [visualPack, setVisualPack] = useState(null);
   const [visualRevision, setVisualRevision] = useState(0);
   const [stack, setStack] = useState([{ name: 'Home', params: {} }]);
   const [r1Visible, setR1Visible] = useState(false);
+  const [creditsVisible, setCreditsVisible] = useState(false);
   const [quickVisitVisible, setQuickVisitVisible] = useState(false);
   const [hydraulicVisible, setHydraulicVisible] = useState(false);
   const [lab3dVisible, setLab3dVisible] = useState(false);
@@ -274,13 +275,14 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
 
   useEffect(() => {
     const sub = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (creditsVisible) { setCreditsVisible(false); return true; }
       if (r1Visible) return true;
       if (stack.length <= 1) return false;
       goBack();
       return true;
     });
     return () => sub.remove();
-  }, [stack.length, goBack, r1Visible]);
+  }, [stack.length, goBack, r1Visible, creditsVisible]);
 
   if (dbError) return <View style={styles.center}><Text style={styles.errorTitle}>Erreur de démarrage</Text><Text style={styles.errorText}>{String(dbError.message || dbError)}</Text><TouchableOpacity style={[styles.btnPrimary, { marginTop: 18 }]} onPress={initialiser}><ButtonGlow /><Text style={styles.btnPrimaryText}>Réessayer</Text></TouchableOpacity></View>;
   if (!visualPack) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
@@ -339,7 +341,7 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
     <IntranetStructureRuntime />
     <IntranetVisitSyncRuntime />
 
-    {current.name === 'Home' ? <>{spiralActive ? <SimpleHeader title="Visite Technique" visualPack={visualPack} rightAction={phoneIntegralMode ? { label: 'Compagnon', onPress: onPhoneModeExit } : null} /> : null}<HomeScreen navigation={navigation} route={route} spiralPreview={spiralActive} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} headerAction={phoneIntegralMode ? { label: 'Compagnon de la tablette', onPress: onPhoneModeExit } : null} /></> : null}
+    {current.name === 'Home' ? <>{spiralActive ? <SimpleHeader title="Visite Technique" visualPack={visualPack} onCreditsLongPress={() => setCreditsVisible(true)} /> : null}<HomeScreen navigation={navigation} route={route} spiralPreview={spiralActive} onR1LongPress={() => setR1Visible(true)} missionsEnabled={missionsVisible} onCreditsLongPress={() => setCreditsVisible(true)} /></> : null}
     {current.name === 'MetraDirectory' ? <><SimpleHeader title="Recherche clients & sites" onBack={goBack} visualPack={visualPack} /><DeferredScreen name="MetraDirectory" navigation={navigation} route={route} /></> : null}
     {current.name === 'ClientSites' ? <><SimpleHeader title={current.params?.nomClient || 'Sites'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="ClientSites" navigation={navigation} route={route} /></> : null}
     {current.name === 'SiteLocals' ? <><SimpleHeader title={current.params?.nomSite || 'Locaux'} onBack={goBack} visualPack={visualPack} /><DeferredScreen name="SiteLocals" navigation={navigation} route={route} /></> : null}
@@ -400,6 +402,7 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
       }}
     />
     {spiralActive && !r1Visible ? <SpiralActiveDock exploreActions={spiralExploreActions} actionActions={spiralActionActions} quickActions={spiralQuickActions} /> : null}
+    <CreditsModal visible={creditsVisible} onClose={() => setCreditsVisible(false)} />
     <R1EasterEgg visible={r1Visible} onFinish={() => setR1Visible(false)} />
   </View>;
 }
@@ -407,21 +410,8 @@ function AppContent({ phoneIntegralMode = false, onPhoneModeExit = null }) {
 export default function App() {
   const { width, height } = useWindowDimensions();
   const phone = Math.min(width, height) < 600;
-  // Téléphone : version intégrale d'emblée. Le Mode Photo s'ouvre depuis la
-  // visite (barre d'actions) et le Compagnon depuis l'icône téléphone de
-  // l'accueil.
-  const [phoneMode, setPhoneMode] = useState('integral');
   const fontsReady = useAppFonts();
-
-  useEffect(() => {
-    if (!phone) setPhoneMode('integral');
-  }, [phone]);
-
   if (!fontsReady) return <View style={{ flex: 1, backgroundColor: SPLASH_BG }} />;
-  // Les modes téléphone vivent hors d'AppContent : ils reçoivent ici le même
-  // fond ambiant (halos) que le reste de l'application.
-  const ambient = (child) => <View style={{ flex: 1, backgroundColor: COLORS.bg }}><StatusBar translucent backgroundColor="transparent" barStyle="dark-content" /><AmbientBackground accent={COLORS.orange} />{child}</View>;
   const hosts = <><ToastHost /><DialogHost /></>;
-  if (phone && phoneMode === 'companion') return <AppErrorBoundary><View style={{ flex: 1 }}>{ambient(<CompanionPhoneScreen onExit={() => setPhoneMode('integral')} />)}{hosts}</View></AppErrorBoundary>;
-  return <AppErrorBoundary><View style={{ flex: 1 }}><AppContent phoneIntegralMode={phone && phoneMode === 'integral'} onPhoneModeExit={() => setPhoneMode('companion')} />{hosts}</View></AppErrorBoundary>;
+  return <AppErrorBoundary><View style={{ flex: 1 }}><AppContent phoneIntegralMode={phone} />{hosts}</View></AppErrorBoundary>;
 }

@@ -16,7 +16,6 @@ import { IntranetSiteCreationModal } from './IntranetStructureUi.js';
 import { SITE_SORT_OPTIONS, buildSiteGroupMap, siteGroupLabel, sortSites } from './siteSort.js';
 import { getNavigationScrollOffset, getNavigationState, hydrateNavigationState, setNavigationScrollOffset, setNavigationState } from './navigationMemory.js';
 import { peekClientSites, prewarmClientSites, prewarmSiteLocals } from './navigationPrewarm.js';
-import { CompanionTabletModal } from './CompanionTabletModal.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { getRuntimeAccent, getRuntimePalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 import { ButtonGlow } from './ButtonGlow.js';
@@ -48,7 +47,6 @@ function ClientSitesScreen({ route, navigation }) {
   const [search, setSearch] = useState('');
   const [modalVisible, setModalVisible] = useState(false);
   const [intranetSiteVisible, setIntranetSiteVisible] = useState(false);
-  const [clientCompanionVisible, setClientCompanionVisible] = useState(false);
   const [groupesVisible, setGroupesVisible] = useState(false);
   const [radialMenu, setRadialMenu] = useState(null);
   const [renameSite, setRenameSite] = useState(null);
@@ -381,7 +379,6 @@ function ClientSitesScreen({ route, navigation }) {
             { key: 'documents', label: 'Documents', icon: 'document', disabled: !sites.length, onPress: () => navigation.navigate('ClientDocuments', { clientId, nomClient }) },
             { key: 'envoyer', label: envoiEnCours ? `${envoiEnCours.rang}/${envoiEnCours.total}` : aEnvoyer ? `Envoyer · ${aEnvoyer}` : 'Envoyer', icon: 'cloud-sync', disabled: !!envoiEnCours, onPress: demanderEnvoiTout },
             { key: 'tournee', label: 'Itinéraire', icon: 'check', disabled: !sites.length, onPress: () => setTourneeVisible(true) },
-            { key: 'compagnon', label: 'Compagnon', icon: 'device', onPress: () => setClientCompanionVisible(true) },
           ].map((a) => <TouchableOpacity key={a.key} accessibilityRole="button" accessibilityLabel={a.label} disabled={a.disabled} onPress={a.onPress} activeOpacity={0.85} style={[clientActionTile, a.primary && clientActionTilePrimary, a.disabled && { opacity: 0.45 }]}>
             {a.primary ? <ButtonGlow radius={18} /> : null}
             <CvcIcon name={a.icon} size={21} color={a.primary ? COLORS.white : COLORS.orangeDark} />
@@ -537,13 +534,6 @@ function ClientSitesScreen({ route, navigation }) {
       onCancel={() => { if (!envoiEnCours) setSelectionEnvoiVisible(false); }}
       onSend={envoyerTout} />
     <IntranetSiteCreationModal visible={intranetSiteVisible} clientId={clientId} onClose={() => setIntranetSiteVisible(false)} onCreated={charger} />
-
-    <CompanionTabletModal
-      visible={clientCompanionVisible}
-      clientId={clientId}
-      nomClient={nomClient}
-      onClose={() => setClientCompanionVisible(false)}
-    />
 
     <Modal visible={!!renameSite} transparent animationType="fade" onRequestClose={() => setRenameSite(null)}><View style={styles.modalOverlay}><View style={styles.modalSheet}><Text style={styles.modalTitle}>Renommer le site</Text><TextInput autoFocus style={styles.input} value={renameValue} onChangeText={setRenameValue} selectTextOnFocus/><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} onPress={() => setRenameSite(null)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={styles.btnPrimary} onPress={enregistrerRenommage}><ButtonGlow /><Text style={styles.btnPrimaryText}>Enregistrer</Text></TouchableOpacity></View></View></View></Modal>
 

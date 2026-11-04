@@ -26,7 +26,7 @@ const HOME_FAST_CACHE = { clients: null, visitesEnCours: null, stats: null, quic
 function chargerBatchExcelModule(){return require('./batchExcel.js');}
 function chargerEntityManagementModule(){return require('./entityManagementDb.js');}
 
-function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missionsEnabled = false, headerAction = null }) {
+function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missionsEnabled = false, onCreditsLongPress = null }) {
   const listRef = useRef(null);
   const scrollKey = 'home:clients';
   const [clients, setClients] = useState(() => HOME_FAST_CACHE.clients || []);
@@ -201,18 +201,17 @@ function HomeScreen({ navigation, onR1LongPress, spiralPreview = false, missions
   return <View style={{ flex: 1 }} {...missionsSwipeResponder.panHandlers}>
     <View style={styles.homeTopRow}>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 11, flex: 1, minWidth: 0 }}>
-        <LinearGradient colors={[COLORS.orange, COLORS.orangeDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={{ width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', shadowColor: COLORS.orange, shadowOpacity: 0.45, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 5 }}>
-          <CvcIcon name="tools" size={19} color={COLORS.white} strokeWidth={2.1} />
-        </LinearGradient>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Afficher les crédits" accessibilityHint="Maintenir appuyé pour afficher TCA, EAL et TSAI" delayLongPress={550} onLongPress={onCreditsLongPress} activeOpacity={0.85}>
+          <LinearGradient colors={[COLORS.orange, COLORS.orangeDark]} start={{ x: 0.15, y: 0 }} end={{ x: 0.9, y: 1 }} style={{ width: 38, height: 38, borderRadius: 12, alignItems: 'center', justifyContent: 'center', shadowColor: COLORS.orange, shadowOpacity: 0.45, shadowRadius: 10, shadowOffset: { width: 0, height: 5 }, elevation: 5 }}>
+            <CvcIcon name="tools" size={19} color={COLORS.white} strokeWidth={2.1} />
+          </LinearGradient>
+        </TouchableOpacity>
         <View style={{ flex: 1, minWidth: 0 }}>
           <Text numberOfLines={1} style={{ fontSize: 17, fontWeight: '800', fontFamily: FONTS.black, color: COLORS.ink }}>Visite Technique</Text>
           <Text numberOfLines={1} style={{ fontSize: 11.5, fontFamily: FONTS.bodyMedium, color: COLORS.inkSoft, marginTop: 1 }}>{stats.enCours} en cours · {stats.terminees} terminée{stats.terminees > 1 ? 's' : ''}</Text>
         </View>
       </View>
       <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
-        {headerAction ? <TouchableOpacity accessibilityLabel={headerAction.label} hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} onPress={headerAction.onPress}>
-          <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={38}><CvcIcon name="device" size={18} color={COLORS.orangeDark} /></IconOrb>
-        </TouchableOpacity> : null}
         <TouchableOpacity accessibilityLabel="Importer des fichiers Excel" hitSlop={{ top: 6, bottom: 6, left: 6, right: 6 }} onPress={choisirExcel}>
           <IconOrb accent={COLORS.orange} light={COLORS.orangeLight} size={38}><CvcIcon name="document" size={18} color={COLORS.orangeDark} /></IconOrb>
         </TouchableOpacity>
