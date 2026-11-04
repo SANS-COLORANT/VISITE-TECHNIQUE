@@ -106,7 +106,10 @@ async function main() {
     check(partialQueued.status === 'pending' &&
       JSON.parse(partialQueued.payload_json).visites[0].materiels.length === 1,
       'the actual technician material list is frozen and queued even after deleting prior equipment');
-    checks++; console.log(`OK ${checks}: partial material removal is queued with durable idempotency`);
+    await outbox.processVisitOutbox({ limit: 1 });
+    check((await outbox.getVisitUploadState('partial-material'))?.status === 'synced',
+      'partial material replacement receives a valid Intranet acknowledgement');
+    checks++; console.log(`OK ${checks}: partial material removal is acknowledged with durable idempotency`);
 
     // Retry-After must never be shortened by a client-side maximum.
     await seedVisit(server.db, 'long-rate-limit');
