@@ -245,7 +245,17 @@ async function resolveImportedLocalId(db, visite, remoteClientId, remoteSiteId) 
          AND origine='api_symfony' AND reference_externe IS NOT NULL
          AND trim(reference_externe)<>''`, [String(visite.installation_id)]
     );
-    const referenceIds = [...new Set(provenances.map(p => clean(p.reference_externe)).filter(Boolean))];
+    // Une ancienne visite du MEME identifiant d'installation constitue une
+    // autre preuve forte de son ID Symfony. Le nom « D2 » n'est jamais
+    // consulté. Plusieurs IDs différents = conflit, pas de déduction.
+    const anciennesVisites = await db.getAllAsync(
+      `SELECT DISTINCT api_remote_local_id AS reference_externe FROM visites
+       WHERE installation_id=? AND api_remote_local_id IS NOT NULL
+         AND trim(api_remote_local_id)<>''`,
+      [String(visite.installation_id)]
+    );
+    const referenceIds = [...new Set([...provenances, ...anciennesVisites]
+      .map(p => clean(p.reference_externe)).filter(Boolean))];
     if (referenceIds.length > 1) {
       throw bindingError('Cette installation conserve plusieurs identités de locaux Intranet différentes. Un choix explicite du local est indispensable.',
         'imported_local_identity_conflict', { remoteClientId });
@@ -361,6 +371,11 @@ export async function bindVisitToIntranetTarget(visiteId, { remoteClientId, remo
         AND reference_externe IS NOT NULL AND trim(reference_externe)<>''`, [installationId]);
     if (provenances.some(source => clean(source.reference_externe) !== localId))
       throw bindingError('La provenance d’origine de cette installation est un autre local Intranet. Aucun transfert automatique.', 'imported_local_identity_conflict');
+    const existingVisitLocals = await db.getAllAsync(`SELECT DISTINCT api_remote_local_id
+      FROM visites WHERE installation_id=? AND api_remote_local_id IS NOT NULL
+        AND trim(api_remote_local_id)<>''`, [installationId]);
+    if (existingVisitLocals.some(ref => clean(ref.api_remote_local_id) !== localId))
+      throw bindingError('Une ancienne visite de cette installation est liée à un autre local Intranet. Aucun changement automatique de son identité.', 'imported_local_identity_conflict');
   }
 
   const frozen = await frozenVisitReference(db, visite);
