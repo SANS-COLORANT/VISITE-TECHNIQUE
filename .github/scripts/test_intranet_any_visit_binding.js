@@ -260,6 +260,33 @@ async function main() {
       SET remote_trame_id='3',remote_trame_nom='ICPE',reference_json=?
       WHERE remote_local_id='505'`, [JSON.stringify(reference('505','D3'))]);
 
+    // Les anciennes importations peuvent avoir perdu la colonne
+    // api_remote_local_id tout en conservant la référence originale dans
+    // la provenance de CETTE visite. Réparer sur IDs exacts de site + local.
+    const referenceD5 = reference('507', 'D5');
+    await server.db.runAsync(`INSERT INTO api_local_links(
+      remote_local_id,remote_site_id,designation,remote_trame_id,remote_trame_nom,criteria_count,reference_json)
+      VALUES('507','45','D5','3','ICPE',1,?)`, [JSON.stringify(referenceD5)]);
+    await server.db.execAsync(`
+      INSERT INTO installations(id,site_id,type_code,nom,actif)
+      VALUES('installation-d5','local-site','installation_technique','D5',1);
+      INSERT INTO visites(id,site_id,installation_id,date_visite,statut,trame_id)
+      VALUES('d5-prepared','local-site','installation-d5','2026-11-04','terminee','icpe_v1');
+    `);
+    await server.db.runAsync(`INSERT INTO provenances(
+      id,entite_type,entite_id,origine,reference_externe,details_json)
+      VALUES('prov-d5-prepared','visite','d5-prepared','api_symfony','507',?)`,
+      [JSON.stringify({...referenceD5,sourceType:'preparation_visite',remoteLocalId:'507'})]);
+    const d5 = await binding.bindVisitToImportedClientTarget('d5-prepared');
+    check(d5.remoteLocalId === '507', 'original imported visit provenance restores D5 without remote visit column or name guessing');
+    check((await server.db.getFirstAsync(
+      "SELECT api_remote_local_id FROM visites WHERE id='d5-prepared'")).api_remote_local_id === '507',
+      'restored Intranet local ID is permanently pinned to its visit');
+    check((await server.db.getFirstAsync(
+      "SELECT local_installation_id FROM api_local_links WHERE remote_local_id='507'"
+    )).local_installation_id === 'installation-d5',
+      'restored local belongs to the same physical METRA installation');
+
     // La visite D4 n'a pas de remoteLocalId, mais une visite ancienne de
     // la MEME installation porte déjà un ID Symfony : récupération sans nom.
     await server.db.runAsync(`INSERT INTO api_local_links(
