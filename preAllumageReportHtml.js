@@ -159,9 +159,34 @@ export const PREALLUMAGE_REPORT_CSS = `
   .paRegBreak{page-break-before:always;padding-top:8mm}.paConclusionItem{border-bottom:1px solid #ddd;padding:2mm 0}.paConclusionItem p{margin:1mm 0}
   .paPreamble{font-size:8.7pt;line-height:1.35;margin:0 10mm 4mm}.paTestGroup{break-inside:avoid-page;margin-bottom:3.4mm}.paSubTitle{font-size:8.6pt;font-weight:800;margin:2mm 0 1.5mm}.paTestTable .paEquip{width:20%}.paTestTable .paComment{width:34%}.paTestTable td{font-size:6.8pt;padding:.75mm 1mm;line-height:1.12}.paResultOk{color:#00A651;font-weight:700}.paResultKo{color:#D71920;font-weight:700}.paResultWarn{color:#E49B0F;font-weight:700}
   .paConclusionLead{font-weight:700;font-size:10pt;line-height:1.45}.paPage ul{font-size:9.2pt;line-height:1.45}.paPage p{font-size:9.2pt;line-height:1.45}
+  .paAnnexe .paPageTitle{text-transform:uppercase}.paPhotoGrid{display:grid;grid-template-columns:1fr 1fr;gap:6mm}
+  .paPhotoCard{border:.7px solid #888;min-height:103mm;break-inside:avoid-page}.paPhotoFrame{height:87mm;display:flex;align-items:center;justify-content:center;overflow:hidden}
+  .paPhotoFrame img{max-width:100%;max-height:100%;object-fit:contain}.paPhotoCaption{font-size:8.5pt;text-align:center;overflow-wrap:anywhere;padding:2mm}
 `;
 
-export function construireSitePreAllumageHtml(data, config, planSrc = null) {
+// Only photos explicitly authorized for export are passed in by the
+// specialized exporter. Reject failures before rendering, never drop them.
+export function construireAnnexesPreAllumageHtml(data, photos = [], signature = '') {
+  const remarques = data.remarques || [];
+  const dateReserve = (r) => dateFr(r.intranet_date_reserve || r.cree_le || '') || '/';
+  const reserves = remarques.length ? `<section class="paPage paAnnexe"><div class="paPageTitle">ANNEXE · RÉSERVES</div>
+    <table class="paTestTable"><thead><tr><th>Poste</th><th>Prestation</th><th>Date de la réserve</th></tr></thead><tbody>
+    ${remarques.map((r) => `<tr><td>${esc(r.poste || '')}</td><td>${esc(r.prestation || '')}</td><td>${esc(dateReserve(r))}</td></tr>`).join('')}
+    </tbody></table></section>` : '';
+  const pagesPhotos = [];
+  for (let i = 0; i < photos.length; i += 4) {
+    const selection = photos.slice(i, i + 4);
+    pagesPhotos.push(`<section class="paPage paAnnexe"><div class="paPageTitle">ANNEXE · PHOTOGRAPHIES</div>
+      <div class="paPhotoGrid">${selection.map((p) =>
+        `<div class="paPhotoCard" data-photo-id="${esc(p.id)}"><div class="paPhotoFrame"><img src="${p.src}" alt="${esc(p.label)}"/></div><div class="paPhotoCaption">${esc(p.label)}</div></div>`
+      ).join('')}</div></section>`);
+  }
+  const signaturePage = signature
+    ? `<section class="paPage paAnnexe"><div class="paPageTitle">ANNEXE · SIGNATURE</div>${signature}</section>` : '';
+  return reserves + pagesPhotos.join('') + signaturePage;
+}
+
+export function construireSitePreAllumageHtml(data, config, planSrc = null, annexesHtml = '') {
   const saison = infoValue(data, 'Saison de chauffe') || '';
   const exploitant = infoValue(data, 'Exploitant') || 'Non renseigné';
   const redacteur = infoValue(data, 'Chargé d’affaires / rédacteur') || '';
@@ -193,5 +218,6 @@ export function construireSitePreAllumageHtml(data, config, planSrc = null) {
     ${page('Paramètres de régulation et températures relevées', '3', regulationPage)}
     ${pagesTests.length ? pagesTests.join('') : page('Préambule et tests réalisés', '4 / 5', preambule)}
     ${page('Observations et conclusions', '6', conclusionHtml(data))}
+    ${annexesHtml}
   </article>`;
 }
