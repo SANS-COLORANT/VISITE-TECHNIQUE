@@ -701,13 +701,13 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',o
     <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} embedded networksOnly />
     <LegacyRemarReadOnly visiteId={visiteId} panelId={panelId} sections={sections}/>
   </ScrollView>;
-  if(panelId==='p-remar-releves')return <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled"
-    contentContainerStyle={{paddingBottom:30}}>
-    <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} trameId={trameId}
-      panels={definition?.ui?.panels} meterPanelId={panelId} embedded metersOnly remarMinimal />
-    <RemarTemperatures visiteId={visiteId} onSaved={onSaved}/>
-    <LegacyRemarReadOnly visiteId={visiteId} panelId={panelId} sections={sections}/>
-  </ScrollView>;
+  if(panelId==='p-remar-releves')return <OptimizedRelevesPanel
+    visiteId={visiteId} onSaved={onSaved} trameId={trameId}
+    panels={definition?.ui?.panels} meterPanelId={panelId} metersOnly remarMinimal
+    listFooter={<View style={{paddingBottom:30}}>
+      <RemarTemperatures visiteId={visiteId} onSaved={onSaved}/>
+      <LegacyRemarReadOnly visiteId={visiteId} panelId={panelId} sections={sections}/>
+    </View>} />;
   if(!family)return null;
 
   const stepIndex=NOMS_ETAPES_CTA.findIndex(x=>x.id===currentStep);
