@@ -53,7 +53,7 @@ function panelsVmcActifs(champsRows = [], controlesRows = []) {
   return actifs;
 }
 
-async function calculerProgression(db, visiteId) {
+async function calculerProgression(db, visiteId, withStatus = false) {
   const [champsRows, controlesRows, visite] = await Promise.all([
     db.getAllAsync(`SELECT section_code,cle,valeur FROM champs_visite WHERE visite_id=?`, [visiteId]),
     db.getAllAsync(`SELECT section_code,cle,avis FROM controles_visite WHERE visite_id=?`, [visiteId]),
@@ -81,9 +81,12 @@ async function calculerProgression(db, visiteId) {
   // une CTA était invisible dans la jauge, qui restait à 5 %.
   // Les trois étapes CTA retirées de la barre de navigation restent
   // comptées dans le parcours de cette CTA et dans ses exports.
-  if ((trame.familyId||trame.id)==='remar_v1') {
-    const summary=await calculerEtatOnglets(visiteId,trame.id);
-    const values=Object.values(summary.tabs||{});
+  const isRemar = (trame.familyId || trame.id) === 'remar_v1';
+  const etat = isRemar || withStatus
+    ? await calculerEtatOnglets(visiteId, trame.id, { db, champsRows, controlesRows })
+    : null;
+  if (isRemar) {
+    const values = Object.values(etat.tabs || {});
     total=values.reduce((sum,v)=>sum+Math.max(0,Number(v.total)||0),0);
     remplis=values.reduce((sum,v)=>sum+Math.max(0,Math.min(Number(v.total)||0,Number(v.done)||0)),0);
   }
@@ -97,31 +100,37 @@ async function calculerProgression(db, visiteId) {
       [pct, visiteId]
     );
   }
-  return pct;
+  return { pct, etat };
 }
 
-/** Coalesce les appels rapprochés pour éviter les lectures SQLite concurrentes. */
-export async function recalculerProgressionVisite(db, visiteId) {
-  if (!db || !visiteId) return 0;
+/** Coalesce les appels rapprochés, et retourne si demandé les pastilles
+ * calculées sur les mêmes lignes SQLite que la progression. Par défaut le
+ * contrat historique (nombre) reste strictement inchangé pour les appelants.
+ */
+export async function recalculerProgressionVisite(db, visiteId, { withStatus = false } = {}) {
+  if (!db || !visiteId) return withStatus ? { pct: 0, etat: null } : 0;
 
   const existant = recalculsEnCours.get(visiteId);
   if (existant) {
     existant.dirty = true;
-    return existant.promise;
+    if (withStatus) existant.withStatus = true;
+    const result = await existant.promise;
+    return withStatus ? result : result.pct;
   }
 
-  const etat = { dirty: false, promise: null };
-  etat.promise = (async () => {
-    let pct = 0;
+  const run = { dirty: false, withStatus: Boolean(withStatus), promise: null };
+  run.promise = (async () => {
+    let result;
     do {
-      etat.dirty = false;
-      pct = await calculerProgression(db, visiteId);
-    } while (etat.dirty);
-    return pct;
+      run.dirty = false;
+      result = await calculerProgression(db, visiteId, run.withStatus);
+    } while (run.dirty || (run.withStatus && !result.etat));
+    return result;
   })().finally(() => {
-    if (recalculsEnCours.get(visiteId) === etat) recalculsEnCours.delete(visiteId);
+    if (recalculsEnCours.get(visiteId) === run) recalculsEnCours.delete(visiteId);
   });
 
-  recalculsEnCours.set(visiteId, etat);
-  return etat.promise;
+  recalculsEnCours.set(visiteId, run);
+  const result = await run.promise;
+  return withStatus ? result : result.pct;
 }
