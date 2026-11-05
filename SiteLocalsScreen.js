@@ -5,7 +5,7 @@ import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOp
 import { COLORS, styles, FONTS } from './styles.js';
 import { getDb, uuidv4 } from './db.js';
 import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollOffset } from './navigationMemory.js';
-import { peekSiteLocals, prewarmLocalVisits, prewarmSiteLocals } from './navigationPrewarm.js';
+import { peekSiteLocals, prewarmLocalVisits, prewarmSiteLocals, needsPrewarmRefresh } from './navigationPrewarm.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { EmptyIcon } from './EmptyState.js';
@@ -26,11 +26,12 @@ function SiteLocalsScreen({ route, navigation }) {
   const [creationEnCours, setCreationEnCours] = useState(false);
   const [cibles, setCibles] = useState([]);
 
-  const charger = useCallback(async () => {
+  const charger = useCallback(async ({ reusePrewarm = false } = {}) => {
     if (!siteId) return;
     if (!peekSiteLocals(siteId)) setLoading(true);
     try {
-      const bundle = await prewarmSiteLocals(siteId, { force: true });
+      const force = !reusePrewarm || needsPrewarmRefresh(peekSiteLocals(siteId));
+      const bundle = await prewarmSiteLocals(siteId, { force });
       setLocaux(bundle?.rows || []);
       setLegacyCount(Number(bundle?.legacyCount || 0));
     } catch (error) {
@@ -40,7 +41,7 @@ function SiteLocalsScreen({ route, navigation }) {
     }
   }, [siteId]);
 
-  useEffect(() => { charger(); }, [charger]);
+  useEffect(() => { charger({ reusePrewarm: true }); }, [charger]);
 
   const chargerCibles = useCallback(async () => {
     if (!siteId) return;
