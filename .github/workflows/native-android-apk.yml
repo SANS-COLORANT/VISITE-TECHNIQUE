@@ -22,6 +22,7 @@ on:
       - fix/intranet-text-preservation-client-progress-20261104
       - fix/metra-runtime-data-safety-20261104
       - feat/remove-companion-add-credits-20261104
+      - fix/metra-lot05-complete-workstreams-20261105
     paths:
       - '**/*.js'
       - '**/*.json'
@@ -201,9 +202,24 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           cat > /tmp/release-notes.md <<'NOTES'
-          METRA — Visite Technique : APK natif de recette
-          Correctifs METRA du 4 novembre 2026 (PR #126), construits à la suite
-          des corrections du 3 novembre et des trames déjà intégrées.
+          METRA — Visite Technique : APK natif de recette du 5 novembre 2026.
+          Source : branche fix/metra-lot05-complete-workstreams-20261105,
+          empilée sur les correctifs des PR #129 et #130.
+          Conserve les corrections précédentes des trames ICPE, REMAR, VMC,
+          Réseau de chaleur, Pré-allumage, ainsi que les fonctions Intranet.
+
+          Lot 05 (fluidité sans changement des règles métier) :
+          - Ouverture client/site/local plus réactive par réutilisation du cache
+            récent ; l'invalidation reste prioritaire après les mutations.
+          - Locaux Intranet non matérialisés visibles sans écriture déclenchée
+            au simple toucher ; création locale à l'ouverture explicite.
+          - Reprise de la navigation VMC et Pré-allumage mieux protégée.
+          - Moins de chargements redondants et calcul commun des états d'onglets
+            et de la progression.
+          - Recherche de champ ciblant rubrique et emplacement ; compteurs
+            volumineux et listes réseaux REMAR mieux virtualisés.
+          - Protections antérieures du défilement, des recherches et des photos
+            contre les réponses asynchrones obsolètes.
 
           - Import/expédition Intranet : la liste de matériel de la visite fait
             foi (ajout, modification, suppression, inventaire vide) dans les
