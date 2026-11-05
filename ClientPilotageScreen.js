@@ -204,6 +204,7 @@ export function ClientPilotageScreen({ route, navigation }) {
   const charger = useCallback(async () => {
     const generation = ++pilotageLoadGenerationRef.current;
     setLoading(true);
+    setStats(null);
     setStatsError(null);
     try {
       const [m, gs, ms] = await Promise.all([
@@ -237,7 +238,10 @@ export function ClientPilotageScreen({ route, navigation }) {
 
   useEffect(() => {
     charger();
-    return () => { pilotageLoadGenerationRef.current += 1; };
+    return () => {
+      pilotageLoadGenerationRef.current += 1;
+      cellPhotoGenerationRef.current += 1;
+    };
   }, [charger]);
 
   const siteIdsGroupe = useMemo(() => {
