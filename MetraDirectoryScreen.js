@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles, FONTS } from './styles.js';
 import { activateTablet, getActivationStatus, syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';
@@ -120,6 +120,17 @@ function MetraDirectoryScreen({ navigation, route }) {
   const [latestPhotosClient, setLatestPhotosClient] = useState(null);
   const [includePhotos, setIncludePhotos] = useState(true);
   const [photoPlan, setPhotoPlan] = useState(null);
+  // LOT05/F07: a search already started may finish after the user changes text.
+  // Invalidate immediately on input, not only when the 80 ms debounce runs.
+  const directorySearchVersionRef = useRef(0);
+  const visibleQueryRef = useRef(query);
+  const updateQuery = useCallback((value) => {
+    const next = String(value || '');
+    visibleQueryRef.current = next;
+    directorySearchVersionRef.current += 1;
+    setQuery(next);
+  }, []);
+  useEffect(() => () => { directorySearchVersionRef.current += 1; }, []);
 
   const refreshStatus = useCallback(async () => {
     const next = await getActivationStatus();
@@ -128,11 +139,16 @@ function MetraDirectoryScreen({ navigation, route }) {
   }, []);
 
   const search = useCallback(async (text = query) => {
-    const next = String(text || '').trim()
-      ? await searchCachedDirectory(text) // Tous les clients Intranet autorisés et leurs sites.
+    const expectedQuery = String(text || '');
+    const generation = ++directorySearchVersionRef.current;
+    const next = expectedQuery.trim()
+      ? await searchCachedDirectory(expectedQuery) // Tous les clients Intranet autorisés et leurs sites.
       : { clients: await listImportedApiClients(), sites: [] }; // Uniquement les clients déjà matérialisés dans METRA.
+    // A late response must not replace either the visible list or its fast cache.
+    if (generation !== directorySearchVersionRef.current || expectedQuery !== visibleQueryRef.current) return next;
     METRA_DIRECTORY_FAST_CACHE = next;
     setDirectory(next);
+    return next;
   }, [query]);
 
   useEffect(() => { refreshStatus().catch(() => {}); }, [refreshStatus]);
@@ -401,8 +417,8 @@ function MetraDirectoryScreen({ navigation, route }) {
           <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
             <View style={{ flex: 1, minHeight: 48, borderRadius: 13, backgroundColor: 'rgba(255,255,255,0.66)', borderWidth: 1, borderColor: '#ECEEF1', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 13 }}>
               <CvcIcon name="search" size={21} color={'#98A2B3'} strokeWidth={2.1} />
-              <TextInput value={query} onChangeText={setQuery} onSubmitEditing={() => { if (query.trim() && status.activated && !syncing) void sync(); }} placeholder="Client, site, ville, adresse, équipement…" placeholderTextColor="#98A2B3" style={{ flex: 1, color: INK, fontSize: 14.5, paddingVertical: 12 }} autoCorrect={false} autoCapitalize="none" returnKeyType="search" />
-              {query ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => setQuery('')} style={{ minWidth: 34, minHeight: 34, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={18} color={'#98A2B3'} strokeWidth={2.1} /></TouchableOpacity> : null}
+              <TextInput value={query} onChangeText={updateQuery} onSubmitEditing={() => { if (query.trim() && status.activated && !syncing) void sync(); }} placeholder="Client, site, ville, adresse, équipement…" placeholderTextColor="#98A2B3" style={{ flex: 1, color: INK, fontSize: 14.5, paddingVertical: 12 }} autoCorrect={false} autoCapitalize="none" returnKeyType="search" />
+              {query ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Fermer" onPress={() => updateQuery('')} style={{ minWidth: 34, minHeight: 34, alignItems: 'center', justifyContent: 'center' }}><CvcIcon name="close" size={18} color={'#98A2B3'} strokeWidth={2.1} /></TouchableOpacity> : null}
             </View>
             <TouchableOpacity onPress={sync} disabled={syncing} style={{ width: 48, height: 48, borderRadius: 13, backgroundColor: status.activated ? '#F7F8FA' : ACCENT, borderWidth: status.activated ? 1 : 0, borderColor: BORDER, alignItems: 'center', justifyContent: 'center' }}>
               {syncing ? <ActivityIndicator size="small" /> : <Text style={{ color: status.activated ? INK : '#FFF', fontSize: status.activated ? 21 : 12, fontFamily: FONTS.black }}>{status.activated ? '↻' : 'Activer'}</Text>}
