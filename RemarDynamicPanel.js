@@ -696,11 +696,11 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',o
       ? {id:activeCta.id,designation:activeCta.designation}
       : null);
   },[cta,activeCta?.id,activeCta?.designation,onRemarActiveCta]);
-  if(panelId==='p-remar-reseaux')return <ScrollView style={{flex:1}} keyboardShouldPersistTaps="handled"
-    contentContainerStyle={{paddingBottom:30,paddingHorizontal:12}}>
-    <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} embedded networksOnly />
-    <LegacyRemarReadOnly visiteId={visiteId} panelId={panelId} sections={sections}/>
-  </ScrollView>;
+  if(panelId==='p-remar-reseaux')return <OptimizedRegulationPanel
+    visiteId={visiteId} onSaved={onSaved} networksOnly
+    listFooter={<View style={{paddingBottom:30,paddingHorizontal:12}}>
+      <LegacyRemarReadOnly visiteId={visiteId} panelId={panelId} sections={sections}/>
+    </View>} />;
   if(panelId==='p-remar-releves')return <OptimizedRelevesPanel
     visiteId={visiteId} onSaved={onSaved} trameId={trameId}
     panels={definition?.ui?.panels} meterPanelId={panelId} metersOnly remarMinimal
