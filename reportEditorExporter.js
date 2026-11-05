@@ -519,7 +519,7 @@ export async function exporterRapportsParSiteEdites({ datas, config, photosConfi
         : await dossierRapportsSiteMetra({ clientNom, siteNom, clientId, siteId: siteDatas[0]?.visite?.site_id });
       resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossierSite }));
     } catch (error) {
-      erreurs.push({ siteId: siteDatas[0]?.visite?.site_id, siteNom, message: String(error?.message || error) });
+      erreurs.push({ siteId: siteDatas[0]?.visite?.site_id, siteNom, visiteIds: siteDatas.map((d) => d.visite.id), message: String(error?.message || error) });
     }
   }
   return { annule: false, resultats, erreurs };
