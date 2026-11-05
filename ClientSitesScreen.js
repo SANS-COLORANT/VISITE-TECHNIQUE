@@ -15,7 +15,7 @@ import { onPatrimoineImageChanged } from './patrimoineImageDb.js';
 import { IntranetSiteCreationModal } from './IntranetStructureUi.js';
 import { SITE_SORT_OPTIONS, buildSiteGroupMap, siteGroupLabel, sortSites } from './siteSort.js';
 import { getNavigationScrollOffset, getNavigationState, hydrateNavigationState, setNavigationScrollOffset, setNavigationState } from './navigationMemory.js';
-import { peekClientSites, prewarmClientSites, prewarmSiteLocals } from './navigationPrewarm.js';
+import { peekClientSites, prewarmClientSites, prewarmSiteLocals, needsPrewarmRefresh } from './navigationPrewarm.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { getRuntimeAccent, getRuntimePalette } from './visual-packs/runtime/visualPaletteRuntime.js';
 import { ButtonGlow } from './ButtonGlow.js';
@@ -66,9 +66,10 @@ function ClientSitesScreen({ route, navigation }) {
   const [nouveauNom, setNouveauNom] = useState('');
   const [nouvelleAdresse, setNouvelleAdresse] = useState(adresseVide);
 
-  const charger = useCallback(async () => {
+  const charger = useCallback(async ({ reusePrewarm = false } = {}) => {
     if (!clientId) { setSites([]); setMemberships([]); return []; }
-    const bundle = await prewarmClientSites(clientId, { force: true });
+    const force = !reusePrewarm || needsPrewarmRefresh(peekClientSites(clientId));
+    const bundle = await prewarmClientSites(clientId, { force });
     setSites(bundle?.sites || []);
     setMemberships(bundle?.memberships || []);
     return bundle?.sites || [];
@@ -77,7 +78,7 @@ function ClientSitesScreen({ route, navigation }) {
   useEffect(() => {
     let actif = true;
     (async () => {
-      try { if (actif) await charger(); }
+      try { if (actif) await charger({ reusePrewarm: true }); }
       catch (e) { if (actif) Alert.alert('Sites', String(e?.message || e)); }
     })();
     return () => { actif = false; };
