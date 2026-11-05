@@ -19,7 +19,7 @@ import { exporterVisitesExcelEnLot } from './batchExcel.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
 import { getNavigationScrollOffset, getNavigationState, hydrateNavigationState, setNavigationScrollOffset, setNavigationState } from './navigationMemory.js';
 import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
-import { peekLocalVisits, prewarmLocalVisits, needsPrewarmRefresh } from './navigationPrewarm.js';
+import { peekLocalVisits, prewarmLocalVisits, invalidateLocalVisits, needsPrewarmRefresh } from './navigationPrewarm.js';
 import { forgetVisitRuntime, markVisitHot, markVisitWarm } from './visitRuntimeCache.js';
 import { prewarmVisit } from './visitPrewarm.js';
 import { ButtonGlow } from './ButtonGlow.js';
@@ -263,6 +263,8 @@ function SiteVisitesScreen({ route, navigation }) {
         mode_visite: mode, statut: 'en_cours', progression_pct: 0,
       });
       markVisitHot(visiteId, { preview: visitePreview });
+      invalidateLocalVisits(siteId, installationId, legacyOnly);
+      invalidateLocalVisits(siteId, null, false);
       setChoixModeVisible(false);
       navigation.navigate('Visite', { visiteId, visitePreview });
       // Existing prewarm still prepares secondary data, off the critical path.
