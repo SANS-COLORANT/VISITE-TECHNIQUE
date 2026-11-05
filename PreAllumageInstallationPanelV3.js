@@ -11,6 +11,7 @@ import {
   PREALLUMAGE_TYPES_LOCAUX,
   ajouterLocalPreAllumage,
   chargerPreAllumageModulaire,
+  initialiserPreAllumageModulaire,
   renommerLocalPreAllumage,
   supprimerLocalPreAllumage,
 } from './preAllumageModularDb.js';
@@ -155,13 +156,16 @@ export function PreAllumageInstallationPanelV3({ visiteId, onSaved }) {
   const { width } = useWindowDimensions(); const twoCols = width >= 720;
   const uiKey = `visit-preallumage:${String(visiteId || '')}`;
   const uiInitial = getNavigationState(uiKey) || {};
-  const uiHydratedRef = useRef(false);
+  const [uiHydrated, setUiHydrated] = useState(false);
   const [model, setModel] = useState(null); const [champs, setChamps] = useState({}); const [controls, setControls] = useState({});
   const [activeId, setActiveId] = useState(uiInitial.activeLocalId || null); const [search, setSearch] = useState(''); const [collapsed, setCollapsed] = useState(uiInitial.collapsed || {});
   const [addLocal, setAddLocal] = useState(false); const [addEquipment, setAddEquipment] = useState(false); const [config, setConfig] = useState(false); const [actions, setActions] = useState(false); const [rename, setRename] = useState(false); const [name, setName] = useState('');
 
   const reload = useCallback(async (select = null) => {
-    await chargerPreAllumageModulaire(visiteId); await normaliserLocauxPreAllumage(visiteId);
+    // Normalise only after initialization; the final model is built once
+    // after structural updates so old PA rubriques and values are preserved.
+    await initialiserPreAllumageModulaire(visiteId);
+    await normaliserLocauxPreAllumage(visiteId);
     const [m, c, ct] = await Promise.all([chargerPreAllumageModulaire(visiteId), getChampsVisite(visiteId), getControlesVisite(visiteId)]);
     setModel(m); setChamps(mapChamps(c)); setControls(mapControles(ct)); if (select) setActiveId(select);
   }, [visiteId]);
@@ -173,19 +177,25 @@ export function PreAllumageInstallationPanelV3({ visiteId, onSaved }) {
       if (!alive) return;
       if (state?.activeLocalId) setActiveId(state.activeLocalId);
       if (state?.collapsed && typeof state.collapsed === 'object') setCollapsed(state.collapsed);
-    }).catch(() => {}).finally(() => { if (alive) uiHydratedRef.current = true; });
+    }).catch(() => {}).finally(() => { if (alive) setUiHydrated(true); });
     return () => { alive = false; };
   }, [uiKey]);
 
   const locals = useMemo(() => [...(model?.locaux || [])].sort((a, b) => Number(a.ordre || 0) - Number(b.ordre || 0)), [model]);
-  useEffect(() => { if (!locals.length) setActiveId(null); else if (!locals.some((l) => l.id === activeId)) setActiveId(locals[0].id); }, [locals, activeId]);
+  useEffect(() => {
+    // A temporary empty list while the model is loading is not a deletion.
+    // Do not erase the selected local or persist a false null in navigation.
+    if (!model || !uiHydrated) return;
+    if (!locals.length) { if (activeId !== null) setActiveId(null); }
+    else if (!locals.some((l) => l.id === activeId)) setActiveId(locals[0].id);
+  }, [model, uiHydrated, locals, activeId]);
   const active = useMemo(() => locals.find((l) => l.id === activeId) || null, [locals, activeId]);
   const { listRef, onScroll } = useListScrollMemory(`visit-preallumage-local:${visiteId}:${active?.id || 'none'}`, active?.id ? 1 : 0);
   useEffect(() => { setName(active?.nom || ''); setRename(false); }, [active?.id, active?.nom]);
   useEffect(() => {
-    if (!uiHydratedRef.current) return;
+    if (!uiHydrated || !model || (locals.length && !locals.some((l) => l.id === activeId))) return;
     setNavigationState(uiKey, { activeLocalId: activeId || null, collapsed });
-  }, [uiKey, activeId, collapsed]);
+  }, [uiKey, uiHydrated, model, locals, activeId, collapsed]);
 
   const rubriquesFor = useCallback((local) => {
     if (!local) return [];
