@@ -1,6 +1,6 @@
 /**
  * Recherche dans la visite : retrouve un champ ou un contrôle par son nom
- * (ex. « calorifuge ») parmi tous les onglets, et ouvre l'onglet concerné.
+ * (ex. « calorifuge ») dans les onglets avec la cible stable section/champ.
  */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { FlatList, KeyboardAvoidingView, Modal, Platform, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
@@ -51,7 +51,7 @@ export function VisitSearchSheet({ visible, onClose, panels = {}, tabs = [], lab
             style={{ maxHeight: 380 }}
             ListEmptyComponent={<Text style={s.empty}>{nq.length < 2 ? 'Tape au moins deux lettres.' : 'Aucun résultat dans cette visite.'}</Text>}
             renderItem={({ item }) => (
-              <TouchableOpacity activeOpacity={0.85} onPress={() => { onClose?.(); onOpen?.(item.pid); }} style={s.row}>
+              <TouchableOpacity activeOpacity={0.85} onPress={() => { onClose?.(); onOpen?.({ pid: item.pid, section: item.section, fieldKey: item.key.split('|').slice(2).join('|'), resultKey: item.key }); }} style={s.row}>
                 <View style={[s.dot, { backgroundColor: item.controle ? COLORS.orange : '#9B927C' }]} />
                 <View style={{ flex: 1, minWidth: 0 }}>
                   <Text numberOfLines={1} style={s.title}>{item.label}</Text>
