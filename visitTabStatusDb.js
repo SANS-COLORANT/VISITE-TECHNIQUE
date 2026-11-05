@@ -40,12 +40,16 @@ function etat({ total, done, ns }) {
   return 'partial';
 }
 
-export async function calculerEtatOnglets(visiteId, trameId = DEFAULT_TRAME_ID) {
-  const db = await getDb();
-  const [champsRows, controlesRows] = await Promise.all([
-    db.getAllAsync(`SELECT section_code,cle,valeur FROM champs_visite WHERE visite_id=?`, [visiteId]),
-    db.getAllAsync(`SELECT section_code,cle,avis FROM controles_visite WHERE visite_id=?`, [visiteId]),
-  ]);
+export async function calculerEtatOnglets(visiteId, trameId = DEFAULT_TRAME_ID, snapshot = null) {
+  const db = snapshot?.db || await getDb();
+  // F09: reuse the exact rows selected for progress instead of issuing
+  // another pair of reads with a potentially different revision.
+  const [champsRows, controlesRows] = snapshot?.champsRows && snapshot?.controlesRows
+    ? [snapshot.champsRows, snapshot.controlesRows]
+    : await Promise.all([
+      db.getAllAsync(`SELECT section_code,cle,valeur FROM champs_visite WHERE visite_id=?`, [visiteId]),
+      db.getAllAsync(`SELECT section_code,cle,avis FROM controles_visite WHERE visite_id=?`, [visiteId]),
+    ]);
   const structure = structureTrame(obtenirTrame(trameId || DEFAULT_TRAME_ID));
   const champsRemplis = new Set();
   for (const row of champsRows || []) {
