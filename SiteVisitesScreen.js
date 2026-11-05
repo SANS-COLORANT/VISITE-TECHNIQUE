@@ -19,7 +19,7 @@ import { exporterVisitesExcelEnLot } from './batchExcel.js';
 import { IntranetVisitSyncControl } from './IntranetVisitSync.js';
 import { getNavigationScrollOffset, getNavigationState, hydrateNavigationState, setNavigationScrollOffset, setNavigationState } from './navigationMemory.js';
 import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
-import { peekLocalVisits, prewarmLocalVisits } from './navigationPrewarm.js';
+import { peekLocalVisits, prewarmLocalVisits, needsPrewarmRefresh } from './navigationPrewarm.js';
 import { forgetVisitRuntime, markVisitHot, markVisitWarm } from './visitRuntimeCache.js';
 import { prewarmVisit } from './visitPrewarm.js';
 import { ButtonGlow } from './ButtonGlow.js';
@@ -106,8 +106,9 @@ function SiteVisitesScreen({ route, navigation }) {
     return construirePreview(visite || base);
   }, [construirePreview]);
 
-  const charger = useCallback(async () => {
-    const bundle = await prewarmLocalVisits({ siteId, installationId, legacyOnly, force: true });
+  const charger = useCallback(async ({ reusePrewarm = false } = {}) => {
+    const force = !reusePrewarm || needsPrewarmRefresh(peekLocalVisits(siteId, installationId, legacyOnly));
+    const bundle = await prewarmLocalVisits({ siteId, installationId, legacyOnly, force });
     const v = bundle?.visits || [];
     const s = bundle?.site || null;
     setVisites(v);
@@ -126,7 +127,7 @@ function SiteVisitesScreen({ route, navigation }) {
     return bundle;
   }, [siteId, installationId, legacyOnly, construirePreview]);
 
-  useEffect(() => { charger().catch((e) => console.warn('Actualisation visites impossible', e)); }, [charger]);
+  useEffect(() => { charger({ reusePrewarm: true }).catch((e) => console.warn('Actualisation visites impossible', e)); }, [charger]);
 
   useEffect(() => {
     let alive = true;
