@@ -177,7 +177,7 @@ function ChampChoix({ visiteId, sectionCode, field, valeurInitiale, onSaved, wat
     onChange={(v) => { setImmediate(v).catch(() => {}); }} />;
 }
 
-export function OptimizedRegulationPanel({ visiteId, onSaved, embedded = false, networksOnly = false }) {
+export function OptimizedRegulationPanel({ visiteId, onSaved, embedded = false, networksOnly = false, listFooter = null }) {
   const cached = cacheRegulation.get(visiteId)?.data;
   const [champsMap, setChampsMap] = useState(cached?.champsMap || {});
   const [reseaux, setReseaux] = useState(cached?.reseaux || []);
@@ -356,7 +356,7 @@ export function OptimizedRegulationPanel({ visiteId, onSaved, embedded = false, 
       </TouchableOpacity>
     </BottomSheet> : null;
 
-  if (embedded) return <View style={{ paddingBottom: 8 }}>
+  if (embedded && !listFooter) return <View style={{ paddingBottom: 8 }}>
     {header}
     {reseaux.map((item) => (
       <ReseauCard key={item.id} reseau={item} visiteId={visiteId}
@@ -378,7 +378,7 @@ export function OptimizedRegulationPanel({ visiteId, onSaved, embedded = false, 
     renderItem={({ item }) => <ReseauCard reseau={item} visiteId={visiteId} open={ouvertes.isOpen(`reseau:${item.id}`)} onToggle={() => ouvertes.toggle(`reseau:${item.id}`)}
       onRemove={remove} onDuplicate={duplicate} onPatch={patchReseau} precedent={reseauPrecedent(precedent, item)} />}
     ListHeaderComponent={header}
-    ListFooterComponent={<>{footer}{chooser}</>}
+    ListFooterComponent={<>{footer}{listFooter}{chooser}</>}
     contentContainerStyle={styles.panelContent}
     keyboardShouldPersistTaps="handled"
     initialNumToRender={4}
