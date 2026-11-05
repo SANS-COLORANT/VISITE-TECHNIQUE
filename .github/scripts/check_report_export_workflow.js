@@ -58,18 +58,21 @@ requireText(layoutEditor, 'ListFooterComponent={null}', 'generation is no longer
 
 const exporter = read('reportEditorExporter.js');
 requireText(exporter, "from './metraStorage.js'", 'METRA report storage import');
-requireText(exporter, 'clientNom ? await dossierRapportsClientMetra(clientNom)', 'grouped client folder');
-requireText(exporter, 'await dossierRapportsSiteMetra({ clientNom, siteNom })', 'selected site report folder');
+requireText(exporter, 'clientNom ? await dossierRapportsClientMetra(clientNom, clientId)', 'identity-aware grouped client folder');
+requireText(exporter, 'await dossierRapportsSiteMetra({ clientNom, siteNom, clientId, siteId:', 'identity-aware selected site report folder');
 requireText(exporter, 'dossiersParSite === false', 'per-site folder toggle');
 requireText(exporter, 'export async function exporterRapportsParLocalEdites', 'per-local exporter implementation');
 requireText(exporter, 'dossiersParLocal !== false', 'per-local folder toggle');
-requireText(exporter, 'await dossierRapportsLocalMetra({ clientNom, siteNom, localNom })', 'selected local report folder');
+requireText(exporter, 'await dossierRapportsLocalMetra({ clientNom, siteNom, localNom,', 'identity-aware selected local report folder');
 requireText(exporter, '// METRA storage compatibility: dossierUri || await choisirDossier(datas);', 'legacy storage patch compatibility marker');
 
 const storage = read('metraStorage.js');
 requireText(storage, 'export async function dossierRapportsClientMetra', 'client report folder helper');
 requireText(storage, 'export async function dossierRapportsSiteMetra', 'site report folder helper');
 requireText(storage, 'export async function dossierRapportsLocalMetra', 'local report folder helper');
+requireText(storage, 'segmentRapportAvecId', 'report folders must disambiguate normalized names');
+requireText(exporter, 'const erreurs = [];', 'partial grouped PDF/Word exports retain per-unit failures');
+requireText(exporter, 'data-photo-id=', 'photo cards must preserve source photo identity');
 
 const builder = read('reportBuilder.js');
 requireText(builder, 'getStatsPatrimoineSelection', 'patrimoine summary data source');
