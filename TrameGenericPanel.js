@@ -257,9 +257,10 @@ export function TrameGenericPanel(props) {
   return <TrameGenericStaticPanel {...props} />;
 }
 
-function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPanel = null, onNextPanel = null, trameId = 'icpe_v1', navigationScope = '' }) {
+function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPanel = null, onNextPanel = null, trameId = 'icpe_v1', navigationScope = '', searchTarget = null }) {
   const cacheInitial = visiteDataCache.get(visiteId)?.data;
   const listRef = useRef(null);
+  const searchedFieldRef = useRef(null);
   const navKey = `visit-panel:${String(visiteId || '')}:${String(panelId || '')}${navigationScope ? `:${navigationScope}` : ''}`;
   const [champsMap, setChampsMap] = useState(cacheInitial?.champsMap || {});
   const [controlesMap, setControlesMap] = useState(cacheInitial?.controlesMap || {});
@@ -322,6 +323,27 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
       const picto = pictoSection(sec.title, panelId);
       return { ...sec, picto: picto.name, water: picto.water, lignes: estPreAllumage ? sec.data.map((item) => ({ kind: 'item', key: item.key, item, label: null })) : construireLignes(sec, mode) };
     }), [listeSections, mode, panelId, estPreAllumage]);
+
+  // F08: keep the exact search target until the section is opened and
+  // SectionList has measured its newly mounted rows. Never alter field data.
+  useEffect(() => {
+    if (!searchTarget || searchTarget.pid !== panelId) return;
+    const target = listeSections.find((sec) =>
+      sec.title === searchTarget.section &&
+      sec.data.some((item) => item.field?.cle === searchTarget.fieldKey)
+    );
+    if (!target) return;
+    if (sectionGenerale?.sectionCode === target.sectionCode) {
+      setFicheVisite(true); // General fields live in the existing edit sheet.
+      return;
+    }
+    searchedFieldRef.current = {
+      sectionCode: target.sectionCode, fieldKey: searchTarget.fieldKey, retries: 0,
+    };
+    FILTRES_PAR_PANNEAU.set(scopeOuvertes, 'all');
+    setFiltreState('all');
+    open([target.sectionCode]);
+  }, [searchTarget?.nonce, panelId, listeSections, sectionGenerale?.sectionCode, scopeOuvertes, open]);
 
   // La date de visite se renseignait seule à l'affichage du champ ; les
   // rubriques étant fermées au départ, on la pose ici (même valeur, même clé).
@@ -489,6 +511,29 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
     return { ...sec, key: sec.sectionCode, allData: sec.data, data: lignes, ouverte, stats, correspondances };
   }).filter((sec) => filtreActif === 'all' || sec.correspondances > 0);
 
+  const focusSearchedField = () => {
+    const wanted = searchedFieldRef.current;
+    if (!wanted || !listRef.current) return;
+    const sectionIndex = visibles.findIndex((sec) => sec.sectionCode === wanted.sectionCode);
+    if (sectionIndex < 0) return;
+    const itemIndex = visibles[sectionIndex].data.findIndex((line) =>
+      line.item?.field?.cle === wanted.fieldKey ||
+      (line.items || []).some((item) => item.field?.cle === wanted.fieldKey)
+    );
+    if (itemIndex < 0) return; // Wait for the collapsed section to be mounted.
+    try {
+      listRef.current.scrollToLocation({ sectionIndex, itemIndex, viewOffset: 72, animated: false });
+      searchedFieldRef.current = null;
+    } catch (error) {
+      // SectionList may not have measured distant rows yet; retry on layout.
+      if (++wanted.retries >= 3) {
+        console.warn('Champ trouvé mais position non mesurée', wanted.sectionCode, error);
+        searchedFieldRef.current = null;
+      }
+    }
+  };
+
+
   const restants = listeSections.reduce((n, section) => n + section.data.filter((item) => item.field.type === 'champ'
     ? String(champsMap[item.key] ?? '').trim() === ''
     : String(controlesMap[item.key]?.avis ?? '').trim() === '').length, 0);
@@ -614,6 +659,8 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
       sections={visibles}
       extraData={{ champsMap, controlesMap, filtreActif }}
       onScroll={(event) => setNavigationScrollOffset(navKey, event.nativeEvent.contentOffset.y)}
+      onContentSizeChange={focusSearchedField}
+      onScrollToIndexFailed={() => requestAnimationFrame(focusSearchedField)}
       scrollEventThrottle={100}
       keyExtractor={(ligne) => ligne.key}
       ListHeaderComponent={<>{enTeteListe}{enTeteDynamique}</>}
