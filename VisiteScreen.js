@@ -140,6 +140,9 @@ function VisiteScreen({ route, onBack }) {
   const [visite, setVisite] = useState(() => initialPreview ? { ...initialPreview, progression_pct: Number(initialPreview.progression_pct || 0) } : null);
   const [chargementErreur, setChargementErreur] = useState(null); // VISIT_OPEN_FAIL_SAFE_V1 · VISIT_OPEN_FAST_V2
   const [vmcCaissons, setVmcCaissons] = useState([]);
+  const [vmcConfigReady, setVmcConfigReady] = useState(false);
+  const [navigationReady, setNavigationReady] = useState(false);
+  const navigationTouchedRef = useRef(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const activeTabRef = useRef(initialTab);
   const desiredRestoreTabRef = useRef(initialTab);
@@ -298,7 +301,7 @@ function VisiteScreen({ route, onBack }) {
   useEffect(() => {
     let alive = true;
     hydrateNavigationState(visitNavKey).then((state) => {
-      if (!alive || !state?.activeTab) return;
+      if (!alive || !state?.activeTab || navigationTouchedRef.current) return;
       desiredRestoreTabRef.current = state.activeTab;
       const tabs = tabOrderRef.current;
       const idx = tabs.indexOf(state.activeTab);
@@ -309,7 +312,7 @@ function VisiteScreen({ route, onBack }) {
       pagerX.stopAnimation();
       pagerX.setValue(-idx * pagerWidthRef.current);
       warmPagerWindow(state.activeTab);
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => { if (alive) setNavigationReady(true); });
     return () => { alive = false; };
   }, [visitNavKey, addMountedPanels, pagerX, warmPagerWindow]);
 
@@ -329,7 +332,8 @@ function VisiteScreen({ route, onBack }) {
   }, [pagerX, preAllumageLocalX]);
 
   useEffect(() => {
-    if (!visite || tabsReels.length === 0) return;
+    if (!visite || tabsReels.length === 0 || !navigationReady ||
+      (trame.id === 'vmc' && !vmcConfigReady)) return;
     tabOrderRef.current = tabsReels;
     let current = desiredRestoreTabRef.current || activeTabRef.current;
     if (!tabsReels.includes(current)) {
@@ -345,9 +349,10 @@ function VisiteScreen({ route, onBack }) {
     preAllumageLocalX.setValue(0);
     addMountedPanels([current], { stickyHeavy: true });
     warmPagerWindow(current);
-  }, [visite?.trame_id, tabsSignature, pagerWidth, addMountedPanels, warmPagerWindow, pagerX, preAllumageLocalX]);
+  }, [visite?.trame_id, tabsSignature, pagerWidth, navigationReady, vmcConfigReady, addMountedPanels, warmPagerWindow, pagerX, preAllumageLocalX]);
 
   const completeTabChange = useCallback((prochain) => {
+    navigationTouchedRef.current = true;
     flushDurableAutosaves().catch(() => {});
     activeTabRef.current = prochain;
     setActiveTab(prochain);
@@ -454,12 +459,20 @@ function VisiteScreen({ route, onBack }) {
         }
 
         const estVmc = (v?.trame_id || DEFAULT_TRAME_ID) === 'vmc';
-        const [caissons] = await Promise.all([
-          estVmc ? chargerCaissonsVmc(visiteId).catch(() => []) : Promise.resolve([]),
+        const configuration = estVmc
+          ? chargerCaissonsVmc(visiteId).catch((error) => {
+              console.warn('Configuration VMC indisponible', error);
+              return [];
+            }).then((caissons) => {
+              setVmcCaissons(caissons || []);
+              setVmcConfigReady(true);
+            })
+          : Promise.resolve().then(() => setVmcConfigReady(true));
+        await Promise.all([
+          configuration,
           prechargerDonneesTrameGenerique(visiteId, forceCaches || prefillEffectif),
           prechargerRegulation(visiteId, forceCaches || prefillEffectif),
         ]);
-        setVmcCaissons(caissons || []);
         rafraichirEtatOnglets();
 
         try {
@@ -519,6 +532,7 @@ function VisiteScreen({ route, onBack }) {
 
   const onCaissonsChange = useCallback((next) => {
     setVmcCaissons(next || []);
+    setVmcConfigReady(true);
     invaliderCacheTrameGenerique(visiteId);
     onSaved();
   }, [visiteId, onSaved]);
