@@ -36,7 +36,7 @@ import { prewarmCameraRuntime } from './cameraRuntime.js';
 import { prewarmPhotoCaptureContext } from './photoCaptureContext.js';
 import { loadVisitPhotos } from './photoRuntimeCache.js';
 import { SectionRail, SideSectionList, VisitActionBar } from './VisitChrome.js';
-import { calculerEtatOnglets } from './visitTabStatusDb.js';
+import { invalidateLocalVisits } from './navigationPrewarm.js';
 import { estVisiteARattacher } from './quickVisitDb.js';
 import { AttachVisitSheet } from './AttachVisitSheet.js';
 import { VisitSearchSheet } from './VisitSearchSheet.js';
@@ -139,6 +139,15 @@ function VisiteScreen({ route, onBack }) {
   pagerWidthRef.current = pagerWidth;
 
   const [visite, setVisite] = useState(() => initialPreview ? { ...initialPreview, progression_pct: Number(initialPreview.progression_pct || 0) } : null);
+  const visitScopeRef = useRef(null);
+  visitScopeRef.current = { siteId: visite?.site_id, installationId: visite?.installation_id };
+  const invalidateHistory = useCallback(() => {
+    const { siteId, installationId } = visitScopeRef.current || {};
+    if (!siteId) return;
+    invalidateLocalVisits(siteId, installationId || null, false);
+    invalidateLocalVisits(siteId, null, false);
+    if (!installationId) invalidateLocalVisits(siteId, null, true);
+  }, []);
   const [chargementErreur, setChargementErreur] = useState(null); // VISIT_OPEN_FAIL_SAFE_V1 · VISIT_OPEN_FAST_V2
   const [vmcCaissons, setVmcCaissons] = useState([]);
   const [vmcConfigReady, setVmcConfigReady] = useState(false);
@@ -412,10 +421,11 @@ function VisiteScreen({ route, onBack }) {
 
   const retourSecurise = useCallback(() => {
     Keyboard.dismiss();
+    invalidateHistory();
     setNavigationState(visitNavKey, { activeTab: activeTabRef.current });
     Promise.allSettled([flushDurableAutosaves(), flushNavigationMemory()])
       .finally(() => setTimeout(() => onBack?.(), 0));
-  }, [onBack, visitNavKey]);
+  }, [onBack, visitNavKey, invalidateHistory]);
 
   const charger = useCallback(async ({ forceCaches = false } = {}) => {
     setChargementErreur(null);
@@ -509,6 +519,7 @@ function VisiteScreen({ route, onBack }) {
   }, [charger, visiteId]);
 
   const onSaved = useCallback(() => {
+    invalidateHistory();
     // A previously synced visit must immediately lose its green badge when
     // the technician changes a field, even if progress stays at 100%.
     setSyncRefreshKey(v => v + 1);
@@ -530,7 +541,7 @@ function VisiteScreen({ route, onBack }) {
         progressionTimerRef.current = null;
       }
     }, 1200);
-  }, [visiteId]);
+  }, [visiteId, invalidateHistory]);
 
   const onCaissonsChange = useCallback((next) => {
     setVmcCaissons(next || []);
