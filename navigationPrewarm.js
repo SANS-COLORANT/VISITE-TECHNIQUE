@@ -9,6 +9,16 @@ const siteLocals = new BoundedLruMap(3);
 const localVisits = new BoundedLruMap(3);
 const pending = new Map();
 
+// F02: an already completed press prewarm is valid for a brief transition.
+// Explicit invalidation after mutations remains authoritative; age-based refresh
+// is only a safety net for mutations performed outside this navigation module.
+const PREWARM_RECHECK_MS = 2000;
+export function needsPrewarmRefresh(bundle, now = Date.now()) {
+  if (!bundle) return false; // no cache: coalesce with any in-flight prewarm
+  const age = Number(now) - Number(bundle.loadedAt);
+  return !Number.isFinite(age) || age < 0 || age > PREWARM_RECHECK_MS;
+}
+
 function coalesce(key, worker, { force = false, peek = () => null } = {}) {
   if (!force && pending.has(key)) return pending.get(key);
   // An invalidation or a forced refresh supersedes the old worker. The old
