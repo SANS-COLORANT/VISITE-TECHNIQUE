@@ -71,6 +71,7 @@ const CONTRACT_CHECKS = [
   ['durable visit data contract', '.github/scripts/check_durable_visit_data_contract.js'],
   ['field runtime foundation', '.github/scripts/check_field_runtime_foundation.js'],
   ['runtime async safety regressions', '.github/scripts/test_runtime_safety.js'],
+  ['LOT05 search, cell photo and SectionList regressions', '.github/scripts/test_lot05_async_context.js'],
   ['instant camera runtime', '.github/scripts/check_camera_runtime_contract.js'],
   ['field feedback (tablet post-its) contract', '.github/scripts/check_field_feedback_contract.js'],
 ];
