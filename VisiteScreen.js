@@ -182,12 +182,6 @@ function VisiteScreen({ route, onBack }) {
   }, []);
   useEffect(() => setRemarActiveCta(null), [visiteId]);
 
-  const rafraichirEtatOnglets = useCallback(() => {
-    calculerEtatOnglets(visiteId, trameIdRef.current)
-      .then((etat) => setTabStatus(etat))
-      .catch((e) => console.warn('État des onglets non calculé', e));
-  }, [visiteId]);
-
   useEffect(() => {
     let alive = true;
     estVisiteARattacher(visiteId).then((v) => { if (alive) setVisiteARattacher(v); }).catch(() => {});
@@ -473,10 +467,9 @@ function VisiteScreen({ route, onBack }) {
           prechargerDonneesTrameGenerique(visiteId, forceCaches || prefillEffectif),
           prechargerRegulation(visiteId, forceCaches || prefillEffectif),
         ]);
-        rafraichirEtatOnglets();
-
         try {
-          const progression = await recalculerProgressionVisite(db, visiteId);
+          const { pct: progression, etat } = await recalculerProgressionVisite(db, visiteId, { withStatus: true });
+          if (etat) setTabStatus(etat);
           setVisite((courante) => {
             const next = courante ? { ...courante, ...v, progression_pct: progression } : { ...v, progression_pct: progression };
             markVisitHot(visiteId, { preview: next, ui: { activeTab: activeTabRef.current } });
@@ -489,7 +482,7 @@ function VisiteScreen({ route, onBack }) {
         console.warn('Initialisation secondaire de la visite incomplète', e);
       }
     })();
-  }, [visiteId, rafraichirEtatOnglets]);
+  }, [visiteId]);
 
   useEffect(() => {
     let actif = true;
@@ -514,21 +507,21 @@ function VisiteScreen({ route, onBack }) {
     progressionTimerRef.current = setTimeout(async () => {
       try {
         const db = await getDb();
-        const progression = await recalculerProgressionVisite(db, visiteId);
+        const { pct: progression, etat } = await recalculerProgressionVisite(db, visiteId, { withStatus: true });
+        if (etat) setTabStatus(etat);
         setVisite((actuelle) => {
           if (!actuelle) return actuelle;
           const next = { ...actuelle, progression_pct: progression };
           markVisitHot(visiteId, { preview: next, ui: { activeTab: activeTabRef.current } });
           return next;
         });
-        rafraichirEtatOnglets();
       } catch (e) {
         console.warn('Progression visite non recalculée', e);
       } finally {
         progressionTimerRef.current = null;
       }
     }, 1200);
-  }, [visiteId, rafraichirEtatOnglets]);
+  }, [visiteId]);
 
   const onCaissonsChange = useCallback((next) => {
     setVmcCaissons(next || []);
