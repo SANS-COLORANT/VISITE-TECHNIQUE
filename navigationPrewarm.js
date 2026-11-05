@@ -1,13 +1,22 @@
 import { BoundedLruMap } from './boundedCache.js';
 import { getDb, listerSitesClient, listerVisitesLocal, listerVisitesSite } from './db.js';
 import { listerAppartenancesClient } from './siteOrganizationDb.js';
-import { materializeCachedLocalForSite } from './apiLatestVisitImportDb.js';
 import { getSiteLocalisation } from './siteGeoDb.js';
 
 const clientSites = new BoundedLruMap(3);
 const siteLocals = new BoundedLruMap(3);
 const localVisits = new BoundedLruMap(3);
 const pending = new Map();
+
+// F02: an already completed press prewarm is valid for a brief transition.
+// Explicit invalidation after mutations remains authoritative; age-based refresh
+// is only a safety net for mutations performed outside this navigation module.
+const PREWARM_RECHECK_MS = 2000;
+export function needsPrewarmRefresh(bundle, now = Date.now()) {
+  if (!bundle) return false; // no cache: coalesce with any in-flight prewarm
+  const age = Number(now) - Number(bundle.loadedAt);
+  return !Number.isFinite(age) || age < 0 || age > PREWARM_RECHECK_MS;
+}
 
 function coalesce(key, worker, { force = false, peek = () => null } = {}) {
   if (!force && pending.has(key)) return pending.get(key);
@@ -52,20 +61,6 @@ export async function prewarmClientSites(clientId, { force = false } = {}) {
   }, { force, peek: () => clientSites.get(key) });
 }
 
-async function materialiserLocauxManquants(siteId, db) {
-  const rows = await db.getAllAsync(
-    `SELECT l.remote_local_id
-     FROM api_local_links l
-     JOIN api_site_links s ON s.remote_site_id=l.remote_site_id
-     WHERE s.local_site_id=? AND l.remote_present=1
-       AND (l.local_installation_id IS NULL OR trim(l.local_installation_id)='')`,
-    [String(siteId)]
-  );
-  for (const row of rows || []) {
-    await materializeCachedLocalForSite(siteId, row.remote_local_id);
-  }
-}
-
 export function peekSiteLocals(siteId) {
   return siteLocals.get(String(siteId || '')) || null;
 }
@@ -79,8 +74,9 @@ export async function prewarmSiteLocals(siteId, { force = false } = {}) {
   }
   return coalesce(`site:${key}`, async (isCurrent) => {
     const db = await getDb();
-    await materialiserLocauxManquants(key, db);
-    const [rows, legacy] = await Promise.all([
+    // A speculative touch must perform reads only. Remote locals that are
+    // not materialized still appear as selectable placeholders with exact IDs.
+    const [rows, legacy, remotePending] = await Promise.all([
       db.getAllAsync(
         `SELECT
            i.id AS installation_id,
@@ -120,8 +116,36 @@ export async function prewarmSiteLocals(siteId, { force = false } = {}) {
         [key]
       ),
       db.getFirstAsync(`SELECT COUNT(*) AS n FROM visites WHERE site_id=? AND installation_id IS NULL`, [key]),
+      db.getAllAsync(
+        `SELECT l.remote_local_id,l.remote_site_id,l.designation,l.remote_trame_id,l.remote_trame_nom,
+           (SELECT cs.remote_client_id FROM api_client_site_links cs
+             WHERE cs.remote_site_id=l.remote_site_id AND cs.remote_present=1
+             ORDER BY cs.synced_at DESC LIMIT 1) AS remote_client_id
+         FROM api_local_links l
+         JOIN api_site_links s ON s.remote_site_id=l.remote_site_id
+         WHERE s.local_site_id=? AND l.remote_present=1
+           AND NOT EXISTS (SELECT 1 FROM installations i WHERE i.id=l.local_installation_id
+              AND i.site_id=? AND i.actif=1)
+         ORDER BY COALESCE(l.designation,'') COLLATE NOCASE,l.remote_local_id`,
+        [key, key]
+      ),
     ]);
-    const bundle = { rows: rows || [], legacyCount: Number(legacy?.n || 0), loadedAt: Date.now() };
+    const missing = (remotePending || []).map((l) => ({
+      installation_id: `remote:${l.remote_local_id}`,
+      nom: l.designation || 'Local Intranet',
+      type_code: 'installation_technique',
+      remote_local_id: l.remote_local_id,
+      remote_site_id: l.remote_site_id,
+      remote_client_id: l.remote_client_id,
+      remote_designation: l.designation,
+      remote_trame_id: l.remote_trame_id,
+      remote_trame_nom: l.remote_trame_nom,
+      pendingMaterialization: true,
+      visit_count: null,
+    }));
+    const allRows = [...(rows || []), ...missing].sort((a, b) =>
+      String(a.nom || '').localeCompare(String(b.nom || ''), 'fr'));
+    const bundle = { rows: allRows, legacyCount: Number(legacy?.n || 0), loadedAt: Date.now() };
     if (isCurrent()) siteLocals.set(key, bundle);
     return bundle;
   }, { force, peek: () => siteLocals.get(key) });

@@ -5,7 +5,8 @@ import { ActivityIndicator, Alert, FlatList, Modal, Text, TextInput, TouchableOp
 import { COLORS, styles, FONTS } from './styles.js';
 import { getDb, uuidv4 } from './db.js';
 import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollOffset } from './navigationMemory.js';
-import { peekSiteLocals, prewarmLocalVisits, prewarmSiteLocals } from './navigationPrewarm.js';
+import { peekSiteLocals, prewarmLocalVisits, prewarmSiteLocals, invalidateSiteLocals, needsPrewarmRefresh } from './navigationPrewarm.js';
+import { materializeCachedLocalForSite } from './apiLatestVisitImportDb.js';
 import { CvcIcon } from './MetraCvcIcons.js';
 import { ButtonGlow } from './ButtonGlow.js';
 import { EmptyIcon } from './EmptyState.js';
@@ -15,6 +16,8 @@ function SiteLocalsScreen({ route, navigation }) {
   const { siteId, nomSite, clientId, nomClient } = route?.params || {};
   const listRef = useRef(null);
   const handledFocusRequest = useRef(null);
+  const materializingRef = useRef(false);
+  const [materializingRemoteId, setMaterializingRemoteId] = useState(null);
   const scrollKey = `site-locals:${String(siteId || '')}`;
   const initialBundle = peekSiteLocals(siteId);
   const [locaux, setLocaux] = useState(() => initialBundle?.rows || []);
@@ -26,11 +29,12 @@ function SiteLocalsScreen({ route, navigation }) {
   const [creationEnCours, setCreationEnCours] = useState(false);
   const [cibles, setCibles] = useState([]);
 
-  const charger = useCallback(async () => {
+  const charger = useCallback(async ({ reusePrewarm = false } = {}) => {
     if (!siteId) return;
     if (!peekSiteLocals(siteId)) setLoading(true);
     try {
-      const bundle = await prewarmSiteLocals(siteId, { force: true });
+      const force = !reusePrewarm || needsPrewarmRefresh(peekSiteLocals(siteId));
+      const bundle = await prewarmSiteLocals(siteId, { force });
       setLocaux(bundle?.rows || []);
       setLegacyCount(Number(bundle?.legacyCount || 0));
     } catch (error) {
@@ -40,7 +44,7 @@ function SiteLocalsScreen({ route, navigation }) {
     }
   }, [siteId]);
 
-  useEffect(() => { charger(); }, [charger]);
+  useEffect(() => { charger({ reusePrewarm: true }); }, [charger]);
 
   const chargerCibles = useCallback(async () => {
     if (!siteId) return;
@@ -98,6 +102,26 @@ function SiteLocalsScreen({ route, navigation }) {
       apiRemoteTrameId: local.remote_trame_id || null,
       apiRemoteTrameNom: local.remote_trame_nom || null,
     });
+  };
+
+  // A remote-only row is deliberately visible before it has a local installation.
+  // Materialize only after an explicit click; never associate an installation by name.
+  const ouvrirLocalDisponible = async (local) => {
+    if (!local.pendingMaterialization) { ouvrirLocal(local); return; }
+    if (materializingRef.current || !local.remote_local_id) return;
+    materializingRef.current = true;
+    setMaterializingRemoteId(String(local.remote_local_id));
+    try {
+      const installationId = await materializeCachedLocalForSite(siteId, local.remote_local_id);
+      if (!installationId) throw new Error('Référence Intranet indisponible dans le cache local.');
+      invalidateSiteLocals(siteId);
+      ouvrirLocal({ ...local, installation_id: installationId, pendingMaterialization: false });
+    } catch (error) {
+      Alert.alert('Préparation du local impossible', String(error?.message || error));
+    } finally {
+      materializingRef.current = false;
+      setMaterializingRemoteId(null);
+    }
   };
 
   // Accès direct depuis Ma journée : chaque cible pointe vers l'identifiant
@@ -191,8 +215,9 @@ function SiteLocalsScreen({ route, navigation }) {
         return <TouchableOpacity
           style={[styles.card, { flexDirection: 'column', alignItems: 'stretch', gap: 9, minHeight: 108 }]}
           activeOpacity={0.72}
-          onPressIn={() => prewarmLocalVisits({ siteId, installationId: item.installation_id }).catch(() => {})}
-          onPress={() => ouvrirLocal(item)}
+          disabled={Boolean(materializingRemoteId)}
+          onPressIn={() => { if (!item.pendingMaterialization) prewarmLocalVisits({ siteId, installationId: item.installation_id }).catch(() => {}); }}
+          onPress={() => { void ouvrirLocalDisponible(item); }}
         >
           {/* Une ligne pour le nom, une autre pour les actions : sur téléphone,
               les badges ne rétrécissent plus « Chaufferie » en syllabes. */}
@@ -203,14 +228,14 @@ function SiteLocalsScreen({ route, navigation }) {
             <View style={{ flex: 1, minWidth: 0 }}>
               <Text numberOfLines={2} ellipsizeMode="tail" style={[styles.cardTitle, { lineHeight: 20 }]}>{label}</Text>
               <Text numberOfLines={2} style={styles.cardSub}>
-                {visitCount ? `${visitCount} visite${visitCount > 1 ? 's' : ''}${item.latest_visit_date ? ` · dernière ${String(item.latest_visit_date).slice(0, 10)}` : ''}` : 'Aucune visite'}
+                {item.pendingMaterialization ? 'Local Intranet à préparer · toucher pour ouvrir' : visitCount ? `${visitCount} visite${visitCount > 1 ? 's' : ''}${item.latest_visit_date ? ` · dernière ${String(item.latest_visit_date).slice(0, 10)}` : ''}` : 'Aucune visite'}
               </Text>
               {item.remote_trame_nom ? <Text numberOfLines={2} ellipsizeMode="tail" style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16, marginTop: 3 }}>Trame Intranet · {item.remote_trame_nom}</Text> : null}
             </View>
-            <CvcIcon name="chevron-right" size={22} color="#98A2B3" strokeWidth={2.1} />
+            {materializingRemoteId === String(item.remote_local_id) ? <ActivityIndicator color={COLORS.orange} /> : <CvcIcon name="chevron-right" size={22} color="#98A2B3" strokeWidth={2.1} />}
           </View>
           {clientId || item.remote_local_id ? <View style={{ flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'flex-end', alignItems: 'center', gap: 8 }}>
-            {clientId ? (() => {
+            {clientId && !item.pendingMaterialization ? (() => {
               const cible = cibleParLocal.get(item.installation_id);
               const fait = cible && Number(cible.fait) === 1;
               return <TouchableOpacity accessibilityRole="button" accessibilityLabel={cible ? (fait ? 'Local fait, retirer de l’itinéraire' : 'Local à faire, retirer de l’itinéraire') : 'Ajouter ce local à l’itinéraire'}

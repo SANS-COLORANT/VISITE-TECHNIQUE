@@ -36,7 +36,7 @@ import { prewarmCameraRuntime } from './cameraRuntime.js';
 import { prewarmPhotoCaptureContext } from './photoCaptureContext.js';
 import { loadVisitPhotos } from './photoRuntimeCache.js';
 import { SectionRail, SideSectionList, VisitActionBar } from './VisitChrome.js';
-import { calculerEtatOnglets } from './visitTabStatusDb.js';
+import { invalidateLocalVisits } from './navigationPrewarm.js';
 import { estVisiteARattacher } from './quickVisitDb.js';
 import { AttachVisitSheet } from './AttachVisitSheet.js';
 import { VisitSearchSheet } from './VisitSearchSheet.js';
@@ -74,6 +74,7 @@ const VisitPanelHost = memo(function VisitPanelHost({
   nextPanel,
   onNextPanel,
   onRemarActiveCta,
+  searchTarget,
 }) {
   if (special) {
     if (panelId === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
@@ -83,7 +84,7 @@ const VisitPanelHost = memo(function VisitPanelHost({
     if (panelId === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
   }
   return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} nextPanel={nextPanel} onNextPanel={onNextPanel} trameId={trameId}
-    onRemarActiveCta={onRemarActiveCta} />;
+    onRemarActiveCta={onRemarActiveCta} searchTarget={searchTarget} />;
 });
 
 // « Enregistré il y a 2 min » (court sur téléphone).
@@ -138,8 +139,20 @@ function VisiteScreen({ route, onBack }) {
   pagerWidthRef.current = pagerWidth;
 
   const [visite, setVisite] = useState(() => initialPreview ? { ...initialPreview, progression_pct: Number(initialPreview.progression_pct || 0) } : null);
+  const visitScopeRef = useRef(null);
+  visitScopeRef.current = { siteId: visite?.site_id, installationId: visite?.installation_id };
+  const invalidateHistory = useCallback(() => {
+    const { siteId, installationId } = visitScopeRef.current || {};
+    if (!siteId) return;
+    invalidateLocalVisits(siteId, installationId || null, false);
+    invalidateLocalVisits(siteId, null, false);
+    if (!installationId) invalidateLocalVisits(siteId, null, true);
+  }, []);
   const [chargementErreur, setChargementErreur] = useState(null); // VISIT_OPEN_FAIL_SAFE_V1 · VISIT_OPEN_FAST_V2
   const [vmcCaissons, setVmcCaissons] = useState([]);
+  const [vmcConfigReady, setVmcConfigReady] = useState(false);
+  const [navigationReady, setNavigationReady] = useState(false);
+  const navigationTouchedRef = useRef(false);
   const [activeTab, setActiveTab] = useState(initialTab);
   const activeTabRef = useRef(initialTab);
   const desiredRestoreTabRef = useRef(initialTab);
@@ -172,18 +185,14 @@ function VisiteScreen({ route, onBack }) {
   // Feuille d'état ouverte en touchant la jauge de l'en-tête (remplace la carte d'avancement).
   const [statutVisible, setStatutVisible] = useState(false);
   const [rechercheVisible, setRechercheVisible] = useState(false);
+  const [searchTarget, setSearchTarget] = useState(null);
+  const searchSequenceRef = useRef(0);
   const [remarJourneyVisible, setRemarJourneyVisible] = useState(false);
   const [remarActiveCta, setRemarActiveCta] = useState(null);
   const noteRemarActiveCta = useCallback((value) => {
     setRemarActiveCta(old => old?.id===value?.id && old?.designation===value?.designation ? old : value);
   }, []);
   useEffect(() => setRemarActiveCta(null), [visiteId]);
-
-  const rafraichirEtatOnglets = useCallback(() => {
-    calculerEtatOnglets(visiteId, trameIdRef.current)
-      .then((etat) => setTabStatus(etat))
-      .catch((e) => console.warn('État des onglets non calculé', e));
-  }, [visiteId]);
 
   useEffect(() => {
     let alive = true;
@@ -298,7 +307,7 @@ function VisiteScreen({ route, onBack }) {
   useEffect(() => {
     let alive = true;
     hydrateNavigationState(visitNavKey).then((state) => {
-      if (!alive || !state?.activeTab) return;
+      if (!alive || !state?.activeTab || navigationTouchedRef.current) return;
       desiredRestoreTabRef.current = state.activeTab;
       const tabs = tabOrderRef.current;
       const idx = tabs.indexOf(state.activeTab);
@@ -309,7 +318,7 @@ function VisiteScreen({ route, onBack }) {
       pagerX.stopAnimation();
       pagerX.setValue(-idx * pagerWidthRef.current);
       warmPagerWindow(state.activeTab);
-    }).catch(() => {});
+    }).catch(() => {}).finally(() => { if (alive) setNavigationReady(true); });
     return () => { alive = false; };
   }, [visitNavKey, addMountedPanels, pagerX, warmPagerWindow]);
 
@@ -329,7 +338,8 @@ function VisiteScreen({ route, onBack }) {
   }, [pagerX, preAllumageLocalX]);
 
   useEffect(() => {
-    if (!visite || tabsReels.length === 0) return;
+    if (!visite || tabsReels.length === 0 || !navigationReady ||
+      (trame.id === 'vmc' && !vmcConfigReady)) return;
     tabOrderRef.current = tabsReels;
     let current = desiredRestoreTabRef.current || activeTabRef.current;
     if (!tabsReels.includes(current)) {
@@ -345,9 +355,10 @@ function VisiteScreen({ route, onBack }) {
     preAllumageLocalX.setValue(0);
     addMountedPanels([current], { stickyHeavy: true });
     warmPagerWindow(current);
-  }, [visite?.trame_id, tabsSignature, pagerWidth, addMountedPanels, warmPagerWindow, pagerX, preAllumageLocalX]);
+  }, [visite?.trame_id, tabsSignature, pagerWidth, navigationReady, vmcConfigReady, addMountedPanels, warmPagerWindow, pagerX, preAllumageLocalX]);
 
   const completeTabChange = useCallback((prochain) => {
+    navigationTouchedRef.current = true;
     flushDurableAutosaves().catch(() => {});
     activeTabRef.current = prochain;
     setActiveTab(prochain);
@@ -402,12 +413,19 @@ function VisiteScreen({ route, onBack }) {
     animateToTab(prochain, 0);
   }, [addMountedPanels, animateToTab, completeTabChange, pagerX]);
 
+  const ouvrirResultatRecherche = useCallback((item) => {
+    if (!item?.pid || !tabOrderRef.current.includes(item.pid)) return;
+    setSearchTarget({ ...item, nonce: ++searchSequenceRef.current });
+    if (item.pid !== activeTabRef.current) changerOnglet(item.pid, false);
+  }, [changerOnglet]);
+
   const retourSecurise = useCallback(() => {
     Keyboard.dismiss();
+    invalidateHistory();
     setNavigationState(visitNavKey, { activeTab: activeTabRef.current });
     Promise.allSettled([flushDurableAutosaves(), flushNavigationMemory()])
       .finally(() => setTimeout(() => onBack?.(), 0));
-  }, [onBack, visitNavKey]);
+  }, [onBack, visitNavKey, invalidateHistory]);
 
   const charger = useCallback(async ({ forceCaches = false } = {}) => {
     setChargementErreur(null);
@@ -454,16 +472,23 @@ function VisiteScreen({ route, onBack }) {
         }
 
         const estVmc = (v?.trame_id || DEFAULT_TRAME_ID) === 'vmc';
-        const [caissons] = await Promise.all([
-          estVmc ? chargerCaissonsVmc(visiteId).catch(() => []) : Promise.resolve([]),
+        const configuration = estVmc
+          ? chargerCaissonsVmc(visiteId).catch((error) => {
+              console.warn('Configuration VMC indisponible', error);
+              return [];
+            }).then((caissons) => {
+              setVmcCaissons(caissons || []);
+              setVmcConfigReady(true);
+            })
+          : Promise.resolve().then(() => setVmcConfigReady(true));
+        await Promise.all([
+          configuration,
           prechargerDonneesTrameGenerique(visiteId, forceCaches || prefillEffectif),
           prechargerRegulation(visiteId, forceCaches || prefillEffectif),
         ]);
-        setVmcCaissons(caissons || []);
-        rafraichirEtatOnglets();
-
         try {
-          const progression = await recalculerProgressionVisite(db, visiteId);
+          const { pct: progression, etat } = await recalculerProgressionVisite(db, visiteId, { withStatus: true });
+          if (etat) setTabStatus(etat);
           setVisite((courante) => {
             const next = courante ? { ...courante, ...v, progression_pct: progression } : { ...v, progression_pct: progression };
             markVisitHot(visiteId, { preview: next, ui: { activeTab: activeTabRef.current } });
@@ -476,7 +501,7 @@ function VisiteScreen({ route, onBack }) {
         console.warn('Initialisation secondaire de la visite incomplète', e);
       }
     })();
-  }, [visiteId, rafraichirEtatOnglets]);
+  }, [visiteId]);
 
   useEffect(() => {
     let actif = true;
@@ -494,6 +519,7 @@ function VisiteScreen({ route, onBack }) {
   }, [charger, visiteId]);
 
   const onSaved = useCallback(() => {
+    invalidateHistory();
     // A previously synced visit must immediately lose its green badge when
     // the technician changes a field, even if progress stays at 100%.
     setSyncRefreshKey(v => v + 1);
@@ -501,24 +527,25 @@ function VisiteScreen({ route, onBack }) {
     progressionTimerRef.current = setTimeout(async () => {
       try {
         const db = await getDb();
-        const progression = await recalculerProgressionVisite(db, visiteId);
+        const { pct: progression, etat } = await recalculerProgressionVisite(db, visiteId, { withStatus: true });
+        if (etat) setTabStatus(etat);
         setVisite((actuelle) => {
           if (!actuelle) return actuelle;
           const next = { ...actuelle, progression_pct: progression };
           markVisitHot(visiteId, { preview: next, ui: { activeTab: activeTabRef.current } });
           return next;
         });
-        rafraichirEtatOnglets();
       } catch (e) {
         console.warn('Progression visite non recalculée', e);
       } finally {
         progressionTimerRef.current = null;
       }
     }, 1200);
-  }, [visiteId, rafraichirEtatOnglets]);
+  }, [visiteId, invalidateHistory]);
 
   const onCaissonsChange = useCallback((next) => {
     setVmcCaissons(next || []);
+    setVmcConfigReady(true);
     invaliderCacheTrameGenerique(visiteId);
     onSaved();
   }, [visiteId, onSaved]);
@@ -805,6 +832,7 @@ function VisiteScreen({ route, onBack }) {
               onNextPanel={changerOnglet}
               onRemarActiveCta={estParcoursRemar && panelId==='p-remar-cta'
                 ? noteRemarActiveCta : undefined}
+              searchTarget={searchTarget?.pid === panelId ? searchTarget : null}
             />
           </Animated.View>
         </Animated.View>;
@@ -945,7 +973,7 @@ function VisiteScreen({ route, onBack }) {
         onVoirReserves={tabsReels.includes('p-remarques') ? () => { setStatutVisible(false); changerOnglet('p-remarques'); } : null}
       />
       {relecture.sheet}
-      <VisitSearchSheet visible={rechercheVisible} onClose={() => setRechercheVisible(false)} panels={panels} tabs={tabsReels} labels={panelLabels} onOpen={changerOnglet} />
+      <VisitSearchSheet visible={rechercheVisible} onClose={() => setRechercheVisible(false)} panels={panels} tabs={tabsReels} labels={panelLabels} onOpen={ouvrirResultatRecherche} />
       {estParcoursRemar && remarJourneyVisible ? (
         <RemarJourneySheet activeTab={activeTab} tabOrder={tabsReels} labels={panelLabels}
           tabStates={tabStatus.tabs} onClose={() => setRemarJourneyVisible(false)} onSelect={changerOnglet} />

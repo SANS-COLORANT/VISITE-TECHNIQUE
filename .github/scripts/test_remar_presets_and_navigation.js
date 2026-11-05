@@ -75,7 +75,7 @@ flush().then(results=>{
   ok(project.includes("if(parents.length>1) unsupported.push("),
     'additional CTA not silently discarded during Intranet V1 POST');
   const screen=read('visitProgressDb.js');
-  ok(screen.includes('calculerEtatOnglets(visiteId,trame.id)'),
+  ok(screen.includes('calculerEtatOnglets(visiteId, trame.id, { db, champsRows, controlesRows })'),
     'global visit ring includes real dynamic REMAR values');
   console.log('PASS '+total+' REMAR field intelligence, identity, save, navigation and export controls.');
 }).catch(error=>{console.error(error);process.exitCode=1;});

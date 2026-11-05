@@ -72,6 +72,7 @@ const CONTRACT_CHECKS = [
   ['field runtime foundation', '.github/scripts/check_field_runtime_foundation.js'],
   ['runtime async safety regressions', '.github/scripts/test_runtime_safety.js'],
   ['LOT05 search, cell photo and SectionList regressions', '.github/scripts/test_lot05_async_context.js'],
+  ['LOT05 remaining workstreams and shared snapshot regressions', '.github/scripts/test_lot05_workstreams.js'],
   ['instant camera runtime', '.github/scripts/check_camera_runtime_contract.js'],
   ['field feedback (tablet post-its) contract', '.github/scripts/check_field_feedback_contract.js'],
 ];

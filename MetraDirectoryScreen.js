@@ -4,6 +4,7 @@ import { COLORS, styles, FONTS } from './styles.js';
 import { activateTablet, getActivationStatus, syncAuthorizedClients, syncClientPreparation } from './symfonyApi.js';
 import { getCachedClient, listCachedLocals, listCachedSites, materializeCachedSite, searchCachedDirectory, listImportedApiClients } from './symfonyApiCacheDb.js';
 import { syncStructureReferential } from './intranetStructureDb.js';
+import { invalidateSiteLocals } from './navigationPrewarm.js';
 import { importLatestApiVisitsForSite } from './apiLatestVisitImportDb.js';
 import { importLatestApiVisitForLocal } from './apiLatestVisitImportDb.js';
 import { ClientLatestVisitPhotosModal } from './ClientLatestVisitPhotosModal.js';
@@ -285,6 +286,7 @@ function MetraDirectoryScreen({ navigation, route }) {
           const remoteClientId = site.remote_client_id || selectedClient.remote_client_id;
           const siteId = await materializeCachedSite(site.remote_site_id, remoteClientId);
           const latestImport = await importLatestApiVisitsForSite(siteId, site.remote_site_id);
+          invalidateSiteLocals(siteId);
           importedSites += 1;
           importedRemoteIds.push(String(site.remote_site_id));
           importedVisits += Number(latestImport?.importedCount || 0);
@@ -349,6 +351,7 @@ function MetraDirectoryScreen({ navigation, route }) {
       const remoteClientId = site.remote_client_id || siteClient?.remote_client_id;
       const siteId = await materializeCachedSite(site.remote_site_id, remoteClientId);
       const latestImport = await importLatestApiVisitsForSite(siteId, site.remote_site_id);
+          invalidateSiteLocals(siteId);
       const refreshedClient = remoteClientId ? await getCachedClient(remoteClientId) : null;
       setSelectedSite(null);
       setSelectedClient(null);

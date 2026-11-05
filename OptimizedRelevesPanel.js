@@ -349,6 +349,7 @@ function departParDefaut(t) {
 export function OptimizedRelevesPanel({
   visiteId, onSaved, trameId = 'icpe_v1', panels = null,
   meterPanelId = 'p-releves', embedded = false, metersOnly = false, remarMinimal = false,
+  listFooter = null,
 }) {
   const [champsMap, setChampsMap] = useState({});
   const [controlesMap, setControlesMap] = useState({});
@@ -561,30 +562,36 @@ export function OptimizedRelevesPanel({
     );
   };
 
-  const renderCompteurs = () => (
-    <SectionCard picto="rel/compteurs" title="Compteurs"
-      subtitle={remarMinimal?'4 types usuels · sans index présumé':undefined}
-      open={remarMinimal?compteursRemarOuverts:ouvertes.isOpen('compteurs')}
-      onToggle={()=>remarMinimal?setCompteursRemarOuverts(v=>!v):ouvertes.toggle('compteurs')}
-      done={nbCompteurs} total={compteurs.length}
-      actionLabel="+ Ajouter" onAction={ouvrirAjoutCompteur}>
-      {remarMinimal&&compteursRemarManquants.length ? <View style={{marginBottom:10}}>
-        {compteursRemarManquants.map(modele=><TouchableOpacity key={modele.destination}
-          accessibilityRole="button"
-          disabled={compteurUsuelEnCours===modele.destination}
-          onPress={()=>creerCompteurRemarUsuel(modele)}
-          style={st.quickMeter}>
-          <Text style={st.quickMeterTitle}>{modele.nom}</Text>
-          <Text style={st.quickMeterAction}>{compteurUsuelEnCours===modele.destination?'Ajout…':'+ Relever'}</Text>
-        </TouchableOpacity>)}
-      </View> : null}
-      {compteurs.length ? compteurs.map(c=><CompteurRow key={c.id} compteur={c}
-        visiteId={visiteId} onRemove={retirerLocalement} champsSection={champsSectionCompteurs}
-        onDestinationChange={changerDestinationLocalement} onLive={compteurLive}
-        doublonDestination={destinationsEnDoublon.has(c.destination || destinationDepuisLibelle(c.label,c.unite,champsSectionCompteurs))} />)
-        : (remarMinimal ? null : <Text style={st.hint}>Aucun compteur. Touchez « + Ajouter ».</Text>)}
-    </SectionCard>
-  );
+  const compteursOuverts = remarMinimal ? compteursRemarOuverts : ouvertes.isOpen('compteurs');
+  // F10: the normal small-volume card stays unchanged. Large collections
+  // become individual virtualized rows; durable drafts are flushed on unmount.
+  const virtualiserCompteurs = compteurs.length >= 20;
+  const rendreActionsCompteurs = () => remarMinimal && compteursRemarManquants.length ? <View style={{ marginBottom: 10 }}>
+    {compteursRemarManquants.map(modele => <TouchableOpacity key={modele.destination}
+      accessibilityRole="button" disabled={compteurUsuelEnCours === modele.destination}
+      onPress={() => creerCompteurRemarUsuel(modele)} style={st.quickMeter}>
+      <Text style={st.quickMeterTitle}>{modele.nom}</Text>
+      <Text style={st.quickMeterAction}>{compteurUsuelEnCours === modele.destination ? 'Ajout…' : '+ Relever'}</Text>
+    </TouchableOpacity>)}
+  </View> : null;
+  const rendreLigneCompteur = (c) => <CompteurRow compteur={c}
+    visiteId={visiteId} onRemove={retirerLocalement} champsSection={champsSectionCompteurs}
+    onDestinationChange={changerDestinationLocalement} onLive={compteurLive}
+    doublonDestination={destinationsEnDoublon.has(c.destination || destinationDepuisLibelle(c.label, c.unite, champsSectionCompteurs))} />;
+  const propsCarteCompteurs = {
+    picto: 'rel/compteurs', title: 'Compteurs',
+    subtitle: remarMinimal ? '4 types usuels · sans index présumé' : undefined,
+    open: compteursOuverts,
+    onToggle: () => remarMinimal ? setCompteursRemarOuverts(v => !v) : ouvertes.toggle('compteurs'),
+    done: nbCompteurs, total: compteurs.length,
+    actionLabel: '+ Ajouter', onAction: ouvrirAjoutCompteur,
+  };
+  const renderCompteurs = () => <SectionCard {...propsCarteCompteurs}>
+    {rendreActionsCompteurs()}
+    {compteurs.length ? compteurs.map(c => <React.Fragment key={c.id}>{rendreLigneCompteur(c)}</React.Fragment>)
+      : (remarMinimal ? null : <Text style={st.hint}>Aucun compteur. Touchez « + Ajouter ».</Text>)}
+  </SectionCard>;
+  const renderCompteursVirtualHeader = () => <SectionCard {...propsCarteCompteurs}>{rendreActionsCompteurs()}</SectionCard>;
 
   const renderGroupeTemp = (g) => {
     const pc = pictoCircuit(g.circuit);
@@ -656,17 +663,21 @@ export function OptimizedRelevesPanel({
   };
 
   const data = useMemo(() => [
-    champsPression.length ? { id: 'pressions' } : null,
-    { id: 'compteurs' },
-    champsTemp.length ? { id: 'temperatures' } : null,
-    { id: 'mesures' },
-  ].filter(Boolean), [champsPression.length, champsTemp.length]);
+    !metersOnly && champsPression.length ? { id: 'pressions' } : null,
+    { id: virtualiserCompteurs ? 'compteurs-virtual-header' : 'compteurs' },
+    ...(virtualiserCompteurs && compteursOuverts
+      ? compteurs.map((compteur) => ({ id: `compteur:${compteur.id}`, compteur }))
+      : []),
+    !metersOnly && champsTemp.length ? { id: 'temperatures' } : null,
+    !metersOnly || !remarMinimal ? { id: 'mesures' } : null,
+  ].filter(Boolean), [metersOnly, remarMinimal, champsPression.length, champsTemp.length,
+    virtualiserCompteurs, compteursOuverts, compteurs]);
 
   const optionsDestination = destinationsDisponibles(champsSectionCompteurs);
   const nomEnCours = modeNomLibre ? nomCompteurLibre : nomCompteurChoisi;
 
   return <>
-    {embedded && metersOnly ? <View style={{ paddingBottom: 10 }}>
+    {embedded && metersOnly && !listFooter ? <View style={{ paddingBottom: 10 }}>
       {renderCompteurs()}
       {!remarMinimal ? renderMesures() : null}
     </View> : <FlatList
@@ -678,6 +689,7 @@ export function OptimizedRelevesPanel({
       keyExtractor={(item) => item.id}
       contentContainerStyle={styles.panelContent}
       keyboardShouldPersistTaps="handled"
+      ListFooterComponent={listFooter}
       initialNumToRender={4}
       maxToRenderPerBatch={4}
       windowSize={5}
@@ -685,6 +697,11 @@ export function OptimizedRelevesPanel({
       removeClippedSubviews={false}
       renderItem={({ item }) => {
         if (item.id === 'pressions') return renderPressions();
+        if (item.id === 'compteurs-virtual-header') return renderCompteursVirtualHeader();
+        if (item.compteur) return <View style={{ marginHorizontal: 2, marginBottom: 4, paddingHorizontal: 10,
+          backgroundColor: '#FDFCFA', borderWidth: 1, borderColor: KIT.border, borderRadius: 12 }}>
+          {rendreLigneCompteur(item.compteur)}
+        </View>;
         if (item.id === 'compteurs') return renderCompteurs();
         if (item.id === 'temperatures') return renderTemperatures();
         return renderMesures();
