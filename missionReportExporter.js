@@ -192,6 +192,18 @@ async function recordOutput(missionId, profileId, format, fileUri, scopeType = '
   return id;
 }
 
+async function durableMissionFolder() {
+  if (!FileSystem.documentDirectory) throw new Error('Stockage durable des rapports Missions indisponible.');
+  const folder = FileSystem.documentDirectory + 'METRA_Missions_Rapports/';
+  await FileSystem.makeDirectoryAsync(folder, { intermediates: true });
+  return folder;
+}
+async function verifierFichierMission(uri) {
+  const info = await FileSystem.getInfoAsync(uri);
+  if (!info.exists || info.isDirectory || Number(info.size || 0) <= 0)
+    throw new Error('Sortie Mission absente ou vide : impossible de la déclarer comme générée.');
+}
+
 async function ensureReport(missionId, siteId = null) {
   if (siteId) return construireRapportMissionPortee(missionId, { siteId });
   const existing = await chargerRapportMission(missionId);
@@ -203,11 +215,12 @@ export async function exporterRapportMissionPdf(missionId, { share = true, siteI
   const report = await ensureReport(missionId, siteId);
   const html = await buildHtml(report);
   const generated = await Print.printToFileAsync({ html, base64: false });
-  const root = FileSystem.cacheDirectory || FileSystem.documentDirectory;
-  const siteSuffixPdf = siteId ? '__' + fileSafe(report.data?.sites?.[0]?.name || siteId) : '';
-  const name = 'Rapport_Mission_' + fileSafe(report.data?.mission?.label || missionId) + siteSuffixPdf + '.pdf';
+  const root = await durableMissionFolder();
+  const siteSuffixPdf = siteId ? '__' + fileSafe(siteId) : '';
+  const name = 'Rapport_Mission_' + fileSafe(missionId) + siteSuffixPdf + '_' + Date.now() + '.pdf';
   const uri = root + name;
   if (generated.uri !== uri) await FileSystem.copyAsync({ from: generated.uri, to: uri });
+  await verifierFichierMission(uri);
   await recordOutput(missionId, report.profile?.id, 'pdf', uri, siteId ? 'site' : 'mission', siteId);
   if (share && await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: PDF_MIME, dialogTitle: 'Rapport METRA Missions' });
   return { uri, name };
@@ -215,11 +228,12 @@ export async function exporterRapportMissionPdf(missionId, { share = true, siteI
 
 export async function exporterRapportMissionDocx(missionId, { share = true, siteId = null } = {}) {
   const report = await ensureReport(missionId, siteId);
-  const root = FileSystem.cacheDirectory || FileSystem.documentDirectory;
-  const siteSuffixDocx = siteId ? '__' + fileSafe(report.data?.sites?.[0]?.name || siteId) : '';
-  const name = 'Rapport_Mission_' + fileSafe(report.data?.mission?.label || missionId) + siteSuffixDocx + '.docx';
+  const root = await durableMissionFolder();
+  const siteSuffixDocx = siteId ? '__' + fileSafe(siteId) : '';
+  const name = 'Rapport_Mission_' + fileSafe(missionId) + siteSuffixDocx + '_' + Date.now() + '.docx';
   const uri = root + name;
   await buildDocx(report, uri);
+  await verifierFichierMission(uri);
   await recordOutput(missionId, report.profile?.id, 'docx', uri, siteId ? 'site' : 'mission', siteId);
   if (share && await Sharing.isAvailableAsync()) await Sharing.shareAsync(uri, { mimeType: DOCX_MIME, dialogTitle: 'Rapport Word METRA Missions' });
   return { uri, name };

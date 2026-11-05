@@ -4,6 +4,8 @@
  * Android (qui permet aussi de l'enregistrer en PDF).
  */
 import * as Print from 'expo-print';
+import * as Sharing from 'expo-sharing';
+import * as FileSystem from 'expo-file-system';
 
 export async function apercuRapportVisite(visiteId) {
   const { chargerDonneesVisiteRapport, construireHtmlRapport, preparerPhotosRapport } = require('./reportBuilder.js');
@@ -15,6 +17,21 @@ export async function apercuRapportVisite(visiteId) {
     coverUri: null, coverLabel: 'Image standard METRA', coverVisiteId: null,
     layout: { textScale: 'normal', sections: {} }, patrimoine: false, patrimoineScope: 'sites',
   };
+  const selectedCount = photos.filter((photo) => photo.include && photo.exportAllowed !== false).length;
+  if (selectedCount > 8) {
+    // The normal print preview used to send every photo into a single Android
+    // print job. Open a bounded, complete temporary PDF instead.
+    if (!await Sharing.isAvailableAsync())
+      throw new Error('Aperçu volumineux : aucune visionneuse PDF disponible. Utilisez Générer un rapport PDF.');
+    const { preparerApercuPdfFragmente } = require('./reportEditorExporter.js');
+    const uri = await preparerApercuPdfFragmente({ datas: [data], config, photosConfig: photos });
+    try {
+      await Sharing.shareAsync(uri, { mimeType: 'application/pdf', dialogTitle: 'Aperçu de visite METRA' });
+    } finally {
+      await FileSystem.deleteAsync(uri, { idempotent: true }).catch(() => {});
+    }
+    return;
+  }
   const html = await construireHtmlRapport([data], config, photos, 'pdf');
   await Print.printAsync({ html });
 }

@@ -52,7 +52,8 @@ async function copyPath(uri, destination) {
     for (const name of names) {
       const sourceChild = uri + (uri.endsWith('/') ? '' : '/') + name;
       const destinationChild = destination + (destination.endsWith('/') ? '' : '/') + name;
-      await copyPath(sourceChild, destinationChild);
+      const copied = await copyPath(sourceChild, destinationChild);
+      if (!copied) return false; // a parent is never complete if a child failed
     }
     return true;
   } catch {
@@ -110,6 +111,7 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
     },
     options: cfg,
     files: [],
+    missing: [],
   };
 
   if (cfg.reportPdf || cfg.reportDocx) {
@@ -288,6 +290,7 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
       }
       const info = await FileSystem.getInfoAsync(layer.source_uri).catch(() => ({ exists: false }));
       if (!info.exists) {
+        manifest.missing.push({ type: 'offlineMapLayer', id: layer.id, reason: 'source absent' });
         layerIndex.push({ ...layer, package_file: null });
         continue;
       }
@@ -301,6 +304,8 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
         manifest.files.push(relative);
         layerIndex.push({ ...layer, package_file: relative });
       } else {
+        manifest.missing.push({ type: 'offlineMapLayer', id: layer.id, reason: 'copie incomplète' });
+        await FileSystem.deleteAsync(destination, { idempotent: true }).catch(() => {});
         layerIndex.push({ ...layer, package_file: null });
       }
     }
@@ -334,6 +339,15 @@ export async function exporterPackageMission(missionId, options = DEFAULT_MISSIO
       { encoding: FileSystem.EncodingType.UTF8 }
     );
     manifest.files.push('Synoptiques/relations_techniques.json');
+  }
+
+  // Do not publish a package described as complete when an opted-in offline
+  // layer was only partially copied. The source media is never touched.
+  if (manifest.missing.length) {
+    await FileSystem.deleteAsync(root, { idempotent: true }).catch(() => {});
+    throw new Error('Paquet Mission incomplet : ' + manifest.missing.length +
+      ' couche(s) hors ligne manquante(s). Export non livré : ' +
+      manifest.missing.map((m) => m.id + ' (' + m.reason + ')').join(', '));
   }
 
   if (cfg.manifest) {

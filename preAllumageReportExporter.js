@@ -2,9 +2,11 @@ import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import * as Print from 'expo-print';
 import { PDFDocument, clip, endPath, popGraphicsState, pushGraphicsState, rectangle } from 'pdf-lib';
-import { chargerDonneesVisiteRapport } from './reportBuilder.js';
+import { chargerDonneesVisiteRapport, preparerPhotosRapport } from './reportBuilder.js';
+import { lireSignatureVisite, signatureHtml } from './visitSignature.js';
+import { creerFichierSaf } from './metraStorage.js';
 import { getPlanSitePourVisite } from './sitePlanDb.js';
-import { construireSitePreAllumageHtml, PREALLUMAGE_REPORT_CSS } from './preAllumageReportHtml.js';
+import { construireSitePreAllumageHtml, construireAnnexesPreAllumageHtml, PREALLUMAGE_REPORT_CSS } from './preAllumageReportHtml.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
 
 const MIME_PDF = 'application/pdf';
@@ -47,13 +49,13 @@ function infoValue(data, label) {
   return '';
 }
 
-async function imageDataUri(uri) {
+async function imageDataUri(uri, width = 1800, compress = 0.88) {
   if (!uri) return null;
   try {
     const r = await ImageManipulator.manipulateAsync(
       uri,
-      [{ resize: { width: 1800 } }],
-      { compress: 0.88, format: ImageManipulator.SaveFormat.JPEG, base64: true }
+      [{ resize: { width } }],
+      { compress, format: ImageManipulator.SaveFormat.JPEG, base64: true }
     );
     return r.base64 ? `data:image/jpeg;base64,${r.base64}` : null;
   } catch (e) {
@@ -104,7 +106,7 @@ function coverHtml(data, config) {
   </section>`;
 }
 
-async function construireHtml(visiteId) {
+async function construireHtml(visiteId, output = 'pdf') {
   const data = await chargerDonneesVisiteRapport(visiteId);
   if (data.trame?.id !== 'pre_allumage') throw new Error('Ce format de rapport est réservé aux visites Pré-allumage.');
   const plan = await getPlanSitePourVisite(visiteId);
@@ -115,7 +117,19 @@ async function construireHtml(visiteId) {
     dateRapport: new Date().toISOString().slice(0, 10),
     afficherLignesVides: false,
   };
-  const corps = construireSitePreAllumageHtml(data, config, planSrc);
+  // Same durable photo opt-out as the generic report. An included but missing
+  // file blocks the entire result instead of silently discarding evidence.
+  const photographies = [];
+  for (const photo of preparerPhotosRapport(data, [])) {
+    if (!photo.include || photo.exportAllowed === false) continue;
+    const src = await imageDataUri(photo.uri, 840, 0.6);
+    if (!src) throw new Error('Rapport Pré-allumage incomplet : photo sélectionnée illisible (ID ' + photo.id + ').');
+    photographies.push({ id: photo.id, label: photo.label || 'Photo', src });
+  }
+  const signature = await lireSignatureVisite(visiteId);
+  const signatureRendered = signature ? signatureHtml(signature, { output }) : '';
+  const annexes = construireAnnexesPreAllumageHtml(data, photographies, signatureRendered);
+  const corps = construireSitePreAllumageHtml(data, config, planSrc, annexes);
   const html = `<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><style>${cssDocument()}</style></head><body>${coverHtml(data, config)}${corps}</body></html>`;
   return { data, config, html };
 }
@@ -216,9 +230,7 @@ async function ecrirePdf(dossier, nom, html) {
     // On les réinjecte depuis les vrais assets du bundle dans le PDF final.
     habille = await integrerImagesPageGarde(temp.uri);
     const b64 = await FileSystem.readAsStringAsync(habille, { encoding: FileSystem.EncodingType.Base64 });
-    const uri = await FileSystem.StorageAccessFramework.createFileAsync(dossier, nom, MIME_PDF);
-    await FileSystem.writeAsStringAsync(uri, b64, { encoding: FileSystem.EncodingType.Base64 });
-    return uri;
+    return creerFichierSaf(dossier, nom, MIME_PDF, b64);
   } finally {
     await FileSystem.deleteAsync(temp.uri, { idempotent: true }).catch(() => {});
     if (habille) await FileSystem.deleteAsync(habille, { idempotent: true }).catch(() => {});
@@ -228,15 +240,25 @@ async function ecrirePdf(dossier, nom, html) {
 async function ecrireWord(dossier, nom, html) {
   const wordHtml = html.replace('<html>', '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">');
   const uri = await FileSystem.StorageAccessFramework.createFileAsync(dossier, nom, MIME_WORD);
-  await FileSystem.writeAsStringAsync(uri, wordHtml, { encoding: FileSystem.EncodingType.UTF8 });
-  return uri;
+  try {
+    await FileSystem.writeAsStringAsync(uri, wordHtml, { encoding: FileSystem.EncodingType.UTF8 });
+    return uri;
+  } catch (error) {
+    let nettoye = false;
+    try { await FileSystem.deleteAsync(uri, { idempotent: true }); nettoye = true; } catch (_) {}
+    throw new Error('Word Pré-allumage incomplet : ' + String(error?.message || error) +
+      (nettoye ? ' · Nouveau fichier supprimé.' : ' · Fichier incomplet à supprimer : ' + uri));
+  }
 }
 
 export async function exporterRapportPreAllumage(visiteId, format = 'pdf') {
   const dossier = await choisirDossier();
   if (!dossier) return { annule: true };
-  const { data, html } = await construireHtml(visiteId);
-  const base = propre(`Pre_Allumage_${data.visite.nom_site || 'Site'}_${data.visite.date_visite || ''}`);
+  const { data, html } = await construireHtml(visiteId, format === 'word' ? 'word' : 'pdf');
+  const site = propre(data.visite.nom_site || 'Site').slice(0, 38);
+  const date = propre(data.visite.date_visite || 'Sans_date').slice(0, 14);
+  const identite = propre(data.visite.site_id || data.visite.id).slice(0, 16);
+  const base = propre(`Pre_Allumage_${site}_${date}_${identite}`);
   if (format === 'word') {
     const nom = `${base}.doc`;
     return { annule: false, format, nom, uri: await ecrireWord(dossier, nom, html) };

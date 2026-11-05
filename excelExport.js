@@ -119,8 +119,11 @@ function exporterAnnexesDynamiques(wb, trame, reseaux, compteurs, photos) {
   const modules = modulesDynamiques(trame);
   const byKey = new Map();
   for (const p of photos || []) {
+    const allowed = Number(p.inclure_export ?? (p.entite_key ? 1 : 0)) === 1;
+    if (!allowed) continue; // never leak even a caption of an opted-out image
     const key = String(p.entite_key || '');
-    byKey.set(key, [...(byKey.get(key) || []), p.label || 'Photo']);
+    const label = String(p.label || 'Photo').split('||')[0].trim() || 'Photo';
+    byKey.set(key, [...(byKey.get(key) || []), label]);
   }
   if (modules.networks) ajouterAnnexeDynamique(wb, 'RESEAUX_DETAIL',
     ['N°', 'Réseau', 'T° ext (°C)', 'T° départ (°C)', 'Courbe de chauffe', 'TNC', 'Programme', 'Photos'],
@@ -328,7 +331,7 @@ async function construireClasseur(visiteId) {
     trame.id === 'pre_allumage' ? chargerPreAllumageModulaire(visiteId) : Promise.resolve(null),
     db.getAllAsync('SELECT libelle,valeur,unite FROM points_mesure_visite WHERE visite_id=? ORDER BY cree_le,id', [visiteId]),
     modulesDynamiques(trame).networks || modulesDynamiques(trame).meters
-      ? db.getAllAsync('SELECT entite_key,label FROM photos WHERE visite_id=? ORDER BY cree_le,id', [visiteId])
+      ? db.getAllAsync('SELECT entite_key,label,inclure_export FROM photos WHERE visite_id=? ORDER BY cree_le,id', [visiteId])
       : Promise.resolve([]),
   ]);
 

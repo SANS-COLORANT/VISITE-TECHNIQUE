@@ -23,6 +23,7 @@ on:
       - fix/metra-runtime-data-safety-20261104
       - feat/remove-companion-add-credits-20261104
       - fix/metra-lot05-complete-workstreams-20261105
+      - fix/metra-lot06-report-fidelity-20261105
     paths:
       - '**/*.js'
       - '**/*.json'
@@ -203,10 +204,42 @@ jobs:
         run: |
           cat > /tmp/release-notes.md <<'NOTES'
           METRA — Visite Technique : APK natif de recette du 5 novembre 2026.
-          Source : branche fix/metra-lot05-complete-workstreams-20261105,
-          empilée sur les correctifs des PR #129 et #130.
+          Source : branche fix/metra-lot06-report-fidelity-20261105,
+          créée à la suite des correctifs LOT05 / build #868.
+          Conserve les améliorations de navigation, les trames et l’Intranet.
           Conserve les corrections précédentes des trames ICPE, REMAR, VMC,
           Réseau de chaleur, Pré-allumage, ainsi que les fonctions Intranet.
+
+          Lot 06 (fidélité des rapports, export Excel/PDF/Word) :
+          - Pré-allumage : toutes les rubriques techniques déjà enregistrées
+            sont projetées dans les rapports, sans les réafficher dans l’UI.
+          - REMAR : anciennes valeurs plates non reprises lorsque l’objet
+            dynamique courant fait autorité ; pas de modification SQLite.
+          - Réseaux : relevés structurés, programmes et mesures libres dans les
+            rapports ; date métier des réserves harmonisée.
+          - Signature Word : tracé PNG dans le document .doc existant ; photo
+            illisible incluse = erreur explicite, non omission silencieuse.
+          - Rapports PA spécialisés : annexes réserves/photos autorisées/signature.
+          - Excel : champs délai/avancement restaurés quand le modèle les porte,
+            import des grandes tables sans limite silencieuse de 497 lignes,
+            légendes des photos exclues masquées.
+          - Rapports par site/local : bilan des succès et des erreurs, reprise
+            ciblée, choix de couverture conservé et nouveaux dossiers avec ID.
+          - Aperçu riche en photos : PDF fragmenté au-delà de 8 médias.
+          - Missions conditionnel : sortie durable et paquet signalé incomplet
+            si des couches hors ligne n’ont pas été copiées.
+          - Unicode PDF : repli sur le PDF imprimé intégral lorsqu’une police
+            standard ne peut pas dessiner le texte d’habillage (habillage
+            graphique secondaire indisponible dans ce seul cas).
+
+          Recette restante avant tout usage en production :
+          - Lire réellement dans Word et LibreOffice les .doc et signatures.
+          - Comparer les cellules des modèles historiques ICPE/RCU/REMAR/PA/VMC
+            et faire les retours Excel > 500 lignes avec une base de test.
+          - Vérifier la mise en page PDF/Word, volumes de photos et politiques
+            d’exclusion sur la tablette cible.
+          - Les tests CI ne constituent pas une preuve de parité parfaite des
+            fichiers Office et PDF sur tous les logiciels.
 
           Lot 05 (fluidité sans changement des règles métier) :
           - Ouverture client/site/local plus réactive par réutilisation du cache

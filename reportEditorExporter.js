@@ -6,7 +6,7 @@ import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { construireHtmlRapport } from './reportBuilder.js';
 import { decouperRapportPdf, extraireEnteteRapport, composerHtmlFragment } from './reportPdfFragments.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
-import { dossierRapportsClientMetra, dossierRapportsSiteMetra, dossierRapportsLocalMetra } from './metraStorage.js';
+import { dossierRapportsClientMetra, dossierRapportsSiteMetra, dossierRapportsLocalMetra, creerFichierSaf } from './metraStorage.js';
 
 const MIME_PDF = 'application/pdf';
 const MIME_WORD = 'application/msword';
@@ -127,7 +127,7 @@ function personnaliserPhotosArticle(article, data, photosConfig) {
 
   const cards = [];
   for (const section of photoSections) {
-    const found = [...section.texte.matchAll(/<div class="photoCard">[\s\S]*?<div class="photoCaption">[\s\S]*?<\/div><\/div>/g)];
+    const found = [...section.texte.matchAll(/<div class="photoCard"[^>]*>[\s\S]*?<div class="photoCaption">[\s\S]*?<\/div><\/div>/g)];
     found.forEach((m) => cards.push(m[0]));
   }
   if (!cards.length) return article;
@@ -135,9 +135,11 @@ function personnaliserPhotosArticle(article, data, photosConfig) {
   const photos = (photosConfig || [])
     .filter((p) => p.visiteId === data.visite.id && p.include && p.exportAllowed !== false)
     .sort((a, b) => a.ordre - b.ordre);
-
-  const cartes = cards.map((card, index) => {
-    const photo = photos[index] || { size: 'medium', captionSize: 'normal' };
+  const byId = new Map(photos.map((p) => [String(p.id), p]));
+  const cartes = cards.map((card) => {
+    const id = /data-photo-id="([^"]+)"/.exec(card)?.[1];
+    const photo = byId.get(id);
+    if (!id || !photo) throw new Error('Photo du document sans correspondance d’identité : ' + String(id || '?'));
     return { photo, html: card.replace('class="photoCard"', `class="${classesCartePhoto(photo)}"`) };
   });
   const pages = grouperCartes(cartes);
@@ -211,17 +213,22 @@ async function choisirDossier() {
 async function copierPdfVersDossier(uriSource, dossier, nom) {
   const SAF = FileSystem.StorageAccessFramework;
   const b64 = await FileSystem.readAsStringAsync(uriSource, { encoding: FileSystem.EncodingType.Base64 });
-  const uri = await SAF.createFileAsync(dossier, nom, MIME_PDF);
-  await FileSystem.writeAsStringAsync(uri, b64, { encoding: FileSystem.EncodingType.Base64 });
-  return uri;
+  return creerFichierSaf(dossier, nom, MIME_PDF, b64);
 }
 
 async function ecrireWordHtml(dossier, nom, html) {
   const SAF = FileSystem.StorageAccessFramework;
   const wordHtml = html.replace('<html>', '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word" xmlns="http://www.w3.org/TR/REC-html40">');
   const uri = await SAF.createFileAsync(dossier, nom, MIME_WORD);
-  await FileSystem.writeAsStringAsync(uri, wordHtml, { encoding: FileSystem.EncodingType.UTF8 });
-  return uri;
+  try {
+    await FileSystem.writeAsStringAsync(uri, wordHtml, { encoding: FileSystem.EncodingType.UTF8 });
+    return uri;
+  } catch (error) {
+    let nettoye = false;
+    try { await FileSystem.deleteAsync(uri, { idempotent: true }); nettoye = true; } catch (_) {}
+    throw new Error('Word incomplet : ' + String(error?.message || error) +
+      (nettoye ? ' · Nouvelle sortie supprimée.' : ' · Supprimer le fichier partiel : ' + uri));
+  }
 }
 
 async function lireAssetBinaire(moduleId) {
@@ -256,6 +263,15 @@ async function habillerPdfEdite(uriSource, config, siteFooter, clientCover, cove
   const pages = pdf.getPages();
   const font = await pdf.embedFont(StandardFonts.Helvetica);
   const bold = await pdf.embedFont(StandardFonts.HelveticaBold);
+  // Standard WinAnsi PDF fonts cannot encode arbitrary Unicode. Keep the
+  // complete HTML-printed PDF instead of throwing or changing user text.
+  try {
+    for (const v of [config.chrono, config.objet, siteFooter, clientCover])
+      bold.widthOfTextAtSize(String(v || ''), 9);
+  } catch (error) {
+    console.warn('Habillage PDF Unicode non pris en charge ; PDF imprimé complet conservé.', error);
+    return uriSource;
+  }
   const mm = (value) => value * 72 / 25.4;
   const embedJpgSafe = async (base64) => { try { return base64 ? await pdf.embedJpg(base64) : null; } catch { return null; } };
   const embedBundledSafe = async (moduleId, format) => {
@@ -437,6 +453,12 @@ async function imprimerPdfParFragments({ datas, config, photosConfig, onProgress
   }
 }
 
+// Reuse the same bounded eight-photo print jobs for heavy previews;
+ // this returns a TEMPORARY file that callers must clean up after sharing.
+export async function preparerApercuPdfFragmente({ datas, config, photosConfig }) {
+  return imprimerPdfParFragments({ datas, config, photosConfig });
+}
+
 async function exporterUnFormatEdite({ datas, config, photosConfig, format, dossier }) {
   const clientNom = datas[0]?.visite?.nom_client || 'Rapport';
   const localNom = datas[0]?.visite?.nom_local || datas[0]?.visite?.type_local || null;
@@ -472,14 +494,16 @@ async function exporterUnFormatEdite({ datas, config, photosConfig, format, doss
 
 export async function exporterRapportEdite({ datas, config, photosConfig, format = 'pdf', dossierUri = null }) {
   const clientNom = datas?.[0]?.visite?.nom_client || null;
-  const dossier = dossierUri || (clientNom ? await dossierRapportsClientMetra(clientNom) : await choisirDossier());
+  const clientId = datas?.[0]?.visite?.client_id || null;
+  const dossier = dossierUri || (clientNom ? await dossierRapportsClientMetra(clientNom, clientId) : await choisirDossier());
   if (!dossier) return { annule: true };
   return { annule: false, ...(await exporterUnFormatEdite({ datas, config, photosConfig, format, dossier })) };
 }
 
 export async function exporterRapportsParSiteEdites({ datas, config, photosConfig, format = 'pdf', dossiersParSite = true }) {
   const clientNom = datas?.[0]?.visite?.nom_client || null;
-  const dossierClient = clientNom ? await dossierRapportsClientMetra(clientNom) : await choisirDossier();
+  const clientId = datas?.[0]?.visite?.client_id || null;
+  const dossierClient = clientNom ? await dossierRapportsClientMetra(clientNom, clientId) : await choisirDossier();
   if (!dossierClient) return { annule: true, resultats: [] };
   const groupes = new Map();
   for (const data of datas) {
@@ -488,24 +512,30 @@ export async function exporterRapportsParSiteEdites({ datas, config, photosConfi
     groupes.get(key).push(data);
   }
   const resultats = [];
+  const erreurs = [];
   for (const siteDatas of groupes.values()) {
     const visiteId = siteDatas[0]?.visite?.id;
-    const siteConfig = config.coverVisiteId && config.coverVisiteId !== visiteId
+    const siteConfig = config.coverVisiteId && !siteDatas.some((data) => data.visite.id === config.coverVisiteId)
       ? { ...config, coverUri: null, coverLabel: 'Image standard METRA', coverVisiteId: null }
       : config;
     const siteNom = siteDatas[0]?.visite?.nom_site || 'Site';
-    const dossierSite = dossiersParSite === false || !clientNom
-      ? dossierClient
-      : await dossierRapportsSiteMetra({ clientNom, siteNom });
-    resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossierSite }));
+    try {
+      const dossierSite = dossiersParSite === false || !clientNom
+        ? dossierClient
+        : await dossierRapportsSiteMetra({ clientNom, siteNom, clientId, siteId: siteDatas[0]?.visite?.site_id });
+      resultats.push(await exporterRapportEdite({ datas: siteDatas, config: siteConfig, photosConfig, format, dossierUri: dossierSite }));
+    } catch (error) {
+      erreurs.push({ siteId: siteDatas[0]?.visite?.site_id, siteNom, visiteIds: siteDatas.map((d) => d.visite.id), message: String(error?.message || error) });
+    }
   }
-  return { annule: false, resultats };
+  return { annule: false, resultats, erreurs };
 }
 
 
 export async function exporterRapportsParLocalEdites({ datas, config, photosConfig, format = 'pdf', dossiersParLocal = true }) {
   const clientNom = datas?.[0]?.visite?.nom_client || null;
-  const dossierClient = clientNom ? await dossierRapportsClientMetra(clientNom) : await choisirDossier();
+  const clientId = datas?.[0]?.visite?.client_id || null;
+  const dossierClient = clientNom ? await dossierRapportsClientMetra(clientNom, clientId) : await choisirDossier();
   if (!dossierClient) return { annule: true, resultats: [] };
 
   const groupes = new Map();
@@ -516,6 +546,7 @@ export async function exporterRapportsParLocalEdites({ datas, config, photosConf
   }
 
   const resultats = [];
+  const erreurs = [];
   for (const localDatas of groupes.values()) {
     const visiteId = localDatas[0]?.visite?.id;
     const localConfig = config.coverVisiteId && config.coverVisiteId !== visiteId
@@ -523,15 +554,22 @@ export async function exporterRapportsParLocalEdites({ datas, config, photosConf
       : config;
     const siteNom = localDatas[0]?.visite?.nom_site || 'Site';
     const localNom = localDatas[0]?.visite?.nom_local || localDatas[0]?.visite?.type_local || 'Visite non rattachée';
-    let dossier = dossierClient;
-    if (dossiersParLocal !== false && clientNom) {
-      dossier = await dossierRapportsLocalMetra({ clientNom, siteNom, localNom });
-    } else if (clientNom) {
-      dossier = await dossierRapportsSiteMetra({ clientNom, siteNom });
+    try {
+      let dossier = dossierClient;
+      if (dossiersParLocal !== false && clientNom) {
+        dossier = await dossierRapportsLocalMetra({ clientNom, siteNom, localNom,
+          clientId, siteId: localDatas[0]?.visite?.site_id, localId: localDatas[0]?.visite?.installation_id });
+      } else if (clientNom) {
+        dossier = await dossierRapportsSiteMetra({ clientNom, siteNom, clientId, siteId: localDatas[0]?.visite?.site_id });
+      }
+      resultats.push(await exporterRapportEdite({ datas: localDatas, config: localConfig, photosConfig, format, dossierUri: dossier }));
+    } catch (error) {
+      erreurs.push({ localId: localDatas[0]?.visite?.installation_id,
+        visiteIds: localDatas.map((d) => d.visite.id), localNom, siteNom,
+        message: String(error?.message || error) });
     }
-    resultats.push(await exporterRapportEdite({ datas: localDatas, config: localConfig, photosConfig, format, dossierUri: dossier }));
   }
-  return { annule: false, resultats };
+  return { annule: false, resultats, erreurs };
 }
 
 // METRA storage compatibility: dossierUri || await choisirDossier(datas);

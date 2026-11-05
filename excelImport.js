@@ -96,11 +96,22 @@ function nettoyerLabel(cle) {
   return cle.replace(/^Index\s*/i, '').replace(/\s*\([^)]*\)\s*$/, '').trim();
 }
 
+// Safety cap is explicit. Reaching it fails loudly instead of losing rows.
+const MAX_IMPORT_TABLE_ROWS = 20000;
+function borneFinTable(sheet, debut, borneHistorique = 500) {
+  const range = sheet?.['!ref'] ? XLSX.utils.decode_range(sheet['!ref']) : null;
+  const fin = Math.max(Number(borneHistorique || 500), range ? range.e.r + 1 : debut);
+  if (fin - debut + 1 > MAX_IMPORT_TABLE_ROWS)
+    throw new Error('Table Excel trop grande (' + (fin - debut + 1) +
+      ' lignes) : import refusé sans troncature. Limite de sécurité : ' + MAX_IMPORT_TABLE_ROWS + '.');
+  return fin;
+}
+
 function lireTable(sheet, config) {
   if (!sheet || !config) return [];
   const resultats = [];
   const debut = Number(config.startRow || 1);
-  const fin = Number(config.maxImportRow || 500);
+  const fin = borneFinTable(sheet, debut, config.maxImportRow || 500);
   const columns = config.columns || [];
   for (let row = debut; row <= fin; row++) {
     const objet = {};
@@ -134,7 +145,7 @@ function lireReseauxComplementaires(wb, config, ordreDepart) {
   if (!overflow || !sheet) return [];
   const resultats = [];
   const debut = Number(overflow.startRow || 3);
-  const fin = Number(overflow.maxImportRow || 500);
+  const fin = borneFinTable(sheet, debut, overflow.maxImportRow || 500);
   for (let row = debut; row <= fin; row++) {
     const reseau = { ordre: ordreDepart + resultats.length };
     let nonVide = false;

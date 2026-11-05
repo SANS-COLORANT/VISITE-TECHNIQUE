@@ -10,6 +10,7 @@ import Svg, { Path } from 'react-native-svg';
 import { getDb } from './db.js';
 import { COLORS, FONTS } from './styles.js';
 import { ButtonGlow } from './ButtonGlow.js';
+import { signaturePngDataUri } from './signatureReportPng.js';
 
 const cle = (visiteId) => `signature_visite_${visiteId}`;
 
@@ -36,8 +37,13 @@ const esc = (v) => String(v == null ? '' : v).replace(/[&<>"]/g, (c) => ({ '&': 
 export function signatureHtml(signature, { output = 'pdf', site = '' } = {}) {
   if (!signature?.paths?.length) return '';
   const date = signature.date ? new Date(signature.date).toLocaleDateString('fr-FR') : '';
-  const svg = output === 'word' ? '' : `<svg viewBox="0 0 ${Number(signature.w) || 320} ${Number(signature.h) || 160}" style="width:70mm;height:35mm;border-bottom:0.3mm solid #999">${signature.paths.map((d) => `<path d="${esc(d)}" fill="none" stroke="#111" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`).join('')}</svg>`;
-  return `<section class="signatureBlock" style="break-inside:avoid-page;margin-top:8mm"><div class="sectionBanner">SIGNATURE DU CLIENT${site ? ' · ' + esc(site) : ''}</div><p style="margin:3mm 0 2mm">${esc(signature.nom || 'Représentant du client')}${signature.qualite ? ' · ' + esc(signature.qualite) : ''}${date ? ' · le ' + esc(date) : ''}</p>${svg}</section>`;
+  const svg = `<svg viewBox="0 0 ${Number(signature.w) || 320} ${Number(signature.h) || 160}" style="width:70mm;height:35mm;border-bottom:0.3mm solid #999">${signature.paths.map((d) => `<path d="${esc(d)}" fill="none" stroke="#111" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>`).join('')}</svg>`;
+  const png = output === 'word' ? signaturePngDataUri(signature) : null;
+  const trace = output === 'word'
+    ? (png ? `<img src="${png}" alt="Tracé de signature du client" style="width:70mm;height:35mm;border-bottom:0.3mm solid #999"/>`
+      : '<p>Tracé de signature non reproductible dans cette version Word.</p>')
+    : svg;
+  return `<section class="signatureBlock" style="break-inside:avoid-page;margin-top:8mm"><div class="sectionBanner">SIGNATURE DU CLIENT${site ? ' · ' + esc(site) : ''}</div><p style="margin:3mm 0 2mm">${esc(signature.nom || 'Représentant du client')}${signature.qualite ? ' · ' + esc(signature.qualite) : ''}${date ? ' · le ' + esc(date) : ''}</p>${trace}</section>`;
 }
 
 export function SignatureSheet({ visible, initial, onClose, onSave }) {

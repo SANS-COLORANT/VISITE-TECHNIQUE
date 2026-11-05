@@ -138,22 +138,32 @@ export async function initialiserArborescenceClient(clientId) {
   return { client: client.nom, sites: sites.length };
 }
 
-export async function dossierRapportsClientMetra(clientNom) {
-  return garantirCheminMetra(['Clients', nettoyerSegment(clientNom, 'Client'), 'Rapports']);
+// Apply stable identity suffixes to NEW report paths only.
+// Pre-existing Documents directories are not renamed or removed.
+function segmentRapportAvecId(nom, defaut, identifiant) {
+  const lisible = nettoyerSegment(nom, defaut);
+  const id = String(identifiant || '').replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 42);
+  if (!id) return lisible;
+  const suffixe = '__' + id;
+  return lisible.slice(0, Math.max(1, 80 - suffixe.length)) + suffixe;
 }
 
-export async function dossierRapportsSiteMetra({ clientNom, siteNom }) {
+export async function dossierRapportsClientMetra(clientNom, clientId = null) {
+  return garantirCheminMetra(['Clients', segmentRapportAvecId(clientNom, 'Client', clientId), 'Rapports']);
+}
+
+export async function dossierRapportsSiteMetra({ clientNom, siteNom, clientId = null, siteId = null }) {
   return garantirCheminMetra([
-    'Clients', nettoyerSegment(clientNom, 'Client'),
-    'Rapports', nettoyerSegment(siteNom, 'Site'),
+    'Clients', segmentRapportAvecId(clientNom, 'Client', clientId),
+    'Rapports', segmentRapportAvecId(siteNom, 'Site', siteId),
   ]);
 }
 
-export async function dossierRapportsLocalMetra({ clientNom, siteNom, localNom }) {
+export async function dossierRapportsLocalMetra({ clientNom, siteNom, localNom, clientId = null, siteId = null, localId = null }) {
   return garantirCheminMetra([
-    'Clients', nettoyerSegment(clientNom, 'Client'),
-    'Rapports', nettoyerSegment(siteNom, 'Site'),
-    nettoyerSegment(localNom, 'Local'),
+    'Clients', segmentRapportAvecId(clientNom, 'Client', clientId),
+    'Rapports', segmentRapportAvecId(siteNom, 'Site', siteId),
+    segmentRapportAvecId(localNom, 'Local', localId),
   ]);
 }
 
@@ -175,8 +185,17 @@ export async function creerFichierSaf(dossierUri, nomFichier, mimeType, base64) 
   const SAF = FileSystem.StorageAccessFramework;
   if (!dossierUri || !SAF?.createFileAsync) throw new Error("Le dossier METRA n'est pas disponible.");
   const destination = await SAF.createFileAsync(dossierUri, nettoyerSegment(nomFichier, 'Fichier'), mimeType);
-  await FileSystem.writeAsStringAsync(destination, base64, { encoding: FileSystem.EncodingType.Base64 });
-  return destination;
+  try {
+    await FileSystem.writeAsStringAsync(destination, base64, { encoding: FileSystem.EncodingType.Base64 });
+    return destination;
+  } catch (error) {
+    let nettoye = false;
+    try { await FileSystem.deleteAsync(destination, { idempotent: true }); nettoye = true; } catch (_) {}
+    throw new Error('Écriture du nouvel export METRA interrompue : ' +
+      String(error?.message || error) +
+      (nettoye ? ' · Nouveau fichier incomplet supprimé.'
+        : ' · Fichier incomplet à supprimer dans Documents : ' + destination));
+  }
 }
 
 export { nettoyerSegment };
