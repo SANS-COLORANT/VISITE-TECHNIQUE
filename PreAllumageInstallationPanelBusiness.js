@@ -12,9 +12,10 @@ export function PreAllumageInstallationPanelBusiness(props) {
   useEffect(() => {
     let alive = true;
     (async () => {
-      // Preserve bootstrap -> legacy structure mapping before mounting the editor.
-      // A read of the entire model is not needed until V3 finishes normalization.
+      // Keep the original initialization -> legacy mapping -> site bootstrap
+      // -> final reconciliation order. Only the full-model reads are removed.
       await initialiserPreAllumageModulaire(props.visiteId);
+      await preparerStructurePreAllumage(props.visiteId);
       await assurerStructureSitePreAllumage(props.visiteId);
       await preparerStructurePreAllumage(props.visiteId);
       if (alive) setReady(true);
