@@ -261,6 +261,7 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
   const cacheInitial = visiteDataCache.get(visiteId)?.data;
   const listRef = useRef(null);
   const searchedFieldRef = useRef(null);
+  const focusSearchedFieldRef = useRef(null);
   const navKey = `visit-panel:${String(visiteId || '')}:${String(panelId || '')}${navigationScope ? `:${navigationScope}` : ''}`;
   const [champsMap, setChampsMap] = useState(cacheInitial?.champsMap || {});
   const [controlesMap, setControlesMap] = useState(cacheInitial?.controlesMap || {});
@@ -344,6 +345,22 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
     setFiltreState('all');
     open([target.sectionCode]);
   }, [searchTarget?.nonce, panelId, listeSections, sectionGenerale?.sectionCode, scopeOuvertes, open]);
+
+  // Works even when the searched section is already expanded and its content
+  // size does not change (onContentSizeChange would never fire in that case).
+  useEffect(() => {
+    if (!searchTarget || searchTarget.pid !== panelId) return undefined;
+    let alive = true;
+    let timer = null;
+    let attempts = 0;
+    const attempt = () => {
+      if (!alive || attempts++ >= 6) return;
+      focusSearchedFieldRef.current?.();
+      if (searchedFieldRef.current) timer = setTimeout(attempt, 90);
+    };
+    timer = setTimeout(attempt, 60);
+    return () => { alive = false; if (timer) clearTimeout(timer); };
+  }, [searchTarget?.nonce, panelId]);
 
   // La date de visite se renseignait seule à l'affichage du champ ; les
   // rubriques étant fermées au départ, on la pose ici (même valeur, même clé).
@@ -521,10 +538,15 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
       (line.items || []).some((item) => item.field?.cle === wanted.fieldKey)
     );
     if (itemIndex < 0) return; // Wait for the collapsed section to be mounted.
+    if (wanted.attempted) return;
     try {
+      wanted.attempted = true;
       listRef.current.scrollToLocation({ sectionIndex, itemIndex, viewOffset: 72, animated: false });
-      searchedFieldRef.current = null;
+      // Keep the target briefly for a possible asynchronous SectionList
+      // onScrollToIndexFailed callback; a successful call returns no status.
+      setTimeout(() => { if (searchedFieldRef.current === wanted) searchedFieldRef.current = null; }, 550);
     } catch (error) {
+      wanted.attempted = false;
       // SectionList may not have measured distant rows yet; retry on layout.
       if (++wanted.retries >= 3) {
         console.warn('Champ trouvé mais position non mesurée', wanted.sectionCode, error);
@@ -532,7 +554,7 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
       }
     }
   };
-
+  focusSearchedFieldRef.current = focusSearchedField;
 
   const restants = listeSections.reduce((n, section) => n + section.data.filter((item) => item.field.type === 'champ'
     ? String(champsMap[item.key] ?? '').trim() === ''
@@ -660,7 +682,10 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
       extraData={{ champsMap, controlesMap, filtreActif }}
       onScroll={(event) => setNavigationScrollOffset(navKey, event.nativeEvent.contentOffset.y)}
       onContentSizeChange={focusSearchedField}
-      onScrollToIndexFailed={() => requestAnimationFrame(focusSearchedField)}
+      onScrollToIndexFailed={() => {
+        if (searchedFieldRef.current) searchedFieldRef.current.attempted = false;
+        requestAnimationFrame(focusSearchedField);
+      }}
       scrollEventThrottle={100}
       keyExtractor={(ligne) => ligne.key}
       ListHeaderComponent={<>{enTeteListe}{enTeteDynamique}</>}
