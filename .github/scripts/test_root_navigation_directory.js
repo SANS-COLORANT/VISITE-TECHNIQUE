@@ -53,7 +53,16 @@ vm.runInNewContext(dbSource.slice(start,end).replace(/^export /gm, '')+';globalT
   assert.deepEqual(rows.map(x=>x.remote_client_id), ['1'], 'default list must include only existing, authorized imported client');
   sqlite.close();
   const directory = read('MetraDirectoryScreen.js');
-  assert.ok(directory.includes('await searchCachedDirectory(text)') && directory.includes('await listImportedApiClients()'), 'search includes remote clients, default only imports');
+  // Test the current production contract rather than a stale variable name.
+  // Non-empty search queries all authorized remote clients/sites; empty query
+  // only lists clients already imported locally. Late asynchronous responses
+  // must never overwrite the newer visible query or its navigation cache.
+  assert.match(directory, /expectedQuery\.trim\(\)\s*\?\s*await searchCachedDirectory\(expectedQuery\)/,
+    'non-empty query searches all authorized Intranet directory records');
+  assert.match(directory, /:\s*\{ clients: await listImportedApiClients\(\), sites: \[\] \}/,
+    'empty query is restricted to imported local clients');
+  assert.match(directory, /generation !== directorySearchVersionRef\.current \|\| expectedQuery !== visibleQueryRef\.current/,
+    'stale remote responses cannot replace the current search results');
   assert.ok(directory.includes("navigation.navigate('ClientSites', { clientId: item.local_client_id"), 'imported client opens local sites');
   assert.ok(directory.includes('onSubmitEditing') && directory.includes('sync();'), 'submitted search can refresh Intranet catalogue');
   console.log('[root-navigation-directory] swipe direction/short travel/bubble + SQL imported-only + Intranet search passed.');
