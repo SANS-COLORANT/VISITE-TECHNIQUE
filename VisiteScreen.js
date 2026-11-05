@@ -74,6 +74,7 @@ const VisitPanelHost = memo(function VisitPanelHost({
   nextPanel,
   onNextPanel,
   onRemarActiveCta,
+  searchTarget,
 }) {
   if (special) {
     if (panelId === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
@@ -83,7 +84,7 @@ const VisitPanelHost = memo(function VisitPanelHost({
     if (panelId === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
   }
   return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} nextPanel={nextPanel} onNextPanel={onNextPanel} trameId={trameId}
-    onRemarActiveCta={onRemarActiveCta} />;
+    onRemarActiveCta={onRemarActiveCta} searchTarget={searchTarget} />;
 });
 
 // « Enregistré il y a 2 min » (court sur téléphone).
@@ -175,6 +176,8 @@ function VisiteScreen({ route, onBack }) {
   // Feuille d'état ouverte en touchant la jauge de l'en-tête (remplace la carte d'avancement).
   const [statutVisible, setStatutVisible] = useState(false);
   const [rechercheVisible, setRechercheVisible] = useState(false);
+  const [searchTarget, setSearchTarget] = useState(null);
+  const searchSequenceRef = useRef(0);
   const [remarJourneyVisible, setRemarJourneyVisible] = useState(false);
   const [remarActiveCta, setRemarActiveCta] = useState(null);
   const noteRemarActiveCta = useCallback((value) => {
@@ -400,6 +403,12 @@ function VisiteScreen({ route, onBack }) {
     transitionRef.current = true;
     animateToTab(prochain, 0);
   }, [addMountedPanels, animateToTab, completeTabChange, pagerX]);
+
+  const ouvrirResultatRecherche = useCallback((item) => {
+    if (!item?.pid || !tabOrderRef.current.includes(item.pid)) return;
+    setSearchTarget({ ...item, nonce: ++searchSequenceRef.current });
+    if (item.pid !== activeTabRef.current) changerOnglet(item.pid, false);
+  }, [changerOnglet]);
 
   const retourSecurise = useCallback(() => {
     Keyboard.dismiss();
@@ -812,6 +821,7 @@ function VisiteScreen({ route, onBack }) {
               onNextPanel={changerOnglet}
               onRemarActiveCta={estParcoursRemar && panelId==='p-remar-cta'
                 ? noteRemarActiveCta : undefined}
+              searchTarget={searchTarget?.pid === panelId ? searchTarget : null}
             />
           </Animated.View>
         </Animated.View>;
@@ -952,7 +962,7 @@ function VisiteScreen({ route, onBack }) {
         onVoirReserves={tabsReels.includes('p-remarques') ? () => { setStatutVisible(false); changerOnglet('p-remarques'); } : null}
       />
       {relecture.sheet}
-      <VisitSearchSheet visible={rechercheVisible} onClose={() => setRechercheVisible(false)} panels={panels} tabs={tabsReels} labels={panelLabels} onOpen={changerOnglet} />
+      <VisitSearchSheet visible={rechercheVisible} onClose={() => setRechercheVisible(false)} panels={panels} tabs={tabsReels} labels={panelLabels} onOpen={ouvrirResultatRecherche} />
       {estParcoursRemar && remarJourneyVisible ? (
         <RemarJourneySheet activeTab={activeTab} tabOrder={tabsReels} labels={panelLabels}
           tabStates={tabStatus.tabs} onClose={() => setRemarJourneyVisible(false)} onSelect={changerOnglet} />
