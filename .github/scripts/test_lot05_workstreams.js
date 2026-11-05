@@ -94,6 +94,11 @@ test('F04/F05: PA preparation and restored local stay stable across loading', ()
   assert.match(wrapper, /await assurerStructureSitePreAllumage\(props\.visiteId\)/);
   assert.match(wrapper, /await preparerStructurePreAllumage\(props\.visiteId\)/);
   assert.doesNotMatch(wrapper, /await chargerPreAllumageModulaire\(props\.visiteId\)/);
+  const firstPrepare = wrapper.indexOf('await preparerStructurePreAllumage(props.visiteId)');
+  const siteBootstrap = wrapper.indexOf('await assurerStructureSitePreAllumage(props.visiteId)');
+  const finalPrepare = wrapper.lastIndexOf('await preparerStructurePreAllumage(props.visiteId)');
+  assert.ok(0 <= firstPrepare && firstPrepare < siteBootstrap && siteBootstrap < finalPrepare,
+    'PA legacy mapping must run before site bootstrap and be reconciled afterwards');
   assert.match(editor, /await normaliserLocauxPreAllumage\(visiteId\)/);
   assert.match(editor, /if \(!model \|\| !uiHydrated\) return/);
   assert.match(editor, /if \(!uiHydrated \|\| !model \|\| \(locals\.length/);
