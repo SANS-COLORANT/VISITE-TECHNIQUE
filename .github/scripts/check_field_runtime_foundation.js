@@ -47,7 +47,7 @@ expect(!previous.includes('FROM remarques'), 'La référence précédente ne doi
 expect(home.includes('onPressIn={() => prewarmClientSites'), 'Accueil doit préchauffer le client au toucher.');
 expect(home.includes('prewarmVisitInBackground'), 'Accueil doit préchauffer une visite en cours au toucher.');
 expect(sites.includes('onPressIn={() => prewarmSiteLocals'), 'Sites doit préchauffer les locaux au toucher.');
-expect(locals.includes('onPressIn={() => prewarmLocalVisits'), 'Locaux doit préchauffer les visites au toucher.');
+expect(locals.includes('if (!item.pendingMaterialization) prewarmLocalVisits'), 'Locaux doit préchauffer les visites déjà matérialisées, sans écriture spéculative sur les locaux Intranet.');
 expect(visits.includes('onPressIn={() => { if (!selectionExport) prechaufferVisite'), 'Historique doit préchauffer une visite au toucher.');
 expect(visits.includes('peekLocalVisits'), 'Historique doit afficher le dernier cache local avant revalidation.');
 
