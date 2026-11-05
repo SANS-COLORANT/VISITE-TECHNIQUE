@@ -38,6 +38,7 @@ function reportFixture({trame,model=null,controls=[],networks=[],points=[],dynam
     },
   });
   const deps={
+    PA_REPORT_ORDER:['p-pa-infos','p-pa-batiments','p-pa-compteurs','p-pa-regulation','p-pa-chaufferie','p-pa-sst','p-pa-conclusion'],
     getDb,listerMateriel:async()=>[],obtenirTrame:()=>trame,DEFAULT_TRAME_ID:'icpe_v1',
     chargerPreAllumageModulaire:async()=>model,listerAliasesPreAllumage:async()=>({}),
     lireContextePhotosRemar:async()=>null,construireRemarDynamiquePourRapport:async()=>dynamic,
