@@ -56,8 +56,8 @@ const TABLES_STANDARD = Object.freeze({
   },
   remarques: {
     sheet: 'REMARQUES', startRow: 4, maxImportRow: 500,
-    columns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['D', 'delai'], ['F', 'estimatif']],
-    exportColumns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['F', 'estimatif']],
+    columns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['D', 'delai'], ['E', 'intranet_etat_avancement'], ['F', 'estimatif']],
+    exportColumns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['D', 'delai'], ['E', 'intranet_etat_avancement'], ['F', 'estimatif']],
   },
   note: { sheet: 'NOTE', cell: 'A2' },
 });
@@ -100,7 +100,7 @@ const ICPE = Object.freeze({
     },
     tables: {
       ...TABLES_STANDARD,
-      remarques: { ...TABLES_STANDARD.remarques, columns: [['A', 'poste'], ['B', 'prestation'], ['D', 'delai'], ['F', 'estimatif']] },
+      remarques: { ...TABLES_STANDARD.remarques },
     },
   },
 });
@@ -178,7 +178,7 @@ const RESEAU_CHALEUR = Object.freeze({
       },
       remarques: {
         ...TABLES_STANDARD.remarques,
-        exportColumns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['D', 'delai'], ['F', 'estimatif']],
+        exportColumns: [['A', 'poste'], ['B', 'prestation'], ['C', 'date_reserve'], ['D', 'delai'], ['E', 'intranet_etat_avancement'], ['F', 'estimatif']],
       },
       note: TABLES_STANDARD.note,
     },
