@@ -6,7 +6,9 @@ import { Asset } from 'expo-asset';
 import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { getDb, listerMateriel } from './db.js';
 import { obtenirTrame, DEFAULT_TRAME_ID, normaliserSectionCode } from './trameRegistry.js';
-import { construireRemarDynamiquePourRapport } from './remarDynamicExportDb.js';
+import { construireRemarDynamiquePourRapport, remarDynamicOwnsMapping } from './remarDynamicExportDb.js';
+import { readNetworkProgrammingForVisit } from './networkProgrammingDb.js';
+import { networkTemperatureSeries, validateWeeklySchedule, formatWeeklySchedule } from './networkProgramming.js';
 import { lireContextePhotosRemar, contextePhotoRemar } from './remarPhotoContext.js';
 import { REPORT_COVER, REPORT_LOGO, REPORT_OPQIBI } from './reportBrandAssets.js';
 import { listerAliasesPreAllumage } from './preAllumageAliases.js';
@@ -31,6 +33,12 @@ const REPORT_ASSET_MODULES = Object.freeze({
   ],
   pageMark: require('./assets/report/spiral-multicolor.png'),
 });
+
+// Report order is independent of the simplified field navigation.
+const PA_REPORT_ORDER = Object.freeze([
+  'p-pa-infos', 'p-pa-batiments', 'p-pa-compteurs', 'p-pa-regulation',
+  'p-pa-chaufferie', 'p-pa-sst', 'p-pa-conclusion',
+]);
 
 const REPORT_SECTION_META = Object.freeze({
   'p-infos': { titre: 'INFORMATIONS GÉNÉRALES', banner: true },
@@ -146,7 +154,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
 
   const trame = obtenirTrame(visite.trame_id || DEFAULT_TRAME_ID);
   const modelePreAllumage = trame.id === 'pre_allumage' ? await chargerPreAllumageModulaire(visiteId) : null;
-  const [champs, controles, reseaux, compteurs, remarques, photos, materiel, note, aliases] = await Promise.all([
+  const [champs, controles, reseaux, compteurs, remarques, photos, materiel, note, aliases, pointsLibres] = await Promise.all([
     db.getAllAsync(`SELECT * FROM champs_visite WHERE visite_id=?`, [visiteId]),
     db.getAllAsync(`SELECT * FROM controles_visite WHERE visite_id=?`, [visiteId]),
     db.getAllAsync(`SELECT * FROM reseaux WHERE visite_id=? ORDER BY ordre,id`, [visiteId]),
@@ -156,7 +164,37 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     listerMateriel(visiteId),
     db.getFirstAsync(`SELECT contenu FROM notes WHERE visite_id=?`, [visiteId]),
     trame.id === 'pre_allumage' ? listerAliasesPreAllumage(visiteId) : Promise.resolve({}),
+    db.getAllAsync('SELECT id,libelle,valeur,unite FROM points_mesure_visite WHERE visite_id=? ORDER BY cree_le,id', [visiteId]),
   ]);
+
+  // Same stored structured network authority as the Excel export.
+  // Never rewrite legacy columns in SQLite merely to construct a report.
+  const programmed = await readNetworkProgrammingForVisit(db, visiteId);
+  const reseauxRapport = reseaux.map((network) => {
+    const extra = programmed.get(network.id);
+    if (!extra) return network;
+    const result = { ...network };
+    if (extra.points?.length) {
+      try {
+        const series = networkTemperatureSeries(extra.points);
+        result.t_ext_c = series.ext;
+        result.t_dep_c = series.dep;
+      } catch (error) {
+        throw new Error('Courbe du réseau « ' + (network.nom_reseau || network.id) + ' » invalide : ' + String(error.message || error));
+      }
+    }
+    const hasSchedule = extra.schedule && Object.values(extra.schedule.days || {})
+      .some((periods) => Array.isArray(periods) && periods.length);
+    if (hasSchedule) {
+      try {
+        validateWeeklySchedule(extra.schedule);
+        result.consigne_programme_horaire = formatWeeklySchedule(extra.schedule);
+      } catch (error) {
+        throw new Error('Programme du réseau « ' + (network.nom_reseau || network.id) + ' » invalide : ' + String(error.message || error));
+      }
+    }
+    return result;
+  });
 
   const photosRemar = (trame.familyId || trame.id)==='remar_v1'
     ? await lireContextePhotosRemar(visiteId)
@@ -173,14 +211,22 @@ export async function chargerDonneesVisiteRapport(visiteId) {
   const ctrlMap = new Map(controles.map((r) => [`${r.section_code}||${r.cle}`, r]));
   const sections = [];
 
-  for (const panelId of trame.ui?.tabOrder || []) {
+  // PA technical rubriques remain reportable even though the UI hides their tabs.
+  const reportOrder = modelePreAllumage
+    ? [...new Set([...PA_REPORT_ORDER,
+        ...modelePreAllumage.rubriques.map((r) => r.panel_id).filter((p) => p?.startsWith('p-pa-'))])]
+    : (trame.ui?.tabOrder || []);
+  const paLocals = new Map((modelePreAllumage?.locaux || []).map((l) => [l.id, l.nom]));
+  for (const panelId of reportOrder) {
     if (panelId === 'SEP' || ['p-equip', 'p-remarques', 'p-photos'].includes(panelId)) continue;
     const groups = [];
 
     if (modelePreAllumage && panelId.startsWith('p-pa-')) {
       for (const rubrique of modelePreAllumage.rubriques.filter((r) => r.panel_id === panelId)) {
+        const localName = paLocals.get(rubrique.local_id);
         groups.push({
-          title: rubrique.nom,
+          title: localName && !String(rubrique.nom || '').includes(localName)
+            ? `${localName} — ${rubrique.nom}` : rubrique.nom,
           sectionCode: rubrique.section_code,
           localId: rubrique.local_id,
           rows: rubrique.champs.map((c) => {
@@ -221,6 +267,10 @@ export async function chargerDonneesVisiteRapport(visiteId) {
         sectionCode: code,
         rows: (fields || []).map((f) => {
           const remplacement = remarDynamic.replacements.get([panelId,section,f.cle].join('||'));
+          const dynamiquePrioritaire = remarDynamicOwnsMapping({ panelId, section, cle: f.cle }, remarDynamic);
+          // When a dynamic instance owns the official cell but is currently
+          // empty, the legacy control must not be resurrected in PDF/Word.
+          if (dynamiquePrioritaire && !remplacement) return null;
           const controle = remplacement && f.type==='controle'
             ? remplacement : ctrlMap.get(`${code}||${f.cle}`);
           return {
@@ -233,12 +283,12 @@ export async function chargerDonneesVisiteRapport(visiteId) {
                 ? formaterReleves(compteurs.filter((c) => c.destination === f.cle))
                 : (champMap.get(`${code}||${f.cle}`) || ''))),
           };
-        }).filter((r) => !replacedSections || r.avis || r.comment),
+        }).filter((r) => r && (!replacedSections || r.avis || r.comment)),
       });
     }
 
-    if (panelId==='p-remar-reseaux'&&reseaux.length) {
-      reseaux.forEach((reseau,i)=>groups.push({
+    if (panelId==='p-remar-reseaux'&&reseauxRapport.length) {
+      reseauxRapport.forEach((reseau,i)=>groups.push({
         title:reseau.nom_reseau||`Réseau ${i+1}`,
         rows:[
           {label:'Nom réseau',type:'champ',comment:reseau.nom_reseau||''},
@@ -275,7 +325,7 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     }
 
     if (panelId === 'p-regulation') {
-      reseaux.forEach((r, i) => groups.push({
+      reseauxRapport.forEach((r, i) => groups.push({
         title: r.nom_reseau || `Réseau n°${i + 1}`,
         rows: [
           { label: 'T°ext(°C)', type: 'champ', avis: '', comment: r.t_ext_c || '' },
@@ -309,6 +359,24 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     });
   }
 
+  if (pointsLibres.length) {
+    sections.push({
+      panelId: 'p-mesures-complementaires',
+      title: 'MESURES COMPLÉMENTAIRES',
+      banner: true,
+      breakBefore: false,
+      groups: [{
+        title: 'Relevés complémentaires',
+        rows: pointsLibres.map((point) => ({
+          label: point.libelle || 'Mesure',
+          storageKey: point.id,
+          type: 'champ', avis: '',
+          comment: [point.valeur ?? '', point.unite ?? ''].filter((v) => String(v).trim()).join(' '),
+        })),
+      }],
+    });
+  }
+
   const localName = court(visite.nom_local_db || titreLocalDepuisChamps(champs), 80) || 'Installation technique';
   const localType = court(visite.type_local_db || typeLocalDepuisChamps(champs), 80);
   return {
@@ -319,8 +387,9 @@ export async function chargerDonneesVisiteRapport(visiteId) {
     photos,
     photosRemar,
     materiel,
-    reseaux,
+    reseaux: reseauxRapport,
     compteurs,
+    pointsLibres,
     note: note?.contenu || '',
     aliases,
   };
@@ -425,7 +494,13 @@ function reservesHtml(data, config) {
   const lignes = data.remarques || [];
   if (!lignes.length && !config.afficherLignesVides) return '';
   const rows = lignes.length ? lignes : [{ poste: '', prestation: '', cree_le: '' }];
-  return `<section class="reportSection pageBreakBefore"><div class="sectionBanner">REMARQUES PARTICULIÈRES</div><table class="reserveTable"><thead><tr><th>Poste</th><th>Prestation</th><th>Date de la réserve</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(r.poste || 'Remarques particulières')}</td><td>${esc(r.prestation || '/')}</td><td class="reserveDateCell">${esc(dateFr(String(r.cree_le || '').slice(0, 10)) || '/')}</td></tr>`).join('')}</tbody></table></section>`;
+  return `<section class="reportSection pageBreakBefore"><div class="sectionBanner">REMARQUES PARTICULIÈRES</div><table class="reserveTable"><thead><tr><th>Poste</th><th>Prestation</th><th>Date de la réserve</th></tr></thead><tbody>${rows.map((r) => `<tr><td>${esc(r.poste || 'Remarques particulières')}</td><td>${esc(r.prestation || '/')}</td><td class="reserveDateCell">${esc(dateFr(String(r.intranet_date_reserve || r.cree_le || '').slice(0, 10)) || '/')}</td></tr>`).join('')}</tbody></table></section>`;
+}
+
+function notesHtml(data, config) {
+  // Notes may be internal. The user must explicitly opt in for a client report.
+  if (config.notes !== true || !String(data.note || '').trim()) return '';
+  return `<section class="reportSection"><div class="sectionBanner">NOTE DE VISITE</div><div class="groupBlock" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(data.note)}</div></section>`;
 }
 
 function materielHtml(data, config) {
@@ -444,13 +519,17 @@ async function photosHtml(data, config, photosConfig, output = 'pdf') {
   if (!items.length) return '';
 
   const prepared = [];
+  const failed = [];
   for (const p of items) {
     const src = await imageRapportBase64(p.uri, output);
     if (src) prepared.push({ ...p, src });
+    else failed.push(p.id);
   }
-  if (!prepared.length) return '';
+  if (failed.length) throw new Error(
+    'Rapport incomplet : ' + failed.length + ' photo(s) sélectionnée(s) illisible(s). ' +
+    'Aucun document présenté comme complet. IDs : ' + failed.join(', '));
 
-  return chunk(prepared, 6).map((page) => `<section class="photoPage pageBreakBefore"><div class="sectionBanner">PHOTOGRAPHIES</div><div class="photoGrid">${page.map((p) => `<div class="photoCard"><div class="photoImageWrap"><img src="${p.src}"/></div><div class="photoCaption">${esc(p.label || 'Photo')}</div></div>`).join('')}</div></section>`).join('');
+  return chunk(prepared, 6).map((page) => `<section class="photoPage pageBreakBefore"><div class="sectionBanner">PHOTOGRAPHIES</div><div class="photoGrid">${page.map((p) => `<div class="photoCard" data-photo-id="${esc(p.id)}"><div class="photoImageWrap"><img src="${p.src}"/></div><div class="photoCaption">${esc(p.label || 'Photo')}</div></div>`).join('')}</div></section>`).join('');
 }
 
 async function siteHtml(data, config, photosConfig, output = 'pdf') {
@@ -459,7 +538,7 @@ async function siteHtml(data, config, photosConfig, output = 'pdf') {
   const photos = await photosHtml(data, config, photosConfig, output);
   const materiel = materielHtml(data, config);
   const local = data.visite.nom_local || data.visite.type_local || 'Installation technique';
-  return `<article class="siteReport"><div class="siteStart"><h1>${esc(data.visite.nom_site || 'Site')}</h1><h4>${esc(local)}</h4></div>${sections}${reserves}${photos}${materiel}</article>`;
+  return `<article class="siteReport"><div class="siteStart"><h1>${esc(data.visite.nom_site || 'Site')}</h1><h4>${esc(local)}</h4></div>${sections}${notesHtml(data, config)}${reserves}${photos}${materiel}</article>`;
 }
 
 function logoHtml(classe = 'reportLogo') {
