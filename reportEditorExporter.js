@@ -453,6 +453,12 @@ async function imprimerPdfParFragments({ datas, config, photosConfig, onProgress
   }
 }
 
+// Reuse the same bounded eight-photo print jobs for heavy previews;
+ // this returns a TEMPORARY file that callers must clean up after sharing.
+export async function preparerApercuPdfFragmente({ datas, config, photosConfig }) {
+  return imprimerPdfParFragments({ datas, config, photosConfig });
+}
+
 async function exporterUnFormatEdite({ datas, config, photosConfig, format, dossier }) {
   const clientNom = datas[0]?.visite?.nom_client || 'Rapport';
   const localNom = datas[0]?.visite?.nom_local || datas[0]?.visite?.type_local || null;
