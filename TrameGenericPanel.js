@@ -17,6 +17,7 @@ import { PreAllumageInstallationPanelBusiness } from './PreAllumageInstallationP
 import { PreAllumageConclusionPanel } from './PreAllumageConclusionPanel.js';
 import { BoundedLruMap } from './boundedCache.js';
 import { getNavigationScrollOffset, hydrateNavigationState, setNavigationScrollOffset } from './navigationMemory.js';
+import { restoreListScrollOffset } from './useListScrollMemory.js';
 import { upsertControlePartiel } from './controlDb.js';
 import { feedback } from './fieldFeedback.js';
 import { ButtonGlow } from './ButtonGlow.js';
@@ -349,18 +350,21 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
 
   useEffect(() => {
     let alive = true;
+    let timer = null;
     hydrateNavigationState(navKey).then((state) => {
       if (!alive) return;
       const offset = Number(state?.scrollY || 0);
-      if (offset) setTimeout(() => listRef.current?.scrollToOffset?.({ offset, animated: false }), 50);
+      if (offset && listeSections.length) timer = setTimeout(() => {
+        if (alive) restoreListScrollOffset(listRef.current, offset);
+      }, 50);
     }).catch(() => {});
-    return () => { alive = false; };
-  }, [navKey]);
+    return () => { alive = false; if (timer) clearTimeout(timer); };
+  }, [navKey, listeSections.length]);
 
   useEffect(() => {
     const offset = getNavigationScrollOffset(navKey);
     if (!offset || !listeSections.length) return undefined;
-    const timer = setTimeout(() => listRef.current?.scrollToOffset?.({ offset, animated: false }), 50);
+    const timer = setTimeout(() => restoreListScrollOffset(listRef.current, offset), 50);
     return () => clearTimeout(timer);
   }, [navKey, listeSections.length]);
 

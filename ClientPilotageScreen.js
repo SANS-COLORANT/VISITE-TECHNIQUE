@@ -183,7 +183,8 @@ export function ClientPilotageScreen({ route, navigation }) {
   const { clientId, nomClient } = route?.params || {};
   const [loading, setLoading] = useState(true);
   const [matrix, setMatrix] = useState(null);
-  const [stats, setStats] = useState(new Map());
+  const [stats, setStats] = useState(null); // null means not yet calculated, never reliable zeroes
+  const [statsError, setStatsError] = useState(null);
   const [groupes, setGroupes] = useState([]);
   const [memberships, setMemberships] = useState([]);
   const [groupeActif, setGroupeActif] = useState(null);
@@ -196,26 +197,52 @@ export function ClientPilotageScreen({ route, navigation }) {
   const [selected, setSelected] = useState(null);
   const [photos, setPhotos] = useState({});
   const [photoZoom, setPhotoZoom] = useState(null);
+  // LOT05/F12: late photos of a closed/previous cell must never change this one.
+  const cellPhotoGenerationRef = useRef(0);
+  const pilotageLoadGenerationRef = useRef(0);
 
   const charger = useCallback(async () => {
+    const generation = ++pilotageLoadGenerationRef.current;
     setLoading(true);
+    setStats(null);
+    setStatsError(null);
     try {
       const [m, gs, ms] = await Promise.all([
         getClientTechnicalMatrix(clientId),
         listerGroupesClient(clientId),
         listerAppartenancesClient(clientId),
       ]);
-      const nextStats = await getStatsSitesPatrimoine(clientId);
+      if (generation !== pilotageLoadGenerationRef.current) return;
+      // The matrix is usable even when patrimony statistics cannot be refreshed.
       setMatrix(m);
       setGroupes(gs || []);
       setMemberships(ms || []);
-      setStats(nextStats);
+      setLoading(false);
+      try {
+        // Preserve the synchronisation done inside this business service.
+        const nextStats = await getStatsSitesPatrimoine(clientId);
+        if (generation === pilotageLoadGenerationRef.current) {
+          setStats(nextStats);
+          setStatsError(null);
+        }
+      } catch (e) {
+        if (generation === pilotageLoadGenerationRef.current) setStatsError(String(e?.message || e));
+      }
     } catch (e) {
+      if (generation !== pilotageLoadGenerationRef.current) return;
       Alert.alert('Pilotage', String(e?.message || e));
-    } finally { setLoading(false); }
+    } finally {
+      if (generation === pilotageLoadGenerationRef.current) setLoading(false);
+    }
   }, [clientId]);
 
-  useEffect(() => { charger(); }, [charger]);
+  useEffect(() => {
+    charger();
+    return () => {
+      pilotageLoadGenerationRef.current += 1;
+      cellPhotoGenerationRef.current += 1;
+    };
+  }, [charger]);
 
   const siteIdsGroupe = useMemo(() => {
     if (!groupeActif) return null;
@@ -261,6 +288,7 @@ export function ClientPilotageScreen({ route, navigation }) {
   }, [memberships]);
 
   const resume = useMemo(() => {
+    if (!(stats instanceof Map)) return null;
     let reservesOuvertes = 0, reservesLevees = 0, actifs = 0, aSurveiller = 0;
     for (const site of scopedSites) {
       const s = stats.get(site.id) || {};
@@ -282,10 +310,24 @@ export function ClientPilotageScreen({ route, navigation }) {
     return result;
   }, [filteredRecords]);
 
+  const closeCell = () => {
+    cellPhotoGenerationRef.current += 1;
+    setSelected(null);
+    setPhotos({});
+  };
   const openCell = async (site, category, cell) => {
+    const generation = ++cellPhotoGenerationRef.current;
     setSelected({ site, category, cell });
-    const entries = await mapAvecConcurrence(cell.issues || [], 4, async (issue) => [issueKey(issue), await getMatrixCellPhotos(issue)]);
-    setPhotos(Object.fromEntries(entries));
+    setPhotos({});
+    try {
+      const entries = await mapAvecConcurrence(cell.issues || [], 4, async (issue) => [issueKey(issue), await getMatrixCellPhotos(issue)]);
+      if (generation === cellPhotoGenerationRef.current) setPhotos(Object.fromEntries(entries));
+    } catch (e) {
+      if (generation === cellPhotoGenerationRef.current) {
+        setPhotos({});
+        Alert.alert('Photos indisponibles', String(e?.message || e));
+      }
+    }
   };
 
   const activeFilterCount = useMemo(() => [filters.trame !== 'all', filters.status !== 'all', filters.minSeverity > 0, filters.category !== 'all', !!filters.search.trim()].filter(Boolean).length, [filters]);
@@ -347,7 +389,10 @@ export function ClientPilotageScreen({ route, navigation }) {
         <Stat value={technicalSummary.nr} label="À compléter" sub="N.R + N.V" />
       </View>
       <Text style={[styles.sectionLabel, { marginTop: 18, marginBottom: 8 }]}>Patrimoine du périmètre</Text>
-      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}><Stat value={resume.sites} label="Sites"/><Stat value={resume.reservesOuvertes} label="Réserves ouvertes" sub={`${resume.reservesLevees} levée(s)`}/><Stat value={resume.actifs} label="Équipements actifs" sub={`${resume.aSurveiller} à surveiller`}/></View>
+      {statsError ? <TouchableOpacity accessibilityRole="button" onPress={charger} style={{ paddingVertical: 8 }}>
+        <Text style={{ color: COLORS.red, fontSize: 11 }}>Statistiques indisponibles · Toucher pour réessayer</Text>
+      </TouchableOpacity> : null}
+      <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8 }}><Stat value={resume?.sites ?? '—'} label="Sites"/><Stat value={resume?.reservesOuvertes ?? '—'} label="Réserves ouvertes" sub={resume ? `${resume.reservesLevees} levée(s)` : 'Statistiques indisponibles'}/><Stat value={resume?.actifs ?? '—'} label="Équipements actifs" sub={resume ? `${resume.aSurveiller} à surveiller` : 'Statistiques indisponibles'}/></View>
     </View>
 
     <Modal visible={filterVisible} transparent animationType="fade" onRequestClose={() => setFilterVisible(false)}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { width: '94%', maxWidth: 720, maxHeight: '90%' }]}><ScrollView keyboardShouldPersistTaps="handled"><View style={{ flexDirection: 'row', alignItems: 'center' }}><Text style={[styles.modalTitle, { flex: 1 }]}>Filtres cartographie</Text><TouchableOpacity onPress={() => setFilters(DEFAULT_FILTERS)}><Text style={{ color: COLORS.primary, fontFamily: FONTS.bold }}>Réinitialiser</Text></TouchableOpacity></View>
@@ -363,7 +408,7 @@ export function ClientPilotageScreen({ route, navigation }) {
       <Text style={[styles.fieldLabel, { marginTop: 14 }]}>Colonnes</Text><View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 6, marginTop: 6 }}>{PILOTAGE_EXPORT_COLUMNS.map((column) => <Chip key={column.key} label={column.label} active={exportColumns.includes(column.key)} onPress={() => toggleColumn(column.key)}/>)}</View>
       <View style={{ flexDirection: 'row', gap: 8, marginTop: 16 }}><TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} disabled={exportBusy} onPress={() => setExportVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} disabled={exportBusy || !exportColumns.length} onPress={() => faireExport({ columns: exportColumns, presetStatuses: exportPreset === 'view' ? [] : (PILOTAGE_EXPORT_PRESETS[exportPreset]?.statuses || []), label: `${viewLabel} · ${exportPreset === 'view' ? 'Vue courante' : PILOTAGE_EXPORT_PRESETS[exportPreset]?.label || 'Extraction'}` })}><ButtonGlow /><Text style={styles.btnPrimaryText}>{exportBusy ? 'Création…' : 'Créer et partager'}</Text></TouchableOpacity></View></ScrollView></View></View></Modal>
 
-    <Modal visible={!!selected} transparent animationType="fade" onRequestClose={() => setSelected(null)}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxWidth: 720, width: '94%', maxHeight: '88%' }]}>{selected ? <ScrollView><Text style={styles.modalTitle}>{selected.site.nom_site} · {selected.category.label}</Text><Text style={{ color: COLORS.muted, marginTop: 3 }}>{selected.cell.s} S · {selected.cell.ns} N.S · {selected.cell.nr} N.R · {selected.cell.so} S.O · {selected.cell.nv} N.V</Text>{selected.cell.issues.length ? selected.cell.issues.map((issue, idx) => { const pics = photos[issueKey(issue)] || []; return <View key={`${issueKey(issue)}-${idx}`} style={{ marginTop: 12, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 12, padding: 11 }}><Text style={{ fontFamily: FONTS.black, color: Number(issue.criticite || 0) >= 4 ? COLORS.red : COLORS.orange }}>{issue.reference_libelle || issue.cle} · {reserveSeverityLabel(issue.criticite)}</Text><Text style={{ marginTop: 5, color: COLORS.ink }}>{issue.prestation || issue.commentaire || 'Anomalie à préciser'}</Text>{pics.length ? <ScrollView horizontal style={{ marginTop: 8 }}>{pics.map((p) => <TouchableOpacity key={p.id} onPress={() => setPhotoZoom({ ...p, issue })}><PhotoVariantImage uri={p.uri} variant="thumb" style={{ width: 105, height: 78, borderRadius: 8, marginRight: 7, backgroundColor: '#eee' }} resizeMode="cover"/></TouchableOpacity>)}</ScrollView> : <Text style={{ marginTop: 7, fontSize: 10, color: COLORS.muted }}>Aucune photo liée à ce problème.</Text>}</View>; }) : <Text style={{ marginTop: 12, color: COLORS.muted }}>Aucune réserve N.S dans cette cellule.</Text>}<View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}><TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => { const s = selected.site; setSelected(null); navigation.navigate('SiteLocals', { siteId: s.id, nomSite: s.nom_site, clientId, nomClient }); }}><ButtonGlow /><Text style={styles.btnPrimaryText}>Ouvrir le site</Text></TouchableOpacity><TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={() => setSelected(null)}><Text style={styles.btnSecondaryText}>Fermer</Text></TouchableOpacity></View></ScrollView> : null}</View></View></Modal>
+    <Modal visible={!!selected} transparent animationType="fade" onRequestClose={closeCell}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxWidth: 720, width: '94%', maxHeight: '88%' }]}>{selected ? <ScrollView><Text style={styles.modalTitle}>{selected.site.nom_site} · {selected.category.label}</Text><Text style={{ color: COLORS.muted, marginTop: 3 }}>{selected.cell.s} S · {selected.cell.ns} N.S · {selected.cell.nr} N.R · {selected.cell.so} S.O · {selected.cell.nv} N.V</Text>{selected.cell.issues.length ? selected.cell.issues.map((issue, idx) => { const pics = photos[issueKey(issue)] || []; return <View key={`${issueKey(issue)}-${idx}`} style={{ marginTop: 12, borderWidth: 1, borderColor: 'rgba(22,21,15,0.1)', borderRadius: 12, padding: 11 }}><Text style={{ fontFamily: FONTS.black, color: Number(issue.criticite || 0) >= 4 ? COLORS.red : COLORS.orange }}>{issue.reference_libelle || issue.cle} · {reserveSeverityLabel(issue.criticite)}</Text><Text style={{ marginTop: 5, color: COLORS.ink }}>{issue.prestation || issue.commentaire || 'Anomalie à préciser'}</Text>{pics.length ? <ScrollView horizontal style={{ marginTop: 8 }}>{pics.map((p) => <TouchableOpacity key={p.id} onPress={() => setPhotoZoom({ ...p, issue })}><PhotoVariantImage uri={p.uri} variant="thumb" style={{ width: 105, height: 78, borderRadius: 8, marginRight: 7, backgroundColor: '#eee' }} resizeMode="cover"/></TouchableOpacity>)}</ScrollView> : <Text style={{ marginTop: 7, fontSize: 10, color: COLORS.muted }}>Aucune photo liée à ce problème.</Text>}</View>; }) : <Text style={{ marginTop: 12, color: COLORS.muted }}>Aucune réserve N.S dans cette cellule.</Text>}<View style={{ flexDirection: 'row', gap: 8, marginTop: 14 }}><TouchableOpacity style={[styles.btnPrimary, { flex: 1 }]} onPress={() => { const s = selected.site; closeCell(); navigation.navigate('SiteLocals', { siteId: s.id, nomSite: s.nom_site, clientId, nomClient }); }}><ButtonGlow /><Text style={styles.btnPrimaryText}>Ouvrir le site</Text></TouchableOpacity><TouchableOpacity style={[styles.btnSecondary, { flex: 1 }]} onPress={closeCell}><Text style={styles.btnSecondaryText}>Fermer</Text></TouchableOpacity></View></ScrollView> : null}</View></View></Modal>
     <Modal visible={!!photoZoom} transparent animationType="fade" onRequestClose={() => setPhotoZoom(null)}><View style={styles.modalOverlay}><View style={[styles.modalSheet, { width: '96%', maxWidth: 900 }]}>{photoZoom ? <><PhotoVariantImage uri={photoZoom.uri} variant="preview" resizeMode="contain" style={{ width: '100%', height: 430, backgroundColor: '#111', borderRadius: 10 }}/><Text style={{ marginTop: 9, fontFamily: FONTS.bold }}>{photoZoom.label || photoZoom.issue?.reference_libelle || photoZoom.issue?.cle}</Text><TouchableOpacity style={[styles.btnPrimary, { marginTop: 12 }]} onPress={() => setPhotoZoom(null)}><ButtonGlow /><Text style={styles.btnPrimaryText}>Revenir au pilotage</Text></TouchableOpacity></> : null}</View></View></Modal>
   </ScrollView>;
 }
