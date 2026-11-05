@@ -52,6 +52,11 @@ test('F03: site prewarm exposes remote-only placeholder and never mutates', asyn
   let writes = 0;
   const db = {
     getAllAsync: async (sql) => {
+      if (sql.includes('AND NOT EXISTS (SELECT 1 FROM installations i')) return [{
+        remote_local_id: 'r77', remote_site_id: 'remoteSite',
+        designation: 'Chaufferie Intranet', remote_trame_id: '16',
+        remote_trame_nom: 'REMAR', remote_client_id: 'clientRemote',
+      }];
       if (sql.includes('FROM installations i')) return [{ installation_id: 'installed', nom: 'SST A' }];
       if (sql.includes('FROM api_local_links l')) return [{
         remote_local_id: 'r77', remote_site_id: 'remoteSite',
