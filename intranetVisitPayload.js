@@ -806,9 +806,13 @@ function archiverReseauxRcuSansDestination(networks, groups, assignments, matchi
   }
   // Garder une trace explicite des collisions de provenance/noms, même si
   // tous les relevés non appariés ont pu être joints à la visite.
-  if (matchingIssues?.length && !preserveFreeText(issues,
-    'Réseau de chaleur / ambiguïtés de rattachement', matchingIssues.join('\n'))) {
-    issues.push(...matchingIssues);
+  // Le diagnostic générique « N réseaux non rattachés » est déjà expliqué
+  // par chacune des notes conservées. Éviter une quatrième note inutile.
+  const collisions = (matchingIssues || []).filter((message) =>
+    !/^\d+ réseau\(x\) METRA ne peuvent pas être rattachés/i.test(message));
+  if (collisions.length && !preserveFreeText(issues,
+    'Réseau de chaleur / ambiguïtés de rattachement', collisions.join('\n'))) {
+    issues.push(...collisions);
   }
 }
 
