@@ -1,4 +1,5 @@
 import { formaterReleves } from './releveMultiligne.js';
+import { filtrerLignesRapport } from './reportRowVisibility.js';
 import * as FileSystem from 'expo-file-system';
 import * as Print from 'expo-print';
 import * as ImageManipulator from 'expo-image-manipulator';
@@ -470,7 +471,7 @@ async function imageRapportBase64(uri, output = 'pdf') {
 }
 
 function tableHtml(group, afficherLignesVides) {
-  const rows = (group.rows || []).filter((r) => afficherLignesVides || String(r.avis || r.comment || '').trim());
+  const rows = filtrerLignesRapport(group.rows, afficherLignesVides);
   if (!rows.length) return '';
 
   return `<div class="groupBlock"><h3>${esc(group.title)}</h3><table class="techTable"><thead><tr><th class="labelCol">Intitulé</th><th class="avisCol">Avis</th><th>Commentaire</th></tr></thead><tbody>${rows.map((r) => {

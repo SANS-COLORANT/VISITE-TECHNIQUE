@@ -74,6 +74,8 @@ const CONTRACT_CHECKS = [
   ['LOT05 search, cell photo and SectionList regressions', '.github/scripts/test_lot05_async_context.js'],
   ['LOT05 remaining workstreams and shared snapshot regressions', '.github/scripts/test_lot05_workstreams.js'],
   ['LOT06 report/export source and behavior regressions', '.github/scripts/test_lot06_report_fidelity.js'],
+  ['visit date and list persistence', '.github/scripts/test_visit_date_persistence.js'],
+  ['PDF Word empty rows', '.github/scripts/test_report_row_visibility.js'],
   ['instant camera runtime', '.github/scripts/check_camera_runtime_contract.js'],
   ['field feedback (tablet post-its) contract', '.github/scripts/check_field_feedback_contract.js'],
 ];
