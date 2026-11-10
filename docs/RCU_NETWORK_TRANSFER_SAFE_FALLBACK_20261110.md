@@ -1,24 +1,26 @@
-# RCU : réseaux non attribuables aux rubriques Symfony
+# RCU – Cases réseau 1 à 6 / correspondance Intranet
 
-Incident : 3 réseaux locaux présents dans une visite Réseau de chaleur
-mais sans sous-catégories Intranet identifiables par ID de provenance ou nom.
-L'ancien comportement bloquait les 3 réseaux.
+Le modèle Excel contient six blocs réseaux aux lignes 91, 101, 111, 121, 131 et 141.
+Erreur ancienne : le sérialiseur comparait le nom du réseau local à celui des sous-catégories Symfony.
+Un réseau nommé « Chauffage bâtiment A » ne correspondait pas à « Réseau n°1 ».
 
-Nouvelle politique spécifique `reseau_chaleur_v1` :
-- Réseau mappable de manière certaine : envoyer chaque mesure dans son critère.
-- Champ métier présent mais sans critère dédié : archive en note de visite.
-- Réseau sans branche Intranet identifiée : archive des 6 attributs métier
-  (nom, températures, courbe, TNC, programme), avec ordre d'origine.
-- Ambiguïté de noms ou provenance : ne pas deviner ; diagnostic en note.
-- Les critères hors réseau et le nombre de critères distants restent identiques.
-- Données SQLite et Excel originales inchangées.
-- Plus de 100 notes ou >5 MiB : garde-fou serveur inchangé, envoi refusé.
-- Si l'archive en notes n'est pas possible : refus conservatoire.
-- ICPE, REMAR et autres trames : correspondance historique inchangée.
+Règle corrigée : si la trame Symfony liée porte explicitement Réseau 1..6 comme
+groupe de critères ou comme case texte, utiliser ces emplacements dans l’ordre
+des réseaux enregistrés dans la visite (avec priorité à la provenance serveur
+lorsqu'elle existe). Trois réseaux remplissent les cases 1,2,3 ; 4,5,6 restent `/`.
 
-IMPORTANT : la note est une conservation lisible dans la visite, PAS un
-remplissage structurel des critères réseau Symfony absents. Une API serveur
-fournissant des identifiants de réseau stables reste nécessaire pour une
-parité complète. Tests d'une visite RCU réelle à exécuter avant production.
+Lorsque le nombre dépasse la capacité six, les réseaux 7+ sont regroupés
+dans le sixième emplacement avec des sauts de ligne et les noms des réseaux.
+Les 6 champs métier sont représentés dans la case texte ou dans les colonnes
+correspondantes des groupes. Les limites de longueur des critères restent actives.
 
-Régression automatique : `node .github/scripts/test_rcu_network_intranet_fallback.js`.
+Si le référentiel Symfony ne publie aucune case numérotée et qu’aucun
+rapprochement par ID de provenance ou nom exact n’existe, aucun critère distant
+n'est inventé. Une erreur explicite signale les cases reconnues.
+La solution précédente « déplacer les trois réseaux dans des notes » est retirée.
+Pas de mutation SQLite, pas de modification Excel, ICPE/REMAR inchangés.
+
+Tests : node .github/scripts/test_rcu_network_six_slots.js ; npm run verify:metra.
+Validation production réelle nécessaire : la liste des sous-catégories /
+critères Symfony doit être obtenue du local concerné et un POST de recette
+doit confirmer les contenus avant déploiement opérationnel.

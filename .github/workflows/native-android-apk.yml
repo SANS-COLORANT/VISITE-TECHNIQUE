@@ -26,6 +26,7 @@ on:
       - fix/metra-lot06-report-fidelity-20261105
       - fix/metra-date-photos-report-apk-20261110
       - fix/rcu-network-intranet-fallback-20261110
+      - fix/rcu-six-network-slots-20261110
     paths:
       - '**/*.js'
       - '**/*.json'

@@ -753,67 +753,133 @@ function mapNetworksToRemoteGroups(networks, groups, provenanceRows, issues) {
 }
 
 /**
- * RCU (Réseau de chaleur) : les six blocs de réseaux du modèle Excel ne sont
- * pas nécessairement des sous-catégories de la trame Symfony publiée.
- * Une absence de groupe n'est pas une preuve de données mal importées.
- *
- * Ne jamais deviner une destination serveur par ordre d'affichage :
- * envoyer les champs non attribuables sous forme de notes de visite,
- * sans effacer les lignes reseaux SQLite ni modifier les critères figés.
+ * RCU : les cases "Réseau 1..6" sont des emplacements, pas des noms de
+ * réseaux locaux. Les correspondances se font par numéro d'emplacement
+ * explicite dans le référentiel Symfony, puis par ordre du réseau METRA.
+ * Un identifiant Symfony de provenance valide reste prioritaire.
  */
-const RCU_NETWORK_DETAILS = Object.freeze([
-  ['nom_reseau', 'Nom du réseau'],
-  ['t_ext_c', 'Température extérieure (°C)'],
-  ['t_dep_c', 'Température départ (°C)'],
-  ['courbe_de_chauffe', 'Courbe de chauffe'],
-  ['tnc', 'TNC'],
-  ['consigne_programme_horaire', 'Consigne / programmation horaire'],
+const RCU_SLOT_COLUMNS=Object.freeze([
+  ['nom_reseau','Nom du réseau'],['t_ext_c','T° extérieure (°C)'],
+  ['t_dep_c','T° départ (°C)'],['courbe_de_chauffe','Courbe de chauffe'],
+  ['tnc','TNC'],['consigne_programme_horaire','Consigne / programme horaire'],
 ]);
+function rcuSlotNumber(name,max) {
+  const n=numberedNetwork(name);
+  return n!==null && n>=1 && n<=max ? n : null;
+}
+function rcuFullNetwork(network,index) {
+  const lines=['Réseau '+index+' : '+(clean(network.nom_reseau)||'Sans nom')];
+  for(const [key,title] of RCU_SLOT_COLUMNS.slice(1))
+    if(meaningfulRemote(network[key])!==null)lines.push(title+' : '+clean(network[key]));
+  return lines.join('\n');
+}
+function rcuColumnText(rows,column,slot) {
+  if(!rows.length)return null;
+  if(rows.length===1)return rows[0][column];
+  return rows.map((r,i)=>'Réseau '+(slot+i)+' ('+(clean(r.nom_reseau)||'sans nom')+
+    ') : '+(meaningfulRemote(r[column])??'/')).join('\n');
+}
+function rcuNetworkPlan(networks,groups,categories,provenanceRows,max,issues) {
+  const rows=networks||[], capacity=Number(max)||6;
+  const slots=new Map(),groupRows=new Map(),directRows=new Map(),used=new Set();
+  const groupKeys=new Set(groups.map(g=>remoteNetworkKey(g.category?.id,g.subCategory?.id)));
+  const issue=message=>issues.push('Réseau de chaleur : '+message);
+  const groupKey=g=>remoteNetworkKey(g.category?.id,g.subCategory?.id);
+  const directKey=(c,s,k)=>remoteNetworkKey(c.id,s.id)+':'+clean(k.id);
 
-function archiverReseauxRcuSansDestination(networks, groups, assignments, matchingIssues, issues) {
-  const referenced = new Map();
-  for (const group of groups) {
-    const network = assignments.get(remoteNetworkKey(group.category?.id, group.subCategory?.id));
-    if (!network?.id) continue;
-    if (!referenced.has(String(network.id))) referenced.set(String(network.id), new Set());
-    const supported = referenced.get(String(network.id));
-    for (const criterion of group.subCategory?.criteres || []) {
-      const column = networkColumn(criterion?.nom);
-      if (column && criterion?.avisApplicable !== true) supported.add(column);
+  for(const group of groups) {
+    const number=rcuSlotNumber(group.subCategory?.nom,capacity) ??
+      rcuSlotNumber(group.category?.nom,capacity);
+    if(!number)continue;
+    if(slots.has(number))issue('doublon de groupe Réseau '+number+' dans le référentiel Intranet.');
+    else slots.set(number,{type:'group',group});
+  }
+  for(const category of categories||[])for(const sub of category.sousCategories||[]){
+    if(groupKeys.has(remoteNetworkKey(category.id,sub.id)))continue;
+    for(const criterion of sub.criteres||[]){
+      const number=rcuSlotNumber(criterion.nom,capacity);
+      if(!number||criterion.avisApplicable===true)continue;
+      if(slots.has(number))issue('plusieurs critères pour la case Réseau '+number+'.');
+      else slots.set(number,{type:'direct',category,sub,criterion});
     }
   }
 
-  for (const [index, network] of (networks || []).entries()) {
-    const covered = referenced.get(String(network.id)) || new Set();
-    const missing = RCU_NETWORK_DETAILS.filter(([column]) =>
-      !covered.has(column) && meaningfulRemote(network[column]) !== null);
-    // Un réseau sans aucun champ ni identité ne génère pas de note inutile.
-    if (!missing.length) continue;
-    const fullyUnmatched = covered.size === 0;
-    const label = clean(network.nom_reseau) || 'sans nom';
-    const ordre = Number.isFinite(Number(network.ordre)) ? Number(network.ordre) : index + 1;
-    const note = [
-      'Réseau local ' + (index + 1) + ' : ' + label + ' (ordre METRA : ' + ordre + ')',
-      'Conservation des valeurs sans critère Symfony explicitement correspondant.',
-      ...missing.map(([column, title]) => title + ' : ' + clean(network[column])),
-    ].join('\n');
-    const path = 'Réseau de chaleur / ' + (fullyUnmatched ? 'non rattaché' : 'champs non couverts') +
-      ' / réseau local ' + (index + 1);
-    if (!preserveFreeText(issues, path, note)) {
-      issues.push('Réseau de chaleur « ' + label +
-        ' » : impossible de conserver tous les relevés non couverts dans les notes Intranet.');
+  const provenance=new Map();
+  for(const row of provenanceRows||[]){
+    let details;try{details=JSON.parse(row.details_json||'null')}catch{}
+    const key=remoteNetworkKey(details?.remoteCategoryId,details?.remoteSubCategoryId);
+    if(key===':')continue;
+    if(!provenance.has(key))provenance.set(key,new Set());
+    provenance.get(key).add(String(row.entite_id));
+  }
+  const put=(number,networksForSlot)=>{
+    const target=slots.get(number);
+    if(!target||!networksForSlot?.length)return;
+    const key=target.type==='group'?groupKey(target.group):
+      directKey(target.category,target.sub,target.criterion);
+    (target.type==='group'?groupRows:directRows).set(key,networksForSlot);
+    networksForSlot.forEach(row=>used.add(String(row.id)));
+  };
+  const keyFor=(target)=>target.type==='group'?groupKey(target.group):
+    directKey(target.category,target.sub,target.criterion);
+
+  // Une association d'origine est plus fiable qu'une position.
+  for(const [n,target] of [...slots.entries()].sort((a,b)=>a[0]-b[0])){
+    if(target.type!=='group')continue;
+    const ids=provenance.get(groupKey(target.group))||new Set();
+    const matches=rows.filter(row=>ids.has(String(row.id)));
+    if(matches.length>1)issue('plusieurs réseaux locaux associés au groupe Réseau '+n+'.');
+    else if(matches.length===1){
+      if(used.has(String(matches[0].id)))issue('le même réseau est associé à plusieurs cases.');
+      else put(n,matches);
     }
   }
-  // Garder une trace explicite des collisions de provenance/noms, même si
-  // tous les relevés non appariés ont pu être joints à la visite.
-  // Le diagnostic générique « N réseaux non rattachés » est déjà expliqué
-  // par chacune des notes conservées. Éviter une quatrième note inutile.
-  const collisions = (matchingIssues || []).filter((message) =>
-    !/^\d+ réseau\(x\) METRA ne peuvent pas être rattachés/i.test(message));
-  if (collisions.length && !preserveFreeText(issues,
-    'Réseau de chaleur / ambiguïtés de rattachement', collisions.join('\n'))) {
-    issues.push(...collisions);
+  // "Chauffage bâtiment A" peut remplir la case Réseau 1 sans porter le nom
+  // littéral "Réseau 1". L'ordre enregistré de la liste METRA est la règle.
+  for(const [n,target] of [...slots.entries()].sort((a,b)=>a[0]-b[0])){
+    const key=keyFor(target), map=target.type==='group'?groupRows:directRows;
+    if(map.has(key))continue;
+    const row=rows[n-1];
+    if(!row||used.has(String(row.id)))continue;
+    const explicit=numberedNetwork(row.nom_reseau);
+    if(explicit!==null&&explicit!==n){
+      issue('« '+clean(row.nom_reseau)+' » est incompatible avec la case numéro '+n+'.');
+      continue;
+    }
+    put(n,[row]);
   }
+
+  // Au-delà des six emplacements déclarés, réseau 7+ après réseau 6, dans
+  // la même case, avec une ligne distincte et le nom pour chaque valeur.
+  if(rows.length>capacity && slots.has(capacity)){
+    const last=slots.get(capacity);
+    const map=last.type==='group'?groupRows:directRows,key=keyFor(last);
+    const current=map.get(key)||[];
+    const extra=rows.slice(capacity).filter(row=>!used.has(String(row.id)));
+    if(!current.length)issue('case Réseau '+capacity+' introuvable pour les réseaux supplémentaires.');
+    else if(extra.length){map.set(key,[...current,...extra]);extra.forEach(r=>used.add(String(r.id)));}
+  }
+
+  // Compatibilité des groupes non numérotés : uniquement par identité API ou
+  // nom exact, jamais par une permutation arbitraire.
+  for(const group of groups){
+    const key=groupKey(group);
+    if(groupRows.has(key))continue;
+    const label=normalize(group.subCategory?.nom);
+    const matches=rows.filter(row=>!used.has(String(row.id)) &&
+      (provenance.get(key)?.has(String(row.id))||normalize(row.nom_reseau)===label));
+    if(matches.length===1){groupRows.set(key,matches);used.add(String(matches[0].id));}
+    else if(matches.length>1)issue('plusieurs réseaux candidats pour « '+clean(group.subCategory?.nom)+' ».');
+  }
+  const remaining=rows.filter(row=>!used.has(String(row.id)));
+  if(remaining.length){
+    const valid=[...slots.keys()].sort((a,b)=>a-b);
+    issue(remaining.length+' réseau(x) sans emplacement Intranet identifié ('+
+      remaining.map(row=>clean(row.nom_reseau)||'sans nom').join(', ')+'). '+
+      'Cases reconnues : '+(valid.length?valid.join(', '):'aucune')+
+      '. Vérifie les intitulés du référentiel lié ; aucune valeur n’est déplacée en notes.');
+  }
+  return {groupRows,directRows};
 }
 
 async function frozenContext(db, visite) {
@@ -1178,7 +1244,12 @@ async function buildCriteria(db, visite, details, issues) {
     }
   }
   const remoteNetworkGroups = capabilities.networks
-    ? categories.flatMap((category) => (Array.isArray(category?.sousCategories) ? category.sousCategories : []).filter(isNetworkGroup).map((subCategory) => ({ category, subCategory }))) : [];
+    ? categories.flatMap(category=>(category.sousCategories||[])
+      .filter(sub=>isNetworkGroup(sub)||(isRcuHeatNetwork&&
+        numberedNetwork(category.nom)!==null&&(sub.criteres||[]).some(c=>networkColumn(c.nom))))
+      .map(subCategory=>({category,subCategory}))) : [];
+  const remoteNetworkGroupKeys=new Set(remoteNetworkGroups.map(group=>
+    remoteNetworkKey(group.category?.id,group.subCategory?.id)));
   // REMAR V1 représente ses réseaux dans cinq champs nommés « Réseau 1..5 »,
   // et non dans les sous-catégories de régulation ICPE/RCU. Ne jamais envoyer
   // ces cinq noms comme "/" ni exiger des groupes serveur inexistants.
@@ -1192,17 +1263,13 @@ async function buildCriteria(db, visite, details, issues) {
   // cases du référentiel officiel n'est présente dans la trame distante.
   const remarNetworkSummary=remarFixedNetworks && directRemarNetworkSlots.length===0
     ? remarNetworkSummaryTarget(categories) : null;
-  // Le RCU n'impose pas un sous-groupe Symfony par réseau Excel : les
-  // divergences de noms/IDs restent documentées en notes plutôt que de
-  // provoquer un refus collectif des trois réseaux de la visite.
-  const networkMatchingIssues = isRcuHeatNetwork ? [] : issues;
-  const networkAssignments = capabilities.networks && !remarFixedNetworks
-    ? mapNetworksToRemoteGroups(networks, remoteNetworkGroups, networkProvenances, networkMatchingIssues)
+  const rcuSlotCapacity=definition?.excel?.networks?.starts?.length||6;
+  const rcuNetworkSlots=isRcuHeatNetwork
+    ? rcuNetworkPlan(networks,remoteNetworkGroups,categories,
+      networkProvenances,rcuSlotCapacity,issues) : null;
+  const networkAssignments=!isRcuHeatNetwork&&capabilities.networks&&!remarFixedNetworks
+    ? mapNetworksToRemoteGroups(networks,remoteNetworkGroups,networkProvenances,issues)
     : new Map();
-  if (isRcuHeatNetwork) {
-    archiverReseauxRcuSansDestination(
-      networks, remoteNetworkGroups, networkAssignments, networkMatchingIssues, issues);
-  }
   if (remarFixedNetworks && networks.length>0) {
     const remoteSlots=new Set(categories.flatMap(category=>
       (category.sousCategories||[]).flatMap(subCategory=>
@@ -1244,8 +1311,13 @@ async function buildCriteria(db, visite, details, issues) {
   let ordinal = 0;
   for (const category of categories) {
     for (const subCategory of Array.isArray(category?.sousCategories) ? category.sousCategories : []) {
-      const networkGroup = capabilities.networks && isNetworkGroup(subCategory);
-      const network = networkGroup ? networkAssignments.get(remoteNetworkKey(category?.id, subCategory?.id)) : null;
+      const groupKey=remoteNetworkKey(category?.id,subCategory?.id);
+      const networkGroup=capabilities.networks&&remoteNetworkGroupKeys.has(groupKey);
+      const network=!isRcuHeatNetwork&&networkGroup?networkAssignments.get(groupKey):null;
+      const rcuGroupRows=isRcuHeatNetwork&&networkGroup
+        ?(rcuNetworkSlots.groupRows.get(groupKey)||[]):[];
+      const rcuGroupNumber=rcuSlotNumber(subCategory.nom,rcuSlotCapacity) ??
+        rcuSlotNumber(category.nom,rcuSlotCapacity) ?? 1;
       for (const criterion of Array.isArray(subCategory?.criteres) ? subCategory.criteres : []) {
         const criterionName = clean(criterion?.nom) || criterion?.id || ordinal + 1;
         const categoryName = clean(category?.nom) || `catégorie ${category?.id || '?'}`;
@@ -1262,9 +1334,11 @@ async function buildCriteria(db, visite, details, issues) {
         const applicable = criterion?.avisApplicable === true;
         let avis = null;
         let commentaire = '/';
-        const column = networkGroup ? networkColumn(criterion?.nom) : null;
-        const heatSummary = criterionResumeReseau(definition, criterion?.nom, category?.nom, subCategory?.nom);
-        const candidate = column || heatSummary ? null : findCandidate(candidates, criterion, category?.nom, subCategory?.nom);
+        const column=networkGroup?networkColumn(criterion?.nom):null;
+        const rcuDirectRows=rcuNetworkSlots?.directRows.get(groupKey+':'+clean(criterion?.id));
+        const heatSummary=criterionResumeReseau(definition,criterion?.nom,category?.nom,subCategory?.nom);
+        const candidate=column||heatSummary||rcuDirectRows?null:
+          findCandidate(candidates,criterion,category?.nom,subCategory?.nom);
         const remarSummaryHere=remarNetworkSummary &&
           criterion===remarNetworkSummary.criterion &&
           category===remarNetworkSummary.category &&
@@ -1286,8 +1360,16 @@ async function buildCriteria(db, visite, details, issues) {
           avis = applicable ? summary.avis : null;
           commentaire = exactComment(summary.commentaire, issues, `${path} / commentaire`);
         } else if (column) {
-          if (network) commentaire = exactComment(network[column], issues, `${path} / commentaire`);
-          if (applicable) issues.push(`${path} : critère réseau déclaré avec avis, mapping non supporté sans ambiguïté.`);
+          if (isRcuHeatNetwork && rcuGroupRows.length)
+            commentaire=exactComment(rcuColumnText(rcuGroupRows,column,rcuGroupNumber),
+              issues,`${path} / commentaire`);
+          else if(network) commentaire=exactComment(network[column],issues,`${path} / commentaire`);
+          if(applicable) issues.push(`${path} : critère réseau déclaré avec avis, mapping non supporté sans ambiguïté.`);
+        } else if (rcuDirectRows) {
+          const start=rcuSlotNumber(criterion?.nom,rcuSlotCapacity)||1;
+          commentaire=exactComment(rcuDirectRows.map((row,i)=>rcuFullNetwork(row,start+i)).join('\n\n'),
+            issues,`${path} / commentaire`);
+          if(applicable) issues.push(`${path} : case réseau texte déclarée avec avis.`);
         } else if (remarSummaryHere) {
           const selected=networks.length?networks:
             (definition?.excel?.fieldMappings||[])

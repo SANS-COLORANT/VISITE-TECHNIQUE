@@ -76,7 +76,7 @@ const CONTRACT_CHECKS = [
   ['LOT06 report/export source and behavior regressions', '.github/scripts/test_lot06_report_fidelity.js'],
   ['visit date and list persistence', '.github/scripts/test_visit_date_persistence.js'],
   ['PDF Word empty rows', '.github/scripts/test_report_row_visibility.js'],
-  ['RCU network fallback and Intranet criterion safety', '.github/scripts/test_rcu_network_intranet_fallback.js'],
+  ['RCU six numbered network slots and overflow', '.github/scripts/test_rcu_network_six_slots.js'],
   ['instant camera runtime', '.github/scripts/check_camera_runtime_contract.js'],
   ['field feedback (tablet post-its) contract', '.github/scripts/check_field_feedback_contract.js'],
 ];
