@@ -752,6 +752,66 @@ function mapNetworksToRemoteGroups(networks, groups, provenanceRows, issues) {
   return assignments;
 }
 
+/**
+ * RCU (Réseau de chaleur) : les six blocs de réseaux du modèle Excel ne sont
+ * pas nécessairement des sous-catégories de la trame Symfony publiée.
+ * Une absence de groupe n'est pas une preuve de données mal importées.
+ *
+ * Ne jamais deviner une destination serveur par ordre d'affichage :
+ * envoyer les champs non attribuables sous forme de notes de visite,
+ * sans effacer les lignes reseaux SQLite ni modifier les critères figés.
+ */
+const RCU_NETWORK_DETAILS = Object.freeze([
+  ['nom_reseau', 'Nom du réseau'],
+  ['t_ext_c', 'Température extérieure (°C)'],
+  ['t_dep_c', 'Température départ (°C)'],
+  ['courbe_de_chauffe', 'Courbe de chauffe'],
+  ['tnc', 'TNC'],
+  ['consigne_programme_horaire', 'Consigne / programmation horaire'],
+]);
+
+function archiverReseauxRcuSansDestination(networks, groups, assignments, matchingIssues, issues) {
+  const referenced = new Map();
+  for (const group of groups) {
+    const network = assignments.get(remoteNetworkKey(group.category?.id, group.subCategory?.id));
+    if (!network?.id) continue;
+    if (!referenced.has(String(network.id))) referenced.set(String(network.id), new Set());
+    const supported = referenced.get(String(network.id));
+    for (const criterion of group.subCategory?.criteres || []) {
+      const column = networkColumn(criterion?.nom);
+      if (column && criterion?.avisApplicable !== true) supported.add(column);
+    }
+  }
+
+  for (const [index, network] of (networks || []).entries()) {
+    const covered = referenced.get(String(network.id)) || new Set();
+    const missing = RCU_NETWORK_DETAILS.filter(([column]) =>
+      !covered.has(column) && meaningfulRemote(network[column]) !== null);
+    // Un réseau sans aucun champ ni identité ne génère pas de note inutile.
+    if (!missing.length) continue;
+    const fullyUnmatched = covered.size === 0;
+    const label = clean(network.nom_reseau) || 'sans nom';
+    const ordre = Number.isFinite(Number(network.ordre)) ? Number(network.ordre) : index + 1;
+    const note = [
+      'Réseau local ' + (index + 1) + ' : ' + label + ' (ordre METRA : ' + ordre + ')',
+      'Conservation des valeurs sans critère Symfony explicitement correspondant.',
+      ...missing.map(([column, title]) => title + ' : ' + clean(network[column])),
+    ].join('\n');
+    const path = 'Réseau de chaleur / ' + (fullyUnmatched ? 'non rattaché' : 'champs non couverts') +
+      ' / réseau local ' + (index + 1);
+    if (!preserveFreeText(issues, path, note)) {
+      issues.push('Réseau de chaleur « ' + label +
+        ' » : impossible de conserver tous les relevés non couverts dans les notes Intranet.');
+    }
+  }
+  // Garder une trace explicite des collisions de provenance/noms, même si
+  // tous les relevés non appariés ont pu être joints à la visite.
+  if (matchingIssues?.length && !preserveFreeText(issues,
+    'Réseau de chaleur / ambiguïtés de rattachement', matchingIssues.join('\n'))) {
+    issues.push(...matchingIssues);
+  }
+}
+
 async function frozenContext(db, visite) {
   const rows = await db.getAllAsync(`SELECT details_json,reference_externe,importe_le FROM provenances
     WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony' ORDER BY importe_le DESC`, [visite.id]);
@@ -1038,6 +1098,7 @@ async function buildCriteria(db, visite, details, issues) {
   const definition = obtenirTrame(visite.trame_id);
   const capabilities = mappingCapabilities(definition);
   const heatSummaryEnabled = Boolean(definition?.excel?.heatNetwork?.summaryRows);
+  const isRcuHeatNetwork = definition?.id === 'reseau_chaleur_v1' && heatSummaryEnabled;
   const heatRemarks = heatSummaryEnabled
     ? await db.getAllAsync('SELECT id,poste,prestation,perimetre FROM remarques WHERE visite_id=? ORDER BY cree_le,id', [visite.id])
     : [];
@@ -1127,9 +1188,17 @@ async function buildCriteria(db, visite, details, issues) {
   // cases du référentiel officiel n'est présente dans la trame distante.
   const remarNetworkSummary=remarFixedNetworks && directRemarNetworkSlots.length===0
     ? remarNetworkSummaryTarget(categories) : null;
+  // Le RCU n'impose pas un sous-groupe Symfony par réseau Excel : les
+  // divergences de noms/IDs restent documentées en notes plutôt que de
+  // provoquer un refus collectif des trois réseaux de la visite.
+  const networkMatchingIssues = isRcuHeatNetwork ? [] : issues;
   const networkAssignments = capabilities.networks && !remarFixedNetworks
-    ? mapNetworksToRemoteGroups(networks, remoteNetworkGroups, networkProvenances, issues)
+    ? mapNetworksToRemoteGroups(networks, remoteNetworkGroups, networkProvenances, networkMatchingIssues)
     : new Map();
+  if (isRcuHeatNetwork) {
+    archiverReseauxRcuSansDestination(
+      networks, remoteNetworkGroups, networkAssignments, networkMatchingIssues, issues);
+  }
   if (remarFixedNetworks && networks.length>0) {
     const remoteSlots=new Set(categories.flatMap(category=>
       (category.sousCategories||[]).flatMap(subCategory=>
