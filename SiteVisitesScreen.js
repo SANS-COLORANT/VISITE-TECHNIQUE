@@ -128,6 +128,15 @@ function SiteVisitesScreen({ route, navigation }) {
   }, [siteId, installationId, legacyOnly, construirePreview]);
 
   useEffect(() => { charger({ reusePrewarm: true }).catch((e) => console.warn('Actualisation visites impossible', e)); }, [charger]);
+  // Au retour d'une visite, relire SQLite : la date officielle et l'ordre
+  // ont pu changer pendant l'édition, et le premier aperçu ne suffit plus.
+  useEffect(() => {
+    if (typeof navigation?.addListener !== 'function') return undefined;
+    const unsubscribe = navigation.addListener('focus', () => {
+      charger({ reusePrewarm: false }).catch((e) => console.warn('Actualisation visites impossible', e));
+    });
+    return () => unsubscribe?.();
+  }, [navigation, charger]);
 
   useEffect(() => {
     let alive = true;

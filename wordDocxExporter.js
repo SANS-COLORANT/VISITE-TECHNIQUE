@@ -1,3 +1,4 @@
+import { filtrerLignesRapport } from './reportRowVisibility.js';
 import * as FileSystem from 'expo-file-system';
 import * as ImageManipulator from 'expo-image-manipulator';
 import { zip } from 'react-native-zip-archive';
@@ -62,7 +63,7 @@ async function preparePhoto(photo, index) {
 }
 
 function reportRows(group, includeEmpty) {
-  const rows = (group?.rows || []).filter((row) => includeEmpty || cleanText(row?.avis || row?.comment));
+  const rows = filtrerLignesRapport(group?.rows, includeEmpty);
   return rows.map((row) => [row.label || '', row.avis || '', row.comment || '']);
 }
 

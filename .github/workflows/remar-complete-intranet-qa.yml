@@ -67,6 +67,8 @@ jobs:
           npm ci --no-audit --no-fund --prefer-offline
           git diff --exit-code
       - name: Audit all 141 REMAR values and select only a full, unique Symfony trame
+        env:
+          NODE_OPTIONS: '--require=./.github/scripts/test_legacy_alias_globals.js'
         run: |
           node .github/scripts/test_remar_141_intranet_matrix.js
           node .github/scripts/test_remar_remote_trame_selection.js
@@ -74,6 +76,8 @@ jobs:
           node .github/scripts/test_premium_cards_control_photos.js
           node .github/scripts/test_visit_latest_copy_and_client_send.js
       - name: Real SQLite REMAR equipment, fields and data protections
+        env:
+          NODE_OPTIONS: '--require=./.github/scripts/test_legacy_alias_globals.js'
         run: |
           node .github/scripts/test_remar_dynamic.js
           node .github/scripts/test_remar_progress.js
@@ -82,6 +86,8 @@ jobs:
           node .github/scripts/test_remar_meters_free_photos.js
           node .github/scripts/test_intranet_error_diagnostics.js
       - name: Preserve A2, material listing, all other trames and outbox
+        env:
+          NODE_OPTIONS: '--require=./.github/scripts/test_legacy_alias_globals.js'
         run: |
           node .github/scripts/check_intranet_visit_upload_contract.js
           node .github/scripts/test_intranet_capability_mapping.js

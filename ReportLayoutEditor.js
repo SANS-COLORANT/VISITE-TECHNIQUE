@@ -1,3 +1,4 @@
+import { filtrerLignesRapport } from './reportRowVisibility.js';
 import React, { useMemo } from 'react';
 import { FlatList, Image, Text, TextInput, TouchableOpacity, View } from 'react-native';
 import { COLORS, styles } from './styles.js';
@@ -141,7 +142,7 @@ function SitePage({ item, onMoveSite, total }) {
   </>;
 }
 
-function SectionPage({ item, layout, onPatchSection, onMoveSection }) {
+function SectionPage({ item, layout, onPatchSection, onMoveSection, afficherLignesVides }) {
   const d = item.data, s = item.section;
   const key = sectionKey(d.visite.id, s.panelId);
   const ov = layout?.sections?.[key] || {};
@@ -152,7 +153,7 @@ function SectionPage({ item, layout, onPatchSection, onMoveSection }) {
   const font = titleSize === 'small' ? 11 : titleSize === 'large' ? 17 : 14;
   const bodyScale = layout?.textScale || 'normal';
   const rowFont = bodyScale === 'compact' ? 6.7 : bodyScale === 'large' ? 8.3 : 7.5;
-  const previewRows = (s.groups || []).flatMap((g) => (g.rows || []).slice(0, 3).map((r) => ({ group: g.title, ...r }))).slice(0, 12);
+  const previewRows = (s.groups || []).flatMap((g) => filtrerLignesRapport(g.rows, afficherLignesVides).slice(0, 3).map((r) => ({ group: g.title, ...r }))).slice(0, 12);
   return <>
     <Page muted={!visible}>
       {showBanner ? <View style={{ backgroundColor: COLORS.orange, paddingVertical: 8, paddingHorizontal: 8, marginBottom: 12 }}><Text style={{ color: '#fff', textAlign: 'center', fontWeight: '900', fontSize: font }}>{title || s.panelId}</Text></View> : null}
@@ -248,7 +249,7 @@ export function ReportLayoutEditor({
   const renderItem = ({ item }) => {
     if (item.type === 'cover') return <CoverPage config={{ ...config, clientLabel: datas[0]?.visite?.nom_client || 'Rapport' }} />;
     if (item.type === 'site') return <SitePage item={item} total={datas.length} onMoveSite={onMoveSite} />;
-    if (item.type === 'section') return <SectionPage item={item} layout={layout} onPatchSection={patchSection} onMoveSection={moveSection} />;
+    if (item.type === 'section') return <SectionPage item={item} layout={layout} onPatchSection={patchSection} onMoveSection={moveSection} afficherLignesVides={config.afficherLignesVides} />;
     if (item.type === 'photos') return <PhotoPreviewPage item={item} onPatchPhoto={onPatchPhoto} />;
     if (item.type === 'reserves') return <StaticPage title="REMARQUES PARTICULIÈRES" lines={(item.data.remarques || []).map((r) => `${r.poste || 'Remarque'} — ${r.prestation || '/'}`)} />;
     if (item.type === 'materiel') return <StaticPage title="LISTING MATÉRIEL" lines={(item.data.materiel || []).map((m) => `${m.categorie || ''} — ${m.designation || ''} ${m.marque || ''} ${m.modele || ''}`)} />;

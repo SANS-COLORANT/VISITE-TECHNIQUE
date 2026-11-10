@@ -24,6 +24,7 @@ on:
       - feat/remove-companion-add-credits-20261104
       - fix/metra-lot05-complete-workstreams-20261105
       - fix/metra-lot06-report-fidelity-20261105
+      - fix/metra-date-photos-report-apk-20261110
     paths:
       - '**/*.js'
       - '**/*.json'
@@ -68,6 +69,8 @@ jobs:
       - name: Verify complete committed METRA contracts, SQLite and regressions
         run: npm run verify:metra
       - name: Test all 141 REMAR mappings, multi-line meters and multiple CTA/VMC
+        env:
+          NODE_OPTIONS: '--require=./.github/scripts/test_legacy_alias_globals.js'
         run: |
           node .github/scripts/test_remar_141_intranet_matrix.js
           node .github/scripts/test_remar_remote_trame_selection.js

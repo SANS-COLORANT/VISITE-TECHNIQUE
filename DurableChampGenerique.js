@@ -2,6 +2,7 @@
 import React, { useEffect, useState } from 'react';
 import { Text, TextInput, View } from 'react-native';
 import { upsertChamp } from './db.js';
+import { enregistrerDateVisite } from './visitDateDb.js';
 import { useDurableAutosave } from './durableAutosave.js';
 import { ChipSelector, StepperNumerique, cleanLabel, extractUnit, getNumericConfig } from './GenericFields.js';
 import { PhotoButton } from './PhotoButton.js';
@@ -163,8 +164,9 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
   const estDateVisite = sansPhoto && /date\s*(de\s*)?(la\s*)?visite/i.test(String(field.cle || ''));
 
   const sauvegarder = async (nouvelleValeur) => {
+    if (estDateVisite) await enregistrerDateVisite(visiteId, sectionCode, field.cle, nouvelleValeur);
+    else await upsertChamp(visiteId, sectionCode, field.cle, nouvelleValeur);
     onSaved?.(nouvelleValeur);
-    await upsertChamp(visiteId, sectionCode, field.cle, nouvelleValeur);
   };
 
   const [valeur, setValeur, flush, setImmediate] = useDurableAutosave(valeurInitiale, sauvegarder, 450);
@@ -180,7 +182,7 @@ export const DurableChampGenerique = React.memo(function DurableChampGenerique({
     const cible = initiale || dateAujourdhuiFr();
     setDateTexte(cible);
     setDateErreur(false);
-    if (!initiale) sauvegarder(cible).catch(() => {});
+    // Ne pas écraser la vraie date des visites historiques à l'ouverture.
   }, [visiteId, sectionCode, field.cle, estDateVisite]);
 
   const changerDate = (texte) => {

@@ -7,6 +7,7 @@ import { CvcIcon } from './MetraCvcIcons.js';
 import { PRESCRIPTIONS } from './data.js';
 import { fusionnerPrescriptions } from './reserveExtensions.js';
 import { upsertChamp, listerBibliothequeReserves } from './db.js';
+import { enregistrerDateVisite, estChampDateVisite } from './visitDateDb.js';
 import { upsertControlePartiel } from './controlDb.js';
 import {
   upsertRemarquePrescription,
@@ -200,7 +201,8 @@ const ChampGenerique = React.memo(function ChampGenerique({ visiteId, sectionCod
   const sansPhoto = sectionCode === 'infos.g_n_ral' || sectionCode === 'infos.informations_g_n_rales';
 
   const sauvegarderEnBase = async (nouvelleValeur) => {
-    await upsertChamp(visiteId, sectionCode, field.cle, nouvelleValeur);
+    if (estChampDateVisite(field.cle)) await enregistrerDateVisite(visiteId, sectionCode, field.cle, nouvelleValeur);
+    else await upsertChamp(visiteId, sectionCode, field.cle, nouvelleValeur);
     onSaved && onSaved();
   };
   const [valeur, setValeur, surBlur, setValeurImmediate] = useSaisieAvecAutoSave(valeurInitiale, sauvegarderEnBase);
