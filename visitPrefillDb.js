@@ -1,3 +1,4 @@
+import { canonicalSectionCode, candidateSectionCodes } from './intranetStorageAliases.js';
 import { obtenirTrame, DEFAULT_TRAME_ID } from './trameRegistry.js';
 import { carryForwardPreviousVisit } from './visitCarryForwardDb.js';
 import { BoundedLruMap } from './boundedCache.js';
@@ -7,7 +8,7 @@ const prefillEnCours = new Map();
 const PREFILL_META_PREFIX = 'visit_prefill_done::';
 
 function sectionCode(panelId, section) {
-  return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  return canonicalSectionCode(panelId, section);
 }
 async function insertIfEmpty(db, visiteId, panelId, section, cle, valeur) {
   if (valeur === null || valeur === undefined || String(valeur).trim() === '') return;
@@ -28,9 +29,10 @@ async function copierChampsPersistantsMemeTrame(db, visiteId, precedenteId, tram
     for (const [section, fields] of Object.entries(sections || {})) {
       for (const field of fields || []) {
         if (field.type !== 'champ' || (!field.stable && !field.carryForward)) continue;
-        const code = sectionCode(panelId, section);
-        const ancien = await db.getFirstAsync(`SELECT valeur FROM champs_visite WHERE visite_id=? AND section_code=? AND cle=?`, [precedenteId, code, field.cle]);
-        if (ancien?.valeur) await insertIfEmpty(db, visiteId, panelId, section, field.cle, ancien.valeur);
+        for (const code of candidateSectionCodes(trame, panelId, section, field)) {
+          const ancien = await db.getFirstAsync(`SELECT valeur FROM champs_visite WHERE visite_id=? AND section_code=? AND cle=?`, [precedenteId, code, field.cle]);
+          if (ancien?.valeur) { await insertIfEmpty(db, visiteId, panelId, section, field.cle, ancien.valeur); break; }
+        }
       }
     }
   }

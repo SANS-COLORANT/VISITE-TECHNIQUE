@@ -49,7 +49,8 @@ async function main() {
   const data = load('data.js');
   const rcu = load('reseauChaleurTrame.js', { TRAME_DATA: data.TRAME_DATA, TEMPLATE_RESEAU_CHALEUR_BASE64: 'fixture' });
   const XLSX = require('xlsx');
-  const registry = load('trameRegistry.js', { ...load('remarTrame.js', load('templateExcelRemar.js')), ...data, ...rcu, TEMPLATE_EXCEL_BASE64: 'fixture',
+  const storageAliases = load('intranetStorageAliases.js');
+  const registry = load('trameRegistry.js', { ...storageAliases, ...load('remarTrame.js', load('templateExcelRemar.js')), ...data, ...rcu, TEMPLATE_EXCEL_BASE64: 'fixture',
     ...load('vmcTrame.js', { XLSX }), ...load('preAllumageTrame.js', { XLSX }), ...load('trameValidation.js') });
   const { obtenirTrame } = registry;
   const definition = obtenirTrame('reseau_chaleur_v1');
@@ -59,7 +60,7 @@ async function main() {
     await server.db.execAsync(`INSERT INTO clients(id,nom) VALUES('client','Client Alpha');
       INSERT INTO sites(id,client_id,nom_site) VALUES('site','client','Site Alpha');
       INSERT INTO installations(id,site_id,type_code,nom) VALUES('local','site','sous_station','SST 1'),('other','site','sous_station','SST 2');`);
-    const importer = load('excelImport.js', { ...load('releveMultiligne.js', { pictoTemperature: load('relevePictos.js').pictoTemperature }),
+    const importer = load('excelImport.js', { ...storageAliases, ...load('releveMultiligne.js', { pictoTemperature: load('relevePictos.js').pictoTemperature }),
       ...load('networkProgramming.js'), XLSX, DocumentPicker: {}, FileSystem: {},
       analyserRemarDetailExcel: () => [], importerRemarDetailExcel: async () => 0, // Fixture RCU: pas d'annexe REMAR
       detecterTrameDepuisClasseur: registry.detecterTrameDepuisClasseur, getDb: async () => server.db, uuidv4: createId });
@@ -98,9 +99,9 @@ async function main() {
     assert.equal((await server.db.getFirstAsync('SELECT installation_id FROM visites WHERE id=?', [imported.visiteId])).installation_id, 'local');
     await server.db.runAsync("UPDATE visites SET statut='terminee' WHERE id=?", [imported.visiteId]);
     await server.close(); server = databaseProcess(filename);
-    const semantic = load('trameSemanticMesh.js');
+    const semantic = load('trameSemanticMesh.js', storageAliases);
     const carry = load('visitCarryForwardDb.js', { createId, obtenirTrame, DEFAULT_TRAME_ID: 'icpe_v1', construireIndexSemantiqueTrame: semantic.construireIndexSemantiqueTrame });
-    const prefill = load('visitPrefillDb.js', { obtenirTrame, DEFAULT_TRAME_ID: 'icpe_v1', carryForwardPreviousVisit: carry.carryForwardPreviousVisit, BoundedLruMap: load('boundedCache.js').BoundedLruMap });
+    const prefill = load('visitPrefillDb.js', { ...storageAliases, obtenirTrame, DEFAULT_TRAME_ID: 'icpe_v1', carryForwardPreviousVisit: carry.carryForwardPreviousVisit, BoundedLruMap: load('boundedCache.js').BoundedLruMap });
     const equipment = load('persistentEquipmentDb.js', { openAppDatabase: async () => server.db, createId });
     const creation = load('visitCreationDb.js', { getDb: async () => server.db, createId, obtenirTrame, DEFAULT_TRAME_ID: 'icpe_v1',
       preremplirVisiteDepuisContexte: prefill.preremplirVisiteDepuisContexte, dossierVisiteMetra: async () => {}, obtenirRacineMetra: async () => null,

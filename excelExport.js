@@ -1,3 +1,4 @@
+import { candidateSectionCodes } from './intranetStorageAliases.js';
 /** Export Excel natif Android piloté par le registre générique de trames. */
 
 import * as XLSX from 'xlsx';
@@ -433,8 +434,12 @@ async function construireClasseur(visiteId) {
   for (const mapping of cfg.fieldMappings || []) {
     const mappingSheet = wb.Sheets[mapping.sheet || cfg.mainSheet];
     const lookup = `${mapping.sectionCode}||${mapping.cle}`;
-    const champ = champsMap.get(lookup);
-    const controle = controlesMap.get(lookup);
+    const storageKeys = candidateSectionCodes(trame,mapping.panelId,mapping.section,
+      {cle:mapping.cle,type:mapping.type}).map(code => `${code}||${mapping.cle}`);
+    const champ = storageKeys.map(key=>champsMap.get(key))
+      .find(row=>row && String(row.valeur ?? '').trim()) || champsMap.get(lookup);
+    const controle = storageKeys.map(key=>controlesMap.get(key))
+      .find(row=>row && (row.avis || row.commentaire)) || controlesMap.get(lookup);
     // La nouvelle interface REMAR n'ecrit jamais dans les champs legacy :
     // projection uniquement lors de l'export, en preservant les anciennes
     // visites et les cellules officielles deja definies.

@@ -16,6 +16,7 @@ function load(file,deps,names){
     .replace(/export\s+(?=(?:async\s+)?(?:function|const|let|class)\s)/g,'');
   return new Function(...Object.keys(deps),code+'\nreturn {'+names.join(',')+'};')(...Object.values(deps));
 }
+const storageAliases=load('intranetStorageAliases.js',{},['candidateSectionCodes','resolveAliasValue']);
 const projectionTools=load('remarDynamicExportDb.js',{},['remarDynamicOwnsMapping']);
 let projection={hasDynamic:false};
 const serializer=load('intranetVisitPayload.js',{
@@ -25,6 +26,8 @@ const serializer=load('intranetVisitPayload.js',{
   remarDynamicOwnsMapping:projectionTools.remarDynamicOwnsMapping,
   formaterReleves:load('releveMultiligne.js',{pictoTemperature:()=>({})},['formaterReleves']).formaterReleves,
   formaterTemperatureGroupee:(_name,value)=>value,
+  candidateStorageCodes:storageAliases.candidateSectionCodes,
+  candidateStoredValue:storageAliases.resolveAliasValue,
 },['buildCriteria','inspectIntranetCriterionCandidate']);
 
 const mappings=definition.excel.fieldMappings;

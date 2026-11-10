@@ -1,3 +1,4 @@
+import { canonicalKnownCode } from './intranetStorageAliases.js';
 /** Import Excel générique : détecte la trame, analyse via son mapping puis intègre SQLite. */
 
 import * as XLSX from 'xlsx';
@@ -208,7 +209,7 @@ export function analyserClasseur(wb, nomFichier) {
       if (!commentaire && rowComment) commentaire = valeurCellule(principale, `E${rowComment}`);
     }
     if (!valeur && !commentaire) continue;
-    const item = { sectionCode: mapping.sectionCode, cle: mapping.cle, valeur };
+    const item = { sectionCode: canonicalKnownCode(mapping.sectionCode), cle: mapping.cle, valeur };
     if (mapping.type === 'controle') {
       // Températures : la mesure est dans la cellule commentaire ; plusieurs
       // lignes = plusieurs points de mesure du même circuit.

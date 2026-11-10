@@ -3,6 +3,9 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const root = path.resolve(__dirname, '../..');
+const storageAliases = new Function(fs.readFileSync(path.join(root, 'intranetStorageAliases.js'), 'utf8')
+  .replace(/export\s+(?=function\s)/g, '') +
+  '\nreturn { candidateSectionCodes, resolveAliasValue };')();
 const script = fs.readFileSync(path.join(root, 'intranetVisitPayload.js'), 'utf8')
   .replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*$/gm, '')
   .replace(/export\s*\{[^}]+\};?/g, '')
@@ -44,12 +47,13 @@ function check(condition, label) {
   checks += 1;
   console.log('OK ' + checks + ': ' + label);
 }
-const payload = new Function('getDb', 'obtenirTrame', 'formaterReleves', 'formaterTemperatureGroupee',
+const payload = new Function('getDb', 'obtenirTrame', 'formaterReleves', 'formaterTemperatureGroupee', 'candidateStorageCodes', 'candidateStoredValue',
   script + '\nreturn { buildCriteria, buildRemarks, inspectIntranetTrameCapabilities, inspectIntranetCriterionCandidate };')(
     async () => { throw new Error('getDb not needed by this test'); },
     (id) => { if (!defs[id]) throw new Error('Unknown test trame ' + id); return defs[id]; },
     (items) => items.map((x) => String(x.label) + ': ' + String(x.valeur) + ' ' + String(x.unite || '')).join('\n'),
-    (_field, value) => value
+    (_field, value) => value,
+    storageAliases.candidateSectionCodes, storageAliases.resolveAliasValue
   );
 function networkSub(id, name) {
   return { id, nom: name, criteres: [

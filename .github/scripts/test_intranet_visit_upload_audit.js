@@ -76,7 +76,8 @@ async function main() {
   const server = databaseProcess(path.join(dir, 'audit.db'));
   try {
     await server.send('migrate', '', [0, 33]);
-    const payloadModule = load('intranetVisitPayload.js', { getDb: async () => server.db, obtenirTrame: () => localTrame });
+    const storageAliases = load('intranetStorageAliases.js');
+    const payloadModule = load('intranetVisitPayload.js', { getDb: async () => server.db, obtenirTrame: () => localTrame, candidateStorageCodes:storageAliases.candidateSectionCodes, candidateStoredValue:storageAliases.resolveAliasValue });
 
     // Le technicien décide quels équipements subsistent : le POST V1 remplace
     // tout ListingMateriel, sans résurrection du patrimoine précédent.

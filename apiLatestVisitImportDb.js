@@ -1,3 +1,4 @@
+import { canonicalSectionCode } from './intranetStorageAliases.js';
 import { getDb } from './db.js';
 import { createId } from './database/ids.js';
 import { getCachedLocalReference, listCachedLocals } from './symfonyApiCacheDb.js';
@@ -119,7 +120,7 @@ function localControlCandidates(trameId) {
   const candidates = [];
   for (const [panelId, sections] of Object.entries(definition?.ui?.panels || {})) {
     for (const [section, fields] of Object.entries(sections || {})) {
-      const sectionCode = panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+      const sectionCode = canonicalSectionCode(panelId, section);
       for (const field of fields || []) {
         if (field?.type !== 'controle' || !field?.cle) continue;
         candidates.push({

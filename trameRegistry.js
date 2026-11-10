@@ -1,3 +1,4 @@
+import { canonicalSectionCode } from './intranetStorageAliases.js';
 import { REMAR } from './remarTrame.js';
 /**
  * Registre générique des trames de visite.
@@ -25,7 +26,7 @@ import {
 export const DEFAULT_TRAME_ID = 'icpe_v1';
 
 function normaliserSectionCode(panelId, section) {
-  return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  return canonicalSectionCode(panelId, section);
 }
 
 function construireMappingsChamps(uiData, excelRows) {
