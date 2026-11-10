@@ -800,7 +800,12 @@ function rcuNetworkPlan(networks,groups,categories,provenanceRows,max,issues) {
       const number=rcuSlotNumber(criterion.nom,capacity);
       if(!number||criterion.avisApplicable===true)continue;
       if(slots.has(number))issue('plusieurs critères pour la case Réseau '+number+'.');
-      else slots.set(number,{type:'direct',category,sub,criterion});
+      else {
+        slots.set(number,{type:'direct',category,sub,criterion});
+        // Une case existante sans réseau local reste un critère valide
+        // envoyé comme "/" et non une erreur de champ METRA manquant.
+        directRows.set(directKey(category,sub,criterion),[]);
+      }
     }
   }
 
@@ -838,7 +843,7 @@ function rcuNetworkPlan(networks,groups,categories,provenanceRows,max,issues) {
   // littéral "Réseau 1". L'ordre enregistré de la liste METRA est la règle.
   for(const [n,target] of [...slots.entries()].sort((a,b)=>a[0]-b[0])){
     const key=keyFor(target), map=target.type==='group'?groupRows:directRows;
-    if(map.has(key))continue;
+    if((map.get(key)||[]).length)continue;
     const row=rows[n-1];
     if(!row||used.has(String(row.id)))continue;
     const explicit=numberedNetwork(row.nom_reseau);
