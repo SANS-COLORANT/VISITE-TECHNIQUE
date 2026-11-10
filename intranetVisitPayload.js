@@ -3,6 +3,7 @@ import { obtenirTrame } from './trameRegistry.js';
 import { construireRemarDynamiquePourRapport, remarDynamicOwnsMapping } from './remarDynamicExportDb.js';
 import { remarMappingsForRemote, isRemarCompleteTrame } from './remarSymfonyCompleteContract.js';
 import { formaterReleves, formaterTemperatureGroupee } from './releveMultiligne.js';
+import { candidateSectionCodes as candidateStorageCodes, resolveAliasValue as candidateStoredValue } from './intranetStorageAliases.js';
 
 export const INTRANET_MAX_BODY_BYTES = 5 * 1024 * 1024;
 export const INTRANET_AVIS = Object.freeze(['S.O', 'S', 'N.S', 'N.R', 'N.V']);
@@ -22,54 +23,6 @@ function clean(value) { return value == null ? '' : String(value).trim(); }
 function nullable(value) { const v = clean(value); return v || null; }
 function normalize(value) {
   return clean(value).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
-}
-// Les panneaux spécialisés écrivent leurs champs sous des codes métier stables
-// différents des slugs de l'interface. Utilisés par ICPE, RCU et trames futures
-// reprenant ces panneaux, sans exception sur le nom de trame.
-const SPECIAL_SECTION_STORAGE_CODES = Object.freeze({
-  'p-releves': Object.freeze({
-    'releves des compteurs et manometres': 'releves.compteurs',
-    'temperatures et ph': 'releves.temperatures',
-  }),
-  'p-regulation': Object.freeze({
-    'cascade chaudieres': 'regulation.cascade',
-    'reseau ecs': 'regulation.reseau_ecs',
-  }),
-});
-function genericSectionCode(panelId, section) {
-  return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
-}
-function sectionCode(panelId, section) {
-  return SPECIAL_SECTION_STORAGE_CODES[panelId]?.[normalize(section)] ||
-    genericSectionCode(panelId, section);
-}
-function candidateStorageCodes(definition, panelId, section, field) {
-  // Le modèle Excel peut déclarer le code de stockage historique : on le
-  // conserve comme compatibilité sans remplacer la clé utilisée par l'écran.
-  const excelCodes = (definition?.excel?.fieldMappings || [])
-    .filter((mapping) => mapping.panelId === panelId && mapping.section === section &&
-      mapping.cle === field.cle && mapping.type === (field.type || 'champ'))
-    .map((mapping) => mapping.sectionCode).filter(Boolean);
-  return [...new Set([sectionCode(panelId, section), ...excelCodes,
-    genericSectionCode(panelId, section)])];
-}
-function candidateStoredValue(store, candidate, issues, path) {
-  const codes = candidate?.storageCodes || [candidate?.sectionCode];
-  const present = codes.map((code) => ({ code, value: store.get(`${code}||${candidate.cle}`) }))
-    .filter((item) => item.value != null);
-  // Deux versions de la même rubrique ne doivent jamais s'écraser entre elles.
-  const significant = present.filter(({ value }) =>
-    typeof value === 'object'
-      ? clean(value.avis) !== '' || (clean(value.commentaire) !== '' && clean(value.commentaire) !== '/')
-      : clean(value) !== '' && clean(value) !== '/');
-  const fingerprints = [...new Set(significant.map(({ value }) =>
-    typeof value === 'object' ? JSON.stringify([clean(value.avis), clean(value.commentaire)])
-      : clean(value)))];
-  if (fingerprints.length > 1) {
-    issues.push(`${path} : valeurs divergentes pour la même rubrique MÉTRA (${significant.map((x) => x.code).join(' / ')}). Vérifie la source avant envoi.`);
-    return null;
-  }
-  return significant[0]?.value ?? present[0]?.value ?? null;
 }
 function dateOnly(value) { const v = clean(value); const m = v.match(/^(\d{4}-\d{2}-\d{2})/); return m ? m[1] : null; }
 function validDate(value) {

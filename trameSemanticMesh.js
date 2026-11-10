@@ -1,3 +1,4 @@
+import { canonicalSectionCode, candidateSectionCodes } from './intranetStorageAliases.js';
 /**
  * Maillage sémantique inter-trames.
  *
@@ -55,7 +56,7 @@ function contextKey(panelId, section) {
 }
 
 function sectionCode(panelId, section) {
-  return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  return canonicalSectionCode(panelId, section);
 }
 
 function semanticKey(label, panelId, section, duplicateCount = 1, explicit = null) {
@@ -98,11 +99,12 @@ export function construireIndexSemantiqueTrame(trame) {
     const mapped = (trame?.excel?.fieldMappings || []).find((m) =>
       m.panelId === panelId && m.section === section && m.cle === field.cle
     );
-    const code = mapped?.sectionCode || sectionCode(panelId, section);
+    const codes = candidateSectionCodes(trame, panelId, section, { ...field, type: field.type || mapped?.type || 'champ' });
+    const code = codes[0] || sectionCode(panelId, section);
     const key = semanticKey(field.cle, panelId, section, counts.get(norm(field.cle)), field.semanticKey);
     if (!key) continue;
     const row = { ...definition, sectionCode: code, semanticKey: key, type: field.type || mapped?.type || 'champ' };
-    byStorage.set(`${code}||${field.cle}`, row);
+    for (const alias of codes) byStorage.set(`${alias}||${field.cle}`, row);
     if (!bySemantic.has(key)) bySemantic.set(key, []);
     bySemantic.get(key).push(row);
   }

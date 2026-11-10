@@ -1,3 +1,4 @@
+import { canonicalSectionCode } from './intranetStorageAliases.js';
 import { createId } from './database/ids.js';
 import { DEFAULT_TRAME_ID, obtenirTrame } from './trameRegistry.js';
 import { compteursDepuisCellule } from './releveMultiligne.js';
@@ -18,7 +19,7 @@ function normalize(value) {
 }
 function remoteId(value) { const valueText = clean(value); return valueText || null; }
 function sectionCode(panelId, section) {
-  return panelId.replace('p-', '') + '.' + String(section).toLowerCase().replace(/[^a-z0-9]+/g, '_');
+  return canonicalSectionCode(panelId, section);
 }
 function criterionReference(category, subCategory, criterion) {
   return [
