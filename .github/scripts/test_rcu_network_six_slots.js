@@ -57,7 +57,7 @@ const run=async categories=>{
 };
 (async()=>{
  let out=await run([general,grouped]);
- assert.deepEqual(out.issues,[]);
+ assert.equal(out.issues.length,0,out.issues.join('\n'));
  assert.equal(out.issues.freeTextFallbacks.length,0);
  assert.equal(out.result.length,37);
  for(let i=0;i<3;i++){
@@ -68,7 +68,7 @@ const run=async categories=>{
  }
  assert.equal(out.result[1+3*6].commentaire,'/','slot 4 unused');
  out=await run([general,flat]);
- assert.deepEqual(out.issues,[]);
+ assert.equal(out.issues.length,0,out.issues.join('\n'));
  assert.equal(out.result.length,7);
  for(let i=0;i<3;i++){
    assert.match(out.result[i+1].commentaire,new RegExp('Réseau '+(i+1)+' : Chauffage bâtiment '+(i+1)));
@@ -77,12 +77,12 @@ const run=async categories=>{
  assert.equal(out.result[4].commentaire,'/','unused flat slot');
  count=8;
  out=await run([general,flat]);
- assert.deepEqual(out.issues,[]);
+ assert.equal(out.issues.length,0,out.issues.join('\n'));
  assert.equal(out.result.length,7);
  for(let n of [6,7,8]) assert.ok(out.result[6].commentaire.includes('Réseau '+n+' : Chauffage bâtiment '+n));
  assert.ok(out.result[6].commentaire.includes('\n\n'));
  out=await run([general,grouped]);
- assert.deepEqual(out.issues,[]);
+ assert.equal(out.issues.length,0,out.issues.join('\n'));
  const sixth=1+5*6;
  for(let n of [6,7,8]){
    assert.ok(out.result[sixth].commentaire.includes('Réseau '+n+' (Chauffage bâtiment '+n+')'));
