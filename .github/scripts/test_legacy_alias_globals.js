@@ -14,3 +14,14 @@ Object.assign(globalThis, aliases, {
   candidateStorageCodes: aliases.candidateSectionCodes,
   candidateStoredValue: aliases.resolveAliasValue,
 });
+
+/** Anciennes simulations photo/report qui retirent aussi leurs imports. */
+function testExports(file, names) {
+  const code = fs.readFileSync(path.resolve(__dirname, '../../' + file), 'utf8')
+    .replace(/export\s+(?=function\s)/g, '');
+  return new Function(code + '\nreturn {' + names.join(',') + '};')();
+}
+Object.assign(globalThis,
+  testExports('photoExportPolicy.js', ['estPhotoLibre','photoIncluseDansExports','legendePhotoEditable','photoLabelAvecNomFichier']),
+  testExports('reportRowVisibility.js', ['marqueVideRapport','ligneRapportRenseignee','filtrerLignesRapport'])
+);
