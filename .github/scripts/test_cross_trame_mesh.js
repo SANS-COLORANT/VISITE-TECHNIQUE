@@ -56,13 +56,14 @@ async function main() {
     const data = load('data.js');
     const XLSX = require('xlsx');
     const rcu = load('reseauChaleurTrame.js', { TRAME_DATA: data.TRAME_DATA, TEMPLATE_RESEAU_CHALEUR_BASE64: 'fixture' });
-    const registry = load('trameRegistry.js', { ...load('remarTrame.js', load('templateExcelRemar.js')),
+    const storageAliases = load('intranetStorageAliases.js');
+    const registry = load('trameRegistry.js', { ...storageAliases, ...load('remarTrame.js', load('templateExcelRemar.js')),
       ...data, ...rcu, TEMPLATE_EXCEL_BASE64: 'fixture',
       ...load('vmcTrame.js', { XLSX }),
       ...load('preAllumageTrame.js', { XLSX }),
       ...load('trameValidation.js'),
     });
-    const semantic = load('trameSemanticMesh.js');
+    const semantic = load('trameSemanticMesh.js', storageAliases);
     const carry = load('visitCarryForwardDb.js', {
       createId,
       DEFAULT_TRAME_ID: registry.DEFAULT_TRAME_ID,

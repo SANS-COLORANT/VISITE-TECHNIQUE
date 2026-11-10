@@ -110,7 +110,8 @@ async function main() {
     await server.send('migrate', '', [0, 33]);
     check((await server.db.getAllAsync("SELECT name FROM sqlite_master WHERE name='api_visit_outbox'")).length === 1, 'fresh database migrates through version 033');
     await seed(server.db);
-    const payloadModule = load('intranetVisitPayload.js', { ...load('releveMultiligne.js', { pictoTemperature: load('relevePictos.js').pictoTemperature }), getDb: async () => server.db, obtenirTrame: () => localTrame });
+    const storageAliases = load('intranetStorageAliases.js');
+    const payloadModule = load('intranetVisitPayload.js', { ...load('releveMultiligne.js', { pictoTemperature: load('relevePictos.js').pictoTemperature }), getDb: async () => server.db, obtenirTrame: () => localTrame, candidateStorageCodes: storageAliases.candidateSectionCodes, candidateStoredValue: storageAliases.resolveAliasValue });
     const prepared = await payloadModule.buildIntranetVisitPayload('visit-1', '11111111-1111-4111-8111-111111111111');
     check(Object.keys(prepared.payload).join(',') === 'envoiId,visites', 'root contains only the exact contract keys');
     const wire = prepared.payload.visites[0];
