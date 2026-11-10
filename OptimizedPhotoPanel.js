@@ -16,7 +16,8 @@ import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ajouterPhoto } from './db.js';
-import { supprimerPhotoComplete, renommerPhotoVisite, reglerPublicationPhotoLibre } from './photoDb.js';
+import { supprimerPhotoComplete, reglerPublicationPhotoLibre } from './photoDb.js';
+import { sauvegarderLegendePhoto, legendePhotoValide } from './photoCaptionPersistence.js';
 import { capturerPhotoLibre } from './photoLibreCapture.js';
 import { estPhotoLibre, photoIncluseDansExports, legendePhotoEditable } from './photoExportPolicy.js';
 import { prendrePhoto, preparerPhotoNommee } from './PhotoButton.js';
@@ -228,8 +229,8 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
     if (!viewerPhoto || viewerPhoto.pending || savingMetadata) return;
     setSavingMetadata(true);
     try {
-      const resultat = await renommerPhotoVisite(visiteId, viewerPhoto.id, libelleSaisi);
-      upsertRuntimePhoto(visiteId, { id: viewerPhoto.id, label: resultat.label });
+      const resultat = await sauvegarderLegendePhoto(visiteId, viewerPhoto.id, libelleSaisi);
+      upsertRuntimePhoto(visiteId, { id: viewerPhoto.id, label: resultat.label, libelle_personnalise: 1 });
       setEditionLibelle(false);
       if (resultat.dejaEnvoyee) Alert.alert('Photo déjà envoyée',
         'Le nouveau libellé s’affichera dans les prochains rapports locaux. La version déjà envoyée sur l’Intranet ne peut pas être renommée sans une API de modification côté serveur.');
@@ -417,7 +418,20 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement }) {
           ) : null}
           {editionLibelle ? <View style={st.editCaption}>
             <TextInput accessibilityLabel="Modifier le libellé de la photo" style={st.captionInput}
-              autoFocus maxLength={160} value={libelleSaisi} onChangeText={setLibelleSaisi}
+              autoFocus maxLength={160} value={libelleSaisi}
+              onChangeText={(texte) => {
+                setLibelleSaisi(texte);
+                // Enregistrer en base dès la frappe : la fermeture de la
+                // visite ou de l'application ne jette pas le brouillon.
+                if (viewerPhoto?.id && legendePhotoValide(texte))
+                  sauvegarderLegendePhoto(visiteId, viewerPhoto.id, texte)
+                    .catch((e) => console.warn('Libellé photo non sauvegardé', e));
+              }}
+              onEndEditing={() => {
+                if (viewerPhoto?.id && legendePhotoValide(libelleSaisi))
+                  sauvegarderLegendePhoto(visiteId, viewerPhoto.id, libelleSaisi)
+                    .catch((e) => Alert.alert('Libellé non enregistré', String(e?.message || e)));
+              }}
               placeholder="Libellé affiché dans les rapports et l’Intranet" />
             <TouchableOpacity accessibilityRole="button" disabled={savingMetadata} onPress={enregistrerLibelle} style={st.editAction}>
               <Text style={st.editActionText}>{savingMetadata ? '…' : 'Enregistrer'}</Text>

@@ -1,6 +1,7 @@
 import * as FileSystem from 'expo-file-system';
 import { openAppDatabase } from './database/index.js';
 import { supprimerCopiePhotoDocuments } from './photoDocumentsStorage.js';
+import { photoLabelAvecNomFichier, legendePhotoEditable } from './photoExportPolicy.js';
 
 function estPhotoGeree(uri) {
   return !!uri && !!FileSystem.documentDirectory && String(uri).startsWith(`${FileSystem.documentDirectory}visite-technique/photos/`);
@@ -37,7 +38,6 @@ export async function renommerPhotoVisite(visiteId, photoId, libelle) {
   const db = await openAppDatabase();
   const photo = await db.getFirstAsync('SELECT * FROM photos WHERE id=? AND visite_id=?', [photoId, visiteId]);
   if (!photo) throw new Error('Photo introuvable dans cette visite.');
-  const { photoLabelAvecNomFichier, legendePhotoEditable } = require('./photoExportPolicy.js');
   const label = photoLabelAvecNomFichier(photo, libelle);
   await db.runAsync('UPDATE photos SET label=?,libelle_personnalise=1 WHERE id=? AND visite_id=?', [label, photoId, visiteId]);
   await db.runAsync(`UPDATE api_visit_photo_outbox SET description=?,updated_at=datetime('now')

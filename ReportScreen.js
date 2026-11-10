@@ -1,4 +1,5 @@
 import React,{useCallback,useEffect,useMemo,useState}from'react';
+import { sauvegarderLegendePhoto, legendePhotoValide, attendreLegendesPhotos } from './photoCaptionPersistence.js';
 import{Alert,Image,SectionList,ScrollView,Text,TextInput,TouchableOpacity,View}from'react-native';
 import * as ImagePicker from'expo-image-picker';
 import{COLORS,styles}from'./styles.js';
@@ -59,7 +60,16 @@ export function ReportScreen({route,onBack}){
 
  const preparer=useCallback(async()=>{if(!selected.size)return Alert.alert('Rapport','Sélectionne au moins un site dont la dernière visite est finalisée.');const nonFinal=selectedRows.filter(v=>v.statut!=='terminee');if(nonFinal.length)return Alert.alert('Dernière visite non finalisée',`${nonFinal.length} dernière(s) visite(s) sélectionnée(s) ne sont pas finalisées.`);const idsAutorises=new Set(visites.map(v=>v.id));const ids=visites.filter(v=>selected.has(v.id)&&idsAutorises.has(v.id)).map(v=>v.id);if(!ids.length)return Alert.alert('Rapport','Aucune dernière visite valide sélectionnée.');setBusy(true);try{const ds=await chargerDonneesRapportParLots(ids,4);const ph=ds.flatMap(d=>preparerPhotosRapport(d,[]).map(x=>({...x,size:x.size||'medium',captionSize:x.captionSize||'normal'})));setDatas(ds);setPhotos(ph);setLayout({textScale:'normal',sections:{}});setCoverUri(null);setCoverLabel('Image standard METRA');setCoverVisiteId(null);setEtape('photos')}catch(e){Alert.alert('Préparation impossible',String(e?.message||e))}finally{setBusy(false)}},[selected,selectedRows,visites]);
 
- const patchPhoto=(id,patch)=>setPhotos(a=>a.map(x=>x.id===id?{...x,...(x.exportAllowed===false?{...patch,include:false}:patch)}:x));
+ const patchPhoto=(id,patch)=>{
+   const photo=photos.find(x=>x.id===id);
+   setPhotos(a=>a.map(x=>x.id===id?{...x,...(x.exportAllowed===false?{...patch,include:false}:patch)}:x));
+   if(photo&&Object.prototype.hasOwnProperty.call(patch,'label')&&legendePhotoValide(patch.label)){
+     // Une légende modifiée dans la préparation de rapport doit survivre
+     // après fermeture, et rester valable pour les rapports suivants.
+     sauvegarderLegendePhoto(photo.visiteId,photo.id,patch.label)
+       .catch(e=>console.warn('Libellé photo non sauvegardé',e));
+   }
+ };
  const movePhoto=(visiteId,from,to)=>setPhotos(a=>{const site=a.filter(x=>x.visiteId===visiteId).sort((x,y)=>x.ordre-y.ordre);if(from<0||to<0||from>=site.length||to>=site.length)return a;const n=[...site];const[x]=n.splice(from,1);n.splice(to,0,x);const ordres=new Map(n.map((photo,i)=>[photo.id,i]));return a.map(photo=>photo.visiteId===visiteId?{...photo,ordre:ordres.get(photo.id)}:photo)});
  const moveSite=(from,to)=>setDatas(a=>{if(from<0||to<0||from>=a.length||to>=a.length)return a;const n=[...a];const[x]=n.splice(from,1);n.splice(to,0,x);return n});
  const choisirPhotoCouverture=photo=>{if(photo.exportAllowed===false)return;setCoverUri(photo.uri);setCoverLabel(`${photo.siteLabel} — ${photo.label||'Photo'}`);setCoverVisiteId(photo.visiteId)};
@@ -69,7 +79,7 @@ export function ReportScreen({route,onBack}){
 
  const config={chrono,objet,dateRapport,afficherLignesVides,materiel,remarques,photos:inclurePhotos,notes:inclureNotes,coverUri,coverLabel,coverVisiteId,layout};
  const configRapport={...config,patrimoine:inclurePatrimoine,patrimoineScope};
- const generer=async()=>{setPdfProgress('');if(!chrono.trim()||!objet.trim())return Alert.alert('Champs requis','Renseigne le numéro de chrono et l’objet du rapport.');setBusy(true);try{const modeEffectif=mode;const r=modeEffectif==='local'?await exporterRapportsParLocalEdites({datas,config:{...configRapport,onPdfProgress:(done,total)=>setPdfProgress(`Lot ${done}/${total}`)},photosConfig:photos,format,dossiersParLocal}):modeEffectif==='site'?await exporterRapportsParSiteEdites({datas,config:configRapport,photosConfig:photos,format,dossiersParSite}):await exporterRapportEdite({datas,config:configRapport,photosConfig:photos,format});if(!r?.annule && r?.erreurs?.length) {
+ const generer=async()=>{setPdfProgress('');if(!chrono.trim()||!objet.trim())return Alert.alert('Champs requis','Renseigne le numéro de chrono et l’objet du rapport.');setBusy(true);try{await attendreLegendesPhotos(datas.map(d=>d.visite.id));const modeEffectif=mode;const r=modeEffectif==='local'?await exporterRapportsParLocalEdites({datas,config:{...configRapport,onPdfProgress:(done,total)=>setPdfProgress(`Lot ${done}/${total}`)},photosConfig:photos,format,dossiersParLocal}):modeEffectif==='site'?await exporterRapportsParSiteEdites({datas,config:configRapport,photosConfig:photos,format,dossiersParSite}):await exporterRapportEdite({datas,config:configRapport,photosConfig:photos,format});if(!r?.annule && r?.erreurs?.length) {
   const failedIds=[...new Set(r.erreurs.flatMap(e=>e.visiteIds||[]))];
   const details=r.erreurs.slice(0,5).map(e=>(e.siteNom||'')+' / '+(e.localNom||'')+' : '+e.message).join('\n');
   Alert.alert('Export partiel · reprendre les échecs',
