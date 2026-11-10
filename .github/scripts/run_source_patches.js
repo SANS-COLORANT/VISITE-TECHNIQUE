@@ -294,7 +294,10 @@ function runNode(args, label) {
   const result = spawnSync(process.execPath, args, {
     cwd: ROOT,
     stdio: 'inherit',
-    env: process.env,
+    // Précharger seulement dans les vieux tests exécutant le code en new Function
+    // sans imports ES. Aucune mutation ou rustine du runtime versionné.
+    env: { ...process.env, NODE_OPTIONS: [process.env.NODE_OPTIONS || '',
+      '--require=./.github/scripts/test_legacy_alias_globals.js'].filter(Boolean).join(' ') },
     // Fail a hung test instead of silently blocking npm ci/postinstall
     // and every subsequent native Android build step.
     timeout: 180_000,

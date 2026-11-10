@@ -38,6 +38,8 @@ jobs:
         with:
           python-version: '3.12'
       - name: Preserve source and verify critical V1/V2 contracts
+        env:
+          NODE_OPTIONS: '--require=./.github/scripts/test_legacy_alias_globals.js'
         run: |
           node .github/scripts/check_intranet_visit_upload_contract.js
           node .github/scripts/test_intranet_v2_catalog.js
