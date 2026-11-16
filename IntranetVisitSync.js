@@ -11,13 +11,13 @@ import {
   getVisitPhotoUploadSummary, processVisitPhotoOutbox, queueMissingSyncedVisitPhotos, queueMissingVisitPhotos,
   retryVisitPhotoUploadsNow, subscribeVisitPhotoOutbox, syncVisitPhotosNow,
 } from './intranetVisitPhotoOutboxDb.js';
-import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions, pinVerifiedRemarTrameForUpload, resolveFirstVisitRemoteTrame } from './intranetVisitBindingDb.js';
+import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions, getVisitStructureCreationState, pinVerifiedRemarTrameForUpload, resolveFirstVisitRemoteTrame } from './intranetVisitBindingDb.js';
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { chooseUniqueRemarRemoteTrame } from './remarRemoteTrameSelection.js';
 import { syncClientPreparation } from './symfonyApi.js';
 import { latestClientVisitsByLocalAndTemplate } from './clientVisitSendSelection.js';
 import { getDb } from './db.js';
-import { getCachedStructureReferential, syncStructureReferential } from './intranetStructureDb.js';
+import { getCachedStructureReferential, syncStructureReferential, processStructureOutbox } from './intranetStructureDb.js';
 import { IntranetVisitDestinationPicker } from './IntranetVisitDestinationPicker.js';
 
 const OFFLINE = '#111111';
@@ -259,6 +259,33 @@ async function bindSameImportedClient(visiteId) {
   try {
     return await bindVisitToImportedClientTarget(visiteId);
   } catch (error) {
+    // A newly created METRA site/local can exist in the durable structure
+    // outbox before its Symfony IDs are confirmed. Process ONLY that
+    // already-requested creation, never invent a remote local from its name.
+    if(['imported_site_missing','imported_local_ambiguous'].includes(error?.code)){
+      const creation=await getVisitStructureCreationState(visiteId);
+      if(creation.local){
+        if(['pending','retry'].includes(creation.local.status))
+          await processStructureOutbox({limit:4}).catch(()=>{});
+        try{return await bindVisitToImportedClientTarget(visiteId);}
+        catch(recheck){
+          const updated=await getVisitStructureCreationState(visiteId);
+          if(updated.local?.status!=='synced'){
+            const problem=new Error(
+              'La création du local Intranet lié à cette installation METRA n’est pas encore confirmée ('+
+              (updated.local?.status||'inconnue')+'). '+(updated.local?.error_message||'Vérifie les opérations dans Structure Intranet, puis réessaie.')+
+              ' Aucune autre installation ne sera utilisée.');
+            problem.code='structure_local_creation_unconfirmed';
+            throw problem;
+          }
+          error=recheck;
+        }
+      }else if(creation.site){
+        const problem=new Error('Le site a été créé depuis METRA, mais aucune création du local Intranet correspondant à cette installation n’est enregistrée. Ouvre Structure Intranet > Locaux techniques, crée ou associe ce local, puis renvoie la visite. Le nom d’un autre local ne constitue pas une correspondance sûre.');
+        problem.code='structure_local_required';
+        throw problem;
+      }
+    }
     const refreshable = error?.remoteClientId && ['imported_site_missing', 'intranet_reference_refresh_required', 'wrong_imported_site'].includes(error?.code);
     if (!refreshable) throw error;
 
