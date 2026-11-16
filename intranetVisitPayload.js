@@ -1629,6 +1629,18 @@ async function buildCriteria(db, visite, details, issues) {
   return result;
 }
 
+function labelledRemarkForWire(row) {
+  let text=clean(row?.prestation);
+  const raw=clean(row?.reference_libelle);
+  const name=raw.split(/\s*[·|]\s*/)[0].trim();
+  if(/\b(CTA|VMC|caisson)\b/i.test(name) && text &&
+     !normalize(text).startsWith(normalize(name)))
+    text=name+' : '+text;
+  if(Number(row?.urgence)===1 && !/^\[urgent\]/i.test(text))
+    text='[URGENT] '+text;
+  return text;
+}
+
 async function buildRemarks(db, visiteId, issues) {
   const rows = await db.getAllAsync(`SELECT * FROM remarques WHERE visite_id=? ORDER BY cree_le,id`, [visiteId]);
   return rows.map((row, index) => {
@@ -1643,7 +1655,7 @@ async function buildRemarks(db, visiteId, issues) {
       preserveFreeText(issues, `${prefix} / état d’avancement saisi`, progress);
     return {
       poste: limited(row.poste, 50, `${prefix} / poste`, issues, { required: true }),
-      prestation: limited(row.prestation, 765, `${prefix} / prestation`, issues, { required: true }),
+      prestation: limited(labelledRemarkForWire(row), 765, `${prefix} / prestation`, issues, { required: true }),
       dateReserve,
       delai,
       etatAvancement: INTRANET_PROGRESS.includes(progress) ? progress : null,
