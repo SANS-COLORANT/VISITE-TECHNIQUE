@@ -625,7 +625,7 @@ function ValidationParCTA({visiteId,equipment,definition,onSaved}) {
   </View>;
 }
 
-export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',onRemarActiveCta}) {
+export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',onRemarActiveCta,active=true}) {
   const definition = obtenirTrame(trameId);
   const family = FAMILLE_PAR_ONGLET[panelId] || null;
   const cta=family==='cta';
@@ -654,7 +654,7 @@ export function RemarDynamicPanel({visiteId,panelId,onSaved,trameId='remar_v1',o
         (rows.some(e=>e.id===old)?old:rows[0]?.id) || null);
     }
   },[visiteId,family]);
-  useEffect(()=>{refresh().catch(e=>console.warn('REMAR écran dynamique',e));},[refresh]);
+  useEffect(()=>{if(active)refresh().catch(e=>console.warn('REMAR écran dynamique',e));},[refresh,active]);
 
   // Le flush est bloquant avant toute navigation CTA. Si SQLite refuse une
   // ecriture, l'agent reste dans la fiche au lieu de perdre sa modification.
