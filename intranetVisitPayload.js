@@ -981,7 +981,24 @@ function countRemoteCriteria(trame) {
  */
 function groupRemarDetailsForIntranet(projection, definition, issues, remoteTrame = null) {
   if(!Array.isArray(projection?.details)||!projection.details.length)return null;
-  const mappings=new Map(mappingsForRemarRemote(definition,remoteTrame)
+  // A row being present in METRA's 141-field Excel definition does NOT
+  // mean that this particular Symfony template publishes that criterion.
+  // Verify CTA improvement slots against the actual frozen remote criteria,
+  // including category and subcategory, before deciding to map or use notes.
+  const official=mappingsForRemarRemote(definition,remoteTrame);
+  const candidates=buildStaticCandidates('remar_v1',remoteTrame);
+  const publishedEnergy=new Map();
+  for(const category of remoteTrame?.categories||[])
+    for(const sub of category?.sousCategories||[])
+      for(const criterion of sub?.criteres||[]){
+        const resolved=findCandidate(candidates,criterion,category.nom,sub.nom);
+        if(resolved?.panelId==='p-remar-cta-energie'){
+          const destination=[resolved.panelId,resolved.section,resolved.cle].join('||');
+          publishedEnergy.set(destination,(publishedEnergy.get(destination)||0)+1);
+        }
+      }
+  const mappings=new Map(official.filter(m=>m.panelId!=='p-remar-cta-energie' ||
+    publishedEnergy.get([m.panelId,m.section,m.cle].join('||'))===1)
     .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
   const parents=new Map(),children=new Map(),rows=[],groups=new Map();
   // The Excel reference may expose CTA improvements that Symfony does not.
@@ -1293,6 +1310,9 @@ async function buildCriteria(db, visite, details, issues) {
       const byOfficial = new Map(mappingsForRemarRemote(definition,remoteTrame)
         .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
       for (const [key,value] of remap.replacements) {
+        // This CTA improvement was transported as per-equipment visit notes:
+        // do not re-inject the flat Excel reference or create a second blocker.
+        if(issues.remarPreservedDynamicFields?.has(key))continue;
         const mapping = byOfficial.get(key);
         if (!mapping) {
           // An optional CTA improvement from a reference equipment is already
@@ -1545,6 +1565,7 @@ async function buildCriteria(db, visite, details, issues) {
       const networkCovered=remarNetworkSummary &&
         mapping.panelId==='p-remar-reseaux' && /^Réseau [1-9]\d*$/.test(mapping.cle);
       if(present && !mappedLocalRemar.has(destination) &&
+         !issues.remarPreservedDynamicFields?.has(destination) &&
          !remarVisitMetadataCovered(definition,mapping) && !networkCovered)
         issues.push(`REMAR : saisie locale « ${mapping.cle} » (${mapping.panelId} / ${mapping.section}) non couverte par les critères de la trame Symfony. Envoi refusé pour conserver la donnée.`);
     }
