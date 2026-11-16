@@ -1313,7 +1313,7 @@ async function buildCriteria(db, visite, details, issues) {
       const destination=destinationCompteurRemar(counter,destinations);
       if(meaningfulRemote(counter.valeur)&&!destination)
         issues.push('Compteur REMAR « '+(clean(counter.label)||counter.id)+
-          ' » : aucune destination Intranet officielle et non ambiguë. Vérifie la trame Symfony, la famille et l’unité du compteur ; aucun index n’est déplacé dans une autre case.');
+          ' » : aucune destination Intranet ambiguë ou inconnue. Vérifie la trame Symfony, la famille et l’unité du compteur ; aucun index n’est déplacé dans une autre case.');
       return {...counter,destination:destination||'supplementaire'};
     });
   }
