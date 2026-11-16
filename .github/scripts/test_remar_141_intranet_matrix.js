@@ -18,12 +18,16 @@ function load(file,deps,names){
 }
 const storageAliases=load('intranetStorageAliases.js',{},['candidateSectionCodes','resolveAliasValue']);
 const projectionTools=load('remarDynamicExportDb.js',{},['remarDynamicOwnsMapping']);
+const remoteContract=load('remarSymfonyCompleteContract.js',{},
+  ['remarMappingsForRemote','remarOptionalMappingsForRemote','isRemarCompleteTrame']);
 let projection={hasDynamic:false};
 const serializer=load('intranetVisitPayload.js',{
   getDb:async()=>{throw new Error('SQLite access mocked explicitly by this field test');},
   obtenirTrame:()=>definition,
   construireRemarDynamiquePourRapport:async()=>projection,
   remarDynamicOwnsMapping:projectionTools.remarDynamicOwnsMapping,
+  remarMappingsForRemote:remoteContract.remarMappingsForRemote,
+  isRemarCompleteTrame:remoteContract.isRemarCompleteTrame,
   formaterReleves:load('releveMultiligne.js',{pictoTemperature:()=>({})},['formaterReleves']).formaterReleves,
   formaterTemperatureGroupee:(_name,value)=>value,
   candidateStorageCodes:storageAliases.candidateSectionCodes,
@@ -110,6 +114,64 @@ function find(panel,cle,section=null){
 }
 
 (async()=>{
+  // Server-advertised optional readings are NOT changes to the official
+  // REMAR Excel template. They are accepted only if unique real Symfony
+  // criteria exist in the matching meter / boiler temperature section.
+  const readingCategory=remote.categories.find(c=>c.nom===remoteCategoryName('p-remar-releves'));
+  check(Boolean(readingCategory),'the 141-field fixture has a meter/temperature category');
+  const remoteExtra=structuredClone(remote);
+  const extraCategory=remoteExtra.categories.find(c=>c.nom===remoteCategoryName('p-remar-releves'));
+  const appendExtra=(section,id,nom)=>{
+    const sub=extraCategory.sousCategories.find(s=>s.nom===section);
+    assert.ok(sub,'missing remote test subsection '+section);
+    sub.criteres.push({id,nom,avisApplicable:true});
+  };
+  appendExtra('Température chaufferie',990001,'Primaire aller');
+  appendExtra('Température chaufferie',990002,'Primaire retour');
+  appendExtra('Compteur',990003,'Compteur eau froide générale');
+  check(remoteContract.remarOptionalMappingsForRemote(definition,remoteExtra).length===3,
+    'unique published Symfony criteria permit precisely three extra readings');
+  check(remoteContract.remarOptionalMappingsForRemote(definition,remote).length===0,
+    'old trames gain no invented primary or cold-water criteria');
+  const badCategory=structuredClone(remoteExtra);
+  const sourceSub=badCategory.categories.find(c=>c.nom===remoteCategoryName('p-remar-releves'))
+    .sousCategories.find(s=>s.nom==='Compteur');
+  sourceSub.criteres.push({id:990004,nom:'Compteur eau froide générale (m³)',avisApplicable:true});
+  check(!remoteContract.remarOptionalMappingsForRemote(definition,badCategory)
+    .some(m=>m.cle==='Compteur eau froide générale (m³)'),
+    'two matching remote cold-water criteria must not be mapped arbitrarily');
+  const wrongContext=structuredClone(remote);
+  wrongContext.categories[0].sousCategories[0].criteres.push({
+    id:990005,nom:'Primaire aller',avisApplicable:true});
+  check(remoteContract.remarOptionalMappingsForRemote(definition,wrongContext).length===0,
+    'same measurement name in unrelated section is not a valid destination');
+  const tempRow=(id,name,value)=>[
+    'chaufferie','','',name,id,'temperature_chaufferie',
+    'p-remar-releves','temperature_chaufferie','Valeur',value,'','','',
+    'Visite courante','°C'];
+  projection={hasDynamic:true,familyCounts:{cta:0,vmc:0,froid:0},
+    temperaturesCount:2,replacements:new Map(),details:[
+      tempRow('temp-primary-in','Primaire aller','70'),
+      tempRow('temp-primary-out','Primaire retour','58'),
+    ],ambiguous:[],unsupported:[]};
+  const meterExtra={id:'meter-cold',destination:'supplementaire',
+    label:'Compteur eau froide générale',unite:'m³',valeur:'125'};
+  const sendExtra=await build({remote:remoteExtra,meters:[meterExtra]});
+  check(sendExtra.issues.length===0,
+    'published primary temperatures and general cold-water meter can be sent without losing data: '+
+      sendExtra.issues.join(' | '));
+  for(const [id,text] of [[990001,'70'],[990002,'58'],[990003,'125']]) {
+    const value=sendExtra.values.find(v=>v.critereId===id)?.commentaire||'';
+    check(value.includes(text),'remote optional measurement '+id+' transports value '+text);
+  }
+  const missingExtra=await build({meters:[meterExtra]});
+  check(missingExtra.issues.some(issue=>issue.includes('Primaire aller')) &&
+    missingExtra.issues.some(issue=>issue.includes('Primaire retour')) &&
+    missingExtra.issues.some(issue=>issue.includes('Compteur eau froide générale')),
+    'missing Symfony destinations still block loss-prone transmission of all three measurements');
+  check(!missingExtra.values.some(v=>v.commentaire.includes('125')),
+    'cold-water index is never silently sent to gas, ECS or make-up criteria');
+  projection={hasDynamic:false};
   const base=await build();
   check(base.issues.length===0,'full static criterion mapping passes: '+base.issues.join(' | '));
   check(base.values.length===141,'141 criteria in outbound wire');
