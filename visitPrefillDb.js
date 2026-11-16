@@ -10,11 +10,11 @@ const PREFILL_META_PREFIX = 'visit_prefill_done::';
 function sectionCode(panelId, section) {
   return canonicalSectionCode(panelId, section);
 }
+// Existing rows, including an explicitly cleared empty string, always win over defaults.
 async function insertIfEmpty(db, visiteId, panelId, section, cle, valeur) {
   if (valeur === null || valeur === undefined || String(valeur).trim() === '') return;
   await db.runAsync(`INSERT INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)
-     ON CONFLICT(visite_id,section_code,cle) DO UPDATE SET valeur=excluded.valeur
-     WHERE champs_visite.valeur IS NULL OR trim(champs_visite.valeur)=''`, [visiteId, sectionCode(panelId, section), cle, String(valeur)]);
+     ON CONFLICT(visite_id,section_code,cle) DO NOTHING`, [visiteId, sectionCode(panelId, section), cle, String(valeur)]);
 }
 function formatHeure(date = new Date()) { const p = (n) => String(n).padStart(2, '0'); return `${p(date.getHours())}:${p(date.getMinutes())}`; }
 function saisonDeChauffe(dateTexte) {
