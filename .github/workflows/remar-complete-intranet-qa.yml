@@ -71,6 +71,7 @@ jobs:
           NODE_OPTIONS: '--require=./.github/scripts/test_legacy_alias_globals.js'
         run: |
           node .github/scripts/test_remar_141_intranet_matrix.js
+          node .github/scripts/test_remar_supplemental_payload.js
           node .github/scripts/test_remar_remote_trame_selection.js
           node .github/scripts/test_remar_complete_20261103.js
           node .github/scripts/test_premium_cards_control_photos.js

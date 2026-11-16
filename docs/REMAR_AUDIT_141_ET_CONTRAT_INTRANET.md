@@ -1,5 +1,33 @@
 # METRA REMAR — audit 141 points, intégrité des saisies et contrat Intranet
 
+## Addendum du 16/11/2026 — mesures complémentaires en notes d'Intranet
+
+La trame Symfony d'Épicéa/Sous-station ne publie pas de critère destiné aux
+températures **Primaire aller/Primaire retour** ni au **compteur eau froide
+générale**. La PR #136 initiale n'autorisait leur envoi que si un critère
+supplémentaire était déjà publié : elle ne levait donc pas le blocage terrain.
+
+Pour éviter de confondre des mesures différentes et permettre un envoi utile,
+les **mesures REMAR non représentables dans un critère officiel** (températures
+primaires/libres, compteurs complémentaires, mesures CTA complémentaires)
+sont conservées comme **notes de visite Intranet**. Chaque note inclut le
+nom, le champ, la rubrique, l'ID local, l'unité, la valeur et les avis/commentaires
+éventuels. Les notes respectent le contrat Symfony V1 (1 000 caractères par
+note, maximum 100 notes par visite, corps total 5 Mio), en plusieurs parties
+si nécessaire. Aucune valeur n'est transmise dans une autre case officielle.
+
+Une mesure **déjà publiée dans un vrai critère Symfony** reste envoyée dans
+ce critère, sans note en double. Les observations restent structurées dans
+SQLite METRA et dans l'annexe Excel REMAR_DETAIL ; les notes Symfony restent
+des **textes de visite**, pas des critères ni des compteurs/mesures structurés.
+Leur restitution dans un nouveau formulaire dépend d'une future API Symfony
+capable de fournir ces champs supplémentaires. Les contrôles/mappings officiels
+manquants ou ambigus, identités invalides, collisions et limites de taille
+continuent à bloquer l'envoi plutôt que d'altérer les données.
+
+Cet addendum documente une évolution postérieure à l'audit initial ci-dessous ;
+ses constats et limitations historiques datés du 02/11 restent conservés.
+
 **État : branche de correction / PR en brouillon, non déployée.**
 Ce document ne vaut pas recette de production sur Symfony. Date de l'audit : 2026-11-02.
 

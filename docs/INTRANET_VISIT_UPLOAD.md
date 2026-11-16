@@ -143,7 +143,8 @@ même `envoiPhotoId` et une nouvelle preuve DPoP.
 La référence de trame Intranet est figée sur la visite avant l'envoi. L'envoi
 parcourt toutes les catégories, sous-catégories et critères de cette référence
 et produit exactement une ligne par critère. Un mapping ambigu ou absent bloque
-l'envoi avant HTTP.
+l'envoi avant HTTP, **sauf les mesures complémentaires REMAR sans case Symfony**,
+qui sont envoyées en notes identifiées (voir ci-dessous), sans inventer de critère.
 
 - Contrôle applicable : avis courant METRA parmi `S.O`, `S`, `N.S`, `N.R`,
   `N.V` + commentaire courant. Si le contrôle n'est pas renseigné, METRA envoie

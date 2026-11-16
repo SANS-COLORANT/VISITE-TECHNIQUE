@@ -17,6 +17,7 @@ function load(file,deps,names) {
 const engine=new DatabaseSync(':memory:');
 engine.exec('PRAGMA foreign_keys=ON');
 engine.exec(`
+ CREATE TABLE provenances(entite_type TEXT,entite_id TEXT,origine TEXT,details_json TEXT);
  CREATE TABLE sites(id TEXT PRIMARY KEY);
  CREATE TABLE _meta(key TEXT PRIMARY KEY,value TEXT);
  CREATE TABLE installations(id TEXT PRIMARY KEY,site_id TEXT,actif INTEGER);
@@ -145,6 +146,22 @@ async function run(){
  ok(!(await dao.listerRemarEquipements('v2','cta')).some(e=>e.id===another),
    'retired equipment no longer appears in active local list');
  engine.exec("UPDATE visites SET statut='terminee' WHERE id='v2'");
+ // Locally finished but unsent visits must remain correctable. The original
+ // false guard blocked removal even before the first Intranet POST.
+ const finishedTemp=await dao.creerRemarItem('v2',{typeCode:'temperature_chaufferie',
+   nom:'Primaire aller',unite:'°C'});
+ await dao.enregistrerRemarValeur('v2',{ownerType:'item',ownerId:finishedTemp,
+   panelId:'p-remar-releves',sectionCode:'temperature_chaufferie',cle:'Valeur',valeur:'70'});
+ await dao.retirerRemarItem('v2',finishedTemp);
+ ok(!(await dao.listerRemarItems('v2','temperature_chaufferie')).some(r=>r.id===finishedTemp),
+   'locally completed unsent REMAR visit can remove a mistaken temperature');
+ // Historical Symfony imports must never mutate shared current patrimoine.
+ engine.exec(`INSERT INTO provenances(entite_type,entite_id,origine,details_json)
+   VALUES('visite','v1','api_symfony','{"sourceType":"imported_latest_visit"}')`);
+ await assert.rejects(()=>dao.creerRemarItem('v1',{typeCode:'temperature_chaufferie',
+   nom:'Do not change imported history'}),/historique importée/);
+ ok((await dao.listerRemarItems('v1','filtre_cta',cta)).length===1,
+   'imported visit remains immutable with its historical children intact');
  ok((await dao.listerRemarEquipements('v2','cta')).some(e=>e.id===another),
    'retired equipment remains in closed historical visit inventory');
  const ui=read('TrameGenericPanel.js');

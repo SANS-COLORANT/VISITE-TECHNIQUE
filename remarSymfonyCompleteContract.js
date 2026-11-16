@@ -75,7 +75,70 @@ export function remarCompleteMappings(definition) {
     throw new Error('REMAR COMPLÈTE: 147 unique destinations expected.');
   return result;
 }
+/**
+ * Extensions optional to the frozen REMAR worksheets. The ONLY authority is a
+ * criterion that Symfony actually published for this visit. In particular,
+ * primary temperatures and general cold-water meters are NOT aliases of
+ * heating temperatures, sanitary water or make-up water.
+ *
+ * These destinations have no Excel cell and never change the 141/147 official
+ * worksheet mappings. A criterion that Symfony has not published remains
+ * unsendable, rather than being silently diverted into another measurement.
+ */
+const OPTIONAL_REMOTE_MEASUREMENTS = Object.freeze([
+  { section: 'Température chaufferie', cle: 'Primaire aller (°C)', labels: [
+    'Primaire aller', 'Primaire aller (°C)',
+    'Température primaire aller', 'Température primaire aller (°C)',
+  ] },
+  { section: 'Température chaufferie', cle: 'Primaire retour (°C)', labels: [
+    'Primaire retour', 'Primaire retour (°C)',
+    'Température primaire retour', 'Température primaire retour (°C)',
+  ] },
+  { section: 'Compteur', cle: 'Compteur eau froide générale (m³)', labels: [
+    'Compteur eau froide générale', 'Compteur eau froide générale (m³)',
+    "Compteur d'eau froide générale", "Compteur d'eau froide générale (m³)",
+  ] },
+]);
+
+export function remarOptionalMappingsForRemote(definition, remoteTrame) {
+  if ((definition?.familyId || definition?.id) !== 'remar_v1') return [];
+  const base = definition?.excel?.fieldMappings || [];
+  const rows = [];
+  const matched = new Map();
+  // The category must explicitly be about readings. A namesake in CTA,
+  // cold production or an unrelated category is not a valid destination.
+  for (const category of remoteTrame?.categories || []) {
+    const context = normal(category?.nom);
+    if (!/(compteur|temperature|releve)/.test(context) ||
+        /(production froid|frigorifique|\bcta\b|\bvmc\b)/.test(context)) continue;
+    for (const sub of category?.sousCategories || []) {
+      for (const criterion of sub?.criteres || []) {
+        const rule = OPTIONAL_REMOTE_MEASUREMENTS.find(entry =>
+          normal(entry.section) === normal(sub?.nom) &&
+          entry.labels.some(label => normal(label) === normal(criterion?.nom)));
+        if (!rule) continue;
+        if (!matched.has(rule.cle)) matched.set(rule.cle, []);
+        matched.get(rule.cle).push({rule, criterion});
+
+      }
+    }
+  }
+  // Duplicate server destinations are not silently collapsed: no optional
+  // mapping is authorized until the Symfony category is unambiguous.
+  for (const choices of matched.values()) {
+    if (choices.length !== 1) continue;
+    const {rule,criterion} = choices[0];
+    const sameSection=base.find(m=>m.panelId==='p-remar-releves' && m.section===rule.section);
+    if (!sameSection) continue;
+    rows.push({panelId:'p-remar-releves',section:rule.section,
+      sectionCode:sameSection.sectionCode,cle:rule.cle,remoteCle:criterion.nom,
+      type:'champ',symfonyOnly:true,remarOptional:true});
+  }
+  return rows;
+}
+
 export function remarMappingsForRemote(definition,remoteTrame) {
-  return isRemarCompleteTrame(remoteTrame) ? remarCompleteMappings(definition)
+  const base = isRemarCompleteTrame(remoteTrame) ? remarCompleteMappings(definition)
     : (definition?.excel?.fieldMappings || []);
+  return [...base, ...remarOptionalMappingsForRemote(definition, remoteTrame)];
 }
