@@ -472,7 +472,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
 
       await queueWithMaterialSafety();
     } catch (error) {
-      showLocalBindingAlert('Visite non envoyable',error);
+      showLocalBindingAlert('Visite non envoyable', error);
     } finally {
       setBusy(false);
     }
