@@ -127,9 +127,12 @@ function exporterAnnexesDynamiques(wb, trame, reseaux, compteurs, photos) {
     byKey.set(key, [...(byKey.get(key) || []), label]);
   }
   if (modules.networks) ajouterAnnexeDynamique(wb, 'RESEAUX_DETAIL',
-    ['N°', 'Réseau', 'T° ext (°C)', 'T° départ (°C)', 'Courbe de chauffe', 'TNC', 'Programme', 'Photos'],
-    reseaux.map((r, i) => [i + 1, r.nom_reseau || '', r.t_ext_c ?? '', r.t_dep_c ?? '',
-      r.courbe_de_chauffe ?? '', r.tnc ?? '', r.consigne_programme_horaire ?? '',
+    ['N°', 'Réseau', 'T° ext (°C)', 'T° départ (°C)', 'T° retour ECS (°C)', 'Courbe de chauffe', 'TNC', 'Programme', 'Photos'],
+    reseaux.map((r, i) => [i + 1, r.nom_reseau || '',
+      /\becs\b/i.test(String(r.nom_reseau||'')) ? '' : (r.t_ext_c ?? ''),
+      r.t_dep_c ?? '', r.t_retour_ecs_c ?? '',
+      /\becs\b/i.test(String(r.nom_reseau||'')) ? '' : (r.courbe_de_chauffe ?? ''),
+      r.tnc ?? '', r.consigne_programme_horaire ?? '',
       (byKey.get(r.reseau_site_id ? `reseau_site||${r.reseau_site_id}` : `reseau||${r.id}`) || []).join(' | ')]));
   if (modules.meters) ajouterAnnexeDynamique(wb, 'COMPTEURS_DETAIL',
     ['Compteur', 'Index', 'Unité', 'Destination trame', 'Précédent', 'Photos'],
