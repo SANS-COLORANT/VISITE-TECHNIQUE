@@ -222,7 +222,7 @@ async function main() {
       VALUES('d2-visit','local-site','installation-d2','2026-11-04','terminee','icpe_v1');
     `);
     await assert.rejects(() => binding.bindVisitToImportedClientTarget('d2-visit'),
-      /correspondance Intranet n’est pas encore retrouvée/);
+      /identifiant local Intranet n’est pas encore établi/);
     check((await server.db.getFirstAsync(
       "SELECT api_remote_local_id FROM visites WHERE id='d2-visit'")).api_remote_local_id == null,
       'D2 without source identity remains unchanged and never uploads to another local');
