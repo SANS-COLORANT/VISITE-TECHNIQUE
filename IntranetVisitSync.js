@@ -258,31 +258,62 @@ async function bindSameImportedClient(visiteId) {
   try {
     return await bindVisitToImportedClientTarget(visiteId);
   } catch (error) {
-    // A newly created METRA site/local can exist in the durable structure
-    // outbox before its Symfony IDs are confirmed. Process ONLY that
-    // already-requested creation, never invent a remote local from its name.
-    if(['imported_site_missing','imported_local_ambiguous'].includes(error?.code)){
-      const creation=await getVisitStructureCreationState(visiteId);
-      if(creation.local){
-        if(['pending','retry'].includes(creation.local.status))
-          await processStructureOutbox({limit:4}).catch(()=>{});
-        try{return await bindVisitToImportedClientTarget(visiteId);}
-        catch(recheck){
-          const updated=await getVisitStructureCreationState(visiteId);
-          if(updated.local?.status!=='synced'){
+    // Creating a site/local in METRA already queues a *real* Symfony POST
+    // with a stable creationId. It returns a NEW Symfony ID (201) or the
+    // same ID on an idempotent replay (200). A visit from that newly created
+    // physical installation is allowed to use the exact acknowledged ID;
+    // never substitute a neighbouring local by name or create another local.
+    if(['imported_site_missing','imported_local_ambiguous','intranet_reference_refresh_required'].includes(error?.code)){
+      let creation=await getVisitStructureCreationState(visiteId);
+      if(creation.site||creation.local){
+        // The site's acknowledgement must be materialized before its local
+        // can be posted. The first pass may defer the dependent local when
+        // another outbox operation was already in progress. Bounded retries
+        // use the ORIGINAL rows and creation IDs, never new POST identities.
+        for(let attempt=0;attempt<3;attempt++){
+          const pending=[creation.site,creation.local].some(op=>
+            ['pending','retry','sending'].includes(op?.status));
+          if(!pending)break;
+          await processStructureOutbox({limit:8}).catch(()=>{});
+          creation=await getVisitStructureCreationState(visiteId);
+        }
+        const terminal=new Set(['rejected','validation_error','auth_error','conflict']);
+        for(const [label,operation] of [['site',creation.site],['local',creation.local]]){
+          if(operation&&terminal.has(operation.status)){
+            const problem=new Error('La création '+label+' sur l’Intranet a été refusée ('+
+              operation.status+'). '+(operation.error_message||'Corrige cette opération dans Structure Intranet.')+
+              ' Aucun autre identifiant ne sera utilisé.');
+            problem.code='structure_creation_failed';
+            throw problem;
+          }
+        }
+        if(creation.local){
+          if(creation.local.status!=='synced'){
             const problem=new Error(
-              'La création du local Intranet lié à cette installation METRA n’est pas encore confirmée ('+
-              (updated.local?.status||'inconnue')+'). '+(updated.local?.error_message||'Vérifie les opérations dans Structure Intranet, puis réessaie.')+
-              ' Aucune autre installation ne sera utilisée.');
+              'La création Intranet du local de cette installation est en attente ('+
+              (creation.local.status||'inconnue')+'). '+
+              (creation.local.error_message||'METRA reprendra l’envoi après connexion.')+
+              ' La visite et les relevés restent enregistrés sur la tablette.');
             problem.code='structure_local_creation_unconfirmed';
             throw problem;
           }
-          error=recheck;
+          // The newly acknowledged local starts with zero published criteria.
+          // Prepare the very same local/trame before freezing the first visit.
+          try{return await bindVisitToImportedClientTarget(visiteId);}
+          catch(recheck){error=recheck;}
+        }else if(creation.site){
+          // Site creation and site export still work independently. The
+          // visit needs the technician's actual technical local to be created
+          // in that site; this must not fabricate a remote installation.
+          const problem=new Error(
+            'Le site créé sur METRA est '+(creation.site.status==='synced'?
+              'bien enregistré sur l’Intranet (ID '+creation.site.remote_id+'). ':
+              'en cours de création sur l’Intranet. ')+
+            'Pour envoyer cette visite, crée également son local dans Structure Intranet > Locaux techniques. '+
+            'Il recevra automatiquement son propre identifiant Symfony, sans réimporter un autre local.');
+          problem.code='structure_local_required';
+          throw problem;
         }
-      }else if(creation.site){
-        const problem=new Error('Le site a été créé depuis METRA, mais aucune création du local Intranet correspondant à cette installation n’est enregistrée. Ouvre Structure Intranet > Locaux techniques, crée ou associe ce local, puis renvoie la visite. Le nom d’un autre local ne constitue pas une correspondance sûre.');
-        problem.code='structure_local_required';
-        throw problem;
       }
     }
     const refreshable = error?.remoteClientId && ['imported_site_missing', 'intranet_reference_refresh_required', 'wrong_imported_site'].includes(error?.code);
