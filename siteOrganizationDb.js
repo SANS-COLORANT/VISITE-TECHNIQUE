@@ -88,7 +88,7 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
   const cibleId = uuidv4();
   const nomCible = texte(nomSite) || `${source.nom_site} - copie`;
 
-  await db.execAsync('BEGIN IMMEDIATE');
+  await db.runAsync('BEGIN IMMEDIATE');
   try {
     await insererClone(db, 'sites', source, { id: cibleId, nom_site: nomCible, statut: 'Actif' }, ['cree_le']);
 
@@ -165,10 +165,10 @@ export async function dupliquerSite(sourceSiteId, { nomSite = null, copierPatrim
       }
     }
 
-    await db.execAsync('COMMIT');
+    await db.runAsync('COMMIT');
     return { siteId: cibleId, nomSite: nomCible, visitesCopiees:copyResult.visites };
   } catch (error) {
-    await db.execAsync('ROLLBACK').catch(() => {});
+    await db.runAsync('ROLLBACK').catch(() => {});
     throw error;
   }
 }
