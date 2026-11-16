@@ -984,6 +984,11 @@ function groupRemarDetailsForIntranet(projection, definition, issues, remoteTram
   const mappings=new Map(mappingsForRemarRemote(definition,remoteTrame)
     .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
   const parents=new Map(),children=new Map(),rows=[],groups=new Map();
+  // The Excel reference may expose CTA improvements that Symfony does not.
+  // Count per-key coverage when preserving per-equipment values in notes:
+  // otherwise the later flat "replacements" pass reports false blockers.
+  const preserved=new Set();
+  issues.remarPreservedDynamicFields=preserved;
   const key=(p,s,c)=>[p,s,c].join('||');
   const has=row=>[row.valeur,row.avis,row.commentaire].some(v=>meaningfulRemote(v)!==null);
   const report=(label,reason)=>issues.push('REMAR / '+label+' : '+reason);
@@ -1052,12 +1057,15 @@ function groupRemarDetailsForIntranet(projection, definition, issues, remoteTram
     const parent=parents.get(row.id);
     const label=parent?.name||row.name||row.id;
     if(!mappings.has(key(row.panel,row.section,row.cle))){
-      const preserved=(row.panel==='p-remar-releves' || row.panel==='p-remar-cta-mesures') &&
+      const supplementaryPanels=['p-remar-releves','p-remar-cta-mesures','p-remar-cta-energie'];
+      const saved=supplementaryPanels.includes(row.panel) &&
         preserveRemarMeasurementInNotes(issues,{
-          panel:row.panel,section:row.section,cle:row.cle,nom:label,id:row.id,
-          unite:row.unite,valeur:row.valeur,avis:row.avis,commentaire:row.commentaire,
+          panel:row.panel,section:row.section,cle:row.cle,
+          nom:label,id:row.id,unite:row.unite,
+          valeur:row.valeur,avis:row.avis,commentaire:row.commentaire,
         });
-      if(!preserved)report(label,'champ additionnel '+row.cle+' absent du modèle REMAR officiel');
+      if(saved)preserved.add(key(row.panel,row.section,row.cle));
+      else report(label,'champ additionnel '+row.cle+' absent du modèle REMAR officiel');
       continue;
     }
     add(row.panel,row.section,row.cle,{...row,label});
@@ -1287,6 +1295,11 @@ async function buildCriteria(db, visite, details, issues) {
       for (const [key,value] of remap.replacements) {
         const mapping = byOfficial.get(key);
         if (!mapping) {
+          // An optional CTA improvement from a reference equipment is already
+          // represented by an IDENTIFIED, per-equipment visit note. Do not
+          // reject it again merely because the reference Excel has a cell.
+          if(issues.remarPreservedDynamicFields?.has(key))continue;
+          if([value?.valeur,value?.avis,value?.commentaire].every(v=>meaningfulRemote(v)===null))continue;
           issues.push(`REMAR : correspondance officielle introuvable pour ${key}.`);
           continue;
         }
