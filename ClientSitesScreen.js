@@ -312,12 +312,12 @@ function ClientSitesScreen({ route, navigation }) {
 
   const demanderDuplication = (site) => Alert.alert(
     'Dupliquer ce site ?',
-    `METRA va créer « ${site.nom_site} - copie » avec son patrimoine et sa maquette LAB 3D. Les anciennes visites, réserves, mesures et photos ne seront pas copiées.`,
+    `METRA va créer « ${site.nom_site} - copie » avec son patrimoine et la dernière visite de chaque local/trame : champs, avis S/NS/SO, matériel, relevés et réserves. Les identifiants du site, des locaux et des équipements seront nouveaux. Les signatures et fichiers photo ne sont pas copiés : ils nécessitent une nouvelle preuve sur ce site. Aucune ancienne visite Intranet ne sera renvoyée automatiquement.`,
     [
       { text: 'Annuler', style: 'cancel' },
       { text: 'Dupliquer', onPress: async () => {
         try {
-          await dupliquerSite(site.id, { copierPatrimoine: true, copierLab3d: true });
+          await dupliquerSite(site.id, { copierPatrimoine: true, copierLab3d: true, copierVisites: true });
           await charger();
         } catch (e) { Alert.alert('Duplication impossible', String(e?.message || e)); }
       } },
