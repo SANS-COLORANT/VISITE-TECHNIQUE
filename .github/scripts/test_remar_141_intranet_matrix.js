@@ -32,7 +32,7 @@ const serializer=load('intranetVisitPayload.js',{
   formaterTemperatureGroupee:(_name,value)=>value,
   candidateStorageCodes:storageAliases.candidateSectionCodes,
   candidateStoredValue:storageAliases.resolveAliasValue,
-},['buildCriteria','inspectIntranetCriterionCandidate']);
+},['buildCriteria','inspectIntranetCriterionCandidate','freeTextAsVisitNotes']);
 
 const mappings=definition.excel.fieldMappings;
 let checks=0;
@@ -99,9 +99,11 @@ function dbFor({networks=[],meters=[],fieldRows=fields,controlRows=controls}={})
 }
 async function build(extra={}){
   const issues=[];
+  issues.freeTextFallbacks=[];
   const values=await serializer.buildCriteria(dbFor(extra),{id:'remar-141',trame_id:'remar_v1'},
     {trame:extra.remote||remote},issues);
-  return {values,issues};
+  const notes=issues.freeTextFallbacks.flatMap(e=>serializer.freeTextAsVisitNotes(e.value,e.path));
+  return {values,issues,notes,supplementCount:issues.remarSupplementalCount||0};
 }
 function outputFor(result,m){
   const idx=remoteIndex.findIndex(x=>identity(x.m)===identity(m));
@@ -157,20 +159,25 @@ function find(panel,cle,section=null){
   const meterExtra={id:'meter-cold',destination:'supplementaire',
     label:'Compteur eau froide générale',unite:'m³',valeur:'125'};
   const sendExtra=await build({remote:remoteExtra,meters:[meterExtra]});
-  check(sendExtra.issues.length===0,
-    'published primary temperatures and general cold-water meter can be sent without losing data: '+
+  check(sendExtra.issues.length===0 && sendExtra.notes.length===0,
+    'published primary temperatures and general cold-water meter can be sent in real criteria, not duplicate notes: '+
       sendExtra.issues.join(' | '));
   for(const [id,text] of [[990001,'70'],[990002,'58'],[990003,'125']]) {
     const value=sendExtra.values.find(v=>v.critereId===id)?.commentaire||'';
     check(value.includes(text),'remote optional measurement '+id+' transports value '+text);
   }
   const missingExtra=await build({meters:[meterExtra]});
-  check(missingExtra.issues.some(issue=>issue.includes('Primaire aller')) &&
-    missingExtra.issues.some(issue=>issue.includes('Primaire retour')) &&
-    missingExtra.issues.some(issue=>issue.includes('Compteur eau froide générale')),
-    'missing Symfony destinations still block loss-prone transmission of all three measurements');
-  check(!missingExtra.values.some(v=>v.commentaire.includes('125')),
-    'cold-water index is never silently sent to gas, ECS or make-up criteria');
+  check(missingExtra.issues.length===0 && missingExtra.notes.length===3 &&
+    missingExtra.supplementCount===3,
+    'three missing Symfony criteria are carried in separate visit notes instead of blocking');
+  const allNotes=missingExtra.notes.map(n=>n.contenu).join('\n');
+  for(const fragment of ['Primaire aller','Primaire retour','Compteur eau froide générale',
+      'Valeur : 70','Valeur : 58','Valeur : 125','Unité : °C','Unité : m³','ID METRA :']){
+    check(allNotes.includes(fragment),'reversible supplementary note contains '+fragment);
+  }
+  check(!missingExtra.values.some(v=>v.commentaire.includes('125') ||
+      v.commentaire.includes('70 °C') || v.commentaire.includes('58 °C')),
+    'unmapped readings cannot masquerade as ECS/gas/appoint/heating criteria');
   projection={hasDynamic:false};
   const base=await build();
   check(base.issues.length===0,'full static criterion mapping passes: '+base.issues.join(' | '));
@@ -416,13 +423,18 @@ function find(panel,cle,section=null){
   const extraMeter=await build({meters:[
     {id:'extra',destination:'supplementaire',label:'Sous-compteur magasin',valeur:'345',unite:'m³'},
   ]});
-  check(extraMeter.issues.some(x=>x.includes('destination Intranet ambiguë ou inconnue')),
-    'unclassifiable supplementary meter requires an explicit destination');
+  check(extraMeter.issues.length===0 && extraMeter.notes.length===1 &&
+      extraMeter.notes[0].contenu.includes('Sous-compteur magasin') &&
+      extraMeter.notes[0].contenu.includes('Valeur : 345') &&
+      extraMeter.notes[0].contenu.includes('Unité : m³'),
+    'unclassifiable supplementary meter remains identifiable in an Intranet visit note');
   const unknownMeter=await build({meters:[
     {id:'unknown',destination:null,label:'Compteur de test inconnu',valeur:'12',unite:'m³'},
   ]});
-  check(unknownMeter.issues.some(x=>x.includes('destination Intranet ambiguë ou inconnue')),
-    'unmapped manual REMAR meter cannot be silently discarded');
+  check(unknownMeter.issues.length===0 && unknownMeter.notes.length===1 &&
+      unknownMeter.notes[0].contenu.includes('Compteur de test inconnu') &&
+      unknownMeter.notes[0].contenu.includes('Valeur : 12'),
+    'manual REMAR meter without family is kept in notes, not silently discarded');
 
   const groupedGas=await build({meters:[
     {id:'gaz-a',destination:'supplementaire',label:'Compteur Gaz A',valeur:'1222',unite:'m³'},
@@ -437,8 +449,10 @@ function find(panel,cle,section=null){
   const conflictingMeter=await build({meters:[
     {id:'bad',destination:'supplementaire',label:'Compteur gaz ECS',valeur:'123',unite:'m³'},
   ]});
-  check(conflictingMeter.issues.some(x=>x.includes('destination Intranet ambiguë')),
-    'a meter matching two possible destinations stays blocked, never guessed');
+  check(conflictingMeter.issues.length===0 && conflictingMeter.notes.length===1 &&
+      conflictingMeter.notes[0].contenu.includes('Compteur gaz ECS') &&
+      conflictingMeter.notes[0].contenu.includes('Valeur : 123'),
+    'conflicting gas+ECS name stays an explicit unclassified note, never assigned to either criterion');
 
   const withMeter=await build({meters:[
     {id:'gaz',destination:'Compteur Gaz (m³)',label:'Gaz chaufferie',valeur:'15855',unite:'m³'},
