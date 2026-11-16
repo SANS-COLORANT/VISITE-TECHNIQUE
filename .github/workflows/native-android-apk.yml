@@ -28,6 +28,7 @@ on:
       - fix/rcu-network-intranet-fallback-20261110
       - fix/rcu-six-network-slots-20261110
       - fix/crous-first-visits-remar-binding-20261116
+      - fix/metra-feedback-ecs-remarks-site-20261116
     paths:
       - '**/*.js'
       - '**/*.json'
@@ -78,6 +79,7 @@ jobs:
           node .github/scripts/test_remar_141_intranet_matrix.js
           node .github/scripts/test_remar_supplemental_payload.js
           node .github/scripts/test_crous_created_site_local_first_visit.js
+          node .github/scripts/test_site_clone_full_visit.js
           node .github/scripts/test_intranet_first_visit_preparation.js
           node .github/scripts/test_remar_remote_trame_selection.js
           node .github/scripts/test_remar_complete_20261103.js
@@ -212,45 +214,44 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           cat > /tmp/release-notes.md <<'NOTES'
-          METRA - Visite Technique : APK Android native, suite de la serie historique
-          Build Native APK #877 (10 novembre 2026).
-          Source : correctifs CROUS de la PR #137, branche
-          fix/crous-first-visits-remar-binding-20261116.
+          METRA — Visite Technique : APK native, série historique Build Native APK.
+          Source : branche fix/metra-feedback-ecs-remarks-site-20261116,
+          Pull Request #138 (retours utilisateurs du 16 novembre 2026).
+          Suite du Build Native APK #878 et de ses correctifs CROUS.
 
-          Correctifs inclus :
-          - Visites REMAR : regroupement des equipements CTA multiples par
-            critere, avec nom de CTA et sauts de ligne dans la meme cellule
-            Intranet lorsqu'une destination officielle existe.
-          - Champs CTA (GTB, variateur, efficacites, consignes, vannes) :
-            preservation des saisies par equipement dans les notes de visite
-            lorsque Symfony ne publie pas les criteres, sans doublons de mapping.
-          - Compteurs d'energie : kWh et MWh, conversion exacte en MWh sur
-            la sortie Intranet, sans changer les valeurs locales.
-          - Autres compteurs et temperatures sans case officielle :
-            conservation des valeurs et unites dans les notes de visite ;
-            aucune confusion avec gaz, ECS ou appoint.
-          - Materiel sans designation : recuperation uniquement depuis
-            l'equipement identifie de la meme installation ; sinon erreur
-            explicite avant envoi, sans inventer de designation.
-          - Sites et locaux crees depuis METRA : reprise des creations
-            idempotentes sur Symfony et rattachement de la premiere visite
-            aux nouveaux identifiants reels ; aucune affectation par nom.
-          - Changement de trame : recherche d'une trame REMAR compatible
-            unique, refus des substitutions de familles incoherentes.
-          - Conserve les correctifs anterieurs REMAR, reseaux et Intranet.
+          Règles métier et correctifs :
+          - Boucle ECS : températures départ ECS et retour bouclage ECS distinctes,
+            plus de température extérieure ni de courbe de chauffe pour ce circuit.
+            Les données existantes restent conservées (migration SQLite v50).
+          - Réserves : quatre postes dans l'ordre Remarques générales,
+            Entretien P2, Travaux de conformité, Travaux d'amélioration.
+            Anciens P3 préservés sans reclassement automatique.
+          - Urgence : indicateur indépendant du niveau de criticité pour chaque
+            remarque, transmis en texte Intranet. Préfixe CTA/VMC devant la remarque.
+          - Matériel / CTA / VMC : réutilisation des identifiants d'équipement
+            partagés et synchronisation des fiches, sans doublons.
+            Sur une CTA Soufflage simple, l'extraction non pertinente est masquée
+            sans générer « Non visible » ni avis S.O implicite.
+          - Navigation : geste horizontal sur un matériel ne bloque plus
+            le changement d'onglet ; les actions restent accessibles au toucher.
+          - Informations : les saisies en cours ne sont plus écrasées par un
+            rafraîchissement ancien de la base SQLite.
+          - Duplication de site : nouvelle identité pour site, locaux et objets,
+            recopie de la dernière visite par local avec matériel, champs,
+            avis S/N.S/S.O/N.V, commentaires, mesures ECS, CTA/VMC,
+            réserves, urgence et observations. La source reste intacte.
+            Les anciens identifiants Symfony, les envois et les photos d'origine
+            ne sont pas copiés (pas de faux envoi ni de fichier partagé).
 
-          Identite du package : com.visitetechnique.tablet.
-          Signature Android historique METRA preservee.
-          APK autonome assembleRelease, version Android croissante.
+          Vérifications : migration SQLite 50, duplications sur base réelle,
+          clés de matériel/réseau/compteur et attributs REMAR, contrôles des
+          trames officielles, matrice REMAR, rapports, bundle, compilation native,
+          signature historique METRA et test de démarrage Android.
 
-          Verifications automatiques : matrice REMAR 141, SQLite et autres
-          trames, scenarios site/local, remplacement materiel, export,
-          PDF volumineux, generation native et signature.
-          Le test sur emulateur doit reussir avant cette publication.
-
-          Limite : les notes Symfony restent du texte, pas des champs
-          structures. Une recette authentifiee sur les sites CROUS doit
-          valider la reception reelle des envois. Ne pas reimporter ou
-          ecraser des patrimoines de production sans sauvegarde.
+          Identité inchangée : com.visitetechnique.tablet.
+          Livraison en préversion pour recette avant fusion.
+          Limites : photos physiques historiques non dupliquées ; aucune preuve
+          d'envoi authentifié sur le véritable Symfony CROUS.
+          Sauvegarder les visites et médias non synchronisés avant mise à jour.
           NOTES
           gh release create "build-native-apk-${BUILD_NUMBER}" release/* --target "$GITHUB_SHA" --title "Build Native APK #${BUILD_NUMBER}" --notes-file /tmp/release-notes.md --prerelease
