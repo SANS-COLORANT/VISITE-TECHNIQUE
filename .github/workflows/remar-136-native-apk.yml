@@ -1,0 +1,167 @@
+name: METRA REMAR 136 - Native signed APK
+run-name: "METRA REMAR #136 APK native - ${{ github.run_number }}"
+on:
+  push:
+    branches:
+      - fix/remar-optional-measurements-closed-visit-20261116
+    paths:
+      - '.github/workflows/remar-136-native-apk.yml'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: native-android-apk-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CI: '1'
+      EXPO_NO_TELEMETRY: '1'
+      GOOGLE_MAPS_API_KEY: ${{ secrets.GOOGLE_MAPS_API_KEY }}
+      METRA_RELEASE_STORE_PASSWORD: android
+      METRA_RELEASE_KEY_ALIAS: androiddebugkey
+      METRA_RELEASE_KEY_PASSWORD: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+      - uses: gradle/actions/setup-gradle@v4
+      - name: Install verified committed source
+        run: |
+          npm ci --no-audit --no-fund --prefer-offline
+          git diff --exit-code
+      - name: Verify complete committed METRA contracts, SQLite and regressions
+        run: npm run verify:metra
+      - name: Test all 141 REMAR mappings, multi-line meters and multiple CTA/VMC
+        env:
+          NODE_OPTIONS: '--require=./.github/scripts/test_legacy_alias_globals.js'
+        run: |
+          node .github/scripts/test_remar_141_intranet_matrix.js
+          node .github/scripts/test_remar_remote_trame_selection.js
+          node .github/scripts/test_remar_complete_20261103.js
+          node .github/scripts/test_premium_cards_control_photos.js
+          node .github/scripts/test_visit_latest_copy_and_client_send.js
+          node .github/scripts/test_intranet_error_diagnostics.js
+          node .github/scripts/test_intranet_any_visit_binding.js
+      - name: Test REMAR correction of closed unsent visits (real SQLite)
+        env:
+          NODE_OPTIONS: '--require=./.github/scripts/test_legacy_alias_globals.js'
+        run: node .github/scripts/test_remar_dynamic.js
+      - name: Test REMAR, editable trames and real SQLite round trips
+        run: node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
+      - name: Preserve large PDF report regression (457 photos)
+        run: node tests/reportPdfFragments.test.mjs
+      - name: Stamp Android update version (packaging only)
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import json, os, time
+          p = Path('app.json')
+          data = json.loads(p.read_text())
+          assert data['expo']['android']['package'] == 'com.visitetechnique.tablet'
+          data['expo']['android']['versionCode'] = int(time.time())
+          p.write_text(json.dumps(data, ensure_ascii=False, indent=2) + '\n')
+          version = Path('appVersion.js')
+          version.write_text(version.read_text().replace("APK_BUILD = 'DEV'", "APK_BUILD = '" + os.environ['BUILD_NUMBER'] + "'"))
+          Path('/tmp/metra-version-code').write_text(str(data['expo']['android']['versionCode']))
+          PY
+      - name: Validate complete Android bundle
+        run: npx expo export --platform android --max-workers 2 --output-dir dist-remar-ci
+      - name: Generate native project without runtime patches
+        run: |
+          npx expo prebuild --clean --platform android --no-install --skip-dependency-update react,react-native
+          test -s android/gradlew
+          git diff --exit-code -- '*.js' ':!appVersion.js' ':!googleMapsRuntime.generated.js'
+      - name: Preserve historical METRA signing identity
+        run: |
+          set -euo pipefail
+          actual="$(keytool -list -v -keystore android/app/debug.keystore -storepass android -alias androiddebugkey | awk -F'SHA256: ' '/SHA256:/{print $2; exit}' | tr -d ':' | tr '[:lower:]' '[:upper:]')"
+          test "$actual" = FAC61745DC0903786FB9EDE62A962B399F7348F0BB6F899B8332667591033B9C
+          cp android/app/debug.keystore android/app/metra-release.keystore
+          python3 .github/scripts/configure_android_release_signing.py
+      - name: Build complete standalone release
+        working-directory: android
+        run: |
+          set -o pipefail
+          for attempt in 1 2 3; do
+            echo "Native Gradle release attempt ${attempt}/3"
+            log="$RUNNER_TEMP/metra-native-gradle-${attempt}.log"
+            if ./gradlew assembleRelease --no-daemon --max-workers=2 -Dorg.gradle.jvmargs=-Xmx4g -Dorg.gradle.internal.http.connectionTimeout=180000 -Dorg.gradle.internal.http.socketTimeout=240000 -Pkotlin.compiler.execution.strategy=in-process -PreactNativeArchitectures=arm64-v8a,armeabi-v7a,x86_64 2>&1 | tee "$log"; then
+              exit 0
+            fi
+            if ! grep -Eiq '(Read timed out|Connect timed out|Connection reset|Could not download .*\\.aar|Could not get resource|Temporary failure in name resolution)' "$log"; then
+              echo "::error::Gradle failure is not a transient artifact download: no automatic retry."
+              exit 1
+            fi
+            if [ "$attempt" -eq 3 ]; then
+              echo "::error::Maven dependency download failed after three attempts."
+              exit 1
+            fi
+            echo "::warning::Transient Maven/Gradle download timeout; retrying release with same source and signing key."
+            sleep $((attempt * 20))
+          done
+      - name: Verify Android update identity and signature
+        env:
+          BUILD_NUMBER: ${{ github.run_number }}
+        run: |
+          set -euo pipefail
+          mkdir -p release
+          cp android/app/build/outputs/apk/release/app-release.apk "release/Build-Native-APK-${BUILD_NUMBER}.apk"
+          tools="$(find "$ANDROID_HOME/build-tools" -mindepth 1 -maxdepth 1 -type d | sort -V | tail -1)"
+          "$tools/apksigner" verify --verbose --print-certs "release/Build-Native-APK-${BUILD_NUMBER}.apk" > /tmp/metra-signer.txt
+          cat /tmp/metra-signer.txt
+          grep -qi 'fac61745dc0903786fb9ede62a962b399f7348f0bb6f899b8332667591033b9c' /tmp/metra-signer.txt
+          "$tools/aapt" dump badging "release/Build-Native-APK-${BUILD_NUMBER}.apk" > /tmp/metra-badging.txt
+          head -1 /tmp/metra-badging.txt | grep "name='com.visitetechnique.tablet'"
+          grep "versionCode='$(cat /tmp/metra-version-code)'" /tmp/metra-badging.txt
+          git diff --exit-code -- '*.js' ':!appVersion.js' ':!googleMapsRuntime.generated.js'
+          cd release
+          sha256sum "Build-Native-APK-${BUILD_NUMBER}.apk" > "Build-Native-APK-${BUILD_NUMBER}.apk.sha256"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: METRA-REMAR-136-Native-APK-${{ github.run_number }}
+          path: release/*
+          if-no-files-found: error
+          retention-days: 30
+  android-smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          name: METRA-REMAR-136-Native-APK-${{ github.run_number }}
+          path: apk
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Launch signed METRA APK and check startup and trame editor
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 30
+          target: google_apis
+          arch: x86_64
+          profile: pixel_c
+          disable-animations: true
+          emulator-options: -no-window -gpu swiftshader_indirect -no-snapshot -noaudio -no-boot-anim
+          script: python3 .github/scripts/smoke_remar_android.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: METRA-REMAR-136-Native-APK-${{ github.run_number }}-android-smoke
+          path: shots/
+          if-no-files-found: warn
+          retention-days: 30
