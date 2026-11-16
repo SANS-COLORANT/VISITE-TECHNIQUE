@@ -27,6 +27,7 @@ on:
       - fix/metra-date-photos-report-apk-20261110
       - fix/rcu-network-intranet-fallback-20261110
       - fix/rcu-six-network-slots-20261110
+      - fix/crous-first-visits-remar-binding-20261116
     paths:
       - '**/*.js'
       - '**/*.json'
@@ -75,6 +76,9 @@ jobs:
           NODE_OPTIONS: '--require=./.github/scripts/test_legacy_alias_globals.js'
         run: |
           node .github/scripts/test_remar_141_intranet_matrix.js
+          node .github/scripts/test_remar_supplemental_payload.js
+          node .github/scripts/test_crous_created_site_local_first_visit.js
+          node .github/scripts/test_intranet_first_visit_preparation.js
           node .github/scripts/test_remar_remote_trame_selection.js
           node .github/scripts/test_remar_complete_20261103.js
           node .github/scripts/test_premium_cards_control_photos.js
@@ -208,93 +212,45 @@ jobs:
           BUILD_NUMBER: ${{ github.run_number }}
         run: |
           cat > /tmp/release-notes.md <<'NOTES'
-          METRA — Visite Technique : APK natif de recette du 5 novembre 2026.
-          Source : branche fix/metra-lot06-report-fidelity-20261105,
-          créée à la suite des correctifs LOT05 / build #868.
-          Conserve les améliorations de navigation, les trames et l’Intranet.
-          Conserve les corrections précédentes des trames ICPE, REMAR, VMC,
-          Réseau de chaleur, Pré-allumage, ainsi que les fonctions Intranet.
+          METRA - Visite Technique : APK Android native, suite de la serie historique
+          Build Native APK #877 (10 novembre 2026).
+          Source : correctifs CROUS de la PR #137, branche
+          fix/crous-first-visits-remar-binding-20261116.
 
-          Lot 06 (fidélité des rapports, export Excel/PDF/Word) :
-          - Pré-allumage : toutes les rubriques techniques déjà enregistrées
-            sont projetées dans les rapports, sans les réafficher dans l’UI.
-          - REMAR : anciennes valeurs plates non reprises lorsque l’objet
-            dynamique courant fait autorité ; pas de modification SQLite.
-          - Réseaux : relevés structurés, programmes et mesures libres dans les
-            rapports ; date métier des réserves harmonisée.
-          - Signature Word : tracé PNG dans le document .doc existant ; photo
-            illisible incluse = erreur explicite, non omission silencieuse.
-          - Rapports PA spécialisés : annexes réserves/photos autorisées/signature.
-          - Excel : champs délai/avancement restaurés quand le modèle les porte,
-            import des grandes tables sans limite silencieuse de 497 lignes,
-            légendes des photos exclues masquées.
-          - Rapports par site/local : bilan des succès et des erreurs, reprise
-            ciblée, choix de couverture conservé et nouveaux dossiers avec ID.
-          - Aperçu riche en photos : PDF fragmenté au-delà de 8 médias.
-          - Missions conditionnel : sortie durable et paquet signalé incomplet
-            si des couches hors ligne n’ont pas été copiées.
-          - Unicode PDF : repli sur le PDF imprimé intégral lorsqu’une police
-            standard ne peut pas dessiner le texte d’habillage (habillage
-            graphique secondaire indisponible dans ce seul cas).
+          Correctifs inclus :
+          - Visites REMAR : regroupement des equipements CTA multiples par
+            critere, avec nom de CTA et sauts de ligne dans la meme cellule
+            Intranet lorsqu'une destination officielle existe.
+          - Champs CTA (GTB, variateur, efficacites, consignes, vannes) :
+            preservation des saisies par equipement dans les notes de visite
+            lorsque Symfony ne publie pas les criteres, sans doublons de mapping.
+          - Compteurs d'energie : kWh et MWh, conversion exacte en MWh sur
+            la sortie Intranet, sans changer les valeurs locales.
+          - Autres compteurs et temperatures sans case officielle :
+            conservation des valeurs et unites dans les notes de visite ;
+            aucune confusion avec gaz, ECS ou appoint.
+          - Materiel sans designation : recuperation uniquement depuis
+            l'equipement identifie de la meme installation ; sinon erreur
+            explicite avant envoi, sans inventer de designation.
+          - Sites et locaux crees depuis METRA : reprise des creations
+            idempotentes sur Symfony et rattachement de la premiere visite
+            aux nouveaux identifiants reels ; aucune affectation par nom.
+          - Changement de trame : recherche d'une trame REMAR compatible
+            unique, refus des substitutions de familles incoherentes.
+          - Conserve les correctifs anterieurs REMAR, reseaux et Intranet.
 
-          Recette restante avant tout usage en production :
-          - Lire réellement dans Word et LibreOffice les .doc et signatures.
-          - Comparer les cellules des modèles historiques ICPE/RCU/REMAR/PA/VMC
-            et faire les retours Excel > 500 lignes avec une base de test.
-          - Vérifier la mise en page PDF/Word, volumes de photos et politiques
-            d’exclusion sur la tablette cible.
-          - Les tests CI ne constituent pas une preuve de parité parfaite des
-            fichiers Office et PDF sur tous les logiciels.
+          Identite du package : com.visitetechnique.tablet.
+          Signature Android historique METRA preservee.
+          APK autonome assembleRelease, version Android croissante.
 
-          Lot 05 (fluidité sans changement des règles métier) :
-          - Ouverture client/site/local plus réactive par réutilisation du cache
-            récent ; l'invalidation reste prioritaire après les mutations.
-          - Locaux Intranet non matérialisés visibles sans écriture déclenchée
-            au simple toucher ; création locale à l'ouverture explicite.
-          - Reprise de la navigation VMC et Pré-allumage mieux protégée.
-          - Moins de chargements redondants et calcul commun des états d'onglets
-            et de la progression.
-          - Recherche de champ ciblant rubrique et emplacement ; compteurs
-            volumineux et listes réseaux REMAR mieux virtualisés.
-          - Protections antérieures du défilement, des recherches et des photos
-            contre les réponses asynchrones obsolètes.
+          Verifications automatiques : matrice REMAR 141, SQLite et autres
+          trames, scenarios site/local, remplacement materiel, export,
+          PDF volumineux, generation native et signature.
+          Le test sur emulateur doit reussir avant cette publication.
 
-          - Import/expédition Intranet : la liste de matériel de la visite fait
-            foi (ajout, modification, suppression, inventaire vide) dans les
-            nouvelles visites, pour ICPE, REMAR, Réseau de chaleur, VMC,
-            Pré-allumage et les trames prises en charge par le même moteur.
-          - Réimport : rapprochement des équipements par local sans fusionner
-            deux appareils homonymes ; matériel retiré du patrimoine courant,
-            historique des observations/visites conservé.
-          - Client > Envoyer : sélection des dernières visites non synchronisées
-            par site et local. Suivi des confirmations (visites + photos) avec
-            volume en Ko, Mo ou Go ; tailles locales connues uniquement.
-          - Saisie hors enum Symfony (ex. état « Dégradé ») conservée dans les
-            notes de visite envoyées. L'affichage de cet état directement dans
-            le champ matériel Intranet nécessite un contrat Symfony adapté.
-
-          Important — limites de cette version de recette :
-          - Le POST existant crée une nouvelle visite. Les changements d'une
-            visite déjà synchronisée sont détectés mais ne sont PAS renvoyés :
-            un PATCH/PUT Symfony officiel est encore nécessaire pour éviter
-            un doublon de visite.
-          - Les prévalidations locales et les tests SQLite/Android ne prouvent
-            pas que l'Intranet de production accepte le remplacement intégral
-            du patrimoine ou un listing entièrement vide. Vérifier les effets
-            sur un client/local de recette avant utilisation en production.
-          - Certaines saisies REMAR non mappées aux critères Symfony restent
-            bloquantes ; ce chantier global n'est pas déclaré terminé.
-          - Ne pas réimporter un patrimoine de production depuis une APK de
-            recette sans sauvegarde préalable du SQLite, des visites et photos.
-
-          APK natif signé avec la même identité Android
-          com.visitetechnique.tablet et le certificat historique METRA ;
-          versionCode croissant, numéro de build continu. Aucun suffixe REMAR
-          dans le nom au lancement.
-
-          Vérifications du workflow : contrats METRA, vrais tests SQLite,
-          exports, bundle Android, compilation Gradle, signature et tests de
-          démarrage sur émulateur. Aucune authentification ni modification
-          réelle du patrimoine Symfony de production dans cette CI.
+          Limite : les notes Symfony restent du texte, pas des champs
+          structures. Une recette authentifiee sur les sites CROUS doit
+          valider la reception reelle des envois. Ne pas reimporter ou
+          ecraser des patrimoines de production sans sauvegarde.
           NOTES
           gh release create "build-native-apk-${BUILD_NUMBER}" release/* --target "$GITHUB_SHA" --title "Build Native APK #${BUILD_NUMBER}" --notes-file /tmp/release-notes.md --prerelease
