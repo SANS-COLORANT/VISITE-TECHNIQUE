@@ -52,18 +52,33 @@ export function resolveFirstVisitRemoteTrame(referential, localTrameId, visitTra
     const requestedKey = normalizeTrameName(requestedName);
     const named = trames.filter((trame) => normalizeTrameName(trame.nom) === requestedKey);
     if (named.length === 1) {
+      if (mapRemoteTrameToLocal(named[0]) !== localTrameId)
+        throw bindingError(
+          `La trame enregistrée « ${requestedName} » correspond à une autre famille que la visite METRA. Vérifie le choix de trame après sa modification sur l’Intranet ; aucune visite n’est déplacée.`,
+          'intranet_first_visit_trame_wrong_family',
+          { localTrameId, visitTrameName: requestedName, candidates: named });
       return { remoteTrameId: named[0].id, remoteTrameName: named[0].nom, candidates: named, matchedBy: 'visit_field' };
     }
     if (!named.length) {
-      // "Réseau de chaleur" and "TRAME RÉSEAU DE CHALEUR" may be
-      // different names for the same server family. Only use an explicit,
-      // unique match: never send RCU under an ICPE model.
-      const candidates = trames.filter((trame) => mapRemoteTrameToLocal(trame) === localTrameId);
-      if (mapRemoteTrameToLocal({ nom: requestedName }) === localTrameId && candidates.length === 1) {
-        return { remoteTrameId: candidates[0].id, remoteTrameName: candidates[0].nom, candidates, matchedBy: 'unique_family' };
+      // The first CROUS visits can display a generic "TRAME REMAR" while
+      // the server publishes "REMAR CLASSIQUE" and "REMAR COMPLÈTE".
+      // Never confuse those with RCU; prefer the unique COMPLETE version
+      // only when the requested name itself unambiguously declares REMAR.
+      const requestedFamily=mapRemoteTrameToLocal({ nom: requestedName });
+      const candidates=trames.filter(trame=>mapRemoteTrameToLocal(trame)===localTrameId);
+      if(requestedFamily===localTrameId && candidates.length===1)
+        return {remoteTrameId:candidates[0].id,remoteTrameName:candidates[0].nom,
+          candidates,matchedBy:'unique_family'};
+      if(requestedFamily==='remar_v1' && localTrameId==='remar_v1'){
+        const complete=candidates.filter(trame=>
+          /\\bcomplete\\b/.test(normalizeTrameName(trame.nom)) &&
+          !/\\bclassique\\b/.test(normalizeTrameName(trame.nom)));
+        if(complete.length===1)
+          return {remoteTrameId:complete[0].id,remoteTrameName:complete[0].nom,
+            candidates,matchedBy:'unique_remar_complete'};
       }
       throw bindingError(
-        `Aucune trame Intranet compatible nommée « ${requestedName} » pour cette visite. Vérifie les trames disponibles dans le référentiel du client ; METRA ne remplacera pas Réseau de chaleur par ICPE.`,
+        `Aucune trame Intranet compatible nommée « ${requestedName} » pour cette visite. Vérifie les trames disponibles dans le référentiel du client et actualise le local après une modification de trame : ni REMAR ni Réseau de chaleur ne peuvent être remplacés par ICPE.`,
         'intranet_first_visit_trame_name_missing',
         { localTrameId, visitTrameName: requestedName, candidates: trames }
       );
