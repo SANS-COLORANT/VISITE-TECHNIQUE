@@ -341,6 +341,26 @@ async function resolveImportedLocalId(db, visite, remoteClientId, remoteSiteId) 
     'imported_local_ambiguous', { remoteClientId });
 }
 
+/**
+ * Exact evidence for locally created sites/locals that may still be awaiting
+ * a Symfony acknowledgment. This is NOT a name matcher: both the METRA site
+ * and installation IDs must agree with the creation outbox.
+ */
+export async function getVisitStructureCreationState(visiteId) {
+  const db=await getDb(),visite=await loadVisit(db,visiteId);
+  if(!visite)throw new Error('Visite METRA introuvable.');
+  const site=await db.getFirstAsync(
+    `SELECT operation_id,status,remote_id,error_message FROM api_structure_outbox
+     WHERE resource_type='site' AND local_site_id=? ORDER BY queued_at DESC LIMIT 1`,
+    [String(visite.site_id)]);
+  const local=visite.installation_id?await db.getFirstAsync(
+    `SELECT operation_id,status,remote_id,error_message FROM api_structure_outbox
+     WHERE resource_type='local' AND local_site_id=? AND local_installation_id=?
+     ORDER BY queued_at DESC LIMIT 1`,
+    [String(visite.site_id),String(visite.installation_id)]):null;
+  return {site:site||null,local:local||null};
+}
+
 export async function getVisitIntranetBindingOptions(visiteId) {
   const db = await getDb();
   const visite = await loadVisit(db, visiteId);
