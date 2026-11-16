@@ -648,6 +648,10 @@ function VisiteScreen({ route, onBack }) {
         else finishSwipeRef.current?.(g);
       },
       onPanResponderTerminate: () => {
+        // Nested equipment rows can take over a horizontal gesture. Unlock
+        // navigation synchronously: waiting for an interrupted spring callback
+        // left transitionRef=true and froze all subsequent tab navigation.
+        transitionRef.current = false;
         if (gestureModeRef.current === 'preallumage-local') {
           Animated.spring(preAllumageLocalX, { toValue: 0, ...settleSpring(0), useNativeDriver: true }).start(() => {
             transitionRef.current = false;
@@ -659,7 +663,8 @@ function VisiteScreen({ route, onBack }) {
           transitionRef.current = false;
         });
       },
-      onPanResponderTerminationRequest: () => false,
+      onPanResponderTerminationRequest: () => true,
+      onPanResponderReject: () => { transitionRef.current = false; },
     });
   }
 
