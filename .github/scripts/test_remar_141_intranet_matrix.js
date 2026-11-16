@@ -198,7 +198,10 @@ function find(panel,cle,section=null){
   projection={hasDynamic:true,familyCounts:{cta:1,vmc:0,froid:0},
     temperaturesCount:0,replacements:ctaReplacements,
     details:[ctaIdentity,...ctaExtras],ambiguous:[],unsupported:[]};
-  const ctaExtra=await build();
+  const crousRemote=structuredClone(remote);
+  const energyIndex=Object.keys(definition.ui.panels).indexOf('p-remar-cta-energie');
+  crousRemote.categories[energyIndex].sousCategories.forEach(sub=>{sub.criteres=[];});
+  const ctaExtra=await build({remote:crousRemote,fieldRows:[],controlRows:[]});
   check(ctaExtra.issues.length===0 && ctaExtra.notes.length===6,
     'six additional CTA observations sent in six explicit visit notes without duplicate mapping blockers: '+
       ctaExtra.issues.join(' | '));
@@ -211,7 +214,12 @@ function find(panel,cle,section=null){
   }
   check(ctaExtra.notes.some(n=>n.contenu.includes('Avis : N.S')),
     'extra CTA nonconformity opinion stays explicit');
-  check(ctaExtra.values.length===141,'141 official criteria unaffected by CTA extras');
+  check(ctaExtra.values.length===135 && definition.excel.fieldMappings.length===141,
+    'server carries its 135 published criteria, Excel retains all 141 keys');
+  const crousComplete=await build({remote:{...crousRemote,nom:'REMAR COMPLÈTE'},
+    fieldRows:[],controlRows:[]});
+  check(crousComplete.issues.length===0 && crousComplete.notes.length===6,
+    'REMAR COMPLÈTE also preserves six absent CTA improvement criteria as notes');
 
   projection={hasDynamic:false};
   const energyHeating=await build({meters:[{
