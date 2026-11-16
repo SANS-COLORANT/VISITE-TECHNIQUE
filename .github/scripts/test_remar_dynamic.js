@@ -92,8 +92,14 @@ async function run(){
    sectionCode:'Informations techniques',cle:'Année CTA',valeur:'2019'});
  engine.exec("UPDATE visites SET statut='terminee' WHERE id='v1'");
  ok((await dao.listerRemarEquipements('v1','cta')).length===1,'real shared CTA visible in source visit');
- await assert.rejects(()=>dao.creerRemarEquipement('v2','cta','CTA des bureaux'),/existe deja/);
- ok((await dao.listerRemarEquipements('v2','cta')).length===1,'new visit reuses same local equipment ID, no duplicate');
+ const reused=await dao.creerRemarEquipement('v2','cta','CTA des bureaux');
+ const reusedAgain=await dao.creerRemarEquipement('v2','cta','CTA des bureaux');
+ ok(reused===cta && reusedAgain===cta,
+   'CTA equipment created from listing and CTA sheet reuses one stable identifier');
+ ok((await dao.listerRemarEquipements('v2','cta')).length===1,
+   'new visit reuses same local CTA without creating duplicate');
+ ok((await db.getAllAsync("SELECT * FROM materiel WHERE visite_id='v2' AND equipement_id=?",[cta])).length===1,
+   'two-way synchronization adds exactly one inventory row in the current visit');
  await dao.figerItemsRemarPourVisite('v2');
  const child=await dao.listerRemarItems('v2','filtre_cta',cta);
  ok(child.length===1 && child[0].id===filter,'filter snapshot reuses permanent identity');
@@ -167,7 +173,9 @@ async function run(){
  const ui=read('TrameGenericPanel.js');
  ok(ui.includes("const { RemarDynamicPanel } = require('./RemarDynamicPanel.js')"),
    'dynamic REMAR is routed without rewriting other trame components');
- ok(read('database/constants.js').includes('DATABASE_SCHEMA_VERSION = 49'),'additive migration version is registered');
+ ok(read('database/constants.js').includes('DATABASE_SCHEMA_VERSION = 50') &&
+    read('database/migrations/index.js').includes('migration050'),
+   'new additive ECS/urgent schema v50 is correctly registered, older REMAR v49 unchanged');
  const panel=read('RemarDynamicPanel.js');
  ok(panel.includes('flushDurableAutosaves()')&&panel.includes('useDurableAutosave('),
    'before step navigation and app suspend, save uses durable METRA writer');

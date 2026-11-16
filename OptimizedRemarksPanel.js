@@ -32,6 +32,7 @@ import { listerVerificationsRemarques, marquerRemarqueVerifiee } from './remarkV
 import { useDurableAutosave } from './durableAutosave.js';
 import { PhotoButton } from './PhotoButton.js';
 import { RESERVE_SEVERITY_LEVELS, clampReserveSeverity, reserveSeverityLabel } from './reserveSeverity.js';
+import { REMARK_CATEGORIES, remarkCategory, remarkCategoryOrder, remarkLegacyP3, remarkTextWithEquipment } from './remarkCategories.js';
 import { BoundedLruMap } from './boundedCache.js';
 import { useListScrollMemory } from './useListScrollMemory.js';
 import { ButtonGlow } from './ButtonGlow.js';
@@ -54,7 +55,7 @@ const GROUPE_MANUELLES = '__manuelles';
 const GROUPE_REPRISES = '__reprises';
 // La création utilisait déjà "Observation" ; exposer la même valeur lors
 // de la modification pour conserver les réserves et exports historiques.
-const POSTES = ['Observation', 'Entretien P2', 'Entretien / P3', 'Travaux de conformité', 'Travaux d’amélioration'];
+const POSTES = REMARK_CATEGORIES;
 const ETATS_AVANCEMENT = ['Non réalisé', 'Devis émis', 'En cours', 'Terminé', 'Annulé'];
 
 // Couleur de chaque niveau de criticité (0 Information → 5 Critique).
@@ -87,7 +88,8 @@ function estLevee(r) {
 }
 
 function titreReserve(r) {
-  return String(r?.reference_libelle || r?.poste || 'Réserve').trim() || 'Réserve';
+  const named=remarkTextWithEquipment(r);
+  return named || String(r?.reference_libelle || remarkCategory(r?.poste) || 'Réserve').trim();
 }
 
 function libellePhotoRemarque(remarque, prestation) {
@@ -140,6 +142,8 @@ const ReserveRow = memo(function ReserveRow({ remarque, onOpen, onToggleLevee, o
   const sous = [
     reseauChaleur && remarque.perimetre ? remarque.perimetre : null,
     reprise ? `Reprise${remarque.intranet_date_reserve ? ` · ${remarque.intranet_date_reserve}` : ''}` : null,
+    remarkLegacyP3(remarque.poste)?'P3 historique · à reclasser':null,
+    remarque.urgence===1?'URGENT':null,
     remarque.prestation || 'Préconisation à compléter',
   ].filter(Boolean).join(' · ');
   return (
@@ -185,7 +189,7 @@ function ReserveFiche({ remarque, visiteId, onPatch, onDelete, onClose, onRattac
   const [prestation, setPrestation, blurPrestation] = useDurableAutosave(remarque.prestation, async (v) => {
     await modifierRemarqueVisite(remarque.id, { prestation: v });
   });
-  const [poste, setPoste] = useDurableAutosave(remarque.poste, async (v) => {
+  const [poste, setPoste] = useDurableAutosave(remarkCategory(remarque.poste), async (v) => {
     await modifierRemarqueVisite(remarque.id, { poste: v });
   });
   const [prix, setPrix, blurPrix] = useDurableAutosave(remarque.estimatif == null ? '' : String(remarque.estimatif), async (v) => {
@@ -216,6 +220,11 @@ function ReserveFiche({ remarque, visiteId, onPatch, onDelete, onClose, onRattac
     onPatch(remarque.id, { intranet_etat_avancement: next });
     await modifierRemarqueVisite(remarque.id, { intranet_etat_avancement: next });
   }, [etatAvancement, onPatch, remarque.id]);
+  const changerUrgence = useCallback(async () => {
+    const urgence=Number(remarque.urgence||0)===1?0:1;
+    await modifierRemarqueVisite(remarque.id,{urgence});
+    onPatch(remarque.id,{urgence});
+  },[remarque.id,remarque.urgence,onPatch]);
   const changerCriticite = useCallback(async (value) => {
     setCriticite(value);
     await modifierCriticiteRemarque(remarque.id, value);
@@ -248,6 +257,14 @@ function ReserveFiche({ remarque, visiteId, onPatch, onDelete, onClose, onRattac
 
   return (
     <View>
+      <TouchableOpacity accessibilityRole="checkbox" accessibilityState={{checked:remarque.urgence===1}}
+        onPress={()=>changerUrgence().catch(e=>Alert.alert('Urgence non enregistrée',String(e?.message||e)))}
+        style={[st.leveeLigne,remarque.urgence===1&&{backgroundColor:KIT.redBg,borderColor:KIT.red+'55'}]}>
+        <View style={[st.leveeRond,remarque.urgence===1&&{backgroundColor:KIT.red,borderColor:KIT.red}]}>
+          {remarque.urgence===1?<CvcIcon name="check" size={15} color={COLORS.white}/>:null}
+        </View>
+        <Text style={st.leveeLigneText}>{remarque.urgence===1?'Urgence signalée · intervention à prioriser':'Urgent ? (facultatif, indépendant de la criticité)'}</Text>
+      </TouchableOpacity>
       <Text style={st.ficheLabel}>Criticité · {reserveSeverityLabel(criticite)}{defaut !== null && defaut !== criticite ? `  (proposée : ${reserveSeverityLabel(defaut)})` : ''}</Text>
       <View style={st.sevRow} accessibilityRole="radiogroup">
         {RESERVE_SEVERITY_LEVELS.map((l) => {
@@ -419,7 +436,7 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
   const stats = useMemo(() => ({
     total: remarques.length,
     estimatif: remarques.reduce((s, r) => s + (Number(r.estimatif) || 0), 0),
-    urgentes: remarques.filter((r) => Number(r.delai) > 0 && Number(r.delai) <= 3).length,
+    urgentes: remarques.filter((r) => Number(r.urgence) === 1 && !estLevee(r)).length,
   }), [remarques]);
 
   const actuelles = useMemo(() => remarques.filter((r) => !estLevee(r)), [remarques]);
@@ -518,35 +535,21 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
     if (n) feedback(`${pluriel(n, 'réserve')} des visites précédentes retirée${n > 1 ? 's' : ''}`, { tone: 'neutral' });
   }, [visiteId, charger]);
 
-  // Regroupement par onglet d'origine, lignes triées par criticité décroissante.
+  // Four approved work categories in a fixed hierarchy, irrespective of
+  // originating tab. An old P3 label is kept verbatim in SQLite until the
+  // technician consciously selects one of these four headings.
   const groupes = useMemo(() => {
     const source = filtre === 'levees' ? levees : actuelles;
-    const parCle = new Map();
-    for (const r of source) {
-      const key = ongletOrigine(r, sectionVersOnglet);
-      if (!parCle.has(key)) parCle.set(key, []);
-      parCle.get(key).push(r);
-    }
-    const ordre = (key) => {
-      if (key === GROUPE_REPRISES) return 10000;
-      if (key === GROUPE_MANUELLES) return 10001;
-      const i = tabOrder.indexOf(key);
-      return i >= 0 ? i : 9000;
-    };
-    return [...parCle.entries()]
-      .map(([key, rows]) => {
-        const tries = [...rows].sort((a, b) => criticiteDe(b) - criticiteDe(a) || String(a.cree_le || '').localeCompare(String(b.cree_le || '')));
-        return {
-          key,
-          rows: tries,
-          label: libelleGroupe(key, panelLabels),
-          picto: key === GROUPE_REPRISES ? ACTION_PICTOS.reprise : (pictoOnglet(key, trameId) || 'onglets/reserves'),
-          estimatif: rows.reduce((s, r) => s + (Number(r.estimatif) || 0), 0),
-          max: tries.length ? criticiteDe(tries[0]) : 0,
-        };
-      })
-      .sort((a, b) => ordre(a.key) - ordre(b.key));
-  }, [filtre, actuelles, levees, sectionVersOnglet, tabOrder, panelLabels, trameId]);
+    return REMARK_CATEGORIES.map((label,index)=>{
+      const rows=source.filter(r=>remarkCategoryOrder(r.poste)===index);
+      const tries=[...rows].sort((a,b)=>Number(b.urgence||0)-Number(a.urgence||0) ||
+        criticiteDe(b)-criticiteDe(a) ||
+        String(a.cree_le||'').localeCompare(String(b.cree_le||'')));
+      return {key:'categorie:'+index,rows:tries,label,picto:'onglets/reserves',
+        estimatif:rows.reduce((s,r)=>s+(Number(r.estimatif)||0),0),
+        max:tries.length?Math.max(...tries.map(criticiteDe)):0};
+    }).filter(group=>group.rows.length);
+  }, [filtre, actuelles, levees]);
 
   const ouvertesSignature = groupes.map((g) => (sections.isOpen(g.key) ? '1' : '0')).join('');
 
@@ -644,7 +647,7 @@ function OptimizedRemarksPanel({ visiteId, tabOrder = [], panelLabels = {}, pane
           <Text style={st.totauxSep}>  ·  </Text>
           <Text style={st.totauxNum}>{euros(stats.estimatif)} €</Text> HT
           <Text style={st.totauxSep}>  ·  </Text>
-          <Text style={st.totauxNum}>{stats.urgentes}</Text> à ≤ 3 mois
+          <Text style={st.totauxNum}>{stats.urgentes}</Text> urgente{stats.urgentes>1?'s':''}
         </Text>
       </View>
       <View style={st.toolbar}>

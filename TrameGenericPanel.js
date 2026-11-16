@@ -571,6 +571,7 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
     }
     if (item.field.type === 'champ') {
       return <DurableChampGenerique
+        key={String(visiteId)+'||'+item.key}
         visiteId={visiteId}
         sectionCode={item.sectionCode}
         field={item.field}
@@ -757,7 +758,7 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
       removeClippedSubviews={false}
     />
     {sectionGenerale ? <BottomSheet visible={ficheVisite} onClose={() => setFicheVisite(false)} title="Visite" subtitle="Informations reprises dans le rapport" picto={pictoTrame(trameId)}>
-      {ficheVisite ? sectionGenerale.data.map((item) => <DurableChampGenerique key={item.key} visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} valeurInitiale={champsMap[item.key]} onSaved={champHandler(item.key)} photo={false} />) : null}
+      {ficheVisite ? sectionGenerale.data.map((item) => <DurableChampGenerique key={String(visiteId)+'||'+item.key} visiteId={visiteId} sectionCode={item.sectionCode} field={item.field} valeurInitiale={champsMap[item.key]} onSaved={champHandler(item.key)} photo={false} />) : null}
     </BottomSheet> : null}
   </>;
 }

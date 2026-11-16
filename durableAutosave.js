@@ -48,6 +48,8 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
   const [valeur, setValeurState] = useState(initiale);
   const valeurRef = useRef(initiale);
   const persisteeRef = useRef(initiale);
+  // An old Informations panel query must never overwrite a local draft.
+  const localEditionRef = useRef(false);
   const timerRef = useRef(null);
   const saveRef = useRef(sauvegarder);
   const queueRef = useRef(Promise.resolve());
@@ -60,8 +62,13 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
     const prochaine = valeurInitiale == null ? '' : String(valeurInitiale);
     // Si l'UI possède un brouillon plus récent que SQLite, on ne le remplace
     // jamais par une valeur de parent/cache qui arrive avec retard.
-    if (valeurRef.current !== persisteeRef.current) {
-      if (prochaine === valeurRef.current) setValeurState(prochaine);
+    if (prochaine === valeurRef.current) {
+      localEditionRef.current = false;
+      setValeurState(prochaine);
+      return;
+    }
+    if (localEditionRef.current || valeurRef.current !== persisteeRef.current) {
+      // SQLite/prewarm cache may arrive after the technician's input.
       return;
     }
     valeurRef.current = prochaine;
@@ -100,6 +107,7 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
   const setValeur = useCallback((prochaine) => {
     const texte = prochaine == null ? '' : String(prochaine);
     valeurRef.current = texte;
+    localEditionRef.current = true;
     setValeurState(texte);
     if (texte !== persisteeRef.current) markDraftDirty(activityKeyRef.current);
     if (timerRef.current) clearTimeout(timerRef.current);
@@ -113,6 +121,7 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
   const setImmediate = useCallback((prochaine) => {
     const texte = prochaine == null ? '' : String(prochaine);
     valeurRef.current = texte;
+    localEditionRef.current = true;
     setValeurState(texte);
     if (texte !== persisteeRef.current) markDraftDirty(activityKeyRef.current);
     return executerSauvegarde(true);
@@ -129,6 +138,7 @@ export function useDurableAutosave(valeurInitiale, sauvegarder, delai = 350) {
     }
     valeurRef.current = texte;
     persisteeRef.current = texte;
+    localEditionRef.current = false;
     setValeurState(texte);
     markDraftSaved(activityKeyRef.current);
   }, []);

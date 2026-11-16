@@ -88,8 +88,19 @@ export async function creerRemarEquipement(visiteId, famille, nom) {
   const label = str(nom);
   if (!label) throw new Error('Nomme cet equipement avant de le creer.');
   const types = await db.getAllAsync('SELECT id,type_code,designation FROM equipements WHERE installation_id=? AND statut=\'actif\'', [v.installation_id]);
-  if (types.some(e => remarFamilleEquipement(e) === famille && sq(e.designation) === sq(label))) {
-    throw new Error('Cet equipement existe deja dans le patrimoine du local. Utilise sa fiche existante.');
+  const existing=types.find(e=>remarFamilleEquipement(e)===famille&&sq(e.designation)===sq(label));
+  if(existing){
+    // The listing and the CTA/VMC sheet are two views of the SAME equipment.
+    // Reusing the stable equipment ID is mandatory: a second CTA material row
+    // would duplicate the Symfony inventory for this installation.
+    const materialId=createId();
+    await db.runAsync(`INSERT INTO materiel(id,visite_id,equipement_id,categorie,nombre,designation,etat,ajoute_pendant_visite)
+      SELECT ?,?,?,?,?,?,NULL,0 WHERE NOT EXISTS (
+        SELECT 1 FROM materiel WHERE visite_id=? AND equipement_id=?
+      )`,
+      [materialId,visiteId,existing.id,REMAR_FAMILLES[famille].type,'1',existing.designation,
+       visiteId,existing.id]);
+    return existing.id;
   }
   const equipementId = createId();
   const materielId = createId();

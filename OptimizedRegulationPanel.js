@@ -61,7 +61,18 @@ export function invaliderCacheRegulation(visiteId) { cacheRegulation.delete(visi
 const fmt = (v) => versAffichage(String(v ?? '').trim());
 const vide = (v) => v == null || String(v).trim() === '';
 
+function estBoucleEcs(reseau) {
+  const nom=String(reseau?.nom_reseau||'').normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  return /\b(boucle|bouclage)\s+ecs\b|\becs\s+(boucle|bouclage)\b/.test(nom);
+}
+
 function resumeReseau(v) {
+  if(estBoucleEcs(v)){
+    const dep=vide(v.t_dep_c)?'—':`${fmt(v.t_dep_c)} °C`;
+    const retour=vide(v.t_retour_c)?'—':`${fmt(v.t_retour_c)} °C`;
+    return vide(v.t_dep_c)&&vide(v.t_retour_c)?'ECS départ / retour à renseigner':`Départ ${dep} · Retour ${retour}`;
+  }
   const ext = vide(v.t_ext_c) ? '—' : `${fmt(v.t_ext_c)} °C`;
   const dep = vide(v.t_dep_c) ? '—' : `${fmt(v.t_dep_c)} °C`;
   if (vide(v.t_ext_c) && vide(v.t_dep_c) && vide(v.courbe_de_chauffe)) return 'À renseigner';
@@ -91,11 +102,14 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, open, onToggle, 
   const [nomEdite, setNomEdite] = useState(null);
   const [ext, setExt] = useColonneReseau(reseau, 't_ext_c', onPatch);
   const [dep, setDep] = useColonneReseau(reseau, 't_dep_c', onPatch);
+  const [ret, setRet] = useColonneReseau(reseau, 't_retour_c', onPatch);
   const [courbe, setCourbe] = useColonneReseau(reseau, 'courbe_de_chauffe', onPatch);
   const [tnc, setTnc, flushTnc] = useColonneReseau(reseau, 'tnc', onPatch);
   const [prog, setProg, flushProg] = useColonneReseau(reseau, 'consigne_programme_horaire', onPatch);
   const cfgExt = getNumericConfig('T°ext(°C)');
   const cfgDep = getNumericConfig('T°dép(°C)');
+  const cfgRet = cfgDep;
+  const boucleEcs=estBoucleEcs({nom_reseau:nom});
   const cfgCourbe = getNumericConfig('Courbe de chauffe');
   const entiteKey = reseau.reseau_site_id ? `reseau_site||${reseau.reseau_site_id}` : `reseau||${reseau.id}`;
 
@@ -117,7 +131,7 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, open, onToggle, 
       picto="dist/reseaux"
       title={nom}
       onRename={renommer}
-      subtitle={resumeReseau({ t_ext_c: ext, t_dep_c: dep, courbe_de_chauffe: courbe })}
+      subtitle={resumeReseau({ nom_reseau:nom, t_ext_c: ext, t_dep_c: dep, t_retour_c: ret, courbe_de_chauffe: courbe })}
       open={open}
       onToggle={onToggle}
       right={<ActionMenu label={`Actions du réseau ${nom}`} items={[
@@ -130,6 +144,12 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, open, onToggle, 
         },
       ]} />}
     >
+      {boucleEcs ? <TileRow>
+        <ValueTile compactNumber label="Température départ ECS" unit="°C" value={versAffichage(dep)} onChange={num(setDep)} step={cfgDep.step} min={cfgDep.min} max={cfgDep.max}
+          start={prec(precedent?.tDep,DEPART_DEFAUT['T°dép(°C)'])} picto="dist/t-de-depart"/>
+        <ValueTile compactNumber label="Température retour bouclage ECS" unit="°C" value={versAffichage(ret)} onChange={num(setRet)} step={cfgRet.step} min={cfgRet.min} max={cfgRet.max}
+          start={prec(precedent?.tRetour,50)} picto="dist/t-de-depart"/>
+      </TileRow> : <>
       <TileRow>
         <ValueTile compactNumber label="T°ext" unit="°C" value={versAffichage(ext)} onChange={num(setExt)} step={cfgExt.step} min={cfgExt.min} max={cfgExt.max}
           start={prec(precedent?.tExt, DEPART_DEFAUT['T°ext(°C)'])} picto="dist/t-exterieure" />
@@ -149,6 +169,7 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, open, onToggle, 
         <TextInput style={[st.textInput, { minHeight: 44 }]} value={String(prog ?? '')} onChangeText={setProg} onBlur={() => { flushProg().catch(() => {}); }} placeholder="Saisir…" placeholderTextColor={COLORS.inkFaint} multiline accessibilityLabel="Consigne et programme horaire" />
       </View>
       <NetworkProgrammingEditor reseau={reseau} />
+      </>}
       <BottomSheet visible={nomEdite !== null} onClose={() => setNomEdite(null)} title="Nom du réseau" picto="dist/reseaux" maxHeight="45%"
         footer={<View style={st.sheetActions}>
           <SmallButton label="Annuler" onPress={() => setNomEdite(null)} />
