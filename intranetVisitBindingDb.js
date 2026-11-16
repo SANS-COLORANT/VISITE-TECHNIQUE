@@ -71,8 +71,8 @@ export function resolveFirstVisitRemoteTrame(referential, localTrameId, visitTra
           candidates,matchedBy:'unique_family'};
       if(requestedFamily==='remar_v1' && localTrameId==='remar_v1'){
         const complete=candidates.filter(trame=>
-          /\\bcomplete\\b/.test(normalizeTrameName(trame.nom)) &&
-          !/\\bclassique\\b/.test(normalizeTrameName(trame.nom)));
+          /\bcomplete\b/.test(normalizeTrameName(trame.nom)) &&
+          !/\bclassique\b/.test(normalizeTrameName(trame.nom)));
         if(complete.length===1)
           return {remoteTrameId:complete[0].id,remoteTrameName:complete[0].nom,
             candidates,matchedBy:'unique_remar_complete'};
