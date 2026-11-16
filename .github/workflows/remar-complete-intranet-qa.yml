@@ -9,6 +9,15 @@ on:
       - 'excelImport.js'
       - 'intranetVisitPayload.js'
       - 'intranetVisitBindingDb.js'
+      - 'siteOrganizationDb.js'
+      - 'siteVisitCloneDb.js'
+      - 'remarkCategories.js'
+      - 'OptimizedRemarksPanel.js'
+      - 'OptimizedRegulationPanel.js'
+      - 'GuidedEquipmentPanel.js'
+      - 'durableAutosave.js'
+      - 'database/migrations/050_ecs_return_and_remark_urgency.js'
+      - '.github/scripts/test_site_clone_full_visit.js'
       - 'remarRemoteTrameSelection.js'
       - 'remarSymfony*.js'
       - 'ControlPhotoAction.js'
@@ -44,6 +53,7 @@ on:
       - fix/remar-complete-symfony-20261103
       - feat/premium-cards-control-photos-20261103
       - fix/visit-history-remar-default-resync-selection-20261103
+      - fix/metra-feedback-ecs-remarks-site-20261116
 permissions:
   contents: read
 jobs:
@@ -97,6 +107,7 @@ jobs:
           node .github/scripts/test_intranet_any_visit_binding.js
           node .github/scripts/test_intranet_first_visit_preparation.js
           node .github/scripts/test_crous_created_site_local_first_visit.js
+          node .github/scripts/test_site_clone_full_visit.js
       - name: Native SQLite + official Excel full roundtrips
         run: node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
       - name: Verify Android JS bundle (not a native release APK)
