@@ -178,9 +178,16 @@ function DestinationSheet({ visible, valeur, options, onClose, onPick }) {
 // Compteur sur deux lignes
 // ---------------------------------------------------------------------------
 
+function compteurEstEnergie(compteur) {
+  const text=String(compteur?.label||'')+' '+String(compteur?.destination||'');
+  const normalized=text.normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  return /\b(energie|calorie|calorifique|electrique|kwh|mwh)\b/.test(normalized);
+}
+const uniteCompteurAffichee=compteur=>compteur.unite || (compteurEstEnergie(compteur)?'':'m³');
+
 const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, champsSection, doublonDestination, onDestinationChange, onLive }) {
   const [label, , , setLabelImmediate] = useSaisieAvecAutoSave(compteur.label, (v) => upsertCompteurChamp(compteur.id, 'label', v));
-  const [unite, setUnite] = useState(compteur.unite || 'm³');
+  const [unite, setUnite] = useState(uniteCompteurAffichee(compteur));
   const [destination, setDestination] = useState(compteur.destination || null);
   const [choixDestination, setChoixDestination] = useState(false);
   const [photoVisible, setPhotoVisible] = useState(false);
@@ -229,7 +236,8 @@ const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, ch
     onLive?.(compteur.id, ancien);
   };
   const champIndex = useRef(null);
-  useEffect(() => { setUnite(compteur.unite || 'm³'); }, [compteur.unite]);
+  useEffect(() => { setUnite(uniteCompteurAffichee(compteur)); },
+    [compteur.unite,compteur.label,compteur.destination]);
   useEffect(() => { setDestination(compteur.destination || null); }, [compteur.destination]);
 
   const enregistrerDestination = useCallback(async (cle) => {
@@ -318,7 +326,9 @@ const CompteurRow = memo(function CompteurRow({ compteur, visiteId, onRemove, ch
             <CvcIcon name="undo" size={18} color={COLORS.orangeDark} />
           </TouchableOpacity>
         ) : null}
-        <UnitPill value={unite} onChange={changerUnite} water={picto.water} />
+        <UnitPill value={unite} onChange={changerUnite}
+          options={compteurEstEnergie({label,destination:destinationAffichee})?['MWh','kWh']:undefined}
+          water={picto.water} />
         <LecturePhotoButton visiteId={visiteId} entiteKey={entiteKey} label={label || 'Compteur'} kind="meters" unit={unite} current={{ valeur }}
           onApply={async (values) => {
             const check = controlerIndex(values.valeur, null);
