@@ -33,15 +33,22 @@ async function visitContext(db, visiteId, edit = false) {
   );
   const definition = v ? obtenirTrame(v.trame_id) : null;
   if (!v || (definition?.familyId || definition?.id) !== 'remar_v1') throw new Error('Visite REMAR introuvable.');
-  if (edit && v.statut !== 'en_cours' && v.statut !== 'a_completer') {
-    // A locally completed visit may be corrected only if its actual
-    // POST was acknowledged. Such edits remain local until Symfony offers a
-    // safe update-by-remote-ID endpoint; never POST a duplicate visit.
-    const uploaded = await db.getFirstAsync(
-      "SELECT remote_visit_id FROM api_visit_outbox WHERE visite_id=? AND status='synced' AND remote_visit_id IS NOT NULL",
-      [visiteId]);
-    if (!uploaded?.remote_visit_id)
-      throw new Error('Une visite historique ou cloturée non synchronisée ne peut pas modifier le patrimoine REMAR.');
+  if (edit) {
+    // Closing a LOCAL visit prepares its first upload; it must not freeze the
+    // technician's ability to correct/remove an accidental REMAR item.
+    // Imported history is immutable, independently of its local status.
+    const imported = await db.getFirstAsync(
+      `SELECT 1 AS found FROM provenances
+       WHERE entite_type='visite' AND entite_id=? AND origine='api_symfony'
+         AND details_json LIKE '%"sourceType":"imported_latest_visit"%'
+       LIMIT 1`, [visiteId]);
+    if (imported)
+      throw new Error('Une visite historique importée depuis l’Intranet ne peut pas modifier le patrimoine REMAR.');
+    if (!['en_cours','a_completer','terminee','exportee'].includes(v.statut))
+      throw new Error('Statut de visite incompatible avec une modification du patrimoine REMAR.');
+    // Previously acknowledged visits remain locally editable; the existing
+    // outbox never creates a second Symfony POST for a synced visit.
+    // Pending snapshots are immutable and validated again before first POST.
   }
   return v;
 }
