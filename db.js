@@ -57,8 +57,8 @@ async function ajouterReseau(visiteId, nomSouhaite = '') {
   // de la visite échoue. Utilise la connexion exclusive Expo SQLite.
   await db.withExclusiveTransactionAsync(async (tx) => {
     if (idPermanent) await tx.runAsync(
-      "INSERT INTO reseaux_site(id,installation_id,type_code,nom,ordre) VALUES(?,?, 'chauffage',?,?)",
-      [idPermanent, visite.installation_id, nom, ordre]);
+      "INSERT INTO reseaux_site(id,installation_id,type_code,nom,ordre) VALUES(?,?,?,?,?)",
+      [idPermanent, visite.installation_id, /\b(?:boucle|bouclage)\s+ecs\b|\becs\s+(?:boucle|bouclage)\b/i.test(nom)?'ecs':'chauffage', nom, ordre]);
     await tx.runAsync(
       'INSERT INTO reseaux(id,visite_id,reseau_site_id,ordre,nom_reseau) VALUES(?,?,?,?,?)',
       [id, visiteId, idPermanent, ordre, nom]);
@@ -66,7 +66,7 @@ async function ajouterReseau(visiteId, nomSouhaite = '') {
   return id;
 }
 async function upsertReseauChamp(id, cle, valeur) {
-  const autorisees = new Set(['nom_reseau','ordre','t_ext_c','t_dep_c','courbe_de_chauffe','tnc','consigne_programme_horaire']);
+  const autorisees = new Set(['nom_reseau','ordre','t_ext_c','t_dep_c','t_retour_c','courbe_de_chauffe','tnc','consigne_programme_horaire']);
   if (!autorisees.has(cle)) throw new Error(`Champ réseau non autorisé : ${cle}`);
   const db = await getDb();
   const row = await db.getFirstAsync('SELECT reseau_site_id FROM reseaux WHERE id=?', [id]);
@@ -74,7 +74,10 @@ async function upsertReseauChamp(id, cle, valeur) {
   await db.runAsync(`UPDATE reseaux SET ${cle}=? WHERE id=?`, [valeur,id]);
   if (row.reseau_site_id && (cle === 'nom_reseau' || cle === 'ordre')) {
     const colonne = cle === 'nom_reseau' ? 'nom' : 'ordre';
-    await db.runAsync(`UPDATE reseaux_site SET ${colonne}=?,modifie_le=datetime('now') WHERE id=?`,
+    if(cle==='nom_reseau')await db.runAsync(
+      "UPDATE reseaux_site SET nom=?,type_code=?,modifie_le=datetime('now') WHERE id=?",
+      [valeur,/\b(?:boucle|bouclage)\s+ecs\b|\becs\s+(?:boucle|bouclage)\b/i.test(String(valeur))?'ecs':'chauffage',row.reseau_site_id]);
+    else await db.runAsync(`UPDATE reseaux_site SET ${colonne}=?,modifie_le=datetime('now') WHERE id=?`,
       [valeur,row.reseau_site_id]);
   }
 }
@@ -242,8 +245,8 @@ export async function dupliquerReseau(reseauId) {
   // pas le réseau d'origine et ne déplace ni historique ni photos.
   const id = await ajouterReseau(source.visite_id, nom);
   await db.runAsync(
-    `UPDATE reseaux SET t_ext_c=?,t_dep_c=?,courbe_de_chauffe=?,tnc=?,consigne_programme_horaire=? WHERE id=?`,
-    [source.t_ext_c ?? null, source.t_dep_c ?? null, source.courbe_de_chauffe ?? null, source.tnc ?? null,
+    `UPDATE reseaux SET t_ext_c=?,t_dep_c=?,t_retour_c=?,courbe_de_chauffe=?,tnc=?,consigne_programme_horaire=? WHERE id=?`,
+    [source.t_ext_c ?? null, source.t_dep_c ?? null, source.t_retour_c ?? null, source.courbe_de_chauffe ?? null, source.tnc ?? null,
       source.consigne_programme_horaire ?? null, id]
   );
   // Dupliquer aussi la programmation structurée du réseau courant,
