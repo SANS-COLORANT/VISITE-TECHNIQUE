@@ -45,7 +45,8 @@ async function test() {
     'both reserve list and detail use the same lift confirmation');
   assert.ok(ui.includes('onToggleVerifiee={basculerVerifiee}') &&
     ui.includes('Confirmer la levée de la réserve') &&
-    ui.includes("'Observation', 'Entretien P2'"),
+    ui.includes('const POSTES = [...REMARK_CATEGORIES]') &&
+    fs.readFileSync(path.join(root,'remarkTaxonomy.js'),'utf8').includes("'Entretien P2'"),
     'separate checkbox, explicit lift confirmation, historic observation post');
   console.log('OK: verified versus lifted, local identity, idempotence, legacy posts.');
 }
