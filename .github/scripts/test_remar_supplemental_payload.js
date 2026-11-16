@@ -63,7 +63,8 @@ const db={
     return null;
   },
   getAllAsync:async sql=>{
-    if(sql.includes('FROM provenances')&&!sql.includes('JOIN reseaux'))
+    if(sql.includes('FROM provenances')&&sql.includes('JOIN reseaux'))return [];
+    if(sql.includes('FROM provenances'))
       return [{details_json:JSON.stringify(source),reference_externe:'110',importe_le:'2026-11-16'}];
     if(sql.includes('FROM compteurs'))return meters;
     if(sql.includes('FROM champs_visite')||sql.includes('FROM controles_visite')||
