@@ -404,14 +404,31 @@ function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefre
     }catch(e){Alert.alert('Ajout impossible',String(e?.message||e));}
     finally{setBusy(false);}
   };
+  // A supply-only CTA is ONE device, not an extraction CTA. Do not show
+  // irrelevant extraction/reprise fields or propose default "Non visible".
+  // Neither its (possibly historical) data nor the shared inventory is deleted.
+  const normalizedName=clean(equipmentName||equipment.designation).normalize('NFD')
+    .replace(/[\u0300-\u036f]/g,'').toLowerCase();
+  const supplyOnly=family==='cta' &&
+    /\b(soufflage|insufflation)\b/.test(normalizedName) &&
+    !/\b(extraction|reprise|double flux|mixte)\b/.test(normalizedName);
+  const extractionOnly=family==='cta' &&
+    /\b(extraction|reprise)\b/.test(normalizedName) &&
+    !/\b(soufflage|insufflation|double flux|mixte)\b/.test(normalizedName);
+  const irrelevant=(label)=>{
+    const t=clean(label).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase();
+    return supplyOnly ? /\b(extraction|reprise)\b/.test(t)
+      : extractionOnly ? /\b(soufflage|insufflation)\b/.test(t) : false;
+  };
+  const childrenVisible=children.filter(child=>!irrelevant(child.nom));
   const missingMeasures = childType==='mesure_cta'
-    ? MESURES_CTA_REMAR_USUELLES.filter(name=>!children.some(c=>clean(c.nom).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()===clean(name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()))
+    ? MESURES_CTA_REMAR_USUELLES.filter(name=>!irrelevant(name)&&
+      !children.some(c=>clean(c.nom).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()===clean(name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()))
     : [];
   const reservedFields = Object.entries(sections||{}).flatMap(([section, fields])=>
-    (fields||[]).filter(f=>!(family==='froid'&&/^Réseau \d+$/i.test(f.cle)) &&
+    (irrelevant(section)?[]:fields||[]).filter(f=>!irrelevant(f.cle) &&
+      !(family==='froid'&&/^Réseau \d+$/i.test(f.cle)) &&
       !(family==='vmc'&&f.cle==='Nombre de caissons') &&
-      // La designation CTA est le nom editable de sa fiche patrimoine :
-      // ne pas la redemander et ne jamais la qualifier de 'sans objet'.
       !(family==='cta'&&panelId==='p-remar-cta'&&f.cle==='Désignation CTA'))
       .map(f=>({section,field:enrichirControleRemar(enrichirChampRemar(f,panelId),panelId)})));
   const showFields = !childType || (panelId==='p-remar-froid');
@@ -489,7 +506,7 @@ function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefre
         item={field} ownerType="equipement" ownerId={equipment.id} panelId={panelId}
         equipmentLabel={equipmentName} section={section} visiteId={visiteId} saved={values} onSaved={onSaved} />) : null}
       {childType ? <>
-        {children.map(child=><ChildRow key={child.id} visiteId={visiteId} parent={equipment}
+        {childrenVisible.map(child=><ChildRow key={child.id} visiteId={visiteId} parent={equipment}
           item={child} typeCode={childType} data={child.data}
           onRefresh={load} onSaved={onSaved} />)}
         {missingMeasures.length ? <View style={{marginVertical:10}}>
