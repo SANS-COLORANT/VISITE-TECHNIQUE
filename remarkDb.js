@@ -2,6 +2,7 @@ import { openAppDatabase } from './database/index.js';
 import { createId } from './database/ids.js';
 import { supprimerPhotosEntiteComplete } from './photoDb.js';
 import { clampReserveSeverity } from './reserveSeverity.js';
+import { normalizedRemarkPoste } from './remarkCategories.js';
 
 const normaliserNombreNullable = (valeur) => {
   if (valeur === null || valeur === undefined || valeur === '') return null;
@@ -46,7 +47,7 @@ export async function upsertRemarquePrescription(visiteId, controleKey, prescrip
   const existante = await db.getFirstAsync(`SELECT id,criticite,criticite_defaut,criticite_modifiee,perimetre FROM remarques WHERE visite_id=? AND controle_key=? LIMIT 1`, [visiteId, controleKey]);
   const aPerimetre = Object.prototype.hasOwnProperty.call(prescription, 'perimetre');
   const perimetre = prescription.perimetre === 'Primaire' || prescription.perimetre === 'Secondaire' ? prescription.perimetre : null;
-  const poste = prescription.poste || 'Observation';
+  const poste = normalizedRemarkPoste(prescription.poste);
   const prestation = prescription.prestation || '';
   const delai = normaliserNombreNullable(prescription.delai);
   const estimatif = normaliserNombreNullable(prescription.estimatif);
@@ -106,13 +107,13 @@ export async function ajouterRemarqueVisite(visiteId, data = {}) {
   const id = createId();
   const criticite = clampReserveSeverity(data.criticite ?? 2);
   const perimetre = data.perimetre === 'Primaire' || data.perimetre === 'Secondaire' ? data.perimetre : null;
-  await db.runAsync(`INSERT INTO remarques(id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,criticite,criticite_defaut,criticite_modifiee,perimetre) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, [id, visiteId, data.controleKey || null, data.poste || 'Observation', data.prestation || data.description || '', normaliserNombreNullable(data.delai), normaliserNombreNullable(data.estimatif ?? data.prix), data.origine || 'Manuelle', criticite, criticite, 0, perimetre]);
+  await db.runAsync(`INSERT INTO remarques(id,visite_id,controle_key,poste,prestation,delai,estimatif,origine,criticite,criticite_defaut,criticite_modifiee,perimetre) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)`, [id, visiteId, data.controleKey || null, normalizedRemarkPoste(data.poste), data.prestation || data.description || '', normaliserNombreNullable(data.delai), normaliserNombreNullable(data.estimatif ?? data.prix), data.origine || 'Manuelle', criticite, criticite, 0, perimetre]);
   return id;
 }
 
 export async function modifierRemarqueVisite(id, patch = {}) {
   const db = await openAppDatabase();
-  const autorisees = ['poste', 'prestation', 'delai', 'estimatif', 'criticite', 'perimetre', 'intranet_date_reserve', 'intranet_delai', 'intranet_etat_avancement'];
+  const autorisees = ['poste', 'prestation', 'delai', 'estimatif', 'criticite', 'urgence', 'perimetre', 'intranet_date_reserve', 'intranet_delai', 'intranet_etat_avancement'];
   const sets = []; const params = [];
   for (const cle of autorisees) {
     if (!Object.prototype.hasOwnProperty.call(patch, cle)) continue;
@@ -120,6 +121,8 @@ export async function modifierRemarqueVisite(id, patch = {}) {
     let value = patch[cle];
     if (cle === 'delai' || cle === 'estimatif') value = normaliserNombreNullable(value);
     else if (cle === 'criticite') value = clampReserveSeverity(value);
+    else if (cle === 'urgence') value = value === true || value === 1 || value === '1' ? 1 : 0;
+    else if (cle === 'poste') value = normalizedRemarkPoste(value);
     else if (cle === 'perimetre') value = value === 'Primaire' || value === 'Secondaire' ? value : null;
     else if (cle.startsWith('intranet_')) value = value == null || String(value).trim() === '' ? null : String(value).trim();
     params.push(value);
