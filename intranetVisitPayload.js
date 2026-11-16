@@ -690,19 +690,51 @@ function isMeterCandidate(candidate, capabilities) {
 function isTemperatureCandidate(candidate) {
   return candidate?.temperature === true || /temperature/.test(candidate?.sectionKey || '');
 }
-// Les compteurs REMAR supplémentaires ne rejoignent une destination officielle
-// que lorsque nom ET unité en désignent sans ambiguïté une seule famille.
+// The technician may read energy meters in either kWh or MWh. Symfony's
+// official REMAR destination is MWh. Keep the original number/unit unchanged
+// in SQLite and convert ONLY the outgoing copy, without floating-point
+// rounding, guessed units, or implicit regrouping with gas / ECS / water.
+const REMAR_ENERGY_DESTINATION="Compteur d'énergie (MWh)";
+function remarEnergyUnit(value) {
+  const unit=normalize(value).replace(/\s/g,'');
+  return unit==='mwh'||unit==='kwh'?unit:null;
+}
+function remarEnergyIndexToMWh(counter) {
+  const unit=remarEnergyUnit(counter?.unite);
+  if(!unit)return null;
+  const raw=clean(counter?.valeur).replace(/[\s\u00a0\u202f]/g,'');
+  if(!raw)return {valeur:raw,unite:'MWh'};
+  // Strict decimal index (French comma or dot). Any units embedded in
+  // the value, operators or malformed numbers remain supplemental notes.
+  const match=/^([+-]?)(\d+)(?:[.,](\d+))?$/.exec(raw);
+  if(!match)return null;
+  if(unit==='mwh')return {valeur:raw,unite:'MWh'};
+  const negative=match[1]==='-'?'-':'';
+  const decimals=match[3]||'';
+  const scale=decimals.length+3;
+  const padded=(match[2]+decimals).padStart(scale+1,'0');
+  const whole=padded.slice(0,-scale).replace(/^0+(?=\d)/,'');
+  const fractional=padded.slice(-scale).replace(/0+$/,'');
+  const value=whole+(fractional?','+fractional:'');
+  return {valeur:(value==='0'?'':negative)+value,unite:'MWh'};
+}
+// REMAR extra counters can only occupy an official destination when their
+// field and unit really agree. kWh becomes MWh in the outbound payload.
+// Historical raw readings retain their local value and chosen unit.
 function destinationCompteurRemar(counter, destinations) {
   const stated=clean(counter?.destination);
-  if (destinations.includes(stated)) return stated;
-  if (stated && stated!=='supplementaire') return null;
+  const unit=normalize(clean(counter?.unite).replace(/[³]/g,'3')).replace(/\s/g,'');
+  const volume=unit==='m3', energy=remarEnergyUnit(counter?.unite)!==null;
+  if(destinations.includes(stated)) {
+    if(stated===REMAR_ENERGY_DESTINATION && !energy)return null;
+    return stated;
+  }
+  if(stated && stated!=='supplementaire')return null;
   const label=normalize(counter?.label);
-  const unit=normalize(clean(counter?.unite).replace(/[³]/g,'3'));
-  const volume=unit==='m3', energy=unit==='mwh';
   const matches=[];
   const push=(name,ok)=>{if(ok&&destinations.includes(name))matches.push(name);};
   push('Compteur Gaz (m³)',/\bgaz\b/.test(label)&&volume);
-  push("Compteur d'énergie (MWh)",/\b(energie|calorie|calorifique)\b/.test(label)&&energy);
+  push(REMAR_ENERGY_DESTINATION,/\b(energie|calorie|calorifique)\b/.test(label)&&energy);
   push('Compteur ECS (m³)',/\b(ecs|sanitaire)\b/.test(label)&&volume);
   push('Compteur appoint (m³)',/\bappoint\b/.test(label)&&volume);
   push('Compteur eau froide générale (m³)',
@@ -1402,7 +1434,13 @@ async function buildCriteria(db, visite, details, issues) {
       .filter(m=>m.panelId==='p-remar-releves' && m.section==='Compteur')
       .map(m=>m.cle);
     countersForWire=counters.map(counter=>{
-      const destination=destinationCompteurRemar(counter,destinations);
+      let destination=destinationCompteurRemar(counter,destinations);
+      let published=counter;
+      if(destination===REMAR_ENERGY_DESTINATION){
+        const converted=remarEnergyIndexToMWh(counter);
+        if(!converted && meaningfulRemote(counter.valeur))destination=null;
+        else if(converted)published={...counter,...converted};
+      }
       if(meaningfulRemote(counter.valeur)&&!destination &&
         !preserveRemarMeasurementInNotes(issues,{
           panel:'p-remar-releves',section:'Compteur',cle:'Index',
@@ -1412,7 +1450,9 @@ async function buildCriteria(db, visite, details, issues) {
         }))
         issues.push('Compteur REMAR « '+(clean(counter.label)||counter.id)+
           ' » : destination Intranet ambiguë ou inconnue, conservation en notes indisponible.');
-      return {...counter,destination:destination||'supplementaire'};
+      // No mutation of the technician's value / unit in SQLite. An outgoing
+      // MWh conversion is applied only to the temporary wire-level copy.
+      return {...published,destination:destination||'supplementaire'};
     });
   }
   const result = [];
