@@ -27,6 +27,7 @@ import { CvcIcon } from './MetraCvcIcons.js';
 import { feedback } from './fieldFeedback.js';
 import { getPreviousVisitSnapshot, prewarmPreviousVisitSnapshot } from './visitPreviousSnapshot.js';
 import { NetworkProgrammingEditor } from './NetworkProgrammingEditor.js';
+import { isEcsLoopNetwork, ecsTemperatureSummary } from './ecsNetworkTemperatures.js';
 
 const cacheRegulation = new BoundedLruMap(3);
 const OPTIONS_CHOIX = { 'Cycle anti-légionellose': ['Hebdomadaire', 'Quotidien', 'Absent'] };
@@ -91,6 +92,8 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, open, onToggle, 
   const [nomEdite, setNomEdite] = useState(null);
   const [ext, setExt] = useColonneReseau(reseau, 't_ext_c', onPatch);
   const [dep, setDep] = useColonneReseau(reseau, 't_dep_c', onPatch);
+  const [retourEcs,setRetourEcs] = useColonneReseau(reseau,'t_retour_ecs_c',onPatch);
+  const isEcsLoop=isEcsLoopNetwork(nom);
   const [courbe, setCourbe] = useColonneReseau(reseau, 'courbe_de_chauffe', onPatch);
   const [tnc, setTnc, flushTnc] = useColonneReseau(reseau, 'tnc', onPatch);
   const [prog, setProg, flushProg] = useColonneReseau(reseau, 'consigne_programme_horaire', onPatch);
@@ -117,7 +120,8 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, open, onToggle, 
       picto="dist/reseaux"
       title={nom}
       onRename={renommer}
-      subtitle={resumeReseau({ t_ext_c: ext, t_dep_c: dep, courbe_de_chauffe: courbe })}
+      subtitle={isEcsLoop?ecsTemperatureSummary({t_dep_c:dep,t_retour_ecs_c:retourEcs})
+        :resumeReseau({ t_ext_c: ext, t_dep_c: dep, courbe_de_chauffe: courbe })}
       open={open}
       onToggle={onToggle}
       right={<ActionMenu label={`Actions du réseau ${nom}`} items={[
@@ -130,6 +134,16 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, open, onToggle, 
         },
       ]} />}
     >
+      {isEcsLoop ? <TileRow>
+        <ValueTile compactNumber label="Température départ ECS" unit="°C"
+          value={versAffichage(dep)} onChange={num(setDep)}
+          step={cfgDep.step} min={cfgDep.min} max={cfgDep.max}
+          picto="dist/t-de-depart" />
+        <ValueTile compactNumber label="Température retour bouclage ECS" unit="°C"
+          value={versAffichage(retourEcs)} onChange={num(setRetourEcs)}
+          step={cfgDep.step} min={cfgDep.min} max={cfgDep.max}
+          picto="dist/reseau-ecs" />
+      </TileRow> : <>
       <TileRow>
         <ValueTile compactNumber label="T°ext" unit="°C" value={versAffichage(ext)} onChange={num(setExt)} step={cfgExt.step} min={cfgExt.min} max={cfgExt.max}
           start={prec(precedent?.tExt, DEPART_DEFAUT['T°ext(°C)'])} picto="dist/t-exterieure" />
@@ -149,6 +163,7 @@ const ReseauCard = memo(function ReseauCard({ reseau, visiteId, open, onToggle, 
         <TextInput style={[st.textInput, { minHeight: 44 }]} value={String(prog ?? '')} onChangeText={setProg} onBlur={() => { flushProg().catch(() => {}); }} placeholder="Saisir…" placeholderTextColor={COLORS.inkFaint} multiline accessibilityLabel="Consigne et programme horaire" />
       </View>
       <NetworkProgrammingEditor reseau={reseau} />
+      </>}
       <BottomSheet visible={nomEdite !== null} onClose={() => setNomEdite(null)} title="Nom du réseau" picto="dist/reseaux" maxHeight="45%"
         footer={<View style={st.sheetActions}>
           <SmallButton label="Annuler" onPress={() => setNomEdite(null)} />
