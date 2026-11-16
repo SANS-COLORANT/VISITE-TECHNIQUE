@@ -104,7 +104,7 @@ export function remarOptionalMappingsForRemote(definition, remoteTrame) {
   if ((definition?.familyId || definition?.id) !== 'remar_v1') return [];
   const base = definition?.excel?.fieldMappings || [];
   const rows = [];
-  const seen = new Set();
+  const matched = new Map();
   // The category must explicitly be about readings. A namesake in CTA,
   // cold production or an unrelated category is not a valid destination.
   for (const category of remoteTrame?.categories || []) {
@@ -116,20 +116,23 @@ export function remarOptionalMappingsForRemote(definition, remoteTrame) {
         const rule = OPTIONAL_REMOTE_MEASUREMENTS.find(entry =>
           normal(entry.section) === normal(sub?.nom) &&
           entry.labels.some(label => normal(label) === normal(criterion?.nom)));
-        if (!rule || seen.has(rule.cle)) continue;
-        // The usual REMAR section provides the exact SQLite key, but no
-        // fictitious Symfony ID is fabricated or persisted here.
-        const sameSection = base.find(m => m.panelId === 'p-remar-releves' && m.section === rule.section);
-        if (!sameSection) continue;
-        rows.push({
-          panelId: 'p-remar-releves', section: rule.section,
-          sectionCode: sameSection.sectionCode,
-          cle: rule.cle, remoteCle: criterion.nom, type: 'champ',
-          symfonyOnly: true, remarOptional: true,
-        });
-        seen.add(rule.cle);
+        if (!rule) continue;
+        if (!matched.has(rule.cle)) matched.set(rule.cle, []);
+        matched.get(rule.cle).push({rule, criterion});
+
       }
     }
+  }
+  // Duplicate server destinations are not silently collapsed: no optional
+  // mapping is authorized until the Symfony category is unambiguous.
+  for (const choices of matched.values()) {
+    if (choices.length !== 1) continue;
+    const {rule,criterion} = choices[0];
+    const sameSection=base.find(m=>m.panelId==='p-remar-releves' && m.section===rule.section);
+    if (!sameSection) continue;
+    rows.push({panelId:'p-remar-releves',section:rule.section,
+      sectionCode:sameSection.sectionCode,cle:rule.cle,remoteCle:criterion.nom,
+      type:'champ',symfonyOnly:true,remarOptional:true});
   }
   return rows;
 }
