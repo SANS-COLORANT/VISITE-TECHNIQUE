@@ -73,7 +73,7 @@ async function start(){
     await insert("INSERT INTO remar_values(visite_id,owner_type,owner_id,panel_id,section_code,cle,valeur,avis,commentaire,confirme_le) VALUES('visit-current','item','filter-original','p-remar-filtres','filtre_cta','Etat','Encrassé','N.S','À remplacer','2026-11-15')");
     await insert("INSERT INTO remar_report_focus(visite_id,famille,equipement_id) VALUES('visit-current','cta','cta-original')");
     await insert("INSERT INTO photos(id,visite_id,uri) VALUES('photo-original','visit-current','file:///original/photo.jpg')");
-    await insert("INSERT INTO api_visit_outbox(envoi_id,visite_id,status,payload_json,payload_bytes) VALUES('remote-original','visit-current','synced','{}',2)");
+    await insert("INSERT INTO api_visit_outbox(envoi_id,visite_id,remote_client_id,status,payload_json,payload_bytes) VALUES('remote-original','visit-current','123','synced','{}',2)");
     const helper=load('siteVisitCloneDb.js',{},['copyLatestVisitsForClonedSite']);
     const dao=load('siteOrganizationDb.js',{
       getDb:async()=>db,uuidv4,copyLatestVisitsForClonedSite:helper.copyLatestVisitsForClonedSite,
