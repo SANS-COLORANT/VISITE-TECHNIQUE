@@ -324,7 +324,7 @@ async function resolveImportedLocalId(db, visite, remoteClientId, remoteSiteId) 
     // Dès lors que l'installation physique est connue, choisir l'unique
     // « local compatible » d'un site ne prouve pas l'identité. C'était une
     // source de mélanges silencieux sur les sites à plusieurs locaux.
-    throw bindingError('Cette visite a une installation METRA précise, mais la correspondance Intranet n’est pas encore retrouvée. Réimporte le local puis vérifie ses identifiants ; aucun autre local ne sera choisi automatiquement.',
+    throw bindingError('Cette visite est liée à une installation METRA précise, mais son identifiant local Intranet n’est pas encore établi. Si le site vient d’être créé sur METRA, crée d’abord CE local dans Structure Intranet > Locaux techniques et vérifie sa synchronisation ; sinon actualise puis réimporte le local existant. Aucune correspondance par le nom ni choix d’un autre local ne sera effectué.',
       'imported_local_ambiguous', { remoteClientId });
   }
   // Pour une visite historique SANS installation, seulement si le site n'a
