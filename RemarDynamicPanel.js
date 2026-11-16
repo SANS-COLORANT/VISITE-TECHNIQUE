@@ -8,6 +8,7 @@ import { COLORS, FONTS, styles as fieldStyles } from './styles.js';
 import { hapticTick } from './fieldFeedback.js';
 import { enrichirControleRemar, enrichirChampRemar } from './remarControlPresets.js';
 import { proposerNomUniqueRemar, afficherNomEquipementRemar } from './remarEquipmentNaming.js';
+import { shouldShowCtaField } from './remarCtaDirection.js';
 import { getChampsVisite, getControlesVisite } from './db.js';
 import { obtenirTrame } from './trameRegistry.js';
 import { BottomSheet } from './VisitKit.js';
@@ -405,14 +406,19 @@ function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefre
     finally{setBusy(false);}
   };
   const missingMeasures = childType==='mesure_cta'
-    ? MESURES_CTA_REMAR_USUELLES.filter(name=>!children.some(c=>clean(c.nom).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()===clean(name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()))
+    ? MESURES_CTA_REMAR_USUELLES.filter(name=>
+      shouldShowCtaField(equipment.designation,'mesure_cta',name) &&
+      !children.some(c=>clean(c.nom).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()===clean(name).normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase()))
     : [];
   const reservedFields = Object.entries(sections||{}).flatMap(([section, fields])=>
     (fields||[]).filter(f=>!(family==='froid'&&/^Réseau \d+$/i.test(f.cle)) &&
       !(family==='vmc'&&f.cle==='Nombre de caissons') &&
       // La designation CTA est le nom editable de sa fiche patrimoine :
       // ne pas la redemander et ne jamais la qualifier de 'sans objet'.
-      !(family==='cta'&&panelId==='p-remar-cta'&&f.cle==='Désignation CTA'))
+      !(family==='cta'&&panelId==='p-remar-cta'&&f.cle==='Désignation CTA') &&
+      // Never turn the absent extraction path of a supply-only CTA into N.V.
+      // It is hidden; existing historical extraction readings are not erased.
+      !(family==='cta' && !shouldShowCtaField(equipment.designation,section,f.cle)))
       .map(f=>({section,field:enrichirControleRemar(enrichirChampRemar(f,panelId),panelId)})));
   const showFields = !childType || (panelId==='p-remar-froid');
   const bulkAvis=async prochain=>{
@@ -489,7 +495,9 @@ function EquipmentCard({ equipment, visiteId, panelId, sections, family, onRefre
         item={field} ownerType="equipement" ownerId={equipment.id} panelId={panelId}
         equipmentLabel={equipmentName} section={section} visiteId={visiteId} saved={values} onSaved={onSaved} />) : null}
       {childType ? <>
-        {children.map(child=><ChildRow key={child.id} visiteId={visiteId} parent={equipment}
+        {children.filter(child=>childType!=='mesure_cta' ||
+          shouldShowCtaField(equipment.designation,childType,child.nom))
+          .map(child=><ChildRow key={child.id} visiteId={visiteId} parent={equipment}
           item={child} typeCode={childType} data={child.data}
           onRefresh={load} onSaved={onSaved} />)}
         {missingMeasures.length ? <View style={{marginVertical:10}}>
