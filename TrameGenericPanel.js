@@ -1,7 +1,7 @@
 /** Panneau de saisie générique virtualisé piloté par la définition de la trame. */
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Alert, SectionList, StyleSheet, Text, TextInput, TouchableOpacity, View } from 'react-native';
-import { getChampsVisite, getControlesVisite, getVisite, upsertChamp } from './db.js';
+import { getDb, getChampsVisite, getControlesVisite, getVisite, upsertChamp } from './db.js';
 import { DurableChampGenerique } from './DurableChampGenerique.js';
 import { RemarMeterField } from './RemarMeterField.js';
 import { PersistentControleGenerique } from './PersistentControleGenerique.js';
@@ -373,11 +373,23 @@ function TrameGenericStaticPanel({ visiteId, panelId, sections, onSaved, nextPan
       .filter((sec) => sec.title === 'Général' || /informations_g_n_rales$/.test(sec.sectionCode))
       .flatMap((sec) => sec.data)
       .filter((item) => item.field.type === 'champ' && RE_DATE_VISITE.test(String(item.field.cle || '')) && estVide(champsMap[item.key]));
-    cibles.forEach((item) => {
-      upsertChamp(visiteId, item.sectionCode, item.field.cle, aujourdHui)
-        .then(() => champRef.current?.(item.key, aujourdHui))
-        .catch(() => {});
-    });
+    // The date may be auto-filled once on first creation, but an explicit
+    // empty string is a valid saved value. Avoid overwriting it, even when a
+    // previous asynchronous UI map still appears empty. INSERT OR IGNORE is
+    // atomic with the technician's latest edit.
+    getDb().then(db=>Promise.all(cibles.map(async item=>{
+      const existing=await db.getFirstAsync(
+        'SELECT valeur FROM champs_visite WHERE visite_id=? AND section_code=? AND cle=?',
+        [visiteId,item.sectionCode,item.field.cle]);
+      if(existing)return;
+      await db.runAsync(
+        'INSERT OR IGNORE INTO champs_visite(visite_id,section_code,cle,valeur) VALUES(?,?,?,?)',
+        [visiteId,item.sectionCode,item.field.cle,aujourdHui]);
+      const stored=await db.getFirstAsync(
+        'SELECT valeur FROM champs_visite WHERE visite_id=? AND section_code=? AND cle=?',
+        [visiteId,item.sectionCode,item.field.cle]);
+      if(stored?.valeur===aujourdHui)champRef.current?.(item.key,aujourdHui);
+    }))).catch(error=>console.warn('Date de visite non préremplie',error));
   }, [mode, donneesChargees, listeSections, champsMap, visiteId]);
 
   // Parcours terrain (une seule rubrique dans une fenêtre) : ouverte d'emblée.
