@@ -221,6 +221,30 @@ function find(panel,cle,section=null){
   check(crousComplete.issues.length===0 && crousComplete.notes.length===6,
     'REMAR COMPLÈTE also preserves six absent CTA improvement criteria as notes');
 
+  // CROUS: two different CTA share ONE official Symfony GTB criterion.
+  // The serialized cell must retain both equipment names, separate statuses
+  // and descriptions, never overwrite CTA 1 with CTA 2.
+  const twoCtaNames=['CTA soufflage','CTA extraction'];
+  const twoCtaRows=twoCtaNames.flatMap((nom,i)=>[
+    ['cta','','',nom,'cta-'+(i+1),'equipement','p-remar-cta',
+      'Équipement','Identité patrimoine',nom,'','','','Visite courante',''],
+    ['cta','','',nom,'cta-'+(i+1),'equipement','p-remar-cta-energie',
+      'CTA','GTB','',i===0?'S':'N.S',
+      i===0?'Interface opérationnelle':'Communication interrompue',
+      '','Visite courante',''],
+  ]);
+  projection={hasDynamic:true,familyCounts:{cta:2,vmc:0,froid:0},
+    temperaturesCount:0,replacements:new Map(),ambiguous:[],unsupported:[],
+    details:twoCtaRows};
+  const groupedCta=await build();
+  const gtb=outputFor(groupedCta,find('p-remar-cta-energie','GTB'));
+  check(groupedCta.issues.length===0&&groupedCta.notes.length===0 &&
+    gtb.avis==='N.S' &&
+    gtb.commentaire==='CTA soufflage : [S] Interface opérationnelle\\nCTA extraction : [N.S] Communication interrompue'.replace('\\n','\n'),
+    'two CTA report statuses and descriptions in the single official GTB criterion');
+  check(groupedCta.values.filter(v=>v.critereId===gtb.critereId).length===1,
+    'two CTA never duplicate the same Symfony criterion ID');
+
   projection={hasDynamic:false};
   const energyHeating=await build({meters:[{
     id:'energy-heating',destination:'supplementaire',
@@ -229,6 +253,36 @@ function find(panel,cle,section=null){
   check(energyHeating.issues.length===0 && energyHeating.notes.length===0 &&
     outputFor(energyHeating,find('p-remar-releves',"Compteur d'énergie (MWh)")).commentaire==='859',
     'heating energy meter with MWh maps to published energy slot, not an ambiguous note');
+  const kwhEnergy=await build({meters:[{
+    id:'energy-kwh',destination:'supplementaire',
+    label:'Compteur énergie chauffage',unite:'kWh',valeur:'1 250,5',
+  }]});
+  check(kwhEnergy.issues.length===0&&kwhEnergy.notes.length===0 &&
+    outputFor(kwhEnergy,find('p-remar-releves',"Compteur d'énergie (MWh)")).commentaire==='1,2505',
+    '1 250,5 kWh converts exactly to 1,2505 MWh in official energy slot');
+  const mixedEnergy=await build({meters:[
+    {id:'meter-heat',label:'Compteur énergie chauffage',destination:'supplementaire',unite:'kWh',valeur:'2500'},
+    {id:'meter-ecs',label:'Compteur énergie ECS',destination:"Compteur d'énergie (MWh)",unite:'MWh',valeur:'1,75'},
+  ]});
+  check(mixedEnergy.issues.length===0&&mixedEnergy.notes.length===0&&
+    outputFor(mixedEnergy,find('p-remar-releves',"Compteur d'énergie (MWh)")).commentaire===
+      'Compteur énergie chauffage : 2,5 MWh\\nCompteur énergie ECS : 1,75 MWh'.replace('\\n','\n'),
+    'two MWh/kWh meters combine in one official cell with names, newlines and normalized MWh');
+  const invalidEnergy=await build({meters:[{
+    id:'energy-invalid',label:'Compteur énergie chauffage',
+    destination:"Compteur d'énergie (MWh)",unite:'kWh',valeur:'12xx',
+  }]});
+  check(invalidEnergy.issues.length===0&&invalidEnergy.notes.length===1 &&
+    invalidEnergy.notes[0].contenu.includes('Valeur : 12xx') &&
+    !outputFor(invalidEnergy,find('p-remar-releves',"Compteur d'énergie (MWh)")).commentaire.includes('12xx'),
+    'non-numeric or illegible kWh index never contaminates official energy criterion');
+  const exactLarge=await build({meters:[{
+    id:'energy-large',label:'Compteur énergie chauffage',unite:'kWh',
+    destination:'supplementaire',valeur:'12345678901234567890,125',
+  }]});
+  check(exactLarge.issues.length===0&&
+    outputFor(exactLarge,find('p-remar-releves',"Compteur d'énergie (MWh)")).commentaire==='12345678901234567,890125',
+    'large kWh indexes convert without floating-point precision loss');
   const energyWithoutUnit=await build({meters:[{
     id:'energy-no-unit',destination:'supplementaire',
     label:'Compteur énergie chauffage',unite:'',valeur:'859',
