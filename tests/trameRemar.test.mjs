@@ -174,7 +174,7 @@ test('Boucle ECS departure and return are independent in SQLite and Excel roundt
   const {wb}=await construireClasseur(id);
   assert.equal(wb.Sheets.RESEAUX_DETAIL.D2.v,'61');
   assert.equal(wb.Sheets.RESEAUX_DETAIL.I2.v,'54');
-  assert.ok(!wb.Sheets.RESEAUX_DETAIL.C2,'ECS has no outdoor temperature');
+  assert.equal(String(wb.Sheets.RESEAUX_DETAIL.C2?.v??''),'','ECS outside-temperature column remains genuinely empty');
   const analysis=analyserClasseur(roundtrip(wb),'ecs-bouclage.xlsx');
   assert.equal(analysis.reseaux[0].tDep,'61');
   assert.equal(analysis.reseaux[0].tRetourEcs,'54');
