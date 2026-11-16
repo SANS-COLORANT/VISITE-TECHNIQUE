@@ -620,8 +620,13 @@ function find(panel,cle,section=null){
     [...r.slice(0,9),'X'.repeat(1600),...r.slice(10)]:r);
   projection={...projection,details:oversized};
   const lengthGuard=await build();
-  check(lengthGuard.issues.some(x=>x.includes('maximum 1500')),
-    'grouped fields longer than Symfony 1500-character limit are blocked, not truncated');
+  check(lengthGuard.issues.length===0 && lengthGuard.notes.length>=2,
+    'long REMAR text keeps its complete content in additional visit notes');
+  const serializedLongNotes=lengthGuard.notes.map(n=>n.contenu);
+  check(serializedLongNotes.every(n=>n.length<=1000),
+    'each fallback note respects the Symfony 1000-character payload limit');
+  check(serializedLongNotes.map(n=>n.slice(n.indexOf('\n')+1)).join('').includes('X'.repeat(1600)),
+    'overflow text is recoverable in note order, no silent clipping');
 
   console.log('PASS '+checks+' REMAR field->SQL->Symfony synthetic structure checks; real Symfony GET/POST/GET still required.');
 })().catch(e=>{console.error(e);process.exitCode=1;});
