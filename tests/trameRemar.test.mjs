@@ -166,6 +166,27 @@ test('multipoint curve and weekday schedule survive spreadsheet export and impor
   assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk,true);
 });
 
+test('Boucle ECS departure and return are independent in SQLite and Excel roundtrip', async () => {
+  const id=await newVisit();
+  await db.runAsync(
+    `INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_dep_c,t_retour_ecs_c)
+     VALUES('ecs-loop-test',?,1,'Boucle ECS','61','54')`,[id]);
+  const {wb}=await construireClasseur(id);
+  assert.equal(wb.Sheets.RESEAUX_DETAIL.D2.v,'61');
+  assert.equal(wb.Sheets.RESEAUX_DETAIL.I2.v,'54');
+  assert.ok(!wb.Sheets.RESEAUX_DETAIL.C2,'ECS has no outdoor temperature');
+  const analysis=analyserClasseur(roundtrip(wb),'ecs-bouclage.xlsx');
+  assert.equal(analysis.reseaux[0].tDep,'61');
+  assert.equal(analysis.reseaux[0].tRetourEcs,'54');
+  const imported=await importerAnalyseExcel(analysis);
+  const ecs=await db.getFirstAsync(
+    'SELECT t_dep_c,t_retour_ecs_c,t_ext_c FROM reseaux WHERE visite_id=?',[imported.visiteId]);
+  assert.equal(ecs.t_dep_c,'61');
+  assert.equal(ecs.t_retour_ecs_c,'54');
+  assert.equal(ecs.t_ext_c,'');
+  assert.equal((await verifyDatabaseIntegrity(db)).foreignKeysOk,true);
+});
+
 test('REMAR exports and reimports dynamic network/meter annexes without losing original points', async () => {
   const id = await newVisit();
   await db.runAsync(`INSERT INTO reseaux(id,visite_id,ordre,nom_reseau,t_ext_c,t_dep_c,courbe_de_chauffe,tnc,consigne_programme_horaire)
