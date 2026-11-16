@@ -80,6 +80,35 @@ function freeTextAsVisitNotes(value, path) {
     contenu: `Saisie libre METRA · ${label} · ${index + 1}/${parts.length}\n${part}`,
   }));
 }
+
+/**
+ * Alternative V1 for a REMAR measurement that has NO corresponding Symfony
+ * criterion. The value is transported as a distinct, identified VISIT NOTE,
+ * never as a made-up criterion or under another meter/temperature family.
+ * All original content stays in METRA/REMAR_DETAIL and each note keeps its
+ * local element ID, field, unit and current inspection status.
+ *
+ * Only measurement call sites opt into this fallback. Unsafe remote criterion
+ * identity, invalid API targets and missing official controls still fail.
+ */
+function preserveRemarMeasurementInNotes(issues, {panel,section,cle,nom,id,unite,valeur,avis,commentaire,destination}={}) {
+  if (![valeur,avis,commentaire].some(x=>meaningfulRemote(x)!==null)) return true;
+  const parts=[
+    'Nature : relevé REMAR complémentaire, hors critère Symfony officiel',
+    'Panneau : '+clean(panel), 'Rubrique : '+clean(section),
+    'Nom : '+clean(nom), 'ID METRA : '+clean(id),
+    'Champ : '+clean(cle),
+    'Unité : '+(clean(unite)||'non renseignée'),
+  ];
+  if (destination) parts.push('Destination METRA : '+clean(destination));
+  if (meaningfulRemote(valeur)!==null) parts.push('Valeur : '+String(valeur));
+  if (meaningfulRemote(avis)!==null) parts.push('Avis : '+String(avis));
+  if (meaningfulRemote(commentaire)!==null) parts.push('Commentaire : '+String(commentaire));
+  const path='REMAR complément / '+[section,nom].filter(Boolean).join(' / ');
+  if (!preserveFreeText(issues,path,parts.join('\n'))) return false;
+  issues.remarSupplementalCount=Number(issues.remarSupplementalCount||0)+1;
+  return true;
+}
 function limited(value, max, path, issues, { required = false } = {}) {
   const v = nullable(value);
   if (required && !v) issues.push(`${path} : valeur obligatoire.`);
@@ -960,7 +989,18 @@ function groupRemarDetailsForIntranet(projection, definition, issues, remoteTram
   const report=(label,reason)=>issues.push('REMAR / '+label+' : '+reason);
   const add=(p,s,c,entry)=>{
     const mapping=mappings.get(key(p,s,c));
-    if(!mapping){report(entry.label,'aucune case officielle pour '+p+' / '+s+' / '+c);return;}
+    if(!mapping){
+      // A dynamic measurement with no remote slot remains sendable as a
+      // fully identified visit note, not as an invented official criterion.
+      if (!entry.force && (p==='p-remar-releves' || p==='p-remar-cta-mesures') &&
+          preserveRemarMeasurementInNotes(issues,{
+            panel:p,section:s,cle:c,nom:entry.label,id:entry.id,
+            unite:entry.unite,valeur:entry.valeur,avis:entry.avis,
+            commentaire:entry.commentaire,
+          })) return;
+      report(entry.label,'aucune case officielle pour '+p+' / '+s+' / '+c);
+      return;
+    }
     if(!has(entry)&&!entry.force)return;
     const identity=key(p,s,c);
     if(!groups.has(identity))groups.set(identity,{mapping,entries:[]});
@@ -1012,7 +1052,12 @@ function groupRemarDetailsForIntranet(projection, definition, issues, remoteTram
     const parent=parents.get(row.id);
     const label=parent?.name||row.name||row.id;
     if(!mappings.has(key(row.panel,row.section,row.cle))){
-      report(label,'champ additionnel '+row.cle+' absent du modèle REMAR officiel');
+      const preserved=(row.panel==='p-remar-releves' || row.panel==='p-remar-cta-mesures') &&
+        preserveRemarMeasurementInNotes(issues,{
+          panel:row.panel,section:row.section,cle:row.cle,nom:label,id:row.id,
+          unite:row.unite,valeur:row.valeur,avis:row.avis,commentaire:row.commentaire,
+        });
+      if(!preserved)report(label,'champ additionnel '+row.cle+' absent du modèle REMAR officiel');
       continue;
     }
     add(row.panel,row.section,row.cle,{...row,label});
@@ -1076,7 +1121,11 @@ function groupRemarDetailsForIntranet(projection, definition, issues, remoteTram
       const v=current('Valeur');allowed.add('Valeur');
       if(dest) {
         if(v&&has(v))add('p-remar-cta-mesures',dest[0],dest[1],{...v,label,unite:item.unite});
-      }else if(v&&has(v))report(label,'mesure supplémentaire sans destination précise dans la trame Symfony');
+      }else if(v&&has(v) && !preserveRemarMeasurementInNotes(issues,{
+        panel:'p-remar-cta-mesures',section:'mesure_cta',cle:'Valeur',
+        nom:label,id:item.id,unite:item.unite,
+        valeur:v.valeur,avis:v.avis,commentaire:v.commentaire,
+      }))report(label,'mesure supplémentaire sans destination précise dans la trame Symfony');
     }else if(item.type==='reseau_froid'){
       const section='Réseaux',field='Réseau '+Math.min(position,isPublishedComplete(remoteTrame)?5:3);
       const observations=[...item.values.values()].filter(r=>!r.inherited&&has(r))
@@ -1089,12 +1138,22 @@ function groupRemarDetailsForIntranet(projection, definition, issues, remoteTram
       const v=current('Valeur');allowed.add('Valeur');
       if(dest && v && has(v))
         add('p-remar-releves','Température chaufferie',dest,{...v,label,unite:item.unite});
-      else if(!dest && v && has(v))
-        report(label,'température sans case officielle compatible (vérifie que la trame Symfony publie un critère distinct pour cette mesure)');
+      else if(!dest && v && has(v) &&
+        !preserveRemarMeasurementInNotes(issues,{
+          panel:'p-remar-releves',section:'Température chaufferie',cle:'Valeur',
+          nom:label,id:item.id,unite:item.unite,
+          valeur:v.valeur,avis:v.avis,commentaire:v.commentaire,
+        }))
+        report(label,'température sans case officielle compatible');
     }
     for(const [cle,r] of item.values){
-      if(!allowed.has(cle)&&!r.inherited&&has(r))
-        report(label,'observation supplémentaire non rattachable : '+cle);
+      if(!allowed.has(cle)&&!r.inherited&&has(r)){
+        const isReading=item.type==='mesure_cta'||item.type==='temperature_chaufferie';
+        if(!isReading || !preserveRemarMeasurementInNotes(issues,{
+          panel:r.panel,section:r.section,cle,nom:label,id:item.id,unite:item.unite,
+          valeur:r.valeur,avis:r.avis,commentaire:r.commentaire,
+        }))report(label,'observation supplémentaire non rattachable : '+cle);
+      }
     }
   }
 
@@ -1311,9 +1370,15 @@ async function buildCriteria(db, visite, details, issues) {
       .map(m=>m.cle);
     countersForWire=counters.map(counter=>{
       const destination=destinationCompteurRemar(counter,destinations);
-      if(meaningfulRemote(counter.valeur)&&!destination)
+      if(meaningfulRemote(counter.valeur)&&!destination &&
+        !preserveRemarMeasurementInNotes(issues,{
+          panel:'p-remar-releves',section:'Compteur',cle:'Index',
+          nom:clean(counter.label)||String(counter.id),id:counter.id,
+          unite:counter.unite,valeur:counter.valeur,
+          destination:counter.destination,
+        }))
         issues.push('Compteur REMAR « '+(clean(counter.label)||counter.id)+
-          ' » : aucune destination Intranet ambiguë ou inconnue. Vérifie la trame Symfony, la famille et l’unité du compteur ; aucun index n’est déplacé dans une autre case.');
+          ' » : destination Intranet ambiguë ou inconnue, conservation en notes indisponible.');
       return {...counter,destination:destination||'supplementaire'};
     });
   }
@@ -1581,6 +1646,7 @@ export class IntranetVisitValidationError extends Error {
 export async function buildIntranetVisitPayload(visiteId, envoiId) {
   const issues = [];
   issues.freeTextFallbacks = [];
+  issues.remarSupplementalCount = 0;
   const db = await getDb();
   const visite = await db.getFirstAsync(`SELECT v.*,s.client_id FROM visites v JOIN sites s ON s.id=v.site_id WHERE v.id=?`, [visiteId]);
   if (!visite) throw new IntranetVisitValidationError(['Visite introuvable.']);
@@ -1656,7 +1722,8 @@ export async function buildIntranetVisitPayload(visiteId, envoiId) {
     materialWarnings,
     summary: { criteria: criteres.length, remarks: remarques.length, materials: materialData.materiels.length, notes: notes.length,
       photosExcluded: true, conclusionExcluded: true,
-      freeTextInVisitNotes: issues.freeTextFallbacks.length },
+      freeTextInVisitNotes: issues.freeTextFallbacks.length,
+      remarSupplementalReadingsInNotes: issues.remarSupplementalCount },
   };
 }
 
