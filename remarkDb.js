@@ -12,6 +12,19 @@ const normaliserNombreNullable = (valeur) => {
 async function libelleElementControle(db, visiteId, controleKey) {
   const [sectionCode, cleBrute] = String(controleKey || '').split('||');
   const cle = String(cleBrute || '').trim() || 'Élément technique';
+  // Individual REMAR CTA/VMC remarks have an equipment UUID in the
+  // immutable control key. Resolve the NAME from that exact installation,
+  // never from a guessed "CTA 1" or a display index.
+  const parts=String(controleKey||'').split('||');
+  if(parts[0]==='remar' && parts[1]==='equipement' && parts.length>=6){
+    const equipment=await db.getFirstAsync(`
+      SELECT e.designation FROM equipements e
+      JOIN visites v ON v.installation_id=e.installation_id
+      WHERE v.id=? AND e.id=? LIMIT 1`,[visiteId,parts[2]]);
+    const nom=String(equipment?.designation||'').trim();
+    const champ=String(parts.slice(5).join('||')||cle).trim();
+    if(nom)return `${nom} · ${champ}`;
+  }
   const matchVmc = String(sectionCode || '').match(/^vmc-c(\d+)\./);
   if (!matchVmc) return cle;
   const index = Number(matchVmc[1]);
