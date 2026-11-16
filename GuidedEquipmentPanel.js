@@ -128,11 +128,14 @@ const EquipmentRow=memo(function EquipmentRow({item,first,reseauChaleur,plateauO
  const pan=useMemo(()=>{
   const fin=(_,g)=>{const v=base.current+g.dx;aller(v>46?LARG_ACTIONS:v<-46?-LARG_ACTIONS:0)};
   return PanResponder.create({
-   onMoveShouldSetPanResponder:(_,g)=>Math.abs(g.dx)>10&&Math.abs(g.dx)>Math.abs(g.dy)*1.3,
+   // Full-row swipe intercepted the visit's tab pager permanently.
+   // Actions remain available through the explicit tap-open plateau.
+   // Let horizontal page gestures always reach the parent navigator.
+   onMoveShouldSetPanResponder:()=>false,
    onPanResponderGrant:()=>{x.stopAnimation(v=>{base.current=v});onSwipe(item.id)},
    onPanResponderMove:(_,g)=>x.setValue(Math.max(-LARG_ACTIONS,Math.min(LARG_ACTIONS,base.current+g.dx))),
    onPanResponderRelease:fin,onPanResponderTerminate:fin,
-   onPanResponderTerminationRequest:()=>false,
+   onPanResponderTerminationRequest:()=>true,
   });
  },[x,aller,onSwipe,item.id]);
  const agir=a=>{aller(0);onAction(item,a)};
