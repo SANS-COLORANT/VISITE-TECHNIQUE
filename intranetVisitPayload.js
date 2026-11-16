@@ -431,17 +431,21 @@ function buildStaticCandidates(localTrameId, remoteTrame = null) {
   }
   // Symfony REMAR COMPLÈTE is a distinct *remote* version. Do not
   // change the historical Excel template or introduce visual fields.
-  if ((definition?.familyId || definition?.id)==='remar_v1' && isPublishedComplete(remoteTrame)) {
+  if ((definition?.familyId || definition?.id)==='remar_v1' && remoteTrame) {
     const published=mappingsForRemarRemote(definition,remoteTrame);
     const allowed=new Set(published.map(m=>[m.panelId,m.section,m.cle].join('||')));
-    const active=candidates.filter(c=>allowed.has([c.panelId,c.section,c.cle].join('||')));
+    const active=isPublishedComplete(remoteTrame)
+      ?candidates.filter(c=>allowed.has([c.panelId,c.section,c.cle].join('||')))
+      :candidates.slice();
     for(const m of published) {
       const existing=active.find(c=>c.panelId===m.panelId&&c.section===m.section&&c.cle===m.cle);
       if(existing && m.remoteCle) existing.aliases=[...new Set([...(existing.aliases||[]),normalize(m.remoteCle)])];
-      if(!existing) active.push({panelId:m.panelId,section:m.section,
+      if(!existing && (isPublishedComplete(remoteTrame) || m.remarOptional)) active.push({panelId:m.panelId,section:m.section,
         sectionCode:m.sectionCode,storageCodes:[m.sectionCode],cle:m.cle,
         label:m.remoteCle||m.cle,type:m.type,key:normalize(m.remoteCle||m.cle),
-        aliases:[],specialPanel:false,temperature:false,
+        aliases:[normalize(m.cle)],specialPanel:m.remarOptional===true,
+        meterSource:m.remarOptional===true && m.section==='Compteur',
+        temperature:m.remarOptional===true && m.section==='Température chaufferie',
         sectionKey:normalize(m.section),
         panelKey:normalize(definition.ui?.labels?.[m.panelId]||m.panelId)});
     }
@@ -672,6 +676,8 @@ function destinationCompteurRemar(counter, destinations) {
   push("Compteur d'énergie (MWh)",/\b(energie|calorie|calorifique)\b/.test(label)&&energy);
   push('Compteur ECS (m³)',/\b(ecs|sanitaire)\b/.test(label)&&volume);
   push('Compteur appoint (m³)',/\bappoint\b/.test(label)&&volume);
+  push('Compteur eau froide générale (m³)',
+    /\beau\s+froide\s+generale\b/.test(label)&&volume);
   return matches.length===1?matches[0]:null;
 }
 function counterValue(counters, criterion, candidate) {
@@ -1029,6 +1035,8 @@ function groupRemarDetailsForIntranet(projection, definition, issues, remoteTram
     'pression':['Consignes','Pression'],
   };
   const temperatureTargets={
+    'primaire aller':'Primaire aller (°C)',
+    'primaire retour':'Primaire retour (°C)',
     'chauffage aller':'Chauffage aller (°C)',
     'chauffage retour':'Chauffage retour (°C)',
     'ecs depart':'ECS départ (°C)','ecs bouclage':'ECS bouclage (°C)',
@@ -1082,7 +1090,7 @@ function groupRemarDetailsForIntranet(projection, definition, issues, remoteTram
       if(dest && v && has(v))
         add('p-remar-releves','Température chaufferie',dest,{...v,label,unite:item.unite});
       else if(!dest && v && has(v))
-        report(label,'température sans case officielle compatible');
+        report(label,'température sans case officielle compatible (vérifie que la trame Symfony publie un critère distinct pour cette mesure)');
     }
     for(const [cle,r] of item.values){
       if(!allowed.has(cle)&&!r.inherited&&has(r))
@@ -1298,14 +1306,14 @@ async function buildCriteria(db, visite, details, issues) {
     // Le texte d'un compteur sans destination peut encore être conservé en
     // annexe Excel, mais aucun critère de l'Intranet ne l'acceptera
     // automatiquement. Refus au lieu d'une suppression silencieuse.
-    const destinations=(definition?.excel?.fieldMappings||[])
+    const destinations=mappingsForRemarRemote(definition,remoteTrame)
       .filter(m=>m.panelId==='p-remar-releves' && m.section==='Compteur')
       .map(m=>m.cle);
     countersForWire=counters.map(counter=>{
       const destination=destinationCompteurRemar(counter,destinations);
       if(meaningfulRemote(counter.valeur)&&!destination)
         issues.push('Compteur REMAR « '+(clean(counter.label)||counter.id)+
-          ' » : destination Intranet ambiguë ou inconnue. Choisis la famille officielle du compteur avant envoi.');
+          ' » : aucune destination Intranet officielle et non ambiguë. Vérifie la trame Symfony, la famille et l’unité du compteur ; aucun index n’est déplacé dans une autre case.');
       return {...counter,destination:destination||'supplementaire'};
     });
   }
