@@ -55,7 +55,7 @@ async function main() {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'metra-binding-test-'));
   const server = databaseProcess(path.join(dir, 'binding.db'));
   try {
-    await server.send('migrate', '', [0, 33]);
+    await server.send('migrate', '', [0, 39]);
     await server.db.execAsync(`
       INSERT INTO clients(id,nom,code_exploitant) VALUES('local-client','Client Alpha','CL-100');
       INSERT INTO clients(id,nom,code_exploitant) VALUES('other-local-client','Autre client importé','ZZ-999');
@@ -222,7 +222,7 @@ async function main() {
       VALUES('d2-visit','local-site','installation-d2','2026-11-04','terminee','icpe_v1');
     `);
     await assert.rejects(() => binding.bindVisitToImportedClientTarget('d2-visit'),
-      /correspondance Intranet n’est pas encore retrouvée/);
+      /identifiant local Intranet n’est pas encore établi/);
     check((await server.db.getFirstAsync(
       "SELECT api_remote_local_id FROM visites WHERE id='d2-visit'")).api_remote_local_id == null,
       'D2 without source identity remains unchanged and never uploads to another local');
@@ -402,6 +402,56 @@ async function main() {
       'imported-site orphan visit remains selectable for explicit local repair, never silently skipped');
     check(!listed.some(row=>row.id==='unimported-visit'),
       'visits of local-only, non-imported client/sites cannot be proposed for Symfony POST');
+
+    // CROUS first site/local creation is durable but asynchronous. Resolve
+    // ONLY the exact local METRA installation from the structure outbox,
+    // never infer its ID from another server local with a similar name.
+    await server.db.execAsync(`
+      INSERT INTO api_structure_outbox(operation_id,resource_type,creation_id,remote_client_id,
+        local_site_id,payload_json,payload_bytes,status,remote_id)
+      VALUES('site-op','site','site-uuid','12','local-site','{}',2,'synced',45);
+      INSERT INTO api_structure_outbox(operation_id,resource_type,creation_id,remote_client_id,
+        local_site_id,local_installation_id,payload_json,payload_bytes,status)
+      VALUES('local-op','local','local-uuid','12','local-site','installation-orphan',
+        '{}',2,'pending');
+    `);
+    const creation=await binding.getVisitStructureCreationState('visit-orphan');
+    check(creation.site?.status==='synced' && creation.local?.status==='pending',
+      'new site acknowledged, exact physical local remains pending (not auto-bound to another)');
+    const unrelated=await binding.getVisitStructureCreationState('d3-visit');
+    check(!unrelated.local,
+      'a local creation for another installation never proves this visit identity');
+
+    // Real SQLite export material: an empty label can safely use the linked
+    // equipment name ONLY when the equipment belongs to the same installation.
+    await server.db.execAsync(`
+      INSERT INTO installations(id,site_id,type_code,nom,actif)
+      VALUES('test-material-install','local-site','installation_technique','Matériel test',1),
+            ('test-foreign-install','local-site','installation_technique','Autre local',1);
+      INSERT INTO visites(id,site_id,installation_id,date_visite,statut,trame_id)
+      VALUES('material-visit','local-site','test-material-install','2026-11-16','terminee','remar_v1');
+      INSERT INTO equipements(id,installation_id,type_code,designation,statut)
+      VALUES('material-same','test-material-install','CTA','CTA Soufflage','actif'),
+            ('material-foreign','test-foreign-install','CTA','Autre CTA','actif');
+      INSERT INTO materiel(id,visite_id,equipement_id,categorie,nombre,designation,etat)
+      VALUES('material-blank','material-visit','material-same','CTA','1','','Bon'),
+            ('material-foreign-blank','material-visit','material-foreign','CTA','1','','Bon');
+    `);
+    const payloadSource=fs.readFileSync(path.join(root,'intranetVisitPayload.js'),'utf8')
+      .replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*$/gm,'')
+      .replace(/export\s*\{[^}]+\};?/g,'')
+      .replace(/export\s+(?=(?:async\s+)?(?:function|const|let|class)\s)/g,'');
+    const buildMaterials=new Function(payloadSource+'\nreturn buildMaterials;')();
+    const materialIssues=[];
+    const material=await buildMaterials(server.db,'material-visit',0,materialIssues);
+    check(material.materiels[0].designation==='CTA Soufflage',
+      'blank material name recovered from same-installation active equipment');
+    check(material.materiels[1].designation===null &&
+      materialIssues.some(x=>x.includes('Matériel 2 / désignation')),
+      'different-installation equipment name is refused, actionable error remains');
+    check((await server.db.getFirstAsync(
+      "SELECT designation FROM materiel WHERE id='material-blank'")).designation==='',
+      'material export repair never mutates local source data');
 
     check((await server.db.getAllAsync('PRAGMA foreign_key_check')).length === 0, 'binding leaves SQLite foreign keys valid');
     console.log(`\n${checks} imported-client binding checks passed (real SQLite, production binding/payload code).`);

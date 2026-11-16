@@ -178,7 +178,118 @@ function find(panel,cle,section=null){
   check(!missingExtra.values.some(v=>v.commentaire.includes('125') ||
       v.commentaire.includes('70 °C') || v.commentaire.includes('58 °C')),
     'unmapped readings cannot masquerade as ECS/gas/appoint/heating criteria');
+  // CROUS / Bornes I: six CTA improvements exist in the editable METRA
+  // screen and REMAR_DETAIL, but NOT in Symfony REMAR CLASSIQUE. Both the
+  // per-CTA detail and Excel reference replacements used to reject them twice.
+  const ctaExtraKeys=['GTB','Variateur','Efficacité du récupérateur',
+    'Efficacité des moteurs','Consignes / programmes','Vannes de régulation'];
+  const ctaName='CTA 1 — soufflage',ctaId='crous-cta-1';
+  const ctaIdentity=['cta','', '',ctaName,ctaId,'equipement',
+    'p-remar-cta','Équipement','Identité patrimoine',ctaName,'','','','Visite courante',''];
+  const ctaExtras=ctaExtraKeys.map((cle,i)=>[
+    'cta','', '',ctaName,ctaId,'equipement',
+    'p-remar-cta-energie','CTA',cle,'Observation '+(i+1),
+    i===0?'N.S':'','Constat '+(i+1),'','Visite courante','',
+  ]);
+  const ctaReplacements=new Map(ctaExtras.map(row=>[
+    ['p-remar-cta-energie','CTA',row[8]].join('||'),
+    {valeur:row[9],avis:row[10],commentaire:row[11]},
+  ]));
+  projection={hasDynamic:true,familyCounts:{cta:1,vmc:0,froid:0},
+    temperaturesCount:0,replacements:ctaReplacements,
+    details:[ctaIdentity,...ctaExtras],ambiguous:[],unsupported:[]};
+  const crousRemote=structuredClone(remote);
+  const energyIndex=Object.keys(definition.ui.panels).indexOf('p-remar-cta-energie');
+  crousRemote.categories[energyIndex].sousCategories.forEach(sub=>{sub.criteres=[];});
+  const ctaExtra=await build({remote:crousRemote,fieldRows:[],controlRows:[]});
+  check(ctaExtra.issues.length===0 && ctaExtra.notes.length===6,
+    'six additional CTA observations sent in six explicit visit notes without duplicate mapping blockers: '+
+      ctaExtra.issues.join(' | '));
+  for(let i=0;i<ctaExtraKeys.length;i++){
+    const n=ctaExtra.notes.find(note=>note.contenu.includes('Champ : '+ctaExtraKeys[i]));
+    check(Boolean(n)&&n.contenu.includes('ID METRA : '+ctaId)&&
+      n.contenu.includes('Nom : '+ctaName)&&n.contenu.includes('Observation '+(i+1))&&
+      n.contenu.includes('Constat '+(i+1)),
+      'CTA supplementary field '+ctaExtraKeys[i]+' retains equipment, value and observation');
+  }
+  check(ctaExtra.notes.some(n=>n.contenu.includes('Avis : N.S')),
+    'extra CTA nonconformity opinion stays explicit');
+  check(ctaExtra.values.length===135 && definition.excel.fieldMappings.length===141,
+    'server carries its 135 published criteria, Excel retains all 141 keys');
+  const crousComplete=await build({remote:{...crousRemote,nom:'REMAR COMPLÈTE'},
+    fieldRows:[],controlRows:[]});
+  check(crousComplete.issues.length===0 && crousComplete.notes.length===6,
+    'REMAR COMPLÈTE also preserves six absent CTA improvement criteria as notes');
+
+  // CROUS: two different CTA share ONE official Symfony GTB criterion.
+  // The serialized cell must retain both equipment names, separate statuses
+  // and descriptions, never overwrite CTA 1 with CTA 2.
+  const twoCtaNames=['CTA soufflage','CTA extraction'];
+  const twoCtaRows=twoCtaNames.flatMap((nom,i)=>[
+    ['cta','','',nom,'cta-'+(i+1),'equipement','p-remar-cta',
+      'Équipement','Identité patrimoine',nom,'','','','Visite courante',''],
+    ['cta','','',nom,'cta-'+(i+1),'equipement','p-remar-cta-energie',
+      'CTA','GTB','',i===0?'S':'N.S',
+      i===0?'Interface opérationnelle':'Communication interrompue',
+      '','Visite courante',''],
+  ]);
+  projection={hasDynamic:true,familyCounts:{cta:2,vmc:0,froid:0},
+    temperaturesCount:0,replacements:new Map(),ambiguous:[],unsupported:[],
+    details:twoCtaRows};
+  const groupedCta=await build();
+  const gtb=outputFor(groupedCta,find('p-remar-cta-energie','GTB'));
+  check(groupedCta.issues.length===0&&groupedCta.notes.length===0 &&
+    gtb.avis==='N.S' &&
+    gtb.commentaire==='CTA soufflage : [S] Interface opérationnelle\\nCTA extraction : [N.S] Communication interrompue'.replace('\\n','\n'),
+    'two CTA report statuses and descriptions in the single official GTB criterion');
+  check(groupedCta.values.filter(v=>v.critereId===gtb.critereId).length===1,
+    'two CTA never duplicate the same Symfony criterion ID');
+
   projection={hasDynamic:false};
+  const energyHeating=await build({meters:[{
+    id:'energy-heating',destination:'supplementaire',
+    label:'Compteur énergie chauffage',unite:'MWh',valeur:'859',
+  }]});
+  check(energyHeating.issues.length===0 && energyHeating.notes.length===0 &&
+    outputFor(energyHeating,find('p-remar-releves',"Compteur d'énergie (MWh)")).commentaire==='859',
+    'heating energy meter with MWh maps to published energy slot, not an ambiguous note');
+  const kwhEnergy=await build({meters:[{
+    id:'energy-kwh',destination:'supplementaire',
+    label:'Compteur énergie chauffage',unite:'kWh',valeur:'1 250,5',
+  }]});
+  check(kwhEnergy.issues.length===0&&kwhEnergy.notes.length===0 &&
+    outputFor(kwhEnergy,find('p-remar-releves',"Compteur d'énergie (MWh)")).commentaire==='1,2505',
+    '1 250,5 kWh converts exactly to 1,2505 MWh in official energy slot');
+  const mixedEnergy=await build({meters:[
+    {id:'meter-heat',label:'Compteur énergie chauffage',destination:'supplementaire',unite:'kWh',valeur:'2500'},
+    {id:'meter-ecs',label:'Compteur énergie ECS',destination:"Compteur d'énergie (MWh)",unite:'MWh',valeur:'1,75'},
+  ]});
+  check(mixedEnergy.issues.length===0&&mixedEnergy.notes.length===0&&
+    outputFor(mixedEnergy,find('p-remar-releves',"Compteur d'énergie (MWh)")).commentaire===
+      'Compteur énergie chauffage : 2,5 MWh\\nCompteur énergie ECS : 1,75 MWh'.replace('\\n','\n'),
+    'two MWh/kWh meters combine in one official cell with names, newlines and normalized MWh');
+  const invalidEnergy=await build({meters:[{
+    id:'energy-invalid',label:'Compteur énergie chauffage',
+    destination:"Compteur d'énergie (MWh)",unite:'kWh',valeur:'12xx',
+  }]});
+  check(invalidEnergy.issues.length===0&&invalidEnergy.notes.length===1 &&
+    invalidEnergy.notes[0].contenu.includes('Valeur : 12xx') &&
+    !outputFor(invalidEnergy,find('p-remar-releves',"Compteur d'énergie (MWh)")).commentaire.includes('12xx'),
+    'non-numeric or illegible kWh index never contaminates official energy criterion');
+  const exactLarge=await build({meters:[{
+    id:'energy-large',label:'Compteur énergie chauffage',unite:'kWh',
+    destination:'supplementaire',valeur:'12345678901234567890,125',
+  }]});
+  check(exactLarge.issues.length===0&&
+    outputFor(exactLarge,find('p-remar-releves',"Compteur d'énergie (MWh)")).commentaire==='12345678901234567,890125',
+    'large kWh indexes convert without floating-point precision loss');
+  const energyWithoutUnit=await build({meters:[{
+    id:'energy-no-unit',destination:'supplementaire',
+    label:'Compteur énergie chauffage',unite:'',valeur:'859',
+  }]});
+  check(energyWithoutUnit.issues.length===0 && energyWithoutUnit.notes.length===1 &&
+    energyWithoutUnit.notes[0].contenu.includes('Unité : non renseignée'),
+    'energy meter without verified unit is preserved in notes, never guessed');
   const base=await build();
   check(base.issues.length===0,'full static criterion mapping passes: '+base.issues.join(' | '));
   check(base.values.length===141,'141 criteria in outbound wire');

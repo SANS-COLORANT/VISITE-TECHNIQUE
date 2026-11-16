@@ -96,6 +96,7 @@ jobs:
           node .github/scripts/test_intranet_visit_upload_audit.js
           node .github/scripts/test_intranet_any_visit_binding.js
           node .github/scripts/test_intranet_first_visit_preparation.js
+          node .github/scripts/test_crous_created_site_local_first_visit.js
       - name: Native SQLite + official Excel full roundtrips
         run: node --experimental-test-module-mocks --test tests/trameRemar.test.mjs
       - name: Verify Android JS bundle (not a native release APK)

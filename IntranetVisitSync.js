@@ -11,13 +11,13 @@ import {
   getVisitPhotoUploadSummary, processVisitPhotoOutbox, queueMissingSyncedVisitPhotos, queueMissingVisitPhotos,
   retryVisitPhotoUploadsNow, subscribeVisitPhotoOutbox, syncVisitPhotosNow,
 } from './intranetVisitPhotoOutboxDb.js';
-import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions, pinVerifiedRemarTrameForUpload, resolveFirstVisitRemoteTrame } from './intranetVisitBindingDb.js';
+import { bindVisitToImportedClientTarget, getVisitIntranetBindingOptions, getVisitStructureCreationState, pinVerifiedRemarTrameForUpload, resolveFirstVisitRemoteTrame } from './intranetVisitBindingDb.js';
 import { mapRemoteTrameToLocal } from './apiVisitPreparationDb.js';
 import { chooseUniqueRemarRemoteTrame } from './remarRemoteTrameSelection.js';
 import { syncClientPreparation } from './symfonyApi.js';
 import { latestClientVisitsByLocalAndTemplate } from './clientVisitSendSelection.js';
 import { getDb } from './db.js';
-import { getCachedStructureReferential, syncStructureReferential } from './intranetStructureDb.js';
+import { getCachedStructureReferential, syncStructureReferential, processStructureOutbox } from './intranetStructureDb.js';
 
 const OFFLINE = '#111111';
 const ONLINE = '#16794B';
@@ -202,8 +202,9 @@ async function hydrateFirstVisitReference(visiteId, remoteClientId) {
  * Sélectionner uniquement la trame dont TOUTES les destinations METRA
  * sont couvertes (unique), avant la création de l'envoi immuable.
  *
- * En l'absence d'une telle trame, laisser l'ancien précontrôle détaillé
- * refuser les données sans destination : pas de repli en notes[].
+ * En l'absence d'une telle trame, conserver la préparation du même local :
+ * les mesures REMAR non officielles peuvent passer en notes de visite,
+ * mais jamais sous un critère ni un autre local inventé.
  */
 async function pinFullyPublishedRemarForFirstUpload(visiteId) {
   const opts=await getVisitIntranetBindingOptions(visiteId);
@@ -257,6 +258,64 @@ async function bindSameImportedClient(visiteId) {
   try {
     return await bindVisitToImportedClientTarget(visiteId);
   } catch (error) {
+    // Creating a site/local in METRA already queues a *real* Symfony POST
+    // with a stable creationId. It returns a NEW Symfony ID (201) or the
+    // same ID on an idempotent replay (200). A visit from that newly created
+    // physical installation is allowed to use the exact acknowledged ID;
+    // never substitute a neighbouring local by name or create another local.
+    if(['imported_site_missing','imported_local_ambiguous','intranet_reference_refresh_required'].includes(error?.code)){
+      let creation=await getVisitStructureCreationState(visiteId);
+      if(creation.site||creation.local){
+        // The site's acknowledgement must be materialized before its local
+        // can be posted. The first pass may defer the dependent local when
+        // another outbox operation was already in progress. Bounded retries
+        // use the ORIGINAL rows and creation IDs, never new POST identities.
+        for(let attempt=0;attempt<3;attempt++){
+          const pending=[creation.site,creation.local].some(op=>
+            ['pending','retry','sending'].includes(op?.status));
+          if(!pending)break;
+          await processStructureOutbox({limit:8}).catch(()=>{});
+          creation=await getVisitStructureCreationState(visiteId);
+        }
+        const terminal=new Set(['rejected','validation_error','auth_error','conflict']);
+        for(const [label,operation] of [['site',creation.site],['local',creation.local]]){
+          if(operation&&terminal.has(operation.status)){
+            const problem=new Error('La création '+label+' sur l’Intranet a été refusée ('+
+              operation.status+'). '+(operation.error_message||'Corrige cette opération dans Structure Intranet.')+
+              ' Aucun autre identifiant ne sera utilisé.');
+            problem.code='structure_creation_failed';
+            throw problem;
+          }
+        }
+        if(creation.local){
+          if(creation.local.status!=='synced'){
+            const problem=new Error(
+              'La création Intranet du local de cette installation est en attente ('+
+              (creation.local.status||'inconnue')+'). '+
+              (creation.local.error_message||'METRA reprendra l’envoi après connexion.')+
+              ' La visite et les relevés restent enregistrés sur la tablette.');
+            problem.code='structure_local_creation_unconfirmed';
+            throw problem;
+          }
+          // The newly acknowledged local starts with zero published criteria.
+          // Prepare the very same local/trame before freezing the first visit.
+          try{return await bindVisitToImportedClientTarget(visiteId);}
+          catch(recheck){error=recheck;}
+        }else if(creation.site){
+          // Site creation and site export still work independently. The
+          // visit needs the technician's actual technical local to be created
+          // in that site; this must not fabricate a remote installation.
+          const problem=new Error(
+            'Le site créé sur METRA est '+(creation.site.status==='synced'?
+              'bien enregistré sur l’Intranet (ID '+creation.site.remote_id+'). ':
+              'en cours de création sur l’Intranet. ')+
+            'Pour envoyer cette visite, crée également son local dans Structure Intranet > Locaux techniques. '+
+            'Il recevra automatiquement son propre identifiant Symfony, sans réimporter un autre local.');
+          problem.code='structure_local_required';
+          throw problem;
+        }
+      }
+    }
     const refreshable = error?.remoteClientId && ['imported_site_missing', 'intranet_reference_refresh_required', 'wrong_imported_site'].includes(error?.code);
     if (!refreshable) throw error;
 

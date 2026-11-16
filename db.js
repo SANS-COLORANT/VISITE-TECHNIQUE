@@ -141,15 +141,20 @@ async function ajouterCompteur(visiteId,label='Compteur',destination=null){
   const db=await getDb(),id=uuidv4();
   const libelle=String(label||'').trim()||'Compteur';
   const dest=String(destination||'').trim()||null;
+  // Explicit unit in the selected template is safe to initialize. Otherwise
+  // energy meters require the technician to choose MWh or kWh; do NOT
+  // default an energy index to m³ or silently assume a measured unit.
+  const declared=(libelle.match(/\b(kwh|mwh)\b/i)||String(dest||'').match(/\b(kwh|mwh)\b/i))?.[1]?.toLowerCase();
+  const uniteInitiale=declared==='kwh'?'kWh':declared==='mwh'?'MWh':null;
   const contexte=await contexteCompteurVisite(db,visiteId);
   let compteurSiteId=null;
   if(contexte?.installation_id) compteurSiteId=uuidv4();
   await db.withExclusiveTransactionAsync(async (tx) => {
     if (compteurSiteId) await tx.runAsync(
-      `INSERT INTO compteurs_site(id,installation_id,type_code,libelle,actif,destination) VALUES(?,?,?,?,1,?)`,
-      [compteurSiteId,contexte.installation_id,'compteur',libelle,dest]);
-    await tx.runAsync(`INSERT INTO compteurs(id,visite_id,label,compteur_site_id,destination) VALUES(?,?,?,?,?)`,
-      [id,visiteId,libelle,compteurSiteId,dest]);
+      `INSERT INTO compteurs_site(id,installation_id,type_code,libelle,unite,actif,destination) VALUES(?,?,?,?,?,1,?)`,
+      [compteurSiteId,contexte.installation_id,'compteur',libelle,uniteInitiale,dest]);
+    await tx.runAsync(`INSERT INTO compteurs(id,visite_id,label,compteur_site_id,unite,destination) VALUES(?,?,?,?,?,?)`,
+      [id,visiteId,libelle,compteurSiteId,uniteInitiale,dest]);
   });
   return id;
 }

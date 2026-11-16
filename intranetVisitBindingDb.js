@@ -52,18 +52,33 @@ export function resolveFirstVisitRemoteTrame(referential, localTrameId, visitTra
     const requestedKey = normalizeTrameName(requestedName);
     const named = trames.filter((trame) => normalizeTrameName(trame.nom) === requestedKey);
     if (named.length === 1) {
+      if (mapRemoteTrameToLocal(named[0]) !== localTrameId)
+        throw bindingError(
+          `La trame enregistrée « ${requestedName} » correspond à une autre famille que la visite METRA. Vérifie le choix de trame après sa modification sur l’Intranet ; aucune visite n’est déplacée.`,
+          'intranet_first_visit_trame_wrong_family',
+          { localTrameId, visitTrameName: requestedName, candidates: named });
       return { remoteTrameId: named[0].id, remoteTrameName: named[0].nom, candidates: named, matchedBy: 'visit_field' };
     }
     if (!named.length) {
-      // "Réseau de chaleur" and "TRAME RÉSEAU DE CHALEUR" may be
-      // different names for the same server family. Only use an explicit,
-      // unique match: never send RCU under an ICPE model.
-      const candidates = trames.filter((trame) => mapRemoteTrameToLocal(trame) === localTrameId);
-      if (mapRemoteTrameToLocal({ nom: requestedName }) === localTrameId && candidates.length === 1) {
-        return { remoteTrameId: candidates[0].id, remoteTrameName: candidates[0].nom, candidates, matchedBy: 'unique_family' };
+      // The first CROUS visits can display a generic "TRAME REMAR" while
+      // the server publishes "REMAR CLASSIQUE" and "REMAR COMPLÈTE".
+      // Never confuse those with RCU; prefer the unique COMPLETE version
+      // only when the requested name itself unambiguously declares REMAR.
+      const requestedFamily=mapRemoteTrameToLocal({ nom: requestedName });
+      const candidates=trames.filter(trame=>mapRemoteTrameToLocal(trame)===localTrameId);
+      if(requestedFamily===localTrameId && candidates.length===1)
+        return {remoteTrameId:candidates[0].id,remoteTrameName:candidates[0].nom,
+          candidates,matchedBy:'unique_family'};
+      if(requestedFamily==='remar_v1' && localTrameId==='remar_v1'){
+        const complete=candidates.filter(trame=>
+          /\bcomplete\b/.test(normalizeTrameName(trame.nom)) &&
+          !/\bclassique\b/.test(normalizeTrameName(trame.nom)));
+        if(complete.length===1)
+          return {remoteTrameId:complete[0].id,remoteTrameName:complete[0].nom,
+            candidates,matchedBy:'unique_remar_complete'};
       }
       throw bindingError(
-        `Aucune trame Intranet compatible nommée « ${requestedName} » pour cette visite. Vérifie les trames disponibles dans le référentiel du client ; METRA ne remplacera pas Réseau de chaleur par ICPE.`,
+        `Aucune trame Intranet compatible nommée « ${requestedName} » pour cette visite. Vérifie les trames disponibles dans le référentiel du client et actualise le local après une modification de trame : ni REMAR ni Réseau de chaleur ne peuvent être remplacés par ICPE.`,
         'intranet_first_visit_trame_name_missing',
         { localTrameId, visitTrameName: requestedName, candidates: trames }
       );
@@ -309,7 +324,7 @@ async function resolveImportedLocalId(db, visite, remoteClientId, remoteSiteId) 
     // Dès lors que l'installation physique est connue, choisir l'unique
     // « local compatible » d'un site ne prouve pas l'identité. C'était une
     // source de mélanges silencieux sur les sites à plusieurs locaux.
-    throw bindingError('Cette visite a une installation METRA précise, mais la correspondance Intranet n’est pas encore retrouvée. Réimporte le local puis vérifie ses identifiants ; aucun autre local ne sera choisi automatiquement.',
+    throw bindingError('Cette visite est liée à une installation METRA précise, mais son identifiant local Intranet n’est pas encore établi. Si le site vient d’être créé sur METRA, crée d’abord CE local dans Structure Intranet > Locaux techniques et vérifie sa synchronisation ; sinon actualise puis réimporte le local existant. Aucune correspondance par le nom ni choix d’un autre local ne sera effectué.',
       'imported_local_ambiguous', { remoteClientId });
   }
   // Pour une visite historique SANS installation, seulement si le site n'a
@@ -324,6 +339,26 @@ async function resolveImportedLocalId(db, visite, remoteClientId, remoteSiteId) 
       ? 'Cette visite est liée à un local METRA, mais son identifiant Intranet n’est pas établi. Choisis explicitement le local Intranet de cette visite (sans changer le site ni la trame).'
       : 'Plusieurs locaux Intranet compatibles existent et cette visite historique n’a aucun local METRA. Choisis explicitement son local Intranet.',
     'imported_local_ambiguous', { remoteClientId });
+}
+
+/**
+ * Exact evidence for locally created sites/locals that may still be awaiting
+ * a Symfony acknowledgment. This is NOT a name matcher: both the METRA site
+ * and installation IDs must agree with the creation outbox.
+ */
+export async function getVisitStructureCreationState(visiteId) {
+  const db=await getDb(),visite=await loadVisit(db,visiteId);
+  if(!visite)throw new Error('Visite METRA introuvable.');
+  const site=await db.getFirstAsync(
+    `SELECT operation_id,status,remote_id,error_message FROM api_structure_outbox
+     WHERE resource_type='site' AND local_site_id=? ORDER BY queued_at DESC LIMIT 1`,
+    [String(visite.site_id)]);
+  const local=visite.installation_id?await db.getFirstAsync(
+    `SELECT operation_id,status,remote_id,error_message FROM api_structure_outbox
+     WHERE resource_type='local' AND local_site_id=? AND local_installation_id=?
+     ORDER BY queued_at DESC LIMIT 1`,
+    [String(visite.site_id),String(visite.installation_id)]):null;
+  return {site:site||null,local:local||null};
 }
 
 export async function getVisitIntranetBindingOptions(visiteId) {

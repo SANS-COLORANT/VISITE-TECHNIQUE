@@ -75,6 +75,8 @@ const remoteTrame = {
 
 function mapRemoteTrameToLocal(remote) {
   const value = String(remote?.nom || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+  if (/(^|\W)remar(\W|$)/.test(value)) return 'remar_v1';
+  if (value.includes('réseau de chaleur') || value.includes('reseau de chaleur') || value.includes('rcu')) return 'reseau_chaleur_v1';
   if (value.includes('vmc') || value.includes('ventilation')) return 'vmc';
   if (value.includes('pre') && value.includes('allum')) return 'pre_allumage';
   if (value.includes('chauffer') || value.includes('sous-station') || value.includes('sous station') || value.includes('icpe')) return 'icpe_v1';
@@ -184,6 +186,28 @@ async function main() {
     checks += 1;
     console.log(`OK ${checks}: missing exact Trame utilisée name is explicit`);
 
+    // CROUS / Bornes I: user-facing "TRAME REMAR" is a generic family name,
+    // while the official referential can publish CLASSIQUE and COMPLÈTE.
+    const remarOptions={trames:[
+      {id:'16',nom:'REMAR CLASSIQUE'},
+      {id:'25',nom:'REMAR COMPLÈTE'},
+      {id:'40',nom:'TRAME RÉSEAU DE CHALEUR'},
+      {id:'41',nom:'ICPE Chaufferie'},
+    ]};
+    const remar=binding.resolveFirstVisitRemoteTrame(remarOptions,'remar_v1','TRAME REMAR');
+    check(remar.remoteTrameId==='25' && remar.matchedBy==='unique_remar_complete',
+      'generic TRAME REMAR selects the unique official REMAR COMPLÈTE version');
+    assert.throws(()=>binding.resolveFirstVisitRemoteTrame(remarOptions,
+      'remar_v1','TRAME RÉSEAU DE CHALEUR'),
+      e=>e.code==='intranet_first_visit_trame_wrong_family');
+    checks++;
+    console.log('OK '+checks+': changing RCU to REMAR cannot keep a stale RCU field');
+    assert.throws(()=>binding.resolveFirstVisitRemoteTrame({
+      trames:[...remarOptions.trames,{id:'26',nom:'TRAME REMAR COMPLÈTE'}],
+    },'remar_v1','TRAME REMAR'),
+      e=>e.code==='intranet_first_visit_trame_name_missing');
+    checks++;
+    console.log('OK '+checks+': duplicated complete REMAR versions remain ambiguous');
     const legacyResolved = binding.resolveFirstVisitRemoteTrame({ trames: [remoteTrame] }, 'icpe_v1', null);
     check(legacyResolved.remoteTrameId === '3' && legacyResolved.matchedBy === 'legacy_family',
       'legacy visit without Trame utilisée still works only when the family match is unique');

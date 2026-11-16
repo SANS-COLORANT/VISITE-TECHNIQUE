@@ -56,6 +56,7 @@ let projection={
 };
 let meters=[{id:'water-1',label:'Compteur eau froide générale',unite:'m³',
   valeur:'125',destination:'supplementaire'}];
+let materialItems=[];
 const db={
   getFirstAsync:async sql=>{
     if(sql.includes('FROM visites v JOIN sites'))return visit;
@@ -67,6 +68,7 @@ const db={
     if(sql.includes('FROM provenances'))
       return [{details_json:JSON.stringify(source),reference_externe:'110',importe_le:'2026-11-16'}];
     if(sql.includes('FROM compteurs'))return meters;
+    if(sql.includes('FROM materiel m'))return materialItems;
     if(sql.includes('FROM champs_visite')||sql.includes('FROM controles_visite')||
        sql.includes('FROM reseaux')||sql.includes('FROM materiel')||
        sql.includes('FROM remarques')||sql.includes('FROM points_mesure_visite'))
@@ -127,5 +129,21 @@ const envoi='c1b4a9e8-21b7-40a5-83b7-1e12b2ce7619';
   const blank=await serializer.buildIntranetVisitPayload('epicea',envoi);
   assert.equal(blank.summary.remarSupplementalReadingsInNotes,0);
   assert.equal(blank.payload.visites[0].notes.length,1);
-  console.log('PASS complete REMAR V1 wire notes, 3 supplemental readings, no false destinations, replay and empty semantics');
+  // "Matériel 15 / désignation": a linked, active physical equipment from
+  // THIS visit's installation supplies an authoritative missing designation.
+  materialItems=[{
+    id:'mat-15',equipement_id:'same-installation-equip',
+    categorie:'CTA',nombre:'1',designation:'',linked_equipment_designation:'CTA soufflage',
+    etat:'Bon',intranet_reference_state:null,
+  }];
+  const repaired=await serializer.buildIntranetVisitPayload('epicea',envoi);
+  assert.equal(repaired.payload.visites[0].materiels[0].designation,'CTA soufflage');
+  assert.equal(materialItems[0].designation,'','export repair does not mutate visit snapshot');
+  // An orphaned line still blocks rather than creating a fictitious
+  // equipment identity or deleting the line from Symfony.
+  materialItems=[{...materialItems[0],linked_equipment_designation:''}];
+  await assert.rejects(()=>serializer.buildIntranetVisitPayload('epicea',envoi),
+    error=>/Matériel 1 \/ désignation : valeur obligatoire/.test(
+      Array.isArray(error.issues)?error.issues.join(' | '):String(error)));
+  console.log('PASS complete REMAR V1 wire notes, 3 supplemental readings, no false destinations, replay, material identity and empty semantics');
 })().catch(e=>{console.error(e);process.exitCode=1;});

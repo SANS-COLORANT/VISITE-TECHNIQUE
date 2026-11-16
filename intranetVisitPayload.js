@@ -690,19 +690,51 @@ function isMeterCandidate(candidate, capabilities) {
 function isTemperatureCandidate(candidate) {
   return candidate?.temperature === true || /temperature/.test(candidate?.sectionKey || '');
 }
-// Les compteurs REMAR supplémentaires ne rejoignent une destination officielle
-// que lorsque nom ET unité en désignent sans ambiguïté une seule famille.
+// The technician may read energy meters in either kWh or MWh. Symfony's
+// official REMAR destination is MWh. Keep the original number/unit unchanged
+// in SQLite and convert ONLY the outgoing copy, without floating-point
+// rounding, guessed units, or implicit regrouping with gas / ECS / water.
+const REMAR_ENERGY_DESTINATION="Compteur d'énergie (MWh)";
+function remarEnergyUnit(value) {
+  const unit=normalize(value).replace(/\s/g,'');
+  return unit==='mwh'||unit==='kwh'?unit:null;
+}
+function remarEnergyIndexToMWh(counter) {
+  const unit=remarEnergyUnit(counter?.unite);
+  if(!unit)return null;
+  const raw=clean(counter?.valeur).replace(/[\s\u00a0\u202f]/g,'');
+  if(!raw)return {valeur:raw,unite:'MWh'};
+  // Strict decimal index (French comma or dot). Any units embedded in
+  // the value, operators or malformed numbers remain supplemental notes.
+  const match=/^([+-]?)(\d+)(?:[.,](\d+))?$/.exec(raw);
+  if(!match)return null;
+  if(unit==='mwh')return {valeur:raw,unite:'MWh'};
+  const negative=match[1]==='-'?'-':'';
+  const decimals=match[3]||'';
+  const scale=decimals.length+3;
+  const padded=(match[2]+decimals).padStart(scale+1,'0');
+  const whole=padded.slice(0,-scale).replace(/^0+(?=\d)/,'');
+  const fractional=padded.slice(-scale).replace(/0+$/,'');
+  const value=whole+(fractional?','+fractional:'');
+  return {valeur:(value==='0'?'':negative)+value,unite:'MWh'};
+}
+// REMAR extra counters can only occupy an official destination when their
+// field and unit really agree. kWh becomes MWh in the outbound payload.
+// Historical raw readings retain their local value and chosen unit.
 function destinationCompteurRemar(counter, destinations) {
   const stated=clean(counter?.destination);
-  if (destinations.includes(stated)) return stated;
-  if (stated && stated!=='supplementaire') return null;
+  const unit=normalize(clean(counter?.unite).replace(/[³]/g,'3')).replace(/\s/g,'');
+  const volume=unit==='m3', energy=remarEnergyUnit(counter?.unite)!==null;
+  if(destinations.includes(stated)) {
+    if(stated===REMAR_ENERGY_DESTINATION && !energy)return null;
+    return stated;
+  }
+  if(stated && stated!=='supplementaire')return null;
   const label=normalize(counter?.label);
-  const unit=normalize(clean(counter?.unite).replace(/[³]/g,'3'));
-  const volume=unit==='m3', energy=unit==='mwh';
   const matches=[];
   const push=(name,ok)=>{if(ok&&destinations.includes(name))matches.push(name);};
   push('Compteur Gaz (m³)',/\bgaz\b/.test(label)&&volume);
-  push("Compteur d'énergie (MWh)",/\b(energie|calorie|calorifique)\b/.test(label)&&energy);
+  push(REMAR_ENERGY_DESTINATION,/\b(energie|calorie|calorifique)\b/.test(label)&&energy);
   push('Compteur ECS (m³)',/\b(ecs|sanitaire)\b/.test(label)&&volume);
   push('Compteur appoint (m³)',/\bappoint\b/.test(label)&&volume);
   push('Compteur eau froide générale (m³)',
@@ -981,9 +1013,31 @@ function countRemoteCriteria(trame) {
  */
 function groupRemarDetailsForIntranet(projection, definition, issues, remoteTrame = null) {
   if(!Array.isArray(projection?.details)||!projection.details.length)return null;
-  const mappings=new Map(mappingsForRemarRemote(definition,remoteTrame)
+  // A row being present in METRA's 141-field Excel definition does NOT
+  // mean that this particular Symfony template publishes that criterion.
+  // Verify CTA improvement slots against the actual frozen remote criteria,
+  // including category and subcategory, before deciding to map or use notes.
+  const official=mappingsForRemarRemote(definition,remoteTrame);
+  const candidates=buildStaticCandidates('remar_v1',remoteTrame);
+  const publishedEnergy=new Map();
+  for(const category of remoteTrame?.categories||[])
+    for(const sub of category?.sousCategories||[])
+      for(const criterion of sub?.criteres||[]){
+        const resolved=findCandidate(candidates,criterion,category.nom,sub.nom);
+        if(resolved?.panelId==='p-remar-cta-energie'){
+          const destination=[resolved.panelId,resolved.section,resolved.cle].join('||');
+          publishedEnergy.set(destination,(publishedEnergy.get(destination)||0)+1);
+        }
+      }
+  const mappings=new Map(official.filter(m=>m.panelId!=='p-remar-cta-energie' ||
+    publishedEnergy.get([m.panelId,m.section,m.cle].join('||'))===1)
     .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
   const parents=new Map(),children=new Map(),rows=[],groups=new Map();
+  // The Excel reference may expose CTA improvements that Symfony does not.
+  // Count per-key coverage when preserving per-equipment values in notes:
+  // otherwise the later flat "replacements" pass reports false blockers.
+  const preserved=new Set();
+  issues.remarPreservedDynamicFields=preserved;
   const key=(p,s,c)=>[p,s,c].join('||');
   const has=row=>[row.valeur,row.avis,row.commentaire].some(v=>meaningfulRemote(v)!==null);
   const report=(label,reason)=>issues.push('REMAR / '+label+' : '+reason);
@@ -1052,12 +1106,15 @@ function groupRemarDetailsForIntranet(projection, definition, issues, remoteTram
     const parent=parents.get(row.id);
     const label=parent?.name||row.name||row.id;
     if(!mappings.has(key(row.panel,row.section,row.cle))){
-      const preserved=(row.panel==='p-remar-releves' || row.panel==='p-remar-cta-mesures') &&
+      const supplementaryPanels=['p-remar-releves','p-remar-cta-mesures','p-remar-cta-energie'];
+      const saved=supplementaryPanels.includes(row.panel) &&
         preserveRemarMeasurementInNotes(issues,{
-          panel:row.panel,section:row.section,cle:row.cle,nom:label,id:row.id,
-          unite:row.unite,valeur:row.valeur,avis:row.avis,commentaire:row.commentaire,
+          panel:row.panel,section:row.section,cle:row.cle,
+          nom:label,id:row.id,unite:row.unite,
+          valeur:row.valeur,avis:row.avis,commentaire:row.commentaire,
         });
-      if(!preserved)report(label,'champ additionnel '+row.cle+' absent du modèle REMAR officiel');
+      if(saved)preserved.add(key(row.panel,row.section,row.cle));
+      else report(label,'champ additionnel '+row.cle+' absent du modèle REMAR officiel');
       continue;
     }
     add(row.panel,row.section,row.cle,{...row,label});
@@ -1285,8 +1342,16 @@ async function buildCriteria(db, visite, details, issues) {
       const byOfficial = new Map(mappingsForRemarRemote(definition,remoteTrame)
         .map(m=>[[m.panelId,m.section,m.cle].join('||'),m]));
       for (const [key,value] of remap.replacements) {
+        // This CTA improvement was transported as per-equipment visit notes:
+        // do not re-inject the flat Excel reference or create a second blocker.
+        if(issues.remarPreservedDynamicFields?.has(key))continue;
         const mapping = byOfficial.get(key);
         if (!mapping) {
+          // An optional CTA improvement from a reference equipment is already
+          // represented by an IDENTIFIED, per-equipment visit note. Do not
+          // reject it again merely because the reference Excel has a cell.
+          if(issues.remarPreservedDynamicFields?.has(key))continue;
+          if([value?.valeur,value?.avis,value?.commentaire].every(v=>meaningfulRemote(v)===null))continue;
           issues.push(`REMAR : correspondance officielle introuvable pour ${key}.`);
           continue;
         }
@@ -1369,7 +1434,13 @@ async function buildCriteria(db, visite, details, issues) {
       .filter(m=>m.panelId==='p-remar-releves' && m.section==='Compteur')
       .map(m=>m.cle);
     countersForWire=counters.map(counter=>{
-      const destination=destinationCompteurRemar(counter,destinations);
+      let destination=destinationCompteurRemar(counter,destinations);
+      let published=counter;
+      if(destination===REMAR_ENERGY_DESTINATION){
+        const converted=remarEnergyIndexToMWh(counter);
+        if(!converted && meaningfulRemote(counter.valeur))destination=null;
+        else if(converted)published={...counter,...converted};
+      }
       if(meaningfulRemote(counter.valeur)&&!destination &&
         !preserveRemarMeasurementInNotes(issues,{
           panel:'p-remar-releves',section:'Compteur',cle:'Index',
@@ -1379,7 +1450,9 @@ async function buildCriteria(db, visite, details, issues) {
         }))
         issues.push('Compteur REMAR « '+(clean(counter.label)||counter.id)+
           ' » : destination Intranet ambiguë ou inconnue, conservation en notes indisponible.');
-      return {...counter,destination:destination||'supplementaire'};
+      // No mutation of the technician's value / unit in SQLite. An outgoing
+      // MWh conversion is applied only to the temporary wire-level copy.
+      return {...published,destination:destination||'supplementaire'};
     });
   }
   const result = [];
@@ -1532,6 +1605,7 @@ async function buildCriteria(db, visite, details, issues) {
       const networkCovered=remarNetworkSummary &&
         mapping.panelId==='p-remar-reseaux' && /^Réseau [1-9]\d*$/.test(mapping.cle);
       if(present && !mappedLocalRemar.has(destination) &&
+         !issues.remarPreservedDynamicFields?.has(destination) &&
          !remarVisitMetadataCovered(definition,mapping) && !networkCovered)
         issues.push(`REMAR : saisie locale « ${mapping.cle} » (${mapping.panelId} / ${mapping.section}) non couverte par les critères de la trame Symfony. Envoi refusé pour conserver la donnée.`);
     }
@@ -1566,17 +1640,25 @@ async function buildMaterials(db, visiteId, sourceMaterialCount, issues) {
   const rows = await db.getAllAsync(`SELECT m.*,
       (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=m.equipement_id
        AND a.cle IN ('api_symfony.etat_reference','api_symfony.etat')
-       ORDER BY CASE WHEN a.cle='api_symfony.etat_reference' THEN 0 ELSE 1 END, a.modifie_le DESC LIMIT 1) AS intranet_reference_state
+       ORDER BY CASE WHEN a.cle='api_symfony.etat_reference' THEN 0 ELSE 1 END, a.modifie_le DESC LIMIT 1) AS intranet_reference_state,
+      -- Recover only from the linked equipment in the SAME physical
+      -- installation, not from a similarly named entry on another site.
+      (SELECT e.designation FROM equipements e JOIN visites v ON v.id=m.visite_id
+       WHERE e.id=m.equipement_id AND e.installation_id=v.installation_id
+         AND e.statut='actif' LIMIT 1) AS linked_equipment_designation
     FROM materiel m WHERE m.visite_id=? ORDER BY m.cree_le,m.id`, [visiteId]);
   const result = rows.map((row, index) => {
     const prefix = `Matériel ${index + 1}`;
     const currentState = nullable(row.etat);
     const referenceState = nullable(row.intranet_reference_state);
     const state = currentState || (INTRANET_MATERIAL_STATES.includes(referenceState) ? referenceState : null);
+    const designation=nullable(row.designation)||nullable(row.linked_equipment_designation);
+    if(!designation)
+      issues.push(`${prefix} / désignation : valeur obligatoire. Renseigne le nom dans le listing matériel de cette visite (matériel ID ${clean(row.id)}), sans supprimer la ligne.`);
     return {
       categorie: limited(row.categorie, 255, `${prefix} / catégorie`, issues, { required: true }),
       nombre: limited(row.nombre, 255, `${prefix} / nombre`, issues, { required: true }),
-      designation: limited(row.designation, 255, `${prefix} / désignation`, issues, { required: true }),
+      designation: limited(designation, 255, `${prefix} / désignation`, issues),
       numeroMateriel: limited(row.numero_materiel, 255, `${prefix} / numéro matériel`, issues),
       reseauDesservi: limited(row.reseau_desservi, 255, `${prefix} / réseau desservi`, issues),
       marque: limited(row.marque, 255, `${prefix} / marque`, issues),
