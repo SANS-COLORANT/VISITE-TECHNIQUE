@@ -438,10 +438,10 @@ async function main() {
             ('material-foreign-blank','material-visit','material-foreign','CTA','1','','Bon');
     `);
     const payloadSource=fs.readFileSync(path.join(root,'intranetVisitPayload.js'),'utf8')
-      .replace(/^import\\s+[\\s\\S]*?from\\s+['"][^'"]+['"];?\\s*$/gm,'')
-      .replace(/export\\s*\\{[^}]+\\};?/g,'')
-      .replace(/export\\s+(?=(?:async\\s+)?(?:function|const|let|class)\\s)/g,'');
-    const buildMaterials=new Function(payloadSource+'\\nreturn buildMaterials;')();
+      .replace(/^import\s+[\s\S]*?from\s+['"][^'"]+['"];?\s*$/gm,'')
+      .replace(/export\s*\{[^}]+\};?/g,'')
+      .replace(/export\s+(?=(?:async\s+)?(?:function|const|let|class)\s)/g,'');
+    const buildMaterials=new Function(payloadSource+'\nreturn buildMaterials;')();
     const materialIssues=[];
     const material=await buildMaterials(server.db,'material-visit',0,materialIssues);
     check(material.materiels[0].designation==='CTA Soufflage',
