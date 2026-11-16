@@ -18,7 +18,6 @@ import { syncClientPreparation } from './symfonyApi.js';
 import { latestClientVisitsByLocalAndTemplate } from './clientVisitSendSelection.js';
 import { getDb } from './db.js';
 import { getCachedStructureReferential, syncStructureReferential, processStructureOutbox } from './intranetStructureDb.js';
-import { IntranetVisitDestinationPicker } from './IntranetVisitDestinationPicker.js';
 
 const OFFLINE = '#111111';
 const ONLINE = '#16794B';
@@ -341,7 +340,6 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
   }, [refreshKey, refresh]);
   const { summary: photoSummary, loading: photoLoading, refresh: refreshPhotos } = useVisitPhotoUploadSummary(visiteId);
   const [busy, setBusy] = useState(false);
-  const [bindingPickerVisible,setBindingPickerVisible]=useState(false);
   const historical = Number(visite?.api_is_historical) === 1;
   const visitSynced = row?.status === 'synced';
   const photosComplete = photoSummaryComplete(photoSummary);
@@ -474,12 +472,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
 
       await queueWithMaterialSafety();
     } catch (error) {
-      if(error?.code==='imported_local_ambiguous'){
-        Alert.alert('Local Intranet à associer',
-          String(error?.message||'Identité locale à confirmer')+'\n\nTu peux sélectionner explicitement le local du même client et site Intranet. Aucun autre local ne sera choisi automatiquement.',
-          [{text:'Fermer',style:'cancel'},
-           {text:'Associer le local',onPress:()=>setBindingPickerVisible(true)}]);
-      }else showLocalBindingAlert('Visite non envoyable',error);
+      showLocalBindingAlert('Visite non envoyable',error);
     } finally {
       setBusy(false);
     }
@@ -511,7 +504,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
   // quand il y a vraiment quelque chose à lire (erreur ou envoi en cours).
   const showDetail = !compact && (changedSinceSync || detailIsError || sending || (!online && !loading && !photoLoading));
 
-  return <><View style={compact ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }}>
+  return <View style={compact ? { alignItems: 'flex-end' } : { alignItems: 'flex-start' }}>
     <TouchableOpacity
       accessibilityRole="button"
       accessibilityLabel={changedSinceSync ? 'Visite modifiée après synchronisation, corrections conservées localement' : online ? 'Synchronisé avec l’Intranet' : detailIsError ? 'Erreur de synchronisation, appuyer pour réessayer' : 'Non synchronisé, appuyer pour envoyer'}
@@ -522,11 +515,7 @@ export function IntranetVisitSyncControl({ visite, onVisitChanged = null, compac
       {sending ? <ActivityIndicator size="small" color={tint} /> : <CvcIcon name={iconName} size={22} color={tint} />}
     </TouchableOpacity>
     {showDetail ? <Text accessibilityLiveRegion="polite" style={{ color: detailIsError ? ERROR : COLORS.muted, fontSize: 10, lineHeight: 14, marginTop: 4, maxWidth: 150, textAlign: compact ? 'right' : 'left' }}>{loading || photoLoading ? 'Lecture…' : detail}</Text> : null}
-  </View>
-  <IntranetVisitDestinationPicker visible={bindingPickerVisible} visiteId={visiteId}
-    onClose={()=>setBindingPickerVisible(false)}
-    onBound={async()=>{setBindingPickerVisible(false);await refresh();await onVisitChanged?.();}}/>
-  </>;
+  </View>;
 }
 
 const HISTORICAL_SQL = `EXISTS(SELECT 1 FROM provenances p WHERE p.entite_type='visite' AND p.entite_id=v.id AND p.origine='api_symfony' AND p.details_json LIKE '%"sourceType":"imported_latest_visit"%')`;
