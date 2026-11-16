@@ -6,6 +6,8 @@ on:
       - fix/remar-optional-measurements-closed-visit-20261116
     paths:
       - '.github/workflows/remar-136-native-apk.yml'
+      - '.github/scripts/test_remar_supplemental_payload.js'
+      - 'intranetVisitPayload.js'
   workflow_dispatch:
 permissions:
   contents: read
