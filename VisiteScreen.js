@@ -75,16 +75,17 @@ const VisitPanelHost = memo(function VisitPanelHost({
   onNextPanel,
   onRemarActiveCta,
   searchTarget,
+  active,
 }) {
   if (special) {
     if (panelId === 'p-regulation') return <OptimizedRegulationPanel visiteId={visiteId} onSaved={onSaved} />;
     if (panelId === 'p-releves') return <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} trameId={trameId} panels={panels} />;
-    if (panelId === 'p-equip') return <GuidedEquipmentPanel visiteId={visiteId} trameId={trameId} />;
+    if (panelId === 'p-equip') return <GuidedEquipmentPanel visiteId={visiteId} trameId={trameId} active={active} />;
     if (panelId === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} intranetLinked={intranetLinked} trameId={trameId} />;
     if (panelId === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
   }
   return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} nextPanel={nextPanel} onNextPanel={onNextPanel} trameId={trameId}
-    onRemarActiveCta={onRemarActiveCta} searchTarget={searchTarget} />;
+    onRemarActiveCta={onRemarActiveCta} searchTarget={searchTarget} active={active} />;
 });
 
 // « Enregistré il y a 2 min » (court sur téléphone).
@@ -824,6 +825,7 @@ function VisiteScreen({ route, onBack }) {
             <VisitPanelHost
               visiteId={visiteId}
               panelId={panelId}
+              active={panelId===activeTab}
               sections={panels[panelId]}
               special={specialPanels.has(panelId)}
               onSaved={onSaved}
