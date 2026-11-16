@@ -628,6 +628,8 @@ export function inspectIntranetCriterionCandidate(localTrameId, criterion, categ
 const NETWORK_COLUMNS = Object.freeze({
   't ext c': 't_ext_c', 't ext': 't_ext_c', 'temperature exterieure': 't_ext_c',
   't dep c': 't_dep_c', 't dep': 't_dep_c', 'temperature depart': 't_dep_c',
+  't retour c':'t_retour_c','temperature retour':'t_retour_c',
+  'temperature retour bouclage ecs':'t_retour_c',
   'nom reseau': 'nom_reseau', 'nom du reseau': 'nom_reseau',
   'courbe de chauffe': 'courbe_de_chauffe', tnc: 'tnc',
   'consigne et programme horaire': 'consigne_programme_horaire',
@@ -664,13 +666,22 @@ function remarNetworkSummaryTarget(categories) {
   return matches.length===1?matches[0]:null;
 }
 
+function isEcsBoucleNetwork(row) {
+  const nom=normalize(row?.nom_reseau||'');
+  return /\b(boucle|bouclage) ecs\b|\becs (boucle|bouclage)\b/.test(nom);
+}
 function remarNetworkText(row,index) {
   const title=clean(row?.nom_reseau)||'Réseau '+index;
-  const attrs=[
+  const ecs=isEcsBoucleNetwork(row);
+  const attrs=(ecs ? [
+    ['t_dep_c','Température départ ECS','°C'],
+    ['t_retour_c','Température retour bouclage ECS','°C'],
+    ['consigne_programme_horaire','Consigne / programme',''],
+  ]:[
     ['t_ext_c','T° extérieure','°C'],['t_dep_c','T° départ','°C'],
     ['courbe_de_chauffe','Courbe de chauffe',''],['tnc','TNC','°C'],
     ['consigne_programme_horaire','Consigne / programme',''],
-  ].filter(([field])=>meaningfulRemote(row?.[field])!==null)
+  ]).filter(([field])=>meaningfulRemote(row?.[field])!==null)
     .map(([field,label,unite])=>label+' : '+clean(row[field])+(unite?' '+unite:''));
   return [title,...attrs].join('\n');
 }
@@ -836,8 +847,13 @@ function rcuSlotNumber(name,max) {
 }
 function rcuFullNetwork(network,index) {
   const lines=['Réseau '+index+' : '+(clean(network.nom_reseau)||'Sans nom')];
-  for(const [key,title] of RCU_SLOT_COLUMNS.slice(1))
+  const ecs=isEcsBoucleNetwork(network);
+  for(const [key,title] of RCU_SLOT_COLUMNS.slice(1)){
+    if(ecs && ['t_ext_c','courbe_de_chauffe','tnc'].includes(key))continue;
     if(meaningfulRemote(network[key])!==null)lines.push(title+' : '+clean(network[key]));
+  }
+  if(ecs && meaningfulRemote(network.t_retour_c)!==null)
+    lines.push('Température retour bouclage ECS : '+clean(network.t_retour_c)+' °C');
   return lines.join('\n');
 }
 function rcuColumnText(rows,column,slot) {
