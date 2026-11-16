@@ -1579,17 +1579,25 @@ async function buildMaterials(db, visiteId, sourceMaterialCount, issues) {
   const rows = await db.getAllAsync(`SELECT m.*,
       (SELECT a.valeur FROM attributs_libres a WHERE a.entite_type='equipement' AND a.entite_id=m.equipement_id
        AND a.cle IN ('api_symfony.etat_reference','api_symfony.etat')
-       ORDER BY CASE WHEN a.cle='api_symfony.etat_reference' THEN 0 ELSE 1 END, a.modifie_le DESC LIMIT 1) AS intranet_reference_state
+       ORDER BY CASE WHEN a.cle='api_symfony.etat_reference' THEN 0 ELSE 1 END, a.modifie_le DESC LIMIT 1) AS intranet_reference_state,
+      -- Recover only from the linked equipment in the SAME physical
+      -- installation, not from a similarly named entry on another site.
+      (SELECT e.designation FROM equipements e JOIN visites v ON v.id=m.visite_id
+       WHERE e.id=m.equipement_id AND e.installation_id=v.installation_id
+         AND e.statut='actif' LIMIT 1) AS linked_equipment_designation
     FROM materiel m WHERE m.visite_id=? ORDER BY m.cree_le,m.id`, [visiteId]);
   const result = rows.map((row, index) => {
     const prefix = `Matériel ${index + 1}`;
     const currentState = nullable(row.etat);
     const referenceState = nullable(row.intranet_reference_state);
     const state = currentState || (INTRANET_MATERIAL_STATES.includes(referenceState) ? referenceState : null);
+    const designation=nullable(row.designation)||nullable(row.linked_equipment_designation);
+    if(!designation)
+      issues.push(`${prefix} / désignation : valeur obligatoire. Renseigne le nom dans le listing matériel de cette visite (matériel ID ${clean(row.id)}), sans supprimer la ligne.`);
     return {
       categorie: limited(row.categorie, 255, `${prefix} / catégorie`, issues, { required: true }),
       nombre: limited(row.nombre, 255, `${prefix} / nombre`, issues, { required: true }),
-      designation: limited(row.designation, 255, `${prefix} / désignation`, issues, { required: true }),
+      designation: limited(designation, 255, `${prefix} / désignation`, issues),
       numeroMateriel: limited(row.numero_materiel, 255, `${prefix} / numéro matériel`, issues),
       reseauDesservi: limited(row.reseau_desservi, 255, `${prefix} / réseau desservi`, issues),
       marque: limited(row.marque, 255, `${prefix} / marque`, issues),
