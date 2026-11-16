@@ -666,11 +666,13 @@ function remarNetworkSummaryTarget(categories) {
 
 function remarNetworkText(row,index) {
   const title=clean(row?.nom_reseau)||'Réseau '+index;
-  const attrs=[
-    ['t_ext_c','T° extérieure','°C'],['t_dep_c','T° départ','°C'],
-    ['courbe_de_chauffe','Courbe de chauffe',''],['tnc','TNC','°C'],
-    ['consigne_programme_horaire','Consigne / programme',''],
-  ].filter(([field])=>meaningfulRemote(row?.[field])!==null)
+  const ecs=/\becs\b/i.test(title)&&/boucle|bouclage|retour|distribution/i.test(title);
+  const attrs=(ecs
+    ? [['t_dep_c','Température départ ECS','°C'],['t_retour_ecs_c','Température retour bouclage ECS','°C']]
+    : [['t_ext_c','T° extérieure','°C'],['t_dep_c','T° départ','°C'],
+       ['courbe_de_chauffe','Courbe de chauffe',''],['tnc','TNC','°C'],
+       ['consigne_programme_horaire','Consigne / programme','']])
+    .filter(([field])=>meaningfulRemote(row?.[field])!==null)
     .map(([field,label,unite])=>label+' : '+clean(row[field])+(unite?' '+unite:''));
   return [title,...attrs].join('\n');
 }
