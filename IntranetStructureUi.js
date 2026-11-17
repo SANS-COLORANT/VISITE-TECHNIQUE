@@ -44,7 +44,7 @@ function ChoiceChips({ values, value, onChange, getKey = (v) => String(v), getLa
 
 function SectionLabel({ children }) { return <Text style={[styles.fieldLabel, { marginTop: 11, marginBottom: 7 }]}>{children}</Text>; }
 
-export function IntranetSiteCreationModal({ visible, clientId, onClose, onCreated }) {
+export function IntranetSiteCreationModal({ visible, clientId, existingSite = null, onClose, onCreated }) {
   const [context, setContext] = useState(null);
   const [loading, setLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
@@ -72,6 +72,14 @@ export function IntranetSiteCreationModal({ visible, clientId, onClose, onCreate
   }, [clientId, lotId]);
 
   useEffect(() => { if (visible) load(); }, [visible, load]);
+  useEffect(() => {
+    if (!visible || !existingSite?.id) return;
+    setNom(String(existingSite.nom_site || '').slice(0,100));
+    // Keep the address editable without guessing street number or postal code.
+    setNumero('');
+    setVoie(String(existingSite.adresse || '').slice(0,255));
+    setComplement('');setCodePostal('');setVille('');
+  }, [visible, existingSite?.id]);
 
   const refreshReferential = async () => {
     if (!context?.remoteClientId || syncing) return;
@@ -99,6 +107,7 @@ export function IntranetSiteCreationModal({ visible, clientId, onClose, onCreate
       const result = await queueMetraSiteCreation({
         localClientId: clientId,
         remoteClientId: context.remoteClientId,
+        existingLocalSiteId: existingSite?.id || null,
         lotId,
         nom,
         sitePrincipal,
@@ -122,8 +131,10 @@ export function IntranetSiteCreationModal({ visible, clientId, onClose, onCreate
   return <Modal visible={visible} transparent animationType="fade" onRequestClose={() => { if (!creating) onClose?.(); }}>
     <View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxHeight: '92%' }]}>
       <ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <Text style={styles.modalTitle}>Créer un site dans METRA + Intranet</Text>
-        <Text style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16 }}>La création est enregistrée d’abord sur la tablette. Hors connexion, elle reste en attente avec le même creationId et sera rejouée sans doublon.</Text>
+        <Text style={styles.modalTitle}>{existingSite?.id ? 'Publier ce site sur l’Intranet' : 'Créer un site dans METRA + Intranet'}</Text>
+        <Text style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16 }}>{existingSite?.id
+          ? 'Cette copie recevra un nouvel identifiant Intranet sans modifier l’original. Les locaux existants devront ensuite être publiés depuis « Locaux ». La création est mise en attente hors connexion.'
+          : 'La création est enregistrée d’abord sur la tablette. Hors connexion, elle reste en attente avec le même creationId et sera rejouée sans doublon.'}</Text>
 
         {loading ? <Text style={{ color: COLORS.muted, marginTop: 12 }}>Lecture du référentiel…</Text> : null}
         {context?.ambiguous ? <Text style={{ color: '#B42318', marginTop: 12, fontFamily: FONTS.bold }}>Plusieurs clients Intranet sont liés à ce client METRA. La création automatique est bloquée pour éviter un mauvais rattachement.</Text> : null}
@@ -147,14 +158,15 @@ export function IntranetSiteCreationModal({ visible, clientId, onClose, onCreate
           <TextInput style={styles.input} value={typeBatiment} onChangeText={setTypeBatiment} placeholder="Ex. Habitation, Tertiaire" maxLength={255} />
         </> : null}
       </ScrollView>
-      <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} disabled={creating} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={[styles.btnPrimary, !canCreate && { opacity: 0.45 }]} disabled={!canCreate || creating} onPress={create}><ButtonGlow /><Text style={styles.btnPrimaryText}>{creating ? 'Enregistrement…' : 'Créer'}</Text></TouchableOpacity></View>
+      <View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} disabled={creating} onPress={onClose}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={[styles.btnPrimary, !canCreate && { opacity: 0.45 }]} disabled={!canCreate || creating} onPress={create}><ButtonGlow /><Text style={styles.btnPrimaryText}>{creating ? 'Enregistrement…' : existingSite?.id ? 'Publier' : 'Créer'}</Text></TouchableOpacity></View>
     </View></View>
   </Modal>;
 }
 
 export function IntranetSiteLocalsPanel({ siteId, onStartVisit }) {
-  const [data, setData] = useState({ context: null, locals: [] });
+  const [data, setData] = useState({ context: null, locals: [], availableLocals: [] });
   const [modalVisible, setModalVisible] = useState(false);
+  const [existingInstallationId,setExistingInstallationId]=useState(null);
   const [syncing, setSyncing] = useState(false);
   const [creating, setCreating] = useState(false);
   const [designation, setDesignation] = useState('Chaufferie');
@@ -190,6 +202,7 @@ export function IntranetSiteLocalsPanel({ siteId, onStartVisit }) {
       await queueMetraLocalCreation({
         localSiteId: siteId,
         remoteClientId: data.context.remoteClientId,
+        existingInstallationId,
         designation,
         type,
         situation,
@@ -197,6 +210,7 @@ export function IntranetSiteLocalsPanel({ siteId, onStartVisit }) {
         periodiciteVisite: periodiciteVisite.trim() ? periodiciteVisite : null,
       });
       setModalVisible(false);
+      setExistingInstallationId(null);
       await load();
       void processStructureOutbox({ limit: 3 }).catch(() => {});
     } catch (e) { Alert.alert('Création du local impossible', String(e?.message || e)); }
@@ -237,14 +251,26 @@ export function IntranetSiteLocalsPanel({ siteId, onStartVisit }) {
 
     <Modal visible={modalVisible} transparent animationType="fade" onRequestClose={() => { if (!creating) setModalVisible(false); }}>
       <View style={styles.modalOverlay}><View style={[styles.modalSheet, { maxHeight: '90%' }]}><ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>
-        <Text style={styles.modalTitle}>Nouveau local Intranet</Text>
-        <Text style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16 }}>Le local est créé localement immédiatement. S’il n’y a pas de réseau, METRA conserve le même creationId jusqu’à l’accusé serveur.</Text>
+        <Text style={styles.modalTitle}>{existingInstallationId ? 'Publier le local existant' : 'Nouveau local Intranet'}</Text>
+        <Text style={{ color: COLORS.muted, fontSize: 11.5, lineHeight: 16 }}>{existingInstallationId
+          ? 'Ce local garde ses équipements, ses visites et son identifiant METRA. Vérifie la trame Intranet correspondante avant publication.'
+          : 'Le local est créé localement immédiatement. Hors connexion, METRA conserve le même creationId jusqu’à l’accusé serveur.'}</Text>
+        {(data.availableLocals||[]).length ? <>
+          <SectionLabel>Local à publier</SectionLabel>
+          <ChoiceChips values={[{id:'new',nom:'Créer un nouveau local'},...data.availableLocals]}
+            value={existingInstallationId||'new'} getKey={item=>item.id} getLabel={item=>item.nom}
+            onChange={id=>{
+              const local=data.availableLocals.find(item=>String(item.id)===String(id));
+              setExistingInstallationId(local?.id||null);
+              if(local){setDesignation(local.nom||'Local technique');setSituation(local.description||'Sous-sol');}
+            }} />
+        </> : null>
         <SectionLabel>Désignation</SectionLabel><TextInput style={styles.input} value={designation} onChangeText={setDesignation} maxLength={100} placeholder="Chaufferie" />
         <SectionLabel>Type</SectionLabel><TextInput style={styles.input} value={type} onChangeText={setType} maxLength={255} placeholder="Local technique" />
         <SectionLabel>Situation</SectionLabel><TextInput style={styles.input} value={situation} onChangeText={setSituation} maxLength={50} placeholder="Sous-sol" />
         <SectionLabel>Trame Intranet</SectionLabel><ChoiceChips values={referential?.trames || []} value={trameId} onChange={setTrameId} getKey={(trame) => String(trame.id)} getLabel={(trame) => trame.nom || `Trame ${trame.id}`} />
         <SectionLabel>Périodicité de visite (mois)</SectionLabel><TextInput style={styles.input} value={periodiciteVisite} onChangeText={(v) => setPeriodiciteVisite(v.replace(/\D/g, '').slice(0, 3))} keyboardType="number-pad" placeholder="12" />
-      </ScrollView><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} disabled={creating} onPress={() => setModalVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={[styles.btnPrimary, !canCreate && { opacity: 0.45 }]} disabled={!canCreate || creating} onPress={createLocal}><ButtonGlow /><Text style={styles.btnPrimaryText}>{creating ? 'Enregistrement…' : 'Créer'}</Text></TouchableOpacity></View></View></View>
+      </ScrollView><View style={styles.modalActions}><TouchableOpacity style={styles.btnSecondary} disabled={creating} onPress={() => setModalVisible(false)}><Text style={styles.btnSecondaryText}>Annuler</Text></TouchableOpacity><TouchableOpacity style={[styles.btnPrimary, !canCreate && { opacity: 0.45 }]} disabled={!canCreate || creating} onPress={createLocal}><ButtonGlow /><Text style={styles.btnPrimaryText}>{creating ? 'Enregistrement…' : existingInstallationId ? 'Publier ce local' : 'Créer'}</Text></TouchableOpacity></View></View></View>
     </Modal>
   </View>;
 }
