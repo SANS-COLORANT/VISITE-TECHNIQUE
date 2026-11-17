@@ -14,6 +14,7 @@ import { Animated, ScrollView, StyleSheet, Text, TouchableOpacity, View } from '
 import { LinearGradient } from 'expo-linear-gradient';
 import { Picto, pictoOnglet, ACTION_PICTOS } from './MetraPictos.js';
 import { COLORS, FONTS } from './styles.js';
+import { CvcIcon } from './MetraCvcIcons.js';
 import { WAVE_EDGE, WAVE_ROWS, centrerOnglet, decalageBarre, entreesPager, profilBande, profilIcone } from './swipeNavigation.js';
 import { ouvrirAideReglementaire } from './AideReglementaire.js';
 import { APPUI_LONG_MS } from './aideReglementaire.js';
@@ -260,7 +261,7 @@ export function AvisCounters({ avis }) {
   );
 }
 
-export function VisitActionBar({ onNote, onPhoto, onAnomalie, photoLabel = 'Photo libre' }) {
+export function VisitActionBar({ onNote, onPhoto, onGallery, onAnomalie, photoLabel = 'Photo libre' }) {
   return (
     <View style={s.barWrap}>
       <View style={s.bar}>
@@ -274,6 +275,11 @@ export function VisitActionBar({ onNote, onPhoto, onAnomalie, photoLabel = 'Phot
             <Text numberOfLines={1} style={[s.actText, { color: COLORS.white }]}>{photoLabel}</Text>
           </LinearGradient>
         </TouchableOpacity>
+        {onGallery ? <TouchableOpacity accessibilityRole="button" accessibilityLabel="Choisir une photo dans la galerie"
+          onPress={onGallery} activeOpacity={0.8} style={s.act}>
+          <CvcIcon name="gallery" size={18} color={COLORS.orangeDark} />
+          <Text numberOfLines={1} style={s.actText}>Galerie</Text>
+        </TouchableOpacity> : null}
         <TouchableOpacity accessibilityLabel="Ajouter une anomalie, une remarque ou une réserve" onPress={onAnomalie} activeOpacity={0.8} style={s.act}>
           <Picto name={ACTION_PICTOS.anomalie} size={19} mono="#C23B2E" />
           <Text numberOfLines={1} style={[s.actText, { color: "#C23B2E" }]}>Anomalie</Text>
