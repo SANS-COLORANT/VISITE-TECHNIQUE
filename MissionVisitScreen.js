@@ -5,6 +5,8 @@ import { MISSION_COLORS, missionStyles } from './missionTheme.js';
 import { creerPointMission } from './missionsDb.js';
 import { creerActionMission, creerOuTrouverActeurMission, creerReferenceMission, enregistrerDetailsPointMission, enregistrerMesureMission } from './missionDomainDb.js';
 import { capturerPhotoMission, choisirEtAjouterDocumentMission } from './missionMediaDb.js';
+import { choisirPhotoDansGalerie, compresserPhotoDeGalerie, nettoyerPhotoTemporaireGalerie } from './photoGalleryImport.js';
+import { PhotoGalleryImportSheet } from './PhotoGalleryImportSheet.js';
 import { demarrerDicteeLocale } from './missionNativeTools.js';
 import { enregistrerNoteVocaleMission, genererChecklistFinVisite, ignorerCheckVisite } from './missionVisitQualityDb.js';
 import { getMissionVisitRecipe, MISSION_CAPTURE_MODES } from './missionRecipes.js';
@@ -104,6 +106,7 @@ export function MissionVisitScreen({ navigation, route }) {
   const [measureUnit, setMeasureUnit] = useState('');
   const [measureReference, setMeasureReference] = useState('');
   const [mediaBusy, setMediaBusy] = useState(false);
+  const [galerieMissionAsset,setGalerieMissionAsset] = useState(null);
   const [dictationBusy, setDictationBusy] = useState(false);
   const [checklist, setChecklist] = useState([]);
   const [checklistModal, setChecklistModal] = useState(false);
@@ -339,6 +342,39 @@ export function MissionVisitScreen({ navigation, route }) {
     } catch (e) {
       Alert.alert('Photo non enregistrée', String(e?.message || e));
     } finally {
+      setMediaBusy(false);
+    }
+  };
+
+  const choisirPhotoMissionGalerie = async () => {
+    if(mediaBusy || !actualMissionId) return;
+    setMediaBusy(true);
+    try {
+      const selected=await choisirPhotoDansGalerie();
+      if(selected) setGalerieMissionAsset(selected);
+    } catch(error) {
+      Alert.alert('Galerie Mission indisponible',String(error?.message||error));
+    } finally { setMediaBusy(false); }
+  };
+  const enregistrerGalerieMission = async titre => {
+    if(mediaBusy || !galerieMissionAsset?.uri || !actualMissionId)return;
+    setMediaBusy(true);
+    let compact=null;
+    try {
+      compact=await compresserPhotoDeGalerie(galerieMissionAsset);
+      const saved=await capturerPhotoMission({
+        missionId:actualMissionId,siteId:data?.visit?.site_id,visitId,
+        locationId:contextLocationId || null,equipmentId:contextEquipmentId || null,
+        label:titre,type:'terrain',sourceUri:compact.uri,
+      });
+      if(saved){
+        setGalerieMissionAsset(null);
+        setStats(await compterSaisieVisiteMission(visitId));
+      }
+    } catch(error) {
+      Alert.alert('Import galerie Mission impossible',String(error?.message||error));
+    } finally {
+      if(compact?.uri) await nettoyerPhotoTemporaireGalerie(compact.uri);
       setMediaBusy(false);
     }
   };
@@ -843,6 +879,11 @@ export function MissionVisitScreen({ navigation, route }) {
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]} onPress={() => openPointPreset(null)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Point</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]} onPress={() => openMeasurePreset(null)}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Mesure</Text></TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]} disabled={mediaBusy} onPress={addPhoto}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>📷 Photo</Text></TouchableOpacity>
+        <TouchableOpacity accessibilityRole="button" accessibilityLabel="Photo de galerie pour la mission"
+          style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]}
+          disabled={mediaBusy} onPress={choisirPhotoMissionGalerie}>
+          <Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>▣ Galerie</Text>
+        </TouchableOpacity>
         <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { flexGrow: 1, alignItems: 'center' }]} disabled={mediaBusy} onPress={addDocument}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>＋ Document</Text></TouchableOpacity>
       </View>
       <TouchableOpacity style={[styles.btnSecondary, missionStyles.secondaryButton, { marginBottom: 18, alignItems: 'center' }]} onPress={complete}><Text style={[styles.btnSecondaryText, missionStyles.secondaryButtonText]}>Fin de visite</Text></TouchableOpacity>
@@ -1037,5 +1078,9 @@ export function MissionVisitScreen({ navigation, route }) {
         </View>
       </View></View>
     </Modal>
+    <PhotoGalleryImportSheet asset={galerieMissionAsset}
+      contextLabel="Photo terrain" busy={mediaBusy}
+      onCancel={()=>setGalerieMissionAsset(null)}
+      onConfirm={enregistrerGalerieMission}/>
   </View>;
 }
