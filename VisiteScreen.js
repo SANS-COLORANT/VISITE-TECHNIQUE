@@ -75,6 +75,9 @@ const VisitPanelHost = memo(function VisitPanelHost({
   onNextPanel,
   onRemarActiveCta,
   searchTarget,
+  galleryOpenRequest,
+  galleryContext,
+  onGalleryRequestHandled,
   active,
 }) {
   if (special) {
@@ -82,7 +85,7 @@ const VisitPanelHost = memo(function VisitPanelHost({
     if (panelId === 'p-releves') return <OptimizedRelevesPanel visiteId={visiteId} onSaved={onSaved} trameId={trameId} panels={panels} />;
     if (panelId === 'p-equip') return <GuidedEquipmentPanel visiteId={visiteId} trameId={trameId} active={active} />;
     if (panelId === 'p-remarques') return <OptimizedRemarksPanel visiteId={visiteId} tabOrder={tabOrder} panelLabels={panelLabels} panels={panels} intranetLinked={intranetLinked} trameId={trameId} />;
-    if (panelId === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} />;
+    if (panelId === 'p-photos') return <OptimizedPhotoPanel visiteId={visiteId} active={active} galleryOpenRequest={galleryOpenRequest} galleryContext={galleryContext} onGalleryRequestHandled={onGalleryRequestHandled} />;
   }
   return <TrameGenericPanel visiteId={visiteId} panelId={panelId} sections={sections} onSaved={onSaved} onRegisterLocalSwipe={onRegisterLocalSwipe} nextPanel={nextPanel} onNextPanel={onNextPanel} trameId={trameId}
     onRemarActiveCta={onRemarActiveCta} searchTarget={searchTarget} active={active} />;
@@ -127,6 +130,8 @@ function VisiteScreen({ route, onBack }) {
   const { width, height } = useWindowDimensions();
   // Capture libre depuis la barre : la photographie reste locale par défaut.
   const [captureLibreEnCours, setCaptureLibreEnCours] = useState(false);
+  const [galleryOpenRequest,setGalleryOpenRequest] = useState(0);
+  const [galleryContext,setGalleryContext] = useState(null);
   const [signatureVisible, setSignatureVisible] = useState(false);
   const [signature, setSignature] = useState(null);
   const [apercuEnCours, setApercuEnCours] = useState(false);
@@ -840,6 +845,9 @@ function VisiteScreen({ route, onBack }) {
               onRemarActiveCta={estParcoursRemar && panelId==='p-remar-cta'
                 ? noteRemarActiveCta : undefined}
               searchTarget={searchTarget?.pid === panelId ? searchTarget : null}
+              galleryOpenRequest={panelId==='p-photos' ? galleryOpenRequest : 0}
+              galleryContext={galleryContext}
+              onGalleryRequestHandled={()=>setGalleryOpenRequest(0)}
             />
           </Animated.View>
         </Animated.View>;
@@ -874,6 +882,14 @@ function VisiteScreen({ route, onBack }) {
     } finally {
       setCaptureLibreEnCours(false);
     }
+  };
+  const ouvrirGalerieLibre = () => {
+    if (captureLibreEnCours || !tabsReels.includes('p-photos')) return;
+    setGalleryContext(estParcoursRemar && activeTab==='p-remar-cta' && remarActiveCta?.id
+      ? {entiteKey:`equipement||${remarActiveCta.id}`,label:remarActiveCta.designation}
+      : null);
+    setGalleryOpenRequest(n=>n+1);
+    changerOnglet('p-photos');
   };
   // Seconde ligne : local · client · trame (défile si elle est trop longue).
   const sousTitre = visiteARattacher
@@ -949,7 +965,7 @@ function VisiteScreen({ route, onBack }) {
       </View> : animatedContent}
       {!clavierVisible && !modeTablette && ongletsEnBas ? <View style={{ paddingHorizontal: 12, paddingTop: 8, marginBottom: -12 }}><SectionRail tabOrder={tabOrder} labels={panelLabels} activeTab={activeTab} onSelect={changerOnglet} tabStates={tabStatus.tabs} trameId={trame.id} onSearch={ouvrirRecherche} pagerX={pagerX} pagerWidth={pagerWidth} pageOrder={tabsReels} visiteId={visiteId} /></View> : null}
       <AideReglementaireHost />
-      {!clavierVisible ? <VisitActionBar onNote={ouvrirNote} onPhoto={prendrePhotoLibre}
+      {!clavierVisible ? <VisitActionBar onNote={ouvrirNote} onPhoto={prendrePhotoLibre} onGallery={ouvrirGalerieLibre}
         photoLabel={estParcoursRemar && activeTab==='p-remar-cta' && remarActiveCta?.id
           ? 'Photo CTA' : 'Photo libre'} onAnomalie={() => setAnomalieVisible(true)} /> : null}
 
