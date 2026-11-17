@@ -33,7 +33,9 @@ need(runtime, 'all.slice(0, 4)', 'preview prewarm must stay bounded');
 
 need(gallery, 'setCameraEnCours(false)', 'gallery camera lock must end immediately after native camera returns');
 need(gallery, 'capturerPhotoLibre(visiteId', 'gallery uses the shared rapid free-photo capture');
-need(freeCapture, 'void (async () => {', 'free photo persistence must continue behind the UI');
+need(freeCapture, 'const savePromise = (async () => {', 'free photo persistence must retain a durable async task');
+need(freeCapture, 'if (uriImportee) return await savePromise', 'gallery import waits until SQLite and file copies finish');
+need(freeCapture, 'void savePromise;', 'camera photo persistence continues behind the UI');
 need(freeCapture, 'upsertRuntimePhoto(visiteId, optimistic)', 'free photo must appear immediately');
 need(freeCapture, 'replaceRuntimePhoto(visiteId, tempId', 'free photo must be replaced by durable row');
 need(freeCapture, 'journaliserPhotoEnAttente', 'free photo durability journal must remain');
