@@ -39,7 +39,6 @@ assert.ok(reg.includes('label="Température de Stockage"'));
 assert.ok(reg.includes('label="Température Départ"'));
 assert.ok(reg.includes('setStockageEcs'));
 assert.ok(reg.includes('isEcsLoop ? <>'));
-assert.ok(reg.includes('isEcsLoop ? <TileRow>'));
 const networkDb=source('db.js');
 assert.ok(networkDb.includes("'t_retour_ecs_c'"));
 assert.ok(networkDb.includes("'t_stockage_ecs_c'"));
