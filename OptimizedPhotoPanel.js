@@ -12,7 +12,7 @@
  *   puis annulable quelques secondes.
  */
 
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { memo, useCallback, useEffect, useMemo, useState } from 'react';
 import { Alert, FlatList, Modal, ScrollView, StyleSheet, Text, TextInput, TouchableOpacity, View, useWindowDimensions } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { ajouterPhoto } from './db.js';
@@ -96,7 +96,7 @@ const MiniVignettes = memo(function MiniVignettes({ photos }) {
   );
 });
 
-function OptimizedPhotoPanel({ visiteId, onAllerAElement, active=true, galleryOpenRequest=0, galleryContext=null, onGalleryRequestHandled }) {
+function OptimizedPhotoPanel({ visiteId, onAllerAElement, active=true }) {
   const { width } = useWindowDimensions();
   const [photos, setPhotos] = useState(() => peekVisitPhotos(visiteId) || []);
   const [remarPhotoContext,setRemarPhotoContext] = useState({ctas:{},items:{},reserves:{}});
@@ -114,7 +114,6 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement, active=true, galleryOp
   const [cameraEnCours, setCameraEnCours] = useState(false);
   const [galerieAsset,setGalerieAsset] = useState(null);
   const [galerieLien,setGalerieLien] = useState(null);
-  const dernierSignalGalerie = useRef(0);
   const [galerieBusy,setGalerieBusy] = useState(false);
   const [galeriePickerBusy,setGaleriePickerBusy] = useState(false);
   const [filtre, setFiltre] = useState('toutes');
@@ -244,18 +243,6 @@ function OptimizedPhotoPanel({ visiteId, onAllerAElement, active=true, galleryOp
       setGaleriePickerBusy(false);
     }
   },[galeriePickerBusy,galerieBusy,cameraEnCours]);
-
-  useEffect(()=>{
-    if(!active || !galleryOpenRequest || dernierSignalGalerie.current===galleryOpenRequest) return;
-    dernierSignalGalerie.current=galleryOpenRequest;
-    // Let the visit pager settle before invoking Android's system picker.
-    const timer=setTimeout(()=>{
-      onGalleryRequestHandled?.();
-      ouvrirGalerie(galleryContext).catch(error=>
-        Alert.alert('Galerie indisponible',String(error?.message||error)));
-    },320);
-    return ()=>clearTimeout(timer);
-  },[active,galleryOpenRequest,galleryContext,ouvrirGalerie,onGalleryRequestHandled]);
 
   const enregistrerGalerie = useCallback(async titre => {
     if (!galerieAsset?.uri || galerieBusy) return;
