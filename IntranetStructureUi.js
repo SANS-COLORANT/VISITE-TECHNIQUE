@@ -264,7 +264,7 @@ export function IntranetSiteLocalsPanel({ siteId, onStartVisit }) {
               setExistingInstallationId(local?.id||null);
               if(local){setDesignation(local.nom||'Local technique');setSituation(local.description||'Sous-sol');}
             }} />
-        </> : null>
+        </> : null}
         <SectionLabel>Désignation</SectionLabel><TextInput style={styles.input} value={designation} onChangeText={setDesignation} maxLength={100} placeholder="Chaufferie" />
         <SectionLabel>Type</SectionLabel><TextInput style={styles.input} value={type} onChangeText={setType} maxLength={255} placeholder="Local technique" />
         <SectionLabel>Situation</SectionLabel><TextInput style={styles.input} value={situation} onChangeText={setSituation} maxLength={50} placeholder="Sous-sol" />
